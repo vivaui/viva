@@ -447,6 +447,7 @@ extern void vivaFrameChanged(
 );
 
 extern void vivaWindowMinimized(uintptr_t callbackHandle, void *view, int minimized);
+extern int vivaWindowReopenRequested(uintptr_t callbackHandle, void *view);
 
 extern void vivaTextInput(
     uintptr_t callbackHandle,
@@ -4302,6 +4303,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)confirmClose;
 - (void)hideWindow;
 - (void)showWindow;
+- (void)reopenWindow;
 - (BOOL)isPanel;
 - (BOOL)isHidden;
 - (void)requestRedraw:(uintptr_t)callbackHandle;
@@ -4786,6 +4788,18 @@ static void viva_set_secure_event_input(BOOL on) {
     }
 }
 
+/* A Dock reopen must let the owner reset its hidden state before showing. */
+- (void)reopenWindow {
+    if (_window == nil || !_running) {
+        return;
+    }
+    // A handled request queues Window.Show, which clears the Go hidden state and
+    // preserves ordering with any Hide already posted by the application.
+    if (_callbackHandle == 0 || !vivaWindowReopenRequested(_callbackHandle, _window.contentView)) {
+        [self showWindow];
+    }
+}
+
 /* Puts the content area's top-left at the requested screen point, kept on a
  * screen. */
 - (void)placeAtOrigin {
@@ -4931,7 +4945,7 @@ static void viva_reset_profile_counters(void) {
     (void)flag;
     for (VivaAppDelegate *delegate in viva_application_windows) {
         if (![delegate isPanel] && [delegate isHidden]) {
-            [delegate showWindow];
+            [delegate reopenWindow];
         }
     }
     return NO;

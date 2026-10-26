@@ -109,6 +109,23 @@ func vivaFrameChanged(handle C.uintptr_t, view unsafe.Pointer, x, y, width, heig
 	state.frameHandler(ui.Rect{X: float32(x), Y: float32(y), Width: float32(width), Height: float32(height)})
 }
 
+//export vivaWindowReopenRequested
+func vivaWindowReopenRequested(handle C.uintptr_t, view unsafe.Pointer) (handled C.int) {
+	state := cgo.Handle(handle).Value().(*runState)
+	if state.onReopen == nil {
+		return 0
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			state.err = fmt.Errorf("darwin: reopen handler panicked: %v", recovered)
+			C.viva_view_close(view)
+			handled = 1
+		}
+	}()
+	state.onReopen()
+	return 1
+}
+
 //export vivaWindowMinimized
 func vivaWindowMinimized(handle C.uintptr_t, view unsafe.Pointer, minimized C.int) {
 	state := cgo.Handle(handle).Value().(*runState)

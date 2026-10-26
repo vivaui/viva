@@ -4,6 +4,7 @@ package app
 
 import (
 	"errors"
+	"runtime"
 	"testing"
 
 	"github.com/vivaui/viva/ui"
@@ -185,6 +186,56 @@ func TestHiddenWindowStaysOpenAndShowBringsItBack(t *testing.T) {
 	window.Show()
 	if host.windows[0].shows != 2 || host.windows[0].hides != 1 {
 		t.Fatalf("closed window was driven: shows=%d hides=%d", host.windows[0].shows, host.windows[0].hides)
+	}
+}
+
+func TestDockReopenThenHideReachesNativeWindow(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Dock reopen is macOS-specific")
+	}
+	host := &fakeHost{}
+	useHost(t, host)
+	var window, other *Window
+	if err := RunApplication(func(application *Application) error {
+		var err error
+		window, err = application.OpenWindow(Config{
+			Title: "Dock reopen regression",
+			OnCloseRequest: func(allow func()) {
+				window.Hide()
+			},
+		}, nil)
+		if err != nil {
+			return err
+		}
+		other, err = application.OpenWindow(Config{Title: "other"}, nil)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	native := host.windows[0]
+	if native.config.onReopen == nil {
+		t.Fatal("the platform was given no reopen handler")
+	}
+	other.Hide()
+	for cycle := 1; cycle <= 3; cycle++ {
+		native.config.OnCloseRequest(func() { t.Fatal("close-to-tray request closed the window") })
+		window.Hide()
+		if !window.Hidden() || window.Closed() || native.hides != cycle {
+			t.Fatalf("cycle %d after close: hidden=%t closed=%t native hides=%d", cycle, window.Hidden(), window.Closed(), native.hides)
+		}
+		// A Dock click asks the platform to reopen, without a caller using Show.
+		native.config.onReopen()
+		if window.Hidden() || window.Closed() || native.shows != cycle {
+			t.Fatalf("cycle %d after Dock reopen: hidden=%t closed=%t native shows=%d", cycle, window.Hidden(), window.Closed(), native.shows)
+		}
+		if !other.Hidden() || host.windows[1].shows != 0 {
+			t.Fatal("reopening one window changed another window's state")
+		}
+	}
+	window.Close()
+	native.config.onReopen()
+	if native.shows != 3 {
+		t.Fatal("a Dock reopen showed a closed window")
 	}
 }
 

@@ -99,8 +99,7 @@ func (window *Window) Frame() (ui.Rect, bool) {
 }
 
 // Hidden reports whether Hide took the window off the screen and Show has not
-// put it back. It follows the application's own calls: a user who brings the
-// window back some other way, a Dock click on macOS, is not seen.
+// put it back. A macOS Dock reopen also goes through Show.
 func (window *Window) Hidden() bool {
 	return window != nil && window.hidden.Load()
 }
@@ -161,6 +160,7 @@ func (application *Application) OpenWindow(config Config, canvas *ui.Canvas) (*W
 			onMinimize(minimized)
 		}
 	}
+	setReopenHandler(&config, window)
 	control, err := application.host.OpenWindow(config, canvas, closed)
 	if err != nil {
 		forget()

@@ -224,6 +224,7 @@ func prepareNativeWindow(config Config, canvas *ui.Canvas) (platform.Config, fun
 		Accessibility: painter.accessibility, OnResize: resizeHandler,
 		OnFrameChange: frameChangeHandler(normalized.OnFrameChange),
 		OnMinimize:    minimizeHandler(normalized.OnMinimize),
+		OnReopen:      normalized.onReopen,
 		OnPointer:     pointerHandler, PressAt: painter.pressAt,
 		OnKey: keyHandler, OnShortcut: painter.shortcutHandler(&normalized), OnAccessibility: painter.accessibilityHandler(&normalized), OnFocusLost: painter.focusLostHandler(), OnScroll: scrollHandler, OnFileDrop: dropHandler, OnRedraw: redrawHandler,
 		Waker: waker, OnCloseRequest: closeHandler,

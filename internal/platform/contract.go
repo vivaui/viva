@@ -58,6 +58,9 @@ type Config struct {
 	// OnMinimize, when set, runs on the window thread when the window is
 	// minimized or restored. It is the platform's own state, not Hide.
 	OnMinimize MinimizeHandler
+	// OnReopen handles a native reopen request, such as a macOS Dock click.
+	// When set, it must show the window; otherwise the adapter shows it directly.
+	OnReopen   func()
 	OnKey      KeyHandler
 	OnShortcut ShortcutHandler
 	// OnFocusLost, when set, runs when the window stops being the one the

@@ -98,6 +98,7 @@ type runState struct {
 	resizeHandler    ResizeHandler
 	frameHandler     platform.FrameChangeHandler
 	minimizeHandler  platform.MinimizeHandler
+	onReopen         func()
 	keyHandler       KeyHandler
 	focusLostHandler platform.FocusLostHandler
 	accessibility    platform.AccessibilityHandler
@@ -279,7 +280,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 
 	state := &runState{application: application, onClosed: config.OnClosed, waker: config.Waker, closeHandler: config.OnCloseRequest, pressAt: config.PressAt,
-		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize}
+		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, onReopen: config.OnReopen}
 	{
 		state.captureRectangleLayers(config.Rectangles)
 		if config.OnPointer != nil {

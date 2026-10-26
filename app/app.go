@@ -161,6 +161,8 @@ type Config struct {
 	// Reload contains optional development-only state migration hooks. Normal
 	// release runs never call them and do not link the reload coordinator.
 	Reload ReloadConfig
+	// onReopen routes a native reopen request through the owning Window.Show.
+	onReopen func()
 }
 
 // ReloadConfig explicitly snapshots application-owned state across a
