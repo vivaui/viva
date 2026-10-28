@@ -32,6 +32,17 @@ func commands() []command {
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runBuild(arguments, output, errorOutput)
 			}},
+		{name: "sign", usage: "sign --target windows --program FILE",
+			summary: "Sign a Windows program that was built elsewhere, in place.",
+			detail: "Uses the same Windows signing options as package: a custom command with {file} " +
+				"($WINDOWS_SIGN_COMMAND or --sign-command), or a certificate from $WINDOWS_CERTIFICATE_FILE/ " +
+				"$WINDOWS_CERTIFICATE with $WINDOWS_CERTIFICATE_PASSWORD and $WINDOWS_TIMESTAMP_URL. With no " +
+				"options it leaves the program as it is, as package does. A release that verifies build " +
+				"information and then packages with --program needs this: package treats a supplied program " +
+				"as finished.",
+			run: func(arguments []string, output, errorOutput io.Writer) error {
+				return runSign(arguments, output, errorOutput)
+			}},
 		{name: "package", usage: "package [flags]",
 			summary: "Package the application for macOS, Windows or Linux (macOS signing is optional).",
 			detail: "Builds the program and packages it, all from viva.toml. --target darwin makes <name>.app (--format\n" +
