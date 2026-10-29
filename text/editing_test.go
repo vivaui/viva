@@ -24,6 +24,42 @@ func TestWordEditingPreservesGraphemesAndUndo(t *testing.T) {
 	}
 }
 
+func TestDeleteLineBoundaryPreservesTheCaretAndUndo(t *testing.T) {
+	editor := NewEditor("first\nsecond")
+	editor.SetSelection(Range{Start: 9, End: 9})
+	if !editor.DeleteLineBoundary(false) {
+		t.Fatal("delete to line start did not change the editor")
+	}
+	if editor.String() != "first\nond" || editor.Caret() != 6 {
+		t.Fatalf("line start delete = %q at %d", editor.String(), editor.Caret())
+	}
+	if !editor.Undo() || editor.String() != "first\nsecond" || editor.Caret() != 9 {
+		t.Fatalf("undo did not restore line start delete: %q at %d", editor.String(), editor.Caret())
+	}
+
+	editor.SetSelection(Range{Start: 2, End: 2})
+	if !editor.DeleteLineBoundary(true) || editor.String() != "fi\nsecond" || editor.Caret() != 2 {
+		t.Fatalf("line end delete = %q at %d", editor.String(), editor.Caret())
+	}
+}
+
+func TestDeleteLineBoundarySelectionStartsASeparateUndoUnit(t *testing.T) {
+	editor := NewEditor("abcdef")
+	editor.SetSelection(Range{Start: 2, End: 4})
+	if !editor.DeleteLineBoundary(false) || editor.String() != "abef" {
+		t.Fatalf("selection delete = %q", editor.String())
+	}
+	if !editor.DeleteBackward() || editor.String() != "aef" {
+		t.Fatalf("follow-up delete = %q", editor.String())
+	}
+	if !editor.Undo() || editor.String() != "abef" {
+		t.Fatalf("undo merged the follow-up delete: %q", editor.String())
+	}
+	if !editor.Undo() || editor.String() != "abcdef" {
+		t.Fatalf("undo did not restore the line command: %q", editor.String())
+	}
+}
+
 func TestAddressWordBoundariesAndLineNavigation(t *testing.T) {
 	editor := NewEditor("host.example.com")
 	for _, want := range []int{13, 12, 5, 4, 0} {

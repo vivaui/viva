@@ -70,6 +70,9 @@ func TestClipboardEditingIsAtomicAndSecure(t *testing.T) {
 }
 
 func TestEditingKeyMapPreservesModifiers(t *testing.T) {
+	if TextDeleteLineStart != 27 || TextDeleteLineEnd != 28 {
+		t.Fatalf("line-delete command values changed: start=%d end=%d", TextDeleteLineStart, TextDeleteLineEnd)
+	}
 	for _, tc := range []struct {
 		key       input.Key
 		mods      input.Modifiers
@@ -85,8 +88,12 @@ func TestEditingKeyMapPreservesModifiers(t *testing.T) {
 		{input.KeyHome, input.ModifierControl | input.ModifierShift, "", TextMoveDocumentStartAndModifySelection},
 		{input.KeyLeft, input.ModifierControl, "", TextMoveWordLeft},
 		{input.KeyRight, input.ModifierControl | input.ModifierShift, "", TextMoveWordRightAndModifySelection},
+		{input.KeyLeft, input.ModifierAlt, "", TextMoveWordLeft},
+		{input.KeyRight, input.ModifierAlt | input.ModifierShift, "", TextMoveWordRightAndModifySelection},
 		{input.KeyBackspace, input.ModifierControl, "", TextDeleteWordBackward},
 		{input.KeyDelete, input.ModifierControl, "", TextDeleteWordForward},
+		{input.KeyBackspace, input.ModifierMeta, "", TextDeleteLineStart},
+		{input.KeyDelete, input.ModifierMeta, "", TextDeleteLineEnd},
 	} {
 		got, ok := TextEditingCommand(KeyEvent{Key: tc.key, Modifiers: tc.mods, Text: tc.character})
 		if !ok || got != tc.command {

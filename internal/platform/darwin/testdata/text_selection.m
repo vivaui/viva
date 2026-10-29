@@ -172,6 +172,8 @@ static NSEvent *keyEvent(NSString *characters, NSEventModifierFlags modifiers) {
 
 int main(void) {
     @autoreleasepool {
+        assert(VIVA_TEXT_DELETE_LINE_START == 27);
+        assert(VIVA_TEXT_DELETE_LINE_END == 28);
         SelectionView *view = [[SelectionView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320)];
         // An empty field must still get a caret of real height: a line with no
         // glyphs reports zero ascent and descent.
@@ -299,6 +301,7 @@ int main(void) {
         }
         [view disablePointerCallbacks];
         [view setEditing:YES];
+        [view enableKeyCallbacks];
 
         // Return asks to submit; Shift, Option or Control with it ask for a line
         // break, and so do the selectors AppKit sends for a line break.
@@ -325,6 +328,79 @@ int main(void) {
         assert(view->lastCommand == VIVA_TEXT_INSERT_LINE_BREAK);
         [view doCommandBySelector:@selector(insertNewlineIgnoringFieldEditor:)];
         assert(view->lastCommand == VIVA_TEXT_INSERT_LINE_BREAK);
+        view->recordEdits = NO;
+        [view resetText:@"abc\ndef"];
+        [view selectTextRange:NSMakeRange(5, 0)];
+        view->recordEdits = YES;
+        [view doCommandBySelector:@selector(deleteToBeginningOfLine:)];
+        assert(view->lastCommand == VIVA_TEXT_DELETE_LINE_START);
+        [view doCommandBySelector:@selector(deleteToBeginningOfParagraph:)];
+        assert(view->lastCommand == VIVA_TEXT_DELETE_LINE_START);
+        [view doCommandBySelector:@selector(deleteToEndOfLine:)];
+        assert(view->lastCommand == VIVA_TEXT_DELETE_LINE_END);
+        [view doCommandBySelector:@selector(deleteToEndOfParagraph:)];
+        assert(view->lastCommand == VIVA_TEXT_DELETE_LINE_END);
+        [view doCommandBySelector:@selector(deleteWordBackward:)];
+        assert(view->lastCommand == VIVA_TEXT_DELETE_WORD_BACKWARD);
+        [view doCommandBySelector:@selector(deleteWordForward:)];
+        assert(view->lastCommand == VIVA_TEXT_DELETE_WORD_FORWARD);
+        // Option+Left/Right are AppKit's word-navigation selectors. They must
+        // reach the shared editor just like Control+Left/Right elsewhere.
+        [view resetText:@"hello world/path"];
+        view->recordEdits = YES;
+        [view keyDown:keyEvent([NSString stringWithFormat:@"%C", (unichar)NSLeftArrowFunctionKey], NSEventModifierFlagOption)];
+        assert(view->lastCommand == VIVA_TEXT_MOVE_WORD_LEFT);
+        [view keyDown:keyEvent([NSString stringWithFormat:@"%C", (unichar)NSRightArrowFunctionKey], NSEventModifierFlagOption | NSEventModifierFlagShift)];
+        assert(view->lastCommand == VIVA_TEXT_MOVE_WORD_RIGHT_AND_MODIFY_SELECTION);
+        [view doCommandBySelector:@selector(moveWordLeft:)];
+        assert(view->lastCommand == VIVA_TEXT_MOVE_WORD_LEFT);
+        [view doCommandBySelector:@selector(moveWordRightAndModifySelection:)];
+        assert(view->lastCommand == VIVA_TEXT_MOVE_WORD_RIGHT_AND_MODIFY_SELECTION);
+        // Exercise the actual AppKit key path for Command+Delete, rather than
+        // calling the selector directly. It must delete to the line start.
+        [view resetText:@"hello"];
+        [view setMultiline:YES];
+        [view selectTextRange:NSMakeRange(5, 0)];
+        view->recordEdits = YES;
+        unichar macDeleteKey = 0x7f;
+        NSString *macDeleteText = [NSString stringWithCharacters:&macDeleteKey length:1];
+        NSEvent *macDeleteEvent = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
+            modifierFlags:NSEventModifierFlagCommand timestamp:0 windowNumber:0 context:nil
+            characters:macDeleteText charactersIgnoringModifiers:macDeleteText isARepeat:NO keyCode:51];
+        [view keyDown:macDeleteEvent];
+        assert(view->lastCommand == VIVA_TEXT_DELETE_LINE_START);
+        [view resetText:@"hello"];
+        [view setMultiline:YES];
+        [view selectTextRange:NSMakeRange(5, 0)];
+        view->recordEdits = YES;
+        [view interpretKeyEvents:@[macDeleteEvent]];
+        assert(view->lastCommand == VIVA_TEXT_DELETE_LINE_START);
+        [view resetText:@"hello"];
+        [view selectTextRange:NSMakeRange(5, 0)];
+        view->recordEdits = YES;
+        assert([view performKeyEquivalent:macDeleteEvent]);
+        assert(view->lastCommand == VIVA_TEXT_DELETE_LINE_START);
+        unichar forwardDeleteKey = NSDeleteFunctionKey;
+        NSString *forwardDeleteText = [NSString stringWithCharacters:&forwardDeleteKey length:1];
+        NSEvent *forwardDeleteEvent = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
+            modifierFlags:NSEventModifierFlagCommand timestamp:0 windowNumber:0 context:nil
+            characters:forwardDeleteText charactersIgnoringModifiers:forwardDeleteText isARepeat:NO keyCode:117];
+        [view resetText:@"hello"];
+        [view selectTextRange:NSMakeRange(0, 0)];
+        view->recordEdits = YES;
+        assert([view performKeyEquivalent:forwardDeleteEvent]);
+        assert(view->lastCommand == VIVA_TEXT_DELETE_LINE_END);
+        // Fn+Delete can retain the Backspace physical keyCode while exposing
+        // the forward-delete function character. The function character must
+        // win so it deletes to the line end.
+        NSEvent *fnDeleteEvent = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
+            modifierFlags:NSEventModifierFlagCommand timestamp:0 windowNumber:0 context:nil
+            characters:forwardDeleteText charactersIgnoringModifiers:forwardDeleteText isARepeat:NO keyCode:51];
+        [view resetText:@"hello"];
+        [view selectTextRange:NSMakeRange(0, 0)];
+        view->recordEdits = YES;
+        assert([view performKeyEquivalent:fnDeleteEvent]);
+        assert(view->lastCommand == VIVA_TEXT_DELETE_LINE_END);
         [view doCommandBySelector:@selector(undo:)];
         assert(view->lastCommand == VIVA_TEXT_UNDO);
         [view doCommandBySelector:@selector(redo:)];

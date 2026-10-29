@@ -1,12 +1,47 @@
 package web
 
 import (
-	"github.com/vivaui/viva/ui"
 	"testing"
 
+	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
+	"github.com/vivaui/viva/ui"
 )
+
+func TestWebDeleteCommandMatchesSharedEditing(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		key       string
+		modifiers ui.Modifiers
+		want      platform.TextCommand
+	}{
+		{"plain Backspace", "Backspace", 0, platform.TextDeleteBackward},
+		{"plain Delete", "Delete", 0, platform.TextDeleteForward},
+		{"Meta+Backspace deletes to line start", "Backspace", input.ModifierMeta, platform.TextDeleteLineStart},
+		{"Meta+Delete deletes to line end", "Delete", input.ModifierMeta, platform.TextDeleteLineEnd},
+		{"Control+Backspace deletes a word", "Backspace", input.ModifierControl, platform.TextDeleteWordBackward},
+		{"Control+Delete deletes a word", "Delete", input.ModifierControl, platform.TextDeleteWordForward},
+	} {
+		got, ok := webDeleteCommand(test.key, test.modifiers)
+		if !ok || got != test.want {
+			t.Errorf("%s: got %v, %v; want %v, true", test.name, got, ok, test.want)
+		}
+	}
+	for _, test := range []struct {
+		name      string
+		key       string
+		modifiers ui.Modifiers
+	}{
+		{"Alt+Backspace stays with the browser/IME", "Backspace", input.ModifierAlt},
+		{"Shift+Delete stays with the browser cut command", "Delete", input.ModifierShift},
+		{"unknown key is not a deletion", "ArrowLeft", input.ModifierMeta},
+	} {
+		if command, ok := webDeleteCommand(test.key, test.modifiers); ok {
+			t.Errorf("%s: got %v, want no command", test.name, command)
+		}
+	}
+}
 
 func TestTextInputRuneUTF16Conversions(t *testing.T) {
 	value := "A中😀e\u0301"
@@ -233,5 +268,46 @@ func TestEditorInputsResolvesWithoutAllocatingOnceWarm(t *testing.T) {
 	provider(TextInputContext{ID: ui.Item(1)})
 	if allocations := testing.AllocsPerRun(100, func() { provider(TextInputContext{ID: ui.Item(1)}) }); allocations != 0 {
 		t.Fatalf("resolving the focused hit allocated %v times per repaint", allocations)
+	}
+}
+
+func TestTextKeyRoutingMatchesNativeEditors(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		input       TextInput
+		key         ui.Key
+		mods        ui.Modifiers
+		composing   bool
+		command     platform.TextCommand
+		application bool
+	}{
+		{name: "multiline submit", input: TextInput{Multiline: true}, key: ui.KeyEnter, command: platform.TextInsertNewline},
+		{name: "multiline line break", input: TextInput{Multiline: true}, key: ui.KeyEnter, mods: ui.ModifierShift, command: platform.TextInsertLineBreak},
+		{name: "single line submit", key: ui.KeyEnter, application: true},
+		{name: "tab traversal", key: ui.KeyTab, application: true},
+		{name: "escape dismissal", key: ui.KeyEscape, application: true},
+		{name: "autocomplete up", input: TextInput{NavigationKeys: true}, key: ui.KeyUp, application: true},
+		{name: "autocomplete page down", input: TextInput{NavigationKeys: true}, key: ui.KeyPageDown, application: true},
+		{name: "placed home", input: TextInput{Placed: true}, key: ui.KeyHome, application: true},
+		{name: "placed shift end", input: TextInput{Placed: true}, key: ui.KeyEnd, mods: ui.ModifierShift, application: true},
+		{name: "placed down", input: TextInput{Placed: true}, key: ui.KeyDown, application: true},
+		{name: "placed command left", input: TextInput{Placed: true}, key: ui.KeyLeft, mods: ui.ModifierMeta, application: true},
+		{name: "placed option left moves a word", input: TextInput{Placed: true}, key: ui.KeyLeft, mods: ui.ModifierAlt, command: platform.TextMoveWordLeft},
+		{name: "placed option shift right extends a word", input: TextInput{Placed: true}, key: ui.KeyRight, mods: ui.ModifierAlt | ui.ModifierShift, command: platform.TextMoveWordRightAndModifySelection},
+		{name: "control right moves a word", key: ui.KeyRight, mods: ui.ModifierControl, command: platform.TextMoveWordRight},
+		{name: "ordinary arrow stays native", key: ui.KeyUp},
+		{name: "ordinary home stays native", key: ui.KeyHome},
+		{name: "placed plain left stays native", input: TextInput{Placed: true}, key: ui.KeyLeft},
+		{name: "DOM composition owns return", input: TextInput{Multiline: true}, key: ui.KeyEnter, composing: true},
+		{name: "editor composition owns navigation", input: TextInput{Placed: true, State: TextState{Composing: true}}, key: ui.KeyHome},
+		{name: "composition owns tab", key: ui.KeyTab, composing: true},
+		{name: "composition owns escape", key: ui.KeyEscape, composing: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			command, application := webTextKey(test.input, test.key, test.mods, test.composing)
+			if command != test.command || application != test.application {
+				t.Fatalf("route=(%v,%v), want (%v,%v)", command, application, test.command, test.application)
+			}
+		})
 	}
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/vivaui/viva/internal/bidi"
 	"github.com/vivaui/viva/internal/input"
+	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -409,46 +410,92 @@ func (runtime *runtime) bindEvents() {
 		return nil
 	}), map[string]any{"passive": false})
 	runtime.focusRoot.Call("addEventListener", "keydown", js.FuncOf(func(_ js.Value, args []js.Value) any {
-		event := args[0]
-		modifiers := webModifiers(event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(), event.Get("altKey").Bool(), event.Get("metaKey").Bool())
-		shortcut := strings.ToLower(event.Get("key").String())
-		if runtime.config.OnShortcut != nil && modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0 && utf8.RuneCountInString(shortcut) == 1 {
-			handled, changed := runtime.painter.shortcut(ui.KeyEvent{Modifiers: modifiers, Repeat: event.Get("repeat").Bool(), Text: shortcut})
-			if handled {
-				event.Call("preventDefault")
-			}
-			if changed {
-				runtime.requestFrame()
-			}
-			if handled {
-				return nil
-			}
+		runtime.keyDown(args[0])
+		return nil
+	}))
+}
+
+// keyDown routes a DOM event through the same text/application boundary as the
+// native backends. Composition must be checked before application shortcuts.
+func (runtime *runtime) keyDown(event js.Value) {
+	host := runtime.a11y.text
+	if host.activeElement(event.Get("target")) && host.composingEvent(event) {
+		return
+	}
+
+	modifiers := webModifiers(event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(), event.Get("altKey").Bool(), event.Get("metaKey").Bool())
+	shortcut := strings.ToLower(event.Get("key").String())
+	if runtime.config.OnShortcut != nil && modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0 && utf8.RuneCountInString(shortcut) == 1 {
+		handled, changed := runtime.painter.shortcut(ui.KeyEvent{Modifiers: modifiers, Repeat: event.Get("repeat").Bool(), Text: shortcut})
+		if handled {
+			event.Call("preventDefault")
 		}
-		if runtime.a11y.text.activeElement(event.Get("target")) {
-			if event.Get("key").String() == "Tab" {
+		if changed {
+			runtime.requestFrame()
+		}
+		if handled {
+			return
+		}
+	}
+	if host.activeElement(event.Get("target")) {
+		if command, ok := platform.TextHistoryCommand(platform.KeyEvent{Text: event.Get("key").String(), Modifiers: modifiers}); ok {
+			// Programmatic DOM edits do not populate the browser's undo stack.
+			// Undo and redo must use the same Go editor history as those edits.
+			event.Call("preventDefault")
+			host.applyCommand(command)
+			return
+		}
+	}
+	if command, ok := runtime.a11y.text.deleteCommand(event); ok {
+		// Apply deletion through the shared text system before the browser's
+		// default edit can mutate the DOM mirror.
+		event.Call("preventDefault")
+		if runtime.a11y.text.applyCommand(command) {
+			runtime.requestFrame()
+		}
+		return
+	}
+	if runtime.a11y.text.activeElement(event.Get("target")) {
+		host := runtime.a11y.text
+		if key, ok := webKey(event.Get("key").String()); ok {
+			command, application := webTextKey(host.input, key, modifiers, host.composingEvent(event))
+			if command != 0 {
 				event.Call("preventDefault")
-				if runtime.painter.keyDown(ui.KeyEvent{
-					Key:       input.KeyTab,
-					Modifiers: modifiers,
-					Repeat:    event.Get("repeat").Bool(),
-				}) {
+				host.applyCommand(command)
+			} else if application {
+				// Read the current DOM selection before application navigation;
+				// its select event may not have arrived yet.
+				selectionChanged := host.applySelection(host.active.element)
+				handled, changed := runtime.painter.keyDownResult(ui.KeyEvent{
+					Key: key, Modifiers: modifiers, Repeat: event.Get("repeat").Bool(),
+				})
+				if handled {
+					event.Call("preventDefault")
+				}
+				// Re-resolve even when the application consumed the key without
+				// repainting: it may have moved its editor's caret. Update the DOM
+				// now so the next key cannot restore the previous selection.
+				runtime.painter.syncTextInput()
+				id, input := runtime.painter.activeTextInput()
+				host.sync(id, input, runtime.textInputChanged)
+				if changed || selectionChanged {
 					runtime.requestFrame()
 				}
 			}
-			return nil
 		}
-		if key, ok := webKey(event.Get("key").String()); ok {
-			event.Call("preventDefault")
-			if runtime.painter.keyDown(ui.KeyEvent{
-				Key:       key,
-				Modifiers: modifiers,
-				Repeat:    event.Get("repeat").Bool(),
-			}) {
-				runtime.requestFrame()
-			}
+		return
+	}
+	if key, ok := webKey(event.Get("key").String()); ok {
+		event.Call("preventDefault")
+		if runtime.painter.keyDown(ui.KeyEvent{
+			Key:       key,
+			Modifiers: modifiers,
+			Repeat:    event.Get("repeat").Bool(),
+		}) {
+			runtime.requestFrame()
 		}
-		return nil
-	}))
+	}
+	return
 }
 
 func pointerEvent(kind ui.PointerEventKind, event js.Value) ui.PointerEvent {
@@ -535,6 +582,10 @@ func webKey(key string) (input.Key, bool) {
 		return input.KeyUp, true
 	case "ArrowDown":
 		return input.KeyDown, true
+	case "PageUp":
+		return input.KeyPageUp, true
+	case "PageDown":
+		return input.KeyPageDown, true
 	case "Home":
 		return input.KeyHome, true
 	case "End":

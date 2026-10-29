@@ -323,6 +323,13 @@ func (state *linuxTextInput) key(event platform.KeyEvent) (platform.Frame, bool,
 		frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextCommandEvent, Command: command})
 		return frame, true, err
 	}
+	// Apply platform-independent editing chords before handling the unmodified
+	// named keys below. This keeps Control/Command+Delete behavior consistent
+	// with Windows and macOS, including word and line-boundary deletion.
+	if command, ok := platform.TextEditingCommand(event); ok {
+		frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextCommandEvent, Command: command})
+		return frame, true, err
+	}
 	command := platform.TextCommand(0)
 	switch event.Key {
 	case input.KeyBackspace:

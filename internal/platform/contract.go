@@ -716,6 +716,8 @@ const (
 	TextMoveWordRightAndModifySelection
 	TextDeleteWordBackward
 	TextDeleteWordForward
+	TextDeleteLineStart
+	TextDeleteLineEnd
 )
 
 // TextEvent contains rune-indexed ranges. MarkedSelection is relative to Text.
@@ -802,6 +804,10 @@ func (event TextEvent) Apply(editor *text.Editor) {
 			editor.DeleteWord(false)
 		case TextDeleteWordForward:
 			editor.DeleteWord(true)
+		case TextDeleteLineStart:
+			editor.DeleteLineBoundary(false)
+		case TextDeleteLineEnd:
+			editor.DeleteLineBoundary(true)
 		}
 	}
 }

@@ -131,6 +131,38 @@ func (editor *Editor) DeleteWord(forward bool) {
 	editor.record(change, before, editor.selectionState(), editSeparate)
 }
 
+// DeleteLineBoundary removes text from the caret to the start or end of its logical line.
+// It keeps the operation as one undo unit and preserves the caret at the surviving boundary.
+func (editor *Editor) DeleteLineBoundary(end bool) bool {
+	editor.BreakUndoGroup()
+	if editor.Selection().Start != editor.Selection().End || editor.composing {
+		changed := editor.DeleteBackward()
+		// Keep the semantic boundary explicit even if the fallback deletion
+		// implementation changes its history kind in the future.
+		editor.BreakUndoGroup()
+		return changed
+	}
+	boundary := editor.caret
+	if end {
+		for boundary < len(editor.runes) && editor.runes[boundary] != '\n' {
+			boundary++
+		}
+	} else {
+		for boundary > 0 && editor.runes[boundary-1] != '\n' {
+			boundary--
+		}
+	}
+	if boundary == editor.caret {
+		return false
+	}
+	before := editor.selectionState()
+	selection := ordered(Range{Start: editor.caret, End: boundary})
+	change := editor.replace(selection, "", false)
+	editor.collapse(selection.Start)
+	editor.record(change, before, editor.selectionState(), editSeparate)
+	return true
+}
+
 // MoveLineBoundary implements Home/End for an unwrapped logical line.
 func (editor *Editor) MoveLineBoundary(end, extend bool) {
 	at := editor.caret

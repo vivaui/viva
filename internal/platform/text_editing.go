@@ -37,10 +37,10 @@ func TextClipboardAction(event KeyEvent) byte {
 }
 
 // TextEditingCommand maps the conventional editing keys: Control+Command+A, Home,
-// End, the word and document chords, and the word deletes. The primary modifier is
-// Control or Command, matching the platform that delivers the event; the headless
-// driver uses Control so its tests stay faithful. Live keyboard state is not
-// consulted.
+// End, the word and document chords, and the word and line deletes. Control or
+// Command is the primary modifier; Alt/Option also moves by word with Left and
+// Right, matching native editors on macOS and browser text controls. Live
+// keyboard state is not consulted.
 func TextEditingCommand(event KeyEvent) (TextCommand, bool) {
 	if command, ok := TextHistoryCommand(event); ok {
 		return command, true
@@ -49,10 +49,12 @@ func TextEditingCommand(event KeyEvent) (TextCommand, bool) {
 	if (mods == input.ModifierControl || mods == input.ModifierMeta) && strings.EqualFold(event.Text, "a") {
 		return TextSelectAll, true
 	}
-	if mods & ^(input.ModifierControl|input.ModifierShift) != 0 {
+	primary := mods & (input.ModifierControl | input.ModifierMeta)
+	if primary == (input.ModifierControl|input.ModifierMeta) ||
+		(mods&input.ModifierAlt != 0 && (primary != 0 || event.Key != input.KeyLeft && event.Key != input.KeyRight)) {
 		return 0, false
 	}
-	ctrl, shift := mods&input.ModifierControl != 0, mods&input.ModifierShift != 0
+	ctrl, command, option, shift := primary == input.ModifierControl, primary == input.ModifierMeta, mods&input.ModifierAlt != 0, mods&input.ModifierShift != 0
 	switch event.Key {
 	case input.KeyHome:
 		if ctrl {
@@ -77,24 +79,30 @@ func TextEditingCommand(event KeyEvent) (TextCommand, bool) {
 		}
 		return TextMoveLineEnd, true
 	case input.KeyLeft:
-		if ctrl {
+		if ctrl || option {
 			if shift {
 				return TextMoveWordLeftAndModifySelection, true
 			}
 			return TextMoveWordLeft, true
 		}
 	case input.KeyRight:
-		if ctrl {
+		if ctrl || option {
 			if shift {
 				return TextMoveWordRightAndModifySelection, true
 			}
 			return TextMoveWordRight, true
 		}
 	case input.KeyBackspace:
+		if command {
+			return TextDeleteLineStart, true
+		}
 		if ctrl {
 			return TextDeleteWordBackward, true
 		}
 	case input.KeyDelete:
+		if command {
+			return TextDeleteLineEnd, true
+		}
 		if ctrl {
 			return TextDeleteWordForward, true
 		}

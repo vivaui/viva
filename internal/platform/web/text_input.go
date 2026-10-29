@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
@@ -15,6 +16,10 @@ type TextInputContext struct {
 	ID        ui.ID
 	Bounds    ui.Rect
 	Multiline bool
+	// NavigationKeys requests application handling of vertical/page navigation.
+	NavigationKeys bool
+	// Placed reports a field with application-owned visual row layout.
+	Placed bool
 	// TextBounds, FontSize and TextColor are the text geometry the component
 	// declared; they fill whatever the returned input leaves unset.
 	TextBounds ui.Rect
@@ -70,6 +75,70 @@ const (
 	TextCommandEvent = platform.TextCommandEvent
 	TextSetSelection = platform.TextSetSelection
 )
+
+// webDeleteCommand maps browser deletion keys to the shared editor commands.
+// Modified deletion must be handled before the browser mutates the DOM mirror,
+// because browser word and line deletion differs across platforms.
+func webDeleteCommand(key string, modifiers ui.Modifiers) (platform.TextCommand, bool) {
+	if key != "Backspace" && key != "Delete" {
+		return 0, false
+	}
+	// Shift+Delete is the platform cut chord. Leave it to the focused DOM
+	// control so the browser can perform the clipboard operation.
+	if key == "Delete" && modifiers == input.ModifierShift {
+		return 0, false
+	}
+	normalized := input.KeyBackspace
+	if key == "Delete" {
+		normalized = input.KeyDelete
+	}
+	if command, ok := platform.TextEditingCommand(platform.KeyEvent{Key: normalized, Modifiers: modifiers}); ok {
+		return command, true
+	}
+	if modifiers&(input.ModifierControl|input.ModifierMeta|input.ModifierAlt) != 0 {
+		return 0, false
+	}
+	if normalized == input.KeyBackspace {
+		return platform.TextDeleteBackward, true
+	}
+	return platform.TextDeleteForward, true
+}
+
+// webTextKey chooses between a text command, application navigation, and the
+// browser's ordinary text editing. An IME owns every key while composing.
+func webTextKey(input TextInput, key ui.Key, modifiers ui.Modifiers, composing bool) (command platform.TextCommand, application bool) {
+	if composing || input.State.Composing {
+		return 0, false
+	}
+	if key == ui.KeyLeft || key == ui.KeyRight {
+		if command, ok := platform.TextEditingCommand(platform.KeyEvent{Key: key, Modifiers: modifiers}); ok {
+			switch command {
+			case platform.TextMoveWordLeft, platform.TextMoveWordRight,
+				platform.TextMoveWordLeftAndModifySelection, platform.TextMoveWordRightAndModifySelection:
+				return command, false
+			}
+		}
+	}
+	switch key {
+	case ui.KeyTab, ui.KeyEscape:
+		return 0, true
+	case ui.KeyEnter:
+		if !input.Multiline {
+			return 0, true
+		}
+		if modifiers&ui.ModifierShift != 0 {
+			return platform.TextInsertLineBreak, false
+		}
+		return platform.TextInsertNewline, false
+	case ui.KeyUp, ui.KeyDown, ui.KeyPageUp, ui.KeyPageDown:
+		return 0, input.NavigationKeys || input.Placed
+	case ui.KeyHome, ui.KeyEnd:
+		return 0, input.Placed
+	case ui.KeyLeft, ui.KeyRight:
+		return 0, input.Placed && modifiers&ui.ModifierMeta != 0
+	}
+	return 0, false
+}
 
 func runeIndexToUTF16(value string, index int) int {
 	if index <= 0 {

@@ -327,6 +327,23 @@ enum {
     VIVA_TEXT_INSERT_LINE_BREAK = 9,
     VIVA_TEXT_UNDO = 10,
     VIVA_TEXT_REDO = 11,
+    VIVA_TEXT_SELECT_ALL = 12,
+    VIVA_TEXT_MOVE_LINE_START = 13,
+    VIVA_TEXT_MOVE_LINE_END = 14,
+    VIVA_TEXT_MOVE_LINE_START_AND_MODIFY_SELECTION = 15,
+    VIVA_TEXT_MOVE_LINE_END_AND_MODIFY_SELECTION = 16,
+    VIVA_TEXT_MOVE_DOCUMENT_START = 17,
+    VIVA_TEXT_MOVE_DOCUMENT_END = 18,
+    VIVA_TEXT_MOVE_DOCUMENT_START_AND_MODIFY_SELECTION = 19,
+    VIVA_TEXT_MOVE_DOCUMENT_END_AND_MODIFY_SELECTION = 20,
+    VIVA_TEXT_MOVE_WORD_LEFT = 21,
+    VIVA_TEXT_MOVE_WORD_RIGHT = 22,
+    VIVA_TEXT_MOVE_WORD_LEFT_AND_MODIFY_SELECTION = 23,
+    VIVA_TEXT_MOVE_WORD_RIGHT_AND_MODIFY_SELECTION = 24,
+    VIVA_TEXT_DELETE_WORD_BACKWARD = 25,
+    VIVA_TEXT_DELETE_WORD_FORWARD = 26,
+    VIVA_TEXT_DELETE_LINE_START = 27,
+    VIVA_TEXT_DELETE_LINE_END = 28,
 };
 
 extern void vivaPointerEvent(
@@ -824,6 +841,37 @@ static int viva_key_code(unichar key) {
         case NSDeleteCharacter: return VIVA_KEY_DELETE;
         default: return 0;
     }
+}
+
+// AppKit may dispatch Command+Delete through performKeyEquivalent before
+// keyDown, and a keyboard layout can report no useful character for that
+// event. Use the stable physical key codes as the primary signal, while
+// accepting the named characters for synthetic events and alternate layouts.
+// Shift remains the selection variant and is deliberately left to AppKit's
+// normal text binding.
+static int viva_modified_delete_command(NSEvent *event) {
+    if (event == nil) {
+        return 0;
+    }
+    NSEventModifierFlags editingModifiers =
+        NSEventModifierFlagCommand | NSEventModifierFlagControl |
+        NSEventModifierFlagOption | NSEventModifierFlagShift;
+    if ((event.modifierFlags & editingModifiers) != NSEventModifierFlagCommand) {
+        return 0;
+    }
+
+    NSString *characters = event.charactersIgnoringModifiers;
+    unichar character = characters.length > 0 ? [characters characterAtIndex:0] : 0;
+    // 51 is the Mac Delete/Backspace key; 117 is Forward Delete. On some
+    // keyboards Fn+Delete still reports keyCode 51, so the named function key
+    // must take precedence over that physical-key fallback.
+    if (event.keyCode == 117 || character == NSDeleteFunctionKey) {
+        return VIVA_TEXT_DELETE_LINE_END;
+    }
+    if (event.keyCode == 51 || character == NSBackspaceCharacter || character == NSDeleteCharacter) {
+        return VIVA_TEXT_DELETE_LINE_START;
+    }
+    return 0;
 }
 
 static int viva_modifier_flags(NSEventModifierFlags flags) {
@@ -2550,6 +2598,7 @@ static void viva_encode_scene(
 - (BOOL)eventIsInsideTextInput:(NSEvent *)event;
 - (void)selectTextToIndex:(NSUInteger)index;
 - (void)selectTextRange:(NSRange)range;
+- (BOOL)handleModifiedDeleteEvent:(NSEvent *)event;
 - (void)selectAll:(id)sender;
 - (void)copy:(id)sender;
 - (void)cut:(id)sender;
@@ -3068,6 +3117,9 @@ static void viva_encode_scene(
     NSString *characters = event.charactersIgnoringModifiers;
 	BOOL control = (event.modifierFlags & NSEventModifierFlagControl) != 0;
 	BOOL command = (event.modifierFlags & NSEventModifierFlagCommand) != 0;
+	if ([self handleModifiedDeleteEvent:event]) {
+        return;
+    }
 	if (_keyEventsEnabled && _callbackHandle != 0 && (control || command) && characters.length > 0) {
 		int named = viva_terminal_key_code([characters characterAtIndex:0]);
 		if (named == 0) {
@@ -3202,6 +3254,14 @@ static void viva_encode_scene(
         }
         return [super performKeyEquivalent:event];
     }
+    // AppKit asks key equivalents before it calls keyDown:. Delete is a text
+    // editing key rather than a menu equivalent, but Command+Delete can still
+    // be consumed by the default key binding (which leaves the whole line
+    // selected). Recognize the physical Delete keys here so the native editor
+    // emits the same line-boundary command on every keyboard layout.
+    if ([self handleModifiedDeleteEvent:event]) {
+        return YES;
+    }
     if (_textInputEnabled && modifiers == NSEventModifierFlagCommand) {
         // The window's menu has no Edit items, so the editing shortcuts are
         // handled here, before the menu would have been asked.
@@ -3240,6 +3300,22 @@ static void viva_encode_scene(
         return YES;
     }
     return [super performKeyEquivalent:event];
+}
+
+// interpretKeyEvents is the last text-system entry point before AppKit invokes
+// a selector such as selectAll:. Some keyboard layouts send Command+Delete
+// through this path without first offering a key equivalent or a normal
+// keyDown. Consume it here too, so a layout cannot turn the deletion into a
+// selection as a side effect of its default binding.
+- (void)interpretKeyEvents:(NSArray<NSEvent *> *)events {
+    if (_textInputEnabled && !_textTerminal) {
+        for (NSEvent *event in events) {
+            if ([self handleModifiedDeleteEvent:event]) {
+                return;
+            }
+        }
+    }
+    [super interpretKeyEvents:events];
 }
 
 - (BOOL)wantsUpdateLayer {
@@ -4056,6 +4132,24 @@ static void viva_set_secure_event_input(BOOL on) {
     return MIN(position, _text.length);
 }
 
+- (BOOL)handleModifiedDeleteEvent:(NSEvent *)event {
+    // While an IME owns marked text, deletion belongs to the input method.
+    // Do not delete committed text behind the composition.
+    if (_callbackHandle == 0 || !_textInputEnabled || _textTerminal || _hasMarkedText) {
+        return NO;
+    }
+    int command = viva_modified_delete_command(event);
+    if (command == 0) {
+        return NO;
+    }
+    [self emitTextKind:VIVA_TEXT_COMMAND_EVENT
+                  text:@""
+         selectedRange:NSMakeRange(0, 0)
+      replacementRange:NSMakeRange(NSNotFound, 0)
+               command:command];
+    return YES;
+}
+
 - (CGFloat)textOffsetForIndex:(NSUInteger)index line:(viva_editor_line)line {
     return viva_text_offset(line, index, _textTerminal);
 }
@@ -4195,10 +4289,31 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)doCommandBySelector:(SEL)selector {
     int command = 0;
-    if (selector == @selector(deleteBackward:)) {
+    // A few AppKit/input-method bindings report Command+Delete as selectAll:.
+    // Inspect the originating event before honoring that selector, preserving
+    // Cmd+A while making the physical Delete key unambiguous.
+    BOOL deletionSelector = selector == @selector(selectAll:) ||
+        selector == @selector(deleteBackward:) || selector == @selector(deleteForward:) ||
+        selector == @selector(deleteWordBackward:) || selector == @selector(deleteWordForward:) ||
+        selector == @selector(deleteToBeginningOfLine:) ||
+        selector == @selector(deleteToBeginningOfParagraph:) ||
+        selector == @selector(deleteToEndOfLine:) || selector == @selector(deleteToEndOfParagraph:);
+    int modifiedDelete = deletionSelector && _textInputEnabled && !_textTerminal && !_hasMarkedText
+        ? viva_modified_delete_command(NSApp.currentEvent) : 0;
+    if (modifiedDelete != 0) {
+        command = modifiedDelete;
+    } else if (selector == @selector(deleteBackward:)) {
         command = VIVA_TEXT_DELETE_BACKWARD;
     } else if (selector == @selector(deleteForward:)) {
         command = VIVA_TEXT_DELETE_FORWARD;
+    } else if (selector == @selector(deleteWordBackward:)) {
+        command = VIVA_TEXT_DELETE_WORD_BACKWARD;
+    } else if (selector == @selector(deleteWordForward:)) {
+        command = VIVA_TEXT_DELETE_WORD_FORWARD;
+    } else if (selector == @selector(deleteToBeginningOfLine:) || selector == @selector(deleteToBeginningOfParagraph:)) {
+        command = VIVA_TEXT_DELETE_LINE_START;
+    } else if (selector == @selector(deleteToEndOfLine:) || selector == @selector(deleteToEndOfParagraph:)) {
+        command = VIVA_TEXT_DELETE_LINE_END;
     } else if (selector == @selector(moveLeft:)) {
         command = VIVA_TEXT_MOVE_LEFT;
     } else if (selector == @selector(moveRight:)) {
@@ -4207,6 +4322,14 @@ static void viva_set_secure_event_input(BOOL on) {
         command = VIVA_TEXT_MOVE_LEFT_AND_MODIFY_SELECTION;
     } else if (selector == @selector(moveRightAndModifySelection:)) {
         command = VIVA_TEXT_MOVE_RIGHT_AND_MODIFY_SELECTION;
+    } else if (selector == @selector(moveWordLeft:)) {
+        command = VIVA_TEXT_MOVE_WORD_LEFT;
+    } else if (selector == @selector(moveWordRight:)) {
+        command = VIVA_TEXT_MOVE_WORD_RIGHT;
+    } else if (selector == @selector(moveWordLeftAndModifySelection:)) {
+        command = VIVA_TEXT_MOVE_WORD_LEFT_AND_MODIFY_SELECTION;
+    } else if (selector == @selector(moveWordRightAndModifySelection:)) {
+        command = VIVA_TEXT_MOVE_WORD_RIGHT_AND_MODIFY_SELECTION;
     } else if (selector == @selector(insertLineBreak:) || selector == @selector(insertNewlineIgnoringFieldEditor:)) {
         command = VIVA_TEXT_INSERT_LINE_BREAK;
     } else if (selector == @selector(insertNewline:)) {

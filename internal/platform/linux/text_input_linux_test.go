@@ -11,6 +11,40 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
+func TestLinuxTextInputUsesSharedEditingCommandsForModifiedDeletes(t *testing.T) {
+	var got []platform.TextCommand
+	state := &linuxTextInput{
+		enabled: true,
+		input: platform.TextInput{OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
+			got = append(got, event.Command)
+			return platform.TextState{}, nil
+		}},
+	}
+	for _, test := range []struct {
+		name string
+		key  input.Key
+		mods input.Modifiers
+		want platform.TextCommand
+	}{
+		{"control backspace", input.KeyBackspace, input.ModifierControl, platform.TextDeleteWordBackward},
+		{"control delete", input.KeyDelete, input.ModifierControl, platform.TextDeleteWordForward},
+		{"option left", input.KeyLeft, input.ModifierAlt, platform.TextMoveWordLeft},
+		{"option shift right", input.KeyRight, input.ModifierAlt | input.ModifierShift, platform.TextMoveWordRightAndModifySelection},
+		{"command backspace", input.KeyBackspace, input.ModifierMeta, platform.TextDeleteLineStart},
+		{"command delete", input.KeyDelete, input.ModifierMeta, platform.TextDeleteLineEnd},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got = nil
+			if _, handled, err := state.key(platform.KeyEvent{Key: test.key, Modifiers: test.mods}); err != nil || !handled {
+				t.Fatalf("handled=%v err=%v", handled, err)
+			}
+			if !reflect.DeepEqual(got, []platform.TextCommand{test.want}) {
+				t.Fatalf("commands=%v, want %v", got, []platform.TextCommand{test.want})
+			}
+		})
+	}
+}
+
 func TestLinuxTextEventCarriesNativeStateThroughApplicationRedraw(t *testing.T) {
 	editor := text.NewEditor("old")
 	redraws := 0

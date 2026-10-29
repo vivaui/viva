@@ -81,6 +81,8 @@ const (
 	TextInsertLineBreak             = platform.TextInsertLineBreak
 	TextUndo                        = platform.TextUndo
 	TextRedo                        = platform.TextRedo
+	TextDeleteLineStart             = platform.TextDeleteLineStart
+	TextDeleteLineEnd               = platform.TextDeleteLineEnd
 )
 
 func EditorState(editor *text.Editor) TextState {

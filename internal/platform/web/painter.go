@@ -57,6 +57,13 @@ func (p *painter) resize(width, height int) {
 // state changed. Application handling runs before built-in traversal,
 // activation, and Escape dismissal.
 func (p *painter) keyDown(event ui.KeyEvent) bool {
+	_, changed := p.keyDownResult(event)
+	return changed
+}
+
+// keyDownResult distinguishes consuming a key from requesting a frame. A
+// handled key can leave the canvas unchanged and must still stop DOM editing.
+func (p *painter) keyDownResult(event ui.KeyEvent) (handled, changed bool) {
 	beforeFocus, beforeKeyboard := p.focused, p.keyboardFocus
 	event.Target = p.focused
 	response := ui.EventResult{}
@@ -66,7 +73,7 @@ func (p *painter) keyDown(event ui.KeyEvent) bool {
 	if !response.Handled && event.Key == ui.KeyEscape && !p.escapeTarget.IsZero() && p.canClick() {
 		p.deliverClick(p.escapeTarget)
 		p.repaint()
-		return true
+		return true, true
 	}
 	result := input.Result{Target: input.Target(p.focused)}
 	if !response.Handled {
@@ -77,16 +84,17 @@ func (p *painter) keyDown(event ui.KeyEvent) bool {
 		p.deliverClick(result.Target)
 		activated = true
 	}
+	handled = response.Handled || result.FocusChanged || activated || event.Key == ui.KeyTab
 	p.focused = result.Target
 	if event.Key == ui.KeyTab {
 		p.keyboardFocus = !p.focused.IsZero()
 	}
 	focusChanged := p.applyEventResult(response)
 	if p.focused == beforeFocus && p.keyboardFocus == beforeKeyboard && !activated && !focusChanged && !response.Repaint {
-		return false
+		return handled, false
 	}
 	p.repaint()
-	return true
+	return handled, true
 }
 
 func (p *painter) shortcut(event ui.KeyEvent) (handled, changed bool) {
@@ -242,6 +250,7 @@ func (p *painter) syncTextInput() {
 		}
 		input := p.config.TextInput(TextInputContext{
 			ID: hit.ID, Bounds: hit.Bounds, Multiline: hit.Multiline,
+			NavigationKeys: hit.NavigationKeys, Placed: hit.Placement != nil,
 			TextBounds: hit.TextBounds, FontSize: hit.TextSize, TextColor: hit.TextColor,
 		})
 		if input == nil || input.OnEvent == nil {
@@ -250,6 +259,8 @@ func (p *painter) syncTextInput() {
 		p.textInputID = hit.ID
 		p.textInput = *input
 		p.textInput.Multiline = hit.Multiline
+		p.textInput.NavigationKeys = p.textInput.NavigationKeys || hit.NavigationKeys
+		p.textInput.Placed = p.textInput.Placed || hit.Placement != nil
 		if p.textInput.Width == 0 && p.textInput.Height == 0 {
 			bounds := hit.TextBounds
 			if bounds == (ui.Rect{}) {

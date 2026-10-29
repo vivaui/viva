@@ -55,32 +55,31 @@ func TestTextHistoryCommandUsesPlatformConventionalChords(t *testing.T) {
 }
 
 func TestTextEventApplyCommands(t *testing.T) {
-	caretAt := func(index int) *text.Editor {
-		editor := text.NewEditor("abc")
-		editor.SetSelection(text.Range{Start: index, End: index})
-		return editor
-	}
 	for _, test := range []struct {
 		name      string
+		value     string
 		caret     int
 		command   TextCommand
-		value     string
+		want      string
 		selection text.Range
 	}{
-		{"delete backward", 3, TextDeleteBackward, "ab", text.Range{Start: 2, End: 2}},
-		{"delete forward", 1, TextDeleteForward, "ac", text.Range{Start: 1, End: 1}},
-		{"move left", 2, TextMoveLeft, "abc", text.Range{Start: 1, End: 1}},
-		{"move right", 1, TextMoveRight, "abc", text.Range{Start: 2, End: 2}},
-		{"extend left", 2, TextMoveLeftAndModifySelection, "abc", text.Range{Start: 1, End: 2}},
-		{"extend right", 1, TextMoveRightAndModifySelection, "abc", text.Range{Start: 1, End: 2}},
-		{"newline", 2, TextInsertNewline, "ab\nc", text.Range{Start: 3, End: 3}},
-		{"line break", 2, TextInsertLineBreak, "ab\nc", text.Range{Start: 3, End: 3}},
-		{"tab", 2, TextInsertTab, "ab\tc", text.Range{Start: 3, End: 3}},
+		{"delete backward", "abc", 3, TextDeleteBackward, "ab", text.Range{Start: 2, End: 2}},
+		{"delete forward", "abc", 1, TextDeleteForward, "ac", text.Range{Start: 1, End: 1}},
+		{"move left", "abc", 2, TextMoveLeft, "abc", text.Range{Start: 1, End: 1}},
+		{"move right", "abc", 1, TextMoveRight, "abc", text.Range{Start: 2, End: 2}},
+		{"extend left", "abc", 2, TextMoveLeftAndModifySelection, "abc", text.Range{Start: 1, End: 2}},
+		{"extend right", "abc", 1, TextMoveRightAndModifySelection, "abc", text.Range{Start: 1, End: 2}},
+		{"newline", "abc", 2, TextInsertNewline, "ab\nc", text.Range{Start: 3, End: 3}},
+		{"line break", "abc", 2, TextInsertLineBreak, "ab\nc", text.Range{Start: 3, End: 3}},
+		{"tab", "abc", 2, TextInsertTab, "ab\tc", text.Range{Start: 3, End: 3}},
+		{"delete to line start", "abc\ndef", 5, TextDeleteLineStart, "abc\nef", text.Range{Start: 4, End: 4}},
+		{"delete to line end", "abc\ndef", 1, TextDeleteLineEnd, "a\ndef", text.Range{Start: 1, End: 1}},
 	} {
-		editor := caretAt(test.caret)
+		editor := text.NewEditor(test.value)
+		editor.SetSelection(text.Range{Start: test.caret, End: test.caret})
 		TextEvent{Kind: TextCommandEvent, Command: test.command}.Apply(editor)
-		if editor.String() != test.value || editor.Selection() != test.selection {
-			t.Errorf("%s: got %q with selection %+v, want %q with %+v", test.name, editor.String(), editor.Selection(), test.value, test.selection)
+		if editor.String() != test.want || editor.Selection() != test.selection {
+			t.Errorf("%s: got %q with selection %+v, want %q with %+v", test.name, editor.String(), editor.Selection(), test.want, test.selection)
 		}
 	}
 }

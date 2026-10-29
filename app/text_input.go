@@ -75,6 +75,8 @@ const (
 	TextMoveWordRightAndModifySelection
 	TextDeleteWordBackward
 	TextDeleteWordForward
+	TextDeleteLineStart
+	TextDeleteLineEnd
 )
 
 // TextEvent contains rune-indexed selection and replacement ranges.

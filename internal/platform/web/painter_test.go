@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -480,5 +482,71 @@ func onClick(config *Config, sink func(id ui.ID)) {
 				sink(hit.ID)
 			}
 		}
+	}
+}
+
+func TestTextNavigationReportsHandlingAndRefreshesEditorState(t *testing.T) {
+	var canvas ui.Canvas
+	editor := text.NewEditor("first\nsecond")
+	response := ui.EventResult{Handled: true}
+	var received ui.KeyEvent
+	layout := &components.TextareaLayout{}
+	config := Config{
+		Paint: func(c *ui.Canvas, _ ui.Size) {
+			c.HitWithOptions(ui.Item(7), ui.Rect{Width: 180, Height: 64}, "Message", ui.HitOptions{Role: ui.RoleTextField, Multiline: true, NavigationKeys: true, Placement: layout})
+		},
+		TextInput: func(context TextInputContext) *TextInput {
+			if !context.NavigationKeys || !context.Placed {
+				t.Fatalf("missing navigation context: %+v", context)
+			}
+			return &TextInput{State: platform.EditorState(editor), OnEvent: func(e TextEvent) (TextState, error) { e.Apply(editor); return platform.EditorState(editor), nil }}
+		},
+		OnKey: func(e ui.KeyEvent) ui.EventResult { received = e; editor.MoveTo(6, false); return response },
+	}
+	p := newPainter(&canvas, &config)
+	p.width, p.height = 200, 100
+	p.repaint()
+	p.pointer(ui.PointerEvent{Kind: ui.PointerDown, Button: ui.PointerButtonPrimary, X: 10, Y: 10})
+	_, active := p.activeTextInput()
+	if !active.NavigationKeys || !active.Placed {
+		t.Fatalf("missing navigation flags: %+v", active)
+	}
+	if handled, changed := p.keyDownResult(ui.KeyEvent{Key: ui.KeyHome, Repeat: true}); !handled || changed {
+		t.Fatalf("handled=%v changed=%v", handled, changed)
+	}
+	if received.Target != ui.Item(7) || !received.Repeat {
+		t.Fatalf("key=%+v", received)
+	}
+	p.syncTextInput()
+	_, active = p.activeTextInput()
+	if active.State.Selection.Start != 6 {
+		t.Fatalf("stale caret: %+v", active.State)
+	}
+	response = ui.EventResult{Repaint: true}
+	if handled, changed := p.keyDownResult(ui.KeyEvent{Key: ui.KeyEnd}); handled || !changed {
+		t.Fatalf("repaint incorrectly consumed default: %v,%v", handled, changed)
+	}
+}
+
+func TestMultilineReturnUsesApplicationTextCommands(t *testing.T) {
+	editor := text.NewEditor("question")
+	submits := 0
+	input := TextInput{Multiline: true, OnEvent: func(event TextEvent) (TextState, error) {
+		if event.Kind == platform.TextCommandEvent && event.Command == platform.TextInsertNewline {
+			submits++
+		} else {
+			event.Apply(editor)
+		}
+		return platform.EditorState(editor), nil
+	}}
+	for _, mods := range []ui.Modifiers{0, ui.ModifierShift} {
+		command, application := webTextKey(input, ui.KeyEnter, mods, false)
+		if application {
+			t.Fatal("multiline return went to OnKey")
+		}
+		input.OnEvent(TextEvent{Kind: platform.TextCommandEvent, Command: command})
+	}
+	if submits != 1 || editor.String() != "question\n" {
+		t.Fatalf("submits=%d text=%q", submits, editor.String())
 	}
 }

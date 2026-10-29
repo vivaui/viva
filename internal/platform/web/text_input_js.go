@@ -176,8 +176,14 @@ func (host *textInputHost) syncValueAndSelection(element js.Value) {
 		element.Set("value", host.input.State.Value)
 	}
 	start, end := runeRangeToUTF16(host.input.State.Value, host.input.State.Selection)
-	if element.Get("selectionStart").Int() != start || element.Get("selectionEnd").Int() != end {
-		element.Call("setSelectionRange", start, end)
+	direction := "forward"
+	if start != end && host.input.State.SelectionReversed {
+		direction = "backward"
+	}
+	domDirection := element.Get("selectionDirection")
+	directionChanged := start != end && domDirection.Type() == js.TypeString && domDirection.String() != direction
+	if element.Get("selectionStart").Int() != start || element.Get("selectionEnd").Int() != end || directionChanged {
+		element.Call("setSelectionRange", start, end, direction)
 	}
 	host.syncing = false
 }
@@ -254,10 +260,52 @@ func (host *textInputHost) domSelection(element js.Value) text.Range {
 
 func (host *textInputHost) applySelection(element js.Value) bool {
 	selection := host.domSelection(element)
-	if selection == host.input.State.Selection {
+	direction := element.Get("selectionDirection")
+	reversed := selection.Start != selection.End && direction.Type() == js.TypeString && direction.String() == "backward"
+	// Controls without a direction property cannot report an active end. Keep
+	// the editor's direction when the range itself has not changed.
+	if selection == host.input.State.Selection && (direction.Type() != js.TypeString || reversed == host.input.State.SelectionReversed) {
 		return false
 	}
+	if reversed {
+		selection.Start, selection.End = selection.End, selection.Start
+	}
 	return host.apply(platform.TextEvent{Kind: platform.TextSetSelection, Selection: selection})
+}
+
+// composingEvent covers browser and editor composition state, including the
+// legacy IME key code used while confirming a candidate in some browsers.
+func (host *textInputHost) composingEvent(event js.Value) bool {
+	return host.composing || host.input.State.Composing || event.Get("isComposing").Truthy() || event.Get("keyCode").Equal(js.ValueOf(229))
+}
+
+// deleteCommand turns a browser keydown into the shared deletion command.
+// Composition keeps ownership of the key with the IME until it commits.
+func (host *textInputHost) deleteCommand(event js.Value) (platform.TextCommand, bool) {
+	if host.active == nil || !host.activeElement(event.Get("target")) || host.composingEvent(event) {
+		return 0, false
+	}
+	return webDeleteCommand(event.Get("key").String(), webModifiers(
+		event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(),
+		event.Get("altKey").Bool(), event.Get("metaKey").Bool(),
+	))
+}
+
+// applyCommand keeps the DOM mirror synchronized when deletion is handled
+// before the browser edits its input element.
+func (host *textInputHost) applyCommand(command platform.TextCommand) bool {
+	changed := false
+	if host.active != nil {
+		// A selection change may be delivered immediately before keydown without
+		// running the select listener first. Make the editor's selection current.
+		changed = host.applySelection(host.active.element)
+	}
+	changed = host.apply(platform.TextEvent{Kind: platform.TextCommandEvent, Command: command}) || changed
+	if host.active != nil {
+		host.syncValueAndSelection(host.active.element)
+	}
+	host.repaint(changed)
+	return changed
 }
 
 func (host *textInputHost) apply(event platform.TextEvent) bool {
@@ -269,8 +317,8 @@ func (host *textInputHost) apply(event platform.TextEvent) bool {
 	if err != nil {
 		return false
 	}
-	host.input.State = next
-	return next != before
+	host.input.State = next.WithoutRedraw()
+	return next.Redraw || next.WithoutRedraw() != before.WithoutRedraw()
 }
 
 func (host *textInputHost) repaint(changed bool) {
