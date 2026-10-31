@@ -937,6 +937,11 @@ func (painter *painter) syncCursor() error {
 		for index := len(hits) - 1; index >= 0; index-- {
 			if hits[index].ID == target && !hits[index].Disabled && !hits[index].IsLabel {
 				next = cursorFromHit(hits[index].Cursor)
+				// Text fields remain selectable when read-only. An explicit cursor
+				// still wins, and disabled fields keep the ordinary pointer.
+				if hits[index].Cursor == ui.PointerCursorDefault && hits[index].Role == ui.RoleTextField {
+					next = CursorText
+				}
 				break
 			}
 		}

@@ -2,6 +2,7 @@ package windows
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -151,8 +152,10 @@ func (state *windowState) updateTextVisuals() error {
 	if !input.Terminal {
 		selection := state.textState.Selection
 		selectionStart, selectionEnd := state.textExtent(input.FontSize, selection)
+		// Match the centered text line and caret, leaving the field's vertical
+		// padding and border unpainted instead of filling the entire input.
 		state.textRectangles[base] = render.Rectangle{
-			Bounds: scene.Rect{X: originX + selectionStart, Y: input.Y, Width: selectionEnd - selectionStart, Height: input.Height},
+			Bounds: scene.Rect{X: originX + selectionStart, Y: input.Y + (input.Height-caretHeight)/2, Width: selectionEnd - selectionStart, Height: caretHeight},
 			Color:  scene.Color{Red: 0.22, Green: 0.48, Blue: 1, Alpha: 0.34},
 			Layer:  input.Layer,
 		}
@@ -167,10 +170,18 @@ func (state *windowState) updateTextVisuals() error {
 	state.textRectangles[base+2] = render.Rectangle{}
 	state.textRectangles[base+3] = render.Rectangle{}
 	if state.textState.Composing {
+		// Text is vertically centered on LabelBaseline, not on FontSize. Keep
+		// both clause strokes below that baseline, including in taller fields.
+		scale := state.scale
+		if scale <= 0 {
+			scale = 1
+		}
+		baseline := float32(platform.LabelBaseline(int(math.Ceil(float64(input.Height*scale))), float64(input.FontSize*scale))) / scale
+		underlineY := input.Y + min(input.Height-3, baseline+max(2, input.FontSize*0.2))
 		composition := state.textState.Composition
 		compositionStart, compositionEnd := state.textExtent(input.FontSize, composition)
 		state.textRectangles[base+2] = render.Rectangle{
-			Bounds: scene.Rect{X: originX + compositionStart, Y: input.Y + min(input.Height-2, input.FontSize*1.3), Width: compositionEnd - compositionStart, Height: 1.5},
+			Bounds: scene.Rect{X: originX + compositionStart, Y: underlineY, Width: compositionEnd - compositionStart, Height: 1.5},
 			Color:  caretColor,
 			Layer:  input.Layer,
 		}
@@ -182,7 +193,7 @@ func (state *windowState) updateTextVisuals() error {
 			if validTextRange(target, utf8.RuneCountInString(state.textState.Value)) {
 				targetStart, targetEnd := state.textExtent(input.FontSize, target)
 				state.textRectangles[base+3] = render.Rectangle{
-					Bounds: scene.Rect{X: originX + targetStart, Y: input.Y + min(input.Height-3, input.FontSize*1.3), Width: targetEnd - targetStart, Height: 3},
+					Bounds: scene.Rect{X: originX + targetStart, Y: underlineY, Width: targetEnd - targetStart, Height: 3},
 					Color:  caretColor,
 					Layer:  input.Layer,
 				}
