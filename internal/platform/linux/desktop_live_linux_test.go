@@ -23,8 +23,8 @@ func liveBus(t *testing.T) *dbus.Conn {
 }
 
 func TestThePortalAnswersTheSettingsVivaReads(t *testing.T) {
-	values, gone := askPortal()
-	if gone {
+	values, result := askPortal()
+	if result != portalReadOK {
 		t.Skip("no settings portal on this machine")
 	}
 	t.Logf("portal: %+v", values)

@@ -13,6 +13,7 @@
 /CLAUDE.md
 /.claude/
 /.agents/
+/.codegraph/
 
 # Addresses and passwords of your own test machines, kept out of the repository.
 /tools/testenv/local.*

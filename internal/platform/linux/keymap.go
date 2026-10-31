@@ -138,15 +138,37 @@ func (keymap *xcbKeymap) keysym(keycode uint8, state uint16) uint32 {
 func (keymap *xcbKeymap) shortcutText(keycode uint8, state uint16) string {
 	symbols := keymap.symbols(keycode)
 	shift, lock, numLock := state&xcbModShift != 0, state&xcbModLock != 0, state&keymap.numLockMask() != 0
-	for group := 0; group < 2 && len(symbols) > 0; group++ {
-		if group == 1 && !hasPair(symbols, 2) {
-			break
+	pairs := make([][2]uint32, 0, 2)
+	for column := 0; column < len(symbols) && column < 4; column += 2 {
+		var high uint32
+		if column+1 < len(symbols) {
+			high = symbols[column+1]
 		}
-		if keysym := pickKeysym(symbols, group, shift, lock, false, numLock); keysym >= 0x20 && keysym <= 0x7e {
-			return string(rune(keysym))
+		pairs = append(pairs, [2]uint32{symbols[column], high})
+	}
+	if character, ok := shortcutFromLevels(pairs, shift, lock, numLock); ok {
+		return string(character)
+	}
+	// A key no level scan gives ASCII text falls back to what it types with the
+	// passed modifiers, without the AltGr level, as Wayland's fallback does.
+	return keymap.text(keycode, state&^keymap.level3Mask())
+}
+
+// shortcutFromLevels is the character a key stands for in a shortcut: the
+// first ASCII character among its unshifted and shifted level pairs, scanned in
+// layout order. A pair that has only the shifted level still names the key.
+// Both backends use it, so a chord means the same key on each.
+func shortcutFromLevels(pairs [][2]uint32, shift, lock, numLock bool) (rune, bool) {
+	for _, pair := range pairs {
+		chosen := pickLevel(pair[0], pair[1], shift, lock, numLock)
+		if chosen == 0 {
+			chosen = pair[1]
+		}
+		if chosen >= 0x20 && chosen <= 0x7e {
+			return rune(chosen), true
 		}
 	}
-	return keymap.text(keycode, state)
+	return 0, false
 }
 
 // hasPair reports whether the row has a symbol at column.
@@ -179,6 +201,13 @@ func pickFromPair(symbols []uint32, column int, shift, lock, numLock bool) uint3
 	if column+1 < len(symbols) {
 		high = symbols[column+1]
 	}
+	return pickLevel(low, high, shift, lock, numLock)
+}
+
+// pickLevel chooses the unshifted or shifted symbol of a pair. Caps Lock shifts
+// a letter that has a capital, Num Lock turns a keypad key's navigation symbol
+// into its digit and Shift turns it back.
+func pickLevel(low, high uint32, shift, lock, numLock bool) uint32 {
 	switch {
 	case isKeypadKeysym(low) || isKeypadKeysym(high):
 		if numLock {

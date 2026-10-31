@@ -11,6 +11,7 @@ const (
 	keysymTab        = 0xff09
 	keysymEnter      = 0xff0d
 	keysymEscape     = 0xff1b
+	keysymScrollLock = 0xff14
 	keysymMultiKey   = 0xff20
 	keysymHome       = 0xff50
 	keysymLeft       = 0xff51
@@ -31,6 +32,7 @@ const (
 	keysymShiftR     = 0xffe2
 	keysymControlL   = 0xffe3
 	keysymControlR   = 0xffe4
+	keysymCapsLock   = 0xffe5
 	keysymMetaL      = 0xffe7
 	keysymMetaR      = 0xffe8
 	keysymAltL       = 0xffe9

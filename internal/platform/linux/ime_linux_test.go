@@ -21,6 +21,7 @@ type fakeIMEContext struct {
 	surrounds []fakeSurround
 	err       error
 	closed    bool
+	closes    int
 }
 
 type fakeIMEKey struct {
@@ -51,7 +52,7 @@ func (f *fakeIMEContext) SetSurroundingText(text string, cursor, anchor uint32) 
 	f.surrounds = append(f.surrounds, fakeSurround{text, cursor, anchor})
 	return f.err
 }
-func (f *fakeIMEContext) Close() { f.closed = true }
+func (f *fakeIMEContext) Close() { f.closed, f.closes = true, f.closes+1 }
 
 type fakeSurround struct {
 	text           string
@@ -472,5 +473,63 @@ func TestIMEPreeditShowsTheClauseBeingConvertedAsSelected(t *testing.T) {
 	h.ime.preedit("きょうは", 4, true, []ibus.Attribute{{Kind: ibus.AttrUnderline, Value: 1, Start: 0, End: 4}})
 	if selection := h.editor.Selection(); selection != (text.Range{Start: 4, End: 4}) {
 		t.Fatalf("selection = %+v, want the caret", selection)
+	}
+}
+
+func TestDestroyingAWaylandWindowClosesItsIMEContextOnce(t *testing.T) {
+	h := newIMEHarness(t)
+	h.focus(t)
+	win := &waylandWindow{state: &waylandWindowState{router: eventRouter{ime: h.ime}}}
+
+	win.destroy()
+	if h.context.closes != 1 {
+		t.Fatalf("destroying the window closed the context %d times, want 1", h.context.closes)
+	}
+	if !h.ime.dead || h.ime.context != nil {
+		t.Fatalf("closed input method: dead=%v context=%v", h.ime.dead, h.ime.context)
+	}
+
+	// Destroy runs again when the same window is closed twice; it must not close
+	// the context a second time.
+	win.destroy()
+	if h.context.closes != 1 {
+		t.Fatalf("destroying the closed window again closed the context %d times, want 1", h.context.closes)
+	}
+}
+
+func TestDestroyingAWaylandWindowWithoutAnIMEIsSafe(t *testing.T) {
+	win := &waylandWindow{state: &waylandWindowState{}}
+	win.destroy()
+	win.destroy()
+}
+
+func TestClosingAWaylandWindowsIMEContextLeavesAnotherWindowUsable(t *testing.T) {
+	closed, live := newIMEHarness(t), newIMEHarness(t)
+	closed.focus(t)
+	live.focus(t)
+
+	closedWin := &waylandWindow{state: &waylandWindowState{router: eventRouter{ime: closed.ime}}}
+	liveWin := &waylandWindow{state: &waylandWindowState{router: eventRouter{ime: live.ime}}}
+	closedWin.destroy()
+
+	if closed.context.closes != 1 {
+		t.Fatalf("the closed window's context was closed %d times, want 1", closed.context.closes)
+	}
+	if live.context.closed || live.ime.dead || live.ime.context == nil {
+		t.Fatalf("closing one window disturbed another's input method: closed=%v dead=%v context=%v", live.context.closed, live.ime.dead, live.ime.context)
+	}
+
+	// The surviving window keeps its own context, and still sends its keys there.
+	keymap, event := letterKey(0)
+	if !live.ime.processKey(keymap.keysym(event.Detail, event.State), event, platform.KeyEvent{Text: "n"}) {
+		t.Fatal("the surviving window's input method no longer takes keys")
+	}
+	if len(live.context.keys) != 1 {
+		t.Fatalf("the surviving window's context received %d keys, want 1", len(live.context.keys))
+	}
+
+	liveWin.destroy()
+	if live.context.closes != 1 {
+		t.Fatalf("the surviving window's context was closed %d times, want 1", live.context.closes)
 	}
 }

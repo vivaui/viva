@@ -37,8 +37,18 @@ func TestFontSettingsFollowTheDesktop(t *testing.T) {
 			t.Errorf("%s: got %+v, want %+v", test.name, got, test.want)
 		}
 	}
-	if got := (fontSettings{Antialias: cairoAntialiasSubpixel, SubpixelOrder: cairoSubpixelRGB}).grayscale(); got.subpixel() || got.SubpixelOrder != 0 {
-		t.Errorf("grayscale kept the LCD antialiasing: %+v", got)
+	for _, test := range []struct {
+		name string
+		in   fontSettings
+		want fontSettings
+	}{
+		{"subpixel", fontSettings{Antialias: cairoAntialiasSubpixel, SubpixelOrder: cairoSubpixelRGB}, fontSettings{Antialias: cairoAntialiasGray}},
+		{"fontconfig default", fontSettings{}, fontSettings{Antialias: cairoAntialiasGray}},
+		{"antialiasing off", fontSettings{Antialias: cairoAntialiasNone}, fontSettings{Antialias: cairoAntialiasNone}},
+	} {
+		if got := test.in.grayscale(); got != test.want {
+			t.Errorf("%s: grayscale = %+v, want %+v", test.name, got, test.want)
+		}
 	}
 }
 

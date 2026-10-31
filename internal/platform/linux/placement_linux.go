@@ -70,6 +70,37 @@ func (win *window) pointerPosition() (x, y int, ok bool) {
 	return int(reply.RootX), int(reply.RootY), true
 }
 
+type queryKeymapReply struct {
+	ResponseType uint8
+	Pad          uint8
+	Sequence     uint16
+	Length       uint32
+	Keys         [32]byte
+}
+
+// keysDown is the server's bitmap of keycodes that are down, false when it
+// does not say. One bit per keycode, in keycode order.
+func (win *window) keysDown() ([32]byte, bool) {
+	var keys [32]byte
+	if win.api == nil || win.connection == 0 {
+		return keys, false
+	}
+	var query func(uintptr) xcbVoidCookie
+	var queryReply func(uintptr, xcbVoidCookie, *unsafe.Pointer) *queryKeymapReply
+	purego.RegisterLibFunc(&query, win.api.library, "xcb_query_keymap")
+	purego.RegisterLibFunc(&queryReply, win.api.library, "xcb_query_keymap_reply")
+	var nativeError unsafe.Pointer
+	reply := queryReply(win.connection, query(win.connection), &nativeError)
+	if nativeError != nil {
+		win.api.free(nativeError)
+	}
+	if reply == nil {
+		return keys, false
+	}
+	defer win.api.free(unsafe.Pointer(reply))
+	return reply.Keys, true
+}
+
 // placementMonitors are the monitors the scale tracker last read.
 func (win *window) placementMonitors() []monitorGeometry {
 	if win.tracker == nil {

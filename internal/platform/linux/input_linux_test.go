@@ -439,7 +439,6 @@ func TestTerminalThatAsksForReleasesGetsPairedKeysAndModifiers(t *testing.T) {
 		}},
 		text:    &linuxTextInput{enabled: true, input: platform.TextInput{Terminal: true, KeyReleases: true}},
 		present: func(platform.Frame) error { return nil },
-		pressed: new([256]bool),
 	}
 	// keycode 9 is a, keycode 10 is Shift_L.
 	keymap := xcbKeymap{first: 9, last: 10, perKeycode: 2, keysyms: []uint32{'a', 'A', keysymShiftL, 0}}
@@ -588,5 +587,141 @@ func TestEventRouterUsesTheDesktopsDoubleClickTime(t *testing.T) {
 	press(1400)
 	if got[1].ClickCount != 1 || got[2].ClickCount != 2 {
 		t.Fatalf("click counts = %d, %d, %d", got[0].ClickCount, got[1].ClickCount, got[2].ClickCount)
+	}
+}
+
+func TestX11ModifierReleaseKeepsOtherSideHeld(t *testing.T) {
+	var keys []platform.KeyEvent
+	router := eventRouter{
+		config: platform.Config{OnKey: func(event platform.KeyEvent) (platform.Frame, error) {
+			keys = append(keys, event)
+			return platform.Frame{}, nil
+		}},
+		text:         &linuxTextInput{enabled: true, input: platform.TextInput{Terminal: true, KeyReleases: true}},
+		present:      func(platform.Frame) error { return nil },
+		modifierKeys: newModifierTracker(),
+	}
+	// keycode 10 is Shift_L, 11 is Shift_R.
+	keymap := xcbKeymap{first: 10, last: 11, perKeycode: 1, keysyms: []uint32{keysymShiftL, keysymShiftR}}
+	if err := router.key(&keymap, &xcbInputEvent{Detail: 10}, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := router.key(&keymap, &xcbInputEvent{Detail: 11}, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := router.release(&keymap, &xcbInputEvent{Detail: 11, State: xcbModShift}); err != nil {
+		t.Fatal(err)
+	}
+	if err := router.release(&keymap, &xcbInputEvent{Detail: 10}); err != nil {
+		t.Fatal(err)
+	}
+	if len(keys) != 4 {
+		t.Fatalf("got %d key events, want two presses and two releases", len(keys))
+	}
+	if keys[2].Modifiers&input.ModifierShift == 0 {
+		t.Fatalf("Shift_R release dropped Shift while Shift_L is held: %+v", keys[2])
+	}
+	if keys[3].Modifiers&input.ModifierShift != 0 {
+		t.Fatalf("last Shift release still reports Shift: %+v", keys[3])
+	}
+}
+
+func TestShortcutTextFallsBackToShiftedOnlyLevel(t *testing.T) {
+	// The layout gives the key only its shifted symbol, as Wayland's level scan
+	// allows.
+	keymap := xcbKeymap{first: 9, last: 9, perKeycode: 2, keysyms: []uint32{0, 'c'}}
+	if got := keymap.shortcutText(9, 0); got != "c" {
+		t.Fatalf("shortcut text = %q, want c", got)
+	}
+}
+
+func TestX11FocusInForgetsHeldKeys(t *testing.T) {
+	tracker := newModifierTracker()
+	tracker.press(50, keysymShiftL, input.KeyShiftLeft)
+	state := &linuxWindowState{
+		win:         &window{},
+		application: &linuxApplication{},
+		router:      eventRouter{modifierKeys: tracker},
+	}
+	previous := activeWindow.Load()
+	defer activeWindow.Store(previous)
+
+	// Mode 0 is NotifyNormal. Detail 5 (NotifyPointer) accompanies a focus
+	// change elsewhere and must not forget keys held here.
+	pointer := xcbFocusEvent{ResponseType: xcbFocusIn, Detail: 5}
+	if _, err := state.handleEvent(unsafe.Pointer(&pointer)); err != nil {
+		t.Fatal(err)
+	}
+	if len(tracker.down) != 1 {
+		t.Fatalf("a pointer-detail FocusIn forgot held keys: %v", tracker.down)
+	}
+
+	// Detail 0 is NotifyAncestor: this window gained the keyboard.
+	event := xcbFocusEvent{ResponseType: xcbFocusIn}
+	if _, err := state.handleEvent(unsafe.Pointer(&event)); err != nil {
+		t.Fatal(err)
+	}
+	if len(tracker.down) != 0 {
+		t.Fatalf("held keys survived a real focus gain: %v", tracker.down)
+	}
+}
+
+func TestModifierTrackerRetainsKeysStillDown(t *testing.T) {
+	tracker := newModifierTracker()
+	tracker.press(10, 0, input.KeyUnknown)
+	tracker.press(20, 0, input.KeyUnknown)
+	var keys [32]byte
+	keys[20/8] = 1 << (20 % 8)
+
+	tracker.retain(keys)
+
+	if _, ok := tracker.down[10]; ok {
+		t.Fatal("a key the server says is up survived")
+	}
+	if _, ok := tracker.down[20]; !ok {
+		t.Fatal("a key still held across the focus change was forgotten")
+	}
+}
+
+func TestX11KeymapReloadReclassifiesHeldKeys(t *testing.T) {
+	state := &linuxWindowState{win: &window{}}
+	state.win.keymap = xcbKeymap{first: 100, last: 100, perKeycode: 2, keysyms: []uint32{keysymAltR, 0}}
+	tracker := newModifierTracker()
+	tracker.press(100, keysymLevel3, input.KeyAltRight) // held as AltGr
+	state.router = eventRouter{modifierKeys: tracker}
+
+	state.refreshModifierKeys()
+
+	if got := tracker.down[100]; got != input.ModifierAlt {
+		t.Fatalf("held key bit after reload = %#x, want Alt", got)
+	}
+}
+
+func TestModifierTrackerSeedsHeldModifiers(t *testing.T) {
+	tracker := newModifierTracker()
+	tracker.press(30, 0, input.KeyUnknown) // released while unfocused
+	var keys [32]byte
+	keys[10/8] = 1 << (10 % 8) // Shift_L is down on the server
+
+	tracker.seed(keys, func(scancode uint32) input.Modifiers {
+		if scancode == 10 {
+			return input.ModifierShift
+		}
+		return 0
+	})
+
+	if _, ok := tracker.down[30]; ok {
+		t.Fatal("a key the server says is up survived")
+	}
+	if tracker.down[10] != input.ModifierShift {
+		t.Fatalf("a held modifier was not seeded: %v", tracker.down)
+	}
+}
+
+func TestShortcutTextFallbackStripsAltGr(t *testing.T) {
+	// The key types nothing at levels 0/1 and '@' at the AltGr level.
+	keymap := xcbKeymap{first: 9, last: 9, perKeycode: 6, keysyms: []uint32{0, 0, 0, 0, '@', 0}}
+	if got := keymap.shortcutText(9, xcbMod5); got != "" {
+		t.Fatalf("shortcut text = %q, want the AltGr level ignored", got)
 	}
 }

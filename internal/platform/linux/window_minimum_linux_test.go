@@ -14,13 +14,14 @@ func TestResizingOnTheSameDisplayReusesMinimumHints(t *testing.T) {
 		minimumSize: &minimumSizeCache{monitor: monitor, scale: 1, valid: true},
 	}
 	// No X connection is installed: a cache hit must not query or write the X
-	// server, including as the client width and height change.
+	// server, including as the client width and height change. Supplying the
+	// position keeps this unit test on the ConfigureNotify fast path.
 	for _, dimensions := range [][2]uint32{{1200, 800}, {960, 600}, {1400, 900}} {
 		win.width, win.height = dimensions[0], dimensions[1]
-		win.updateMinimumSize(platform.Config{MinWidth: 960, MinHeight: 600})
+		win.updateMinimumSizeAt(platform.Config{MinWidth: 960, MinHeight: 600}, 0, 0)
 	}
 	if allocations := testing.AllocsPerRun(100, func() {
-		win.updateMinimumSize(platform.Config{MinWidth: 960, MinHeight: 600})
+		win.updateMinimumSizeAt(platform.Config{MinWidth: 960, MinHeight: 600}, 0, 0)
 	}); allocations != 0 {
 		t.Fatalf("unchanged display allocated %g times", allocations)
 	}
@@ -29,7 +30,7 @@ func TestResizingOnTheSameDisplayReusesMinimumHints(t *testing.T) {
 
 func TestNoMinimumKeepsTheNativeWindowUnconfigured(t *testing.T) {
 	win := &window{}
-	win.updateMinimumSize(platform.Config{})
+	win.updateMinimumSizeAt(platform.Config{}, 0, 0)
 	if win.minimumSize != nil {
 		t.Fatal("window without a minimum allocated a cache")
 	}

@@ -17,32 +17,105 @@ import (
 // PropertyNotify, which the windows already hear, covers the desktops without the settings
 // portal. Nobody watching means no connection and no wake-up.
 
+// desktopConnection is the watcher-owned session bus connection.
+type desktopConnection interface {
+	portalCaller
+	Receive() ([]*dbus.Message, error)
+	FD() int
+	Close()
+}
+
+var dialDesktop = func() (desktopConnection, error) { return dbus.DialSession() }
+
 // desktopWatch is the connection to the session bus that delivers the portal's changes.
 type desktopWatch struct {
-	conn *dbus.Conn
+	conn desktopConnection
+}
+
+const (
+	desktopRetryMin = 100 * time.Millisecond
+	desktopRetryMax = 30 * time.Second
+)
+
+// desktopRetry belongs to one event loop. Its deadline is included in that
+// loop's poll timeout; no timer goroutine or repeated Dial is needed.
+type desktopRetry struct {
+	failures uint
+	next     time.Time
+}
+
+func (retry *desktopRetry) ready(now time.Time) bool {
+	return retry.next.IsZero() || !now.Before(retry.next)
+}
+
+func (retry *desktopRetry) fail(now time.Time) {
+	delay := desktopRetryMin << min(retry.failures, 9)
+	if delay > desktopRetryMax {
+		delay = desktopRetryMax
+	}
+	if retry.failures < 9 {
+		retry.failures++
+	}
+	retry.next = now.Add(delay)
+}
+
+func (retry *desktopRetry) reset() {
+	retry.failures = 0
+	retry.next = time.Time{}
+}
+
+func (retry *desktopRetry) deadline(wanted, connected bool) (time.Time, bool) {
+	if !wanted || connected || retry.next.IsZero() || desktopPortalGone() {
+		return time.Time{}, false
+	}
+	return retry.next, true
+}
+
+func desktopPortalGone() bool {
+	desktopState.Lock()
+	defer desktopState.Unlock()
+	return desktopState.portalGone
+}
+
+func (application *linuxApplication) timeNow() time.Time {
+	if application.now != nil {
+		return application.now()
+	}
+	return time.Now()
 }
 
 // syncDesktopWatch opens the connection when someone starts to watch and closes it when
-// the last one stops. The loop calls it each time it wakes.
+// the last one stops. Temporary failures wait for their bounded retry deadline.
 func (application *linuxApplication) syncDesktopWatch() {
+	if application.desktopRetryRequested.Swap(false) {
+		application.desktopRetry.reset()
+	}
 	wanted := platform.DesktopWatched()
-	switch {
-	case wanted && application.desktop == nil && !application.desktopFailed:
+	if !wanted {
+		if application.desktop != nil {
+			application.stopDesktopWatch()
+		}
+		application.desktopRetry.reset()
+		return
+	}
+	if application.desktop == nil && application.desktopRetry.ready(application.timeNow()) {
 		application.startDesktopWatch()
-	case !wanted && application.desktop != nil:
-		application.stopDesktopWatch()
 	}
 }
 
+// retryDesktopWatch lets an observer re-registration or a new window bypass a
+// temporary backoff. A permanently unsupported portal remains latched.
+func (application *linuxApplication) retryDesktopWatch() {
+	application.desktopRetry.reset()
+	application.syncDesktopWatch()
+}
+
 func (application *linuxApplication) startDesktopWatch() {
-	desktopState.Lock()
-	gone := desktopState.portalGone
-	desktopState.Unlock()
-	if gone {
-		application.desktopFailed = true
+	if desktopPortalGone() {
+		application.desktopRetry.reset()
 		return
 	}
-	conn, err := dbus.DialSession()
+	conn, err := dialDesktop()
 	if err == nil {
 		err = addMatch(conn, settingsMatch)
 	}
@@ -50,38 +123,43 @@ func (application *linuxApplication) startDesktopWatch() {
 		if conn != nil {
 			conn.Close()
 		}
-		// The desktop has no bus: the focus and the XSETTINGS manager are all it has.
-		application.desktopFailed = true
+		application.desktopRetry.fail(application.timeNow())
 		return
 	}
-	values, missing := readPortalValues(conn)
-	if missing {
+	values, result := readPortalValues(conn)
+	if result != portalReadOK {
 		conn.Close()
-		application.desktopFailed = true
-		desktopState.Lock()
-		desktopState.portalGone = true
-		desktopState.Unlock()
+		if result == portalReadUnsupported {
+			desktopState.Lock()
+			desktopState.portalGone = true
+			desktopState.Unlock()
+			application.desktopRetry.reset()
+		} else {
+			application.desktopRetry.fail(application.timeNow())
+		}
 		return
 	}
 	change := replacePortal(values, os.Getenv)
 	desktopState.Lock()
 	desktopState.watching = true
 	desktopState.Unlock()
+	application.desktopRetry.reset()
 	application.desktop = &desktopWatch{conn: conn}
 	application.rebuildPoll()
 	application.announce(change)
 }
 
 func (application *linuxApplication) stopDesktopWatch() {
-	if application.desktop == nil {
+	watch := application.desktop
+	if watch == nil {
 		return
 	}
-	application.desktop.conn.Close()
 	application.desktop = nil
+	application.rebuildPoll()
+	watch.conn.Close()
 	desktopState.Lock()
 	desktopState.watching = false
 	desktopState.Unlock()
-	application.rebuildPoll()
 }
 
 // serveDesktop reads what the bus sent: the portal saying a setting changed.
@@ -92,9 +170,8 @@ func (application *linuxApplication) serveDesktop() {
 	}
 	messages, err := watch.conn.Receive()
 	if err != nil {
-		// The bus went away: the focus and the XSETTINGS manager are all that is left.
 		application.stopDesktopWatch()
-		application.desktopFailed = true
+		application.desktopRetry.fail(application.timeNow())
 		return
 	}
 	var change settingsChange
@@ -132,6 +209,7 @@ func (application *linuxApplication) closeDesktop() {
 	if application.desktop != nil {
 		application.stopDesktopWatch()
 	}
+	application.desktopRetry.reset()
 }
 
 // publish gives the settings this window's tracker read to the rest of the process and says
@@ -203,22 +281,24 @@ func ensureDesktopFresh() {
 	if !needPortal {
 		return
 	}
-	values, gone := askPortal()
-	if gone {
+	values, result := askPortal()
+	if result != portalReadOK {
 		desktopState.Lock()
-		desktopState.portalGone, desktopState.portalRead = true, true
+		desktopState.portalRead, desktopState.portalAt = true, time.Now()
+		if result == portalReadUnsupported {
+			desktopState.portalGone = true
+		}
 		desktopState.Unlock()
 		return
 	}
 	replacePortal(values, os.Getenv)
 }
 
-// askPortal reads the portal's settings over a connection of its own. gone is true when
-// there is no bus or no portal on it.
-func askPortal() (values portalValues, gone bool) {
-	conn, err := dbus.DialSession()
+// askPortal reads the portal's settings over a connection of its own.
+func askPortal() (values portalValues, result portalReadResult) {
+	conn, err := dialDesktop()
 	if err != nil {
-		return portalValues{}, true
+		return portalValues{}, portalReadRetry
 	}
 	defer conn.Close()
 	return readPortalValues(conn)

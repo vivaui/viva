@@ -3,6 +3,7 @@ package linux
 import (
 	"encoding/binary"
 	"testing"
+	"time"
 )
 
 func settingsOf(t *testing.T, ints map[string]int32, strings map[string]string) xsettings {
@@ -27,13 +28,15 @@ func resetDesktopState(t *testing.T) {
 		fonts                  fontSettings
 		haveFonts              bool
 		files                  desktopFiles
+		portalAt, filesAt      time.Time
 	}
 	saved := snapshot{desktopState.portal, desktopState.portalRead, desktopState.portalGone, desktopState.watching, desktopState.haveSettings,
-		desktopState.xsettings, desktopState.resources, desktopState.fonts, desktopState.haveFonts, desktopState.files}
+		desktopState.xsettings, desktopState.resources, desktopState.fonts, desktopState.haveFonts, desktopState.files, desktopState.portalAt, desktopState.filesAt}
 	fonts := publishedFonts.Load()
 	desktopState.portal, desktopState.portalRead, desktopState.portalGone, desktopState.watching = portalValues{}, false, false, false
 	desktopState.xsettings, desktopState.haveSettings, desktopState.resources = xsettings{}, false, ""
 	desktopState.fonts, desktopState.haveFonts, desktopState.files = fontSettings{}, false, desktopFiles{}
+	desktopState.portalAt, desktopState.filesAt = time.Time{}, time.Time{}
 	publishedFonts.Store(nil)
 	desktopState.Unlock()
 	t.Cleanup(func() {
@@ -42,6 +45,7 @@ func resetDesktopState(t *testing.T) {
 		desktopState.portal, desktopState.portalRead, desktopState.portalGone, desktopState.watching = saved.portal, saved.portalRead, saved.portalGone, saved.watching
 		desktopState.xsettings, desktopState.haveSettings, desktopState.resources = saved.xsettings, saved.haveSettings, saved.resources
 		desktopState.fonts, desktopState.haveFonts, desktopState.files = saved.fonts, saved.haveFonts, saved.files
+		desktopState.portalAt, desktopState.filesAt = saved.portalAt, saved.filesAt
 		publishedFonts.Store(fonts)
 	})
 }

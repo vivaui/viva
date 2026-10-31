@@ -15,10 +15,14 @@ import (
 type atspiHost struct {
 	bridge  *atspiBridge
 	watcher *dbus.Conn
-	windows map[*linuxWindowState]*atspiWindow
+	// waylandFD is the descriptor registered with the Wayland loop. Keep it
+	// after a service closes its connection so the loop can unregister it.
+	waylandFD    int32
+	waylandFDSet bool
+	windows      map[any]*atspiWindow
 	// latest is the newest nodes of each window while nothing is connected: the
 	// application's own slice, kept by header, valid on this thread.
-	latest map[*linuxWindowState][]platform.AccessibilityNode
+	latest map[any][]platform.AccessibilityNode
 }
 
 const (
@@ -84,8 +88,8 @@ func (application *linuxApplication) atspiOpened(state *linuxWindowState) {
 	host, first := application.atspi, false
 	if host == nil {
 		host, first = &atspiHost{
-			windows: make(map[*linuxWindowState]*atspiWindow),
-			latest:  make(map[*linuxWindowState][]platform.AccessibilityNode),
+			windows: make(map[any]*atspiWindow),
+			latest:  make(map[any][]platform.AccessibilityNode),
 		}, true
 		application.atspi = host
 	}
@@ -262,6 +266,223 @@ func (application *linuxApplication) serveAtspi() {
 			if err == nil && host.connect(application, address) {
 				host.dropWatcher()
 				application.rebuildPoll()
+			}
+			return
+		}
+	}
+}
+
+func (app *waylandApplication) atspiOpened(state *waylandWindowState) {
+	if os.Getenv("VIVA_ACCESSIBILITY") == "0" {
+		return
+	}
+	host, first := app.atspi, false
+	if host == nil {
+		host, first = &atspiHost{
+			windows: make(map[any]*atspiWindow),
+			latest:  make(map[any][]platform.AccessibilityNode),
+		}, true
+		app.atspi = host
+	}
+	host.latest[state] = state.config.Accessibility
+	if first {
+		host.probeForWayland(app)
+	}
+	if !host.engaged() {
+		delete(host.latest, state)
+		return
+	}
+	if host.bridge != nil && host.windows[state] == nil {
+		host.attachWayland(app, state)
+	}
+}
+
+func (app *waylandApplication) addAtspiFD(host *atspiHost) {
+	if app.loop == nil || host == nil || host.waylandFDSet {
+		return
+	}
+	fd := int32(host.fd())
+	if fd < 0 {
+		return
+	}
+	app.loop.addExtraFD(fd, app.serveAtspi)
+	host.waylandFD = fd
+	host.waylandFDSet = true
+}
+
+func (app *waylandApplication) removeAtspiFD(host *atspiHost) {
+	if host == nil {
+		return
+	}
+	if host.waylandFDSet && app.loop != nil {
+		app.loop.removeExtraFD(host.waylandFD)
+	}
+	host.waylandFD = 0
+	host.waylandFDSet = false
+}
+
+func (host *atspiHost) probeForWayland(app *waylandApplication) {
+	session, err := dbus.DialSession()
+	if err != nil {
+		return
+	}
+	enabled, err := atspiEnabled(session)
+	if err != nil {
+		session.Close()
+		return
+	}
+	if enabled {
+		address, err := atspiAddress(session)
+		session.Close()
+		if err == nil {
+			host.connectWayland(app, address)
+		}
+		return
+	}
+	var match dbus.Encoder
+	match.String("type='signal',sender='" + a11yBusName + "',path='" + a11yBusPath + "',interface='" + dbusProperties + "',member='PropertiesChanged'")
+	if _, err := session.Call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "AddMatch", "s", match.Bytes()); err != nil {
+		session.Close()
+		return
+	}
+	host.watcher = session
+	app.addAtspiFD(host)
+}
+
+func (host *atspiHost) connectWayland(app *waylandApplication, address string) bool {
+	conn, err := dbus.Dial(address)
+	if err != nil {
+		return false
+	}
+	bridge := newAtspiBridge(conn)
+	if err := bridge.register(); err != nil {
+		bridge.close()
+		return false
+	}
+	host.bridge = bridge
+	app.addAtspiFD(host)
+	app.mu.Lock()
+	windows := append([]*waylandWindowState(nil), app.windows...)
+	app.mu.Unlock()
+	for _, state := range windows {
+		host.attachWayland(app, state)
+	}
+	return true
+}
+
+func (host *atspiHost) attachWayland(app *waylandApplication, state *waylandWindowState) {
+	geometry := func() (int, int, float32) {
+		scale := state.win.displayScale()
+		margin := int(float32(state.win.margin) / scale)
+		return margin, margin, scale
+	}
+	var act func(platform.AccessibilityRequest) bool
+	if handler := state.config.OnAccessibility; handler != nil {
+		act = func(request platform.AccessibilityRequest) bool {
+			handled, err := handler(request, func(frame platform.Frame) error {
+				if state.router.present != nil {
+					return state.router.present(frame)
+				}
+				return nil
+			})
+			if err != nil {
+				app.fail(err)
+				return false
+			}
+			return handled
+		}
+	}
+	host.windows[state] = host.bridge.addWindow(state.config.Title, host.latest[state], geometry, act)
+}
+
+func (app *waylandApplication) atspiFrame(state *waylandWindowState, nodes []platform.AccessibilityNode) {
+	host := app.atspi
+	if host == nil || !host.engaged() {
+		return
+	}
+	host.latest[state] = nodes
+	if window := host.windows[state]; window != nil && host.bridge != nil {
+		host.bridge.update(window, nodes)
+	}
+}
+
+func (app *waylandApplication) atspiActive(state *waylandWindowState, active bool) {
+	host := app.atspi
+	if host == nil || host.bridge == nil {
+		return
+	}
+	if window := host.windows[state]; window != nil {
+		host.bridge.setActive(window, active)
+	}
+}
+
+func (app *waylandApplication) atspiClosed(state *waylandWindowState) {
+	host := app.atspi
+	if host == nil {
+		return
+	}
+	delete(host.latest, state)
+	if window := host.windows[state]; window != nil {
+		if host.bridge != nil {
+			host.bridge.removeWindow(window)
+		}
+		delete(host.windows, state)
+	}
+}
+
+func (app *waylandApplication) atspiClose() {
+	host := app.atspi
+	if host == nil {
+		return
+	}
+	app.removeAtspiFD(host)
+	host.dropBridge()
+	host.dropWatcher()
+	app.atspi = nil
+}
+
+func (app *waylandApplication) connectAtspi(host *atspiHost, address string) {
+	if host == nil {
+		return
+	}
+	app.removeAtspiFD(host)
+	if host.connectWayland(app, address) {
+		host.dropWatcher()
+		return
+	}
+	// Keep listening for the next PropertiesChanged after a failed reconnect.
+	app.addAtspiFD(host)
+}
+
+func (app *waylandApplication) serveAtspi() {
+	host := app.atspi
+	if host == nil {
+		return
+	}
+	switch {
+	case host.bridge != nil:
+		if err := host.bridge.serve(); err != nil || host.bridge.send == nil {
+			app.removeAtspiFD(host)
+			host.dropBridge()
+		}
+	case host.watcher != nil:
+		messages, err := host.watcher.Receive()
+		if err != nil {
+			app.removeAtspiFD(host)
+			host.dropWatcher()
+			return
+		}
+		for _, message := range messages {
+			if message.Type != dbus.TypeSignal || message.Member != "PropertiesChanged" {
+				continue
+			}
+			enabled, err := atspiEnabled(host.watcher)
+			if err != nil || !enabled {
+				continue
+			}
+			address, err := atspiAddress(host.watcher)
+			if err == nil {
+				app.connectAtspi(host, address)
 			}
 			return
 		}

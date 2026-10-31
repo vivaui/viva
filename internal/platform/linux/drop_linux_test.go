@@ -85,6 +85,19 @@ func (s *source) reply(kind, selectionAtom, listAtom uint32, list string) (flags
 	}
 }
 
+// nextDropEvent takes the next hover or drop report, failing the test instead
+// of blocking the whole package when the protocol goes quiet.
+func nextDropEvent(t *testing.T, events <-chan platform.FileDropEvent) platform.FileDropEvent {
+	t.Helper()
+	select {
+	case event := <-events:
+		return event
+	case <-time.After(10 * time.Second):
+		t.Fatal("the application never reported the drag")
+		return platform.FileDropEvent{}
+	}
+}
+
 // TestAFileDragFromAnotherClientIsAcceptedAndDropped runs the whole protocol
 // against a real window on a real X server: the source enters, moves, and drops
 // a list of files, and the application hears the hover and the paths.
@@ -92,6 +105,9 @@ func TestAFileDragFromAnotherClientIsAcceptedAndDropped(t *testing.T) {
 	if os.Getenv("DISPLAY") == "" {
 		t.Skip("no X server")
 	}
+	t.Setenv("VIVA_LINUX_BACKEND", "x11")
+	activeWindow.Store(nil)
+	t.Cleanup(func() { activeWindow.Store(nil) })
 	events := make(chan platform.FileDropEvent, 8)
 	done := make(chan error, 1)
 	go func() {
@@ -103,7 +119,27 @@ func TestAFileDragFromAnotherClientIsAcceptedAndDropped(t *testing.T) {
 			},
 		})
 	}()
+	// Always release the real application, including after a failed protocol
+	// assertion, so a failed run cannot strand its event loop in this process.
 	var target *window
+	t.Cleanup(func() {
+		if target == nil {
+			return
+		}
+		for i := 0; i < 10; i++ {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			target.postClientMessage(target.closeAtom, 0)
+			select {
+			case <-done:
+				return
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
 	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		select {
 		case err := <-done:
@@ -160,9 +196,12 @@ func TestAFileDragFromAnotherClientIsAcceptedAndDropped(t *testing.T) {
 	if !ok || flags&1 == 0 {
 		t.Fatalf("XdndStatus: found %v flags %d: the point should take files", ok, flags)
 	}
-	hover := <-events
-	if hover.Phase != platform.FileDropOver || hover.X < 59 || hover.X > 61 || hover.Y < 29 || hover.Y > 31 || len(hover.Paths) != 0 {
-		t.Fatalf("hover = %+v", hover)
+	hover := nextDropEvent(t, events)
+	scale := target.displayScale()
+	expectedX := float32(60) / scale
+	expectedY := float32(30) / scale
+	if hover.Phase != platform.FileDropOver || hover.X < expectedX-1 || hover.X > expectedX+1 || hover.Y < expectedY-1 || hover.Y > expectedY+1 || len(hover.Paths) != 0 {
+		t.Fatalf("hover = %+v, expected around (%f, %f)", hover, expectedX, expectedY)
 	}
 
 	src.message(target.id, drop, src.id, 0, 0)
@@ -170,7 +209,7 @@ func TestAFileDragFromAnotherClientIsAcceptedAndDropped(t *testing.T) {
 	if !ok || flags&1 == 0 {
 		t.Fatalf("XdndFinished: found %v flags %d", ok, flags)
 	}
-	dropped := <-events
+	dropped := nextDropEvent(t, events)
 	if dropped.Phase != platform.FileDropDrop || !reflect.DeepEqual(dropped.Paths, []string{"/tmp/a b.txt", "/tmp/dir"}) {
 		t.Fatalf("drop = %+v", dropped)
 	}
@@ -178,14 +217,17 @@ func TestAFileDragFromAnotherClientIsAcceptedAndDropped(t *testing.T) {
 	// A drag that leaves ends the hover.
 	src.message(target.id, enter, src.id, xdndVersion<<24, uriList)
 	src.message(target.id, atom("XdndLeave"), src.id)
-	if leave := <-events; leave.Phase != platform.FileDropLeave {
+	if leave := nextDropEvent(t, events); leave.Phase != platform.FileDropLeave {
 		t.Fatalf("leave = %+v", leave)
 	}
 
-	target.postClientMessage(target.closeAtom, 0)
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatal("the window did not close")
+	for i := 0; i < 10; i++ {
+		target.postClientMessage(target.closeAtom, 0)
+		select {
+		case <-done:
+			return
+		case <-time.After(500 * time.Millisecond):
+		}
 	}
+	t.Fatal("the window did not close")
 }

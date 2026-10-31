@@ -3,6 +3,7 @@
 package linux
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +26,54 @@ type testBridge struct {
 	window   *atspiWindow
 	requests []platform.AccessibilityRequest
 	signals  []atspiSignal
+}
+
+type fakeAtspiTransport struct {
+	messages        []*dbus.Message
+	receiveErr      error
+	replyErr        error
+	replyErrorErr   error
+	fd              int
+	closed          bool
+	replyCalls      int
+	replyErrorCalls int
+}
+
+func (conn *fakeAtspiTransport) Call(string, string, string, string, string, []byte) (*dbus.Message, error) {
+	return nil, errors.New("unexpected AT-SPI call")
+}
+func (conn *fakeAtspiTransport) Emit(string, string, string, string, []byte) error {
+	return nil
+}
+func (conn *fakeAtspiTransport) UniqueName() string { return ":1.7" }
+func (conn *fakeAtspiTransport) FD() int {
+	if conn.closed {
+		return -1
+	}
+	return conn.fd
+}
+func (conn *fakeAtspiTransport) Receive() ([]*dbus.Message, error) {
+	if conn.receiveErr != nil {
+		return nil, conn.receiveErr
+	}
+	if conn.closed {
+		return nil, errAtspiClosed
+	}
+	messages := conn.messages
+	conn.messages = nil
+	return messages, nil
+}
+func (conn *fakeAtspiTransport) Reply(*dbus.Message, string, []byte) error {
+	conn.replyCalls++
+	return conn.replyErr
+}
+func (conn *fakeAtspiTransport) ReplyError(*dbus.Message, string, string) error {
+	conn.replyErrorCalls++
+	return conn.replyErrorErr
+}
+func (conn *fakeAtspiTransport) Close() {
+	conn.closed = true
+	conn.fd = -1
 }
 
 func newTestBridge(nodes []platform.AccessibilityNode) *testBridge {
@@ -308,6 +357,38 @@ func TestAtspiLiveRegionAnnounces(t *testing.T) {
 	}
 	if !announced {
 		t.Fatalf("no announcement: %v", test.signals)
+	}
+}
+
+func TestAtspiServeStopsAfterReplyFailure(t *testing.T) {
+	call := &dbus.Message{Type: dbus.TypeCall, Path: atspiRootPath, Interface: atspiIntrospect, Member: "Introspect"}
+	conn := &fakeAtspiTransport{
+		messages: []*dbus.Message{call, call},
+		replyErr: errors.New("reply write failed"),
+		fd:       42,
+	}
+	bridge := newAtspiBridge(conn)
+	if err := bridge.serve(); !errors.Is(err, errAtspiClosed) {
+		t.Fatalf("serve error = %v, want errAtspiClosed", err)
+	}
+	if conn.replyCalls != 1 || !conn.closed || bridge.conn != nil {
+		t.Fatalf("batch continued after failure: replies=%d closed=%v conn=%v", conn.replyCalls, conn.closed, bridge.conn != nil)
+	}
+}
+
+func TestAtspiErrorReplyFailureClosesBridge(t *testing.T) {
+	call := &dbus.Message{Type: dbus.TypeCall, Path: "/missing", Interface: atspiIntrospect, Member: "Introspect"}
+	conn := &fakeAtspiTransport{
+		messages:      []*dbus.Message{call},
+		replyErrorErr: errors.New("error reply write failed"),
+		fd:            42,
+	}
+	bridge := newAtspiBridge(conn)
+	if err := bridge.serve(); !errors.Is(err, errAtspiClosed) {
+		t.Fatalf("serve error = %v, want errAtspiClosed", err)
+	}
+	if conn.replyErrorCalls != 1 || !conn.closed || bridge.conn != nil {
+		t.Fatalf("error reply failure was ignored: replies=%d closed=%v conn=%v", conn.replyErrorCalls, conn.closed, bridge.conn != nil)
 	}
 }
 

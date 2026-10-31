@@ -11,6 +11,9 @@ func (renderer *vulkanRenderer) refreshText() error {
 	if err := vkCheck(renderer.api.deviceWaitIdle(renderer.device), "wait before text refresh"); err != nil {
 		return err
 	}
+	if err := renderer.resetCommands("reset commands before text refresh"); err != nil {
+		return fmt.Errorf("linux: refresh text: %w", err)
+	}
 	// The device is idle, so the images the labels are drawn from can go; uploading rasterizes
 	// every label that has none.
 	for index := range renderer.text.labels {

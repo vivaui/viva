@@ -54,6 +54,9 @@ func (renderer *vulkanRenderer) setFrameMargin(margin uint32) error {
 	if err := vkCheck(renderer.api.deviceWaitIdle(renderer.device), "wait before frame change"); err != nil {
 		return err
 	}
+	if err := renderer.resetCommands("reset commands before frame change"); err != nil {
+		return err
+	}
 	if margin > 0 {
 		if err := renderer.frame.create(renderer); err != nil {
 			return err

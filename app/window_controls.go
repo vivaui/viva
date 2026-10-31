@@ -2,6 +2,9 @@ package app
 
 import (
 	"math"
+	"os"
+	"runtime"
+	"strings"
 
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/ui"
@@ -25,6 +28,28 @@ const (
 	windowControlMaximize
 	windowControlClose
 )
+
+type desktopTheme uint8
+
+const (
+	desktopDefault desktopTheme = iota
+	desktopBreeze
+	desktopAdwaita
+)
+
+func detectDesktopTheme() desktopTheme {
+	if runtime.GOOS != "linux" {
+		return desktopDefault
+	}
+	desktop := strings.ToUpper(os.Getenv("XDG_CURRENT_DESKTOP"))
+	if strings.Contains(desktop, "KDE") || strings.Contains(desktop, "PLASMA") {
+		return desktopBreeze
+	}
+	if strings.Contains(desktop, "GNOME") || strings.Contains(desktop, "UNITY") || strings.Contains(desktop, "PANTHEON") {
+		return desktopAdwaita
+	}
+	return desktopDefault
+}
 
 // WindowControlsStyle is how the window buttons look. A zero field takes a
 // default that suits Config.ClearColor.
@@ -162,6 +187,7 @@ func (controls *windowControls) paint(canvas *ui.Canvas, size ui.Size) {
 	if !trapped.IsZero() {
 		canvas.PushFocusScope(trapped)
 	}
+	theme := detectDesktopTheme()
 	hovered, pressed := canvas.Hovered(), canvas.Pressed()
 	for index, id := range controls.ids {
 		bounds := ui.Rect{X: size.Width - float32(3-index)*WindowControlWidth, Width: WindowControlWidth, Height: controls.height}
@@ -175,18 +201,49 @@ func (controls *windowControls) paint(canvas *ui.Canvas, size ui.Size) {
 		case windowControlClose:
 			icon, name = closeIcon, style.CloseName
 		}
-		switch {
-		case index == windowControlClose && (pressed == id || hovered == id):
-			background := style.Close
-			if pressed == id {
-				background.Alpha *= 0.8
+		isHovered := (hovered == id)
+		isPressed := (pressed == id)
+
+		if theme == desktopBreeze || theme == desktopAdwaita {
+			btnSize := float32(math.Min(26.0, float64(controls.height-6.0)))
+			if btnSize < 16 {
+				btnSize = 16
 			}
-			canvas.Fill(bounds, background)
-			tint = style.CloseForeground
-		case pressed == id:
-			canvas.Fill(bounds, style.Pressed)
-		case hovered == id:
-			canvas.Fill(bounds, style.Hover)
+			btnRect := ui.Rect{
+				X:      bounds.X + (bounds.Width-btnSize)/2,
+				Y:      (controls.height - btnSize) / 2,
+				Width:  btnSize,
+				Height: btnSize,
+			}
+			radius := btnSize / 2
+
+			switch {
+			case index == windowControlClose && (isPressed || isHovered):
+				background := style.Close
+				if isPressed {
+					background.Alpha *= 0.8
+				}
+				canvas.Rounded(btnRect, radius, background)
+				tint = style.CloseForeground
+			case isPressed:
+				canvas.Rounded(btnRect, radius, style.Pressed)
+			case isHovered:
+				canvas.Rounded(btnRect, radius, style.Hover)
+			}
+		} else {
+			switch {
+			case index == windowControlClose && (isPressed || isHovered):
+				background := style.Close
+				if isPressed {
+					background.Alpha *= 0.8
+				}
+				canvas.Fill(bounds, background)
+				tint = style.CloseForeground
+			case isPressed:
+				canvas.Fill(bounds, style.Pressed)
+			case isHovered:
+				canvas.Fill(bounds, style.Hover)
+			}
 		}
 		canvas.DrawIcon(icon, ui.Rect{X: bounds.X + (WindowControlWidth-glyph)/2, Y: (controls.height - glyph) / 2, Width: glyph, Height: glyph}, tint)
 		canvas.HitWithOptions(id, bounds, name, ui.HitOptions{Role: ui.RoleButton, SkipFocus: true})

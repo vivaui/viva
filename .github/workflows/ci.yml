@@ -66,6 +66,18 @@ jobs:
       - name: vet js/wasm
         run: GOOS=js GOARCH=wasm go vet ./internal/platform/web/ ./app/
 
+  # Native Linux unit and protocol tests run on Linux itself. They use fakes
+  # and do not need a display, compositor or GPU.
+  linux-platform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: test native Linux platform
+        run: go test ./internal/platform/linux -count=1
+
   # Packaging, manifest and layout code is plain Go with no window: it runs
   # on Linux, where the .deb and .tar.gz it writes are consumed.
   linux-logic:

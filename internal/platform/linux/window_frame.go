@@ -33,6 +33,11 @@ func frameMargin(scale float32) uint32 {
 	return uint32(math.Round(float64(frameMarginLogical) * float64(max(scale, 1))))
 }
 
+// frameGrip is the grip region in device pixels at a display scale.
+func frameGrip(scale float32) uint32 {
+	return uint32(math.Round(float64(frameGripLogical) * float64(max(scale, 1))))
+}
+
 // pixelBox is a rectangle in device pixels.
 type pixelBox struct{ x, y, width, height int32 }
 

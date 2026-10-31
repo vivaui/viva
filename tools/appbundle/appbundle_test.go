@@ -562,11 +562,13 @@ func TestPlistRegistersFileTypes(t *testing.T) {
 			t.Errorf("plist lacks %q:\n%s", want, text)
 		}
 	}
-	if path, err := exec.LookPath("plutil"); err == nil {
-		file := filepath.Join(t.TempDir(), "Info.plist")
-		os.WriteFile(file, data, 0o644)
-		if out, err := exec.Command(path, "-lint", file).CombinedOutput(); err != nil {
-			t.Errorf("plutil: %v\n%s", err, out)
+	if runtime.GOOS == "darwin" {
+		if path, err := exec.LookPath("plutil"); err == nil {
+			file := filepath.Join(t.TempDir(), "Info.plist")
+			os.WriteFile(file, data, 0o644)
+			if out, err := exec.Command(path, "-lint", file).CombinedOutput(); err != nil {
+				t.Errorf("plutil: %v\n%s", err, out)
+			}
 		}
 	}
 	info.Extra = []KeyValue{{"CFBundleDocumentTypes", "x"}}

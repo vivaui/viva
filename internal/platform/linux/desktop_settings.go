@@ -230,7 +230,8 @@ var desktopState struct {
 	// portalRead says the portal has been asked; portalAt when.
 	portalRead bool
 	portalAt   time.Time
-	// portalGone says the bus or the portal is not there: it is not asked again.
+	// portalGone says the portal is permanently unsupported. Temporary bus and
+	// service failures instead become stale and are asked again.
 	portalGone bool
 	// watching says a connection delivers the portal's changes, so the values are current.
 	watching bool

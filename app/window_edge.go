@@ -8,7 +8,8 @@ import "github.com/vivaui/viva/internal/platform"
 func (painter *painter) trackEdge(event platform.PointerEvent) bool {
 	next := platform.EdgeNone
 	if painter.controls != nil && event.Kind != platform.PointerExit && !painter.controls.maximized() {
-		next = platform.EdgeAt(event.X, event.Y, painter.size.Width, painter.size.Height, !painter.hovered.IsZero())
+		overControl := painter.pressAt(event.X, event.Y) == platform.PressControl
+		next = platform.EdgeAt(event.X, event.Y, painter.size.Width, painter.size.Height, overControl)
 	}
 	changed := next != painter.edge
 	painter.edge = next

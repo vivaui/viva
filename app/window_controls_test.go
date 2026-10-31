@@ -1,6 +1,8 @@
 package app
 
 import (
+	"os"
+	"runtime"
 	"testing"
 
 	"github.com/vivaui/viva/internal/platform"
@@ -148,7 +150,7 @@ func TestWindowButtonsPaintHoverPressedAndTheCloseColor(t *testing.T) {
 	close := float32(600 - WindowControlWidth + 20)
 	fill := func() (ui.Color, bool) {
 		for _, rectangle := range fixture.canvas.Rectangles() {
-			if rectangle.Bounds.X >= 600-WindowControlWidth && rectangle.Bounds.Width == WindowControlWidth && rectangle.Bounds.Height == 36 {
+			if rectangle.Bounds.X >= 600-WindowControlWidth && (rectangle.Bounds.Width == WindowControlWidth || rectangle.Radius > 0) {
 				return rectangle.Color, true
 			}
 		}
@@ -165,6 +167,29 @@ func TestWindowButtonsPaintHoverPressedAndTheCloseColor(t *testing.T) {
 	fixture.painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: close, Y: 18})
 	if pressed, _ := fill(); pressed.Alpha >= hover.Alpha {
 		t.Fatalf("pressed close %+v is not fainter than hover %+v", pressed, hover)
+	}
+}
+
+func TestDesktopThemeDetectionAndStyling(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("desktop theme detection reads XDG_CURRENT_DESKTOP only on Linux")
+	}
+	orig := os.Getenv("XDG_CURRENT_DESKTOP")
+	defer os.Setenv("XDG_CURRENT_DESKTOP", orig)
+
+	os.Setenv("XDG_CURRENT_DESKTOP", "KDE")
+	if detectDesktopTheme() != desktopBreeze {
+		t.Errorf("expected desktopBreeze for KDE, got %v", detectDesktopTheme())
+	}
+
+	os.Setenv("XDG_CURRENT_DESKTOP", "GNOME")
+	if detectDesktopTheme() != desktopAdwaita {
+		t.Errorf("expected desktopAdwaita for GNOME, got %v", detectDesktopTheme())
+	}
+
+	os.Setenv("XDG_CURRENT_DESKTOP", "XFCE")
+	if detectDesktopTheme() != desktopDefault {
+		t.Errorf("expected desktopDefault for XFCE, got %v", detectDesktopTheme())
 	}
 }
 
@@ -330,6 +355,15 @@ func TestPointerOverAWindowEdgeShowsTheResizeCursor(t *testing.T) {
 	move(600-20, 2)
 	if last() == CursorResizeVertical {
 		t.Error("the top edge over a window button showed the resize cursor")
+	}
+
+	// The top edge over a titlebar move region must still show resize cursor.
+	fixture.canvas.MoveRegion(ui.Rect{X: 0, Y: 0, Width: 600, Height: 40})
+	fixture.painter.paintCanvas()
+	fixture.painter.syncRegions()
+	move(300, 2)
+	if last() != CursorResizeVertical {
+		t.Errorf("the top edge over a titlebar move region showed cursor %d, want CursorResizeVertical", last())
 	}
 
 	// Leaving the window clears it.

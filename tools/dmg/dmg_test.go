@@ -99,10 +99,14 @@ func TestPropertyListsAreReadByTheSystem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plutil: %v\n%s", err, out)
 	}
-	for _, want := range []string{`"flag" => 1`, `"size" => 300`, `"ratio" => 0.5`, `"text" => "{{200, 400}, {600, 428}}"`, `"名称" => "Motty"`} {
+	for _, want := range []string{`"size" => 300`, `"ratio" => 0.5`, `"text" => "{{200, 400}, {600, 428}}"`, `"名称" => "Motty"`} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("missing %s in:\n%s", want, out)
 		}
+	}
+	// plutil writes a boolean as 1 on older macOS and true on newer.
+	if text := string(out); !strings.Contains(text, `"flag" => 1`) && !strings.Contains(text, `"flag" => true`) {
+		t.Errorf("missing \"flag\" => 1 or true in:\n%s", out)
 	}
 }
 

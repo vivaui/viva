@@ -46,7 +46,10 @@ const (
 	vkImageViewType2D                = 1
 	vkSharingExclusive               = 0
 	vkCompositeOpaque                = 1
+	vkPresentImmediate               = 0
+	vkPresentMailbox                 = 1
 	vkPresentFIFO                    = 2
+	vkPresentFIFORelaxed             = 3
 	vkSubpassContentsInline          = 0
 	vkCommandBufferPrimary           = 0
 	vkFenceSignaled                  = 1
@@ -313,6 +316,7 @@ type vulkanAPI struct {
 	getSurfaceSupport                 func(uintptr, uint32, uintptr, *uint32) int32
 	getSurfaceCapabilities            func(uintptr, uintptr, *vkSurfaceCapabilities) int32
 	getSurfaceFormats                 func(uintptr, uintptr, *uint32, *vkSurfaceFormat) int32
+	getSurfacePresentModes            func(uintptr, uintptr, *uint32, *uint32) int32
 	createDevice                      func(uintptr, *vkDeviceCreateInfo, unsafe.Pointer, *uintptr) int32
 	destroyDevice                     func(uintptr, unsafe.Pointer)
 	getDeviceQueue                    func(uintptr, uint32, uint32, *uintptr)
@@ -407,12 +411,19 @@ type vulkanRenderer struct {
 	offscreen                       vulkanOffscreen
 	submissions, rebuilds, partials uint64
 	scratch                         vulkanScratch
-	// connection and window are what the surface is made from, kept to make it
-	// again after a loss; connection is zero for an offscreen renderer, which has
+	// provider is what the surface is made from, kept to make it
+	// again after a loss; provider is nil for an offscreen renderer, which has
 	// no surface and is not rebuilt. recoveries counts the rebuilds.
-	connection uintptr
-	window     uint32
-	recoveries uint64
+	provider            vulkanSurfaceProvider
+	swapchainSuboptimal bool
+	// swapchainSuboptimalRebuilt means the current swapchain was recreated
+	// after SUBOPTIMAL was reported and still reports it. Further frames
+	// present it instead of recreating it again until a frame reports a
+	// healthy status or the swapchain is recreated for another reason.
+	swapchainSuboptimalRebuilt bool
+	connection                 uintptr
+	window                     uint32
+	recoveries                 uint64
 	// frame is the window frame the renderer draws, if any (vulkan_frame_linux.go).
 	frame vulkanFrame
 }
@@ -458,6 +469,7 @@ func loadVulkan() (*vulkanAPI, error) {
 	purego.RegisterLibFunc(&api.getSurfaceSupport, library, "vkGetPhysicalDeviceSurfaceSupportKHR")
 	purego.RegisterLibFunc(&api.getSurfaceCapabilities, library, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR")
 	purego.RegisterLibFunc(&api.getSurfaceFormats, library, "vkGetPhysicalDeviceSurfaceFormatsKHR")
+	purego.RegisterLibFunc(&api.getSurfacePresentModes, library, "vkGetPhysicalDeviceSurfacePresentModesKHR")
 	purego.RegisterLibFunc(&api.createDevice, library, "vkCreateDevice")
 	purego.RegisterLibFunc(&api.destroyDevice, library, "vkDestroyDevice")
 	purego.RegisterLibFunc(&api.getDeviceQueue, library, "vkGetDeviceQueue")
@@ -486,12 +498,15 @@ func loadVulkan() (*vulkanAPI, error) {
 	return api, nil
 }
 
-func newVulkanRenderer(connection uintptr, window, width, height uint32, scale float32, color platform.Color, rectangles []render.Rectangle, labels []platform.TextLabel, margin uint32) (*vulkanRenderer, error) {
+func newVulkanRenderer(provider vulkanSurfaceProvider, width, height uint32, scale float32, color platform.Color, rectangles []render.Rectangle, labels []platform.TextLabel, margin uint32) (*vulkanRenderer, error) {
 	api, err := loadVulkan()
 	if err != nil {
 		return nil, err
 	}
-	renderer := &vulkanRenderer{api: api, width: width, height: height, scale: scale, color: color, connection: connection, window: window}
+	renderer := &vulkanRenderer{api: api, width: width, height: height, scale: scale, color: color, provider: provider}
+	if xcb, ok := provider.(*xcbSurfaceProvider); ok {
+		renderer.connection, renderer.window = xcb.connection, xcb.window
+	}
 	renderer.frame.margin = margin
 	renderer.rectangles = append(renderer.rectangles, rectangles...)
 	renderer.rectangleBatches = render.GroupBatches(renderer.rectangleBatches, renderer.rectangles)
@@ -500,23 +515,23 @@ func newVulkanRenderer(connection uintptr, window, width, height uint32, scale f
 		return nil, err
 	}
 	renderer.compositingBatches = groupCompositingLayers(renderer.rectangleBatches, renderer.text.labels, renderer.text.order, renderer.compositingBatches)
-	if err := renderer.initialize(connection, window); err != nil {
+	if err := renderer.initialize(provider); err != nil {
 		renderer.close()
 		return nil, err
 	}
 	return renderer, nil
 }
 
-func (renderer *vulkanRenderer) initialize(connection uintptr, window uint32) error {
-	surfaceExtension := append([]byte("VK_KHR_surface"), 0)
-	xcbExtension := append([]byte("VK_KHR_xcb_surface"), 0)
-	if err := renderer.createInstance([]*byte{&surfaceExtension[0], &xcbExtension[0]}); err != nil {
+func (renderer *vulkanRenderer) initialize(provider vulkanSurfaceProvider) error {
+	extensions := provider.RequiredExtensions()
+	if err := renderer.createInstance(extensions); err != nil {
 		return err
 	}
-	surfaceInfo := vkXcbSurfaceCreateInfo{SType: vkStructureXcbSurfaceCreateInfo, Connection: connection, Window: window}
-	if err := vkCheck(renderer.api.createXcbSurface(renderer.instance, &surfaceInfo, nil, &renderer.surface), "create XCB surface"); err != nil {
+	surface, err := provider.CreateSurface(renderer.api, renderer.instance)
+	if err != nil {
 		return err
 	}
+	renderer.surface = surface
 	if err := renderer.selectDevice(); err != nil {
 		return err
 	}
@@ -633,9 +648,36 @@ func (renderer *vulkanRenderer) selectDevice() error {
 	return fmt.Errorf("linux: no Vulkan graphics queue can present to XCB")
 }
 
-func (renderer *vulkanRenderer) createSwapchain() (err error) {
+func (renderer *vulkanRenderer) choosePresentMode() uint32 {
+	if renderer.api == nil || renderer.api.getSurfacePresentModes == nil || renderer.physical == 0 || renderer.surface == 0 {
+		return vkPresentFIFO
+	}
+	var count uint32
+	if err := vkCheck(renderer.api.getSurfacePresentModes(renderer.physical, renderer.surface, &count, nil), "count surface present modes"); err != nil || count == 0 {
+		return vkPresentFIFO
+	}
+	modes := make([]uint32, count)
+	if err := vkCheck(renderer.api.getSurfacePresentModes(renderer.physical, renderer.surface, &count, &modes[0]), "query surface present modes"); err != nil {
+		return vkPresentFIFO
+	}
+	for _, mode := range modes {
+		if mode == vkPresentMailbox {
+			return vkPresentMailbox
+		}
+	}
+	return vkPresentFIFO
+}
+
+func (renderer *vulkanRenderer) createSwapchain() error {
+	return renderer.createSwapchainWithOld(0)
+}
+
+func (renderer *vulkanRenderer) createSwapchainWithOld(oldSwapchain uintptr) (err error) {
 	defer func() {
 		if err != nil {
+			if oldSwapchain != 0 {
+				renderer.api.destroySwapchain(renderer.device, oldSwapchain, nil)
+			}
 			renderer.destroySwapchain()
 		}
 	}()
@@ -666,11 +708,22 @@ func (renderer *vulkanRenderer) createSwapchain() (err error) {
 		}
 	}
 	extent := capabilities.Current
+	minW := max(1, capabilities.Minimum.Width)
+	minH := max(1, capabilities.Minimum.Height)
+	maxW := max(minW, capabilities.Maximum.Width)
+	maxH := max(minH, capabilities.Maximum.Height)
 	if extent.Width == math.MaxUint32 {
-		extent.Width = clamp(renderer.width, capabilities.Minimum.Width, capabilities.Maximum.Width)
-		extent.Height = clamp(renderer.height, capabilities.Minimum.Height, capabilities.Maximum.Height)
+		extent.Width = clamp(renderer.width, minW, maxW)
+		extent.Height = clamp(renderer.height, minH, maxH)
+	} else {
+		extent.Width = clamp(extent.Width, minW, maxW)
+		extent.Height = clamp(extent.Height, minH, maxH)
 	}
+	presentMode := renderer.choosePresentMode()
 	imageCount := capabilities.MinImages + 1
+	if presentMode == vkPresentMailbox && imageCount < 3 {
+		imageCount = 3
+	}
 	if capabilities.MaxImages > 0 && imageCount > capabilities.MaxImages {
 		imageCount = capabilities.MaxImages
 	}
@@ -689,10 +742,16 @@ func (renderer *vulkanRenderer) createSwapchain() (err error) {
 	if capabilities.Usage&vkImageUsageColorAttachment == 0 {
 		return fmt.Errorf("linux: Vulkan surface does not support color attachments")
 	}
-	info := vkSwapchainCreateInfo{SType: vkStructureSwapchainCreateInfo, Surface: renderer.surface, MinImages: imageCount, Format: selected.Format, ColorSpace: selected.ColorSpace, Extent: extent, Layers: 1, Usage: vkImageUsageColorAttachment, SharingMode: vkSharingExclusive, PreTransform: capabilities.CurrentTransform, CompositeAlpha: composite, PresentMode: vkPresentFIFO, Clipped: 1}
-	if err := vkCheck(renderer.api.createSwapchain(renderer.device, &info, nil, &renderer.swapchain), "create swapchain"); err != nil {
+	info := vkSwapchainCreateInfo{SType: vkStructureSwapchainCreateInfo, Surface: renderer.surface, MinImages: imageCount, Format: selected.Format, ColorSpace: selected.ColorSpace, Extent: extent, Layers: 1, Usage: vkImageUsageColorAttachment, SharingMode: vkSharingExclusive, PreTransform: capabilities.CurrentTransform, CompositeAlpha: composite, PresentMode: presentMode, Clipped: 1, OldSwapchain: oldSwapchain}
+	var newSwapchain uintptr
+	if err := vkCheck(renderer.api.createSwapchain(renderer.device, &info, nil, &newSwapchain), "create swapchain"); err != nil {
 		return err
 	}
+	if oldSwapchain != 0 {
+		renderer.api.destroySwapchain(renderer.device, oldSwapchain, nil)
+		oldSwapchain = 0
+	}
+	renderer.swapchain = newSwapchain
 	var imageTotal uint32
 	if err := vkCheck(renderer.api.getSwapchainImages(renderer.device, renderer.swapchain, &imageTotal, nil), "count swapchain images"); err != nil {
 		return err
@@ -729,6 +788,8 @@ func (renderer *vulkanRenderer) createSwapchain() (err error) {
 		return err
 	}
 	renderer.width, renderer.height, renderer.format = extent.Width, extent.Height, selected.Format
+	renderer.swapchainSuboptimal = false
+	renderer.swapchainSuboptimalRebuilt = false
 	return nil
 }
 
@@ -901,7 +962,7 @@ func clampUnit(value float32) float32 {
 }
 
 func swapchainNeedsRebuild(status int32) bool {
-	return status == vkSuboptimal || status == vkErrorOutOfDate
+	return status == vkErrorOutOfDate
 }
 
 // present draws the scene to the next swapchain image. A lost device or
@@ -921,7 +982,7 @@ func (renderer *vulkanRenderer) present() error {
 // was lost, and reports whether the operation that failed is to be run again.
 // A rebuild that fails gives that failure with err.
 func (renderer *vulkanRenderer) recoverFrom(err error, losses int) (retry bool, failure error) {
-	if err == nil || !isGraphicsLoss(err) || renderer.connection == 0 || losses >= maxLossRecoveries {
+	if err == nil || !isGraphicsLoss(err) || (renderer.provider == nil && renderer.connection == 0) || losses >= maxLossRecoveries {
 		return false, err
 	}
 	if recoverErr := renderer.recoverDevice(); recoverErr != nil {
@@ -937,8 +998,25 @@ func (renderer *vulkanRenderer) presentRebuilding() error {
 			return err
 		}
 		if !rebuild {
-			return nil
+			if !renderer.swapchainSuboptimal {
+				// A healthy frame ends any SUBOPTIMAL episode; a later
+				// SUBOPTIMAL is a fresh signal that may rebuild once.
+				renderer.swapchainSuboptimalRebuilt = false
+				return nil
+			}
+			if renderer.swapchainSuboptimalRebuilt || attempt == 1 {
+				// SUBOPTIMAL presents the frame. Once the swapchain has been
+				// recreated for it, recreating again cannot make the status
+				// converge; present this swapchain until the status clears.
+				renderer.swapchainSuboptimalRebuilt = true
+				return nil
+			}
 		}
+		if attempt == 1 {
+			break
+		}
+		// OUT_OF_DATE has not completed a frame. SUBOPTIMAL has, but its new
+		// swapchain must also present once before this transaction completes.
 		if err := renderer.recreateSwapchain(); err != nil {
 			return err
 		}
@@ -958,7 +1036,10 @@ func (renderer *vulkanRenderer) presentOnce() (bool, error) {
 	if status != vkSuccess && status != vkSuboptimal {
 		return false, vkCheck(status, "acquire swapchain image")
 	}
-	rebuild := swapchainNeedsRebuild(status)
+	suboptimal := status == vkSuboptimal
+	if suboptimal {
+		renderer.swapchainSuboptimal = true
+	}
 	image := scratch.image
 	if image >= uint32(len(renderer.commands)) {
 		return false, fmt.Errorf("linux: Vulkan acquired invalid image %d", image)
@@ -974,11 +1055,20 @@ func (renderer *vulkanRenderer) presentOnce() (bool, error) {
 	}
 	scratch.present = vkPresentInfo{SType: vkStructurePresentInfo, WaitCount: 1, Waits: &renderer.renderFinished, SwapCount: 1, Swapchains: &renderer.swapchain, Indices: &scratch.image}
 	status = renderer.api.queuePresent(renderer.queue, &scratch.present)
-	if status != vkSuccess && !swapchainNeedsRebuild(status) {
+	if status == vkSuboptimal {
+		renderer.swapchainSuboptimal = true
+		suboptimal = true
+	}
+	if status != vkSuccess && !swapchainNeedsRebuild(status) && status != vkSuboptimal {
 		return false, vkCheck(status, "present swapchain image")
 	}
+	if !suboptimal {
+		// The swapchain presented at its preferred configuration. A later
+		// SUBOPTIMAL is new information and may rebuild it once.
+		renderer.swapchainSuboptimal = false
+	}
 	renderer.submissions++
-	return rebuild || swapchainNeedsRebuild(status), nil
+	return swapchainNeedsRebuild(status), nil
 }
 
 // apply takes a frame into the renderer's scene. A frame is idempotent, so one
@@ -1092,10 +1182,26 @@ func (renderer *vulkanRenderer) setScaleOnce(scale float32) error {
 	if err := vkCheck(renderer.api.deviceWaitIdle(renderer.device), "wait before scale change"); err != nil {
 		return err
 	}
+	// Re-recording reuses command buffers that the previous frame left
+	// executable; the pool was created without implicit reset.
+	if err := renderer.resetCommands("reset commands before scale change"); err != nil {
+		return err
+	}
 	if err := renderer.text.upload(renderer, scale); err != nil {
 		return err
 	}
 	return renderer.recordCommands(vkExtent2D{Width: renderer.width, Height: renderer.height})
+}
+
+// resetCommands makes every buffer in the pool initial again. Callers must
+// have waited for the device (or the frame fence) before resetting; recording
+// paths that reuse buffers without this reset violate the command pool's
+// single-use begin rule.
+func (renderer *vulkanRenderer) resetCommands(operation string) error {
+	if renderer.device == 0 || renderer.commandPool == 0 {
+		return nil
+	}
+	return vkCheck(renderer.api.resetCommandPool(renderer.device, renderer.commandPool, 0), operation)
 }
 
 func (renderer *vulkanRenderer) resize(width, height uint32) error {
@@ -1119,11 +1225,13 @@ func (renderer *vulkanRenderer) recreateSwapchain() error {
 	if err := vkCheck(renderer.api.deviceWaitIdle(renderer.device), "wait before swapchain recreation"); err != nil {
 		return err
 	}
-	renderer.destroySwapchain()
-	return renderer.createSwapchain()
+	oldSwapchain := renderer.swapchain
+	renderer.swapchain = 0
+	renderer.destroySwapchainResources()
+	return renderer.createSwapchainWithOld(oldSwapchain)
 }
 
-func (renderer *vulkanRenderer) destroySwapchain() {
+func (renderer *vulkanRenderer) destroySwapchainResources() {
 	if renderer.device == 0 {
 		return
 	}
@@ -1152,6 +1260,10 @@ func (renderer *vulkanRenderer) destroySwapchain() {
 		}
 	}
 	renderer.views = nil
+}
+
+func (renderer *vulkanRenderer) destroySwapchain() {
+	renderer.destroySwapchainResources()
 	if renderer.swapchain != 0 {
 		renderer.api.destroySwapchain(renderer.device, renderer.swapchain, nil)
 		renderer.swapchain = 0
@@ -1181,12 +1293,18 @@ func (renderer *vulkanRenderer) close() {
 		renderer.api.destroyDevice(renderer.device, nil)
 	}
 	if renderer.surface != 0 && renderer.instance != 0 {
-		renderer.api.destroySurface(renderer.instance, renderer.surface, nil)
+		if renderer.provider != nil {
+			renderer.provider.DestroySurface(renderer.api, renderer.instance, renderer.surface)
+		} else {
+			renderer.api.destroySurface(renderer.instance, renderer.surface, nil)
+		}
 	}
 	if renderer.instance != 0 {
 		renderer.api.destroyInstance(renderer.instance, nil)
 	}
-	purego.Dlclose(renderer.api.library)
+	if renderer.api.library != 0 {
+		purego.Dlclose(renderer.api.library)
+	}
 	renderer.api = nil
 }
 
@@ -1224,11 +1342,15 @@ func clamp(value, minimum, maximum uint32) uint32 {
 // uploaded again from what the renderer kept. Nothing is lost that the CPU
 // does not hold, and the window stays where it is.
 func (renderer *vulkanRenderer) recoverDevice() error {
-	if renderer.connection == 0 {
+	if renderer.provider == nil && renderer.connection == 0 {
 		return fmt.Errorf("linux: only a window renderer can be rebuilt")
 	}
 	renderer.releaseDevice()
-	if err := renderer.initialize(renderer.connection, renderer.window); err != nil {
+	provider := renderer.provider
+	if provider == nil && renderer.connection != 0 {
+		provider = newXcbSurfaceProvider(renderer.connection, renderer.window)
+	}
+	if err := renderer.initialize(provider); err != nil {
 		return err
 	}
 	renderer.recoveries++
@@ -1259,7 +1381,11 @@ func (renderer *vulkanRenderer) releaseDevice() {
 		renderer.api.destroyDevice(renderer.device, nil)
 	}
 	if renderer.surface != 0 && renderer.instance != 0 {
-		renderer.api.destroySurface(renderer.instance, renderer.surface, nil)
+		if renderer.provider != nil {
+			renderer.provider.DestroySurface(renderer.api, renderer.instance, renderer.surface)
+		} else {
+			renderer.api.destroySurface(renderer.instance, renderer.surface, nil)
+		}
 	}
 	if renderer.instance != 0 {
 		renderer.api.destroyInstance(renderer.instance, nil)

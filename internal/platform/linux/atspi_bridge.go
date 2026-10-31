@@ -3,6 +3,7 @@
 package linux
 
 import (
+	"errors"
 	"math"
 	"os"
 	"path/filepath"
@@ -14,13 +15,26 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
+var errAtspiClosed = errors.New("atspi: connection closed")
+
+type atspiTransport interface {
+	Call(destination, path, iface, member, signature string, body []byte) (*dbus.Message, error)
+	Emit(path, iface, member, signature string, body []byte) error
+	UniqueName() string
+	FD() int
+	Receive() ([]*dbus.Message, error)
+	Reply(call *dbus.Message, signature string, body []byte) error
+	ReplyError(call *dbus.Message, name, text string) error
+	Close()
+}
+
 // atspiBridge serves the application's accessibility tree on the accessibility
 // bus, the way a toolkit does for a screen reader: every node is an object with
 // a path, and the reader calls methods on the interfaces the node says it has.
 // It speaks only when the desktop has switched accessibility on, and it runs on
 // the event-loop thread, in the same poll as the windows.
 type atspiBridge struct {
-	conn *dbus.Conn
+	conn atspiTransport
 	// send emits a signal on the bus; it is the connection's, and a test's own.
 	send    func(path, interfaceName, member, signature string, body []byte) error
 	unique  string   // the connection's own name on the bus
@@ -68,7 +82,7 @@ const (
 	maxChildEvents = 64
 )
 
-func newAtspiBridge(conn *dbus.Conn) *atspiBridge {
+func newAtspiBridge(conn atspiTransport) *atspiBridge {
 	name := "viva"
 	if executable, err := os.Executable(); err == nil {
 		name = filepath.Base(executable)
@@ -471,6 +485,9 @@ func atspiDescription(node platform.AccessibilityNode) string {
 
 // serve answers the calls that have arrived on the bus.
 func (bridge *atspiBridge) serve() error {
+	if bridge.conn == nil {
+		return errAtspiClosed
+	}
 	messages, err := bridge.conn.Receive()
 	if err != nil {
 		return err
@@ -478,6 +495,9 @@ func (bridge *atspiBridge) serve() error {
 	for _, message := range messages {
 		if message.Type == dbus.TypeCall {
 			bridge.handle(message)
+			if bridge.conn == nil {
+				return errAtspiClosed
+			}
 		}
 	}
 	return nil
@@ -512,9 +532,17 @@ func answerInt(value int32) atspiAnswer {
 func answerError(name, text string) atspiAnswer { return atspiAnswer{errorName: name, errorText: text} }
 
 func (bridge *atspiBridge) handle(call *dbus.Message) {
+	if bridge.conn == nil {
+		return
+	}
 	answer := bridge.answer(call)
+	if bridge.conn == nil {
+		return
+	}
 	if answer.errorName != "" {
-		bridge.conn.ReplyError(call, answer.errorName, answer.errorText)
+		if bridge.conn.ReplyError(call, answer.errorName, answer.errorText) != nil {
+			bridge.close()
+		}
 		return
 	}
 	if bridge.conn.Reply(call, answer.signature, answer.body) != nil {

@@ -151,9 +151,11 @@ type linuxApplication struct {
 	ibusTried bool
 
 	// desktop is the connection that delivers the desktop's settings while someone
-	// watches them (desktop_bus_linux.go); desktopFailed says it cannot be had.
-	desktop       *desktopWatch
-	desktopFailed bool
+	// watches them. Retry state is owned by this event loop.
+	desktop               *desktopWatch
+	desktopRetry          desktopRetry
+	desktopRetryRequested atomic.Bool
+	now                   func() time.Time
 
 	// live is every window that can still be posted to, for requests that come
 	// from another goroutine (see post); the loop's own slice is not safe to read
@@ -187,17 +189,28 @@ func (window *nativeWindow) Close() {
 const errnoINTR = 4
 
 func RunApplication(start platform.ApplicationStart) error {
+	backend, err := selectBackend()
+	if err != nil {
+		return err
+	}
+	return backend.Run(start)
+}
+
+func (application *linuxApplication) Run(start platform.ApplicationStart) error {
 	// errno belongs to the thread; the loop reads it right after poll fails, and
 	// must still be on the thread that failed.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	application := &linuxApplication{}
+	application.quit = false
 	defer application.closeStatus()
 	defer application.atspiClose()
 	defer application.closeDesktop()
 	// Whoever starts to watch the appearance, from any goroutine, wakes the loop to open the
 	// connection that hears the desktop.
-	platform.SetWatchHook(func() { application.post(commandDesktop) })
+	platform.SetWatchHook(func() {
+		application.desktopRetryRequested.Store(true)
+		application.post(commandDesktop)
+	})
 	defer platform.SetWatchHook(nil)
 	if err := start(application); err != nil {
 		application.closeAll()
@@ -292,7 +305,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	state.text = textInput
 	textInput.bindCaretWaker(win.postCaretBlink)
 	initialRectangles, initialLabels := textInput.initial()
-	renderer, err := newVulkanRenderer(win.connection, win.id, win.width, win.height, win.displayScale(), config.ClearColor, initialRectangles, initialLabels, win.margin)
+	renderer, err := newVulkanRenderer(newXcbSurfaceProvider(win.connection, win.id), win.width, win.height, win.displayScale(), config.ClearColor, initialRectangles, initialLabels, win.margin)
 	if err != nil {
 		textInput.close()
 		win.close()
@@ -313,7 +326,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	}
 	var ime *linuxIME
 	state.router = eventRouter{
-		config: config, text: textInput, pressed: new([256]bool), scale: win.displayScale,
+		config: config, text: textInput, scale: win.displayScale, modifierKeys: newModifierTracker(),
 		clicks: &input.ClickCounter{Interval: 500 * time.Millisecond, Distance: 4},
 		present: func(frame platform.Frame) error {
 			if ime != nil {
@@ -360,6 +373,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	if os.Getenv("VIVA_TEST_AUTOCLOSE") != "" {
 		win.postClientMessage(win.closeAtom, 0)
 	}
+	application.retryDesktopWatch()
 	return &nativeWindow{state: state}, nil
 }
 
@@ -401,17 +415,22 @@ func (application *linuxApplication) rebuildPoll() {
 	}
 }
 
-// pollTimeout is how long the loop may sleep: forever, unless a key is waiting
-// for the input method, which is given a bounded time to answer.
+// pollTimeout is how long the loop may sleep: forever, unless the input method
+// or a desktop retry has a bounded deadline.
 func (application *linuxApplication) pollTimeout() int32 {
-	if application.ibus == nil {
-		return -1
+	timeout := int32(-1)
+	if application.ibus != nil {
+		if deadline, waiting := application.ibus.Deadline(); waiting {
+			timeout = int32(max(time.Until(deadline).Milliseconds()+1, 0))
+		}
 	}
-	deadline, waiting := application.ibus.Deadline()
-	if !waiting {
-		return -1
+	if deadline, waiting := application.desktopRetry.deadline(platform.DesktopWatched(), application.desktop != nil); waiting {
+		retryTimeout := int32(max(deadline.Sub(application.timeNow()).Milliseconds()+1, 0))
+		if timeout < 0 || retryTimeout < timeout {
+			timeout = retryTimeout
+		}
 	}
-	return int32(max(time.Until(deadline).Milliseconds()+1, 0))
+	return timeout
 }
 
 // takeHeld returns the event read ahead, once.
@@ -752,7 +771,12 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	case xcbMappingNotify:
 		mapping := (*xcbMappingEvent)(event)
 		if config.OnKey != nil && mapping.Request == xcbMappingKeyboard {
-			return false, win.reloadKeymap()
+			if err := win.reloadKeymap(); err != nil {
+				return false, err
+			}
+			// A held key can change class with the layout: AltGr may become Alt.
+			state.refreshModifierKeys()
+			return false, nil
 		}
 	case xcbFocusIn:
 		state.application.atspiActive(state, true)
@@ -765,25 +789,50 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 			}
 		}
 		focus := (*xcbFocusEvent)(event)
-		if router.ime != nil && focus.Mode != xcbNotifyGrab && focus.Mode != xcbNotifyUngrab && focus.Detail != xcbNotifyInferior {
+		realFocus := focus.Mode != xcbNotifyGrab && focus.Mode != xcbNotifyUngrab && focus.Detail != xcbNotifyInferior
+		// Only a focus that reached this window starts a new span. NotifyPointer
+		// and the virtual details accompany a change that happened elsewhere and
+		// must not forget keys held here.
+		keyboardFocus := focus.Detail == xcbNotifyAncestor || focus.Detail == xcbNotifyNonlinear
+		if keyboardFocus {
+			// A key pressed or released while another window or a grab held the
+			// keyboard left no event here. The server's bitmap says which keys
+			// are really down, including ones still held across the change.
+			if keys, ok := win.keysDown(); ok {
+				router.modifierKeys.seed(keys, func(scancode uint32) input.Modifiers {
+					if scancode > 255 {
+						return 0
+					}
+					key := win.keymap.key(uint8(scancode))
+					return modifierBit(win.keymap.keysym(uint8(scancode), 0), key)
+				})
+			} else {
+				router.modifierKeys.reset()
+			}
+		}
+		if router.ime != nil && realFocus {
 			router.ime.setFocused(true)
 		}
 	case xcbFocusOut:
 		state.application.atspiActive(state, false)
-		if focus := (*xcbFocusEvent)(event); focus.Detail != xcbNotifyInferior && config.OnFocusLost != nil {
+		focus := (*xcbFocusEvent)(event)
+		focusLeft := focus.Detail != xcbNotifyInferior
+		// Moving into or out of a grab is not the user leaving.
+		realFocusLoss := focusLeft && focus.Mode != xcbNotifyGrab && focus.Mode != xcbNotifyUngrab
+		if focusLeft && config.OnFocusLost != nil {
 			// A grab (a window manager's Alt+Tab) takes the keys' releases too.
 			frame, err := config.OnFocusLost()
 			if err := router.presentFrame(frame, err); err != nil {
 				return false, err
 			}
 		}
-		// A panel is a transient popup: losing the focus dismisses it. Focus
-		// moving into or out of a grab is not the user leaving.
-		focus := (*xcbFocusEvent)(event)
-		if router.ime != nil && focus.Mode != xcbNotifyGrab && focus.Mode != xcbNotifyUngrab && focus.Detail != xcbNotifyInferior {
+		if router.ime != nil && realFocusLoss {
 			router.ime.setFocused(false)
 		}
-		if config.WindowMode == platform.WindowPanel && focus.Mode != xcbNotifyGrab && focus.Mode != xcbNotifyUngrab && focus.Detail != xcbNotifyInferior {
+		// The held key set is left for the next FocusIn, which starts a new
+		// focus span; dropping it here would lose a pair that is still down
+		// across a grab.
+		if config.WindowMode == platform.WindowPanel && realFocusLoss {
 			panelDismissedAt.Store(monotonicNow())
 			return true, nil
 		}
@@ -1144,6 +1193,22 @@ func (win *window) close() {
 	}
 }
 
+// refreshModifierKeys re-reads the bit each held key sets under the keymap the
+// server just installed.
+func (state *linuxWindowState) refreshModifierKeys() {
+	tracker := state.router.modifierKeys
+	if tracker == nil || state.win == nil {
+		return
+	}
+	for scancode := range tracker.down {
+		if scancode > 255 {
+			continue
+		}
+		key := state.win.keymap.key(uint8(scancode))
+		tracker.down[scancode] = modifierBit(state.win.keymap.keysym(uint8(scancode), 0), key)
+	}
+}
+
 // keyReleased handles a key coming up. X reports an autorepeating key as a
 // release and a press at the same instant, which is not a release, so the next
 // event is read first: when it is that press, nothing is sent anywhere. The
@@ -1153,6 +1218,9 @@ func (state *linuxWindowState) keyReleased(release *xcbInputEvent) bool {
 	ime := state.router.ime
 	wanted := state.router.wantsKeyReleases()
 	if (ime == nil || !ime.active) && !wanted {
+		// No delivery path runs for this release; forget the key here so it
+		// cannot linger as held when a terminal takes over.
+		state.router.modifierKeys.release(uint32(release.Detail))
 		return false
 	}
 	if next := state.win.api.pollForEvent(state.win.connection); next != nil {
@@ -1166,6 +1234,10 @@ func (state *linuxWindowState) keyReleased(release *xcbInputEvent) bool {
 	}
 	if ime != nil && ime.active {
 		ime.release(&state.win.keymap, release)
+	}
+	if !wanted {
+		// The input method took this release; release() is not called for it.
+		state.router.modifierKeys.release(uint32(release.Detail))
 	}
 	return wanted
 }

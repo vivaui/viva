@@ -69,6 +69,18 @@ Not failures; the API reports what the platform can say.
 | Corner radius of a panel | the layer's | the system's on Windows 11 (`DWMWA_WINDOW_CORNER_PREFERENCE`, set in the code, not yet checked on screen), square on Windows 10 | square |
 | Shadow and round corners of a custom-titlebar window | the system's | the system's | drawn by Viva where the desktop composites and the graphics device is a GPU ("Window frame on Linux"); otherwise flat and square |
 
+## Native Wayland on Linux
+
+The Linux backend has a native Wayland implementation in addition to X11: it
+uses xdg-shell, Wayland input and frame callbacks, fractional/integer scaling,
+Vulkan WSI, IBus and AT-SPI. The `linux-platform` CI job runs its unit and
+protocol-fake tests on Ubuntu without a display or GPU.
+
+This is implementation and test coverage, not real-compositor acceptance. The
+interactive Linux environment below is still KDE Plasma on X11 with software
+Vulkan. A native Wayland compositor/GPU matrix has not been validated, so the
+manual scenarios above do not yet establish Wayland conformance.
+
 ## Not done, and why
 
 What the Windows and Linux backends do not have yet, recorded so that nobody
@@ -76,7 +88,6 @@ mistakes an absence for an oversight. Items marked *measured* were tried or size
 
 | Gap | Platform | Reason |
 | --- | --- | --- |
-| Native Wayland | Linux | Only XCB is spoken; a Wayland session runs through XWayland. A second window system, input stack and frame is a project of its own. |
 | Smooth scrolling (`Precise`) | Linux | It needs XInput2 valuators, and a window that selects XI2 events stops receiving the core pointer events, so the whole pointer path would move. The test machine's Xvnc has no scroll valuator, so the code could not be verified; none was added. |
 | Text Services Framework | Windows | IMM32 is used (candidate placement, reconversion, clause styling). TSF means implementing `ITextStoreACP`; not done. |
 | Toast notifications | Windows | They need a Start-menu shortcut carrying an AppUserModelID, and NSIS cannot write that property without a plugin. A balloon is shown instead. The process AppUserModelID is set only when the application sets `Config.Class`, so a pinned shortcut and its window group together. |

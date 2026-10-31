@@ -73,7 +73,11 @@ func busServiceMissing(err error) bool {
 	return false
 }
 
-func addMatch(conn *dbus.Conn, rule string) error {
+type portalCaller interface {
+	Call(destination, path, iface, member, signature string, body []byte) (*dbus.Message, error)
+}
+
+func addMatch(conn portalCaller, rule string) error {
 	var match dbus.Encoder
 	match.String(rule)
 	_, err := conn.Call(dbusName, dbusPath, dbusName, "AddMatch", "s", match.Bytes())
@@ -110,7 +114,7 @@ func parseSettingChanged(body []byte) (namespace, key string, value portalNumber
 }
 
 // readPortalSetting asks the portal for one setting.
-func readPortalSetting(conn *dbus.Conn, namespace, key string) (portalNumber, error) {
+func readPortalSetting(conn portalCaller, namespace, key string) (portalNumber, error) {
 	var request dbus.Encoder
 	request.String(namespace)
 	request.String(key)
@@ -126,9 +130,34 @@ func readPortalSetting(conn *dbus.Conn, namespace, key string) (portalNumber, er
 	return value, nil
 }
 
-// readPortalValues asks the portal for the settings Viva follows. gone is true when the
-// portal is not on the bus at all; a setting it does not have is left unknown.
-func readPortalValues(conn *dbus.Conn) (values portalValues, gone bool) {
+type portalReadResult uint8
+
+const (
+	portalReadOK portalReadResult = iota
+	portalReadRetry
+	portalReadUnsupported
+)
+
+// portalServiceTransient reports errors that a restarting bus or portal can answer
+// while its name is changing owners. They must not become a process-wide lockout.
+func portalServiceTransient(err error) bool {
+	var failure *dbus.Error
+	if !errors.As(err, &failure) {
+		return false
+	}
+	switch failure.Name {
+	case "org.freedesktop.DBus.Error.NameHasNoOwner", "org.freedesktop.DBus.Error.NoReply",
+		"org.freedesktop.DBus.Error.Disconnected", "org.freedesktop.DBus.Error.Timeout",
+		"org.freedesktop.DBus.Error.TimedOut":
+		return true
+	}
+	return false
+}
+
+// readPortalValues asks the portal for the settings Viva follows. A setting the
+// portal does not have is left unknown; transport failure is distinguished from
+// a service that is permanently unavailable.
+func readPortalValues(conn portalCaller) (values portalValues, result portalReadResult) {
 	for _, setting := range [...][2]string{
 		{portalAppearance, portalColorScheme},
 		{portalAppearance, portalReducedMo},
@@ -136,14 +165,21 @@ func readPortalValues(conn *dbus.Conn) (values portalValues, gone bool) {
 	} {
 		value, err := readPortalSetting(conn, setting[0], setting[1])
 		if err != nil {
+			if portalServiceTransient(err) {
+				return values, portalReadRetry
+			}
 			if busNameMissing(err) {
-				return values, true
+				return values, portalReadUnsupported
+			}
+			var failure *dbus.Error
+			if !errors.As(err, &failure) {
+				return values, portalReadRetry
 			}
 			continue // a portal that does not have this setting
 		}
 		values.apply(setting[0], setting[1], value)
 	}
-	return values, false
+	return values, portalReadOK
 }
 
 // portalFilter is one entry of a file chooser's filter list.

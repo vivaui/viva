@@ -20,6 +20,9 @@ const (
 	xcbNotifyGrab     = 1
 	xcbNotifyUngrab   = 2
 	xcbNotifyInferior = 2
+	// FocusIn details that say this window itself gained the keyboard.
+	xcbNotifyAncestor  = 0
+	xcbNotifyNonlinear = 3
 
 	xcbAtomWMNormalHints = 40
 	xcbAtomWMSizeHints   = 41
@@ -225,9 +228,10 @@ func (application *linuxApplication) post(command uint32) {
 // statusNotifier is the application's connection to the session bus and the
 // icons it has registered with the desktop's StatusNotifier host.
 type statusNotifier struct {
-	conn  *dbus.Conn
-	items map[string]*linuxStatusItem // by the bus name each is registered under
-	post  func(command uint32)        // wakes the event loop from another goroutine
+	conn      *dbus.Conn
+	items     map[string]*linuxStatusItem // by the bus name each is registered under
+	post      func(command uint32)        // wakes the event loop from another goroutine
+	onRemoval func()
 
 	mu       sync.Mutex
 	removals []string
@@ -319,6 +323,9 @@ func (notifier *statusNotifier) register(item *linuxStatusItem) error {
 }
 
 func (notifier *statusNotifier) release(item *linuxStatusItem) {
+	if notifier == nil || notifier.conn == nil || item == nil {
+		return
+	}
 	var name dbus.Encoder
 	name.String(item.name)
 	notifier.conn.Call(busName, "/org/freedesktop/DBus", busName, "ReleaseName", "s", name.Bytes())
@@ -668,5 +675,9 @@ func (item *linuxStatusItem) Remove() {
 	notifier.mu.Lock()
 	notifier.removals = append(notifier.removals, item.name)
 	notifier.mu.Unlock()
-	notifier.post(commandStatus)
+	if notifier.onRemoval != nil {
+		notifier.onRemoval()
+	} else if notifier.post != nil {
+		notifier.post(commandStatus)
+	}
 }

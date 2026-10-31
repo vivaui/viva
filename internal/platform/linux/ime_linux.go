@@ -14,11 +14,15 @@ import (
 // field would receive go to the engine first, and what the engine composes comes
 // back as the same text events a native editor produces, so the field shows the
 // marked text and commits the choice exactly as it does on the other platforms.
-//
+type imeHost interface {
+	fail(err error)
+	checkInputMethod()
+}
+
 // The engine owns the candidate window. All this side does is say when the field
 // has the keyboard and where the caret is.
 type linuxIME struct {
-	app    *linuxApplication
+	app    imeHost
 	text   *linuxTextInput
 	router eventRouter
 	// origin is where the window's top-left corner is on the screen.
@@ -59,13 +63,11 @@ type inputMethodContext interface {
 	Close()
 }
 
-// newIME gives a window an input context, or nil when there is no daemon.
-func (application *linuxApplication) newIME(win *window, textInput *linuxTextInput, router eventRouter) *linuxIME {
-	bus := application.inputMethodBus()
+func newIMEForHost(host imeHost, bus *ibus.Bus, origin func() (x, y int32), textInput *linuxTextInput, router eventRouter) *linuxIME {
 	if bus == nil {
 		return nil
 	}
-	ime := &linuxIME{app: application, text: textInput, router: router, origin: win.contentOrigin}
+	ime := &linuxIME{app: host, text: textInput, router: router, origin: origin}
 	context, err := bus.NewContext("viva", ibus.Handler{
 		Commit:  ime.commit,
 		Preedit: ime.preedit,
@@ -74,11 +76,21 @@ func (application *linuxApplication) newIME(win *window, textInput *linuxTextInp
 		DeleteSurrounding: ime.deleteSurrounding,
 	})
 	if err != nil {
-		application.checkInputMethod()
+		host.checkInputMethod()
 		return nil
 	}
 	ime.context = context
 	return ime
+}
+
+// newIME gives a window an input context, or nil when there is no daemon.
+func (application *linuxApplication) newIME(win *window, textInput *linuxTextInput, router eventRouter) *linuxIME {
+	return newIMEForHost(application, application.inputMethodBus(), win.contentOrigin, textInput, router)
+}
+
+func (app *waylandApplication) newIME(win *waylandWindow, textInput *linuxTextInput, router eventRouter) *linuxIME {
+	bus, _ := app.inputMethodBus().(*ibus.Bus)
+	return newIMEForHost(app, bus, win.contentOrigin, textInput, router)
 }
 
 // inputMethodBus connects to the daemon the first time a window can take text,
@@ -240,13 +252,12 @@ func (ime *linuxIME) caretRectangle() (x, y, width, height float32) {
 	return caret.X, caret.Y, caret.Width, caret.Height
 }
 
-// processKey gives a key press to the engine. It reports whether the engine has
-// it, in which case the key reaches the field only if the engine declines it.
-func (ime *linuxIME) processKey(keysym uint32, event *xcbInputEvent, keyEvent platform.KeyEvent) bool {
-	if ime.dead || !ime.active || ime.context == nil || event.Detail < 8 || keysym == 0 {
+// processKeyDirect gives a key press to the engine directly using keysym, keycode, and modifier state.
+func (ime *linuxIME) processKeyDirect(keysym uint32, keycode uint32, state uint32, keyEvent platform.KeyEvent) bool {
+	if ime.dead || !ime.active || ime.context == nil || keysym == 0 {
 		return false
 	}
-	err := ime.context.ProcessKey(keysym, uint32(event.Detail)-8, uint32(event.State), func(handled bool) {
+	err := ime.context.ProcessKey(keysym, keycode, state, func(handled bool) {
 		if handled {
 			return
 		}
@@ -261,6 +272,15 @@ func (ime *linuxIME) processKey(keysym uint32, event *xcbInputEvent, keyEvent pl
 	return true
 }
 
+// processKey gives a key press to the engine. It reports whether the engine has
+// it, in which case the key reaches the field only if the engine declines it.
+func (ime *linuxIME) processKey(keysym uint32, event *xcbInputEvent, keyEvent platform.KeyEvent) bool {
+	if event.Detail < 8 {
+		return false
+	}
+	return ime.processKeyDirect(keysym, uint32(event.Detail)-8, uint32(event.State), keyEvent)
+}
+
 // release tells the engine a key came up. Some engines act on that alone, as a
 // lone Shift that switches between Chinese and English does.
 func (ime *linuxIME) release(keymap *xcbKeymap, event *xcbInputEvent) {
@@ -268,10 +288,14 @@ func (ime *linuxIME) release(keymap *xcbKeymap, event *xcbInputEvent) {
 		return
 	}
 	keysym := keymap.keysym(event.Detail, event.State)
-	if keysym == 0 {
+	ime.releaseDirect(keysym, uint32(event.Detail)-8, uint32(event.State))
+}
+
+func (ime *linuxIME) releaseDirect(keysym, keycode, state uint32) {
+	if ime.dead || !ime.active || ime.context == nil || keysym == 0 {
 		return
 	}
-	if err := ime.context.ProcessKey(keysym, uint32(event.Detail)-8, uint32(event.State)|ibus.ReleaseMask, nil); err != nil {
+	if err := ime.context.ProcessKey(keysym, keycode, state|ibus.ReleaseMask, nil); err != nil {
 		ime.app.checkInputMethod()
 	}
 }

@@ -25,7 +25,7 @@ func newWindowRenderer(t *testing.T, labels []platform.TextLabel) (*window, *vul
 	}
 	t.Cleanup(win.close)
 	rectangles := []render.Rectangle{{Kind: scene.KindRectangle, Bounds: scene.Rect{X: 10, Y: 10, Width: 60, Height: 30}, Color: scene.Color{Red: 1, Alpha: 1}}}
-	renderer, err := newVulkanRenderer(win.connection, win.id, win.width, win.height, 1, platform.Color{Alpha: 1}, rectangles, labels, 0)
+	renderer, err := newVulkanRenderer(newXcbSurfaceProvider(win.connection, win.id), win.width, win.height, 1, platform.Color{Alpha: 1}, rectangles, labels, 0)
 	if errors.Is(err, platform.ErrNoGraphics) {
 		t.Skipf("no Vulkan device: %v", err)
 	}
