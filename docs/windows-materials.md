@@ -10,8 +10,7 @@ can select a material later. Controls select translucent outlines from their
 background alpha at paint time.
 
 The shared implementation and configuration/state fields add a small baseline
-cost even when materials are unused; this is an accepted tradeoff for unchanged
-build commands. Native resources are allocated only for opted-in windows on
+cost even when materials are unused. Native resources are allocated only for opted-in windows on
 supported systems.
 
 ```go
@@ -87,53 +86,3 @@ the visible result; they are not inferred from the activation callback.
 
 See Microsoft's [acrylic policy guidance](https://learn.microsoft.com/en-us/windows/apps/design/style/acrylic)
 and [battery-saver status API](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-system_power_status).
-
-## Verification on 2026-10-31
-
-Host: Windows build 26300, amd64, Go 1.27.3. Native tests passed using the default
-graphics path and with `VIVA_SOFTWARE_RENDERING=1` (WARP):
-
-- Mica / Acrylic / Mica Alt / None switches, dark/light changes and resizing.
-- Hardware/software device recovery and premultiplied transparent clears.
-- Custom titlebar controls, system menu and sizing styles.
-- Simulated high-contrast, transparency and battery-saver transitions, including
-  clear-color restoration and callback behavior. User settings were not changed.
-- Reapplying Mica Alt after clearing the window's DWM attribute.
-- Failed DWM calls restoring ClearColor and retrying after a settings event.
-- Missing DirectComposition entry-point injection followed by successful
-  ordinary-swap-chain presentation.
-- Power notification registration, repeated registration and cleanup.
-
-`go vet` passed for the host and Windows arm64, Linux amd64 and Web targets.
-The initial full repository run excluded two baseline test failures. The
-follow-up fixes their assumptions: Windows toolchain fixtures now contain
-`go.exe`, and the font test no longer requires explicit YaHei fallback to differ
-from DirectWrite's system fallback, which may already choose YaHei. Distinct
-explicit CJK families must still render differently, and ASCII must stay intact.
-
-The Windows 10 native integration test was skipped because this host uses the
-modern DWM path. Windows 10, Windows 11 21H2, physical arm64 hardware, Remote
-Desktop, real power/high-contrast transitions and a visual screenshot review
-remain unverified. Version-policy unit tests are not substitutes for those runs.
-
-Run the focused suite with:
-
-```powershell
-go test ./internal/platform/windows -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic)' -v -count=1
-$env:VIVA_SOFTWARE_RENDERING = '1'
-go test ./internal/platform/windows -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic)' -v -count=1
-Remove-Item Env:VIVA_SOFTWARE_RENDERING
-```
-
-## Runtime configuration follow-up
-
-After removing the optional build tag, `go test ./... -count=1`, `go vet ./...`,
-the focused WARP suite, and cross-vet for Windows arm64, Linux amd64 and the
-Web backend/app passed. The material example builds without extra flags.
-Windows 10 native integration remains skipped on the Windows 11 host.
-
-The ordinary Hello example built with `-trimpath -ldflags='-s -w'` now measures
-3,795,968 bytes on Windows amd64 (Go 1.27.3). Compared with the previously
-recorded original-base size of 3,764,224 bytes, this adds 31,744 bytes (31 KiB,
-approximately 0.84%). The historical build-tag experiment's 1,536-byte delta
-no longer describes this implementation.
