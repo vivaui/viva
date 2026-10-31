@@ -999,3 +999,39 @@ func TestDriverPopoverAnchorDismissDoesNotReopenTheTrigger(t *testing.T) {
 		t.Fatal("outside page press did not dismiss and pass through")
 	}
 }
+
+func TestDriverDefaultsTextFieldsToTextCursor(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		options ui.HitOptions
+		want    Cursor
+	}{
+		{"editable", ui.HitOptions{Role: ui.RoleTextField}, CursorText},
+		{"read only", ui.HitOptions{Role: ui.RoleTextField, ReadOnly: true}, CursorText},
+		{"disabled", ui.HitOptions{Role: ui.RoleTextField, Disabled: true}, CursorArrow},
+		{"explicit", ui.HitOptions{Role: ui.RoleTextField, Cursor: ui.PointerCursorCrosshair}, CursorCrosshair},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := Config{Width: 200, Height: 100, Paint: func(c *ui.Canvas, _ ui.Size) {
+				c.HitWithOptions(ui.Item(1), ui.Rect{X: 20, Y: 20, Width: 120, Height: 40}, "field", tc.options)
+			}}
+			driver, err := NewDriver(config, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer driver.Close()
+			if err := driver.Move(40, 40); err != nil {
+				t.Fatal(err)
+			}
+			if got := driver.Snapshot().Cursor; got != tc.want {
+				t.Fatalf("cursor=%v want=%v", got, tc.want)
+			}
+			if err := driver.Move(180, 80); err != nil {
+				t.Fatal(err)
+			}
+			if got := driver.Snapshot().Cursor; got != CursorArrow {
+				t.Fatalf("outside cursor=%v", got)
+			}
+		})
+	}
+}
