@@ -294,5 +294,9 @@ func paintTextEntrySurface(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, st
 	}
 	radius := theme.Metrics.RadiusControl
 	canvas.Elevate(bounds, radius, ui.ShadowXS) // shadow-xs
-	paintBordered(canvas, theme, bounds, radius, border, fill)
+	if theme.Background.Alpha < 1 {
+		paintBordered(canvas, theme, bounds, radius, border, fill)
+	} else {
+		canvas.RoundedBorder(bounds, radius, 1, border, fill)
+	}
 }

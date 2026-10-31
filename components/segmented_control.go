@@ -207,7 +207,11 @@ func (control SegmentedControl) Paint() SegmentedControlResult {
 	if control.disabled {
 		trackFill = control.theme.CardElevated
 	}
-	paintBordered(control.canvas, control.theme, control.bounds, radius, control.theme.Border, trackFill)
+	if control.theme.Background.Alpha < 1 {
+		paintBordered(control.canvas, control.theme, control.bounds, radius, control.theme.Border, trackFill)
+	} else {
+		control.canvas.RoundedBorder(control.bounds, radius, 1, control.theme.Border, trackFill)
+	}
 
 	count := float32(len(control.options))
 	innerRadius := radius - 2
