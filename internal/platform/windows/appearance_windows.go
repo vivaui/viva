@@ -62,10 +62,7 @@ func (state *windowState) applyTitlebarTheme() (changed bool) {
 	if state.window == 0 || state.config.WindowMode != platform.WindowTitled || dwmSetWindowAttribute.Find() != nil {
 		return false
 	}
-	dark := darkCaption()
-	if state.backdropActive {
-		dark = state.backdropStyle.Dark
-	}
+	dark := state.backdropCaptionDark(darkCaption())
 	if state.titlebarThemed && state.titlebarDark == dark {
 		return false
 	}
@@ -85,9 +82,7 @@ func (state *windowState) applyTitlebarTheme() (changed bool) {
 // again if its colors are no longer the ones in force. Most settings that move
 // say nothing about it, and cost nothing.
 func (state *windowState) settingsChanged() {
-	state.backdropApplied = false
-	state.backdropPolicyKnown = false
-	state.applyBackdrop()
+	state.refreshBackdrop()
 	if state.applyTitlebarTheme() && state.ready && redrawWindow.Find() == nil {
 		redrawWindow.Call(state.window, 0, 0, rdwFrame)
 	}

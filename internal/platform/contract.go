@@ -43,14 +43,13 @@ type Config struct {
 	WindowMode WindowMode
 	// TitlebarHeight is the height in logical pixels of the strip a custom
 	// titlebar leaves for the application. Zero means DefaultTitlebarHeight.
-	TitlebarHeight   float32
-	ClearColor       Color
-	WindowBackdrop   func() BackdropStyle
-	OnBackdropChange func(bool)
-	Rectangles       []render.Rectangle
-	TextLabels       []TextLabel
-	Accessibility    []AccessibilityNode
-	OnPointer        PointerHandler
+	TitlebarHeight float32
+	ClearColor     Color
+	WindowMaterials
+	Rectangles    []render.Rectangle
+	TextLabels    []TextLabel
+	Accessibility []AccessibilityNode
+	OnPointer     PointerHandler
 	// PressAt says what a press at a window point in logical pixels does, so a
 	// custom-titlebar window knows whether to move there (see PressKind). Nil
 	// means PressClient everywhere.

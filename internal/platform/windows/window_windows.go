@@ -65,6 +65,7 @@ const (
 )
 
 type windowState struct {
+	backdropState
 	application                            *windowsApplication
 	config                                 platform.Config
 	renderer                               renderer
@@ -109,11 +110,6 @@ type windowState struct {
 	imeTarget                              text.Range
 	imeHasTarget                           bool
 	titlebarThemed, titlebarDark           bool
-	backdropStyle                          platform.BackdropStyle
-	backdropApplied, backdropActive        bool
-	backdropNotified, backdropPolicyKnown  bool
-	backdropPolicy                         backdropPolicy
-	backdropPowerNotification              uintptr
 }
 
 var active atomic.Pointer[windowState]
@@ -262,9 +258,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 	}
 	// DirectComposition owns the client pixels; an opaque redirection bitmap
 	// underneath it would hide the native material.
-	if config.WindowBackdrop != nil && nativeBackdropAPI() != backdropUnavailable {
-		extendedStyle |= wsExNoRedirectionBitmap
-	}
+	extendedStyle |= state.backdropWindowStyle()
 	bounds := rect{Right: int32(config.Width), Bottom: int32(config.Height)}
 	if !state.customFrame() {
 		adjustWindowLegacy.Call(uintptr(unsafe.Pointer(&bounds)), style, 0, 0)
@@ -321,7 +315,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 			state.placeOnScreen()
 		}
 	}
-	state.renderer.composition = config.WindowBackdrop != nil && nativeBackdropAPI() != backdropUnavailable
+	state.configureBackdropRenderer()
 	if err := state.renderer.initialize(state.window, config.ClearColor); err != nil {
 		destroyWindow.Call(state.window)
 		return nil, err
@@ -338,7 +332,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 	state.watchBackdropPower()
 	state.applyBackdrop()
 	state.ready = true
-	if state.backdropActive {
+	if state.activeBackdrop() {
 		postMessage.Call(state.window, wmRedraw, 0, 0)
 	}
 	if config.WindowMode == platform.WindowPanel {
@@ -443,17 +437,15 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		result, _, _ = defaultWindowProc.Call(window, kind, first, second)
 		return
 	}
+	if state.handleBackdropMessage(kind) {
+		return 1
+	}
 	switch kind {
 	case wmFontChange:
 		// A font was installed or removed: no shaped line is known to be right.
 		if engine, err := theTextEngine(); err == nil {
 			engine.forget()
 		}
-	case wmBackdropPower:
-		state.settingsChanged()
-		return 1
-	case wmBackdropTheme, wmBackdropComposition:
-		state.settingsChanged()
 	case wmSettingChange:
 		// The user changed some system setting, perhaps the light or dark mode
 		// ("ImmersiveColorSet"). The observer reads the mode and ignores the rest.
