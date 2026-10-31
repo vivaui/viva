@@ -133,9 +133,9 @@ func sumOf(data []byte) string {
 func TestInstallDownloadsVerifiesAndUnpacksTheNewestStableToolchain(t *testing.T) {
 	good := tarGzOf(t,
 		fakeFile{name: "go/VERSION", data: "go1.99.2", mode: 0o644},
-		fakeFile{name: "go/bin/go", data: "#!/bin/sh\n", mode: 0o755},
+		fakeFile{name: "go/bin/" + goExecutable(), data: "#!/bin/sh\n", mode: 0o755},
 		fakeFile{name: "go/lib/link", link: "../VERSION"})
-	old := tarGzOf(t, fakeFile{name: "go/bin/go", data: "old", mode: 0o755})
+	old := tarGzOf(t, fakeFile{name: "go/bin/" + goExecutable(), data: "old", mode: 0o755})
 	filename := fmt.Sprintf("go1.99.2.%s-%s.tar.gz", runtime.GOOS, runtime.GOARCH)
 	source := goMirror(t, runtime.GOOS, runtime.GOARCH,
 		map[string][]byte{filename: good, "go1.24.9.old.tar.gz": old},
@@ -158,7 +158,7 @@ func TestInstallDownloadsVerifiesAndUnpacksTheNewestStableToolchain(t *testing.T
 	if _, err := os.Stat(filepath.Join(root, "bin", goExecutable())); err != nil {
 		t.Errorf("the toolchain has no go binary: %v", err)
 	}
-	info, err := os.Stat(filepath.Join(root, "bin", "go"))
+	info, err := os.Stat(filepath.Join(root, "bin", goExecutable()))
 	if err == nil && runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
 		t.Error("go lost its executable bit")
 	}
