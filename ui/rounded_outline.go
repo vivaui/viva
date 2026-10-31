@@ -1,5 +1,7 @@
 package ui
 
+import "math"
+
 // RoundedOutline strokes inside bounds without painting the interior. It is
 // useful over translucent fills, where a solid border backing would show through.
 func (canvas *Canvas) RoundedOutline(bounds Rect, radius, width float32, color Color) {
@@ -14,21 +16,60 @@ func (canvas *Canvas) RoundedOutline(bounds Rect, radius, width float32, color C
 		canvas.Rounded(bounds, radius, color)
 		return
 	}
-	half := width / 2
-	r := max(min(radius, bounds.Width/2, bounds.Height/2)-half, 0)
-	left, top, right, bottom := half, half, bounds.Width-half, bounds.Height-half
-	const k = float32(0.55228475)
-	arc := r * k
-	commands := [...]PathCommand{
-		MoveTo(left+r, top), LineTo(right-r, top),
-		CubicTo(right-r+arc, top, right, top+r-arc, right, top+r),
-		LineTo(right, bottom-r),
-		CubicTo(right, bottom-r+arc, right-r+arc, bottom, right-r, bottom),
-		LineTo(left+r, bottom),
-		CubicTo(left+r-arc, bottom, left, bottom-r+arc, left, bottom-r),
-		LineTo(left, top+r),
-		CubicTo(left, top+r-arc, left+r-arc, top, left+r, top), ClosePath(),
+	radius = max(0, min(radius, bounds.Width/2, bounds.Height/2))
+	innerRadius := max(0, radius-width)
+	// The two contours have matching vertices: join them directly instead of
+	// flattening Beziers and triangulating a general polygon with a hole.
+	segments := arcSegments(float64(radius*max(1, canvas.pixelScale)), math.Pi/2)
+	var arc [65]Point // arcSegments is capped at 64; no retained geometry cache.
+	sinStep, cosStep := math.Sincos(math.Pi / (2 * float64(segments)))
+	x, y := 1.0, 0.0
+	for index := 0; index < segments; index++ {
+		arc[index] = Point{X: float32(x), Y: float32(y)}
+		x, y = x*cosStep-y*sinStep, y*cosStep+x*sinStep
 	}
-	canvas.DrawPath(Path{width: bounds.Width, height: bounds.Height, commands: commands[:]}, bounds,
-		PathStyle{Stroke: color, StrokeWidth: width, Join: JoinMiter})
+	arc[segments] = Point{Y: 1} // Exact tangent endpoints keep straight seams closed.
+	var firstOuter, firstInner, previousOuter, previousInner Point
+	for corner := 0; corner < 4; corner++ {
+		left, top := corner >= 2, corner == 0 || corner == 3
+		outerCenter := Point{X: bounds.X + bounds.Width - radius, Y: bounds.Y + bounds.Height - radius}
+		innerCenter := Point{X: bounds.X + bounds.Width - width - innerRadius, Y: bounds.Y + bounds.Height - width - innerRadius}
+		if left {
+			outerCenter.X, innerCenter.X = bounds.X+radius, bounds.X+width+innerRadius
+		}
+		if top {
+			outerCenter.Y, innerCenter.Y = bounds.Y+radius, bounds.Y+width+innerRadius
+		}
+		for index := 0; index <= segments; index++ {
+			direction := arc[index]
+			switch corner {
+			case 0:
+				direction = Point{X: direction.Y, Y: -direction.X}
+			case 2:
+				direction = Point{X: -direction.Y, Y: direction.X}
+			case 3:
+				direction = Point{X: -direction.X, Y: -direction.Y}
+			}
+			outer := Point{X: outerCenter.X + radius*direction.X, Y: outerCenter.Y + radius*direction.Y}
+			inner := Point{X: innerCenter.X + innerRadius*direction.X, Y: innerCenter.Y + innerRadius*direction.Y}
+			if corner == 0 && index == 0 {
+				firstOuter, firstInner = outer, inner
+			} else {
+				canvas.appendOutlineSegment(previousOuter, outer, previousInner, inner, color)
+			}
+			previousOuter, previousInner = outer, inner
+		}
+	}
+	canvas.appendOutlineSegment(previousOuter, firstOuter, previousInner, firstInner, color)
+}
+
+func (canvas *Canvas) appendOutlineSegment(outerA, outerB, innerA, innerB Point, color Color) {
+	// Feather only the contour edges. Internal diagonals and segment seams
+	// must remain fully covered, especially with translucent strokes.
+	if outerA != outerB {
+		canvas.appendTriangleEdges(outerA, outerB, innerB, color, 1<<0)
+	}
+	if innerA != innerB {
+		canvas.appendTriangleEdges(outerA, innerB, innerA, color, 1<<1)
+	}
 }
