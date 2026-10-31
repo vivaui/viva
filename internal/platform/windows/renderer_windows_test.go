@@ -60,6 +60,22 @@ func TestLabelCacheMovesWithoutRasterization(t *testing.T) {
 	label.texture, label.view = 0, 0
 }
 
+func TestBitmapCacheResizesWithoutRasterization(t *testing.T) {
+	pixels := []byte{0, 0, 255, 255}
+	label := platform.TextLabel{
+		X: 1, Y: 2, Width: 10, Height: 10, Bitmap: pixels, BitmapWidth: 1, BitmapHeight: 1, BitmapStride: 4, BitmapID: 7, BitmapVersion: 1,
+	}
+	next := label
+	next.X, next.Y, next.Width, next.Height, next.Layer = 20, 30, 40, 24, 3
+	if labelContentChanged(label, next) {
+		t.Fatal("resizing bitmap quad would discard its source texture")
+	}
+	next.BitmapVersion++
+	if !labelContentChanged(label, next) {
+		t.Fatal("bitmap content change did not invalidate its source texture")
+	}
+}
+
 func layered(layers ...uint16) []render.Rectangle {
 	rectangles := make([]render.Rectangle, len(layers))
 	for index, layer := range layers {

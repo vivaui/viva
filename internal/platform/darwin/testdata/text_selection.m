@@ -36,6 +36,7 @@ viva_text_line *vivaShapedLine(const unsigned char *utf8, size_t length, double 
 int vivaShortcutEvent(uintptr_t handle, void *view, int modifiers, int repeat, const unsigned char *utf8, size_t utf8Length) { return 0; }
 void vivaOpenURL(const char *url) {}
 int vivaApplicationQuitRequested(void) { return 0; }
+int vivaApplicationReopenRequested(void) { return 0; }
 int vivaFileDropEvent(uintptr_t handle, void *view, int phase, double x, double y, const char *paths, size_t length) { return 0; }
 void vivaScrollEvent(uintptr_t handle, void *view, double deltaX, double deltaY, double x, double y, int modifiers, int precise) {}
 void vivaCloseRequested(uintptr_t handle, void *view) {}

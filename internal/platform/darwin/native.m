@@ -430,6 +430,7 @@ extern int vivaShortcutEvent(
 // length bytes; the result is nonzero when the point takes files.
 extern void vivaOpenURL(const char *url);
 extern int vivaApplicationQuitRequested(void);
+extern int vivaApplicationReopenRequested(void);
 extern int vivaFileDropEvent(
     uintptr_t handle,
     void *view,
@@ -1650,11 +1651,15 @@ static float viva_quantized_origin(float value) {
 static uint64_t viva_label_content_hash(viva_text_label config) {
     uint64_t hash = 14695981039346656037ULL;
     hash = viva_hash_bytes(hash, config.utf8, config.utf8_length);
-    float values[] = {config.width, config.height, config.font_size, config.font_weight,
+    // Bitmap textures retain their source dimensions. Resizing their draw quad
+    // must find the same texture when Go omits an unchanged pixel payload.
+    BOOL bitmap = (config.flags & VIVA_LABEL_BITMAP) != 0;
+    float values[] = {bitmap ? 0 : config.width, bitmap ? 0 : config.height, config.font_size, config.font_weight,
                       config.red, config.green, config.blue, config.alpha, config.cell_width,
                       viva_quantized_origin(config.origin_x), viva_quantized_origin(config.origin_y)};
     hash = viva_hash_bytes(hash, values, sizeof(values));
-    hash = viva_hash_bytes(hash, &config.flags, sizeof(config.flags));
+    uint32_t contentFlags = config.flags & ~VIVA_LABEL_CLIPPED;
+    hash = viva_hash_bytes(hash, &contentFlags, sizeof(contentFlags));
     hash = viva_hash_bytes(hash, &config.mono_face, sizeof(config.mono_face));
     if (config.runs != NULL) {
         hash = viva_hash_bytes(hash, config.runs, config.run_count * sizeof(viva_text_run));
@@ -1719,14 +1724,65 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 - (NSRect)frame;
 @end
 
+static NSData *viva_downsample_bitmap(NSData *source, uint32_t sourceWidth, uint32_t sourceHeight, uint32_t sourceStride, size_t width, size_t height) {
+    if (source == nil || width == 0 || height == 0 || width > sourceWidth || height > sourceHeight || sourceStride < sourceWidth * 4) {
+        return nil;
+    }
+    if (sourceHeight - 1 > SIZE_MAX / sourceStride || source.length < (size_t)(sourceHeight - 1) * sourceStride + (size_t)sourceWidth * 4 || width > SIZE_MAX / 4 || height > SIZE_MAX / (width * 4)) {
+        return nil;
+    }
+    size_t rowBytes = width * 4;
+    NSMutableData *pixels = [[NSMutableData alloc] initWithLength:height * rowBytes];
+    if (pixels == nil) {
+        return nil;
+    }
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGDataProviderRef provider = CGDataProviderCreateWithData(NULL, source.bytes, source.length, NULL);
+    CGImageRef image = provider == NULL ? NULL : CGImageCreate(
+        sourceWidth, sourceHeight, 8, 32, sourceStride, colorSpace,
+        kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little,
+        provider, NULL, true, kCGRenderingIntentDefault);
+    CGContextRef context = image == NULL ? NULL : CGBitmapContextCreate(
+        pixels.mutableBytes, width, height, 8, rowBytes, colorSpace,
+        kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+    if (context != NULL) {
+        CGContextSetInterpolationQuality(context, kCGInterpolationHigh);
+        CGContextDrawImage(context, CGRectMake(0, 0, width, height), image);
+    }
+    if (context != NULL) {
+        CGContextRelease(context);
+    }
+    if (image != NULL) {
+        CGImageRelease(image);
+    }
+    if (provider != NULL) {
+        CGDataProviderRelease(provider);
+    }
+    CGColorSpaceRelease(colorSpace);
+    if (context == NULL) {
+        [pixels release];
+        return nil;
+    }
+    return pixels;
+}
+
 @implementation VivaTextLayer
 
 - (instancetype)initWithConfig:(viva_text_label)config {
     self = [super init];
     if (self != nil) {
-        _value = [[NSString alloc] initWithBytes:config.utf8
-                                          length:config.utf8_length
-                                        encoding:NSUTF8StringEncoding];
+        // Bitmap labels carry no UTF-8 buffer. Give them an explicit empty
+        // string so image-only labels can still own a Metal texture.
+        if (config.utf8_length == 0) {
+            _value = [@"" retain];
+        } else if (config.utf8 == NULL) {
+            [self release];
+            return nil;
+        } else {
+            _value = [[NSString alloc] initWithBytes:config.utf8
+                                              length:config.utf8_length
+                                            encoding:NSUTF8StringEncoding];
+        }
         if (_value == nil) {
             [self release];
             return nil;
@@ -1821,11 +1877,18 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
             _bitmapVersion != config.bitmap_version || _bitmap.length != config.bitmap_length) {
             return NO;
         }
-        if (_bitmapID == 0 && memcmp(_bitmap.bytes, config.bitmap, config.bitmap_length) != 0) {
+        if (config.reserved1 != 0 && (config.bitmap == NULL || memcmp(_bitmap.bytes, config.bitmap, config.bitmap_length) != 0)) {
             return NO;
         }
     }
-    if (config.utf8_length != [_value lengthOfBytesUsingEncoding:NSUTF8StringEncoding]) {
+    size_t valueLength = [_value lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    if (config.utf8_length != valueLength) {
+        return NO;
+    }
+    if (config.utf8_length == 0) {
+        return YES;
+    }
+    if (config.utf8 == NULL) {
         return NO;
     }
     return memcmp(config.utf8, [_value UTF8String], config.utf8_length) == 0;
@@ -1867,19 +1930,38 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
             _bitmap.length < (size_t)(_bitmapHeight - 1) * _bitmapStride + (size_t)_bitmapWidth * 4) {
             return NO;
         }
+        CGFloat pixelScale = MAX(scale, 1.0);
+        size_t shownWidth = (size_t)MAX(1.0, floor((_frame.origin.x + _frame.size.width) * pixelScale + 0.5) - floor(_frame.origin.x * pixelScale + 0.5));
+        size_t shownHeight = (size_t)MAX(1.0, floor((_frame.origin.y + _frame.size.height) * pixelScale + 0.5) - floor(_frame.origin.y * pixelScale + 0.5));
+        size_t uploadWidth = _bitmapWidth, uploadHeight = _bitmapHeight;
+        NSData *uploadData = _bitmap;
+        uint32_t uploadStride = _bitmapStride;
+        if (shownWidth <= _bitmapWidth && shownHeight <= _bitmapHeight && (shownWidth < _bitmapWidth || shownHeight < _bitmapHeight)) {
+            NSData *reduced = viva_downsample_bitmap(_bitmap, _bitmapWidth, _bitmapHeight, _bitmapStride, shownWidth, shownHeight);
+            if (reduced == nil) {
+                return NO;
+            }
+            uploadData = reduced;
+            uploadWidth = shownWidth;
+            uploadHeight = shownHeight;
+            uploadStride = (uint32_t)(shownWidth * 4);
+        }
         MTLTextureDescriptor *descriptor = [MTLTextureDescriptor
             texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-                                         width:_bitmapWidth
-                                        height:_bitmapHeight
+                                         width:uploadWidth
+                                        height:uploadHeight
                                      mipmapped:NO];
         descriptor.storageMode = MTLStorageModeShared;
         descriptor.usage = MTLTextureUsageShaderRead;
         id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
         if (texture != nil) {
-            [texture replaceRegion:MTLRegionMake2D(0, 0, _bitmapWidth, _bitmapHeight)
+            [texture replaceRegion:MTLRegionMake2D(0, 0, uploadWidth, uploadHeight)
                        mipmapLevel:0
-                         withBytes:_bitmap.bytes
-                       bytesPerRow:_bitmapStride];
+                         withBytes:uploadData.bytes
+                       bytesPerRow:uploadStride];
+        }
+        if (uploadData != _bitmap) {
+            [uploadData release];
         }
         if (texture == nil) {
             return NO;
@@ -2169,6 +2251,72 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 }
 
 @end
+
+// Keep native windows and offscreen frames on the same retained-texture path.
+static int viva_update_label_layers(
+    NSArray<VivaTextLayer *> *previous,
+    const viva_text_label *labels,
+    NSUInteger count,
+    id<MTLDevice> device,
+    CGFloat scale,
+    NSMutableArray<VivaTextLayer *> **updated
+) {
+    NSMutableArray<VivaTextLayer *> *replacement =
+        [[NSMutableArray alloc] initWithCapacity:count];
+    NSUInteger oldCount = previous.count;
+    uint64_t *oldHashes = malloc(MAX(oldCount, 1) * sizeof(uint64_t));
+    uint64_t *newHashes = malloc(MAX(count, 1) * sizeof(uint64_t));
+    int64_t *source = malloc(MAX(count, 1) * sizeof(int64_t));
+    if (oldHashes == NULL || newHashes == NULL || source == NULL) {
+        free(oldHashes);
+        free(newHashes);
+        free(source);
+        [replacement release];
+        return 3;
+    }
+    for (NSUInteger index = 0; index < oldCount; index++) {
+        oldHashes[index] = [previous[index] contentHash];
+    }
+    for (NSUInteger index = 0; index < count; index++) {
+        newHashes[index] = viva_label_content_hash(labels[index]);
+    }
+    int status = viva_plan_label_reuse(oldHashes, oldCount, newHashes, count, source);
+    free(oldHashes);
+    free(newHashes);
+    if (status != 0) {
+        free(source);
+        [replacement release];
+        return status;
+    }
+    for (NSUInteger index = 0; index < count; index++) {
+        VivaTextLayer *existing = nil;
+        if (source[index] >= 0 && [previous[(NSUInteger)source[index]] matchesConfig:labels[index]]) {
+            existing = previous[(NSUInteger)source[index]];
+        }
+        if (existing != nil) {
+            [existing updateFrame:NSMakeRect(
+                labels[index].x, labels[index].y,
+                labels[index].width, labels[index].height)];
+            [existing updateClipFromConfig:labels[index]];
+            [replacement addObject:existing];
+            continue;
+        }
+        VivaTextLayer *layer = [[VivaTextLayer alloc] initWithConfig:labels[index]];
+        if (layer == nil || ![layer rebuildWithDevice:device scale:scale]) {
+            int failure = layer == nil ? 2 : 3;
+            free(source);
+            [layer release];
+            [replacement release];
+            return failure;
+        }
+        [layer markContentRebuild];
+        [replacement addObject:layer];
+        [layer release];
+    }
+    free(source);
+    *updated = replacement;
+    return 0;
+}
 
 // viva_encode_input draws the native editor's texture.
 static void viva_encode_input(
@@ -2778,7 +2926,9 @@ static int viva_navigation_command(SEL selector) {
         _metalLayer.device = device;
         _metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
         _metalLayer.framebufferOnly = YES;
-        _metalLayer.opaque = windowMode != VIVA_WINDOW_PANEL;
+        /* A transparent clear color must reach the desktop through a frameless
+         * surface. Opaque titled windows keep the normal fast path. */
+        _metalLayer.opaque = clearColor.alpha >= 1.0 && windowMode != VIVA_WINDOW_PANEL;
         _metalLayer.maximumDrawableCount = 2;
         _metalLayer.allowsNextDrawableTimeout = YES;
 
@@ -2996,7 +3146,7 @@ static int viva_navigation_command(SEL selector) {
 
 - (void)mouseDown:(NSEvent *)event {
     int press = VIVA_PRESS_CLIENT;
-    if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR && _callbackHandle != 0) {
+    if ((_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR || _windowMode == VIVA_WINDOW_FRAMELESS) && _callbackHandle != 0) {
         // The application declares where the window moves from (a move region).
         NSPoint local = [self convertPoint:event.locationInWindow fromView:nil];
         press = vivaPressAt(_callbackHandle, local.x, self.bounds.size.height - local.y);
@@ -3780,65 +3930,12 @@ static void viva_set_secure_event_input(BOOL on) {
             replacementLayers[index] = labels[index].layer;
         }
     }
-    NSMutableArray<VivaTextLayer *> *replacement =
-        [[NSMutableArray alloc] initWithCapacity:count];
-    NSUInteger oldCount = _textLabels.count;
-    // Decide which old texture each new label can take over (see
-    // viva_plan_label_reuse), then confirm every pick against the label's exact
-    // content: the hash only proposes.
-    uint64_t *oldHashes = malloc(MAX(oldCount, 1) * sizeof(uint64_t));
-    uint64_t *newHashes = malloc(MAX(count, 1) * sizeof(uint64_t));
-    int64_t *source = malloc(MAX(count, 1) * sizeof(int64_t));
-    if (oldHashes == NULL || newHashes == NULL || source == NULL) {
-        free(oldHashes);
-        free(newHashes);
-        free(source);
-        [replacement release];
+    NSMutableArray<VivaTextLayer *> *replacement = nil;
+    int status = viva_update_label_layers(_textLabels, labels, count, _metalLayer.device, scale, &replacement);
+    if (status != 0) {
         free(replacementLayers);
-        return 3;
+        return status;
     }
-    for (NSUInteger index = 0; index < oldCount; index++) {
-        oldHashes[index] = [_textLabels[index] contentHash];
-    }
-    for (NSUInteger index = 0; index < count; index++) {
-        newHashes[index] = viva_label_content_hash(labels[index]);
-    }
-    viva_plan_label_reuse(oldHashes, oldCount, newHashes, count, source);
-    free(oldHashes);
-    free(newHashes);
-    for (NSUInteger index = 0; index < count; index++) {
-        VivaTextLayer *existing = nil;
-        if (source[index] >= 0 && [_textLabels[(NSUInteger)source[index]] matchesConfig:labels[index]]) {
-            existing = _textLabels[(NSUInteger)source[index]];
-        }
-        if (existing != nil) {
-            // Reused layers must draw at the new position and size immediately.
-            [existing updateFrame:NSMakeRect(
-                labels[index].x, labels[index].y,
-                labels[index].width, labels[index].height)];
-            [existing updateClipFromConfig:labels[index]];
-            [replacement addObject:existing];
-            continue;
-        }
-        VivaTextLayer *layer = [[VivaTextLayer alloc] initWithConfig:labels[index]];
-        if (layer == nil) {
-            free(source);
-            [replacement release];
-            free(replacementLayers);
-            return 2;
-        }
-        if (![layer rebuildWithDevice:_metalLayer.device scale:scale]) {
-            free(source);
-            [layer release];
-            [replacement release];
-            free(replacementLayers);
-            return 3;
-        }
-        [layer markContentRebuild];
-        [replacement addObject:layer];
-        [layer release];
-    }
-    free(source);
     if (![self replaceCompositePlanForRectangles:
             _rectangleBuffer == nil ? NULL : _rectangleBuffer.contents
                                            clips:_rectangleClips
@@ -4396,6 +4493,20 @@ static void viva_set_secure_event_input(BOOL on) {
 
 @end
 
+/* A frameless workspace still owns keyboard focus and the application's main
+ * window role. A plain borderless NSWindow declines both by default. */
+@interface VivaFramelessWindow : NSWindow
+@end
+
+@implementation VivaFramelessWindow
+- (BOOL)canBecomeKeyWindow {
+    return YES;
+}
+- (BOOL)canBecomeMainWindow {
+    return YES;
+}
+@end
+
 /* VivaPanel is the window of a WindowPanel: it takes keyboard focus although it
  * has no titlebar, and never becomes the application's main window. Its style
  * mask keeps it from bringing the application forward when it appears. */
@@ -4598,6 +4709,9 @@ static void viva_set_secure_event_input(BOOL on) {
     }
 
     Class windowClass = _windowMode == VIVA_WINDOW_PANEL ? [VivaPanel class] : [NSWindow class];
+    if (_windowMode == VIVA_WINDOW_FRAMELESS) {
+        windowClass = [VivaFramelessWindow class];
+    }
     _window = [[windowClass alloc] initWithContentRect:frame
                                              styleMask:style
                                                backing:NSBackingStoreBuffered
@@ -4625,11 +4739,19 @@ static void viva_set_secure_event_input(BOOL on) {
         _window.hasShadow = YES;
     } else if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
         _window.minSize = NSMakeSize(320, 200);
+        if (_clearColor.alpha < 1.0) {
+            _window.backgroundColor = [NSColor clearColor];
+            _window.opaque = NO;
+        }
         _window.titlebarAppearsTransparent = YES;
         _window.titleVisibility = NSWindowTitleHidden;
         _window.movableByWindowBackground = NO;
     } else {
         _window.minSize = NSMakeSize(320, 200);
+        if (_clearColor.alpha < 1.0) {
+            _window.backgroundColor = [NSColor clearColor];
+            _window.opaque = NO;
+        }
     }
 
     VivaMetalView *view = [[VivaMetalView alloc] initWithFrame:frame
@@ -5186,6 +5308,9 @@ static void viva_reset_profile_counters(void) {
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
     (void)sender;
     (void)flag;
+    if (vivaApplicationReopenRequested()) {
+        return NO;
+    }
     for (VivaAppDelegate *delegate in viva_application_windows) {
         if (![delegate isPanel] && ([delegate isHidden] || [delegate isMiniaturized])) {
             [delegate reopenWindow];
@@ -5995,26 +6120,25 @@ int viva_measure_mono(double font_size, int mono_face, double *advance, double *
 }
 
 - (BOOL)setLabels:(const viva_text_label *)labels count:(NSUInteger)count {
-    [_labels removeAllObjects];
-    free(_labelLayers);
-    _labelLayers = NULL;
-    _labelCount = 0;
+    uint16_t *replacementLayers = NULL;
     if (count > 0) {
-        _labelLayers = malloc(count * sizeof(uint16_t));
-        if (_labelLayers == NULL) {
+        replacementLayers = malloc(count * sizeof(uint16_t));
+        if (replacementLayers == NULL) {
             return NO;
         }
+    }
+    NSMutableArray<VivaTextLayer *> *replacement = nil;
+    if (viva_update_label_layers(_labels, labels, count, _device, _scale, &replacement) != 0) {
+        free(replacementLayers);
+        return NO;
     }
     for (NSUInteger index = 0; index < count; index++) {
-        VivaTextLayer *layer = [[VivaTextLayer alloc] initWithConfig:labels[index]];
-        if (layer == nil || ![layer rebuildWithDevice:_device scale:_scale]) {
-            [layer release];
-            return NO;
-        }
-        [_labels addObject:layer];
-        [layer release];
-        _labelLayers[index] = labels[index].layer;
+        replacementLayers[index] = labels[index].layer;
     }
+    [_labels release];
+    _labels = replacement;
+    free(_labelLayers);
+    _labelLayers = replacementLayers;
     _labelCount = count;
     return [self replan];
 }

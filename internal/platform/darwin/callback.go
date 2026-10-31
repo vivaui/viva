@@ -903,3 +903,11 @@ func vivaApplicationQuitRequested() C.int {
 	}
 	return 0
 }
+
+//export vivaApplicationReopenRequested
+func vivaApplicationReopenRequested() C.int {
+	if deliverApplicationReopen() {
+		return 1
+	}
+	return 0
+}
