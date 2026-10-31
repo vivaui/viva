@@ -541,3 +541,116 @@ func (engine fixedAdvanceEngine) OffsetAt(value string, _, _, x float32) int {
 	}
 	return best
 }
+
+func TestTextCompositionUnderlineBelowBaseline(t *testing.T) {
+	for _, height := range []float32{28, 32, 40, 56} {
+		state := windowState{textEnabled: true, textEngine: fixedAdvanceEngine{advance: 14},
+			textInput:    platform.TextInput{X: 8, Y: 8, Width: 100, Height: height, FontSize: 14},
+			textState:    platform.TextState{Value: "中文", Composition: text.Range{End: 2}, Composing: true},
+			imeHasTarget: true, imeTarget: text.Range{End: 1},
+			textLabels: make([]platform.TextLabel, 1), textRectangles: make([]render.Rectangle, textRectangleCount)}
+		if err := state.updateTextVisuals(); err != nil {
+			t.Fatal(err)
+		}
+		baseline := state.textInput.Y + float32(platform.LabelBaseline(int(height), 14))
+		for _, index := range []int{2, 3} {
+			bounds := state.textRectangles[index].Bounds
+			if bounds.Y <= baseline+1 || bounds.Y+bounds.Height > state.textInput.Y+height {
+				t.Errorf("height=%v underline=%+v baseline=%v", height, bounds, baseline)
+			}
+		}
+	}
+}
+
+func TestTextSelectionStaysInsideScrolledField(t *testing.T) {
+	for _, scale := range []float64{1, 1.25, 1.5, 2} {
+		for _, reversed := range []bool{false, true} {
+			state := windowState{textEnabled: true, textEngine: fixedAdvanceEngine{advance: 14},
+				textInput:  platform.TextInput{X: 20, Y: 20, Width: 60, Height: 32, FontSize: 14},
+				textState:  platform.TextState{Value: "中文abcdefghi", Selection: text.Range{End: 11}, SelectionReversed: reversed},
+				textLabels: make([]platform.TextLabel, 1), textRectangles: make([]render.Rectangle, textRectangleCount)}
+			if err := state.updateTextVisuals(); err != nil {
+				t.Fatal(err)
+			}
+			pixels := renderScene(t, newOffscreen(t, 120, 80, scale), state.textRectangles, nil)
+			inside := false
+			for y := 0; y < pixels.Bounds().Dy(); y++ {
+				for x := 0; x < pixels.Bounds().Dx(); x++ {
+					if !isPainted(pixels, x, y) {
+						continue
+					}
+					if float64(x) < 20*scale || float64(x) >= 80*scale || float64(y) < 20*scale || float64(y) >= 52*scale {
+						t.Fatalf("selection escaped field at %d,%d scale=%v reversed=%v", x, y, scale, reversed)
+					}
+					// Selection belongs to the text line, not the field's border
+					// and vertical padding, even when a long value is scrolled.
+					if float64(y) < 24*scale || float64(y) >= 48*scale {
+						t.Fatalf("selection filled vertical padding at %d,%d scale=%v", x, y, scale)
+					}
+					inside = true
+				}
+			}
+			if !inside {
+				t.Fatal("selection did not paint")
+			}
+		}
+	}
+}
+
+func TestTextCompositionUnderlineClearsChineseGlyphs(t *testing.T) {
+	engine, err := theTextEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scale := range []float64{1, 1.25, 1.5, 2} {
+		for _, height := range []float32{28, 32, 40, 56} {
+			state := windowState{textEnabled: true, scale: float32(scale), textEngine: engine,
+				textInput:    platform.TextInput{X: 8, Y: 8, Width: 100, Height: height, FontSize: 14, Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+				textState:    platform.TextState{Value: "中文输入", Composition: text.Range{End: 4}, Composing: true},
+				imeHasTarget: true, imeTarget: text.Range{End: 2},
+				textLabels: make([]platform.TextLabel, 1), textRectangles: make([]render.Rectangle, textRectangleCount)}
+			if err := state.updateTextVisuals(); err != nil {
+				t.Fatal(err)
+			}
+			pixels := renderScene(t, newOffscreen(t, 120, 80, scale), nil, state.textLabels)
+			bottom := -1
+			for y := 0; y < pixels.Bounds().Dy(); y++ {
+				for x := 0; x < pixels.Bounds().Dx(); x++ {
+					if isPainted(pixels, x, y) {
+						bottom = y
+					}
+				}
+			}
+			if bottom < 0 {
+				t.Fatal("Chinese text did not render")
+			}
+			if underline := float64(state.textRectangles[3].Bounds.Y) * scale; underline <= float64(bottom+1) {
+				t.Errorf("height=%v scale=%v underline=%v glyph bottom=%v", height, scale, underline, bottom)
+			}
+		}
+	}
+}
+
+func BenchmarkTextInputDecorations(b *testing.B) {
+	engine, err := theTextEngine()
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, composing := range []bool{false, true} {
+		b.Run(fmt.Sprintf("composing=%v", composing), func(b *testing.B) {
+			state := windowState{textEnabled: true, caretVisible: true, scale: 1.5, textEngine: engine,
+				textInput:    platform.TextInput{Width: 200, Height: 32, FontSize: 14},
+				textState:    platform.TextState{Value: "中文输入 abc", Selection: text.Range{Start: 1, End: 4}, Composition: text.Range{End: 4}, Composing: composing},
+				imeHasTarget: true, imeTarget: text.Range{End: 2},
+				textLabels: make([]platform.TextLabel, 1), textRectangles: make([]render.Rectangle, textRectangleCount)}
+			if err := state.updateTextVisuals(); err != nil {
+				b.Fatal(err)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				state.updateTextVisuals()
+			}
+		})
+	}
+}
