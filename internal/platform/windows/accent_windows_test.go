@@ -61,9 +61,11 @@ func TestLegacyAcrylicSwitchResizeAndRecovery(t *testing.T) {
 		style := platform.BackdropStyle{Kind: platform.BackdropAcrylic}
 		opened, err := application.OpenWindow(platform.Config{
 			Title: "Viva legacy acrylic test", Width: 640, Height: 400,
-			WindowMode:     platform.WindowCustomTitlebar,
-			ClearColor:     platform.Color{Red: .2, Alpha: 1},
-			WindowBackdrop: func() platform.BackdropStyle { return style },
+			WindowMode: platform.WindowCustomTitlebar,
+			ClearColor: platform.Color{Red: .2, Alpha: 1},
+			WindowMaterials: platform.WindowMaterials{
+				WindowBackdrop: func() platform.BackdropStyle { return style },
+			},
 		})
 		if err != nil {
 			return err

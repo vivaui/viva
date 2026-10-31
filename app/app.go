@@ -92,22 +92,9 @@ type Config struct {
 	// supplied it. Without one the panel is centered on the screen.
 	Anchor     StatusAnchor
 	ClearColor Color
-	// WindowBackdrop, when set, selects the native material under the content.
-	// It is read on the window thread after each paint. Windows 11 22H2 and
-	// newer support Mica, Mica Alt and Desktop Acrylic. Windows 10 1809 through
-	// Windows 11 21H2 support Acrylic through a legacy, undocumented accent
-	// policy. Unsupported materials and platforms keep ClearColor.
-	// On supported Windows versions, opting in enables alpha composition even
-	// while BackdropNone is selected.
-	// High contrast or disabled transparency suppress all materials; battery
-	// saver suppresses Acrylic. In these cases the window uses ClearColor.
-	WindowBackdrop func() BackdropStyle
-	// OnBackdropChange reports whether Windows enabled the requested material,
-	// initially and whenever this changes. Other platforms do not call it.
-	// Windows may substitute a solid color according to system policy. It runs
-	// on the window thread; update paint state here, without blocking. A change
-	// schedules a repaint so the app can expose or cover the native material.
-	OnBackdropChange func(active bool)
+	// WindowMaterials opts into native materials at window creation. Its zero
+	// value keeps the ordinary renderer; no build flags are required.
+	WindowMaterials
 	// Paint, when set, repaints the whole canvas whenever the window size
 	// changes. It runs on the window thread and must not block.
 	Paint func(canvas *ui.Canvas, size ui.Size)

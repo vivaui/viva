@@ -2,6 +2,10 @@ package app
 
 import "github.com/vivaui/viva/internal/platform"
 
+// WindowMaterials configures native materials at runtime without build flags.
+// Leave WindowBackdrop nil to use the ordinary window renderer.
+type WindowMaterials = platform.WindowMaterials
+
 // BackdropKind selects a native window background material.
 type BackdropKind = platform.BackdropKind
 

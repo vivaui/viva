@@ -8,16 +8,33 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 )
 
+func TestBackdropUnconfiguredKeepsOrdinaryRenderer(t *testing.T) {
+	state := &windowState{window: 1}
+	state.config.OnBackdropChange = func(bool) { t.Fatal("unconfigured material callback") }
+	if style := state.backdropWindowStyle(); style != 0 {
+		t.Fatalf("unconfigured window style = %x", style)
+	}
+	state.configureBackdropRenderer()
+	state.watchBackdropPower()
+	state.applyBackdrop()
+	state.refreshBackdrop()
+	if state.renderer.usesComposition() || state.backdropPolicyKnown || state.backdropNotified || state.backdropPowerNotification != 0 {
+		t.Fatal("unconfigured window initialized material state")
+	}
+}
+
 func TestBackdropWithoutCompositionReportsInitialFallback(t *testing.T) {
 	state := &windowState{window: 1}
 	var changes []bool
 	state.config = platform.Config{
 		WindowMode: platform.WindowCustomTitlebar,
 		ClearColor: platform.Color{Alpha: 1},
-		WindowBackdrop: func() platform.BackdropStyle {
-			return platform.BackdropStyle{Kind: platform.BackdropMica}
+		WindowMaterials: platform.WindowMaterials{
+			WindowBackdrop: func() platform.BackdropStyle {
+				return platform.BackdropStyle{Kind: platform.BackdropMica}
+			},
+			OnBackdropChange: func(active bool) { changes = append(changes, active) },
 		},
-		OnBackdropChange: func(active bool) { changes = append(changes, active) },
 	}
 	state.applyBackdrop()
 	state.applyBackdrop()
@@ -61,9 +78,11 @@ func TestWindowBackdropSwitchResizeAndDeviceRecovery(t *testing.T) {
 	style := platform.BackdropStyle{}
 	var changes []bool
 	state.config = platform.Config{
-		ClearColor:       platform.Color{Red: .2, Green: .3, Blue: .4, Alpha: 1},
-		WindowBackdrop:   func() platform.BackdropStyle { return style },
-		OnBackdropChange: func(active bool) { changes = append(changes, active) },
+		ClearColor: platform.Color{Red: .2, Green: .3, Blue: .4, Alpha: 1},
+		WindowMaterials: platform.WindowMaterials{
+			WindowBackdrop:   func() platform.BackdropStyle { return style },
+			OnBackdropChange: func(active bool) { changes = append(changes, active) },
+		},
 	}
 	state.renderer.composition = true
 	if err := state.renderer.initialize(state.window, state.config.ClearColor); err != nil {
@@ -173,8 +192,10 @@ func TestCustomBackdropKeepsWindowControlsAndSystemMenu(t *testing.T) {
 			Title: "Viva material titlebar test", Width: 640, Height: 400,
 			WindowMode: platform.WindowCustomTitlebar, TitlebarHeight: 40,
 			ClearColor: platform.Color{Alpha: 1}, Actions: controls,
-			WindowBackdrop: func() platform.BackdropStyle { return choice },
-			PressAt:        func(x, y float32) platform.PressKind { return platform.PressControl },
+			WindowMaterials: platform.WindowMaterials{
+				WindowBackdrop: func() platform.BackdropStyle { return choice },
+			},
+			PressAt: func(x, y float32) platform.PressKind { return platform.PressControl },
 		})
 		if err != nil {
 			return err

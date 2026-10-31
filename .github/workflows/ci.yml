@@ -56,6 +56,18 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
 
+  windows-materials:
+    runs-on: windows-latest
+    env:
+      VIVA_SOFTWARE_RENDERING: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Material contracts and controls (WARP)
+        run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent)' -count=1 -v
+
   cross-vet-web:
     runs-on: ubuntu-latest
     steps:

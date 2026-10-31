@@ -1,6 +1,37 @@
 # Windows window materials
 
-Set `app.Config.WindowBackdrop` to return an `app.BackdropStyle`. Its `Kind`
+Set `app.Config.WindowMaterials` to opt into native materials at runtime.
+Build, run, test and package commands need no additional tags. Leaving
+`WindowBackdrop` nil keeps the ordinary renderer, without DirectComposition
+resources, material policy queries or material power notifications. Configuring
+the callback opts the window into the composition path at creation; returning
+`BackdropNone` disables the material while retaining that renderer so the callback
+can select a material later. Controls select translucent outlines from their
+background alpha at paint time.
+
+The shared implementation and configuration/state fields add a small baseline
+cost even when materials are unused; this is an accepted tradeoff for unchanged
+build commands. Native resources are allocated only for opted-in windows on
+supported systems.
+
+```go
+config := app.Config{
+    ClearColor: app.Color{Alpha: 1},
+    WindowMaterials: app.WindowMaterials{
+        WindowBackdrop: func() app.BackdropStyle {
+            return app.BackdropStyle{Kind: app.BackdropMicaAlt, Dark: true}
+        },
+    },
+}
+```
+
+For a complete example, run:
+
+```powershell
+go run ./examples/windows-materials -material mica-alt
+```
+
+`WindowBackdrop` returns an `app.BackdropStyle`. Its `Kind`
 selects the material and `Dark` selects its appearance. The callback runs on
 the window thread. Use an opaque `ClearColor` (`Alpha: 1`) for a solid fallback,
 and paint translucent content only while `OnBackdropChange` reports `true`.
@@ -74,9 +105,11 @@ graphics path and with `VIVA_SOFTWARE_RENDERING=1` (WARP):
 - Power notification registration, repeated registration and cleanup.
 
 `go vet` passed for the host and Windows arm64, Linux amd64 and Web targets.
-The full repository test run passed with the two previously reproduced baseline
-failures excluded: `TestFallbackFamiliesDrawTheCharactersThePrimaryLacks` and
-`TestInstallDownloadsVerifiesAndUnpacksTheNewestStableToolchain`.
+The initial full repository run excluded two baseline test failures. The
+follow-up fixes their assumptions: Windows toolchain fixtures now contain
+`go.exe`, and the font test no longer requires explicit YaHei fallback to differ
+from DirectWrite's system fallback, which may already choose YaHei. Distinct
+explicit CJK families must still render differently, and ASCII must stay intact.
 
 The Windows 10 native integration test was skipped because this host uses the
 modern DWM path. Windows 10, Windows 11 21H2, physical arm64 hardware, Remote
@@ -91,3 +124,16 @@ $env:VIVA_SOFTWARE_RENDERING = '1'
 go test ./internal/platform/windows -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic)' -v -count=1
 Remove-Item Env:VIVA_SOFTWARE_RENDERING
 ```
+
+## Runtime configuration follow-up
+
+After removing the optional build tag, `go test ./... -count=1`, `go vet ./...`,
+the focused WARP suite, and cross-vet for Windows arm64, Linux amd64 and the
+Web backend/app passed. The material example builds without extra flags.
+Windows 10 native integration remains skipped on the Windows 11 host.
+
+The ordinary Hello example built with `-trimpath -ldflags='-s -w'` now measures
+3,795,968 bytes on Windows amd64 (Go 1.27.3). Compared with the previously
+recorded original-base size of 3,764,224 bytes, this adds 31,744 bytes (31 KiB,
+approximately 0.84%). The historical build-tag experiment's 1,536-byte delta
+no longer describes this implementation.

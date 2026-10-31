@@ -33,13 +33,15 @@ func TestBackdropPolicyTransitionsRestoreOpaqueClearAndNotify(t *testing.T) {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	state := &windowState{window: staticWindow(t), backdropPolicyKnown: true}
+	state := &windowState{window: staticWindow(t), backdropState: backdropState{backdropPolicyKnown: true}}
 	style := platform.BackdropStyle{Kind: platform.BackdropAcrylic}
 	var changes []bool
 	state.config = platform.Config{
-		ClearColor:       platform.Color{Red: .2, Alpha: 1},
-		WindowBackdrop:   func() platform.BackdropStyle { return style },
-		OnBackdropChange: func(active bool) { changes = append(changes, active) },
+		ClearColor: platform.Color{Red: .2, Alpha: 1},
+		WindowMaterials: platform.WindowMaterials{
+			WindowBackdrop:   func() platform.BackdropStyle { return style },
+			OnBackdropChange: func(active bool) { changes = append(changes, active) },
+		},
 	}
 	state.renderer.composition = true
 	for _, policy := range []backdropPolicy{{}, {highContrast: true}, {}, {transparencyDisabled: true}, {}, {batterySaver: true}, {}} {
@@ -98,9 +100,11 @@ func TestBackdropNativeFailureFallsBackAndRetriesOnSettingsChange(t *testing.T) 
 	state.renderer.composition = true
 	var changes []bool
 	state.config = platform.Config{
-		ClearColor:       platform.Color{Blue: .4, Alpha: 1},
-		WindowBackdrop:   func() platform.BackdropStyle { return platform.BackdropStyle{Kind: platform.BackdropMica} },
-		OnBackdropChange: func(active bool) { changes = append(changes, active) },
+		ClearColor: platform.Color{Blue: .4, Alpha: 1},
+		WindowMaterials: platform.WindowMaterials{
+			WindowBackdrop:   func() platform.BackdropStyle { return platform.BackdropStyle{Kind: platform.BackdropMica} },
+			OnBackdropChange: func(active bool) { changes = append(changes, active) },
+		},
 	}
 	state.applyBackdrop()
 	if state.backdropActive || state.renderer.color != state.config.ClearColor {
@@ -121,7 +125,7 @@ func TestCompositionCreationFailureUsesOpaqueSwapChain(t *testing.T) {
 	previous := createCompositionDevice
 	createCompositionDevice = systemDLL("dcomp.dll").NewProc("VivaTestMissingCompositionFunction")
 	defer func() { createCompositionDevice = previous }()
-	renderer := renderer{composition: true}
+	renderer := renderer{compositionState: compositionState{composition: true}}
 	defer renderer.close()
 	if err := renderer.initialize(window, platform.Color{Alpha: 1}); err != nil {
 		t.Fatal(err)

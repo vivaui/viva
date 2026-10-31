@@ -122,8 +122,7 @@ func rectangleScissor(batch compositingBatch, scale float32, width, height int) 
 }
 
 type renderer struct {
-	composition                                                  bool
-	compositionDevice, compositionTarget, compositionVisual      uintptr
+	compositionState
 	window, device, context, swap, target                        uintptr
 	rectangleVertex, rectangleFragment, textVertex, textFragment uintptr
 	buffer, view, constants, blend, textBlend, raster, sampler   uintptr
@@ -192,16 +191,8 @@ func (renderer *renderer) initialize(window uintptr, color platform.Color) error
 // everything drawn with them. It tries the GPU and then the software device
 // (WARP), or only the software one when software is set.
 func (renderer *renderer) createDeviceAndResources(software bool) error {
-	if renderer.composition {
-		if err := renderer.createCompositionDevice(software); err == nil {
-			if err := renderer.createResources(); err == nil {
-				return nil
-			}
-		}
-		// Keep the window usable if composition is unavailable on this driver.
-		renderer.releaseDevice()
-		renderer.composition = false
-		restoreWindowRedirection(renderer.window)
+	if renderer.initializeComposition(software) {
+		return nil
 	}
 	description := swapDesc{Format: 87, Samples: 1, Usage: 0x20, Buffers: 2, Window: renderer.window, Windowed: 1, SwapEffect: 3}
 	levels := [...]uint32{0xb000}
@@ -445,7 +436,7 @@ func (renderer *renderer) present(width, height int, scale float32) error {
 // share it, so a screenshot is made of the pixels the window would show.
 func (renderer *renderer) draw(width, height int, scale float32) error {
 	clear := [4]float32{float32(renderer.color.Red), float32(renderer.color.Green), float32(renderer.color.Blue), float32(renderer.color.Alpha)}
-	if renderer.composition {
+	if renderer.usesComposition() {
 		clear[0] *= clear[3]
 		clear[1] *= clear[3]
 		clear[2] *= clear[3]
@@ -590,7 +581,8 @@ func (renderer *renderer) releaseDevice() {
 		release(&renderer.labels[index].texture)
 	}
 	renderer.capacity, renderer.width, renderer.height = 0, 0, 0
-	for _, object := range [...]*uintptr{&renderer.compositionVisual, &renderer.compositionTarget, &renderer.compositionDevice, &renderer.target, &renderer.swap, &renderer.view, &renderer.buffer, &renderer.constants, &renderer.blend, &renderer.textBlend, &renderer.raster, &renderer.sampler, &renderer.rectangleVertex, &renderer.rectangleFragment, &renderer.textVertex, &renderer.textFragment, &renderer.context, &renderer.device} {
+	renderer.releaseComposition()
+	for _, object := range [...]*uintptr{&renderer.target, &renderer.swap, &renderer.view, &renderer.buffer, &renderer.constants, &renderer.blend, &renderer.textBlend, &renderer.raster, &renderer.sampler, &renderer.rectangleVertex, &renderer.rectangleFragment, &renderer.textVertex, &renderer.textFragment, &renderer.context, &renderer.device} {
 		release(object)
 	}
 }
