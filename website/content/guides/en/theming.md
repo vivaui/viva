@@ -75,7 +75,7 @@ func main() {
 }
 ```
 
-`ui.LightTheme()` and `ui.DarkTheme()` return complete themes. The tokens are plain fields: `Background` and `Foreground` for the page, `Card` and `CardForeground` for surfaces, `Popover` for menus and dialogs, `Primary`, `Secondary`, `Accent` and `Muted` with matching foregrounds, `Border`, `Input`, `Ring` for focus rings, `Success` and `Danger`, and five `Chart` colors. Override a field to brand the application, as the example does with `Primary`.
+`ui.LightTheme()` and `ui.DarkTheme()` return complete themes. The tokens are plain fields: `Background` and `Foreground` for the page, `Card` and `CardForeground` for surfaces, `Popover` for menus and dialogs, `Primary`, `Secondary`, `Accent` and `Muted` with matching foregrounds, `Selection` and `SelectionForeground` for text selection, `Border`, `Input`, `Ring` for focus rings, `Success` and `Danger`, and five `Chart` colors. Override a field to brand the application, as the example does with `Primary`.
 
 Keep one function that returns the active theme, like the `theme` method above, and read it at the top of `Paint`. Nothing else needs to know which theme is active.
 

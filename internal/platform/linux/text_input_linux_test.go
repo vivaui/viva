@@ -51,6 +51,37 @@ func TestLinuxTextEventCarriesNativeStateThroughApplicationRedraw(t *testing.T) 
 	}
 }
 
+func TestLinuxSelfPaintingInputHidesSelectionAndCaretButKeepsComposition(t *testing.T) {
+	state := &linuxTextInput{
+		config: &platform.Config{DynamicTextInput: true},
+		engine: fixedAdvanceEngine{advance: 10},
+	}
+	inputState := platform.TextInput{
+		X: 10, Y: 20, Width: 120, Height: 28, FontSize: 16,
+		HideNativeOverlays: true,
+		Color:              platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+		State: platform.TextState{
+			Value: "selected", Selection: text.Range{Start: 2, End: 7},
+			Composing: true, Composition: text.Range{Start: 2, End: 7},
+		},
+		OnEvent: func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
+	}
+	frame, changed, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}})
+	if err != nil || !changed {
+		t.Fatalf("prepare: changed=%t err=%v", changed, err)
+	}
+	base := len(state.baseRectangles)
+	if frame.Rectangles[base] != (render.Rectangle{}) || frame.Rectangles[base+1] != (render.Rectangle{}) {
+		t.Fatalf("native selection/caret = %+v / %+v, want none", frame.Rectangles[base], frame.Rectangles[base+1])
+	}
+	if frame.Rectangles[base+2].Bounds.Width <= 0 {
+		t.Fatalf("composition underline = %+v, want native IME feedback", frame.Rectangles[base+2])
+	}
+	if state.caretShown() {
+		t.Fatal("self-painting input still requested a native caret")
+	}
+}
+
 func TestLinuxTerminalTextWithoutPreeditSkipsRedraw(t *testing.T) {
 	handled := 0
 	redraws := 0

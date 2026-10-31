@@ -311,7 +311,7 @@ err := app.RunApplication(func(a *app.Application) error {
 
 Colors, all `ui.Color`: `Background`, `Foreground`, `Card`, `CardForeground`, `CardElevated`, `Popover`,
 `PopoverForeground`, `Muted`, `MutedForeground`, `Border`, `Hover`, `Input`, `Primary`, `PrimaryForeground`,
-`Secondary`, `SecondaryForeground`, `Accent`, `AccentForeground`, `Ring`, `Success`, `Danger`, `DangerForeground`, and
+`Selection`, `SelectionForeground`, `Secondary`, `SecondaryForeground`, `Accent`, `AccentForeground`, `Ring`, `Success`, `Danger`, `DangerForeground`, and
 `Chart` (an array of five). There is no `Surface`, `Text` or `Error`: use `Card`, `Foreground`, `Danger`.
 A `ui.Color` is `{Red, Green, Blue, Alpha float32}` with each in 0..1 (so `ui.Color{Alpha: 0.5}` is a black scrim);
 it has `Mix(other, t)`, `Over(backdrop)` and `WithAlpha(a)`, and no `R` or `A`. To write a color of your own, `ui.RGB24(0x0a84ff)`

@@ -144,6 +144,8 @@ const chineseComponentNames: Record<string, string> = {
   drawer: '抽屉',
   'dropdown-menu': '下拉菜单',
   'hover-card': '悬停卡片',
+  'code-diff': '代码差异',
+  'split-button': '分离按钮',
 };
 
 export function componentName(locale: Locale, id: string, fallback: string): string {
@@ -187,6 +189,12 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
     confirm: ['Confirmation', 'Starts open. Tab remains in the dialog; reopen it after closing.'],
     destructive: ['Destructive action', 'Only updates local demo state. No files or other data are deleted.'],
   } },
+  'code-diff': { summary: 'An aligned two-pane comparison with native editing on the right.', examples: {
+    default: ['Two-pane diff', 'Green marks local additions and red marks removed server content while both panes keep aligned line numbers.'],
+  } },
+  'split-button': { summary: 'Independent primary and menu actions in one joined control.', examples: {
+    default: ['Save and more actions', 'The left target performs the primary action; the right target toggles the caller-owned menu state.'],
+  } },
 };
 
 const chineseSections: Record<string, Record<string, Omit<Section, 'ID'>>> = {
@@ -213,6 +221,14 @@ const chineseSections: Record<string, Record<string, Omit<Section, 'ID'>>> = {
   dialog: {
     usage: { Title: '真实模态焦点范围', Text: 'BeginDialog 绘制遮罩并保持图层和焦点范围有效；绘制内容，用 Actions 排布页脚按钮（每个按钮宽度只按自己的文字，按给定顺序靠右排列），再调用 End。应用持有 open 状态与各操作 ID。', Items: ['触发、关闭、取消、确认使用不同的稳定 ID。', '打开后限制键盘焦点遍历；关闭时尽可能恢复原先焦点。', '本示例不通过点击遮罩关闭，请使用按钮或 Escape。确认与危险操作示例默认打开。'] },
     keyboard: { Title: '打开、确认与关闭', Text: '打开后使用 Tab 遍历操作，Escape 取消，或点击 Confirm / Cancel。结果只更新预览，不执行外部操作。', Items: [] },
+  },
+  'code-diff': {
+    usage: { Title: '行对齐的源码对比', Text: 'CodeDiff 根据调用方持有的 CodeDiffResult 绘制两栏并同步滚动。左栏是固定基准版本，右栏连接与 CodeEditor、Textarea 相同的平台文本编辑器。', Items: ['用 DiffCodeLines 生成新增、删除与修改行，不改变任一源码字符串。', '长行共享横向偏移，两栏共享纵向偏移。', '新增和删除行除背景色外，还提供符号与行号提示。'] },
+    keyboard: { Title: '编辑与滚动', Text: '右栏保留基于字节偏移的选区、组合输入与插入点位置，左栏保持只读对齐。', Items: ['鼠标滚轮和滚动条拖动会更新共享偏移。', '只读预览不向平台暴露编辑器。', '应用应合并高频重算并丢弃较旧文本产生的结果。'] },
+  },
+  'split-button': {
+    usage: { Title: '两个独立操作', Text: 'SplitButton 用一个相连外观绘制主操作与菜单触发区，同时声明两个稳定 ID。调用 Paint 后通过 Clicked 分别读取结果。', Items: ['主操作与菜单两半具有独立的悬停、焦点、按下和禁用语义。', 'Open 由调用方持有，并作为菜单触发区的展开状态暴露。', '当菜单用于选择一个主要结果的不同方式时使用 SplitButton。'] },
+    keyboard: { Title: '键盘与可访问性', Text: 'Tab 分别到达每个可用半区；Enter 与空格通过和鼠标相同的命中路径激活当前焦点。', Items: ['没有可见文字的菜单触发区必须设置 MenuLabel。', '禁用控件仍然可见并暴露禁用语义。', '菜单内容、关闭与焦点恢复由应用负责。'] },
   },
 };
 

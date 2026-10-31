@@ -427,6 +427,11 @@ type HitOptions struct {
 	TextBounds Rect
 	TextSize   float32
 	TextColor  Color
+	// HideNativeOverlays asks the platform text service to keep its caret and
+	// selection invisible while preserving native editing, IME and clipboard
+	// behavior. Components that paint their own caret and selection set this
+	// so the two presentations do not overlap.
+	HideNativeOverlays bool
 	// NavigationKeys asks Up, Down, PageUp and PageDown to reach the
 	// application as raw ui.KeyEvents while the field is focused, instead
 	// of being consumed by the text system or moving its caret. Use it
@@ -516,6 +521,8 @@ type Hit struct {
 	TextBounds Rect
 	TextSize   float32
 	TextColor  Color
+	// HideNativeOverlays is HitOptions.HideNativeOverlays.
+	HideNativeOverlays bool
 	// NavigationKeys is HitOptions.NavigationKeys.
 	NavigationKeys bool
 	// Placement is HitOptions.Placement.
@@ -1216,8 +1223,9 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 		Focusable: focusable, SkipTab: focusable && options.SkipTab, Autofocus: options.Autofocus && focusable, IsLabel: options.label, Backdrop: options.Backdrop,
 		PassSecondary: options.Backdrop && options.PassSecondary, PassPrimary: options.Backdrop && options.PassPrimary,
 		TextBounds: options.TextBounds, TextSize: options.TextSize, TextColor: options.TextColor,
-		NavigationKeys: options.NavigationKeys,
-		Placement:      options.Placement,
+		HideNativeOverlays: options.HideNativeOverlays,
+		NavigationKeys:     options.NavigationKeys,
+		Placement:          options.Placement,
 	})
 }
 

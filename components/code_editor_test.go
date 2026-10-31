@@ -43,6 +43,24 @@ func TestCodeEditorPreservesTextPlacementSelectionAndComposition(t *testing.T) {
 	}
 }
 
+func TestCodeEditorHidesPlatformOverlaysWhenItPaintsText(t *testing.T) {
+	theme := ui.LightTheme()
+	value := "first\nsecond\n"
+	var layout TextareaLayout
+	var canvas ui.Canvas
+	var editor CodeEditor
+	editor.Paint(&canvas, theme, ui.Rect{Width: 320, Height: 160}, CodeEditorSnapshot{
+		TextareaSnapshot: TextareaSnapshot{
+			ID: ui.Item(1), Value: value, Focused: true, ShowCaret: true,
+			HideEditorText: true, Caret: 2, SelectionStart: 0, SelectionEnd: 5,
+			Layout: &layout,
+		},
+	})
+	if hits := canvas.Hits(); len(hits) != 1 || !hits[0].HideNativeOverlays {
+		t.Fatalf("self-painted editor hit = %+v, want native overlays hidden", hits)
+	}
+}
+
 func BenchmarkCodeEditorVisibleHighlighting(b *testing.B) {
 	var canvas ui.Canvas
 	var editor CodeEditor

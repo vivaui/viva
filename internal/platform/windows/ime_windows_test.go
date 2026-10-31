@@ -105,6 +105,33 @@ func TestTerminalPreeditDrawsNoCaretOrSelection(t *testing.T) {
 	}
 }
 
+func TestSelfPaintingTextInputCanHideNativeCaretAndSelection(t *testing.T) {
+	state := dynamicTextState(0, 0)
+	state.textRectangles = make([]render.Rectangle, textRectangleCount)
+	state.textLabels = make([]platform.TextLabel, 1)
+	field := testTextInput("selected text", 4)
+	field.HideNativeOverlays = true
+	field.State.Selection = text.Range{Start: 2, End: 7}
+	field.State.Composition = text.Range{Start: 2, End: 7}
+	field.State.Composing = true
+	state.textInput, state.textState, state.textEnabled = field, field.State, true
+	state.caretVisible, state.focused = true, true
+	if err := state.updateTextVisuals(); err != nil {
+		t.Fatal(err)
+	}
+	for index, name := range []string{"selection", "caret"} {
+		if rectangle := state.textRectangles[index]; rectangle.Bounds.Width != 0 || rectangle.Bounds.Height != 0 {
+			t.Fatalf("%s rectangle = %+v, want none", name, rectangle)
+		}
+	}
+	if underline := state.textRectangles[2]; underline.Bounds.Width <= 0 {
+		t.Fatalf("composition underline = %+v, want native IME feedback", underline)
+	}
+	if state.caretBlinks() {
+		t.Fatal("a self-painting field still requested a native blinking caret")
+	}
+}
+
 // TestTerminalPreeditStandsOnTheTerminalGrid guards the composition drawn in the
 // fixed-pitch font on the terminal's cells: the label is a grid line, and the
 // underline covers the cells of the composed characters (a wide one takes two),

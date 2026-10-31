@@ -124,6 +124,10 @@ type TextInputContext struct {
 	TextBounds ui.Rect
 	FontSize   float32
 	TextColor  ui.Color
+	// HideNativeOverlays requests that the platform editor keep its own caret
+	// and selection invisible. Editing, IME and clipboard behavior are
+	// unchanged. Components that paint those overlays themselves set it.
+	HideNativeOverlays bool
 }
 
 // TextInputProvider resolves one focused text-field hit. Returning nil disables
@@ -175,6 +179,10 @@ type TextInput struct {
 	Editor  *text.Editor
 	State   TextState
 	OnEvent func(TextEvent) (TextState, error)
+	// HideNativeOverlays keeps the platform's caret and selection invisible
+	// while native editing continues. It combines with the declaration on the
+	// focused Canvas hit.
+	HideNativeOverlays bool
 }
 
 // TextStateOf snapshots editor into the state native text services mirror.

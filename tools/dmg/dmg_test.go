@@ -99,7 +99,10 @@ func TestPropertyListsAreReadByTheSystem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plutil: %v\n%s", err, out)
 	}
-	for _, want := range []string{`"flag" => 1`, `"size" => 300`, `"ratio" => 0.5`, `"text" => "{{200, 400}, {600, 428}}"`, `"名称" => "Motty"`} {
+	if !strings.Contains(string(out), `"flag" => 1`) && !strings.Contains(string(out), `"flag" => true`) {
+		t.Errorf("missing boolean flag in:\n%s", out)
+	}
+	for _, want := range []string{`"size" => 300`, `"ratio" => 0.5`, `"text" => "{{200, 400}, {600, 428}}"`, `"名称" => "Motty"`} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("missing %s in:\n%s", want, out)
 		}

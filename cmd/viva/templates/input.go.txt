@@ -111,7 +111,7 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 	var selections []ui.Rect
 	if selectionEnd > selectionStart && !placeholderShown {
 		selections = inputTextRanges(canvas, ranges[:0], bounds, origin, value, fontSize, selectionStart, selectionEnd)
-		selectionColor := theme.Primary
+		selectionColor, _ := selectionColors(theme)
 		if snapshot.Disabled {
 			selectionColor.Alpha *= 0.50
 		}
@@ -141,7 +141,7 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 			continue
 		}
 		canvas.Clip(selection)
-		selectedColor := theme.PrimaryForeground
+		_, selectedColor := selectionColors(theme)
 		if snapshot.Disabled {
 			selectedColor.Alpha *= 0.50
 		}

@@ -10,8 +10,11 @@ import (
 func TestScrollAreaClampsOffsetsAndComputesBothThumbs(t *testing.T) {
 	area := BeginScrollArea(nil, ui.LightTheme(), ui.Rect{X: 10, Y: 20, Width: 200, Height: 100}, ui.Size{Width: 500, Height: 400}).Offset(999, -20)
 	geometry := area.Geometry()
-	if geometry.OffsetX != 300 || geometry.OffsetY != 0 || geometry.MaxOffsetX != 300 || geometry.MaxOffsetY != 300 {
+	if geometry.OffsetX != 310 || geometry.OffsetY != 0 || geometry.MaxOffsetX != 310 || geometry.MaxOffsetY != 310 {
 		t.Fatalf("scroll offsets = %+v", geometry)
+	}
+	if geometry.Viewport != (ui.Rect{X: 10, Y: 20, Width: 190, Height: 90}) {
+		t.Fatalf("effective viewport = %+v", geometry.Viewport)
 	}
 	if geometry.VerticalTrack != (ui.Rect{X: 200, Y: 20, Width: 10, Height: 90}) {
 		t.Fatalf("vertical track = %+v", geometry.VerticalTrack)
@@ -19,7 +22,7 @@ func TestScrollAreaClampsOffsetsAndComputesBothThumbs(t *testing.T) {
 	if geometry.HorizontalTrack != (ui.Rect{X: 10, Y: 110, Width: 190, Height: 10}) {
 		t.Fatalf("horizontal track = %+v", geometry.HorizontalTrack)
 	}
-	if geometry.Content.X != -290 || geometry.Content.Y != 20 {
+	if geometry.Content.X != -300 || geometry.Content.Y != 20 {
 		t.Fatalf("translated content = %+v", geometry.Content)
 	}
 	if geometry.HorizontalThumb.X+geometry.HorizontalThumb.Width != geometry.HorizontalTrack.X+geometry.HorizontalTrack.Width-1 {
@@ -93,6 +96,12 @@ func TestScrollAreaThumbOffsetInvertsThumbPlacement(t *testing.T) {
 	if got := geometry.VerticalOffsetForThumb(5000); got != geometry.MaxOffsetY {
 		t.Fatalf("a drag below the track must clamp to the end, got %v want %v", got, geometry.MaxOffsetY)
 	}
+	if got := geometry.HorizontalOffsetForThumb(geometry.HorizontalThumb.X); got != 0 {
+		t.Fatalf("a horizontal drag at the start = %v", got)
+	}
+	if got := geometry.HorizontalOffsetForThumb(geometry.HorizontalTrack.X + geometry.HorizontalTrack.Width); got != geometry.MaxOffsetX {
+		t.Fatalf("a horizontal drag at the end = %v, want %v", got, geometry.MaxOffsetX)
+	}
 
 	short := BeginScrollArea(nil, ui.LightTheme(), bounds, ui.Size{Width: 300, Height: 100}).Geometry()
 	if got := short.VerticalOffsetForThumb(50); got != 0 {
@@ -123,8 +132,8 @@ func TestScrollAreaViewportAndKeys(t *testing.T) {
 		want float32
 	}{
 		{"down", 0, 0, ui.KeyDown, 32},
-		{"page down", 0, 0, ui.KeyPageDown, 90},
-		{"end", 0, 0, ui.KeyEnd, 200},
+		{"page down", 0, 0, ui.KeyPageDown, 81},
+		{"end", 0, 0, ui.KeyEnd, 210},
 		{"home", 0, 200, ui.KeyHome, 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {

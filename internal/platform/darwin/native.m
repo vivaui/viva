@@ -655,11 +655,13 @@ int viva_text_input_caret_should_blink(
     int enabled,
     size_t selected_length,
     int has_marked_text,
-    int terminal
+    int terminal,
+    int hide_native_overlays
 ) {
     // A terminal draws its own cursor and keeps it steady, so an idle
     // terminal never wakes the application.
-    return enabled != 0 && terminal == 0 && selected_length == 0 && has_marked_text == 0;
+    return enabled != 0 && terminal == 0 && hide_native_overlays == 0 &&
+        selected_length == 0 && has_marked_text == 0;
 }
 
 int viva_terminal_key_routes_raw(
@@ -1802,6 +1804,7 @@ static id<MTLTexture> viva_text_input_texture(
     NSRange markedRange,
     BOOL caretVisible,
     BOOL terminal,
+    BOOL hideNativeOverlays,
     int monoFace,
     CGFloat cellWidth
 ) {
@@ -1872,7 +1875,7 @@ static id<MTLTexture> viva_text_input_texture(
     NSColor *textColor = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
     BOOL invisible = textColor != nil && textColor.alphaComponent <= 0.0;
     double spans[2 * VIVA_SELECTION_PIECES];
-    if (selected.length > 0 && !terminal && !invisible) {
+    if (selected.length > 0 && !terminal && !hideNativeOverlays && !invisible) {
         size_t count = viva_text_spans(line, selected, terminal, spans, VIVA_SELECTION_PIECES);
         CGContextSetRGBFillColor(context, 0.18, 0.42, 0.90, 0.55);
         for (size_t piece = 0; piece < count; piece++) {
@@ -1902,7 +1905,7 @@ static id<MTLTexture> viva_text_input_texture(
             // edge of the row, not two points further down, where nothing would be drawn.
             CGContextFillRect(context, CGRectMake(spans[2 * piece], MAX(baseline - descent - 2.0, 0.0), MAX(1.0, spans[2 * piece + 1]), 1.0));
         }
-    } else if (selected.length == 0 && caretVisible && !terminal) {
+    } else if (selected.length == 0 && caretVisible && !terminal && !hideNativeOverlays) {
         CGFloat caret = viva_text_offset(line, selected.location, terminal);
         NSColor *caretColor = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
         CGContextSetRGBFillColor(
@@ -2966,6 +2969,7 @@ static void viva_encode_scene(
     NSRect _textCaretFrame;
     BOOL _textSecure;
     BOOL _textTerminal;
+    BOOL _textHideNativeOverlays;
     int _textMonoFace;
     CGFloat _textCellWidth; // a terminal's cell, which its preedit is laid on
     BOOL _textAltSendsEscape;
@@ -3163,6 +3167,7 @@ static int viva_navigation_command(SEL selector) {
         _textCaretFrame = NSMakeRect(textInput.caret_x, textInput.caret_y, textInput.caret_width, textInput.caret_height);
         _textSecure = textInput.secure != 0;
         _textTerminal = textInput.terminal != 0;
+        _textHideNativeOverlays = textInput.hide_native_overlays != 0;
         _textMonoFace = textInput.mono_face;
         _textCellWidth = textInput.cell_width;
         _textAltSendsEscape = textInput.alt_sends_escape != 0;
@@ -3943,7 +3948,7 @@ static void viva_set_secure_event_input(BOOL on) {
     id<MTLTexture> texture = viva_text_input_texture(
         _metalLayer.device, MAX(_metalLayer.contentsScale, 1.0), [self displayedText],
         _textFontSize, _textColor, _textFrame.size, _selectedRange, _hasMarkedText,
-        _markedRange, _caretVisible, _textTerminal, _textMonoFace, _textCellWidth);
+        _markedRange, _caretVisible, _textTerminal, _textHideNativeOverlays, _textMonoFace, _textCellWidth);
     if (texture == nil) {
         return NO;
     }
@@ -3954,7 +3959,7 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)caretBlinkTimerFired:(NSTimer *)timer {
     if (timer != _caretTimer || !viva_text_input_caret_should_blink(
-            _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal)) {
+            _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal, _textHideNativeOverlays)) {
         [self stopCaretBlink];
         return;
     }
@@ -3977,7 +3982,7 @@ static void viva_set_secure_event_input(BOOL on) {
     [self stopCaretBlink];
     _caretVisible = YES;
     if (!viva_text_input_caret_should_blink(
-            _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal)) {
+            _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal, _textHideNativeOverlays)) {
         return;
     }
     _caretTimer = [[NSTimer timerWithTimeInterval:0.5
@@ -4408,6 +4413,7 @@ static void viva_set_secure_event_input(BOOL on) {
     if (!textInput.enabled) {
         _textSecure = NO;
         _textTerminal = NO;
+        _textHideNativeOverlays = NO;
         _textMonoFace = 0;
         _textCellWidth = 0;
         _textAltSendsEscape = NO;
@@ -4453,6 +4459,7 @@ static void viva_set_secure_event_input(BOOL on) {
     _textCaretFrame = NSMakeRect(textInput.caret_x, textInput.caret_y, textInput.caret_width, textInput.caret_height);
     _textSecure = textInput.secure != 0;
     _textTerminal = textInput.terminal != 0;
+    _textHideNativeOverlays = textInput.hide_native_overlays != 0;
     _textMonoFace = textInput.mono_face;
     _textCellWidth = textInput.cell_width;
     _textAltSendsEscape = textInput.alt_sends_escape != 0;
@@ -6514,8 +6521,8 @@ int viva_unregister_font_file(const char *path) {
         _device, _scale, shown, config.font_size, color, _inputFrame.size,
         NSMakeRange(config.selected_start, config.selected_length),
         config.has_marked_text != 0,
-        NSMakeRange(config.marked_start, config.marked_length), YES, config.terminal != 0, config.mono_face,
-        config.cell_width);
+        NSMakeRange(config.marked_start, config.marked_length), YES, config.terminal != 0,
+        config.hide_native_overlays != 0, config.mono_face, config.cell_width);
     return _inputTexture != nil;
 }
 

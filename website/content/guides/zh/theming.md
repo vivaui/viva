@@ -75,7 +75,7 @@ func main() {
 }
 ```
 
-`ui.LightTheme()` 和 `ui.DarkTheme()` 返回完整的主题。令牌是普通字段：页面用 `Background` 和 `Foreground`，表面用 `Card` 和 `CardForeground`，菜单和对话框用 `Popover`，还有带对应前景色的 `Primary`、`Secondary`、`Accent` 和 `Muted`，以及 `Border`、`Input`、用于焦点环的 `Ring`、`Success` 和 `Danger`，外加五种 `Chart` 颜色。覆盖某个字段就能为应用定制品牌色，示例就是这样改 `Primary` 的。
+`ui.LightTheme()` 和 `ui.DarkTheme()` 返回完整的主题。令牌是普通字段：页面用 `Background` 和 `Foreground`，表面用 `Card` 和 `CardForeground`，菜单和对话框用 `Popover`，还有带对应前景色的 `Primary`、`Secondary`、`Accent` 和 `Muted`，文本选区用 `Selection` 和 `SelectionForeground`，以及 `Border`、`Input`、用于焦点环的 `Ring`、`Success` 和 `Danger`，外加五种 `Chart` 颜色。覆盖某个字段就能为应用定制品牌色，示例就是这样改 `Primary` 的。
 
 用一个函数返回当前主题，像上面的 `theme` 方法那样，并在 `Paint` 开头读取它。其他地方都不需要知道当前用的是哪个主题。
 

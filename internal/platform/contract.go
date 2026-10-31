@@ -640,6 +640,10 @@ type TextInput struct {
 	Color                                   Color
 	State                                   TextState
 	OnEvent                                 TextHandler
+	// HideNativeOverlays keeps the platform editor's caret and selection
+	// invisible while preserving text input, IME and clipboard behavior.
+	// Canvas components that draw those overlays themselves set it.
+	HideNativeOverlays bool
 }
 
 // TextState is the complete platform-neutral state mirrored by NSTextInputClient.

@@ -1009,6 +1009,7 @@ func (painter *painter) focusedTextField() (TextInputContext, ui.TextPlacement) 
 				Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
 				NavigationKeys: hit.NavigationKeys,
 				TextBounds:     hit.TextBounds, FontSize: hit.TextSize, TextColor: hit.TextColor,
+				HideNativeOverlays: hit.HideNativeOverlays,
 			}, hit.Placement
 		}
 	}
@@ -1080,7 +1081,8 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		Width: bounds.Width, Height: bounds.Height,
 		FontSize: fontSize, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal,
 		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace,
-		NavigationKeys: input.NavigationKeys || context.NavigationKeys,
+		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
+		HideNativeOverlays: input.HideNativeOverlays || context.HideNativeOverlays,
 		Color: platform.Color{
 			Red: float64(tint.Red), Green: float64(tint.Green),
 			Blue: float64(tint.Blue), Alpha: float64(tint.Alpha),
@@ -1161,6 +1163,7 @@ func samePlatformTextInput(left, right platform.TextInput) bool {
 		left.FontSize == right.FontSize && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace &&
 		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases &&
 		left.NavigationKeys == right.NavigationKeys &&
+		left.HideNativeOverlays == right.HideNativeOverlays &&
 		left.Placed == right.Placed && left.CaretX == right.CaretX && left.CaretY == right.CaretY &&
 		left.CaretWidth == right.CaretWidth && left.CaretHeight == right.CaretHeight &&
 		left.Color == right.Color && left.State == right.State

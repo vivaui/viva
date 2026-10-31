@@ -144,11 +144,11 @@ func (state *windowState) updateTextVisuals() error {
 	caretColor := scene.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 	state.textRectangles[base] = render.Rectangle{}
 	state.textRectangles[base+1] = render.Rectangle{}
-	// A terminal is a preedit surface with a cursor of its own: the native
-	// editor draws the composition only, never a caret or a selection (see
-	// platform.TextInput.Terminal), which would otherwise blink in the cursor's
-	// cell.
-	if !input.Terminal {
+	// A terminal is a preedit surface with a cursor of its own. Components that
+	// paint a multi-line caret and selection also ask the native editor to keep
+	// its single-line overlays invisible. In both cases the composition remains
+	// native so the IME continues to own its underline.
+	if !input.Terminal && !input.HideNativeOverlays {
 		selection := state.textState.Selection
 		selectionStart, selectionEnd := state.textExtent(input.FontSize, selection)
 		state.textRectangles[base] = render.Rectangle{
@@ -543,11 +543,10 @@ func (state *windowState) cancelComposition() {
 	releaseInputContext.Call(state.window, context)
 }
 
-// caretBlinks reports whether a native caret belongs on screen: the window has
-// the keyboard and the input is not a terminal preedit surface, which draws its
-// own cursor and asks for no caret (see platform.TextInput.Terminal).
+// caretBlinks reports whether a native caret belongs on screen. Terminal and
+// self-painting input surfaces own both their cursor and selection.
 func (state *windowState) caretBlinks() bool {
-	return state.textEnabled && state.focused && !state.textInput.Terminal
+	return state.textEnabled && state.focused && !state.textInput.Terminal && !state.textInput.HideNativeOverlays
 }
 
 func (state *windowState) restartCaretTimer() error {

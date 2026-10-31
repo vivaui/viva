@@ -22,6 +22,8 @@ var docPrimaryEntries = map[string][]string{
 	"card.go":             {"Card"},
 	"chart_downsample.go": {"ChartDownsample"},
 	"code_editor.go":      {"CodeEditor"},
+	"code_diff.go":        {"CodeDiff"},
+	"code_diff_model.go":  {"DiffCodeLines"},
 	"direction.go":        {"Direction"},
 	"empty.go":            {"Empty"},
 	"kbd.go":              {"Kbd"},

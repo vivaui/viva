@@ -96,25 +96,58 @@ func (area ScrollArea) Disabled() ScrollArea {
 // Geometry returns clamped viewport, translated content, track, thumb, and
 // corner geometry without painting or changing Canvas state.
 func (area ScrollArea) Geometry() ScrollAreaGeometry {
-	viewport := scrollAreaNormalizeRect(area.bounds)
+	bounds := scrollAreaNormalizeRect(area.bounds)
 	contentWidth := scrollAreaFiniteNonNegative(area.contentSize.Width)
 	contentHeight := scrollAreaFiniteNonNegative(area.contentSize.Height)
-	if contentWidth < viewport.Width {
-		contentWidth = viewport.Width
+	if contentWidth < bounds.Width {
+		contentWidth = bounds.Width
 	}
-	if contentHeight < viewport.Height {
-		contentHeight = viewport.Height
+	if contentHeight < bounds.Height {
+		contentHeight = bounds.Height
 	}
 
+	// Scrollbars occupy part of the same outer bounds. Resolve both flags to a
+	// fixed point because introducing one scrollbar can reduce the other axis
+	// enough to require its partner too. The viewport returned below is the
+	// actual clipped content area, not the larger rectangle that includes bars.
+	hasHorizontal := contentWidth > bounds.Width
+	hasVertical := contentHeight > bounds.Height
+	for range 3 {
+		availableWidth, availableHeight := bounds.Width, bounds.Height
+		if hasVertical {
+			availableWidth = scrollAreaMax(availableWidth-scrollAreaBarSize, 0)
+		}
+		if hasHorizontal {
+			availableHeight = scrollAreaMax(availableHeight-scrollAreaBarSize, 0)
+		}
+		nextHorizontal := hasHorizontal
+		if availableWidth > 0 {
+			nextHorizontal = contentWidth > availableWidth
+		}
+		nextVertical := hasVertical
+		if availableHeight > 0 {
+			nextVertical = contentHeight > availableHeight
+		}
+		if nextHorizontal == hasHorizontal && nextVertical == hasVertical {
+			break
+		}
+		hasHorizontal, hasVertical = nextHorizontal, nextVertical
+	}
+
+	viewport := bounds
+	if hasVertical {
+		viewport.Width = scrollAreaMax(viewport.Width-scrollAreaBarSize, 0)
+	}
+	if hasHorizontal {
+		viewport.Height = scrollAreaMax(viewport.Height-scrollAreaBarSize, 0)
+	}
 	maximumX := scrollAreaMax(contentWidth-viewport.Width, 0)
 	maximumY := scrollAreaMax(contentHeight-viewport.Height, 0)
 	offsetX := scrollAreaClamp(area.offsetX, 0, maximumX)
 	offsetY := scrollAreaClamp(area.offsetY, 0, maximumY)
-	hasHorizontal := maximumX > 0 && viewport.Height > 0
-	hasVertical := maximumY > 0 && viewport.Width > 0
 
 	geometry := ScrollAreaGeometry{
-		Bounds: viewport, Viewport: viewport,
+		Bounds: bounds, Viewport: viewport,
 		Content: ui.Rect{
 			X: viewport.X - offsetX, Y: viewport.Y - offsetY,
 			Width: contentWidth, Height: contentHeight,
@@ -123,28 +156,24 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 		MaxOffsetX: maximumX, MaxOffsetY: maximumY,
 	}
 
-	verticalExtent := viewport.Height
-	horizontalExtent := viewport.Width
 	if hasHorizontal && hasVertical {
-		verticalExtent = scrollAreaMax(verticalExtent-scrollAreaBarSize, 0)
-		horizontalExtent = scrollAreaMax(horizontalExtent-scrollAreaBarSize, 0)
 		geometry.Corner = ui.Rect{
-			X:     viewport.X + viewport.Width - scrollAreaBarSize,
-			Y:     viewport.Y + viewport.Height - scrollAreaBarSize,
+			X:     bounds.X + bounds.Width - scrollAreaBarSize,
+			Y:     bounds.Y + bounds.Height - scrollAreaBarSize,
 			Width: scrollAreaBarSize, Height: scrollAreaBarSize,
 		}
 	}
 	if hasVertical {
 		geometry.VerticalTrack = ui.Rect{
-			X: viewport.X + viewport.Width - scrollAreaBarSize, Y: viewport.Y,
-			Width: scrollAreaBarSize, Height: verticalExtent,
+			X: bounds.X + bounds.Width - scrollAreaBarSize, Y: bounds.Y,
+			Width: scrollAreaBarSize, Height: viewport.Height,
 		}
 		geometry.VerticalThumb = scrollAreaThumb(geometry.VerticalTrack, true, viewport.Height, contentHeight, offsetY, maximumY)
 	}
 	if hasHorizontal {
 		geometry.HorizontalTrack = ui.Rect{
-			X: viewport.X, Y: viewport.Y + viewport.Height - scrollAreaBarSize,
-			Width: horizontalExtent, Height: scrollAreaBarSize,
+			X: bounds.X, Y: bounds.Y + bounds.Height - scrollAreaBarSize,
+			Width: viewport.Width, Height: scrollAreaBarSize,
 		}
 		geometry.HorizontalThumb = scrollAreaThumb(geometry.HorizontalTrack, false, viewport.Width, contentWidth, offsetX, maximumX)
 	}
@@ -163,6 +192,18 @@ func (geometry ScrollAreaGeometry) VerticalOffsetForThumb(thumbTop float32) floa
 	}
 	ratio := (thumbTop - (geometry.VerticalTrack.Y + scrollAreaBarInset)) / travel
 	return scrollAreaClamp(ratio*geometry.MaxOffsetY, 0, geometry.MaxOffsetY)
+}
+
+// HorizontalOffsetForThumb returns the content offset that places the left edge
+// of the horizontal thumb at thumbLeft. It is zero when the area does not scroll
+// horizontally.
+func (geometry ScrollAreaGeometry) HorizontalOffsetForThumb(thumbLeft float32) float32 {
+	travel := scrollAreaMax(geometry.HorizontalTrack.Width-scrollAreaBarInset*2, 0) - geometry.HorizontalThumb.Width
+	if travel <= 0 || geometry.MaxOffsetX <= 0 {
+		return 0
+	}
+	ratio := (thumbLeft - (geometry.HorizontalTrack.X + scrollAreaBarInset)) / travel
+	return scrollAreaClamp(ratio*geometry.MaxOffsetX, 0, geometry.MaxOffsetX)
 }
 
 // BeginContent pushes the viewport clip and returns translated content geometry.

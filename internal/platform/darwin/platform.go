@@ -765,37 +765,38 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 	markedStart := editor.RuneIndexToUTF16(input.State.Composition.Start)
 	markedEnd := editor.RuneIndexToUTF16(input.State.Composition.End)
 	return C.viva_text_input_config{
-		utf8:             (*C.uchar)(value),
-		utf8_length:      C.size_t(len(input.State.Value)),
-		x:                C.float(input.X),
-		y:                C.float(input.Y),
-		width:            C.float(input.Width),
-		height:           C.float(input.Height),
-		font_size:        C.float(input.FontSize),
-		red:              C.float(input.Color.Red),
-		green:            C.float(input.Color.Green),
-		blue:             C.float(input.Color.Blue),
-		alpha:            C.float(input.Color.Alpha),
-		selected_start:   C.size_t(selectedStart),
-		selected_length:  C.size_t(selectedEnd - selectedStart),
-		marked_start:     C.size_t(markedStart),
-		marked_length:    C.size_t(markedEnd - markedStart),
-		has_marked_text:  C.int(boolInt(input.State.Composing)),
-		multiline:        C.int(boolInt(input.Multiline)),
-		secure:           C.int(boolInt(input.Secure)),
-		terminal:         C.int(boolInt(input.Terminal)),
-		mono_face:        C.int(input.MonoFace),
-		cell_width:       C.float(terminalCellWidth(input)),
-		alt_sends_escape: C.int(boolInt(input.AltSendsEscape)),
-		key_releases:     C.int(boolInt(input.KeyReleases)),
-		navigation_keys:  C.int(boolInt(input.NavigationKeys)),
-		placed:           C.int(boolInt(input.Placed)),
-		layer:            C.uint16_t(input.Layer),
-		caret_x:          C.float(input.CaretX),
-		caret_y:          C.float(input.CaretY),
-		caret_width:      C.float(input.CaretWidth),
-		caret_height:     C.float(input.CaretHeight),
-		enabled:          1,
+		utf8:                 (*C.uchar)(value),
+		utf8_length:          C.size_t(len(input.State.Value)),
+		x:                    C.float(input.X),
+		y:                    C.float(input.Y),
+		width:                C.float(input.Width),
+		height:               C.float(input.Height),
+		font_size:            C.float(input.FontSize),
+		red:                  C.float(input.Color.Red),
+		green:                C.float(input.Color.Green),
+		blue:                 C.float(input.Color.Blue),
+		alpha:                C.float(input.Color.Alpha),
+		selected_start:       C.size_t(selectedStart),
+		selected_length:      C.size_t(selectedEnd - selectedStart),
+		marked_start:         C.size_t(markedStart),
+		marked_length:        C.size_t(markedEnd - markedStart),
+		has_marked_text:      C.int(boolInt(input.State.Composing)),
+		multiline:            C.int(boolInt(input.Multiline)),
+		secure:               C.int(boolInt(input.Secure)),
+		terminal:             C.int(boolInt(input.Terminal)),
+		hide_native_overlays: C.int(boolInt(input.HideNativeOverlays)),
+		mono_face:            C.int(input.MonoFace),
+		cell_width:           C.float(terminalCellWidth(input)),
+		alt_sends_escape:     C.int(boolInt(input.AltSendsEscape)),
+		key_releases:         C.int(boolInt(input.KeyReleases)),
+		navigation_keys:      C.int(boolInt(input.NavigationKeys)),
+		placed:               C.int(boolInt(input.Placed)),
+		layer:                C.uint16_t(input.Layer),
+		caret_x:              C.float(input.CaretX),
+		caret_y:              C.float(input.CaretY),
+		caret_width:          C.float(input.CaretWidth),
+		caret_height:         C.float(input.CaretHeight),
+		enabled:              1,
 	}
 }
 
@@ -848,12 +849,13 @@ func fragmentBlendsPremultiplied(name string) bool {
 	return C.viva_fragment_blends_premultiplied(cName) != 0
 }
 
-func nativeCaretShouldBlink(enabled bool, selectedLength int, composing, terminal bool) bool {
+func nativeCaretShouldBlink(enabled bool, selectedLength int, composing, terminal, hideNativeOverlays bool) bool {
 	return C.viva_text_input_caret_should_blink(
 		C.int(boolInt(enabled)),
 		C.size_t(selectedLength),
 		C.int(boolInt(composing)),
 		C.int(boolInt(terminal)),
+		C.int(boolInt(hideNativeOverlays)),
 	) != 0
 }
 

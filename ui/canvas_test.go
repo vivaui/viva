@@ -109,7 +109,7 @@ func TestTypedHitCapturesSemanticStateAndFocusScope(t *testing.T) {
 	canvas.PushFocusScope(Item(42))
 	canvas.HitWithOptions(Item(7), Rect{Width: 80, Height: 24}, "General", HitOptions{
 		Role: RoleTab, Value: "general", Hint: "Settings section",
-		Selected: true, Expanded: true,
+		Selected: true, Expanded: true, HideNativeOverlays: true,
 	})
 	canvas.PopFocusScope()
 	canvas.TrapFocus(Item(42))
@@ -120,7 +120,7 @@ func TestTypedHitCapturesSemanticStateAndFocusScope(t *testing.T) {
 		t.Fatalf("hits = %+v", canvas.Hits())
 	}
 	hit := canvas.Hits()[0]
-	if hit.Scope != Item(42) || hit.Role != RoleTab || hit.Value != "general" || !hit.Selected || !hit.Expanded || !hit.Focusable {
+	if hit.Scope != Item(42) || hit.Role != RoleTab || hit.Value != "general" || !hit.Selected || !hit.Expanded || !hit.Focusable || !hit.HideNativeOverlays {
 		t.Fatalf("typed hit = %+v", hit)
 	}
 	if canvas.TrappedFocusScope() != Item(42) || canvas.EscapeTarget() != Item(9) || canvas.InitialFocus() != Item(7) {

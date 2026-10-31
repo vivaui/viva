@@ -1,0 +1,174 @@
+package {{PACKAGE}}
+
+import "github.com/vivaui/viva/ui"
+
+// SplitButtonOptions describes a primary action joined to a fixed-width menu
+// trigger. The two halves share one outline and variant while keeping separate
+// hit identities, hover feedback, focus rings and accessibility state.
+type SplitButtonOptions struct {
+	PrimaryID ui.ID
+	MenuID    ui.ID
+	Label     string
+	// MenuLabel names the menu-only action when its arrow has no visible text.
+	MenuLabel string
+	Hint      string
+	MenuHint  string
+	// Icon is normally a downward chevron. An empty icon uses Viva's standard
+	// disclosure chevron.
+	Icon         ui.Icon
+	Variant      ButtonVariant
+	Size         ButtonSize
+	TriggerWidth float32
+	Open         bool
+	Disabled     bool
+}
+
+// SplitButton is one allocation-free split-button declaration.
+type SplitButton struct {
+	canvas  *ui.Canvas
+	theme   ui.Theme
+	bounds  ui.Rect
+	options SplitButtonOptions
+}
+
+// SplitButtonGeometry reports the primary and menu-trigger rectangles.
+type SplitButtonGeometry struct {
+	Primary ui.Rect
+	Menu    ui.Rect
+}
+
+// SplitButtonResult reports the click independently for the primary and menu
+// actions.
+type SplitButtonResult struct {
+	canvas  *ui.Canvas
+	options SplitButtonOptions
+}
+
+// BeginSplitButton starts a split-button declaration.
+func BeginSplitButton(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options SplitButtonOptions) SplitButton {
+	return SplitButton{canvas: canvas, theme: theme, bounds: bounds, options: options}
+}
+
+// Geometry returns the two hit rectangles without painting.
+func (button SplitButton) Geometry() SplitButtonGeometry {
+	return button.geometry()
+}
+
+// Clicked reports which half received the activation of this paint.
+func (result SplitButtonResult) Clicked() (primary, menu bool) {
+	if result.canvas == nil {
+		return false, false
+	}
+	return result.canvas.Clicked(result.options.PrimaryID), result.canvas.Clicked(result.options.MenuID)
+}
+
+// Paint renders both connected actions and declares their stable hits.
+func (button SplitButton) Paint() SplitButtonResult {
+	result := SplitButtonResult{canvas: button.canvas, options: button.options}
+	if button.canvas == nil || button.bounds.Width <= 0 {
+		return result
+	}
+	geometry := button.geometry()
+	if geometry.Primary.Width <= 0 || geometry.Menu.Width <= 0 {
+		return result
+	}
+	bounds := ui.Rect{
+		X: geometry.Primary.X, Y: geometry.Primary.Y,
+		Width: geometry.Primary.Width + geometry.Menu.Width, Height: geometry.Primary.Height,
+	}
+
+	theme := button.theme
+	radius := theme.Metrics.RadiusControl
+	variant := button.options.Variant
+	framed := variant == ButtonOutline || variant == ButtonDestructiveOutline
+	if framed {
+		button.canvas.Elevate(bounds, radius, ui.ShadowXS)
+		paintBordered(button.canvas, theme, bounds, radius, outlineBorder(theme), ui.Color{})
+		radius--
+	}
+
+	button.paintFocus(geometry.Primary, variant, button.options.PrimaryID)
+	button.paintFocus(geometry.Menu, variant, button.options.MenuID)
+	button.paintHalf(geometry.Primary, 0, variant, button.options.PrimaryID, framed, radius)
+	button.paintHalf(geometry.Menu, 1, variant, button.options.MenuID, framed, radius)
+	paintJoinedSeparator(button.canvas, joinedSurface(geometry.Menu, 1, 2, false, framed), theme.Input, false)
+
+	enabled := !button.options.Disabled
+	style := buttonStyleFor(theme, variant, false, false)
+	if button.options.Disabled {
+		style.foreground.Alpha *= 0.50
+	}
+	paintButtonLabel(button.canvas, button.options.Label, geometry.Primary, theme.Metrics.FontSizeM, style)
+	icon := button.options.Icon
+	if len(icon.Commands) == 0 && len(icon.Layers) == 0 {
+		icon = chevronDownIcon
+	}
+	iconSize := min(float32(buttonIconSize), max(min(geometry.Menu.Width, geometry.Menu.Height)-buttonIconInset, 1))
+	button.canvas.DrawIcon(icon, ui.Rect{
+		X:     geometry.Menu.X + (geometry.Menu.Width-iconSize)/2,
+		Y:     geometry.Menu.Y + (geometry.Menu.Height-iconSize)/2,
+		Width: iconSize, Height: iconSize,
+	}, style.foreground)
+
+	if !button.options.PrimaryID.IsZero() {
+		button.canvas.HitWithOptions(button.options.PrimaryID, geometry.Primary, button.options.Label, ui.HitOptions{
+			Role: ui.RoleButton, Hint: button.options.Hint, Disabled: !enabled,
+		})
+	}
+	if !button.options.MenuID.IsZero() {
+		label := button.options.MenuLabel
+		if label == "" {
+			label = "More options"
+		}
+		button.canvas.HitWithOptions(button.options.MenuID, geometry.Menu, label, ui.HitOptions{
+			Role: ui.RoleButton, Hint: button.options.MenuHint, Disabled: !enabled,
+			Expanded: button.options.Open, Expandable: true,
+		})
+	}
+	return result
+}
+
+func (button SplitButton) geometry() SplitButtonGeometry {
+	bounds := button.bounds
+	if bounds.Height <= 0 {
+		probe := BeginButton(button.canvas, button.theme, ui.ID{}, bounds).Size(button.options.Size)
+		bounds.Height = probe.BoundsHeight()
+	}
+	triggerWidth := button.options.TriggerWidth
+	if triggerWidth <= 0 {
+		triggerWidth = 32
+	}
+	triggerWidth = min(max(triggerWidth, min(float32(24), bounds.Width)), bounds.Width)
+	primaryWidth := max(bounds.Width-triggerWidth, 0)
+	return SplitButtonGeometry{
+		Primary: ui.Rect{X: bounds.X, Y: bounds.Y, Width: primaryWidth, Height: bounds.Height},
+		Menu:    ui.Rect{X: bounds.X + primaryWidth, Y: bounds.Y, Width: triggerWidth, Height: bounds.Height},
+	}
+}
+
+func (button SplitButton) paintFocus(bounds ui.Rect, variant ButtonVariant, id ui.ID) {
+	if button.options.Disabled || id.IsZero() || button.canvas.FocusVisible() != id {
+		return
+	}
+	ring, _ := buttonRing(button.theme, variant, false)
+	button.canvas.Rounded(expand(bounds, 3), button.theme.Metrics.RadiusControl+3, ring)
+}
+
+func (button SplitButton) paintHalf(bounds ui.Rect, index int, variant ButtonVariant, id ui.ID, framed bool, radius float32) {
+	enabled := !button.options.Disabled && !id.IsZero()
+	hovered := enabled && button.canvas.Hovered() == id
+	if enabled && index == 1 && button.options.Open {
+		hovered = true
+	}
+	style := buttonStyleFor(button.theme, variant,
+		hovered,
+		enabled && button.canvas.Pressed() == id)
+	fill := style.background
+	if !style.filled {
+		fill.Alpha = 0
+	}
+	if button.options.Disabled {
+		fill.Alpha *= 0.50
+	}
+	paintJoinedSurface(button.canvas, joinedSurface(bounds, index, 2, false, framed), radius, fill, index, 2, false)
+}
