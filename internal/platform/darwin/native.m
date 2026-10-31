@@ -2620,6 +2620,7 @@ static void viva_encode_scene(
 - (void)restartCaretBlink;
 - (void)stopCaretBlink;
 - (void)shutdownTextInput;
+- (void)detachCallbacks;
 - (BOOL)rebuildTextTexture;
 - (BOOL)rebuildTextLabels;
 - (viva_editor_line)newTextLine;
@@ -3568,6 +3569,12 @@ static void viva_set_secure_event_input(BOOL on) {
     _hasMarkedText = NO;
     _textAltSendsEscape = NO;
     _textKeyReleases = NO;
+}
+
+- (void)detachCallbacks {
+    // The view can outlive its Go window and receive a final mouseExited:.
+    _callbackHandle = 0;
+    [self shutdownTextInput];
 }
 
 - (void)render {
@@ -4565,7 +4572,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     if ([_window.contentView isKindOfClass:[VivaMetalView class]]) {
-        [(VivaMetalView *)_window.contentView shutdownTextInput];
+        [(VivaMetalView *)_window.contentView detachCallbacks];
     }
     for (NSView *view in _titlebarWatched) {
         [[NSNotificationCenter defaultCenter] removeObserver:self name:NSViewFrameDidChangeNotification object:view];
@@ -4836,7 +4843,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)windowWillClose:(NSNotification *)notification {
     (void)notification;
     if ([_window.contentView isKindOfClass:[VivaMetalView class]]) {
-        [(VivaMetalView *)_window.contentView shutdownTextInput];
+        [(VivaMetalView *)_window.contentView detachCallbacks];
     }
     _running = NO;
     if (_callbackHandle != 0) {
