@@ -65,6 +65,7 @@ const (
 )
 
 type windowState struct {
+	backdropState
 	application                            *windowsApplication
 	config                                 platform.Config
 	renderer                               renderer
@@ -255,6 +256,9 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		style = wsPopup
 		extendedStyle = wsExToolWindow | wsExTopmost
 	}
+	// DirectComposition owns the client pixels; an opaque redirection bitmap
+	// underneath it would hide the native material.
+	extendedStyle |= state.backdropWindowStyle()
 	bounds := rect{Right: int32(config.Width), Bottom: int32(config.Height)}
 	if !state.customFrame() {
 		adjustWindowLegacy.Call(uintptr(unsafe.Pointer(&bounds)), style, 0, 0)
@@ -311,6 +315,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 			state.placeOnScreen()
 		}
 	}
+	state.configureBackdropRenderer()
 	if err := state.renderer.initialize(state.window, config.ClearColor); err != nil {
 		destroyWindow.Call(state.window)
 		return nil, err
@@ -324,7 +329,12 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		return nil, err
 	}
 	state.installFrame()
+	state.watchBackdropPower()
+	state.applyBackdrop()
 	state.ready = true
+	if state.activeBackdrop() {
+		postMessage.Call(state.window, wmRedraw, 0, 0)
+	}
 	if config.WindowMode == platform.WindowPanel {
 		state.placePanel()
 		showWindow.Call(state.window, swShow)
@@ -426,6 +436,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	if !state.ready {
 		result, _, _ = defaultWindowProc.Call(window, kind, first, second)
 		return
+	}
+	if state.handleBackdropMessage(kind) {
+		return 1
 	}
 	switch kind {
 	case wmFontChange:
@@ -747,6 +760,9 @@ func (state *windowState) frame(frame platform.Frame, err error) {
 
 func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) {
 	if err == nil {
+		state.applyBackdrop()
+	}
+	if err == nil {
 		var dirty bool
 		frame, dirty, err = state.prepareFrame(frame, nativeVisualChanged)
 		if err == nil {
@@ -790,6 +806,7 @@ func (state *windowState) destroyed(window uintptr) {
 		}
 	}()
 	state.stopCaretTimer()
+	state.closeBackdropPower()
 	state.closeDrop()
 	state.accessibility.close()
 	state.renderer.close()

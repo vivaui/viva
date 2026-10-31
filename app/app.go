@@ -92,6 +92,9 @@ type Config struct {
 	// supplied it. Without one the panel is centered on the screen.
 	Anchor     StatusAnchor
 	ClearColor Color
+	// WindowMaterials opts into native materials at window creation. Its zero
+	// value keeps the ordinary renderer; no build flags are required.
+	WindowMaterials
 	// Paint, when set, repaints the whole canvas whenever the window size
 	// changes. It runs on the window thread and must not block.
 	Paint func(canvas *ui.Canvas, size ui.Size)

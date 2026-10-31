@@ -251,8 +251,8 @@ func (renderer *renderer) rasterize(label *labelTexture, scale float32) error {
 			}
 		}
 		// ClearType blends per channel with what is under the text: a window's back
-		// buffer is opaque, an offscreen target cleared translucent is not.
-		pixels, label.lcd, err = renderer.direct.rasterize(label.label, scale, width, height, renderer.window != 0 || renderer.color.Alpha >= 1, skip)
+		// buffer is opaque unless it is composed over a native material.
+		pixels, label.lcd, err = renderer.direct.rasterize(label.label, scale, width, height, (renderer.window != 0 && !renderer.usesComposition()) || renderer.color.Alpha >= 1, skip)
 		if err != nil {
 			return err
 		}

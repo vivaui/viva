@@ -161,6 +161,10 @@ Linux backend passes Ubuntu arm64 Xvfb/llvmpipe M0 and Debian amd64
 X11/Lavapipe retained-scene smokes, including mixed Chinese/Latin text and
 localized scene updates. The macOS runtime tests and benchmarks run on arm64.
 
+Windows Mica, Mica Alt and Acrylic are enabled through `app.Config.WindowMaterials`
+without changing build commands. Unconfigured windows keep the ordinary renderer. See [Windows materials](docs/windows-materials.md) for version
+limits, fallback behavior and the platforms actually verified.
+
 Native label renderers draw single-line labels. The browser preview runs on the
 Canvas2D backend.
 

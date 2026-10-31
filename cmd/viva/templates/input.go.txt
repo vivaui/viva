@@ -256,6 +256,12 @@ func textEntryDark(theme ui.Theme) bool { return theme.Background.Red < 0.5 }
 // paints the border color as a solid backing shape under the fill, so a
 // translucent token would otherwise tint the control's interior.
 func textEntryColors(theme ui.Theme, state textEntryState) (border, fill ui.Color) {
+	border, fill = textEntryTokens(theme, state)
+	return border.Over(theme.Background), fill.Over(theme.Background)
+}
+
+// textEntryTokens keeps alpha intact for surfaces composed over a material.
+func textEntryTokens(theme ui.Theme, state textEntryState) (border, fill ui.Color) {
 	border = theme.Input
 	fill = theme.Background
 	fill.Alpha = 0
@@ -276,14 +282,21 @@ func textEntryColors(theme ui.Theme, state textEntryState) (border, fill ui.Colo
 		border.Alpha *= 0.50
 		fill.Alpha *= 0.50
 	}
-	return border.Over(theme.Background), fill.Over(theme.Background)
+	return border, fill
 }
 
 // paintTextEntrySurface paints the border and fill of one text-entry control:
 // the single place the Input family takes its look from.
 func paintTextEntrySurface(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, state textEntryState) {
 	border, fill := textEntryColors(theme, state)
+	if theme.Background.Alpha < 1 {
+		border, fill = textEntryTokens(theme, state)
+	}
 	radius := theme.Metrics.RadiusControl
 	canvas.Elevate(bounds, radius, ui.ShadowXS) // shadow-xs
-	canvas.RoundedBorder(bounds, radius, 1, border, fill)
+	if theme.Background.Alpha < 1 {
+		paintBordered(canvas, theme, bounds, radius, border, fill)
+	} else {
+		canvas.RoundedBorder(bounds, radius, 1, border, fill)
+	}
 }

@@ -207,7 +207,11 @@ func (control SegmentedControl) Paint() SegmentedControlResult {
 	if control.disabled {
 		trackFill = control.theme.CardElevated
 	}
-	control.canvas.RoundedBorder(control.bounds, radius, 1, control.theme.Border, trackFill)
+	if control.theme.Background.Alpha < 1 {
+		paintBordered(control.canvas, control.theme, control.bounds, radius, control.theme.Border, trackFill)
+	} else {
+		control.canvas.RoundedBorder(control.bounds, radius, 1, control.theme.Border, trackFill)
+	}
 
 	count := float32(len(control.options))
 	innerRadius := radius - 2
@@ -235,6 +239,10 @@ func (control SegmentedControl) Paint() SegmentedControlResult {
 		selected := !option.ID.IsZero() && option.ID == control.selected
 
 		fill := trackFill
+		if control.theme.Background.Alpha < 1 {
+			// The track is already painted; resting segments must not tint it twice.
+			fill.Alpha = 0
+		}
 		switch {
 		case selected && pressed:
 			fill = segmentedControlBlend(selectedFill, control.theme.Foreground, 0.08)
@@ -252,7 +260,11 @@ func (control SegmentedControl) Paint() SegmentedControlResult {
 		}
 		if enabled && !option.ID.IsZero() && control.focused == option.ID {
 			// The segment that holds the keyboard, not the whole control.
-			control.canvas.Rounded(segmentedControlExpand(surface, 3), innerRadius+3, scaledAlpha(control.theme.Ring, 0.50))
+			if control.theme.Background.Alpha < 1 {
+				control.canvas.RoundedOutline(segmentedControlExpand(surface, 3), innerRadius+3, 2, scaledAlpha(control.theme.Ring, 0.50))
+			} else {
+				control.canvas.Rounded(segmentedControlExpand(surface, 3), innerRadius+3, scaledAlpha(control.theme.Ring, 0.50))
+			}
 			paintBordered(control.canvas, control.theme, surface, innerRadius, control.theme.Ring, fill)
 			continue
 		}
