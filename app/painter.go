@@ -1041,6 +1041,8 @@ func cursorFromHit(cursor ui.PointerCursor) Cursor {
 		return CursorResizeNESW
 	case ui.PointerCursorNotAllowed:
 		return CursorNotAllowed
+	case ui.PointerCursorHidden:
+		return CursorHidden
 	default:
 		return CursorArrow
 	}

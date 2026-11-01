@@ -414,6 +414,9 @@ func SetCursorShape(shape uint8) error {
 	if activeWindow.Load() != win || win.connection == 0 {
 		return fmt.Errorf("linux: cursor requires a running window")
 	}
+	if shape == cursorHidden {
+		return win.applyHiddenCursor()
+	}
 	// A test's stand-in for the library has none to ask for themes.
 	if !win.cursorsTried && win.api.library != 0 {
 		win.cursorsTried = true
@@ -982,4 +985,41 @@ func (win *window) checkRequest(action string, cookie xcbVoidCookie) error {
 	resourceID := nativeError.ResourceID
 	win.api.free(unsafe.Pointer(nativeError))
 	return fmt.Errorf("linux: %s: X11 error %d for request %d.%d on resource %d", action, errorCode, majorCode, minorCode, resourceID)
+}
+
+// cursorHidden is the shape a surface that draws its own pointer asks for.
+const cursorHidden uint8 = 10
+
+// applyHiddenCursor makes a fully transparent cursor: a 1x1 pixmap never
+// drawn to, as both the source and the mask of the cursor, so no pixel of the
+// pointer shows. The window's cursor bookkeeping is unchanged.
+func (win *window) applyHiddenCursor() error {
+	pixmap := win.api.generateID(win.connection)
+	if err := win.checkRequest("create cursor pixmap", win.api.createPixmap(
+		win.connection, 1, pixmap, win.screen.Root, 1, 1)); err != nil {
+		return err
+	}
+	cursor := win.api.generateID(win.connection)
+	if err := win.checkRequest("create hidden cursor", win.api.createCursor(
+		win.connection, cursor, pixmap, pixmap,
+		0, 0, 0, 0, 0, 0, 0, 0)); err != nil {
+		win.api.freePixmap(win.connection, pixmap)
+		win.api.flush(win.connection)
+		return err
+	}
+	win.api.freePixmap(win.connection, pixmap)
+	if err := win.checkRequest("apply cursor", win.api.changeWindow(win.connection, win.id, xcbCWCursor, &cursor)); err != nil {
+		win.api.freeCursor(win.connection, cursor)
+		win.api.flush(win.connection)
+		return err
+	}
+	if previous := win.cursor; previous != 0 {
+		win.api.freeCursor(win.connection, previous)
+	}
+	if win.api.flush(win.connection) <= 0 || win.api.connectionHasError(win.connection) != 0 {
+		win.api.freeCursor(win.connection, cursor)
+		return fmt.Errorf("linux: apply cursor: XCB connection failed")
+	}
+	win.cursor = cursor
+	return nil
 }

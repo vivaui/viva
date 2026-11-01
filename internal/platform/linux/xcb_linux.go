@@ -298,6 +298,9 @@ type xcbAPI struct {
 	destroyWindow             func(uintptr, uint32) xcbVoidCookie
 	openFont                  func(uintptr, uint32, uint16, *byte) xcbVoidCookie
 	closeFont                 func(uintptr, uint32) xcbVoidCookie
+	createPixmap              func(uintptr, uint8, uint32, uint32, uint16, uint16) xcbVoidCookie
+	freePixmap                func(uintptr, uint32) xcbVoidCookie
+	createCursor              func(uintptr, uint32, uint32, uint32, uint16, uint16, uint16, uint16, uint16, uint16, uint16, uint16) xcbVoidCookie
 	createGlyphCursor         func(uintptr, uint32, uint32, uint32, uint16, uint16, uint16, uint16, uint16, uint16, uint16, uint16) xcbVoidCookie
 	freeCursor                func(uintptr, uint32) xcbVoidCookie
 	bell                      func(uintptr, int8) xcbVoidCookie
@@ -362,6 +365,9 @@ func loadXCB() (*xcbAPI, error) {
 	purego.RegisterLibFunc(&api.destroyWindow, library, "xcb_destroy_window")
 	purego.RegisterLibFunc(&api.openFont, library, "xcb_open_font_checked")
 	purego.RegisterLibFunc(&api.closeFont, library, "xcb_close_font")
+	purego.RegisterLibFunc(&api.createPixmap, library, "xcb_create_pixmap_checked")
+	purego.RegisterLibFunc(&api.freePixmap, library, "xcb_free_pixmap_checked")
+	purego.RegisterLibFunc(&api.createCursor, library, "xcb_create_cursor_checked")
 	purego.RegisterLibFunc(&api.createGlyphCursor, library, "xcb_create_glyph_cursor_checked")
 	purego.RegisterLibFunc(&api.freeCursor, library, "xcb_free_cursor")
 	purego.RegisterLibFunc(&api.bell, library, "xcb_bell")

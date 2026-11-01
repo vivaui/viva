@@ -250,6 +250,7 @@ func cursorCSS(shape uint8) (string, error) {
 		"nwse-resize",
 		"nesw-resize",
 		"not-allowed",
+		"none",
 	}
 	if int(shape) >= len(values) {
 		return "", fmt.Errorf("web: invalid cursor %d", shape)

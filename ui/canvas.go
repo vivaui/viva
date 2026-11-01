@@ -345,6 +345,9 @@ const (
 	PointerCursorResizeNWSE
 	PointerCursorResizeNESW
 	PointerCursorNotAllowed
+	// PointerCursorHidden removes the pointer entirely: for a surface that
+	// draws its own pointer, such as a remote desktop.
+	PointerCursorHidden
 )
 
 // HitOptions describes interaction and accessibility state without a dynamic

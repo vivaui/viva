@@ -37,6 +37,9 @@ const (
 	CursorResizeNWSE
 	CursorResizeNESW
 	CursorNotAllowed
+	// CursorHidden removes the pointer: a surface that draws its own (a
+	// remote desktop picture) uses it to keep the system pointer away.
+	CursorHidden
 )
 
 type SystemSound uint8
@@ -105,7 +108,7 @@ func SetClipboardText(value string) error {
 }
 
 func SetCursor(cursor Cursor) error {
-	if cursor > CursorNotAllowed {
+	if cursor > CursorHidden {
 		return fmt.Errorf("app: invalid cursor %d", cursor)
 	}
 	return nativeSetCursor(cursor)

@@ -526,6 +526,9 @@ func removeNotificationIconLocked(window uintptr) {
 }
 
 func cursorHandle(shape uint8) (uintptr, error) {
+	if shape == cursorHidden {
+		return hiddenCursor()
+	}
 	identifiers := [...]uintptr{32512, 32513, 32649, 32515, 32514, 32644, 32645, 32642, 32643, 32648}
 	if int(shape) >= len(identifiers) {
 		return 0, fmt.Errorf("windows: invalid cursor %d", shape)
@@ -779,3 +782,23 @@ func notificationIcon(host uintptr) uintptr {
 	}
 	return 0
 }
+
+// cursorHidden is the shape a surface that draws its own pointer asks for.
+const cursorHidden uint8 = 10
+
+var createCursor = user.NewProc("CreateCursor")
+
+// hiddenCursor makes the fully transparent 1x1 cursor once: its masks leave
+// every pixel of the screen untouched, so nothing is drawn where the pointer
+// is. A real handle keeps the window's cursor bookkeeping unchanged.
+var hiddenCursor = sync.OnceValues(func() (uintptr, error) {
+	// Monochrome masks are a bit per pixel, each row padded to a DWORD.
+	andMask := [...]byte{0xFF, 0, 0, 0} // keep the screen pixel
+	xorMask := [...]byte{0, 0, 0, 0}    // XOR in nothing
+	handle, _, callErr := createCursor.Call(0, 0, 0, 1, 1,
+		uintptr(unsafe.Pointer(&andMask[0])), uintptr(unsafe.Pointer(&xorMask[0])))
+	if handle == 0 {
+		return 0, windowsCallError("create hidden cursor", callErr)
+	}
+	return handle, nil
+})
