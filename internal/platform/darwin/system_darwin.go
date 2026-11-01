@@ -153,7 +153,7 @@ func vivaSystemAppearanceChanged() {
 // lastCursorShape is the highest shape number the native side knows. A number
 // beyond it is refused here, without a trip to the main thread, which the native
 // side would also refuse with the same words.
-const lastCursorShape = 9
+const lastCursorShape = 10
 
 func SetCursorShape(shape uint8) error {
 	if shape > lastCursorShape {

@@ -298,6 +298,22 @@ static NSCursor *viva_cursor(uint8_t shape, NSString **error) {
             return nil;
         case 9:
             return NSCursor.operationNotAllowedCursor;
+        case 10: {
+            // A fully transparent cursor: a surface that draws its own pointer
+            // (a remote desktop picture) uses it to keep the system pointer
+            // out of the way. Its masks touch no pixel of the screen.
+            static NSCursor *hidden = nil;
+            static dispatch_once_t once;
+            dispatch_once(&once, ^{
+                NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
+                [image lockFocus];
+                [[NSColor clearColor] set];
+                NSRectFill(NSMakeRect(0, 0, 1, 1));
+                [image unlockFocus];
+                hidden = [[NSCursor alloc] initWithImage:image hotSpot:NSMakePoint(0, 0)];
+            });
+            return hidden;
+        }
         default:
             if (error != NULL) {
                 *error = [NSString stringWithFormat:@"invalid cursor shape %u", shape];

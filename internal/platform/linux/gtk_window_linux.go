@@ -58,7 +58,7 @@ type gtkWindow struct {
 	iconData      [][]byte
 	originPending bool
 	// cursors are the GDK cursors made so far, by shape; cursorShape is the one in use plus one.
-	cursors     [len(cursorNames)]uintptr
+	cursors     [len(cursorNames) + 1]uintptr // the last is the hidden one
 	cursorShape uint8
 
 	redrawRequested atomic.Bool
