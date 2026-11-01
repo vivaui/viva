@@ -23,7 +23,10 @@ func nativeClipboardText() (string, error) {
 }
 
 func nativeOnClipboardChange(notify func()) error {
-	return webplatform.ErrUnavailable
+	if notify == nil {
+		return nil
+	}
+	return webSystemError("watch clipboard", webplatform.ErrUnavailable)
 }
 
 func nativeSetClipboardText(value string) error {

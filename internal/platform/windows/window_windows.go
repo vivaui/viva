@@ -361,6 +361,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state != nil {
 			state.window = window
 			windowStates.Store(window, state)
+			listenToClipboard(window) // a window opened after OnClipboardChange joins the watch
 		}
 	} else if value, ok := windowStates.Load(window); ok {
 		state = value.(*windowState)
@@ -803,6 +804,7 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 // message loop running with no window to show, and the single-instance claim held
 // by a process nobody can see.
 func (state *windowState) destroyed(window uintptr) {
+	forgetClipboardListener(window)
 	released := false
 	release := func() {
 		if released {

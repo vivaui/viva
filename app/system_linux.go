@@ -26,7 +26,7 @@ func nativeClipboardText() (string, error) {
 }
 
 func nativeOnClipboardChange(notify func()) error {
-	return linuxplatform.OnClipboardChange(notify)
+	return linuxSystemError(linuxplatform.OnClipboardChange(notify))
 }
 
 func nativeSetClipboardText(value string) error {
