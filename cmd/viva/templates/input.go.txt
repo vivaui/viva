@@ -288,15 +288,13 @@ func textEntryTokens(theme ui.Theme, state textEntryState) (border, fill ui.Colo
 // paintTextEntrySurface paints the border and fill of one text-entry control:
 // the single place the Input family takes its look from.
 func paintTextEntrySurface(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, state textEntryState) {
-	border, fill := textEntryColors(theme, state)
-	if theme.Background.Alpha < 1 {
-		border, fill = textEntryTokens(theme, state)
-	}
+	border, fill := textEntryTokens(theme, state)
 	radius := theme.Metrics.RadiusControl
 	canvas.Elevate(bounds, radius, ui.ShadowXS) // shadow-xs
 	if theme.Background.Alpha < 1 {
-		paintBordered(canvas, theme, bounds, radius, border, fill)
+		canvas.Rounded(bounds, radius, fill)
+		canvas.RoundedOutline(bounds, radius, 1, border)
 	} else {
-		canvas.RoundedBorder(bounds, radius, 1, border, fill)
+		canvas.RoundedBorder(bounds, radius, 1, border.Over(theme.Background), fill.Over(theme.Background))
 	}
 }
