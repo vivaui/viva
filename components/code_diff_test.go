@@ -545,3 +545,131 @@ func slicesEqual(left, right []string) bool {
 	}
 	return true
 }
+
+// The horizontal range follows the widest line of the file, wherever the view is, and a file
+// whose lines fit gets no horizontal bar at all.
+func TestCodeDiffHorizontalRangeCoversTheWholeFile(t *testing.T) {
+	theme := ui.LightTheme()
+	bounds := ui.Rect{X: 10, Y: 20, Width: 500, Height: 180}
+	paint := func(diff *CodeDiff, text string) {
+		var canvas ui.Canvas
+		diff.Paint(&canvas, theme, bounds, CodeDiffSnapshot{
+			Result: DiffCodeLines(text, text), ID: ui.Item(30), Label: "File", Value: text,
+			VerticalScrollbarID: ui.Item(31), HorizontalScrollbarID: ui.Item(32),
+		})
+	}
+
+	long := strings.Repeat("stable\n", 60) + strings.Repeat("long-value-", 90) + "\n" + strings.Repeat("stable\n", 60)
+	var diff CodeDiff
+	paint(&diff, long)
+	atTop := diff.Geometry.MaxOffsetX
+	if atTop <= 0 {
+		t.Fatalf("a line far below the view is not reachable: %+v", diff.Geometry)
+	}
+	diff.ScrollForKey(ui.KeyEnd, false)
+	diff.scrollX = atTop
+	paint(&diff, long)
+	if diff.Geometry.MaxOffsetX != atTop || diff.Geometry.OffsetX != atTop {
+		t.Fatalf("scrolling down changed the horizontal range: %v then %v, offset %v", atTop, diff.Geometry.MaxOffsetX, diff.Geometry.OffsetX)
+	}
+
+	var short CodeDiff
+	paint(&short, strings.Repeat("short\n", 100))
+	if short.Geometry.MaxOffsetX != 0 || short.Geometry.HorizontalTrack != (ui.Rect{}) {
+		t.Fatalf("lines that fit got a horizontal bar: %+v", short.Geometry)
+	}
+}
+
+// A file whose lines all repeat has nothing unique to anchor on; a line added at the top and
+// one removed at the bottom are still two changes, not a rewrite of every row.
+func TestDiffCodeLinesAlignsRepeatedLinesByShortestEdits(t *testing.T) {
+	lines := make([]string, 10000)
+	for index := 0; index < len(lines); index += 2 {
+		lines[index] = "}"
+	}
+	left := strings.Join(lines, "\n")
+	right := strings.Join(append([]string{"}"}, lines[:len(lines)-1]...), "\n")
+	result := DiffCodeLines(left, right)
+	if result.Stats != (CodeDiffStats{Added: 1, Removed: 1}) {
+		t.Fatalf("stats = %+v, want one line added and one removed", result.Stats)
+	}
+	changed := 0
+	for _, row := range result.Rows {
+		if row.Kind != CodeDiffUnchanged {
+			changed++
+		}
+	}
+	if changed != 2 {
+		t.Fatalf("%d rows changed, want 2", changed)
+	}
+}
+
+// Whatever the repetition, every line of both sources appears in order in the rows, and a row
+// marked unchanged pairs equal lines.
+func TestDiffCodeLinesRowsReplayBothSources(t *testing.T) {
+	seed := uint32(7)
+	next := func(n uint32) uint32 {
+		seed = seed*1664525 + 1013904223
+		return (seed >> 16) % n
+	}
+	build := func() string {
+		var lines []string
+		for range next(40) {
+			lines = append(lines, string(rune('a'+next(3))))
+		}
+		return strings.Join(lines, "\n")
+	}
+	for range 300 {
+		left, right := build(), build()
+		result := DiffCodeLines(left, right)
+		wantLeft, wantRight := 0, 0
+		for _, row := range result.Rows {
+			if row.LeftLine >= 0 {
+				if row.LeftLine != wantLeft {
+					t.Fatalf("%q vs %q: left line %d out of order", left, right, row.LeftLine)
+				}
+				wantLeft++
+			}
+			if row.RightLine >= 0 {
+				if row.RightLine != wantRight {
+					t.Fatalf("%q vs %q: right line %d out of order", left, right, row.RightLine)
+				}
+				wantRight++
+			}
+			if row.Kind == CodeDiffUnchanged && result.Left[row.LeftLine] != result.Right[row.RightLine] {
+				t.Fatalf("%q vs %q: unchanged row pairs different lines", left, right)
+			}
+		}
+		if wantLeft != len(result.Left) || wantRight != len(result.Right) {
+			t.Fatalf("%q vs %q: rows hold %d and %d of %d and %d lines", left, right, wantLeft, wantRight, len(result.Left), len(result.Right))
+		}
+	}
+}
+
+func BenchmarkDiffCodeLinesRepeatedLinesAtLineLimit(b *testing.B) {
+	lines := make([]string, 20000)
+	for index := range lines {
+		if index%2 == 0 {
+			lines[index] = "}"
+		}
+	}
+	left := strings.Join(lines, "\n")
+	right := strings.Join(append([]string{"}"}, lines[:len(lines)-1]...), "\n")
+	b.ReportAllocs()
+	for b.Loop() {
+		DiffCodeLines(left, right)
+	}
+}
+
+func BenchmarkCodeDiffPaintLongFileWidestLineCached(b *testing.B) {
+	text := strings.Repeat("stable line of ordinary length\n", 19999) + strings.Repeat("long-value-", 90)
+	snapshot := CodeDiffSnapshot{Result: DiffCodeLines(text, text), ID: ui.Item(30), Label: "File", Value: text}
+	var diff CodeDiff
+	var canvas ui.Canvas
+	theme := ui.LightTheme()
+	b.ReportAllocs()
+	for b.Loop() {
+		canvas.Reset()
+		diff.Paint(&canvas, theme, ui.Rect{Width: 500, Height: 180}, snapshot)
+	}
+}

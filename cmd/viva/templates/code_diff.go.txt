@@ -39,6 +39,9 @@ type CodeDiff struct {
 	scrollY   float32
 	rowHeight float32
 	lineWidth float32
+	// widthKey names the text lineWidth was measured for, so it is measured again only when
+	// the comparison, the edited text or the font size changes, not on every scroll.
+	widthKey codeDiffWidthKey
 
 	canvas         *ui.Canvas
 	theme          ui.Theme
@@ -66,6 +69,14 @@ type CodeDiff struct {
 	visibleRows    int
 }
 
+type codeDiffWidthKey struct {
+	left          *string
+	leftLen, rows int
+	value         string
+	size          float32
+	measured      bool
+}
+
 const (
 	codeDiffGutterWidth = 48
 	codeDiffPaneGap     = 9
@@ -91,18 +102,7 @@ func (diff *CodeDiff) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s
 
 	effectiveRows := len(snapshot.Result.Rows)
 	contentHeight := float32(effectiveRows) * diff.rowHeight
-	firstVisible := max(int(diff.scrollY/diff.rowHeight), 0)
-	lastVisible := min(firstVisible+diff.visibleRowCapacity(bounds.Height)+1, effectiveRows)
-	diff.lineWidth = 0
-	for row := firstVisible; row < lastVisible; row++ {
-		left, right := diff.rowLines(row)
-		if left >= 0 && left < len(snapshot.Result.Left) {
-			diff.lineWidth = max(diff.lineWidth, canvas.TextWidthWeight(snapshot.Result.Left[left], theme.Metrics.FontSizeM, ui.WeightRegular))
-		}
-		if right >= 0 && right < len(diff.lines) {
-			diff.lineWidth = max(diff.lineWidth, canvas.TextWidthWeight(diff.lines[right], theme.Metrics.FontSizeM, ui.WeightRegular))
-		}
-	}
+	diff.lineWidth = diff.longestLineWidth(canvas, theme)
 	_, hasVertical := codeDiffScrollbars(bounds, contentHeight, diff.lineWidth)
 	outerWidth := bounds.Width
 	if hasVertical {
@@ -112,6 +112,7 @@ func (diff *CodeDiff) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s
 	codeViewportWidth := max(half-codeDiffGutterWidth-codeDiffPadX, 1)
 	contentWidth := outerWidth + max(diff.lineWidth-codeViewportWidth+codeDiffPadX, 0)
 	area := BeginScrollArea(canvas, theme, bounds, ui.Size{Width: contentWidth, Height: contentHeight}).
+		ReserveScrollbars().
 		Offset(diff.scrollX, diff.scrollY).
 		VerticalScrollbar(snapshot.VerticalScrollbarID, snapshot.Label, "").
 		HorizontalScrollbar(snapshot.HorizontalScrollbarID, snapshot.Label, "")
@@ -165,6 +166,71 @@ func (diff *CodeDiff) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s
 	}
 	area.EndContent()
 	return bounds
+}
+
+// codeDiffWidthCandidates is how many of the longest lines are measured exactly to find the
+// widest. Shaping every line of a large file on each edit would cost far more than the
+// scroll range deserves.
+const codeDiffWidthCandidates = 32
+
+// longestLineWidth is the width of the widest line of either pane, over the whole file, so the
+// horizontal scroll range does not change with the vertical position. Lines are ranked by a
+// cheap estimate of their width (a wide character counts twice) and the longest few are
+// measured by the text engine.
+func (diff *CodeDiff) longestLineWidth(canvas *ui.Canvas, theme ui.Theme) float32 {
+	key := codeDiffWidthKey{leftLen: len(diff.snapshot.Result.Left), rows: len(diff.snapshot.Result.Rows), value: diff.value, size: theme.Metrics.FontSizeM, measured: true}
+	if key.leftLen > 0 {
+		key.left = &diff.snapshot.Result.Left[0]
+	}
+	if diff.widthKey == key {
+		return diff.lineWidth
+	}
+	diff.widthKey = key
+	var candidates [codeDiffWidthCandidates]struct {
+		units int
+		text  string
+	}
+	rank := func(text string) {
+		units := codeDiffEstimatedUnits(text)
+		last := len(candidates) - 1
+		if units <= candidates[last].units {
+			return
+		}
+		position := last
+		for position > 0 && candidates[position-1].units < units {
+			candidates[position] = candidates[position-1]
+			position--
+		}
+		candidates[position].units, candidates[position].text = units, text
+	}
+	for _, text := range diff.snapshot.Result.Left {
+		rank(text)
+	}
+	for _, text := range diff.lines {
+		rank(text)
+	}
+	var widest float32
+	for _, candidate := range candidates {
+		if candidate.units > 0 {
+			widest = max(widest, canvas.TextWidthWeight(candidate.text, theme.Metrics.FontSizeM, ui.WeightRegular))
+		}
+	}
+	return widest
+}
+
+// codeDiffEstimatedUnits ranks a line by width: one unit for an ASCII byte, two for any other
+// character.
+func codeDiffEstimatedUnits(text string) int {
+	units := 0
+	for index := 0; index < len(text); index++ {
+		switch b := text[index]; {
+		case b < 0x80:
+			units++
+		case b >= 0xC0:
+			units += 2
+		}
+	}
+	return units
 }
 
 func (diff *CodeDiff) rowAt(index int) (CodeDiffKind, int, int) {
@@ -641,13 +707,6 @@ func (diff *CodeDiff) ScrollForKey(key ui.Key, extend bool) (ui.EventResult, boo
 	}
 	diff.clampScroll()
 	return ui.EventResult{Handled: true, Repaint: true}, true
-}
-
-func (diff *CodeDiff) visibleRowCapacity(height float32) int {
-	if diff.rowHeight <= 0 {
-		return 1
-	}
-	return max(int(height/diff.rowHeight)+1, 1)
 }
 
 func codeDiffScrollbars(bounds ui.Rect, contentHeight, lineWidth float32) (horizontal, vertical bool) {

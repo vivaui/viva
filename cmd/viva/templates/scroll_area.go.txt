@@ -45,6 +45,7 @@ type ScrollArea struct {
 	viewportID          ui.ID
 	viewportLabel       string
 	disabled            bool
+	reserveBars         bool
 	contentClipIsActive bool
 }
 
@@ -87,6 +88,16 @@ func (area ScrollArea) Viewport(id ui.ID, label string) ScrollArea {
 	return area
 }
 
+// ReserveScrollbars sets the scrollbars beside the viewport instead of over its
+// edge: Viewport excludes the bar strips, so content painted in it is never
+// covered by a bar. Content wider than the strip left beside a vertical bar scrolls
+// horizontally, so a caller sizes content meant to fit the viewport to the bounds less
+// that bar. The default keeps the bars over the content.
+func (area ScrollArea) ReserveScrollbars() ScrollArea {
+	area.reserveBars = true
+	return area
+}
+
 // Disabled preserves geometry and typed semantics while making both scrollbars inert.
 func (area ScrollArea) Disabled() ScrollArea {
 	area.disabled = true
@@ -99,52 +110,23 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 	bounds := scrollAreaNormalizeRect(area.bounds)
 	contentWidth := scrollAreaFiniteNonNegative(area.contentSize.Width)
 	contentHeight := scrollAreaFiniteNonNegative(area.contentSize.Height)
-	if contentWidth < bounds.Width {
-		contentWidth = bounds.Width
-	}
-	if contentHeight < bounds.Height {
-		contentHeight = bounds.Height
-	}
-
-	// Scrollbars occupy part of the same outer bounds. Resolve both flags to a
-	// fixed point because introducing one scrollbar can reduce the other axis
-	// enough to require its partner too. The viewport returned below is the
-	// actual clipped content area, not the larger rectangle that includes bars.
-	hasHorizontal := contentWidth > bounds.Width
-	hasVertical := contentHeight > bounds.Height
-	for range 3 {
-		availableWidth, availableHeight := bounds.Width, bounds.Height
-		if hasVertical {
-			availableWidth = scrollAreaMax(availableWidth-scrollAreaBarSize, 0)
-		}
-		if hasHorizontal {
-			availableHeight = scrollAreaMax(availableHeight-scrollAreaBarSize, 0)
-		}
-		nextHorizontal := hasHorizontal
-		if availableWidth > 0 {
-			nextHorizontal = contentWidth > availableWidth
-		}
-		nextVertical := hasVertical
-		if availableHeight > 0 {
-			nextVertical = contentHeight > availableHeight
-		}
-		if nextHorizontal == hasHorizontal && nextVertical == hasVertical {
-			break
-		}
-		hasHorizontal, hasVertical = nextHorizontal, nextVertical
-	}
-
 	viewport := bounds
-	if hasVertical {
-		viewport.Width = scrollAreaMax(viewport.Width-scrollAreaBarSize, 0)
+	if area.reserveBars {
+		viewport = scrollAreaReservedViewport(bounds, contentWidth, contentHeight)
 	}
-	if hasHorizontal {
-		viewport.Height = scrollAreaMax(viewport.Height-scrollAreaBarSize, 0)
+	if contentWidth < viewport.Width {
+		contentWidth = viewport.Width
 	}
+	if contentHeight < viewport.Height {
+		contentHeight = viewport.Height
+	}
+
 	maximumX := scrollAreaMax(contentWidth-viewport.Width, 0)
 	maximumY := scrollAreaMax(contentHeight-viewport.Height, 0)
 	offsetX := scrollAreaClamp(area.offsetX, 0, maximumX)
 	offsetY := scrollAreaClamp(area.offsetY, 0, maximumY)
+	hasHorizontal := maximumX > 0 && viewport.Height > 0
+	hasVertical := maximumY > 0 && viewport.Width > 0
 
 	geometry := ScrollAreaGeometry{
 		Bounds: bounds, Viewport: viewport,
@@ -156,7 +138,14 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 		MaxOffsetX: maximumX, MaxOffsetY: maximumY,
 	}
 
+	// The bars lie along the outer bounds. Where the viewport already excludes them
+	// (ReserveScrollbars) their extents are the viewport's; otherwise the corner is
+	// taken out of whichever track shares it.
+	verticalExtent := bounds.Height
+	horizontalExtent := bounds.Width
 	if hasHorizontal && hasVertical {
+		verticalExtent = scrollAreaMax(verticalExtent-scrollAreaBarSize, 0)
+		horizontalExtent = scrollAreaMax(horizontalExtent-scrollAreaBarSize, 0)
 		geometry.Corner = ui.Rect{
 			X:     bounds.X + bounds.Width - scrollAreaBarSize,
 			Y:     bounds.Y + bounds.Height - scrollAreaBarSize,
@@ -166,18 +155,48 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 	if hasVertical {
 		geometry.VerticalTrack = ui.Rect{
 			X: bounds.X + bounds.Width - scrollAreaBarSize, Y: bounds.Y,
-			Width: scrollAreaBarSize, Height: viewport.Height,
+			Width: scrollAreaBarSize, Height: verticalExtent,
 		}
 		geometry.VerticalThumb = scrollAreaThumb(geometry.VerticalTrack, true, viewport.Height, contentHeight, offsetY, maximumY)
 	}
 	if hasHorizontal {
 		geometry.HorizontalTrack = ui.Rect{
 			X: bounds.X, Y: bounds.Y + bounds.Height - scrollAreaBarSize,
-			Width: viewport.Width, Height: scrollAreaBarSize,
+			Width: horizontalExtent, Height: scrollAreaBarSize,
 		}
 		geometry.HorizontalThumb = scrollAreaThumb(geometry.HorizontalTrack, false, viewport.Width, contentWidth, offsetX, maximumX)
 	}
 	return geometry
+}
+
+// scrollAreaReservedViewport is bounds less the strips of the scrollbars the content needs
+// in it. Adding one bar can shrink the other axis enough to need its bar too, so the two
+// are resolved together. The content extents are the caller's, not yet widened to the
+// viewport.
+func scrollAreaReservedViewport(bounds ui.Rect, contentWidth, contentHeight float32) ui.Rect {
+	hasHorizontal, hasVertical := contentWidth > bounds.Width, contentHeight > bounds.Height
+	for range 3 {
+		width, height := bounds.Width, bounds.Height
+		if hasVertical {
+			width = scrollAreaMax(width-scrollAreaBarSize, 0)
+		}
+		if hasHorizontal {
+			height = scrollAreaMax(height-scrollAreaBarSize, 0)
+		}
+		nextHorizontal, nextVertical := contentWidth > width, contentHeight > height
+		if nextHorizontal == hasHorizontal && nextVertical == hasVertical {
+			break
+		}
+		hasHorizontal, hasVertical = nextHorizontal, nextVertical
+	}
+	viewport := bounds
+	if hasVertical {
+		viewport.Width = scrollAreaMax(viewport.Width-scrollAreaBarSize, 0)
+	}
+	if hasHorizontal {
+		viewport.Height = scrollAreaMax(viewport.Height-scrollAreaBarSize, 0)
+	}
+	return viewport
 }
 
 // VerticalOffsetForThumb returns the content offset that places the top edge

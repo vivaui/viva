@@ -42,6 +42,10 @@ type CodeDiffResult struct {
 
 const codeDiffWorkLimit = 4_000_000
 
+// codeDiffMaxEdits bounds the edit distance the shortest-edit-script search explores, which
+// also bounds the memory of its trace (about codeDiffMaxEdits squared integers).
+const codeDiffMaxEdits = 512
+
 type codeDiffAnchor struct {
 	left, right int
 }
@@ -54,8 +58,9 @@ type codeDiffBuilder struct {
 
 // DiffCodeLines computes a bounded, deterministic line comparison. Common
 // prefixes and suffixes are handled directly. Unique lines anchor recursive
-// subdivisions; a region without anchors is represented as paired removals and
-// additions. If the work budget or recursion depth is exhausted, the remaining
+// subdivisions; a region without anchors (every line repeats, as in a CSV, a log
+// or a hosts file) gets a shortest edit script when its edit distance is small,
+// and is otherwise represented as paired removals and additions. If the work budget or recursion depth is exhausted, the remaining
 // region is emitted as one coarse change instead of blocking the caller for an
 // unbounded time.
 func DiffCodeLines(left, right string) CodeDiffResult {
@@ -109,7 +114,7 @@ func (builder *codeDiffBuilder) compareMiddle(leftStart, leftEnd, rightStart, ri
 		return
 	}
 	if len(anchors) == 0 {
-		builder.changedRange(leftStart, leftEnd, rightStart, rightEnd)
+		builder.compareRepeated(leftStart, leftEnd, rightStart, rightEnd)
 		return
 	}
 	lastLeft, lastRight := leftStart, rightStart
@@ -287,4 +292,137 @@ func (builder *codeDiffBuilder) changedRange(leftStart, leftEnd, rightStart, rig
 func (builder *codeDiffBuilder) coarseChange(leftStart, leftEnd, rightStart, rightEnd int) {
 	builder.result.Stats.Coarse = true
 	builder.changedRange(leftStart, leftEnd, rightStart, rightEnd)
+}
+
+// codeDiffOperation is one step of an edit script: a line both sides share, one only the
+// left has, or one only the right has. left and right index the sources.
+type codeDiffOperation struct {
+	kind        CodeDiffKind
+	left, right int
+}
+
+// compareRepeated compares a region that has no unique lines to anchor on. When the two sides
+// differ by few edits it aligns them with the shortest edit script; a region that differs
+// throughout, or whose search runs out of budget, is paired in source order.
+func (builder *codeDiffBuilder) compareRepeated(leftStart, leftEnd, rightStart, rightEnd int) {
+	operations, ok := builder.shortestEdits(leftStart, leftEnd, rightStart, rightEnd)
+	if !ok {
+		if builder.result.Stats.Coarse {
+			builder.coarseChange(leftStart, leftEnd, rightStart, rightEnd)
+		} else {
+			builder.changedRange(leftStart, leftEnd, rightStart, rightEnd)
+		}
+		return
+	}
+	for index := 0; index < len(operations); {
+		if operations[index].kind == CodeDiffUnchanged {
+			builder.equal(operations[index].left, operations[index].right)
+			index++
+			continue
+		}
+		// A run of edits becomes one changed hunk: its removed lines are paired with its
+		// added lines in order, as an unanchored region always was.
+		runLeft, runRight := leftEnd, rightEnd
+		removedEnd, addedEnd := -1, -1
+		for ; index < len(operations) && operations[index].kind != CodeDiffUnchanged; index++ {
+			operation := operations[index]
+			if operation.kind == CodeDiffRemoved {
+				runLeft, removedEnd = min(runLeft, operation.left), operation.left+1
+			} else {
+				runRight, addedEnd = min(runRight, operation.right), operation.right+1
+			}
+		}
+		if removedEnd < 0 {
+			builder.addedRange(runRight, addedEnd)
+		} else if addedEnd < 0 {
+			builder.removedRange(runLeft, removedEnd)
+		} else {
+			builder.changedRange(runLeft, removedEnd, runRight, addedEnd)
+		}
+	}
+}
+
+// shortestEdits is Myers' O(ND) shortest edit script between the two ranges. ok is false when
+// the script is longer than codeDiffMaxEdits or the shared work budget runs out.
+func (builder *codeDiffBuilder) shortestEdits(leftStart, leftEnd, rightStart, rightEnd int) ([]codeDiffOperation, bool) {
+	n, m := leftEnd-leftStart, rightEnd-rightStart
+	maxEdits := min(n+m, codeDiffMaxEdits)
+	offset := maxEdits + 1
+	frontier := make([]int, 2*offset+1)
+	trace := make([][]int, 0, 16)
+	final := -1
+search:
+	for d := 0; d <= maxEdits; d++ {
+		snapshot := make([]int, 2*d+1)
+		copy(snapshot, frontier[offset-d:offset+d+1])
+		trace = append(trace, snapshot)
+		if builder.spend(d + 1) {
+			return nil, false
+		}
+		for k := -d; k <= d; k += 2 {
+			var x int
+			if k == -d || (k != d && frontier[offset+k-1] < frontier[offset+k+1]) {
+				x = frontier[offset+k+1]
+			} else {
+				x = frontier[offset+k-1] + 1
+			}
+			y := x - k
+			steps := 0
+			for x < n && y < m && builder.result.Left[leftStart+x] == builder.result.Right[rightStart+y] {
+				x++
+				y++
+				steps++
+			}
+			if builder.spend(steps) {
+				return nil, false
+			}
+			frontier[offset+k] = x
+			if x >= n && y >= m {
+				final = d
+				break search
+			}
+		}
+	}
+	if final < 0 {
+		return nil, false
+	}
+	reversed := make([]codeDiffOperation, 0, n+m)
+	x, y := n, m
+	for d := final; d >= 0; d-- {
+		midX, midY := 0, 0
+		prevX, prevY := 0, 0
+		down := false
+		if d > 0 {
+			snapshot := trace[d]
+			k := x - y
+			prevK := k - 1
+			if k == -d || (k != d && snapshot[k-1+d] < snapshot[k+1+d]) {
+				prevK, down = k+1, true
+			}
+			prevX = snapshot[prevK+d]
+			prevY = prevX - prevK
+			if down {
+				midX, midY = prevX, prevY+1
+			} else {
+				midX, midY = prevX+1, prevY
+			}
+		}
+		for x > midX && y > midY {
+			x--
+			y--
+			reversed = append(reversed, codeDiffOperation{kind: CodeDiffUnchanged, left: leftStart + x, right: rightStart + y})
+		}
+		if d > 0 {
+			if down {
+				reversed = append(reversed, codeDiffOperation{kind: CodeDiffAdded, left: -1, right: rightStart + prevY})
+			} else {
+				reversed = append(reversed, codeDiffOperation{kind: CodeDiffRemoved, left: leftStart + prevX, right: -1})
+			}
+			x, y = prevX, prevY
+		}
+	}
+	for i, j := 0, len(reversed)-1; i < j; i, j = i+1, j-1 {
+		reversed[i], reversed[j] = reversed[j], reversed[i]
+	}
+	return reversed, true
 }
