@@ -203,6 +203,7 @@ func TestNativeCaretTimerPolicy(t *testing.T) {
 		selectedLength int
 		composing      bool
 		terminal       bool
+		hideOverlays   bool
 		wantCaretTimer bool
 	}{
 		{name: "disabled"},
@@ -210,10 +211,11 @@ func TestNativeCaretTimerPolicy(t *testing.T) {
 		{name: "range selection", enabled: true, selectedLength: 2},
 		{name: "composition", enabled: true, composing: true},
 		{name: "a terminal keeps its cursor steady", enabled: true, terminal: true},
+		{name: "a self-painting component keeps its cursor steady", enabled: true, hideOverlays: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := nativeCaretShouldBlink(test.enabled, test.selectedLength, test.composing, test.terminal); got != test.wantCaretTimer {
+			if got := nativeCaretShouldBlink(test.enabled, test.selectedLength, test.composing, test.terminal, test.hideOverlays); got != test.wantCaretTimer {
 				t.Fatalf("nativeCaretShouldBlink() = %v, want %v", got, test.wantCaretTimer)
 			}
 		})

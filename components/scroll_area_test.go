@@ -94,6 +94,13 @@ func TestScrollAreaThumbOffsetInvertsThumbPlacement(t *testing.T) {
 		t.Fatalf("a drag below the track must clamp to the end, got %v want %v", got, geometry.MaxOffsetY)
 	}
 
+	if got := geometry.HorizontalOffsetForThumb(geometry.HorizontalThumb.X); got != 0 {
+		t.Fatalf("a horizontal drag at the start = %v", got)
+	}
+	if got := geometry.HorizontalOffsetForThumb(geometry.HorizontalTrack.X + geometry.HorizontalTrack.Width); got != geometry.MaxOffsetX {
+		t.Fatalf("a horizontal drag at the end = %v, want %v", got, geometry.MaxOffsetX)
+	}
+
 	short := BeginScrollArea(nil, ui.LightTheme(), bounds, ui.Size{Width: 300, Height: 100}).Geometry()
 	if got := short.VerticalOffsetForThumb(50); got != 0 {
 		t.Fatalf("content that fits has nothing to scroll, got %v", got)
@@ -139,5 +146,35 @@ func TestScrollAreaViewportAndKeys(t *testing.T) {
 	}
 	if _, _, handled := area.ScrollForKey(0, 0, ui.KeyEnter, 32); handled {
 		t.Fatal("Enter is not a scroll key")
+	}
+}
+
+// Reserved bars take their strips out of the viewport, and only the strips the content needs:
+// content as wide as the strip beside the vertical bar gets no horizontal bar.
+func TestScrollAreaReserveScrollbarsKeepsContentClearOfTheBars(t *testing.T) {
+	bounds := ui.Rect{X: 10, Y: 20, Width: 200, Height: 100}
+	tall := BeginScrollArea(nil, ui.LightTheme(), bounds, ui.Size{Width: 190, Height: 400}).ReserveScrollbars().Geometry()
+	if tall.Viewport != (ui.Rect{X: 10, Y: 20, Width: 190, Height: 100}) || tall.MaxOffsetX != 0 || tall.MaxOffsetY != 300 {
+		t.Fatalf("tall content: viewport %+v max %v,%v", tall.Viewport, tall.MaxOffsetX, tall.MaxOffsetY)
+	}
+	if tall.HorizontalTrack != (ui.Rect{}) || tall.VerticalTrack != (ui.Rect{X: 200, Y: 20, Width: 10, Height: 100}) {
+		t.Fatalf("tall content: tracks %+v %+v", tall.HorizontalTrack, tall.VerticalTrack)
+	}
+	both := BeginScrollArea(nil, ui.LightTheme(), bounds, ui.Size{Width: 500, Height: 400}).ReserveScrollbars().Geometry()
+	if both.Viewport != (ui.Rect{X: 10, Y: 20, Width: 190, Height: 90}) || both.MaxOffsetX != 310 || both.MaxOffsetY != 310 {
+		t.Fatalf("wide and tall content: viewport %+v max %v,%v", both.Viewport, both.MaxOffsetX, both.MaxOffsetY)
+	}
+	if both.Corner == (ui.Rect{}) || both.VerticalTrack.Height != both.Viewport.Height || both.HorizontalTrack.Width != both.Viewport.Width {
+		t.Fatalf("wide and tall content: corner %+v tracks %+v %+v", both.Corner, both.VerticalTrack, both.HorizontalTrack)
+	}
+	// Adding the vertical bar narrows the viewport enough to need the horizontal one too.
+	edge := BeginScrollArea(nil, ui.LightTheme(), bounds, ui.Size{Width: 195, Height: 400}).ReserveScrollbars().Geometry()
+	if edge.MaxOffsetX == 0 || edge.HorizontalTrack == (ui.Rect{}) {
+		t.Fatalf("content wider than the viewport beside the bar has no horizontal bar: %+v", edge)
+	}
+	// Without it the bars overlay the content, as before.
+	overlay := BeginScrollArea(nil, ui.LightTheme(), bounds, ui.Size{Width: 200, Height: 400}).Geometry()
+	if overlay.Viewport != bounds || overlay.MaxOffsetX != 0 {
+		t.Fatalf("default viewport %+v max %v", overlay.Viewport, overlay.MaxOffsetX)
 	}
 }

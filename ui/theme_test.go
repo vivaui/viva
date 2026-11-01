@@ -10,6 +10,9 @@ func TestVegaBluePresetTokens(t *testing.T) {
 	if light.Accent != RGB(245, 245, 245) || light.Secondary != RGB(244, 244, 245) || light.Chart[4] != RGB(25, 60, 184) {
 		t.Fatalf("light semantic tokens = %+v", light)
 	}
+	if light.Selection.Alpha == 0 || light.SelectionForeground.Alpha == 0 || light.Selection == light.Primary {
+		t.Fatalf("light selection tokens are missing or still follow the action accent: %+v", light)
+	}
 
 	dark := DarkTheme()
 	if dark.Background != RGB(10, 10, 10) || dark.Foreground != RGB(250, 250, 250) || dark.Primary != RGB(25, 60, 184) {
@@ -17,6 +20,9 @@ func TestVegaBluePresetTokens(t *testing.T) {
 	}
 	if dark.Border.Alpha != 0.10 || dark.Input.Alpha != 0.15 || dark.Popover != dark.Card {
 		t.Fatalf("dark translucent tokens = %+v", dark)
+	}
+	if dark.Selection.Alpha == 0 || dark.SelectionForeground.Alpha == 0 || dark.Selection == dark.Primary {
+		t.Fatalf("dark selection tokens are missing or still follow the action accent: %+v", dark)
 	}
 	if metrics := DefaultMetrics(); metrics.RadiusSurface != 11 || metrics.RadiusControl != 7.5 {
 		t.Fatalf("small-radius metrics = %+v", metrics)

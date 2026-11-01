@@ -246,6 +246,14 @@ func assertLayout(t *testing.T, canvas *ui.Canvas, size ui.Size) {
 	for _, label := range canvas.Texts() {
 		ink := label.Bounds
 		ink.Width = measureTestText(label.Value, label.Style.Size, label.Style.Weight)
+		if label.HasClip {
+			clip := label.ClipOf
+			left := max(ink.X, clip.X)
+			top := max(ink.Y, clip.Y)
+			right := min(ink.X+ink.Width, clip.X+clip.Width)
+			bottom := min(ink.Y+ink.Height, clip.Y+clip.Height)
+			ink = ui.Rect{X: left, Y: top, Width: max(right-left, 0), Height: max(bottom-top, 0)}
+		}
 		if !inside(ink) {
 			t.Fatalf("text outside viewport: %+v; measured %+v", label, ink)
 		}

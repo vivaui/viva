@@ -268,30 +268,33 @@ func (state *linuxTextInput) rebuild() error {
 		state.rebuildTerminalPreedit(shown)
 		return nil
 	}
-	values := []rune(shown)
-	selection := state.state.Selection
-	selectionStart, err := state.prefixWidth(shown, values, selection.Start, inputState.FontSize)
-	if err != nil {
-		return err
-	}
-	selectionEnd, err := state.prefixWidth(shown, values, selection.End, inputState.FontSize)
-	if err != nil {
-		return err
-	}
 	base := len(state.baseRectangles)
-	caretTop, caretHeight := platform.TextCaretBand(inputState.Y, inputState.Height, inputState.FontSize)
-	state.rectangles[base] = render.Rectangle{
-		Bounds: scene.Rect{X: inputState.X + selectionStart, Y: caretTop, Width: selectionEnd - selectionStart, Height: caretHeight},
-		Color:  scene.Color{Red: 0.22, Green: 0.48, Blue: 1, Alpha: 0.34},
-		Layer:  inputState.Layer,
-	}
-	state.caret = render.Rectangle{
-		Bounds: scene.Rect{X: inputState.X + selectionEnd, Y: caretTop, Width: linuxTextCaretWidth, Height: caretHeight},
-		Color:  scene.Color{Red: float32(inputState.Color.Red), Green: float32(inputState.Color.Green), Blue: float32(inputState.Color.Blue), Alpha: float32(inputState.Color.Alpha)},
-		Layer:  inputState.Layer,
-	}
-	if state.caretVisible && state.caretShown() {
-		state.rectangles[base+1] = state.caret
+	values := []rune(shown)
+	selectionEnd := float32(0)
+	if !inputState.HideNativeOverlays {
+		selection := state.state.Selection
+		selectionStart, err := state.prefixWidth(shown, values, selection.Start, inputState.FontSize)
+		if err != nil {
+			return err
+		}
+		selectionEnd, err = state.prefixWidth(shown, values, selection.End, inputState.FontSize)
+		if err != nil {
+			return err
+		}
+		caretTop, caretHeight := platform.TextCaretBand(inputState.Y, inputState.Height, inputState.FontSize)
+		state.rectangles[base] = render.Rectangle{
+			Bounds: scene.Rect{X: inputState.X + selectionStart, Y: caretTop, Width: selectionEnd - selectionStart, Height: caretHeight},
+			Color:  scene.Color{Red: 0.22, Green: 0.48, Blue: 1, Alpha: 0.34},
+			Layer:  inputState.Layer,
+		}
+		state.caret = render.Rectangle{
+			Bounds: scene.Rect{X: inputState.X + selectionEnd, Y: caretTop, Width: linuxTextCaretWidth, Height: caretHeight},
+			Color:  scene.Color{Red: float32(inputState.Color.Red), Green: float32(inputState.Color.Green), Blue: float32(inputState.Color.Blue), Alpha: float32(inputState.Color.Alpha)},
+			Layer:  inputState.Layer,
+		}
+		if state.caretVisible && state.caretShown() {
+			state.rectangles[base+1] = state.caret
+		}
 	}
 	if state.state.Composing {
 		composition := state.state.Composition
@@ -511,10 +514,11 @@ func (state *linuxTextInput) textEvent(event platform.TextEvent) (platform.Frame
 	return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &state.input}}, nil
 }
 
-// caretShown says whether the field has a caret to draw: not a terminal, not
-// while composing, not over a selection.
+// caretShown says whether the field has a native caret to draw: not a terminal,
+// not while a component paints its own caret, not while composing, and not
+// over a selection.
 func (state *linuxTextInput) caretShown() bool {
-	return state.enabled && !state.input.Terminal && !state.state.Composing && state.state.Selection.Start == state.state.Selection.End
+	return state.enabled && !state.input.Terminal && !state.input.HideNativeOverlays && !state.state.Composing && state.state.Selection.Start == state.state.Selection.End
 }
 
 func (state *linuxTextInput) caretShouldBlink() bool {

@@ -937,6 +937,9 @@ type Editor struct {
 	// Terminal is a terminal's preedit surface: the composition only, laid on the
 	// terminal's cells in its fixed-pitch face (MonoFace), with no caret or selection.
 	Terminal bool
+	// HideNativeOverlays means the application painted its own caret and
+	// selection and the native editor should render neither.
+	HideNativeOverlays bool
 }
 
 // Snapshot is everything visible and interactive at one moment.
@@ -1044,7 +1047,8 @@ func (driver *Driver) Snapshot() Snapshot {
 			Value:    input.State.Value, Selection: [2]int{input.State.Selection.Start, input.State.Selection.End},
 			Composition: [2]int{input.State.Composition.Start, input.State.Composition.End},
 			Composing:   input.State.Composing, Multiline: input.Multiline, Secure: input.Secure,
-			Terminal: input.Terminal,
+			Terminal:           input.Terminal,
+			HideNativeOverlays: input.HideNativeOverlays,
 		}
 	}
 	return snapshot

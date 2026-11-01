@@ -48,7 +48,7 @@ type editableField struct {
 var coreComponents = []Component{
 	buttonComponent, badgeComponent, checkboxComponent, colorSwatchComponent, colorPickerComponent,
 	switchComponent, inputComponent, dialogComponent,
-	codeEditorComponent, imageViewComponent,
+	codeEditorComponent, codeDiffComponent, splitButtonComponent, imageViewComponent,
 	reorderListComponent,
 }
 
@@ -97,6 +97,7 @@ type State struct {
 	// textarea keeps the rows and scroll of the Textarea example.
 	textarea    *components.TextareaLayout
 	codeEditor  *components.CodeEditor
+	codeDiff    *codeDiffDemoState
 	reorder     *reorderDemoState
 	imageBitmap *ui.Bitmap
 	dialog      dialogState

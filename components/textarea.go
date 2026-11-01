@@ -148,6 +148,7 @@ func PaintTextarea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot T
 		}
 		if snapshot.HideEditorText {
 			options.TextColor = ui.Color{}
+			options.HideNativeOverlays = true
 		}
 		if layout != nil && !snapshot.NativeEditing {
 			options.Placement = layout
@@ -277,7 +278,7 @@ func textareaPaintRows(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value,
 		}
 		if !placeholderShown {
 			selections = textareaLineRanges(canvas, ranges[:0], labelBounds, origin, line, fontSize, row.Start, lineEnd, selectionStart, selectionEnd)
-			selectionColor := theme.Primary
+			selectionColor, _ := selectionColors(theme)
 			if snapshot.Disabled {
 				selectionColor.Alpha *= 0.50
 			}
@@ -312,7 +313,7 @@ func textareaPaintRows(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value,
 				continue
 			}
 			canvas.Clip(selection)
-			selectedColor := theme.PrimaryForeground
+			_, selectedColor := selectionColors(theme)
 			if snapshot.Disabled {
 				selectedColor.Alpha *= 0.50
 			}
@@ -371,6 +372,19 @@ func textareaRange(value string, start, end int) (int, int) {
 		start, end = end, start
 	}
 	return start, end
+}
+
+// selectionColors returns the semantic selection pair. Hand-built themes from
+// before the pair existed keep their former Primary-based appearance.
+func selectionColors(theme ui.Theme) (background, foreground ui.Color) {
+	background, foreground = theme.Selection, theme.SelectionForeground
+	if background.Alpha == 0 {
+		background = theme.Primary
+	}
+	if foreground.Alpha == 0 {
+		foreground = theme.PrimaryForeground
+	}
+	return background, foreground
 }
 
 func textareaBoundary(value string, offset int) int {
