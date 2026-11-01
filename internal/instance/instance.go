@@ -110,8 +110,8 @@ func socketPath(id string) (string, error) {
 			}
 		}
 	}
-	if len(dir)+len(name)+1 > maxSocketPath {
-		return "", fmt.Errorf("instance: %s leaves no room for the socket file", dir)
+	if socket := filepath.Join(dir, name); len(socket) > maxSocketPath {
+		return "", fmt.Errorf("instance: socket path %s is %d bytes, over the %d-byte limit; point TMPDIR and TEMP at a shorter directory", socket, len(socket), maxSocketPath)
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
