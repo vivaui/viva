@@ -1,8 +1,6 @@
 package windows
 
 import (
-	"math"
-
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/ui"
 )
@@ -151,15 +149,14 @@ func (rasterizer *directRasterizer) gridLCD(pixels []byte, label platform.TextLa
 }
 
 // columnsOf is the device columns of a label texture width pixels wide that a piece owns:
-// those of its cells, or all of them for the one piece of a label without runs. A run
-// that holds no cell owns none, so it cannot take the coverage of its neighbours.
+// those of its cells, which no other piece owns, or all of them for the one piece of a label
+// without runs. A run that holds no cell owns none, so it cannot take the coverage of its
+// neighbours.
 func columnsOf(piece gridPiece, width int, only bool) (left, right int) {
 	if only && piece.span <= 0 {
 		return 0, width
 	}
-	left = max(int(math.Floor(float64(piece.left))), 0)
-	right = min(int(math.Ceil(float64(piece.left+piece.span))), width)
-	return min(left, width), max(right, left)
+	return platform.GridColumns(float64(piece.left), float64(piece.span), width)
 }
 
 // isLight reports whether text of a color is drawn white on black: its luminance is above

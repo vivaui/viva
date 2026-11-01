@@ -649,7 +649,11 @@ func (canvas *Canvas) CellSize(size float32) (width, height float32) {
 // MonoCellSize is the cell size of face at size: 0.6 of the size wide and 1.18 high
 // on every platform, whatever the advance and line box of the font that draws the
 // characters (the platforms place each character on this grid, so a terminal has the
-// same columns and rows in the same window everywhere).
+// same columns and rows in the same window everywhere). On a canvas that knows the display
+// scale (SetPixelScale) the width is a whole number of device pixels, rounded to the nearest and
+// at least one, as a terminal's cells are on every platform: the edge between two cells is then a
+// pixel edge, so a glyph that fills its cell, such as a powerline arrow, ends where the next
+// cell's begins and no pixel column holds the glyphs of two cells drawn in two colors.
 func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height float32) {
 	if size <= 0 {
 		return 0, 0
@@ -657,7 +661,7 @@ func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height f
 	if !validMonoFace(face) {
 		face = MonoSystem
 	}
-	if memo := canvas.cellSize; memo.size == size && memo.face == face {
+	if memo := canvas.cellSize; memo.size == size && memo.face == face && memo.scale == canvas.pixelScale {
 		return memo.width, memo.height
 	}
 	width, height = size*textmetrics.MonoAdvance, size*textmetrics.MonoLine
@@ -668,7 +672,10 @@ func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height f
 		}
 	}
 	height = float32(int32(height + 0.999))
-	canvas.cellSize = cellSizeMemo{size: size, width: width, height: height, face: face}
+	if canvas.pixelScale > 0 {
+		width = float32(math.Max(math.Floor(float64(width)*float64(canvas.pixelScale)+0.5), 1)) / canvas.pixelScale
+	}
+	canvas.cellSize = cellSizeMemo{size: size, width: width, height: height, face: face, scale: canvas.pixelScale}
 	return width, height
 }
 
@@ -677,6 +684,7 @@ func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height f
 type cellSizeMemo struct {
 	size, width, height float32
 	face                MonoFace
+	scale               float32 // the canvas's pixel scale the width was made whole for
 }
 
 // TextWidth measures one regular-weight line. Text drawn in another weight is measured

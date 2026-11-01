@@ -1,6 +1,9 @@
 package ui
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestLabelRunsCopiesItsRunsAndExposesThemPerText(t *testing.T) {
 	var canvas Canvas
@@ -114,5 +117,37 @@ func TestCellSizeUsesTheMeasurerAndRoundsHeightUp(t *testing.T) {
 	canvas.SetCellMeasurer(func(float32, MonoFace) (float32, float32) { return 0, 0 })
 	if w, h := canvas.CellSize(13); w <= 0 || h <= 0 {
 		t.Errorf("a measurer that cannot say should fall back to the estimate: %v,%v", w, h)
+	}
+}
+
+// A terminal cell is a whole number of device pixels wide, so the glyph that fills a cell ends on the
+// pixel edge where the next cell's begins: with a fractional pitch two cells share a column, which
+// a renderer that colors each run draws twice.
+func TestMonoCellWidthIsWholeDevicePixels(t *testing.T) {
+	var canvas Canvas
+	for _, scale := range []float32{1, 1.25, 1.5, 1.75, 2, 2.5, 3} {
+		canvas.SetPixelScale(scale)
+		for _, size := range []float32{11, 12, 13, 14, 15, 16, 18, 24} {
+			width, _ := canvas.MonoCellSize(size, MonoSystem)
+			device := float64(width) * float64(scale)
+			if math.Abs(device-math.Round(device)) > 1e-3 || device < 1 {
+				t.Errorf("size %v at %v: cell is %v device pixels wide", size, scale, device)
+			}
+			if exact := float64(size) * 0.6; math.Abs(float64(width)-exact) > 0.5/float64(scale)+1e-6 {
+				t.Errorf("size %v at %v: cell %v strays from %v by more than half a pixel", size, scale, width, exact)
+			}
+		}
+	}
+	// The memo follows the scale: the same size at another scale is another width.
+	canvas.SetPixelScale(1)
+	narrow, _ := canvas.MonoCellSize(14, MonoSystem)
+	canvas.SetPixelScale(1.25)
+	wide, _ := canvas.MonoCellSize(14, MonoSystem)
+	if narrow != 8 || wide != 8.8 {
+		t.Errorf("14 point cells = %v at 1x and %v at 1.25x, want 8 and 8.8", narrow, wide)
+	}
+	canvas.SetPixelScale(0)
+	if unspecified, _ := canvas.MonoCellSize(14, MonoSystem); math.Abs(float64(unspecified)-14*0.6) > 1e-5 {
+		t.Errorf("a canvas without a scale snapped its cell to %v", unspecified)
 	}
 }
