@@ -391,6 +391,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmApplyAppearance:
 		state.settingsChanged()
 		return 0
+	case wmClipboardUpdate:
+		notifyClipboardChange()
+		return 0
 	case wmHideWindow:
 		showWindow.Call(window, swHide)
 		return 0

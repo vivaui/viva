@@ -1042,3 +1042,15 @@ func (win *window) clearPixmap(pixmap uint32) error {
 	win.api.freeGC(win.connection, gc)
 	return err
 }
+
+// OnClipboardChange reports that this target cannot watch the clipboard. X11 announces a change of
+// selection owner through the XFixes extension and the GTK shell through its own clipboard
+// signal, and neither is wired up yet; the alternative, asking who owns the selection on a timer,
+// would run for as long as the process lives and miss a new copy by the same owner, which is the
+// common case. The clipboard itself keeps working.
+func OnClipboardChange(notify func()) error {
+	if notify == nil {
+		return nil
+	}
+	return unsupported("clipboard change events are not available on this display server")
+}

@@ -34,6 +34,43 @@ static NSString *viva_string(const char *value) {
     return [NSString stringWithUTF8String:value];
 }
 
+// viva_clipboard_watch polls the pasteboard's change count on the main queue:
+// AppKit has no change notification, and the count is what a clipboard viewer
+// watches (mstsc does the same). The interval is the one such viewers use.
+static void (*viva_clipboard_notify)(void) = NULL;
+static NSInteger viva_clipboard_count = 0;
+
+static void viva_clipboard_poll(void *unused) {
+    (void)unused;
+    @autoreleasepool {
+        NSInteger count = [NSPasteboard generalPasteboard].changeCount;
+        if (count != viva_clipboard_count) {
+            viva_clipboard_count = count;
+            if (viva_clipboard_notify != NULL) {
+                viva_clipboard_notify();
+            }
+        }
+    }
+}
+
+int viva_system_watch_clipboard(void (*notify)(void)) {
+    if (notify == NULL) {
+        viva_clipboard_notify = NULL;
+        return 0;
+    }
+    viva_clipboard_notify = notify;
+    static dispatch_source_t timer = NULL;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        viva_clipboard_count = [NSPasteboard generalPasteboard].changeCount;
+        timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+        dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), 250 * NSEC_PER_MSEC, 50 * NSEC_PER_MSEC);
+        dispatch_source_set_event_handler_f(timer, viva_clipboard_poll);
+        dispatch_resume(timer);
+    });
+    return 0;
+}
+
 static void viva_on_main_sync(dispatch_block_t operation) {
     if (NSThread.isMainThread) {
         operation();

@@ -22,6 +22,10 @@ func nativeClipboardText() (string, error) {
 	return value, webSystemError("read clipboard", err)
 }
 
+func nativeOnClipboardChange(notify func()) error {
+	return webplatform.ErrUnavailable
+}
+
 func nativeSetClipboardText(value string) error {
 	return webSystemError("set clipboard", webplatform.SetClipboardText(value))
 }

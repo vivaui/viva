@@ -97,6 +97,15 @@ func ClipboardText() (string, error) {
 	return nativeClipboardText()
 }
 
+// OnClipboardChange asks for a call on notify whenever the system clipboard's
+// content changes, from any application including this one. The callback runs
+// on an unspecified thread and must only hand the news on; reading the
+// clipboard belongs in the work it schedules. An error means the platform (or
+// the target) cannot watch the clipboard: the clipboard keeps working, only
+// the news is missing, and a caller may fall back to polling. The last
+// registration wins.
+func OnClipboardChange(notify func()) error { return nativeOnClipboardChange(notify) }
+
 func SetClipboardText(value string) error {
 	if strings.IndexByte(value, 0) >= 0 {
 		return fmt.Errorf("app: clipboard text contains NUL")

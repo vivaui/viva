@@ -54,6 +54,14 @@ func ClipboardText() (string, error) {
 	return C.GoString(value), nil
 }
 
+// OnClipboardChange polls the pasteboard's change count on the main queue, the
+// way a clipboard viewer does (AppKit has no change notification). The
+// callback runs on the main thread.
+func OnClipboardChange(notify func()) error {
+	C.viva_system_watch_clipboard(func() { notify() })
+	return nil
+}
+
 func SetClipboardText(value string) error {
 	nativeValue, err := systemCString("clipboard text", value)
 	if err != nil {

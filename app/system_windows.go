@@ -23,6 +23,10 @@ func nativePreferredLanguages() []string { return windowsplatform.PreferredLangu
 func nativeSetClipboardText(value string) error {
 	return windowsplatform.SetClipboardText(value)
 }
+
+func nativeOnClipboardChange(notify func()) error {
+	return windowsplatform.OnClipboardChange(notify)
+}
 func nativeSetCursor(cursor Cursor) error {
 	return windowsplatform.SetCursorShape(uint8(cursor))
 }
