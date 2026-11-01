@@ -680,6 +680,12 @@ func (s *waylandSurface) applyCursor() {
 	if s.haveCursor {
 		shape = s.cursor
 	}
+	if shape == cursorHidden {
+		// wl_pointer.set_cursor without a surface hides the pointer over this surface.
+		session.c.request(session.pointer, 0, wlArg(session.enterSerial), 0, 0, 0)
+		session.c.flush(session.display)
+		return
+	}
 	if int(shape) >= len(cursorShapes) {
 		shape = 0
 	}

@@ -207,7 +207,7 @@ func (a *gtkApplication) readImage() ([]byte, error) {
 
 // cursorNames are in GDK's cursor-name terms the theme names of the cursors (cursor_linux.go).
 func (a *gtkApplication) setCursor(shape uint8) error {
-	if int(shape) >= len(cursorNames) {
+	if shape != cursorHidden && int(shape) >= len(cursorNames) {
 		return fmt.Errorf("linux: invalid cursor %d", shape)
 	}
 	window := a.active
@@ -218,6 +218,15 @@ func (a *gtkApplication) setCursor(shape uint8) error {
 	return nil
 }
 
+// gdkCursorName is the name GDK looks a cursor up by: the theme name of a shape, and "none", the
+// blank cursor GDK defines, for the hidden one.
+func gdkCursorName(shape uint8) string {
+	if shape == cursorHidden {
+		return "none"
+	}
+	return cursorNames[shape]
+}
+
 func (w *gtkWindow) setCursor(shape uint8) {
 	if w.cursorShape == shape+1 {
 		return
@@ -225,7 +234,7 @@ func (w *gtkWindow) setCursor(shape uint8) {
 	w.cursorShape = shape + 1
 	g := w.g
 	if w.cursors[shape] == 0 {
-		name := cString(cursorNames[shape])
+		name := cString(gdkCursorName(shape))
 		w.cursors[shape] = g.gdkCursorFromName(g.gdkDisplayDefault(), &name[0])
 	}
 	if window := g.widgetGetWindow(w.area); window != 0 {
