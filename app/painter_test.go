@@ -1753,6 +1753,35 @@ func TestBareTextInputTakesTheGeometryTheComponentDeclared(t *testing.T) {
 	}
 }
 
+func TestPainterPassesTheSelfPaintedTextOverlayPolicyToThePlatform(t *testing.T) {
+	theme := ui.DarkTheme()
+	editor := text.NewEditor("value")
+	var canvas ui.Canvas
+	var providerContext TextInputContext
+	config := Config{Title: "overlay policy", Width: 260, Height: 90}
+	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+		canvas.HitWithOptions(ui.Item(1), ui.Rect{X: 12, Y: 12, Width: 220, Height: 50}, "Source", ui.HitOptions{
+			Role: ui.RoleTextField, Multiline: true, TextColor: ui.Color{}, HideNativeOverlays: true,
+			TextBounds: ui.Rect{X: 16, Y: 16, Width: 210, Height: 42}, TextSize: theme.Metrics.FontSizeM,
+		})
+	}
+	config.TextInput = func(context TextInputContext) *TextInput {
+		providerContext = context
+		return &TextInput{Editor: editor}
+	}
+	painter := newTestPainter(t, &canvas, config)
+	frame, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 20, Y: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !providerContext.HideNativeOverlays {
+		t.Fatal("the focused text context lost the overlay policy")
+	}
+	if frame.TextInput.Input == nil || !frame.TextInput.Input.HideNativeOverlays {
+		t.Fatalf("native text input = %+v, want hidden platform caret and selection", frame.TextInput.Input)
+	}
+}
+
 // A double click is a property of the press sequence, not something each
 // application recomputes: the count the platform reports reaches OnPointer on
 // the press and on its release, and move events carry none.

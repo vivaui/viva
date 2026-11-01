@@ -7,6 +7,7 @@ void vivaRedrawRequested(uintptr_t handle, void *view) {}
 void vivaKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int repeat, const unsigned char *utf8, size_t utf8Length) {}
 void vivaRawKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int flags, unsigned int code, const unsigned char *utf8, size_t utf8Length, const unsigned char *typed, size_t typedLength) {}
 void vivaFocusLost(uintptr_t handle, void *view) {}
+int vivaTerminalCells(uint32_t character) { return 1; }
 int vivaAccessibilityAction(uintptr_t handle, void *view, uint64_t node, int action, double number, const unsigned char *utf8, size_t utf8Length, int start, int end) { return 0; }
 viva_text_line *vivaShapedLine(const unsigned char *utf8, size_t length, double size, double weight) { return viva_text_line_create(utf8, length, size, weight); }
 int vivaShortcutEvent(uintptr_t handle, void *view, int modifiers, int repeat, const unsigned char *utf8, size_t utf8Length) { return 0; }
@@ -47,6 +48,16 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
 
 static int reopenRequests;
 static BOOL hasReopenHandler = YES;
+static int applicationReopenRequests;
+static BOOL hasApplicationReopenHandler;
+
+int vivaApplicationReopenRequested(void) {
+    if (!hasApplicationReopenHandler) {
+        return 0;
+    }
+    applicationReopenRequests++;
+    return 1;
+}
 
 int vivaWindowReopenRequested(uintptr_t handle, void *view) {
     assert(handle == 1);
@@ -72,6 +83,13 @@ static VivaAppDelegate *windowDelegate(int mode, uintptr_t handle) {
 int main(void) {
     @autoreleasepool {
         [DockTestApplication sharedApplication];
+        NSWindow *frameless = [[VivaFramelessWindow alloc]
+            initWithContentRect:NSMakeRect(0, 0, 320, 200)
+                      styleMask:NSWindowStyleMaskBorderless
+                        backing:NSBackingStoreBuffered
+                          defer:NO];
+        assert(frameless.canBecomeKeyWindow && frameless.canBecomeMainWindow);
+        [frameless release];
         VivaAppDelegate *mainWindow = windowDelegate(VIVA_WINDOW_TITLED, 1);
         VivaAppDelegate *panel = windowDelegate(VIVA_WINDOW_PANEL, 2);
         VivaAppDelegate *visible = windowDelegate(VIVA_WINDOW_TITLED, 3);
@@ -79,6 +97,23 @@ int main(void) {
         viva_application_windows = [[NSMutableArray alloc]
             initWithObjects:mainWindow, panel, visible, nil];
         VivaApplicationDelegate *application = [[VivaApplicationDelegate alloc] init];
+
+        // The app chooses its workspace even when settings is already visible.
+        // Do not also restore hidden auxiliary windows after a handled request.
+        hasApplicationReopenHandler = YES;
+        [application applicationShouldHandleReopen:NSApp hasVisibleWindows:YES];
+        assert(applicationReopenRequests == 1 && reopenRequests == 0);
+        assert([mainWindow isHidden] && [panel isHidden] && ![visible isHidden]);
+        [mainWindow showWindow];
+        [application applicationShouldHandleReopen:NSApp hasVisibleWindows:YES];
+        assert(applicationReopenRequests == 2 && reopenRequests == 0);
+        [mainWindow hideWindow];
+        [visible hideWindow];
+        [application applicationShouldHandleReopen:NSApp hasVisibleWindows:NO];
+        assert(applicationReopenRequests == 3 && reopenRequests == 0);
+        assert([mainWindow isHidden] && [visible isHidden]);
+        hasApplicationReopenHandler = NO;
+        [visible showWindow];
 
         [application applicationShouldHandleReopen:NSApp hasVisibleWindows:YES];
         assert(reopenRequests == 1);
@@ -141,7 +176,7 @@ int main(void) {
         [mainWindow release];
         [panel release];
         [visible release];
-        printf("Dock reopen: visible/panel filtering and native fallback ok\n");
+        printf("Dock reopen: application routing, visible/panel filtering and native fallback ok\n");
     }
     return 0;
 }

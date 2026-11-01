@@ -106,6 +106,10 @@ lavapipe (`mesa-vulkan-drivers`, plus the loader `libvulkan1`); without one
 install. macOS always has Metal. A server with no display at all (most cloud
 machines) cannot open a window on any platform: give it a virtual display (Xvfb or
 Xvnc on Linux) or use the headless build (`-tags vivahead`), which renders offscreen.
+The Linux headless renderer needs no Vulkan driver: with none it draws on the CPU
+(`internal/raster`), within a few levels of the Vulkan pipelines per channel (checked
+against lavapipe) and with grayscale instead of LCD text. A window on Linux still needs
+the Vulkan driver above.
 The Linux test machine is a virtual display plus lavapipe. The case of no Vulkan
 loader at all is covered by a unit test, not by a machine without the library.
 

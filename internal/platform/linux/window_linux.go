@@ -138,22 +138,16 @@ type linuxApplication struct {
 	pollFDs    []pollFD
 	pollStates []*linuxWindowState // parallel to pollFDs; nil for the status bus
 	firstErr   error
-	status     *statusNotifier
 	quit       bool
 
-	// atspi serves the windows' accessibility trees to a screen reader, once
-	// the desktop has accessibility on (see atspiHost).
-	atspi *atspiHost
+	// desktopServices are the connections to the session bus: the status icons, the watch on the
+	// desktop's settings and the accessibility bridge.
+	desktopServices
 
 	// ibus is the connection to the input method daemon, shared by the windows
 	// that take text; ibusTried says it has been looked for.
 	ibus      *ibus.Bus
 	ibusTried bool
-
-	// desktop is the connection that delivers the desktop's settings while someone
-	// watches them (desktop_bus_linux.go); desktopFailed says it cannot be had.
-	desktop       *desktopWatch
-	desktopFailed bool
 
 	// live is every window that can still be posted to, for requests that come
 	// from another goroutine (see post); the loop's own slice is not safe to read
@@ -291,6 +285,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	}
 	state.text = textInput
 	textInput.bindCaretWaker(win.postCaretBlink)
+	textInput.bindScale(win.displayScale)
 	initialRectangles, initialLabels := textInput.initial()
 	renderer, err := newVulkanRenderer(win.connection, win.id, win.width, win.height, win.displayScale(), config.ClearColor, initialRectangles, initialLabels, win.margin)
 	if err != nil {
@@ -705,7 +700,7 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		x, y, frameKnown := state.reportFrame()
 		win.answerSync()
 		if frameKnown {
-			win.updateMinimumSizeAt(config, x, y)
+			win.updateMinimumSizeAt(config, x, y, true)
 		} else {
 			win.updateMinimumSize(config)
 		}

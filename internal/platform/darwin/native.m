@@ -398,6 +398,9 @@ extern void vivaRawKeyEvent(
     size_t typedLength
 );
 
+// vivaTerminalCells is how many terminal cells a character occupies, answered by the
+// terminal's own table in Go.
+extern int vivaTerminalCells(uint32_t character);
 extern void vivaFocusLost(
     uintptr_t callbackHandle,
     void *view
@@ -430,6 +433,7 @@ extern int vivaShortcutEvent(
 // length bytes; the result is nonzero when the point takes files.
 extern void vivaOpenURL(const char *url);
 extern int vivaApplicationQuitRequested(void);
+extern int vivaApplicationReopenRequested(void);
 extern int vivaFileDropEvent(
     uintptr_t handle,
     void *view,
@@ -652,11 +656,13 @@ int viva_text_input_caret_should_blink(
     int enabled,
     size_t selected_length,
     int has_marked_text,
-    int terminal
+    int terminal,
+    int hide_native_overlays
 ) {
     // A terminal draws its own cursor and keeps it steady, so an idle
     // terminal never wakes the application.
-    return enabled != 0 && terminal == 0 && selected_length == 0 && has_marked_text == 0;
+    return enabled != 0 && terminal == 0 && hide_native_overlays == 0 &&
+        selected_length == 0 && has_marked_text == 0;
 }
 
 int viva_terminal_key_routes_raw(
@@ -1087,24 +1093,62 @@ static void viva_draw_text_line(CGContextRef context, const viva_text_line *line
 }
 
 // The geometry of the text a native editor shows: the shaped line of proportional text, or
-// the fixed-pitch line of a terminal's preedit, whose cells are the grid's own.
+// a terminal's preedit, which is laid on the terminal's cells and not on the advances of
+// its font: the text, and the width of one cell.
 typedef struct {
     viva_text_line *shaped;
-    CTLineRef mono;
+    NSString *grid;
+    CGFloat cell;
 } viva_editor_line;
 
 static void viva_editor_line_free(viva_editor_line line) {
     viva_text_line_release(line.shaped);
-    if (line.mono != NULL) {
-        CFRelease(line.mono);
+    [line.grid release];
+}
+
+// viva_editor_line_made says whether the line could be made.
+static BOOL viva_editor_line_made(viva_editor_line line) {
+    return line.shaped != NULL || line.grid != nil;
+}
+
+// viva_terminal_step reads the character of shown at UTF-16 index `at`: how many units it
+// takes, and how many cells (see vivaTerminalCells; a combining mark has none).
+static NSUInteger viva_terminal_step(NSString *shown, NSUInteger at, int *cells) {
+    unichar first = [shown characterAtIndex:at];
+    uint32_t point = first;
+    NSUInteger length = 1;
+    if (CFStringIsSurrogateHighCharacter(first) && at + 1 < shown.length) {
+        unichar second = [shown characterAtIndex:at + 1];
+        if (CFStringIsSurrogateLowCharacter(second)) {
+            point = CFStringGetLongCharacterForSurrogatePair(first, second);
+            length = 2;
+        }
     }
+    *cells = vivaTerminalCells(point);
+    return length;
+}
+
+// viva_terminal_column is the cell column of the boundary before the UTF-16 unit `index`
+// of shown, counted from the first cell of the text.
+static NSUInteger viva_terminal_column(NSString *shown, NSUInteger index) {
+    NSUInteger column = 0;
+    for (NSUInteger at = 0; at < index && at < shown.length;) {
+        int cells = 0;
+        NSUInteger length = viva_terminal_step(shown, at, &cells);
+        if (at + length > index) {
+            break;
+        }
+        column += (NSUInteger)cells;
+        at += length;
+    }
+    return column;
 }
 
 // viva_text_offset is where the editor draws the boundary before the UTF-16 unit `index`
 // of shown, from the left of the text.
 static CGFloat viva_text_offset(viva_editor_line line, NSUInteger index, BOOL terminal) {
     if (terminal) {
-        return CTLineGetOffsetForStringIndex(line.mono, index, NULL);
+        return (CGFloat)viva_terminal_column(line.grid, index) * line.cell;
     }
     return viva_text_line_caret(line.shaped, index);
 }
@@ -1126,17 +1170,22 @@ static NSUInteger viva_text_index_at(viva_editor_line line, NSString *shown, CGF
     if (!terminal) {
         return viva_text_line_index_at(line.shaped, x);
     }
-    CFIndex index = CTLineGetStringIndexForPosition(line.mono, CGPointMake(x, 0));
-    if (index == kCFNotFound) {
-        return x <= 0 ? 0 : shown.length;
-    }
-    NSUInteger position = MIN((NSUInteger)index, shown.length);
-    if (position < shown.length) {
-        NSRange cluster = [shown rangeOfComposedCharacterSequenceAtIndex:position];
-        if (position != cluster.location) {
-            CGFloat start = CTLineGetOffsetForStringIndex(line.mono, cluster.location, NULL);
-            CGFloat end = CTLineGetOffsetForStringIndex(line.mono, NSMaxRange(cluster), NULL);
-            position = fabs(x - start) <= fabs(x - end) ? cluster.location : NSMaxRange(cluster);
+    // The boundary between characters whose cell edge is nearest x; a boundary inside a
+    // character with its combining marks is none, and of two on one edge the later wins.
+    NSUInteger position = 0;
+    CGFloat nearest = fabs(x);
+    NSUInteger column = 0;
+    for (NSUInteger at = 0; at < shown.length;) {
+        int cells = 0;
+        at += viva_terminal_step(shown, at, &cells);
+        column += (NSUInteger)cells;
+        if (at < shown.length && [shown rangeOfComposedCharacterSequenceAtIndex:at].location != at) {
+            continue;
+        }
+        CGFloat distance = fabs(x - (CGFloat)column * line.cell);
+        if (distance <= nearest) {
+            nearest = distance;
+            position = at;
         }
     }
     return position;
@@ -1262,6 +1311,399 @@ static NSFont *viva_mono_font(CGFloat size, CGFloat weight, int face) {
     return stacked != nil ? stacked : base;
 }
 
+/* ---- fallback to the installed fonts for glyphs no family of the face has ---
+ *
+ * CoreText draws .LastResort for a character neither the face's families nor its
+ * own fallback have: private-use icon code points (Powerline, Nerd Fonts) above
+ * all. It never looks at the fonts the user installed, while the Linux
+ * (fontconfig) and the Windows (DirectWrite) text stacks do -- so a terminal
+ * loses the icons of the very font its user installed, and a prompt made of
+ * Powerline separators reads as boxes.
+ *
+ * A cluster that CoreText would draw with the last-resort glyph is handed to the
+ * installed family that has it, ranked so that a terminal icon font wins over a
+ * CJK font that maps the same code point to one of its own characters: fixed
+ * pitch first, then one that draws no Han, then the one covering the most
+ * private-use code points, then the family name. The choice is remembered per
+ * cluster (a terminal draws the same icons again and again) and per family (what
+ * a family covers cannot change while the process runs), so a family installed
+ * after a character was first drawn is only picked up by a new process.
+ */
+
+// VIVA_MONO_FALLBACK_CACHE bounds the clusters remembered; past it a cluster is
+// looked up again each time instead of growing the table without end.
+#define VIVA_MONO_FALLBACK_CACHE 4096
+// VIVA_MONO_CLUSTER_LENGTH bounds a cluster; the longest real ones are emoji
+// sequences of a few code points.
+#define VIVA_MONO_CLUSTER_LENGTH 64
+
+typedef struct {
+    BOOL fixedPitch;
+    BOOL includesHan;
+    int privateUse;
+} viva_mono_family_traits;
+
+static NSMutableDictionary<NSString *, NSValue *> *viva_mono_trait_cache;
+static NSMutableDictionary<NSString *, id> *viva_mono_cluster_cache;
+
+static NSObject *viva_mono_fallback_lock(void) {
+    static NSObject *lock;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ lock = [[NSObject alloc] init]; });
+    return lock;
+}
+
+// viva_mono_family_font resolves an installed family at a size and weight, or nil.
+static NSFont *viva_mono_family_font(NSString *family, CGFloat size, CGFloat weight) {
+    return [[NSFontManager sharedFontManager] fontWithFamily:family
+                                                      traits:(weight >= 0.34 ? NSBoldFontMask : 0)
+                                                      weight:5
+                                                        size:size];
+}
+
+// viva_mono_replacement_font is viva_mono_family_font for a replacement glyph, remembering
+// the families asked for: the font manager lookup is most of what a replacement costs, and
+// a terminal draws the same icon clusters line after line at the same size. The font is
+// returned retained and autoreleased, so it outlives an eviction.
+#define VIVA_MONO_REPLACEMENT_CACHE 8
+
+typedef struct {
+    NSString *family;
+    CGFloat size;
+    BOOL bold;
+    NSFont *font;
+} viva_mono_replacement;
+
+static viva_mono_replacement viva_mono_replacements[VIVA_MONO_REPLACEMENT_CACHE];
+static int viva_mono_replacement_count;
+static int viva_mono_replacement_next;
+
+static NSFont *viva_mono_replacement_font(NSString *family, CGFloat size, BOOL bold) {
+    @synchronized(viva_mono_fallback_lock()) {
+        for (int index = 0; index < viva_mono_replacement_count; index++) {
+            viva_mono_replacement *entry = &viva_mono_replacements[index];
+            if (entry->size == size && entry->bold == bold && [entry->family isEqualToString:family]) {
+                return [[entry->font retain] autorelease];
+            }
+        }
+    }
+    NSFont *font = viva_mono_family_font(family, size, bold ? 1 : 0);
+    if (font == nil) {
+        return nil;
+    }
+    @synchronized(viva_mono_fallback_lock()) {
+        viva_mono_replacement *entry;
+        if (viva_mono_replacement_count < VIVA_MONO_REPLACEMENT_CACHE) {
+            entry = &viva_mono_replacements[viva_mono_replacement_count++];
+        } else {
+            entry = &viva_mono_replacements[viva_mono_replacement_next++ % VIVA_MONO_REPLACEMENT_CACHE];
+            [entry->family release];
+            [entry->font release];
+        }
+        entry->family = [family copy];
+        entry->size = size;
+        entry->bold = bold;
+        entry->font = [font retain];
+    }
+    return [[font retain] autorelease];
+}
+
+// viva_mono_font_covers reports whether font draws every code unit of value.
+static BOOL viva_mono_font_covers(CTFontRef font, NSString *value) {
+    NSUInteger length = value.length;
+    if (font == NULL || length == 0 || length > VIVA_MONO_CLUSTER_LENGTH) {
+        return NO;
+    }
+    UniChar characters[VIVA_MONO_CLUSTER_LENGTH];
+    CGGlyph glyphs[VIVA_MONO_CLUSTER_LENGTH];
+    [value getCharacters:characters range:NSMakeRange(0, length)];
+    if (!CTFontGetGlyphsForCharacters(font, characters, glyphs, (CFIndex)length)) {
+        return NO;
+    }
+    for (NSUInteger index = 0; index < length; index++) {
+        if (glyphs[index] == 0) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+// viva_mono_draws_han reports whether a font draws Chinese text at all. A family
+// that does is a text face, and the glyph it maps a private-use code point to is
+// one of its own characters rather than the icon the line asks for.
+static BOOL viva_mono_draws_han(CTFontRef font) {
+    static const UniChar probes[] = {0x4E2D, 0x5B57, 0x8A9E}; /* 中 字 語 */
+    CGGlyph glyphs[3] = {0};
+    CTFontGetGlyphsForCharacters(font, probes, glyphs, 3);
+    return glyphs[0] != 0 || glyphs[1] != 0 || glyphs[2] != 0;
+}
+
+// viva_mono_private_use counts the private-use code points a font covers, from
+// the plane's bitmap: a Nerd Font covers thousands, a CJK font a handful.
+static int viva_mono_private_use(CTFontRef font) {
+    CFCharacterSetRef characters = CTFontCopyCharacterSet(font);
+    if (characters == NULL) {
+        return 0;
+    }
+    CFDataRef bitmap = CFCharacterSetCreateBitmapRepresentation(kCFAllocatorDefault, characters);
+    CFRelease(characters);
+    if (bitmap == NULL) {
+        return 0;
+    }
+    const UInt8 *bytes = CFDataGetBytePtr(bitmap);
+    CFIndex length = CFDataGetLength(bitmap);
+    int count = 0;
+    for (int code = 0xE000; code <= 0xF8FF; code++) {
+        CFIndex index = code >> 3;
+        if (index >= length) {
+            break;
+        }
+        if ((bytes[index] & (1 << (code & 7))) != 0) {
+            count++;
+        }
+    }
+    CFRelease(bitmap);
+    return count;
+}
+
+// viva_mono_family_traits_of is what ranks a family: its pitch, whether it draws
+// Han, and how much private-use it covers. Read once per family.
+static viva_mono_family_traits viva_mono_family_traits_of(NSString *family) {
+    viva_mono_family_traits traits = {NO, YES, 0};
+    @synchronized(viva_mono_fallback_lock()) {
+        NSValue *known = [viva_mono_trait_cache objectForKey:family];
+        if (known != nil) {
+            [known getValue:&traits size:sizeof(traits)];
+            return traits;
+        }
+    }
+    NSFont *font = viva_mono_family_font(family, 12, 0);
+    if (font != nil) {
+        traits.fixedPitch = font.isFixedPitch;
+        traits.includesHan = viva_mono_draws_han((CTFontRef)font);
+        traits.privateUse = viva_mono_private_use((CTFontRef)font);
+    }
+    NSValue *value = [NSValue valueWithBytes:&traits objCType:@encode(viva_mono_family_traits)];
+    @synchronized(viva_mono_fallback_lock()) {
+        if (viva_mono_trait_cache == nil) {
+            viva_mono_trait_cache = [[NSMutableDictionary alloc] init];
+        }
+        [viva_mono_trait_cache setObject:value forKey:family];
+    }
+    return traits;
+}
+
+// viva_mono_family_better reports whether candidate ranks before best for a cluster.
+static BOOL viva_mono_family_better(viva_mono_family_traits candidate, NSString *family,
+                                   viva_mono_family_traits best, NSString *bestFamily) {
+    if (bestFamily == nil) {
+        return YES;
+    }
+    if (candidate.fixedPitch != best.fixedPitch) {
+        return candidate.fixedPitch;
+    }
+    if (candidate.includesHan != best.includesHan) {
+        return !candidate.includesHan;
+    }
+    if (candidate.privateUse != best.privateUse) {
+        return candidate.privateUse > best.privateUse;
+    }
+    return [family localizedCaseInsensitiveCompare:bestFamily] == NSOrderedAscending;
+}
+
+// viva_mono_find_family is the installed family that draws cluster, or nil. It
+// asks the system for the fonts covering the cluster's code points, leaves out
+// the ones that do not draw every code point of it, and ranks the rest.
+static NSString *viva_mono_find_family(NSString *cluster) {
+    CFCharacterSetRef characters = CFCharacterSetCreateWithCharactersInString(kCFAllocatorDefault, (CFStringRef)cluster);
+    if (characters == NULL) {
+        return nil;
+    }
+    const void *keys[] = {kCTFontCharacterSetAttribute};
+    const void *values[] = {characters};
+    CFDictionaryRef query = CFDictionaryCreate(kCFAllocatorDefault, keys, values, 1,
+                                               &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFRelease(characters);
+    if (query == NULL) {
+        return nil;
+    }
+    CTFontDescriptorRef descriptor = CTFontDescriptorCreateWithAttributes(query);
+    CFRelease(query);
+    if (descriptor == NULL) {
+        return nil;
+    }
+    CFArrayRef matches = CTFontDescriptorCreateMatchingFontDescriptors(descriptor, NULL);
+    CFRelease(descriptor);
+    if (matches == NULL) {
+        return nil;
+    }
+    NSString *best = nil;
+    viva_mono_family_traits bestTraits = {NO, YES, 0};
+    CFIndex count = CFArrayGetCount(matches);
+    for (CFIndex index = 0; index < count; index++) {
+        CTFontDescriptorRef match = (CTFontDescriptorRef)CFArrayGetValueAtIndex(matches, index);
+        NSString *family = (NSString *)CTFontDescriptorCopyAttribute(match, kCTFontFamilyNameAttribute);
+        if (family == nil || family.length == 0) {
+            if (family != NULL) {
+                CFRelease(family);
+            }
+            continue;
+        }
+        NSFont *font = viva_mono_family_font(family, 12, 0);
+        if (font == nil || !viva_mono_font_covers((CTFontRef)font, cluster)) {
+            CFRelease(family);
+            continue;
+        }
+        viva_mono_family_traits traits = viva_mono_family_traits_of(family);
+        if (viva_mono_family_better(traits, family, bestTraits, best)) {
+            best = [family autorelease];
+            bestTraits = traits;
+        } else {
+            CFRelease(family);
+        }
+    }
+    CFRelease(matches);
+    return best;
+}
+
+// viva_mono_face_fallback is the family the face itself puts behind its primary
+// that draws cluster, or nil. CoreText ignores a cascade list for private-use code
+// points as well, so the application's own fallbacks -- the ones the settings page
+// offers -- have to be tried here, before the ranking.
+static NSString *viva_mono_face_fallback(NSString *cluster, int face) {
+    NSString *family = nil;
+    BOOL classic = NO;
+    NSArray<NSString *> *fallbacks = nil;
+    viva_mono_face_traits(face, &family, &classic, &fallbacks);
+    for (NSString *candidate in fallbacks) {
+        NSFont *font = viva_mono_family_font(candidate, 12, 0);
+        if (font != nil && viva_mono_font_covers((CTFontRef)font, cluster)) {
+            return candidate;
+        }
+    }
+    return nil;
+}
+
+// viva_mono_fallback_family is the installed family that draws a cluster CoreText
+// cannot, or nil when no installed family has it.
+static NSString *viva_mono_fallback_family(NSString *cluster) {
+    if (cluster.length == 0 || cluster.length > VIVA_MONO_CLUSTER_LENGTH) {
+        return nil;
+    }
+    @synchronized(viva_mono_fallback_lock()) {
+        id known = [viva_mono_cluster_cache objectForKey:cluster];
+        if (known != nil) {
+            return known == [NSNull null] ? nil : known;
+        }
+    }
+    NSString *family = viva_mono_find_family(cluster);
+    @synchronized(viva_mono_fallback_lock()) {
+        if (viva_mono_cluster_cache == nil) {
+            viva_mono_cluster_cache = [[NSMutableDictionary alloc] init];
+        }
+        if (viva_mono_cluster_cache.count < VIVA_MONO_FALLBACK_CACHE) {
+            [viva_mono_cluster_cache setObject:(family != nil ? family : (id)[NSNull null]) forKey:cluster];
+        }
+    }
+    return family;
+}
+
+// viva_mono_font_is_last_resort reports whether font is the face CoreText draws a
+// character no installed family has with. The face calls itself LastResort, with a
+// leading dot in its family name and without it in its PostScript name.
+static BOOL viva_mono_is_last_resort_name(CFStringRef name) {
+    if (name == NULL) {
+        return NO;
+    }
+    return CFStringCompare(name, CFSTR("LastResort"), kCFCompareCaseInsensitive) == kCFCompareEqualTo ||
+           CFStringCompare(name, CFSTR(".LastResort"), kCFCompareCaseInsensitive) == kCFCompareEqualTo;
+}
+
+static BOOL viva_mono_font_is_last_resort(CTFontRef font) {
+    if (font == NULL) {
+        return NO;
+    }
+    CFStringRef postscript = CTFontCopyPostScriptName(font);
+    CFStringRef family = CTFontCopyFamilyName(font);
+    BOOL last = viva_mono_is_last_resort_name(postscript) || viva_mono_is_last_resort_name(family);
+    if (postscript != NULL) {
+        CFRelease(postscript);
+    }
+    if (family != NULL) {
+        CFRelease(family);
+    }
+    return last;
+}
+
+// viva_mono_fallback_line shapes a fixed-pitch line in base (the face's font at the
+// weight, and with the slant, the caller already resolved): for the clusters CoreText
+// would draw with its last-resort glyph, the installed family that has them, at base's
+// size and boldness. A line with nothing to replace is shaped once, as before; one with
+// a replacement is shaped again with the fallback fonts in place, so every glyph sits
+// where the grid says. The line is +1: the caller releases it.
+static CTLineRef viva_mono_fallback_line(NSString *value, NSFont *base, int face, CGColorRef color) {
+    if (base == nil || value.length == 0) {
+        return NULL;
+    }
+    CGFloat size = base.pointSize;
+    BOOL bold = (base.fontDescriptor.symbolicTraits & NSFontBoldTrait) != 0;
+    CFIndex length = (CFIndex)value.length;
+    CFMutableAttributedStringRef attributed = CFAttributedStringCreateMutable(kCFAllocatorDefault, 0);
+    if (attributed == NULL) {
+        return NULL;
+    }
+    CFAttributedStringReplaceString(attributed, CFRangeMake(0, 0), (CFStringRef)value);
+    CFAttributedStringSetAttribute(attributed, CFRangeMake(0, length), kCTFontAttributeName, (CTFontRef)base);
+    if (color != NULL) {
+        CFAttributedStringSetAttribute(attributed, CFRangeMake(0, length), kCTForegroundColorAttributeName, color);
+    }
+    CTLineRef line = CTLineCreateWithAttributedString(attributed);
+    if (line == NULL) {
+        CFRelease(attributed);
+        return NULL;
+    }
+    BOOL replaced = NO;
+    CFArrayRef runs = CTLineGetGlyphRuns(line);
+    CFIndex runCount = runs != NULL ? CFArrayGetCount(runs) : 0;
+    for (CFIndex index = 0; index < runCount; index++) {
+        CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, index);
+        CFDictionaryRef runAttributes = CTRunGetAttributes(run);
+        CTFontRef runFont = runAttributes != NULL ? (CTFontRef)CFDictionaryGetValue(runAttributes, kCTFontAttributeName) : NULL;
+        if (!viva_mono_font_is_last_resort(runFont)) {
+            continue;
+        }
+        CFRange runRange = CTRunGetStringRange(run);
+        CFIndex end = runRange.location + runRange.length;
+        for (CFIndex at = runRange.location; at < end;) {
+            NSRange cluster = [value rangeOfComposedCharacterSequenceAtIndex:(NSUInteger)at];
+            if (cluster.length == 0) {
+                break;
+            }
+            NSString *text = [value substringWithRange:cluster];
+            NSString *family = viva_mono_face_fallback(text, face);
+            if (family == nil) {
+                family = viva_mono_fallback_family(text);
+            }
+            NSFont *fallback = family != nil ? viva_mono_replacement_font(family, size, bold) : nil;
+            if (fallback != nil) {
+                CFAttributedStringSetAttribute(attributed,
+                                               CFRangeMake((CFIndex)cluster.location, (CFIndex)cluster.length),
+                                               kCTFontAttributeName, (CTFontRef)fallback);
+                replaced = YES;
+            }
+            at = (CFIndex)NSMaxRange(cluster);
+        }
+    }
+    if (!replaced) {
+        CFRelease(attributed);
+        return line;
+    }
+    CFRelease(line);
+    line = CTLineCreateWithAttributedString(attributed);
+    CFRelease(attributed);
+    return line;
+}
+
 // viva_font_smoothing_enabled is whether the user leaves font smoothing on. AppKit turns it
 // off for its own text when AppleFontSmoothing is 0 (or not a number); a Core Graphics
 // bitmap context does not look at the setting, so the text Viva rasterizes into one has to
@@ -1283,44 +1725,54 @@ static void viva_prepare_text_context(CGContextRef context, CGFloat scale) {
     CGContextSetShouldSmoothFonts(context, viva_font_smoothing_enabled());
 }
 
-// viva_new_mono_line shapes a terminal's preedit text in the fixed-pitch font at fontSize.
-// The native editor and the headless renderer both build it here, so they can only ever
-// look the same.
-static CTLineRef viva_new_mono_line(NSString *shown, CGFloat fontSize, NSColor *color, int monoFace) {
-    // The NSFont itself, not its name looked up again: the name loses the fallback families.
-    CTFontRef font = (CTFontRef)CFRetain(viva_mono_font(fontSize, 0, monoFace));
-    if (font == NULL) {
-        return NULL;
+// viva_draw_terminal_preedit draws a terminal's preedit text the way the terminal draws its
+// own line: every character on the cells of the grid, a plain ASCII one at the left of its
+// cell and any other centered in the cells it takes (two for a wide one), with its combining
+// marks. The native editor and the headless renderer both draw it here, so they can only ever
+// look the same, and the text does not move when it is committed to the grid.
+static void viva_draw_terminal_preedit(
+    CGContextRef context, NSString *shown, CGFloat fontSize, int monoFace,
+    NSColor *color, CGFloat cellWidth, CGFloat baseline
+) {
+    // The face's font, with the installed fallback for what no family of it draws.
+    NSFont *font = viva_mono_font(fontSize, 0, monoFace);
+    NSUInteger column = 0;
+    for (NSUInteger at = 0; at < shown.length;) {
+        int cells = 0;
+        NSUInteger end = at + viva_terminal_step(shown, at, &cells);
+        for (int marks = 0; end < shown.length;) {
+            NSUInteger next = viva_terminal_step(shown, end, &marks);
+            if (marks != 0) {
+                break;
+            }
+            end += next;
+        }
+        NSString *cluster = [shown substringWithRange:NSMakeRange(at, end - at)];
+        CTLineRef line = viva_mono_fallback_line(cluster, font, monoFace, color.CGColor);
+        if (line != NULL) {
+            CGFloat x = (CGFloat)column * cellWidth;
+            unichar only = cluster.length == 1 ? [cluster characterAtIndex:0] : 0;
+            if (cells > 0 && !(only >= 0x20 && only < 0x7F)) {
+                CGFloat width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
+                x += ((CGFloat)cells * cellWidth - width) / 2;
+            }
+            CGContextSetTextPosition(context, x, baseline);
+            CTLineDraw(line, context);
+            CFRelease(line);
+        }
+        column += (NSUInteger)cells;
+        at = end;
     }
-    const void *keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
-    const void *values[] = {font, color.CGColor};
-    CFDictionaryRef attributes = CFDictionaryCreate(
-        kCFAllocatorDefault,
-        keys,
-        values,
-        2,
-        &kCFTypeDictionaryKeyCallBacks,
-        &kCFTypeDictionaryValueCallBacks
-    );
-    CFAttributedStringRef attributed = CFAttributedStringCreate(
-        kCFAllocatorDefault,
-        (CFStringRef)shown,
-        attributes
-    );
-    CTLineRef line = CTLineCreateWithAttributedString(attributed);
-    CFRelease(attributed);
-    CFRelease(attributes);
-    CFRelease(font);
-    return line;
 }
 
 // viva_new_editor_line is the geometry of the text the editor shows: one shaped line
-// shared with layout for proportional text, the fixed-pitch line for a terminal. A line
-// whose members are both NULL could not be made.
-static viva_editor_line viva_new_editor_line(NSString *shown, CGFloat fontSize, NSColor *color, BOOL terminal, int monoFace) {
-    viva_editor_line line = {NULL, NULL};
+// shared with layout for proportional text, the terminal's cells for a terminal. A line
+// that was not made could not be shaped.
+static viva_editor_line viva_new_editor_line(NSString *shown, CGFloat fontSize, BOOL terminal, CGFloat cellWidth) {
+    viva_editor_line line = {NULL, nil, 0};
     if (terminal) {
-        line.mono = viva_new_mono_line(shown, fontSize, color, monoFace);
+        line.grid = [shown copy];
+        line.cell = cellWidth;
     } else {
         line.shaped = viva_shared_text_line(shown, fontSize, 0);
     }
@@ -1353,7 +1805,9 @@ static id<MTLTexture> viva_text_input_texture(
     NSRange markedRange,
     BOOL caretVisible,
     BOOL terminal,
-    int monoFace
+    BOOL hideNativeOverlays,
+    int monoFace,
+    CGFloat cellWidth
 ) {
     size_t pixelWidth = (size_t)MAX(1.0, ceil(frameSize.width * scale));
     size_t pixelHeight = (size_t)MAX(1.0, ceil(frameSize.height * scale));
@@ -1386,8 +1840,8 @@ static id<MTLTexture> viva_text_input_texture(
     }
 
     viva_prepare_text_context(context, scale);
-    viva_editor_line line = viva_new_editor_line(shown, fontSize, color, terminal, monoFace);
-    if (line.shaped == NULL && line.mono == NULL) {
+    viva_editor_line line = viva_new_editor_line(shown, fontSize, terminal, cellWidth);
+    if (!viva_editor_line_made(line)) {
         CGContextRelease(context);
         free(pixels);
         return nil;
@@ -1422,7 +1876,7 @@ static id<MTLTexture> viva_text_input_texture(
     NSColor *textColor = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
     BOOL invisible = textColor != nil && textColor.alphaComponent <= 0.0;
     double spans[2 * VIVA_SELECTION_PIECES];
-    if (selected.length > 0 && !terminal && !invisible) {
+    if (selected.length > 0 && !terminal && !hideNativeOverlays && !invisible) {
         size_t count = viva_text_spans(line, selected, terminal, spans, VIVA_SELECTION_PIECES);
         CGContextSetRGBFillColor(context, 0.18, 0.42, 0.90, 0.55);
         for (size_t piece = 0; piece < count; piece++) {
@@ -1434,8 +1888,7 @@ static id<MTLTexture> viva_text_input_texture(
     }
 
     if (terminal) {
-        CGContextSetTextPosition(context, 0, baseline);
-        CTLineDraw(line.mono, context);
+        viva_draw_terminal_preedit(context, shown, fontSize, monoFace, color, cellWidth, baseline);
     } else {
         // The text is drawn as the one line the offsets above and below are read from, so
         // selection, caret and glyphs agree.
@@ -1449,9 +1902,11 @@ static id<MTLTexture> viva_text_input_texture(
         size_t count = viva_text_spans(line, marked, terminal, spans, VIVA_SELECTION_PIECES);
         CGContextSetRGBFillColor(context, 0.55, 0.72, 1.0, 1.0);
         for (size_t piece = 0; piece < count; piece++) {
-            CGContextFillRect(context, CGRectMake(spans[2 * piece], baseline - descent - 2.0, MAX(1.0, spans[2 * piece + 1]), 1.0));
+            // A terminal's row is only as tall as its text, so below the descenders is the
+            // edge of the row, not two points further down, where nothing would be drawn.
+            CGContextFillRect(context, CGRectMake(spans[2 * piece], MAX(baseline - descent - 2.0, 0.0), MAX(1.0, spans[2 * piece + 1]), 1.0));
         }
-    } else if (selected.length == 0 && caretVisible && !terminal) {
+    } else if (selected.length == 0 && caretVisible && !terminal && !hideNativeOverlays) {
         CGFloat caret = viva_text_offset(line, selected.location, terminal);
         NSColor *caretColor = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
         CGContextSetRGBFillColor(
@@ -1650,11 +2105,15 @@ static float viva_quantized_origin(float value) {
 static uint64_t viva_label_content_hash(viva_text_label config) {
     uint64_t hash = 14695981039346656037ULL;
     hash = viva_hash_bytes(hash, config.utf8, config.utf8_length);
-    float values[] = {config.width, config.height, config.font_size, config.font_weight,
+    // Bitmap textures retain their source dimensions. Resizing their draw quad
+    // must find the same texture when Go omits an unchanged pixel payload.
+    BOOL bitmap = (config.flags & VIVA_LABEL_BITMAP) != 0;
+    float values[] = {bitmap ? 0 : config.width, bitmap ? 0 : config.height, config.font_size, config.font_weight,
                       config.red, config.green, config.blue, config.alpha, config.cell_width,
                       viva_quantized_origin(config.origin_x), viva_quantized_origin(config.origin_y)};
     hash = viva_hash_bytes(hash, values, sizeof(values));
-    hash = viva_hash_bytes(hash, &config.flags, sizeof(config.flags));
+    uint32_t contentFlags = config.flags & ~VIVA_LABEL_CLIPPED;
+    hash = viva_hash_bytes(hash, &contentFlags, sizeof(contentFlags));
     hash = viva_hash_bytes(hash, &config.mono_face, sizeof(config.mono_face));
     if (config.runs != NULL) {
         hash = viva_hash_bytes(hash, config.runs, config.run_count * sizeof(viva_text_run));
@@ -1685,6 +2144,8 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     CGFloat _blue;
     CGFloat _alpha;
     CGFloat _lastScale;
+    size_t _textureWidth;
+    size_t _textureHeight;
     CGFloat _originX;  // where the text starts within the frame, logical pixels
     CGFloat _originY;
     uint64_t _hash;
@@ -1719,14 +2180,88 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 - (NSRect)frame;
 @end
 
+static NSData *viva_downsample_bitmap(NSData *source, uint32_t sourceWidth, uint32_t sourceHeight, uint32_t sourceStride, size_t width, size_t height) {
+    if (source == nil || width == 0 || height == 0 || width > sourceWidth || height > sourceHeight || sourceStride < sourceWidth * 4) {
+        return nil;
+    }
+    if (sourceHeight - 1 > SIZE_MAX / sourceStride || source.length < (size_t)(sourceHeight - 1) * sourceStride + (size_t)sourceWidth * 4 || width > SIZE_MAX / 4 || height > SIZE_MAX / (width * 4)) {
+        return nil;
+    }
+    size_t rowBytes = width * 4;
+    NSMutableData *pixels = [[NSMutableData alloc] initWithLength:height * rowBytes];
+    if (pixels == nil) {
+        return nil;
+    }
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGDataProviderRef provider = CGDataProviderCreateWithData(NULL, source.bytes, source.length, NULL);
+    CGImageRef image = provider == NULL ? NULL : CGImageCreate(
+        sourceWidth, sourceHeight, 8, 32, sourceStride, colorSpace,
+        kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little,
+        provider, NULL, true, kCGRenderingIntentDefault);
+    CGContextRef context = image == NULL ? NULL : CGBitmapContextCreate(
+        pixels.mutableBytes, width, height, 8, rowBytes, colorSpace,
+        kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+    if (context != NULL) {
+        CGContextSetInterpolationQuality(context, kCGInterpolationHigh);
+        CGContextDrawImage(context, CGRectMake(0, 0, width, height), image);
+    }
+    if (context != NULL) {
+        CGContextRelease(context);
+    }
+    if (image != NULL) {
+        CGImageRelease(image);
+    }
+    if (provider != NULL) {
+        CGDataProviderRelease(provider);
+    }
+    CGColorSpaceRelease(colorSpace);
+    if (context == NULL) {
+        [pixels release];
+        return nil;
+    }
+    return pixels;
+}
+
+// viva_bitmap_texture_extent is the size of the texture an image label is drawn from: the
+// stored image, averaged down to the device pixels the label covers when it is drawn smaller
+// than it is stored. internal/platform.BitmapTextureExtent computes the same size.
+static void viva_bitmap_texture_extent(NSRect frame, CGFloat scale, size_t sourceWidth, size_t sourceHeight, size_t *width, size_t *height) {
+    CGFloat pixelScale = MAX(scale, 1.0);
+    size_t shownWidth = (size_t)MAX(1.0, floor((frame.origin.x + frame.size.width) * pixelScale + 0.5) - floor(frame.origin.x * pixelScale + 0.5));
+    size_t shownHeight = (size_t)MAX(1.0, floor((frame.origin.y + frame.size.height) * pixelScale + 0.5) - floor(frame.origin.y * pixelScale + 0.5));
+    *width = sourceWidth;
+    *height = sourceHeight;
+    if (shownWidth <= sourceWidth && shownHeight <= sourceHeight && (shownWidth < sourceWidth || shownHeight < sourceHeight)) {
+        *width = shownWidth;
+        *height = shownHeight;
+    }
+}
+
+// viva_bitmap_extent_stale reports whether a texture of one dimension no longer suits an image
+// that needs another: smaller than needed would blur it, and more than twice as large would
+// alias it. Between those the texture stays, so an animated size does not rebuild every frame.
+// internal/platform.BitmapTextureStale applies the same rule.
+static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
+    return need > have || have >= 2 * need;
+}
+
 @implementation VivaTextLayer
 
 - (instancetype)initWithConfig:(viva_text_label)config {
     self = [super init];
     if (self != nil) {
-        _value = [[NSString alloc] initWithBytes:config.utf8
-                                          length:config.utf8_length
-                                        encoding:NSUTF8StringEncoding];
+        // Bitmap labels carry no UTF-8 buffer. Give them an explicit empty
+        // string so image-only labels can still own a Metal texture.
+        if (config.utf8_length == 0) {
+            _value = [@"" retain];
+        } else if (config.utf8 == NULL) {
+            [self release];
+            return nil;
+        } else {
+            _value = [[NSString alloc] initWithBytes:config.utf8
+                                              length:config.utf8_length
+                                            encoding:NSUTF8StringEncoding];
+        }
         if (_value == nil) {
             [self release];
             return nil;
@@ -1756,7 +2291,13 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
             _runCount = config.run_count;
             _utf8 = [[NSData alloc] initWithBytes:config.utf8 length:config.utf8_length];
         }
-        if ((config.flags & VIVA_LABEL_BITMAP) != 0 && config.bitmap != NULL) {
+        if ((config.flags & VIVA_LABEL_BITMAP) != 0) {
+            // An image the Go side did not send has nothing to draw from: fail the update
+            // rather than keep a layer that renders blank.
+            if (config.bitmap == NULL) {
+                [self release];
+                return nil;
+            }
             _bitmap = [[NSData alloc] initWithBytes:config.bitmap length:config.bitmap_length];
             _bitmapWidth = config.bitmap_width;
             _bitmapHeight = config.bitmap_height;
@@ -1821,11 +2362,18 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
             _bitmapVersion != config.bitmap_version || _bitmap.length != config.bitmap_length) {
             return NO;
         }
-        if (_bitmapID == 0 && memcmp(_bitmap.bytes, config.bitmap, config.bitmap_length) != 0) {
+        if (config.bitmap_upload != 0 && (config.bitmap == NULL || memcmp(_bitmap.bytes, config.bitmap, config.bitmap_length) != 0)) {
             return NO;
         }
     }
-    if (config.utf8_length != [_value lengthOfBytesUsingEncoding:NSUTF8StringEncoding]) {
+    size_t valueLength = [_value lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    if (config.utf8_length != valueLength) {
+        return NO;
+    }
+    if (config.utf8_length == 0) {
+        return YES;
+    }
+    if (config.utf8 == NULL) {
         return NO;
     }
     return memcmp(config.utf8, [_value UTF8String], config.utf8_length) == 0;
@@ -1858,7 +2406,13 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 }
 
 - (BOOL)rebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale {
-    if (_texture != nil && (_bitmap != nil || _lastScale == scale)) {
+    size_t wantWidth = 0, wantHeight = 0;
+    if (_bitmap != nil) {
+        viva_bitmap_texture_extent(_frame, scale, _bitmapWidth, _bitmapHeight, &wantWidth, &wantHeight);
+    }
+    if (_texture != nil && (_bitmap != nil
+            ? !viva_bitmap_extent_stale(_textureWidth, wantWidth) && !viva_bitmap_extent_stale(_textureHeight, wantHeight)
+            : _lastScale == scale)) {
         return YES;
     }
     if (_bitmap != nil) {
@@ -1867,25 +2421,43 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
             _bitmap.length < (size_t)(_bitmapHeight - 1) * _bitmapStride + (size_t)_bitmapWidth * 4) {
             return NO;
         }
+        size_t uploadWidth = _bitmapWidth, uploadHeight = _bitmapHeight;
+        NSData *uploadData = _bitmap;
+        uint32_t uploadStride = _bitmapStride;
+        if (wantWidth != _bitmapWidth || wantHeight != _bitmapHeight) {
+            NSData *reduced = viva_downsample_bitmap(_bitmap, _bitmapWidth, _bitmapHeight, _bitmapStride, wantWidth, wantHeight);
+            if (reduced == nil) {
+                return NO;
+            }
+            uploadData = reduced;
+            uploadWidth = wantWidth;
+            uploadHeight = wantHeight;
+            uploadStride = (uint32_t)(wantWidth * 4);
+        }
         MTLTextureDescriptor *descriptor = [MTLTextureDescriptor
             texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-                                         width:_bitmapWidth
-                                        height:_bitmapHeight
+                                         width:uploadWidth
+                                        height:uploadHeight
                                      mipmapped:NO];
         descriptor.storageMode = MTLStorageModeShared;
         descriptor.usage = MTLTextureUsageShaderRead;
         id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
         if (texture != nil) {
-            [texture replaceRegion:MTLRegionMake2D(0, 0, _bitmapWidth, _bitmapHeight)
+            [texture replaceRegion:MTLRegionMake2D(0, 0, uploadWidth, uploadHeight)
                        mipmapLevel:0
-                         withBytes:_bitmap.bytes
-                       bytesPerRow:_bitmapStride];
+                         withBytes:uploadData.bytes
+                       bytesPerRow:uploadStride];
+        }
+        if (uploadData != _bitmap) {
+            [uploadData release];
         }
         if (texture == nil) {
             return NO;
         }
         [_texture release];
         _texture = texture;
+        _textureWidth = uploadWidth;
+        _textureHeight = uploadHeight;
         _lastScale = scale;
         return YES;
     }
@@ -1969,23 +2541,16 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     baseline -= ceil(_originY * pixelScale - 1e-4) / pixelScale;
     if (_mono) {
         // A fixed-pitch label is not proportional text: it keeps its own advances.
-        // The NSFont is a CTFont already. Looking it up again by name fails for the
-        // monospaced system font at a weight (its name is private to that instance) and
-        // CoreText answers with Times New Roman.
-        CTFontRef font = (CTFontRef)CFRetain(viva_mono_font(_fontSize, _fontWeight, _monoFace));
-        const void *keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
-        const void *values[] = {font, foreground};
-        CFDictionaryRef attributes = CFDictionaryCreate(
-            kCFAllocatorDefault, keys, values, 2,
-            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-        CFAttributedStringRef attributed = CFAttributedStringCreate(kCFAllocatorDefault, (CFStringRef)_value, attributes);
-        CTLineRef line = CTLineCreateWithAttributedString(attributed);
-        CGContextSetTextPosition(context, _originX, baseline);
-        CTLineDraw(line, context);
-        CFRelease(line);
-        CFRelease(attributed);
-        CFRelease(attributes);
-        CFRelease(font);
+        // The line carries the face's font (the NSFont itself: looking it up again by
+        // name fails for the monospaced system font at a weight, whose name is private
+        // to that instance, and CoreText answers with Times New Roman) and, for the
+        // clusters no family of it draws, the installed fallback.
+        CTLineRef line = viva_mono_fallback_line(_value, viva_mono_font(_fontSize, _fontWeight, _monoFace), _monoFace, foreground);
+        if (line != NULL) {
+            CGContextSetTextPosition(context, _originX, baseline);
+            CTLineDraw(line, context);
+            CFRelease(line);
+        }
     } else {
         viva_text_line *shaped = viva_shared_text_line(_value, _fontSize, _fontWeight);
         if (shaped != NULL) {
@@ -2064,14 +2629,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
                                                        length:count
                                                      encoding:NSUTF8StringEncoding];
             if (shown != nil) {
-                const void *keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
-                const void *values[] = {font, foreground};
-                CFDictionaryRef attributes = CFDictionaryCreate(
-                    kCFAllocatorDefault, keys, values, 2,
-                    &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-                CFAttributedStringRef attributed = CFAttributedStringCreate(
-                    kCFAllocatorDefault, (CFStringRef)shown, attributes);
-                CTLineRef line = CTLineCreateWithAttributedString(attributed);
+                CTLineRef line = viva_mono_fallback_line(shown, (NSFont *)font, _monoFace, foreground);
                 if (line != NULL) {
                     CGFloat width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
                     if (width > 0 && span > 0) {
@@ -2084,8 +2642,6 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
                     }
                     CFRelease(line);
                 }
-                CFRelease(attributed);
-                CFRelease(attributes);
                 [shown release];
             }
         } else if (ascii) {
@@ -2111,14 +2667,12 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
                 CFRelease(foreground);
                 continue;
             }
-            const void *keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
-            const void *values[] = {font, foreground};
-            CFDictionaryRef attributes = CFDictionaryCreate(
-                kCFAllocatorDefault, keys, values, 2,
-                &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-            CFAttributedStringRef attributed = CFAttributedStringCreate(
-                kCFAllocatorDefault, (CFStringRef)shown, attributes);
-            CTLineRef line = CTLineCreateWithAttributedString(attributed);
+            CTLineRef line = viva_mono_fallback_line(shown, (NSFont *)font, _monoFace, foreground);
+            if (line == NULL) {
+                [shown release];
+                CFRelease(foreground);
+                continue;
+            }
             CGFloat x = cellLeft;
             if (run->cells > 0) {
                 CFRange cluster = CFStringGetRangeOfComposedCharactersAtIndex((CFStringRef)shown, 0);
@@ -2132,8 +2686,6 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
             CGContextSetTextPosition(context, x, baseline);
             CTLineDraw(line, context);
             CFRelease(line);
-            CFRelease(attributed);
-            CFRelease(attributes);
             [shown release];
         }
 
@@ -2169,6 +2721,78 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 }
 
 @end
+
+// Keep native windows and offscreen frames on the same retained-texture path.
+static int viva_update_label_layers(
+    NSArray<VivaTextLayer *> *previous,
+    const viva_text_label *labels,
+    NSUInteger count,
+    id<MTLDevice> device,
+    CGFloat scale,
+    NSMutableArray<VivaTextLayer *> **updated
+) {
+    NSMutableArray<VivaTextLayer *> *replacement =
+        [[NSMutableArray alloc] initWithCapacity:count];
+    NSUInteger oldCount = previous.count;
+    uint64_t *oldHashes = malloc(MAX(oldCount, 1) * sizeof(uint64_t));
+    uint64_t *newHashes = malloc(MAX(count, 1) * sizeof(uint64_t));
+    int64_t *source = malloc(MAX(count, 1) * sizeof(int64_t));
+    if (oldHashes == NULL || newHashes == NULL || source == NULL) {
+        free(oldHashes);
+        free(newHashes);
+        free(source);
+        [replacement release];
+        return 3;
+    }
+    for (NSUInteger index = 0; index < oldCount; index++) {
+        oldHashes[index] = [previous[index] contentHash];
+    }
+    for (NSUInteger index = 0; index < count; index++) {
+        newHashes[index] = viva_label_content_hash(labels[index]);
+    }
+    int status = viva_plan_label_reuse(oldHashes, oldCount, newHashes, count, source);
+    free(oldHashes);
+    free(newHashes);
+    if (status != 0) {
+        free(source);
+        [replacement release];
+        return status;
+    }
+    for (NSUInteger index = 0; index < count; index++) {
+        VivaTextLayer *existing = nil;
+        if (source[index] >= 0 && [previous[(NSUInteger)source[index]] matchesConfig:labels[index]]) {
+            existing = previous[(NSUInteger)source[index]];
+        }
+        if (existing != nil) {
+            [existing updateFrame:NSMakeRect(
+                labels[index].x, labels[index].y,
+                labels[index].width, labels[index].height)];
+            [existing updateClipFromConfig:labels[index]];
+            // An image drawn at a new size may need a texture of another resolution.
+            if ((labels[index].flags & VIVA_LABEL_BITMAP) != 0 && ![existing rebuildWithDevice:device scale:scale]) {
+                free(source);
+                [replacement release];
+                return 3;
+            }
+            [replacement addObject:existing];
+            continue;
+        }
+        VivaTextLayer *layer = [[VivaTextLayer alloc] initWithConfig:labels[index]];
+        if (layer == nil || ![layer rebuildWithDevice:device scale:scale]) {
+            int failure = layer == nil ? 2 : 3;
+            free(source);
+            [layer release];
+            [replacement release];
+            return failure;
+        }
+        [layer markContentRebuild];
+        [replacement addObject:layer];
+        [layer release];
+    }
+    free(source);
+    *updated = replacement;
+    return 0;
+}
 
 // viva_encode_input draws the native editor's texture.
 static void viva_encode_input(
@@ -2535,7 +3159,9 @@ static void viva_encode_scene(
     NSRect _textCaretFrame;
     BOOL _textSecure;
     BOOL _textTerminal;
+    BOOL _textHideNativeOverlays;
     int _textMonoFace;
+    CGFloat _textCellWidth; // a terminal's cell, which its preedit is laid on
     BOOL _textAltSendsEscape;
     BOOL _textKeyReleases;
     BOOL _interpretingKey;
@@ -2620,6 +3246,7 @@ static void viva_encode_scene(
 - (void)restartCaretBlink;
 - (void)stopCaretBlink;
 - (void)shutdownTextInput;
+- (void)detachCallbacks;
 - (BOOL)rebuildTextTexture;
 - (BOOL)rebuildTextLabels;
 - (viva_editor_line)newTextLine;
@@ -2731,7 +3358,9 @@ static int viva_navigation_command(SEL selector) {
         _textCaretFrame = NSMakeRect(textInput.caret_x, textInput.caret_y, textInput.caret_width, textInput.caret_height);
         _textSecure = textInput.secure != 0;
         _textTerminal = textInput.terminal != 0;
+        _textHideNativeOverlays = textInput.hide_native_overlays != 0;
         _textMonoFace = textInput.mono_face;
+        _textCellWidth = textInput.cell_width;
         _textAltSendsEscape = textInput.alt_sends_escape != 0;
         _textKeyReleases = textInput.key_releases != 0;
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyWindowChanged:) name:NSWindowDidBecomeKeyNotification object:nil];
@@ -2778,7 +3407,9 @@ static int viva_navigation_command(SEL selector) {
         _metalLayer.device = device;
         _metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
         _metalLayer.framebufferOnly = YES;
-        _metalLayer.opaque = windowMode != VIVA_WINDOW_PANEL;
+        /* A transparent clear color must reach the desktop through a frameless
+         * surface. Opaque titled windows keep the normal fast path. */
+        _metalLayer.opaque = clearColor.alpha >= 1.0 && windowMode != VIVA_WINDOW_PANEL;
         _metalLayer.maximumDrawableCount = 2;
         _metalLayer.allowsNextDrawableTimeout = YES;
 
@@ -2931,6 +3562,14 @@ static int viva_navigation_command(SEL selector) {
     return YES;
 }
 
+// A page taking the keyboard is the window losing it as far as the keys that were down go.
+- (BOOL)resignFirstResponder {
+    if (_callbackHandle != 0 && _keyEventsEnabled && self.window.isKeyWindow) {
+        vivaFocusLost(_callbackHandle, self);
+    }
+    return YES;
+}
+
 // acceptsFirstMouse lets the click that brings an inactive window forward also
 // act on the control under it. Without it AppKit spends that click on activating
 // the window, so after a native panel or another app had the focus a button took
@@ -2995,8 +3634,12 @@ static int viva_navigation_command(SEL selector) {
 }
 
 - (void)mouseDown:(NSEvent *)event {
+    // A press in Viva's own content takes the keyboard back from a page that had it.
+    if (self.window.firstResponder != self) {
+        [self.window makeFirstResponder:self];
+    }
     int press = VIVA_PRESS_CLIENT;
-    if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR && _callbackHandle != 0) {
+    if ((_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR || _windowMode == VIVA_WINDOW_FRAMELESS) && _callbackHandle != 0) {
         // The application declares where the window moves from (a move region).
         NSPoint local = [self convertPoint:event.locationInWindow fromView:nil];
         press = vivaPressAt(_callbackHandle, local.x, self.bounds.size.height - local.y);
@@ -3063,7 +3706,12 @@ static int viva_navigation_command(SEL selector) {
     [self emitPointerEvent:VIVA_POINTER_MOVE fromEvent:event];
 }
 
-- (void)rightMouseDown:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_DOWN fromEvent:event]; }
+- (void)rightMouseDown:(NSEvent *)event {
+    if (self.window.firstResponder != self) {
+        [self.window makeFirstResponder:self];
+    }
+    [self emitPointerEvent:VIVA_POINTER_DOWN fromEvent:event];
+}
 - (void)rightMouseUp:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_UP fromEvent:event]; }
 - (void)rightMouseDragged:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_MOVE fromEvent:event]; }
 - (void)otherMouseDown:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_DOWN fromEvent:event]; }
@@ -3500,7 +4148,7 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 
 - (viva_editor_line)newTextLine {
-    return viva_new_editor_line([self displayedText], _textFontSize, _textColor, _textTerminal, _textMonoFace);
+    return viva_new_editor_line([self displayedText], _textFontSize, _textTerminal, _textCellWidth);
 }
 
 - (BOOL)rebuildTextTexture {
@@ -3510,7 +4158,7 @@ static void viva_set_secure_event_input(BOOL on) {
     id<MTLTexture> texture = viva_text_input_texture(
         _metalLayer.device, MAX(_metalLayer.contentsScale, 1.0), [self displayedText],
         _textFontSize, _textColor, _textFrame.size, _selectedRange, _hasMarkedText,
-        _markedRange, _caretVisible, _textTerminal, _textMonoFace);
+        _markedRange, _caretVisible, _textTerminal, _textHideNativeOverlays, _textMonoFace, _textCellWidth);
     if (texture == nil) {
         return NO;
     }
@@ -3521,7 +4169,7 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)caretBlinkTimerFired:(NSTimer *)timer {
     if (timer != _caretTimer || !viva_text_input_caret_should_blink(
-            _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal)) {
+            _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal, _textHideNativeOverlays)) {
         [self stopCaretBlink];
         return;
     }
@@ -3544,7 +4192,7 @@ static void viva_set_secure_event_input(BOOL on) {
     [self stopCaretBlink];
     _caretVisible = YES;
     if (!viva_text_input_caret_should_blink(
-            _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal)) {
+            _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal, _textHideNativeOverlays)) {
         return;
     }
     _caretTimer = [[NSTimer timerWithTimeInterval:0.5
@@ -3568,6 +4216,12 @@ static void viva_set_secure_event_input(BOOL on) {
     _hasMarkedText = NO;
     _textAltSendsEscape = NO;
     _textKeyReleases = NO;
+}
+
+- (void)detachCallbacks {
+    // The view can outlive its Go window and receive a final mouseExited:.
+    _callbackHandle = 0;
+    [self shutdownTextInput];
 }
 
 - (void)render {
@@ -3780,65 +4434,12 @@ static void viva_set_secure_event_input(BOOL on) {
             replacementLayers[index] = labels[index].layer;
         }
     }
-    NSMutableArray<VivaTextLayer *> *replacement =
-        [[NSMutableArray alloc] initWithCapacity:count];
-    NSUInteger oldCount = _textLabels.count;
-    // Decide which old texture each new label can take over (see
-    // viva_plan_label_reuse), then confirm every pick against the label's exact
-    // content: the hash only proposes.
-    uint64_t *oldHashes = malloc(MAX(oldCount, 1) * sizeof(uint64_t));
-    uint64_t *newHashes = malloc(MAX(count, 1) * sizeof(uint64_t));
-    int64_t *source = malloc(MAX(count, 1) * sizeof(int64_t));
-    if (oldHashes == NULL || newHashes == NULL || source == NULL) {
-        free(oldHashes);
-        free(newHashes);
-        free(source);
-        [replacement release];
+    NSMutableArray<VivaTextLayer *> *replacement = nil;
+    int status = viva_update_label_layers(_textLabels, labels, count, _metalLayer.device, scale, &replacement);
+    if (status != 0) {
         free(replacementLayers);
-        return 3;
+        return status;
     }
-    for (NSUInteger index = 0; index < oldCount; index++) {
-        oldHashes[index] = [_textLabels[index] contentHash];
-    }
-    for (NSUInteger index = 0; index < count; index++) {
-        newHashes[index] = viva_label_content_hash(labels[index]);
-    }
-    viva_plan_label_reuse(oldHashes, oldCount, newHashes, count, source);
-    free(oldHashes);
-    free(newHashes);
-    for (NSUInteger index = 0; index < count; index++) {
-        VivaTextLayer *existing = nil;
-        if (source[index] >= 0 && [_textLabels[(NSUInteger)source[index]] matchesConfig:labels[index]]) {
-            existing = _textLabels[(NSUInteger)source[index]];
-        }
-        if (existing != nil) {
-            // Reused layers must draw at the new position and size immediately.
-            [existing updateFrame:NSMakeRect(
-                labels[index].x, labels[index].y,
-                labels[index].width, labels[index].height)];
-            [existing updateClipFromConfig:labels[index]];
-            [replacement addObject:existing];
-            continue;
-        }
-        VivaTextLayer *layer = [[VivaTextLayer alloc] initWithConfig:labels[index]];
-        if (layer == nil) {
-            free(source);
-            [replacement release];
-            free(replacementLayers);
-            return 2;
-        }
-        if (![layer rebuildWithDevice:_metalLayer.device scale:scale]) {
-            free(source);
-            [layer release];
-            [replacement release];
-            free(replacementLayers);
-            return 3;
-        }
-        [layer markContentRebuild];
-        [replacement addObject:layer];
-        [layer release];
-    }
-    free(source);
     if (![self replaceCompositePlanForRectangles:
             _rectangleBuffer == nil ? NULL : _rectangleBuffer.contents
                                            clips:_rectangleClips
@@ -3975,7 +4576,9 @@ static void viva_set_secure_event_input(BOOL on) {
     if (!textInput.enabled) {
         _textSecure = NO;
         _textTerminal = NO;
+        _textHideNativeOverlays = NO;
         _textMonoFace = 0;
+        _textCellWidth = 0;
         _textAltSendsEscape = NO;
         _textKeyReleases = NO;
         [_text release];
@@ -4019,7 +4622,9 @@ static void viva_set_secure_event_input(BOOL on) {
     _textCaretFrame = NSMakeRect(textInput.caret_x, textInput.caret_y, textInput.caret_width, textInput.caret_height);
     _textSecure = textInput.secure != 0;
     _textTerminal = textInput.terminal != 0;
+    _textHideNativeOverlays = textInput.hide_native_overlays != 0;
     _textMonoFace = textInput.mono_face;
+    _textCellWidth = textInput.cell_width;
     _textAltSendsEscape = textInput.alt_sends_escape != 0;
     _textKeyReleases = textInput.key_releases != 0;
     _textInputEnabled = YES;
@@ -4188,7 +4793,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (NSUInteger)textIndexForLocalPoint:(NSPoint)point {
     CGFloat x = point.x - _textFrame.origin.x;
     viva_editor_line line = [self newTextLine];
-    if (line.shaped == NULL && line.mono == NULL) {
+    if (!viva_editor_line_made(line)) {
         return _selectedRange.location;
     }
     NSUInteger position = viva_text_index_at(line, [self displayedText], x, _textTerminal);
@@ -4241,7 +4846,7 @@ static void viva_set_secure_event_input(BOOL on) {
     }
     CGFloat offset = 0;
     viva_editor_line line = [self newTextLine];
-    if (line.shaped != NULL || line.mono != NULL) {
+    if (viva_editor_line_made(line)) {
         offset = [self textOffsetForIndex:safe.location line:line];
         viva_editor_line_free(line);
     }
@@ -4394,6 +4999,20 @@ static void viva_set_secure_event_input(BOOL on) {
     }
 }
 
+@end
+
+/* A frameless workspace still owns keyboard focus and the application's main
+ * window role. A plain borderless NSWindow declines both by default. */
+@interface VivaFramelessWindow : NSWindow
+@end
+
+@implementation VivaFramelessWindow
+- (BOOL)canBecomeKeyWindow {
+    return YES;
+}
+- (BOOL)canBecomeMainWindow {
+    return YES;
+}
 @end
 
 /* VivaPanel is the window of a WindowPanel: it takes keyboard focus although it
@@ -4565,7 +5184,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     if ([_window.contentView isKindOfClass:[VivaMetalView class]]) {
-        [(VivaMetalView *)_window.contentView shutdownTextInput];
+        [(VivaMetalView *)_window.contentView detachCallbacks];
     }
     for (NSView *view in _titlebarWatched) {
         [[NSNotificationCenter defaultCenter] removeObserver:self name:NSViewFrameDidChangeNotification object:view];
@@ -4598,6 +5217,9 @@ static void viva_set_secure_event_input(BOOL on) {
     }
 
     Class windowClass = _windowMode == VIVA_WINDOW_PANEL ? [VivaPanel class] : [NSWindow class];
+    if (_windowMode == VIVA_WINDOW_FRAMELESS) {
+        windowClass = [VivaFramelessWindow class];
+    }
     _window = [[windowClass alloc] initWithContentRect:frame
                                              styleMask:style
                                                backing:NSBackingStoreBuffered
@@ -4625,11 +5247,19 @@ static void viva_set_secure_event_input(BOOL on) {
         _window.hasShadow = YES;
     } else if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
         _window.minSize = NSMakeSize(320, 200);
+        if (_clearColor.alpha < 1.0) {
+            _window.backgroundColor = [NSColor clearColor];
+            _window.opaque = NO;
+        }
         _window.titlebarAppearsTransparent = YES;
         _window.titleVisibility = NSWindowTitleHidden;
         _window.movableByWindowBackground = NO;
     } else {
         _window.minSize = NSMakeSize(320, 200);
+        if (_clearColor.alpha < 1.0) {
+            _window.backgroundColor = [NSColor clearColor];
+            _window.opaque = NO;
+        }
     }
 
     VivaMetalView *view = [[VivaMetalView alloc] initWithFrame:frame
@@ -4836,7 +5466,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)windowWillClose:(NSNotification *)notification {
     (void)notification;
     if ([_window.contentView isKindOfClass:[VivaMetalView class]]) {
-        [(VivaMetalView *)_window.contentView shutdownTextInput];
+        [(VivaMetalView *)_window.contentView detachCallbacks];
     }
     _running = NO;
     if (_callbackHandle != 0) {
@@ -5186,6 +5816,9 @@ static void viva_reset_profile_counters(void) {
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
     (void)sender;
     (void)flag;
+    if (vivaApplicationReopenRequested()) {
+        return NO;
+    }
     for (VivaAppDelegate *delegate in viva_application_windows) {
         if (![delegate isPanel] && ([delegate isHidden] || [delegate isMiniaturized])) {
             [delegate reopenWindow];
@@ -5409,6 +6042,20 @@ static VivaAppDelegate *viva_find_window(void *token) {
         }
     }
     return nil;
+}
+
+@interface VivaAppDelegate (VivaWebHost)
+- (NSView *)webHostView;
+@end
+
+@implementation VivaAppDelegate (VivaWebHost)
+- (NSView *)webHostView {
+    return _window.contentView;
+}
+@end
+
+void *viva_application_window_view(void *token) {
+    return [viva_find_window(token) webHostView];
 }
 
 static void viva_collect_closed_windows(void) {
@@ -5849,6 +6496,42 @@ int viva_measure_mono(double font_size, int mono_face, double *advance, double *
 
 #ifdef VIVA_OFFSCREEN  /* defined by offscreen.go, which builds only with -tags vivahead */
 
+/* ---- Fonts a headless run carries along --------------------------------
+ * A headless run or a test can hand the text stack a font file without
+ * installing it in the user's font library: process registration makes the
+ * family visible to CoreText, and so to the fallback that picks a family for a
+ * character no installed one draws. */
+
+int viva_register_font_file(const char *path) {
+    @autoreleasepool {
+        if (path == NULL || path[0] == '\0') {
+            return 1;
+        }
+        NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
+        CFErrorRef error = NULL;
+        BOOL registered = CTFontManagerRegisterFontsForURL((CFURLRef)url, kCTFontManagerScopeProcess, &error);
+        if (error != NULL) {
+            CFRelease(error);
+        }
+        return registered ? 0 : 2;
+    }
+}
+
+int viva_unregister_font_file(const char *path) {
+    @autoreleasepool {
+        if (path == NULL || path[0] == '\0') {
+            return 1;
+        }
+        NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
+        CFErrorRef error = NULL;
+        BOOL removed = CTFontManagerUnregisterFontsForURL((CFURLRef)url, kCTFontManagerScopeProcess, &error);
+        if (error != NULL) {
+            CFRelease(error);
+        }
+        return removed ? 0 : 2;
+    }
+}
+
 /* ---- Offscreen rendering ------------------------------------------------
  * VivaOffscreen draws a scene with the window's own pipelines, label rasterizer
  * and native-editor rasterizer, into a texture instead of a drawable, with no
@@ -5995,26 +6678,25 @@ int viva_measure_mono(double font_size, int mono_face, double *advance, double *
 }
 
 - (BOOL)setLabels:(const viva_text_label *)labels count:(NSUInteger)count {
-    [_labels removeAllObjects];
-    free(_labelLayers);
-    _labelLayers = NULL;
-    _labelCount = 0;
+    uint16_t *replacementLayers = NULL;
     if (count > 0) {
-        _labelLayers = malloc(count * sizeof(uint16_t));
-        if (_labelLayers == NULL) {
+        replacementLayers = malloc(count * sizeof(uint16_t));
+        if (replacementLayers == NULL) {
             return NO;
         }
+    }
+    NSMutableArray<VivaTextLayer *> *replacement = nil;
+    if (viva_update_label_layers(_labels, labels, count, _device, _scale, &replacement) != 0) {
+        free(replacementLayers);
+        return NO;
     }
     for (NSUInteger index = 0; index < count; index++) {
-        VivaTextLayer *layer = [[VivaTextLayer alloc] initWithConfig:labels[index]];
-        if (layer == nil || ![layer rebuildWithDevice:_device scale:_scale]) {
-            [layer release];
-            return NO;
-        }
-        [_labels addObject:layer];
-        [layer release];
-        _labelLayers[index] = labels[index].layer;
+        replacementLayers[index] = labels[index].layer;
     }
+    [_labels release];
+    _labels = replacement;
+    free(_labelLayers);
+    _labelLayers = replacementLayers;
     _labelCount = count;
     return [self replan];
 }
@@ -6043,7 +6725,8 @@ int viva_measure_mono(double font_size, int mono_face, double *advance, double *
         _device, _scale, shown, config.font_size, color, _inputFrame.size,
         NSMakeRange(config.selected_start, config.selected_length),
         config.has_marked_text != 0,
-        NSMakeRange(config.marked_start, config.marked_length), YES, config.terminal != 0, config.mono_face);
+        NSMakeRange(config.marked_start, config.marked_length), YES, config.terminal != 0,
+        config.hide_native_overlays != 0, config.mono_face, config.cell_width);
     return _inputTexture != nil;
 }
 

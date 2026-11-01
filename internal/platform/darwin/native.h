@@ -78,7 +78,13 @@ typedef struct {
     // A character-cell terminal's preedit surface: fixed-pitch font, no caret
     // or selection, raw key delivery.
     int terminal;
+    // A component paints the multi-line caret and selection itself. Keep the
+    // platform editor's single-line overlays hidden while retaining input, IME
+    // and clipboard behavior.
+    int hide_native_overlays;
 	int mono_face;
+    // The width of one terminal cell, which a terminal's preedit text is laid on.
+    float cell_width;
     // Printable Option chords become raw key events carrying their base
     // character, so terminal encoders can send Escape-prefixed Meta input.
     int alt_sends_escape;
@@ -159,7 +165,8 @@ typedef struct {
     uint32_t bitmap_stride;
     uint64_t bitmap_id;
     uint32_t bitmap_version;
-    uint32_t reserved1;
+    // bitmap_upload is nonzero when bitmap carries pixels to compare or upload.
+    uint32_t bitmap_upload;
     float clip_x;
     float clip_y;
     float clip_width;
@@ -410,7 +417,8 @@ int viva_text_input_caret_should_blink(
     int enabled,
     size_t selected_length,
     int has_marked_text,
-    int terminal
+    int terminal,
+    int hide_native_overlays
 );
 int viva_text_input_should_interpret_key(int enabled, int multiline, int key);
 // viva_text_input_row_key_is_raw says whether a key typed into a field that lays

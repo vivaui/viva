@@ -76,20 +76,25 @@ func (m Metrics) WithDensity(density Density) Metrics {
 
 // Theme contains semantic design tokens rather than runtime CSS.
 type Theme struct {
-	Background          Color
-	Foreground          Color
-	Card                Color
-	CardForeground      Color
-	CardElevated        Color
-	Popover             Color
-	PopoverForeground   Color
-	Muted               Color
-	MutedForeground     Color
-	Border              Color
-	Hover               Color
-	Input               Color
-	Primary             Color
-	PrimaryForeground   Color
+	Background        Color
+	Foreground        Color
+	Card              Color
+	CardForeground    Color
+	CardElevated      Color
+	Popover           Color
+	PopoverForeground Color
+	Muted             Color
+	MutedForeground   Color
+	Border            Color
+	Hover             Color
+	Input             Color
+	Primary           Color
+	PrimaryForeground Color
+	// Selection and SelectionForeground are the text-selection pair. They are
+	// separate from Primary because editors need a readable selection colour
+	// even when a product uses a neutral primary action colour.
+	Selection           Color
+	SelectionForeground Color
 	Secondary           Color
 	SecondaryForeground Color
 	Accent              Color
@@ -124,6 +129,8 @@ func DarkTheme() Theme {
 		Input:               RGBA(255, 255, 255, 0.15),
 		Primary:             RGB(25, 60, 184),
 		PrimaryForeground:   RGB(239, 246, 255),
+		Selection:           RGB(38, 79, 120),
+		SelectionForeground: RGB(239, 246, 255),
 		Secondary:           RGB(39, 39, 42),
 		SecondaryForeground: RGB(250, 250, 250),
 		Accent:              RGB(38, 38, 38),
@@ -158,6 +165,8 @@ func LightTheme() Theme {
 		Input:               RGB(229, 229, 229),
 		Primary:             RGB(20, 71, 230),
 		PrimaryForeground:   RGB(239, 246, 255),
+		Selection:           RGB(181, 211, 255),
+		SelectionForeground: RGB(17, 24, 39),
 		Secondary:           RGB(244, 244, 245),
 		SecondaryForeground: RGB(24, 24, 27),
 		Accent:              RGB(245, 245, 245),

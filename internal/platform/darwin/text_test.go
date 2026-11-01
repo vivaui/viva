@@ -92,6 +92,7 @@ func TestMakeNativeTextLabelsFiltersInvalidDimensions(t *testing.T) {
 		{Value: "zero font", Width: 100, Height: 16, FontSize: 0},
 		{Value: "valid text", Width: 100, Height: 16, FontSize: 14},
 		{Value: "valid bitmap", Width: 20, Height: 20, Bitmap: make([]byte, 20*20*4), BitmapWidth: 20, BitmapHeight: 20, BitmapStride: 20 * 4},
+		{Width: 20, Height: 20, Bitmap: make([]byte, 20*20*4), BitmapWidth: 20, BitmapHeight: 20, BitmapStride: 20 * 4},
 		{Value: "invalid bitmap dims", Width: 0, Height: 20, Bitmap: make([]byte, 20*20*4), BitmapWidth: 20, BitmapHeight: 20, BitmapStride: 20 * 4},
 	}
 	memory, strings, count, err := makeNativeTextLabels(labels)
@@ -99,8 +100,8 @@ func TestMakeNativeTextLabelsFiltersInvalidDimensions(t *testing.T) {
 		t.Fatalf("makeNativeTextLabels failed: %v", err)
 	}
 	defer freeNativeTextLabels(memory, strings)
-	if count != 2 {
-		t.Fatalf("valid count = %d, want 2", count)
+	if count != 3 {
+		t.Fatalf("valid count = %d, want 3", count)
 	}
 }
 
@@ -202,6 +203,7 @@ func TestNativeCaretTimerPolicy(t *testing.T) {
 		selectedLength int
 		composing      bool
 		terminal       bool
+		hideOverlays   bool
 		wantCaretTimer bool
 	}{
 		{name: "disabled"},
@@ -209,10 +211,11 @@ func TestNativeCaretTimerPolicy(t *testing.T) {
 		{name: "range selection", enabled: true, selectedLength: 2},
 		{name: "composition", enabled: true, composing: true},
 		{name: "a terminal keeps its cursor steady", enabled: true, terminal: true},
+		{name: "a self-painting component keeps its cursor steady", enabled: true, hideOverlays: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := nativeCaretShouldBlink(test.enabled, test.selectedLength, test.composing, test.terminal); got != test.wantCaretTimer {
+			if got := nativeCaretShouldBlink(test.enabled, test.selectedLength, test.composing, test.terminal, test.hideOverlays); got != test.wantCaretTimer {
 				t.Fatalf("nativeCaretShouldBlink() = %v, want %v", got, test.wantCaretTimer)
 			}
 		})

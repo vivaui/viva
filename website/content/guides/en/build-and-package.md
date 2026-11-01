@@ -60,7 +60,7 @@ package = "./cmd/notes"        # the main package to build
 icon = "assets/icon.png"       # PNG, square, 128 px or more (1024 recommended), or .icns
 
 [web]
-package = "./cmd/notes-web"    # the browser entry point has its own main package
+package = "."                      # the main package that calls app.RunCanvas builds for the browser too; name another when the app uses native-only code
 
 [build]
 tags = []                      # build tags for every target

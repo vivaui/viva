@@ -108,11 +108,29 @@ func (rasterizer *directRasterizer) gridLCD(pixels []byte, label platform.TextLa
 		if drawErr != nil {
 			return drawErr
 		}
+		// Neighbouring cells share the pixel their edge falls in, and each has drawn its own
+		// part of it. Columns of cells drawn in this pass are read once, whichever cells
+		// share them; what the other pass left in a shared column is joined with them.
+		var left, right int
 		for _, piece := range pieces {
-			if isLight(piece.color) == drawLight {
-				left, right := columnsOf(piece, width, len(pieces) == 1)
+			if isLight(piece.color) != drawLight {
+				continue
+			}
+			pieceLeft, pieceRight := columnsOf(piece, width, len(pieces) == 1)
+			if pieceLeft == pieceRight {
+				continue
+			}
+			if right > left && pieceLeft <= right {
+				right = max(right, pieceRight)
+				continue
+			}
+			if right > left {
 				coverageOfColumns(pixels, scratch, width, height, left, right, drawLight)
 			}
+			left, right = pieceLeft, pieceRight
+		}
+		if right > left {
+			coverageOfColumns(pixels, scratch, width, height, left, right, drawLight)
 		}
 	}
 	for index := 0; index+3 < len(pixels); index += 4 {
@@ -151,7 +169,10 @@ func isLight(color d2dColor) bool {
 }
 
 // coverageOfColumns takes the coverage of all channels within the columns left to right
-// from a drawing of white text on black (drawnLight) or black text on white.
+// from a drawing of white text on black (drawnLight) or black text on white, and joins it with
+// the coverage already there: a column that two neighbouring cells of different brightness
+// share has part of each cell's glyph, drawn in separate passes, and replacing one with the
+// other would leave a gap between them.
 func coverageOfColumns(pixels []byte, bitmap *textBitmap, width, height, left, right int, drawnLight bool) {
 	var flip byte
 	if !drawnLight {
@@ -161,7 +182,10 @@ func coverageOfColumns(pixels []byte, bitmap *textBitmap, width, height, left, r
 		source := bitmap.Pixels[row*bitmap.Width*4:]
 		out := pixels[row*width*4 : (row+1)*width*4]
 		for index := left * 4; index < right*4; index += 4 {
-			out[index], out[index+1], out[index+2] = source[index]^flip, source[index+1]^flip, source[index+2]^flip
+			for channel := 0; channel < 3; channel++ {
+				drawn, have := int(source[index+channel]^flip), int(out[index+channel])
+				out[index+channel] = byte(have + drawn - have*drawn/255)
+			}
 		}
 	}
 }

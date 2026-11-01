@@ -60,7 +60,7 @@ package = "./cmd/notes"        # 要构建的 main 包
 icon = "assets/icon.png"       # 正方形 PNG，至少 128 px（建议 1024），或 .icns
 
 [web]
-package = "./cmd/notes-web"    # 浏览器入口有自己的 main 包
+package = "."                      # 调用 app.RunCanvas 的 main 包也能编译到浏览器；应用用到仅限原生的代码时，改填另一个入口
 
 [build]
 tags = []                      # 所有目标共用的构建标签

@@ -184,11 +184,7 @@ func (label *labelTexture) window(scale float32) (skip, width int, ok bool) {
 }
 
 func (label *labelTexture) update(next platform.TextLabel) {
-	previous := label.label
-	if previous.Value != next.Value || previous.Width != next.Width || previous.Height != next.Height || previous.FontSize != next.FontSize || previous.Weight != next.Weight || previous.Color != next.Color ||
-		previous.Mono != next.Mono || previous.MonoFace != next.MonoFace || previous.CellWidth != next.CellWidth || !sameRuns(previous.Runs, next.Runs) ||
-		previous.BitmapID != next.BitmapID || previous.BitmapVersion != next.BitmapVersion || previous.BitmapWidth != next.BitmapWidth ||
-		previous.BitmapHeight != next.BitmapHeight || previous.BitmapStride != next.BitmapStride || !sameBitmapStorage(previous.Bitmap, next.Bitmap) {
+	if labelContentChanged(label.label, next) {
 		release(&label.view)
 		release(&label.texture)
 	}
@@ -196,6 +192,14 @@ func (label *labelTexture) update(next platform.TextLabel) {
 	label.runs = append(label.runs[:0], next.Runs...)
 	label.label = next
 	label.label.Runs = label.runs
+}
+
+func labelContentChanged(previous, next platform.TextLabel) bool {
+	isBitmap := len(previous.Bitmap) > 0 || len(next.Bitmap) > 0
+	return previous.Value != next.Value || (!isBitmap && (previous.Width != next.Width || previous.Height != next.Height)) || previous.FontSize != next.FontSize || previous.Weight != next.Weight || previous.Color != next.Color ||
+		previous.Mono != next.Mono || previous.MonoFace != next.MonoFace || previous.CellWidth != next.CellWidth || !sameRuns(previous.Runs, next.Runs) ||
+		previous.BitmapID != next.BitmapID || previous.BitmapVersion != next.BitmapVersion || previous.BitmapWidth != next.BitmapWidth ||
+		previous.BitmapHeight != next.BitmapHeight || previous.BitmapStride != next.BitmapStride || !sameBitmapStorage(previous.Bitmap, next.Bitmap)
 }
 
 func sameBitmapStorage(left, right []byte) bool {
@@ -226,12 +230,7 @@ func (renderer *renderer) rasterize(label *labelTexture, scale float32) error {
 	}
 	height := int(math.Ceil(float64(label.label.Height * scale)))
 	if len(label.label.Bitmap) > 0 {
-		width, height = label.label.BitmapWidth, label.label.BitmapHeight
-		// A bitmap drawn smaller than it is stored is averaged down to the device pixels it
-		// covers; sampling a few of its texels would alias.
-		if shown, high := platform.DeviceExtent(label.label.X, label.label.Width, scale), platform.DeviceExtent(label.label.Y, label.label.Height, scale); shown > 0 && high > 0 && shown <= width && high <= height && (shown < width || high < height) {
-			width, height = shown, high
-		}
+		width, height = platform.BitmapTextureExtent(label.label, scale)
 	}
 	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width*height > 16*1024*1024 {
 		return fmt.Errorf("windows: label texture exceeds bounded size")

@@ -123,3 +123,27 @@ func areaWeights(source, destination int) []areaSpan {
 	}
 	return spans
 }
+
+// BitmapTextureExtent is the size, in device pixels, of the texture an image label is drawn
+// from: the stored image, averaged down to the device pixels the label covers when it is
+// drawn smaller than it is stored, because sampling a few texels of a large image would
+// alias. The darwin backend computes the same size in native.m.
+func BitmapTextureExtent(label TextLabel, scale float32) (width, height int) {
+	width, height = label.BitmapWidth, label.BitmapHeight
+	shown, high := DeviceExtent(label.X, label.Width, scale), DeviceExtent(label.Y, label.Height, scale)
+	if shown > 0 && high > 0 && shown <= width && high <= height && (shown < width || high < height) {
+		return shown, high
+	}
+	return width, height
+}
+
+// BitmapTextureStale reports whether an image label's texture, haveWidth by haveHeight, no
+// longer suits the size the label is drawn at: a texture smaller than needed would blur the
+// image and one more than twice as large would alias it. Between those it stays, so a size
+// that animates does not rebuild the texture every frame.
+func BitmapTextureStale(label TextLabel, scale float32, haveWidth, haveHeight int) bool {
+	width, height := BitmapTextureExtent(label, scale)
+	return extentStale(haveWidth, width) || extentStale(haveHeight, height)
+}
+
+func extentStale(have, need int) bool { return need > have || have >= 2*need }

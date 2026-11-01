@@ -35,6 +35,15 @@ type linuxTextInput struct {
 	// settings is the desktop's caret blink setting, as it stands; nil blinks at the
 	// default rate.
 	settings func() xsettings
+	// scale reads the window's device pixels per logical pixel; nil means one.
+	scale func() float32
+	// scroll is how far the field's text is shifted left so the caret stays inside it, in
+	// logical pixels; the label and the highlight are clipped to the field.
+	scroll float32
+	// dragging is a primary press that began in the field and is still down, selecting from
+	// dragAnchor, a character index, to wherever the pointer is.
+	dragging   bool
+	dragAnchor int
 	// compose follows a dead key or Compose sequence under way in this window.
 	compose composer
 
@@ -81,6 +90,17 @@ func (state *linuxTextInput) close() {
 func (state *linuxTextInput) bindCaretWaker(post func(uint32)) {
 	state.postCaret = post
 	state.restartCaretBlink()
+}
+
+// bindScale tells the editor where to read the window's scale, which places the
+// composition underline against the text baseline on the device pixel grid.
+func (state *linuxTextInput) bindScale(scale func() float32) { state.scale = scale }
+
+func (state *linuxTextInput) displayScale() float32 {
+	if state.scale == nil {
+		return 1
+	}
+	return state.scale()
 }
 
 // bindSettings tells the caret where to read the desktop's blink setting. The
@@ -213,12 +233,16 @@ func (state *linuxTextInput) applyUpdate(update platform.TextInputUpdate) (bool,
 	if update.Input == nil {
 		state.stopCaretBlink()
 		state.compose.reset()
+		state.scroll, state.dragging = 0, false
 		state.input = platform.TextInput{}
 		state.state = platform.TextState{}
 		state.enabled = false
 		state.caretVisible = false
 		state.caret = render.Rectangle{}
 		return true, nil
+	}
+	if !state.enabled || update.Input.Target != state.input.Target {
+		state.scroll, state.dragging = 0, false
 	}
 	state.input = *update.Input
 	state.state = update.Input.State
@@ -252,32 +276,64 @@ func (state *linuxTextInput) rebuild() error {
 		FontSize: inputState.FontSize, Color: inputState.Color, Layer: inputState.Layer, Mono: inputState.Terminal, MonoFace: inputState.MonoFace,
 	}
 	if inputState.Terminal {
+		state.rebuildTerminalPreedit(shown)
 		return nil
 	}
-	values := []rune(shown)
-	selection := state.state.Selection
-	selectionStart, err := state.prefixWidth(shown, values, selection.Start, inputState.FontSize)
-	if err != nil {
-		return err
-	}
-	selectionEnd, err := state.prefixWidth(shown, values, selection.End, inputState.FontSize)
-	if err != nil {
-		return err
-	}
 	base := len(state.baseRectangles)
-	state.rectangles[base] = render.Rectangle{
-		Bounds: scene.Rect{X: inputState.X + selectionStart, Y: inputState.Y, Width: selectionEnd - selectionStart, Height: inputState.Height},
-		Color:  scene.Color{Red: 0.22, Green: 0.48, Blue: 1, Alpha: 0.34},
-		Layer:  inputState.Layer,
+	values := []rune(shown)
+	// The caret decides what part of a long text shows. A component that places its own
+	// text (Placed) scrolls it itself.
+	caretIndex := state.state.Selection.End
+	if state.state.Composing {
+		caretIndex = state.state.Composition.End
 	}
-	caretHeight := min(inputState.Height, inputState.FontSize*1.35)
-	state.caret = render.Rectangle{
-		Bounds: scene.Rect{X: inputState.X + selectionEnd, Y: inputState.Y + (inputState.Height-caretHeight)/2, Width: linuxTextCaretWidth, Height: caretHeight},
-		Color:  scene.Color{Red: float32(inputState.Color.Red), Green: float32(inputState.Color.Green), Blue: float32(inputState.Color.Blue), Alpha: float32(inputState.Color.Alpha)},
-		Layer:  inputState.Layer,
+	caretX, err := state.prefixWidth(shown, values, caretIndex, inputState.FontSize)
+	if err != nil {
+		return err
 	}
-	if state.caretVisible && state.caretShown() {
-		state.rectangles[base+1] = state.caret
+	textWidth, err := state.prefixWidth(shown, values, len(values), inputState.FontSize)
+	if err != nil {
+		return err
+	}
+	state.scroll = 0
+	if !inputState.Placed {
+		state.scroll = state.scrollFor(inputState.Width, caretX, textWidth)
+	}
+	originX := inputState.X - state.scroll
+	label := &state.labels[len(state.baseLabels)]
+	label.X, label.Width = originX, max(inputState.Width+state.scroll, textWidth+linuxTextCaretWidth)
+	label.Clipped, label.Clip = true, ui.Rect{X: inputState.X, Y: inputState.Y, Width: inputState.Width, Height: inputState.Height}
+	// Whatever the field shows of a highlight is the part inside it.
+	visible := func(left, width float32) (float32, float32) {
+		right := min(left+width, inputState.X+inputState.Width)
+		left = max(left, inputState.X)
+		return left, max(right-left, 0)
+	}
+	if !inputState.HideNativeOverlays {
+		selection := state.state.Selection
+		selectionStart, err := state.prefixWidth(shown, values, selection.Start, inputState.FontSize)
+		if err != nil {
+			return err
+		}
+		selectionEnd, err := state.prefixWidth(shown, values, selection.End, inputState.FontSize)
+		if err != nil {
+			return err
+		}
+		caretTop, caretHeight := platform.TextCaretBand(inputState.Y, inputState.Height, inputState.FontSize)
+		left, width := visible(originX+min(selectionStart, selectionEnd), max(selectionEnd-selectionStart, selectionStart-selectionEnd))
+		state.rectangles[base] = render.Rectangle{
+			Bounds: scene.Rect{X: left, Y: caretTop, Width: width, Height: caretHeight},
+			Color:  scene.Color{Red: 0.22, Green: 0.48, Blue: 1, Alpha: 0.34},
+			Layer:  inputState.Layer,
+		}
+		state.caret = render.Rectangle{
+			Bounds: scene.Rect{X: originX + caretX, Y: caretTop, Width: linuxTextCaretWidth, Height: caretHeight},
+			Color:  scene.Color{Red: float32(inputState.Color.Red), Green: float32(inputState.Color.Green), Blue: float32(inputState.Color.Blue), Alpha: float32(inputState.Color.Alpha)},
+			Layer:  inputState.Layer,
+		}
+		if state.caretVisible && state.caretShown() {
+			state.rectangles[base+1] = state.caret
+		}
 	}
 	if state.state.Composing {
 		composition := state.state.Composition
@@ -289,13 +345,50 @@ func (state *linuxTextInput) rebuild() error {
 		if err != nil {
 			return err
 		}
+		left, width := visible(originX+compositionStart, compositionEnd-compositionStart)
 		state.rectangles[base+2] = render.Rectangle{
-			Bounds: scene.Rect{X: inputState.X + compositionStart, Y: inputState.Y + min(inputState.Height-2, inputState.FontSize*1.3), Width: compositionEnd - compositionStart, Height: 1.5},
+			Bounds: scene.Rect{X: left, Y: platform.CompositionUnderlineTop(inputState.Y, inputState.Height, inputState.FontSize, state.displayScale(), 1.5), Width: width, Height: 1.5},
 			Color:  scene.Color{Red: float32(inputState.Color.Red), Green: float32(inputState.Color.Green), Blue: float32(inputState.Color.Blue), Alpha: float32(inputState.Color.Alpha)},
 			Layer:  inputState.Layer,
 		}
 	}
 	return nil
+}
+
+// scrollFor is the shift of a field width wide that keeps the caret, at caretX in a text
+// textWidth wide, in view, moving as little as it can from where the text already is.
+func (state *linuxTextInput) scrollFor(width, caretX, textWidth float32) float32 {
+	visible := max(1, width-linuxTextCaretWidth)
+	scroll := max(0, min(state.scroll, caretX, max(0, textWidth-visible)))
+	if caretX-scroll > visible {
+		scroll = caretX - visible
+	}
+	return scroll
+}
+
+// rebuildTerminalPreedit lays a terminal's composition on the terminal's cells, the columns its
+// grid will give the text once it is committed, in the fixed-pitch face: a wide character on two
+// cells, a combining mark on its base's. Drawn with the font's own advances it would be narrower
+// than the grid and jump when committed. There is no caret or selection (see
+// platform.TextInput.Terminal), only the underline of the composition.
+func (state *linuxTextInput) rebuildTerminalPreedit(shown string) {
+	input := &state.input
+	cell := platform.TerminalPreeditCellWidth(input.FontSize)
+	color := ui.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
+	label := &state.labels[len(state.baseLabels)]
+	// A new slice every time: the renderer may still compare against the last frame's label.
+	label.CellWidth, label.Runs = cell, platform.TerminalPreeditRuns(nil, shown, color)
+	if !state.state.Composing {
+		return
+	}
+	composition := state.state.Composition
+	start := float32(platform.TerminalPreeditColumn(shown, composition.Start)) * cell
+	end := float32(platform.TerminalPreeditColumn(shown, composition.End)) * cell
+	state.rectangles[len(state.baseRectangles)+2] = render.Rectangle{
+		Bounds: scene.Rect{X: input.X + start, Y: input.Y + min(input.Height-2, input.FontSize*1.3), Width: end - start, Height: 1.5},
+		Color:  scene.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)},
+		Layer:  input.Layer,
+	}
 }
 
 // prefixWidth is the x of the caret before the end-th character of shown (values are its
@@ -309,11 +402,18 @@ func (state *linuxTextInput) prefixWidth(shown string, values []rune, end int, s
 }
 
 // ownsChord reports whether the focused field takes this key itself, ahead of the
-// application's shortcuts: the clipboard chords of a field that is not a terminal,
-// as on Windows. Otherwise an application's own Paste binding would take Control+V
-// from the box the person is typing in.
+// application's shortcuts: the clipboard and editing chords of a field that is not a
+// terminal, as on Windows. Otherwise an application's own Paste binding would take
+// Control+V from the box the person is typing in.
 func (state *linuxTextInput) ownsChord(event platform.KeyEvent) bool {
-	return state != nil && state.enabled && !state.input.Terminal && platform.TextClipboardAction(event) != 0
+	if state == nil || !state.enabled || state.input.Terminal || state.state.Composing {
+		return false
+	}
+	if platform.TextClipboardAction(event) != 0 {
+		return true
+	}
+	_, editing := platform.TextEditingCommand(event)
+	return editing
 }
 
 func (state *linuxTextInput) key(event platform.KeyEvent) (platform.Frame, bool, error) {
@@ -339,6 +439,13 @@ func (state *linuxTextInput) key(event platform.KeyEvent) (platform.Frame, bool,
 		}
 		frame, err := state.textEvent(clipboard)
 		return frame, true, err
+	}
+	// A component that places its own text moves by visual rows, so it keeps Home and End.
+	if !state.input.Placed || event.Key != input.KeyHome && event.Key != input.KeyEnd {
+		if command, ok := platform.TextEditingCommand(event); ok {
+			frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextCommandEvent, Command: command})
+			return frame, true, err
+		}
 	}
 	command := platform.TextCommand(0)
 	switch event.Key {
@@ -372,20 +479,61 @@ func (state *linuxTextInput) key(event platform.KeyEvent) (platform.Frame, bool,
 }
 
 func (state *linuxTextInput) pointer(event platform.PointerEvent) (platform.Frame, bool, error) {
-	if !state.enabled || state.input.Terminal || state.input.Placed || event.Kind != platform.PointerDown ||
-		(event.Button != ui.PointerButtonPrimary && event.Button != ui.PointerButtonMiddle) {
+	if !state.enabled || state.input.Terminal || state.input.Placed || state.state.Composing {
+		state.dragging = false
 		return platform.Frame{}, false, nil
 	}
 	inputState := &state.input
-	if event.X < inputState.X || event.X > inputState.X+inputState.Width || event.Y < inputState.Y || event.Y > inputState.Y+inputState.Height {
+	switch event.Kind {
+	case platform.PointerDown:
+		state.dragging = false
+		if event.Button != ui.PointerButtonPrimary && event.Button != ui.PointerButtonMiddle {
+			return platform.Frame{}, false, nil
+		}
+		if event.X < inputState.X || event.X > inputState.X+inputState.Width || event.Y < inputState.Y || event.Y > inputState.Y+inputState.Height {
+			return platform.Frame{}, false, nil
+		}
+	case platform.PointerMove:
+		if !state.dragging {
+			return platform.Frame{}, false, nil
+		}
+	case platform.PointerUp, platform.PointerExit:
+		state.dragging = false
+		return platform.Frame{}, false, nil
+	default:
 		return platform.Frame{}, false, nil
 	}
-	index, err := state.nearestTextIndex(event.X - inputState.X)
+	// The pointer is measured against the text as it is scrolled, and a drag keeps
+	// selecting once it leaves the field, to the nearest end.
+	index, err := state.nearestTextIndex(event.X - inputState.X + state.scroll)
 	if err != nil {
 		return platform.Frame{}, true, err
 	}
+	if event.Kind == platform.PointerMove {
+		frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextSetSelection, Selection: text.Range{Start: state.dragAnchor, End: index}})
+		return frame, true, err
+	}
+	if event.Button == ui.PointerButtonPrimary {
+		state.dragging, state.dragAnchor = true, index
+		if event.Modifiers&input.ModifierShift != 0 {
+			state.dragAnchor = state.state.Selection.Start
+			if state.state.SelectionReversed {
+				state.dragAnchor = state.state.Selection.End
+			}
+		} else if event.ClickCount >= 2 {
+			selection := text.WordRange(state.state.Value, index)
+			if event.ClickCount >= 3 || inputState.Secure {
+				selection = text.Range{End: utf8.RuneCountInString(state.state.Value)}
+			}
+			state.dragAnchor = selection.Start
+			frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextSetSelection, Selection: selection})
+			return frame, true, err
+		}
+		frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextSetSelection, Selection: text.Range{Start: state.dragAnchor, End: index}})
+		return frame, true, err
+	}
 	frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextSetSelection, Selection: text.Range{Start: index, End: index}})
-	if err != nil || event.Button != ui.PointerButtonMiddle {
+	if err != nil {
 		return frame, true, err
 	}
 	// A middle press pastes the PRIMARY selection where it lands.
@@ -472,10 +620,11 @@ func (state *linuxTextInput) textEvent(event platform.TextEvent) (platform.Frame
 	return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &state.input}}, nil
 }
 
-// caretShown says whether the field has a caret to draw: not a terminal, not
-// while composing, not over a selection.
+// caretShown says whether the field has a native caret to draw: not a terminal,
+// not while a component paints its own caret, not while composing, and not
+// over a selection.
 func (state *linuxTextInput) caretShown() bool {
-	return state.enabled && !state.input.Terminal && !state.state.Composing && state.state.Selection.Start == state.state.Selection.End
+	return state.enabled && !state.input.Terminal && !state.input.HideNativeOverlays && !state.state.Composing && state.state.Selection.Start == state.state.Selection.End
 }
 
 func (state *linuxTextInput) caretShouldBlink() bool {

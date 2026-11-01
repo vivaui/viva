@@ -110,6 +110,7 @@ type windowState struct {
 	imeTarget                              text.Range
 	imeHasTarget                           bool
 	titlebarThemed, titlebarDark           bool
+	web                                    *webHost
 }
 
 var active atomic.Pointer[windowState]
@@ -343,6 +344,12 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		showWindow.Call(state.window, 1)
 	}
 	updateWindow.Call(state.window)
+	if config.Web != nil {
+		state.web = newWebHost(state, config.Web, config.NativeViews)
+		if config.Web.Ready != nil {
+			postMessage.Call(state.window, wmWebReady, 0, 0)
+		}
+	}
 	state.testEvents()
 	return &nativeWindow{state: state}, nil
 }
@@ -412,6 +419,11 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmApplyCursor:
 		if cursor := state.cursor.Load(); cursor != 0 {
 			setCursorNative.Call(cursor)
+		}
+		return 0
+	case wmWebReady:
+		if state.web != nil && state.config.Web != nil && state.config.Web.Ready != nil {
+			state.config.Web.Ready()
 		}
 		return 0
 	case wmRedraw:
@@ -522,6 +534,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		return 0
 	case wmMove:
 		state.reportFrame()
+		if state.web != nil {
+			state.web.moved()
+		}
 		return 0
 	case wmSize:
 		if first == 1 { // SIZE_MINIMIZED
@@ -557,6 +572,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			state.frame(frame, err)
 		}
 		state.reportFrame()
+		if state.web != nil {
+			state.web.layoutAll(true)
+		}
 		invalidateRect.Call(window, 0, 0)
 		return 0
 	case wmDPIChanged:
@@ -658,6 +676,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		return 0
 	case wmMouseLeave, wmKillFocus:
 		state.tracking = false
+		if kind == wmMouseLeave && state.web != nil && state.web.pointerOverCover() {
+			return 0 // the pointer went onto a window that hands it back, not out of this one
+		}
 		state.captionPress.end()
 		if kind == wmKillFocus {
 			state.focused = false
@@ -759,10 +780,14 @@ func (state *windowState) frame(frame platform.Frame, err error) {
 }
 
 func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) {
+	views := frame.NativeViews
 	if err == nil {
 		state.applyBackdrop()
-	}
-	if err == nil {
+		defer func() {
+			if state.web != nil && state.ready {
+				state.web.frame(views)
+			}
+		}()
 		var dirty bool
 		frame, dirty, err = state.prepareFrame(frame, nativeVisualChanged)
 		if err == nil {
@@ -808,6 +833,9 @@ func (state *windowState) destroyed(window uintptr) {
 	state.stopCaretTimer()
 	state.closeBackdropPower()
 	state.closeDrop()
+	if state.web != nil {
+		state.web.closeAll()
+	}
 	state.accessibility.close()
 	state.renderer.close()
 	state.closeText()

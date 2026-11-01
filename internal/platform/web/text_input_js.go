@@ -28,6 +28,17 @@ type textInputHost struct {
 }
 
 func newTextInputHost(mirror *accessibilityMirror) *textInputHost {
+	document := js.Global().Get("document")
+	const styleID = "viva-text-input-overlay-style"
+	if document.Call("getElementById", styleID).IsNull() {
+		style := document.Call("createElement", "style")
+		style.Set("id", styleID)
+		style.Set("textContent", `textarea[data-viva-hide-native-overlays="true"]::selection {
+			background: transparent;
+			color: transparent;
+		}`)
+		document.Get("head").Call("appendChild", style)
+	}
 	return &textInputHost{mirror: mirror}
 }
 
@@ -134,7 +145,14 @@ func (host *textInputHost) show(element js.Value) {
 	style.Set("outline", "none")
 	style.Set("background", "transparent")
 	style.Set("color", cssPlatformColor(host.input.Color))
-	style.Set("caretColor", cssPlatformColor(host.input.Color))
+	caretColor := cssPlatformColor(host.input.Color)
+	if host.input.HideNativeOverlays {
+		caretColor = "transparent"
+		element.Call("setAttribute", "data-viva-hide-native-overlays", "true")
+	} else {
+		element.Call("removeAttribute", "data-viva-hide-native-overlays")
+	}
+	style.Set("caretColor", caretColor)
 	style.Set("font", cssFont(host.input.FontSize, 0))
 	style.Set("opacity", "1")
 	style.Set("overflow", "hidden")

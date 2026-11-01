@@ -10,6 +10,7 @@ static size_t drop_last_length;
 
 void vivaOpenURL(const char *url) {}
 int vivaApplicationQuitRequested(void) { return 0; }
+int vivaApplicationReopenRequested(void) { return 0; }
 int vivaFileDropEvent(uintptr_t handle, void *view, int phase, double x, double y, const char *paths, size_t length) {
     drop_calls++;
     drop_last_phase = phase;
@@ -28,6 +29,7 @@ void vivaRedrawRequested(uintptr_t handle, void *view) {}
 void vivaKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int repeat, const unsigned char *utf8, size_t utf8Length) {}
 void vivaRawKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int flags, unsigned int code, const unsigned char *utf8, size_t utf8Length, const unsigned char *typed, size_t typedLength) {}
 void vivaFocusLost(uintptr_t handle, void *view) {}
+int vivaTerminalCells(uint32_t character) { return 1; }
 int vivaAccessibilityAction(uintptr_t handle, void *view, uint64_t node, int action, double number, const unsigned char *utf8, size_t utf8Length, int start, int end) { return 0; }
 viva_text_line *vivaShapedLine(const unsigned char *utf8, size_t length, double size, double weight) { return viva_text_line_create(utf8, length, size, weight); }
 int vivaShortcutEvent(uintptr_t handle, void *view, int modifiers, int repeat, const unsigned char *utf8, size_t utf8Length) { return 0; }

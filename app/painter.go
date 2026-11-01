@@ -72,6 +72,9 @@ type painter struct {
 	lastTexts       []ui.Text
 	lastRuns        []ui.TextRun // the runs lastTexts refer to, copied out of the application's memory
 	lastImages      []ui.Image
+	views           []platform.NativeView // the native views of this publish
+	lastViews       []platform.NativeView // the ones last sent
+	covers          []ui.Rect             // backing of the views' Covers
 	stateBySlot     []instanceState
 	// layerShift is 1 while the frame has a backdrop, which takes platform layer
 	// zero; every canvas layer then travels one higher. It is 0 otherwise.
@@ -828,6 +831,10 @@ func (painter *painter) publish() (platform.Frame, error) {
 		frame.TextLabels = painter.labels
 	}
 
+	if views, changed := painter.syncNativeViews(); changed {
+		frame.NativeViews = views
+	}
+
 	regionsUnchanged := painter.hitStructuresUnchanged()
 	if regionsUnchanged {
 		painter.reusedHits++
@@ -857,6 +864,63 @@ func (painter *painter) publish() (platform.Frame, error) {
 	// peak does not become the application's permanent footprint.
 	painter.trim()
 	return frame, nil
+}
+
+// syncNativeViews works out where the native views are this frame, inside their clips, and
+// reports them when they differ from the ones the platform has. The slice is never nil, so a frame
+// that took the last view away is told from one that says nothing.
+func (painter *painter) syncNativeViews() ([]platform.NativeView, bool) {
+	painter.views = painter.views[:0]
+	painter.covers = painter.covers[:0]
+	for _, view := range painter.canvas.NativeViews() {
+		bounds := view.Bounds
+		if view.HasClip {
+			left, top := max(bounds.X, view.ClipOf.X), max(bounds.Y, view.ClipOf.Y)
+			right := min(bounds.X+bounds.Width, view.ClipOf.X+view.ClipOf.Width)
+			bottom := min(bounds.Y+bounds.Height, view.ClipOf.Y+view.ClipOf.Height)
+			if right <= left || bottom <= top {
+				continue
+			}
+			bounds = ui.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+		}
+		native := platform.NativeView{ID: uint32(view.ID), Bounds: bounds, Layer: painter.platformLayer(view.Layer)}
+		start := len(painter.covers)
+		painter.covers = painter.coversOf(view.Layer, bounds, painter.covers)
+		native.Covers = painter.covers[start:len(painter.covers):len(painter.covers)]
+		painter.views = append(painter.views, native)
+	}
+	if slices.EqualFunc(painter.views, painter.lastViews, sameNativeView) {
+		return nil, false
+	}
+	if painter.views == nil {
+		painter.views = []platform.NativeView{}
+	}
+	painter.lastViews = painter.lastViews[:0]
+	for _, view := range painter.views {
+		view.Covers = slices.Clone(view.Covers)
+		painter.lastViews = append(painter.lastViews, view)
+	}
+	return painter.views, true
+}
+
+// coversOf lists the hit regions on layers above a view that lie over it, cut to it.
+func (painter *painter) coversOf(layer uint16, bounds ui.Rect, into []ui.Rect) []ui.Rect {
+	for _, hit := range painter.canvas.Hits() {
+		if hit.Layer <= layer {
+			continue
+		}
+		left, top := max(bounds.X, hit.Bounds.X), max(bounds.Y, hit.Bounds.Y)
+		right := min(bounds.X+bounds.Width, hit.Bounds.X+hit.Bounds.Width)
+		bottom := min(bounds.Y+bounds.Height, hit.Bounds.Y+hit.Bounds.Height)
+		if right > left && bottom > top {
+			into = append(into, ui.Rect{X: left, Y: top, Width: right - left, Height: bottom - top})
+		}
+	}
+	return into
+}
+
+func sameNativeView(a, b platform.NativeView) bool {
+	return a.ID == b.ID && a.Bounds == b.Bounds && a.Layer == b.Layer && slices.Equal(a.Covers, b.Covers)
 }
 
 // trim gives back the backing arrays of the painter's per-frame buffers when
@@ -1009,6 +1073,7 @@ func (painter *painter) focusedTextField() (TextInputContext, ui.TextPlacement) 
 				Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
 				NavigationKeys: hit.NavigationKeys,
 				TextBounds:     hit.TextBounds, FontSize: hit.TextSize, TextColor: hit.TextColor,
+				HideNativeOverlays: hit.HideNativeOverlays,
 			}, hit.Placement
 		}
 	}
@@ -1080,7 +1145,8 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		Width: bounds.Width, Height: bounds.Height,
 		FontSize: fontSize, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal,
 		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace,
-		NavigationKeys: input.NavigationKeys || context.NavigationKeys,
+		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
+		HideNativeOverlays: input.HideNativeOverlays || context.HideNativeOverlays,
 		Color: platform.Color{
 			Red: float64(tint.Red), Green: float64(tint.Green),
 			Blue: float64(tint.Blue), Alpha: float64(tint.Alpha),
@@ -1161,6 +1227,7 @@ func samePlatformTextInput(left, right platform.TextInput) bool {
 		left.FontSize == right.FontSize && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace &&
 		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases &&
 		left.NavigationKeys == right.NavigationKeys &&
+		left.HideNativeOverlays == right.HideNativeOverlays &&
 		left.Placed == right.Placed && left.CaretX == right.CaretX && left.CaretY == right.CaretY &&
 		left.CaretWidth == right.CaretWidth && left.CaretHeight == right.CaretHeight &&
 		left.Color == right.Color && left.State == right.State

@@ -108,7 +108,8 @@ func loadPages(root string) ([]Page, Manifest, error) {
 		if file.IsDir() || !strings.HasSuffix(file.Name(), ".go") || strings.HasSuffix(file.Name(), "_test.go") {
 			continue
 		}
-		if file.Name() == "doc.go" || file.Name() == "direction.go" || file.Name() == "menu_typeahead.go" {
+		if file.Name() == "doc.go" || file.Name() == "direction.go" ||
+			file.Name() == "menu_typeahead.go" || file.Name() == "code_diff_model.go" {
 			continue
 		}
 		id := strings.ReplaceAll(strings.TrimSuffix(file.Name(), ".go"), "_", "-")

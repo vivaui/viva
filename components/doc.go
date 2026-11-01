@@ -65,6 +65,8 @@
 //     they do not fit.
 //   - Button group: `BeginButtonGroup` joins a row of buttons into one
 //     bordered control.
+//   - Split button: `BeginSplitButton` joins a primary action to a fixed-width,
+//     independently focusable menu trigger while sharing one visual surface.
 //   - Toggle: `BeginToggle` paints a two-state icon button.
 //   - Toggle group: `BeginToggleGroup` paints a set of selectable toggles;
 //     `ToggleGroupKeyDown` wires arrow-key movement.
@@ -94,6 +96,9 @@
 //     click and sizes a box that grows with its text.
 //   - Code editor: `CodeEditor` adds caller-provided syntax colors and a draggable
 //     scrollbar to TextareaLayout, retaining native selection and IME geometry.
+//   - Code diff: `CodeDiff` paints an aligned, syntax-highlighted comparison
+//     with one read-only source and an editable right source; `DiffCodeLines`
+//     produces its bounded line alignment and statistics.
 //   - Image preview: `PaintImageView` clips an immutable bitmap with fit, zoom
 //     and pan; actual size maps one bitmap pixel to one device pixel at any DPI.
 //   - One-time code: `PaintInputOTP` paints segmented code entry;

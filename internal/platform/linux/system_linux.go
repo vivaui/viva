@@ -46,6 +46,9 @@ type SaveFileOptions struct {
 }
 
 func ClipboardText() (string, error) {
+	if hooks := shellHooks.Load(); hooks != nil {
+		return hooks.clipboardText()
+	}
 	if win := activeWindow.Load(); win != nil {
 		win.mu.Lock()
 		if activeWindow.Load() == win && win.connection != 0 && win.ownsClipboard {
@@ -93,6 +96,9 @@ func readSelectionTextX11(name string) (string, error) {
 // It asks the owner for its TARGETS, so it waits for another application for up
 // to clipboardWait; a clipboard this process owns holds text only.
 func HasClipboardImage() bool {
+	if hooks := shellHooks.Load(); hooks != nil {
+		return hooks.hasClipboardImage()
+	}
 	has, _ := clipboardOffersImage()
 	return has
 }
@@ -140,6 +146,9 @@ func clipboardOffersImage() (bool, error) {
 // owner hands it over in one property or streams it with INCR (what a screenshot
 // of any size usually needs). The total is capped at MaxClipboardImageBytes.
 func ClipboardImagePNG() ([]byte, error) {
+	if hooks := shellHooks.Load(); hooks != nil {
+		return hooks.clipboardImagePNG()
+	}
 	if ownsClipboardText() {
 		return nil, platform.ErrNoClipboardImage
 	}
@@ -357,6 +366,9 @@ func SetClipboardText(value string) error {
 	if !utf8.ValidString(value) {
 		return fmt.Errorf("linux: clipboard text is not valid UTF-8")
 	}
+	if hooks := shellHooks.Load(); hooks != nil {
+		return hooks.setClipboardText(value)
+	}
 	win := activeWindow.Load()
 	if win == nil {
 		return fmt.Errorf("linux: clipboard ownership requires a running window")
@@ -386,6 +398,9 @@ func SetClipboardText(value string) error {
 }
 
 func SetCursorShape(shape uint8) error {
+	if hooks := shellHooks.Load(); hooks != nil {
+		return hooks.setCursorShape(shape)
+	}
 	glyphs := [...]uint16{68, 152, 60, 34, 150, 108, 116, 134, 136, 88}
 	if int(shape) >= len(glyphs) {
 		return fmt.Errorf("linux: invalid cursor %d", shape)

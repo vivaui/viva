@@ -62,6 +62,9 @@ func SetPrimaryText(value string) error {
 	if !utf8.ValidString(value) {
 		return fmt.Errorf("linux: selection text is not valid UTF-8")
 	}
+	if hooks := shellHooks.Load(); hooks != nil {
+		return hooks.setPrimaryText(value)
+	}
 	win := activeWindow.Load()
 	if win == nil {
 		return fmt.Errorf("linux: selection ownership requires a running window")
@@ -101,6 +104,9 @@ func SetPrimaryText(value string) error {
 
 // PrimaryText is the PRIMARY selection's text, empty when nobody owns it.
 func PrimaryText() (string, error) {
+	if hooks := shellHooks.Load(); hooks != nil {
+		return hooks.primaryText()
+	}
 	if win := activeWindow.Load(); win != nil {
 		win.mu.Lock()
 		if activeWindow.Load() == win && win.connection != 0 && win.selections.ownsPrimary {

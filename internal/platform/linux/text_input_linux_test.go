@@ -51,6 +51,37 @@ func TestLinuxTextEventCarriesNativeStateThroughApplicationRedraw(t *testing.T) 
 	}
 }
 
+func TestLinuxSelfPaintingInputHidesSelectionAndCaretButKeepsComposition(t *testing.T) {
+	state := &linuxTextInput{
+		config: &platform.Config{DynamicTextInput: true},
+		engine: fixedAdvanceEngine{advance: 10},
+	}
+	inputState := platform.TextInput{
+		X: 10, Y: 20, Width: 120, Height: 28, FontSize: 16,
+		HideNativeOverlays: true,
+		Color:              platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+		State: platform.TextState{
+			Value: "selected", Selection: text.Range{Start: 2, End: 7},
+			Composing: true, Composition: text.Range{Start: 2, End: 7},
+		},
+		OnEvent: func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
+	}
+	frame, changed, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}})
+	if err != nil || !changed {
+		t.Fatalf("prepare: changed=%t err=%v", changed, err)
+	}
+	base := len(state.baseRectangles)
+	if frame.Rectangles[base] != (render.Rectangle{}) || frame.Rectangles[base+1] != (render.Rectangle{}) {
+		t.Fatalf("native selection/caret = %+v / %+v, want none", frame.Rectangles[base], frame.Rectangles[base+1])
+	}
+	if frame.Rectangles[base+2].Bounds.Width <= 0 {
+		t.Fatalf("composition underline = %+v, want native IME feedback", frame.Rectangles[base+2])
+	}
+	if state.caretShown() {
+		t.Fatal("self-painting input still requested a native caret")
+	}
+}
+
 func TestLinuxTerminalTextWithoutPreeditSkipsRedraw(t *testing.T) {
 	handled := 0
 	redraws := 0
@@ -336,5 +367,150 @@ func TestPrimaryCandidateIsTheNewlySelectedText(t *testing.T) {
 		if got != test.want || ok != test.ok {
 			t.Errorf("%s: got %q,%v want %q,%v", test.name, got, ok, test.want, test.ok)
 		}
+	}
+}
+
+// A terminal's composition stands on the terminal's cells, as its grid draws the text once it is
+// committed: with the font's own advances a wide character would be narrower than its two cells
+// and the text would jump.
+func TestLinuxTerminalPreeditIsLaidOnTheCellsAndUnderlined(t *testing.T) {
+	state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{}}
+	input := platform.TextInput{
+		X: 20, Y: 40, Width: 300, Height: 16, FontSize: 13, Terminal: true,
+		Color:   platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+		State:   platform.TextState{Value: "ni你好", Composing: true, Composition: text.Range{End: 4}},
+		OnEvent: func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
+	}
+	merged, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &input}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	label := merged.TextLabels[len(merged.TextLabels)-1]
+	cell := platform.TerminalPreeditCellWidth(13)
+	if !label.Mono || label.CellWidth != cell {
+		t.Fatalf("label = mono:%v cell:%v, want the terminal's cell %v", label.Mono, label.CellWidth, cell)
+	}
+	want := []ui.TextRun{
+		{Column: 0, Bytes: 2, Cells: 2, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+		{Column: 2, Bytes: 3, Cells: 2, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+		{Column: 4, Bytes: 3, Cells: 2, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+	}
+	if !reflect.DeepEqual(label.Runs, want) {
+		t.Fatalf("runs = %+v, want %+v", label.Runs, want)
+	}
+	underline := merged.Rectangles[len(merged.Rectangles)-1]
+	if underline.Bounds.X != 20 || underline.Bounds.Width != 6*cell || underline.Bounds.Height <= 0 {
+		t.Fatalf("underline = %+v, want it across the six cells of the composition", underline.Bounds)
+	}
+}
+
+func newEditableLinuxInput(t *testing.T, value string, width float32) (*linuxTextInput, *text.Editor) {
+	t.Helper()
+	editor := text.NewEditor(value)
+	state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{advance: 10}}
+	inputState := platform.TextInput{
+		X: 20, Y: 10, Width: width, Height: 28, FontSize: 16,
+		Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+		State: platform.TextState{Value: value, Selection: editor.Selection()},
+		OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
+			event.Apply(editor)
+			return platform.TextState{Value: editor.String(), Selection: editor.Selection()}, nil
+		},
+	}
+	if _, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}}); err != nil {
+		t.Fatal(err)
+	}
+	return state, editor
+}
+
+// Dragging across a field selects from where the press landed to where the pointer is, also
+// when it has left the field; word and line selection come from repeated presses; nothing
+// moves once the button is up.
+func TestLinuxTextFieldSelectsWithThePointer(t *testing.T) {
+	state, editor := newEditableLinuxInput(t, "hello brave world", 400)
+	pointer := func(kind platform.PointerEventKind, x float32, clicks int) {
+		t.Helper()
+		if _, handled, err := state.pointer(platform.PointerEvent{Kind: kind, Button: ui.PointerButtonPrimary, X: x, Y: 20, ClickCount: clicks}); err != nil {
+			t.Fatal(err)
+		} else if kind == platform.PointerDown && !handled {
+			t.Fatal("a press in the field was not taken")
+		}
+	}
+	pointer(platform.PointerDown, 20+20, 1)
+	pointer(platform.PointerMove, 20+80, 1)
+	if got := editor.Selection(); got != (text.Range{Start: 2, End: 8}) {
+		t.Fatalf("drag selection = %+v", got)
+	}
+	pointer(platform.PointerMove, 900, 1) // far past the field's right edge
+	if got := editor.Selection(); got != (text.Range{Start: 2, End: 17}) {
+		t.Fatalf("drag past the field = %+v, want to the end of the text", got)
+	}
+	pointer(platform.PointerUp, 900, 1)
+	pointer(platform.PointerMove, 20, 1)
+	if got := editor.Selection(); got != (text.Range{Start: 2, End: 17}) {
+		t.Fatalf("a move after release changed the selection to %+v", got)
+	}
+	pointer(platform.PointerDown, 20+80, 2)
+	if got := editor.Selection(); got != (text.Range{Start: 6, End: 11}) {
+		t.Fatalf("double press selected %+v, want the word", got)
+	}
+	pointer(platform.PointerUp, 20+80, 2)
+	pointer(platform.PointerDown, 20+80, 3)
+	if got := editor.Selection(); got != (text.Range{Start: 0, End: 17}) {
+		t.Fatalf("triple press selected %+v, want everything", got)
+	}
+}
+
+// A field takes the editing chords itself, ahead of the application's shortcuts.
+func TestLinuxTextFieldTakesEditingChords(t *testing.T) {
+	state, editor := newEditableLinuxInput(t, "hello brave world", 400)
+	selectAll := platform.KeyEvent{Modifiers: input.ModifierControl, Text: "a"}
+	if !state.ownsChord(selectAll) {
+		t.Fatal("Ctrl+A is left to the application's shortcuts")
+	}
+	if _, handled, err := state.key(selectAll); err != nil || !handled {
+		t.Fatalf("Ctrl+A: handled=%v err=%v", handled, err)
+	}
+	if got := editor.Selection(); got != (text.Range{Start: 0, End: 17}) {
+		t.Fatalf("Ctrl+A selected %+v", got)
+	}
+	if _, handled, err := state.key(platform.KeyEvent{Key: input.KeyHome}); err != nil || !handled {
+		t.Fatalf("Home: handled=%v err=%v", handled, err)
+	}
+	if got := editor.Selection(); got != (text.Range{}) {
+		t.Fatalf("Home left the selection at %+v", got)
+	}
+	state.state.Composing = true
+	if state.ownsChord(selectAll) {
+		t.Fatal("a field composing text kept Ctrl+A from the input method")
+	}
+}
+
+// A selection longer than the field is painted only inside it, and the text shifts so the
+// caret stays in view.
+func TestLinuxLongTextScrollsAndKeepsTheSelectionInsideTheField(t *testing.T) {
+	long := "example-text-0123456789 example-text-0123456789 example-text-0123456789"
+	state, _ := newEditableLinuxInput(t, long, 120)
+	if _, handled, err := state.key(platform.KeyEvent{Modifiers: input.ModifierControl, Text: "a"}); err != nil || !handled {
+		t.Fatalf("select all: handled=%v err=%v", handled, err)
+	}
+	if err := state.rebuild(); err != nil {
+		t.Fatal(err)
+	}
+	field := state.input
+	label := state.labels[len(state.baseLabels)]
+	if !label.Clipped || label.Clip != (ui.Rect{X: field.X, Y: field.Y, Width: field.Width, Height: field.Height}) {
+		t.Fatalf("the text is not clipped to the field: %+v", label)
+	}
+	if state.scroll <= 0 || label.X != field.X-state.scroll {
+		t.Fatalf("the end of the text is out of view: scroll %v label at %v", state.scroll, label.X)
+	}
+	selection := state.rectangles[len(state.baseRectangles)].Bounds
+	if selection.Width <= 0 || selection.X < field.X || selection.X+selection.Width > field.X+field.Width {
+		t.Fatalf("the selection %+v leaves the field %v..%v", selection, field.X, field.X+field.Width)
+	}
+	caret := state.caret.Bounds
+	if caret.X < field.X || caret.X+caret.Width > field.X+field.Width {
+		t.Fatalf("the caret %+v is outside the field", caret)
 	}
 }

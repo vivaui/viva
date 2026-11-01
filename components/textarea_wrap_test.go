@@ -171,7 +171,7 @@ func TestTextareaSelectionRunsAcrossRows(t *testing.T) {
 	for index, rectangle := range box.canvas.Rectangles() {
 		// The first rectangle is the field's border, which a focused field
 		// paints in the same accent color.
-		if index > 0 && rectangle.Color == box.theme.Primary {
+		if index > 0 && rectangle.Color == box.theme.Selection {
 			selected = append(selected, rectangle.Bounds.Y)
 		}
 	}

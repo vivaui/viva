@@ -245,11 +245,11 @@ type linuxStatusItem struct {
 }
 
 // AddStatusItem registers an icon with the desktop's StatusNotifier host.
-func (application *linuxApplication) AddStatusItem(config platform.StatusItemConfig) (platform.StatusItem, error) {
+func (services *desktopServices) AddStatusItem(config platform.StatusItemConfig) (platform.StatusItem, error) {
 	if !config.Icon.Valid() {
 		return nil, errors.New("linux: status icon pixels do not match its size")
 	}
-	if application.status == nil {
+	if services.status == nil {
 		conn, err := dbus.DialSession()
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", platform.ErrStatusAreaUnavailable, err)
@@ -262,10 +262,10 @@ func (application *linuxApplication) AddStatusItem(config platform.StatusItemCon
 			conn.Close()
 			return nil, err
 		}
-		application.status = &statusNotifier{conn: conn, items: make(map[string]*linuxStatusItem), post: application.post}
-		application.rebuildPoll()
+		services.status = &statusNotifier{conn: conn, items: make(map[string]*linuxStatusItem), post: services.host.post}
+		services.host.rebuildPoll()
 	}
-	notifier := application.status
+	notifier := services.status
 	notifier.nextID++
 	item := &linuxStatusItem{
 		notifier: notifier, tooltip: config.Tooltip, icon: config.Icon, onClick: config.OnClick,
@@ -279,27 +279,27 @@ func (application *linuxApplication) AddStatusItem(config platform.StatusItemCon
 	request.Uint32(requestDoNotQueue)
 	reply, err := notifier.conn.Call(busName, "/org/freedesktop/DBus", busName, "RequestName", "su", request.Bytes())
 	if err != nil {
-		application.dropStatusIfEmpty()
+		services.dropStatusIfEmpty()
 		return nil, err
 	}
 	if reply.Args().Uint32() != 1 {
-		application.dropStatusIfEmpty()
+		services.dropStatusIfEmpty()
 		return nil, fmt.Errorf("linux: the bus name %s is taken", item.name)
 	}
 	notifier.items[item.name] = item
 	if err := notifier.register(item); err != nil {
 		notifier.release(item)
 		delete(notifier.items, item.name)
-		application.dropStatusIfEmpty()
+		services.dropStatusIfEmpty()
 		return nil, fmt.Errorf("%w: %v", platform.ErrStatusAreaUnavailable, err)
 	}
 	return item, nil
 }
 
 // dropStatusIfEmpty closes a bus connection that has no item to serve.
-func (application *linuxApplication) dropStatusIfEmpty() {
-	if status := application.status; status != nil && len(status.items) == 0 {
-		application.closeStatus()
+func (services *desktopServices) dropStatusIfEmpty() {
+	if status := services.status; status != nil && len(status.items) == 0 {
+		services.closeStatus()
 	}
 }
 
@@ -325,22 +325,22 @@ func (notifier *statusNotifier) release(item *linuxStatusItem) {
 }
 
 // closeStatus drops the bus connection, and with it every icon.
-func (application *linuxApplication) closeStatus() {
-	if application.status != nil {
-		application.status.conn.Close()
-		application.status = nil
-		application.rebuildPoll()
+func (services *desktopServices) closeStatus() {
+	if services.status != nil {
+		services.status.conn.Close()
+		services.status = nil
+		services.host.rebuildPoll()
 	}
 }
 
 // serveStatus handles what the bus has sent: calls to an icon, and the watcher
 // coming back.
-func (application *linuxApplication) serveStatus() {
-	notifier := application.status
+func (services *desktopServices) serveStatus() {
+	notifier := services.status
 	messages, err := notifier.conn.Receive()
 	if err != nil {
 		// The session bus went away; the application goes on without its icons.
-		application.closeStatus()
+		services.closeStatus()
 		return
 	}
 	for _, message := range messages {
@@ -364,8 +364,8 @@ func (application *linuxApplication) serveStatus() {
 }
 
 // drainStatusRemovals releases the names of items removed from other goroutines.
-func (application *linuxApplication) drainStatusRemovals() {
-	notifier := application.status
+func (services *desktopServices) drainStatusRemovals() {
+	notifier := services.status
 	if notifier == nil {
 		return
 	}
@@ -379,7 +379,7 @@ func (application *linuxApplication) drainStatusRemovals() {
 			delete(notifier.items, name)
 		}
 	}
-	application.dropStatusIfEmpty()
+	services.dropStatusIfEmpty()
 }
 
 // handle answers one call made to an icon.

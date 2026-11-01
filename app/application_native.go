@@ -78,6 +78,12 @@ func (host nativeHost) SetQuitRequestHandler(handler func()) {
 	}
 }
 
+func (host nativeHost) SetReopenHandler(handler func()) {
+	if native, ok := host.native.(interface{ SetReopenHandler(func()) }); ok {
+		native.SetReopenHandler(handler)
+	}
+}
+
 func (host nativeHost) AddStatusItem(config StatusItemConfig) (StatusItemControl, error) {
 	var menu func() []platform.MenuItem
 	if config.Menu != nil {

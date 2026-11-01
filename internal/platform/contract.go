@@ -98,6 +98,12 @@ type Config struct {
 	// that Viva draws need: see WindowActions. It is set for a WindowCustomTitlebar
 	// window on a platform whose system draws no controls for it.
 	Actions *WindowActions
+	// Web, when set, is filled by an adapter that can host web pages inside the window (see
+	// WebHost); an adapter that cannot leaves its Open nil.
+	Web *WebHost
+	// NativeViews are the places of the native views at the first paint; Frame.NativeViews says
+	// them afterwards. A view whose WebView is not open yet is placed once it is.
+	NativeViews []NativeView
 	// Anchor is where a WindowPanel appears: beside the status item that was
 	// clicked. Without one the panel is centered on the screen.
 	Anchor    ScreenRect
@@ -429,6 +435,9 @@ type Frame struct {
 	TextLabels    []TextLabel
 	Accessibility []AccessibilityNode
 	TextInput     TextInputUpdate
+	// NativeViews, when non-nil, replaces the places the window shows its native views (see
+	// NativeView); an empty non-nil slice takes them all away.
+	NativeViews []NativeView
 }
 
 // TextInputUpdate explicitly preserves, replaces, or disables the focused
@@ -641,6 +650,10 @@ type TextInput struct {
 	Color                                   Color
 	State                                   TextState
 	OnEvent                                 TextHandler
+	// HideNativeOverlays keeps the platform editor's caret and selection
+	// invisible while preserving text input, IME and clipboard behavior.
+	// Canvas components that draw those overlays themselves set it.
+	HideNativeOverlays bool
 }
 
 // TextState is the complete platform-neutral state mirrored by NSTextInputClient.

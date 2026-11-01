@@ -129,6 +129,9 @@ func TestTextareaCanHideThePlatformEditorAndPaintItsOwnCaret(t *testing.T) {
 	if hidden.TextColor.Alpha != 0 {
 		t.Errorf("HideEditorText left the editor's text visible: %+v", hidden.TextColor)
 	}
+	if !hidden.HideNativeOverlays {
+		t.Error("HideEditorText did not hide the platform caret and selection")
+	}
 	if len(canvas.Texts()) == 0 {
 		t.Error("the component did not paint the text it hid from the platform")
 	}
@@ -142,8 +145,9 @@ func TestTextareaCanHideThePlatformEditorAndPaintItsOwnCaret(t *testing.T) {
 }
 
 func TestSelectedTextIsDrawnOnAnOpaqueSelection(t *testing.T) {
-	// The selected text is drawn in PrimaryForeground, which only reads on a
-	// solid Primary: a translucent selection left dark text on mid grey.
+	// The selected text uses the semantic selection pair rather than the button
+	// accent: a product can use a neutral action colour and still need a
+	// readable editor selection.
 	theme := ui.DarkTheme()
 	for name, paint := range map[string]func(*ui.Canvas){
 		"textarea": func(canvas *ui.Canvas) {
@@ -155,14 +159,22 @@ func TestSelectedTextIsDrawnOnAnOpaqueSelection(t *testing.T) {
 	} {
 		var canvas ui.Canvas
 		paint(&canvas)
-		found := false
+		foundBackground, foundForeground := false, false
 		for _, rectangle := range canvas.Rectangles() {
-			if rectangle.Color == theme.Primary {
-				found = true
+			if rectangle.Color == theme.Selection {
+				foundBackground = true
 			}
 		}
-		if !found {
-			t.Errorf("%s: no selection filled with the opaque Primary color", name)
+		for _, text := range canvas.Texts() {
+			if text.Style.Color == theme.SelectionForeground {
+				foundForeground = true
+			}
+		}
+		if !foundBackground {
+			t.Errorf("%s: no selection filled with the semantic Selection color", name)
+		}
+		if !foundForeground {
+			t.Errorf("%s: selected text did not use SelectionForeground", name)
 		}
 	}
 }
