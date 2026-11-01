@@ -182,7 +182,8 @@ m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
   (`f.Column().Absolute().Right(16).Bottom(16).Gap(8)`).
 - Your own painting inside a laid-out page: `Slot()`, then `Rect()` after `f.End()`. Use
   `f := view.Begin(canvas, theme, bounds)` ... `f.End()` instead of `Draw` when you need
-  the rectangles before you paint into them.
+  the rectangles before you paint into them. `f.Bounds()` is the area the page was laid
+  out in, known before `End`: a tooltip or a highlight uses it to stay inside its region.
 - A slider (volume, zoom, a threshold): a `flex.SliderState` in the model holds the number in `Value` (set it before the first frame), and
   `if f.Slider(volumeID, &m.volume).Range(0, 1).Step(0.05).Label("Volume").Changed() { m.player.SetVolume(m.volume.Value) }` draws it
   (`Range` defaults to 0..100, `Step` is optional, `Vertical()` makes it tall, `Disabled(cond)` dims it, 16 high and as wide as its column

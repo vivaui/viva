@@ -330,6 +330,12 @@ func (f *Frame) trim() {
 func (f *Frame) Canvas() *ui.Canvas { return f.canvas }
 func (f *Frame) Theme() ui.Theme    { return f.theme }
 
+// Bounds is the rectangle this frame lays out in, as the caller gave it to Draw
+// or Begin. Custom painting (a tooltip, a highlight) uses it to stay inside the
+// region it belongs to: the frame's bounds are known before End, unlike a
+// child's rectangle.
+func (f *Frame) Bounds() ui.Rect { return f.bounds }
+
 func (f *Frame) add(k kind) int32 {
 	index := int32(len(f.nodes))
 	f.nodes = append(f.nodes, node{kind: k, parent: f.parent, first: -1, last: -1, next: -1, items: Auto})
