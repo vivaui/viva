@@ -5,6 +5,7 @@ package app
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/vivaui/viva/internal/platform"
@@ -56,6 +57,7 @@ func RunCanvas(config Config, canvas *ui.Canvas) error {
 		painter.scheduleFrame = frames.request
 		painter.scheduleIfAnimating()
 	}
+	normalized.Web.repaintWith(painter)
 	var resizeHandler platform.ResizeHandler
 	var pointerHandler platform.PointerHandler
 	var keyHandler platform.KeyHandler
@@ -99,6 +101,8 @@ func RunCanvas(config Config, canvas *ui.Canvas) error {
 			Red: normalized.ClearColor.Red, Green: normalized.ClearColor.Green,
 			Blue: normalized.ClearColor.Blue, Alpha: normalized.ClearColor.Alpha,
 		},
+		Web:              normalized.Web.bind(),
+		NativeViews:      slices.Clone(painter.lastViews),
 		Rectangles:       painter.renderer.Rectangles(),
 		TextLabels:       painter.labels,
 		Accessibility:    painter.accessibility,
@@ -189,6 +193,7 @@ func prepareNativeWindow(config Config, canvas *ui.Canvas) (platform.Config, fun
 		painter.scheduleFrame = frames.request
 		painter.scheduleIfAnimating()
 	}
+	normalized.Web.repaintWith(painter)
 	var resizeHandler platform.ResizeHandler
 	var pointerHandler platform.PointerHandler
 	var keyHandler platform.KeyHandler
@@ -232,6 +237,7 @@ func prepareNativeWindow(config Config, canvas *ui.Canvas) (platform.Config, fun
 			Red: normalized.ClearColor.Red, Green: normalized.ClearColor.Green,
 			Blue: normalized.ClearColor.Blue, Alpha: normalized.ClearColor.Alpha,
 		},
+		Web: normalized.Web.bind(), NativeViews: slices.Clone(painter.lastViews),
 		Rectangles: painter.renderer.Rectangles(), TextLabels: painter.labels,
 		Accessibility: painter.accessibility, OnResize: resizeHandler,
 		OnFrameChange: frameChangeHandler(normalized.OnFrameChange),

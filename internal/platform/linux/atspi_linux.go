@@ -15,10 +15,30 @@ import (
 type atspiHost struct {
 	bridge  *atspiBridge
 	watcher *dbus.Conn
-	windows map[*linuxWindowState]*atspiWindow
+	windows map[atspiShell]*atspiWindow
 	// latest is the newest nodes of each window while nothing is connected: the
 	// application's own slice, kept by header, valid on this thread.
-	latest map[*linuxWindowState][]platform.AccessibilityNode
+	latest map[atspiShell][]platform.AccessibilityNode
+}
+
+// atspiShell is a window the host serves. Both window shells implement it.
+type atspiShell interface {
+	// atspiConfig is the window's configuration: its title, its first nodes and the handler
+	// of what a reader asks of them.
+	atspiConfig() *platform.Config
+	// atspiGeometry is where the client area lies on the screen, in device pixels, and the
+	// window's scale. A shell that cannot know the position says 0, 0.
+	atspiGeometry() (x, y int, scale float32)
+	// atspiPresent shows the frame an accessibility request answered with.
+	atspiPresent(platform.Frame) error
+}
+
+// atspiOwner is the application the host serves: the event loop that polls its descriptor.
+type atspiOwner interface {
+	// rebuildPoll tells the loop the host's descriptor changed.
+	rebuildPoll()
+	fail(error)
+	atspiShells() []atspiShell
 }
 
 const (
@@ -76,35 +96,35 @@ func (host *atspiHost) engaged() bool {
 }
 
 // atspiOpened is called when a window has opened. The first one makes the
-// application ask the desktop whether accessibility is on.
-func (application *linuxApplication) atspiOpened(state *linuxWindowState) {
+// application ask the desktop whether accessibility is on. It returns the host.
+func atspiOpened(host *atspiHost, owner atspiOwner, target atspiShell) *atspiHost {
 	if os.Getenv("VIVA_ACCESSIBILITY") == "0" {
-		return
+		return host
 	}
-	host, first := application.atspi, false
+	first := false
 	if host == nil {
 		host, first = &atspiHost{
-			windows: make(map[*linuxWindowState]*atspiWindow),
-			latest:  make(map[*linuxWindowState][]platform.AccessibilityNode),
+			windows: make(map[atspiShell]*atspiWindow),
+			latest:  make(map[atspiShell][]platform.AccessibilityNode),
 		}, true
-		application.atspi = host
 	}
-	host.latest[state] = state.config.Accessibility
+	host.latest[target] = target.atspiConfig().Accessibility
 	if first {
-		host.probe(application)
+		host.probe(owner)
 	}
 	if !host.engaged() {
-		delete(host.latest, state)
-		return
+		delete(host.latest, target)
+		return host
 	}
-	if host.bridge != nil && host.windows[state] == nil {
-		host.attach(application, state)
+	if host.bridge != nil && host.windows[target] == nil {
+		host.attach(owner, target)
 	}
-	application.rebuildPoll()
+	owner.rebuildPoll()
+	return host
 }
 
 // probe asks the session bus about accessibility and connects, or waits.
-func (host *atspiHost) probe(application *linuxApplication) {
+func (host *atspiHost) probe(owner atspiOwner) {
 	session, err := dbus.DialSession()
 	if err != nil {
 		return
@@ -118,7 +138,7 @@ func (host *atspiHost) probe(application *linuxApplication) {
 		address, err := atspiAddress(session)
 		session.Close()
 		if err == nil {
-			host.connect(application, address)
+			host.connect(owner, address)
 		}
 		return
 	}
@@ -132,7 +152,7 @@ func (host *atspiHost) probe(application *linuxApplication) {
 }
 
 // connect joins the accessibility bus and registers the application.
-func (host *atspiHost) connect(application *linuxApplication, address string) bool {
+func (host *atspiHost) connect(owner atspiOwner, address string) bool {
 	conn, err := dbus.Dial(address)
 	if err != nil {
 		return false
@@ -143,79 +163,71 @@ func (host *atspiHost) connect(application *linuxApplication, address string) bo
 		return false
 	}
 	host.bridge = bridge
-	for _, state := range application.windows {
-		host.attach(application, state)
+	for _, target := range owner.atspiShells() {
+		host.attach(owner, target)
 	}
 	return true
 }
 
 // attach gives a window a frame on the bus.
-func (host *atspiHost) attach(application *linuxApplication, state *linuxWindowState) {
-	geometry := func() (int, int, float32) {
-		x, y := state.win.rootOrigin()
-		return int(x), int(y), state.win.displayScale()
-	}
+func (host *atspiHost) attach(owner atspiOwner, target atspiShell) {
 	var act func(platform.AccessibilityRequest) bool
-	if handler := state.config.OnAccessibility; handler != nil {
+	config := target.atspiConfig()
+	if handler := config.OnAccessibility; handler != nil {
 		act = func(request platform.AccessibilityRequest) bool {
-			handled, err := handler(request, func(frame platform.Frame) error { return state.router.present(frame) })
+			handled, err := handler(request, func(frame platform.Frame) error { return target.atspiPresent(frame) })
 			if err != nil {
-				application.fail(err)
+				owner.fail(err)
 				return false
 			}
 			return handled
 		}
 	}
-	host.windows[state] = host.bridge.addWindow(state.config.Title, host.latest[state], geometry, act)
+	host.windows[target] = host.bridge.addWindow(config.Title, host.latest[target], target.atspiGeometry, act)
 }
 
 // atspiFrame hands the host the accessibility nodes of a frame.
-func (application *linuxApplication) atspiFrame(state *linuxWindowState, nodes []platform.AccessibilityNode) {
-	host := application.atspi
+func (host *atspiHost) frame(target atspiShell, nodes []platform.AccessibilityNode) {
 	if !host.engaged() {
 		return
 	}
-	host.latest[state] = nodes
-	if window := host.windows[state]; window != nil && host.bridge != nil {
+	host.latest[target] = nodes
+	if window := host.windows[target]; window != nil && host.bridge != nil {
 		host.bridge.update(window, nodes)
 	}
 }
 
-// atspiActive reports a window gaining or losing the keyboard.
-func (application *linuxApplication) atspiActive(state *linuxWindowState, active bool) {
-	host := application.atspi
+// active reports a window gaining or losing the keyboard.
+func (host *atspiHost) active(target atspiShell, active bool) {
 	if host == nil || host.bridge == nil {
 		return
 	}
-	if window := host.windows[state]; window != nil {
+	if window := host.windows[target]; window != nil {
 		host.bridge.setActive(window, active)
 	}
 }
 
-// atspiClosed removes a closed window.
-func (application *linuxApplication) atspiClosed(state *linuxWindowState) {
-	host := application.atspi
+// closed removes a closed window.
+func (host *atspiHost) closed(target atspiShell) {
 	if host == nil {
 		return
 	}
-	delete(host.latest, state)
-	if window := host.windows[state]; window != nil {
+	delete(host.latest, target)
+	if window := host.windows[target]; window != nil {
 		if host.bridge != nil {
 			host.bridge.removeWindow(window)
 		}
-		delete(host.windows, state)
+		delete(host.windows, target)
 	}
 }
 
-// atspiClose lets go of the host's connections.
-func (application *linuxApplication) atspiClose() {
-	host := application.atspi
+// close lets go of the host's connections.
+func (host *atspiHost) close() {
 	if host == nil {
 		return
 	}
 	host.dropBridge()
 	host.dropWatcher()
-	application.atspi = nil
 }
 
 func (host *atspiHost) dropBridge() {
@@ -233,21 +245,20 @@ func (host *atspiHost) dropWatcher() {
 	}
 }
 
-// serveAtspi handles what arrived on the host's connection: a reader's calls,
-// or word that accessibility was switched on.
-func (application *linuxApplication) serveAtspi() {
-	host := application.atspi
+// serve handles what arrived on the host's connection: a reader's calls, or word that
+// accessibility was switched on.
+func (host *atspiHost) serve(owner atspiOwner) {
 	switch {
 	case host.bridge != nil:
 		if err := host.bridge.serve(); err != nil || host.bridge.send == nil {
 			host.dropBridge()
-			application.rebuildPoll()
+			owner.rebuildPoll()
 		}
 	case host.watcher != nil:
 		messages, err := host.watcher.Receive()
 		if err != nil {
 			host.dropWatcher()
-			application.rebuildPoll()
+			owner.rebuildPoll()
 			return
 		}
 		for _, message := range messages {
@@ -259,11 +270,53 @@ func (application *linuxApplication) serveAtspi() {
 				continue
 			}
 			address, err := atspiAddress(host.watcher)
-			if err == nil && host.connect(application, address) {
+			if err == nil && host.connect(owner, address) {
 				host.dropWatcher()
-				application.rebuildPoll()
+				owner.rebuildPoll()
 			}
 			return
 		}
 	}
 }
+
+// The XCB backend's window states are the host's targets.
+
+func (state *linuxWindowState) atspiConfig() *platform.Config { return &state.config }
+
+func (state *linuxWindowState) atspiGeometry() (int, int, float32) {
+	x, y := state.win.rootOrigin()
+	return int(x), int(y), state.win.displayScale()
+}
+
+func (state *linuxWindowState) atspiPresent(frame platform.Frame) error {
+	return state.router.present(frame)
+}
+
+func (application *linuxApplication) atspiShells() []atspiShell {
+	targets := make([]atspiShell, len(application.windows))
+	for index, state := range application.windows {
+		targets[index] = state
+	}
+	return targets
+}
+
+func (services *desktopServices) atspiOpened(shell atspiShell) {
+	services.atspi = atspiOpened(services.atspi, services.host, shell)
+}
+
+func (services *desktopServices) atspiFrame(shell atspiShell, nodes []platform.AccessibilityNode) {
+	services.atspi.frame(shell, nodes)
+}
+
+func (services *desktopServices) atspiActive(shell atspiShell, active bool) {
+	services.atspi.active(shell, active)
+}
+
+func (services *desktopServices) atspiClosed(shell atspiShell) { services.atspi.closed(shell) }
+
+func (services *desktopServices) atspiClose() {
+	services.atspi.close()
+	services.atspi = nil
+}
+
+func (services *desktopServices) serveAtspi() { services.atspi.serve(services.host) }

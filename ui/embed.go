@@ -105,6 +105,12 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 		image.ClipOf, image.HasClip = embedClip(image.ClipOf, image.HasClip, origin, outer, hasOuter)
 		canvas.images = append(canvas.images, image)
 	}
+	for _, view := range child.nativeViews {
+		view.Bounds = translateRect(view.Bounds, origin)
+		view.Layer += layer
+		view.ClipOf, view.HasClip = embedClip(view.ClipOf, view.HasClip, origin, outer, hasOuter)
+		canvas.nativeViews = append(canvas.nativeViews, view)
+	}
 	for _, text := range child.texts {
 		text.Bounds = translateRect(text.Bounds, origin)
 		text.Layer += layer

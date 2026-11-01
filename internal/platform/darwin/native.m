@@ -3364,6 +3364,14 @@ static int viva_navigation_command(SEL selector) {
     return YES;
 }
 
+// A page taking the keyboard is the window losing it as far as the keys that were down go.
+- (BOOL)resignFirstResponder {
+    if (_callbackHandle != 0 && _keyEventsEnabled && self.window.isKeyWindow) {
+        vivaFocusLost(_callbackHandle, self);
+    }
+    return YES;
+}
+
 // acceptsFirstMouse lets the click that brings an inactive window forward also
 // act on the control under it. Without it AppKit spends that click on activating
 // the window, so after a native panel or another app had the focus a button took
@@ -3428,6 +3436,10 @@ static int viva_navigation_command(SEL selector) {
 }
 
 - (void)mouseDown:(NSEvent *)event {
+    // A press in Viva's own content takes the keyboard back from a page that had it.
+    if (self.window.firstResponder != self) {
+        [self.window makeFirstResponder:self];
+    }
     int press = VIVA_PRESS_CLIENT;
     if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR && _callbackHandle != 0) {
         // The application declares where the window moves from (a move region).
@@ -3496,7 +3508,12 @@ static int viva_navigation_command(SEL selector) {
     [self emitPointerEvent:VIVA_POINTER_MOVE fromEvent:event];
 }
 
-- (void)rightMouseDown:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_DOWN fromEvent:event]; }
+- (void)rightMouseDown:(NSEvent *)event {
+    if (self.window.firstResponder != self) {
+        [self.window makeFirstResponder:self];
+    }
+    [self emitPointerEvent:VIVA_POINTER_DOWN fromEvent:event];
+}
 - (void)rightMouseUp:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_UP fromEvent:event]; }
 - (void)rightMouseDragged:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_MOVE fromEvent:event]; }
 - (void)otherMouseDown:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_DOWN fromEvent:event]; }
@@ -5844,6 +5861,20 @@ static VivaAppDelegate *viva_find_window(void *token) {
         }
     }
     return nil;
+}
+
+@interface VivaAppDelegate (VivaWebHost)
+- (NSView *)webHostView;
+@end
+
+@implementation VivaAppDelegate (VivaWebHost)
+- (NSView *)webHostView {
+    return _window.contentView;
+}
+@end
+
+void *viva_application_window_view(void *token) {
+    return [viva_find_window(token) webHostView];
 }
 
 static void viva_collect_closed_windows(void) {

@@ -17,8 +17,9 @@ const driverOpenDirectoryQueueSize = 8
 
 type driverSystem struct {
 	driver         *Driver
-	clipboardImage []byte // PNG bytes; the clipboard holds this or text, never both
-	primary        string // the primary selection (Linux only), private like the clipboard
+	clipboardImage []byte   // PNG bytes; the clipboard holds this or text, never both
+	primary        string   // the primary selection (Linux only), private like the clipboard
+	schemes        []string // the URL schemes SetSchemeHandlers declared as registered
 }
 
 type driverSaveFileResponse struct {
@@ -135,6 +136,27 @@ func driverOpenURL(target string) (error, bool) {
 	system.driver.openedURL = target
 	system.driver.hasOpenedURL = true
 	return nil, true
+}
+
+// SetSchemeHandlers declares which custom URL schemes have a registered
+// application for the rest of this driver's life, replacing the previous
+// declaration; the default is none. SchemeHandlerAvailable answers from it, so a
+// run does not depend on what the machine under test has installed.
+func (driver *Driver) SetSchemeHandlers(schemes ...string) {
+	driver.system.schemes = append(driver.system.schemes[:0], schemes...)
+}
+
+func driverSchemeHandler(scheme string) (available, handled bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return false, false
+	}
+	for _, registered := range system.schemes {
+		if registered == scheme {
+			return true, true
+		}
+	}
+	return false, true
 }
 
 func driverOpenPath(path string) (error, bool) {

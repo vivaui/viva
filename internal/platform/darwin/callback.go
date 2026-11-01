@@ -90,6 +90,9 @@ func vivaViewResized(handle C.uintptr_t, view unsafe.Pointer, width C.double, he
 	if err == nil {
 		err = presentFrame(state, view, frame, true)
 	}
+	if err == nil && state.web != nil {
+		state.web.layout(true) // the view's height moved the pages with it
+	}
 	if err != nil {
 		state.err = err
 		C.viva_view_close(view)
@@ -447,6 +450,9 @@ func vivaCloseRequested(handle C.uintptr_t, view unsafe.Pointer) {
 func vivaWindowClosed(handle C.uintptr_t) {
 	state := cgo.Handle(handle).Value().(*runState)
 	state.closed = true
+	if state.web != nil {
+		state.web.closeAll()
+	}
 	if state.waker != nil && state.redrawHandler != nil {
 		state.waker.Unbind()
 	}
@@ -504,6 +510,9 @@ func presentFrame(state *runState, view unsafe.Pointer, frame Frame, syncRender 
 		if err := presentAccessibility(view, frame.Accessibility); err != nil {
 			return err
 		}
+	}
+	if state != nil && state.web != nil {
+		state.web.frame(frame)
 	}
 	if !frame.Update.Empty() || frame.TextLabels != nil || frame.Accessibility != nil ||
 		frame.TextInput.Changed || state != nil && state.textEventRedraw {

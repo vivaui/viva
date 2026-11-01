@@ -121,3 +121,14 @@ func TestPinningTheNativeAppearanceLeavesTheSystemsLookReadable(t *testing.T) {
 		t.Fatal("giving the look back did not return the system's")
 	}
 }
+
+func TestSchemeHandlerAvailable(t *testing.T) {
+	// https is claimed by the browser on every Mac that can run the tests; a
+	// made-up scheme is claimed by nothing.
+	if available, err := SchemeHandlerAvailable("https"); err != nil || !available {
+		t.Fatalf("https: available = %t, err = %v", available, err)
+	}
+	if available, err := SchemeHandlerAvailable("viva-test-unregistered"); err != nil || available {
+		t.Fatalf("unregistered scheme: available = %t, err = %v", available, err)
+	}
+}

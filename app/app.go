@@ -175,6 +175,10 @@ type Config struct {
 	// Invalidate or a running transition requested. Move the results of
 	// background work into application state here, so Paint only reads state.
 	OnWake func()
+	// Web, when set, lets the window host pages of the system's web engine (see WebHost). It is
+	// filled when the window opens; a platform that cannot host pages makes WebHost.Open fail
+	// with ErrUnsupported.
+	Web *WebHost
 	// Reload contains optional development-only state migration hooks. Normal
 	// release runs never call them and do not link the reload coordinator.
 	Reload ReloadConfig

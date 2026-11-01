@@ -36,6 +36,34 @@ func TestControlReportsPublicSystemIntegrationRequests(t *testing.T) {
 	}
 }
 
+func TestControlDeclaresWhichURLSchemesHaveAnApplication(t *testing.T) {
+	session, err := Open(app.Config{}, nil, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
+	if available, _ := app.SchemeHandlerAvailable("zed"); available {
+		t.Fatal("a scheme was registered before any was declared")
+	}
+	if reply, _ := execute(session, "schemehandlers zed vscode"); reply != "ok\n" {
+		t.Fatalf("schemehandlers reply = %q", reply)
+	}
+	if available, _ := app.SchemeHandlerAvailable("zed"); !available {
+		t.Fatal("zed was declared but reads as unregistered")
+	}
+	if err := app.OpenSchemeURL("zed", "zed://file/tmp"); err != nil {
+		t.Fatal(err)
+	}
+	if reply, _ := execute(session, "openedurl"); reply != "ok \"zed://file/tmp\"\n" {
+		t.Fatalf("openedurl reply = %q", reply)
+	}
+	execute(session, "schemehandlers")
+	if available, _ := app.SchemeHandlerAvailable("zed"); available {
+		t.Fatal("an empty declaration did not clear the schemes")
+	}
+}
+
 func TestControlSetsTheSystemAppearanceTheRunReports(t *testing.T) {
 	session, err := Open(app.Config{}, nil, Options{})
 	if err != nil {
