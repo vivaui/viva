@@ -50,6 +50,8 @@ int viva_system_dark_appearance(void);
 int viva_system_effective_dark(void);
 void viva_system_set_appearance(int mode);
 void viva_system_watch_appearance(void);
+// Starts (1) or stops (0) polling the pasteboard; each change calls vivaSystemClipboardChanged.
+void viva_system_watch_clipboard(int enable);
 int viva_system_play_sound(uint8_t sound, char **error_message);
 int viva_system_send_notification(
     const char *title,

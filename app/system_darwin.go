@@ -23,6 +23,10 @@ func nativeTextEngine() ui.TextEngine { return darwinplatform.SharedTextEngine()
 
 func nativePreferredLanguages() []string { return darwinplatform.PreferredLanguages() }
 
+func nativeOnClipboardChange(notify func()) error {
+	return darwinplatform.OnClipboardChange(notify)
+}
+
 func nativeSetClipboardText(value string) error {
 	return darwinplatform.SetClipboardText(value)
 }

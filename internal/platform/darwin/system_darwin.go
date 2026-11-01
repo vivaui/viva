@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/platform"
@@ -52,6 +53,30 @@ func ClipboardText() (string, error) {
 	}
 	defer C.viva_system_free(unsafe.Pointer(value))
 	return C.GoString(value), nil
+}
+
+var clipboardWatch atomic.Pointer[func()]
+
+// OnClipboardChange has notify called, on the main thread, whenever the pasteboard's change
+// count moves. AppKit has no change notification, so a timer on the main queue polls the count,
+// as a clipboard viewer does, and runs only between this call and OnClipboardChange(nil), which
+// stops it.
+func OnClipboardChange(notify func()) error {
+	if notify == nil {
+		clipboardWatch.Store(nil)
+		C.viva_system_watch_clipboard(0)
+		return nil
+	}
+	clipboardWatch.Store(&notify)
+	C.viva_system_watch_clipboard(1)
+	return nil
+}
+
+//export vivaSystemClipboardChanged
+func vivaSystemClipboardChanged() {
+	if notify := clipboardWatch.Load(); notify != nil {
+		(*notify)()
+	}
 }
 
 func SetClipboardText(value string) error {

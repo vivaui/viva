@@ -34,12 +34,54 @@ static NSString *viva_string(const char *value) {
     return [NSString stringWithUTF8String:value];
 }
 
+// The pasteboard has no change notification on macOS: what a clipboard viewer watches is its
+// change count, so this polls it on the main queue for as long as a caller wants the news.
+// The timer exists only between viva_system_watch_clipboard(1) and (0); an application that
+// never asks pays nothing.
+extern void vivaSystemClipboardChanged(void);
+
+static dispatch_source_t viva_clipboard_timer = NULL;
+static NSInteger viva_clipboard_count = 0;
+
+static void viva_clipboard_poll(void *unused) {
+    (void)unused;
+    @autoreleasepool {
+        NSInteger count = [NSPasteboard generalPasteboard].changeCount;
+        if (count != viva_clipboard_count) {
+            viva_clipboard_count = count;
+            vivaSystemClipboardChanged();
+        }
+    }
+}
+
 static void viva_on_main_sync(dispatch_block_t operation) {
     if (NSThread.isMainThread) {
         operation();
         return;
     }
     dispatch_sync(dispatch_get_main_queue(), operation);
+}
+
+// viva_system_watch_clipboard starts (enable 1) or stops (0) reporting changes of the
+// pasteboard. Starting twice does nothing.
+void viva_system_watch_clipboard(int enable) {
+    viva_on_main_sync(^{
+        if (!enable) {
+            if (viva_clipboard_timer != NULL) {
+                dispatch_source_cancel(viva_clipboard_timer);
+                viva_clipboard_timer = NULL;
+            }
+            return;
+        }
+        if (viva_clipboard_timer != NULL) {
+            return;
+        }
+        viva_clipboard_count = [NSPasteboard generalPasteboard].changeCount;
+        viva_clipboard_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+        dispatch_source_set_timer(viva_clipboard_timer, dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), 250 * NSEC_PER_MSEC, 50 * NSEC_PER_MSEC);
+        dispatch_source_set_event_handler_f(viva_clipboard_timer, viva_clipboard_poll);
+        dispatch_resume(viva_clipboard_timer);
+    });
 }
 
 // viva_run_panel shows a native panel modally and then makes the window that was
