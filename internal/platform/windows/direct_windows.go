@@ -416,11 +416,7 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 	fill(scratch, width, height, d2dColor{})
 	target.begin(d2dColor{A: 1}, d2dAntialiasGrayscale)
 	var drawErr error
-	pieces := rasterizer.gridPieces(label, pitch)
-	for _, piece := range pieces {
-		if piece.isBlock {
-			continue
-		}
+	for _, piece := range rasterizer.gridPieces(label, pitch) {
 		target.setColor(piece.color)
 		if err := rasterizer.drawRun(target, family, fallback, size, piece.weight, piece.run, piece.text, piece.left, piece.span, pitch, baseline); err != nil && drawErr == nil {
 			drawErr = err
@@ -431,15 +427,6 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 	}
 	if drawErr != nil {
 		return drawErr
-	}
-	for _, piece := range pieces {
-		if piece.isBlock {
-			fillBlock(scratch, width, height, piece, func(shade float32) [4]byte {
-				// Premultiplied by the shade and by the color's own alpha.
-				cover := shade * piece.color.A
-				return [4]byte{byte(piece.color.B*cover*255 + 0.5), byte(piece.color.G*cover*255 + 0.5), byte(piece.color.R*cover*255 + 0.5), byte(cover*255 + 0.5)}
-			})
-		}
 	}
 	for row := 0; row < height; row++ {
 		copy(pixels[row*width*4:(row+1)*width*4], scratch.Pixels[row*scratch.Width*4:row*scratch.Width*4+width*4])

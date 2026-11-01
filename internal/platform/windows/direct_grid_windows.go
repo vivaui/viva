@@ -15,10 +15,6 @@ type gridPiece struct {
 	weight     float32
 	color      d2dColor
 	left, span float32
-	// block is the shape of a Block Elements character the piece holds alone, which is
-	// filled on the pixel grid (see platform.BlockElement) instead of drawn from a font.
-	block   platform.BlockElement
-	isBlock bool
 }
 
 // gridPieces splits a fixed-pitch label into its runs. A label without runs is one piece
@@ -43,16 +39,11 @@ func (rasterizer *directRasterizer) gridPieces(label platform.TextLabel, pitch f
 		if text == "" {
 			continue
 		}
-		piece := gridPiece{
+		rasterizer.pieces = append(rasterizer.pieces, gridPiece{
 			text: text, run: run, weight: run.Weight,
 			color: d2dColor{R: run.Color.Red, G: run.Color.Green, B: run.Color.Blue, A: run.Color.Alpha},
 			left:  float32(run.Column) * pitch, span: float32(run.Cells) * pitch,
-		}
-		if !run.Underline && !run.Strike {
-			piece.block, piece.isBlock = platform.BlockElementOf(text)
-			piece.isBlock = piece.isBlock && piece.span > 0
-		}
-		rasterizer.pieces = append(rasterizer.pieces, piece)
+		})
 	}
 	return rasterizer.pieces
 }
@@ -104,7 +95,7 @@ func (rasterizer *directRasterizer) gridLCD(pixels []byte, label platform.TextLa
 		rasterizer.opaque.begin(foreground, d2dAntialiasDefault)
 		var drawErr error
 		for _, piece := range pieces {
-			if isLight(piece.color) != drawLight || piece.isBlock {
+			if isLight(piece.color) != drawLight {
 				continue
 			}
 			if err := rasterizer.drawRun(rasterizer.opaque, family, fallback, size, piece.weight, piece.run, piece.text, piece.left, piece.span, pitch, baseline); err != nil && drawErr == nil {
@@ -116,17 +107,6 @@ func (rasterizer *directRasterizer) gridLCD(pixels []byte, label platform.TextLa
 		}
 		if drawErr != nil {
 			return drawErr
-		}
-		for _, piece := range pieces {
-			if piece.isBlock && isLight(piece.color) == drawLight {
-				fillBlock(scratch, width, height, piece, func(shade float32) [4]byte {
-					value := byte(shade*255 + 0.5)
-					if !drawLight {
-						value = 255 - value
-					}
-					return [4]byte{value, value, value, 255}
-				})
-			}
 		}
 		// Neighbouring cells share the pixel their edge falls in, and each has drawn its own
 		// part of it. Columns of cells drawn in this pass are read once, whichever cells
@@ -177,12 +157,6 @@ func columnsOf(piece gridPiece, width int, only bool) (left, right int) {
 	if only && piece.span <= 0 {
 		return 0, width
 	}
-	if piece.isBlock {
-		// A block element is filled on whole pixels, so it owns exactly those columns.
-		left = max(int(piece.left+0.5), 0)
-		right = min(int(piece.left+piece.span+0.5), width)
-		return min(left, width), max(right, left)
-	}
 	left = max(int(math.Floor(float64(piece.left))), 0)
 	right = min(int(math.Ceil(float64(piece.left+piece.span))), width)
 	return min(left, width), max(right, left)
@@ -211,24 +185,6 @@ func coverageOfColumns(pixels []byte, bitmap *textBitmap, width, height, left, r
 			for channel := 0; channel < 3; channel++ {
 				drawn, have := int(source[index+channel]^flip), int(out[index+channel])
 				out[index+channel] = byte(have + drawn - have*drawn/255)
-			}
-		}
-	}
-}
-
-// fillBlock paints the shape of a block element piece onto its cell of bitmap, in whole
-// pixels. pixel gives the BGRA bytes for the fraction of the cell the shape covers (1 for a
-// solid block, less for a shade).
-func fillBlock(bitmap *textBitmap, width, height int, piece gridPiece, pixel func(shade float32) [4]byte) {
-	value := pixel(float32(piece.block.Shade) / 100)
-	for _, rect := range piece.block.Rects[:piece.block.Count] {
-		x0, y0, x1, y1 := rect.DeviceRect(piece.left, piece.span, height)
-		x0, x1 = max(x0, 0), min(x1, width)
-		y0, y1 = max(y0, 0), min(y1, height)
-		for row := y0; row < y1; row++ {
-			line := bitmap.Pixels[row*bitmap.Width*4:]
-			for x := x0; x < x1; x++ {
-				copy(line[x*4:x*4+4], value[:])
 			}
 		}
 	}
