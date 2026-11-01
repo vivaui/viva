@@ -23,6 +23,20 @@ func TestBackdropUnconfiguredKeepsOrdinaryRenderer(t *testing.T) {
 	}
 }
 
+// A window that did not ask for a material is not changed by the messages that would update one:
+// they go on to the ordinary window procedure, and the power broadcast is not swallowed.
+func TestBackdropMessagesLeaveAnUnconfiguredWindowAlone(t *testing.T) {
+	state := &windowState{window: 1}
+	for _, kind := range []uintptr{wmBackdropPower, wmBackdropTheme, wmBackdropComposition} {
+		if state.handleBackdropMessage(kind) {
+			t.Errorf("message %#x was taken by a window without a material", kind)
+		}
+	}
+	if state.backdropApplied || state.backdropPolicyKnown || state.backdropNotified {
+		t.Fatal("the messages touched the material state of an unconfigured window")
+	}
+}
+
 func TestBackdropWithoutCompositionReportsInitialFallback(t *testing.T) {
 	state := &windowState{window: 1}
 	var changes []bool

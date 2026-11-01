@@ -73,11 +73,20 @@ every Windows 10 release or graphics driver.
 - A failed DWM/accent call restores the configured clear color. A later system
   notification can retry it; paints do not continually retry a failed call.
 - DirectComposition creation or pipeline initialization failure releases its
-  resources and attempts the ordinary window swap chain, restoring the window's
-  redirection bitmap. Failure of that renderer is still an application error.
+  resources and attempts the ordinary window swap chain, taking the
+  no-redirection-bitmap style back off the window. Failure of that renderer is
+  still an application error.
 - Transparent render targets use premultiplied clears and grayscale text
-  coverage. Custom titlebars keep their window actions, system menu and resize
+  coverage. While a material is active this holds for every text of the window,
+  including text over an opaque control fill: ClearType needs to know what is
+  under the text, and the material is not known to the renderer. ClearType
+  returns when the material is not active. Custom titlebars keep their window actions, system menu and resize
   styles; the material does not replace them with native caption buttons.
+
+Windows 10 1809 through Windows 11 21H2 draw Acrylic through an undocumented
+accent policy that Microsoft does not recommend. How smoothly it follows a window
+that is dragged or resized on Windows 10 1903 and later has not been checked on
+hardware, so treat Acrylic there as experimental.
 
 The fallback color is application-owned. High contrast disables the material
 but does not automatically replace every application color with system colors.

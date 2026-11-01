@@ -40,7 +40,14 @@ func (state *windowState) refreshBackdrop() {
 	state.applyBackdrop()
 }
 
+// handleBackdropMessage takes the messages that change what a material looks like. A window
+// that did not ask for one leaves them to the ordinary window procedure: they would otherwise
+// rewrite its title bar theme on every theme change and swallow the power broadcasts it never
+// subscribed to.
 func (state *windowState) handleBackdropMessage(kind uintptr) bool {
+	if state.config.WindowBackdrop == nil {
+		return false
+	}
 	switch kind {
 	case wmBackdropPower, wmBackdropTheme, wmBackdropComposition:
 		state.settingsChanged()

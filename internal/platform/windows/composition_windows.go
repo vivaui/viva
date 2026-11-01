@@ -10,6 +10,9 @@ const wsExNoRedirectionBitmap = 0x00200000
 var readCompositionWindowStyle = user.NewProc("GetWindowLongPtrW")
 var writeCompositionWindowStyle = user.NewProc("SetWindowLongPtrW")
 
+// restoreWindowRedirection takes WS_EX_NOREDIRECTIONBITMAP back off a window whose composition
+// failed, so it has the style it would have had without a material. It does not recreate the
+// redirection bitmap itself; the swap chain the ordinary renderer makes next is what presents.
 func restoreWindowRedirection(window uintptr) {
 	style, _, _ := readCompositionWindowStyle.Call(window, ^uintptr(19)) // GWL_EXSTYLE = -20
 	if style&wsExNoRedirectionBitmap == 0 {
