@@ -322,7 +322,10 @@ test('every page opts out of Cloudflare email obfuscation around its body', () =
       assert.ok(start > 0 && end > start, `${path}: no email_off marker around the body`);
     }
   }
-  assert.ok(readPage('en/docs/getting-started/').includes('viva@v0.2.1'), 'the install command lost its version');
+  // The version is the one the README names as current, so a release changes it in one place.
+  const current = /The current release is `(v\d+\.\d+\.\d+)`/.exec(readFileSync(new URL('../README.md', import.meta.url), 'utf8'))?.[1];
+  assert.ok(current, 'the README names no current release');
+  assert.ok(readPage('en/docs/getting-started/').includes(`viva@${current}`), 'the install command lost its version');
 });
 
 test('the crawler files describe the site that was built', () => {
