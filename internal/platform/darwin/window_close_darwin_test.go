@@ -11,7 +11,8 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 )
 
-// Infer the private cgo integer type without importing C in a test file.
+// Infer the private cgo integer type without importing C in a test file: runStateFor's parameter
+// type is the cgo handle type, and passing the function lets the compiler deduce T from it.
 func callbackHandleForTest[T ~uint64](handle cgo.Handle, _ func(T) (*runState, bool)) T {
 	return T(handle)
 }
@@ -37,6 +38,7 @@ func TestLatePointerCallbackDoesNotResolveAReleasedHandle(t *testing.T) {
 			} else {
 				defer handle.Delete()
 			}
+			// A closed state is only reachable when onClosed re-enters a late callback.
 			state.closed = name == "closed"
 			if name == "no handler" {
 				state.pointerHandler = nil
