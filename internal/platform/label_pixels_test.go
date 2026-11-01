@@ -71,3 +71,29 @@ func TestLabelWindowSkipsTheColumnsTheClipCuts(t *testing.T) {
 		}
 	}
 }
+
+// An image drawn small and then drawn large again needs a larger texture, or it blurs; one
+// drawn a little smaller keeps its texture, and one shrunk past half rebuilds so it does not alias.
+func TestBitmapTextureFollowsTheDrawnSize(t *testing.T) {
+	label := TextLabel{Width: 16, Height: 16, BitmapWidth: 64, BitmapHeight: 64}
+	width, height := BitmapTextureExtent(label, 1)
+	if width != 16 || height != 16 {
+		t.Fatalf("drawn at 16 the texture is %dx%d", width, height)
+	}
+	label.Width, label.Height = 64, 64
+	if !BitmapTextureStale(label, 1, width, height) {
+		t.Error("an image drawn larger kept its smaller texture")
+	}
+	label.Width, label.Height = 14, 14
+	if BitmapTextureStale(label, 1, 16, 16) {
+		t.Error("a slightly smaller image rebuilt its texture")
+	}
+	label.Width, label.Height = 6, 6
+	if !BitmapTextureStale(label, 1, 16, 16) {
+		t.Error("an image shrunk past half kept its oversized texture")
+	}
+	label.Width, label.Height = 200, 200
+	if width, height := BitmapTextureExtent(label, 1); width != 64 || height != 64 {
+		t.Errorf("an image drawn larger than stored is %dx%d, want the stored size", width, height)
+	}
+}

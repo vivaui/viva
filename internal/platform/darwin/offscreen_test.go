@@ -229,6 +229,10 @@ func benchmarkGrid(b *testing.B, wide bool) {
 	labels := gridLabels(wide)
 	b.ReportAllocs()
 	for b.Loop() {
+		// This benchmark measures rebuilding the screen, not retained reuse.
+		if err := offscreen.Set(nil, nil, nil); err != nil {
+			b.Fatal(err)
+		}
 		if err := offscreen.Set(nil, labels, nil); err != nil {
 			b.Fatal(err)
 		}
@@ -515,6 +519,9 @@ func BenchmarkRasterizeTerminalScreenLigatures(b *testing.B) {
 	}
 	b.ReportAllocs()
 	for b.Loop() {
+		if err := offscreen.Set(nil, nil, nil); err != nil {
+			b.Fatal(err)
+		}
 		if err := offscreen.Set(nil, labels, nil); err != nil {
 			b.Fatal(err)
 		}

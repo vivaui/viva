@@ -490,7 +490,8 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 					label.close()
 					continue
 				}
-				if label.view == 0 || label.scale != scale || label.skip != skip || skip > 0 && label.width != windowWidth {
+				if label.view == 0 || label.scale != scale || label.skip != skip || skip > 0 && label.width != windowWidth ||
+					len(label.label.Bitmap) > 0 && platform.BitmapTextureStale(label.label, scale, label.width, label.height) {
 					if err := renderer.rasterize(label, scale); err != nil {
 						return fmt.Errorf("rasterize label %d: %w", index, err)
 					}
