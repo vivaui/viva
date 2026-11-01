@@ -3056,6 +3056,7 @@ static void viva_encode_scene(
 - (void)restartCaretBlink;
 - (void)stopCaretBlink;
 - (void)shutdownTextInput;
+- (void)detachCallbacks;
 - (BOOL)rebuildTextTexture;
 - (BOOL)rebuildTextLabels;
 - (viva_editor_line)newTextLine;
@@ -3369,6 +3370,14 @@ static int viva_navigation_command(SEL selector) {
     return YES;
 }
 
+// A page taking the keyboard is the window losing it as far as the keys that were down go.
+- (BOOL)resignFirstResponder {
+    if (_callbackHandle != 0 && _keyEventsEnabled && self.window.isKeyWindow) {
+        vivaFocusLost(_callbackHandle, self);
+    }
+    return YES;
+}
+
 // acceptsFirstMouse lets the click that brings an inactive window forward also
 // act on the control under it. Without it AppKit spends that click on activating
 // the window, so after a native panel or another app had the focus a button took
@@ -3433,6 +3442,10 @@ static int viva_navigation_command(SEL selector) {
 }
 
 - (void)mouseDown:(NSEvent *)event {
+    // A press in Viva's own content takes the keyboard back from a page that had it.
+    if (self.window.firstResponder != self) {
+        [self.window makeFirstResponder:self];
+    }
     int press = VIVA_PRESS_CLIENT;
     if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR && _callbackHandle != 0) {
         // The application declares where the window moves from (a move region).
@@ -3501,7 +3514,12 @@ static int viva_navigation_command(SEL selector) {
     [self emitPointerEvent:VIVA_POINTER_MOVE fromEvent:event];
 }
 
-- (void)rightMouseDown:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_DOWN fromEvent:event]; }
+- (void)rightMouseDown:(NSEvent *)event {
+    if (self.window.firstResponder != self) {
+        [self.window makeFirstResponder:self];
+    }
+    [self emitPointerEvent:VIVA_POINTER_DOWN fromEvent:event];
+}
 - (void)rightMouseUp:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_UP fromEvent:event]; }
 - (void)rightMouseDragged:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_MOVE fromEvent:event]; }
 - (void)otherMouseDown:(NSEvent *)event { [self emitPointerEvent:VIVA_POINTER_DOWN fromEvent:event]; }
@@ -4006,6 +4024,12 @@ static void viva_set_secure_event_input(BOOL on) {
     _hasMarkedText = NO;
     _textAltSendsEscape = NO;
     _textKeyReleases = NO;
+}
+
+- (void)detachCallbacks {
+    // The view can outlive its Go window and receive a final mouseExited:.
+    _callbackHandle = 0;
+    [self shutdownTextInput];
 }
 
 - (void)render {
@@ -5007,7 +5031,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     if ([_window.contentView isKindOfClass:[VivaMetalView class]]) {
-        [(VivaMetalView *)_window.contentView shutdownTextInput];
+        [(VivaMetalView *)_window.contentView detachCallbacks];
     }
     for (NSView *view in _titlebarWatched) {
         [[NSNotificationCenter defaultCenter] removeObserver:self name:NSViewFrameDidChangeNotification object:view];
@@ -5278,7 +5302,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)windowWillClose:(NSNotification *)notification {
     (void)notification;
     if ([_window.contentView isKindOfClass:[VivaMetalView class]]) {
-        [(VivaMetalView *)_window.contentView shutdownTextInput];
+        [(VivaMetalView *)_window.contentView detachCallbacks];
     }
     _running = NO;
     if (_callbackHandle != 0) {
@@ -5851,6 +5875,20 @@ static VivaAppDelegate *viva_find_window(void *token) {
         }
     }
     return nil;
+}
+
+@interface VivaAppDelegate (VivaWebHost)
+- (NSView *)webHostView;
+@end
+
+@implementation VivaAppDelegate (VivaWebHost)
+- (NSView *)webHostView {
+    return _window.contentView;
+}
+@end
+
+void *viva_application_window_view(void *token) {
+    return [viva_find_window(token) webHostView];
 }
 
 static void viva_collect_closed_windows(void) {

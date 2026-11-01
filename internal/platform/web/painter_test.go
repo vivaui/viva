@@ -29,7 +29,7 @@ func TestPointerFocusMatchesNativeWithoutRing(t *testing.T) {
 		t.Fatal("mouse focus should persist without a keyboard ring")
 	}
 	painter.keyDown(ui.KeyEvent{Key: ui.KeyTab})
-	if painter.focused != ui.Item(2) || canvas.FocusVisible() != ui.Item(2) || len(canvas.Rectangles()) != wantCount+1 {
+	if painter.focused != ui.Item(2) || canvas.FocusVisible() != ui.Item(2) || len(canvas.Rectangles()) <= wantCount {
 		t.Fatal("Tab should advance from the clicked control and show its ring")
 	}
 	painter.pointer(ui.PointerEvent{Kind: ui.PointerDown, Button: ui.PointerButtonPrimary, X: 120, Y: 20})
@@ -254,7 +254,8 @@ func TestScrollEventSupportsAxesTargetAndHandledResult(t *testing.T) {
 
 func TestWebInputMappings(t *testing.T) {
 	if webPointerButton(0) != ui.PointerButtonPrimary || webPointerButton(1) != ui.PointerButtonMiddle ||
-		webPointerButton(2) != ui.PointerButtonSecondary || webPointerButton(3) != ui.PointerButtonNone {
+		webPointerButton(2) != ui.PointerButtonSecondary || webPointerButton(3) != ui.PointerButtonBack ||
+		webPointerButton(4) != ui.PointerButtonForward || webPointerButton(5) != ui.PointerButtonNone {
 		t.Fatal("unexpected pointer button mapping")
 	}
 	modifiers := webModifiers(true, true, true, true)

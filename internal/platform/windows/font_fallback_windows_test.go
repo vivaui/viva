@@ -12,7 +12,7 @@ import (
 // TestFallbackFamiliesDrawTheCharactersThePrimaryLacks: Consolas has no CJK glyphs, so
 // a line drawn with two different CJK fallback families must differ, the same face must
 // draw the same pixels twice, and the characters Consolas has must not move. The test
-// needs the two CJK families; a machine without them skips it.
+// requires the two CJK families to be installed.
 func TestFallbackFamiliesDrawTheCharactersThePrimaryLacks(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -34,16 +34,16 @@ func TestFallbackFamiliesDrawTheCharactersThePrimaryLacks(t *testing.T) {
 	runs := []ui.TextRun{{Bytes: 3, Cells: 2, Color: white}, {Column: 2, Bytes: 3, Cells: 2, Color: white}}
 	first := ui.MonoStack(consolas, "Microsoft YaHei UI")
 	second := ui.MonoStack(consolas, "SimSun")
-	a, again, b, plain := draw(first, "你好", runs), draw(first, "你好", runs), draw(second, "你好", runs), draw(consolas, "你好", runs)
+	a, again, b := draw(first, "你好", runs), draw(first, "你好", runs), draw(second, "你好", runs)
 	if !bytes.Equal(a, again) {
 		t.Fatal("the same face drew two different images")
 	}
 	if bytes.Equal(a, b) {
 		t.Fatal("two different fallback families drew the same pixels: the fallback list was not used")
 	}
-	if bytes.Equal(a, plain) {
-		t.Fatal("a stack with a fallback drew like its bare primary")
-	}
+	// The bare primary also uses DirectWrite's system fallback, which may
+	// already be YaHei. Equality with it is valid; the two explicit families
+	// above must differ, so ignoring the fallback list still fails this test.
 	ascii := []ui.TextRun{{Bytes: 5, Cells: 5, Color: white}}
 	if !bytes.Equal(draw(first, "abcde", ascii), draw(consolas, "abcde", ascii)) {
 		t.Fatal("a fallback changed how the primary draws characters it has")

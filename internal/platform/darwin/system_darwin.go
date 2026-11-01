@@ -295,6 +295,22 @@ func OpenURL(target string) error {
 	return nil
 }
 
+// SchemeHandlerAvailable reports whether an application is registered for a URL
+// scheme such as "vscode", as the system's open would route it.
+func SchemeHandlerAvailable(scheme string) (bool, error) {
+	nativeScheme, err := systemCString("URL scheme", scheme)
+	if err != nil {
+		return false, err
+	}
+	defer C.free(unsafe.Pointer(nativeScheme))
+	var nativeError *C.char
+	status := C.viva_system_scheme_handler(nativeScheme, &nativeError)
+	if status < 0 {
+		return false, systemError("look up URL scheme handler", nativeError)
+	}
+	return status == 1, nil
+}
+
 func PlaySystemSound(sound uint8) error {
 	var nativeError *C.char
 	if C.viva_system_play_sound(C.uint8_t(sound), &nativeError) != 0 {

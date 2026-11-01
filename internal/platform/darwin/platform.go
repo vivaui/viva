@@ -7,6 +7,7 @@ package darwin
 #cgo LDFLAGS: -framework Cocoa -framework CoreGraphics -framework CoreText -framework Metal -framework QuartzCore
 #include <stdlib.h>
 #include "native.h"
+#include "web_darwin.h"
 */
 import "C"
 
@@ -118,9 +119,12 @@ type runState struct {
 	textInputActive bool
 	textEventRedraw bool
 	rectangleLayers []uint16
-	rectangleData   []C.viva_rectangle
-	rectangleClips  []C.viva_clip
-	err             error
+	// web hosts the pages of the window when the application asked for any.
+	web            *webState
+	webReady       func()
+	rectangleData  []C.viva_rectangle
+	rectangleClips []C.viva_clip
+	err            error
 }
 
 type nativeApplication struct {
@@ -347,6 +351,10 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 		}
 		state.callbackHandle = cgo.NewHandle(state)
 	}
+	if config.Web != nil {
+		state.web = newWebState(state, config.Web, config.NativeViews)
+		state.webReady = config.Web.Ready
+	}
 
 	shaderLength := 0
 	if needsShaderLibrary {
@@ -424,6 +432,12 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 	application.windows++
 	setApplicationIcon(config.Icon)
+	if state.web != nil {
+		state.web.token = token
+		if state.webReady != nil {
+			C.viva_web_ready_later(C.uintptr_t(state.callbackHandle))
+		}
+	}
 	return &nativeWindow{token: token}, nil
 }
 

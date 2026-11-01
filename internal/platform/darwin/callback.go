@@ -47,7 +47,10 @@ func vivaPointerEvent(
 	screenX C.double,
 	screenY C.double,
 ) {
-	state := cgo.Handle(handle).Value().(*runState)
+	state, ok := runStateFor(handle)
+	if !ok || state.closed || state.pointerHandler == nil {
+		return
+	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			platform.ReportFault("darwin: AppKit callback", recovered)
@@ -89,6 +92,9 @@ func vivaViewResized(handle C.uintptr_t, view unsafe.Pointer, width C.double, he
 	frame, err := state.resizeHandler(Size{Width: float32(width), Height: float32(height)})
 	if err == nil {
 		err = presentFrame(state, view, frame, true)
+	}
+	if err == nil && state.web != nil {
+		state.web.layout(true) // the view's height moved the pages with it
 	}
 	if err != nil {
 		state.err = err
@@ -199,8 +205,8 @@ func vivaRawKeyEvent(handle C.uintptr_t, view unsafe.Pointer, key C.int, modifie
 }
 
 // runStateFor resolves a callback handle, reporting false for a handle the
-// window has already released; AppKit can deliver a late focus-lost callback
-// while the window is closing.
+// window has already released; AppKit can deliver late input callbacks while
+// the window is closing.
 func runStateFor(handle C.uintptr_t) (state *runState, ok bool) {
 	defer func() {
 		if recover() != nil {
@@ -447,6 +453,9 @@ func vivaCloseRequested(handle C.uintptr_t, view unsafe.Pointer) {
 func vivaWindowClosed(handle C.uintptr_t) {
 	state := cgo.Handle(handle).Value().(*runState)
 	state.closed = true
+	if state.web != nil {
+		state.web.closeAll()
+	}
 	if state.waker != nil && state.redrawHandler != nil {
 		state.waker.Unbind()
 	}
@@ -504,6 +513,9 @@ func presentFrame(state *runState, view unsafe.Pointer, frame Frame, syncRender 
 		if err := presentAccessibility(view, frame.Accessibility); err != nil {
 			return err
 		}
+	}
+	if state != nil && state.web != nil {
+		state.web.frame(frame)
 	}
 	if !frame.Update.Empty() || frame.TextLabels != nil || frame.Accessibility != nil ||
 		frame.TextInput.Changed || state != nil && state.textEventRedraw {

@@ -140,7 +140,7 @@ func (state *windowState) updateTextVisuals() error {
 	}
 	state.textLabels[state.baseTextLabelCount] = label
 	base := state.baseRectangleCount
-	caretHeight := min(input.Height, input.FontSize*1.35)
+	caretTop, caretHeight := platform.TextCaretBand(input.Y, input.Height, input.FontSize)
 	caretColor := scene.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 	state.textRectangles[base] = render.Rectangle{}
 	state.textRectangles[base+1] = render.Rectangle{}
@@ -151,14 +151,17 @@ func (state *windowState) updateTextVisuals() error {
 	if !input.Terminal && !input.HideNativeOverlays {
 		selection := state.textState.Selection
 		selectionStart, selectionEnd := state.textExtent(input.FontSize, selection)
+		// Match the centered text line and caret, leaving the field's vertical
+		// padding and border unpainted instead of filling the entire input
+		// (taller fields keep their text on one centered line).
 		state.textRectangles[base] = render.Rectangle{
-			Bounds: scene.Rect{X: originX + selectionStart, Y: input.Y, Width: selectionEnd - selectionStart, Height: input.Height},
+			Bounds: scene.Rect{X: originX + selectionStart, Y: caretTop, Width: selectionEnd - selectionStart, Height: caretHeight},
 			Color:  scene.Color{Red: 0.22, Green: 0.48, Blue: 1, Alpha: 0.34},
 			Layer:  input.Layer,
 		}
 		if state.caretVisible {
 			state.textRectangles[base+1] = render.Rectangle{
-				Bounds: scene.Rect{X: originX + caretX, Y: input.Y + (input.Height-caretHeight)/2, Width: textCaretWidth, Height: caretHeight},
+				Bounds: scene.Rect{X: originX + caretX, Y: caretTop, Width: textCaretWidth, Height: caretHeight},
 				Color:  caretColor,
 				Layer:  input.Layer,
 			}
@@ -167,10 +170,13 @@ func (state *windowState) updateTextVisuals() error {
 	state.textRectangles[base+2] = render.Rectangle{}
 	state.textRectangles[base+3] = render.Rectangle{}
 	if state.textState.Composing {
+		// Text is vertically centered on LabelBaseline, not on FontSize. Keep
+		// both clause strokes below that baseline, including in taller fields.
+		underlineY := platform.CompositionUnderlineTop(input.Y, input.Height, input.FontSize, state.scale, 3)
 		composition := state.textState.Composition
 		compositionStart, compositionEnd := state.textExtent(input.FontSize, composition)
 		state.textRectangles[base+2] = render.Rectangle{
-			Bounds: scene.Rect{X: originX + compositionStart, Y: input.Y + min(input.Height-2, input.FontSize*1.3), Width: compositionEnd - compositionStart, Height: 1.5},
+			Bounds: scene.Rect{X: originX + compositionStart, Y: underlineY, Width: compositionEnd - compositionStart, Height: 1.5},
 			Color:  caretColor,
 			Layer:  input.Layer,
 		}
@@ -182,7 +188,7 @@ func (state *windowState) updateTextVisuals() error {
 			if validTextRange(target, utf8.RuneCountInString(state.textState.Value)) {
 				targetStart, targetEnd := state.textExtent(input.FontSize, target)
 				state.textRectangles[base+3] = render.Rectangle{
-					Bounds: scene.Rect{X: originX + targetStart, Y: input.Y + min(input.Height-3, input.FontSize*1.3), Width: targetEnd - targetStart, Height: 3},
+					Bounds: scene.Rect{X: originX + targetStart, Y: underlineY, Width: targetEnd - targetStart, Height: 3},
 					Color:  caretColor,
 					Layer:  input.Layer,
 				}

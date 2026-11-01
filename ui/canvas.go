@@ -542,6 +542,7 @@ type Canvas struct {
 	triangles     []Triangle
 	shadows       []Shadow
 	images        []Image
+	nativeViews   []NativeView
 	texts         []Text
 	runs          []TextRun
 	hits          []Hit
@@ -715,6 +716,7 @@ func (canvas *Canvas) Reset() {
 	canvas.triangles = canvas.triangles[:0]
 	canvas.shadows = canvas.shadows[:0]
 	canvas.images = canvas.images[:0]
+	canvas.nativeViews = canvas.nativeViews[:0]
 	canvas.texts = canvas.texts[:0]
 	canvas.runs = canvas.runs[:0]
 	canvas.hits = canvas.hits[:0]
@@ -750,6 +752,7 @@ func (canvas *Canvas) Trim() {
 	canvas.triangles = trimCapacity(canvas.triangles)
 	canvas.shadows = trimCapacity(canvas.shadows)
 	canvas.images = trimCapacity(canvas.images)
+	canvas.nativeViews = trimCapacity(canvas.nativeViews)
 	canvas.texts = trimCapacity(canvas.texts)
 	canvas.runs = trimCapacity(canvas.runs)
 	canvas.hits = trimCapacity(canvas.hits)

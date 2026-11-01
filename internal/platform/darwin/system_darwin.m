@@ -668,6 +668,22 @@ int viva_system_open_url(const char *target, char **error_message) {
     return status;
 }
 
+int viva_system_scheme_handler(const char *scheme, char **error_message) {
+    // LaunchServices answers from any thread, so this does not wait for the main
+    // thread, which a test binary or a caller already off it may never run.
+    @autoreleasepool {
+        NSString *value = viva_string(scheme);
+        NSURL *url = value == nil ? nil : [NSURL URLWithString:[value stringByAppendingString:@":"]];
+        if (url == nil) {
+            if (error_message != NULL) {
+                *error_message = viva_copy_utf8(@"URL scheme is not valid UTF-8 or is malformed");
+            }
+            return -1;
+        }
+        return [NSWorkspace.sharedWorkspace URLsForApplicationsToOpenURL:url].count > 0 ? 1 : 0;
+    }
+}
+
 int viva_system_play_sound(uint8_t sound, char **error_message) {
     __block int status = 0;
     __block char *failure = NULL;

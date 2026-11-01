@@ -10,27 +10,6 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-// platformBaselines returns the browser font's ascent and descent at a size, so label
-// baselines match the native CoreText formula. Widths, carets and hit-testing come from
-// the text engine (textengine_js.go).
-func platformBaselines() func(fontSize float32) baselineMetrics {
-	document := js.Global().Get("document")
-	offscreen := document.Call("createElement", "canvas")
-	context := offscreen.Call("getContext", "2d")
-
-	return func(fontSize float32) baselineMetrics {
-		context.Set("font", cssFont(fontSize, 0))
-		metrics := context.Call("measureText", "Ag")
-		ascent := float32(metrics.Get("fontBoundingBoxAscent").Float())
-		descent := float32(metrics.Get("fontBoundingBoxDescent").Float())
-		if ascent <= 0 {
-			ascent = float32(metrics.Get("actualBoundingBoxAscent").Float())
-			descent = float32(metrics.Get("actualBoundingBoxDescent").Float())
-		}
-		return baselineMetrics{Ascent: ascent, Descent: descent}
-	}
-}
-
 func cssFont(fontSize, weight float32) string {
 	cssWeight := 400
 	switch {

@@ -1,3 +1,5 @@
+//go:build linux && !vivagtk
+
 package app
 
 import (

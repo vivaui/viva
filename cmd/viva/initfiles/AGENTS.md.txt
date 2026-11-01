@@ -164,6 +164,14 @@ m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
   (`BesideLeftBox`) on the left. The requested side is used; if it does not fit, the side with more room;
   `Start|Center|End` aligns across (shifted, never flipped); then it is moved the least that keeps it inside the
   frame. `Within(rect)` keeps it inside rect instead. A menu that may be long needs a `MaxHeight` and a `ScrollArea`.
+- A page of the system's web engine inside the window (WebKitGTK on Linux, WKWebView on macOS, WebView2 on Windows):
+  put an `app.WebHost` in `Config.Web`, open the page in its `OnReady` (`host.Open(app.WebViewConfig{URL: ...})`, or `HTML`
+  with a `Scheme` that serves your own resources), keep the `*app.WebView`, and in `Paint` reserve its room with a `Slot()`
+  and declare it with `canvas.NativeView(page.ID(), slot.Rect())` after `f.End()`. Everything painted on the view's layer or
+  below is hidden by it; a menu or tooltip that must stand over it goes on a higher layer: `f.PopupLayer(1)` for `f.Popup()`s.
+  The page talks to the app with `window.viva.postMessage(text)` / `viva.onmessage`, and the app with `OnMessage` and
+  `page.PostMessage(text)`. Calls on the host and the page run on the window thread. `Open` fails with `app.ErrUnsupported`
+  when the platform or the installed engine cannot host pages: show something else then.
 - Grid children can cover several cells: `.ColSpan(n)` and `.RowSpan(n)` (columns are equal; the next child goes in
   the first free cell after the previous one, skipping cells a span has taken).
 - Take a child out of the flow with `.Absolute()` and place it by edges in its container: `.Top(8).Right(8)`
