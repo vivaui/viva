@@ -100,13 +100,19 @@ func (state *windowState) applyBackdrop() {
 		// Text on transparent targets uses grayscale coverage, because the
 		// compositor's background is unavailable to ClearType blending.
 		for index := range state.renderer.labels {
-			state.renderer.labels[index].scale = 0
+			label := &state.renderer.labels[index]
+			// Bitmaps are already premultiplied; their coverage is unchanged.
+			if len(label.label.Bitmap) == 0 {
+				label.scale = 0
+			}
 		}
 		if state.config.OnBackdropChange != nil {
 			state.config.OnBackdropChange(active)
 		}
 		if state.ready {
 			postMessage.Call(state.window, wmRedraw, 0, 0)
+			// Clear color and text coverage can change without a scene update.
+			invalidateRect.Call(state.window, 0, 0)
 		}
 	}
 	state.applyTitlebarTheme()

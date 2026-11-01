@@ -238,3 +238,100 @@ func TestCustomBackdropKeepsWindowControlsAndSystemMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestBackdropFallbackInvalidatesUnchangedScene(t *testing.T) {
+	// Exercise compositor loss without depending on the host's DWM policy.
+	originalAPI := nativeBackdropAPI
+	nativeBackdropAPI = func() backdropAPI { return backdropUnavailable }
+	defer func() { nativeBackdropAPI = originalAPI }()
+	for _, withRedraw := range []bool{false, true} {
+		name := "no callback"
+		if withRedraw {
+			name = "unchanged scene"
+		}
+		t.Run(name, func(t *testing.T) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+			window := staticWindow(t)
+			state := &windowState{window: window, ready: true, backdropState: backdropState{backdropActive: true, backdropNotified: true, backdropPolicyKnown: true}}
+			state.config.ClearColor = platform.Color{Alpha: 1}
+			state.config.WindowBackdrop = func() platform.BackdropStyle { return platform.BackdropStyle{Kind: platform.BackdropMica} }
+			if withRedraw {
+				state.config.OnRedraw = func() (platform.Frame, error) { return platform.Frame{}, nil }
+			}
+			windowStates.Store(window, state)
+			defer windowStates.Delete(window)
+			showWindow.Call(window, 4) // SW_SHOWNOACTIVATE: hidden windows have no paint region.
+			user.NewProc("ValidateRect").Call(window, 0)
+			state.applyBackdrop()
+			windowProc(window, wmRedraw, 0, 0)
+			if state.backdropActive || state.renderer.color != state.config.ClearColor {
+				t.Fatal("compositor loss did not restore the fallback color")
+			}
+			dirty, _, _ := user.NewProc("GetUpdateRect").Call(window, 0, 0)
+			if dirty == 0 {
+				t.Fatal("fallback changed the clear color without scheduling a native paint")
+			}
+			user.NewProc("ValidateRect").Call(window, 0)
+			state.applyBackdrop()
+			dirty, _, _ = user.NewProc("GetUpdateRect").Call(window, 0, 0)
+			if dirty != 0 {
+				t.Fatal("unchanged material scheduled another paint")
+			}
+		})
+	}
+}
+
+func TestBackdropFallbackKeepsBitmapCoverage(t *testing.T) {
+	original := nativeBackdropAPI
+	nativeBackdropAPI = func() backdropAPI { return backdropUnavailable }
+	defer func() { nativeBackdropAPI = original }()
+	state := &windowState{window: 1, backdropState: backdropState{backdropActive: true, backdropPolicyKnown: true}}
+	state.config.WindowMode = platform.WindowCustomTitlebar
+	state.config.WindowBackdrop = func() platform.BackdropStyle { return platform.BackdropStyle{} }
+	state.renderer.labels = []labelTexture{
+		{label: platform.TextLabel{Value: "text"}, scale: 2},
+		{label: platform.TextLabel{Bitmap: []byte{0, 0, 0, 255}}, scale: 2},
+	}
+	state.applyBackdrop()
+	if state.renderer.labels[0].scale != 0 {
+		t.Fatal("text coverage was not invalidated")
+	}
+	if state.renderer.labels[1].scale != 2 {
+		t.Fatal("material transition invalidated unchanged bitmap coverage")
+	}
+}
+
+func BenchmarkBackdropFallbackBitmap(b *testing.B) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	original := nativeBackdropAPI
+	nativeBackdropAPI = func() backdropAPI { return backdropUnavailable }
+	defer func() { nativeBackdropAPI = original }()
+	offscreen, err := NewOffscreen(512, 512, 1, platform.Color{Alpha: 1})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer offscreen.Close()
+	pixels := make([]byte, 512*512*4)
+	label := platform.TextLabel{Width: 512, Height: 512, Bitmap: pixels, BitmapWidth: 512, BitmapHeight: 512, BitmapStride: 512 * 4, BitmapID: 1}
+	if err := offscreen.renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{label}}); err != nil {
+		b.Fatal(err)
+	}
+	if err := offscreen.renderer.draw(512, 512, 1); err != nil {
+		b.Fatal(err)
+	}
+	state := &windowState{window: 1, backdropState: backdropState{backdropPolicyKnown: true}}
+	state.config.WindowMode = platform.WindowCustomTitlebar
+	state.config.WindowBackdrop = func() platform.BackdropStyle { return platform.BackdropStyle{} }
+	state.renderer.labels = offscreen.renderer.labels
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		state.backdropActive, state.backdropApplied = true, false
+		state.applyBackdrop()
+		if err := offscreen.renderer.draw(512, 512, 1); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
