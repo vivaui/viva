@@ -329,9 +329,33 @@ func (state iconState) emitCircle(node *svgNode, at transform, emit func(ui.Path
 	if radius <= 0 {
 		return
 	}
-	// Standard four-quadrant kappa circle starting at (cx+r, cy).
-	const kappa = 0.5522847498307936
-	offset := radius * kappa
+	state.emitEllipsePath(cx, cy, radius, radius, at, emit)
+}
+
+// emitEllipse draws an <ellipse>: the same four-quadrant approximation as a
+// circle with independent radii. Lucide's cylinder and a few other icons use one
+// for their top ring, so dropping it silently would leave the icon half-drawn.
+func (state iconState) emitEllipse(node *svgNode, at transform, emit func(ui.PathCommand)) {
+	cx, _ := strconv.ParseFloat(node.Attr("cx"), 64)
+	cy, _ := strconv.ParseFloat(node.Attr("cy"), 64)
+	rx, _ := strconv.ParseFloat(node.Attr("rx"), 64)
+	ry, _ := strconv.ParseFloat(node.Attr("ry"), 64)
+	if rx <= 0 || ry <= 0 {
+		return
+	}
+	state.emitEllipsePath(cx, cy, rx, ry, at, emit)
+}
+
+func (state iconState) emitEllipsePath(cx, cy, radius, ry float64, at transform, emit func(ui.PathCommand)) {
+	// radius is the horizontal radius; ry the vertical one.
+	if ry <= 0 {
+		ry = radius
+	}
+	if radius <= 0 {
+		return
+	}
+	offsetX := radius * 0.5522847498307936
+	offsetY := ry * 0.5522847498307936
 	startX, startY := state.point(at, cx+radius, cy)
 	emit(ui.MoveTo(startX, startY))
 	quarter := func(c1x, c1y, c2x, c2y, x, y float64) {
@@ -340,10 +364,10 @@ func (state iconState) emitCircle(node *svgNode, at transform, emit func(ui.Path
 		end1, end2 := state.point(at, x, y)
 		emit(ui.CubicTo(c1, d1, c2, d2, end1, end2))
 	}
-	quarter(cx+radius, cy+offset, cx+offset, cy+radius, cx, cy+radius)
-	quarter(cx-offset, cy+radius, cx-radius, cy+offset, cx-radius, cy)
-	quarter(cx-radius, cy-offset, cx-offset, cy-radius, cx, cy-radius)
-	quarter(cx+offset, cy-radius, cx+radius, cy-offset, cx+radius, cy)
+	quarter(cx+radius, cy+offsetY, cx+offsetX, cy+ry, cx, cy+ry)
+	quarter(cx-offsetX, cy+ry, cx-radius, cy+offsetY, cx-radius, cy)
+	quarter(cx-radius, cy-offsetY, cx-offsetX, cy-ry, cx, cy-ry)
+	quarter(cx+offsetX, cy-ry, cx+radius, cy-offsetY, cx+radius, cy)
 	emit(ui.ClosePath())
 }
 

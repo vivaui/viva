@@ -646,3 +646,62 @@ func TestCommandBoundsFollowsCurves(t *testing.T) {
 		t.Fatalf("bounds = %v %v %v %v, want x 0..10 and y 0..7.5 (the curve's peak, not its control points at 10)", minX, minY, maxX, maxY)
 	}
 }
+
+// TestEllipseCompilesToItsRing: Lucide's cylinder draws its top with <ellipse>,
+// which the compiler used to skip silently — half the icon went missing.
+func TestEllipseCompilesToItsRing(t *testing.T) {
+	svg := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/></svg>`
+	icon, err := Compile("ellipse", []byte(svg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A ring drawn as one move and four cubics, closed.
+	if len(icon.Commands) != 6 {
+		t.Fatalf("%d commands, want move + four cubics + close", len(icon.Commands))
+	}
+	var canvas ui.Canvas
+	canvas.DrawIcon(icon, ui.Rect{Width: 24, Height: 24}, ui.Color{Alpha: 1})
+	triangles := canvas.Triangles()
+	if !inked(triangles, 21, 5) || !inked(triangles, 3, 5) || !inked(triangles, 12, 2) || !inked(triangles, 12, 8) {
+		t.Fatal("the ellipse ring has no ink at its cardinal points")
+	}
+	if inked(triangles, 12, 5) {
+		t.Fatal("the ellipse is filled: its centre has ink")
+	}
+}
+
+// TestTheLucideCylinderKeepsAllThreeParts: the icon that showed the gap in the
+// owner's window — its ellipse top, body and middle ring must all be there.
+func TestTheLucideCylinderKeepsAllThreeParts(t *testing.T) {
+	svg := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>`
+	icon, err := Compile("cylinder", []byte(svg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var canvas ui.Canvas
+	canvas.DrawIcon(icon, ui.Rect{Width: 24, Height: 24}, ui.Color{Alpha: 1})
+	triangles := canvas.Triangles()
+	for _, probe := range []struct {
+		name string
+		x, y float32
+	}{
+		{"top ellipse", 12, 2.5},
+		{"left wall", 3, 12},
+		{"right wall", 21, 12},
+		{"bottom curve", 12, 21.5},
+		{"middle ring", 12, 15},
+	} {
+		if !inked(triangles, probe.x, probe.y) {
+			t.Errorf("%s has no ink at (%.1f, %.1f)", probe.name, probe.x, probe.y)
+		}
+	}
+}
+
+// TestAnUnknownElementIsAnError: a drawable element the compiler does not know
+// must fail the compile, not leave a partial icon on screen.
+func TestAnUnknownElementIsAnError(t *testing.T) {
+	svg := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><image href="x.png" x="0" y="0" width="24" height="24"/></svg>`
+	if _, err := Compile("image", []byte(svg)); err == nil || !strings.Contains(err.Error(), "unsupported element <image>") {
+		t.Fatalf("compiling an <image> gave %v, want an unsupported-element error", err)
+	}
+}
