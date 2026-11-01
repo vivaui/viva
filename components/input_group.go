@@ -214,7 +214,7 @@ func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot
 
 	if !snapshot.ID.IsZero() && layout.Control.Width > 0 {
 		canvas.HitWithOptions(snapshot.ID, layout.Control, snapshot.Label, ui.HitOptions{
-			Role: ui.RoleTextField, Value: snapshot.Value, Hint: snapshot.Hint,
+			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: snapshot.Multiline, Secure: snapshot.Secure,
 			NavigationKeys: snapshot.NavigationKeys,
 			TextBounds:     content, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,

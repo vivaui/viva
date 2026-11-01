@@ -35,6 +35,8 @@ type linuxTextInput struct {
 	// settings is the desktop's caret blink setting, as it stands; nil blinks at the
 	// default rate.
 	settings func() xsettings
+	// scale reads the window's device pixels per logical pixel; nil means one.
+	scale func() float32
 	// compose follows a dead key or Compose sequence under way in this window.
 	compose composer
 
@@ -81,6 +83,17 @@ func (state *linuxTextInput) close() {
 func (state *linuxTextInput) bindCaretWaker(post func(uint32)) {
 	state.postCaret = post
 	state.restartCaretBlink()
+}
+
+// bindScale tells the editor where to read the window's scale, which places the
+// composition underline against the text baseline on the device pixel grid.
+func (state *linuxTextInput) bindScale(scale func() float32) { state.scale = scale }
+
+func (state *linuxTextInput) displayScale() float32 {
+	if state.scale == nil {
+		return 1
+	}
+	return state.scale()
 }
 
 // bindSettings tells the caret where to read the desktop's blink setting. The
@@ -266,14 +279,14 @@ func (state *linuxTextInput) rebuild() error {
 		return err
 	}
 	base := len(state.baseRectangles)
+	caretTop, caretHeight := platform.TextCaretBand(inputState.Y, inputState.Height, inputState.FontSize)
 	state.rectangles[base] = render.Rectangle{
-		Bounds: scene.Rect{X: inputState.X + selectionStart, Y: inputState.Y, Width: selectionEnd - selectionStart, Height: inputState.Height},
+		Bounds: scene.Rect{X: inputState.X + selectionStart, Y: caretTop, Width: selectionEnd - selectionStart, Height: caretHeight},
 		Color:  scene.Color{Red: 0.22, Green: 0.48, Blue: 1, Alpha: 0.34},
 		Layer:  inputState.Layer,
 	}
-	caretHeight := min(inputState.Height, inputState.FontSize*1.35)
 	state.caret = render.Rectangle{
-		Bounds: scene.Rect{X: inputState.X + selectionEnd, Y: inputState.Y + (inputState.Height-caretHeight)/2, Width: linuxTextCaretWidth, Height: caretHeight},
+		Bounds: scene.Rect{X: inputState.X + selectionEnd, Y: caretTop, Width: linuxTextCaretWidth, Height: caretHeight},
 		Color:  scene.Color{Red: float32(inputState.Color.Red), Green: float32(inputState.Color.Green), Blue: float32(inputState.Color.Blue), Alpha: float32(inputState.Color.Alpha)},
 		Layer:  inputState.Layer,
 	}
@@ -291,7 +304,7 @@ func (state *linuxTextInput) rebuild() error {
 			return err
 		}
 		state.rectangles[base+2] = render.Rectangle{
-			Bounds: scene.Rect{X: inputState.X + compositionStart, Y: inputState.Y + min(inputState.Height-2, inputState.FontSize*1.3), Width: compositionEnd - compositionStart, Height: 1.5},
+			Bounds: scene.Rect{X: inputState.X + compositionStart, Y: platform.CompositionUnderlineTop(inputState.Y, inputState.Height, inputState.FontSize, state.displayScale(), 1.5), Width: compositionEnd - compositionStart, Height: 1.5},
 			Color:  scene.Color{Red: float32(inputState.Color.Red), Green: float32(inputState.Color.Green), Blue: float32(inputState.Color.Blue), Alpha: float32(inputState.Color.Alpha)},
 			Layer:  inputState.Layer,
 		}

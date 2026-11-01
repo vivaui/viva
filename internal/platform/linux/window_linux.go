@@ -285,6 +285,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	}
 	state.text = textInput
 	textInput.bindCaretWaker(win.postCaretBlink)
+	textInput.bindScale(win.displayScale)
 	initialRectangles, initialLabels := textInput.initial()
 	renderer, err := newVulkanRenderer(win.connection, win.id, win.width, win.height, win.displayScale(), config.ClearColor, initialRectangles, initialLabels, win.margin)
 	if err != nil {

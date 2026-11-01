@@ -244,3 +244,26 @@ func TestInputPlaceholderThatDoesNotFitEndsInAnEllipsis(t *testing.T) {
 		}
 	}
 }
+
+// Every editable text control declares the I-beam itself, including when it is read only
+// (the text stays selectable); the driver only maps the declared cursor.
+func TestTextEntryControlsDeclareTheTextCursor(t *testing.T) {
+	theme := ui.LightTheme()
+	for name, paint := range map[string]func(*ui.Canvas){
+		"input": func(c *ui.Canvas) {
+			PaintInput(c, theme, ui.Rect{Width: 160}, InputSnapshot{ID: ui.Item(1), ReadOnly: true})
+		},
+		"textarea": func(c *ui.Canvas) {
+			PaintTextarea(c, theme, ui.Rect{Width: 160, Height: 80}, TextareaSnapshot{ID: ui.Item(1)})
+		},
+		"input group": func(c *ui.Canvas) { PaintInputGroup(c, theme, ui.Rect{Width: 160}, InputGroupSnapshot{ID: ui.Item(1)}) },
+		"otp":         func(c *ui.Canvas) { PaintInputOTP(c, theme, ui.Rect{}, InputOTPSnapshot{ID: ui.Item(1), Slots: 6}) },
+	} {
+		var canvas ui.Canvas
+		paint(&canvas)
+		hits := canvas.Hits()
+		if len(hits) == 0 || hits[0].Cursor != ui.PointerCursorText {
+			t.Errorf("%s: hits = %+v", name, hits)
+		}
+	}
+}

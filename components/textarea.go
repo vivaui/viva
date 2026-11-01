@@ -142,7 +142,7 @@ func PaintTextarea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot T
 	}
 	if !snapshot.ID.IsZero() {
 		options := ui.HitOptions{
-			Role: ui.RoleTextField, Value: snapshot.Value, Hint: snapshot.Hint,
+			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: true,
 			TextBounds: content, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
 		}

@@ -196,6 +196,7 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 		w.ime = newGTKIME(w)
 	}
 	text.bindSettings(func() xsettings { return a.settings })
+	text.bindScale(func() float32 { return w.scale })
 	text.bindCaretWaker(func(generation uint32) {
 		a.enqueue(func() { w.blinkCaret(generation) })
 	})
