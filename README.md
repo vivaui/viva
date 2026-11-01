@@ -11,7 +11,9 @@ Viva is a Go-first, GPU-native desktop framework. Applications draw through
 the platform's own window and GPU APIs — Cocoa and Metal, Win32 and Direct3D 11,
 XCB and Vulkan — with no WebView, no browser engine, and no bundled runtime. It
 is aimed at small binaries, low idle resource usage, and direct access to native
-platform capabilities.
+platform capabilities. An application that needs web content can host the
+system's own web view beside Viva's drawing (WebKitGTK, WKWebView, WebView2): it
+is opt-in, loaded when the first page opens, and nothing is bundled.
 
 The status list below is what runs today.
 

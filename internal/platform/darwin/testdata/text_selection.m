@@ -30,6 +30,14 @@ void vivaKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int repe
 }
 void vivaRawKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int flags, unsigned int code, const unsigned char *utf8, size_t utf8Length, const unsigned char *typed, size_t typedLength) {}
 void vivaFocusLost(uintptr_t handle, void *view) {}
+// The terminal's table, reduced to what these tests use: CJK ideographs take two cells,
+// combining marks none.
+int vivaTerminalCells(uint32_t character) {
+    if (character >= 0x0300 && character <= 0x036F) {
+        return 0;
+    }
+    return character >= 0x4E00 && character <= 0x9FFF ? 2 : 1;
+}
 int vivaAccessibilityAction(uintptr_t handle, void *view, uint64_t node, int action, double number, const unsigned char *utf8, size_t utf8Length, int start, int end) { return 0; }
 // The engine's shaped line, uncached: the caller releases it.
 viva_text_line *vivaShapedLine(const unsigned char *utf8, size_t length, double size, double weight) { return viva_text_line_create(utf8, length, size, weight); }
@@ -78,6 +86,7 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
 - (BOOL)hasCaretTimer;
 - (void)beginComposition;
 - (void)setTerminal:(BOOL)value;
+- (void)setCellWidth:(CGFloat)value;
 - (void)enableKeyCallbacks;
 - (void)endComposition;
 - (BOOL)composing;
@@ -158,6 +167,7 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
 - (BOOL)hasCaretTimer { return _caretTimer != nil; }
 - (void)beginComposition { _hasMarkedText = YES; }
 - (void)setTerminal:(BOOL)value { _textTerminal = value; }
+- (void)setCellWidth:(CGFloat)value { _textCellWidth = value; }
 - (void)enableKeyCallbacks { _callbackHandle = 1; _keyEventsEnabled = YES; }
 - (void)endComposition { _hasMarkedText = NO; }
 - (BOOL)composing { return _hasMarkedText; }
@@ -601,6 +611,29 @@ int main(void) {
         [view endComposition];
         view->recordEdits = NO;
         viva_test_pasteboard = nil;
+
+        // A terminal's preedit is laid on the terminal's cells, as its grid is: a wide
+        // character takes two, a combining mark none, and the caret, the hit test and the
+        // candidate window follow them, not the advances of the font.
+        [view resetText:@"A中e\u0301好b"];
+        [view setTerminal:YES];
+        [view setCellWidth:10];
+        {
+            // UTF-16 units: A 0, 中 1, e 2, the mark 3, 好 4, b 5; the cell column of the
+            // boundary before each, and the end.
+            const int columns[] = {0, 1, 3, 4, 4, 6, 7};
+            for (NSUInteger index = 0; index <= 6; index++) {
+                assert([view offsetForIndex:index] == columns[index] * 10.0);
+            }
+            NSPoint origin = NSMakePoint([view frameX], 0);
+            assert([view textIndexForLocalPoint:NSMakePoint(origin.x - 5, 0)] == 0);
+            assert([view textIndexForLocalPoint:NSMakePoint(origin.x + 14, 0)] == 1);
+            assert([view textIndexForLocalPoint:NSMakePoint(origin.x + 33, 0)] == 2);
+            // Between the base and its mark is no boundary: the nearer edge of the pair is.
+            assert([view textIndexForLocalPoint:NSMakePoint(origin.x + 36, 0)] == 4);
+            assert([view textIndexForLocalPoint:NSMakePoint(origin.x + 500, 0)] == 6);
+        }
+        [view setTerminal:NO];
 
         [view resetText:@"close"];
         [view mouseDown:[view mouseEvent:NSEventTypeLeftMouseDown offset:0]];

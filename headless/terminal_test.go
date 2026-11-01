@@ -83,3 +83,60 @@ func TestSessionDrivesATerminalWithRawKeysChordsTextAndPaste(t *testing.T) {
 		t.Fatalf("text = %q", typed)
 	}
 }
+
+// compose is an input method's pinyin stage: the text is marked, not committed,
+// and the editor overlay reports it as the composition until it is committed or
+// ended.
+func TestComposeMarksTextWithoutCommittingIt(t *testing.T) {
+	var events []app.TextEvent
+	var state app.TextState
+	config := app.Config{Title: "compose", Width: 300, Height: 120}
+	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: size.Width, Height: size.Height}, "Terminal", ui.HitOptions{Role: ui.RoleTerminal})
+	}
+	config.TextInput = func(app.TextInputContext) *app.TextInput {
+		return &app.TextInput{
+			Bounds: ui.Rect{X: 4, Y: 4, Width: 24, Height: 16}, FontSize: 13, State: state,
+			OnEvent: func(event app.TextEvent) (app.TextState, error) {
+				events = append(events, event)
+				switch event.Kind {
+				case app.TextSetMarked:
+					state = app.TextState{Value: event.Text, Selection: event.MarkedSelection, Composition: app.TextRange{End: len([]rune(event.Text))}, Composing: true}
+				default:
+					state = app.TextState{}
+				}
+				return state, nil
+			},
+		}
+	}
+	session, err := Open(config, nil, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
+	if err := session.Compose("wo"); err == nil {
+		t.Fatal("composing with no text field focused was accepted")
+	}
+	if err := session.ClickLabel("Terminal"); err != nil {
+		t.Fatal(err)
+	}
+	if reply, _ := execute(session, "compose 你好 wo"); reply != "ok\n" {
+		t.Fatalf("compose reply = %q", reply)
+	}
+	if len(events) != 1 || events[0].Kind != app.TextSetMarked || events[0].Text != "你好 wo" || events[0].MarkedSelection != (app.TextRange{Start: 5, End: 5}) {
+		t.Fatalf("events = %+v: the text is marked with the caret at its end", events)
+	}
+	if editor := session.Snapshot().Editor; editor == nil || !editor.Composing || editor.Value != "你好 wo" || editor.Composition != [2]int{0, 5} {
+		t.Fatalf("editor = %+v", editor)
+	}
+	if reply, _ := execute(session, "compose"); reply != "ok\n" {
+		t.Fatalf("compose reply = %q", reply)
+	}
+	if last := events[len(events)-1]; last.Kind != app.TextUnmark {
+		t.Fatalf("an empty compose sent %+v, want the composition ended", last)
+	}
+	if editor := session.Snapshot().Editor; editor == nil || editor.Composing {
+		t.Fatalf("editor after ending = %+v", editor)
+	}
+}

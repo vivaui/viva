@@ -252,6 +252,7 @@ func (state *linuxTextInput) rebuild() error {
 		FontSize: inputState.FontSize, Color: inputState.Color, Layer: inputState.Layer, Mono: inputState.Terminal, MonoFace: inputState.MonoFace,
 	}
 	if inputState.Terminal {
+		state.rebuildTerminalPreedit(shown)
 		return nil
 	}
 	values := []rune(shown)
@@ -296,6 +297,31 @@ func (state *linuxTextInput) rebuild() error {
 		}
 	}
 	return nil
+}
+
+// rebuildTerminalPreedit lays a terminal's composition on the terminal's cells, the columns its
+// grid will give the text once it is committed, in the fixed-pitch face: a wide character on two
+// cells, a combining mark on its base's. Drawn with the font's own advances it would be narrower
+// than the grid and jump when committed. There is no caret or selection (see
+// platform.TextInput.Terminal), only the underline of the composition.
+func (state *linuxTextInput) rebuildTerminalPreedit(shown string) {
+	input := &state.input
+	cell := platform.TerminalPreeditCellWidth(input.FontSize)
+	color := ui.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
+	label := &state.labels[len(state.baseLabels)]
+	// A new slice every time: the renderer may still compare against the last frame's label.
+	label.CellWidth, label.Runs = cell, platform.TerminalPreeditRuns(nil, shown, color)
+	if !state.state.Composing {
+		return
+	}
+	composition := state.state.Composition
+	start := float32(platform.TerminalPreeditColumn(shown, composition.Start)) * cell
+	end := float32(platform.TerminalPreeditColumn(shown, composition.End)) * cell
+	state.rectangles[len(state.baseRectangles)+2] = render.Rectangle{
+		Bounds: scene.Rect{X: input.X + start, Y: input.Y + min(input.Height-2, input.FontSize*1.3), Width: end - start, Height: 1.5},
+		Color:  scene.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)},
+		Layer:  input.Layer,
+	}
 }
 
 // prefixWidth is the x of the caret before the end-th character of shown (values are its

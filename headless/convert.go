@@ -59,6 +59,7 @@ func scenery(snapshot app.Snapshot) ([]render.Rectangle, []platform.TextLabel, *
 		input = &platform.TextInput{
 			X: editor.Bounds.X, Y: editor.Bounds.Y, Width: editor.Bounds.Width, Height: editor.Bounds.Height,
 			FontSize: editor.FontSize, Layer: editor.Layer, Multiline: editor.Multiline, Secure: editor.Secure,
+			Terminal: editor.Terminal, MonoFace: editor.MonoFace,
 			Color: platform.Color{Red: float64(editor.Color.Red), Green: float64(editor.Color.Green), Blue: float64(editor.Color.Blue), Alpha: float64(editor.Color.Alpha)},
 			State: platform.TextState{
 				Value:       editor.Value,

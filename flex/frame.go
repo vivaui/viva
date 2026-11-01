@@ -199,6 +199,7 @@ type Frame struct {
 	images     []ui.Bitmap                // what each Image element draws, indexed by its aux
 	exts       []extra                    // exts[0] is never written: an element without extras points at it
 	floats     []int32                    // the Popups, which belong to no container
+	popupLayer uint16                     // the canvas layer the Popups are painted on
 	lines      []string
 	widgets    widgets            // Table, Tabs, Select, Dialog and Splitter declarations
 	ellipses   []ui.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
@@ -234,6 +235,7 @@ func (view *View) Begin(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) *Fram
 	f.inputs, f.groups, f.textareas, f.segmented, f.choices = f.inputs[:0], f.groups[:0], f.textareas[:0], f.segmented[:0], f.choices[:0]
 	f.images = f.images[:0]
 	f.floats = f.floats[:0]
+	f.popupLayer = 0
 	f.scratch.reset()
 	f.widgets.reset()
 	f.scrolls.epoch++
@@ -273,8 +275,14 @@ func (f *Frame) End() {
 	f.scrolls.sweep()
 	f.reportSplitters()
 	f.paint(0)
+	if f.popupLayer != 0 {
+		f.canvas.PushLayer(f.popupLayer)
+	}
 	for _, index := range f.floats {
 		f.paint(index)
+	}
+	if f.popupLayer != 0 {
+		f.canvas.PopLayer()
 	}
 	f.trim()
 }
@@ -372,6 +380,11 @@ func (f *Frame) Popup() Box {
 	f.floats = append(f.floats, b.i)
 	return b
 }
+
+// PopupLayer paints the page's popups on a canvas layer of their own instead of the page's. A
+// native view (Canvas.NativeView) hides what is painted on its layer and below, so popups that
+// must stand over one go on a higher layer than the view's.
+func (f *Frame) PopupLayer(layer uint16) { f.popupLayer = layer }
 
 // Grid opens a container that lays its children in equal cells, as many columns
 // as fit when each is at least minCell wide, wrapping onto new rows; Gap is the

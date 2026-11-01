@@ -11,7 +11,6 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
@@ -226,7 +225,7 @@ func (state *windowState) textWidth() float32 {
 // terminalCellWidth is the width of one terminal cell at a font size: the pitch every
 // platform's fixed-pitch text is placed on (see ui.Canvas.MonoCellSize).
 func terminalCellWidth(size float32) float32 {
-	return size * textmetrics.MonoAdvance
+	return platform.TerminalPreeditCellWidth(size)
 }
 
 // textByte is the byte offset of the rune index in the text input's display value.

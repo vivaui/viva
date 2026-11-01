@@ -3,6 +3,7 @@ package platform
 import (
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/internal/uniprops"
 	"github.com/vivaui/viva/ui"
 )
@@ -13,8 +14,17 @@ import (
 // preedit itself the same columns the terminal uses, so the composition text,
 // its underline and the candidate window all follow the cells.
 
-// terminalPreeditCells is how many cells r occupies.
-func terminalPreeditCells(r rune) int {
+// TerminalPreeditCellWidth is the width of one terminal cell at a font size: the pitch
+// every platform's fixed-pitch text is placed on (see ui.Canvas.MonoCellSize).
+func TerminalPreeditCellWidth(size float32) float32 {
+	return size * textmetrics.MonoAdvance
+}
+
+// TerminalPreeditCells is how many cells r occupies: none for a combining mark, which
+// shares the cell of the character it follows, two for a wide character, else one. A
+// backend that draws the preedit in native code asks it for every character, so the
+// answer is the terminal's own and not a second table in another language.
+func TerminalPreeditCells(r rune) int {
 	switch {
 	case uniprops.Mark(r):
 		return 0
@@ -33,7 +43,7 @@ func TerminalPreeditColumn(value string, runes int) int {
 			break
 		}
 		runes--
-		column += terminalPreeditCells(r)
+		column += TerminalPreeditCells(r)
 	}
 	return column
 }
@@ -69,7 +79,7 @@ func TerminalPreeditRuns(dst []ui.TextRun, value string, color ui.Color) []ui.Te
 			}
 			end += nextSize
 		}
-		cells := int32(terminalPreeditCells(r))
+		cells := int32(TerminalPreeditCells(r))
 		dst = append(dst, ui.TextRun{Column: column, Bytes: int32(end - offset), Cells: cells, Color: color})
 		offset = end
 		column += cells

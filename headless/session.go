@@ -153,6 +153,10 @@ func (session *Session) SetSystemAppearance(appearance app.Appearance) {
 // Type inserts text into the focused text field.
 func (session *Session) Type(value string) error { return session.driver.Type(value) }
 
+// Compose sets the input-method composition of the focused field; an empty
+// value ends it. See app.Driver.Compose.
+func (session *Session) Compose(value string) error { return session.driver.Compose(value) }
+
 // Wait advances the animation clock.
 func (session *Session) Wait(duration time.Duration) error { return session.driver.Advance(duration) }
 

@@ -79,6 +79,8 @@ typedef struct {
     // or selection, raw key delivery.
     int terminal;
 	int mono_face;
+    // The width of one terminal cell, which a terminal's preedit text is laid on.
+    float cell_width;
     // Printable Option chords become raw key events carrying their base
     // character, so terminal encoders can send Escape-prefixed Meta input.
     int alt_sends_escape;

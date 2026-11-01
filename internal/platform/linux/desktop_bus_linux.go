@@ -24,22 +24,22 @@ type desktopWatch struct {
 
 // syncDesktopWatch opens the connection when someone starts to watch and closes it when
 // the last one stops. The loop calls it each time it wakes.
-func (application *linuxApplication) syncDesktopWatch() {
+func (services *desktopServices) syncDesktopWatch() {
 	wanted := platform.DesktopWatched()
 	switch {
-	case wanted && application.desktop == nil && !application.desktopFailed:
-		application.startDesktopWatch()
-	case !wanted && application.desktop != nil:
-		application.stopDesktopWatch()
+	case wanted && services.desktop == nil && !services.desktopFailed:
+		services.startDesktopWatch()
+	case !wanted && services.desktop != nil:
+		services.stopDesktopWatch()
 	}
 }
 
-func (application *linuxApplication) startDesktopWatch() {
+func (services *desktopServices) startDesktopWatch() {
 	desktopState.Lock()
 	gone := desktopState.portalGone
 	desktopState.Unlock()
 	if gone {
-		application.desktopFailed = true
+		services.desktopFailed = true
 		return
 	}
 	conn, err := dbus.DialSession()
@@ -51,13 +51,13 @@ func (application *linuxApplication) startDesktopWatch() {
 			conn.Close()
 		}
 		// The desktop has no bus: the focus and the XSETTINGS manager are all it has.
-		application.desktopFailed = true
+		services.desktopFailed = true
 		return
 	}
 	values, missing := readPortalValues(conn)
 	if missing {
 		conn.Close()
-		application.desktopFailed = true
+		services.desktopFailed = true
 		desktopState.Lock()
 		desktopState.portalGone = true
 		desktopState.Unlock()
@@ -67,34 +67,34 @@ func (application *linuxApplication) startDesktopWatch() {
 	desktopState.Lock()
 	desktopState.watching = true
 	desktopState.Unlock()
-	application.desktop = &desktopWatch{conn: conn}
-	application.rebuildPoll()
-	application.announce(change)
+	services.desktop = &desktopWatch{conn: conn}
+	services.host.rebuildPoll()
+	services.announce(change)
 }
 
-func (application *linuxApplication) stopDesktopWatch() {
-	if application.desktop == nil {
+func (services *desktopServices) stopDesktopWatch() {
+	if services.desktop == nil {
 		return
 	}
-	application.desktop.conn.Close()
-	application.desktop = nil
+	services.desktop.conn.Close()
+	services.desktop = nil
 	desktopState.Lock()
 	desktopState.watching = false
 	desktopState.Unlock()
-	application.rebuildPoll()
+	services.host.rebuildPoll()
 }
 
 // serveDesktop reads what the bus sent: the portal saying a setting changed.
-func (application *linuxApplication) serveDesktop() {
-	watch := application.desktop
+func (services *desktopServices) serveDesktop() {
+	watch := services.desktop
 	if watch == nil {
 		return
 	}
 	messages, err := watch.conn.Receive()
 	if err != nil {
 		// The bus went away: the focus and the XSETTINGS manager are all that is left.
-		application.stopDesktopWatch()
-		application.desktopFailed = true
+		services.stopDesktopWatch()
+		services.desktopFailed = true
 		return
 	}
 	var change settingsChange
@@ -106,20 +106,18 @@ func (application *linuxApplication) serveDesktop() {
 			change |= applyPortal(namespace, key, value, os.Getenv)
 		}
 	}
-	application.announce(change)
+	services.announce(change)
 }
 
 // announce tells what a change in the desktop's settings touches: the windows' text, and
 // whoever watches.
-func (application *linuxApplication) announce(change settingsChange) {
+func (services *desktopServices) announce(change settingsChange) {
 	if change == 0 {
 		return
 	}
 	if change&changedFonts != 0 {
 		refreshTextEngine()
-		for _, state := range application.windows {
-			state.refreshText()
-		}
+		services.host.refreshText()
 	}
 	if change&changedAppearance != 0 {
 		platform.NotifyAppearanceChanged()
@@ -128,9 +126,9 @@ func (application *linuxApplication) announce(change settingsChange) {
 }
 
 // closeDesktop ends the loop's connection to the bus.
-func (application *linuxApplication) closeDesktop() {
-	if application.desktop != nil {
-		application.stopDesktopWatch()
+func (services *desktopServices) closeDesktop() {
+	if services.desktop != nil {
+		services.stopDesktopWatch()
 	}
 }
 

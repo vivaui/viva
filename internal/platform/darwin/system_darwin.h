@@ -41,6 +41,9 @@ int viva_system_save_file(
     char **error_message
 );
 int viva_system_open_url(const char *target, char **error_message);
+// Whether any application is registered for the URL scheme (no trailing colon):
+// 1 yes, 0 no, -1 failure with *error_message.
+int viva_system_scheme_handler(const char *scheme, char **error_message);
 int viva_system_reduce_motion(void);
 char *viva_system_preferred_languages(void);
 int viva_system_dark_appearance(void);

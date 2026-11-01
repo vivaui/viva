@@ -338,3 +338,37 @@ func TestPrimaryCandidateIsTheNewlySelectedText(t *testing.T) {
 		}
 	}
 }
+
+// A terminal's composition stands on the terminal's cells, as its grid draws the text once it is
+// committed: with the font's own advances a wide character would be narrower than its two cells
+// and the text would jump.
+func TestLinuxTerminalPreeditIsLaidOnTheCellsAndUnderlined(t *testing.T) {
+	state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{}}
+	input := platform.TextInput{
+		X: 20, Y: 40, Width: 300, Height: 16, FontSize: 13, Terminal: true,
+		Color:   platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+		State:   platform.TextState{Value: "ni你好", Composing: true, Composition: text.Range{End: 4}},
+		OnEvent: func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
+	}
+	merged, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &input}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	label := merged.TextLabels[len(merged.TextLabels)-1]
+	cell := platform.TerminalPreeditCellWidth(13)
+	if !label.Mono || label.CellWidth != cell {
+		t.Fatalf("label = mono:%v cell:%v, want the terminal's cell %v", label.Mono, label.CellWidth, cell)
+	}
+	want := []ui.TextRun{
+		{Column: 0, Bytes: 2, Cells: 2, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+		{Column: 2, Bytes: 3, Cells: 2, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+		{Column: 4, Bytes: 3, Cells: 2, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+	}
+	if !reflect.DeepEqual(label.Runs, want) {
+		t.Fatalf("runs = %+v, want %+v", label.Runs, want)
+	}
+	underline := merged.Rectangles[len(merged.Rectangles)-1]
+	if underline.Bounds.X != 20 || underline.Bounds.Width != 6*cell || underline.Bounds.Height <= 0 {
+		t.Fatalf("underline = %+v, want it across the six cells of the composition", underline.Bounds)
+	}
+}

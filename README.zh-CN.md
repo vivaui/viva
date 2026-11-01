@@ -7,7 +7,7 @@
 
 <p align="center"><a href="README.md">English</a> | 简体中文</p>
 
-Viva 是一个 Go 优先、GPU 原生的桌面框架。应用通过操作系统自己的窗口和 GPU API 绘制——Cocoa 与 Metal、Win32 与 Direct3D 11、XCB 与 Vulkan——不使用 WebView，不捆绑浏览器引擎，也不捆绑运行时。它追求小的二进制产物、低的空闲资源占用，以及对原生平台能力的直接访问。
+Viva 是一个 Go 优先、GPU 原生的桌面框架。应用通过操作系统自己的窗口和 GPU API 绘制——Cocoa 与 Metal、Win32 与 Direct3D 11、XCB 与 Vulkan——不使用 WebView，不捆绑浏览器引擎，也不捆绑运行时。它追求小的二进制产物、低的空闲资源占用，以及对原生平台能力的直接访问。需要展示网页内容的应用可以在 Viva 的绘制旁边承载系统自带的网页视图（WebKitGTK、WKWebView、WebView2）：它是可选的，第一个页面打开时才加载，不捆绑任何东西。
 
 下面的状态列表是今天实际能跑的东西。
 
