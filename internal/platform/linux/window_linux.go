@@ -700,7 +700,7 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		x, y, frameKnown := state.reportFrame()
 		win.answerSync()
 		if frameKnown {
-			win.updateMinimumSizeAt(config, x, y)
+			win.updateMinimumSizeAt(config, x, y, true)
 		} else {
 			win.updateMinimumSize(config)
 		}

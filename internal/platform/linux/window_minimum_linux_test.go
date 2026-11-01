@@ -46,5 +46,5 @@ func TestMultiMonitorResizeReusesThePositionItAlreadyReported(t *testing.T) {
 	// No X connection is installed: with more than one monitor this must reuse
 	// the position the ConfigureNotify pass reported instead of translating the
 	// coordinates again.
-	win.updateMinimumSizeAt(platform.Config{MinWidth: 960, MinHeight: 600}, 200, 100)
+	win.updateMinimumSizeAt(platform.Config{MinWidth: 960, MinHeight: 600}, 200, 100, true)
 }
