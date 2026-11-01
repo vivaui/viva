@@ -61,6 +61,7 @@ type textServices struct {
 	cairoMoveTo               func(uintptr, float64, float64)
 	cairoRectangle            func(uintptr, float64, float64, float64, float64)
 	cairoClip                 func(uintptr)
+	cairoFill                 func(uintptr)
 	cairoSave                 func(uintptr)
 	cairoRestore              func(uintptr)
 	cairoSetLineWidth         func(uintptr, float64)
@@ -145,6 +146,7 @@ func loadTextAPI() (*textServices, error) {
 	purego.RegisterLibFunc(&services.cairoMoveTo, services.cairo, "cairo_move_to")
 	purego.RegisterLibFunc(&services.cairoRectangle, services.cairo, "cairo_rectangle")
 	purego.RegisterLibFunc(&services.cairoClip, services.cairo, "cairo_clip")
+	purego.RegisterLibFunc(&services.cairoFill, services.cairo, "cairo_fill")
 	purego.RegisterLibFunc(&services.cairoSave, services.cairo, "cairo_save")
 	purego.RegisterLibFunc(&services.cairoRestore, services.cairo, "cairo_restore")
 	purego.RegisterLibFunc(&services.cairoSetLineWidth, services.cairo, "cairo_set_line_width")
@@ -508,6 +510,24 @@ func (services *textServices) setSourceUIColor(context uintptr, color ui.Color) 
 	services.cairoSetSourceRGBA(context, clampUnit64(float64(color.Red)), clampUnit64(float64(color.Green)), clampUnit64(float64(color.Blue)), clampUnit64(float64(color.Alpha)))
 }
 
+// drawBlock fills the shape of a block element in the cell that starts at left and is span wide,
+// on whole device pixels. An LCD label's texture holds coverage, drawn white; any other holds
+// the run's color.
+func (services *textServices) drawBlock(context uintptr, block platform.BlockElement, color ui.Color, left, span float64, height int, lcd bool) {
+	shade := float64(block.Shade) / 100
+	if lcd {
+		services.cairoSetSourceRGBA(context, 1, 1, 1, shade)
+		services.addSpan(int(left+0.5), int(left+span+0.5), [4]float32{color.Red, color.Green, color.Blue, color.Alpha})
+	} else {
+		services.cairoSetSourceRGBA(context, clampUnit64(float64(color.Red)), clampUnit64(float64(color.Green)), clampUnit64(float64(color.Blue)), clampUnit64(float64(color.Alpha))*shade)
+	}
+	for _, rect := range block.Rects[:block.Count] {
+		x0, y0, x1, y1 := rect.DeviceRect(float32(left), float32(span), height)
+		services.cairoRectangle(context, float64(x0), float64(y0), float64(x1-x0), float64(y1-y0))
+		services.cairoFill(context)
+	}
+}
+
 func clampUnit64(value float64) float64 {
 	return min(max(value, 0), 1)
 }
@@ -546,6 +566,12 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 		}
 		left := float64(run.Column) * pitch
 		span := float64(run.Cells) * pitch
+		if block, ok := platform.BlockElementOf(piece); ok && run.Cells > 0 && !run.Underline && !run.Strike {
+			// A block element fills its cell on whole pixels (see platform.BlockElement), so
+			// neighbouring cells meet without the seam two antialiased glyph edges leave.
+			services.drawBlock(context, block, run.Color, left, span, height, lcd)
+			continue
+		}
 		services.cairoSave(context)
 		services.cairoRectangle(context, left, 0, span, float64(height))
 		services.cairoClip(context)
