@@ -324,7 +324,11 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 	}
 	if button.state.Focused || button.state.Invalid {
 		ring, border := buttonRing(button.theme, variant, button.state.Invalid)
-		button.canvas.Rounded(expand(button.bounds, 3), radius+3, ring)
+		if button.theme.Background.Alpha < 1 {
+			button.canvas.RoundedOutline(expand(button.bounds, 3), radius+3, 2, ring)
+		} else {
+			button.canvas.Rounded(expand(button.bounds, 3), radius+3, ring)
+		}
 		style.border, style.bordered = border, true
 	}
 	if button.disabled {
@@ -409,6 +413,11 @@ type buttonStyle struct {
 // onto the page (the theme's Background) first, as the Input recipe does. A fill
 // with no alpha therefore leaves the page showing.
 func paintBordered(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, radius float32, border, fill ui.Color) {
+	if theme.Background.Alpha < 1 {
+		canvas.Rounded(bounds, radius, fill)
+		canvas.RoundedOutline(bounds, radius, 1, border)
+		return
+	}
 	canvas.RoundedBorder(bounds, radius, 1, border.Over(theme.Background), fill.Over(theme.Background))
 }
 

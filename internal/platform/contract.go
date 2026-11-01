@@ -45,10 +45,11 @@ type Config struct {
 	// titlebar leaves for the application. Zero means DefaultTitlebarHeight.
 	TitlebarHeight float32
 	ClearColor     Color
-	Rectangles     []render.Rectangle
-	TextLabels     []TextLabel
-	Accessibility  []AccessibilityNode
-	OnPointer      PointerHandler
+	WindowMaterials
+	Rectangles    []render.Rectangle
+	TextLabels    []TextLabel
+	Accessibility []AccessibilityNode
+	OnPointer     PointerHandler
 	// PressAt says what a press at a window point in logical pixels does, so a
 	// custom-titlebar window knows whether to move there (see PressKind). Nil
 	// means PressClient everywhere.
