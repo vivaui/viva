@@ -95,7 +95,7 @@ func RunCanvas(config Config, canvas *ui.Canvas) error {
 		MinWidth: normalized.MinWidth, MinHeight: normalized.MinHeight,
 		Origin: normalized.originPoint(), HasOrigin: normalized.Origin != nil,
 		WindowMode:      platform.WindowMode(normalized.WindowMode),
-		WindowMaterials: normalized.WindowMaterials,
+		WindowMaterials: normalized.windowMaterials(),
 		TitlebarHeight:  normalized.TitlebarHeight,
 		Anchor:          normalized.Anchor.rect, HasAnchor: normalized.Anchor.set,
 		ClearColor: platform.Color{
@@ -232,7 +232,7 @@ func prepareNativeWindow(config Config, canvas *ui.Canvas) (platform.Config, fun
 		MinWidth: normalized.MinWidth, MinHeight: normalized.MinHeight,
 		Origin: normalized.originPoint(), HasOrigin: normalized.Origin != nil,
 		WindowMode:      platform.WindowMode(normalized.WindowMode),
-		WindowMaterials: normalized.WindowMaterials,
+		WindowMaterials: normalized.windowMaterials(),
 		TitlebarHeight:  normalized.TitlebarHeight,
 		Anchor:          normalized.Anchor.rect, HasAnchor: normalized.Anchor.set,
 		ClearColor: platform.Color{

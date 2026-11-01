@@ -50,6 +50,9 @@ var nativeBackdropAPI = sync.OnceValue(func() backdropAPI {
 	if status != 0 || version.Major < 10 {
 		return backdropUnavailable
 	}
+	if version.Build >= 22621 {
+		return backdropSystem
+	}
 	return selectBackdropAPI(version.Build, true, setWindowCompositionAttribute.Find() == nil)
 })
 

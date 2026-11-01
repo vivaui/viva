@@ -1,6 +1,6 @@
 # Windows window materials
 
-Set `app.Config.WindowMaterials` to opt into native materials at runtime.
+Set `app.Config.WindowBackdrop` to opt into native materials at runtime.
 Build, run, test and package commands need no additional tags. Leaving
 `WindowBackdrop` nil keeps the ordinary renderer, without DirectComposition
 resources, material policy queries or material power notifications. Configuring
@@ -16,10 +16,8 @@ supported systems.
 ```go
 config := app.Config{
     ClearColor: app.Color{Alpha: 1},
-    WindowMaterials: app.WindowMaterials{
-        WindowBackdrop: func() app.BackdropStyle {
-            return app.BackdropStyle{Kind: app.BackdropMicaAlt, Dark: true}
-        },
+    WindowBackdrop: func() app.BackdropStyle {
+        return app.BackdropStyle{Kind: app.BackdropMicaAlt, Dark: true}
     },
 }
 ```
@@ -49,6 +47,8 @@ of the visible blur; Windows may substitute a solid material for other reasons.
 Version detection uses `RtlGetVersion` rather than manifest-dependent version
 helpers. Entry points are checked before use. An unknown material value falls
 back to `BackdropNone`. Windows amd64 and arm64 are the supported build targets.
+
+These are the limits of Viva's selected native APIs, not of Acrylic itself. Windows 10 also supports public Acrylic APIs through UWP and Windows App SDK; Viva does not depend on those frameworks. The Windows backend dynamically loads system DLLs and requires neither Windows SDK headers nor a Windows App SDK runtime to build or run.
 
 The build-22621 floor for modern materials follows Microsoft's
 [DWM_SYSTEMBACKDROP_TYPE documentation](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwm_systembackdrop_type).

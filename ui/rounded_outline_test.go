@@ -55,3 +55,24 @@ func TestRoundedOutlineLeavesTheInteriorUnpainted(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkRoundedOutline(b *testing.B) {
+	for _, radius := range []float32{0, 8} {
+		name := "square"
+		if radius != 0 {
+			name = "rounded"
+		}
+		b.Run(name, func(b *testing.B) {
+			var canvas Canvas
+			bounds := Rect{Width: 200, Height: 32}
+			color := Color{Alpha: .5}
+			canvas.RoundedOutline(bounds, radius, 1, color)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				canvas.Reset()
+				canvas.RoundedOutline(bounds, radius, 1, color)
+			}
+		})
+	}
+}

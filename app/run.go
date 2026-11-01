@@ -28,7 +28,7 @@ func Run(config Config) error {
 		MinWidth:        normalized.MinWidth,
 		MinHeight:       normalized.MinHeight,
 		WindowMode:      platform.WindowMode(normalized.WindowMode),
-		WindowMaterials: normalized.WindowMaterials,
+		WindowMaterials: normalized.windowMaterials(),
 		TitlebarHeight:  normalized.TitlebarHeight,
 		ClearColor: platform.Color{
 			Red:   normalized.ClearColor.Red,

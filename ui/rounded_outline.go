@@ -17,6 +17,15 @@ func (canvas *Canvas) RoundedOutline(bounds Rect, radius, width float32, color C
 		return
 	}
 	radius = max(0, min(radius, bounds.Width/2, bounds.Height/2))
+	if radius == 0 {
+		outer := [4]Point{{bounds.X, bounds.Y}, {bounds.X + bounds.Width, bounds.Y}, {bounds.X + bounds.Width, bounds.Y + bounds.Height}, {bounds.X, bounds.Y + bounds.Height}}
+		inner := [4]Point{{bounds.X + width, bounds.Y + width}, {bounds.X + bounds.Width - width, bounds.Y + width}, {bounds.X + bounds.Width - width, bounds.Y + bounds.Height - width}, {bounds.X + width, bounds.Y + bounds.Height - width}}
+		for index := range outer {
+			next := (index + 1) % len(outer)
+			canvas.appendOutlineSegment(outer[index], outer[next], inner[index], inner[next], color)
+		}
+		return
+	}
 	innerRadius := max(0, radius-width)
 	// The two contours have matching vertices: join them directly instead of
 	// flattening Beziers and triangulating a general polygon with a hole.

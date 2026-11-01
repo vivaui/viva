@@ -22,11 +22,9 @@ func main() {
 	var canvas ui.Canvas
 	err := app.RunCanvas(app.Config{
 		Title: "Viva " + *choice, Width: 640, Height: 400,
-		ClearColor: app.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
-		WindowMaterials: app.WindowMaterials{
-			WindowBackdrop:   func() app.BackdropStyle { return app.BackdropStyle{Kind: kind} },
-			OnBackdropChange: func(enabled bool) { active = enabled },
-		},
+		ClearColor:       app.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+		WindowBackdrop:   func() app.BackdropStyle { return app.BackdropStyle{Kind: kind} },
+		OnBackdropChange: func(enabled bool) { active = enabled },
 		Paint: func(canvas *ui.Canvas, size ui.Size) {
 			background := theme.Background
 			label := "Material unavailable or disabled: solid fallback"
