@@ -165,7 +165,8 @@ typedef struct {
     uint32_t bitmap_stride;
     uint64_t bitmap_id;
     uint32_t bitmap_version;
-    uint32_t reserved1;
+    // bitmap_upload is nonzero when bitmap carries pixels to compare or upload.
+    uint32_t bitmap_upload;
     float clip_x;
     float clip_y;
     float clip_width;
