@@ -755,3 +755,28 @@ func TestOutOfDateRecoveryAcceptsResidualSuboptimal(t *testing.T) {
 		t.Fatal("residual SUBOPTIMAL after OUT_OF_DATE recovery was not accepted")
 	}
 }
+
+func TestPresentOutOfDateRebuilds(t *testing.T) {
+	recreations := 0
+	renderer := newSuboptimalTestRenderer(vkSuccess, vkErrorOutOfDate, &recreations)
+	// Only the old swapchain presents out of date; the recreated one presents.
+	renderer.api.queuePresent = func(_ uintptr, present *vkPresentInfo) int32 {
+		if *present.Swapchains == 30 {
+			return vkErrorOutOfDate
+		}
+		return vkSuccess
+	}
+
+	if err := renderer.presentRebuilding(); err != nil {
+		t.Fatalf("presentRebuilding returned error: %v", err)
+	}
+	if recreations != 1 {
+		t.Fatalf("swapchain recreations = %d, want 1", recreations)
+	}
+	if renderer.swapchain != 99 {
+		t.Fatalf("swapchain = %d, want recreated handle 99", renderer.swapchain)
+	}
+	if renderer.submissions != 2 {
+		t.Fatalf("completed submissions = %d, want the out-of-date present and the recreated one", renderer.submissions)
+	}
+}
