@@ -210,6 +210,7 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 	}
 	a.windows[w.id] = w
 	a.atspiOpened(w)
+	a.retryDesktopWatch()
 	w.viewRects = append(w.viewRects, config.NativeViews...)
 	if config.Web != nil && config.Web.Ready != nil {
 		a.enqueue(func() {

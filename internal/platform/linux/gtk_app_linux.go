@@ -100,7 +100,10 @@ func RunGTKApplication(start platform.ApplicationStart) error {
 	defer application.removeHooks()
 	// Whoever starts to watch the desktop's settings, from any goroutine, wakes the loop to open the
 	// connection that hears them.
-	platform.SetWatchHook(func() { application.enqueue(application.syncDesktopWatch) })
+	platform.SetWatchHook(func() {
+		application.desktopRetryRequested.Store(true)
+		application.enqueue(application.syncDesktopWatch)
+	})
 	defer platform.SetWatchHook(nil)
 	defer application.closeServices()
 	if err := start(application); err != nil {
@@ -179,6 +182,8 @@ func (a *gtkApplication) Quit() {
 }
 
 func (a *gtkApplication) SetDockBadge(string) {}
+
+func (a *gtkApplication) retryDesktopWatch() { a.desktopServices.retryDesktopWatch() }
 
 // post is a command to the loop, from the services (see commandHide and the rest).
 func (a *gtkApplication) post(command uint32) {
