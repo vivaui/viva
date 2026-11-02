@@ -46,6 +46,7 @@ import (
 //	select START END           select a rune range of the focused field
 //	resize W H
 //	frame                     ok x=.. y=.. w=.. h=.. (the content area on screen)
+//	cursor                    ok shape=N, or image=WxH hot=X,Y scale=S while a picture is the pointer
 //	windowmove X Y            move the window's content area to a screen point, as a drag
 //	                          of the window would, and report its new frame to OnFrameChange
 //	minimize on|off           report the window as minimized or restored, as the window
@@ -333,6 +334,14 @@ func execute(session *Session, line string) (reply string, quit bool) {
 	case "frame":
 		frame := session.driver.Frame()
 		return finish(nil, fmt.Sprintf(" x=%g y=%g w=%g h=%g", frame.X, frame.Y, frame.Width, frame.Height))
+	case "cursor":
+		snapshot := session.driver.Snapshot()
+		if snapshot.CursorImage == nil {
+			return finish(nil, fmt.Sprintf(" shape=%d", snapshot.Cursor))
+		}
+		width, height := snapshot.CursorImage.Size()
+		hotX, hotY := snapshot.CursorImage.Hotspot()
+		return finish(nil, fmt.Sprintf(" image=%dx%d hot=%d,%d scale=%g", width, height, hotX, hotY, snapshot.CursorImage.Scale()))
 	case "windowmove":
 		point, err := numbers(2)
 		if err != nil {

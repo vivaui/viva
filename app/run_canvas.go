@@ -42,6 +42,7 @@ func RunCanvas(config Config, canvas *ui.Canvas) error {
 	}
 	painter.setClipboardText = func(value string) { _ = nativeSetClipboardText(value) }
 	painter.setCursor = nativeSetCursor
+	painter.setCursorImage = nativeSetCursorImage
 	// Transitions wake the event loop through the adapter's thread-safe post
 	// primitive: no reader goroutine, and no timer until something animates.
 	var waker *platform.Waker
@@ -182,6 +183,7 @@ func prepareNativeWindow(config Config, canvas *ui.Canvas) (platform.Config, fun
 	}
 	painter.setClipboardText = func(value string) { _ = nativeSetClipboardText(value) }
 	painter.setCursor = nativeSetCursor
+	painter.setCursorImage = nativeSetCursorImage
 	var waker *platform.Waker
 	if normalized.Invalidator != nil {
 		waker = &normalized.Invalidator.waker

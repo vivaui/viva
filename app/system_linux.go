@@ -44,6 +44,10 @@ func nativeSetCursor(cursor Cursor) error {
 	return linuxSystemError(linuxplatform.SetCursorShape(uint8(cursor)))
 }
 
+func nativeSetCursorImage(image *ui.CursorImage) error {
+	return linuxSystemError(linuxplatform.SetCursorImage(image))
+}
+
 func nativeOpenFiles(options OpenFileOptions) ([]string, error) {
 	filters := make([]linuxplatform.FileFilter, len(options.Filters))
 	for index, filter := range options.Filters {

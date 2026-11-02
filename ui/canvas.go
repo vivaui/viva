@@ -348,16 +348,23 @@ const (
 	// PointerCursorHidden removes the pointer entirely: for a surface that
 	// draws its own pointer, such as a remote desktop.
 	PointerCursorHidden
+	// PointerCursorImage is the picture in HitOptions.CursorImage, as the
+	// system's own pointer; the arrow while that is nil.
+	PointerCursorImage
 )
 
 // HitOptions describes interaction and accessibility state without a dynamic
 // property bag. Zero values represent an enabled focusable button.
 type HitOptions struct {
-	Role     Role
-	Cursor   PointerCursor
-	Value    string
-	Hint     string
-	Disabled bool
+	Role   Role
+	Cursor PointerCursor
+	// CursorImage is the pointer shown over the hit when Cursor is
+	// PointerCursorImage. The same value stays the same cursor: keep one while
+	// the picture is unchanged, and make a new one when it changes.
+	CursorImage *CursorImage
+	Value       string
+	Hint        string
+	Disabled    bool
 	// FocusableWhenDisabled keeps a disabled control in the Tab order and
 	// focusable, as Base UI's accordion, collapsible and tab triggers do; it
 	// never activates. Pointer presses still skip it.
@@ -466,16 +473,18 @@ type TextPlacement interface {
 // Hit is one pointer interaction region in back-to-front paint order. The zero
 // ID is reserved for "no target". Label is the accessibility name of the region.
 type Hit struct {
-	ID       ID
-	Bounds   Rect
-	Label    string
-	Value    string
-	Hint     string
-	Scope    ID
-	Layer    uint16
-	Role     Role
-	Cursor   PointerCursor
-	Disabled bool
+	ID     ID
+	Bounds Rect
+	Label  string
+	Value  string
+	Hint   string
+	Scope  ID
+	Layer  uint16
+	Role   Role
+	Cursor PointerCursor
+	// CursorImage is HitOptions.CursorImage.
+	CursorImage *CursorImage
+	Disabled    bool
 	// FocusableDisabled is HitOptions.FocusableWhenDisabled.
 	FocusableDisabled bool
 	Checked           bool
@@ -1227,7 +1236,7 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 	canvas.hits = append(canvas.hits, Hit{
 		ID: id, Bounds: bounds, Label: label,
 		Value: options.Value, Hint: options.Hint,
-		Scope: canvas.currentFocusScope(), Layer: canvas.currentLayer(), Role: role, Cursor: options.Cursor,
+		Scope: canvas.currentFocusScope(), Layer: canvas.currentLayer(), Role: role, Cursor: options.Cursor, CursorImage: options.CursorImage,
 		Disabled: options.Disabled, FocusableDisabled: options.Disabled && options.FocusableWhenDisabled,
 		Checked: options.Checked, Mixed: options.Mixed,
 		Selected: options.Selected, Expanded: options.Expanded, Expandable: options.Expandable || options.Expanded,

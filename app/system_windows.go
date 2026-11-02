@@ -101,3 +101,7 @@ func nativeWatchAppearance() {} // the window procedure hears the settings chang
 func nativeSetAppearance(appearance Appearance) {
 	windowsplatform.SetAppearance(appearance == AppearanceLight, appearance == AppearanceDark)
 }
+
+func nativeSetCursorImage(image *ui.CursorImage) error {
+	return windowsplatform.SetCursorImage(image)
+}

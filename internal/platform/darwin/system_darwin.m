@@ -377,6 +377,26 @@ static NSCursor *viva_cursor(uint8_t shape, NSString **error) {
     }
 }
 
+// viva_apply_cursor shows cursor now and keeps it for every window, on the main thread.
+static void viva_apply_cursor(NSCursor *cursor) {
+    [cursor set];
+    for (NSWindow *window in NSApp.windows) {
+        NSView *view = window.contentView;
+        if (view == nil) {
+            continue;
+        }
+        // A Viva view remembers the cursor and re-applies it whenever
+        // AppKit rebuilds its cursor rectangles, which it does after any
+        // layout change; a rectangle added once would be thrown away then.
+        if ([view respondsToSelector:@selector(vivaSetCursor:)]) {
+            [(id)view performSelector:@selector(vivaSetCursor:) withObject:cursor];
+        } else {
+            [view discardCursorRects];
+            [view addCursorRect:view.bounds cursor:cursor];
+        }
+    }
+}
+
 int viva_system_set_cursor(uint8_t shape, char **error_message) {
     __block int status = 0;
     __block char *failure = NULL;
@@ -389,22 +409,47 @@ int viva_system_set_cursor(uint8_t shape, char **error_message) {
                 status = -1;
                 return;
             }
-            [cursor set];
-            for (NSWindow *window in NSApp.windows) {
-                NSView *view = window.contentView;
-                if (view == nil) {
-                    continue;
-                }
-                // A Viva view remembers the cursor and re-applies it whenever
-                // AppKit rebuilds its cursor rectangles, which it does after any
-                // layout change; a rectangle added once would be thrown away then.
-                if ([view respondsToSelector:@selector(vivaSetCursor:)]) {
-                    [(id)view performSelector:@selector(vivaSetCursor:) withObject:cursor];
-                } else {
-                    [view discardCursorRects];
-                    [view addCursorRect:view.bounds cursor:cursor];
-                }
+            viva_apply_cursor(cursor);
+        }
+    });
+    if (status != 0) {
+        if (error_message != NULL) {
+            *error_message = failure;
+        } else {
+            free(failure);
+        }
+    }
+    return status;
+}
+
+// viva_system_set_cursor_image makes a picture the pointer. The pixels are width by height rows
+// top down, blue, green, red, alpha with the color multiplied by alpha; scale is how many of
+// them cover a point, so the cursor is as many points as the picture was made for.
+int viva_system_set_cursor_image(int width, int height, int hot_x, int hot_y, double scale, const uint8_t *pixels, char **error_message) {
+    __block int status = 0;
+    __block char *failure = NULL;
+    viva_on_main_sync(^{
+        @autoreleasepool {
+            size_t length = (size_t)width * (size_t)height * 4;
+            CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+            NSData *data = [NSData dataWithBytes:pixels length:length];
+            CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)data);
+            CGImageRef image = CGImageCreate((size_t)width, (size_t)height, 8, 32, (size_t)width * 4, space,
+                                             kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little,
+                                             provider, NULL, false, kCGRenderingIntentDefault);
+            CGDataProviderRelease(provider);
+            CGColorSpaceRelease(space);
+            if (image == NULL) {
+                failure = viva_copy_utf8(@"macOS could not make an image of the cursor");
+                status = -1;
+                return;
             }
+            NSBitmapImageRep *representation = [[NSBitmapImageRep alloc] initWithCGImage:image];
+            CGImageRelease(image);
+            NSImage *picture = [[NSImage alloc] initWithSize:NSMakeSize(width / scale, height / scale)];
+            [picture addRepresentation:representation];
+            NSCursor *cursor = [[NSCursor alloc] initWithImage:picture hotSpot:NSMakePoint(hot_x / scale, hot_y / scale)];
+            viva_apply_cursor(cursor);
         }
     });
     if (status != 0) {

@@ -40,6 +40,9 @@ const (
 	// CursorHidden removes the pointer: a surface that draws its own (a
 	// remote desktop picture) uses it to keep the system pointer away.
 	CursorHidden
+	// CursorImage is a picture the application supplies; see SetCursorImage. SetCursor
+	// refuses it, since a shape alone does not say which picture.
+	CursorImage
 )
 
 type SystemSound uint8
@@ -128,6 +131,17 @@ func SetCursor(cursor Cursor) error {
 		return fmt.Errorf("app: invalid cursor %d", cursor)
 	}
 	return nativeSetCursor(cursor)
+}
+
+// SetCursorImage makes image the pointer over the window, drawn by the system as any pointer
+// is; the same call with a nil image is refused. Hits show a picture without this call
+// (ui.HitOptions.CursorImage), which is how a view normally chooses it. An error wrapping
+// ErrUnsupported means this target cannot show application pictures as its pointer.
+func SetCursorImage(image *ui.CursorImage) error {
+	if image == nil {
+		return fmt.Errorf("app: cursor image is nil")
+	}
+	return nativeSetCursorImage(image)
 }
 
 func OpenFiles(options OpenFileOptions) ([]string, error) {

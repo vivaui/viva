@@ -43,6 +43,10 @@ func nativeSetCursor(cursor Cursor) error {
 	return webSystemError("set cursor", webplatform.SetCursorShape(uint8(cursor)))
 }
 
+func nativeSetCursorImage(image *ui.CursorImage) error {
+	return webSystemError("set cursor image", webplatform.SetCursorImage(image))
+}
+
 func nativeOpenFiles(OpenFileOptions) ([]string, error) {
 	paths, err := webplatform.OpenFiles()
 	return paths, webSystemError("open files", err)

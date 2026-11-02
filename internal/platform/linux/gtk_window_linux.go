@@ -60,6 +60,11 @@ type gtkWindow struct {
 	// cursors are the GDK cursors made so far, by shape; cursorShape is the one in use plus one.
 	cursors     [len(cursorNames) + 1]uintptr // the last is the hidden one
 	cursorShape uint8
+	// imageCursor is the GDK cursor made for cursorImage, the application picture in use, and
+	// imagePixels the bytes the surface it was made from read.
+	imageCursor uintptr
+	cursorImage *ui.CursorImage
+	imagePixels []byte
 
 	redrawRequested atomic.Bool
 	destroying      bool

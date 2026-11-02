@@ -22,6 +22,7 @@ int viva_system_pasteboard_put_image(const char *pasteboard, const uint8_t *png,
 // Shows a modal alert. It must run on the main thread; elsewhere it returns -1.
 int viva_system_show_fatal_error(const char *title, const char *message);
 int viva_system_set_cursor(uint8_t shape, char **error_message);
+int viva_system_set_cursor_image(int width, int height, int hot_x, int hot_y, double scale, const uint8_t *pixels, char **error_message);
 int viva_system_open_files(
     const char *title,
     const char *const *extensions,

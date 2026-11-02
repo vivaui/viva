@@ -35,6 +35,10 @@ func nativeSetCursor(cursor Cursor) error {
 	return darwinplatform.SetCursorShape(uint8(cursor))
 }
 
+func nativeSetCursorImage(image *ui.CursorImage) error {
+	return darwinplatform.SetCursorImage(image)
+}
+
 func nativeOpenFiles(options OpenFileOptions) ([]string, error) {
 	filters := make([]darwinplatform.FileFilter, len(options.Filters))
 	for index, filter := range options.Filters {

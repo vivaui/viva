@@ -18,6 +18,7 @@ import (
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/ui"
 )
 
 var ErrPermissionDenied = errors.New("darwin: permission denied")
@@ -187,6 +188,20 @@ func SetCursorShape(shape uint8) error {
 	var nativeError *C.char
 	if C.viva_system_set_cursor(C.uint8_t(shape), &nativeError) != 0 {
 		return systemError("set cursor", nativeError)
+	}
+	return nil
+}
+
+// SetCursorImage makes the picture the pointer over the app's windows, as many points big as it
+// was made for: its own pixels, not resampled, which AppKit draws at the screen's density.
+func SetCursorImage(image *ui.CursorImage) error {
+	width, height, hotX, hotY, pixels := platform.CursorPixels(image, image.Scale(), true)
+	var nativeError *C.char
+	status := C.viva_system_set_cursor_image(C.int(width), C.int(height), C.int(hotX), C.int(hotY),
+		C.double(image.Scale()), (*C.uint8_t)(unsafe.Pointer(&pixels[0])), &nativeError)
+	runtime.KeepAlive(pixels)
+	if status != 0 {
+		return systemError("set cursor image", nativeError)
 	}
 	return nil
 }

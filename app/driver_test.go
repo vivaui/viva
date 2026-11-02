@@ -4,6 +4,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -997,5 +998,80 @@ func TestDriverPopoverAnchorDismissDoesNotReopenTheTrigger(t *testing.T) {
 	}
 	if open || pageClicks != 1 {
 		t.Fatal("outside page press did not dismiss and pass through")
+	}
+}
+
+func TestDriverShowsAHitsCursorImageAndRestoresTheArrow(t *testing.T) {
+	first, err := ui.NewCursorImage(2, 2, 0, 0, 1, make([]byte, 16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := ui.NewCursorImage(2, 2, 1, 1, 1, make([]byte, 16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := first
+	config := Config{Title: "cursor image", Width: 200, Height: 100}
+	config.Paint = func(canvas *ui.Canvas, _ ui.Size) {
+		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 100, Height: 100}, "remote", ui.HitOptions{Cursor: ui.PointerCursorImage, CursorImage: current})
+		// A hit that names the image cursor without a picture has none to show.
+		canvas.HitWithOptions(ui.Item(2), ui.Rect{X: 100, Width: 100, Height: 100}, "empty", ui.HitOptions{Cursor: ui.PointerCursorImage})
+	}
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Move(20, 20); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot := driver.Snapshot(); snapshot.Cursor != CursorImage || snapshot.CursorImage != first {
+		t.Fatalf("over the remote: cursor %v image %p, want the first picture", snapshot.Cursor, snapshot.CursorImage)
+	}
+	// The picture changes while the pointer rests: the next move shows the new one.
+	current = second
+	if err := driver.Resize(200, 101); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Move(21, 20); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot := driver.Snapshot(); snapshot.CursorImage != second {
+		t.Fatalf("after the picture changed: image %p, want the second", snapshot.CursorImage)
+	}
+	if err := driver.Move(150, 20); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot := driver.Snapshot(); snapshot.Cursor != CursorArrow || snapshot.CursorImage != nil {
+		t.Fatalf("over a hit without a picture: cursor %v image %v, want the arrow", snapshot.Cursor, snapshot.CursorImage)
+	}
+}
+
+// A target that cannot draw application pointers keeps the arrow instead of failing the pointer.
+func TestAnUnsupportedCursorImageFallsBackToTheArrow(t *testing.T) {
+	image, err := ui.NewCursorImage(1, 1, 0, 0, 1, make([]byte, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := Config{Title: "unsupported cursor image", Width: 100, Height: 100}
+	config.Paint = func(canvas *ui.Canvas, _ ui.Size) {
+		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 100, Height: 100}, "remote", ui.HitOptions{Cursor: ui.PointerCursorImage, CursorImage: image})
+	}
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	var shapes []Cursor
+	driver.painter.setCursor = func(cursor Cursor) error { shapes = append(shapes, cursor); return nil }
+	driver.painter.setCursorImage = func(*ui.CursorImage) error { return fmt.Errorf("no pointers: %w", ErrUnsupported) }
+	if err := driver.Move(10, 10); err != nil {
+		t.Fatalf("an unsupported pointer picture failed the move: %v", err)
+	}
+	if len(shapes) != 1 || shapes[0] != CursorArrow {
+		t.Fatalf("shapes set = %v, want the arrow once", shapes)
+	}
+	if err := driver.Move(11, 10); err != nil || len(shapes) != 1 {
+		t.Fatalf("the same picture was asked for again: %v %v", shapes, err)
 	}
 }

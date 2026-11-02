@@ -9,6 +9,7 @@ import (
 	"syscall/js"
 
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/ui"
 )
 
 var (
@@ -194,6 +195,25 @@ func SetCursorShape(shape uint8) error {
 		return fmt.Errorf("%w: documentElement is not present", ErrUnavailable)
 	}
 	return catchJS("set cursor", func() {
+		root.Get("style").Set("cursor", cursor)
+	})
+}
+
+// SetCursorImage makes the picture the pointer over the page, through the CSS cursor property.
+func SetCursorImage(image *ui.CursorImage) error {
+	cursor, err := cursorImageCSS(image)
+	if err != nil {
+		return err
+	}
+	document := js.Global().Get("document")
+	if document.Type() == js.TypeUndefined || document.IsNull() {
+		return fmt.Errorf("%w: document is not present", ErrUnavailable)
+	}
+	root := document.Get("documentElement")
+	if root.Type() == js.TypeUndefined || root.IsNull() {
+		return fmt.Errorf("%w: documentElement is not present", ErrUnavailable)
+	}
+	return catchJS("set cursor image", func() {
 		root.Get("style").Set("cursor", cursor)
 	})
 }

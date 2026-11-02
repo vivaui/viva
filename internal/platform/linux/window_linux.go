@@ -31,8 +31,12 @@ type window struct {
 	moveResizeAtom            uint32
 	cursor                    uint32
 	// themed is the cursor theme's loader, tried once.
-	themed        *themedCursors
-	cursorsTried  bool
+	themed       *themedCursors
+	cursorsTried bool
+	// render is what application cursor pictures need, tried once; renderErr says why it is nil.
+	render        *xcbRender
+	renderTried   bool
+	renderErr     error
 	clipboard     string
 	clipboardAtom uint32
 	utf8Atom      uint32

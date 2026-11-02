@@ -309,6 +309,7 @@ type xcbAPI struct {
 	createGC                  func(uintptr, uint32, uint32, uint32, *uint32) xcbVoidCookie
 	polyFillRectangle         func(uintptr, uint32, uint32, uint32, *xcbRectangle) xcbVoidCookie
 	freeGC                    func(uintptr, uint32) xcbVoidCookie
+	putImage                  func(uintptr, uint8, uint32, uint32, uint16, uint16, int16, int16, uint8, uint8, uint32, *byte) xcbVoidCookie
 	createCursor              func(uintptr, uint32, uint32, uint32, uint16, uint16, uint16, uint16, uint16, uint16, uint16, uint16) xcbVoidCookie
 	createGlyphCursor         func(uintptr, uint32, uint32, uint32, uint16, uint16, uint16, uint16, uint16, uint16, uint16, uint16) xcbVoidCookie
 	freeCursor                func(uintptr, uint32) xcbVoidCookie
@@ -379,6 +380,7 @@ func loadXCB() (*xcbAPI, error) {
 	purego.RegisterLibFunc(&api.createGC, library, "xcb_create_gc_checked")
 	purego.RegisterLibFunc(&api.polyFillRectangle, library, "xcb_poly_fill_rectangle_checked")
 	purego.RegisterLibFunc(&api.freeGC, library, "xcb_free_gc")
+	purego.RegisterLibFunc(&api.putImage, library, "xcb_put_image_checked")
 	purego.RegisterLibFunc(&api.createCursor, library, "xcb_create_cursor_checked")
 	purego.RegisterLibFunc(&api.createGlyphCursor, library, "xcb_create_glyph_cursor_checked")
 	purego.RegisterLibFunc(&api.freeCursor, library, "xcb_free_cursor")
