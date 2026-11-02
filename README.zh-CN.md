@@ -30,7 +30,7 @@ viva dev .        # hot reload: save a file, the window updates and keeps its st
 
 环境要求：Go 1.26 或更新版本（缺失时 viva 会自己下载）。macOS 上需要 Xcode 命令行工具，因为 Viva 通过 cgo 访问 Cocoa 和 Metal；Linux 上需要带系统 XCB 和 Vulkan 加载库的 X11；Windows 上需要 Win32、Direct3D 11 和 DirectWrite。Viva 在运行时加载系统库，自身不捆绑任何一个。
 
-当前版本是 `v0.2.2`；要固定版本就写明（`@v0.2.2`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
+当前版本是 `v0.2.3`；要固定版本就写明（`@v0.2.3`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
 
 下面的一切描述的都是这个仓库：它的测量、它自己的程序，以及如何开发框架本身，而不是如何用框架。
 

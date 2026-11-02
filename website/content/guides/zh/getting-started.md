@@ -22,7 +22,7 @@ go mod init example.com/hello
 go get github.com/vivaui/viva
 ```
 
-`go get` 不带版本号时取最新的正式版本，目前就是 `v0.2.2`。要固定版本就写明：`go get github.com/vivaui/viva@v0.2.2`。Viva 还没有到 1.0，所以小版本之间 `go.mod` 的 API 仍可能变化；升级前看一眼发版说明。
+`go get` 不带版本号时取最新的正式版本，目前就是 `v0.2.3`。要固定版本就写明：`go get github.com/vivaui/viva@v0.2.3`。Viva 还没有到 1.0，所以小版本之间 `go.mod` 的 API 仍可能变化；升级前看一眼发版说明。
 
 如果你是在 Viva 仓库里改框架本身、而不是使用它，改用 `replace` 指向检出目录：
 
