@@ -52,11 +52,13 @@ type fontSettings struct {
 func (settings fontSettings) subpixel() bool { return settings.Antialias == cairoAntialiasSubpixel }
 
 // grayscale is the same settings without LCD antialiasing: for text that cannot be blended per
-// channel.
+// channel. A default left to fontconfig is made explicit, because fontconfig may choose LCD
+// antialiasing; only a desktop that turned antialiasing off keeps it off.
 func (settings fontSettings) grayscale() fontSettings {
-	if settings.subpixel() {
-		settings.Antialias, settings.SubpixelOrder = cairoAntialiasGray, 0
+	if settings.Antialias != cairoAntialiasNone {
+		settings.Antialias = cairoAntialiasGray
 	}
+	settings.SubpixelOrder = 0
 	return settings
 }
 
