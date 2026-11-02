@@ -20,6 +20,9 @@ const (
 	xcbNotifyGrab     = 1
 	xcbNotifyUngrab   = 2
 	xcbNotifyInferior = 2
+	// FocusIn details that say this window itself gained the keyboard.
+	xcbNotifyAncestor  = 0
+	xcbNotifyNonlinear = 3
 
 	xcbAtomWMNormalHints = 40
 	xcbAtomWMSizeHints   = 41
