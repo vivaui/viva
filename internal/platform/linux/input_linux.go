@@ -103,6 +103,12 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 	} else {
 		keyEvent.Text = keymap.text(event.Detail, event.State)
 	}
+	keysym := keymap.keysym(event.Detail, event.State)
+	if key.IsModifier() && router.ime != nil {
+		// An input method reads a lone modifier by its press and its release (a bare
+		// Shift switches between Chinese and English), so it gets both.
+		router.ime.pressModifier(keysym, event)
+	}
 	wanted := router.wantsKeyReleases()
 	if wanted {
 		keyEvent.Code = uint32(event.Detail)
@@ -129,7 +135,6 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 	}
 	// An input method gets the key first, and answers later; a key it does not
 	// take comes back through deliverKey, in the order it was typed.
-	keysym := keymap.keysym(event.Detail, event.State)
 	if router.ime != nil && router.ime.processKey(keysym, event, keyEvent) {
 		return nil
 	}

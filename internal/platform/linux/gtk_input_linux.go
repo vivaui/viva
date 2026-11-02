@@ -411,11 +411,19 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 			keyEvent.Typed = string(r)
 		}
 		if key.IsModifier() {
+			if w.ime != nil && w.ime.filtering() {
+				w.ime.filter(event)
+			}
 			keyEvent.Modifiers |= key.Modifier()
 			w.deliverKey(keyEvent)
 			return 1
 		}
 	} else if key.IsModifier() {
+		// An input method reads a lone modifier by its press and its release (a bare Shift
+		// switches between Chinese and English); GTK hands both to the context.
+		if w.ime != nil && w.ime.filtering() {
+			w.ime.filter(event)
+		}
 		return 1
 	}
 	if w.config.OnShortcut != nil && platform.ShortcutCandidate(keyEvent) && !w.text.ownsChord(keyEvent) {

@@ -406,8 +406,12 @@ func (state *linuxTextInput) prefixWidth(shown string, values []rune, end int, s
 // terminal, as on Windows. Otherwise an application's own Paste binding would take
 // Control+V from the box the person is typing in.
 func (state *linuxTextInput) ownsChord(event platform.KeyEvent) bool {
-	if state == nil || !state.enabled || state.input.Terminal || state.state.Composing {
+	if state == nil || !state.enabled || state.input.Terminal {
 		return false
+	}
+	if state.state.Composing {
+		// Enter belongs to the composition, which it commits.
+		return event.Key == input.KeyEnter
 	}
 	if platform.TextClipboardAction(event) != 0 {
 		return true

@@ -331,8 +331,13 @@ func (runtime *runtime) bindEvents() {
 		event := args[0]
 		modifiers := webModifiers(event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(), event.Get("altKey").Bool(), event.Get("metaKey").Bool())
 		shortcut := strings.ToLower(event.Get("key").String())
-		if runtime.config.OnShortcut != nil && modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0 && utf8.RuneCountInString(shortcut) == 1 {
-			handled, changed := runtime.painter.shortcut(ui.KeyEvent{Modifiers: modifiers, Repeat: event.Get("repeat").Bool(), Text: shortcut})
+		enter := event.Get("key").String() == "Enter"
+		if runtime.config.OnShortcut != nil && modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0 && (enter || utf8.RuneCountInString(shortcut) == 1) {
+			chord := ui.KeyEvent{Modifiers: modifiers, Repeat: event.Get("repeat").Bool(), Text: shortcut}
+			if enter {
+				chord.Key, chord.Text = input.KeyEnter, ""
+			}
+			handled, changed := runtime.painter.shortcut(chord)
 			if handled {
 				event.Call("preventDefault")
 			}
