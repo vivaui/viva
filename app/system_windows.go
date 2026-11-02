@@ -66,6 +66,10 @@ func nativeSaveFile(options SaveFileOptions) (string, error) {
 	return path, err
 }
 func nativeOpenURL(target string) error { return windowsplatform.OpenURL(target) }
+
+func nativeOpenWith(executable, path string) error {
+	return windowsplatform.OpenWith(executable, path)
+}
 func nativePlaySystemSound(sound SystemSound) error {
 	return windowsplatform.PlaySystemSound(uint8(sound))
 }
