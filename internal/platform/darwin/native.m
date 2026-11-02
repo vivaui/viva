@@ -2198,6 +2198,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     uint32_t contentFlags = config.flags & ~VIVA_LABEL_CLIPPED;
     hash = viva_hash_bytes(hash, &contentFlags, sizeof(contentFlags));
     hash = viva_hash_bytes(hash, &config.mono_face, sizeof(config.mono_face));
+    hash = viva_hash_bytes(hash, &config.font_generation, sizeof(config.font_generation));
     if (config.runs != NULL) {
         hash = viva_hash_bytes(hash, config.runs, config.run_count * sizeof(viva_text_run));
     }
@@ -2232,6 +2233,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     CGFloat _originX;  // where the text starts within the frame, logical pixels
     CGFloat _originY;
     uint64_t _hash;
+    uint32_t _fontGeneration; // the interface font generation the picture was made in
     BOOL _mono;
     int _monoFace;
     CGFloat _cellWidth;
@@ -2361,6 +2363,7 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
         _originX = viva_quantized_origin(config.origin_x);
         _originY = viva_quantized_origin(config.origin_y);
         _hash = viva_label_content_hash(config);
+        _fontGeneration = config.font_generation;
         _mono = (config.flags & VIVA_LABEL_MONO) != 0;
         _monoFace = config.mono_face;
         _cellWidth = config.cell_width;
@@ -2419,7 +2422,7 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
     // Content identity: font, color, and text. Position never matters (the
     // quad supplies it each draw); size matters only for texel alignment,
     // which live resize may temporarily relax.
-    if (_fontSize != config.font_size || _fontWeight != config.font_weight) {
+    if (_fontSize != config.font_size || _fontWeight != config.font_weight || _fontGeneration != config.font_generation) {
         return NO;
     }
     if (_originX != viva_quantized_origin(config.origin_x) || _originY != viva_quantized_origin(config.origin_y)) {

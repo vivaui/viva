@@ -45,7 +45,7 @@ func scenery(snapshot app.Snapshot) ([]render.Rectangle, []platform.TextLabel, *
 		labels[index] = platform.TextLabel{
 			Value: label.Value, X: label.Bounds.X, Y: label.Bounds.Y, Width: label.Bounds.Width, Height: label.Bounds.Height,
 			OriginX: label.OriginX, OriginY: label.OriginY,
-			FontSize: label.FontSize, Weight: label.Weight, Layer: label.Layer,
+			FontSize: label.FontSize, Weight: label.Weight, Layer: label.Layer, FontGeneration: label.FontGeneration,
 			Mono: label.Mono, MonoFace: label.MonoFace, CellWidth: label.CellWidth, Runs: label.Runs,
 			Clip: label.Clip, Clipped: label.Clipped,
 			Bitmap: label.Bitmap, BitmapWidth: label.BitmapWidth, BitmapHeight: label.BitmapHeight,

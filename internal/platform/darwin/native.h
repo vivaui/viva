@@ -152,6 +152,9 @@ typedef struct {
     // mono_face is the ui.MonoFace of a fixed-pitch label: 0 system, 1 classic,
     // or a family registered with viva_register_mono_family.
     uint16_t mono_face;
+    // The generation of the interface font the proportional text was laid out in
+    // (platform.TextLabel.FontGeneration): a label picture made in another one is stale.
+    uint32_t font_generation;
     // Fixed-pitch grid lines: flags (VIVA_LABEL_MONO), the column pitch and the
     // per-run colors. run_count is 0 for an ordinary label.
     const viva_text_run *runs;

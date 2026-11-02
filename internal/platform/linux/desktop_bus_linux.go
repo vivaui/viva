@@ -148,6 +148,7 @@ func refreshTextEngine() {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	engine.cache.Clear()
+	engine.generation.Add(1)
 	engine.services.useFonts(systemFonts())
 }
 

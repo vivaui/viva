@@ -72,11 +72,15 @@ type painter struct {
 	paintedScratch  []ui.ID // the next paint's IDs, so one pass can read the old ones
 	lastTexts       []ui.Text
 	lastRuns        []ui.TextRun // the runs lastTexts refer to, copied out of the application's memory
-	lastImages      []ui.Image
-	views           []platform.NativeView // the native views of this publish
-	lastViews       []platform.NativeView // the ones last sent
-	covers          []ui.Rect             // backing of the views' Covers
-	stateBySlot     []instanceState
+	// lastFontGeneration is the canvas's font generation at the labels last sent: text
+	// that has not changed still needs sending when the fonts have, so the renderer
+	// draws it again.
+	lastFontGeneration uint32
+	lastImages         []ui.Image
+	views              []platform.NativeView // the native views of this publish
+	lastViews          []platform.NativeView // the ones last sent
+	covers             []ui.Rect             // backing of the views' Covers
+	stateBySlot        []instanceState
 	// layerShift is 1 while the frame has a backdrop, which takes platform layer
 	// zero; every canvas layer then travels one higher. It is 0 otherwise.
 	layerShift uint16
@@ -2065,6 +2069,7 @@ func (painter *painter) syncLabels() {
 			BitmapUpload: index >= len(painter.lastImages) || !sameImageBitmap(image, painter.lastImages[index]),
 		})
 	}
+	fontGeneration := painter.canvas.FontGeneration()
 	for _, label := range texts {
 		width := roundPixel(label.Bounds.Width)
 		height := roundPixel(label.Bounds.Height)
@@ -2085,6 +2090,10 @@ func (painter *painter) syncLabels() {
 			},
 			Layer: painter.platformLayer(label.Layer),
 			Mono:  label.Style.Mono, MonoFace: label.Style.MonoFace, CellWidth: label.CellWidth, Runs: painter.canvas.TextRuns(label),
+		}
+		if !label.Style.Mono && label.RunCount == 0 {
+			// Only text in the interface font follows its generation.
+			entry.FontGeneration = fontGeneration
 		}
 		if label.RunCount > 0 {
 			// The font does not draw Block Elements; appendBlockElements did.
@@ -2274,7 +2283,7 @@ func (painter *painter) platformLayer(layer uint16) uint16 {
 // sameAsLastTexts reports whether the texts to draw are exactly those last
 // sent to the platform.
 func (painter *painter) sameAsLastContent() bool {
-	if !sameImages(painter.clippedImages, painter.lastImages) {
+	if painter.canvas.FontGeneration() != painter.lastFontGeneration || !sameImages(painter.clippedImages, painter.lastImages) {
 		return false
 	}
 	left, right := painter.clippedTexts, painter.lastTexts
@@ -2354,6 +2363,7 @@ func sameAccessibility(left, right []platform.AccessibilityNode) bool {
 // saveTexts remembers this frame's texts for the next comparison. Their runs
 // live in the canvas, which is rewritten by the next paint, so they are copied.
 func (painter *painter) saveContent() {
+	painter.lastFontGeneration = painter.canvas.FontGeneration()
 	painter.lastImages = append(painter.lastImages[:0], painter.clippedImages...)
 	painter.lastTexts = append(painter.lastTexts[:0], painter.clippedTexts...)
 	painter.lastRuns = painter.lastRuns[:0]

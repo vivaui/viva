@@ -911,6 +911,9 @@ type Label struct {
 	Weight           float32
 	Color            ui.Color
 	Layer            uint16
+	// FontGeneration is platform.TextLabel's: the interface font the text was laid out
+	// in, 0 for text that does not follow it.
+	FontGeneration uint32
 	// Mono, MonoFace, CellWidth and Runs describe a fixed-pitch grid line (see
 	// ui.Canvas.LabelRuns); Runs is empty for an ordinary label.
 	Mono      bool
@@ -1036,8 +1039,8 @@ func (driver *Driver) Snapshot() Snapshot {
 			OriginX: label.OriginX, OriginY: label.OriginY,
 			FontSize: label.FontSize, Weight: label.Weight,
 			Color: ui.Color{Red: float32(label.Color.Red), Green: float32(label.Color.Green), Blue: float32(label.Color.Blue), Alpha: float32(label.Color.Alpha)},
-			Layer: label.Layer,
-			Mono:  label.Mono, MonoFace: label.MonoFace, CellWidth: label.CellWidth, Runs: append([]ui.TextRun(nil), label.Runs...),
+			Layer: label.Layer, FontGeneration: label.FontGeneration,
+			Mono: label.Mono, MonoFace: label.MonoFace, CellWidth: label.CellWidth, Runs: append([]ui.TextRun(nil), label.Runs...),
 			Clip: label.Clip, Clipped: label.Clipped,
 			BitmapWidth: label.BitmapWidth, BitmapHeight: label.BitmapHeight, BitmapStride: label.BitmapStride,
 			BitmapID: label.BitmapID, BitmapVersion: label.BitmapVersion,

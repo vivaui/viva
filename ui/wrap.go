@@ -51,6 +51,7 @@ type EllipsisCache struct {
 	width        float32
 	result       string
 	filled       bool
+	generation   uint32 // the canvas's FontGeneration when result was cut
 }
 
 // WrapLinesCached is WrapLines that takes the ellipsized last line from cache when
@@ -122,8 +123,9 @@ func (canvas *Canvas) FitLine(line string, size, weight, width float32) string {
 		canvas.fits = make([]fitEntry, fitMemoSize)
 	}
 	entry := &canvas.fits[hash&(fitMemoSize-1)]
-	if entry.result == "" || entry.size != size || entry.weight != weight || entry.width != width || entry.line != line {
-		*entry = fitEntry{line: line, result: canvas.ellipsize(line, size, weight, width), size: size, weight: weight, width: width}
+	generation := canvas.FontGeneration()
+	if entry.result == "" || entry.size != size || entry.weight != weight || entry.width != width || entry.line != line || entry.generation != generation {
+		*entry = fitEntry{line: line, result: canvas.ellipsize(line, size, weight, width), size: size, weight: weight, width: width, generation: generation}
 	}
 	return entry.result
 }
@@ -132,6 +134,7 @@ func (canvas *Canvas) FitLine(line string, size, weight, width float32) string {
 type fitEntry struct {
 	line, result        string
 	size, weight, width float32
+	generation          uint32 // the canvas's FontGeneration when result was cut
 }
 
 const (
@@ -143,8 +146,9 @@ func (canvas *Canvas) ellipsizeCached(line string, size, weight, width float32, 
 	if cache == nil {
 		return canvas.ellipsize(line, size, weight, width)
 	}
-	if !cache.filled || cache.size != size || cache.weight != weight || cache.width != width || cache.line != line {
-		cache.line, cache.size, cache.weight, cache.width = line, size, weight, width
+	generation := canvas.FontGeneration()
+	if !cache.filled || cache.size != size || cache.weight != weight || cache.width != width || cache.line != line || cache.generation != generation {
+		cache.line, cache.size, cache.weight, cache.width, cache.generation = line, size, weight, width, generation
 		cache.result, cache.filled = canvas.ellipsize(line, size, weight, width), true
 	}
 	return cache.result

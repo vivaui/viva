@@ -589,6 +589,7 @@ type Canvas struct {
 	measurer        func(value string, size, weight float32) float32
 	cellMeasurer    func(size float32, face MonoFace) (width, height float32)
 	engine          TextEngine
+	aware           FontFamilyAware // engine, when it follows a family; nil otherwise
 	// spans is what an engine writes a selection into. The engine is an interface, so
 	// a caller's own buffer passed to it would escape to the heap on every paint.
 	spans    []TextSpan

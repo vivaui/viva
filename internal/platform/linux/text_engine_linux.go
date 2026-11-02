@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/grapheme"
@@ -54,6 +55,8 @@ type textEngine struct {
 	// alias, which is the desktop's own interface font. Guarded by mu; a change
 	// forgets the cache.
 	family string
+	// generation moves whenever a line shapes differently from before (ui.FontFamilyAware).
+	generation atomic.Uint32
 
 	strong, weak, cell pangoRectangle
 }
@@ -87,6 +90,8 @@ var systemEngine struct {
 	engine *textEngine
 }
 
+var _ ui.FontFamilyAware = (*textEngine)(nil)
+
 // SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
 // shaped in, "" for the desktop's own interface font (Pango's sans alias).
 // Everything shaped with another family is forgotten.
@@ -99,7 +104,11 @@ func (engine *textEngine) SetFontFamily(family string) {
 	}
 	engine.family = family
 	engine.cache.Clear()
+	engine.generation.Add(1)
 }
+
+// FontGeneration implements ui.FontFamilyAware.
+func (engine *textEngine) FontGeneration() uint32 { return engine.generation.Load() }
 
 // sharedTextEngine is the process's engine, created when text is first measured or drawn;
 // nil when Pango cannot be loaded.
