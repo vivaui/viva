@@ -1240,6 +1240,43 @@ static void viva_mono_face_traits(int face, NSString **family, BOOL *classic, NS
     }
 }
 
+// viva_mono_font_on_a_grid reports whether the font advances every printable ASCII
+// character by the same width: the one property a terminal cell grid needs.
+//
+// The font's own fixed-pitch bit is not enough to ask. Families built for coding
+// (Nerd Font patches, ligature builds) often leave it clear while drawing on a grid
+// all the same, and the bit alone kept them out of the list. The advances are
+// compared with a percent of the cell to spare, because a grid font still rounds a
+// glyph by a hair (Roboto Mono for Powerline gives '-' 7.207 where its cell is
+// 7.201) while a proportional font's differ by a fraction of the cell.
+static BOOL viva_mono_font_on_a_grid(NSFont *font) {
+    if (font.isFixedPitch) {
+        return YES;
+    }
+    enum { first = 0x20, last = 0x7E, count = last - first + 1 };
+    UniChar characters[count];
+    CGGlyph glyphs[count];
+    CGSize advances[count];
+    for (CFIndex index = 0; index < count; index++) {
+        characters[index] = (UniChar)(first + index);
+    }
+    CTFontRef ctFont = (CTFontRef)font;
+    if (!CTFontGetGlyphsForCharacters(ctFont, characters, glyphs, count)) {
+        return NO; // it cannot draw one of them, so it is no terminal face
+    }
+    CTFontGetAdvancesForGlyphs(ctFont, kCTFontOrientationHorizontal, glyphs, advances, count);
+    CGFloat cell = advances[0].width;
+    if (cell <= 0.0) {
+        return NO;
+    }
+    for (CFIndex index = 1; index < count; index++) {
+        if (fabs(advances[index].width - cell) > cell * 0.01) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
 char *viva_list_mono_families(void) {
     @autoreleasepool {
         NSFontManager *manager = [NSFontManager sharedFontManager];
@@ -1249,7 +1286,7 @@ char *viva_list_mono_families(void) {
                 continue;
             }
             NSFont *font = [manager fontWithFamily:family traits:0 weight:5 size:12];
-            if (font != nil && font.isFixedPitch) {
+            if (font != nil && viva_mono_font_on_a_grid(font)) {
                 [names addObject:family];
             }
         }
