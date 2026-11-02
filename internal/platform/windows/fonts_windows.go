@@ -55,6 +55,15 @@ func fontEnumCallback(logFont *enumLogFont, metric *newTextMetric, fontType uint
 	if logFont == nil || metric == nil || fontType&rasterFontType != 0 || mono && metric.PitchAndFamily&tmpfFixedPitch != 0 {
 		return 1
 	}
+	units := 0
+	for units < len(logFont.FaceName) && logFont.FaceName[units] != 0 {
+		units++
+	}
+	if units >= len(logFont.FaceName)-1 {
+		// The face name field holds 31 characters, and the system cuts a longer
+		// name to fit: a name that fills it may be a cut one, which names no family.
+		return 1
+	}
 	name := syscall.UTF16ToString(logFont.FaceName[:])
 	if name != "" && name[0] != '@' { // @-names are the vertical writing variants
 		fontEnumFound[name] = struct{}{}
@@ -65,7 +74,8 @@ func fontEnumCallback(logFont *enumLogFont, metric *newTextMetric, fontType uint
 // MonospaceFamilies lists the installed fixed-pitch font families, sorted.
 func MonospaceFamilies() []string { return fontFamilies(true) }
 
-// FontFamilies lists every installed font family, sorted.
+// FontFamilies lists every installed font family, sorted. A family whose name fills
+// the 31 characters of a LOGFONT is left out (see fontEnumCallback).
 func FontFamilies() []string { return fontFamilies(false) }
 
 // fontFamilies enumerates the installed families, only the fixed-pitch ones when
