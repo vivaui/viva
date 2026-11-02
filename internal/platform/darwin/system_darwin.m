@@ -62,10 +62,23 @@ static void viva_on_main_sync(dispatch_block_t operation) {
     dispatch_sync(dispatch_get_main_queue(), operation);
 }
 
+// viva_on_main_async runs operation on the main thread without waiting for it: at once when
+// the caller is that thread, queued otherwise. Nothing waits on the result, so a process whose
+// main thread runs no event loop (a test with a fake host) is not blocked by it.
+static void viva_on_main_async(dispatch_block_t operation) {
+    if (NSThread.isMainThread) {
+        operation();
+        return;
+    }
+    dispatch_async(dispatch_get_main_queue(), operation);
+}
+
 // viva_system_watch_clipboard starts (enable 1) or stops (0) reporting changes of the
-// pasteboard. Starting twice does nothing.
+// pasteboard. Starting twice does nothing. The timer changes on the main queue in the order
+// the calls were made; a notification after a stop is dropped on the Go side, which clears its
+// callback before this runs.
 void viva_system_watch_clipboard(int enable) {
-    viva_on_main_sync(^{
+    viva_on_main_async(^{
         if (!enable) {
             if (viva_clipboard_timer != NULL) {
                 dispatch_source_cancel(viva_clipboard_timer);
