@@ -551,6 +551,16 @@ func (driver *Driver) Key(key ui.Key, modifiers ui.Modifiers) error {
 		return err
 	}
 	modifiers |= driver.heldModifiers()
+	if key == ui.KeyEnter && modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0 {
+		// As on a window: Control+Enter is offered to the application before the
+		// text system, which would make a line break of it.
+		event := platform.KeyEvent{Key: input.KeyEnter, Modifiers: input.Modifiers(modifiers)}
+		if platform.ShortcutCandidate(event) {
+			if _, handled, err := driver.painter.shortcut(event); err != nil || handled {
+				return err
+			}
+		}
+	}
 	if driver.terminal() {
 		return driver.terminalKey(key, modifiers, "")
 	}

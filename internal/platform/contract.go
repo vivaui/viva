@@ -475,16 +475,22 @@ type KeyHandler func(KeyEvent) (Frame, error)
 // optional repaint.
 type FocusLostHandler func() (Frame, error)
 
-// ShortcutHandler offers one Control- or Meta-modified printable chord before
-// native text handling and reports whether the application consumed it.
+// ShortcutHandler offers one Control- or Meta-modified printable chord, or
+// Control or Meta with Enter, before native text handling and reports whether the
+// application consumed it.
 type ShortcutHandler func(KeyEvent) (Frame, bool, error)
 
-// ShortcutCandidate reports whether an event is a modified printable chord
-// that may be offered before native text handling. Alt alone stays with the
-// text service so dead keys and input methods retain ownership.
+// ShortcutCandidate reports whether an event is a modified printable chord, or
+// Control or Meta with Enter, that may be offered before native text handling.
+// Alt alone stays with the text service so dead keys and input methods retain
+// ownership. Enter is the one named key offered: a multiline field turns it into
+// a line break, so an application that submits on Control+Enter must see it
+// first; one it leaves goes on to the field as before.
 func ShortcutCandidate(event KeyEvent) bool {
-	return event.Modifiers&(input.ModifierControl|input.ModifierMeta) != 0 &&
-		utf8.RuneCountInString(event.Text) == 1
+	if event.Modifiers&(input.ModifierControl|input.ModifierMeta) == 0 {
+		return false
+	}
+	return event.Key == input.KeyEnter || utf8.RuneCountInString(event.Text) == 1
 }
 
 // ScrollEvent is one normalized scroll gesture at X,Y in logical window

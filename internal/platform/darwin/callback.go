@@ -326,9 +326,9 @@ func deliverKey(handle C.uintptr_t, view unsafe.Pointer, event KeyEvent, utf8 *C
 }
 
 //export vivaShortcutEvent
-func vivaShortcutEvent(handle C.uintptr_t, view unsafe.Pointer, modifiers C.int, repeat C.int, utf8 *C.uchar, utf8Length C.size_t) C.int {
+func vivaShortcutEvent(handle C.uintptr_t, view unsafe.Pointer, key C.int, modifiers C.int, repeat C.int, utf8 *C.uchar, utf8Length C.size_t) C.int {
 	state := cgo.Handle(handle).Value().(*runState)
-	if state.shortcutHandler == nil || utf8Length == 0 {
+	if state.shortcutHandler == nil || utf8Length == 0 && input.Key(key) != input.KeyEnter {
 		return 0
 	}
 	defer func() {
@@ -338,9 +338,12 @@ func vivaShortcutEvent(handle C.uintptr_t, view unsafe.Pointer, modifiers C.int,
 			C.viva_view_close(view)
 		}
 	}()
-	text := C.GoStringN((*C.char)(unsafe.Pointer(utf8)), C.int(utf8Length))
+	text := ""
+	if utf8Length > 0 {
+		text = C.GoStringN((*C.char)(unsafe.Pointer(utf8)), C.int(utf8Length))
+	}
 	frame, handled, err := state.shortcutHandler(KeyEvent{
-		Modifiers: input.Modifiers(modifiers), Repeat: repeat != 0, Text: text,
+		Key: input.Key(key), Modifiers: input.Modifiers(modifiers), Repeat: repeat != 0, Text: text,
 	})
 	if err == nil {
 		err = presentFrame(state, view, frame, false)
