@@ -910,10 +910,15 @@ static CTFontRef viva_system_font(CGFloat size, CGFloat weight) {
     if (viva_interface_family[0] != '\0') {
         NSString *family = [NSString stringWithUTF8String:viva_interface_family];
         if (family != nil) {
-            NSFont *named = [[NSFontManager sharedFontManager] fontWithFamily:family
-                                                                       traits:(weight >= 0.34 ? NSBoldFontMask : 0)
-                                                                       weight:5
-                                                                         size:size];
+            // The weight is the system font's own continuous scale (NSFontWeight), so a
+            // family's regular, medium, semibold and bold faces are told apart as they are
+            // in the system font; the nearest face the family has stands in for one it
+            // lacks. NSFontManager's weight is a 0-15 table that cannot say medium.
+            NSFontDescriptor *descriptor = [NSFontDescriptor fontDescriptorWithFontAttributes:@{
+                NSFontFamilyAttribute: family,
+                NSFontTraitsAttribute: @{NSFontWeightTrait: @(weight)},
+            }];
+            NSFont *named = [NSFont fontWithDescriptor:descriptor size:size];
             if (named != nil) {
                 return (CTFontRef)CFRetain(named);
             }
