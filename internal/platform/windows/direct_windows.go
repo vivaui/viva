@@ -167,6 +167,8 @@ type directRasterizer struct {
 	pieces      []gridPiece
 	spans       []colorSpan // the colors of the last ClearType grid label, valid until the next call
 	fallbacks   []faceFallback
+	gdi         *gdiGridRasterizer // the GDI face of fixed-pitch runs, made on first use
+	directOnly  bool               // draw fixed-pitch runs with DirectWrite alone; tests compare the two
 }
 
 func newDirectRasterizer() (*directRasterizer, error) {
@@ -196,6 +198,10 @@ func (rasterizer *directRasterizer) close() {
 	}
 	if rasterizer.translucent != nil {
 		rasterizer.translucent.close()
+	}
+	if rasterizer.gdi != nil {
+		rasterizer.gdi.close()
+		rasterizer.gdi = nil
 	}
 	rasterizer.releaseFontFallbacks()
 	release(&rasterizer.factory)
