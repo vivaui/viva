@@ -454,6 +454,10 @@ int viva_measure_text(
 );
 // viva_text_line_create shapes UTF-8 text in the system font at a size and weight, with
 // the font fallback CoreText picks per character; NULL when the text is not valid UTF-8.
+// viva_text_set_family names the family viva_text_line_create shapes in, or "" (or
+// NULL) for the system font. It copies the name; call it before any line is shaped.
+void viva_text_set_family(const char *family);
+
 viva_text_line *viva_text_line_create(const unsigned char *utf8, size_t length, double font_size, double font_weight);
 void viva_text_line_retain(viva_text_line *line);
 void viva_text_line_release(viva_text_line *line);
@@ -475,6 +479,8 @@ int viva_measure_mono(double font_size, int mono_face, double *advance, double *
 // that built-in face is the classic one, and the families that draw the characters the
 // primary lacks, one name per line, in order. viva_list_mono_families returns every
 // installed fixed-pitch family, one per line, in memory the caller frees.
+// viva_list_font_families is the same for every installed family, fixed-pitch or not.
+char *viva_list_font_families(void);
 void viva_register_mono_family(int face, const char *utf8, int classic, const char *fallbacks);
 char *viva_list_mono_families(void);
 

@@ -16,6 +16,21 @@ import (
 // [0, len(value)] is clamped. An implementation is called on the paint goroutine only,
 // must not allocate for a line it has measured before, and keeps its shaped lines
 // itself (internal/textcache holds them for the backends).
+
+// FontFamilyAware is a TextEngine whose proportional family the application can
+// name while it runs: the platform engines implement it. The reference engine's
+// widths know no family, and a backend whose text the system draws without a
+// say in the family (the browser) does not.
+type FontFamilyAware interface {
+	TextEngine
+	// SetFontFamily names the family the interface's proportional text is shaped
+	// in, or "" for the platform's own interface font (Segoe UI on Windows, the
+	// desktop's choice through Pango's sans alias on Linux, the system font on
+	// macOS). A name the system has no family for is left to the platform to
+	// stand in for, as it does for any text. What was shaped with another family
+	// is forgotten, so the next measure shapes again.
+	SetFontFamily(family string)
+}
 type TextEngine interface {
 	// Width is the advance of the whole line; 0 only for an empty line.
 	Width(value string, size, weight float32) float32

@@ -42,16 +42,17 @@ var (
 	fontEnumMu          sync.Mutex
 	fontEnumFound       map[string]struct{}
 	fontEnumCallbackPtr uintptr
+	fontEnumMono        bool
 )
 
-func fontEnumCallback(logFont *enumLogFont, metric *newTextMetric, fontType uint32, _ uintptr) (result uintptr) {
+func fontEnumCallback(logFont *enumLogFont, metric *newTextMetric, fontType uint32, _ uintptr, mono bool) (result uintptr) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			platform.ReportFault("font enumeration", recovered)
 			result = 1
 		}
 	}()
-	if logFont == nil || metric == nil || fontType&rasterFontType != 0 || metric.PitchAndFamily&tmpfFixedPitch != 0 {
+	if logFont == nil || metric == nil || fontType&rasterFontType != 0 || mono && metric.PitchAndFamily&tmpfFixedPitch != 0 {
 		return 1
 	}
 	name := syscall.UTF16ToString(logFont.FaceName[:])
@@ -62,12 +63,23 @@ func fontEnumCallback(logFont *enumLogFont, metric *newTextMetric, fontType uint
 }
 
 // MonospaceFamilies lists the installed fixed-pitch font families, sorted.
-func MonospaceFamilies() []string {
+func MonospaceFamilies() []string { return fontFamilies(true) }
+
+// FontFamilies lists every installed font family, sorted.
+func FontFamilies() []string { return fontFamilies(false) }
+
+// fontFamilies enumerates the installed families, only the fixed-pitch ones when
+// monospace is set. Raster fonts and the vertical-writing variants are left out
+// either way.
+func fontFamilies(mono bool) []string {
 	fontEnumMu.Lock()
 	defer fontEnumMu.Unlock()
 	if fontEnumCallbackPtr == 0 {
-		fontEnumCallbackPtr = syscall.NewCallback(fontEnumCallback)
+		fontEnumCallbackPtr = syscall.NewCallback(func(logFont *enumLogFont, metric *newTextMetric, fontType uint32, extra uintptr) uintptr {
+			return fontEnumCallback(logFont, metric, fontType, extra, fontEnumMono)
+		})
 	}
+	fontEnumMono = mono
 	fontEnumFound = make(map[string]struct{})
 	defer func() { fontEnumFound = nil }()
 	dc, _, _ := getDC.Call(0)

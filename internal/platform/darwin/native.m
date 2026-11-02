@@ -896,11 +896,39 @@ static NSRange viva_clamp_range(NSRange range, NSUInteger length) {
 // drawing here reaches the same cache.
 extern viva_text_line *vivaShapedLine(const unsigned char *utf8, size_t length, double size, double weight);
 
+// viva_interface_family is the family viva_text_set_family last named, "" for the
+// system font. A plain C buffer, not an NSString: nothing here manages memory for
+// the interface font, and the name is read under the shaping the engine serializes.
+static char viva_interface_family[256] = "";
+
 // viva_system_font is the proportional font that measurement, labels and the editor all
-// use (a retained CTFont). It is an NSFont, which is a CTFont already.
+// use (a retained CTFont). It is an NSFont, which is a CTFont already. With a family
+// named, its face of that family at the weight stands in for the system font; a family
+// the system does not have falls back to the system font, as AppKit does for a name.
 static CTFontRef viva_system_font(CGFloat size, CGFloat weight) {
+    if (viva_interface_family[0] != '\0') {
+        NSString *family = [NSString stringWithUTF8String:viva_interface_family];
+        if (family != nil) {
+            NSFont *named = [[NSFontManager sharedFontManager] fontWithFamily:family
+                                                                       traits:(weight >= 0.34 ? NSBoldFontMask : 0)
+                                                                       weight:5
+                                                                         size:size];
+            if (named != nil) {
+                return (CTFontRef)CFRetain(named);
+            }
+        }
+    }
     NSFont *font = [NSFont systemFontOfSize:size weight:weight];
     return font != nil ? (CTFontRef)CFRetain(font) : NULL;
+}
+
+void viva_text_set_family(const char *family) {
+    if (family == NULL) {
+        viva_interface_family[0] = '\0';
+        return;
+    }
+    strncpy(viva_interface_family, family, sizeof(viva_interface_family) - 1);
+    viva_interface_family[sizeof(viva_interface_family) - 1] = '\0';
 }
 
 viva_text_line *viva_text_line_create(const unsigned char *utf8, size_t length, double font_size, double font_weight) {
@@ -1237,6 +1265,21 @@ static void viva_mono_face_traits(int face, NSString **family, BOOL *classic, NS
         *family = [[viva_mono_families[face] retain] autorelease];
         *classic = viva_mono_classic[face];
         *fallbacks = [[viva_mono_fallbacks[face] retain] autorelease];
+    }
+}
+
+char *viva_list_font_families(void) {
+    @autoreleasepool {
+        NSFontManager *manager = [NSFontManager sharedFontManager];
+        NSMutableArray<NSString *> *names = [NSMutableArray array];
+        for (NSString *family in [manager availableFontFamilies]) {
+            if ([family hasPrefix:@"."]) {
+                continue;
+            }
+            [names addObject:family];
+        }
+        [names sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+        return strdup([[names componentsJoinedByString:@"\n"] UTF8String]);
     }
 }
 

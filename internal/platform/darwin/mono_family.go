@@ -43,6 +43,20 @@ func syncMonoFamilies() {
 	}
 }
 
+// FontFamilies lists every installed font family, sorted.
+func FontFamilies() []string {
+	list := C.viva_list_font_families()
+	if list == nil {
+		return nil
+	}
+	defer C.free(unsafe.Pointer(list))
+	value := C.GoString(list)
+	if value == "" {
+		return nil
+	}
+	return strings.Split(value, "\n")
+}
+
 // MonospaceFamilies lists the installed fixed-pitch font families, sorted.
 func MonospaceFamilies() []string {
 	list := C.viva_list_mono_families()

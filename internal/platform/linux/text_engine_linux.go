@@ -3,6 +3,7 @@ package linux
 import (
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -49,6 +50,10 @@ type textEngine struct {
 	services  *textServices
 	cache     *textcache.Cache[*shapedLine]
 	reference ui.TextEngine
+	// family is the family the interface's text is shaped in, "" for the sans
+	// alias, which is the desktop's own interface font. Guarded by mu; a change
+	// forgets the cache.
+	family string
 
 	strong, weak, cell pangoRectangle
 }
@@ -80,6 +85,20 @@ func (engine *textEngine) close() {
 var systemEngine struct {
 	once   sync.Once
 	engine *textEngine
+}
+
+// SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
+// shaped in, "" for the desktop's own interface font (Pango's sans alias).
+// Everything shaped with another family is forgotten.
+func (engine *textEngine) SetFontFamily(family string) {
+	family = strings.TrimSpace(family)
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if family == engine.family {
+		return
+	}
+	engine.family = family
+	engine.cache.Clear()
 }
 
 // sharedTextEngine is the process's engine, created when text is first measured or drawn;
@@ -124,7 +143,11 @@ func (engine *textEngine) shape(value string, size, weight float32) (*shapedLine
 	if !utf8.ValidString(value) {
 		return nil, fmt.Errorf("linux: text is not valid UTF-8")
 	}
-	description, err := services.description(proportionalFamily, size, weight, false)
+	family := engine.family
+	if family == "" {
+		family = proportionalFamily
+	}
+	description, err := services.description(family, size, weight, false)
 	if err != nil {
 		return nil, err
 	}

@@ -117,6 +117,7 @@ func nativeEnableCrashDumps(string) (string, error) { return "", ErrUnsupported 
 func nativeShowFatalError(title, message string) { linuxplatform.ShowFatalError(title, message) }
 
 func nativeMonospaceFamilies() []string { return linuxplatform.MonospaceFamilies() }
+func nativeFontFamilies() []string      { return linuxplatform.FontFamilies() }
 
 func nativeAppearance() Appearance { return appearanceOf(linuxplatform.DarkAppearance()) }
 

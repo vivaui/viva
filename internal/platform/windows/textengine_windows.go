@@ -3,6 +3,7 @@ package windows
 import (
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -94,6 +95,9 @@ type textEngine struct {
 	cache    *textcache.Cache[*shapedLine]
 	hit      hitMetrics
 	ranges   [4]hitMetrics
+	// family is the family the interface's text is shaped in, "" for Segoe UI,
+	// the interface font Windows ships. Guarded by mu; a change forgets the cache.
+	family string
 }
 
 var (
@@ -109,6 +113,19 @@ func theTextEngine() (*textEngine, error) {
 		return nil, sharedEngineErr
 	}
 	return &sharedEngine, nil
+}
+
+// SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
+// shaped in, "" for Segoe UI. Everything shaped with another family is forgotten.
+func (engine *textEngine) SetFontFamily(family string) {
+	family = strings.TrimSpace(family)
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if family == engine.family {
+		return
+	}
+	engine.family = family
+	engine.cache.Clear()
 }
 
 // TextEngine is the platform's text engine, or nil when DirectWrite is not available.
@@ -180,7 +197,11 @@ func (engine *textEngine) shape(value string, size, weight float32) (*shapedLine
 	if len(units) == 0 {
 		return nil, fmt.Errorf("windows: empty line")
 	}
-	format, err := engine.services.formatFamily("Segoe UI", size, weight)
+	family := engine.family
+	if family == "" {
+		family = "Segoe UI"
+	}
+	format, err := engine.services.formatFamily(family, size, weight)
 	if err != nil {
 		return nil, err
 	}

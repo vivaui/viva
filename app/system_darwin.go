@@ -103,6 +103,7 @@ func nativeEnableCrashDumps(string) (string, error) { return "", ErrUnsupported 
 func nativeShowFatalError(title, message string) { darwinplatform.ShowFatalError(title, message) }
 
 func nativeMonospaceFamilies() []string { return darwinplatform.MonospaceFamilies() }
+func nativeFontFamilies() []string      { return darwinplatform.FontFamilies() }
 
 func nativeAppearance() Appearance {
 	if darwinplatform.DarkAppearance() {
