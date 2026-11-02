@@ -627,6 +627,49 @@ func TestX11ModifierReleaseKeepsOtherSideHeld(t *testing.T) {
 	}
 }
 
+func TestX11KeyReleasedWhileGrabbedIsReleasedOnReturn(t *testing.T) {
+	var keys []platform.KeyEvent
+	router := eventRouter{
+		config: platform.Config{OnKey: func(event platform.KeyEvent) (platform.Frame, error) {
+			keys = append(keys, event)
+			return platform.Frame{}, nil
+		}},
+		text:         &linuxTextInput{enabled: true, input: platform.TextInput{Terminal: true, KeyReleases: true}},
+		present:      func(platform.Frame) error { return nil },
+		modifierKeys: newModifierTracker(),
+	}
+	// keycode 37 is Control_L, 50 is Shift_L.
+	keymap := xcbKeymap{first: 37, last: 50, perKeycode: 1, keysyms: make([]uint32, 50-37+1)}
+	keymap.keysyms[0] = keysymControlL
+	keymap.keysyms[50-37] = keysymShiftL
+	state := &linuxWindowState{win: &window{keymap: keymap}, router: router}
+
+	// Control went down here, then a grab took the keyboard and Control came up
+	// under it: no release event reached this window. Shift is still held.
+	router.modifierKeys.press(37, keysymControlL, input.KeyControlLeft)
+	router.modifierKeys.press(50, keysymShiftL, input.KeyShiftLeft)
+	var server [32]byte
+	server[50/8] |= 1 << (50 % 8)
+
+	dropped := router.modifierKeys.retain(server)
+	if err := state.releaseScancodes(dropped); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(keys) != 1 {
+		t.Fatalf("got %d key events, want the synthesized Control release", len(keys))
+	}
+	if !keys[0].Release || keys[0].Key != input.KeyControlLeft {
+		t.Fatalf("the synthesized event is not a Control release: %+v", keys[0])
+	}
+	if keys[0].Modifiers&input.ModifierShift == 0 {
+		t.Fatalf("the synthesized release dropped Shift, which is still held: %+v", keys[0])
+	}
+	if keys[0].Modifiers&input.ModifierControl != 0 {
+		t.Fatalf("the synthesized release still reports Control: %+v", keys[0])
+	}
+}
+
 func TestX11FocusInForgetsHeldKeys(t *testing.T) {
 	tracker := newModifierTracker()
 	tracker.press(50, keysymShiftL, input.KeyShiftLeft)
@@ -665,13 +708,16 @@ func TestModifierTrackerRetainsKeysStillDown(t *testing.T) {
 	var keys [32]byte
 	keys[20/8] = 1 << (20 % 8)
 
-	tracker.retain(keys)
+	dropped := tracker.retain(keys)
 
 	if _, ok := tracker.down[10]; ok {
 		t.Fatal("a key the server says is up survived")
 	}
 	if _, ok := tracker.down[20]; !ok {
 		t.Fatal("a key still held across the focus change was forgotten")
+	}
+	if len(dropped) != 1 || dropped[0] != 10 {
+		t.Fatalf("retain dropped %v, want [10]", dropped)
 	}
 }
 

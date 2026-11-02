@@ -2,6 +2,7 @@ package linux
 
 import (
 	"fmt"
+	"slices"
 	"time"
 	"unsafe"
 
@@ -93,12 +94,23 @@ func (tracker *modifierTracker) reset() {
 
 // seed rebuilds the set from the keys the server reports down: entries it no
 // longer has go, and modifier keys already held when the window gained the
-// focus are added so their pair's release still finds them.
-func (tracker *modifierTracker) seed(keys [32]byte, bit func(scancode uint32) input.Modifiers) {
+// focus are added so their pair's release still finds them. It returns the
+// scancodes retain dropped, in scan order.
+func (tracker *modifierTracker) seed(keys [32]byte, bit func(scancode uint32) input.Modifiers) []uint32 {
+	if tracker == nil {
+		return nil
+	}
+	dropped := tracker.retain(keys)
+	tracker.addHeld(keys, bit)
+	return dropped
+}
+
+// addHeld adds the modifier keys the server reports down but this window never
+// saw pressed, so their pair's release still finds them.
+func (tracker *modifierTracker) addHeld(keys [32]byte, bit func(scancode uint32) input.Modifiers) {
 	if tracker == nil {
 		return
 	}
-	tracker.retain(keys)
 	for scancode := uint32(0); scancode < 256; scancode++ {
 		if keys[scancode/8]&(1<<(scancode%8)) == 0 {
 			continue
@@ -115,16 +127,23 @@ func (tracker *modifierTracker) seed(keys [32]byte, bit func(scancode uint32) in
 
 // retain drops the keys the server says are no longer down. X reports keys
 // pressed before this window had the focus only by their release, so a stale
-// entry must go, while a key still held across the focus change must stay.
-func (tracker *modifierTracker) retain(keys [32]byte) {
+// entry must go, while a key still held across the focus change must stay. It
+// returns what it dropped, in scan order: a key that came up while another
+// window or a grab held the keyboard left no release event here, so one is
+// synthesized from the drop.
+func (tracker *modifierTracker) retain(keys [32]byte) []uint32 {
 	if tracker == nil {
-		return
+		return nil
 	}
+	var dropped []uint32
 	for scancode := range tracker.down {
 		if scancode > 255 || keys[scancode/8]&(1<<(scancode%8)) == 0 {
+			dropped = append(dropped, scancode)
 			delete(tracker.down, scancode)
 		}
 	}
+	slices.Sort(dropped)
+	return dropped
 }
 
 // displayScale is the window's current scale.

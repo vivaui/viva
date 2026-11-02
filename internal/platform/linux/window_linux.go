@@ -778,9 +778,15 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		if keyboardFocus {
 			// A key pressed or released while another window or a grab held the
 			// keyboard left no event here. The server's bitmap says which keys
-			// are really down, including ones still held across the change.
+			// are really down, including ones still held across the change; a
+			// tracked key the bitmap no longer has came up while the keyboard
+			// was elsewhere, so its release is told now.
 			if keys, ok := win.keysDown(); ok {
-				router.modifierKeys.seed(keys, func(scancode uint32) input.Modifiers {
+				dropped := router.modifierKeys.retain(keys)
+				if err := state.releaseScancodes(dropped); err != nil {
+					return false, err
+				}
+				router.modifierKeys.addHeld(keys, func(scancode uint32) input.Modifiers {
 					if scancode > 255 {
 						return 0
 					}
@@ -1199,16 +1205,44 @@ func (state *linuxWindowState) refreshModifierKeys() {
 // so losing focus leaves no key stuck.
 func (state *linuxWindowState) releaseHeldKeys() error {
 	router := state.router
-	if router.modifierKeys == nil || !router.wantsKeyReleases() || len(router.modifierKeys.down) == 0 || state.win == nil {
+	if router.modifierKeys == nil || len(router.modifierKeys.down) == 0 {
 		return nil
 	}
 	scancodes := make([]uint32, 0, len(router.modifierKeys.down))
-	var modifiers input.Modifiers
-	for scancode, bit := range router.modifierKeys.down {
+	for scancode := range router.modifierKeys.down {
 		scancodes = append(scancodes, scancode)
-		modifiers |= bit
+	}
+	return state.releaseScancodes(scancodes)
+}
+
+// releaseScancodes tells a terminal that asked for key releases that these keys
+// came up, in scan order, each carrying the modifier bits the keys still held
+// leave set. The keys need not be tracked anymore: one that came up while
+// another window or a grab held the keyboard left no event here, and its
+// release is synthesized from the drop retain reported.
+func (state *linuxWindowState) releaseScancodes(scancodes []uint32) error {
+	router := state.router
+	if router.modifierKeys == nil || !router.wantsKeyReleases() || len(scancodes) == 0 || state.win == nil {
+		return nil
 	}
 	slices.Sort(scancodes)
+	// The first event carries every bit the keyboard still holds: the keys that
+	// stay tracked, and the ones being released here, which retain already
+	// dropped but whose class the keymap still names.
+	var modifiers input.Modifiers
+	for _, bit := range router.modifierKeys.down {
+		modifiers |= bit
+	}
+	for _, scancode := range scancodes {
+		if scancode > 255 {
+			continue
+		}
+		if _, held := router.modifierKeys.down[scancode]; held {
+			continue
+		}
+		key := state.win.keymap.key(uint8(scancode))
+		modifiers |= modifierBit(state.win.keymap.keysym(uint8(scancode), 0), key)
+	}
 	for _, scancode := range scancodes {
 		if scancode > 255 {
 			continue
