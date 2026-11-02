@@ -474,3 +474,35 @@ func TestIMEPreeditShowsTheClauseBeingConvertedAsSelected(t *testing.T) {
 		t.Fatalf("selection = %+v, want the caret", selection)
 	}
 }
+
+// A bare Shift that switches an engine between Chinese and English is read from
+// its press and its release, so the press must reach the engine as well.
+func TestIMEModifierPressReachesTheEngineAndDeliversNothing(t *testing.T) {
+	h := newIMEHarness(t)
+	h.focus(t)
+	keymap := &xcbKeymap{first: 50, last: 50, perKeycode: 1, keysyms: []uint32{0xffe1}}
+	event := &xcbInputEvent{Detail: 50}
+	if err := h.ime.router.key(keymap, event, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.context.keys) != 1 {
+		t.Fatalf("keys sent to the engine = %d, want the Shift press", len(h.context.keys))
+	}
+	if got := h.context.keys[0]; got.keysym != 0xffe1 || got.keycode != 50-8 || got.state&ibus.ReleaseMask != 0 || got.done != nil {
+		t.Fatalf("press = %+v", got)
+	}
+	if len(h.delivered) != 0 || h.editor.String() != "" {
+		t.Fatalf("a modifier reached the field: %v %q", h.delivered, h.editor.String())
+	}
+}
+
+func TestIMEModifierPressIsNotSentWithoutAnActiveField(t *testing.T) {
+	h := newIMEHarness(t)
+	keymap := &xcbKeymap{first: 50, last: 50, perKeycode: 1, keysyms: []uint32{0xffe1}}
+	if err := h.ime.router.key(keymap, &xcbInputEvent{Detail: 50}, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.context.keys) != 0 {
+		t.Fatal("a modifier press was sent to an input method that is not active")
+	}
+}

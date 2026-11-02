@@ -180,3 +180,49 @@ func BenchmarkDriverShortcutChord(b *testing.B) {
 		}
 	}
 }
+
+// A message box that sends on Control+Enter needs the chord before the multiline
+// field turns it into a line break; one the application leaves still reaches the
+// field, and a plain Enter is never offered.
+func TestControlEnterIsOfferedToTheApplicationBeforeAMultilineField(t *testing.T) {
+	editor := text.NewEditor("hi")
+	var offered []ui.KeyEvent
+	send := true
+	driver, err := NewDriver(Config{
+		Width: 320, Height: 180,
+		Paint: func(canvas *ui.Canvas, _ ui.Size) {
+			canvas.HitWithOptions(ui.Item(1), ui.Rect{X: 10, Y: 10, Width: 200, Height: 90}, "Message", ui.HitOptions{Role: ui.RoleTextField, Multiline: true})
+		},
+		TextInput: func(TextInputContext) *TextInput { return &TextInput{Editor: editor} },
+		OnShortcut: func(event ui.KeyEvent) ui.EventResult {
+			offered = append(offered, event)
+			return ui.EventResult{Handled: send}
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(20, 20); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Key(ui.KeyEnter, ui.ModifierControl); err != nil {
+		t.Fatal(err)
+	}
+	if len(offered) != 1 || offered[0].Key != ui.KeyEnter || offered[0].Modifiers != ui.ModifierControl || editor.String() != "hi" {
+		t.Fatalf("offered %+v, text %q; the application should have taken Control+Enter", offered, editor.String())
+	}
+	send = false
+	if err := driver.Key(ui.KeyEnter, ui.ModifierControl); err != nil {
+		t.Fatal(err)
+	}
+	if len(offered) != 2 || editor.String() != "hi\n" {
+		t.Fatalf("offered %d times, text %q; a chord the application leaves belongs to the field", len(offered), editor.String())
+	}
+	if err := driver.Key(ui.KeyEnter, 0); err != nil {
+		t.Fatal(err)
+	}
+	if len(offered) != 2 {
+		t.Fatal("a plain Enter was offered as a shortcut")
+	}
+}

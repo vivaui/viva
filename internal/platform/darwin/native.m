@@ -423,6 +423,7 @@ extern int vivaAccessibilityAction(
 extern int vivaShortcutEvent(
     uintptr_t callbackHandle,
     void *view,
+    int key,
     int modifiers,
     int repeat,
     const unsigned char *utf8,
@@ -3889,10 +3890,24 @@ static int viva_navigation_command(SEL selector) {
 			if (text.length > 0 && vivaShortcutEvent(
 					_callbackHandle,
 					self,
+					0,
 					viva_modifier_flags(event.modifierFlags),
 					event.isARepeat ? 1 : 0,
 					text.bytes,
 					text.length)) {
+				return;
+			}
+		} else if (named == VIVA_KEY_ENTER) {
+			/* Control or Command with Return: a multiline field would make it a
+			 * line break, so the application is offered it first. */
+			if (vivaShortcutEvent(
+					_callbackHandle,
+					self,
+					named,
+					viva_modifier_flags(event.modifierFlags),
+					event.isARepeat ? 1 : 0,
+					NULL,
+					0)) {
 				return;
 			}
 		}

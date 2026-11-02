@@ -58,6 +58,9 @@ func (state *windowState) offerShortcut(first, second uintptr, mods input.Modifi
 		return false
 	}
 	event := platform.KeyEvent{Modifiers: mods, Repeat: second&(1<<30) != 0, Text: shortcutKeyText(first, second, mods&input.ModifierShift != 0)}
+	if normalizedKey(first) == input.KeyEnter {
+		event.Key = input.KeyEnter
+	}
 	// A focused text field owns editing chords before application shortcuts.
 	// Otherwise a background terminal's copy/paste binding steals form input.
 	if state.textEnabled && !state.textInput.Terminal {

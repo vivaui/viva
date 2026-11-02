@@ -261,6 +261,17 @@ func (ime *linuxIME) processKey(keysym uint32, event *xcbInputEvent, keyEvent pl
 	return true
 }
 
+// pressModifier tells the engine a modifier key went down. The engine never gives
+// one back, so there is nothing to wait for.
+func (ime *linuxIME) pressModifier(keysym uint32, event *xcbInputEvent) {
+	if ime.dead || !ime.active || ime.context == nil || event.Detail < 8 || keysym == 0 {
+		return
+	}
+	if err := ime.context.ProcessKey(keysym, uint32(event.Detail)-8, uint32(event.State), nil); err != nil {
+		ime.app.checkInputMethod()
+	}
+}
+
 // release tells the engine a key came up. Some engines act on that alone, as a
 // lone Shift that switches between Chinese and English does.
 func (ime *linuxIME) release(keymap *xcbKeymap, event *xcbInputEvent) {
