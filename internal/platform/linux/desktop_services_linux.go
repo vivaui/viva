@@ -1,6 +1,11 @@
 package linux
 
-import "github.com/vivaui/viva/internal/platform"
+import (
+	"sync/atomic"
+	"time"
+
+	"github.com/vivaui/viva/internal/platform"
+)
 
 // desktopServices are the connections to the session bus an application keeps for its windows,
 // whichever shell draws them: the icons in the status area, the watch on the desktop's settings
@@ -9,10 +14,13 @@ import "github.com/vivaui/viva/internal/platform"
 type desktopServices struct {
 	host busHost
 
-	status        *statusNotifier
-	desktop       *desktopWatch
-	desktopFailed bool
-	atspi         *atspiHost
+	status                *statusNotifier
+	desktop               *desktopWatch
+	desktopRetry          desktopRetry
+	desktopRetryRequested atomic.Bool
+	desktopUnsupported    bool
+	atspi                 *atspiHost
+	now                   func() time.Time
 }
 
 // busHost is the shell a desktopServices belongs to.
@@ -23,6 +31,11 @@ type busHost interface {
 	post(command uint32)
 	// refreshText draws every window's text again, with the fonts now in force.
 	refreshText()
+	// sleepsUntilWoken says whether this loop sleeps without a deadline until a
+	// descriptor or a post wakes it: GLib's does, so a desktop retry needs the
+	// timer to wake it, while the X11 loop bounds its own poll by the retry
+	// deadline and does not.
+	sleepsUntilWoken() bool
 }
 
 // services returns the application's services with their host set.
@@ -41,6 +54,7 @@ func (application *linuxApplication) AddStatusItem(config platform.StatusItemCon
 	return application.services().AddStatusItem(config)
 }
 func (application *linuxApplication) syncDesktopWatch()         { application.services().syncDesktopWatch() }
+func (application *linuxApplication) retryDesktopWatch()        { application.services().retryDesktopWatch() }
 func (application *linuxApplication) serveDesktop()             { application.services().serveDesktop() }
 func (application *linuxApplication) closeDesktop()             { application.services().closeDesktop() }
 func (application *linuxApplication) announce(c settingsChange) { application.services().announce(c) }

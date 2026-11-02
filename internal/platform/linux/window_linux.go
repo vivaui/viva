@@ -195,7 +195,10 @@ func RunApplication(start platform.ApplicationStart) error {
 	defer application.closeDesktop()
 	// Whoever starts to watch the appearance, from any goroutine, wakes the loop to open the
 	// connection that hears the desktop.
-	platform.SetWatchHook(func() { application.post(commandDesktop) })
+	platform.SetWatchHook(func() {
+		application.desktopRetryRequested.Store(true)
+		application.post(commandDesktop)
+	})
 	defer platform.SetWatchHook(nil)
 	if err := start(application); err != nil {
 		application.closeAll()
@@ -352,6 +355,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	application.liveMu.Unlock()
 	application.rebuildPoll()
 	application.atspiOpened(state)
+	application.retryDesktopWatch()
 	activeWindow.Store(win)
 	if state.profile {
 		fmt.Fprintf(os.Stderr, "viva_first_frame_ms=%.3f\n", float64(time.Since(state.started).Microseconds())/1000)
@@ -400,17 +404,26 @@ func (application *linuxApplication) rebuildPoll() {
 	}
 }
 
-// pollTimeout is how long the loop may sleep: forever, unless a key is waiting
-// for the input method, which is given a bounded time to answer.
+// sleepsUntilWoken is false: the X11 loop bounds its own poll, by the input
+// method's and the desktop retry's deadlines, so it wakes itself for a retry.
+func (application *linuxApplication) sleepsUntilWoken() bool { return false }
+
+// pollTimeout is how long the loop may sleep: forever, unless the input method
+// or a desktop retry has a bounded deadline.
 func (application *linuxApplication) pollTimeout() int32 {
-	if application.ibus == nil {
-		return -1
+	timeout := int32(-1)
+	if application.ibus != nil {
+		if deadline, waiting := application.ibus.Deadline(); waiting {
+			timeout = int32(max(time.Until(deadline).Milliseconds()+1, 0))
+		}
 	}
-	deadline, waiting := application.ibus.Deadline()
-	if !waiting {
-		return -1
+	if deadline, waiting := application.desktopRetry.deadline(platform.DesktopWatched(), application.desktop != nil); waiting {
+		retryTimeout := int32(max(deadline.Sub(application.timeNow()).Milliseconds()+1, 0))
+		if timeout < 0 || retryTimeout < timeout {
+			timeout = retryTimeout
+		}
 	}
-	return int32(max(time.Until(deadline).Milliseconds()+1, 0))
+	return timeout
 }
 
 // takeHeld returns the event read ahead, once.
