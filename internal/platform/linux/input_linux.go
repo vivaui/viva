@@ -2,6 +2,7 @@ package linux
 
 import (
 	"fmt"
+	"slices"
 	"time"
 	"unsafe"
 
@@ -22,15 +23,127 @@ type eventRouter struct {
 	// ime, when there is an input method daemon to talk to, sees the keys of a
 	// focused text field before the field does.
 	ime *linuxIME
-	// pressed is which keycodes are down, so that a key an input method gave
-	// back after its release is not left pressed.
-	pressed *[256]bool
 	// scale is the window's device pixels per logical pixel; X reports device
 	// pixels and the application works in logical ones. Nil means 1.
 	scale func() float32
 	// settings is the desktop's XSETTINGS as they stand, for the double-click
 	// timing. Nil keeps the defaults.
 	settings func() xsettings
+	// modifierKeys are the keys that are down, so a modifier release knows
+	// whether the other side of a pair still holds it.
+	modifierKeys *modifierTracker
+}
+
+// modifierTracker follows the keys that are down by scancode.
+type modifierTracker struct {
+	down map[uint32]input.Modifiers
+}
+
+func newModifierTracker() *modifierTracker {
+	return &modifierTracker{down: make(map[uint32]input.Modifiers)}
+}
+
+// modifierBit is the modifier a key sets while held. AltGr and Mode_switch are
+// layout levels, not Alt, whatever key position they share.
+func modifierBit(keysym uint32, key input.Key) input.Modifiers {
+	if keysym == keysymLevel3 || keysym == keysymModeSwitch {
+		return 0
+	}
+	return key.Modifier()
+}
+
+// press records a key going down.
+func (tracker *modifierTracker) press(scancode uint32, keysym uint32, key input.Key) {
+	if tracker == nil {
+		return
+	}
+	tracker.down[scancode] = modifierBit(keysym, key)
+}
+
+// release forgets a key coming up and reports the bit stored for it, and
+// whether the key was held. Reading the stored bit keeps a release in step
+// with its press even where the key's normalized modifier differs (AltGr).
+func (tracker *modifierTracker) release(scancode uint32) (input.Modifiers, bool) {
+	if tracker == nil {
+		return 0, false
+	}
+	bit, known := tracker.down[scancode]
+	delete(tracker.down, scancode)
+	return bit, known
+}
+
+// holds reports whether another key still sets the same modifier.
+func (tracker *modifierTracker) holds(bit input.Modifiers) bool {
+	if tracker == nil || bit == 0 {
+		return false
+	}
+	for _, held := range tracker.down {
+		if held == bit {
+			return true
+		}
+	}
+	return false
+}
+
+func (tracker *modifierTracker) reset() {
+	if tracker == nil {
+		return
+	}
+	tracker.down = make(map[uint32]input.Modifiers)
+}
+
+// seed rebuilds the set from the keys the server reports down: entries it no
+// longer has go, and modifier keys already held when the window gained the
+// focus are added so their pair's release still finds them. It returns the
+// scancodes retain dropped, in scan order.
+func (tracker *modifierTracker) seed(keys [32]byte, bit func(scancode uint32) input.Modifiers) []uint32 {
+	if tracker == nil {
+		return nil
+	}
+	dropped := tracker.retain(keys)
+	tracker.addHeld(keys, bit)
+	return dropped
+}
+
+// addHeld adds the modifier keys the server reports down but this window never
+// saw pressed, so their pair's release still finds them.
+func (tracker *modifierTracker) addHeld(keys [32]byte, bit func(scancode uint32) input.Modifiers) {
+	if tracker == nil {
+		return
+	}
+	for scancode := uint32(0); scancode < 256; scancode++ {
+		if keys[scancode/8]&(1<<(scancode%8)) == 0 {
+			continue
+		}
+		if _, held := tracker.down[scancode]; held {
+			continue
+		}
+		// Only keys that set a modifier matter; a held letter adds nothing.
+		if value := bit(scancode); value != 0 {
+			tracker.down[scancode] = value
+		}
+	}
+}
+
+// retain drops the keys the server says are no longer down. X reports keys
+// pressed before this window had the focus only by their release, so a stale
+// entry must go, while a key still held across the focus change must stay. It
+// returns what it dropped, in scan order: a key that came up while another
+// window or a grab held the keyboard left no release event here, so one is
+// synthesized from the drop.
+func (tracker *modifierTracker) retain(keys [32]byte) []uint32 {
+	if tracker == nil {
+		return nil
+	}
+	var dropped []uint32
+	for scancode := range tracker.down {
+		if scancode > 255 || keys[scancode/8]&(1<<(scancode%8)) == 0 {
+			dropped = append(dropped, scancode)
+			delete(tracker.down, scancode)
+		}
+	}
+	slices.Sort(dropped)
+	return dropped
 }
 
 // displayScale is the window's current scale.
@@ -114,15 +227,9 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 		keyEvent.Code = uint32(event.Detail)
 		keyEvent.Text = keymap.shortcutText(event.Detail, 0)
 		keyEvent.Typed = keymap.text(event.Detail, event.State)
-		if router.pressed != nil {
-			router.pressed[event.Detail] = true
-		}
-		if key.IsModifier() {
-			keyEvent.Modifiers |= key.Modifier()
-			return router.deliverKey(keyEvent)
-		}
-	} else if key.IsModifier() {
-		return nil
+	}
+	if handled, err := router.modifierPress(keyEvent, keysym, uint32(event.Detail)); handled {
+		return err
 	}
 	if router.config.OnShortcut != nil && platform.ShortcutCandidate(keyEvent) && !router.text.ownsChord(keyEvent) {
 		frame, handled, err := router.config.OnShortcut(keyEvent)
@@ -139,6 +246,57 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 		return nil
 	}
 	return router.deliverTyped(keyEvent, keysym)
+}
+
+// modifierPress handles a modifier press: a terminal that asked for
+// releases receives it with its bit set; anything else drops it before the
+// input method or the application sees it.
+func (router eventRouter) modifierPress(keyEvent platform.KeyEvent, keysym, scancode uint32) (bool, error) {
+	router.modifierKeys.press(scancode, keysym, keyEvent.Key)
+	if !keyEvent.Key.IsModifier() {
+		return false, nil
+	}
+	if !router.wantsKeyReleases() {
+		return true, nil
+	}
+	// AltGr and Mode_switch are not Alt: delivering them with Alt set would
+	// leave the release unbalanced, since the modifier state never has it.
+	if bit := modifierBit(keysym, keyEvent.Key); bit != 0 {
+		keyEvent.Modifiers |= bit
+	}
+	return true, router.deliverKey(keyEvent)
+}
+
+// releaseModifiers reports the modifiers after a key came up. Drop the
+// released bit here unless the other side of a pair still holds it. keysym
+// names the key the press was tracked under; for a press this window never
+// saw it keeps AltGr from becoming Alt.
+func (router eventRouter) releaseModifiers(modifiers input.Modifiers, key input.Key, keysym uint32, scancode uint32) input.Modifiers {
+	bit, known := router.modifierKeys.release(scancode)
+	if !known {
+		// A key whose press this window never saw still reports its class.
+		bit = modifierBit(keysym, key)
+	}
+	if bit == 0 || router.modifierKeys.holds(bit) {
+		return modifiers
+	}
+	return modifiers &^ bit
+}
+
+// deliverRelease delivers a key coming up to a terminal that asked for
+// releases, without telling the input method: a release synthesized when focus
+// is lost stands for a key the engine never saw go down.
+func (router eventRouter) deliverRelease(keyEvent platform.KeyEvent) error {
+	if !router.wantsKeyReleases() || router.config.OnKey == nil {
+		return nil
+	}
+	// The event already carries the modifiers after the key came up; a modifier
+	// whose other side is still held stays set.
+	keyEvent.Release = true
+	keyEvent.Repeat = false
+	keyEvent.Text = ""
+	keyEvent.Typed = ""
+	return router.deliverReleaseToApplication(keyEvent)
 }
 
 // deliverTyped passes a key that no input method took through the dead keys and
@@ -166,19 +324,15 @@ func (router eventRouter) deliverTyped(keyEvent platform.KeyEvent, keysym uint32
 // runtime drops a release whose press it never saw, which is what becomes of
 // the key an input method consumed.
 func (router eventRouter) release(keymap *xcbKeymap, event *xcbInputEvent) error {
-	if router.pressed != nil {
-		router.pressed[event.Detail] = false
-	}
+	key := keymap.key(event.Detail)
+	// The symbol at the state without the AltGr level: for the AltGr key itself
+	// that is ISO_Level3_Shift, which is not Alt.
+	keysym := keymap.keysym(event.Detail, event.State&^keymap.level3Mask())
+	modifiers := router.releaseModifiers(xcbModifiers(event.State), key, keysym, uint32(event.Detail))
 	if !router.wantsKeyReleases() || router.config.OnKey == nil {
 		return nil
 	}
-	key := keymap.key(event.Detail)
-	modifiers := xcbModifiers(event.State)
-	if key.IsModifier() {
-		modifiers &^= key.Modifier()
-	}
-	frame, err := router.config.OnKey(platform.KeyEvent{Key: key, Modifiers: modifiers, Release: true, Code: uint32(event.Detail)})
-	return router.presentFrame(frame, err)
+	return router.deliverReleaseToApplication(platform.KeyEvent{Key: key, Modifiers: modifiers, Release: true, Code: uint32(event.Detail)})
 }
 
 // deliverKey hands a key to the focused text field, then to the application.
@@ -190,6 +344,16 @@ func (router eventRouter) deliverKey(keyEvent platform.KeyEvent) error {
 		}
 	}
 	if router.config.OnKey == nil || keyEvent.Key == input.KeyUnknown && keyEvent.Text == "" {
+		return nil
+	}
+	frame, err := router.config.OnKey(keyEvent)
+	return router.presentFrame(frame, err)
+}
+
+// deliverReleaseToApplication hands a key release to OnKey. A release names its
+// key by code, not by text, so a code keeps it.
+func (router eventRouter) deliverReleaseToApplication(keyEvent platform.KeyEvent) error {
+	if router.config.OnKey == nil {
 		return nil
 	}
 	frame, err := router.config.OnKey(keyEvent)

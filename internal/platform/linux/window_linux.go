@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -315,7 +316,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	}
 	var ime *linuxIME
 	state.router = eventRouter{
-		config: config, text: textInput, pressed: new([256]bool), scale: win.displayScale,
+		config: config, text: textInput, scale: win.displayScale, modifierKeys: newModifierTracker(),
 		clicks: &input.ClickCounter{Interval: 500 * time.Millisecond, Distance: 4},
 		present: func(frame platform.Frame) error {
 			if ime != nil {
@@ -764,7 +765,12 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	case xcbMappingNotify:
 		mapping := (*xcbMappingEvent)(event)
 		if config.OnKey != nil && mapping.Request == xcbMappingKeyboard {
-			return false, win.reloadKeymap()
+			if err := win.reloadKeymap(); err != nil {
+				return false, err
+			}
+			// A held key can change class with the layout: AltGr may become Alt.
+			state.refreshModifierKeys()
+			return false, nil
 		}
 	case xcbFocusIn:
 		state.application.atspiActive(state, true)
@@ -777,25 +783,61 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 			}
 		}
 		focus := (*xcbFocusEvent)(event)
-		if router.ime != nil && focus.Mode != xcbNotifyGrab && focus.Mode != xcbNotifyUngrab && focus.Detail != xcbNotifyInferior {
+		realFocus := focus.Mode != xcbNotifyGrab && focus.Mode != xcbNotifyUngrab && focus.Detail != xcbNotifyInferior
+		// Only a focus that reached this window starts a new span. NotifyPointer
+		// and the virtual details accompany a change that happened elsewhere and
+		// must not forget keys held here.
+		keyboardFocus := focus.Detail == xcbNotifyAncestor || focus.Detail == xcbNotifyNonlinear
+		if keyboardFocus {
+			// A key pressed or released while another window or a grab held the
+			// keyboard left no event here. The server's bitmap says which keys
+			// are really down, including ones still held across the change; a
+			// tracked key the bitmap no longer has came up while the keyboard
+			// was elsewhere, so its release is told now.
+			if keys, ok := win.keysDown(); ok {
+				dropped := router.modifierKeys.retain(keys)
+				if err := state.releaseScancodes(dropped); err != nil {
+					return false, err
+				}
+				router.modifierKeys.addHeld(keys, func(scancode uint32) input.Modifiers {
+					if scancode > 255 {
+						return 0
+					}
+					key := win.keymap.key(uint8(scancode))
+					return modifierBit(win.keymap.keysym(uint8(scancode), 0), key)
+				})
+			} else {
+				router.modifierKeys.reset()
+			}
+		}
+		if router.ime != nil && realFocus {
 			router.ime.setFocused(true)
 		}
 	case xcbFocusOut:
 		state.application.atspiActive(state, false)
-		if focus := (*xcbFocusEvent)(event); focus.Detail != xcbNotifyInferior && config.OnFocusLost != nil {
+		focus := (*xcbFocusEvent)(event)
+		focusLeft := focus.Detail != xcbNotifyInferior
+		// Moving into or out of a grab is not the user leaving.
+		realFocusLoss := focusLeft && focus.Mode != xcbNotifyGrab && focus.Mode != xcbNotifyUngrab
+		if focusLeft && config.OnFocusLost != nil {
 			// A grab (a window manager's Alt+Tab) takes the keys' releases too.
 			frame, err := config.OnFocusLost()
 			if err := router.presentFrame(frame, err); err != nil {
 				return false, err
 			}
 		}
-		// A panel is a transient popup: losing the focus dismisses it. Focus
-		// moving into or out of a grab is not the user leaving.
-		focus := (*xcbFocusEvent)(event)
-		if router.ime != nil && focus.Mode != xcbNotifyGrab && focus.Mode != xcbNotifyUngrab && focus.Detail != xcbNotifyInferior {
+		if router.ime != nil && realFocusLoss {
 			router.ime.setFocused(false)
 		}
-		if config.WindowMode == platform.WindowPanel && focus.Mode != xcbNotifyGrab && focus.Mode != xcbNotifyUngrab && focus.Detail != xcbNotifyInferior {
+		if realFocusLoss {
+			if err := state.releaseHeldKeys(); err != nil {
+				return false, err
+			}
+		}
+		// The held key set is left for the next FocusIn, which starts a new
+		// focus span; dropping it here would lose a pair that is still down
+		// across a grab.
+		if config.WindowMode == platform.WindowPanel && realFocusLoss {
 			panelDismissedAt.Store(monotonicNow())
 			return true, nil
 		}
@@ -1156,6 +1198,83 @@ func (win *window) close() {
 	}
 }
 
+// refreshModifierKeys re-reads the bit each held key sets under the keymap the
+// server just installed.
+func (state *linuxWindowState) refreshModifierKeys() {
+	tracker := state.router.modifierKeys
+	if tracker == nil || state.win == nil {
+		return
+	}
+	for scancode := range tracker.down {
+		if scancode > 255 {
+			continue
+		}
+		key := state.win.keymap.key(uint8(scancode))
+		tracker.down[scancode] = modifierBit(state.win.keymap.keysym(uint8(scancode), 0), key)
+	}
+}
+
+// releaseHeldKeys tells a terminal that the keys it saw go down have come up,
+// so losing focus leaves no key stuck.
+func (state *linuxWindowState) releaseHeldKeys() error {
+	router := state.router
+	if router.modifierKeys == nil || len(router.modifierKeys.down) == 0 {
+		return nil
+	}
+	scancodes := make([]uint32, 0, len(router.modifierKeys.down))
+	for scancode := range router.modifierKeys.down {
+		scancodes = append(scancodes, scancode)
+	}
+	return state.releaseScancodes(scancodes)
+}
+
+// releaseScancodes tells a terminal that asked for key releases that these keys
+// came up, in scan order, each carrying the modifier bits the keys still held
+// leave set. The keys need not be tracked anymore: one that came up while
+// another window or a grab held the keyboard left no event here, and its
+// release is synthesized from the drop retain reported.
+func (state *linuxWindowState) releaseScancodes(scancodes []uint32) error {
+	router := state.router
+	if router.modifierKeys == nil || !router.wantsKeyReleases() || len(scancodes) == 0 || state.win == nil {
+		return nil
+	}
+	slices.Sort(scancodes)
+	// The first event carries every bit the keyboard still holds: the keys that
+	// stay tracked, and the ones being released here, which retain already
+	// dropped but whose class the keymap still names.
+	var modifiers input.Modifiers
+	for _, bit := range router.modifierKeys.down {
+		modifiers |= bit
+	}
+	for _, scancode := range scancodes {
+		if scancode > 255 {
+			continue
+		}
+		if _, held := router.modifierKeys.down[scancode]; held {
+			continue
+		}
+		key := state.win.keymap.key(uint8(scancode))
+		modifiers |= modifierBit(state.win.keymap.keysym(uint8(scancode), 0), key)
+	}
+	for _, scancode := range scancodes {
+		if scancode > 255 {
+			continue
+		}
+		key := state.win.keymap.key(uint8(scancode))
+		keysym := state.win.keymap.keysym(uint8(scancode), 0)
+		modifiers = router.releaseModifiers(modifiers, key, keysym, scancode)
+		keyEvent := platform.KeyEvent{
+			Key:       key,
+			Code:      scancode,
+			Modifiers: modifiers,
+		}
+		if err := router.deliverRelease(keyEvent); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // keyReleased handles a key coming up. X reports an autorepeating key as a
 // release and a press at the same instant, which is not a release, so the next
 // event is read first: when it is that press, nothing is sent anywhere. The
@@ -1165,6 +1284,9 @@ func (state *linuxWindowState) keyReleased(release *xcbInputEvent) bool {
 	ime := state.router.ime
 	wanted := state.router.wantsKeyReleases()
 	if (ime == nil || !ime.active) && !wanted {
+		// No delivery path runs for this release; forget the key here so it
+		// cannot linger as held when a terminal takes over.
+		state.router.modifierKeys.release(uint32(release.Detail))
 		return false
 	}
 	if next := state.win.api.pollForEvent(state.win.connection); next != nil {
@@ -1178,6 +1300,10 @@ func (state *linuxWindowState) keyReleased(release *xcbInputEvent) bool {
 	}
 	if ime != nil && ime.active {
 		ime.release(&state.win.keymap, release)
+	}
+	if !wanted {
+		// The input method took this release; release() is not called for it.
+		state.router.modifierKeys.release(uint32(release.Detail))
 	}
 	return wanted
 }
