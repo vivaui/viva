@@ -148,7 +148,7 @@ func TestWindowButtonsPaintHoverPressedAndTheCloseColor(t *testing.T) {
 	close := float32(600 - WindowControlWidth + 20)
 	fill := func() (ui.Color, bool) {
 		for _, rectangle := range fixture.canvas.Rectangles() {
-			if rectangle.Bounds.X >= 600-WindowControlWidth && rectangle.Bounds.Width == WindowControlWidth && rectangle.Bounds.Height == 36 {
+			if rectangle.Bounds.X >= 600-WindowControlWidth && (rectangle.Bounds.Width == WindowControlWidth || rectangle.Radius > 0) {
 				return rectangle.Color, true
 			}
 		}
@@ -165,6 +165,87 @@ func TestWindowButtonsPaintHoverPressedAndTheCloseColor(t *testing.T) {
 	fixture.painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: close, Y: 18})
 	if pressed, _ := fill(); pressed.Alpha >= hover.Alpha {
 		t.Fatalf("pressed close %+v is not fainter than hover %+v", pressed, hover)
+	}
+}
+
+func TestDesktopThemeDetection(t *testing.T) {
+	tests := []struct {
+		desktop string
+		want    desktopTheme
+	}{
+		{"KDE", desktopBreeze},
+		{"plasma", desktopBreeze},
+		{"kde-plasma", desktopBreeze},
+		{"GNOME", desktopAdwaita},
+		{"ubuntu:GNOME", desktopAdwaita},
+		{"pop:GNOME", desktopAdwaita},
+		{"Pantheon", desktopAdwaita},
+		{"Unity:Unity7", desktopAdwaita},
+		{"XFCE", desktopDefault},
+		{"MATE", desktopDefault},
+		{"LXQt", desktopDefault},
+		{"", desktopDefault},
+	}
+	for _, test := range tests {
+		if got := detectDesktopTheme(test.desktop); got != test.want {
+			t.Errorf("detectDesktopTheme(%q) = %v, want %v", test.desktop, got, test.want)
+		}
+	}
+}
+
+func TestDesktopThemeStyling(t *testing.T) {
+	fixture := newControlsFixture(t, nil)
+	closeX := float32(600 - WindowControlWidth + 20)
+
+	// Default theme produces rectangular buttons with 0 radius.
+	fixture.painter.controls.theme = desktopDefault
+	if _, err := fixture.painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: closeX, Y: 18}); err != nil {
+		t.Fatal(err)
+	}
+	var defaultRect *ui.Rectangle
+	for _, rect := range fixture.canvas.Rectangles() {
+		if rect.Bounds.X >= 600-WindowControlWidth && rect.Bounds.Width == WindowControlWidth {
+			r := rect
+			defaultRect = &r
+			break
+		}
+	}
+	if defaultRect == nil || defaultRect.Radius != 0 {
+		t.Fatalf("desktopDefault close button rect = %+v, want radius 0 and full width", defaultRect)
+	}
+
+	// Adwaita theme produces circular rounded buttons.
+	fixture.painter.controls.theme = desktopAdwaita
+	if _, err := fixture.painter.repaint(); err != nil {
+		t.Fatal(err)
+	}
+	var adwaitaRect *ui.Rectangle
+	for _, rect := range fixture.canvas.Rectangles() {
+		if rect.Bounds.X >= 600-WindowControlWidth && rect.Radius > 0 {
+			r := rect
+			adwaitaRect = &r
+			break
+		}
+	}
+	if adwaitaRect == nil || adwaitaRect.Bounds.Width >= WindowControlWidth || adwaitaRect.Radius != adwaitaRect.Bounds.Width/2 {
+		t.Fatalf("desktopAdwaita close button rect = %+v, want circular button with radius width/2", adwaitaRect)
+	}
+
+	// Breeze theme also produces circular rounded buttons.
+	fixture.painter.controls.theme = desktopBreeze
+	if _, err := fixture.painter.repaint(); err != nil {
+		t.Fatal(err)
+	}
+	var breezeRect *ui.Rectangle
+	for _, rect := range fixture.canvas.Rectangles() {
+		if rect.Bounds.X >= 600-WindowControlWidth && rect.Radius > 0 {
+			r := rect
+			breezeRect = &r
+			break
+		}
+	}
+	if breezeRect == nil || breezeRect.Bounds.Width >= WindowControlWidth || breezeRect.Radius != breezeRect.Bounds.Width/2 {
+		t.Fatalf("desktopBreeze close button rect = %+v, want circular button with radius width/2", breezeRect)
 	}
 }
 

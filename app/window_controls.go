@@ -2,6 +2,7 @@ package app
 
 import (
 	"math"
+	"strings"
 
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/ui"
@@ -25,6 +26,29 @@ const (
 	windowControlMaximize
 	windowControlClose
 )
+
+// desktopTheme defines how Viva styles the window buttons to fit the desktop
+// environment.
+type desktopTheme uint8
+
+const (
+	desktopDefault desktopTheme = iota
+	desktopBreeze
+	desktopAdwaita
+)
+
+// detectDesktopTheme reports which theme best matches the desktop environment
+// named in desktop (typically from XDG_CURRENT_DESKTOP).
+func detectDesktopTheme(desktop string) desktopTheme {
+	desktop = strings.ToUpper(desktop)
+	if strings.Contains(desktop, "KDE") || strings.Contains(desktop, "PLASMA") {
+		return desktopBreeze
+	}
+	if strings.Contains(desktop, "GNOME") || strings.Contains(desktop, "UNITY") || strings.Contains(desktop, "PANTHEON") {
+		return desktopAdwaita
+	}
+	return desktopDefault
+}
 
 // WindowControlsStyle is how the window buttons look. A zero field takes a
 // default that suits Config.ClearColor.
@@ -105,6 +129,7 @@ type windowControls struct {
 	style   func() WindowControlsStyle
 	clear   Color
 	height  float32
+	theme   desktopTheme
 	actions *platform.WindowActions
 	// tree and ids are the buttons' identities in the tree they were made in.
 	tree *ui.Tree
@@ -112,7 +137,12 @@ type windowControls struct {
 }
 
 func newWindowControls(config *Config) *windowControls {
-	return &windowControls{style: config.WindowControls, clear: config.ClearColor, height: platform.Config{TitlebarHeight: config.TitlebarHeight}.TitlebarStrip()}
+	return &windowControls{
+		style:  config.WindowControls,
+		clear:  config.ClearColor,
+		height: platform.Config{TitlebarHeight: config.TitlebarHeight}.TitlebarStrip(),
+		theme:  currentDesktopTheme(),
+	}
 }
 
 // maximized reports whether the window fills its screen, which has no edges to
@@ -175,18 +205,38 @@ func (controls *windowControls) paint(canvas *ui.Canvas, size ui.Size) {
 		case windowControlClose:
 			icon, name = closeIcon, style.CloseName
 		}
+		var (
+			bg    ui.Color
+			hasBg bool
+		)
 		switch {
 		case index == windowControlClose && (pressed == id || hovered == id):
-			background := style.Close
+			bg = style.Close
 			if pressed == id {
-				background.Alpha *= 0.8
+				bg.Alpha *= 0.8
 			}
-			canvas.Fill(bounds, background)
+			hasBg = true
 			tint = style.CloseForeground
 		case pressed == id:
-			canvas.Fill(bounds, style.Pressed)
+			bg = style.Pressed
+			hasBg = true
 		case hovered == id:
-			canvas.Fill(bounds, style.Hover)
+			bg = style.Hover
+			hasBg = true
+		}
+		if hasBg {
+			if controls.theme == desktopBreeze || controls.theme == desktopAdwaita {
+				btnSize := max(float32(16), min(float32(26), controls.height-6))
+				btnRect := ui.Rect{
+					X:      bounds.X + (bounds.Width-btnSize)/2,
+					Y:      (controls.height - btnSize) / 2,
+					Width:  btnSize,
+					Height: btnSize,
+				}
+				canvas.Rounded(btnRect, btnSize/2, bg)
+			} else {
+				canvas.Fill(bounds, bg)
+			}
 		}
 		canvas.DrawIcon(icon, ui.Rect{X: bounds.X + (WindowControlWidth-glyph)/2, Y: (controls.height - glyph) / 2, Width: glyph, Height: glyph}, tint)
 		canvas.HitWithOptions(id, bounds, name, ui.HitOptions{Role: ui.RoleButton, SkipFocus: true})
