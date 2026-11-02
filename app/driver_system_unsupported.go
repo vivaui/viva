@@ -14,6 +14,9 @@ func driverClipboardImage() (png []byte, err error, handled bool) { return nil, 
 
 func driverOpenURL(string) (error, bool)  { return nil, false }
 func driverOpenPath(string) (error, bool) { return nil, false }
+func driverOpenWith(string, string) (error, bool) {
+	return nil, false
+}
 
 func driverOpenFiles(OpenFileOptions) ([]string, error, bool) {
 	return nil, nil, false

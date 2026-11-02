@@ -63,6 +63,8 @@ type Driver struct {
 	hasOpenedURL   bool
 	openedPath     string
 	hasOpenedPath  bool
+	openedWith     [2]string
+	hasOpenedWith  bool
 	releases       []func()
 	closed         bool
 	appearanceOpen bool
@@ -861,6 +863,13 @@ func (driver *Driver) LastOpenedURL() (string, bool) {
 // and open nothing.
 func (driver *Driver) LastOpenedPath() (string, bool) {
 	return driver.openedPath, driver.hasOpenedPath
+}
+
+// LastOpenedWith returns the executable and path most recently passed to
+// OpenWith while this driver was active. Driver-backed runs record the request
+// and start nothing.
+func (driver *Driver) LastOpenedWith() (executable, path string, ok bool) {
+	return driver.openedWith[0], driver.openedWith[1], driver.hasOpenedWith
 }
 
 // PrimitiveKind says what a Primitive is.
