@@ -42,6 +42,7 @@ func RunCanvas(config Config, canvas *ui.Canvas) error {
 	}
 	painter.setClipboardText = func(value string) { _ = nativeSetClipboardText(value) }
 	painter.setCursor = nativeSetCursor
+	painter.setCursorImage = nativeSetCursorImage
 	// Transitions wake the event loop through the adapter's thread-safe post
 	// primitive: no reader goroutine, and no timer until something animates.
 	var waker *platform.Waker
@@ -94,9 +95,10 @@ func RunCanvas(config Config, canvas *ui.Canvas) error {
 		Title:     normalized.Title, Class: normalized.Class, Icon: normalized.Icon.platform(), Width: normalized.Width, Height: normalized.Height,
 		MinWidth: normalized.MinWidth, MinHeight: normalized.MinHeight,
 		Origin: normalized.originPoint(), HasOrigin: normalized.Origin != nil,
-		WindowMode:     platform.WindowMode(normalized.WindowMode),
-		TitlebarHeight: normalized.TitlebarHeight,
-		Anchor:         normalized.Anchor.rect, HasAnchor: normalized.Anchor.set,
+		WindowMode:      platform.WindowMode(normalized.WindowMode),
+		WindowMaterials: normalized.windowMaterials(),
+		TitlebarHeight:  normalized.TitlebarHeight,
+		Anchor:          normalized.Anchor.rect, HasAnchor: normalized.Anchor.set,
 		ClearColor: platform.Color{
 			Red: normalized.ClearColor.Red, Green: normalized.ClearColor.Green,
 			Blue: normalized.ClearColor.Blue, Alpha: normalized.ClearColor.Alpha,
@@ -181,6 +183,7 @@ func prepareNativeWindow(config Config, canvas *ui.Canvas) (platform.Config, fun
 	}
 	painter.setClipboardText = func(value string) { _ = nativeSetClipboardText(value) }
 	painter.setCursor = nativeSetCursor
+	painter.setCursorImage = nativeSetCursorImage
 	var waker *platform.Waker
 	if normalized.Invalidator != nil {
 		waker = &normalized.Invalidator.waker
@@ -230,9 +233,10 @@ func prepareNativeWindow(config Config, canvas *ui.Canvas) (platform.Config, fun
 		Title:     normalized.Title, Class: normalized.Class, Icon: normalized.Icon.platform(), Width: normalized.Width, Height: normalized.Height,
 		MinWidth: normalized.MinWidth, MinHeight: normalized.MinHeight,
 		Origin: normalized.originPoint(), HasOrigin: normalized.Origin != nil,
-		WindowMode:     platform.WindowMode(normalized.WindowMode),
-		TitlebarHeight: normalized.TitlebarHeight,
-		Anchor:         normalized.Anchor.rect, HasAnchor: normalized.Anchor.set,
+		WindowMode:      platform.WindowMode(normalized.WindowMode),
+		WindowMaterials: normalized.windowMaterials(),
+		TitlebarHeight:  normalized.TitlebarHeight,
+		Anchor:          normalized.Anchor.rect, HasAnchor: normalized.Anchor.set,
 		ClearColor: platform.Color{
 			Red: normalized.ClearColor.Red, Green: normalized.ClearColor.Green,
 			Blue: normalized.ClearColor.Blue, Alpha: normalized.ClearColor.Alpha,

@@ -231,7 +231,7 @@ func TestSelectTextIconUsesTheIconSlot(t *testing.T) {
 	if len(texts) != 4 || texts[0].Value != "繁" || texts[2].Value != "繁" {
 		t.Fatalf("missing text icons: %+v", texts)
 	}
-	if texts[1].Bounds.X != inputInsetX+selectIconSize+selectIconGap || texts[3].Bounds.X != 4+8+selectIconSize+selectIconGap {
+	if texts[1].Bounds.X != testInset+selectIconSize+selectIconGap || texts[3].Bounds.X != 4+8+selectIconSize+selectIconGap {
 		t.Fatalf("text icons did not reserve the icon slot: %+v", texts)
 	}
 	if allocations := testing.AllocsPerRun(100, paint); allocations != 0 {
@@ -253,7 +253,7 @@ func TestSelectImageIconPreservesItsAspectRatioAndStaysAllocationFree(t *testing
 	}
 	paint()
 	images := canvas.Images()
-	if len(images) != 2 || images[0].Bounds != (ui.Rect{X: inputInsetX, Y: 10, Width: 16, Height: 12}) || images[1].Bounds != (ui.Rect{X: 12, Y: 50, Width: 16, Height: 12}) {
+	if len(images) != 2 || images[0].Bounds != (ui.Rect{X: testInset, Y: 10, Width: 16, Height: 12}) || images[1].Bounds != (ui.Rect{X: 12, Y: 50, Width: 16, Height: 12}) {
 		t.Fatalf("image icon geometry = %+v", images)
 	}
 	if images[0].Layer != 0 || images[1].Layer != 6 || images[0].Bitmap.ID != bitmap.ID || images[1].Bitmap.ID != bitmap.ID {

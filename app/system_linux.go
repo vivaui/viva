@@ -25,6 +25,10 @@ func nativeClipboardText() (string, error) {
 	return value, linuxSystemError(err)
 }
 
+func nativeOnClipboardChange(notify func()) error {
+	return linuxSystemError(linuxplatform.OnClipboardChange(notify))
+}
+
 func nativeSetClipboardText(value string) error {
 	return linuxSystemError(linuxplatform.SetClipboardText(value))
 }
@@ -38,6 +42,10 @@ func nativeClipboardImagePNG() ([]byte, error) {
 
 func nativeSetCursor(cursor Cursor) error {
 	return linuxSystemError(linuxplatform.SetCursorShape(uint8(cursor)))
+}
+
+func nativeSetCursorImage(image *ui.CursorImage) error {
+	return linuxSystemError(linuxplatform.SetCursorImage(image))
 }
 
 func nativeOpenFiles(options OpenFileOptions) ([]string, error) {

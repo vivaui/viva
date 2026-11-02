@@ -149,10 +149,16 @@ func (b Box) Center() Box { return b.Items(Center).Justify(Center) }
 
 // Background fills the element's rectangle; Radius rounds it; Border draws a
 // line of the given width inside it; HoverBackground replaces the fill while the
-// pointer is over an element that has an ID.
+// pointer is over an element that has an ID. On a control (an Input, a Select, a
+// Button), Radius is also the radius of the control's own corners in place of the
+// theme's.
 func (b Box) Background(c ui.Color) Box      { b.n().background = c; return b }
 func (b Box) HoverBackground(c ui.Color) Box { b.f.extra(b.i).hover = c; return b }
-func (b Box) Radius(v float32) Box           { b.n().radius = v; return b }
+func (b Box) Radius(v float32) Box {
+	n := b.n()
+	n.radius, n.flags = v, n.flags|flagHasRadius
+	return b
+}
 func (b Box) Border(width float32, c ui.Color) Box {
 	n := b.n()
 	n.borderWidth = width
@@ -168,9 +174,17 @@ func (b Box) Shadow(level ui.ShadowLevel) Box { b.f.extra(b.i).shadow = level; r
 func (b Box) Clip() Box { b.n().flags |= flagClip; return b }
 
 // Text: FontSize, Bold, Weight, Color, Muted and Mono style a Text; TextCenter
-// centers it in its rectangle.
-func (b Box) FontSize(v float32) Box { b.n().fontSize = v; return b }
-func (b Box) Weight(v float32) Box   { b.n().weight = v; return b }
+// centers it in its rectangle. On a control, FontSize is the size of its text in
+// place of the theme's body size.
+func (b Box) FontSize(v float32) Box {
+	n := b.n()
+	n.fontSize = v
+	if n.kind == kindSelect {
+		b.f.sizeSelectList(n)
+	}
+	return b
+}
+func (b Box) Weight(v float32) Box { b.n().weight = v; return b }
 
 // LineHeight sets the height of each line of a Text or Paragraph, in pixels: the
 // default is the font size plus seven, as in the components.

@@ -1,6 +1,10 @@
 package linux
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+
+	"github.com/vivaui/viva/ui"
+)
 
 // shellHooks is how a window shell that owns the display connection itself (the GTK shell) takes
 // the desktop services that reach the display server: the clipboard, the primary selection and the
@@ -16,4 +20,5 @@ type desktopHooks struct {
 	primaryText       func() (string, error)
 	setPrimaryText    func(string) error
 	setCursorShape    func(uint8) error
+	setCursorImage    func(*ui.CursorImage) error
 }

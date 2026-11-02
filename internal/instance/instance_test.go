@@ -2,6 +2,7 @@ package instance
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -92,4 +93,53 @@ func isolate(t *testing.T) {
 	t.Setenv("TMPDIR", dir)
 	t.Setenv("TEMP", dir)
 	t.Setenv("TMP", dir)
+}
+
+// A temporary directory too deep for a socket path must still claim: the path
+// falls back to a short one instead of failing to bind, and both launches agree
+// on it.
+func TestADeepTemporaryDirectoryStillClaims(t *testing.T) {
+	base := t.TempDir()
+	deep := filepath.Join(base, strings.Repeat("deep-directory-", 6), strings.Repeat("x", 40))
+	if err := os.MkdirAll(deep, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if len(deep) <= maxSocketPath {
+		t.Fatalf("the test needs a directory over %d bytes, got %d", maxSocketPath, len(deep))
+	}
+	t.Setenv("XDG_RUNTIME_DIR", "")
+	t.Setenv("TMPDIR", deep)
+	t.Setenv("TEMP", deep)
+	t.Setenv("TMP", deep)
+
+	path, err := socketPath("dev.test.deep")
+	if err != nil {
+		t.Fatalf("a deep temporary directory leaves no socket path: %v", err)
+	}
+	if len(path) > maxSocketPath {
+		t.Fatalf("socket path %q is %d bytes, over the %d-byte limit", path, len(path), maxSocketPath)
+	}
+	if again, err := socketPath("dev.test.deep"); err != nil || again != path {
+		t.Fatalf("the socket path is not stable: %q then %q (%v)", path, again, err)
+	}
+
+	got := make(chan []string, 1)
+	first, primary, err := Claim("dev.test.deep", nil, func(args []string) { got <- args })
+	if err != nil || !primary {
+		t.Fatalf("claim from a deep directory: primary %v, err %v", primary, err)
+	}
+	defer first.Close()
+	if second, primary, err := Claim("dev.test.deep", []string{"handoff"}, func([]string) {
+		t.Error("the second process must not serve")
+	}); err != nil || primary || second != nil {
+		t.Fatalf("second claim: primary %v, err %v", primary, err)
+	}
+	select {
+	case args := <-got:
+		if !reflect.DeepEqual(args, []string{"handoff"}) {
+			t.Fatalf("handler got %q", args)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the arguments never arrived")
+	}
 }

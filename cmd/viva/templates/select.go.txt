@@ -264,7 +264,8 @@ func (selectControl Select) paintTrigger() {
 	}
 	// Vega: pl-2.5 and pr-2 inside the border, gap-1.5 before the 16px chevron.
 	const chevronSpan = 1 + 8 + selectIconSize
-	textX, textWidth := bounds.X+inputInsetX, bounds.Width-inputInsetX-chevronSpan-6
+	inset := selectControl.theme.Metrics.TextInsetX()
+	textX, textWidth := bounds.X+inset, bounds.Width-inset-chevronSpan-6
 	if paintSelectIcon(canvas, options.Icon, options.IconImage, options.IconText, ui.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.textSize) {
 		textX += selectIconSize + selectIconGap
 		textWidth -= selectIconSize + selectIconGap

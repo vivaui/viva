@@ -310,7 +310,7 @@ type ComboboxChipsLayout struct {
 // array of them can stay on its stack. dst receives the chip rectangles (pass dst[:0] of a reused slice to
 // stay allocation free).
 func PaintComboboxChips(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, chips []ComboboxChip, options ComboboxChipsOptions, dst []ui.Rect) ComboboxChipsLayout {
-	padX := inputInsetX
+	padX := theme.Metrics.TextInsetX()
 	if len(chips) > 0 {
 		padX = 1 + comboboxChipPad
 	}
@@ -391,11 +391,12 @@ func (combobox Combobox) paintInput() {
 	// square, 4px in from the border) for the clear action or the trigger.
 	showClear := options.ShowClear && !options.ClearID.IsZero() && (options.Query != "" || options.Value != "")
 	button := ui.Rect{X: bounds.X + bounds.Width - 5 - comboboxChipRemove, Y: bounds.Y + (bounds.Height-comboboxChipRemove)/2, Width: comboboxChipRemove, Height: comboboxChipRemove}
-	right := inputInsetX
+	inset := combobox.theme.Metrics.TextInsetX()
+	right := inset
 	if showClear || options.ShowTrigger {
 		right = bounds.X + bounds.Width - button.X + 6
 	}
-	canvas.Label(value, ui.Rect{X: bounds.X + inputInsetX, Y: bounds.Y, Width: comboboxMax(0, bounds.Width-inputInsetX-right), Height: bounds.Height}, ui.TextStyle{Size: combobox.theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground})
+	canvas.Label(value, ui.Rect{X: bounds.X + inset, Y: bounds.Y, Width: comboboxMax(0, bounds.Width-inset-right), Height: bounds.Height}, ui.TextStyle{Size: combobox.theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground})
 	if !options.InputID.IsZero() {
 		canvas.HitWithOptions(options.InputID, bounds, options.Label, ui.HitOptions{
 			Role: ui.RoleCombobox, Value: options.Value, Hint: options.Hint,

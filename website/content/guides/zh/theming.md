@@ -94,6 +94,26 @@ theme.Metrics = theme.Metrics.WithDensity(ui.DensityCompact)
 
 组件从度量中读取几何尺寸而不是写死，所以窗口里的每个控件都会跟着变化。
 
+## 单个控件的圆角与字号
+
+密度会改变窗口里的所有控件。只想改某一个控件时，给它一份自己的主题：主题是值，副本只影响传入它的那次调用。
+
+```go
+// 圆角为胶囊形、字号更大的搜索框；周围的输入框不受影响。
+components.PaintInput(canvas, theme.WithRadius(ui.RadiusFull).WithFontSize(16), bounds, snapshot)
+```
+
+`WithRadius` 设置控件的圆角（`Metrics.RadiusControl`；由它派生的值，例如菜单行的圆角，会跟着变化，卡片和对话框仍用 `RadiusSurface`）。`WithFontSize` 设置正文字号，并让小号和大号字号保持原有比例。`WithControlHeight` 设置 `Metrics.ControlHeight`，按钮的高度和随之缩放的几何都会跟着变。`ui.RadiusFull` 是一个比任何控件都大的圆角，结果是胶囊形。文本框的光标、选区和输入法组合下划线会跟随它的字号，文本起点则由密度对应的内边距决定（`Metrics.TextInsetX`）。
+
+在 flex 页面里，对应的写法是控件元素上的 `Radius` 和 `FontSize`。该控件会按它们测量和绘制，旁边的控件不受影响：
+
+```go
+f.Input(snapshot).Radius(ui.RadiusFull).FontSize(16).Height(40)
+f.Select(scope, &state, labels, selected).FontSize(15)
+```
+
+输入框的高度仍由 `Height` 决定，字号不会改变它。
+
 ## 动效
 
 `Theme.Transition` 是控件默认的状态变化动效；零值会关闭动画，手写的主题就是这样。`app.ReduceMotion()` 在 macOS 和 Windows 上报告操作系统的减弱动效偏好，其他平台返回 `false`。`Canvas.Animate` 已经遵守它，会原样返回目标值，所以通过画布做动画的组件不需要额外处理。

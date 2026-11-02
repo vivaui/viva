@@ -57,7 +57,10 @@ func FontFamilies() []string {
 	return strings.Split(value, "\n")
 }
 
-// MonospaceFamilies lists the installed fixed-pitch font families, sorted.
+// MonospaceFamilies lists the installed font families that draw on a character grid,
+// sorted. A family counts when it says it is fixed-pitch or when its printable ASCII
+// advances are measured to share one width; other platforms trust what the system
+// declares.
 func MonospaceFamilies() []string {
 	list := C.viva_list_mono_families()
 	if list == nil {

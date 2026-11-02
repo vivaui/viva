@@ -50,7 +50,7 @@ Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB and
 Vulkan loaders; on Windows, Win32 with Direct3D 11 and DirectWrite. Viva loads
 the system libraries at runtime and bundles none of them.
 
-The current release is `v0.2.1`; name it explicitly (`@v0.2.1`) to pin it. Guides,
+The current release is `v0.2.3`; name it explicitly (`@v0.2.3`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
@@ -162,6 +162,10 @@ client (see docs/accessibility.md), and AT-SPI against libatspi on KDE/X11. The
 Linux backend passes Ubuntu arm64 Xvfb/llvmpipe M0 and Debian amd64
 X11/Lavapipe retained-scene smokes, including mixed Chinese/Latin text and
 localized scene updates. The macOS runtime tests and benchmarks run on arm64.
+
+Windows Mica, Mica Alt and Acrylic are enabled through `app.Config.WindowBackdrop`
+without changing build commands. Unconfigured windows keep the ordinary renderer. See [Windows materials](docs/windows-materials.md) for version
+limits, fallback behavior and the platforms actually verified.
 
 Native label renderers draw single-line labels. The browser preview runs on the
 Canvas2D backend.

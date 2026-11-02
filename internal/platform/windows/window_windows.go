@@ -65,6 +65,7 @@ const (
 )
 
 type windowState struct {
+	backdropState
 	application                            *windowsApplication
 	config                                 platform.Config
 	renderer                               renderer
@@ -88,6 +89,10 @@ type windowState struct {
 	textDragAnchor                         int
 	textInput                              platform.TextInput
 	textEnabled, caretVisible, focused     bool
+	// shortcuts says the application wants the system's shortcuts while the window is focused
+	// (any goroutine sets it); shortcutsHeld says this window's share of the hook is installed.
+	shortcuts                              atomic.Bool
+	shortcutsHeld                          bool
 	caretTimer                             uintptr
 	baseRectangleCount, baseTextLabelCount int
 	textLabels                             []platform.TextLabel
@@ -256,6 +261,9 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		style = wsPopup
 		extendedStyle = wsExToolWindow | wsExTopmost
 	}
+	// DirectComposition owns the client pixels; an opaque redirection bitmap
+	// underneath it would hide the native material.
+	extendedStyle |= state.backdropWindowStyle()
 	bounds := rect{Right: int32(config.Width), Bottom: int32(config.Height)}
 	if !state.customFrame() {
 		adjustWindowLegacy.Call(uintptr(unsafe.Pointer(&bounds)), style, 0, 0)
@@ -312,6 +320,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 			state.placeOnScreen()
 		}
 	}
+	state.configureBackdropRenderer()
 	if err := state.renderer.initialize(state.window, config.ClearColor); err != nil {
 		destroyWindow.Call(state.window)
 		return nil, err
@@ -325,7 +334,12 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		return nil, err
 	}
 	state.installFrame()
+	state.watchBackdropPower()
+	state.applyBackdrop()
 	state.ready = true
+	if state.activeBackdrop() {
+		postMessage.Call(state.window, wmRedraw, 0, 0)
+	}
 	if config.WindowMode == platform.WindowPanel {
 		state.placePanel()
 		showWindow.Call(state.window, swShow)
@@ -361,6 +375,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state != nil {
 			state.window = window
 			windowStates.Store(window, state)
+			listenToClipboard(window) // a window opened after OnClipboardChange joins the watch
 		}
 	} else if value, ok := windowStates.Load(window); ok {
 		state = value.(*windowState)
@@ -383,13 +398,21 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.constrainTracking((*minMaxInfo)(pointer(second)))
 		return 0
 	case wmDestroy:
+		state.shortcuts.Store(false)
+		state.syncShortcutHook()
 		state.destroyed(window)
+		return 0
+	case wmCaptureShortcuts:
+		state.syncShortcutHook()
 		return 0
 	case wmAllowClose:
 		destroyWindow.Call(window)
 		return 0
 	case wmApplyAppearance:
 		state.settingsChanged()
+		return 0
+	case wmClipboardUpdate:
+		notifyClipboardChange()
 		return 0
 	case wmHideWindow:
 		showWindow.Call(window, swHide)
@@ -439,6 +462,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		result, _, _ = defaultWindowProc.Call(window, kind, first, second)
 		return
 	}
+	if state.handleBackdropMessage(kind) {
+		return 1
+	}
 	switch kind {
 	case wmFontChange:
 		// A font was installed or removed: no shaped line is known to be right.
@@ -457,6 +483,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 	case wmSetFocus:
 		state.focused = true
+		state.syncShortcutHook()
 		state.setCaretVisible(true)
 		if err := state.restartCaretTimer(); err != nil {
 			state.fail(err)
@@ -669,6 +696,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.captionPress.end()
 		if kind == wmKillFocus {
 			state.focused = false
+			state.syncShortcutHook()
 			state.textDragging = false
 			state.stopCaretTimer()
 			state.focusLost()
@@ -769,6 +797,7 @@ func (state *windowState) frame(frame platform.Frame, err error) {
 func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) {
 	views := frame.NativeViews
 	if err == nil {
+		state.applyBackdrop()
 		defer func() {
 			if state.web != nil && state.ready {
 				state.web.frame(views)
@@ -800,6 +829,7 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 // message loop running with no window to show, and the single-instance claim held
 // by a process nobody can see.
 func (state *windowState) destroyed(window uintptr) {
+	forgetClipboardListener(window)
 	released := false
 	release := func() {
 		if released {
@@ -817,6 +847,7 @@ func (state *windowState) destroyed(window uintptr) {
 		}
 	}()
 	state.stopCaretTimer()
+	state.closeBackdropPower()
 	state.closeDrop()
 	if state.web != nil {
 		state.web.closeAll()

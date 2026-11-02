@@ -150,6 +150,7 @@ type gtkLibrary struct {
 	gdkWindowSetCursor   func(window, cursor uintptr)
 	gdkCursorFromName    func(display uintptr, name *byte) uintptr
 	gdkCursorFromPixbuf  func(display, pixbuf uintptr, x, y int32) uintptr
+	gdkCursorFromSurface func(display, surface uintptr, x, y float64) uintptr
 	gdkWindowOrigin      func(window uintptr, x, y *int32) int32
 	gdkWindowRootOrigin  func(window uintptr, x, y *int32)
 	gdkWindowInputShape  func(window, region uintptr, dx, dy int32)
@@ -409,6 +410,7 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.gdkWindowSetCursor, "gdk_window_set_cursor")
 	b(&g.gdkCursorFromName, "gdk_cursor_new_from_name")
 	b(&g.gdkCursorFromPixbuf, "gdk_cursor_new_from_pixbuf")
+	b(&g.gdkCursorFromSurface, "gdk_cursor_new_from_surface")
 	b(&g.gdkWindowOrigin, "gdk_window_get_origin")
 	b(&g.gdkWindowRootOrigin, "gdk_window_get_root_origin")
 	b(&g.gdkWindowInputShape, "gdk_window_input_shape_combine_region")

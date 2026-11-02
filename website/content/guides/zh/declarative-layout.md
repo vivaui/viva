@@ -30,7 +30,7 @@ view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 - 交叉方向上子元素默认拉伸；`Items(flex.Center)` 居中，`Self` 只对一个子元素生效。沿容器方向用 `Justify(flex.Center)`、`flex.End`、`flex.Between` 摆放剩余空间。`Center()` 两个方向都居中。
 - `Basis(px)` 是在分配剩余空间之前元素的起始尺寸，`WidthPercent`、`HeightPercent` 取容器的一个比例。`MinWidth`、`MaxWidth`、`MinHeight`、`MaxHeight` 限定尺寸；被上限卡住的元素吃不下的空间会分给其他元素（和 CSS 一样），所以 `Grow(1).MaxWidth(470)` 旁边放一个 `Spacer()`，后面的元素仍然贴着远端。
 - `Items(flex.Baseline)` 让一行里的子元素按第一行文字的基线对齐，大标题、小说明和按钮可以落在同一条基线上。`Text` 会先于固定尺寸的兄弟元素收缩并裁剪。
-- `Background`、`Radius`、`Border`、`Shadow`、`Clip` 为容器设置样式。
+- `Background`、`Radius`、`Border`、`Shadow`、`Clip` 为容器设置样式。在 `Input`、`Select`、`Button` 等控件上，`Radius` 和 `FontSize` 为该控件设置它自己的圆角和字号；`Button` 上的 `Height` 就是按钮画出来的高度。
 - `Paragraph(text, maxLines)` 是会按所得宽度换行的文字，所以标签变长会让这一行变高，并把后面的内容往下推。`LineHeight` 设置行高。
 - `Grid(minCell)` 按宽度放下尽可能多的等宽列，并换到新的行。
 - `Scroll(offset)` 是比自己更高的、带裁剪的列。偏移量由你持有（滚轮事件到 `Config.OnScroll`）；`End` 之后 `Content()` 是子元素的总高度，可据此限制偏移量。

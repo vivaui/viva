@@ -558,7 +558,8 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 		}
 		source()
 		if lcd && run.Cells > 0 && piece != "" {
-			services.addSpan(int(math.Floor(left)), int(math.Ceil(left+span)), [4]float32{run.Color.Red, run.Color.Green, run.Color.Blue, run.Color.Alpha})
+			from, to := platform.GridColumns(left, span, width)
+			services.addSpan(from, to, [4]float32{run.Color.Red, run.Color.Green, run.Color.Blue, run.Color.Alpha})
 		}
 		metrics := baseMetrics
 		if run.Ligatures && piece != "" {
@@ -626,7 +627,6 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 	if offset != len(label.Value) {
 		return fmt.Errorf("linux: fixed-pitch text runs do not cover the label")
 	}
-	_ = width
 	return nil
 }
 

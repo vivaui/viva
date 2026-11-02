@@ -402,7 +402,7 @@ func SetCursorShape(shape uint8) error {
 		return hooks.setCursorShape(shape)
 	}
 	glyphs := [...]uint16{68, 152, 60, 34, 150, 108, 116, 134, 136, 88}
-	if int(shape) >= len(glyphs) {
+	if int(shape) >= len(glyphs) && shape != cursorHidden {
 		return fmt.Errorf("linux: invalid cursor %d", shape)
 	}
 	win := activeWindow.Load()
@@ -413,6 +413,9 @@ func SetCursorShape(shape uint8) error {
 	defer win.mu.Unlock()
 	if activeWindow.Load() != win || win.connection == 0 {
 		return fmt.Errorf("linux: cursor requires a running window")
+	}
+	if shape == cursorHidden {
+		return win.applyHiddenCursor()
 	}
 	// A test's stand-in for the library has none to ask for themes.
 	if !win.cursorsTried && win.api.library != 0 {
@@ -982,4 +985,72 @@ func (win *window) checkRequest(action string, cookie xcbVoidCookie) error {
 	resourceID := nativeError.ResourceID
 	win.api.free(unsafe.Pointer(nativeError))
 	return fmt.Errorf("linux: %s: X11 error %d for request %d.%d on resource %d", action, errorCode, majorCode, minorCode, resourceID)
+}
+
+// cursorHidden is the shape a surface that draws its own pointer asks for: app.CursorHidden,
+// after the ten shapes of the cursor font and the theme.
+const cursorHidden uint8 = 10
+
+// applyHiddenCursor makes a fully transparent cursor: a 1x1 bitmap, cleared to zero, as both the
+// source and the mask of the cursor, so no pixel of the pointer shows. The contents of a new
+// pixmap are undefined in X11, so it is cleared with a graphics context, whose foreground
+// defaults to 0. The window's cursor bookkeeping is unchanged.
+func (win *window) applyHiddenCursor() error {
+	pixmap := win.api.generateID(win.connection)
+	if err := win.checkRequest("create cursor pixmap", win.api.createPixmap(
+		win.connection, 1, pixmap, win.screen.Root, 1, 1)); err != nil {
+		return err
+	}
+	if err := win.clearPixmap(pixmap); err != nil {
+		win.api.freePixmap(win.connection, pixmap)
+		win.api.flush(win.connection)
+		return err
+	}
+	cursor := win.api.generateID(win.connection)
+	if err := win.checkRequest("create hidden cursor", win.api.createCursor(
+		win.connection, cursor, pixmap, pixmap,
+		0, 0, 0, 0, 0, 0, 0, 0)); err != nil {
+		win.api.freePixmap(win.connection, pixmap)
+		win.api.flush(win.connection)
+		return err
+	}
+	win.api.freePixmap(win.connection, pixmap)
+	if err := win.checkRequest("apply cursor", win.api.changeWindow(win.connection, win.id, xcbCWCursor, &cursor)); err != nil {
+		win.api.freeCursor(win.connection, cursor)
+		win.api.flush(win.connection)
+		return err
+	}
+	if previous := win.cursor; previous != 0 {
+		win.api.freeCursor(win.connection, previous)
+	}
+	if win.api.flush(win.connection) <= 0 || win.api.connectionHasError(win.connection) != 0 {
+		win.api.freeCursor(win.connection, cursor)
+		return fmt.Errorf("linux: apply cursor: XCB connection failed")
+	}
+	win.cursor = cursor
+	return nil
+}
+
+// clearPixmap sets every pixel of a 1x1 pixmap to 0.
+func (win *window) clearPixmap(pixmap uint32) error {
+	gc := win.api.generateID(win.connection)
+	if err := win.checkRequest("create cursor context", win.api.createGC(win.connection, gc, pixmap, 0, nil)); err != nil {
+		return err
+	}
+	rectangle := xcbRectangle{Width: 1, Height: 1}
+	err := win.checkRequest("clear cursor pixmap", win.api.polyFillRectangle(win.connection, pixmap, gc, 1, &rectangle))
+	win.api.freeGC(win.connection, gc)
+	return err
+}
+
+// OnClipboardChange reports that this target cannot watch the clipboard. X11 announces a change of
+// selection owner through the XFixes extension and the GTK shell through its own clipboard
+// signal, and neither is wired up yet; the alternative, asking who owns the selection on a timer,
+// would run for as long as the process lives and miss a new copy by the same owner, which is the
+// common case. The clipboard itself keeps working.
+func OnClipboardChange(notify func()) error {
+	if notify == nil {
+		return nil
+	}
+	return unsupported("clipboard change events are not available on this display server")
 }

@@ -478,10 +478,12 @@ int viva_measure_mono(double font_size, int mono_face, double *advance, double *
 // installed family it draws in first (empty for a stack over a built-in face), whether
 // that built-in face is the classic one, and the families that draw the characters the
 // primary lacks, one name per line, in order. viva_list_mono_families returns every
-// installed fixed-pitch family, one per line, in memory the caller frees.
-// viva_list_font_families is the same for every installed family, fixed-pitch or not.
-char *viva_list_font_families(void);
+// installed fixed-pitch family, one per line, in memory the caller frees: a family
+// that advances every printable ASCII character by one width, whatever its own
+// metadata claims.
 void viva_register_mono_family(int face, const char *utf8, int classic, const char *fallbacks);
 char *viva_list_mono_families(void);
+// viva_list_font_families is the same for every installed family, fixed-pitch or not.
+char *viva_list_font_families(void);
 
 #endif

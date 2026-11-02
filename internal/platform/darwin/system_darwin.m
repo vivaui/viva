@@ -34,12 +34,67 @@ static NSString *viva_string(const char *value) {
     return [NSString stringWithUTF8String:value];
 }
 
+// The pasteboard has no change notification on macOS: what a clipboard viewer watches is its
+// change count, so this polls it on the main queue for as long as a caller wants the news.
+// The timer exists only between viva_system_watch_clipboard(1) and (0); an application that
+// never asks pays nothing.
+extern void vivaSystemClipboardChanged(void);
+
+static dispatch_source_t viva_clipboard_timer = NULL;
+static NSInteger viva_clipboard_count = 0;
+
+static void viva_clipboard_poll(void *unused) {
+    (void)unused;
+    @autoreleasepool {
+        NSInteger count = [NSPasteboard generalPasteboard].changeCount;
+        if (count != viva_clipboard_count) {
+            viva_clipboard_count = count;
+            vivaSystemClipboardChanged();
+        }
+    }
+}
+
 static void viva_on_main_sync(dispatch_block_t operation) {
     if (NSThread.isMainThread) {
         operation();
         return;
     }
     dispatch_sync(dispatch_get_main_queue(), operation);
+}
+
+// viva_on_main_async runs operation on the main thread without waiting for it: at once when
+// the caller is that thread, queued otherwise. Nothing waits on the result, so a process whose
+// main thread runs no event loop (a test with a fake host) is not blocked by it.
+static void viva_on_main_async(dispatch_block_t operation) {
+    if (NSThread.isMainThread) {
+        operation();
+        return;
+    }
+    dispatch_async(dispatch_get_main_queue(), operation);
+}
+
+// viva_system_watch_clipboard starts (enable 1) or stops (0) reporting changes of the
+// pasteboard. Starting twice does nothing. The timer changes on the main queue in the order
+// the calls were made; a notification after a stop is dropped on the Go side, which clears its
+// callback before this runs.
+void viva_system_watch_clipboard(int enable) {
+    viva_on_main_async(^{
+        if (!enable) {
+            if (viva_clipboard_timer != NULL) {
+                dispatch_source_cancel(viva_clipboard_timer);
+                viva_clipboard_timer = NULL;
+            }
+            return;
+        }
+        if (viva_clipboard_timer != NULL) {
+            return;
+        }
+        viva_clipboard_count = [NSPasteboard generalPasteboard].changeCount;
+        viva_clipboard_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+        dispatch_source_set_timer(viva_clipboard_timer, dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), 250 * NSEC_PER_MSEC, 50 * NSEC_PER_MSEC);
+        dispatch_source_set_event_handler_f(viva_clipboard_timer, viva_clipboard_poll);
+        dispatch_resume(viva_clipboard_timer);
+    });
 }
 
 // viva_run_panel shows a native panel modally and then makes the window that was
@@ -298,11 +353,47 @@ static NSCursor *viva_cursor(uint8_t shape, NSString **error) {
             return nil;
         case 9:
             return NSCursor.operationNotAllowedCursor;
+        case 10: {
+            // A fully transparent cursor: a surface that draws its own pointer
+            // (a remote desktop picture) uses it to keep the system pointer
+            // out of the way. Its masks touch no pixel of the screen.
+            static NSCursor *hidden = nil;
+            static dispatch_once_t once;
+            dispatch_once(&once, ^{
+                NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
+                [image lockFocus];
+                [[NSColor clearColor] set];
+                NSRectFill(NSMakeRect(0, 0, 1, 1));
+                [image unlockFocus];
+                hidden = [[NSCursor alloc] initWithImage:image hotSpot:NSMakePoint(0, 0)];
+            });
+            return hidden;
+        }
         default:
             if (error != NULL) {
                 *error = [NSString stringWithFormat:@"invalid cursor shape %u", shape];
             }
             return nil;
+    }
+}
+
+// viva_apply_cursor shows cursor now and keeps it for every window, on the main thread.
+static void viva_apply_cursor(NSCursor *cursor) {
+    [cursor set];
+    for (NSWindow *window in NSApp.windows) {
+        NSView *view = window.contentView;
+        if (view == nil) {
+            continue;
+        }
+        // A Viva view remembers the cursor and re-applies it whenever
+        // AppKit rebuilds its cursor rectangles, which it does after any
+        // layout change; a rectangle added once would be thrown away then.
+        if ([view respondsToSelector:@selector(vivaSetCursor:)]) {
+            [(id)view performSelector:@selector(vivaSetCursor:) withObject:cursor];
+        } else {
+            [view discardCursorRects];
+            [view addCursorRect:view.bounds cursor:cursor];
+        }
     }
 }
 
@@ -318,22 +409,47 @@ int viva_system_set_cursor(uint8_t shape, char **error_message) {
                 status = -1;
                 return;
             }
-            [cursor set];
-            for (NSWindow *window in NSApp.windows) {
-                NSView *view = window.contentView;
-                if (view == nil) {
-                    continue;
-                }
-                // A Viva view remembers the cursor and re-applies it whenever
-                // AppKit rebuilds its cursor rectangles, which it does after any
-                // layout change; a rectangle added once would be thrown away then.
-                if ([view respondsToSelector:@selector(vivaSetCursor:)]) {
-                    [(id)view performSelector:@selector(vivaSetCursor:) withObject:cursor];
-                } else {
-                    [view discardCursorRects];
-                    [view addCursorRect:view.bounds cursor:cursor];
-                }
+            viva_apply_cursor(cursor);
+        }
+    });
+    if (status != 0) {
+        if (error_message != NULL) {
+            *error_message = failure;
+        } else {
+            free(failure);
+        }
+    }
+    return status;
+}
+
+// viva_system_set_cursor_image makes a picture the pointer. The pixels are width by height rows
+// top down, blue, green, red, alpha with the color multiplied by alpha; scale is how many of
+// them cover a point, so the cursor is as many points as the picture was made for.
+int viva_system_set_cursor_image(int width, int height, int hot_x, int hot_y, double scale, const uint8_t *pixels, char **error_message) {
+    __block int status = 0;
+    __block char *failure = NULL;
+    viva_on_main_sync(^{
+        @autoreleasepool {
+            size_t length = (size_t)width * (size_t)height * 4;
+            CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+            NSData *data = [NSData dataWithBytes:pixels length:length];
+            CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)data);
+            CGImageRef image = CGImageCreate((size_t)width, (size_t)height, 8, 32, (size_t)width * 4, space,
+                                             kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little,
+                                             provider, NULL, false, kCGRenderingIntentDefault);
+            CGDataProviderRelease(provider);
+            CGColorSpaceRelease(space);
+            if (image == NULL) {
+                failure = viva_copy_utf8(@"macOS could not make an image of the cursor");
+                status = -1;
+                return;
             }
+            NSBitmapImageRep *representation = [[NSBitmapImageRep alloc] initWithCGImage:image];
+            CGImageRelease(image);
+            NSImage *picture = [[NSImage alloc] initWithSize:NSMakeSize(width / scale, height / scale)];
+            [picture addRepresentation:representation];
+            NSCursor *cursor = [[NSCursor alloc] initWithImage:picture hotSpot:NSMakePoint(hot_x / scale, hot_y / scale)];
+            viva_apply_cursor(cursor);
         }
     });
     if (status != 0) {

@@ -423,6 +423,7 @@ extern int vivaAccessibilityAction(
 extern int vivaShortcutEvent(
     uintptr_t callbackHandle,
     void *view,
+    int key,
     int modifiers,
     int repeat,
     const unsigned char *utf8,
@@ -1268,6 +1269,43 @@ static void viva_mono_face_traits(int face, NSString **family, BOOL *classic, NS
     }
 }
 
+// viva_mono_font_on_a_grid reports whether the font advances every printable ASCII
+// character by the same width: the one property a terminal cell grid needs.
+//
+// The font's own fixed-pitch bit is not enough to ask. Families built for coding
+// (Nerd Font patches, ligature builds) often leave it clear while drawing on a grid
+// all the same, and the bit alone kept them out of the list. The advances are
+// compared with a percent of the cell to spare, because a grid font still rounds a
+// glyph by a hair (Roboto Mono for Powerline gives '-' 7.207 where its cell is
+// 7.201) while a proportional font's differ by a fraction of the cell.
+static BOOL viva_mono_font_on_a_grid(NSFont *font) {
+    if (font.isFixedPitch) {
+        return YES;
+    }
+    enum { first = 0x20, last = 0x7E, count = last - first + 1 };
+    UniChar characters[count];
+    CGGlyph glyphs[count];
+    CGSize advances[count];
+    for (CFIndex index = 0; index < count; index++) {
+        characters[index] = (UniChar)(first + index);
+    }
+    CTFontRef ctFont = (CTFontRef)font;
+    if (!CTFontGetGlyphsForCharacters(ctFont, characters, glyphs, count)) {
+        return NO; // it cannot draw one of them, so it is no terminal face
+    }
+    CTFontGetAdvancesForGlyphs(ctFont, kCTFontOrientationHorizontal, glyphs, advances, count);
+    CGFloat cell = advances[0].width;
+    if (cell <= 0.0) {
+        return NO;
+    }
+    for (CFIndex index = 1; index < count; index++) {
+        if (fabs(advances[index].width - cell) > cell * 0.01) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
 char *viva_list_font_families(void) {
     @autoreleasepool {
         NSFontManager *manager = [NSFontManager sharedFontManager];
@@ -1292,7 +1330,7 @@ char *viva_list_mono_families(void) {
                 continue;
             }
             NSFont *font = [manager fontWithFamily:family traits:0 weight:5 size:12];
-            if (font != nil && font.isFixedPitch) {
+            if (font != nil && viva_mono_font_on_a_grid(font)) {
                 [names addObject:family];
             }
         }
@@ -1381,7 +1419,7 @@ static NSFont *viva_mono_font(CGFloat size, CGFloat weight, int face) {
 #define VIVA_MONO_CLUSTER_LENGTH 64
 
 typedef struct {
-    BOOL fixedPitch;
+    BOOL onGrid;
     BOOL includesHan;
     int privateUse;
 } viva_mono_family_traits;
@@ -1509,8 +1547,10 @@ static int viva_mono_private_use(CTFontRef font) {
     return count;
 }
 
-// viva_mono_family_traits_of is what ranks a family: its pitch, whether it draws
-// Han, and how much private-use it covers. Read once per family.
+// viva_mono_family_traits_of is what ranks a family: whether it draws on a grid (the
+// same test that decides which families are offered, so a coding family that leaves
+// the fixed-pitch bit clear ranks with the ones that set it), whether it draws Han,
+// and how much private-use it covers. Read once per family.
 static viva_mono_family_traits viva_mono_family_traits_of(NSString *family) {
     viva_mono_family_traits traits = {NO, YES, 0};
     @synchronized(viva_mono_fallback_lock()) {
@@ -1522,7 +1562,7 @@ static viva_mono_family_traits viva_mono_family_traits_of(NSString *family) {
     }
     NSFont *font = viva_mono_family_font(family, 12, 0);
     if (font != nil) {
-        traits.fixedPitch = font.isFixedPitch;
+        traits.onGrid = viva_mono_font_on_a_grid(font);
         traits.includesHan = viva_mono_draws_han((CTFontRef)font);
         traits.privateUse = viva_mono_private_use((CTFontRef)font);
     }
@@ -1542,8 +1582,8 @@ static BOOL viva_mono_family_better(viva_mono_family_traits candidate, NSString 
     if (bestFamily == nil) {
         return YES;
     }
-    if (candidate.fixedPitch != best.fixedPitch) {
-        return candidate.fixedPitch;
+    if (candidate.onGrid != best.onGrid) {
+        return candidate.onGrid;
     }
     if (candidate.includesHan != best.includesHan) {
         return !candidate.includesHan;
@@ -3895,10 +3935,24 @@ static int viva_navigation_command(SEL selector) {
 			if (text.length > 0 && vivaShortcutEvent(
 					_callbackHandle,
 					self,
+					0,
 					viva_modifier_flags(event.modifierFlags),
 					event.isARepeat ? 1 : 0,
 					text.bytes,
 					text.length)) {
+				return;
+			}
+		} else if (named == VIVA_KEY_ENTER) {
+			/* Control or Command with Return: a multiline field would make it a
+			 * line break, so the application is offered it first. */
+			if (vivaShortcutEvent(
+					_callbackHandle,
+					self,
+					named,
+					viva_modifier_flags(event.modifierFlags),
+					event.isARepeat ? 1 : 0,
+					NULL,
+					0)) {
 				return;
 			}
 		}

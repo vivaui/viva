@@ -14,9 +14,11 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/ui"
 )
 
 var ErrPermissionDenied = errors.New("darwin: permission denied")
@@ -52,6 +54,30 @@ func ClipboardText() (string, error) {
 	}
 	defer C.viva_system_free(unsafe.Pointer(value))
 	return C.GoString(value), nil
+}
+
+var clipboardWatch atomic.Pointer[func()]
+
+// OnClipboardChange has notify called, on the main thread, whenever the pasteboard's change
+// count moves. AppKit has no change notification, so a timer on the main queue polls the count,
+// as a clipboard viewer does, and runs only between this call and OnClipboardChange(nil), which
+// stops it.
+func OnClipboardChange(notify func()) error {
+	if notify == nil {
+		clipboardWatch.Store(nil)
+		C.viva_system_watch_clipboard(0)
+		return nil
+	}
+	clipboardWatch.Store(&notify)
+	C.viva_system_watch_clipboard(1)
+	return nil
+}
+
+//export vivaSystemClipboardChanged
+func vivaSystemClipboardChanged() {
+	if notify := clipboardWatch.Load(); notify != nil {
+		(*notify)()
+	}
 }
 
 func SetClipboardText(value string) error {
@@ -153,7 +179,7 @@ func vivaSystemAppearanceChanged() {
 // lastCursorShape is the highest shape number the native side knows. A number
 // beyond it is refused here, without a trip to the main thread, which the native
 // side would also refuse with the same words.
-const lastCursorShape = 9
+const lastCursorShape = 10
 
 func SetCursorShape(shape uint8) error {
 	if shape > lastCursorShape {
@@ -162,6 +188,20 @@ func SetCursorShape(shape uint8) error {
 	var nativeError *C.char
 	if C.viva_system_set_cursor(C.uint8_t(shape), &nativeError) != 0 {
 		return systemError("set cursor", nativeError)
+	}
+	return nil
+}
+
+// SetCursorImage makes the picture the pointer over the app's windows, as many points big as it
+// was made for: its own pixels, not resampled, which AppKit draws at the screen's density.
+func SetCursorImage(image *ui.CursorImage) error {
+	width, height, hotX, hotY, pixels := platform.CursorPixels(image, image.Scale(), true)
+	var nativeError *C.char
+	status := C.viva_system_set_cursor_image(C.int(width), C.int(height), C.int(hotX), C.int(hotY),
+		C.double(image.Scale()), (*C.uint8_t)(unsafe.Pointer(&pixels[0])), &nativeError)
+	runtime.KeepAlive(pixels)
+	if status != 0 {
+		return systemError("set cursor image", nativeError)
 	}
 	return nil
 }

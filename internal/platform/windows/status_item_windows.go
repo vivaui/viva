@@ -543,12 +543,10 @@ func (state *windowState) placeAtOrigin(origin ui.Point) {
 	info.Size = uint32(unsafe.Sizeof(info))
 	monitor, _, _ := monitorFromPoint.Call(uintptr(uint32(x+width/2))|uintptr(uint32(y+height/2))<<32, monitorNearest)
 	if ok, _, _ := getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok != 0 {
-		const reach = 120 // enough of the window stays on the screen to grab it
-		x = min(max(x, info.Work.Left-width+reach), info.Work.Right-reach)
-		y = min(max(y, info.Work.Top), info.Work.Bottom-reach/2)
+		x, y, width, height = placedFrame(info.Work, state.scale, x, y, width, height)
 	}
-	// SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
-	setWindowPosition.Call(state.window, 0, uintptr(x), uintptr(y), 0, 0, 0x15)
+	// SWP_NOZORDER | SWP_NOACTIVATE: the size too, for a window that did not fit.
+	setWindowPosition.Call(state.window, 0, uintptr(x), uintptr(y), uintptr(width), uintptr(height), 0x14)
 }
 
 // Frame is the content area in screen coordinates, in the logical pixels of the

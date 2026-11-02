@@ -270,6 +270,94 @@ func TestSetCursorShapeAppliesAndReleasesCursor(t *testing.T) {
 	}
 }
 
+// The hidden cursor is the eleventh shape, past the end of the cursor font's glyphs: it makes a
+// cursor of a 1x1 bitmap that is cleared first, since a new pixmap has undefined contents, and
+// applies it in place of the one the window had.
+func TestSetCursorShapeHiddenClearsItsBitmapAndReplacesTheCursor(t *testing.T) {
+	var nextID uint32 = 40
+	var calls []string
+	var cleared xcbRectangle
+	var sourcePixmap, maskPixmap, cursorValue uint32
+	var freed []uint32
+	api := &xcbAPI{
+		generateID: func(uintptr) uint32 {
+			nextID++
+			return nextID
+		},
+		createPixmap: func(_ uintptr, depth uint8, _, _ uint32, width, height uint16) xcbVoidCookie {
+			calls = append(calls, "pixmap")
+			if depth != 1 || width != 1 || height != 1 {
+				t.Errorf("pixmap = depth %d, %dx%d, want a 1x1 bitmap", depth, width, height)
+			}
+			return xcbVoidCookie{Sequence: 1}
+		},
+		createGC: func(_ uintptr, _, _ uint32, mask uint32, _ *uint32) xcbVoidCookie {
+			calls = append(calls, "gc")
+			if mask != 0 {
+				t.Errorf("gc value mask = %#x: the foreground must stay at its default of 0", mask)
+			}
+			return xcbVoidCookie{Sequence: 2}
+		},
+		polyFillRectangle: func(_ uintptr, _, _ uint32, count uint32, rectangle *xcbRectangle) xcbVoidCookie {
+			calls = append(calls, "fill")
+			cleared = *rectangle
+			if count != 1 {
+				t.Errorf("filled %d rectangles", count)
+			}
+			return xcbVoidCookie{Sequence: 3}
+		},
+		freeGC: func(uintptr, uint32) xcbVoidCookie {
+			calls = append(calls, "free gc")
+			return xcbVoidCookie{}
+		},
+		createCursor: func(_ uintptr, _ uint32, source, mask uint32, _, _, _, _, _, _, _, _ uint16) xcbVoidCookie {
+			calls = append(calls, "cursor")
+			sourcePixmap, maskPixmap = source, mask
+			return xcbVoidCookie{Sequence: 4}
+		},
+		freePixmap: func(uintptr, uint32) xcbVoidCookie {
+			calls = append(calls, "free pixmap")
+			return xcbVoidCookie{}
+		},
+		changeWindow: func(_ uintptr, _ uint32, mask uint32, values *uint32) xcbVoidCookie {
+			if mask != xcbCWCursor {
+				t.Fatalf("window mask = %#x", mask)
+			}
+			cursorValue = *values
+			return xcbVoidCookie{Sequence: 5}
+		},
+		freeCursor: func(_ uintptr, cursor uint32) xcbVoidCookie {
+			freed = append(freed, cursor)
+			return xcbVoidCookie{}
+		},
+		requestCheck:       func(uintptr, xcbVoidCookie) *xcbGenericError { return nil },
+		flush:              func(uintptr) int32 { return 1 },
+		connectionHasError: func(uintptr) int32 { return 0 },
+	}
+	win := &window{api: api, connection: 1, id: 2, cursor: 9, screen: &xcbScreen{}}
+	activeWindow.Store(win)
+	t.Cleanup(func() { activeWindow.Store(nil) })
+
+	if err := SetCursorShape(uint8(cursorHidden)); err != nil {
+		t.Fatalf("hiding the pointer: %v", err)
+	}
+	if want := []string{"pixmap", "gc", "fill", "free gc", "cursor", "free pixmap"}; !reflect.DeepEqual(calls, want) {
+		t.Fatalf("requests = %v, want %v", calls, want)
+	}
+	if cleared != (xcbRectangle{Width: 1, Height: 1}) {
+		t.Fatalf("cleared %+v, want the whole 1x1 bitmap", cleared)
+	}
+	if sourcePixmap == 0 || sourcePixmap != maskPixmap {
+		t.Fatalf("cursor source %d and mask %d must be the one cleared bitmap", sourcePixmap, maskPixmap)
+	}
+	if cursorValue == 0 || win.cursor != cursorValue || !reflect.DeepEqual(freed, []uint32{9}) {
+		t.Fatalf("applied %d, retained %d, freed %v: the previous cursor must be replaced", cursorValue, win.cursor, freed)
+	}
+	if err := SetCursorShape(uint8(cursorHidden) + 1); err == nil {
+		t.Fatal("a shape past the hidden one was accepted")
+	}
+}
+
 func TestSetCursorShapeRequiresWindow(t *testing.T) {
 	activeWindow.Store(nil)
 	if err := SetCursorShape(0); err == nil || !strings.Contains(err.Error(), "running window") {
@@ -348,4 +436,15 @@ func TestDarkAppearanceAnswersOnThisMachine(t *testing.T) {
 		t.Fatal("a desktop that does not say cannot be dark")
 	}
 	t.Logf("portal: dark=%v known=%v", dark, known)
+}
+
+// X11 and the GTK shell cannot report clipboard changes yet. The caller is told so, with the error a
+// caller checks for, instead of being promised news that never comes; stopping needs nothing.
+func TestOnClipboardChangeSaysThisTargetCannotWatch(t *testing.T) {
+	if err := OnClipboardChange(func() {}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("OnClipboardChange = %v, want ErrUnsupported", err)
+	}
+	if err := OnClipboardChange(nil); err != nil {
+		t.Fatalf("stopping a watch that never ran: %v", err)
+	}
 }

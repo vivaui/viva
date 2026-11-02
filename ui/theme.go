@@ -39,6 +39,16 @@ func (m Metrics) RadiusItem() float32 { return max(m.RadiusControl-2, 0) }
 // dialog or card surface (RadiusSurface).
 func (m Metrics) RadiusPopup() float32 { return max(m.RadiusSurface-1, 0) }
 
+// RadiusFull is a corner radius no control is tall enough to reach: every
+// rounded shape clamps its radius to half its shorter side, so this makes a
+// pill (or a circle, on a square) of whatever it is given to.
+const RadiusFull float32 = 1 << 14
+
+// TextInsetX is where the text of a text-entry control starts, measured from its
+// outer edge: the 1px border plus the control's horizontal padding less that
+// pixel, as Vega's px-2.5 is at the default density (11).
+func (m Metrics) TextInsetX() float32 { return max(m.PadControlX-1, 0) }
+
 // DefaultMetrics returns the standard desktop density.
 func DefaultMetrics() Metrics {
 	return Metrics{
@@ -108,6 +118,46 @@ type Theme struct {
 	// Transition is the default state-change motion for controls. A zero
 	// value disables animation for hand-built themes.
 	Transition Motion
+}
+
+// WithRadius is the theme with another corner radius for its controls
+// (Metrics.RadiusControl), for one control among others:
+//
+//	components.PaintInput(canvas, theme.WithRadius(ui.RadiusFull), bounds, snapshot)
+//
+// A theme is a value, so the other controls keep the radius they were painted
+// with. What is derived from the control radius, such as a menu row's, follows;
+// the radius of cards, dialogs and other surfaces (RadiusSurface) does not.
+func (theme Theme) WithRadius(radius float32) Theme {
+	theme.Metrics.RadiusControl = max(radius, 0)
+	return theme
+}
+
+// WithControlHeight is the theme with another control height (Metrics.ControlHeight),
+// for a control that is given a row of its own height: the heights of the button
+// sizes, and the geometry that scales with the height, follow it. Like WithRadius
+// it changes only the copy it returns.
+func (theme Theme) WithControlHeight(height float32) Theme {
+	theme.Metrics.ControlHeight = max(height, 0)
+	return theme
+}
+
+// WithFontSize is the theme with another body font size (Metrics.FontSizeM), the
+// size of a control's text. The small and large sizes keep their proportion to it,
+// so a control's captions and titles stay in step. Like WithRadius it changes
+// only the copy it returns:
+//
+//	components.PaintInput(canvas, theme.WithFontSize(16), bounds, snapshot)
+func (theme Theme) WithFontSize(size float32) Theme {
+	metrics := &theme.Metrics
+	if size <= 0 || metrics.FontSizeM <= 0 {
+		return theme
+	}
+	scale := size / metrics.FontSizeM
+	metrics.FontSizeS *= scale
+	metrics.FontSizeL *= scale
+	metrics.FontSizeM = size
+	return theme
 }
 
 // DarkTheme returns the Vega Neutral + Blue preset in dark appearance.

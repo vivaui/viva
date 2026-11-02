@@ -51,6 +51,7 @@ func (state *windowState) recoverDevice(cause error) error {
 	if err := state.renderer.recover(plan == platform.RecoverSoftware); err != nil {
 		return fmt.Errorf("windows: the graphics device was lost and could not be made again: %w (%w)", err, cause)
 	}
+	state.refreshBackdrop()
 	return nil
 }
 

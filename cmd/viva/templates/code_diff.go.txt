@@ -431,7 +431,7 @@ func (diff *CodeDiff) paintRightCaret(canvas *ui.Canvas, line int, bounds ui.Rec
 	}
 	local := textareaBoundary(diff.lines[line], min(caret-lineStart, len(diff.lines[line])))
 	x := bounds.X + canvas.TextCaret(diff.lines[line], style.Size, style.Weight, local)
-	rect := ui.Rect{X: x, Y: bounds.Y + 2, Width: 1, Height: 16}
+	rect := ui.Rect{X: x, Y: bounds.Y + 2, Width: 1, Height: inputCaretHeight(style.Size)}
 	canvas.Fill(rect, diff.theme.Foreground)
 	diff.caret = ui.Rect{X: x, Y: bounds.Y, Width: 1, Height: bounds.Height}
 	diff.caretShown = int(diff.Geometry.OffsetY/diff.rowHeight) <= rowIndex &&

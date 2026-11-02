@@ -10,6 +10,7 @@ import (
 
 	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/ui"
 )
 
 // The desktop services that go through the display server, on GTK: the clipboard, the primary
@@ -127,6 +128,12 @@ func (a *gtkApplication) installHooks() {
 			}
 			return
 		},
+		setCursorImage: func(image *ui.CursorImage) (err error) {
+			if e := a.onMain(func() { err = a.setCursorImage(image) }); e != nil {
+				return e
+			}
+			return
+		},
 	}
 	shellHooks.Store(hooks)
 }
@@ -207,7 +214,7 @@ func (a *gtkApplication) readImage() ([]byte, error) {
 
 // cursorNames are in GDK's cursor-name terms the theme names of the cursors (cursor_linux.go).
 func (a *gtkApplication) setCursor(shape uint8) error {
-	if int(shape) >= len(cursorNames) {
+	if shape != cursorHidden && int(shape) >= len(cursorNames) {
 		return fmt.Errorf("linux: invalid cursor %d", shape)
 	}
 	window := a.active
@@ -218,30 +225,92 @@ func (a *gtkApplication) setCursor(shape uint8) error {
 	return nil
 }
 
+// gdkCursorName is the name GDK looks a cursor up by: the theme name of a shape, and "none", the
+// blank cursor GDK defines, for the hidden one.
+func gdkCursorName(shape uint8) string {
+	if shape == cursorHidden {
+		return "none"
+	}
+	return cursorNames[shape]
+}
+
 func (w *gtkWindow) setCursor(shape uint8) {
 	if w.cursorShape == shape+1 {
 		return
 	}
 	w.cursorShape = shape + 1
+	w.cursorImage = nil
 	g := w.g
 	if w.cursors[shape] == 0 {
-		name := cString(cursorNames[shape])
+		name := cString(gdkCursorName(shape))
 		w.cursors[shape] = g.gdkCursorFromName(g.gdkDisplayDefault(), &name[0])
 	}
+	w.showCursor(w.cursors[shape])
+	if w.wl != nil {
+		w.wl.setCursor(shape)
+	}
+}
+
+// showCursor makes cursor the pointer over every piece of the window.
+func (w *gtkWindow) showCursor(cursor uintptr) {
+	g := w.g
 	if window := g.widgetGetWindow(w.area); window != 0 {
-		g.gdkWindowSetCursor(window, w.cursors[shape])
+		g.gdkWindowSetCursor(window, cursor)
 	}
 	for _, p := range w.pieces {
 		if p.window != 0 {
-			g.gdkWindowSetCursor(p.window, w.cursors[shape])
+			g.gdkWindowSetCursor(p.window, cursor)
 		}
 	}
 	for _, p := range w.inputPieces {
 		if window := g.widgetGetWindow(p.widget); window != 0 {
-			g.gdkWindowSetCursor(window, w.cursors[shape])
+			g.gdkWindowSetCursor(window, cursor)
 		}
 	}
+}
+
+// cairoARGB32 is CAIRO_FORMAT_ARGB32: premultiplied, a 32-bit word a pixel.
+const cairoARGB32 = 0
+
+// setCursorImage makes the picture the pointer through GDK, sized in widget units from the
+// picture's own scale. The compositor-drawn Wayland subsurface has a pointer of its own that GDK
+// does not reach, so there the picture is refused and the pointer keeps its shape.
+func (w *gtkWindow) setCursorImage(image *ui.CursorImage) error {
 	if w.wl != nil {
-		w.wl.setCursor(shape)
+		return unsupported("an application cursor is not available on the Wayland subsurface")
 	}
+	if w.cursorImage == image && w.imageCursor != 0 {
+		return nil
+	}
+	g := w.g
+	if g.gdkCursorFromSurface == nil || g.cairoSurfaceForData == nil {
+		return unsupported("this GTK has no cursor from a surface")
+	}
+	width, height, hotX, hotY, pixels := platform.CursorPixels(image, image.Scale(), true)
+	perUnit := float64(image.Scale()) / float64(w.ratio)
+	surface := g.cairoSurfaceForData(&pixels[0], cairoARGB32, int32(width), int32(height), int32(width*4))
+	if surface == 0 {
+		return fmt.Errorf("linux: make the cursor surface")
+	}
+	g.cairoDeviceScale(surface, perUnit, perUnit)
+	cursor := g.gdkCursorFromSurface(g.gdkDisplayDefault(), surface, float64(hotX)/perUnit, float64(hotY)/perUnit)
+	g.cairoSurfaceDestroy(surface)
+	if cursor == 0 {
+		return fmt.Errorf("linux: make the cursor from its surface")
+	}
+	w.showCursor(cursor)
+	if w.imageCursor != 0 {
+		g.objectUnref(w.imageCursor)
+	}
+	w.imageCursor, w.cursorImage, w.imagePixels = cursor, image, pixels
+	w.cursorShape = 0 // the next shape is applied, whichever it is
+	return nil
+}
+
+func (a *gtkApplication) setCursorImage(image *ui.CursorImage) error {
+	window := a.active
+	if window == nil || window.closed {
+		return fmt.Errorf("linux: cursor requires a running window")
+	}
+	return window.setCursorImage(image)
 }

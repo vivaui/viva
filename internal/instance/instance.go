@@ -97,9 +97,21 @@ func socketPath(id string) (string, error) {
 	if runtime.GOOS == "windows" {
 		dir = filepath.Join(base, "viva")
 	}
-	if len(dir)+len(name)+1 > maxSocketPath && runtime.GOOS != "windows" {
-		// A very long temporary directory: /tmp is always short.
-		dir = filepath.Join("/tmp", fmt.Sprintf("viva-%d", os.Getuid()))
+	if len(dir)+len(name)+1 > maxSocketPath {
+		if runtime.GOOS != "windows" {
+			// A very long temporary directory: /tmp is always short.
+			dir = filepath.Join("/tmp", fmt.Sprintf("viva-%d", os.Getuid()))
+		} else {
+			// Windows AF_UNIX paths share the sockaddr limit, and there is
+			// no short system directory to fall back to; the 8.3 short form
+			// of the temporary directory usually fits.
+			if short, ok := shortPath(base); ok {
+				dir = filepath.Join(short, "viva")
+			}
+		}
+	}
+	if socket := filepath.Join(dir, name); len(socket) > maxSocketPath {
+		return "", fmt.Errorf("instance: socket path %s is %d bytes, over the %d-byte limit; point TMPDIR and TEMP at a shorter directory", socket, len(socket), maxSocketPath)
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err

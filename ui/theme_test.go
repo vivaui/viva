@@ -81,3 +81,61 @@ func TestRGB24ReadsTheChannelsOfAHexNumber(t *testing.T) {
 		t.Fatalf("WithAlpha changed the channels: %+v", got)
 	}
 }
+
+// A control painted with its own radius or font size must not change the theme
+// the rest of the window is painted with: the override is a copy.
+func TestThemeOverridesChangeOnlyTheCopy(t *testing.T) {
+	base := LightTheme()
+	custom := base.WithRadius(3).WithFontSize(21).WithControlHeight(44)
+	if base.Metrics != DefaultMetrics() {
+		t.Fatalf("overriding changed the original theme: %+v", base.Metrics)
+	}
+	if custom.Metrics.RadiusControl != 3 || custom.Metrics.FontSizeM != 21 || custom.Metrics.ControlHeight != 44 {
+		t.Fatalf("overrides not applied: %+v", custom.Metrics)
+	}
+	if custom.Metrics.RadiusSurface != base.Metrics.RadiusSurface {
+		t.Fatalf("surface radius changed with the control radius: %v", custom.Metrics.RadiusSurface)
+	}
+	if custom.Metrics.RadiusItem() != 1 {
+		t.Fatalf("menu rows do not follow the control radius: %v", custom.Metrics.RadiusItem())
+	}
+	// The small and large steps keep their ratio to the body size.
+	if got, want := custom.Metrics.FontSizeS/custom.Metrics.FontSizeM, base.Metrics.FontSizeS/base.Metrics.FontSizeM; got != want {
+		t.Fatalf("small/body ratio = %v, want %v", got, want)
+	}
+	if got, want := custom.Metrics.FontSizeL/custom.Metrics.FontSizeM, base.Metrics.FontSizeL/base.Metrics.FontSizeM; got != want {
+		t.Fatalf("large/body ratio = %v, want %v", got, want)
+	}
+}
+
+func TestThemeOverridesIgnoreNonsense(t *testing.T) {
+	base := DarkTheme()
+	if got := base.WithFontSize(0).Metrics; got != base.Metrics {
+		t.Fatalf("a zero font size changed the metrics: %+v", got)
+	}
+	if got := base.WithFontSize(-4).Metrics; got != base.Metrics {
+		t.Fatalf("a negative font size changed the metrics: %+v", got)
+	}
+	if got := base.WithRadius(-5).Metrics.RadiusControl; got != 0 {
+		t.Fatalf("a negative radius = %v, want 0", got)
+	}
+	if got := base.WithControlHeight(-1).Metrics.ControlHeight; got != 0 {
+		t.Fatalf("a negative control height = %v, want 0", got)
+	}
+	var empty Theme
+	if got := empty.WithFontSize(14).Metrics; got.FontSizeM != 0 {
+		t.Fatalf("a theme without metrics gained a font size: %+v", got)
+	}
+}
+
+// The text of a text-entry control starts where the 1px border and the
+// control's own padding leave it, at every density.
+func TestTextInsetFollowsControlPadding(t *testing.T) {
+	m := DefaultMetrics()
+	if got := m.TextInsetX(); got != 11 {
+		t.Fatalf("default inset = %v, want 11 (Vega px-2.5 plus the border)", got)
+	}
+	if compact, large := m.WithDensity(DensityCompact).TextInsetX(), m.WithDensity(DensityLarge).TextInsetX(); !(compact < 11 && 11 < large) {
+		t.Fatalf("inset does not follow density: compact %v, large %v", compact, large)
+	}
+}

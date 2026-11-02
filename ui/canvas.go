@@ -345,16 +345,26 @@ const (
 	PointerCursorResizeNWSE
 	PointerCursorResizeNESW
 	PointerCursorNotAllowed
+	// PointerCursorHidden removes the pointer entirely: for a surface that
+	// draws its own pointer, such as a remote desktop.
+	PointerCursorHidden
+	// PointerCursorImage is the picture in HitOptions.CursorImage, as the
+	// system's own pointer; the arrow while that is nil.
+	PointerCursorImage
 )
 
 // HitOptions describes interaction and accessibility state without a dynamic
 // property bag. Zero values represent an enabled focusable button.
 type HitOptions struct {
-	Role     Role
-	Cursor   PointerCursor
-	Value    string
-	Hint     string
-	Disabled bool
+	Role   Role
+	Cursor PointerCursor
+	// CursorImage is the pointer shown over the hit when Cursor is
+	// PointerCursorImage. The same value stays the same cursor: keep one while
+	// the picture is unchanged, and make a new one when it changes.
+	CursorImage *CursorImage
+	Value       string
+	Hint        string
+	Disabled    bool
 	// FocusableWhenDisabled keeps a disabled control in the Tab order and
 	// focusable, as Base UI's accordion, collapsible and tab triggers do; it
 	// never activates. Pointer presses still skip it.
@@ -463,16 +473,18 @@ type TextPlacement interface {
 // Hit is one pointer interaction region in back-to-front paint order. The zero
 // ID is reserved for "no target". Label is the accessibility name of the region.
 type Hit struct {
-	ID       ID
-	Bounds   Rect
-	Label    string
-	Value    string
-	Hint     string
-	Scope    ID
-	Layer    uint16
-	Role     Role
-	Cursor   PointerCursor
-	Disabled bool
+	ID     ID
+	Bounds Rect
+	Label  string
+	Value  string
+	Hint   string
+	Scope  ID
+	Layer  uint16
+	Role   Role
+	Cursor PointerCursor
+	// CursorImage is HitOptions.CursorImage.
+	CursorImage *CursorImage
+	Disabled    bool
 	// FocusableDisabled is HitOptions.FocusableWhenDisabled.
 	FocusableDisabled bool
 	Checked           bool
@@ -649,7 +661,11 @@ func (canvas *Canvas) CellSize(size float32) (width, height float32) {
 // MonoCellSize is the cell size of face at size: 0.6 of the size wide and 1.18 high
 // on every platform, whatever the advance and line box of the font that draws the
 // characters (the platforms place each character on this grid, so a terminal has the
-// same columns and rows in the same window everywhere).
+// same columns and rows in the same window everywhere). On a canvas that knows the display
+// scale (SetPixelScale) the width is a whole number of device pixels, rounded to the nearest and
+// at least one, as a terminal's cells are on every platform: the edge between two cells is then a
+// pixel edge, so a glyph that fills its cell, such as a powerline arrow, ends where the next
+// cell's begins and no pixel column holds the glyphs of two cells drawn in two colors.
 func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height float32) {
 	if size <= 0 {
 		return 0, 0
@@ -657,7 +673,7 @@ func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height f
 	if !validMonoFace(face) {
 		face = MonoSystem
 	}
-	if memo := canvas.cellSize; memo.size == size && memo.face == face {
+	if memo := canvas.cellSize; memo.size == size && memo.face == face && memo.scale == canvas.pixelScale {
 		return memo.width, memo.height
 	}
 	width, height = size*textmetrics.MonoAdvance, size*textmetrics.MonoLine
@@ -668,7 +684,10 @@ func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height f
 		}
 	}
 	height = float32(int32(height + 0.999))
-	canvas.cellSize = cellSizeMemo{size: size, width: width, height: height, face: face}
+	if canvas.pixelScale > 0 {
+		width = float32(math.Max(math.Floor(float64(width)*float64(canvas.pixelScale)+0.5), 1)) / canvas.pixelScale
+	}
+	canvas.cellSize = cellSizeMemo{size: size, width: width, height: height, face: face, scale: canvas.pixelScale}
 	return width, height
 }
 
@@ -677,6 +696,7 @@ func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height f
 type cellSizeMemo struct {
 	size, width, height float32
 	face                MonoFace
+	scale               float32 // the canvas's pixel scale the width was made whole for
 }
 
 // TextWidth measures one regular-weight line. Text drawn in another weight is measured
@@ -1216,7 +1236,7 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 	canvas.hits = append(canvas.hits, Hit{
 		ID: id, Bounds: bounds, Label: label,
 		Value: options.Value, Hint: options.Hint,
-		Scope: canvas.currentFocusScope(), Layer: canvas.currentLayer(), Role: role, Cursor: options.Cursor,
+		Scope: canvas.currentFocusScope(), Layer: canvas.currentLayer(), Role: role, Cursor: options.Cursor, CursorImage: options.CursorImage,
 		Disabled: options.Disabled, FocusableDisabled: options.Disabled && options.FocusableWhenDisabled,
 		Checked: options.Checked, Mixed: options.Mixed,
 		Selected: options.Selected, Expanded: options.Expanded, Expandable: options.Expandable || options.Expanded,

@@ -1,6 +1,6 @@
 // Package iconcompile turns SVG icon sources into ui.Icon Go values at
 // build time. It understands the icon-dialect subset used by Lucide and
-// similar stroke-icon sets: path, line, polyline, polygon, rect, and circle
+// similar stroke-icon sets: path, line, polyline, polygon, rect, circle and ellipse
 // elements with fill="none" stroke-based geometry; groups and their
 // transforms; and currentColor-aware defaults. An element with a concrete fill
 // color (fill="#e65100", with fill-opacity, opacity and fill-rule) becomes a
@@ -473,6 +473,16 @@ func (state iconState) walk(node *svgNode, at transform, sink *iconSink) {
 			state.emitRect(&child, elementAt, emit)
 		case "circle":
 			state.emitCircle(&child, elementAt, emit)
+		case "ellipse":
+			state.emitEllipse(&child, elementAt, emit)
+		case "defs", "title", "desc", "metadata", "style", "linearGradient", "radialGradient", "clipPath", "mask", "filter":
+			// Structure and metadata: not drawn by themselves.
+		default:
+			// An element the compiler does not know is never skipped silently: a
+			// dropped <ellipse> once left half of Lucide's cylinder on screen.
+			if sink.err == nil {
+				sink.err = fmt.Errorf("unsupported element <%s>", name)
+			}
 		}
 		if box != nil {
 			sink.fitBoxGradient(box)

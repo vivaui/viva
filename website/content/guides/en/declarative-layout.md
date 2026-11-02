@@ -30,7 +30,7 @@ view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 - Across a container children stretch by default; `Items(flex.Center)` centers them, `Self` does it for one child. Along it, `Justify(flex.Center)`, `flex.End` and `flex.Between` place what is left. `Center()` does both.
 - `Basis(px)` is what an element starts from before free room is shared, and `WidthPercent` and `HeightPercent` take a share of the container. `MinWidth`, `MaxWidth`, `MinHeight` and `MaxHeight` bound a size; room a capped element cannot take goes to the others, as in CSS, so `Grow(1).MaxWidth(470)` beside a `Spacer()` keeps what follows against the far edge.
 - `Items(flex.Baseline)` lines a Row's children up on their first line of text, so a large heading, a small caption and a button sit on one baseline. A `Text` shrinks and clips before a fixed-size sibling does.
-- `Background`, `Radius`, `Border`, `Shadow` and `Clip` style a container.
+- `Background`, `Radius`, `Border`, `Shadow` and `Clip` style a container. On a control such as an `Input`, `Select` or `Button`, `Radius` and `FontSize` give that control its own corner radius and text size, and a `Height` on a `Button` is how tall the button is painted.
 - `Paragraph(text, maxLines)` is text that wraps to the width it gets, so a longer label makes the row taller and pushes what follows down. `LineHeight` sets its leading.
 - `Grid(minCell)` fits as many equal columns as the width allows and wraps onto new rows.
 - `Scroll(offset)` is a clipped column taller than itself. You own the offset (the wheel arrives in `Config.OnScroll`); after `End`, `Content()` is how tall the children are, so the offset can be clamped.

@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"cmp"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -131,6 +132,9 @@ type painter struct {
 	scheduleFrame    func(delay time.Duration)
 	setClipboardText func(string)
 	setCursor        func(Cursor) error
+	setCursorImage   func(*ui.CursorImage) error
+	// cursorImage is the picture shown while cursor is CursorImage.
+	cursorImage *ui.CursorImage
 }
 
 func newPainter(canvas *ui.Canvas, config *Config) (*painter, error) {
@@ -993,31 +997,54 @@ func (painter *painter) syncCursor() error {
 		target = painter.pressTarget
 	}
 	next := CursorArrow
+	var image *ui.CursorImage
 	if painter.edge != platform.EdgeNone && painter.pressTarget.IsZero() {
-		return painter.applyCursor(cursorForEdge(painter.edge))
+		return painter.applyCursor(cursorForEdge(painter.edge), nil)
 	}
 	if !target.IsZero() {
 		hits := painter.canvas.Hits()
 		for index := len(hits) - 1; index >= 0; index-- {
 			if hits[index].ID == target && !hits[index].Disabled && !hits[index].IsLabel {
 				next = cursorFromHit(hits[index].Cursor)
+				if next == CursorImage {
+					if image = hits[index].CursorImage; image == nil {
+						next = CursorArrow
+					}
+				}
 				break
 			}
 		}
 	}
-	return painter.applyCursor(next)
+	return painter.applyCursor(next, image)
 }
 
-func (painter *painter) applyCursor(next Cursor) error {
-	if next == painter.cursor {
+// applyCursor makes next the pointer, with image as its picture when it is CursorImage. A picture
+// is one pointer by identity, so the same value is not set again.
+func (painter *painter) applyCursor(next Cursor, image *ui.CursorImage) error {
+	if next == painter.cursor && image == painter.cursorImage {
 		return nil
 	}
-	if painter.setCursor != nil {
+	if next == CursorImage {
+		if painter.setCursorImage != nil {
+			if err := painter.setCursorImage(image); err != nil {
+				if !errors.Is(err, ErrUnsupported) {
+					return err
+				}
+				// A target that cannot show the picture keeps the arrow; the picture is not
+				// asked for again until it changes.
+				if painter.setCursor != nil {
+					if err := painter.setCursor(CursorArrow); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	} else if painter.setCursor != nil {
 		if err := painter.setCursor(next); err != nil {
 			return err
 		}
 	}
-	painter.cursor = next
+	painter.cursor, painter.cursorImage = next, image
 	return nil
 }
 
@@ -1041,6 +1068,10 @@ func cursorFromHit(cursor ui.PointerCursor) Cursor {
 		return CursorResizeNESW
 	case ui.PointerCursorNotAllowed:
 		return CursorNotAllowed
+	case ui.PointerCursorHidden:
+		return CursorHidden
+	case ui.PointerCursorImage:
+		return CursorImage
 	default:
 		return CursorArrow
 	}

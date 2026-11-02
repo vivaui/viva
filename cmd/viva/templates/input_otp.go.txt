@@ -321,7 +321,8 @@ func inputOTPPaintSlotContent(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect,
 		canvas.Fill(ui.Rect{X: bounds.X + 9, Y: bounds.Y + bounds.Height - 5, Width: inputOTPMax(0, bounds.Width-18), Height: 1}, color)
 	}
 	if active && character == "" && snapshot.ShowCaret && !snapshot.Disabled {
-		canvas.Fill(ui.Rect{X: bounds.X + (bounds.Width-1)/2, Y: bounds.Y + (bounds.Height-16)/2, Width: 1, Height: 16}, theme.Foreground)
+		caretHeight := inputCaretHeight(theme.Metrics.FontSizeM)
+		canvas.Fill(ui.Rect{X: bounds.X + (bounds.Width-1)/2, Y: bounds.Y + (bounds.Height-caretHeight)/2, Width: 1, Height: caretHeight}, theme.Foreground)
 	}
 }
 

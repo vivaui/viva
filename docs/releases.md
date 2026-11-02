@@ -13,17 +13,20 @@ The releasing agent owns the tag and the notes. The workflow owns going public:
 it runs the full gate from `ci.yml`, checks the draft the agent left behind, and
 flips it from draft to published. Nothing is published by a local command.
 
-1. The agent writes the bilingual notes for `v<version>` to a file outside the
-   repository, then shows them, the exact `main` HEAD, the gate results and the
-   notes digest at a confirmation gate.
-2. After confirmation the agent creates an annotated tag at that HEAD whose body
-   is a short English summary, and pushes it.
+1. The agent writes the bilingual notes for `v<version>` to `docs/releases/<version>.md`
+   (for example `docs/releases/0.2.2.md`; the format is in the releasing skill) and shows
+   them, the exact `main` HEAD, the gate results and the notes digest at a confirmation
+   gate. The file stays untracked until the gate is confirmed.
+2. After confirmation the agent commits the notes (`docs(release): v<version> notes`),
+   pushes `main`, creates an annotated tag at that commit whose body is a short English
+   summary, and pushes the tag. The notes are in the repository at the tag, so the
+   Release body can be compared with them afterwards.
 3. The agent creates the draft release immediately after the push, so GitHub does
    not create a lightweight tag of its own:
 
    ```sh
    gh release create "v<version>" --repo vivaui/viva --verify-tag --draft \
-     --title "Viva v<version>" --notes-file /path/to/notes.md
+     --title "Viva v<version>" --notes-file docs/releases/<version>.md
    ```
 
 4. The tag push starts `release.yml`. Its `gate` job calls `ci.yml`; only if that
@@ -37,14 +40,23 @@ flips it from draft to published. Nothing is published by a local command.
    draft's asset list to be exactly what was built, and sets `draft=false` by
    release id (and `prerelease=true` for a tag that contains `-`). The `tap` job
    then copies the manifests into `vivaui/homebrew-tap` (below).
-5. The agent verifies the live release: body identical to the approved notes,
-   published state, the asset list (six archives, `SHA256SUMS`, and `viva.rb` and
-   `viva.json` unless it is a prerelease), annotated tag pointing at the release commit.
-   For a final release it also checks `brew install vivaui/tap/viva` or the tap's
-   commit, and that `viva version` prints the tag.
-   Then it commits the "current release" references (`README.md`,
-   `README.zh-CN.md` and the two `getting-started` guides) and records the
-   release in its ledger.
+5. The agent verifies the live release with the command below, which only reads:
+
+   ```sh
+   git fetch --tags origin
+   go run ./tools/releaseverify -tag v<version>
+   ```
+
+   It checks the title, that the release is published and is a prerelease only for a tag
+   with a `-`, the exact asset list (six archives, `SHA256SUMS`, and `viva.rb` and
+   `viva.json` unless it is a prerelease), that each archive's GitHub digest equals its
+   line in `SHA256SUMS`, that the tag is annotated and on the release commit, and that the
+   Release body is `docs/releases/<version>.md` at that commit. It also lists the "current
+   release" references that do not name the version yet. For a final release the agent also
+   checks `brew install vivaui/tap/viva` or the tap's commit, and that `viva version`
+   prints the tag. Then it commits the "current release" references (`README.md`,
+   `README.zh-CN.md` and the two `getting-started` guides), runs the command again so
+   nothing is left to do, and records the release in its ledger.
 
 A release is a straight sequence: the notes are written before the tag, and the
 tag never waits on a background notes task.
@@ -84,8 +96,9 @@ when someone asks for it.
   `tools/conformance/run.sh` from [conformance.md](conformance.md) before
   tagging, and record what was not run in the confirmation gate.
 - The release notes' wording and their consistency with the committed tree. The
-  workflow can only require a non-empty body; the agent compares the published
-  body with the approved notes byte for byte afterwards.
+  workflow can only require a non-empty body; `tools/releaseverify` compares the
+  published body with `docs/releases/<version>.md` at the tag afterwards, and a person
+  still has to read the notes against the commits.
 - The "current release" references. They are a separate commit after the
   release exists, so the published notes can be the only place that names a
   version for a few minutes.

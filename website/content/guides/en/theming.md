@@ -94,6 +94,26 @@ theme.Metrics = theme.Metrics.WithDensity(ui.DensityCompact)
 
 Components read geometry from the metrics rather than hardcoding it, so every control in the window follows.
 
+## One control with its own radius or font size
+
+Density changes every control in the window. To change one control, give that control a theme of its own: a theme is a value, so the copy affects only the call it is passed to.
+
+```go
+// A pill-shaped search field with larger text; the fields around it are untouched.
+components.PaintInput(canvas, theme.WithRadius(ui.RadiusFull).WithFontSize(16), bounds, snapshot)
+```
+
+`WithRadius` sets the corner radius of controls (`Metrics.RadiusControl`; what is derived from it, such as the rows of a menu, follows, while cards and dialogs keep `RadiusSurface`). `WithFontSize` sets the body size and keeps the small and large steps in proportion. `WithControlHeight` sets `Metrics.ControlHeight`, which the height of a button and the geometry scaled with it follow. `ui.RadiusFull` is a radius larger than any control, which rounds to a pill. The caret, selection and composition underline of a text field follow its font size, and the text starts where the density's padding puts it (`Metrics.TextInsetX`).
+
+In a flex page the same two overrides are `Radius` and `FontSize` on the control's element. The control is measured and painted with them and its neighbours are not affected:
+
+```go
+f.Input(snapshot).Radius(ui.RadiusFull).FontSize(16).Height(40)
+f.Select(scope, &state, labels, selected).FontSize(15)
+```
+
+`Height` still decides how tall a field is; the font size does not resize it.
+
 ## Motion
 
 `Theme.Transition` is the default state-change motion for controls; a zero value disables animation, which is what a hand-built theme gets. `app.ReduceMotion()` reports the operating system's reduced-motion preference on macOS, Windows and Linux and `false` elsewhere. `Canvas.Animate` already honors it, returning the target value unchanged, so components that animate through the canvas need no extra handling.

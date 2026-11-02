@@ -37,6 +37,12 @@ const (
 	CursorResizeNWSE
 	CursorResizeNESW
 	CursorNotAllowed
+	// CursorHidden removes the pointer: a surface that draws its own (a
+	// remote desktop picture) uses it to keep the system pointer away.
+	CursorHidden
+	// CursorImage is a picture the application supplies; see SetCursorImage. SetCursor
+	// refuses it, since a shape alone does not say which picture.
+	CursorImage
 )
 
 type SystemSound uint8
@@ -94,6 +100,22 @@ func ClipboardText() (string, error) {
 	return nativeClipboardText()
 }
 
+// OnClipboardChange asks for a call on notify whenever the system clipboard's
+// content changes, from any application including this one. The callback runs
+// on an unspecified thread and must only hand the news on; reading the
+// clipboard belongs in the work it schedules.
+//
+// Nothing runs until the first call: no timer, no thread. It may be made before
+// the first window opens, and watching then starts with the window. One
+// registration serves the process and the last wins; OnClipboardChange(nil)
+// stops watching. An error wrapping ErrUnsupported means this target cannot
+// watch the clipboard (the Linux and web targets today): the clipboard keeps
+// working, only the news is missing, and a caller may fall back to reading it
+// when the user acts. macOS has no change notification, so it polls the
+// pasteboard's change count on a 250 ms timer for as long as a registration is
+// held.
+func OnClipboardChange(notify func()) error { return nativeOnClipboardChange(notify) }
+
 func SetClipboardText(value string) error {
 	if strings.IndexByte(value, 0) >= 0 {
 		return fmt.Errorf("app: clipboard text contains NUL")
@@ -105,10 +127,21 @@ func SetClipboardText(value string) error {
 }
 
 func SetCursor(cursor Cursor) error {
-	if cursor > CursorNotAllowed {
+	if cursor > CursorHidden {
 		return fmt.Errorf("app: invalid cursor %d", cursor)
 	}
 	return nativeSetCursor(cursor)
+}
+
+// SetCursorImage makes image the pointer over the window, drawn by the system as any pointer
+// is; the same call with a nil image is refused. Hits show a picture without this call
+// (ui.HitOptions.CursorImage), which is how a view normally chooses it. An error wrapping
+// ErrUnsupported means this target cannot show application pictures as its pointer.
+func SetCursorImage(image *ui.CursorImage) error {
+	if image == nil {
+		return fmt.Errorf("app: cursor image is nil")
+	}
+	return nativeSetCursorImage(image)
 }
 
 func OpenFiles(options OpenFileOptions) ([]string, error) {

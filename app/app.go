@@ -92,6 +92,19 @@ type Config struct {
 	// supplied it. Without one the panel is centered on the screen.
 	Anchor     StatusAnchor
 	ClearColor Color
+	// WindowBackdrop is read on the window thread after each paint. Windows
+	// 11 22H2+ supports all materials; Windows 10 1809 through 11 21H2 supports
+	// Acrylic through an undocumented accent policy. Other cases use ClearColor.
+	// High contrast and disabled transparency suppress all materials; battery
+	// saver suppresses Acrylic. Use an opaque ClearColor for a solid fallback.
+	// Nil keeps the ordinary renderer. A non-nil callback opts into composition
+	// at window creation, even if it initially returns BackdropNone, allowing
+	// later material changes without rebuilding the application.
+	WindowBackdrop func() BackdropStyle
+	// OnBackdropChange reports API activation initially and when it changes.
+	// Windows may still substitute a solid color. Other platforms do not call
+	// it. Update paint state without blocking; a change schedules a repaint.
+	OnBackdropChange func(active bool)
 	// Paint, when set, repaints the whole canvas whenever the window size
 	// changes. It runs on the window thread and must not block.
 	Paint func(canvas *ui.Canvas, size ui.Size)
@@ -111,10 +124,12 @@ type Config struct {
 	// Handled suppresses built-in traversal, activation, and Escape dismissal.
 	OnKey func(event ui.KeyEvent) ui.EventResult
 	// OnShortcut receives Control- or Meta-modified printable chords before
-	// the native text system. Return Handled only for chords the application
-	// owns; an unhandled chord continues through normal text and IME handling.
-	// Named keys remain OnKey events. On Windows an ordinary (non-terminal,
-	// non-Placed) text field that has focus takes the standard editing and
+	// the native text system, and Control+Enter and Meta+Enter (event.Key is
+	// ui.KeyEnter, event.Text empty), which a multiline field would otherwise
+	// turn into a line break. Return Handled only for chords the application
+	// owns; an unhandled chord continues through normal text and IME handling,
+	// so Control+Enter still reaches the field as before. Other named keys
+	// remain OnKey events. On Windows an ordinary (non-terminal, non-Placed) text field that has focus takes the standard editing and
 	// clipboard chords first, so the application does not see them there.
 	// This callback runs on the window thread.
 	OnShortcut func(event ui.KeyEvent) ui.EventResult
