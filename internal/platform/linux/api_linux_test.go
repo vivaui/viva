@@ -345,7 +345,7 @@ func TestVulkanSceneUploadWritesOnlyChangedRange(t *testing.T) {
 }
 
 func TestSwapchainStatusClassification(t *testing.T) {
-	if swapchainNeedsRebuild(vkSuccess) || !swapchainNeedsRebuild(vkSuboptimal) || !swapchainNeedsRebuild(vkErrorOutOfDate) {
+	if swapchainNeedsRebuild(vkSuccess) || swapchainNeedsRebuild(vkSuboptimal) || !swapchainNeedsRebuild(vkErrorOutOfDate) {
 		t.Fatal("unexpected swapchain status classification")
 	}
 }
@@ -462,5 +462,321 @@ func TestMissingVulkanIsNamedAndSaysWhatToInstall(t *testing.T) {
 	}
 	if err := noVulkan("x", cause); !errors.Is(err, cause) {
 		t.Errorf("the cause is lost: %v", err)
+	}
+}
+
+func newSuboptimalTestRenderer(acquireStatus, presentStatus int32, recreations *int) *vulkanRenderer {
+	return &vulkanRenderer{
+		device:    10,
+		queue:     20,
+		swapchain: 30,
+		commands:  []uintptr{40},
+		fence:     50,
+		api: &vulkanAPI{
+			waitForFences: func(uintptr, uint32, *uintptr, uint32, uint64) int32 { return vkSuccess },
+			resetFences:   func(uintptr, uint32, *uintptr) int32 { return vkSuccess },
+			acquireNextImage: func(_, swapchain uintptr, _ uint64, _, _ uintptr, image *uint32) int32 {
+				*image = 0
+				if swapchain == 30 {
+					return acquireStatus
+				}
+				return vkSuccess
+			},
+			queueSubmit: func(uintptr, uint32, *vkSubmitInfo, uintptr) int32 { return vkSuccess },
+			queuePresent: func(_ uintptr, present *vkPresentInfo) int32 {
+				if *present.Swapchains == 30 {
+					return presentStatus
+				}
+				return vkSuccess
+			},
+			deviceWaitIdle: func(uintptr) int32 {
+				*recreations++
+				return vkSuccess
+			},
+			getSurfaceCapabilities: func(_, _ uintptr, capabilities *vkSurfaceCapabilities) int32 {
+				capabilities.Current = vkExtent2D{Width: 100, Height: 100}
+				capabilities.MinImages = 2
+				capabilities.CompositeAlpha = vkCompositeOpaque
+				capabilities.Usage = vkImageUsageColorAttachment
+				return vkSuccess
+			},
+			getSurfaceFormats: func(_, _ uintptr, count *uint32, formats *vkSurfaceFormat) int32 {
+				*count = 1
+				if formats != nil {
+					*formats = vkSurfaceFormat{Format: vkFormatBGRA8, ColorSpace: vkColorSpaceSRGB}
+				}
+				return vkSuccess
+			},
+			createSwapchain: func(_ uintptr, _ *vkSwapchainCreateInfo, _ unsafe.Pointer, swapchain *uintptr) int32 {
+				*swapchain = 99
+				return vkSuccess
+			},
+			destroySwapchain:      func(uintptr, uintptr, unsafe.Pointer) {},
+			destroyImageView:      func(uintptr, uintptr, unsafe.Pointer) {},
+			destroyRenderPass:     func(uintptr, uintptr, unsafe.Pointer) {},
+			destroyFramebuffer:    func(uintptr, uintptr, unsafe.Pointer) {},
+			destroyCommandPool:    func(uintptr, uintptr, unsafe.Pointer) {},
+			destroyPipelineLayout: func(uintptr, uintptr, unsafe.Pointer) {},
+			destroyPipeline:       func(uintptr, uintptr, unsafe.Pointer) {},
+			getSwapchainImages: func(_, _ uintptr, count *uint32, images *uintptr) int32 {
+				if images == nil {
+					*count = 1
+					return vkSuccess
+				}
+				*images = 101
+				return vkSuccess
+			},
+			createImageView: func(_ uintptr, _ *vkImageViewCreateInfo, _ unsafe.Pointer, view *uintptr) int32 {
+				*view = 201
+				return vkSuccess
+			},
+			createRenderPass: func(_ uintptr, _ *vkRenderPassCreateInfo, _ unsafe.Pointer, renderPass *uintptr) int32 {
+				*renderPass = 301
+				return vkSuccess
+			},
+			createFramebuffer: func(_ uintptr, _ *vkFramebufferCreateInfo, _ unsafe.Pointer, framebuffer *uintptr) int32 {
+				*framebuffer = 401
+				return vkSuccess
+			},
+			createCommandPool: func(_ uintptr, _ *vkCommandPoolCreateInfo, _ unsafe.Pointer, pool *uintptr) int32 {
+				*pool = 501
+				return vkSuccess
+			},
+			allocateCommandBuffers: func(_ uintptr, _ *vkCommandBufferAllocateInfo, buffers *uintptr) int32 {
+				*buffers = 601
+				return vkSuccess
+			},
+			createPipelineLayout: func(_ uintptr, _ *vkPipelineLayoutCreateInfo, _ unsafe.Pointer, layout *uintptr) int32 {
+				*layout = 701
+				return vkSuccess
+			},
+			createShaderModule: func(_ uintptr, _ *vkShaderModuleCreateInfo, _ unsafe.Pointer, module *uintptr) int32 {
+				*module = 801
+				return vkSuccess
+			},
+			destroyShaderModule: func(uintptr, uintptr, unsafe.Pointer) {},
+			createGraphicsPipelines: func(_, _ uintptr, _ uint32, _ *vkGraphicsPipelineCreateInfo, _ unsafe.Pointer, pipeline *uintptr) int32 {
+				*pipeline = 901
+				return vkSuccess
+			},
+			beginCommandBuffer: func(uintptr, *vkCommandBufferBeginInfo) int32 { return vkSuccess },
+			cmdBeginRenderPass: func(uintptr, *vkRenderPassBeginInfo, uint32) {},
+			cmdEndRenderPass:   func(uintptr) {},
+			endCommandBuffer:   func(uintptr) int32 { return vkSuccess },
+		},
+	}
+}
+
+func TestSuboptimalRecreatesAfterCompletedFrame(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		acquireStatus int32
+		presentStatus int32
+	}{
+		{name: "acquire", acquireStatus: vkSuboptimal, presentStatus: vkSuccess},
+		{name: "present", acquireStatus: vkSuccess, presentStatus: vkSuboptimal},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			recreations := 0
+			renderer := newSuboptimalTestRenderer(test.acquireStatus, test.presentStatus, &recreations)
+			var presented []uintptr
+			basePresent := renderer.api.queuePresent
+			renderer.api.queuePresent = func(queue uintptr, present *vkPresentInfo) int32 {
+				presented = append(presented, *present.Swapchains)
+				return basePresent(queue, present)
+			}
+			if err := renderer.presentRebuilding(); err != nil {
+				t.Fatalf("presentRebuilding returned error: %v", err)
+			}
+			if renderer.submissions != 2 {
+				t.Fatalf("completed submissions = %d, want old and new swapchain frames", renderer.submissions)
+			}
+			if recreations != 1 {
+				t.Fatalf("swapchain recreations = %d, want 1", recreations)
+			}
+			if renderer.swapchain != 99 {
+				t.Fatalf("swapchain = %d, want recreated handle 99", renderer.swapchain)
+			}
+			if !slices.Equal(presented, []uintptr{30, 99}) {
+				t.Fatalf("presented swapchains = %v, want [30 99]", presented)
+			}
+			if renderer.swapchainSuboptimal {
+				t.Fatal("suboptimal flag survived successful recreation")
+			}
+		})
+	}
+}
+
+func TestSuboptimalRecreationConvergesAcrossFrames(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		acquireStatus int32
+		presentStatus int32
+		keepReporting func(*vulkanRenderer)
+	}{
+		{
+			name:          "acquire",
+			acquireStatus: vkSuboptimal,
+			presentStatus: vkSuccess,
+			keepReporting: func(renderer *vulkanRenderer) {
+				renderer.api.acquireNextImage = func(_, _ uintptr, _ uint64, _, _ uintptr, image *uint32) int32 {
+					*image = 0
+					return vkSuboptimal
+				}
+			},
+		},
+		{
+			name:          "present",
+			acquireStatus: vkSuccess,
+			presentStatus: vkSuboptimal,
+			keepReporting: func(renderer *vulkanRenderer) {
+				renderer.api.queuePresent = func(uintptr, *vkPresentInfo) int32 { return vkSuboptimal }
+			},
+		},
+		{
+			name:          "both",
+			acquireStatus: vkSuboptimal,
+			presentStatus: vkSuboptimal,
+			keepReporting: func(renderer *vulkanRenderer) {
+				renderer.api.acquireNextImage = func(_, _ uintptr, _ uint64, _, _ uintptr, image *uint32) int32 {
+					*image = 0
+					return vkSuboptimal
+				}
+				renderer.api.queuePresent = func(uintptr, *vkPresentInfo) int32 { return vkSuboptimal }
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			recreations := 0
+			renderer := newSuboptimalTestRenderer(test.acquireStatus, test.presentStatus, &recreations)
+			test.keepReporting(renderer)
+
+			for frame := 0; frame < 3; frame++ {
+				if err := renderer.presentRebuilding(); err != nil {
+					t.Fatalf("frame %d: presentRebuilding returned error: %v", frame, err)
+				}
+				if recreations != 1 {
+					t.Fatalf("frame %d: swapchain recreations = %d, want 1", frame, recreations)
+				}
+				if renderer.swapchain != 99 {
+					t.Fatalf("frame %d: swapchain = %d, want recreated handle 99", frame, renderer.swapchain)
+				}
+				if !renderer.swapchainSuboptimal {
+					t.Fatalf("frame %d: accepted swapchain forgot its SUBOPTIMAL status", frame)
+				}
+			}
+			if renderer.submissions != 4 {
+				t.Fatalf("completed submissions = %d, want the old and recreated frame plus two later frames", renderer.submissions)
+			}
+		})
+	}
+}
+
+func TestSuboptimalStatusClearsAfterHealthyFrame(t *testing.T) {
+	recreations := 0
+	renderer := newSuboptimalTestRenderer(vkSuccess, vkSuboptimal, &recreations)
+	renderer.api.queuePresent = func(uintptr, *vkPresentInfo) int32 { return vkSuboptimal }
+
+	if err := renderer.presentRebuilding(); err != nil {
+		t.Fatalf("presentRebuilding returned error: %v", err)
+	}
+	if recreations != 1 {
+		t.Fatalf("swapchain recreations = %d, want 1", recreations)
+	}
+
+	// A healthy frame clears the accepted status without another recreation.
+	renderer.api.queuePresent = func(uintptr, *vkPresentInfo) int32 { return vkSuccess }
+	if err := renderer.presentRebuilding(); err != nil {
+		t.Fatalf("healthy frame returned error: %v", err)
+	}
+	if renderer.swapchainSuboptimal {
+		t.Fatal("healthy frame kept the accepted SUBOPTIMAL status")
+	}
+	if recreations != 1 {
+		t.Fatalf("healthy frame recreated the swapchain: recreations = %d, want 1", recreations)
+	}
+
+	// A later SUBOPTIMAL is a fresh signal and gets its own single rebuild.
+	renderer.api.queuePresent = func(uintptr, *vkPresentInfo) int32 { return vkSuboptimal }
+	if err := renderer.presentRebuilding(); err != nil {
+		t.Fatalf("SUBOPTIMAL after healthy frame returned error: %v", err)
+	}
+	if recreations != 2 {
+		t.Fatalf("swapchain recreations = %d, want 2 after a fresh SUBOPTIMAL", recreations)
+	}
+	if !renderer.swapchainSuboptimal {
+		t.Fatal("fresh SUBOPTIMAL was not recorded")
+	}
+}
+
+func TestOutOfDateRecoveryStaysBounded(t *testing.T) {
+	recreations := 0
+	renderer := newSuboptimalTestRenderer(vkErrorOutOfDate, vkSuccess, &recreations)
+
+	// The recreated swapchain is out of date as well.
+	renderer.api.acquireNextImage = func(_, _ uintptr, _ uint64, _, _ uintptr, image *uint32) int32 {
+		*image = 0
+		return vkErrorOutOfDate
+	}
+
+	if err := renderer.presentRebuilding(); err == nil {
+		t.Fatal("presentRebuilding accepted a swapchain that stayed out of date")
+	}
+	if recreations != 1 {
+		t.Fatalf("swapchain recreations = %d, want 1", recreations)
+	}
+	if renderer.swapchain != 99 {
+		t.Fatalf("swapchain = %d, want recreated handle 99", renderer.swapchain)
+	}
+	if renderer.submissions != 0 {
+		t.Fatalf("completed submissions = %d, want none for out-of-date frames", renderer.submissions)
+	}
+}
+
+func TestOutOfDateRecoveryAcceptsResidualSuboptimal(t *testing.T) {
+	recreations := 0
+	renderer := newSuboptimalTestRenderer(vkErrorOutOfDate, vkSuccess, &recreations)
+	// The old swapchain is out of date; the recreated one is suboptimal.
+	renderer.api.acquireNextImage = func(_, swapchain uintptr, _ uint64, _, _ uintptr, image *uint32) int32 {
+		*image = 0
+		if swapchain == 30 {
+			return vkErrorOutOfDate
+		}
+		return vkSuboptimal
+	}
+
+	if err := renderer.presentRebuilding(); err != nil {
+		t.Fatalf("presentRebuilding returned error: %v", err)
+	}
+	if recreations != 1 {
+		t.Fatalf("swapchain recreations = %d, want 1", recreations)
+	}
+	if !renderer.swapchainSuboptimal || !renderer.swapchainSuboptimalRebuilt {
+		t.Fatal("residual SUBOPTIMAL after OUT_OF_DATE recovery was not accepted")
+	}
+}
+
+func TestPresentOutOfDateRebuilds(t *testing.T) {
+	recreations := 0
+	renderer := newSuboptimalTestRenderer(vkSuccess, vkErrorOutOfDate, &recreations)
+	// Only the old swapchain presents out of date; the recreated one presents.
+	renderer.api.queuePresent = func(_ uintptr, present *vkPresentInfo) int32 {
+		if *present.Swapchains == 30 {
+			return vkErrorOutOfDate
+		}
+		return vkSuccess
+	}
+
+	if err := renderer.presentRebuilding(); err != nil {
+		t.Fatalf("presentRebuilding returned error: %v", err)
+	}
+	if recreations != 1 {
+		t.Fatalf("swapchain recreations = %d, want 1", recreations)
+	}
+	if renderer.swapchain != 99 {
+		t.Fatalf("swapchain = %d, want recreated handle 99", renderer.swapchain)
+	}
+	if renderer.submissions != 2 {
+		t.Fatalf("completed submissions = %d, want the out-of-date present and the recreated one", renderer.submissions)
 	}
 }
