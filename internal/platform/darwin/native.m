@@ -1376,7 +1376,7 @@ static NSFont *viva_mono_font(CGFloat size, CGFloat weight, int face) {
 #define VIVA_MONO_CLUSTER_LENGTH 64
 
 typedef struct {
-    BOOL fixedPitch;
+    BOOL onGrid;
     BOOL includesHan;
     int privateUse;
 } viva_mono_family_traits;
@@ -1504,8 +1504,10 @@ static int viva_mono_private_use(CTFontRef font) {
     return count;
 }
 
-// viva_mono_family_traits_of is what ranks a family: its pitch, whether it draws
-// Han, and how much private-use it covers. Read once per family.
+// viva_mono_family_traits_of is what ranks a family: whether it draws on a grid (the
+// same test that decides which families are offered, so a coding family that leaves
+// the fixed-pitch bit clear ranks with the ones that set it), whether it draws Han,
+// and how much private-use it covers. Read once per family.
 static viva_mono_family_traits viva_mono_family_traits_of(NSString *family) {
     viva_mono_family_traits traits = {NO, YES, 0};
     @synchronized(viva_mono_fallback_lock()) {
@@ -1517,7 +1519,7 @@ static viva_mono_family_traits viva_mono_family_traits_of(NSString *family) {
     }
     NSFont *font = viva_mono_family_font(family, 12, 0);
     if (font != nil) {
-        traits.fixedPitch = font.isFixedPitch;
+        traits.onGrid = viva_mono_font_on_a_grid(font);
         traits.includesHan = viva_mono_draws_han((CTFontRef)font);
         traits.privateUse = viva_mono_private_use((CTFontRef)font);
     }
@@ -1537,8 +1539,8 @@ static BOOL viva_mono_family_better(viva_mono_family_traits candidate, NSString 
     if (bestFamily == nil) {
         return YES;
     }
-    if (candidate.fixedPitch != best.fixedPitch) {
-        return candidate.fixedPitch;
+    if (candidate.onGrid != best.onGrid) {
+        return candidate.onGrid;
     }
     if (candidate.includesHan != best.includesHan) {
         return !candidate.includesHan;
