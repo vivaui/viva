@@ -9,7 +9,9 @@ package windows
 
 import (
 	"bytes"
+	"fmt"
 	"image"
+	"runtime"
 	"testing"
 
 	"github.com/vivaui/viva/internal/platform"
@@ -78,5 +80,31 @@ func TestFixedPitchHintingKeepsCharactersTheFontLacks(t *testing.T) {
 	label := gridLabel("Motty 已连接", false)
 	if !bytes.Equal(renderHinted(t, label, false).Pix, renderHinted(t, label, true).Pix) {
 		t.Fatal("a line with CJK was drawn by two renderers")
+	}
+}
+
+// BenchmarkFixedPitchLine measures one terminal line through both renderers a fixed-pitch
+// label can take: GDI's ClearType and Direct2D's natural rendering.
+func BenchmarkFixedPitchLine(b *testing.B) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	rasterizer, err := newDirectRasterizer()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer rasterizer.close()
+	label := gridLabel("root@host:~# ls -la /var/log | head -20", false)
+	width, height := int(label.Width), int(label.Height)
+	for _, hinted := range []bool{false, true} {
+		b.Run(fmt.Sprintf("hinted=%v", hinted), func(b *testing.B) {
+			HintedGrid = hinted
+			defer func() { HintedGrid = true }()
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, _, err := rasterizer.rasterize(label, 1, width, height, true, 0); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }
