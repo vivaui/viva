@@ -30,13 +30,47 @@ type TextEngine interface {
 	OffsetAt(value string, size, weight, x float32) int
 }
 
+// FontFamilyAware is a TextEngine whose proportional family the application can
+// name while it runs: the platform engines implement it. The reference engine's
+// widths know no family, and a backend whose text the system draws without a
+// say in the family (the browser) does not.
+type FontFamilyAware interface {
+	TextEngine
+	// SetFontFamily names the family the interface's proportional text is shaped
+	// in, or "" for the platform's own interface font (Segoe UI on Windows, the
+	// desktop's choice through Pango's sans alias on Linux, the system font on
+	// macOS). A name the system has no family for is left to the platform to
+	// stand in for, as it does for any text. What was shaped with another family
+	// is forgotten, so the next measure shapes again.
+	SetFontFamily(family string)
+	// FontGeneration counts the changes after which the same line shapes
+	// differently: it moves on every SetFontFamily that changed the family, and
+	// when the system's own fonts changed under the engine. What the canvas or a
+	// renderer remembers of shaped text (a cut line, a rasterized label) is stale
+	// once it differs from the generation it was made at. Wrapping around is
+	// harmless: only equality is ever asked.
+	FontGeneration() uint32
+}
+
 // SetTextEngine installs the engine every text measurement of the canvas goes
 // through; nil restores the reference metrics (internal/textmetrics). A backend installs
 // its platform's engine; tests and tools that want fixed widths leave it unset, or
 // install ReferenceTextEngine.
 func (canvas *Canvas) SetTextEngine(engine TextEngine) {
 	canvas.engine = engine
+	canvas.aware, _ = engine.(FontFamilyAware)
 	clear(canvas.fits)
+}
+
+// FontGeneration is the generation of the installed engine's fonts
+// (FontFamilyAware.FontGeneration), 0 for an engine that has none. A painter
+// that sends text to a renderer stamps it on the text, so a renderer holding a
+// picture of a label made in other fonts draws it again.
+func (canvas *Canvas) FontGeneration() uint32 {
+	if canvas.aware == nil {
+		return 0
+	}
+	return canvas.aware.FontGeneration()
 }
 
 // ReferenceTextEngine is the TextEngine over the reference metrics

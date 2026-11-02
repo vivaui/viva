@@ -340,7 +340,7 @@ func bitmapTextureStale(label *vulkanLabelTexture, scale float32) bool {
 func textureContentChanged(previous, next platform.TextLabel) bool {
 	isBitmap := len(previous.Bitmap) > 0 || len(next.Bitmap) > 0
 	return previous.Value != next.Value || (!isBitmap && (previous.Width != next.Width || previous.Height != next.Height)) || previous.FontSize != next.FontSize ||
-		previous.Weight != next.Weight || previous.Color != next.Color || previous.Mono != next.Mono || previous.MonoFace != next.MonoFace || previous.CellWidth != next.CellWidth ||
+		previous.Weight != next.Weight || previous.Color != next.Color || previous.FontGeneration != next.FontGeneration || previous.Mono != next.Mono || previous.MonoFace != next.MonoFace || previous.CellWidth != next.CellWidth ||
 		!sameTextRuns(previous.Runs, next.Runs) || previous.BitmapID != next.BitmapID || previous.BitmapVersion != next.BitmapVersion ||
 		previous.BitmapWidth != next.BitmapWidth || previous.BitmapHeight != next.BitmapHeight || previous.BitmapStride != next.BitmapStride ||
 		!sameBitmapBytes(previous.Bitmap, next.Bitmap)

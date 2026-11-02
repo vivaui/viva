@@ -9,7 +9,9 @@ package darwin
 import "C"
 
 import (
+	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode/utf8"
 	"unsafe"
 
@@ -32,6 +34,11 @@ const selectionPieces = 32
 type TextEngine struct {
 	mutex sync.Mutex
 	cache *textcache.Cache[*C.viva_text_line]
+	// family is the family the interface's text is shaped in, "" for the system
+	// font. The name is also told to C, which keeps it for viva_system_font.
+	family string
+	// generation moves whenever a line shapes differently from before (ui.FontFamilyAware).
+	generation atomic.Uint32
 	// spans is where C writes a selection: an array passed to C would move to the heap
 	// on every call.
 	spans [2 * selectionPieces]C.double
@@ -52,13 +59,35 @@ func sharedTextEngine() *TextEngine {
 // SharedTextEngine is the engine the darwin backend draws with.
 func SharedTextEngine() *TextEngine { return sharedTextEngine() }
 
-var _ ui.TextEngine = (*TextEngine)(nil)
+var _ ui.FontFamilyAware = (*TextEngine)(nil)
+
+// SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
+// shaped in, "" for the system font. The name is told to C, which holds it for
+// every font it creates, and everything shaped with another family is forgotten.
+func (engine *TextEngine) SetFontFamily(family string) {
+	family = strings.TrimSpace(family)
+	engine.mutex.Lock()
+	defer engine.mutex.Unlock()
+	if family == engine.family {
+		return
+	}
+	engine.family = family
+	name := C.CString(family)
+	defer C.free(unsafe.Pointer(name))
+	C.viva_text_set_family(name)
+	engine.cache.Clear()
+	engine.generation.Add(1)
+}
+
+// FontGeneration implements ui.FontFamilyAware.
+func (engine *TextEngine) FontGeneration() uint32 { return engine.generation.Load() }
 
 // Reset forgets every shaped line, for a change of the system font or of the display
 // that would shape them differently.
 func (engine *TextEngine) Reset() {
 	engine.mutex.Lock()
 	engine.cache.Clear()
+	engine.generation.Add(1)
 	engine.mutex.Unlock()
 }
 

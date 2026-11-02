@@ -3,7 +3,9 @@ package windows
 import (
 	"fmt"
 	"math"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode/utf16"
 	"unicode/utf8"
 	"unsafe"
@@ -94,6 +96,11 @@ type textEngine struct {
 	cache    *textcache.Cache[*shapedLine]
 	hit      hitMetrics
 	ranges   [4]hitMetrics
+	// family is the family the interface's text is shaped in, "" for Segoe UI,
+	// the interface font Windows ships. Guarded by mu; a change forgets the cache.
+	family string
+	// generation moves whenever a line shapes differently from before (ui.FontFamilyAware).
+	generation atomic.Uint32
 }
 
 var (
@@ -110,6 +117,25 @@ func theTextEngine() (*textEngine, error) {
 	}
 	return &sharedEngine, nil
 }
+
+var _ ui.FontFamilyAware = (*textEngine)(nil)
+
+// SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
+// shaped in, "" for Segoe UI. Everything shaped with another family is forgotten.
+func (engine *textEngine) SetFontFamily(family string) {
+	family = strings.TrimSpace(family)
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if family == engine.family {
+		return
+	}
+	engine.family = family
+	engine.cache.Clear()
+	engine.generation.Add(1)
+}
+
+// FontGeneration implements ui.FontFamilyAware.
+func (engine *textEngine) FontGeneration() uint32 { return engine.generation.Load() }
 
 // TextEngine is the platform's text engine, or nil when DirectWrite is not available.
 func TextEngine() ui.TextEngine {
@@ -156,6 +182,7 @@ func (engine *textEngine) forget() {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	engine.cache.Clear()
+	engine.generation.Add(1)
 }
 
 // line is the shaped line of value, creating and caching it. The caller holds mu.
@@ -180,7 +207,11 @@ func (engine *textEngine) shape(value string, size, weight float32) (*shapedLine
 	if len(units) == 0 {
 		return nil, fmt.Errorf("windows: empty line")
 	}
-	format, err := engine.services.formatFamily("Segoe UI", size, weight)
+	family := engine.family
+	if family == "" {
+		family = "Segoe UI"
+	}
+	format, err := engine.services.formatFamily(family, size, weight)
 	if err != nil {
 		return nil, err
 	}

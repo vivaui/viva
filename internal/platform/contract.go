@@ -279,6 +279,12 @@ type TextLabel struct {
 	MonoFace  ui.MonoFace
 	CellWidth float32
 	Runs      []ui.TextRun
+	// FontGeneration is the generation of the interface font (ui.FontFamilyAware) the
+	// proportional text of this label was laid out in; it is zero for a label that
+	// does not follow the interface font (fixed-pitch text, images). A backend that
+	// keeps the picture of a label draws it again when this differs from the label's
+	// last one: the text may be the same while the glyphs are not.
+	FontGeneration uint32
 	// Clip, when Clipped, is the logical-pixel region of the window this label
 	// may paint into. It is set only for a label a canvas clip cuts partway:
 	// a label wholly inside its clip, and one wholly outside it (which is

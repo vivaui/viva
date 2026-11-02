@@ -897,11 +897,44 @@ static NSRange viva_clamp_range(NSRange range, NSUInteger length) {
 // drawing here reaches the same cache.
 extern viva_text_line *vivaShapedLine(const unsigned char *utf8, size_t length, double size, double weight);
 
+// viva_interface_family is the family viva_text_set_family last named, "" for the
+// system font. A plain C buffer, not an NSString: nothing here manages memory for
+// the interface font, and the name is read under the shaping the engine serializes.
+static char viva_interface_family[256] = "";
+
 // viva_system_font is the proportional font that measurement, labels and the editor all
-// use (a retained CTFont). It is an NSFont, which is a CTFont already.
+// use (a retained CTFont). It is an NSFont, which is a CTFont already. With a family
+// named, its face of that family at the weight stands in for the system font; a family
+// the system does not have falls back to the system font, as AppKit does for a name.
 static CTFontRef viva_system_font(CGFloat size, CGFloat weight) {
+    if (viva_interface_family[0] != '\0') {
+        NSString *family = [NSString stringWithUTF8String:viva_interface_family];
+        if (family != nil) {
+            // The weight is the system font's own continuous scale (NSFontWeight), so a
+            // family's regular, medium, semibold and bold faces are told apart as they are
+            // in the system font; the nearest face the family has stands in for one it
+            // lacks. NSFontManager's weight is a 0-15 table that cannot say medium.
+            NSFontDescriptor *descriptor = [NSFontDescriptor fontDescriptorWithFontAttributes:@{
+                NSFontFamilyAttribute: family,
+                NSFontTraitsAttribute: @{NSFontWeightTrait: @(weight)},
+            }];
+            NSFont *named = [NSFont fontWithDescriptor:descriptor size:size];
+            if (named != nil) {
+                return (CTFontRef)CFRetain(named);
+            }
+        }
+    }
     NSFont *font = [NSFont systemFontOfSize:size weight:weight];
     return font != nil ? (CTFontRef)CFRetain(font) : NULL;
+}
+
+void viva_text_set_family(const char *family) {
+    if (family == NULL) {
+        viva_interface_family[0] = '\0';
+        return;
+    }
+    strncpy(viva_interface_family, family, sizeof(viva_interface_family) - 1);
+    viva_interface_family[sizeof(viva_interface_family) - 1] = '\0';
 }
 
 viva_text_line *viva_text_line_create(const unsigned char *utf8, size_t length, double font_size, double font_weight) {
@@ -1276,6 +1309,21 @@ static BOOL viva_mono_font_on_a_grid(NSFont *font) {
         }
     }
     return YES;
+}
+
+char *viva_list_font_families(void) {
+    @autoreleasepool {
+        NSFontManager *manager = [NSFontManager sharedFontManager];
+        NSMutableArray<NSString *> *names = [NSMutableArray array];
+        for (NSString *family in [manager availableFontFamilies]) {
+            if ([family hasPrefix:@"."]) {
+                continue;
+            }
+            [names addObject:family];
+        }
+        [names sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+        return strdup([[names componentsJoinedByString:@"\n"] UTF8String]);
+    }
 }
 
 char *viva_list_mono_families(void) {
@@ -2155,6 +2203,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     uint32_t contentFlags = config.flags & ~VIVA_LABEL_CLIPPED;
     hash = viva_hash_bytes(hash, &contentFlags, sizeof(contentFlags));
     hash = viva_hash_bytes(hash, &config.mono_face, sizeof(config.mono_face));
+    hash = viva_hash_bytes(hash, &config.font_generation, sizeof(config.font_generation));
     if (config.runs != NULL) {
         hash = viva_hash_bytes(hash, config.runs, config.run_count * sizeof(viva_text_run));
     }
@@ -2189,6 +2238,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     CGFloat _originX;  // where the text starts within the frame, logical pixels
     CGFloat _originY;
     uint64_t _hash;
+    uint32_t _fontGeneration; // the interface font generation the picture was made in
     BOOL _mono;
     int _monoFace;
     CGFloat _cellWidth;
@@ -2318,6 +2368,7 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
         _originX = viva_quantized_origin(config.origin_x);
         _originY = viva_quantized_origin(config.origin_y);
         _hash = viva_label_content_hash(config);
+        _fontGeneration = config.font_generation;
         _mono = (config.flags & VIVA_LABEL_MONO) != 0;
         _monoFace = config.mono_face;
         _cellWidth = config.cell_width;
@@ -2376,7 +2427,7 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
     // Content identity: font, color, and text. Position never matters (the
     // quad supplies it each draw); size matters only for texel alignment,
     // which live resize may temporarily relax.
-    if (_fontSize != config.font_size || _fontWeight != config.font_weight) {
+    if (_fontSize != config.font_size || _fontWeight != config.font_weight || _fontGeneration != config.font_generation) {
         return NO;
     }
     if (_originX != viva_quantized_origin(config.origin_x) || _originY != viva_quantized_origin(config.origin_y)) {

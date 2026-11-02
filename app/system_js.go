@@ -102,6 +102,7 @@ func nativeEnableCrashDumps(string) (string, error) { return "", ErrUnsupported 
 func nativeShowFatalError(string, string) {}
 
 func nativeMonospaceFamilies() []string { return nil }
+func nativeFontFamilies() []string      { return nil }
 
 func nativeAppearance() Appearance { return appearanceOf(webplatform.DarkAppearance()) }
 

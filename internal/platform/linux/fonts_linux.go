@@ -21,7 +21,14 @@ type fcFontSet struct {
 // MonospaceFamilies lists the installed fixed-pitch font families, sorted. It
 // asks fontconfig, which every desktop with fonts to draw has; without it the
 // list is empty.
-func MonospaceFamilies() []string {
+func MonospaceFamilies() []string { return fontFamilies(true) }
+
+// FontFamilies lists every installed font family, sorted, asked of fontconfig.
+func FontFamilies() []string { return fontFamilies(false) }
+
+// fontFamilies asks fontconfig for the installed families, only the fixed-pitch
+// ones (fontconfig's FC_MONO spacing) when mono is set.
+func fontFamilies(mono bool) []string {
 	library, err := purego.Dlopen("libfontconfig.so.1", purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {
 		return nil
@@ -55,7 +62,10 @@ func MonospaceFamilies() []string {
 	}
 	defer patternDestroy(pattern)
 	defer objectSetDestroy(set)
-	if patternAddInteger(pattern, &spacing[0], fcMono) == 0 || objectSetAdd(set, &family[0]) == 0 {
+	if mono && (patternAddInteger(pattern, &spacing[0], fcMono) == 0 || objectSetAdd(set, &family[0]) == 0) {
+		return nil
+	}
+	if !mono && objectSetAdd(set, &family[0]) == 0 {
 		return nil
 	}
 	fonts := fontList(0, pattern, set)
