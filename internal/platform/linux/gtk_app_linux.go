@@ -197,6 +197,10 @@ func (a *gtkApplication) post(command uint32) {
 	}
 }
 
+// sleepsUntilWoken is true: GLib's loop sleeps until a descriptor or an idle
+// callback wakes it, so the desktop services wake it with a timer for a retry.
+func (a *gtkApplication) sleepsUntilWoken() bool { return true }
+
 // refreshText draws every window's text again, with the fonts now in force.
 func (a *gtkApplication) refreshText() {
 	for _, w := range a.windows {

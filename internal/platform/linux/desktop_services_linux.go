@@ -31,6 +31,11 @@ type busHost interface {
 	post(command uint32)
 	// refreshText draws every window's text again, with the fonts now in force.
 	refreshText()
+	// sleepsUntilWoken says whether this loop sleeps without a deadline until a
+	// descriptor or a post wakes it: GLib's does, so a desktop retry needs the
+	// timer to wake it, while the X11 loop bounds its own poll by the retry
+	// deadline and does not.
+	sleepsUntilWoken() bool
 }
 
 // services returns the application's services with their host set.

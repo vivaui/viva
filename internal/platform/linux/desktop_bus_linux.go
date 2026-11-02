@@ -35,6 +35,12 @@ type desktopWatch struct {
 const (
 	desktopRetryMin = 100 * time.Millisecond
 	desktopRetryMax = 30 * time.Second
+	// desktopRetryParkFailures is how many consecutive failures park the retry,
+	// after about two minutes of them: a session whose bus never comes back then
+	// costs one bounded series of attempts, not a dial every backoff interval
+	// for the life of the process. An observer re-registration or a new window
+	// unparks it.
+	desktopRetryParkFailures = 12
 )
 
 // desktopRetry belongs to one event loop. Its deadline is included in that
@@ -42,30 +48,39 @@ const (
 type desktopRetry struct {
 	failures uint
 	next     time.Time
+	parked   bool
 }
 
 func (retry *desktopRetry) ready(now time.Time) bool {
+	if retry.parked {
+		return false
+	}
 	return retry.next.IsZero() || !now.Before(retry.next)
 }
 
 func (retry *desktopRetry) fail(now time.Time) {
+	if retry.parked {
+		return
+	}
 	delay := desktopRetryMin << min(retry.failures, 9)
 	if delay > desktopRetryMax {
 		delay = desktopRetryMax
 	}
-	if retry.failures < 9 {
-		retry.failures++
+	retry.failures++
+	retry.parked = retry.failures >= desktopRetryParkFailures
+	if !retry.parked {
+		retry.next = now.Add(delay)
 	}
-	retry.next = now.Add(delay)
 }
 
 func (retry *desktopRetry) reset() {
 	retry.failures = 0
 	retry.next = time.Time{}
+	retry.parked = false
 }
 
 func (retry *desktopRetry) deadline(wanted, connected bool) (time.Time, bool) {
-	if !wanted || connected || retry.next.IsZero() || desktopPortalGone() {
+	if !wanted || connected || retry.parked || retry.next.IsZero() || desktopPortalGone() {
 		return time.Time{}, false
 	}
 	return retry.next, true
@@ -158,10 +173,11 @@ func (services *desktopServices) startDesktopWatch() {
 	services.announce(change)
 }
 
-// scheduleRetryWakeup posts commandDesktop after the backoff delay has passed
-// so that event loops (particularly GTK) wake up and retry automatically.
+// scheduleRetryWakeup posts commandDesktop after the backoff delay has passed,
+// for a loop that sleeps until woken and so cannot wake itself at the deadline
+// (GLib's); the X11 loop already bounds its poll by the same deadline.
 func (services *desktopServices) scheduleRetryWakeup(now time.Time) {
-	if services.now == nil && services.host != nil {
+	if services.host != nil && services.host.sleepsUntilWoken() && services.now == nil {
 		delay := services.desktopRetry.next.Sub(now)
 		if delay > 0 {
 			time.AfterFunc(delay, func() {
@@ -226,12 +242,12 @@ func (services *desktopServices) announce(change settingsChange) {
 	platform.NotifyDesktopChanged(change.platformChange())
 }
 
-// closeDesktop ends the loop's connection to the bus.
+// closeDesktop ends the loop's connection to the bus. A permanently
+// unsupported portal stays latched, in desktopState, past the loop's end.
 func (services *desktopServices) closeDesktop() {
 	if services.desktop != nil {
 		services.stopDesktopWatch()
 	}
-	services.desktopUnsupported = false
 	services.desktopRetry.reset()
 }
 

@@ -217,9 +217,103 @@ func TestDesktopRetryBackoffIsBounded(t *testing.T) {
 	if got := retry.next.Sub(now); got != desktopRetryMax {
 		t.Fatalf("saturated retry delay = %v, want %v", got, desktopRetryMax)
 	}
+	if !retry.parked {
+		t.Fatal("the retry did not park after the bounded series of failures")
+	}
+	if retry.ready(now.Add(time.Hour)) {
+		t.Fatal("a parked retry became ready again on its own")
+	}
 	retry.reset()
-	if retry.failures != 0 || !retry.ready(now) {
+	if retry.failures != 0 || retry.parked || !retry.ready(now) {
 		t.Fatal("reset did not clear the retry backoff")
+	}
+}
+
+// fakeBusHost is a loop the desktop services can belong to, with the commands
+// posted to it recorded.
+type fakeBusHost struct {
+	sleeps bool
+	posts  chan uint32
+}
+
+func (host *fakeBusHost) rebuildPoll()              {}
+func (host *fakeBusHost) fail(error)                {}
+func (host *fakeBusHost) atspiShells() []atspiShell { return nil }
+func (host *fakeBusHost) refreshText()              {}
+func (host *fakeBusHost) sleepsUntilWoken() bool    { return host.sleeps }
+func (host *fakeBusHost) post(command uint32) {
+	select {
+	case host.posts <- command:
+	default:
+	}
+}
+
+// TestDesktopRetryWakesALoopThatSleepsUntilWoken runs without an injected
+// clock, so the timer that wakes such a loop runs too.
+func TestDesktopRetryWakesALoopThatSleepsUntilWoken(t *testing.T) {
+	prepareDesktopRetryTest(t)
+	dialDesktop = func() (desktopConnection, error) {
+		return nil, errors.New("session bus is restarting")
+	}
+	host := &fakeBusHost{sleeps: true, posts: make(chan uint32, 4)}
+	services := &desktopServices{host: host}
+	services.syncDesktopWatch()
+	select {
+	case command := <-host.posts:
+		if command != commandDesktop {
+			t.Fatalf("posted command %d, want commandDesktop", command)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("a loop that sleeps until woken was never woken to retry")
+	}
+}
+
+func TestDesktopRetryDoesNotWakeALoopThatBoundsItsOwnSleep(t *testing.T) {
+	prepareDesktopRetryTest(t)
+	dialDesktop = func() (desktopConnection, error) {
+		return nil, errors.New("session bus is restarting")
+	}
+	host := &fakeBusHost{sleeps: false, posts: make(chan uint32, 4)}
+	services := &desktopServices{host: host}
+	services.syncDesktopWatch()
+	select {
+	case command := <-host.posts:
+		t.Fatalf("a loop that bounds its own sleep was posted command %d", command)
+	case <-time.After(400 * time.Millisecond):
+	}
+}
+
+func TestDesktopRetryParksUntilTheNextBypass(t *testing.T) {
+	prepareDesktopRetryTest(t)
+	now := time.Unix(1000, 0)
+	dials := 0
+	dialDesktop = func() (desktopConnection, error) {
+		dials++
+		return nil, errors.New("no session bus")
+	}
+	services := &desktopServices{host: &fakeBusHost{}, now: func() time.Time { return now }}
+	services.syncDesktopWatch()
+	for range desktopRetryParkFailures - 1 {
+		now = services.desktopRetry.next
+		services.syncDesktopWatch()
+	}
+	if dials != desktopRetryParkFailures {
+		t.Fatalf("dials = %d, want %d", dials, desktopRetryParkFailures)
+	}
+	if !services.desktopRetry.parked {
+		t.Fatal("the retry did not park after the bounded series of failures")
+	}
+	now = now.Add(time.Hour)
+	services.syncDesktopWatch()
+	if dials != desktopRetryParkFailures {
+		t.Fatal("a parked retry dialed again")
+	}
+	if _, waiting := services.desktopRetry.deadline(true, false); waiting {
+		t.Fatal("a parked retry still reported a wake-up deadline")
+	}
+	services.retryDesktopWatch()
+	if dials != desktopRetryParkFailures+1 {
+		t.Fatal("an observer re-registration did not unpark the retry")
 	}
 }
 

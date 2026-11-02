@@ -404,6 +404,10 @@ func (application *linuxApplication) rebuildPoll() {
 	}
 }
 
+// sleepsUntilWoken is false: the X11 loop bounds its own poll, by the input
+// method's and the desktop retry's deadlines, so it wakes itself for a retry.
+func (application *linuxApplication) sleepsUntilWoken() bool { return false }
+
 // pollTimeout is how long the loop may sleep: forever, unless the input method
 // or a desktop retry has a bounded deadline.
 func (application *linuxApplication) pollTimeout() int32 {
