@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -123,6 +124,33 @@ func (window *Window) Minimized() bool {
 // be called from any goroutine.
 func (window *Window) Maximized() bool {
 	return window != nil && window.maximized.Load()
+}
+
+// shortcutCapturer is what a window control offers when its platform can take the system's
+// shortcuts for the window.
+type shortcutCapturer interface {
+	CaptureSystemShortcuts(capture bool) error
+}
+
+// CaptureSystemShortcuts asks the system to hand this window the shortcuts it normally keeps for
+// itself (the Windows key and its chords, Alt+Tab, Ctrl+Esc) while the window has the keyboard
+// focus, so that they reach the window as ordinary keys instead of switching tasks or opening a
+// menu. A remote desktop or a virtual machine shows the same shortcuts to its own system this
+// way. Another window, or this one without the focus, keeps the system's behavior, and
+// CaptureSystemShortcuts(false) gives them back at once; a closed window gives them back too.
+// The call may come from any goroutine.
+//
+// An error wrapping ErrUnsupported means this platform cannot take them yet. Windows is the one
+// that does today; macOS and Linux still keep their shortcuts for the system.
+func (window *Window) CaptureSystemShortcuts(capture bool) error {
+	if window == nil || window.closed.Load() {
+		return fmt.Errorf("app: window is closed")
+	}
+	capturer, ok := window.control.(shortcutCapturer)
+	if !ok {
+		return fmt.Errorf("%w: this platform keeps the system's shortcuts", ErrUnsupported)
+	}
+	return capturer.CaptureSystemShortcuts(capture)
 }
 
 // Closed reports whether the platform has finished closing the window.

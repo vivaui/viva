@@ -89,6 +89,10 @@ type windowState struct {
 	textDragAnchor                         int
 	textInput                              platform.TextInput
 	textEnabled, caretVisible, focused     bool
+	// shortcuts says the application wants the system's shortcuts while the window is focused
+	// (any goroutine sets it); shortcutsHeld says this window's share of the hook is installed.
+	shortcuts                              atomic.Bool
+	shortcutsHeld                          bool
 	caretTimer                             uintptr
 	baseRectangleCount, baseTextLabelCount int
 	textLabels                             []platform.TextLabel
@@ -394,7 +398,12 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.constrainTracking((*minMaxInfo)(pointer(second)))
 		return 0
 	case wmDestroy:
+		state.shortcuts.Store(false)
+		state.syncShortcutHook()
 		state.destroyed(window)
+		return 0
+	case wmCaptureShortcuts:
+		state.syncShortcutHook()
 		return 0
 	case wmAllowClose:
 		destroyWindow.Call(window)
@@ -474,6 +483,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 	case wmSetFocus:
 		state.focused = true
+		state.syncShortcutHook()
 		state.setCaretVisible(true)
 		if err := state.restartCaretTimer(); err != nil {
 			state.fail(err)
@@ -686,6 +696,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.captionPress.end()
 		if kind == wmKillFocus {
 			state.focused = false
+			state.syncShortcutHook()
 			state.textDragging = false
 			state.stopCaretTimer()
 			state.focusLost()

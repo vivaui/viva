@@ -444,3 +444,40 @@ func TestSetDockBadgeMarksTheApplicationIconAndAnEmptyTextClearsIt(t *testing.T)
 	var stopped *Application
 	stopped.SetDockBadge("DEV")
 }
+
+type capturingWindow struct {
+	fakeWindow
+	captures []bool
+}
+
+func (window *capturingWindow) CaptureSystemShortcuts(capture bool) error {
+	window.captures = append(window.captures, capture)
+	return nil
+}
+
+// A platform that cannot take the system's shortcuts says so in a way an application can tell
+// from a failure, and one that can is asked exactly what the application asked.
+func TestCaptureSystemShortcutsReachesThePlatformThatCanTakeThem(t *testing.T) {
+	plain := &Window{control: &fakeWindow{}}
+	if err := plain.CaptureSystemShortcuts(true); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("a platform without it: %v, want ErrUnsupported", err)
+	}
+	native := &capturingWindow{}
+	window := &Window{control: native}
+	if err := window.CaptureSystemShortcuts(true); err != nil {
+		t.Fatal(err)
+	}
+	if err := window.CaptureSystemShortcuts(false); err != nil {
+		t.Fatal(err)
+	}
+	if len(native.captures) != 2 || !native.captures[0] || native.captures[1] {
+		t.Fatalf("the platform was asked %v, want true then false", native.captures)
+	}
+	window.closed.Store(true)
+	if err := window.CaptureSystemShortcuts(true); err == nil || errors.Is(err, ErrUnsupported) {
+		t.Fatalf("a closed window: %v, want a plain error", err)
+	}
+	if len(native.captures) != 2 {
+		t.Fatal("a closed window was still asked")
+	}
+}
