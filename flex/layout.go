@@ -94,6 +94,17 @@ func (f *Frame) measure(axis int) {
 }
 
 func (f *Frame) measureLeaf(n *node) {
+	if !n.hasOwnTheme() {
+		f.measureLeafIn(n)
+		return
+	}
+	saved := f.theme
+	f.theme = f.ownTheme(n)
+	f.measureLeafIn(n)
+	f.theme = saved
+}
+
+func (f *Frame) measureLeafIn(n *node) {
 	switch n.kind {
 	case kindText:
 		if n.flags&flagMono != 0 {
@@ -106,7 +117,11 @@ func (f *Frame) measureLeaf(n *node) {
 		n.pref[axisX] += n.padX() // a Text takes its Pad and Border like a container
 		n.pref[axisY] += n.padY()
 	case kindButton:
-		button := components.BeginButton(f.canvas, f.theme, ui.ID{}, ui.Rect{}).Size(n.buttonSize).SizeToFit(n.label)
+		button := components.BeginButton(f.canvas, f.theme, ui.ID{}, ui.Rect{}).Size(n.buttonSize)
+		if d := n.size[axisY]; d.kind == dimPx {
+			button = button.Height(d.value) // an icon button is as wide as it is tall
+		}
+		button = button.SizeToFit(n.label)
 		n.pref = [2]float32{button.BoundsWidth(), button.BoundsHeight()}
 		if n.buttonSize >= components.ButtonSizeIcon {
 			n.pref[axisX] = n.pref[axisY]
@@ -480,7 +495,11 @@ func (f *Frame) measureBaseline(n *node) {
 		top, _ := n.inset(axisY)
 		n.baseline = top + (n.leading()-n.fontSize)/2 + n.fontSize*0.8
 	case kindButton:
-		n.baseline = n.pref[axisY]/2 + f.theme.Metrics.FontSizeM*0.3
+		size := f.theme.Metrics.FontSizeM
+		if n.hasOwnTheme() {
+			size = f.ownTheme(n).Metrics.FontSizeM
+		}
+		n.baseline = n.pref[axisY]/2 + size*0.3
 	case kindContainer:
 		n.baseline = n.pref[axisY]
 		is, _ := n.inset(axisY)

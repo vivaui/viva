@@ -134,7 +134,7 @@ func TestCatalogAndSelection(t *testing.T) {
 		"badge":    {"default", "variants", "long-text"},
 		"checkbox": {"default", "selection", "states"},
 		"switch":   {"default", "sizes", "states"},
-		"input":    {"default", "placeholder", "invalid", "states"},
+		"input":    {"default", "placeholder", "invalid", "states", "custom"},
 		"dialog":   {"default", "confirm", "destructive"},
 	}
 	if len(Catalog()) == 0 || &Catalog()[0] != &Catalog()[0] {

@@ -74,7 +74,7 @@ type dimension struct {
 }
 
 const (
-	flagClip uint16 = 1 << iota
+	flagClip uint32 = 1 << iota
 	flagMono
 	flagTextCenter
 	flagDisabled
@@ -88,8 +88,9 @@ const (
 	flagScroll
 	flagBasis
 	flagOutline
-	flagDialog   // a Dialog's root: painted by components.Dialog around its children
-	flagChildren // Children was called on the element, even if it declared nothing
+	flagDialog    // a Dialog's root: painted by components.Dialog around its children
+	flagChildren  // Children was called on the element, even if it declared nothing
+	flagHasRadius // Radius was called: on a control, its corners are its own, not the theme's
 )
 
 // node is one element of the page. Fields are plain values so a node is reused
@@ -98,7 +99,7 @@ const (
 type node struct {
 	kind  kind
 	dir   direction
-	flags uint16
+	flags uint32
 
 	parent, first, last, next int32
 

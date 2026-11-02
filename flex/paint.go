@@ -1,6 +1,8 @@
 package flex
 
 import (
+	"math"
+
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/ui"
 )
@@ -45,6 +47,28 @@ func (f *Frame) paint(i int32) {
 		canvas.HitWithOptions(n.id, hit, n.label, extra.hit)
 	}
 
+	if n.hasOwnTheme() {
+		saved := f.theme
+		f.theme = f.ownTheme(n)
+		f.paintControl(n, r)
+		f.theme = saved
+	} else {
+		f.paintControl(n, r)
+	}
+
+	for c := n.first; c >= 0; c = f.nodes[c].next {
+		f.paint(c)
+	}
+	if n.outOfFlow&absChildren != 0 {
+		f.paintAbsolute(i)
+	}
+}
+
+// paintControl paints what the element is: its text, icon, or control. The
+// background and border of its box are already down.
+func (f *Frame) paintControl(n *node, r ui.Rect) {
+	canvas := f.canvas
+	extra := &f.exts[n.ext]
 	switch n.kind {
 	case kindText:
 		f.paintText(n)
@@ -100,13 +124,6 @@ func (f *Frame) paint(i int32) {
 		}
 		control.Paint()
 	}
-
-	for c := n.first; c >= 0; c = f.nodes[c].next {
-		f.paint(c)
-	}
-	if n.outOfFlow&absChildren != 0 {
-		f.paintAbsolute(i)
-	}
 }
 
 func (f *Frame) paintText(n *node) {
@@ -152,6 +169,11 @@ func (f *Frame) paintText(n *node) {
 func (f *Frame) paintButton(n *node) {
 	r := n.rect
 	button := components.BeginButton(f.canvas, f.theme, n.id, ui.Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.buttonSize)
+	// A button is as tall as its size says unless the element was given more or less
+	// room: a Height, or a Grow along a column. It then fills that room.
+	if h := r.Height; h > 0 && math.Abs(float64(h-button.BoundsHeight())) > 0.01 {
+		button = button.Height(h)
+	}
 	if n.flags&flagDisabled != 0 {
 		button = button.Disabled()
 	}

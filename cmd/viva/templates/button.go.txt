@@ -53,6 +53,7 @@ type Button struct {
 	state    ButtonState
 	size     ButtonSize
 	icon     ui.Icon
+	height   float32
 	disabled bool
 }
 
@@ -88,6 +89,15 @@ func (button Button) hasIcon() bool {
 // Size selects an official size variant.
 func (button Button) Size(size ButtonSize) Button {
 	button.size = size
+	return button
+}
+
+// Height paints the button height pixels tall instead of the height its size gives,
+// for a button that sits in a row of its own height. The padding, the text size and
+// the corner radius stay those of the size, and an icon size stays as wide as it is
+// tall. A height of zero or less is the size's own.
+func (button Button) Height(height float32) Button {
+	button.height = max(height, 0)
 	return button
 }
 
@@ -393,6 +403,9 @@ func (button Button) geometry() (height, padding, fontSize float32, iconOnly boo
 	}
 	if height < 20 {
 		height = 20
+	}
+	if button.height > 0 {
+		height = button.height
 	}
 	return height, padding, fontSize, iconOnly
 }

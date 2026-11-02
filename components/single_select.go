@@ -313,7 +313,8 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 		canvas.HitWithOptions(o.ClearID, clear, label, ui.HitOptions{Role: ui.RoleButton, Disabled: o.Disabled})
 		right = clear.X - 4
 	}
-	layout.Input = ui.Rect{X: bounds.X + inputInsetX, Y: bounds.Y + 1, Width: max(1, right-bounds.X-inputInsetX), Height: bounds.Height - 2}
+	inset := theme.Metrics.TextInsetX()
+	layout.Input = ui.Rect{X: bounds.X + inset, Y: bounds.Y + 1, Width: max(1, right-bounds.X-inset), Height: bounds.Height - 2}
 	display, color := query, theme.Foreground
 	if display == "" {
 		display = s.label(s.value)

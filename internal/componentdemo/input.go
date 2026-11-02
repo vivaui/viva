@@ -39,6 +39,12 @@ f.Input(components.InputSnapshot{
     ID: tree.ID(page, "read-only"), Label: "Read-only",
     Value: "Viva · read-only text", ReadOnly: true,
 })`},
+		{ID: "custom", Title: "圆角与字号", Description: "单个输入框用 Radius 和 FontSize 拥有自己的圆角与字号，光标、选区随字号缩放，旁边的输入框不受影响。", Snippet: `// In a flex page: this control only
+f.Input(components.InputSnapshot{ID: search, Label: "Search", Value: value}).
+    Radius(ui.RadiusFull).FontSize(16).Height(40)
+
+// Painted by hand: this call gets a theme of its own
+components.PaintInput(canvas, theme.WithRadius(2).WithFontSize(12), bounds, snapshot)`},
 	},
 }
 
@@ -47,6 +53,8 @@ var (
 	inputEditable = tree.ID(inputUI, "editable")
 	inputDisabled = tree.ID(inputUI, "disabled")
 	inputReadOnly = tree.ID(inputUI, "read-only")
+	inputSquare   = tree.ID(inputUI, "square")
+	inputPlain    = tree.ID(inputUI, "plain")
 )
 
 // The input example's caller-owned sample text, in both preview languages.
@@ -150,6 +158,10 @@ func (state *State) paintInput(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 			f.Text(state.Text("禁用与只读字段均不连接编辑器。", "Disabled and read-only fields do not connect an editor.")).FontSize(theme.Metrics.FontSizeS).Muted()
 			return
 		}
+		if state.exampleID == "custom" {
+			state.paintCustomInputs(canvas, theme, f, mode)
+			return
+		}
 		value := state.fieldValue(state.initialInputValue())
 		label, placeholder := "Name", state.Text("输入中文或 English…", "Type in Chinese or English…")
 		invalid := false
@@ -173,5 +185,31 @@ func (state *State) paintInput(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 			}
 		}
 		f.Text(caption).FontSize(theme.Metrics.FontSizeS).Muted()
+	})
+}
+
+// paintCustomInputs shows three fields in one column: a pill with larger text, a
+// squarer one with smaller text, and one with the theme's own radius and size.
+// Only the first is connected to the editor; the others are read-only samples.
+func (state *State) paintCustomInputs(canvas *ui.Canvas, theme ui.Theme, f *flex.Frame, mode string) {
+	value := state.fieldValue(state.Text("圆角与字号", "Radius and size"))
+	f.Column().Gap(6).Children(func() {
+		f.Text("RadiusFull · 16").FontSize(theme.Metrics.FontSizeM)
+		f.Input(components.InputSnapshot{
+			ID: inputEditable, Label: "Pill", Value: value, Placeholder: state.Text("输入中文或 English…", "Type in Chinese or English…"),
+			Hint: mode, ReadOnly: !state.editing, PlatformEditing: state.platformFocused(canvas, value),
+		}).Radius(ui.RadiusFull).FontSize(16).Height(40)
+	})
+	f.Column().Gap(6).Children(func() {
+		f.Text("Radius 2 · 12").FontSize(theme.Metrics.FontSizeM)
+		f.Input(components.InputSnapshot{
+			ID: inputSquare, Label: "Square", Value: state.Text("较小的字号", "Smaller text"), ReadOnly: true,
+		}).Radius(2).FontSize(12).Height(28)
+	})
+	f.Column().Gap(6).Children(func() {
+		f.Text("Theme").FontSize(theme.Metrics.FontSizeM)
+		f.Input(components.InputSnapshot{
+			ID: inputPlain, Label: "Theme", Value: state.Text("主题默认", "Theme default"), ReadOnly: true,
+		})
 	})
 }

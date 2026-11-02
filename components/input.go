@@ -46,7 +46,8 @@ func PaintInput(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Inpu
 
 	focused := snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID
 	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
-	content := ui.Rect{X: bounds.X + inputInsetX, Y: bounds.Y, Width: inputMax(0, bounds.Width-2*inputInsetX), Height: bounds.Height}
+	inset := theme.Metrics.TextInsetX()
+	content := ui.Rect{X: bounds.X + inset, Y: bounds.Y, Width: inputMax(0, bounds.Width-2*inset), Height: bounds.Height}
 	if !snapshot.PlatformEditing {
 		inputPaintText(canvas, theme, content, snapshot, focused)
 	}
@@ -100,6 +101,7 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 		color.Alpha *= 0.50
 	}
 	canvas.Clip(bounds)
+	bandTop, bandHeight := inputLineBand(bounds, fontSize)
 	placeholderShown := snapshot.Value == "" && snapshot.DisplayValue == ""
 	style := ui.TextStyle{Size: fontSize, Weight: ui.WeightRegular, Color: color}
 	// The line starts where the label puts it: the right end of the field for text that
@@ -110,7 +112,7 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 	selectionStart, selectionEnd := inputRange(value, snapshot.SelectionStart, snapshot.SelectionEnd)
 	var selections []ui.Rect
 	if selectionEnd > selectionStart && !placeholderShown {
-		selections = inputTextRanges(canvas, ranges[:0], bounds, origin, value, fontSize, selectionStart, selectionEnd)
+		selections = inputTextRanges(canvas, ranges[:0], bounds, bandTop, bandHeight, origin, value, fontSize, selectionStart, selectionEnd)
 		selectionColor, _ := selectionColors(theme)
 		if snapshot.Disabled {
 			selectionColor.Alpha *= 0.50
@@ -126,14 +128,15 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 		if snapshot.Disabled {
 			underline.Alpha *= 0.50
 		}
-		for _, composition := range inputTextRanges(canvas, underlines[:0], bounds, origin, value, fontSize, compositionStart, compositionEnd) {
-			canvas.Fill(ui.Rect{X: composition.X, Y: bounds.Y + bounds.Height - 5, Width: composition.Width, Height: 1}, underline)
+		for _, composition := range inputTextRanges(canvas, underlines[:0], bounds, bandTop, bandHeight, origin, value, fontSize, compositionStart, compositionEnd) {
+			canvas.Fill(ui.Rect{X: composition.X, Y: bandTop + bandHeight - 1, Width: composition.Width, Height: 1}, underline)
 		}
 	}
 	if focused && snapshot.ShowCaret && !snapshot.Disabled {
 		caret := inputBoundary(value, snapshot.Caret)
 		x := origin + canvas.TextCaret(value, fontSize, ui.WeightRegular, caret)
-		canvas.Fill(ui.Rect{X: x, Y: bounds.Y + (bounds.Height-16)/2, Width: 1, Height: 16}, theme.Foreground)
+		caretHeight := min(inputCaretHeight(fontSize), bandHeight)
+		canvas.Fill(ui.Rect{X: x, Y: bandTop + (bandHeight-caretHeight)/2, Width: 1, Height: caretHeight}, theme.Foreground)
 	}
 	canvas.Label(value, bounds, style)
 	for _, selection := range selections {
@@ -153,8 +156,9 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 
 // inputTextRanges appends the rectangles of the bytes [start, end) of value, a line drawn
 // from x = origin in bounds, clamped to bounds: one for left-to-right text, more where the
-// range crosses a change of direction.
-func inputTextRanges(canvas *ui.Canvas, dst []ui.Rect, bounds ui.Rect, origin float32, value string, size float32, start, end int) []ui.Rect {
+// range crosses a change of direction. They fill the band of the line (inputLineBand), top
+// and height.
+func inputTextRanges(canvas *ui.Canvas, dst []ui.Rect, bounds ui.Rect, top, height, origin float32, value string, size float32, start, end int) []ui.Rect {
 	var spans [4]ui.TextSpan
 	for _, span := range canvas.TextSelection(spans[:0], value, size, ui.WeightRegular, start, end) {
 		x, width := origin+span.X, span.Width
@@ -168,10 +172,24 @@ func inputTextRanges(canvas *ui.Canvas, dst []ui.Rect, bounds ui.Rect, origin fl
 		if x+width > bounds.X+bounds.Width {
 			width = bounds.X + bounds.Width - x
 		}
-		dst = append(dst, ui.Rect{X: x, Y: bounds.Y + 4, Width: inputMax(0, width), Height: inputMax(0, bounds.Height-8)})
+		dst = append(dst, ui.Rect{X: x, Y: top, Width: inputMax(0, width), Height: height})
 	}
 	return dst
 }
+
+// inputLineBand is the vertical band a line of text of fontSize occupies in a
+// field of bounds: the room a selection fills, the caret sits in and a
+// composition is underlined at the foot of. It is centered in the field and
+// follows the size of the text, 24px of a 32px field at the 14px body size, and
+// never reaches nearer the border than 4px.
+func inputLineBand(bounds ui.Rect, fontSize float32) (top, height float32) {
+	height = inputMax(0, min(fontSize+10, bounds.Height-8))
+	return bounds.Y + (bounds.Height-height)/2, height
+}
+
+// inputCaretHeight is how tall the caret is for text of fontSize: the 16px of
+// the 14px body size, and as much taller or shorter as the text is.
+func inputCaretHeight(fontSize float32) float32 { return fontSize + 2 }
 
 func inputRange(value string, start, end int) (int, int) {
 	start = inputBoundary(value, start)
@@ -220,9 +238,6 @@ func inputMaskOffset(value string, offset int) int {
 }
 
 const (
-	// inputInsetX is where the text of a text-entry control starts, measured
-	// from its outer edge: the 1px border plus Vega's px-2.5 (10).
-	inputInsetX = float32(11)
 	// inputRing is the width of the focus ring around a button-like control
 	// (Vega's ring-3). Text-entry controls have none: focus is their border.
 	inputRing = float32(3)

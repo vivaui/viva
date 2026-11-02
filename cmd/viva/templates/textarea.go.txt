@@ -127,7 +127,8 @@ func PaintTextarea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot T
 	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
 	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	top := min(max(snapshot.InsetTop, 0), max(bounds.Height-2*textareaPadY, 0))
-	content := ui.Rect{X: bounds.X + inputInsetX, Y: bounds.Y + textareaPadY + top, Width: textareaMax(0, bounds.Width-2*inputInsetX), Height: textareaMax(0, bounds.Height-2*textareaPadY-top-snapshot.InsetBottom)}
+	inset := theme.Metrics.TextInsetX()
+	content := ui.Rect{X: bounds.X + inset, Y: bounds.Y + textareaPadY + top, Width: textareaMax(0, bounds.Width-2*inset), Height: textareaMax(0, bounds.Height-2*textareaPadY-top-snapshot.InsetBottom)}
 	content.Width = max(0, content.Width-snapshot.InsetRight)
 	display := snapshot.DisplayValue
 	if display == "" {
@@ -240,8 +241,9 @@ func textareaPaintRows(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value,
 	// label of a left-aligned row, reach into the padding so that does not cut the
 	// last letter.
 	clip := bounds
-	clip.X -= inputInsetX - 1
-	clip.Width += 2 * (inputInsetX - 1)
+	overhang := theme.Metrics.TextInsetX() - 1
+	clip.X -= overhang
+	clip.Width += 2 * overhang
 	canvas.Clip(clip)
 	for {
 		row, after, ok := rows.next()
@@ -263,7 +265,7 @@ func textareaPaintRows(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value,
 		origin := canvas.LabelOrigin(line, lineBounds, style, ui.AlignStart)
 		labelBounds := lineBounds
 		if origin == lineBounds.X {
-			labelBounds.Width += inputInsetX - 1 // see clip
+			labelBounds.Width += overhang // see clip
 		}
 		var selections []ui.Rect
 		var ranges [4]ui.Rect
@@ -339,7 +341,7 @@ func textareaPlaceCaret(canvas *ui.Canvas, theme ui.Theme, layout *TextareaLayou
 		layout.caret, layout.caretShown = ui.Rect{X: x, Y: row.Y, Width: 1, Height: row.Height}, true
 	}
 	if show {
-		canvas.Fill(ui.Rect{X: x, Y: row.Y + 2, Width: 1, Height: 16}, theme.Foreground)
+		canvas.Fill(ui.Rect{X: x, Y: row.Y + 2, Width: 1, Height: inputCaretHeight(theme.Metrics.FontSizeM)}, theme.Foreground)
 	}
 }
 
@@ -533,7 +535,7 @@ func (layout *TextareaLayout) ScrollBy(dy float32) {
 // after a final newline. The rows it wraps are the ones the next paint at that
 // width uses.
 func (layout *TextareaLayout) RowCount(canvas *ui.Canvas, theme ui.Theme, text string, width float32, noWrap bool) int {
-	layout.fit(canvas, text, theme.Metrics.FontSizeM, textareaMax(0, width-2*inputInsetX), !noWrap)
+	layout.fit(canvas, text, theme.Metrics.FontSizeM, textareaMax(0, width-2*theme.Metrics.TextInsetX()), !noWrap)
 	return len(layout.rows)
 }
 

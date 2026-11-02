@@ -67,7 +67,7 @@ func TestTextFieldsDeclareTheGeometryTheyPaint(t *testing.T) {
 				// advances a little wider than the layout's do not cut its last letter;
 				// where it starts, and so where the native editor's text lands, is the same.
 				widening := painted.Bounds.Width - hit.TextBounds.Width
-				if hit.TextBounds.X != painted.Bounds.X || widening < 0 || widening > 0 && (!hit.Multiline || widening >= inputInsetX) {
+				if hit.TextBounds.X != painted.Bounds.X || widening < 0 || widening > 0 && (!hit.Multiline || widening >= testInset) {
 					t.Errorf("%s dark=%t compact=%t: declared x/width %v/%v, painted %v/%v", field.name, dark, compact, hit.TextBounds.X, hit.TextBounds.Width, painted.Bounds.X, painted.Bounds.Width)
 				}
 				// A single line is vertically centered in the same box; a
@@ -79,3 +79,7 @@ func TestTextFieldsDeclareTheGeometryTheyPaint(t *testing.T) {
 		}
 	}
 }
+
+// testInset is where the text of a text-entry control starts at the default
+// density.
+var testInset = ui.DefaultMetrics().TextInsetX()

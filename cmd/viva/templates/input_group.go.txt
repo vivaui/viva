@@ -165,7 +165,7 @@ type InputGroupLayout struct {
 // The geometry of an input group, after Vega. Inline addons sit inside the
 // border with pl-2 / pr-2 (a button -ml-1 / -mr-1 and a kbd about -2 from
 // that), and the control keeps pl-1.5 / pr-1.5 next to an addon; without an
-// addon its text starts where an Input's does (inputInsetX).
+// addon its text starts where an Input's does (Metrics.TextInsetX).
 const (
 	inputGroupBlockSize    = float32(32)
 	inputGroupIconSize     = 16
@@ -206,7 +206,7 @@ func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot
 	inputGroupPaintSlot(canvas, theme, layout.BlockEnd, snapshot.BlockEnd, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.InlineStart, snapshot.InlineStart, false, true, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.InlineEnd, snapshot.InlineEnd, false, false, snapshot.Disabled)
-	content := inputGroupContent(layout.Control, snapshot.Multiline,
+	content := inputGroupContent(theme, layout.Control, snapshot.Multiline,
 		snapshot.InlineStart.Kind != InputGroupSlotNone, snapshot.InlineEnd.Kind != InputGroupSlotNone)
 	if !snapshot.NativeEditing && content.Width > 0 && content.Height > 0 {
 		inputGroupPaintControl(canvas, theme, content, snapshot, focused)
@@ -225,8 +225,9 @@ func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot
 
 // inputGroupContent is where the control's text sits inside its bounds: the
 // same inset as a standalone Input unless an addon is beside it.
-func inputGroupContent(control ui.Rect, multiline, hasStart, hasEnd bool) ui.Rect {
-	left, right := inputInsetX, inputInsetX
+func inputGroupContent(theme ui.Theme, control ui.Rect, multiline, hasStart, hasEnd bool) ui.Rect {
+	left := theme.Metrics.TextInsetX()
+	right := left
 	if hasStart {
 		left = inputGroupControlInset
 	}
@@ -356,7 +357,8 @@ func inputGroupPaintSlot(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, slot
 	// Where the content goes: a block addon starts at the Input inset
 	// (justify-start); an inline one sits between its outer padding and the
 	// control, centered when a Width gave it more room than it needs.
-	from, to := bounds.X+inputInsetX, bounds.X+bounds.Width-inputInsetX
+	inset := theme.Metrics.TextInsetX()
+	from, to := bounds.X+inset, bounds.X+bounds.Width-inset
 	if !block {
 		pad := inputGroupOuterPad(slot.Kind)
 		from, to = bounds.X, bounds.X+bounds.Width

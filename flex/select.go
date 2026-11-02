@@ -197,19 +197,34 @@ func (f *Frame) Select(scope ui.Scope, state *SelectState, labels []string, sele
 	state.labels, state.scope, state.selected, state.visible = labels, scope, selected, d.visible
 	if state.Open && len(labels) > 0 {
 		state.First = min(max(state.First, 0), len(labels)-d.visible)
-		var widest float32
-		for _, label := range labels {
-			widest = max(widest, f.canvas.TextWidthWeight(label, f.theme.Metrics.FontSizeM, ui.WeightRegular))
-		}
 		height := float32(selectPad + selectItem*d.visible)
 		if d.visible < len(labels) {
 			height += 2 * selectArrow
 		}
-		popup := f.Popup().BelowBox(b, selectGap, Start).Size(max(128, widest+48), height)
+		popup := f.Popup().BelowBox(b, selectGap, Start).Size(selectListWidth(f.canvas, labels, f.theme.Metrics.FontSizeM), height)
 		d.popup = popup.i
 	}
 	f.widgets.selects = append(f.widgets.selects, d)
 	return b
+}
+
+// selectListWidth is the width of an open list of labels set in size.
+func selectListWidth(canvas *ui.Canvas, labels []string, size float32) float32 {
+	var widest float32
+	for _, label := range labels {
+		widest = max(widest, canvas.TextWidthWeight(label, size, ui.WeightRegular))
+	}
+	return max(128, widest+48)
+}
+
+// sizeSelectList widens or narrows the open list of n to the font size the Select
+// was given after it was declared, which is when the size is known.
+func (f *Frame) sizeSelectList(n *node) {
+	d := &f.widgets.selects[n.aux]
+	if d.popup < 0 {
+		return
+	}
+	f.nodes[d.popup].size[axisX] = dimension{dimPx, selectListWidth(f.canvas, d.labels, n.fontSize)}
 }
 
 // selectRows is how many of count options a list shows in a frame height tall.

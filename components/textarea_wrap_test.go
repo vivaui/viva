@@ -32,7 +32,7 @@ func (box *wrapBox) paint(snapshot TextareaSnapshot) {
 
 // rows are the visual rows of text at the width of the box, as byte ranges.
 func (box *wrapBox) rows(text string) []ui.TextRow {
-	return box.canvas.WrapRows(nil, text, box.theme.Metrics.FontSizeM, ui.WeightRegular, box.bounds.Width-2*inputInsetX)
+	return box.canvas.WrapRows(nil, text, box.theme.Metrics.FontSizeM, ui.WeightRegular, box.bounds.Width-2*testInset)
 }
 
 func (box *wrapBox) caret() ui.Rect {
@@ -52,7 +52,7 @@ func TestTextareaWrapsLongLinesInsteadOfClippingThem(t *testing.T) {
 	}
 	var joined []string
 	for _, text := range texts {
-		if text.Bounds.Y < box.bounds.Y || width(box.canvas, text.Value) > box.bounds.Width-2*inputInsetX {
+		if text.Bounds.Y < box.bounds.Y || width(box.canvas, text.Value) > box.bounds.Width-2*testInset {
 			t.Errorf("row %q does not fit the box", text.Value)
 		}
 		joined = append(joined, text.Value)
@@ -79,7 +79,7 @@ func TestTextareaPlacesTheCaretWhereAPressLands(t *testing.T) {
 	rows := box.rows(wrapTestText)
 	for index, row := range rows[:3] {
 		y := box.bounds.Y + textareaPadY + float32(index)*20 + 10
-		offset, ok := box.layout.OffsetAt(ui.Point{X: box.bounds.X + inputInsetX + 1, Y: y})
+		offset, ok := box.layout.OffsetAt(ui.Point{X: box.bounds.X + testInset + 1, Y: y})
 		if !ok || offset != row.Start {
 			t.Fatalf("a press at the start of row %d put the caret at %d (%v), want %d", index, offset, ok, row.Start)
 		}

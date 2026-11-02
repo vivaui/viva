@@ -205,3 +205,44 @@ func TestButtonRepeatedPaintReusesCanvasStorage(t *testing.T) {
 		t.Fatalf("repeated button paint allocated %v times", allocations)
 	}
 }
+
+// A button in a row of its own height is painted that tall, its label centered in
+// it, with the radius and text size of its size; without a height nothing changes.
+func TestButtonHeightPaintsTheButtonThatTall(t *testing.T) {
+	theme := ui.LightTheme()
+	paint := func(button Button) (*ui.Canvas, ui.Rect) {
+		canvas := &ui.Canvas{}
+		button.canvas = canvas
+		button.Default("Save")
+		return canvas, canvas.Rectangles()[0].Bounds
+	}
+	plainCanvas, plain := paint(BeginButton(nil, theme, ui.Item(1), ui.Rect{Width: 80}))
+	if plain.Height != theme.Metrics.ControlHeight {
+		t.Fatalf("a button without a height is %v tall, want the size's %v", plain.Height, theme.Metrics.ControlHeight)
+	}
+	tallCanvas, tall := paint(BeginButton(nil, theme, ui.Item(1), ui.Rect{Y: 10, Width: 80}).Height(48))
+	if tall.Height != 48 || tall.Y != 10 {
+		t.Fatalf("a 48px button is %+v", tall)
+	}
+	if hit := tallCanvas.Hits()[0]; hit.Bounds.Height != 48 {
+		t.Errorf("the hit region is %v tall, want 48", hit.Bounds.Height)
+	}
+	if got, want := tallCanvas.Rectangles()[0].Radius, plainCanvas.Rectangles()[0].Radius; got != want {
+		t.Errorf("radius = %v, want the size's %v", got, want)
+	}
+	if got, want := tallCanvas.Texts()[0].Style.Size, plainCanvas.Texts()[0].Style.Size; got != want {
+		t.Errorf("text size = %v, want the size's %v", got, want)
+	}
+	if label := tallCanvas.Texts()[0]; label.Bounds.Y+label.Bounds.Height/2 != 10+24 {
+		t.Errorf("label %+v is not centered in the 48px button", label.Bounds)
+	}
+	// An icon button stays square, at the height.
+	_, icon := paint(BeginButton(nil, theme, ui.Item(1), ui.Rect{Width: 10}).Icon().Height(44))
+	if icon.Width != 44 || icon.Height != 44 {
+		t.Errorf("a 44px icon button is %vx%v, want square", icon.Width, icon.Height)
+	}
+	// Zero or less is the size's own.
+	if _, same := paint(BeginButton(nil, theme, ui.Item(1), ui.Rect{Width: 80}).Height(-5)); same != plain {
+		t.Errorf("a negative height changed the button: %+v", same)
+	}
+}

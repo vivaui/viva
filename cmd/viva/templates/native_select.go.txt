@@ -175,7 +175,8 @@ func PaintNativeSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapsh
 		iconColor.Alpha *= 0.50
 	}
 	// Vega: pl-2.5 and pr-8 around the text, the chevron right-2.5.
-	textBounds := ui.Rect{X: bounds.X + inputInsetX, Y: bounds.Y, Width: nativeSelectMax(0, bounds.Width-inputInsetX-33), Height: bounds.Height}
+	inset := theme.Metrics.TextInsetX()
+	textBounds := ui.Rect{X: bounds.X + inset, Y: bounds.Y, Width: nativeSelectMax(0, bounds.Width-inset-33), Height: bounds.Height}
 	canvas.Clip(textBounds)
 	canvas.Label(display, textBounds, ui.TextStyle{Size: theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: color})
 	canvas.Unclip()
