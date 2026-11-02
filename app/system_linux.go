@@ -89,6 +89,10 @@ func nativeOpenURL(target string) error {
 	return linuxSystemError(linuxplatform.OpenURL(target))
 }
 
+func nativeOpenWith(executable, path string) error {
+	return linuxSystemError(linuxplatform.OpenWith(executable, path))
+}
+
 func nativePlaySystemSound(sound SystemSound) error {
 	return linuxSystemError(linuxplatform.PlaySystemSound(uint8(sound)))
 }

@@ -12,7 +12,9 @@ import (
 // OpenWith starts executable with one absolute path as its only argument. It
 // does not use a shell. The executable and the path must already exist and be
 // absolute; path may name a file or a directory, because editors commonly
-// accept either. The child is reaped in the background after it exits.
+// accept either. A directly started program is reaped in the background after
+// it exits; on macOS an application bundle launches through the system's open,
+// and a failed handoff is this call's error.
 //
 // Driver-backed runs record the request and start nothing.
 func OpenWith(executable, path string) error {

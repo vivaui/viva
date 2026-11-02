@@ -78,6 +78,10 @@ func nativeSaveFile(options SaveFileOptions) (string, error) {
 
 func nativeOpenURL(target string) error { return darwinplatform.OpenURL(target) }
 
+func nativeOpenWith(executable, path string) error {
+	return darwinplatform.OpenWith(executable, path)
+}
+
 func nativePlaySystemSound(sound SystemSound) error {
 	return darwinplatform.PlaySystemSound(uint8(sound))
 }
