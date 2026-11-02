@@ -1,4 +1,5 @@
 #include "../native.m"
+#include "../main_menu_darwin.m"
 #include <assert.h>
 
 // The callbacks native.m reports to Go; this test listens to none of them.

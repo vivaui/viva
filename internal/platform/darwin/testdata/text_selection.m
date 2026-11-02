@@ -1,4 +1,5 @@
 #include "../native.m"
+#include "../main_menu_darwin.m"
 #include <assert.h>
 #include <objc/runtime.h>
 

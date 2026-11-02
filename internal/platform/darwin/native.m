@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "native.h"
+#include "main_menu_darwin.h"
 
 static uint64_t viva_process_start_ticks;
 static uint64_t viva_gpu_submission_count;
@@ -5862,22 +5863,6 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 
 @end
-
-static void viva_install_main_menu(NSString *applicationName) {
-    NSMenu *menuBar = [[[NSMenu alloc] init] autorelease];
-    NSMenuItem *applicationItem = [[[NSMenuItem alloc] init] autorelease];
-    [menuBar addItem:applicationItem];
-    NSApp.mainMenu = menuBar;
-
-    NSMenu *applicationMenu = [[[NSMenu alloc] init] autorelease];
-    NSString *quitTitle = [@"Quit " stringByAppendingString:applicationName];
-    NSMenuItem *quitItem = [[[NSMenuItem alloc]
-        initWithTitle:quitTitle
-               action:@selector(terminate:)
-        keyEquivalent:@"q"] autorelease];
-    [applicationMenu addItem:quitItem];
-    applicationItem.submenu = applicationMenu;
-}
 
 static NSMutableArray<VivaAppDelegate *> *viva_application_windows;
 static int viva_application_status;

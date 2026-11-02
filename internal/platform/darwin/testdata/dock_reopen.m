@@ -1,4 +1,5 @@
 #include "../native.m"
+#include "../main_menu_darwin.m"
 #include <assert.h>
 
 void vivaPointerEvent(uintptr_t handle, void *view, int kind, int button, int modifiers, int clickCount, double x, double y, double screenX, double screenY) {}
