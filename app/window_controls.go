@@ -2,8 +2,6 @@ package app
 
 import (
 	"math"
-	"os"
-	"runtime"
 	"strings"
 
 	"github.com/vivaui/viva/internal/platform"
@@ -50,14 +48,6 @@ func detectDesktopTheme(desktop string) desktopTheme {
 		return desktopAdwaita
 	}
 	return desktopDefault
-}
-
-// currentDesktopTheme resolves the active desktop theme for the running platform.
-func currentDesktopTheme() desktopTheme {
-	if runtime.GOOS != "linux" {
-		return desktopDefault
-	}
-	return detectDesktopTheme(os.Getenv("XDG_CURRENT_DESKTOP"))
 }
 
 // WindowControlsStyle is how the window buttons look. A zero field takes a
