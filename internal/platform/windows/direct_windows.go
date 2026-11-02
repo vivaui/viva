@@ -167,6 +167,8 @@ type directRasterizer struct {
 	pieces      []gridPiece
 	spans       []colorSpan // the colors of the last ClearType grid label, valid until the next call
 	fallbacks   []faceFallback
+	gdi         *gdiGridRasterizer // the GDI face of fixed-pitch lines, made on first use
+	gdiSpacing  []int32            // the cell advance of each character of a run, reused
 }
 
 func newDirectRasterizer() (*directRasterizer, error) {
@@ -196,6 +198,10 @@ func (rasterizer *directRasterizer) close() {
 	}
 	if rasterizer.translucent != nil {
 		rasterizer.translucent.close()
+	}
+	if rasterizer.gdi != nil {
+		rasterizer.gdi.close()
+		rasterizer.gdi = nil
 	}
 	rasterizer.releaseFontFallbacks()
 	release(&rasterizer.factory)
@@ -259,6 +265,18 @@ func (rasterizer *directRasterizer) rasterize(label platform.TextLabel, scale fl
 	rasterizer.spans = rasterizer.spans[:0]
 	if label.Mono || len(label.Runs) > 0 {
 		if allowLCD && !platform.ColorGlyphs(label.Value) {
+			// GDI's ClearType fits the stems of a fixed-pitch line to the pixel grid, which
+			// is what makes terminal text read as solid at small sizes; Direct2D's natural
+			// rendering keeps the outline where the font puts it and leaves the stems
+			// fringed. A line GDI cannot draw faithfully (ligatures, characters a
+			// fixed-pitch font may lack) keeps the Direct2D path.
+			ok, err := rasterizer.gdiGrid(pixels, label, size, width, height)
+			if err != nil {
+				return nil, false, err
+			}
+			if ok {
+				return pixels, true, nil
+			}
 			return pixels, true, rasterizer.gridLCD(pixels, label, size, width, height)
 		}
 		return pixels, false, rasterizer.grid(pixels, label, size, width, height)
