@@ -235,6 +235,11 @@ func RunApplication(start platform.ApplicationStart) error {
 			application.closeAll()
 			continue
 		}
+		// A handled printable shortcut must never reach TranslateMessage:
+		// it would enqueue WM_CHAR even if windowProc consumes WM_KEYDOWN.
+		if offerQueuedShortcut(&event) {
+			continue
+		}
 		translateMessage.Call(uintptr(unsafe.Pointer(&event)))
 		dispatchMessage.Call(uintptr(unsafe.Pointer(&event)))
 	}
@@ -748,17 +753,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		modifiers := modifiers()
 		wanted := state.wantsKeyReleases()
 		if wanted && !state.imeComposing {
-			// Control and Command chords are offered to the application first,
-			// as without releases.
-			if state.offerShortcut(first, second, modifiers) {
-				return 0
-			}
 			if state.keyDown(first, second, modifiers) {
 				return 0
 			}
-		}
-		if !(wanted && !state.imeComposing) && state.offerShortcut(first, second, modifiers) {
-			return 0
 		}
 		if state.textEnabled && !state.imeComposing && !wanted && state.textKey(first, second, modifiers) {
 			return 0

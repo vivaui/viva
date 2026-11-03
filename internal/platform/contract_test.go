@@ -24,3 +24,22 @@ func TestShortcutCandidateOffersControlAndMetaEnterButNeverPlainEnter(t *testing
 		}
 	}
 }
+
+func TestPrintableShortcutsAcceptAnyModifiersAndLeaveNamedKeys(t *testing.T) {
+	for _, event := range []KeyEvent{
+		{Text: "j"}, {Text: "j", Modifiers: input.ModifierAlt},
+		{Text: "J", Modifiers: input.ModifierShift}, {Text: "/"}, {Text: " "},
+	} {
+		if !ShortcutCandidate(event) {
+			t.Errorf("printable shortcut was not offered: %+v", event)
+		}
+	}
+	for _, event := range []KeyEvent{
+		{Key: input.KeyLeft}, {Key: input.KeyF8}, {Key: input.KeyEnter},
+		{Text: "dead"}, {Text: "j", Release: true},
+	} {
+		if ShortcutCandidate(event) {
+			t.Errorf("non-printable event was offered: %+v", event)
+		}
+	}
+}

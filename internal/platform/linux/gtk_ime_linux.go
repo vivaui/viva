@@ -32,6 +32,8 @@ type gtkIME struct {
 	window          surrounding
 	sent            bool
 	hasSources      bool
+	// A direct commit may be a shortcut; composition commits are always text.
+	shortcutKey *platform.KeyEvent
 }
 
 func newGTKIME(w *gtkWindow) *gtkIME {
@@ -77,6 +79,16 @@ func (ime *gtkIME) filtering() bool { return ime.ctx != 0 && ime.active }
 // arrives later as a commit or a preedit change.
 func (ime *gtkIME) filter(event uintptr) bool {
 	return ime.g.imFilterKeypress(ime.ctx, event) != 0
+}
+
+func (ime *gtkIME) filterShortcut(event uintptr, key platform.KeyEvent, directText string) bool {
+	if ime.engineComposing || ime.w.text.state.Composing {
+		return ime.filter(event)
+	}
+	key.Typed = directText
+	ime.shortcutKey = &key
+	defer func() { ime.shortcutKey = nil }()
+	return ime.filter(event)
 }
 
 // sync brings the context's idea of focus and caret in line with the field. It runs after every
@@ -189,6 +201,13 @@ func (ime *gtkIME) deleteSurrounding(offset, count int) uintptr {
 }
 
 func (ime *gtkIME) commit(value string) {
+	if key := ime.shortcutKey; key != nil && !ime.engineComposing && !ime.w.text.state.Composing && value == key.Typed {
+		frame, handled, err := ime.w.config.OnShortcut(*key)
+		ime.w.present(frame, err)
+		if handled || err != nil {
+			return
+		}
+	}
 	ime.engineComposing = false
 	ime.apply(platform.TextEvent{Kind: platform.TextInsert, Text: value})
 }

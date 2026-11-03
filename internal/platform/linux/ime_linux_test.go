@@ -196,6 +196,34 @@ func TestIMEKeyTheEngineDeclinesIsTypedIntoTheField(t *testing.T) {
 	}
 }
 
+func TestPlainShortcutWaitsForTheInputMethodToDeclineItsFirstKey(t *testing.T) {
+	h := newIMEHarness(t)
+	h.focus(t)
+	calls := 0
+	h.ime.router.config.OnShortcut = func(event platform.KeyEvent) (platform.Frame, bool, error) {
+		calls++
+		return platform.Frame{}, event.Text == "n", nil
+	}
+	keymap, event := letterKey(0)
+	if err := h.ime.router.key(keymap, event, false); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 0 || len(h.context.keys) != 1 {
+		t.Fatal("the shortcut ran before the input method received its first key")
+	}
+	h.context.keys[0].done(true)
+	if calls != 0 {
+		t.Fatal("a key consumed by the input method ran a shortcut")
+	}
+	if err := h.ime.router.key(keymap, event, false); err != nil {
+		t.Fatal(err)
+	}
+	h.context.keys[1].done(false)
+	if calls != 1 || h.editor.String() != "" {
+		t.Fatalf("declined key: shortcuts=%d editor=%q", calls, h.editor.String())
+	}
+}
+
 func TestIMEKeysAreDeliveredInTypedOrderWhateverTheAnswerOrder(t *testing.T) {
 	h := newIMEHarness(t)
 	h.focus(t)

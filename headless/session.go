@@ -391,6 +391,9 @@ func (session *Session) Keys(spec string) error {
 	if modifiers&^ui.ModifierShift != 0 {
 		return fmt.Errorf("headless: %q has no text to type", spec)
 	}
+	if err := session.driver.Chord(modifiers, name); !errors.Is(err, app.ErrNoTerminal) {
+		return err
+	}
 	return session.driver.Type(name)
 }
 

@@ -231,8 +231,18 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 	if handled, err := router.modifierPress(keyEvent, keysym, uint32(event.Detail)); handled {
 		return err
 	}
-	if router.config.OnShortcut != nil && platform.ShortcutCandidate(keyEvent) && !router.text.ownsChord(keyEvent) {
-		frame, handled, err := router.config.OnShortcut(keyEvent)
+	shortcutEvent := keyEvent
+	if router.config.OnShortcut != nil && key == input.KeyUnknown {
+		shortcutEvent.Text = keymap.shortcutText(event.Detail, event.State)
+	}
+	if shortcutEvent.Key == input.KeySpace {
+		shortcutEvent.Key, shortcutEvent.Text = input.KeyUnknown, " "
+	}
+	if shortcutEvent.Modifiers&(input.ModifierControl|input.ModifierMeta) != 0 &&
+		router.config.OnShortcut != nil && platform.ShortcutCandidate(shortcutEvent) &&
+		event.State&(keymap.level3Mask()|keymap.masks.modeSwitch) == 0 &&
+		!(router.text != nil && router.text.state.Composing) && !router.text.ownsChord(keyEvent) {
+		frame, handled, err := router.config.OnShortcut(shortcutEvent)
 		if err := router.presentFrame(frame, err); err != nil {
 			return err
 		}
@@ -242,10 +252,15 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 	}
 	// An input method gets the key first, and answers later; a key it does not
 	// take comes back through deliverKey, in the order it was typed.
-	if router.ime != nil && router.ime.processKey(keysym, event, keyEvent) {
+	// Preserve the layout's shortcut identity across an asynchronous IME reply,
+	// while keeping AltGr and Mode_switch entirely on the text path.
+	if event.State&(keymap.level3Mask()|keymap.masks.modeSwitch) != 0 {
+		shortcutEvent = platform.KeyEvent{}
+	}
+	if router.ime != nil && router.ime.processKeyWithShortcut(keysym, event, keyEvent, shortcutEvent) {
 		return nil
 	}
-	return router.deliverTyped(keyEvent, keysym)
+	return router.deliverTypedWithShortcut(keyEvent, keysym, shortcutEvent)
 }
 
 // modifierPress handles a modifier press: a terminal that asked for
@@ -303,11 +318,18 @@ func (router eventRouter) deliverRelease(keyEvent platform.KeyEvent) error {
 // the Compose key, which turn a sequence of keys into one character, and then
 // delivers it. A key that is part of a sequence delivers nothing itself.
 func (router eventRouter) deliverTyped(keyEvent platform.KeyEvent, keysym uint32) error {
+	return router.deliverTypedWithShortcut(keyEvent, keysym, keyEvent)
+}
+
+func (router eventRouter) deliverTypedWithShortcut(keyEvent platform.KeyEvent, keysym uint32, shortcut platform.KeyEvent) error {
+	composing := router.text != nil && router.text.state.Composing
+	composedText := router.text != nil && router.text.compose.pending()
 	if router.text != nil {
 		compose := &router.text.compose
 		if keyEvent.Modifiers&(input.ModifierControl|input.ModifierAlt|input.ModifierMeta) != 0 {
 			compose.reset()
 		} else if composed, handled := compose.feed(keysym); handled {
+			composedText = true
 			if composed == "" {
 				return nil
 			}
@@ -315,6 +337,21 @@ func (router eventRouter) deliverTyped(keyEvent platform.KeyEvent, keysym uint32
 			if keyEvent.Typed != "" || keyEvent.Code != 0 {
 				keyEvent.Typed = composed
 			}
+		}
+	}
+	// This path runs only after the input method declines the key. A character
+	// produced by Compose/dead keys remains text even if it is one bound key.
+	if shortcut.Key == input.KeySpace {
+		shortcut.Key, shortcut.Text = input.KeyUnknown, " "
+	}
+	if !composing && !composedText && shortcut.Modifiers&(input.ModifierControl|input.ModifierMeta) == 0 &&
+		router.config.OnShortcut != nil && platform.ShortcutCandidate(shortcut) && !router.text.ownsChord(keyEvent) {
+		frame, handled, err := router.config.OnShortcut(shortcut)
+		if err := router.presentFrame(frame, err); err != nil {
+			return err
+		}
+		if handled {
+			return nil
 		}
 	}
 	return router.deliverKey(keyEvent)
