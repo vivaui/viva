@@ -11,18 +11,22 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/ui"
 )
 
 type applicationWindow struct {
-	id      uint64
-	title   string
-	panel   bool
-	hidden  bool
-	session *Session
-	closed  func()
+	fullscreen        atomic.Bool
+	fullscreenRequest atomic.Int32
+	invalidator       *app.Invalidator
+	id                uint64
+	title             string
+	panel             bool
+	hidden            bool
+	session           *Session
+	closed            func()
 	// closeRequest is the application's OnCloseRequest, if it set one.
 	closeRequest func(allow func())
 }
@@ -63,6 +67,28 @@ func newApplicationSession(options Options) *applicationSession {
 
 // OpenWindow implements app.Host.
 func (application *applicationSession) OpenWindow(config app.Config, canvas *ui.Canvas, closed func()) (app.WindowControl, error) {
+	entry := &applicationWindow{}
+	if config.Invalidator == nil {
+		config.Invalidator = &app.Invalidator{}
+	}
+	entry.invalidator = config.Invalidator
+	onWake, onFullscreen := config.OnWake, config.OnFullscreen
+	config.OnFullscreen = func(fullscreen bool) {
+		entry.fullscreen.Store(fullscreen)
+		if onFullscreen != nil {
+			onFullscreen(fullscreen)
+		}
+	}
+	config.OnWake = func() {
+		if request := entry.fullscreenRequest.Swap(0); request != 0 {
+			if err := entry.session.driver.SetFullscreen(request == 2); err != nil {
+				panic(err)
+			}
+		}
+		if onWake != nil {
+			onWake()
+		}
+	}
 	session, err := Open(config, canvas, application.options)
 	if err != nil {
 		return nil, err
@@ -70,7 +96,8 @@ func (application *applicationSession) OpenWindow(config app.Config, canvas *ui.
 	application.mu.Lock()
 	id := application.nextID
 	application.nextID++
-	application.windows[id] = &applicationWindow{id: id, title: config.Title, panel: config.WindowMode == app.WindowPanel, session: session, closed: closed, closeRequest: config.OnCloseRequest}
+	entry.id, entry.title, entry.panel, entry.session, entry.closed, entry.closeRequest = id, config.Title, config.WindowMode == app.WindowPanel, session, closed, config.OnCloseRequest
+	application.windows[id] = entry
 	application.active = id
 	application.mu.Unlock()
 	return &headlessWindow{application: application, id: id}, nil
@@ -97,6 +124,29 @@ func (window *headlessWindow) Frame() (ui.Rect, bool) {
 	return entry.session.driver.Frame(), true
 }
 func (window *headlessWindow) Show() { window.application.setHidden(window.id, false) }
+
+func (window *headlessWindow) SetFullscreen(fullscreen bool) error {
+	window.application.mu.Lock()
+	entry := window.application.windows[window.id]
+	window.application.mu.Unlock()
+	if entry == nil {
+		return fmt.Errorf("headless: window is closed")
+	}
+	request := int32(1)
+	if fullscreen {
+		request = 2
+	}
+	entry.fullscreenRequest.Store(request)
+	entry.invalidator.Invalidate()
+	return nil
+}
+
+func (window *headlessWindow) Fullscreen() bool {
+	window.application.mu.Lock()
+	entry := window.application.windows[window.id]
+	window.application.mu.Unlock()
+	return entry != nil && entry.fullscreen.Load()
+}
 
 func (application *applicationSession) setHidden(id uint64, hidden bool) {
 	application.mu.Lock()
@@ -323,12 +373,18 @@ func (application *applicationSession) selectWindow(id uint64) error {
 	return nil
 }
 
-func (application *applicationSession) describe() (uint64, []applicationWindow) {
+type applicationWindowDescription struct {
+	id            uint64
+	title         string
+	panel, hidden bool
+}
+
+func (application *applicationSession) describe() (uint64, []applicationWindowDescription) {
 	application.mu.Lock()
 	defer application.mu.Unlock()
-	windows := make([]applicationWindow, 0, len(application.windows))
+	windows := make([]applicationWindowDescription, 0, len(application.windows))
 	for _, window := range application.windows {
-		windows = append(windows, applicationWindow{id: window.id, title: window.title, panel: window.panel, hidden: window.hidden})
+		windows = append(windows, applicationWindowDescription{id: window.id, title: window.title, panel: window.panel, hidden: window.hidden})
 	}
 	sort.Slice(windows, func(left, right int) bool { return windows[left].id < windows[right].id })
 	return application.active, windows

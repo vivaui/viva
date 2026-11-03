@@ -24,6 +24,47 @@ Every window has its own canvas, paint callback, focus, input state and close ha
 
 With a custom title bar the window buttons are the system's on macOS and are drawn by Viva on Windows and Linux. Either way they cover part of the strip, so ask `app.TitlebarInsets` how much and keep your own content clear of it. `Config.TitlebarHeight` sets the strip's height (where Viva puts its buttons and the traffic lights); the window moves from the row you mark `MovesWindow`, controls inside it keep their own clicks, and a menu or dialog open over it is dismissed by a click there, with the window moving once the pointer drags. `Config.WindowControls` styles the buttons Viva draws so they follow your theme.
 
+## Fullscreen
+
+Call `window.SetFullscreen(true)` to enter native fullscreen and
+`window.SetFullscreen(false)` to leave. The call is safe from any goroutine;
+a nil error means the request was accepted, not that a native animation has
+finished. A host without fullscreen support returns an error wrapping
+`app.ErrUnsupported`.
+
+`Config.OnFullscreen func(bool)` runs on the window thread for application
+requests and system transitions (including macOS's green button and fullscreen
+shortcut). `window.Fullscreen()` is already updated when the callback runs.
+The callback precedes the transition's resize/frame notifications, and Viva
+repaints automatically afterward. Use the callback to switch application
+layout; applications still decide which content to display. Repeated requests
+for the same state do not produce another transition callback.
+
+Windows uses the whole monitor, not the taskbar's work area, and saves the
+previous placement and maximized state. macOS uses AppKit fullscreen Spaces
+and native animations. Linux uses `_NET_WM_STATE_FULLSCREEN` on X11 and GTK's
+native fullscreen API on GTK/Wayland. The window manager owns Linux placement
+restoration. macOS status-area panels are not fullscreen windows. The browser
+host does not implement this capability.
+
+Viva hides its caption buttons and disables titlebar move/resize behavior in
+fullscreen. Native macOS fullscreen chrome remains managed by AppKit.
+Normal window placement is not reported through `OnFrameChange` while
+fullscreen, so persisting normal bounds does not accidentally save a monitor
+rectangle. `Frame()` still describes the current content bounds.
+
+For tests, `Driver.SetFullscreen(bool) error` uses the same callbacks and
+repaints immediately. `Driver.SetFullscreenMonitor(ui.Rect) error` defines
+full monitor bounds in logical pixels (default `(0,0,1920,1080)`); negative
+origins represent monitors left of the primary display. Changing the monitor
+or resizing while fullscreen does not replace the placement restored on exit.
+`Driver.Fullscreen()` reports the simulated state. Driver operations, unlike
+`Window` methods, run on the caller's thread and are not concurrent.
+
+The headless application's `Window.SetFullscreen` queues work for the driver's
+next pump, without a worker or polling. Its command protocol also provides
+`fullscreen on|off` and `fullscreenmonitor x y width height`.
+
 ## A complete example
 
 The program below opens a custom-title-bar window with a Settings button that opens a second window, and refuses to close while a note is unsaved. The strip along the top is an ordinary `Row` padded by `app.TitlebarInsets`, so the title never runs under the window buttons, and the confirmation is an `f.Dialog` declared only while a close is pending:

@@ -16,6 +16,9 @@ var ErrNoWindows = errors.New("app: application opened no windows")
 
 // WindowControl is what a Host gives back for a window it opened. All of them
 // are safe to call from any goroutine and act on the event-loop thread.
+// A fullscreen-capable host additionally implements SetFullscreen(bool) error
+// and Fullscreen() bool. It reports transitions through Config.OnFullscreen
+// before resize/frame callbacks and repaints afterward.
 type WindowControl interface {
 	Close()
 	Hide()
@@ -52,7 +55,8 @@ type Window struct {
 	// minimized mirrors what the platform last reported through OnMinimize.
 	minimized atomic.Bool
 	// maximized mirrors what the platform last reported through OnMaximize.
-	maximized atomic.Bool
+	maximized  atomic.Bool
+	fullscreen atomic.Bool
 }
 
 // Close requests that the native window close. Closing the final window ends
@@ -209,6 +213,13 @@ func (application *Application) OpenWindow(config Config, canvas *ui.Canvas) (*W
 		}
 	}
 	setReopenHandler(&config, window)
+	onFullscreen := config.OnFullscreen
+	config.OnFullscreen = func(fullscreen bool) {
+		window.fullscreen.Store(fullscreen)
+		if onFullscreen != nil {
+			onFullscreen(fullscreen)
+		}
+	}
 	control, err := application.host.OpenWindow(config, canvas, closed)
 	if err != nil {
 		forget()

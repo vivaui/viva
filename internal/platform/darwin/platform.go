@@ -89,21 +89,44 @@ func EditorState(editor *text.Editor) TextState {
 	return platform.EditorState(editor)
 }
 
+func (window *nativeWindow) SetFullscreen(fullscreen bool) error {
+	if window == nil || window.closed.Load() {
+		return fmt.Errorf("darwin: window is closed")
+	}
+	value := C.int(0)
+	if fullscreen {
+		value = 1
+	}
+	status := C.viva_application_set_fullscreen(window.token, value)
+	if status < 0 {
+		return platform.ErrFullscreenUnsupported
+	}
+	if status == 0 {
+		return fmt.Errorf("darwin: fullscreen window is unavailable")
+	}
+	return nil
+}
+
+func (window *nativeWindow) Fullscreen() bool {
+	return window != nil && !window.closed.Load() && C.viva_application_fullscreen(window.token) != 0
+}
+
 type runState struct {
-	application      *nativeApplication
-	callbackHandle   cgo.Handle
-	onClosed         func()
-	waker            *platform.Waker
-	closed           bool
-	pointerHandler   PointerHandler
-	pressAt          func(x, y float32) platform.PressKind
-	resizeHandler    ResizeHandler
-	frameHandler     platform.FrameChangeHandler
-	minimizeHandler  platform.MinimizeHandler
-	onReopen         func()
-	keyHandler       KeyHandler
-	focusLostHandler platform.FocusLostHandler
-	accessibility    platform.AccessibilityHandler
+	application       *nativeApplication
+	callbackHandle    cgo.Handle
+	onClosed          func()
+	waker             *platform.Waker
+	closed            bool
+	pointerHandler    PointerHandler
+	pressAt           func(x, y float32) platform.PressKind
+	resizeHandler     ResizeHandler
+	frameHandler      platform.FrameChangeHandler
+	minimizeHandler   platform.MinimizeHandler
+	fullscreenHandler func(bool)
+	onReopen          func()
+	keyHandler        KeyHandler
+	focusLostHandler  platform.FocusLostHandler
+	accessibility     platform.AccessibilityHandler
 	// nodes is the accessibility tree last presented, for turning the UTF-16
 	// ranges AppKit sends back into code points. It is the application's slice,
 	// valid on the thread that presents it.
@@ -287,7 +310,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 
 	state := &runState{application: application, onClosed: config.OnClosed, waker: config.Waker, closeHandler: config.OnCloseRequest, pressAt: config.PressAt,
-		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, onReopen: config.OnReopen}
+		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen}
 	{
 		state.captureRectangleLayers(config.Rectangles)
 		if config.OnPointer != nil {

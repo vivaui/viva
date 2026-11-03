@@ -226,7 +226,7 @@ func (state *linuxWindowState) syncMargin() (bool, error) {
 		return false, nil
 	}
 	margin := uint32(0)
-	if !win.frame.maximized {
+	if !win.frame.maximized && !win.fullscreen.Load() {
 		margin = frameMargin(win.displayScale())
 	}
 	if margin == win.margin {

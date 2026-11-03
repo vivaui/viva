@@ -239,6 +239,9 @@ func (w *gtkWindow) preciseSource(event uintptr) bool {
 // from an edge, or prepares the move of the window a press on its title bar means. It reports that
 // the press is the window manager's and not the application's.
 func (w *gtkWindow) frameDrag(e *gdkEventButton, x, y float32) bool {
+	if w.fullscreen.Load() {
+		return false
+	}
 	if w.config.WindowMode != platform.WindowCustomTitlebar {
 		return false
 	}
@@ -349,6 +352,15 @@ func (w *gtkWindow) focusChanged(focused bool) {
 
 // stateChanged follows the window being minimized and maximized.
 func (w *gtkWindow) stateChanged(e *gdkEventWindowState) {
+	if e.Changed&gdkWindowStateFullscreen != 0 {
+		fullscreen := e.New&gdkWindowStateFullscreen != 0
+		if w.observeFullscreen(fullscreen) {
+			if w.config.OnRedraw != nil {
+				w.redraw()
+			}
+		}
+
+	}
 	if e.Changed&gdkWindowStateMaximized != 0 {
 		w.maximized = e.New&gdkWindowStateMaximized != 0
 		w.regionsDirty = true
@@ -368,6 +380,26 @@ func (w *gtkWindow) stateChanged(e *gdkEventWindowState) {
 		if w.config.OnMinimize != nil {
 			w.config.OnMinimize(w.minimized)
 		}
+	}
+}
+
+func (w *gtkWindow) observeFullscreen(fullscreen bool) bool {
+	if w.fullscreen.Swap(fullscreen) == fullscreen {
+		return false
+	}
+	w.pointer.pending = false
+	w.regionsDirty = true
+	if w.config.OnFullscreen != nil {
+		w.config.OnFullscreen(fullscreen)
+	}
+	return true
+}
+
+// GTK can deliver allocation before its queued window-state event. Read the
+// toplevel's already-updated native state before forwarding resize or frame.
+func (w *gtkWindow) syncFullscreen() {
+	if window := w.g.widgetGetWindow(w.toplevel); window != 0 {
+		w.observeFullscreen(w.g.gdkWindowState(window)&gdkWindowStateFullscreen != 0)
 	}
 }
 

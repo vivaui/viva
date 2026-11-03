@@ -319,7 +319,9 @@ func (session *Session) Image() (*image.RGBA, error) {
 	if err != nil {
 		return nil, err
 	}
-	drawWindowChrome(picture, session.config, session.options.Scale)
+	if !session.driver.Fullscreen() {
+		drawWindowChrome(picture, session.config, session.options.Scale)
+	}
 	return picture, nil
 }
 

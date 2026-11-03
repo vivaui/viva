@@ -161,6 +161,7 @@ func vivaRedrawRequested(handle C.uintptr_t, view unsafe.Pointer) {
 			state.err = fmt.Errorf("darwin: redraw handler panicked: %v", recovered)
 			C.viva_view_close(view)
 		}
+
 	}()
 
 	// A wake-up repaint is not a live resize, so the window thread need not
@@ -172,6 +173,24 @@ func vivaRedrawRequested(handle C.uintptr_t, view unsafe.Pointer) {
 	if err != nil {
 		state.err = err
 		C.viva_view_close(view)
+	}
+}
+
+//export vivaWindowFullscreen
+func vivaWindowFullscreen(handle C.uintptr_t, view unsafe.Pointer, fullscreen C.int) {
+	state := cgo.Handle(handle).Value().(*runState)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			platform.ReportFault("darwin: AppKit fullscreen callback", recovered)
+			state.err = fmt.Errorf("darwin: fullscreen handler panicked: %v", recovered)
+			C.viva_view_close(view)
+		}
+	}()
+	if state.fullscreenHandler != nil {
+		state.fullscreenHandler(fullscreen != 0)
+	}
+	if state.redrawHandler != nil {
+		vivaRedrawRequested(handle, view)
 	}
 }
 

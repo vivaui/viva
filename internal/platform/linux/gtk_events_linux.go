@@ -62,9 +62,10 @@ const (
 
 // Window states of GdkEventWindowState.
 const (
-	gdkWindowStateIconified = 1 << 1
-	gdkWindowStateMaximized = 1 << 2
-	gdkWindowStateFocused   = 1 << 7
+	gdkWindowStateIconified  = 1 << 1
+	gdkWindowStateMaximized  = 1 << 2
+	gdkWindowStateFullscreen = 1 << 4
+	gdkWindowStateFocused    = 1 << 7
 )
 
 // Scroll directions of GdkEventScroll.

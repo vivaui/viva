@@ -19,6 +19,8 @@ import (
 )
 
 type window struct {
+	fullscreen                atomic.Bool
+	fullscreenHandler         func(bool)
 	minimumSize               *minimumSizeCache
 	mu                        sync.Mutex
 	api                       *xcbAPI
@@ -169,6 +171,8 @@ const (
 	commandQuit
 	commandStatus
 	commandDesktop
+	commandEnterFullscreen
+	commandExitFullscreen
 )
 
 type nativeWindow struct {
@@ -483,6 +487,7 @@ func (state *linuxWindowState) nextEvent() unsafe.Pointer {
 // and notifies the application if it changed.
 func (state *linuxWindowState) syncMaximized() (bool, error) {
 	win := state.win
+	beforeFullscreen := win.fullscreen.Load()
 	maximized, err := win.readMaximized()
 	if err != nil {
 		return false, err
@@ -494,7 +499,8 @@ func (state *linuxWindowState) syncMaximized() (bool, error) {
 			maximized = win.frame.maximizeTarget
 		}
 	}
-	return win.setMaximized(maximized), nil
+	changed := win.setMaximized(maximized)
+	return changed || beforeFullscreen != win.fullscreen.Load(), nil
 }
 
 func (application *linuxApplication) contains(target *linuxWindowState) bool {
@@ -578,7 +584,7 @@ func (application *linuxApplication) fail(err error) {
 // the position (the minimum-size constraint) shares one query.
 func (state *linuxWindowState) reportFrame() (int32, int32, bool) {
 	win, config := state.win, state.config
-	if config.OnFrameChange == nil || win.frame.maximized {
+	if config.OnFrameChange == nil || win.frame.maximized || win.fullscreen.Load() {
 		return 0, 0, false
 	}
 	x, y := win.contentOrigin()
@@ -677,7 +683,7 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		width, height := uint32(configure.Width), uint32(configure.Height)
 		marginChanged := false
 		maximizedChanged := false
-		if win.frameWanted || win.maximizeHandler != nil {
+		if win.frame.stateAtom != 0 {
 			var err error
 			maximizedChanged, err = state.syncMaximized()
 			if err != nil {
@@ -1014,9 +1020,7 @@ func openWindow(config platform.Config) (*window, error) {
 	// keyboard is its own, and gaining it is when a desktop that does not
 	// announce its light or dark switch is asked again which it is.
 	eventMask |= xcbEventFocusChange
-	if config.WindowMode == platform.WindowCustomTitlebar || config.OnMinimize != nil || config.OnMaximize != nil || config.MinWidth > 0 || config.MinHeight > 0 {
-		eventMask |= xcbEventPropertyChange
-	}
+	eventMask |= xcbEventPropertyChange
 	if config.OnPointer != nil {
 		eventMask |= xcbEventButtonPress | xcbEventButtonRelease | xcbEventEnterWindow | xcbEventLeaveWindow | xcbEventPointerMotion
 	}
@@ -1044,7 +1048,7 @@ func openWindow(config platform.Config) (*window, error) {
 		hints := [5]uint32{2, 0, 0, 0, 0}
 		api.changeProperty(connection, xcbPropertyReplace, win.id, motifHints, motifHints, 32, uint32(len(hints)), unsafe.Pointer(&hints[0]))
 	}
-	if config.WindowMode == platform.WindowCustomTitlebar || config.OnMaximize != nil {
+	{
 		win.moveResizeAtom, err = api.atom(connection, "_NET_WM_MOVERESIZE")
 		if err == nil {
 			err = win.openFrame()
@@ -1060,6 +1064,7 @@ func openWindow(config platform.Config) (*window, error) {
 	if config.OnMaximize != nil {
 		win.maximizeHandler = config.OnMaximize
 	}
+	win.fullscreenHandler = config.OnFullscreen
 	if config.OnMinimize != nil {
 		win.wmStateAtom, err = api.atom(connection, "WM_STATE")
 		if err != nil {

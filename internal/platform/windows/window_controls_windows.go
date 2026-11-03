@@ -154,7 +154,7 @@ func (state *windowState) hitTest(screenX, screenY int32) uintptr {
 // shows its snap layouts when the pointer rests on what the window calls its
 // maximize button.
 func (state *windowState) overMaximizeButton(x, y, width float32) bool {
-	return state.config.Actions != nil &&
+	return !state.fullscreen.Load() && state.config.Actions != nil &&
 		platform.MaximizeButtonAt(x, y, width, state.config.TitlebarStrip()) &&
 		state.pressAt(x, y) == platform.PressControl
 }

@@ -65,6 +65,9 @@ type Config struct {
 	// OnMaximize, when set, runs on the window thread when the window is
 	// maximized or restored.
 	OnMaximize MaximizeHandler
+	// OnFullscreen reports observed native transitions on the window thread.
+	// The host must request a redraw after delivering it.
+	OnFullscreen func(bool)
 	// OnReopen handles a native reopen request, such as a macOS Dock click.
 	// When set, it must show the window; otherwise the adapter shows it directly.
 	OnReopen   func()
@@ -177,6 +180,9 @@ var (
 // no GPU is the usual case, and it still runs with a software driver; a server with
 // no display at all needs the headless build instead.
 var ErrNoGraphics = errors.New("platform: no graphics driver")
+
+// ErrFullscreenUnsupported means this host or window kind cannot go fullscreen.
+var ErrFullscreenUnsupported = errors.New("platform: fullscreen is unsupported")
 
 // ErrStatusAreaUnavailable is returned by AddStatusItem when the desktop has no
 // status area to put an icon in, as a Linux session without a StatusNotifier

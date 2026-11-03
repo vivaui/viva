@@ -144,6 +144,12 @@ func (win *window) markPanel(config platform.Config, x, y int16) error {
 func (state *linuxWindowState) command(command uint32) error {
 	win := state.win
 	switch command {
+	case commandEnterFullscreen, commandExitFullscreen:
+		action := uint32(0) // _NET_WM_STATE_REMOVE
+		if command == commandEnterFullscreen {
+			action = 1 // _NET_WM_STATE_ADD
+		}
+		win.sendToRoot(win.frame.stateAtom, [5]uint32{action, win.frame.fullscreen, 0, sourceApp})
 	case commandHide:
 		state.hidden = true
 		win.api.unmapWindow(win.connection, win.id)

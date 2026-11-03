@@ -53,6 +53,8 @@ import (
 //	                          manager would, and call OnMinimize
 //	maximize on|off           report the window as maximized or restored, as the window
 //	                          manager would, and call OnMaximize
+//	fullscreen on|off         enter/leave a simulated native fullscreen window
+//	fullscreenmonitor x y w h full monitor bounds in logical pixels
 //	wait MS                    advance the animation clock
 //	settle [MS]                apply background work until quiet for MS (default 100)
 //	waitfor "text" [MS]        wait up to MS (default 5000) real ms for text on screen;
@@ -366,6 +368,23 @@ func execute(session *Session, line string) (reply string, quit bool) {
 		default:
 			return finish(fmt.Errorf("maximize takes on or off"), "")
 		}
+	case "fullscreen":
+		switch rest {
+		case "on":
+			return finish(session.driver.SetFullscreen(true), "")
+		case "off":
+			return finish(session.driver.SetFullscreen(false), "")
+		default:
+			return finish(fmt.Errorf("fullscreen takes on or off"), "")
+		}
+	case "fullscreenmonitor":
+		bounds, err := numbers(4)
+		if err != nil {
+			return finish(err, "")
+		}
+		return finish(session.driver.SetFullscreenMonitor(ui.Rect{
+			X: float32(bounds[0]), Y: float32(bounds[1]), Width: float32(bounds[2]), Height: float32(bounds[3]),
+		}), "")
 	case "wait":
 		milliseconds, err := numbers(1)
 		if err != nil {

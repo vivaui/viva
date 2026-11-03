@@ -91,6 +91,8 @@ WebView and no bundled rendering runtime.
   and custom titlebar (transparent title bar, full-height content, the window
   moves from the regions the page declares). Window close can be intercepted
   by the application.
+- Native fullscreen through `Window.SetFullscreen`, with `Config.OnFullscreen`
+  reporting system transitions and restoring normal window placement on exit.
 - Explicit multi-window applications through `app.RunApplication`: every
   window owns independent retained paint, focus, input, text, invalidation, and
   close state, and the native loop exits after the final window closes.

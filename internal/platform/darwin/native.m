@@ -473,6 +473,7 @@ extern void vivaFrameChanged(
 );
 
 extern void vivaWindowMinimized(uintptr_t callbackHandle, void *view, int minimized);
+extern void vivaWindowFullscreen(uintptr_t callbackHandle, void *view, int fullscreen);
 extern int vivaWindowReopenRequested(uintptr_t callbackHandle, void *view);
 
 extern void vivaTextInput(
@@ -3334,6 +3335,7 @@ static void viva_encode_scene(
      hasMarkedText:(BOOL)hasMarkedText;
 - (int)updateTextInput:(viva_text_input_config)textInput;
 - (void)setTitlebarHeight:(CGFloat)height;
+- (void)cancelTitlebarDrag;
 - (int)moveTextInputToFrame:(NSRect)frame;
 - (void)restartCaretBlink;
 - (void)stopCaretBlink;
@@ -3725,13 +3727,18 @@ static int viva_navigation_command(SEL selector) {
     _titlebarHeight = height > 0 ? height : VIVA_DEFAULT_TITLEBAR_HEIGHT;
 }
 
+- (void)cancelTitlebarDrag {
+    _titlebarDragPending = NO;
+}
+
 - (void)mouseDown:(NSEvent *)event {
     // A press in Viva's own content takes the keyboard back from a page that had it.
     if (self.window.firstResponder != self) {
         [self.window makeFirstResponder:self];
     }
     int press = VIVA_PRESS_CLIENT;
-    if ((_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR || _windowMode == VIVA_WINDOW_FRAMELESS) && _callbackHandle != 0) {
+    if ((self.window.styleMask & NSWindowStyleMaskFullScreen) == 0 &&
+        (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR || _windowMode == VIVA_WINDOW_FRAMELESS) && _callbackHandle != 0) {
         // The application declares where the window moves from (a move region).
         NSPoint local = [self convertPoint:event.locationInWindow fromView:nil];
         press = vivaPressAt(_callbackHandle, local.x, self.bounds.size.height - local.y);
@@ -5170,6 +5177,8 @@ static void viva_set_secure_event_input(BOOL on) {
     int _windowMode;
     CGFloat _titlebarHeight;
     NSMutableArray<NSView *> *_titlebarWatched; /* views whose frame changes re-center the traffic lights */
+    BOOL _fullscreenTarget;
+    BOOL _fullscreenTransition;
     BOOL _closeInterceptEnabled;
     BOOL _fileDropEnabled;
     BOOL _closeConfirmed;
@@ -5205,6 +5214,8 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)confirmClose;
 - (void)hideWindow;
 - (void)showWindow;
+- (void)setFullscreen:(BOOL)fullscreen;
+- (BOOL)isFullscreen;
 - (void)reopenWindow;
 - (BOOL)isPanel;
 - (BOOL)isHidden;
@@ -5335,6 +5346,9 @@ static void viva_set_secure_event_input(BOOL on) {
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screenParametersChanged:)
                                                  name:NSApplicationDidChangeScreenParametersNotification object:nil];
     _window.releasedWhenClosed = NO;
+    if (_windowMode != VIVA_WINDOW_PANEL) {
+        _window.collectionBehavior |= NSWindowCollectionBehaviorFullScreenPrimary;
+    }
     if (_windowMode == VIVA_WINDOW_PANEL) {
         _window.minSize = NSMakeSize(1, 1);
         _window.backgroundColor = [NSColor clearColor];
@@ -5670,7 +5684,8 @@ static void viva_set_secure_event_input(BOOL on) {
  * the same one contentFrame: gives Frame: top-left origin, y down, logical
  * pixels. A live drag reports every intermediate position. */
 - (void)reportFrameChange {
-    if (!_frameEventsEnabled || !_running || _callbackHandle == 0 || _window == nil) {
+    if (!_frameEventsEnabled || !_running || _callbackHandle == 0 || _window == nil ||
+        _fullscreenTransition || [self isFullscreen]) {
         return;
     }
     double frame[4];
@@ -5699,10 +5714,74 @@ static void viva_set_secure_event_input(BOOL on) {
     }
 }
 
+- (BOOL)isFullscreen {
+    return (_window.styleMask & NSWindowStyleMaskFullScreen) != 0;
+}
+
+- (void)setFullscreen:(BOOL)fullscreen {
+    _fullscreenTarget = fullscreen;
+    if (!_fullscreenTransition && [self isFullscreen] != fullscreen) {
+        _fullscreenTransition = YES;
+        [_window toggleFullScreen:nil];
+    }
+}
+
+- (void)windowWillEnterFullScreen:(NSNotification *)notification {
+    (void)notification;
+    if ([_window.contentView isKindOfClass:[VivaMetalView class]]) {
+        [(VivaMetalView *)_window.contentView cancelTitlebarDrag];
+    }
+    if (!_fullscreenTransition) {
+        _fullscreenTarget = YES;
+    }
+    _fullscreenTransition = YES;
+    if (_running && _callbackHandle != 0) {
+        vivaWindowFullscreen(_callbackHandle, _window.contentView, 1);
+    }
+}
+
+- (void)windowWillExitFullScreen:(NSNotification *)notification {
+    (void)notification;
+    if (!_fullscreenTransition) {
+        _fullscreenTarget = NO;
+    }
+    _fullscreenTransition = YES;
+    if (_running && _callbackHandle != 0) {
+        vivaWindowFullscreen(_callbackHandle, _window.contentView, 0);
+    }
+}
+
+- (void)windowDidEnterFullScreen:(NSNotification *)notification {
+    (void)notification;
+    _fullscreenTransition = NO;
+    [self setFullscreen:_fullscreenTarget];
+}
+
 - (void)windowDidExitFullScreen:(NSNotification *)notification {
     (void)notification;
+    _fullscreenTransition = NO;
     if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
         [self keepTrafficLightsCentered];
+    }
+    [self setFullscreen:_fullscreenTarget];
+    [self reportFrameChange];
+}
+
+- (void)windowDidFailToEnterFullScreen:(NSWindow *)window {
+    (void)window;
+    _fullscreenTransition = NO;
+    _fullscreenTarget = NO;
+    if (_running && _callbackHandle != 0) {
+        vivaWindowFullscreen(_callbackHandle, _window.contentView, 0);
+    }
+}
+
+- (void)windowDidFailToExitFullScreen:(NSWindow *)window {
+    (void)window;
+    _fullscreenTransition = NO;
+    _fullscreenTarget = YES;
+    if (_running && _callbackHandle != 0) {
+        vivaWindowFullscreen(_callbackHandle, _window.contentView, 1);
     }
 }
 
@@ -6296,6 +6375,39 @@ int viva_application_window_frame(void *window, double *out) {
 
 void viva_application_hide_window(void *window) {
     viva_post_window_event(VIVA_HIDE_EVENT, window);
+}
+
+int viva_application_set_fullscreen(void *window, int fullscreen) {
+    __block int found = 0;
+    void (^work)(void) = ^{
+        VivaAppDelegate *delegate = viva_find_window(window);
+        if (delegate != nil && [delegate isPanel]) {
+            found = -1;
+        } else if (delegate != nil) {
+            found = 1;
+            [delegate setFullscreen:fullscreen != 0];
+        }
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return found;
+}
+
+int viva_application_fullscreen(void *window) {
+    __block int fullscreen = 0;
+    void (^work)(void) = ^{
+        VivaAppDelegate *delegate = viva_find_window(window);
+        fullscreen = delegate != nil && [delegate isFullscreen];
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return fullscreen;
 }
 
 void viva_application_show_window(void *window) {

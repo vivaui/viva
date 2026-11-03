@@ -23,6 +23,7 @@ import (
 // painter reconciles immediate canvas paints with the retained scene and the
 // native label list, so an unchanged repaint performs no renderer work.
 type painter struct {
+	fullscreen bool
 	paint      func(canvas *ui.Canvas, size ui.Size)
 	onPointer  func(ui.PointerEvent) ui.EventResult
 	onKey      func(ui.KeyEvent) ui.EventResult
@@ -210,6 +211,9 @@ func (painter *painter) resize(size platform.Size) (platform.Frame, error) {
 // whether the platform moves the window from there, now or once the pointer
 // drags, or the application takes it (see input.Router.PressAt).
 func (painter *painter) pressAt(x, y float32) platform.PressKind {
+	if painter.fullscreen {
+		return platform.PressClient
+	}
 	return painter.router.PressAt(x, y)
 }
 
@@ -402,7 +406,7 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 
 // isWindowControl reports whether id is one of the window buttons Viva draws.
 func (painter *painter) isWindowControl(id ui.ID) bool {
-	if painter.controls == nil {
+	if painter.controls == nil || painter.fullscreen {
 		return false
 	}
 	_, ok := painter.controls.control(id)
@@ -793,7 +797,7 @@ func (painter *painter) paintCanvas() {
 	painter.canvas.SetScroll(painter.scrollX, painter.scrollY)
 	painter.canvas.BeginFrame()
 	painter.paint(painter.canvas, painter.size)
-	if painter.controls != nil {
+	if painter.controls != nil && !painter.fullscreen {
 		painter.controls.paint(painter.canvas, painter.size)
 	}
 	painter.canvas.EndFrame()

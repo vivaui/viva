@@ -31,6 +31,7 @@ const (
 	wmSetCursor        = 32
 	wmGetObject        = 61
 	wmNCCreate         = 129
+	wmDisplayChange    = 126
 	wmNCHitTest        = 132
 	wmKeyDown          = 256
 	wmChar             = 258
@@ -65,6 +66,10 @@ const (
 )
 
 type windowState struct {
+	fullscreen          atomic.Bool
+	fullscreenChanging  bool
+	fullscreenStyle     uint32
+	fullscreenPlacement windowPlacement
 	backdropState
 	application                            *windowsApplication
 	config                                 platform.Config
@@ -152,7 +157,7 @@ type nativeWindow struct {
 // reportFrame tells the application where its content area is now, in logical
 // pixels of the window's display. It reports only changes.
 func (state *windowState) reportFrame() {
-	if !state.ready || state.config.OnFrameChange == nil || state.window == 0 || state.minimized || state.zoomed() {
+	if !state.ready || state.config.OnFrameChange == nil || state.window == 0 || state.minimized || state.zoomed() || state.fullscreen.Load() || state.fullscreenChanging {
 		return
 	}
 	var client rect
@@ -393,6 +398,25 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 	}()
 	switch kind {
+	case wmFullscreen:
+		state.setFullscreen(first != 0)
+		return 0
+	case wmSysCommand:
+		if state.fullscreen.Load() {
+			switch first & 0xfff0 {
+			case 0xf000, 0xf010, scMaximize: // size, move, maximize
+				return 0
+			case scRestore:
+				if !state.minimized {
+					return 0
+				}
+			}
+		}
+	case wmDisplayChange:
+		if state.fullscreen.Load() {
+			state.fitFullscreenMonitor()
+			return 0
+		}
 	case wmGetMinMaxInfo:
 		defaultWindowProc.Call(window, kind, first, second)
 		state.constrainTracking((*minMaxInfo)(pointer(second)))
@@ -454,6 +478,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.runAccessibility()
 		return 0
 	case wmNCCalcSize:
+		if state.fullscreen.Load() {
+			return 0
+		}
 		if state.customFrame() {
 			return state.calcSize(first, second)
 		}
@@ -599,7 +626,11 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.accessibility.setScale(state.scale)
 		bounds := (*rect)(pointer(second))
 		resizes := state.resizeEvents
-		setWindowPosition.Call(window, 0, uintptr(bounds.Left), uintptr(bounds.Top), uintptr(bounds.Right-bounds.Left), uintptr(bounds.Bottom-bounds.Top), 0x14)
+		if state.fullscreen.Load() {
+			state.fitFullscreenMonitor()
+		} else {
+			setWindowPosition.Call(window, 0, uintptr(bounds.Left), uintptr(bounds.Top), uintptr(bounds.Right-bounds.Left), uintptr(bounds.Bottom-bounds.Top), 0x14)
+		}
 		state.reportFrame()
 		if state.resizeEvents == resizes && state.config.OnResize != nil && state.ready {
 			// The window kept its pixel size, so no WM_SIZE told the application the scale
@@ -761,6 +792,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.handleCaretTimer(first)
 		return 0
 	case wmNCHitTest:
+		if state.fullscreen.Load() {
+			return htClient
+		}
 		if state.customFrame() {
 			if code := state.hitTest(int32(int16(second)), int32(int16(second>>16))); code != 0 {
 				return code

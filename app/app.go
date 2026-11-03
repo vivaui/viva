@@ -171,6 +171,11 @@ type Config struct {
 	// window controls. On macOS, windows zoom or enter full screen instead,
 	// and this callback is not invoked.
 	OnMaximize func(maximized bool)
+
+	// OnFullscreen runs on the window thread after the host observes a
+	// fullscreen transition, including changes initiated by the system.
+	// Window.Fullscreen already reflects the new state; Viva repaints afterward.
+	OnFullscreen func(fullscreen bool)
 	// TextInput resolves the currently focused text-field hit into one
 	// application-owned native editor. Returning nil disables native editing.
 	// The callback runs on the window thread after painting.

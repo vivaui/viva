@@ -221,6 +221,32 @@ moves). `VIVA_SCALE` overrides it for Viva alone, snapped to quarters and kept b
 Linux: it draws a window at 125% or 150% on a display at 100%, which is how fractional scaling
 was measured. The renderer puts every label texture and image on a whole device pixel.
 
+## Fullscreen windows
+
+`Window.SetFullscreen` requests native fullscreen; `Config.OnFullscreen` publishes
+the transition before resize/frame callbacks, and `Window.Fullscreen` is already
+updated inside that callback. Driver and headless-host tests cover ordering,
+idempotence, normal-placement restoration, full monitor bounds, caption-button
+removal, inert move regions, reentrant requests, and concurrent window state reads.
+Those tests do not establish native window-manager behavior.
+
+Native acceptance still requires these runs on real desktops:
+
+- Windows: enter from normal and maximized placement, cover the monitor rather
+  than the taskbar work area, leave and restore the prior placement/show state;
+  try edge resizing, titlebar dragging/double-clicking, minimize/restore, monitor
+  removal, and a DPI change while fullscreen.
+- macOS: use both the application API and native green-button/system shortcuts;
+  verify Spaces animation, callback-before-resize ordering, rapid opposite
+  requests, failed transitions, and normal-placement restoration.
+- Linux X11 and GTK/Wayland: verify window-manager-initiated changes, full monitor
+  coverage, caption/frame/input removal, display changes, and restoration of
+  maximized and normal placement. Behavior depends on the compositor/WM.
+
+The existing hidden AppKit fixture tests compile the callback bridge; they do
+not exercise real fullscreen transitions. No native fullscreen visual or
+physical keyboard behavior is claimed from the headless tests.
+
 ## Window frame on Linux
 
 A `WindowCustomTitlebar` window has no frame from the window manager, so on X11 it has

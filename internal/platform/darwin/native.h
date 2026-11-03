@@ -354,6 +354,8 @@ void *viva_application_open_window(viva_window_config config);
  * coordinates and returns 1, or returns 0 when there is no such window. Safe from
  * any thread; off the main thread it waits for it. */
 int viva_application_window_frame(void *window, double *out);
+int viva_application_set_fullscreen(void *window, int fullscreen);
+int viva_application_fullscreen(void *window);
 int viva_application_run(void);
 void viva_application_close_all(void);
 void viva_application_close_window(void *window);

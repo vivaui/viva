@@ -58,6 +58,8 @@ type gtkLibrary struct {
 	windowMaximize      func(window uintptr)
 	windowUnmaximize    func(window uintptr)
 	windowIsMaximized   func(window uintptr) int32
+	windowFullscreen    func(window uintptr)
+	windowUnfullscreen  func(window uintptr)
 	windowPresent       func(window uintptr)
 	windowGetPosition   func(window uintptr, x, y *int32)
 	windowGetSize       func(window uintptr, width, height *int32)
@@ -156,6 +158,7 @@ type gtkLibrary struct {
 	gdkWindowInputShape  func(window, region uintptr, dx, dy int32)
 	gdkWindowNative      func(window uintptr)
 	gdkWindowScale       func(window uintptr) int32
+	gdkWindowState       func(window uintptr) uint32
 	gdkWindowSetOpaque   func(window, region uintptr)
 	gdkKeyvalToUnicode   func(keyval uint32) uint32
 	gdkKeymapDefault     func() uintptr
@@ -323,6 +326,8 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.windowMaximize, "gtk_window_maximize")
 	b(&g.windowUnmaximize, "gtk_window_unmaximize")
 	b(&g.windowIsMaximized, "gtk_window_is_maximized")
+	b(&g.windowFullscreen, "gtk_window_fullscreen")
+	b(&g.windowUnfullscreen, "gtk_window_unfullscreen")
 	b(&g.windowPresent, "gtk_window_present")
 	b(&g.windowGetPosition, "gtk_window_get_position")
 	b(&g.windowGetSize, "gtk_window_get_size")
@@ -416,6 +421,7 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.gdkWindowInputShape, "gdk_window_input_shape_combine_region")
 	b(&g.gdkWindowNative, "gdk_window_ensure_native")
 	b(&g.gdkWindowScale, "gdk_window_get_scale_factor")
+	b(&g.gdkWindowState, "gdk_window_get_state")
 	b(&g.gdkWindowSetOpaque, "gdk_window_set_opaque_region")
 	b(&g.gdkKeyvalToUnicode, "gdk_keyval_to_unicode")
 	b(&g.gdkKeymapDefault, "gdk_keymap_get_default")

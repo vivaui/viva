@@ -136,8 +136,7 @@ func (win *window) setMaximized(maximized bool) bool {
 }
 
 // readMaximized reports whether the window manager lists the window as
-// maximized in both directions, or as fullscreen, which fills the screen as a
-// maximized window does.
+// maximized in both directions. Fullscreen is a separate native state.
 func (win *window) readMaximized() (bool, error) {
 	cookie := win.api.getProperty(win.connection, 0, win.id, win.frame.stateAtom, xcbAtomAtom, 0, 64)
 	var nativeError unsafe.Pointer
@@ -155,15 +154,21 @@ func (win *window) readMaximized() (bool, error) {
 	defer win.api.free(unsafe.Pointer(reply))
 	length := win.api.getPropertyLength(reply)
 	if reply.Format != 32 || length <= 0 {
+		win.observeFullscreen(false)
 		return false, nil
 	}
+	return win.observeWindowState(unsafe.Slice((*uint32)(win.api.getPropertyValue(reply)), int(length)/4)), nil
+}
+
+func (win *window) observeWindowState(atoms []uint32) bool {
 	var vertical, horizontal, fullscreen bool
-	for _, atom := range unsafe.Slice((*uint32)(win.api.getPropertyValue(reply)), int(length)/4) {
+	for _, atom := range atoms {
 		vertical = vertical || atom == win.frame.maximizedVertical
 		horizontal = horizontal || atom == win.frame.maximizedHorizontal
 		fullscreen = fullscreen || atom == win.frame.fullscreen
 	}
-	return vertical && horizontal || fullscreen, nil
+	win.observeFullscreen(fullscreen)
+	return vertical && horizontal
 }
 
 // propertyChanged follows the window state, and reports whether the maximized
@@ -188,12 +193,14 @@ func (win *window) propertyChanged(event *xcbPropertyEvent) (bool, error) {
 	if event.Atom != win.frame.stateAtom {
 		return false, nil
 	}
+	beforeFullscreen := win.fullscreen.Load()
 	maximized, err := win.readMaximized()
 	if err != nil {
 		return false, err
 	}
 	win.frame.maximizePending = false
-	return win.setMaximized(maximized), nil
+	changed := win.setMaximized(maximized)
+	return changed || beforeFullscreen != win.fullscreen.Load(), nil
 }
 
 // readMinimized reports whether WM_STATE says the window is iconic. A manager
@@ -231,6 +238,9 @@ func moveResizeDirection(edge platform.WindowEdge) uint32 { return uint32(edge) 
 // takes it to dismiss its overlay, and the window moves only if the pointer
 // drags.
 func (win *window) beginWindowMove(config platform.Config, event *xcbInputEvent) bool {
+	if win.fullscreen.Load() {
+		return false
+	}
 	if config.WindowMode != platform.WindowCustomTitlebar || event.Detail != xcbButtonLeft {
 		return false
 	}

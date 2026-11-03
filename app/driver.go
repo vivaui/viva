@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
@@ -44,9 +45,16 @@ type Driver struct {
 
 	// origin is where Config.Origin put the content area; MoveWindow changes it
 	// as a window manager would.
-	origin    ui.Point
-	minimized bool
-	maximized bool
+	origin             ui.Point
+	minimized          bool
+	maximized          bool
+	fullscreen         bool
+	fullscreenRestore  ui.Rect
+	fullscreenMonitor  ui.Rect
+	fullscreenChanging bool
+	fullscreenTarget   bool
+	frameMu            sync.Mutex
+	frame              ui.Rect
 
 	now       time.Duration
 	animating bool
@@ -99,6 +107,7 @@ func NewDriver(config Config, canvas *ui.Canvas) (*Driver, error) {
 	}
 	driver := &Driver{config: normalized, canvas: canvas, wakeSent: make(chan struct{}, 1),
 		origin: normalized.originPoint()}
+	driver.frame = ui.Rect{X: driver.origin.X, Y: driver.origin.Y, Width: float32(normalized.Width), Height: float32(normalized.Height)}
 
 	liveDrivers.Acquire()
 	// Motion preferences are the user's, not the test's: run animations.
@@ -230,8 +239,9 @@ func (driver *Driver) Resize(width, height int) error {
 	if err := driver.Pump(); err != nil {
 		return err
 	}
+	driver.storeFrame(ui.Rect{X: driver.origin.X, Y: driver.origin.Y, Width: float32(width), Height: float32(height)})
 	_, err := driver.painter.resize(platform.Size{Width: float32(width), Height: float32(height)})
-	if err == nil && driver.config.OnFrameChange != nil {
+	if err == nil && driver.config.OnFrameChange != nil && !driver.fullscreen {
 		driver.config.OnFrameChange(driver.Frame())
 	}
 	return err
@@ -241,7 +251,7 @@ func (driver *Driver) pointer(kind platform.PointerEventKind, x, y float32, butt
 	if err := driver.Pump(); err != nil {
 		return err
 	}
-	origin := driver.config.originPoint()
+	origin := driver.origin
 	_, err := driver.painter.pointer(platform.PointerEvent{
 		Kind: kind, Button: button, Modifiers: driver.heldModifiers(), X: x, Y: y, ScreenX: origin.X + x, ScreenY: origin.Y + y, ClickCount: clicks,
 	})
@@ -250,9 +260,18 @@ func (driver *Driver) pointer(kind platform.PointerEventKind, x, y float32, butt
 
 // Frame is the window's content area in screen coordinates: where Config.Origin
 // or the last MoveWindow put it (the screen's corner when neither), at the
-// window's current size.
+// window's current size. Frame alone is safe to call from another goroutine.
 func (driver *Driver) Frame() ui.Rect {
-	return ui.Rect{X: driver.origin.X, Y: driver.origin.Y, Width: driver.painter.size.Width, Height: driver.painter.size.Height}
+	driver.frameMu.Lock()
+	frame := driver.frame
+	driver.frameMu.Unlock()
+	return frame
+}
+
+func (driver *Driver) storeFrame(frame ui.Rect) {
+	driver.frameMu.Lock()
+	driver.frame = frame
+	driver.frameMu.Unlock()
 }
 
 // MoveWindow places the content area at a screen point, as dragging the window
@@ -261,7 +280,11 @@ func (driver *Driver) MoveWindow(x, y float32) error {
 	if err := driver.Pump(); err != nil {
 		return err
 	}
+	if driver.fullscreen {
+		return nil
+	}
 	driver.origin = ui.Point{X: x, Y: y}
+	driver.storeFrame(ui.Rect{X: x, Y: y, Width: driver.painter.size.Width, Height: driver.painter.size.Height})
 	if driver.config.OnFrameChange != nil {
 		driver.config.OnFrameChange(driver.Frame())
 	}

@@ -500,7 +500,7 @@ func (s *waylandSurface) updateRegions(w *gtkWindow, width, height int32) {
 		c.request(region, 2, wlArg(uint32(x)), wlArg(uint32(y)), wlArg(uint32(rectWidth)), wlArg(uint32(rectHeight)))
 	}
 	add(0, 0, width, height)
-	if w.config.WindowMode == platform.WindowCustomTitlebar {
+	if w.config.WindowMode == platform.WindowCustomTitlebar && !w.fullscreen.Load() {
 		strip := int32(w.config.TitlebarStrip() + 0.999)
 		remove(0, 0, width, min(strip, height))
 		if !w.maximized {

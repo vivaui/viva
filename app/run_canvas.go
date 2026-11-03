@@ -63,8 +63,8 @@ func RunCanvas(config Config, canvas *ui.Canvas) error {
 	var pointerHandler platform.PointerHandler
 	var keyHandler platform.KeyHandler
 	var scrollHandler platform.ScrollHandler
-	var redrawHandler platform.RedrawHandler
-	if normalized.Paint != nil {
+	var redrawHandler platform.RedrawHandler = painter.repaint
+	if normalized.Paint != nil || painter.controls != nil || normalized.OnResize != nil || normalized.OnFullscreen != nil {
 		resizeHandler = painter.resize
 	}
 	if normalized.Paint != nil || normalized.OnPointer != nil || normalized.TextInput != nil {
@@ -112,6 +112,7 @@ func RunCanvas(config Config, canvas *ui.Canvas) error {
 		OnFrameChange:    frameChangeHandler(normalized.OnFrameChange),
 		OnMinimize:       minimizeHandler(normalized.OnMinimize),
 		OnMaximize:       maximizeHandler(normalized.OnMaximize),
+		OnFullscreen:     painter.fullscreenHandler(normalized.OnFullscreen),
 		OnPointer:        pointerHandler,
 		PressAt:          painter.pressAt,
 		OnKey:            keyHandler,
@@ -201,8 +202,8 @@ func prepareNativeWindow(config Config, canvas *ui.Canvas) (platform.Config, fun
 	var pointerHandler platform.PointerHandler
 	var keyHandler platform.KeyHandler
 	var scrollHandler platform.ScrollHandler
-	var redrawHandler platform.RedrawHandler
-	if normalized.Paint != nil {
+	var redrawHandler platform.RedrawHandler = painter.repaint
+	if normalized.Paint != nil || painter.controls != nil || normalized.OnResize != nil || normalized.OnFullscreen != nil {
 		resizeHandler = painter.resize
 	}
 	if normalized.Paint != nil || normalized.OnPointer != nil || normalized.TextInput != nil {
@@ -247,6 +248,7 @@ func prepareNativeWindow(config Config, canvas *ui.Canvas) (platform.Config, fun
 		OnFrameChange: frameChangeHandler(normalized.OnFrameChange),
 		OnMinimize:    minimizeHandler(normalized.OnMinimize),
 		OnMaximize:    maximizeHandler(normalized.OnMaximize),
+		OnFullscreen:  painter.fullscreenHandler(normalized.OnFullscreen),
 		OnReopen:      normalized.onReopen,
 		OnPointer:     pointerHandler, PressAt: painter.pressAt,
 		OnKey: keyHandler, OnShortcut: painter.shortcutHandler(&normalized), OnAccessibility: painter.accessibilityHandler(&normalized), OnFocusLost: painter.focusLostHandler(), OnScroll: scrollHandler, OnFileDrop: dropHandler, OnRedraw: redrawHandler,
