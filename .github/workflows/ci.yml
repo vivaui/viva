@@ -178,11 +178,8 @@ jobs:
           # shellcheck disable=SC2046 # one package per word, by design
           go vet $(.github/scripts/test-packages.sh darwin) & vet=$!
           go vet -tags vivahead ./internal/platform/darwin ./headless/... & headless=$!
-          # -p 2 leaves a core for the two type-checks beside it: cmd/viva's
-          # tests are serial inside the package, and starving them of a core
-          # only makes the whole job longer.
           # shellcheck disable=SC2046 # one package per word, by design
-          go test -p 2 $(.github/scripts/test-packages.sh darwin) -count=1 & tests=$!
+          go test $(.github/scripts/test-packages.sh darwin) -count=1 & tests=$!
           for job in "$vet" "$headless" "$tests"; do
             wait "$job" || status=1
           done
