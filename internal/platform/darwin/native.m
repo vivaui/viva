@@ -3259,6 +3259,8 @@ static void viva_encode_scene(
     BOOL _textKeyReleases;
     BOOL _interpretingKey;
     BOOL _interpretedConsumed;
+    BOOL _interpretedInsert;
+    NSRange _interpretedReplacement;
     NSString *_interpretedPlain;
     BOOL _secureEventInputOn;
     BOOL _dynamicTextInput;
@@ -3944,7 +3946,56 @@ static int viva_navigation_command(SEL selector) {
     NSString *characters = event.charactersIgnoringModifiers;
 	BOOL control = (event.modifierFlags & NSEventModifierFlagControl) != 0;
 	BOOL command = (event.modifierFlags & NSEventModifierFlagCommand) != 0;
-	if (_keyEventsEnabled && _callbackHandle != 0 && (control || command) && characters.length > 0) {
+	int shortcutKey = characters.length == 0 ? 0 : viva_terminal_key_code([characters characterAtIndex:0]);
+    if (_textInputEnabled && !_hasMarkedText && !control && !command &&
+        shortcutKey == 0 && characters.length > 0 && _keyEventsEnabled && _callbackHandle != 0) {
+        // Let the input method start a composition before considering a plain
+        // or Option shortcut. An unchanged direct insertion is held until the
+        // application declines the chord; a composition or converted commit
+        // goes straight to the text service and never becomes a shortcut.
+        NSString *typed = event.characters;
+        _interpretingKey = YES;
+        _interpretedConsumed = NO;
+        _interpretedInsert = NO;
+        _interpretedPlain = typed;
+        // handleEvent also reports asynchronous ownership: an input method
+        // can take the first key before it publishes any marked text.
+        NSTextInputContext *context = self.inputContext;
+        BOOL interpreted = context != nil && [context handleEvent:event];
+        if (!interpreted) {
+            [self interpretKeyEvents:@[event]];
+        }
+        _interpretingKey = NO;
+        _interpretedPlain = nil;
+        if (_interpretedConsumed || _hasMarkedText || (interpreted && !_interpretedInsert)) {
+            return;
+        }
+        NSData *base = [characters dataUsingEncoding:NSUTF8StringEncoding];
+        NSRange replacement = _interpretedReplacement;
+        if (base.length > 0 && vivaShortcutEvent(_callbackHandle, self, 0,
+                viva_modifier_flags(event.modifierFlags), event.isARepeat ? 1 : 0, base.bytes, base.length)) {
+            return;
+        }
+        BOOL alt = (event.modifierFlags & NSEventModifierFlagOption) != 0;
+        viva_key_event_count++;
+        if (_textTerminal && (_textKeyReleases || (alt && _textAltSendsEscape))) {
+            if (_textKeyReleases) {
+                NSData *typedText = alt ? nil : [typed dataUsingEncoding:NSUTF8StringEncoding];
+                vivaRawKeyEvent(_callbackHandle, self, 0, viva_modifier_flags(event.modifierFlags),
+                    event.isARepeat ? 1 : 0, (unsigned int)event.keyCode + 1, base.bytes, base.length,
+                    typedText.length > 0 ? typedText.bytes : NULL, typedText.length);
+            } else {
+                vivaKeyEvent(_callbackHandle, self, 0, viva_modifier_flags(event.modifierFlags),
+                    event.isARepeat ? 1 : 0, base.bytes, base.length);
+            }
+        } else if (_interpretedInsert) {
+            [self emitTextKind:VIVA_TEXT_INSERT text:typed selectedRange:NSMakeRange(0, 0)
+                replacementRange:replacement command:0];
+        }
+        return;
+    }
+	if (_keyEventsEnabled && _callbackHandle != 0 && !_hasMarkedText &&
+        characters.length > 0) {
 		int named = viva_terminal_key_code([characters characterAtIndex:0]);
 		if (named == 0) {
 			NSData *text = [characters dataUsingEncoding:NSUTF8StringEncoding];
@@ -3958,7 +4009,7 @@ static int viva_navigation_command(SEL selector) {
 					text.length)) {
 				return;
 			}
-		} else if (named == VIVA_KEY_ENTER) {
+		} else if (named == VIVA_KEY_ENTER && (control || command)) {
 			/* Control or Command with Return: a multiline field would make it a
 			 * line break, so the application is offered it first. */
 			if (vivaShortcutEvent(
@@ -4031,6 +4082,9 @@ static int viva_navigation_command(SEL selector) {
         return;
     }
     int key = characters.length == 0 ? 0 : viva_key_code([characters characterAtIndex:0]);
+    if (key == 0 && characters.length > 0) {
+        key = viva_terminal_key_code([characters characterAtIndex:0]);
+    }
     if (!viva_text_input_row_key_is_raw(_textInputEnabled && _textPlaced, _hasMarkedText, key, command) &&
         !viva_text_input_navigation_key_is_raw(_textInputEnabled && _textNavigationKeys, _hasMarkedText, key) &&
         viva_text_input_should_interpret_key(_textInputEnabled, _textInputMultiline, key)) {
@@ -4809,6 +4863,8 @@ static void viva_set_secure_event_input(BOOL on) {
         // exactly the typed character is the key itself, anything else (a dead
         // key, composition, a commit) belongs to the input method.
         if (kind == VIVA_TEXT_INSERT && !_hasMarkedText && _interpretedPlain != nil && [text isEqualToString:_interpretedPlain]) {
+            _interpretedInsert = YES;
+            _interpretedReplacement = replacementRange;
             return;
         }
         _interpretedConsumed = YES;

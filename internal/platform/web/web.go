@@ -332,7 +332,8 @@ func (runtime *runtime) bindEvents() {
 		modifiers := webModifiers(event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(), event.Get("altKey").Bool(), event.Get("metaKey").Bool())
 		shortcut := strings.ToLower(event.Get("key").String())
 		enter := event.Get("key").String() == "Enter"
-		if runtime.config.OnShortcut != nil && modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0 && (enter || utf8.RuneCountInString(shortcut) == 1) {
+		if runtime.config.OnShortcut != nil && !event.Get("isComposing").Bool() &&
+			(!enter || modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0) && (enter || utf8.RuneCountInString(shortcut) == 1) {
 			chord := ui.KeyEvent{Modifiers: modifiers, Repeat: event.Get("repeat").Bool(), Text: shortcut}
 			if enter {
 				chord.Key, chord.Text = input.KeyEnter, ""

@@ -76,6 +76,56 @@ func TestDriverOffersGlobalShortcutsBeforeTerminalAndTextPaths(t *testing.T) {
 	}
 }
 
+func TestPrintableShortcutsLeaveUnhandledTextAndCompositionNative(t *testing.T) {
+	editor := text.NewEditor("")
+	calls := 0
+	driver, err := NewDriver(Config{
+		Width: 320, Height: 180,
+		Paint: func(canvas *ui.Canvas, _ ui.Size) {
+			canvas.HitWithOptions(ui.Item(1), ui.Rect{X: 10, Y: 10, Width: 200, Height: 32}, "Field", ui.HitOptions{Role: ui.RoleTextField})
+		},
+		TextInput: func(TextInputContext) *TextInput { return &TextInput{Editor: editor} },
+		OnShortcut: func(event ui.KeyEvent) ui.EventResult {
+			calls++
+			return ui.EventResult{Handled: event.Text == "x"}
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(20, 20); err != nil {
+		t.Fatal(err)
+	}
+	for _, modifiers := range []ui.Modifiers{0, ui.ModifierShift, ui.ModifierAlt} {
+		if err := driver.Chord(modifiers, "x"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if calls != 3 || editor.String() != "" {
+		t.Fatalf("bound keys: calls=%d editor=%q", calls, editor.String())
+	}
+	if err := driver.Chord(0, "a"); err != ErrNoTerminal {
+		t.Fatalf("unhandled key did not return to text handling: %v", err)
+	}
+	if err := driver.Type("a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Compose("拼音"); err != nil {
+		t.Fatal(err)
+	}
+	before := calls
+	if err := driver.Chord(0, "x"); err != ErrNoTerminal || calls != before {
+		t.Fatalf("composition reached shortcut handler: calls=%d err=%v", calls, err)
+	}
+	if err := driver.Type("中文"); err != nil {
+		t.Fatal(err)
+	}
+	if editor.String() != "a中文" {
+		t.Fatalf("native committed text = %q", editor.String())
+	}
+}
+
 func TestDriverShortcutChordPreservesEveryModifier(t *testing.T) {
 	want := ui.ModifierMeta | ui.ModifierAlt | ui.ModifierShift
 	var got ui.KeyEvent

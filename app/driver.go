@@ -511,10 +511,15 @@ func (driver *Driver) KeyDown(key ui.Key, character string) error {
 		case modifiers&(ui.ModifierControl|ui.ModifierMeta|ui.ModifierAlt) != 0:
 			return driver.Chord(modifiers, character)
 		}
+		if driver.config.OnShortcut != nil {
+			if err := driver.Chord(modifiers, character); err != ErrNoTerminal {
+				return err
+			}
+		}
 		return driver.Type(character)
 	}
 	text := strings.ToLower(character)
-	if key == ui.KeyUnknown && modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0 {
+	if key == ui.KeyUnknown && driver.config.OnShortcut != nil && !driver.painter.nativeText.State.Composing {
 		_, handled, err := driver.painter.shortcut(platform.KeyEvent{Modifiers: modifiers, Text: text})
 		if err != nil || handled {
 			return err
@@ -576,6 +581,12 @@ func (driver *Driver) Key(key ui.Key, modifiers ui.Modifiers) error {
 		return err
 	}
 	modifiers |= driver.heldModifiers()
+	if key == ui.KeySpace && driver.config.OnShortcut != nil && !driver.painter.nativeText.State.Composing {
+		_, handled, err := driver.painter.shortcut(platform.KeyEvent{Modifiers: modifiers, Text: " "})
+		if err != nil || handled {
+			return err
+		}
+	}
 	if key == ui.KeyEnter && modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0 {
 		// As on a window: Control+Enter is offered to the application before the
 		// text system, which would make a line break of it.
@@ -655,7 +666,7 @@ func (driver *Driver) Chord(modifiers ui.Modifiers, character string) error {
 	if err := driver.Pump(); err != nil {
 		return err
 	}
-	if modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0 {
+	if driver.config.OnShortcut != nil && !driver.painter.nativeText.State.Composing {
 		_, handled, err := driver.painter.shortcut(platform.KeyEvent{Modifiers: modifiers, Text: strings.ToLower(character)})
 		if err != nil || handled {
 			return err

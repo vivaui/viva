@@ -458,8 +458,17 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 		}
 		return 1
 	}
-	if w.config.OnShortcut != nil && platform.ShortcutCandidate(keyEvent) && !w.text.ownsChord(keyEvent) {
-		frame, handled, err := w.config.OnShortcut(keyEvent)
+	shortcutEvent := keyEvent
+	if w.config.OnShortcut != nil && key == input.KeyUnknown {
+		shortcutEvent.Text = w.shortcutText(e, e.State&gdkShiftMask != 0)
+	}
+	if shortcutEvent.Key == input.KeySpace {
+		shortcutEvent.Key, shortcutEvent.Text = input.KeyUnknown, " "
+	}
+	if w.config.OnShortcut != nil && platform.ShortcutCandidate(shortcutEvent) &&
+		shortcutEvent.Modifiers&(input.ModifierControl|input.ModifierMeta) != 0 &&
+		e.State&(1<<7) == 0 && !(w.text != nil && w.text.state.Composing) && !w.text.ownsChord(keyEvent) {
+		frame, handled, err := w.config.OnShortcut(shortcutEvent)
 		w.present(frame, err)
 		if handled {
 			return 1
@@ -467,8 +476,25 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 	}
 	// The input method gets the key first; one it takes comes back as a commit or a preedit change,
 	// and one it hands back arrives again as an ordinary key event.
-	if w.ime != nil && w.ime.filtering() && w.ime.filter(event) {
-		return 1
+	plainShortcut := w.config.OnShortcut != nil && platform.ShortcutCandidate(shortcutEvent) &&
+		shortcutEvent.Modifiers&(input.ModifierControl|input.ModifierMeta) == 0 &&
+		e.State&(1<<7) == 0 && !(w.text != nil && w.text.state.Composing) && !w.text.ownsChord(keyEvent)
+	if w.ime != nil && w.ime.filtering() {
+		if plainShortcut {
+			direct, _ := keysymRune(e.Keyval)
+			if w.ime.filterShortcut(event, shortcutEvent, string(direct)) {
+				return 1
+			}
+		} else if w.ime.filter(event) {
+			return 1
+		}
+	}
+	if plainShortcut {
+		frame, handled, err := w.config.OnShortcut(shortcutEvent)
+		w.present(frame, err)
+		if handled {
+			return 1
+		}
 	}
 	w.deliverKey(keyEvent)
 	return 1

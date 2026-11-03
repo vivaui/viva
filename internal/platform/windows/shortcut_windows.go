@@ -1,6 +1,7 @@
 package windows
 
 import (
+	"fmt"
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/input"
@@ -54,12 +55,16 @@ func shortcutKeyText(first, second uintptr, shift bool) string {
 // took it (or failed doing it), which ends the message. AltGr is no chord: it
 // types a character of the layout.
 func (state *windowState) offerShortcut(first, second uintptr, mods input.Modifiers) bool {
-	if state.config.OnShortcut == nil || altGrHeld() {
+	if state.config.OnShortcut == nil || state.imeComposing || altGrHeld() ||
+		(normalizedKey(first) != input.KeyUnknown && normalizedKey(first) != input.KeySpace && normalizedKey(first) != input.KeyEnter) {
 		return false
 	}
 	event := platform.KeyEvent{Modifiers: mods, Repeat: second&(1<<30) != 0, Text: shortcutKeyText(first, second, mods&input.ModifierShift != 0)}
 	if normalizedKey(first) == input.KeyEnter {
 		event.Key = input.KeyEnter
+	}
+	if normalizedKey(first) == input.KeySpace {
+		event.Key, event.Text = input.KeyUnknown, " "
 	}
 	// A focused text field owns editing chords before application shortcuts.
 	// Otherwise a background terminal's copy/paste binding steals form input.
@@ -77,4 +82,27 @@ func (state *windowState) offerShortcut(first, second uintptr, mods input.Modifi
 	frame, handled, err := state.config.OnShortcut(event)
 	state.frame(frame, err)
 	return handled || err != nil
+}
+
+// offerQueuedShortcut runs before character translation, on the same window
+// thread and with the same fault handling as windowProc. Unhandled messages
+// continue through TranslateMessage and the normal native editor/IME path.
+func offerQueuedShortcut(event *message) (handled bool) {
+	if event.Kind != wmKeyDown && event.Kind != wmSysKeyDown {
+		return false
+	}
+	value, ok := windowStates.Load(event.Window)
+	if !ok {
+		return false
+	}
+	state := value.(*windowState)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			platform.ReportFault("windows: shortcut handler", recovered)
+			state.fail(fmt.Errorf("windows: shortcut handler panicked: %v", recovered))
+			handled = true
+		}
+	}()
+	active.Store(state)
+	return state.offerShortcut(event.First, event.Second, modifiers())
 }
