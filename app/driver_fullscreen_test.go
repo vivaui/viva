@@ -12,7 +12,7 @@ import (
 func TestNativeFullscreenWiringRepaintsAWindowWithoutApplicationPaint(t *testing.T) {
 	fullscreen := false
 	var events []string
-	config, release, err := prepareNativeWindow(Config{Title: "fullscreen", Width: 600, Height: 400,
+	normalized, err := (Config{Title: "fullscreen", Width: 600, Height: 400,
 		WindowMode: WindowCustomTitlebar,
 		OnFullscreen: func(value bool) {
 			fullscreen = value
@@ -24,16 +24,26 @@ func TestNativeFullscreenWiringRepaintsAWindowWithoutApplicationPaint(t *testing
 			}
 			events = append(events, "resize")
 		},
-	}, &ui.Canvas{})
+	}).normalize()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer release()
-	config.OnFullscreen(true)
-	if _, err := config.OnResize(platform.Size{Width: 1920, Height: 1080, Scale: 1}); err != nil {
+	painter, err := newPainter(&ui.Canvas{}, &normalized)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := config.OnRedraw(); err != nil {
+	native, frames := nativeWindowConfig(&normalized, painter)
+	if frames != nil {
+		t.Fatal("a window without application paint started an animation timer")
+	}
+	if native.OnFullscreen == nil || native.OnResize == nil || native.OnRedraw == nil {
+		t.Fatal("a window without application paint did not wire fullscreen, resize and redraw")
+	}
+	native.OnFullscreen(true)
+	if _, err := native.OnResize(platform.Size{Width: 1920, Height: 1080, Scale: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := native.OnRedraw(); err != nil {
 		t.Fatal(err)
 	}
 	if len(events) != 2 || events[0] != "fullscreen" || events[1] != "resize" {
