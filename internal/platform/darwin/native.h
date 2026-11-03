@@ -425,6 +425,9 @@ int viva_text_input_caret_should_blink(
     int terminal,
     int hide_native_overlays
 );
+// viva_text_input_should_interpret_key says whether a key goes to the text
+// system instead of the application. A composing input method owns Enter and
+// Escape; a single-line field keeps Tab's application routing.
 int viva_text_input_should_interpret_key(int enabled, int multiline, int composing, int key);
 // viva_text_input_row_key_is_raw says whether a key typed into a field that lays
 // its rows out itself goes to the application as a raw key event (1) rather than

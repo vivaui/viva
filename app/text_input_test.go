@@ -178,6 +178,17 @@ func TestEditorBackedTextInputMirrorsEditorAndAppliesNativeEvents(t *testing.T) 
 	if state.Selection != (text.Range{Start: 3, End: 3}) {
 		t.Fatalf("caret = %+v, want it after the inserted rune", state.Selection)
 	}
+	// A single-line field takes no line break from a native command: while an
+	// input method is composing, AppKit answers Return with insertNewline:.
+	for _, command := range []platform.TextCommand{platform.TextInsertNewline, platform.TextInsertLineBreak} {
+		state, err = painter.applyTextEvent(platform.TextEvent{Kind: platform.TextCommandEvent, Command: command})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if editor.String() != "Gop" || state.Value != "Gop" {
+			t.Fatalf("single-line field took %v: %q", command, editor.String())
+		}
+	}
 }
 
 func TestTextInputTargetChangeWithIdenticalPresentation(t *testing.T) {
