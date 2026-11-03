@@ -104,6 +104,48 @@ func TestHitRegionsRespectNestedClipping(t *testing.T) {
 	}
 }
 
+func TestOverlayClipEscapesScrollButRestoresItsOwner(t *testing.T) {
+	var canvas Canvas
+	page := Rect{Width: 400, Height: 300}
+	body := Rect{X: 20, Y: 20, Width: 300, Height: 80}
+	popup := Rect{X: 30, Y: 70, Width: 140, Height: 120}
+	canvas.Clip(body)
+	canvas.PushLayer(4)
+	canvas.PushOverlayClip(page)
+	canvas.Hit(Item(1), popup)
+	canvas.Rounded(popup, 6, Color{Alpha: 1})
+	canvas.Clip(Rect{X: 30, Y: 80, Width: 100, Height: 40})
+	canvas.Hit(Item(2), popup)
+	canvas.PushOverlayClip(Rect{X: 35, Y: 90, Width: 50, Height: 30})
+	canvas.Hit(Item(3), popup)
+	canvas.PopOverlayClip()
+	canvas.Hit(Item(4), popup)
+	canvas.Unclip()
+	canvas.Hit(Item(5), popup) // the portal's viewport cannot be popped by Unclip
+	canvas.PopOverlayClip()
+	canvas.Hit(Item(6), popup)
+	canvas.PopLayer()
+	if hits := canvas.Hits(); len(hits) != 6 || hits[0].Bounds != popup ||
+		hits[1].Bounds != (Rect{X: 30, Y: 80, Width: 100, Height: 40}) ||
+		hits[2].Bounds != (Rect{X: 35, Y: 90, Width: 50, Height: 30}) ||
+		hits[3].Bounds != hits[1].Bounds || hits[4].Bounds != popup ||
+		hits[5].Bounds != (Rect{X: 30, Y: 70, Width: 140, Height: 30}) {
+		t.Fatalf("popup and restored scroll hits = %+v", hits)
+	}
+	if r := canvas.Rectangles()[0]; !r.HasClip || r.ClipOf != page || r.Layer != 4 {
+		t.Fatalf("popup paint inherited body clip: %+v", r)
+	}
+	if clips := canvas.Clips(); len(clips) != 1 || clips[0].Bounds != body {
+		t.Fatalf("scroll owner lost its clip: %+v", clips)
+	}
+	canvas.PushOverlayClip(page)
+	canvas.Reset()
+	canvas.Hit(Item(7), popup)
+	if canvas.Hits()[0].Bounds != popup || len(canvas.overlayClips) != 0 || len(canvas.Clips()) != 0 {
+		t.Fatal("Reset retained an overlay clip")
+	}
+}
+
 func TestTypedHitCapturesSemanticStateAndFocusScope(t *testing.T) {
 	var canvas Canvas
 	canvas.PushFocusScope(Item(42))

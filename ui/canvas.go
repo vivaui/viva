@@ -559,6 +559,7 @@ type Canvas struct {
 	runs          []TextRun
 	hits          []Hit
 	clips         []Clip
+	overlayClips  []int // clip-stack baselines for floating content
 	focusScopes   []ID
 	layers        []uint16
 	pathPoints    []Point
@@ -742,6 +743,7 @@ func (canvas *Canvas) Reset() {
 	canvas.runs = canvas.runs[:0]
 	canvas.hits = canvas.hits[:0]
 	canvas.clips = canvas.clips[:0]
+	canvas.overlayClips = canvas.overlayClips[:0]
 	canvas.focusScopes = canvas.focusScopes[:0]
 	canvas.layers = canvas.layers[:0]
 	canvas.pathPoints = canvas.pathPoints[:0]
@@ -778,6 +780,7 @@ func (canvas *Canvas) Trim() {
 	canvas.runs = trimCapacity(canvas.runs)
 	canvas.hits = trimCapacity(canvas.hits)
 	canvas.clips = trimCapacity(canvas.clips)
+	canvas.overlayClips = trimCapacity(canvas.overlayClips)
 	canvas.focusScopes = trimCapacity(canvas.focusScopes)
 	canvas.layers = trimCapacity(canvas.layers)
 	canvas.pathPoints = trimCapacity(canvas.pathPoints)
@@ -1169,13 +1172,18 @@ func (canvas *Canvas) TextRuns(text Text) []TextRun {
 }
 
 // clipSnapshot returns the intersection of the active clip stack and whether
-// any clip is active.
+// any clip is active. Floating overlays start at their explicit viewport,
+// without inheriting clips from scrollable ancestors.
 func (canvas *Canvas) clipSnapshot() (Rect, bool) {
-	if len(canvas.clips) == 0 {
+	base := 0
+	if n := len(canvas.overlayClips); n > 0 {
+		base = canvas.overlayClips[n-1]
+	}
+	if base == len(canvas.clips) {
 		return Rect{}, false
 	}
-	intersection := canvas.clips[0].Bounds
-	for _, clip := range canvas.clips[1:] {
+	intersection := canvas.clips[base].Bounds
+	for _, clip := range canvas.clips[base+1:] {
 		intersection = intersectCanvasRect(intersection, clip.Bounds)
 	}
 	return intersection, true
@@ -1431,6 +1439,25 @@ func (canvas *Canvas) currentLayer() uint16 {
 	return canvas.layers[len(canvas.layers)-1]
 }
 
+// PushOverlayClip opens a floating paint and hit-test region inside viewport.
+// It suspends ancestor clips (such as a scroll area) without changing their
+// ownership, and clips the overlay to the caller's explicit viewport. Layer
+// and focus scope are independent: callers paint their trigger under its normal
+// clip, and use this scope only for the popup and its dismiss backdrop.
+// Pair it with PopOverlayClip, including when nested inside another overlay.
+func (canvas *Canvas) PushOverlayClip(viewport Rect) {
+	canvas.overlayClips = append(canvas.overlayClips, len(canvas.clips))
+	canvas.clips = append(canvas.clips, Clip{Bounds: viewport})
+}
+
+// PopOverlayClip restores the exact ancestor clip stack of the last overlay.
+func (canvas *Canvas) PopOverlayClip() {
+	if n := len(canvas.overlayClips); n > 0 {
+		canvas.clips = canvas.clips[:canvas.overlayClips[n-1]]
+		canvas.overlayClips = canvas.overlayClips[:n-1]
+	}
+}
+
 // Clip restricts painting to bounds until the matching Unclip call. Clips
 // nest; the effective region is the intersection with enclosing clips.
 func (canvas *Canvas) Clip(bounds Rect) {
@@ -1439,7 +1466,11 @@ func (canvas *Canvas) Clip(bounds Rect) {
 
 // Unclip closes the innermost open clip.
 func (canvas *Canvas) Unclip() {
-	if len(canvas.clips) > 0 {
+	minimum := 0
+	if n := len(canvas.overlayClips); n > 0 {
+		minimum = canvas.overlayClips[n-1] + 1 // keep the overlay's viewport clip
+	}
+	if len(canvas.clips) > minimum {
 		canvas.clips = canvas.clips[:len(canvas.clips)-1]
 	}
 }

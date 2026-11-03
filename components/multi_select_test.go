@@ -152,6 +152,71 @@ func TestMultiSelectInputOwnsNativeTextBoundsInsideThePopupScope(t *testing.T) {
 	}
 }
 
+func TestMultiSelectPopupEscapesScrollClipWithoutExposingInput(t *testing.T) {
+	var tree ui.Tree
+	feature := tree.Feature("clipped-multi-select")
+	o := MultiSelectOptions{InputID: tree.ID(feature, "input"), TriggerID: tree.ID(feature, "trigger"), DismissID: tree.ID(feature, "dismiss"), Scope: tree.ID(feature, "scope"), OptionIDs: tree.Sub(feature, tree.Name("option")), RemoveIDs: tree.Sub(feature, tree.Name("remove")), Label: "Tags", Viewport: ui.Rect{Width: 400, Height: 300}, Layer: 4}
+	s := multiSelectFixture()
+	s.SetOptions([]MultiSelectOption{{Value: "one"}, {Value: "two"}, {Value: "three"}, {Value: "four"}, {Value: "five"}})
+	s.Open = true
+	var canvas ui.Canvas
+	body := ui.Rect{X: 10, Y: 20, Width: 360, Height: 65}
+	canvas.Clip(body)
+	layout := PaintMultiSelect(&canvas, ui.LightTheme(), ui.Rect{X: 30, Y: 60, Width: 250, Height: 32}, s, o)
+	canvas.Unclip()
+	if layout.Popup.Y+layout.Popup.Height <= body.Y+body.Height {
+		t.Fatal("fixture did not place the menu outside the scroll area", layout)
+	}
+	var input, last, dismiss ui.Hit
+	for _, hit := range canvas.Hits() {
+		switch hit.ID {
+		case o.InputID:
+			input = hit
+		case o.OptionIDs.At(4):
+			last = hit
+		case o.DismissID:
+			dismiss = hit
+		}
+	}
+	if input.Bounds.X != layout.Input.X || input.Bounds.Y != layout.Input.Y ||
+		input.Bounds.Height >= layout.Input.Height || input.Bounds.Y+input.Bounds.Height != body.Y+body.Height ||
+		input.Scope != o.Scope || input.Layer != o.Layer ||
+		last.Bounds.Height != 32 || last.Bounds.Y <= body.Y+body.Height || last.Scope != o.Scope ||
+		dismiss.Bounds != o.Viewport || !dismiss.Backdrop {
+		t.Fatalf("incomplete or unreachable popup: input=%+v last=%+v backdrop=%+v layout=%+v", input, last, dismiss, layout)
+	}
+	foundSurface := false
+	for _, r := range canvas.Rectangles() {
+		if r.Bounds == layout.Popup {
+			foundSurface = true
+			if !r.HasClip || r.ClipOf != o.Viewport {
+				t.Fatalf("popup surface still clipped to the form: %+v", r)
+			}
+		}
+	}
+	if !foundSurface {
+		t.Fatal("popup surface was not painted")
+	}
+	// The parent still owns its scroll clip after the component returns.
+	canvas.Clip(body)
+	canvas.Hit(ui.Item(99), ui.Rect{X: 30, Y: 120, Width: 20, Height: 20})
+	if len(canvas.Hits()) != 0 && canvas.Hits()[len(canvas.Hits())-1].ID == ui.Item(99) {
+		t.Fatal("the scroll area no longer clips its own content")
+	}
+	canvas.Unclip()
+}
+
+func TestMultiSelectClampsPopupToTinyViewport(t *testing.T) {
+	var canvas ui.Canvas
+	s := multiSelectFixture()
+	s.Open = true
+	viewport := ui.Rect{Width: 140, Height: 50}
+	layout := PaintMultiSelect(&canvas, ui.LightTheme(), ui.Rect{Y: 2, Width: 120, Height: 32}, s, MultiSelectOptions{Viewport: viewport})
+	if layout.Popup.Y < viewport.Y || layout.Popup.Y+layout.Popup.Height > viewport.Y+viewport.Height {
+		t.Fatalf("popup escaped the viewport: %+v", layout)
+	}
+}
+
 func BenchmarkMultiSelectPaint(b *testing.B) {
 	var tree ui.Tree
 	f := tree.Feature("benchmark")
@@ -171,6 +236,34 @@ func BenchmarkMultiSelectPaint(b *testing.B) {
 			paint := func() {
 				canvas.Reset()
 				PaintMultiSelect(&canvas, ui.LightTheme(), ui.Rect{Width: 320, Height: 32}, s, o)
+			}
+			paint()
+			b.ReportAllocs()
+			for b.Loop() {
+				paint()
+			}
+		})
+	}
+}
+
+func BenchmarkMultiSelectPaintInScrollArea(b *testing.B) {
+	var tree ui.Tree
+	feature := tree.Feature("nested-popup-bench")
+	o := MultiSelectOptions{InputID: tree.ID(feature, "input"), TriggerID: tree.ID(feature, "trigger"), DismissID: tree.ID(feature, "dismiss"), Scope: tree.ID(feature, "scope"), OptionIDs: tree.Sub(feature, tree.Name("option")), RemoveIDs: tree.Sub(feature, tree.Name("remove")), Viewport: ui.Rect{Width: 800, Height: 600}, Layer: 4}
+	for _, open := range []bool{false, true} {
+		name := "closed"
+		if open {
+			name = "open"
+		}
+		b.Run(name, func(b *testing.B) {
+			s := multiSelectFixture()
+			s.Open = open
+			var canvas ui.Canvas
+			paint := func() {
+				canvas.Reset()
+				canvas.Clip(ui.Rect{X: 10, Y: 10, Width: 500, Height: 100})
+				PaintMultiSelect(&canvas, ui.LightTheme(), ui.Rect{X: 20, Y: 70, Width: 320, Height: 32}, s, o)
+				canvas.Unclip()
 			}
 			paint()
 			b.ReportAllocs()
