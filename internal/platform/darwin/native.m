@@ -848,6 +848,23 @@ static double viva_elapsed_milliseconds(uint64_t start, uint64_t end) {
     return nanoseconds / 1000000.0;
 }
 
+static BOOL viva_key_is_named(unichar character) {
+    switch (character) {
+        case NSTabCharacter:
+        case NSBackTabCharacter:
+        case NSCarriageReturnCharacter:
+        case NSEnterCharacter:
+        case 0x1b:
+        case NSBackspaceCharacter:
+        case NSDeleteCharacter:
+            return YES;
+        default:
+            // The function keys (arrows, Home, End, page, insert, F1-F35) keep
+            // their NSEvent character above U+F700.
+            return character >= NSUpArrowFunctionKey;
+    }
+}
+
 static NSString *viva_key_characters(NSEvent *event) {
     // Command's character belongs to the shortcut layout, not the input
     // method's text layout. Preserve Command and Shift when removing Control
@@ -857,9 +874,17 @@ static NSString *viva_key_characters(NSEvent *event) {
         return event.charactersIgnoringModifiers;
     }
     NSEventModifierFlags textModifiers = NSEventModifierFlagControl | NSEventModifierFlagOption;
-    return (modifiers & textModifiers)
-        ? [event charactersByApplyingModifiers:modifiers & ~textModifiers]
-        : event.characters;
+    if (!(modifiers & textModifiers)) {
+        return event.characters;
+    }
+    NSString *characters = event.charactersIgnoringModifiers;
+    if (characters.length > 0 && viva_key_is_named([characters characterAtIndex:0])) {
+        // Re-applying the modifiers would turn a named key into the control
+        // code with the same low bits (Up becomes U+001E, Forward Delete
+        // becomes U+007F) and lose the key's identity.
+        return characters;
+    }
+    return [event charactersByApplyingModifiers:modifiers & ~textModifiers];
 }
 
 static int viva_key_code(unichar key) {

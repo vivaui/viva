@@ -15,6 +15,16 @@ void vivaPointerEvent(uintptr_t handle, void *view, int kind, int button, int mo
 }
 void vivaViewResized(uintptr_t handle, void *view, double width, double height) {}
 void vivaRedrawRequested(uintptr_t handle, void *view) {}
+// viva_test_keyboard_event builds a real key event, so characters re-applied
+// with modifiers are resolved by the active layout and key code.
+static NSEvent *viva_test_keyboard_event(unsigned short key_code, CGEventFlags flags) {
+    CGEventRef event = CGEventCreateKeyboardEvent(NULL, key_code, true);
+    CGEventSetFlags(event, flags);
+    NSEvent *result = [NSEvent eventWithCGEvent:event];
+    CFRelease(event);
+    return result;
+}
+
 // Raw key events a terminal view delivers.
 static int rawKeys[16];
 static int rawModifiers[16];
@@ -620,16 +630,31 @@ int main(void) {
                 characters:pair[0] charactersIgnoringModifiers:pair[1] isARepeat:NO keyCode:0];
             assert([viva_key_characters(shortcut) isEqualToString:pair[0]]);
         }
-        for (NSNumber *extra in @[@(NSEventModifierFlagOption), @(NSEventModifierFlagControl),
-                @(NSEventModifierFlagOption | NSEventModifierFlagControl),
-                @(NSEventModifierFlagShift | NSEventModifierFlagOption)]) {
-            NSEventModifierFlags modifiers = NSEventModifierFlagCommand | extra.unsignedLongValue;
-            NSEvent *shortcut = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
-                modifierFlags:modifiers timestamp:0 windowNumber:0 context:nil
-                characters:@"\x16" charactersIgnoringModifiers:@"女" isARepeat:NO keyCode:9];
-            // Shortcut matching folds case; the event retains Shift separately.
-            assert([[viva_key_characters(shortcut) lowercaseString] isEqualToString:@"v"]);
-        }
+        // Control and Option must not change what the Command chord means,
+        // whatever the layout maps the physical key to: compare against the
+        // same key with Command alone.
+        NSEvent *commandV = viva_test_keyboard_event(9, kCGEventFlagMaskCommand);
+        assert([viva_key_characters(viva_test_keyboard_event(9,
+            kCGEventFlagMaskCommand | kCGEventFlagMaskAlternate)) isEqualToString:viva_key_characters(commandV)]);
+        assert([viva_key_characters(viva_test_keyboard_event(9,
+            kCGEventFlagMaskCommand | kCGEventFlagMaskControl)) isEqualToString:viva_key_characters(commandV)]);
+        // Named keys keep their NSEvent character. Re-applying the modifiers
+        // would turn them into control codes (Up became U+001E, Forward
+        // Delete U+007F) and the application would lose the key.
+        NSEvent *commandOptionUp =
+            viva_test_keyboard_event(126, kCGEventFlagMaskCommand | kCGEventFlagMaskAlternate);
+        assert([viva_key_characters(commandOptionUp) isEqualToString:commandOptionUp.charactersIgnoringModifiers]);
+        rawCount = 0;
+        [view keyDown:commandOptionUp];
+        assert(rawCount == 1 && rawKeys[0] == VIVA_KEY_UP && rawModifiers[0] == (VIVA_MODIFIER_META | VIVA_MODIFIER_ALT));
+        NSEvent *commandControlDelete =
+            viva_test_keyboard_event(117, kCGEventFlagMaskCommand | kCGEventFlagMaskControl);
+        rawCount = 0;
+        [view keyDown:commandControlDelete];
+        assert(rawCount == 1 && rawKeys[0] == VIVA_KEY_DELETE);
+        NSEvent *commandOptionBackspace =
+            viva_test_keyboard_event(51, kCGEventFlagMaskCommand | kCGEventFlagMaskAlternate);
+        assert([viva_key_characters(commandOptionBackspace) isEqualToString:commandOptionBackspace.charactersIgnoringModifiers]);
         assert([viva_key_characters(controlC) isEqualToString:@"c"]);
         NSEvent *optionV = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
             modifierFlags:NSEventModifierFlagOption timestamp:0 windowNumber:0 context:nil
