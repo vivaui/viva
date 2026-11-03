@@ -128,7 +128,6 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
-    name: test (${{ matrix.shard }}/3)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
