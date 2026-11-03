@@ -224,19 +224,27 @@ func TestNativeCaretTimerPolicy(t *testing.T) {
 
 func TestNativeTextInputKeyRouting(t *testing.T) {
 	for _, key := range []input.Key{input.KeyBackspace, input.KeyDelete, input.KeyLeft, input.KeyRight} {
-		if !nativeTextInputShouldInterpretKey(true, false, int(key)) {
+		if !nativeTextInputShouldInterpretKey(true, false, false, int(key)) {
 			t.Fatalf("editing key %v did not route to AppKit", key)
 		}
 	}
 	for _, key := range []input.Key{input.KeyTab, input.KeyEnter, input.KeyEscape} {
-		if nativeTextInputShouldInterpretKey(true, false, int(key)) {
+		if nativeTextInputShouldInterpretKey(true, false, false, int(key)) {
 			t.Fatalf("single-line focus key %v was consumed by AppKit", key)
 		}
 	}
-	if !nativeTextInputShouldInterpretKey(true, true, int(input.KeyEnter)) {
+	if nativeTextInputShouldInterpretKey(true, false, true, int(input.KeyTab)) {
+		t.Fatal("composing Tab changed its existing application routing")
+	}
+	for _, key := range []input.Key{input.KeyEnter, input.KeyEscape} {
+		if !nativeTextInputShouldInterpretKey(true, false, true, int(key)) {
+			t.Fatalf("composing key %v did not route to AppKit", key)
+		}
+	}
+	if !nativeTextInputShouldInterpretKey(true, true, false, int(input.KeyEnter)) {
 		t.Fatal("multiline Enter did not route to AppKit")
 	}
-	if nativeTextInputShouldInterpretKey(false, false, int(input.KeyBackspace)) {
+	if nativeTextInputShouldInterpretKey(false, false, false, int(input.KeyBackspace)) {
 		t.Fatal("disabled editor consumed Backspace")
 	}
 }

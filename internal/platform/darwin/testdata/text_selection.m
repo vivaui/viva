@@ -525,6 +525,22 @@ int main(void) {
         view->recordEdits = NO;
         viva_test_pasteboard = nil;
 
+        // A single-line field gives composing Enter and Escape to the input
+        // method; once committed, Enter is the application's key again.
+        [view resetText:@"marked"];
+        [view enableKeyCallbacks];
+        view->recordEdits = YES;
+        [view beginComposition];
+        rawCount = 0;
+        [view keyDown:keyEvent(@"\r", 0)];
+        unichar escapeKey = 0x1b;
+        [view keyDown:keyEvent([NSString stringWithCharacters:&escapeKey length:1], 0)];
+        assert(rawCount == 0);
+        [view endComposition];
+        [view keyDown:keyEvent(@"\r", 0)];
+        assert(rawCount == 1 && rawKeys[0] == VIVA_KEY_ENTER);
+        view->recordEdits = NO;
+
         // A terminal view: every key that is not text goes to the application
         // raw, text and composition go to the text system, the cursor is steady
         // and pasting says that it is a paste.

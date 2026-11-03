@@ -1233,6 +1233,14 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 			return painter.nativeText.State, nil
 		}
 	}
+	if !painter.nativeText.Multiline && !painter.nativeText.Terminal &&
+		event.Kind == platform.TextCommandEvent &&
+		(event.Command == platform.TextInsertNewline || event.Command == platform.TextInsertLineBreak) {
+		// A single-line field holds no line break. While an input method is
+		// composing, AppKit answers Return with insertNewline: even though the
+		// field has one line, and the editor would otherwise take the newline.
+		return painter.nativeText.State, nil
+	}
 	var next TextState
 	if active.Editor != nil {
 		appEvent.Apply(active.Editor)
