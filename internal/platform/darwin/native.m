@@ -848,6 +848,45 @@ static double viva_elapsed_milliseconds(uint64_t start, uint64_t end) {
     return nanoseconds / 1000000.0;
 }
 
+static BOOL viva_key_is_named(unichar character) {
+    switch (character) {
+        case NSTabCharacter:
+        case NSBackTabCharacter:
+        case NSCarriageReturnCharacter:
+        case NSEnterCharacter:
+        case 0x1b:
+        case NSBackspaceCharacter:
+        case NSDeleteCharacter:
+            return YES;
+        default:
+            // The function keys (arrows, Home, End, page, insert, F1-F35) keep
+            // their NSEvent character above U+F700.
+            return character >= NSUpArrowFunctionKey;
+    }
+}
+
+static NSString *viva_key_characters(NSEvent *event) {
+    // Command's character belongs to the shortcut layout, not the input
+    // method's text layout. Preserve Command and Shift when removing Control
+    // codes and Option-produced text; AppKit resolves the active layout.
+    NSEventModifierFlags modifiers = event.modifierFlags;
+    if (!(modifiers & NSEventModifierFlagCommand)) {
+        return event.charactersIgnoringModifiers;
+    }
+    NSEventModifierFlags textModifiers = NSEventModifierFlagControl | NSEventModifierFlagOption;
+    if (!(modifiers & textModifiers)) {
+        return event.characters;
+    }
+    NSString *characters = event.charactersIgnoringModifiers;
+    if (characters.length > 0 && viva_key_is_named([characters characterAtIndex:0])) {
+        // Re-applying the modifiers would turn a named key into the control
+        // code with the same low bits (Up becomes U+001E, Forward Delete
+        // becomes U+007F) and lose the key's identity.
+        return characters;
+    }
+    return [event charactersByApplyingModifiers:modifiers & ~textModifiers];
+}
+
 static int viva_key_code(unichar key) {
     switch (key) {
         case NSTabCharacter: return VIVA_KEY_TAB;
@@ -3943,7 +3982,7 @@ static int viva_navigation_command(SEL selector) {
 
 - (void)keyDown:(NSEvent *)event {
     viva_probe_key(event.timestamp);
-    NSString *characters = event.charactersIgnoringModifiers;
+    NSString *characters = viva_key_characters(event);
 	BOOL control = (event.modifierFlags & NSEventModifierFlagControl) != 0;
 	BOOL command = (event.modifierFlags & NSEventModifierFlagCommand) != 0;
 	int shortcutKey = characters.length == 0 ? 0 : viva_terminal_key_code([characters characterAtIndex:0]);
@@ -4141,7 +4180,7 @@ static int viva_navigation_command(SEL selector) {
     NSEventModifierFlags modifiers = event.modifierFlags &
         (NSEventModifierFlagCommand | NSEventModifierFlagControl |
          NSEventModifierFlagOption | NSEventModifierFlagShift);
-    NSString *characters = event.charactersIgnoringModifiers;
+    NSString *characters = viva_key_characters(event);
     if (_keyEventsEnabled && _callbackHandle != 0 && !_hasMarkedText && viva_control_tab(modifiers, characters)) {
         // AppKit's window keeps Control+Tab and Control+Shift+Tab to move the
         // key view and never passes them to keyDown:, so an application would
