@@ -235,26 +235,46 @@ func (client *Client) request(ctx context.Context, kind messageKind, payload []b
 		client.fail(err)
 		return nil, err
 	}
+	return client.await(ctx, id, kind, result)
+}
 
+// await waits for the answer to the request id. readLoop closes done only after
+// it has delivered every answer it read, so an answer sitting in result is one
+// the worker sent and the caller must get it rather than the close.
+func (client *Client) await(ctx context.Context, id uint32, kind messageKind, result chan response) ([]byte, error) {
 	select {
 	case value := <-result:
-		if value.err != nil {
-			return nil, value.err
-		}
-		if value.frame.kind == messageError {
-			return nil, errors.New(string(value.frame.payload))
-		}
-		if value.frame.kind != kind|responseFlag {
-			return nil, fmt.Errorf("reload protocol response kind %d does not match request %d", value.frame.kind, kind)
-		}
-		return value.frame.payload, nil
+		return answer(value, kind)
 	case <-ctx.Done():
 		client.removePending(id)
 		return nil, ctx.Err()
 	case <-client.done:
-		client.removePending(id)
-		return nil, io.EOF
+		// The worker answers and then exits, which closes the connection behind
+		// the answer. readLoop delivers an answer before it closes done, so an
+		// answer already in the channel is one the host did send: taking the
+		// close first would report a response that arrived as io.EOF.
+		select {
+		case value := <-result:
+			return answer(value, kind)
+		default:
+			client.removePending(id)
+			return nil, io.EOF
+		}
 	}
+}
+
+// answer turns the frame readLoop delivered into the reply to a request.
+func answer(value response, kind messageKind) ([]byte, error) {
+	if value.err != nil {
+		return nil, value.err
+	}
+	if value.frame.kind == messageError {
+		return nil, errors.New(string(value.frame.payload))
+	}
+	if value.frame.kind != kind|responseFlag {
+		return nil, fmt.Errorf("reload protocol response kind %d does not match request %d", value.frame.kind, kind)
+	}
+	return value.frame.payload, nil
 }
 
 func (client *Client) readLoop() {

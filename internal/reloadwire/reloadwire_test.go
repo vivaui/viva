@@ -2,6 +2,8 @@ package reloadwire
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net"
 	"reflect"
 	"testing"
@@ -185,5 +187,36 @@ func TestCanvasCodecRejectsRunRangesOutsideTheArena(t *testing.T) {
 	}
 	if _, err := decodeCanvas(data); err == nil {
 		t.Fatal("a text pointing past the run arena was accepted")
+	}
+}
+
+// The worker answers a request and exits, which closes the connection right
+// behind the answer. The host must read the answer, not the close: losing it
+// reported a complete request as io.EOF whenever the two arrived close enough
+// together for the scheduler to run the close first.
+func TestAnAnswerQueuedBeforeTheCloseIsNotLost(t *testing.T) {
+	client := &Client{pending: map[uint32]chan response{}, done: make(chan struct{})}
+	result := make(chan response, 1)
+	client.pending[7] = result
+	result <- response{frame: frame{kind: messageShutdown | responseFlag, id: 7, payload: []byte("answered")}}
+	close(client.done)
+
+	payload, err := client.await(context.Background(), 7, messageShutdown, result)
+	if err != nil {
+		t.Fatalf("a queued answer was reported as %v", err)
+	}
+	if string(payload) != "answered" {
+		t.Fatalf("payload = %q", payload)
+	}
+}
+
+func TestACloseWithoutAnAnswerIsStillAnEOF(t *testing.T) {
+	client := &Client{pending: map[uint32]chan response{}, done: make(chan struct{})}
+	result := make(chan response, 1)
+	client.pending[7] = result
+	close(client.done)
+
+	if _, err := client.await(context.Background(), 7, messageShutdown, result); !errors.Is(err, io.EOF) {
+		t.Fatalf("err = %v, want io.EOF", err)
 	}
 }
