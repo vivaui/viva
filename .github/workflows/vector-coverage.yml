@@ -59,6 +59,8 @@ jobs:
         run: sh tools/generate_linux_shaders.sh
       - name: did the compiler change a shipped shader?
         id: shaders
+        # bash on every runner: the Windows default shell is PowerShell.
+        shell: bash
         run: |
           if git diff --quiet -- internal/platform/darwin/shaders internal/platform/linux/shaders internal/platform/windows/shaders; then
             echo "the shipped shaders are what the sources compile to"
