@@ -71,7 +71,8 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [gate, build-darwin, build-other]
+    # Both build jobs already need the gate, so it has run before this starts.
+    needs: [build-darwin, build-other]
     runs-on: ubuntu-latest
     permissions:
       contents: write

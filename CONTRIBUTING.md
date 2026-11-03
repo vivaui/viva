@@ -71,6 +71,28 @@ structure needs its memory numbers. `go test -bench` and `benchstat` are the
 usual tools; the budgets and the reasons behind them are in
 [README.md](README.md).
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs that gate in parallel pieces, and
+`.github/scripts/test-packages.sh` decides which package goes where:
+
+- **Linux** — formatting, `go vet ./...` for the Linux build, a type-check of
+  every other target Viva ships for, and the tests, split over three runners. A
+  package with no darwin-only file compiles to the same source on every
+  operating system, so it is tested here once instead of on macOS as well.
+- **macOS** — the packages that carry a darwin-only file, which only a macOS
+  runner can build. It is the only job that spends macOS minutes, and those cost
+  ten times what Linux minutes do.
+- **Windows** — the window-material contracts, which need WARP.
+
+The check to require in branch protection is **ci passed**. It is the one job
+that always runs: the rest are skipped when a change only touches documentation,
+and a required check that a path filter skipped would stay pending and hold the
+pull request shut. It never skips a release tag.
+
+A pull request keeps only its newest run. A commit on `main` is never cancelled,
+so every commit a release is cut from has run the whole gate to the end.
+
 Write the test that fails when the behaviour breaks, not the test that fails when
 someone next tidies the file. A single test that protects a contract is worth
 more than five that pin down incidental geometry or exact draw order.

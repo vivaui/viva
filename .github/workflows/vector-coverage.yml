@@ -17,11 +17,18 @@ on:
 permissions:
   contents: read
 
+# A pull request keeps only its newest run. main is never cancelled: every
+# commit it gets has run this workflow to the end.
 concurrency:
-  group: vector-coverage-${{ github.ref }}
-  cancel-in-progress: true
+  group: vector-coverage-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The same pixel contract on D3D11, Vulkan and Metal, so all three stay in the
+  # matrix. The contract runs once per platform, on the shaders the repository
+  # ships; rebuilding them then proves the checked-in binaries are what the
+  # sources compile to, and the contract runs a second time only when they are
+  # not, so a changed shader source is still rendered before it is trusted.
   native:
     strategy:
       fail-fast: false
@@ -33,6 +40,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
       - name: Install Vulkan software renderer and compiler
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y glslc mesa-vulkan-drivers libvulkan1 libfontconfig1 libfreetype6 libharfbuzz0b
@@ -49,7 +57,18 @@ jobs:
       - name: Compile Vulkan shaders
         if: runner.os == 'Linux'
         run: sh tools/generate_linux_shaders.sh
-      - name: Native pixel coverage
+      - name: did the compiler change a shipped shader?
+        id: shaders
+        run: |
+          if git diff --quiet -- internal/platform/darwin/shaders internal/platform/linux/shaders internal/platform/windows/shaders; then
+            echo "the shipped shaders are what the sources compile to"
+            echo changed=false >> "$GITHUB_OUTPUT"
+          else
+            git diff --stat -- internal/platform/darwin/shaders internal/platform/linux/shaders internal/platform/windows/shaders
+            echo changed=true >> "$GITHUB_OUTPUT"
+          fi
+      - name: Native pixel coverage with the rebuilt shaders
+        if: steps.shaders.outputs.changed == 'true'
         run: go test -tags vivahead ./headless -run '^TestVector' -v -count=1
       - name: Native static checks
         run: go vet -tags vivahead ./headless/... ./app/... ./internal/platform/...

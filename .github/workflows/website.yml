@@ -28,9 +28,12 @@ on:
 permissions:
   contents: read
 
+# A pull request keeps only its newest build. A push to main is never cancelled:
+# the job deploys, and two deploys racing would let the older one win. A queued
+# deploy is what makes the site end up on the newest commit.
 concurrency:
   group: website-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:

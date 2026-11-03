@@ -16,22 +16,30 @@ on:
 permissions:
   contents: read
 
+# A pull request keeps only its newest run. main is never cancelled: every
+# commit it gets has run this workflow to the end.
 concurrency:
-  group: text-input-${{ github.ref }}
-  cancel-in-progress: true
+  group: text-input-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # macOS is not in the matrix: ci.yml's darwin job tests ./app and vets the
+  # darwin platform packages on macOS for every change that reaches here, so a
+  # third macOS job would only take a slot from the pool that all workflows
+  # share. The type-checks are not repeated either: ci.yml's lint job vets every
+  # package for Linux and its cross-vet job for Windows.
   native:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
       - name: Application input lifecycle
         run: go test ./app -count=1
       - name: Windows IME lifecycle
@@ -50,8 +58,6 @@ jobs:
       - name: Windows space is one character
         if: runner.os == 'Windows'
         run: go test ./internal/platform/windows -run 'TestAPlainSpaceIsOneCharacter|TestATerminalGetsEditingKeysAndChordsAsRawKeys' -v -count=1
-      - name: Native static checks
-        run: go vet ./app/... ./internal/platform/...
       - name: Windows fixed-pitch text
         if: runner.os == 'Windows'
         run: go test ./internal/platform/windows -run '^TestFixedPitchTrailingSpacesDoNotStretchText$' -v -count=1

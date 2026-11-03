@@ -10,53 +10,176 @@ on:
 permissions:
   contents: read
 
+# A pull request keeps only its newest run: an older push to the same branch has
+# nothing left to prove. A commit on main is never cancelled, so every commit a
+# release is cut from has run this whole gate to the end; the group is keyed on
+# the commit there, which lets consecutive pushes overlap instead of dropping
+# one.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The full gate on the platform the macOS backend needs.
+  # A change that only touches documentation runs no gate at all. This job always
+  # runs, though: the check a branch protection rule requires is "ci passed"
+  # below, and a required check that a path filter skipped would stay pending
+  # forever and hold the pull request shut.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.paths.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: decide whether this change needs the gate
+        id: paths
+        run: |
+          # A release tag always runs the whole gate: the tag is what ships, so
+          # nothing about its contents may skip a check.
+          case "${{ github.ref }}" in
+            refs/tags/*) echo "code=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
+          base="${{ github.event.pull_request.base.sha }}"
+          [ -n "$base" ] || base="${{ github.event.before }}"
+          code=true
+          if [ -n "$base" ] && git cat-file -e "$base^{commit}" 2>/dev/null; then
+            git diff --name-only --no-renames "$base" HEAD > "$RUNNER_TEMP/changed"
+            code=false
+            while IFS= read -r file; do
+              case "$file" in
+                # Nothing here can change what the gate builds, runs or measures.
+                # website/ is not documentation: tools/docs generates pages from
+                # Go sources, and website.yml is what builds the site.
+                *.md | docs/* | LICENSE | NOTICE | .github/ISSUE_TEMPLATE/*) ;;
+                *) code=true ;;
+              esac
+            done < "$RUNNER_TEMP/changed"
+          else
+            echo "no base commit to compare with; running the gate" >&2
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          {
+            echo "### changed files"
+            head -50 "$RUNNER_TEMP/changed" 2>/dev/null | sed 's/^/    /' || true
+            echo "code=$code"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Formatting and the Linux type-check of every package. Both are the same on
+  # every operating system, so they belong on the cheapest runner there is
+  # rather than on a macOS one.
+  lint:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: gofmt
+        run: test -z "$(gofmt -l .)"
+      # The darwin type-check is the darwin job's; cross-vet covers the other
+      # targets this repository ships for.
+      - name: vet
+        run: go vet ./...
+
+  # Every target Viva ships for must at least type-check, tests included. The
+  # targets do not depend on each other, so they run at the same time on one
+  # runner: asking for five runners to do what one can finish in the same minute
+  # only spends more queue time.
+  cross-vet:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: vet every target
+        run: |
+          status=0
+          pids=""
+          for target in linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
+            GOOS=${target%/*} GOARCH=${target#*/} \
+              go vet ./internal/... ./app/ ./cmd/... ./components/... &
+            pids="$pids $!"
+          done
+          GOOS=js GOARCH=wasm go vet ./internal/platform/web/ ./app/ &
+          pids="$pids $!"
+          for pid in $pids; do
+            wait "$pid" || status=1
+          done
+          exit "$status"
+
+  # The whole test suite except the packages that carry darwin-only files, split
+  # over several runners. .github/scripts/test-packages.sh decides what this
+  # shard owns: a package with no darwin file behaves identically on every
+  # operating system, so it runs here once instead of on macOS as well.
+  test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: test (${{ matrix.shard }}/3)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: this shard's packages
+        run: |
+          .github/scripts/test-packages.sh linux "${{ matrix.shard }}" 3 > "$RUNNER_TEMP/packages"
+          sed 's/^/    /' "$RUNNER_TEMP/packages"
+      # NSIS is what makes the Windows installer tests build a real installer
+      # instead of skipping it: install it only in the shard that has them.
+      - name: NSIS
+        run: |
+          if grep -qE '/(cmd/viva|tools/winpkg)$' "$RUNNER_TEMP/packages"; then
+            sudo apt-get update && sudo apt-get install -y nsis
+          fi
+      - name: test
+        run: |
+          # shellcheck disable=SC2046 # one package per word, by design
+          go test $(cat "$RUNNER_TEMP/packages") -count=1
+
+  # The one job that has to be on macOS: cgo reaches Cocoa there, and the
+  # packages that carry a darwin-only file can be tested nowhere else. Everything
+  # else is in the test job above.
   darwin:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: gofmt
-        run: test -z "$(gofmt -l .)"
+          cache: true
+      # A package with no darwin file compiles to the same source on every
+      # operating system, so the lint job's `go vet ./...` already covers it.
+      # What is left is the darwin build of the packages that have one.
       - name: vet
-        run: go vet ./...
+        run: |
+          # shellcheck disable=SC2046 # one package per word, by design
+          go vet $(.github/scripts/test-packages.sh darwin)
       - name: vet (headless)
         run: go vet -tags vivahead ./internal/platform/darwin ./headless/...
       - name: test
-        run: go test ./... -count=1
-
-  # The Windows, Linux and web backends are not run here; they must at least
-  # type-check, tests included, for every target they ship for.
-  cross-vet:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - linux/amd64
-          - linux/arm64
-          - windows/amd64
-          - windows/arm64
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - name: vet ${{ matrix.target }}
         run: |
-          export GOOS="${TARGET%/*}" GOARCH="${TARGET#*/}"
-          go vet ./internal/... ./app/ ./cmd/... ./components/...
-        env:
-          TARGET: ${{ matrix.target }}
+          # shellcheck disable=SC2046 # one package per word, by design
+          go test $(.github/scripts/test-packages.sh darwin) -count=1
 
   windows-materials:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     env:
       VIVA_SOFTWARE_RENDERING: '1'
@@ -65,32 +188,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
+      # WARP is a Windows API: this cannot run anywhere else.
       - name: Material contracts and controls (WARP)
         run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent)' -count=1 -v
-
-  cross-vet-web:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - name: vet js/wasm
-        run: GOOS=js GOARCH=wasm go vet ./internal/platform/web/ ./app/
-
-  # Packaging, manifest and layout code is plain Go with no window: it runs
-  # on Linux, where the .deb and .tar.gz it writes are consumed.
-  linux-logic:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - name: install NSIS
-        run: sudo apt-get update && sudo apt-get install -y nsis
-      - name: test
-        run: go test ./cmd/... ./tools/... ./text/... ./flex/... ./markdown/... ./ui/... -count=1
 
   # A noise-tolerant benchmark regression gate for the pure-Go paths: the base
   # revision and the pull request run the same benchmarks on the same runner,
@@ -98,7 +199,8 @@ jobs:
   # 20 ns) or any new allocation fails. Platform, GPU and window benchmarks are
   # deliberately out: they are not reproducible on a shared runner.
   benchmarks:
-    if: github.event_name == 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,6 +209,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
       - name: checkout the base revision
         run: |
           git fetch --no-tags origin "${{ github.base_ref }}"
@@ -117,3 +220,25 @@ jobs:
         run: ./benchmarks/ci.sh /tmp/head.txt
       - name: compare
         run: go run ./tools/perfhistory compare -threshold 0.20 -min-ns 100 /tmp/base.txt < /tmp/head.txt
+
+  # The single check to require in branch protection. It reports success when
+  # every job this change needed passed and the rest were skipped, so a
+  # documentation-only pull request is green without running anything and a
+  # change that skipped a job by path filter can never sit pending forever.
+  passed:
+    name: ci passed
+    if: always()
+    needs: [changes, lint, cross-vet, test, darwin, windows-materials, benchmarks]
+    runs-on: ubuntu-latest
+    steps:
+      - name: every job this change needed passed
+        run: |
+          for result in ${{ join(needs.*.result, ' ') }}; do
+            case "$result" in
+              success | skipped) ;;
+              *)
+                echo "a job ended $result: ${{ join(needs.*.result, ' ') }}" >&2
+                exit 1
+                ;;
+            esac
+          done
