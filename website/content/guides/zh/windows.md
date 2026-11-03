@@ -24,6 +24,20 @@ group: guides
 
 使用自定义标题栏时，窗口按钮在 macOS 上由系统绘制，在 Windows 和 Linux 上由 Viva 绘制。无论哪种，它们都会盖住条带的一部分，所以用 `app.TitlebarInsets` 询问盖住多少，让自己的内容避开。`Config.TitlebarHeight` 设置条带高度（Viva 放置自绘按钮和 macOS 红绿灯的位置）；窗口从你标记了 `MovesWindow` 的那一行移动，行内的控件仍然接收自己的点击，行上方打开的菜单或对话框会被那里的点击关闭，指针拖动后窗口才移动。`Config.WindowControls` 给 Viva 绘制的按钮定样式，使它们跟随你的主题。
 
+## 全屏
+
+调用 `window.SetFullscreen(true)` 进入原生全屏，调用 `window.SetFullscreen(false)` 退出。这个调用可以从任意 goroutine 发起；返回 nil 表示请求已被接受，并不表示原生动画已经结束。不支持全屏的宿主会返回一个包装了 `app.ErrUnsupported` 的错误。
+
+`Config.OnFullscreen func(bool)` 在窗口线程上运行，既用于应用发起的请求，也用于系统发起的切换（包括 macOS 的绿色按钮和全屏快捷键）。回调运行时 `window.Fullscreen()` 已经更新。回调先于这次切换的 resize/frame 通知执行，之后 Viva 会自动重绘。用这个回调切换应用自己的布局；显示哪些内容仍由应用决定。对同一状态重复请求不会再次触发切换回调。
+
+Windows 使用整个显示器而不是任务栏工作区，并保存之前的位置和最大化状态。macOS 使用 AppKit 的全屏空间和原生动画。Linux 在 X11 上使用 `_NET_WM_STATE_FULLSCREEN`，在 GTK/Wayland 上使用 GTK 的原生全屏 API。Linux 的位置恢复由窗口管理器负责。macOS 的状态栏面板窗口不是全屏窗口。浏览器宿主不实现这个能力。
+
+全屏时 Viva 会隐藏自己的窗口按钮，并禁用标题栏的移动和缩放行为。macOS 的原生全屏外框仍由 AppKit 管理。全屏期间普通窗口位置不会通过 `OnFrameChange` 上报，所以持久化普通窗口边界时不会误存一个显示器矩形。`Frame()` 仍然描述当前的内容区域。
+
+测试时，`Driver.SetFullscreen(bool) error` 使用同一套回调并立即重绘。`Driver.SetFullscreenMonitor(ui.Rect) error` 以逻辑像素定义整个显示器的边界（默认 `(0,0,1920,1080)`）；负的原点表示位于主显示器左侧的显示器。全屏期间更换显示器或调整大小不会替换退出时恢复的位置。`Driver.Fullscreen()` 报告模拟出来的状态。与 `Window` 的方法不同，Driver 的操作在调用者的线程上运行，不是并发安全的。
+
+无头应用的 `Window.SetFullscreen` 把工作排进 driver 的下一次 pump，不需要 worker，也不轮询。它的命令协议还提供 `fullscreen on|off` 和 `fullscreenmonitor x y width height`。
+
 ## 完整示例
 
 下面的程序打开一个自定义标题栏窗口，其中的“Settings”按钮会打开第二个窗口，并且在有未保存的笔记时拒绝关闭。顶部条带是一个普通的 `Row`，用 `app.TitlebarInsets` 留出内边距，所以标题不会压到窗口按钮下面；确认框是 `f.Dialog`，只在有关闭请求挂起时才声明：
