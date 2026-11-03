@@ -87,7 +87,7 @@ jobs:
 
   # Every target Viva ships for must at least type-check, tests included. The
   # targets do not depend on each other, so they run at the same time on one
-  # runner: asking for five runners to do what one can finish in the same minute
+  # runner: asking for four runners to do what one can finish in the same minute
   # only spends more queue time.
   cross-vet:
     needs: changes
@@ -103,7 +103,8 @@ jobs:
         run: |
           status=0
           pids=""
-          for target in linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
+          # linux/amd64 is the lint job's `go vet ./...`, over every package.
+          for target in linux/arm64 windows/amd64 windows/arm64; do
             GOOS=${target%/*} GOARCH=${target#*/} \
               go vet ./internal/... ./app/ ./cmd/... ./components/... &
             pids="$pids $!"
@@ -143,7 +144,10 @@ jobs:
       - name: NSIS
         run: |
           if grep -qE '/(cmd/viva|tools/winpkg)$' "$RUNNER_TEMP/packages"; then
-            sudo apt-get update && sudo apt-get install -y nsis
+            # The runner's package lists are normally usable as they are, and
+            # refreshing them is the slow half of an install.
+            sudo apt-get install -y nsis ||
+              { sudo apt-get update && sudo apt-get install -y nsis; }
           fi
       - name: test
         run: |
@@ -164,18 +168,22 @@ jobs:
           go-version-file: go.mod
           cache: true
       # A package with no darwin file compiles to the same source on every
-      # operating system, so the lint job's `go vet ./...` already covers it.
-      # What is left is the darwin build of the packages that have one.
-      - name: vet
+      # operating system, so the lint job's `go vet ./...` already covers it;
+      # what is left here is the darwin build of the packages that have one. The
+      # tests of that set are bound by hdiutil, codesign and the linker rather
+      # than by the cores, so the two type-checks run beside them, not before.
+      - name: vet and test
         run: |
+          status=0
           # shellcheck disable=SC2046 # one package per word, by design
-          go vet $(.github/scripts/test-packages.sh darwin)
-      - name: vet (headless)
-        run: go vet -tags vivahead ./internal/platform/darwin ./headless/...
-      - name: test
-        run: |
+          go vet $(.github/scripts/test-packages.sh darwin) & vet=$!
+          go vet -tags vivahead ./internal/platform/darwin ./headless/... & headless=$!
           # shellcheck disable=SC2046 # one package per word, by design
-          go test $(.github/scripts/test-packages.sh darwin) -count=1
+          go test $(.github/scripts/test-packages.sh darwin) -count=1 & tests=$!
+          for job in "$vet" "$headless" "$tests"; do
+            wait "$job" || status=1
+          done
+          exit "$status"
 
   windows-materials:
     needs: changes
