@@ -597,6 +597,44 @@ int main(void) {
         assert([view performKeyEquivalent:keyEvent(@"v", NSEventModifierFlagCommand)]);
         assert(view->editEvents == pastes + 1 && view->lastKind == VIVA_TEXT_PASTE);
         assert([view->lastText isEqualToString:@"ls\nrm\r\n"]);
+        // An input source can resolve Command+V to v while exposing a
+        // different text character when Command is ignored.
+        NSEvent *imePaste = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
+            modifierFlags:NSEventModifierFlagCommand timestamp:0 windowNumber:0 context:nil
+            characters:@"v" charactersIgnoringModifiers:@"女" isARepeat:NO keyCode:9];
+        pastes = view->editEvents;
+        assert([view performKeyEquivalent:imePaste]);
+        assert(view->editEvents == pastes + 1 && view->lastKind == VIVA_TEXT_PASTE);
+        assert([view->lastText isEqualToString:@"ls\nrm\r\n"]);
+        // The application shortcut/raw-key path uses the same identity.
+        rawCount = 0;
+        [view keyDown:imePaste];
+        assert(rawCount == 1 && strcmp(rawText[0], "v") == 0 && rawModifiers[0] == VIVA_MODIFIER_META);
+        // Identity is independent of the input source's text. Shift remains
+        // meaningful, while Control/Option must not turn a Command shortcut
+        // into a control code or an Option-generated symbol.
+        for (NSArray<NSString *> *pair in @[@[@"c", @"金"], @[@"a", @"日"],
+                @[@"f", @"火"], @[@"v", @"м"], @[@"V", @"女"]]) {
+            NSEvent *shortcut = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
+                modifierFlags:NSEventModifierFlagCommand timestamp:0 windowNumber:0 context:nil
+                characters:pair[0] charactersIgnoringModifiers:pair[1] isARepeat:NO keyCode:0];
+            assert([viva_key_characters(shortcut) isEqualToString:pair[0]]);
+        }
+        for (NSNumber *extra in @[@(NSEventModifierFlagOption), @(NSEventModifierFlagControl),
+                @(NSEventModifierFlagOption | NSEventModifierFlagControl),
+                @(NSEventModifierFlagShift | NSEventModifierFlagOption)]) {
+            NSEventModifierFlags modifiers = NSEventModifierFlagCommand | extra.unsignedLongValue;
+            NSEvent *shortcut = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
+                modifierFlags:modifiers timestamp:0 windowNumber:0 context:nil
+                characters:@"\x16" charactersIgnoringModifiers:@"女" isARepeat:NO keyCode:9];
+            // Shortcut matching folds case; the event retains Shift separately.
+            assert([[viva_key_characters(shortcut) lowercaseString] isEqualToString:@"v"]);
+        }
+        assert([viva_key_characters(controlC) isEqualToString:@"c"]);
+        NSEvent *optionV = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
+            modifierFlags:NSEventModifierFlagOption timestamp:0 windowNumber:0 context:nil
+            characters:@"√" charactersIgnoringModifiers:@"v" isARepeat:NO keyCode:9];
+        assert([viva_key_characters(optionV) isEqualToString:@"v"]);
         assert(![view performKeyEquivalent:keyEvent(@"a", NSEventModifierFlagCommand)]);
         assert(![view performKeyEquivalent:keyEvent(@"x", NSEventModifierFlagCommand)]);
         // A terminal is never told of a paste with no text.
