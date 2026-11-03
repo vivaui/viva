@@ -37,6 +37,11 @@ can run its programs.
   prioritized roadmap, each backed by a measured number. §10 records what was
   implemented afterwards and re-measures it against the same commit.
 
+## Continuous integration
+
+What each job of the gate runs, on which runner, and why is in
+[CONTRIBUTING.md](../CONTRIBUTING.md#continuous-integration).
+
 ## Writing a document here
 
 A document that makes a claim about speed, size, or memory must also record the
