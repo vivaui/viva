@@ -261,10 +261,12 @@ type MultiSelectOptions struct {
 	ScrollID                                     ui.ID
 	OptionIDs, RemoveIDs                         ui.Scope
 	Label, Placeholder, EmptyLabel, CreatePrefix string
-	Viewport                                     ui.Rect
-	Layer                                        uint16
-	Disabled, Invalid                            bool
-	MaxRows                                      int
+	// Viewport bounds the popup and backdrop independently of the input's
+	// ancestor scroll clips. Set it to the window or a narrower overlay region.
+	Viewport          ui.Rect
+	Layer             uint16
+	Disabled, Invalid bool
+	MaxRows           int
 }
 
 type MultiSelectLayout struct {
@@ -286,6 +288,7 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 	}
 	choices := s.Choices()
 	open := s.Open && !o.Disabled
+	floating := o.Viewport.Width > 0 && o.Viewport.Height > 0
 	// The popup takes focus into its own scope and the runtime restores the
 	// target from before that scope opened, which is not the query input when
 	// the list was opened by the trigger instead of a press on the input. Hand
@@ -303,7 +306,13 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 		canvas.TrapFocus(o.Scope)
 		canvas.SetInitialFocus(o.InputID)
 		canvas.SetEscapeTarget(o.DismissID)
+		if floating {
+			canvas.PushOverlayClip(o.Viewport)
+		}
 		canvas.HitWithOptions(o.DismissID, o.Viewport, o.Label, ui.HitOptions{Role: ui.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
+		if floating {
+			canvas.PopOverlayClip()
+		}
 	}
 	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: canvas.Focused() == o.InputID || open, Invalid: o.Invalid, Disabled: o.Disabled})
 	canvas.HitWithOptions(o.TriggerID, bounds, o.Label, ui.HitOptions{Role: ui.RoleButton, Expanded: open, Disabled: o.Disabled, SkipFocus: true})
@@ -359,13 +368,22 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 	}
 	height := float32(max(1, min(len(choices), rows))*32 + 8)
 	layout.Popup = ui.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 6, Width: bounds.Width, Height: height}
-	if bottom := o.Viewport.Y + o.Viewport.Height - 8; o.Viewport.Height > 0 && layout.Popup.Y+height > bottom {
-		if above := bounds.Y - o.Viewport.Y - 14; above > bottom-layout.Popup.Y {
-			layout.Popup.Height = min(height, max(above, 40))
-			layout.Popup.Y = bounds.Y - layout.Popup.Height - 6
-		} else {
-			layout.Popup.Height = max(40, bottom-layout.Popup.Y)
+	if o.Viewport.Height > 0 {
+		top, bottom := o.Viewport.Y+1, o.Viewport.Y+o.Viewport.Height-1
+		if layout.Popup.Y+layout.Popup.Height > bottom {
+			// Prefer room above for at least one usable row. Otherwise scroll
+			// inside the space left below, even when that is less than a row.
+			if above := bounds.Y - 6 - top; above >= min(height, 40) {
+				layout.Popup.Height = min(height, above)
+				layout.Popup.Y = bounds.Y - layout.Popup.Height - 6
+			}
 		}
+		layout.Popup.Y = max(top, min(layout.Popup.Y, bottom-1))
+		layout.Popup.Height = max(1, min(layout.Popup.Height, bottom-layout.Popup.Y))
+	}
+	if floating {
+		canvas.PushOverlayClip(o.Viewport)
+		defer canvas.PopOverlayClip()
 	}
 	canvas.Block(layout.Popup)
 	canvas.Container(layout.Popup, ui.RoleListBox, o.Label)

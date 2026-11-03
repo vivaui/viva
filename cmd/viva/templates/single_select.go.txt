@@ -254,10 +254,12 @@ type SingleSelectOptions struct {
 	InputID, TriggerID, ClearID, DismissID, Scope, ScrollID  ui.ID
 	OptionIDs                                                ui.Scope
 	Label, Placeholder, EmptyLabel, CreatePrefix, ClearLabel string
-	Viewport                                                 ui.Rect
-	Layer                                                    uint16
-	Disabled, Invalid                                        bool
-	MaxRows                                                  int
+	// Viewport bounds the popup and backdrop independently of the input's
+	// ancestor scroll clips. Set it to the window or a narrower overlay region.
+	Viewport          ui.Rect
+	Layer             uint16
+	Disabled, Invalid bool
+	MaxRows           int
 }
 
 // SingleSelectLayout is where the control, its native input and its popup were
@@ -277,6 +279,7 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 	}
 	choices := s.Choices()
 	open := s.Open && !o.Disabled
+	floating := o.Viewport.Width > 0 && o.Viewport.Height > 0
 	if s.openPainted && !open && canvas.Focused() == o.InputID {
 		canvas.RequestFocus(o.InputID)
 	}
@@ -289,7 +292,13 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 		canvas.TrapFocus(o.Scope)
 		canvas.SetInitialFocus(o.InputID)
 		canvas.SetEscapeTarget(o.DismissID)
+		if floating {
+			canvas.PushOverlayClip(o.Viewport)
+		}
 		canvas.HitWithOptions(o.DismissID, o.Viewport, o.Label, ui.HitOptions{Role: ui.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
+		if floating {
+			canvas.PopOverlayClip()
+		}
 	}
 	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: canvas.Focused() == o.InputID || open, Disabled: o.Disabled, Invalid: o.Invalid})
 	canvas.HitWithOptions(o.TriggerID, bounds, o.Label, ui.HitOptions{Role: ui.RoleButton, Expanded: open, Disabled: o.Disabled, SkipFocus: true})
@@ -361,6 +370,10 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 		}
 		layout.Popup.Y = max(top, min(layout.Popup.Y, bottom-1))
 		layout.Popup.Height = max(1, min(layout.Popup.Height, bottom-layout.Popup.Y))
+	}
+	if floating {
+		canvas.PushOverlayClip(o.Viewport)
+		defer canvas.PopOverlayClip()
 	}
 	canvas.Block(layout.Popup)
 	canvas.Container(layout.Popup, ui.RoleListBox, o.Label)
