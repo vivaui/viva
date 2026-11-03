@@ -153,9 +153,11 @@ jobs:
           # shellcheck disable=SC2046 # one package per word, by design
           go test $(cat "$RUNNER_TEMP/packages") -count=1
 
-  # The one job that has to be on macOS: cgo reaches Cocoa there, and the
-  # packages that carry a darwin-only file can be tested nowhere else. Everything
-  # else is in the test job above.
+  # What has to be on macOS: cgo reaches Cocoa there, and the packages that
+  # carry a darwin-only file can be tested nowhere else. Everything else is in
+  # the test job above. It is the long pole of the gate, because cmd/viva's
+  # packaging tests build a real bundle, disk image, signature and notarization
+  # request, and that work is serial inside the package.
   darwin:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -174,15 +176,34 @@ jobs:
       - name: vet and test
         run: |
           status=0
-          # shellcheck disable=SC2046 # one package per word, by design
-          go vet $(.github/scripts/test-packages.sh darwin) & vet=$!
+          packages=$(.github/scripts/test-packages.sh darwin)
+          tests=$(printf '%s\n' "$packages" | grep -v '^github.com/vivaui/viva/cmd/viva$')
+          # shellcheck disable=SC2086 # one package per word, by design
+          go vet $packages & vet=$!
           go vet -tags vivahead ./internal/platform/darwin ./headless/... & headless=$!
-          # shellcheck disable=SC2046 # one package per word, by design
-          go test $(.github/scripts/test-packages.sh darwin) -count=1 & tests=$!
-          for job in "$vet" "$headless" "$tests"; do
+          # shellcheck disable=SC2086 # one package per word, by design
+          go test $tests -count=1 & unit=$!
+          for job in "$vet" "$headless" "$unit"; do
             wait "$job" || status=1
           done
           exit "$status"
+
+  # The viva command's macOS packaging: `viva package` builds a bundle, a disk
+  # image, a signature and a notarization request for real. Nothing else can
+  # check it, and alone on a runner it no longer waits behind the type-checks
+  # above or throttles them.
+  darwin-packaging:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: packaging
+        run: go test ./cmd/viva -count=1
 
   windows-materials:
     needs: changes
@@ -235,7 +256,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, cross-vet, test, darwin, windows-materials, benchmarks]
+    needs: [changes, lint, cross-vet, test, darwin, darwin-packaging, windows-materials, benchmarks]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed
