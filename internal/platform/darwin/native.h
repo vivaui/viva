@@ -425,7 +425,7 @@ int viva_text_input_caret_should_blink(
     int terminal,
     int hide_native_overlays
 );
-int viva_text_input_should_interpret_key(int enabled, int multiline, int key);
+int viva_text_input_should_interpret_key(int enabled, int multiline, int composing, int key);
 // viva_text_input_row_key_is_raw says whether a key typed into a field that lays
 // its rows out itself goes to the application as a raw key event (1) rather than
 // to the text system, which knows one line: the keys that move between rows, and

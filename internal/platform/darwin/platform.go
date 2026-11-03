@@ -852,9 +852,9 @@ func nativeTextInputNavigationKeyIsRaw(navigationKeys, composing bool, key int) 
 	) != 0
 }
 
-func nativeTextInputShouldInterpretKey(enabled, multiline bool, key int) bool {
+func nativeTextInputShouldInterpretKey(enabled, multiline, composing bool, key int) bool {
 	return C.viva_text_input_should_interpret_key(
-		C.int(boolInt(enabled)), C.int(boolInt(multiline)), C.int(key),
+		C.int(boolInt(enabled)), C.int(boolInt(multiline)), C.int(boolInt(composing)), C.int(key),
 	) != 0
 }
 

@@ -777,11 +777,11 @@ int viva_text_input_navigation_key_is_raw(int navigation_keys, int composing, in
     return 0;
 }
 
-int viva_text_input_should_interpret_key(int enabled, int multiline, int key) {
-    if (enabled == 0 || key == VIVA_KEY_TAB || key == VIVA_KEY_ESCAPE) {
+int viva_text_input_should_interpret_key(int enabled, int multiline, int composing, int key) {
+    if (enabled == 0 || key == VIVA_KEY_TAB || (key == VIVA_KEY_ESCAPE && composing == 0)) {
         return 0;
     }
-    return key != VIVA_KEY_ENTER || multiline != 0;
+    return key != VIVA_KEY_ENTER || multiline != 0 || composing != 0;
 }
 
 static BOOL viva_test_pointer_enabled(void) {
@@ -4091,7 +4091,7 @@ static int viva_navigation_command(SEL selector) {
     }
     if (!viva_text_input_row_key_is_raw(_textInputEnabled && _textPlaced, _hasMarkedText, key, command) &&
         !viva_text_input_navigation_key_is_raw(_textInputEnabled && _textNavigationKeys, _hasMarkedText, key) &&
-        viva_text_input_should_interpret_key(_textInputEnabled, _textInputMultiline, key)) {
+        viva_text_input_should_interpret_key(_textInputEnabled, _textInputMultiline, _hasMarkedText, key)) {
         [self interpretKeyEvents:@[event]];
         return;
     }
