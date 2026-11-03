@@ -123,14 +123,17 @@ type Config struct {
 	// OnKey receives normalized keyboard events for the focused hit target.
 	// Handled suppresses built-in traversal, activation, and Escape dismissal.
 	OnKey func(event ui.KeyEvent) ui.EventResult
-	// OnShortcut receives printable keys with any modifiers; unmodified keys
-	// are offered after input-method processing. Control+Enter and Meta+Enter
-	// also arrive here (event.Key is ui.KeyEnter, event.Text empty), before a
-	// multiline field turns them into a line break. Return Handled only for keys the application
+	// OnShortcut receives printable keys with any modifiers. Unmodified keys are
+	// offered after input-method processing on macOS and Linux, and on Windows
+	// from the message loop before the input method sees them, except while a
+	// composition is in progress. Control+Enter and Meta+Enter also arrive here
+	// (event.Key is ui.KeyEnter, event.Text empty), before a multiline field
+	// turns them into a line break. Return Handled only for keys the application
 	// owns; an unhandled chord continues through normal text and IME handling,
 	// so Control+Enter still reaches the field as before. Other named keys
-	// remain OnKey events. On Windows an ordinary (non-terminal, non-Placed) text field that has focus takes the standard editing and
-	// clipboard chords first, so the application does not see them there.
+	// remain OnKey events. On Windows an ordinary (non-terminal, non-Placed)
+	// text field that has focus takes the standard editing and clipboard chords
+	// first, so the application does not see them there.
 	// This callback runs on the window thread.
 	OnShortcut func(event ui.KeyEvent) ui.EventResult
 	// OnScroll receives normalized pixel deltas and the hovered hit target.

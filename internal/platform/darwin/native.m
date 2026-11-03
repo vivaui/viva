@@ -3980,9 +3980,13 @@ static int viva_navigation_command(SEL selector) {
         viva_key_event_count++;
         if (_textTerminal && (_textKeyReleases || (alt && _textAltSendsEscape))) {
             if (_textKeyReleases) {
+                /* The key's text stays the unshifted character, as the rest of
+                 * the keyboard protocol expects; what the key types goes to
+                 * typed. */
+                NSData *keyText = [[characters lowercaseString] dataUsingEncoding:NSUTF8StringEncoding];
                 NSData *typedText = alt ? nil : [typed dataUsingEncoding:NSUTF8StringEncoding];
                 vivaRawKeyEvent(_callbackHandle, self, 0, viva_modifier_flags(event.modifierFlags),
-                    event.isARepeat ? 1 : 0, (unsigned int)event.keyCode + 1, base.bytes, base.length,
+                    event.isARepeat ? 1 : 0, (unsigned int)event.keyCode + 1, keyText.bytes, keyText.length,
                     typedText.length > 0 ? typedText.bytes : NULL, typedText.length);
             } else {
                 vivaKeyEvent(_callbackHandle, self, 0, viva_modifier_flags(event.modifierFlags),
