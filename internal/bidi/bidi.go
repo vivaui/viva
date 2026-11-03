@@ -182,3 +182,5 @@ func (p Paragraph) LevelAt(byteOffset int) uint8 {
 	}
 	return p.levels[p.RuneIndex(byteOffset)]
 }
+
+// ci cancellation check
