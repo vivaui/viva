@@ -104,15 +104,15 @@ func fontMeasuresUniform(logFont *enumLogFont) bool {
 	defer deleteObject.Call(font)
 	previous, _, _ := selectObject.Call(dc, font)
 	defer selectObject.Call(dc, previous)
-	var width int32
-	for index, ch := range [...]uint16{'a', 'm', 'i', 'W', '0', ';'} {
-		var advance int32
-		if r1, _, _ := getCharWidth32.Call(dc, uintptr(ch), uintptr(ch), uintptr(unsafe.Pointer(&advance))); r1 == 0 {
-			return false
-		}
-		if index == 0 {
-			width = advance
-		} else if advance != width {
+	// The fixed-pitch flag lies for some CJK and linked families, so measure
+	// every printable ASCII advance in one range call and demand one shared
+	// width — the same signal the darwin reader gets from its own measurement.
+	var widths [0x7f - 0x20]int32
+	if r1, _, _ := getCharWidth32.Call(dc, 0x20, 0x7e, uintptr(unsafe.Pointer(&widths[0]))); r1 == 0 {
+		return false
+	}
+	for _, advance := range widths {
+		if advance != widths[0] {
 			return false
 		}
 	}
