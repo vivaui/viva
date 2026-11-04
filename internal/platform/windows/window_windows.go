@@ -145,8 +145,14 @@ type windowsApplication struct {
 	thread uint32
 	status *statusState
 	// oleReady is set once OLE is initialized on the event-loop thread, which
-	// a window needs to take files by drag and drop.
+	// a window needs to take files by drag and drop, and the taskbar needs to
+	// draw a progress bar.
 	oleReady bool
+	// taskbar is the application's ITaskbarList3, made the first time a bar is
+	// asked for; taskbarTried says the shell refused one, which it is not asked
+	// again.
+	taskbar      uintptr
+	taskbarTried bool
 }
 
 type nativeWindow struct {

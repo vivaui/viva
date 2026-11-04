@@ -39,6 +39,9 @@ type Host interface {
 	AddStatusItem(config StatusItemConfig) (StatusItemControl, error)
 	// SetDockBadge marks the application's icon in the Dock with text.
 	SetDockBadge(text string)
+	// SetProgress draws how much of the application's work is done on the icon
+	// the desktop shows for it.
+	SetProgress(fraction float32)
 	// Quit closes every window, close requests notwithstanding, and ends the
 	// loop. It is safe to call from any goroutine.
 	Quit()
@@ -258,6 +261,25 @@ func (application *Application) SetDockBadge(text string) {
 	if application != nil && application.host != nil {
 		application.host.SetDockBadge(text)
 	}
+}
+
+// SetProgress draws how much of the work the application is doing is done on
+// the icon the desktop shows for it: the Dock tile on macOS, the taskbar button
+// on Windows, the launcher entry of a Linux desktop that has one. A fraction
+// between 0 and 1 draws a bar of that length; a fraction below zero, or one that
+// is not a number, takes the bar away, which is also how a program says the work
+// is over. It describes the whole application rather than one window, so a
+// program with several windows reports what all of them are moving. It is called
+// from the startup callback or a window callback, like SetDockBadge; a desktop
+// with nowhere to draw the bar accepts it and does nothing.
+func (application *Application) SetProgress(fraction float32) {
+	if application == nil || application.host == nil {
+		return
+	}
+	if fraction > 1 {
+		fraction = 1
+	}
+	application.host.SetProgress(fraction)
 }
 
 // Quit closes every window, whatever their close requests say, and ends

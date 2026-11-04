@@ -53,6 +53,10 @@ type applicationSession struct {
 	// badge is the label the Dock was asked to show beside the icon, which
 	// SetDockBadge records and the "dockbadge" command reports.
 	badge string
+	// progress is the fraction the icon was asked to show, which SetProgress
+	// records and the "progress" command reports; a negative fraction is the
+	// absence of a bar.
+	progress float32
 	// openURL receives the links the "openurl" command delivers, as the system
 	// would deliver a registered scheme's link.
 	openURL func(string)
@@ -61,7 +65,8 @@ type applicationSession struct {
 func newApplicationSession(options Options) *applicationSession {
 	return &applicationSession{
 		options: options, nextID: 1, nextItem: 1,
-		windows: make(map[uint64]*applicationWindow), items: make(map[uint64]*applicationStatusItem),
+		progress: -1,
+		windows:  make(map[uint64]*applicationWindow), items: make(map[uint64]*applicationStatusItem),
 	}
 }
 
@@ -182,6 +187,14 @@ func (application *applicationSession) SetOpenURLHandler(handler func(string)) {
 func (application *applicationSession) SetDockBadge(text string) {
 	application.mu.Lock()
 	application.badge = text
+	application.mu.Unlock()
+}
+
+// SetProgress implements app.Host: it keeps the fraction the icon was asked to
+// show, which the "progress" command reports.
+func (application *applicationSession) SetProgress(fraction float32) {
+	application.mu.Lock()
+	application.progress = fraction
 	application.mu.Unlock()
 }
 
@@ -468,6 +481,14 @@ func executeApplication(application *applicationSession, line string) (string, b
 		label := application.badge
 		application.mu.Unlock()
 		return fmt.Sprintf("ok label=%q\n", label), false
+	case "progress":
+		if rest != "" {
+			return "error progress takes no arguments\n", false
+		}
+		application.mu.Lock()
+		fraction := application.progress
+		application.mu.Unlock()
+		return fmt.Sprintf("ok fraction=%g\n", fraction), false
 	case "openurl":
 		application.mu.Lock()
 		handler := application.openURL

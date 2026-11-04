@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 )
 
 // Encoder writes values in the D-Bus wire format. Alignment is relative to the
@@ -36,6 +37,12 @@ func (e *Encoder) Int32(value int32) { e.Uint32(uint32(value)) }
 func (e *Encoder) Uint32(value uint32) {
 	e.Align(4)
 	e.buf = binary.LittleEndian.AppendUint32(e.buf, value)
+}
+
+// Float64 writes a double, which the wire format aligns on eight bytes.
+func (e *Encoder) Float64(value float64) {
+	e.Align(8)
+	e.buf = binary.LittleEndian.AppendUint64(e.buf, math.Float64bits(value))
 }
 
 // String writes a UTF-8 string; an object path has the same encoding.
@@ -130,6 +137,15 @@ func (d *Decoder) Uint32() uint32 {
 func (d *Decoder) Int32() int32 { return int32(d.Uint32()) }
 
 func (d *Decoder) Bool() bool { return d.Uint32() != 0 }
+
+// Float64 reads a double.
+func (d *Decoder) Float64() float64 {
+	d.Align(8)
+	if b := d.take(8); b != nil {
+		return math.Float64frombits(binary.LittleEndian.Uint64(b))
+	}
+	return 0
+}
 
 // String reads a string or an object path.
 func (d *Decoder) String() string {

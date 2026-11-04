@@ -117,6 +117,8 @@ func (host nativeHost) AddStatusItem(config StatusItemConfig) (StatusItemControl
 
 func (host nativeHost) SetDockBadge(text string) { host.native.SetDockBadge(text) }
 
+func (host nativeHost) SetProgress(fraction float32) { host.native.SetProgress(fraction) }
+
 func (host nativeHost) Quit() { host.native.Quit() }
 
 type nativeStatusItem struct{ item platform.StatusItem }
