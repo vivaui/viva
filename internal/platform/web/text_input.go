@@ -15,10 +15,11 @@ type TextInputContext struct {
 	ID        ui.ID
 	Bounds    ui.Rect
 	Multiline bool
-	// TextBounds, FontSize and TextColor are the text geometry the component
+	// TextBounds, FontSize, FontWeight and TextColor are the text geometry the component
 	// declared; they fill whatever the returned input leaves unset.
 	TextBounds ui.Rect
 	FontSize   float32
+	FontWeight float32
 	TextColor  ui.Color
 }
 

@@ -1753,6 +1753,47 @@ func TestBareTextInputTakesTheGeometryTheComponentDeclared(t *testing.T) {
 	}
 }
 
+func TestNativeTextInputKeepsDeclaredFontWeight(t *testing.T) {
+	editor := text.NewEditor("Heading")
+	weight := ui.WeightSemibold
+	override := false
+	var canvas ui.Canvas
+	config := Config{Title: "weighted editor", Width: 300, Height: 100}
+	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+		canvas.HitWithOptions(ui.Item(5), ui.Rect{X: 20, Y: 20, Width: 200, Height: 40}, "Heading", ui.HitOptions{
+			Role: ui.RoleTextField, Value: editor.String(), TextBounds: ui.Rect{X: 20, Y: 20, Width: 200, Height: 40},
+			TextSize: 24, TextWeight: weight, TextColor: ui.RGB(30, 30, 30),
+		})
+	}
+	config.TextInput = func(context TextInputContext) *TextInput {
+		if context.FontWeight != weight {
+			t.Fatalf("provider weight = %v, want %v", context.FontWeight, weight)
+		}
+		if override {
+			return &TextInput{Editor: editor, Weight: ui.WeightBold}
+		}
+		return &TextInput{Editor: editor}
+	}
+	painter := newTestPainter(t, &canvas, config)
+	frame, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 30, Y: 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame.TextInput.Input == nil || frame.TextInput.Input.Weight != weight {
+		t.Fatalf("native text weight = %+v, want %v", frame.TextInput.Input, weight)
+	}
+	weight = ui.WeightMedium
+	frame, err = painter.repaint()
+	if err != nil || !frame.TextInput.Changed || frame.TextInput.Input == nil || frame.TextInput.Input.Weight != weight {
+		t.Fatalf("weight update = %+v, %v", frame.TextInput, err)
+	}
+	override = true
+	frame, err = painter.repaint()
+	if err != nil || !frame.TextInput.Changed || frame.TextInput.Input == nil || frame.TextInput.Input.Weight != ui.WeightBold {
+		t.Fatalf("explicit weight = %+v, %v", frame.TextInput, err)
+	}
+}
+
 func TestPainterPassesTheSelfPaintedTextOverlayPolicyToThePlatform(t *testing.T) {
 	theme := ui.DarkTheme()
 	editor := text.NewEditor("value")

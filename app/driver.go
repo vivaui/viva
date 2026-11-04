@@ -984,6 +984,7 @@ type Label struct {
 type Editor struct {
 	Bounds      ui.Rect
 	FontSize    float32
+	Weight      float32
 	Layer       uint16
 	MonoFace    ui.MonoFace
 	Color       ui.Color
@@ -1098,7 +1099,7 @@ func (driver *Driver) Snapshot() Snapshot {
 		input := painter.nativeText
 		snapshot.Editor = &Editor{
 			Bounds:   ui.Rect{X: input.X, Y: input.Y, Width: input.Width, Height: input.Height},
-			FontSize: input.FontSize,
+			FontSize: input.FontSize, Weight: input.Weight,
 			// Layer keeps a field inside a popup, dialog or sheet above that
 			// surface's own paint in an offscreen render, as it already is in a
 			// window.

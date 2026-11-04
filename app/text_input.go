@@ -124,12 +124,13 @@ type TextInputContext struct {
 	// text being composed, at Bounds. Return an input whose OnEvent keeps the
 	// query the application builds from the events.
 	TypeAhead bool
-	// TextBounds, FontSize and TextColor are the text geometry the component
+	// TextBounds, FontSize, FontWeight and TextColor are the text geometry the component
 	// declared for this field. They fill whatever the returned TextInput leaves
 	// unset, so a bare &TextInput{Editor: editor} draws its text exactly where
 	// the field painted it; set them only to deliberately override.
 	TextBounds ui.Rect
 	FontSize   float32
+	FontWeight float32
 	TextColor  ui.Color
 	// HideNativeOverlays requests that the platform editor keep its own caret
 	// and selection invisible. Editing, IME and clipboard behavior are
@@ -142,12 +143,13 @@ type TextInputContext struct {
 type TextInputProvider func(TextInputContext) *TextInput
 
 // TextInput describes one application-owned native editor surface. Bounds are
-// logical window pixels. Bounds, FontSize and Color default to the text
+// logical window pixels. Bounds, FontSize, Weight and Color default to the text
 // geometry the focused component declared (see TextInputContext), which is
 // what keeps the text from jumping when a field gains focus.
 type TextInput struct {
 	Bounds   ui.Rect
 	FontSize float32
+	Weight   float32
 	Color    ui.Color
 	MonoFace ui.MonoFace
 	// AltSendsEscape asks printable Alt/Option chords on a terminal to arrive as

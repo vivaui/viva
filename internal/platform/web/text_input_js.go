@@ -153,7 +153,7 @@ func (host *textInputHost) show(element js.Value) {
 		element.Call("removeAttribute", "data-viva-hide-native-overlays")
 	}
 	style.Set("caretColor", caretColor)
-	style.Set("font", cssFont(host.input.FontSize, 0))
+	style.Set("font", cssFont(host.input.FontSize, host.input.Weight))
 	style.Set("opacity", "1")
 	style.Set("overflow", "hidden")
 	style.Set("clipPath", "none")

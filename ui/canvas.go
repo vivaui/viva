@@ -430,13 +430,14 @@ type HitOptions struct {
 	// such as a terminal. A hit that stays painted keeps whatever focus the
 	// user gave it.
 	Autofocus bool
-	// TextBounds, TextSize and TextColor describe the text a text field
-	// paints: where it sits, how large it is and what color. A native editor
+	// TextBounds, TextSize, TextWeight and TextColor describe the text a text field
+	// paints: where it sits, how large it is, its weight and color. A native editor
 	// that takes over the field draws exactly there, so focusing the field
 	// does not move or resize its text. The runtime uses them wherever the
 	// application's text input leaves its own bounds, size or color unset.
 	TextBounds Rect
 	TextSize   float32
+	TextWeight float32
 	TextColor  Color
 	// HideNativeOverlays asks the platform text service to keep its caret and
 	// selection invisible while preserving native editing, IME and clipboard
@@ -538,10 +539,11 @@ type Hit struct {
 	PassSecondary bool
 	// PassPrimary is HitOptions.PassPrimary.
 	PassPrimary bool
-	// TextBounds, TextSize and TextColor are the text geometry declared through
+	// TextBounds, TextSize, TextWeight and TextColor are the text geometry declared through
 	// HitOptions.
 	TextBounds Rect
 	TextSize   float32
+	TextWeight float32
 	TextColor  Color
 	// HideNativeOverlays is HitOptions.HideNativeOverlays.
 	HideNativeOverlays bool
@@ -1270,7 +1272,7 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 		Live: options.Live, Range: options.Range,
 		Focusable: focusable, SkipTab: focusable && options.SkipTab, Autofocus: options.Autofocus && focusable, IsLabel: options.label, Backdrop: options.Backdrop,
 		PassSecondary: options.Backdrop && options.PassSecondary, PassPrimary: options.Backdrop && options.PassPrimary,
-		TextBounds: options.TextBounds, TextSize: options.TextSize, TextColor: options.TextColor,
+		TextBounds: options.TextBounds, TextSize: options.TextSize, TextWeight: options.TextWeight, TextColor: options.TextColor,
 		HideNativeOverlays: options.HideNativeOverlays,
 		NavigationKeys:     options.NavigationKeys,
 		TypeAhead:          options.TypeAhead,

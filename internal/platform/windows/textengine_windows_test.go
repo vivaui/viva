@@ -221,7 +221,7 @@ func TestTextInputOverlayFollowsTheShapedLine(t *testing.T) {
 	defer runtime.UnlockOSThread()
 	engine := newTestEngine(t)
 	const value = "2213123中文"
-	input := platform.TextInput{X: 10, Y: 20, Width: 200, Height: 30, FontSize: 14, Color: platform.Color{Alpha: 1},
+	input := platform.TextInput{X: 10, Y: 20, Width: 200, Height: 30, FontSize: 14, Weight: ui.WeightSemibold, Color: platform.Color{Alpha: 1},
 		State: platform.TextState{Value: value, Selection: text.Range{Start: 3, End: 8}}}
 	state := windowState{
 		textEngine: engine, textInput: input, textState: input.State, textEnabled: true, caretVisible: true,
@@ -230,15 +230,18 @@ func TestTextInputOverlayFollowsTheShapedLine(t *testing.T) {
 	if err := state.updateTextVisuals(); err != nil {
 		t.Fatal(err)
 	}
+	if state.textLabels[1].Weight != input.Weight {
+		t.Fatalf("native label weight = %v, want %v", state.textLabels[1].Weight, input.Weight)
+	}
 	// Runes 3 to 8 are bytes 3 to 10: the digits' tail and the first Chinese character.
-	start, end := engine.Caret(value, 14, 0, 3), engine.Caret(value, 14, 0, 10)
+	start, end := engine.Caret(value, 14, input.Weight, 3), engine.Caret(value, 14, input.Weight, 10)
 	if selection := state.textRectangles[0].Bounds; math.Abs(float64(selection.X-(10+start))) > 0.01 || math.Abs(float64(selection.Width-(end-start))) > 0.01 {
 		t.Errorf("selection rectangle = %+v, want x %v width %v", selection, 10+start, end-start)
 	}
 	if caret := state.textRectangles[1].Bounds; math.Abs(float64(caret.X-(10+end))) > 0.01 {
 		t.Errorf("caret x = %v, want %v", caret.X, 10+end)
 	}
-	boundary := engine.Caret(value, 14, 0, 7) // between the digits and the Chinese text
+	boundary := engine.Caret(value, 14, input.Weight, 7) // between the digits and the Chinese text
 	event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 10 + boundary + 0.5, Y: 35})
 	if err != nil || !handled || event.Selection != (text.Range{Start: 7, End: 7}) {
 		t.Errorf("a click beside the boundary placed %+v (handled %v, err %v), want rune 7", event.Selection, handled, err)

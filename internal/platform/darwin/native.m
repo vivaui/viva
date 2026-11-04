@@ -1898,13 +1898,13 @@ static void viva_draw_terminal_preedit(
 // viva_new_editor_line is the geometry of the text the editor shows: one shaped line
 // shared with layout for proportional text, the terminal's cells for a terminal. A line
 // that was not made could not be shaped.
-static viva_editor_line viva_new_editor_line(NSString *shown, CGFloat fontSize, BOOL terminal, CGFloat cellWidth) {
+static viva_editor_line viva_new_editor_line(NSString *shown, CGFloat fontSize, CGFloat fontWeight, BOOL terminal, CGFloat cellWidth) {
     viva_editor_line line = {NULL, nil, 0};
     if (terminal) {
         line.grid = [shown copy];
         line.cell = cellWidth;
     } else {
-        line.shaped = viva_shared_text_line(shown, fontSize, 0);
+        line.shaped = viva_shared_text_line(shown, fontSize, fontWeight);
     }
     return line;
 }
@@ -1928,6 +1928,7 @@ static id<MTLTexture> viva_text_input_texture(
     CGFloat scale,
     NSString *shown,
     CGFloat fontSize,
+    CGFloat fontWeight,
     NSColor *color,
     NSSize frameSize,
     NSRange selectedRange,
@@ -1970,7 +1971,7 @@ static id<MTLTexture> viva_text_input_texture(
     }
 
     viva_prepare_text_context(context, scale);
-    viva_editor_line line = viva_new_editor_line(shown, fontSize, terminal, cellWidth);
+    viva_editor_line line = viva_new_editor_line(shown, fontSize, fontWeight, terminal, cellWidth);
     if (!viva_editor_line_made(line)) {
         CGContextRelease(context);
         free(pixels);
@@ -3281,6 +3282,7 @@ static void viva_encode_scene(
     NSRect _textFrame;
     uint16_t _textLayer;
     CGFloat _textFontSize;
+    CGFloat _textFontWeight;
     NSColor *_textColor;
     NSRange _selectedRange;
     NSRange _markedRange;
@@ -3516,6 +3518,7 @@ static int viva_navigation_command(SEL selector) {
             textInput.height
         );
         _textFontSize = textInput.font_size;
+        _textFontWeight = textInput.font_weight;
         _textColor = [[NSColor colorWithSRGBRed:textInput.red
                                           green:textInput.green
                                            blue:textInput.blue
@@ -4359,7 +4362,7 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 
 - (viva_editor_line)newTextLine {
-    return viva_new_editor_line([self displayedText], _textFontSize, _textTerminal, _textCellWidth);
+    return viva_new_editor_line([self displayedText], _textFontSize, _textFontWeight, _textTerminal, _textCellWidth);
 }
 
 - (BOOL)rebuildTextTexture {
@@ -4368,7 +4371,7 @@ static void viva_set_secure_event_input(BOOL on) {
     }
     id<MTLTexture> texture = viva_text_input_texture(
         _metalLayer.device, MAX(_metalLayer.contentsScale, 1.0), [self displayedText],
-        _textFontSize, _textColor, _textFrame.size, _selectedRange, _hasMarkedText,
+        _textFontSize, _textFontWeight, _textColor, _textFrame.size, _selectedRange, _hasMarkedText,
         _markedRange, _caretVisible, _textTerminal, _textHideNativeOverlays, _textMonoFace, _textCellWidth);
     if (texture == nil) {
         return NO;
@@ -4800,6 +4803,7 @@ static void viva_set_secure_event_input(BOOL on) {
         _textTexture = nil;
         _textFrame = NSZeroRect;
         _textFontSize = 0;
+        _textFontWeight = 0;
         _selectedRange = NSMakeRange(0, 0);
         _markedRange = NSMakeRange(0, 0);
         _textInputMultiline = NO;
@@ -4817,6 +4821,7 @@ static void viva_set_secure_event_input(BOOL on) {
     _textColor = replacementColor;
     _textFrame = NSMakeRect(textInput.x, textInput.y, textInput.width, textInput.height);
     _textFontSize = textInput.font_size;
+    _textFontWeight = textInput.font_weight;
     _selectedRange = viva_clamp_range(
         NSMakeRange(textInput.selected_start, textInput.selected_length),
         _text.length
@@ -7092,7 +7097,7 @@ int viva_unregister_font_file(const char *path) {
     _inputFrame = NSMakeRect(config.x, config.y, config.width, config.height);
     _inputLayer = config.layer;
     _inputTexture = viva_text_input_texture(
-        _device, _scale, shown, config.font_size, color, _inputFrame.size,
+        _device, _scale, shown, config.font_size, config.font_weight, color, _inputFrame.size,
         NSMakeRange(config.selected_start, config.selected_length),
         config.has_marked_text != 0,
         NSMakeRange(config.marked_start, config.marked_length), YES, config.terminal != 0,

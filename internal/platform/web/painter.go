@@ -242,7 +242,7 @@ func (p *painter) syncTextInput() {
 		}
 		input := p.config.TextInput(TextInputContext{
 			ID: hit.ID, Bounds: hit.Bounds, Multiline: hit.Multiline,
-			TextBounds: hit.TextBounds, FontSize: hit.TextSize, TextColor: hit.TextColor,
+			TextBounds: hit.TextBounds, FontSize: hit.TextSize, FontWeight: hit.TextWeight, TextColor: hit.TextColor,
 		})
 		if input == nil || input.OnEvent == nil {
 			return
@@ -260,6 +260,9 @@ func (p *painter) syncTextInput() {
 		}
 		if p.textInput.FontSize == 0 {
 			p.textInput.FontSize = hit.TextSize
+		}
+		if p.textInput.Weight == 0 {
+			p.textInput.Weight = hit.TextWeight
 		}
 		if p.textInput.Color == (platform.Color{}) {
 			tint := hit.TextColor

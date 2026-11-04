@@ -273,7 +273,7 @@ func (state *linuxTextInput) rebuild() error {
 	}
 	state.labels[len(state.baseLabels)] = platform.TextLabel{
 		Value: shown, X: inputState.X, Y: inputState.Y, Width: inputState.Width, Height: inputState.Height,
-		FontSize: inputState.FontSize, Color: inputState.Color, Layer: inputState.Layer, Mono: inputState.Terminal, MonoFace: inputState.MonoFace,
+		FontSize: inputState.FontSize, Weight: inputState.Weight, Color: inputState.Color, Layer: inputState.Layer, Mono: inputState.Terminal, MonoFace: inputState.MonoFace,
 	}
 	if inputState.Terminal {
 		state.rebuildTerminalPreedit(shown)
@@ -404,7 +404,7 @@ func (state *linuxTextInput) prefixWidth(shown string, values []rune, end int, s
 	if end <= 0 {
 		return 0, nil
 	}
-	return state.engine.Caret(shown, size, 0, len(string(values[:end]))), nil
+	return state.engine.Caret(shown, size, state.input.Weight, len(string(values[:end]))), nil
 }
 
 // ownsChord reports whether the focused field takes this key itself, ahead of the
@@ -607,7 +607,7 @@ func (state *linuxTextInput) nearestTextIndex(x float32) (int, error) {
 	// One line is laid out: the caret's (see rebuild), and the click is on it.
 	start, end, first := platform.TextLine(shown, state.caretIndex())
 	shown = shown[start:end]
-	offset := state.engine.OffsetAt(shown, state.input.FontSize, 0, x)
+	offset := state.engine.OffsetAt(shown, state.input.FontSize, state.input.Weight, x)
 	return first + utf8.RuneCountInString(shown[:max(0, min(offset, len(shown)))]), nil
 }
 

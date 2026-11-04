@@ -336,6 +336,13 @@ func TestNativeTextInputCarriesAltSendsEscape(t *testing.T) {
 	}
 }
 
+func TestNativeTextInputCarriesFontWeight(t *testing.T) {
+	native := makeNativeTextInput(TextInput{Weight: ui.WeightSemibold}, nil)
+	if float32(native.font_weight) != ui.WeightSemibold {
+		t.Fatalf("native font weight = %v, want %v", native.font_weight, ui.WeightSemibold)
+	}
+}
+
 func TestTerminalKeyCodesNameTheNonTextKeys(t *testing.T) {
 	const (
 		upArrow, pageUp, forwardDelete, insert, f1, f12 = 0xF700, 0xF72C, 0xF728, 0xF727, 0xF704, 0xF70F

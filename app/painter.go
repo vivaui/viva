@@ -1111,7 +1111,7 @@ func (painter *painter) focusedTextField() (TextInputContext, ui.TextPlacement) 
 				ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == ui.RoleTerminal, TypeAhead: hit.TypeAhead && hit.Role != ui.RoleTerminal,
 				Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
 				NavigationKeys: hit.NavigationKeys,
-				TextBounds:     hit.TextBounds, FontSize: hit.TextSize, TextColor: hit.TextColor,
+				TextBounds:     hit.TextBounds, FontSize: hit.TextSize, FontWeight: hit.TextWeight, TextColor: hit.TextColor,
 				HideNativeOverlays: hit.HideNativeOverlays,
 			}, hit.Placement
 		}
@@ -1156,7 +1156,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		return platform.TextInputUpdate{Changed: true}
 	}
 	// What the application leaves unset comes from the component's declaration.
-	bounds, fontSize, tint := input.Bounds, input.FontSize, input.Color
+	bounds, fontSize, weight, tint := input.Bounds, input.FontSize, input.Weight, input.Color
 	if bounds == (ui.Rect{}) {
 		bounds = context.TextBounds
 		if bounds == (ui.Rect{}) {
@@ -1165,6 +1165,9 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	}
 	if fontSize == 0 {
 		fontSize = context.FontSize
+	}
+	if weight == 0 {
+		weight = context.FontWeight
 	}
 	if tint == (ui.Color{}) {
 		tint = context.TextColor
@@ -1182,7 +1185,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		Target: context.ID,
 		X:      bounds.X, Y: bounds.Y,
 		Width: bounds.Width, Height: bounds.Height,
-		FontSize: fontSize, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
+		FontSize: fontSize, Weight: weight, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
 		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace,
 		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
 		HideNativeOverlays: input.HideNativeOverlays || context.HideNativeOverlays,
@@ -1271,7 +1274,7 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 
 func samePlatformTextInput(left, right platform.TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y && left.Width == right.Width && left.Height == right.Height &&
-		left.FontSize == right.FontSize && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace &&
+		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace &&
 		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases &&
 		left.NavigationKeys == right.NavigationKeys &&
 		left.HideNativeOverlays == right.HideNativeOverlays &&
