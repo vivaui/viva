@@ -824,6 +824,7 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 		width:                C.float(input.Width),
 		height:               C.float(input.Height),
 		font_size:            C.float(input.FontSize),
+		font_weight:          C.float(input.Weight),
 		red:                  C.float(input.Color.Red),
 		green:                C.float(input.Color.Green),
 		blue:                 C.float(input.Color.Blue),

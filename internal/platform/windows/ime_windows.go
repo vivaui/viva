@@ -129,7 +129,7 @@ func (state *windowState) updateTextVisuals() error {
 	label := platform.TextLabel{
 		Value: line.value, X: originX, Y: input.Y,
 		Width:  max(input.Width+state.textScroll, textWidth+textCaretWidth),
-		Height: input.Height, FontSize: input.FontSize, Color: input.Color, Layer: input.Layer,
+		Height: input.Height, FontSize: input.FontSize, Weight: input.Weight, Color: input.Color, Layer: input.Layer,
 		Clipped: true, Clip: ui.Rect{X: input.X, Y: input.Y, Width: input.Width, Height: input.Height},
 	}
 	if input.Terminal {
@@ -264,7 +264,7 @@ func (state *windowState) lineWidth(line textLine, size float32) float32 {
 	if state.textInput.Terminal {
 		return state.lineCaret(line, size, utf8.RuneCountInString(state.textDisplayValue()))
 	}
-	return state.textEngine.Width(line.value, size, 0)
+	return state.textEngine.Width(line.value, size, state.textInput.Weight)
 }
 
 // terminalCellWidth is the width of one terminal cell at a font size: the pitch every
@@ -279,7 +279,7 @@ func (state *windowState) lineCaret(line textLine, size float32, runeIndex int) 
 	if state.textInput.Terminal {
 		return float32(platform.TerminalPreeditColumn(state.textDisplayValue(), runeIndex)) * terminalCellWidth(size)
 	}
-	return state.textEngine.Caret(line.value, size, 0, line.byteAt(runeIndex))
+	return state.textEngine.Caret(line.value, size, state.textInput.Weight, line.byteAt(runeIndex))
 }
 
 // textCaret is lineCaret for the line the caret is on.
@@ -295,7 +295,7 @@ func (state *windowState) lineExtent(line textLine, size float32, runes text.Ran
 	if state.textInput.Terminal {
 		return state.lineCaret(line, size, runes.Start), state.lineCaret(line, size, runes.End)
 	}
-	state.textSpans = state.textEngine.Selection(state.textSpans[:0], line.value, size, 0, line.byteAt(runes.Start), line.byteAt(runes.End))
+	state.textSpans = state.textEngine.Selection(state.textSpans[:0], line.value, size, state.textInput.Weight, line.byteAt(runes.Start), line.byteAt(runes.End))
 	if len(state.textSpans) == 0 {
 		return 0, 0
 	}
@@ -332,7 +332,7 @@ func (state *windowState) textPointerEvent(event platform.PointerEvent) (platfor
 		return platform.TextEvent{}, false, nil
 	}
 	line := state.layoutLine()
-	offset := state.textEngine.OffsetAt(line.value, input.FontSize, 0, event.X-input.X+state.textScroll)
+	offset := state.textEngine.OffsetAt(line.value, input.FontSize, input.Weight, event.X-input.X+state.textScroll)
 	index := line.first + utf8.RuneCountInString(line.value[:max(0, min(offset, len(line.value)))])
 	if event.Kind == platform.PointerDown {
 		state.textDragAnchor = index

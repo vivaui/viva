@@ -32,7 +32,7 @@ func TestCanvasCodecPreservesRetainedOutput(t *testing.T) {
 	canvas.HitWithOptions(ui.Item(10), ui.Rect{X: 4, Y: 40, Width: 60, Height: 20}, "Password", ui.HitOptions{Role: ui.RoleTextField, Value: "never", Secure: true})
 	canvas.HitWithOptions(ui.Item(11), ui.Rect{X: 4, Y: 70, Width: 120, Height: 30}, "Name", ui.HitOptions{
 		Role: ui.RoleTextField, TextBounds: ui.Rect{X: 16, Y: 70, Width: 96, Height: 30},
-		TextSize: 12, TextColor: ui.Color{Red: 0.9, Green: 0.8, Blue: 0.7, Alpha: 1},
+		TextSize: 12, TextWeight: 600, TextColor: ui.Color{Red: 0.9, Green: 0.8, Blue: 0.7, Alpha: 1},
 	})
 	canvas.HitWithOptions(ui.Item(12), ui.Rect{X: 4, Y: 110, Width: 120, Height: 30}, "Terminal", ui.HitOptions{Role: ui.RoleTerminal, Autofocus: true})
 	canvas.PopFocusScope()

@@ -172,7 +172,7 @@ func TestLinuxTextPointerPlacesCaretAtNearestCharacter(t *testing.T) {
 func TestLinuxTextInputMergesVisualsAndAppliesKeys(t *testing.T) {
 	editor := text.NewEditor("A")
 	inputState := platform.TextInput{
-		X: 10, Y: 20, Width: 120, Height: 28, FontSize: 16, Layer: 600,
+		X: 10, Y: 20, Width: 120, Height: 28, FontSize: 16, Weight: ui.WeightSemibold, Layer: 600,
 		Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 		State: platform.TextState{Value: "A", Selection: text.Range{Start: 1, End: 1}},
 		OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
@@ -189,7 +189,7 @@ func TestLinuxTextInputMergesVisualsAndAppliesKeys(t *testing.T) {
 	if err != nil || !dirty {
 		t.Fatalf("enable input: dirty=%v err=%v", dirty, err)
 	}
-	if len(merged.Rectangles) != 2 || len(merged.TextLabels) != 1 || merged.TextLabels[0].Value != "A" {
+	if len(merged.Rectangles) != 2 || len(merged.TextLabels) != 1 || merged.TextLabels[0].Value != "A" || merged.TextLabels[0].Weight != ui.WeightSemibold {
 		t.Fatalf("input visuals = %d rectangles, %+v", len(merged.Rectangles), merged.TextLabels)
 	}
 	if merged.TextLabels[0].Layer != 600 || merged.Rectangles[0].Layer != 600 || merged.Rectangles[1].Layer != 600 {

@@ -649,6 +649,7 @@ type TextInput struct {
 	Width    float32
 	Height   float32
 	FontSize float32
+	Weight   float32
 	// Layer keeps native editor visuals in the component's compositing layer.
 	Layer     uint16
 	Multiline bool

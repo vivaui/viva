@@ -19,3 +19,14 @@ func TestSceneryKeepsTheFixedPitchFaceOfALabel(t *testing.T) {
 		t.Fatalf("labels = %+v", labels)
 	}
 }
+
+// A screenshot must keep the weight the application declared for its native
+// editor, or the offscreen rendering shows the very bug the weight fixes.
+func TestSceneryKeepsTheEditorsDeclaredWeight(t *testing.T) {
+	_, _, input := scenery(app.Snapshot{Editor: &app.Editor{
+		Bounds: ui.Rect{Width: 80, Height: 20}, FontSize: 13, Weight: 600,
+	}})
+	if input == nil || input.Weight != 600 {
+		t.Fatalf("input = %+v, want the declared weight 600", input)
+	}
+}
