@@ -50,8 +50,11 @@ type MultiSelectState struct {
 	prepared            bool
 	// openPainted is the popup state of the previous paint, so closing it can
 	// hand focus back to a query input the popup's scope had taken.
-	openPainted                           bool
-	focusInput, reveal                    bool
+	openPainted        bool
+	focusInput, reveal bool
+	// hover is the row the pointer last crossed onto: hovering that row moves
+	// Active there, so the highlight and Enter name one row instead of two.
+	hover                                 pointerRow
 	createText, createPrefix, createValue string
 	overflowText                          string
 	overflowCount                         int
@@ -149,6 +152,9 @@ func (s *MultiSelectState) Choices() []MultiSelectChoice {
 	}
 	s.scroll.Offset = 0
 	s.reveal = true
+	// A rebuilt list is a new set of rows: let the pointer adopt the row it is
+	// over again, or a pointer parked on a row would lose it to the reset above.
+	s.hover = pointerRow{}
 	return s.choices
 }
 
@@ -353,7 +359,7 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 		}
 		inputPaintText(canvas, theme, layout.Input, InputSnapshot{Value: query, Placeholder: placeholder, Disabled: o.Disabled}, false)
 	}
-	canvas.HitWithOptions(o.InputID, layout.Input, o.Label, ui.HitOptions{Role: ui.RoleCombobox, Value: query, Expanded: open, Disabled: o.Disabled, Cursor: ui.PointerCursorText, TextBounds: layout.Input, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground})
+	canvas.HitWithOptions(o.InputID, layout.Input, o.Label, ui.HitOptions{Role: ui.RoleCombobox, Value: query, Expanded: open, Disabled: o.Disabled, Cursor: ui.PointerCursorText, TextBounds: layout.Input, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground, NavigationKeys: true})
 	paintChevron(canvas, &chevronDownIcon, trigger, theme.MutedForeground)
 	if s.focusInput {
 		canvas.RequestFocus(o.InputID)
@@ -392,6 +398,17 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 	s.scroll.BarID = o.ScrollID
 	menu := menuSurface{canvas: canvas, theme: theme, bounds: layout.Popup, options: menuSurfaceOptions{layer: o.Layer, scope: o.Scope, scroll: &s.scroll}, top: layout.Popup.Y + 4, bottom: layout.Popup.Y + layout.Popup.Height - 4, viewHeight: layout.Popup.Height - 8}
 	menu.beginScroll()
+	// Move the cursor before any row is painted: syncing it while the rows are
+	// drawn would tint the previous row and the new one in the same frame.
+	hovered := canvas.Hovered()
+	if s.hover.entered(hovered) && !hovered.IsZero() {
+		for i := range choices {
+			if o.OptionIDs.At(i) == hovered && !choices[i].Disabled {
+				s.Active = i
+				break
+			}
+		}
+	}
 	for i, choice := range choices {
 		id := o.OptionIDs.At(i)
 		row := menu.rowBounds(32)
@@ -399,7 +416,7 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 			continue
 		}
 		menu.paintRow(row, func() {
-			if !choice.Disabled && (i == s.Active || canvas.Hovered() == id) {
+			if !choice.Disabled && i == s.Active {
 				canvas.Rounded(row, theme.Metrics.RadiusItem(), theme.Accent)
 			}
 			color := theme.PopoverForeground

@@ -40,7 +40,11 @@ type ComboboxItem struct {
 	Value    string
 	Hint     string
 	Selected bool
-	Disabled bool
+	// Highlighted is the row the pointer or the keyboard is on: Radix's
+	// data-highlighted, the row Enter chooses. Selected is the chosen value and
+	// is told apart by its check, so the two never tint two rows at once.
+	Highlighted bool
+	Disabled    bool
 }
 
 // ComboboxChip describes one caller-owned multi-selection token.
@@ -176,8 +180,9 @@ func (combobox *Combobox) AddItem(item ComboboxItem) ui.Rect {
 	}
 	combobox.rows.paintRow(bounds, func() {
 		// Only the highlighted row is tinted (Vega's data-highlighted); a selected
-		// one is told apart by its check.
-		active := !item.Disabled && !item.ID.IsZero() && (combobox.canvas.Hovered() == item.ID || combobox.canvas.Pressed() == item.ID || combobox.canvas.FocusVisible() == item.ID)
+		// one is told apart by its check. Highlighted is the caller's row, so the
+		// tint, the pointer and Enter never name different rows.
+		active := !item.Disabled && !item.ID.IsZero() && item.Highlighted
 		if active {
 			combobox.canvas.Rounded(bounds, combobox.theme.Metrics.RadiusItem(), combobox.theme.Accent)
 		}
@@ -343,7 +348,7 @@ func PaintComboboxChips(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, chips
 	paintTextEntrySurface(canvas, theme, layout.Bounds, textEntryState{Focused: options.Focused, Invalid: options.Invalid, Disabled: options.Disabled})
 	if !options.InputID.IsZero() {
 		canvas.HitWithOptions(options.InputID, layout.Bounds, options.Label, ui.HitOptions{
-			Role: ui.RoleCombobox, Hint: options.Hint, Disabled: options.Disabled, Expanded: options.Open,
+			Role: ui.RoleCombobox, Hint: options.Hint, Disabled: options.Disabled, Expanded: options.Open, NavigationKeys: true,
 		})
 	}
 	canvas.PushFocusScope(options.Scope)
@@ -400,7 +405,7 @@ func (combobox Combobox) paintInput() {
 	if !options.InputID.IsZero() {
 		canvas.HitWithOptions(options.InputID, bounds, options.Label, ui.HitOptions{
 			Role: ui.RoleCombobox, Value: options.Value, Hint: options.Hint,
-			Disabled: options.Disabled, Expanded: options.Open,
+			Disabled: options.Disabled, Expanded: options.Open, NavigationKeys: true,
 		})
 	}
 	iconColor := combobox.theme.MutedForeground

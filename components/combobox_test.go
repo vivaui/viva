@@ -75,24 +75,27 @@ func TestComboboxPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) 
 	}
 }
 
-// A selected row is told apart by its check; only the row under the pointer or
-// the keyboard is tinted, so a long multi-select list does not read as a wall
-// of highlights.
+// A selected row is told apart by its check; only the row the caller marked
+// highlighted is tinted, so a long multi-select list does not read as a wall of
+// highlights and the pointer cannot tint a second row beside the one Enter names.
 func TestComboboxTintsOnlyTheHighlightedRowNotTheSelectedOne(t *testing.T) {
 	theme := ui.LightTheme()
-	paint := func(highlight ui.ID) []ui.Rectangle {
+	paint := func(hovered, highlighted ui.ID) []ui.Rectangle {
 		var canvas ui.Canvas
-		canvas.SetInteraction(highlight, ui.ID{}, ui.ID{}, false)
+		canvas.SetInteraction(hovered, ui.ID{}, ui.ID{}, false)
 		combobox := BeginCombobox(&canvas, theme, ui.Rect{Width: 180}, ComboboxOptions{
 			InputID: ui.Item(1), Label: "Framework", Open: true, Content: ui.Rect{Y: 40, Width: 200, Height: 100}, Layer: 3,
 		})
-		combobox.AddItem(ComboboxItem{ID: ui.Item(3), Label: "React", Selected: true})
-		combobox.AddItem(ComboboxItem{ID: ui.Item(4), Label: "Vue"})
+		combobox.AddItem(ComboboxItem{ID: ui.Item(3), Label: "React", Selected: true, Highlighted: highlighted == ui.Item(3)})
+		combobox.AddItem(ComboboxItem{ID: ui.Item(4), Label: "Vue", Highlighted: highlighted == ui.Item(4)})
 		return canvas.Rectangles()
 	}
-	resting, hovered := paint(ui.ID{}), paint(ui.Item(4))
-	if len(hovered) != len(resting)+1 {
-		t.Fatalf("hovering a plain row added %d rectangles, want its highlight alone (a selected row must add none)", len(hovered)-len(resting))
+	selectedOnly := paint(ui.ID{}, ui.ID{})
+	if highlighted := paint(ui.ID{}, ui.Item(4)); len(highlighted) != len(selectedOnly)+1 {
+		t.Fatalf("the highlighted row added %d rectangles, want its tint alone", len(highlighted)-len(selectedOnly))
+	}
+	if hovered := paint(ui.Item(4), ui.ID{}); len(hovered) != len(selectedOnly) {
+		t.Fatalf("hovering a row the caller did not highlight added %d rectangles", len(hovered)-len(selectedOnly))
 	}
 }
 

@@ -681,6 +681,24 @@ type menuSurface struct {
 	hitInset float32
 }
 
+// pointerRow remembers which option row the pointer is over so a list can move
+// its keyboard cursor onto that row. It follows the pointer only when the
+// pointer crosses onto a different row: a pointer that rests where it already
+// was never takes the cursor back from the keyboard, so arrow keys keep
+// working while the pointer is parked over the list.
+type pointerRow struct{ row ui.ID }
+
+// entered records row as the row under the pointer and reports whether the
+// pointer has just crossed onto it. Pass the zero ID, once per paint, to record
+// that no option is under the pointer.
+func (p *pointerRow) entered(row ui.ID) bool {
+	if row == p.row {
+		return false
+	}
+	p.row = row
+	return !row.IsZero()
+}
+
 func beginMenuSurface(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, minWidth float32, options menuSurfaceOptions) menuSurface {
 	bounds.Width = max(bounds.Width, minWidth)
 	if options.viewport.Width > 0 && options.viewport.Height > 0 {
@@ -903,7 +921,23 @@ func menuItemHeight(theme ui.Theme, item menuItem, rowHeight float32) float32 {
 func (menu *menuSurface) paintItem(bounds ui.Rect, item menuItem) {
 	canvas, theme := menu.canvas, menu.theme
 	enabled := !item.ID.IsZero() && !item.Disabled
-	active := enabled && (canvas.Hovered() == item.ID || canvas.Pressed() == item.ID || canvas.FocusVisible() == item.ID)
+	// The pointer moves the menu's current row the way Radix does: entering a
+	// row focuses it, so the tint and Enter name one row instead of two. A
+	// pointer that rests in place never moves the row back, so the arrow keys
+	// keep working under it.
+	hovered := canvas.Hovered()
+	claim := canvas.HoverCrossed() && !hovered.IsZero()
+	if claim && hovered == item.ID {
+		// A disabled row cannot take focus, but the frame is still repainted so
+		// the row that kept focus is tinted again on the next paint.
+		if enabled {
+			canvas.RequestFocus(item.ID)
+		}
+		canvas.RequestFrame()
+	}
+	// Focused, not FocusVisible: a menu row the pointer focused is the current
+	// row even though no key press made its focus ring visible.
+	active := enabled && (claim && hovered == item.ID || !claim && canvas.Focused() == item.ID)
 	if item.Kind == menuSubmenu && item.Expanded {
 		active = true
 	}

@@ -16,8 +16,12 @@ var comboboxComponent = Component{
     ShowTrigger: true, ShowClear: selected > 0, Layer: 6,
 })
 combo.AddLabel("Available targets")
-combo.AddItem(components.ComboboxItem{ID: opt.At(0), Label: "Viva Native", Selected: selected == 1})
-combo.AddItem(components.ComboboxItem{ID: opt.At(1), Label: "WebGPU", Selected: selected == 2})
+// Highlighted is the row the pointer or the arrow keys are on; Selected keeps
+// its check. Enter chooses the highlighted row.
+combo.AddItem(components.ComboboxItem{ID: opt.At(0), Label: "Viva Native",
+    Selected: selected == 1, Highlighted: highlighted == 0})
+combo.AddItem(components.ComboboxItem{ID: opt.At(1), Label: "WebGPU",
+    Selected: selected == 2, Highlighted: highlighted == 1})
 combo.AddSeparator()
 combo.AddItem(components.ComboboxItem{
     ID: opt.At(2), Label: "Headless tests", Selected: selected == 3,
@@ -151,9 +155,18 @@ func (state *State) paintCombobox(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 		combo.AddEmpty(state.Text("没有匹配的框架", "No matching frameworks"))
 		return
 	}
+	// Highlighted is the row the pointer or the arrow keys are on (Radix's
+	// data-highlighted): it is the row Enter chooses. A selected row keeps only
+	// its check, so the two never tint two rows at once.
+	highlighted := selected - 1
+	for i := 0; i < 3; i++ {
+		if canvas.Hovered() == comboboxOption.At(i) {
+			highlighted = i
+		}
+	}
 	combo.AddLabel(state.Text("可用目标", "Available targets"))
-	combo.AddItem(components.ComboboxItem{ID: comboboxOption.At(0), Label: "Viva Native", Value: "native", Hint: state.Text("原生桌面", "Native desktop"), Selected: selected == 1})
-	combo.AddItem(components.ComboboxItem{ID: comboboxOption.At(1), Label: "WebGPU", Value: "webgpu", Hint: state.Text("可选 Web 目标", "Optional web target"), Selected: selected == 2})
+	combo.AddItem(components.ComboboxItem{ID: comboboxOption.At(0), Label: "Viva Native", Value: "native", Hint: state.Text("原生桌面", "Native desktop"), Selected: selected == 1, Highlighted: highlighted == 0})
+	combo.AddItem(components.ComboboxItem{ID: comboboxOption.At(1), Label: "WebGPU", Value: "webgpu", Hint: state.Text("可选 Web 目标", "Optional web target"), Selected: selected == 2, Highlighted: highlighted == 1})
 	combo.AddSeparator()
-	combo.AddItem(components.ComboboxItem{ID: comboboxOption.At(2), Label: "Headless tests", Value: "headless", Hint: state.Text("无窗口测试", "Windowless testing"), Selected: selected == 3})
+	combo.AddItem(components.ComboboxItem{ID: comboboxOption.At(2), Label: "Headless tests", Value: "headless", Hint: state.Text("无窗口测试", "Windowless testing"), Selected: selected == 3, Highlighted: highlighted == 2})
 }

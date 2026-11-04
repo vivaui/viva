@@ -608,8 +608,11 @@ type Canvas struct {
 	spans    []TextSpan
 	cellSize cellSizeMemo
 	// fits remembers the lines FitLine cut; a different measurement empties it.
-	fits         []fitEntry
-	hovered      ID
+	fits    []fitEntry
+	hovered ID
+	// prevHovered is the hit the pointer was on at the end of the previous
+	// paint, which is what HoverCrossed compares against.
+	prevHovered  ID
 	pressed      ID
 	focused      ID
 	scrollX      float32
@@ -769,6 +772,7 @@ func (canvas *Canvas) Reset() {
 	canvas.initialFocus = ID{}
 	canvas.focusRequest = ID{}
 	canvas.trapDepth, canvas.escapeDepth, canvas.initialDepth = -1, -1, -1
+	canvas.prevHovered = canvas.hovered
 	canvas.listensForClicks = false
 	canvas.listensForPointer = false
 }
@@ -1507,6 +1511,14 @@ func (canvas *Canvas) SetInteraction(hovered, pressed, focused ID, focusVisible 
 // Hovered returns the hit ID currently under the pointer, or the zero ID.
 func (canvas *Canvas) Hovered() ID {
 	return canvas.hovered
+}
+
+// HoverCrossed reports whether the pointer reached a different hit since the
+// previous paint. Lists use it to move their current row onto the row the
+// pointer entered, without letting a pointer that rests in place take the row
+// back from the keyboard.
+func (canvas *Canvas) HoverCrossed() bool {
+	return canvas.hovered != canvas.prevHovered
 }
 
 // Pressed returns the hit ID currently held down, or the zero ID.

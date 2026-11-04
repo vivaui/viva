@@ -509,3 +509,58 @@ func TestSubmenuHoverSwitchesKeepsAndCloses(t *testing.T) {
 		t.Fatal("leaving the pair kept the submenu open")
 	}
 }
+
+// The pointer moves the menu's current row, as Radix does, so the tint and the
+// focused item never name two rows; a pointer that rests in place never takes
+// the row back from the keyboard.
+func TestDropdownMenuPointerMovesTheCurrentRowOnlyWhenItEntersOne(t *testing.T) {
+	theme := ui.LightTheme()
+	var canvas ui.Canvas
+	paint := func(hovered, focused ui.ID, visible bool) int {
+		canvas.Reset()
+		canvas.SetInteraction(hovered, ui.ID{}, focused, visible)
+		menu := BeginDropdownMenu(&canvas, theme, ui.Rect{X: 10, Y: 20, Width: 100, Height: 180}, DropdownMenuOptions{Layer: 7, Scope: ui.Item(42), DismissID: ui.Item(91)})
+		menu.AddItem(DropdownMenuItem{ID: ui.Item(11), Label: "One"})
+		menu.AddItem(DropdownMenuItem{ID: ui.Item(12), Label: "Two"})
+		menu.AddItem(DropdownMenuItem{ID: ui.Item(13), Label: "Three"})
+		menu.AddItem(DropdownMenuItem{ID: ui.Item(14), Label: "Off", Disabled: true})
+		menu.End()
+		tinted := 0
+		for _, rectangle := range canvas.Rectangles() {
+			if rectangle.Color == theme.Accent && rectangle.Radius == theme.Metrics.RadiusItem() {
+				tinted++
+			}
+		}
+		return tinted
+	}
+
+	if got := paint(ui.Item(12), ui.Item(11), true); got != 1 {
+		t.Fatalf("hovering the second row tinted %d rows", got)
+	}
+	if canvas.FocusRequest() != ui.Item(12) {
+		t.Fatalf("hovering the second row requested focus %v", canvas.FocusRequest())
+	}
+	if got := paint(ui.Item(12), ui.Item(12), true); got != 1 {
+		t.Fatalf("the row the pointer entered tinted %d rows", got)
+	}
+	// The pointer has not moved; a keyboard move must keep the row it chose.
+	if got := paint(ui.Item(12), ui.Item(13), true); got != 1 {
+		t.Fatalf("a resting pointer tinted %d rows", got)
+	}
+	if request := canvas.FocusRequest(); !request.IsZero() {
+		t.Fatalf("a resting pointer requested focus %v", request)
+	}
+	// Crossing onto a disabled row moves nothing, and the focused row returns.
+	paint(ui.Item(14), ui.Item(13), true)
+	if request := canvas.FocusRequest(); !request.IsZero() {
+		t.Fatalf("a disabled row requested focus %v", request)
+	}
+	if got := paint(ui.Item(14), ui.Item(13), true); got != 1 {
+		t.Fatalf("after crossing a disabled row %d rows were tinted", got)
+	}
+	// Focus that the pointer moved is not "focus visible": the row the pointer
+	// entered must stay tinted on the next paint, not flash and go dark.
+	if got := paint(ui.Item(12), ui.Item(12), false); got != 1 {
+		t.Fatalf("a pointer-focused row tinted %d rows on the next paint", got)
+	}
+}

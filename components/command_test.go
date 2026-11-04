@@ -43,22 +43,29 @@ func TestCommandCapturesPaletteContractAndItemState(t *testing.T) {
 	commandAssertLayer(t, canvas.Rectangles(), canvas.Texts(), 8)
 }
 
-func TestCommandItemActiveStyleRequiresVisibleFocus(t *testing.T) {
-	var idle, pointer, keyboard ui.Canvas
-	paint := func(canvas *ui.Canvas) {
+// The caller names the active row: neither a pointer nor a keyboard focus tints
+// one on its own, so a row the caller did not select can never be lit beside the
+// row Enter runs.
+func TestCommandItemTintsOnlyTheSelectedRow(t *testing.T) {
+	var idle, pointer, keyboard, selected ui.Canvas
+	paint := func(canvas *ui.Canvas, selectedRow bool) {
 		command := BeginCommand(canvas, ui.LightTheme(), ui.Rect{Width: 260, Height: 150}, CommandOptions{InputID: ui.Item(1), Label: "Commands"})
-		command.AddItem(CommandItem{ID: ui.Item(2), Label: "New window"})
+		command.AddItem(CommandItem{ID: ui.Item(2), Label: "New window", Selected: selectedRow})
 	}
-	paint(&idle)
+	paint(&idle, false)
 	pointer.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(2), false)
-	paint(&pointer)
-	if !slices.Equal(pointer.Rectangles(), idle.Rectangles()) || !slices.Equal(pointer.Texts(), idle.Texts()) {
-		t.Fatal("pointer focus activated the command item appearance")
+	paint(&pointer, false)
+	if !slices.Equal(pointer.Rectangles(), idle.Rectangles()) {
+		t.Fatal("pointer focus tinted a row the caller did not select")
 	}
 	keyboard.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(2), true)
-	paint(&keyboard)
-	if slices.Equal(keyboard.Rectangles(), idle.Rectangles()) {
-		t.Fatal("keyboard focus did not activate the command item appearance")
+	paint(&keyboard, false)
+	if !slices.Equal(keyboard.Rectangles(), idle.Rectangles()) {
+		t.Fatal("keyboard focus tinted a row the caller did not select")
+	}
+	paint(&selected, true)
+	if slices.Equal(selected.Rectangles(), idle.Rectangles()) {
+		t.Fatal("the selected row was not tinted")
 	}
 }
 

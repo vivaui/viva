@@ -455,3 +455,25 @@ func TestTrimReleasesSpikeCapacityAndKeepsContent(t *testing.T) {
 		t.Fatalf("Trim changed the content: %d rectangles, %d hits", len(canvas.Rectangles()), len(canvas.Hits()))
 	}
 }
+
+func TestCanvasHoverCrossedReportsOnlyMovesBetweenHits(t *testing.T) {
+	var canvas Canvas
+	if canvas.HoverCrossed() {
+		t.Fatal("a canvas the pointer never entered crossed")
+	}
+	canvas.Reset()
+	canvas.SetInteraction(Item(1), ID{}, ID{}, false)
+	if !canvas.HoverCrossed() {
+		t.Fatal("the pointer reaching a hit was not a crossing")
+	}
+	canvas.Reset()
+	canvas.SetInteraction(Item(1), ID{}, ID{}, false)
+	if canvas.HoverCrossed() {
+		t.Fatal("a resting pointer crossed again")
+	}
+	canvas.Reset()
+	canvas.SetInteraction(Item(2), ID{}, ID{}, false)
+	if !canvas.HoverCrossed() {
+		t.Fatal("the pointer moving onto another hit was not a crossing")
+	}
+}

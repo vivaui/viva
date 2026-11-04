@@ -222,3 +222,67 @@ func TestSingleSelectPopupStaysInsideAShortViewport(t *testing.T) {
 		})
 	}
 }
+
+// Hovering a row is a pointer move onto the cursor: the row under the pointer
+// becomes the row the highlight and Enter name. A pointer that stays where it
+// was never takes the cursor back from the arrow keys.
+func TestSingleSelectPointerMovesTheCursorWhenItCrossesRows(t *testing.T) {
+	var tree ui.Tree
+	f := tree.Feature("single-select-pointer")
+	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "分组", CreatePrefix: "创建：", Viewport: ui.Rect{Width: 800, Height: 600}, Layer: 4}
+	s := singleSelectFixture()
+	s.Open = true
+	var canvas ui.Canvas
+	paint := func(hovered ui.ID) {
+		canvas.Reset()
+		canvas.SetInteraction(hovered, ui.ID{}, o.InputID, false)
+		PaintSingleSelect(&canvas, ui.LightTheme(), ui.Rect{Width: 320, Height: 32}, s, o)
+	}
+
+	paint(o.OptionIDs.At(0))
+	s.Key(ui.KeyEvent{Key: ui.KeyDown})
+	if s.Active != 1 {
+		t.Fatalf("arrow key did not move the cursor: %d", s.Active)
+	}
+	paint(o.OptionIDs.At(0)) // the pointer has not moved since the key press
+	if s.Active != 1 {
+		t.Fatalf("a resting pointer took the cursor back to %d", s.Active)
+	}
+	paint(o.OptionIDs.At(2)) // a disabled row is not a cursor target
+	if s.Active != 1 {
+		t.Fatalf("hovering the disabled row moved the cursor to %d", s.Active)
+	}
+	if !s.Key(ui.KeyEvent{Key: ui.KeyEnter}).Handled || s.Value() != "test" {
+		t.Fatalf("Enter after hovering left the value %q", s.Value())
+	}
+}
+
+// Moving the pointer down a row at a time leaves one tinted row behind on every
+// paint: the canvas stream never carries the previous row's tint, so a repaint
+// of only the changed row cannot leave stale pixels on screen.
+func TestSingleSelectPaintTintsOneRowPerHoverStep(t *testing.T) {
+	theme := ui.LightTheme()
+	var tree ui.Tree
+	f := tree.Feature("single-select-hover-sweep")
+	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "分组", Viewport: ui.Rect{Width: 800, Height: 600}, Layer: 4}
+	s := singleSelectFixture()
+	s.Open = true
+	var canvas ui.Canvas
+	tint := func(row int) int {
+		canvas.Reset()
+		canvas.SetInteraction(o.OptionIDs.At(row), ui.ID{}, o.InputID, false)
+		PaintSingleSelect(&canvas, theme, ui.Rect{Width: 320, Height: 32}, s, o)
+		tinted := 0
+		for _, rectangle := range canvas.Rectangles() {
+			if rectangle.Color == theme.Accent && rectangle.Radius == theme.Metrics.RadiusItem() {
+				tinted++
+			}
+		}
+		return tinted
+	}
+	for _, row := range []int{0, 1, 0} {
+		if got := tint(row); got != 1 {
+			t.Fatalf("hovering row %d tinted %d rows", row, got)
+		}
+	}
+}

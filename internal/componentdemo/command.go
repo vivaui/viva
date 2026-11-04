@@ -19,6 +19,14 @@ command.AddItem(components.CommandItem{ID: results.At(0), Label: "Open workspace
     Shortcut: "⌘O", Selected: selected == 0})
 command.AddItem(components.CommandItem{ID: results.At(1), Label: "Create window",
     Shortcut: "⌘N", Selected: selected == 1})
+// Selected is the row Enter runs: the pointer and the arrow keys move it.
+if hovered := canvas.Hovered(); !hovered.IsZero() {
+    for i := 0; i < 2; i++ {
+        if hovered == results.At(i) {
+            selected = i
+        }
+    }
+}
 if index, ok := canvas.ClickedIn(results); ok {
     selected = int(index)
 }`},
@@ -71,11 +79,19 @@ func (state *State) paintCommand(canvas *ui.Canvas, theme ui.Theme, size ui.Size
 		command.AddEmpty("No commands found")
 		return
 	}
+	// Selected is the row Enter runs (cmdk's data-selected): the pointer moves it
+	// here, and a real panel also moves it from its arrow keys.
+	current := int(state.values[0])
+	for i := 0; i < 3; i++ {
+		if canvas.Hovered() == commandItem.At(i) {
+			current = i
+		}
+	}
 	command.AddGroup("Suggestions")
-	command.AddItem(components.CommandItem{ID: commandItem.At(0), Label: "Open workspace", Shortcut: "⌘O", Selected: state.values[0] == 0})
-	command.AddItem(components.CommandItem{ID: commandItem.At(1), Label: "Create window", Shortcut: "⌘N", Selected: state.values[0] == 1})
+	command.AddItem(components.CommandItem{ID: commandItem.At(0), Label: "Open workspace", Shortcut: "⌘O", Selected: current == 0})
+	command.AddItem(components.CommandItem{ID: commandItem.At(1), Label: "Create window", Shortcut: "⌘N", Selected: current == 1})
 	command.AddSeparator()
-	command.AddItem(components.CommandItem{ID: commandItem.At(2), Label: "Pin current view", Checked: state.values[0] == 2, Disabled: state.exampleID == "dialog"})
+	command.AddItem(components.CommandItem{ID: commandItem.At(2), Label: "Pin current view", Checked: current == 2, Selected: current == 2, Disabled: state.exampleID == "dialog"})
 	if index, ok := canvas.ClickedIn(commandItem); ok {
 		state.values[0] = int32(index)
 	}
