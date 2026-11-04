@@ -192,7 +192,7 @@ if id.Scope() == rows {                    // 点击到来时
 
 ## 在列表中打字
 
-输入即搜索的列表、树或表格，以及带单字母命令的控件，需要声明自己接收打字：在持有焦点的命中区域上设置 `ui.HitOptions{TypeAhead: true}`，并在 `config.TextInput` 里为它返回一个 `app.TextInput`（该命中区域的 `context.TypeAhead` 为 true）。它获得焦点时键盘是原始的，和终端一样：可打印字符和输入法输入（包括拼音）以 `app.TextInsert` 事件到达 `OnEvent`，其他按键（方向键、Enter、Escape、Backspace、Tab）作为 `ui.KeyEvent` 到达 `OnKey`。查询串由应用持有：追加插入的文本、移动选中项、自己画搜索浮层。把 `TextInput.Bounds` 设在希望输入法绘制组合文本的位置。没有声明的命中区域不受影响，没有设置 `TextInput` 的窗口也不付出任何代价。headless 测试里 `Session.Keys("f")` 会打进这样的命中区域。
+输入即搜索的列表、树或表格，以及带单字母命令的控件，需要声明自己接收打字：在持有焦点的命中区域上设置 `ui.HitOptions{TypeAhead: true}`，并在 `config.TextInput` 里为它返回一个 `app.TextInput`（该命中区域的 `context.TypeAhead` 为 true）。它获得焦点时键盘是原始的，和终端一样：可打印字符和输入法输入（包括拼音）以 `app.TextInsert` 事件到达 `OnEvent`，其他按键（方向键、Enter、Escape、Backspace、Tab）作为 `ui.KeyEvent` 到达 `OnKey`。查询串由应用持有：追加插入的文本，并在 `TextState`（`Composing`、`Composition`）里回传输入法的组合状态，输入法才会在组合期间保留它需要的按键；移动选中项、自己画搜索浮层。把 `TextInput.Bounds` 设在希望输入法绘制组合文本的位置。没有声明的命中区域不受影响，没有设置 `TextInput` 的窗口也不付出任何代价。headless 测试里 `Session.Keys("f")` 会打进这样的命中区域。
 
 `OnShortcut` 用于应用自己拥有的组合键，不用于打字：它早于输入法运行，被它拿走的按键不会进入输入法组合。
 
