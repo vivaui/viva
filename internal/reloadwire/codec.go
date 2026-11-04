@@ -520,6 +520,7 @@ func encodeCanvas(value CanvasSnapshot) ([]byte, error) {
 		encodeRect(&result, hit.TextBounds)
 		result.f32(hit.TextSize)
 		encodeColor(&result, hit.TextColor)
+		result.f32(hit.TextWeight)
 	}
 	result.id(value.TrappedScope)
 	result.id(value.EscapeTarget)
@@ -609,7 +610,7 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 			ID: value.id(), Bounds: decodeRect(&value), Label: value.string(), Value: value.string(), Hint: value.string(),
 			Scope: value.id(), Layer: value.u16(), Role: ui.Role(value.u8()), Disabled: value.bool(), Checked: value.bool(),
 			Selected: value.bool(), Expanded: value.bool(), Multiline: value.bool(), ReadOnly: value.bool(), Secure: value.bool(), Focusable: value.bool(), Autofocus: value.bool(), Block: value.bool(), MovesWindow: value.bool(),
-			TextBounds: decodeRect(&value), TextSize: value.f32(), TextColor: decodeColor(&value),
+			TextBounds: decodeRect(&value), TextSize: value.f32(), TextColor: decodeColor(&value), TextWeight: value.f32(),
 		}
 	}
 	result.TrappedScope = value.id()

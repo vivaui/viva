@@ -77,7 +77,7 @@ func ApplyCanvas(canvas *ui.Canvas, snapshot CanvasSnapshot) {
 				Role: hit.Role, Value: hit.Value, Hint: hit.Hint, Disabled: hit.Disabled,
 				Checked: hit.Checked, Selected: hit.Selected, Expanded: hit.Expanded,
 				Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure, SkipFocus: !hit.Focusable, Autofocus: hit.Autofocus,
-				TextBounds: hit.TextBounds, TextSize: hit.TextSize, TextColor: hit.TextColor,
+				TextBounds: hit.TextBounds, TextSize: hit.TextSize, TextColor: hit.TextColor, TextWeight: hit.TextWeight,
 			})
 		}
 		if !hit.Scope.IsZero() {
