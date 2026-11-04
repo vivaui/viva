@@ -19,6 +19,12 @@ int viva_system_clipboard_has_image(const char *pasteboard);
 int viva_system_clipboard_image_png(const char *pasteboard, size_t max_png, size_t max_raw, uint8_t **data, size_t *length, char **error_message);
 // Puts an image (PNG bytes) on a named pasteboard, as TIFF when as_tiff is set.
 int viva_system_pasteboard_put_image(const char *pasteboard, const uint8_t *png, size_t length, int as_tiff);
+// Copied files. A NULL pasteboard name is the general pasteboard (main thread).
+// Status: 0 paths returned in *paths (free with viva_system_free_string_array),
+// 1 no files, -1 failure with *error_message. At most max paths are returned.
+int viva_system_clipboard_files(const char *pasteboard, size_t max, viva_system_string_array *paths, char **error_message);
+// Puts file URLs on a named pasteboard, as Finder does after a copy.
+int viva_system_pasteboard_put_files(const char *pasteboard, const char *const *paths, size_t count);
 // Shows a modal alert. It must run on the main thread; elsewhere it returns -1.
 int viva_system_show_fatal_error(const char *title, const char *message);
 int viva_system_set_cursor(uint8_t shape, char **error_message);

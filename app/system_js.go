@@ -35,6 +35,8 @@ func nativeSetClipboardText(value string) error {
 
 func nativeHasClipboardImage() bool { return false }
 
+func nativeClipboardFiles() ([]string, error) { return nil, ErrUnsupported }
+
 func nativeClipboardImagePNG() ([]byte, error) {
 	return nil, webSystemError("read clipboard image", webplatform.ClipboardImagePNG())
 }

@@ -7,6 +7,7 @@ semantics; adapters never report a fabricated success.
 | Capability | macOS | Windows | Linux/X11 | WebAssembly browser |
 | --- | --- | --- | --- | --- |
 | Read/write text clipboard | `NSPasteboard` | Unicode Win32 clipboard | X11 `CLIPBOARD`, `UTF8_STRING` with `STRING` read fallback; text above 128 KiB is served and read in pieces (INCR); handed to the clipboard manager when the owning window closes, if the desktop has one | `ErrAsyncRequired`; Clipboard API returns Promises |
+| Copied files (`ClipboardFiles`, returns `[]string`) | the pasteboard's file URLs, file reference URLs resolved to paths; promised files have no path and are not listed | the `CF_HDROP` list (UTF-16 form) | X11 `CLIPBOARD`: `x-special/gnome-copied-files` (Nautilus, Nemo, Caja, Thunar) or `text/uri-list` (Dolphin, most toolkits); the GTK shell asks GTK for `text/uri-list` | `ErrUnsupported` |
 | Primary selection (`SetPrimarySelection`, `PrimarySelection`) | `ErrUnsupported` | `ErrUnsupported` | X11 `PRIMARY`: selected text, pasted with a middle click | `ErrUnsupported` |
 | Cursor shape | AppKit cursor; wait unsupported, diagonal resize requires macOS 15 | Win32 system cursors; running window required | XCB cursor font; running window required | CSS cursor on `documentElement` |
 | Open files | `NSOpenPanel` | `IFileOpenDialog` | the desktop portal's `FileChooser` over D-Bus; installed `zenity` or `kdialog` without one | `ErrAsyncRequired` |
@@ -48,6 +49,21 @@ no `text/plain` (not yet exercised in a browser).
 On Linux a focused text field that is not a terminal also takes Control+C, Control+X
 and Control+V (and the Insert and Delete forms) itself, ahead of `OnShortcut`, as
 it does on Windows; before, those chords reached only the application.
+
+## Reading the files the user copied
+
+`ClipboardFiles` returns the absolute paths of the files a file manager put on
+the clipboard, or `ErrNoFiles`. It reads nothing but the list: the files are
+not opened, so a path can name a file that is gone, and a source that promises a
+file it has not written (a browser's dragged image, a macOS file promise) lists
+nothing. The list is cut at `MaxClipboardFiles` (4096) paths. Finder, Explorer
+and the Linux file managers also leave the files' names on the clipboard as
+text, so an application that shares the clipboard asks for the files first.
+
+Nothing watches for files separately: `OnClipboardChange` says the clipboard
+changed, and the application reads when it acts on that. The headless driver
+holds a private list (`Driver.SetClipboardFiles`) that, like the text and the
+image, is replaced by whatever else is copied.
 
 ## Linux Boundary
 

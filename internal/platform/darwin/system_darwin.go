@@ -121,6 +121,28 @@ func pasteboardImagePNG(name *C.char) ([]byte, error) {
 	return nil, systemError("read clipboard image", nativeError)
 }
 
+// ClipboardFiles returns the paths of the files the general pasteboard holds:
+// the file URLs a Finder copy leaves there.
+func ClipboardFiles() ([]string, error) { return pasteboardFiles(nil) }
+
+func pasteboardFiles(name *C.char) ([]string, error) {
+	var result C.viva_system_string_array
+	var nativeError *C.char
+	switch C.viva_system_clipboard_files(name, C.size_t(platform.MaxClipboardFiles), &result, &nativeError) {
+	case 0:
+		defer C.viva_system_free_string_array(result)
+		items := unsafe.Slice((**C.char)(unsafe.Pointer(result.items)), int(result.count))
+		paths := make([]string, len(items))
+		for index, item := range items {
+			paths[index] = C.GoString(item)
+		}
+		return paths, nil
+	case 1:
+		return nil, platform.ErrNoClipboardFiles
+	}
+	return nil, systemError("read clipboard files", nativeError)
+}
+
 // ReduceMotion reports the system "Reduce motion" accessibility preference.
 func ReduceMotion() bool {
 	return C.viva_system_reduce_motion() != 0

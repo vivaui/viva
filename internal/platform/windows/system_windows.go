@@ -15,6 +15,7 @@ const (
 	clipboardUnicodeText = 13
 	clipboardDIB         = 8
 	clipboardDIBV5       = 17
+	clipboardHDrop       = 15
 	globalMoveable       = 0x2
 	globalZeroInit       = 0x40
 	classInProcess       = 1
@@ -223,6 +224,51 @@ func ClipboardImagePNG() ([]byte, error) {
 		return platform.DIBToPNG(dib)
 	}
 	return nil, platform.ErrNoClipboardImage
+}
+
+// maxClipboardFileListBytes bounds the CF_HDROP block: MaxClipboardFiles long
+// paths fit with room to spare.
+const maxClipboardFileListBytes = 16 << 20
+
+// ClipboardFiles returns the paths of the files the clipboard holds: the
+// CF_HDROP list Explorer leaves there after a copy.
+func ClipboardFiles() ([]string, error) {
+	clipboardMu.Lock()
+	defer clipboardMu.Unlock()
+	if available, _, _ := clipboardFormatAvailable.Call(clipboardHDrop); available == 0 {
+		return nil, platform.ErrNoClipboardFiles
+	}
+	// Another program may hold the clipboard for a moment while it writes.
+	var opened uintptr
+	var callErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		if opened, _, callErr = openClipboard.Call(0); opened != 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if opened == 0 {
+		return nil, windowsCallError("open clipboard", callErr)
+	}
+	defer closeClipboard.Call()
+	handle, _, callErr := clipboardData.Call(clipboardHDrop)
+	if handle == 0 {
+		return nil, windowsCallError("read clipboard files", callErr)
+	}
+	size, _, _ := globalSize.Call(handle)
+	if size == 0 || size > maxClipboardFileListBytes {
+		return nil, fmt.Errorf("windows: invalid clipboard file list size %d", size)
+	}
+	memory, _, callErr := globalLock.Call(handle)
+	if memory == 0 {
+		return nil, windowsCallError("lock clipboard files", callErr)
+	}
+	defer globalUnlock.Call(handle)
+	paths := platform.FilesFromDropFiles(unsafe.Slice((*byte)(pointer(memory)), int(size)))
+	if len(paths) == 0 {
+		return nil, platform.ErrNoClipboardFiles
+	}
+	return paths, nil
 }
 
 // clipboardBytes copies the global memory block of one format of the open

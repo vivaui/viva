@@ -13,6 +13,8 @@ func nativeHasClipboardImage() bool { return windowsplatform.HasClipboardImage()
 
 func nativeClipboardImagePNG() ([]byte, error) { return windowsplatform.ClipboardImagePNG() }
 
+func nativeClipboardFiles() ([]string, error) { return windowsplatform.ClipboardFiles() }
+
 func nativeReduceMotion() bool { return windowsplatform.ReduceMotion() }
 
 // nativeTextEngine is the platform's text engine; nil keeps the reference metrics.

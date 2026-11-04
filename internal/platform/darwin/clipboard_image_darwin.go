@@ -40,3 +40,27 @@ func putPrivatePasteboardImage(name string, png []byte, asTIFF bool) error {
 	}
 	return nil
 }
+
+func privatePasteboardFiles(name string) ([]string, error) {
+	cName := C.CString(name)
+	defer C.free(unsafe.Pointer(cName))
+	return pasteboardFiles(cName)
+}
+
+func putPrivatePasteboardFiles(name string, paths []string) error {
+	cName := C.CString(name)
+	defer C.free(unsafe.Pointer(cName))
+	native := make([]*C.char, len(paths))
+	for index, path := range paths {
+		native[index] = C.CString(path)
+	}
+	defer func() {
+		for _, value := range native {
+			C.free(unsafe.Pointer(value))
+		}
+	}()
+	if C.viva_system_pasteboard_put_files(cName, (**C.char)(unsafe.Pointer(&native[0])), C.size_t(len(native))) != 0 {
+		return fmt.Errorf("darwin: put files on pasteboard %q failed", name)
+	}
+	return nil
+}

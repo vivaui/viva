@@ -189,6 +189,81 @@ func ClipboardImagePNG() ([]byte, error) {
 	return data, nil
 }
 
+// maxClipboardFileListBytes bounds the list of URIs an owner hands over:
+// MaxClipboardFiles long paths, escaped, fit with room to spare.
+const maxClipboardFileListBytes = 4 << 20
+
+// ClipboardFiles returns the paths of the files the X11 CLIPBOARD owner offers:
+// the x-special/gnome-copied-files target of Nautilus, Nemo, Caja and Thunar,
+// or the text/uri-list target KDE's Dolphin and most other toolkits use. The
+// owner is asked for its TARGETS first, because some hand over their text for
+// any target they are asked for.
+func ClipboardFiles() ([]string, error) {
+	if hooks := shellHooks.Load(); hooks != nil {
+		if hooks.clipboardFiles == nil {
+			return nil, platform.ErrNoClipboardFiles
+		}
+		return hooks.clipboardFiles()
+	}
+	if ownsClipboardText() {
+		return nil, platform.ErrNoClipboardFiles
+	}
+	api, connection, requestor, clipboard, owner, err := openClipboardRequest()
+	if err != nil {
+		return nil, err
+	}
+	defer closeClipboardRequest(api, connection, requestor)
+	if owner == xcbAtomNone {
+		return nil, platform.ErrNoClipboardFiles
+	}
+	targets, err := api.atom(connection, "TARGETS")
+	if err != nil {
+		return nil, err
+	}
+	property, err := api.atom(connection, "VIVA_CLIPBOARD_TARGETS")
+	if err != nil {
+		return nil, err
+	}
+	data, kind, accepted, err := readSelectionBytes(api, connection, requestor, clipboard, targets, property, 1<<16)
+	if err != nil {
+		return nil, err
+	}
+	if !accepted || kind != xcbAtomAtom || len(data)%4 != 0 {
+		return nil, platform.ErrNoClipboardFiles
+	}
+	offered := make(map[uint32]bool, len(data)/4)
+	for offset := 0; offset+4 <= len(data); offset += 4 {
+		offered[binary.NativeEndian.Uint32(data[offset:])] = true
+	}
+	property, err = api.atom(connection, "VIVA_CLIPBOARD_FILES")
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range [...]string{"x-special/gnome-copied-files", "text/uri-list"} {
+		target, err := api.atom(connection, name)
+		if err != nil {
+			return nil, err
+		}
+		if !offered[target] {
+			continue
+		}
+		list, _, accepted, err := readSelectionBytes(api, connection, requestor, clipboard, target, property, maxClipboardFileListBytes)
+		if errors.Is(err, platform.ErrClipboardImageTooLarge) {
+			return nil, fmt.Errorf("linux: the clipboard's file list is larger than %d MiB", maxClipboardFileListBytes>>20)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !accepted {
+			continue
+		}
+		if paths := platform.FilesFromURIList(list); len(paths) > 0 {
+			return paths, nil
+		}
+	}
+	return nil, platform.ErrNoClipboardFiles
+}
+
 // ownsClipboardText reports whether this process's window is the CLIPBOARD
 // owner, in which case it holds text and nothing else.
 func ownsClipboardText() bool {

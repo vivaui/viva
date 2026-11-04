@@ -4,6 +4,7 @@ package linux
 
 import (
 	"fmt"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -28,6 +29,8 @@ type gtkClipboards struct {
 	setImage   func(clipboard, pixbuf uintptr)
 	clear      func(clipboard uintptr)
 	saveBuffer func(pixbuf uintptr, buffer *uintptr, size *uint64, kind *byte, keys, values uintptr, err *uintptr) int32
+	waitURIs   func(clipboard uintptr) uintptr
+	strfreev   func(list uintptr)
 
 	clipboard, primary uintptr
 	ok                 bool
@@ -58,6 +61,10 @@ func (a *gtkApplication) clipboardAPI() (*gtkClipboards, error) {
 		return c.get(c.atomIntern(&text[0], 0))
 	}
 	c.clipboard, c.primary = selection("CLIPBOARD"), selection("PRIMARY")
+	// Copied files are optional too: an older GTK without them still has the rest.
+	if !g.lookup(&c.waitURIs, "gtk_clipboard_wait_for_uris") || !g.lookup(&c.strfreev, "g_strfreev") {
+		c.waitURIs, c.strfreev = nil, nil
+	}
 	// Images need gdk-pixbuf, which GTK links but this program has not opened. Without it text
 	// still works.
 	if library, err := purego.Dlopen("libgdk_pixbuf-2.0.so.0", purego.RTLD_NOW|purego.RTLD_GLOBAL); err == nil {
@@ -122,6 +129,12 @@ func (a *gtkApplication) installHooks() {
 			}
 			return
 		},
+		clipboardFiles: func() (paths []string, err error) {
+			if e := a.onMain(func() { paths, err = a.readFiles() }); e != nil {
+				return nil, e
+			}
+			return
+		},
 		setCursorShape: func(shape uint8) (err error) {
 			if e := a.onMain(func() { err = a.setCursor(shape) }); e != nil {
 				return e
@@ -173,6 +186,37 @@ func (a *gtkApplication) writeText(primary bool, value string) error {
 	data := cString(value)
 	c.setText(board, &data[0], int32(len(data)-1))
 	return nil
+}
+
+// readFiles returns the paths of the file URIs the clipboard holds. GTK asks the owner for
+// text/uri-list and hands over a NULL-terminated array of strings.
+func (a *gtkApplication) readFiles() ([]string, error) {
+	c, err := a.clipboardAPI()
+	if err != nil {
+		return nil, err
+	}
+	if c.waitURIs == nil {
+		return nil, platform.ErrNoClipboardFiles
+	}
+	list := c.waitURIs(c.clipboard)
+	if list == 0 {
+		return nil, platform.ErrNoClipboardFiles
+	}
+	defer c.strfreev(list)
+	var text strings.Builder
+	for offset := uintptr(0); ; offset += unsafe.Sizeof(uintptr(0)) {
+		item := *(*uintptr)(unsafePointer(list + offset))
+		if item == 0 || text.Len() > maxClipboardFileListBytes {
+			break
+		}
+		text.WriteString(goString(item))
+		text.WriteByte('\n')
+	}
+	paths := platform.FilesFromURIList([]byte(text.String()))
+	if len(paths) == 0 {
+		return nil, platform.ErrNoClipboardFiles
+	}
+	return paths, nil
 }
 
 func (a *gtkApplication) imageAvailable() bool {

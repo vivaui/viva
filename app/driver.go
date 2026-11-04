@@ -118,7 +118,9 @@ func NewDriver(config Config, canvas *ui.Canvas) (*Driver, error) {
 		driver.Close()
 		return nil, err
 	}
-	driver.painter.setClipboardText = func(value string) { driver.clipboard, driver.system.clipboardImage = value, nil }
+	driver.painter.setClipboardText = func(value string) {
+		driver.clipboard, driver.system.clipboardImage, driver.system.clipboardFiles = value, nil, nil
+	}
 	driver.painter.setCursor = func(Cursor) error { return nil }
 	driver.painter.setCursorImage = func(*ui.CursorImage) error { return nil }
 	driver.painter.scheduleFrame = func(delay time.Duration) {
@@ -882,7 +884,7 @@ func (driver *Driver) Clipboard() string { return driver.clipboard }
 
 // SetClipboard replaces the driver's private clipboard.
 func (driver *Driver) SetClipboard(value string) {
-	driver.clipboard, driver.system.clipboardImage = value, nil
+	driver.clipboard, driver.system.clipboardImage, driver.system.clipboardFiles = value, nil, nil
 }
 
 // LastOpenedURL returns the most recent target passed to OpenURL while this

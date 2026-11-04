@@ -35,6 +35,11 @@ func nativeSetClipboardText(value string) error {
 
 func nativeHasClipboardImage() bool { return linuxplatform.HasClipboardImage() }
 
+func nativeClipboardFiles() ([]string, error) {
+	paths, err := linuxplatform.ClipboardFiles()
+	return paths, linuxSystemError(err)
+}
+
 func nativeClipboardImagePNG() ([]byte, error) {
 	png, err := linuxplatform.ClipboardImagePNG()
 	return png, linuxSystemError(err)

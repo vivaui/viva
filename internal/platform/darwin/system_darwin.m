@@ -314,6 +314,78 @@ int viva_system_pasteboard_put_image(const char *pasteboard, const uint8_t *png,
     }
 }
 
+int viva_system_clipboard_files(const char *pasteboard, size_t max, viva_system_string_array *paths, char **error_message) {
+    if (paths == NULL) {
+        viva_set_error(error_message, @"clipboard files output is missing");
+        return -1;
+    }
+    paths->items = NULL;
+    paths->count = 0;
+    __block int status = 1;
+    __block char **items = NULL;
+    __block size_t count = 0;
+    dispatch_block_t operation = ^{
+        @autoreleasepool {
+            NSPasteboard *board = viva_pasteboard_named(pasteboard);
+            NSArray *urls = [board readObjectsForClasses:@[NSURL.class]
+                                                 options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
+            NSUInteger wanted = MIN(urls.count, (NSUInteger)max);
+            if (wanted == 0) {
+                return;
+            }
+            items = calloc(wanted, sizeof(char *));
+            if (items == NULL) {
+                status = -1;
+                return;
+            }
+            for (NSURL *url in urls) {
+                if (count == wanted) {
+                    break;
+                }
+                // A file reference URL (file:///.file/id=...) names the file by
+                // identity; its file path URL is the path the file has now.
+                NSURL *located = url.isFileReferenceURL ? url.filePathURL : url;
+                NSString *path = located.path;
+                char *copy = path.length > 0 ? viva_copy_utf8(path) : NULL;
+                if (copy != NULL) {
+                    items[count++] = copy;
+                }
+            }
+            if (count > 0) {
+                status = 0;
+            }
+        }
+    };
+    if (pasteboard == NULL) {
+        viva_on_main_sync(operation);
+    } else {
+        operation();
+    }
+    if (status == 0) {
+        paths->items = items;
+        paths->count = count;
+        return 0;
+    }
+    viva_system_string_array partial = {items, count};
+    viva_system_free_string_array(partial);
+    if (status != 1) {
+        viva_set_error(error_message, @"failed to allocate clipboard files");
+    }
+    return status;
+}
+
+int viva_system_pasteboard_put_files(const char *pasteboard, const char *const *paths, size_t count) {
+    @autoreleasepool {
+        NSPasteboard *board = viva_pasteboard_named(pasteboard);
+        NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:count];
+        for (size_t index = 0; index < count; index++) {
+            [urls addObject:[NSURL fileURLWithPath:viva_string(paths[index])]];
+        }
+        [board clearContents];
+        return [board writeObjects:urls] ? 0 : -1;
+    }
+}
+
 static NSCursor *viva_cursor(uint8_t shape, NSString **error) {
     switch (shape) {
         case 0:

@@ -4,6 +4,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -18,6 +19,7 @@ const driverOpenDirectoryQueueSize = 8
 type driverSystem struct {
 	driver         *Driver
 	clipboardImage []byte   // PNG bytes; the clipboard holds this or text, never both
+	clipboardFiles []string // paths of copied files, held beside the text a file manager adds
 	primary        string   // the primary selection (Linux only), private like the clipboard
 	schemes        []string // the URL schemes SetSchemeHandlers declared as registered
 }
@@ -69,7 +71,7 @@ func driverSetClipboardText(value string) (error, bool) {
 	if system == nil {
 		return nil, false
 	}
-	system.driver.clipboard, system.driver.system.clipboardImage = value, nil
+	system.driver.clipboard, system.driver.system.clipboardImage, system.driver.system.clipboardFiles = value, nil, nil
 	return nil, true
 }
 
@@ -415,6 +417,7 @@ func (driver *Driver) SetClipboardImage(png []byte) error {
 		return err
 	}
 	driver.system.clipboardImage = append([]byte(nil), png...)
+	driver.system.clipboardFiles = nil
 	driver.clipboard = ""
 	return nil
 }
@@ -422,3 +425,39 @@ func (driver *Driver) SetClipboardImage(png []byte) error {
 // ClipboardImage returns the PNG the driver's private clipboard holds, or nil.
 // The slice is the driver's own; do not modify it.
 func (driver *Driver) ClipboardImage() []byte { return driver.system.clipboardImage }
+
+// driverClipboardFiles answers the clipboard-file reads of a driver-backed run
+// from the driver's private clipboard.
+func driverClipboardFiles() (paths []string, err error, handled bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, nil, false
+	}
+	if len(system.clipboardFiles) == 0 {
+		return nil, ErrNoFiles, true
+	}
+	return append([]string(nil), system.clipboardFiles...), nil, true
+}
+
+// SetClipboardFiles replaces the driver's private clipboard with copied files,
+// as a file manager would. Like Finder and Explorer it keeps the files' names
+// as the clipboard's text, so a reader that asks for text first sees why files
+// are asked for first; the image it held is gone. The paths are copied and cut
+// at MaxClipboardFiles. No paths empties the clipboard of files.
+func (driver *Driver) SetClipboardFiles(paths []string) {
+	if len(paths) == 0 {
+		driver.system.clipboardFiles = nil
+		return
+	}
+	paths = paths[:min(len(paths), MaxClipboardFiles)]
+	driver.system.clipboardFiles = append([]string(nil), paths...)
+	driver.system.clipboardImage = nil
+	names := make([]byte, 0, 64)
+	for index, path := range paths {
+		if index > 0 {
+			names = append(names, '\n')
+		}
+		names = append(names, filepath.Base(path)...)
+	}
+	driver.clipboard = string(names)
+}
