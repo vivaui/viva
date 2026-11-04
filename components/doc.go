@@ -140,8 +140,9 @@
 //   - Tree: `BeginTree` paints caller-flattened hierarchical rows with stable
 //     disclosure and selection semantics while leaving content application-owned.
 //   - Scroll area: `BeginScrollArea` paints a clipped viewport and scrollbar
-//     for caller-owned content; Viewport makes it focusable and
-//     ScrollForKey moves the caller's offsets.
+//     for caller-owned content; Viewport makes it focusable, ScrollForKey
+//     moves the caller's offsets, and HoverScrollbars narrows the bars to a
+//     hover-revealed overlay.
 //   - Sidebar: `BeginSidebar` paints the app sidebar shell, or
 //     `BeginSidebarWithOptions` with explicit options; it takes header,
 //     group, menu item (with badge and action), sub menu and footer rows, and

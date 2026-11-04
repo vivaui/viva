@@ -3,9 +3,10 @@ package {{PACKAGE}}
 import "github.com/vivaui/viva/ui"
 
 const (
-	scrollAreaBarSize  float32 = 10
-	scrollAreaBarInset float32 = 1
-	scrollAreaMinThumb float32 = 18
+	scrollAreaBarSize      float32 = 10
+	scrollAreaHoverBarSize float32 = 6
+	scrollAreaBarInset     float32 = 1
+	scrollAreaMinThumb     float32 = 18
 )
 
 // ScrollAreaGeometry is the complete deterministic layout of one externally
@@ -46,6 +47,8 @@ type ScrollArea struct {
 	viewportLabel       string
 	disabled            bool
 	reserveBars         bool
+	hoverBars           bool
+	barsRevealed        bool
 	contentClipIsActive bool
 }
 
@@ -98,21 +101,44 @@ func (area ScrollArea) ReserveScrollbars() ScrollArea {
 	return area
 }
 
+// HoverScrollbars switches to a hover scroll area, as shadcn takes it from
+// Radix's `type="hover"`: the bars narrow to a small overlay thumb that floats
+// over the content edge and paints only while hovered is true. hovered is the
+// caller's own pointer-over-the-area verdict, so the component needs no pointer
+// state, hide delay, timer, or animation; a caller that keeps its pointer
+// capture alive passes that state too. Content keeps its full width, unlike
+// ReserveScrollbars.
+func (area ScrollArea) HoverScrollbars(hovered bool) ScrollArea {
+	area.hoverBars = true
+	area.barsRevealed = hovered
+	return area
+}
+
 // Disabled preserves geometry and typed semantics while making both scrollbars inert.
 func (area ScrollArea) Disabled() ScrollArea {
 	area.disabled = true
 	return area
 }
 
+// barSize is the width of a bar's track: the narrow hover overlay or the
+// full-size bar.
+func (area ScrollArea) barSize() float32 {
+	if area.hoverBars {
+		return scrollAreaHoverBarSize
+	}
+	return scrollAreaBarSize
+}
+
 // Geometry returns clamped viewport, translated content, track, thumb, and
 // corner geometry without painting or changing Canvas state.
 func (area ScrollArea) Geometry() ScrollAreaGeometry {
 	bounds := scrollAreaNormalizeRect(area.bounds)
+	barSize := area.barSize()
 	contentWidth := scrollAreaFiniteNonNegative(area.contentSize.Width)
 	contentHeight := scrollAreaFiniteNonNegative(area.contentSize.Height)
 	viewport := bounds
 	if area.reserveBars {
-		viewport = scrollAreaReservedViewport(bounds, contentWidth, contentHeight)
+		viewport = scrollAreaReservedViewport(bounds, contentWidth, contentHeight, barSize)
 	}
 	if contentWidth < viewport.Width {
 		contentWidth = viewport.Width
@@ -144,25 +170,25 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 	verticalExtent := bounds.Height
 	horizontalExtent := bounds.Width
 	if hasHorizontal && hasVertical {
-		verticalExtent = scrollAreaMax(verticalExtent-scrollAreaBarSize, 0)
-		horizontalExtent = scrollAreaMax(horizontalExtent-scrollAreaBarSize, 0)
+		verticalExtent = scrollAreaMax(verticalExtent-barSize, 0)
+		horizontalExtent = scrollAreaMax(horizontalExtent-barSize, 0)
 		geometry.Corner = ui.Rect{
-			X:     bounds.X + bounds.Width - scrollAreaBarSize,
-			Y:     bounds.Y + bounds.Height - scrollAreaBarSize,
-			Width: scrollAreaBarSize, Height: scrollAreaBarSize,
+			X:     bounds.X + bounds.Width - barSize,
+			Y:     bounds.Y + bounds.Height - barSize,
+			Width: barSize, Height: barSize,
 		}
 	}
 	if hasVertical {
 		geometry.VerticalTrack = ui.Rect{
-			X: bounds.X + bounds.Width - scrollAreaBarSize, Y: bounds.Y,
-			Width: scrollAreaBarSize, Height: verticalExtent,
+			X: bounds.X + bounds.Width - barSize, Y: bounds.Y,
+			Width: barSize, Height: verticalExtent,
 		}
 		geometry.VerticalThumb = scrollAreaThumb(geometry.VerticalTrack, true, viewport.Height, contentHeight, offsetY, maximumY)
 	}
 	if hasHorizontal {
 		geometry.HorizontalTrack = ui.Rect{
-			X: bounds.X, Y: bounds.Y + bounds.Height - scrollAreaBarSize,
-			Width: horizontalExtent, Height: scrollAreaBarSize,
+			X: bounds.X, Y: bounds.Y + bounds.Height - barSize,
+			Width: horizontalExtent, Height: barSize,
 		}
 		geometry.HorizontalThumb = scrollAreaThumb(geometry.HorizontalTrack, false, viewport.Width, contentWidth, offsetX, maximumX)
 	}
@@ -173,15 +199,15 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 // in it. Adding one bar can shrink the other axis enough to need its bar too, so the two
 // are resolved together. The content extents are the caller's, not yet widened to the
 // viewport.
-func scrollAreaReservedViewport(bounds ui.Rect, contentWidth, contentHeight float32) ui.Rect {
+func scrollAreaReservedViewport(bounds ui.Rect, contentWidth, contentHeight, barSize float32) ui.Rect {
 	hasHorizontal, hasVertical := contentWidth > bounds.Width, contentHeight > bounds.Height
 	for range 3 {
 		width, height := bounds.Width, bounds.Height
 		if hasVertical {
-			width = scrollAreaMax(width-scrollAreaBarSize, 0)
+			width = scrollAreaMax(width-barSize, 0)
 		}
 		if hasHorizontal {
-			height = scrollAreaMax(height-scrollAreaBarSize, 0)
+			height = scrollAreaMax(height-barSize, 0)
 		}
 		nextHorizontal, nextVertical := contentWidth > width, contentHeight > height
 		if nextHorizontal == hasHorizontal && nextVertical == hasVertical {
@@ -191,10 +217,10 @@ func scrollAreaReservedViewport(bounds ui.Rect, contentWidth, contentHeight floa
 	}
 	viewport := bounds
 	if hasVertical {
-		viewport.Width = scrollAreaMax(viewport.Width-scrollAreaBarSize, 0)
+		viewport.Width = scrollAreaMax(viewport.Width-barSize, 0)
 	}
 	if hasHorizontal {
-		viewport.Height = scrollAreaMax(viewport.Height-scrollAreaBarSize, 0)
+		viewport.Height = scrollAreaMax(viewport.Height-barSize, 0)
 	}
 	return viewport
 }
@@ -255,6 +281,9 @@ func (area *ScrollArea) EndContent() ScrollAreaGeometry {
 }
 
 func (area ScrollArea) paintScrollbar(track, thumb ui.Rect, id ui.ID, label, value string) {
+	if area.hoverBars && !area.barsRevealed {
+		return
+	}
 	if track.Width <= 0 || track.Height <= 0 || thumb.Width <= 0 || thumb.Height <= 0 {
 		return
 	}

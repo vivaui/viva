@@ -178,3 +178,110 @@ func TestScrollAreaReserveScrollbarsKeepsContentClearOfTheBars(t *testing.T) {
 		t.Fatalf("default viewport %+v max %v", overlay.Viewport, overlay.MaxOffsetX)
 	}
 }
+
+// A hover scroll area is the narrow overlay variant: the viewport keeps the full
+// width, the bar geometry does not move between hidden and revealed, and while
+// hidden the bar leaves nothing for the pointer to hit, so presses reach the
+// content underneath.
+func TestHoverScrollAreaRevealsANarrowOverlayBarOnlyWhileHovered(t *testing.T) {
+	bounds := ui.Rect{X: 8, Y: 9, Width: 200, Height: 120}
+	content := ui.Size{Width: 200, Height: 1000}
+	theme := ui.LightTheme()
+	var canvas ui.Canvas
+	paint := func(hovered bool) ScrollAreaGeometry {
+		canvas.Reset()
+		area := BeginScrollArea(&canvas, theme, bounds, content).
+			Offset(0, 260).
+			VerticalScrollbar(ui.Item(31), "Session list", "").
+			HoverScrollbars(hovered)
+		geometry := area.BeginContent()
+		area.EndContent()
+		return geometry
+	}
+
+	hidden := paint(false)
+	if hidden.Viewport != bounds {
+		t.Fatalf("hover bars must not reserve width: viewport %+v", hidden.Viewport)
+	}
+	if hidden.VerticalTrack.Width != 6 || hidden.VerticalThumb.Width != 4 {
+		t.Fatalf("hover track/thumb width = %v/%v", hidden.VerticalTrack.Width, hidden.VerticalThumb.Width)
+	}
+	if len(canvas.Hits()) != 0 || len(canvas.Rectangles()) != 0 {
+		t.Fatalf("a hidden bar still painted: hits %+v rectangles %+v", canvas.Hits(), canvas.Rectangles())
+	}
+
+	revealed := paint(true)
+	if revealed != hidden {
+		t.Fatalf("revealing moved the geometry: %+v != %+v", revealed, hidden)
+	}
+	if len(canvas.Rectangles()) != 1 || canvas.Rectangles()[0].Bounds != revealed.VerticalThumb {
+		t.Fatalf("revealed bar = %+v", canvas.Rectangles())
+	}
+	if len(canvas.Hits()) != 1 || canvas.Hits()[0].ID != ui.Item(31) || canvas.Hits()[0].Role != ui.RoleSeparator || canvas.Hits()[0].Bounds != revealed.VerticalTrack {
+		t.Fatalf("revealed bar hit = %+v", canvas.Hits())
+	}
+
+	// Hiding again removes both the pill and its hit, so a click falls through.
+	paint(false)
+	if len(canvas.Hits()) != 0 || len(canvas.Rectangles()) != 0 {
+		t.Fatalf("hiding left the bar behind: %+v %+v", canvas.Hits(), canvas.Rectangles())
+	}
+}
+
+// ReserveScrollbars still works with hover bars: the viewport gives up the
+// narrow strip instead of letting the thumb float over the content.
+func TestHoverScrollAreaCanReserveItsNarrowStrip(t *testing.T) {
+	bounds := ui.Rect{X: 10, Y: 20, Width: 200, Height: 100}
+	geometry := BeginScrollArea(nil, ui.LightTheme(), bounds, ui.Size{Width: 194, Height: 400}).
+		ReserveScrollbars().
+		HoverScrollbars(true).
+		Geometry()
+	if geometry.Viewport != (ui.Rect{X: 10, Y: 20, Width: 194, Height: 100}) {
+		t.Fatalf("reserved hover viewport = %+v", geometry.Viewport)
+	}
+	if geometry.VerticalTrack != (ui.Rect{X: 204, Y: 20, Width: 6, Height: 100}) {
+		t.Fatalf("reserved hover track = %+v", geometry.VerticalTrack)
+	}
+}
+
+// Painting a revealed hover bar performs no allocation, like the rest of the
+// scroll area.
+func TestHoverScrollAreaPaintIsAllocationFree(t *testing.T) {
+	theme := ui.DarkTheme()
+	bounds := ui.Rect{Width: 160, Height: 90}
+	var canvas ui.Canvas
+	paint := func() {
+		canvas.Reset()
+		area := BeginScrollArea(&canvas, theme, bounds, ui.Size{Width: 160, Height: 360}).
+			Offset(0, 130).
+			VerticalScrollbar(ui.Item(13), "Sessions", "").
+			HoverScrollbars(true)
+		area.BeginContent()
+		area.EndContent()
+	}
+	paint()
+	if allocations := testing.AllocsPerRun(100, paint); allocations != 0 {
+		t.Fatalf("hover scroll area allocations = %v", allocations)
+	}
+}
+
+func BenchmarkScrollAreaHoverBarsPaint(b *testing.B) {
+	var canvas ui.Canvas
+	theme := ui.DarkTheme()
+	bounds := ui.Rect{Width: 160, Height: 90}
+	content := ui.Size{Width: 160, Height: 3600}
+	paint := func() {
+		canvas.Reset()
+		area := BeginScrollArea(&canvas, theme, bounds, content).
+			Offset(0, 1300).
+			VerticalScrollbar(ui.Item(13), "Sessions", "").
+			HoverScrollbars(true)
+		area.BeginContent()
+		area.EndContent()
+	}
+	paint()
+	b.ReportAllocs()
+	for b.Loop() {
+		paint()
+	}
+}
