@@ -543,7 +543,7 @@ func (state *windowState) placeAtOrigin(origin ui.Point) {
 	info.Size = uint32(unsafe.Sizeof(info))
 	monitor, _, _ := monitorFromPoint.Call(uintptr(uint32(x+width/2))|uintptr(uint32(y+height/2))<<32, monitorNearest)
 	if ok, _, _ := getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok != 0 {
-		x, y, width, height = placedFrame(info.Work, state.scale, x, y, width, height)
+		x, y, width, height = placedFrame(info.Work, x, y, width, height)
 	}
 	// SWP_NOZORDER | SWP_NOACTIVATE: the size too, for a window that did not fit.
 	setWindowPosition.Call(state.window, 0, uintptr(x), uintptr(y), uintptr(width), uintptr(height), 0x14)
