@@ -85,6 +85,34 @@ func TestTextEventApplyCommands(t *testing.T) {
 	}
 }
 
+func TestTextEventApplyFollowsTheEditorsCodeOptions(t *testing.T) {
+	editor := text.NewEditor("if x {")
+	editor.SetCode(text.CodeOptions{TabWidth: 2, AutoIndent: true, AutoClose: true, IndentAfter: "{"})
+	apply := func(event TextEvent) { event.Apply(editor) }
+	apply(TextEvent{Kind: TextCommandEvent, Command: TextInsertNewline})
+	if got := editor.String(); got != "if x {\n  " {
+		t.Fatalf("Enter after an opener = %q", got)
+	}
+	apply(TextEvent{Kind: TextInsert, Text: "("})
+	if got := editor.String(); got != "if x {\n  ()" || editor.Caret() != len([]rune("if x {\n  (")) {
+		t.Fatalf("typing an opener = %q with the caret at %d", got, editor.Caret())
+	}
+	apply(TextEvent{Kind: TextCommandEvent, Command: TextDeleteBackward})
+	if got := editor.String(); got != "if x {\n  " {
+		t.Fatalf("Backspace between a pair = %q", got)
+	}
+	apply(TextEvent{Kind: TextCommandEvent, Command: TextInsertTab})
+	if got := editor.String(); got != "if x {\n    " {
+		t.Fatalf("Tab = %q, want spaces to the next stop", got)
+	}
+	// Pasted and composed text is never rewritten.
+	apply(TextEvent{Kind: TextPaste, Text: "("})
+	apply(TextEvent{Kind: TextSetMarked, Text: "(", MarkedSelection: text.Range{Start: 1, End: 1}})
+	if got := editor.String(); got != "if x {\n    ((" {
+		t.Fatalf("paste and composition = %q", got)
+	}
+}
+
 func TestTextEventApplyHonorsTheEditorsRestrictions(t *testing.T) {
 	editor := text.NewEditor("")
 	editor.Restrict(func(r rune) bool { return r >= '0' && r <= '9' }, 4)

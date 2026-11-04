@@ -94,8 +94,20 @@
 //     and `TextareaMovementForKey` with a `TextareaLayout` moves the caret by
 //     visual row (arrows, Home, End, Page keys), scrolls to it, places it on a
 //     click and sizes a box that grows with its text.
-//   - Code editor: `CodeEditor` adds caller-provided syntax colors and a draggable
-//     scrollbar to TextareaLayout, retaining native selection and IME geometry.
+//   - Code editor: `CodeEditor` lays code out on a grid of character cells in a
+//     fixed-pitch font and paints only the rows in view, each as one label
+//     whatever colors the caller's highlighter gives it: line numbers, a
+//     current-line tint, bracket matching, find marks, soft wrap or sideways
+//     scrolling, and draggable scrollbars, with native selection and IME
+//     geometry retained. `CodeEditorCommandForKey` maps key events to the
+//     editing commands of a text.Editor given code options (SetCode), and
+//     `TextareaMovementForKey` with `CodeEditor.Move` moves by row.
+//   - Find bar: `PaintFindBar` paints the find and replace bar of an editor over
+//     two InputSnapshot fields, with option toggles, a count and step buttons;
+//     `FindBarCommandForKey` maps Command or Control+F, F3 and Enter to its
+//     commands. Searching is text/find.Session, the application's to drive.
+//   - Go to line: `PaintGoToLine` paints the one-field bar that jumps an editor
+//     to a line; the application parses the number and moves the caret.
 //   - Code diff: `CodeDiff` paints an aligned, syntax-highlighted comparison
 //     with one read-only source and an editable right source; `DiffCodeLines`
 //     produces its bounded line alignment and statistics.

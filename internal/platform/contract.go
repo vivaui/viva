@@ -800,7 +800,7 @@ func (event TextEvent) Apply(editor *text.Editor) {
 	}
 	switch event.Kind {
 	case TextInsert:
-		editor.Insert(event.Text)
+		editor.Type(event.Text)
 	case TextPaste:
 		editor.Paste(event.Text)
 	case TextSetMarked:
@@ -812,7 +812,7 @@ func (event TextEvent) Apply(editor *text.Editor) {
 	case TextCommandEvent:
 		switch event.Command {
 		case TextDeleteBackward:
-			editor.DeleteBackward()
+			editor.Backspace()
 		case TextDeleteForward:
 			editor.DeleteForward()
 		case TextMoveLeft:
@@ -824,9 +824,9 @@ func (event TextEvent) Apply(editor *text.Editor) {
 		case TextMoveRightAndModifySelection:
 			editor.MoveRight(true)
 		case TextInsertNewline, TextInsertLineBreak:
-			editor.Insert("\n")
+			editor.NewLine()
 		case TextInsertTab:
-			editor.Insert("\t")
+			editor.Tab()
 		case TextUndo:
 			editor.Undo()
 		case TextRedo:

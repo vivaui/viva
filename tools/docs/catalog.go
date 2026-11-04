@@ -108,8 +108,11 @@ func loadPages(root string) ([]Page, Manifest, error) {
 		if file.IsDir() || !strings.HasSuffix(file.Name(), ".go") || strings.HasSuffix(file.Name(), "_test.go") {
 			continue
 		}
+		// The files that belong to another component's page: its layout and the
+		// bars its examples show.
 		if file.Name() == "doc.go" || file.Name() == "direction.go" ||
-			file.Name() == "menu_typeahead.go" || file.Name() == "code_diff_model.go" {
+			file.Name() == "menu_typeahead.go" || file.Name() == "code_diff_model.go" ||
+			file.Name() == "code_editor_layout.go" || file.Name() == "find_bar.go" || file.Name() == "go_to_line.go" {
 			continue
 		}
 		id := strings.ReplaceAll(strings.TrimSuffix(file.Name(), ".go"), "_", "-")

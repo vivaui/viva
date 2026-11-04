@@ -8,9 +8,22 @@ type Range struct {
 	End   int
 }
 
+// Span is a half-open range of byte offsets into the UTF-8 text String returns:
+// what a component that paints that text, or a search of it, works in. Range is
+// the editor's own, counted in runes; Editor.ByteOffset and RuneIndex convert.
+type Span struct {
+	Start int
+	End   int
+}
+
 const (
 	maxHistoryEntries = 256
 	maxHistoryRunes   = 256 * 1024
+	// maxSingleEditRunes is the largest edit the history keeps once it is all that
+	// is left: a replace-all in a big file is one undo unit however many runes it
+	// touches, and losing every undo because it is large would cost more than the
+	// memory of keeping it.
+	maxSingleEditRunes = 4 * 1024 * 1024
 )
 
 type editKind uint8
@@ -55,6 +68,9 @@ type Editor struct {
 	accept    func(rune) bool
 	maxRunes  int
 	overwrite bool
+	// code and codeSet make the typed-text methods code-aware; see SetCode.
+	code    CodeOptions
+	codeSet bool
 	// lastReplaceStart is where the latest replace began; see replace.
 	lastReplaceStart int
 
@@ -62,6 +78,11 @@ type Editor struct {
 	// frame does not allocate; every mutation of runes clears textValid.
 	text      string
 	textValid bool
+
+	// offsets remembers the last rune/byte pair ByteOffset and RuneIndex
+	// resolved, so a caret that moves or types a little is found by walking from
+	// there instead of from the start; every mutation of runes trims it.
+	offsets offsetMemo
 
 	history      []historyEdit
 	historyIndex int
@@ -386,6 +407,7 @@ func (editor *Editor) collapse(index int) {
 func (editor *Editor) replace(target Range, value string, overwrite bool) textChange {
 	target = normalizeRange(target, len(editor.runes))
 	editor.textValid = false
+	editor.offsets.trim(target.Start)
 	replacement := []rune(value)
 	if editor.accept != nil {
 		kept := replacement[:0]
@@ -562,15 +584,17 @@ func (editor *Editor) dropRedo() {
 }
 
 func (editor *Editor) trimHistory() {
-	if editor.historyRunes > maxHistoryRunes && len(editor.history) == 1 {
-		editor.ClearHistory()
-		return
-	}
+	// The newest unit is always kept, unless it alone is beyond what is worth
+	// keeping.
 	remove := 0
-	for len(editor.history)-remove > maxHistoryEntries || editor.historyRunes > maxHistoryRunes {
+	for len(editor.history)-remove > 1 && (len(editor.history)-remove > maxHistoryEntries || editor.historyRunes > maxHistoryRunes) {
 		edit := editor.history[remove]
 		editor.historyRunes -= len(edit.removed) + len(edit.inserted)
 		remove++
+	}
+	if len(editor.history)-remove == 1 && editor.historyRunes > maxSingleEditRunes {
+		editor.ClearHistory()
+		return
 	}
 	if remove == 0 {
 		return
@@ -595,6 +619,7 @@ func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 	copy(editor.runes[start:], replacement)
 	editor.lastReplaceStart = start
 	editor.textValid = false
+	editor.offsets.trim(start)
 }
 
 func hasUndoBoundary(value string) bool {
