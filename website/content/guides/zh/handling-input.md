@@ -188,7 +188,13 @@ if id.Scope() == rows {                    // 点击到来时
 
 ## 快捷键
 
-`OnShortcut` 在原生文本系统看到之前，先收到带 Control 或 Command 的可打印按键组合。只对应用自己拥有的组合返回 `Handled`：未处理的组合会继续走正常的文本编辑，所以在文本框里 Command-C 仍然是复制。在 Windows 上，获得焦点的普通文本框会先拿走标准编辑与剪贴板组合（复制、剪切、粘贴、全选、撤销、重做、Home/End、按词和按文档移动），终端和 `Placed` 编辑器不会。示例用 `primary()` 辅助函数来比较 `Modifiers`，因为常规的按键在 macOS 上是 Command，在其他平台上是 Control。
+`OnShortcut` 在原生文本系统看到之前，先收到可打印按键组合，主要是带 Control 或 Command 的。只对应用自己拥有的组合返回 `Handled`：未处理的组合会继续走正常的文本编辑，所以在文本框里 Command-C 仍然是复制。在 Windows 上，获得焦点的普通文本框会先拿走标准编辑与剪贴板组合（复制、剪切、粘贴、全选、撤销、重做、Home/End、按词和按文档移动），终端和 `Placed` 编辑器不会。示例用 `primary()` 辅助函数来比较 `Modifiers`，因为常规的按键在 macOS 上是 Command，在其他平台上是 Control。
+
+## 在列表中打字
+
+输入即搜索的列表、树或表格，以及带单字母命令的控件，需要声明自己接收打字：在持有焦点的命中区域上设置 `ui.HitOptions{TypeAhead: true}`，并在 `config.TextInput` 里为它返回一个 `app.TextInput`（该命中区域的 `context.TypeAhead` 为 true）。它获得焦点时键盘是原始的，和终端一样：可打印字符和输入法输入（包括拼音）以 `app.TextInsert` 事件到达 `OnEvent`，其他按键（方向键、Enter、Escape、Backspace、Tab）作为 `ui.KeyEvent` 到达 `OnKey`。查询串由应用持有：追加插入的文本、移动选中项、自己画搜索浮层。把 `TextInput.Bounds` 设在希望输入法绘制组合文本的位置。没有声明的命中区域不受影响，没有设置 `TextInput` 的窗口也不付出任何代价。headless 测试里 `Session.Keys("f")` 会打进这样的命中区域。
+
+`OnShortcut` 用于应用自己拥有的组合键，不用于打字：它早于输入法运行，被它拿走的按键不会进入输入法组合。
 
 ## 滚动
 

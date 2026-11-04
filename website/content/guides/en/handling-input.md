@@ -188,7 +188,13 @@ To move focus yourself, return `Focus` (and `FocusVisible`) in the `EventResult`
 
 ## Shortcuts
 
-`OnShortcut` receives Control- or Command-modified printable chords before the native text system sees them. Return `Handled` only for chords your application owns: an unhandled chord continues through normal text editing, so Command-C still copies inside a text field. On Windows, a focused ordinary text field claims the standard editing and clipboard chords (copy, cut, paste, select all, undo, redo, Home/End, word and document navigation) before `OnShortcut`; terminals and `Placed` editors do not. The example compares `Modifiers` against a `primary()` helper because the conventional key is Command on macOS and Control elsewhere.
+`OnShortcut` receives printable chords, chiefly Control- or Command-modified ones, before the native text system sees them. Return `Handled` only for chords your application owns: an unhandled chord continues through normal text editing, so Command-C still copies inside a text field. On Windows, a focused ordinary text field claims the standard editing and clipboard chords (copy, cut, paste, select all, undo, redo, Home/End, word and document navigation) before `OnShortcut`; terminals and `Placed` editors do not. The example compares `Modifiers` against a `primary()` helper because the conventional key is Command on macOS and Control elsewhere.
+
+## Typing into a list
+
+A list, tree or table that searches as you type, or a control with single-letter commands, declares it takes typed text: set `ui.HitOptions{TypeAhead: true}` on the hit that holds focus and return an `app.TextInput` for it from `config.TextInput` (`context.TypeAhead` is true for that hit). While it has focus the keyboard is raw, as in a terminal: printable characters and input-method input, pinyin included, arrive as `app.TextInsert` events in `OnEvent`, and every other key (arrows, Enter, Escape, Backspace, Tab) arrives as a `ui.KeyEvent` in `OnKey`. The application owns the query: append the inserted text, move the selection, and show your own search popup. Set `TextInput.Bounds` where the input method should draw its composition. Hits that do not declare it are unaffected, and a window with no `TextInput` provider pays nothing. `Session.Keys("f")` types into such a hit in headless tests.
+
+`OnShortcut` is for chords the application owns, not for typing: it runs before the input method, so a key it takes never composes.
 
 ## Scrolling
 

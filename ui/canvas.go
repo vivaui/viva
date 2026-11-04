@@ -290,7 +290,8 @@ const (
 	RoleTextField
 	RoleSlider
 	// RoleTerminal is a character-cell terminal. While it has focus the
-	// keyboard is raw (see KeyEvent) and the application's text input is a
+	// keyboard is raw (see KeyEvent; HitOptions.TypeAhead gives any other hit
+	// the same keyboard) and the application's text input is a
 	// preedit surface at the cursor (see app.TextInput.Terminal).
 	RoleTerminal
 	// RoleGroup names a non-actionable region that belongs together, such as a
@@ -451,6 +452,15 @@ type HitOptions struct {
 	// Honored by the macOS text system and app.Driver; the other platform
 	// backends do not consult it yet.
 	NavigationKeys bool
+	// TypeAhead makes a focused hit that is not a text field take typed text,
+	// for type-to-search in a list, tree or table and for single-letter
+	// commands. While it has focus the keyboard is raw as it is for a
+	// RoleTerminal (see KeyEvent): printable characters and input-method input
+	// arrive as text events (see app.Config.TextInput, which must return an
+	// input for the hit), and every other key arrives as a KeyEvent. Declare it
+	// on the hit that holds focus. It adds no cost to a window whose
+	// application sets no TextInput provider.
+	TypeAhead bool
 	// Placement is set by a text field that lays its text out in rows itself
 	// (a wrapping Textarea). The runtime then puts the caret where a press or
 	// drag lands according to it, rather than the platform editor, which knows
@@ -537,6 +547,8 @@ type Hit struct {
 	HideNativeOverlays bool
 	// NavigationKeys is HitOptions.NavigationKeys.
 	NavigationKeys bool
+	// TypeAhead is HitOptions.TypeAhead.
+	TypeAhead bool
 	// Placement is HitOptions.Placement.
 	Placement TextPlacement
 }
@@ -1257,6 +1269,7 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 		TextBounds: options.TextBounds, TextSize: options.TextSize, TextColor: options.TextColor,
 		HideNativeOverlays: options.HideNativeOverlays,
 		NavigationKeys:     options.NavigationKeys,
+		TypeAhead:          options.TypeAhead,
 		Placement:          options.Placement,
 	})
 }

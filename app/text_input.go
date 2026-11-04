@@ -117,6 +117,13 @@ type TextInputContext struct {
 	// cell. Plain keys reach the application as TextInsert events and the
 	// rest as raw ui.KeyEvents (see ui.KeyEvent).
 	Terminal bool
+	// TypeAhead reports a hit that is not a text field but declared it takes
+	// typed text (ui.HitOptions.TypeAhead). It is delivered as a Terminal is:
+	// plain keys and input-method input arrive as text events, the rest as raw
+	// ui.KeyEvents, and the editor is a preedit surface that draws only the
+	// text being composed, at Bounds. Return an input whose OnEvent keeps the
+	// query the application builds from the events.
+	TypeAhead bool
 	// TextBounds, FontSize and TextColor are the text geometry the component
 	// declared for this field. They fill whatever the returned TextInput leaves
 	// unset, so a bare &TextInput{Editor: editor} draws its text exactly where

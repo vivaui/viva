@@ -1105,10 +1105,10 @@ func (painter *painter) focusedTextField() (TextInputContext, ui.TextPlacement) 
 		// geometry: one that paints its own query (components.Command) declares
 		// no TextBounds and keeps what it draws.
 		if hit.ID == painter.focused && !hit.Disabled &&
-			(hit.Role == ui.RoleTextField || hit.Role == ui.RoleTerminal ||
+			(hit.Role == ui.RoleTextField || hit.Role == ui.RoleTerminal || hit.TypeAhead ||
 				hit.Role == ui.RoleCombobox && hit.TextBounds != (ui.Rect{})) {
 			return TextInputContext{
-				ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == ui.RoleTerminal,
+				ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == ui.RoleTerminal, TypeAhead: hit.TypeAhead && hit.Role != ui.RoleTerminal,
 				Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
 				NavigationKeys: hit.NavigationKeys,
 				TextBounds:     hit.TextBounds, FontSize: hit.TextSize, TextColor: hit.TextColor,
@@ -1182,7 +1182,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		Target: context.ID,
 		X:      bounds.X, Y: bounds.Y,
 		Width: bounds.Width, Height: bounds.Height,
-		FontSize: fontSize, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal,
+		FontSize: fontSize, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
 		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace,
 		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
 		HideNativeOverlays: input.HideNativeOverlays || context.HideNativeOverlays,

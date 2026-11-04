@@ -605,3 +605,44 @@ func TestSessionMeasuresWithThePlatformEngineUnlessAskedForTheReference(t *testi
 		t.Fatal("the two engines agree on the sample; the test cannot tell them apart")
 	}
 }
+
+func TestKeysTypeIntoAHitThatDeclaresTypeAhead(t *testing.T) {
+	var query string
+	var keys []ui.Key
+	session, err := Open(app.Config{
+		Title: "type-ahead", Width: 320, Height: 180,
+		Paint: func(canvas *ui.Canvas, size ui.Size) {
+			canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 320, Height: 180}, "Files", ui.HitOptions{Role: ui.RoleGroup, TypeAhead: true})
+		},
+		OnKey: func(event ui.KeyEvent) ui.EventResult {
+			keys = append(keys, event.Key)
+			return ui.EventResult{Handled: true}
+		},
+		TextInput: func(context app.TextInputContext) *app.TextInput {
+			if !context.TypeAhead {
+				return nil
+			}
+			return &app.TextInput{OnEvent: func(event app.TextEvent) (app.TextState, error) {
+				if event.Kind == app.TextInsert {
+					query += event.Text
+				}
+				return app.TextState{}, nil
+			}}
+		},
+	}, nil, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	if err := session.Click(100, 50); err != nil {
+		t.Fatal(err)
+	}
+	for _, spec := range []string{"f", "o", "o", "down"} {
+		if err := session.Keys(spec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if query != "foo" || len(keys) != 1 || keys[0] != ui.KeyDown {
+		t.Fatalf("query = %q, keys = %v", query, keys)
+	}
+}

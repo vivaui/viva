@@ -133,7 +133,8 @@ type Win32Key struct {
 
 // KeyEvent is delivered to the currently focused hit target.
 //
-// While a RoleTerminal hit has focus the keyboard is raw: printable characters
+// While a RoleTerminal hit, or a hit declared with HitOptions.TypeAhead, has
+// focus the keyboard is raw: printable characters
 // and text-service input (input methods, dead keys, paste) arrive as text
 // events (see app.TextInput), and every other key arrives here. Key names the
 // navigation, editing and function keys; for a chord such as Ctrl+C, Key is
