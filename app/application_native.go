@@ -64,6 +64,12 @@ func (host nativeHost) OpenWindow(config Config, canvas *ui.Canvas, closed func(
 	return window, nil
 }
 
+// CanPreview says whether the adapter's windows can be a DragPreview.
+func (host nativeHost) CanPreview() bool {
+	_, ok := host.native.(interface{ SupportsDragPreview() })
+	return ok
+}
+
 // SetOpenURLHandler passes the handler to adapters whose system delivers links
 // to the running program.
 func (host nativeHost) SetOpenURLHandler(handler func(string)) {

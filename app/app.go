@@ -250,7 +250,7 @@ func (config Config) normalize() (Config, error) {
 	}
 
 	color := config.ClearColor
-	if color == (Color{}) {
+	if color == (Color{}) && config.WindowMode != windowPreview {
 		config.ClearColor = Color{Red: 0.055, Green: 0.065, Blue: 0.09, Alpha: 1}
 	} else if !validColor(color) {
 		return Config{}, fmt.Errorf("app: clear color components must be between 0 and 1")

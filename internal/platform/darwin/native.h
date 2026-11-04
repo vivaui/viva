@@ -354,6 +354,8 @@ void *viva_application_open_window(viva_window_config config);
  * coordinates and returns 1, or returns 0 when there is no such window. Safe from
  * any thread; off the main thread it waits for it. */
 int viva_application_window_frame(void *window, double *out);
+/* Puts the window's content area at x, y in top-left screen coordinates. */
+void viva_application_move_window(void *window, double x, double y);
 int viva_application_set_fullscreen(void *window, int fullscreen);
 int viva_application_fullscreen(void *window);
 int viva_application_run(void);

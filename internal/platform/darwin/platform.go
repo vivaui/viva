@@ -65,6 +65,7 @@ const (
 	WindowFrameless                 = platform.WindowFrameless
 	WindowCustomTitlebar            = platform.WindowCustomTitlebar
 	WindowPanel                     = platform.WindowPanel
+	WindowPreview                   = platform.WindowPreview
 	TextInsert                      = platform.TextInsert
 	TextSetMarked                   = platform.TextSetMarked
 	TextUnmark                      = platform.TextUnmark
@@ -192,6 +193,14 @@ func (window *nativeWindow) Frame() (ui.Rect, bool) {
 	return ui.Rect{X: float32(out[0]), Y: float32(out[1]), Width: float32(out[2]), Height: float32(out[3])}, true
 }
 
+// MoveTo puts the top-left of the content area at origin. It runs on the
+// event-loop thread, where window callbacks are.
+func (window *nativeWindow) MoveTo(origin ui.Point) {
+	if window != nil && !window.closed.Load() {
+		C.viva_application_move_window(window.token, C.double(origin.X), C.double(origin.Y))
+	}
+}
+
 func (state *runState) setTextInput(input *TextInput) {
 	if input == nil {
 		state.textHandler = nil
@@ -258,6 +267,9 @@ func RunApplication(start platform.ApplicationStart) error {
 	}
 	return nativeStatusError(status)
 }
+
+// SupportsDragPreview marks an adapter whose windows can be a drag preview.
+func (application *nativeApplication) SupportsDragPreview() {}
 
 func (application *nativeApplication) OpenWindow(config Config) (platform.Window, error) {
 	title := C.CString(config.Title)

@@ -146,6 +146,14 @@ type Window interface {
 	Frame() (ui.Rect, bool)
 }
 
+// WindowMover is implemented by the windows of an adapter that can put a window
+// somewhere without the user dragging it. MoveTo puts the top-left of the
+// content area at origin, in the screen coordinates of Window.Frame. It is
+// called on the native event-loop thread.
+type WindowMover interface {
+	MoveTo(origin ui.Point)
+}
+
 // Application creates windows that share one native application event loop.
 // OpenWindow, AddStatusItem and SetDockBadge are called on that event-loop
 // thread.
@@ -597,6 +605,12 @@ const (
 	// keyboard focus without bringing the rest of the application forward. It
 	// closes itself when it loses focus, and OnClosed reports that.
 	WindowPanel
+	// WindowPreview is the picture of something being dragged: no chrome, a
+	// transparent background, above other windows, not listed among the
+	// application's windows, never taking focus and ignoring the pointer, so
+	// whatever is under it still gets every event. Adapters that cannot make
+	// one refuse it. WindowMover moves it.
+	WindowPreview
 )
 
 // DefaultTitlebarHeight is the custom titlebar strip, in logical pixels, of a

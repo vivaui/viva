@@ -38,6 +38,7 @@ enum {
     VIVA_WINDOW_FRAMELESS = 1,
     VIVA_WINDOW_CUSTOM_TITLEBAR = 2,
     VIVA_WINDOW_PANEL = 3,
+    VIVA_WINDOW_PREVIEW = 4,
 };
 
 /* How far from the status item a panel opens, the margin it keeps from the edge
@@ -3544,7 +3545,7 @@ static int viva_navigation_command(SEL selector) {
         _metalLayer.framebufferOnly = YES;
         /* A transparent clear color must reach the desktop through a frameless
          * surface. Opaque titled windows keep the normal fast path. */
-        _metalLayer.opaque = clearColor.alpha >= 1.0 && windowMode != VIVA_WINDOW_PANEL;
+        _metalLayer.opaque = clearColor.alpha >= 1.0 && windowMode != VIVA_WINDOW_PANEL && windowMode != VIVA_WINDOW_PREVIEW;
         _metalLayer.maximumDrawableCount = 2;
         _metalLayer.allowsNextDrawableTimeout = YES;
 
@@ -3690,7 +3691,7 @@ static int viva_navigation_command(SEL selector) {
 }
 
 - (BOOL)isOpaque {
-    return _windowMode != VIVA_WINDOW_PANEL;
+    return _windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW;
 }
 
 - (BOOL)acceptsFirstResponder {
@@ -5242,6 +5243,20 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 @end
 
+/* VivaPreview is the window of a WindowPreview: it is never key or main, and
+ * its style mask keeps it from bringing the application forward. */
+@interface VivaPreview : NSPanel
+@end
+
+@implementation VivaPreview
+- (BOOL)canBecomeKeyWindow {
+    return NO;
+}
+- (BOOL)canBecomeMainWindow {
+    return NO;
+}
+@end
+
 @interface VivaAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate> {
     NSRect _anchor;
     BOOL _hasAnchor;
@@ -5426,13 +5441,16 @@ static void viva_set_secure_event_input(BOOL on) {
                               NSWindowStyleMaskResizable;
     if (_windowMode == VIVA_WINDOW_FRAMELESS) {
         style = NSWindowStyleMaskBorderless;
-    } else if (_windowMode == VIVA_WINDOW_PANEL) {
+    } else if (_windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_PREVIEW) {
         style = NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel;
     } else if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
         style |= NSWindowStyleMaskFullSizeContentView;
     }
 
     Class windowClass = _windowMode == VIVA_WINDOW_PANEL ? [VivaPanel class] : [NSWindow class];
+    if (_windowMode == VIVA_WINDOW_PREVIEW) {
+        windowClass = [VivaPreview class];
+    }
     if (_windowMode == VIVA_WINDOW_FRAMELESS) {
         windowClass = [VivaFramelessWindow class];
     }
@@ -5445,10 +5463,25 @@ static void viva_set_secure_event_input(BOOL on) {
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screenParametersChanged:)
                                                  name:NSApplicationDidChangeScreenParametersNotification object:nil];
     _window.releasedWhenClosed = NO;
-    if (_windowMode != VIVA_WINDOW_PANEL) {
+    if (_windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW) {
         _window.collectionBehavior |= NSWindowCollectionBehaviorFullScreenPrimary;
     }
-    if (_windowMode == VIVA_WINDOW_PANEL) {
+    if (_windowMode == VIVA_WINDOW_PREVIEW) {
+        /* Over every window and every Space, and invisible to the pointer: a
+         * picture that follows a drag, which must not take any of its events. */
+        _window.minSize = NSMakeSize(1, 1);
+        _window.backgroundColor = [NSColor clearColor];
+        _window.opaque = NO;
+        _window.hasShadow = NO;
+        _window.ignoresMouseEvents = YES;
+        _window.animationBehavior = NSWindowAnimationBehaviorNone;
+        _window.level = NSStatusWindowLevel;
+        _window.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                     NSWindowCollectionBehaviorFullScreenAuxiliary |
+                                     NSWindowCollectionBehaviorTransient |
+                                     NSWindowCollectionBehaviorIgnoresCycle;
+        ((NSPanel *)_window).hidesOnDeactivate = NO;
+    } else if (_windowMode == VIVA_WINDOW_PANEL) {
         _window.minSize = NSMakeSize(1, 1);
         _window.backgroundColor = [NSColor clearColor];
         _window.opaque = NO;
@@ -5533,14 +5566,19 @@ static void viva_set_secure_event_input(BOOL on) {
             [_window setFrame:[_window constrainFrameRect:fitted toScreen:screen] display:NO];
         }
     }
-    [_window makeKeyAndOrderFront:nil];
-    [_window makeFirstResponder:view];
-    if (_windowMode != VIVA_WINDOW_PANEL) {
-        // A panel appears without bringing the application forward.
-        [NSApp activateIgnoringOtherApps:YES];
+    if (_windowMode == VIVA_WINDOW_PREVIEW) {
+        /* It appears without taking the key or bringing the application forward. */
+        [_window orderFrontRegardless];
+    } else {
+        [_window makeKeyAndOrderFront:nil];
+        [_window makeFirstResponder:view];
+        if (_windowMode != VIVA_WINDOW_PANEL) {
+            // A panel appears without bringing the application forward.
+            [NSApp activateIgnoringOtherApps:YES];
+        }
+        viva_running_window = _window;
+        viva_running_view = view;
     }
-    viva_running_window = _window;
-    viva_running_view = view;
     [view render];
     if (viva_test_resize_enabled() && _resizeEventsEnabled && _window != nil) {
         NSRect frame = _window.frame;
@@ -5907,8 +5945,10 @@ static void viva_set_secure_event_input(BOOL on) {
     _closeConfirmed = NO;
 }
 
+/* Whether this window is one the application's ordinary window handling
+ * leaves alone: no Dock reopen, no full screen. */
 - (BOOL)isPanel {
-    return _windowMode == VIVA_WINDOW_PANEL;
+    return _windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_PREVIEW;
 }
 
 - (BOOL)isHidden {
@@ -5954,6 +5994,11 @@ static void viva_set_secure_event_input(BOOL on) {
     CGFloat primaryHeight = NSScreen.screens.firstObject.frame.size.height;
     NSRect content = NSMakeRect(_origin.x, primaryHeight - _origin.y - _height, _width, _height);
     NSRect frame = [_window frameRectForContentRect:content];
+    if (_windowMode == VIVA_WINDOW_PREVIEW) {
+        /* A drag's picture goes wherever the pointer is, even half off a screen. */
+        [_window setFrame:frame display:NO];
+        return;
+    }
     NSScreen *screen = nil;
     NSPoint middle = NSMakePoint(NSMidX(frame), NSMidY(frame));
     for (NSScreen *candidate in NSScreen.screens) {
@@ -5966,6 +6011,18 @@ static void viva_set_secure_event_input(BOOL on) {
         screen = NSScreen.mainScreen ?: NSScreen.screens.firstObject;
     }
     [_window setFrame:[_window constrainFrameRect:frame toScreen:screen] display:NO];
+}
+
+/* Puts the top-left of the content area at origin, in top-left screen
+ * coordinates. */
+- (void)moveContentTo:(NSPoint)origin {
+    if (_window == nil || !_running) {
+        return;
+    }
+    CGFloat primaryHeight = NSScreen.screens.firstObject.frame.size.height;
+    NSRect content = [_window contentRectForFrameRect:_window.frame];
+    content.origin = NSMakePoint(origin.x, primaryHeight - origin.y - content.size.height);
+    [_window setFrame:[_window frameRectForContentRect:content] display:NO];
 }
 
 /* The content area in top-left screen coordinates; NO before the window exists. */
@@ -6470,6 +6527,18 @@ int viva_application_window_frame(void *window, double *out) {
         dispatch_sync(dispatch_get_main_queue(), work);
     }
     return found;
+}
+
+void viva_application_move_window(void *window, double x, double y) {
+    void (^work)(void) = ^{
+        VivaAppDelegate *delegate = viva_find_window(window);
+        [delegate moveContentTo:NSMakePoint(x, y)];
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
 }
 
 void viva_application_hide_window(void *window) {
