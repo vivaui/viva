@@ -264,7 +264,8 @@ func (state *windowState) lineWidth(line textLine, size float32) float32 {
 	if state.textInput.Terminal {
 		return state.lineCaret(line, size, utf8.RuneCountInString(state.textDisplayValue()))
 	}
-	return state.textEngine.Width(line.value, size, state.textInput.Weight)}
+	return state.textEngine.Width(line.value, size, state.textInput.Weight)
+}
 
 // terminalCellWidth is the width of one terminal cell at a font size: the pitch every
 // platform's fixed-pitch text is placed on (see ui.Canvas.MonoCellSize).
@@ -278,7 +279,8 @@ func (state *windowState) lineCaret(line textLine, size float32, runeIndex int) 
 	if state.textInput.Terminal {
 		return float32(platform.TerminalPreeditColumn(state.textDisplayValue(), runeIndex)) * terminalCellWidth(size)
 	}
-	return state.textEngine.Caret(line.value, size, state.textInput.Weight, line.byteAt(runeIndex))}
+	return state.textEngine.Caret(line.value, size, state.textInput.Weight, line.byteAt(runeIndex))
+}
 
 // textCaret is lineCaret for the line the caret is on.
 func (state *windowState) textCaret(size float32, runeIndex int) float32 {
