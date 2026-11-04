@@ -35,6 +35,36 @@ type TableColumn struct {
 type TableSelection struct {
 	Enabled       bool
 	Anchor, Focus int
+	// State, when non-nil, carries the selection text across frames. Keep one
+	// TableTextState for the table's lifetime and pass the same one every
+	// paint; a nil State rebuilds the text afresh each paint.
+	State *TableTextState
+}
+
+// TableTextState is the caller-owned text scratch of one table's selection:
+// the serialized text and cell map that TextLen, OffsetAt and SelectedText
+// answer from. Its buffers are reused across frames, so a steady table with a
+// kept state paints without allocating.
+type TableTextState struct {
+	text tableTextState
+}
+
+// beginTextState returns the selection text of the current paint. A kept state
+// is rebuilt in place, so only the first paint allocates.
+func (table *Table) beginTextState() *tableTextState {
+	if table.text == nil {
+		if table.Selection.State != nil {
+			state := &table.Selection.State.text
+			state.plain = state.plain[:0]
+			state.rows = state.rows[:0]
+			state.cells = state.cells[:0]
+			state.selectionSpans = state.selectionSpans[:0]
+			table.text = state
+		} else {
+			table.text = &tableTextState{}
+		}
+	}
+	return table.text
 }
 
 // Range orders and clamps the endpoints against text.
@@ -235,10 +265,7 @@ func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind
 	rowBounds := ui.Rect{X: table.bounds.X, Y: table.y, Width: table.bounds.Width, Height: height}
 	var textState *tableTextState
 	if table.Selection.Enabled {
-		if table.text == nil {
-			table.text = &tableTextState{}
-		}
-		textState = table.text
+		textState = table.beginTextState()
 		if len(textState.rows) > 0 {
 			textState.plain = append(textState.plain, '\n')
 		}
@@ -383,11 +410,15 @@ func appendTableTextCell(text *tableTextState, index int, value string) tableTex
 		text.plain = append(text.plain, '"')
 	}
 	field.contentLo = len(text.plain)
-	for index := 0; index < len(value); index++ {
-		if value[index] == '"' {
-			text.plain = append(text.plain, '"')
+	if quoted {
+		for index := 0; index < len(value); index++ {
+			if value[index] == '"' {
+				text.plain = append(text.plain, '"')
+			}
+			text.plain = append(text.plain, value[index])
 		}
-		text.plain = append(text.plain, value[index])
+	} else {
+		text.plain = append(text.plain, value...)
 	}
 	field.contentHi = len(text.plain)
 	if quoted {
@@ -778,10 +809,7 @@ func (table *Table) SortableHeader(cells []TableHeader) {
 	}
 	var textState *tableTextState
 	if table.Selection.Enabled {
-		if table.text == nil {
-			table.text = &tableTextState{}
-		}
-		textState = table.text
+		textState = table.beginTextState()
 		if len(textState.rows) > 0 {
 			textState.plain = append(textState.plain, '\n')
 		}

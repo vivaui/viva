@@ -418,6 +418,23 @@ func TestTablePaintsCellsThatFitWithoutAllocating(t *testing.T) {
 	}
 }
 
+func TestTableSelectionWithAKeptStatePaintsWithoutAllocating(t *testing.T) {
+	columns := []TableColumn{{Width: 120}, {Width: 0}}
+	var canvas ui.Canvas
+	state := &TableTextState{}
+	paint := func() {
+		canvas.Reset()
+		table := BeginTable(&canvas, ui.DarkTheme(), ui.Rect{Width: 300, Height: 120}, columns)
+		table.Selection = TableSelection{Enabled: true, State: state}
+		table.Header([]string{"Name", "Value"})
+		table.Row(ui.Item(1), []string{"Region", "Europe"}, false)
+		table.Row(ui.Item(2), []string{"Coastline", "Barents Sea"}, false)
+	}
+	if allocs := testing.AllocsPerRun(100, paint); allocs != 0 {
+		t.Fatalf("table with a kept selection state allocated %v times per paint", allocs)
+	}
+}
+
 func tableTextValues(texts []ui.Text) []string {
 	values := make([]string, 0, len(texts))
 	for _, text := range texts {
@@ -471,6 +488,32 @@ func BenchmarkTablePaint(b *testing.B) {
 				canvas.Reset()
 				table := BeginTable(&canvas, ui.DarkTheme(), ui.Rect{Width: 1000, Height: 200}, columns)
 				table.Header([]string{"Marker / hash", "Key type", "Fingerprint"})
+				for _, row := range rows {
+					table.Row(ui.Item(1), row, false)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkTableSelectionPaint(b *testing.B) {
+	for _, bench := range []struct {
+		name  string
+		state *TableTextState
+	}{{"rebuilt", nil}, {"kept", &TableTextState{}}} {
+		b.Run(bench.name, func(b *testing.B) {
+			var canvas ui.Canvas
+			columns := []TableColumn{{Width: 400}, {Width: 0}}
+			rows := make([][]string, 30)
+			for index := range rows {
+				rows[index] = []string{"known_hosts", "SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8"}
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				canvas.Reset()
+				table := BeginTable(&canvas, ui.DarkTheme(), ui.Rect{Width: 1000, Height: 2000}, columns)
+				table.Selection = TableSelection{Enabled: true, State: bench.state}
+				table.Header([]string{"File", "Fingerprint"})
 				for _, row := range rows {
 					table.Row(ui.Item(1), row, false)
 				}
