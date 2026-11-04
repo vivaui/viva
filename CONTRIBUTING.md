@@ -71,6 +71,12 @@ structure needs its memory numbers. `go test -bench` and `benchstat` are the
 usual tools; the budgets and the reasons behind them are in
 [README.md](README.md).
 
+A change to what is on screen needs a way to reach the same frame: which screen
+and state, the clicks or keys, and the platform, theme and scale of any
+screenshot. The headless build is the cheapest way to show it (`-tags vivahead`,
+`VIVA_HEADLESS=1`, then `shot` or `layout`). A picture is not the contract; the
+test that fails when the behaviour breaks is.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs that gate in parallel pieces, and
