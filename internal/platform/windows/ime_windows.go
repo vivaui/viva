@@ -117,8 +117,9 @@ func (state *windowState) updateTextVisuals() error {
 		return nil
 	}
 	input := &state.textInput
-	caretX := state.textCaret(input.FontSize, state.textCaretIndex())
-	textWidth := state.textWidth()
+	line := state.layoutLine()
+	caretX := state.lineCaret(line, input.FontSize, state.textCaretIndex())
+	textWidth := state.lineWidth(line, input.FontSize)
 	visibleWidth := max(1, input.Width-textCaretWidth)
 	state.textScroll = max(0, min(state.textScroll, caretX, max(0, textWidth-visibleWidth)))
 	if caretX-state.textScroll > visibleWidth {
@@ -126,7 +127,7 @@ func (state *windowState) updateTextVisuals() error {
 	}
 	originX := input.X - state.textScroll
 	label := platform.TextLabel{
-		Value: state.textDisplayValue(), X: originX, Y: input.Y,
+		Value: line.value, X: originX, Y: input.Y,
 		Width:  max(input.Width+state.textScroll, textWidth+textCaretWidth),
 		Height: input.Height, FontSize: input.FontSize, Color: input.Color, Layer: input.Layer,
 		Clipped: true, Clip: ui.Rect{X: input.X, Y: input.Y, Width: input.Width, Height: input.Height},
@@ -134,6 +135,7 @@ func (state *windowState) updateTextVisuals() error {
 	if input.Terminal {
 		// A terminal's preedit stands on the terminal's cells, in its fixed-pitch font,
 		// not on the advances of the system UI font.
+		label.Value = state.textDisplayValue()
 		color := ui.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 		state.textRuns = platform.TerminalPreeditRuns(state.textRuns[:0], label.Value, color)
 		label.Mono, label.MonoFace, label.CellWidth, label.Runs = true, input.MonoFace, terminalCellWidth(input.FontSize), state.textRuns
@@ -150,7 +152,7 @@ func (state *windowState) updateTextVisuals() error {
 	// native so the IME continues to own its underline.
 	if !input.Terminal && !input.HideNativeOverlays {
 		selection := state.textState.Selection
-		selectionStart, selectionEnd := state.textExtent(input.FontSize, selection)
+		selectionStart, selectionEnd := state.lineExtent(line, input.FontSize, selection)
 		// Match the centered text line and caret, leaving the field's vertical
 		// padding and border unpainted instead of filling the entire input
 		// (taller fields keep their text on one centered line).
@@ -174,7 +176,7 @@ func (state *windowState) updateTextVisuals() error {
 		// both clause strokes below that baseline, including in taller fields.
 		underlineY := platform.CompositionUnderlineTop(input.Y, input.Height, input.FontSize, state.scale, 3)
 		composition := state.textState.Composition
-		compositionStart, compositionEnd := state.textExtent(input.FontSize, composition)
+		compositionStart, compositionEnd := state.lineExtent(line, input.FontSize, composition)
 		state.textRectangles[base+2] = render.Rectangle{
 			Bounds: scene.Rect{X: originX + compositionStart, Y: underlineY, Width: compositionEnd - compositionStart, Height: 1.5},
 			Color:  caretColor,
@@ -186,7 +188,7 @@ func (state *windowState) updateTextVisuals() error {
 			// list is for.
 			target := text.Range{Start: composition.Start + state.imeTarget.Start, End: composition.Start + state.imeTarget.End}
 			if validTextRange(target, utf8.RuneCountInString(state.textState.Value)) {
-				targetStart, targetEnd := state.textExtent(input.FontSize, target)
+				targetStart, targetEnd := state.lineExtent(line, input.FontSize, target)
 				state.textRectangles[base+3] = render.Rectangle{
 					Bounds: scene.Rect{X: originX + targetStart, Y: underlineY, Width: targetEnd - targetStart, Height: 3},
 					Color:  caretColor,
@@ -220,12 +222,49 @@ func (state *windowState) textCaretIndex() int {
 	return state.textState.Selection.End
 }
 
-// textWidth is the width of the input's display value.
-func (state *windowState) textWidth() float32 {
-	if state.textInput.Terminal {
-		return state.textCaret(state.textInput.FontSize, utf8.RuneCountInString(state.textDisplayValue()))
+// textLine is the part of an input's display value that the platform lays out: one
+// line. The engine shapes a line, and a multi-line field's value is a whole document,
+// which DirectWrite would lay out as thousands of lines (and the engine refuses past a
+// limit) only for the caret, the selection and the input-method window of a field that
+// paints its own rows. Whatever those need lies on the line the caret is on, so that is
+// the line; a value without a line break is one line, whole.
+type textLine struct {
+	value string // the line, without its break
+	first int    // the rune index of its first rune in the display value
+	runes int    // how many runes it has
+}
+
+// layoutLine is the line of the display value that the caret is on.
+func (state *windowState) layoutLine() textLine {
+	value := state.textDisplayValue()
+	start, end, first := platform.TextLine(value, state.textCaretIndex())
+	return textLine{value: value[start:end], first: first, runes: utf8.RuneCountInString(value[start:end])}
+}
+
+// byteAt is the byte offset in the line of a rune index of the display value, at the
+// nearest end of the line for an index off it.
+func (line textLine) byteAt(runeIndex int) int {
+	runeIndex -= line.first
+	if runeIndex <= 0 {
+		return 0
 	}
-	return state.textEngine.Width(state.textDisplayValue(), state.textInput.FontSize, 0)
+	if runeIndex >= line.runes {
+		return len(line.value)
+	}
+	offset := 0
+	for ; runeIndex > 0; runeIndex-- {
+		_, size := utf8.DecodeRuneInString(line.value[offset:])
+		offset += size
+	}
+	return offset
+}
+
+// lineWidth is the width of the line.
+func (state *windowState) lineWidth(line textLine, size float32) float32 {
+	if state.textInput.Terminal {
+		return state.lineCaret(line, size, utf8.RuneCountInString(state.textDisplayValue()))
+	}
+	return state.textEngine.Width(line.value, size, 0)
 }
 
 // terminalCellWidth is the width of one terminal cell at a font size: the pitch every
@@ -234,33 +273,29 @@ func terminalCellWidth(size float32) float32 {
 	return platform.TerminalPreeditCellWidth(size)
 }
 
-// textByte is the byte offset of the rune index in the text input's display value.
-func (state *windowState) textByte(runeIndex int) int {
-	value := state.textDisplayValue()
-	offset := 0
-	for ; runeIndex > 0 && offset < len(value); runeIndex-- {
-		_, size := utf8.DecodeRuneInString(value[offset:])
-		offset += size
-	}
-	return offset
-}
-
-// textCaret is the x of the caret before the rune index, from the left of the input.
-func (state *windowState) textCaret(size float32, runeIndex int) float32 {
+// lineCaret is the x of the caret before the rune index of the display value, from the
+// left of the line. A terminal's preedit is a single line on the terminal's cells.
+func (state *windowState) lineCaret(line textLine, size float32, runeIndex int) float32 {
 	if state.textInput.Terminal {
 		return float32(platform.TerminalPreeditColumn(state.textDisplayValue(), runeIndex)) * terminalCellWidth(size)
 	}
-	return state.textEngine.Caret(state.textDisplayValue(), size, 0, state.textByte(runeIndex))
+	return state.textEngine.Caret(line.value, size, 0, line.byteAt(runeIndex))
 }
 
-// textExtent is the left and right x of the glyphs of the runes in the range: the one
-// rectangle a selection or a composition underline is drawn as. A range with text of
-// both directions is drawn from its leftmost to its rightmost glyph.
-func (state *windowState) textExtent(size float32, runes text.Range) (left, right float32) {
+// textCaret is lineCaret for the line the caret is on.
+func (state *windowState) textCaret(size float32, runeIndex int) float32 {
+	return state.lineCaret(state.layoutLine(), size, runeIndex)
+}
+
+// lineExtent is the left and right x of the glyphs of the runes in the range, the part
+// of it on the line: the one rectangle a selection or a composition underline is drawn
+// as. A range with text of both directions is drawn from its leftmost to its rightmost
+// glyph.
+func (state *windowState) lineExtent(line textLine, size float32, runes text.Range) (left, right float32) {
 	if state.textInput.Terminal {
-		return state.textCaret(size, runes.Start), state.textCaret(size, runes.End)
+		return state.lineCaret(line, size, runes.Start), state.lineCaret(line, size, runes.End)
 	}
-	state.textSpans = state.textEngine.Selection(state.textSpans[:0], state.textDisplayValue(), size, 0, state.textByte(runes.Start), state.textByte(runes.End))
+	state.textSpans = state.textEngine.Selection(state.textSpans[:0], line.value, size, 0, line.byteAt(runes.Start), line.byteAt(runes.End))
 	if len(state.textSpans) == 0 {
 		return 0, 0
 	}
@@ -296,9 +331,9 @@ func (state *windowState) textPointerEvent(event platform.PointerEvent) (platfor
 	default:
 		return platform.TextEvent{}, false, nil
 	}
-	value := state.textDisplayValue()
-	offset := state.textEngine.OffsetAt(value, input.FontSize, 0, event.X-input.X+state.textScroll)
-	index := utf8.RuneCountInString(value[:max(0, min(offset, len(value)))])
+	line := state.layoutLine()
+	offset := state.textEngine.OffsetAt(line.value, input.FontSize, 0, event.X-input.X+state.textScroll)
+	index := line.first + utf8.RuneCountInString(line.value[:max(0, min(offset, len(line.value)))])
 	if event.Kind == platform.PointerDown {
 		state.textDragAnchor = index
 		state.textDragging = true

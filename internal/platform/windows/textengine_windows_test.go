@@ -1,9 +1,12 @@
 package windows
 
 import (
+	"fmt"
 	"math"
 	"runtime"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
@@ -239,5 +242,46 @@ func TestTextInputOverlayFollowsTheShapedLine(t *testing.T) {
 	event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 10 + boundary + 0.5, Y: 35})
 	if err != nil || !handled || event.Selection != (text.Range{Start: 7, End: 7}) {
 		t.Errorf("a click beside the boundary placed %+v (handled %v, err %v), want rune 7", event.Selection, handled, err)
+	}
+}
+
+// A source file of tens of thousands of lines, in a field that paints its own rows,
+// reached DirectWrite whole: the engine refuses text of more than 1,024 lines, and
+// the label of the native editor, drawn with it, closed the application. The field's
+// caret, selection and label are the caret's line now, and are drawn.
+func TestTextInputOfAVeryLongDocumentIsLaidOutByTheLine(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	engine := newTestEngine(t)
+	var document strings.Builder
+	for line := 0; line < 27094; line++ {
+		fmt.Fprintf(&document, "line %d 中文\n", line)
+	}
+	value := document.String()
+	start := strings.Index(value, "line 20000 ")
+	caret := utf8.RuneCountInString(value[:start]) + 8
+	input := platform.TextInput{X: 10, Y: 20, Width: 400, Height: 30, FontSize: 14, Multiline: true, Placed: true, HideNativeOverlays: true,
+		Color: platform.Color{Alpha: 1}, State: platform.TextState{Value: value, Selection: text.Range{Start: caret - 2, End: caret}}}
+	state := windowState{
+		textEngine: engine, textInput: input, textState: input.State, textEnabled: true, caretVisible: true,
+		baseTextLabelCount: 1, textLabels: make([]platform.TextLabel, 2), textRectangles: make([]render.Rectangle, textRectangleCount),
+	}
+	if err := state.updateTextVisuals(); err != nil {
+		t.Fatal(err)
+	}
+	label := state.textLabels[1]
+	if label.Value != "line 20000 中文" {
+		t.Fatalf("label = %q, want the caret's line", label.Value)
+	}
+	if state.layoutLine().value != label.Value {
+		t.Fatalf("layout line = %q", state.layoutLine().value)
+	}
+	if want := engine.Caret(label.Value, 14, 0, len("line 200")); state.textCaret(14, caret) != want || want <= 0 {
+		t.Fatalf("caret x = %v, want %v", state.textCaret(14, caret), want)
+	}
+	pixels, _, done := rasterizeProportional(t, platform.TextLabel{Value: label.Value, Width: 200, Height: 30, FontSize: 14, Color: platform.Color{Alpha: 1}}, 1, 200, 30, false)
+	defer done()
+	if len(pixels) == 0 {
+		t.Fatal("the line was not drawn")
 	}
 }

@@ -3,6 +3,7 @@ package windows
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"unicode/utf8"
 
@@ -679,5 +680,103 @@ func BenchmarkTextInputDecorations(b *testing.B) {
 				state.updateTextVisuals()
 			}
 		})
+	}
+}
+
+// singleLineEngine measures like the platform engine, which shapes one line: it
+// answers nothing for text with a line break, as the DirectWrite engine does for
+// text of more lines than it will lay out.
+type singleLineEngine struct {
+	fixedAdvanceEngine
+	t *testing.T
+}
+
+func (engine singleLineEngine) check(value string) {
+	engine.t.Helper()
+	if strings.ContainsAny(value, "\n\r") {
+		engine.t.Errorf("the engine was handed %d bytes of more than one line", len(value))
+	}
+}
+
+func (engine singleLineEngine) Width(value string, size, weight float32) float32 {
+	engine.check(value)
+	return engine.fixedAdvanceEngine.Width(value, size, weight)
+}
+
+func (engine singleLineEngine) Caret(value string, size, weight float32, offset int) float32 {
+	engine.check(value)
+	return engine.fixedAdvanceEngine.Caret(value, size, weight, offset)
+}
+
+func (engine singleLineEngine) Selection(dst []ui.TextSpan, value string, size, weight float32, start, end int) []ui.TextSpan {
+	engine.check(value)
+	return engine.fixedAdvanceEngine.Selection(dst, value, size, weight, start, end)
+}
+
+func (engine singleLineEngine) OffsetAt(value string, size, weight, x float32) int {
+	engine.check(value)
+	return engine.fixedAdvanceEngine.OffsetAt(value, size, weight, x)
+}
+
+// TestMultilineFieldLaysOutOnlyTheCaretsLine guards the source file that closed
+// the editor: a field of tens of thousands of lines must put the engine to
+// work on the line of the caret, not on the document. The caret, the selection
+// and the composition keep their place on that line.
+func TestMultilineFieldLaysOutOnlyTheCaretsLine(t *testing.T) {
+	const lines = 27094
+	var document strings.Builder
+	for line := 0; line < lines; line++ {
+		fmt.Fprintf(&document, "line %d 中文\n", line)
+	}
+	value := document.String()
+	// The caret is three characters into line 20000.
+	start := strings.Index(value, "line 20000 ")
+	caret := utf8.RuneCountInString(value[:start]) + 3
+	for _, placed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("placed=%v", placed), func(t *testing.T) {
+			state := dynamicTextState(0, 0)
+			state.textEngine = singleLineEngine{fixedAdvanceEngine{advance: 8}, t}
+			state.textRectangles = make([]render.Rectangle, textRectangleCount)
+			state.textLabels = make([]platform.TextLabel, 1)
+			field := testTextInput(value, 10)
+			field.Multiline, field.Placed, field.HideNativeOverlays = true, placed, true
+			field.Width = 400
+			// The selection runs from the caret into lines far below it.
+			field.State.Selection, field.State.SelectionReversed = text.Range{Start: caret - 2, End: caret + 40000}, true
+			field.State.Composition = text.Range{Start: caret - 3, End: caret}
+			field.State.Composing = true
+			state.textInput, state.textState, state.textEnabled = field, field.State, true
+			state.caretVisible = true
+			if err := state.updateTextVisuals(); err != nil {
+				t.Fatal(err)
+			}
+			if got := state.textLabels[0].Value; got != "line 20000 中文" {
+				t.Fatalf("label = %q, want the caret's line", got)
+			}
+			underline := state.textRectangles[2].Bounds
+			if underline.Width <= 0 || underline.X < field.X || underline.X+underline.Width > field.X+8*float32(utf8.RuneCountInString("line 20000 中文")) {
+				t.Fatalf("composition underline = %+v, want it on the caret's line", underline)
+			}
+			if _, _, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 10 + 8*5, Y: 10}); err != nil {
+				t.Fatal(err)
+			}
+			state.textCaret(field.FontSize, caret)
+		})
+	}
+
+	// A click on a field that does not place its caret itself lands on the caret's
+	// line, and is counted in the document.
+	state := dynamicTextState(0, 0)
+	state.textEngine = singleLineEngine{fixedAdvanceEngine{advance: 8}, t}
+	field := testTextInput(value, 10)
+	field.Multiline, field.Width, field.Height = true, 400, 30
+	field.State.Selection = text.Range{Start: caret, End: caret}
+	state.textInput, state.textState, state.textEnabled = field, field.State, true
+	event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 10 + 8*5, Y: 10})
+	if err != nil || !handled {
+		t.Fatalf("pointer: handled=%v err=%v", handled, err)
+	}
+	if want := caret - 3 + 5; event.Selection != (text.Range{Start: want, End: want}) {
+		t.Fatalf("click selection = %+v, want the fifth character of the caret's line (%d)", event.Selection, want)
 	}
 }

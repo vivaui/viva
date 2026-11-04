@@ -280,18 +280,24 @@ func (state *linuxTextInput) rebuild() error {
 		return nil
 	}
 	base := len(state.baseRectangles)
+	// The engine shapes one line, and a multi-line field's value is a document: the
+	// caret, the selection and the label are the line the caret is on, whatever the
+	// length of the rest.
+	caretIndex := state.caretIndex()
+	start, end, first := platform.TextLine(shown, caretIndex)
+	shown = shown[start:end]
+	state.labels[len(state.baseLabels)].Value = shown
 	values := []rune(shown)
+	prefixWidth := func(index int) (float32, error) {
+		return state.prefixWidth(shown, values, min(max(index-first, 0), len(values)), inputState.FontSize)
+	}
 	// The caret decides what part of a long text shows. A component that places its own
 	// text (Placed) scrolls it itself.
-	caretIndex := state.state.Selection.End
-	if state.state.Composing {
-		caretIndex = state.state.Composition.End
-	}
-	caretX, err := state.prefixWidth(shown, values, caretIndex, inputState.FontSize)
+	caretX, err := prefixWidth(caretIndex)
 	if err != nil {
 		return err
 	}
-	textWidth, err := state.prefixWidth(shown, values, len(values), inputState.FontSize)
+	textWidth, err := prefixWidth(first + len(values))
 	if err != nil {
 		return err
 	}
@@ -311,11 +317,11 @@ func (state *linuxTextInput) rebuild() error {
 	}
 	if !inputState.HideNativeOverlays {
 		selection := state.state.Selection
-		selectionStart, err := state.prefixWidth(shown, values, selection.Start, inputState.FontSize)
+		selectionStart, err := prefixWidth(selection.Start)
 		if err != nil {
 			return err
 		}
-		selectionEnd, err := state.prefixWidth(shown, values, selection.End, inputState.FontSize)
+		selectionEnd, err := prefixWidth(selection.End)
 		if err != nil {
 			return err
 		}
@@ -337,11 +343,11 @@ func (state *linuxTextInput) rebuild() error {
 	}
 	if state.state.Composing {
 		composition := state.state.Composition
-		compositionStart, err := state.prefixWidth(shown, values, composition.Start, inputState.FontSize)
+		compositionStart, err := prefixWidth(composition.Start)
 		if err != nil {
 			return err
 		}
-		compositionEnd, err := state.prefixWidth(shown, values, composition.End, inputState.FontSize)
+		compositionEnd, err := prefixWidth(composition.End)
 		if err != nil {
 			return err
 		}
@@ -581,6 +587,15 @@ func primaryCandidate(private bool, previous, next platform.TextState) (string, 
 	return string(runes[selection.Start:selection.End]), true
 }
 
+// caretIndex is the rune index of the caret: the end of the selection, or of the composition
+// while one is being typed.
+func (state *linuxTextInput) caretIndex() int {
+	if state.state.Composing {
+		return state.state.Composition.End
+	}
+	return state.state.Selection.End
+}
+
 func (state *linuxTextInput) nearestTextIndex(x float32) (int, error) {
 	shown := state.state.Value
 	if state.input.Secure {
@@ -589,8 +604,11 @@ func (state *linuxTextInput) nearestTextIndex(x float32) (int, error) {
 	if shown == "" {
 		return 0, nil
 	}
+	// One line is laid out: the caret's (see rebuild), and the click is on it.
+	start, end, first := platform.TextLine(shown, state.caretIndex())
+	shown = shown[start:end]
 	offset := state.engine.OffsetAt(shown, state.input.FontSize, 0, x)
-	return utf8.RuneCountInString(shown[:max(0, min(offset, len(shown)))]), nil
+	return first + utf8.RuneCountInString(shown[:max(0, min(offset, len(shown)))]), nil
 }
 
 func (state *linuxTextInput) textEvent(event platform.TextEvent) (platform.Frame, error) {

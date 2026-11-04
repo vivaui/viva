@@ -2,7 +2,9 @@ package linux
 
 import (
 	"reflect"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
@@ -512,5 +514,33 @@ func TestLinuxLongTextScrollsAndKeepsTheSelectionInsideTheField(t *testing.T) {
 	caret := state.caret.Bounds
 	if caret.X < field.X || caret.X+caret.Width > field.X+field.Width {
 		t.Fatalf("the caret %+v is outside the field", caret)
+	}
+}
+
+// A multi-line field's value is a document, and the engine shapes one line: the label, the
+// caret and a click are the line the caret is on, counted in the document.
+func TestLinuxMultilineFieldLaysOutTheCaretsLine(t *testing.T) {
+	value := strings.Repeat("first line\n", 3000) + "the caret's line\n" + strings.Repeat("last line\n", 3000)
+	state, editor := newEditableLinuxInput(t, value, 400)
+	first := utf8.RuneCountInString(strings.Repeat("first line\n", 3000))
+	editor.SetSelection(text.Range{Start: first + 4, End: first + 4})
+	inputState := state.input
+	inputState.State = platform.EditorState(editor)
+	if _, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.rebuild(); err != nil {
+		t.Fatal(err)
+	}
+	label := state.labels[len(state.baseLabels)]
+	if label.Value != "the caret's line" {
+		t.Fatalf("label = %q, want the caret's line", label.Value)
+	}
+	if caret := state.caret.Bounds; caret.X != 20+4*10 {
+		t.Fatalf("caret x = %v, want the fourth character of the line", caret.X)
+	}
+	index, err := state.nearestTextIndex(7 * 10)
+	if err != nil || index != first+7 {
+		t.Fatalf("click on the seventh character = %d (err %v), want %d", index, err, first+7)
 	}
 }
