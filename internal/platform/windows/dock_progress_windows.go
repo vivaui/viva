@@ -10,8 +10,8 @@ import (
 // The taskbar draws a bar across the application's button, which is what a
 // download or an upload shows there. The shell owns the drawing: a program
 // creates ITaskbarList3 once and tells it, per window, how far along it is.
-// The counts are thousandths of the whole, which keeps them inside a machine
-// word whatever the size of the transfer.
+// The counts are parts of progressScale — ten thousandths of the whole —
+// which keeps them inside a machine word whatever the size of the transfer.
 var (
 	clsidTaskbarList = guid{
 		Data1: 0x56FDF344, Data2: 0xFD6D, Data3: 0x11D0,

@@ -168,8 +168,8 @@ type Application interface {
 	SetDockBadge(text string)
 	// SetProgress draws how much of the application's work is done on the icon
 	// the desktop shows for it, as a fraction of the whole between 0 and 1. A
-	// negative fraction removes the bar. A desktop with nowhere to draw it
-	// accepts it and does nothing.
+	// negative or NaN fraction removes the bar. A desktop with nowhere to draw
+	// it accepts it and does nothing.
 	SetProgress(fraction float32)
 	// Quit closes every window, bypassing close requests, and ends the loop.
 	// It is thread-safe.
