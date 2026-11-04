@@ -193,30 +193,36 @@ func TestCodeDiffPaintsOneSelectionPerLineAndRebuildsSelectedText(t *testing.T) 
 	if len(selected) != 3 {
 		t.Fatalf("selection rectangles = %+v, want one per selected line", selected)
 	}
-	wantText := []string{"pha", "middle", "om"}
+	wantCells := []int{len("pha"), len("middle"), len("om")}
+	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, ui.MonoSystem)
 	for index, rectangle := range selected {
 		if rectangle.Width <= 0 || rectangle.Width >= diff.rightCode.Width {
 			t.Errorf("line %d selection = %+v, right code width = %v", index, rectangle, diff.rightCode.Width)
 		}
-		wantWidth := canvas.TextWidthWeight(wantText[index], theme.Metrics.FontSizeM, ui.WeightRegular)
-		if delta := rectangle.Width - wantWidth; delta < -.5 || delta > .5 {
-			t.Errorf("line %d selection width = %v, want %v", index, rectangle.Width, wantWidth)
+		// A selection that runs on to the next line also covers half a cell for the line break.
+		want := float32(wantCells[index]) * cell
+		if index < 2 {
+			want += cell / 2
+		}
+		if delta := rectangle.Width - want; delta < -.01 || delta > .01 {
+			t.Errorf("line %d selection width = %v, want %v", index, rectangle.Width, want)
 		}
 		if rectangle.Height != diff.rowHeight-2 || rectangle.Y != diff.rightCode.Y+float32(index)*diff.rowHeight+1 {
 			t.Errorf("line %d selection bounds = %+v, row height = %v", index, rectangle, diff.rowHeight)
 		}
 	}
 
-	selectedForeground := make(map[string]bool)
+	// The selected characters, and only those, are drawn in the selection's foreground.
+	selectedCells := 0
 	for _, text := range canvas.Texts() {
-		if text.Style.Color == selectionForeground {
-			selectedForeground[text.Value] = true
+		for _, run := range canvas.TextRuns(text) {
+			if run.Color == selectionForeground {
+				selectedCells += int(run.Cells)
+			}
 		}
 	}
-	for _, line := range []string{"alpha", "middle", "omega"} {
-		if !selectedForeground[line] {
-			t.Errorf("selected line %q was not repainted with SelectionForeground", line)
-		}
+	if want := wantCells[0] + wantCells[1] + wantCells[2]; selectedCells != want {
+		t.Errorf("%d cells drawn in SelectionForeground, want %d", selectedCells, want)
 	}
 }
 
@@ -242,7 +248,7 @@ func TestCodeDiffDoesNotSyntaxColourUnchangedRows(t *testing.T) {
 	}
 }
 
-func TestCodeDiffSyntaxLabelsKeepTheShapedEditorFont(t *testing.T) {
+func TestCodeDiffPaintsEachRowAsOneGridLabelWhateverTheHighlight(t *testing.T) {
 	theme := ui.DarkTheme()
 	left := "<revision>41</revision>\n<log-level>info</log-level>\n"
 	right := "<revision>42</revision>\n<log-level>warning</log-level>\n"
@@ -269,16 +275,37 @@ func TestCodeDiffSyntaxLabelsKeepTheShapedEditorFont(t *testing.T) {
 	var canvas ui.Canvas
 	var diff CodeDiff
 	diff.Paint(&canvas, theme, ui.Rect{Width: 1000, Height: 300}, snapshot)
+	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, ui.MonoSystem)
+	labels := 0
 	for _, text := range canvas.Texts() {
-		if text.Bounds.X < diff.rightCode.X || !strings.Contains(text.Value, "<") {
+		if !strings.Contains(text.Value, "<") {
 			continue
 		}
-		// CodeEditor and CodeDiff both split highlighted lines into clipped
-		// labels. Those clips use shaped-font advances; requesting the grid
-		// path without a cell width makes the last glyph disappear on Windows.
-		if text.Style.Mono || text.CellWidth != 0 {
-			t.Fatalf("syntax label uses an unconfigured fixed-pitch grid: %+v", text)
+		labels++
+		if !text.Style.Mono || text.CellWidth != cell || text.RunCount == 0 {
+			t.Fatalf("source label is not a grid line: %+v", text)
 		}
+		bytes := 0
+		for _, run := range canvas.TextRuns(text) {
+			bytes += int(run.Bytes)
+		}
+		if bytes != len(text.Value) {
+			t.Fatalf("runs cover %d of %d bytes of %q", bytes, len(text.Value), text.Value)
+		}
+	}
+	if labels != 4 {
+		t.Fatalf("%d source labels, want one per row and side (4)", labels)
+	}
+	var tagged int
+	for _, text := range canvas.Texts() {
+		for _, run := range canvas.TextRuns(text) {
+			if run.Color == theme.Chart[2] {
+				tagged++
+			}
+		}
+	}
+	if tagged == 0 {
+		t.Fatal("no run took the highlight color")
 	}
 }
 
@@ -408,14 +435,20 @@ func TestCodeDiffLongLinesRemainReachableAndScrollbarDragsTrackThePointer(t *tes
 	canvas.Reset()
 	diff.Paint(&canvas, theme, bounds, snapshot)
 	foundRightEnd := false
+	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, ui.MonoSystem)
 	for _, text := range canvas.Texts() {
-		if text.Value != line {
+		// The label of the right pane, which may start a few cells left of the view.
+		if text.RunCount == 0 || !strings.HasSuffix(line, text.Value) || text.Bounds.X+text.Bounds.Width <= diff.rightCode.X {
 			continue
 		}
-		rightEdge := text.Bounds.X + canvas.TextWidthWeight(line, theme.Metrics.FontSizeM, ui.WeightRegular)
+		// The label holds only the columns in view, so its last cell is the last of the line.
+		rightEdge := text.Bounds.X + float32(len(text.Value))*cell
 		visibleRight := diff.rightCode.X + diff.rightCode.Width - codeDiffPadX
-		if text.ClipOf.X >= diff.rightCode.X && rightEdge >= visibleRight-.5 {
+		if rightEdge >= visibleRight-.5 && rightEdge <= visibleRight+cell {
 			foundRightEnd = true
+		}
+		if len(text.Value) > int(diff.rightCode.Width/cell)+8 {
+			t.Fatalf("a %d column label for a %v wide view", len(text.Value), diff.rightCode.Width)
 		}
 	}
 	if !foundRightEnd {
@@ -671,5 +704,151 @@ func BenchmarkCodeDiffPaintLongFileWidestLineCached(b *testing.B) {
 	for b.Loop() {
 		canvas.Reset()
 		diff.Paint(&canvas, theme, ui.Rect{Width: 500, Height: 180}, snapshot)
+	}
+}
+
+func codeDiffFixture(left, right string) (*CodeDiff, *ui.Canvas, CodeDiffSnapshot) {
+	var diff CodeDiff
+	var canvas ui.Canvas
+	snapshot := CodeDiffSnapshot{
+		Result: DiffCodeLines(left, right), ID: ui.Item(50), Label: "Edited", Value: right,
+		Focused: true, ShowCaret: true,
+	}
+	return &diff, &canvas, snapshot
+}
+
+func TestCodeDiffPlacesTheCaretAndPressesOnTheCellGrid(t *testing.T) {
+	theme := ui.LightTheme()
+	right := "ab\tc中d\nxyz\n"
+	diff, canvas, snapshot := codeDiffFixture("old\nxyz\n", right)
+	bounds := ui.Rect{X: 0, Y: 0, Width: 700, Height: 200}
+	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, ui.MonoSystem)
+	for _, c := range []struct{ offset, column, line int }{{0, 0, 0}, {1, 1, 0}, {3, 4, 0}, {4, 5, 0}, {7, 7, 0}, {8, 8, 0}, {9, 0, 1}, {12, 3, 1}} {
+		snapshot.Caret = c.offset
+		canvas.Reset()
+		diff.Paint(canvas, theme, bounds, snapshot)
+		caret, ok := diff.CaretBounds()
+		if !ok {
+			t.Fatalf("offset %d: no caret", c.offset)
+		}
+		origin := diff.rightCode.X + codeDiffPadX - diff.Geometry.OffsetX
+		if want := origin + float32(c.column)*cell; caret.X < want-.01 || caret.X > want+.01 {
+			t.Errorf("offset %d: caret x %v, want %v", c.offset, caret.X, want)
+		}
+		if want := diff.rightCode.Y + float32(c.line)*diff.rowHeight; caret.Y != want {
+			t.Errorf("offset %d: caret y %v, want %v", c.offset, caret.Y, want)
+		}
+		got, ok := diff.OffsetAt(ui.Point{X: caret.X + .01, Y: caret.Y + diff.rowHeight/2})
+		if !ok || got != c.offset {
+			t.Errorf("offset %d: a press on its caret gave %d, %v", c.offset, got, ok)
+		}
+	}
+}
+
+func TestCodeDiffMoveKeepsTheColumnAcrossShortLines(t *testing.T) {
+	right := "abcdef\nxy\nabcdefgh\n"
+	diff, canvas, snapshot := codeDiffFixture(right, right)
+	diff.Paint(canvas, ui.LightTheme(), ui.Rect{Width: 700, Height: 200}, snapshot)
+	caret := 5
+	for _, want := range []int{9, 15, 9, 5} {
+		down := want == 9 && caret == 5 || want == 15
+		movement := TextareaMoveUp
+		if down {
+			movement = TextareaMoveDown
+		}
+		caret = diff.Move(right, caret, movement)
+		if caret != want {
+			t.Fatalf("caret %d, want %d", caret, want)
+		}
+	}
+	// Home goes to the first character first, then to the start of the line.
+	indented := "x\n    text here\n"
+	diff2, canvas2, snapshot2 := codeDiffFixture(indented, indented)
+	diff2.Paint(canvas2, ui.LightTheme(), ui.Rect{Width: 700, Height: 200}, snapshot2)
+	caret = 12
+	for _, want := range []int{6, 2, 6} {
+		caret = diff2.Move(indented, caret, TextareaMoveLineStart)
+		if caret != want {
+			t.Fatalf("Home gave %d, want %d", caret, want)
+		}
+	}
+}
+
+func TestCodeDiffExpandsTabsAndCountsWideCharactersAsTwoCells(t *testing.T) {
+	theme := ui.LightTheme()
+	diff, canvas, snapshot := codeDiffFixture("a\tb\n", "a\tb 中\n")
+	snapshot.TabWidth = 4
+	diff.Paint(canvas, theme, ui.Rect{Width: 700, Height: 120}, snapshot)
+	var shown []string
+	for _, text := range canvas.Texts() {
+		if text.RunCount > 0 && strings.Contains(text.Value, "b") {
+			shown = append(shown, text.Value)
+		}
+	}
+	if len(shown) != 2 || shown[0] != "a   b" || shown[1] != "a   b 中" {
+		t.Fatalf("labels = %q, want the tab expanded to the next stop of 4", shown)
+	}
+	// a, the tab out to column 4, b, a space and a wide character of two cells.
+	if want := float32(1 + 3 + 1 + 1 + 2); diff.lineWidth != want*diff.cellWidth {
+		t.Fatalf("widest line = %v cells, want %v", diff.lineWidth/diff.cellWidth, want)
+	}
+}
+
+func TestCodeDiffGutterGrowsWithTheLineNumbers(t *testing.T) {
+	theme := ui.LightTheme()
+	small, canvasA, snapshotA := codeDiffFixture("a\n", "b\n")
+	small.Paint(canvasA, theme, ui.Rect{Width: 700, Height: 200}, snapshotA)
+	text := strings.Repeat("line\n", 123456)
+	large, canvasB, snapshotB := codeDiffFixture(text, text+"x")
+	large.Paint(canvasB, theme, ui.Rect{Width: 700, Height: 200}, snapshotB)
+	if small.gutter != codeDiffGutterWidth || large.gutter <= small.gutter {
+		t.Fatalf("gutters %v and %v: a 6 digit count needs more room than the minimum", small.gutter, large.gutter)
+	}
+	cell, _ := canvasB.MonoCellSize(theme.Metrics.FontSizeS, ui.MonoSystem)
+	if need := 17 + 6*cell + 6; large.gutter < need-.01 {
+		t.Fatalf("gutter %v cannot hold six digits (%v)", large.gutter, need)
+	}
+}
+
+func TestCodeDiffSteadyPaintAllocatesNothing(t *testing.T) {
+	theme := ui.DarkTheme()
+	left := strings.Repeat("key: old\n\n\tindented 中文\n", 300)
+	right := strings.Repeat("key: new\n\n\tindented 中文\n", 300)
+	diff, canvas, snapshot := codeDiffFixture(left, right)
+	snapshot.VerticalScrollbarID, snapshot.HorizontalScrollbarID = ui.Item(51), ui.Item(52)
+	snapshot.SelectionStart, snapshot.SelectionEnd, snapshot.Caret = 3, 40, 40
+	snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
+		return append(dst, CodeEditorRun{End: 3, Color: ui.RGB(200, 20, 20)})
+	}
+	paint := func() {
+		canvas.Reset()
+		diff.Paint(canvas, theme, ui.Rect{Width: 800, Height: 300}, snapshot)
+	}
+	paint()
+	if allocations := testing.AllocsPerRun(100, paint); allocations != 0 {
+		t.Fatalf("steady code diff allocations = %v", allocations)
+	}
+}
+
+// BenchmarkCodeDiffRelayoutOnEdit is the cost of a keystroke in a comparison of
+// half a megabyte: the right source is split again, its lines measured for the
+// scroll range and the next frame painted.
+func BenchmarkCodeDiffRelayoutOnEdit(b *testing.B) {
+	base := strings.Repeat("key: value # comment with some 中文 and a long tail to wrap around the edge of the box\n", 6000)
+	changed := strings.Replace(base, "key", "kex", 1)
+	theme := ui.LightTheme()
+	diff, canvas, snapshot := codeDiffFixture(base, base)
+	b.SetBytes(int64(len(base)))
+	b.ReportAllocs()
+	toggle := false
+	for b.Loop() {
+		toggle = !toggle
+		if toggle {
+			snapshot.Value = changed
+		} else {
+			snapshot.Value = base
+		}
+		canvas.Reset()
+		diff.Paint(canvas, theme, ui.Rect{Width: 900, Height: 600}, snapshot)
 	}
 }

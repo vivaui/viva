@@ -786,3 +786,15 @@ func BenchmarkCodeEditorRelayoutOnEdit(b *testing.B) {
 		})
 	}
 }
+
+// Blank lines draw nothing, and must not cost the runs buffer the next line needs.
+func TestCodeEditorSteadyPaintWithBlankLinesAllocatesNothing(t *testing.T) {
+	f := newCodeFixture("first: 1\n\n\nsecond: 2\n\nthird: 3\n")
+	f.snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
+		return append(dst, CodeEditorRun{End: 3, Color: ui.RGB(200, 20, 20)})
+	}
+	f.paint()
+	if allocations := testing.AllocsPerRun(100, f.paint); allocations != 0 {
+		t.Fatalf("steady editor allocations with blank lines: %g", allocations)
+	}
+}

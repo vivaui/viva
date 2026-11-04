@@ -1,7 +1,6 @@
 package components
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/vivaui/viva/text"
@@ -120,11 +119,10 @@ type CodeEditor struct {
 	upstreamCaret int
 
 	// Scratch kept between paints.
-	runs        []ui.TextRun
-	lineRuns    []CodeEditorRun
-	runLine     int
-	numbers     []string
-	numbersFrom int
+	runs     []ui.TextRun
+	lineRuns []CodeEditorRun
+	runLine  int
+	numbers  lineNumbers
 
 	// Scrollbars.
 	barID, barXID ui.ID
@@ -403,7 +401,7 @@ func (paint *codePaint) firstMark(index int) int {
 }
 
 func (paint *codePaint) lineNumber(row codeRow, y, left, gutter float32, current bool) {
-	number := paint.editor.lineNumber(int(row.line))
+	number := paint.editor.numbers.text(int(row.line))
 	color := paint.theme.MutedForeground
 	if current {
 		color = paint.theme.Foreground
@@ -415,20 +413,6 @@ func (paint *codePaint) lineNumber(row codeRow, y, left, gutter float32, current
 	bounds := ui.Rect{X: left + gutter - paint.cellWidth - width, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: width, Height: paint.cellHeight}
 	runs := [1]ui.TextRun{{Column: 0, Bytes: int32(len(number)), Cells: int32(len(number)), Color: color}}
 	paint.canvas.LabelRuns(number, bounds, ui.TextStyle{Size: paint.size, Color: color, Mono: true, MonoFace: paint.face}, paint.cellWidth, runs[:])
-}
-
-// lineNumber is the text of the number of line, from zero. It keeps a window of
-// them, so that a paint of the same lines builds no strings.
-func (editor *CodeEditor) lineNumber(line int) string {
-	if line < editor.numbersFrom || line >= editor.numbersFrom+len(editor.numbers) {
-		from := line - line%128
-		editor.numbers = editor.numbers[:0]
-		for offset := 0; offset < 384; offset++ {
-			editor.numbers = append(editor.numbers, strconv.Itoa(from+offset+1))
-		}
-		editor.numbersFrom = from
-	}
-	return editor.numbers[line-editor.numbersFrom]
 }
 
 // decimalDigits is how many digits n has, without building a string.
@@ -501,7 +485,15 @@ func (paint *codePaint) row(index int, y float32) {
 	}
 
 	shown := editor.rowText(row)
-	runs, from, to, startColumn, endColumn := paint.rowRuns(row, shown)
+	spec := gridRunSpec{
+		tabWidth: editor.tabWidth, firstColumn: paint.firstColumn, lastColumn: paint.lastColumn,
+		foreground: paint.foreground, disabled: editor.disabled,
+		highlight: paint.lineRuns(row), highlightBase: rowStart - int(row.lineStart),
+		selectionStart: paint.selectionStart - rowStart, selectionEnd: paint.selectionEnd - rowStart,
+		selectionForeground: paint.selectionForeground,
+	}
+	runs, from, to, startColumn, endColumn := gridRuns(editor.runs[:0], paint.value[rowStart:rowEnd], &spec)
+	editor.runs = runs
 	if len(runs) > 0 {
 		bounds := ui.Rect{
 			X: left + float32(startColumn)*paint.cellWidth, Y: y + (paint.lineHeight-paint.cellHeight)/2,
@@ -529,86 +521,6 @@ func (paint *codePaint) row(index int, y float32) {
 	}
 }
 
-// rowRuns builds the grid runs that draw the part of a row in view: shown[from:to],
-// beginning at startColumn cells from the row's start and ending at endColumn. A character is one run,
-// except that consecutive plain ASCII characters of one color share one.
-func (paint *codePaint) rowRuns(row codeRow, shown string) (runs []ui.TextRun, from, to, startColumn, endColumn int) {
-	editor := paint.editor
-	lineRuns := paint.lineRuns(row)
-	dst := editor.runs[:0]
-	next := 0
-	column, offset := 0, 0
-	from = -1
-	included, ascii := true, false
-	var last ui.Color
-	for at := int(row.start); at < int(row.end); {
-		r, size := decodeAt(paint.value, at)
-		width := codeCells(r, column, editor.tabWidth)
-		bytes := size
-		if r == '\t' {
-			bytes = width
-		}
-		if width > 0 {
-			if column >= paint.lastColumn {
-				break
-			}
-			included = column+width > paint.firstColumn
-		}
-		if included {
-			if from < 0 {
-				from, startColumn = offset, column
-			}
-			relative := at - int(row.lineStart)
-			for next < len(lineRuns) && lineRuns[next].End <= relative {
-				next++
-			}
-			color := paint.foreground
-			if next < len(lineRuns) && lineRuns[next].Start <= relative {
-				color = lineRuns[next].Color
-				if editor.disabled {
-					color.Alpha *= 0.5
-				}
-			}
-			if at >= paint.selectionStart && at < paint.selectionEnd {
-				color = paint.selectionForeground
-			}
-			plain := r == '\t' || r >= 0x20 && r < 0x7f && !startsWithMark(paint.value, at+size, int(row.end))
-			switch {
-			case width == 0 && len(dst) > 0:
-				dst[len(dst)-1].Bytes += int32(bytes) // a mark belongs to the character before it
-				ascii = false
-			case plain && ascii && color == last:
-				tail := &dst[len(dst)-1]
-				tail.Bytes += int32(bytes)
-				tail.Cells += int32(width)
-			default:
-				dst = append(dst, ui.TextRun{Column: int32(column - startColumn), Bytes: int32(bytes), Cells: int32(width), Color: color})
-				ascii, last = plain, color
-			}
-			to = offset + bytes
-			endColumn = column + width
-		}
-		column += width
-		offset += bytes
-		at += size
-	}
-	editor.runs = dst
-	if from < 0 {
-		return nil, 0, 0, 0, 0
-	}
-	return dst, from, to, startColumn, endColumn
-}
-
-// startsWithMark reports whether the character at offset, before end, is a
-// combining mark.
-func startsWithMark(value string, offset, end int) bool {
-	if offset >= end {
-		return false
-	}
-	r, _ := decodeAt(value, offset)
-	return codeCells(r, 0, 1) == 0
-}
-
 // lineRuns is the highlight of the row's logical line, kept while its rows are
 // painted one after the other: the runs in order and within the line, with the
 // ones the highlighter got wrong dropped.
@@ -631,16 +543,7 @@ func (paint *codePaint) lineRuns(row codeRow) []CodeEditorRun {
 	if len(line) > CodeEditorMaxHighlightedLine {
 		return nil
 	}
-	runs := paint.highlight(paint.language, line, editor.lineRuns[:0])
-	kept, previous := runs[:0], 0
-	for _, run := range runs {
-		first, last := textareaBoundary(line, run.Start), textareaBoundary(line, run.End)
-		if last <= first || first < previous || run.Color.Alpha == 0 {
-			continue
-		}
-		kept = append(kept, CodeEditorRun{Start: first, End: last, Color: run.Color})
-		previous = last
-	}
+	kept := cleanHighlight(line, paint.highlight(paint.language, line, editor.lineRuns[:0]))
 	editor.lineRuns = kept
 	return kept
 }

@@ -8,14 +8,21 @@ import "github.com/vivaui/viva/ui"
 type CodeDiffSnapshot struct {
 	Result CodeDiffResult
 
-	ID                    ui.ID
-	Label                 string
-	Hint                  string
-	Value                 string
-	Language              string
-	Highlight             func(language, line string, dst []CodeEditorRun) []CodeEditorRun
-	AddedColor            ui.Color
-	RemovedColor          ui.Color
+	ID       ui.ID
+	Label    string
+	Hint     string
+	Value    string
+	Language string
+	// Highlight colors the changed rows, as for a CodeEditor.
+	Highlight    func(language, line string, dst []CodeEditorRun) []CodeEditorRun
+	AddedColor   ui.Color
+	RemovedColor ui.Color
+	// FontSize is the size of the code, in logical pixels; zero takes the theme's.
+	FontSize float32
+	// MonoFace is the fixed-pitch font the code is set in.
+	MonoFace ui.MonoFace
+	// TabWidth is the width of a tab stop in cells; zero is four.
+	TabWidth              int
 	Disabled              bool
 	ReadOnly              bool
 	Focused               bool
@@ -30,34 +37,45 @@ type CodeDiffSnapshot struct {
 	ViewportID            ui.ID
 }
 
-// CodeDiff paints a line-aligned source comparison. Its right pane is an input
-// surface whose editing state remains owned by the caller. Pointer placement
-// and IME location use the same byte offsets as a Textarea.
+// CodeDiff paints a line-aligned source comparison on the same grid of
+// character cells as a CodeEditor. Its right pane is an input surface whose
+// editing state remains owned by the caller. Pointer placement and IME location
+// use the same byte offsets as a CodeEditor.
 type CodeDiff struct {
-	Geometry  ScrollAreaGeometry
-	scrollX   float32
-	scrollY   float32
-	rowHeight float32
-	lineWidth float32
+	Geometry   ScrollAreaGeometry
+	scrollX    float32
+	scrollY    float32
+	rowHeight  float32
+	cellWidth  float32
+	cellHeight float32
+	lineWidth  float32
+	gutter     float32
+	tabWidth   int
 	// widthKey names the text lineWidth was measured for, so it is measured again only when
-	// the comparison, the edited text or the font size changes, not on every scroll.
+	// the comparison, the edited text or the tab width changes, not on every scroll.
 	widthKey codeDiffWidthKey
 
-	canvas         *ui.Canvas
-	theme          ui.Theme
-	snapshot       CodeDiffSnapshot
-	value          string
-	valueSet       bool
-	lines          []string
-	lineStarts     []int
-	scratchLines   []string
-	scratchStarts  []int
-	marks          []CodeEditorRun
-	scratchRows    []CodeDiffRow
+	canvas      *ui.Canvas
+	theme       ui.Theme
+	snapshot    CodeDiffSnapshot
+	value       string
+	valueSet    bool
+	valueTab    int
+	lines       []string
+	lineStarts  []int
+	rightShown  []string
+	leftShown   []string
+	leftKey     codeDiffLeftKey
+	scratchLine []string
+	scratchPos  []int
+	marks       []CodeEditorRun
+	runs        []ui.TextRun
+	numbers     lineNumbers
+
 	rightCode      ui.Rect
 	caret          ui.Rect
 	caretShown     bool
-	goalX          float32
+	goalColumn     int
 	goalValid      bool
 	verticalDrag   bool
 	horizontalDrag bool
@@ -73,8 +91,15 @@ type codeDiffWidthKey struct {
 	left          *string
 	leftLen, rows int
 	value         string
-	size          float32
+	tabWidth      int
 	measured      bool
+}
+
+type codeDiffLeftKey struct {
+	first    *string
+	count    int
+	tabWidth int
+	set      bool
 }
 
 const (
@@ -82,6 +107,17 @@ const (
 	codeDiffPaneGap     = 9
 	codeDiffPadX        = 8
 )
+
+// codeDiffTabWidth is the tab stop of a snapshot.
+func codeDiffTabWidth(snapshot CodeDiffSnapshot) int {
+	switch {
+	case snapshot.TabWidth <= 0:
+		return 4
+	case snapshot.TabWidth > 16:
+		return 16
+	}
+	return snapshot.TabWidth
+}
 
 // Paint renders an aligned comparison inside bounds. Both columns share the
 // vertical and horizontal offsets and the two scrollbars.
@@ -92,24 +128,40 @@ func (diff *CodeDiff) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s
 		return bounds
 	}
 	canvas.Border(bounds, 1, theme.Border, theme.Card)
-	diff.rowHeight = theme.Metrics.FontSizeM + 7
-	if !diff.valueSet || diff.value != snapshot.Value {
+	size := snapshot.FontSize
+	if size <= 0 {
+		size = theme.Metrics.FontSizeM
+	}
+	diff.cellWidth, diff.cellHeight = canvas.MonoCellSize(size, snapshot.MonoFace)
+	if diff.cellWidth <= 0 || diff.cellHeight <= 0 {
+		return bounds
+	}
+	diff.rowHeight = max(diff.cellHeight, float32(int(size*1.5+0.5)))
+	diff.tabWidth = codeDiffTabWidth(snapshot)
+	if !diff.valueSet || diff.value != snapshot.Value || diff.valueTab != diff.tabWidth {
 		diff.lines = splitCodeDiffLines(snapshot.Value, diff.lines[:0])
 		diff.lineStarts = codeDiffLineStarts(diff.lines, diff.lineStarts[:0])
-		diff.value = snapshot.Value
-		diff.valueSet = true
+		diff.rightShown = expandedLines(diff.lines, diff.tabWidth, diff.rightShown[:0])
+		diff.value, diff.valueSet, diff.valueTab = snapshot.Value, true, diff.tabWidth
 	}
+	diff.expandLeft()
+
+	// The gutter is as wide as the numbers it holds need, and no narrower than
+	// it always was.
+	numberCell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeS, snapshot.MonoFace)
+	digits := decimalDigits(max(len(snapshot.Result.Left), len(diff.lines)))
+	diff.gutter = max(float32(codeDiffGutterWidth), 17+float32(digits)*numberCell+6)
 
 	effectiveRows := len(snapshot.Result.Rows)
 	contentHeight := float32(effectiveRows) * diff.rowHeight
-	diff.lineWidth = diff.longestLineWidth(canvas, theme)
-	_, hasVertical := codeDiffScrollbars(bounds, contentHeight, diff.lineWidth)
+	diff.lineWidth = diff.longestLineWidth()
+	_, hasVertical := diff.scrollbars(bounds, contentHeight)
 	outerWidth := bounds.Width
 	if hasVertical {
 		outerWidth = max(outerWidth-scrollAreaBarSize, 1)
 	}
 	half := max((outerWidth-codeDiffPaneGap)/2, 1)
-	codeViewportWidth := max(half-codeDiffGutterWidth-codeDiffPadX, 1)
+	codeViewportWidth := max(half-diff.gutter-codeDiffPadX, 1)
 	contentWidth := outerWidth + max(diff.lineWidth-codeViewportWidth+codeDiffPadX, 0)
 	area := BeginScrollArea(canvas, theme, bounds, ui.Size{Width: contentWidth, Height: contentHeight}).
 		ReserveScrollbars().
@@ -135,7 +187,7 @@ func (diff *CodeDiff) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s
 	canvas.Fill(rightPane, theme.Background)
 	canvas.Fill(ui.Rect{X: bounds.X + half + codeDiffPaneGap/2, Y: paneTop, Width: 1, Height: paneHeight}, theme.Border)
 
-	diff.rightCode = ui.Rect{X: rightPane.X + codeDiffGutterWidth, Y: rightPane.Y, Width: max(rightPane.Width-codeDiffGutterWidth, 1), Height: rightPane.Height}
+	diff.rightCode = ui.Rect{X: rightPane.X + diff.gutter, Y: rightPane.Y, Width: max(rightPane.Width-diff.gutter, 1), Height: rightPane.Height}
 	diff.visibleRows = max(int(paneHeight/diff.rowHeight), 0)
 	first := max(int(diff.Geometry.OffsetY/diff.rowHeight), 0)
 	for rowIndex := first; rowIndex < effectiveRows; rowIndex++ {
@@ -159,7 +211,7 @@ func (diff *CodeDiff) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s
 		canvas.HitWithOptions(snapshot.ID, diff.rightCode, snapshot.Label, ui.HitOptions{
 			Role: ui.RoleTextField, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: true,
-			TextBounds: diff.rightCode, TextSize: theme.Metrics.FontSizeM, TextColor: ui.Color{},
+			TextBounds: diff.rightCode, TextSize: size, TextColor: ui.Color{},
 			HideNativeOverlays: true,
 			Placement:          diff,
 		})
@@ -168,17 +220,32 @@ func (diff *CodeDiff) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s
 	return bounds
 }
 
-// codeDiffWidthCandidates is how many of the longest lines are measured exactly to find the
-// widest. Shaping every line of a large file on each edit would cost far more than the
-// scroll range deserves.
-const codeDiffWidthCandidates = 32
+// expandedLines appends to dst each line with its tabs expanded.
+func expandedLines(lines []string, tabWidth int, dst []string) []string {
+	for _, line := range lines {
+		dst = append(dst, gridExpand(line, tabWidth))
+	}
+	return dst
+}
+
+// expandLeft keeps the left source's lines with their tabs expanded, for as long
+// as the source and the tab width are the ones they were made for.
+func (diff *CodeDiff) expandLeft() {
+	key := codeDiffLeftKey{count: len(diff.snapshot.Result.Left), tabWidth: diff.tabWidth, set: true}
+	if key.count > 0 {
+		key.first = &diff.snapshot.Result.Left[0]
+	}
+	if diff.leftKey == key {
+		return
+	}
+	diff.leftKey = key
+	diff.leftShown = expandedLines(diff.snapshot.Result.Left, diff.tabWidth, diff.leftShown[:0])
+}
 
 // longestLineWidth is the width of the widest line of either pane, over the whole file, so the
-// horizontal scroll range does not change with the vertical position. Lines are ranked by a
-// cheap estimate of their width (a wide character counts twice) and the longest few are
-// measured by the text engine.
-func (diff *CodeDiff) longestLineWidth(canvas *ui.Canvas, theme ui.Theme) float32 {
-	key := codeDiffWidthKey{leftLen: len(diff.snapshot.Result.Left), rows: len(diff.snapshot.Result.Rows), value: diff.value, size: theme.Metrics.FontSizeM, measured: true}
+// horizontal scroll range does not change with the vertical position.
+func (diff *CodeDiff) longestLineWidth() float32 {
+	key := codeDiffWidthKey{leftLen: len(diff.snapshot.Result.Left), rows: len(diff.snapshot.Result.Rows), value: diff.value, tabWidth: diff.tabWidth, measured: true}
 	if key.leftLen > 0 {
 		key.left = &diff.snapshot.Result.Left[0]
 	}
@@ -186,51 +253,14 @@ func (diff *CodeDiff) longestLineWidth(canvas *ui.Canvas, theme ui.Theme) float3
 		return diff.lineWidth
 	}
 	diff.widthKey = key
-	var candidates [codeDiffWidthCandidates]struct {
-		units int
-		text  string
+	widest := 0
+	for _, line := range diff.snapshot.Result.Left {
+		widest = max(widest, gridWidth(line, diff.tabWidth))
 	}
-	rank := func(text string) {
-		units := codeDiffEstimatedUnits(text)
-		last := len(candidates) - 1
-		if units <= candidates[last].units {
-			return
-		}
-		position := last
-		for position > 0 && candidates[position-1].units < units {
-			candidates[position] = candidates[position-1]
-			position--
-		}
-		candidates[position].units, candidates[position].text = units, text
+	for _, line := range diff.lines {
+		widest = max(widest, gridWidth(line, diff.tabWidth))
 	}
-	for _, text := range diff.snapshot.Result.Left {
-		rank(text)
-	}
-	for _, text := range diff.lines {
-		rank(text)
-	}
-	var widest float32
-	for _, candidate := range candidates {
-		if candidate.units > 0 {
-			widest = max(widest, canvas.TextWidthWeight(candidate.text, theme.Metrics.FontSizeM, ui.WeightRegular))
-		}
-	}
-	return widest
-}
-
-// codeDiffEstimatedUnits ranks a line by width: one unit for an ASCII byte, two for any other
-// character.
-func codeDiffEstimatedUnits(text string) int {
-	units := 0
-	for index := 0; index < len(text); index++ {
-		switch b := text[index]; {
-		case b < 0x80:
-			units++
-		case b >= 0xC0:
-			units += 2
-		}
-	}
-	return units
+	return float32(widest) * diff.cellWidth
 }
 
 func (diff *CodeDiff) rowAt(index int) (CodeDiffKind, int, int) {
@@ -278,147 +308,115 @@ func (diff *CodeDiff) paintRowSide(canvas *ui.Canvas, rowBounds, pane ui.Rect, k
 		})
 	}
 	if line >= 0 {
-		canvas.Label(codeDiffLineNumber(line), ui.Rect{X: rowBounds.X + 17, Y: rowBounds.Y, Width: codeDiffGutterWidth - 23, Height: rowBounds.Height}, ui.TextStyle{
-			Size: diff.theme.Metrics.FontSizeS, Color: diff.theme.MutedForeground, Mono: true,
-		})
+		diff.paintLineNumber(canvas, pane, rowBounds, line)
 	}
-	var value string
+	var value, shown string
 	if left {
 		if line >= 0 && line < len(diff.snapshot.Result.Left) {
-			value = diff.snapshot.Result.Left[line]
+			value, shown = diff.snapshot.Result.Left[line], diff.leftShown[line]
 		}
 	} else if line >= 0 && line < len(diff.lines) {
-		value = diff.lines[line]
+		value, shown = diff.lines[line], diff.rightShown[line]
 	}
-	code := ui.Rect{X: pane.X + codeDiffGutterWidth, Y: rowBounds.Y, Width: max(pane.Width-codeDiffGutterWidth-codeDiffPadX, 1), Height: rowBounds.Height}
+	code := ui.Rect{X: pane.X + diff.gutter, Y: rowBounds.Y, Width: max(pane.Width-diff.gutter-codeDiffPadX, 1), Height: rowBounds.Height}
 	canvas.Clip(code)
-	textBounds := ui.Rect{
-		X: code.X - diff.Geometry.OffsetX + codeDiffPadX, Y: rowBounds.Y,
-		Width: max(diff.lineWidth+2*codeDiffPadX, code.Width), Height: rowBounds.Height,
+	origin := code.X - diff.Geometry.OffsetX + codeDiffPadX // where column 0 of the line is
+	lineStart := 0
+	selectionStart, selectionEnd := 0, 0
+	if !left && line >= 0 && line < len(diff.lines) {
+		lineStart = diff.lineStarts[line]
+		selectionStart = diff.snapshot.SelectionStart - lineStart
+		selectionEnd = diff.snapshot.SelectionEnd - lineStart
+		diff.paintRightSelection(canvas, line, origin, rowBounds)
 	}
-	// Keep syntax runs on the same shaped system-font path as CodeEditor.
-	// Mono without a grid cell width makes each clipped run a separate
-	// fixed-pitch label and can cut the tail of its final glyph on Windows.
-	style := ui.TextStyle{Size: diff.theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: diff.theme.Foreground}
-	if !left {
-		diff.paintRightSelection(canvas, line, textBounds, style)
-	}
-	diff.paintCode(canvas, value, textBounds, style, kind != CodeDiffUnchanged)
-	if !left {
-		diff.paintRightSelectionText(canvas, line, textBounds, style)
-		diff.paintRightComposition(canvas, line, textBounds, style)
-		diff.paintRightCaret(canvas, line, textBounds, style, rowIndex)
-	}
-	canvas.Unclip()
-}
-
-func (diff *CodeDiff) paintCode(canvas *ui.Canvas, line string, bounds ui.Rect, style ui.TextStyle, highlight bool) {
-	if !highlight || diff.snapshot.Highlight == nil || line == "" {
-		canvas.Label(line, bounds, style)
-		return
-	}
-	diff.marks = diff.snapshot.Highlight(diff.snapshot.Language, line, diff.marks[:0])
-	origin := canvas.LabelOrigin(line, bounds, style, ui.AlignStart)
-	previous := 0
-	for _, run := range diff.marks {
-		start, end := textareaBoundary(line, run.Start), textareaBoundary(line, run.End)
-		if end <= start || start < previous || run.Color.Alpha == 0 {
-			continue
+	if value != "" {
+		spec := gridRunSpec{
+			tabWidth: diff.tabWidth, foreground: diff.theme.Foreground,
+			firstColumn:    int(max(diff.Geometry.OffsetX, 0) / diff.cellWidth),
+			selectionStart: selectionStart, selectionEnd: selectionEnd,
 		}
-		diff.paintCodeSpan(canvas, line, bounds, style, origin, previous, start)
-		colored := style
-		colored.Color = run.Color
-		diff.paintCodeSpan(canvas, line, bounds, colored, origin, start, end)
-		previous = end
+		spec.lastColumn = spec.firstColumn + int(code.Width/diff.cellWidth) + 3
+		_, spec.selectionForeground = selectionColors(diff.theme)
+		if selectionEnd <= selectionStart {
+			spec.selectionStart, spec.selectionEnd = 0, 0
+		}
+		if changed && diff.snapshot.Highlight != nil && len(value) <= CodeEditorMaxHighlightedLine {
+			spec.highlight = cleanHighlight(value, diff.snapshot.Highlight(diff.snapshot.Language, value, diff.marks[:0]))
+			diff.marks = spec.highlight[:0]
+		}
+		runs, from, to, startColumn, endColumn := gridRuns(diff.runs[:0], value, &spec)
+		diff.runs = runs
+		if len(runs) > 0 {
+			bounds := ui.Rect{
+				X: origin + float32(startColumn)*diff.cellWidth, Y: rowBounds.Y + (rowBounds.Height-diff.cellHeight)/2,
+				Width: float32(max(endColumn-startColumn, 1)) * diff.cellWidth, Height: diff.cellHeight,
+			}
+			canvas.LabelRuns(shown[from:to], bounds, ui.TextStyle{Size: diff.fontSize(), Color: diff.theme.Foreground, Mono: true, MonoFace: diff.snapshot.MonoFace}, diff.cellWidth, runs)
+		}
 	}
-	if previous == 0 {
-		canvas.Label(line, bounds, style)
-	} else {
-		diff.paintCodeSpan(canvas, line, bounds, style, origin, previous, len(line))
+	if !left {
+		diff.paintRightComposition(canvas, line, origin, rowBounds)
+		diff.paintRightCaret(canvas, line, origin, rowBounds, rowIndex)
 	}
-}
-
-func (diff *CodeDiff) paintCodeSpan(canvas *ui.Canvas, line string, bounds ui.Rect, style ui.TextStyle, origin float32, start, end int) {
-	if end <= start {
-		return
-	}
-	if start == 0 && end == len(line) {
-		canvas.Label(line, bounds, style)
-		return
-	}
-	x := canvas.TextCaret(line, style.Size, style.Weight, start)
-	right := canvas.TextCaret(line, style.Size, style.Weight, end)
-	left, width := min(x, right), max(right-x, x-right)
-	canvas.Clip(ui.Rect{X: origin + left, Y: bounds.Y, Width: width, Height: bounds.Height})
-	canvas.Label(line, bounds, style)
 	canvas.Unclip()
 }
 
-func (diff *CodeDiff) paintRightSelection(canvas *ui.Canvas, line int, bounds ui.Rect, style ui.TextStyle) {
-	if line < 0 || line >= len(diff.lines) {
-		return
+func (diff *CodeDiff) fontSize() float32 {
+	if diff.snapshot.FontSize > 0 {
+		return diff.snapshot.FontSize
 	}
-	start := diff.snapshot.SelectionStart
-	end := diff.snapshot.SelectionEnd
+	return diff.theme.Metrics.FontSizeM
+}
+
+// paintLineNumber draws the number of line at the right of the pane's gutter.
+func (diff *CodeDiff) paintLineNumber(canvas *ui.Canvas, pane, rowBounds ui.Rect, line int) {
+	number := diff.numbers.text(line)
+	size := diff.theme.Metrics.FontSizeS
+	cell, height := canvas.MonoCellSize(size, diff.snapshot.MonoFace)
+	width := float32(len(number)) * cell
+	bounds := ui.Rect{X: pane.X + diff.gutter - 6 - width, Y: rowBounds.Y + (rowBounds.Height-height)/2, Width: width, Height: height}
+	runs := [1]ui.TextRun{{Bytes: int32(len(number)), Cells: int32(len(number)), Color: diff.theme.MutedForeground}}
+	canvas.LabelRuns(number, bounds, ui.TextStyle{Size: size, Color: diff.theme.MutedForeground, Mono: true, MonoFace: diff.snapshot.MonoFace}, cell, runs[:])
+}
+
+// rightRange is the part of the selection or composition [start, end) that lies
+// on right line line, as columns of the line, and false if none of it does.
+func (diff *CodeDiff) rightRange(line, start, end int) (first, last int, ok bool) {
+	if line < 0 || line >= len(diff.lines) {
+		return 0, 0, false
+	}
 	lineStart := diff.lineStarts[line]
 	lineEnd := lineStart + len(diff.lines[line])
 	start, end = max(start, lineStart), min(end, lineEnd)
 	if start >= end {
+		return 0, 0, false
+	}
+	text := diff.lines[line]
+	return gridColumn(text, start-lineStart, diff.tabWidth), gridColumn(text, end-lineStart, diff.tabWidth), true
+}
+
+func (diff *CodeDiff) paintRightSelection(canvas *ui.Canvas, line int, origin float32, row ui.Rect) {
+	first, last, ok := diff.rightRange(line, diff.snapshot.SelectionStart, diff.snapshot.SelectionEnd)
+	if !ok {
 		return
 	}
-	localStart, localEnd := start-lineStart, end-lineStart
 	background, _ := selectionColors(diff.theme)
-	var spans [4]ui.TextSpan
-	for _, span := range canvas.TextSelection(spans[:0], diff.lines[line], style.Size, style.Weight, localStart, localEnd) {
-		canvas.Fill(ui.Rect{X: bounds.X + span.X, Y: bounds.Y + 1, Width: span.Width, Height: bounds.Height - 2}, background)
+	extra := float32(0)
+	if end := diff.lineStarts[line] + len(diff.lines[line]); diff.snapshot.SelectionEnd > end && line < len(diff.lines)-1 {
+		extra = diff.cellWidth / 2 // the line break is selected too
 	}
+	canvas.Fill(ui.Rect{X: origin + float32(first)*diff.cellWidth, Y: row.Y + 1, Width: float32(last-first)*diff.cellWidth + extra, Height: row.Height - 2}, background)
 }
 
-func (diff *CodeDiff) paintRightSelectionText(canvas *ui.Canvas, line int, bounds ui.Rect, style ui.TextStyle) {
-	if line < 0 || line >= len(diff.lines) {
+func (diff *CodeDiff) paintRightComposition(canvas *ui.Canvas, line int, origin float32, row ui.Rect) {
+	first, last, ok := diff.rightRange(line, diff.snapshot.CompositionStart, diff.snapshot.CompositionEnd)
+	if !ok {
 		return
 	}
-	start := diff.snapshot.SelectionStart
-	end := diff.snapshot.SelectionEnd
-	lineStart := diff.lineStarts[line]
-	lineEnd := lineStart + len(diff.lines[line])
-	start, end = max(start, lineStart), min(end, lineEnd)
-	if start >= end {
-		return
-	}
-	localStart, localEnd := start-lineStart, end-lineStart
-	_, style.Color = selectionColors(diff.theme)
-	var spans [4]ui.TextSpan
-	for _, span := range canvas.TextSelection(spans[:0], diff.lines[line], style.Size, style.Weight, localStart, localEnd) {
-		if span.Width <= 0 {
-			continue
-		}
-		canvas.Clip(ui.Rect{X: bounds.X + span.X, Y: bounds.Y, Width: span.Width, Height: bounds.Height})
-		canvas.Label(diff.lines[line], bounds, style)
-		canvas.Unclip()
-	}
+	canvas.Fill(ui.Rect{X: origin + float32(first)*diff.cellWidth, Y: row.Y + row.Height - 3, Width: float32(last-first) * diff.cellWidth, Height: 1}, diff.theme.Foreground)
 }
 
-func (diff *CodeDiff) paintRightComposition(canvas *ui.Canvas, line int, bounds ui.Rect, style ui.TextStyle) {
-	if line < 0 || line >= len(diff.lines) {
-		return
-	}
-	start := diff.snapshot.CompositionStart
-	end := diff.snapshot.CompositionEnd
-	lineStart := diff.lineStarts[line]
-	lineEnd := lineStart + len(diff.lines[line])
-	start, end = max(start, lineStart), min(end, lineEnd)
-	if start >= end {
-		return
-	}
-	localStart, localEnd := start-lineStart, end-lineStart
-	var spans [4]ui.TextSpan
-	for _, span := range canvas.TextSelection(spans[:0], diff.lines[line], style.Size, style.Weight, localStart, localEnd) {
-		canvas.Fill(ui.Rect{X: bounds.X + span.X, Y: bounds.Y + bounds.Height - 3, Width: span.Width, Height: 1}, diff.theme.Foreground)
-	}
-}
-
-func (diff *CodeDiff) paintRightCaret(canvas *ui.Canvas, line int, bounds ui.Rect, style ui.TextStyle, rowIndex int) {
+func (diff *CodeDiff) paintRightCaret(canvas *ui.Canvas, line int, origin float32, row ui.Rect, rowIndex int) {
 	focused := !diff.snapshot.Disabled && (diff.snapshot.Focused || !diff.snapshot.ID.IsZero() && canvas.Focused() == diff.snapshot.ID)
 	if !focused || !diff.snapshot.ShowCaret || line < 0 || line >= len(diff.lines) {
 		return
@@ -429,18 +427,17 @@ func (diff *CodeDiff) paintRightCaret(canvas *ui.Canvas, line int, bounds ui.Rec
 	if caret < lineStart || caret > lineEnd {
 		return
 	}
-	local := textareaBoundary(diff.lines[line], min(caret-lineStart, len(diff.lines[line])))
-	x := bounds.X + canvas.TextCaret(diff.lines[line], style.Size, style.Weight, local)
-	rect := ui.Rect{X: x, Y: bounds.Y + 2, Width: 1, Height: inputCaretHeight(style.Size)}
-	canvas.Fill(rect, diff.theme.Foreground)
-	diff.caret = ui.Rect{X: x, Y: bounds.Y, Width: 1, Height: bounds.Height}
+	column := gridColumn(diff.lines[line], caret-lineStart, diff.tabWidth)
+	x := origin + float32(column)*diff.cellWidth
+	canvas.Fill(ui.Rect{X: x, Y: row.Y + (row.Height-diff.cellHeight)/2, Width: 1, Height: diff.cellHeight}, diff.theme.Foreground)
+	diff.caret = ui.Rect{X: x, Y: row.Y, Width: 1, Height: row.Height}
 	diff.caretShown = int(diff.Geometry.OffsetY/diff.rowHeight) <= rowIndex &&
 		rowIndex < int(diff.Geometry.OffsetY/diff.rowHeight)+diff.visibleRows
 }
 
 // OffsetAt implements ui.TextPlacement.
 func (diff *CodeDiff) OffsetAt(point ui.Point) (int, bool) {
-	if diff.canvas == nil || len(diff.lines) == 0 || diff.rightCode.Width <= 0 {
+	if diff.canvas == nil || len(diff.lines) == 0 || diff.rightCode.Width <= 0 || diff.cellWidth <= 0 {
 		return 0, false
 	}
 	if point.X < diff.rightCode.X {
@@ -456,10 +453,8 @@ func (diff *CodeDiff) OffsetAt(point ui.Point) (int, bool) {
 	if line < 0 {
 		return 0, false
 	}
-	localX := point.X - diff.rightCode.X - codeDiffPadX + diff.Geometry.OffsetX
-	local := diff.canvas.TextOffsetAt(diff.lines[line], diff.theme.Metrics.FontSizeM, ui.WeightRegular, localX)
-	local = textareaBoundary(diff.lines[line], min(max(local, 0), len(diff.lines[line])))
-	return diff.lineStarts[line] + local, true
+	x := (point.X - diff.rightCode.X - codeDiffPadX + diff.Geometry.OffsetX) / diff.cellWidth
+	return diff.lineStarts[line] + gridOffset(diff.lines[line], x, diff.tabWidth), true
 }
 
 // CaretBounds implements ui.TextPlacement.
@@ -485,7 +480,8 @@ func (diff *CodeDiff) rightLineNear(row, rows int) int {
 
 // Move maps a multiline movement key to a UTF-8 byte offset on the editable
 // right source. The application remains responsible for applying the returned
-// offset to its text.Editor.
+// offset to its text.Editor. Up and Down keep the column a run of them began at;
+// Home goes to the first character of the line and then to its start.
 func (diff *CodeDiff) Move(value string, caret int, movement TextareaMovement) int {
 	lines, starts := diff.linesForValue(value)
 	caret = textareaBoundary(value, caret)
@@ -499,7 +495,14 @@ func (diff *CodeDiff) Move(value string, caret int, movement TextareaMovement) i
 		return len(value)
 	case TextareaMoveLineStart:
 		diff.goalValid = false
-		return starts[line]
+		first := 0
+		for first < len(lines[line]) && (lines[line][first] == ' ' || lines[line][first] == '\t') {
+			first++
+		}
+		if local == first {
+			first = 0
+		}
+		return starts[line] + first
 	case TextareaMoveLineEnd:
 		diff.goalValid = false
 		return starts[line] + len(lines[line])
@@ -514,13 +517,16 @@ func (diff *CodeDiff) Move(value string, caret int, movement TextareaMovement) i
 	if movement == TextareaMoveUp || movement == TextareaMovePageUp {
 		step = -step
 	}
+	tab := diff.tabWidth
+	if tab <= 0 {
+		tab = codeDiffTabWidth(diff.snapshot)
+	}
 	if !diff.goalValid {
-		diff.goalX = diff.caretColumn(lines[line], local)
+		diff.goalColumn = gridColumn(lines[line], local, tab)
 		diff.goalValid = true
 	}
 	target := max(0, min(line+step, len(lines)-1))
-	local = diff.caretAtColumn(lines[target], diff.goalX)
-	return starts[target] + local
+	return starts[target] + gridOffset(lines[target], float32(diff.goalColumn), tab)
 }
 
 // RevealCaret scrolls the shared viewport enough to keep caret visible after a
@@ -548,8 +554,8 @@ func (diff *CodeDiff) RevealCaret(value string, caret int) {
 	} else if bottom > diff.scrollY+height {
 		diff.scrollY = bottom - height
 	}
-	if diff.canvas != nil && diff.rightCode.Width > 0 {
-		x := diff.canvas.TextCaret(lines[line], diff.theme.Metrics.FontSizeM, ui.WeightRegular, local) + codeDiffPadX
+	if diff.rightCode.Width > 0 && diff.cellWidth > 0 {
+		x := float32(gridColumn(lines[line], local, diff.tabWidth))*diff.cellWidth + codeDiffPadX
 		width := diff.rightCode.Width
 		if x < diff.scrollX {
 			diff.scrollX = max(x-codeDiffPadX, 0)
@@ -564,23 +570,9 @@ func (diff *CodeDiff) linesForValue(value string) ([]string, []int) {
 	if diff.valueSet && value == diff.value {
 		return diff.lines, diff.lineStarts
 	}
-	diff.scratchLines = splitCodeDiffLines(value, diff.scratchLines)
-	diff.scratchStarts = codeDiffLineStarts(diff.scratchLines, diff.scratchStarts)
-	return diff.scratchLines, diff.scratchStarts
-}
-
-func (diff *CodeDiff) caretColumn(line string, offset int) float32 {
-	if diff.canvas != nil {
-		return diff.canvas.TextCaret(line, diff.theme.Metrics.FontSizeM, ui.WeightRegular, offset)
-	}
-	return float32(offset)
-}
-
-func (diff *CodeDiff) caretAtColumn(line string, x float32) int {
-	if diff.canvas != nil {
-		return textareaBoundary(line, diff.canvas.TextOffsetAt(line, diff.theme.Metrics.FontSizeM, ui.WeightRegular, x))
-	}
-	return textareaBoundary(line, int(x))
+	diff.scratchLine = splitCodeDiffLines(value, diff.scratchLine)
+	diff.scratchPos = codeDiffLineStarts(diff.scratchLine, diff.scratchPos)
+	return diff.scratchLine, diff.scratchPos
 }
 
 // Scroll applies a wheel or touchpad scroll to both panes. Horizontal deltas use
@@ -709,7 +701,9 @@ func (diff *CodeDiff) ScrollForKey(key ui.Key, extend bool) (ui.EventResult, boo
 	return ui.EventResult{Handled: true, Repaint: true}, true
 }
 
-func codeDiffScrollbars(bounds ui.Rect, contentHeight, lineWidth float32) (horizontal, vertical bool) {
+// scrollbars reports which scrollbars a comparison in bounds needs, given the
+// height of its rows, for the widest line and the gutter of the last paint.
+func (diff *CodeDiff) scrollbars(bounds ui.Rect, contentHeight float32) (horizontal, vertical bool) {
 	vertical = contentHeight > bounds.Height
 	for range 3 {
 		outerWidth := bounds.Width
@@ -717,8 +711,8 @@ func codeDiffScrollbars(bounds ui.Rect, contentHeight, lineWidth float32) (horiz
 			outerWidth = max(outerWidth-scrollAreaBarSize, 1)
 		}
 		paneWidth := max((outerWidth-codeDiffPaneGap)/2, 1)
-		codeWidth := max(paneWidth-codeDiffGutterWidth-codeDiffPadX, 1)
-		nextHorizontal := lineWidth+codeDiffPadX > codeWidth
+		codeWidth := max(paneWidth-diff.gutter-codeDiffPadX, 1)
+		nextHorizontal := diff.lineWidth+codeDiffPadX > codeWidth
 		availableHeight := bounds.Height
 		if nextHorizontal {
 			availableHeight = max(availableHeight-scrollAreaBarSize, 1)
@@ -761,20 +755,4 @@ func codeDiffLineAt(starts []int, lines []string, offset int) (int, int) {
 		}
 	}
 	return 0, 0
-}
-
-func codeDiffLineNumber(line int) string {
-	const digits = "0123456789"
-	if line < 0 {
-		return ""
-	}
-	value := line + 1
-	var buffer [20]byte
-	index := len(buffer)
-	for value > 0 {
-		index--
-		buffer[index] = digits[value%10]
-		value /= 10
-	}
-	return string(buffer[index:])
 }

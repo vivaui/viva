@@ -2,6 +2,7 @@ package {{PACKAGE}}
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -407,4 +408,194 @@ func (editor *CodeEditor) VisibleLines() (first, last int) {
 	top := max(0, min(int(editor.scrollY/editor.lineHeight), len(editor.rows)-1))
 	bottom := max(top, min(int((editor.scrollY+editor.content.Height)/editor.lineHeight), len(editor.rows)-1))
 	return int(editor.rows[top].line), int(editor.rows[bottom].line)
+}
+
+// lineNumbers keeps the text of a window of line numbers, so that painting the
+// same lines again builds no strings.
+type lineNumbers struct {
+	texts []string
+	from  int
+}
+
+// text is the number of line, counted from zero, as it is shown: one more.
+func (numbers *lineNumbers) text(line int) string {
+	if line < numbers.from || line >= numbers.from+len(numbers.texts) {
+		from := line - line%128
+		numbers.texts = numbers.texts[:0]
+		for offset := 0; offset < 384; offset++ {
+			numbers.texts = append(numbers.texts, strconv.Itoa(from+offset+1))
+		}
+		numbers.from = from
+	}
+	return numbers.texts[line-numbers.from]
+}
+
+// gridColumn is the cell column of byte offset in line, counted from its start.
+func gridColumn(line string, offset, tabWidth int) int {
+	offset = min(offset, len(line))
+	column := 0
+	for at := 0; at < offset; {
+		r, size := decodeAt(line, at)
+		column += codeCells(r, column, tabWidth)
+		at += size
+	}
+	return column
+}
+
+// gridOffset is the byte offset in line whose boundary is nearest to x, a
+// distance in cells from the start of the line.
+func gridOffset(line string, x float32, tabWidth int) int {
+	column := 0
+	for at := 0; at < len(line); {
+		r, size := decodeAt(line, at)
+		width := codeCells(r, column, tabWidth)
+		if x < float32(column)+float32(width)/2 {
+			return at
+		}
+		column += width
+		at += size
+	}
+	return len(line)
+}
+
+// gridWidth is how many cells line takes.
+func gridWidth(line string, tabWidth int) int {
+	return gridColumn(line, len(line), tabWidth)
+}
+
+// gridExpand is line with its tabs replaced by the spaces that reach the next
+// tab stop: the text a grid label shows. A line without a tab is returned as it is.
+func gridExpand(line string, tabWidth int) string {
+	if strings.IndexByte(line, '\t') < 0 {
+		return line
+	}
+	var expanded strings.Builder
+	expanded.Grow(len(line) + 3*tabWidth)
+	column := 0
+	for at := 0; at < len(line); {
+		r, size := decodeAt(line, at)
+		width := codeCells(r, column, tabWidth)
+		if r == '\t' {
+			for range width {
+				expanded.WriteByte(' ')
+			}
+		} else {
+			expanded.WriteString(line[at : at+size])
+		}
+		column += width
+		at += size
+	}
+	return expanded.String()
+}
+
+// startsWithMark reports whether the character at offset, before end, is a
+// combining mark.
+func startsWithMark(value string, offset, end int) bool {
+	if offset >= end {
+		return false
+	}
+	r, _ := decodeAt(value, offset)
+	return codeCells(r, 0, 1) == 0
+}
+
+// gridRunSpec says how gridRuns colors and windows a line. Offsets are bytes of
+// the line.
+type gridRunSpec struct {
+	tabWidth                int
+	firstColumn, lastColumn int
+	foreground              ui.Color
+	disabled                bool
+	// highlight colors ranges of the highlighted line, in order and without
+	// overlap; highlightBase is the offset of the line's first byte in it, which
+	// is not zero for a row a soft wrap cut out of a line.
+	highlight     []CodeEditorRun
+	highlightBase int
+	// The bytes in [selectionStart, selectionEnd) are drawn in selectionForeground.
+	selectionStart, selectionEnd int
+	selectionForeground          ui.Color
+}
+
+// gridRuns builds the grid runs that draw the part of line in the columns
+// [firstColumn, lastColumn): the text to draw is gridExpand(line)[from:to],
+// beginning at startColumn cells from the line's start and ending at
+// endColumn. A character is one run, except that consecutive plain ASCII
+// characters of one color share one, and a combining mark belongs to the run of
+// the character before it.
+func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextRun, from, to, startColumn, endColumn int) {
+	next := 0
+	column, offset := 0, 0
+	from = -1
+	included, ascii := true, false
+	var last ui.Color
+	for at := 0; at < len(line); {
+		r, size := decodeAt(line, at)
+		width := codeCells(r, column, spec.tabWidth)
+		bytes := size
+		if r == '\t' {
+			bytes = width
+		}
+		if width > 0 {
+			if column >= spec.lastColumn {
+				break
+			}
+			included = column+width > spec.firstColumn
+		}
+		if included {
+			if from < 0 {
+				from, startColumn = offset, column
+			}
+			relative := at + spec.highlightBase
+			for next < len(spec.highlight) && spec.highlight[next].End <= relative {
+				next++
+			}
+			color := spec.foreground
+			if next < len(spec.highlight) && spec.highlight[next].Start <= relative {
+				color = spec.highlight[next].Color
+				if spec.disabled {
+					color.Alpha *= 0.5
+				}
+			}
+			if at >= spec.selectionStart && at < spec.selectionEnd {
+				color = spec.selectionForeground
+			}
+			plain := r == '\t' || r >= 0x20 && r < 0x7f && !startsWithMark(line, at+size, len(line))
+			switch {
+			case width == 0 && len(dst) > 0:
+				dst[len(dst)-1].Bytes += int32(bytes)
+				ascii = false
+			case plain && ascii && color == last:
+				tail := &dst[len(dst)-1]
+				tail.Bytes += int32(bytes)
+				tail.Cells += int32(width)
+			default:
+				dst = append(dst, ui.TextRun{Column: int32(column - startColumn), Bytes: int32(bytes), Cells: int32(width), Color: color})
+				ascii, last = plain, color
+			}
+			to = offset + bytes
+			endColumn = column + width
+		}
+		column += width
+		offset += bytes
+		at += size
+	}
+	if from < 0 {
+		return dst[:0], 0, 0, 0, 0 // nothing to draw, but the caller keeps its buffer
+	}
+	return dst, from, to, startColumn, endColumn
+}
+
+// cleanHighlight keeps the runs of a highlighter that can be drawn: in order,
+// without overlap, not empty or invisible, and cut to character boundaries of
+// line. It reuses runs' array.
+func cleanHighlight(line string, runs []CodeEditorRun) []CodeEditorRun {
+	kept, previous := runs[:0], 0
+	for _, run := range runs {
+		first, last := textareaBoundary(line, run.Start), textareaBoundary(line, run.End)
+		if last <= first || first < previous || run.Color.Alpha == 0 {
+			continue
+		}
+		kept = append(kept, CodeEditorRun{Start: first, End: last, Color: run.Color})
+		previous = last
+	}
+	return kept
 }
