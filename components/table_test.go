@@ -425,7 +425,8 @@ func TestTableSelectionWithAKeptStatePaintsWithoutAllocating(t *testing.T) {
 	paint := func() {
 		canvas.Reset()
 		table := BeginTable(&canvas, ui.DarkTheme(), ui.Rect{Width: 300, Height: 120}, columns)
-		table.Selection = TableSelection{Enabled: true, State: state}
+		table.Selection = TableSelection{Enabled: true}
+		table.UseSelectionState(state)
 		table.Header([]string{"Name", "Value"})
 		table.Row(ui.Item(1), []string{"Region", "Europe"}, false)
 		table.Row(ui.Item(2), []string{"Coastline", "Barents Sea"}, false)
@@ -512,7 +513,8 @@ func BenchmarkTableSelectionPaint(b *testing.B) {
 			for b.Loop() {
 				canvas.Reset()
 				table := BeginTable(&canvas, ui.DarkTheme(), ui.Rect{Width: 1000, Height: 2000}, columns)
-				table.Selection = TableSelection{Enabled: true, State: bench.state}
+				table.Selection = TableSelection{Enabled: true}
+				table.UseSelectionState(bench.state)
 				table.Header([]string{"File", "Fingerprint"})
 				for _, row := range rows {
 					table.Row(ui.Item(1), row, false)

@@ -35,36 +35,6 @@ type TableColumn struct {
 type TableSelection struct {
 	Enabled       bool
 	Anchor, Focus int
-	// State, when non-nil, carries the selection text across frames. Keep one
-	// TableTextState for the table's lifetime and pass the same one every
-	// paint; a nil State rebuilds the text afresh each paint.
-	State *TableTextState
-}
-
-// TableTextState is the caller-owned text scratch of one table's selection:
-// the serialized text and cell map that TextLen, OffsetAt and SelectedText
-// answer from. Its buffers are reused across frames, so a steady table with a
-// kept state paints without allocating.
-type TableTextState struct {
-	text tableTextState
-}
-
-// beginTextState returns the selection text of the current paint. A kept state
-// is rebuilt in place, so only the first paint allocates.
-func (table *Table) beginTextState() *tableTextState {
-	if table.text == nil {
-		if table.Selection.State != nil {
-			state := &table.Selection.State.text
-			state.plain = state.plain[:0]
-			state.rows = state.rows[:0]
-			state.cells = state.cells[:0]
-			state.selectionSpans = state.selectionSpans[:0]
-			table.text = state
-		} else {
-			table.text = &tableTextState{}
-		}
-	}
-	return table.text
 }
 
 // Range orders and clamps the endpoints against text.
@@ -159,6 +129,34 @@ func BeginTable(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, columns []Tab
 		canvas: canvas, theme: theme, bounds: bounds, columns: columns,
 		y: bounds.Y, rowHeight: TableRowHeight(theme), headerHeight: TableHeaderHeight(theme),
 	}
+}
+
+// TableTextState is the caller-owned text scratch of one table's selection:
+// the serialized text and cell map that TextLen, OffsetAt and SelectedText
+// answer from. Keep one for the table's lifetime and pass it to
+// UseSelectionState before the first row of every paint; its buffers are
+// reused across frames, so a steady table paints without allocating.
+type TableTextState struct {
+	text tableTextState
+}
+
+// UseSelectionState binds state as this paint's selection text, reusing its
+// buffers across frames. Call it after setting Selection and before the first
+// row; a nil state leaves every paint rebuilding the text afresh.
+func (table *Table) UseSelectionState(state *TableTextState) {
+	if state == nil {
+		return
+	}
+	state.text.reset()
+	table.text = &state.text
+}
+
+// reset empties the state while keeping its buffers' capacity.
+func (text *tableTextState) reset() {
+	text.plain = text.plain[:0]
+	text.rows = text.rows[:0]
+	text.cells = text.cells[:0]
+	text.selectionSpans = text.selectionSpans[:0]
 }
 
 // RowHeight overrides the default body and footer row height for subsequent calls.
@@ -265,7 +263,10 @@ func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind
 	rowBounds := ui.Rect{X: table.bounds.X, Y: table.y, Width: table.bounds.Width, Height: height}
 	var textState *tableTextState
 	if table.Selection.Enabled {
-		textState = table.beginTextState()
+		if table.text == nil {
+			table.text = &tableTextState{}
+		}
+		textState = table.text
 		if len(textState.rows) > 0 {
 			textState.plain = append(textState.plain, '\n')
 		}
@@ -809,7 +810,10 @@ func (table *Table) SortableHeader(cells []TableHeader) {
 	}
 	var textState *tableTextState
 	if table.Selection.Enabled {
-		textState = table.beginTextState()
+		if table.text == nil {
+			table.text = &tableTextState{}
+		}
+		textState = table.text
 		if len(textState.rows) > 0 {
 			textState.plain = append(textState.plain, '\n')
 		}
