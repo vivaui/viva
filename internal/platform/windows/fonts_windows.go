@@ -37,10 +37,14 @@ const (
 )
 
 var (
-	gdi                 = systemDLL("gdi32.dll")
-	enumFontFamiliesEx  = gdi.NewProc("EnumFontFamiliesExW")
-	fontEnumMu          sync.Mutex
-	fontEnumFound       map[string]struct{}
+	gdi                = systemDLL("gdi32.dll")
+	enumFontFamiliesEx = gdi.NewProc("EnumFontFamiliesExW")
+	getCharWidth32     = gdi.NewProc("GetCharWidth32W")
+	fontEnumMu         sync.Mutex
+	fontEnumFound      map[string]struct{}
+	// fontEnumMaybe holds the families the fixed-pitch flag does not vouch
+	// for, with one LOGFONT each to measure them by before leaving them out.
+	fontEnumMaybe       map[string]enumLogFont
 	fontEnumCallbackPtr uintptr
 	fontEnumMono        bool
 )
@@ -52,7 +56,7 @@ func fontEnumCallback(logFont *enumLogFont, metric *newTextMetric, fontType uint
 			result = 1
 		}
 	}()
-	if logFont == nil || metric == nil || fontType&rasterFontType != 0 || mono && metric.PitchAndFamily&tmpfFixedPitch != 0 {
+	if logFont == nil || metric == nil || fontType&rasterFontType != 0 {
 		return 1
 	}
 	units := 0
@@ -65,10 +69,54 @@ func fontEnumCallback(logFont *enumLogFont, metric *newTextMetric, fontType uint
 		return 1
 	}
 	name := syscall.UTF16ToString(logFont.FaceName[:])
-	if name != "" && name[0] != '@' { // @-names are the vertical writing variants
-		fontEnumFound[name] = struct{}{}
+	if name == "" || name[0] == '@' { // @-names are the vertical writing variants
+		return 1
 	}
+	if mono && metric.PitchAndFamily&tmpfFixedPitch != 0 {
+		// The flag really says "proportional" (a historical accident of a
+		// name), and it is wrong for some families a terminal wants — Nerd
+		// Fonts among them (t8y2/motty#296). Keep one LOGFONT to measure the
+		// family by before leaving it out.
+		if _, seen := fontEnumMaybe[name]; !seen {
+			fontEnumMaybe[name] = *logFont
+		}
+		return 1
+	}
+	fontEnumFound[name] = struct{}{}
 	return 1
+}
+
+// fontMeasuresUniform creates the family and measures a spread of printable
+// ASCII: one advance for all of them is what drawing on a character grid needs,
+// and what the system's fixed-pitch flag fails to report for some families. A
+// family that will not say (the call needs a scalable font) stays out, as it
+// was before.
+func fontMeasuresUniform(logFont *enumLogFont) bool {
+	dc, _, _ := getDC.Call(0)
+	if dc == 0 {
+		return false
+	}
+	defer releaseDC.Call(0, dc)
+	font, _, _ := gdiCreateFont.Call(uintptr(unsafe.Pointer(logFont)))
+	if font == 0 {
+		return false
+	}
+	defer deleteObject.Call(font)
+	previous, _, _ := selectObject.Call(dc, font)
+	defer selectObject.Call(dc, previous)
+	// The fixed-pitch flag lies for some CJK and linked families, so measure
+	// every printable ASCII advance in one range call and demand one shared
+	// width — the same signal the darwin reader gets from its own measurement.
+	var widths [0x7f - 0x20]int32
+	if r1, _, _ := getCharWidth32.Call(dc, 0x20, 0x7e, uintptr(unsafe.Pointer(&widths[0]))); r1 == 0 {
+		return false
+	}
+	for _, advance := range widths {
+		if advance != widths[0] {
+			return false
+		}
+	}
+	return true
 }
 
 // MonospaceFamilies lists the installed fixed-pitch font families, sorted.
@@ -91,7 +139,8 @@ func fontFamilies(mono bool) []string {
 	}
 	fontEnumMono = mono
 	fontEnumFound = make(map[string]struct{})
-	defer func() { fontEnumFound = nil }()
+	fontEnumMaybe = make(map[string]enumLogFont)
+	defer func() { fontEnumFound, fontEnumMaybe = nil, nil }()
 	dc, _, _ := getDC.Call(0)
 	if dc == 0 {
 		return nil
@@ -100,9 +149,14 @@ func fontFamilies(mono bool) []string {
 	var filter enumLogFont
 	filter.CharSet = defaultCharset
 	enumFontFamiliesEx.Call(dc, uintptr(unsafe.Pointer(&filter)), fontEnumCallbackPtr, 0, 0)
-	names := make([]string, 0, len(fontEnumFound))
+	names := make([]string, 0, len(fontEnumFound)+len(fontEnumMaybe))
 	for name := range fontEnumFound {
 		names = append(names, name)
+	}
+	for name, logFont := range fontEnumMaybe {
+		if fontMeasuresUniform(&logFont) {
+			names = append(names, name)
+		}
 	}
 	sort.Slice(names, func(i, j int) bool { return lowerASCII(names[i]) < lowerASCII(names[j]) })
 	return names
