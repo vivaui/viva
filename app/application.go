@@ -284,5 +284,8 @@ var applicationRunner ApplicationRunner
 // UseApplicationRunner makes RunApplication use run instead of native windows.
 // Package headless/auto installs this only in explicitly tagged tool builds.
 func UseApplicationRunner(run ApplicationRunner) {
+	if run != nil {
+		markNonNativeSystemUsed()
+	}
 	applicationRunner = run
 }

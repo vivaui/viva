@@ -11,5 +11,8 @@ var runner func(Config, *ui.Canvas) error
 // and the tool decides what that means. Nothing calls it unless such a tool is
 // linked in, so release builds keep the window loop only.
 func UseRunner(run func(Config, *ui.Canvas) error) {
+	if run != nil {
+		markNonNativeSystemUsed()
+	}
 	runner = run
 }

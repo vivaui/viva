@@ -80,6 +80,7 @@ import (
 //	clipimage [PATH|clear]     read (ok image N bytes | ok none) or replace the private clipboard's image with a PNG file
 //	openedurl                  report the last public OpenURL request
 //	openedpath                 report the last OpenPath request
+//	revealedpath               report the last RevealPath request
 //	schemehandlers [SCHEME...] declare which custom URL schemes have a registered application (none: clear)
 //	openfiles PATH...|cancel   queue the next native open-dialog result
 //	opendirectory PATH|cancel  queue the next native directory-dialog result
@@ -151,6 +152,15 @@ func execute(session *Session, line string) (reply string, quit bool) {
 			return finish(fmt.Errorf("openedpath takes no arguments"), "")
 		}
 		target, ok := session.driver.LastOpenedPath()
+		if !ok {
+			return finish(nil, " none")
+		}
+		return finish(nil, " "+strconv.Quote(target))
+	case "revealedpath":
+		if rest != "" {
+			return finish(fmt.Errorf("revealedpath takes no arguments"), "")
+		}
+		target, ok := session.driver.LastRevealedPath()
 		if !ok {
 			return finish(nil, " none")
 		}

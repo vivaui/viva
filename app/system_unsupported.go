@@ -22,6 +22,7 @@ func nativeOpenFiles(OpenFileOptions) ([]string, error)        { return nil, Err
 func nativeOpenDirectory(OpenDirectoryOptions) (string, error) { return "", ErrUnsupported }
 func nativeSaveFile(SaveFileOptions) (string, error)           { return "", ErrUnsupported }
 func nativeOpenURL(string) error                               { return ErrUnsupported }
+func nativeRevealPath(string) error                            { return ErrUnsupported }
 func nativePlaySystemSound(SystemSound) error                  { return ErrUnsupported }
 func nativeSendNotification(Notification) error                { return ErrUnsupported }
 func nativeStoreSecret(string, string, []byte) error           { return ErrSecretStoreUnavailable }

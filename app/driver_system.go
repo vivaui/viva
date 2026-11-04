@@ -38,6 +38,19 @@ type driverOpenDirectoryResponse struct {
 }
 
 var activeDriverSystem atomic.Pointer[driverSystem]
+
+// A worker may finish after a driver closes, or before a tool's first driver
+// opens. Once a process has installed a driver or a replacement runner, its
+// RevealPath calls must never fall through to a real file manager.
+var nonNativeSystemUsed atomic.Bool
+
+func markNonNativeSystemUsed() { nonNativeSystemUsed.Store(true) }
+
+var revealedPaths struct {
+	sync.Mutex
+	path string
+	ok   bool
+}
 var driverSystems struct {
 	sync.Mutex
 	values []*driverSystem
@@ -169,6 +182,28 @@ func driverOpenPath(path string) (error, bool) {
 	return nil, true
 }
 
+func driverRevealPath(path string) (error, bool) {
+	if activeDriverSystem.Load() == nil {
+		if nonNativeSystemUsed.Load() {
+			return fmt.Errorf("app: reveal needs an active headless driver: %w", ErrUnsupported), true
+		}
+		return nil, false
+	}
+	revealedPaths.Lock()
+	revealedPaths.path, revealedPaths.ok = path, true
+	revealedPaths.Unlock()
+	return nil, true
+}
+
+// LastRevealedPath returns the most recent system-wide RevealPath request in
+// this driver-backed run. The native file manager is a process-wide action, so
+// all windows of the run observe the same request. Background calls are safe.
+func (driver *Driver) LastRevealedPath() (string, bool) {
+	revealedPaths.Lock()
+	defer revealedPaths.Unlock()
+	return revealedPaths.path, revealedPaths.ok
+}
+
 func driverOpenWith(executable, path string) (error, bool) {
 	system := activeDriverSystem.Load()
 	if system == nil {
@@ -208,7 +243,13 @@ func driverSaveFile(options SaveFileOptions) (string, error, bool) {
 
 func (driver *Driver) registerSystem() error {
 	driver.system.driver = driver
+	nonNativeSystemUsed.Store(true)
 	driverSystems.Lock()
+	if len(driverSystems.values) == 0 {
+		revealedPaths.Lock()
+		revealedPaths.path, revealedPaths.ok = "", false
+		revealedPaths.Unlock()
+	}
 	driverSystems.values = append(driverSystems.values, &driver.system)
 	driverSystems.Unlock()
 	activeDriverSystem.Store(&driver.system)

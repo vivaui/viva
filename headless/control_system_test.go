@@ -109,6 +109,32 @@ func TestControlReportsTheLastOpenedPath(t *testing.T) {
 	}
 }
 
+func TestControlReportsTheLastRevealedPathFromBackground(t *testing.T) {
+	session, err := Open(app.Config{}, nil, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	if reply, _ := execute(session, "revealedpath"); reply != "ok none\n" {
+		t.Fatalf("before any request: %q", reply)
+	}
+	file := filepath.Join(t.TempDir(), "download.txt")
+	if err := os.WriteFile(file, []byte("download"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- app.RevealPath(file) }()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if reply, _ := execute(session, "revealedpath"); reply != "ok "+strconv.Quote(file)+"\n" {
+		t.Fatalf("revealedpath reply = %q", reply)
+	}
+	if reply, _ := execute(session, "revealedpath unexpected"); !strings.HasPrefix(reply, "error ") {
+		t.Fatalf("accepted unexpected arguments: %q", reply)
+	}
+}
+
 func TestControlClipimageFeedsTheAppsClipboardImageReads(t *testing.T) {
 	session, err := Open(app.Config{}, nil, Options{})
 	if err != nil {

@@ -546,7 +546,7 @@ func withSTA(run func() error) error {
 	status, _, _ := initializeCOM.Call(0, 2)
 	code := uint32(status)
 	if code != 0 && code != 1 {
-		return fmt.Errorf("windows: initialize file dialog COM apartment: %w", hresult(status))
+		return fmt.Errorf("windows: initialize COM apartment: %w", hresult(status))
 	}
 	defer uninitializeCOM.Call()
 	return run()

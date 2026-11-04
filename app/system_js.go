@@ -65,6 +65,8 @@ func nativeOpenURL(target string) error {
 	return webSystemError("open external URL", webplatform.OpenURL(target))
 }
 
+func nativeRevealPath(string) error { return ErrUnsupported }
+
 func nativePlaySystemSound(sound SystemSound) error {
 	return webSystemError("play system sound", webplatform.PlaySystemSound(uint8(sound)))
 }

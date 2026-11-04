@@ -784,6 +784,33 @@ int viva_system_open_url(const char *target, char **error_message) {
     return status;
 }
 
+int viva_system_reveal_path(const char *path, char **error_message) {
+    __block int status = 0;
+    __block char *failure = NULL;
+    viva_on_main_sync(^{
+        @autoreleasepool {
+            NSString *value = viva_string(path);
+            if (value == nil) {
+                failure = viva_copy_utf8(@"file path is not valid UTF-8");
+                status = -1;
+                return;
+            }
+            if (![NSWorkspace.sharedWorkspace selectFile:value inFileViewerRootedAtPath:@""]) {
+                failure = viva_copy_utf8(@"Finder could not select the file");
+                status = -1;
+            }
+        }
+    });
+    if (status != 0) {
+        if (error_message != NULL) {
+            *error_message = failure;
+        } else {
+            free(failure);
+        }
+    }
+    return status;
+}
+
 int viva_system_scheme_handler(const char *scheme, char **error_message) {
     // LaunchServices answers from any thread, so this does not wait for the main
     // thread, which a test binary or a caller already off it may never run.

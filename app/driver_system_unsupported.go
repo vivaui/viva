@@ -2,6 +2,8 @@
 
 package app
 
+func markNonNativeSystemUsed() {}
+
 func driverClipboardText() (string, error, bool) { return "", nil, false }
 
 func driverSetClipboardText(string) (error, bool) { return nil, false }
@@ -12,8 +14,9 @@ func driverPrimarySelection() (string, error, bool) { return "", nil, false }
 
 func driverClipboardImage() (png []byte, err error, handled bool) { return nil, nil, false }
 
-func driverOpenURL(string) (error, bool)  { return nil, false }
-func driverOpenPath(string) (error, bool) { return nil, false }
+func driverOpenURL(string) (error, bool)    { return nil, false }
+func driverOpenPath(string) (error, bool)   { return nil, false }
+func driverRevealPath(string) (error, bool) { return nil, false }
 func driverOpenWith(string, string) (error, bool) {
 	return nil, false
 }

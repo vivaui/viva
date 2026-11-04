@@ -89,6 +89,10 @@ func nativeOpenURL(target string) error {
 	return linuxSystemError(linuxplatform.OpenURL(target))
 }
 
+func nativeRevealPath(path string) error {
+	return linuxSystemError(linuxplatform.RevealPath(path))
+}
+
 func nativeOpenWith(executable, path string) error {
 	return linuxSystemError(linuxplatform.OpenWith(executable, path))
 }

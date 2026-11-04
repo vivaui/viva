@@ -335,6 +335,19 @@ func OpenURL(target string) error {
 	return nil
 }
 
+func RevealPath(path string) error {
+	nativePath, err := systemCString("reveal path", path)
+	if err != nil {
+		return err
+	}
+	defer C.free(unsafe.Pointer(nativePath))
+	var nativeError *C.char
+	if C.viva_system_reveal_path(nativePath, &nativeError) != 0 {
+		return systemError("reveal path", nativeError)
+	}
+	return nil
+}
+
 // SchemeHandlerAvailable reports whether an application is registered for a URL
 // scheme such as "vscode", as the system's open would route it.
 func SchemeHandlerAvailable(scheme string) (bool, error) {

@@ -78,6 +78,8 @@ func nativeSaveFile(options SaveFileOptions) (string, error) {
 
 func nativeOpenURL(target string) error { return darwinplatform.OpenURL(target) }
 
+func nativeRevealPath(path string) error { return darwinplatform.RevealPath(path) }
+
 func nativeOpenWith(executable, path string) error {
 	return darwinplatform.OpenWith(executable, path)
 }
