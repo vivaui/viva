@@ -216,6 +216,10 @@
 //     number themselves and report the one clicked. A cell wider than its
 //     column ends in an ellipsis; `FitTableHeadings` widens fixed columns to
 //     hold their headings.
+//   - Selectable table: set `Table.Selection.Enabled` before painting rows to
+//     expose tab/newline-separated text selection through `Table.TextLen`,
+//     `Table.SelectedText` and `Table.OffsetAt`. Truncated cells still copy in
+//     full; the caller owns scrolling, gestures and the clipboard shortcut.
 //   - Calendar: `BeginCalendar` paints the month grid; selection state is
 //     caller-owned and `CalendarCommandForKey` maps the navigation keys.
 //   - Carousel: `BeginCarousel` paints a pager viewport for caller content.
