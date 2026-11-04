@@ -156,7 +156,10 @@ func (command *Command) AddItem(item CommandItem) ui.Rect {
 }
 
 func (command *Command) paintItem(bounds ui.Rect, item CommandItem) {
-	active := item.Selected || (!item.Disabled && !item.ID.IsZero() && (command.canvas.Hovered() == item.ID || command.canvas.Pressed() == item.ID || command.canvas.FocusVisible() == item.ID))
+	// Selected is the row the pointer and the keyboard name (cmdk's
+	// data-selected): the caller moves it on PointerMove, so one row is tinted
+	// and Enter runs that row. Checked is the persistent check.
+	active := item.Selected
 	if active {
 		command.canvas.Rounded(bounds, command.theme.Metrics.RadiusItem(), command.theme.Muted)
 	}
