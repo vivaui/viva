@@ -2,37 +2,45 @@ package windows
 
 import "testing"
 
-// A remembered origin on a monitor that is gone, or under another scale, must
-// still leave a strip of the window on the screen that the user can grab. The
-// report that found it was a window whose whole title bar sat off the screen,
-// so nothing could drag it and only the maximize button worked.
-func TestPlacedFrameKeepsAGrabableStripOnTheScreen(t *testing.T) {
+func frameInside(work rect, x, y, width, height int32) bool {
+	return x >= work.Left && y >= work.Top && x+width <= work.Right && y+height <= work.Bottom
+}
+
+// A remembered origin on a monitor that is gone must bring the whole window
+// back onto the current display. Center it rather than leaving it against the
+// first edge: a stale placement should not look like a new upper-left default.
+func TestPlacedFrameCentersARememberedWindowOutsideTheScreen(t *testing.T) {
 	work := rect{Left: 0, Top: 0, Right: 1920, Bottom: 1040}
-	visibleWidth := func(x, width int32) int32 { return min(x+width, work.Right) - max(x, work.Left) }
-	visibleHeight := func(y, height int32) int32 { return min(y+height, work.Bottom) - max(y, work.Top) }
 
 	// A window remembered left of a monitor that is no longer there.
-	const scale = 1.25
-	x, y, _, _ := placedFrame(work, scale, -1600, 100, 1750, 1125)
-	if visible, want := visibleWidth(x, 1750), int32(float32(visibleTitleWidth)*scale); visible < want {
-		t.Fatalf("x = %d leaves %dpx visible, want at least the %dpx strip", x, visible, want)
+	x, y, width, height := placedFrame(work, -1600, 100, 1750, 1125)
+	if !frameInside(work, x, y, width, height) {
+		t.Fatalf("remembered frame %d,%d %dx%d is outside %+v", x, y, width, height, work)
 	}
-	if y != 100 {
-		t.Fatalf("y = %d, want the requested one: the window was on the screen", y)
+	if x != 85 || y != 0 {
+		t.Fatalf("remembered frame centered at %d,%d, want 85,0", x, y)
 	}
+
 	// A position on the screen stays as it was asked.
-	if x, y, w, h := placedFrame(work, 1, 100, 100, 1400, 900); x != 100 || y != 100 || w != 1400 || h != 900 {
+	if x, y, w, h := placedFrame(work, 100, 100, 1400, 900); x != 100 || y != 100 || w != 1400 || h != 900 {
 		t.Fatalf("an on-screen frame moved to %d,%d %dx%d", x, y, w, h)
 	}
-	// One beyond the right edge is pulled back the same way.
-	x, _, _, _ = placedFrame(work, 1, 1900, 100, 1400, 900)
-	if visible := visibleWidth(x, 1400); visible < visibleTitleWidth {
-		t.Fatalf("x = %d leaves %dpx visible, want at least %d", x, visible, visibleTitleWidth)
-	}
-	// A position below the taskbar is raised back.
-	_, y, _, _ = placedFrame(work, 1, 100, 1200, 1400, 900)
-	if visible := visibleHeight(y, 900); visible < visibleTitleHeight {
-		t.Fatalf("y = %d leaves %dpx of the title strip visible, want at least %d", y, visible, visibleTitleHeight)
+
+	// Frames beyond every edge are centered in the work area.
+	for _, requested := range []struct {
+		x, y, width, height int32
+	}{
+		{x: 1900, y: 100, width: 1400, height: 900},
+		{x: 100, y: 1200, width: 1400, height: 900},
+		{x: -1600, y: -500, width: 1400, height: 900},
+	} {
+		x, y, width, height := placedFrame(work, requested.x, requested.y, requested.width, requested.height)
+		if !frameInside(work, x, y, width, height) {
+			t.Fatalf("requested frame %+v landed at %d,%d %dx%d outside %+v", requested, x, y, width, height, work)
+		}
+		if x != 260 || y != 70 {
+			t.Fatalf("requested frame %+v centered at %d,%d, want 260,70", requested, x, y)
+		}
 	}
 }
 
@@ -40,8 +48,24 @@ func TestPlacedFrameKeepsAGrabableStripOnTheScreen(t *testing.T) {
 // one, caption buttons included, rather than reaching past its right edge.
 func TestPlacedFrameShrinksAWindowThatDoesNotFit(t *testing.T) {
 	work := rect{Left: 0, Top: 0, Right: 1366, Bottom: 728}
-	x, y, width, height := placedFrame(work, 1, 0, 0, 2000, 1200)
-	if x < work.Left || y < work.Top || x+width > work.Right || y+height > work.Bottom {
+	x, y, width, height := placedFrame(work, 0, 0, 2000, 1200)
+	if !frameInside(work, x, y, width, height) {
 		t.Fatalf("frame %d,%d %dx%d is not inside the work area", x, y, width, height)
+	}
+	if x != 0 || y != 0 {
+		t.Fatalf("oversized frame centered at %d,%d, want 0,0", x, y)
+	}
+}
+
+// A monitor to the left of the primary one has negative coordinates. Centering
+// there must preserve that monitor's own work area rather than pull it to zero.
+func TestPlacedFrameKeepsAWindowOnALeftMonitor(t *testing.T) {
+	work := rect{Left: -1920, Top: 0, Right: 0, Bottom: 1040}
+	x, y, width, height := placedFrame(work, -5000, -200, 1400, 900)
+	if !frameInside(work, x, y, width, height) {
+		t.Fatalf("frame %d,%d %dx%d is outside %+v", x, y, width, height, work)
+	}
+	if x != -1660 || y != 70 {
+		t.Fatalf("frame centered at %d,%d, want -1660,70", x, y)
 	}
 }
