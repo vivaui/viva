@@ -133,6 +133,9 @@ func (a *gtkApplication) initialize(class string) error {
 		a.g.setPrgname(&name[0])
 		a.g.gdkSetProgramClass(&name[0])
 	}
+	// The launcher entry the progress bar is drawn on is the desktop file of
+	// this same name, so the entry is told which one the program is.
+	launcherProgress.noteClass(class)
 	if a.g.initCheck(nil, 0) == 0 {
 		return fmt.Errorf("linux: GTK could not open a display (neither WAYLAND_DISPLAY nor DISPLAY is usable)")
 	}
@@ -182,6 +185,8 @@ func (a *gtkApplication) Quit() {
 }
 
 func (a *gtkApplication) SetDockBadge(string) {}
+
+func (a *gtkApplication) SetProgress(fraction float32) { launcherProgress.set(fraction) }
 
 func (a *gtkApplication) retryDesktopWatch() { a.desktopServices.retryDesktopWatch() }
 

@@ -19,6 +19,8 @@ type fakeHost struct {
 	reject  string
 	// badge is the label the application last put on the Dock tile.
 	badge string
+	// progress is the fraction the application last asked the icon to show.
+	progress float32
 }
 
 type fakeWindow struct {
@@ -70,6 +72,8 @@ func (host *fakeHost) AddStatusItem(config StatusItemConfig) (StatusItemControl,
 }
 
 func (host *fakeHost) SetDockBadge(text string) { host.badge = text }
+
+func (host *fakeHost) SetProgress(fraction float32) { host.progress = fraction }
 
 func (host *fakeHost) Quit() { host.quits++ }
 
@@ -443,6 +447,29 @@ func TestSetDockBadgeMarksTheApplicationIconAndAnEmptyTextClearsIt(t *testing.T)
 	// A program outside a running application has no Dock tile to ask.
 	var stopped *Application
 	stopped.SetDockBadge("DEV")
+}
+
+func TestSetProgressReportsTheFractionAndClampsWhatIsTooMuch(t *testing.T) {
+	host := &fakeHost{}
+	application := &Application{host: host}
+	application.SetProgress(0.25)
+	if host.progress != 0.25 {
+		t.Fatalf("progress = %v", host.progress)
+	}
+	// A fraction past the whole is the whole: the desktop is not asked to draw
+	// a bar longer than its icon.
+	application.SetProgress(3)
+	if host.progress != 1 {
+		t.Fatalf("progress past the whole = %v", host.progress)
+	}
+	// A negative fraction is how a program takes the bar away, and it travels
+	// as it was given rather than as zero, which is a bar at its start.
+	application.SetProgress(-1)
+	if host.progress >= 0 {
+		t.Fatalf("progress after clearing = %v", host.progress)
+	}
+	var stopped *Application
+	stopped.SetProgress(0.5)
 }
 
 type capturingWindow struct {

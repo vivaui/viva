@@ -135,3 +135,24 @@ func TestDockBadgeCommandReportsWhatTheDockWasAskedToShow(t *testing.T) {
 		t.Fatalf("cleared badge: %q", text)
 	}
 }
+
+func TestProgressCommandReportsWhatTheIconWasAskedToShow(t *testing.T) {
+	application := newApplicationSession(Options{Scale: 1})
+	t.Cleanup(application.closeAll)
+	closed, err := application.OpenWindow(app.Config{Title: "main", Width: 200, Height: 100}, nil, func() {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closed.Close()
+	if text := run(t, application, "progress\n"); !strings.Contains(text, "ok fraction=-1") {
+		t.Fatalf("no bar before any progress: %q", text)
+	}
+	application.SetProgress(0.5)
+	if text := run(t, application, "progress\n"); !strings.Contains(text, "ok fraction=0.5") {
+		t.Fatalf("half: %q", text)
+	}
+	application.SetProgress(-1)
+	if text := run(t, application, "progress\n"); !strings.Contains(text, "ok fraction=-1") {
+		t.Fatalf("cleared: %q", text)
+	}
+}

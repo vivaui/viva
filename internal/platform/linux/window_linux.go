@@ -282,6 +282,9 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 		return nil, err
 	}
 	state := &linuxWindowState{application: application, config: config, profile: os.Getenv("VIVA_PROFILE_STARTUP") != ""}
+	// The launcher entry the progress bar is drawn on is the desktop file of
+	// the window's class, so the entry is told which one the program is.
+	launcherProgress.noteClass(config.Class)
 	if state.profile {
 		state.started = time.Now()
 	}

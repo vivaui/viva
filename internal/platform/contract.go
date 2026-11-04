@@ -155,8 +155,8 @@ type WindowMover interface {
 }
 
 // Application creates windows that share one native application event loop.
-// OpenWindow, AddStatusItem and SetDockBadge are called on that event-loop
-// thread.
+// OpenWindow, AddStatusItem, SetDockBadge and SetProgress are called on that
+// event-loop thread.
 type Application interface {
 	OpenWindow(Config) (Window, error)
 	// AddStatusItem puts an icon in the system's status area: the menu bar on
@@ -166,6 +166,11 @@ type Application interface {
 	// badge macOS draws at its top corner. An empty text removes it. A desktop
 	// without a Dock accepts it and does nothing.
 	SetDockBadge(text string)
+	// SetProgress draws how much of the application's work is done on the icon
+	// the desktop shows for it, as a fraction of the whole between 0 and 1. A
+	// negative or NaN fraction removes the bar. A desktop with nowhere to draw
+	// it accepts it and does nothing.
+	SetProgress(fraction float32)
 	// Quit closes every window, bypassing close requests, and ends the loop.
 	// It is thread-safe.
 	Quit()

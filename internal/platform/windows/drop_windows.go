@@ -327,8 +327,10 @@ func (state *windowState) handleDropFiles(drop uintptr) {
 }
 
 // closeOLE ends the application's use of OLE, once every window has revoked its
-// drop target.
+// drop target. The taskbar list goes first: it is an OLE object, and it cannot
+// outlive the thread's use of OLE.
 func (application *windowsApplication) closeOLE() {
+	release(&application.taskbar)
 	if application.oleReady {
 		oleUninitialize.Call()
 		application.oleReady = false
