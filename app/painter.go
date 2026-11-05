@@ -121,12 +121,16 @@ type painter struct {
 	controls *windowControls
 	// edge is the window edge the pointer is over, for the resize cursor, on a
 	// window whose frame Viva draws (the system supplies the cursor elsewhere).
-	edge           platform.WindowEdge
-	hovered        ui.ID
-	pressed        ui.ID
-	pressTarget    ui.ID
-	pressButton    ui.PointerButton
-	pressHandled   bool
+	edge         platform.WindowEdge
+	hovered      ui.ID
+	pressed      ui.ID
+	pressTarget  ui.ID
+	pressButton  ui.PointerButton
+	pressHandled bool
+	// pointerOutside says the pointer left the window while a button was down.
+	// The press keeps the pointer until the button comes up, so the exit waits
+	// for the release instead of ending a drag at the window's edge.
+	pointerOutside bool
 	cursor         Cursor
 	focused        ui.ID
 	keyboardFocus  bool
@@ -231,6 +235,34 @@ func (painter *painter) pressAt(x, y float32) platform.PressKind {
 func (painter *painter) pointer(event platform.PointerEvent) (platform.Frame, error) {
 	if event.Kind == platform.PointerDown {
 		painter.tap.Cancel()
+		painter.pointerOutside = false
+	}
+	if event.Kind == platform.PointerCancel {
+		// The platform took the press for itself and its release will never
+		// arrive, so the application's press ends here. It is told the pointer is
+		// gone, which is what a press it can no longer follow amounts to.
+		painter.pointerOutside = false
+		painter.pressed = ui.ID{}
+		painter.pressTarget = ui.ID{}
+		painter.pressButton = ui.PointerButtonNone
+		painter.pressHandled = false
+		event.Kind = platform.PointerExit
+	}
+	if event.Kind == platform.PointerMove && painter.pointerOutside &&
+		event.X >= 0 && event.Y >= 0 && event.X < painter.size.Width && event.Y < painter.size.Height {
+		painter.pointerOutside = false
+	}
+	if event.Kind == platform.PointerExit && painter.pressButton != ui.PointerButtonNone {
+		// A press keeps the pointer until its button comes up, as on every
+		// desktop. A drag that ended here would stop following the pointer
+		// exactly where the user needs it: past the edge of the terminal, the
+		// list or the window. The exit is delivered when the button is released.
+		painter.pointerOutside = true
+		if painter.hovered.IsZero() {
+			return platform.Frame{}, nil
+		}
+		painter.hovered = ui.ID{}
+		return painter.repaint()
 	}
 	beforeHovered, beforePressed := painter.hovered, painter.pressed
 	beforeFocus, beforeKeyboard := painter.focused, painter.keyboardFocus
@@ -267,6 +299,16 @@ func (painter *painter) pointer(event platform.PointerEvent) (platform.Frame, er
 		painter.pressTarget = ui.ID{}
 		painter.pressButton = ui.PointerButtonNone
 		painter.pressHandled = false
+		if painter.pointerOutside {
+			// The button came up beyond the window, so the press is over and the
+			// pointer is gone: tell the application now that it may clear hover
+			// and hover-owned state.
+			painter.pointerOutside = false
+			if painter.onPointer != nil {
+				gone := painter.onPointer(ui.PointerEvent{Kind: ui.PointerExit, Viewport: painter.size})
+				result.Repaint = result.Repaint || gone.Repaint
+			}
+		}
 	case platform.PointerExit:
 		painter.pressed = ui.ID{}
 		painter.pressTarget = ui.ID{}

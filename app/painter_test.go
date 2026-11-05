@@ -1491,7 +1491,7 @@ func TestAClickOnABackdropInTheTitlebarStripDismissesButADragDoesNot(t *testing.
 		t.Fatal("a move region under the backdrop must hand the press to the application and move the window on a drag")
 	}
 	send(platform.PointerDown)
-	send(platform.PointerExit) // the platform started a window move
+	send(platform.PointerCancel) // the platform started a window move
 	send(platform.PointerUp)
 	if !open {
 		t.Fatal("a press that became a window move dismissed the dialog")

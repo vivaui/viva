@@ -146,6 +146,7 @@ enum {
     VIVA_POINTER_MOVE = 2,
     VIVA_POINTER_UP = 3,
     VIVA_POINTER_EXIT = 4,
+    VIVA_POINTER_CANCEL = 5,
 	VIVA_REDRAW_EVENT = 0x4752,
 	VIVA_CLOSE_EVENT = 0x4743,
 	VIVA_HIDE_EVENT = 0x4748,
@@ -3899,9 +3900,11 @@ static int viva_navigation_command(SEL selector) {
         NSPoint at = event.locationInWindow;
         if (hypot(at.x - _titlebarDragOrigin.x, at.y - _titlebarDragOrigin.y) >= VIVA_TITLEBAR_DRAG_SLOP) {
             // The system's drag loop swallows the button release, so the
-            // application is told the pointer left, which cancels its press.
+            // application is told the press is over. It is a cancel, not an
+            // exit: an exit only says the pointer left the window, and a press
+            // keeps the pointer until its button comes up.
             _titlebarDragPending = NO;
-            [self emitPointerExit];
+            [self emitPointerEvent:VIVA_POINTER_CANCEL fromEvent:event];
             [self.window performWindowDragWithEvent:event];
             return;
         }

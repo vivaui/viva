@@ -357,6 +357,13 @@ func (driver *Driver) Leave() error {
 	return driver.pointer(platform.PointerExit, 0, 0, ui.PointerButtonNone, 0)
 }
 
+// Cancel ends the press the way the platform does when it takes the press for
+// itself, as a custom titlebar starting a window move: no release follows, and
+// the application's press ends here.
+func (driver *Driver) Cancel() error {
+	return driver.pointer(platform.PointerCancel, 0, 0, ui.PointerButtonNone, 0)
+}
+
 // Press presses a pointer button at a point (moving there first) as a lone
 // click.
 func (driver *Driver) Press(x, y float32, button ui.PointerButton) error {

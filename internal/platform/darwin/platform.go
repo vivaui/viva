@@ -61,6 +61,7 @@ const (
 	PointerMove                     = platform.PointerMove
 	PointerUp                       = platform.PointerUp
 	PointerExit                     = platform.PointerExit
+	PointerCancel                   = platform.PointerCancel
 	WindowTitled                    = platform.WindowTitled
 	WindowFrameless                 = platform.WindowFrameless
 	WindowCustomTitlebar            = platform.WindowCustomTitlebar

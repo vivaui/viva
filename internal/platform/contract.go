@@ -362,6 +362,11 @@ const (
 	PointerMove
 	PointerUp
 	PointerExit
+	// PointerCancel says the platform took the press for itself, as a custom
+	// titlebar starting a window move does: the button will not report its
+	// release, so the application's press ends here. It is not PointerExit,
+	// which only says the pointer left the window and leaves a press alone.
+	PointerCancel
 )
 
 // PointerEvent is a pointer position in logical window pixels. Move and Exit
