@@ -7,6 +7,10 @@
 
 <p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
 
+<p align="center">
+  <a href="https://docs.qq.com/doc/DVXZWdWFscGxjaWVP"><img src="https://img.shields.io/badge/Viva_交流群-扫码加入-07C160?style=for-the-badge&logo=wechat&logoColor=white" alt="Viva 交流群" /></a>
+</p>
+
 Viva is a Go-first, GPU-native desktop framework. Applications draw through
 the platform's own window and GPU APIs — Cocoa and Metal, Win32 and Direct3D 11,
 XCB and Vulkan — with no WebView, no browser engine, and no bundled runtime. It
