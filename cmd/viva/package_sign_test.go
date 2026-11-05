@@ -177,13 +177,14 @@ func TestADiskImageIsSignedNotarizedAndStapledOnce(t *testing.T) {
 	for _, command := range r.commands {
 		if strings.HasPrefix(command, "xcrun notarytool submit") {
 			submits++
-			if !strings.Contains(command, ".dmg ") || !strings.HasSuffix(command, "--keychain-profile release") {
+			if !strings.HasSuffix(command, "--keychain-profile release") {
 				t.Errorf("submission = %q", command)
 			}
 		}
 	}
-	if submits != 1 {
-		t.Fatalf("%d submissions, want one: the image carries the app", submits)
+	// Nothing is zipped here, so the image is the only thing Apple has to judge.
+	if submits != 1 || !strings.Contains(r.commands[r.index("xcrun notarytool submit")], ".dmg ") {
+		t.Fatalf("%d submissions, want the image alone:\n%s", submits, strings.Join(r.commands, "\n"))
 	}
 	for _, want := range []string{"  signing  signed with the hardened runtime", "  notarized accepted by Apple (submission abc-123), ticket stapled to ", ".dmg"} {
 		if !strings.Contains(output.String(), want) {
@@ -192,6 +193,39 @@ func TestADiskImageIsSignedNotarizedAndStapledOnce(t *testing.T) {
 	}
 	if strings.Contains(output.String(), "signing  none") {
 		t.Errorf("the report still says nothing is signed:\n%s", output.String())
+	}
+}
+
+// A zip is what the in-app updater downloads, so the bundle inside it has to
+// carry its own ticket: without one the system asks Apple at every launch, and
+// refuses the update wherever that lookup cannot be made.
+func TestAZippedBundleIsNotarizedAndStapledBeforeTheImageIsMade(t *testing.T) {
+	requireMac(t)
+	dir := signingFixture(t)
+	releaseEnvironment(t)
+	r := &recorder{}
+	useRecorder(t, r)
+	var output bytes.Buffer
+	if err := runCLI([]string{"package", "-C", dir, "--format", "app,zip,dmg"}, &output, io.Discard); err != nil {
+		t.Fatalf("%v\n%s", err, output.String())
+	}
+	var submitted []string
+	for _, command := range r.commands {
+		if strings.HasPrefix(command, "xcrun notarytool submit") {
+			submitted = append(submitted, command)
+		}
+	}
+	if len(submitted) != 2 || !strings.Contains(submitted[0], ".app.zip ") || !strings.Contains(submitted[1], ".dmg ") {
+		t.Fatalf("submissions %q\n%s", submitted, strings.Join(r.commands, "\n"))
+	}
+	// The bundle's ticket is stapled before the zip is written, so the zip holds
+	// the stapled bundle; the image's own ticket follows the image.
+	staple := r.index("xcrun stapler staple")
+	if staple < 0 || !strings.Contains(r.commands[staple], ".app") {
+		t.Fatalf("the bundle was not the first thing stapled:\n%s", strings.Join(r.commands, "\n"))
+	}
+	if !strings.Contains(output.String(), ".dmg") {
+		t.Errorf("the report does not name the image:\n%s", output.String())
 	}
 }
 

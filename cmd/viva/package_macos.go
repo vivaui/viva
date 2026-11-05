@@ -91,9 +91,12 @@ func packageDarwin(request packageRequest) error {
 			reportSigning(output, "signing", "signed with the hardened runtime and a secure timestamp")
 		}
 	}
-	// A bundle that is not going into a disk image is notarized by itself, and the
-	// ticket stapled to it before it is zipped.
-	if signing.notarize && !request.wants("dmg") {
+	// A bundle that goes into a zip is notarized by itself, and the ticket stapled
+	// to it before it is zipped: whoever unpacks that zip gets a bundle the system
+	// accepts without a network lookup, which is what the in-app updater needs. A
+	// disk image is notarized and stapled separately below, since it is that image
+	// the system judges when it is opened.
+	if signing.notarize && (request.wants("zip") || !request.wants("dmg")) {
 		if err := notarizeBundle(signing, result.Path, output); err != nil {
 			return err
 		}
