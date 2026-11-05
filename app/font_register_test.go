@@ -28,20 +28,33 @@ func TestARegisteredFontIsDrawnInItsFamily(t *testing.T) {
 	t.Cleanup(func() { engine.SetFontFamily("") })
 	engine.SetFontFamily(family)
 	// The registered font gives every printable ASCII character one advance.
-	registeredNarrow, registeredWide := engine.Width("iiiiiiii", 16, 400), engine.Width("WWWWWWWW", 16, 400)
-	if registeredNarrow != registeredWide {
-		t.Fatalf("the family is not the registered font: widths %v and %v", registeredNarrow, registeredWide)
+	registered := engine.Width("iiiiiiii", 16, 400) == engine.Width("WWWWWWWW", 16, 400)
+	if !registered {
+		t.Fatalf("the family is not the registered font: widths %v and %v", engine.Width("iiiiiiii", 16, 400), engine.Width("WWWWWWWW", 16, 400))
+	}
+	if !listsFamily(family) {
+		t.Fatalf("the registered family %q is not listed among the installed families", family)
 	}
 	unregister()
 	unregister()
-	// No assumption about what the stand-in is: only that the registration ended, so the
-	// family no longer measures as the font it named. A platform whose stand-in happens to
-	// share this font's metrics is not covered by this, which is what the ink and the family
-	// name in an application's own tests are for.
-	narrow, wide := engine.Width("iiiiiiii", 16, 400), engine.Width("WWWWWWWW", 16, 400)
-	if narrow == registeredNarrow && wide == registeredWide {
-		t.Fatalf("the family still measures as the registered font after it was unregistered: widths %v and %v", narrow, wide)
+	// Giving the registration up has to be observable, and what changes is the platform's
+	// to decide: the family leaves fontconfig's set on Linux, while macOS keeps enumerating
+	// it after a process-scope removal and stops measuring in it instead. The same widths
+	// and the same listing together would mean the registration is still in effect.
+	sameWidths := engine.Width("iiiiiiii", 16, 400) == engine.Width("WWWWWWWW", 16, 400)
+	if sameWidths == registered && listsFamily(family) {
+		t.Fatalf("nothing changed after the family %q was unregistered: it still measures as the registered font and is still listed", family)
 	}
+}
+
+// listsFamily reports whether family is among the families the system reports.
+func listsFamily(family string) bool {
+	for _, listed := range FontFamilies() {
+		if listed == family {
+			return true
+		}
+	}
+	return false
 }
 
 func TestRegisteringWhatIsNoFontFails(t *testing.T) {
