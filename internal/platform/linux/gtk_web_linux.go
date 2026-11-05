@@ -53,6 +53,15 @@ type webKit struct {
 	evaluate func(view uintptr, script *byte, length int64, world, source, cancellable, callback, data uintptr)
 	run      func(view uintptr, script *byte, cancellable, callback, data uintptr)
 	free     uintptr
+	// For a page held to a proxy (2.16, and 2.32 for the data manager's setter); nil without.
+	contextEphemeral   func() uintptr
+	viewWithContext    func(context uintptr) uintptr
+	viewManager        func(view uintptr) uintptr
+	proxySettingsNew   func(uri *byte, ignore uintptr) uintptr
+	proxySettingsFree  func(settings uintptr)
+	contextDataManager func(context uintptr) uintptr
+	managerSetProxy    func(manager uintptr, mode int32, settings uintptr)
+	contextSetProxy    func(context uintptr, mode int32, settings uintptr)
 }
 
 var (
@@ -119,6 +128,18 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 		g.lookup(&k.schemeSecure, "webkit_security_manager_register_uri_scheme_as_secure")
 		g.lookup(&k.schemeCORS, "webkit_security_manager_register_uri_scheme_as_cors_enabled")
 		k.free = g.symbol("g_free")
+		if !g.lookup(&k.contextEphemeral, "webkit_web_context_new_ephemeral") ||
+			!g.lookup(&k.viewWithContext, "webkit_web_view_new_with_context") ||
+			!g.lookup(&k.viewManager, "webkit_web_view_get_user_content_manager") ||
+			!g.lookup(&k.proxySettingsNew, "webkit_network_proxy_settings_new") ||
+			!g.lookup(&k.proxySettingsFree, "webkit_network_proxy_settings_free") {
+			k.contextEphemeral = nil
+		}
+		if !g.lookup(&k.contextDataManager, "webkit_web_context_get_website_data_manager") ||
+			!g.lookup(&k.managerSetProxy, "webkit_website_data_manager_set_network_proxy_settings") {
+			k.managerSetProxy = nil
+		}
+		g.lookup(&k.contextSetProxy, "webkit_web_context_set_network_proxy_settings")
 		webAPI = k
 	})
 	return webAPI, webErr
@@ -149,6 +170,7 @@ type gtkWebView struct {
 	handle  uintptr // the key of its callbacks
 	widget  uintptr
 	manager uintptr
+	proxied *webProxyContext // the page's own context, when it is held to a proxy
 	config  platform.WebViewConfig
 	closed  bool
 	shown   bool
@@ -164,8 +186,70 @@ var (
 	webViews      = map[uintptr]*gtkWebView{}
 	webNext       uintptr
 	webSchemes    = map[string]*platform.WebScheme{}
-	webSchemeDone = map[string]bool{}
+	webSchemeDone = map[webSchemeKey]bool{}
+	webProxies    = map[string]*webProxyContext{}
 )
+
+// webSchemeKey is a scheme registered with one context: the default, or a proxy's.
+type webSchemeKey struct {
+	context uintptr
+	name    string
+}
+
+// webProxyContext is the context of the pages held to one proxy: ephemeral, so nothing it keeps
+// outlives it, with every request of its network process sent through the proxy. It goes with its
+// last page.
+type webProxyContext struct {
+	proxy  string
+	object uintptr
+	pages  int
+}
+
+// WebKitNetworkProxyMode.
+const webProxyCustom = 2
+
+// proxyContext is the context for pages held to proxy, made the first time.
+func proxyContext(g *gtkLibrary, k *webKit, proxy string) (*webProxyContext, error) {
+	if context := webProxies[proxy]; context != nil {
+		context.pages++
+		return context, nil
+	}
+	if k.contextEphemeral == nil || (k.managerSetProxy == nil && k.contextSetProxy == nil) {
+		return nil, fmt.Errorf("%w: WebKitGTK cannot hold a page to a proxy (2.16 or newer is required)", platform.ErrWebViewUnsupported)
+	}
+	object := k.contextEphemeral()
+	if object == 0 {
+		return nil, fmt.Errorf("%w: WebKitGTK made no context", platform.ErrWebViewUnsupported)
+	}
+	// No hosts are left out: loopback goes through the proxy too, and names are the proxy's to
+	// resolve.
+	uri := cString("socks5://" + proxy)
+	settings := k.proxySettingsNew(&uri[0], 0)
+	if k.managerSetProxy != nil {
+		k.managerSetProxy(k.contextDataManager(object), webProxyCustom, settings)
+	} else {
+		k.contextSetProxy(object, webProxyCustom, settings)
+	}
+	k.proxySettingsFree(settings)
+	context := &webProxyContext{proxy: proxy, object: object, pages: 1}
+	webProxies[proxy] = context
+	return context, nil
+}
+
+// leave lets go of the context for one page; the last page ends it.
+func (context *webProxyContext) leave(g *gtkLibrary) {
+	context.pages--
+	if context.pages > 0 {
+		return
+	}
+	delete(webProxies, context.proxy)
+	for key := range webSchemeDone {
+		if key.context == context.object {
+			delete(webSchemeDone, key)
+		}
+	}
+	g.objectUnref(context.object)
+}
 
 // openWebView is the window's WebHost.Open.
 func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, error) {
@@ -183,16 +267,29 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	if err != nil {
 		return nil, err
 	}
+	var proxied *webProxyContext
+	if c.Proxy != "" {
+		if proxied, err = proxyContext(g, k, c.Proxy); err != nil {
+			return nil, err
+		}
+	}
 	cb := callbacks()
 	webNext++
-	v := &gtkWebView{w: w, k: k, id: c.ID, handle: webNext, config: c}
-	v.manager = k.managerNew()
+	v := &gtkWebView{w: w, k: k, id: c.ID, handle: webNext, config: c, proxied: proxied}
+	if proxied != nil {
+		v.widget = k.viewWithContext(proxied.object)
+		v.manager = k.viewManager(v.widget)
+	} else {
+		v.manager = k.managerNew()
+	}
 	name := cString("viva")
 	k.managerRegister(v.manager, &name[0])
 	source := cString(platform.WebBridgeScript)
 	k.managerAddScript(v.manager, k.scriptNew(&source[0], 0, 0, 0, 0))
 	g.connect(v.manager, "script-message-received::viva", cb.webMessage, v.handle)
-	v.widget = k.viewNew(v.manager)
+	if proxied == nil {
+		v.widget = k.viewNew(v.manager)
+	}
 	// Placed by its margins from the overlay's top left; hidden until a frame says where.
 	g.widgetSetHAlign(v.widget, 1)
 	g.widgetSetVAlign(v.widget, 1)
@@ -218,17 +315,18 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 }
 
 // registerScheme makes the engine ask the application for a custom scheme's resources. The engine's
-// default context is shared by every page, so the scheme is registered once and answered by the
-// latest page that declared it.
+// default context is shared by every page without a proxy, so the scheme is registered once with
+// each context and answered by the latest page that declared it.
 func (v *gtkWebView) registerScheme(s *platform.WebScheme) {
 	webSchemes[s.Name] = s
-	if webSchemeDone[s.Name] {
+	k := v.k
+	context := k.getContext(v.widget)
+	key := webSchemeKey{context, s.Name}
+	if webSchemeDone[key] {
 		return
 	}
-	webSchemeDone[s.Name] = true
-	k := v.k
+	webSchemeDone[key] = true
 	name := cString(s.Name)
-	context := k.getContext(v.widget)
 	k.registerScheme(context, &name[0], callbacks().webScheme, 0, 0)
 	if k.securityManager != nil {
 		manager := k.securityManager(context)
@@ -328,6 +426,10 @@ func (v *gtkWebView) Close() {
 func (v *gtkWebView) release() {
 	v.closed = true
 	delete(webViews, v.handle)
+	if v.proxied != nil {
+		v.proxied.leave(v.w.g)
+		v.proxied = nil
+	}
 	if v.w.webFocus == v.widget {
 		v.w.webFocus = 0
 		v.w.setNativeKeys(false)

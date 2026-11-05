@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -131,19 +133,89 @@ func newHandler(invoke func(first, second uintptr) uintptr) uintptr {
 	return uintptr(unsafe.Pointer(h))
 }
 
-// webEnvironment is the process's one environment: the runtime's browser process and its settings.
+// webEnvironment is one environment: a browser process of the runtime and its settings. Pages without
+// a proxy share one for the life of the process. Each proxy has its own, since the runtime fixes a
+// browser's arguments when it starts, in a folder of its own, since a folder takes one browser at a
+// time; it goes when its last page closes.
 type webEnvironment struct {
+	key     string
+	proxy   string
+	slot    int // the proxy's folder under the user data folder, from 1
+	pages   int
 	object  uintptr
 	failed  error
 	started bool
 	waiting []func(object uintptr, err error)
 }
 
-var sharedEnvironment webEnvironment
+var webEnvironments = map[string]*webEnvironment{}
 
-// withEnvironment calls then once the environment exists (at once if it does), on this thread.
-func withEnvironment(userData string, then func(object uintptr, err error)) {
-	env := &sharedEnvironment
+// withEnvironment calls then once the environment for proxy exists (at once if it does), on this
+// thread. The caller holds the environment until it calls leave.
+func withEnvironment(userData, proxy string, then func(object uintptr, err error)) *webEnvironment {
+	key := userData + "\x00" + proxy
+	env := webEnvironments[key]
+	if env == nil {
+		env = &webEnvironment{key: key, proxy: proxy}
+		if proxy != "" {
+			env.slot = freeProxySlot(userData)
+		}
+		webEnvironments[key] = env
+	}
+	env.pages++
+	env.join(userData, then)
+	return env
+}
+
+// freeProxySlot is the first proxy folder under userData that no environment here uses and no
+// browser holds: one that is ending, or another process's, still has its lock file open.
+func freeProxySlot(userData string) int {
+	used := map[int]bool{}
+	for key, env := range webEnvironments {
+		if strings.HasPrefix(key, userData+"\x00") {
+			used[env.slot] = true
+		}
+	}
+	slot := 1
+	for used[slot] || browserHolds(proxyFolder(userData, slot)) {
+		slot++
+	}
+	return slot
+}
+
+func proxyFolder(userData string, slot int) string {
+	return filepath.Join(userData, "Proxy"+strconv.Itoa(slot))
+}
+
+// browserHolds reports whether a running browser has the folder: it keeps its lock file open to
+// itself.
+func browserHolds(folder string) bool {
+	name, err := syscall.UTF16PtrFromString(filepath.Join(folder, "EBWebView", "lockfile"))
+	if err != nil {
+		return false
+	}
+	handle, err := syscall.CreateFile(name, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_EXISTING, 0, 0)
+	if err != nil {
+		return err == errorSharingViolation
+	}
+	syscall.CloseHandle(handle)
+	return false
+}
+
+// leave lets go of the environment for one page. The last page of a proxy's environment ends it.
+func (env *webEnvironment) leave() {
+	env.pages--
+	if env.pages > 0 || env.proxy == "" {
+		return
+	}
+	delete(webEnvironments, env.key)
+	if env.object != 0 {
+		comCall(env.object, 2)
+		env.object = 0
+	}
+}
+
+func (env *webEnvironment) join(userData string, then func(object uintptr, err error)) {
 	switch {
 	case env.object != 0 || env.failed != nil:
 		then(env.object, env.failed)
@@ -155,6 +227,10 @@ func withEnvironment(userData string, then func(object uintptr, err error)) {
 	env.started = true
 	env.waiting = append(env.waiting, then)
 	finish := func(object uintptr, err error) {
+		if object != 0 && env.pages == 0 && env.proxy != "" {
+			comCall(object, 2) // every page closed while it started
+			object = 0
+		}
 		env.object, env.failed = object, err
 		waiting := env.waiting
 		env.waiting = nil
@@ -177,10 +253,23 @@ func withEnvironment(userData string, then func(object uintptr, err error)) {
 		finish(0, fmt.Errorf("windows: the WebView2 runtime lacks its entry point: %w", err))
 		return
 	}
+	if env.proxy != "" {
+		userData = proxyFolder(userData, env.slot)
+	}
 	folder, err := syscall.UTF16PtrFromString(userData)
 	if err != nil {
 		finish(0, err)
 		return
+	}
+	if env.proxy != "" {
+		// The runtime reads its browser's extra arguments from the process environment when it
+		// starts one; they are set for that moment only.
+		previous, had := syscall.Getenv(browserArgumentsVariable)
+		if err := setProcessVariable(browserArgumentsVariable, proxyBrowserArguments(previous, env.proxy), true); err != nil {
+			finish(0, err)
+			return
+		}
+		defer setProcessVariable(browserArgumentsVariable, previous, had)
 	}
 	handler := newHandler(func(status, object uintptr) uintptr {
 		if int32(uint32(status)) < 0 || object == 0 {
@@ -196,6 +285,53 @@ func withEnvironment(userData string, then func(object uintptr, err error)) {
 	if int32(uint32(status)) < 0 {
 		finish(0, fmt.Errorf("windows: start the WebView2 environment: HRESULT %#x", uint32(status)))
 	}
+}
+
+const browserArgumentsVariable = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
+
+var setEnvironmentVariable = kernel.NewProc("SetEnvironmentVariableW")
+
+// setProcessVariable sets the variable in the process environment, which the runtime reads, or
+// removes it when set is false.
+func setProcessVariable(name, value string, set bool) error {
+	key, err := syscall.UTF16PtrFromString(name)
+	if err != nil {
+		return err
+	}
+	var text *uint16
+	if set {
+		if text, err = syscall.UTF16PtrFromString(value); err != nil {
+			return err
+		}
+	}
+	if ok, _, err := setEnvironmentVariable.Call(uintptr(unsafe.Pointer(key)), uintptr(unsafe.Pointer(text))); ok == 0 {
+		return fmt.Errorf("windows: set %s: %w", name, err)
+	}
+	return nil
+}
+
+// proxyBrowserArguments sends every request through the SOCKS5 proxy, loopback included, with
+// names resolved by the proxy: the browser resolves nothing itself and WebRTC sends no UDP around
+// it. The arguments already set come first, so these win.
+func proxyBrowserArguments(existing, proxy string) string {
+	arguments := "--proxy-server=socks5://" + proxy +
+		" --proxy-bypass-list=<-loopback>" +
+		` "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE ` + proxyHost(proxy) + `"` +
+		" --force-webrtc-ip-handling-policy=disable_non_proxied_udp"
+	if existing = strings.TrimSpace(existing); existing != "" {
+		return existing + " " + arguments
+	}
+	return arguments
+}
+
+const errorSharingViolation = syscall.Errno(32)
+
+// proxyHost is the IP of a host:port the application has checked.
+func proxyHost(address string) string {
+	if colon := strings.LastIndexByte(address, ':'); colon >= 0 {
+		address = address[:colon]
+	}
+	return strings.Trim(address, "[]")
 }
 
 // wideString copies a string the runtime allocated and frees it.

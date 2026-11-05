@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"sync/atomic"
 
 	"github.com/vivaui/viva/internal/platform"
@@ -85,6 +86,11 @@ type WebViewConfig struct {
 	// Scheme, when set, serves the custom scheme Scheme.Name (a page loads "name://host/path")
 	// from the application's own resources, without a server.
 	Scheme *WebScheme
+	// Proxy, when set, is the address ("127.0.0.1:1080") of a SOCKS5 proxy on this machine that
+	// carries all of the page's traffic, names resolved by the proxy: the page reaches only what the
+	// proxy reaches. Opening fails with ErrUnsupported where the engine cannot be held to it, rather
+	// than opening a page that connects directly.
+	Proxy string
 	// OnMessage receives what the page posts with window.viva.postMessage(text).
 	OnMessage func(text string)
 	// OnLoad reports the page's navigation.
@@ -120,15 +126,24 @@ type WebView struct {
 	host   *WebHost
 }
 
+// loopbackAddress reports whether address is an IP of this machine and a port.
+func loopbackAddress(address string) bool {
+	parsed, err := netip.ParseAddrPort(address)
+	return err == nil && parsed.Addr().IsLoopback() && parsed.Port() != 0
+}
+
 // Open opens a page. It fails with ErrUnsupported when the platform cannot host pages or the system
 // has no web engine installed.
 func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 	if host == nil || host.native == nil || host.native.Open == nil {
 		return nil, fmt.Errorf("%w: web views", ErrUnsupported)
 	}
+	if config.Proxy != "" && !loopbackAddress(config.Proxy) {
+		return nil, fmt.Errorf("app: web view proxy %q is not a loopback host:port", config.Proxy)
+	}
 	id := ui.NativeViewID(host.next.Add(1))
 	platformConfig := platform.WebViewConfig{
-		ID: uint32(id), URL: config.URL, HTML: config.HTML, BaseURL: config.BaseURL,
+		ID: uint32(id), URL: config.URL, HTML: config.HTML, BaseURL: config.BaseURL, Proxy: config.Proxy,
 	}
 	// What a page tells the application usually changes what it shows, so a callback is followed
 	// by a paint.

@@ -58,6 +58,8 @@ type windowsWeb struct {
 	id     uint32
 	config platform.WebViewConfig
 	window uintptr // the child window the controller lives in
+	// environment is the runtime's browser the page is in, held until the page closes.
+	environment *webEnvironment
 	// controller and view exist once the runtime has made them; until then actions queue.
 	controller, view uintptr
 	queued           []func()
@@ -124,7 +126,7 @@ func (w *webHost) open(config platform.WebViewConfig) (platform.WebView, error) 
 	}
 	page := &windowsWeb{host: w, id: config.ID, config: config, window: window}
 	w.pages[config.ID] = page
-	withEnvironment(userDataFolder(state.config.Class), func(environment uintptr, err error) {
+	page.environment = withEnvironment(userDataFolder(state.config.Class), config.Proxy, func(environment uintptr, err error) {
 		if err != nil || page.closed {
 			fmt.Fprintln(os.Stderr, "windows:", err)
 			return
@@ -333,6 +335,10 @@ func (page *windowsWeb) release() {
 	if page.window != 0 {
 		destroyWindow.Call(page.window)
 		page.window = 0
+	}
+	if page.environment != nil {
+		page.environment.leave()
+		page.environment = nil
 	}
 }
 

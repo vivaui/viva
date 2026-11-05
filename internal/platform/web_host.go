@@ -52,6 +52,10 @@ type WebViewConfig struct {
 	// Scheme, when set, answers requests to the custom scheme Scheme.Name (the page loads
 	// "name://host/path") from the application's own resources, without a server.
 	Scheme *WebScheme
+	// Proxy, when set, is the loopback host:port of a SOCKS5 proxy that carries all of the page's
+	// traffic, names resolved by the proxy. A platform that cannot hold the page to it returns
+	// ErrWebViewUnsupported rather than opening a page that connects directly.
+	Proxy string
 	// OnMessage receives what the page posts with window.viva.postMessage(text).
 	OnMessage func(text string)
 	// OnLoad reports the page's navigation.

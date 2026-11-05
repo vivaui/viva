@@ -65,6 +65,9 @@ func newWebState(run *runState, host *platform.WebHost, initial []platform.Nativ
 
 // open is WebHost.Open.
 func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error) {
+	if config.Proxy != "" {
+		return nil, platform.ErrWebViewUnsupported
+	}
 	if w.run.closed || w.token == nil {
 		return nil, platform.ErrWebViewUnsupported
 	}

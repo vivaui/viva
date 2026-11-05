@@ -37,6 +37,14 @@ scheme, a message in each direction and a menu that stands over the page.
   `OnMessage` / `WebView.PostMessage`. A page sees nothing else of the application.
 - Everything runs on the window's thread: `OnReady`, the callbacks, the methods of `WebHost` and `WebView`.
   Reach it from another goroutine with an `Invalidator` and `OnWake`. A callback is followed by a paint.
+- `Proxy` (`"127.0.0.1:1080"`) holds a page to a SOCKS5 proxy on this machine: every request, loopback
+  included, goes through it, names are resolved by the proxy, and WebRTC sends no UDP around it, so the page
+  reaches only what the proxy reaches (a tunnel to a remote network, Tor, a test harness). On Windows each
+  proxy has its own WebView2 browser, in a folder of its own under the user data folder; on Linux an ephemeral
+  WebKit context (WebKitGTK 2.16 or newer). Either ends with its last page. macOS cannot hold a page to a proxy,
+  and `Open` fails with `ErrUnsupported` rather than open one that connects directly: WKWebView's
+  `proxyConfigurations` (macOS 14) sends names to the proxy unresolved, but the system exempts loopback
+  addresses from it, so `http://127.0.0.1:3000/` would reach the user's own machine.
 - `Canvas.NativeView` declares where the page is, on the current layer and inside the current clip. What Viva
   paints on that layer or below is hidden by the page; what it paints on a higher layer (a menu, a tooltip,
   `flex`'s `f.PopupLayer`) stands over it, and a hit region on a higher layer takes the pointer where it lies
