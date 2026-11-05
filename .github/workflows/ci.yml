@@ -106,7 +106,7 @@ jobs:
           # linux/amd64 is the lint job's `go vet ./...`, over every package.
           for target in linux/arm64 windows/amd64 windows/arm64; do
             GOOS=${target%/*} GOARCH=${target#*/} \
-              go vet ./internal/... ./app/ ./cmd/... ./components/... &
+              go vet ./internal/... ./app/ ./cmd/... ./components/... ./update/... &
             pids="$pids $!"
           done
           GOOS=js GOARCH=wasm go vet ./internal/platform/web/ ./app/ &
@@ -199,6 +199,10 @@ jobs:
       # WARP is a Windows API: this cannot run anywhere else.
       - name: Material contracts and controls (WARP)
         run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies)' -count=1 -v
+      # The installer contracts, including WinVerifyTrust's struct layout, only
+      # compile and run on Windows.
+      - name: Update installer contracts
+        run: go test ./update -count=1 -v
 
   # A noise-tolerant benchmark regression gate for the pure-Go paths: the base
   # revision and the pull request run the same benchmarks on the same runner,

@@ -65,7 +65,7 @@ linux)
         {
             # cmd/viva and the packaging tools carry no darwin build constraint,
             # so they build here too, and their tests run here as well.
-            if ($2 ~ "/(cmd/viva|tools/appbundle|tools/docs)$") { print $2; next }
+            if ($2 ~ "/(cmd/viva|tools/appbundle|tools/docs|update)$") { print $2; next }
             if (substr($1, length(root) + 1) in want) next
             # Needs a Vulkan renderer and Pango: only a runner that installs both
             # can run it, and vector-coverage.yml is that runner.
