@@ -134,7 +134,7 @@ func (w *webHost) open(config platform.WebViewConfig) (platform.WebView, error) 
 		if err != nil {
 			if diag.Enabled(diag.Warn) {
 				diag.Report(diag.Warn, "web", "environment", "the WebView2 environment could not be created",
-					diag.Attr{Key: "error", Value: err.Error()})
+					diag.String("error", err.Error()))
 			}
 			fmt.Fprintln(os.Stderr, "windows:", err)
 			return

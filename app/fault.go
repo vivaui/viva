@@ -118,7 +118,7 @@ func EnableCrashDumps(relativeDir string) (string, error) {
 // main goroutine, after RunApplication has returned or before it starts.
 func ShowFatalError(title, message string) {
 	if diag.Enabled(diag.Error) {
-		diag.Report(diag.Error, "app", "fatal", message, diag.Attr{Key: "title", Value: title})
+		diag.Report(diag.Error, "app", "fatal", message, diag.String("title", title))
 	}
 	nativeShowFatalError(title, message)
 }

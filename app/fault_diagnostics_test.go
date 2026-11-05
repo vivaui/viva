@@ -31,7 +31,7 @@ func TestAFaultReachesTheDiagnosticStream(t *testing.T) {
 	}
 	values := make(map[string]any, len(event.Attrs))
 	for _, attr := range event.Attrs {
-		values[attr.Key] = attr.Value
+		values[attr.Key] = attr.Value.Any()
 	}
 	if values["where"] != "window procedure" || values["stack"] != "goroutine 1" {
 		t.Errorf("attrs = %v", values)

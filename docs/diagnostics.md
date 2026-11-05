@@ -29,6 +29,12 @@ type Event struct {
 }
 ```
 
+An `Attr` is a key and a `Value` that holds a string, an integer, a float or a
+boolean. Build one with `diagnostics.String`, `Int`, `Float` or `Bool`; a
+`Value` is a small tagged union, so building one does not allocate. An slog
+attribute of any other type (an error, a duration, a struct) reaches the stream
+as the text slog prints for it.
+
 `Code` is stable across releases; `Message` may change. A collector should key
 on `Subsystem` and `Code`, not on the wording.
 
@@ -117,9 +123,9 @@ a crash report says what the program was doing:
 ```go
 diagnostics.SetContext(func() []diagnostics.Attr {
 	return []diagnostics.Attr{
-		{Key: "version", Value: buildVersion},
-		{Key: "document", Value: model.Path},
-		{Key: "backend", Value: app.PlatformTextEngine() != nil},
+		diagnostics.String("version", buildVersion),
+		diagnostics.String("document", model.Path),
+		diagnostics.Bool("backend", app.PlatformTextEngine() != nil),
 	}
 })
 ```

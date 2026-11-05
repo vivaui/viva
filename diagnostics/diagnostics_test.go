@@ -27,7 +27,7 @@ func TestSlogHandlerWritesAnEvent(t *testing.T) {
 	inner := slog.NewJSONHandler(&output, &slog.HandlerOptions{Level: slog.LevelDebug})
 	SetLevel(Debug)
 	SetHandler(SlogHandler(inner))
-	Report(Info, "render", "first-frame", "first frame presented", Attr{Key: "milliseconds", Value: 12.5})
+	Report(Info, "render", "first-frame", "first frame presented", Float("milliseconds", 12.5))
 
 	var record map[string]any
 	if err := json.Unmarshal(output.Bytes(), &record); err != nil {
@@ -78,7 +78,7 @@ func TestNewLoggerReportsApplicationRecords(t *testing.T) {
 	}
 	values := make(map[string]any, len(event.Attrs))
 	for _, attr := range event.Attrs {
-		values[attr.Key] = attr.Value
+		values[attr.Key] = attr.Value.Any()
 	}
 	if values["path"] != "notes.md" || values["bytes"] != int64(42) {
 		t.Errorf("attrs = %v", values)
@@ -97,7 +97,7 @@ func TestNewLoggerGroupsAndAttrs(t *testing.T) {
 	}
 	values := make(map[string]any, len(events[0].Attrs))
 	for _, attr := range events[0].Attrs {
-		values[attr.Key] = attr.Value
+		values[attr.Key] = attr.Value.Any()
 	}
 	if values["service"] != "api" {
 		t.Errorf("service = %v", values["service"])
@@ -144,8 +144,8 @@ func TestFaultContextRoundTrip(t *testing.T) {
 	reset(t)
 	var events []Event
 	SetHandler(func(event Event) { events = append(events, event) })
-	SetContext(func() []Attr { return []Attr{{Key: "version", Value: "1.4.2"}} })
-	if Context()[0].Value != "1.4.2" {
+	SetContext(func() []Attr { return []Attr{String("version", "1.4.2")} })
+	if Context()[0].Value.Text() != "1.4.2" {
 		t.Error("Context did not return the context")
 	}
 	ReportFault("app", "window", "boom", "stack")
@@ -154,7 +154,7 @@ func TestFaultContextRoundTrip(t *testing.T) {
 	}
 	values := make(map[string]any, len(events[0].Attrs))
 	for _, attr := range events[0].Attrs {
-		values[attr.Key] = attr.Value
+		values[attr.Key] = attr.Value.Any()
 	}
 	if values["version"] != "1.4.2" || values["where"] != "window" || values["stack"] != "stack" {
 		t.Errorf("attrs = %v", values)
@@ -188,5 +188,24 @@ func TestNewLoggerReadsALevelVar(t *testing.T) {
 	logger.Info("delivered")
 	if len(events) != 1 {
 		t.Fatalf("level var did not lower the level: %v", events)
+	}
+}
+
+// Attribute kinds survive both adapters: a number stays a number on the way
+// into the stream and on the way out to slog.
+func TestSlogKeepsAttributeKinds(t *testing.T) {
+	var got Event
+	reset(t)
+	SetHandler(func(event Event) { got = event })
+	NewLogger(nil).Info("saved", "bytes", 42, "ratio", 0.5, "ok", true, "path", "a.txt")
+	kinds := map[string]Kind{}
+	for _, attr := range got.Attrs {
+		kinds[attr.Key] = attr.Value.Kind()
+	}
+	want := map[string]Kind{"bytes": KindInt, "ratio": KindFloat, "ok": KindBool, "path": KindString}
+	for key, kind := range want {
+		if kinds[key] != kind {
+			t.Errorf("%s has kind %v, want %v", key, kinds[key], kind)
+		}
 	}
 }

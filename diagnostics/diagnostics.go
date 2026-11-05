@@ -44,6 +44,9 @@ package diagnostics
 import (
 	"context"
 	"log/slog"
+	"math"
+	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/vivaui/viva/internal/diag"
@@ -60,8 +63,35 @@ const (
 	Error = diag.Error
 )
 
-// Attr is one key and value on an event.
+// Attr is one key and value on an event. Build one with String, Int, Float or
+// Bool.
 type Attr = diag.Attr
+
+// Value is an attribute's value: a string, an integer, a float or a boolean.
+type Value = diag.Value
+
+// Kind is the type a Value holds.
+type Kind = diag.Kind
+
+// The kinds a Value may hold.
+const (
+	KindString = diag.KindString
+	KindInt    = diag.KindInt
+	KindFloat  = diag.KindFloat
+	KindBool   = diag.KindBool
+)
+
+// String returns an attribute holding text.
+func String(key, value string) Attr { return diag.String(key, value) }
+
+// Int returns an attribute holding an integer.
+func Int(key string, value int64) Attr { return diag.Int(key, value) }
+
+// Float returns an attribute holding a floating-point number.
+func Float(key string, value float64) Attr { return diag.Float(key, value) }
+
+// Bool returns an attribute holding a boolean.
+func Bool(key string, value bool) Attr { return diag.Bool(key, value) }
 
 // Event is one thing the framework reported.
 type Event = diag.Event
@@ -155,14 +185,15 @@ func SlogHandler(inner slog.Handler) Handler {
 			record.AddAttrs(slog.String("code", event.Code))
 		}
 		for _, attr := range event.Attrs {
-			record.AddAttrs(slog.Any(attr.Key, attr.Value))
+			record.AddAttrs(slogAttr(attr))
 		}
 		_ = inner.Handle(ctx, record)
 	}
 }
 
 // NewLogger returns a *slog.Logger whose records enter the diagnostic stream as
-// subsystem "app" and code "log". Its level is options.Level when that is set,
+// subsystem "app" and code "log". Do not give SlogHandler a handler that leads
+// back to a logger from NewLogger: the stream would feed itself. Its level is options.Level when that is set,
 // and Info otherwise; the stream's own level still filters it.
 func NewLogger(options *slog.HandlerOptions) *slog.Logger {
 	var level slog.Leveler = slog.LevelInfo
@@ -190,6 +221,10 @@ func (handler *streamHandler) Handle(_ context.Context, record slog.Record) erro
 		attrs = appendSlogAttr(attrs, prefixedKey(handler.groups, attr.Key), attr.Value)
 		return true
 	})
+	if record.PC != 0 {
+		frame, _ := runtime.CallersFrames([]uintptr{record.PC}).Next()
+		attrs = append(attrs, diag.String("source", frame.File+":"+strconv.Itoa(frame.Line)))
+	}
 	diag.Report(diagLevel(record.Level), "app", "log", record.Message, attrs...)
 	return nil
 }
@@ -222,7 +257,39 @@ func appendSlogAttr(dst []diag.Attr, key string, value slog.Value) []diag.Attr {
 		}
 		return dst
 	}
-	return append(dst, diag.Attr{Key: key, Value: value.Any()})
+	switch value.Kind() {
+	case slog.KindString:
+		return append(dst, diag.String(key, value.String()))
+	case slog.KindInt64:
+		return append(dst, diag.Int(key, value.Int64()))
+	case slog.KindUint64:
+		if number := value.Uint64(); number <= math.MaxInt64 {
+			return append(dst, diag.Int(key, int64(number)))
+		}
+		return append(dst, diag.String(key, value.String()))
+	case slog.KindFloat64:
+		return append(dst, diag.Float(key, value.Float64()))
+	case slog.KindBool:
+		return append(dst, diag.Bool(key, value.Bool()))
+	case slog.KindTime:
+		return append(dst, diag.String(key, value.Time().Format(time.RFC3339Nano)))
+	}
+	// Durations, errors and every other value reach the stream as the text
+	// slog itself would print for them.
+	return append(dst, diag.String(key, value.String()))
+}
+
+// slogAttr converts one stream attribute to the slog form of the same type.
+func slogAttr(attr diag.Attr) slog.Attr {
+	switch attr.Value.Kind() {
+	case diag.KindInt:
+		return slog.Int64(attr.Key, attr.Value.Int64())
+	case diag.KindFloat:
+		return slog.Float64(attr.Key, attr.Value.Float64())
+	case diag.KindBool:
+		return slog.Bool(attr.Key, attr.Value.Bool())
+	}
+	return slog.String(attr.Key, attr.Value.Text())
 }
 
 func prefixedKey(groups []string, key string) string {

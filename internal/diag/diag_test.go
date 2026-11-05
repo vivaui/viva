@@ -23,7 +23,7 @@ func TestReportReachesTheHandler(t *testing.T) {
 	resetStream(t)
 	var events []Event
 	SetHandler(func(event Event) { events = append(events, event) })
-	Report(Info, "render", "first-frame", "first frame presented", Attr{Key: "milliseconds", Value: 12.5})
+	Report(Info, "render", "first-frame", "first frame presented", Float("milliseconds", 12.5))
 	if len(events) != 1 {
 		t.Fatalf("handler saw %d events", len(events))
 	}
@@ -34,7 +34,7 @@ func TestReportReachesTheHandler(t *testing.T) {
 	if event.Message != "first frame presented" {
 		t.Errorf("message = %q", event.Message)
 	}
-	if len(event.Attrs) != 1 || event.Attrs[0].Key != "milliseconds" || event.Attrs[0].Value != 12.5 {
+	if len(event.Attrs) != 1 || event.Attrs[0].Key != "milliseconds" || event.Attrs[0].Value.Float64() != 12.5 {
 		t.Errorf("attrs = %v", event.Attrs)
 	}
 	if event.Time.IsZero() {
@@ -73,7 +73,7 @@ func TestGuardedAttributesDoNotAllocateWhileDisabled(t *testing.T) {
 	resetStream(t)
 	if allocations := testing.AllocsPerRun(100, func() {
 		if Enabled(Info) {
-			Report(Info, "app", "test", "ignored", Attr{Key: "key", Value: "value"})
+			Report(Info, "app", "test", "ignored", String("key", "value"))
 		}
 	}); allocations != 0 {
 		t.Errorf("a guarded report allocated %v times per run", allocations)
@@ -105,11 +105,11 @@ func TestCaptureKeepsTheNewestEvents(t *testing.T) {
 func TestCaptureCopiesAttributes(t *testing.T) {
 	resetStream(t)
 	Capture(1)
-	attrs := []Attr{{Key: "value", Value: "original"}}
+	attrs := []Attr{String("value", "original")}
 	Report(Info, "app", "test", "message", attrs...)
-	attrs[0].Value = "changed"
+	attrs[0] = String("value", "changed")
 	events := Recent(1)
-	if len(events) != 1 || events[0].Attrs[0].Value != "original" {
+	if len(events) != 1 || events[0].Attrs[0].Value.Text() != "original" {
 		t.Errorf("captured attrs = %v", events)
 	}
 }
@@ -131,7 +131,7 @@ func TestFaultCarriesWhereStackAndContext(t *testing.T) {
 	var events []Event
 	SetHandler(func(event Event) { events = append(events, event) })
 	SetContext(func() []Attr {
-		return []Attr{{Key: "version", Value: "1.4.2"}, {Key: "document", Value: "notes.md"}}
+		return []Attr{String("version", "1.4.2"), String("document", "notes.md")}
 	})
 	ReportFault("app", "window procedure", "boom", []byte("goroutine 1\n..."))
 	if len(events) != 1 {
@@ -143,7 +143,7 @@ func TestFaultCarriesWhereStackAndContext(t *testing.T) {
 	}
 	values := make(map[string]any, len(event.Attrs))
 	for _, attr := range event.Attrs {
-		values[attr.Key] = attr.Value
+		values[attr.Key] = attr.Value.Any()
 	}
 	for key, want := range map[string]any{
 		"where":    "window procedure",

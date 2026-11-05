@@ -19,7 +19,7 @@
 //
 //	if diag.Enabled(diag.Debug) {
 //		diag.Report(diag.Debug, "render", "first-frame", "first frame presented",
-//			diag.Attr{Key: "milliseconds", Value: 12.5})
+//			diag.Float("milliseconds", 12.5))
 //	}
 //
 // # Threading
@@ -31,7 +31,9 @@
 package diag
 
 import (
+	"math"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -67,11 +69,116 @@ func (level Level) String() string {
 	return "unknown"
 }
 
-// Attr is one key and value on an event. The value is not interpreted here, so
-// a handler decides how to render it.
+// Kind is the type a Value holds.
+type Kind uint8
+
+const (
+	// KindString is a text value.
+	KindString Kind = iota
+	// KindInt is a signed integer.
+	KindInt
+	// KindFloat is a floating-point number.
+	KindFloat
+	// KindBool is a boolean.
+	KindBool
+)
+
+// Value is one attribute's value: a string, an integer, a float or a boolean.
+// It is a small tagged union, so building one does not allocate and a handler
+// reads it without a type switch on an interface.
+type Value struct {
+	kind Kind
+	num  uint64
+	text string
+}
+
+// Kind returns the type the value holds.
+func (value Value) Kind() Kind { return value.kind }
+
+// Text returns the string of a KindString value, or "" for any other kind.
+func (value Value) Text() string {
+	if value.kind != KindString {
+		return ""
+	}
+	return value.text
+}
+
+// Int64 returns the integer of a KindInt value, or 0 for any other kind.
+func (value Value) Int64() int64 {
+	if value.kind != KindInt {
+		return 0
+	}
+	return int64(value.num)
+}
+
+// Float64 returns the number of a KindFloat value, or 0 for any other kind.
+func (value Value) Float64() float64 {
+	if value.kind != KindFloat {
+		return 0
+	}
+	return math.Float64frombits(value.num)
+}
+
+// Bool returns the boolean of a KindBool value, or false for any other kind.
+func (value Value) Bool() bool {
+	return value.kind == KindBool && value.num != 0
+}
+
+// Any returns the value as a string, int64, float64 or bool, for a consumer
+// that wants an untyped value.
+func (value Value) Any() any {
+	switch value.kind {
+	case KindInt:
+		return value.Int64()
+	case KindFloat:
+		return value.Float64()
+	case KindBool:
+		return value.Bool()
+	}
+	return value.text
+}
+
+// String renders the value as text.
+func (value Value) String() string {
+	switch value.kind {
+	case KindInt:
+		return strconv.FormatInt(value.Int64(), 10)
+	case KindFloat:
+		return strconv.FormatFloat(value.Float64(), 'g', -1, 64)
+	case KindBool:
+		return strconv.FormatBool(value.Bool())
+	}
+	return value.text
+}
+
+// Attr is one key and value on an event.
 type Attr struct {
 	Key   string
-	Value any
+	Value Value
+}
+
+// String returns an attribute holding text.
+func String(key, value string) Attr {
+	return Attr{Key: key, Value: Value{kind: KindString, text: value}}
+}
+
+// Int returns an attribute holding an integer.
+func Int(key string, value int64) Attr {
+	return Attr{Key: key, Value: Value{kind: KindInt, num: uint64(value)}}
+}
+
+// Float returns an attribute holding a floating-point number.
+func Float(key string, value float64) Attr {
+	return Attr{Key: key, Value: Value{kind: KindFloat, num: math.Float64bits(value)}}
+}
+
+// Bool returns an attribute holding a boolean.
+func Bool(key string, value bool) Attr {
+	var num uint64
+	if value {
+		num = 1
+	}
+	return Attr{Key: key, Value: Value{kind: KindBool, num: num}}
 }
 
 // Event is one thing the framework reported: when it happened, how severe it
@@ -232,7 +339,7 @@ func ReportFault(subsystem, where, message string, stack []byte) {
 	}
 	context := Context()
 	attrs := make([]Attr, 0, 2+len(context))
-	attrs = append(attrs, Attr{Key: "where", Value: where}, Attr{Key: "stack", Value: string(stack)})
+	attrs = append(attrs, String("where", where), String("stack", string(stack)))
 	attrs = append(attrs, context...)
 	Report(Error, subsystem, "fault", message, attrs...)
 }

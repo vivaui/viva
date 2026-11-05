@@ -373,7 +373,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 		fmt.Fprintf(os.Stderr, "viva_first_frame_ms=%.3f\n", elapsed)
 		if diag.Enabled(diag.Debug) {
 			diag.Report(diag.Debug, "render", "first-frame", "first frame presented",
-				diag.Attr{Key: "milliseconds", Value: elapsed})
+				diag.Float("milliseconds", elapsed))
 		}
 	}
 	if os.Getenv("VIVA_TEST_AUTOCLOSE") != "" {
@@ -554,11 +554,11 @@ func (application *linuxApplication) closeWindow(target *linuxWindowState) {
 		if diag.Enabled(diag.Debug) {
 			goroutines := runtime.NumGoroutine()
 			diag.Report(diag.Debug, "render", "window-stats", "window closed",
-				diag.Attr{Key: "gpu_submissions", Value: int64(submissions)},
-				diag.Attr{Key: "gpu_full_rebuilds", Value: int64(rebuilds)},
-				diag.Attr{Key: "gpu_partial_updates", Value: int64(partials)},
-				diag.Attr{Key: "resize_events", Value: int64(target.resizeEvents)},
-				diag.Attr{Key: "goroutines", Value: int64(goroutines)})
+				diag.Int("gpu_submissions", int64(submissions)),
+				diag.Int("gpu_full_rebuilds", int64(rebuilds)),
+				diag.Int("gpu_partial_updates", int64(partials)),
+				diag.Int("resize_events", int64(target.resizeEvents)),
+				diag.Int("goroutines", int64(goroutines)))
 		}
 	}
 	if target.router.ime != nil {

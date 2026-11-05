@@ -34,7 +34,7 @@ func deliverApplicationReopen() (handled bool) {
 			message := fmt.Sprint(value)
 			if diag.Enabled(diag.Error) {
 				diag.Report(diag.Error, "platform", "reopen-panic", "the reopen handler panicked",
-					diag.Attr{Key: "panic", Value: message})
+					diag.String("panic", message))
 			}
 			fmt.Fprintf(os.Stderr, "viva: reopen handler panicked: %v\n", value)
 			handled = false
