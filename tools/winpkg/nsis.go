@@ -235,6 +235,13 @@ func (script Script) Generate() ([]byte, error) {
 
 	// The installer and the uninstaller each need their own copy of this
 	// function, and a macro keeps the two the same.
+	//
+	// Windows refuses to delete or overwrite the image of a running program but
+	// does allow renaming it: the process keeps running the old image and the
+	// next launch gets the new one. Asking the user would end a silent install
+	// (/S), where the message box answers itself with cancel, and any process
+	// that outlives its window (an agent's MCP server, say) would block every
+	// update, so move the file aside first and only ask when even that failed.
 	line(`!macro EnsureClosed un`)
 	line(`Function ${un}EnsureClosed`)
 	line(`  retry:`)
@@ -246,6 +253,16 @@ func (script Script) Generate() ([]byte, error) {
 	line(`  ${IfNot} ${Errors}`)
 	line(`    Return`)
 	line(`  ${EndIf}`)
+	line(`  ; A running image can be renamed but not deleted, so move it aside.`)
+	line(`  Push $1`)
+	line(`  System::Call 'kernel32::GetTickCount()i .r1'`)
+	line(`  ClearErrors`)
+	line(`  Rename "$INSTDIR\${APP_EXE}" "$INSTDIR\${APP_EXE}.$1.old"`)
+	line(`  ${IfNot} ${Errors}`)
+	line(`    Pop $1`)
+	line(`    Return`)
+	line(`  ${EndIf}`)
+	line(`  Pop $1`)
 	line(`  MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(CLOSE_APP)" /SD IDCANCEL IDRETRY retry`)
 	line(`  Abort`)
 	line(`FunctionEnd`)
@@ -315,6 +332,9 @@ func (script Script) Generate() ([]byte, error) {
 	line(`Section "${APP_NAME}" SecMain`)
 	line(`  SectionIn RO`)
 	line(`  Call EnsureClosed`)
+	line(`  ; What an earlier update moved aside goes once nothing holds it.`)
+	line(`  ClearErrors`)
+	line(`  Delete "$INSTDIR\${APP_EXE}.*.old"`)
 	line(`  SetOutPath "$INSTDIR"`)
 	line(`  ; The program's modification time would otherwise be stored in the installer`)
 	line(`  ; and make every build of the same program differ.`)
@@ -376,6 +396,8 @@ func (script Script) Generate() ([]byte, error) {
 	// leaves it empty.
 	line(`Section "Uninstall"`)
 	line(`  Call un.EnsureClosed`)
+	line(`  ClearErrors`)
+	line(`  Delete "$INSTDIR\${APP_EXE}.*.old"`)
 	line(`  Delete "$INSTDIR\${APP_EXE}"`)
 	if script.Icon != "" {
 		line(`  Delete "$INSTDIR\${APP_ICON}"`)

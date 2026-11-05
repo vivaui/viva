@@ -340,6 +340,46 @@ func TestGenerateIsDeterministic(t *testing.T) {
 	}
 }
 
+// A running program can be renamed but not deleted, so an update must move it
+// aside before it ever asks the user, or a silent install fails with the first
+// process that outlives the window.
+func TestEnsureClosedMovesARunningProgramAsideBeforeAskingTheUser(t *testing.T) {
+	got := generate(t, sample())
+	// The function is written once, as a macro the installer and the uninstaller
+	// each insert, so the text carries ${un} rather than either name.
+	start := strings.Index(got, "Function ${un}EnsureClosed")
+	if start < 0 {
+		t.Fatalf("the script lacks EnsureClosed:\n%s", got)
+	}
+	body := got[start:]
+	if end := strings.Index(body, "FunctionEnd"); end >= 0 {
+		body = body[:end]
+	}
+	rename := strings.Index(body, `Rename "$INSTDIR\${APP_EXE}"`)
+	message := strings.Index(body, "MessageBox")
+	if rename < 0 || message < 0 {
+		t.Fatalf("EnsureClosed lacks the rename or the question:\n%s", body)
+	}
+	if rename > message {
+		t.Errorf("EnsureClosed asks the user before moving the program aside:\n%s", body)
+	}
+	if line := body[rename:]; !strings.HasPrefix(line[:strings.Index(line, "\n")], `Rename "$INSTDIR\${APP_EXE}" "$INSTDIR\${APP_EXE}.`) ||
+		!strings.Contains(line[:strings.Index(line, "\n")], `.old"`) {
+		t.Errorf("the program is not moved to a .old name:\n%s", body)
+	}
+
+	const leftovers = `Delete "$INSTDIR\${APP_EXE}.*.old"`
+	install := got[strings.Index(got, `Section "${APP_NAME}" SecMain`):]
+	install = install[:strings.Index(install, "SectionEnd")]
+	if !strings.Contains(install, "Call EnsureClosed") || !strings.Contains(install, leftovers) {
+		t.Errorf("the installer does not clear what an earlier update moved aside:\n%s", install)
+	}
+	uninstall := got[strings.Index(got, `Section "Uninstall"`):]
+	if !strings.Contains(uninstall, leftovers) {
+		t.Errorf("the uninstaller does not clear what an update moved aside:\n%s", uninstall)
+	}
+}
+
 func TestFindReportsHowToInstall(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	_, err := find("", nil)
