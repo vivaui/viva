@@ -19,14 +19,35 @@ import (
 type IconHover struct {
 	target ui.ID
 	since  time.Duration
-	fired  bool
+	// fired marks the slots that already played for target, so a pointer that
+	// stays put does not replay them. One bit per slot: slot is a uint8, so
+	// four words cover every value and nothing allocates. A slot is cleared
+	// when the pointer reaches or leaves target, which re-arms every gesture
+	// on it.
+	fired [4]uint64
+}
+
+// played reports whether slot already played its gesture for the current target.
+func (hover *IconHover) played(slot uint8) bool {
+	return hover.fired[slot/64]>>(slot%64)&1 != 0
+}
+
+// markPlayed records that slot played its gesture for the current target.
+func (hover *IconHover) markPlayed(slot uint8) {
+	hover.fired[slot/64] |= 1 << (slot % 64)
+}
+
+// reArm clears every slot's played mark, so the next hover replays them.
+func (hover *IconHover) reArm() {
+	hover.fired = [4]uint64{}
 }
 
 // Progress advances one control's hover gesture. id must be the ID under which
 // the control declares its hover region; slot separates several gestures owned
-// by that ID. dwell is how long the pointer must rest before the gesture starts,
-// and duration is the gesture itself. A zero ID paints still, which makes the
-// value safe to use from a static preview.
+// by that ID, and each slot's dwell and one-shot are tracked on their own. dwell
+// is how long the pointer must rest before the gesture starts, and duration is
+// the gesture itself. A zero ID paints still, which makes the value safe to use
+// from a static preview.
 func (hover *IconHover) Progress(canvas *ui.Canvas, id ui.ID, slot uint8, dwell, duration time.Duration) (progress float32, playing bool) {
 	if hover == nil || canvas == nil || id.IsZero() {
 		return 1, false
@@ -41,11 +62,11 @@ func (hover *IconHover) Progress(canvas *ui.Canvas, id ui.ID, slot uint8, dwell,
 	if hovered && hover.target != id {
 		hover.target = id
 		hover.since = now
-		hover.fired = false
+		hover.reArm()
 	}
 	if !hovered && hover.target != (ui.ID{}) {
 		hover.target = ui.ID{}
-		hover.fired = false
+		hover.reArm()
 	}
 	if !hovered {
 		return 1, false
@@ -54,9 +75,9 @@ func (hover *IconHover) Progress(canvas *ui.Canvas, id ui.ID, slot uint8, dwell,
 		canvas.RequestFrameIn(remaining)
 		return 1, false
 	}
-	if hover.fired || canvas.ReduceMotion() {
+	if hover.played(slot) || canvas.ReduceMotion() {
 		return 1, false
 	}
-	hover.fired = true
+	hover.markPlayed(slot)
 	return canvas.PlayOnce(id, slot, true, duration)
 }
