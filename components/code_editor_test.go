@@ -1,6 +1,7 @@
 package components
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -426,6 +427,72 @@ func TestCodeEditorPaintsOneLabelPerRowWhateverTheHighlight(t *testing.T) {
 	last := first[len(first)-1]
 	if last.Color != blue {
 		t.Errorf("the comment is %+v, want blue", last)
+	}
+}
+
+func TestCodeEditorHighlightLineReceivesLogicalIndexAfterScrolling(t *testing.T) {
+	value := "same\n" + strings.Repeat("padding\n", 25) + "same"
+	fixture := newCodeFixture(value)
+	firstColor, lastColor := ui.RGB(195, 40, 45), ui.RGB(30, 90, 190)
+	var indexes []int
+	legacyCalls := 0
+	fixture.snapshot.Language = "go"
+	fixture.snapshot.Highlight = func(_ string, _ string, runs []CodeEditorRun) []CodeEditorRun {
+		legacyCalls++
+		return runs
+	}
+	fixture.snapshot.HighlightLine = func(language string, lineIndex int, line string, runs []CodeEditorRun) []CodeEditorRun {
+		if language != "go" {
+			t.Fatalf("language=%q", language)
+		}
+		indexes = append(indexes, lineIndex)
+		if line != "same" {
+			return runs
+		}
+		color := firstColor
+		if lineIndex == 26 {
+			color = lastColor
+		}
+		return append(runs, CodeEditorRun{Start: 0, End: len(line), Color: color})
+	}
+	fixture.paint()
+	firstPainted := false
+	for _, drawn := range fixture.canvas.Texts() {
+		if drawn.Value == "same" {
+			runs := fixture.canvas.TextRuns(drawn)
+			firstPainted = len(runs) > 0 && runs[0].Color == firstColor
+		}
+	}
+	if !firstPainted || legacyCalls != 0 {
+		t.Fatalf("first logical line missing color or old callback used: indexes=%v old=%d", indexes, legacyCalls)
+	}
+	fixture.editor.SetScrollY(fixture.editor.MaxScrollY())
+	fixture.paint()
+	lastPainted := false
+	for _, drawn := range fixture.canvas.Texts() {
+		if drawn.Value == "same" {
+			runs := fixture.canvas.TextRuns(drawn)
+			lastPainted = len(runs) > 0 && runs[0].Color == lastColor
+		}
+	}
+	if !lastPainted || legacyCalls != 0 || !slices.Contains(indexes, 0) || !slices.Contains(indexes, 26) || fixture.snapshot.Value != value {
+		t.Fatalf("scrolled line index/color wrong: indexes=%v old=%d last=%v", indexes, legacyCalls, lastPainted)
+	}
+}
+
+func TestCodeEditorHighlightLineRunsOncePerWrappedLogicalLine(t *testing.T) {
+	fixture := newCodeFixture("wrapped words repeated until the line folds\nsecond")
+	fixture.bounds.Width = fixture.widthFor(12)
+	fixture.bounds.Height = 600
+	fixture.snapshot.Wrap = true
+	counts := map[int]int{}
+	fixture.snapshot.HighlightLine = func(_ string, lineIndex int, _ string, runs []CodeEditorRun) []CodeEditorRun {
+		counts[lineIndex]++
+		return runs
+	}
+	fixture.paint()
+	if counts[0] != 1 || counts[1] != 1 || len(counts) != 2 {
+		t.Fatalf("wrapped callbacks=%v", counts)
 	}
 }
 

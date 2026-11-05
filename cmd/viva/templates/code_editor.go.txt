@@ -76,6 +76,9 @@ type CodeEditorSnapshot struct {
 	// Language is handed to Highlight, which owns the grammar.
 	Language  string
 	Highlight func(language, line string, dst []CodeEditorRun) []CodeEditorRun
+	// HighlightLine receives the zero-based logical source line even when only
+	// scrolled or wrapped rows are painted. When set, it takes precedence over Highlight.
+	HighlightLine func(language string, lineIndex int, line string, dst []CodeEditorRun) []CodeEditorRun
 	// Marks are byte ranges of Value painted behind the text, such as the matches
 	// of a search (find.Session.Matches is exactly this). They must be in order
 	// and not overlap; empty ones are not drawn. The mark equal to CurrentMark is
@@ -257,7 +260,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		compositionStart: compositionStart, compositionEnd: compositionEnd,
 		caret: caret, caretRow: caretRow, caretColumn: caretColumn,
 		showCaret: focused && snapshot.ShowCaret && !snapshot.Disabled,
-		language:  snapshot.Language, highlight: snapshot.Highlight, face: snapshot.MonoFace,
+		language:  snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
 	}
 	paint.lastColumn = paint.firstColumn + cols + 8
@@ -414,6 +417,7 @@ type codePaint struct {
 	showCaret                                bool
 	language                                 string
 	highlight                                func(language, line string, dst []CodeEditorRun) []CodeEditorRun
+	highlightLine                            func(language string, lineIndex int, line string, dst []CodeEditorRun) []CodeEditorRun
 	face                                     ui.MonoFace
 	firstColumn, lastColumn                  int
 	marks                                    []text.Span
@@ -572,7 +576,7 @@ func (paint *codePaint) lineRuns(row codeRow) []CodeEditorRun {
 	}
 	editor.runLine = int(row.line)
 	editor.lineRuns = editor.lineRuns[:0]
-	if paint.highlight == nil {
+	if paint.highlight == nil && paint.highlightLine == nil {
 		return nil
 	}
 	start := int(row.lineStart)
@@ -584,7 +588,13 @@ func (paint *codePaint) lineRuns(row codeRow) []CodeEditorRun {
 	if len(line) > CodeEditorMaxHighlightedLine {
 		return nil
 	}
-	kept := cleanHighlight(line, paint.highlight(paint.language, line, editor.lineRuns[:0]))
+	var highlighted []CodeEditorRun
+	if paint.highlightLine != nil {
+		highlighted = paint.highlightLine(paint.language, int(row.line), line, editor.lineRuns[:0])
+	} else {
+		highlighted = paint.highlight(paint.language, line, editor.lineRuns[:0])
+	}
+	kept := cleanHighlight(line, highlighted)
 	editor.lineRuns = kept
 	return kept
 }
