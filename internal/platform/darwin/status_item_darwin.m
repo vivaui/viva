@@ -71,7 +71,6 @@ static NSImage *viva_status_image(viva_status_icon icon) {
 @interface VivaStatusItem : NSObject <NSMenuDelegate> {
     NSStatusItem *_item;
     uintptr_t _callbackHandle;
-    BOOL _hasMenu;
     NSMenu *_menu;
 }
 - (instancetype)initWithTooltip:(NSString *)tooltip icon:(viva_status_icon)icon callbackHandle:(uintptr_t)callbackHandle hasMenu:(BOOL)hasMenu;
@@ -95,11 +94,10 @@ static NSImage *viva_status_image(viva_status_icon icon) {
         return nil;
     }
     _callbackHandle = callbackHandle;
-    _hasMenu = hasMenu;
     _item = [[[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength] retain];
     _item.button.image = image;
     _item.button.toolTip = tooltip;
-    if (_hasMenu) {
+    if (hasMenu) {
         _menu = [[NSMenu alloc] initWithTitle:@""];
         _menu.autoenablesItems = NO;
         _menu.delegate = self;

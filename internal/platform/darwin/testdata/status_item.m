@@ -13,6 +13,7 @@ void viva_install_status_hooks(void (*remove)(void *item), void (*clear)(void)) 
 
 static int last_chosen_id = 0;
 static int update_menu_called = 0;
+static void *update_menu_item = NULL;
 
 void vivaStatusItemClicked(uintptr_t callbackHandle, int button, float x, float y, float width, float height, int panelDismissed) {
     (void)callbackHandle; (void)button; (void)x; (void)y; (void)width; (void)height; (void)panelDismissed;
@@ -21,6 +22,13 @@ void vivaStatusItemClicked(uintptr_t callbackHandle, int button, float x, float 
 void vivaStatusItemUpdateMenu(uintptr_t callbackHandle) {
     (void)callbackHandle;
     update_menu_called++;
+    /* The second open must ask the application again, not reuse the first list. */
+    if (update_menu_called == 2 && update_menu_item != NULL) {
+        viva_menu_entry refreshed[] = {
+            {"Refreshed Item", 201, 0, 0, 0},
+        };
+        viva_status_item_set_menu_entries(update_menu_item, refreshed, 1);
+    }
 }
 
 void vivaStatusItemMenuChosen(uintptr_t callbackHandle, int id) {
@@ -52,6 +60,7 @@ int main(void) {
         // 1. Create status item with Menu
         void *item = viva_status_item_create("Test Tooltip", icon, 1234, 1);
         check(item != NULL, "item created");
+        update_menu_item = item;
 
         NSStatusItem *statusItem = [(id)item valueForKey:@"_item"];
         check(statusItem != nil, "NSStatusItem exists");
@@ -94,7 +103,18 @@ int main(void) {
         #pragma clang diagnostic pop
         check(last_chosen_id == 105, "menuChosen reported Quit Item tag 105");
 
-        // 5. Create status item without Menu (OnClick only)
+        // 5. Opening the menu again asks for fresh entries instead of reusing
+        // the first list.
+        [menu.delegate menuNeedsUpdate:menu];
+        check(update_menu_called == 2, "menuNeedsUpdate asked again");
+        check(menu.numberOfItems == 1 && [[menu itemAtIndex:0].title isEqualToString:@"Refreshed Item"],
+              "the menu refreshed from the delegate");
+
+        // 6. An empty answer clears the menu rather than leaving stale items.
+        viva_status_item_set_menu_entries(item, NULL, 0);
+        check(menu.numberOfItems == 0, "an empty update clears the menu");
+
+        // 7. Create status item without Menu (OnClick only)
         void *clickItem = viva_status_item_create("Click Item", icon, 5678, 0);
         check(clickItem != NULL, "clickItem created");
         NSStatusItem *clickStatusItem = [(id)clickItem valueForKey:@"_item"];
@@ -102,7 +122,7 @@ int main(void) {
         check(clickStatusItem.menu == nil, "clickStatusItem has no menu");
         check(clickStatusItem.button.target == (id)clickItem, "button target is clickItem");
 
-        // 6. Clean up
+        // 8. Clean up
         if (status_clear_hook) {
             status_clear_hook();
         }
