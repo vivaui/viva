@@ -23,6 +23,8 @@ can run its programs.
   file drops, and the rest of the native surface.
 - [diagnostics.md](diagnostics.md) — the structured event stream, its slog
   adapters, the recent-event ring and fault context.
+- [updating.md](updating.md) — the signed feed, the client API, and what each
+  platform's installer replaces.
 - [initial-frame.md](initial-frame.md) — what the first frame does and does not
   do.
 - [issue-commands.md](issue-commands.md) — the `/claim`, `/unclaim` and `/close`

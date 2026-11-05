@@ -156,6 +156,11 @@ WebView and no bundled rendering runtime.
   startup measurements), adapts both ways to `log/slog`, and can keep a ring of
   recent events and fault context; nothing is written or sent unless the
   application installs a handler. See [docs/diagnostics.md](docs/diagnostics.md).
+- Signed application updates: the opt-in `update` package reads an
+  Ed25519-signed feed, downloads the archive the feed lists, verifies its length
+  and SHA-256, and hands it to the platform's installer (a `.app` swap on macOS,
+  the NSIS installer on Windows, an executable swap on Linux); `viva feed` signs
+  a feed from the archives `viva package` wrote. See [docs/updating.md](docs/updating.md).
 - Clean event-loop return on window close or application termination.
 - Reproducible binary, startup, CPU, memory, and GPU-submission measurement.
 
