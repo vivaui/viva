@@ -60,6 +60,9 @@
 //   - Button: `BeginButton` paints a labeled control with Default, Secondary,
 //     Outline, and Ghost variants; hover, press, and focus states, metrics-
 //     scaled geometry, and the hit declaration are built in.
+//   - Icon hover: `IconHover` plays one short gesture after an icon-only
+//     control's pointer rests, and `Button.IconTransform` paints the resulting
+//     transform inside the button's hit region.
 //   - Button row: `BeginButtonRow` lays small buttons out against the right
 //     edge of a footer, each as wide as its label, shrinking together when
 //     they do not fit.

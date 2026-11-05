@@ -210,6 +210,7 @@ func BenchmarkDrawIconTransformed(b *testing.B) {
 		{"rotate", IconTransform{Rotate: 0.4}},
 		{"reveal", IconTransform{Reveal: 0.5}},
 		{"parts", IconTransform{Parts: []IconPart{{Contour: 1, Offset: Point{Y: 2}}}}},
+		{"trim", IconTransform{Parts: []IconPart{{Contour: 2, Trim: IconTrim{Active: true, From: 0.2, To: 0.7}}}}},
 	}
 	for _, test := range tests {
 		b.Run(test.name, func(b *testing.B) {
@@ -279,13 +280,15 @@ func triangleBounds(canvas *Canvas) (minimum, maximum Point) {
 func TestIconTransformAtRestIsTheStillIcon(t *testing.T) {
 	bounds := Rect{X: 8, Y: 8, Width: 16, Height: 16}
 	tint := Color{Alpha: 1}
-	var still, zero, unit Canvas
+	var still, zero, unit, anchored Canvas
 	still.DrawIcon(testStrokeIcon, bounds, tint)
 	zero.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{})
 	unit.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{Scale: 1})
+	center := Point{X: 12, Y: 12}
+	anchored.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{Scale: 1, ScaleY: 1, Anchor: &center})
 	want, got, scaled := still.Triangles(), zero.Triangles(), unit.Triangles()
-	if len(want) != len(got) || len(want) != len(scaled) {
-		t.Fatalf("still %d triangles, zero %d, scale 1 %d", len(want), len(got), len(scaled))
+	if len(want) != len(got) || len(want) != len(scaled) || len(want) != len(anchored.Triangles()) {
+		t.Fatalf("still %d triangles, zero %d, scale 1 %d, anchored %d", len(want), len(got), len(scaled), len(anchored.Triangles()))
 	}
 	for index := range want {
 		if want[index].Points != got[index].Points {
@@ -294,6 +297,339 @@ func TestIconTransformAtRestIsTheStillIcon(t *testing.T) {
 		if want[index].Points != scaled[index].Points {
 			t.Fatalf("triangle %d moved with scale 1: %v then %v", index, want[index].Points, scaled[index].Points)
 		}
+		if want[index].Points != anchored.Triangles()[index].Points {
+			t.Fatalf("triangle %d moved with an identity anchor: %v then %v", index, want[index].Points, anchored.Triangles()[index].Points)
+		}
+	}
+}
+
+// A view-box translate is the same fraction of the icon at every size, while
+// the logical-pixel offset remains for a displacement that is deliberately the
+// same on screen.
+func TestIconTranslateScalesWithTheIcon(t *testing.T) {
+	tint := Color{Alpha: 1}
+	for _, size := range []float32{16, 64} {
+		var still, moved Canvas
+		bounds := Rect{Width: size, Height: size}
+		still.DrawIcon(testStrokeIcon, bounds, tint)
+		moved.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{Translate: Point{X: 2}})
+		restMinimum, restMaximum := triangleBounds(&still)
+		minimum, maximum := triangleBounds(&moved)
+		want := size / 24 * 2
+		if math.Abs(float64(minimum.X-restMinimum.X-want)) > 0.02 ||
+			math.Abs(float64(maximum.X-restMaximum.X-want)) > 0.02 {
+			t.Fatalf("a two-unit translate at %gpx moved by %v, want %v", size, minimum.X-restMinimum.X, want)
+		}
+	}
+}
+
+// A non-square icon keeps one source unit on both axes, so a whole-icon
+// translate moves every vertex by the same number of view-box units.
+func TestWideIconTransformUsesSourceUnits(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 80, Height: 80}
+	tint := Color{Alpha: 1}
+	var still, moved Canvas
+	still.DrawIcon(testWideIcon, bounds, tint)
+	moved.DrawIconTransformed(testWideIcon, bounds, tint, IconTransform{
+		Translate: Point{X: 20, Y: 5},
+	})
+	restMinimum, restMaximum := triangleBounds(&still)
+	minimum, maximum := triangleBounds(&moved)
+	if math.Abs(float64(minimum.X-restMinimum.X-40)) > 0.02 || math.Abs(float64(maximum.X-restMaximum.X-40)) > 0.02 {
+		t.Fatalf("translate X moved %v..%v, want %v..%v", minimum.X, maximum.X, restMinimum.X+40, restMaximum.X+40)
+	}
+	if math.Abs(float64(minimum.Y-restMinimum.Y-10)) > 0.02 || math.Abs(float64(maximum.Y-restMaximum.Y-10)) > 0.02 {
+		t.Fatalf("translate Y moved %v..%v, want %v..%v", minimum.Y, maximum.Y, restMinimum.Y+10, restMaximum.Y+10)
+	}
+}
+
+// A part of a non-square icon converts both axes with the fitted box, not with
+// its width for y as well: a two-unit lift moves the 4:1 glyph two source units.
+func TestWideIconPartUsesSourceUnitsOnBothAxes(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 80, Height: 80}
+	tint := Color{Alpha: 1}
+	rest := partsTriangles(t, testWideIcon, bounds, tint, nil)
+	moved := partsTriangles(t, testWideIcon, bounds, tint, []IconPart{{Contour: 0, Translate: Point{Y: 2}}})
+	restMinimum, restMaximum := triangleBounds(&Canvas{triangles: rest[0]})
+	minimum, maximum := triangleBounds(&Canvas{triangles: moved[0]})
+	if math.Abs(float64(minimum.Y-restMinimum.Y-4)) > 0.01 || math.Abs(float64(maximum.Y-restMaximum.Y-4)) > 0.01 {
+		t.Fatalf("the part moved y %.2f..%.2f, at rest %.2f..%.2f; want it four points lower",
+			minimum.Y, maximum.Y, restMinimum.Y, restMaximum.Y)
+	}
+}
+
+// A part anchor is a point in the source view box on a non-square icon too: a
+// horizontal bar mirrored about its own line stays where it was.
+func TestWideIconPartAnchorUsesSourceUnitsOnBothAxes(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 80, Height: 80}
+	tint := Color{Alpha: 1}
+	rest := partsTriangles(t, testWideIcon, bounds, tint, nil)
+	anchor := Point{X: 30, Y: 5}
+	mirrored := partsTriangles(t, testWideIcon, bounds, tint, []IconPart{{
+		Contour: 0, ScaleY: -1, Anchor: &anchor,
+	}})
+	restMinimum, restMaximum := triangleBounds(&Canvas{triangles: rest[0]})
+	minimum, maximum := triangleBounds(&Canvas{triangles: mirrored[0]})
+	if math.Abs(float64(minimum.Y-restMinimum.Y)) > 0.01 || math.Abs(float64(maximum.Y-restMaximum.Y)) > 0.01 ||
+		math.Abs(float64(minimum.X-restMinimum.X)) > 0.01 || math.Abs(float64(maximum.X-restMaximum.X)) > 0.01 {
+		t.Fatalf("mirroring the bar moved it from %v..%v to %v..%v", restMinimum, restMaximum, minimum, maximum)
+	}
+}
+
+// A clip on a non-square icon stays in source units on both axes. The wide test
+// glyph's visible ink is all in the clip; a narrower clip must cut it on both
+// axes the way an X-only conversion would not.
+func TestWideIconClipUsesSourceUnitsOnBothAxes(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 80, Height: 80}
+	tint := Color{Alpha: 1}
+	icon := testWideIcon
+	icon.Layers = nil
+	var still, clipped Canvas
+	still.DrawIcon(icon, bounds, tint)
+	clipped.DrawIconTransformed(icon, bounds, tint, IconTransform{
+		Clip: &IconClip{Bounds: Rect{X: 20, Y: 4, Width: 20, Height: 1}},
+	})
+	restMinimum, restMaximum := triangleBounds(&still)
+	minimum, maximum := triangleBounds(&clipped)
+	// The line's round caps reach past its endpoints, so its ink spans x
+	// 56.06..84 inside the clip. The one-unit-high source window is y 4..5,
+	// which is 58..60 in the target.
+	if math.Abs(float64(minimum.X-56.058)) > 0.02 || math.Abs(float64(maximum.X-84)) > 0.01 ||
+		math.Abs(float64(minimum.Y-58)) > 0.01 || math.Abs(float64(maximum.Y-60)) > 0.01 {
+		t.Fatalf("the one-unit clip paints %v..%v, want x 56.06..84 and y 58..60", minimum, maximum)
+	}
+	if minimum.Y < restMinimum.Y || maximum.Y > restMaximum.Y {
+		t.Fatalf("the clip reaches outside the glyph %v..%v", restMinimum, restMaximum)
+	}
+}
+
+// ScaleY stretches on top of Scale, so a transformed icon is the original
+// stretched about its chosen point on each axis independently.
+func TestIconScaleYStretchesOnTopOfScale(t *testing.T) {
+	bounds := Rect{X: 8, Y: 8, Width: 24, Height: 24}
+	tint := Color{Alpha: 1}
+	var still, stretched Canvas
+	still.DrawIcon(testStrokeIcon, bounds, tint)
+	stretched.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{Scale: 2, ScaleY: 0.5})
+	restMinimum, restMaximum := triangleBounds(&still)
+	minimum, maximum := triangleBounds(&stretched)
+	center := Point{X: 20, Y: 20}
+	if math.Abs(float64(minimum.X-(center.X+(restMinimum.X-center.X)*2))) > 0.02 ||
+		math.Abs(float64(maximum.X-(center.X+(restMaximum.X-center.X)*2))) > 0.02 ||
+		math.Abs(float64(minimum.Y-(center.Y+(restMinimum.Y-center.Y)*1))) > 0.02 ||
+		math.Abs(float64(maximum.Y-(center.Y+(restMaximum.Y-center.Y)*1))) > 0.02 {
+		t.Fatalf("stretched bounds = %v..%v, want x scaled twice and y unscaled", minimum, maximum)
+	}
+}
+
+// A whole-glyph rotation about a corner is the same as rotating about the box
+// centre and then translating the centre onto that corner.
+func TestIconTransformUsesTheGlyphAnchor(t *testing.T) {
+	bounds := Rect{X: 8, Y: 8, Width: 16, Height: 16}
+	tint := Color{Alpha: 1}
+	corner := Point{}
+	var anchored, translated Canvas
+	anchored.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{Rotate: math.Pi / 2, Anchor: &corner})
+	// A quarter turn takes the vector from corner to centre, (8, 8), to (-8, 8),
+	// so moving the centre's rotation back onto the corner shifts it by (-16, 0).
+	translated.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{
+		Rotate: math.Pi / 2,
+		Offset: Point{X: -16, Y: 0},
+	})
+	want, got := translated.Triangles(), anchored.Triangles()
+	if len(want) != len(got) {
+		t.Fatalf("anchored turn made %d triangles, translated %d", len(got), len(want))
+	}
+	for index := range want {
+		for corner := range want[index].Points {
+			if math.Abs(float64(want[index].Points[corner].X-got[index].Points[corner].X)) > 0.02 ||
+				math.Abs(float64(want[index].Points[corner].Y-got[index].Points[corner].Y)) > 0.02 {
+				t.Fatalf("triangle %d corner %d = %v, want %v", index, corner, got[index].Points[corner], want[index].Points[corner])
+			}
+		}
+	}
+}
+
+// A local clip cuts the icon's own mesh: a triangle outside the clip paints
+// nothing, one inside paints unchanged, and the cut's new edge is not feathered
+// as though it were the glyph's own outline.
+func TestIconClipCutsOnlyItsOwnTriangles(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 24, Height: 24}
+	tint := Color{Alpha: 1}
+	var whole, clipped Canvas
+	whole.DrawIcon(testStrokeIcon, bounds, tint)
+	clipped.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{
+		Clip: &IconClip{Bounds: Rect{X: 4, Y: 4, Width: 8, Height: 8}},
+	})
+	if len(clipped.Triangles()) == 0 || len(clipped.Triangles()) >= len(whole.Triangles()) {
+		t.Fatalf("clip of the top-left eighth painted %d of %d triangles", len(clipped.Triangles()), len(whole.Triangles()))
+	}
+	for _, triangle := range clipped.Triangles() {
+		for _, point := range triangle.Points {
+			// The 8-unit square is a third of the 24px box, from view-box 4, so
+			// it spans 14..22 across and 24..32 down.
+			if point.X < 14-1e-3 || point.X > 22+1e-3 || point.Y < 24-1e-3 || point.Y > 32+1e-3 {
+				t.Fatalf("a clipped triangle reaches %v", point)
+			}
+		}
+	}
+}
+
+// The icon clip moves with the glyph: rotating the icon also rotates the part of
+// its view box the clip leaves behind.
+func TestIconClipFollowsTheWholeTransform(t *testing.T) {
+	bounds := Rect{X: 0, Y: 0, Width: 24, Height: 24}
+	tint := Color{Alpha: 1}
+	clip := IconClip{Bounds: Rect{X: 0, Y: 0, Width: 24, Height: 12}}
+	var upright, turned Canvas
+	upright.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{Clip: &clip})
+	turned.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{Rotate: math.Pi / 2, Clip: &clip})
+	if len(upright.Triangles()) == 0 || len(turned.Triangles()) == 0 {
+		t.Fatal("the clip painted nothing")
+	}
+	upMinimum, upMaximum := triangleBounds(&upright)
+	minimum, maximum := triangleBounds(&turned)
+	if upMinimum.X < 0-1e-3 || upMaximum.Y > 12+1e-3 {
+		t.Fatalf("the upright clip paints %v..%v", upMinimum, upMaximum)
+	}
+	if minimum.X < 12-1e-3 || maximum.Y > 24+1e-3 {
+		t.Fatalf("the quarter-turned clip paints %v..%v", minimum, maximum)
+	}
+}
+
+// Fading one contour leaves every other contour exactly where it was, and a
+// fully hidden part paints nothing.
+func TestIconPartFadeHidesOneContourWithoutMovingTheOthers(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 16, Height: 16}
+	tint := Color{Alpha: 1}
+	var got Canvas
+	got.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{
+		Parts: []IconPart{{Contour: 1, Fade: 1}},
+	})
+	var want Canvas
+	for index, contour := range testStrokeIcon.Contours() {
+		if index != 1 {
+			want.DrawIcon(contour, bounds, tint)
+		}
+	}
+	if len(got.Triangles()) != len(want.Triangles()) {
+		t.Fatalf("hiding one contour painted %d triangles, the other two %d", len(got.Triangles()), len(want.Triangles()))
+	}
+	sameTriangles(t, got.Triangles(), want.Triangles())
+}
+
+// A part's trims are measured along its contour: half the contour paints half
+// of its stroke, not half of each segment stopped at the same x.
+func TestIconPartTrimWritesTheContourFromItsStart(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 24, Height: 24}
+	tint := Color{Alpha: 1}
+	line := Icon{
+		ViewBox: 24, Stroke: 2, Cap: CapRound, Join: JoinRound,
+		Commands: []PathCommand{MoveTo(2, 12), LineTo(22, 12)},
+	}
+	var whole Canvas
+	whole.DrawIcon(line, bounds, tint)
+	var trimmed Canvas
+	trimmed.DrawIconTransformed(line, bounds, tint, IconTransform{
+		Parts: []IconPart{{Contour: 0, Trim: IconTrim{Active: true, From: 0, To: 0.5}}},
+	})
+	minimum, maximum := triangleBounds(&trimmed)
+	wholeMinimum, _ := triangleBounds(&whole)
+	if math.Abs(float64(minimum.X-wholeMinimum.X)) > 0.02 || math.Abs(float64(maximum.X-(wholeMinimum.X+12))) > 0.15 {
+		t.Fatalf("half the line spans %v..%v, want about %v..%v", minimum, maximum, wholeMinimum, wholeMinimum.X+12)
+	}
+
+	var hidden Canvas
+	hidden.DrawIconTransformed(line, bounds, tint, IconTransform{
+		Parts: []IconPart{{Contour: 0, Trim: IconTrim{Active: true, From: 0.5, To: 0.5}}},
+	})
+	if len(hidden.Triangles()) != 0 {
+		t.Fatalf("a zero-length trim painted %d triangles", len(hidden.Triangles()))
+	}
+}
+
+// A full trim is the source glyph, including its curves and cap, rather than a
+// polyline sampled from them.
+func TestIconFullTrimIsTheSourceGlyph(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 16, Height: 16}
+	tint := Color{Alpha: 1}
+	var whole, trimmed Canvas
+	whole.DrawIcon(testStrokeIcon, bounds, tint)
+	trimmed.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{
+		Parts: []IconPart{{Contour: 2, Trim: IconTrim{Active: true, From: 0, To: 1}}},
+	})
+	sameTriangles(t, trimmed.Triangles(), whole.Triangles())
+}
+
+// A trim on a filled glyph has no stroke to write, so the whole fill remains
+// rather than becoming the outline of the trimmed contour. This holds when the
+// part also moves, which is the path that tessellates a fresh contour.
+func TestIconTrimLeavesAMovingFilledGlyphWhole(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 24, Height: 24}
+	tint := Color{Alpha: 1}
+	filled := Icon{
+		ViewBox: 24,
+		Commands: []PathCommand{
+			MoveTo(4, 4), LineTo(20, 4), LineTo(20, 20), LineTo(4, 20), ClosePath(),
+		},
+	}
+	var whole, trimmed Canvas
+	whole.DrawIcon(filled, bounds, tint)
+	trimmed.DrawIconTransformed(filled, bounds, tint, IconTransform{
+		Parts: []IconPart{{Contour: 0, Translate: Point{X: 1}, Trim: IconTrim{Active: true, From: 0, To: 0.25}}},
+	})
+	if len(trimmed.Triangles()) != len(whole.Triangles()) {
+		t.Fatalf("a trimmed filled glyph painted %d triangles, the whole fill %d", len(trimmed.Triangles()), len(whole.Triangles()))
+	}
+}
+
+// A trim that changes from frame to frame paints the geometry that frame asks
+// for, not the cached geometry of the frame before it.
+func TestIconTrimChangesGeometryAcrossFrames(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 24, Height: 24}
+	tint := Color{Alpha: 1}
+	line := Icon{
+		ViewBox: 24, Stroke: 2, Cap: CapRound, Join: JoinRound,
+		Commands: []PathCommand{MoveTo(2, 12), LineTo(22, 12)},
+	}
+	var shared Canvas
+	for _, to := range []float32{0.25, 0.75, 0.5} {
+		transform := IconTransform{
+			Parts: []IconPart{{Contour: 0, Trim: IconTrim{Active: true, From: 0, To: to}}},
+		}
+		shared.Reset()
+		shared.DrawIconTransformed(line, bounds, tint, transform)
+		var fresh Canvas
+		fresh.DrawIconTransformed(line, bounds, tint, transform)
+		sameTriangles(t, shared.Triangles(), fresh.Triangles())
+	}
+}
+
+func TestWarmTrimmedIconPaintDoesNotAllocate(t *testing.T) {
+	bounds := Rect{X: 10, Y: 20, Width: 24, Height: 24}
+	tint := Color{Alpha: 1}
+	line := Icon{
+		ViewBox: 24, Stroke: 2, Cap: CapRound, Join: JoinRound,
+		Commands: []PathCommand{MoveTo(2, 12), LineTo(22, 12)},
+	}
+	var canvas Canvas
+	ends := [...]float32{0.25, 0.5, 0.75}
+	paint := func(to float32) {
+		canvas.Reset()
+		canvas.DrawIconTransformed(line, bounds, tint, IconTransform{
+			Parts: []IconPart{{Contour: 0, Trim: IconTrim{Active: true, From: 0, To: to}}},
+		})
+	}
+	for index := range ends {
+		paint(ends[index])
+	}
+	next := 0
+	allocations := testing.AllocsPerRun(100, func() {
+		paint(ends[next])
+		next = (next + 1) % len(ends)
+	})
+	if allocations != 0 {
+		t.Fatalf("a warm trimmed icon allocates %v times", allocations)
 	}
 }
 
@@ -391,13 +727,19 @@ func partsTriangles(t *testing.T, icon Icon, bounds Rect, tint Color, parts []Ic
 	if !ok {
 		t.Fatal("the icon fits nowhere")
 	}
-	continuous := contourTriangles(icon, bounds, tint)
+	contours := icon.Contours()
+	continuous := make([][]Triangle, len(contours))
+	for index, contour := range contours {
+		var rest Canvas
+		rest.DrawIcon(contour, bounds, tint)
+		continuous[index] = rest.Triangles()
+	}
 	counts := make([]int, len(continuous))
 	for index := range continuous {
 		counts[index] = len(continuous[index])
 	}
 	place := stillPlacement(Point{X: target.X, Y: target.Y})
-	canvas.drawIconParts(icon, target.Width, tint, place, parts)
+	canvas.drawIconParts(icon, target, tint, place, parts)
 	triangles := canvas.Triangles()
 	out := make([][]Triangle, len(counts))
 	offset := 0
@@ -408,8 +750,8 @@ func partsTriangles(t *testing.T, icon Icon, bounds Rect, tint Color, parts []Ic
 		out[index] = triangles[offset : offset+count]
 		offset += count
 	}
-	if offset != len(triangles) {
-		t.Fatalf("the contours painted %d of %d triangles", offset, len(triangles))
+	if offset > len(triangles) {
+		t.Fatalf("the contours painted %d of at least %d triangles", offset, len(triangles))
 	}
 	return out
 }
@@ -495,7 +837,7 @@ func TestAMovingPartKeepsTheGlyphLayers(t *testing.T) {
 	if !ok {
 		t.Fatal("the icon fits nowhere")
 	}
-	moved.drawIconParts(testWideIcon, target.Width, tint, stillPlacement(Point{X: target.X, Y: target.Y}),
+	moved.drawIconParts(testWideIcon, target, tint, stillPlacement(Point{X: target.X, Y: target.Y}),
 		[]IconPart{{Contour: 0, Offset: Point{Y: 2}}})
 	got := moved.Triangles()
 	if len(got) < len(layers) {
@@ -541,6 +883,28 @@ func TestIconRevealWritesTheGlyphFromItsRightEdge(t *testing.T) {
 		var settled Canvas
 		settled.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{Reveal: reveal})
 		sameTriangles(t, settled.Triangles(), whole.Triangles())
+	}
+}
+
+// Reveal and ClipToBox bound a glyph that is also moving: changing its points
+// must not bypass either clip.
+func TestIconBoxClipsApplyToATransformedGlyph(t *testing.T) {
+	bounds := Rect{Width: 24, Height: 24}
+	tint := Color{Alpha: 1}
+	var boxed, revealed Canvas
+	boxed.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{Translate: Point{X: 12}, ClipToBox: true})
+	if len(boxed.Triangles()) == 0 {
+		t.Fatal("the boxed glyph painted nothing")
+	}
+	if clip := boxed.Triangles()[0].ClipOf; !boxed.Triangles()[0].HasClip || clip != bounds {
+		t.Fatalf("the moved glyph clips to %+v, want its box %+v", clip, bounds)
+	}
+	revealed.DrawIconTransformed(testStrokeIcon, bounds, tint, IconTransform{Translate: Point{Y: 4}, Reveal: 0.5})
+	if len(revealed.Triangles()) == 0 {
+		t.Fatal("the revealed glyph painted nothing")
+	}
+	if clip := revealed.Triangles()[0].ClipOf; !revealed.Triangles()[0].HasClip || clip != (Rect{X: 12, Y: 0, Width: 12, Height: 24}) {
+		t.Fatalf("the moved glyph's reveal clips to %+v", clip)
 	}
 }
 

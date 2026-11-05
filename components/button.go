@@ -46,15 +46,19 @@ type ButtonState struct {
 
 // Button is one allocation-free in-flight button declaration.
 type Button struct {
-	canvas   *ui.Canvas
-	theme    ui.Theme
-	id       ui.ID
-	bounds   ui.Rect
-	state    ButtonState
-	size     ButtonSize
-	icon     ui.Icon
-	height   float32
-	disabled bool
+	canvas *ui.Canvas
+	theme  ui.Theme
+	id     ui.ID
+	bounds ui.Rect
+	state  ButtonState
+	size   ButtonSize
+	icon   ui.Icon
+	// iconTransform moves the icon inside its square. A caller sets it through
+	// IconTransform, usually from IconHover.Progress, and the button does not
+	// infer a motion of its own.
+	iconTransform ui.IconTransform
+	height        float32
+	disabled      bool
 }
 
 // BeginButton starts a button declaration. Hit ID zero paints a static preview
@@ -79,6 +83,14 @@ func (button Button) WithState(state ButtonState) Button {
 // visually and retained as the accessible name and hover hint.
 func (button Button) WithIcon(icon ui.Icon) Button {
 	button.icon = icon
+	return button
+}
+
+// IconTransform moves the button's vector icon inside its box without moving
+// the button, its label or its hit region. It is how an icon-only control plays
+// the short motion a hover asks for; a zero transform paints the still icon.
+func (button Button) IconTransform(transform ui.IconTransform) Button {
+	button.iconTransform = transform
 	return button
 }
 
@@ -360,7 +372,12 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 		}
 		x := button.bounds.X + (button.bounds.Width-width)/2
 		if size > 0 {
-			button.canvas.DrawIcon(button.icon, ui.Rect{X: x, Y: button.bounds.Y + (height-size)/2, Width: size, Height: size}, style.foreground)
+			button.canvas.DrawIconTransformed(
+				button.icon,
+				ui.Rect{X: x, Y: button.bounds.Y + (height-size)/2, Width: size, Height: size},
+				style.foreground,
+				button.iconTransform,
+			)
 		}
 		if iconOnly {
 			hint = label

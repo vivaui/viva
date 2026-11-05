@@ -100,6 +100,18 @@ type IconTransform struct {
 	// Scale grows the glyph, stroke included, about the center of its box. Zero
 	// is 1; a negative value mirrors it.
 	Scale float32
+	// ScaleY stretches the glyph vertically on top of Scale, about the same
+	// point. Zero is 1, so a transform that sets only Scale stays uniform; a
+	// negative value mirrors it.
+	ScaleY float32
+	// Anchor is the point of the glyph Scale, ScaleY and Rotate act about, in
+	// view-box units. Nil is the centre of the icon's box.
+	Anchor *Point
+	// Translate moves the icon after it is scaled and turned, in view-box units:
+	// one is one unit of the source glyph. Offset in logical pixels is added
+	// after it. A view-box offset keeps a gesture's proportion when the same
+	// icon is painted at another size.
+	Translate Point
 	// Offset moves the icon in logical pixels after the rotation and scale: x to
 	// the right and y down.
 	Offset Point
@@ -121,6 +133,42 @@ type IconTransform struct {
 	// The cut is made at the icon's box, on whole device pixels, so a glyph that
 	// turns or grows out of that box is clipped with it.
 	Reveal float32
+	// ClipToBox clips the painted glyph to the box it was laid out in, on whole
+	// device pixels. A part that moves outside the box disappears at its edge
+	// instead of painting over its neighbours.
+	ClipToBox bool
+	// Clip clips the painted glyph to a convex shape in the icon's view box. The
+	// shape moves, turns and scales with the whole glyph, not with a part that
+	// moves inside it. Nil paints the whole glyph.
+	Clip *IconClip
+}
+
+// IconClip is a convex clip shape in an icon's view-box units: a rounded
+// rectangle, or a circle when Radius reaches half the shorter side. It is
+// rasterized by cutting the icon's triangles before they reach the canvas, so
+// it needs no renderer mask or extra draw state.
+type IconClip struct {
+	Bounds Rect
+	// Radius rounds the rectangle's corners. Zero leaves square corners.
+	Radius float32
+}
+
+// iconUnits is the canvas size of one view-box unit along each axis. A glyph
+// keeps its source aspect ratio, so an icon painted into a target has one scale
+// per axis; keeping the axes separate makes every placement use the same
+// conversion as the path it moves.
+type iconUnits struct {
+	x, y float32
+}
+
+// unitsAt is the view-box to canvas scale for an icon painted into target.
+func iconUnitsAt(icon Icon, target Rect) iconUnits {
+	return iconUnits{x: target.Width / icon.ViewBox, y: target.Height / icon.height()}
+}
+
+// point places a point given in view-box units into the tessellation.
+func (units iconUnits) point(point Point) Point {
+	return Point{X: point.X * units.x, Y: point.Y * units.y}
 }
 
 // IconPart moves one contour of an icon on its own. Contours are numbered in
@@ -145,6 +193,12 @@ type IconPart struct {
 	// point. Zero is 1 and a negative value mirrors it: passing through zero is
 	// the halfway point of a page turning over, or of a meridian crossing a globe.
 	ScaleX float32
+	// ScaleY stretches the part vertically, on top of Scale, about the same
+	// point. Zero is 1 and a negative value mirrors it.
+	ScaleY float32
+	// Translate moves the part after its scale, in view-box units, and then
+	// Offset moves it in logical pixels.
+	Translate Point
 	// Offset moves the part in logical pixels: x to the right and y down.
 	Offset Point
 	// Anchor is the point of the glyph a part turns and scales about, in the
@@ -152,17 +206,58 @@ type IconPart struct {
 	// so a part turned in place stays put; an anchor is how a page turns over a
 	// book's spine rather than twisting around itself.
 	Anchor *Point
+	// Fade makes the part transparent: zero paints it at the icon's tint, one
+	// leaves nothing. It affects the stroked contours; a filled Layer has no
+	// contour to fade on its own.
+	Fade float32
+	// Trim writes part of the contour on. Its range is measured along the
+	// contour, including a closing segment, and every part trims its own
+	// contour. Filled icons have no stroke to trim.
+	Trim IconTrim
+}
+
+// IconTrim is the visible fraction of one stroked contour, measured from its
+// start. Active is the opt-in, so the zero IconTrim leaves the contour whole.
+// From and To are clamped to [0, 1]; From greater than To is swapped. The full
+// range paints the source commands unchanged.
+type IconTrim struct {
+	Active   bool
+	From, To float32
+}
+
+// rangeValues is the trim's visible interval with its ends in order and
+// clamped to the contour.
+func (trim IconTrim) rangeValues() (from, to float32) {
+	from, to = min(max(trim.From, 0), 1), min(max(trim.To, 0), 1)
+	if from > to {
+		from, to = to, from
+	}
+	return from, to
 }
 
 // moves reports whether the part changes the painted contour.
 func (part IconPart) moves() bool {
-	return part.Rotate != 0 || part.Offset != (Point{}) || part.stretches() ||
-		part.Scale != 0 && part.Scale != 1
+	return part.Rotate != 0 || part.Translate != (Point{}) || part.Offset != (Point{}) ||
+		part.stretches() || part.Scale != 0 && part.Scale != 1 || part.fades() || part.trims()
 }
 
-// stretches reports whether the part scales horizontally away from one.
+// stretches reports whether the part scales away from one on either axis.
 func (part IconPart) stretches() bool {
-	return part.ScaleX != 0 && part.ScaleX != 1
+	return part.ScaleX != 0 && part.ScaleX != 1 || part.ScaleY != 0 && part.ScaleY != 1
+}
+
+// fades reports whether the part is less opaque than its glyph.
+func (part IconPart) fades() bool {
+	return part.Fade > 0
+}
+
+// trims reports whether the part paints less than its whole contour.
+func (part IconPart) trims() bool {
+	if !part.Trim.Active {
+		return false
+	}
+	from, to := part.Trim.rangeValues()
+	return from > 0 || to < 1
 }
 
 // Contours splits the icon into one icon per contour of its commands, in
@@ -215,14 +310,32 @@ func (icon Icon) paints(tint Color) bool {
 
 // moves reports whether the transform changes the painted icon.
 func (transform IconTransform) moves() bool {
-	return transform.Rotate != 0 || transform.Offset != (Point{}) || transform.Scale != 0 && transform.Scale != 1 ||
-		transform.partsMove() || transform.reveals()
+	return transform.Rotate != 0 || transform.Translate != (Point{}) || transform.Offset != (Point{}) ||
+		transform.Scale != 0 && transform.Scale != 1 || transform.scaleY() != 1 ||
+		transform.Anchor != nil && (transform.Scale != 0 && transform.Scale != 1 || transform.scaleY() != 1 || transform.Rotate != 0) ||
+		transform.partsMove() || transform.reveals() || transform.ClipToBox || transform.Clip != nil
+}
+
+// geometry reports whether the transform changes the glyph's points. A
+// transform that only clips keeps the still tessellation and can replay the
+// paint cache.
+func (transform IconTransform) geometry() bool {
+	return transform.Rotate != 0 || transform.Translate != (Point{}) || transform.Offset != (Point{}) ||
+		transform.Scale != 0 && transform.Scale != 1 || transform.scaleY() != 1 || transform.partsMove()
 }
 
 // reveals reports whether the transform writes part of the glyph rather than all
 // of it. One is the whole glyph, which is what a motion ends on.
 func (transform IconTransform) reveals() bool {
 	return transform.Reveal > 0 && transform.Reveal < 1
+}
+
+// scaleY is the vertical stretch on top of Scale, with zero read as one.
+func (transform IconTransform) scaleY() float32 {
+	if transform.ScaleY == 0 {
+		return 1
+	}
+	return transform.ScaleY
 }
 
 // partsMove reports whether any listed contour moves on its own.
@@ -279,20 +392,55 @@ func (canvas *Canvas) DrawIconTransformed(icon Icon, bounds Rect, tint Color, tr
 		canvas.Clip(canvas.iconRevealClip(target, transform.Reveal))
 		defer canvas.Unclip()
 	}
+	if transform.ClipToBox {
+		canvas.Clip(target)
+		defer canvas.Unclip()
+	}
+	if !transform.geometry() {
+		canvas.drawIconClipped(icon, target, tint, transform)
+		return
+	}
 	scale := transform.Scale
 	if scale == 0 {
 		scale = 1
 	}
-	place := iconPlacementAt(
-		Point{X: target.Width * 0.5, Y: target.Width * icon.height() / icon.ViewBox * 0.5},
-		transform.Offset, transform.Rotate, scale,
-	)
+	if transform.ScaleY == 0 {
+		// ScaleY is a stretch on top of Scale; zero does not switch it off.
+		transform.ScaleY = 1
+	}
+	units := iconUnitsAt(icon, target)
+	center := Point{X: target.Width * 0.5, Y: target.Height * 0.5}
+	if transform.Anchor != nil {
+		center = units.point(*transform.Anchor)
+	}
+	offset := Point{
+		X: transform.Translate.X*units.x + transform.Offset.X,
+		Y: transform.Translate.Y*units.y + transform.Offset.Y,
+	}
+	place := iconPlacementAtSize(center, offset, transform.Rotate, scale, scale*transform.scaleY())
 	place.origin = Point{X: target.X, Y: target.Y}
+	var clip *iconClipShape
+	if transform.Clip != nil {
+		shape := iconClipShapeAt(*transform.Clip, units, place)
+		clip = &shape
+	}
 	if transform.partsMove() {
-		canvas.drawIconParts(icon, target.Width, tint, place, transform.Parts)
+		canvas.drawIconPartsClipped(icon, target, tint, place, transform.Parts, clip)
 		return
 	}
-	canvas.drawIconPlaced(icon, target.Width, tint, place)
+	canvas.drawIconPlacedClipped(icon, target.Width, tint, place, clip)
+}
+
+// drawIconClipped paints an unmoved icon through its local clip. The still glyph
+// can replay the paint cache for the unchanged triangles.
+func (canvas *Canvas) drawIconClipped(icon Icon, target Rect, tint Color, transform IconTransform) {
+	if transform.Clip == nil {
+		canvas.DrawIcon(icon, target, tint)
+		return
+	}
+	place := stillPlacement(Point{X: target.X, Y: target.Y})
+	clip := iconClipShapeAt(*transform.Clip, iconUnitsAt(icon, target), place)
+	canvas.drawIconPlacedClipped(icon, target.Width, tint, place, &clip)
 }
 
 // iconRevealClip is the written part of an icon's box: from the edge the glyph is
@@ -352,9 +500,9 @@ func (icon Icon) fitted(bounds Rect) (width, height float32) {
 // target. After each shape it calls shape, if given, with -1 for the icon's own and
 // the layer's index otherwise.
 func (canvas *Canvas) paintIconShapes(icon Icon, target Rect, tint Color, shape func(layer int)) {
+	units := iconUnitsAt(icon, target)
 	if len(icon.Commands) > 0 {
-		scale := target.Width / icon.ViewBox
-		strokeWidth := icon.Stroke * scale
+		strokeWidth := icon.Stroke * units.y
 		if strokeWidth > 0 {
 			// A stroke never renders thinner than it was drawn: rounding to whole
 			// pixels turned a 1.33 point stroke into 1 point at 100% but 1.5 at 200%.
@@ -389,7 +537,7 @@ func (canvas *Canvas) paintIconShapes(icon Icon, target Rect, tint Color, shape 
 		if shape != nil {
 			shape(index)
 		} else if layer.Gradient != nil {
-			canvas.shadeGradient(start, newGradientAxis(*layer.Gradient, target, target.Width/icon.ViewBox, target.Width/icon.ViewBox), layer.Gradient, tint.Alpha)
+			canvas.shadeGradient(start, newGradientAxis(*layer.Gradient, target, units.x, units.y), layer.Gradient, tint.Alpha)
 		}
 	}
 }

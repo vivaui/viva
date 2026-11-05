@@ -43,6 +43,7 @@ var componentFiles = map[string]string{
 	"form":               "form.go.txt",
 	"go-to-line":         "go_to_line.go.txt",
 	"hover-card":         "hover_card.go.txt",
+	"icon-hover":         "icon_hover.go.txt",
 	"image-view":         "image_view.go.txt",
 	"input":              "input.go.txt",
 	"input-group":        "input_group.go.txt",

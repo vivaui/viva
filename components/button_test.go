@@ -206,6 +206,46 @@ func TestButtonRepeatedPaintReusesCanvasStorage(t *testing.T) {
 	}
 }
 
+// A transform moves the button's glyph inside its square, not the button, its
+// label or the region that receives clicks.
+func TestButtonMovesOnlyItsIcon(t *testing.T) {
+	theme := ui.LightTheme()
+	bounds := ui.Rect{X: 20, Y: 10, Width: 120, Height: 40}
+	paint := func(transform ui.IconTransform) *ui.Canvas {
+		var canvas ui.Canvas
+		BeginButton(&canvas, theme, ui.Item(1), bounds).
+			WithIcon(checkIcon).
+			IconTransform(transform).
+			Default("Save")
+		return &canvas
+	}
+	rest := paint(ui.IconTransform{})
+	moved := paint(ui.IconTransform{Translate: ui.Point{Y: -2}})
+	if len(rest.Triangles()) == 0 || len(moved.Triangles()) != len(rest.Triangles()) {
+		t.Fatalf("rest painted %d triangles, the moving icon %d", len(rest.Triangles()), len(moved.Triangles()))
+	}
+	restTop, movedTop := float32(1e9), float32(1e9)
+	for _, triangle := range rest.Triangles() {
+		for _, point := range triangle.Points {
+			restTop = min(restTop, point.Y)
+		}
+	}
+	for _, triangle := range moved.Triangles() {
+		for _, point := range triangle.Points {
+			movedTop = min(movedTop, point.Y)
+		}
+	}
+	if movedTop >= restTop {
+		t.Fatalf("the icon's top went from %v to %v, want it to rise", restTop, movedTop)
+	}
+	if got, want := rest.Rectangles()[0].Bounds, moved.Rectangles()[0].Bounds; got != want {
+		t.Fatalf("the moving icon moved the button from %+v to %+v", want, got)
+	}
+	if got, want := moved.Hits()[0].Bounds, rest.Hits()[0].Bounds; got != want {
+		t.Fatalf("the moving icon moved the hit region to %+v, want %+v", got, want)
+	}
+}
+
 // A button in a row of its own height is painted that tall, its label centered in
 // it, with the radius and text size of its size; without a height nothing changes.
 func TestButtonHeightPaintsTheButtonThatTall(t *testing.T) {

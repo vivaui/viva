@@ -198,24 +198,58 @@ func (canvas *Canvas) trianglesFor(key iconKey, icon Icon, fit float32, tint Col
 // icon is drawn while it is in motion. Nothing is cached for it: the points move
 // on every frame, so the paint cache would never hit.
 func (canvas *Canvas) drawIconPlaced(icon Icon, fit float32, tint Color, place iconPlacement) {
-	state := canvas.iconPaintState()
+	canvas.drawIconPlacedClipped(icon, fit, tint, place, nil)
+}
+
+// drawIconPlacedClipped is drawIconPlaced through an optional icon-local clip.
+// The clip cuts each triangle before the canvas sees it, so the paint stays one
+// ordinary mesh and needs no renderer mask.
+func (canvas *Canvas) drawIconPlacedClipped(icon Icon, fit float32, tint Color, place iconPlacement, clip *iconClipShape) {
 	triangles := canvas.iconTriangles(icon, fit, tint)
+	canvas.drawIconTrianglesPlaced(triangles, icon, tint, place, clip)
+}
+
+// drawIconTrianglesPlaced applies place and clip to an icon tessellation.
+func (canvas *Canvas) drawIconTrianglesPlaced(triangles []iconTriangle, icon Icon, tint Color, place iconPlacement, clip *iconClipShape) {
+	state := canvas.iconPaintState()
 	canvas.triangles = slices.Grow(canvas.triangles, len(triangles))
+	if clip == nil {
+		for index := range triangles {
+			cached := &triangles[index]
+			triangle := Triangle{
+				Points: [3]Point{
+					place.apply(cached.points[0]),
+					place.apply(cached.points[1]),
+					place.apply(cached.points[2]),
+				},
+				Color: tint, Layer: state.layer, EdgeMask: cached.edges,
+				ClipOf: state.clip, HasClip: state.hasClip, RectsBefore: state.rectsBefore,
+			}
+			if cached.layer >= 0 && !shadeIconTriangle(icon, tint, cached, &triangle) {
+				continue
+			}
+			canvas.triangles = append(canvas.triangles, triangle)
+		}
+		return
+	}
 	for index := range triangles {
 		cached := &triangles[index]
-		points := [3]Point{
+		source := [3]Point{
 			place.apply(cached.points[0]),
 			place.apply(cached.points[1]),
 			place.apply(cached.points[2]),
 		}
-		triangle := Triangle{
-			Points: points, Color: tint, Layer: state.layer, EdgeMask: cached.edges,
-			ClipOf: state.clip, HasClip: state.hasClip, RectsBefore: state.rectsBefore,
+		emit := func(points [3]Point, edges uint8, weights [3][3]float32) {
+			triangle := Triangle{
+				Points: points, Color: tint, Layer: state.layer, EdgeMask: edges,
+				ClipOf: state.clip, HasClip: state.hasClip, RectsBefore: state.rectsBefore,
+			}
+			if cached.layer >= 0 && !shadeIconTriangleAt(icon, tint, cached, weights, &triangle) {
+				return
+			}
+			canvas.triangles = append(canvas.triangles, triangle)
 		}
-		if cached.layer >= 0 && !shadeIconTriangle(icon, tint, cached, &triangle) {
-			continue
-		}
-		canvas.triangles = append(canvas.triangles, triangle)
+		clip.eachTriangle(source, cached.edges, emit)
 	}
 }
 
@@ -238,9 +272,25 @@ func (canvas *Canvas) iconPaintState() iconPaintState {
 // reports whether the triangle is visible. Only a multi-coloured icon has layers,
 // so the caller checks for one before it pays for the call.
 func shadeIconTriangle(icon Icon, tint Color, cached *iconTriangle, triangle *Triangle) bool {
+	var weights [3][3]float32
+	for corner := range weights {
+		weights[corner][corner] = 1
+	}
+	return shadeIconTriangleAt(icon, tint, cached, weights, triangle)
+}
+
+// shadeIconTriangleAt is shadeIconTriangle for a triangle a clip cut out of
+// cached: weights are its corners' barycentric coordinates in cached.
+func shadeIconTriangleAt(icon Icon, tint Color, cached *iconTriangle, weights [3][3]float32, triangle *Triangle) bool {
 	source := &icon.Layers[cached.layer]
 	if source.Gradient != nil {
-		colorize(triangle, source.Gradient, cached.t, tint.Alpha)
+		var t [3]float32
+		for corner := range t {
+			for sourceCorner := range cached.t {
+				t[corner] += weights[corner][sourceCorner] * cached.t[sourceCorner]
+			}
+		}
+		colorize(triangle, source.Gradient, t, tint.Alpha)
 	} else {
 		triangle.Color = fade(source.Fill, tint.Alpha)
 	}
@@ -266,9 +316,14 @@ func stillPlacement(origin Point) iconPlacement {
 // and then moves by offset, all about center — the glyph's center for the icon,
 // and the bounds' center for a part of it.
 func iconPlacementAt(center, offset Point, rotate, scale float32) iconPlacement {
+	return iconPlacementAtSize(center, offset, rotate, scale, scale)
+}
+
+// iconPlacementAtSize is iconPlacementAt with independent vertical scale.
+func iconPlacementAtSize(center, offset Point, rotate, scaleX, scaleY float32) iconPlacement {
 	sine, cosine := math.Sincos(float64(rotate))
 	s, c := float32(sine), float32(cosine)
-	a, b, c1, d := scale*c, scale*s, -scale*s, scale*c
+	a, b, c1, d := scaleX*c, scaleX*s, -scaleY*s, scaleY*c
 	return iconPlacement{
 		a: a, b: b, c: c1, d: d,
 		e: center.X - a*center.X - c1*center.Y + offset.X,
@@ -318,7 +373,13 @@ func (place iconPlacement) apply(point Point) Point {
 // Layers are not contours: a multi-color icon paints them once through the
 // glyph's placement, after the contours, in the order the whole glyph paints
 // them. A part that moves changes the stroked glyph only, never the layer colors.
-func (canvas *Canvas) drawIconParts(icon Icon, fit float32, tint Color, place iconPlacement, parts []IconPart) {
+func (canvas *Canvas) drawIconParts(icon Icon, target Rect, tint Color, place iconPlacement, parts []IconPart) {
+	canvas.drawIconPartsClipped(icon, target, tint, place, parts, nil)
+}
+
+// drawIconPartsClipped is drawIconParts with an optional icon-local clip.
+func (canvas *Canvas) drawIconPartsClipped(icon Icon, target Rect, tint Color, place iconPlacement, parts []IconPart, clip *iconClipShape) {
+	units := iconUnitsAt(icon, target)
 	contours := icon.appendContours(canvas.iconContours[:0])
 	canvas.iconContours = contours
 	centers := canvas.iconPartCenters[:0]
@@ -328,9 +389,9 @@ func (canvas *Canvas) drawIconParts(icon Icon, fit float32, tint Color, place ic
 			// A part that names an anchor turns about that point of the glyph, so
 			// its own bounds do not have to be measured.
 			if part.Anchor != nil {
-				center = iconAnchor(*part.Anchor, fit, icon.ViewBox)
+				center = units.point(*part.Anchor)
 			} else {
-				center = iconCenter(canvas.iconTriangles(contours[index], fit, tint))
+				center = iconCenter(canvas.iconTriangles(contours[index], target.Width, tint))
 			}
 		}
 		centers = append(centers, center)
@@ -338,37 +399,56 @@ func (canvas *Canvas) drawIconParts(icon Icon, fit float32, tint Color, place ic
 	canvas.iconPartCenters = centers
 	for index := range contours {
 		own := place
+		partTint := tint
 		if part, ok := iconPartAt(parts, index); ok && part.moves() {
 			center := centers[index]
-			local := iconPlacementAt(center, part.Offset, part.Rotate, iconPartScale(part))
+			offset := Point{
+				X: part.Translate.X*units.x + part.Offset.X,
+				Y: part.Translate.Y*units.y + part.Offset.Y,
+			}
+			local := iconPlacementAtSize(center, offset, part.Rotate, iconPartScale(part), iconPartScale(part))
 			if part.stretches() {
-				local = squashPlacementAt(center, iconPartScaleX(part)).after(local)
+				local = stretchPlacementAt(center, iconPartScaleX(part), iconPartScaleY(part)).after(local)
 			}
 			own = local.after(place)
+			partTint.Alpha *= 1 - min(max(part.Fade, 0), 1)
 		}
-		canvas.drawIconPlaced(contours[index], fit, tint, own)
+		if partTint.Alpha <= 0 {
+			continue
+		}
+		contour := contours[index]
+		fresh := false
+		// A filled glyph has no stroke to write, so its trim is the whole
+		// contour; applying the polyline would turn a fill into an outline.
+		if part, ok := iconPartAt(parts, index); ok && part.trims() && contour.Stroke > 0 {
+			from, to := part.Trim.rangeValues()
+			contour = canvas.trimIconContour(contour, from, to)
+			// The contiguous trim buffers change in place from frame to
+			// frame, so their address cannot key the icon cache.
+			fresh = true
+		}
+		if fresh {
+			triangles := canvas.tessellateIconScratch(contour, target.Width, partTint)
+			canvas.drawIconTrianglesPlaced(triangles, contour, partTint, own, clip)
+			continue
+		}
+		canvas.drawIconPlacedClipped(contour, target.Width, partTint, own, clip)
 	}
 	if len(icon.Layers) > 0 {
 		layers := icon
 		layers.Commands = nil
-		canvas.drawIconPlaced(layers, fit, tint, place)
+		canvas.drawIconPlacedClipped(layers, target.Width, tint, place, clip)
 	}
 }
 
-// squashPlacementAt scales horizontally about center, the way a page turning over
+// stretchPlacementAt scales both axes about center, the way a page turning over
 // its spine or a meridian crossing a globe projects onto the plane.
-func squashPlacementAt(center Point, stretch float32) iconPlacement {
+func stretchPlacementAt(center Point, stretchX, stretchY float32) iconPlacement {
 	return iconPlacement{
-		a: stretch, d: 1,
-		e: center.X - stretch*center.X,
+		a: stretchX, d: stretchY,
+		e: center.X - stretchX*center.X,
+		f: center.Y - stretchY*center.Y,
 	}
-}
-
-// iconAnchor places an anchor given in the icon's view-box units into the
-// tessellation, which is laid out from the origin at fit pixels per view box.
-func iconAnchor(anchor Point, fit float32, viewBox float32) Point {
-	unit := fit / viewBox
-	return Point{X: anchor.X * unit, Y: anchor.Y * unit}
 }
 
 // iconPartAt returns the part that moves the given contour.
@@ -397,6 +477,14 @@ func iconPartScaleX(part IconPart) float32 {
 	return part.ScaleX
 }
 
+// iconPartScaleY is a part's vertical stretch with zero read as 1.
+func iconPartScaleY(part IconPart) float32 {
+	if part.ScaleY == 0 {
+		return 1
+	}
+	return part.ScaleY
+}
+
 // iconCenter is the middle of the bounds of a tessellation: the point a part of
 // the glyph turns and grows about.
 func iconCenter(triangles []iconTriangle) Point {
@@ -420,12 +508,26 @@ func iconCenter(triangles []iconTriangle) Point {
 // triangles it appended back out of the canvas, recording which layer made each.
 // Colors are placeholders of the right opacity: geometry does not depend on them.
 func (canvas *Canvas) tessellateIcon(icon Icon, fit float32, tint Color) []iconTriangle {
+	return canvas.tessellateIconInto(icon, fit, tint, nil)
+}
+
+// tessellateIconScratch is tessellateIcon into the canvas's own slice. A
+// trimmed contour is new geometry every frame but never enters the cache, so
+// its tessellation must not allocate once the slice has grown.
+func (canvas *Canvas) tessellateIconScratch(icon Icon, fit float32, tint Color) []iconTriangle {
+	triangles := canvas.tessellateIconInto(icon, fit, tint, canvas.iconTrimTriangles[:0])
+	canvas.iconTrimTriangles = triangles
+	return triangles
+}
+
+// tessellateIconInto is tessellateIcon appending to out.
+func (canvas *Canvas) tessellateIconInto(icon Icon, fit float32, tint Color, out []iconTriangle) []iconTriangle {
+	out = out[:0]
 	probe := Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 	if tint.Alpha < 0.999 {
 		probe.Alpha = 0.5
 	}
 	start, rectangles := len(canvas.triangles), len(canvas.rectangles)
-	var out []iconTriangle
 	canvas.paintIconShapes(icon, Rect{Width: fit, Height: fit * icon.height() / icon.ViewBox}, probe, func(layer int) {
 		if layer >= 0 && icon.Layers[layer].Gradient != nil {
 			axis := newGradientAxis(*icon.Layers[layer].Gradient, Rect{Width: fit, Height: fit * icon.height() / icon.ViewBox}, fit/icon.ViewBox, fit/icon.ViewBox)

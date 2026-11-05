@@ -243,6 +243,20 @@ type motionSlot struct {
 	easing   Easing
 }
 
+// onceSlot is one PlayOnce timeline. Unlike motionSlot it never retargets: it
+// runs from zero to one once and then holds at rest.
+type onceSlot struct {
+	id       ID
+	slot     uint8
+	seen     uint32
+	start    time.Duration
+	duration time.Duration
+	active   bool
+	// triggered remembers that trigger was already true, so a held trigger is
+	// one gesture and only a fresh press of it starts another.
+	triggered bool
+}
+
 func (slot *motionSlot) value(now time.Duration) float32 {
 	elapsed := now - slot.start
 	if slot.duration <= 0 || elapsed >= slot.duration {
@@ -263,7 +277,9 @@ func (slot *motionSlot) settled(now time.Duration) bool {
 // so a stable layout resolves each Animate call with one index comparison.
 type motionState struct {
 	slots     []motionSlot
+	onces     []onceSlot
 	cursor    int
+	onceAt    int
 	clock     func() time.Duration
 	now       time.Duration
 	frame     uint32
@@ -335,6 +351,17 @@ func (state *motionState) sweep() {
 	if cap(state.slots) > motionShrinkCapacity && len(state.slots)*motionShrinkFactor < cap(state.slots) {
 		state.slots = append(make([]motionSlot, 0, len(state.slots)*2), state.slots...)
 	}
+	onces := state.onces[:0]
+	for _, once := range state.onces {
+		if once.seen == state.frame {
+			onces = append(onces, once)
+		}
+	}
+	clear(state.onces[len(onces):])
+	state.onces = onces
+	if cap(state.onces) > motionShrinkCapacity && len(state.onces)*motionShrinkFactor < cap(state.onces) {
+		state.onces = append(make([]onceSlot, 0, len(state.onces)*2), state.onces...)
+	}
 }
 
 // SetClock installs the monotonic time source transitions are measured on.
@@ -352,6 +379,7 @@ func (canvas *Canvas) BeginFrame() {
 	state := &canvas.motion
 	state.frame++
 	state.cursor = 0
+	state.onceAt = 0
 	state.sampled = false
 	state.active = state.clock != nil
 	state.animating = false
@@ -467,4 +495,67 @@ func (canvas *Canvas) Animate(id ID, slot uint8, target float32, motion Motion) 
 		state.animating = true
 	}
 	return entry.value(now)
+}
+
+// PlayOnce returns the progress of a one-shot gesture. A false-to-true edge of
+// trigger starts a pass at zero; the pass then advances once and ends at one,
+// where it is at rest. Holding trigger true plays it once rather than looping,
+// and releasing it re-arms the next pass. A static preview, a missing frame
+// clock, a reduced-motion session and a zero duration return one without keeping
+// state, which lets a caller paint the still icon.
+//
+// Slot distinguishes gestures owned by one hit ID, as Animate's does.
+func (canvas *Canvas) PlayOnce(id ID, slot uint8, trigger bool, duration time.Duration) (progress float32, playing bool) {
+	state := &canvas.motion
+	if !state.active || id.IsZero() {
+		return 1, false
+	}
+	now := state.frameTime()
+	entry := state.onceSlotFor(id, slot, now)
+	entry.seen = state.frame
+	if state.reduce || duration <= 0 {
+		entry.active = false
+		entry.triggered = trigger
+		return 1, false
+	}
+	if trigger && !entry.triggered {
+		entry.active, entry.start, entry.duration = true, now, duration
+	}
+	entry.triggered = trigger
+	if !entry.active {
+		return 1, false
+	}
+	elapsed := now - entry.start
+	if elapsed >= entry.duration {
+		entry.active = false
+		return 1, false
+	}
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	state.animating = true
+	return float32(float64(elapsed) / float64(entry.duration)), true
+}
+
+// onceSlotFor returns the timeline for id and slot, keeping existing timelines
+// in paint order so a stable page has one pass over the list.
+func (state *motionState) onceSlotFor(id ID, slot uint8, now time.Duration) *onceSlot {
+	index := state.onceAt
+	if index >= len(state.onces) || state.onces[index].id != id || state.onces[index].slot != slot {
+		index = -1
+		for candidate := range state.onces {
+			if state.onces[candidate].id == id && state.onces[candidate].slot == slot {
+				index = candidate
+				break
+			}
+		}
+		if index < 0 {
+			index = min(state.onceAt, len(state.onces))
+			state.onces = append(state.onces, onceSlot{})
+			copy(state.onces[index+1:], state.onces[index:])
+			state.onces[index] = onceSlot{id: id, slot: slot, start: now}
+		}
+	}
+	state.onceAt = index + 1
+	return &state.onces[index]
 }
