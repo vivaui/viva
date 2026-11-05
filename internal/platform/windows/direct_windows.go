@@ -272,7 +272,7 @@ func (rasterizer *directRasterizer) rasterize(label platform.TextLabel, scale fl
 	lcd = allowLCD && !platform.ColorGlyphs(label.Value)
 	baseline := float32(platform.LabelBaseline(height, float64(size)))
 	// The line is the one layout used for its width, at the device size.
-	err = rasterizer.engine.draw(label.Value, size, label.Weight, func(line *shapedLine) error {
+	err = rasterizer.engine.drawStyle(label.Value, size, label.Weight, label.Italic, func(line *shapedLine) error {
 		return rasterizer.wholeLine(pixels, line, label, width, height, baseline, lcd, skip)
 	})
 	if err != nil {

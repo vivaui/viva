@@ -2136,7 +2136,7 @@ func (painter *painter) syncLabels() {
 			X:     float32(roundPixel(label.Bounds.X)), Y: float32(roundPixel(label.Bounds.Y)),
 			Width: float32(width), Height: float32(height),
 			OriginX: roundingRemainder(label.Bounds.X), OriginY: roundingRemainder(label.Bounds.Y),
-			FontSize: label.Style.Size, Weight: label.Style.Weight,
+			FontSize: label.Style.Size, Weight: label.Style.Weight, Italic: label.Style.Italic,
 			Color: platform.Color{
 				Red: float64(label.Style.Color.Red), Green: float64(label.Style.Color.Green),
 				Blue: float64(label.Style.Color.Blue), Alpha: float64(label.Style.Color.Alpha),

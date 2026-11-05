@@ -11,6 +11,10 @@ import (
 )
 
 func cssFont(fontSize, weight float32) string {
+	return cssFontStyle(fontSize, weight, false)
+}
+
+func cssFontStyle(fontSize, weight float32, italic bool) string {
 	cssWeight := 400
 	switch {
 	case weight >= 0.34:
@@ -20,7 +24,11 @@ func cssFont(fontSize, weight float32) string {
 	case weight >= 0.10:
 		cssWeight = 500
 	}
-	return fmt.Sprintf("%d %gpx system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", cssWeight, fontSize)
+	slant := ""
+	if italic {
+		slant = "italic "
+	}
+	return fmt.Sprintf("%s%d %gpx system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", slant, cssWeight, fontSize)
 }
 
 // baselineMetrics mirrors the CoreText typographic values the native label

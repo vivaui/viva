@@ -27,11 +27,16 @@ import (
 //
 //export vivaShapedLine
 func vivaShapedLine(utf8 *C.uchar, length C.size_t, size, weight C.double) *C.viva_text_line {
+	return vivaShapedLineStyle(utf8, length, size, weight, 0)
+}
+
+//export vivaShapedLineStyle
+func vivaShapedLineStyle(utf8 *C.uchar, length C.size_t, size, weight C.double, italic C.int) *C.viva_text_line {
 	value := ""
 	if length > 0 {
 		value = unsafe.String((*byte)(unsafe.Pointer(utf8)), int(length))
 	}
-	return sharedTextEngine().retainedLine(value, float32(size), float32(weight))
+	return sharedTextEngine().retainedLineStyle(value, float32(size), float32(weight), italic != 0)
 }
 
 //export vivaPointerEvent

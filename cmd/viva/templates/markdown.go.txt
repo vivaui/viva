@@ -157,8 +157,7 @@ var _ ui.TextPlacement = (*MarkdownView)(nil)
 //	view.Paint(canvas, components.MarkdownPaint{Look: components.MarkdownLookFor(theme), X: x, Y: y, Links: links})
 //
 // Layout measures text and is the expensive half: do it when the text or the
-// width changed, and call Paint every frame. Proportional text has no italic
-// face yet, so emphasis is drawn a weight heavier than the text around it.
+// width changed, and call Paint every frame.
 type MarkdownView struct {
 	pieces     []mdPiece
 	runs       []mdCodeRun
@@ -237,7 +236,7 @@ func (v *MarkdownView) OffsetAt(point ui.Point) (offset int, ok bool) {
 	if piece.mono {
 		local = v.codeOffsetAt(piece, localX)
 	} else {
-		local = v.measure.TextOffsetAt(piece.text, piece.size, piece.weight, localX)
+		local = v.measure.TextOffsetAtStyle(piece.text, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic}, localX)
 	}
 	local = min(max(local, 0), int(piece.plainHi-piece.plainLo))
 	return int(piece.plainLo) + local, true
@@ -389,6 +388,7 @@ type mdPiece struct {
 	weight     float32
 	color      mdColor
 	mono       bool
+	italic     bool
 	strike     bool
 	link       int32
 }
@@ -956,8 +956,6 @@ func spanWeight(base float32, style markdown.Style) float32 {
 			return ui.WeightBold
 		}
 		return ui.WeightSemibold
-	case style&markdown.Italic != 0 && base < ui.WeightMedium:
-		return ui.WeightMedium
 	}
 	return base
 }
@@ -985,7 +983,10 @@ func (l *mdLayout) atomize(spans []markdown.Span, t mdFont) {
 	atoms := l.v.atoms[:0]
 	monoSize := max(t.size-1, 9)
 	cell, _ := l.canvas.MonoCellSize(monoSize, l.style.MonoFace)
+	// A blank is as wide as one of the regular face whatever its span's weight, so that
+	// emphasis does not move the words around it. An italic span's blank is the italic face's.
 	space := l.canvas.TextWidthWeight(" ", t.size, ui.WeightRegular)
+	italicSpace := l.canvas.TextWidthStyle(" ", ui.TextStyle{Size: t.size, Weight: ui.WeightRegular, Italic: true})
 	var pending float32
 	for si, sp := range spans {
 		if sp.Text == markdown.Newline {
@@ -994,6 +995,7 @@ func (l *mdLayout) atomize(spans []markdown.Span, t mdFont) {
 			continue
 		}
 		mono := sp.Style&markdown.Mono != 0
+		italic := sp.Style&markdown.Italic != 0
 		size, weight := t.size, spanWeight(t.weight, sp.Style)
 		if mono {
 			size = monoSize
@@ -1004,6 +1006,8 @@ func (l *mdLayout) atomize(spans []markdown.Span, t mdFont) {
 			if r == ' ' || r == '\t' {
 				if mono {
 					pending += cell
+				} else if italic {
+					pending = italicSpace
 				} else {
 					pending = space
 				}
@@ -1041,6 +1045,8 @@ func (l *mdLayout) atomize(spans []markdown.Span, t mdFont) {
 			var w float32
 			if mono {
 				w = float32(monoCells(text[i:j]))*cell + 2*markdownInlinePad
+			} else if italic {
+				w = l.canvas.TextWidthStyle(text[i:j], ui.TextStyle{Size: size, Weight: weight, Italic: true})
 			} else {
 				w = l.canvas.TextWidthWeight(text[i:j], size, weight)
 			}
@@ -1158,6 +1164,9 @@ func (m *mdLine) reset() {
 func (m *mdLine) spanWidth(sp markdown.Span, text string) float32 {
 	size, weight := m.t.size, spanWeight(m.t.weight, sp.Style)
 	if sp.Style&markdown.Mono == 0 {
+		if sp.Style&markdown.Italic != 0 {
+			return m.l.canvas.TextWidthStyle(text, ui.TextStyle{Size: size, Weight: weight, Italic: true})
+		}
 		return m.l.canvas.TextWidthWeight(text, size, weight)
 	}
 	size = max(size-1, 9)
@@ -1388,7 +1397,7 @@ func (m *mdLine) place(a mdAtom) {
 	v.pieces = append(v.pieces, mdPiece{
 		plainLo: base + int32(a.lo), plainHi: base + int32(a.hi), cell: cell, padX: padX,
 		text: sp.Text[a.lo:a.hi], x: m.x0 + m.x, y: m.y, w: a.w, h: m.t.line,
-		size: size, weight: weight, color: color, mono: mono, strike: sp.Style&markdown.Strike != 0, link: -1,
+		size: size, weight: weight, color: color, mono: mono, italic: sp.Style&markdown.Italic != 0, strike: sp.Style&markdown.Strike != 0, link: -1,
 	})
 	m.piece, m.span, m.lo = len(v.pieces)-1, a.span, a.lo
 	m.measuredSpan, m.grew = -1, false
@@ -1534,7 +1543,7 @@ func (v *MarkdownView) Paint(canvas *ui.Canvas, p MarkdownPaint) {
 				}
 				continue
 			}
-			v.selScratch = canvas.TextSelection(v.selScratch[:0], piece.text, piece.size, piece.weight,
+			v.selScratch = canvas.TextSelectionStyle(v.selScratch[:0], piece.text, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic},
 				lo-int(piece.plainLo), hi-int(piece.plainLo))
 			for _, span := range v.selScratch {
 				canvas.Fill(ui.Rect{X: p.X + piece.x + span.X, Y: p.Y + piece.y, Width: span.Width, Height: piece.h}, look.Selection)
@@ -1574,7 +1583,7 @@ func (v *MarkdownView) Paint(canvas *ui.Canvas, p MarkdownPaint) {
 				Size: piece.size, Weight: piece.weight, Color: color, Mono: true, MonoFace: v.face,
 			}, piece.cell, v.scratch)
 		} else {
-			canvas.Label(piece.text, rect, ui.TextStyle{Size: piece.size, Weight: piece.weight, Color: color, Mono: piece.mono, MonoFace: v.face})
+			canvas.Label(piece.text, rect, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic, Color: color, Mono: piece.mono, MonoFace: v.face})
 		}
 		if piece.strike {
 			canvas.Fill(ui.Rect{X: rect.X, Y: rect.Y + rect.Height/2, Width: rect.Width, Height: 1}, color)

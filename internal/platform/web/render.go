@@ -167,7 +167,9 @@ func (runtime *runtime) drawTexts(layer uint16) {
 		// with. The base direction of a right-to-left paragraph puts the
 		// punctuation around it on the side the paragraph puts it.
 		rtl := bidi.BaseDirection(text.Value) == bidi.RTL
-		if !text.HasClip && !rtl && metrics.Ascent+metrics.Descent <= text.Bounds.Height &&
+		// Italic text takes the clipped path below: its width is not the regular face's that
+		// the fit test here measures, and the path draws it in the font the engine measured.
+		if !text.HasClip && !rtl && !text.Style.Italic && metrics.Ascent+metrics.Descent <= text.Bounds.Height &&
 			runtime.metrics.width(text.Value, text.Style.Size, text.Style.Weight)+fitMargin <= text.Bounds.Width {
 			style.apply(context, text.Style)
 			context.Call("fillText", text.Value, text.Bounds.X, y)
@@ -179,7 +181,7 @@ func (runtime *runtime) drawTexts(layer uint16) {
 		}
 		clipRect(context, text.Bounds)
 		context.Set("fillStyle", cssColor(text.Style.Color))
-		context.Set("font", cssFont(text.Style.Size, text.Style.Weight))
+		context.Set("font", cssFontStyle(text.Style.Size, text.Style.Weight, text.Style.Italic))
 		if rtl {
 			context.Set("direction", "rtl")
 		}
@@ -199,17 +201,18 @@ type textStyleState struct {
 	color  ui.Color
 	size   float32
 	weight float32
+	italic bool
 }
 
 func (state *textStyleState) apply(context js.Value, style ui.TextStyle) {
-	if state.set && state.color == style.Color && state.size == style.Size && state.weight == style.Weight {
+	if state.set && state.color == style.Color && state.size == style.Size && state.weight == style.Weight && state.italic == style.Italic {
 		return
 	}
 	if !state.set || state.color != style.Color {
 		context.Set("fillStyle", cssColor(style.Color))
 	}
-	if !state.set || state.size != style.Size || state.weight != style.Weight {
-		context.Set("font", cssFont(style.Size, style.Weight))
+	if !state.set || state.size != style.Size || state.weight != style.Weight || state.italic != style.Italic {
+		context.Set("font", cssFontStyle(style.Size, style.Weight, style.Italic))
 	}
-	*state = textStyleState{true, style.Color, style.Size, style.Weight}
+	*state = textStyleState{set: true, color: style.Color, size: style.Size, weight: style.Weight, italic: style.Italic}
 }

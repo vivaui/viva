@@ -15,6 +15,24 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
+var _ ui.StyledTextEngine = (*textEngine)(nil)
+
+func TestItalicDirectWriteLineHasSeparateCacheEntry(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	engine, err := theTextEngine()
+	if err != nil {
+		t.Skipf("DirectWrite unavailable: %v", err)
+	}
+	engine.mu.Lock()
+	regular, regularErr := engine.lineStyle("Italic 本文", 16, 0, false)
+	italic, italicErr := engine.lineStyle("Italic 本文", 16, 0, true)
+	engine.mu.Unlock()
+	if regularErr != nil || italicErr != nil || regular == italic {
+		t.Fatalf("DirectWrite regular/italic lines = %p/%p, errs=%v/%v", regular, italic, regularErr, italicErr)
+	}
+}
+
 func newTestEngine(t testing.TB) ui.TextEngine {
 	t.Helper()
 	engine := TextEngine()

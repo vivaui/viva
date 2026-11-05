@@ -8,7 +8,21 @@ import (
 
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/textenginetest"
+	"github.com/vivaui/viva/ui"
 )
+
+var _ ui.StyledTextEngine = (*textEngine)(nil)
+
+func TestItalicPangoLineHasSeparateCacheEntry(t *testing.T) {
+	engine := newTestEngine(t)
+	engine.mu.Lock()
+	regular, regularErr := engine.lineStyleLocked("Italic 本文", 16, 0, false)
+	italic, italicErr := engine.lineStyleLocked("Italic 本文", 16, 0, true)
+	engine.mu.Unlock()
+	if regularErr != nil || italicErr != nil || regular == italic {
+		t.Fatalf("Pango regular/italic lines = %p/%p, errs=%v/%v", regular, italic, regularErr, italicErr)
+	}
+}
 
 func newTestEngine(t *testing.T) *textEngine {
 	t.Helper()

@@ -30,6 +30,21 @@ type TextEngine interface {
 	OffsetAt(value string, size, weight, x float32) int
 }
 
+// StyledTextEngine is a TextEngine that also shapes proportional italic text. Its methods
+// are those of TextEngine with the face named: with italic false each answers exactly as
+// the TextEngine method of the same name, and with it true, for the italic face of the
+// same family, size and weight. A line drawn with TextStyle.Italic must be measured through
+// them (Canvas.TextWidthStyle and the like), so that widths, carets, selections and hits
+// agree with the glyphs. An engine that does not implement it measures italic text in the
+// regular face.
+type StyledTextEngine interface {
+	TextEngine
+	WidthStyle(value string, size, weight float32, italic bool) float32
+	CaretStyle(value string, size, weight float32, italic bool, offset int) float32
+	SelectionStyle(dst []TextSpan, value string, size, weight float32, italic bool, start, end int) []TextSpan
+	OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int
+}
+
 // FontFamilyAware is a TextEngine whose proportional family the application can
 // name while it runs: the platform engines implement it. The reference engine's
 // widths know no family, and a backend whose text the system draws without a

@@ -64,7 +64,11 @@ func (measurer *domMeasurer) setDirection(rtl bool) {
 }
 
 func (measurer *domMeasurer) width(value string, size, weight float32, rtl bool) float32 {
-	if font := cssFont(size, weight); font != measurer.font {
+	return measurer.widthStyle(value, size, weight, false, rtl)
+}
+
+func (measurer *domMeasurer) widthStyle(value string, size, weight float32, italic, rtl bool) float32 {
+	if font := cssFontStyle(size, weight, italic); font != measurer.font {
 		measurer.context.Set("font", font)
 		measurer.font = font
 	}
@@ -95,10 +99,14 @@ func (measurer *domMeasurer) mountRuler() {
 }
 
 func (measurer *domMeasurer) rects(value string, size, weight float32, rtl bool, bounds []int32, lefts, rights []float32) {
+	measurer.rectsStyle(value, size, weight, false, rtl, bounds, lefts, rights)
+}
+
+func (measurer *domMeasurer) rectsStyle(value string, size, weight float32, italic, rtl bool, bounds []int32, lefts, rights []float32) {
 	if !measurer.ruler.Truthy() {
 		measurer.mountRuler()
 	}
-	if font := cssFont(size, weight); font != measurer.rulerFont {
+	if font := cssFontStyle(size, weight, italic); font != measurer.rulerFont {
 		measurer.ruler.Get("style").Set("font", font)
 		measurer.rulerFont = font
 	}
