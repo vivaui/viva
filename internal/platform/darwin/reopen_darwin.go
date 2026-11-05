@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	"github.com/vivaui/viva/internal/diag"
 )
 
 var applicationReopen struct {
@@ -29,6 +31,11 @@ func deliverApplicationReopen() (handled bool) {
 	defer func() {
 		if value := recover(); value != nil {
 			// The native handling still runs, but the application's bug is not hidden.
+			message := fmt.Sprint(value)
+			if diag.Enabled(diag.Error) {
+				diag.Report(diag.Error, "platform", "reopen-panic", "the reopen handler panicked",
+					diag.Attr{Key: "panic", Value: message})
+			}
 			fmt.Fprintf(os.Stderr, "viva: reopen handler panicked: %v\n", value)
 			handled = false
 		}

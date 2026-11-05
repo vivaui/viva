@@ -12,6 +12,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/internal/diag"
 	"github.com/vivaui/viva/internal/ibus"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
@@ -368,7 +369,12 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	application.retryDesktopWatch()
 	activeWindow.Store(win)
 	if state.profile {
-		fmt.Fprintf(os.Stderr, "viva_first_frame_ms=%.3f\n", float64(time.Since(state.started).Microseconds())/1000)
+		elapsed := float64(time.Since(state.started).Microseconds()) / 1000
+		fmt.Fprintf(os.Stderr, "viva_first_frame_ms=%.3f\n", elapsed)
+		if diag.Enabled(diag.Debug) {
+			diag.Report(diag.Debug, "render", "first-frame", "first frame presented",
+				diag.Attr{Key: "milliseconds", Value: elapsed})
+		}
 	}
 	if os.Getenv("VIVA_TEST_AUTOCLOSE") != "" {
 		win.postClientMessage(win.closeAtom, 0)
@@ -543,7 +549,17 @@ func (application *linuxApplication) closeWindow(target *linuxWindowState) {
 		target.config.Waker.Unbind()
 	}
 	if target.profile {
-		fmt.Fprintf(os.Stderr, "viva_gpu_submissions=%d\nviva_gpu_full_rebuilds=%d\nviva_gpu_partial_updates=%d\nviva_resize_events=%d\nviva_goroutines=%d\n", target.renderer.submissions, target.renderer.rebuilds, target.renderer.partials, target.resizeEvents, runtime.NumGoroutine())
+		submissions, rebuilds, partials := target.renderer.submissions, target.renderer.rebuilds, target.renderer.partials
+		fmt.Fprintf(os.Stderr, "viva_gpu_submissions=%d\nviva_gpu_full_rebuilds=%d\nviva_gpu_partial_updates=%d\nviva_resize_events=%d\nviva_goroutines=%d\n", submissions, rebuilds, partials, target.resizeEvents, runtime.NumGoroutine())
+		if diag.Enabled(diag.Debug) {
+			goroutines := runtime.NumGoroutine()
+			diag.Report(diag.Debug, "render", "window-stats", "window closed",
+				diag.Attr{Key: "gpu_submissions", Value: int64(submissions)},
+				diag.Attr{Key: "gpu_full_rebuilds", Value: int64(rebuilds)},
+				diag.Attr{Key: "gpu_partial_updates", Value: int64(partials)},
+				diag.Attr{Key: "resize_events", Value: int64(target.resizeEvents)},
+				diag.Attr{Key: "goroutines", Value: int64(goroutines)})
+		}
 	}
 	if target.router.ime != nil {
 		target.router.ime.close()

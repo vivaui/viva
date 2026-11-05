@@ -5,6 +5,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/internal/diag"
 	"github.com/vivaui/viva/internal/platform"
 )
 
@@ -46,10 +47,22 @@ func (renderer *renderer) recover(software bool) error {
 func (state *windowState) recoverDevice(cause error) error {
 	plan := state.devices.Next(time.Now())
 	if plan == platform.RecoverGiveUp {
+		if diag.Enabled(diag.Error) {
+			diag.Report(diag.Error, "render", "device-lost", "the graphics device was lost again and again",
+				diag.Attr{Key: "error", Value: cause.Error()})
+		}
 		return fmt.Errorf("windows: the graphics device was lost again and again: %w", cause)
 	}
 	if err := state.renderer.recover(plan == platform.RecoverSoftware); err != nil {
+		if diag.Enabled(diag.Error) {
+			diag.Report(diag.Error, "render", "device-recovery-failed", "the graphics device could not be made again",
+				diag.Attr{Key: "error", Value: err.Error()}, diag.Attr{Key: "cause", Value: cause.Error()})
+		}
 		return fmt.Errorf("windows: the graphics device was lost and could not be made again: %w (%w)", err, cause)
+	}
+	if diag.Enabled(diag.Warn) {
+		diag.Report(diag.Warn, "render", "device-recovered", "the graphics device was lost and made again",
+			diag.Attr{Key: "software", Value: plan == platform.RecoverSoftware})
 	}
 	state.refreshBackdrop()
 	return nil
