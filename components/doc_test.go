@@ -29,6 +29,7 @@ var docPrimaryEntries = map[string][]string{
 	"empty.go":              {"Empty"},
 	"kbd.go":                {"Kbd"},
 	"markdown.go":           {"MarkdownView"},
+	"markdown_anchor.go":    {"MarkdownView"},
 	"marker.go":             {"Marker"},
 	"menu_typeahead.go":     {"MenuTypeahead"},
 	"message.go":            {"Message"},

@@ -94,6 +94,13 @@ type Block struct {
 	Text string
 	// Columns is the number of columns of a Table.
 	Columns int
+	// Start and End are the byte range of the block in the text given to
+	// Document.Parse: from the first byte of its first line to the end of its
+	// last line, not counting that line's break. Both lie on line boundaries,
+	// which are character boundaries whatever the text, and the ranges of
+	// consecutive blocks do not overlap. For a Code block they include the
+	// fences; for a quoted or indented block, the quote markers and the indent.
+	Start, End int
 
 	lo, hi int32 // inline spans, or table cells
 }
@@ -180,12 +187,14 @@ func (d *Document) Parse(src string) {
 			pos = end + 1
 		}
 		line := strings.TrimSuffix(src[lineStart:end], "\r")
+		lineEnd := lineStart + len(line)
 
 		if code {
 			body := line
 			if fenceQuote > 0 {
 				_, body = stripQuote(line)
 			}
+			d.Blocks[len(d.Blocks)-1].End = lineEnd
 			if trimmed, indent := trimIndent(body); indent <= 3 && closesFence(trimmed, fence, fenceLen) {
 				finishCode()
 				continue
@@ -214,13 +223,13 @@ func (d *Document) Parse(src string) {
 				raw = quote == 0 && indent == 0
 				codeStart, codeEnd = pos, pos
 				d.code = d.code[:0]
-				d.Blocks = append(d.Blocks, Block{Kind: Code, Quote: quote, Info: info})
+				d.Blocks = append(d.Blocks, Block{Kind: Code, Quote: quote, Info: info, Start: lineStart, End: lineEnd})
 				d.stack = d.stack[:0]
 				open = -1
 				continue
 			}
 			if isRule(trimmed) {
-				d.Blocks = append(d.Blocks, Block{Kind: Rule, Quote: quote})
+				d.Blocks = append(d.Blocks, Block{Kind: Rule, Quote: quote, Start: lineStart, End: lineEnd})
 				d.stack = d.stack[:0]
 				open = -1
 				continue
@@ -228,7 +237,7 @@ func (d *Document) Parse(src string) {
 			if level, text, ok := heading(trimmed); ok {
 				lo := int32(len(d.spans))
 				d.inline(text, 0, "", 0)
-				d.Blocks = append(d.Blocks, Block{Kind: Heading, Level: level, Quote: quote, lo: lo, hi: int32(len(d.spans))})
+				d.Blocks = append(d.Blocks, Block{Kind: Heading, Level: level, Quote: quote, Start: lineStart, End: lineEnd, lo: lo, hi: int32(len(d.spans))})
 				d.stack = d.stack[:0]
 				open = -1
 				continue
@@ -246,7 +255,7 @@ func (d *Document) Parse(src string) {
 			d.inline(text, 0, "", 0)
 			d.Blocks = append(d.Blocks, Block{
 				Kind: Item, Level: min(len(d.stack)-1, maxLevel), Quote: quote, Number: number,
-				lo: lo, hi: int32(len(d.spans)),
+				Start: lineStart, End: lineEnd, lo: lo, hi: int32(len(d.spans)),
 			})
 			open = len(d.Blocks) - 1
 			continue
@@ -254,6 +263,15 @@ func (d *Document) Parse(src string) {
 		if pos < len(src) && strings.IndexByte(trimmed, '|') >= 0 {
 			if columns := tableSeparator(src[pos:]); columns > 0 {
 				pos = d.table(trimmed, src, pos, quote, columns)
+				// The table ends where its last row does, before that row's break.
+				table := &d.Blocks[len(d.Blocks)-1]
+				table.Start, table.End = lineStart, pos
+				if table.End > lineStart && src[table.End-1] == '\n' {
+					table.End--
+				}
+				if table.End > lineStart && src[table.End-1] == '\r' {
+					table.End--
+				}
 				d.stack = d.stack[:0]
 				open = -1
 				continue
@@ -264,6 +282,7 @@ func (d *Document) Parse(src string) {
 			d.spans = append(d.spans, Span{Text: Newline})
 			d.inline(trimmed, 0, "", 0)
 			d.Blocks[open].hi = int32(len(d.spans))
+			d.Blocks[open].End = lineEnd
 			continue
 		}
 		// Running text. Indented under a list item it belongs to that item.
@@ -278,7 +297,7 @@ func (d *Document) Parse(src string) {
 		}
 		lo := int32(len(d.spans))
 		d.inline(trimmed, 0, "", 0)
-		d.Blocks = append(d.Blocks, Block{Kind: Paragraph, Level: min(level, maxLevel), Quote: quote, lo: lo, hi: int32(len(d.spans))})
+		d.Blocks = append(d.Blocks, Block{Kind: Paragraph, Level: min(level, maxLevel), Quote: quote, Start: lineStart, End: lineEnd, lo: lo, hi: int32(len(d.spans))})
 		open = len(d.Blocks) - 1
 	}
 	if code {

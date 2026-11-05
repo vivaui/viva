@@ -168,6 +168,7 @@ type MarkdownView struct {
 	boxes      []mdBox
 	links      []mdLink
 	codes      []MarkdownCode
+	anchors    []MarkdownAnchor
 	atoms      []mdAtom
 	numbers    []byte
 	tabs       []byte  // code lines with their tabs spread into blanks
@@ -444,7 +445,7 @@ func (v *MarkdownView) Layout(canvas *ui.Canvas, style MarkdownStyle, doc *markd
 	if style.LineHeight <= 0 {
 		style.LineHeight = float32(int(style.Size*1.55 + 0.5))
 	}
-	v.pieces, v.boxes, v.links, v.codes, v.numbers, v.runs, v.tabs, v.tabBound, v.plain, v.spanBase = v.pieces[:0], v.boxes[:0], v.links[:0], v.codes[:0], v.numbers[:0], v.runs[:0], v.tabs[:0], v.tabBound[:0], v.plain[:0], v.spanBase[:0]
+	v.pieces, v.boxes, v.links, v.codes, v.anchors, v.numbers, v.runs, v.tabs, v.tabBound, v.plain, v.spanBase = v.pieces[:0], v.boxes[:0], v.links[:0], v.codes[:0], v.anchors[:0], v.numbers[:0], v.runs[:0], v.tabs[:0], v.tabBound[:0], v.plain[:0], v.spanBase[:0]
 	v.bars = [markdownMaxQuote + 1]int32{}
 	v.face = style.MonoFace
 	v.measure = canvas
@@ -495,6 +496,7 @@ func (v *MarkdownView) Layout(canvas *ui.Canvas, style MarkdownStyle, doc *markd
 			y = l.table(b, x0, w, y, t)
 		}
 		l.quoteBars(b.Quote, top, y)
+		v.anchors = append(v.anchors, MarkdownAnchor{Start: b.Start, End: b.End, Top: top, Bottom: y})
 		prev = b
 	}
 	v.height = y

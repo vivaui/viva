@@ -3,6 +3,7 @@ package components
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
@@ -796,5 +797,131 @@ func TestCodeEditorSteadyPaintWithBlankLinesAllocatesNothing(t *testing.T) {
 	f.paint()
 	if allocations := testing.AllocsPerRun(100, f.paint); allocations != 0 {
 		t.Fatalf("steady editor allocations with blank lines: %g", allocations)
+	}
+}
+
+func numberedLines(n int) string {
+	var b strings.Builder
+	for i := 0; i < n; i++ {
+		b.WriteString("line ")
+		b.WriteString(strings.Repeat("x", i%7))
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+func TestCodeEditorScrollYIsSetAndClamped(t *testing.T) {
+	f := newCodeFixture(numberedLines(100))
+	f.snapshot.Wrap = true
+	f.editor.SetScrollY(50) // before the first paint: ignored
+	f.paint()
+	if f.editor.ScrollY() != 0 {
+		t.Fatalf("scroll before any move = %v", f.editor.ScrollY())
+	}
+	most := f.editor.MaxScrollY()
+	if most <= 0 {
+		t.Fatalf("a hundred lines in a 200px box must scroll, max=%v", most)
+	}
+	f.editor.SetScrollY(most / 2)
+	f.paint()
+	if !near(f.editor.ScrollY(), most/2) {
+		t.Errorf("a paint with the caret unmoved changed the scroll: %v, want %v", f.editor.ScrollY(), most/2)
+	}
+	f.editor.SetScrollY(most * 10)
+	if f.editor.ScrollY() != most {
+		t.Errorf("scroll past the end = %v, want %v", f.editor.ScrollY(), most)
+	}
+	f.editor.SetScrollY(-5)
+	if f.editor.ScrollY() != 0 {
+		t.Errorf("scroll above the start = %v", f.editor.ScrollY())
+	}
+}
+
+// The caret is only pulled back into view when it moves; a scroll set by the
+// application must survive repaints and then yield to the next caret move.
+func TestCodeEditorSetScrollYYieldsToCaretMoves(t *testing.T) {
+	f := newCodeFixture(numberedLines(100))
+	f.paint()
+	f.editor.SetScrollY(f.editor.MaxScrollY())
+	f.paint()
+	f.paint()
+	if f.editor.ScrollY() != f.editor.MaxScrollY() {
+		t.Fatal("repainting moved a scroll the application set")
+	}
+	f.snapshot.Caret = 1 // the caret leaves the view, as typing at the top would
+	f.paint()
+	if f.editor.ScrollY() != 0 {
+		t.Errorf("a caret move did not bring the caret back: scroll %v", f.editor.ScrollY())
+	}
+}
+
+func TestCodeEditorOffsetAndYAreInverse(t *testing.T) {
+	value := numberedLines(30) + "中文行,带有汉字\nlast"
+	f := newCodeFixture(value)
+	f.snapshot.Wrap = true
+	if _, ok := f.editor.YAtOffset(0); ok {
+		t.Fatal("a position before the first paint")
+	}
+	f.paint()
+	_, _, line := f.cell()
+	previous := float32(-1)
+	for offset := 0; offset <= len(value); offset++ {
+		if offset < len(value) && !utf8.RuneStart(value[offset]) {
+			continue
+		}
+		y, ok := f.editor.YAtOffset(offset)
+		if !ok || y < previous {
+			t.Fatalf("offset %d: y=%v after %v", offset, y, previous)
+		}
+		previous = y
+		back, _ := f.editor.OffsetAtY(y)
+		// The end of a row is the bottom of it, which is also the top of the next
+		// row; every other offset comes back to itself or to an earlier cell.
+		atRowEnd := near(y, float32(int(y/line+0.5))*line)
+		if back > offset && !atRowEnd {
+			t.Fatalf("offset %d maps to y=%v which maps back to %d", offset, y, back)
+		}
+		if again, _ := f.editor.YAtOffset(back); !atRowEnd && (again > y+0.01 || y-again >= line) {
+			t.Fatalf("offset %d: round trip left the row (%v -> %d -> %v)", offset, y, back, again)
+		}
+	}
+	if offset, _ := f.editor.OffsetAtY(-3); offset != 0 {
+		t.Errorf("above the text: %d", offset)
+	}
+	if offset, _ := f.editor.OffsetAtY(1e6); offset != len(value) {
+		t.Errorf("below the text: %d", offset)
+	}
+}
+
+// A logical line that soft-wraps takes several rows, and a later line sits
+// below all of them: this is what makes row positions differ from line numbers.
+func TestCodeEditorYAtOffsetCountsWrappedRows(t *testing.T) {
+	long := strings.Repeat("abcdefghij", 20)
+	value := long + "\nnext"
+	f := newCodeFixture(value)
+	f.bounds.Width = f.widthFor(30)
+	f.snapshot.Wrap = true
+	f.paint()
+	_, _, line := f.cell()
+	rows := len(f.editor.rows)
+	if rows < 4 {
+		t.Fatalf("expected the long line to wrap, got %d rows", rows)
+	}
+	y, _ := f.editor.YAtOffset(strings.Index(value, "next"))
+	if !near(y, float32(rows-1)*line) {
+		t.Errorf("the line after a wrapped one is at %v, want row %d (%v)", y, rows-1, float32(rows-1)*line)
+	}
+}
+
+func BenchmarkCodeEditorYAtOffset(b *testing.B) {
+	value := numberedLines(5000)
+	f := newCodeFixture(value)
+	f.paint()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		y, _ := f.editor.YAtOffset(len(value) / 2)
+		f.editor.OffsetAtY(y)
+		f.editor.SetScrollY(y)
 	}
 }

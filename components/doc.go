@@ -101,7 +101,9 @@
 //     scrolling, and draggable scrollbars, with native selection and IME
 //     geometry retained. `CodeEditorCommandForKey` maps key events to the
 //     editing commands of a text.Editor given code options (SetCode), and
-//     `TextareaMovementForKey` with `CodeEditor.Move` moves by row.
+//     `TextareaMovementForKey` with `CodeEditor.Move` moves by row. The scroll
+//     position can be read and set, and offsets map to and from vertical
+//     positions (`CodeEditor.YAtOffset`), for views kept scrolled together.
 //   - Find bar: `PaintFindBar` paints the find and replace bar of an editor over
 //     two InputSnapshot fields, with option toggles, a count and step buttons;
 //     `FindBarCommandForKey` maps Command or Control+F, F3 and Enter to its
@@ -269,7 +271,9 @@
 //   - Typography: `Typography` paints the heading and body text scale.
 //   - Markdown: `MarkdownView` lays out and paints a parsed `markdown.Document`
 //     (headings, lists, quotes, code blocks, tables, bold, links) in a column,
-//     with the link regions and code blocks it contains.
+//     with the link regions and code blocks it contains, and the vertical extent
+//     of each block against its range in the source (`MarkdownAnchor`) for
+//     keeping a source editor and its preview scrolled to the same place.
 //
 // Foundation:
 //   - Direction: `Direction` selects LTR or RTL inline flow

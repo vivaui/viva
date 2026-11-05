@@ -232,8 +232,13 @@ func FuzzParse(f *testing.F) {
 	f.Fuzz(func(t *testing.T, src string) {
 		var d Document
 		d.Parse(src)
+		last := 0
 		for index := range d.Blocks {
 			b := &d.Blocks[index]
+			if b.Start < last || b.End < b.Start || b.End > len(src) {
+				t.Fatalf("block %d range %d..%d after %d in %d bytes", index, b.Start, b.End, last, len(src))
+			}
+			last = b.End
 			for _, span := range d.Spans(b) {
 				if span.Link != "" && !safeLink(span.Link) {
 					t.Fatalf("unsafe link %q kept", span.Link)
@@ -256,5 +261,39 @@ func BenchmarkParse(b *testing.B) {
 	b.SetBytes(int64(len(src)))
 	for b.Loop() {
 		d.Parse(src)
+	}
+}
+
+// The range of each block is the text of its own lines: re-parsing just that
+// range gives back the same kind, so the ranges name the right bytes whatever
+// the block is made of.
+func TestBlockRangesNameTheLinesOfTheirBlocks(t *testing.T) {
+	cases := []struct {
+		src  string
+		want []string
+	}{
+		{"# Title\n\nfirst\nsecond\n\n- a\n- b\n\n```go\nx := 1\n\n```\n\n| h |\n|---|\n| c |\n\n---\n", []string{
+			"# Title", "first\nsecond", "- a", "- b", "```go\nx := 1\n\n```", "| h |\n|---|\n| c |", "---"}},
+		{"中文段落\r\n续行\r\n\r\n> 引用\r\n", []string{"中文段落\r\n续行", "> 引用"}},
+		{"```\nunclosed\ncode", []string{"```\nunclosed\ncode"}},
+		{"no trailing break", []string{"no trailing break"}},
+		{"", nil},
+	}
+	for _, c := range cases {
+		var d Document
+		d.Parse(c.src)
+		if len(d.Blocks) != len(c.want) {
+			t.Fatalf("%q: %d blocks, want %d", c.src, len(d.Blocks), len(c.want))
+		}
+		last := 0
+		for i, b := range d.Blocks {
+			if b.Start < last || b.End < b.Start || b.End > len(c.src) {
+				t.Fatalf("%q block %d: range %d..%d after %d", c.src, i, b.Start, b.End, last)
+			}
+			if got := c.src[b.Start:b.End]; got != c.want[i] {
+				t.Errorf("%q block %d = %q, want %q", c.src, i, got, c.want[i])
+			}
+			last = b.End
+		}
 	}
 }

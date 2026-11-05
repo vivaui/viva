@@ -396,6 +396,81 @@ func (editor *CodeEditor) follow(caret, row, column int) {
 	editor.scrollX = editor.clampScrollX(editor.scrollX)
 }
 
+// ScrollY is how far the text is scrolled down, in pixels, as the last paint
+// left it. A paint changes it on its own only to bring a caret that moved into
+// view, so an application that wants to follow the editor reads it after the
+// paint and compares it with what it read before.
+func (editor *CodeEditor) ScrollY() float32 { return editor.scrollY }
+
+// MaxScrollY is the largest ScrollY the last paint allows: how far the text is
+// taller than the box. It is zero before the first paint and for text that fits.
+func (editor *CodeEditor) MaxScrollY() float32 {
+	if !editor.painted {
+		return 0
+	}
+	return max(0, float32(len(editor.rows))*editor.lineHeight-editor.content.Height)
+}
+
+// SetScrollY scrolls the next paint to y pixels from the top, as far as the text
+// allows. Unlike Reveal it does not follow the caret: the view stays where it is
+// put until the caret moves, so an application can scroll the editor to match
+// another view without the caret pulling it back. It does nothing before the
+// first paint, which is what tells the editor how tall its rows are.
+func (editor *CodeEditor) SetScrollY(y float32) {
+	if !editor.painted {
+		return
+	}
+	editor.scrollY = editor.clampScrollY(y)
+}
+
+// YAtOffset is the vertical position of byte offset in the text, in pixels from
+// its top whatever the scroll: the top of the row holding offset, plus the
+// fraction of a row that offset is along that row's cells. An offset at a soft
+// wrap belongs to the row that starts there. It is false before the first paint.
+func (editor *CodeEditor) YAtOffset(offset int) (float32, bool) {
+	if !editor.painted || !editor.fitted || len(editor.rows) == 0 || editor.lineHeight <= 0 {
+		return 0, false
+	}
+	offset = textareaBoundary(editor.text, offset)
+	index := max(sort.Search(len(editor.rows), func(i int) bool { return int(editor.rows[i].start) > offset })-1, 0)
+	row := editor.rows[index]
+	fraction := float32(0)
+	if row.cells > 0 {
+		fraction = min(1, float32(editor.columnOf(row, offset))/float32(row.cells))
+	}
+	return (float32(index) + fraction) * editor.lineHeight, true
+}
+
+// OffsetAtY is the inverse of YAtOffset: the byte offset at y pixels from the top
+// of the text, rounded down to a character boundary. A y above the text gives
+// zero and one below it the end. It is false before the first paint.
+func (editor *CodeEditor) OffsetAtY(y float32) (int, bool) {
+	if !editor.painted || !editor.fitted || len(editor.rows) == 0 || editor.lineHeight <= 0 {
+		return 0, false
+	}
+	if y <= 0 {
+		return 0, true
+	}
+	position := y / editor.lineHeight
+	if position >= float32(len(editor.rows)) {
+		return len(editor.text), true
+	}
+	index := int(position)
+	row := editor.rows[index]
+	target := int((position - float32(index)) * float32(row.cells))
+	column := 0
+	for at := int(row.start); at < int(row.end); {
+		r, size := decodeAt(editor.text, at)
+		width := codeCells(r, column, editor.tabWidth)
+		if column+width > target {
+			return at, true
+		}
+		column += width
+		at += size
+	}
+	return int(row.end), true
+}
+
 // LineCount is the number of logical lines of the text last painted.
 func (editor *CodeEditor) LineCount() int { return editor.lineCount }
 
