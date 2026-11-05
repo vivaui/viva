@@ -64,7 +64,6 @@ func TestFeedRefusesWhatItMustNotActOn(t *testing.T) {
 		{"notes not https", func(feed *Feed) { feed.Latest.NotesURL = "http://example.com/notes" }, "notes_url"},
 		{"no assets", func(feed *Feed) { feed.Latest.Assets = nil }, "no assets"},
 		{"min_os", func(feed *Feed) { feed.Latest.MinOS["plan9"] = "1" }, "min_os"},
-		{"no expiry", func(feed *Feed) { feed.Expires = time.Time{} }, "expires"},
 		{"expires before release", func(feed *Feed) { feed.Expires = feed.Latest.Date }, "expires"},
 		{"unknown os", func(feed *Feed) { feed.Latest.Assets[0].OS = "plan9" }, "os"},
 		{"unknown arch", func(feed *Feed) { feed.Latest.Assets[0].Arch = "riscv64" }, "arch"},
@@ -156,5 +155,13 @@ func TestAssetPrefersThePlatformInstaller(t *testing.T) {
 	}
 	if asset.Format != FormatZIP {
 		t.Errorf("chose %q, want %q", asset.Format, FormatZIP)
+	}
+}
+
+func TestFeedWithoutExpiryNeverExpires(t *testing.T) {
+	feed := validFeed()
+	feed.Expires = time.Time{}
+	if err := feed.validate(); err != nil {
+		t.Fatalf("a feed with no expires: %v", err)
 	}
 }

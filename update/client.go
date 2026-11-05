@@ -180,7 +180,7 @@ func (client *Client) Check(ctx context.Context) (*Feed, error) {
 	if err := feed.validate(); err != nil {
 		return nil, err
 	}
-	if !client.now().Before(feed.Expires) {
+	if !feed.Expires.IsZero() && !client.now().Before(feed.Expires) {
 		return nil, fmt.Errorf("%w (expired %s)", ErrExpired, feed.Expires.UTC().Format(time.RFC3339))
 	}
 	if client.app != "" && feed.App != client.app {

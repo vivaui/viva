@@ -115,6 +115,7 @@ func TestFeedWritesASignedFeed(t *testing.T) {
 		"-C", dir,
 		"-base-url", "https://cdn.example.com/apps/",
 		"-channel", "beta",
+		"-valid-for", "48h",
 		"-notes", "https://example.com/notes/2.0.1",
 		"-key", keyPath,
 	}, &output, io.Discard)
@@ -146,8 +147,8 @@ func TestFeedWritesASignedFeed(t *testing.T) {
 	if feed.Latest.Date.IsZero() || feed.Latest.Date.Location() != time.UTC || time.Since(feed.Latest.Date) > time.Minute {
 		t.Errorf("date = %v, want a recent UTC time", feed.Latest.Date)
 	}
-	if !feed.Expires.After(feed.Latest.Date) {
-		t.Errorf("expires = %v, want a time after the release date %v", feed.Expires, feed.Latest.Date)
+	if want := feed.Latest.Date.Add(48 * time.Hour); !feed.Expires.Equal(want) {
+		t.Errorf("expires = %v, want the release date plus -valid-for: %v", feed.Expires, want)
 	}
 	if len(feed.Latest.Assets) != len(expected) {
 		t.Fatalf("assets = %d, want %d: %+v", len(feed.Latest.Assets), len(expected), feed.Latest.Assets)
@@ -317,6 +318,11 @@ func TestFeedReportsWhatItCannotUse(t *testing.T) {
 			name: "no app", toml: "[app]\nname = \"Notes\"\nversion = \"1.2.3\"\n", key: "good",
 			artifacts: map[string]string{"notes-1.2.3-darwin-arm64.zip": "x"},
 			want:      "[app] id",
+		},
+		{
+			name: "negative lifetime", toml: feedTestBasicTOML, key: "good",
+			artifacts: map[string]string{"notes-2.0.1-darwin-arm64.zip": "x"},
+			arguments: []string{"-valid-for", "-1h"}, want: "-valid-for",
 		},
 		{
 			name: "notes is not HTTPS", toml: feedTestBasicTOML, key: "good",

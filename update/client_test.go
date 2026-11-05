@@ -335,3 +335,24 @@ func TestRedirectToHTTPIsNeverRequested(t *testing.T) {
 		t.Error("the plain HTTP server received a request")
 	}
 }
+
+func TestCheckAcceptsAFeedWithoutExpiry(t *testing.T) {
+	feed := validFeed()
+	feed.Expires = time.Time{}
+	feed.Latest.Version = "2.0.0"
+	fixture := signFeed(t, feed)
+	server := serveFixture(t, fixture)
+	client, err := New(Config{
+		FeedURL:    server.URL + "/latest.json",
+		PublicKeys: []ed25519.PublicKey{fixture.public},
+		Current:    "1.0.0",
+		HTTP:       server.Client(),
+		Now:        func() time.Time { return time.Date(2200, 1, 1, 0, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found, err := client.Check(context.Background()); err != nil || found == nil {
+		t.Errorf("Check = %v, %v; want the release", found, err)
+	}
+}

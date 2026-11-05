@@ -70,13 +70,14 @@ optional, and a client configured with a channel requires an exact match. Each
 asset names an OS and architecture (`darwin`, `windows`, `linux`; `amd64`,
 `arm64`), a format (`zip`, `nsis`, `tar.gz`), a size and a lowercase SHA-256.
 
-`expires` is required. The signature covers the document but not the moment it is
-served, so without an expiry anyone who can answer the request could replay an
-older signed feed and offer a release that was since replaced because it was
-vulnerable. A client past `expires` refuses the feed (`update.ErrExpired`, which
-wraps `ErrManifest`); `Config.Now` replaces the clock in tests. The cost is that
-a feed has to be republished before it runs out, which `viva feed` makes easy:
-`-valid-for` sets the lifetime (90 days by default).
+`expires` is optional. The signature covers the document but not the moment it
+is served, so a feed without an expiry can be replayed by anyone who can answer
+the request, offering a release that was since replaced because it was
+vulnerable. When `expires` is present a client past it refuses the feed
+(`update.ErrExpired`, which wraps `ErrManifest`); `Config.Now` replaces the
+clock in tests. `viva feed -valid-for 2160h` sets it; the default writes none.
+The cost of an expiry is that the feed has to be republished before it runs out,
+so choose a lifetime you will actually keep up with.
 
 `min_os` is carried for the application: the client does not compare it, because
 only the application knows what it supports.
@@ -240,10 +241,10 @@ installer are per-user by default and need no elevation.
   exists but fails is `ErrUntrusted`; an unsigned Windows installer is accepted
   because the feed is the trust anchor.
 - **No downgrade, no replay.** A feed older than the running version is treated
-  as "nothing newer", and a signed feed past its `expires` is refused, so an old
-  feed cannot be served again indefinitely. A feed replayed *within* its
+  as "nothing newer", and a signed feed past its `expires` is refused. A feed
+  with no `expires` can be replayed indefinitely, and one replayed within its
   lifetime can still offer a release that is newer than the running one but not
-  the latest; keep `-valid-for` as short as you can republish.
+  the latest; set `-valid-for` as short as you can republish if that matters.
 - **No telemetry.** The package sends no identifier and nothing but the
   configured requests. It does not check at import or on a timer.
 

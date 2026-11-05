@@ -39,8 +39,8 @@ func runFeed(arguments []string, output, _ io.Writer) error {
 	flags.StringVar(&channel, "channel", "stable", "release channel")
 	flags.StringVar(&baseURL, "base-url", "", "HTTPS address the archives are served from (required)")
 	flags.StringVar(&notes, "notes", "", "HTTPS page describing the release")
-	validFor := 90 * 24 * time.Hour
-	flags.DurationVar(&validFor, "valid-for", validFor, "how long clients trust the feed; publish a new one before it runs out")
+	var validFor time.Duration
+	flags.DurationVar(&validFor, "valid-for", 0, "how long clients trust the feed, such as 2160h; 0 (the default) never expires")
 	flags.StringVar(&keyFile, "key", "", "Ed25519 private key file (default $VIVA_UPDATE_KEY)")
 	positional, helped, err := parseFlags(c, flags, arguments, output)
 	if helped || err != nil {
@@ -99,16 +99,18 @@ func runFeed(arguments []string, output, _ io.Writer) error {
 		return err
 	}
 
-	if validFor <= 0 {
-		return errors.New("-valid-for must be positive, such as 2160h (90 days)")
+	if validFor < 0 {
+		return errors.New("-valid-for must not be negative; use 0 for a feed that never expires")
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	feed := update.Feed{
 		Schema: update.SchemaVersion, App: app, Channel: channel,
-		Expires: now.Add(validFor),
 		Latest: update.Release{
 			Version: version, Date: now, NotesURL: notes, Assets: assets,
 		},
+	}
+	if validFor > 0 {
+		feed.Expires = now.Add(validFor)
 	}
 	data, err := json.MarshalIndent(feed, "", "  ")
 	if err != nil {
@@ -138,7 +140,9 @@ func runFeed(arguments []string, output, _ io.Writer) error {
 	fmt.Fprintf(output, "  app      %s\n", app)
 	fmt.Fprintf(output, "  version  %s\n", version)
 	fmt.Fprintf(output, "  channel  %s\n", channel)
-	fmt.Fprintf(output, "  expires  %s\n", feed.Expires.Format(time.RFC3339))
+	if !feed.Expires.IsZero() {
+		fmt.Fprintf(output, "  expires  %s\n", feed.Expires.Format(time.RFC3339))
+	}
 	fmt.Fprintf(output, "  assets   %d\n", len(assets))
 	fmt.Fprintf(output, "  signed   %s\n", displayPath(signaturePath))
 	return nil

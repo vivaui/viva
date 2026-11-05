@@ -32,12 +32,12 @@ type Feed struct {
 	// Channel names the release channel the feed carries, such as "stable" or
 	// "beta". It is optional; empty means the feed's only channel.
 	Channel string `json:"channel,omitempty"`
-	// Expires is when the client stops trusting this feed. The signature covers
-	// the document, not the time it is served, so without an expiry anyone who
-	// can answer the request could replay an older signed feed and offer a
-	// release that was since superseded because it was found vulnerable. A feed
-	// without one is refused.
-	Expires time.Time `json:"expires"`
+	// Expires, when set, is when the client stops trusting this feed. The
+	// signature covers the document, not the time it is served, so a feed with
+	// no expiry can be replayed by anyone who can answer the request, offering a
+	// release that was since superseded because it was found vulnerable. It is
+	// optional: the zero value means the feed never expires.
+	Expires time.Time `json:"expires,omitzero"`
 	// Latest is the newest release the feed knows about.
 	Latest Release `json:"latest"`
 }
@@ -120,10 +120,7 @@ func (feed Feed) validate() error {
 	if _, err := parseVersion(feed.Latest.Version); err != nil {
 		return fmt.Errorf("%w: latest: %v", ErrManifest, err)
 	}
-	if feed.Expires.IsZero() {
-		return fmt.Errorf("%w: expires is empty; a feed must say when it stops being trusted", ErrManifest)
-	}
-	if !feed.Expires.After(feed.Latest.Date) {
+	if !feed.Expires.IsZero() && !feed.Expires.After(feed.Latest.Date) {
 		return fmt.Errorf("%w: expires is not after the release date", ErrManifest)
 	}
 	if feed.Latest.NotesURL != "" {
