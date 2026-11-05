@@ -21,11 +21,12 @@ import (
 )
 
 type nativeStatusItem struct {
-	token   unsafe.Pointer
-	handle  cgo.Handle
-	removed atomic.Bool
-	onClick func(platform.StatusClick)
-	menu    func() []platform.MenuItem
+	token          unsafe.Pointer
+	handle         cgo.Handle
+	removed        atomic.Bool
+	onClick        func(platform.StatusClick)
+	menu           func() []platform.MenuItem
+	currentEntries []platform.MenuEntry
 }
 
 // AddStatusItem puts an icon in the menu bar. Press events arrive on the
@@ -40,7 +41,8 @@ func (application *nativeApplication) AddStatusItem(config platform.StatusItemCo
 	defer C.free(unsafe.Pointer(tooltip))
 	pixels := C.CBytes(config.Icon.RGBA)
 	defer C.free(pixels)
-	item.token = C.viva_status_item_create(tooltip, nativeStatusIcon(config.Icon, pixels), C.uintptr_t(item.handle))
+	hasMenu := config.Menu != nil
+	item.token = C.viva_status_item_create(tooltip, nativeStatusIcon(config.Icon, pixels), C.uintptr_t(item.handle), C.int(boolInt(hasMenu)))
 	if item.token == nil {
 		item.handle.Delete()
 		return nil, errors.New("darwin: failed to create the status item")
@@ -86,14 +88,7 @@ func (item *nativeStatusItem) Remove() {
 //export vivaStatusItemClicked
 func vivaStatusItemClicked(handle C.uintptr_t, button C.int, x, y, width, height C.float, dismissed C.int) {
 	item := cgo.Handle(handle).Value().(*nativeStatusItem)
-	if item.removed.Load() {
-		return
-	}
-	if item.menu != nil {
-		item.popMenu()
-		return
-	}
-	if item.onClick == nil {
+	if item.removed.Load() || item.onClick == nil {
 		return
 	}
 	pointer := ui.PointerButtonPrimary
@@ -107,11 +102,20 @@ func vivaStatusItemClicked(handle C.uintptr_t, button C.int, x, y, width, height
 	})
 }
 
-// popMenu asks the application for the menu, has the system show it, and runs
-// the chosen entry once it has closed.
-func (item *nativeStatusItem) popMenu() {
+//export vivaStatusItemUpdateMenu
+func vivaStatusItemUpdateMenu(handle C.uintptr_t) {
+	item := cgo.Handle(handle).Value().(*nativeStatusItem)
+	if item.removed.Load() || item.menu == nil {
+		return
+	}
+	item.updateMenu()
+}
+
+func (item *nativeStatusItem) updateMenu() {
 	entries := platform.NumberMenu(item.menu())
+	item.currentEntries = entries
 	if len(entries) == 0 {
+		C.viva_status_item_set_menu_entries(item.token, nil, 0)
 		return
 	}
 	size := unsafe.Sizeof(C.viva_menu_entry{})
@@ -131,7 +135,16 @@ func (item *nativeStatusItem) popMenu() {
 			}
 		}
 	}()
-	platform.Select(entries, int(C.viva_status_item_pop_menu(item.token, &native[0], C.int(platform.TopLevel(entries)))))
+	C.viva_status_item_set_menu_entries(item.token, &native[0], C.int(platform.TopLevel(entries)))
+}
+
+//export vivaStatusItemMenuChosen
+func vivaStatusItemMenuChosen(handle C.uintptr_t, id C.int) {
+	item := cgo.Handle(handle).Value().(*nativeStatusItem)
+	if item.removed.Load() {
+		return
+	}
+	platform.Select(item.currentEntries, int(id))
 }
 
 // Quit closes every window, close requests notwithstanding, and ends the loop.
