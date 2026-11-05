@@ -166,6 +166,10 @@ func scale(picture image.Image, size int) *image.NRGBA {
 	return out
 }
 
+// Scale resamples the picture to size x size, by area averaging when it shrinks
+// and bilinear sampling when it grows, without shaping it.
+func Scale(picture image.Image, size int) *image.NRGBA { return scale(picture, size) }
+
 // Silhouette is the picture's mark as a one-color shape for a status area that
 // tints its icons (a macOS template): black, with an alpha that says how far
 // each pixel is from the background. The background is the color of the top-left
