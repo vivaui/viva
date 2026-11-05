@@ -748,6 +748,10 @@ func (canvas *Canvas) TextWidthWeight(value string, size, weight float32) float3
 	return textmetrics.Width(value, size, weight)
 }
 
+// TextWidthStyle is TextWidthWeight for a style that may be italic: the width of value in
+// the italic face of the interface font when style.Italic is set and the text engine
+// shapes one (ui.StyledTextEngine), and in the regular face otherwise. Only Size, Weight and
+// Italic of the style matter.
 func (canvas *Canvas) TextWidthStyle(value string, style TextStyle) float32 {
 	if !style.Italic || value == "" {
 		return canvas.TextWidthWeight(value, style.Size, style.Weight)
@@ -1144,6 +1148,7 @@ func (canvas *Canvas) TextCaret(value string, size, weight float32, offset int) 
 	return textmetrics.Caret(value, size, weight, offset)
 }
 
+// TextCaretStyle is TextCaret for a style that may be italic (see TextWidthStyle).
 func (canvas *Canvas) TextCaretStyle(value string, style TextStyle, offset int) float32 {
 	if !style.Italic {
 		return canvas.TextCaret(value, style.Size, style.Weight, offset)
@@ -1176,6 +1181,7 @@ func (canvas *Canvas) TextSelection(dst []TextSpan, value string, size, weight f
 	return referenceEngine{}.Selection(dst, value, size, weight, start, end)
 }
 
+// TextSelectionStyle is TextSelection for a style that may be italic (see TextWidthStyle).
 func (canvas *Canvas) TextSelectionStyle(dst []TextSpan, value string, style TextStyle, start, end int) []TextSpan {
 	if !style.Italic {
 		return canvas.TextSelection(dst, value, style.Size, style.Weight, start, end)
@@ -1206,6 +1212,7 @@ func (canvas *Canvas) TextOffsetAt(value string, size, weight, x float32) int {
 	return textmetrics.OffsetAt(value, size, weight, x)
 }
 
+// TextOffsetAtStyle is TextOffsetAt for a style that may be italic (see TextWidthStyle).
 func (canvas *Canvas) TextOffsetAtStyle(value string, style TextStyle, x float32) int {
 	if !style.Italic {
 		return canvas.TextOffsetAt(value, style.Size, style.Weight, x)

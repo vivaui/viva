@@ -53,6 +53,9 @@ typedef struct viva_text_line {
     double ascent;
     double descent;
     int references;
+    // italic says the line was asked for in italics: glyphs of a font that has no italic
+    // face (the CJK fallback, say) are slanted when it is drawn.
+    int italic;
 } viva_text_line;
 
 typedef struct {

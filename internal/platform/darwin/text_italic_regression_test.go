@@ -48,3 +48,58 @@ func TestItalicProportionalLabelDrawsDifferentGlyphPixels(t *testing.T) {
 		t.Fatal("proportional italic label has regular glyph pixels")
 	}
 }
+
+// leanOf is how far the ink of a picture leans: the horizontal distance between the center
+// of mass of its top half and of its bottom half, in pixels. An upright line has none and a
+// line slanted to the right has the top half further right.
+func leanOf(pixels []byte, width, height int) float64 {
+	var top, bottom, topMass, bottomMass float64
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			at := (y*width + x) * 4
+			weight := float64(pixels[at]) + float64(pixels[at+1]) + float64(pixels[at+2]) // white ink on black
+			if y < height/2 {
+				top += weight * float64(x)
+				topMass += weight
+			} else {
+				bottom += weight * float64(x)
+				bottomMass += weight
+			}
+		}
+	}
+	if topMass == 0 || bottomMass == 0 {
+		return 0
+	}
+	return top/topMass - bottom/bottomMass
+}
+
+// A CJK font has no italic face, so Core Text leaves its glyphs upright; the label is
+// drawn with a slant for them, as it is for the fallback of a Latin font.
+func TestItalicLabelSlantsGlyphsOfFontsWithoutAnItalicFace(t *testing.T) {
+	color := platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	lean := func(text string, italic bool) float64 {
+		offscreen, err := NewOffscreen(280, 50, 2, Color{Alpha: 1})
+		if err != nil {
+			t.Skipf("no Metal device: %v", err)
+		}
+		defer offscreen.Close()
+		err = offscreen.Set(nil, []TextLabel{{
+			Value: text, X: 0, Y: 0, Width: 280, Height: 50,
+			FontSize: 24, Weight: ui.WeightRegular, Italic: italic, Color: color,
+		}}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pixels, width, height, err := offscreen.Render()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return leanOf(pixels, width, height)
+	}
+	for _, text := range []string{"本文强调", "emphasis", "强调 emphasis"} {
+		upright, slanted := lean(text, false), lean(text, true)
+		if slanted < upright+0.5 {
+			t.Errorf("%q: italic leans %.2f px, upright %.2f; want the italic to lean right", text, slanted, upright)
+		}
+	}
+}

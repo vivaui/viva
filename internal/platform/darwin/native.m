@@ -976,10 +976,12 @@ static CTFontRef viva_system_font_style(CGFloat size, CGFloat weight, BOOL itali
     if (!italic || base == NULL) {
         return base;
     }
+    // The family's own italic face when it has one. When it has none the base font is
+    // kept and the glyphs are slanted as they are drawn (viva_draw_text_line), the same
+    // slant the fallback fonts of a line get.
     CTFontRef face = CTFontCreateCopyWithSymbolicTraits(base, size, NULL, kCTFontItalicTrait, kCTFontItalicTrait);
     if (face == NULL) {
-        CGAffineTransform slant = CGAffineTransformMake(1, 0, 0.2, 1, 0, 0);
-        face = CTFontCreateCopyWithAttributes(base, size, &slant, NULL);
+        return base;
     }
     CFRelease(base);
     return face;
@@ -1038,6 +1040,7 @@ viva_text_line *viva_text_line_create_style(const unsigned char *utf8, size_t le
         shaped->line = (void *)line;
         shaped->string = (void *)string;
         shaped->references = 1;
+        shaped->italic = italic != 0;
         CFRelease(font);
         return shaped;
     }
@@ -1184,11 +1187,42 @@ static viva_text_line *viva_shared_text_line_style(NSString *shown, CGFloat font
 
 // viva_draw_text_line draws the shaped line in one call, its origin at x on baseline, in
 // color (the line carries none, so the same line serves every color).
+// VIVA_SYNTHETIC_ITALIC_SLANT is the shear of a glyph drawn in italics from a font that has
+// no italic face: about eleven degrees, as the tilt of the system font's own italic.
+#define VIVA_SYNTHETIC_ITALIC_SLANT 0.2
+
+// viva_run_needs_slant says whether a run of an italic line must be slanted: its font has no
+// italic face, as a CJK fallback font has none. A font of color glyphs (emoji) is left upright.
+static BOOL viva_run_needs_slant(CTRunRef run) {
+    CFDictionaryRef attributes = CTRunGetAttributes(run);
+    CTFontRef font = attributes != NULL ? (CTFontRef)CFDictionaryGetValue(attributes, kCTFontAttributeName) : NULL;
+    if (font == NULL) {
+        return NO;
+    }
+    CTFontSymbolicTraits traits = CTFontGetSymbolicTraits(font);
+    return (traits & (kCTFontItalicTrait | kCTFontColorGlyphsTrait)) == 0;
+}
+
 static void viva_draw_text_line(CGContextRef context, const viva_text_line *line, CGColorRef color, CGFloat x, CGFloat baseline) {
     CGContextSaveGState(context);
     CGContextSetFillColorWithColor(context, color);
-    CGContextSetTextPosition(context, x, baseline);
-    CTLineDraw((CTLineRef)line->line, context);
+    if (!line->italic) {
+        CGContextSetTextPosition(context, x, baseline);
+        CTLineDraw((CTLineRef)line->line, context);
+    } else {
+        // Run by run: the runs whose font has no italic face are drawn under a shear about
+        // the baseline. The glyph positions of a run are relative to the line's origin, so
+        // the shear leaves them where the line put them and only tilts the glyphs.
+        CFArrayRef runs = CTLineGetGlyphRuns((CTLineRef)line->line);
+        for (CFIndex index = 0, count = CFArrayGetCount(runs); index < count; index++) {
+            CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, index);
+            CGFloat slant = viva_run_needs_slant(run) ? VIVA_SYNTHETIC_ITALIC_SLANT : 0;
+            CGContextSetTextMatrix(context, CGAffineTransformMake(1, 0, slant, 1, x, baseline));
+            CTRunDraw(run, context, CFRangeMake(0, 0));
+        }
+        // The text matrix is not part of the saved state, and other labels set only a position.
+        CGContextSetTextMatrix(context, CGAffineTransformIdentity);
+    }
     CGContextRestoreGState(context);
 }
 

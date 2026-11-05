@@ -30,7 +30,13 @@ type TextEngine interface {
 	OffsetAt(value string, size, weight, x float32) int
 }
 
-// StyledTextEngine optionally shapes proportional italic text without changing TextEngine callers.
+// StyledTextEngine is a TextEngine that also shapes proportional italic text. Its methods
+// are those of TextEngine with the face named: with italic false each answers exactly as
+// the TextEngine method of the same name, and with it true, for the italic face of the
+// same family, size and weight. A line drawn with TextStyle.Italic must be measured through
+// them (Canvas.TextWidthStyle and the like), so that widths, carets, selections and hits
+// agree with the glyphs. An engine that does not implement it measures italic text in the
+// regular face.
 type StyledTextEngine interface {
 	TextEngine
 	WidthStyle(value string, size, weight float32, italic bool) float32

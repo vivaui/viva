@@ -983,6 +983,10 @@ func (l *mdLayout) atomize(spans []markdown.Span, t mdFont) {
 	atoms := l.v.atoms[:0]
 	monoSize := max(t.size-1, 9)
 	cell, _ := l.canvas.MonoCellSize(monoSize, l.style.MonoFace)
+	// A blank is as wide as one of the regular face whatever its span's weight, so that
+	// emphasis does not move the words around it. An italic span's blank is the italic face's.
+	space := l.canvas.TextWidthWeight(" ", t.size, ui.WeightRegular)
+	italicSpace := l.canvas.TextWidthStyle(" ", ui.TextStyle{Size: t.size, Weight: ui.WeightRegular, Italic: true})
 	var pending float32
 	for si, sp := range spans {
 		if sp.Text == markdown.Newline {
@@ -1003,9 +1007,9 @@ func (l *mdLayout) atomize(spans []markdown.Span, t mdFont) {
 				if mono {
 					pending += cell
 				} else if italic {
-					pending = l.canvas.TextWidthStyle(" ", ui.TextStyle{Size: size, Weight: weight, Italic: true})
+					pending = italicSpace
 				} else {
-					pending = l.canvas.TextWidthWeight(" ", size, weight)
+					pending = space
 				}
 				i += n
 				continue
