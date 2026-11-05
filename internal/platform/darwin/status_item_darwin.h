@@ -23,11 +23,9 @@ typedef struct {
 /* Sets the Dock icon of a program that is not in an .app bundle. Returns 0 when
  * it did not. Main thread only. */
 int viva_application_set_icon(viva_status_icon icon);
-void *viva_status_item_create(const char *tooltip, viva_status_icon icon, uintptr_t callback_handle);
+void *viva_status_item_create(const char *tooltip, viva_status_icon icon, uintptr_t callback_handle, int has_menu);
 int viva_status_item_set_icon(void *item, viva_status_icon icon);
 void viva_status_item_set_tooltip(void *item, const char *tooltip);
-/* Shows the menu under the item, returns when it has closed, and gives the id of
- * the entry the user chose, or 0. */
-int viva_status_item_pop_menu(void *item, const viva_menu_entry *entries, int count);
+void viva_status_item_set_menu_entries(void *item, const viva_menu_entry *entries, int count);
 
 #endif

@@ -27,6 +27,8 @@ extern void vivaStatusItemClicked(
     float height,
     int panelDismissed
 );
+extern void vivaStatusItemUpdateMenu(uintptr_t callbackHandle);
+extern void vivaStatusItemMenuChosen(uintptr_t callbackHandle, int id);
 
 enum {
     VIVA_STATUS_BUTTON_PRIMARY = 1,
@@ -66,22 +68,23 @@ static NSImage *viva_status_image(viva_status_icon icon) {
     return image;
 }
 
-@interface VivaStatusItem : NSObject {
+@interface VivaStatusItem : NSObject <NSMenuDelegate> {
     NSStatusItem *_item;
     uintptr_t _callbackHandle;
-    int _chosen;
+    BOOL _hasMenu;
+    NSMenu *_menu;
 }
-- (instancetype)initWithTooltip:(NSString *)tooltip icon:(viva_status_icon)icon callbackHandle:(uintptr_t)callbackHandle;
+- (instancetype)initWithTooltip:(NSString *)tooltip icon:(viva_status_icon)icon callbackHandle:(uintptr_t)callbackHandle hasMenu:(BOOL)hasMenu;
 - (BOOL)setIcon:(viva_status_icon)icon;
 - (void)setTooltip:(NSString *)tooltip;
 - (void)remove;
-- (int)popMenu:(const viva_menu_entry *)entries count:(int)count;
+- (void)setMenuEntries:(const viva_menu_entry *)entries count:(int)count;
 - (void)menuChosen:(NSMenuItem *)sender;
 @end
 
 @implementation VivaStatusItem
 
-- (instancetype)initWithTooltip:(NSString *)tooltip icon:(viva_status_icon)icon callbackHandle:(uintptr_t)callbackHandle {
+- (instancetype)initWithTooltip:(NSString *)tooltip icon:(viva_status_icon)icon callbackHandle:(uintptr_t)callbackHandle hasMenu:(BOOL)hasMenu {
     self = [super init];
     if (self == nil) {
         return nil;
@@ -92,12 +95,20 @@ static NSImage *viva_status_image(viva_status_icon icon) {
         return nil;
     }
     _callbackHandle = callbackHandle;
+    _hasMenu = hasMenu;
     _item = [[[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength] retain];
     _item.button.image = image;
     _item.button.toolTip = tooltip;
-    _item.button.target = self;
-    _item.button.action = @selector(clicked:);
-    [_item.button sendActionOn:NSEventMaskLeftMouseDown | NSEventMaskRightMouseDown];
+    if (_hasMenu) {
+        _menu = [[NSMenu alloc] initWithTitle:@""];
+        _menu.autoenablesItems = NO;
+        _menu.delegate = self;
+        _item.menu = _menu;
+    } else {
+        _item.button.target = self;
+        _item.button.action = @selector(clicked:);
+        [_item.button sendActionOn:NSEventMaskLeftMouseDown | NSEventMaskRightMouseDown];
+    }
     return self;
 }
 
@@ -121,6 +132,12 @@ static NSImage *viva_status_image(viva_status_icon icon) {
 
 - (void)remove {
     if (_item != nil) {
+        _item.menu = nil;
+        if (_menu != nil) {
+            _menu.delegate = nil;
+            [_menu release];
+            _menu = nil;
+        }
         [[NSStatusBar systemStatusBar] removeStatusItem:_item];
         [_item release];
         _item = nil;
@@ -128,10 +145,8 @@ static NSImage *viva_status_image(viva_status_icon icon) {
     _callbackHandle = 0;
 }
 
-/* Builds the menu of count entries starting at *cursor, taking each submenu's
- * entries from the ones that follow its parent. */
-- (NSMenu *)menuFrom:(const viva_menu_entry *)entries cursor:(int *)cursor count:(int)count {
-    NSMenu *menu = [[[NSMenu alloc] init] autorelease];
+- (void)populateMenu:(NSMenu *)menu from:(const viva_menu_entry *)entries cursor:(int *)cursor count:(int)count {
+    [menu removeAllItems];
     menu.autoenablesItems = NO;
     for (int index = 0; index < count; index++) {
         const viva_menu_entry *entry = &entries[(*cursor)++];
@@ -145,34 +160,39 @@ static NSImage *viva_status_image(viva_status_icon icon) {
         item.enabled = !entry->disabled;
         item.state = entry->checked ? NSControlStateValueOn : NSControlStateValueOff;
         if (entry->children > 0) {
-            item.submenu = [self menuFrom:entries cursor:cursor count:entry->children];
+            NSMenu *submenu = [[[NSMenu alloc] initWithTitle:title ?: @""] autorelease];
+            [self populateMenu:submenu from:entries cursor:cursor count:entry->children];
+            item.submenu = submenu;
         } else {
             item.target = self;
             item.action = @selector(menuChosen:);
         }
         [menu addItem:item];
     }
-    return menu;
+}
+
+- (void)setMenuEntries:(const viva_menu_entry *)entries count:(int)count {
+    if (_menu == nil) {
+        return;
+    }
+    if (entries == NULL || count <= 0) {
+        [_menu removeAllItems];
+        return;
+    }
+    int cursor = 0;
+    [self populateMenu:_menu from:entries cursor:&cursor count:count];
+}
+
+- (void)menuNeedsUpdate:(NSMenu *)menu {
+    if (menu == _menu && _callbackHandle != 0) {
+        vivaStatusItemUpdateMenu(_callbackHandle);
+    }
 }
 
 - (void)menuChosen:(NSMenuItem *)sender {
-    _chosen = (int)sender.tag;
-}
-
-- (int)popMenu:(const viva_menu_entry *)entries count:(int)count {
-    if (_item == nil) {
-        return 0;
+    if (_callbackHandle != 0) {
+        vivaStatusItemMenuChosen(_callbackHandle, (int)sender.tag);
     }
-    int cursor = 0;
-    _chosen = 0;
-    /* A status item shows its menu in place of sending its action, with the
-     * item drawn pressed and the menu placed as the system places its own. The
-     * click is performed here, inside the press that came in, and the menu is
-     * taken away again so the next press asks the application anew. */
-    _item.menu = [self menuFrom:entries cursor:&cursor count:count];
-    [_item.button performClick:nil];
-    _item.menu = nil;
-    return _chosen;
 }
 
 - (void)clicked:(id)sender {
@@ -216,10 +236,10 @@ int viva_application_set_icon(viva_status_icon icon) {
     }
 }
 
-void *viva_status_item_create(const char *tooltip, viva_status_icon icon, uintptr_t callback_handle) {
+void *viva_status_item_create(const char *tooltip, viva_status_icon icon, uintptr_t callback_handle, int has_menu) {
     @autoreleasepool {
         NSString *text = tooltip != NULL ? [NSString stringWithUTF8String:tooltip] : @"";
-        VivaStatusItem *item = [[VivaStatusItem alloc] initWithTooltip:text icon:icon callbackHandle:callback_handle];
+        VivaStatusItem *item = [[VivaStatusItem alloc] initWithTooltip:text icon:icon callbackHandle:callback_handle hasMenu:has_menu != 0];
         if (item == nil) {
             return NULL;
         }
@@ -239,9 +259,9 @@ int viva_status_item_set_icon(void *item, viva_status_icon icon) {
     }
 }
 
-int viva_status_item_pop_menu(void *item, const viva_menu_entry *entries, int count) {
+void viva_status_item_set_menu_entries(void *item, const viva_menu_entry *entries, int count) {
     @autoreleasepool {
-        return [(VivaStatusItem *)item popMenu:entries count:count];
+        [(VivaStatusItem *)item setMenuEntries:entries count:count];
     }
 }
 
