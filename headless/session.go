@@ -102,11 +102,12 @@ func (session *Session) RightClick(x, y float32) error {
 	return session.driver.ClickButton(x, y, ui.PointerButtonSecondary)
 }
 
-// RightClickLabel right-clicks the center of the region labelled label.
+// RightClickLabel right-clicks the center of the control a selector names: a label, or a role
+// or identity (see Locate).
 func (session *Session) RightClickLabel(label string) error {
-	hit, ok := session.Hit(label)
-	if !ok {
-		return fmt.Errorf("headless: no control labelled %q", label)
+	hit, err := session.Locate(label)
+	if err != nil {
+		return fmt.Errorf("headless: %w", err)
 	}
 	return session.driver.ClickButton(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2, ui.PointerButtonSecondary)
 }
@@ -114,11 +115,11 @@ func (session *Session) RightClickLabel(label string) error {
 // DoubleClick double-clicks at a logical-pixel point.
 func (session *Session) DoubleClick(x, y float32) error { return session.driver.DoubleClick(x, y) }
 
-// DoubleClickLabel double-clicks the center of the region labelled label.
+// DoubleClickLabel double-clicks the center of the control a selector names (see Locate).
 func (session *Session) DoubleClickLabel(label string) error {
-	hit, ok := session.Hit(label)
-	if !ok {
-		return fmt.Errorf("headless: no control labelled %q", label)
+	hit, err := session.Locate(label)
+	if err != nil {
+		return fmt.Errorf("headless: %w", err)
 	}
 	return session.driver.DoubleClick(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2)
 }
@@ -204,11 +205,12 @@ func (session *Session) reachable(hit ui.Hit) bool {
 	return ok && target == hit.ID
 }
 
-// ClickLabel clicks the center of the region labelled label.
+// ClickLabel clicks the center of the control a selector names: a label, or a role or
+// identity (see Locate).
 func (session *Session) ClickLabel(label string) error {
-	hit, ok := session.Hit(label)
-	if !ok {
-		return fmt.Errorf("headless: no control labelled %q", label)
+	hit, err := session.Locate(label)
+	if err != nil {
+		return fmt.Errorf("headless: %w", err)
 	}
 	return session.driver.Click(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2)
 }
