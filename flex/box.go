@@ -209,6 +209,14 @@ func (b Box) IconTransform(transform ui.IconTransform) Box {
 	return b
 }
 
+// BindIconHover advances a caller-owned hover gesture for this icon element. The
+// element needs a hit region from Hit (or an enclosing interactive row); the
+// returned value is the transform the current frame's progress asks for. The
+// zero binding, or one without a state, changes nothing.
+func (b Box) BindIconHover(hover IconHover) Box {
+	return b.IconTransform(hover.Transform(b.f))
+}
+
 // MonoFace picks the fixed-pitch family a Mono text is drawn in (ui.MonoClassic,
 // or one installed family named by ui.MonoFamily); the default is the system's.
 func (b Box) MonoFace(face ui.MonoFace) Box { n := b.n(); n.face = face; n.flags |= flagMono; return b }

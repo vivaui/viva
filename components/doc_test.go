@@ -27,6 +27,7 @@ var docPrimaryEntries = map[string][]string{
 	"code_diff_model.go":    {"DiffCodeLines"},
 	"direction.go":          {"Direction"},
 	"empty.go":              {"Empty"},
+	"icon_hover.go":         {"IconHover"},
 	"kbd.go":                {"Kbd"},
 	"markdown.go":           {"MarkdownView"},
 	"markdown_anchor.go":    {"MarkdownView"},

@@ -1,0 +1,83 @@
+package components
+
+import (
+	"time"
+
+	"github.com/vivaui/viva/ui"
+)
+
+// IconHover is caller-owned hover state for an icon-only control whose glyph
+// plays one short gesture. Call Progress once each time the control paints, with
+// the control's stable ID. The pointer must rest for dwell before the gesture
+// starts, so crossing a toolbar does not set every icon in motion; once started,
+// the gesture finishes even if the pointer leaves. A second hover replays it
+// only after the first pass has ended.
+//
+// The state owns no timer. Progress asks the canvas for the wake-up that ends the
+// dwell, and PlayOnce asks for frames while the gesture runs. The result is the
+// gesture's linear progress in [0, 1]; the caller maps it onto a transform.
+type IconHover struct {
+	target ui.ID
+	since  time.Duration
+	// fired marks the slots that already played for target, so a pointer that
+	// stays put does not replay them. One bit per slot: slot is a uint8, so
+	// four words cover every value and nothing allocates. A slot is cleared
+	// when the pointer reaches or leaves target, which re-arms every gesture
+	// on it.
+	fired [4]uint64
+}
+
+// played reports whether slot already played its gesture for the current target.
+func (hover *IconHover) played(slot uint8) bool {
+	return hover.fired[slot/64]>>(slot%64)&1 != 0
+}
+
+// markPlayed records that slot played its gesture for the current target.
+func (hover *IconHover) markPlayed(slot uint8) {
+	hover.fired[slot/64] |= 1 << (slot % 64)
+}
+
+// reArm clears every slot's played mark, so the next hover replays them.
+func (hover *IconHover) reArm() {
+	hover.fired = [4]uint64{}
+}
+
+// Progress advances one control's hover gesture. id must be the ID under which
+// the control declares its hover region; slot separates several gestures owned
+// by that ID, and each slot's dwell and one-shot are tracked on their own. dwell
+// is how long the pointer must rest before the gesture starts, and duration is
+// the gesture itself. A zero ID paints still, which makes the value safe to use
+// from a static preview.
+func (hover *IconHover) Progress(canvas *ui.Canvas, id ui.ID, slot uint8, dwell, duration time.Duration) (progress float32, playing bool) {
+	if hover == nil || canvas == nil || id.IsZero() {
+		return 1, false
+	}
+	// PlayOnce owns a running gesture: it finishes the pass even when the
+	// pointer leaves, and it holds the trigger until the pointer is gone.
+	if progress, playing = canvas.PlayOnce(id, slot, false, duration); playing {
+		return progress, true
+	}
+	now := canvas.Now()
+	hovered := canvas.Hovered() == id
+	if hovered && hover.target != id {
+		hover.target = id
+		hover.since = now
+		hover.reArm()
+	}
+	if !hovered && hover.target != (ui.ID{}) {
+		hover.target = ui.ID{}
+		hover.reArm()
+	}
+	if !hovered {
+		return 1, false
+	}
+	if remaining := dwell - (now - hover.since); remaining > 0 {
+		canvas.RequestFrameIn(remaining)
+		return 1, false
+	}
+	if hover.played(slot) || canvas.ReduceMotion() {
+		return 1, false
+	}
+	hover.markPlayed(slot)
+	return canvas.PlayOnce(id, slot, true, duration)
+}

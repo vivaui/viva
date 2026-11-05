@@ -289,6 +289,135 @@ func TestRequestFrameSurvivesEndFrameUntilNextBegin(t *testing.T) {
 	}
 }
 
+func TestPlayOnceRunsOneGestureAndSettles(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	var progress float32
+	var playing bool
+	sample := func(at time.Duration, trigger bool) {
+		frames.at(at, func() { progress, playing = canvas.PlayOnce(Item(1), 0, trigger, 200*time.Millisecond) })
+	}
+	sample(0, false)
+	if progress != 1 || playing {
+		t.Fatalf("rest = %v playing=%v", progress, playing)
+	}
+	sample(100*time.Millisecond, true)
+	if progress != 0 || !playing || !canvas.Animating() {
+		t.Fatalf("trigger = %v playing=%v animating=%v", progress, playing, canvas.Animating())
+	}
+	sample(200*time.Millisecond, true)
+	if progress != 0.5 || !playing {
+		t.Fatalf("half way = %v playing=%v", progress, playing)
+	}
+	sample(300*time.Millisecond, true)
+	if progress != 1 || playing || canvas.Animating() {
+		t.Fatalf("end = %v playing=%v animating=%v", progress, playing, canvas.Animating())
+	}
+	sample(400*time.Millisecond, false)
+	if progress != 1 || playing {
+		t.Fatalf("settled = %v playing=%v", progress, playing)
+	}
+}
+
+func TestPlayOnceDoesNotLoopWhileTriggerStaysTrue(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	for step := range 8 {
+		at := time.Duration(step) * 50 * time.Millisecond
+		var progress float32
+		frames.at(at, func() {
+			progress, _ = canvas.PlayOnce(Item(1), 0, true, 200*time.Millisecond)
+		})
+		if step == 5 && progress != 1 {
+			t.Fatalf("a held trigger restarted at %v after the gesture ended", progress)
+		}
+	}
+}
+
+func TestPlayOnceRestartsAfterRest(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	var progress float32
+	frames.at(0, func() { progress, _ = canvas.PlayOnce(Item(1), 0, true, 100*time.Millisecond) })
+	frames.at(100*time.Millisecond, func() { progress, _ = canvas.PlayOnce(Item(1), 0, false, 100*time.Millisecond) })
+	if progress != 1 {
+		t.Fatalf("after the first pass = %v", progress)
+	}
+	frames.at(150*time.Millisecond, func() { progress, _ = canvas.PlayOnce(Item(1), 0, true, 100*time.Millisecond) })
+	if progress != 0 {
+		t.Fatalf("a trigger after rest began at %v", progress)
+	}
+}
+
+func TestPlayOnceFinishesWhenTheTriggerIsReleased(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	var progress float32
+	var playing bool
+	sample := func(at time.Duration, trigger bool) {
+		frames.at(at, func() { progress, playing = canvas.PlayOnce(Item(1), 0, trigger, 200*time.Millisecond) })
+	}
+	sample(0, true)
+	sample(50*time.Millisecond, false)
+	if progress != 0.25 || !playing {
+		t.Fatalf("after releasing at a quarter = %v playing=%v", progress, playing)
+	}
+	sample(150*time.Millisecond, false)
+	if progress != 0.75 || !playing {
+		t.Fatalf("after releasing at three quarters = %v playing=%v", progress, playing)
+	}
+	sample(200*time.Millisecond, false)
+	if progress != 1 || playing {
+		t.Fatalf("after the released pass = %v playing=%v", progress, playing)
+	}
+}
+
+func TestPlayOnceSlotsAreIndependentPerIDAndSlot(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	var first, second, other float32
+	frames.at(0, func() {
+		first, _ = canvas.PlayOnce(Item(1), 0, true, 200*time.Millisecond)
+		second, _ = canvas.PlayOnce(Item(1), 1, false, 200*time.Millisecond)
+		other, _ = canvas.PlayOnce(Item(2), 0, true, 200*time.Millisecond)
+	})
+	frames.at(100*time.Millisecond, func() {
+		first, _ = canvas.PlayOnce(Item(1), 0, true, 200*time.Millisecond)
+		second, _ = canvas.PlayOnce(Item(1), 1, true, 200*time.Millisecond)
+		other, _ = canvas.PlayOnce(Item(2), 0, false, 200*time.Millisecond)
+	})
+	if first != 0.5 || second != 0 || other != 0.5 {
+		t.Fatalf("slots leaked into each other: %v %v %v", first, second, other)
+	}
+}
+
+func TestPlayOnceHonoursReducedMotionAndMissingClock(t *testing.T) {
+	var canvas Canvas
+	if progress, playing := canvas.PlayOnce(Item(1), 0, true, time.Second); progress != 1 || playing {
+		t.Fatalf("without a clock = %v playing=%v", progress, playing)
+	}
+	frames := newTestFrames(&canvas)
+	canvas.SetReduceMotion(true)
+	frames.at(0, func() {
+		if progress, playing := canvas.PlayOnce(Item(1), 0, true, time.Second); progress != 1 || playing {
+			t.Fatalf("reduced motion = %v playing=%v", progress, playing)
+		}
+	})
+	if len(canvas.motion.onces) != 1 || canvas.motion.onces[0].active {
+		t.Fatalf("reduced motion kept an active pass: %+v", canvas.motion.onces)
+	}
+}
+
+func TestPlayOnceForgetsUnpaintedWidgets(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	frames.at(0, func() { canvas.PlayOnce(Item(1), 0, true, time.Second) })
+	frames.at(10*time.Millisecond, func() {})
+	if len(canvas.motion.onces) != 0 {
+		t.Fatalf("a widget that stopped painting kept %d passes", len(canvas.motion.onces))
+	}
+}
+
 func TestClockIsReadOnlyWhenSomethingAnimatesAndOncePerFrame(t *testing.T) {
 	var canvas Canvas
 	reads := 0

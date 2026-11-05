@@ -85,6 +85,7 @@ type State struct {
 	english     bool
 	density     ui.Density
 	button      buttonState
+	iconHover   components.IconHover
 	checkbox    checkboxState
 	switches    switchState
 	// editor is the Go-owned text behind the example's editable field once a

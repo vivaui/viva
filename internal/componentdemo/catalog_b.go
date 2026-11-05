@@ -9,6 +9,7 @@ var groupBComponents = []Component{
 	fieldComponent,
 	formComponent,
 	hoverCardComponent,
+	iconHoverComponent,
 	inputGroupComponent,
 	inputOTPComponent,
 	itemComponent,

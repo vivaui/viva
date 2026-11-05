@@ -11,7 +11,7 @@ import (
 func TestGroupBCatalogOrder(t *testing.T) {
 	expected := [...]string{
 		"command", "context-menu", "drawer", "dropdown-menu", "empty",
-		"field", "form", "hover-card", "input-group", "input-otp",
+		"field", "form", "hover-card", "icon-hover", "input-group", "input-otp",
 		"item", "kbd", "label", "markdown", "marker", "menubar", "message",
 		"message-scroller", "metric-card", "multi-select", "native-select",
 	}

@@ -74,6 +74,10 @@ m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
   that contour moves while the others stay. Contours are numbered in drawing order, so a regenerated glyph can renumber
   them; pin the contours you address with a test that paints the part and checks where it lands. Filled `Layers` are
   not contours: they paint once, unchanged, while parts move.
+- A hover gesture has a small caller-owned driver: keep a `components.IconHover` and declare
+  `f.Icon(glyph).Hit(id, "Action").BindIconHover(flex.BindIconHover(&m.hover, id))`. It waits for the pointer
+  to rest, plays once, and finishes even if the pointer leaves; `IconHover.Progress` exposes the linear progress
+  when a glyph needs its own motion. `BindIconHover` only moves the glyph inside its box.
 - Window: in a `WindowCustomTitlebar` window nothing moves the window unless you say where: `f.Row().Height(36).MovesWindow().Children(...)` on the top bar
   (controls inside it still take their own clicks; a menu or dialog open over it is dismissed by a click there and the window moves once the pointer drags).
 - Text: `FontSize`, `Weight`, `Bold`, `Color`, `Muted`, `Mono`, `MonoFace`, `TextCenter`, `TextEnd`, `TextDirection`, `LineHeight`;

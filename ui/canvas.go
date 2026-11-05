@@ -586,7 +586,13 @@ type Canvas struct {
 	// iconContours holds the contours of an icon whose parts move, so a moving
 	// glyph does not allocate the slice on every frame.
 	iconContours []Icon
-	pathBuilder  PathBuilder
+	// trimPoints and trimCommands are a trimmed contour's flattened points and
+	// cut geometry, reused while its part animates.
+	trimPoints   []Point
+	trimCommands []PathCommand
+	// iconTrimTriangles holds the fresh tessellation of a trimmed contour.
+	iconTrimTriangles []iconTriangle
+	pathBuilder       PathBuilder
 	// gradientSource holds the flat triangles a path gradient recolors.
 	gradientSource []Triangle
 	// path and triangulation scratch survives Reset: reused every paint.
@@ -788,6 +794,9 @@ func (canvas *Canvas) Reset() {
 	canvas.contourClosed = canvas.contourClosed[:0]
 	canvas.iconPartCenters = canvas.iconPartCenters[:0]
 	canvas.iconContours = canvas.iconContours[:0]
+	canvas.trimPoints = canvas.trimPoints[:0]
+	canvas.trimCommands = canvas.trimCommands[:0]
+	canvas.iconTrimTriangles = canvas.iconTrimTriangles[:0]
 	canvas.motion.open = canvas.motion.open[:0]
 	canvas.trappedScope = ID{}
 	canvas.escapeTarget = ID{}
@@ -824,6 +833,11 @@ func (canvas *Canvas) Trim() {
 	canvas.pathPoints = trimCapacity(canvas.pathPoints)
 	canvas.contourEnds = trimCapacity(canvas.contourEnds)
 	canvas.contourClosed = trimCapacity(canvas.contourClosed)
+	canvas.iconPartCenters = trimCapacity(canvas.iconPartCenters)
+	canvas.iconContours = trimCapacity(canvas.iconContours)
+	canvas.trimPoints = trimCapacity(canvas.trimPoints)
+	canvas.trimCommands = trimCapacity(canvas.trimCommands)
+	canvas.iconTrimTriangles = trimCapacity(canvas.iconTrimTriangles)
 	canvas.pathBuilder.commands = trimCapacity(canvas.pathBuilder.commands)
 	canvas.gradientSource = trimCapacity(canvas.gradientSource)
 	canvas.strokeSideA = trimCapacity(canvas.strokeSideA)

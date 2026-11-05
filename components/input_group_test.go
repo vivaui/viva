@@ -236,6 +236,47 @@ func TestInputGroupButtonsComeInTheShadcnSizes(t *testing.T) {
 	}
 }
 
+// A caller can move the icon inside a button slot without moving the slot's hit
+// region. This is what lets Motty reuse its icon-hover transform in a password
+// field, whose reveal control lives inside InputGroup.
+func TestInputGroupButtonIconTransformKeepsItsHitRegion(t *testing.T) {
+	theme := ui.LightTheme()
+	icon := ui.Icon{ViewBox: 24, Stroke: 2, Commands: []ui.PathCommand{ui.MoveTo(4, 4), ui.LineTo(20, 20)}}
+	bounds := ui.Rect{Width: 240, Height: 40}
+	paint := func(transform ui.IconTransform) (*ui.Canvas, InputGroupLayout) {
+		var canvas ui.Canvas
+		layout := PaintInputGroup(&canvas, theme, bounds, InputGroupSnapshot{
+			ID: ui.Item(1), Label: "Password", Value: "secret", Secure: true, InlineEnd: InputGroupSlot{
+				Kind: InputGroupSlotButton, ID: ui.Item(2), Icon: icon, Label: "Show password",
+				ButtonSize: InputGroupButtonIconXS, IconTransform: transform,
+			},
+		})
+		return &canvas, layout
+	}
+	stillCanvas, stillLayout := paint(ui.IconTransform{})
+	movedCanvas, movedLayout := paint(ui.IconTransform{Translate: ui.Point{X: 2}})
+	if stillLayout != movedLayout {
+		t.Fatalf("the icon transform moved the layout from %+v to %+v", stillLayout, movedLayout)
+	}
+	var stillHit, movedHit ui.Hit
+	for _, hit := range stillCanvas.Hits() {
+		if hit.ID == ui.Item(2) {
+			stillHit = hit
+		}
+	}
+	for _, hit := range movedCanvas.Hits() {
+		if hit.ID == ui.Item(2) {
+			movedHit = hit
+		}
+	}
+	if stillHit.Bounds != movedHit.Bounds {
+		t.Fatalf("the icon transform moved the button hit from %+v to %+v", stillHit.Bounds, movedHit.Bounds)
+	}
+	if slices.Equal(stillCanvas.Triangles(), movedCanvas.Triangles()) {
+		t.Fatal("the icon transform painted the icon in the same place")
+	}
+}
+
 func TestInputGroupSpinnerSlotPaintsWithoutAHit(t *testing.T) {
 	var canvas ui.Canvas
 	layout := PaintInputGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 200}, InputGroupSnapshot{

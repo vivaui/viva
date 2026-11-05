@@ -76,16 +76,19 @@ const (
 // button should carry a Label, its accessible name. It is a ghost button, like
 // shadcn's InputGroupButton default.
 type InputGroupSlot struct {
-	Kind       InputGroupSlotKind
-	ID         ui.ID
-	Icon       ui.Icon
-	Text       string
-	Label      string
-	Hint       string
-	Width      float32
-	Disabled   bool
-	Separated  bool
-	ButtonSize InputGroupButtonSize
+	Kind InputGroupSlotKind
+	ID   ui.ID
+	Icon ui.Icon
+	// IconTransform moves the painted icon inside its addon without moving the
+	// addon, its label or its hit region.
+	IconTransform ui.IconTransform
+	Text          string
+	Label         string
+	Hint          string
+	Width         float32
+	Disabled      bool
+	Separated     bool
+	ButtonSize    InputGroupButtonSize
 	// Phase is the spinner frame of an InputGroupSlotSpinner.
 	Phase SpinnerPhase
 }
@@ -431,12 +434,12 @@ func inputGroupPaintButton(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, sl
 		canvas.LabelCenter(slot.Text, bounds, style)
 	case slot.Text == "":
 		side := min(inputGroupButtonIcon(slot), bounds.Width, bounds.Height)
-		canvas.DrawIcon(slot.Icon, ui.Rect{X: bounds.X + (bounds.Width-side)/2, Y: bounds.Y + (bounds.Height-side)/2, Width: side, Height: side}, color)
+		canvas.DrawIconTransformed(slot.Icon, ui.Rect{X: bounds.X + (bounds.Width-side)/2, Y: bounds.Y + (bounds.Height-side)/2, Width: side, Height: side}, color, slot.IconTransform)
 	default:
 		side := inputGroupButtonIcon(slot)
 		text := canvas.TextWidthWeight(slot.Text, style.Size, style.Weight)
 		x := bounds.X + (bounds.Width-side-4-text)/2
-		canvas.DrawIcon(slot.Icon, ui.Rect{X: x, Y: bounds.Y + (bounds.Height-side)/2, Width: side, Height: side}, color)
+		canvas.DrawIconTransformed(slot.Icon, ui.Rect{X: x, Y: bounds.Y + (bounds.Height-side)/2, Width: side, Height: side}, color, slot.IconTransform)
 		canvas.Label(slot.Text, ui.Rect{X: x + side + 4, Y: bounds.Y, Width: inputGroupMax(0, bounds.X+bounds.Width-x-side-4), Height: bounds.Height}, style)
 	}
 	if !slot.ID.IsZero() {
