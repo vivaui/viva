@@ -130,3 +130,15 @@ func clampOffset(value string, offset int) int {
 	}
 	return offset
 }
+
+// FontRegistrar is a TextEngine that can take a font the application carries: the platform
+// engines implement it.
+type FontRegistrar interface {
+	TextEngine
+	// RegisterFont makes the TrueType or OpenType font in data available to this process only,
+	// without installing it, and returns the family it names (the first one, for a collection),
+	// ready to give to MonoFamily or FontFamilyAware.SetFontFamily, and a function that takes the
+	// registration away. Registering the same data again shares the registration. What was shaped
+	// before is forgotten, so a family that stood in for the missing font is drawn again.
+	RegisterFont(data []byte) (family string, unregister func(), err error)
+}

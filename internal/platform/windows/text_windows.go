@@ -107,7 +107,10 @@ func (services *textServices) formatStyle(name string, size, weight float32, ita
 	if italic {
 		style = 2 // DWRITE_FONT_STYLE_ITALIC
 	}
-	status := services.createFormat(services.write, family, 0, nativeFontWeight(weight), style, 5, size, locale, &format)
+	// The collection the application's fonts joined, or the system's when it registered none.
+	customFonts.RLock()
+	defer customFonts.RUnlock()
+	status := services.createFormat(services.write, family, customFonts.collection, nativeFontWeight(weight), style, 5, size, locale, &format)
 	return format, hresult(status)
 }
 

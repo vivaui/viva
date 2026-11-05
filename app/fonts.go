@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/vivaui/viva/ui"
@@ -37,6 +38,28 @@ func MonospaceFamilies() []string { return nativeMonospaceFamilies() }
 // empty where the platform cannot enumerate fonts (a browser, an unsupported
 // target).
 func FontFamilies() []string { return nativeFontFamilies() }
+
+// RegisterFont makes the TrueType or OpenType font in data (a .ttf, .otf or .ttc, as an
+// application embeds with //go:embed) available to this process, without installing it in the
+// user's font library, and returns the family it names, ready for ui.MonoFamily,
+// ui.MonoStack and SetInterfaceFontFamily, and a function that takes the registration away
+// again. A collection registers every font in it and names the first one's family; the weights
+// and styles of a family are separate files, each registered. Registering the same data again
+// shares the registration, which ends with the last unregister.
+//
+// Register before the font is asked for: a family looked up while it was missing is drawn in the
+// platform's stand-in until the next shaping. Text already shaped is forgotten, so the next paint
+// draws it in the new font.
+//
+// It fails with ErrUnsupported where the platform cannot take a font at run time, and with an
+// error for data that is not a font or that the engine refuses. WOFF data is not read.
+func RegisterFont(data []byte) (family string, unregister func(), err error) {
+	registrar, ok := PlatformTextEngine().(ui.FontRegistrar)
+	if !ok {
+		return "", nil, fmt.Errorf("%w: registering fonts", ErrUnsupported)
+	}
+	return registrar.RegisterFont(data)
+}
 
 // maxInterfaceFamilyName bounds a family name; real ones are a few words long.
 const maxInterfaceFamilyName = 96

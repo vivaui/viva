@@ -123,3 +123,5 @@ f.Select(scope, &state, labels, selected).FontSize(15)
 `ui.TextStyle` 接受 `Size`、`Weight` 和 `Color`。文字用系统字体绘制，所以每个平台显示自己的字体，中日韩文字不需要任何设置就会回退到系统的中日韩字体。Viva 不捆绑字体。
 
 用于代码和终端时，设置 `Mono: true`，默认使用系统的等宽字体。`MonoFace` 可以选择别的：`ui.MonoClassic` 请求传统的终端字体，`ui.MonoFamily(name)` 选择任何已安装的字体族。`app.MonospaceFamilies()` 列出它们，供设置页使用；它每次都会读取系统，可能要几十毫秒，所以在页面打开时调用，不要在绘制过程中调用。等宽行里每个 ASCII 字符的前进宽度都是 `Canvas.CellSize(size)`，这正是字符网格需要的。
+
+应用可以自带字体。`app.RegisterFont(data)` 接收 `.ttf`、`.otf` 或 `.ttc` 的字节（用 `//go:embed` 嵌入），让字体只在本进程内可用而不安装到系统，并返回字体声明的字体族名，可以直接交给 `ui.MonoFamily` 或 `app.SetInterfaceFontFamily`。同一字体族的每个字重或样式是单独的文件，各调用一次。请在第一次使用该字体族的绘制之前注册；返回的函数会撤销注册。支持 macOS、Windows（10 版本 1607 及以上）和 Linux，其他平台返回 `app.ErrUnsupported`。
