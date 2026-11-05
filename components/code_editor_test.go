@@ -496,6 +496,39 @@ func TestCodeEditorHighlightLineRunsOncePerWrappedLogicalLine(t *testing.T) {
 	}
 }
 
+func TestCodeEditorHighlightLineSanitizesRunsAndSkipsOversizedLine(t *testing.T) {
+	value := "key: 中文\n" + strings.Repeat("x", CodeEditorMaxHighlightedLine+1)
+	fixture := newCodeFixture(value)
+	fixture.bounds.Height = 600
+	color := ui.RGB(195, 40, 45)
+	var indexes []int
+	fixture.snapshot.HighlightLine = func(_ string, lineIndex int, line string, runs []CodeEditorRun) []CodeEditorRun {
+		indexes = append(indexes, lineIndex)
+		if lineIndex != 0 {
+			t.Fatalf("oversized line %d was highlighted", lineIndex)
+		}
+		return append(runs,
+			CodeEditorRun{Start: 0, End: 3, Color: color},
+			CodeEditorRun{Start: 2, End: 4, Color: ui.RGB(1, 2, 3)},
+			CodeEditorRun{Start: len(line) + 1, End: len(line) + 2, Color: color},
+		)
+	}
+	fixture.paint()
+	if !slices.Equal(indexes, []int{0}) || fixture.snapshot.Value != value {
+		t.Fatalf("highlight callback indexes=%v, source changed=%v", indexes, fixture.snapshot.Value != value)
+	}
+	for _, drawn := range fixture.canvas.Texts() {
+		if drawn.Value == "key: 中文" {
+			runs := fixture.canvas.TextRuns(drawn)
+			if len(runs) < 2 || runs[0].Color != color || runs[0].Bytes != 3 {
+				t.Fatalf("invalid runs were not cleaned: %+v", runs)
+			}
+			return
+		}
+	}
+	t.Fatal("highlighted line was not painted")
+}
+
 func TestCodeEditorIgnoresBadHighlightRuns(t *testing.T) {
 	f := newCodeFixture("key: 中文")
 	f.snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
