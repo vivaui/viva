@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/input"
@@ -564,10 +565,37 @@ type RedrawHandler func() (Frame, error)
 // An adapter binds its thread-safe post primitive when its loop starts and
 // unbinds it before teardown; waking while unbound is a no-op. It needs no
 // goroutine, so an idle application owns no parked reader.
+//
+// With a spacing set (SetSpacing), wakes land on the frame grid: a wake that
+// comes sooner than one spacing after the last redraw began is held until the
+// spacing has passed, and every wake that comes while one is held joins it. A
+// producer that wakes faster than the display can show therefore costs one
+// redraw per frame, not one per wake. A wake after a quiet spell is posted at
+// once, and a window nobody wakes owns no timer. Wakes made after one was posted
+// and before its redraw began join it.
 type Waker struct {
 	mu   sync.Mutex
 	wake func()
+
+	spacing time.Duration
+	// last is when the last redraw began; zero before the first.
+	last time.Time
+	// timer holds a wake until the grid reaches due; held is set from the wake it
+	// holds until it posts or a redraw takes its place. A timer callback that was
+	// already running when the wake it held was dropped finds held clear, or due
+	// still ahead if another wake has been held since.
+	timer *time.Timer
+	held  bool
+	due   time.Time
+	// posted is set from the moment a wake is handed to the adapter until a redraw
+	// begins; a wake made meanwhile joins it. postedAt bounds that: an adapter that
+	// dropped a post without redrawing must not silence every wake after it.
+	posted   bool
+	postedAt time.Time
 }
+
+// postedStale is how long a posted wake is trusted to be on its way.
+const postedStale = 250 * time.Millisecond
 
 // Bind installs the adapter's post primitive.
 func (waker *Waker) Bind(wake func()) {
@@ -580,15 +608,84 @@ func (waker *Waker) Bind(wake func()) {
 func (waker *Waker) Unbind() {
 	waker.mu.Lock()
 	waker.wake = nil
+	waker.posted = false
+	waker.dropHeld()
 	waker.mu.Unlock()
+}
+
+// SetSpacing puts wakes on a grid of the given spacing, measured from the start of each redraw
+// (Redrawing); zero, the default, posts every wake at once.
+func (waker *Waker) SetSpacing(spacing time.Duration) {
+	waker.mu.Lock()
+	waker.spacing = spacing
+	waker.mu.Unlock()
+}
+
+// Redrawing records that a redraw is starting. The caller makes it before it reads what
+// background work published, so a wake made after it asks for another redraw, and one held
+// from before it is not needed any more: this redraw reads what that wake was for.
+func (waker *Waker) Redrawing() {
+	waker.mu.Lock()
+	if waker.spacing > 0 {
+		waker.last = time.Now()
+		waker.posted = false
+		waker.dropHeld()
+	}
+	waker.mu.Unlock()
+}
+
+// dropHeld forgets a held wake; the lock is held.
+func (waker *Waker) dropHeld() {
+	if waker.held {
+		waker.held = false
+		waker.timer.Stop()
+	}
 }
 
 // Wake requests one OnRedraw call on the window thread.
 func (waker *Waker) Wake() {
 	waker.mu.Lock()
 	defer waker.mu.Unlock()
-	if waker.wake != nil {
+	if waker.wake == nil {
+		return
+	}
+	if waker.spacing == 0 {
 		waker.wake()
+		return
+	}
+	now := time.Now()
+	if waker.held || (waker.posted && now.Sub(waker.postedAt) < postedStale) {
+		return
+	}
+	if !waker.last.IsZero() {
+		due := waker.last.Add(waker.spacing)
+		if wait := due.Sub(now); wait > 0 {
+			waker.held = true
+			waker.due = due
+			if waker.timer == nil {
+				waker.timer = time.AfterFunc(wait, waker.release)
+			} else {
+				waker.timer.Reset(wait)
+			}
+			return
+		}
+	}
+	waker.post(now)
+}
+
+// post hands a wake to the adapter; the lock is held.
+func (waker *Waker) post(now time.Time) {
+	waker.posted, waker.postedAt = true, now
+	waker.wake()
+}
+
+// release posts the held wake when the grid reaches it, unless that wake was dropped meanwhile.
+func (waker *Waker) release() {
+	waker.mu.Lock()
+	defer waker.mu.Unlock()
+	if waker.held && !time.Now().Before(waker.due) && waker.wake != nil {
+		waker.held = false
+		waker.post(time.Now())
 	}
 }
 

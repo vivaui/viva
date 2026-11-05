@@ -54,7 +54,7 @@ func TestWakeHandlerAppliesBackgroundResultsBeforeRepainting(t *testing.T) {
 		order = append(order, "repaint")
 		return platform.Frame{}, nil
 	}
-	handler := wakeHandler(func() { order = append(order, "onwake") }, repaint)
+	handler := wakeHandler(&platform.Waker{}, func() { order = append(order, "onwake") }, repaint)
 	if _, err := handler(); err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestWakeHandlerAppliesBackgroundResultsBeforeRepainting(t *testing.T) {
 	}
 
 	order = order[:0]
-	if _, err := wakeHandler(nil, repaint)(); err != nil {
+	if _, err := wakeHandler(&platform.Waker{}, nil, repaint)(); err != nil {
 		t.Fatal(err)
 	}
 	if len(order) != 1 || order[0] != "repaint" {

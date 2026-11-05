@@ -122,7 +122,8 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		dropHandler = painter.fileDrop
 	}
 	if waker != nil {
-		redrawHandler = wakeHandler(normalized.OnWake, painter.repaint)
+		waker.SetSpacing(frameInterval)
+		redrawHandler = wakeHandler(waker, normalized.OnWake, painter.repaint)
 	}
 	var closeHandler platform.CloseRequestHandler
 	if normalized.OnCloseRequest != nil {

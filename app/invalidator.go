@@ -22,12 +22,15 @@ func (invalidator *Invalidator) Invalidate() {
 
 // wakeHandler runs the application's OnWake hook, then repaints, so results
 // that background work published are applied before the next paint reads them.
-func wakeHandler(onWake func(), repaint platform.RedrawHandler) platform.RedrawHandler {
-	if onWake == nil {
-		return repaint
-	}
+//
+// The waker is told the redraw has begun before OnWake reads anything, which is what puts
+// the next wake on the frame grid.
+func wakeHandler(waker *platform.Waker, onWake func(), repaint platform.RedrawHandler) platform.RedrawHandler {
 	return func() (platform.Frame, error) {
-		onWake()
+		waker.Redrawing()
+		if onWake != nil {
+			onWake()
+		}
 		return repaint()
 	}
 }

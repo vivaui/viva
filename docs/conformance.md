@@ -25,6 +25,7 @@ so it needs a desktop session.
 | An idle window does no work | the runtime's idle contract: no paint, no wake without a request |
 | Watching the system appearance costs an idle window nothing | on Linux a watcher opens one session-bus connection that the event loop polls; it must add no goroutine, no wake and no report of a change nobody made |
 | `Invalidate` from another goroutine wakes the window once | every background update goes through it |
+| A flood of `Invalidate` calls costs about one wake per display frame, not one per call | a producer faster than the display (a terminal under a flood of output) must not set the paint rate; calls within a frame of the last paint merge into one wake at the next frame |
 | A hidden window stays open and still receives wakes | an application that hides to the status area updates its icon from a window nobody can see |
 | A panel opens, paints and closes from another goroutine | `WindowPanel` is a window kind of its own on each backend |
 | A status item can be added, changed and removed (SKIP where the desktop has no status area) | `AddStatusItem` and its setters on three different APIs |

@@ -301,6 +301,30 @@ func (r *runner) scenarios(results *report) {
 		return nil
 	})
 
+	check("a flood of Invalidate calls costs about one wake per frame", func() error {
+		p, err := r.open("flood", app.WindowTitled, false)
+		if err != nil {
+			return err
+		}
+		defer p.window.Close()
+		if err := p.waitFor("the first paint", func() bool { return p.paints.Load() >= 1 }); err != nil {
+			return err
+		}
+		time.Sleep(300 * time.Millisecond)
+		before, floodFor := p.wakes.Load(), 600*time.Millisecond
+		for end := time.Now().Add(floodFor); time.Now().Before(end); {
+			p.inv.Invalidate()
+		}
+		time.Sleep(quiet)
+		got := p.wakes.Load() - before
+		// The frame grid is 120 Hz; a few more allow for the first wake, which goes out at
+		// once, and a window thread that runs late.
+		if limit := int64(floodFor/(time.Second/120)) + 8; got < 1 || got > limit {
+			return fmt.Errorf("%d wakes in %v of constant Invalidate, want between 1 and %d", got, floodFor, limit)
+		}
+		return nil
+	})
+
 	check("a hidden window stays open and still receives wakes", func() error {
 		p, err := r.open("hidden", app.WindowTitled, false)
 		if err != nil {
