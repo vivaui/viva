@@ -54,7 +54,7 @@ func TestWakeHandlerAppliesBackgroundResultsBeforeRepainting(t *testing.T) {
 		order = append(order, "repaint")
 		return platform.Frame{}, nil
 	}
-	handler := wakeHandler(&platform.Waker{}, func() { order = append(order, "onwake") }, repaint)
+	handler := wakeHandler(&platform.Waker{}, nil, func() { order = append(order, "onwake") }, repaint)
 	if _, err := handler(); err != nil {
 		t.Fatal(err)
 	}
@@ -63,10 +63,49 @@ func TestWakeHandlerAppliesBackgroundResultsBeforeRepainting(t *testing.T) {
 	}
 
 	order = order[:0]
-	if _, err := wakeHandler(&platform.Waker{}, nil, repaint)(); err != nil {
+	if _, err := wakeHandler(&platform.Waker{}, nil, nil, repaint)(); err != nil {
 		t.Fatal(err)
 	}
 	if len(order) != 1 || order[0] != "repaint" {
 		t.Fatalf("without OnWake, order = %v", order)
+	}
+}
+
+func TestAWindowNobodyCanSeeRunsOnWakeButDoesNotPaintUntilItShows(t *testing.T) {
+	var waker platform.Waker
+	var posted int
+	waker.Bind(func() { posted++ })
+	gate := &visibilityGate{waker: &waker}
+	var wakes, paints int
+	handler := wakeHandler(&waker, gate, func() { wakes++ }, func() (platform.Frame, error) {
+		paints++
+		return platform.Frame{}, nil
+	})
+
+	gate.changed(false)
+	for range 3 {
+		if _, err := handler(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if wakes != 3 || paints != 0 {
+		t.Fatalf("hidden: %d wakes and %d paints, want every wake run and none painted", wakes, paints)
+	}
+
+	gate.changed(true)
+	if posted != 1 {
+		t.Fatalf("showing a window that missed frames posted %d wakes, want 1", posted)
+	}
+	if _, err := handler(); err != nil {
+		t.Fatal(err)
+	}
+	if paints != 1 {
+		t.Fatalf("the missed frame was painted %d times, want once", paints)
+	}
+
+	gate.changed(false)
+	gate.changed(true)
+	if posted != 1 {
+		t.Fatalf("showing a window that missed nothing posted a wake (%d)", posted)
 	}
 }

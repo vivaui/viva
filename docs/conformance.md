@@ -27,6 +27,7 @@ so it needs a desktop session.
 | `Invalidate` from another goroutine wakes the window once | every background update goes through it |
 | A flood of `Invalidate` calls costs about one wake per display frame, not one per call | a producer faster than the display (a terminal under a flood of output) must not set the paint rate; calls within a frame of the last paint merge into one wake at the next frame |
 | A hidden window stays open and still receives wakes | an application that hides to the status area updates its icon from a window nobody can see |
+| A hidden window runs `OnWake` but paints nothing until it is shown again | a window nobody can see (hidden, minimized, covered, on another space or desktop, as far as the platform reports it) must not lay out, rasterize and present frames; the frame it missed is painted when it shows again |
 | A panel opens, paints and closes from another goroutine | `WindowPanel` is a window kind of its own on each backend |
 | A status item can be added, changed and removed (SKIP where the desktop has no status area) | `AddStatusItem` and its setters on three different APIs |
 | `Quit` ends the loop though windows refuse to close, even as the last-used window closes | the loop must end whatever the windows say |

@@ -22,6 +22,16 @@
 //	text := session.Driver().Clipboard()
 //	session.Screenshot("after.png")
 //
+// Tree lists the controls of the frame with their role, identity, accessible name and state, and
+// Expect checks a condition about the frame (a text, a control's state, the focus, a clean
+// layout, every control named), failing with what the frame has instead. A control is named in
+// commands by its accessible name, by "id:home/save", or by role and name ("button:Save"), so a
+// control with no name of its own can still be operated:
+//
+//	session.Expect("state", "checkbox:", "unchecked")
+//	session.ClickLabel("id:home/auto")
+//	session.Expect("text", "Connected", "within", "5000")
+//
 // Record plays the animation clock and writes the frames whose pixels changed,
 // so a transition can be reviewed as a sequence rather than a still:
 //

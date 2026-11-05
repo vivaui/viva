@@ -68,6 +68,17 @@ import (
 //	                           (default 60); frames that did not change are written once
 //	                           with a longer duration, and ok reports the count
 //	find "label"               ok id=7 x=.. y=.. w=.. h=.. label=".."
+//	                           A label argument of click, dblclick, rightclick and find may also
+//	                           be a selector: id:home/save (an identity, in full or from any "/"),
+//	                           button:Save (a name restricted to a role), checkbox: (any checkbox).
+//	tree [filter]              one line per control, back to front: role, id, label, value, state
+//	                           (focused disabled checked covered ...), position; it is what to
+//	                           read to learn what the frame can do and what to name in a selector
+//	expect CONDITION [within MS]  ok when the condition holds, else error naming what was expected
+//	                           and what the frame has; within MS waits up to MS real ms for it.
+//	                           Conditions: text T | no-text T | exists SEL | absent SEL | count SEL N |
+//	                           state SEL FLAG... | focus SEL|none | editor V|none|contains T |
+//	                           layout clean | named (see Session.Expect)
 //	hits [filter]              one line per control, then ok
 //	texts [filter]             one line per painted text, then ok
 //	layout                     one line per suspicious spot (text cut off, spilling out of its
@@ -464,11 +475,18 @@ func execute(session *Session, line string) (reply string, quit bool) {
 		if len(arguments) != 1 {
 			return finish(fmt.Errorf("find needs one label"), "")
 		}
-		hit, found := session.Hit(arguments[0])
-		if !found {
-			return finish(fmt.Errorf("no control labelled %q", arguments[0]), "")
+		hit, err := session.Locate(arguments[0])
+		if err != nil {
+			return finish(err, "")
 		}
 		return finish(nil, " "+describeHit(session.Snapshot().Tree, hit))
+	case "tree":
+		for _, line := range session.Tree(strings.Join(arguments, " ")) {
+			data.WriteString(line + "\n")
+		}
+		return finish(nil, "")
+	case "expect":
+		return finish(session.Expect(arguments...), "")
 	case "hits":
 		filter := strings.ToLower(strings.Join(arguments, " "))
 		for _, hit := range session.Snapshot().Hits {

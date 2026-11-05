@@ -24,12 +24,16 @@ func (invalidator *Invalidator) Invalidate() {
 // that background work published are applied before the next paint reads them.
 //
 // The waker is told the redraw has begun before OnWake reads anything, which is what puts
-// the next wake on the frame grid.
-func wakeHandler(waker *platform.Waker, onWake func(), repaint platform.RedrawHandler) platform.RedrawHandler {
+// the next wake on the frame grid. A window the gate says nobody can see runs OnWake and
+// skips the repaint.
+func wakeHandler(waker *platform.Waker, gate *visibilityGate, onWake func(), repaint platform.RedrawHandler) platform.RedrawHandler {
 	return func() (platform.Frame, error) {
 		waker.Redrawing()
 		if onWake != nil {
 			onWake()
+		}
+		if gate != nil && gate.skipPaint() {
+			return platform.Frame{}, nil
 		}
 		return repaint()
 	}

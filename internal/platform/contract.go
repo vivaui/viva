@@ -63,6 +63,12 @@ type Config struct {
 	// OnMinimize, when set, runs on the window thread when the window is
 	// minimized or restored. It is the platform's own state, not Hide.
 	OnMinimize MinimizeHandler
+	// OnVisibility, when set, runs on the window thread when the window becomes
+	// something the user can see (true) or stops being (false): hidden,
+	// minimized, wholly covered, or on a desktop or space that is not showing,
+	// as far as the platform says so. An adapter that cannot tell never calls it,
+	// and the window counts as visible.
+	OnVisibility VisibilityHandler
 	// OnMaximize, when set, runs on the window thread when the window is
 	// maximized or restored.
 	OnMaximize MaximizeHandler
@@ -489,6 +495,10 @@ type FrameChangeHandler func(ui.Rect)
 // MinimizeHandler reports that the window was minimized or restored. It runs
 // on the window thread.
 type MinimizeHandler func(minimized bool)
+
+// VisibilityHandler reports that the window became visible or stopped being so.
+// It runs on the window thread.
+type VisibilityHandler func(visible bool)
 
 // MaximizeHandler reports that the window was maximized or restored. It runs
 // on the window thread.

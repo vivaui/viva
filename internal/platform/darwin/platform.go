@@ -123,6 +123,7 @@ type runState struct {
 	resizeHandler     ResizeHandler
 	frameHandler      platform.FrameChangeHandler
 	minimizeHandler   platform.MinimizeHandler
+	visibilityHandler platform.VisibilityHandler
 	fullscreenHandler func(bool)
 	onReopen          func()
 	keyHandler        KeyHandler
@@ -322,7 +323,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 
 	state := &runState{application: application, onClosed: config.OnClosed, waker: config.Waker, closeHandler: config.OnCloseRequest, pressAt: config.PressAt,
-		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen}
+		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, visibilityHandler: config.OnVisibility, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen}
 	{
 		state.captureRectangleLayers(config.Rectangles)
 		if config.OnPointer != nil {
@@ -416,46 +417,47 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 		config.Waker.Bind(func() { C.viva_request_redraw(C.uintptr_t(state.callbackHandle)) })
 	}
 	token := C.viva_application_open_window(C.viva_window_config{
-		title:                   title,
-		width:                   C.int(config.Width),
-		height:                  C.int(config.Height),
-		min_width:               C.int(config.MinWidth),
-		min_height:              C.int(config.MinHeight),
-		clear_red:               C.double(config.ClearColor.Red),
-		clear_green:             C.double(config.ClearColor.Green),
-		clear_blue:              C.double(config.ClearColor.Blue),
-		clear_alpha:             C.double(config.ClearColor.Alpha),
-		shader_library:          (*C.uchar)(shaderMemory),
-		shader_library_length:   C.size_t(shaderLength),
-		rectangles:              (*C.viva_rectangle)(rectangleMemory),
-		rectangle_clips:         (*C.viva_clip)(clipMemory),
-		rectangle_count:         C.size_t(len(config.Rectangles)),
-		text_labels:             (*C.viva_text_label)(labelMemory),
-		text_label_count:        C.size_t(labelCount),
-		accessibility:           (*C.viva_accessibility_node)(accessibilityMemory),
-		accessibility_count:     C.size_t(len(config.Accessibility)),
-		text_input:              nativeText,
-		pointer_events_enabled:  C.int(boolInt(config.OnPointer != nil)),
-		resize_events_enabled:   C.int(boolInt(config.OnResize != nil)),
-		frame_events_enabled:    C.int(boolInt(config.OnFrameChange != nil)),
-		minimize_events_enabled: C.int(boolInt(config.OnMinimize != nil)),
-		key_events_enabled:      C.int(boolInt(config.OnKey != nil || config.OnShortcut != nil)),
-		scroll_events_enabled:   C.int(boolInt(config.OnScroll != nil)),
-		file_drop_enabled:       C.int(boolInt(config.OnFileDrop != nil)),
-		redraw_events_enabled:   C.int(boolInt(config.OnRedraw != nil)),
-		dynamic_text_input:      C.int(boolInt(config.DynamicTextInput)),
-		window_mode:             C.int(int(config.WindowMode)),
-		titlebar_height:         C.float(config.TitlebarStrip()),
-		close_intercept_enabled: C.int(boolInt(config.OnCloseRequest != nil)),
-		callback_handle:         C.uintptr_t(state.callbackHandle),
-		has_anchor:              C.int(boolInt(config.HasAnchor)),
-		anchor_x:                C.float(config.Anchor.X),
-		anchor_y:                C.float(config.Anchor.Y),
-		anchor_width:            C.float(config.Anchor.Width),
-		anchor_height:           C.float(config.Anchor.Height),
-		has_origin:              C.int(boolInt(config.HasOrigin)),
-		origin_x:                C.float(config.Origin.X),
-		origin_y:                C.float(config.Origin.Y),
+		title:                     title,
+		width:                     C.int(config.Width),
+		height:                    C.int(config.Height),
+		min_width:                 C.int(config.MinWidth),
+		min_height:                C.int(config.MinHeight),
+		clear_red:                 C.double(config.ClearColor.Red),
+		clear_green:               C.double(config.ClearColor.Green),
+		clear_blue:                C.double(config.ClearColor.Blue),
+		clear_alpha:               C.double(config.ClearColor.Alpha),
+		shader_library:            (*C.uchar)(shaderMemory),
+		shader_library_length:     C.size_t(shaderLength),
+		rectangles:                (*C.viva_rectangle)(rectangleMemory),
+		rectangle_clips:           (*C.viva_clip)(clipMemory),
+		rectangle_count:           C.size_t(len(config.Rectangles)),
+		text_labels:               (*C.viva_text_label)(labelMemory),
+		text_label_count:          C.size_t(labelCount),
+		accessibility:             (*C.viva_accessibility_node)(accessibilityMemory),
+		accessibility_count:       C.size_t(len(config.Accessibility)),
+		text_input:                nativeText,
+		pointer_events_enabled:    C.int(boolInt(config.OnPointer != nil)),
+		resize_events_enabled:     C.int(boolInt(config.OnResize != nil)),
+		frame_events_enabled:      C.int(boolInt(config.OnFrameChange != nil)),
+		minimize_events_enabled:   C.int(boolInt(config.OnMinimize != nil)),
+		visibility_events_enabled: C.int(boolInt(config.OnVisibility != nil)),
+		key_events_enabled:        C.int(boolInt(config.OnKey != nil || config.OnShortcut != nil)),
+		scroll_events_enabled:     C.int(boolInt(config.OnScroll != nil)),
+		file_drop_enabled:         C.int(boolInt(config.OnFileDrop != nil)),
+		redraw_events_enabled:     C.int(boolInt(config.OnRedraw != nil)),
+		dynamic_text_input:        C.int(boolInt(config.DynamicTextInput)),
+		window_mode:               C.int(int(config.WindowMode)),
+		titlebar_height:           C.float(config.TitlebarStrip()),
+		close_intercept_enabled:   C.int(boolInt(config.OnCloseRequest != nil)),
+		callback_handle:           C.uintptr_t(state.callbackHandle),
+		has_anchor:                C.int(boolInt(config.HasAnchor)),
+		anchor_x:                  C.float(config.Anchor.X),
+		anchor_y:                  C.float(config.Anchor.Y),
+		anchor_width:              C.float(config.Anchor.Width),
+		anchor_height:             C.float(config.Anchor.Height),
+		has_origin:                C.int(boolInt(config.HasOrigin)),
+		origin_x:                  C.float(config.Origin.X),
+		origin_y:                  C.float(config.Origin.Y),
 	})
 	if token == nil {
 		if config.Waker != nil && config.OnRedraw != nil {

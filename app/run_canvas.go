@@ -105,6 +105,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 	var keyHandler platform.KeyHandler
 	var scrollHandler platform.ScrollHandler
 	var redrawHandler platform.RedrawHandler = painter.repaint
+	var gate *visibilityGate
 	if normalized.Paint != nil || painter.controls != nil || normalized.OnResize != nil || normalized.OnFullscreen != nil {
 		resizeHandler = painter.resize
 	}
@@ -123,7 +124,8 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 	}
 	if waker != nil {
 		waker.SetSpacing(frameInterval)
-		redrawHandler = wakeHandler(waker, normalized.OnWake, painter.repaint)
+		gate = &visibilityGate{waker: waker}
+		redrawHandler = wakeHandler(waker, gate, normalized.OnWake, painter.repaint)
 	}
 	var closeHandler platform.CloseRequestHandler
 	if normalized.OnCloseRequest != nil {
@@ -151,6 +153,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		OnResize:         resizeHandler,
 		OnFrameChange:    frameChangeHandler(normalized.OnFrameChange),
 		OnMinimize:       minimizeHandler(normalized.OnMinimize),
+		OnVisibility:     gate.handler(),
 		OnMaximize:       maximizeHandler(normalized.OnMaximize),
 		OnFullscreen:     painter.fullscreenHandler(normalized.OnFullscreen),
 		OnReopen:         normalized.onReopen,

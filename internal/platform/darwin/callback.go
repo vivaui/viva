@@ -152,6 +152,22 @@ func vivaWindowMinimized(handle C.uintptr_t, view unsafe.Pointer, minimized C.in
 	state.minimizeHandler(minimized != 0)
 }
 
+//export vivaWindowOccluded
+func vivaWindowOccluded(handle C.uintptr_t, view unsafe.Pointer, visible C.int) {
+	state := cgo.Handle(handle).Value().(*runState)
+	if state.visibilityHandler == nil {
+		return
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			platform.ReportFault("darwin: AppKit callback", recovered)
+			state.err = fmt.Errorf("darwin: visibility handler panicked: %v", recovered)
+			C.viva_view_close(view)
+		}
+	}()
+	state.visibilityHandler(visible != 0)
+}
+
 //export vivaRedrawRequested
 func vivaRedrawRequested(handle C.uintptr_t, view unsafe.Pointer) {
 	state := cgo.Handle(handle).Value().(*runState)

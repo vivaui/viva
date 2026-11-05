@@ -360,6 +360,33 @@ func (r *runner) scenarios(results *report) {
 		return nil
 	})
 
+	check("a hidden window runs OnWake but paints nothing until it is shown again", func() error {
+		p, err := r.open("occluded", app.WindowTitled, false)
+		if err != nil {
+			return err
+		}
+		defer p.window.Close()
+		if err := p.waitFor("the first paint", func() bool { return p.paints.Load() >= 1 }); err != nil {
+			return err
+		}
+		p.window.Hide()
+		time.Sleep(500 * time.Millisecond) // the platform's visibility change arrives
+		paints, wakes := p.paints.Load(), p.wakes.Load()
+		for range 3 {
+			p.inv.Invalidate()
+			time.Sleep(50 * time.Millisecond)
+		}
+		if err := p.waitFor("OnWake while hidden", func() bool { return p.wakes.Load() > wakes }); err != nil {
+			return err
+		}
+		time.Sleep(quiet)
+		if got := p.paints.Load() - paints; got != 0 {
+			return fmt.Errorf("a hidden window painted %d times", got)
+		}
+		p.window.Show()
+		return p.waitFor("the frame the hidden window missed", func() bool { return p.paints.Load() > paints })
+	})
+
 	check("a panel opens, paints, and closes from another goroutine", func() error {
 		p, err := r.open("panel", app.WindowPanel, false)
 		if err != nil {

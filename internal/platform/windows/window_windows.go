@@ -23,6 +23,7 @@ const (
 	wmDestroy          = 2
 	wmMove             = 3
 	wmSize             = 5
+	wmShowWindowEvent  = 0x0018 // WM_SHOWWINDOW: the window is being shown or hidden
 	wmKillFocus        = 8
 	wmSetFocus         = 7
 	wmPaint            = 15
@@ -71,12 +72,15 @@ type windowState struct {
 	fullscreenStyle     uint32
 	fullscreenPlacement windowPlacement
 	backdropState
-	application                            *windowsApplication
-	config                                 platform.Config
-	renderer                               renderer
-	window                                 uintptr
-	ready, tracking, sizing                bool
-	minimized                              bool
+	application             *windowsApplication
+	config                  platform.Config
+	renderer                renderer
+	window                  uintptr
+	ready, tracking, sizing bool
+	minimized               bool
+	// hiddenByShow is set while ShowWindow has the window hidden; shownVisible is the last
+	// visibility reported to OnVisibility, with ok set once one has been.
+	hiddenByShow, shownVisible, shownKnown bool
 	maximized                              bool
 	lastFrame                              ui.Rect
 	scale                                  float32
@@ -590,6 +594,14 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			state.web.moved()
 		}
 		return 0
+	case wmShowWindowEvent:
+		// wParam is whether the window is being shown; lParam says why, and zero is a call to
+		// ShowWindow. The other reasons (an owner minimizing or restoring) leave the window's
+		// own state, which wmSize follows.
+		if second == 0 {
+			state.hiddenByShow = first == 0
+			state.reportVisibility()
+		}
 	case wmSize:
 		if first == 1 { // SIZE_MINIMIZED
 			if !state.minimized {
@@ -597,6 +609,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 				if state.ready && state.config.OnMinimize != nil {
 					state.config.OnMinimize(true)
 				}
+				state.reportVisibility()
 			}
 			return 0
 		}
@@ -605,6 +618,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			if state.ready && state.config.OnMinimize != nil {
 				state.config.OnMinimize(false)
 			}
+			state.reportVisibility()
 		}
 		zoomed := first == 2 // SIZE_MAXIMIZED
 		if state.maximized != zoomed && first != 1 {
@@ -1032,4 +1046,19 @@ func (state *windowState) configureClicks() {
 			state.clicks.Distance = float32(width) / 2 / state.scale
 		}
 	}
+}
+
+// reportVisibility tells OnVisibility when the window stopped or started being something the
+// user can see: hidden with ShowWindow, or minimized. A covered window or one on another virtual
+// desktop is not reported; Windows has no message for either that this window receives.
+func (state *windowState) reportVisibility() {
+	if state.config.OnVisibility == nil || !state.ready {
+		return
+	}
+	visible := !state.hiddenByShow && !state.minimized
+	if state.shownKnown && state.shownVisible == visible {
+		return
+	}
+	state.shownKnown, state.shownVisible = true, visible
+	state.config.OnVisibility(visible)
 }
