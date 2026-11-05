@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/vivaui/viva/internal/diag"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/ui"
@@ -127,7 +128,14 @@ func (w *webHost) open(config platform.WebViewConfig) (platform.WebView, error) 
 	page := &windowsWeb{host: w, id: config.ID, config: config, window: window}
 	w.pages[config.ID] = page
 	page.environment = withEnvironment(userDataFolder(state.config.Class), config.Proxy, func(environment uintptr, err error) {
-		if err != nil || page.closed {
+		if page.closed {
+			return
+		}
+		if err != nil {
+			if diag.Enabled(diag.Warn) {
+				diag.Report(diag.Warn, "web", "environment", "the WebView2 environment could not be created",
+					diag.String("error", err.Error()))
+			}
 			fmt.Fprintln(os.Stderr, "windows:", err)
 			return
 		}

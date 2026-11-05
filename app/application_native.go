@@ -13,6 +13,7 @@ import (
 // locked native event-loop thread and must open at least one window. The call
 // blocks until the final window closes or a platform error terminates the loop.
 func RunApplication(start func(*Application) error) error {
+	attendFaults()
 	if applicationRunner != nil {
 		return applicationRunner(func(host Host) error {
 			application := &Application{host: host}

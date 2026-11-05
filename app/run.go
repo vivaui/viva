@@ -11,6 +11,7 @@ import (
 // Run starts the native application loop and blocks until the final window
 // closes. It must be called from the program's main goroutine.
 func Run(config Config) error {
+	attendFaults()
 	normalized, err := config.normalize()
 	if err != nil {
 		return err

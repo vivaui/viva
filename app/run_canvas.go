@@ -16,6 +16,7 @@ import (
 // closes. When config.Paint is set the canvas is repainted on window resizes
 // and pointer interactions; otherwise the initial canvas stays unchanged.
 func RunCanvas(config Config, canvas *ui.Canvas) error {
+	attendFaults()
 	normalized, err := config.normalize()
 	if err != nil {
 		return err

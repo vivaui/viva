@@ -151,6 +151,11 @@ WebView and no bundled rendering runtime.
   editing), with a draggable page scrollbar and hot-reload state preservation.
   The examples are the ones in `internal/componentdemo`, embedded into the page
   with `ui.Canvas.Embed`, so the gallery holds no copy of any component.
+- Structured diagnostics: the opt-in `diagnostics` package receives what the
+  framework reports (caught panics, GPU device recovery, web view failures,
+  startup measurements), adapts both ways to `log/slog`, and can keep a ring of
+  recent events and fault context; nothing is written or sent unless the
+  application installs a handler. See [docs/diagnostics.md](docs/diagnostics.md).
 - Clean event-loop return on window close or application termination.
 - Reproducible binary, startup, CPU, memory, and GPU-submission measurement.
 

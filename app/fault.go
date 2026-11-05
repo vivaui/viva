@@ -1,6 +1,12 @@
 package app
 
-import "github.com/vivaui/viva/internal/platform"
+import (
+	"sync"
+	"sync/atomic"
+
+	"github.com/vivaui/viva/internal/diag"
+	"github.com/vivaui/viva/internal/platform"
+)
 
 // Fault is a panic the framework caught where the operating system calls into the
 // program: a window procedure, a UI Automation or drag-and-drop method, a native
@@ -18,16 +24,79 @@ type Fault struct {
 
 // SetFaultHandler installs the function that receives every Fault, so a program
 // can write it to its log. It runs on the thread that panicked, must return
-// quickly and must not call back into the framework. Nil removes it. It is safe
-// to call from any goroutine.
+// quickly and must not call back into the framework. Nil removes the
+// application handler.
+//
+// A caught fault is also reported to the diagnostic stream while anything is
+// listening there: a handler or a capture buffer (see the diagnostics package).
+// Both this handler and the diagnostic handler run on the thread that panicked.
+// When neither the application nor the stream is listening, the framework does
+// not install a platform handler at all, so the fault costs nothing beyond the
+// platform's own recovery. It is safe to call from any goroutine.
 func SetFaultHandler(handler func(Fault)) {
 	if handler == nil {
-		platform.SetFaultHandler(nil)
+		userFaultHandler.Store(nil)
+		removeFaultBridgeIfUnused()
 		return
 	}
-	platform.SetFaultHandler(func(fault platform.Fault) {
-		handler(Fault{Where: fault.Where, Message: fault.Message, Stack: fault.Stack})
-	})
+	userFaultHandler.Store(&handler)
+	installFaultBridge()
+}
+
+var (
+	userFaultHandler atomic.Pointer[func(Fault)]
+	faultBridge      struct {
+		mu        sync.Mutex
+		installed bool
+	}
+)
+
+// attendFaults makes a diagnostic handler installed after the window loop
+// started activate the bridge, and installs it now when one is already there.
+// The window-loop entries call it.
+func attendFaults() {
+	diag.SetActivate(installFaultBridge)
+	installFaultBridge()
+}
+
+// installFaultBridge installs the platform handler once something is listening:
+// the application's handler or the diagnostic stream.
+func installFaultBridge() {
+	faultBridge.mu.Lock()
+	defer faultBridge.mu.Unlock()
+	if faultBridge.installed {
+		return
+	}
+	if userFaultHandler.Load() == nil && !diag.Enabled(diag.Error) {
+		return
+	}
+	platform.SetFaultHandler(deliverFault)
+	faultBridge.installed = true
+}
+
+// removeFaultBridgeIfUnused removes the platform handler once neither the
+// application nor the diagnostic stream is listening, which is what
+// SetFaultHandler(nil) did before the stream existed.
+func removeFaultBridgeIfUnused() {
+	faultBridge.mu.Lock()
+	defer faultBridge.mu.Unlock()
+	if !faultBridge.installed {
+		return
+	}
+	if userFaultHandler.Load() != nil || diag.Enabled(diag.Error) {
+		return
+	}
+	platform.SetFaultHandler(nil)
+	faultBridge.installed = false
+}
+
+// deliverFault reports the fault to the diagnostic stream and hands it to the
+// application's handler, if it installed one.
+func deliverFault(fault platform.Fault) {
+	diag.ReportFault("app", fault.Where, fault.Message, fault.Stack)
+	if handler := userFaultHandler.Load(); handler != nil {
+		(*handler)(Fault{Where: fault.Where, Message: fault.Message, Stack: fault.Stack})
+	}
 }
 
 // EnableCrashDumps asks the system to leave a dump of the process when it dies of
@@ -48,5 +117,8 @@ func EnableCrashDumps(relativeDir string) (string, error) {
 // box (a Linux session without zenity or kdialog, the web). Call it from the
 // main goroutine, after RunApplication has returned or before it starts.
 func ShowFatalError(title, message string) {
+	if diag.Enabled(diag.Error) {
+		diag.Report(diag.Error, "app", "fatal", message, diag.String("title", title))
+	}
 	nativeShowFatalError(title, message)
 }
