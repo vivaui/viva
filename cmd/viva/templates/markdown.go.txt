@@ -206,11 +206,22 @@ func (v *MarkdownView) OffsetAt(point ui.Point) (offset int, ok bool) {
 	}
 	x, y := point.X-v.paintX, point.Y-v.paintY
 	best, bestScore := -1, float32(0)
+	var previous *mdPiece
 	for index := range v.pieces {
 		piece := &v.pieces[index]
 		if piece.plainLo < 0 {
 			continue
 		}
+		if previous != nil && previous.y == piece.y && previous.plainHi < piece.plainLo && y >= piece.y && y <= piece.y+piece.h {
+			start := previous.x + v.caretAdvance(previous, int(previous.plainHi-previous.plainLo))
+			end := piece.x + v.caretAdvance(piece, 0)
+			if end > start && x >= start && x <= end {
+				gap := int(piece.plainLo - previous.plainHi)
+				position := int(float32(gap)*(x-start)/(end-start) + 0.5)
+				return ui.GraphemeStart(unsafe.String(unsafe.SliceData(v.plain), len(v.plain)), int(previous.plainHi)+min(max(position, 0), gap)), true
+			}
+		}
+		previous = piece
 		dx, dy := float32(0), float32(0)
 		if x < piece.x {
 			dx = piece.x - x
@@ -240,6 +251,69 @@ func (v *MarkdownView) OffsetAt(point ui.Point) (offset int, ok bool) {
 	}
 	local = min(max(local, 0), int(piece.plainHi-piece.plainLo))
 	return int(piece.plainLo) + local, true
+}
+
+// CaretAt returns the window rectangle for a rendered byte offset after Paint.
+// It reports geometry only; MarkdownView does not own the selection or editor.
+func (v *MarkdownView) CaretAt(offset int) (ui.Rect, bool) {
+	if !v.painted || v.measure == nil || len(v.pieces) == 0 {
+		return ui.Rect{}, false
+	}
+	value := unsafe.String(unsafe.SliceData(v.plain), len(v.plain))
+	offset = ui.GraphemeStart(value, offset)
+	var chosen, before, after *mdPiece
+	for index := range v.pieces {
+		piece := &v.pieces[index]
+		if piece.plainLo < 0 {
+			continue
+		}
+		switch {
+		case offset >= int(piece.plainLo) && offset <= int(piece.plainHi):
+			if chosen == nil || piece.plainLo == int32(offset) && chosen.plainLo < int32(offset) {
+				chosen = piece
+			}
+		case int(piece.plainHi) < offset:
+			if before == nil || piece.plainHi > before.plainHi {
+				before = piece
+			}
+		case int(piece.plainLo) > offset:
+			if after == nil || piece.plainLo < after.plainLo {
+				after = piece
+			}
+		}
+	}
+	if chosen == nil {
+		if before != nil && after != nil && before.y == after.y {
+			start := before.x + v.caretAdvance(before, int(before.plainHi-before.plainLo))
+			end := after.x + v.caretAdvance(after, 0)
+			fraction := float32(offset-int(before.plainHi)) / float32(after.plainLo-before.plainHi)
+			return ui.Rect{X: v.paintX + start + (end-start)*fraction, Y: v.paintY + before.y, Width: 1, Height: before.h}, true
+		}
+		if before == nil || after != nil && int(after.plainLo)-offset <= offset-int(before.plainHi) {
+			chosen = after
+			offset = int(after.plainLo)
+		} else {
+			chosen = before
+			offset = int(before.plainHi)
+		}
+		if chosen == nil {
+			return ui.Rect{}, false
+		}
+	}
+	local := min(max(offset-int(chosen.plainLo), 0), int(chosen.plainHi-chosen.plainLo))
+	advance := v.caretAdvance(chosen, local)
+	return ui.Rect{X: v.paintX + chosen.x + advance, Y: v.paintY + chosen.y, Width: 1, Height: chosen.h}, true
+}
+
+func (v *MarkdownView) caretAdvance(piece *mdPiece, local int) float32 {
+	var advance float32
+	if piece.mono {
+		_, display := v.codeDisplayRange(piece, local, local)
+		advance = piece.padX + float32(monoCells(piece.text[:display]))*piece.cell
+	} else {
+		advance = v.measure.TextCaretStyle(piece.text, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic}, local)
+	}
+	return advance
 }
 
 // CaretBounds reports no caret: a MarkdownView paints text, not an input field.

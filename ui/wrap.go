@@ -327,6 +327,12 @@ func clusterFloor(value string, i int) int {
 	return i
 }
 
+// GraphemeStart returns the nearest whole-character byte boundary at or before
+// offset, clamped to value. It handles combining marks and emoji sequences.
+func GraphemeStart(value string, offset int) int {
+	return clusterFloor(value, min(max(offset, 0), len(value)))
+}
+
 // nextCluster is the end of the character that starts at i.
 func nextCluster(value string, i int) int {
 	if i >= len(value) {

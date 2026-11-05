@@ -14,6 +14,20 @@ func wrapper() *Canvas {
 	return canvas
 }
 
+func TestGraphemeStartClampsAndPreservesWholeCharacters(t *testing.T) {
+	value := "a👩‍💻中"
+	for _, test := range []struct{ offset, want int }{
+		{-3, 0}, {0, 0}, {1, 1}, {2, 1},
+		{len("a👩") + 1, 1},
+		{len("a👩‍💻"), len("a👩‍💻")},
+		{len(value) + 3, len(value)},
+	} {
+		if got := GraphemeStart(value, test.offset); got != test.want {
+			t.Errorf("GraphemeStart(%d) = %d, want %d", test.offset, got, test.want)
+		}
+	}
+}
+
 func TestWrapLinesBreaksAtSpaces(t *testing.T) {
 	canvas := wrapper()
 	for _, test := range []struct {
