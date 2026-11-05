@@ -1,6 +1,7 @@
 package components
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/vivaui/viva/text"
@@ -15,8 +16,13 @@ type CodeEditorRun struct {
 	Color      ui.Color
 }
 
-// CodeEditorGutterMarker decorates one zero-based logical line. Markers are
-// sorted by Line and unique; a wrapped line paints its marker only once.
+// CodeEditorGutterMarker decorates one zero-based logical line with a dot in the
+// gutter. It is purely visual: it is not hit-tested and is not exposed to
+// assistive technology, so state it carries must also be available elsewhere.
+// Markers are sorted by Line and unique; a wrapped line paints its marker only
+// once. They follow logical line numbers, not edits, so the caller updates the
+// slice when lines are inserted or removed. Unsorted or repeated lines are not
+// painted.
 type CodeEditorGutterMarker struct {
 	Line  int
 	Color ui.Color
@@ -194,7 +200,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 	gutter := float32(0)
 	markerLane := float32(0)
 	if snapshot.MarkerGutter || len(snapshot.GutterMarkers) > 0 {
-		markerLane = 16
+		markerLane = lineHeight*0.4 + cellWidth
 		gutter += markerLane
 	}
 	if snapshot.LineNumbers {
@@ -277,6 +283,10 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		currentLine = int(editor.rows[caretRow].line)
 	}
 	markerIndex := 0
+	if markerLane > 0 && firstRow < len(editor.rows) {
+		firstLine := int(editor.rows[firstRow].line)
+		markerIndex = sort.Search(len(snapshot.GutterMarkers), func(i int) bool { return snapshot.GutterMarkers[i].Line >= firstLine })
+	}
 	for index := firstRow; index < len(editor.rows); index++ {
 		y := content.Y + float32(index)*lineHeight - editor.scrollY
 		if y >= content.Y+content.Height {
@@ -293,7 +303,12 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 				markerIndex++
 			}
 			if markerIndex < len(snapshot.GutterMarkers) && snapshot.GutterMarkers[markerIndex].Line == int(row.line) {
-				canvas.Rounded(ui.Rect{X: bounds.X + inset + (markerLane-9)/2, Y: y + (lineHeight-9)/2, Width: 9, Height: 9}, 4.5, snapshot.GutterMarkers[markerIndex].Color)
+				dot := lineHeight * 0.4
+				color := snapshot.GutterMarkers[markerIndex].Color
+				if snapshot.Disabled {
+					color.Alpha *= 0.5
+				}
+				canvas.Rounded(ui.Rect{X: bounds.X + inset + (markerLane-dot)/2, Y: y + (lineHeight-dot)/2, Width: dot, Height: dot}, dot/2, color)
 				markerIndex++
 			}
 		}

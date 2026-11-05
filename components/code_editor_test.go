@@ -105,6 +105,33 @@ func TestCodeEditorGutterMarkersUseFirstWrappedRowAndSeparateLane(t *testing.T) 
 	}
 }
 
+func TestCodeEditorGutterMarkersIgnoreOutOfContractInput(t *testing.T) {
+	fixture := newCodeFixture("one\ntwo\nthree")
+	fixture.bounds.Height = 600
+	fixture.snapshot.MarkerGutter = true
+	color := ui.RGB(20, 80, 160)
+	// Past the end of the document, and a repeated line, paint nothing extra.
+	fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 1, Color: color}, {Line: 1, Color: color}, {Line: 99, Color: color}}
+	fixture.paint()
+	if marks := fixture.fills(color); len(marks) != 1 {
+		t.Fatalf("marks = %+v, want only the one on line 1", marks)
+	}
+}
+
+func TestCodeEditorGutterMarkersFadeWhenDisabled(t *testing.T) {
+	fixture := newCodeFixture("one")
+	fixture.bounds.Height = 600
+	color := ui.RGB(20, 80, 160)
+	fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, Color: color}}
+	fixture.paint()
+	enabled := fixture.fills(color)
+	fixture.snapshot.Disabled = true
+	fixture.paint()
+	if len(enabled) != 1 || len(fixture.fills(color)) != 0 {
+		t.Fatal("a disabled editor must paint its markers dimmer than an enabled one")
+	}
+}
+
 func TestCodeEditorGutterMarkersOnlyPaintVisibleLines(t *testing.T) {
 	value := strings.Repeat("row\n", 30) + "last"
 	fixture := newCodeFixture(value)

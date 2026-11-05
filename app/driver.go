@@ -611,7 +611,7 @@ func (driver *Driver) Key(key ui.Key, modifiers ui.Modifiers) error {
 		return driver.terminalKey(key, modifiers, "")
 	}
 	if driver.editing() && key != ui.KeyTab && key != ui.KeyEscape && (key != ui.KeyEnter || driver.painter.nativeText.Multiline) {
-		if driver.navigationKey(key) || driver.rowKey(key, modifiers) || key >= ui.KeyF1 && key <= ui.KeyF12 {
+		if driver.navigationKey(key) || driver.rowKey(key, modifiers) {
 			_, err := driver.painter.key(platform.KeyEvent{Key: key, Modifiers: modifiers})
 			return err
 		}
