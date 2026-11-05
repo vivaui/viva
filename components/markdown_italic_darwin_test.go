@@ -60,3 +60,35 @@ func TestMarkdownItalicHitUsesStyledCoreTextAdvance(t *testing.T) {
 	}
 	t.Fatal("italic piece missing")
 }
+
+func TestMarkdownCaretAtUsesItalicCoreTextAdvance(t *testing.T) {
+	var document markdown.Document
+	document.Parse("plain *Italic affine* end")
+	var canvas ui.Canvas
+	canvas.SetTextEngine(darwin.SharedTextEngine())
+	var view MarkdownView
+	view.Layout(&canvas, MarkdownStyle{Size: 20, LineHeight: 28}, &document, 500)
+	var painted ui.Canvas
+	view.Paint(&painted, MarkdownPaint{X: 12, Y: 18})
+	for _, piece := range view.pieces {
+		if piece.text != "Italic affine" {
+			continue
+		}
+		style := ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: true}
+		for offset := 1; offset < len(piece.text); offset++ {
+			styled := canvas.TextCaretStyle(piece.text, style, offset)
+			regular := canvas.TextCaret(piece.text, piece.size, piece.weight, offset)
+			if math.Abs(float64(styled-regular)) <= 0.25 {
+				continue
+			}
+			caret, ok := view.CaretAt(int(piece.plainLo) + offset)
+			want := float32(12) + piece.x + styled
+			if !ok || math.Abs(float64(caret.X-want)) > 0.25 {
+				t.Fatalf("italic caret x=%v, want=%v, regular=%v, ok=%v", caret.X, want, float32(12)+piece.x+regular, ok)
+			}
+			return
+		}
+		t.Fatal("fixture produced no regular/italic caret difference")
+	}
+	t.Fatal("italic piece missing")
+}

@@ -1536,6 +1536,180 @@ func TestMarkdownOffsetAtInsideInlineCode(t *testing.T) {
 	}
 }
 
+func TestMarkdownCaretAtStyledWrappedPiece(t *testing.T) {
+	canvas := markdownCanvas()
+	var doc markdown.Document
+	doc.Parse("plain **bold words** *italic ending* [link](https://example.invalid) tail")
+	var view MarkdownView
+	view.Layout(canvas, MarkdownStyle{Size: 16, LineHeight: 26}, &doc, 145)
+	var painted ui.Canvas
+	view.Paint(&painted, MarkdownPaint{X: 17, Y: 31})
+	for _, piece := range view.pieces {
+		if !piece.italic || piece.y == 0 || len(piece.text) < 2 {
+			continue
+		}
+		offset := int(piece.plainLo) + 1
+		caret, ok := view.CaretAt(offset)
+		want := float32(17) + piece.x + canvas.TextCaretStyle(piece.text, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: true}, 1)
+		if !ok || caret.X != want || caret.Y != 31+piece.y || caret.Height != piece.h {
+			t.Fatalf("wrapped italic caret=%+v ok=%v, want x=%v y=%v h=%v", caret, ok, want, 31+piece.y, piece.h)
+		}
+		if hit, ok := view.OffsetAt(ui.Point{X: caret.X, Y: caret.Y + caret.Height/2}); !ok || hit != offset {
+			t.Fatalf("caret hit=%d ok=%v, want=%d", hit, ok, offset)
+		}
+		return
+	}
+	t.Fatal("fixture did not wrap an italic piece")
+}
+
+func TestMarkdownCaretAtInlineCodeAndUnpaintedView(t *testing.T) {
+	canvas := markdownCanvas()
+	var doc markdown.Document
+	doc.Parse("alpha `code` beta")
+	var view MarkdownView
+	if _, ok := view.CaretAt(0); ok {
+		t.Fatal("empty view reported a caret")
+	}
+	view.Layout(canvas, MarkdownStyle{Size: 12}, &doc, 300)
+	if _, ok := view.CaretAt(0); ok {
+		t.Fatal("unpainted view reported a caret")
+	}
+	var painted ui.Canvas
+	view.Paint(&painted, MarkdownPaint{X: 9, Y: 13})
+	for _, piece := range view.pieces {
+		if !piece.mono || piece.text != "code" {
+			continue
+		}
+		caret, ok := view.CaretAt(int(piece.plainLo) + 2)
+		want := float32(9) + piece.x + piece.padX + 2*piece.cell
+		if !ok || caret.X != want || caret.Y != 13+piece.y {
+			t.Fatalf("inline code caret=%+v ok=%v, want x=%v", caret, ok, want)
+		}
+		view.Layout(canvas, MarkdownStyle{Size: 12}, &doc, 300)
+		if _, ok := view.CaretAt(int(piece.plainLo) + 2); ok {
+			t.Fatal("new layout retained stale painted geometry")
+		}
+		return
+	}
+	t.Fatal("inline code piece missing")
+}
+
+func TestMarkdownCaretAtSnapsGraphemeBoundary(t *testing.T) {
+	view, _ := layoutMarkdown(t, "a👩‍💻b", 300, MarkdownStyle{Size: 16})
+	var painted ui.Canvas
+	view.Paint(&painted, MarkdownPaint{})
+	start, ok := view.CaretAt(len("a"))
+	inside, insideOK := view.CaretAt(len("a") + len("👩") + 1)
+	if !ok || !insideOK || start != inside {
+		t.Fatalf("grapheme start=%+v inside=%+v, ok=%v/%v", start, inside, ok, insideOK)
+	}
+}
+
+func TestMarkdownCaretAtPrefersTheWrappedLineStart(t *testing.T) {
+	canvas := markdownCanvas()
+	var doc markdown.Document
+	doc.Parse("one two three four five six seven")
+	var view MarkdownView
+	view.Layout(canvas, MarkdownStyle{Size: 12, LineHeight: 20}, &doc, 64)
+	var painted ui.Canvas
+	view.Paint(&painted, MarkdownPaint{X: 10, Y: 15})
+	for _, piece := range view.pieces {
+		if piece.y == 0 || piece.plainLo < 0 {
+			continue
+		}
+		caret, ok := view.CaretAt(int(piece.plainLo))
+		if !ok || caret.Y != 15+piece.y || caret.X != 10+piece.x {
+			t.Fatalf("wrapped start caret=%+v ok=%v, want x=%v y=%v", caret, ok, 10+piece.x, 15+piece.y)
+		}
+		return
+	}
+	t.Fatal("fixture did not wrap")
+}
+
+func TestMarkdownCaretAtWithoutTextPiecesReportsNothing(t *testing.T) {
+	view, _ := paintedMarkdown(t, "plain", 200)
+	for index := range view.pieces {
+		view.pieces[index].plainLo, view.pieces[index].plainHi = -1, -1
+	}
+	if _, ok := view.CaretAt(0); ok {
+		t.Fatal("a view whose pieces carry no text offsets must not report a caret")
+	}
+}
+
+// Every offset must map to a caret the pointer can reach again: hitting the
+// middle of the caret lands on an offset that paints the same caret. Wrapped
+// lines and style changes are the places this can go wrong.
+func TestMarkdownCaretAtIsStableUnderOffsetAt(t *testing.T) {
+	view, _ := paintedMarkdown(t, "plain **bold words** *italic ending* `code` tail that wraps over several lines", 150)
+	for offset := 0; offset <= len(view.plain); offset++ {
+		caret, ok := view.CaretAt(offset)
+		if !ok {
+			t.Fatalf("offset %d has no caret", offset)
+		}
+		hit, ok := view.OffsetAt(ui.Point{X: caret.X, Y: caret.Y + caret.Height/2})
+		if !ok {
+			t.Fatalf("offset %d: caret %+v is not hittable", offset, caret)
+		}
+		again, ok := view.CaretAt(hit)
+		if !ok || again.Y != caret.Y {
+			t.Fatalf("offset %d -> hit %d: caret moved from %+v to %+v", offset, hit, caret, again)
+		}
+	}
+}
+
+func TestMarkdownCaretAtWarmDoesNotAllocate(t *testing.T) {
+	canvas := markdownCanvas()
+	var doc markdown.Document
+	doc.Parse("plain **bold** *italic* tail")
+	var view MarkdownView
+	view.Layout(canvas, MarkdownStyle{Size: 16}, &doc, 145)
+	var painted ui.Canvas
+	view.Paint(&painted, MarkdownPaint{})
+	offset := len("plain bold ita")
+	if _, ok := view.CaretAt(offset); !ok {
+		t.Fatal("fixture has no caret")
+	}
+	if allocations := testing.AllocsPerRun(100, func() { view.CaretAt(offset) }); allocations != 0 {
+		t.Fatalf("warm caret allocated %v times", allocations)
+	}
+}
+
+func TestMarkdownCaretAtCoversSpacesBetweenStyles(t *testing.T) {
+	canvas := markdownCanvas()
+	var doc markdown.Document
+	doc.Parse("alpha   **bold** tail")
+	var view MarkdownView
+	view.Layout(canvas, MarkdownStyle{Size: 16}, &doc, 300)
+	var painted ui.Canvas
+	view.Paint(&painted, MarkdownPaint{})
+	for offset := 0; offset <= view.TextLen(); offset++ {
+		caret, ok := view.CaretAt(offset)
+		if !ok {
+			t.Fatalf("no caret for visible byte %d in %q", offset, view.plain)
+		}
+		if offset > len("alpha") && offset < len("alpha   ") {
+			if hit, hitOK := view.OffsetAt(ui.Point{X: caret.X, Y: caret.Y + caret.Height/2}); !hitOK || hit != offset {
+				t.Fatalf("space byte %d hit %d, ok=%v", offset, hit, hitOK)
+			}
+		}
+	}
+}
+
+func BenchmarkMarkdownCaretAtHit(b *testing.B) {
+	canvas := markdownCanvas()
+	var doc markdown.Document
+	doc.Parse("plain **bold** *italic* tail")
+	var view MarkdownView
+	view.Layout(canvas, MarkdownStyle{Size: 16}, &doc, 145)
+	var painted ui.Canvas
+	view.Paint(&painted, MarkdownPaint{})
+	const offset = len("plain bold ita")
+	b.ReportAllocs()
+	for b.Loop() {
+		view.CaretAt(offset)
+	}
+}
+
 func TestHeadingInlineCodeSelectionUsesItsOwnCellWidth(t *testing.T) {
 	canvas := markdownCanvas()
 	var doc markdown.Document
