@@ -294,6 +294,9 @@ typedef struct {
     // Nonzero reports the window being minimized and restored through
     // vivaWindowMinimized.
     int minimize_events_enabled;
+    // Nonzero reports the window becoming visible or occluded (covered, minimized,
+    // hidden, on another space) through vivaWindowOccluded.
+    int visibility_events_enabled;
     int key_events_enabled;
     int scroll_events_enabled;
     // Nonzero makes the window a target for files dragged from Finder.

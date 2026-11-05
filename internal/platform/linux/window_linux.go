@@ -138,6 +138,8 @@ type linuxWindowState struct {
 	// before the window manager mapped it is gone.
 	hidden  bool
 	exposed bool
+	// visible is the last visibility reported to OnVisibility; a window starts as visible.
+	visible bool
 }
 
 type linuxApplication struct {
@@ -281,7 +283,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	if err := validateConfig(config); err != nil {
 		return nil, err
 	}
-	state := &linuxWindowState{application: application, config: config, profile: os.Getenv("VIVA_PROFILE_STARTUP") != ""}
+	state := &linuxWindowState{application: application, config: config, visible: true, profile: os.Getenv("VIVA_PROFILE_STARTUP") != ""}
 	// The launcher entry the progress bar is drawn on is the desktop file of
 	// the window's class, so the entry is told which one the program is.
 	launcherProgress.noteClass(config.Class)
@@ -617,6 +619,14 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	switch kind {
 	case xcbDestroyNotify:
 		return true, nil
+	case xcbMapNotify, xcbUnmapNotify:
+		// Mapped is what the user can see here: the window manager unmaps a minimized window
+		// and one that is on a desktop that is not showing. A compositor can hide a window
+		// that is mapped and covered without telling it; that is not reported.
+		if mapped := kind == xcbMapNotify; (*xcbMapEvent)(event).Window == win.id && config.OnVisibility != nil && state.visible != mapped {
+			state.visible = mapped
+			config.OnVisibility(mapped)
+		}
 	case xcbClientMessage:
 		message := (*xcbClientEvent)(event)
 		switch {

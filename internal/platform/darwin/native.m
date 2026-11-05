@@ -474,6 +474,7 @@ extern void vivaFrameChanged(
 );
 
 extern void vivaWindowMinimized(uintptr_t callbackHandle, void *view, int minimized);
+extern void vivaWindowOccluded(uintptr_t callbackHandle, void *view, int visible);
 extern void vivaWindowFullscreen(uintptr_t callbackHandle, void *view, int fullscreen);
 extern int vivaWindowReopenRequested(uintptr_t callbackHandle, void *view);
 
@@ -5291,6 +5292,7 @@ static void viva_set_secure_event_input(BOOL on) {
     BOOL _resizeEventsEnabled;
     BOOL _frameEventsEnabled;
     BOOL _minimizeEventsEnabled;
+    BOOL _visibilityEventsEnabled;
     BOOL _keyEventsEnabled;
     BOOL _scrollEventsEnabled;
     int _windowMode;
@@ -5397,6 +5399,7 @@ static void viva_set_secure_event_input(BOOL on) {
         _resizeEventsEnabled = resizeEventsEnabled;
         _frameEventsEnabled = config.frame_events_enabled != 0;
         _minimizeEventsEnabled = config.minimize_events_enabled != 0;
+        _visibilityEventsEnabled = config.visibility_events_enabled != 0;
         _keyEventsEnabled = keyEventsEnabled;
         _scrollEventsEnabled = scrollEventsEnabled;
         _windowMode = windowMode;
@@ -5853,6 +5856,15 @@ static void viva_set_secure_event_input(BOOL on) {
     (void)notification;
     if (_minimizeEventsEnabled && _running && _callbackHandle != 0) {
         vivaWindowMinimized(_callbackHandle, _window.contentView, 0);
+    }
+}
+
+// windowDidChangeOcclusionState covers what the user can see: a window that is covered, minimized,
+// hidden or on a space that is not showing is not visible.
+- (void)windowDidChangeOcclusionState:(NSNotification *)notification {
+    (void)notification;
+    if (_visibilityEventsEnabled && _running && _callbackHandle != 0) {
+        vivaWindowOccluded(_callbackHandle, _window.contentView, (_window.occlusionState & NSWindowOcclusionStateVisible) != 0);
     }
 }
 

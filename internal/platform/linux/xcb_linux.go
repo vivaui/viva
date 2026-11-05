@@ -43,6 +43,8 @@ const (
 	xcbFocusOut                  = 10
 	xcbExpose                    = 12
 	xcbDestroyNotify             = 17
+	xcbUnmapNotify               = 18
+	xcbMapNotify                 = 19
 	xcbConfigureNotify           = 22
 	xcbSelectionClear            = 29
 	xcbSelectionRequest          = 30
@@ -182,6 +184,17 @@ type xcbInputEvent struct {
 	SameScreen   uint8
 	Padding      uint8
 }
+
+// xcbMapEvent is a MapNotify or UnmapNotify: the window was mapped or unmapped, by Show and Hide,
+// by minimizing, or by the window manager moving it off the desktop that is showing.
+type xcbMapEvent struct {
+	ResponseType uint8
+	Padding      uint8
+	Sequence     uint16
+	Event        uint32
+	Window       uint32
+}
+
 type xcbExposeEvent struct {
 	ResponseType  uint8
 	Padding       uint8

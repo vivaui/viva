@@ -197,6 +197,9 @@ type Config struct {
 	// OnWake runs on the window thread right before each repaint that
 	// Invalidate or a running transition requested. Move the results of
 	// background work into application state here, so Paint only reads state.
+	// It runs for a window nobody can see too (hidden, minimized, or covered, where
+	// the platform says so), which is not painted: the frame it missed is painted
+	// once the window shows again, so a status icon can be refreshed from here.
 	OnWake func()
 	// Web, when set, lets the window host pages of the system's web engine (see WebHost). It is
 	// filled when the window opens; a platform that cannot host pages makes WebHost.Open fail
