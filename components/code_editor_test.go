@@ -63,6 +63,61 @@ func (f *codeFixture) fills(color ui.Color) []ui.Rect {
 	return out
 }
 
+func TestCodeEditorGutterMarkersUseFirstWrappedRowAndSeparateLane(t *testing.T) {
+	fixture := newCodeFixture("a very long first line that wraps\nsecond\nthird")
+	fixture.bounds.Width = fixture.widthFor(9)
+	fixture.bounds.Height = 600
+	fixture.snapshot.Wrap = true
+	fixture.snapshot.LineNumbers = true
+	fixture.snapshot.MarkerGutter = true
+	first, third := ui.RGB(20, 80, 160), ui.RGB(180, 40, 60)
+	fixture.paint()
+	emptyContentX := fixture.editor.content.X
+	fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, Color: first}, {Line: 2, Color: third}}
+	fixture.paint()
+	if fixture.editor.content.X != emptyContentX {
+		t.Fatalf("adding a mark moved code from %v to %v", emptyContentX, fixture.editor.content.X)
+	}
+	_, _, lineHeight := fixture.cell()
+	firstMarks, thirdMarks := fixture.fills(first), fixture.fills(third)
+	if len(firstMarks) != 1 || len(thirdMarks) != 1 {
+		t.Fatalf("marks on wrapped lines = %+v / %+v", firstMarks, thirdMarks)
+	}
+	thirdRow := -1
+	for index, row := range fixture.editor.rows {
+		if row.line == 2 && fixture.editor.firstOfLine(index) {
+			thirdRow = index
+			break
+		}
+	}
+	if !near(firstMarks[0].Y, fixture.editor.content.Y+(lineHeight-firstMarks[0].Height)/2) ||
+		thirdRow < 0 || !near(thirdMarks[0].Y, fixture.editor.content.Y+float32(thirdRow)*lineHeight+(lineHeight-thirdMarks[0].Height)/2) {
+		t.Fatalf("markers are not aligned to first rows: %+v / %+v", firstMarks, thirdMarks)
+	}
+	if firstMarks[0].X+firstMarks[0].Width >= fixture.editor.content.X {
+		t.Fatalf("marker overlaps code: %+v, content %+v", firstMarks[0], fixture.editor.content)
+	}
+
+	fixture.snapshot.LineNumbers = false
+	fixture.paint()
+	if len(fixture.fills(first)) != 1 || fixture.editor.content.X <= fixture.bounds.X+fixture.theme.Metrics.TextInsetX() {
+		t.Fatal("markers should keep a gutter with line numbers hidden")
+	}
+}
+
+func TestCodeEditorGutterMarkersOnlyPaintVisibleLines(t *testing.T) {
+	value := strings.Repeat("row\n", 30) + "last"
+	fixture := newCodeFixture(value)
+	fixture.bounds.Height = 80
+	fixture.snapshot.Caret = len(value)
+	first, last := ui.RGB(20, 80, 160), ui.RGB(180, 40, 60)
+	fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, Color: first}, {Line: 30, Color: last}}
+	fixture.paint()
+	if len(fixture.fills(first)) != 0 || len(fixture.fills(last)) != 1 {
+		t.Fatalf("offscreen markers painted: first=%+v last=%+v", fixture.fills(first), fixture.fills(last))
+	}
+}
+
 // near compares coordinates that came out of float32 arithmetic.
 func near(a, b float32) bool {
 	d := a - b

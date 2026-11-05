@@ -15,6 +15,13 @@ type CodeEditorRun struct {
 	Color      ui.Color
 }
 
+// CodeEditorGutterMarker decorates one zero-based logical line. Markers are
+// sorted by Line and unique; a wrapped line paints its marker only once.
+type CodeEditorGutterMarker struct {
+	Line  int
+	Color ui.Color
+}
+
 // CodeEditorMaxHighlightedLine is the longest line, in bytes, that is handed to
 // the highlighter. A longer one, such as a minified file's only line, is painted
 // plain: highlighting it would cost a megabyte of work for every frame.
@@ -52,6 +59,10 @@ type CodeEditorSnapshot struct {
 	Wrap bool
 	// LineNumbers shows the number of each line in a gutter on the left.
 	LineNumbers bool
+	// MarkerGutter reserves the marker lane even when no markers are present.
+	MarkerGutter bool
+	// GutterMarkers paint in a lane before the line numbers, or on their own.
+	GutterMarkers []CodeEditorGutterMarker
 	// CurrentLine tints the line the caret is on, while nothing is selected.
 	CurrentLine bool
 	// MatchBrackets outlines the bracket next to the caret and its partner.
@@ -181,12 +192,17 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 
 	// The gutter is as wide as the number of the last line, a cell either side.
 	gutter := float32(0)
+	markerLane := float32(0)
+	if snapshot.MarkerGutter || len(snapshot.GutterMarkers) > 0 {
+		markerLane = 16
+		gutter += markerLane
+	}
 	if snapshot.LineNumbers {
 		lines := editor.lineCount
 		if !editor.fitted || editor.text != value {
 			lines = strings.Count(value, "\n") + 1
 		}
-		gutter = float32(max(decimalDigits(lines), 2)+2) * cellWidth
+		gutter += float32(max(decimalDigits(lines), 2)+2) * cellWidth
 	}
 	inset := theme.Metrics.TextInsetX()
 	barWidth, barHeight := float32(0), float32(0)
@@ -260,6 +276,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 	if snapshot.CurrentLine && selectionStart == selectionEnd && !placeholder {
 		currentLine = int(editor.rows[caretRow].line)
 	}
+	markerIndex := 0
 	for index := firstRow; index < len(editor.rows); index++ {
 		y := content.Y + float32(index)*lineHeight - editor.scrollY
 		if y >= content.Y+content.Height {
@@ -270,6 +287,15 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 			tint := theme.Foreground
 			tint.Alpha *= 0.05
 			canvas.Fill(ui.Rect{X: inner.X, Y: y, Width: inner.Width, Height: lineHeight}, tint)
+		}
+		if markerLane > 0 && editor.firstOfLine(index) {
+			for markerIndex < len(snapshot.GutterMarkers) && snapshot.GutterMarkers[markerIndex].Line < int(row.line) {
+				markerIndex++
+			}
+			if markerIndex < len(snapshot.GutterMarkers) && snapshot.GutterMarkers[markerIndex].Line == int(row.line) {
+				canvas.Rounded(ui.Rect{X: bounds.X + inset + (markerLane-9)/2, Y: y + (lineHeight-9)/2, Width: 9, Height: 9}, 4.5, snapshot.GutterMarkers[markerIndex].Color)
+				markerIndex++
+			}
 		}
 		if snapshot.LineNumbers && editor.firstOfLine(index) {
 			paint.lineNumber(row, y, bounds.X+inset, gutter, int(row.line) == int(editor.rows[caretRow].line))
