@@ -66,6 +66,26 @@ func commands() []command {
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runPackage(arguments, output, errorOutput)
 			}},
+		{name: "feed", usage: "feed [flags]",
+			summary: "Generate and sign the update feed for packaged archives.",
+			detail: "Scans the archives viva package wrote ([build] out, or -dir), names each one by the platform,\n" +
+				"architecture and format in its file name, and writes latest.json with its detached Ed25519\n" +
+				"signature. The feed lists only files named the way viva package names them; anything else in\n" +
+				"the directory is ignored. -base-url is where the archives are served from and must be HTTPS,\n" +
+				"as -notes must be when given. The signing key is -key, or $VIVA_UPDATE_KEY: the base64 64-byte\n" +
+				"private key 'viva update-keygen' writes. App, version and archive directory default to viva.toml.",
+			run: func(arguments []string, output, errorOutput io.Writer) error {
+				return runFeed(arguments, output, errorOutput)
+			}},
+		{name: "update-keygen", usage: "update-keygen [flags]",
+			summary: "Generate the Ed25519 key pair that signs update feeds.",
+			detail: "Writes the private key as base64 of its 64 bytes to -private (update.key by default) and prints\n" +
+				"the public key as base64 of its 32 bytes, ready for the application's configuration or a\n" +
+				"go:embed file. -public also writes the public key to a file. A key file that already exists is\n" +
+				"left alone unless -force is given. The private key is never printed.",
+			run: func(arguments []string, output, errorOutput io.Writer) error {
+				return runUpdateKeygen(arguments, output, errorOutput)
+			}},
 		{name: "init", usage: "init [flags] <directory>",
 			summary: "Create a runnable project with a test and a guide for writing its UI.",
 			detail: "Writes main.go (a window laid out with github.com/vivaui/viva/flex), main_test.go (drives it without a window), viva.toml,\n" +
@@ -125,8 +145,13 @@ func printOverview(output io.Writer) {
 	fmt.Fprintln(output, "usage: viva <command> [arguments]")
 	fmt.Fprintln(output)
 	fmt.Fprintln(output, "commands:")
-	for _, c := range commands() {
-		fmt.Fprintf(output, "  %-8s %s\n", c.name, c.summary)
+	list := commands()
+	width := 8
+	for _, c := range list {
+		width = max(width, len(c.name))
+	}
+	for _, c := range list {
+		fmt.Fprintf(output, "  %-*s %s\n", width, c.name, c.summary)
 	}
 	fmt.Fprintln(output)
 	fmt.Fprintln(output, "Run 'viva help <command>' for a command's usage and flags.")

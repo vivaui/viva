@@ -73,6 +73,7 @@ Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用。WebAssembly/Web
 - 主题令牌，以及把固定版本的 shadcn 组件目录静态类型化、源码自有的移植，包括表单、浮层、菜单、日历、滚动配方、反馈界面，以及从有类型切片绘制的面积图、折线图和柱状图，不需要浏览器运行时、反射或运行时样式解析器。
 - 共享的原生/WASM 组件浏览器：按分类分组的全部组件目录，以及每个组件一页、并排运行它的所有示例（点击、悬停、键盘、拖动、滚轮和原生文本编辑都可用），页面滚动条可拖动，热重载保留状态。示例就是 `internal/componentdemo` 里的那些，通过 `ui.Canvas.Embed` 嵌入页面，所以组件浏览器不保留任何组件的副本。
 - 结构化诊断：可选的 `diagnostics` 包接收框架上报的事件（捕获的 panic、GPU 设备恢复、Web 视图失败、启动测量），与 `log/slog` 双向适配，可保留最近事件环与故障上下文；应用不安装 handler 时不写文件、不发送任何内容。见 [docs/diagnostics.md](docs/diagnostics.md)。
+- 签名应用更新：可选的 `update` 包读取 Ed25519 签名的清单，下载清单列出的归档，校验其长度与 SHA-256，再交给平台安装器（macOS 交换 `.app`、Windows 运行 NSIS 安装器、Linux 替换可执行文件）；`viva feed` 从 `viva package` 的产物生成并签名清单。见 [docs/updating.md](docs/updating.md)。
 - 窗口关闭或应用终止时干净地退出事件循环。
 - 可复现的二进制、启动、CPU、内存和 GPU 提交测量。
 
