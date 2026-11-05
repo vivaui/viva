@@ -236,7 +236,7 @@ func (v *MarkdownView) OffsetAt(point ui.Point) (offset int, ok bool) {
 	if piece.mono {
 		local = v.codeOffsetAt(piece, localX)
 	} else {
-		local = v.measure.TextOffsetAt(piece.text, piece.size, piece.weight, localX)
+		local = v.measure.TextOffsetAtStyle(piece.text, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic}, localX)
 	}
 	local = min(max(local, 0), int(piece.plainHi-piece.plainLo))
 	return int(piece.plainLo) + local, true
