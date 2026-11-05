@@ -7,6 +7,7 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
+	"github.com/vivaui/viva/ui"
 )
 
 func TestTriangleEdgeMaskUsesTheExistingInstanceSlot(t *testing.T) {
@@ -269,5 +270,57 @@ func TestLabelScissorFollowsTheCanvasClipAtTheTargetScale(t *testing.T) {
 	clipped.Clip.X = 300
 	if _, visible = labelScissor(clipped, 2, 400, 200); visible {
 		t.Fatal("a clip outside the target is visible")
+	}
+}
+
+// A label whose text changes keeps its texture: the next draw rewrites the
+// pixels in place when the size is unchanged. Destroying and making a texture
+// for every changed row leaves the graphics driver holding the destroyed ones.
+func TestChangedLabelKeepsItsTextureAndIsMarkedStale(t *testing.T) {
+	label := labelTexture{label: platform.TextLabel{Value: "one", Width: 50, Height: 20, FontSize: 12}, texture: 1, view: 2, scale: 2, width: 100, height: 40}
+	moved := label.label
+	moved.X = 9
+	label.update(moved)
+	if label.stale {
+		t.Fatal("moving a label marked its texture stale")
+	}
+	changed := moved
+	changed.Value = "two"
+	label.update(changed)
+	if !label.stale || label.texture != 1 || label.view != 2 || label.width != 100 {
+		t.Fatalf("a changed label has stale=%v texture=%d view=%d width=%d, want it stale with its texture kept", label.stale, label.texture, label.view, label.width)
+	}
+	// The handles above are not real objects: forget them before dropping.
+	label.texture, label.view = 0, 0
+	label.dropTexture()
+	if label.width != 0 || label.stale || label.label.Value != "two" {
+		t.Fatal("dropTexture did not reset the texture state, or lost the label")
+	}
+}
+
+// A grid line's texture covers its runs and a little more, never the whole
+// width of a mostly empty row, and never more than the label itself.
+func TestGridInkWidthStopsNearTheLastRun(t *testing.T) {
+	runs := []ui.TextRun{{Column: 0, Cells: 5}, {Column: 5, Cells: 7}}
+	const cell, scale = 8, 2
+	ink := gridInkWidth(runs, cell, scale)
+	if ink < 12*cell*scale {
+		t.Fatalf("ink width %d does not hold the 12 cells of the runs", ink)
+	}
+	if ink >= 200*cell*scale {
+		t.Fatalf("ink width %d is as wide as an empty row", ink)
+	}
+	typed := append(append([]ui.TextRun(nil), runs...), ui.TextRun{Column: 12, Cells: 1})
+	if gridInkWidth(typed, cell, scale) != ink {
+		t.Fatal("one more typed character changed the texture width, so every key would make a new texture")
+	}
+	label := labelTexture{label: platform.TextLabel{Value: "x", Mono: true, Runs: runs, CellWidth: cell, Width: 100 * cell, Height: 20, FontSize: 12}}
+	skip, width, ok := label.window(scale)
+	if !ok || skip != 0 || width != ink {
+		t.Fatalf("window = %d, %d, %v, want 0, %d, true", skip, width, ok, ink)
+	}
+	label.label.Width = 4
+	if _, width, _ = label.window(scale); width > 4*scale {
+		t.Fatalf("a narrow label got a texture %d wide, wider than itself", width)
 	}
 }

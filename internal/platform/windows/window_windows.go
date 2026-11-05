@@ -78,6 +78,8 @@ type windowState struct {
 	window                  uintptr
 	ready, tracking, sizing bool
 	minimized               bool
+	trimArmed               bool      // the idle timer that trims driver memory is running
+	lastPresent             time.Time // when the window last presented a frame
 	// hiddenByShow is set while ShowWindow has the window hidden; shownVisible is the last
 	// visibility reported to OnVisibility, with ok set once one has been.
 	hiddenByShow, shownVisible, shownKnown bool
@@ -583,6 +585,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		var bounds rect
 		getClientRect.Call(window, uintptr(unsafe.Pointer(&bounds)))
 		err := state.present(int(bounds.Right), int(bounds.Bottom))
+		if err == nil {
+			state.scheduleTrim()
+		}
 		endPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
 		if err != nil {
 			state.fail(err)
@@ -806,6 +811,10 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return 0
 		}
 	case wmTimer:
+		if first == trimTimerID {
+			state.handleTrimTimer()
+			return 0
+		}
 		state.handleCaretTimer(first)
 		return 0
 	case wmNCHitTest:
@@ -1061,4 +1070,7 @@ func (state *windowState) reportVisibility() {
 	}
 	state.shownKnown, state.shownVisible = true, visible
 	state.config.OnVisibility(visible)
+	if !visible {
+		state.renderer.trim()
+	}
 }

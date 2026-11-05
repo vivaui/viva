@@ -40,6 +40,12 @@ type labelTexture struct {
 	// lcd is set when the texture holds the per-channel coverage of ClearType text, to
 	// be blended with the label's color (textMode 1), not premultiplied color.
 	lcd bool
+	// stale is set when the label's content changed since its texture was drawn. The
+	// texture is kept: the next draw rewrites its pixels in place when the size is
+	// unchanged, instead of destroying it and making another, which leaves the
+	// graphics driver holding the destroyed ones (a scrolling terminal changes
+	// every row each line).
+	stale bool
 	// spans are the columns of an lcd grid label's texture that are text of one color;
 	// empty for a label that is all in label.Color.
 	spans []colorSpan
@@ -142,7 +148,16 @@ func (label *labelTexture) close() {
 	label.width, label.height = 0, 0
 	label.skip = 0
 	label.lcd = false
+	label.stale = false
 	label.spans = label.spans[:0]
+}
+
+// dropTexture gives the label's texture back, keeping what the label is.
+func (label *labelTexture) dropTexture() {
+	release(&label.view)
+	release(&label.texture)
+	label.width, label.height, label.skip = 0, 0, 0
+	label.stale = false
 }
 
 // quad is where the label's texture is drawn, in logical pixels: its top left and its size
@@ -177,6 +192,9 @@ func (label *labelTexture) pixelOrigin(scale float32) (x, y int) {
 // images and grid lines, keep their whole texture.
 func (label *labelTexture) window(scale float32) (skip, width int, ok bool) {
 	full := int(math.Ceil(float64(label.label.Width * scale)))
+	if label.label.Mono && len(label.label.Runs) > 0 {
+		full = min(full, gridInkWidth(label.label.Runs, label.label.CellWidth, scale))
+	}
 	if !label.label.Clipped || label.label.Mono || len(label.label.Runs) > 0 || len(label.label.Bitmap) > 0 {
 		return 0, full, full > 0
 	}
@@ -186,10 +204,31 @@ func (label *labelTexture) window(scale float32) (skip, width int, ok bool) {
 	return platform.LabelWindow(x, full, int(left), int(right))
 }
 
+// gridInkColumnsStep is the granularity, in cells, of the part of a grid line's
+// width that gets a texture. A line being typed grows a cell at a time; sizing
+// the texture in steps keeps it from being made again for every key.
+const gridInkColumnsStep = 16
+
+// gridInkWidth is the device width of the part of a fixed-pitch line that can
+// hold ink: up to the end of its last run, rounded up to a whole step of cells
+// plus one more for a glyph that overhangs its cell. A terminal row of a dozen
+// characters in a window two hundred cells wide is a few dozen cells of texture,
+// not two hundred. It is never wider than the label.
+func gridInkWidth(runs []ui.TextRun, cellWidth, scale float32) int {
+	end := int32(0)
+	for _, run := range runs {
+		end = max(end, run.Column+run.Cells)
+	}
+	if cellWidth <= 0 || scale <= 0 {
+		return math.MaxInt32
+	}
+	cells := (int(end)+gridInkColumnsStep-1)/gridInkColumnsStep*gridInkColumnsStep + 1
+	return int(math.Ceil(float64(cellWidth) * float64(scale) * float64(cells)))
+}
+
 func (label *labelTexture) update(next platform.TextLabel) {
 	if labelContentChanged(label.label, next) {
-		release(&label.view)
-		release(&label.texture)
+		label.stale = true
 	}
 	// The runs belong to the caller's frame; keep a copy for the next comparison.
 	label.runs = append(label.runs[:0], next.Runs...)
@@ -260,7 +299,14 @@ func (renderer *renderer) rasterize(label *labelTexture, scale float32) error {
 		}
 		label.spans = append(label.spans, renderer.direct.spans...)
 	}
-	description := textureDesc{Width: uint32(width), Height: uint32(height), Mips: 1, Array: 1, Format: 87, Samples: 1, Usage: 1, Bind: 8}
+	if label.texture != 0 && label.view != 0 && label.width == width && label.height == height {
+		// The same size as the texture it replaces: write the new pixels into it.
+		comCall(renderer.context, 48, label.texture, 0, 0, uintptr(unsafe.Pointer(&pixels[0])), uintptr(width*4), 0)
+		label.scale, label.skip, label.stale = scale, skip, false
+		renderer.labelRebuilds++
+		return nil
+	}
+	description := textureDesc{Width: uint32(width), Height: uint32(height), Mips: 1, Array: 1, Format: 87, Samples: 1, Usage: 0, Bind: 8} // DEFAULT, not IMMUTABLE: a changed label's pixels are written into it
 	data := resourceData{Data: unsafe.Pointer(&pixels[0]), Pitch: uint32(width * 4)}
 	release(&label.view)
 	release(&label.texture)
@@ -273,6 +319,7 @@ func (renderer *renderer) rasterize(label *labelTexture, scale float32) error {
 	label.scale = scale
 	label.width, label.height = width, height
 	label.skip = skip
+	label.stale = false
 	renderer.labelRebuilds++
 	return nil
 }

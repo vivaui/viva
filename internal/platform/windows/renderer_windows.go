@@ -492,6 +492,8 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 				index := renderer.labelOrder[labelOffset]
 				label := &renderer.labels[index]
 				if label.label.Width <= 0 || label.label.Height <= 0 || label.label.Value == "" && len(label.label.Bitmap) == 0 {
+					// Nothing to draw: a texture kept from the text it had is not needed.
+					label.dropTexture()
 					continue
 				}
 				skip, windowWidth, shown := label.window(scale)
@@ -499,7 +501,7 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 					label.close()
 					continue
 				}
-				if label.view == 0 || label.scale != scale || label.skip != skip || skip > 0 && label.width != windowWidth ||
+				if label.view == 0 || label.stale || label.scale != scale || label.skip != skip || skip > 0 && label.width != windowWidth ||
 					len(label.label.Bitmap) > 0 && platform.BitmapTextureStale(label.label, scale, label.width, label.height) {
 					if err := renderer.rasterize(label, scale); err != nil {
 						return fmt.Errorf("rasterize label %d: %w", index, err)
