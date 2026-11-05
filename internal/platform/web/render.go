@@ -179,7 +179,7 @@ func (runtime *runtime) drawTexts(layer uint16) {
 		}
 		clipRect(context, text.Bounds)
 		context.Set("fillStyle", cssColor(text.Style.Color))
-		context.Set("font", cssFont(text.Style.Size, text.Style.Weight))
+		context.Set("font", cssFontStyle(text.Style.Size, text.Style.Weight, text.Style.Italic))
 		if rtl {
 			context.Set("direction", "rtl")
 		}
@@ -199,17 +199,18 @@ type textStyleState struct {
 	color  ui.Color
 	size   float32
 	weight float32
+	italic bool
 }
 
 func (state *textStyleState) apply(context js.Value, style ui.TextStyle) {
-	if state.set && state.color == style.Color && state.size == style.Size && state.weight == style.Weight {
+	if state.set && state.color == style.Color && state.size == style.Size && state.weight == style.Weight && state.italic == style.Italic {
 		return
 	}
 	if !state.set || state.color != style.Color {
 		context.Set("fillStyle", cssColor(style.Color))
 	}
-	if !state.set || state.size != style.Size || state.weight != style.Weight {
-		context.Set("font", cssFont(style.Size, style.Weight))
+	if !state.set || state.size != style.Size || state.weight != style.Weight || state.italic != style.Italic {
+		context.Set("font", cssFontStyle(style.Size, style.Weight, style.Italic))
 	}
-	*state = textStyleState{true, style.Color, style.Size, style.Weight}
+	*state = textStyleState{set: true, color: style.Color, size: style.Size, weight: style.Weight, italic: style.Italic}
 }

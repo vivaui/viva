@@ -52,6 +52,72 @@ func TestCanvasAsksTheInstalledEngineForEveryTextQuery(t *testing.T) {
 	}
 }
 
+type italicEngine struct {
+	halfEngine
+	styledWidths, styledCarets, styledSelections, styledHits int
+}
+
+func (engine *italicEngine) WidthStyle(value string, size, weight float32, italic bool) float32 {
+	engine.styledWidths++
+	if italic {
+		return float32(len(value)) * size
+	}
+	return engine.Width(value, size, weight)
+}
+
+func (engine *italicEngine) CaretStyle(value string, size, weight float32, italic bool, offset int) float32 {
+	engine.styledCarets++
+	if italic {
+		return float32(offset) * size
+	}
+	return engine.Caret(value, size, weight, offset)
+}
+
+func (engine *italicEngine) SelectionStyle(dst []TextSpan, value string, size, weight float32, italic bool, start, end int) []TextSpan {
+	engine.styledSelections++
+	if italic {
+		return append(dst, TextSpan{X: float32(start) * size, Width: float32(end-start) * size})
+	}
+	return engine.Selection(dst, value, size, weight, start, end)
+}
+
+func (engine *italicEngine) OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int {
+	engine.styledHits++
+	if italic {
+		return min(max(int(x/size+0.5), 0), len(value))
+	}
+	return engine.OffsetAt(value, size, weight, x)
+}
+
+func TestItalicCanvasQueriesUseStyledEngineWithoutChangingLegacyMetrics(t *testing.T) {
+	var canvas Canvas
+	engine := &italicEngine{}
+	canvas.SetTextEngine(engine)
+	style := TextStyle{Size: 10, Weight: WeightRegular, Italic: true}
+	if got := canvas.TextWidthStyle("abc", style); got != 30 {
+		t.Fatalf("italic width = %v", got)
+	}
+	if got := canvas.TextCaretStyle("abc", style, 2); got != 20 {
+		t.Fatalf("italic caret = %v", got)
+	}
+	if got := canvas.TextSelectionStyle(nil, "abc", style, 1, 3); len(got) != 1 || got[0] != (TextSpan{X: 10, Width: 20}) {
+		t.Fatalf("italic selection = %+v", got)
+	}
+	if got := canvas.TextOffsetAtStyle("abc", style, 16); got != 2 {
+		t.Fatalf("italic hit = %v", got)
+	}
+	canvas.LabelCenter("abc", Rect{Width: 100, Height: 20}, style)
+	if got := canvas.Texts()[0].Bounds.X; got != 35 {
+		t.Fatalf("italic centered origin = %v", got)
+	}
+	if got := canvas.TextWidth("abc", 10); got != 15 {
+		t.Fatalf("legacy regular width = %v", got)
+	}
+	if engine.styledWidths != 2 || engine.styledCarets != 1 || engine.styledSelections != 1 || engine.styledHits != 1 {
+		t.Fatalf("styled calls = %+v", engine)
+	}
+}
+
 func TestAnEmbeddedCanvasMeasuresWithTheHostsEngine(t *testing.T) {
 	var host, child Canvas
 	host.SetTextEngine(&halfEngine{})

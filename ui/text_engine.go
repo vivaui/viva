@@ -30,6 +30,15 @@ type TextEngine interface {
 	OffsetAt(value string, size, weight, x float32) int
 }
 
+// StyledTextEngine optionally shapes proportional italic text without changing TextEngine callers.
+type StyledTextEngine interface {
+	TextEngine
+	WidthStyle(value string, size, weight float32, italic bool) float32
+	CaretStyle(value string, size, weight float32, italic bool, offset int) float32
+	SelectionStyle(dst []TextSpan, value string, size, weight float32, italic bool, start, end int) []TextSpan
+	OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int
+}
+
 // FontFamilyAware is a TextEngine whose proportional family the application can
 // name while it runs: the platform engines implement it. The reference engine's
 // widths know no family, and a backend whose text the system draws without a

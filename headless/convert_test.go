@@ -30,3 +30,10 @@ func TestSceneryKeepsTheEditorsDeclaredWeight(t *testing.T) {
 		t.Fatalf("input = %+v, want the declared weight 600", input)
 	}
 }
+
+func TestSceneryKeepsProportionalItalicLabel(t *testing.T) {
+	_, labels, _ := scenery(app.Snapshot{Labels: []app.Label{{Value: "Italic", FontSize: 16, Italic: true}}})
+	if len(labels) != 1 || !labels[0].Italic {
+		t.Fatalf("italic label = %+v", labels)
+	}
+}

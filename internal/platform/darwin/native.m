@@ -938,6 +938,7 @@ static NSRange viva_clamp_range(NSRange range, NSUInteger length) {
 // lands on. The engine in Go (text_engine.go) caches the lines; vivaShapedLine is how the
 // drawing here reaches the same cache.
 extern viva_text_line *vivaShapedLine(const unsigned char *utf8, size_t length, double size, double weight);
+extern viva_text_line *vivaShapedLineStyle(const unsigned char *utf8, size_t length, double size, double weight, int italic);
 
 // viva_interface_family is the family viva_text_set_family last named, "" for the
 // system font. A plain C buffer, not an NSString: nothing here manages memory for
@@ -970,6 +971,20 @@ static CTFontRef viva_system_font(CGFloat size, CGFloat weight) {
     return font != nil ? (CTFontRef)CFRetain(font) : NULL;
 }
 
+static CTFontRef viva_system_font_style(CGFloat size, CGFloat weight, BOOL italic) {
+    CTFontRef base = viva_system_font(size, weight);
+    if (!italic || base == NULL) {
+        return base;
+    }
+    CTFontRef face = CTFontCreateCopyWithSymbolicTraits(base, size, NULL, kCTFontItalicTrait, kCTFontItalicTrait);
+    if (face == NULL) {
+        CGAffineTransform slant = CGAffineTransformMake(1, 0, 0.2, 1, 0, 0);
+        face = CTFontCreateCopyWithAttributes(base, size, &slant, NULL);
+    }
+    CFRelease(base);
+    return face;
+}
+
 void viva_text_set_family(const char *family) {
     if (family == NULL) {
         viva_interface_family[0] = '\0';
@@ -979,7 +994,7 @@ void viva_text_set_family(const char *family) {
     viva_interface_family[sizeof(viva_interface_family) - 1] = '\0';
 }
 
-viva_text_line *viva_text_line_create(const unsigned char *utf8, size_t length, double font_size, double font_weight) {
+viva_text_line *viva_text_line_create_style(const unsigned char *utf8, size_t length, double font_size, double font_weight, int italic) {
     @autoreleasepool {
         static const unsigned char empty[1] = {0};
         CFStringRef string = CFStringCreateWithBytes(
@@ -987,7 +1002,7 @@ viva_text_line *viva_text_line_create(const unsigned char *utf8, size_t length, 
         if (string == NULL) {
             return NULL;
         }
-        CTFontRef font = viva_system_font(font_size, font_weight);
+        CTFontRef font = viva_system_font_style(font_size, font_weight, italic != 0);
         if (font == NULL) {
             CFRelease(string);
             return NULL;
@@ -1026,6 +1041,10 @@ viva_text_line *viva_text_line_create(const unsigned char *utf8, size_t length, 
         CFRelease(font);
         return shaped;
     }
+}
+
+viva_text_line *viva_text_line_create(const unsigned char *utf8, size_t length, double font_size, double font_weight) {
+    return viva_text_line_create_style(utf8, length, font_size, font_weight, 0);
 }
 
 void viva_text_line_retain(viva_text_line *line) {
@@ -1156,6 +1175,11 @@ size_t viva_text_line_selection(const viva_text_line *line, size_t start, size_t
 static viva_text_line *viva_shared_text_line(NSString *shown, CGFloat fontSize, CGFloat weight) {
     NSData *bytes = [shown dataUsingEncoding:NSUTF8StringEncoding];
     return vivaShapedLine(bytes != nil ? (const unsigned char *)bytes.bytes : NULL, bytes != nil ? bytes.length : 0, fontSize, weight);
+}
+
+static viva_text_line *viva_shared_text_line_style(NSString *shown, CGFloat fontSize, CGFloat weight, BOOL italic) {
+    NSData *bytes = [shown dataUsingEncoding:NSUTF8StringEncoding];
+    return vivaShapedLineStyle(bytes != nil ? (const unsigned char *)bytes.bytes : NULL, bytes != nil ? bytes.length : 0, fontSize, weight, italic ? 1 : 0);
 }
 
 // viva_draw_text_line draws the shaped line in one call, its origin at x on baseline, in
@@ -2271,6 +2295,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     BOOL _clipped;
     CGFloat _fontSize;
     CGFloat _fontWeight;
+    BOOL _italic;
     CGFloat _red;
     CGFloat _green;
     CGFloat _blue;
@@ -2403,6 +2428,7 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
         [self updateClipFromConfig:config];
         _fontSize = config.font_size;
         _fontWeight = config.font_weight;
+        _italic = (config.flags & VIVA_LABEL_ITALIC) != 0;
         _red = config.red;
         _green = config.green;
         _blue = config.blue;
@@ -2471,6 +2497,9 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
     // quad supplies it each draw); size matters only for texel alignment,
     // which live resize may temporarily relax.
     if (_fontSize != config.font_size || _fontWeight != config.font_weight || _fontGeneration != config.font_generation) {
+        return NO;
+    }
+    if (_italic != ((config.flags & VIVA_LABEL_ITALIC) != 0)) {
         return NO;
     }
     if (_originX != viva_quantized_origin(config.origin_x) || _originY != viva_quantized_origin(config.origin_y)) {
@@ -2686,7 +2715,7 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
             CFRelease(line);
         }
     } else {
-        viva_text_line *shaped = viva_shared_text_line(_value, _fontSize, _fontWeight);
+        viva_text_line *shaped = viva_shared_text_line_style(_value, _fontSize, _fontWeight, _italic);
         if (shaped != NULL) {
             viva_draw_text_line(context, shaped, foreground, _originX, baseline);
             viva_text_line_release(shaped);

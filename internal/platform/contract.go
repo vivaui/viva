@@ -292,6 +292,7 @@ type TextLabel struct {
 	OriginY   float32
 	FontSize  float32
 	Weight    float32
+	Italic    bool
 	Color     Color
 	Layer     uint16
 	Mono      bool

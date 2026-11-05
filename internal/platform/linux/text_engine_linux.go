@@ -47,10 +47,11 @@ type shapedLine struct {
 // context it shapes with is not, so every use of it, including drawing a line, is
 // under mu.
 type textEngine struct {
-	mu        sync.Mutex
-	services  *textServices
-	cache     *textcache.Cache[*shapedLine]
-	reference ui.TextEngine
+	mu          sync.Mutex
+	services    *textServices
+	cache       *textcache.Cache[*shapedLine]
+	italicCache *textcache.Cache[*shapedLine]
+	reference   ui.TextEngine
 	// family is the family the interface's text is shaped in, "" for the sans
 	// alias, which is the desktop's own interface font. Guarded by mu; a change
 	// forgets the cache.
@@ -82,6 +83,9 @@ func (engine *textEngine) close() {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	engine.cache.Clear()
+	if engine.italicCache != nil {
+		engine.italicCache.Clear()
+	}
 	engine.services.close()
 }
 
@@ -104,6 +108,9 @@ func (engine *textEngine) SetFontFamily(family string) {
 	}
 	engine.family = family
 	engine.cache.Clear()
+	if engine.italicCache != nil {
+		engine.italicCache.Clear()
+	}
 	engine.generation.Add(1)
 }
 
@@ -132,19 +139,34 @@ func TextEngine() ui.TextEngine {
 // lineLocked is the shaped line of value at a font size, shaped now when it has not been. mu
 // is held.
 func (engine *textEngine) lineLocked(value string, size, weight float32) (*shapedLine, error) {
+	return engine.lineStyleLocked(value, size, weight, false)
+}
+
+func (engine *textEngine) lineStyleLocked(value string, size, weight float32, italic bool) (*shapedLine, error) {
+	cache := engine.cache
+	if italic {
+		if engine.italicCache == nil {
+			engine.italicCache = textcache.New(engineCacheLimit, engine.release)
+		}
+		cache = engine.italicCache
+	}
 	key := textcache.Key{Value: value, Size: size, Weight: weight}
-	if line, ok := engine.cache.Get(key); ok {
+	if line, ok := cache.Get(key); ok {
 		return line, nil
 	}
-	line, err := engine.shape(value, size, weight)
+	line, err := engine.shapeStyle(value, size, weight, italic)
 	if err != nil {
 		return nil, err
 	}
-	engine.cache.Put(key, line)
+	cache.Put(key, line)
 	return line, nil
 }
 
 func (engine *textEngine) shape(value string, size, weight float32) (*shapedLine, error) {
+	return engine.shapeStyle(value, size, weight, false)
+}
+
+func (engine *textEngine) shapeStyle(value string, size, weight float32, italic bool) (*shapedLine, error) {
 	services := engine.services
 	if !validFontSize(size) {
 		return nil, fmt.Errorf("linux: invalid font size")
@@ -156,7 +178,7 @@ func (engine *textEngine) shape(value string, size, weight float32) (*shapedLine
 	if family == "" {
 		family = proportionalFamily
 	}
-	description, err := services.description(family, size, weight, false)
+	description, err := services.description(family, size, weight, italic)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +238,11 @@ func (engine *textEngine) tablesLocked(line *shapedLine, value string) {
 // shaped is the line of value at the logical size, with its tables, or nil when Pango
 // cannot shape it (the caller then answers with the reference metrics). mu is held.
 func (engine *textEngine) shaped(value string, size, weight float32) *shapedLine {
-	line, err := engine.lineLocked(value, size, weight)
+	return engine.shapedStyle(value, size, weight, false)
+}
+
+func (engine *textEngine) shapedStyle(value string, size, weight float32, italic bool) *shapedLine {
+	line, err := engine.lineStyleLocked(value, size, weight, italic)
 	if err != nil {
 		return nil
 	}
@@ -240,12 +266,16 @@ func (line *shapedLine) boundary(offset int) int {
 
 // Width implements ui.TextEngine.
 func (engine *textEngine) Width(value string, size, weight float32) float32 {
+	return engine.WidthStyle(value, size, weight, false)
+}
+
+func (engine *textEngine) WidthStyle(value string, size, weight float32, italic bool) float32 {
 	if value == "" {
 		return 0
 	}
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	line, err := engine.lineLocked(value, size, weight)
+	line, err := engine.lineStyleLocked(value, size, weight, italic)
 	if err != nil {
 		return engine.reference.Width(value, size, weight)
 	}
@@ -254,12 +284,16 @@ func (engine *textEngine) Width(value string, size, weight float32) float32 {
 
 // Caret implements ui.TextEngine.
 func (engine *textEngine) Caret(value string, size, weight float32, offset int) float32 {
+	return engine.CaretStyle(value, size, weight, false, offset)
+}
+
+func (engine *textEngine) CaretStyle(value string, size, weight float32, italic bool, offset int) float32 {
 	if value == "" {
 		return 0
 	}
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	line := engine.shaped(value, size, weight)
+	line := engine.shapedStyle(value, size, weight, italic)
 	if line == nil {
 		return engine.reference.Caret(value, size, weight, offset)
 	}
@@ -269,12 +303,16 @@ func (engine *textEngine) Caret(value string, size, weight float32, offset int) 
 // Selection implements ui.TextEngine: the extents of the characters of [start, end), joined
 // where they touch, left to right.
 func (engine *textEngine) Selection(dst []ui.TextSpan, value string, size, weight float32, start, end int) []ui.TextSpan {
+	return engine.SelectionStyle(dst, value, size, weight, false, start, end)
+}
+
+func (engine *textEngine) SelectionStyle(dst []ui.TextSpan, value string, size, weight float32, italic bool, start, end int) []ui.TextSpan {
 	if value == "" {
 		return append(dst, ui.TextSpan{})
 	}
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	line := engine.shaped(value, size, weight)
+	line := engine.shapedStyle(value, size, weight, italic)
 	if line == nil {
 		return engine.reference.Selection(dst, value, size, weight, start, end)
 	}
@@ -330,12 +368,16 @@ func (engine *textEngine) Selection(dst []ui.TextSpan, value string, size, weigh
 
 // OffsetAt implements ui.TextEngine: the cluster boundary whose caret is nearest x.
 func (engine *textEngine) OffsetAt(value string, size, weight, x float32) int {
+	return engine.OffsetAtStyle(value, size, weight, false, x)
+}
+
+func (engine *textEngine) OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int {
 	if value == "" {
 		return 0
 	}
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	line := engine.shaped(value, size, weight)
+	line := engine.shapedStyle(value, size, weight, italic)
 	if line == nil {
 		return engine.reference.OffsetAt(value, size, weight, x)
 	}

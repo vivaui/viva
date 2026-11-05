@@ -90,12 +90,13 @@ func (line *shapedLine) close() { release(&line.layout) }
 // textEngine is the ui.TextEngine of Windows. Its methods may be called from any
 // goroutine, one at a time.
 type textEngine struct {
-	mu       sync.Mutex
-	services textServices
-	fallback uintptr
-	cache    *textcache.Cache[*shapedLine]
-	hit      hitMetrics
-	ranges   [4]hitMetrics
+	mu          sync.Mutex
+	services    textServices
+	fallback    uintptr
+	cache       *textcache.Cache[*shapedLine]
+	italicCache *textcache.Cache[*shapedLine]
+	hit         hitMetrics
+	ranges      [4]hitMetrics
 	// family is the family the interface's text is shaped in, "" for Segoe UI,
 	// the interface font Windows ships. Guarded by mu; a change forgets the cache.
 	family string
@@ -131,6 +132,9 @@ func (engine *textEngine) SetFontFamily(family string) {
 	}
 	engine.family = family
 	engine.cache.Clear()
+	if engine.italicCache != nil {
+		engine.italicCache.Clear()
+	}
 	engine.generation.Add(1)
 }
 
@@ -182,27 +186,45 @@ func (engine *textEngine) forget() {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	engine.cache.Clear()
+	if engine.italicCache != nil {
+		engine.italicCache.Clear()
+	}
 	engine.generation.Add(1)
 }
 
 // line is the shaped line of value, creating and caching it. The caller holds mu.
 func (engine *textEngine) line(value string, size, weight float32) (*shapedLine, error) {
+	return engine.lineStyle(value, size, weight, false)
+}
+
+func (engine *textEngine) lineStyle(value string, size, weight float32, italic bool) (*shapedLine, error) {
 	if size <= 0 || math.IsNaN(float64(size)) || math.IsInf(float64(size), 0) {
 		return nil, fmt.Errorf("windows: invalid font size")
 	}
+	cache := engine.cache
+	if italic {
+		if engine.italicCache == nil {
+			engine.italicCache = textcache.New(textEngineCapacity, (*shapedLine).close)
+		}
+		cache = engine.italicCache
+	}
 	key := textcache.Key{Value: value, Size: size, Weight: weight}
-	if line, ok := engine.cache.Get(key); ok {
+	if line, ok := cache.Get(key); ok {
 		return line, nil
 	}
-	line, err := engine.shape(value, size, weight)
+	line, err := engine.shapeStyle(value, size, weight, italic)
 	if err != nil {
 		return nil, err
 	}
-	engine.cache.Put(key, line)
+	cache.Put(key, line)
 	return line, nil
 }
 
 func (engine *textEngine) shape(value string, size, weight float32) (*shapedLine, error) {
+	return engine.shapeStyle(value, size, weight, false)
+}
+
+func (engine *textEngine) shapeStyle(value string, size, weight float32, italic bool) (*shapedLine, error) {
 	units := utf16.Encode([]rune(value))
 	if len(units) == 0 {
 		return nil, fmt.Errorf("windows: empty line")
@@ -211,7 +233,7 @@ func (engine *textEngine) shape(value string, size, weight float32) (*shapedLine
 	if family == "" {
 		family = "Segoe UI"
 	}
-	format, err := engine.services.formatFamily(family, size, weight)
+	format, err := engine.services.formatStyle(family, size, weight, italic)
 	if err != nil {
 		return nil, err
 	}
@@ -352,10 +374,14 @@ func nextRuneStart(value string, from int) int {
 // are missing. ok is false when DirectWrite failed; the caller then answers as for no
 // text. The caller holds mu.
 func (engine *textEngine) tablesOf(value string, size, weight float32) (*shapedLine, bool) {
+	return engine.tablesOfStyle(value, size, weight, false)
+}
+
+func (engine *textEngine) tablesOfStyle(value string, size, weight float32, italic bool) (*shapedLine, bool) {
 	if value == "" {
 		return nil, false
 	}
-	line, err := engine.line(value, size, weight)
+	line, err := engine.lineStyle(value, size, weight, italic)
 	if err != nil || engine.ensureTables(line, value) != nil {
 		return nil, false
 	}
@@ -364,12 +390,16 @@ func (engine *textEngine) tablesOf(value string, size, weight float32) (*shapedL
 
 // Width is the advance of the whole line.
 func (engine *textEngine) Width(value string, size, weight float32) float32 {
+	return engine.WidthStyle(value, size, weight, false)
+}
+
+func (engine *textEngine) WidthStyle(value string, size, weight float32, italic bool) float32 {
 	if value == "" {
 		return 0
 	}
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	line, err := engine.line(value, size, weight)
+	line, err := engine.lineStyle(value, size, weight, italic)
 	if err != nil {
 		return 0
 	}
@@ -378,9 +408,13 @@ func (engine *textEngine) Width(value string, size, weight float32) float32 {
 
 // Caret is the x of the caret at byte offset.
 func (engine *textEngine) Caret(value string, size, weight float32, offset int) float32 {
+	return engine.CaretStyle(value, size, weight, false, offset)
+}
+
+func (engine *textEngine) CaretStyle(value string, size, weight float32, italic bool, offset int) float32 {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	line, ok := engine.tablesOf(value, size, weight)
+	line, ok := engine.tablesOfStyle(value, size, weight, italic)
 	if !ok {
 		return 0
 	}
@@ -390,9 +424,13 @@ func (engine *textEngine) Caret(value string, size, weight float32, offset int) 
 
 // Selection appends the extents of [start, end), left to right.
 func (engine *textEngine) Selection(dst []ui.TextSpan, value string, size, weight float32, start, end int) []ui.TextSpan {
+	return engine.SelectionStyle(dst, value, size, weight, false, start, end)
+}
+
+func (engine *textEngine) SelectionStyle(dst []ui.TextSpan, value string, size, weight float32, italic bool, start, end int) []ui.TextSpan {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	line, ok := engine.tablesOf(value, size, weight)
+	line, ok := engine.tablesOfStyle(value, size, weight, italic)
 	if !ok {
 		return dst
 	}
@@ -433,9 +471,13 @@ func (engine *textEngine) Selection(dst []ui.TextSpan, value string, size, weigh
 
 // OffsetAt is the byte offset of the cluster boundary nearest x.
 func (engine *textEngine) OffsetAt(value string, size, weight, x float32) int {
+	return engine.OffsetAtStyle(value, size, weight, false, x)
+}
+
+func (engine *textEngine) OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	line, ok := engine.tablesOf(value, size, weight)
+	line, ok := engine.tablesOfStyle(value, size, weight, italic)
 	if !ok {
 		return 0
 	}
@@ -477,9 +519,13 @@ func (engine *textEngine) metrics(value string, size, weight float32) (text.Metr
 // draw calls paint with the shaped line of value at size, a size in device pixels when
 // Direct2D draws it. The line belongs to the cache and is valid until paint returns.
 func (engine *textEngine) draw(value string, size, weight float32, paint func(*shapedLine) error) error {
+	return engine.drawStyle(value, size, weight, false, paint)
+}
+
+func (engine *textEngine) drawStyle(value string, size, weight float32, italic bool, paint func(*shapedLine) error) error {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	line, err := engine.line(value, size, weight)
+	line, err := engine.lineStyle(value, size, weight, italic)
 	if err != nil {
 		return err
 	}

@@ -485,7 +485,7 @@ func (services *textServices) drawLine(context uintptr, label platform.TextLabel
 	}
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	line, err := engine.lineLocked(label.Value, label.FontSize*scale, label.Weight)
+	line, err := engine.lineStyleLocked(label.Value, label.FontSize*scale, label.Weight, label.Italic)
 	if err != nil {
 		return err
 	}

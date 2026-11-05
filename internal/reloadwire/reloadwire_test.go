@@ -22,7 +22,7 @@ func TestCanvasCodecPreservesRetainedOutput(t *testing.T) {
 	canvas.DrawBitmapRegion(ui.Bitmap{
 		Pix: []byte{0, 0, 255, 255, 0, 255, 0, 255}, Width: 2, Height: 1, Stride: 8, ID: 55, Version: 2,
 	}, ui.Rect{X: 1, Width: 1, Height: 1}, ui.Rect{X: 10, Y: 10, Width: 20, Height: 10})
-	canvas.Label("reload", ui.Rect{X: 5, Y: 6, Width: 50, Height: 14}, ui.TextStyle{Size: 12, Weight: 600, Color: ui.Color{Alpha: 1}})
+	canvas.Label("reload", ui.Rect{X: 5, Y: 6, Width: 50, Height: 14}, ui.TextStyle{Size: 12, Weight: 600, Italic: true, Color: ui.Color{Alpha: 1}})
 	canvas.Unclip()
 	canvas.PopLayer()
 	canvas.PushLayer(600)

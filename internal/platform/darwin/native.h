@@ -134,6 +134,7 @@ enum {
     VIVA_LABEL_BITMAP = 2,
     // The label may only paint inside clip_x/clip_y/clip_width/clip_height.
     VIVA_LABEL_CLIPPED = 8,
+    VIVA_LABEL_ITALIC = 16,
 };
 
 typedef struct {
@@ -470,6 +471,7 @@ int viva_measure_text(
 void viva_text_set_family(const char *family);
 
 viva_text_line *viva_text_line_create(const unsigned char *utf8, size_t length, double font_size, double font_weight);
+viva_text_line *viva_text_line_create_style(const unsigned char *utf8, size_t length, double font_size, double font_weight, int italic);
 void viva_text_line_retain(viva_text_line *line);
 void viva_text_line_release(viva_text_line *line);
 // Offsets are UTF-16 units of the string, as CoreText counts them; an offset inside a

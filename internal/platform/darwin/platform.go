@@ -697,6 +697,9 @@ func makeNativeTextLabels(labels []TextLabel) (unsafe.Pointer, []unsafe.Pointer,
 		if label.Mono || len(label.Runs) > 0 {
 			flags |= C.VIVA_LABEL_MONO
 		}
+		if label.Italic && !label.Mono && len(label.Runs) == 0 {
+			flags |= C.VIVA_LABEL_ITALIC
+		}
 		if label.Clipped {
 			flags |= C.VIVA_LABEL_CLIPPED
 		}

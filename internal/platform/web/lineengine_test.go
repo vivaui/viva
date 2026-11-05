@@ -87,6 +87,49 @@ func (browser *fakeBrowser) rects(value string, size, weight float32, rtl bool, 
 	}
 }
 
+type italicBrowser struct{ fakeBrowser }
+
+func (browser *italicBrowser) widthStyle(value string, size, weight float32, italic, rtl bool) float32 {
+	width := browser.fakeBrowser.width(value, size, weight, rtl)
+	if italic {
+		return width * 2
+	}
+	return width
+}
+
+func (browser *italicBrowser) rectsStyle(value string, size, weight float32, italic, rtl bool, bounds []int32, lefts, rights []float32) {
+	browser.fakeBrowser.rects(value, size, weight, rtl, bounds, lefts, rights)
+	if italic {
+		for index := range lefts {
+			lefts[index] *= 2
+			rights[index] *= 2
+		}
+	}
+}
+
+func TestItalicBrowserMetricsAndCacheStaySeparate(t *testing.T) {
+	browser := &italicBrowser{}
+	engine := newLineEngine(browser)
+	if regular, italic := engine.Width("abcd", 10, 0), engine.WidthStyle("abcd", 10, 0, true); regular != 20 || italic != 40 {
+		t.Fatalf("regular/italic width = %v/%v", regular, italic)
+	}
+	if caret := engine.CaretStyle("abcd", 10, 0, true, 2); caret != 20 {
+		t.Fatalf("italic caret = %v", caret)
+	}
+	if offset := engine.OffsetAtStyle("abcd", 10, 0, true, 26); offset != 3 {
+		t.Fatalf("italic hit = %d", offset)
+	}
+	if browser.widths != 2 {
+		t.Fatalf("regular and italic cache entries measured %d times", browser.widths)
+	}
+	browser.invalidate()
+	engine.Width("abcd", 10, 0)
+	engine.WidthStyle("abcd", 10, 0, true)
+	if browser.widths != 4 {
+		t.Fatalf("font invalidation measured %d widths, want both styles remeasured", browser.widths)
+	}
+}
+
 func TestLineEnginePassesTheTextEngineContract(t *testing.T) {
 	textenginetest.Run(t, newLineEngine(&fakeBrowser{}))
 }

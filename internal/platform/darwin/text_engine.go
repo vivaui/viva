@@ -32,8 +32,9 @@ const selectionPieces = 32
 // that line. Use SharedTextEngine: the labels and the native editor draw from the same
 // cache.
 type TextEngine struct {
-	mutex sync.Mutex
-	cache *textcache.Cache[*C.viva_text_line]
+	mutex       sync.Mutex
+	cache       *textcache.Cache[*C.viva_text_line]
+	italicCache *textcache.Cache[*C.viva_text_line]
 	// family is the family the interface's text is shaped in, "" for the system
 	// font. The name is also told to C, which keeps it for viva_system_font.
 	family string
@@ -76,6 +77,9 @@ func (engine *TextEngine) SetFontFamily(family string) {
 	defer C.free(unsafe.Pointer(name))
 	C.viva_text_set_family(name)
 	engine.cache.Clear()
+	if engine.italicCache != nil {
+		engine.italicCache.Clear()
+	}
 	engine.generation.Add(1)
 }
 
@@ -87,6 +91,9 @@ func (engine *TextEngine) FontGeneration() uint32 { return engine.generation.Loa
 func (engine *TextEngine) Reset() {
 	engine.mutex.Lock()
 	engine.cache.Clear()
+	if engine.italicCache != nil {
+		engine.italicCache.Clear()
+	}
 	engine.generation.Add(1)
 	engine.mutex.Unlock()
 }
@@ -102,10 +109,32 @@ func (engine *TextEngine) line(value string, size, weight float32) *C.viva_text_
 		data = (*C.uchar)(unsafe.Pointer(unsafe.StringData(value)))
 	}
 	line := C.viva_text_line_create(data, C.size_t(len(value)), C.double(size), C.double(weight))
+	if line != nil {
+		engine.cache.Put(key, line)
+	}
+	return line
+}
+
+func (engine *TextEngine) lineStyle(value string, size, weight float32, italic bool) *C.viva_text_line {
+	if !italic {
+		return engine.line(value, size, weight)
+	}
+	if engine.italicCache == nil {
+		engine.italicCache = textcache.New(lineCacheLimit, func(line *C.viva_text_line) { C.viva_text_line_release(line) })
+	}
+	key := textcache.Key{Value: value, Size: size, Weight: weight}
+	if line, ok := engine.italicCache.Get(key); ok {
+		return line
+	}
+	var data *C.uchar
+	if len(value) > 0 {
+		data = (*C.uchar)(unsafe.Pointer(unsafe.StringData(value)))
+	}
+	line := C.viva_text_line_create_style(data, C.size_t(len(value)), C.double(size), C.double(weight), 1)
 	if line == nil {
 		return nil
 	}
-	engine.cache.Put(key, line)
+	engine.italicCache.Put(key, line)
 	return line
 }
 
@@ -113,6 +142,17 @@ func (engine *TextEngine) line(value string, size, weight float32) *C.viva_text_
 func (engine *TextEngine) retainedLine(value string, size, weight float32) *C.viva_text_line {
 	engine.mutex.Lock()
 	line := engine.line(value, size, weight)
+	C.viva_text_line_retain(line)
+	engine.mutex.Unlock()
+	return line
+}
+
+func (engine *TextEngine) retainedLineStyle(value string, size, weight float32, italic bool) *C.viva_text_line {
+	if !italic {
+		return engine.retainedLine(value, size, weight)
+	}
+	engine.mutex.Lock()
+	line := engine.lineStyle(value, size, weight, italic)
 	C.viva_text_line_retain(line)
 	engine.mutex.Unlock()
 	return line
@@ -132,14 +172,34 @@ func (engine *TextEngine) Width(value string, size, weight float32) float32 {
 	return float32(line.width)
 }
 
-// Caret implements ui.TextEngine.
-func (engine *TextEngine) Caret(value string, size, weight float32, offset int) float32 {
+func (engine *TextEngine) WidthStyle(value string, size, weight float32, italic bool) float32 {
+	if !italic {
+		return engine.Width(value, size, weight)
+	}
 	if value == "" || size <= 0 {
 		return 0
 	}
 	engine.mutex.Lock()
 	defer engine.mutex.Unlock()
-	line := engine.line(value, size, weight)
+	line := engine.lineStyle(value, size, weight, italic)
+	if line == nil {
+		return 0
+	}
+	return float32(line.width)
+}
+
+// Caret implements ui.TextEngine.
+func (engine *TextEngine) Caret(value string, size, weight float32, offset int) float32 {
+	return engine.CaretStyle(value, size, weight, false, offset)
+}
+
+func (engine *TextEngine) CaretStyle(value string, size, weight float32, italic bool, offset int) float32 {
+	if value == "" || size <= 0 {
+		return 0
+	}
+	engine.mutex.Lock()
+	defer engine.mutex.Unlock()
+	line := engine.lineStyle(value, size, weight, italic)
 	if line == nil {
 		return 0
 	}
@@ -148,12 +208,16 @@ func (engine *TextEngine) Caret(value string, size, weight float32, offset int) 
 
 // Selection implements ui.TextEngine.
 func (engine *TextEngine) Selection(dst []ui.TextSpan, value string, size, weight float32, start, end int) []ui.TextSpan {
+	return engine.SelectionStyle(dst, value, size, weight, false, start, end)
+}
+
+func (engine *TextEngine) SelectionStyle(dst []ui.TextSpan, value string, size, weight float32, italic bool, start, end int) []ui.TextSpan {
 	if value == "" || size <= 0 {
 		return append(dst, ui.TextSpan{})
 	}
 	engine.mutex.Lock()
 	defer engine.mutex.Unlock()
-	line := engine.line(value, size, weight)
+	line := engine.lineStyle(value, size, weight, italic)
 	if line == nil {
 		return append(dst, ui.TextSpan{})
 	}
@@ -166,12 +230,16 @@ func (engine *TextEngine) Selection(dst []ui.TextSpan, value string, size, weigh
 
 // OffsetAt implements ui.TextEngine.
 func (engine *TextEngine) OffsetAt(value string, size, weight, x float32) int {
+	return engine.OffsetAtStyle(value, size, weight, false, x)
+}
+
+func (engine *TextEngine) OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int {
 	if value == "" || size <= 0 {
 		return 0
 	}
 	engine.mutex.Lock()
 	defer engine.mutex.Unlock()
-	line := engine.line(value, size, weight)
+	line := engine.lineStyle(value, size, weight, italic)
 	if line == nil {
 		return 0
 	}

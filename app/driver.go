@@ -954,6 +954,7 @@ type Label struct {
 	OriginX, OriginY float32
 	FontSize         float32
 	Weight           float32
+	Italic           bool
 	Color            ui.Color
 	Layer            uint16
 	// FontGeneration is platform.TextLabel's: the interface font the text was laid out
@@ -1083,7 +1084,7 @@ func (driver *Driver) Snapshot() Snapshot {
 			Value:   label.Value,
 			Bounds:  ui.Rect{X: label.X, Y: label.Y, Width: label.Width, Height: label.Height},
 			OriginX: label.OriginX, OriginY: label.OriginY,
-			FontSize: label.FontSize, Weight: label.Weight,
+			FontSize: label.FontSize, Weight: label.Weight, Italic: label.Italic,
 			Color: ui.Color{Red: float32(label.Color.Red), Green: float32(label.Color.Green), Blue: float32(label.Color.Blue), Alpha: float32(label.Color.Alpha)},
 			Layer: label.Layer, FontGeneration: label.FontGeneration,
 			Mono: label.Mono, MonoFace: label.MonoFace, CellWidth: label.CellWidth, Runs: append([]ui.TextRun(nil), label.Runs...),

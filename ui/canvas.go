@@ -152,6 +152,7 @@ type Triangle struct {
 type TextStyle struct {
 	Size   float32
 	Weight float32
+	Italic bool
 	Color  Color
 	// Mono selects the system fixed-pitch font instead of the proportional
 	// one. Every ASCII character then advances by Canvas.CellSize(Size).
@@ -747,6 +748,21 @@ func (canvas *Canvas) TextWidthWeight(value string, size, weight float32) float3
 	return textmetrics.Width(value, size, weight)
 }
 
+func (canvas *Canvas) TextWidthStyle(value string, style TextStyle) float32 {
+	if !style.Italic || value == "" {
+		return canvas.TextWidthWeight(value, style.Size, style.Weight)
+	}
+	if canvas.measurer != nil {
+		return canvas.TextWidthWeight(value, style.Size, style.Weight)
+	}
+	if engine, ok := canvas.engine.(StyledTextEngine); ok {
+		if width := engine.WidthStyle(value, style.Size, style.Weight, true); width > 0 {
+			return width
+		}
+	}
+	return canvas.TextWidthWeight(value, style.Size, style.Weight)
+}
+
 // Reset discards all retained primitives while keeping the backing arrays
 // for the next paint pass.
 func (canvas *Canvas) Reset() {
@@ -1096,7 +1112,7 @@ func (canvas *Canvas) placeLabel(value string, bounds Rect, style TextStyle, ali
 		}
 	}
 	if alignment == AlignCenter || alignment == AlignRight {
-		inset := bounds.Width - canvas.TextWidthWeight(value, style.Size, style.Weight)
+		inset := bounds.Width - canvas.TextWidthStyle(value, style)
 		if alignment == AlignCenter {
 			inset /= 2
 		}
@@ -1128,6 +1144,20 @@ func (canvas *Canvas) TextCaret(value string, size, weight float32, offset int) 
 	return textmetrics.Caret(value, size, weight, offset)
 }
 
+func (canvas *Canvas) TextCaretStyle(value string, style TextStyle, offset int) float32 {
+	if !style.Italic {
+		return canvas.TextCaret(value, style.Size, style.Weight, offset)
+	}
+	offset = clampOffset(value, offset)
+	if canvas.measurer != nil {
+		return canvas.TextWidthStyle(value[:offset], style)
+	}
+	if engine, ok := canvas.engine.(StyledTextEngine); ok {
+		return engine.CaretStyle(value, style.Size, style.Weight, true, offset)
+	}
+	return canvas.TextCaret(value, style.Size, style.Weight, offset)
+}
+
 // TextSelection appends the extents of the selection [start, end) of value, measured from
 // the left end of the line: one span, or several where the selection crosses a change of
 // direction (the highlight of a selection in mixed Hebrew and English is not contiguous).
@@ -1146,6 +1176,24 @@ func (canvas *Canvas) TextSelection(dst []TextSpan, value string, size, weight f
 	return referenceEngine{}.Selection(dst, value, size, weight, start, end)
 }
 
+func (canvas *Canvas) TextSelectionStyle(dst []TextSpan, value string, style TextStyle, start, end int) []TextSpan {
+	if !style.Italic {
+		return canvas.TextSelection(dst, value, style.Size, style.Weight, start, end)
+	}
+	start, end = clampOffset(value, start), clampOffset(value, end)
+	if start > end {
+		start, end = end, start
+	}
+	if canvas.measurer != nil {
+		return append(dst, TextSpan{X: canvas.TextWidthStyle(value[:start], style), Width: canvas.TextWidthStyle(value[start:end], style)})
+	}
+	if engine, ok := canvas.engine.(StyledTextEngine); ok {
+		canvas.spans = engine.SelectionStyle(canvas.spans[:0], value, style.Size, style.Weight, true, start, end)
+		return append(dst, canvas.spans...)
+	}
+	return canvas.TextSelection(dst, value, style.Size, style.Weight, start, end)
+}
+
 // TextOffsetAt is the byte offset of the character boundary nearest to x, measured from the
 // left end of the line value: where a click puts the caret.
 func (canvas *Canvas) TextOffsetAt(value string, size, weight, x float32) int {
@@ -1156,6 +1204,19 @@ func (canvas *Canvas) TextOffsetAt(value string, size, weight, x float32) int {
 		return clampOffset(value, canvas.engine.OffsetAt(value, size, weight, x))
 	}
 	return textmetrics.OffsetAt(value, size, weight, x)
+}
+
+func (canvas *Canvas) TextOffsetAtStyle(value string, style TextStyle, x float32) int {
+	if !style.Italic {
+		return canvas.TextOffsetAt(value, style.Size, style.Weight, x)
+	}
+	if canvas.measurer != nil {
+		return offsetAtByPrefix(value, x, func(prefix string) float32 { return canvas.TextWidthStyle(prefix, style) })
+	}
+	if engine, ok := canvas.engine.(StyledTextEngine); ok {
+		return clampOffset(value, engine.OffsetAtStyle(value, style.Size, style.Weight, true, x))
+	}
+	return canvas.TextOffsetAt(value, style.Size, style.Weight, x)
 }
 
 // LabelRuns appends one fixed-pitch line: value drawn in the system fixed-pitch

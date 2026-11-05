@@ -30,12 +30,18 @@ type lineMeasurer interface {
 	setInvalidate(invalidate func())
 }
 
+type styledLineMeasurer interface {
+	widthStyle(value string, size, weight float32, italic, rtl bool) float32
+	rectsStyle(value string, size, weight float32, italic, rtl bool, bounds []int32, lefts, rights []float32)
+}
+
 // lineEngine implements ui.TextEngine over a lineMeasurer.
 type lineEngine struct {
-	measurer lineMeasurer
-	lines    *textcache.Cache[*measuredLine]
-	resolver bidi.Resolver
-	levels   []uint8
+	measurer    lineMeasurer
+	lines       *textcache.Cache[*measuredLine]
+	italicLines *textcache.Cache[*measuredLine]
+	resolver    bidi.Resolver
+	levels      []uint8
 }
 
 // lineCacheLimit is how many lines a generation holds (twice that many are kept).
@@ -43,7 +49,12 @@ const lineCacheLimit = 512
 
 func newLineEngine(measurer lineMeasurer) *lineEngine {
 	engine := &lineEngine{measurer: measurer, lines: textcache.New[*measuredLine](lineCacheLimit, nil)}
-	measurer.setInvalidate(engine.lines.Clear)
+	measurer.setInvalidate(func() {
+		engine.lines.Clear()
+		if engine.italicLines != nil {
+			engine.italicLines.Clear()
+		}
+	})
 	return engine
 }
 
@@ -64,17 +75,38 @@ type clusterRects struct {
 }
 
 func (engine *lineEngine) line(value string, size, weight float32) *measuredLine {
+	return engine.lineStyle(value, size, weight, false)
+}
+
+func (engine *lineEngine) lineStyle(value string, size, weight float32, italic bool) *measuredLine {
+	lines := engine.lines
+	if italic {
+		if engine.italicLines == nil {
+			engine.italicLines = textcache.New[*measuredLine](lineCacheLimit, nil)
+		}
+		lines = engine.italicLines
+	}
 	key := textcache.Key{Value: value, Size: size, Weight: weight}
-	if line, ok := engine.lines.Get(key); ok {
+	if line, ok := lines.Get(key); ok {
 		return line
 	}
 	rtl := bidi.BaseDirection(value) == bidi.RTL
-	line := &measuredLine{width: engine.measurer.width(value, size, weight, rtl), rtl: rtl}
-	engine.lines.Put(key, line)
+	var width float32
+	if styled, ok := engine.measurer.(styledLineMeasurer); ok && italic {
+		width = styled.widthStyle(value, size, weight, italic, rtl)
+	} else {
+		width = engine.measurer.width(value, size, weight, rtl)
+	}
+	line := &measuredLine{width: width, rtl: rtl}
+	lines.Put(key, line)
 	return line
 }
 
 func (engine *lineEngine) geometry(value string, size, weight float32, line *measuredLine) *clusterRects {
+	return engine.geometryStyle(value, size, weight, false, line)
+}
+
+func (engine *lineEngine) geometryStyle(value string, size, weight float32, italic bool, line *measuredLine) *clusterRects {
 	if line.clusters != nil {
 		return line.clusters
 	}
@@ -100,7 +132,11 @@ func (engine *lineEngine) geometry(value string, size, weight float32, line *mea
 	}
 	bounds[count] = units
 	rects := &clusterRects{starts: starts, left: make([]float32, count), right: make([]float32, count), rtl: make([]bool, count)}
-	engine.measurer.rects(value, size, weight, line.rtl, bounds, rects.left, rects.right)
+	if styled, ok := engine.measurer.(styledLineMeasurer); ok && italic {
+		styled.rectsStyle(value, size, weight, italic, line.rtl, bounds, rects.left, rects.right)
+	} else {
+		engine.measurer.rects(value, size, weight, line.rtl, bounds, rects.left, rects.right)
+	}
 
 	direction := bidi.LTR
 	if line.rtl {
@@ -158,18 +194,26 @@ func (rects *clusterRects) caret(cluster int) float32 {
 
 // Width implements ui.TextEngine.
 func (engine *lineEngine) Width(value string, size, weight float32) float32 {
+	return engine.WidthStyle(value, size, weight, false)
+}
+
+func (engine *lineEngine) WidthStyle(value string, size, weight float32, italic bool) float32 {
 	if value == "" {
 		return 0
 	}
-	return engine.line(value, size, weight).width
+	return engine.lineStyle(value, size, weight, italic).width
 }
 
 // Caret implements ui.TextEngine.
 func (engine *lineEngine) Caret(value string, size, weight float32, offset int) float32 {
+	return engine.CaretStyle(value, size, weight, false, offset)
+}
+
+func (engine *lineEngine) CaretStyle(value string, size, weight float32, italic bool, offset int) float32 {
 	if value == "" {
 		return 0
 	}
-	rects := engine.geometry(value, size, weight, engine.line(value, size, weight))
+	rects := engine.geometryStyle(value, size, weight, italic, engine.lineStyle(value, size, weight, italic))
 	offset = max(0, min(offset, len(value)))
 	if offset == len(value) {
 		return rects.caret(len(rects.left))
@@ -181,10 +225,14 @@ func (engine *lineEngine) Caret(value string, size, weight float32, offset int) 
 // display puts them side by side, so a selection that crosses a change of direction is
 // several spans, left to right.
 func (engine *lineEngine) Selection(dst []ui.TextSpan, value string, size, weight float32, start, end int) []ui.TextSpan {
+	return engine.SelectionStyle(dst, value, size, weight, false, start, end)
+}
+
+func (engine *lineEngine) SelectionStyle(dst []ui.TextSpan, value string, size, weight float32, italic bool, start, end int) []ui.TextSpan {
 	if value == "" {
 		return dst
 	}
-	rects := engine.geometry(value, size, weight, engine.line(value, size, weight))
+	rects := engine.geometryStyle(value, size, weight, italic, engine.lineStyle(value, size, weight, italic))
 	first, last := rects.boundary(start, len(value)), rects.boundary(end, len(value))
 	if first > last {
 		first, last = last, first
@@ -244,10 +292,14 @@ func abuts(a, b float32) bool {
 // OffsetAt implements ui.TextEngine: the boundary whose caret is nearest x, the earlier
 // one when two are equally near.
 func (engine *lineEngine) OffsetAt(value string, size, weight, x float32) int {
+	return engine.OffsetAtStyle(value, size, weight, false, x)
+}
+
+func (engine *lineEngine) OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int {
 	if value == "" {
 		return 0
 	}
-	rects := engine.geometry(value, size, weight, engine.line(value, size, weight))
+	rects := engine.geometryStyle(value, size, weight, italic, engine.lineStyle(value, size, weight, italic))
 	best, bestDistance := 0, float32(-1)
 	for cluster := 0; cluster <= len(rects.left); cluster++ {
 		distance := rects.caret(cluster) - x
@@ -262,3 +314,4 @@ func (engine *lineEngine) OffsetAt(value string, size, weight, x float32) int {
 }
 
 var _ ui.TextEngine = (*lineEngine)(nil)
+var _ ui.StyledTextEngine = (*lineEngine)(nil)
