@@ -27,15 +27,20 @@ func TestARegisteredFontIsDrawnInItsFamily(t *testing.T) {
 	engine := PlatformTextEngine().(ui.FontFamilyAware)
 	t.Cleanup(func() { engine.SetFontFamily("") })
 	engine.SetFontFamily(family)
-	// The registered font gives every printable ASCII character one advance; any stand-in
-	// for a family that was not found is proportional.
-	if narrow, wide := engine.Width("iiiiiiii", 16, 400), engine.Width("WWWWWWWW", 16, 400); narrow != wide {
-		t.Fatalf("the family is not the registered font: widths %v and %v", narrow, wide)
+	// The registered font gives every printable ASCII character one advance.
+	registeredNarrow, registeredWide := engine.Width("iiiiiiii", 16, 400), engine.Width("WWWWWWWW", 16, 400)
+	if registeredNarrow != registeredWide {
+		t.Fatalf("the family is not the registered font: widths %v and %v", registeredNarrow, registeredWide)
 	}
 	unregister()
 	unregister()
-	if narrow, wide := engine.Width("iiiiiiii", 16, 400), engine.Width("WWWWWWWW", 16, 400); narrow == wide {
-		t.Fatalf("the font is still drawn after it was unregistered: widths %v and %v", narrow, wide)
+	// No assumption about what the stand-in is: only that the registration ended, so the
+	// family no longer measures as the font it named. A platform whose stand-in happens to
+	// share this font's metrics is not covered by this, which is what the ink and the family
+	// name in an application's own tests are for.
+	narrow, wide := engine.Width("iiiiiiii", 16, 400), engine.Width("WWWWWWWW", 16, 400)
+	if narrow == registeredNarrow && wide == registeredWide {
+		t.Fatalf("the family still measures as the registered font after it was unregistered: widths %v and %v", narrow, wide)
 	}
 }
 
