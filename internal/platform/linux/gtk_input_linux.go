@@ -456,6 +456,7 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 		if w.ime != nil && w.ime.filtering() {
 			w.ime.filter(event)
 		}
+		w.tapModifier(key, keyEvent.Modifiers|key.Modifier(), repeat, false, e.HardwareKeycode)
 		return 1
 	}
 	shortcutEvent := keyEvent
@@ -500,8 +501,22 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 	return 1
 }
 
+// tapModifier tells the runtime about a modifier key going up or down when the
+// application listens for a modifier pressed on its own
+// (platform.Config.ModifierTaps). The input method has already had the key.
+func (w *gtkWindow) tapModifier(key input.Key, modifiers input.Modifiers, repeat, release bool, code uint16) {
+	if !w.config.ModifierTaps || w.config.OnKey == nil || !key.IsModifier() {
+		return
+	}
+	frame, err := w.config.OnKey(platform.KeyEvent{Key: key, Modifiers: modifiers, Repeat: repeat, Release: release, Code: uint32(code)})
+	w.present(frame, err)
+}
+
 func (w *gtkWindow) keyRelease(e *gdkEventKey, event uintptr) {
 	delete(w.keys.down, e.HardwareKeycode)
+	if key := normalizedKeysym(e.Keyval); key.IsModifier() && !w.wantsKeyReleases() {
+		w.tapModifier(key, gdkModifiers(e.State)&^key.Modifier(), false, true, e.HardwareKeycode)
+	}
 	if w.ime != nil && w.ime.filtering() && w.ime.filter(event) {
 		return
 	}

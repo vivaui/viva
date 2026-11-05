@@ -507,7 +507,15 @@ func (driver *Driver) KeyDown(key ui.Key, character string) error {
 	if !driver.HoldsKeys() {
 		switch {
 		case key.IsModifier():
-			return nil
+			if driver.painter.onModifierTap == nil {
+				return nil
+			}
+			// A window reports a lone modifier to the runtime when the application
+			// listens for taps (Config.OnModifierTap), and to nothing else.
+			_, err := driver.painter.key(platform.KeyEvent{
+				Key: input.Key(key), Modifiers: input.Modifiers(modifiers), Code: driverKeyCode(key, ""),
+			})
+			return err
 		case key != ui.KeyUnknown:
 			return driver.Key(key, modifiers)
 		case modifiers&(ui.ModifierControl|ui.ModifierMeta|ui.ModifierAlt) != 0:
@@ -547,7 +555,7 @@ func (driver *Driver) KeyUp(key ui.Key, character string) error {
 	if key.IsModifier() {
 		driver.modifierKeys &^= 1 << (key - ui.KeyShiftLeft)
 	}
-	if !driver.HoldsKeys() {
+	if !driver.HoldsKeys() && !(key.IsModifier() && driver.painter.onModifierTap != nil) {
 		return nil
 	}
 	_, err := driver.painter.key(platform.KeyEvent{

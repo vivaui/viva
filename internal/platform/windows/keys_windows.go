@@ -113,6 +113,29 @@ func typedText(char uintptr) string {
 	return string(rune(char))
 }
 
+// modifierTap reports the press or release of a modifier key to the runtime
+// when the application listens for a modifier pressed on its own
+// (platform.Config.ModifierTaps). It only tells the runtime: the message goes
+// on to the text system, the input method and the system menu as before, so
+// nothing about typing or Alt's menu changes. A terminal that asked for the
+// whole keyboard gets the same events from keyDown and keyUp.
+func (state *windowState) modifierTap(first, second uintptr, release bool, mods input.Modifiers) {
+	if !state.config.ModifierTaps || state.config.OnKey == nil || state.imeComposing {
+		return
+	}
+	key := modifierKey(first, second)
+	if key == input.KeyUnknown {
+		return
+	}
+	event := platform.KeyEvent{Key: key, Release: release, Code: keyCode(first, second)}
+	if release {
+		event.Modifiers = mods &^ key.Modifier()
+	} else {
+		event.Modifiers, event.Repeat = mods|key.Modifier(), second&(1<<30) != 0
+	}
+	state.sendKey(event)
+}
+
 // keyDown handles WM_KEYDOWN and WM_SYSKEYDOWN for a terminal that wants
 // presses and releases, and reports whether it consumed the message. A plain
 // space is held for its WM_CHAR like any other character, so the release can

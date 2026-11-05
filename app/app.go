@@ -136,6 +136,14 @@ type Config struct {
 	// first, so the application does not see them there.
 	// This callback runs on the window thread.
 	OnShortcut func(event ui.KeyEvent) ui.EventResult
+	// OnModifierTap receives a modifier key that was pressed and released on its
+	// own (see ui.ModifierTapEvent), which OnKey never sees outside a terminal
+	// that asked for the whole keyboard. It is how an application builds
+	// gestures such as pressing Shift twice. Setting it makes the window report
+	// modifier presses and releases to the runtime; it changes nothing else:
+	// text input and input methods behave as before. Handled and Repaint apply
+	// as for OnKey.
+	OnModifierTap func(event ui.ModifierTapEvent) ui.EventResult
 	// OnScroll receives normalized pixel deltas and the hovered hit target.
 	// Handled suppresses the window's default canvas scroll offset.
 	OnScroll func(event ui.ScrollEvent) ui.EventResult

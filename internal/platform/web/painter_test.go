@@ -483,3 +483,38 @@ func onClick(config *Config, sink func(id ui.ID)) {
 		}
 	}
 }
+
+func TestAModifierPressedAndReleasedAloneIsATap(t *testing.T) {
+	var taps []ui.ModifierTapEvent
+	config := Config{Paint: func(*ui.Canvas, ui.Size) {}, OnModifierTap: func(event ui.ModifierTapEvent) ui.EventResult {
+		taps = append(taps, event)
+		return ui.EventResult{}
+	}}
+	var canvas ui.Canvas
+	painter := newPainter(&canvas, &config)
+
+	painter.modifierDown(ui.KeyShiftLeft, webKeyCode("ShiftLeft"), ui.ModifierShift, false)
+	painter.modifierUp(webKeyCode("ShiftLeft"))
+	if len(taps) != 1 || taps[0].Key != ui.KeyShiftLeft {
+		t.Fatalf("taps = %+v", taps)
+	}
+
+	// Anything between the press and the release ends the tap.
+	for name, interrupt := range map[string]func(){
+		"a key":    func() { painter.keyDown(ui.KeyEvent{Key: ui.KeyTab}) },
+		"a press":  func() { painter.pointer(ui.PointerEvent{Kind: ui.PointerDown}) },
+		"a scroll": func() { painter.wheel(ui.ScrollEvent{DeltaY: 1}) },
+		"a chord":  func() { painter.shortcut(ui.KeyEvent{Text: "k"}) },
+		"a second modifier": func() {
+			painter.modifierDown(ui.KeyControlLeft, webKeyCode("ControlLeft"), ui.ModifierShift|ui.ModifierControl, false)
+		},
+	} {
+		taps = taps[:0]
+		painter.modifierDown(ui.KeyShiftLeft, webKeyCode("ShiftLeft"), ui.ModifierShift, false)
+		interrupt()
+		painter.modifierUp(webKeyCode("ShiftLeft"))
+		if len(taps) != 0 {
+			t.Errorf("%s: still a tap: %+v", name, taps)
+		}
+	}
+}

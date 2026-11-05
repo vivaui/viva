@@ -33,12 +33,12 @@ func newReloadWorkerConfig(config Config, canvas *ui.Canvas) reloadwire.WorkerCo
 			ClearRed: config.ClearColor.Red, ClearGreen: config.ClearColor.Green,
 			ClearBlue: config.ClearColor.Blue, ClearAlpha: config.ClearColor.Alpha,
 			HasClick: config.Paint != nil, HasPointer: config.OnPointer != nil || config.Paint != nil,
-			HasKey: config.OnKey != nil, HasShortcut: config.OnShortcut != nil, HasScroll: config.OnScroll != nil,
+			HasKey: config.OnKey != nil, HasShortcut: config.OnShortcut != nil, HasScroll: config.OnScroll != nil, HasModifierTap: config.OnModifierTap != nil,
 			HasClose:    config.OnCloseRequest != nil,
 			HasSnapshot: config.Reload.Snapshot != nil, HasRestore: config.Reload.Restore != nil,
 		},
 		Canvas: canvas, Paint: config.Paint,
-		Pointer: config.OnPointer, Key: config.OnKey, Shortcut: config.OnShortcut, Scroll: config.OnScroll,
+		Pointer: config.OnPointer, Key: config.OnKey, Shortcut: config.OnShortcut, Scroll: config.OnScroll, ModifierTap: config.OnModifierTap,
 		CloseRequest: config.OnCloseRequest,
 	}
 	if config.Reload.Snapshot != nil {

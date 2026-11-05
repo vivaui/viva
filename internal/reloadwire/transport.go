@@ -177,6 +177,14 @@ func (client *Client) Scroll(ctx context.Context, event ui.ScrollEvent) (ui.Even
 	return decodeEventResult(payload)
 }
 
+func (client *Client) ModifierTap(ctx context.Context, event ui.ModifierTapEvent) (ui.EventResult, error) {
+	payload, err := client.request(ctx, messageModifierTap, encodeModifierTapEvent(event))
+	if err != nil {
+		return ui.EventResult{}, err
+	}
+	return decodeEventResult(payload)
+}
+
 func (client *Client) SnapshotState(ctx context.Context) ([]StateSlot, error) {
 	payload, err := client.request(ctx, messageSnapshotState, nil)
 	if err != nil {

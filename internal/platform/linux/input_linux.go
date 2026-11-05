@@ -160,6 +160,12 @@ func (router eventRouter) wantsKeyReleases() bool {
 	return router.text != nil && router.text.enabled && router.text.input.Terminal && router.text.input.KeyReleases
 }
 
+// wantsModifierTap reports whether the application listens for a modifier
+// pressed on its own (platform.Config.ModifierTaps) and key is one.
+func (router eventRouter) wantsModifierTap(key input.Key) bool {
+	return router.config.ModifierTaps && router.config.OnKey != nil && key.IsModifier()
+}
+
 func (router eventRouter) pointer(kind platform.PointerEventKind, event *xcbInputEvent) error {
 	button := xcbPointerButton(event.Detail)
 	scale := router.displayScale()
@@ -272,6 +278,15 @@ func (router eventRouter) modifierPress(keyEvent platform.KeyEvent, keysym, scan
 		return false, nil
 	}
 	if !router.wantsKeyReleases() {
+		if router.wantsModifierTap(keyEvent.Key) {
+			// The input method has had the key; the runtime is told as well so it can
+			// tell a modifier pressed on its own.
+			keyEvent.Code, keyEvent.Text, keyEvent.Typed = scancode, "", ""
+			if bit := modifierBit(keysym, keyEvent.Key); bit != 0 {
+				keyEvent.Modifiers |= bit
+			}
+			return true, router.deliverReleaseToApplication(keyEvent)
+		}
 		return true, nil
 	}
 	// AltGr and Mode_switch are not Alt: delivering them with Alt set would
@@ -366,7 +381,7 @@ func (router eventRouter) release(keymap *xcbKeymap, event *xcbInputEvent) error
 	// that is ISO_Level3_Shift, which is not Alt.
 	keysym := keymap.keysym(event.Detail, event.State&^keymap.level3Mask())
 	modifiers := router.releaseModifiers(xcbModifiers(event.State), key, keysym, uint32(event.Detail))
-	if !router.wantsKeyReleases() || router.config.OnKey == nil {
+	if !router.wantsKeyReleases() && !router.wantsModifierTap(key) || router.config.OnKey == nil {
 		return nil
 	}
 	return router.deliverReleaseToApplication(platform.KeyEvent{Key: key, Modifiers: modifiers, Release: true, Code: uint32(event.Detail)})

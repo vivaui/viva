@@ -23,17 +23,21 @@ func TestSupervisorForwardsInputEventsAndResults(t *testing.T) {
 	keyResult := ui.EventResult{Focus: ui.Item(5), Handled: true, FocusVisible: true}
 	shortcutResult := ui.EventResult{Handled: true, Repaint: true}
 	scrollResult := ui.EventResult{Blur: true, Repaint: true}
+	wantTap := ui.ModifierTapEvent{Key: ui.KeyControlLeft, Target: ui.Item(5)}
+	tapResult := ui.EventResult{Handled: true}
+	var gotTap ui.ModifierTapEvent
 	var gotPointer ui.PointerEvent
 	var gotKey ui.KeyEvent
 	var gotShortcut ui.KeyEvent
 	var gotScroll ui.ScrollEvent
 
 	worker, shutdown := startInputWorker(t, reloadwire.WorkerConfig{
-		Window:   reloadwire.WindowConfig{Title: "input", Width: 200, Height: 100, HasPointer: true, HasKey: true, HasShortcut: true, HasScroll: true},
-		Pointer:  func(event ui.PointerEvent) ui.EventResult { gotPointer = event; return pointerResult },
-		Key:      func(event ui.KeyEvent) ui.EventResult { gotKey = event; return keyResult },
-		Shortcut: func(event ui.KeyEvent) ui.EventResult { gotShortcut = event; return shortcutResult },
-		Scroll:   func(event ui.ScrollEvent) ui.EventResult { gotScroll = event; return scrollResult },
+		Window:      reloadwire.WindowConfig{Title: "input", Width: 200, Height: 100, HasPointer: true, HasKey: true, HasShortcut: true, HasScroll: true, HasModifierTap: true},
+		Pointer:     func(event ui.PointerEvent) ui.EventResult { gotPointer = event; return pointerResult },
+		Key:         func(event ui.KeyEvent) ui.EventResult { gotKey = event; return keyResult },
+		Shortcut:    func(event ui.KeyEvent) ui.EventResult { gotShortcut = event; return shortcutResult },
+		Scroll:      func(event ui.ScrollEvent) ui.EventResult { gotScroll = event; return scrollResult },
+		ModifierTap: func(event ui.ModifierTapEvent) ui.EventResult { gotTap = event; return tapResult },
 	})
 	defer shutdown()
 	supervisor := newSupervisor(worker, reloadwire.PaintRequest{}, reloadwire.CanvasSnapshot{}, io.Discard)
@@ -50,6 +54,9 @@ func TestSupervisorForwardsInputEventsAndResults(t *testing.T) {
 	}
 	if got := config.OnScroll(wantScroll); got != scrollResult {
 		t.Fatalf("scroll result = %+v, want %+v", got, scrollResult)
+	}
+	if got := config.OnModifierTap(wantTap); got != tapResult || gotTap != wantTap {
+		t.Fatalf("modifier tap = %+v / %+v, want %+v / %+v", got, gotTap, tapResult, wantTap)
 	}
 	if gotPointer != wantPointer || gotKey != wantKey || gotShortcut != wantShortcut || gotScroll != wantScroll {
 		t.Fatalf("worker events = (%+v, %+v, %+v, %+v)", gotPointer, gotKey, gotShortcut, gotScroll)

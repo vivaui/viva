@@ -111,6 +111,9 @@ func TestWorkerProtocolForwardsInputEventsAndResults(t *testing.T) {
 	keyResult := ui.EventResult{Focus: ui.Item(11), Handled: true, FocusVisible: true}
 	shortcutResult := ui.EventResult{Handled: true, Repaint: true}
 	scrollResult := ui.EventResult{Blur: true, Repaint: true}
+	wantTap := ui.ModifierTapEvent{Key: ui.KeyShiftRight, Target: ui.Item(11)}
+	tapResult := ui.EventResult{Handled: true, Repaint: true}
+	var gotTap ui.ModifierTapEvent
 	var gotPointer ui.PointerEvent
 	var gotKey ui.KeyEvent
 	var gotShortcut ui.KeyEvent
@@ -118,11 +121,12 @@ func TestWorkerProtocolForwardsInputEventsAndResults(t *testing.T) {
 	serveDone := make(chan error, 1)
 	go func() {
 		serveDone <- Serve(WorkerConfig{
-			Window:   WindowConfig{Title: "input", Width: 320, Height: 200, HasPointer: true, HasKey: true, HasShortcut: true, HasScroll: true},
-			Pointer:  func(event ui.PointerEvent) ui.EventResult { gotPointer = event; return pointerResult },
-			Key:      func(event ui.KeyEvent) ui.EventResult { gotKey = event; return keyResult },
-			Shortcut: func(event ui.KeyEvent) ui.EventResult { gotShortcut = event; return shortcutResult },
-			Scroll:   func(event ui.ScrollEvent) ui.EventResult { gotScroll = event; return scrollResult },
+			Window:      WindowConfig{Title: "input", Width: 320, Height: 200, HasPointer: true, HasKey: true, HasShortcut: true, HasScroll: true, HasModifierTap: true},
+			Pointer:     func(event ui.PointerEvent) ui.EventResult { gotPointer = event; return pointerResult },
+			Key:         func(event ui.KeyEvent) ui.EventResult { gotKey = event; return keyResult },
+			Shortcut:    func(event ui.KeyEvent) ui.EventResult { gotShortcut = event; return shortcutResult },
+			Scroll:      func(event ui.ScrollEvent) ui.EventResult { gotScroll = event; return scrollResult },
+			ModifierTap: func(event ui.ModifierTapEvent) ui.EventResult { gotTap = event; return tapResult },
 		})
 	}()
 	connection, err := listener.Accept()
@@ -148,6 +152,9 @@ func TestWorkerProtocolForwardsInputEventsAndResults(t *testing.T) {
 	}
 	if got, err := client.Scroll(ctx, wantScroll); err != nil || got != scrollResult {
 		t.Fatalf("scroll result = %+v, want %+v, err = %v", got, scrollResult, err)
+	}
+	if got, err := client.ModifierTap(ctx, wantTap); err != nil || got != tapResult || gotTap != wantTap {
+		t.Fatalf("modifier tap = %+v / %+v, want %+v / %+v, err = %v", got, gotTap, tapResult, wantTap, err)
 	}
 	if gotPointer != wantPointer || gotKey != wantKey || gotShortcut != wantShortcut || gotScroll != wantScroll {
 		t.Fatalf("worker events = (%+v, %+v, %+v, %+v)", gotPointer, gotKey, gotShortcut, gotScroll)
@@ -175,7 +182,7 @@ func TestWindowConfigCodecPreservesInputCapabilities(t *testing.T) {
 	want := Hello{Token: "capabilities", Config: WindowConfig{
 		Title: "input", Width: 640, Height: 480, WindowMode: 2, TitlebarHeight: 36,
 		MinWidth: 480, MinHeight: 320,
-		HasClick: true, HasPointer: true, HasKey: true, HasShortcut: true, HasScroll: true,
+		HasClick: true, HasPointer: true, HasKey: true, HasShortcut: true, HasScroll: true, HasModifierTap: true,
 		HasClose: true, HasSnapshot: true, HasRestore: true,
 	}}
 	data, err := encodeHello(want)
@@ -208,4 +215,17 @@ func byteThatFlips(t *testing.T, a, b []byte) int {
 		t.Fatal("the two encodings are identical")
 	}
 	return at
+}
+
+func TestModifierTapCodecRejectsAKeyThatIsNotAModifier(t *testing.T) {
+	good := encodeModifierTapEvent(ui.ModifierTapEvent{Key: ui.KeyShiftLeft, Target: ui.Item(2)})
+	if _, err := decodeModifierTapEvent(good); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := decodeModifierTapEvent(replaceByte(good, 0, byte(ui.KeyEnter))); err == nil {
+		t.Fatal("a tap of Enter decoded")
+	}
+	if _, err := decodeModifierTapEvent(good[:len(good)-1]); err == nil {
+		t.Fatal("a short tap decoded")
+	}
 }

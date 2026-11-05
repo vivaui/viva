@@ -299,6 +299,7 @@ typedef struct {
     int visibility_events_enabled;
     int key_events_enabled;
     int scroll_events_enabled;
+    int modifier_taps_enabled;
     // Nonzero makes the window a target for files dragged from Finder.
     int file_drop_enabled;
     int redraw_events_enabled;

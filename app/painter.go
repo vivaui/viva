@@ -29,8 +29,11 @@ type painter struct {
 	onKey      func(ui.KeyEvent) ui.EventResult
 	onShortcut func(ui.KeyEvent) ui.EventResult
 	onScroll   func(ui.ScrollEvent) ui.EventResult
-	onFileDrop func(ui.FileDropEvent) ui.EventResult
-	onResize   func(ui.Size)
+	// onModifierTap and tap recognize a modifier pressed and released on its own.
+	onModifierTap func(ui.ModifierTapEvent) ui.EventResult
+	tap           input.ModifierTap
+	onFileDrop    func(ui.FileDropEvent) ui.EventResult
+	onResize      func(ui.Size)
 	// scale is the display's device pixels per logical pixel, zero when the platform
 	// does not report it (see platform.Size): the canvas then keeps the scale it was given.
 	scale       float32
@@ -159,6 +162,7 @@ func newPainterWithClock(canvas *ui.Canvas, config *Config, clock func() time.Du
 		onKey:         config.OnKey,
 		onShortcut:    config.OnShortcut,
 		onScroll:      config.OnScroll,
+		onModifierTap: config.OnModifierTap,
 		onFileDrop:    config.OnFileDrop,
 		onResize:      config.OnResize,
 		textInput:     config.TextInput,
@@ -225,6 +229,9 @@ func (painter *painter) pressAt(x, y float32) platform.PressKind {
 // backdrop would, and the second is the same press aimed at what the overlay
 // was covering, once the paint has taken it away.
 func (painter *painter) pointer(event platform.PointerEvent) (platform.Frame, error) {
+	if event.Kind == platform.PointerDown {
+		painter.tap.Cancel()
+	}
 	beforeHovered, beforePressed := painter.hovered, painter.pressed
 	beforeFocus, beforeKeyboard := painter.focused, painter.keyboardFocus
 	passes := event.Kind == platform.PointerDown &&
@@ -426,6 +433,7 @@ func (painter *painter) shortcutHandler(config *Config) platform.ShortcutHandler
 }
 
 func (painter *painter) shortcut(event platform.KeyEvent) (platform.Frame, bool, error) {
+	painter.tap.Cancel()
 	if painter.onShortcut == nil {
 		return platform.Frame{}, false, nil
 	}
@@ -465,6 +473,13 @@ func (painter *painter) key(event platform.KeyEvent) (platform.Frame, error) {
 		return painter.keyRelease(event)
 	}
 	modifier := event.Key.IsModifier()
+	if painter.onModifierTap != nil {
+		if modifier {
+			painter.tap.Press(event.Key, event.Code, event.Modifiers, event.Repeat)
+		} else {
+			painter.tap.Cancel()
+		}
+	}
 	if modifier && !painter.keysWanted() {
 		return platform.Frame{}, nil
 	}
@@ -534,9 +549,25 @@ func (painter *painter) afterKeyResponse(response ui.EventResult) (platform.Fram
 // identity the press had. A release of anything else, such as the end of a key
 // an input method consumed, is dropped.
 func (painter *painter) keyRelease(event platform.KeyEvent) (platform.Frame, error) {
+	tapRepaint := false
+	if painter.onModifierTap != nil {
+		if key, ok := painter.tap.Release(event.Code); ok {
+			response := painter.onModifierTap(ui.ModifierTapEvent{Key: ui.Key(key), Target: painter.focused})
+			tapRepaint = painter.applyEventResult(response) || response.Repaint
+		}
+	}
+	frame, painted, err := painter.releaseHeldKey(event)
+	if err != nil || painted || !tapRepaint {
+		return frame, err
+	}
+	return painter.repaint()
+}
+
+// releaseHeldKey is keyRelease for the key the handler saw go down.
+func (painter *painter) releaseHeldKey(event platform.KeyEvent) (frame platform.Frame, painted bool, err error) {
 	held, ok := painter.keys.Release(event.Code)
 	if !ok || painter.onKey == nil {
-		return platform.Frame{}, nil
+		return platform.Frame{}, false, nil
 	}
 	// A release carries the identity the press had. The modifier state at
 	// release may already differ, as when Ctrl is released before C, so the
@@ -548,7 +579,11 @@ func (painter *painter) keyRelease(event platform.KeyEvent) (platform.Frame, err
 	response := painter.onKey(ui.KeyEvent{
 		Key: held.Key, Modifiers: ui.Modifiers(event.Modifiers), Target: held.Target, Release: true, Text: held.Text, Win32: win32,
 	})
-	return painter.afterKeyResponse(response)
+	if !painter.applyEventResult(response) && !response.Repaint {
+		return platform.Frame{}, false, nil
+	}
+	frame, err = painter.repaint()
+	return frame, true, err
 }
 
 // releaseKeys releases every key still down, last pressed first, the way the
@@ -572,13 +607,14 @@ func (painter *painter) releaseKeys() bool {
 // keyboard: it releases the keys that were down, since their releases will go
 // to whatever window has the keyboard now.
 func (painter *painter) focusLostHandler() platform.FocusLostHandler {
-	if painter.onKey == nil {
+	if painter.onKey == nil && painter.onModifierTap == nil {
 		return nil
 	}
 	return painter.focusLost
 }
 
 func (painter *painter) focusLost() (platform.Frame, error) {
+	painter.tap.Cancel()
 	if !painter.releaseKeys() {
 		return platform.Frame{}, nil
 	}
@@ -620,6 +656,7 @@ func (painter *painter) fileDrop(event platform.FileDropEvent) (platform.Frame, 
 }
 
 func (painter *painter) scroll(event platform.ScrollEvent) (platform.Frame, error) {
+	painter.tap.Cancel()
 	if event.DeltaY == 0 && event.DeltaX == 0 {
 		return platform.Frame{}, nil
 	}
@@ -1218,6 +1255,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 }
 
 func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextState, error) {
+	painter.tap.Cancel()
 	active := painter.activeText
 	if active == nil || active.Editor == nil && active.OnEvent == nil {
 		return platform.TextState{}, fmt.Errorf("app: native text event without an active handler")

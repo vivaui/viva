@@ -26,6 +26,7 @@ type WorkerConfig struct {
 	Key          func(ui.KeyEvent) ui.EventResult
 	Shortcut     func(ui.KeyEvent) ui.EventResult
 	Scroll       func(ui.ScrollEvent) ui.EventResult
+	ModifierTap  func(ui.ModifierTapEvent) ui.EventResult
 	CloseRequest func(func())
 	Snapshot     func() ([]StateSlot, error)
 	Restore      func([]StateSlot) error
@@ -189,6 +190,16 @@ func handleRequest(config *WorkerConfig, canvas *ui.Canvas, base CanvasSnapshot,
 		result := ui.EventResult{}
 		if config.Scroll != nil {
 			result = config.Scroll(event)
+		}
+		return encodeEventResult(result), nil, false
+	case messageModifierTap:
+		event, err := decodeModifierTapEvent(request.payload)
+		if err != nil {
+			return nil, err, false
+		}
+		result := ui.EventResult{}
+		if config.ModifierTap != nil {
+			result = config.ModifierTap(event)
 		}
 		return encodeEventResult(result), nil, false
 	case messageSnapshotState:

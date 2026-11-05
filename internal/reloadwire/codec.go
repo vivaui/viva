@@ -31,6 +31,7 @@ const (
 	messageKey
 	messageShortcut
 	messageScroll
+	messageModifierTap
 	messageError = 0x7fff
 	responseFlag = 0x8000
 )
@@ -53,6 +54,7 @@ type WindowConfig struct {
 	HasKey         bool
 	HasShortcut    bool
 	HasScroll      bool
+	HasModifierTap bool
 	HasClose       bool
 	HasSnapshot    bool
 	HasRestore     bool
@@ -275,6 +277,7 @@ func encodeWindowConfig(result *encoder, value WindowConfig) {
 	result.bool(value.HasKey)
 	result.bool(value.HasShortcut)
 	result.bool(value.HasScroll)
+	result.bool(value.HasModifierTap)
 	result.bool(value.HasClose)
 	result.bool(value.HasSnapshot)
 	result.bool(value.HasRestore)
@@ -285,7 +288,7 @@ func decodeWindowConfig(value *decoder) WindowConfig {
 		Title: value.string(), Width: int(value.u32()), Height: int(value.u32()),
 		MinWidth: int(value.u32()), MinHeight: int(value.u32()), WindowMode: value.u8(), TitlebarHeight: value.u16(),
 		ClearRed: value.f64(), ClearGreen: value.f64(), ClearBlue: value.f64(), ClearAlpha: value.f64(),
-		HasClick: value.bool(), HasPointer: value.bool(), HasKey: value.bool(), HasShortcut: value.bool(), HasScroll: value.bool(),
+		HasClick: value.bool(), HasPointer: value.bool(), HasKey: value.bool(), HasShortcut: value.bool(), HasScroll: value.bool(), HasModifierTap: value.bool(),
 		HasClose: value.bool(), HasSnapshot: value.bool(), HasRestore: value.bool(),
 	}
 }
@@ -400,6 +403,25 @@ func decodeScrollEvent(data []byte) (ui.ScrollEvent, error) {
 	}
 	if !validModifiers(result.Modifiers) {
 		return ui.ScrollEvent{}, fmt.Errorf("invalid reload scroll modifiers %d", result.Modifiers)
+	}
+	return result, nil
+}
+
+func encodeModifierTapEvent(value ui.ModifierTapEvent) []byte {
+	var result encoder
+	result.u8(uint8(value.Key))
+	result.id(value.Target)
+	return result.data
+}
+
+func decodeModifierTapEvent(data []byte) (ui.ModifierTapEvent, error) {
+	value := decoder{data: data}
+	result := ui.ModifierTapEvent{Key: ui.Key(value.u8()), Target: value.id()}
+	if err := value.finish(); err != nil {
+		return ui.ModifierTapEvent{}, err
+	}
+	if !result.Key.IsModifier() {
+		return ui.ModifierTapEvent{}, fmt.Errorf("invalid reload modifier tap key %d", result.Key)
 	}
 	return result, nil
 }

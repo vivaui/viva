@@ -113,7 +113,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 	if normalized.Paint != nil || normalized.OnPointer != nil || normalized.TextInput != nil {
 		pointerHandler = painter.pointer
 	}
-	if normalized.Paint != nil || normalized.OnKey != nil || normalized.TextInput != nil {
+	if normalized.Paint != nil || normalized.OnKey != nil || normalized.OnModifierTap != nil || normalized.TextInput != nil {
 		keyHandler = painter.key
 	}
 	if normalized.Paint != nil || normalized.OnScroll != nil {
@@ -161,6 +161,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		OnPointer:        pointerHandler,
 		PressAt:          painter.pressAt,
 		OnKey:            keyHandler,
+		ModifierTaps:     normalized.OnModifierTap != nil,
 		OnShortcut:       painter.shortcutHandler(normalized),
 		OnAccessibility:  painter.accessibilityHandler(normalized),
 		OnFocusLost:      painter.focusLostHandler(),

@@ -1316,7 +1316,7 @@ func (state *linuxWindowState) releaseScancodes(scancodes []uint32) error {
 // reports whether the key is really up, for a terminal that wants releases.
 func (state *linuxWindowState) keyReleased(release *xcbInputEvent) bool {
 	ime := state.router.ime
-	wanted := state.router.wantsKeyReleases()
+	wanted := state.router.wantsKeyReleases() || state.router.wantsModifierTap(state.win.keymap.key(release.Detail))
 	if (ime == nil || !ime.active) && !wanted {
 		// No delivery path runs for this release; forget the key here so it
 		// cannot linger as held when a terminal takes over.

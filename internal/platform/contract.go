@@ -77,9 +77,16 @@ type Config struct {
 	OnFullscreen func(bool)
 	// OnReopen handles a native reopen request, such as a macOS Dock click.
 	// When set, it must show the window; otherwise the adapter shows it directly.
-	OnReopen   func()
-	OnKey      KeyHandler
-	OnShortcut ShortcutHandler
+	OnReopen func()
+	OnKey    KeyHandler
+	// ModifierTaps asks the adapter to deliver modifier key presses and releases
+	// to OnKey (KeyEvent.Key naming the modifier, Code set, Release on the
+	// release) even when no terminal asked for the whole keyboard, so the runtime
+	// can recognize a modifier pressed on its own. It changes nothing else: the
+	// adapter still passes a lone modifier to the input method as before, and
+	// every other key is delivered as it was.
+	ModifierTaps bool
+	OnShortcut   ShortcutHandler
 	// OnFocusLost, when set, runs when the window stops being the one the
 	// keyboard types into (another window or application took the focus), so
 	// the runtime can release the keys that were down: their releases will go

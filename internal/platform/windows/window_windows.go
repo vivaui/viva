@@ -771,12 +771,16 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state.wantsKeyReleases() && state.keyUp(first, second, modifiers()) {
 			return 0
 		}
+		state.modifierTap(first, second, true, modifiers())
 	case wmKeyDown, wmSysKeyDown:
 		if state.textEnabled && state.imeComposing {
 			break // IME candidate keys must not submit or dismiss the surrounding form.
 		}
 		modifiers := modifiers()
 		wanted := state.wantsKeyReleases()
+		if !wanted {
+			state.modifierTap(first, second, false, modifiers)
+		}
 		if wanted && !state.imeComposing {
 			if state.keyDown(first, second, modifiers) {
 				return 0

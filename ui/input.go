@@ -153,7 +153,9 @@ type Win32Key struct {
 // is never sent for a press the application did not receive, and every key
 // still down when the terminal loses the keyboard, the window loses focus or
 // the terminal stops asking is released first, so a remote never keeps a key.
-// Handlers that did not ask for releases never see a Release event.
+// Handlers that did not ask for releases never see a Release event. A window
+// that only wants to know when a modifier was pressed and released on its own
+// sets app.Config.OnModifierTap instead (see ModifierTapEvent).
 type KeyEvent struct {
 	Key       Key
 	Modifiers Modifiers
@@ -172,6 +174,18 @@ type KeyEvent struct {
 	Typed string
 	// Win32 is the console key record on Windows; other platforms leave it zero.
 	Win32 Win32Key
+}
+
+// ModifierTapEvent reports a modifier key that was pressed and released on its
+// own: no other key, modifier, text, pointer press or scroll came between, and
+// the window kept the keyboard. Key names the physical key (KeyShiftLeft and so
+// on). Target is the hit that had the keyboard when the key went up.
+//
+// Viva reports each tap and leaves gestures made of several, such as pressing
+// Shift twice, to the application, which knows how long it allows between them.
+type ModifierTapEvent struct {
+	Key    Key
+	Target ID
 }
 
 // ScrollEvent is one normalized scroll gesture in logical window pixels.

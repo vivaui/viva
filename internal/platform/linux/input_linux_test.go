@@ -816,3 +816,43 @@ func TestModifierBitLayoutLevels(t *testing.T) {
 		t.Fatalf("modifierBit(keysymAltR) = %#x, want Alt", got)
 	}
 }
+
+// An application that listens for a modifier pressed on its own hears the
+// press and release of modifiers only, with the code that pairs them; a letter
+// stays with the text system as it does without the option.
+func TestX11ModifierTapsDeliverOnlyModifiers(t *testing.T) {
+	for _, listens := range []bool{false, true} {
+		var keys []platform.KeyEvent
+		router := eventRouter{
+			config: platform.Config{ModifierTaps: listens, OnKey: func(event platform.KeyEvent) (platform.Frame, error) {
+				keys = append(keys, event)
+				return platform.Frame{}, nil
+			}},
+			present:      func(platform.Frame) error { return nil },
+			modifierKeys: newModifierTracker(),
+		}
+		keymap := xcbKeymap{first: 9, last: 10, perKeycode: 2, keysyms: []uint32{'a', 'A', keysymShiftL, 0}}
+		shift := xcbInputEvent{Detail: 10}
+		if err := router.key(&keymap, &shift, false); err != nil {
+			t.Fatal(err)
+		}
+		shift.State = xcbModShift
+		if err := router.release(&keymap, &shift); err != nil {
+			t.Fatal(err)
+		}
+		letter := xcbInputEvent{Detail: 9}
+		if err := router.release(&keymap, &letter); err != nil {
+			t.Fatal(err)
+		}
+		var want []platform.KeyEvent
+		if listens {
+			want = []platform.KeyEvent{
+				{Key: input.KeyShiftLeft, Modifiers: input.ModifierShift, Code: 10},
+				{Key: input.KeyShiftLeft, Release: true, Code: 10},
+			}
+		}
+		if !reflect.DeepEqual(keys, want) {
+			t.Fatalf("listens=%v: keys =\n%+v\nwant\n%+v", listens, keys, want)
+		}
+	}
+}

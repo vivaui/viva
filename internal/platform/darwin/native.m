@@ -3318,6 +3318,7 @@ static void viva_encode_scene(
     BOOL _keyEventsEnabled;
     BOOL _scrollEventsEnabled;
     BOOL _fileDropEnabled;
+    BOOL _modifierTapsEnabled;
     int _windowMode;
     CGFloat _titlebarHeight;
     BOOL _titlebarDragPending;
@@ -3355,6 +3356,7 @@ static void viva_encode_scene(
                      callbackHandle:(uintptr_t)callbackHandle
                         clearColor:(MTLClearColor)clearColor;
 - (void)enableFileDrops;
+- (void)setModifierTapsEnabled:(BOOL)enabled;
 - (void)render;
 - (void)renderWaitingForSchedule:(BOOL)wait;
 - (int)updateRectangles:(const viva_rectangle *)rectangles
@@ -3878,6 +3880,10 @@ static int viva_navigation_command(SEL selector) {
 
 // ---- Files dragged from Finder ----
 
+- (void)setModifierTapsEnabled:(BOOL)enabled {
+    _modifierTapsEnabled = enabled;
+}
+
 - (void)enableFileDrops {
     _fileDropEnabled = YES;
     [self registerForDraggedTypes:@[ NSPasteboardTypeFileURL ]];
@@ -4176,6 +4182,17 @@ static int viva_navigation_command(SEL selector) {
             vivaRawKeyEvent(_callbackHandle, self, key, viva_modifier_flags(event.modifierFlags),
                 pressed ? 0 : 2, (unsigned int)event.keyCode + 1, NULL, 0, NULL, 0);
             return;
+        }
+    }
+    if (_modifierTapsEnabled && _keyEventsEnabled && _callbackHandle != 0) {
+        /* The application listens for a modifier pressed on its own: report the
+         * press and the release, and still let AppKit and the input method have
+         * the event (a bare Shift switches an input method's language). */
+        int pressed = 0;
+        int key = viva_modifier_key_change(event.keyCode, (unsigned long)event.modifierFlags, &pressed);
+        if (key != 0) {
+            vivaRawKeyEvent(_callbackHandle, self, key, viva_modifier_flags(event.modifierFlags),
+                pressed ? 0 : 2, (unsigned int)event.keyCode + 1, NULL, 0, NULL, 0);
         }
     }
     [super flagsChanged:event];
@@ -5302,6 +5319,7 @@ static void viva_set_secure_event_input(BOOL on) {
     BOOL _fullscreenTransition;
     BOOL _closeInterceptEnabled;
     BOOL _fileDropEnabled;
+    BOOL _modifierTapsEnabled;
     BOOL _closeConfirmed;
     uintptr_t _callbackHandle;
     BOOL _running;
@@ -5332,6 +5350,7 @@ static void viva_set_secure_event_input(BOOL on) {
                    closeInterceptEnabled:(BOOL)closeInterceptEnabled
                         callbackHandle:(uintptr_t)callbackHandle;
 - (void)setFileDropEnabled:(BOOL)enabled;
+- (void)setModifierTapsEnabled:(BOOL)enabled;
 - (void)confirmClose;
 - (void)hideWindow;
 - (void)showWindow;
@@ -5418,6 +5437,10 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)setFileDropEnabled:(BOOL)enabled {
     _fileDropEnabled = enabled;
+}
+
+- (void)setModifierTapsEnabled:(BOOL)enabled {
+    _modifierTapsEnabled = enabled;
 }
 
 - (void)dealloc {
@@ -5552,6 +5575,7 @@ static void viva_set_secure_event_input(BOOL on) {
     if (_fileDropEnabled) {
         [view enableFileDrops];
     }
+    [view setModifierTapsEnabled:_modifierTapsEnabled];
     [view setTitlebarHeight:_titlebarHeight];
     if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
         [self keepTrafficLightsCentered];
@@ -6338,6 +6362,7 @@ void *viva_application_open_window(viva_window_config config) {
                                                         closeInterceptEnabled:config.close_intercept_enabled != 0
                                                                    callbackHandle:config.callback_handle];
         [delegate setFileDropEnabled:config.file_drop_enabled != 0];
+        [delegate setModifierTapsEnabled:config.modifier_taps_enabled != 0];
         if (delegate == nil) {
             [rectangleBuffer release];
             [textPipeline release];

@@ -28,6 +28,9 @@ type Config struct {
 	OnKey      func(event ui.KeyEvent) ui.EventResult
 	OnShortcut func(event ui.KeyEvent) ui.EventResult
 	OnScroll   func(event ui.ScrollEvent) ui.EventResult
+	// OnModifierTap receives a modifier key pressed and released on its own
+	// (see ui.ModifierTapEvent).
+	OnModifierTap func(event ui.ModifierTapEvent) ui.EventResult
 	// ForwardWheel, when set, receives a wheel gesture the application did not
 	// use, so an embedding page can scroll instead.
 	ForwardWheel func(deltaX, deltaY float32)
@@ -327,9 +330,25 @@ func (runtime *runtime) bindEvents() {
 		}
 		return nil
 	}), map[string]any{"passive": false})
+	runtime.focusRoot.Call("addEventListener", "keyup", js.FuncOf(func(_ js.Value, args []js.Value) any {
+		if _, ok := webModifierKey(args[0].Get("code").String()); ok && runtime.painter.modifierUp(webKeyCode(args[0].Get("code").String())) {
+			runtime.requestFrame()
+		}
+		return nil
+	}))
+	runtime.focusRoot.Call("addEventListener", "blur", js.FuncOf(func(_ js.Value, _ []js.Value) any {
+		runtime.painter.tap.Cancel()
+		return nil
+	}), true)
 	runtime.focusRoot.Call("addEventListener", "keydown", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		event := args[0]
 		modifiers := webModifiers(event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(), event.Get("altKey").Bool(), event.Get("metaKey").Bool())
+		if key, ok := webModifierKey(event.Get("code").String()); ok {
+			// A modifier on its own is no key to the page; the runtime only notes it.
+			runtime.painter.modifierDown(key, webKeyCode(event.Get("code").String()), modifiers, event.Get("repeat").Bool())
+			return nil
+		}
+		runtime.painter.tap.Cancel()
 		shortcut := strings.ToLower(event.Get("key").String())
 		enter := event.Get("key").String() == "Enter"
 		if runtime.config.OnShortcut != nil && !event.Get("isComposing").Bool() &&
@@ -442,6 +461,35 @@ func wheelDeltas(deltaX, deltaY float32, mode int, width, height float32) (float
 }
 
 // webKey maps browser KeyboardEvent.key values to the shared input.Key set.
+// webModifierKey names the modifier key a KeyboardEvent.code is for.
+func webModifierKey(code string) (input.Key, bool) {
+	switch code {
+	case "ShiftLeft":
+		return input.KeyShiftLeft, true
+	case "ShiftRight":
+		return input.KeyShiftRight, true
+	case "ControlLeft":
+		return input.KeyControlLeft, true
+	case "ControlRight":
+		return input.KeyControlRight, true
+	case "AltLeft":
+		return input.KeyAltLeft, true
+	case "AltRight":
+		return input.KeyAltRight, true
+	case "MetaLeft":
+		return input.KeyMetaLeft, true
+	case "MetaRight":
+		return input.KeyMetaRight, true
+	}
+	return input.KeyUnknown, false
+}
+
+// webKeyCode is the code that pairs a modifier's press with its release.
+func webKeyCode(code string) uint32 {
+	key, _ := webModifierKey(code)
+	return uint32(key) + 1
+}
+
 func webKey(key string) (input.Key, bool) {
 	switch key {
 	case "Tab":

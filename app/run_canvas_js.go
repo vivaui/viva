@@ -30,7 +30,7 @@ func RunCanvas(config Config, canvas *ui.Canvas) error {
 	page := web.Config{
 		Title: normalized.Title, Width: normalized.Width, Height: normalized.Height,
 		Paint: normalized.Paint, OnPointer: normalized.OnPointer, OnKey: normalized.OnKey,
-		OnShortcut: normalized.OnShortcut, OnScroll: normalized.OnScroll,
+		OnShortcut: normalized.OnShortcut, OnScroll: normalized.OnScroll, OnModifierTap: normalized.OnModifierTap,
 		TextInput: webTextInput(normalized.TextInput),
 		Canvas:    canvas,
 		OnWake:    normalized.OnWake,

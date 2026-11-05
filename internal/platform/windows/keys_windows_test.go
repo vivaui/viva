@@ -266,3 +266,36 @@ func TestAPlainSpaceIsOneCharacter(t *testing.T) {
 		t.Fatalf("a terminal keyed a plain space: %+v", events)
 	}
 }
+
+func TestAModifierIsReportedOnlyWhenTheApplicationListensForTaps(t *testing.T) {
+	var events []platform.KeyEvent
+	state := &windowState{}
+	state.config.OnKey = func(event platform.KeyEvent) (platform.Frame, error) {
+		events = append(events, event)
+		return platform.Frame{}, errors.New("stop before the renderer")
+	}
+	leftShift := uintptr(0x2a) << 16
+	state.modifierTap(0x10, leftShift, false, input.ModifierShift)
+	state.modifierTap(0x10, leftShift, true, 0)
+	if len(events) != 0 {
+		t.Fatalf("a window that did not ask heard %+v", events)
+	}
+
+	state.config.ModifierTaps = true
+	state.modifierTap(0x10, leftShift, false, input.ModifierShift)
+	state.modifierTap(0x10, leftShift, true, 0)
+	state.modifierTap('A', 0x1e<<16, false, 0) // not a modifier
+	if len(events) != 2 {
+		t.Fatalf("events = %+v", events)
+	}
+	press, release := events[0], events[1]
+	if press.Key != input.KeyShiftLeft || press.Release || press.Modifiers != input.ModifierShift || press.Code == 0 {
+		t.Errorf("press = %+v", press)
+	}
+	if release.Key != input.KeyShiftLeft || !release.Release || release.Modifiers != 0 {
+		t.Errorf("release = %+v", release)
+	}
+	if press.Code != release.Code {
+		t.Errorf("the press and release of one key have codes %d and %d", press.Code, release.Code)
+	}
+}

@@ -196,6 +196,8 @@ A list, tree or table that searches as you type, or a control with single-letter
 
 `OnShortcut` is for chords the application owns, not for typing: it runs before the input method, so a key it takes never composes.
 
+`OnModifierTap` receives a modifier key that was pressed and released on its own: nothing else, whether a key, typed text, a pointer press or a scroll, came between, and the window kept the keyboard. `OnKey` never sees a lone modifier outside a terminal that asked for the whole keyboard, so this is how an application builds a gesture such as pressing Shift twice. Viva reports each tap and the application times the second one, so there is no timer inside the framework. Setting it makes the window report modifier presses and releases to the runtime and changes nothing else: input methods still see a bare Shift, and `OnKey` still gets no modifier events. A terminal that asked for the whole keyboard receives the modifier itself as well. In headless tests `Session.KeyDown` and `Session.KeyUp` on a modifier produce the tap.
+
 ## Scrolling
 
 A `f.ScrollArea(id)` keeps its offset in the `flex.View`, so scrolling needs no state of yours: `config.OnScroll = m.view.Wheel` gives the wheel to the area under the pointer. `OnScroll` receives pixel deltas with the window position, modifiers, `Viewport` (the current window size) and the hit under the pointer, so a handler of your own does not depend on a preceding pointer move. Positive deltas reveal content below. Content you scroll yourself should be clipped with `Canvas.Clip` so it does not paint over its neighbors; clipped hit regions stop responding too.

@@ -34,7 +34,7 @@ func newSupervisor(worker *workerProcess, request reloadwire.PaintRequest, snaps
 }
 
 func (value *supervisor) hostConfig() app.Config {
-	return app.Config{
+	config := app.Config{
 		Title: value.window.Title, Width: value.window.Width, Height: value.window.Height,
 		MinWidth: value.window.MinWidth, MinHeight: value.window.MinHeight,
 		WindowMode: app.WindowMode(value.window.WindowMode), TitlebarHeight: float32(value.window.TitlebarHeight),
@@ -43,6 +43,10 @@ func (value *supervisor) hostConfig() app.Config {
 		OnKey: value.key, OnShortcut: value.shortcut, OnScroll: value.scroll,
 		OnCloseRequest: value.requestClose, Invalidator: &value.invalidator,
 	}
+	if value.window.HasModifierTap {
+		config.OnModifierTap = value.modifierTap
+	}
+	return config
 }
 
 func (value *supervisor) paint(canvas *ui.Canvas, size ui.Size) {
@@ -163,6 +167,22 @@ func (value *supervisor) scroll(event ui.ScrollEvent) ui.EventResult {
 	cancel()
 	if err != nil {
 		value.reportErrorLocked(fmt.Errorf("scroll worker: %w", err))
+		return ui.EventResult{}
+	}
+	return result
+}
+
+func (value *supervisor) modifierTap(event ui.ModifierTapEvent) ui.EventResult {
+	value.mu.Lock()
+	defer value.mu.Unlock()
+	if value.active == nil || !value.active.config.HasModifierTap {
+		return ui.EventResult{}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	result, err := value.active.client.ModifierTap(ctx, event)
+	cancel()
+	if err != nil {
+		value.reportErrorLocked(fmt.Errorf("modifier tap worker: %w", err))
 		return ui.EventResult{}
 	}
 	return result

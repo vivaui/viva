@@ -36,6 +36,9 @@ type painter struct {
 	scrollX       float32
 	scrollY       float32
 	dirty         bool
+	// tap recognizes a modifier pressed and released on its own
+	// (Config.OnModifierTap).
+	tap input.ModifierTap
 }
 
 func newPainter(canvas *ui.Canvas, config *Config) *painter {
@@ -57,6 +60,7 @@ func (p *painter) resize(width, height int) {
 // state changed. Application handling runs before built-in traversal,
 // activation, and Escape dismissal.
 func (p *painter) keyDown(event ui.KeyEvent) bool {
+	p.tap.Cancel()
 	beforeFocus, beforeKeyboard := p.focused, p.keyboardFocus
 	event.Target = p.focused
 	response := ui.EventResult{}
@@ -89,7 +93,36 @@ func (p *painter) keyDown(event ui.KeyEvent) bool {
 	return true
 }
 
+// modifierDown notes a modifier key going down. Any other key ends the
+// candidate: keyDown cancels it before this runs for a modifier.
+func (p *painter) modifierDown(key input.Key, code uint32, modifiers ui.Modifiers, repeat bool) {
+	if p.config.OnModifierTap != nil {
+		p.tap.Press(key, code, modifiers, repeat)
+	}
+}
+
+// modifierUp reports the tap of a modifier that went up while it was still a
+// candidate, and whether rendering state changed.
+func (p *painter) modifierUp(code uint32) bool {
+	if p.config.OnModifierTap == nil {
+		return false
+	}
+	key, ok := p.tap.Release(code)
+	if !ok {
+		return false
+	}
+	beforeFocus := p.focused
+	response := p.config.OnModifierTap(ui.ModifierTapEvent{Key: key, Target: p.focused})
+	focusChanged := p.applyEventResult(response)
+	if focusChanged || response.Repaint || p.focused != beforeFocus {
+		p.repaint()
+		return true
+	}
+	return false
+}
+
 func (p *painter) shortcut(event ui.KeyEvent) (handled, changed bool) {
+	p.tap.Cancel()
 	if p.config.OnShortcut == nil {
 		return false, false
 	}
@@ -108,6 +141,7 @@ func (p *painter) shortcut(event ui.KeyEvent) (handled, changed bool) {
 // events leave the default canvas offset untouched; an unused gesture can be
 // forwarded to an embedding page.
 func (p *painter) wheel(event ui.ScrollEvent) (handled, changed bool) {
+	p.tap.Cancel()
 	if event.DeltaX == 0 && event.DeltaY == 0 {
 		return false, false
 	}
@@ -312,6 +346,9 @@ func insertLayer(layers []uint16, layer uint16) []uint16 {
 // state changed. A nonzero press target captures move and up delivery until
 // the press ends, while hover continues to track the actual hit target.
 func (p *painter) pointer(event ui.PointerEvent) bool {
+	if event.Kind == ui.PointerDown {
+		p.tap.Cancel()
+	}
 	event.Viewport = ui.Size{Width: p.width, Height: p.height}
 	beforeHovered, beforePressed := p.hovered, p.pressed
 	beforeFocus, beforeKeyboard := p.focused, p.keyboardFocus
