@@ -118,20 +118,25 @@ func (shape iconClipShape) eachTriangle(
 	if area < 0 {
 		sign = -1
 	}
-	current := iconClipPolygon{}
+	// Two polygons alternate as the passes consume edges. Indexing them keeps
+	// the swap free: assigning one iconClipPolygon to another copies its whole
+	// fixed vertex array, once per edge and per triangle.
+	var polygons [2]iconClipPolygon
+	current := 0
 	for index := range points {
 		var weights [3]float32
 		weights[index] = 1
-		current.add(points[index], edges>>index&1 != 0, weights)
+		polygons[current].add(points[index], edges>>index&1 != 0, weights)
 	}
-	var next iconClipPolygon
-	for index := 0; index < shape.count && current.count > 0; index++ {
+	for index := 0; index < shape.count && polygons[current].count > 0; index++ {
 		a := shape.points[index]
 		b := shape.points[(index+1)%shape.count]
+		cur := &polygons[current]
+		next := &polygons[1-current]
 		next.count = 0
-		for vertex := 0; vertex < current.count; vertex++ {
-			from := current.vertices[vertex]
-			to := current.vertices[(vertex+1)%current.count]
+		for vertex := 0; vertex < cur.count; vertex++ {
+			from := cur.vertices[vertex]
+			to := cur.vertices[(vertex+1)%cur.count]
 			fromInside := insideIconClip(a, b, from.point, sign)
 			toInside := insideIconClip(a, b, to.point, sign)
 			if fromInside {
@@ -145,9 +150,9 @@ func (shape iconClipShape) eachTriangle(
 				next.add(point, from.boundary, iconClipWeights(from.weights, to.weights, u))
 			}
 		}
-		current, next = next, current
+		current = 1 - current
 	}
-	emitIconClipTriangles(current, emit)
+	emitIconClipTriangles(&polygons[current], emit)
 }
 
 // iconClipWeights interpolates barycentric weights along from→to.
@@ -183,8 +188,11 @@ func iconClipIntersection(a, b Point, from, to iconClipVertex) (Point, float64) 
 }
 
 // emitIconClipTriangles fans a clipped convex polygon. Slivers and duplicate
-// corners a cut leaves on the boundary are skipped.
-func emitIconClipTriangles(polygon iconClipPolygon, emit func([3]Point, uint8, [3][3]float32)) {
+// corners a cut leaves on the boundary are skipped. It takes the polygon by
+// pointer because the fan compacts the shared corner list in place, and a copy
+// of the fixed vertex array per clipped triangle is the cost that made a rounded
+// clip an order of magnitude slower than the other transforms.
+func emitIconClipTriangles(polygon *iconClipPolygon, emit func([3]Point, uint8, [3][3]float32)) {
 	count := 0
 	for index := 0; index < polygon.count; index++ {
 		next := polygon.vertices[(index+1)%polygon.count]

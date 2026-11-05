@@ -211,6 +211,8 @@ func BenchmarkDrawIconTransformed(b *testing.B) {
 		{"reveal", IconTransform{Reveal: 0.5}},
 		{"parts", IconTransform{Parts: []IconPart{{Contour: 1, Offset: Point{Y: 2}}}}},
 		{"trim", IconTransform{Parts: []IconPart{{Contour: 2, Trim: IconTrim{Active: true, From: 0.2, To: 0.7}}}}},
+		{"clip", IconTransform{Clip: &IconClip{Bounds: Rect{X: 4, Y: 4, Width: 16, Height: 16}}}},
+		{"clip-rounded", IconTransform{Clip: &IconClip{Bounds: Rect{X: 4, Y: 4, Width: 16, Height: 16}, Radius: 6}}},
 	}
 	for _, test := range tests {
 		b.Run(test.name, func(b *testing.B) {
@@ -750,8 +752,15 @@ func partsTriangles(t *testing.T, icon Icon, bounds Rect, tint Color, parts []Ic
 		out[index] = triangles[offset : offset+count]
 		offset += count
 	}
-	if offset > len(triangles) {
-		t.Fatalf("the contours painted %d of at least %d triangles", offset, len(triangles))
+	// A glyph's Layers are not contours: they paint once after the contours, so
+	// the triangles past the contours are exactly them. Accounting for that here
+	// keeps the split exact instead of tolerating slack the contours did not paint.
+	layers := icon
+	layers.Commands = nil
+	var layerCanvas Canvas
+	layerCanvas.DrawIcon(layers, bounds, tint)
+	if painted, want := len(triangles)-offset, len(layerCanvas.Triangles()); painted != want {
+		t.Fatalf("the contours painted %d triangles and the layers %d, of %d painted", offset, want, len(triangles))
 	}
 	return out
 }

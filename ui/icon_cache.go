@@ -194,16 +194,11 @@ func (canvas *Canvas) trianglesFor(key iconKey, icon Icon, fit float32, tint Col
 	return triangles
 }
 
-// drawIconPlaced paints the icon's tessellation through place, which is how an
-// icon is drawn while it is in motion. Nothing is cached for it: the points move
-// on every frame, so the paint cache would never hit.
-func (canvas *Canvas) drawIconPlaced(icon Icon, fit float32, tint Color, place iconPlacement) {
-	canvas.drawIconPlacedClipped(icon, fit, tint, place, nil)
-}
-
-// drawIconPlacedClipped is drawIconPlaced through an optional icon-local clip.
-// The clip cuts each triangle before the canvas sees it, so the paint stays one
-// ordinary mesh and needs no renderer mask.
+// drawIconPlacedClipped paints the icon's tessellation through place, which is
+// how an icon is drawn while it is in motion. Nothing is cached for it: the
+// points move on every frame, so the paint cache would never hit. The optional
+// icon-local clip cuts each triangle before the canvas sees it, so the paint
+// stays one ordinary mesh and needs no renderer mask.
 func (canvas *Canvas) drawIconPlacedClipped(icon Icon, fit float32, tint Color, place iconPlacement, clip *iconClipShape) {
 	triangles := canvas.iconTriangles(icon, fit, tint)
 	canvas.drawIconTrianglesPlaced(triangles, icon, tint, place, clip)
