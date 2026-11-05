@@ -289,15 +289,15 @@ func (v *MarkdownView) CaretAt(offset int) (ui.Rect, bool) {
 			fraction := float32(offset-int(before.plainHi)) / float32(after.plainLo-before.plainHi)
 			return ui.Rect{X: v.paintX + start + (end-start)*fraction, Y: v.paintY + before.y, Width: 1, Height: before.h}, true
 		}
+		if before == nil && after == nil {
+			return ui.Rect{}, false
+		}
 		if before == nil || after != nil && int(after.plainLo)-offset <= offset-int(before.plainHi) {
 			chosen = after
 			offset = int(after.plainLo)
 		} else {
 			chosen = before
 			offset = int(before.plainHi)
-		}
-		if chosen == nil {
-			return ui.Rect{}, false
 		}
 	}
 	local := min(max(offset-int(chosen.plainLo), 0), int(chosen.plainHi-chosen.plainLo))

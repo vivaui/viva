@@ -1626,6 +1626,37 @@ func TestMarkdownCaretAtPrefersTheWrappedLineStart(t *testing.T) {
 	t.Fatal("fixture did not wrap")
 }
 
+func TestMarkdownCaretAtWithoutTextPiecesReportsNothing(t *testing.T) {
+	view, _ := paintedMarkdown(t, "plain", 200)
+	for index := range view.pieces {
+		view.pieces[index].plainLo, view.pieces[index].plainHi = -1, -1
+	}
+	if _, ok := view.CaretAt(0); ok {
+		t.Fatal("a view whose pieces carry no text offsets must not report a caret")
+	}
+}
+
+// Every offset must map to a caret the pointer can reach again: hitting the
+// middle of the caret lands on an offset that paints the same caret. Wrapped
+// lines and style changes are the places this can go wrong.
+func TestMarkdownCaretAtIsStableUnderOffsetAt(t *testing.T) {
+	view, _ := paintedMarkdown(t, "plain **bold words** *italic ending* `code` tail that wraps over several lines", 150)
+	for offset := 0; offset <= len(view.plain); offset++ {
+		caret, ok := view.CaretAt(offset)
+		if !ok {
+			t.Fatalf("offset %d has no caret", offset)
+		}
+		hit, ok := view.OffsetAt(ui.Point{X: caret.X, Y: caret.Y + caret.Height/2})
+		if !ok {
+			t.Fatalf("offset %d: caret %+v is not hittable", offset, caret)
+		}
+		again, ok := view.CaretAt(hit)
+		if !ok || again.Y != caret.Y {
+			t.Fatalf("offset %d -> hit %d: caret moved from %+v to %+v", offset, hit, caret, again)
+		}
+	}
+}
+
 func TestMarkdownCaretAtWarmDoesNotAllocate(t *testing.T) {
 	canvas := markdownCanvas()
 	var doc markdown.Document
