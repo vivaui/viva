@@ -29,6 +29,7 @@ func validFeed() Feed {
 		Schema:  SchemaVersion,
 		App:     "dev.viva.gallery",
 		Channel: "stable",
+		Expires: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC),
 		Latest: Release{
 			Version:  "1.4.2",
 			Date:     time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC),
@@ -63,6 +64,8 @@ func TestFeedRefusesWhatItMustNotActOn(t *testing.T) {
 		{"notes not https", func(feed *Feed) { feed.Latest.NotesURL = "http://example.com/notes" }, "notes_url"},
 		{"no assets", func(feed *Feed) { feed.Latest.Assets = nil }, "no assets"},
 		{"min_os", func(feed *Feed) { feed.Latest.MinOS["plan9"] = "1" }, "min_os"},
+		{"no expiry", func(feed *Feed) { feed.Expires = time.Time{} }, "expires"},
+		{"expires before release", func(feed *Feed) { feed.Expires = feed.Latest.Date }, "expires"},
 		{"unknown os", func(feed *Feed) { feed.Latest.Assets[0].OS = "plan9" }, "os"},
 		{"unknown arch", func(feed *Feed) { feed.Latest.Assets[0].Arch = "riscv64" }, "arch"},
 		{"unknown format", func(feed *Feed) { feed.Latest.Assets[0].Format = "dmg" }, "format"},

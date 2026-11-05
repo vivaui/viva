@@ -31,6 +31,8 @@ var (
 	// ErrManifest reports a feed this package refuses: one it cannot read, or one
 	// that names a schema, app, version, platform or archive it must not act on.
 	ErrManifest = errors.New("update: invalid feed")
+	// ErrExpired reports a feed past its expires time. It wraps ErrManifest.
+	ErrExpired = fmt.Errorf("%w: the feed has expired", ErrManifest)
 	// ErrSignature reports a feed whose latest.json.sig does not verify with
 	// any configured key, or both files disagree.
 	ErrSignature = errors.New("update: feed signature does not verify")
@@ -71,6 +73,9 @@ type Config struct {
 	HTTP *http.Client
 	// MaxAssetBytes bounds Download. Zero means DefaultMaxAssetBytes.
 	MaxAssetBytes int64
+	// Now returns the current time, which a feed's expiry is compared with. Nil
+	// uses time.Now.
+	Now func() time.Time
 }
 
 // Client reads one application's update feed. It performs no I/O until Check
@@ -86,6 +91,7 @@ type Client struct {
 	assetHTTP    *http.Client
 	maxAsset     int64
 	maxManifest  int64
+	now          func() time.Time
 }
 
 // New validates config and returns a Client.
@@ -116,6 +122,11 @@ func New(config Config) (*Client, error) {
 		// may legitimately take longer than a feed request.
 		assetHTTP = &http.Client{}
 	}
+	feedHTTP, assetHTTP = httpsOnly(feedHTTP), httpsOnly(assetHTTP)
+	now := config.Now
+	if now == nil {
+		now = time.Now
+	}
 	maxAsset := config.MaxAssetBytes
 	if maxAsset <= 0 {
 		maxAsset = DefaultMaxAssetBytes
@@ -136,6 +147,7 @@ func New(config Config) (*Client, error) {
 		assetHTTP:   assetHTTP,
 		maxAsset:    maxAsset,
 		maxManifest: DefaultMaxManifestBytes,
+		now:         now,
 	}, nil
 }
 
@@ -167,6 +179,9 @@ func (client *Client) Check(ctx context.Context) (*Feed, error) {
 	}
 	if err := feed.validate(); err != nil {
 		return nil, err
+	}
+	if !client.now().Before(feed.Expires) {
+		return nil, fmt.Errorf("%w (expired %s)", ErrExpired, feed.Expires.UTC().Format(time.RFC3339))
 	}
 	if client.app != "" && feed.App != client.app {
 		return nil, fmt.Errorf("%w: feed is for %q, not %q", ErrManifest, feed.App, client.app)
@@ -214,6 +229,28 @@ func (client *Client) fetch(ctx context.Context, rawURL string, limit int64) ([]
 		return nil, fmt.Errorf("%w: %s", ErrTooLarge, rawURL)
 	}
 	return body, nil
+}
+
+// httpsOnly returns a copy of client that refuses a redirect to anything but
+// HTTPS before the request is sent, so a downgraded hop never reaches the
+// network. The caller's own CheckRedirect still runs, and the default limit of
+// ten redirects applies when it has none. The caller's client is not changed.
+func httpsOnly(client *http.Client) *http.Client {
+	guarded := *client
+	inner := client.CheckRedirect
+	guarded.CheckRedirect = func(request *http.Request, via []*http.Request) error {
+		if request.URL.Scheme != "https" {
+			return fmt.Errorf("%w: redirected to %s", ErrInsecureURL, request.URL)
+		}
+		if inner != nil {
+			return inner(request, via)
+		}
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
+	}
+	return &guarded
 }
 
 // signatureURLFor puts ".sig" after the feed's path, so a feed URL with a

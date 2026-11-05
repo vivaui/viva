@@ -110,7 +110,7 @@ type replacementPlan struct {
 // helperScript renders the /bin/sh program that replaces the executable after
 // the old process exits. Every path and argument is quoted. The helper starts
 // the new version in the background, keeps the old one for two seconds and
-// restores it only when the new one did not survive that long.
+// restores it only when the new one exited with a failure in that time.
 func helperScript(plan replacementPlan) string {
 	var script strings.Builder
 	script.WriteString("#!/bin/sh\n")
@@ -145,6 +145,9 @@ func helperScript(plan replacementPlan) string {
 	script.WriteString("sleep 2\n")
 	script.WriteString("if kill -0 \"$child\" 2>/dev/null; then\n\trm -f \"$backup\"\n\texit 0\nfi\n")
 	script.WriteString("wait \"$child\"\nstatus=$?\n")
+	// A clean exit inside the two seconds is a launch that handed over to
+	// another instance or finished at once; only a failure rolls back.
+	script.WriteString("if [ \"$status\" -eq 0 ]; then\n\trm -f \"$backup\"\n\texit 0\nfi\n")
 	script.WriteString("if [ -f \"$backup\" ]; then\n\tmv \"$backup\" \"$exe\"\nfi\n")
 	script.WriteString("echo 'viva update: the new version did not start; the old one is back' >&2\n")
 	script.WriteString("exit \"$status\"\n")

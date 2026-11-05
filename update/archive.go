@@ -120,7 +120,11 @@ func extractTarGz(archive, destination string) error {
 
 func archivePath(destination, name string) (string, error) {
 	relative := filepath.FromSlash(name)
-	if filepath.IsAbs(relative) {
+	// A name rooted at / or \ or carrying a drive letter is absolute on some
+	// platform, even when filepath.IsAbs says no on this one (Windows does not
+	// call "/tmp/x" absolute). The archive is the same file everywhere, so it is
+	// refused everywhere.
+	if filepath.IsAbs(relative) || strings.HasPrefix(name, "/") || strings.HasPrefix(name, `\`) || filepath.VolumeName(relative) != "" {
 		return "", fmt.Errorf("%w: %s is absolute", ErrUnsafeArchive, name)
 	}
 	clean := filepath.Clean(relative)

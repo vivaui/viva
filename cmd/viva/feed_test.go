@@ -146,6 +146,9 @@ func TestFeedWritesASignedFeed(t *testing.T) {
 	if feed.Latest.Date.IsZero() || feed.Latest.Date.Location() != time.UTC || time.Since(feed.Latest.Date) > time.Minute {
 		t.Errorf("date = %v, want a recent UTC time", feed.Latest.Date)
 	}
+	if !feed.Expires.After(feed.Latest.Date) {
+		t.Errorf("expires = %v, want a time after the release date %v", feed.Expires, feed.Latest.Date)
+	}
 	if len(feed.Latest.Assets) != len(expected) {
 		t.Fatalf("assets = %d, want %d: %+v", len(feed.Latest.Assets), len(expected), feed.Latest.Assets)
 	}

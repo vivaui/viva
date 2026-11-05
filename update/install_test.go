@@ -25,7 +25,7 @@ func TestInstallRefusesIncompleteOptions(t *testing.T) {
 		want   string
 	}{
 		{"no artifact", func(options *InstallOptions) { options.Artifact = "" }, "artifact"},
-		{"missing artifact", func(options *InstallOptions) { options.Artifact = filepath.Join(t.TempDir(), "gone.zip") }, "no such file"},
+		{"missing artifact", func(options *InstallOptions) { options.Artifact = filepath.Join(t.TempDir(), "gone.zip") }, "gone.zip"},
 		{"directory", func(options *InstallOptions) { options.Artifact = t.TempDir() }, "regular file"},
 		{"no version", func(options *InstallOptions) { options.Version = "" }, "version"},
 		{"bad version", func(options *InstallOptions) { options.Version = "latest" }, "version"},

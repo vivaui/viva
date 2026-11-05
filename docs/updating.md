@@ -36,6 +36,7 @@ not act on is refused with `update.ErrManifest`.
   "schema": 1,
   "app": "dev.example.notes",
   "channel": "stable",
+  "expires": "2027-02-02T12:00:00Z",
   "latest": {
     "version": "1.4.2",
     "date": "2026-11-04T12:00:00Z",
@@ -68,6 +69,14 @@ a feed with any other schema is refused rather than guessed at. `channel` is
 optional, and a client configured with a channel requires an exact match. Each
 asset names an OS and architecture (`darwin`, `windows`, `linux`; `amd64`,
 `arm64`), a format (`zip`, `nsis`, `tar.gz`), a size and a lowercase SHA-256.
+
+`expires` is required. The signature covers the document but not the moment it is
+served, so without an expiry anyone who can answer the request could replay an
+older signed feed and offer a release that was since replaced because it was
+vulnerable. A client past `expires` refuses the feed (`update.ErrExpired`, which
+wraps `ErrManifest`); `Config.Now` replaces the clock in tests. The cost is that
+a feed has to be republished before it runs out, which `viva feed` makes easy:
+`-valid-for` sets the lifetime (90 days by default).
 
 `min_os` is carried for the application: the client does not compare it, because
 only the application knows what it supports.
@@ -209,7 +218,9 @@ installer are per-user by default and need no elevation.
 ## Security properties
 
 - **HTTPS only.** The feed, its signature and every archive must be `https`.
-  A redirect that leaves HTTPS is refused (`ErrInsecureURL`).
+  A redirect that leaves HTTPS is refused before the request is sent
+  (`ErrInsecureURL`). The client is copied, never changed: a `Config.HTTP` of
+  your own keeps its settings.
 - **Signature before parse.** The detached signature covers the exact feed
   bytes and is checked before the JSON is decoded.
 - **One identity.** A client configured with an app or channel refuses a signed
@@ -228,8 +239,11 @@ installer are per-user by default and need no elevation.
   Authenticode signature when the installer carries one. A signature that
   exists but fails is `ErrUntrusted`; an unsigned Windows installer is accepted
   because the feed is the trust anchor.
-- **No downgrade.** A feed older than the running version is treated as
-  "nothing newer".
+- **No downgrade, no replay.** A feed older than the running version is treated
+  as "nothing newer", and a signed feed past its `expires` is refused, so an old
+  feed cannot be served again indefinitely. A feed replayed *within* its
+  lifetime can still offer a release that is newer than the running one but not
+  the latest; keep `-valid-for` as short as you can republish.
 - **No telemetry.** The package sends no identifier and nothing but the
   configured requests. It does not check at import or on a timer.
 
@@ -244,6 +258,24 @@ warning.
 
 ## Limits
 
+- **Trust anchor.** The feed key is the only thing that makes a release
+  authoritative. Code-signature checks catch a damaged or unsigned bundle; they
+  do not tell the developer you meant from another one. Protect `update.key`
+  like a release signing key and rotate through `Config.PublicKeys`.
+- **Time of check, time of use.** `Install` hashes the artifact again right
+  before it is used, but on Windows the installer runs after the application has
+  exited, and the file stays in the download directory between those moments.
+  Download into a directory only the user can write.
+- **macOS bundles with symbolic links.** The unpacker refuses links, so a bundle
+  that embeds a third-party framework (`Versions/Current` is a link) is rejected
+  with `ErrUnsafeArchive`. A Viva application has none.
+- **Linux replaces one executable.** Files beside the program in the `tar.gz`
+  are not installed. The old executable is restored only when the new one exits
+  with a failure within two seconds of starting.
+- **Silent helper timeout.** If the old process does not exit within 60 seconds
+  the macOS and Linux helpers give up without changing anything and without a
+  message; the application keeps running the old version and can offer the
+  update again.
 - **No delta updates.** A download is the whole archive. The feed schema leaves
   room for patches; no client reads them yet.
 - **No update service.** The package checks a URL the application names. It does

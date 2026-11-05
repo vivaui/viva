@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 type signedFixture struct {
@@ -285,5 +286,52 @@ func TestSignatureURLKeepsTheQuery(t *testing.T) {
 	}
 	if want := "https://example.com/apps/latest.json.sig?channel=beta"; got != want {
 		t.Errorf("signatureURLFor = %q, want %q", got, want)
+	}
+}
+
+func TestCheckRefusesAnExpiredFeed(t *testing.T) {
+	feed := validFeed()
+	feed.Latest.Version = "2.0.0"
+	fixture := signFeed(t, feed)
+	server := serveFixture(t, fixture)
+	client, err := New(Config{
+		FeedURL:    server.URL + "/latest.json",
+		PublicKeys: []ed25519.PublicKey{fixture.public},
+		Current:    "1.0.0",
+		HTTP:       server.Client(),
+		Now:        func() time.Time { return feed.Expires.Add(time.Second) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Check(context.Background()); !errors.Is(err, ErrExpired) || !errors.Is(err, ErrManifest) {
+		t.Errorf("error %v does not wrap ErrExpired and ErrManifest", err)
+	}
+}
+
+// A redirect to plain HTTP is refused before the request is sent, so nothing
+// reaches the insecure host.
+func TestRedirectToHTTPIsNeverRequested(t *testing.T) {
+	var reached bool
+	plain := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true }))
+	t.Cleanup(plain.Close)
+	secure := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, plain.URL, http.StatusFound)
+	}))
+	t.Cleanup(secure.Close)
+	client, err := New(Config{
+		FeedURL:    secure.URL + "/latest.json",
+		PublicKeys: []ed25519.PublicKey{make(ed25519.PublicKey, ed25519.PublicKeySize)},
+		Current:    "1.0.0",
+		HTTP:       secure.Client(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Check(context.Background()); !errors.Is(err, ErrInsecureURL) {
+		t.Errorf("error %v does not wrap ErrInsecureURL", err)
+	}
+	if reached {
+		t.Error("the plain HTTP server received a request")
 	}
 }

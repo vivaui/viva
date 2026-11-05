@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -104,7 +105,8 @@ func TestExtractZipKeepsFilesAndModes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm()&0o100 == 0 {
+	// Windows has no executable bit to keep.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o100 == 0 {
 		t.Errorf("mode %v lost the executable bit", info.Mode())
 	}
 	body, err := os.ReadFile(program)
@@ -170,7 +172,8 @@ func TestExtractTarGzKeepsFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm()&0o100 == 0 {
+	// Windows has no executable bit to keep.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o100 == 0 {
 		t.Errorf("mode %v lost the executable bit", info.Mode())
 	}
 }
