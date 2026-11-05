@@ -49,6 +49,7 @@ var customFonts struct {
 	sync.RWMutex
 	collection uintptr
 	files      []string
+	revision   uint32 // changes with the collection, so that what was measured in the old one is measured again
 }
 
 var _ ui.FontRegistrar = (*textEngine)(nil)
@@ -105,6 +106,7 @@ func rebuildCustomFonts(files []string) error {
 	customFonts.Lock()
 	old := customFonts.collection
 	customFonts.collection, customFonts.files = collection, files
+	customFonts.revision++
 	customFonts.Unlock()
 	release(&old)
 	return nil

@@ -13,6 +13,7 @@ type gridPiece struct {
 	weight     float32
 	color      d2dColor
 	left, span float32
+	index      int     // the run's place in the label's runs, -1 for a label without runs
 	font       uintptr // the GDI font that draws the piece, set by useGDI; 0 for DirectWrite
 }
 
@@ -22,13 +23,13 @@ func (rasterizer *directRasterizer) gridPieces(label platform.TextLabel, pitch f
 	rasterizer.pieces = rasterizer.pieces[:0]
 	if len(label.Runs) == 0 {
 		rasterizer.pieces = append(rasterizer.pieces, gridPiece{
-			text: label.Value, weight: label.Weight,
+			text: label.Value, weight: label.Weight, index: -1,
 			color: d2dColor{R: float32(label.Color.Red), G: float32(label.Color.Green), B: float32(label.Color.Blue), A: float32(label.Color.Alpha)},
 		})
 		return rasterizer.pieces
 	}
 	offset := 0
-	for _, run := range label.Runs {
+	for index, run := range label.Runs {
 		end := offset + int(run.Bytes)
 		if run.Bytes < 0 || end > len(label.Value) {
 			break
@@ -41,7 +42,7 @@ func (rasterizer *directRasterizer) gridPieces(label platform.TextLabel, pitch f
 		rasterizer.pieces = append(rasterizer.pieces, gridPiece{
 			text: text, run: run, weight: run.Weight,
 			color: d2dColor{R: run.Color.Red, G: run.Color.Green, B: run.Color.Blue, A: run.Color.Alpha},
-			left:  float32(run.Column) * pitch, span: float32(run.Cells) * pitch,
+			left:  float32(run.Column) * pitch, span: float32(run.Cells) * pitch, index: index,
 		})
 	}
 	return rasterizer.pieces
@@ -72,6 +73,7 @@ func (rasterizer *directRasterizer) gridLCD(pixels []byte, label platform.TextLa
 	pitch := label.CellWidth * float32(size/label.FontSize)
 	baseline := float32(platform.LabelBaseline(height, float64(size)))
 	pieces := rasterizer.gridPieces(label, pitch)
+	columns := rasterizer.ownedColumns(label, pieces, family, fallback, size, pitch, width)
 	if err := rasterizer.useGDI(pieces, family, size, width, height); err != nil {
 		return err
 	}
@@ -85,7 +87,7 @@ func (rasterizer *directRasterizer) gridLCD(pixels []byte, label platform.TextLa
 			if viaGDI {
 				scratch, err = rasterizer.gdi.draw(pieces, drawLight, pitch, int(baseline), width, height)
 			} else {
-				scratch, err = rasterizer.drawDirect(pieces, drawLight, family, fallback, size, pitch, baseline, width, height)
+				scratch, err = rasterizer.drawDirect(pieces, columns, drawLight, family, fallback, size, pitch, baseline, width, height)
 			}
 			if err != nil {
 				return err
@@ -98,7 +100,7 @@ func (rasterizer *directRasterizer) gridLCD(pixels []byte, label platform.TextLa
 				if !inPass(piece, drawLight, viaGDI) {
 					continue
 				}
-				pieceLeft, pieceRight := columnsOf(piece, width, len(pieces) == 1)
+				pieceLeft, pieceRight := columnsOf(piece, columns, width, len(pieces) == 1)
 				if pieceLeft == pieceRight {
 					continue
 				}
@@ -120,7 +122,7 @@ func (rasterizer *directRasterizer) gridLCD(pixels []byte, label platform.TextLa
 		pixels[index+3] = luminance(pixels[index+2], pixels[index+1], pixels[index])
 	}
 	for _, piece := range pieces {
-		left, right := columnsOf(piece, width, len(pieces) == 1)
+		left, right := columnsOf(piece, columns, width, len(pieces) == 1)
 		if left == right {
 			continue
 		}
@@ -150,7 +152,7 @@ func passDraws(pieces []gridPiece, light, viaGDI bool) bool {
 
 // drawDirect draws the pieces of the pass of a brightness that Direct2D draws, white on black
 // for light and black on white for dark, and returns the bitmap they are on.
-func (rasterizer *directRasterizer) drawDirect(pieces []gridPiece, light bool, family string, fallback uintptr, size, pitch, baseline float32, width, height int) (*textBitmap, error) {
+func (rasterizer *directRasterizer) drawDirect(pieces []gridPiece, columns []platform.GridSpan, light bool, family string, fallback uintptr, size, pitch, baseline float32, width, height int) (*textBitmap, error) {
 	background, foreground := d2dColor{A: 1}, d2dColor{R: 1, G: 1, B: 1, A: 1}
 	if !light {
 		background, foreground = foreground, background
@@ -166,7 +168,16 @@ func (rasterizer *directRasterizer) drawDirect(pieces []gridPiece, light bool, f
 		if !inPass(piece, light, false) {
 			continue
 		}
-		if err := rasterizer.drawRun(rasterizer.opaque, family, fallback, size, piece.weight, piece.run, piece.text, piece.left, piece.span, pitch, baseline); err != nil && drawErr == nil {
+		// A piece draws inside the columns it owns and nowhere else: what a glyph's ink
+		// leaves in the columns of the run beside it would be read as that run's.
+		var clip pieceClip
+		if piece.index >= 0 && piece.index < len(columns) {
+			if columns[piece.index].To <= columns[piece.index].From {
+				continue
+			}
+			clip = pieceClip{columns: columns[piece.index], height: height}
+		}
+		if err := rasterizer.drawRun(rasterizer.opaque, family, fallback, size, piece.weight, piece.run, piece.text, piece.left, piece.span, pitch, baseline, clip); err != nil && drawErr == nil {
 			drawErr = err
 		}
 	}
@@ -180,9 +191,12 @@ func (rasterizer *directRasterizer) drawDirect(pieces []gridPiece, light bool, f
 // those of its cells, which no other piece owns, or all of them for the one piece of a label
 // without runs. A run that holds no cell owns none, so it cannot take the coverage of its
 // neighbours.
-func columnsOf(piece gridPiece, width int, only bool) (left, right int) {
+func columnsOf(piece gridPiece, columns []platform.GridSpan, width int, only bool) (left, right int) {
 	if only && piece.span <= 0 {
 		return 0, width
+	}
+	if piece.index >= 0 && piece.index < len(columns) {
+		return columns[piece.index].From, columns[piece.index].To
 	}
 	return platform.GridColumns(float64(piece.left), float64(piece.span), width)
 }

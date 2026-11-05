@@ -27,6 +27,10 @@ type textServices struct {
 	// spans are the colors of the last LCD grid label rasterized, valid until the next call.
 	spans []colorSpan
 
+	owner    platform.GridOwner // which run owns which column of a grid label
+	ink      []platform.GridInk // how far each run's glyphs reach past its cells
+	inkCache map[inkKey]platform.GridInk
+
 	fontMapGetDefault        func() uintptr
 	fontMapCreateContext     func(uintptr) uintptr
 	layoutNew                func(uintptr) uintptr
@@ -533,8 +537,9 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 		return err
 	}
 	baseline := float64(platform.LabelBaseline(height, float64(label.FontSize*scale)))
+	columns := services.ownedColumns(label, family, scale, pitch, width)
 	offset := 0
-	for _, run := range label.Runs {
+	for index, run := range label.Runs {
 		end := offset + int(run.Bytes)
 		if run.Bytes < 0 || run.Cells < 0 || end < offset || end > len(label.Value) {
 			return fmt.Errorf("linux: invalid fixed-pitch text run")
@@ -546,8 +551,11 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 		}
 		left := float64(run.Column) * pitch
 		span := float64(run.Cells) * pitch
+		// The run draws in the columns it owns, which are its cells and the blank cells its
+		// ink reaches into, and nowhere else.
+		owned := columns[index]
 		services.cairoSave(context)
-		services.cairoRectangle(context, left, 0, span, float64(height))
+		services.cairoRectangle(context, float64(owned.From), 0, float64(owned.To-owned.From), float64(height))
 		services.cairoClip(context)
 		source := func() {
 			if lcd {
@@ -557,8 +565,8 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 			}
 		}
 		source()
-		if lcd && run.Cells > 0 && piece != "" {
-			from, to := platform.GridColumns(left, span, width)
+		if lcd && run.Cells > 0 && piece != "" && owned.To > owned.From {
+			from, to := owned.From, owned.To
 			services.addSpan(from, to, [4]float32{run.Color.Red, run.Color.Green, run.Color.Blue, run.Color.Alpha})
 		}
 		metrics := baseMetrics

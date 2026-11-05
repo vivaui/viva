@@ -29,6 +29,8 @@ const (
 	d2dDrawTextLayout        = 28
 	d2dSetTransform          = 30
 	d2dSetTextAntialiasMode  = 34
+	d2dPushAxisAlignedClip   = 45
+	d2dPopAxisAlignedClip    = 46
 	d2dBeginDraw             = 48
 	d2dEndDraw               = 49
 	d2dBindDC                = 57
@@ -49,6 +51,7 @@ const (
 	d2dAlphaPremultiplied = 1
 	d2dAlphaIgnore        = 3
 	d2dEnableColorFont    = 4
+	d2dClipAliased        = 1 // D2D1_ANTIALIAS_MODE_ALIASED: a clip on whole pixels is exact
 )
 
 type d2dColor struct{ R, G, B, A float32 }
@@ -66,7 +69,8 @@ type d2dRenderTargetProperties struct {
 type directTarget struct {
 	target, brush uintptr
 	scratch       *textBitmap
-	width, height int // of the scratch bitmap
+	width, height int                                        // of the scratch bitmap
+	clip          struct{ Left, Top, Right, Bottom float32 } // the rectangle pushClip hands Direct2D, kept here so that it is not allocated
 }
 
 // d2dMatrix is D2D1_MATRIX_3X2_F: x' = M11*x + M21*y + DX, y' = M12*x + M22*y + DY.
@@ -139,6 +143,17 @@ func (target *directTarget) setTransform(matrix d2dMatrix) {
 	comCall(target.target, d2dSetTransform, uintptr(unsafe.Pointer(&matrix)))
 }
 
+// pushClip limits what is drawn to the device columns [left, right) of a label height rows
+// high, until popClip. The rectangle is in the target's transform, so push it before setting one.
+func (target *directTarget) pushClip(left, right, height int) {
+	target.clip.Left, target.clip.Top, target.clip.Right, target.clip.Bottom = float32(left), 0, float32(right), float32(height)
+	comCall(target.target, d2dPushAxisAlignedClip, uintptr(unsafe.Pointer(&target.clip)), d2dClipAliased)
+}
+
+func (target *directTarget) popClip() {
+	comCall(target.target, d2dPopAxisAlignedClip)
+}
+
 func (target *directTarget) draw(x, y float32, layout uintptr, options uint32) {
 	comCall(target.target, d2dDrawTextLayout, pointArgument(x, y), layout, target.brush, uintptr(options))
 }
@@ -167,6 +182,9 @@ type directRasterizer struct {
 	pieces      []gridPiece
 	spans       []colorSpan // the colors of the last ClearType grid label, valid until the next call
 	fallbacks   []faceFallback
+	owner       platform.GridOwner // which run owns which column of a grid label
+	ink         []platform.GridInk // how far each run's glyphs reach past its cells
+	inkCache    map[inkKey]platform.GridInk
 	gdi         *gdiGridRasterizer // the GDI face of fixed-pitch runs, made on first use
 	directOnly  bool               // draw fixed-pitch runs with DirectWrite alone; tests compare the two
 }
@@ -424,7 +442,7 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 	var drawErr error
 	for _, piece := range rasterizer.gridPieces(label, pitch) {
 		target.setColor(piece.color)
-		if err := rasterizer.drawRun(target, family, fallback, size, piece.weight, piece.run, piece.text, piece.left, piece.span, pitch, baseline); err != nil && drawErr == nil {
+		if err := rasterizer.drawRun(target, family, fallback, size, piece.weight, piece.run, piece.text, piece.left, piece.span, pitch, baseline, pieceClip{}); err != nil && drawErr == nil {
 			drawErr = err
 		}
 	}
@@ -443,7 +461,7 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 // drawRun draws a run of a grid line starting at left: printable ASCII characters advance by
 // exactly the pitch of the grid, a single wider character is centered on its cells, and
 // the run's decorations are DirectWrite's own.
-func (rasterizer *directRasterizer) drawRun(target *directTarget, family string, fallback uintptr, size, weight float32, run ui.TextRun, piece string, left, span, pitch, baseline float32) error {
+func (rasterizer *directRasterizer) drawRun(target *directTarget, family string, fallback uintptr, size, weight float32, run ui.TextRun, piece string, left, span, pitch, baseline float32, clip pieceClip) error {
 	format, err := rasterizer.services.formatStyle(family, size, weight, run.Italic)
 	if err != nil {
 		return err
@@ -477,6 +495,11 @@ func (rasterizer *directRasterizer) drawRun(target *directTarget, family string,
 	}
 	x := left
 	scaled := false
+	if clip.height > 0 {
+		// In device columns, before any transform of the run is set.
+		target.pushClip(clip.columns.From, clip.columns.To, clip.height)
+		defer target.popClip()
+	}
 	switch {
 	case run.Ligatures && pitch > 0:
 		// Shape the run as one line and scale it into its cell span. SetTransform
