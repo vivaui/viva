@@ -57,11 +57,12 @@ type textChange struct {
 // its mutators, String is not safe for concurrent use: it caches the converted
 // text.
 type Editor struct {
-	runes       []rune
-	anchor      int
-	caret       int
-	composition Range
-	composing   bool
+	runes           []rune
+	anchor          int
+	caret           int
+	composition     Range
+	composing       bool
+	compositionBase string
 
 	// accept and maxRunes constrain what an edit may leave in the text; see
 	// Restrict.
@@ -106,11 +107,22 @@ func NewEditor(initial string) *Editor {
 // String returns the current UTF-8 text. The conversion is cached until the
 // text next changes, so repeated calls between edits allocate nothing.
 func (editor *Editor) String() string {
+	if !editor.composing {
+		editor.compositionBase = ""
+	}
 	if !editor.textValid {
 		editor.text = string(editor.runes)
 		editor.textValid = true
 	}
 	return editor.text
+}
+
+// CommittedString returns the text before marked input until the IME commits it.
+func (editor *Editor) CommittedString() string {
+	if editor.composing {
+		return editor.compositionBase
+	}
+	return editor.String()
 }
 
 // Restrict limits what edits may put into the editor: accept reports whether a
@@ -227,6 +239,9 @@ func (editor *Editor) Paste(value string) {
 // SetMarkedText replaces the current composition or selection with marked
 // text. selected is relative to the marked text, matching native IME APIs.
 func (editor *Editor) SetMarkedText(value string, selected Range) {
+	if !editor.composing {
+		editor.compositionBase = editor.String()
+	}
 	target := editor.Selection()
 	if editor.composing {
 		target = editor.composition
