@@ -299,30 +299,29 @@ func TestDriverFunctionKeysReachApplicationWhileTextInputIsFocused(t *testing.T)
 	if err := driver.Click(50, 25); err != nil {
 		t.Fatal(err)
 	}
-	for _, step := range []struct {
-		key       ui.Key
-		modifiers ui.Modifiers
-	}{
-		{ui.KeyF2, ui.ModifierControl},
-		{ui.KeyF3, ui.ModifierShift},
-		{ui.KeyF7, 0},
-	} {
-		if err := driver.Key(step.key, step.modifiers); err != nil {
+	for key := ui.KeyF1; key <= ui.KeyF12; key++ {
+		modifiers := ui.Modifiers(0)
+		if key == ui.KeyF2 {
+			modifiers = ui.ModifierControl
+		} else if key == ui.KeyF3 {
+			modifiers = ui.ModifierShift
+		}
+		if err := driver.Key(key, modifiers); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if len(keys) != 3 || editor.String() != "content" {
+	if len(keys) != 12 || editor.String() != "content" {
 		t.Fatalf("focused function keys = %+v, text %q", keys, editor.String())
 	}
-	for index, want := range []struct {
-		key       ui.Key
-		modifiers ui.Modifiers
-	}{
-		{ui.KeyF2, ui.ModifierControl},
-		{ui.KeyF3, ui.ModifierShift},
-		{ui.KeyF7, 0},
-	} {
-		if keys[index].Key != want.key || keys[index].Modifiers != want.modifiers || keys[index].Target != ui.Item(1) {
+	for index := range keys {
+		key := ui.KeyF1 + ui.Key(index)
+		modifiers := ui.Modifiers(0)
+		if key == ui.KeyF2 {
+			modifiers = ui.ModifierControl
+		} else if key == ui.KeyF3 {
+			modifiers = ui.ModifierShift
+		}
+		if keys[index].Key != key || keys[index].Modifiers != modifiers || keys[index].Target != ui.Item(1) {
 			t.Fatalf("key %d = %+v", index, keys[index])
 		}
 	}
