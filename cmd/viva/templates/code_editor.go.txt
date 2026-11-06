@@ -73,6 +73,16 @@ type CodeEditorSnapshot struct {
 	CurrentLine bool
 	// MatchBrackets outlines the bracket next to the caret and its partner.
 	MatchBrackets bool
+	// ShowWhitespace paints markers over visible spaces and tab cells without changing text geometry.
+	ShowWhitespace bool
+	// ShowEOL paints EOLLabel at hard line breaks, never at soft wraps or an unterminated final line.
+	ShowEOL bool
+	// EOLLabel is the line-ending marker, such as LF or CRLF. An empty label uses LF.
+	EOLLabel string
+	// EOLLabels overrides EOLLabel per zero-based logical line for mixed line endings.
+	EOLLabels []string
+	// InvisibleColor tints whitespace and EOL markers; zero uses the theme's muted foreground.
+	InvisibleColor ui.Color
 	// Language is handed to Highlight, which owns the grammar.
 	Language  string
 	Highlight func(language, line string, dst []CodeEditorRun) []CodeEditorRun
@@ -259,6 +269,11 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		showCaret: focused && snapshot.ShowCaret && !snapshot.Disabled,
 		language:  snapshot.Language, highlight: snapshot.Highlight, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
+		showWhitespace: snapshot.ShowWhitespace, showEOL: snapshot.ShowEOL, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
+		invisibleColor: snapshot.InvisibleColor,
+	}
+	if paint.invisibleColor.Alpha == 0 {
+		paint.invisibleColor = theme.MutedForeground
 	}
 	paint.lastColumn = paint.firstColumn + cols + 8
 	if snapshot.MatchBrackets && selectionStart == selectionEnd && !placeholder {
@@ -421,6 +436,10 @@ type codePaint struct {
 	markCursor                               int
 	brackets                                 [2]int
 	bracketsOK                               bool
+	showWhitespace, showEOL                  bool
+	eolLabel                                 string
+	eolLabels                                []string
+	invisibleColor                           ui.Color
 }
 
 // firstMark is the index of the first mark that may reach the row at index.
@@ -542,6 +561,12 @@ func (paint *codePaint) row(index int, y float32) {
 		}
 		canvas.LabelRuns(shown[from:to], bounds, ui.TextStyle{Size: paint.size, Color: paint.foreground, Mono: true, MonoFace: paint.face}, paint.cellWidth, runs)
 	}
+	if paint.showWhitespace {
+		paint.whitespace(row, y, left)
+	}
+	if paint.showEOL && !editor.softWrapped(index) && rowEnd < len(paint.value) && paint.value[rowEnd] == '\n' {
+		paint.lineEnding(row, y, left)
+	}
 
 	if paint.compositionEnd > paint.compositionStart && paint.compositionStart <= rowEnd && paint.compositionEnd >= rowStart {
 		walker := columnWalker{editor: editor, row: row, at: rowStart}
@@ -560,6 +585,45 @@ func (paint *codePaint) row(index int, y float32) {
 			}
 		}
 	}
+}
+
+func (paint *codePaint) whitespace(row codeRow, y, left float32) {
+	column := 0
+	for at := int(row.start); at < int(row.end); {
+		character, size := decodeAt(paint.value, at)
+		width := codeCells(character, column, paint.editor.tabWidth)
+		if column+width >= paint.firstColumn && column <= paint.lastColumn {
+			x := left + float32(column)*paint.cellWidth
+			centerY := y + paint.lineHeight/2
+			switch character {
+			case ' ':
+				paint.canvas.Rounded(ui.Rect{X: x + paint.cellWidth/2 - 1, Y: centerY - 1, Width: 2, Height: 2}, 1, paint.invisibleColor)
+			case '\t':
+				end := x + float32(width)*paint.cellWidth - 3
+				paint.canvas.Fill(ui.Rect{X: x + 2, Y: centerY, Width: max(1, end-x-2), Height: 1}, paint.invisibleColor)
+				paint.canvas.Fill(ui.Rect{X: end - 2, Y: centerY - 2, Width: 2, Height: 1}, paint.invisibleColor)
+				paint.canvas.Fill(ui.Rect{X: end - 2, Y: centerY + 2, Width: 2, Height: 1}, paint.invisibleColor)
+			}
+		}
+		column += width
+		at += size
+	}
+}
+
+func (paint *codePaint) lineEnding(row codeRow, y, left float32) {
+	label := paint.eolLabel
+	if int(row.line) < len(paint.eolLabels) && paint.eolLabels[row.line] != "" {
+		label = paint.eolLabels[row.line]
+	}
+	if label == "" {
+		label = "LF"
+	}
+	paint.canvas.Label(label, ui.Rect{
+		X:      left + float32(row.cells)*paint.cellWidth + 2,
+		Y:      y + (paint.lineHeight-paint.cellHeight)/2,
+		Width:  float32(len(label)) * paint.cellWidth,
+		Height: paint.cellHeight,
+	}, ui.TextStyle{Size: paint.size * 0.75, Color: paint.invisibleColor, Mono: true, MonoFace: paint.face})
 }
 
 // lineRuns is the highlight of the row's logical line, kept while its rows are
