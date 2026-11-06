@@ -406,19 +406,26 @@ static NSCursor *viva_cursor(uint8_t shape, NSString **error) {
         case 6:
             return NSCursor.resizeUpDownCursor;
         case 7:
+            // An SDK older than 15 does not declare the symbols, so the
+            // compile-time check has to come before @available: the runtime
+            // check alone still needs the names to compile.
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 150000
             if (@available(macOS 15.0, *)) {
                 return [NSCursor frameResizeCursorFromPosition:NSCursorFrameResizePositionTopLeft
                                                  inDirections:NSCursorFrameResizeDirectionsAll];
             }
+#endif
             if (error != NULL) {
                 *error = @"diagonal resize cursors require macOS 15 or newer";
             }
             return nil;
         case 8:
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 150000
             if (@available(macOS 15.0, *)) {
                 return [NSCursor frameResizeCursorFromPosition:NSCursorFrameResizePositionTopRight
                                                  inDirections:NSCursorFrameResizeDirectionsAll];
             }
+#endif
             if (error != NULL) {
                 *error = @"diagonal resize cursors require macOS 15 or newer";
             }
