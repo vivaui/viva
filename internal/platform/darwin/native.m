@@ -1979,6 +1979,45 @@ static CGFloat viva_baseline(CGFloat height, CGFloat fontSize, CGFloat pixelScal
     return (rows - fromTop) / pixelScale;
 }
 
+int viva_text_line_rasterize(
+    const viva_text_line *line,
+    double font_size,
+    double scale,
+    size_t width,
+    size_t height,
+    double red,
+    double green,
+    double blue,
+    double alpha,
+    unsigned char *pixels
+) {
+    if (line == NULL || pixels == NULL || font_size <= 0 || scale <= 0 ||
+        width < 1 || height < 1 || width > 16384 || height > 16384 ||
+        width > SIZE_MAX / 4 || height > SIZE_MAX / (width * 4)) {
+        return 1;
+    }
+    @autoreleasepool {
+        memset(pixels, 0, width * height * 4);
+        CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+        CGContextRef context = CGBitmapContextCreate(
+            pixels, width, height, 8, width * 4, colorSpace,
+            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little
+        );
+        CGColorSpaceRelease(colorSpace);
+        if (context == NULL) {
+            return 1;
+        }
+        viva_prepare_text_context(context, scale);
+        CGColorRef color = CGColorCreateSRGB(red, green, blue, alpha);
+        CGFloat logicalHeight = (CGFloat)height / (CGFloat)scale;
+        CGFloat baseline = viva_baseline(logicalHeight, font_size, ceil(scale));
+        viva_draw_text_line(context, line, color, 0, baseline);
+        CGColorRelease(color);
+        CGContextRelease(context);
+        return 0;
+    }
+}
+
 // viva_text_input_texture rasterizes the native editor's current appearance:
 // the shown text (bullets for a password), the selection or composition, and
 // the caret when it is in its visible phase. It returns a retained texture, or

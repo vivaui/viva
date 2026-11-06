@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/textmetrics"
@@ -29,6 +30,19 @@ type TextEngine interface {
 	// OffsetAt is the byte offset of the character boundary nearest x.
 	OffsetAt(value string, size, weight, x float32) int
 }
+
+// TextRasterizer is an optional TextEngine capability that draws one shaped
+// proportional line into a transparent premultiplied BGRA bitmap at scale.
+// Width and height are bitmap pixels. The same platform font, fallback and
+// shaping used by TextEngine measurements are used for the pixels.
+type TextRasterizer interface {
+	TextEngine
+	RasterizeText(value string, style TextStyle, scale float32, width, height int) (Bitmap, error)
+}
+
+// ErrTextRasterizerUnavailable means the canvas' installed text engine cannot
+// render proportional text into a bitmap.
+var ErrTextRasterizerUnavailable = errors.New("ui: text rasterizer unavailable")
 
 // StyledTextEngine is a TextEngine that also shapes proportional italic text. Its methods
 // are those of TextEngine with the face named: with italic false each answers exactly as
@@ -86,6 +100,17 @@ func (canvas *Canvas) FontGeneration() uint32 {
 		return 0
 	}
 	return canvas.aware.FontGeneration()
+}
+
+// RasterizeText draws one proportional line with the canvas' installed platform
+// text engine into a transparent premultiplied BGRA bitmap. Scale is device
+// pixels per logical pixel; width and height are bitmap pixels.
+func (canvas *Canvas) RasterizeText(value string, style TextStyle, scale float32, width, height int) (Bitmap, error) {
+	rasterizer, ok := canvas.engine.(TextRasterizer)
+	if !ok {
+		return Bitmap{}, ErrTextRasterizerUnavailable
+	}
+	return rasterizer.RasterizeText(value, style, scale, width, height)
 }
 
 // ReferenceTextEngine is the TextEngine over the reference metrics

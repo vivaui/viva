@@ -9,6 +9,7 @@ package darwin
 import "C"
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -61,6 +62,7 @@ func sharedTextEngine() *TextEngine {
 func SharedTextEngine() *TextEngine { return sharedTextEngine() }
 
 var _ ui.FontFamilyAware = (*TextEngine)(nil)
+var _ ui.TextRasterizer = (*TextEngine)(nil)
 
 // SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
 // shaped in, "" for the system font. The name is told to C, which holds it for
@@ -186,6 +188,46 @@ func (engine *TextEngine) WidthStyle(value string, size, weight float32, italic 
 		return 0
 	}
 	return float32(line.width)
+}
+
+// RasterizeText implements ui.TextRasterizer with the same CoreText shaped line
+// the engine measures and the native label renderer draws.
+func (engine *TextEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
+	if value == "" || style.Size <= 0 || scale <= 0 || width <= 0 || height <= 0 {
+		return ui.Bitmap{}, nil
+	}
+	if width > 16384 || height > 16384 || width > int(^uint(0)>>1)/4 || height > int(^uint(0)>>1)/(width*4) {
+		return ui.Bitmap{}, fmt.Errorf("darwin: text bitmap is too large")
+	}
+
+	engine.mutex.Lock()
+	line := engine.lineStyle(value, style.Size, style.Weight, style.Italic)
+	if line != nil {
+		C.viva_text_line_retain(line)
+	}
+	engine.mutex.Unlock()
+	if line == nil {
+		return ui.Bitmap{}, fmt.Errorf("darwin: shape text for rasterization")
+	}
+	defer C.viva_text_line_release(line)
+
+	pixels := make([]byte, width*height*4)
+	status := C.viva_text_line_rasterize(
+		line,
+		C.double(style.Size),
+		C.double(scale),
+		C.size_t(width),
+		C.size_t(height),
+		C.double(style.Color.Red),
+		C.double(style.Color.Green),
+		C.double(style.Color.Blue),
+		C.double(style.Color.Alpha),
+		(*C.uchar)(unsafe.Pointer(&pixels[0])),
+	)
+	if status != 0 {
+		return ui.Bitmap{}, fmt.Errorf("darwin: rasterize text")
+	}
+	return ui.Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4}, nil
 }
 
 // Caret implements ui.TextEngine.

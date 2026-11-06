@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/bidi"
+	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/textcache"
 	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/text"
@@ -102,6 +103,9 @@ type textEngine struct {
 	family string
 	// generation moves whenever a line shapes differently from before (ui.FontFamilyAware).
 	generation atomic.Uint32
+
+	rasterMu sync.Mutex
+	raster   *directRasterizer
 }
 
 var (
@@ -120,6 +124,39 @@ func theTextEngine() (*textEngine, error) {
 }
 
 var _ ui.FontFamilyAware = (*textEngine)(nil)
+var _ ui.TextRasterizer = (*textEngine)(nil)
+
+// RasterizeText implements ui.TextRasterizer with the same DirectWrite/Direct2D
+// path the native label renderer uses.
+func (engine *textEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
+	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width*height > 16*1024*1024 ||
+		scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
+		return ui.Bitmap{}, fmt.Errorf("windows: invalid text bitmap size or scale")
+	}
+
+	engine.rasterMu.Lock()
+	defer engine.rasterMu.Unlock()
+
+	if engine.raster == nil {
+		rasterizer, err := newDirectRasterizer()
+		if err != nil {
+			return ui.Bitmap{}, err
+		}
+		engine.raster = rasterizer
+	}
+	pixels, _, err := engine.raster.rasterize(platform.TextLabel{
+		Value: value, FontSize: style.Size, Weight: style.Weight, Italic: style.Italic,
+		Color: platform.Color{
+			Red: float64(style.Color.Red), Green: float64(style.Color.Green),
+			Blue: float64(style.Color.Blue), Alpha: float64(style.Color.Alpha),
+		},
+	}, scale, width, height, false, 0)
+	if err != nil {
+		return ui.Bitmap{}, err
+	}
+	copyPixels := append([]byte(nil), pixels...)
+	return ui.Bitmap{Pix: copyPixels, Width: width, Height: height, Stride: width * 4}, nil
+}
 
 // SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
 // shaped in, "" for Segoe UI. Everything shaped with another family is forgotten.
