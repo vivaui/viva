@@ -109,7 +109,7 @@ var componentRequires = map[string][]string{
 	"chart-bar":          {"chart", "chart-area"},
 	"checkbox":           {"button"},
 	"code-diff":          {"code-diff-model", "code-editor", "code-editor-layout", "scroll-area", "textarea"},
-	"code-editor":        {"code-editor-layout", "input", "scroll-area", "textarea"},
+	"code-editor":        {"code-editor-layout", "input", "scroll-area", "textarea", "tree"},
 	"code-editor-layout": {"code-editor", "textarea"},
 	"color-picker":       {"button", "direction", "input", "popover", "slider"},
 	"combobox":           {"checkbox", "dialog", "dropdown-menu", "input", "popover", "tree"},
