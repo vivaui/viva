@@ -312,7 +312,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		compositionStart: compositionStart, compositionEnd: compositionEnd,
 		caret: caret, caretRow: caretRow, caretColumn: caretColumn,
 		showCaret:  focused && snapshot.ShowCaret && !snapshot.Disabled,
-		caretWidth: max(snapshot.CaretWidth, 1), caretColor: snapshot.CaretColor,
+		caretWidth: max(snapshot.CaretWidth, 1), caretColor: caretColor(snapshot.CaretColor, foreground),
 		language: snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
 		showWhitespace: snapshot.ShowWhitespace, showEOL: snapshot.ShowEOL, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
@@ -586,6 +586,16 @@ var (
 	codeMatchColor   = ui.Color{Red: 250.0 / 255, Green: 204.0 / 255, Blue: 21.0 / 255, Alpha: 0.30}
 	codeCurrentColor = ui.Color{Red: 250.0 / 255, Green: 204.0 / 255, Blue: 21.0 / 255, Alpha: 0.62}
 )
+
+// caretColor is the color a caret is painted in. A zero color means the caller
+// left the choice to the view, so the text color is used; callers that want a
+// caret of their own pass one. CodeDiff shares this.
+func caretColor(requested, text ui.Color) ui.Color {
+	if requested.Alpha == 0 {
+		return text
+	}
+	return requested
+}
 
 // row paints one row of the text: what goes behind it, the text, and the caret.
 func (paint *codePaint) row(index int, y float32) {

@@ -725,6 +725,49 @@ func TestCodeEditorPlaceholder(t *testing.T) {
 	}
 }
 
+// A caller that leaves CaretColor unset gets a caret in the text color. A zero
+// color is fully transparent, so a caret painted with it would be invisible:
+// every application that does not choose a caret color would lose the caret
+// while still reporting one through CaretBounds.
+func TestCodeEditorCaretIsPaintedInTheTextColorByDefault(t *testing.T) {
+	f := newCodeFixture("package main\n")
+	f.paint()
+	bounds, ok := f.editor.CaretBounds()
+	if !ok {
+		t.Fatal("focused editor has no caret")
+	}
+	// The fill is snapped to the pixel grid, so it is found by where it is and
+	// how thick it is rather than by an exact bounds match.
+	caretFills := func() []ui.Rectangle {
+		var fills []ui.Rectangle
+		for _, rect := range f.canvas.Rectangles() {
+			if rect.Bounds.Width == 1 && rect.Bounds.X == bounds.X && rect.Bounds.Height <= bounds.Height+1 {
+				fills = append(fills, rect)
+			}
+		}
+		return fills
+	}
+	fills := caretFills()
+	if len(fills) != 1 {
+		t.Fatalf("found %d fills at the caret's x %v, want one", len(fills), bounds.X)
+	}
+	if fills[0].Color.Alpha == 0 {
+		t.Fatalf("caret painted fully transparent at %+v", fills[0].Bounds)
+	}
+	if want := f.theme.Foreground; fills[0].Color != want {
+		t.Fatalf("caret color = %+v, want the text color %+v", fills[0].Color, want)
+	}
+
+	// An application that does choose a color keeps it.
+	own := ui.RGB(0, 128, 255)
+	f.snapshot.CaretColor = own
+	f.paint()
+	fills = caretFills()
+	if len(fills) != 1 || fills[0].Color != own {
+		t.Fatalf("caret fills = %+v, want one in %+v", fills, own)
+	}
+}
+
 func TestCodeEditorScrollFollowsTheCaretAndTheWheelIsKept(t *testing.T) {
 	value := strings.Repeat("line\n", 200)
 	f := newCodeFixture(value)

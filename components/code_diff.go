@@ -434,11 +434,8 @@ func (diff *CodeDiff) paintRightCaret(canvas *ui.Canvas, line int, origin float3
 	column := gridColumn(diff.lines[line], caret-lineStart, diff.tabWidth)
 	x := origin + float32(column)*diff.cellWidth
 	caretWidth := max(diff.snapshot.CaretWidth, 1)
-	caretColor := diff.snapshot.CaretColor
-	if caretColor.Alpha == 0 {
-		caretColor = diff.theme.Foreground
-	}
-	canvas.Fill(ui.Rect{X: x, Y: row.Y + (row.Height-diff.cellHeight)/2, Width: caretWidth, Height: diff.cellHeight}, caretColor)
+	tint := caretColor(diff.snapshot.CaretColor, diff.theme.Foreground)
+	canvas.Fill(ui.Rect{X: x, Y: row.Y + (row.Height-diff.cellHeight)/2, Width: caretWidth, Height: diff.cellHeight}, tint)
 	diff.caret = ui.Rect{X: x, Y: row.Y, Width: caretWidth, Height: row.Height}
 	diff.caretShown = int(diff.Geometry.OffsetY/diff.rowHeight) <= rowIndex &&
 		rowIndex < int(diff.Geometry.OffsetY/diff.rowHeight)+diff.visibleRows
