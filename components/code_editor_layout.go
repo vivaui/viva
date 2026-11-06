@@ -273,8 +273,15 @@ func (editor *CodeEditor) offsetAtColumn(row codeRow, x float32) int {
 // for the runtime to place the caret on a press or drag. It implements
 // ui.TextPlacement.
 func (editor *CodeEditor) OffsetAt(point ui.Point) (int, bool) {
+	offset, _, ok := editor.OffsetWithVirtualAt(point)
+	return offset, ok
+}
+
+// OffsetWithVirtualAt places a caret on the last-painted grid and reports the
+// number of cells beyond a hard line end. Soft-wrapped rows have no virtual space.
+func (editor *CodeEditor) OffsetWithVirtualAt(point ui.Point) (offset, virtualCells int, ok bool) {
 	if !editor.painted || !editor.fitted || len(editor.rows) == 0 || editor.cellWidth <= 0 {
-		return 0, false
+		return 0, 0, false
 	}
 	index := int((point.Y - editor.content.Y + editor.scrollY) / editor.lineHeight)
 	if point.Y < editor.content.Y-editor.scrollY {
@@ -282,9 +289,13 @@ func (editor *CodeEditor) OffsetAt(point ui.Point) (int, bool) {
 	}
 	index = max(0, min(index, len(editor.rows)-1))
 	row := editor.rows[index]
-	offset := editor.offsetAtColumn(row, (point.X-editor.content.X+editor.scrollX)/editor.cellWidth)
+	column := (point.X - editor.content.X + editor.scrollX) / editor.cellWidth
+	offset = editor.offsetAtColumn(row, column)
 	editor.setUpstream(offset, offset == int(row.end) && editor.softWrapped(index))
-	return offset, true
+	if offset == int(row.end) && !editor.softWrapped(index) {
+		virtualCells = max(0, int(min(float32(1_000_000), max(0, column+0.5)))-editor.columnOf(row, offset))
+	}
+	return offset, virtualCells, true
 }
 
 // CaretBounds is where the caret was painted, one pixel wide, in window
@@ -681,6 +692,8 @@ type gridRunSpec struct {
 	highlightBase int
 	// The bytes in [selectionStart, selectionEnd) are drawn in selectionForeground.
 	selectionStart, selectionEnd int
+	selectionRanges              []text.Span
+	selectionBase                int
 	selectionForeground          ui.Color
 }
 
@@ -692,6 +705,10 @@ type gridRunSpec struct {
 // the character before it.
 func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextRun, from, to, startColumn, endColumn int) {
 	next := 0
+	selection := 0
+	if len(spec.selectionRanges) > 0 {
+		selection = sort.Search(len(spec.selectionRanges), func(i int) bool { return spec.selectionRanges[i].End > spec.selectionBase })
+	}
 	column, offset := 0, 0
 	from = -1
 	included, ascii := true, false
@@ -724,7 +741,15 @@ func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextR
 					color.Alpha *= 0.5
 				}
 			}
-			if at >= spec.selectionStart && at < spec.selectionEnd {
+			selected := at >= spec.selectionStart && at < spec.selectionEnd
+			if len(spec.selectionRanges) > 0 {
+				absolute := spec.selectionBase + at
+				for selection < len(spec.selectionRanges) && spec.selectionRanges[selection].End <= absolute {
+					selection++
+				}
+				selected = selection < len(spec.selectionRanges) && spec.selectionRanges[selection].Start <= absolute
+			}
+			if selected {
 				color = spec.selectionForeground
 			}
 			plain := r == '\t' || r >= 0x20 && r < 0x7f && !startsWithMark(line, at+size, len(line))
