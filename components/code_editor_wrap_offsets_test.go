@@ -2,6 +2,7 @@ package components
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -71,5 +72,24 @@ func TestCodeEditorSoftWrapOffsetsReuseOneWrappedLayout(t *testing.T) {
 	}
 	if got := fixture.editor.SoftWrapOffsets(dst); !reflect.DeepEqual(got, want) {
 		t.Fatalf("cached breaks %v, want %v", got, want)
+	}
+}
+
+func TestCodeEditorSoftWrapOffsetsSkipFoldedLines(t *testing.T) {
+	value := "header alpha beta gamma delta\nhidden one two three four\nlast"
+	fixture := newCodeFixture(value)
+	fixture.bounds.Width = fixture.widthFor(10)
+	fixture.snapshot.FoldedLines = []CodeEditorFoldRange{{Header: 0, LastLine: 1}}
+	fixture.paint()
+	got := fixture.editor.SoftWrapOffsets(nil)
+	if len(got) == 0 {
+		t.Fatal("the header line should still report its own soft wraps")
+	}
+	hiddenStart := strings.Index(value, "hidden")
+	hiddenEnd := hiddenStart + len("hidden one two three four")
+	for _, offset := range got {
+		if offset >= hiddenStart && offset <= hiddenEnd {
+			t.Fatalf("folded editor reported a break at %d, inside a hidden line", offset)
+		}
 	}
 }
