@@ -412,15 +412,29 @@ func (editor *CodeEditor) Scroll(event ui.ScrollEvent) ui.EventResult {
 }
 
 func (editor *CodeEditor) clampScrollY(scroll float32) float32 {
-	most := float32(len(editor.rows))*editor.lineHeight - editor.content.Height
-	return max(0, min(scroll, most))
+	return clampScroll(scroll, editor.maxScrollY())
 }
 
 func (editor *CodeEditor) clampScrollX(scroll float32) float32 {
+	return clampScroll(scroll, editor.maxScrollX())
+}
+
+// maxScrollY is how far the text is taller than the box.
+func (editor *CodeEditor) maxScrollY() float32 {
+	return max(0, float32(len(editor.rows))*editor.lineHeight-editor.content.Height)
+}
+
+// maxScrollX is how far the text is wider than the box. Wrapped text has no
+// horizontal scrolling: every row fits the box by construction.
+func (editor *CodeEditor) maxScrollX() float32 {
 	if editor.wrap {
 		return 0
 	}
-	most := float32(editor.widest+1)*editor.cellWidth - editor.content.Width
+	return max(0, float32(editor.widest+1)*editor.cellWidth-editor.content.Width)
+}
+
+// clampScroll keeps a scroll offset inside its axis.
+func clampScroll(scroll, most float32) float32 {
 	return max(0, min(scroll, most))
 }
 
@@ -461,7 +475,7 @@ func (editor *CodeEditor) MaxScrollY() float32 {
 	if !editor.painted {
 		return 0
 	}
-	return max(0, float32(len(editor.rows))*editor.lineHeight-editor.content.Height)
+	return editor.maxScrollY()
 }
 
 // SetScrollY scrolls the next paint to y pixels from the top, as far as the text
@@ -474,6 +488,25 @@ func (editor *CodeEditor) SetScrollY(y float32) {
 		return
 	}
 	editor.scrollY = editor.clampScrollY(y)
+}
+
+// ScrollX is the horizontal pixel offset after the last paint.
+func (editor *CodeEditor) ScrollX() float32 { return editor.scrollX }
+
+// MaxScrollX is the largest horizontal pixel offset allowed by the last paint.
+func (editor *CodeEditor) MaxScrollX() float32 {
+	if !editor.painted {
+		return 0
+	}
+	return editor.maxScrollX()
+}
+
+// SetScrollX scrolls the next paint horizontally without moving the caret.
+func (editor *CodeEditor) SetScrollX(x float32) {
+	if !editor.painted {
+		return
+	}
+	editor.scrollX = editor.clampScrollX(x)
 }
 
 // YAtOffset is the vertical position of byte offset in the text, in pixels from

@@ -1,6 +1,7 @@
 package {{PACKAGE}}
 
 import (
+	"math"
 	"slices"
 	"strings"
 
@@ -28,15 +29,27 @@ type SingleSelectState struct {
 	Open                              bool
 	Active                            int
 	AllowCreate, MatchCaseInsensitive bool
-	value                             string
-	options, custom                   []SingleSelectOption
-	choices                           []SingleSelectChoice
-	validateCreate                    func(string) bool
-	revision, built                   uint64
-	lastQuery                         string
-	lastAllow, lastCase, prepared     bool
-	scroll                            MenuScroll
-	openPainted, focusInput, reveal   bool
+	// Separator, when set, makes the popup hierarchical: values are paths whose
+	// segments are split at Separator, the list shows the first segment and a
+	// row with children opens a fly-out of the next. Choosing any row, a parent
+	// included, selects the path up to it. Typing falls back to a flat list of
+	// full paths. Rows show their own segment, not the option's Label.
+	Separator       string
+	value           string
+	options, custom []SingleSelectOption
+	choices         []SingleSelectChoice
+	validateCreate  func(string) bool
+	revision, built uint64
+	// rebuilt counts list rebuilds; widest caches the widest existing label
+	// for the list and font size it was measured at.
+	rebuilt, widestRebuilt          uint64
+	widestSize, widest              float32
+	lastQuery, lastSep              string
+	tree                            HierarchyMenuState
+	treeOK                          bool
+	lastAllow, lastCase, prepared   bool
+	scroll                          MenuScroll
+	openPainted, focusInput, reveal bool
 	// hover is the row the pointer last crossed onto: hovering that row moves
 	// Active there, so the highlight and Enter name one row instead of two.
 	hover                                 pointerRow
@@ -70,6 +83,7 @@ func (s *SingleSelectState) Dismiss() {
 	s.Query = text.Editor{}
 	s.Open = false
 	s.Active = 0
+	s.tree.Reset()
 }
 
 func (s *SingleSelectState) equal(a, b string) bool {
@@ -91,7 +105,7 @@ func (s *SingleSelectState) label(value string) string {
 // values cannot be bypassed through a duplicate create row.
 func (s *SingleSelectState) Choices() []SingleSelectChoice {
 	query := strings.TrimSpace(s.Query.String())
-	if s.prepared && s.built == s.revision && query == s.lastQuery && s.lastAllow == s.AllowCreate && s.lastCase == s.MatchCaseInsensitive {
+	if s.prepared && s.built == s.revision && query == s.lastQuery && s.lastAllow == s.AllowCreate && s.lastCase == s.MatchCaseInsensitive && s.lastSep == s.Separator {
 		return s.choices
 	}
 	if query != s.lastQuery && query != "" {
@@ -136,7 +150,14 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 		}
 	}
 	s.lastQuery, s.built, s.prepared = query, s.revision, true
-	s.lastAllow, s.lastCase = s.AllowCreate, s.MatchCaseInsensitive
+	s.rebuilt++
+	s.lastAllow, s.lastCase, s.lastSep = s.AllowCreate, s.MatchCaseInsensitive, s.Separator
+	s.treeOK = false
+	if s.Separator != "" && query == "" {
+		s.treeOK = s.tree.Build(s.Separator, s.value, s.equal, len(s.choices), func(i int) HierarchyMenuItem {
+			return HierarchyMenuItem{Value: s.choices[i].Value, Disabled: s.choices[i].Disabled}
+		})
+	}
 	s.scroll.Offset, s.reveal = 0, true
 	// A rebuilt list is a new set of rows: let the pointer adopt the row it is
 	// over again, or a pointer parked on a row would lose it to the reset above.
@@ -145,8 +166,20 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 }
 
 // Choose always selects a single value, including when the row was selected.
+//
+// In a hierarchical list index is the number of the row's identity: its level
+// shifted left by 16 plus its row, which is the plain row number in the first
+// level and in a flat list.
 func (s *SingleSelectState) Choose(index int) bool {
 	choices := s.Choices()
+	if s.treeActive() {
+		value, ok := s.tree.Choose(index)
+		if ok {
+			s.SetValue(value)
+			s.Open, s.focusInput = false, true
+		}
+		return ok
+	}
 	if index < 0 || index >= len(choices) || choices[index].Disabled {
 		return false
 	}
@@ -196,6 +229,19 @@ func (s *SingleSelectState) Key(event ui.KeyEvent) ui.EventResult {
 		return ui.EventResult{Handled: event.Key == ui.KeyEnter}
 	}
 	choices := s.Choices()
+	if s.treeActive() {
+		result := s.tree.Key(event, s.Open)
+		if result.Opened {
+			s.Open = true
+		}
+		if result.Picked {
+			s.SetValue(result.Chosen)
+			s.Open, s.focusInput = false, true
+		}
+		if result.Handled {
+			return result.EventResult
+		}
+	}
 	switch event.Key {
 	case ui.KeyDown, ui.KeyUp:
 		if !s.Open {
@@ -245,9 +291,18 @@ func (s *SingleSelectState) Key(event ui.KeyEvent) ui.EventResult {
 	return ui.EventResult{}
 }
 
-func (s *SingleSelectState) Wheel(event ui.ScrollEvent) bool { return s.scroll.Wheel(event) }
+// Wheel scrolls the list, or in a hierarchical one the panel under the pointer.
+func (s *SingleSelectState) Wheel(event ui.ScrollEvent) bool {
+	if s.treeActive() {
+		return s.tree.Wheel(event)
+	}
+	return s.scroll.Wheel(event)
+}
 
 func (s *SingleSelectState) Pointer(event ui.PointerEvent) ui.EventResult {
+	if s.treeActive() {
+		return s.tree.Pointer(event)
+	}
 	if s.scroll.BarID.IsZero() || event.Target != s.scroll.BarID && !s.scroll.Dragging() {
 		return ui.EventResult{}
 	}
@@ -266,6 +321,26 @@ type SingleSelectOptions struct {
 	Layer             uint16
 	Disabled, Invalid bool
 	MaxRows           int
+}
+
+// popupWidth is the width that shows every label of choices untruncated.
+func (s *SingleSelectState) popupWidth(canvas *ui.Canvas, theme ui.Theme, choices []SingleSelectChoice, o SingleSelectOptions) float32 {
+	size := theme.Metrics.FontSizeM
+	if s.widestRebuilt != s.rebuilt || s.widestSize != size {
+		s.widest = 0
+		for _, choice := range choices {
+			if !choice.Create {
+				s.widest = max(s.widest, canvas.TextWidthWeight(choice.Label, size, ui.WeightRegular))
+			}
+		}
+		s.widestRebuilt, s.widestSize = s.rebuilt, size
+	}
+	widest := s.widest
+	if len(choices) > 0 && choices[0].Create {
+		widest = max(widest, canvas.TextWidthWeight(o.CreatePrefix+choices[0].Label, size, ui.WeightRegular))
+	}
+	// A row spends 8 on the left and 30 on the check before the menu padding.
+	return float32(math.Ceil(float64(widest))) + 46 + 1
 }
 
 // SingleSelectLayout is where the control, its native input and its popup were
@@ -358,25 +433,30 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 	if !open {
 		return layout
 	}
+	if s.treeActive() {
+		layout.Popup = PaintHierarchyMenu(canvas, theme, bounds, &s.tree, HierarchyMenuOptions{
+			OptionIDs: o.OptionIDs, ScrollID: o.ScrollID, Scope: o.Scope, Layer: o.Layer, Label: o.Label,
+			EmptyLabel: o.EmptyLabel, Viewport: o.Viewport, MaxRows: o.MaxRows,
+		})
+		return layout
+	}
 	rows := o.MaxRows
 	if rows <= 0 {
 		rows = 7
 	}
 	height := float32(max(1, min(len(choices), rows))*32 + 8)
 	layout.Popup = ui.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 6, Width: bounds.Width, Height: height}
-	if o.Viewport.Height > 0 {
-		top, bottom := o.Viewport.Y+1, o.Viewport.Y+o.Viewport.Height-1
-		if layout.Popup.Y+layout.Popup.Height > bottom {
-			// Prefer the room above the field, but only when it holds a usable
-			// row; otherwise the list scrolls inside what is left below.
-			if above := bounds.Y - 6 - top; above >= min(height, 40) {
-				layout.Popup.Height = min(height, above)
-				layout.Popup.Y = bounds.Y - layout.Popup.Height - 6
-			}
+	// Like Radix's popper content, the list is at least as wide as the field and
+	// grows to its longest label so options that share a long prefix stay
+	// distinguishable, until the viewport stops it.
+	if want := s.popupWidth(canvas, theme, choices, o); want > layout.Popup.Width {
+		layout.Popup.Width = want
+		if o.Viewport.Width > 0 {
+			layout.Popup.Width = min(want, max(o.Viewport.Width-2, bounds.Width))
+			layout.Popup.X = max(o.Viewport.X+1, min(layout.Popup.X, o.Viewport.X+o.Viewport.Width-1-layout.Popup.Width))
 		}
-		layout.Popup.Y = max(top, min(layout.Popup.Y, bottom-1))
-		layout.Popup.Height = max(1, min(layout.Popup.Height, bottom-layout.Popup.Y))
 	}
+	placePopupBelow(&layout.Popup, bounds, height, o.Viewport)
 	if floating {
 		canvas.PushOverlayClip(o.Viewport)
 		defer canvas.PopOverlayClip()
@@ -437,4 +517,11 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 	}
 	s.reveal = false
 	return layout
+}
+
+// treeActive reports whether the popup is the hierarchical one: a separator is
+// set, no search text is typed, and every value fits the supported depth.
+func (s *SingleSelectState) treeActive() bool {
+	s.Choices()
+	return s.treeOK && s.Separator != "" && s.lastQuery == ""
 }
