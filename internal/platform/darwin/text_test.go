@@ -336,6 +336,29 @@ func TestNativeTextInputCarriesAltSendsEscape(t *testing.T) {
 	}
 }
 
+// A focused field has no editing command for the function keys, so they must
+// reach the application as Windows and Linux deliver them; an input method that
+// converts on F6-F10 keeps them for as long as it composes.
+func TestNativeFocusedTextInputDeliversFunctionKeysToTheApplication(t *testing.T) {
+	interpret := func(enabled, composing bool, key int) bool {
+		return nativeTextInputShouldInterpretKey(enabled, false, composing, key)
+	}
+	for key := input.KeyF1; key <= input.KeyF12; key++ {
+		if interpret(true, false, int(key)) {
+			t.Errorf("F%d went to the text system instead of the application", int(key)-int(input.KeyF1)+1)
+		}
+		if !interpret(true, true, int(key)) {
+			t.Errorf("F%d was taken from an input method that is composing", int(key)-int(input.KeyF1)+1)
+		}
+	}
+	if interpret(false, false, int(input.KeyF1)) {
+		t.Error("a function key was sent to the text system by a field that is not focused")
+	}
+	if !interpret(true, false, int(input.KeyLeft)) {
+		t.Error("an arrow key stopped going to the text system")
+	}
+}
+
 func TestNativeTextInputCarriesFontWeight(t *testing.T) {
 	native := makeNativeTextInput(TextInput{Weight: ui.WeightSemibold}, nil)
 	if float32(native.font_weight) != ui.WeightSemibold {
