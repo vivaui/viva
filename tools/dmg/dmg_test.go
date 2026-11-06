@@ -161,6 +161,15 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 	}
 }
 
+func TestDetachAlreadyUnmountedVolume(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("hdiutil is a macOS tool")
+	}
+	if err := detach(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDefaultBackgroundIsTheWindowsSizeAndHasAnArrowBetweenTheIcons(t *testing.T) {
 	layout, err := Resolve(Config{})
 	if err != nil {
