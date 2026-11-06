@@ -57,11 +57,16 @@ type textChange struct {
 // its mutators, String is not safe for concurrent use: it caches the converted
 // text.
 type Editor struct {
-	runes       []rune
-	anchor      int
-	caret       int
-	composition Range
-	composing   bool
+	runes               []rune
+	anchor              int
+	caret               int
+	composition         Range
+	composing           bool
+	compositionOriginal []rune
+	compositionBase     string
+	// compositionBaseValid says compositionBase holds the built value. The value
+	// itself may legitimately be empty, so it cannot serve as its own sentinel.
+	compositionBaseValid bool
 
 	// accept and maxRunes constrain what an edit may leave in the text; see
 	// Restrict.
@@ -106,11 +111,32 @@ func NewEditor(initial string) *Editor {
 // String returns the current UTF-8 text. The conversion is cached until the
 // text next changes, so repeated calls between edits allocate nothing.
 func (editor *Editor) String() string {
+	if !editor.composing {
+		editor.compositionOriginal = nil
+		editor.compositionBase = ""
+		editor.compositionBaseValid = false
+	}
 	if !editor.textValid {
 		editor.text = string(editor.runes)
 		editor.textValid = true
 	}
 	return editor.text
+}
+
+// CommittedString returns the text before marked input until the IME commits it.
+func (editor *Editor) CommittedString() string {
+	if editor.composing {
+		if !editor.compositionBaseValid {
+			committed := make([]rune, 0, len(editor.runes)-editor.composition.End+editor.composition.Start+len(editor.compositionOriginal))
+			committed = append(committed, editor.runes[:editor.composition.Start]...)
+			committed = append(committed, editor.compositionOriginal...)
+			committed = append(committed, editor.runes[editor.composition.End:]...)
+			editor.compositionBase = string(committed)
+			editor.compositionBaseValid = true
+		}
+		return editor.compositionBase
+	}
+	return editor.String()
 }
 
 // Restrict limits what edits may put into the editor: accept reports whether a
@@ -227,12 +253,18 @@ func (editor *Editor) Paste(value string) {
 // SetMarkedText replaces the current composition or selection with marked
 // text. selected is relative to the marked text, matching native IME APIs.
 func (editor *Editor) SetMarkedText(value string, selected Range) {
+	wasComposing := editor.composing
 	target := editor.Selection()
-	if editor.composing {
+	if wasComposing {
 		target = editor.composition
 	}
 	before := editor.selectionState()
 	change := editor.replace(target, value, false)
+	if !wasComposing {
+		editor.compositionOriginal = change.removed
+		editor.compositionBase = ""
+		editor.compositionBaseValid = false
+	}
 	inserted := len(change.inserted)
 	if inserted == 0 && value != "" {
 		// Everything the IME proposed is unacceptable here (pinyin in a digit
