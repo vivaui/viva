@@ -58,7 +58,7 @@ func scenery(snapshot app.Snapshot) ([]render.Rectangle, []platform.TextLabel, *
 	if editor := snapshot.Editor; editor != nil {
 		input = &platform.TextInput{
 			X: editor.Bounds.X, Y: editor.Bounds.Y, Width: editor.Bounds.Width, Height: editor.Bounds.Height,
-			FontSize: editor.FontSize, Weight: editor.Weight, Layer: editor.Layer, Multiline: editor.Multiline, Secure: editor.Secure,
+			FontSize: editor.FontSize, Weight: editor.Weight, Alignment: editor.Alignment, Layer: editor.Layer, Multiline: editor.Multiline, Secure: editor.Secure,
 			Terminal:           editor.Terminal,
 			HideNativeOverlays: editor.HideNativeOverlays,
 			MonoFace:           editor.MonoFace,

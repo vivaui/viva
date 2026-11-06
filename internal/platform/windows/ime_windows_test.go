@@ -103,14 +103,21 @@ func TestWindowsTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testin
 			if label := state.textLabels[0]; label.X != testcase.origin {
 				t.Fatalf("glyph origin = %v, want %v", label.X, testcase.origin)
 			}
-			if caret := state.textRectangles[1].Bounds.X; caret != testcase.origin+30 {
-				t.Fatalf("caret = %v, want %v", caret, testcase.origin+30)
+			wantCaret := platform.TextCaretInsideField(testcase.alignment, inputState.X, inputState.Width, testcase.origin+30, textCaretWidth)
+			if caret := state.textRectangles[1].Bounds.X; caret != wantCaret {
+				t.Fatalf("caret = %v, want %v", caret, wantCaret)
+			}
+			if caret := state.textRectangles[1].Bounds; caret.X+caret.Width > inputState.X+inputState.Width || caret.X >= inputState.X+inputState.Width {
+				t.Fatalf("right-aligned caret is clipped: %+v within X=%v width=%v", caret, inputState.X, inputState.Width)
 			}
 			if underline := state.textRectangles[2].Bounds.X; underline != testcase.origin {
 				t.Fatalf("composition underline = %v, want %v", underline, testcase.origin)
 			}
-			if x, _, _ := state.caretCell(); x != testcase.origin+30 {
-				t.Fatalf("IME candidate x = %v, want %v", x, testcase.origin+30)
+			if x, _, _ := state.caretCell(); x != wantCaret {
+				t.Fatalf("IME candidate x = %v, want %v", x, wantCaret)
+			}
+			if x := state.alignedCaretX(1); x != testcase.origin+10 {
+				t.Fatalf("IME query at index 1 = %v, want %v", x, testcase.origin+10)
 			}
 			event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: testcase.origin + 12, Y: 35})
 			if err != nil || !handled || event.Selection != (text.Range{Start: 1, End: 1}) {

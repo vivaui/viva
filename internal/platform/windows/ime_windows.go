@@ -164,7 +164,7 @@ func (state *windowState) updateTextVisuals() error {
 		}
 		if state.caretVisible {
 			state.textRectangles[base+1] = render.Rectangle{
-				Bounds: scene.Rect{X: originX + caretX, Y: caretTop, Width: textCaretWidth, Height: caretHeight},
+				Bounds: scene.Rect{X: platform.TextCaretInsideField(input.Alignment, input.X, input.Width, originX+caretX, textCaretWidth), Y: caretTop, Width: textCaretWidth, Height: caretHeight},
 				Color:  caretColor,
 				Layer:  input.Layer,
 			}
@@ -722,9 +722,15 @@ func (state *windowState) caretCell() (x, y, height float32) {
 		// The field laid its rows out itself: this is where it painted its caret.
 		return input.CaretX, input.CaretY, input.CaretHeight
 	}
+	return state.alignedCaretX(state.textCaretIndex()), input.Y, input.Height
+}
+
+func (state *windowState) alignedCaretX(index int) float32 {
+	input := &state.textInput
 	line := state.layoutLine()
 	inset := platform.TextAlignmentInset(input.Alignment, input.Width, state.lineWidth(line, input.FontSize), input.Terminal, input.Placed)
-	return input.X + inset + state.textCaret(input.FontSize, state.textCaretIndex()) - state.textScroll, input.Y, input.Height
+	caret := input.X + inset + state.textCaret(input.FontSize, index) - state.textScroll
+	return platform.TextCaretInsideField(input.Alignment, input.X, input.Width, caret, textCaretWidth)
 }
 
 // compositionTarget is the clause the input method is converting, as runes of the

@@ -15,3 +15,10 @@ func TextAlignmentInset(alignment ui.Alignment, fieldWidth, lineWidth float32, t
 		return 0
 	}
 }
+
+func TextCaretInsideField(alignment ui.Alignment, fieldX, fieldWidth, caretX, strokeWidth float32) float32 {
+	if alignment != ui.AlignRight {
+		return caretX
+	}
+	return min(caretX, fieldX+max(0, fieldWidth-strokeWidth))
+}

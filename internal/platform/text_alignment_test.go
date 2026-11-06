@@ -30,3 +30,19 @@ func TestTextAlignmentInsetKeepsFittedTextAndPreservesOtherInputs(t *testing.T) 
 		})
 	}
 }
+
+func TestTextCaretInsideFieldKeepsRightAlignedStrokeVisible(t *testing.T) {
+	for _, testcase := range []struct {
+		alignment ui.Alignment
+		x, want   float32
+	}{
+		{ui.AlignLeft, 130, 130},
+		{ui.AlignCenter, 85, 85},
+		{ui.AlignRight, 130, 128},
+		{ui.AlignRight, 125, 125},
+	} {
+		if got := TextCaretInsideField(testcase.alignment, 10, 120, testcase.x, 2); got != testcase.want {
+			t.Errorf("caret at %v with alignment %v = %v, want %v", testcase.x, testcase.alignment, got, testcase.want)
+		}
+	}
+}

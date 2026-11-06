@@ -332,6 +332,12 @@ int main(void) {
             NSRect candidate = [view firstRectForCharacterRange:NSMakeRange(2, 0) actualRange:&actual];
             assert(NSEqualRanges(actual, NSMakeRange(2, 0)));
             assert(fabs(NSMinX(candidate) - NSMinX(expectedScreen)) < 0.01);
+            if (alignment == 2) {
+                NSRect endCandidate = [view firstRectForCharacterRange:NSMakeRange(3, 0) actualRange:NULL];
+                NSRect field = [candidateWindow convertRectToScreen:[view convertRect:
+                    NSMakeRect(inputFrame.origin.x, view.bounds.size.height - NSMaxY(inputFrame), inputFrame.size.width, inputFrame.size.height) toView:nil]];
+                assert(NSMinX(endCandidate) < NSMaxX(field));
+            }
         }
         [candidateWindow setContentView:nil];
         [candidateWindow release];

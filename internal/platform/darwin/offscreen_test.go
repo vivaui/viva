@@ -4,8 +4,10 @@ package darwin
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
@@ -270,6 +272,53 @@ func TestOffscreenEditorAlignmentPreservesDefaultTerminalAndOverlongPixels(t *te
 	input.Secure = true
 	if first, second := render("secret", false, ui.AlignRight), render("foobar", false, ui.AlignRight); !bytes.Equal(first, second) {
 		t.Fatal("aligned secure input exposed or measured its raw characters")
+	}
+}
+
+func TestOffscreenRightAlignedEndCaretRemainsVisible(t *testing.T) {
+	for _, scale := range []float64{1, 2} {
+		for _, value := range []string{"", "abc", "A中B"} {
+			t.Run(fmt.Sprintf("%gx/%q", scale, value), func(t *testing.T) {
+				offscreen, err := NewOffscreen(180, 80, scale, Color{Alpha: 1})
+				if err != nil {
+					t.Skipf("no Metal device: %v", err)
+				}
+				defer offscreen.Close()
+				input := &TextInput{
+					X: 20, Y: 20, Width: 120, Height: 32, FontSize: 18, Alignment: ui.AlignRight,
+					Color:   platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+					State:   TextState{Value: value, Selection: text.Range{Start: utf8.RuneCountInString(value), End: utf8.RuneCountInString(value)}},
+					OnEvent: func(TextEvent) (TextState, error) { return TextState{}, nil },
+				}
+				if err := offscreen.Set(nil, nil, input); err != nil {
+					t.Fatal(err)
+				}
+				visible, width, _, err := offscreen.Render()
+				if err != nil {
+					t.Fatal(err)
+				}
+				input.HideNativeOverlays = true
+				if err := offscreen.Set(nil, nil, input); err != nil {
+					t.Fatal(err)
+				}
+				hidden, _, _, err := offscreen.Render()
+				if err != nil {
+					t.Fatal(err)
+				}
+				changed := 0
+				for y := int(20 * scale); y < int(52*scale); y++ {
+					for x := int(20 * scale); x < int(140*scale); x++ {
+						index := (y*width + x) * 4
+						if !bytes.Equal(visible[index:index+4], hidden[index:index+4]) {
+							changed++
+						}
+					}
+				}
+				if changed == 0 {
+					t.Fatal("right-aligned end caret is completely clipped")
+				}
+			})
+		}
 	}
 }
 

@@ -196,8 +196,9 @@ func TestLinuxTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testing.
 			if label := frame.TextLabels[len(frame.TextLabels)-1]; label.X != testcase.origin {
 				t.Fatalf("glyph origin = %v, want %v", label.X, testcase.origin)
 			}
-			if caret := state.caret.Bounds.X; caret != testcase.origin+30 {
-				t.Fatalf("caret = %v, want %v", caret, testcase.origin+30)
+			wantCaret := platform.TextCaretInsideField(testcase.alignment, inputState.X, inputState.Width, testcase.origin+30, linuxTextCaretWidth)
+			if caret := state.caret.Bounds.X; caret != wantCaret {
+				t.Fatalf("caret = %v, want %v", caret, wantCaret)
 			}
 			if underline := frame.Rectangles[len(frame.Rectangles)-1].Bounds.X; underline != testcase.origin {
 				t.Fatalf("composition underline = %v, want %v", underline, testcase.origin)
@@ -209,6 +210,31 @@ func TestLinuxTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testing.
 				t.Fatalf("aligned click: caret=%d handled=%v err=%v", editor.Caret(), handled, err)
 			}
 		})
+	}
+}
+
+func TestLinuxRightToLeftAlignmentUsesLineWidthNotLogicalEndCaret(t *testing.T) {
+	const value = "אבג"
+	engine := ui.ReferenceTextEngine()
+	width := engine.Width(value, 20, 0)
+	if caret := engine.Caret(value, 20, 0, len(value)); caret >= width/2 {
+		t.Fatalf("fixture is not an RTL end-caret: caret=%v width=%v", caret, width)
+	}
+	for _, alignment := range []ui.Alignment{ui.AlignCenter, ui.AlignRight} {
+		inputState := platform.TextInput{
+			X: 10, Y: 20, Width: 120, Height: 32, FontSize: 20, Alignment: alignment,
+			State:   platform.TextState{Value: value, Selection: text.Range{Start: 3, End: 3}},
+			OnEvent: func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
+		}
+		state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: engine}
+		frame, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := inputState.X + platform.TextAlignmentInset(alignment, inputState.Width, width, false, false)
+		if got := frame.TextLabels[len(frame.TextLabels)-1].X; got < want-0.1 || got > want+0.1 {
+			t.Fatalf("RTL glyph origin = %v, want %v (line width %v)", got, want, width)
+		}
 	}
 }
 

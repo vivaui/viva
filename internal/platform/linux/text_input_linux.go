@@ -297,10 +297,7 @@ func (state *linuxTextInput) rebuild() error {
 	if err != nil {
 		return err
 	}
-	textWidth, err := prefixWidth(first + len(values))
-	if err != nil {
-		return err
-	}
+	textWidth := state.engine.Width(shown, inputState.FontSize, inputState.Weight)
 	state.scroll = 0
 	if !inputState.Placed {
 		state.scroll = state.scrollFor(inputState.Width, caretX, textWidth)
@@ -334,7 +331,7 @@ func (state *linuxTextInput) rebuild() error {
 			Layer:  inputState.Layer,
 		}
 		state.caret = render.Rectangle{
-			Bounds: scene.Rect{X: originX + caretX, Y: caretTop, Width: linuxTextCaretWidth, Height: caretHeight},
+			Bounds: scene.Rect{X: platform.TextCaretInsideField(inputState.Alignment, inputState.X, inputState.Width, originX+caretX, linuxTextCaretWidth), Y: caretTop, Width: linuxTextCaretWidth, Height: caretHeight},
 			Color:  scene.Color{Red: float32(inputState.Color.Red), Green: float32(inputState.Color.Green), Blue: float32(inputState.Color.Blue), Alpha: float32(inputState.Color.Alpha)},
 			Layer:  inputState.Layer,
 		}

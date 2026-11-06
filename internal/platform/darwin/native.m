@@ -1977,6 +1977,13 @@ static CGFloat viva_editor_alignment_inset(viva_editor_line line, CGFloat width,
     return alignment == 1 ? free / 2 : free;
 }
 
+static CGFloat viva_editor_visible_caret(CGFloat offset, CGFloat width, int alignment, BOOL terminal) {
+    if (alignment != 2 || terminal) {
+        return offset;
+    }
+    return MIN(offset, MAX(0, width - 2));
+}
+
 // viva_baseline is the height of the baseline above the bottom of a label's texture,
 // in points. The baseline is the same row every backend uses (platform.LabelBaseline):
 // a fixed distance below the middle of the line box, on a whole physical pixel, so
@@ -2108,7 +2115,7 @@ static id<MTLTexture> viva_text_input_texture(
             CGContextFillRect(context, CGRectMake(inset + spans[2 * piece], MAX(baseline - descent - 2.0, 0.0), MAX(1.0, spans[2 * piece + 1]), 1.0));
         }
     } else if (selected.length == 0 && caretVisible && !terminal && !hideNativeOverlays) {
-        CGFloat caret = inset + viva_text_offset(line, selected.location, terminal);
+        CGFloat caret = viva_editor_visible_caret(inset + viva_text_offset(line, selected.location, terminal), frameSize.width, alignment, terminal);
         NSColor *caretColor = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
         CGContextSetRGBFillColor(
             context,
@@ -5164,8 +5171,10 @@ static void viva_set_secure_event_input(BOOL on) {
     CGFloat offset = 0;
     viva_editor_line line = [self newTextLine];
     if (viva_editor_line_made(line)) {
-        offset = viva_editor_alignment_inset(line, _textFrame.size.width, _textAlignment, _textTerminal) +
-            [self textOffsetForIndex:safe.location line:line];
+        offset = viva_editor_visible_caret(
+            viva_editor_alignment_inset(line, _textFrame.size.width, _textAlignment, _textTerminal) +
+                [self textOffsetForIndex:safe.location line:line],
+            _textFrame.size.width, _textAlignment, _textTerminal);
         viva_editor_line_free(line);
     }
     NSRect local = NSMakeRect(
