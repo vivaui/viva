@@ -6,8 +6,61 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/internal/input"
+	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
+
+type rowPlacement struct{}
+
+func (rowPlacement) OffsetAt(point ui.Point) (int, bool) {
+	if point.X < 10 {
+		return 1, true
+	}
+	return 4, true
+}
+
+func (rowPlacement) CaretBounds() (ui.Rect, bool) { return ui.Rect{}, false }
+
+func TestPlacedEditorPointerSelectsCanvasOffsets(t *testing.T) {
+	var canvas ui.Canvas
+	editor := text.NewEditor("a中b")
+	config := Config{
+		Paint: func(canvas *ui.Canvas, _ ui.Size) {
+			canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 100, Height: 40}, "source", ui.HitOptions{
+				Role: ui.RoleTextField, Value: editor.String(), Multiline: true,
+				HideNativeOverlays: true, Placement: rowPlacement{},
+			})
+		},
+		TextInput: EditorInputs(func(id ui.ID) (*text.Editor, bool) { return editor, id == ui.Item(1) }),
+	}
+	painter := newPainter(&canvas, &config)
+	painter.width, painter.height = 100, 40
+	painter.repaint()
+	painter.pointer(ui.PointerEvent{Kind: ui.PointerDown, Button: ui.PointerButtonPrimary, X: 5, Y: 10})
+	if editor.Selection() != (text.Range{Start: 1, End: 1}) || !painter.textInput.Placed || !painter.textInput.HideNativeOverlays {
+		t.Fatalf("click must place the canvas caret, got selection %+v, input %+v", editor.Selection(), painter.textInput)
+	}
+	painter.pointer(ui.PointerEvent{Kind: ui.PointerMove, X: 30, Y: 10})
+	if editor.Selection() != (text.Range{Start: 1, End: 2}) {
+		t.Fatalf("drag must extend by rune, got %+v", editor.Selection())
+	}
+	painter.pointer(ui.PointerEvent{Kind: ui.PointerUp, Button: ui.PointerButtonPrimary, X: 30, Y: 10})
+	if editor.Selection() != (text.Range{Start: 1, End: 2}) {
+		t.Fatalf("release must retain selection, got %+v", editor.Selection())
+	}
+}
+
+func TestPlacedRowKeysBelongToCanvas(t *testing.T) {
+	for _, key := range []input.Key{input.KeyUp, input.KeyDown, input.KeyHome, input.KeyEnd, input.KeyPageUp, input.KeyPageDown} {
+		if !placedRowKey(TextInput{Placed: true}, key, 0) || placedRowKey(TextInput{}, key, 0) {
+			t.Fatalf("row key %v must be routed only for placed editors", key)
+		}
+	}
+	if !placedRowKey(TextInput{Placed: true}, input.KeyLeft, ui.ModifierMeta) || placedRowKey(TextInput{Placed: true}, input.KeyLeft, 0) {
+		t.Fatal("only whole-line left navigation belongs to the placed editor")
+	}
+}
 
 func TestPointerFocusMatchesNativeWithoutRing(t *testing.T) {
 	var canvas ui.Canvas

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/text"
@@ -31,6 +32,61 @@ func newCodeFixture(value string) *codeFixture {
 func (f *codeFixture) paint() {
 	f.canvas.Reset()
 	f.editor.Paint(&f.canvas, f.theme, f.bounds, f.snapshot)
+}
+
+func TestCodeEditorCaretBlinksByDefaultAndStopsWhenInactive(t *testing.T) {
+	fixture := newCodeFixture("hello")
+	var now time.Duration
+	fixture.canvas.SetClock(func() time.Duration { return now })
+	frame := func(at time.Duration) (bool, bool) {
+		now = at
+		fixture.canvas.BeginFrame()
+		fixture.paint()
+		fixture.canvas.EndFrame()
+		_, scheduled := fixture.canvas.NextFrame()
+		return len(fixture.fills(fixture.theme.Foreground)) > 0, scheduled
+	}
+	if lit, scheduled := frame(0); !lit || !scheduled {
+		t.Fatal("a focused caret must start lit and schedule its first turnover")
+	}
+	if lit, scheduled := frame(CaretBlinkHalf + time.Millisecond); lit || !scheduled {
+		t.Fatal("a focused caret must turn dark and schedule its next turnover")
+	}
+	fixture.snapshot.Value = "hello!"
+	if lit, _ := frame(CaretBlinkHalf + 2*time.Millisecond); !lit {
+		t.Fatal("editing without moving the caret must restart it lit")
+	}
+	if lit, _ := frame(2*CaretBlinkHalf + 3*time.Millisecond); lit {
+		t.Fatal("an unchanged caret must turn dark again")
+	}
+	fixture.snapshot.Caret = 2
+	if lit, _ := frame(2*CaretBlinkHalf + 4*time.Millisecond); !lit {
+		t.Fatal("moving the caret must immediately light it")
+	}
+	fixture.snapshot.Focused = false
+	if lit, scheduled := frame(2*CaretBlinkHalf + 5*time.Millisecond); lit || scheduled {
+		t.Fatal("an unfocused caret must stop requesting frames")
+	}
+	fixture.snapshot.Focused = true
+	if lit, _ := frame(2*CaretBlinkHalf + 6*time.Millisecond); !lit {
+		t.Fatal("regaining focus must restart the caret lit")
+	}
+	if lit, scheduled := frame(CaretBlinkSpan + 3*CaretBlinkHalf); !lit || scheduled {
+		t.Fatal("a caret left alone must settle lit without idle frames")
+	}
+}
+
+func BenchmarkCodeEditorPaintBlink(b *testing.B) {
+	fixture := newCodeFixture("hello\nworld")
+	var now time.Duration
+	fixture.canvas.SetClock(func() time.Duration { return now })
+	b.ReportAllocs()
+	for index := 0; index < b.N; index++ {
+		now += CaretBlinkHalf
+		fixture.canvas.BeginFrame()
+		fixture.paint()
+		fixture.canvas.EndFrame()
+	}
 }
 
 // cell is the size of one character cell and the height of a row.
@@ -725,6 +781,21 @@ func TestCodeEditorPlaceholder(t *testing.T) {
 	}
 }
 
+func TestCodeEditorCaretDefaultsToReadableWidthWithoutOverridingHairline(t *testing.T) {
+	fixture := newCodeFixture("hello")
+	fixture.paint()
+	defaultCaret, ok := fixture.editor.CaretBounds()
+	if !ok || defaultCaret.Width <= 1 {
+		t.Fatalf("default caret should not be a hairline: %+v, shown=%t", defaultCaret, ok)
+	}
+	fixture.snapshot.CaretWidth = 1
+	fixture.paint()
+	hairline, ok := fixture.editor.CaretBounds()
+	if !ok || hairline.Width != 1 {
+		t.Fatalf("explicit hairline should remain available: %+v, shown=%t", hairline, ok)
+	}
+}
+
 // A caller that leaves CaretColor unset gets a caret in the text color. A zero
 // color is fully transparent, so a caret painted with it would be invisible:
 // every application that does not choose a caret color would lose the caret
@@ -741,7 +812,7 @@ func TestCodeEditorCaretIsPaintedInTheTextColorByDefault(t *testing.T) {
 	caretFills := func() []ui.Rectangle {
 		var fills []ui.Rectangle
 		for _, rect := range f.canvas.Rectangles() {
-			if rect.Bounds.Width == 1 && rect.Bounds.X == bounds.X && rect.Bounds.Height <= bounds.Height+1 {
+			if rect.Bounds.Width == bounds.Width && rect.Bounds.X == bounds.X && rect.Bounds.Height <= bounds.Height+1 {
 				fills = append(fills, rect)
 			}
 		}

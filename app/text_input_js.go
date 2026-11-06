@@ -34,13 +34,16 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 	return func(context web.TextInputContext) *platform.TextInput {
 		active = provider(TextInputContext{
 			ID: context.ID, Bounds: context.Bounds, Multiline: context.Multiline,
-			TextBounds: context.TextBounds, FontSize: context.FontSize, TextColor: context.TextColor,
+			TextBounds: context.TextBounds, FontSize: context.FontSize, FontWeight: context.FontWeight,
+			TextColor: context.TextColor, HideNativeOverlays: context.HideNativeOverlays,
 		})
 		if active == nil {
 			return nil
 		}
 		native.Target, native.Multiline = context.ID, context.Multiline
-		native.FontSize, native.NavigationKeys = active.FontSize, active.NavigationKeys
+		native.FontSize, native.Weight = active.FontSize, active.Weight
+		native.NavigationKeys = active.NavigationKeys
+		native.HideNativeOverlays = active.HideNativeOverlays || context.HideNativeOverlays
 		native.X, native.Y = active.Bounds.X, active.Bounds.Y
 		native.Width, native.Height = active.Bounds.Width, active.Bounds.Height
 		native.Color = platform.Color{

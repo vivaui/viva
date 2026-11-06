@@ -784,6 +784,14 @@ int viva_text_input_should_interpret_key(int enabled, int multiline, int composi
     if (enabled == 0 || key == VIVA_KEY_TAB || (key == VIVA_KEY_ESCAPE && composing == 0)) {
         return 0;
     }
+    // The function keys belong to the application, as they do on Windows and
+    // Linux: a focused field has no editing command for F1-F12, so sending them
+    // to the text system only drops them. An input method that does use them
+    // (a Japanese conversion on F6-F10) holds the keyboard while it composes, so
+    // they stay with the text system for as long as it does.
+    if (composing == 0 && key >= VIVA_KEY_F1 && key <= VIVA_KEY_F1 + 11) {
+        return 0;
+    }
     return key != VIVA_KEY_ENTER || multiline != 0 || composing != 0;
 }
 

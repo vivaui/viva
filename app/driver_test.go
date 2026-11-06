@@ -277,6 +277,56 @@ func TestDriverEditsAFocusedTextFieldThroughTheTextSystem(t *testing.T) {
 	}
 }
 
+func TestDriverFunctionKeysReachApplicationWhileTextInputIsFocused(t *testing.T) {
+	editor := text.NewEditor("content")
+	var keys []ui.KeyEvent
+	config := Config{Title: "function-keys", Width: 300, Height: 100}
+	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+		components.PaintInput(canvas, ui.LightTheme(), ui.Rect{X: 10, Y: 10, Width: 200, Height: 30}, components.InputSnapshot{
+			ID: ui.Item(1), Label: "Text", Value: editor.String(),
+		})
+	}
+	config.TextInput = func(TextInputContext) *TextInput { return &TextInput{Editor: editor} }
+	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
+		keys = append(keys, event)
+		return ui.EventResult{Handled: true}
+	}
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(50, 25); err != nil {
+		t.Fatal(err)
+	}
+	for key := ui.KeyF1; key <= ui.KeyF12; key++ {
+		modifiers := ui.Modifiers(0)
+		if key == ui.KeyF2 {
+			modifiers = ui.ModifierControl
+		} else if key == ui.KeyF3 {
+			modifiers = ui.ModifierShift
+		}
+		if err := driver.Key(key, modifiers); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(keys) != 12 || editor.String() != "content" {
+		t.Fatalf("focused function keys = %+v, text %q", keys, editor.String())
+	}
+	for index := range keys {
+		key := ui.KeyF1 + ui.Key(index)
+		modifiers := ui.Modifiers(0)
+		if key == ui.KeyF2 {
+			modifiers = ui.ModifierControl
+		} else if key == ui.KeyF3 {
+			modifiers = ui.ModifierShift
+		}
+		if keys[index].Key != key || keys[index].Modifiers != modifiers || keys[index].Target != ui.Item(1) {
+			t.Fatalf("key %d = %+v", index, keys[index])
+		}
+	}
+}
+
 // NavigationKeys delivers Up, Down, PageUp and PageDown to the application's key
 // handler while typing, Home/End, selection and pointer placement remain native.
 func TestDriverNavigationKeysPassToApplicationWhileTextEditingRemainsNative(t *testing.T) {
@@ -709,6 +759,92 @@ func TestDriverEnterAndShiftEnterAreDifferentTextCommands(t *testing.T) {
 	}
 	if len(commands) != 2 || commands[0] != TextInsertNewline || commands[1] != TextInsertLineBreak {
 		t.Fatalf("commands = %v, want Newline then LineBreak", commands)
+	}
+}
+
+// Return during an input-method composition commits the candidate; it is not a
+// line break. A native window hands the key to the input context while it
+// composes, so a headless window has to answer the same way instead of letting
+// a multi-line field take a newline into the preedit.
+func TestDriverEnterDuringCompositionCommitsInsteadOfBreakingTheLine(t *testing.T) {
+	theme := ui.DarkTheme()
+	var commands []TextCommand
+	editor := text.NewEditor("")
+	config := Config{Title: "ime", Width: 300, Height: 120}
+	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+		rect := ui.Rect{X: 10, Y: 10, Width: 200, Height: 80}
+		components.PaintTextarea(canvas, theme, rect, components.TextareaSnapshot{
+			ID: ui.Item(5), Label: "Document", Value: editor.String(),
+		})
+		canvas.HitWithOptions(ui.Item(5), rect, "Document", ui.HitOptions{
+			Role: ui.RoleTextField, Multiline: true,
+		})
+	}
+	config.TextInput = func(TextInputContext) *TextInput {
+		return &TextInput{Editor: editor}
+	}
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(50, 25); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Compose("ni"); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Key(ui.KeyEnter, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := editor.String(); got != "ni" {
+		t.Fatalf("Return during composition left %q, want the candidate with no line break", got)
+	}
+	if _, composing := editor.Composition(); composing {
+		t.Fatal("Return during composition left the composition open")
+	}
+	if len(commands) != 0 {
+		t.Fatalf("Return during composition reached the caller as %v, want the candidate committed instead", commands)
+	}
+}
+
+// A multi-line field still takes a line break once nothing is composing, so the
+// rule above does not cost the field its ordinary Return.
+func TestDriverEnterInAMultilineFieldIsALineBreak(t *testing.T) {
+	theme := ui.DarkTheme()
+	editor := text.NewEditor("")
+	config := Config{Title: "text", Width: 300, Height: 120}
+	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+		rect := ui.Rect{X: 10, Y: 10, Width: 200, Height: 80}
+		components.PaintTextarea(canvas, theme, rect, components.TextareaSnapshot{
+			ID: ui.Item(5), Label: "Document", Value: editor.String(),
+		})
+		canvas.HitWithOptions(ui.Item(5), rect, "Document", ui.HitOptions{
+			Role: ui.RoleTextField, Multiline: true,
+		})
+	}
+	config.TextInput = func(TextInputContext) *TextInput {
+		return &TextInput{Editor: editor}
+	}
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(50, 25); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Type("a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Key(ui.KeyEnter, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Type("b"); err != nil {
+		t.Fatal(err)
+	}
+	if got := editor.String(); got != "a\nb" {
+		t.Fatalf("a multi-line field holds %q, want a line break between the runs", got)
 	}
 }
 

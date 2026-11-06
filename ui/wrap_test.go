@@ -147,6 +147,35 @@ func TestWrapLinesBuildsNothingWhenTheTextFitsOrBreaksAtSpaces(t *testing.T) {
 	}
 }
 
+// The last line of a wrapped text ends in an ellipsis, and a control painted every
+// frame wraps the same text again at the same width: the canvas remembers the cut, so
+// only the first wrap builds the string. A text field whose placeholder is wider than
+// the field is the case that first exposed this.
+func TestWrapLinesWithAnEllipsisBuildsTheCutLineOnce(t *testing.T) {
+	canvas := wrapper()
+	scratch := make([]string, 0, 1)
+	text := "Search hosts or ssh user@hostname"
+	const width = 30
+	lines := canvas.WrapLines(scratch[:0], text, 1, 0, width, 1)
+	if len(lines) != 1 || !strings.HasSuffix(lines[0], "…") {
+		t.Fatalf("one cut line = %q", lines)
+	}
+	cut := lines[0]
+	if allocations := testing.AllocsPerRun(100, func() { scratch = canvas.WrapLines(scratch[:0], text, 1, 0, width, 1) }); allocations != 0 {
+		t.Fatalf("re-wrapping an ellipsized line allocated %v times", allocations)
+	}
+	if got := canvas.WrapLines(scratch[:0], text, 1, 0, width, 1)[0]; got != cut {
+		t.Fatalf("remembered cut = %q, want %q", got, cut)
+	}
+	// A different measurement answers differently: the memo never serves a stale cut.
+	canvas.SetMeasurer(func(value string, size, weight float32) float32 {
+		return float32(utf8.RuneCountInString(value)) * size / 2
+	})
+	if got := canvas.WrapLines(scratch[:0], text, 1, 0, width, 1)[0]; got == cut {
+		t.Fatalf("cut survived a measurer change: %q", got)
+	}
+}
+
 func BenchmarkWrapLines(b *testing.B) {
 	canvas := wrapper()
 	scratch := make([]string, 0, 4)

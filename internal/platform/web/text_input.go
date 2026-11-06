@@ -17,10 +17,11 @@ type TextInputContext struct {
 	Multiline bool
 	// TextBounds, FontSize, FontWeight and TextColor are the text geometry the component
 	// declared; they fill whatever the returned input leaves unset.
-	TextBounds ui.Rect
-	FontSize   float32
-	FontWeight float32
-	TextColor  ui.Color
+	TextBounds         ui.Rect
+	FontSize           float32
+	FontWeight         float32
+	TextColor          ui.Color
+	HideNativeOverlays bool
 }
 
 func textAlignCSS(alignment ui.Alignment) string {

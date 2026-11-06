@@ -39,6 +39,9 @@ func (runtime *runtime) render() {
 	context.Call("restore")
 	runtime.paths.endFrame()
 	clock.end(runtime.painter, runtime.paths.built, runtime.paths.reused)
+	if delay, ok := runtime.canvas.NextFrame(); ok {
+		runtime.scheduleFrame(delay)
+	}
 }
 
 // drawRectangles paints one layer's rectangles. A shadow is painted where it

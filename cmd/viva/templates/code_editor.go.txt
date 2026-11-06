@@ -71,8 +71,8 @@ type CodeEditorSnapshot struct {
 	Disabled    bool
 	ReadOnly    bool
 	Focused     bool
-	// ShowCaret paints the caret of a focused editor; an application that blinks
-	// it turns this on and off.
+	// ShowCaret paints the caret of a focused editor. The editor blinks it
+	// automatically while an animation clock is available.
 	ShowCaret bool
 	Caret     int
 	// ExtraCarets are sorted by Offset and are visual only. Native editing and
@@ -85,9 +85,8 @@ type CodeEditorSnapshot struct {
 	SelectionRanges  []text.Span
 	CompositionStart int
 	CompositionEnd   int
-	// CaretWidth is the caret's thickness in logical pixels; zero is the one
-	// pixel hairline, and an application that wants the two-pixel bar an editor
-	// usually draws asks for it.
+	// CaretWidth is the caret's thickness in logical pixels; zero uses the
+	// two-pixel editor default. Set it to one for a hairline.
 	CaretWidth float32
 	// CaretColor paints the caret; zero takes the text color, which is what a
 	// monochrome caret looks like. An application with a cursor color of its own
@@ -180,6 +179,7 @@ type CodeEditor struct {
 	scrollY    float32
 	caretRect  ui.Rect
 	caretShown bool
+	caretBlink CaretBlink
 	disabled   bool
 
 	// The caret the view last followed.
@@ -240,9 +240,19 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 	editor.barID, editor.barXID = snapshot.ScrollbarID, snapshot.HorizontalScrollbarID
 	editor.barV, editor.barH = ScrollAreaGeometry{}, ScrollAreaGeometry{}
 	if canvas == nil || bounds.Width <= 0 {
+		editor.caretBlink.Rest()
 		return bounds
 	}
 	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
+	if editor.text != snapshot.Value {
+		editor.caretBlink.Rest()
+	}
+	showCaret := focused && snapshot.ShowCaret && snapshot.SelectionStart == snapshot.SelectionEnd
+	if showCaret && !snapshot.ReadOnly {
+		showCaret = editor.caretBlink.Lit(canvas, snapshot.Caret)
+	} else {
+		editor.caretBlink.Rest()
+	}
 	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Disabled: snapshot.Disabled})
 
 	size := snapshot.FontSize
@@ -349,8 +359,8 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		selectionRanges:  selectionRanges,
 		compositionStart: compositionStart, compositionEnd: compositionEnd,
 		caret: caret, caretRow: caretRow, caretColumn: caretColumn,
-		showCaret:  focused && snapshot.ShowCaret && !snapshot.Disabled,
-		caretWidth: max(snapshot.CaretWidth, 1), caretColor: caretColor(snapshot.CaretColor, foreground),
+		showCaret:  showCaret,
+		caretWidth: editorCaretWidth(snapshot.CaretWidth), caretColor: caretColor(snapshot.CaretColor, foreground),
 		language: snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
 		showWhitespace: snapshot.ShowWhitespace, showEOL: snapshot.ShowEOL, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
@@ -499,6 +509,13 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		editor.barH = area.EndContent()
 	}
 	return bounds
+}
+
+func editorCaretWidth(width float32) float32 {
+	if width <= 0 {
+		return 2
+	}
+	return max(width, 1)
 }
 
 // Pointer handles a drag of either scrollbar without changing the text or the

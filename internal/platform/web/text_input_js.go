@@ -158,7 +158,11 @@ func (host *textInputHost) show(element js.Value) {
 	style.Set("opacity", "1")
 	style.Set("overflow", "hidden")
 	style.Set("clipPath", "none")
-	style.Set("pointerEvents", "auto")
+	if host.input.Placed {
+		style.Set("pointerEvents", "none")
+	} else {
+		style.Set("pointerEvents", "auto")
+	}
 	style.Set("userSelect", "text")
 	style.Set("zIndex", "1")
 	if host.input.Multiline {

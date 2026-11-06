@@ -117,6 +117,20 @@ func TestWebTextInputPreservesAlignment(t *testing.T) {
 	}
 }
 
+func TestWebTextInputPreservesPaintedEditorOverlays(t *testing.T) {
+	editor := text.NewEditor("source")
+	provider := webTextInput(func(context TextInputContext) *TextInput {
+		if !context.HideNativeOverlays {
+			t.Fatal("the painted editor must declare that it owns the caret and selection")
+		}
+		return &TextInput{Editor: editor}
+	})
+	input := provider(web.TextInputContext{ID: ui.Item(1), HideNativeOverlays: true})
+	if input == nil || !input.HideNativeOverlays {
+		t.Fatal("browser text input must not draw a second caret or selection over the canvas")
+	}
+}
+
 func TestWebTextInputPassesEventsToAHandlerThatOwnsThem(t *testing.T) {
 	var seen TextEvent
 	provider := webTextInput(func(TextInputContext) *TextInput {
