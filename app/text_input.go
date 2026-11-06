@@ -2,24 +2,16 @@ package app
 
 import (
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
 
+// resolveTextInputAlignment resolves a start- or end-relative alignment into the
+// physical edge a native editor places its glyphs with. The decision lives in
+// internal/platform so an application that drives a native editor directly gets
+// exactly what a viva window gets.
 func resolveTextInputAlignment(alignment ui.Alignment, value string, caret int) ui.Alignment {
-	if alignment == ui.AlignStart || alignment == ui.AlignEnd {
-		start, end, _ := platform.TextLine(value, caret)
-		rtl := textmetrics.RightToLeft(value[start:end])
-		if alignment == ui.AlignStart && rtl || alignment == ui.AlignEnd && !rtl {
-			return ui.AlignRight
-		}
-		return ui.AlignLeft
-	}
-	if alignment == ui.AlignCenter || alignment == ui.AlignRight {
-		return alignment
-	}
-	return ui.AlignLeft
+	return platform.ResolveTextAlignment(alignment, value, caret)
 }
 
 // TextRange is a half-open rune-indexed range.
