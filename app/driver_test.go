@@ -762,6 +762,92 @@ func TestDriverEnterAndShiftEnterAreDifferentTextCommands(t *testing.T) {
 	}
 }
 
+// Return during an input-method composition commits the candidate; it is not a
+// line break. A native window hands the key to the input context while it
+// composes, so a headless window has to answer the same way instead of letting
+// a multi-line field take a newline into the preedit.
+func TestDriverEnterDuringCompositionCommitsInsteadOfBreakingTheLine(t *testing.T) {
+	theme := ui.DarkTheme()
+	var commands []TextCommand
+	editor := text.NewEditor("")
+	config := Config{Title: "ime", Width: 300, Height: 120}
+	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+		rect := ui.Rect{X: 10, Y: 10, Width: 200, Height: 80}
+		components.PaintTextarea(canvas, theme, rect, components.TextareaSnapshot{
+			ID: ui.Item(5), Label: "Document", Value: editor.String(),
+		})
+		canvas.HitWithOptions(ui.Item(5), rect, "Document", ui.HitOptions{
+			Role: ui.RoleTextField, Multiline: true,
+		})
+	}
+	config.TextInput = func(TextInputContext) *TextInput {
+		return &TextInput{Editor: editor}
+	}
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(50, 25); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Compose("ni"); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Key(ui.KeyEnter, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := editor.String(); got != "ni" {
+		t.Fatalf("Return during composition left %q, want the candidate with no line break", got)
+	}
+	if _, composing := editor.Composition(); composing {
+		t.Fatal("Return during composition left the composition open")
+	}
+	if len(commands) != 0 {
+		t.Fatalf("Return during composition reached the caller as %v, want the candidate committed instead", commands)
+	}
+}
+
+// A multi-line field still takes a line break once nothing is composing, so the
+// rule above does not cost the field its ordinary Return.
+func TestDriverEnterInAMultilineFieldIsALineBreak(t *testing.T) {
+	theme := ui.DarkTheme()
+	editor := text.NewEditor("")
+	config := Config{Title: "text", Width: 300, Height: 120}
+	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+		rect := ui.Rect{X: 10, Y: 10, Width: 200, Height: 80}
+		components.PaintTextarea(canvas, theme, rect, components.TextareaSnapshot{
+			ID: ui.Item(5), Label: "Document", Value: editor.String(),
+		})
+		canvas.HitWithOptions(ui.Item(5), rect, "Document", ui.HitOptions{
+			Role: ui.RoleTextField, Multiline: true,
+		})
+	}
+	config.TextInput = func(TextInputContext) *TextInput {
+		return &TextInput{Editor: editor}
+	}
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(50, 25); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Type("a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Key(ui.KeyEnter, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Type("b"); err != nil {
+		t.Fatal(err)
+	}
+	if got := editor.String(); got != "a\nb" {
+		t.Fatalf("a multi-line field holds %q, want a line break between the runs", got)
+	}
+}
+
 func TestDriverMenuBackdropCatchesPressesOutsideTheSurface(t *testing.T) {
 	for _, name := range []string{"dropdown", "context", "select"} {
 		t.Run(name, func(t *testing.T) {

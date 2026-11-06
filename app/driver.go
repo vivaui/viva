@@ -616,6 +616,16 @@ func (driver *Driver) Key(key ui.Key, modifiers ui.Modifiers) error {
 	if driver.terminal() {
 		return driver.terminalKey(key, modifiers, "")
 	}
+	if driver.editing() && driver.painter.nativeText.State.Composing && key == ui.KeyEnter &&
+		modifiers&(ui.ModifierControl|ui.ModifierMeta) == 0 {
+		// While an input method composes, Return belongs to it: a native window
+		// hands the key to the input context, which commits the candidate instead
+		// of inserting a line break (see viva_text_input_should_interpret_key,
+		// where composing keeps every key but Tab and Escape). A headless window
+		// has no input context to ask, so it commits what the composition holds,
+		// which leaves the same text and no newline.
+		return driver.textEvent(platform.TextEvent{Kind: platform.TextUnmark})
+	}
 	if driver.editing() && key != ui.KeyTab && key != ui.KeyEscape && (key != ui.KeyEnter || driver.painter.nativeText.Multiline) {
 		if driver.navigationKey(key) || driver.rowKey(key, modifiers) || key >= ui.KeyF1 && key <= ui.KeyF12 {
 			_, err := driver.painter.key(platform.KeyEvent{Key: key, Modifiers: modifiers})
