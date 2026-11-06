@@ -582,6 +582,15 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmPaint:
 		var paint paintStruct
 		beginPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+		// Nobody can see a minimized window, and its client area no longer matches what it
+		// showed: a custom frame reports the small minimized window (160x28) instead of an
+		// empty rectangle. Presenting at that size would resize the swap chain to the corner
+		// of the old frame, and the taskbar's preview of the window would show it stretched.
+		// The last visible frame stays until the restore's WM_SIZE paints the window again.
+		if state.iconic() {
+			endPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+			return 0
+		}
 		var bounds rect
 		getClientRect.Call(window, uintptr(unsafe.Pointer(&bounds)))
 		err := state.present(int(bounds.Right), int(bounds.Bottom))
@@ -1059,6 +1068,17 @@ func (state *windowState) configureClicks() {
 			state.clicks.Distance = float32(width) / 2 / state.scale
 		}
 	}
+}
+
+// iconic reports whether the window manager has the window minimized. WM_SIZE
+// normally sets state.minimized first, but a paint caused by the resize can arrive
+// before that message; the window itself is already iconic by then.
+func (state *windowState) iconic() bool {
+	if state.minimized {
+		return true
+	}
+	minimized, _, _ := isIconic.Call(state.window)
+	return minimized != 0
 }
 
 // reportVisibility tells OnVisibility when the window stopped or started being something the
