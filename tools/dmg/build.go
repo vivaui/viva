@@ -71,7 +71,7 @@ func Build(options Options) error {
 	// Write beside the target first so a failure leaves the previous image alone.
 	temporary := strings.TrimSuffix(options.Image, ".dmg") + ".viva-tmp.dmg"
 	_ = os.Remove(temporary)
-	if err := hdiutil("convert", writable, "-quiet", "-format", "UDZO", "-imagekey", "zlib-level=9", "-ov", "-o", temporary); err != nil {
+	if err := hdiutil("convert", writable, "-format", "UDZO", "-imagekey", "zlib-level=9", "-ov", "-o", temporary); err != nil {
 		_ = os.Remove(temporary)
 		return err
 	}
@@ -92,7 +92,7 @@ func settle(writable string, options Options, app string) (err error) {
 	if err := os.Mkdir(mount, 0o755); err != nil {
 		return err
 	}
-	if err := hdiutil("attach", "-quiet", "-nobrowse", "-noautoopen", "-noverify", "-readwrite", "-mountpoint", mount, writable); err != nil {
+	if err := hdiutil("attach", "-nobrowse", "-noautoopen", "-noverify", "-readwrite", "-mountpoint", mount, writable); err != nil {
 		return err
 	}
 	defer func() {
@@ -128,12 +128,12 @@ func settle(writable string, options Options, app string) (err error) {
 func detach(mount string) error {
 	var err error
 	for attempt := 0; attempt < 5; attempt++ {
-		if err = hdiutil("detach", "-quiet", mount); err == nil {
+		if err = hdiutil("detach", mount); err == nil {
 			return nil
 		}
 		time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
 	}
-	if forced := hdiutil("detach", "-quiet", "-force", mount); forced == nil {
+	if forced := hdiutil("detach", "-force", mount); forced == nil {
 		return nil
 	}
 	return err
