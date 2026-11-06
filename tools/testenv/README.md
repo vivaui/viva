@@ -78,6 +78,17 @@ Set `VIVA_LINUX_ENV` and `VIVA_WINDOWS_ENV` when calling
 - Windows 11 puts a new tray icon in the overflow flyout: the arrow at the right of the taskbar,
   then the icon in the flyout.
 - Pass `APPDATA` to give a program its own settings directory.
+- Scoop is installed (user-level, `C:\Users\Docker\scoop`) with the `vivaui`
+  bucket added, so `scoop install <tool>` works for dependencies and for
+  reproducing the documented `scoop install viva` path. The service process
+  holds the PATH it started with, so a shim added inside the VM is not on
+  `PATH` for later calls; prefix it yourself:
+  `$env:PATH = "$env:USERPROFILE\scoop\shims;" + $env:PATH`.
+  Scoop refuses to install as administrator unless passed `-RunAsAdmin`, which
+  is what the elevated API needs; it still writes a per-user tree.
+- Keep tools installed between tasks. `git`, `python`, PowerShell 7 and archive
+  tools come up in later work, and reinstalling costs more than the disk saved.
+  Only remove something genuinely one-off and large, and say what was removed.
 
 ## Platform conformance
 
