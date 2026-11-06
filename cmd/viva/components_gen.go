@@ -17,6 +17,7 @@ var componentFiles = map[string]string{
 	"button-group":       "button_group.go.txt",
 	"calendar":           "calendar.go.txt",
 	"card":               "card.go.txt",
+	"caret-blink":        "caret_blink.go.txt",
 	"carousel":           "carousel.go.txt",
 	"chart":              "chart.go.txt",
 	"chart-area":         "chart_area.go.txt",
