@@ -53,3 +53,15 @@ func TestCompositionDoesNotEagerlyAllocateCommittedString(t *testing.T) {
 		t.Fatalf("composition allocated %v times, want at most 2", allocations)
 	}
 }
+
+func TestCommittedStringCachesAnEmptyBaseline(t *testing.T) {
+	editor := NewEditor("")
+	editor.SetMarkedText("pin", Range{Start: 3, End: 3})
+	if got := editor.CommittedString(); got != "" {
+		t.Fatalf("empty baseline committed %q", got)
+	}
+	// The committed value is empty here, which must not read as "not built yet".
+	if allocations := testing.AllocsPerRun(50, func() { _ = editor.CommittedString() }); allocations != 0 {
+		t.Fatalf("cached empty baseline allocated %g times per call", allocations)
+	}
+}

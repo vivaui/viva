@@ -64,6 +64,9 @@ type Editor struct {
 	composing           bool
 	compositionOriginal []rune
 	compositionBase     string
+	// compositionBaseValid says compositionBase holds the built value. The value
+	// itself may legitimately be empty, so it cannot serve as its own sentinel.
+	compositionBaseValid bool
 
 	// accept and maxRunes constrain what an edit may leave in the text; see
 	// Restrict.
@@ -111,6 +114,7 @@ func (editor *Editor) String() string {
 	if !editor.composing {
 		editor.compositionOriginal = nil
 		editor.compositionBase = ""
+		editor.compositionBaseValid = false
 	}
 	if !editor.textValid {
 		editor.text = string(editor.runes)
@@ -122,12 +126,13 @@ func (editor *Editor) String() string {
 // CommittedString returns the text before marked input until the IME commits it.
 func (editor *Editor) CommittedString() string {
 	if editor.composing {
-		if editor.compositionBase == "" {
+		if !editor.compositionBaseValid {
 			committed := make([]rune, 0, len(editor.runes)-editor.composition.End+editor.composition.Start+len(editor.compositionOriginal))
 			committed = append(committed, editor.runes[:editor.composition.Start]...)
 			committed = append(committed, editor.compositionOriginal...)
 			committed = append(committed, editor.runes[editor.composition.End:]...)
 			editor.compositionBase = string(committed)
+			editor.compositionBaseValid = true
 		}
 		return editor.compositionBase
 	}
@@ -258,6 +263,7 @@ func (editor *Editor) SetMarkedText(value string, selected Range) {
 	if !wasComposing {
 		editor.compositionOriginal = change.removed
 		editor.compositionBase = ""
+		editor.compositionBaseValid = false
 	}
 	inserted := len(change.inserted)
 	if inserted == 0 && value != "" {
