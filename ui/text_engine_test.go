@@ -5,6 +5,22 @@ import "testing"
 // halfEngine measures every character as half the size and counts its calls.
 type halfEngine struct{ widths, carets, selections, hits int }
 
+type rasterEngine struct {
+	halfEngine
+	calls int
+	value string
+}
+
+func (engine *rasterEngine) RasterizeText(value string, style TextStyle, scale float32, width, height int) (Bitmap, error) {
+	engine.calls++
+	engine.value = value
+	pixels := make([]byte, width*height*4)
+	if len(pixels) > 3 {
+		pixels[3] = 255
+	}
+	return Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4}, nil
+}
+
 func (e *halfEngine) Width(value string, size, weight float32) float32 {
 	e.widths++
 	return float32(len([]rune(value))) * size / 2
@@ -23,6 +39,43 @@ func (e *halfEngine) Selection(dst []TextSpan, value string, size, weight float3
 func (e *halfEngine) OffsetAt(value string, size, weight, x float32) int {
 	e.hits++
 	return min(max(int(x/(size/2)+0.5), 0), len(value))
+}
+
+func TestCanvasRasterizesThroughItsInstalledTextEngine(t *testing.T) {
+	var canvas Canvas
+	if _, err := canvas.RasterizeText("hidden", TextStyle{Size: 13}, 2, 120, 28); err != ErrTextRasterizerUnavailable {
+		t.Fatalf("RasterizeText without rasterizer = %v, want %v", err, ErrTextRasterizerUnavailable)
+	}
+
+	engine := &rasterEngine{}
+	canvas.SetTextEngine(engine)
+	bitmap, err := canvas.RasterizeText("hidden", TextStyle{Size: 13}, 2, 120, 28)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if engine.calls != 1 || bitmap.Width != 120 || bitmap.Height != 28 || bitmap.Stride != 480 || len(bitmap.Pix) != 120*28*4 {
+		t.Fatalf("rasterized bitmap = %+v, calls = %d", bitmap, engine.calls)
+	}
+}
+
+func TestCanvasRasterizeTextCarriesForcedParagraphDirection(t *testing.T) {
+	var canvas Canvas
+	engine := &rasterEngine{}
+	canvas.SetTextEngine(engine)
+
+	if _, err := canvas.RasterizeText("English first", TextStyle{Size: 13, Direction: DirectionRTL}, 1, 120, 28); err != nil {
+		t.Fatal(err)
+	}
+	if engine.value != "\u200fEnglish first" {
+		t.Fatalf("RTL raster value = %q, want an RLM-prefixed line", engine.value)
+	}
+
+	if _, err := canvas.RasterizeText("עברית", TextStyle{Size: 13, Direction: DirectionLTR}, 1, 120, 28); err != nil {
+		t.Fatal(err)
+	}
+	if engine.value != "\u200eעברית" {
+		t.Fatalf("LTR raster value = %q, want an LRM-prefixed line", engine.value)
+	}
 }
 
 func TestCanvasAsksTheInstalledEngineForEveryTextQuery(t *testing.T) {

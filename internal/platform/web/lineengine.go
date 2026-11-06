@@ -35,6 +35,10 @@ type styledLineMeasurer interface {
 	rectsStyle(value string, size, weight float32, italic, rtl bool, bounds []int32, lefts, rights []float32)
 }
 
+type lineRasterizer interface {
+	rasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error)
+}
+
 // lineEngine implements ui.TextEngine over a lineMeasurer.
 type lineEngine struct {
 	measurer    lineMeasurer
@@ -56,6 +60,14 @@ func newLineEngine(measurer lineMeasurer) *lineEngine {
 		}
 	})
 	return engine
+}
+
+func (engine *lineEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
+	rasterizer, ok := engine.measurer.(lineRasterizer)
+	if !ok {
+		return ui.Bitmap{}, ui.ErrTextRasterizerUnavailable
+	}
+	return rasterizer.rasterizeText(value, style, scale, width, height)
 }
 
 type measuredLine struct {

@@ -48,6 +48,28 @@ func TestTextEnginePassesTheContract(t *testing.T) {
 	textenginetest.Run(t, newTestEngine(t))
 }
 
+func TestTextEngineRasterizesProportionalText(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	engine, err := theTextEngine()
+	if err != nil {
+		t.Skipf("DirectWrite unavailable: %v", err)
+	}
+	bitmap, err := engine.RasterizeText("Privacy 中文", ui.TextStyle{
+		Size: 14, Weight: ui.WeightSemibold, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+	}, 2, 240, 56)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ink := false
+	for index := 3; index < len(bitmap.Pix); index += 4 {
+		ink = ink || bitmap.Pix[index] != 0
+	}
+	if bitmap.Width != 240 || bitmap.Height != 56 || bitmap.Stride != 960 || !ink {
+		t.Fatalf("rasterized bitmap = %dx%d stride %d, ink=%v", bitmap.Width, bitmap.Height, bitmap.Stride, ink)
+	}
+}
+
 // The original report: a run of digits followed by Chinese text was drawn narrower than
 // the same digits alone, because the digits were squeezed into the width the reference
 // metrics gave them. A line is one shaped piece now, so the digits are the same pixels.

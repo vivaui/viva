@@ -9,6 +9,8 @@ package darwin
 import "C"
 
 import (
+	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -61,6 +63,7 @@ func sharedTextEngine() *TextEngine {
 func SharedTextEngine() *TextEngine { return sharedTextEngine() }
 
 var _ ui.FontFamilyAware = (*TextEngine)(nil)
+var _ ui.TextRasterizer = (*TextEngine)(nil)
 
 // SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
 // shaped in, "" for the system font. The name is told to C, which holds it for
@@ -186,6 +189,67 @@ func (engine *TextEngine) WidthStyle(value string, size, weight float32, italic 
 		return 0
 	}
 	return float32(line.width)
+}
+
+// RasterizeText implements ui.TextRasterizer with the same CoreText shaped line
+// the engine measures and the native label renderer draws.
+func (engine *TextEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
+	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width > int(^uint(0)>>1)/4 || height > int(^uint(0)>>1)/(width*4) {
+		return ui.Bitmap{}, fmt.Errorf("darwin: invalid text bitmap size")
+	}
+	if scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
+		return ui.Bitmap{}, fmt.Errorf("darwin: invalid text rasterization scale")
+	}
+	if !validTextSize(style.Size) {
+		return ui.Bitmap{}, fmt.Errorf("darwin: invalid text rasterization size")
+	}
+	if value == "" {
+		// An empty line is a transparent bitmap of the size asked for, which is
+		// what the other backends return: a caller can then treat "no glyphs" the
+		// same way everywhere instead of distinguishing an empty bitmap.
+		return transparentBitmap(width, height), nil
+	}
+
+	engine.mutex.Lock()
+	line := engine.lineStyle(value, style.Size, style.Weight, style.Italic)
+	if line != nil {
+		C.viva_text_line_retain(line)
+	}
+	engine.mutex.Unlock()
+	if line == nil {
+		return ui.Bitmap{}, fmt.Errorf("darwin: shape text for rasterization")
+	}
+	defer C.viva_text_line_release(line)
+
+	pixels := make([]byte, width*height*4)
+	status := C.viva_text_line_rasterize(
+		line,
+		C.double(style.Size),
+		C.double(scale),
+		C.size_t(width),
+		C.size_t(height),
+		C.double(style.Color.Red),
+		C.double(style.Color.Green),
+		C.double(style.Color.Blue),
+		C.double(style.Color.Alpha),
+		(*C.uchar)(unsafe.Pointer(&pixels[0])),
+	)
+	if status != 0 {
+		return ui.Bitmap{}, fmt.Errorf("darwin: rasterize text")
+	}
+	return ui.Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4}, nil
+}
+
+// validTextSize reports whether size is a font size the text system can shape
+// with, matching the check the label paths make before asking for a line.
+func validTextSize(size float32) bool {
+	return size > 0 && !math.IsNaN(float64(size)) && !math.IsInf(float64(size), 0)
+}
+
+// transparentBitmap is an all-zero premultiplied BGRA bitmap of the given size:
+// what a line with nothing to draw leaves behind.
+func transparentBitmap(width, height int) ui.Bitmap {
+	return ui.Bitmap{Pix: make([]byte, width*height*4), Width: width, Height: height, Stride: width * 4}
 }
 
 // Caret implements ui.TextEngine.
