@@ -49,7 +49,7 @@ var coreComponents = []Component{
 	buttonComponent, badgeComponent, checkboxComponent, colorSwatchComponent, colorPickerComponent,
 	switchComponent, inputComponent, dialogComponent,
 	codeEditorComponent, codeDiffComponent, splitButtonComponent, imageViewComponent,
-	reorderListComponent,
+	reorderListComponent, reorderGridComponent,
 }
 
 var catalog = buildCatalog()
@@ -100,6 +100,7 @@ type State struct {
 	codeEditor  *components.CodeEditor
 	codeDiff    *codeDiffDemoState
 	reorder     *reorderDemoState
+	reorderGrid *reorderGridDemoState
 	imageBitmap *ui.Bitmap
 	dialog      dialogState
 	slider      sliderDemoState
