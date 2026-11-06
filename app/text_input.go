@@ -44,7 +44,7 @@ const (
 	// changes nothing in an editor (TextEvent.Apply ignores it). A field that
 	// takes more than text, such as a chat box that accepts a screenshot, uses it
 	// as the cue to look at the clipboard's other formats (ClipboardImagePNG).
-	// Terminals never receive it.
+	// Terminals receive it too, so they can handle non-text clipboard formats.
 	TextPasteNoText
 )
 

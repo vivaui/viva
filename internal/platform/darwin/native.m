@@ -5218,6 +5218,12 @@ static void viva_set_secure_event_input(BOOL on) {
                  selectedRange:NSMakeRange(0, 0)
                replacementRange:NSMakeRange(NSNotFound, 0)
                        command:0];
+        } else {
+            [self emitTextKind:VIVA_TEXT_PASTE_NO_TEXT
+                          text:@""
+                 selectedRange:NSMakeRange(0, 0)
+               replacementRange:NSMakeRange(NSNotFound, 0)
+                       command:0];
         }
         return;
     }

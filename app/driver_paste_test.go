@@ -13,7 +13,7 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-func onePixelPNG(t *testing.T) []byte {
+func onePixelPNG(t testing.TB) []byte {
 	t.Helper()
 	var out bytes.Buffer
 	if err := png.Encode(&out, image.NewNRGBA(image.Rect(0, 0, 1, 1))); err != nil {
@@ -75,8 +75,8 @@ func TestPasteWithNoTextTellsTheFieldAndChangesNothing(t *testing.T) {
 	}
 }
 
-// A terminal owns its paste: it never hears of a clipboard without text.
-func TestTerminalNeverReceivesAPasteWithNoText(t *testing.T) {
+// A terminal needs a no-text paste event to handle non-text clipboard formats.
+func TestTerminalReceivesAPasteWithNoText(t *testing.T) {
 	probe := &terminalProbe{}
 	driver, err := NewDriver(probe.config(), nil)
 	if err != nil {
@@ -92,9 +92,29 @@ func TestTerminalNeverReceivesAPasteWithNoText(t *testing.T) {
 	if _, err := driver.Shortcut('v'); err != nil {
 		t.Fatal(err)
 	}
-	for _, event := range probe.text {
-		if event.Kind == TextPasteNoText {
-			t.Fatalf("the terminal received %+v", event)
+	if len(probe.text) != 1 || probe.text[0].Kind != TextPasteNoText {
+		t.Fatalf("terminal paste events = %+v", probe.text)
+	}
+}
+
+func BenchmarkTerminalPasteWithNoText(b *testing.B) {
+	probe := &terminalProbe{}
+	driver, err := NewDriver(probe.config(), nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(100, 100); err != nil {
+		b.Fatal(err)
+	}
+	if err := driver.SetClipboardImage(onePixelPNG(b)); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if handled, err := driver.Shortcut('v'); err != nil || !handled {
+			b.Fatalf("paste: handled=%v err=%v", handled, err)
 		}
 	}
 }

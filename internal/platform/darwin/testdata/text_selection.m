@@ -680,11 +680,12 @@ int main(void) {
         assert([viva_key_characters(optionV) isEqualToString:@"v"]);
         assert(![view performKeyEquivalent:keyEvent(@"a", NSEventModifierFlagCommand)]);
         assert(![view performKeyEquivalent:keyEvent(@"x", NSEventModifierFlagCommand)]);
-        // A terminal is never told of a paste with no text.
+        // A terminal receives the non-text paste so it can handle images.
         [terminalBoard clearContents];
         pastes = view->editEvents;
         [view paste:nil];
-        assert(view->editEvents == pastes);
+        assert(view->editEvents == pastes + 1 && view->lastKind == VIVA_TEXT_PASTE_NO_TEXT);
+        assert([view->lastText length] == 0);
         // Moving the editor does not cancel a composition and checks its size.
         [view beginComposition];
         assert([view moveTextInputToFrame:NSMakeRect(100, 50, 8, 16)] == 0);

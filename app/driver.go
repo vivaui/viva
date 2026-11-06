@@ -842,7 +842,7 @@ func (driver *Driver) ShortcutChord(modifiers ui.Modifiers, character rune) (boo
 			return true, driver.terminalKey(ui.KeyUnknown, modifiers, shortcut)
 		}
 		if driver.clipboard == "" {
-			return true, nil
+			return true, driver.textEvent(platform.TextEvent{Kind: platform.TextPasteNoText})
 		}
 		return true, driver.textEvent(platform.TextEvent{Kind: platform.TextPaste, Text: driver.clipboard})
 	}
