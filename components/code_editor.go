@@ -590,6 +590,12 @@ func (paint *codePaint) row(index int, y float32) {
 func (paint *codePaint) whitespace(row codeRow, y, left float32) {
 	column := 0
 	for at := int(row.start); at < int(row.end); {
+		if column > paint.lastColumn {
+			// Columns only grow along the row, so what remains is off screen. A
+			// minified line is one row of megabytes, and walking all of it would
+			// cost that once per paint for markers nobody can see.
+			break
+		}
 		character, size := decodeAt(paint.value, at)
 		width := codeCells(character, column, paint.editor.tabWidth)
 		if column+width >= paint.firstColumn && column <= paint.lastColumn {

@@ -92,3 +92,22 @@ func TestCodeEditorEOLLabelsCanVaryPerLogicalLine(t *testing.T) {
 		t.Fatalf("logical EOL markers = %v", got)
 	}
 }
+
+func TestCodeEditorWhitespaceMarkersStopAtTheVisibleColumns(t *testing.T) {
+	// One minified line: walking it end to end would be megabytes per paint,
+	// for markers that are all off screen.
+	fixture := newCodeFixture(strings.Repeat("a ", 20000))
+	marker := ui.RGB(33, 104, 171)
+	fixture.snapshot.InvisibleColor = marker
+	fixture.snapshot.ShowWhitespace = true
+	fixture.paint()
+	visible := len(fixture.fills(marker))
+	if visible == 0 {
+		t.Fatal("no whitespace marker inside the viewport")
+	}
+	// The viewport holds a few dozen cells; a marker count anywhere near the
+	// line's length means the scan did not stop at the visible columns.
+	if visible > 200 {
+		t.Fatalf("painted %d markers on a line of %d spaces", visible, 20000)
+	}
+}
