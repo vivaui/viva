@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"syscall/js"
+	"time"
 	"unicode/utf8"
 	"unsafe"
 
@@ -44,21 +45,24 @@ type Config struct {
 }
 
 type runtime struct {
-	config    Config
-	canvas    *ui.Canvas
-	painter   *painter
-	document  js.Value
-	window    js.Value
-	focusRoot js.Value
-	surface   js.Value
-	context   js.Value
-	a11y      *accessibilityMirror
-	dpr       float32
-	pending   bool
-	metrics   *textMetrics
-	measurer  *domMeasurer
-	clock     frameClock
-	paths     pathCache
+	config     Config
+	canvas     *ui.Canvas
+	painter    *painter
+	document   js.Value
+	window     js.Value
+	focusRoot  js.Value
+	surface    js.Value
+	context    js.Value
+	a11y       *accessibilityMirror
+	dpr        float32
+	pending    bool
+	nextPaint  bool
+	frameTimer int
+	timerFunc  js.Func
+	metrics    *textMetrics
+	measurer   *domMeasurer
+	clock      frameClock
+	paths      pathCache
 }
 
 // Run mounts the application into the document and returns when the page
@@ -143,6 +147,9 @@ func (runtime *runtime) mount() {
 	}
 	runtime.measurer = newDOMMeasurer(runtime.document)
 	runtime.canvas.SetTextEngine(newLineEngine(runtime.measurer))
+	started := time.Now()
+	runtime.canvas.SetClock(func() time.Duration { return time.Since(started) })
+	runtime.canvas.SetReduceMotion(runtime.window.Call("matchMedia", "(prefers-reduced-motion: reduce)").Get("matches").Bool())
 	// A font that loads late changes the baselines and widths as it does every line.
 	clearLines := runtime.measurer.invalidate
 	runtime.measurer.setInvalidate(func() {
@@ -175,15 +182,46 @@ func (runtime *runtime) resize() {
 // requestFrame schedules one render on the browser's display pipeline. The
 // runtime is event-driven: frames happen only when something changed.
 func (runtime *runtime) requestFrame() {
+	runtime.cancelFrameTimer()
 	if runtime.pending {
 		return
 	}
 	runtime.pending = true
 	js.Global().Get("window").Call("requestAnimationFrame", js.FuncOf(func(js.Value, []js.Value) any {
 		runtime.pending = false
+		if runtime.nextPaint {
+			runtime.nextPaint = false
+			runtime.painter.repaint()
+		}
 		runtime.render()
 		return nil
 	}))
+}
+
+func (runtime *runtime) cancelFrameTimer() {
+	if runtime.frameTimer != 0 {
+		runtime.window.Call("clearTimeout", runtime.frameTimer)
+		runtime.frameTimer = 0
+		runtime.timerFunc.Release()
+	}
+}
+
+func (runtime *runtime) scheduleFrame(delay time.Duration) {
+	if delay <= 0 {
+		runtime.nextPaint = true
+		runtime.requestFrame()
+		return
+	}
+	runtime.cancelFrameTimer()
+	runtime.timerFunc = js.FuncOf(func(js.Value, []js.Value) any {
+		runtime.frameTimer = 0
+		runtime.timerFunc.Release()
+		runtime.painter.repaint()
+		runtime.requestFrame()
+		return nil
+	})
+	milliseconds := int((delay + time.Millisecond - 1) / time.Millisecond)
+	runtime.frameTimer = runtime.window.Call("setTimeout", runtime.timerFunc, milliseconds).Int()
 }
 
 // drawRuns draws a fixed-pitch grid line: each run at its cell, in its own
@@ -250,6 +288,13 @@ func clipRect(context js.Value, bounds ui.Rect) {
 // bindEvents wires pointer and keyboard input to the interaction router.
 func (runtime *runtime) bindEvents() {
 	surface := runtime.surface
+	motion := runtime.window.Call("matchMedia", "(prefers-reduced-motion: reduce)")
+	motion.Call("addEventListener", "change", js.FuncOf(func(_ js.Value, args []js.Value) any {
+		runtime.canvas.SetReduceMotion(args[0].Get("matches").Bool())
+		runtime.painter.repaint()
+		runtime.requestFrame()
+		return nil
+	}))
 
 	surface.Call("addEventListener", "pointermove", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		event := args[0]
@@ -369,10 +414,11 @@ func (runtime *runtime) bindEvents() {
 			}
 		}
 		if runtime.a11y.text.activeElement(event.Get("target")) {
-			if event.Get("key").String() == "Tab" {
+			if key, ok := webKey(event.Get("key").String()); ok && !event.Get("isComposing").Bool() &&
+				(key == input.KeyTab || placedRowKey(runtime.painter.textInput, key, modifiers)) {
 				event.Call("preventDefault")
 				if runtime.painter.keyDown(ui.KeyEvent{
-					Key:       input.KeyTab,
+					Key:       key,
 					Modifiers: modifiers,
 					Repeat:    event.Get("repeat").Bool(),
 				}) {
@@ -393,6 +439,25 @@ func (runtime *runtime) bindEvents() {
 		}
 		return nil
 	}))
+}
+
+func placedRowKey(editor TextInput, key input.Key, modifiers ui.Modifiers) bool {
+	if editor.NavigationKeys {
+		switch key {
+		case input.KeyUp, input.KeyDown, input.KeyPageUp, input.KeyPageDown:
+			return true
+		}
+	}
+	if !editor.Placed {
+		return false
+	}
+	switch key {
+	case input.KeyUp, input.KeyDown, input.KeyHome, input.KeyEnd, input.KeyPageUp, input.KeyPageDown:
+		return true
+	case input.KeyLeft, input.KeyRight:
+		return modifiers&ui.ModifierMeta != 0
+	}
+	return false
 }
 
 func pointerEvent(kind ui.PointerEventKind, event js.Value) ui.PointerEvent {
@@ -512,6 +577,10 @@ func webKey(key string) (input.Key, bool) {
 		return input.KeyHome, true
 	case "End":
 		return input.KeyEnd, true
+	case "PageUp":
+		return input.KeyPageUp, true
+	case "PageDown":
+		return input.KeyPageDown, true
 	case "Backspace":
 		return input.KeyBackspace, true
 	case "Delete":

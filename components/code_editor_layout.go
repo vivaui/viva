@@ -298,7 +298,7 @@ func (editor *CodeEditor) OffsetWithVirtualAt(point ui.Point) (offset, virtualCe
 	return offset, virtualCells, true
 }
 
-// CaretBounds is where the caret was painted, one pixel wide, in window
+// CaretBounds is where the caret was placed, with its requested width, in window
 // coordinates; false while it is scrolled out of view. It implements
 // ui.TextPlacement.
 func (editor *CodeEditor) CaretBounds() (ui.Rect, bool) {

@@ -3,8 +3,11 @@
 package web
 
 import (
+	"unicode/utf8"
+
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -26,6 +29,8 @@ type painter struct {
 	accessibility []accessibilityDescription
 	textInputID   ui.ID
 	textInput     TextInput
+	placing       bool
+	placeAnchor   int
 	hovered       ui.ID
 	pressed       ui.ID
 	pressTarget   ui.ID
@@ -200,7 +205,9 @@ func (p *painter) paint() {
 	p.canvas.Reset()
 	p.canvas.SetInteraction(p.hovered, p.pressed, p.focused, p.keyboardFocus)
 	p.canvas.SetScroll(p.scrollX, p.scrollY)
+	p.canvas.BeginFrame()
 	p.config.Paint(p.canvas, ui.Size{Width: p.width, Height: p.height})
+	p.canvas.EndFrame()
 }
 
 // canClick reports whether a click on a control has anywhere to go: whether the
@@ -277,6 +284,7 @@ func (p *painter) syncTextInput() {
 		input := p.config.TextInput(TextInputContext{
 			ID: hit.ID, Bounds: hit.Bounds, Multiline: hit.Multiline,
 			TextBounds: hit.TextBounds, FontSize: hit.TextSize, FontWeight: hit.TextWeight, TextColor: hit.TextColor,
+			HideNativeOverlays: hit.HideNativeOverlays,
 		})
 		if input == nil || input.OnEvent == nil {
 			return
@@ -284,6 +292,8 @@ func (p *painter) syncTextInput() {
 		p.textInputID = hit.ID
 		p.textInput = *input
 		p.textInput.Multiline = hit.Multiline
+		p.textInput.Placed = hit.Placement != nil
+		p.textInput.HideNativeOverlays = input.HideNativeOverlays || hit.HideNativeOverlays
 		if p.textInput.Width == 0 && p.textInput.Height == 0 {
 			bounds := hit.TextBounds
 			if bounds == (ui.Rect{}) {
@@ -390,6 +400,7 @@ func (p *painter) pointer(event ui.PointerEvent) bool {
 		p.pressHandled = true
 	}
 	focusChanged := p.applyEventResult(result)
+	placed := p.placeCaret(event)
 
 	switch event.Kind {
 	case ui.PointerUp:
@@ -407,9 +418,61 @@ func (p *painter) pointer(event ui.PointerEvent) bool {
 		p.pressHandled = false
 	}
 
-	if p.hovered == beforeHovered && p.pressed == beforePressed && p.focused == beforeFocus && p.keyboardFocus == beforeKeyboard && !focusChanged && !result.Repaint {
+	if p.hovered == beforeHovered && p.pressed == beforePressed && p.focused == beforeFocus && p.keyboardFocus == beforeKeyboard && !focusChanged && !result.Repaint && !placed {
 		return false
 	}
 	p.repaint()
 	return true
+}
+
+func (p *painter) placeCaret(event ui.PointerEvent) bool {
+	switch event.Kind {
+	case ui.PointerDown:
+		p.placing = false
+		if event.Button != ui.PointerButtonPrimary || p.hovered != p.focused || p.focused.IsZero() {
+			return false
+		}
+	case ui.PointerMove:
+		if !p.placing {
+			return false
+		}
+	case ui.PointerUp:
+		wasPlacing := p.placing
+		p.placing = false
+		if !wasPlacing {
+			return false
+		}
+	default:
+		return false
+	}
+	for _, hit := range p.canvas.Hits() {
+		if hit.ID != p.focused || hit.Placement == nil || hit.ReadOnly || hit.Disabled {
+			continue
+		}
+		if p.textInputID != p.focused {
+			p.syncTextInput()
+		}
+		if p.textInputID != p.focused {
+			return false
+		}
+		offset, ok := hit.Placement.OffsetAt(ui.Point{X: event.X, Y: event.Y})
+		if !ok {
+			return false
+		}
+		value := p.textInput.State.Value
+		index := utf8.RuneCountInString(value[:max(0, min(offset, len(value)))])
+		if event.Kind == ui.PointerDown {
+			p.placing, p.placeAnchor = true, index
+		}
+		next, err := p.textInput.OnEvent(platform.TextEvent{
+			Kind: platform.TextSetSelection, Selection: text.Range{Start: p.placeAnchor, End: index},
+		})
+		if err != nil {
+			return false
+		}
+		changed := next != p.textInput.State
+		p.textInput.State = next
+		return changed
+	}
+	return false
 }
