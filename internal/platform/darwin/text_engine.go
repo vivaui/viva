@@ -10,6 +10,7 @@ import "C"
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -193,11 +194,20 @@ func (engine *TextEngine) WidthStyle(value string, size, weight float32, italic 
 // RasterizeText implements ui.TextRasterizer with the same CoreText shaped line
 // the engine measures and the native label renderer draws.
 func (engine *TextEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
-	if value == "" || style.Size <= 0 || scale <= 0 || width <= 0 || height <= 0 {
-		return ui.Bitmap{}, nil
+	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width > int(^uint(0)>>1)/4 || height > int(^uint(0)>>1)/(width*4) {
+		return ui.Bitmap{}, fmt.Errorf("darwin: invalid text bitmap size")
 	}
-	if width > 16384 || height > 16384 || width > int(^uint(0)>>1)/4 || height > int(^uint(0)>>1)/(width*4) {
-		return ui.Bitmap{}, fmt.Errorf("darwin: text bitmap is too large")
+	if scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
+		return ui.Bitmap{}, fmt.Errorf("darwin: invalid text rasterization scale")
+	}
+	if !validTextSize(style.Size) {
+		return ui.Bitmap{}, fmt.Errorf("darwin: invalid text rasterization size")
+	}
+	if value == "" {
+		// An empty line is a transparent bitmap of the size asked for, which is
+		// what the other backends return: a caller can then treat "no glyphs" the
+		// same way everywhere instead of distinguishing an empty bitmap.
+		return transparentBitmap(width, height), nil
 	}
 
 	engine.mutex.Lock()
@@ -228,6 +238,18 @@ func (engine *TextEngine) RasterizeText(value string, style ui.TextStyle, scale 
 		return ui.Bitmap{}, fmt.Errorf("darwin: rasterize text")
 	}
 	return ui.Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4}, nil
+}
+
+// validTextSize reports whether size is a font size the text system can shape
+// with, matching the check the label paths make before asking for a line.
+func validTextSize(size float32) bool {
+	return size > 0 && !math.IsNaN(float64(size)) && !math.IsInf(float64(size), 0)
+}
+
+// transparentBitmap is an all-zero premultiplied BGRA bitmap of the given size:
+// what a line with nothing to draw leaves behind.
+func transparentBitmap(width, height int) ui.Bitmap {
+	return ui.Bitmap{Pix: make([]byte, width*height*4), Width: width, Height: height, Stride: width * 4}
 }
 
 // Caret implements ui.TextEngine.

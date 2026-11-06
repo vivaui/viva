@@ -6,6 +6,12 @@ import "math"
 // BGRA pixels are blurred with a separable Gaussian kernel of standard deviation
 // sigma, measured in bitmap pixels.
 //
+// The kernel reaches three sigma on each side, so the work is proportional to
+// width*height*sigma: at sigma 200 a 1920x1080 bitmap is about five billion
+// multiply-adds and will stall whatever thread paints it. Sigma is meant for a
+// few pixels of softness; a caller that wants a much wider blur should scale the
+// bitmap down first.
+//
 // The source bitmap is left untouched. A non-positive or non-finite sigma
 // returns source unchanged. Invalid bitmap storage returns the zero Bitmap. The blurred result
 // has no bitmap identity: callers that retain and redraw it should assign a
