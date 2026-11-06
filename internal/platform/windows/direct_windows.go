@@ -67,6 +67,7 @@ type d2dRenderTargetProperties struct {
 // bitmap is bound and kept (scratch), grown when a label needs more, and every label is drawn
 // into the corner of it.
 type directTarget struct {
+	directTextCall
 	target, brush uintptr
 	scratch       *textBitmap
 	width, height int                                        // of the scratch bitmap
@@ -94,6 +95,7 @@ func newDirectTarget(factory uintptr, alphaMode uint32) (*directTarget, error) {
 		direct.close()
 		return nil, fmt.Errorf("windows: create Direct2D brush: %w", err)
 	}
+	direct.initTextCall()
 	return direct, nil
 }
 
@@ -155,7 +157,7 @@ func (target *directTarget) popClip() {
 }
 
 func (target *directTarget) draw(x, y float32, layout uintptr, options uint32) {
-	comCall(target.target, d2dDrawTextLayout, pointArgument(x, y), layout, target.brush, uintptr(options))
+	target.drawTextLayout(x, y, layout, options)
 }
 
 func (target *directTarget) end() error {
