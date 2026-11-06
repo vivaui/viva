@@ -110,7 +110,10 @@ func (editor *CodeEditor) SoftWrapOffsets(dst []int) []int {
 		if editor.wrapScratch == nil {
 			editor.wrapScratch = &CodeEditor{}
 		}
-		editor.wrapScratch.fit(editor.text, editor.cols, true, editor.tabWidth)
+		// Lay the wrapped view out with the same folds: a hidden line has no rows,
+		// so its breaks must not be reported to a caller that turns visible soft
+		// wraps into line breaks.
+		editor.wrapScratch.fitWithFolds(editor.text, editor.cols, true, editor.tabWidth, editor.foldInput)
 		rows = editor.wrapScratch.rows
 	}
 	for index := 1; index < len(rows); index++ {
