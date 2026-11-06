@@ -130,6 +130,9 @@
 //     Setting the Separator field makes path values browsable level by level through
 //     fly-outs (hover or Right opens, Left closes); typing searches the flat
 //     list of full paths.
+//   - Hierarchy menu: `PaintHierarchyMenu` paints a list of path values as
+//     fly-outs, one level per panel, anchored under any control; the caller
+//     owns when it is shown. `SingleSelectState` uses the same `HierarchyMenuState`.
 //   - Native select: `PaintNativeSelect` paints the platform-styled control
 //     and `PaintNativeSelectSemantics` declares its accessibility tree;
 //     `NativeSelectCommandForKey` maps key events.

@@ -430,7 +430,7 @@ func TestSingleSelectTreeOpensAtOnceAndSwitchesAfterARest(t *testing.T) {
 	if _, ok := canvas.NextFrame(); !ok {
 		t.Fatal("no frame was requested to finish the switch delay")
 	}
-	now += selectSwitchDelay + time.Millisecond
+	now += hierarchySwitchDelay + time.Millisecond
 	paint(o.OptionIDs.At(1))
 	if s.tree.depth != 0 {
 		t.Fatalf("depth %d after resting on a row with no children", s.tree.depth)
@@ -439,7 +439,7 @@ func TestSingleSelectTreeOpensAtOnceAndSwitchesAfterARest(t *testing.T) {
 
 func TestSingleSelectTreeBeyondSupportedDepthIsFlat(t *testing.T) {
 	s, _ := hierarchicalSelectFixture()
-	s.SetOptions([]SingleSelectOption{{Value: strings.Repeat("a/", selectMaxLevels) + "z"}})
+	s.SetOptions([]SingleSelectOption{{Value: strings.Repeat("a/", hierarchyMaxLevels) + "z"}})
 	if s.treeActive() {
 		t.Fatal("a value nested past the supported depth must not use the tree")
 	}
@@ -458,5 +458,40 @@ func BenchmarkSingleSelectTreePaint(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		paint()
+	}
+}
+
+// The menu stands alone, anchored under any control: it chooses by path, owns no
+// open flag, and its overlay reports a press outside it.
+func TestHierarchyMenuStandsAloneUnderAnAnchor(t *testing.T) {
+	var tree ui.Tree
+	f := tree.Feature("hierarchy-menu")
+	o := HierarchyMenuOptions{OptionIDs: tree.Sub(f, tree.Name("option")), ScrollID: tree.ID(f, "scroll"), Scope: tree.ID(f, "scope"), Layer: 4, Label: "Groups", Viewport: ui.Rect{Width: 800, Height: 600}, Overlay: true, DismissID: tree.ID(f, "dismiss")}
+	values := []string{"Gansu/Lanzhou", "Gansu/Tianshui", "Xinjiang"}
+	var m HierarchyMenuState
+	if !m.Build("/", "", nil, len(values), func(i int) HierarchyMenuItem { return HierarchyMenuItem{Value: values[i]} }) {
+		t.Fatal("Build refused ordinary values")
+	}
+	var canvas ui.Canvas
+	canvas.Reset()
+	popup := PaintHierarchyMenu(&canvas, ui.LightTheme(), ui.Rect{X: 40, Y: 20, Width: 100, Height: 26}, &m, o)
+	if popup.Width < 100 || popup.Y < 46 {
+		t.Fatalf("popup %+v is not under its anchor", popup)
+	}
+	if result := m.Key(ui.KeyEvent{Key: ui.KeyDown}, false); !result.Opened {
+		t.Fatal("Down on a hidden menu did not ask to show it")
+	}
+	m.Key(ui.KeyEvent{Key: ui.KeyRight}, true)
+	m.Key(ui.KeyEvent{Key: ui.KeyDown}, true)
+	if result := m.Key(ui.KeyEvent{Key: ui.KeyEnter}, true); !result.Picked || result.Chosen != "Gansu/Tianshui" {
+		t.Fatalf("Enter picked %q (%v)", result.Chosen, result.Picked)
+	}
+	if m.Key(ui.KeyEvent{Key: ui.KeyEscape}, true); m.Depth() != 0 {
+		t.Fatalf("Escape left %d fly-outs open", m.Depth())
+	}
+	if m.Build("/", "", nil, 1, func(int) HierarchyMenuItem {
+		return HierarchyMenuItem{Value: strings.Repeat("a/", hierarchyMaxLevels) + "z"}
+	}) {
+		t.Fatal("Build accepted a value nested past the supported depth")
 	}
 }

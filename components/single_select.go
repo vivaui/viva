@@ -4,7 +4,6 @@ import (
 	"math"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
@@ -46,7 +45,8 @@ type SingleSelectState struct {
 	rebuilt, widestRebuilt          uint64
 	widestSize, widest              float32
 	lastQuery, lastSep              string
-	tree                            selectTree
+	tree                            HierarchyMenuState
+	treeOK                          bool
 	lastAllow, lastCase, prepared   bool
 	scroll                          MenuScroll
 	openPainted, focusInput, reveal bool
@@ -83,7 +83,7 @@ func (s *SingleSelectState) Dismiss() {
 	s.Query = text.Editor{}
 	s.Open = false
 	s.Active = 0
-	s.tree.depth, s.tree.level = 0, 0
+	s.tree.Reset()
 }
 
 func (s *SingleSelectState) equal(a, b string) bool {
@@ -152,9 +152,11 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 	s.lastQuery, s.built, s.prepared = query, s.revision, true
 	s.rebuilt++
 	s.lastAllow, s.lastCase, s.lastSep = s.AllowCreate, s.MatchCaseInsensitive, s.Separator
-	s.tree.ok = false
+	s.treeOK = false
 	if s.Separator != "" && query == "" {
-		s.buildTree()
+		s.treeOK = s.tree.Build(s.Separator, s.value, s.equal, len(s.choices), func(i int) HierarchyMenuItem {
+			return HierarchyMenuItem{Value: s.choices[i].Value, Disabled: s.choices[i].Disabled}
+		})
 	}
 	s.scroll.Offset, s.reveal = 0, true
 	// A rebuilt list is a new set of rows: let the pointer adopt the row it is
@@ -171,7 +173,12 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 func (s *SingleSelectState) Choose(index int) bool {
 	choices := s.Choices()
 	if s.treeActive() {
-		return s.treeChoose(index)
+		value, ok := s.tree.Choose(index)
+		if ok {
+			s.SetValue(value)
+			s.Open, s.focusInput = false, true
+		}
+		return ok
 	}
 	if index < 0 || index >= len(choices) || choices[index].Disabled {
 		return false
@@ -223,8 +230,16 @@ func (s *SingleSelectState) Key(event ui.KeyEvent) ui.EventResult {
 	}
 	choices := s.Choices()
 	if s.treeActive() {
-		if result, handled := s.treeKey(event); handled {
-			return result
+		result := s.tree.Key(event, s.Open)
+		if result.Opened {
+			s.Open = true
+		}
+		if result.Picked {
+			s.SetValue(result.Chosen)
+			s.Open, s.focusInput = false, true
+		}
+		if result.Handled {
+			return result.EventResult
 		}
 	}
 	switch event.Key {
@@ -276,31 +291,22 @@ func (s *SingleSelectState) Key(event ui.KeyEvent) ui.EventResult {
 	return ui.EventResult{}
 }
 
-// Wheel scrolls the panel under the pointer: the deepest open one that holds it.
+// Wheel scrolls the list, or in a hierarchical one the panel under the pointer.
 func (s *SingleSelectState) Wheel(event ui.ScrollEvent) bool {
 	if s.treeActive() {
-		for level := s.tree.depth; level >= 0; level-- {
-			if pointInRect(ui.Point{X: event.X, Y: event.Y}, s.tree.panels[level]) {
-				return s.treeScroll(level).Wheel(event)
-			}
-		}
-		return false
+		return s.tree.Wheel(event)
 	}
 	return s.scroll.Wheel(event)
 }
 
 func (s *SingleSelectState) Pointer(event ui.PointerEvent) ui.EventResult {
-	levels := 1
 	if s.treeActive() {
-		levels += s.tree.depth
+		return s.tree.Pointer(event)
 	}
-	for level := 0; level < levels; level++ {
-		scroll := s.treeScroll(level)
-		if !scroll.BarID.IsZero() && (event.Target == scroll.BarID || scroll.Dragging()) {
-			return ui.EventResult{Handled: true, Repaint: scroll.Drag(event)}
-		}
+	if s.scroll.BarID.IsZero() || event.Target != s.scroll.BarID && !s.scroll.Dragging() {
+		return ui.EventResult{}
 	}
-	return ui.EventResult{}
+	return ui.EventResult{Handled: true, Repaint: s.scroll.Drag(event)}
 }
 
 // SingleSelectOptions names the control's hit IDs, its popup layer and the
@@ -428,7 +434,10 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 		return layout
 	}
 	if s.treeActive() {
-		layout.Popup = s.paintTree(canvas, theme, bounds, o)
+		layout.Popup = PaintHierarchyMenu(canvas, theme, bounds, &s.tree, HierarchyMenuOptions{
+			OptionIDs: o.OptionIDs, ScrollID: o.ScrollID, Scope: o.Scope, Layer: o.Layer, Label: o.Label,
+			EmptyLabel: o.EmptyLabel, Viewport: o.Viewport, MaxRows: o.MaxRows,
+		})
 		return layout
 	}
 	rows := o.MaxRows
@@ -447,7 +456,7 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 			layout.Popup.X = max(o.Viewport.X+1, min(layout.Popup.X, o.Viewport.X+o.Viewport.Width-1-layout.Popup.Width))
 		}
 	}
-	s.placePopup(&layout.Popup, bounds, height, o)
+	placePopupBelow(&layout.Popup, bounds, height, o.Viewport)
 	if floating {
 		canvas.PushOverlayClip(o.Viewport)
 		defer canvas.PopOverlayClip()
@@ -510,440 +519,9 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 	return layout
 }
 
-// placePopup keeps the popup inside the viewport: above the field when that
-// holds a usable row and below does not fit, shortened to what room is left.
-func (s *SingleSelectState) placePopup(popup *ui.Rect, bounds ui.Rect, height float32, o SingleSelectOptions) {
-	if o.Viewport.Height > 0 {
-		top, bottom := o.Viewport.Y+1, o.Viewport.Y+o.Viewport.Height-1
-		if popup.Y+popup.Height > bottom {
-			// Prefer the room above the field, but only when it holds a usable
-			// row; otherwise the list scrolls inside what is left below.
-			if above := bounds.Y - 6 - top; above >= min(height, 40) {
-				popup.Height = min(height, above)
-				popup.Y = bounds.Y - popup.Height - 6
-			}
-		}
-		popup.Y = max(top, min(popup.Y, bottom-1))
-		popup.Height = max(1, min(popup.Height, bottom-popup.Y))
-	}
-}
-
-// selectMaxLevels is how many panels (the list plus its fly-outs) a tree
-// SingleSelect can show at once. Values nested deeper make the whole list fall
-// back to the flat one, so no value becomes unreachable.
-const selectMaxLevels = 8
-
-// selectSwitchDelay is how long the pointer rests on another row before an open
-// fly-out gives way to that row's, or closes. A fly-out opens at once when none
-// is open. The rest keeps the pointer's diagonal across the rows beside the
-// trigger on its way into the fly-out from switching it; the canvas has no
-// pointer position to aim with instead.
-const selectSwitchDelay = 60 * time.Millisecond
-
-// selectBarRow is the reserved row number, within a level, of that level's
-// scrollbar hit.
-const selectBarRow = 0xFFFF
-
-// selectNode is one segment of a value path. Children are a singly linked list
-// in first-seen order; node 0 is the invisible root.
-type selectNode struct {
-	name, path        string
-	first, last, next int32
-	count             int32
-	disabled          bool
-}
-
-// selectTree is the segment tree of the current options, and which fly-outs
-// are open. Level l of the popup lists the children of trail[l-1] (the root for
-// level 0); depth is the number of open fly-outs, so levels 0..depth show.
-type selectTree struct {
-	nodes  []selectNode
-	ok     bool
-	trail  [selectMaxLevels]int32
-	active [selectMaxLevels]int
-	depth  int
-	// level is the panel the keyboard cursor is in.
-	level  int
-	intent HoverIntent
-	// panels and triggers are where the last paint put each open panel and
-	// the row that opened it.
-	panels, triggers [selectMaxLevels]ui.Rect
-	sub              [selectMaxLevels - 1]MenuScroll
-	// widest caches the widest label of one level's list: keyed by the parent
-	// node, the rebuild and the font size it was measured at.
-	widest [selectMaxLevels]struct {
-		parent  int32
-		rebuilt uint64
-		size    float32
-		width   float32
-		valid   bool
-	}
-}
-
 // treeActive reports whether the popup is the hierarchical one: a separator is
 // set, no search text is typed, and every value fits the supported depth.
 func (s *SingleSelectState) treeActive() bool {
 	s.Choices()
-	return s.tree.ok && s.Separator != "" && s.lastQuery == ""
-}
-
-func (s *SingleSelectState) treeScroll(level int) *MenuScroll {
-	if level == 0 {
-		return &s.scroll
-	}
-	return &s.tree.sub[level-1]
-}
-
-func (t *selectTree) parentOf(level int) int32 {
-	if level == 0 {
-		return 0
-	}
-	return t.trail[level-1]
-}
-
-// rowNode is the node of row of level, or 0 when there is none.
-func (t *selectTree) rowNode(level, row int) int32 {
-	if level < 0 || level > t.depth || row < 0 {
-		return 0
-	}
-	parent := t.parentOf(level)
-	if row >= int(t.nodes[parent].count) {
-		return 0
-	}
-	n := t.nodes[parent].first
-	for ; row > 0; row-- {
-		n = t.nodes[n].next
-	}
-	return n
-}
-
-func (t *selectTree) child(parent int32, name string, equal func(a, b string) bool) int32 {
-	for n := t.nodes[parent].first; n != 0; n = t.nodes[n].next {
-		if equal(t.nodes[n].name, name) {
-			return n
-		}
-	}
-	return 0
-}
-
-// buildTree splits every existing choice's value at Separator into the segment
-// tree. Labels are not used: each row shows its own segment of the value.
-func (s *SingleSelectState) buildTree() {
-	t := &s.tree
-	t.nodes = append(t.nodes[:0], selectNode{})
-	t.ok = true
-	for _, choice := range s.choices {
-		if choice.Create {
-			continue
-		}
-		parent, rest, offset := int32(0), choice.Value, 0
-		for depth := 1; ; depth++ {
-			if depth > selectMaxLevels {
-				t.ok = false
-				return
-			}
-			end := strings.Index(rest, s.Separator)
-			segment := rest
-			if end >= 0 {
-				segment = rest[:end]
-			}
-			name := strings.TrimSpace(segment)
-			child := t.child(parent, name, s.equal)
-			if child == 0 {
-				child = int32(len(t.nodes))
-				t.nodes = append(t.nodes, selectNode{name: name, path: choice.Value[:offset+len(segment)]})
-				if p := &t.nodes[parent]; p.count == 0 {
-					p.first = child
-				} else {
-					t.nodes[p.last].next = child
-				}
-				t.nodes[parent].last = child
-				t.nodes[parent].count++
-			}
-			parent = child
-			if end < 0 {
-				break
-			}
-			rest = rest[end+len(s.Separator):]
-			offset += len(segment) + len(s.Separator)
-		}
-		if parent != 0 {
-			t.nodes[parent].disabled = choice.Disabled
-		}
-	}
-	s.seekValue()
-}
-
-// seekValue opens the fly-outs down to the selected value, with the cursor on
-// it, so the list opens where the selection is.
-func (s *SingleSelectState) seekValue() {
-	t := &s.tree
-	t.depth, t.level, t.active = 0, 0, [selectMaxLevels]int{}
-	if s.value == "" {
-		return
-	}
-	parent, rest := int32(0), s.value
-	for level := 0; ; level++ {
-		end := strings.Index(rest, s.Separator)
-		segment := rest
-		if end >= 0 {
-			segment = rest[:end]
-		}
-		row, n := 0, t.nodes[parent].first
-		for ; n != 0; n, row = t.nodes[n].next, row+1 {
-			if s.equal(t.nodes[n].name, strings.TrimSpace(segment)) {
-				break
-			}
-		}
-		if n == 0 {
-			return
-		}
-		t.active[level], t.level = row, level
-		if end < 0 {
-			return
-		}
-		t.trail[level], t.depth = n, level+1
-		parent, rest = n, rest[end+len(s.Separator):]
-	}
-}
-
-// treeKey handles the keys that move through the levels. It reports false for
-// keys the flat list handles identically.
-func (s *SingleSelectState) treeKey(event ui.KeyEvent) (ui.EventResult, bool) {
-	t := &s.tree
-	repaint := ui.EventResult{Handled: true, Repaint: true}
-	switch event.Key {
-	case ui.KeyDown, ui.KeyUp:
-		if !s.Open {
-			s.Open = true
-			return repaint, true
-		}
-		step := 1
-		if event.Key == ui.KeyUp {
-			step = -1
-		}
-		count := int(t.nodes[t.parentOf(t.level)].count)
-		for i, next := 0, t.active[t.level]; i < count; i++ {
-			next = (next + step + count) % count
-			if n := t.rowNode(t.level, next); n != 0 && !t.nodes[n].disabled {
-				t.active[t.level] = next
-				break
-			}
-		}
-		s.reveal = true
-		return repaint, true
-	case ui.KeyRight:
-		if !s.Open {
-			return ui.EventResult{}, false
-		}
-		if n := t.rowNode(t.level, t.active[t.level]); n != 0 && t.nodes[n].count > 0 && t.level+1 < selectMaxLevels {
-			t.trail[t.level], t.depth = n, t.level+1
-			t.level++
-			t.active[t.level] = 0
-			t.sub[t.level-1].Offset = 0
-			s.reveal = true
-		}
-		return repaint, true
-	case ui.KeyLeft:
-		if !s.Open || t.level == 0 {
-			return ui.EventResult{}, false
-		}
-		t.level--
-		t.depth = t.level
-		s.reveal = true
-		return repaint, true
-	case ui.KeyEnter:
-		if event.Repeat {
-			return repaint, true
-		}
-		if !s.Open {
-			s.Open = true
-		} else {
-			s.Choose(t.level<<16 | t.active[t.level])
-		}
-		return repaint, true
-	case ui.KeyEscape:
-		if s.Open && t.depth > 0 {
-			t.depth--
-			t.level = min(t.level, t.depth)
-			return repaint, true
-		}
-	}
-	return ui.EventResult{}, false
-}
-
-// treeChoose selects the node a row identity (level<<16 | row) names.
-func (s *SingleSelectState) treeChoose(index int) bool {
-	t := &s.tree
-	n := t.rowNode(index>>16, index&0xFFFF)
-	if n == 0 || t.nodes[n].disabled {
-		return false
-	}
-	s.SetValue(t.nodes[n].path)
-	s.Open, s.focusInput = false, true
-	return true
-}
-
-// levelWidth is the width that shows every row of level untruncated.
-func (s *SingleSelectState) levelWidth(canvas *ui.Canvas, theme ui.Theme, level int) float32 {
-	t := &s.tree
-	parent, size := t.parentOf(level), theme.Metrics.FontSizeM
-	cache := &t.widest[level]
-	if !cache.valid || cache.parent != parent || cache.rebuilt != s.rebuilt || cache.size != size {
-		cache.width = 0
-		for n := t.nodes[parent].first; n != 0; n = t.nodes[n].next {
-			cache.width = max(cache.width, canvas.TextWidthWeight(t.nodes[n].name, size, ui.WeightRegular))
-		}
-		cache.parent, cache.rebuilt, cache.size, cache.valid = parent, s.rebuilt, size, true
-	}
-	// 8 before the label and 30 after it, inside the menu padding on both sides.
-	return float32(math.Ceil(float64(cache.width))) + 46 + 1
-}
-
-// paintTree paints the hierarchical popup: the first list under the field and a
-// fly-out to the right of each open row. It returns the box around every panel.
-func (s *SingleSelectState) paintTree(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, o SingleSelectOptions) ui.Rect {
-	t := &s.tree
-	if floating := o.Viewport.Width > 0 && o.Viewport.Height > 0; floating {
-		canvas.PushOverlayClip(o.Viewport)
-		defer canvas.PopOverlayClip()
-	}
-	// Move the cursor before any row is painted, as the flat list does.
-	hovered := canvas.Hovered()
-	level, row, onRow := 0, 0, false
-	if index, ok := hovered.In(o.OptionIDs); ok && index&0xFFFF != selectBarRow {
-		level, row, onRow = index>>16, index&0xFFFF, true
-	}
-	if s.hover.entered(hovered) && onRow {
-		if n := t.rowNode(level, row); n != 0 && !t.nodes[n].disabled {
-			t.level, t.active[level] = level, row
-		}
-	}
-	// A fly-out opens, or a deeper one closes, only after the pointer rests on a
-	// row, so crossing other rows on the way to a fly-out changes nothing.
-	n := int32(0)
-	if onRow {
-		n = t.rowNode(level, row)
-	}
-	opens := n != 0 && t.nodes[n].count > 0 && level+1 < selectMaxLevels && !(t.depth > level && t.trail[level] == n)
-	closes := n != 0 && t.nodes[n].count == 0 && t.depth > level
-	if opens || closes {
-		now, delay := time.Time{}.Add(canvas.Now()), time.Duration(0)
-		if t.depth > level {
-			delay = selectSwitchDelay
-		}
-		if id, wait := t.intent.Rest(hovered, now, delay); !id.IsZero() {
-			t.depth = level
-			if opens {
-				t.trail[level], t.depth = n, level+1
-				t.sub[level].Offset = 0
-			}
-		} else if wait > 0 {
-			canvas.RequestFrameIn(wait)
-		}
-	} else {
-		t.intent.Reset()
-	}
-
-	rows := o.MaxRows
-	if rows <= 0 {
-		rows = 7
-	}
-	var union ui.Rect
-	for l := 0; l <= t.depth; l++ {
-		parent := t.parentOf(l)
-		count := int(t.nodes[parent].count)
-		height := float32(max(1, min(count, rows))*32 + 8)
-		width := max(s.levelWidth(canvas, theme, l), 144)
-		popup := ui.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 6, Width: max(width, bounds.Width), Height: height}
-		if l == 0 {
-			s.placePopup(&popup, bounds, height, o)
-		} else {
-			popup.Width = width
-			prev, trigger := t.panels[l-1], t.triggers[l-1]
-			popup.X, popup.Y = prev.X+prev.Width-4, trigger.Y-4
-			if o.Viewport.Width > 0 {
-				left, right, top, bottom := o.Viewport.X+1, o.Viewport.X+o.Viewport.Width-1, o.Viewport.Y+1, o.Viewport.Y+o.Viewport.Height-1
-				if popup.X+popup.Width > right {
-					popup.X = prev.X - popup.Width + 4
-				}
-				popup.X = max(left, min(popup.X, right-popup.Width))
-				popup.Y = max(top, min(popup.Y, bottom-popup.Height))
-				popup.Height = min(popup.Height, bottom-popup.Y)
-			}
-		}
-		t.panels[l] = popup
-		union = unionRect(union, popup, l == 0)
-
-		canvas.Block(popup)
-		canvas.Container(popup, ui.RoleListBox, o.Label)
-		canvas.Elevate(popup, theme.Metrics.RadiusPopup(), ui.ShadowMD)
-		canvas.RoundedBorder(popup, theme.Metrics.RadiusPopup(), 1, theme.Border, theme.Popover)
-		scroll := s.treeScroll(l)
-		scroll.BarID = o.ScrollID
-		if l > 0 {
-			scroll.BarID = o.OptionIDs.At(l<<16 | selectBarRow)
-		}
-		menu := menuSurface{canvas: canvas, theme: theme, bounds: popup, options: menuSurfaceOptions{layer: o.Layer, scope: o.Scope, scroll: scroll}, top: popup.Y + 4, bottom: popup.Y + popup.Height - 4, viewHeight: popup.Height - 8}
-		menu.beginScroll()
-		i := 0
-		for node := t.nodes[parent].first; node != 0; node, i = t.nodes[node].next, i+1 {
-			info := t.nodes[node]
-			id := o.OptionIDs.At(l<<16 | i)
-			rowBounds := menu.rowBounds(32)
-			open := l < t.depth && t.trail[l] == node
-			if open {
-				t.triggers[l] = rowBounds
-			}
-			if !menu.takeItem(rowBounds, id, info.name, info.disabled) {
-				continue
-			}
-			selected := s.equal(s.value, info.path)
-			menu.paintRow(rowBounds, func() {
-				if !info.disabled && (open || l == t.level && i == t.active[l]) {
-					canvas.Rounded(rowBounds, theme.Metrics.RadiusItem(), theme.Accent)
-				}
-				color := theme.PopoverForeground
-				if info.disabled {
-					color.Alpha *= .5
-				}
-				reserve := float32(38)
-				if selected && info.count > 0 {
-					reserve += 16
-				}
-				labelWidth := max(rowBounds.Width-reserve, 0)
-				canvas.Label(canvas.FitLine(info.name, theme.Metrics.FontSizeM, ui.WeightRegular, labelWidth), ui.Rect{X: rowBounds.X + 8, Y: rowBounds.Y, Width: labelWidth, Height: rowBounds.Height}, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
-				switch {
-				case info.count > 0:
-					paintChevron(canvas, &chevronRightIcon, ui.Rect{X: rowBounds.X + rowBounds.Width - 25, Y: rowBounds.Y, Width: 16, Height: rowBounds.Height}, color)
-					if selected {
-						paintCheck(canvas, ui.Rect{X: rowBounds.X + rowBounds.Width - 41, Y: rowBounds.Y, Width: 16, Height: rowBounds.Height}, 14, color)
-					}
-				case selected:
-					paintCheck(canvas, ui.Rect{X: rowBounds.X + rowBounds.Width - 25, Y: rowBounds.Y, Width: 16, Height: rowBounds.Height}, 14, color)
-				}
-				canvas.HitWithOptions(id, rowBounds, info.name, ui.HitOptions{Role: ui.RoleOption, Value: info.path, Selected: selected, Expanded: open, Disabled: info.disabled, SkipFocus: true})
-			})
-		}
-		if count == 0 {
-			canvas.LabelCenter(o.EmptyLabel, popup, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground})
-		}
-		menu.end()
-	}
-	if s.reveal {
-		if s.treeScroll(t.level).Reveal(o.OptionIDs.At(t.level<<16 | t.active[t.level])) {
-			canvas.RequestFrame()
-		}
-		s.reveal = false
-	}
-	return union
-}
-
-// unionRect is the smallest rect holding both; the first rect starts it.
-func unionRect(a, b ui.Rect, first bool) ui.Rect {
-	if first {
-		return b
-	}
-	x, y := min(a.X, b.X), min(a.Y, b.Y)
-	return ui.Rect{X: x, Y: y, Width: max(a.X+a.Width, b.X+b.Width) - x, Height: max(a.Y+a.Height, b.Y+b.Height) - y}
+	return s.treeOK && s.Separator != "" && s.lastQuery == ""
 }
