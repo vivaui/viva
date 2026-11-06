@@ -50,3 +50,22 @@ func TestGlobalShortcutValidation(t *testing.T) {
 		t.Fatal("nil callback accepted")
 	}
 }
+
+func BenchmarkDriverGlobalShortcutRegistration(b *testing.B) {
+	d, err := NewDriver(Config{Width: 160, Height: 100}, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer d.Close()
+	s := GlobalShortcut{Modifiers: ui.ModifierControl | ui.ModifierAlt, Key: "g"}
+	callback := func() {}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		stop, err := RegisterGlobalShortcut(s, callback)
+		if err != nil {
+			b.Fatal(err)
+		}
+		stop()
+	}
+}
