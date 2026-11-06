@@ -302,7 +302,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 	placeholder := value == ""
 	caret := textareaBoundary(value, snapshot.Caret)
 	selectionStart, selectionEnd := textareaRange(value, snapshot.SelectionStart, snapshot.SelectionEnd)
-	selectionRanges := snapshot.SelectionRanges
+	selectionRanges := normalizedSpans(value, snapshot.SelectionRanges)
 	compositionStart, compositionEnd := textareaRange(value, snapshot.CompositionStart, snapshot.CompositionEnd)
 	caretRow := editor.rowOf(caret)
 	caretColumn := editor.columnOf(editor.rows[caretRow], caret)
@@ -314,6 +314,17 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 			row: row, column: editor.columnOf(editor.rows[row], offset) + max(0, extra.VirtualCells),
 		})
 	}
+	// ExtraCarets is documented as sorted, but the paint walks them with one
+	// cursor that only moves forward: an out-of-order caller would silently paint
+	// none of the carets after the first row that went backwards. Sorting here
+	// costs one comparison per caret and keeps the paint linear.
+	sort.SliceStable(editor.extraCarets, func(i, j int) bool {
+		left, right := editor.extraCarets[i], editor.extraCarets[j]
+		if left.row != right.row {
+			return left.row < right.row
+		}
+		return left.column < right.column
+	})
 	if placeholder {
 		editor.scrollX, editor.scrollY, editor.followedValid = 0, 0, false
 	} else {
@@ -607,6 +618,46 @@ func decimalDigits(n int) int {
 		digits++
 	}
 	return digits
+}
+
+// normalizedSpans puts caller-supplied selection spans into the shape the paint
+// walks them in: byte boundaries of the text, ordered by start, no overlaps.
+// SelectionRanges is documented as sorted and disjoint, but the paint advances
+// through them with sort.Search and one forward cursor, so an out-of-order
+// caller would otherwise paint some spans twice and skip others. Clamping also
+// keeps a span that ends past the text from running off the last row. An empty
+// result means nothing is selected, which is how a disabled SelectionRanges is
+// signalled in the first place.
+func normalizedSpans(value string, spans []text.Span) []text.Span {
+	if len(spans) == 0 {
+		return nil
+	}
+	clamped := make([]text.Span, 0, len(spans))
+	for _, span := range spans {
+		start, end := textareaRange(value, span.Start, span.End)
+		if start >= end {
+			continue
+		}
+		clamped = append(clamped, text.Span{Start: start, End: end})
+	}
+	if len(clamped) == 0 {
+		return nil
+	}
+	sort.SliceStable(clamped, func(i, j int) bool {
+		return clamped[i].Start < clamped[j].Start
+	})
+	merged := clamped[:1]
+	for _, span := range clamped[1:] {
+		last := &merged[len(merged)-1]
+		if span.Start <= last.End {
+			if span.End > last.End {
+				last.End = span.End
+			}
+			continue
+		}
+		merged = append(merged, span)
+	}
+	return merged
 }
 
 // The amber of a find match, as literals: a package variable built by a call
