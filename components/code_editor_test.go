@@ -919,6 +919,38 @@ func TestCodeEditorScrollYIsSetAndClamped(t *testing.T) {
 	}
 }
 
+func TestCodeEditorScrollXIsSetAndClamped(t *testing.T) {
+	f := newCodeFixture(strings.Repeat("wide text ", 300))
+	f.snapshot.HorizontalScrollbarID = ui.Item(3)
+	f.editor.SetScrollX(50)
+	f.paint()
+	if f.editor.ScrollX() != 0 {
+		t.Fatalf("scroll before first paint = %v", f.editor.ScrollX())
+	}
+	maximum := f.editor.MaxScrollX()
+	if maximum <= 0 {
+		t.Fatalf("long line must scroll, max=%v", maximum)
+	}
+	f.editor.SetScrollX(maximum / 2)
+	f.paint()
+	if !near(f.editor.ScrollX(), maximum/2) {
+		t.Fatalf("paint changed horizontal scroll: %v", f.editor.ScrollX())
+	}
+	f.editor.SetScrollX(maximum * 10)
+	if f.editor.ScrollX() != maximum {
+		t.Fatalf("scroll past end = %v", f.editor.ScrollX())
+	}
+	f.editor.SetScrollX(-5)
+	if f.editor.ScrollX() != 0 {
+		t.Fatalf("scroll before start = %v", f.editor.ScrollX())
+	}
+	f.snapshot.Wrap = true
+	f.paint()
+	if f.editor.ScrollX() != 0 || f.editor.MaxScrollX() != 0 {
+		t.Fatal("wrapped text retained horizontal scrolling")
+	}
+}
+
 // The caret is only pulled back into view when it moves; a scroll set by the
 // application must survive repaints and then yield to the next caret move.
 func TestCodeEditorSetScrollYYieldsToCaretMoves(t *testing.T) {

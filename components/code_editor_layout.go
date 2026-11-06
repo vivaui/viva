@@ -423,6 +423,25 @@ func (editor *CodeEditor) SetScrollY(y float32) {
 	editor.scrollY = editor.clampScrollY(y)
 }
 
+// ScrollX is the horizontal pixel offset after the last paint.
+func (editor *CodeEditor) ScrollX() float32 { return editor.scrollX }
+
+// MaxScrollX is the largest horizontal pixel offset allowed by the last paint.
+func (editor *CodeEditor) MaxScrollX() float32 {
+	if !editor.painted || editor.wrap {
+		return 0
+	}
+	return max(0, float32(editor.widest+1)*editor.cellWidth-editor.content.Width)
+}
+
+// SetScrollX scrolls the next paint horizontally without moving the caret.
+func (editor *CodeEditor) SetScrollX(x float32) {
+	if !editor.painted {
+		return
+	}
+	editor.scrollX = editor.clampScrollX(x)
+}
+
 // YAtOffset is the vertical position of byte offset in the text, in pixels from
 // its top whatever the scroll: the top of the row holding offset, plus the
 // fraction of a row that offset is along that row's cells. An offset at a soft
