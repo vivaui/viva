@@ -127,6 +127,9 @@
 //   - Single select: `PaintSingleSelect` combines one selected value, a native
 //     search editor and a filtered popup. `SingleSelectState` supports optional
 //     item creation, clearing, keyboard navigation and IME-safe confirmation.
+//     Setting the Separator field makes path values browsable level by level through
+//     fly-outs (hover or Right opens, Left closes); typing searches the flat
+//     list of full paths.
 //   - Native select: `PaintNativeSelect` paints the platform-styled control
 //     and `PaintNativeSelectSemantics` declares its accessibility tree;
 //     `NativeSelectCommandForKey` maps key events.
