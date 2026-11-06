@@ -69,6 +69,14 @@ type CodeEditorSnapshot struct {
 	SelectionEnd     int
 	CompositionStart int
 	CompositionEnd   int
+	// CaretWidth is the caret's thickness in logical pixels; zero is the one
+	// pixel hairline, and an application that wants the two-pixel bar an editor
+	// usually draws asks for it.
+	CaretWidth float32
+	// CaretColor paints the caret; zero takes the text color, which is what a
+	// monochrome caret looks like. An application with a cursor color of its own
+	// passes that instead.
+	CaretColor ui.Color
 	// FontSize is the size of the code, in logical pixels; zero takes the theme's.
 	FontSize float32
 	// MonoFace is the fixed-pitch font the code is set in.
@@ -303,8 +311,9 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		selectionStart: selectionStart, selectionEnd: selectionEnd,
 		compositionStart: compositionStart, compositionEnd: compositionEnd,
 		caret: caret, caretRow: caretRow, caretColumn: caretColumn,
-		showCaret: focused && snapshot.ShowCaret && !snapshot.Disabled,
-		language:  snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
+		showCaret:  focused && snapshot.ShowCaret && !snapshot.Disabled,
+		caretWidth: max(snapshot.CaretWidth, 1), caretColor: caretColor(snapshot.CaretColor, foreground),
+		language: snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
 		showWhitespace: snapshot.ShowWhitespace, showEOL: snapshot.ShowEOL, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
 		invisibleColor: snapshot.InvisibleColor,
@@ -384,7 +393,13 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		options := ui.HitOptions{
 			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: true,
-			TextBounds: content, TextSize: size, HideNativeOverlays: true, Placement: editor,
+			// A transparent text color makes the platform editor an input surface
+			// only: this view draws every glyph on the character grid itself, so a
+			// second rendering by the platform would put its own font on top of the
+			// grid. HideNativeOverlays then covers the caret and selection. A
+			// read-only view gets no platform editor at all, so the color is unused
+			// there.
+			TextBounds: content, TextSize: size, TextColor: ui.Color{}, HideNativeOverlays: true, Placement: editor,
 		}
 		canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, options)
 	}
@@ -505,6 +520,8 @@ type codePaint struct {
 	compositionStart, compositionEnd         int
 	caret, caretRow, caretColumn             int
 	showCaret                                bool
+	caretWidth                               float32
+	caretColor                               ui.Color
 	language                                 string
 	highlight                                func(language, line string, dst []CodeEditorRun) []CodeEditorRun
 	highlightLine                            func(language string, lineIndex int, line string, dst []CodeEditorRun) []CodeEditorRun
@@ -569,6 +586,16 @@ var (
 	codeMatchColor   = ui.Color{Red: 250.0 / 255, Green: 204.0 / 255, Blue: 21.0 / 255, Alpha: 0.30}
 	codeCurrentColor = ui.Color{Red: 250.0 / 255, Green: 204.0 / 255, Blue: 21.0 / 255, Alpha: 0.62}
 )
+
+// caretColor is the color a caret is painted in. A zero color means the caller
+// left the choice to the view, so the text color is used; callers that want a
+// caret of their own pass one. CodeDiff shares this.
+func caretColor(requested, text ui.Color) ui.Color {
+	if requested.Alpha == 0 {
+		return text
+	}
+	return requested
+}
 
 // row paints one row of the text: what goes behind it, the text, and the caret.
 func (paint *codePaint) row(index int, y float32) {
@@ -658,9 +685,9 @@ func (paint *codePaint) row(index int, y float32) {
 	if index == paint.caretRow {
 		x := left + float32(paint.caretColumn)*paint.cellWidth
 		if x >= editor.content.X-1 && x <= editor.content.X+editor.content.Width {
-			editor.caretRect, editor.caretShown = ui.Rect{X: x, Y: y, Width: 1, Height: paint.lineHeight}, true
+			editor.caretRect, editor.caretShown = ui.Rect{X: x, Y: y, Width: paint.caretWidth, Height: paint.lineHeight}, true
 			if paint.showCaret {
-				canvas.Fill(ui.Rect{X: x, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: 1, Height: paint.cellHeight}, paint.foreground)
+				canvas.Fill(ui.Rect{X: x, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: paint.caretWidth, Height: paint.cellHeight}, paint.caretColor)
 			}
 		}
 	}
