@@ -53,6 +53,7 @@ var shellAppBarMessage = shell.NewProc("SHAppBarMessage")
 var getCursorPos = user.NewProc("GetCursorPos")
 var getSystemMetricsForDpi = user.NewProc("GetSystemMetricsForDpi")
 var dwmExtendFrame = dwm.NewProc("DwmExtendFrameIntoClientArea")
+var dwmFlush = dwm.NewProc("DwmFlush")
 
 // margins is MARGINS.
 type margins struct{ Left, Right, Top, Bottom int32 }
