@@ -41,3 +41,15 @@ func TestCommittedStringFollowsUnmarkAndNavigation(t *testing.T) {
 		t.Fatalf("movement did not end composition: %q", editor.CommittedString())
 	}
 }
+
+func TestCompositionDoesNotEagerlyAllocateCommittedString(t *testing.T) {
+	editor := NewEditor("搜索")
+	allocations := testing.AllocsPerRun(100, func() {
+		editor.SetSelection(Range{Start: 2, End: editor.RuneCount()})
+		editor.SetMarkedText("输入框", Range{Start: 3, End: 3})
+		editor.Unmark()
+	})
+	if allocations > 2 {
+		t.Fatalf("composition allocated %v times, want at most 2", allocations)
+	}
+}

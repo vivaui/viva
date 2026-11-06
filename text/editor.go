@@ -57,12 +57,13 @@ type textChange struct {
 // its mutators, String is not safe for concurrent use: it caches the converted
 // text.
 type Editor struct {
-	runes           []rune
-	anchor          int
-	caret           int
-	composition     Range
-	composing       bool
-	compositionBase string
+	runes               []rune
+	anchor              int
+	caret               int
+	composition         Range
+	composing           bool
+	compositionOriginal []rune
+	compositionBase     string
 
 	// accept and maxRunes constrain what an edit may leave in the text; see
 	// Restrict.
@@ -108,6 +109,7 @@ func NewEditor(initial string) *Editor {
 // text next changes, so repeated calls between edits allocate nothing.
 func (editor *Editor) String() string {
 	if !editor.composing {
+		editor.compositionOriginal = nil
 		editor.compositionBase = ""
 	}
 	if !editor.textValid {
@@ -120,6 +122,13 @@ func (editor *Editor) String() string {
 // CommittedString returns the text before marked input until the IME commits it.
 func (editor *Editor) CommittedString() string {
 	if editor.composing {
+		if editor.compositionBase == "" {
+			committed := make([]rune, 0, len(editor.runes)-editor.composition.End+editor.composition.Start+len(editor.compositionOriginal))
+			committed = append(committed, editor.runes[:editor.composition.Start]...)
+			committed = append(committed, editor.compositionOriginal...)
+			committed = append(committed, editor.runes[editor.composition.End:]...)
+			editor.compositionBase = string(committed)
+		}
 		return editor.compositionBase
 	}
 	return editor.String()
@@ -239,15 +248,17 @@ func (editor *Editor) Paste(value string) {
 // SetMarkedText replaces the current composition or selection with marked
 // text. selected is relative to the marked text, matching native IME APIs.
 func (editor *Editor) SetMarkedText(value string, selected Range) {
-	if !editor.composing {
-		editor.compositionBase = editor.String()
-	}
+	wasComposing := editor.composing
 	target := editor.Selection()
-	if editor.composing {
+	if wasComposing {
 		target = editor.composition
 	}
 	before := editor.selectionState()
 	change := editor.replace(target, value, false)
+	if !wasComposing {
+		editor.compositionOriginal = change.removed
+		editor.compositionBase = ""
+	}
 	inserted := len(change.inserted)
 	if inserted == 0 && value != "" {
 		// Everything the IME proposed is unacceptable here (pinyin in a digit
