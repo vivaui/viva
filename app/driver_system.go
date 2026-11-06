@@ -25,8 +25,10 @@ type driverSystem struct {
 }
 
 type driverSaveFileResponse struct {
-	path string
-	err  error
+	path         string
+	checked      bool
+	withCheckbox bool
+	err          error
 }
 
 type driverOpenFilesResponse struct {
@@ -243,6 +245,15 @@ func driverSaveFile(options SaveFileOptions) (string, error, bool) {
 	return path, err, true
 }
 
+func driverSaveFileWithCheckbox(options SaveFileOptions, checkbox SaveFileCheckbox) (SaveFileSelection, error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return SaveFileSelection{}, nil, false
+	}
+	result, err := system.driver.saveFileWithCheckbox(options, checkbox)
+	return result, err, true
+}
+
 func (driver *Driver) registerSystem() error {
 	driver.system.driver = driver
 	nonNativeSystemUsed.Store(true)
@@ -372,6 +383,36 @@ func (driver *Driver) QueueSaveFile(path string, err error) error {
 	return nil
 }
 
+func (driver *Driver) QueueSaveFileWithCheckbox(path string, checked bool, err error) error {
+	if err == nil && path == "" {
+		return fmt.Errorf("app: queued save path is empty")
+	}
+	if driver.saveFileCount == len(driver.saveFileResponses) {
+		return fmt.Errorf("app: save-file response queue is full")
+	}
+	index := (driver.saveFileHead + driver.saveFileCount) % len(driver.saveFileResponses)
+	driver.saveFileResponses[index] = driverSaveFileResponse{path: path, checked: checked, withCheckbox: true, err: err}
+	driver.saveFileCount++
+	return nil
+}
+
+func (driver *Driver) LastSaveFileCheckboxRequest() (SaveFileOptions, SaveFileCheckbox, bool) {
+	return driver.lastSaveFileRequest, driver.lastSaveFileCheckbox, driver.hasSaveFileCheckbox
+}
+
+func (driver *Driver) saveFileWithCheckbox(options SaveFileOptions, checkbox SaveFileCheckbox) (SaveFileSelection, error) {
+	driver.lastSaveFileCheckbox, driver.hasSaveFileCheckbox = checkbox, true
+	if driver.saveFileCount == 0 || !driver.saveFileResponses[driver.saveFileHead].withCheckbox {
+		driver.lastSaveFileRequest, driver.hasSaveFileRequest = options, true
+		return SaveFileSelection{}, ErrNoDriverResponse
+	}
+	response := driver.takeSaveFileResponse(options)
+	if response.err != nil {
+		return SaveFileSelection{}, response.err
+	}
+	return SaveFileSelection{Path: response.path, Checked: response.checked}, nil
+}
+
 // LastSaveFileRequest returns the most recent SaveFile options observed by
 // driver. The returned Filters slice is borrowed from the application call.
 func (driver *Driver) LastSaveFileRequest() (SaveFileOptions, bool) {
@@ -379,16 +420,25 @@ func (driver *Driver) LastSaveFileRequest() (SaveFileOptions, bool) {
 }
 
 func (driver *Driver) saveFile(options SaveFileOptions) (string, error) {
+	if driver.saveFileCount > 0 && driver.saveFileResponses[driver.saveFileHead].withCheckbox {
+		driver.lastSaveFileRequest, driver.hasSaveFileRequest = options, true
+		return "", ErrNoDriverResponse
+	}
+	response := driver.takeSaveFileResponse(options)
+	return response.path, response.err
+}
+
+func (driver *Driver) takeSaveFileResponse(options SaveFileOptions) driverSaveFileResponse {
 	driver.lastSaveFileRequest = options
 	driver.hasSaveFileRequest = true
 	if driver.saveFileCount == 0 {
-		return "", ErrNoDriverResponse
+		return driverSaveFileResponse{err: ErrNoDriverResponse}
 	}
 	response := driver.saveFileResponses[driver.saveFileHead]
 	driver.saveFileResponses[driver.saveFileHead] = driverSaveFileResponse{}
 	driver.saveFileHead = (driver.saveFileHead + 1) % len(driver.saveFileResponses)
 	driver.saveFileCount--
-	return response.path, response.err
+	return response
 }
 
 // driverClipboardImage answers the clipboard-image reads of a driver-backed

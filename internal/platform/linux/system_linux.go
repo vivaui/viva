@@ -633,6 +633,26 @@ func SaveFile(options SaveFileOptions) (string, bool, error) {
 	return paths[0], false, nil
 }
 
+func SaveFileWithCheckbox(options SaveFileOptions, label string, initial bool) (string, bool, bool, error) {
+	filters, err := portalFilters(options.Filters)
+	if err != nil {
+		return "", false, false, err
+	}
+	name, err := suggestedSaveName(options.SuggestedName, options.DefaultExtension)
+	if err != nil {
+		return "", false, false, err
+	}
+	paths, choices, canceled, err := portalChooseWithChoices(portalFileRequest{
+		method: "SaveFile", parent: portalParent(), title: options.Title, filters: filters,
+		currentName: name, checkboxLabel: label, checkboxChecked: initial,
+	})
+	path, checked, canceled, err := portalSaveCheckboxResult(paths, choices, canceled, err)
+	if errors.Is(err, errServiceMissing) {
+		return "", false, false, unsupported("save checkbox requires a file chooser portal supporting choices")
+	}
+	return path, checked, canceled, err
+}
+
 func OpenURL(target string) error {
 	if strings.IndexByte(target, 0) >= 0 {
 		return fmt.Errorf("linux: external URL contains NUL")

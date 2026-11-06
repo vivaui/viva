@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/ui"
 )
@@ -75,6 +77,16 @@ type SaveFileOptions struct {
 	SuggestedName    string
 	DefaultExtension string
 	Filters          []FileFilter
+}
+
+type SaveFileCheckbox struct {
+	Label   string
+	Checked bool
+}
+
+type SaveFileSelection struct {
+	Path    string
+	Checked bool
 }
 
 type Notification struct {
@@ -170,6 +182,22 @@ func SaveFile(options SaveFileOptions) (string, error) {
 		return path, err
 	}
 	return nativeSaveFile(options)
+}
+
+// SaveFileWithCheckbox presents one optional boolean choice in the native
+// save picker. The choice is returned only when the user accepts a path.
+func SaveFileWithCheckbox(options SaveFileOptions, checkbox SaveFileCheckbox) (SaveFileSelection, error) {
+	if err := validateFilters(options.Filters); err != nil {
+		return SaveFileSelection{}, err
+	}
+	if checkbox.Label == "" || strings.TrimSpace(checkbox.Label) == "" || !utf8.ValidString(checkbox.Label) ||
+		utf8.RuneCountInString(checkbox.Label) > 120 || strings.IndexFunc(checkbox.Label, unicode.IsControl) >= 0 {
+		return SaveFileSelection{}, fmt.Errorf("app: invalid save checkbox label")
+	}
+	if result, err, handled := driverSaveFileWithCheckbox(options, checkbox); handled {
+		return result, err
+	}
+	return nativeSaveFileWithCheckbox(options, checkbox)
 }
 
 func OpenURL(target string) error {
