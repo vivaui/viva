@@ -277,6 +277,57 @@ func TestDriverEditsAFocusedTextFieldThroughTheTextSystem(t *testing.T) {
 	}
 }
 
+func TestDriverFunctionKeysReachApplicationWhileTextInputIsFocused(t *testing.T) {
+	editor := text.NewEditor("content")
+	var keys []ui.KeyEvent
+	config := Config{Title: "function-keys", Width: 300, Height: 100}
+	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+		components.PaintInput(canvas, ui.LightTheme(), ui.Rect{X: 10, Y: 10, Width: 200, Height: 30}, components.InputSnapshot{
+			ID: ui.Item(1), Label: "Text", Value: editor.String(),
+		})
+	}
+	config.TextInput = func(TextInputContext) *TextInput { return &TextInput{Editor: editor} }
+	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
+		keys = append(keys, event)
+		return ui.EventResult{Handled: true}
+	}
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(50, 25); err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range []struct {
+		key       ui.Key
+		modifiers ui.Modifiers
+	}{
+		{ui.KeyF2, ui.ModifierControl},
+		{ui.KeyF3, ui.ModifierShift},
+		{ui.KeyF7, 0},
+	} {
+		if err := driver.Key(step.key, step.modifiers); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(keys) != 3 || editor.String() != "content" {
+		t.Fatalf("focused function keys = %+v, text %q", keys, editor.String())
+	}
+	for index, want := range []struct {
+		key       ui.Key
+		modifiers ui.Modifiers
+	}{
+		{ui.KeyF2, ui.ModifierControl},
+		{ui.KeyF3, ui.ModifierShift},
+		{ui.KeyF7, 0},
+	} {
+		if keys[index].Key != want.key || keys[index].Modifiers != want.modifiers || keys[index].Target != ui.Item(1) {
+			t.Fatalf("key %d = %+v", index, keys[index])
+		}
+	}
+}
+
 // NavigationKeys delivers Up, Down, PageUp and PageDown to the application's key
 // handler while typing, Home/End, selection and pointer placement remain native.
 func TestDriverNavigationKeysPassToApplicationWhileTextEditingRemainsNative(t *testing.T) {

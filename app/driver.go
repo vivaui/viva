@@ -589,10 +589,9 @@ func (driver *Driver) terminal() bool {
 }
 
 // Key delivers a key press with its modifiers. While a text field is being
-// edited the key goes where a native window would send it: Tab and Escape (and
-// Enter in a single-line field) to the application, everything else to the
-// text system as an editing command. A terminal gets every named key raw, as
-// ui.KeyEvents.
+// edited the key goes where a native window would send it: Tab, Escape,
+// function keys (and Enter in a single-line field) to the application, other
+// keys to the text system. A terminal gets every named key raw, as ui.KeyEvents.
 func (driver *Driver) Key(key ui.Key, modifiers ui.Modifiers) error {
 	if err := driver.Pump(); err != nil {
 		return err
@@ -618,7 +617,7 @@ func (driver *Driver) Key(key ui.Key, modifiers ui.Modifiers) error {
 		return driver.terminalKey(key, modifiers, "")
 	}
 	if driver.editing() && key != ui.KeyTab && key != ui.KeyEscape && (key != ui.KeyEnter || driver.painter.nativeText.Multiline) {
-		if driver.navigationKey(key) || driver.rowKey(key, modifiers) {
+		if driver.navigationKey(key) || driver.rowKey(key, modifiers) || key >= ui.KeyF1 && key <= ui.KeyF12 {
 			_, err := driver.painter.key(platform.KeyEvent{Key: key, Modifiers: modifiers})
 			return err
 		}
