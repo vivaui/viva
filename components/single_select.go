@@ -1,6 +1,7 @@
 package components
 
 import (
+	"math"
 	"slices"
 	"strings"
 
@@ -33,10 +34,14 @@ type SingleSelectState struct {
 	choices                           []SingleSelectChoice
 	validateCreate                    func(string) bool
 	revision, built                   uint64
-	lastQuery                         string
-	lastAllow, lastCase, prepared     bool
-	scroll                            MenuScroll
-	openPainted, focusInput, reveal   bool
+	// rebuilt counts list rebuilds; widest caches the widest existing label
+	// for the list and font size it was measured at.
+	rebuilt, widestRebuilt          uint64
+	widestSize, widest              float32
+	lastQuery                       string
+	lastAllow, lastCase, prepared   bool
+	scroll                          MenuScroll
+	openPainted, focusInput, reveal bool
 	// hover is the row the pointer last crossed onto: hovering that row moves
 	// Active there, so the highlight and Enter name one row instead of two.
 	hover                                 pointerRow
@@ -136,6 +141,7 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 		}
 	}
 	s.lastQuery, s.built, s.prepared = query, s.revision, true
+	s.rebuilt++
 	s.lastAllow, s.lastCase = s.AllowCreate, s.MatchCaseInsensitive
 	s.scroll.Offset, s.reveal = 0, true
 	// A rebuilt list is a new set of rows: let the pointer adopt the row it is
@@ -268,6 +274,26 @@ type SingleSelectOptions struct {
 	MaxRows           int
 }
 
+// popupWidth is the width that shows every label of choices untruncated.
+func (s *SingleSelectState) popupWidth(canvas *ui.Canvas, theme ui.Theme, choices []SingleSelectChoice, o SingleSelectOptions) float32 {
+	size := theme.Metrics.FontSizeM
+	if s.widestRebuilt != s.rebuilt || s.widestSize != size {
+		s.widest = 0
+		for _, choice := range choices {
+			if !choice.Create {
+				s.widest = max(s.widest, canvas.TextWidthWeight(choice.Label, size, ui.WeightRegular))
+			}
+		}
+		s.widestRebuilt, s.widestSize = s.rebuilt, size
+	}
+	widest := s.widest
+	if len(choices) > 0 && choices[0].Create {
+		widest = max(widest, canvas.TextWidthWeight(o.CreatePrefix+choices[0].Label, size, ui.WeightRegular))
+	}
+	// A row spends 8 on the left and 30 on the check before the menu padding.
+	return float32(math.Ceil(float64(widest))) + 46 + 1
+}
+
 // SingleSelectLayout is where the control, its native input and its popup were
 // painted, for callers that route text input or place overlays.
 type SingleSelectLayout struct{ Bounds, Input, Popup ui.Rect }
@@ -364,6 +390,16 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 	}
 	height := float32(max(1, min(len(choices), rows))*32 + 8)
 	layout.Popup = ui.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 6, Width: bounds.Width, Height: height}
+	// Like Radix's popper content, the list is at least as wide as the field and
+	// grows to its longest label so options that share a long prefix stay
+	// distinguishable, until the viewport stops it.
+	if want := s.popupWidth(canvas, theme, choices, o); want > layout.Popup.Width {
+		layout.Popup.Width = want
+		if o.Viewport.Width > 0 {
+			layout.Popup.Width = min(want, max(o.Viewport.Width-2, bounds.Width))
+			layout.Popup.X = max(o.Viewport.X+1, min(layout.Popup.X, o.Viewport.X+o.Viewport.Width-1-layout.Popup.Width))
+		}
+	}
 	if o.Viewport.Height > 0 {
 		top, bottom := o.Viewport.Y+1, o.Viewport.Y+o.Viewport.Height-1
 		if layout.Popup.Y+layout.Popup.Height > bottom {

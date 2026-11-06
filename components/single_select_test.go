@@ -286,3 +286,46 @@ func TestSingleSelectPaintTintsOneRowPerHoverStep(t *testing.T) {
 		}
 	}
 }
+
+// Options that share a long prefix differ only at the end, so a popup as
+// narrow as its field would show them as identical ellipsized rows.
+func TestSingleSelectPopupGrowsToTheLongestLabelWithinTheViewport(t *testing.T) {
+	var tree ui.Tree
+	f := tree.Feature("single-select-wide-labels")
+	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", Layer: 4}
+	long := strings.Repeat("新疆维吾尔自治区 / ", 8)
+	for _, test := range []struct {
+		name     string
+		viewport ui.Rect
+		field    ui.Rect
+	}{
+		{"roomy", ui.Rect{Width: 1600, Height: 600}, ui.Rect{X: 20, Y: 40, Width: 240}},
+		{"field near the right edge", ui.Rect{Width: 500, Height: 600}, ui.Rect{X: 300, Y: 40, Width: 180}},
+		{"viewport narrower than the label", ui.Rect{Width: 320, Height: 600}, ui.Rect{X: 20, Y: 40, Width: 240}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := singleSelectFixture()
+			s.SetOptions([]SingleSelectOption{{Value: "a", Label: "short"}, {Value: "b", Label: long + "甲"}})
+			s.Open = true
+			var canvas ui.Canvas
+			o.Viewport = test.viewport
+			theme := ui.DarkTheme()
+			layout := PaintSingleSelect(&canvas, theme, test.field, s, o)
+			if layout.Popup.Width < test.field.Width {
+				t.Fatalf("popup %+v narrower than field %+v", layout.Popup, test.field)
+			}
+			if layout.Popup.X < test.viewport.X || layout.Popup.X+layout.Popup.Width > test.viewport.X+test.viewport.Width {
+				t.Fatalf("popup %+v escaped viewport %+v", layout.Popup, test.viewport)
+			}
+			// Past the viewport the popup stops at its edge and truncates; with
+			// room it must show the whole label.
+			fits := canvas.TextWidthWeight(long+"甲", theme.Metrics.FontSizeM, ui.WeightRegular)+38 <= layout.Popup.Width-8
+			if test.name == "roomy" && !fits {
+				t.Fatalf("popup %+v truncates a label that fits viewport %+v", layout.Popup, test.viewport)
+			}
+			if test.name != "roomy" && layout.Popup.Width < test.viewport.Width-2 {
+				t.Fatalf("popup %+v stopped short of viewport %+v", layout.Popup, test.viewport)
+			}
+		})
+	}
+}
