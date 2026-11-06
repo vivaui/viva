@@ -161,6 +161,9 @@
 //   - Reorder list: `BeginReorderList` reserves independent drag handles and
 //     content slots. `ReorderListState` returns completed pointer/keyboard moves
 //     while the application keeps ownership of the ordered data.
+//   - Reorder grid: `BeginReorderGrid` attaches the same drop-on-release
+//     semantics to caller-positioned rows or cards, including virtualized
+//     layouts and independent lanes.
 //   - Tree: `BeginTree` paints caller-flattened hierarchical rows with stable
 //     disclosure and selection semantics while leaving content application-owned.
 //   - Scroll area: `BeginScrollArea` paints a clipped viewport and scrollbar
