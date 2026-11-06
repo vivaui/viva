@@ -141,6 +141,11 @@ type CodeEditor struct {
 	runLine  int
 	numbers  lineNumbers
 
+	// wrapScratch holds the wrapped layout SoftWrapOffsets needs while the editor
+	// itself is not wrapping, so repeated queries reuse one layout instead of
+	// laying the text out again.
+	wrapScratch *CodeEditor
+
 	// Scrollbars.
 	barID, barXID ui.ID
 	barV, barH    ScrollAreaGeometry

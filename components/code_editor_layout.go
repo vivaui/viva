@@ -81,9 +81,11 @@ func (editor *CodeEditor) SoftWrapOffsets(dst []int) []int {
 	}
 	rows := editor.rows
 	if !editor.wrap {
-		var wrapped CodeEditor
-		wrapped.fit(editor.text, editor.cols, true, editor.tabWidth)
-		rows = wrapped.rows
+		if editor.wrapScratch == nil {
+			editor.wrapScratch = &CodeEditor{}
+		}
+		editor.wrapScratch.fit(editor.text, editor.cols, true, editor.tabWidth)
+		rows = editor.wrapScratch.rows
 	}
 	for index := 1; index < len(rows); index++ {
 		if rows[index].line == rows[index-1].line && rows[index].start > rows[index-1].start {

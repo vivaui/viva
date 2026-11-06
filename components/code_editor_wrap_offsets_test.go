@@ -54,3 +54,22 @@ func TestCodeEditorSoftWrapOffsetsRequirePaintedLayout(t *testing.T) {
 		t.Fatalf("unpainted editor returned breaks %v", got)
 	}
 }
+
+func TestCodeEditorSoftWrapOffsetsReuseOneWrappedLayout(t *testing.T) {
+	fixture := newCodeFixture("alpha beta gamma delta epsilon zeta")
+	fixture.bounds.Width = fixture.widthFor(8)
+	fixture.snapshot.Wrap = false
+	fixture.paint()
+	dst := make([]int, 0, 16)
+	want := fixture.editor.SoftWrapOffsets(dst)
+	if len(want) == 0 {
+		t.Fatal("fixture did not soft-wrap")
+	}
+	// A caller that polls the offsets must not lay the text out again per call.
+	if allocations := testing.AllocsPerRun(50, func() { _ = fixture.editor.SoftWrapOffsets(dst) }); allocations != 0 {
+		t.Fatalf("repeated soft-wrap query allocated %g times", allocations)
+	}
+	if got := fixture.editor.SoftWrapOffsets(dst); !reflect.DeepEqual(got, want) {
+		t.Fatalf("cached breaks %v, want %v", got, want)
+	}
+}
