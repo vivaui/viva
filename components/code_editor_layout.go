@@ -71,6 +71,30 @@ func (editor *CodeEditor) fit(value string, cols int, wrap bool, tabWidth int) {
 	editor.runLine = -1
 }
 
+// SoftWrapOffsets returns byte offsets where the last painted editor would
+// wrap its text at its current content width. It does not change the live
+// editor's rows, scroll position, or selection.
+func (editor *CodeEditor) SoftWrapOffsets(dst []int) []int {
+	dst = dst[:0]
+	if !editor.painted || !editor.fitted {
+		return dst
+	}
+	rows := editor.rows
+	if !editor.wrap {
+		if editor.wrapScratch == nil {
+			editor.wrapScratch = &CodeEditor{}
+		}
+		editor.wrapScratch.fit(editor.text, editor.cols, true, editor.tabWidth)
+		rows = editor.wrapScratch.rows
+	}
+	for index := 1; index < len(rows); index++ {
+		if rows[index].line == rows[index-1].line && rows[index].start > rows[index-1].start {
+			dst = append(dst, int(rows[index].start))
+		}
+	}
+	return dst
+}
+
 // appendLine appends the rows of the line value[start:end]. A soft wrap breaks
 // before the word that does not fit, or inside it when it is longer than a row;
 // the spaces that end a row hang past its right edge instead of wrapping.
