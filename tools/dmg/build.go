@@ -60,7 +60,7 @@ func Build(options Options) error {
 	// own catalog IDs and dates, which exist only once the image is a volume. So
 	// make it writable, mount it, write .DS_Store and compress the result.
 	writable := filepath.Join(work, "writable.dmg")
-	if err := hdiutil("create", "-quiet", "-volname", options.Volume, "-srcfolder", staging,
+	if err := hdiutil("create", "-volname", options.Volume, "-srcfolder", staging,
 		"-fs", "HFS+", "-format", "UDRW", "-ov", writable); err != nil {
 		return err
 	}
