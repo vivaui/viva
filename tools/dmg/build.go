@@ -71,11 +71,24 @@ func Build(options Options) error {
 	// Write beside the target first so a failure leaves the previous image alone.
 	temporary := strings.TrimSuffix(options.Image, ".dmg") + ".viva-tmp.dmg"
 	_ = os.Remove(temporary)
-	if err := hdiutil("convert", writable, "-format", "UDZO", "-imagekey", "zlib-level=9", "-ov", "-o", temporary); err != nil {
+	if err := convertImage(writable, temporary); err != nil {
 		_ = os.Remove(temporary)
 		return err
 	}
 	return os.Rename(temporary, options.Image)
+}
+
+func convertImage(writable, temporary string) error {
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		if err = hdiutil("convert", writable, "-format", "UDZO", "-imagekey", "zlib-level=9", "-ov", "-o", temporary); err == nil {
+			return nil
+		}
+		if attempt < 4 {
+			time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
+		}
+	}
+	return err
 }
 
 // picture is the background's PNG: the project's, or the default.

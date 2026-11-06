@@ -170,6 +170,27 @@ func TestDetachAlreadyUnmountedVolume(t *testing.T) {
 	}
 }
 
+func TestConvertRetriesWhileImageIsBusy(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("hdiutil is a macOS tool")
+	}
+	directory := t.TempDir()
+	marker := filepath.Join(directory, "attempted")
+	command := filepath.Join(directory, "hdiutil")
+	script := "#!/bin/sh\nif [ ! -e \"$VIVA_CONVERT_ATTEMPT\" ]; then\n  touch \"$VIVA_CONVERT_ATTEMPT\"\n  echo 'hdiutil: convert failed - Resource temporarily unavailable' >&2\n  exit 1\nfi\n"
+	if err := os.WriteFile(command, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", directory+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("VIVA_CONVERT_ATTEMPT", marker)
+	if err := convertImage("source.dmg", "target.dmg"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("convert was not attempted: %v", err)
+	}
+}
+
 func TestDefaultBackgroundIsTheWindowsSizeAndHasAnArrowBetweenTheIcons(t *testing.T) {
 	layout, err := Resolve(Config{})
 	if err != nil {
