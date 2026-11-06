@@ -30,8 +30,7 @@ func GaussianBlurBitmap(source Bitmap, sigma float32) Bitmap {
 		return source
 	}
 
-	radius := int(math.Ceil(float64(sigma) * 3))
-	radius = min(max(radius, 1), max(source.Width, source.Height))
+	radius := max(int(math.Ceil(float64(sigma)*3)), 1)
 	kernel := gaussianKernel(radius, float64(sigma))
 	width, height := source.Width, source.Height
 	scratch := make([]float32, width*height*4)

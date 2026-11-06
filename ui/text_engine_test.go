@@ -8,10 +8,12 @@ type halfEngine struct{ widths, carets, selections, hits int }
 type rasterEngine struct {
 	halfEngine
 	calls int
+	value string
 }
 
 func (engine *rasterEngine) RasterizeText(value string, style TextStyle, scale float32, width, height int) (Bitmap, error) {
 	engine.calls++
+	engine.value = value
 	pixels := make([]byte, width*height*4)
 	if len(pixels) > 3 {
 		pixels[3] = 255
@@ -53,6 +55,26 @@ func TestCanvasRasterizesThroughItsInstalledTextEngine(t *testing.T) {
 	}
 	if engine.calls != 1 || bitmap.Width != 120 || bitmap.Height != 28 || bitmap.Stride != 480 || len(bitmap.Pix) != 120*28*4 {
 		t.Fatalf("rasterized bitmap = %+v, calls = %d", bitmap, engine.calls)
+	}
+}
+
+func TestCanvasRasterizeTextCarriesForcedParagraphDirection(t *testing.T) {
+	var canvas Canvas
+	engine := &rasterEngine{}
+	canvas.SetTextEngine(engine)
+
+	if _, err := canvas.RasterizeText("English first", TextStyle{Size: 13, Direction: DirectionRTL}, 1, 120, 28); err != nil {
+		t.Fatal(err)
+	}
+	if engine.value != "\u200fEnglish first" {
+		t.Fatalf("RTL raster value = %q, want an RLM-prefixed line", engine.value)
+	}
+
+	if _, err := canvas.RasterizeText("עברית", TextStyle{Size: 13, Direction: DirectionLTR}, 1, 120, 28); err != nil {
+		t.Fatal(err)
+	}
+	if engine.value != "\u200eעברית" {
+		t.Fatalf("LTR raster value = %q, want an LRM-prefixed line", engine.value)
 	}
 }
 

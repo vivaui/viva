@@ -1104,19 +1104,7 @@ func (canvas *Canvas) LabelOrigin(value string, bounds Rect, style TextStyle, al
 // given (value, with the direction mark a forced direction needs) and the left edge of
 // its label.
 func (canvas *Canvas) placeLabel(value string, bounds Rect, style TextStyle, alignment Alignment) (string, float32) {
-	rtl := textmetrics.RightToLeft(value)
-	switch style.Direction {
-	case DirectionLTR, DirectionRTL:
-		forced := style.Direction == DirectionRTL
-		if forced != rtl {
-			rtl = forced
-			if forced {
-				value = "\u200f" + value
-			} else {
-				value = "\u200e" + value
-			}
-		}
-	}
+	value, rtl := resolvedTextDirection(value, style.Direction)
 	switch alignment {
 	case AlignStart:
 		alignment = AlignLeft
@@ -1142,6 +1130,23 @@ func (canvas *Canvas) placeLabel(value string, bounds Rect, style TextStyle, ali
 		bounds.X += inset
 	}
 	return value, bounds.X
+}
+
+func resolvedTextDirection(value string, direction TextDirection) (string, bool) {
+	rtl := textmetrics.RightToLeft(value)
+	switch direction {
+	case DirectionLTR, DirectionRTL:
+		forced := direction == DirectionRTL
+		if forced != rtl {
+			rtl = forced
+			if forced {
+				value = "\u200f" + value
+			} else {
+				value = "\u200e" + value
+			}
+		}
+	}
+	return value, rtl
 }
 
 // TextSpan is a horizontal extent of a line.

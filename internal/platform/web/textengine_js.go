@@ -66,16 +66,21 @@ func (measurer *domMeasurer) rasterizeText(value string, style ui.TextStyle, sca
 	context.Set("textBaseline", "alphabetic")
 	context.Set("textAlign", "left")
 	context.Set("direction", "ltr")
-	context.Set("font", cssFontStyle(style.Size*scale, style.Weight, style.Italic))
 	context.Set("fillStyle", cssColor(style.Color))
 	if bidi.BaseDirection(value) == bidi.RTL {
 		context.Set("direction", "rtl")
 	}
 
+	context.Set("font", cssFont(style.Size*scale, 0))
 	metrics := context.Call("measureText", "Ag")
-	ascent := metrics.Get("actualBoundingBoxAscent").Float()
-	descent := metrics.Get("actualBoundingBoxDescent").Float()
+	ascent := metrics.Get("fontBoundingBoxAscent").Float()
+	descent := metrics.Get("fontBoundingBoxDescent").Float()
+	if ascent <= 0 {
+		ascent = metrics.Get("actualBoundingBoxAscent").Float()
+		descent = metrics.Get("actualBoundingBoxDescent").Float()
+	}
 	baseline := (float64(height)-ascent-descent)*0.5 + ascent
+	context.Set("font", cssFontStyle(style.Size*scale, style.Weight, style.Italic))
 	context.Call("fillText", value, 0, baseline)
 
 	data := context.Call("getImageData", 0, 0, width, height).Get("data")

@@ -68,6 +68,21 @@ func TestGaussianBlurBitmapRejectsInvalidStorageAndNoOpKeepsIdentity(t *testing.
 	}
 }
 
+func TestGaussianBlurBitmapKeepsGaussianTailPastBitmapBounds(t *testing.T) {
+	pixels := make([]byte, 3*4)
+	pixels[4+3] = 255
+	source := Bitmap{Pix: pixels, Width: 3, Height: 1, Stride: 12}
+
+	blurred := GaussianBlurBitmap(source, 3)
+	got := alphaRow(blurred)
+	want := []byte{32, 34, 32}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("alpha row = %v, want %v", got, want)
+		}
+	}
+}
+
 func BenchmarkGaussianBlurBitmap128x24(b *testing.B) {
 	source := Bitmap{Pix: make([]byte, 128*24*4), Width: 128, Height: 24, Stride: 128 * 4}
 	for index := 0; index < len(source.Pix); index += 16 {

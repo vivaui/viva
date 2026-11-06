@@ -110,6 +110,7 @@ func (canvas *Canvas) RasterizeText(value string, style TextStyle, scale float32
 	if !ok {
 		return Bitmap{}, ErrTextRasterizerUnavailable
 	}
+	value, _ = resolvedTextDirection(value, style.Direction)
 	return rasterizer.RasterizeText(value, style, scale, width, height)
 }
 

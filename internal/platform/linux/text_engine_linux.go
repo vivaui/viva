@@ -101,7 +101,7 @@ var _ ui.TextRasterizer = (*textEngine)(nil)
 // RasterizeText implements ui.TextRasterizer using the same Pango shaped line
 // and Cairo text path as the native label renderer.
 func (engine *textEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
-	pixels, _, err := engine.services.rasterize(platform.TextLabel{
+	pixels, err := engine.services.draw(platform.TextLabel{
 		Value: value, FontSize: style.Size, Weight: style.Weight, Italic: style.Italic,
 		Color: platform.Color{
 			Red: float64(style.Color.Red), Green: float64(style.Color.Green),

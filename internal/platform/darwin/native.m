@@ -2010,7 +2010,7 @@ int viva_text_line_rasterize(
         viva_prepare_text_context(context, scale);
         CGColorRef color = CGColorCreateSRGB(red, green, blue, alpha);
         CGFloat logicalHeight = (CGFloat)height / (CGFloat)scale;
-        CGFloat baseline = viva_baseline(logicalHeight, font_size, ceil(scale));
+        CGFloat baseline = viva_baseline(logicalHeight, font_size, scale);
         viva_draw_text_line(context, line, color, 0, baseline);
         CGColorRelease(color);
         CGContextRelease(context);
