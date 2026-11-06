@@ -203,6 +203,11 @@ jobs:
       # compile and run on Windows.
       - name: Update installer contracts
         run: go test ./update -count=1 -v
+      # A paint that arrives while a window is minimized is a Windows-only
+      # window management case, and the swap chain it would otherwise resize is
+      # what the taskbar previews.
+      - name: Minimized windows keep their visible frame
+        run: go test ./internal/platform/windows -run '^TestMinimizedPaintKeepsTheVisibleSwapChain$' -count=1 -v
 
   # A noise-tolerant benchmark regression gate for the pure-Go paths: the base
   # revision and the pull request run the same benchmarks on the same runner,

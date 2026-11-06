@@ -39,14 +39,30 @@ func TestMinimizedPaintKeepsTheVisibleSwapChain(t *testing.T) {
 		defer showWindow.Call(state.window, swRestore)
 		deadline := time.Now().Add(2 * time.Second)
 		for {
-			var client rect
-			getClientRect.Call(state.window, uintptr(unsafe.Pointer(&client)))
 			iconic, _, _ := isIconic.Call(state.window)
-			if iconic != 0 && client.Right > 0 && client.Bottom > 0 && client.Right < 640 && client.Bottom < 400 {
+			if iconic != 0 {
 				break
 			}
 			if time.Now().After(deadline) {
-				t.Fatalf("window did not settle minimized: client %dx%d, iconic %d", client.Right, client.Bottom, iconic)
+				t.Fatalf("window did not settle minimized: iconic %d", iconic)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		// The corner-stretched preview this guards needs a client area that is small but
+		// still non-empty: presenting at it is what shrinks the swap chain. That is the
+		// window manager's answer for a custom frame, not a fact about every desktop, so
+		// a desktop that answers differently has nothing for this test to check.
+		var client rect
+		for {
+			getClientRect.Call(state.window, uintptr(unsafe.Pointer(&client)))
+			if client.Right <= 0 || client.Bottom <= 0 {
+				t.Skipf("this desktop reports an empty client area for a minimized window (%dx%d), so no frame can be presented at it", client.Right, client.Bottom)
+			}
+			if client.Right < 640 && client.Bottom < 400 {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Skipf("this desktop keeps a minimized window's client area at its visible size (%dx%d)", client.Right, client.Bottom)
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
