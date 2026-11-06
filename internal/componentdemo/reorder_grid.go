@@ -97,7 +97,8 @@ var reorderGridComponent = Component{
 			"for order, item := range items {\n" +
 			"    grid.Order(item.HandleID, item.Lane, order, item.Disabled)\n" +
 			"}\n" +
-			"for order, item := range visibleItems {\n" +
+			"for visibleIndex, item := range visibleItems {\n" +
+			"    order := visibleStart + visibleIndex\n" +
 			"    grid.Item(item.HandleID, item.Name, item.Lane, order, item.Bounds, item.Handle, item.Disabled)\n" +
 			"}\n" +
 			"grid.End()\n\n" +

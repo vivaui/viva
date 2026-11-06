@@ -50,6 +50,23 @@ func TestReorderGridRejectsContentAndOutsideDrops(t *testing.T) {
 	}
 }
 
+func TestReorderGridRejectsDisabledTargets(t *testing.T) {
+	var state ReorderGridState
+	var canvas ui.Canvas
+	grid := BeginReorderGrid(&canvas, ui.LightTheme(), ui.Rect{Width: 300, Height: 80}, &state)
+	grid.Item(ui.Item(1), "A1", 0, 0, ui.Rect{X: 0, Width: 90, Height: 60}, ui.Rect{X: 4, Y: 10, Width: 20, Height: 30}, false)
+	grid.Item(ui.Item(2), "B disabled", 1, 1, ui.Rect{X: 100, Width: 90, Height: 60}, ui.Rect{X: 104, Y: 10, Width: 20, Height: 30}, true)
+	grid.Item(ui.Item(3), "A2", 0, 2, ui.Rect{X: 200, Width: 90, Height: 60}, ui.Rect{X: 204, Y: 10, Width: 20, Height: 30}, false)
+	grid.End()
+
+	state.Pointer(ui.PointerEvent{Kind: ui.PointerDown, Button: ui.PointerButtonPrimary, Target: ui.Item(1), X: 14, Y: 25})
+	state.Pointer(ui.PointerEvent{Kind: ui.PointerMove, Captured: true, X: 180, Y: 25})
+	move, _ := state.Pointer(ui.PointerEvent{Kind: ui.PointerUp, Captured: true, X: 180, Y: 25})
+	if move.Valid() {
+		t.Fatalf("drop over disabled target committed: %+v", move)
+	}
+}
+
 func TestReorderGridKeepsMovesInsideALane(t *testing.T) {
 	var state ReorderGridState
 	var canvas ui.Canvas
@@ -134,6 +151,20 @@ func TestReorderGridKeyboardMovesWithinLane(t *testing.T) {
 	}
 }
 
+func TestReorderGridKeyboardCancelsHeldPointerTransaction(t *testing.T) {
+	state, _ := reorderGridFixture()
+	state.Pointer(ui.PointerEvent{Kind: ui.PointerDown, Button: ui.PointerButtonPrimary, Target: ui.Item(1), X: 14, Y: 25})
+	state.Pointer(ui.PointerEvent{Kind: ui.PointerMove, Captured: true, X: 160, Y: 85})
+
+	move, result := state.Key(ui.KeyEvent{Target: ui.Item(1), Key: ui.KeyEnd})
+	if !move.Valid() || !result.Handled {
+		t.Fatalf("keyboard move=%+v result=%+v", move, result)
+	}
+	if _, held := state.PointerPosition(); held || state.Dragging() {
+		t.Fatal("keyboard reorder left the pointer transaction active")
+	}
+}
+
 func TestReorderGridKeyboardUsesLogicalOrderBeyondVisibleItems(t *testing.T) {
 	var state ReorderGridState
 	var canvas ui.Canvas
@@ -161,6 +192,25 @@ func TestReorderGridEscapeCancelsHeldPointerDrag(t *testing.T) {
 	move, result := state.Key(ui.KeyEvent{Target: ui.Item(1), Key: ui.KeyEscape})
 	if move.Valid() || !result.Handled || !result.FocusVisible || state.Dragging() {
 		t.Fatalf("escape move=%+v result=%+v dragging=%v", move, result, state.Dragging())
+	}
+}
+
+func TestReorderGridEndClearsTargetWhenReflowMakesItInvalid(t *testing.T) {
+	state, _ := reorderGridFixture()
+	state.Pointer(ui.PointerEvent{Kind: ui.PointerDown, Button: ui.PointerButtonPrimary, Target: ui.Item(1), X: 14, Y: 25})
+	state.Pointer(ui.PointerEvent{Kind: ui.PointerMove, Captured: true, X: 160, Y: 85})
+	if state.Target().IsZero() {
+		t.Fatal("expected an initial target")
+	}
+
+	var canvas ui.Canvas
+	grid := BeginReorderGrid(&canvas, ui.LightTheme(), ui.Rect{Width: 240, Height: 140}, &state)
+	// The source still exists logically, but virtualization/reflow has moved every
+	// pointer target out of the painted viewport.
+	grid.Order(ui.Item(1), 0, 0, false)
+	grid.End()
+	if !state.Target().IsZero() {
+		t.Fatalf("stale target remains after reflow: %v", state.Target())
 	}
 }
 

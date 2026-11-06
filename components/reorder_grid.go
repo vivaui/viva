@@ -34,6 +34,7 @@ type reorderGridItem struct {
 // losing the drag.
 type ReorderGridState struct {
 	items             []reorderGridItem
+	indices           map[ui.ID]int
 	viewport          ui.Rect
 	active, target    ui.ID
 	lane, from, to    int
@@ -72,17 +73,17 @@ func reorderGridCenter(rect ui.Rect) ui.Point {
 }
 
 // targetAt chooses the item under the pointer when possible and otherwise the
-// nearest center in the active lane. The latter keeps drops predictable in gaps
-// between cards.
+// nearest visible center. Disabled items and items in another lane own their
+// geometry but are not valid targets, so drops over them are rejected.
 func (state *ReorderGridState) targetAt(x, y float32) int {
 	// A pointer directly over another lane is an invalid drop, not a request to
 	// snap to whichever item in the active lane happens to be geographically
 	// nearest.
 	for index, item := range state.items {
-		if item.disabled || !item.visible || !reorderGridContains(item.bounds, x, y) {
+		if !item.visible || !reorderGridContains(item.bounds, x, y) {
 			continue
 		}
-		if item.lane != state.lane {
+		if item.disabled || item.lane != state.lane {
 			return -1
 		}
 		return index
@@ -93,7 +94,7 @@ func (state *ReorderGridState) targetAt(x, y float32) int {
 	// reaching back to a distant item in the active lane.
 	best, bestDistance := -1, float32(0)
 	for index, item := range state.items {
-		if item.disabled || !item.visible {
+		if !item.visible {
 			continue
 		}
 		center := reorderGridCenter(item.bounds)
@@ -103,7 +104,7 @@ func (state *ReorderGridState) targetAt(x, y float32) int {
 			best, bestDistance = index, distance
 		}
 	}
-	if best < 0 || state.items[best].lane != state.lane {
+	if best < 0 || state.items[best].disabled || state.items[best].lane != state.lane {
 		return -1
 	}
 	return best
@@ -228,8 +229,9 @@ func (state *ReorderGridState) Key(event ui.KeyEvent) (ReorderGridMove, ui.Event
 		if !found {
 			target = item
 		}
-		return ReorderGridMove{ID: item.id, Target: target.id, From: item.order, To: target.order},
-			ui.EventResult{Handled: true, Repaint: true, Focus: item.id, FocusVisible: true}
+		move := ReorderGridMove{ID: item.id, Target: target.id, From: item.order, To: target.order}
+		state.Cancel()
+		return move, ui.EventResult{Handled: true, Repaint: true, Focus: item.id, FocusVisible: true}
 	}
 	return ReorderGridMove{}, ui.EventResult{}
 }
@@ -245,6 +247,11 @@ type ReorderGrid struct {
 
 func BeginReorderGrid(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, state *ReorderGridState) ReorderGrid {
 	state.items = state.items[:0]
+	if state.indices == nil {
+		state.indices = make(map[ui.ID]int)
+	} else {
+		clear(state.indices)
+	}
 	state.viewport = viewport
 	return ReorderGrid{canvas: canvas, theme: theme, state: state}
 }
@@ -265,14 +272,13 @@ func (grid *ReorderGrid) Order(id ui.ID, lane, order int, disabled bool) {
 	if id.IsZero() {
 		return
 	}
-	for index := range grid.state.items {
-		if grid.state.items[index].id == id {
-			grid.state.items[index].lane = lane
-			grid.state.items[index].order = order
-			grid.state.items[index].disabled = disabled
-			return
-		}
+	if index, found := grid.state.indices[id]; found {
+		grid.state.items[index].lane = lane
+		grid.state.items[index].order = order
+		grid.state.items[index].disabled = disabled
+		return
 	}
+	grid.state.indices[id] = len(grid.state.items)
 	grid.state.items = append(grid.state.items, reorderGridItem{
 		id: id, lane: lane, order: order, disabled: disabled,
 	})
@@ -284,24 +290,18 @@ func (grid *ReorderGrid) Order(id ui.ID, lane, order int, disabled bool) {
 // while exposing pointer geometry only for what is painted.
 func (grid *ReorderGrid) Item(id ui.ID, label string, lane, order int, bounds, handle ui.Rect, disabled bool) {
 	disabled = disabled || id.IsZero()
-	found := false
-	for index := range grid.state.items {
+	if id.IsZero() {
+		return
+	}
+	if index, found := grid.state.indices[id]; found {
 		item := &grid.state.items[index]
-		if item.id != id {
-			continue
-		}
 		item.lane, item.order, item.disabled = lane, order, disabled
 		item.visible, item.bounds = true, bounds
-		found = true
-		break
-	}
-	if !found {
+	} else {
+		grid.state.indices[id] = len(grid.state.items)
 		grid.state.items = append(grid.state.items, reorderGridItem{
 			id: id, lane: lane, order: order, disabled: disabled, visible: true, bounds: bounds,
 		})
-	}
-	if id.IsZero() {
-		return
 	}
 	hit := handle
 	if grid.hitSlop > 0 {
@@ -345,6 +345,8 @@ func (grid *ReorderGrid) End() {
 	if index := state.targetAt(state.last.X, state.last.Y); index >= 0 {
 		item := state.items[index]
 		state.target, state.to = item.id, item.order
+	} else {
+		state.target, state.to = ui.ID{}, -1
 	}
 
 	// Surface styling (including elevation and target indication) is caller-owned:
