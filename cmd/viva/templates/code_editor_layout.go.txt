@@ -1,6 +1,7 @@
 package {{PACKAGE}}
 
 import (
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,10 +44,16 @@ func decodeAt(value string, at int) (rune, int) {
 
 // fit lays value out in rows of cols cells unless it already is.
 func (editor *CodeEditor) fit(value string, cols int, wrap bool, tabWidth int) {
-	if editor.fitted && editor.cols == cols && editor.wrap == wrap && editor.tabWidth == tabWidth && editor.text == value {
+	editor.fitWithFolds(value, cols, wrap, tabWidth, nil)
+}
+
+func (editor *CodeEditor) fitWithFolds(value string, cols int, wrap bool, tabWidth int, folds []CodeEditorFoldRange) {
+	if editor.fitted && editor.cols == cols && editor.wrap == wrap && editor.tabWidth == tabWidth && editor.text == value && slices.Equal(editor.foldInput, folds) {
 		return
 	}
 	editor.fitted, editor.cols, editor.wrap, editor.tabWidth, editor.text = true, cols, wrap, tabWidth, value
+	editor.foldInput = append(editor.foldInput[:0], folds...)
+	editor.folds = editor.folds[:0]
 	editor.rows = editor.rows[:0]
 	editor.shown = editor.shown[:0]
 	editor.widest = 0
@@ -55,13 +62,32 @@ func (editor *CodeEditor) fit(value string, cols int, wrap bool, tabWidth int) {
 		value = ""
 		editor.text = ""
 	}
-	line := 0
+	logicalLines := strings.Count(value, "\n") + 1
+	lastFoldEnd := -1
+	for _, fold := range folds {
+		if fold.Header < 0 || fold.Header <= lastFoldEnd || fold.LastLine <= fold.Header || fold.LastLine >= logicalLines {
+			continue
+		}
+		editor.folds = append(editor.folds, fold)
+		lastFoldEnd = fold.LastLine
+	}
+	line, foldIndex := 0, 0
 	for start := 0; ; line++ {
 		end := len(value)
 		if newline := strings.IndexByte(value[start:], '\n'); newline >= 0 {
 			end = start + newline
 		}
-		editor.appendLine(value, start, end, line)
+		for foldIndex < len(editor.folds) && editor.folds[foldIndex].LastLine < line {
+			foldIndex++
+		}
+		hidden := false
+		if foldIndex < len(editor.folds) {
+			fold := editor.folds[foldIndex]
+			hidden = fold.Header >= 0 && fold.LastLine > fold.Header && fold.Header < line && line <= fold.LastLine
+		}
+		if !hidden {
+			editor.appendLine(value, start, end, line)
+		}
 		if end >= len(value) {
 			break
 		}
@@ -450,7 +476,9 @@ func (editor *CodeEditor) SetScrollY(y float32) {
 // YAtOffset is the vertical position of byte offset in the text, in pixels from
 // its top whatever the scroll: the top of the row holding offset, plus the
 // fraction of a row that offset is along that row's cells. An offset at a soft
-// wrap belongs to the row that starts there. It is false before the first paint.
+// wrap belongs to the row that starts there. An offset that a fold hides takes
+// the top of the fold's header row, since that row is what stands for it. It is
+// false before the first paint.
 func (editor *CodeEditor) YAtOffset(offset int) (float32, bool) {
 	if !editor.painted || !editor.fitted || len(editor.rows) == 0 || editor.lineHeight <= 0 {
 		return 0, false
@@ -458,6 +486,12 @@ func (editor *CodeEditor) YAtOffset(offset int) (float32, bool) {
 	offset = textareaBoundary(editor.text, offset)
 	index := max(sort.Search(len(editor.rows), func(i int) bool { return int(editor.rows[i].start) > offset })-1, 0)
 	row := editor.rows[index]
+	if offset > int(row.end) {
+		// The offset is not on any visible row: a fold hides it. Its own row has no
+		// position, and reporting the end of the header row would put it on the row
+		// below, so it takes the header row's top.
+		return float32(index) * editor.lineHeight, true
+	}
 	fraction := float32(0)
 	if row.cells > 0 {
 		fraction = min(1, float32(editor.columnOf(row, offset))/float32(row.cells))
