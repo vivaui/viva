@@ -35,7 +35,7 @@ type CodeEditorFoldRange struct {
 }
 
 // CodeEditorFoldMarker adds a disclosure button to a visible logical line.
-// The caller owns its ID and handles clicks.
+// The caller owns its ID and handles clicks. Markers must be sorted by Line.
 type CodeEditorFoldMarker struct {
 	Line      int
 	ID        ui.ID
@@ -88,6 +88,8 @@ type CodeEditorSnapshot struct {
 	FoldGutter bool
 	// FoldedLines change visible rows without changing the caller's text.
 	FoldedLines []CodeEditorFoldRange
+	// FoldMarkers place disclosure buttons; they must be sorted by Line, as
+	// GutterMarkers is, because a paint locates them by binary search.
 	FoldMarkers []CodeEditorFoldMarker
 	// CurrentLine tints the line the caret is on, while nothing is selected.
 	CurrentLine bool

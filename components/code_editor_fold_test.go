@@ -126,3 +126,20 @@ func TestCodeEditorFoldMarkerSteadyPaintDoesNotAllocate(t *testing.T) {
 		t.Fatalf("steady fold-marker paint allocated %g times", allocations)
 	}
 }
+
+func TestCodeEditorHiddenOffsetTakesTheFoldHeaderRow(t *testing.T) {
+	value := "head\naa\nbb\ncc\ntail"
+	fixture := newCodeFixture(value)
+	fixture.snapshot.FoldedLines = []CodeEditorFoldRange{{Header: 0, LastLine: 3}}
+	fixture.paint()
+	// Offset 6 is inside "bb", which the fold hides. It stands for the header row,
+	// so it reports that row's top instead of sliding onto the row below it.
+	if y, ok := fixture.editor.YAtOffset(6); !ok || y != 0 {
+		t.Fatalf("hidden offset y = %v, ok = %v, want the header row top 0", y, ok)
+	}
+	// A visible offset still reports its own row.
+	want := fixture.editor.lineHeight
+	if got, ok := fixture.editor.YAtOffset(int(fixture.editor.rows[1].start)); !ok || got != want {
+		t.Fatalf("visible offset y = %v, ok = %v, want %v", got, ok, want)
+	}
+}

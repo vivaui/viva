@@ -452,7 +452,9 @@ func (editor *CodeEditor) SetScrollY(y float32) {
 // YAtOffset is the vertical position of byte offset in the text, in pixels from
 // its top whatever the scroll: the top of the row holding offset, plus the
 // fraction of a row that offset is along that row's cells. An offset at a soft
-// wrap belongs to the row that starts there. It is false before the first paint.
+// wrap belongs to the row that starts there. An offset that a fold hides takes
+// the top of the fold's header row, since that row is what stands for it. It is
+// false before the first paint.
 func (editor *CodeEditor) YAtOffset(offset int) (float32, bool) {
 	if !editor.painted || !editor.fitted || len(editor.rows) == 0 || editor.lineHeight <= 0 {
 		return 0, false
@@ -460,6 +462,12 @@ func (editor *CodeEditor) YAtOffset(offset int) (float32, bool) {
 	offset = textareaBoundary(editor.text, offset)
 	index := max(sort.Search(len(editor.rows), func(i int) bool { return int(editor.rows[i].start) > offset })-1, 0)
 	row := editor.rows[index]
+	if offset > int(row.end) {
+		// The offset is not on any visible row: a fold hides it. Its own row has no
+		// position, and reporting the end of the header row would put it on the row
+		// below, so it takes the header row's top.
+		return float32(index) * editor.lineHeight, true
+	}
 	fraction := float32(0)
 	if row.cells > 0 {
 		fraction = min(1, float32(editor.columnOf(row, offset))/float32(row.cells))
