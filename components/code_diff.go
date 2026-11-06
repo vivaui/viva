@@ -22,16 +22,20 @@ type CodeDiffSnapshot struct {
 	// MonoFace is the fixed-pitch font the code is set in.
 	MonoFace ui.MonoFace
 	// TabWidth is the width of a tab stop in cells; zero is four.
-	TabWidth              int
-	Disabled              bool
-	ReadOnly              bool
-	Focused               bool
-	ShowCaret             bool
-	Caret                 int
-	SelectionStart        int
-	SelectionEnd          int
-	CompositionStart      int
-	CompositionEnd        int
+	TabWidth         int
+	Disabled         bool
+	ReadOnly         bool
+	Focused          bool
+	ShowCaret        bool
+	Caret            int
+	SelectionStart   int
+	SelectionEnd     int
+	CompositionStart int
+	CompositionEnd   int
+	// CaretWidth is the caret's thickness in logical pixels; zero is the one
+	// pixel hairline. CaretColor paints it; zero takes the text color.
+	CaretWidth            float32
+	CaretColor            ui.Color
 	VerticalScrollbarID   ui.ID
 	HorizontalScrollbarID ui.ID
 	ViewportID            ui.ID
@@ -429,8 +433,13 @@ func (diff *CodeDiff) paintRightCaret(canvas *ui.Canvas, line int, origin float3
 	}
 	column := gridColumn(diff.lines[line], caret-lineStart, diff.tabWidth)
 	x := origin + float32(column)*diff.cellWidth
-	canvas.Fill(ui.Rect{X: x, Y: row.Y + (row.Height-diff.cellHeight)/2, Width: 1, Height: diff.cellHeight}, diff.theme.Foreground)
-	diff.caret = ui.Rect{X: x, Y: row.Y, Width: 1, Height: row.Height}
+	caretWidth := max(diff.snapshot.CaretWidth, 1)
+	caretColor := diff.snapshot.CaretColor
+	if caretColor.Alpha == 0 {
+		caretColor = diff.theme.Foreground
+	}
+	canvas.Fill(ui.Rect{X: x, Y: row.Y + (row.Height-diff.cellHeight)/2, Width: caretWidth, Height: diff.cellHeight}, caretColor)
+	diff.caret = ui.Rect{X: x, Y: row.Y, Width: caretWidth, Height: row.Height}
 	diff.caretShown = int(diff.Geometry.OffsetY/diff.rowHeight) <= rowIndex &&
 		rowIndex < int(diff.Geometry.OffsetY/diff.rowHeight)+diff.visibleRows
 }

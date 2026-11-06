@@ -107,6 +107,10 @@
 //     `TextareaMovementForKey` with `CodeEditor.Move` moves by row. The scroll
 //     position can be read and set, and offsets map to and from vertical
 //     positions (`CodeEditor.YAtOffset`), for views kept scrolled together.
+//   - Caret blink: `CaretBlink` holds the phase of one text caret, so a focused
+//     editor's caret turns over on the terminal's rhythm and comes to rest lit
+//     when the window is left alone. The application keeps one next to its text
+//     and passes the result as ShowCaret.
 //   - Find bar: `PaintFindBar` paints the find and replace bar of an editor over
 //     two InputSnapshot fields, with option toggles, a count and step buttons;
 //     `FindBarCommandForKey` maps Command or Control+F, F3 and Enter to its

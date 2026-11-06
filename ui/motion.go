@@ -402,6 +402,14 @@ func (canvas *Canvas) Animating() bool {
 	return canvas.motion.animating
 }
 
+// HasClock reports whether a frame clock is installed. A widget that would
+// otherwise pace itself asks this before doing so: without a clock nothing
+// advances, so it paints its resting state and asks for no frame. Tests,
+// static previews and runtimes without a frame loop have none.
+func (canvas *Canvas) HasClock() bool {
+	return canvas.motion.clock != nil
+}
+
 // RequestFrame marks the current frame as unfinished for painters that run
 // their transitions elsewhere, such as a development reload host mirroring a
 // worker canvas. The runtime paints again at display cadence until a frame

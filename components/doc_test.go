@@ -20,6 +20,7 @@ var docPrimaryEntries = map[string][]string{
 	"avatar.go":             {"Avatar"},
 	"bubble.go":             {"Bubble", "BubbleReaction"},
 	"card.go":               {"Card"},
+	"caret_blink.go":        {"CaretBlink"},
 	"chart_downsample.go":   {"ChartDownsample"},
 	"code_editor.go":        {"CodeEditor"},
 	"code_editor_layout.go": {"CodeEditor"},

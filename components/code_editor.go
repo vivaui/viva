@@ -69,6 +69,14 @@ type CodeEditorSnapshot struct {
 	SelectionEnd     int
 	CompositionStart int
 	CompositionEnd   int
+	// CaretWidth is the caret's thickness in logical pixels; zero is the one
+	// pixel hairline, and an application that wants the two-pixel bar an editor
+	// usually draws asks for it.
+	CaretWidth float32
+	// CaretColor paints the caret; zero takes the text color, which is what a
+	// monochrome caret looks like. An application with a cursor color of its own
+	// passes that instead.
+	CaretColor ui.Color
 	// FontSize is the size of the code, in logical pixels; zero takes the theme's.
 	FontSize float32
 	// MonoFace is the fixed-pitch font the code is set in.
@@ -303,8 +311,9 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		selectionStart: selectionStart, selectionEnd: selectionEnd,
 		compositionStart: compositionStart, compositionEnd: compositionEnd,
 		caret: caret, caretRow: caretRow, caretColumn: caretColumn,
-		showCaret: focused && snapshot.ShowCaret && !snapshot.Disabled,
-		language:  snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
+		showCaret:  focused && snapshot.ShowCaret && !snapshot.Disabled,
+		caretWidth: max(snapshot.CaretWidth, 1), caretColor: snapshot.CaretColor,
+		language: snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
 		showWhitespace: snapshot.ShowWhitespace, showEOL: snapshot.ShowEOL, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
 		invisibleColor: snapshot.InvisibleColor,
@@ -505,6 +514,8 @@ type codePaint struct {
 	compositionStart, compositionEnd         int
 	caret, caretRow, caretColumn             int
 	showCaret                                bool
+	caretWidth                               float32
+	caretColor                               ui.Color
 	language                                 string
 	highlight                                func(language, line string, dst []CodeEditorRun) []CodeEditorRun
 	highlightLine                            func(language string, lineIndex int, line string, dst []CodeEditorRun) []CodeEditorRun
@@ -658,9 +669,9 @@ func (paint *codePaint) row(index int, y float32) {
 	if index == paint.caretRow {
 		x := left + float32(paint.caretColumn)*paint.cellWidth
 		if x >= editor.content.X-1 && x <= editor.content.X+editor.content.Width {
-			editor.caretRect, editor.caretShown = ui.Rect{X: x, Y: y, Width: 1, Height: paint.lineHeight}, true
+			editor.caretRect, editor.caretShown = ui.Rect{X: x, Y: y, Width: paint.caretWidth, Height: paint.lineHeight}, true
 			if paint.showCaret {
-				canvas.Fill(ui.Rect{X: x, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: 1, Height: paint.cellHeight}, paint.foreground)
+				canvas.Fill(ui.Rect{X: x, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: paint.caretWidth, Height: paint.cellHeight}, paint.caretColor)
 			}
 		}
 	}
