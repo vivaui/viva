@@ -225,7 +225,7 @@ func (state *runState) textInputAlreadyUpdated(input *TextInput) bool {
 func sameTextInputPresentation(left, right TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y &&
 		left.Width == right.Width && left.Height == right.Height &&
-		left.FontSize == right.FontSize && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
+		left.FontSize == right.FontSize && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
 		left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.Color == right.Color &&
 		left.State == right.State
 }
@@ -832,6 +832,7 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 		height:               C.float(input.Height),
 		font_size:            C.float(input.FontSize),
 		font_weight:          C.float(input.Weight),
+		alignment:            C.int(input.Alignment),
 		red:                  C.float(input.Color.Red),
 		green:                C.float(input.Color.Green),
 		blue:                 C.float(input.Color.Blue),

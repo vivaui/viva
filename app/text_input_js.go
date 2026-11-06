@@ -52,6 +52,7 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 		} else {
 			native.State = platformTextState(active.State)
 		}
+		native.Alignment = resolveTextInputAlignment(active.Alignment, native.State.Value, native.State.Selection.End)
 		return &native
 	}
 }

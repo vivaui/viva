@@ -763,13 +763,14 @@ type TextInput struct {
 	// input method is composing; a different target must end that composition
 	// even when both fields have identical text and presentation. Standalone
 	// platform clients may leave it zero when they have only one editor.
-	Target   ui.ID
-	X        float32
-	Y        float32
-	Width    float32
-	Height   float32
-	FontSize float32
-	Weight   float32
+	Target    ui.ID
+	X         float32
+	Y         float32
+	Width     float32
+	Height    float32
+	FontSize  float32
+	Weight    float32
+	Alignment ui.Alignment
 	// Layer keeps native editor visuals in the component's compositing layer.
 	Layer     uint16
 	Multiline bool

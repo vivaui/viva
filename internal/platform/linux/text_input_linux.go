@@ -305,7 +305,8 @@ func (state *linuxTextInput) rebuild() error {
 	if !inputState.Placed {
 		state.scroll = state.scrollFor(inputState.Width, caretX, textWidth)
 	}
-	originX := inputState.X - state.scroll
+	inset := platform.TextAlignmentInset(inputState.Alignment, inputState.Width, textWidth, inputState.Terminal, inputState.Placed)
+	originX := inputState.X + inset - state.scroll
 	label := &state.labels[len(state.baseLabels)]
 	label.X, label.Width = originX, max(inputState.Width+state.scroll, textWidth+linuxTextCaretWidth)
 	label.Clipped, label.Clip = true, ui.Rect{X: inputState.X, Y: inputState.Y, Width: inputState.Width, Height: inputState.Height}
@@ -515,7 +516,7 @@ func (state *linuxTextInput) pointer(event platform.PointerEvent) (platform.Fram
 	}
 	// The pointer is measured against the text as it is scrolled, and a drag keeps
 	// selecting once it leaves the field, to the nearest end.
-	index, err := state.nearestTextIndex(event.X - inputState.X + state.scroll)
+	index, err := state.nearestTextIndex(event.X - state.labels[len(state.baseLabels)].X)
 	if err != nil {
 		return platform.Frame{}, true, err
 	}

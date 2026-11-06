@@ -2,9 +2,25 @@ package app
 
 import (
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
+
+func resolveTextInputAlignment(alignment ui.Alignment, value string, caret int) ui.Alignment {
+	if alignment == ui.AlignStart || alignment == ui.AlignEnd {
+		start, end, _ := platform.TextLine(value, caret)
+		rtl := textmetrics.RightToLeft(value[start:end])
+		if alignment == ui.AlignStart && rtl || alignment == ui.AlignEnd && !rtl {
+			return ui.AlignRight
+		}
+		return ui.AlignLeft
+	}
+	if alignment == ui.AlignCenter || alignment == ui.AlignRight {
+		return alignment
+	}
+	return ui.AlignLeft
+}
 
 // TextRange is a half-open rune-indexed range.
 type TextRange struct {
@@ -152,6 +168,9 @@ type TextInput struct {
 	Weight   float32
 	Color    ui.Color
 	MonoFace ui.MonoFace
+	// Alignment places a fitted line within Bounds. Zero keeps the existing
+	// left-aligned input; terminal and self-placed inputs ignore it.
+	Alignment ui.Alignment
 	// AltSendsEscape asks printable Alt/Option chords on a terminal to arrive as
 	// raw key events with the unmodified character in KeyEvent.Text. Terminal
 	// encoders can then send the conventional Escape-prefixed Meta sequence.

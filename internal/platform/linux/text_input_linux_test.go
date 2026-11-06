@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -166,6 +167,48 @@ func TestLinuxTextPointerPlacesCaretAtNearestCharacter(t *testing.T) {
 	}
 	if _, handled, err = state.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 111, Y: 35}); err != nil || handled {
 		t.Fatalf("outside pointer handled=%v err=%v", handled, err)
+	}
+}
+
+func TestLinuxTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testing.T) {
+	for _, testcase := range []struct {
+		alignment ui.Alignment
+		origin    float32
+	}{
+		{ui.AlignCenter, 55},
+		{ui.AlignRight, 100},
+	} {
+		t.Run(fmt.Sprint(testcase.alignment), func(t *testing.T) {
+			editor := text.NewEditor("abc")
+			inputState := platform.TextInput{
+				X: 10, Y: 20, Width: 120, Height: 30, FontSize: 16, Alignment: testcase.alignment,
+				State: platform.TextState{Value: "abc", Selection: text.Range{Start: 3, End: 3}, Composing: true, Composition: text.Range{Start: 0, End: 3}},
+				OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
+					event.Apply(editor)
+					return platform.TextState{Value: editor.String(), Selection: editor.Selection()}, nil
+				},
+			}
+			state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{advance: 10}}
+			frame, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if label := frame.TextLabels[len(frame.TextLabels)-1]; label.X != testcase.origin {
+				t.Fatalf("glyph origin = %v, want %v", label.X, testcase.origin)
+			}
+			if caret := state.caret.Bounds.X; caret != testcase.origin+30 {
+				t.Fatalf("caret = %v, want %v", caret, testcase.origin+30)
+			}
+			if underline := frame.Rectangles[len(frame.Rectangles)-1].Bounds.X; underline != testcase.origin {
+				t.Fatalf("composition underline = %v, want %v", underline, testcase.origin)
+			}
+			state.state.Composing = false
+			state.input.State.Composing = false
+			_, handled, err := state.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: testcase.origin + 12, Y: 35})
+			if err != nil || !handled || editor.Caret() != 1 {
+				t.Fatalf("aligned click: caret=%d handled=%v err=%v", editor.Caret(), handled, err)
+			}
+		})
 	}
 }
 

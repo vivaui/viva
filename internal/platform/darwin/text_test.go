@@ -191,6 +191,11 @@ func TestTextEventRedrawRecognizesAlreadyAppliedNativeState(t *testing.T) {
 	if state.textInputAlreadyUpdated(&moved) {
 		t.Fatal("changed editor geometry was skipped")
 	}
+	aligned := *input
+	aligned.Alignment = ui.AlignRight
+	if state.textInputAlreadyUpdated(&aligned) {
+		t.Fatal("changed editor alignment was skipped")
+	}
 	if state.textInputAlreadyUpdated(nil) {
 		t.Fatal("disable update was skipped")
 	}
@@ -340,6 +345,15 @@ func TestNativeTextInputCarriesFontWeight(t *testing.T) {
 	native := makeNativeTextInput(TextInput{Weight: ui.WeightSemibold}, nil)
 	if float32(native.font_weight) != ui.WeightSemibold {
 		t.Fatalf("native font weight = %v, want %v", native.font_weight, ui.WeightSemibold)
+	}
+}
+
+func TestNativeTextInputCarriesAlignment(t *testing.T) {
+	for _, alignment := range []ui.Alignment{ui.AlignLeft, ui.AlignCenter, ui.AlignRight} {
+		native := makeNativeTextInput(TextInput{Alignment: alignment}, nil)
+		if got := ui.Alignment(native.alignment); got != alignment {
+			t.Errorf("native alignment = %v, want %v", got, alignment)
+		}
 	}
 }
 

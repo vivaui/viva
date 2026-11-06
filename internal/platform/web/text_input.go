@@ -23,6 +23,17 @@ type TextInputContext struct {
 	TextColor  ui.Color
 }
 
+func textAlignCSS(alignment ui.Alignment) string {
+	switch alignment {
+	case ui.AlignCenter:
+		return "center"
+	case ui.AlignRight:
+		return "right"
+	default:
+		return "left"
+	}
+}
+
 // TextInputProvider resolves one focused editable hit into an application-owned
 // browser editor. Returning nil disables browser text editing.
 type TextInputProvider func(TextInputContext) *platform.TextInput

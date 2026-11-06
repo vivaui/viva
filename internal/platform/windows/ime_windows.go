@@ -125,7 +125,8 @@ func (state *windowState) updateTextVisuals() error {
 	if caretX-state.textScroll > visibleWidth {
 		state.textScroll = caretX - visibleWidth
 	}
-	originX := input.X - state.textScroll
+	inset := platform.TextAlignmentInset(input.Alignment, input.Width, textWidth, input.Terminal, input.Placed)
+	originX := input.X + inset - state.textScroll
 	label := platform.TextLabel{
 		Value: line.value, X: originX, Y: input.Y,
 		Width:  max(input.Width+state.textScroll, textWidth+textCaretWidth),
@@ -332,7 +333,8 @@ func (state *windowState) textPointerEvent(event platform.PointerEvent) (platfor
 		return platform.TextEvent{}, false, nil
 	}
 	line := state.layoutLine()
-	offset := state.textEngine.OffsetAt(line.value, input.FontSize, input.Weight, event.X-input.X+state.textScroll)
+	inset := platform.TextAlignmentInset(input.Alignment, input.Width, state.lineWidth(line, input.FontSize), input.Terminal, input.Placed)
+	offset := state.textEngine.OffsetAt(line.value, input.FontSize, input.Weight, event.X-input.X-inset+state.textScroll)
 	index := line.first + utf8.RuneCountInString(line.value[:max(0, min(offset, len(line.value)))])
 	if event.Kind == platform.PointerDown {
 		state.textDragAnchor = index
@@ -720,7 +722,9 @@ func (state *windowState) caretCell() (x, y, height float32) {
 		// The field laid its rows out itself: this is where it painted its caret.
 		return input.CaretX, input.CaretY, input.CaretHeight
 	}
-	return input.X + state.textCaret(input.FontSize, state.textCaretIndex()) - state.textScroll, input.Y, input.Height
+	line := state.layoutLine()
+	inset := platform.TextAlignmentInset(input.Alignment, input.Width, state.lineWidth(line, input.FontSize), input.Terminal, input.Placed)
+	return input.X + inset + state.textCaret(input.FontSize, state.textCaretIndex()) - state.textScroll, input.Y, input.Height
 }
 
 // compositionTarget is the clause the input method is converting, as runes of the

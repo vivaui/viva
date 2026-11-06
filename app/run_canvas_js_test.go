@@ -93,6 +93,30 @@ func TestWebTextInputConnectsAnEditorToTheBrowser(t *testing.T) {
 	}
 }
 
+func TestWebTextInputPreservesAlignment(t *testing.T) {
+	for _, testcase := range []struct {
+		name      string
+		value     string
+		alignment ui.Alignment
+		want      ui.Alignment
+	}{
+		{"right", "hello", ui.AlignRight, ui.AlignRight},
+		{"start RTL", "שלום", ui.AlignStart, ui.AlignRight},
+		{"end RTL", "שלום", ui.AlignEnd, ui.AlignLeft},
+		{"end LTR", "hello", ui.AlignEnd, ui.AlignRight},
+	} {
+		t.Run(testcase.name, func(t *testing.T) {
+			provider := webTextInput(func(TextInputContext) *TextInput {
+				return &TextInput{Editor: text.NewEditor(testcase.value), Alignment: testcase.alignment}
+			})
+			input := provider(web.TextInputContext{ID: ui.Item(7), Bounds: ui.Rect{Width: 200, Height: 30}})
+			if input == nil || input.Alignment != testcase.want {
+				t.Fatalf("browser alignment = %+v, want %v", input, testcase.want)
+			}
+		})
+	}
+}
+
 func TestWebTextInputPassesEventsToAHandlerThatOwnsThem(t *testing.T) {
 	var seen TextEvent
 	provider := webTextInput(func(TextInputContext) *TextInput {

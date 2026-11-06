@@ -1260,11 +1260,15 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		painter.textEnabled = false
 		return platform.TextInputUpdate{Changed: true}
 	}
+	alignment := ui.AlignLeft
+	if !context.Terminal && !context.TypeAhead && placement == nil {
+		alignment = resolveTextInputAlignment(input.Alignment, input.State.Value, input.State.Selection.End)
+	}
 	native := platform.TextInput{
 		Target: context.ID,
 		X:      bounds.X, Y: bounds.Y,
 		Width: bounds.Width, Height: bounds.Height,
-		FontSize: fontSize, Weight: weight, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
+		FontSize: fontSize, Weight: weight, Alignment: alignment, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
 		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace,
 		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
 		HideNativeOverlays: input.HideNativeOverlays || context.HideNativeOverlays,
@@ -1354,7 +1358,7 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 
 func samePlatformTextInput(left, right platform.TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y && left.Width == right.Width && left.Height == right.Height &&
-		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace &&
+		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace &&
 		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases &&
 		left.NavigationKeys == right.NavigationKeys &&
 		left.HideNativeOverlays == right.HideNativeOverlays &&

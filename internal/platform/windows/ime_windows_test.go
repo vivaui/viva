@@ -79,6 +79,47 @@ func TestInitializeTextLabel(t *testing.T) {
 	}
 }
 
+func TestWindowsTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testing.T) {
+	for _, testcase := range []struct {
+		alignment ui.Alignment
+		origin    float32
+	}{
+		{ui.AlignCenter, 55},
+		{ui.AlignRight, 100},
+	} {
+		t.Run(fmt.Sprint(testcase.alignment), func(t *testing.T) {
+			inputState := platform.TextInput{
+				X: 10, Y: 20, Width: 120, Height: 30, FontSize: 16, Alignment: testcase.alignment,
+				State: platform.TextState{Value: "abc", Selection: text.Range{Start: 3, End: 3}, Composing: true, Composition: text.Range{Start: 0, End: 3}},
+			}
+			state := windowState{
+				textInput: inputState, textState: inputState.State, textEnabled: true, caretVisible: true,
+				textEngine: fixedAdvanceEngine{advance: 10}, textLabels: make([]platform.TextLabel, 1),
+				textRectangles: make([]render.Rectangle, textRectangleCount),
+			}
+			if err := state.updateTextVisuals(); err != nil {
+				t.Fatal(err)
+			}
+			if label := state.textLabels[0]; label.X != testcase.origin {
+				t.Fatalf("glyph origin = %v, want %v", label.X, testcase.origin)
+			}
+			if caret := state.textRectangles[1].Bounds.X; caret != testcase.origin+30 {
+				t.Fatalf("caret = %v, want %v", caret, testcase.origin+30)
+			}
+			if underline := state.textRectangles[2].Bounds.X; underline != testcase.origin {
+				t.Fatalf("composition underline = %v, want %v", underline, testcase.origin)
+			}
+			if x, _, _ := state.caretCell(); x != testcase.origin+30 {
+				t.Fatalf("IME candidate x = %v, want %v", x, testcase.origin+30)
+			}
+			event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: testcase.origin + 12, Y: 35})
+			if err != nil || !handled || event.Selection != (text.Range{Start: 1, End: 1}) {
+				t.Fatalf("aligned click: event=%+v handled=%v err=%v", event, handled, err)
+			}
+		})
+	}
+}
+
 // TestTerminalPreeditDrawsNoCaretOrSelection guards the contract in
 // platform.TextInput.Terminal: a terminal input is a preedit surface, and the
 // terminal draws its own cursor and selection. A native caret here would blink
