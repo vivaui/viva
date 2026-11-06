@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/grapheme"
+	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/textcache"
 	"github.com/vivaui/viva/ui"
 )
@@ -95,6 +96,23 @@ var systemEngine struct {
 }
 
 var _ ui.FontFamilyAware = (*textEngine)(nil)
+var _ ui.TextRasterizer = (*textEngine)(nil)
+
+// RasterizeText implements ui.TextRasterizer using the same Pango shaped line
+// and Cairo text path as the native label renderer.
+func (engine *textEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
+	pixels, err := engine.services.draw(platform.TextLabel{
+		Value: value, FontSize: style.Size, Weight: style.Weight, Italic: style.Italic,
+		Color: platform.Color{
+			Red: float64(style.Color.Red), Green: float64(style.Color.Green),
+			Blue: float64(style.Color.Blue), Alpha: float64(style.Color.Alpha),
+		},
+	}, scale, width, height, false)
+	if err != nil {
+		return ui.Bitmap{}, err
+	}
+	return ui.Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4}, nil
+}
 
 // SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
 // shaped in, "" for the desktop's own interface font (Pango's sans alias).

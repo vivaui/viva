@@ -491,6 +491,18 @@ size_t viva_text_line_index_at(const viva_text_line *line, double x);
 // to right, and returns how many it wrote (at most capacity): one, or several where the
 // selection crosses a change of direction.
 size_t viva_text_line_selection(const viva_text_line *line, size_t start, size_t end, double *spans, size_t capacity);
+int viva_text_line_rasterize(
+    const viva_text_line *line,
+    double font_size,
+    double scale,
+    size_t width,
+    size_t height,
+    double red,
+    double green,
+    double blue,
+    double alpha,
+    unsigned char *pixels
+);
 
 // viva_measure_mono reports the system fixed-pitch font's cell advance and line
 // height at a size.

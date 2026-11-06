@@ -16,6 +16,16 @@ type CodeEditorRun struct {
 	Color      ui.Color
 }
 
+// CodeEditorCaret paints a secondary caret at a byte offset, optionally beyond a line end.
+type CodeEditorCaret struct {
+	Offset       int
+	VirtualCells int
+}
+
+type codeExtraCaret struct {
+	row, column int
+}
+
 // CodeEditorGutterMarker decorates one zero-based logical line with a dot in the
 // gutter. It is purely visual: it is not hit-tested and is not exposed to
 // assistive technology, so state it carries must also be available elsewhere.
@@ -63,10 +73,16 @@ type CodeEditorSnapshot struct {
 	Focused     bool
 	// ShowCaret paints the caret of a focused editor; an application that blinks
 	// it turns this on and off.
-	ShowCaret        bool
-	Caret            int
-	SelectionStart   int
-	SelectionEnd     int
+	ShowCaret bool
+	Caret     int
+	// ExtraCarets are sorted by Offset and are visual only. Native editing and
+	// CaretBounds continue to use Caret as the primary insertion point.
+	ExtraCarets    []CodeEditorCaret
+	SelectionStart int
+	SelectionEnd   int
+	// SelectionRanges, when nonempty, replaces the single selection for painting.
+	// Spans are sorted, disjoint byte ranges of Value.
+	SelectionRanges  []text.Span
 	CompositionStart int
 	CompositionEnd   int
 	// CaretWidth is the caret's thickness in logical pixels; zero is the one
@@ -181,10 +197,11 @@ type CodeEditor struct {
 	upstreamCaret int
 
 	// Scratch kept between paints.
-	runs     []ui.TextRun
-	lineRuns []CodeEditorRun
-	runLine  int
-	numbers  lineNumbers
+	runs        []ui.TextRun
+	lineRuns    []CodeEditorRun
+	extraCarets []codeExtraCaret
+	runLine     int
+	numbers     lineNumbers
 
 	// wrapScratch holds the wrapped layout SoftWrapOffsets needs while the editor
 	// itself is not wrapping, so repeated queries reuse one layout instead of
@@ -285,9 +302,29 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 	placeholder := value == ""
 	caret := textareaBoundary(value, snapshot.Caret)
 	selectionStart, selectionEnd := textareaRange(value, snapshot.SelectionStart, snapshot.SelectionEnd)
+	selectionRanges := normalizedSpans(value, snapshot.SelectionRanges)
 	compositionStart, compositionEnd := textareaRange(value, snapshot.CompositionStart, snapshot.CompositionEnd)
 	caretRow := editor.rowOf(caret)
 	caretColumn := editor.columnOf(editor.rows[caretRow], caret)
+	editor.extraCarets = editor.extraCarets[:0]
+	for _, extra := range snapshot.ExtraCarets {
+		offset := textareaBoundary(value, extra.Offset)
+		row := editor.rowOf(offset)
+		editor.extraCarets = append(editor.extraCarets, codeExtraCaret{
+			row: row, column: editor.columnOf(editor.rows[row], offset) + max(0, extra.VirtualCells),
+		})
+	}
+	// ExtraCarets is documented as sorted, but the paint walks them with one
+	// cursor that only moves forward: an out-of-order caller would silently paint
+	// none of the carets after the first row that went backwards. Sorting here
+	// costs one comparison per caret and keeps the paint linear.
+	sort.SliceStable(editor.extraCarets, func(i, j int) bool {
+		left, right := editor.extraCarets[i], editor.extraCarets[j]
+		if left.row != right.row {
+			return left.row < right.row
+		}
+		return left.column < right.column
+	})
 	if placeholder {
 		editor.scrollX, editor.scrollY, editor.followedValid = 0, 0, false
 	} else {
@@ -309,6 +346,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		cellWidth: cellWidth, cellHeight: cellHeight, lineHeight: lineHeight,
 		foreground: foreground, selectionBackground: selectionBackground, selectionForeground: selectionForeground,
 		selectionStart: selectionStart, selectionEnd: selectionEnd,
+		selectionRanges:  selectionRanges,
 		compositionStart: compositionStart, compositionEnd: compositionEnd,
 		caret: caret, caretRow: caretRow, caretColumn: caretColumn,
 		showCaret:  focused && snapshot.ShowCaret && !snapshot.Disabled,
@@ -322,7 +360,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		paint.invisibleColor = theme.MutedForeground
 	}
 	paint.lastColumn = paint.firstColumn + cols + 8
-	if snapshot.MatchBrackets && selectionStart == selectionEnd && !placeholder {
+	if snapshot.MatchBrackets && selectionStart == selectionEnd && len(selectionRanges) == 0 && !placeholder {
 		if open, closer, ok := text.MatchBracket(value, caret); ok {
 			paint.brackets, paint.bracketsOK = [2]int{open, closer}, true
 		}
@@ -340,7 +378,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		canvas.Label(snapshot.Placeholder, ui.Rect{X: content.X, Y: content.Y + (lineHeight-cellHeight)/2, Width: content.Width, Height: cellHeight}, style)
 	}
 	currentLine := -1
-	if snapshot.CurrentLine && selectionStart == selectionEnd && !placeholder {
+	if snapshot.CurrentLine && selectionStart == selectionEnd && len(selectionRanges) == 0 && !placeholder {
 		currentLine = int(editor.rows[caretRow].line)
 	}
 	markerIndex := 0
@@ -517,8 +555,10 @@ type codePaint struct {
 	foreground                               ui.Color
 	selectionBackground, selectionForeground ui.Color
 	selectionStart, selectionEnd             int
+	selectionRanges                          []text.Span
 	compositionStart, compositionEnd         int
 	caret, caretRow, caretColumn             int
+	caretCursor                              int
 	showCaret                                bool
 	caretWidth                               float32
 	caretColor                               ui.Color
@@ -578,6 +618,46 @@ func decimalDigits(n int) int {
 		digits++
 	}
 	return digits
+}
+
+// normalizedSpans puts caller-supplied selection spans into the shape the paint
+// walks them in: byte boundaries of the text, ordered by start, no overlaps.
+// SelectionRanges is documented as sorted and disjoint, but the paint advances
+// through them with sort.Search and one forward cursor, so an out-of-order
+// caller would otherwise paint some spans twice and skip others. Clamping also
+// keeps a span that ends past the text from running off the last row. An empty
+// result means nothing is selected, which is how a disabled SelectionRanges is
+// signalled in the first place.
+func normalizedSpans(value string, spans []text.Span) []text.Span {
+	if len(spans) == 0 {
+		return nil
+	}
+	clamped := make([]text.Span, 0, len(spans))
+	for _, span := range spans {
+		start, end := textareaRange(value, span.Start, span.End)
+		if start >= end {
+			continue
+		}
+		clamped = append(clamped, text.Span{Start: start, End: end})
+	}
+	if len(clamped) == 0 {
+		return nil
+	}
+	sort.SliceStable(clamped, func(i, j int) bool {
+		return clamped[i].Start < clamped[j].Start
+	})
+	merged := clamped[:1]
+	for _, span := range clamped[1:] {
+		last := &merged[len(merged)-1]
+		if span.Start <= last.End {
+			if span.End > last.End {
+				last.End = span.End
+			}
+			continue
+		}
+		merged = append(merged, span)
+	}
+	return merged
 }
 
 // The amber of a find match, as literals: a package variable built by a call
@@ -641,7 +721,24 @@ func (paint *codePaint) row(index int, y float32) {
 		}
 	}
 
-	if paint.selectionEnd > paint.selectionStart && paint.selectionStart <= rowEnd && paint.selectionEnd >= rowStart {
+	if len(paint.selectionRanges) > 0 {
+		walker := columnWalker{editor: editor, row: row, at: rowStart}
+		first := sort.Search(len(paint.selectionRanges), func(i int) bool { return paint.selectionRanges[i].End > rowStart })
+		for _, selection := range paint.selectionRanges[first:] {
+			if selection.Start > rowEnd {
+				break
+			}
+			start, end := max(selection.Start, rowStart), min(selection.End, rowEnd)
+			if end <= start && !(selection.Start <= rowEnd && selection.End > rowEnd) {
+				continue
+			}
+			extra := float32(0)
+			if selection.End > rowEnd && !editor.softWrapped(index) {
+				extra = paint.cellWidth / 2
+			}
+			fill(&walker, start, end, extra, paint.selectionBackground)
+		}
+	} else if paint.selectionEnd > paint.selectionStart && paint.selectionStart <= rowEnd && paint.selectionEnd >= rowStart {
 		walker := columnWalker{editor: editor, row: row, at: rowStart}
 		extra := float32(0)
 		if paint.selectionEnd > rowEnd && !editor.softWrapped(index) {
@@ -656,6 +753,7 @@ func (paint *codePaint) row(index int, y float32) {
 		foreground: paint.foreground, disabled: editor.disabled,
 		highlight: paint.lineRuns(row), highlightBase: rowStart - int(row.lineStart),
 		selectionStart: paint.selectionStart - rowStart, selectionEnd: paint.selectionEnd - rowStart,
+		selectionRanges: paint.selectionRanges, selectionBase: rowStart,
 		selectionForeground: paint.selectionForeground,
 	}
 	runs, from, to, startColumn, endColumn := gridRuns(editor.runs[:0], paint.value[rowStart:rowEnd], &spec)
@@ -690,6 +788,17 @@ func (paint *codePaint) row(index int, y float32) {
 				canvas.Fill(ui.Rect{X: x, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: paint.caretWidth, Height: paint.cellHeight}, paint.caretColor)
 			}
 		}
+	}
+	for paint.caretCursor < len(editor.extraCarets) && editor.extraCarets[paint.caretCursor].row < index {
+		paint.caretCursor++
+	}
+	for paint.caretCursor < len(editor.extraCarets) && editor.extraCarets[paint.caretCursor].row == index {
+		column := editor.extraCarets[paint.caretCursor].column
+		x := left + float32(column)*paint.cellWidth
+		if paint.showCaret && x >= editor.content.X-1 && x <= editor.content.X+editor.content.Width {
+			canvas.Fill(ui.Rect{X: x, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: paint.caretWidth, Height: paint.cellHeight}, paint.caretColor)
+		}
+		paint.caretCursor++
 	}
 }
 

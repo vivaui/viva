@@ -38,6 +38,23 @@ func TestEnginePassesTheTextEngineContract(t *testing.T) {
 	textenginetest.Run(t, newTestEngine(t))
 }
 
+func TestTextEngineRasterizesProportionalText(t *testing.T) {
+	engine := newTestEngine(t)
+	bitmap, err := engine.RasterizeText("Privacy 中文", ui.TextStyle{
+		Size: 14, Weight: ui.WeightSemibold, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+	}, 2, 240, 56)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ink := false
+	for index := 3; index < len(bitmap.Pix); index += 4 {
+		ink = ink || bitmap.Pix[index] != 0
+	}
+	if bitmap.Width != 240 || bitmap.Height != 56 || bitmap.Stride != 960 || !ink {
+		t.Fatalf("rasterized bitmap = %dx%d stride %d, ink=%v", bitmap.Width, bitmap.Height, bitmap.Stride, ink)
+	}
+}
+
 // The Linux editor must measure what the label draws: a line's ink ends where its width
 // says, with the same layout shaping both.
 func TestAnEngineWidthIsWhereTheDrawnGlyphsEnd(t *testing.T) {
