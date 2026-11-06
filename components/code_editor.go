@@ -393,7 +393,13 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		options := ui.HitOptions{
 			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: true,
-			TextBounds: content, TextSize: size, HideNativeOverlays: true, Placement: editor,
+			// A transparent text color makes the platform editor an input surface
+			// only: this view draws every glyph on the character grid itself, so a
+			// second rendering by the platform would put its own font on top of the
+			// grid. HideNativeOverlays then covers the caret and selection. A
+			// read-only view gets no platform editor at all, so the color is unused
+			// there.
+			TextBounds: content, TextSize: size, TextColor: ui.Color{}, HideNativeOverlays: true, Placement: editor,
 		}
 		canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, options)
 	}
