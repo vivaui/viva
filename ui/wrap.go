@@ -103,6 +103,14 @@ func (canvas *Canvas) FitLine(line string, size, weight, width float32) string {
 	if canvas.TextWidthWeight(line, size, weight) <= width {
 		return line
 	}
+	return canvas.cutLine(line, size, weight, width)
+}
+
+// cutLine is ellipsize remembered by the canvas: the same line at the same size,
+// weight and width is cut once, so a control that shows it again frame after
+// frame builds no string. Lines longer than fitMemoMaxLine are cut afresh every
+// time, since remembering them would hold a document open on the canvas.
+func (canvas *Canvas) cutLine(line string, size, weight, width float32) string {
 	if len(line) > fitMemoMaxLine {
 		return canvas.ellipsize(line, size, weight, width)
 	}
@@ -144,7 +152,11 @@ const (
 
 func (canvas *Canvas) ellipsizeCached(line string, size, weight, width float32, cache *EllipsisCache) string {
 	if cache == nil {
-		return canvas.ellipsize(line, size, weight, width)
+		// No caller-owned cache: the canvas remembers the cut instead, so a
+		// control that wraps the same text every frame builds no string. This is
+		// the same memo FitLine uses, and it is what keeps a text field whose
+		// placeholder is wider than the field from allocating on every paint.
+		return canvas.cutLine(line, size, weight, width)
 	}
 	generation := canvas.FontGeneration()
 	if !cache.filled || cache.size != size || cache.weight != weight || cache.width != width || cache.line != line || cache.generation != generation {
