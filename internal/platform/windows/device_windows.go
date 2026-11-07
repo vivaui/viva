@@ -75,8 +75,9 @@ func (state *windowState) present(width, height int) error {
 }
 
 // presentImmediate draws the window without waiting for the display refresh. A
-// resize uses it and then DwmFlush: the new frame has to be in the composition
-// that carries the window's new bounds, not one refresh later.
+// resize uses it so the frame drawn for the new client size reaches the swap
+// chain before the window manager returns; the swap chain itself does not scale
+// stale frames (see createWindowSwapChain).
 func (state *windowState) presentImmediate(width, height int) error {
 	return state.presentWithSync(width, height, 0)
 }

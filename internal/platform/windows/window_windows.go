@@ -654,25 +654,26 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state.config.OnResize != nil {
 			state.resizeEvents++
 			frame, err := state.config.OnResize(state.logicalSize(int(uint16(second)), int(uint16(second>>16))))
-			state.frame(frame, err)
+			if err := state.frameWithText(frame, err, false); err != nil {
+				return 0
+			}
 		}
 		state.reportFrame()
 		if state.web != nil {
 			state.web.layoutAll(true)
 		}
 		if state.ready {
-			// The desktop keeps the previous swap-chain frame and scales it over the
-			// client area the resize just made until the window presents a frame at
-			// the new size; a live drag then shows the whole interface stretched and
-			// snapping back. Draw it here, before returning to the window manager,
-			// and drop the paint this resize queued: it is already on screen.
+			// Draw the new size before returning to the window manager. The swap
+			// chain is scaled with DXGI_SCALING_NONE, so a frame that has not
+			// arrived yet is shown at its own size instead of stretched over the
+			// new client area.
 			if err := state.presentImmediate(int(uint16(second)), int(uint16(second>>16))); err != nil {
 				state.fail(err)
 			} else {
-				// Present(0) hands the frame to DXGI at once; DwmFlush then waits
-				// until the desktop composes, so this resize's frame and the
-				// window's new bounds land in the same composition.
-				dwmFlush.Call()
+				state.scheduleTrim()
+				// presentImmediate drew the whole client area, so the invalidate
+				// PrepareFrame queued has nothing left to paint. ValidateRect
+				// removes it rather than drawing the same frame twice.
 				validateRect.Call(window, 0)
 			}
 			return 0
@@ -886,10 +887,13 @@ func scaleOverride(value string) (float32, bool) {
 }
 
 func (state *windowState) frame(frame platform.Frame, err error) {
-	state.frameWithText(frame, err, false)
+	_ = state.frameWithText(frame, err, false)
 }
 
-func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) {
+// frameWithText applies a frame and reports an error that stopped it, as well as
+// handling it through fail. A caller that presents synchronously (WM_SIZE does)
+// must not present a frame that was never applied.
+func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) error {
 	views := frame.NativeViews
 	if err == nil {
 		state.applyBackdrop()
@@ -909,14 +913,15 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 	}
 	if err != nil {
 		state.fail(err)
-		return
+		return err
 	}
 	if frame.Accessibility != nil {
 		if err := state.accessibility.update(frame.Accessibility); err != nil {
 			state.fail(err)
-			return
+			return err
 		}
 	}
+	return nil
 }
 
 // destroyed releases what the window held when the system destroys it. The
