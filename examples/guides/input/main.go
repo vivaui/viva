@@ -51,7 +51,7 @@ func newConfig(m *model) app.Config {
 			f.Row().Fill().Children(func() {
 				f.ScrollArea(list).Width(m.split.Pos).Background(theme.Card).Children(func() {
 					for i, name := range mailboxes {
-						row := f.Row().Pad(8).PadX(12).HoverBackground(theme.Hover).Hit(rows.At(i), name)
+						row := f.Row().Pad(8).PadX(12).Hover(flex.Look{}.Background(theme.Hover)).Hit(rows.At(i), name)
 						if i == m.selected {
 							row.Background(theme.Hover)
 						}

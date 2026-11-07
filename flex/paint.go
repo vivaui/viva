@@ -15,27 +15,48 @@ func (f *Frame) paint(i int32) {
 	}
 	r := n.rect
 	canvas := f.canvas
+	extra := &f.exts[n.ext]
+	style := f.resolve(n, extra)
+	// What the element is drawn with fades with it and with what it is inside; the
+	// controls inside it are painted with a theme faded the same way.
+	parentOpacity, parentTheme := f.opacity, ui.Theme{}
+	f.opacity *= style.opacity
+	if style.opacity < 1 {
+		parentTheme = f.theme // a theme is large: copied only for what is faded
+		f.theme = f.theme.WithOpacity(style.opacity)
+	}
+	f.paintRing(r, n.radius, &style) // outside the rectangle: before a Clip of the element's own
 	if n.flags&flagClip != 0 {
 		canvas.Clip(r)
 		defer canvas.Unclip()
 	}
 
 	hasHit := n.flags&flagHasHit != 0 && !n.id.IsZero()
-	background := n.background
-	extra := &f.exts[n.ext]
-	if hasHit && extra.hover.Alpha > 0 && canvas.Hovered() == n.id {
-		background = extra.hover
+	background, border := fade(style.background, f.opacity), fade(style.border, f.opacity)
+	if style.shadow != ui.ShadowNone {
+		canvas.ElevateFaded(r, n.radius, style.shadow, f.opacity)
 	}
-	if extra.shadow != ui.ShadowNone {
-		canvas.Elevate(r, n.radius, extra.shadow)
-	}
-	if n.borderWidth > 0 {
-		canvas.RoundedBorder(r, n.radius, n.borderWidth, extra.border, background)
-	} else if background.Alpha > 0 {
-		if n.radius > 0 {
-			canvas.Rounded(r, n.radius, background)
-		} else {
-			canvas.Fill(r, background)
+	switch {
+	case n.borderWidth > 0 && extra.gradient == 0 && f.opacity >= 1:
+		canvas.RoundedBorder(r, n.radius, n.borderWidth, border, background)
+	default:
+		// RoundedBorder paints the border color as a solid backing under the fill, which a
+		// gradient or a faded fill would show through. For those the fill, then the
+		// gradient, go down whole, as CSS's background reaches under its border, and the
+		// border is only a line over them. An element that is neither keeps RoundedBorder,
+		// so what an application painted before looks as it did.
+		if background.Alpha > 0 {
+			if n.radius > 0 {
+				canvas.Rounded(r, n.radius, background)
+			} else {
+				canvas.Fill(r, background)
+			}
+		}
+		if extra.gradient != 0 {
+			f.paintGradient(n, extra)
+		}
+		if n.borderWidth > 0 {
+			canvas.RoundedOutline(r, n.radius, n.borderWidth, border)
 		}
 	}
 	if extra.moves {
@@ -47,6 +68,9 @@ func (f *Frame) paint(i int32) {
 		canvas.HitWithOptions(n.id, hit, n.label, extra.hit)
 	}
 
+	// A Text and an Icon draw with their color, which is the one the looks give.
+	color := n.color
+	n.color = fade(style.color, f.opacity)
 	if n.hasOwnTheme() {
 		saved := f.theme
 		f.theme = f.ownTheme(n)
@@ -55,12 +79,17 @@ func (f *Frame) paint(i int32) {
 	} else {
 		f.paintControl(n, r)
 	}
+	n.color = color
 
 	for c := n.first; c >= 0; c = f.nodes[c].next {
 		f.paint(c)
 	}
 	if n.outOfFlow&absChildren != 0 {
 		f.paintAbsolute(i)
+	}
+	f.opacity = parentOpacity
+	if style.opacity < 1 {
+		f.theme = parentTheme
 	}
 }
 

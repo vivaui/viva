@@ -595,6 +595,8 @@ type Canvas struct {
 	pathBuilder       PathBuilder
 	// gradientSource holds the flat triangles a path gradient recolors.
 	gradientSource []Triangle
+	// fillPoints is the outline of a gradient-filled rounded rectangle.
+	fillPoints []Point
 	// path and triangulation scratch survives Reset: reused every paint.
 	strokeSideA     []Point
 	strokeSideB     []Point
@@ -840,6 +842,7 @@ func (canvas *Canvas) Trim() {
 	canvas.iconTrimTriangles = trimCapacity(canvas.iconTrimTriangles)
 	canvas.pathBuilder.commands = trimCapacity(canvas.pathBuilder.commands)
 	canvas.gradientSource = trimCapacity(canvas.gradientSource)
+	canvas.fillPoints = trimCapacity(canvas.fillPoints)
 	canvas.strokeSideA = trimCapacity(canvas.strokeSideA)
 	canvas.strokeSideB = trimCapacity(canvas.strokeSideB)
 	canvas.strokeRing = trimCapacity(canvas.strokeRing)
@@ -961,12 +964,19 @@ func (canvas *Canvas) Shadow(bounds Rect, radius float32, style ShadowStyle, col
 // Elevate appends the shadow of a level of the elevation scale, one or two
 // layers cast by the rounded rectangle bounds. Draw it before the surface.
 func (canvas *Canvas) Elevate(bounds Rect, radius float32, level ShadowLevel) {
-	if level == ShadowNone || int(level) >= len(shadowLayers) {
+	canvas.ElevateFaded(bounds, radius, level, 1)
+}
+
+// ElevateFaded is Elevate with the shadow's opacity multiplied by opacity, 0 to 1,
+// for a surface that is itself drawn faded.
+func (canvas *Canvas) ElevateFaded(bounds Rect, radius float32, level ShadowLevel, opacity float32) {
+	if level == ShadowNone || int(level) >= len(shadowLayers) || opacity <= 0 {
 		return
 	}
+	opacity = min(opacity, 1)
 	for _, layer := range shadowLayers[level] {
 		if layer.alpha > 0 {
-			canvas.Shadow(bounds, radius, layer.style, Color{Alpha: layer.alpha})
+			canvas.Shadow(bounds, radius, layer.style, Color{Alpha: layer.alpha * opacity})
 		}
 	}
 }

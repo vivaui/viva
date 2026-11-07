@@ -160,6 +160,30 @@ func (theme Theme) WithFontSize(size float32) Theme {
 	return theme
 }
 
+// WithOpacity is the theme with the opacity of every color multiplied by opacity,
+// 0 to 1, for a control painted faded: what it draws with the copy is as
+// transparent as the copy's colors, so a faded Button, Input or Card needs no
+// other change. Like WithRadius it changes only the copy it returns.
+func (theme Theme) WithOpacity(opacity float32) Theme {
+	opacity = max(0, min(opacity, 1))
+	if opacity == 1 {
+		return theme
+	}
+	for _, color := range [...]*Color{
+		&theme.Background, &theme.Foreground, &theme.Card, &theme.CardForeground, &theme.CardElevated,
+		&theme.Popover, &theme.PopoverForeground, &theme.Muted, &theme.MutedForeground, &theme.Border,
+		&theme.Hover, &theme.Input, &theme.Primary, &theme.PrimaryForeground, &theme.Selection,
+		&theme.SelectionForeground, &theme.Secondary, &theme.SecondaryForeground, &theme.Accent,
+		&theme.AccentForeground, &theme.Ring, &theme.Success, &theme.Danger, &theme.DangerForeground,
+	} {
+		color.Alpha *= opacity
+	}
+	for index := range theme.Chart {
+		theme.Chart[index].Alpha *= opacity
+	}
+	return theme
+}
+
 // DarkTheme returns the Vega Neutral + Blue preset in dark appearance.
 // Colors are precomputed from preset b1Z5baiCO's OKLCH tokens so native
 // applications do not link a runtime color parser.

@@ -35,7 +35,22 @@ view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 - `Grid(minCell)` fits as many equal columns as the width allows and wraps onto new rows.
 - `Scroll(offset)` is a clipped column taller than itself. You own the offset (the wheel arrives in `Config.OnScroll`); after `End`, `Content()` is how tall the children are, so the offset can be clamped.
 
-Controls are the ones in `components`, with the same look: `Button` (with `Outline`, `Ghost`, `Secondary`, `Destructive`, `Small` and the other variants), `Checkbox`, `Switch`, `Icon`, `Divider`. `Clicked()` is read where the control is declared: it is true in the one paint that delivers the click. Any element can be made a pointer target with `Hit(id, label)`, and `HoverBackground` paints under the pointer.
+Controls are the ones in `components`, with the same look: `Button` (with `Outline`, `Ghost`, `Secondary`, `Destructive`, `Small` and the other variants), `Checkbox`, `Switch`, `Icon`, `Divider`. `Clicked()` is read where the control is declared: it is true in the one paint that delivers the click. Any element can be made a pointer target with `Hit(id, label)`; what it looks like under the pointer, pressed and focused is declared with `Hover`, `Pressed` and `Focus` (below).
+
+## States and effects
+
+An element that has an identity looks different while the pointer is over it, while it is held down and while the keyboard has it. Each state is a `Look`: a value that lists only what changes, built with the same words as the element (`Background`, `Border`, `Color`, `Ring`, `Shadow`, `Opacity`).
+
+```go
+f.Row().Pad(8).Radius(8).Hit(id, "Open").Transition().
+	Hover(flex.Look{}.Background(theme.Hover)).
+	Pressed(flex.Look{}.Background(theme.Muted)).
+	Focus(flex.Look{}.Ring(3, theme.Ring))
+```
+
+`Focus` applies when the focus is meant to be seen (after a key, not after a click); a `Hit` is focusable unless `HitWith` says `SkipFocus`. The looks combine field by field in the order Focus, Hover, Pressed, so a focused row that is hovered shows the ring of one and the fill of the other. `Transition()` fades between them over the theme's motion (`TransitionWith` takes another); while nothing changes it schedules no frames. `StateFrom(row)` makes an element follow the state of another, so what is inside a row can change with the row: `f.Icon(edit).Opacity(0).StateFrom(row).Hover(flex.Look{}.Opacity(1))` is an icon that appears when its row is hovered.
+
+Four effects have no state of their own. `Ring(width, color)` draws a line around the outside of the element without taking room, as a focus ring does. `Opacity(v)` fades the element and everything in it, controls included; it stays laid out and clickable at 0, and an `Image` is not faded. `Gradient(angle, from, to)` and `GradientStops(angle, stops...)` fill the element, corners included, with a linear gradient, over its `Background` and under its `Border`; the angle is in degrees clockwise from up, as in CSS, and `flex.ToRight`, `flex.ToBottomRight` and the others name the common ones.
 
 ## Mixing with hand-placed painting
 
