@@ -602,10 +602,19 @@ func (state *linuxWindowState) coalesceConfigures(event unsafe.Pointer) unsafe.P
 				state.win.api.free(heldSync)
 				heldSync = nil
 			}
+			// Only stale positions are obsolete. Enter and Leave change hover
+			// state that no later motion necessarily restores, so they replay
+			// in order after the merged configure.
+			kept := heldPointers[:0]
 			for _, pointer := range heldPointers {
-				state.win.api.free(pointer)
+				if (*xcbGenericEvent)(pointer).ResponseType&0x7f == xcbMotionNotify {
+					state.win.api.free(pointer)
+				} else {
+					kept = append(kept, pointer)
+				}
 			}
-			heldPointers = heldPointers[:0]
+			clear(heldPointers[len(kept):])
+			heldPointers = kept
 			*configure = *newer
 			state.win.api.free(next)
 		case xcbExpose:
