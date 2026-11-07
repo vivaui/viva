@@ -16,6 +16,14 @@ type CodeEditorRun struct {
 	Color      ui.Color
 }
 
+// CodeEditorMarkLayer paints colored byte ranges behind the text. Spans are
+// sorted, disjoint ranges of Value, as Marks is; layers may overlap each other.
+// A zero color is invisible. The caller owns the spans and updates them on edits.
+type CodeEditorMarkLayer struct {
+	Spans []text.Span
+	Color ui.Color
+}
+
 // CodeEditorCaret paints a secondary caret at a byte offset, optionally beyond a line end.
 type CodeEditorCaret struct {
 	Offset       int
@@ -140,6 +148,9 @@ type CodeEditorSnapshot struct {
 	// painted brighter: the match the find bar is on.
 	Marks       []text.Span
 	CurrentMark text.Span
+	// MarkLayers paint in caller order, below Marks and the selection. They share
+	// the editor's clipping, wrapping, tabs and Unicode cell geometry.
+	MarkLayers []CodeEditorMarkLayer
 	// ScrollbarID enables a vertical scrollbar, and HorizontalScrollbarID a
 	// horizontal one for text that does not wrap. Route pointer events to Pointer.
 	ScrollbarID           ui.ID
@@ -363,6 +374,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		caretWidth: editorCaretWidth(snapshot.CaretWidth), caretColor: caretColor(snapshot.CaretColor, foreground),
 		language: snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
+		markLayers:     snapshot.MarkLayers,
 		showWhitespace: snapshot.ShowWhitespace, showEOL: snapshot.ShowEOL, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
 		invisibleColor: snapshot.InvisibleColor,
 	}
@@ -585,6 +597,7 @@ type codePaint struct {
 	face                                     ui.MonoFace
 	firstColumn, lastColumn                  int
 	marks                                    []text.Span
+	markLayers                               []CodeEditorMarkLayer
 	current                                  text.Span
 	markCursor                               int
 	brackets                                 [2]int
@@ -711,6 +724,22 @@ func (paint *codePaint) row(index int, y float32) {
 		x0, x1 = max(x0, editor.content.X), min(x1, editor.content.X+editor.content.Width)
 		if x1 > x0 {
 			canvas.Rounded(ui.Rect{X: x0, Y: y, Width: x1 - x0, Height: paint.lineHeight}, 2, color)
+		}
+	}
+	for _, layer := range paint.markLayers {
+		if layer.Color.Alpha == 0 {
+			continue
+		}
+		first := sort.Search(len(layer.Spans), func(index int) bool { return layer.Spans[index].End > rowStart })
+		walker := columnWalker{editor: editor, row: row, at: rowStart}
+		for _, mark := range layer.Spans[first:] {
+			if mark.Start >= rowEnd {
+				break
+			}
+			start, end := max(mark.Start, rowStart), min(mark.End, rowEnd)
+			if end > start {
+				fill(&walker, start, end, 0, layer.Color)
+			}
 		}
 	}
 	for paint.markCursor < len(paint.marks) && paint.marks[paint.markCursor].End <= rowStart {
