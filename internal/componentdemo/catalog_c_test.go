@@ -21,7 +21,7 @@ func TestGroupCCatalogOrder(t *testing.T) {
 		"navigation-menu", "pagination", "popover", "progress", "questionnaire",
 		"radio-group", "resizable", "scroll-area", "segmented-control", "select", "separator",
 		"sheet", "sidebar", "single-select", "skeleton", "slider", "sonner", "spinner", "table", "tabs",
-		"textarea", "toast", "toggle", "toggle-group", "tooltip", "tree", "typography",
+		"textarea", "toast", "toggle", "toggle-group", "tooltip", "tree", "tree-navigation", "typography",
 	}
 	if len(groupCComponents) != len(expected) {
 		t.Fatalf("group C has %d components, want %d", len(groupCComponents), len(expected))
@@ -123,5 +123,33 @@ func assertSameGroupCPaint(t testing.TB, expected groupCPaintSnapshot, canvas *u
 		!slices.Equal(expected.hits, canvas.Hits()) ||
 		expected.scope != canvas.TrappedFocusScope() || expected.escape != canvas.EscapeTarget() {
 		t.Fatal("identical state produced different paint or interaction streams")
+	}
+}
+
+func TestTreeNavigationPreviewMovesFocusAndHidesCollapsedChildren(t *testing.T) {
+	state := newTestState(t, "tree-navigation", "default")
+	root, child := treeNavigationRows.At(0), treeNavigationRows.At(1)
+	var canvas ui.Canvas
+	paintAt(&canvas, state, testSize)
+	if hasText(&canvas, "Gateway") {
+		t.Fatal("collapsed preview paints a child")
+	}
+	step := func(target ui.ID, key ui.Key, want ui.ID) {
+		t.Helper()
+		result := state.Key(ui.KeyEvent{Target: target, Key: key})
+		if !result.Handled || !result.Repaint || !result.FocusVisible || result.Focus != want {
+			t.Fatalf("key %v: result=%+v, want focus %v and repaint", key, result, want)
+		}
+		paintAt(&canvas, state, testSize)
+		if !findHit(t, &canvas, want).Selected {
+			t.Fatalf("key %v: the focused row is not selected", key)
+		}
+	}
+	step(root, ui.KeyRight, root)
+	step(root, ui.KeyRight, child)
+	step(child, ui.KeyLeft, root)
+	step(root, ui.KeyLeft, root)
+	if hasText(&canvas, "Gateway") {
+		t.Fatal("collapsing from the keyboard did not remove children")
 	}
 }
