@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 	"unsafe"
@@ -64,7 +65,7 @@ func BenchmarkX11WindowLiveResize(b *testing.B) {
 			defer application.atspiClose()
 			state := control.(*nativeWindow).state
 			win, renderer := state.win, state.renderer
-			var idleTime, createTime, presentTime, acquireTime, fenceTime, dispatchTime time.Duration
+			var idleTime, createTime, destroyTime, submitTime, presentTime, acquireTime, fenceTime, dispatchTime time.Duration
 			var creates int
 			idle := renderer.api.deviceWaitIdle
 			renderer.api.deviceWaitIdle = func(device uintptr) int32 {
@@ -79,6 +80,19 @@ func BenchmarkX11WindowLiveResize(b *testing.B) {
 				result := create(device, info, allocator, swapchain)
 				createTime += time.Since(start)
 				creates++
+				return result
+			}
+			destroy := renderer.api.destroySwapchain
+			renderer.api.destroySwapchain = func(device, swapchain uintptr, allocator unsafe.Pointer) {
+				start := time.Now()
+				destroy(device, swapchain, allocator)
+				destroyTime += time.Since(start)
+			}
+			submit := renderer.api.queueSubmit
+			renderer.api.queueSubmit = func(queue uintptr, count uint32, info *vkSubmitInfo, fence uintptr) int32 {
+				start := time.Now()
+				result := submit(queue, count, info, fence)
+				submitTime += time.Since(start)
 				return result
 			}
 			present := renderer.api.queuePresent
@@ -128,13 +142,20 @@ func BenchmarkX11WindowLiveResize(b *testing.B) {
 			}
 			resize(641, 481)
 			idleTime, createTime, presentTime, acquireTime, fenceTime, dispatchTime, creates = 0, 0, 0, 0, 0, 0, 0
+			destroyTime, submitTime = 0, 0
+			samples := make([]time.Duration, b.N)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
+				start := time.Now()
 				resize(640+uint32(i%32), 480+uint32(i%16))
+				samples[i] = time.Since(start)
 			}
 			b.StopTimer()
-			for name, duration := range map[string]time.Duration{"idle": idleTime, "create": createTime, "present": presentTime, "acquire": acquireTime, "fence": fenceTime, "dispatch": dispatchTime} {
+			slices.Sort(samples)
+			b.ReportMetric(float64(samples[(len(samples)*95-1)/100].Nanoseconds()), "p95-ns/op")
+			b.ReportMetric(float64(samples[len(samples)-1].Nanoseconds()), "max-ns/op")
+			for name, duration := range map[string]time.Duration{"idle": idleTime, "create": createTime, "destroy": destroyTime, "submit": submitTime, "present": presentTime, "acquire": acquireTime, "fence": fenceTime, "dispatch": dispatchTime} {
 				b.ReportMetric(float64(duration.Nanoseconds())/float64(b.N), name+"-ns/op")
 			}
 			b.ReportMetric(float64(creates)/float64(b.N), "swapchains/op")

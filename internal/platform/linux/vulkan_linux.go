@@ -389,9 +389,12 @@ type vulkanRenderer struct {
 	api                                        *vulkanAPI
 	instance, surface, physical, device, queue uintptr
 	swapchain, renderPass, commandPool         uintptr
-	uploadCommand                              uintptr
-	imageAvailable, renderFinished, fence      uintptr
-	views, framebuffers, commands              []uintptr
+	// A replacement must present before its old swapchain is destroyed: the
+	// compositor may still own an old image while waiting for that next frame.
+	retiredSwapchains                     []uintptr
+	uploadCommand                         uintptr
+	imageAvailable, renderFinished, fence uintptr
+	views, framebuffers, commands         []uintptr
 	// commandsStaged means a scene update reset the command pool and left
 	// recording to resize. Device recovery may already have changed its extent.
 	commandsStaged                     bool
@@ -728,7 +731,7 @@ func (renderer *vulkanRenderer) createSwapchain() (err error) {
 		return err
 	}
 	if oldSwapchain != 0 {
-		renderer.api.destroySwapchain(renderer.device, oldSwapchain, nil)
+		renderer.retireSwapchain(oldSwapchain)
 		oldSwapchain = 0
 	}
 	var imageTotal uint32
@@ -1060,6 +1063,9 @@ func (renderer *vulkanRenderer) presentOnce() (bool, error) {
 	if status != vkSuccess && !swapchainNeedsRebuild(status) && status != vkSuboptimal {
 		return false, vkCheck(status, "present swapchain image")
 	}
+	if status == vkSuccess || status == vkSuboptimal {
+		renderer.destroyRetiredSwapchains()
+	}
 	if !suboptimal {
 		// The swapchain presented at its preferred configuration. A later
 		// SUBOPTIMAL is new information and may rebuild it once.
@@ -1311,6 +1317,28 @@ func (renderer *vulkanRenderer) destroySwapchain() {
 		renderer.api.destroySwapchain(renderer.device, renderer.swapchain, nil)
 		renderer.swapchain = 0
 	}
+	renderer.destroyRetiredSwapchains()
+}
+
+// Repeated out-of-date surfaces can rebuild without ever presenting. Keep the
+// retained images bounded even in that case, with synchronous cleanup as a
+// fallback. An ordinary resize retains one old chain until its replacement.
+const maxRetiredSwapchains = 4
+
+func (renderer *vulkanRenderer) retireSwapchain(swapchain uintptr) {
+	if len(renderer.retiredSwapchains) == maxRetiredSwapchains {
+		renderer.api.destroySwapchain(renderer.device, renderer.retiredSwapchains[0], nil)
+		copy(renderer.retiredSwapchains, renderer.retiredSwapchains[1:])
+		renderer.retiredSwapchains = renderer.retiredSwapchains[:maxRetiredSwapchains-1]
+	}
+	renderer.retiredSwapchains = append(renderer.retiredSwapchains, swapchain)
+}
+
+func (renderer *vulkanRenderer) destroyRetiredSwapchains() {
+	for _, swapchain := range renderer.retiredSwapchains {
+		renderer.api.destroySwapchain(renderer.device, swapchain, nil)
+	}
+	renderer.retiredSwapchains = renderer.retiredSwapchains[:0]
 }
 
 func (renderer *vulkanRenderer) close() {
