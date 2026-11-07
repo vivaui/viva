@@ -35,21 +35,21 @@ func codeCells(r rune, column, tabWidth int) int {
 	return text.CellWidth(r)
 }
 
-func representationOf(reps []CodeRepresentation, character rune) (string, bool) {
+func representationOf(reps []CodeRepresentation, character rune) (CodeRepresentation, bool) {
 	index := sort.Search(len(reps), func(index int) bool { return reps[index].Character >= character })
 	if index < len(reps) && reps[index].Character == character {
-		return reps[index].Label, true
+		return reps[index], true
 	}
-	return "", false
+	return CodeRepresentation{}, false
 }
 
 func displayCells(character rune, column, tabWidth int, reps []CodeRepresentation) int {
-	label, ok := representationOf(reps, character)
+	representation, ok := representationOf(reps, character)
 	if !ok {
 		return codeCells(character, column, tabWidth)
 	}
 	cells := 0
-	for _, rendered := range label {
+	for _, rendered := range representation.Label {
 		cells += text.CellWidth(rendered)
 	}
 	return cells
@@ -201,7 +201,7 @@ func (editor *CodeEditor) addRow(value string, start, end, lineStart, line, cell
 		for at := start; at < end; {
 			r, size := decodeAt(value, at)
 			width := displayCells(r, column, editor.tabWidth, editor.reps)
-			label, represented := representationOf(editor.reps, r)
+			representation, represented := representationOf(editor.reps, r)
 			if represented || r == '\t' {
 				if !replaced {
 					expanded.Grow(cells + 4)
@@ -209,7 +209,7 @@ func (editor *CodeEditor) addRow(value string, start, end, lineStart, line, cell
 				}
 				expanded.WriteString(value[segmentStart:at])
 				if represented {
-					expanded.WriteString(label)
+					expanded.WriteString(representation.Label)
 				} else {
 					for range width {
 						expanded.WriteByte(' ')
@@ -721,6 +721,7 @@ type gridRunSpec struct {
 	tabWidth                int
 	representations         []CodeRepresentation
 	representationColor     ui.Color
+	background              ui.Color
 	firstColumn, lastColumn int
 	foreground              ui.Color
 	disabled                bool
@@ -734,6 +735,7 @@ type gridRunSpec struct {
 	selectionRanges              []text.Span
 	selectionBase                int
 	selectionForeground          ui.Color
+	selectionBackground          ui.Color
 }
 
 // gridRuns builds the grid runs that draw the part of line in the columns
@@ -754,11 +756,11 @@ func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextR
 	var last ui.Color
 	for at := 0; at < len(line); {
 		r, size := decodeAt(line, at)
-		label, represented := representationOf(spec.representations, r)
+		representation, represented := representationOf(spec.representations, r)
 		width := displayCells(r, column, spec.tabWidth, spec.representations)
 		bytes := size
 		if represented {
-			bytes = len(label)
+			bytes = len(representation.Label)
 		} else if r == '\t' {
 			bytes = width
 		}
@@ -800,6 +802,12 @@ func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextR
 			}
 			if selected {
 				color = spec.selectionForeground
+			}
+			if represented && representation.Blob {
+				color = spec.background
+				if selected {
+					color = spec.selectionBackground
+				}
 			}
 			plain := !represented && (r == '\t' || r >= 0x20 && r < 0x7f && !startsWithMark(line, at+size, len(line)))
 			switch {

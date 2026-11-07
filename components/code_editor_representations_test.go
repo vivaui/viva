@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -134,5 +135,81 @@ func TestCodeEditorRepresentationsStayClippedAndMapVerticalOffsets(t *testing.T)
 	}
 	if offset, ok := fixture.editor.OffsetAtY(position); !ok || offset != len("A\u200b") {
 		t.Fatalf("represented vertical roundtrip = %d, %v; want %d", offset, ok, len("A\u200b"))
+	}
+}
+
+func TestCodeEditorBlobRepresentationInvertsNormalHighlightAndSelectionColors(t *testing.T) {
+	const value = "A\u200bB"
+	fixture := newCodeFixture(value)
+	fixture.snapshot.Representations = []CodeRepresentation{{Character: '\u200b', Label: "ZWSP", Blob: true}}
+	fixture.paint()
+	cell := fixture.editor.cellWidth
+	blobX := fixture.editor.content.X + cell
+	assertBlob := func(background, foreground ui.Color) {
+		t.Helper()
+		foundFill, foundRun := false, false
+		for _, rectangle := range fixture.canvas.Rectangles() {
+			if rectangle.Color == background && rectangle.Bounds.X >= blobX && rectangle.Bounds.X < blobX+cell &&
+				rectangle.Bounds.Width >= 4*cell-2 && rectangle.HasClip && rectangle.ClipOf.X >= fixture.editor.content.X {
+				foundFill = true
+			}
+		}
+		for _, label := range fixture.canvas.Texts() {
+			if !strings.Contains(label.Value, "ZWSP") {
+				continue
+			}
+			for _, run := range fixture.canvas.TextRuns(label) {
+				if run.Bytes == 4 && run.Cells == 4 && run.Color == foreground {
+					foundRun = true
+				}
+			}
+		}
+		if !foundFill || !foundRun {
+			t.Fatalf("blob inverse colors missing: fill=%v run=%v, want %+v / %+v", foundFill, foundRun, background, foreground)
+		}
+	}
+	assertBlob(fixture.theme.Foreground, fixture.theme.Background)
+	accent := ui.RGB(180, 40, 60)
+	fixture.snapshot.HighlightLine = func(_ string, _ int, _ string, dst []CodeEditorRun) []CodeEditorRun {
+		return append(dst, CodeEditorRun{Start: 1, End: len("A\u200b"), Color: accent})
+	}
+	fixture.paint()
+	assertBlob(accent, fixture.theme.Background)
+	fixture.snapshot.SelectionStart, fixture.snapshot.SelectionEnd = 1, len("A\u200b")
+	fixture.paint()
+	assertBlob(fixture.theme.SelectionForeground, fixture.theme.Selection)
+	fixture.snapshot.SelectionStart, fixture.snapshot.SelectionEnd = 0, 0
+	fixture.snapshot.SelectionRanges = []text.Span{{Start: 1, End: len("A\u200b")}}
+	fixture.paint()
+	assertBlob(fixture.theme.SelectionForeground, fixture.theme.Selection)
+	if fixture.snapshot.Value != value {
+		t.Fatal("blob paint changed the source text")
+	}
+	if offset, ok := fixture.editor.OffsetAt(ui.Point{X: blobX + 3*cell, Y: fixture.editor.content.Y + fixture.editor.lineHeight/2}); !ok || offset != len("A\u200b") {
+		t.Fatalf("blob hit = %d, %v; want source byte %d", offset, ok, len("A\u200b"))
+	}
+}
+
+func TestCodeEditorPlainAndHiddenRepresentationsDoNotPaintBlob(t *testing.T) {
+	fixture := newCodeFixture("A\u200bB\x01C")
+	fixture.snapshot.InvisibleColor = ui.RGB(48, 96, 144)
+	fixture.snapshot.Representations = []CodeRepresentation{
+		{Character: '\x01', Label: "", Blob: true},
+		{Character: '\u200b', Label: "ZWSP"},
+	}
+	fixture.paint()
+	for _, rectangle := range fixture.canvas.Rectangles() {
+		if rectangle.Color == fixture.theme.Foreground && rectangle.Radius > 0 && rectangle.Bounds.Width >= 3*fixture.editor.cellWidth-2 {
+			t.Fatalf("plain or hidden representation painted a blob: %+v", rectangle)
+		}
+	}
+	foundPlain := false
+	for _, label := range fixture.canvas.Texts() {
+		for _, run := range fixture.canvas.TextRuns(label) {
+			foundPlain = foundPlain || run.Bytes == 4 && run.Color == fixture.snapshot.InvisibleColor
+		}
+	}
+	if !foundPlain {
+		t.Fatal("plain representation lost its marker color")
 	}
 }
