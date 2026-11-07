@@ -17,6 +17,8 @@ const driverOpenFilesQueueSize = 8
 const driverOpenDirectoryQueueSize = 8
 
 type driverSystem struct {
+	globalBindings []*driverGlobalBinding
+	globalMu       sync.Mutex
 	driver         *Driver
 	clipboardImage []byte   // PNG bytes; the clipboard holds this or text, never both
 	clipboardFiles []string // paths of copied files, held beside the text a file manager adds
@@ -270,6 +272,9 @@ func (driver *Driver) registerSystem() error {
 }
 
 func (driver *Driver) unregisterSystem() {
+	driver.system.globalMu.Lock()
+	driver.system.globalBindings = nil
+	driver.system.globalMu.Unlock()
 	driverSystems.Lock()
 	for index, system := range driverSystems.values {
 		if system == &driver.system {
