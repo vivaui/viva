@@ -47,6 +47,18 @@ int viva_system_save_file(
     char **path,
     char **error_message
 );
+int viva_system_save_file_with_checkbox(
+    const char *title,
+    const char *suggested_name,
+    const char *default_extension,
+    const char *const *extensions,
+    size_t extension_count,
+    const char *checkbox_label,
+    int checkbox_initial,
+    int *checkbox_checked,
+    char **path,
+    char **error_message
+);
 int viva_system_open_url(const char *target, char **error_message);
 int viva_system_reveal_path(const char *path, char **error_message);
 // Whether any application is registered for the URL scheme (no trailing colon):

@@ -63,6 +63,10 @@ func nativeSaveFile(SaveFileOptions) (string, error) {
 	return path, webSystemError("save file", err)
 }
 
+func nativeSaveFileWithCheckbox(SaveFileOptions, SaveFileCheckbox) (SaveFileSelection, error) {
+	return SaveFileSelection{}, fmt.Errorf("save file with checkbox: %w", ErrUnsupported)
+}
+
 func nativeOpenURL(target string) error {
 	return webSystemError("open external URL", webplatform.OpenURL(target))
 }
