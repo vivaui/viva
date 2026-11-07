@@ -84,3 +84,37 @@ func TestWindowSwapChainDoesNotScale(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// BenchmarkResizePresent measures what one live-resize step costs on the window
+// thread: apply a frame and present it at a new client size, including
+// ResizeBuffers. A drag is one such step per pointer move.
+func BenchmarkResizePresent(b *testing.B) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	err := RunApplication(func(application platform.Application) error {
+		opened, err := application.OpenWindow(platform.Config{
+			Title: "Viva resize benchmark", Width: 640, Height: 400,
+			WindowMode: platform.WindowCustomTitlebar, TitlebarHeight: 32,
+			ClearColor: platform.Color{Alpha: 1},
+			OnResize: func(platform.Size) (platform.Frame, error) {
+				return platform.Frame{Update: render.Update{Rebuild: true}}, nil
+			},
+		})
+		if err != nil {
+			return err
+		}
+		defer opened.Close()
+		state := opened.(*nativeWindow).state
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			width := 640 + i%320
+			height := 400 + i%240
+			windowProc(state.window, wmSize, 0, uintptr(uint32(width)|uint32(height)<<16))
+		}
+		b.StopTimer()
+		return nil
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+}
