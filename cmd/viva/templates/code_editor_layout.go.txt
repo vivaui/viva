@@ -35,6 +35,26 @@ func codeCells(r rune, column, tabWidth int) int {
 	return text.CellWidth(r)
 }
 
+func representationOf(reps []CodeRepresentation, character rune) (CodeRepresentation, bool) {
+	index := sort.Search(len(reps), func(index int) bool { return reps[index].Character >= character })
+	if index < len(reps) && reps[index].Character == character {
+		return reps[index], true
+	}
+	return CodeRepresentation{}, false
+}
+
+func displayCells(character rune, column, tabWidth int, reps []CodeRepresentation) int {
+	representation, ok := representationOf(reps, character)
+	if !ok {
+		return codeCells(character, column, tabWidth)
+	}
+	cells := 0
+	for _, rendered := range representation.Label {
+		cells += text.CellWidth(rendered)
+	}
+	return cells
+}
+
 func decodeAt(value string, at int) (rune, int) {
 	if r := value[at]; r < utf8.RuneSelf {
 		return rune(r), 1
@@ -48,11 +68,16 @@ func (editor *CodeEditor) fit(value string, cols int, wrap bool, tabWidth int) {
 }
 
 func (editor *CodeEditor) fitWithFolds(value string, cols int, wrap bool, tabWidth int, folds []CodeEditorFoldRange) {
-	if editor.fitted && editor.cols == cols && editor.wrap == wrap && editor.tabWidth == tabWidth && editor.text == value && slices.Equal(editor.foldInput, folds) {
+	editor.fitWithRepresentations(value, cols, wrap, tabWidth, folds, nil)
+}
+
+func (editor *CodeEditor) fitWithRepresentations(value string, cols int, wrap bool, tabWidth int, folds []CodeEditorFoldRange, reps []CodeRepresentation) {
+	if editor.fitted && editor.cols == cols && editor.wrap == wrap && editor.tabWidth == tabWidth && editor.text == value && slices.Equal(editor.foldInput, folds) && slices.Equal(editor.reps, reps) {
 		return
 	}
 	editor.fitted, editor.cols, editor.wrap, editor.tabWidth, editor.text = true, cols, wrap, tabWidth, value
 	editor.foldInput = append(editor.foldInput[:0], folds...)
+	editor.reps = append(editor.reps[:0], reps...)
 	editor.folds = editor.folds[:0]
 	editor.rows = editor.rows[:0]
 	editor.shown = editor.shown[:0]
@@ -113,7 +138,7 @@ func (editor *CodeEditor) SoftWrapOffsets(dst []int) []int {
 		// Lay the wrapped view out with the same folds: a hidden line has no rows,
 		// so its breaks must not be reported to a caller that turns visible soft
 		// wraps into line breaks.
-		editor.wrapScratch.fitWithFolds(editor.text, editor.cols, true, editor.tabWidth, editor.foldInput)
+		editor.wrapScratch.fitWithRepresentations(editor.text, editor.cols, true, editor.tabWidth, editor.foldInput, editor.reps)
 		rows = editor.wrapScratch.rows
 	}
 	for index := 1; index < len(rows); index++ {
@@ -133,7 +158,7 @@ func (editor *CodeEditor) appendLine(value string, start, end, line int) {
 	previousSpace := false
 	for at := start; at < end; {
 		r, size := decodeAt(value, at)
-		width := codeCells(r, column, editor.tabWidth)
+		width := displayCells(r, column, editor.tabWidth, editor.reps)
 		space := r == ' ' || r == '\t'
 		if !space && previousSpace {
 			wordStart, wordColumn = at, column
@@ -146,7 +171,7 @@ func (editor *CodeEditor) appendLine(value string, start, end, line int) {
 			editor.addRow(value, rowStart, cut, start, line, cutColumn)
 			rowStart, wordStart = cut, -1
 			column = editor.columnBetween(value, cut, at)
-			width = codeCells(r, column, editor.tabWidth)
+			width = displayCells(r, column, editor.tabWidth, editor.reps)
 		}
 		previousSpace = space
 		column += width
@@ -161,7 +186,7 @@ func (editor *CodeEditor) columnBetween(value string, from, to int) int {
 	column := 0
 	for at := from; at < to; {
 		r, size := decodeAt(value, at)
-		column += codeCells(r, column, editor.tabWidth)
+		column += displayCells(r, column, editor.tabWidth, editor.reps)
 		at += size
 	}
 	return column
@@ -169,25 +194,37 @@ func (editor *CodeEditor) columnBetween(value string, from, to int) int {
 
 func (editor *CodeEditor) addRow(value string, start, end, lineStart, line, cells int) {
 	row := codeRow{start: int32(start), end: int32(end), lineStart: int32(lineStart), line: int32(line), cells: int32(cells), shown: -1}
-	if strings.IndexByte(value[start:end], '\t') >= 0 {
+	if strings.IndexByte(value[start:end], '\t') >= 0 || len(editor.reps) > 0 {
 		var expanded strings.Builder
-		expanded.Grow(cells + 4)
-		column := 0
+		column, segmentStart := 0, start
+		replaced := false
 		for at := start; at < end; {
 			r, size := decodeAt(value, at)
-			width := codeCells(r, column, editor.tabWidth)
-			if r == '\t' {
-				for range width {
-					expanded.WriteByte(' ')
+			width := displayCells(r, column, editor.tabWidth, editor.reps)
+			representation, represented := representationOf(editor.reps, r)
+			if represented || r == '\t' {
+				if !replaced {
+					expanded.Grow(cells + 4)
+					replaced = true
 				}
-			} else {
-				expanded.WriteString(value[at : at+size])
+				expanded.WriteString(value[segmentStart:at])
+				if represented {
+					expanded.WriteString(representation.Label)
+				} else {
+					for range width {
+						expanded.WriteByte(' ')
+					}
+				}
+				segmentStart = at + size
 			}
 			column += width
 			at += size
 		}
-		row.shown = int32(len(editor.shown))
-		editor.shown = append(editor.shown, expanded.String())
+		if replaced {
+			expanded.WriteString(value[segmentStart:end])
+			row.shown = int32(len(editor.shown))
+			editor.shown = append(editor.shown, expanded.String())
+		}
 	}
 	editor.widest = max(editor.widest, cells)
 	editor.rows = append(editor.rows, row)
@@ -247,7 +284,7 @@ func (walker *columnWalker) column(offset int) int {
 	target := min(offset, int(walker.row.end))
 	for walker.at < target {
 		r, size := decodeAt(walker.editor.text, walker.at)
-		walker.cells += codeCells(r, walker.cells, walker.editor.tabWidth)
+		walker.cells += displayCells(r, walker.cells, walker.editor.tabWidth, walker.editor.reps)
 		walker.at += size
 	}
 	return walker.cells
@@ -259,7 +296,7 @@ func (editor *CodeEditor) offsetAtColumn(row codeRow, x float32) int {
 	column := 0
 	for at := int(row.start); at < int(row.end); {
 		r, size := decodeAt(editor.text, at)
-		width := codeCells(r, column, editor.tabWidth)
+		width := displayCells(r, column, editor.tabWidth, editor.reps)
 		if x < float32(column)+float32(width)/2 {
 			return at
 		}
@@ -566,7 +603,7 @@ func (editor *CodeEditor) OffsetAtY(y float32) (int, bool) {
 	column := 0
 	for at := int(row.start); at < int(row.end); {
 		r, size := decodeAt(editor.text, at)
-		width := codeCells(r, column, editor.tabWidth)
+		width := displayCells(r, column, editor.tabWidth, editor.reps)
 		if column+width > target {
 			return at, true
 		}
@@ -682,6 +719,9 @@ func startsWithMark(value string, offset, end int) bool {
 // the line.
 type gridRunSpec struct {
 	tabWidth                int
+	representations         []CodeRepresentation
+	representationColor     ui.Color
+	background              ui.Color
 	firstColumn, lastColumn int
 	foreground              ui.Color
 	disabled                bool
@@ -695,6 +735,7 @@ type gridRunSpec struct {
 	selectionRanges              []text.Span
 	selectionBase                int
 	selectionForeground          ui.Color
+	selectionBackground          ui.Color
 }
 
 // gridRuns builds the grid runs that draw the part of line in the columns
@@ -715,10 +756,17 @@ func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextR
 	var last ui.Color
 	for at := 0; at < len(line); {
 		r, size := decodeAt(line, at)
-		width := codeCells(r, column, spec.tabWidth)
+		representation, represented := representationOf(spec.representations, r)
+		width := displayCells(r, column, spec.tabWidth, spec.representations)
 		bytes := size
-		if r == '\t' {
+		if represented {
+			bytes = len(representation.Label)
+		} else if r == '\t' {
 			bytes = width
+		}
+		if represented && bytes == 0 {
+			at += size
+			continue
 		}
 		if width > 0 {
 			if column >= spec.lastColumn {
@@ -735,6 +783,9 @@ func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextR
 				next++
 			}
 			color := spec.foreground
+			if represented && spec.representationColor.Alpha != 0 {
+				color = spec.representationColor
+			}
 			if next < len(spec.highlight) && spec.highlight[next].Start <= relative {
 				color = spec.highlight[next].Color
 				if spec.disabled {
@@ -752,7 +803,13 @@ func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextR
 			if selected {
 				color = spec.selectionForeground
 			}
-			plain := r == '\t' || r >= 0x20 && r < 0x7f && !startsWithMark(line, at+size, len(line))
+			if represented && representation.Blob {
+				color = spec.background
+				if selected {
+					color = spec.selectionBackground
+				}
+			}
+			plain := !represented && (r == '\t' || r >= 0x20 && r < 0x7f && !startsWithMark(line, at+size, len(line)))
 			switch {
 			case width == 0 && len(dst) > 0:
 				dst[len(dst)-1].Bytes += int32(bytes)
