@@ -202,7 +202,7 @@ jobs:
           cache: true
       # WARP is a Windows API: this cannot run anywhere else.
       - name: Material contracts and controls (WARP)
-        run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|AlwaysOnTop)' -count=1 -v
+        run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|AlwaysOnTop|SaveDialogCheckbox)' -count=1 -v
       # The installer contracts, including WinVerifyTrust's struct layout, only
       # compile and run on Windows.
       - name: Update installer contracts

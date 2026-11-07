@@ -35,6 +35,10 @@ func driverSaveFile(SaveFileOptions) (string, error, bool) {
 	return "", nil, false
 }
 
+func driverSaveFileWithCheckbox(SaveFileOptions, SaveFileCheckbox) (SaveFileSelection, error, bool) {
+	return SaveFileSelection{}, nil, false
+}
+
 func driverStoreSecret(string, string, []byte) (error, bool) { return nil, false }
 
 func driverLoadSecret(string, string) ([]byte, error, bool) { return nil, nil, false }

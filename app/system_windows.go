@@ -67,6 +67,24 @@ func nativeSaveFile(options SaveFileOptions) (string, error) {
 	}
 	return path, err
 }
+
+func nativeSaveFileWithCheckbox(options SaveFileOptions, checkbox SaveFileCheckbox) (SaveFileSelection, error) {
+	filters := make([]windowsplatform.FileFilter, len(options.Filters))
+	for index, filter := range options.Filters {
+		filters[index] = windowsplatform.FileFilter{Name: filter.Name, Pattern: filter.Pattern}
+	}
+	path, checked, canceled, err := windowsplatform.SaveFileWithCheckbox(windowsplatform.SaveFileOptions{
+		Title: options.Title, SuggestedName: options.SuggestedName,
+		DefaultExtension: options.DefaultExtension, Filters: filters,
+	}, checkbox.Label, checkbox.Checked)
+	if canceled {
+		return SaveFileSelection{}, ErrCanceled
+	}
+	if err != nil {
+		return SaveFileSelection{}, err
+	}
+	return SaveFileSelection{Path: path, Checked: checked}, nil
+}
 func nativeOpenURL(target string) error { return windowsplatform.OpenURL(target) }
 
 func nativeRevealPath(path string) error { return windowsplatform.RevealPath(path) }
