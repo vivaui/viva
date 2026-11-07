@@ -42,6 +42,15 @@ type HierarchyMenuItem struct {
 	Disabled bool
 }
 
+// HierarchyMenuAction is a root-level command, independent of the path values.
+// Its nonzero ID must be outside OptionIDs. A click reports that ID directly;
+// keyboard activation returns it in HierarchyMenuKeyResult.ActionID.
+type HierarchyMenuAction struct {
+	ID       ui.ID
+	Label    string
+	Disabled bool
+}
+
 // hierarchyNode is one segment of a value path. Children are a singly linked
 // list in first-seen order; node 0 is the invisible root.
 type hierarchyNode struct {
@@ -68,8 +77,14 @@ type HierarchyMenuState struct {
 	active [hierarchyMaxLevels]int
 	depth  int
 	level  int
-	intent HoverIntent
-	hover  pointerRow
+	// action is the root command with the cursor, or zero for a path row.
+	action    ui.ID
+	optionIDs ui.Scope
+	initial   bool
+	typeahead MenuTypeahead
+	typeKeys  bool
+	intent    HoverIntent
+	hover     pointerRow
 	// panels and triggers are where the last paint put each open panel and the
 	// row that opened it.
 	panels, triggers [hierarchyMaxLevels]ui.Rect
@@ -94,6 +109,9 @@ type HierarchyMenuKeyResult struct {
 	// Picked says Chosen is the value of the row Enter chose.
 	Picked bool
 	Chosen string
+	// ActionID is a root command activated with Enter or Space. It never also
+	// sets Picked: commands are not path values.
+	ActionID ui.ID
 	// Opened says the key asks the caller to show the menu, as Down and Enter
 	// do on a closed one.
 	Opened bool
@@ -108,6 +126,13 @@ type HierarchyMenuOptions struct {
 	// unchanged. They navigate without selecting a value.
 	OptionIDs ui.Scope
 	ScrollID  ui.ID
+	// Leading and Trailing are commands before and after the root's path rows.
+	// Trailing is separated from preceding rows. They scroll with the root and
+	// are reached by returning to the root in a compact menu.
+	Leading, Trailing []HierarchyMenuAction
+	// Typeahead enables typing to reach rows by their labels. Leave it false
+	// when an editable input owns the text, as in SingleSelect.
+	Typeahead bool
 	// Scope, Layer and Label name the popup's focus scope, layer and list.
 	Scope ui.ID
 	Layer uint16
@@ -141,7 +166,7 @@ func (m *HierarchyMenuState) Build(separator, value string, equal func(a, b stri
 		m.add(item(i))
 	}
 	for i := range m.scrolls {
-		m.scrolls[i].Offset = 0
+		m.scrolls[i] = MenuScroll{items: m.scrolls[i].items[:0]}
 	}
 	m.hover = pointerRow{}
 	m.Seek(value)
@@ -202,6 +227,8 @@ func (m *HierarchyMenuState) child(parent int32, name string) int32 {
 func (m *HierarchyMenuState) Seek(value string) {
 	m.value = value
 	m.depth, m.level, m.active = 0, 0, [hierarchyMaxLevels]int{}
+	m.action, m.initial = ui.ID{}, true
+	m.typeahead.Reset()
 	m.intent.Reset()
 	if !m.ok || value == "" {
 		return
@@ -234,6 +261,8 @@ func (m *HierarchyMenuState) Seek(value string) {
 // Reset closes every fly-out and puts the cursor on the first level.
 func (m *HierarchyMenuState) Reset() {
 	m.depth, m.level = 0, 0
+	m.action, m.initial = ui.ID{}, true
+	m.typeahead.Reset()
 	m.intent.Reset()
 }
 
@@ -276,6 +305,7 @@ func (m *HierarchyMenuState) Choose(index int) (string, bool) {
 		case index == hierarchyBackIndex && m.depth > 0:
 			m.depth--
 			m.level, m.reveal = m.depth, true
+			m.typeahead.Reset()
 			m.intent.Reset()
 			return "", false
 		case index>>16 >= hierarchyOpenLevel && index>>16 < 2*hierarchyOpenLevel:
@@ -286,6 +316,9 @@ func (m *HierarchyMenuState) Choose(index int) (string, bool) {
 					m.trail[level], m.depth = n, level+1
 					m.level, m.active[m.depth], m.reveal = m.depth, 0, true
 					m.scrolls[m.depth].Offset = 0
+					m.scrolls[m.depth].items = m.scrolls[m.depth].items[:0]
+					m.action = ui.ID{}
+					m.typeahead.Reset()
 					m.intent.Reset()
 				}
 			}
@@ -299,47 +332,122 @@ func (m *HierarchyMenuState) Choose(index int) (string, bool) {
 	return m.nodes[n].path, true
 }
 
-// Key moves through the levels: Up and Down within one, Right into a fly-out,
-// Left out of it, Enter chooses and Escape closes the deepest fly-out. open says
+func (m *HierarchyMenuState) currentID() ui.ID {
+	if m.level == 0 && !m.action.IsZero() {
+		return m.action
+	}
+	return m.optionIDs.At(m.level<<16 | m.active[m.level])
+}
+
+func (m *HierarchyMenuState) actionEnabled(id ui.ID) bool {
+	if id.IsZero() {
+		return false
+	}
+	if _, row := id.In(m.optionIDs); row {
+		return false
+	}
+	for _, item := range m.scrolls[0].items {
+		if item.id == id {
+			return !item.disabled
+		}
+	}
+	return false
+}
+
+func (m *HierarchyMenuState) cursorAt(id ui.ID) {
+	if index, ok := id.In(m.optionIDs); ok {
+		m.level, m.active[index>>16], m.action = index>>16, index&0xFFFF, ui.ID{}
+	} else if m.actionEnabled(id) {
+		m.level, m.action = 0, id
+	}
+	m.reveal = true
+}
+
+// moveUnpainted keeps keyboard-only callers usable before the first paint of a
+// level. Once painted, MenuScroll owns the complete sequence, including commands.
+func (m *HierarchyMenuState) moveUnpainted(key ui.Key) {
+	count := int(m.nodes[m.parentOf(m.level)].count)
+	step, next := 1, m.active[m.level]
+	switch key {
+	case ui.KeyUp, ui.KeyPageUp:
+		step = -1
+	case ui.KeyHome:
+		next = -1
+	case ui.KeyEnd:
+		step, next = -1, count
+	}
+	for i := 0; i < count; i++ {
+		next = (next + step + count) % count
+		if n := m.rowNode(m.level, next); n != 0 && !m.nodes[n].disabled {
+			m.active[m.level] = next
+			break
+		}
+	}
+	m.reveal = true
+}
+
+// Key moves within the current level with Up/Down, Home/End and PageUp/PageDown,
+// Right into a fly-out, and Left out of it. Enter chooses; Escape closes the
+// deepest fly-out. Typeahead and Space activation are enabled by the paint's
+// Typeahead option, so editable controls retain their text input. open says
 // whether the menu is shown; Down, Up and Enter on a hidden one ask to show it.
-// Keys it does not handle are left unhandled.
+// Releases, modified navigation and keys it does not handle are left unhandled.
 func (m *HierarchyMenuState) Key(event ui.KeyEvent, open bool) HierarchyMenuKeyResult {
-	if !m.ok {
+	if !m.ok || event.Release || event.Modifiers&(ui.ModifierControl|ui.ModifierAlt|ui.ModifierMeta) != 0 {
 		return HierarchyMenuKeyResult{}
 	}
 	// Keyboard navigation owns the next paint, even while the pointer remains
 	// parked on a row that used to open a deeper panel.
 	m.intent.Reset()
 	handled := HierarchyMenuKeyResult{EventResult: ui.EventResult{Handled: true, Repaint: true}}
+	if open && m.typeKeys && (event.Text != "" || event.Key == ui.KeySpace) {
+		text := event.Text
+		if text == "" && event.Key == ui.KeySpace {
+			text = " "
+		}
+		now := time.Now()
+		continues := text == " " && m.typeahead.Typing(now)
+		if id, ok := m.typeahead.Type(text, now, &m.scrolls[m.level], m.currentID()); ok {
+			m.cursorAt(id)
+			return handled
+		}
+		if continues {
+			return handled
+		}
+	}
+	if event.Modifiers != 0 {
+		return HierarchyMenuKeyResult{}
+	}
 	switch event.Key {
-	case ui.KeyDown, ui.KeyUp:
+	case ui.KeyDown, ui.KeyUp, ui.KeyHome, ui.KeyEnd, ui.KeyPageUp, ui.KeyPageDown:
 		if !open {
+			if event.Key != ui.KeyDown && event.Key != ui.KeyUp {
+				return HierarchyMenuKeyResult{}
+			}
 			handled.Opened = true
 			return handled
 		}
-		step := 1
-		if event.Key == ui.KeyUp {
-			step = -1
+		m.typeahead.Reset()
+		if id, ok := m.scrolls[m.level].Navigate(event.Key, m.currentID(), true); ok {
+			m.cursorAt(id)
+		} else if len(m.scrolls[m.level].items) == 0 {
+			m.moveUnpainted(event.Key)
 		}
-		count := int(m.nodes[m.parentOf(m.level)].count)
-		for i, next := 0, m.active[m.level]; i < count; i++ {
-			next = (next + step + count) % count
-			if n := m.rowNode(m.level, next); n != 0 && !m.nodes[n].disabled {
-				m.active[m.level] = next
-				break
-			}
-		}
-		m.reveal = true
 		return handled
 	case ui.KeyRight:
 		if !open {
 			return HierarchyMenuKeyResult{}
+		}
+		m.typeahead.Reset()
+		if m.level == 0 && !m.action.IsZero() {
+			return handled
 		}
 		if n := m.rowNode(m.level, m.active[m.level]); n != 0 && m.nodes[n].count > 0 && m.level+1 < hierarchyMaxLevels {
 			m.trail[m.level], m.depth = n, m.level+1
 			m.level++
 			m.active[m.level] = 0
 			m.scrolls[m.level].Offset = 0
+			m.scrolls[m.level].items = m.scrolls[m.level].items[:0]
 			m.reveal = true
 		}
 		return handled
@@ -349,14 +457,22 @@ func (m *HierarchyMenuState) Key(event ui.KeyEvent, open bool) HierarchyMenuKeyR
 		}
 		m.level--
 		m.depth = m.level
+		m.typeahead.Reset()
 		m.reveal = true
 		return handled
-	case ui.KeyEnter:
+	case ui.KeyEnter, ui.KeySpace:
+		if event.Key == ui.KeySpace && (!open || !m.typeKeys) {
+			return HierarchyMenuKeyResult{}
+		}
 		if event.Repeat {
 			return handled
 		}
 		if !open {
 			handled.Opened = true
+		} else if m.level == 0 && !m.action.IsZero() {
+			if m.actionEnabled(m.action) {
+				handled.ActionID = m.action
+			}
 		} else if value, ok := m.Choose(m.level<<16 | m.active[m.level]); ok {
 			handled.Picked, handled.Chosen = true, value
 		}
@@ -365,6 +481,7 @@ func (m *HierarchyMenuState) Key(event ui.KeyEvent, open bool) HierarchyMenuKeyR
 		if open && m.depth > 0 {
 			m.depth--
 			m.level = min(m.level, m.depth)
+			m.typeahead.Reset()
 			return handled
 		}
 	}
@@ -435,7 +552,27 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 		canvas.PushOverlayClip(o.Viewport)
 		defer canvas.PopOverlayClip()
 	}
-	widths, left, reverse := m.panelWidths(canvas, theme, anchor, o.Viewport)
+	m.optionIDs, m.typeKeys = o.OptionIDs, o.Typeahead
+	if m.initial {
+		if m.value == "" && m.level == 0 && m.active[0] == 0 {
+			for _, action := range o.Leading {
+				if !action.Disabled && !action.ID.IsZero() {
+					m.action = action.ID
+					break
+				}
+			}
+			if m.action.IsZero() && m.nodes[0].count == 0 {
+				for _, action := range o.Trailing {
+					if !action.Disabled && !action.ID.IsZero() {
+						m.action = action.ID
+						break
+					}
+				}
+			}
+		}
+		m.initial = false
+	}
+	widths, left, reverse := m.panelWidths(canvas, theme, anchor, o)
 	if m.compact {
 		m.level = m.depth
 	}
@@ -446,9 +583,25 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 		level, row, onRow = index>>16, index&0xFFFF, true
 	}
 	entered := m.hover.entered(hovered)
+	onAction := false
+	if !m.compact || m.depth == 0 {
+		for _, actions := range [][]HierarchyMenuAction{o.Leading, o.Trailing} {
+			for _, action := range actions {
+				if !action.ID.IsZero() && action.ID == hovered && !action.Disabled {
+					onAction = true
+					if entered {
+						m.level, m.action = 0, action.ID
+						m.typeahead.Reset()
+					}
+				}
+			}
+		}
+	}
 	if entered && onRow && (!m.compact || level == m.depth) {
 		if n := m.rowNode(level, row); n != 0 && !m.nodes[n].disabled {
 			m.level, m.active[level] = level, row
+			m.action = ui.ID{}
+			m.typeahead.Reset()
 		}
 	}
 	// A fly-out opens, or a deeper one closes, only after the pointer rests on a
@@ -459,7 +612,7 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 		n = m.rowNode(level, row)
 	}
 	opens := n != 0 && m.nodes[n].count > 0 && level+1 < hierarchyMaxLevels && !(m.depth > level && m.trail[level] == n)
-	closes := n != 0 && m.nodes[n].count == 0 && m.depth > level
+	closes := (n != 0 && m.nodes[n].count == 0 || onAction) && m.depth > level
 	if !m.compact && (opens || closes) && (entered || m.intent.target == hovered) {
 		now, delay := time.Time{}.Add(canvas.Now()), time.Duration(0)
 		if m.depth > level {
@@ -471,6 +624,7 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 			if opens {
 				m.trail[level], m.depth = n, level+1
 				m.scrolls[level+1].Offset = 0
+				m.scrolls[level+1].items = m.scrolls[level+1].items[:0]
 			}
 		} else if wait > 0 {
 			canvas.RequestFrameIn(wait)
@@ -492,7 +646,15 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 	for l := first; l <= m.depth; l++ {
 		parent := m.parentOf(l)
 		count := int(m.nodes[parent].count)
-		height := float32(max(1, min(count, rows))*32 + 8)
+		rowCount := count
+		separator := l == 0 && len(o.Trailing) > 0 && count+len(o.Leading) > 0
+		if l == 0 {
+			rowCount += len(o.Leading) + len(o.Trailing)
+		}
+		height := float32(max(1, min(rowCount, rows))*32 + 8)
+		if separator {
+			height += menuSeparatorHeight
+		}
 		back := m.compact && l > 0
 		if back {
 			height += 32
@@ -544,6 +706,11 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 			menu.viewHeight = max(menu.viewHeight-bounds.Height, 0)
 		}
 		menu.beginScroll()
+		if l == 0 {
+			for _, action := range o.Leading {
+				m.paintAction(&menu, action)
+			}
+		}
 		i := 0
 		for node := m.nodes[parent].first; node != 0; node, i = m.nodes[node].next, i+1 {
 			info := m.nodes[node]
@@ -558,7 +725,7 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 			}
 			selected := m.equal(m.value, info.path)
 			menu.paintRow(rowBounds, func() {
-				if !info.disabled && (open || l == m.level && i == m.active[l]) {
+				if !info.disabled && (open || l == m.level && i == m.active[l] && m.action.IsZero()) {
 					canvas.Rounded(rowBounds, theme.Metrics.RadiusItem(), theme.Accent)
 				}
 				color := theme.PopoverForeground
@@ -591,7 +758,18 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 				}
 			})
 		}
-		if count == 0 {
+		if l == 0 {
+			if separator {
+				menu.addSeparator()
+			}
+			for _, action := range o.Trailing {
+				m.paintAction(&menu, action)
+			}
+			if !m.action.IsZero() && !m.actionEnabled(m.action) {
+				m.action = ui.ID{}
+			}
+		}
+		if rowCount == 0 {
 			canvas.LabelCenter(o.EmptyLabel, popup, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground})
 		}
 		menu.end()
@@ -600,7 +778,7 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 		}
 	}
 	if m.reveal {
-		if m.scrolls[m.level].Reveal(o.OptionIDs.At(m.level<<16 | m.active[m.level])) {
+		if m.scrolls[m.level].Reveal(m.currentID()) {
 			canvas.RequestFrame()
 		}
 		m.reveal = false
@@ -608,27 +786,54 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 	return union
 }
 
+func (m *HierarchyMenuState) paintAction(menu *menuSurface, action HierarchyMenuAction) {
+	row := menu.rowBounds(32)
+	if !menu.takeItem(row, action.ID, action.Label, action.Disabled) {
+		return
+	}
+	menu.paintRow(row, func() {
+		canvas, theme := menu.canvas, menu.theme
+		color := theme.PopoverForeground
+		if action.Disabled {
+			color.Alpha *= .5
+		} else if m.level == 0 && m.action == action.ID {
+			canvas.Rounded(row, theme.Metrics.RadiusItem(), theme.Accent)
+		}
+		label := ui.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-16, 0), Height: row.Height}
+		canvas.Label(canvas.FitLine(action.Label, theme.Metrics.FontSizeM, ui.WeightRegular, label.Width), label, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+		row.Width = max(row.Width-menu.hitInset, 0)
+		canvas.HitWithOptions(action.ID, row, action.Label, ui.HitOptions{Role: ui.RoleMenuItem, Disabled: action.Disabled, SkipFocus: true})
+	})
+}
+
 // panelWidths reserves the complete cascade before the first hover. There are
 // at most hierarchyMaxLevels columns. A common width cap gives long labels the
 // room left by short ones. Below a readable column width it uses one panel with
 // explicit navigation; shrinking eight columns to blank slivers is not useful.
-func (m *HierarchyMenuState) panelWidths(canvas *ui.Canvas, theme ui.Theme, anchor, viewport ui.Rect) (widths [hierarchyMaxLevels]float32, left float32, reverse bool) {
+func (m *HierarchyMenuState) panelWidths(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, o HierarchyMenuOptions) (widths [hierarchyMaxLevels]float32, left float32, reverse bool) {
 	if m.widest.rebuilt != m.rebuilt || m.widest.size != theme.Metrics.FontSizeM {
 		m.widest.widths, m.widest.levels = [hierarchyMaxLevels]float32{}, 0
 		m.measureWidths(canvas, theme.Metrics.FontSizeM, 0, 0)
 		m.widest.rebuilt, m.widest.size = m.rebuilt, theme.Metrics.FontSizeM
 	}
 	count := max(m.widest.levels, 1)
+	rootWidth := float32(0)
+	for _, actions := range [][]HierarchyMenuAction{o.Leading, o.Trailing} {
+		for _, action := range actions {
+			rootWidth = max(rootWidth, float32(math.Ceil(float64(canvas.TextWidthWeight(action.Label, theme.Metrics.FontSizeM, ui.WeightRegular))))+24)
+		}
+	}
 	span := float32(-4 * (count - 1))
 	for level := 0; level < count; level++ {
 		widths[level] = max(m.widest.widths[level], 144)
 		if level == 0 {
-			widths[level] = max(widths[level], anchor.Width)
+			widths[level] = max(widths[level], anchor.Width, rootWidth)
 		}
 		span += widths[level]
 	}
 	left = anchor.X
 	m.compact = false
+	viewport := o.Viewport
 	if viewport.Width <= 0 {
 		return widths, left, false
 	}
