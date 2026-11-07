@@ -12,6 +12,7 @@ import (
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/internal/platform/web"
+	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -20,22 +21,27 @@ var (
 	menuID     = ui.Item(2)
 	sliderID   = ui.Item(3)
 	backdropID = ui.Item(4)
+	editorID   = ui.Item(5)
+	statusID   = ui.Item(6)
 )
 
 var (
 	counterRect = ui.Rect{X: 20, Y: 20, Width: 180, Height: 40}
 	menuRect    = ui.Rect{X: 220, Y: 20, Width: 180, Height: 40}
 	sliderRect  = ui.Rect{X: 20, Y: 100, Width: 300, Height: 32}
+	editorRect  = ui.Rect{X: 20, Y: 180, Width: 300, Height: 36}
+	statusRect  = ui.Rect{X: 20, Y: 240, Width: 300, Height: 32}
 )
 
 type fixture struct {
 	count    int
 	level    float32
 	menuOpen bool
+	editor   *text.Editor
 }
 
 func main() {
-	page := &fixture{level: 20}
+	page := &fixture{level: 20, editor: text.NewEditor("")}
 	_ = web.Run(web.Config{
 		Title:     "Viva web check",
 		Width:     640,
@@ -43,6 +49,9 @@ func main() {
 		Paint:     page.paint,
 		OnPointer: page.pointer,
 		OnKey:     page.key,
+		TextInput: web.EditorInputs(func(id ui.ID) (*text.Editor, bool) {
+			return page.editor, id == editorID
+		}),
 	})
 }
 
@@ -74,6 +83,20 @@ func (f *fixture) paint(canvas *ui.Canvas, size ui.Size) {
 		}
 	}
 	slider(f.level).ValueText(fmt.Sprintf("%.0f", f.level)).Paint("Level")
+
+	// A real editable field, wired to the browser text service the same way
+	// flex.Fields is: the platform edits the Go-owned editor and publishes its
+	// value through the same ARIA mirror a screen reader reads.
+	value := f.editor.String()
+	focused := canvas.Focused() == editorID
+	components.PaintInput(canvas, theme, editorRect, components.InputSnapshot{
+		ID: editorID, Label: "Name", Value: value, Placeholder: "Name",
+		Focused: focused, PlatformEditing: focused,
+	})
+	canvas.HitWithOptions(statusID, statusRect, "Editor status", ui.HitOptions{
+		Role: ui.RoleStatus, SkipFocus: true, Live: ui.LivePolite,
+		Value: "Text: " + value,
+	})
 
 	if f.menuOpen {
 		if canvas.Clicked(backdropID) {

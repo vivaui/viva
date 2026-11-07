@@ -1,36 +1,30 @@
-// Drives the browser verification fixture through Chrome DevTools Protocol.
+// Drives the browser verification fixture through Playwright.
 //
 //   viva build --target web ./tools/webcheck/fixture -o build/webcheck
-//   node tools/webcheck/check.mjs --dir build/webcheck
+//   node tools/webcheck/check.mjs --dir build/webcheck --browser chromium
 //
 // The checks cover the complete browser interaction path, not just painting:
 // a pointer click, Enter on the focused button, Tab traversal, a captured
 // slider drag delivered through Canvas.PointerOn, a screen-reader range change,
-// and a pass-through backdrop that dismisses and then reaches the control
-// beneath. Chrome is required locally; CI installs it on the runner.
-import { spawn } from 'node:child_process';
+// a pass-through backdrop, real keyboard text entry, and a synthetic IME
+// composition. The same script runs against Chromium, Firefox and WebKit, the
+// three engines Playwright ships; it does not drive a physical input method.
+//
+// The Playwright package lives in tools/webcheck/package.json so it cannot
+// enter a native or browser application artifact. Run `npm ci --prefix
+// tools/webcheck` and `npx --prefix tools/webcheck playwright install ...`
+// once before using it.
 import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
-import { mkdtempSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
+import { chromium, firefox, webkit } from 'playwright';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, all) => a.startsWith('--') ? [a.slice(2), all[i + 1]?.startsWith('--') || all[i + 1] === undefined ? true : all[i + 1]] : []).filter(e => e.length));
 const width = +(args.width ?? 640), height = +(args.height ?? 480);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-function findChrome() {
-  const candidates = [
-    args.chrome,
-    process.env.CHROME,
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-  ].filter(Boolean);
-  return candidates.find(p => typeof p === 'string' && existsSync(p));
-}
+const engines = { chromium, firefox, webkit };
+const requested = args.browser ?? 'chromium';
+const names = requested === 'all' ? Object.keys(engines) : [requested];
 
 function contentType(path) {
   switch (extname(path)) {
@@ -64,100 +58,168 @@ async function serve(dir) {
   return { server, url: `http://127.0.0.1:${server.address().port}/` };
 }
 
-async function main() {
-  const chromePath = findChrome();
-  if (!chromePath) throw new Error('Google Chrome or Chromium was not found; set CHROME or pass --chrome');
-  const served = args.url ? { url: args.url, server: null } : await serve(args.dir);
-  const port = 9400 + Math.floor(Math.random() * 400);
-  const chrome = spawn(chromePath, ['--headless=new', '--no-sandbox', '--disable-gpu',
-    `--user-data-dir=${mkdtempSync(join(tmpdir(), 'viva-webcheck-'))}`,
-    `--remote-debugging-port=${port}`, `--window-size=${width},${height}`, 'about:blank'], { stdio: 'ignore' });
-  let ws;
-  try {
-    let targets;
-    for (let i = 0; i < 80; i++) {
-      try { targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if (targets.find(t => t.type === 'page')) break; } catch {}
-      await sleep(200);
-    }
-    const target = targets?.find(t => t.type === 'page');
-    if (!target) throw new Error('Chrome did not open a debugging target');
-    ws = new WebSocket(target.webSocketDebuggerUrl);
-    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
-    let id = 0;
-    const pending = new Map();
-    const errors = [];
-    ws.onmessage = event => {
-      const message = JSON.parse(event.data);
-      if (message.id && pending.has(message.id)) { pending.get(message.id)(message.result ?? message.error); pending.delete(message.id); }
-      if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails.text);
-      if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error' && !message.params.entry.url?.endsWith('/favicon.ico')) errors.push(message.params.entry.text);
-    };
-    const send = (method, params = {}) => new Promise(resolve => { const i = ++id; pending.set(i, resolve); ws.send(JSON.stringify({ id: i, method, params })); });
-    const evaluate = async expression => (await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result?.value;
-    const check = (ok, message) => { if (!ok) throw new Error(message); console.log(`ok  ${message}`); };
-    const waitFor = async (expression, message, timeout = 5000) => {
-      const started = Date.now();
-      while (Date.now() - started < timeout) {
-        if (await evaluate(expression)) { check(true, message); return; }
-        await sleep(100);
-      }
+function check(ok, message) {
+  if (!ok) throw new Error(message);
+  console.log(`ok  ${message}`);
+}
+
+async function run(name, url) {
+  const engine = engines[name];
+  if (!engine) throw new Error(`unknown browser ${name}; use chromium, firefox, webkit or all`);
+  const browser = await engine.launch({ headless: true, ...(name === 'chromium' ? { chromiumSandbox: false } : {}) }).catch(error => {
+    throw new Error(`${name} could not start (${error.message}); run "npx --prefix tools/webcheck playwright install ${name}"`);
+  });
+  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+
+  const wait = async (fn, message, arg, timeout = 10000) => {
+    try {
+      await page.waitForFunction(fn, arg, { timeout });
+    } catch {
       throw new Error(`timed out: ${message}`);
-    };
-    const mouse = async (type, x, y, buttons) => send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: buttons ?? (type === 'mousePressed' || type === 'mouseMoved' ? 1 : 0), clickCount: 1 });
-    const click = async (x, y) => { await mouse('mouseMoved', x, y, 0); await mouse('mousePressed', x, y); await mouse('mouseReleased', x, y, 0); await sleep(250); };
-    const key = async (name, code, vk) => {
-      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: name, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
-      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: name, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
-      await sleep(250);
-    };
-    const label = selector => evaluate(`document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-label') ?? ''`);
-    const value = selector => evaluate(`document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-valuenow') ?? ''`);
+    }
+    check(true, message);
+  };
+  const waitLabel = (selector, expected, message) => wait(({ selector, expected }) =>
+    document.querySelector(selector)?.getAttribute('aria-label') === expected, message, { selector, expected });
+  const waitAttribute = (selector, name, expected, message) => wait(({ selector, name, expected }) =>
+    document.querySelector(selector)?.getAttribute(name) === expected, message, { selector, name, expected });
+  const waitValue = (selector, expected, message) => wait(({ selector, expected }) =>
+    document.querySelector(selector)?.value === expected, message, { selector, expected });
+  const waitText = (selector, expected, message) => wait(({ selector, expected }) =>
+    document.querySelector(selector)?.textContent === expected, message, { selector, expected });
 
-    await send('Runtime.enable');
-    await send('Log.enable');
-    await send('Page.enable');
-    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
-    await send('Page.navigate', { url: served.url });
-    await waitFor(`!!document.querySelector('canvas')`, 'the page mounted a canvas', 10000);
-    await waitFor(`[...document.querySelectorAll('[role=button]')].some(e => (e.getAttribute('aria-label') ?? '').startsWith('Count:'))`, 'the application published its controls');
-    check(await evaluate(`(() => { const c = document.querySelector('canvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let painted = 0; for (let i = 0; i < d.length; i += 64) if (d[i] || d[i + 1] || d[i + 2] || d[i + 3]) painted++; return painted > (d.length / 64) / 10; })()`), 'the canvas is not blank');
+  try {
+    console.log(`# ${name} ${browser.version()}`);
+    await page.goto(url);
+    await wait(() => !!document.querySelector('canvas'), 'the page mounted a canvas');
+    await page.waitForSelector('[role=button][aria-label^="Count:"]');
+    check(await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      let painted = 0;
+      for (let i = 0; i < data.length; i += 64) if (data[i] || data[i + 1] || data[i + 2] || data[i + 3]) painted++;
+      return painted > (data.length / 64) / 10;
+    }), 'the canvas is not blank');
 
-    check(await label('[role=button][aria-label^="Count:"]') === 'Count: 0', 'the counter starts at zero');
-    await click(110, 40);
-    check(await label('[role=button][aria-label^="Count:"]') === 'Count: 1', 'a pointer click runs the click pass');
-    await key('Enter', 'Enter', 13);
-    check(await label('[role=button][aria-label^="Count:"]') === 'Count: 2', 'Enter activates the focused control');
+    await waitLabel('[role=button][aria-label^="Count:"]', 'Count: 0', 'the counter starts at zero');
+    await page.mouse.click(110, 40);
+    await waitLabel('[role=button][aria-label^="Count:"]', 'Count: 1', 'a pointer click runs the click pass');
+    await page.keyboard.press('Enter');
+    await waitLabel('[role=button][aria-label^="Count:"]', 'Count: 2', 'Enter activates the focused control');
 
-    await key('Tab', 'Tab', 9);
-    await key('Tab', 'Tab', 9);
-    await key('ArrowRight', 'ArrowRight', 39);
-    check(await value('[role=slider]') === '21', 'Tab reaches the slider and an arrow key changes it');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('ArrowRight');
+    await waitAttribute('[role=slider]', 'aria-valuenow', '21', 'Tab reaches the slider and an arrow key changes it');
 
-    await mouse('mouseMoved', 90, 116, 0);
-    await mouse('mousePressed', 90, 116);
-    await mouse('mouseMoved', 260, 116, 1);
-    await mouse('mouseReleased', 260, 116, 0);
-    await sleep(300);
-    const dragged = +(await value('[role=slider]'));
-    check(dragged > 60, `a captured drag through Canvas.PointerOn changed the value to ${dragged}`);
+    await page.mouse.move(90, 116);
+    await page.mouse.down();
+    await page.mouse.move(260, 116, { steps: 5 });
+    await page.mouse.up();
+    await wait(() => +(document.querySelector('[role=slider]')?.getAttribute('aria-valuenow') ?? 0) > 60,
+      'a captured drag through Canvas.PointerOn changed the slider');
 
-    await evaluate(`(() => { const e = document.querySelector('[role=slider]'); e.value = '80'; e.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
-    await sleep(400);
-    check(await value('[role=slider]') === '80', 'a screen-reader range change reaches application state');
+    await page.evaluate(() => {
+      const element = document.querySelector('[role=slider]');
+      element.value = '80';
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await waitAttribute('[role=slider]', 'aria-valuenow', '80', 'a screen-reader range change reaches application state');
 
-    await click(310, 40);
-    check(await label('[role=button][aria-label^="Menu:"]') === 'Menu: true', 'the menu opened');
-    check(await evaluate(`!!document.querySelector('[role=group][aria-label="Dismiss"]')`), 'the backdrop is published');
-    await click(110, 40);
-    check(await label('[role=button][aria-label^="Count:"]') === 'Count: 3', 'a pass-through backdrop dismisses and reaches the control beneath');
-    check(!(await evaluate(`!!document.querySelector('[role=group][aria-label="Dismiss"]')`)), 'the pass-through backdrop closed');
+    // The text field is a real editable hit backed by a text.Editor, wired with
+    // web.EditorInputs exactly as flex.Fields wires an application field.
+    await page.mouse.click(100, 198);
+    await wait(() => document.activeElement?.tagName === 'INPUT' &&
+      document.activeElement?.getAttribute('aria-label') === 'Name',
+      'clicking the text field focuses its browser editor');
+    await page.keyboard.type('typed');
+    await waitText('[role=status]', 'Text: typed', 'typed text reaches the Go-owned editor');
+
+    const composition = await page.evaluate(() => {
+      const element = document.querySelector('input[aria-label="Name"]');
+      const base = element.value;
+      const start = element.selectionStart ?? base.length;
+      element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      element.value = base.slice(0, start) + 'にほ' + base.slice(start);
+      element.setSelectionRange(start, start + 2);
+      element.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: 'にほ' }));
+      return { base, start };
+    });
+    await waitText('[role=status]', 'Text: typedにほ', 'composition updates publish the marked text');
+    await waitValue('input[aria-label="Name"]', 'typedにほ', 'the browser keeps its own preedit while composing');
+
+    await page.evaluate(({ base, start }) => {
+      const element = document.querySelector('input[aria-label="Name"]');
+      const committed = '日本';
+      element.value = base.slice(0, start) + committed + base.slice(start);
+      element.setSelectionRange(start + committed.length, start + committed.length);
+      element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: committed }));
+      // Browsers follow compositionend with an input event; the host must not
+      // apply the committed text twice.
+      element.dispatchEvent(new InputEvent('input', {
+        bubbles: true, inputType: 'insertCompositionText', data: committed, isComposing: false,
+      }));
+    }, composition);
+    await waitText('[role=status]', 'Text: typed日本', 'composition commits exactly once to the Go editor');
+    await waitValue('input[aria-label="Name"]', 'typed日本', 'the editor remains the authority after composition');
+
+    await page.keyboard.type('!');
+    await waitText('[role=status]', 'Text: typed日本!', 'typing resumes after composition ends');
+
+    // Canceling a composition removes its marked text and leaves the committed
+    // text before it intact.
+    const canceled = await page.evaluate(() => {
+      const element = document.querySelector('input[aria-label="Name"]');
+      const base = element.value;
+      const start = element.selectionStart ?? base.length;
+      element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      element.value = base.slice(0, start) + 'か' + base.slice(start);
+      element.setSelectionRange(start, start + 1);
+      element.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: 'か' }));
+      return { base };
+    });
+    await waitText('[role=status]', 'Text: typed日本!か', 'a second composition publishes its preedit');
+    await page.evaluate(({ base }) => {
+      const element = document.querySelector('input[aria-label="Name"]');
+      element.value = base;
+      element.setSelectionRange(base.length, base.length);
+      element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '' }));
+      element.dispatchEvent(new InputEvent('input', {
+        bubbles: true, inputType: 'insertCompositionText', data: '', isComposing: false,
+      }));
+    }, canceled);
+    await waitText('[role=status]', 'Text: typed日本!', 'canceling a composition removes its marked text');
+
+    await page.mouse.click(310, 40);
+    await waitLabel('[role=button][aria-label^="Menu:"]', 'Menu: true', 'the menu opened');
+    await page.waitForSelector('[role=group][aria-label="Dismiss"]');
+    check(true, 'the backdrop is published');
+    await page.mouse.click(110, 40);
+    await waitLabel('[role=button][aria-label^="Count:"]', 'Count: 3', 'a pass-through backdrop dismisses and reaches the control beneath');
+    await page.waitForSelector('[role=group][aria-label="Dismiss"]', { state: 'detached' });
+    check(true, 'the pass-through backdrop closed');
 
     check(errors.length === 0, `the page reported no errors${errors.length ? ': ' + errors.join('; ') : ''}`);
-    const version = (await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()).Browser;
-    console.log(`web check passed (${version})`);
+    console.log(`web check passed (${name} ${browser.version()})`);
   } finally {
-    try { ws?.close(); } catch {}
-    chrome.kill();
+    await browser.close();
+  }
+}
+
+async function main() {
+  if (!names.every(name => engines[name])) {
+    throw new Error(`unknown browser ${requested}; use chromium, firefox, webkit or all`);
+  }
+  if (!args.dir && !args.url) throw new Error('--dir is required unless --url is given');
+  if (args.dir && !existsSync(args.dir)) throw new Error(`--dir ${args.dir} does not exist`);
+  const served = args.url ? { url: args.url, server: null } : await serve(args.dir);
+  try {
+    for (const name of names) await run(name, served.url);
+  } finally {
     served.server?.close();
   }
 }

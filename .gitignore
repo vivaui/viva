@@ -4,6 +4,7 @@
 *.dxvk-cache
 /website/node_modules/
 /website/.astro/
+/tools/webcheck/node_modules/
 
 # State left by `wrangler pages dev` when checking the deploy output locally.
 /.wrangler/

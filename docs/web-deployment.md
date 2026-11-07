@@ -334,12 +334,31 @@ press/release pairing, focus-loss release, accessibility activation/focus
 routing and a static caller-painted canvas with a nil `Paint`.
 
 `tools/webcheck` is the browser-level gate. Its fixture paints a counter, a
-slider and a pass-through backdrop, and the CDP driver asserts that a real
-pointer click, Enter on the focused button, Tab traversal, a captured slider
-drag delivered through `Canvas.PointerOn`, a screen-reader range change and a
-backdrop that dismisses and then reaches the control beneath all work in
-Chromium. CI builds the fixture with `viva build --target web` and runs the
-driver in the `web` job.
+slider, a pass-through backdrop and a real single-line text field backed by a
+`text.Editor`. The Playwright driver asserts that a real pointer click, Enter
+on the focused button, Tab traversal, a captured slider drag delivered through
+`Canvas.PointerOn`, a screen-reader range change and a backdrop that dismisses
+and then reaches the control beneath all work in Chromium, Firefox and WebKit.
+
+The text field covers plain keyboard entry through the browser's editing
+element, a synthetic composition (`compositionstart`, `compositionupdate`,
+`compositionend`) whose marked text is published while composing and committed
+exactly once to the Go editor, a canceled composition that removes its marked
+text, and typing that resumes after composition ends.
+The composition is generated at the DOM level: it verifies the event contract
+between the browser editor and the Go text service, not an operating system
+input method or candidate window.
+
+CI builds the fixture with `viva build --target web`, installs the pinned
+Playwright package and its three engines, and runs the driver once per engine
+in the `web` job. The same gate runs locally with:
+
+```sh
+npm ci --prefix tools/webcheck
+tools/webcheck/node_modules/.bin/playwright install chromium firefox webkit
+go run ./cmd/viva build --target web ./tools/webcheck/fixture -o build/webcheck
+node tools/webcheck/check.mjs --dir build/webcheck --browser all
+```
 
 A headless Chrome run served the generated `index.html`, `.wasm` and
 `wasm_exec.js` over HTTP, rendered the gallery, and then invoked the DOM
@@ -357,6 +376,7 @@ dispatched an input event. The application moved from 40 to 60 and the ARIA
 
 Drag-and-drop delivery is covered by the shared drop router test with browser
 file handles; a physical drag from Finder/Explorer still needs a real-window
-check on each target. Safari and Firefox, browser IME with a real keyboard,
-system screen readers and the browser's own reserved shortcuts were not
-exercised in this pass.
+check on each target. The engine gate runs Playwright's Chromium, Firefox and
+WebKit builds; system Safari through `safaridriver`, a physical IME candidate
+window, system screen readers and the browser's own reserved shortcuts still
+need real-hardware checks.
