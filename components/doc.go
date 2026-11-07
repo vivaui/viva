@@ -177,6 +177,8 @@
 //     layouts and independent lanes.
 //   - Tree: `BeginTree` paints caller-flattened hierarchical rows with stable
 //     disclosure and selection semantics while leaving content application-owned.
+//     `NavigateTree` handles keyboard movement and branch actions over the
+//     visible hierarchy without owning expansion, loading, or focus.
 //   - Scroll area: `BeginScrollArea` paints a clipped viewport and scrollbar
 //     for caller-owned content; Viewport makes it focusable, ScrollForKey
 //     moves the caller's offsets, and HoverScrollbars narrows the bars to a
