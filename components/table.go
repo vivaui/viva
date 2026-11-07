@@ -66,6 +66,8 @@ type Table struct {
 	y            float32
 	rowHeight    float32
 	headerHeight float32
+	fontSize     float32
+	cellPadding  float32
 	headerSet    bool
 	Selection    TableSelection
 	text         *tableTextState
@@ -119,11 +121,12 @@ func TableRowHeight(theme ui.Theme) float32 { return theme.Metrics.ControlHeight
 // TableHeaderHeight is the default height of the header row, TableHead's h-10.
 func TableHeaderHeight(theme ui.Theme) float32 { return theme.Metrics.ControlHeight + 8 }
 
-// BeginTable starts a table whose first painted row is at bounds.Y. Cells have
-// px-2 of horizontal padding. A cell whose text is wider than its column ends in
-// an ellipsis, as it does in a native table; shadcn's cells never truncate, its
-// auto-width columns grow with their content instead, which FitTableHeadings
-// does for the headings of fixed-width columns.
+// BeginTable starts a table whose first painted row is at bounds.Y. Cells use the
+// theme's GapItem of horizontal padding unless CellPadding overrides it. A cell
+// whose text is wider than its column ends in an ellipsis, as it does in a native
+// table; shadcn's cells never truncate, its auto-width columns grow with their
+// content instead, which FitTableHeadings does for the headings of fixed-width
+// columns.
 func BeginTable(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, columns []TableColumn) Table {
 	return Table{
 		canvas: canvas, theme: theme, bounds: bounds, columns: columns,
@@ -173,6 +176,40 @@ func (table Table) HeaderHeight(height float32) Table {
 		table.headerHeight = height
 	}
 	return table
+}
+
+// FontSize overrides the size of body and header text for subsequent calls. A
+// zero or negative size keeps the theme's FontSizeM.
+func (table Table) FontSize(size float32) Table {
+	if size > 0 {
+		table.fontSize = size
+	}
+	return table
+}
+
+// CellPadding overrides the horizontal padding inside every cell for subsequent
+// calls. A zero or negative padding keeps the theme's GapItem.
+func (table Table) CellPadding(padding float32) Table {
+	if padding > 0 {
+		table.cellPadding = padding
+	}
+	return table
+}
+
+// textSize is the size every cell's line is measured and painted at.
+func (table *Table) textSize() float32 {
+	if table.fontSize > 0 {
+		return table.fontSize
+	}
+	return table.theme.Metrics.FontSizeM
+}
+
+// cellPad is the horizontal padding every cell's line is laid out with.
+func (table *Table) cellPad() float32 {
+	if table.cellPadding > 0 {
+		return table.cellPadding
+	}
+	return table.theme.Metrics.GapItem
 }
 
 // Header paints a muted header row. Extra cells are ignored and absent cells
@@ -315,8 +352,7 @@ func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind
 
 	x := rowBounds.X
 	remaining := rowBounds.Width
-	metrics := table.theme.Metrics
-	pad := metrics.GapItem // px-2
+	size, pad := table.textSize(), table.cellPad()
 	for index, column := range table.columns {
 		width := tableColumnWidth(column, index == len(table.columns)-1, remaining)
 		if width <= 0 {
@@ -346,12 +382,12 @@ func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind
 		}
 		text := ""
 		if index < len(cells) {
-			text = table.canvas.FitLine(value, metrics.FontSizeM, weight, textBounds.Width)
+			text = table.canvas.FitLine(value, size, weight, textBounds.Width)
 		}
 		selected := false
-		style := ui.TextStyle{Size: metrics.FontSizeM, Weight: weight, Color: foreground}
+		style := ui.TextStyle{Size: size, Weight: weight, Color: foreground}
 		if textState != nil {
-			textWidth := table.canvas.TextWidthWeight(text, metrics.FontSizeM, weight)
+			textWidth := table.canvas.TextWidthWeight(text, size, weight)
 			textX := table.canvas.LabelOrigin(text, textBounds, style, tableLabelAlignment(column.Alignment))
 			selected = table.paintCellSelection(textState, textBounds, tableTextCell{
 				bounds: textBounds, textLo: field.lo, textHi: field.hi,
@@ -462,7 +498,7 @@ func (table *Table) paintCellSelection(
 		return false
 	}
 	text.selectionSpans = table.canvas.TextSelection(
-		text.selectionSpans[:0], cell.value, table.theme.Metrics.FontSizeM, cell.weight,
+		text.selectionSpans[:0], cell.value, table.textSize(), cell.weight,
 		visualLo, visualHi,
 	)
 	table.canvas.Clip(ui.Rect{
@@ -652,7 +688,7 @@ func (table *Table) OffsetAt(point ui.Point) (int, bool) {
 		}
 		return cell.contentHi, true
 	}
-	local := table.canvas.TextOffsetAt(cell.value, table.theme.Metrics.FontSizeM, cell.weight, localX)
+	local := table.canvas.TextOffsetAt(cell.value, table.textSize(), cell.weight, localX)
 	local = min(max(local, 0), len(cell.value))
 	local += strings.Count(cell.value[:local], `"`)
 	return min(cell.contentLo+local, cell.contentHi), true
@@ -896,22 +932,22 @@ func (table *Table) paintSortableHeaderCell(
 	}
 	canvas.Clip(bounds)
 	defer canvas.Unclip()
-	pad := theme.Metrics.GapItem
+	size, pad := table.textSize(), table.cellPad()
 	textBounds := bounds.Inset(ui.Insets{Left: pad, Right: pad})
 	if column.Alignment == TableAlignLeft {
 		inset := min(max(column.Inset, 0), max(textBounds.Width, 0))
 		textBounds.X, textBounds.Width = textBounds.X+inset, max(textBounds.Width-inset, 0)
 	}
-	style := ui.TextStyle{Size: theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: color}
+	style := ui.TextStyle{Size: size, Weight: ui.WeightMedium, Color: color}
 	if !interactive {
-		label := canvas.FitLine(cell.Label, theme.Metrics.FontSizeM, ui.WeightMedium, textBounds.Width)
+		label := canvas.FitLine(cell.Label, size, ui.WeightMedium, textBounds.Width)
 		painted := tableTextCell{
 			bounds: textBounds, textLo: field.lo, textHi: field.hi,
 			contentLo: field.contentLo, contentHi: field.contentHi,
 			value: cell.Label, weight: ui.WeightMedium,
 		}
 		if textState != nil {
-			painted.textWidth = canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, ui.WeightMedium)
+			painted.textWidth = canvas.TextWidthWeight(label, size, ui.WeightMedium)
 			painted.textX = canvas.LabelOrigin(label, textBounds, style, tableLabelAlignment(column.Alignment))
 			selected := table.paintCellSelection(textState, textBounds, painted)
 			tableLabel(canvas, label, textBounds, column.Alignment, style)
@@ -926,8 +962,8 @@ func (table *Table) paintSortableHeaderCell(
 		return painted
 	}
 	const iconSize, gap = tableSortIconSize, tableSortIconGap
-	label := canvas.FitLine(cell.Label, theme.Metrics.FontSizeM, ui.WeightMedium, max(textBounds.Width-iconSize-gap, 0))
-	labelWidth := min(canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, ui.WeightMedium), max(textBounds.Width-iconSize-gap, 0))
+	label := canvas.FitLine(cell.Label, size, ui.WeightMedium, max(textBounds.Width-iconSize-gap, 0))
+	labelWidth := min(canvas.TextWidthWeight(label, size, ui.WeightMedium), max(textBounds.Width-iconSize-gap, 0))
 	groupWidth := min(labelWidth+gap+iconSize, max(textBounds.Width, 0))
 	switch column.Alignment {
 	case TableAlignRight:
