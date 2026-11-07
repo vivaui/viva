@@ -160,7 +160,7 @@ export function componentLabel(locale: Locale, id: string, fallback: string): st
 
 const englishComponents: Record<string, { summary: string; examples: Record<string, [string, string]> }> = {
   'tree-navigation': { summary: 'Keyboard navigation for a tree whose visible rows and expansion state are owned by the application.', examples: {
-    default: ['Keyboard navigation', 'Focus Production. Right opens it or enters its first child; Left returns to the parent or closes it.'],
+    default: ['Keyboard navigation', 'Focus Production. Press Right Arrow to expand it or move to its first child, and Left Arrow to return to its parent or collapse it.'],
   } },
   button: { summary: 'Button variants, disabled states and caller-owned click counts.', examples: {
     default: ['Click counter', 'Click or use the keyboard to update an application-owned counter.'],
