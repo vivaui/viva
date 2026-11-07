@@ -76,6 +76,7 @@ m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
   `Transition()` fades between them over the theme's motion and schedules nothing while at rest. `StateFrom(row)` makes a
   child follow its row's state: a pencil that shows on hover is
   `f.Icon(edit).Opacity(0).StateFrom(row).Hover(flex.Look{}.Opacity(1))`.
+- Finished, themed examples to copy (settings row, list row with a hover action, avatar, badge, stat card, gradient hero, icon button, empty state): <https://github.com/vivaui/viva/tree/main/examples/recipes>, with guidance in <https://github.com/vivaui/viva/blob/main/docs/skills/building-with-viva/recipes.md>.
 - Icons move inside their box, not the box: `f.Icon(glyph).IconTransform(ui.IconTransform{Rotate: radians, Scale: 0.9, Offset: ui.Point{X: 2, Y: 0}})`
   turns and scales the glyph about the center of its box and moves it after that, while the row keeps its place, its
   size and its hit region. The zero `ui.IconTransform` is the still icon, and a frame that passes one costs nothing.
