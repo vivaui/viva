@@ -50,6 +50,36 @@ func TestTextInputCSSAlignment(t *testing.T) {
 	}
 }
 
+func TestBrowserCopyCutUsesOverrideOnCollapsedNativeSelection(t *testing.T) {
+	input := platform.TextInput{CopyOverride: true, CopyText: func() string { return "first\nsecond" }, State: platform.TextState{
+		Value: "abc", Selection: text.Range{Start: 2, End: 2},
+	}}
+	for _, test := range []struct {
+		action byte
+		kind   platform.TextEventKind
+	}{
+		{'c', 0},
+		{'x', platform.TextPaste},
+	} {
+		value, edit, handled := browserCopyCut(input, test.action)
+		if !handled || value != "first\nsecond" || edit.Kind != test.kind || edit.Text != "" {
+			t.Errorf("action %c: value=%q edit=%+v handled=%v", test.action, value, edit, handled)
+		}
+	}
+	input.CopyText = func() string { return "" }
+	if _, _, handled := browserCopyCut(input, 'x'); !handled {
+		t.Fatal("empty override must suppress browser's native cut")
+	}
+	input.Secure = true
+	if value, edit, _ := browserCopyCut(input, 'x'); value != "" || edit.Kind != 0 {
+		t.Fatalf("secure override leaked value=%q edit=%+v", value, edit)
+	}
+	input.CopyOverride = false
+	if _, _, handled := browserCopyCut(input, 'x'); handled {
+		t.Fatal("ordinary native selection stopped using the browser")
+	}
+}
+
 func TestTextInputRangeConversionsClampAndOrder(t *testing.T) {
 	value := "Go😀中"
 	start, end := runeRangeToUTF16(value, text.Range{Start: 3, End: 1})

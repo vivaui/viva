@@ -282,7 +282,7 @@ func (p *painter) syncTextInput() {
 			continue
 		}
 		input := p.config.TextInput(TextInputContext{
-			ID: hit.ID, Bounds: hit.Bounds, Multiline: hit.Multiline,
+			ID: hit.ID, Bounds: hit.Bounds, Multiline: hit.Multiline, Secure: hit.Secure,
 			TextBounds: hit.TextBounds, FontSize: hit.TextSize, FontWeight: hit.TextWeight, TextColor: hit.TextColor,
 			HideNativeOverlays: hit.HideNativeOverlays,
 		})
@@ -292,6 +292,7 @@ func (p *painter) syncTextInput() {
 		p.textInputID = hit.ID
 		p.textInput = *input
 		p.textInput.Multiline = hit.Multiline
+		p.textInput.Secure = hit.Secure
 		p.textInput.Placed = hit.Placement != nil
 		p.textInput.HideNativeOverlays = input.HideNativeOverlays || hit.HideNativeOverlays
 		if p.textInput.Width == 0 && p.textInput.Height == 0 {

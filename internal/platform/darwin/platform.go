@@ -245,6 +245,7 @@ func sameTextInputPresentation(left, right TextInput) bool {
 		left.Width == right.Width && left.Height == right.Height &&
 		left.FontSize == right.FontSize && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
 		left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.Color == right.Color &&
+		left.CopyOverride == right.CopyOverride &&
 		left.State == right.State
 }
 
@@ -844,6 +845,7 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 	return C.viva_text_input_config{
 		utf8:                 (*C.uchar)(value),
 		utf8_length:          C.size_t(len(input.State.Value)),
+		copy_override:        C.int(boolInt(input.CopyOverride)),
 		x:                    C.float(input.X),
 		y:                    C.float(input.Y),
 		width:                C.float(input.Width),

@@ -151,3 +151,13 @@ func TestWebTextInputPassesEventsToAHandlerThatOwnsThem(t *testing.T) {
 		t.Errorf("handler saw %+v and answered %q", seen, state.Value)
 	}
 }
+
+func TestWebTextInputCarriesCopyOverride(t *testing.T) {
+	provider := webTextInput(func(TextInputContext) *TextInput {
+		return &TextInput{CopyOverride: true, CopyText: func() string { return "first\nsecond" }}
+	})
+	input := provider(web.TextInputContext{ID: ui.Item(1), Secure: true})
+	if !input.CopyOverride || input.CopyText == nil || input.CopyText() != "first\nsecond" || !input.Secure {
+		t.Fatalf("browser copy override = %v", input.CopyOverride)
+	}
+}

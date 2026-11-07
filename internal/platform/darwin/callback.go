@@ -11,6 +11,7 @@ import "C"
 import (
 	"fmt"
 	"runtime/cgo"
+	"unicode/utf8"
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/input"
@@ -621,6 +622,36 @@ func presentTextInput(state *runState, view unsafe.Pointer, update TextInputUpda
 		return fmt.Errorf("darwin: native text input update failed with status %d", status)
 	}
 	return nil
+}
+
+//export vivaCopyText
+func vivaCopyText(handle C.uintptr_t, _ unsafe.Pointer, length *C.size_t) (result *C.uchar) {
+	if length == nil {
+		return nil
+	}
+	*length = 0
+	state, ok := runStateFor(handle)
+	if !ok || state.closed || !state.textInputActive || !state.textInput.CopyOverride || state.textInput.Secure || state.textInput.CopyText == nil {
+		return nil
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			platform.ReportFault("darwin: clipboard callback", recovered)
+			result = nil
+			*length = 0
+		}
+	}()
+	value := state.textInput.CopyText()
+	if value == "" || !utf8.ValidString(value) {
+		return nil
+	}
+	memory := C.malloc(C.size_t(len(value)))
+	if memory == nil {
+		return nil
+	}
+	copy(unsafe.Slice((*byte)(memory), len(value)), value)
+	*length = C.size_t(len(value))
+	return (*C.uchar)(memory)
 }
 
 func presentAccessibility(view unsafe.Pointer, nodes []AccessibilityNode) error {

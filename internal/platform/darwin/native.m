@@ -492,6 +492,8 @@ extern void vivaTextInput(
     int command
 );
 
+extern unsigned char *vivaCopyText(uintptr_t callbackHandle, void *view, size_t *length);
+
 extern uint16_t vivaRectangleLayer(
     uintptr_t callbackHandle,
     size_t index
@@ -3423,6 +3425,7 @@ static void viva_encode_scene(
     BOOL _textNavigationKeys;
     NSRect _textCaretFrame;
     BOOL _textSecure;
+    BOOL _textCopyOverride;
     BOOL _textTerminal;
     BOOL _textHideNativeOverlays;
     int _textMonoFace;
@@ -3627,6 +3630,7 @@ static int viva_navigation_command(SEL selector) {
         _textLayer = textInput.layer;
         _textCaretFrame = NSMakeRect(textInput.caret_x, textInput.caret_y, textInput.caret_width, textInput.caret_height);
         _textSecure = textInput.secure != 0;
+        _textCopyOverride = textInput.copy_override != 0;
         _textTerminal = textInput.terminal != 0;
         _textHideNativeOverlays = textInput.hide_native_overlays != 0;
         _textMonoFace = textInput.mono_face;
@@ -4939,6 +4943,7 @@ static void viva_set_secure_event_input(BOOL on) {
 
     if (!textInput.enabled) {
         _textSecure = NO;
+        _textCopyOverride = NO;
         _textTerminal = NO;
         _textHideNativeOverlays = NO;
         _textMonoFace = 0;
@@ -4968,6 +4973,7 @@ static void viva_set_secure_event_input(BOOL on) {
 
     [_text release];
     _text = replacement;
+    _textCopyOverride = textInput.copy_override != 0;
     [_textColor release];
     _textColor = replacementColor;
     _textFrame = NSMakeRect(textInput.x, textInput.y, textInput.width, textInput.height);
@@ -5243,35 +5249,55 @@ static void viva_set_secure_event_input(BOOL on) {
     return [self.window convertRectToScreen:windowRect];
 }
 
-// copy: puts the selected text on the pasteboard. A password field never
-// exports what it holds, and an empty selection leaves the pasteboard alone.
-- (void)copy:(id)sender {
+// A failed copy never emits a cut edit. A custom selection is supplied by the
+// application while the native primary selection remains an ordinary caret.
+- (BOOL)copyToPasteboard {
     if (!_textInputEnabled || _textSecure) {
-        return;
+        return NO;
     }
-    NSRange selected = viva_clamp_range(_selectedRange, _text.length);
-    if (selected.length == 0) {
-        return;
+    NSString *value = nil;
+    if (_textCopyOverride) {
+        size_t length = 0;
+        unsigned char *utf8 = vivaCopyText(_callbackHandle, self, &length);
+        if (utf8 == NULL || length == 0) {
+            free(utf8);
+            return NO;
+        }
+        value = [[NSString alloc] initWithBytes:utf8 length:length encoding:NSUTF8StringEncoding];
+        free(utf8);
+        if (value == nil) {
+            return NO;
+        }
+    } else {
+        NSRange selected = viva_clamp_range(_selectedRange, _text.length);
+        if (selected.length == 0) {
+            return NO;
+        }
+        value = [_text substringWithRange:selected];
     }
     NSPasteboard *pasteboard = viva_pasteboard();
     [pasteboard clearContents];
-    [pasteboard setString:[_text substringWithRange:selected] forType:NSPasteboardTypeString];
+    BOOL copied = [pasteboard setString:value forType:NSPasteboardTypeString];
+    if (_textCopyOverride) {
+        [value release];
+    }
+    return copied;
 }
 
-// cut: copies, then removes the selection exactly as Backspace would.
+- (void)copy:(id)sender {
+    [self copyToPasteboard];
+}
+
+// cut: copies, then asks the application to remove its selection.
 - (void)cut:(id)sender {
-    if (!_textInputEnabled || _textSecure) {
+    if (![self copyToPasteboard]) {
         return;
     }
-    if (viva_clamp_range(_selectedRange, _text.length).length == 0) {
-        return;
-    }
-    [self copy:sender];
-    [self emitTextKind:VIVA_TEXT_COMMAND_EVENT
+    [self emitTextKind:VIVA_TEXT_PASTE
                   text:@""
          selectedRange:NSMakeRange(0, 0)
        replacementRange:NSMakeRange(NSNotFound, 0)
-               command:VIVA_TEXT_DELETE_BACKWARD];
+               command:0];
 }
 
 // paste: inserts the pasteboard's text in place of the selection. Passwords may

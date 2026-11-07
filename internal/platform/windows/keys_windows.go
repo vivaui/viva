@@ -198,7 +198,7 @@ func (state *windowState) textKey(first, second uintptr, mods input.Modifiers) b
 	repeat := second&(1<<30) != 0
 	editKey := platform.KeyEvent{Key: normalizedKey(first), Modifiers: mods, Repeat: repeat, Text: shortcutText(first)}
 	if action := platform.TextClipboardAction(editKey); action != 0 {
-		event, changed, err := platform.TextClipboardEvent(state.textState, state.textInput.Secure, action, ClipboardText, SetClipboardText)
+		event, changed, err := platform.TextClipboardEvent(state.textInput.ClipboardState(), state.textInput.Secure, action, ClipboardText, SetClipboardText)
 		if err != nil {
 			messageBeep.Call(0) // a busy clipboard must not close the window or delete a selection
 		} else if changed {

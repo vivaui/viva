@@ -15,6 +15,7 @@ type TextInputContext struct {
 	ID        ui.ID
 	Bounds    ui.Rect
 	Multiline bool
+	Secure    bool
 	// TextBounds, FontSize, FontWeight and TextColor are the text geometry the component
 	// declared; they fill whatever the returned input leaves unset.
 	TextBounds         ui.Rect
@@ -75,6 +76,18 @@ type TextInput = platform.TextInput
 type TextState = platform.TextState
 type TextEvent = platform.TextEvent
 type TextEventKind = platform.TextEventKind
+
+func browserCopyCut(input platform.TextInput, action byte) (string, platform.TextEvent, bool) {
+	if !input.CopyOverride {
+		return "", platform.TextEvent{}, false
+	}
+	var copied string
+	edit, _, _ := platform.TextClipboardEvent(input.ClipboardState(), input.Secure, action, nil, func(value string) error {
+		copied = value
+		return nil
+	})
+	return copied, edit, true
+}
 
 const (
 	TextInsert       = platform.TextInsert
