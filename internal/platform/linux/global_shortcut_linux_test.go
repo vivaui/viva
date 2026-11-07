@@ -42,9 +42,9 @@ func TestNativeX11GlobalShortcut(t *testing.T) {
 	if _, err := exec.LookPath("xdotool"); err != nil {
 		t.Fatal("isolated display check needs xdotool")
 	}
-	press := func(chord string) {
+	press := func(chords ...string) {
 		t.Helper()
-		if out, err := exec.Command("xdotool", "key", chord).CombinedOutput(); err != nil {
+		if out, err := exec.Command("xdotool", append([]string{"key"}, chords...)...).CombinedOutput(); err != nil {
 			t.Fatalf("trigger on Xvfb: %v: %s", err, out)
 		}
 		select {
@@ -54,7 +54,7 @@ func TestNativeX11GlobalShortcut(t *testing.T) {
 		}
 	}
 	press("ctrl+alt+shift+g")
-	press("Caps_Lock ctrl+alt+shift+g")
+	press("Caps_Lock", "ctrl+alt+shift+g")
 	stop()
 	stop()
 	again, err := RegisterGlobalShortcut(modifiers, 'g', func() {})
