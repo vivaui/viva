@@ -71,24 +71,11 @@ func Build(options Options) error {
 	// Write beside the target first so a failure leaves the previous image alone.
 	temporary := strings.TrimSuffix(options.Image, ".dmg") + ".viva-tmp.dmg"
 	_ = os.Remove(temporary)
-	if err := convertImage(writable, temporary); err != nil {
+	if err := hdiutil("convert", writable, "-format", "UDZO", "-imagekey", "zlib-level=9", "-ov", "-o", temporary); err != nil {
 		_ = os.Remove(temporary)
 		return err
 	}
 	return os.Rename(temporary, options.Image)
-}
-
-func convertImage(writable, temporary string) error {
-	var err error
-	for attempt := 0; attempt < 5; attempt++ {
-		if err = hdiutil("convert", writable, "-format", "UDZO", "-imagekey", "zlib-level=9", "-ov", "-o", temporary); err == nil {
-			return nil
-		}
-		if attempt < 4 {
-			time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
-		}
-	}
-	return err
 }
 
 // picture is the background's PNG: the project's, or the default.
@@ -139,23 +126,14 @@ func settle(writable string, options Options, app string) (err error) {
 // detach unmounts the image, retrying while the system still holds it, and
 // forcing it as the last resort.
 func detach(mount string) error {
-	if mounted, err := volumeMounted(mount); err == nil && !mounted {
-		return nil
-	}
 	var err error
 	for attempt := 0; attempt < 5; attempt++ {
 		if err = hdiutil("detach", mount); err == nil {
 			return nil
 		}
-		if mounted, checkErr := volumeMounted(mount); checkErr == nil && !mounted {
-			return nil
-		}
 		time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
 	}
 	if forced := hdiutil("detach", "-force", mount); forced == nil {
-		return nil
-	}
-	if mounted, checkErr := volumeMounted(mount); checkErr == nil && !mounted {
 		return nil
 	}
 	return err

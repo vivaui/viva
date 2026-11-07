@@ -613,3 +613,29 @@ func TestLinuxMultilineFieldLaysOutTheCaretsLine(t *testing.T) {
 		t.Fatalf("click on the seventh character = %d (err %v), want %d", index, err, first+7)
 	}
 }
+
+// A field that paints its own caret still needs the engine's candidate window to
+// sit where the glyphs are, not at the field's left edge.
+func TestLinuxCandidateWindowFollowsAlignmentWhenNativeOverlaysAreHidden(t *testing.T) {
+	for _, alignment := range []ui.Alignment{ui.AlignCenter, ui.AlignRight} {
+		t.Run(fmt.Sprint(alignment), func(t *testing.T) {
+			inputState := platform.TextInput{
+				X: 10, Y: 20, Width: 120, Height: 30, FontSize: 16, Alignment: alignment,
+				HideNativeOverlays: true,
+				State:              platform.TextState{Value: "abc", Selection: text.Range{Start: 3, End: 3}},
+				OnEvent:            func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
+			}
+			state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{advance: 10}}
+			if _, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}}); err != nil {
+				t.Fatal(err)
+			}
+			x, _, _, height := (&linuxIME{text: state}).caretRectangle()
+			if height == 0 {
+				t.Fatal("candidate rectangle fell back to the field's origin box")
+			}
+			if x <= inputState.X || x > inputState.X+inputState.Width {
+				t.Fatalf("candidate x = %v, want inside the field and right of its left edge %v", x, inputState.X)
+			}
+		})
+	}
+}
