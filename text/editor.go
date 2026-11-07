@@ -17,8 +17,9 @@ type Span struct {
 }
 
 const (
-	maxHistoryEntries = 256
-	maxHistoryRunes   = 256 * 1024
+	maxHistoryEntries     = 256
+	maxHistoryRunes       = 256 * 1024
+	historyPrimitiveRunes = 6
 	// maxSingleEditRunes is the largest edit the history keeps once it is all that
 	// is left: a replace-all in a big file is one undo unit however many runes it
 	// touches, and losing every undo because it is large would cost more than the
@@ -47,6 +48,10 @@ type historyEdit struct {
 	before, after     editorSelection
 	kind              editKind
 	primitives        []Edit
+}
+
+func (edit *historyEdit) retainedRunes() int {
+	return len(edit.removed) + len(edit.inserted) + historyPrimitiveRunes*len(edit.primitives)
 }
 
 type textChange struct {
@@ -613,7 +618,7 @@ func (editor *Editor) dropRedo() {
 		return
 	}
 	for index := editor.historyIndex; index < len(editor.history); index++ {
-		editor.historyRunes -= len(editor.history[index].removed) + len(editor.history[index].inserted)
+		editor.historyRunes -= editor.history[index].retainedRunes()
 	}
 	clear(editor.history[editor.historyIndex:])
 	editor.history = editor.history[:editor.historyIndex]
@@ -625,7 +630,7 @@ func (editor *Editor) trimHistory() {
 	remove := 0
 	for len(editor.history)-remove > 1 && (len(editor.history)-remove > maxHistoryEntries || editor.historyRunes > maxHistoryRunes) {
 		edit := editor.history[remove]
-		editor.historyRunes -= len(edit.removed) + len(edit.inserted)
+		editor.historyRunes -= edit.retainedRunes()
 		remove++
 	}
 	if len(editor.history)-remove == 1 && editor.historyRunes > maxSingleEditRunes {

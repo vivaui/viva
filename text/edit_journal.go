@@ -13,9 +13,10 @@ type Edit struct {
 const EditJournalLimit = 1024
 
 type editJournal struct {
-	revision uint64
-	entries  []Edit
-	oldest   int
+	revision  uint64
+	entries   []Edit
+	oldest    int
+	unlimited bool
 }
 
 // TrackEdits enables a bounded mutation journal and returns its current cursor.
@@ -95,7 +96,7 @@ func (editor *Editor) recordEdit(edit Edit) {
 	if journal == nil || edit.Removed == 0 && edit.Inserted == 0 {
 		return
 	}
-	if len(journal.entries) < EditJournalLimit {
+	if journal.unlimited || len(journal.entries) < EditJournalLimit {
 		journal.entries = append(journal.entries, edit)
 	} else {
 		journal.entries[journal.oldest] = edit

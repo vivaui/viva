@@ -119,17 +119,23 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 	} else {
 		slices.Reverse(primitives)
 	}
+	editor.commitBatch(Range{Start: start, End: end}, string(replacement), primitives, options.AfterSelection, changed)
+	return nil
+}
+
+func (editor *Editor) commitBatch(target Range, replacement string, primitives []Edit, after *Range, changed bool) {
 	journal := editor.journal
 	editor.journal = nil
-	editor.ReplaceRange(Range{Start: start, End: end}, string(replacement))
+	editor.ReplaceRange(target, replacement)
 	editor.journal = journal
-	if options.AfterSelection != nil {
-		editor.SetSelection(*options.AfterSelection)
+	if after != nil {
+		editor.SetSelection(*after)
 	}
 	if changed && editor.historyIndex > 0 {
 		editor.history[editor.historyIndex-1].primitives = primitives
 		editor.history[editor.historyIndex-1].after = editor.selectionState()
+		editor.historyRunes += historyPrimitiveRunes * len(primitives)
+		editor.trimHistory()
 	}
 	editor.recordBatchEdits(primitives, false)
-	return nil
 }
