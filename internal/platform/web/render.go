@@ -19,7 +19,7 @@ func (runtime *runtime) render() {
 	runtime.paths.beginFrame()
 	if runtime.painter.dirty {
 		runtime.painter.dirty = false
-		runtime.a11y.sync(runtime.painter.accessibility, runtime.painter.focused)
+		runtime.a11y.sync(runtime.painter.accessibility, runtime.painter.focus.Focused())
 		id, input := runtime.painter.activeTextInput()
 		runtime.a11y.text.sync(id, input, runtime.textInputChanged)
 	}

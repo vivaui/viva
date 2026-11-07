@@ -65,14 +65,14 @@ func TestPressingALabelFocusesAndClicksItsControl(t *testing.T) {
 	if !a.switched || a.clicks != 1 {
 		t.Fatalf("after pressing the label: switched=%v clicks=%d, want the switch on after one click", a.switched, a.clicks)
 	}
-	if focused := driver.painter.focused; focused != labelSwitch {
+	if focused := driver.painter.focus.Focused(); focused != labelSwitch {
 		t.Fatalf("focus is %v, want the switch", focused)
 	}
 	if err := driver.Click(30, 60); err != nil {
 		t.Fatal(err)
 	}
-	if !a.checked || driver.painter.focused != labelCheckbox {
-		t.Fatalf("after pressing the second label: checked=%v focus=%v", a.checked, driver.painter.focused)
+	if !a.checked || driver.painter.focus.Focused() != labelCheckbox {
+		t.Fatalf("after pressing the second label: checked=%v focus=%v", a.checked, driver.painter.focus.Focused())
 	}
 	// Pressing past the words, on the rest of the row, is not pressing the label.
 	if err := driver.Click(180, 60); err != nil {
@@ -85,16 +85,16 @@ func TestPressingALabelFocusesAndClicksItsControl(t *testing.T) {
 	if err := driver.Click(30, 100); err != nil {
 		t.Fatal(err)
 	}
-	if a.off || driver.painter.focused == labelOff {
-		t.Fatalf("a disabled control's label acted: off=%v focus=%v", a.off, driver.painter.focused)
+	if a.off || driver.painter.focus.Focused() == labelOff {
+		t.Fatalf("a disabled control's label acted: off=%v focus=%v", a.off, driver.painter.focus.Focused())
 	}
 	// The keyboard visits each control once, not once more for its label.
 	for _, want := range []ui.ID{labelSwitch, labelCheckbox, labelSwitch} {
 		if err := driver.Key(ui.KeyTab, 0); err != nil {
 			t.Fatal(err)
 		}
-		if driver.painter.focused != want {
-			t.Fatalf("Tab reached %v, want %v", driver.painter.focused, want)
+		if driver.painter.focus.Focused() != want {
+			t.Fatalf("Tab reached %v, want %v", driver.painter.focus.Focused(), want)
 		}
 	}
 }

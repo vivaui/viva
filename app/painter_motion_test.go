@@ -51,7 +51,7 @@ func (harness *motionHarness) click(t *testing.T) platform.Frame {
 	var frame platform.Frame
 	for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
 		var err error
-		frame, err = harness.painter.pointer(platform.PointerEvent{Kind: kind, X: 26, Y: 19})
+		frame, err = harness.painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 26, Y: 19})
 		if err != nil {
 			t.Fatal(err)
 		}

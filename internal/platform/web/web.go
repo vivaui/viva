@@ -450,7 +450,7 @@ func (runtime *runtime) bindEvents() {
 
 	surface.Call("addEventListener", "pointermove", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		event := args[0]
-		if runtime.painter.pointer(pointerEvent(ui.PointerMove, event)) {
+		if runtime.painter.pointerEvent(pointerEvent(ui.PointerMove, event)) {
 			runtime.requestFrame()
 		}
 		return nil
@@ -459,7 +459,7 @@ func (runtime *runtime) bindEvents() {
 		event := args[0]
 		pointerID := event.Get("pointerId").Int()
 		surface.Call("setPointerCapture", pointerID)
-		if runtime.painter.pointer(pointerEvent(ui.PointerDown, event)) {
+		if runtime.painter.pointerEvent(pointerEvent(ui.PointerDown, event)) {
 			runtime.requestFrame()
 		}
 		runtime.focusRoot.Call("focus", map[string]any{"preventScroll": true})
@@ -467,7 +467,7 @@ func (runtime *runtime) bindEvents() {
 	}))
 	surface.Call("addEventListener", "pointerup", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		event := args[0]
-		if runtime.painter.pointer(pointerEvent(ui.PointerUp, event)) {
+		if runtime.painter.pointerEvent(pointerEvent(ui.PointerUp, event)) {
 			runtime.requestFrame()
 		}
 		pointerID := event.Get("pointerId").Int()
@@ -477,13 +477,13 @@ func (runtime *runtime) bindEvents() {
 		return nil
 	}))
 	surface.Call("addEventListener", "pointerleave", js.FuncOf(func(_ js.Value, args []js.Value) any {
-		if runtime.painter.pointer(pointerEvent(ui.PointerExit, args[0])) {
+		if runtime.painter.pointerEvent(pointerEvent(ui.PointerExit, args[0])) {
 			runtime.requestFrame()
 		}
 		return nil
 	}))
 	surface.Call("addEventListener", "pointercancel", js.FuncOf(func(_ js.Value, args []js.Value) any {
-		if runtime.painter.pointer(pointerEvent(ui.PointerExit, args[0])) {
+		if runtime.painter.pointerCancel(pointerEvent(ui.PointerExit, args[0])) {
 			runtime.requestFrame()
 		}
 		pointerID := args[0].Get("pointerId").Int()

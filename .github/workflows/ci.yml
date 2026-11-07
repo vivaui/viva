@@ -130,6 +130,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: vet the browser target
         run: GOOS=js GOARCH=wasm go vet ./...
       - name: test under the Go wasm runtime
@@ -150,6 +153,10 @@ jobs:
           GOOS=js GOARCH=wasm go build \
             ./cmd/component-preview ./cmd/gallery-web \
             ./examples/guides/hello ./examples/guides/webview
+      - name: build the browser verification fixture
+        run: go run ./cmd/viva build --target web ./tools/webcheck/fixture -o build/webcheck
+      - name: drive the browser verification page
+        run: node tools/webcheck/check.mjs --dir build/webcheck
 
   # The whole test suite except the packages that carry darwin-only files, split
   # over several runners. .github/scripts/test-packages.sh decides what this

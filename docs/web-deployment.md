@@ -272,14 +272,15 @@ textbox, which is the browser's equivalent path.
 ### Parity boundary
 
 The application-facing API, component tree, canvas contract, input router and
-semantic model are shared. The native and browser backends still have separate
-painter implementations over those shared contracts, and the browser backend is
-an intentional subset where the document cannot supply a platform service.
-Component-level behavior is kept aligned by the contract tests in
-`internal/platform/web` and the visual-parity tooling, not by claiming that the
-two painters are already one implementation. Extracting a shared interaction
-core is the long-term way to remove the remaining synchronization risk; until
-then, a behavior added to one painter must be checked against the other and
+semantic model are shared. The interaction core — hit regions and layer order,
+focus, autofocus, pending focus, Escape targets, held-key pairing, press
+capture, click completion, cursor selection and text-editor ownership — lives in
+`internal/interaction` and is used by both painters. The painters themselves
+remain platform implementations: the native one publishes to the retained
+scene, renderer and native views, while the browser one paints Canvas2D and
+drives the DOM accessibility mirror. The browser backend is still an
+intentional subset where the document cannot supply a platform service. A
+behavior added to one painter must still be checked against the other and
 covered where it is observable without a real window.
 
 ## Design references
@@ -322,11 +323,23 @@ The browser-only integrations were exercised in Chrome 157 on localhost:
 - the download fallback of `SaveFileAsync` wrote the expected bytes to the
   browser's download directory.
 
-The shared interaction router and web painter are additionally covered by wasm
-tests for layered hit ordering, semantic-container exclusion, one-shot
-autofocus and focus requests, cursor selection, terminal key press/release
-pairing, focus-loss release, accessibility activation/focus routing and a
-static caller-painted canvas with a nil `Paint`.
+The shared interaction core is covered by platform-independent contract tests
+in `internal/interaction`: layered hit ordering, semantic-container exclusion,
+focus surviving a repaint, pending focus visible to the paint that reveals it,
+one-shot autofocus, key repeat and orphan-release pairing, press capture and
+click completion, cursor precedence, text-input ownership and slider steps.
+The web painter adds wasm tests for pointer event passes, pass-through
+backdrops, pointer cancel, a press that leaves the page, terminal key
+press/release pairing, focus-loss release, accessibility activation/focus
+routing and a static caller-painted canvas with a nil `Paint`.
+
+`tools/webcheck` is the browser-level gate. Its fixture paints a counter, a
+slider and a pass-through backdrop, and the CDP driver asserts that a real
+pointer click, Enter on the focused button, Tab traversal, a captured slider
+drag delivered through `Canvas.PointerOn`, a screen-reader range change and a
+backdrop that dismisses and then reaches the control beneath all work in
+Chromium. CI builds the fixture with `viva build --target web` and runs the
+driver in the `web` job.
 
 A headless Chrome run served the generated `index.html`, `.wasm` and
 `wasm_exec.js` over HTTP, rendered the gallery, and then invoked the DOM

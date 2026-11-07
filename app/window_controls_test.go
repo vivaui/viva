@@ -54,7 +54,7 @@ func newControlsFixture(t testing.TB, mutate func(*Config)) *controlsFixture {
 func (fixture *controlsFixture) click(t testing.TB, x, y float32) {
 	t.Helper()
 	for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
-		if _, err := fixture.painter.pointer(platform.PointerEvent{Kind: kind, Button: ui.PointerButtonPrimary, X: x, Y: y}); err != nil {
+		if _, err := fixture.painter.pointerEvent(platform.PointerEvent{Kind: kind, Button: ui.PointerButtonPrimary, X: x, Y: y}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -116,7 +116,7 @@ func TestClickingAWindowButtonActsAndNeverReachesTheApplication(t *testing.T) {
 		{Kind: platform.PointerMove, X: x, Y: 18}, {Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: x, Y: 18},
 		{Kind: platform.PointerMove, X: 200, Y: 200}, {Kind: platform.PointerUp, Button: ui.PointerButtonPrimary, X: 200, Y: 200},
 	} {
-		if _, err := fixture.painter.pointer(event); err != nil {
+		if _, err := fixture.painter.pointerEvent(event); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -157,12 +157,12 @@ func TestWindowButtonsPaintHoverPressedAndTheCloseColor(t *testing.T) {
 	if _, ok := fill(); ok {
 		t.Fatal("a resting button has a background")
 	}
-	fixture.painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: close, Y: 18})
+	fixture.painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: close, Y: 18})
 	hover, ok := fill()
 	if !ok || hover.Red < 0.7 || hover.Alpha != 1 {
 		t.Fatalf("hovered close background = %+v, %t, want the red one", hover, ok)
 	}
-	fixture.painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: close, Y: 18})
+	fixture.painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: close, Y: 18})
 	if pressed, _ := fill(); pressed.Alpha >= hover.Alpha {
 		t.Fatalf("pressed close %+v is not fainter than hover %+v", pressed, hover)
 	}
@@ -199,7 +199,7 @@ func TestDesktopThemeStyling(t *testing.T) {
 
 	// Default theme produces rectangular buttons with 0 radius.
 	fixture.painter.controls.theme = desktopDefault
-	if _, err := fixture.painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: closeX, Y: 18}); err != nil {
+	if _, err := fixture.painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: closeX, Y: 18}); err != nil {
 		t.Fatal(err)
 	}
 	var defaultRect *ui.Rectangle
@@ -378,7 +378,7 @@ func TestPointerOverAWindowEdgeShowsTheResizeCursor(t *testing.T) {
 	fixture.painter.setCursor = func(cursor Cursor) error { cursors = append(cursors, cursor); return nil }
 	move := func(x, y float32) {
 		t.Helper()
-		if _, err := fixture.painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: x, Y: y}); err != nil {
+		if _, err := fixture.painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: x, Y: y}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -415,7 +415,7 @@ func TestPointerOverAWindowEdgeShowsTheResizeCursor(t *testing.T) {
 
 	// Leaving the window clears it.
 	move(2, 150)
-	fixture.painter.pointer(platform.PointerEvent{Kind: platform.PointerExit})
+	fixture.painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerExit})
 	if last() != CursorArrow {
 		t.Errorf("after the pointer left, cursor = %d", last())
 	}
@@ -431,8 +431,8 @@ func TestPointerOverAWindowEdgeShowsTheResizeCursor(t *testing.T) {
 func TestMovingAlongAnEdgeDoesNotRepaint(t *testing.T) {
 	fixture := newControlsFixture(t, nil)
 	fixture.painter.setCursor = func(Cursor) error { return nil }
-	fixture.painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 2, Y: 120})
-	frame, err := fixture.painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 2, Y: 140})
+	fixture.painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 2, Y: 120})
+	frame, err := fixture.painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 2, Y: 140})
 	if err != nil {
 		t.Fatal(err)
 	}
