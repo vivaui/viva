@@ -35,8 +35,8 @@ func TestWindowAlwaysOnTopChangesOnlyAfterSuccessfulRequest(t *testing.T) {
 	if err := window.SetAlwaysOnTop(true); err != nil || !window.AlwaysOnTop() {
 		t.Fatalf("accepted topmost request = %v, state=%v", err, window.AlwaysOnTop())
 	}
-	if err := window.SetAlwaysOnTop(true); err != nil || len(control.requests) != 2 {
-		t.Fatalf("repeated request = %v, requests=%v", err, control.requests)
+	if err := window.SetAlwaysOnTop(true); err != nil || len(control.requests) != 3 {
+		t.Fatalf("a repeated request must still reach the host, got %v, requests=%v", err, control.requests)
 	}
 	if err := window.SetAlwaysOnTop(false); err != nil || window.AlwaysOnTop() {
 		t.Fatalf("clear topmost = %v, state=%v", err, window.AlwaysOnTop())
