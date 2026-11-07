@@ -666,7 +666,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			// Draw the new size before returning to the window manager. The swap
 			// chain is scaled with DXGI_SCALING_NONE, so a frame that has not
 			// arrived yet is shown at its own size instead of stretched over the
-			// new client area.
+			// new client area. Maximize, restore and DPI changes take this path
+			// too; it is the same paint the queued WM_PAINT would have done, just
+			// earlier.
 			if err := state.presentImmediate(int(uint16(second)), int(uint16(second>>16))); err != nil {
 				state.fail(err)
 			} else {

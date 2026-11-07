@@ -442,9 +442,9 @@ func (renderer *renderer) present(width, height int, scale float32) error {
 }
 
 // presentWithSync presents with a DXGI sync interval. A live resize presents
-// immediately (0) and then waits for the desktop to compose (DwmFlush), so the
-// frame drawn for the new size and the window's new bounds land in the same
-// composition instead of the previous frame being stretched across the resize.
+// immediately (0) so the frame drawn for the new size reaches the swap chain
+// before WM_SIZE returns; the swap chain itself uses DXGI_SCALING_NONE, so an
+// older frame is shown at its own size instead of stretched over the window.
 func (renderer *renderer) presentWithSync(width, height int, scale float32, sync uintptr) error {
 	if width <= 0 || height <= 0 {
 		return nil
