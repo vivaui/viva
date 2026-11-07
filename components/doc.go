@@ -100,8 +100,8 @@
 //   - Code editor: `CodeEditor` lays code out on a grid of character cells in a
 //     fixed-pitch font and paints only the rows in view, each as one label
 //     whatever colors the caller's highlighter gives it: line numbers, a
-//     current-line tint, bracket matching, find marks, soft wrap or sideways
-//     scrolling, and draggable scrollbars, with native selection and IME
+//     current-line tint, bracket matching, find marks, soft-wrap end markers,
+//     sideways scrolling and draggable scrollbars, with native selection and IME
 //     geometry retained. `CodeEditorCommandForKey` maps key events to the
 //     editing commands of a text.Editor given code options (SetCode), and
 //     `TextareaMovementForKey` with `CodeEditor.Move` moves by row. The scroll
