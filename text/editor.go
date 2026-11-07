@@ -46,6 +46,7 @@ type historyEdit struct {
 	removed, inserted []rune
 	before, after     editorSelection
 	kind              editKind
+	primitives        []Edit
 }
 
 type textChange struct {
@@ -497,7 +498,7 @@ func (editor *Editor) Undo() bool {
 	}
 	editor.historyIndex--
 	edit := &editor.history[editor.historyIndex]
-	editor.replaceExact(edit.start, len(edit.inserted), edit.removed)
+	editor.replaceHistory(edit, true)
 	editor.restoreSelection(edit.before)
 	editor.BreakUndoGroup()
 	return true
@@ -509,7 +510,7 @@ func (editor *Editor) Redo() bool {
 		return false
 	}
 	edit := &editor.history[editor.historyIndex]
-	editor.replaceExact(edit.start, len(edit.removed), edit.inserted)
+	editor.replaceHistory(edit, false)
 	editor.restoreSelection(edit.after)
 	editor.historyIndex++
 	editor.BreakUndoGroup()

@@ -33,6 +33,8 @@ func (editor *Editor) TrackEdits() uint64 {
 // future, or older edits expired. Consumers must not apply a partial sequence
 // in that case. Typing, accepted restrictions, overwrite, IME and Undo/Redo use
 // this same byte stream; moving a selection or clearing Undo does not enter it.
+// ReplaceRanges reports disjoint ranges from last to first, and its Undo reports
+// their inverses from first to last, without treating untouched gaps as edits.
 func (editor *Editor) EditsSince(cursor uint64, dst []Edit) ([]Edit, uint64, bool) {
 	dst = dst[:0]
 	journal := editor.journal
@@ -99,4 +101,33 @@ func (editor *Editor) recordEdit(edit Edit) {
 		journal.oldest = (journal.oldest + 1) % EditJournalLimit
 	}
 	journal.revision++
+}
+
+func (editor *Editor) recordBatchEdits(primitives []Edit, inverse bool) {
+	if editor.journal == nil {
+		return
+	}
+	if inverse {
+		for _, edit := range primitives {
+			editor.recordEdit(Edit{Start: edit.Start, Removed: edit.Inserted, Inserted: edit.Removed})
+		}
+	} else {
+		for index := len(primitives) - 1; index >= 0; index-- {
+			editor.recordEdit(primitives[index])
+		}
+	}
+}
+
+func (editor *Editor) replaceHistory(edit *historyEdit, inverse bool) {
+	journal := editor.journal
+	if len(edit.primitives) > 0 {
+		editor.journal = nil
+	}
+	if inverse {
+		editor.replaceExact(edit.start, len(edit.inserted), edit.removed)
+	} else {
+		editor.replaceExact(edit.start, len(edit.removed), edit.inserted)
+	}
+	editor.journal = journal
+	editor.recordBatchEdits(edit.primitives, inverse)
 }

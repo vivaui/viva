@@ -130,3 +130,42 @@ func TestEditJournalDoesNotAllocateFullTextForEachBatchMutation(t *testing.T) {
 		t.Fatalf("tracked batch allocations = %.0f, untracked %.0f: journal rebuilt text per edit", tracked, plain)
 	}
 }
+
+func TestEditJournalKeepsDisjointBatchPrimitivesAcrossUndoRedo(t *testing.T) {
+	editor := NewEditor("aaXbbYcc")
+	cursor := editor.TrackEdits()
+	if err := editor.ReplaceRanges([]Replacement{
+		{Range: Range{Start: 2, End: 3}, Text: "猫"},
+		{Range: Range{Start: 5, End: 6}, Text: "é"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if editor.String() != "aa猫bbécc" || !editor.Undo() || editor.String() != "aaXbbYcc" || editor.CanUndo() || !editor.Redo() {
+		t.Fatalf("batch history changed: %q", editor.String())
+	}
+	edits, _, complete := editor.EditsSince(cursor, nil)
+	want := []Edit{
+		{Start: 5, Removed: 1, Inserted: 2}, {Start: 2, Removed: 1, Inserted: 3},
+		{Start: 2, Removed: 3, Inserted: 1}, {Start: 5, Removed: 2, Inserted: 1},
+		{Start: 5, Removed: 1, Inserted: 2}, {Start: 2, Removed: 1, Inserted: 3},
+	}
+	if !complete || !slices.Equal(edits, want) {
+		t.Fatalf("batch primitives = %+v complete=%v, want %+v", edits, complete, want)
+	}
+}
+
+func TestEditJournalCanStartAfterAnExistingBatchHistoryUnit(t *testing.T) {
+	editor := NewEditor("aaXbbYcc")
+	if err := editor.ReplaceRanges([]Replacement{
+		{Range: Range{Start: 2, End: 3}, Text: "猫"},
+		{Range: Range{Start: 5, End: 6}, Text: "é"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cursor := editor.TrackEdits()
+	editor.Undo()
+	edits, _, complete := editor.EditsSince(cursor, nil)
+	if !complete || !slices.Equal(edits, []Edit{{Start: 2, Removed: 3, Inserted: 1}, {Start: 5, Removed: 2, Inserted: 1}}) {
+		t.Fatalf("late tracking of batch undo = %+v, %v", edits, complete)
+	}
+}
