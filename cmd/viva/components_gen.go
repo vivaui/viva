@@ -94,6 +94,7 @@ var componentFiles = map[string]string{
 	"toggle-group":       "toggle_group.go.txt",
 	"tooltip":            "tooltip.go.txt",
 	"tree":               "tree.go.txt",
+	"tree-navigation":    "tree_navigation.go.txt",
 	"typography":         "typography.go.txt",
 }
 
