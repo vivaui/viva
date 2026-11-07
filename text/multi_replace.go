@@ -3,6 +3,7 @@ package text
 import (
 	"fmt"
 	"slices"
+	"unicode/utf8"
 )
 
 // Replacement changes one half-open rune range in the editor's original text.
@@ -32,10 +33,11 @@ func (editor *Editor) ReplaceRanges(edits []Replacement) error {
 	return editor.ReplaceRangesWith(edits, ReplaceRangesOptions{})
 }
 
-// ReplaceRangesWith applies a preflighted batch with optional primitive order
-// and final selection. An empty batch is a no-op. Unchanged text is also a no-op
-// unless ApplyUnchanged is set; otherwise final selection is not changed.
-func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRangesOptions) error {
+// ValidateReplaceRanges checks the same constraints as ReplaceRangesWith without
+// changing text, selection, composition, history or the edit journal. It does not
+// allocate a replacement buffer. Editors remain single-threaded; callers must
+// not mutate a source between validating it and committing a coordinated batch.
+func (editor *Editor) ValidateReplaceRanges(edits []Replacement, options ReplaceRangesOptions) error {
 	if len(edits) == 0 {
 		return nil
 	}
@@ -46,12 +48,35 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 		return fmt.Errorf("cannot replace ranges in a restricted editor")
 	}
 	previousStart, previousEnd := -1, -1
+	resultingRunes := len(editor.runes)
 	for index, edit := range edits {
 		if edit.Range.Start < 0 || edit.Range.End < edit.Range.Start || edit.Range.End > len(editor.runes) ||
 			index > 0 && (edit.Range.Start <= previousStart || edit.Range.Start < previousEnd) {
 			return fmt.Errorf("invalid or overlapping replacement at index %d", index)
 		}
+		remaining := resultingRunes - (edit.Range.End - edit.Range.Start)
+		inserted := utf8.RuneCountInString(edit.Text)
+		if inserted > int(^uint(0)>>1)-remaining {
+			return fmt.Errorf("replacement result is too large")
+		}
+		resultingRunes = remaining + inserted
 		previousStart, previousEnd = edit.Range.Start, edit.Range.End
+	}
+	if after := options.AfterSelection; after != nil && (after.Start < 0 || after.End < 0 || after.Start > resultingRunes || after.End > resultingRunes) {
+		return fmt.Errorf("final selection is outside the replacement result")
+	}
+	return nil
+}
+
+// ReplaceRangesWith validates and applies a batch with optional primitive order
+// and final selection. An empty batch is a no-op. Unchanged text is also a no-op
+// unless ApplyUnchanged is set; otherwise final selection is not changed.
+func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRangesOptions) error {
+	if err := editor.ValidateReplaceRanges(edits, options); err != nil {
+		return err
+	}
+	if len(edits) == 0 {
+		return nil
 	}
 	start, end := edits[0].Range.Start, edits[len(edits)-1].Range.End
 	replacement := make([]rune, 0, end-start)
@@ -80,10 +105,6 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 		replacement = append(replacement, editor.runes[position:edit.Range.Start]...)
 		replacement = append(replacement, inserted...)
 		position = edit.Range.End
-	}
-	resultingRunes := len(editor.runes) - (end - start) + len(replacement)
-	if after := options.AfterSelection; after != nil && (after.Start < 0 || after.End < 0 || after.Start > resultingRunes || after.End > resultingRunes) {
-		return fmt.Errorf("final selection is outside the replacement result")
 	}
 	changed := !slices.Equal(replacement, editor.runes[start:end])
 	if !changed && !options.ApplyUnchanged {
