@@ -239,7 +239,7 @@ func (a *gtkApplication) writeFiles(paths []string) error {
 		return err
 	}
 	if c.setURIs == nil {
-		return platform.ErrUnsupported
+		return ErrUnsupported
 	}
 	encoded := make([][]byte, len(paths))
 	pointers := make([]uintptr, len(paths)+1)
