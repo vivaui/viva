@@ -790,10 +790,12 @@ type TextInput struct {
 	// Terminal makes the editor a preedit surface for a character-cell
 	// terminal: text in the fixed-pitch font, no caret and no selection, and
 	// keys that are not text delivered as raw key events (see KeyEvent.Text).
-	Terminal     bool
-	MonoFace     ui.MonoFace
+	Terminal bool
+	MonoFace ui.MonoFace
+	// CopyOverride makes Copy/Cut use CopyText instead of the native selection.
 	CopyOverride bool
-	CopyText     func() string
+	// CopyText is evaluated only for a non-secure Copy/Cut action.
+	CopyText func() string
 	// AltSendsEscape routes printable Alt/Option chords in a Terminal input to
 	// raw key delivery, with the base character in KeyEvent.Text.
 	AltSendsEscape bool
@@ -825,6 +827,8 @@ type TextInput struct {
 	HideNativeOverlays bool
 }
 
+// ClipboardState presents the application-owned selection to Copy/Cut without
+// evaluating CopyText during input synchronization or for secure fields.
 func (input TextInput) ClipboardState() TextState {
 	if !input.CopyOverride || input.Secure {
 		return input.State
