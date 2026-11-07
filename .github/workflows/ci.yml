@@ -109,8 +109,6 @@ jobs:
               go vet ./internal/... ./app/ ./cmd/... ./components/... ./update/... &
             pids="$pids $!"
           done
-          GOOS=js GOARCH=wasm go vet ./internal/platform/web/ ./app/ &
-          pids="$pids $!"
           for pid in $pids; do
             wait "$pid" || status=1
           done
@@ -119,6 +117,39 @@ jobs:
         run: |
           go vet -tags vivagtk ./app ./internal/platform/linux
           go test -tags vivagtk ./internal/platform/linux -run '^TestGTKWaylandAlwaysOnTopReportsUnsupported$' -count=1
+
+  # The browser target is a release target: it compiles every package, runs the
+  # shared tests under GOOS=js, and builds the browser entry points and a guide.
+  web:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: vet the browser target
+        run: GOOS=js GOARCH=wasm go vet ./...
+      - name: test under the Go wasm runtime
+        run: |
+          # cmd/viva is the host build tool; its tests invoke a host Go toolchain
+          # and package installers, not the browser runtime.
+          # A package with no files for js/wasm (the native window backends,
+          # host-only tools) cannot be tested on this target; go list prints a
+          # blank line for it, which is dropped here.
+          packages=$(GOOS=js GOARCH=wasm CGO_ENABLED=0 \
+            go list -f '{{if .GoFiles}}{{.ImportPath}}{{end}}' ./... |
+            sed '/^$/d' | grep -v '^github.com/vivaui/viva/cmd/viva$')
+          # shellcheck disable=SC2086 # one package per word, by design
+          GOOS=js GOARCH=wasm go test $packages \
+            -exec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec" -count=1
+      - name: build browser entry points
+        run: |
+          GOOS=js GOARCH=wasm go build \
+            ./cmd/component-preview ./cmd/gallery-web \
+            ./examples/guides/hello ./examples/guides/webview
 
   # The whole test suite except the packages that carry darwin-only files, split
   # over several runners. .github/scripts/test-packages.sh decides what this
@@ -248,7 +279,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, cross-vet, test, darwin, windows-materials, benchmarks]
+    needs: [changes, lint, cross-vet, web, test, darwin, windows-materials, benchmarks]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed
