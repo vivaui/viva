@@ -93,6 +93,8 @@ type Driver struct {
 	saveFileCount            int
 	lastSaveFileRequest      SaveFileOptions
 	hasSaveFileRequest       bool
+	lastSaveFileCheckbox     SaveFileCheckbox
+	hasSaveFileCheckbox      bool
 }
 
 // NewDriver creates a driver for config, painting into canvas (a fresh canvas

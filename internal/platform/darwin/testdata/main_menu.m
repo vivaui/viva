@@ -38,6 +38,8 @@ int main(void) {
                        @selector(hideOtherApplications:), @"Option+Command+H hides others");
         expectShortcut(menu, @"q", command, @selector(terminate:), @"Command+Q quits");
         expectShortcut(menu, @"m", command, @selector(performMiniaturize:), @"Command+M minimizes");
+        expectShortcut(menu, @"f", command | NSEventModifierFlagControl,
+                       @selector(toggleFullScreen:), @"Control+Command+F toggles fullscreen");
         if (find(menu, @"w", command) != nil) {
             fprintf(stderr, "Command+W is a menu key equivalent, so the application never sees it\n");
             failures++;
