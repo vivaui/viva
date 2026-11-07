@@ -198,6 +198,8 @@ type portalFileRequest struct {
 	multiple, directory bool
 	filters             []portalFilter
 	currentName         string
+	checkboxLabel       string
+	checkboxChecked     bool
 }
 
 // encodeFileRequest is the arguments of OpenFile or SaveFile: the parent window, the
@@ -243,6 +245,22 @@ func encodeFileRequest(request portalFileRequest, token string) []byte {
 	if request.currentName != "" {
 		option("current_name", "s", func() { encoder.String(request.currentName) })
 	}
+	if request.method == "SaveFile" && request.checkboxLabel != "" {
+		option("choices", "a(ssa(ss)s)", func() {
+			choices := encoder.BeginArray(8)
+			encoder.Align(8)
+			encoder.String("viva_save_checkbox")
+			encoder.String(request.checkboxLabel)
+			options := encoder.BeginArray(8)
+			encoder.EndArray(options)
+			if request.checkboxChecked {
+				encoder.String("true")
+			} else {
+				encoder.String("false")
+			}
+			encoder.EndArray(choices)
+		})
+	}
 	encoder.EndArray(options)
 	return encoder.Bytes()
 }
@@ -250,6 +268,11 @@ func encodeFileRequest(request portalFileRequest, token string) []byte {
 // parseFileResponse reads the Response signal of a portal request: the code (0 the user
 // chose, anything else not) and the URIs chosen.
 func parseFileResponse(body []byte) (code uint32, uris []string, err error) {
+	code, uris, _, err = parseFileResponseWithChoices(body)
+	return code, uris, err
+}
+
+func parseFileResponseWithChoices(body []byte) (code uint32, uris []string, choices map[string]string, err error) {
 	decoder := dbus.NewDecoder(body)
 	code = decoder.Uint32()
 	end := decoder.ArrayLength(8)
@@ -264,9 +287,42 @@ func parseFileResponse(body []byte) (code uint32, uris []string, err error) {
 			}
 			continue
 		}
+		if key == "choices" && signature == "a(ss)" {
+			choices = make(map[string]string)
+			choiceEnd := decoder.ArrayLength(8)
+			for decoder.Pos() < choiceEnd && decoder.Err() == nil {
+				decoder.Align(8)
+				id, value := decoder.String(), decoder.String()
+				if _, duplicate := choices[id]; duplicate {
+					return 0, nil, nil, fmt.Errorf("duplicate portal choice %q", id)
+				}
+				choices[id] = value
+			}
+			continue
+		}
 		decoder.Skip(signature)
 	}
-	return code, uris, decoder.Err()
+	return code, uris, choices, decoder.Err()
+}
+
+func portalSaveCheckboxResult(paths []string, choices map[string]string, canceled bool, err error) (string, bool, bool, error) {
+	if err != nil {
+		return "", false, false, err
+	}
+	if canceled {
+		return "", false, true, nil
+	}
+	if len(paths) != 1 {
+		return "", false, false, fmt.Errorf("linux: save file dialog returned %d paths", len(paths))
+	}
+	switch choices["viva_save_checkbox"] {
+	case "true":
+		return paths[0], true, false, nil
+	case "false":
+		return paths[0], false, false, nil
+	default:
+		return "", false, false, fmt.Errorf("%w: file chooser did not return a valid save checkbox choice", errServiceMissing)
+	}
 }
 
 // requestHandle is the object path the portal gives the request a connection makes with a
@@ -282,43 +338,48 @@ var requestCounter atomic.Uint32
 // when the user dismissed it. An error wrapping errServiceMissing means no dialog was
 // shown and the caller may use another way.
 func portalChoose(request portalFileRequest) (paths []string, canceled bool, err error) {
+	paths, _, canceled, err = portalChooseWithChoices(request)
+	return paths, canceled, err
+}
+
+func portalChooseWithChoices(request portalFileRequest) (paths []string, choices map[string]string, canceled bool, err error) {
 	conn, err := dbus.DialSession()
 	if err != nil {
-		return nil, false, fmt.Errorf("%w: %v", errServiceMissing, err)
+		return nil, nil, false, fmt.Errorf("%w: %v", errServiceMissing, err)
 	}
 	defer conn.Close()
 	token := fmt.Sprintf("viva%d_%d", os.Getpid(), requestCounter.Add(1))
 	handle := requestHandle(conn.UniqueName(), token)
 	if err := addMatch(conn, "type='signal',interface='"+portalRequest+"',member='Response',path='"+handle+"'"); err != nil {
-		return nil, false, fmt.Errorf("%w: %v", errServiceMissing, err)
+		return nil, nil, false, fmt.Errorf("%w: %v", errServiceMissing, err)
 	}
 	if err := addMatch(conn, portalGoneMatch); err != nil {
-		return nil, false, fmt.Errorf("%w: %v", errServiceMissing, err)
+		return nil, nil, false, fmt.Errorf("%w: %v", errServiceMissing, err)
 	}
 	reply, err := conn.Call(portalName, portalPath, portalChooser, request.method, "ssa{sv}", encodeFileRequest(request, token))
 	if err != nil {
 		if busServiceMissing(err) {
-			return nil, false, fmt.Errorf("%w: %v", errServiceMissing, err)
+			return nil, nil, false, fmt.Errorf("%w: %v", errServiceMissing, err)
 		}
 		// The chooser's backend (the desktop's own portal implementation) is what is
 		// missing when the portal itself answers this way.
 		var failure *dbus.Error
 		if errors.As(err, &failure) && strings.HasPrefix(failure.Name, "org.freedesktop.portal.Error") {
-			return nil, false, fmt.Errorf("%w: %v", errServiceMissing, err)
+			return nil, nil, false, fmt.Errorf("%w: %v", errServiceMissing, err)
 		}
-		return nil, false, fmt.Errorf("linux: file chooser portal: %w", err)
+		return nil, nil, false, fmt.Errorf("linux: file chooser portal: %w", err)
 	}
 	if actual := reply.Args().String(); actual != "" && actual != handle {
 		// A portal older than the token convention picks the path itself.
 		handle = actual
 		if err := addMatch(conn, "type='signal',interface='"+portalRequest+"',member='Response',path='"+handle+"'"); err != nil {
-			return nil, false, err
+			return nil, nil, false, err
 		}
 	}
 	for {
 		messages, err := conn.Wait(time.Minute)
 		if err != nil {
-			return nil, false, fmt.Errorf("linux: file chooser portal: %w", err)
+			return nil, nil, false, fmt.Errorf("linux: file chooser portal: %w", err)
 		}
 		for _, message := range messages {
 			if message.Type != dbus.TypeSignal {
@@ -326,28 +387,28 @@ func portalChoose(request portalFileRequest) (paths []string, canceled bool, err
 			}
 			switch {
 			case message.Member == "Response" && message.Path == handle:
-				code, uris, err := parseFileResponse(message.Body)
+				code, uris, choices, err := parseFileResponseWithChoices(message.Body)
 				if err != nil {
-					return nil, false, fmt.Errorf("linux: file chooser portal answered badly: %w", err)
+					return nil, nil, false, fmt.Errorf("linux: file chooser portal answered badly: %w", err)
 				}
 				if code != 0 {
 					// 1 is the user dismissing the dialog, and 2 "ended in some other
 					// way", which is what a GTK backend answers to Escape; no toolkit
 					// tells the two apart for the user.
-					return nil, true, nil
+					return nil, nil, true, nil
 				}
 				for _, uri := range uris {
 					path, ok := fileURIPath(uri)
 					if !ok {
-						return nil, false, fmt.Errorf("linux: file chooser portal returned %q, which is not a local file", uri)
+						return nil, nil, false, fmt.Errorf("linux: file chooser portal returned %q, which is not a local file", uri)
 					}
 					paths = append(paths, path)
 				}
-				return paths, false, nil
+				return paths, choices, false, nil
 			case message.Member == "NameOwnerChanged" && message.Signature == "sss":
 				arguments := message.Args()
 				if name, _, owner := arguments.String(), arguments.String(), arguments.String(); name == portalName && owner == "" {
-					return nil, false, fmt.Errorf("linux: the desktop portal went away while its file chooser was open")
+					return nil, nil, false, fmt.Errorf("linux: the desktop portal went away while its file chooser was open")
 				}
 			}
 		}

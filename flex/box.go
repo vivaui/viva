@@ -148,12 +148,11 @@ func (b Box) Justify(a Align) Box { b.n().justify = a; return b }
 func (b Box) Center() Box { return b.Items(Center).Justify(Center) }
 
 // Background fills the element's rectangle; Radius rounds it; Border draws a
-// line of the given width inside it; HoverBackground replaces the fill while the
-// pointer is over an element that has an ID. On a control (an Input, a Select, a
-// Button), Radius is also the radius of the control's own corners in place of the
-// theme's.
-func (b Box) Background(c ui.Color) Box      { b.n().background = c; return b }
-func (b Box) HoverBackground(c ui.Color) Box { b.f.extra(b.i).hover = c; return b }
+// line of the given width inside it. How the element looks while the pointer is
+// over it, pressed or focused is declared with Hover, Pressed and Focus (see
+// style.go). On a control (an Input, a Select, a Button), Radius is also the
+// radius of the control's own corners in place of the theme's.
+func (b Box) Background(c ui.Color) Box { b.n().background = c; return b }
 func (b Box) Radius(v float32) Box {
 	n := b.n()
 	n.radius, n.flags = v, n.flags|flagHasRadius

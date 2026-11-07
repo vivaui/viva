@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
@@ -95,5 +96,79 @@ func TestPresentGivesUpOnADeviceThatStaysLost(t *testing.T) {
 	}
 	if renderer.recoveries != maxLossRecoveries {
 		t.Fatalf("recoveries = %d, want %d", renderer.recoveries, maxLossRecoveries)
+	}
+}
+
+func TestResizeRecordsCommandsAfterStageRecovery(t *testing.T) {
+	for _, loss := range []struct {
+		name   string
+		status int32
+	}{{"device", vkErrorDeviceLost}, {"surface", vkErrorSurfaceLost}} {
+		t.Run(loss.name, func(t *testing.T) {
+			win, renderer := newWindowRenderer(t, nil)
+			size := [2]uint32{160, 100}
+			win.api.configureWindow(win.connection, win.id, xcbConfigWindowWidth|xcbConfigWindowHeight, &size[0])
+			win.api.flush(win.connection)
+			deadline := time.Now().Add(3 * time.Second)
+			for {
+				width, height := renderer.surfaceSize(size[0], size[1])
+				if width == size[0] && height == size[1] {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatalf("surface stayed %dx%d", width, height)
+				}
+				time.Sleep(time.Millisecond)
+			}
+			win.width, win.height = size[0], size[1]
+			if renderer.width == win.width && renderer.height == win.height {
+				t.Fatal("test needs a pending swapchain resize")
+			}
+			config := &platform.Config{OnResize: func(platform.Size) (platform.Frame, error) {
+				return platform.Frame{
+					Rectangles: []render.Rectangle{{Kind: scene.KindRectangle, Bounds: scene.Rect{Width: 160, Height: 100}, Color: scene.Color{Red: 1, Alpha: 1}}},
+					Update:     render.Update{Count: 1, Rebuild: true},
+				}, nil
+			}}
+			state := &linuxWindowState{win: win, renderer: renderer, config: *config, text: &linuxTextInput{config: config}}
+
+			recorded := make(map[uintptr]bool)
+			reset := renderer.api.resetCommandPool
+			renderer.api.resetCommandPool = func(device, pool uintptr, flags uint32) int32 {
+				clear(recorded)
+				return reset(device, pool, flags)
+			}
+			end := renderer.api.endCommandBuffer
+			renderer.api.endCommandBuffer = func(command uintptr) int32 {
+				status := end(command)
+				if status == vkSuccess {
+					recorded[command] = true
+				}
+				return status
+			}
+			wait := renderer.api.waitForFences
+			lost := true
+			renderer.api.waitForFences = func(device uintptr, count uint32, fences *uintptr, all uint32, timeout uint64) int32 {
+				if lost {
+					lost = false
+					return loss.status
+				}
+				return wait(device, count, fences, all, timeout)
+			}
+			submit := renderer.api.queueSubmit
+			renderer.api.queueSubmit = func(queue uintptr, count uint32, info *vkSubmitInfo, fence uintptr) int32 {
+				if info.CommandCount != 0 && !recorded[*info.Commands] {
+					t.Errorf("submitted reset command buffer after %d recoveries at %dx%d", renderer.recoveries, renderer.width, renderer.height)
+					return vkErrorInitializationFailed // keep invalid commands away from the driver
+				}
+				return submit(queue, count, info, fence)
+			}
+			if err := state.resized(); err != nil {
+				t.Fatalf("resize: %v", err)
+			}
+			if renderer.recoveries != 1 || renderer.submissions != 1 {
+				t.Fatalf("recoveries=%d submissions=%d, want one recovered frame", renderer.recoveries, renderer.submissions)
+			}
+		})
 	}
 }

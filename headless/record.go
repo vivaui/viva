@@ -20,6 +20,12 @@ type RecordOptions struct {
 	// longer than a transition to include its end: a frame is written for each
 	// interval it is on screen, not for the instant the window closes.
 	Duration time.Duration
+	// ShowInput draws the input the session delivered lately over the frames: a
+	// growing, fading ring where the pointer pressed, and a chip at the bottom of
+	// the window naming the keys or text typed. It shows a click made just before
+	// Record, so a script reads as it is done: click, then record what follows.
+	// Without it the frames are the window's own pixels and nothing else.
+	ShowInput bool
 	// FPS is how many frames a second the recording samples, at most 120: that
 	// is the cadence the driver paints animating frames at, so a faster rate
 	// would only repeat them. Zero means 60.
@@ -89,6 +95,8 @@ func (session *Session) Record(dir string, options RecordOptions) (int, error) {
 	if fps < 1 || fps > maxRecordFPS {
 		return 0, fmt.Errorf("headless: record fps must be between 1 and %d, got %d", maxRecordFPS, options.FPS)
 	}
+	session.showInput = options.ShowInput
+	defer func() { session.showInput = false }()
 	first, err := session.Image()
 	if err != nil {
 		return 0, err

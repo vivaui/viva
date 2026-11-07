@@ -35,6 +35,21 @@ func TestTextInputRuneUTF16Conversions(t *testing.T) {
 	}
 }
 
+func TestTextInputCSSAlignment(t *testing.T) {
+	for _, testcase := range []struct {
+		alignment ui.Alignment
+		want      string
+	}{
+		{ui.AlignLeft, "left"},
+		{ui.AlignCenter, "center"},
+		{ui.AlignRight, "right"},
+	} {
+		if got := textAlignCSS(testcase.alignment); got != testcase.want {
+			t.Errorf("CSS text alignment = %q, want %q", got, testcase.want)
+		}
+	}
+}
+
 func TestTextInputRangeConversionsClampAndOrder(t *testing.T) {
 	value := "Go😀中"
 	start, end := runeRangeToUTF16(value, text.Range{Start: 3, End: 1})

@@ -108,7 +108,7 @@ func (state *windowState) queryCharacterPosition(parameter uintptr) uintptr {
 	}
 	x, y, height := state.caretCell()
 	if !input.Placed {
-		x = input.X + state.textCaret(input.FontSize, index)
+		x = state.alignedCaretX(index)
 	}
 	scale := state.scale
 	origin := point{X: int32(x * scale), Y: int32(y * scale)}

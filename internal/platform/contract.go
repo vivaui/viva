@@ -211,6 +211,10 @@ var ErrNoGraphics = errors.New("platform: no graphics driver")
 // ErrFullscreenUnsupported means this host or window kind cannot go fullscreen.
 var ErrFullscreenUnsupported = errors.New("platform: fullscreen is unsupported")
 
+// ErrAlwaysOnTopUnsupported means this host or window kind cannot keep a window
+// above others.
+var ErrAlwaysOnTopUnsupported = errors.New("platform: always-on-top is unsupported")
+
 // ErrStatusAreaUnavailable is returned by AddStatusItem when the desktop has no
 // status area to put an icon in, as a Linux session without a StatusNotifier
 // host. The application keeps running; it only has no icon.
@@ -770,6 +774,13 @@ type TextInput struct {
 	Height   float32
 	FontSize float32
 	Weight   float32
+	// Alignment places a fitted line inside the field. It is a physical edge:
+	// AlignLeft, AlignCenter or AlignRight, already resolved for the text's
+	// direction. A caller holding an AlignStart or AlignEnd passes it through
+	// ResolveTextAlignment first, which is what a viva window does, so that a
+	// right-to-left line is not silently drawn left-aligned. Terminal and
+	// self-placed inputs ignore it.
+	Alignment ui.Alignment
 	// Layer keeps native editor visuals in the component's compositing layer.
 	Layer     uint16
 	Multiline bool

@@ -178,7 +178,7 @@ func declare(view *View, canvas *ui.Canvas, theme ui.Theme, title, detail string
 			})
 			f.Divider()
 			for range 12 {
-				f.Row().Gap(8).Pad(6).Radius(6).Hit(rowID, "row").HoverBackground(theme.Hover).Children(func() {
+				f.Row().Gap(8).Pad(6).Radius(6).Hit(rowID, "row").Hover(Look{}.Background(theme.Hover)).Children(func() {
 					f.Checkbox(omit, checked)
 					f.Text(detail).Grow(1).Muted()
 					if f.Button(save, "Open").Ghost().Small().Clicked() {

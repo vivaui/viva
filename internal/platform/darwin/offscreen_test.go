@@ -3,11 +3,16 @@
 package darwin
 
 import (
+	"bytes"
+	"fmt"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
+	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -181,6 +186,138 @@ func TestOffscreenRendersRectanglesLabelsAndTheEditorWithoutAWindow(t *testing.T
 	for index := range pixels {
 		if pixels[index] != again[index] {
 			t.Fatalf("render is not deterministic at byte %d", index)
+		}
+	}
+}
+
+func TestOffscreenEditorAlignsFittedGlyphsAndMarkedText(t *testing.T) {
+	offscreen, err := NewOffscreen(300, 80, 1, Color{Alpha: 1})
+	if err != nil {
+		t.Skipf("no Metal device: %v", err)
+	}
+	defer offscreen.Close()
+	input := &TextInput{
+		X: 20, Y: 20, Width: 240, Height: 40, FontSize: 20,
+		Color:   platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+		State:   TextState{Value: "列A"},
+		OnEvent: func(TextEvent) (TextState, error) { return TextState{}, nil },
+	}
+	firstGlyph := func(alignment ui.Alignment, marked bool) int {
+		t.Helper()
+		input.Alignment = alignment
+		input.State.Composing = marked
+		if marked {
+			input.State.Composition = text.Range{Start: 0, End: 2}
+		}
+		if err := offscreen.Set(nil, nil, input); err != nil {
+			t.Fatal(err)
+		}
+		pixels, width, _, err := offscreen.Render()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for x := 20; x < 260; x++ {
+			for y := 20; y < 60; y++ {
+				if _, green, red, _ := pixelAt(pixels, width, x, y); red > 160 && green > 160 {
+					return x
+				}
+			}
+		}
+		t.Fatal("native editor drew no glyphs")
+		return 0
+	}
+	left, center, right := firstGlyph(ui.AlignLeft, false), firstGlyph(ui.AlignCenter, false), firstGlyph(ui.AlignRight, false)
+	if center-left < 50 || right-center < 50 || right >= 260 {
+		t.Fatalf("aligned glyph origins: left=%d center=%d right=%d", left, center, right)
+	}
+	if marked := firstGlyph(ui.AlignRight, true); marked != right {
+		t.Errorf("marked text origin = %d, want %d", marked, right)
+	}
+}
+
+func TestOffscreenEditorAlignmentPreservesDefaultTerminalAndOverlongPixels(t *testing.T) {
+	offscreen, err := NewOffscreen(300, 80, 1, Color{Alpha: 1})
+	if err != nil {
+		t.Skipf("no Metal device: %v", err)
+	}
+	defer offscreen.Close()
+	input := &TextInput{
+		X: 20, Y: 20, Width: 240, Height: 40, FontSize: 20,
+		Color:   platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+		State:   TextState{Value: "列A"},
+		OnEvent: func(TextEvent) (TextState, error) { return TextState{}, nil },
+	}
+	render := func(value string, terminal bool, alignment ui.Alignment) []byte {
+		t.Helper()
+		input.State.Value, input.Terminal, input.Alignment = value, terminal, alignment
+		if err := offscreen.Set(nil, nil, input); err != nil {
+			t.Fatal(err)
+		}
+		pixels, _, _, err := offscreen.Render()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return pixels
+	}
+	if left, explicit := render("列A", false, 0), render("列A", false, ui.AlignLeft); !bytes.Equal(left, explicit) {
+		t.Fatal("explicit left alignment changed default pixels")
+	}
+	if left, right := render("列A", true, ui.AlignLeft), render("列A", true, ui.AlignRight); !bytes.Equal(left, right) {
+		t.Fatal("alignment changed terminal preedit pixels")
+	}
+	long := strings.Repeat("m", 80)
+	if left, right := render(long, false, ui.AlignLeft), render(long, false, ui.AlignRight); !bytes.Equal(left, right) {
+		t.Fatal("alignment moved an overlong line instead of preserving its clipped behavior")
+	}
+	input.Secure = true
+	if first, second := render("secret", false, ui.AlignRight), render("foobar", false, ui.AlignRight); !bytes.Equal(first, second) {
+		t.Fatal("aligned secure input exposed or measured its raw characters")
+	}
+}
+
+func TestOffscreenRightAlignedEndCaretRemainsVisible(t *testing.T) {
+	for _, scale := range []float64{1, 2} {
+		for _, value := range []string{"", "abc", "A中B"} {
+			t.Run(fmt.Sprintf("%gx/%q", scale, value), func(t *testing.T) {
+				offscreen, err := NewOffscreen(180, 80, scale, Color{Alpha: 1})
+				if err != nil {
+					t.Skipf("no Metal device: %v", err)
+				}
+				defer offscreen.Close()
+				input := &TextInput{
+					X: 20, Y: 20, Width: 120, Height: 32, FontSize: 18, Alignment: ui.AlignRight,
+					Color:   platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+					State:   TextState{Value: value, Selection: text.Range{Start: utf8.RuneCountInString(value), End: utf8.RuneCountInString(value)}},
+					OnEvent: func(TextEvent) (TextState, error) { return TextState{}, nil },
+				}
+				if err := offscreen.Set(nil, nil, input); err != nil {
+					t.Fatal(err)
+				}
+				visible, width, _, err := offscreen.Render()
+				if err != nil {
+					t.Fatal(err)
+				}
+				input.HideNativeOverlays = true
+				if err := offscreen.Set(nil, nil, input); err != nil {
+					t.Fatal(err)
+				}
+				hidden, _, _, err := offscreen.Render()
+				if err != nil {
+					t.Fatal(err)
+				}
+				changed := 0
+				for y := int(20 * scale); y < int(52*scale); y++ {
+					for x := int(20 * scale); x < int(140*scale); x++ {
+						index := (y*width + x) * 4
+						if !bytes.Equal(visible[index:index+4], hidden[index:index+4]) {
+							changed++
+						}
+					}
+				}
+				if changed == 0 {
+					t.Fatal("right-aligned end caret is completely clipped")
+				}
+			})
 		}
 	}
 }

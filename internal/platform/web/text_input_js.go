@@ -154,6 +154,7 @@ func (host *textInputHost) show(element js.Value) {
 	}
 	style.Set("caretColor", caretColor)
 	style.Set("font", cssFont(host.input.FontSize, host.input.Weight))
+	style.Set("textAlign", textAlignCSS(host.input.Alignment))
 	style.Set("opacity", "1")
 	style.Set("overflow", "hidden")
 	style.Set("clipPath", "none")

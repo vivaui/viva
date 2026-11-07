@@ -294,54 +294,79 @@ func OpenDirectory(options OpenDirectoryOptions) (string, bool, error) {
 }
 
 func SaveFile(options SaveFileOptions) (string, bool, error) {
+	path, _, canceled, err := saveFile(options, "", false)
+	return path, canceled, err
+}
+
+func SaveFileWithCheckbox(options SaveFileOptions, label string, initial bool) (string, bool, bool, error) {
+	return saveFile(options, label, initial)
+}
+
+func saveFile(options SaveFileOptions, checkboxLabel string, initial bool) (string, bool, bool, error) {
 	title, err := systemCString("save file title", options.Title)
 	if err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
 	defer C.free(unsafe.Pointer(title))
 	name, err := systemCString("suggested file name", options.SuggestedName)
 	if err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
 	defer C.free(unsafe.Pointer(name))
 	defaultExtension, err := normalizeExtension(options.DefaultExtension)
 	if err != nil {
-		return "", false, fmt.Errorf("darwin: default extension: %w", err)
+		return "", false, false, fmt.Errorf("darwin: default extension: %w", err)
 	}
 	nativeDefaultExtension, err := systemCString("default extension", defaultExtension)
 	if err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
 	defer C.free(unsafe.Pointer(nativeDefaultExtension))
 	extensions, err := allowedExtensions(options.Filters)
 	if err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
 	nativeExtensions, freeExtensions, err := systemCStrings("file extension", extensions)
 	if err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
 	defer freeExtensions()
+	var nativeLabel *C.char
+	if checkboxLabel != "" {
+		nativeLabel, err = systemCString("save checkbox label", checkboxLabel)
+		if err != nil {
+			return "", false, false, err
+		}
+		defer C.free(unsafe.Pointer(nativeLabel))
+	}
 	var path *C.char
 	var nativeError *C.char
-	status := C.viva_system_save_file(
+	var selected C.int
+	initialChecked := C.int(0)
+	if initial {
+		initialChecked = 1
+	}
+	status := C.viva_system_save_file_with_checkbox(
 		title,
 		name,
 		nativeDefaultExtension,
 		nativeStringPointer(nativeExtensions),
 		C.size_t(len(nativeExtensions)),
+		nativeLabel,
+		initialChecked,
+		&selected,
 		&path,
 		&nativeError,
 	)
 	runtime.KeepAlive(nativeExtensions)
 	if status == 1 {
-		return "", true, nil
+		return "", false, true, nil
 	}
 	if status != 0 {
-		return "", false, systemError("save file", nativeError)
+		return "", false, false, systemError("save file", nativeError)
 	}
 	defer C.viva_system_free(unsafe.Pointer(path))
-	return C.GoString(path), false, nil
+	return C.GoString(path), selected != 0, false, nil
 }
 
 func OpenURL(target string) error {

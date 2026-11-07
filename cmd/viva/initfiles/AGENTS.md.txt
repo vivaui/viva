@@ -64,8 +64,19 @@ m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
   `flex.Start`/`flex.End`/`flex.Stretch` changes that; `flex.Baseline` lines a Row's children up
   on their first line of text; `Self(...)` for one child;
   `Justify(flex.Center|End|Between)` places what is left along it; `Center()` does both.
-- Look: `Background`, `HoverBackground`, `Radius`, `Border(width, color)`, `Shadow(ui.ShadowMD)` (a drop shadow under the fill; `ShadowXS` to `ShadowLG`), `Clip`. A circle (an avatar, a dot) is a
+- Look: `Background`, `Radius`, `Border(width, color)`, `Shadow(ui.ShadowMD)` (a drop shadow under the fill; `ShadowXS` to `ShadowLG`), `Clip`. A circle (an avatar, a dot) is a
   square box with `Radius(size/2)` and `Center()`: `f.Row().Size(32, 32).Radius(16).Background(c).Center().Children(func() { f.Text("AB") })`.
+- Effects, all typed and checked by the compiler (there is no class string): `Ring(3, c)` draws a line around the
+  outside without taking room (a focus ring); `Opacity(0.5)` fades the element and everything in it (it is still laid out
+  and clickable); `Gradient(flex.ToBottomRight, from, to)` and `GradientStops(angle, ui.Stop(0, a), ui.Stop(1, b), ...)`
+  fill the element, corners included, over `Background` and under `Border`.
+- States: an element with an identity (`Hit`, which also makes it focusable) changes with `Hover(flex.Look{}.Background(theme.Hover))`, `Pressed(...)` and
+  `Focus(flex.Look{}.Ring(3, theme.Ring))`. A `Look` lists only what differs from rest and has `Background`, `Border`,
+  `Color`, `Ring`, `Shadow` and `Opacity`; looks combine field by field (Focus, then Hover, then Pressed win).
+  `Transition()` fades between them over the theme's motion and schedules nothing while at rest. `StateFrom(row)` makes a
+  child follow its row's state: a pencil that shows on hover is
+  `f.Icon(edit).Opacity(0).StateFrom(row).Hover(flex.Look{}.Opacity(1))`.
+- Finished, themed examples to copy (settings row, list row with a hover action, avatar, badge, stat card, gradient hero, icon button, empty state): <https://github.com/vivaui/viva/tree/main/examples/recipes>, with guidance in <https://github.com/vivaui/viva/blob/main/docs/skills/building-with-viva/recipes.md>.
 - Icons move inside their box, not the box: `f.Icon(glyph).IconTransform(ui.IconTransform{Rotate: radians, Scale: 0.9, Offset: ui.Point{X: 2, Y: 0}})`
   turns and scales the glyph about the center of its box and moves it after that, while the row keeps its place, its
   size and its hit region. The zero `ui.IconTransform` is the still icon, and a frame that passes one costs nothing.
@@ -232,7 +243,7 @@ All of a page's identities are made from its feature scope, menu items and popup
 Pass `&tree` as `Config.Tree`. Handle a click where the control is declared:
 `if f.Button(save, "Save").Clicked() { ... }`. `Clicked` is true only in the one repaint that
 delivers the click. For a list, `f.Row().Hit(rows.ID(ui.Index(i)), name).Clicked()`.
-Hover is `canvas.Hovered() == id` (flex's `HoverBackground` does this). From inside the frame callback,
+Hover is `canvas.Hovered() == id` (flex's `Hover` look does this). From inside the frame callback,
 `f.Canvas().Clicked(id)` asks the same for any identity.
 An app with one central click switch may instead read `if id, ok := canvas.ClickTarget(); ok { canvas.AfterPaint(func() { m.Click(id) }) }`
 once at the start of its paint. `AfterPaint` runs the handler after the paint, outside it, then repaints: use it

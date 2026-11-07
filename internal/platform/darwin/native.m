@@ -1977,6 +1977,21 @@ static viva_editor_line viva_new_editor_line(NSString *shown, CGFloat fontSize, 
     return line;
 }
 
+static CGFloat viva_editor_alignment_inset(viva_editor_line line, CGFloat width, int alignment, BOOL terminal) {
+    if (terminal || line.shaped == NULL || (alignment != 1 && alignment != 2)) {
+        return 0;
+    }
+    CGFloat free = MAX(0, width - line.shaped->width);
+    return alignment == 1 ? free / 2 : free;
+}
+
+static CGFloat viva_editor_visible_caret(CGFloat offset, CGFloat width, int alignment, BOOL terminal) {
+    if (alignment != 2 || terminal) {
+        return offset;
+    }
+    return MIN(offset, MAX(0, width - 2));
+}
+
 // viva_baseline is the height of the baseline above the bottom of a label's texture,
 // in points. The baseline is the same row every backend uses (platform.LabelBaseline):
 // a fixed distance below the middle of the line box, on a whole physical pixel, so
@@ -2045,7 +2060,8 @@ static id<MTLTexture> viva_text_input_texture(
     BOOL terminal,
     BOOL hideNativeOverlays,
     int monoFace,
-    CGFloat cellWidth
+    CGFloat cellWidth,
+    int alignment
 ) {
     size_t pixelWidth = (size_t)MAX(1.0, ceil(frameSize.width * scale));
     size_t pixelHeight = (size_t)MAX(1.0, ceil(frameSize.height * scale));
@@ -2084,6 +2100,7 @@ static id<MTLTexture> viva_text_input_texture(
         free(pixels);
         return nil;
     }
+    CGFloat inset = viva_editor_alignment_inset(line, frameSize.width, alignment, terminal);
 
     CGFloat ascent = 0;
     CGFloat descent = 0;
@@ -2120,7 +2137,7 @@ static id<MTLTexture> viva_text_input_texture(
         for (size_t piece = 0; piece < count; piece++) {
             CGContextFillRect(
                 context,
-                CGRectMake(spans[2 * piece], baseline - descent, MAX(1.0, spans[2 * piece + 1]), ascent + descent)
+                CGRectMake(inset + spans[2 * piece], baseline - descent, MAX(1.0, spans[2 * piece + 1]), ascent + descent)
             );
         }
     }
@@ -2130,7 +2147,7 @@ static id<MTLTexture> viva_text_input_texture(
     } else {
         // The text is drawn as the one line the offsets above and below are read from, so
         // selection, caret and glyphs agree.
-        viva_draw_text_line(context, line.shaped, color.CGColor, 0, baseline);
+        viva_draw_text_line(context, line.shaped, color.CGColor, inset, baseline);
     }
 
     if (invisible) {
@@ -2142,10 +2159,10 @@ static id<MTLTexture> viva_text_input_texture(
         for (size_t piece = 0; piece < count; piece++) {
             // A terminal's row is only as tall as its text, so below the descenders is the
             // edge of the row, not two points further down, where nothing would be drawn.
-            CGContextFillRect(context, CGRectMake(spans[2 * piece], MAX(baseline - descent - 2.0, 0.0), MAX(1.0, spans[2 * piece + 1]), 1.0));
+            CGContextFillRect(context, CGRectMake(inset + spans[2 * piece], MAX(baseline - descent - 2.0, 0.0), MAX(1.0, spans[2 * piece + 1]), 1.0));
         }
     } else if (selected.length == 0 && caretVisible && !terminal && !hideNativeOverlays) {
-        CGFloat caret = viva_text_offset(line, selected.location, terminal);
+        CGFloat caret = viva_editor_visible_caret(inset + viva_text_offset(line, selected.location, terminal), frameSize.width, alignment, terminal);
         NSColor *caretColor = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
         CGContextSetRGBFillColor(
             context,
@@ -3395,6 +3412,7 @@ static void viva_encode_scene(
     uint16_t _textLayer;
     CGFloat _textFontSize;
     CGFloat _textFontWeight;
+    int _textAlignment;
     NSColor *_textColor;
     NSRange _selectedRange;
     NSRange _markedRange;
@@ -3633,6 +3651,7 @@ static int viva_navigation_command(SEL selector) {
         );
         _textFontSize = textInput.font_size;
         _textFontWeight = textInput.font_weight;
+        _textAlignment = textInput.placed || textInput.terminal ? 0 : textInput.alignment;
         _textColor = [[NSColor colorWithSRGBRed:textInput.red
                                           green:textInput.green
                                            blue:textInput.blue
@@ -4503,7 +4522,7 @@ static void viva_set_secure_event_input(BOOL on) {
     id<MTLTexture> texture = viva_text_input_texture(
         _metalLayer.device, MAX(_metalLayer.contentsScale, 1.0), [self displayedText],
         _textFontSize, _textFontWeight, _textColor, _textFrame.size, _selectedRange, _hasMarkedText,
-        _markedRange, _caretVisible, _textTerminal, _textHideNativeOverlays, _textMonoFace, _textCellWidth);
+        _markedRange, _caretVisible, _textTerminal, _textHideNativeOverlays, _textMonoFace, _textCellWidth, _textAlignment);
     if (texture == nil) {
         return NO;
     }
@@ -4935,6 +4954,7 @@ static void viva_set_secure_event_input(BOOL on) {
         _textFrame = NSZeroRect;
         _textFontSize = 0;
         _textFontWeight = 0;
+        _textAlignment = 0;
         _selectedRange = NSMakeRange(0, 0);
         _markedRange = NSMakeRange(0, 0);
         _textInputMultiline = NO;
@@ -4953,6 +4973,7 @@ static void viva_set_secure_event_input(BOOL on) {
     _textFrame = NSMakeRect(textInput.x, textInput.y, textInput.width, textInput.height);
     _textFontSize = textInput.font_size;
     _textFontWeight = textInput.font_weight;
+    _textAlignment = textInput.placed || textInput.terminal ? 0 : textInput.alignment;
     _selectedRange = viva_clamp_range(
         NSMakeRange(textInput.selected_start, textInput.selected_length),
         _text.length
@@ -5145,6 +5166,7 @@ static void viva_set_secure_event_input(BOOL on) {
     if (!viva_editor_line_made(line)) {
         return _selectedRange.location;
     }
+    x -= viva_editor_alignment_inset(line, _textFrame.size.width, _textAlignment, _textTerminal);
     NSUInteger position = viva_text_index_at(line, [self displayedText], x, _textTerminal);
     viva_editor_line_free(line);
     return MIN(position, _text.length);
@@ -5196,7 +5218,10 @@ static void viva_set_secure_event_input(BOOL on) {
     CGFloat offset = 0;
     viva_editor_line line = [self newTextLine];
     if (viva_editor_line_made(line)) {
-        offset = [self textOffsetForIndex:safe.location line:line];
+        offset = viva_editor_visible_caret(
+            viva_editor_alignment_inset(line, _textFrame.size.width, _textAlignment, _textTerminal) +
+                [self textOffsetForIndex:safe.location line:line],
+            _textFrame.size.width, _textAlignment, _textTerminal);
         viva_editor_line_free(line);
     }
     NSRect local = NSMakeRect(
@@ -5436,6 +5461,7 @@ static void viva_set_secure_event_input(BOOL on) {
     NSMutableArray<NSView *> *_titlebarWatched; /* views whose frame changes re-center the traffic lights */
     BOOL _fullscreenTarget;
     BOOL _fullscreenTransition;
+    BOOL _alwaysOnTop;
     BOOL _closeInterceptEnabled;
     BOOL _fileDropEnabled;
     BOOL _modifierTapsEnabled;
@@ -5474,6 +5500,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)hideWindow;
 - (void)showWindow;
 - (void)setFullscreen:(BOOL)fullscreen;
+- (void)setAlwaysOnTop:(BOOL)enabled;
 - (BOOL)isFullscreen;
 - (void)reopenWindow;
 - (BOOL)isPanel;
@@ -6023,6 +6050,11 @@ static void viva_set_secure_event_input(BOOL on) {
     }
 }
 
+- (void)setAlwaysOnTop:(BOOL)enabled {
+    _alwaysOnTop = enabled;
+    _window.level = enabled ? NSFloatingWindowLevel : NSNormalWindowLevel;
+}
+
 - (void)windowWillEnterFullScreen:(NSNotification *)notification {
     (void)notification;
     if ([_window.contentView isKindOfClass:[VivaMetalView class]]) {
@@ -6060,6 +6092,7 @@ static void viva_set_secure_event_input(BOOL on) {
     if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
         [self keepTrafficLightsCentered];
     }
+    [self setAlwaysOnTop:_alwaysOnTop];
     [self setFullscreen:_fullscreenTarget];
     [self reportFrameChange];
 }
@@ -6739,6 +6772,25 @@ int viva_application_fullscreen(void *window) {
     return fullscreen;
 }
 
+int viva_application_set_always_on_top(void *window, int enabled) {
+    __block int found = 0;
+    void (^work)(void) = ^{
+        VivaAppDelegate *delegate = viva_find_window(window);
+        if (delegate != nil && [delegate isPanel]) {
+            found = -1;
+        } else if (delegate != nil) {
+            [delegate setAlwaysOnTop:enabled != 0];
+            found = 1;
+        }
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return found;
+}
+
 void viva_application_show_window(void *window) {
     viva_post_window_event(VIVA_SHOW_EVENT, window);
 }
@@ -7257,7 +7309,8 @@ int viva_unregister_font_file(const char *path) {
         NSMakeRange(config.selected_start, config.selected_length),
         config.has_marked_text != 0,
         NSMakeRange(config.marked_start, config.marked_length), YES, config.terminal != 0,
-        config.hide_native_overlays != 0, config.mono_face, config.cell_width);
+        config.hide_native_overlays != 0, config.mono_face, config.cell_width,
+        config.placed || config.terminal ? 0 : config.alignment);
     return _inputTexture != nil;
 }
 

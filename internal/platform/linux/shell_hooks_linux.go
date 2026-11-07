@@ -18,6 +18,7 @@ type desktopHooks struct {
 	hasClipboardImage func() bool
 	clipboardImagePNG func() ([]byte, error)
 	clipboardFiles    func() ([]string, error)
+	setClipboardFiles func([]string) error
 	primaryText       func() (string, error)
 	setPrimaryText    func(string) error
 	setCursorShape    func(uint8) error

@@ -16,6 +16,8 @@ func driverClipboardImage() (png []byte, err error, handled bool) { return nil, 
 
 func driverClipboardFiles() (paths []string, err error, handled bool) { return nil, nil, false }
 
+func driverSetClipboardFiles([]string) (error, bool) { return nil, false }
+
 func driverOpenURL(string) (error, bool)    { return nil, false }
 func driverOpenPath(string) (error, bool)   { return nil, false }
 func driverRevealPath(string) (error, bool) { return nil, false }
@@ -33,6 +35,10 @@ func driverOpenDirectory(OpenDirectoryOptions) (string, error, bool) {
 
 func driverSaveFile(SaveFileOptions) (string, error, bool) {
 	return "", nil, false
+}
+
+func driverSaveFileWithCheckbox(SaveFileOptions, SaveFileCheckbox) (SaveFileSelection, error, bool) {
+	return SaveFileSelection{}, nil, false
 }
 
 func driverStoreSecret(string, string, []byte) (error, bool) { return nil, false }

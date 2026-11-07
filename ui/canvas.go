@@ -312,6 +312,36 @@ const (
 	RoleSeparator
 )
 
+// roleNames are the names of the roles: what a selector or a printed tree calls
+// them, in the order of the constants.
+var roleNames = [...]string{
+	RoleButton: "button", RoleLink: "link", RoleCheckbox: "checkbox", RoleRadio: "radio",
+	RoleTab: "tab", RoleMenuItem: "menuitem", RoleCombobox: "combobox", RoleSwitch: "switch",
+	RoleTextField: "textfield", RoleSlider: "slider", RoleTerminal: "terminal", RoleGroup: "group",
+	RoleMenu: "menu", RoleMenubar: "menubar", RoleListBox: "listbox", RoleOption: "option",
+	RoleGrid: "grid", RoleGridCell: "gridcell", RoleHeading: "heading", RoleStatus: "status",
+	RoleSeparator: "separator",
+}
+
+// String is the role's name as selectors and printed trees write it, such as
+// "button" or "textfield". A region that declared no role is a plain "region".
+func (role Role) String() string {
+	if int(role) < len(roleNames) && roleNames[role] != "" {
+		return roleNames[role]
+	}
+	return "region"
+}
+
+// RoleNamed is the role a name String gives stands for.
+func RoleNamed(name string) (Role, bool) {
+	for role, candidate := range roleNames {
+		if candidate != "" && candidate == name {
+			return Role(role), true
+		}
+	}
+	return 0, false
+}
+
 // LiveRegion says how eagerly assistive technology announces a change to the
 // content of a region, as aria-live does. The zero value announces nothing.
 type LiveRegion uint8
@@ -595,6 +625,8 @@ type Canvas struct {
 	pathBuilder       PathBuilder
 	// gradientSource holds the flat triangles a path gradient recolors.
 	gradientSource []Triangle
+	// fillPoints is the outline of a gradient-filled rounded rectangle.
+	fillPoints []Point
 	// path and triangulation scratch survives Reset: reused every paint.
 	strokeSideA     []Point
 	strokeSideB     []Point
@@ -840,6 +872,7 @@ func (canvas *Canvas) Trim() {
 	canvas.iconTrimTriangles = trimCapacity(canvas.iconTrimTriangles)
 	canvas.pathBuilder.commands = trimCapacity(canvas.pathBuilder.commands)
 	canvas.gradientSource = trimCapacity(canvas.gradientSource)
+	canvas.fillPoints = trimCapacity(canvas.fillPoints)
 	canvas.strokeSideA = trimCapacity(canvas.strokeSideA)
 	canvas.strokeSideB = trimCapacity(canvas.strokeSideB)
 	canvas.strokeRing = trimCapacity(canvas.strokeRing)
@@ -961,12 +994,19 @@ func (canvas *Canvas) Shadow(bounds Rect, radius float32, style ShadowStyle, col
 // Elevate appends the shadow of a level of the elevation scale, one or two
 // layers cast by the rounded rectangle bounds. Draw it before the surface.
 func (canvas *Canvas) Elevate(bounds Rect, radius float32, level ShadowLevel) {
-	if level == ShadowNone || int(level) >= len(shadowLayers) {
+	canvas.ElevateFaded(bounds, radius, level, 1)
+}
+
+// ElevateFaded is Elevate with the shadow's opacity multiplied by opacity, 0 to 1,
+// for a surface that is itself drawn faded.
+func (canvas *Canvas) ElevateFaded(bounds Rect, radius float32, level ShadowLevel, opacity float32) {
+	if level == ShadowNone || int(level) >= len(shadowLayers) || opacity <= 0 {
 		return
 	}
+	opacity = min(opacity, 1)
 	for _, layer := range shadowLayers[level] {
 		if layer.alpha > 0 {
-			canvas.Shadow(bounds, radius, layer.style, Color{Alpha: layer.alpha})
+			canvas.Shadow(bounds, radius, layer.style, Color{Alpha: layer.alpha * opacity})
 		}
 	}
 }
@@ -1446,6 +1486,28 @@ func (canvas *Canvas) MoveRegion(bounds Rect) {
 // next Reset.
 func (canvas *Canvas) Hits() []Hit {
 	return canvas.hits
+}
+
+// HitBounds is the region the control with that identity has declared so far in
+// this paint, as the user can reach it: a control that is partly outside the
+// clip reports the part inside. It is the way to hang an overlay on the control
+// that opens it, a tooltip or a menu, without the application keeping a copy of
+// the control's rectangle between paints. If the control was declared more than
+// once, the last declaration is the one reported. ok is false for the zero ID
+// and for a control not declared yet, so a popup painted before its trigger
+// finds nothing and should be painted after it.
+//
+// The lookup is a scan from the newest hit and allocates nothing.
+func (canvas *Canvas) HitBounds(id ID) (bounds Rect, ok bool) {
+	if id.IsZero() {
+		return Rect{}, false
+	}
+	for index := len(canvas.hits) - 1; index >= 0; index-- {
+		if canvas.hits[index].ID == id {
+			return canvas.hits[index].Bounds, true
+		}
+	}
+	return Rect{}, false
 }
 
 // PushFocusScope assigns subsequent hits to a stable component scope.

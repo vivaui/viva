@@ -169,15 +169,19 @@ const (
 )
 
 // extra holds what few elements need, so that the common element stays small: the
-// hit options of an interactive container, an icon, the hover fill, the border's
-// color and the shadow's level.
+// hit options of an interactive container, an icon, the border's color, the
+// shadow's level, the ring, and the indexes of its gradient and state looks.
 type extra struct {
 	hit           ui.HitOptions
 	icon          ui.Icon
 	iconTransform ui.IconTransform // moves the icon inside its box without moving the box
-	hover         ui.Color
 	border        ui.Color
 	shadow        ui.ShadowLevel
+	ring          ui.Color     // Ring: a line around the outside of the element
+	ringWidth     float32      // its width; zero is none
+	fade          float32      // 1 less the opacity, so that the zero value is opaque
+	gradient      int32        // 1 + the index of the element's gradient in Frame.gradients, or 0 for none
+	states        int32        // 1 + the index of the element's Hover, Pressed and Focus looks in Frame.states, or 0 for none
 	scrollState   *ScrollState // the state a ScrollArea reports its extent to
 	maxPct        [2]float32   // MaxWidthPercent and MaxHeightPercent; zero is none
 	hitOut        [4]float32   // how far the hit region reaches beyond the rectangle: top, right, bottom, left
@@ -200,6 +204,11 @@ type Frame struct {
 	images     []ui.Bitmap                // what each Image element draws, indexed by its aux
 	exts       []extra                    // exts[0] is never written: an element without extras points at it
 	floats     []int32                    // the Popups, which belong to no container
+	states     []stateLooks               // what Hover, Pressed and Focus declared, by element
+	gradients  []gradient                 // the gradients of the elements that have one
+	stops      []ui.GradientStop          // their stops, in the order declared
+	paintStops []ui.GradientStop          // the stops of the gradient being painted, faded
+	opacity    float32                    // the product of the opacities of the elements being painted
 	popupLayer uint16                     // the canvas layer the Popups are painted on
 	lines      []string
 	widgets    widgets            // Table, Tabs, Select, Dialog and Splitter declarations
@@ -236,6 +245,8 @@ func (view *View) Begin(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) *Fram
 	f.inputs, f.groups, f.textareas, f.segmented, f.choices = f.inputs[:0], f.groups[:0], f.textareas[:0], f.segmented[:0], f.choices[:0]
 	f.images = f.images[:0]
 	f.floats = f.floats[:0]
+	f.states, f.gradients, f.stops = f.states[:0], f.gradients[:0], f.stops[:0]
+	f.opacity = 1
 	f.popupLayer = 0
 	f.scratch.reset()
 	f.widgets.reset()

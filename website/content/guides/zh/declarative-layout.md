@@ -35,7 +35,22 @@ view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 - `Grid(minCell)` 按宽度放下尽可能多的等宽列，并换到新的行。
 - `Scroll(offset)` 是比自己更高的、带裁剪的列。偏移量由你持有（滚轮事件到 `Config.OnScroll`）；`End` 之后 `Content()` 是子元素的总高度，可据此限制偏移量。
 
-控件就是 `components` 里的那些，外观完全一致：`Button`（以及 `Outline`、`Ghost`、`Secondary`、`Destructive`、`Small` 等变体）、`Checkbox`、`Switch`、`Icon`、`Divider`。`Clicked()` 在声明控件的地方读取：它只在递送这次点击的那一遍里为真。任何元素都可以用 `Hit(id, label)` 成为指针目标，`HoverBackground` 在指针悬停时绘制底色。
+控件就是 `components` 里的那些，外观完全一致：`Button`（以及 `Outline`、`Ghost`、`Secondary`、`Destructive`、`Small` 等变体）、`Checkbox`、`Switch`、`Icon`、`Divider`。`Clicked()` 在声明控件的地方读取：它只在递送这次点击的那一遍里为真。任何元素都可以用 `Hit(id, label)` 成为指针目标；它在指针悬停、按下和获得焦点时的样子用 `Hover`、`Pressed` 和 `Focus` 声明（见下文）。
+
+## 状态与效果
+
+有标识的元素在指针悬停、被按住、键盘聚焦时会呈现不同的样子。每个状态是一个 `Look`：只列出发生变化的部分的值，用与元素本身相同的词来构造（`Background`、`Border`、`Color`、`Ring`、`Shadow`、`Opacity`）。
+
+```go
+f.Row().Pad(8).Radius(8).Hit(id, "Open").Transition().
+	Hover(flex.Look{}.Background(theme.Hover)).
+	Pressed(flex.Look{}.Background(theme.Muted)).
+	Focus(flex.Look{}.Ring(3, theme.Ring))
+```
+
+`Focus` 在焦点应当可见时生效（由按键移动而来，点击不算）；`Hit` 默认可获得焦点，除非用 `HitWith` 指定 `SkipFocus`。几个 Look 按 Focus、Hover、Pressed 的顺序逐字段合并，所以既聚焦又悬停的行会同时显示前者的光环和后者的底色。`Transition()` 按主题的动效在它们之间渐变（`TransitionWith` 可指定其他动效）；没有变化时不会安排任何帧。`StateFrom(row)` 让一个元素跟随另一个元素的状态，行内的内容就能随行变化：`f.Icon(edit).Opacity(0).StateFrom(row).Hover(flex.Look{}.Opacity(1))` 是一个在所在行悬停时才出现的图标。
+
+另有四种不依赖状态的效果。`Ring(width, color)` 在元素外侧画一圈线且不占空间，焦点环就是这样画的。`Opacity(v)` 让元素及其内部的一切（包括控件）淡化；取 0 时仍参与布局、仍可点击；`Image` 不会被淡化。`Gradient(angle, from, to)` 和 `GradientStops(angle, stops...)` 沿圆角用线性渐变填充元素，画在 `Background` 之上、`Border` 之下；角度与 CSS 相同，以向上为 0 顺时针计，`flex.ToRight`、`flex.ToBottomRight` 等给常用方向命名。
 
 ## 和手工绘制混用
 
