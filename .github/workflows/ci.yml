@@ -286,6 +286,8 @@ jobs:
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/windows -run '^TestNativeGlobalShortcutRegistration$' -count=1 -v
+      - name: Native Direct2D text origins
+        run: go test ./internal/platform/windows -run '^TestDirectTextLayoutOriginByValue$' -count=1 -v
       # The installer contracts, including WinVerifyTrust's struct layout, only
       # compile and run on Windows.
       - name: Update installer contracts
