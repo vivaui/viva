@@ -50,6 +50,7 @@ type frameState struct {
 	maximizedVertical          uint32
 	maximizedHorizontal        uint32
 	fullscreen                 uint32
+	above                      uint32
 	maximized                  bool
 	maximizePending            bool
 	maximizeTarget             bool
@@ -79,6 +80,7 @@ func (win *window) openFrame() error {
 		{"_NET_WM_STATE_MAXIMIZED_VERT", &win.frame.maximizedVertical},
 		{"_NET_WM_STATE_MAXIMIZED_HORZ", &win.frame.maximizedHorizontal},
 		{"_NET_WM_STATE_FULLSCREEN", &win.frame.fullscreen},
+		{"_NET_WM_STATE_ABOVE", &win.frame.above},
 		{"WM_CHANGE_STATE", &win.frame.changeStateAtom},
 	} {
 		atom, err := win.api.atom(win.connection, item.name)
@@ -88,6 +90,37 @@ func (win *window) openFrame() error {
 		*item.atom = atom
 	}
 	return nil
+}
+
+func (win *window) supportsAbove() (bool, error) {
+	name, err := win.api.atom(win.connection, "_NET_SUPPORTED")
+	if err != nil {
+		return false, err
+	}
+	cookie := win.api.getProperty(win.connection, 0, win.screen.Root, name, xcbAtomAtom, 0, 4096)
+	var nativeError unsafe.Pointer
+	reply := win.api.getPropertyReply(win.connection, cookie, &nativeError)
+	if nativeError != nil {
+		win.api.free(nativeError)
+		if reply != nil {
+			win.api.free(unsafe.Pointer(reply))
+		}
+		return false, fmt.Errorf("linux: read window manager capabilities")
+	}
+	if reply == nil {
+		return false, fmt.Errorf("linux: window manager capabilities unavailable")
+	}
+	defer win.api.free(unsafe.Pointer(reply))
+	length := win.api.getPropertyLength(reply)
+	if reply.Format != 32 || length <= 0 || length%4 != 0 {
+		return false, nil
+	}
+	for _, atom := range unsafe.Slice((*uint32)(win.api.getPropertyValue(reply)), int(length)/4) {
+		if atom == win.frame.above {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // installActions fills the actions behind Viva's window buttons.
@@ -312,7 +345,10 @@ func (win *window) dragMotion(event *xcbInputEvent) (consumed, cancelled bool) {
 		frame.pending = false
 		return false, false
 	}
-	slop := win.dragSlop()
+	slop := int16(1)
+	if frame.pendingDirection == moveResizeMove {
+		slop = win.dragSlop()
+	}
 	dx, dy := event.RootX-frame.pendingRootX, event.RootY-frame.pendingRootY
 	if dx > -slop && dx < slop && dy > -slop && dy < slop {
 		return !frame.delivered, false

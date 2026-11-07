@@ -19,7 +19,7 @@ func (runtime *runtime) render() {
 	runtime.paths.beginFrame()
 	if runtime.painter.dirty {
 		runtime.painter.dirty = false
-		runtime.a11y.sync(runtime.painter.accessibility, runtime.painter.focused)
+		runtime.a11y.sync(runtime.painter.accessibility, runtime.painter.focus.Focused())
 		id, input := runtime.painter.activeTextInput()
 		runtime.a11y.text.sync(id, input, runtime.textInputChanged)
 	}
@@ -39,6 +39,9 @@ func (runtime *runtime) render() {
 	context.Call("restore")
 	runtime.paths.endFrame()
 	clock.end(runtime.painter, runtime.paths.built, runtime.paths.reused)
+	if delay, ok := runtime.canvas.NextFrame(); ok {
+		runtime.scheduleFrame(delay)
+	}
 }
 
 // drawRectangles paints one layer's rectangles. A shadow is painted where it

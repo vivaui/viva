@@ -139,7 +139,7 @@ func TestCodeDiffPaintsEditableRightSourceWithSyntaxAndPlacement(t *testing.T) {
 		if !ok || offset < 0 || offset > len(right) {
 			t.Fatalf("placement = %d, %t", offset, ok)
 		}
-		if caret, shown := diff.CaretBounds(); !shown || caret.Width != 1 {
+		if caret, shown := diff.CaretBounds(); !shown || caret.Width <= 1 {
 			t.Fatalf("caret = %+v, %t", caret, shown)
 		}
 		goto found
@@ -715,6 +715,24 @@ func codeDiffFixture(left, right string) (*CodeDiff, *ui.Canvas, CodeDiffSnapsho
 		Focused: true, ShowCaret: true,
 	}
 	return &diff, &canvas, snapshot
+}
+
+func TestCodeDiffCaretDefaultsToEditorWidthWithoutOverridingHairline(t *testing.T) {
+	diff, canvas, snapshot := codeDiffFixture("old\n", "new\n")
+	paint := func() (ui.Rect, bool) {
+		canvas.Reset()
+		diff.Paint(canvas, ui.LightTheme(), ui.Rect{Width: 500, Height: 180}, snapshot)
+		return diff.CaretBounds()
+	}
+	defaultCaret, ok := paint()
+	if !ok || defaultCaret.Width <= 1 {
+		t.Fatalf("default diff caret should not be a hairline: %+v, shown=%t", defaultCaret, ok)
+	}
+	snapshot.CaretWidth = 1
+	hairline, ok := paint()
+	if !ok || hairline.Width != 1 {
+		t.Fatalf("explicit diff hairline should remain available: %+v, shown=%t", hairline, ok)
+	}
 }
 
 func TestCodeDiffPlacesTheCaretAndPressesOnTheCellGrid(t *testing.T) {

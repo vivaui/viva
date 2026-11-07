@@ -111,7 +111,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		resizeHandler = painter.resize
 	}
 	if normalized.Paint != nil || normalized.OnPointer != nil || normalized.TextInput != nil {
-		pointerHandler = painter.pointer
+		pointerHandler = painter.pointerEvent
 	}
 	if normalized.Paint != nil || normalized.OnKey != nil || normalized.OnModifierTap != nil || normalized.TextInput != nil {
 		keyHandler = painter.key

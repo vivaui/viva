@@ -12,15 +12,37 @@ import (
 
 // TextInputContext describes the focused editable Canvas text-field hit.
 type TextInputContext struct {
-	ID        ui.ID
-	Bounds    ui.Rect
-	Multiline bool
+	ID     ui.ID
+	Bounds ui.Rect
+	// Layer is the compositing layer captured by the focused hit.
+	Layer          uint16
+	Multiline      bool
+	ReadOnly       bool
+	Secure         bool
+	NavigationKeys bool
+	// Terminal reports a RoleTerminal hit. Plain keys reach the application as
+	// text events and the rest as raw key events, as they do natively.
+	Terminal bool
+	// TypeAhead reports a hit that takes typed text without being a text field.
+	TypeAhead bool
 	// TextBounds, FontSize, FontWeight and TextColor are the text geometry the component
 	// declared; they fill whatever the returned input leaves unset.
-	TextBounds ui.Rect
-	FontSize   float32
-	FontWeight float32
-	TextColor  ui.Color
+	TextBounds         ui.Rect
+	FontSize           float32
+	FontWeight         float32
+	TextColor          ui.Color
+	HideNativeOverlays bool
+}
+
+func textAlignCSS(alignment ui.Alignment) string {
+	switch alignment {
+	case ui.AlignCenter:
+		return "center"
+	case ui.AlignRight:
+		return "right"
+	default:
+		return "left"
+	}
 }
 
 // TextInputProvider resolves one focused editable hit into an application-owned

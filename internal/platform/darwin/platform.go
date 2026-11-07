@@ -113,6 +113,24 @@ func (window *nativeWindow) Fullscreen() bool {
 	return window != nil && !window.closed.Load() && C.viva_application_fullscreen(window.token) != 0
 }
 
+func (window *nativeWindow) SetAlwaysOnTop(enabled bool) error {
+	if window == nil || window.closed.Load() {
+		return fmt.Errorf("darwin: window is closed")
+	}
+	value := C.int(0)
+	if enabled {
+		value = 1
+	}
+	switch C.viva_application_set_always_on_top(window.token, value) {
+	case 1:
+		return nil
+	case -1:
+		return platform.ErrAlwaysOnTopUnsupported
+	default:
+		return fmt.Errorf("darwin: always-on-top window is unavailable")
+	}
+}
+
 type runState struct {
 	application       *nativeApplication
 	callbackHandle    cgo.Handle
@@ -225,7 +243,7 @@ func (state *runState) textInputAlreadyUpdated(input *TextInput) bool {
 func sameTextInputPresentation(left, right TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y &&
 		left.Width == right.Width && left.Height == right.Height &&
-		left.FontSize == right.FontSize && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
+		left.FontSize == right.FontSize && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
 		left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.Color == right.Color &&
 		left.State == right.State
 }
@@ -832,6 +850,7 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 		height:               C.float(input.Height),
 		font_size:            C.float(input.FontSize),
 		font_weight:          C.float(input.Weight),
+		alignment:            C.int(input.Alignment),
 		red:                  C.float(input.Color.Red),
 		green:                C.float(input.Color.Green),
 		blue:                 C.float(input.Color.Blue),
@@ -846,7 +865,7 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 		terminal:             C.int(boolInt(input.Terminal)),
 		hide_native_overlays: C.int(boolInt(input.HideNativeOverlays)),
 		mono_face:            C.int(input.MonoFace),
-		cell_width:           C.float(terminalCellWidth(input)),
+		cell_width:           C.float(input.CellWidth),
 		alt_sends_escape:     C.int(boolInt(input.AltSendsEscape)),
 		key_releases:         C.int(boolInt(input.KeyReleases)),
 		navigation_keys:      C.int(boolInt(input.NavigationKeys)),
@@ -876,15 +895,6 @@ func nativeTextInputShouldInterpretKey(enabled, multiline, composing bool, key i
 	return C.viva_text_input_should_interpret_key(
 		C.int(boolInt(enabled)), C.int(boolInt(multiline)), C.int(boolInt(composing)), C.int(key),
 	) != 0
-}
-
-// terminalCellWidth is the cell a terminal input's preedit is laid on, or 0 for any other
-// input, which has no cells.
-func terminalCellWidth(input TextInput) float32 {
-	if !input.Terminal {
-		return 0
-	}
-	return platform.TerminalPreeditCellWidth(input.FontSize)
 }
 
 func textBytes(value string) unsafe.Pointer {

@@ -71,7 +71,50 @@ func newSelectionWindow(recorder *selectionRecorder, text string) *window {
 	recorder.incrAtom = 77
 	return &window{
 		api: recorder.api(), connection: 1, id: 2, clipboard: text, ownsClipboard: true,
-		clipboardAtom: 10, utf8Atom: 11, textAtom: 12, targetsAtom: 13,
+		clipboardAtom: 10, utf8Atom: 11, textAtom: 12, targetsAtom: 13, uriListAtom: 15, gnomeFilesAtom: 16,
+	}
+}
+
+func TestAClipboardFileListIsOfferedAsURIsAndNames(t *testing.T) {
+	recorder := &selectionRecorder{}
+	win := newSelectionWindow(recorder, "a b.txt\n中.txt")
+	win.clipboardFiles = []string{"/tmp/a b.txt", "/tmp/中.txt"}
+	request := func(target uint32) propertyWrite {
+		t.Helper()
+		before := len(recorder.writes)
+		if err := win.handleSelectionRequest(&xcbSelectionRequestEvent{Requestor: 3, Selection: 10, Target: target, Property: 14}); err != nil {
+			t.Fatal(err)
+		}
+		if len(recorder.writes) != before+1 {
+			t.Fatalf("target %d wrote %d times", target, len(recorder.writes)-before)
+		}
+		return recorder.writes[before]
+	}
+	targets := request(13)
+	if targets.kind != xcbAtomAtom {
+		t.Fatalf("TARGETS kind = %d, want atom", targets.kind)
+	}
+	var offered []uint32
+	for offset := 0; offset+4 <= len(targets.data); offset += 4 {
+		offered = append(offered, uint32(targets.data[offset])|uint32(targets.data[offset+1])<<8|uint32(targets.data[offset+2])<<16|uint32(targets.data[offset+3])<<24)
+	}
+	for _, want := range []uint32{15, 16} {
+		found := false
+		for _, atom := range offered {
+			found = found || atom == want
+		}
+		if !found {
+			t.Fatalf("TARGETS %v do not include %d", offered, want)
+		}
+	}
+	if got := string(request(15).data); got != "file:///tmp/a%20b.txt\r\nfile:///tmp/%E4%B8%AD.txt\r\n" {
+		t.Fatalf("text/uri-list = %q", got)
+	}
+	if got := string(request(16).data); got != "copy\nfile:///tmp/a%20b.txt\r\nfile:///tmp/%E4%B8%AD.txt\r\n" {
+		t.Fatalf("gnome-copied-files = %q", got)
+	}
+	if got := string(request(11).data); got != "a b.txt\n中.txt" {
+		t.Fatalf("UTF8_STRING = %q", got)
 	}
 }
 

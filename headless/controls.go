@@ -10,33 +10,11 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-// roleNames are the names the line protocol gives a role, in selectors and in the tree.
-var roleNames = map[ui.Role]string{
-	ui.RoleButton: "button", ui.RoleLink: "link", ui.RoleCheckbox: "checkbox", ui.RoleRadio: "radio",
-	ui.RoleTab: "tab", ui.RoleMenuItem: "menuitem", ui.RoleCombobox: "combobox", ui.RoleSwitch: "switch",
-	ui.RoleTextField: "textfield", ui.RoleSlider: "slider", ui.RoleTerminal: "terminal", ui.RoleGroup: "group",
-	ui.RoleMenu: "menu", ui.RoleMenubar: "menubar", ui.RoleListBox: "listbox", ui.RoleOption: "option",
-	ui.RoleGrid: "grid", ui.RoleGridCell: "gridcell", ui.RoleHeading: "heading", ui.RoleStatus: "status",
-	ui.RoleSeparator: "separator",
-}
-
 // roleName is the protocol's name for role; a region that declared none is a plain "region".
-func roleName(role ui.Role) string {
-	if name, ok := roleNames[role]; ok {
-		return name
-	}
-	return "region"
-}
+func roleName(role ui.Role) string { return role.String() }
 
 // roleByName is the role a selector names.
-func roleByName(name string) (ui.Role, bool) {
-	for role, candidate := range roleNames {
-		if candidate == name {
-			return role, true
-		}
-	}
-	return 0, false
-}
+func roleByName(name string) (ui.Role, bool) { return ui.RoleNamed(name) }
 
 // control is one thing the application declared on the frame, as the protocol sees it: its
 // accessible name settled, its identity written out, and whether a press at its center reaches it.

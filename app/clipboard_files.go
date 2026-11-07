@@ -1,6 +1,12 @@
 package app
 
-import "github.com/vivaui/viva/internal/platform"
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+
+	"github.com/vivaui/viva/internal/platform"
+)
 
 // ErrNoFiles reports that the clipboard holds no files.
 var ErrNoFiles = platform.ErrNoClipboardFiles
@@ -32,4 +38,31 @@ func ClipboardFiles() ([]string, error) {
 		return paths, err
 	}
 	return nativeClipboardFiles()
+}
+
+// SetClipboardFiles makes paths the files the system clipboard holds, as a
+// file manager does after the user copies a selection. The files are not
+// copied: a paste reads them from these paths, so they must stay where they
+// are until the paste ends or something else replaces the clipboard. As Finder
+// and Explorer do, the files' names are also put on the clipboard as text.
+// The paths must be absolute, local and free of NUL; at most
+// MaxClipboardFiles are accepted, and a longer list is an error rather than a
+// silent cut. An error wrapping ErrUnsupported means this target cannot put
+// files on the clipboard.
+func SetClipboardFiles(paths []string) error {
+	if len(paths) == 0 {
+		return fmt.Errorf("app: no files to put on the clipboard")
+	}
+	if len(paths) > MaxClipboardFiles {
+		return fmt.Errorf("app: the clipboard takes at most %d files", MaxClipboardFiles)
+	}
+	for index, path := range paths {
+		if path == "" || strings.IndexByte(path, 0) >= 0 || !filepath.IsAbs(path) {
+			return fmt.Errorf("app: clipboard file %d is not an absolute path: %q", index, path)
+		}
+	}
+	if err, handled := driverSetClipboardFiles(paths); handled {
+		return err
+	}
+	return nativeSetClipboardFiles(paths)
 }

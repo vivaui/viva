@@ -150,12 +150,22 @@ func (state *linuxWindowState) command(command uint32) error {
 			action = 1 // _NET_WM_STATE_ADD
 		}
 		win.sendToRoot(win.frame.stateAtom, [5]uint32{action, win.frame.fullscreen, 0, sourceApp})
+		if command == commandExitFullscreen && win.topmostConfigured.Load() && win.topmost.Load() {
+			win.sendToRoot(win.frame.stateAtom, [5]uint32{1, win.frame.above, 0, sourceApp})
+		}
 	case commandHide:
 		state.hidden = true
 		win.api.unmapWindow(win.connection, win.id)
 		win.api.flush(win.connection)
 	case commandShow:
 		win.api.mapWindow(win.connection, win.id)
+		if win.topmostConfigured.Load() {
+			action := uint32(0)
+			if win.topmost.Load() {
+				action = 1
+			}
+			win.sendToRoot(win.frame.stateAtom, [5]uint32{action, win.frame.above, 0, sourceApp})
+		}
 		if state.config.WindowMode != platform.WindowPanel {
 			if err := win.requestActivation(); err != nil {
 				return err

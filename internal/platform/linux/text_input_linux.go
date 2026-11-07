@@ -297,15 +297,13 @@ func (state *linuxTextInput) rebuild() error {
 	if err != nil {
 		return err
 	}
-	textWidth, err := prefixWidth(first + len(values))
-	if err != nil {
-		return err
-	}
+	textWidth := state.engine.Width(shown, inputState.FontSize, inputState.Weight)
 	state.scroll = 0
 	if !inputState.Placed {
 		state.scroll = state.scrollFor(inputState.Width, caretX, textWidth)
 	}
-	originX := inputState.X - state.scroll
+	inset := platform.TextAlignmentInset(inputState.Alignment, inputState.Width, textWidth, inputState.Terminal, inputState.Placed)
+	originX := inputState.X + inset - state.scroll
 	label := &state.labels[len(state.baseLabels)]
 	label.X, label.Width = originX, max(inputState.Width+state.scroll, textWidth+linuxTextCaretWidth)
 	label.Clipped, label.Clip = true, ui.Rect{X: inputState.X, Y: inputState.Y, Width: inputState.Width, Height: inputState.Height}
@@ -314,6 +312,14 @@ func (state *linuxTextInput) rebuild() error {
 		right := min(left+width, inputState.X+inputState.Width)
 		left = max(left, inputState.X)
 		return left, max(right-left, 0)
+	}
+	// The caret's place is where the engine puts its candidate window, so it is kept
+	// even when the field paints no native caret of its own.
+	caretTop, caretHeight := platform.TextCaretBand(inputState.Y, inputState.Height, inputState.FontSize)
+	state.caret = render.Rectangle{
+		Bounds: scene.Rect{X: platform.TextCaretInsideField(inputState.Alignment, inputState.X, inputState.Width, originX+caretX, linuxTextCaretWidth), Y: caretTop, Width: linuxTextCaretWidth, Height: caretHeight},
+		Color:  scene.Color{Red: float32(inputState.Color.Red), Green: float32(inputState.Color.Green), Blue: float32(inputState.Color.Blue), Alpha: float32(inputState.Color.Alpha)},
+		Layer:  inputState.Layer,
 	}
 	if !inputState.HideNativeOverlays {
 		selection := state.state.Selection
@@ -325,16 +331,10 @@ func (state *linuxTextInput) rebuild() error {
 		if err != nil {
 			return err
 		}
-		caretTop, caretHeight := platform.TextCaretBand(inputState.Y, inputState.Height, inputState.FontSize)
 		left, width := visible(originX+min(selectionStart, selectionEnd), max(selectionEnd-selectionStart, selectionStart-selectionEnd))
 		state.rectangles[base] = render.Rectangle{
 			Bounds: scene.Rect{X: left, Y: caretTop, Width: width, Height: caretHeight},
 			Color:  scene.Color{Red: 0.22, Green: 0.48, Blue: 1, Alpha: 0.34},
-			Layer:  inputState.Layer,
-		}
-		state.caret = render.Rectangle{
-			Bounds: scene.Rect{X: originX + caretX, Y: caretTop, Width: linuxTextCaretWidth, Height: caretHeight},
-			Color:  scene.Color{Red: float32(inputState.Color.Red), Green: float32(inputState.Color.Green), Blue: float32(inputState.Color.Blue), Alpha: float32(inputState.Color.Alpha)},
 			Layer:  inputState.Layer,
 		}
 		if state.caretVisible && state.caretShown() {
@@ -379,7 +379,7 @@ func (state *linuxTextInput) scrollFor(width, caretX, textWidth float32) float32
 // platform.TextInput.Terminal), only the underline of the composition.
 func (state *linuxTextInput) rebuildTerminalPreedit(shown string) {
 	input := &state.input
-	cell := platform.TerminalPreeditCellWidth(input.FontSize)
+	cell := input.CellWidth
 	color := ui.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 	label := &state.labels[len(state.baseLabels)]
 	// A new slice every time: the renderer may still compare against the last frame's label.
@@ -515,7 +515,7 @@ func (state *linuxTextInput) pointer(event platform.PointerEvent) (platform.Fram
 	}
 	// The pointer is measured against the text as it is scrolled, and a drag keeps
 	// selecting once it leaves the field, to the nearest end.
-	index, err := state.nearestTextIndex(event.X - inputState.X + state.scroll)
+	index, err := state.nearestTextIndex(event.X - state.labels[len(state.baseLabels)].X)
 	if err != nil {
 		return platform.Frame{}, true, err
 	}

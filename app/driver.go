@@ -1,4 +1,4 @@
-//go:build darwin || windows || linux
+//go:build darwin || windows || linux || (js && wasm)
 
 package app
 
@@ -93,6 +93,8 @@ type Driver struct {
 	saveFileCount            int
 	lastSaveFileRequest      SaveFileOptions
 	hasSaveFileRequest       bool
+	lastSaveFileCheckbox     SaveFileCheckbox
+	hasSaveFileCheckbox      bool
 }
 
 // NewDriver creates a driver for config, painting into canvas (a fresh canvas
@@ -254,7 +256,7 @@ func (driver *Driver) pointer(kind platform.PointerEventKind, x, y float32, butt
 		return err
 	}
 	origin := driver.origin
-	_, err := driver.painter.pointer(platform.PointerEvent{
+	_, err := driver.painter.pointerEvent(platform.PointerEvent{
 		Kind: kind, Button: button, Modifiers: driver.heldModifiers(), X: x, Y: y, ScreenX: origin.X + x, ScreenY: origin.Y + y, ClickCount: clicks,
 	})
 	return err
@@ -335,7 +337,7 @@ func (driver *Driver) Maximized() bool { return driver.maximized }
 // point. It applies the same focus-scope and blocking-region rules as pointer
 // input without moving the pointer or repainting.
 func (driver *Driver) HitTest(x, y float32) (ui.ID, bool) {
-	return driver.painter.router.HitTest(x, y)
+	return driver.painter.focus.Router().HitTest(x, y)
 }
 
 // PressAt reports what a press at a point would do in a custom-titlebar window:
@@ -615,6 +617,16 @@ func (driver *Driver) Key(key ui.Key, modifiers ui.Modifiers) error {
 	}
 	if driver.terminal() {
 		return driver.terminalKey(key, modifiers, "")
+	}
+	if driver.editing() && driver.painter.nativeText.State.Composing && key == ui.KeyEnter &&
+		modifiers&(ui.ModifierControl|ui.ModifierMeta) == 0 {
+		// While an input method composes, Return belongs to it: a native window
+		// hands the key to the input context, which commits the candidate instead
+		// of inserting a line break (see viva_text_input_should_interpret_key,
+		// where composing keeps every key but Tab and Escape). A headless window
+		// has no input context to ask, so it commits what the composition holds,
+		// which leaves the same text and no newline.
+		return driver.textEvent(platform.TextEvent{Kind: platform.TextUnmark})
 	}
 	if driver.editing() && key != ui.KeyTab && key != ui.KeyEscape && (key != ui.KeyEnter || driver.painter.nativeText.Multiline) {
 		if driver.navigationKey(key) || driver.rowKey(key, modifiers) || key >= ui.KeyF1 && key <= ui.KeyF12 {
@@ -1000,6 +1012,7 @@ type Editor struct {
 	Bounds      ui.Rect
 	FontSize    float32
 	Weight      float32
+	Alignment   ui.Alignment
 	Layer       uint16
 	MonoFace    ui.MonoFace
 	Color       ui.Color
@@ -1062,7 +1075,7 @@ func (driver *Driver) Snapshot() Snapshot {
 		Runs:    append([]ui.TextRun(nil), painter.canvas.AllTextRuns()...),
 		Hits:    append([]ui.Hit(nil), painter.canvas.Hits()...),
 		Tree:    painter.canvas.Tree(),
-		Focused: painter.focused, Hovered: painter.hovered, Cursor: painter.cursor, CursorImage: painter.cursorImage, Now: driver.now,
+		Focused: painter.focus.Focused(), Hovered: painter.pointer.Hovered(), Cursor: painter.cursor, CursorImage: painter.cursorImage, Now: driver.now,
 	}
 	for _, rectangle := range painter.renderer.Rectangles() {
 		primitive := Primitive{
@@ -1114,7 +1127,7 @@ func (driver *Driver) Snapshot() Snapshot {
 		input := painter.nativeText
 		snapshot.Editor = &Editor{
 			Bounds:   ui.Rect{X: input.X, Y: input.Y, Width: input.Width, Height: input.Height},
-			FontSize: input.FontSize, Weight: input.Weight,
+			FontSize: input.FontSize, Weight: input.Weight, Alignment: input.Alignment,
 			// Layer keeps a field inside a popup, dialog or sheet above that
 			// surface's own paint in an offscreen render, as it already is in a
 			// window.

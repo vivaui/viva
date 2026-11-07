@@ -205,8 +205,11 @@ func ClipboardFiles() ([]string, error) {
 		}
 		return hooks.clipboardFiles()
 	}
-	if ownsClipboardText() {
-		return nil, platform.ErrNoClipboardFiles
+	if files, owned := ownedClipboardFiles(); owned {
+		if len(files) == 0 {
+			return nil, platform.ErrNoClipboardFiles
+		}
+		return files, nil
 	}
 	api, connection, requestor, clipboard, owner, err := openClipboardRequest()
 	if err != nil {
@@ -265,7 +268,7 @@ func ClipboardFiles() ([]string, error) {
 }
 
 // ownsClipboardText reports whether this process's window is the CLIPBOARD
-// owner, in which case it holds text and nothing else.
+// owner. The clipboard holds the window's text, files, or both.
 func ownsClipboardText() bool {
 	win := activeWindow.Load()
 	if win == nil {
@@ -274,6 +277,21 @@ func ownsClipboardText() bool {
 	win.mu.Lock()
 	defer win.mu.Unlock()
 	return activeWindow.Load() == win && win.connection != 0 && win.ownsClipboard
+}
+
+// ownedClipboardFiles is the file list this window owns, and whether it owns
+// the clipboard at all (with text or files).
+func ownedClipboardFiles() ([]string, bool) {
+	win := activeWindow.Load()
+	if win == nil {
+		return nil, false
+	}
+	win.mu.Lock()
+	defer win.mu.Unlock()
+	if activeWindow.Load() != win || win.connection == 0 || !win.ownsClipboard {
+		return nil, false
+	}
+	return append([]string(nil), win.clipboardFiles...), true
 }
 
 // openClipboardRequest connects to the X server with a 1x1 input window to
@@ -453,21 +471,11 @@ func SetClipboardText(value string) error {
 	if activeWindow.Load() != win || win.connection == 0 {
 		return fmt.Errorf("linux: clipboard ownership requires a running window")
 	}
-	if err := win.ensureClipboardAtoms(); err != nil {
+	if err := win.claimClipboardLocked(); err != nil {
 		return err
-	}
-	win.api.setSelectionOwner(win.connection, win.id, win.clipboardAtom, 0)
-	if win.api.flush(win.connection) <= 0 || win.api.connectionHasError(win.connection) != 0 {
-		return fmt.Errorf("linux: claim clipboard: XCB connection failed")
-	}
-	owner, err := selectionOwner(win.api, win.connection, win.clipboardAtom)
-	if err != nil {
-		return err
-	}
-	if owner != win.id {
-		return fmt.Errorf("linux: X server refused clipboard ownership")
 	}
 	win.clipboard = value
+	win.clipboardFiles = nil
 	win.ownsClipboard = true
 	return nil
 }
@@ -631,6 +639,26 @@ func SaveFile(options SaveFileOptions) (string, bool, error) {
 		return "", false, fmt.Errorf("linux: save file dialog returned %d paths", len(paths))
 	}
 	return paths[0], false, nil
+}
+
+func SaveFileWithCheckbox(options SaveFileOptions, label string, initial bool) (string, bool, bool, error) {
+	filters, err := portalFilters(options.Filters)
+	if err != nil {
+		return "", false, false, err
+	}
+	name, err := suggestedSaveName(options.SuggestedName, options.DefaultExtension)
+	if err != nil {
+		return "", false, false, err
+	}
+	paths, choices, canceled, err := portalChooseWithChoices(portalFileRequest{
+		method: "SaveFile", parent: portalParent(), title: options.Title, filters: filters,
+		currentName: name, checkboxLabel: label, checkboxChecked: initial,
+	})
+	path, checked, canceled, err := portalSaveCheckboxResult(paths, choices, canceled, err)
+	if errors.Is(err, errServiceMissing) {
+		return "", false, false, unsupported("save checkbox requires a file chooser portal supporting choices")
+	}
+	return path, checked, canceled, err
 }
 
 func OpenURL(target string) error {

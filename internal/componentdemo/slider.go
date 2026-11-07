@@ -8,7 +8,7 @@ import (
 
 var sliderComponent = Component{
 	ID: "slider", Title: "Slider", Category: "Forms", Summary: "调用方持有数值的单值与范围滑块。",
-	paint: (*State).paintSlider, pointer: (*State).pointerSlider, initialize: (*State).initializeSlider,
+	paint: (*State).paintSlider, pointer: (*State).pointerSlider, key: (*State).keySlider, initialize: (*State).initializeSlider,
 	Examples: []Example{
 		{ID: "default", Title: "音量", Description: "主指针拖动按十为步长更新，激活仍可循环调用方数值。", Snippet: `components.BeginSlider(canvas, theme, tree.ID(page, "volume"), bounds, float32(volume)).
     Step(10).Paint("Volume")
@@ -109,6 +109,40 @@ func (state *State) pointerSlider(event ui.PointerEvent) ui.EventResult {
 		thumbs[index].ValueText = sliderDemoValueText(value)
 	}
 	return ui.EventResult{Focus: event.Target, FocusVisible: false, Handled: true, Repaint: changed}
+}
+
+func (state *State) keySlider(event ui.KeyEvent) ui.EventResult {
+	index := 0
+	switch event.Target {
+	case sliderPrimary:
+	case sliderLower:
+		index = 0
+	case sliderUpper:
+		index = 1
+	default:
+		return ui.EventResult{}
+	}
+	values := []float32{float32(state.values[0]), float32(state.values[1])}
+	if state.exampleID == "range" {
+		if !components.RangeSliderKeyDown(values, index, 0, 100, 5, 10, 1, components.LTR, event.Key, event.Modifiers) {
+			return ui.EventResult{}
+		}
+	} else {
+		next, handled := components.SliderKeyDown(values[0], 0, 100, 10, components.LTR, event.Key, event.Modifiers)
+		if !handled {
+			return ui.EventResult{}
+		}
+		values[0] = next
+	}
+	nextValue := int32(values[index] + 0.5)
+	changed := state.values[index] != nextValue
+	state.values[index] = nextValue
+	if state.exampleID == "range" {
+		thumbs := &state.bag().thumbs
+		thumbs[index].Value = float32(nextValue)
+		thumbs[index].ValueText = sliderDemoValueText(nextValue)
+	}
+	return ui.EventResult{Handled: true, Repaint: changed}
 }
 
 // sliderForExample is the interactive slider as the last paint placed it, for the

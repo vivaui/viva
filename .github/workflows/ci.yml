@@ -109,12 +109,83 @@ jobs:
               go vet ./internal/... ./app/ ./cmd/... ./components/... ./update/... &
             pids="$pids $!"
           done
-          GOOS=js GOARCH=wasm go vet ./internal/platform/web/ ./app/ &
-          pids="$pids $!"
           for pid in $pids; do
             wait "$pid" || status=1
           done
           exit "$status"
+      - name: GTK always-on-top contract
+        run: |
+          go vet -tags vivagtk ./app ./internal/platform/linux
+          go test -tags vivagtk ./internal/platform/linux -run '^TestGTKWaylandAlwaysOnTopReportsUnsupported$' -count=1
+
+  # The browser target is a release target: it compiles every package, runs the
+  # shared tests under GOOS=js, and builds the browser entry points and a guide.
+  # The browser gate below is separate so installing Playwright's system
+  # dependencies does not extend this job's critical path.
+  web:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: vet the browser target
+        run: GOOS=js GOARCH=wasm go vet ./...
+      - name: test under the Go wasm runtime
+        run: |
+          # cmd/viva is the host build tool; its tests invoke a host Go toolchain
+          # and package installers, not the browser runtime.
+          # A package with no files for js/wasm (the native window backends,
+          # host-only tools) cannot be tested on this target; go list prints a
+          # blank line for it, which is dropped here.
+          packages=$(GOOS=js GOARCH=wasm CGO_ENABLED=0 \
+            go list -f '{{if .GoFiles}}{{.ImportPath}}{{end}}' ./... |
+            sed '/^$/d' | grep -v '^github.com/vivaui/viva/cmd/viva$')
+          # shellcheck disable=SC2086 # one package per word, by design
+          GOOS=js GOARCH=wasm go test $packages \
+            -exec="$(go env GOROOT)/lib/wasm/go_js_wasm_exec" -count=1
+      - name: build browser entry points
+        run: |
+          GOOS=js GOARCH=wasm go build \
+            ./cmd/component-preview ./cmd/gallery-web \
+            ./examples/guides/hello ./examples/guides/webview
+
+  # The real browser gate. It builds the fixture and drives it through the
+  # three engines in parallel with the wasm tests above; most of its elapsed
+  # time is Playwright's GTK/GStreamer dependency install, which has no place
+  # on the wasm job's critical path.
+  web-browser:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tools/webcheck/package-lock.json
+      - name: build the browser verification fixture
+        run: go run ./cmd/viva build --target web ./tools/webcheck/fixture -o build/webcheck
+      - name: install the browser gate
+        run: |
+          npm ci --prefix tools/webcheck
+          tools/webcheck/node_modules/.bin/playwright install --with-deps chromium firefox webkit
+      # Each engine gets its own step so a failure names the engine that broke
+      # and the others still report their own result.
+      - name: drive the browser verification page (chromium)
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser chromium
+      - name: drive the browser verification page (firefox)
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser firefox
+      - name: drive the browser verification page (webkit)
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser webkit
 
   # The whole test suite except the packages that carry darwin-only files, split
   # over several runners. .github/scripts/test-packages.sh decides what this
@@ -198,7 +269,7 @@ jobs:
           cache: true
       # WARP is a Windows API: this cannot run anywhere else.
       - name: Material contracts and controls (WARP)
-        run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies)' -count=1 -v
+        run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|AlwaysOnTop|SaveDialogCheckbox)' -count=1 -v
       # The installer contracts, including WinVerifyTrust's struct layout, only
       # compile and run on Windows.
       - name: Update installer contracts
@@ -244,7 +315,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, cross-vet, test, darwin, windows-materials, benchmarks]
+    needs: [changes, lint, cross-vet, web, web-browser, test, darwin, windows-materials, benchmarks]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed

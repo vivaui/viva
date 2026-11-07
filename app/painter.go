@@ -2,7 +2,6 @@ package app
 
 import (
 	"bytes"
-	"cmp"
 	"errors"
 	"fmt"
 	"math"
@@ -12,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/input"
+	"github.com/vivaui/viva/internal/interaction"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
@@ -46,20 +46,13 @@ type painter struct {
 	placeAnchor int
 	nativeText  platform.TextInput
 	// keys follows the keys of a terminal that asked for releases (see
-	// TextInput.KeyReleases); heldTarget is the hit they were pressed on.
-	keys input.KeyTracker
-	// releaseDue is set when something happened that ends the keyboard's use by
-	// the keys in keys: the next repaint releases them.
-	releaseDue bool
-	// focusClaim is the non-modal focus request already honored, so a popover
-	// painted every frame does not pull focus back after the user leaves it.
-	focusClaim      ui.ID
-	keysTarget      ui.ID
+	// TextInput.KeyReleases).
+	keys            interaction.Keys
 	textEnabled     bool
 	canvas          *ui.Canvas
 	size            ui.Size
-	router          input.Router
-	regions         []input.Region
+	focus           interaction.Focus
+	pointer         interaction.Pointer
 	graph           *scene.Scene
 	renderer        render.Store
 	semantics       *semantic.Tree
@@ -72,8 +65,6 @@ type painter struct {
 	reusedHits      int        // publishes that kept the previous regions and semantics
 	shapeIDs        []scene.ID // one scene node per entry of order, in paint order
 	labels          []platform.TextLabel
-	paintedIDs      []ui.ID // hit IDs of the previous paint, for Autofocus
-	paintedScratch  []ui.ID // the next paint's IDs, so one pass can read the old ones
 	lastTexts       []ui.Text
 	lastRuns        []ui.TextRun // the runs lastTexts refer to, copied out of the application's memory
 	// lastFontGeneration is the canvas's font generation at the labels last sent: text
@@ -121,22 +112,12 @@ type painter struct {
 	controls *windowControls
 	// edge is the window edge the pointer is over, for the resize cursor, on a
 	// window whose frame Viva draws (the system supplies the cursor elsewhere).
-	edge         platform.WindowEdge
-	hovered      ui.ID
-	pressed      ui.ID
-	pressTarget  ui.ID
-	pressButton  ui.PointerButton
-	pressHandled bool
+	edge platform.WindowEdge
 	// pointerOutside says the pointer left the window while a button was down.
 	// The press keeps the pointer until the button comes up, so the exit waits
 	// for the release instead of ending a drag at the window's edge.
 	pointerOutside bool
 	cursor         Cursor
-	focused        ui.ID
-	keyboardFocus  bool
-	pendingFocus   ui.ID
-	pendingVisible bool
-	escapeTarget   ui.ID
 	scrollX        float32
 	scrollY        float32
 	// scheduleFrame asks the runtime for one more frame, after at least the
@@ -179,7 +160,6 @@ func newPainterWithClock(canvas *ui.Canvas, config *Config, clock func() time.Du
 		lastAccess:    make([]platform.AccessibilityNode, 0, len(canvas.Hits())+1),
 		shapeIDs:      make([]scene.ID, 0, len(canvas.Rectangles())+len(canvas.Triangles())+len(canvas.Shadows())),
 		labels:        make([]platform.TextLabel, 0, len(canvas.Texts())+len(canvas.Images())+1),
-		regions:       make([]input.Region, 0, len(canvas.Hits())+1),
 	}
 	painter.onTextEvent = painter.applyTextEvent
 	if config.WindowMode == WindowCustomTitlebar && controlsDrawnByViva {
@@ -222,7 +202,7 @@ func (painter *painter) pressAt(x, y float32) platform.PressKind {
 	if painter.fullscreen {
 		return platform.PressClient
 	}
-	return painter.router.PressAt(x, y)
+	return painter.focus.Router().PressAt(x, y)
 }
 
 // pointer applies one native pointer event to the interaction state machine
@@ -232,7 +212,7 @@ func (painter *painter) pressAt(x, y float32) platform.PressKind {
 // is two presses in one: the first dismisses the overlay, as a click on the
 // backdrop would, and the second is the same press aimed at what the overlay
 // was covering, once the paint has taken it away.
-func (painter *painter) pointer(event platform.PointerEvent) (platform.Frame, error) {
+func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Frame, error) {
 	if event.Kind == platform.PointerDown {
 		painter.tap.Cancel()
 		painter.pointerOutside = false
@@ -242,41 +222,38 @@ func (painter *painter) pointer(event platform.PointerEvent) (platform.Frame, er
 		// arrive, so the application's press ends here. It is told the pointer is
 		// gone, which is what a press it can no longer follow amounts to.
 		painter.pointerOutside = false
-		painter.pressed = ui.ID{}
-		painter.pressTarget = ui.ID{}
-		painter.pressButton = ui.PointerButtonNone
-		painter.pressHandled = false
+		painter.pointer.Exit()
 		event.Kind = platform.PointerExit
 	}
 	if event.Kind == platform.PointerMove && painter.pointerOutside &&
 		event.X >= 0 && event.Y >= 0 && event.X < painter.size.Width && event.Y < painter.size.Height {
 		painter.pointerOutside = false
 	}
-	if event.Kind == platform.PointerExit && painter.pressButton != ui.PointerButtonNone {
+	if event.Kind == platform.PointerExit && !painter.pointer.PressTarget().IsZero() {
 		// A press keeps the pointer until its button comes up, as on every
 		// desktop. A drag that ended here would stop following the pointer
 		// exactly where the user needs it: past the edge of the terminal, the
 		// list or the window. The exit is delivered when the button is released.
 		painter.pointerOutside = true
-		if painter.hovered.IsZero() {
+		if painter.pointer.Hovered().IsZero() {
 			return platform.Frame{}, nil
 		}
-		painter.hovered = ui.ID{}
+		painter.pointer.SetHovered(ui.ID{})
 		return painter.repaint()
 	}
-	beforeHovered, beforePressed := painter.hovered, painter.pressed
-	beforeFocus, beforeKeyboard := painter.focused, painter.keyboardFocus
+	beforeHovered, beforePressed := painter.pointer.Hovered(), painter.pointer.Pressed()
+	beforeFocus, beforeKeyboard := painter.focus.Focused(), painter.focus.KeyboardFocus()
 	passes := event.Kind == platform.PointerDown &&
-		(event.Button == ui.PointerButtonSecondary && painter.router.PassesSecondary(event.X, event.Y) ||
-			event.Button == ui.PointerButtonPrimary && painter.router.PassesPrimary(event.X, event.Y))
+		(event.Button == ui.PointerButtonSecondary && painter.focus.Router().PassesSecondary(event.X, event.Y) ||
+			event.Button == ui.PointerButtonPrimary && painter.focus.Router().PassesPrimary(event.X, event.Y))
 	result, focusChanged, edgeChanged := painter.pointerStep(event)
 	if passes {
-		if !result.Handled && painter.deliverClick(painter.hovered) {
+		if !result.Handled && painter.deliverClick(painter.pointer.Hovered()) {
 			result.Handled = true
 		}
 		painter.paintCanvas()
-		painter.syncRegions()
-		if !painter.router.PassesSecondary(event.X, event.Y) && !painter.router.PassesPrimary(event.X, event.Y) {
+		painter.focus.Sync(painter.canvas)
+		if !painter.focus.Router().PassesSecondary(event.X, event.Y) && !painter.focus.Router().PassesPrimary(event.X, event.Y) {
 			var again, edgeAgain bool
 			result, again, edgeAgain = painter.pointerStep(event)
 			focusChanged, edgeChanged = focusChanged || again, edgeChanged || edgeAgain
@@ -286,19 +263,15 @@ func (painter *painter) pointer(event platform.PointerEvent) (platform.Frame, er
 
 	switch event.Kind {
 	case platform.PointerUp:
-		if painter.pressButton == ui.PointerButtonPrimary && !painter.pressHandled && !result.Handled && !painter.pressed.IsZero() && painter.pressed == painter.hovered &&
-			painter.pressed == painter.pressTarget {
-			if painter.isWindowControl(painter.pressed) {
-				painter.controls.activate(painter.pressed)
+		if id, ok := painter.pointer.Click(); ok && !result.Handled {
+			if painter.isWindowControl(id) {
+				painter.controls.activate(id)
 				result.Repaint = true
-			} else if painter.deliverClick(painter.pressed) {
+			} else if painter.deliverClick(id) {
 				result.Repaint = true
 			}
 		}
-		painter.pressed = ui.ID{}
-		painter.pressTarget = ui.ID{}
-		painter.pressButton = ui.PointerButtonNone
-		painter.pressHandled = false
+		painter.pointer.Up()
 		if painter.pointerOutside {
 			// The button came up beyond the window, so the press is over and the
 			// pointer is gone: tell the application now that it may clear hover
@@ -310,13 +283,12 @@ func (painter *painter) pointer(event platform.PointerEvent) (platform.Frame, er
 			}
 		}
 	case platform.PointerExit:
-		painter.pressed = ui.ID{}
-		painter.pressTarget = ui.ID{}
-		painter.pressButton = ui.PointerButtonNone
-		painter.pressHandled = false
+		painter.pointer.Exit()
 	}
 
-	if painter.hovered == beforeHovered && painter.pressed == beforePressed && painter.focused == beforeFocus && painter.keyboardFocus == beforeKeyboard && !focusChanged && !result.Repaint {
+	if painter.pointer.Hovered() == beforeHovered && painter.pointer.Pressed() == beforePressed &&
+		painter.focus.Focused() == beforeFocus && painter.focus.KeyboardFocus() == beforeKeyboard &&
+		!focusChanged && !result.Repaint {
 		if edgeChanged {
 			// Only the cursor differs: no repaint for it.
 			return platform.Frame{}, painter.syncCursor()
@@ -330,40 +302,20 @@ func (painter *painter) pointer(event platform.PointerEvent) (platform.Frame, er
 // state, the application and the controls' event pass. It returns what the
 // application answered and whether focus and the pointer's edge state changed.
 func (painter *painter) pointerStep(event platform.PointerEvent) (result ui.EventResult, focusChanged, edgeChanged bool) {
-	painter.hovered = ui.ID{}
+	painter.pointer.SetHovered(ui.ID{})
 	if event.Kind != platform.PointerExit {
-		if target, ok := painter.router.HitTest(event.X, event.Y); ok {
-			painter.hovered = target
+		if target, ok := painter.focus.Router().HitTest(event.X, event.Y); ok {
+			painter.pointer.SetHovered(target)
 		}
 	}
 	edgeChanged = painter.trackEdge(event)
 
-	switch event.Kind {
-	case platform.PointerDown:
-		painter.pressed = painter.hovered
-		painter.pressTarget = painter.hovered
-		painter.pressButton = event.Button
-		if painter.pressButton == ui.PointerButtonNone {
-			painter.pressButton = ui.PointerButtonPrimary
-		}
-		painter.router.PointerDown(event.X, event.Y)
-		if painter.hovered.IsZero() && painter.router.ActiveScope().IsZero() {
-			painter.router.Blur()
-		}
-		if focused, ok := painter.router.Focused(); ok {
-			painter.focused = focused
-		} else {
-			painter.focused = ui.ID{}
-		}
-		painter.keyboardFocus = false
+	if event.Kind == platform.PointerDown {
+		painter.pointer.Down(event.Button)
+		painter.focus.PointerDown(event.X, event.Y, painter.pointer.Hovered())
 	}
 
-	target := painter.hovered
-	captured := false
-	if event.Kind != platform.PointerDown && !painter.pressTarget.IsZero() {
-		target = painter.pressTarget
-		captured = true
-	}
+	target, captured := painter.pointer.Delivery(ui.PointerEventKind(event.Kind))
 	if painter.onPointer != nil {
 		result = painter.onPointer(ui.PointerEvent{
 			Kind: ui.PointerEventKind(event.Kind), Button: event.Button, Modifiers: ui.Modifiers(event.Modifiers),
@@ -380,11 +332,7 @@ func (painter *painter) pointerStep(event platform.PointerEvent) (result ui.Even
 			result.Handled, result.Repaint = true, true
 		}
 	}
-	if event.Kind == platform.PointerDown {
-		painter.pressHandled = result.Handled
-	} else if !painter.pressTarget.IsZero() && result.Handled {
-		painter.pressHandled = true
-	}
+	painter.pointer.NoteHandled(ui.PointerEventKind(event.Kind), result.Handled)
 	focusChanged = painter.applyEventResult(result)
 	if painter.placeCaret(event) {
 		result.Repaint = true
@@ -402,7 +350,7 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 	case platform.PointerDown:
 		painter.placing = false
 		primary := event.Button == ui.PointerButtonPrimary || event.Button == ui.PointerButtonNone
-		if !primary || painter.focused.IsZero() || painter.hovered != painter.focused {
+		if !primary || painter.focus.Focused().IsZero() || painter.pointer.Hovered() != painter.focus.Focused() {
 			return false
 		}
 	case platform.PointerMove:
@@ -481,7 +429,7 @@ func (painter *painter) shortcut(event platform.KeyEvent) (platform.Frame, bool,
 	}
 	event.Text = normalizeShortcutText(event.Text)
 	response := painter.onShortcut(ui.KeyEvent{
-		Key: ui.Key(event.Key), Modifiers: ui.Modifiers(event.Modifiers), Target: painter.focused,
+		Key: ui.Key(event.Key), Modifiers: ui.Modifiers(event.Modifiers), Target: painter.focus.Focused(),
 		Repeat: event.Repeat, Text: event.Text, Win32: event.Win32,
 	})
 	focusChanged := painter.applyEventResult(response)
@@ -525,21 +473,18 @@ func (painter *painter) key(event platform.KeyEvent) (platform.Frame, error) {
 	if modifier && !painter.keysWanted() {
 		return platform.Frame{}, nil
 	}
-	before := painter.focused
-	beforeKeyboard := painter.keyboardFocus
+	before := painter.focus.Focused()
+	beforeKeyboard := painter.focus.KeyboardFocus()
 	response := ui.EventResult{}
 	if painter.onKey != nil {
 		repeat := event.Repeat
 		if event.Code != 0 && painter.keysWanted() {
-			again, tracked := painter.keys.Press(input.HeldKey{
-				Code: event.Code, Key: event.Key, Text: event.Text, Target: painter.focused, Win32: event.Win32,
+			again, _ := painter.keys.Press(input.HeldKey{
+				Code: event.Code, Key: event.Key, Text: event.Text, Target: painter.focus.Focused(), Win32: event.Win32,
 			})
-			if tracked && !again && painter.keys.Len() == 1 {
-				painter.keysTarget = painter.focused
-			}
 			repeat = repeat || again
 		}
-		response = painter.onKey(ui.KeyEvent{Key: ui.Key(event.Key), Modifiers: ui.Modifiers(event.Modifiers), Target: painter.focused, Repeat: repeat, Text: event.Text, Typed: event.Typed, Win32: event.Win32})
+		response = painter.onKey(ui.KeyEvent{Key: ui.Key(event.Key), Modifiers: ui.Modifiers(event.Modifiers), Target: painter.focus.Focused(), Repeat: repeat, Text: event.Text, Typed: event.Typed, Win32: event.Win32})
 	}
 	if modifier {
 		return painter.afterKeyResponse(response)
@@ -553,26 +498,26 @@ func (painter *painter) key(event platform.KeyEvent) (platform.Frame, error) {
 		}
 		response = ui.EventResult{}
 	}
-	if !response.Handled && event.Key == input.KeyEscape && !painter.escapeTarget.IsZero() && painter.canClick() && !painter.nativeText.State.Composing {
+	if !response.Handled && event.Key == input.KeyEscape && !painter.focus.EscapeTarget().IsZero() && painter.canClick() && !painter.nativeText.State.Composing {
 		// An input method owns Escape while it is composing: the key cancels
 		// the composition instead of dismissing the overlay behind the field.
-		painter.deliverClick(painter.escapeTarget)
+		painter.deliverClick(painter.focus.EscapeTarget())
 		return painter.repaint()
 	}
-	result := input.Result{Target: input.Target(painter.focused)}
+	result := input.Result{Target: input.Target(painter.focus.Focused())}
 	if !response.Handled {
-		result = painter.router.KeyDown(input.KeyEvent{Key: event.Key, Modifiers: event.Modifiers, Repeat: event.Repeat})
+		result = painter.focus.Router().KeyDown(input.KeyEvent{Key: event.Key, Modifiers: event.Modifiers, Repeat: event.Repeat})
 	}
 	activated := false
 	if !response.Handled && result.Activated && painter.deliverClick(result.Target) {
 		activated = true
 	}
-	painter.focused = result.Target
+	painter.focus.Refresh()
 	if event.Key == input.KeyTab {
-		painter.keyboardFocus = !painter.focused.IsZero()
+		painter.focus.SetKeyboardFocus(!painter.focus.Focused().IsZero())
 	}
 	focusChanged := painter.applyEventResult(response)
-	if painter.focused == before && !activated && painter.keyboardFocus == beforeKeyboard && !focusChanged && !response.Repaint {
+	if painter.focus.Focused() == before && !activated && painter.focus.KeyboardFocus() == beforeKeyboard && !focusChanged && !response.Repaint {
 		return platform.Frame{}, nil
 	}
 	return painter.repaint()
@@ -594,7 +539,7 @@ func (painter *painter) keyRelease(event platform.KeyEvent) (platform.Frame, err
 	tapRepaint := false
 	if painter.onModifierTap != nil {
 		if key, ok := painter.tap.Release(event.Code); ok {
-			response := painter.onModifierTap(ui.ModifierTapEvent{Key: ui.Key(key), Target: painter.focused})
+			response := painter.onModifierTap(ui.ModifierTapEvent{Key: ui.Key(key), Target: painter.focus.Focused()})
 			tapRepaint = painter.applyEventResult(response) || response.Repaint
 		}
 	}
@@ -666,9 +611,7 @@ func (painter *painter) focusLost() (platform.Frame, error) {
 // noteKeyboardTarget records, after a paint, whether the held keys still have a
 // terminal that wants them; if not the next repaint ends releases them.
 func (painter *painter) noteKeyboardTarget(target ui.ID, wanted bool) {
-	if painter.keys.Len() > 0 && (!wanted || target != painter.keysTarget) {
-		painter.releaseDue = true
-	}
+	painter.keys.NoteTarget(target, wanted)
 }
 
 // scroll applies one scroll gesture to the vertical offset and repaints.
@@ -682,12 +625,13 @@ func (painter *painter) fileDrop(event platform.FileDropEvent) (platform.Frame, 
 	}
 	target := ui.ID{}
 	if event.Phase != platform.FileDropLeave {
-		if hit, ok := painter.router.HitTest(event.X, event.Y); ok {
+		if hit, ok := painter.focus.Router().HitTest(event.X, event.Y); ok {
 			target = hit
 		}
 	}
 	response := painter.onFileDrop(ui.FileDropEvent{
 		Phase: ui.FileDropPhase(event.Phase), X: event.X, Y: event.Y, Target: target, Paths: event.Paths,
+		Files: fileDropFilesFromPaths(event.Paths),
 	})
 	focusChanged := painter.applyEventResult(response)
 	if !response.Repaint && !focusChanged {
@@ -703,7 +647,7 @@ func (painter *painter) scroll(event platform.ScrollEvent) (platform.Frame, erro
 		return platform.Frame{}, nil
 	}
 	target := ui.ID{}
-	if hit, ok := painter.router.HitTest(event.X, event.Y); ok {
+	if hit, ok := painter.focus.Router().HitTest(event.X, event.Y); ok {
 		target = hit
 	}
 	response := ui.EventResult{}
@@ -742,34 +686,7 @@ func (painter *painter) applyEventResult(result ui.EventResult) bool {
 	if result.ClipboardText != "" && painter.setClipboardText != nil {
 		painter.setClipboardText(result.ClipboardText)
 	}
-	before, beforeVisible := painter.focused, painter.keyboardFocus
-	if result.Blur {
-		painter.pendingFocus = ui.ID{}
-		painter.pendingVisible = false
-		painter.router.Blur()
-	} else if !result.Focus.IsZero() {
-		if painter.router.Focus(input.Target(result.Focus)) {
-			painter.pendingFocus = ui.ID{}
-			painter.pendingVisible = false
-		} else if focused, ok := painter.router.Focused(); !ok || focused != result.Focus {
-			// The event may have revealed this hit. Resolve it against the hit
-			// list produced by the repaint instead of making the application
-			// stage focus through a second event.
-			painter.pendingFocus = result.Focus
-			painter.pendingVisible = result.FocusVisible
-		}
-	}
-	if focused, ok := painter.router.Focused(); ok {
-		painter.focused = focused
-	} else {
-		painter.focused = ui.ID{}
-	}
-	if painter.focused != before {
-		painter.keyboardFocus = result.FocusVisible && !painter.focused.IsZero()
-	} else if !result.Focus.IsZero() || result.Blur {
-		painter.keyboardFocus = result.FocusVisible && !painter.focused.IsZero()
-	}
-	return painter.focused != before || painter.keyboardFocus != beforeVisible || !painter.pendingFocus.IsZero()
+	return painter.focus.Apply(result)
 }
 
 // canClick reports whether a click on a control has anywhere to go: whether the
@@ -826,20 +743,20 @@ func (painter *painter) deliverPointer(event ui.PointerEvent) bool {
 // synchronizes the result with the retained renderer.
 func (painter *painter) repaint() (platform.Frame, error) {
 	painter.paintCanvas()
-	if !painter.pendingFocus.IsZero() {
-		before, beforeVisible := painter.focused, painter.keyboardFocus
-		painter.syncRegions()
-		if painter.focused != before || painter.keyboardFocus != beforeVisible {
+	if !painter.focus.PendingFocus().IsZero() {
+		before, beforeVisible := painter.focus.Focused(), painter.focus.KeyboardFocus()
+		painter.focus.Sync(painter.canvas)
+		if painter.focus.Focused() != before || painter.focus.KeyboardFocus() != beforeVisible {
 			painter.paintCanvas()
 		}
 	}
-	if painter.paint != nil && painter.canvas.TrappedFocusScope() != painter.router.ActiveScope() {
+	if painter.paint != nil && painter.canvas.TrappedFocusScope() != painter.focus.Router().ActiveScope() {
 		// A modal just opened or closed, which moves focus into it or back
 		// out. Settle that now and paint once more so this frame already
 		// shows the new focus instead of lagging a repaint behind.
-		before := painter.focused
-		painter.syncRegions()
-		if painter.focused != before {
+		before := painter.focus.Focused()
+		painter.focus.Sync(painter.canvas)
+		if painter.focus.Focused() != before {
 			painter.paintCanvas()
 		}
 	}
@@ -847,11 +764,8 @@ func (painter *painter) repaint() (platform.Frame, error) {
 	if err != nil {
 		return platform.Frame{}, err
 	}
-	if painter.releaseDue {
-		painter.releaseDue = false
-		if painter.releaseKeys() && painter.scheduleFrame != nil {
-			painter.scheduleFrame(0)
-		}
+	if painter.keys.TakeDue() && painter.releaseKeys() && painter.scheduleFrame != nil {
+		painter.scheduleFrame(0)
 	}
 	painter.scheduleIfAnimating()
 	return frame, nil
@@ -865,14 +779,8 @@ func (painter *painter) paintCanvas() {
 	if painter.scale > 0 {
 		painter.canvas.SetPixelScale(painter.scale)
 	}
-	focused, visible := painter.focused, painter.keyboardFocus
-	if !painter.pendingFocus.IsZero() {
-		// A virtualized list needs the requested focus while laying out the
-		// reveal. Painting the old focus can scroll it back into view before
-		// the pending target has had a chance to enter the hit list.
-		focused, visible = painter.pendingFocus, painter.pendingVisible
-	}
-	painter.canvas.SetInteraction(painter.hovered, painter.pressed, focused, visible)
+	focused, visible := painter.focus.PaintTarget()
+	painter.canvas.SetInteraction(painter.pointer.Hovered(), painter.pointer.Pressed(), focused, visible)
 	painter.canvas.SetScroll(painter.scrollX, painter.scrollY)
 	painter.canvas.BeginFrame()
 	painter.paint(painter.canvas, painter.size)
@@ -930,7 +838,7 @@ func (painter *painter) publish() (platform.Frame, error) {
 	if regionsUnchanged {
 		painter.reusedHits++
 	} else {
-		painter.syncRegions()
+		painter.focus.Sync(painter.canvas)
 	}
 	if err := painter.syncCursor(); err != nil {
 		return platform.Frame{}, err
@@ -1037,11 +945,9 @@ func (painter *painter) trim() {
 		painter.semanticsDirty = true
 	}
 	painter.canvas.Trim()
-	painter.regions = trimPainterCapacity(painter.regions)
+	painter.focus.Trim()
 	painter.shapeIDs = trimPainterCapacity(painter.shapeIDs)
 	painter.labels = trimPainterCapacity(painter.labels)
-	painter.paintedIDs = trimPainterCapacity(painter.paintedIDs)
-	painter.paintedScratch = trimPainterCapacity(painter.paintedScratch)
 	painter.lastTexts = trimPainterCapacity(painter.lastTexts)
 	painter.lastRuns = trimPainterCapacity(painter.lastRuns)
 	painter.lastImages = trimPainterCapacity(painter.lastImages)
@@ -1079,28 +985,13 @@ func trimPainterCapacity[T any](items []T) []T {
 }
 
 func (painter *painter) syncCursor() error {
-	target := painter.hovered
-	if !painter.pressTarget.IsZero() {
-		target = painter.pressTarget
-	}
 	next := CursorArrow
 	var image *ui.CursorImage
-	if painter.edge != platform.EdgeNone && painter.pressTarget.IsZero() {
+	if painter.edge != platform.EdgeNone && painter.pointer.PressTarget().IsZero() {
 		return painter.applyCursor(cursorForEdge(painter.edge), nil)
 	}
-	if !target.IsZero() {
-		hits := painter.canvas.Hits()
-		for index := len(hits) - 1; index >= 0; index-- {
-			if hits[index].ID == target && !hits[index].Disabled && !hits[index].IsLabel {
-				next = cursorFromHit(hits[index].Cursor)
-				if next == CursorImage {
-					if image = hits[index].CursorImage; image == nil {
-						next = CursorArrow
-					}
-				}
-				break
-			}
-		}
+	if cursor, picture := interaction.CursorForTarget(painter.canvas.Hits(), painter.pointer.Hovered(), painter.pointer.PressTarget()); cursor != ui.PointerCursorDefault || picture != nil {
+		next, image = cursorFromHit(cursor), picture
 	}
 	return painter.applyCursor(next, image)
 }
@@ -1179,23 +1070,17 @@ func (painter *painter) resyncRenderer() (render.Update, error) {
 // focusedTextField describes the focused text field of the last paint, and how
 // it places its caret when it lays its rows out itself.
 func (painter *painter) focusedTextField() (TextInputContext, ui.TextPlacement) {
-	for _, hit := range painter.canvas.Hits() {
-		// A combobox owns the native editor only when it names the text
-		// geometry: one that paints its own query (components.Command) declares
-		// no TextBounds and keeps what it draws.
-		if hit.ID == painter.focused && !hit.Disabled &&
-			(hit.Role == ui.RoleTextField || hit.Role == ui.RoleTerminal || hit.TypeAhead ||
-				hit.Role == ui.RoleCombobox && hit.TextBounds != (ui.Rect{})) {
-			return TextInputContext{
-				ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == ui.RoleTerminal, TypeAhead: hit.TypeAhead && hit.Role != ui.RoleTerminal,
-				Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
-				NavigationKeys: hit.NavigationKeys,
-				TextBounds:     hit.TextBounds, FontSize: hit.TextSize, FontWeight: hit.TextWeight, TextColor: hit.TextColor,
-				HideNativeOverlays: hit.HideNativeOverlays,
-			}, hit.Placement
-		}
+	hit, ok := interaction.TextInputHit(painter.canvas.Hits(), painter.focus.Focused())
+	if !ok {
+		return TextInputContext{}, nil
 	}
-	return TextInputContext{}, nil
+	return TextInputContext{
+		ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == ui.RoleTerminal, TypeAhead: hit.TypeAhead && hit.Role != ui.RoleTerminal,
+		Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
+		NavigationKeys: hit.NavigationKeys,
+		TextBounds:     hit.TextBounds, FontSize: hit.TextSize, FontWeight: hit.TextWeight, TextColor: hit.TextColor,
+		HideNativeOverlays: hit.HideNativeOverlays,
+	}, hit.Placement
 }
 
 func (painter *painter) syncTextInput() platform.TextInputUpdate {
@@ -1260,12 +1145,20 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		painter.textEnabled = false
 		return platform.TextInputUpdate{Changed: true}
 	}
+	var cellWidth float32
+	if context.Terminal || context.TypeAhead {
+		cellWidth, _ = painter.canvas.MonoCellSize(fontSize, input.MonoFace)
+	}
+	alignment := ui.AlignLeft
+	if !context.Terminal && !context.TypeAhead && placement == nil {
+		alignment = resolveTextInputAlignment(input.Alignment, input.State.Value, input.State.Selection.End)
+	}
 	native := platform.TextInput{
 		Target: context.ID,
 		X:      bounds.X, Y: bounds.Y,
 		Width: bounds.Width, Height: bounds.Height,
-		FontSize: fontSize, Weight: weight, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
-		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace,
+		FontSize: fontSize, Weight: weight, Alignment: alignment, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
+		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace, CellWidth: cellWidth,
 		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
 		HideNativeOverlays: input.HideNativeOverlays || context.HideNativeOverlays,
 		Color: platform.Color{
@@ -1354,7 +1247,7 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 
 func samePlatformTextInput(left, right platform.TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y && left.Width == right.Width && left.Height == right.Height &&
-		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace &&
+		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.CellWidth == right.CellWidth &&
 		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases &&
 		left.NavigationKeys == right.NavigationKeys &&
 		left.HideNativeOverlays == right.HideNativeOverlays &&
@@ -1697,106 +1590,6 @@ func (painter *painter) setRectangle(id scene.ID, rectangle ui.Rectangle) {
 	painter.graph.SetRoundedRectangle(id, value.Bounds, value.Color, rectangle.Radius)
 }
 
-// applyAutofocus moves the keyboard to the first hit that asks for it
-// (HitOptions.Autofocus) and was not painted last time. A trapped focus scope
-// keeps its own say: an autofocus outside the active scope cannot take focus.
-func (painter *painter) applyAutofocus() {
-	hits := painter.canvas.Hits()
-	next := painter.paintedScratch[:0]
-	focused := false
-	for index := range hits {
-		hit := &hits[index]
-		if !focused && hit.Autofocus && !hit.ID.IsZero() && !painter.wasPainted(hit.ID) {
-			if painter.router.Focus(input.Target(hit.ID)) {
-				focused = true
-			}
-		}
-		if !hit.ID.IsZero() {
-			next = append(next, hit.ID)
-		}
-	}
-	painter.paintedScratch = next
-	painter.paintedIDs, painter.paintedScratch = next, painter.paintedIDs[:0]
-}
-
-// wasPainted reports whether the previous paint declared a hit with this ID.
-func (painter *painter) wasPainted(id ui.ID) bool {
-	for _, previous := range painter.paintedIDs {
-		if previous == id {
-			return true
-		}
-	}
-	return false
-}
-
-func compareRegionLayers(left, right input.Region) int {
-	return cmp.Compare(left.Layer, right.Layer)
-}
-
-// syncRegions feeds the canvas hit list into the retained input router.
-func (painter *painter) syncRegions() {
-	painter.regions = painter.regions[:0]
-	hits := painter.canvas.Hits()
-	for index := range hits {
-		hit := &hits[index]
-		if hit.Container {
-			continue // semantic regions are not interaction targets
-		}
-		painter.regions = append(painter.regions, input.Region{
-			Target:            input.Target(hit.ID),
-			Bounds:            input.Rect{X: hit.Bounds.X, Y: hit.Bounds.Y, Width: hit.Bounds.Width, Height: hit.Bounds.Height},
-			Scope:             hit.Scope,
-			Focusable:         hit.Focusable,
-			Role:              hit.Role,
-			SkipTab:           hit.SkipTab,
-			Disabled:          hit.Disabled,
-			FocusableDisabled: hit.FocusableDisabled,
-			Blocks:            hit.Block,
-			Label:             hit.IsLabel,
-			Backdrop:          hit.Backdrop,
-			MovesWindow:       hit.MovesWindow,
-			PassSecondary:     hit.PassSecondary, PassPrimary: hit.PassPrimary,
-			Layer: hit.Layer,
-		})
-	}
-	// Hits are declared in the order the code paints, which is not the order
-	// the layers composite in: a popup on a higher layer is often painted
-	// before the field it covers. The front-most region must be the one on the
-	// highest layer, and within a layer the last declared.
-	if !slices.IsSortedFunc(painter.regions, compareRegionLayers) {
-		slices.SortStableFunc(painter.regions, compareRegionLayers)
-	}
-	painter.router.SetRegions(painter.regions)
-	painter.router.SetActiveScope(painter.canvas.TrappedFocusScope(), input.Target(painter.canvas.InitialFocus()))
-	painter.applyAutofocus()
-	if request := painter.canvas.FocusRequest(); !request.IsZero() {
-		if request != painter.focusClaim {
-			if focused, ok := painter.router.Focused(); ok && focused == input.Target(request) {
-				painter.focusClaim = request
-			} else if painter.router.Focus(input.Target(request)) {
-				painter.focusClaim = request
-			}
-		}
-	} else {
-		painter.focusClaim = ui.ID{}
-	}
-	if !painter.pendingFocus.IsZero() {
-		target := input.Target(painter.pendingFocus)
-		painter.router.Focus(target)
-		if focused, ok := painter.router.Focused(); ok && focused == target {
-			painter.keyboardFocus = painter.pendingVisible
-		}
-		painter.pendingFocus = ui.ID{}
-		painter.pendingVisible = false
-	}
-	painter.escapeTarget = painter.canvas.EscapeTarget()
-	if focused, ok := painter.router.Focused(); ok {
-		painter.focused = focused
-	} else {
-		painter.focused = ui.ID{}
-	}
-}
-
 // hitStructuresUnchanged reports whether the paint produced exactly the input
 // the regions and the semantic tree were last built from, so both can be kept.
 // It compares every field those structures read, plus the focus, scope, escape
@@ -1819,10 +1612,10 @@ func (painter *painter) hitStructuresUnchanged() bool {
 // publish uses it for the second check, after syncTextInput has had its say;
 // the hits cannot change in between, so the expensive memcmp runs once.
 func (painter *painter) structuresUnchanged() bool {
-	if !painter.hitsPublished || painter.semanticsDirty || !painter.pendingFocus.IsZero() {
+	if !painter.hitsPublished || painter.semanticsDirty || !painter.focus.PendingFocus().IsZero() {
 		return false
 	}
-	if painter.focused != painter.publishedFocus ||
+	if painter.focus.Focused() != painter.publishedFocus ||
 		painter.canvas.TrappedFocusScope() != painter.publishedTrap ||
 		painter.canvas.InitialFocus() != painter.publishedInitial ||
 		painter.canvas.EscapeTarget() != painter.publishedEscape ||
@@ -1865,7 +1658,7 @@ func sameHits(published, current []ui.Hit) bool {
 // region and semantic mirror when nothing that feeds them changed.
 func (painter *painter) recordHitStructures() {
 	painter.publishedHits = append(painter.publishedHits[:0], painter.canvas.Hits()...)
-	painter.publishedFocus = painter.focused
+	painter.publishedFocus = painter.focus.Focused()
 	painter.publishedTrap = painter.canvas.TrappedFocusScope()
 	painter.publishedInitial = painter.canvas.InitialFocus()
 	painter.publishedEscape = painter.canvas.EscapeTarget()
@@ -1962,10 +1755,10 @@ func (painter *painter) syncSemantics() {
 		common = len(hits)
 	}
 	for index := 0; index < common; index++ {
-		painter.semantics.Set(painter.semanticIDs[index], semanticNode(hits[index], painter.focused))
+		painter.semantics.Set(painter.semanticIDs[index], semanticNode(hits[index], painter.focus.Focused()))
 	}
 	for index := len(painter.semanticIDs); index < len(hits); index++ {
-		id, _ := painter.semantics.Add(root, semanticNode(hits[index], painter.focused))
+		id, _ := painter.semantics.Add(root, semanticNode(hits[index], painter.focus.Focused()))
 		painter.semanticIDs = append(painter.semanticIDs, id)
 	}
 	if len(hits) < len(painter.semanticIDs) {
@@ -1990,7 +1783,7 @@ func (painter *painter) syncSemantics() {
 			Label:       hit.Label,
 			Value:       hit.Value,
 			Hint:        hit.Hint,
-			Focused:     !hit.ID.IsZero() && hit.ID == painter.focused,
+			Focused:     !hit.ID.IsZero() && hit.ID == painter.focus.Focused(),
 			Disabled:    hit.Disabled,
 			Checked:     hit.Checked,
 			Mixed:       hit.Mixed,

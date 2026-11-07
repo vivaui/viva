@@ -25,13 +25,13 @@ func TestPointerFocusDoesNotFlashKeyboardRing(t *testing.T) {
 	wantBounds := canvas.Rectangles()[0].Bounds
 	wantCount := len(canvas.Rectangles())
 	for _, kind := range []platform.PointerEventKind{platform.PointerDown, platform.PointerUp} {
-		if _, err := painter.pointer(platform.PointerEvent{Kind: kind, X: 20, Y: 20}); err != nil {
+		if _, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 20, Y: 20}); err != nil {
 			t.Fatal(err)
 		}
 		if len(canvas.Rectangles()) != wantCount || canvas.Rectangles()[0].Bounds != wantBounds || !canvas.FocusVisible().IsZero() || canvas.Focused() != ui.Item(1) {
 			t.Fatal("mouse interaction changed geometry or painted a keyboard focus ring")
 		}
-		if focused, ok := painter.router.Focused(); !ok || focused != ui.Item(1) {
+		if focused, ok := painter.focus.Router().Focused(); !ok || focused != ui.Item(1) {
 			t.Fatal("mouse focus must remain in the shared input router")
 		}
 	}
@@ -41,7 +41,7 @@ func TestPointerFocusDoesNotFlashKeyboardRing(t *testing.T) {
 	if canvas.FocusVisible() != ui.Item(2) || canvas.Focused() != ui.Item(2) || len(canvas.Rectangles()) <= wantCount {
 		t.Fatal("Tab should move to the next control and expose its keyboard focus ring")
 	}
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 120, Y: 20}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 120, Y: 20}); err != nil {
 		t.Fatal(err)
 	}
 	if !canvas.FocusVisible().IsZero() || canvas.Focused() != ui.Item(2) || len(canvas.Rectangles()) != wantCount {
@@ -75,22 +75,22 @@ func TestFocusTrapEscapeDismissesAndRestoresFocus(t *testing.T) {
 	if _, err := painter.key(platform.KeyEvent{Key: input.KeyTab}); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(1) {
-		t.Fatalf("outer focus = %d", painter.focused)
+	if painter.focus.Focused() != ui.Item(1) {
+		t.Fatalf("outer focus = %d", painter.focus.Focused())
 	}
 
 	open = true
 	if _, err := painter.repaint(); err != nil {
 		t.Fatal(err)
 	}
-	if painter.router.ActiveScope() != ui.Item(99) || !painter.focused.IsZero() {
-		t.Fatalf("opened scope = %d, focus = %d", painter.router.ActiveScope(), painter.focused)
+	if painter.focus.Router().ActiveScope() != ui.Item(99) || !painter.focus.Focused().IsZero() {
+		t.Fatalf("opened scope = %d, focus = %d", painter.focus.Router().ActiveScope(), painter.focus.Focused())
 	}
 	if _, err := painter.key(platform.KeyEvent{Key: input.KeyTab}); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(2) {
-		t.Fatalf("overlay focus = %d", painter.focused)
+	if painter.focus.Focused() != ui.Item(2) {
+		t.Fatalf("overlay focus = %d", painter.focus.Focused())
 	}
 	if _, err := painter.key(platform.KeyEvent{Key: input.KeyEscape}); err != nil {
 		t.Fatal(err)
@@ -98,8 +98,8 @@ func TestFocusTrapEscapeDismissesAndRestoresFocus(t *testing.T) {
 	if open || len(clicks) != 1 || clicks[0] != ui.Item(2) {
 		t.Fatalf("escape result open=%v clicks=%v", open, clicks)
 	}
-	if !painter.router.ActiveScope().IsZero() || painter.focused != ui.Item(1) {
-		t.Fatalf("restored scope = %d, focus = %d", painter.router.ActiveScope(), painter.focused)
+	if !painter.focus.Router().ActiveScope().IsZero() || painter.focus.Focused() != ui.Item(1) {
+		t.Fatalf("restored scope = %d, focus = %d", painter.focus.Router().ActiveScope(), painter.focus.Focused())
 	}
 }
 
@@ -147,7 +147,7 @@ func TestFocusedTextHitPublishesNativeEditorAndDisablesOnBlur(t *testing.T) {
 		return &input
 	}
 	painter := newTestPainter(t, &canvas, config)
-	frame, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 20, Y: 20})
+	frame, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 20, Y: 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestFocusedTextHitPublishesNativeEditorAndDisablesOnBlur(t *testing.T) {
 	if err != nil || next.Value != "Viva 原生" || input.State.Value != "Viva 原生" {
 		t.Fatalf("text result = %+v, input = %+v, err = %v", next, input.State, err)
 	}
-	frame, err = painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 130, Y: 20})
+	frame, err = painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 130, Y: 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestTextInputRestoresStaticLabelInBlurFrame(t *testing.T) {
 			config.TextInput = func(context TextInputContext) *TextInput { return &input }
 			painter := newTestPainter(t, &canvas, config)
 			for _, kind := range []platform.PointerEventKind{platform.PointerDown, platform.PointerUp} {
-				if _, err := painter.pointer(platform.PointerEvent{Kind: kind, X: 30, Y: 20}); err != nil {
+				if _, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 30, Y: 20}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -203,9 +203,9 @@ func TestTextInputRestoresStaticLabelInBlurFrame(t *testing.T) {
 			var err error
 			switch method {
 			case "background":
-				frame, err = painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 290, Y: 80})
+				frame, err = painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 290, Y: 80})
 			case "button":
-				frame, err = painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 230, Y: 20})
+				frame, err = painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 230, Y: 20})
 			case "tab":
 				frame, err = painter.key(platform.KeyEvent{Key: tab})
 			}
@@ -222,7 +222,7 @@ func TestTextInputRestoresStaticLabelInBlurFrame(t *testing.T) {
 			if err != nil || !idle.Update.Empty() || idle.TextLabels != nil || idle.TextInput.Changed {
 				t.Fatalf("unchanged blurred repaint did work: %+v, %v", idle, err)
 			}
-			frame, err = painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 30, Y: 20})
+			frame, err = painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 30, Y: 20})
 			if err != nil || frame.TextInput.Input == nil || frame.TextInput.Input.State.Value != "edited 中😀" || len(canvas.Texts()) != 0 {
 				t.Fatalf("refocus lost edited state: %+v, %v", frame.TextInput, err)
 			}
@@ -266,7 +266,7 @@ func TestPainterTextSetSelectionPreservesRuneIndicesAndSynchronizesOwner(t *test
 				return &input
 			}
 			painter := newTestPainter(t, &canvas, config)
-			frame, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 20, Y: 20})
+			frame, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 20, Y: 20})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -307,17 +307,17 @@ func BenchmarkPainterButtonPointer(b *testing.B) {
 		b.Fatal(err)
 	}
 	for _, kind := range []platform.PointerEventKind{platform.PointerDown, platform.PointerUp} {
-		if _, err := painter.pointer(platform.PointerEvent{Kind: kind, X: 20, Y: 20}); err != nil {
+		if _, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 20, Y: 20}); err != nil {
 			b.Fatal(err)
 		}
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for iteration := 0; iteration < b.N; iteration++ {
-		if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 20, Y: 20}); err != nil {
+		if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 20, Y: 20}); err != nil {
 			b.Fatal(err)
 		}
-		if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerUp, X: 20, Y: 20}); err != nil {
+		if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerUp, X: 20, Y: 20}); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -331,11 +331,11 @@ func TestStablePointerHandlerDoesNotAllocate(t *testing.T) {
 	}
 	config.OnPointer = func(ui.PointerEvent) ui.EventResult { return ui.EventResult{} }
 	painter := newTestPainter(t, &canvas, config)
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 10, Y: 10}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 10, Y: 10}); err != nil {
 		t.Fatal(err)
 	}
 	allocations := testing.AllocsPerRun(1000, func() {
-		if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 11, Y: 11}); err != nil {
+		if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 11, Y: 11}); err != nil {
 			panic(err)
 		}
 	})
@@ -386,7 +386,7 @@ func TestStaticCanvasRetainsContentWhileHandlingEvents(t *testing.T) {
 		return ui.EventResult{Repaint: true}
 	}
 	painter := newTestPainter(t, &canvas, config)
-	frame, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 10, Y: 10})
+	frame, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 10, Y: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -656,18 +656,18 @@ func TestPointerHoverEntersAndExitsOnce(t *testing.T) {
 	}
 	painter := newTestPainter(t, &canvas, config)
 
-	enter, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 10, Y: 10})
+	enter, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 10, Y: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if painter.hovered != ui.Item(7) || !enter.Update.Empty() {
-		t.Fatalf("hover enter state = %d, update = %+v (paint draws nothing, renderer must stay idle)", painter.hovered, enter.Update)
+	if painter.pointer.Hovered() != ui.Item(7) || !enter.Update.Empty() {
+		t.Fatalf("hover enter state = %d, update = %+v (paint draws nothing, renderer must stay idle)", painter.pointer.Hovered(), enter.Update)
 	}
 	if calls != 2 {
 		t.Fatalf("paint calls after enter = %d, want 2 (initial + hover)", calls)
 	}
 
-	idle, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 12, Y: 12})
+	idle, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 12, Y: 12})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -678,12 +678,12 @@ func TestPointerHoverEntersAndExitsOnce(t *testing.T) {
 		t.Fatalf("paint calls after idle move = %d, want 2", calls)
 	}
 
-	exit, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerExit})
+	exit, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerExit})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !painter.hovered.IsZero() || !exit.Update.Empty() {
-		t.Fatalf("hover exit state = %d, update = %+v", painter.hovered, exit.Update)
+	if !painter.pointer.Hovered().IsZero() || !exit.Update.Empty() {
+		t.Fatalf("hover exit state = %d, update = %+v", painter.pointer.Hovered(), exit.Update)
 	}
 	if calls != 3 {
 		t.Fatalf("paint calls = %d, want 3", calls)
@@ -702,13 +702,13 @@ func TestPointerClickActivatesAndPressOnlyCountsInsideRegion(t *testing.T) {
 	painter := newTestPainter(t, &canvas, config)
 
 	// Press inside, release inside: one click.
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 10, Y: 10}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 10, Y: 10}); err != nil {
 		t.Fatal(err)
 	}
-	if painter.pressed != ui.Item(7) {
-		t.Fatalf("pressed = %d", painter.pressed)
+	if painter.pointer.Pressed() != ui.Item(7) {
+		t.Fatalf("pressed = %d", painter.pointer.Pressed())
 	}
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerUp, X: 10, Y: 10}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerUp, X: 10, Y: 10}); err != nil {
 		t.Fatal(err)
 	}
 	if len(clicks) != 1 || clicks[0] != ui.Item(7) {
@@ -716,20 +716,20 @@ func TestPointerClickActivatesAndPressOnlyCountsInsideRegion(t *testing.T) {
 	}
 
 	// Press inside, drag out, release outside: no click.
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 10, Y: 10}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 10, Y: 10}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 80, Y: 80}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 80, Y: 80}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerUp, X: 80, Y: 80}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerUp, X: 80, Y: 80}); err != nil {
 		t.Fatal(err)
 	}
 	if len(clicks) != 1 {
 		t.Fatalf("drag-out release produced click %v", clicks)
 	}
-	if !painter.pressed.IsZero() {
-		t.Fatalf("pressed after release = %d", painter.pressed)
+	if !painter.pointer.Pressed().IsZero() {
+		t.Fatalf("pressed after release = %d", painter.pointer.Pressed())
 	}
 }
 
@@ -756,7 +756,7 @@ func TestPointerHandlerCapturesTargetAndSuppressesClick(t *testing.T) {
 		{Kind: platform.PointerUp, Button: ui.PointerButtonSecondary, X: 80, Y: 80},
 	}
 	for _, event := range sequence {
-		if _, err := painter.pointer(event); err != nil {
+		if _, err := painter.pointerEvent(event); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -783,7 +783,7 @@ func TestSecondaryPointerDoesNotClick(t *testing.T) {
 	onClick(&config, func(ui.ID) { clicks++ })
 	painter := newTestPainter(t, &canvas, config)
 	for _, kind := range []platform.PointerEventKind{platform.PointerDown, platform.PointerUp} {
-		if _, err := painter.pointer(platform.PointerEvent{Kind: kind, Button: ui.PointerButtonSecondary, X: 10, Y: 10}); err != nil {
+		if _, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, Button: ui.PointerButtonSecondary, X: 10, Y: 10}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -817,21 +817,21 @@ func TestEventResultsControlRepaintFocusKeyboardAndScroll(t *testing.T) {
 	}
 	painter := newTestPainter(t, &canvas, config)
 
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 10, Y: 10}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 10, Y: 10}); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(8) || !painter.keyboardFocus {
-		t.Fatalf("focus=%d visible=%v", painter.focused, painter.keyboardFocus)
+	if painter.focus.Focused() != ui.Item(8) || !painter.focus.KeyboardFocus() {
+		t.Fatalf("focus=%d visible=%v", painter.focus.Focused(), painter.focus.KeyboardFocus())
 	}
 	before := paints
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 11, Y: 11}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 11, Y: 11}); err != nil {
 		t.Fatal(err)
 	}
 	if paints != before {
 		t.Fatalf("unchanged pointer repainted: %d -> %d", before, paints)
 	}
 	pointerRepaint = true
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerMove, X: 12, Y: 12}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 12, Y: 12}); err != nil {
 		t.Fatal(err)
 	}
 	if paints != before+1 {
@@ -841,15 +841,15 @@ func TestEventResultsControlRepaintFocusKeyboardAndScroll(t *testing.T) {
 	if _, err := painter.key(platform.KeyEvent{Key: input.KeyTab}); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(8) {
-		t.Fatalf("handled Tab moved focus to %d", painter.focused)
+	if painter.focus.Focused() != ui.Item(8) {
+		t.Fatalf("handled Tab moved focus to %d", painter.focus.Focused())
 	}
 	keyHandled = false
 	if _, err := painter.key(platform.KeyEvent{Key: input.KeyTab}); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(7) {
-		t.Fatalf("default Tab focus=%d", painter.focused)
+	if painter.focus.Focused() != ui.Item(7) {
+		t.Fatalf("default Tab focus=%d", painter.focus.Focused())
 	}
 
 	if _, err := painter.scroll(platform.ScrollEvent{
@@ -895,15 +895,15 @@ func TestEventResultFocusCanTargetAHitRevealedByTheEvent(t *testing.T) {
 		return nil
 	}
 	painter := newTestPainter(t, &canvas, config)
-	if painter.focused != ui.Item(1) {
-		t.Fatalf("initial focus = %d", painter.focused)
+	if painter.focus.Focused() != ui.Item(1) {
+		t.Fatalf("initial focus = %d", painter.focus.Focused())
 	}
 	frame, err := painter.key(platform.KeyEvent{Key: input.KeyUnknown})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(2) || !painter.keyboardFocus || canvas.Focused() != ui.Item(2) || canvas.FocusVisible() != ui.Item(2) {
-		t.Fatalf("focused=%d keyboard=%t canvas=%d/%d", painter.focused, painter.keyboardFocus, canvas.Focused(), canvas.FocusVisible())
+	if painter.focus.Focused() != ui.Item(2) || !painter.focus.KeyboardFocus() || canvas.Focused() != ui.Item(2) || canvas.FocusVisible() != ui.Item(2) {
+		t.Fatalf("focused=%d keyboard=%t canvas=%d/%d", painter.focus.Focused(), painter.focus.KeyboardFocus(), canvas.Focused(), canvas.FocusVisible())
 	}
 	if !frame.TextInput.Changed || frame.TextInput.Input == nil || painter.activeText == nil || painter.activeText.Editor != editor {
 		t.Fatalf("text input = %+v active=%+v", frame.TextInput, painter.activeText)
@@ -954,14 +954,14 @@ func TestKeyTabTraversesFocusAndEnterActivates(t *testing.T) {
 	if _, err := painter.key(platform.KeyEvent{Key: input.KeyTab}); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(7) {
-		t.Fatalf("focused after first tab = %d", painter.focused)
+	if painter.focus.Focused() != ui.Item(7) {
+		t.Fatalf("focused after first tab = %d", painter.focus.Focused())
 	}
 	if _, err := painter.key(platform.KeyEvent{Key: input.KeyTab}); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(8) {
-		t.Fatalf("focused after second tab = %d", painter.focused)
+	if painter.focus.Focused() != ui.Item(8) {
+		t.Fatalf("focused after second tab = %d", painter.focus.Focused())
 	}
 	if _, err := painter.key(platform.KeyEvent{Key: input.KeyEnter}); err != nil {
 		t.Fatal(err)
@@ -1305,13 +1305,13 @@ func TestModalOpenMovesFocusInsideWithinTheSameFrameAndCloseRestoresIt(t *testin
 	var frame platform.Frame
 	for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
 		var err error
-		if frame, err = painter.pointer(platform.PointerEvent{Kind: kind, X: 10, Y: 10}); err != nil {
+		if frame, err = painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 10, Y: 10}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if painter.focused != ui.Item(int(field)) || canvas.Focused() != ui.Item(int(field)) || focusSeenByPaint != ui.Item(int(field)) {
+	if painter.focus.Focused() != ui.Item(int(field)) || canvas.Focused() != ui.Item(int(field)) || focusSeenByPaint != ui.Item(int(field)) {
 		t.Fatalf("after open: painter=%d canvas=%d paint saw=%d, want the dialog field %d",
-			painter.focused, canvas.Focused(), focusSeenByPaint, field)
+			painter.focus.Focused(), canvas.Focused(), focusSeenByPaint, field)
 	}
 	if !frame.TextInput.Changed || frame.TextInput.Input == nil {
 		t.Fatalf("native text input was not enabled on the opening frame: %+v", frame.TextInput)
@@ -1323,8 +1323,8 @@ func TestModalOpenMovesFocusInsideWithinTheSameFrameAndCloseRestoresIt(t *testin
 	if _, err := painter.repaint(); err != nil {
 		t.Fatal(err)
 	}
-	if paints != before+1 || painter.focused != ui.Item(int(field)) {
-		t.Fatalf("steady repaint ran %d paints with focus %d", paints-before, painter.focused)
+	if paints != before+1 || painter.focus.Focused() != ui.Item(int(field)) {
+		t.Fatalf("steady repaint ran %d paints with focus %d", paints-before, painter.focus.Focused())
 	}
 
 	if frame, err := painter.key(platform.KeyEvent{Key: input.KeyEscape}); err != nil {
@@ -1332,9 +1332,9 @@ func TestModalOpenMovesFocusInsideWithinTheSameFrameAndCloseRestoresIt(t *testin
 	} else if !frame.TextInput.Changed || frame.TextInput.Input != nil {
 		t.Fatalf("native text input stayed enabled after the dialog closed: %+v", frame.TextInput)
 	}
-	if open || painter.focused != ui.Item(int(opener)) || canvas.Focused() != ui.Item(int(opener)) || focusSeenByPaint != ui.Item(int(opener)) {
+	if open || painter.focus.Focused() != ui.Item(int(opener)) || canvas.Focused() != ui.Item(int(opener)) || focusSeenByPaint != ui.Item(int(opener)) {
 		t.Fatalf("after close: open=%v painter=%d canvas=%d paint saw=%d, want the opener %d",
-			open, painter.focused, canvas.Focused(), focusSeenByPaint, opener)
+			open, painter.focus.Focused(), canvas.Focused(), focusSeenByPaint, opener)
 	}
 }
 
@@ -1433,7 +1433,7 @@ func TestPressingAModalPanelDoesNotDismissItButPressingTheBackdropDoes(t *testin
 	painter := newTestPainter(t, &canvas, config)
 	press := func(x, y float32) {
 		for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
-			if _, err := painter.pointer(platform.PointerEvent{Kind: kind, X: x, Y: y}); err != nil {
+			if _, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: x, Y: y}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -1482,7 +1482,7 @@ func TestAClickOnABackdropInTheTitlebarStripDismissesButADragDoesNot(t *testing.
 	painter := newTestPainter(t, &canvas, config)
 	send := func(kind platform.PointerEventKind) {
 		t.Helper()
-		if _, err := painter.pointer(platform.PointerEvent{Kind: kind, X: 20, Y: 16}); err != nil {
+		if _, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 20, Y: 16}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1719,7 +1719,7 @@ func TestBareTextInputTakesTheGeometryTheComponentDeclared(t *testing.T) {
 	painter := newTestPainter(t, &canvas, config)
 	staticText := canvas.Texts()[0]
 
-	frame, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 40, Y: 30})
+	frame, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 40, Y: 30})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1743,7 +1743,7 @@ func TestBareTextInputTakesTheGeometryTheComponentDeclared(t *testing.T) {
 	override = true
 	var overridden ui.Canvas
 	other := newTestPainter(t, &overridden, config)
-	frame, err = other.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 40, Y: 30})
+	frame, err = other.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 40, Y: 30})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1775,7 +1775,7 @@ func TestNativeTextInputKeepsDeclaredFontWeight(t *testing.T) {
 		return &TextInput{Editor: editor}
 	}
 	painter := newTestPainter(t, &canvas, config)
-	frame, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 30, Y: 30})
+	frame, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 30, Y: 30})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1791,6 +1791,65 @@ func TestNativeTextInputKeepsDeclaredFontWeight(t *testing.T) {
 	frame, err = painter.repaint()
 	if err != nil || !frame.TextInput.Changed || frame.TextInput.Input == nil || frame.TextInput.Input.Weight != ui.WeightBold {
 		t.Fatalf("explicit weight = %+v, %v", frame.TextInput, err)
+	}
+}
+
+func TestNativeTextInputAlignmentPropagatesAndResolvesDirection(t *testing.T) {
+	for _, testcase := range []struct {
+		name      string
+		value     string
+		alignment ui.Alignment
+		want      ui.Alignment
+	}{
+		{"default left", "hello", ui.AlignLeft, ui.AlignLeft},
+		{"center", "hello", ui.AlignCenter, ui.AlignCenter},
+		{"right", "hello", ui.AlignRight, ui.AlignRight},
+		{"start left to right", "hello", ui.AlignStart, ui.AlignLeft},
+		{"end left to right", "hello", ui.AlignEnd, ui.AlignRight},
+		{"start right to left", "שלום", ui.AlignStart, ui.AlignRight},
+		{"end right to left", "שלום", ui.AlignEnd, ui.AlignLeft},
+	} {
+		t.Run(testcase.name, func(t *testing.T) {
+			editor := text.NewEditor(testcase.value)
+			config := Config{Title: "aligned input", Width: 280, Height: 100}
+			config.Paint = func(canvas *ui.Canvas, _ ui.Size) {
+				canvas.HitWithOptions(ui.Item(5), ui.Rect{X: 20, Y: 20, Width: 220, Height: 40}, "Text", ui.HitOptions{
+					Role: ui.RoleTextField, Value: editor.String(), TextBounds: ui.Rect{X: 24, Y: 23, Width: 210, Height: 34}, TextSize: 16,
+				})
+			}
+			config.TextInput = func(TextInputContext) *TextInput {
+				return &TextInput{Editor: editor, Alignment: testcase.alignment}
+			}
+			var canvas ui.Canvas
+			painter := newTestPainter(t, &canvas, config)
+			frame, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 30, Y: 30})
+			if err != nil {
+				t.Fatal(err)
+			}
+			native := frame.TextInput.Input
+			if native == nil || native.Alignment != testcase.want || native.X != 24 || native.Y != 23 || native.Width != 210 || native.Height != 34 {
+				t.Fatalf("native alignment and fixed bounds = %+v, want %v at 24,23 210x34", native, testcase.want)
+			}
+		})
+	}
+}
+
+func BenchmarkResolveTextInputAlignment(b *testing.B) {
+	for _, testcase := range []struct {
+		name      string
+		alignment ui.Alignment
+		value     string
+	}{
+		{"left", ui.AlignLeft, "ordinary text"},
+		{"right", ui.AlignRight, "ordinary text"},
+		{"start RTL", ui.AlignStart, "שלום"},
+	} {
+		b.Run(testcase.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				_ = resolveTextInputAlignment(testcase.alignment, testcase.value, 2)
+			}
+		})
 	}
 }
 
@@ -1811,7 +1870,7 @@ func TestPainterPassesTheSelfPaintedTextOverlayPolicyToThePlatform(t *testing.T)
 		return &TextInput{Editor: editor}
 	}
 	painter := newTestPainter(t, &canvas, config)
-	frame, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 20, Y: 20})
+	frame, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 20, Y: 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1845,7 +1904,7 @@ func TestPointerEventsCarryTheClickCountToTheApplication(t *testing.T) {
 		{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 20, Y: 20, ClickCount: 2},
 		{Kind: platform.PointerUp, Button: ui.PointerButtonPrimary, X: 20, Y: 20, ClickCount: 2},
 	} {
-		if _, err := painter.pointer(event); err != nil {
+		if _, err := painter.pointerEvent(event); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1976,22 +2035,22 @@ func TestAutofocusTakesTheKeyboardWhenAHitAppearsAndNotWhileItStays(t *testing.T
 		}
 	}
 	painter := newTestPainter(t, &canvas, config)
-	if painter.focused != ui.Item(10) {
-		t.Fatalf("the first paint left focus on %d, want the autofocus hit 10", painter.focused)
+	if painter.focus.Focused() != ui.Item(10) {
+		t.Fatalf("the first paint left focus on %d, want the autofocus hit 10", painter.focus.Focused())
 	}
 
 	// The user moves on; repainting the same page must not pull focus back.
-	if _, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 10, Y: 10}); err != nil {
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, X: 10, Y: 10}); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(1) {
-		t.Fatalf("clicking the always-there hit left focus on %d", painter.focused)
+	if painter.focus.Focused() != ui.Item(1) {
+		t.Fatalf("clicking the always-there hit left focus on %d", painter.focus.Focused())
 	}
 	if _, err := painter.resize(size(210, 100)); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(1) {
-		t.Fatalf("a repaint of the same page moved focus to %d", painter.focused)
+	if painter.focus.Focused() != ui.Item(1) {
+		t.Fatalf("a repaint of the same page moved focus to %d", painter.focus.Focused())
 	}
 
 	// A new page appears: its autofocus hit takes the keyboard.
@@ -1999,8 +2058,8 @@ func TestAutofocusTakesTheKeyboardWhenAHitAppearsAndNotWhileItStays(t *testing.T
 	if _, err := painter.resize(size(220, 100)); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused != ui.Item(11) {
-		t.Fatalf("the new page's hit did not take focus: %d", painter.focused)
+	if painter.focus.Focused() != ui.Item(11) {
+		t.Fatalf("the new page's hit did not take focus: %d", painter.focus.Focused())
 	}
 
 	// An autofocus hit that cannot be focused leaves focus alone.
@@ -2008,7 +2067,7 @@ func TestAutofocusTakesTheKeyboardWhenAHitAppearsAndNotWhileItStays(t *testing.T
 	if _, err := painter.resize(size(230, 100)); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused == ui.Item(12) {
+	if painter.focus.Focused() == ui.Item(12) {
 		t.Fatal("a disabled hit took focus")
 	}
 }
@@ -2273,19 +2332,19 @@ func TestPopoverInitialFocusIsHonoredOnce(t *testing.T) {
 		popover.End()
 	}
 	painter := newTestPainter(t, &canvas, config)
-	if painter.focused != ui.Item(5) {
-		t.Fatalf("initial focus = %v, want the popover control", painter.focused)
+	if painter.focus.Focused() != ui.Item(5) {
+		t.Fatalf("initial focus = %v, want the popover control", painter.focus.Focused())
 	}
 	if _, err := painter.key(platform.KeyEvent{Key: input.KeyTab}); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused == ui.Item(5) {
+	if painter.focus.Focused() == ui.Item(5) {
 		t.Fatal("Tab could not leave the open popover")
 	}
 	if _, err := painter.repaint(); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused == ui.Item(5) {
+	if painter.focus.Focused() == ui.Item(5) {
 		t.Fatal("the focus request pulled focus back after Tab left")
 	}
 }
@@ -2386,7 +2445,7 @@ func TestPainterDisablesTextInputOnSubpixelBounds(t *testing.T) {
 
 	// Focus the text field
 	for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
-		frame, err := painter.pointer(platform.PointerEvent{Kind: kind, X: 15, Y: 15})
+		frame, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 15, Y: 15})
 		if err != nil {
 			t.Fatal(err)
 		}

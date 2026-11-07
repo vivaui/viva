@@ -120,6 +120,10 @@ int main(void) {
         window.titlebarAppearsTransparent = NO;
         window.titlebarAppearsTransparent = YES;
         assertCenter(window, 18, "after the titlebar was restyled");
+        [delegate setAlwaysOnTop:YES];
+        assert(window.level == NSFloatingWindowLevel);
+        [delegate setAlwaysOnTop:NO];
+        assert(window.level == NSNormalWindowLevel);
         [delegate release];
 
         // A window with no traffic lights to move is left alone.

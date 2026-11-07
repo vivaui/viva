@@ -37,6 +37,8 @@ func nativeHasClipboardImage() bool { return false }
 
 func nativeClipboardFiles() ([]string, error) { return nil, ErrUnsupported }
 
+func nativeSetClipboardFiles([]string) error { return ErrUnsupported }
+
 func nativeClipboardImagePNG() ([]byte, error) {
 	return nil, webSystemError("read clipboard image", webplatform.ClipboardImagePNG())
 }
@@ -61,6 +63,10 @@ func nativeOpenDirectory(OpenDirectoryOptions) (string, error) {
 func nativeSaveFile(SaveFileOptions) (string, error) {
 	path, err := webplatform.SaveFile()
 	return path, webSystemError("save file", err)
+}
+
+func nativeSaveFileWithCheckbox(SaveFileOptions, SaveFileCheckbox) (SaveFileSelection, error) {
+	return SaveFileSelection{}, fmt.Errorf("save file with checkbox: %w", ErrUnsupported)
 }
 
 func nativeOpenURL(target string) error {

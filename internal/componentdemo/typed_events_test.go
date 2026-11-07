@@ -56,6 +56,33 @@ func TestSliderPointerCoordinatesUpdateCallerState(t *testing.T) {
 	}
 }
 
+func TestSliderKeyboardUpdatesCallerState(t *testing.T) {
+	state := newTestState(t, "slider", "default")
+	result := state.Key(ui.KeyEvent{Key: ui.KeyUp, Target: sliderPrimary})
+	if !result.Handled || !result.Repaint || state.values[0] != 50 {
+		t.Fatalf("up result=%+v value=%d", result, state.values[0])
+	}
+	result = state.Key(ui.KeyEvent{Key: ui.KeyHome, Target: sliderPrimary})
+	if !result.Handled || !result.Repaint || state.values[0] != 0 {
+		t.Fatalf("home result=%+v value=%d", result, state.values[0])
+	}
+	if result := state.Key(ui.KeyEvent{Key: ui.KeyUp, Target: sliderDisabled}); result != (ui.EventResult{}) {
+		t.Fatalf("disabled slider result=%+v", result)
+	}
+}
+
+func TestRangeSliderKeyboardKeepsThumbsApart(t *testing.T) {
+	state := newTestState(t, "slider", "range")
+	result := state.Key(ui.KeyEvent{Key: ui.KeyEnd, Target: sliderLower})
+	if !result.Handled || !result.Repaint || state.values[0] != 70 {
+		t.Fatalf("end lower result=%+v values=%v", result, state.values[:2])
+	}
+	result = state.Key(ui.KeyEvent{Key: ui.KeyUp, Target: sliderUpper})
+	if !result.Handled || !result.Repaint || state.values[1] != 80 || state.slider.thumbs[1].Value != 80 {
+		t.Fatalf("up upper result=%+v values=%v thumbs=%+v", result, state.values[:2], state.slider.thumbs)
+	}
+}
+
 func TestPointerGeometryUsesResponsiveViewport(t *testing.T) {
 	narrow := ui.Size{Width: 320, Height: 340}
 	slider := newTestState(t, "slider", "default")

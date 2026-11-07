@@ -312,6 +312,36 @@ const (
 	RoleSeparator
 )
 
+// roleNames are the names of the roles: what a selector or a printed tree calls
+// them, in the order of the constants.
+var roleNames = [...]string{
+	RoleButton: "button", RoleLink: "link", RoleCheckbox: "checkbox", RoleRadio: "radio",
+	RoleTab: "tab", RoleMenuItem: "menuitem", RoleCombobox: "combobox", RoleSwitch: "switch",
+	RoleTextField: "textfield", RoleSlider: "slider", RoleTerminal: "terminal", RoleGroup: "group",
+	RoleMenu: "menu", RoleMenubar: "menubar", RoleListBox: "listbox", RoleOption: "option",
+	RoleGrid: "grid", RoleGridCell: "gridcell", RoleHeading: "heading", RoleStatus: "status",
+	RoleSeparator: "separator",
+}
+
+// String is the role's name as selectors and printed trees write it, such as
+// "button" or "textfield". A region that declared no role is a plain "region".
+func (role Role) String() string {
+	if int(role) < len(roleNames) && roleNames[role] != "" {
+		return roleNames[role]
+	}
+	return "region"
+}
+
+// RoleNamed is the role a name String gives stands for.
+func RoleNamed(name string) (Role, bool) {
+	for role, candidate := range roleNames {
+		if candidate != "" && candidate == name {
+			return Role(role), true
+		}
+	}
+	return 0, false
+}
+
 // LiveRegion says how eagerly assistive technology announces a change to the
 // content of a region, as aria-live does. The zero value announces nothing.
 type LiveRegion uint8
@@ -595,6 +625,8 @@ type Canvas struct {
 	pathBuilder       PathBuilder
 	// gradientSource holds the flat triangles a path gradient recolors.
 	gradientSource []Triangle
+	// fillPoints is the outline of a gradient-filled rounded rectangle.
+	fillPoints []Point
 	// path and triangulation scratch survives Reset: reused every paint.
 	strokeSideA     []Point
 	strokeSideB     []Point
@@ -612,10 +644,11 @@ type Canvas struct {
 	cellMeasurer    func(size float32, face MonoFace) (width, height float32)
 	engine          TextEngine
 	aware           FontFamilyAware // engine, when it follows a family; nil otherwise
+	monoCells       MonoCellEngine  // engine, when it measures fixed-pitch cells; nil otherwise
 	// spans is what an engine writes a selection into. The engine is an interface, so
 	// a caller's own buffer passed to it would escape to the heap on every paint.
-	spans    []TextSpan
-	cellSize cellSizeMemo
+	spans     []TextSpan
+	cellSizes cellSizeMemos
 	// fits remembers the lines FitLine cut; a different measurement empties it.
 	fits    []fitEntry
 	hovered ID
@@ -674,7 +707,7 @@ func (canvas *Canvas) SetMeasurer(measure func(value string, size, weight float3
 // and tools.
 func (canvas *Canvas) SetCellMeasurer(measure func(size float32, face MonoFace) (width, height float32)) {
 	canvas.cellMeasurer = measure
-	canvas.cellSize = cellSizeMemo{}
+	canvas.cellSizes = cellSizeMemos{}
 }
 
 // CellSize is the size of one character cell of the fixed-pitch font at size,
@@ -684,14 +717,17 @@ func (canvas *Canvas) CellSize(size float32) (width, height float32) {
 	return canvas.MonoCellSize(size, MonoSystem)
 }
 
-// MonoCellSize is the cell size of face at size: 0.6 of the size wide and 1.18 high
-// on every platform, whatever the advance and line box of the font that draws the
-// characters (the platforms place each character on this grid, so a terminal has the
-// same columns and rows in the same window everywhere). On a canvas that knows the display
-// scale (SetPixelScale) the width is a whole number of device pixels, rounded to the nearest and
-// at least one, as a terminal's cells are on every platform: the edge between two cells is then a
-// pixel edge, so a glyph that fills its cell, such as a powerline arrow, ends where the next
-// cell's begins and no pixel column holds the glyphs of two cells drawn in two colors.
+// MonoCellSize is the cell size of face at size, in logical pixels: the advance of the
+// face's own font and the height of its line, as the platform's text engine measures them
+// (MonoCellEngine), so a terminal's characters stand on the pitch they were designed for
+// and rows are as tall as the font makes them, as in every native terminal. A canvas
+// without such an engine, or a cell measurer installed for a test (SetCellMeasurer),
+// answers with the reference cell: 0.6 of the size wide and 1.18 high. The height is a
+// whole number of pixels, so rows of cells tile without seams. On a canvas that knows
+// the display scale (SetPixelScale) the width is a whole number of device pixels, rounded
+// to the nearest and at least one: the edge between two cells is then a pixel edge, so a
+// glyph that fills its cell, such as a powerline arrow, ends where the next cell's begins
+// and no pixel column holds the glyphs of two cells drawn in two colors.
 func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height float32) {
 	if size <= 0 {
 		return 0, 0
@@ -699,30 +735,61 @@ func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height f
 	if !validMonoFace(face) {
 		face = MonoSystem
 	}
-	if memo := canvas.cellSize; memo.size == size && memo.face == face && memo.scale == canvas.pixelScale {
-		return memo.width, memo.height
+	generation := canvas.FontGeneration()
+	if width, height, ok := canvas.cellSizes.find(size, face, canvas.pixelScale, generation); ok {
+		return width, height
 	}
 	width, height = size*textmetrics.MonoAdvance, size*textmetrics.MonoLine
-	if canvas.cellMeasurer != nil {
+	switch {
+	case canvas.cellMeasurer != nil:
 		if w, h := canvas.cellMeasurer(size, face); w > 0 && h > 0 {
-			// A font's own line box says nothing about how tall a row should be.
-			width, height = w, min(h, size*textmetrics.MonoLine)
+			width, height = w, h
+		}
+	case canvas.monoCells != nil:
+		if w, h := canvas.monoCells.MonoCell(size, face); w > 0 && h > 0 {
+			width, height = w, h
 		}
 	}
 	height = float32(int32(height + 0.999))
 	if canvas.pixelScale > 0 {
 		width = float32(math.Max(math.Floor(float64(width)*float64(canvas.pixelScale)+0.5), 1)) / canvas.pixelScale
 	}
-	canvas.cellSize = cellSizeMemo{size: size, width: width, height: height, face: face, scale: canvas.pixelScale}
+	canvas.cellSizes.put(cellSizeMemo{size: size, width: width, height: height, face: face, scale: canvas.pixelScale, generation: generation})
 	return width, height
 }
 
-// cellSizeMemo remembers the last CellSize answer: a terminal asks every paint
-// for the same size.
+// cellSizeMemo is one remembered MonoCellSize answer.
 type cellSizeMemo struct {
 	size, width, height float32
 	face                MonoFace
 	scale               float32 // the canvas's pixel scale the width was made whole for
+	generation          uint32  // the font generation it was measured in
+	filled              bool
+}
+
+// cellSizeMemos remembers the last few MonoCellSize answers: a terminal asks every
+// paint for the same size, and a window shows a few faces and sizes at once. Measuring
+// a font is shaping a line, so a face alternating with another must not measure twice
+// per paint.
+type cellSizeMemos struct {
+	entries [4]cellSizeMemo
+	next    int
+}
+
+func (memos *cellSizeMemos) find(size float32, face MonoFace, scale float32, generation uint32) (width, height float32, ok bool) {
+	for i := range memos.entries {
+		memo := &memos.entries[i]
+		if memo.filled && memo.size == size && memo.face == face && memo.scale == scale && memo.generation == generation {
+			return memo.width, memo.height, true
+		}
+	}
+	return 0, 0, false
+}
+
+func (memos *cellSizeMemos) put(memo cellSizeMemo) {
+	memo.filled = true
+	memos.entries[memos.next] = memo
+	memos.next = (memos.next + 1) % len(memos.entries)
 }
 
 // TextWidth measures one regular-weight line. Text drawn in another weight is measured
@@ -840,6 +907,7 @@ func (canvas *Canvas) Trim() {
 	canvas.iconTrimTriangles = trimCapacity(canvas.iconTrimTriangles)
 	canvas.pathBuilder.commands = trimCapacity(canvas.pathBuilder.commands)
 	canvas.gradientSource = trimCapacity(canvas.gradientSource)
+	canvas.fillPoints = trimCapacity(canvas.fillPoints)
 	canvas.strokeSideA = trimCapacity(canvas.strokeSideA)
 	canvas.strokeSideB = trimCapacity(canvas.strokeSideB)
 	canvas.strokeRing = trimCapacity(canvas.strokeRing)
@@ -961,12 +1029,19 @@ func (canvas *Canvas) Shadow(bounds Rect, radius float32, style ShadowStyle, col
 // Elevate appends the shadow of a level of the elevation scale, one or two
 // layers cast by the rounded rectangle bounds. Draw it before the surface.
 func (canvas *Canvas) Elevate(bounds Rect, radius float32, level ShadowLevel) {
-	if level == ShadowNone || int(level) >= len(shadowLayers) {
+	canvas.ElevateFaded(bounds, radius, level, 1)
+}
+
+// ElevateFaded is Elevate with the shadow's opacity multiplied by opacity, 0 to 1,
+// for a surface that is itself drawn faded.
+func (canvas *Canvas) ElevateFaded(bounds Rect, radius float32, level ShadowLevel, opacity float32) {
+	if level == ShadowNone || int(level) >= len(shadowLayers) || opacity <= 0 {
 		return
 	}
+	opacity = min(opacity, 1)
 	for _, layer := range shadowLayers[level] {
 		if layer.alpha > 0 {
-			canvas.Shadow(bounds, radius, layer.style, Color{Alpha: layer.alpha})
+			canvas.Shadow(bounds, radius, layer.style, Color{Alpha: layer.alpha * opacity})
 		}
 	}
 }
@@ -1446,6 +1521,28 @@ func (canvas *Canvas) MoveRegion(bounds Rect) {
 // next Reset.
 func (canvas *Canvas) Hits() []Hit {
 	return canvas.hits
+}
+
+// HitBounds is the region the control with that identity has declared so far in
+// this paint, as the user can reach it: a control that is partly outside the
+// clip reports the part inside. It is the way to hang an overlay on the control
+// that opens it, a tooltip or a menu, without the application keeping a copy of
+// the control's rectangle between paints. If the control was declared more than
+// once, the last declaration is the one reported. ok is false for the zero ID
+// and for a control not declared yet, so a popup painted before its trigger
+// finds nothing and should be painted after it.
+//
+// The lookup is a scan from the newest hit and allocates nothing.
+func (canvas *Canvas) HitBounds(id ID) (bounds Rect, ok bool) {
+	if id.IsZero() {
+		return Rect{}, false
+	}
+	for index := len(canvas.hits) - 1; index >= 0; index-- {
+		if canvas.hits[index].ID == id {
+			return canvas.hits[index].Bounds, true
+		}
+	}
+	return Rect{}, false
 }
 
 // PushFocusScope assigns subsequent hits to a stable component scope.

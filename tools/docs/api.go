@@ -19,7 +19,7 @@ import (
 // The packages whose exported API the website documents, in display order. Each
 // is documented as built for macOS on Apple silicon, so the output does not
 // depend on the machine that runs the generator.
-var apiPackages = []string{"app", "ui", "components", "text", "headless"}
+var apiPackages = []string{"app", "ui", "components", "text", "headless", "keymap", "inspector"}
 
 // APIData is the generated API reference: every exported identifier of the
 // public packages, with its declaration and doc comment.

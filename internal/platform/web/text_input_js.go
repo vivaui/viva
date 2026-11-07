@@ -83,7 +83,7 @@ func (host *textInputHost) sync(id ui.ID, input *TextInput, onChange func()) {
 		return
 	}
 	node := host.mirror.nodes[id]
-	if node == nil || node.description.Role != "textbox" {
+	if node == nil || (node.description.Role != "textbox" && node.description.Role != "combobox") {
 		host.deactivate(true)
 		return
 	}
@@ -144,7 +144,13 @@ func (host *textInputHost) show(element js.Value) {
 	style.Set("border", "0")
 	style.Set("outline", "none")
 	style.Set("background", "transparent")
-	style.Set("color", cssPlatformColor(host.input.Color))
+	textColor := cssPlatformColor(host.input.Color)
+	if host.input.Terminal {
+		// A terminal paints its preedit on the canvas cells; the browser editor
+		// is there for input-method positioning and committed text only.
+		textColor = "transparent"
+	}
+	style.Set("color", textColor)
 	caretColor := cssPlatformColor(host.input.Color)
 	if host.input.HideNativeOverlays {
 		caretColor = "transparent"
@@ -153,14 +159,23 @@ func (host *textInputHost) show(element js.Value) {
 		element.Call("removeAttribute", "data-viva-hide-native-overlays")
 	}
 	style.Set("caretColor", caretColor)
-	style.Set("font", cssFont(host.input.FontSize, host.input.Weight))
+	if host.input.Terminal || host.input.MonoFace != ui.MonoSystem {
+		style.Set("font", cssMonoFont(host.input.FontSize, host.input.Weight, false, host.input.MonoFace))
+	} else {
+		style.Set("font", cssFont(host.input.FontSize, host.input.Weight))
+	}
+	style.Set("textAlign", textAlignCSS(host.input.Alignment))
 	style.Set("opacity", "1")
 	style.Set("overflow", "hidden")
 	style.Set("clipPath", "none")
-	style.Set("pointerEvents", "auto")
+	if host.input.Placed {
+		style.Set("pointerEvents", "none")
+	} else {
+		style.Set("pointerEvents", "auto")
+	}
 	style.Set("userSelect", "text")
 	style.Set("zIndex", "1")
-	if host.input.Multiline {
+	if host.input.Multiline || host.input.Terminal {
 		style.Set("resize", "none")
 		style.Set("whiteSpace", "pre-wrap")
 		style.Set("lineHeight", "normal")

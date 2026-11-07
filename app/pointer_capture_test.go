@@ -24,7 +24,7 @@ func TestAPressKeepsThePointerUntilTheButtonComesUp(t *testing.T) {
 	}
 	painter := newTestPainter(t, &canvas, config)
 	send := func(event platform.PointerEvent) {
-		if _, err := painter.pointer(event); err != nil {
+		if _, err := painter.pointerEvent(event); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -1,3 +1,5 @@
+//go:build darwin || windows || linux
+
 package headless
 
 import (
@@ -28,6 +30,17 @@ func TestSceneryKeepsTheEditorsDeclaredWeight(t *testing.T) {
 	}})
 	if input == nil || input.Weight != 600 {
 		t.Fatalf("input = %+v, want the declared weight 600", input)
+	}
+}
+
+func TestSceneryKeepsTheEditorsDeclaredAlignment(t *testing.T) {
+	for _, alignment := range []ui.Alignment{ui.AlignCenter, ui.AlignRight} {
+		_, _, input := scenery(app.Snapshot{Editor: &app.Editor{
+			Bounds: ui.Rect{Width: 120, Height: 30}, FontSize: 16, Alignment: alignment,
+		}})
+		if input == nil || input.Alignment != alignment {
+			t.Fatalf("headless alignment = %+v, want %v", input, alignment)
+		}
 	}
 }
 

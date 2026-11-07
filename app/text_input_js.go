@@ -34,13 +34,24 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 	return func(context web.TextInputContext) *platform.TextInput {
 		active = provider(TextInputContext{
 			ID: context.ID, Bounds: context.Bounds, Multiline: context.Multiline,
-			TextBounds: context.TextBounds, FontSize: context.FontSize, TextColor: context.TextColor,
+			Layer: context.Layer, ReadOnly: context.ReadOnly, Secure: context.Secure,
+			NavigationKeys: context.NavigationKeys, Terminal: context.Terminal, TypeAhead: context.TypeAhead,
+			TextBounds: context.TextBounds, FontSize: context.FontSize, FontWeight: context.FontWeight,
+			TextColor: context.TextColor, HideNativeOverlays: context.HideNativeOverlays,
 		})
 		if active == nil {
 			return nil
 		}
 		native.Target, native.Multiline = context.ID, context.Multiline
-		native.FontSize, native.NavigationKeys = active.FontSize, active.NavigationKeys
+		native.Layer = context.Layer
+		native.Secure = context.Secure
+		native.Terminal = context.Terminal || context.TypeAhead
+		native.FontSize, native.Weight = active.FontSize, active.Weight
+		native.MonoFace = active.MonoFace
+		native.AltSendsEscape = active.AltSendsEscape
+		native.KeyReleases = active.KeyReleases && context.Terminal
+		native.NavigationKeys = active.NavigationKeys || context.NavigationKeys
+		native.HideNativeOverlays = active.HideNativeOverlays || context.HideNativeOverlays
 		native.X, native.Y = active.Bounds.X, active.Bounds.Y
 		native.Width, native.Height = active.Bounds.Width, active.Bounds.Height
 		native.Color = platform.Color{
@@ -52,6 +63,7 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 		} else {
 			native.State = platformTextState(active.State)
 		}
+		native.Alignment = resolveTextInputAlignment(active.Alignment, native.State.Value, native.State.Selection.End)
 		return &native
 	}
 }

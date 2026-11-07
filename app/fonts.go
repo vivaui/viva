@@ -52,7 +52,9 @@ func FontFamilies() []string { return nativeFontFamilies() }
 // draws it in the new font.
 //
 // It fails with ErrUnsupported where the platform cannot take a font at run time, and with an
-// error for data that is not a font or that the engine refuses. WOFF data is not read.
+// error for data that is not a font or that the engine refuses. WOFF data is not read. The Web
+// target returns ErrUnsupported because FontFace loading is asynchronous; use RegisterFontAsync
+// there.
 func RegisterFont(data []byte) (family string, unregister func(), err error) {
 	registrar, ok := PlatformTextEngine().(ui.FontRegistrar)
 	if !ok {
@@ -70,9 +72,9 @@ const maxInterfaceFamilyName = 96
 // "" for the platform's own interface font. Text the operating system draws
 // (native menus, status-item menus, file dialogs, alerts) keeps the system font.
 // A name that is too long (96 bytes) or holds a control character is taken as "".
-// It reports false where the platform's engine cannot follow a family (a
-// browser, an unsupported target); the call has no effect there, and FontFamilies
-// is empty too.
+// It reports false where the platform's engine cannot follow a family (an
+// unsupported target); the call has no effect there, and FontFamilies is empty
+// too. The Web target follows the family through its document text engine.
 //
 // The change applies to everything shaped afterwards; what was shaped before is
 // forgotten, and the next paint of a window lays out and draws its text in the

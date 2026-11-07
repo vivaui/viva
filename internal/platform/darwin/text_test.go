@@ -191,6 +191,11 @@ func TestTextEventRedrawRecognizesAlreadyAppliedNativeState(t *testing.T) {
 	if state.textInputAlreadyUpdated(&moved) {
 		t.Fatal("changed editor geometry was skipped")
 	}
+	aligned := *input
+	aligned.Alignment = ui.AlignRight
+	if state.textInputAlreadyUpdated(&aligned) {
+		t.Fatal("changed editor alignment was skipped")
+	}
 	if state.textInputAlreadyUpdated(nil) {
 		t.Fatal("disable update was skipped")
 	}
@@ -366,6 +371,15 @@ func TestNativeTextInputCarriesFontWeight(t *testing.T) {
 	}
 }
 
+func TestNativeTextInputCarriesAlignment(t *testing.T) {
+	for _, alignment := range []ui.Alignment{ui.AlignLeft, ui.AlignCenter, ui.AlignRight} {
+		native := makeNativeTextInput(TextInput{Alignment: alignment}, nil)
+		if got := ui.Alignment(native.alignment); got != alignment {
+			t.Errorf("native alignment = %v, want %v", got, alignment)
+		}
+	}
+}
+
 func TestTerminalKeyCodesNameTheNonTextKeys(t *testing.T) {
 	const (
 		upArrow, pageUp, forwardDelete, insert, f1, f12 = 0xF700, 0xF72C, 0xF728, 0xF727, 0xF704, 0xF70F
@@ -499,5 +513,26 @@ func TestFallbackFamiliesNeverChangeTheCell(t *testing.T) {
 	system, systemHeight, _ := MeasureMono(13, ui.MonoSystem)
 	if width, height, err := MeasureMono(13, ui.MonoStack(ui.MonoSystem, "Songti SC")); err != nil || width != system || height != systemHeight {
 		t.Errorf("the system face with a fallback measures %v x %v (%v), want %v x %v", width, height, err, system, systemHeight)
+	}
+}
+
+// A canvas on the platform engine lays a terminal out on the cell of the font that draws
+// it, as the platform measures that font, not on the reference 0.6 by 1.18.
+func TestACanvasOnTheEngineSizesTheTerminalCellByTheFont(t *testing.T) {
+	var canvas ui.Canvas
+	canvas.SetPixelScale(2)
+	canvas.SetTextEngine(SharedTextEngine())
+	for _, face := range []ui.MonoFace{ui.MonoSystem, ui.MonoFamily("Courier New")} {
+		advance, line, err := MeasureMono(13, face)
+		if err != nil {
+			t.Fatal(err)
+		}
+		width, height := canvas.MonoCellSize(13, face)
+		if diff := width - advance; diff < -0.25 || diff > 0.25 { // whole device pixels at scale 2
+			t.Errorf("face %v: cell width %v, font advance %v", face, width, advance)
+		}
+		if height < line || height >= line+1 {
+			t.Errorf("face %v: cell height %v, font line %v", face, height, line)
+		}
 	}
 }

@@ -79,6 +79,54 @@ func TestInitializeTextLabel(t *testing.T) {
 	}
 }
 
+func TestWindowsTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testing.T) {
+	for _, testcase := range []struct {
+		alignment ui.Alignment
+		origin    float32
+	}{
+		{ui.AlignCenter, 55},
+		{ui.AlignRight, 100},
+	} {
+		t.Run(fmt.Sprint(testcase.alignment), func(t *testing.T) {
+			inputState := platform.TextInput{
+				X: 10, Y: 20, Width: 120, Height: 30, FontSize: 16, Alignment: testcase.alignment,
+				State: platform.TextState{Value: "abc", Selection: text.Range{Start: 3, End: 3}, Composing: true, Composition: text.Range{Start: 0, End: 3}},
+			}
+			state := windowState{
+				textInput: inputState, textState: inputState.State, textEnabled: true, caretVisible: true,
+				textEngine: fixedAdvanceEngine{advance: 10}, textLabels: make([]platform.TextLabel, 1),
+				textRectangles: make([]render.Rectangle, textRectangleCount),
+			}
+			if err := state.updateTextVisuals(); err != nil {
+				t.Fatal(err)
+			}
+			if label := state.textLabels[0]; label.X != testcase.origin {
+				t.Fatalf("glyph origin = %v, want %v", label.X, testcase.origin)
+			}
+			wantCaret := platform.TextCaretInsideField(testcase.alignment, inputState.X, inputState.Width, testcase.origin+30, textCaretWidth)
+			if caret := state.textRectangles[1].Bounds.X; caret != wantCaret {
+				t.Fatalf("caret = %v, want %v", caret, wantCaret)
+			}
+			if caret := state.textRectangles[1].Bounds; caret.X+caret.Width > inputState.X+inputState.Width || caret.X >= inputState.X+inputState.Width {
+				t.Fatalf("right-aligned caret is clipped: %+v within X=%v width=%v", caret, inputState.X, inputState.Width)
+			}
+			if underline := state.textRectangles[2].Bounds.X; underline != testcase.origin {
+				t.Fatalf("composition underline = %v, want %v", underline, testcase.origin)
+			}
+			if x, _, _ := state.caretCell(); x != wantCaret {
+				t.Fatalf("IME candidate x = %v, want %v", x, wantCaret)
+			}
+			if x := state.alignedCaretX(1); x != testcase.origin+10 {
+				t.Fatalf("IME query at index 1 = %v, want %v", x, testcase.origin+10)
+			}
+			event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: testcase.origin + 12, Y: 35})
+			if err != nil || !handled || event.Selection != (text.Range{Start: 1, End: 1}) {
+				t.Fatalf("aligned click: event=%+v handled=%v err=%v", event, handled, err)
+			}
+		})
+	}
+}
+
 // TestTerminalPreeditDrawsNoCaretOrSelection guards the contract in
 // platform.TextInput.Terminal: a terminal input is a preedit surface, and the
 // terminal draws its own cursor and selection. A native caret here would blink
@@ -144,13 +192,14 @@ func TestTerminalPreeditStandsOnTheTerminalGrid(t *testing.T) {
 	field := testTextInput("ni好", 4)
 	field.Terminal = true
 	field.MonoFace = ui.MonoClassic
+	field.CellWidth = 7.5
 	field.State.Composing = true
 	field.State.Composition = text.Range{End: 3}
 	state.textInput, state.textState, state.textEnabled = field, field.State, true
 	if err := state.updateTextVisuals(); err != nil {
 		t.Fatal(err)
 	}
-	cell := terminalCellWidth(field.FontSize)
+	cell := field.CellWidth
 	label := state.textLabels[0]
 	if !label.Mono || label.MonoFace != ui.MonoClassic || label.CellWidth != cell {
 		t.Fatalf("label mono %v face %v cell %v, want a grid line of %v on the terminal face", label.Mono, label.MonoFace, label.CellWidth, cell)

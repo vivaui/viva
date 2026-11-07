@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build darwin || (js && wasm)
 
 package goldens
 
@@ -20,6 +20,9 @@ func TestDrawListMatchesGolden(t *testing.T) {
 	list := Capture()
 	path := filepath.Join("testdata", "drawlist.json")
 	if os.Getenv("GOLDENS_UPDATE") == "1" {
+		if runtime.GOOS != "darwin" {
+			t.Fatal("GOLDENS_UPDATE is only supported on the darwin reference host")
+		}
 		if err := writeGolden(path, &list); err != nil {
 			t.Fatal(err)
 		}
@@ -42,7 +45,6 @@ func TestDrawListMatchesGolden(t *testing.T) {
 			t.Fatalf("command %d diverged:\n got %+v\nwant %+v", index, list.Commands[index], want.Commands[index])
 		}
 	}
-	_ = runtime.GOOS
 }
 
 func writeGolden(path string, list *DrawList) error {

@@ -125,6 +125,7 @@ func theTextEngine() (*textEngine, error) {
 
 var _ ui.FontFamilyAware = (*textEngine)(nil)
 var _ ui.TextRasterizer = (*textEngine)(nil)
+var _ ui.MonoCellEngine = (*textEngine)(nil)
 
 // RasterizeText implements ui.TextRasterizer with the same DirectWrite/Direct2D
 // path the native label renderer uses.
@@ -173,6 +174,18 @@ func (engine *textEngine) SetFontFamily(family string) {
 		engine.italicCache.Clear()
 	}
 	engine.generation.Add(1)
+}
+
+// MonoCell implements ui.MonoCellEngine: the advance and line height of the face's own
+// font, which is the cell a terminal is laid out on.
+func (engine *textEngine) MonoCell(size float32, face ui.MonoFace) (advance, line float32) {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	metrics, err := engine.services.measureIn(monoFamily(face), "M", size, 0)
+	if err != nil {
+		return 0, 0
+	}
+	return metrics.Width, metrics.Height
 }
 
 // FontGeneration implements ui.FontFamilyAware.
