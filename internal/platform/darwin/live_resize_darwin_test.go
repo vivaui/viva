@@ -8,12 +8,13 @@ import (
 	"time"
 )
 
-// A live resize changes the layer's bounds before the next drawable is
-// presented. The view must keep the previous frame at its own size (top left)
-// instead of letting the compositor stretch it to the new bounds, and it must
-// size the drawable to the view at the screen's scale so the new frame is drawn
-// one texel per device pixel.
-func TestLiveResizePinsTheStaleFrameToTheTopLeft(t *testing.T) {
+// A live resize changes the layer's bounds before the drawable for the new size
+// is presented. The view must present that drawable in the same Core Animation
+// transaction as the bounds (presentsWithTransaction), so the compositor never
+// scales the previous frame over the new window. The drawable must also follow
+// the view at the screen's scale, so the frame is drawn one texel per device
+// pixel.
+func TestLiveResizePresentsInTheWindowTransaction(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	executable := filepath.Join(t.TempDir(), "live-resize")

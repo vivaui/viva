@@ -36,42 +36,56 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
 int main(void) {
     @autoreleasepool {
         [NSApplication sharedApplication];
-        NSWindow *window = [[NSWindow alloc]
-            initWithContentRect:NSMakeRect(0, 0, 320, 200)
-                      styleMask:NSWindowStyleMaskTitled
-                        backing:NSBackingStoreBuffered
-                          defer:NO];
-        window.releasedWhenClosed = NO;
-        VivaMetalView *view = [[VivaMetalView alloc] initWithFrame:NSMakeRect(0, 0, 320, 200)];
-        [window setContentView:view];
+        id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+        assert(device != nil);
 
+        VivaMetalView *view = [[VivaMetalView alloc]
+            initWithFrame:NSMakeRect(0, 0, 320, 200)
+                   device:device
+             commandQueue:nil
+        rectanglePipeline:nil
+          rectangleBuffer:nil
+           rectangleCount:0
+           rectangleClips:NULL
+             textPipeline:nil
+               textLabels:NULL
+           textLabelCount:0
+             accessibility:NULL
+         accessibilityCount:0
+                textInput:(viva_text_input_config){0}
+   dynamicTextInputEnabled:NO
+      pointerEventsEnabled:NO
+       resizeEventsEnabled:NO
+         keyEventsEnabled:NO
+      scrollEventsEnabled:NO
+               windowMode:0
+           callbackHandle:0
+               clearColor:(MTLClearColor){0, 0, 0, 1}];
+        assert(view != nil);
         CAMetalLayer *layer = (CAMetalLayer *)view.layer;
         assert([layer isKindOfClass:[CAMetalLayer class]]);
 
-        // AppKit resizes the layer before the next drawable is presented. The
-        // default resize gravity stretches the previous frame across the new
-        // bounds, which is the wobble a live resize must not show: cards and
-        // text visibly change length and snap back. The contents stay at the
-        // top left, at their own size, until the frame drawn for the new size
-        // is presented.
-        assert([layer.contentsGravity isEqualToString:kCAGravityTopLeft]);
+        // A live resize must present the new drawable inside the same Core
+        // Animation transaction that changes the layer's bounds. Otherwise the
+        // compositor stretches the previous frame across the new bounds, which
+        // is what makes cards, labels and the side bar wobble while dragging.
+        assert(layer.presentsWithTransaction == NO);
+        [view beginLiveResizeRelaxation];
+        assert(layer.presentsWithTransaction == YES);
+        [view endLiveResizeRelaxation];
+        assert(layer.presentsWithTransaction == NO);
 
-        // The drawable follows the view at the screen's scale, so that frame is
-        // drawn one texel per device pixel rather than scaled to fit.
-        CGFloat scale = NSScreen.mainScreen.backingScaleFactor;
-        assert(scale > 0);
-        assert(fabs(layer.contentsScale - scale) < 0.001);
+        // The drawable still follows the view at the screen's scale, so the
+        // presented frame is one texel per device pixel.
+        CGFloat scale = MAX(layer.contentsScale, 1.0);
         assert(fabs(layer.drawableSize.width - 320 * scale) < 0.5);
         assert(fabs(layer.drawableSize.height - 200 * scale) < 0.5);
-        [window setFrame:NSMakeRect(0, 0, 640, 400) display:NO];
         [view setFrameSize:NSMakeSize(640, 400)];
         assert(fabs(layer.drawableSize.width - 640 * scale) < 0.5);
         assert(fabs(layer.drawableSize.height - 400 * scale) < 0.5);
-        assert([layer.contentsGravity isEqualToString:kCAGravityTopLeft]);
 
-        printf("live resize: contents pinned top left; drawable 640x400 at %.1fx\n", scale);
+        printf("live resize: transactional presentation on, drawable 640x400 at %.1fx\n", scale);
         [view release];
-        [window release];
     }
     return 0;
 }

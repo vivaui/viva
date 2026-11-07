@@ -3684,13 +3684,6 @@ static int viva_navigation_command(SEL selector) {
         _metalLayer.opaque = clearColor.alpha >= 1.0 && windowMode != VIVA_WINDOW_PANEL && windowMode != VIVA_WINDOW_PREVIEW;
         _metalLayer.maximumDrawableCount = 2;
         _metalLayer.allowsNextDrawableTimeout = YES;
-        /* During a live resize AppKit resizes the layer before the frame drawn
-         * for the new bounds is presented. The default resize gravity stretches
-         * the previous drawable across those bounds, so cards and text visibly
-         * grow, snap back and wobble while the window is dragged. Pinning the
-         * contents to the top left keeps the last frame at its own size until
-         * the new one lands. */
-        _metalLayer.contentsGravity = kCAGravityTopLeft;
 
         self.wantsLayer = YES;
         self.layer = _metalLayer;
@@ -4427,6 +4420,13 @@ static int viva_navigation_command(SEL selector) {
 
 - (void)beginLiveResizeRelaxation {
     _liveResizeRelaxed = YES;
+    /* AppKit resizes the layer before the drawable drawn for the new bounds is
+     * presented; the default resize gravity would stretch the previous drawable
+     * across the new bounds. With presentsWithTransaction the drawable is shown
+     * in the same Core Animation transaction as the layer's new bounds, so the
+     * window never shows a scaled previous frame. The resize path waits for the
+     * frame to be scheduled before returning. */
+    _metalLayer.presentsWithTransaction = YES;
 }
 
 - (void)endLiveResizeRelaxation {
@@ -4442,6 +4442,7 @@ static int viva_navigation_command(SEL selector) {
     // setNeedsDisplay is not honored without drawRect; render explicitly so
     // the refreshed textures actually reach the screen.
     [self render];
+    _metalLayer.presentsWithTransaction = NO;
 }
 
 - (void)viewDidChangeBackingProperties {
@@ -4650,9 +4651,11 @@ static void viva_set_secure_event_input(BOOL on) {
         }
 
         if (wait) {
-            // A caller that asked for a synchronous frame does not return to
-            // AppKit before it is scheduled, so a burst of events (a scroll
-            // gesture outrunning the display) cannot pile up drawables.
+            // A live resize must not return to AppKit before the frame is
+            // scheduled: with presentsWithTransaction set, the drawable is
+            // presented in the same transaction as the layer's new bounds, so
+            // the window never shows the previous frame stretched. A scroll
+            // gesture that can outrun the display uses the same path.
             [commandBuffer waitUntilScheduled];
         } else if (_profileEnabled && !_reportedFirstFrame) {
             [commandBuffer waitUntilScheduled];

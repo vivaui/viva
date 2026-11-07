@@ -96,12 +96,12 @@ func vivaViewResized(handle C.uintptr_t, view unsafe.Pointer, width C.double, he
 
 	frame, err := state.resizeHandler(Size{Width: float32(width), Height: float32(height)})
 	if err == nil {
-		// The layer keeps the previous frame at its own size until this one is
-		// presented (see -[VivaMetalView initWithFrame:...]), so a resize does
-		// not need to block the window thread until the frame is scheduled. A
-		// live drag sends one resize per pointer move, and waiting for each one
-		// to reach the GPU made the drag feel stepwise.
-		err = presentFrame(state, view, frame, false)
+		// The layer presents the frame in the same Core Animation transaction as
+		// the new bounds (see -[VivaMetalView beginLiveResizeRelaxation]), so the
+		// window never scales the previous frame. Waiting for the frame to be
+		// scheduled before returning keeps the next AppKit resize step behind
+		// the frame it belongs to.
+		err = presentFrame(state, view, frame, true)
 	}
 	if err == nil && state.web != nil {
 		state.web.layout(true) // the view's height moved the pages with it
