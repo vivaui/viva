@@ -1,3 +1,5 @@
+//go:build !js
+
 package components_test
 
 import (

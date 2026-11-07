@@ -45,7 +45,7 @@ func describeAccessibility(destination []accessibilityDescription, hits []ui.Hit
 		destination = append(destination, accessibilityDescription{
 			ID:        hit.ID,
 			DOMID:     accessibilityDOMID(hit.ID),
-			Element:   accessibilityElement(hit.Role, hit.Multiline),
+			Element:   accessibilityElement(hit.Role, hit.Multiline, hit.Range.Set),
 			Role:      accessibilityRole(hit.Role),
 			Label:     hit.Label,
 			Value:     hit.Value,
@@ -94,9 +94,21 @@ func accessibilityLive(live ui.LiveRegion) string {
 	return ""
 }
 
-func accessibilityElement(role ui.Role, multiline bool) string {
+func accessibilityElement(role ui.Role, multiline, hasRange bool) string {
 	if role == ui.RoleCombobox {
 		return "input"
+	}
+	// A slider with a declared range is published as a real range input so a
+	// screen reader can change its value through the control it already knows
+	// how to operate; the canvas still paints the slider.
+	if role == ui.RoleSlider && hasRange {
+		return "input"
+	}
+	// A terminal is a text service surface too: hidden, but able to receive
+	// input-method composition and committed text. Its own cells are painted
+	// by the canvas.
+	if role == ui.RoleTerminal {
+		return "textarea"
 	}
 	if role == ui.RoleTextField {
 		if multiline {

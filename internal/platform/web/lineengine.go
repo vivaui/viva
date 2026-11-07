@@ -46,13 +46,21 @@ type lineEngine struct {
 	italicLines *textcache.Cache[*measuredLine]
 	resolver    bidi.Resolver
 	levels      []uint8
+	generation  uint32
 }
+
+// interfaceFamily is the CSS family named for proportional text, or "" for the
+// browser's system stack. fontGeneration moves whenever the family changes or a
+// registered font arrives, so every engine still holding shaped lines knows to
+// forget them.
+var interfaceFamily string
+var fontGeneration uint32
 
 // lineCacheLimit is how many lines a generation holds (twice that many are kept).
 const lineCacheLimit = 512
 
 func newLineEngine(measurer lineMeasurer) *lineEngine {
-	engine := &lineEngine{measurer: measurer, lines: textcache.New[*measuredLine](lineCacheLimit, nil)}
+	engine := &lineEngine{measurer: measurer, lines: textcache.New[*measuredLine](lineCacheLimit, nil), generation: fontGeneration}
 	measurer.setInvalidate(func() {
 		engine.lines.Clear()
 		if engine.italicLines != nil {
@@ -60,6 +68,32 @@ func newLineEngine(measurer lineMeasurer) *lineEngine {
 		}
 	})
 	return engine
+}
+
+// SetFontFamily implements ui.FontFamilyAware. The family applies to every
+// engine in the page, as the native engines apply theirs to the process.
+func (engine *lineEngine) SetFontFamily(family string) {
+	if family == interfaceFamily {
+		return
+	}
+	interfaceFamily = family
+	fontGeneration++
+}
+
+// FontGeneration implements ui.FontFamilyAware.
+func (engine *lineEngine) FontGeneration() uint32 { return fontGeneration }
+
+// syncGeneration drops shaped lines when the page's font state moved since
+// this engine last measured.
+func (engine *lineEngine) syncGeneration() {
+	if engine.generation == fontGeneration {
+		return
+	}
+	engine.generation = fontGeneration
+	engine.lines.Clear()
+	if engine.italicLines != nil {
+		engine.italicLines.Clear()
+	}
 }
 
 func (engine *lineEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
@@ -91,6 +125,7 @@ func (engine *lineEngine) line(value string, size, weight float32) *measuredLine
 }
 
 func (engine *lineEngine) lineStyle(value string, size, weight float32, italic bool) *measuredLine {
+	engine.syncGeneration()
 	lines := engine.lines
 	if italic {
 		if engine.italicLines == nil {
@@ -119,6 +154,7 @@ func (engine *lineEngine) geometry(value string, size, weight float32, line *mea
 }
 
 func (engine *lineEngine) geometryStyle(value string, size, weight float32, italic bool, line *measuredLine) *clusterRects {
+	engine.syncGeneration()
 	if line.clusters != nil {
 		return line.clusters
 	}

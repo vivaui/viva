@@ -7,6 +7,7 @@ import (
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/internal/input"
+	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
@@ -569,5 +570,233 @@ func TestAModifierPressedAndReleasedAloneIsATap(t *testing.T) {
 		if len(taps) != 0 {
 			t.Errorf("%s: still a tap: %+v", name, taps)
 		}
+	}
+}
+
+func TestPainterUsesTheCallersStaticCanvasWithoutPaint(t *testing.T) {
+	var canvas ui.Canvas
+	canvas.Fill(ui.Rect{Width: 40, Height: 20}, ui.Color{Alpha: 1})
+	painter := newPainter(&canvas, &Config{})
+	painter.width, painter.height = 40, 20
+	painter.repaint()
+	if len(painter.rectangles) != 1 {
+		t.Fatalf("static canvas rectangles = %d, want the caller's one", len(painter.rectangles))
+	}
+}
+
+func TestPainterOrdersRegionsByLayerAndSkipsContainers(t *testing.T) {
+	var canvas ui.Canvas
+	config := Config{Paint: func(canvas *ui.Canvas, _ ui.Size) {
+		canvas.PushLayer(1)
+		canvas.Hit(ui.Item(1), ui.Rect{Width: 100, Height: 40})
+		canvas.PopLayer()
+		canvas.Hit(ui.Item(2), ui.Rect{Width: 100, Height: 40})
+		canvas.Container(ui.Rect{Width: 100, Height: 40}, ui.RoleGroup, "group")
+	}}
+	painter := newPainter(&canvas, &config)
+	painter.width, painter.height = 100, 40
+	painter.repaint()
+	if len(painter.regions) != 2 || painter.regions[0].Target != ui.Item(2) || painter.regions[1].Target != ui.Item(1) {
+		t.Fatalf("regions = %+v, want item 2 then the higher-layer item 1", painter.regions)
+	}
+	if target, ok := painter.router.HitTest(10, 10); !ok || target != ui.Item(1) {
+		t.Fatalf("hit test = %v, %v, want the front-most higher-layer item", target, ok)
+	}
+}
+
+func TestNewAutofocusTakesFocusOnce(t *testing.T) {
+	var canvas ui.Canvas
+	config := Config{Paint: func(canvas *ui.Canvas, _ ui.Size) {
+		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 100, Height: 40}, "first", ui.HitOptions{Autofocus: true})
+		canvas.Hit(ui.Item(2), ui.Rect{X: 100, Width: 100, Height: 40})
+	}}
+	painter := newPainter(&canvas, &config)
+	painter.width, painter.height = 200, 40
+	painter.repaint()
+	if painter.focused != ui.Item(1) {
+		t.Fatalf("autofocus chose %v, want item 1", painter.focused)
+	}
+	painter.router.Focus(input.Target(ui.Item(2)))
+	painter.repaint()
+	if painter.focused != ui.Item(2) {
+		t.Fatalf("an old autofocus hit stole focus back: %v", painter.focused)
+	}
+}
+
+func TestFocusRequestMovesFocusOnce(t *testing.T) {
+	var canvas ui.Canvas
+	config := Config{Paint: func(canvas *ui.Canvas, _ ui.Size) {
+		canvas.Hit(ui.Item(1), ui.Rect{Width: 100, Height: 40})
+		canvas.Hit(ui.Item(2), ui.Rect{X: 100, Width: 100, Height: 40})
+		canvas.RequestFocus(ui.Item(1))
+	}}
+	painter := newPainter(&canvas, &config)
+	painter.width, painter.height = 200, 40
+	painter.repaint()
+	if painter.focused != ui.Item(1) {
+		t.Fatalf("focus request chose %v, want item 1", painter.focused)
+	}
+	painter.router.Focus(input.Target(ui.Item(2)))
+	painter.repaint()
+	if painter.focused != ui.Item(2) {
+		t.Fatalf("an unchanged focus request reclaimed focus: %v", painter.focused)
+	}
+}
+
+func TestCursorFollowsThePressTargetAndHit(t *testing.T) {
+	image, err := ui.NewCursorImage(1, 1, 0, 0, 1, []byte{0, 0, 0, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits := []ui.Hit{
+		{ID: ui.Item(1), Cursor: ui.PointerCursorText},
+		{ID: ui.Item(2), Cursor: ui.PointerCursorImage, CursorImage: image},
+		{ID: ui.Item(3), Cursor: ui.PointerCursorHand, Disabled: true},
+	}
+	if cursor, got := cursorForTarget(hits, ui.Item(1), ui.ID{}); cursor != ui.PointerCursorText || got != nil {
+		t.Fatalf("hover cursor = %v %v, want text", cursor, got)
+	}
+	if cursor, got := cursorForTarget(hits, ui.Item(1), ui.Item(2)); cursor != ui.PointerCursorImage || got != image {
+		t.Fatalf("captured cursor = %v %v, want the image", cursor, got)
+	}
+	if cursor, got := cursorForTarget(hits, ui.Item(3), ui.ID{}); cursor != ui.PointerCursorDefault || got != nil {
+		t.Fatalf("disabled cursor = %v %v, want the arrow", cursor, got)
+	}
+}
+
+func TestTerminalKeyReleasesPairPressesAndReleases(t *testing.T) {
+	var canvas ui.Canvas
+	var seen []ui.KeyEvent
+	config := Config{
+		Paint: func(canvas *ui.Canvas, _ ui.Size) {
+			canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 200, Height: 80}, "terminal", ui.HitOptions{
+				Role: ui.RoleTerminal,
+			})
+		},
+		TextInput: func(TextInputContext) *platform.TextInput {
+			return &platform.TextInput{
+				KeyReleases: true,
+				OnEvent:     func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
+			}
+		},
+		OnKey: func(event ui.KeyEvent) ui.EventResult {
+			seen = append(seen, event)
+			return ui.EventResult{}
+		},
+	}
+	painter := newPainter(&canvas, &config)
+	painter.width, painter.height = 200, 80
+	painter.repaint()
+	painter.router.Focus(input.Target(ui.Item(1)))
+	painter.repaint()
+	code := webKeyCode("KeyA")
+	painter.keyDownCode(ui.KeyEvent{Key: ui.KeyUnknown, Text: "a", Typed: "A"}, code)
+	painter.keyUp(ui.KeyEvent{}, code)
+	if len(seen) != 2 || seen[0].Release || seen[0].Text != "a" || seen[0].Typed != "A" || !seen[1].Release || seen[1].Text != "a" {
+		t.Fatalf("press/release = %+v, want a matching pair", seen)
+	}
+	code = webKeyCode("KeyB")
+	painter.keyDownCode(ui.KeyEvent{Key: ui.KeyUnknown, Text: "b"}, code)
+	painter.focusLost()
+	if len(seen) != 4 || !seen[3].Release || seen[3].Text != "b" {
+		t.Fatalf("after focus loss = %+v, want a release for b", seen)
+	}
+	if painter.keys.Len() != 0 {
+		t.Fatal("focus loss left a key down")
+	}
+}
+
+func TestAccessibilityPressRunsThePointerClickPass(t *testing.T) {
+	var canvas ui.Canvas
+	config := Config{
+		Paint: func(canvas *ui.Canvas, _ ui.Size) {
+			canvas.Hit(ui.Item(1), ui.Rect{Width: 100, Height: 40})
+			canvas.HitWithOptions(ui.Item(2), ui.Rect{X: 100, Width: 100, Height: 40}, "off", ui.HitOptions{Disabled: true})
+		},
+	}
+	var clicks []ui.ID
+	onClick(&config, func(id ui.ID) { clicks = append(clicks, id) })
+	painter := newPainter(&canvas, &config)
+	painter.width, painter.height = 200, 40
+	painter.repaint()
+
+	if !painter.accessibilityPress(ui.Item(1)) {
+		t.Fatal("an accessible button press was rejected")
+	}
+	if len(clicks) != 1 || clicks[0] != ui.Item(1) {
+		t.Fatalf("clicks = %v, want one on item 1", clicks)
+	}
+	if painter.accessibilityPress(ui.Item(2)) || len(clicks) != 1 {
+		t.Fatalf("a disabled control was pressed: %v", clicks)
+	}
+	if painter.accessibilityPress(ui.Item(9)) || len(clicks) != 1 {
+		t.Fatalf("a control that is not painted was pressed: %v", clicks)
+	}
+}
+
+func TestAccessibilityFocusGivesTheKeyboardButNotAnExtraClick(t *testing.T) {
+	var canvas ui.Canvas
+	config := Config{
+		Paint: func(canvas *ui.Canvas, _ ui.Size) {
+			canvas.Hit(ui.Item(1), ui.Rect{Width: 100, Height: 40})
+			canvas.HitWithOptions(ui.Item(2), ui.Rect{X: 100, Width: 100, Height: 40}, "off", ui.HitOptions{Disabled: true})
+		},
+	}
+	var clicks []ui.ID
+	onClick(&config, func(id ui.ID) { clicks = append(clicks, id) })
+	painter := newPainter(&canvas, &config)
+	painter.width, painter.height = 200, 40
+	painter.repaint()
+
+	if !painter.accessibilityFocus(ui.Item(1)) {
+		t.Fatal("an accessible focus request was rejected")
+	}
+	if painter.focused != ui.Item(1) || !painter.keyboardFocus {
+		t.Fatalf("focus = %v, visible = %v, want item 1 with a ring", painter.focused, painter.keyboardFocus)
+	}
+	if len(clicks) != 0 {
+		t.Fatalf("moving focus clicked a control: %v", clicks)
+	}
+	if painter.accessibilityFocus(ui.Item(2)) {
+		t.Fatal("a disabled control took keyboard focus")
+	}
+}
+
+func TestAccessibilitySetNumberPressesTheSlidersOwnKeys(t *testing.T) {
+	var canvas ui.Canvas
+	var keys []ui.Key
+	config := Config{
+		Paint: func(canvas *ui.Canvas, _ ui.Size) {
+			canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 200, Height: 40}, "Volume", ui.HitOptions{
+				Role: ui.RoleSlider, Value: "5",
+				Range: ui.ValueRange{Now: 5, Min: 0, Max: 10, Step: 1, Set: true},
+			})
+		},
+		OnKey: func(event ui.KeyEvent) ui.EventResult {
+			keys = append(keys, event.Key)
+			return ui.EventResult{Handled: true}
+		},
+	}
+	painter := newPainter(&canvas, &config)
+	painter.width, painter.height = 200, 40
+	painter.repaint()
+
+	if !painter.accessibilitySetNumber(ui.Item(1), 8) || painter.focused != ui.Item(1) {
+		t.Fatalf("set number = false or focus %v, want item 1", painter.focused)
+	}
+	if len(keys) != 3 || keys[0] != ui.KeyUp || keys[1] != ui.KeyUp || keys[2] != ui.KeyUp {
+		t.Fatalf("keys = %v, want three steps up", keys)
+	}
+	keys = keys[:0]
+	if !painter.accessibilitySetNumber(ui.Item(1), 2) || len(keys) != 3 || keys[0] != ui.KeyDown {
+		t.Fatalf("keys = %v, want three steps down", keys)
+	}
+	keys = keys[:0]
+	if !painter.accessibilitySetNumber(ui.Item(1), 0) || len(keys) != 1 || keys[0] != ui.KeyHome {
+		t.Fatalf("keys = %v, want Home", keys)
+	}
+	keys = keys[:0]
+	if !painter.accessibilitySetNumber(ui.Item(1), 10) || len(keys) != 1 || keys[0] != ui.KeyEnd {
+		t.Fatalf("keys = %v, want End", keys)
 	}
 }
