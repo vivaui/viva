@@ -345,7 +345,10 @@ func (win *window) dragMotion(event *xcbInputEvent) (consumed, cancelled bool) {
 		frame.pending = false
 		return false, false
 	}
-	slop := win.dragSlop()
+	slop := int16(1)
+	if frame.pendingDirection == moveResizeMove {
+		slop = win.dragSlop()
+	}
 	dx, dy := event.RootX-frame.pendingRootX, event.RootY-frame.pendingRootY
 	if dx > -slop && dx < slop && dy > -slop && dy < slop {
 		return !frame.delivered, false

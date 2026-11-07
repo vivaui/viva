@@ -377,6 +377,9 @@ func (renderer *vulkanRenderer) memoryType(bits, properties uint32) (uint32, boo
 }
 
 func (sceneState *vulkanScene) createPipeline(renderer *vulkanRenderer) (err error) {
+	if sceneState.pipeline != 0 {
+		return nil
+	}
 	// The fragment stage reads the content origin and the pixel size to place
 	// its sample in the same device space the vertices were given in.
 	push := vkPushConstantRange{StageFlags: vkShaderStageVertex | vkShaderStageFragment, Size: 24}

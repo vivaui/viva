@@ -55,7 +55,8 @@ type xcbVisualIterator struct {
 
 // frameMode is VIVA_LINUX_FRAME. "off" never draws a frame. "on" draws it where the
 // desktop composites. "force" draws it without asking, for tests. Anything else
-// is automatic: where the desktop composites and the graphics device is a GPU.
+// is automatic: where the desktop composites, the graphics device is a GPU, and
+// the window manager supports synchronized resize.
 func frameMode() string { return os.Getenv("VIVA_LINUX_FRAME") }
 
 // argbVisual finds the 32-bit TrueColor visual with the usual alpha-red-green-blue
@@ -102,6 +103,43 @@ func (win *window) compositing(screenIndex int32) bool {
 	return reply.Owner != 0
 }
 
+// supportsSyncedFrame reports whether the window manager advertises
+// _NET_WM_SYNC_REQUEST in _NET_SUPPORTED. Without synchronized resize, an inset
+// transparent margin inside the X11 window cannot resize in lockstep with
+// ConfigureWindow and lags or flashes at the dragged edge. _GTK_FRAME_EXTENTS is
+// a private property that supporting window managers need not advertise here.
+func (win *window) supportsSyncedFrame() bool {
+	supportedAtom, err := win.api.atom(win.connection, "_NET_SUPPORTED")
+	if err != nil || supportedAtom == 0 {
+		return false
+	}
+	syncAtom, err := win.api.atom(win.connection, "_NET_WM_SYNC_REQUEST")
+	if err != nil || syncAtom == 0 {
+		return false
+	}
+	cookie := win.api.getProperty(win.connection, 0, win.screen.Root, supportedAtom, xcbAtomAtom, 0, 1024)
+	var nativeError unsafe.Pointer
+	reply := win.api.getPropertyReply(win.connection, cookie, &nativeError)
+	if nativeError != nil {
+		win.api.free(nativeError)
+	}
+	if reply == nil {
+		return false
+	}
+	defer win.api.free(unsafe.Pointer(reply))
+	length := win.api.getPropertyLength(reply)
+	if reply.Format != 32 || length <= 0 {
+		return false
+	}
+	atoms := unsafe.Slice((*uint32)(win.api.getPropertyValue(reply)), int(length)/4)
+	for _, atom := range atoms {
+		if atom == syncAtom {
+			return true
+		}
+	}
+	return false
+}
+
 // wantsFrame says whether a window of this kind gets a drawn frame here, and
 // the visual to make it with. A desktop that does not composite shows the
 // transparent margin as black, so there the window keeps the plain frame.
@@ -117,7 +155,7 @@ func (win *window) wantsFrame(screenIndex int32) (visual uint32, ok bool) {
 		// Software drivers before Mesa 23 draw nothing into a window with alpha,
 		// and a machine drawing in software is a virtual one where a shadow is not
 		// worth the risk of an invisible window. "on" asks for it anyway.
-		if mode != "on" && vulkanDeviceIsSoftware() {
+		if mode != "on" && (vulkanDeviceIsSoftware() || !win.supportsSyncedFrame()) {
 			return 0, false
 		}
 	}
@@ -131,10 +169,13 @@ func (win *window) createFrameWindow(visual uint32, eventMask uint32, x, y int16
 	var createColormap func(uintptr, uint8, uint32, uint32, uint32) xcbVoidCookie
 	purego.RegisterLibFunc(&createColormap, api.library, "xcb_create_colormap")
 	createColormap(connection, 0, colormap, win.screen.Root, visual)
-	// Values follow the order of their bits: background, border, events, colormap.
-	values := [4]uint32{0, 0, eventMask, colormap}
+	// Values follow the order of their bits: background pixmap (None), border
+	// pixel, bit gravity (NorthWest so the X server keeps the existing window
+	// pixmap during ConfigureWindow instead of clearing it to transparent),
+	// events, colormap.
+	values := [5]uint32{0, 0, xcbGravityNorthWest, eventMask, colormap}
 	api.createWindow(connection, 32, win.id, win.screen.Root, x, y, uint16(win.width), uint16(win.height), 0, xcbWindowClassInput, visual,
-		xcbCWBackPixel|xcbCWBorderPixel|xcbCWEventMask|xcbCWColormap, &values[0])
+		xcbCWBackPixmap|xcbCWBorderPixel|xcbCWBitGravity|xcbCWEventMask|xcbCWColormap, &values[0])
 	win.colormap = colormap
 }
 
