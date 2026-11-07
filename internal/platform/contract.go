@@ -774,6 +774,13 @@ type TextInput struct {
 	Height   float32
 	FontSize float32
 	Weight   float32
+	// Alignment places a fitted line inside the field. It is a physical edge:
+	// AlignLeft, AlignCenter or AlignRight, already resolved for the text's
+	// direction. A caller holding an AlignStart or AlignEnd passes it through
+	// ResolveTextAlignment first, which is what a viva window does, so that a
+	// right-to-left line is not silently drawn left-aligned. Terminal and
+	// self-placed inputs ignore it.
+	Alignment ui.Alignment
 	// Layer keeps native editor visuals in the component's compositing layer.
 	Layer     uint16
 	Multiline bool

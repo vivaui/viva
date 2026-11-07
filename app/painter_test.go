@@ -1794,6 +1794,65 @@ func TestNativeTextInputKeepsDeclaredFontWeight(t *testing.T) {
 	}
 }
 
+func TestNativeTextInputAlignmentPropagatesAndResolvesDirection(t *testing.T) {
+	for _, testcase := range []struct {
+		name      string
+		value     string
+		alignment ui.Alignment
+		want      ui.Alignment
+	}{
+		{"default left", "hello", ui.AlignLeft, ui.AlignLeft},
+		{"center", "hello", ui.AlignCenter, ui.AlignCenter},
+		{"right", "hello", ui.AlignRight, ui.AlignRight},
+		{"start left to right", "hello", ui.AlignStart, ui.AlignLeft},
+		{"end left to right", "hello", ui.AlignEnd, ui.AlignRight},
+		{"start right to left", "שלום", ui.AlignStart, ui.AlignRight},
+		{"end right to left", "שלום", ui.AlignEnd, ui.AlignLeft},
+	} {
+		t.Run(testcase.name, func(t *testing.T) {
+			editor := text.NewEditor(testcase.value)
+			config := Config{Title: "aligned input", Width: 280, Height: 100}
+			config.Paint = func(canvas *ui.Canvas, _ ui.Size) {
+				canvas.HitWithOptions(ui.Item(5), ui.Rect{X: 20, Y: 20, Width: 220, Height: 40}, "Text", ui.HitOptions{
+					Role: ui.RoleTextField, Value: editor.String(), TextBounds: ui.Rect{X: 24, Y: 23, Width: 210, Height: 34}, TextSize: 16,
+				})
+			}
+			config.TextInput = func(TextInputContext) *TextInput {
+				return &TextInput{Editor: editor, Alignment: testcase.alignment}
+			}
+			var canvas ui.Canvas
+			painter := newTestPainter(t, &canvas, config)
+			frame, err := painter.pointer(platform.PointerEvent{Kind: platform.PointerDown, X: 30, Y: 30})
+			if err != nil {
+				t.Fatal(err)
+			}
+			native := frame.TextInput.Input
+			if native == nil || native.Alignment != testcase.want || native.X != 24 || native.Y != 23 || native.Width != 210 || native.Height != 34 {
+				t.Fatalf("native alignment and fixed bounds = %+v, want %v at 24,23 210x34", native, testcase.want)
+			}
+		})
+	}
+}
+
+func BenchmarkResolveTextInputAlignment(b *testing.B) {
+	for _, testcase := range []struct {
+		name      string
+		alignment ui.Alignment
+		value     string
+	}{
+		{"left", ui.AlignLeft, "ordinary text"},
+		{"right", ui.AlignRight, "ordinary text"},
+		{"start RTL", ui.AlignStart, "שלום"},
+	} {
+		b.Run(testcase.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				_ = resolveTextInputAlignment(testcase.alignment, testcase.value, 2)
+			}
+		})
+	}
+}
+
 func TestPainterPassesTheSelfPaintedTextOverlayPolicyToThePlatform(t *testing.T) {
 	theme := ui.DarkTheme()
 	editor := text.NewEditor("value")

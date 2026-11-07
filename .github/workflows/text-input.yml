@@ -45,6 +45,12 @@ jobs:
       - name: Windows IME lifecycle
         if: runner.os == 'Windows'
         run: go test ./internal/platform/windows -run 'TestComposition|TestDynamicTextInput' -count=1
+      - name: Windows aligned text input
+        if: runner.os == 'Windows'
+        run: go test ./internal/platform/windows -run '^TestWindowsTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer$' -count=1
+      - name: Linux aligned text input
+        if: runner.os == 'Linux'
+        run: go test ./internal/platform/linux -run '^TestLinux(TextInputAlignmentMatchesGlyphCaretUnderlineAndPointer|RightToLeftAlignmentUsesLineWidthNotLogicalEndCaret|CandidateWindowFollowsAlignmentWhenNativeOverlaysAreHidden)$' -count=1
       # A terminal input is a preedit surface with a cursor of its own: the native
       # editor must draw no caret or selection over it, and blink none.
       - name: Windows terminal preedit draws no native caret

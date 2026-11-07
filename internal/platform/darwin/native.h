@@ -67,6 +67,7 @@ typedef struct {
     float height;
     float font_size;
     float font_weight;
+    int alignment;
     float red;
     float green;
     float blue;
