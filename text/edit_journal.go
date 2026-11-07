@@ -35,6 +35,7 @@ func (editor *Editor) TrackEdits() uint64 {
 // this same byte stream; moving a selection or clearing Undo does not enter it.
 // ReplaceRanges reports disjoint ranges from last to first, and its Undo reports
 // their inverses from first to last, without treating untouched gaps as edits.
+// ReplaceRangesWith can opt into forward target order with reverse inverse order.
 func (editor *Editor) EditsSince(cursor uint64, dst []Edit) ([]Edit, uint64, bool) {
 	dst = dst[:0]
 	journal := editor.journal
@@ -108,12 +109,13 @@ func (editor *Editor) recordBatchEdits(primitives []Edit, inverse bool) {
 		return
 	}
 	if inverse {
-		for _, edit := range primitives {
+		for index := len(primitives) - 1; index >= 0; index-- {
+			edit := primitives[index]
 			editor.recordEdit(Edit{Start: edit.Start, Removed: edit.Inserted, Inserted: edit.Removed})
 		}
 	} else {
-		for index := len(primitives) - 1; index >= 0; index-- {
-			editor.recordEdit(primitives[index])
+		for _, edit := range primitives {
+			editor.recordEdit(edit)
 		}
 	}
 }

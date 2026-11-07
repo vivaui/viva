@@ -11,10 +11,31 @@ type Replacement struct {
 	Text  string
 }
 
+// ReplaceRangesOptions opts into target-replacement behavior without changing
+// ReplaceRanges defaults. The batch still performs one buffer replacement and undo unit.
+type ReplaceRangesOptions struct {
+	// Forward reports primitives from first target to last, adjusting positions
+	// after each replacement. The default reports last to first.
+	Forward bool
+	// AfterSelection is copied, validated against the resulting rune count, and
+	// retained by Undo/Redo. Nil keeps the default caret after the last target.
+	AfterSelection *Range
+	// ApplyUnchanged reports target primitives even when final text is equal.
+	// Equal text does not add an Undo unit or discard an existing Redo unit.
+	ApplyUnchanged bool
+}
+
 // ReplaceRanges applies sorted, disjoint replacements as one undo unit, subject
 // to the editor's existing history size limit.
 // A rejected batch leaves both the text and undo/redo history untouched.
 func (editor *Editor) ReplaceRanges(edits []Replacement) error {
+	return editor.ReplaceRangesWith(edits, ReplaceRangesOptions{})
+}
+
+// ReplaceRangesWith applies a preflighted batch with optional primitive order
+// and final selection. An empty batch is a no-op. Unchanged text is also a no-op
+// unless ApplyUnchanged is set; otherwise final selection is not changed.
+func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRangesOptions) error {
 	if len(edits) == 0 {
 		return nil
 	}
@@ -60,15 +81,33 @@ func (editor *Editor) ReplaceRanges(edits []Replacement) error {
 		replacement = append(replacement, inserted...)
 		position = edit.Range.End
 	}
-	if slices.Equal(replacement, editor.runes[start:end]) {
+	resultingRunes := len(editor.runes) - (end - start) + len(replacement)
+	if after := options.AfterSelection; after != nil && (after.Start < 0 || after.End < 0 || after.Start > resultingRunes || after.End > resultingRunes) {
+		return fmt.Errorf("final selection is outside the replacement result")
+	}
+	changed := !slices.Equal(replacement, editor.runes[start:end])
+	if !changed && !options.ApplyUnchanged {
 		return nil
+	}
+	if options.Forward {
+		shift := 0
+		for index := range primitives {
+			primitives[index].Start += shift
+			shift += primitives[index].Inserted - primitives[index].Removed
+		}
+	} else {
+		slices.Reverse(primitives)
 	}
 	journal := editor.journal
 	editor.journal = nil
 	editor.ReplaceRange(Range{Start: start, End: end}, string(replacement))
 	editor.journal = journal
-	if editor.historyIndex > 0 {
+	if options.AfterSelection != nil {
+		editor.SetSelection(*options.AfterSelection)
+	}
+	if changed && editor.historyIndex > 0 {
 		editor.history[editor.historyIndex-1].primitives = primitives
+		editor.history[editor.historyIndex-1].after = editor.selectionState()
 	}
 	editor.recordBatchEdits(primitives, false)
 	return nil
