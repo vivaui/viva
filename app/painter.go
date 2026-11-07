@@ -124,6 +124,7 @@ type painter struct {
 	// delay, while a transition is in flight or the application asked for one.
 	scheduleFrame    func(delay time.Duration)
 	setClipboardText func(string)
+	clipboardText    func() string
 	setCursor        func(Cursor) error
 	setCursorImage   func(*ui.CursorImage) error
 	// cursorImage is the picture shown while cursor is CursorImage.
@@ -162,6 +163,12 @@ func newPainterWithClock(canvas *ui.Canvas, config *Config, clock func() time.Du
 		labels:        make([]platform.TextLabel, 0, len(canvas.Texts())+len(canvas.Images())+1),
 	}
 	painter.onTextEvent = painter.applyTextEvent
+	painter.clipboardText = func() string {
+		if painter.activeText == nil || painter.activeText.CopyText == nil {
+			return ""
+		}
+		return painter.activeText.CopyText()
+	}
 	if config.WindowMode == WindowCustomTitlebar && controlsDrawnByViva {
 		painter.controls = newWindowControls(config)
 	}
@@ -1160,6 +1167,8 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		FontSize: fontSize, Weight: weight, Alignment: alignment, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
 		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace, CellWidth: cellWidth,
 		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
+		CopyOverride:       input.CopyOverride,
+		CopyText:           painter.clipboardText,
 		HideNativeOverlays: input.HideNativeOverlays || context.HideNativeOverlays,
 		Color: platform.Color{
 			Red: float64(tint.Red), Green: float64(tint.Green),
@@ -1250,6 +1259,7 @@ func samePlatformTextInput(left, right platform.TextInput) bool {
 		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.CellWidth == right.CellWidth &&
 		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases &&
 		left.NavigationKeys == right.NavigationKeys &&
+		left.CopyOverride == right.CopyOverride &&
 		left.HideNativeOverlays == right.HideNativeOverlays &&
 		left.Placed == right.Placed && left.CaretX == right.CaretX && left.CaretY == right.CaretY &&
 		left.CaretWidth == right.CaretWidth && left.CaretHeight == right.CaretHeight &&

@@ -47,6 +47,8 @@ func (host *textInputHost) bind(node *accessibilityDOMNode) {
 		return
 	}
 	host.addListener(node, "input", host.inputEvent)
+	host.addListener(node, "copy", host.copyEvent)
+	host.addListener(node, "cut", host.cutEvent)
 	host.addListener(node, "paste", host.pasteEvent)
 	host.addListener(node, "select", host.selectEvent)
 	host.addListener(node, "compositionstart", host.compositionStart)
@@ -214,6 +216,38 @@ func (host *textInputHost) syncValueAndSelection(element js.Value) {
 		element.Call("setSelectionRange", start, end)
 	}
 	host.syncing = false
+}
+
+func (host *textInputHost) copyEvent(node *accessibilityDOMNode, event js.Value) {
+	host.copyCutEvent(node, event, 'c')
+}
+
+func (host *textInputHost) cutEvent(node *accessibilityDOMNode, event js.Value) {
+	host.copyCutEvent(node, event, 'x')
+}
+
+func (host *textInputHost) copyCutEvent(node *accessibilityDOMNode, event js.Value, action byte) {
+	if host.syncing || host.active != node || host.composing || !host.input.CopyOverride && !host.input.Secure {
+		return
+	}
+	event.Call("preventDefault")
+	if host.input.Secure {
+		return
+	}
+	data := event.Get("clipboardData")
+	if data.IsUndefined() || data.IsNull() {
+		return
+	}
+	value, edit, _ := browserCopyCut(host.input, action)
+	if value == "" {
+		return
+	}
+	data.Call("setData", "text/plain", value)
+	if edit.Kind != 0 {
+		changed := host.apply(edit)
+		host.syncValueAndSelection(node.element)
+		host.repaint(changed)
+	}
 }
 
 func (host *textInputHost) inputEvent(node *accessibilityDOMNode, event js.Value) {

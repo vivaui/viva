@@ -162,6 +162,20 @@ func TestWebTextInputPassesEventsToAHandlerThatOwnsThem(t *testing.T) {
 	}
 }
 
+func TestWebTextInputCarriesCopyOverride(t *testing.T) {
+	provider := webTextInput(func(TextInputContext) *TextInput {
+		return &TextInput{CopyOverride: true, CopyText: func() string { return "first\nsecond" }}
+	})
+	input := provider(web.TextInputContext{ID: ui.Item(1), Secure: true})
+	if !input.CopyOverride || input.CopyText == nil || input.CopyText() != "first\nsecond" || !input.Secure {
+		t.Fatalf("browser copy override = %v", input.CopyOverride)
+	}
+	terminal := provider(web.TextInputContext{ID: ui.Item(2), Terminal: true})
+	if !terminal.Terminal || !terminal.CopyOverride || terminal.CopyText() != "first\nsecond" {
+		t.Fatalf("terminal copy override = %+v", terminal)
+	}
+}
+
 func TestWebTextInputKeepsTerminalKeyboardSemantics(t *testing.T) {
 	provider := webTextInput(func(TextInputContext) *TextInput {
 		return &TextInput{KeyReleases: true, AltSendsEscape: true}

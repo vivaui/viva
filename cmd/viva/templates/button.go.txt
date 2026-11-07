@@ -58,6 +58,7 @@ type Button struct {
 	// infer a motion of its own.
 	iconTransform ui.IconTransform
 	height        float32
+	fontSize      float32
 	disabled      bool
 }
 
@@ -110,6 +111,16 @@ func (button Button) Size(size ButtonSize) Button {
 // tall. A height of zero or less is the size's own.
 func (button Button) Height(height float32) Button {
 	button.height = max(height, 0)
+	return button
+}
+
+// FontSize paints the label size points instead of the size the button's size
+// gives, for a button that sits among text of its own size. The height, the
+// padding and the corner radius stay those of the size; a label grows the
+// button's width through SizeToFit and Paint as usual. A size of zero or less
+// is the size's own.
+func (button Button) FontSize(size float32) Button {
+	button.fontSize = max(size, 0)
 	return button
 }
 
@@ -423,6 +434,9 @@ func (button Button) geometry() (height, padding, fontSize float32, iconOnly boo
 	}
 	if button.height > 0 {
 		height = button.height
+	}
+	if button.fontSize > 0 {
+		fontSize = button.fontSize
 	}
 	return height, padding, fontSize, iconOnly
 }
