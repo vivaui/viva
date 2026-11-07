@@ -120,6 +120,8 @@ type CodeEditorSnapshot struct {
 	MatchBrackets bool
 	// ShowWhitespace paints markers over visible spaces and tab cells without changing text geometry.
 	ShowWhitespace bool
+	// ShowIndentGuides paints dotted guides at leading tab stops without changing text geometry.
+	ShowIndentGuides bool
 	// ShowEOL paints EOLLabel at hard line breaks, never at soft wraps or an unterminated final line.
 	ShowEOL bool
 	// EOLLabel is the line-ending marker, such as LF or CRLF. An empty label uses LF.
@@ -164,6 +166,7 @@ type CodeEditor struct {
 	tabWidth  int
 	fitted    bool
 	rows      []codeRow
+	indents   []int
 	foldInput []CodeEditorFoldRange
 	folds     []CodeEditorFoldRange
 	shown     []string
@@ -307,6 +310,9 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 	}
 	cols := max(1, int(content.Width/cellWidth))
 	editor.fitWithFolds(value, cols, snapshot.Wrap, tabWidth, snapshot.FoldedLines)
+	if snapshot.ShowIndentGuides && editor.indents == nil {
+		editor.indents = indentationLevels(editor.text, tabWidth)
+	}
 	editor.content, editor.cellWidth, editor.lineHeight = content, cellWidth, lineHeight
 
 	placeholder := value == ""
@@ -363,7 +369,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		caretWidth: editorCaretWidth(snapshot.CaretWidth), caretColor: caretColor(snapshot.CaretColor, foreground),
 		language: snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
-		showWhitespace: snapshot.ShowWhitespace, showEOL: snapshot.ShowEOL, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
+		showWhitespace: snapshot.ShowWhitespace, showIndentGuides: snapshot.ShowIndentGuides, showEOL: snapshot.ShowEOL, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
 		invisibleColor: snapshot.InvisibleColor,
 	}
 	if paint.invisibleColor.Alpha == 0 {
@@ -590,6 +596,7 @@ type codePaint struct {
 	brackets                                 [2]int
 	bracketsOK                               bool
 	showWhitespace, showEOL                  bool
+	showIndentGuides                         bool
 	eolLabel                                 string
 	eolLabels                                []string
 	invisibleColor                           ui.Color
@@ -700,6 +707,9 @@ func (paint *codePaint) row(index int, y float32) {
 	row := editor.rows[index]
 	left := editor.content.X - editor.scrollX
 	rowStart, rowEnd := int(row.start), int(row.end)
+	if paint.showIndentGuides && editor.firstOfLine(index) {
+		paint.indentGuides(row, y, left)
+	}
 
 	marks := columnWalker{editor: editor, row: row, at: rowStart}
 	// A fill is cut to the text area, so that a long line with many marks paints
@@ -816,6 +826,27 @@ func (paint *codePaint) row(index int, y float32) {
 			canvas.Fill(ui.Rect{X: x, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: paint.caretWidth, Height: paint.cellHeight}, paint.caretColor)
 		}
 		paint.caretCursor++
+	}
+}
+
+func (paint *codePaint) indentGuides(row codeRow, y, left float32) {
+	editor := paint.editor
+	if int(row.line) >= len(editor.indents) {
+		return
+	}
+	indent := editor.indents[row.line]
+	step := editor.tabWidth
+	first := max(step, (paint.firstColumn+step-1)/step*step)
+	color := paint.invisibleColor
+	color.Alpha *= 0.5
+	for column := first; column <= indent && column <= paint.lastColumn; column += step {
+		x := left + float32(column)*paint.cellWidth
+		if x < editor.content.X || x+1 > editor.content.X+editor.content.Width {
+			continue
+		}
+		for dot := float32(1); dot < paint.lineHeight; dot += 4 {
+			paint.canvas.Fill(ui.Rect{X: x, Y: y + dot, Width: 1, Height: min(2, paint.lineHeight-dot)}, color)
+		}
 	}
 }
 

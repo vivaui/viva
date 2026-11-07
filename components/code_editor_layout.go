@@ -35,6 +35,54 @@ func codeCells(r rune, column, tabWidth int) int {
 	return text.CellWidth(r)
 }
 
+func indentationLevels(value string, tabWidth int) []int {
+	levels := make([]int, 0, strings.Count(value, "\n")+1)
+	blank := make([]bool, 0, cap(levels))
+	for line := range strings.SplitSeq(value, "\n") {
+		column := 0
+		empty := true
+		for _, character := range line {
+			switch character {
+			case ' ':
+				column++
+			case '\t':
+				column += tabWidth - column%tabWidth
+			default:
+				empty = false
+			}
+			if !empty {
+				break
+			}
+		}
+		levels = append(levels, column)
+		blank = append(blank, empty)
+	}
+	previous := -1
+	for index := range levels {
+		if blank[index] {
+			levels[index] = previous
+		} else {
+			previous = levels[index]
+		}
+	}
+	next := -1
+	for index := len(levels) - 1; index >= 0; index-- {
+		if !blank[index] {
+			next = levels[index]
+			continue
+		}
+		if levels[index] < 0 {
+			levels[index] = next
+		} else if next >= 0 {
+			levels[index] = min(levels[index], next)
+		}
+		if levels[index] < 0 {
+			levels[index] = 0
+		}
+	}
+	return levels
+}
+
 func decodeAt(value string, at int) (rune, int) {
 	if r := value[at]; r < utf8.RuneSelf {
 		return rune(r), 1
@@ -55,6 +103,7 @@ func (editor *CodeEditor) fitWithFolds(value string, cols int, wrap bool, tabWid
 	editor.foldInput = append(editor.foldInput[:0], folds...)
 	editor.folds = editor.folds[:0]
 	editor.rows = editor.rows[:0]
+	editor.indents = nil
 	editor.shown = editor.shown[:0]
 	editor.widest = 0
 	if len(value) > 1<<30 {
