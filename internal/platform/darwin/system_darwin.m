@@ -374,16 +374,38 @@ int viva_system_clipboard_files(const char *pasteboard, size_t max, viva_system_
     return status;
 }
 
-int viva_system_pasteboard_put_files(const char *pasteboard, const char *const *paths, size_t count) {
-    @autoreleasepool {
-        NSPasteboard *board = viva_pasteboard_named(pasteboard);
-        NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:count];
-        for (size_t index = 0; index < count; index++) {
-            [urls addObject:[NSURL fileURLWithPath:viva_string(paths[index])]];
+int viva_system_pasteboard_put_files(const char *pasteboard, const char *const *paths, size_t count, const char *names) {
+    __block int status = -1;
+    dispatch_block_t operation = ^{
+        @autoreleasepool {
+            NSPasteboard *board = viva_pasteboard_named(pasteboard);
+            NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:count];
+            for (size_t index = 0; index < count; index++) {
+                NSString *path = viva_string(paths[index]);
+                if (path == nil) {
+                    return;
+                }
+                [urls addObject:[NSURL fileURLWithPath:path]];
+            }
+            [board clearContents];
+            if (![board writeObjects:urls]) {
+                return;
+            }
+            if (names != NULL) {
+                NSString *text = viva_string(names);
+                if (text != nil) {
+                    [board setString:text forType:NSPasteboardTypeString];
+                }
+            }
+            status = 0;
         }
-        [board clearContents];
-        return [board writeObjects:urls] ? 0 : -1;
+    };
+    if (pasteboard == NULL) {
+        viva_on_main_sync(operation);
+    } else {
+        operation();
     }
+    return status;
 }
 
 static NSCursor *viva_cursor(uint8_t shape, NSString **error) {

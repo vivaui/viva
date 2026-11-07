@@ -18,6 +18,8 @@ func nativeClipboardImagePNG() ([]byte, error) { return darwinplatform.Clipboard
 
 func nativeClipboardFiles() ([]string, error) { return darwinplatform.ClipboardFiles() }
 
+func nativeSetClipboardFiles(paths []string) error { return darwinplatform.SetClipboardFiles(paths) }
+
 func nativeReduceMotion() bool { return darwinplatform.ReduceMotion() }
 
 // nativeTextEngine is the platform's text engine; nil keeps the reference metrics.

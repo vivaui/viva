@@ -16,6 +16,7 @@ func nativeSetClipboardText(string) error                      { return ErrUnsup
 func nativeHasClipboardImage() bool                            { return false }
 func nativeClipboardImagePNG() ([]byte, error)                 { return nil, ErrUnsupported }
 func nativeClipboardFiles() ([]string, error)                  { return nil, ErrUnsupported }
+func nativeSetClipboardFiles([]string) error                   { return ErrUnsupported }
 func nativeOnClipboardChange(func()) error                     { return ErrUnsupported }
 func nativeSetCursor(Cursor) error                             { return ErrUnsupported }
 func nativeSetCursorImage(*ui.CursorImage) error               { return ErrUnsupported }

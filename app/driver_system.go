@@ -77,6 +77,15 @@ func driverSetClipboardText(value string) (error, bool) {
 	return nil, true
 }
 
+func driverSetClipboardFiles(paths []string) (error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, false
+	}
+	system.driver.SetClipboardFiles(paths)
+	return nil, true
+}
+
 // driverSetPrimarySelection and driverPrimarySelection are the primary selection of a driver-backed
 // run, which exists where the real one does, on Linux.
 func driverSetPrimarySelection(value string) (error, bool) {

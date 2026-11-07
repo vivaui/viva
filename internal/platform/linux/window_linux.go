@@ -40,15 +40,18 @@ type window struct {
 	themed       *themedCursors
 	cursorsTried bool
 	// render is what application cursor pictures need, tried once; renderErr says why it is nil.
-	render        *xcbRender
-	renderTried   bool
-	renderErr     error
-	clipboard     string
-	clipboardAtom uint32
-	utf8Atom      uint32
-	textAtom      uint32
-	targetsAtom   uint32
-	ownsClipboard bool
+	render         *xcbRender
+	renderTried    bool
+	renderErr      error
+	clipboard      string
+	clipboardFiles []string
+	clipboardAtom  uint32
+	utf8Atom       uint32
+	textAtom       uint32
+	targetsAtom    uint32
+	uriListAtom    uint32
+	gnomeFilesAtom uint32
+	ownsClipboard  bool
 	// selections is the PRIMARY selection and the streams of data too large for one
 	// property (selection_linux.go).
 	selections selectionState

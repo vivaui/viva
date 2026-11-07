@@ -40,6 +40,10 @@ func nativeClipboardFiles() ([]string, error) {
 	return paths, linuxSystemError(err)
 }
 
+func nativeSetClipboardFiles(paths []string) error {
+	return linuxSystemError(linuxplatform.SetClipboardFiles(paths))
+}
+
 func nativeClipboardImagePNG() ([]byte, error) {
 	png, err := linuxplatform.ClipboardImagePNG()
 	return png, linuxSystemError(err)
