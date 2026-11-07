@@ -106,6 +106,8 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
 - (void)endComposition;
 - (BOOL)composing;
 - (CGFloat)frameX;
+- (NSRect)inputFrame;
+- (void)setAlignment:(int)value;
 @end
 
 @implementation SelectionView
@@ -187,6 +189,8 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
 - (void)endComposition { _hasMarkedText = NO; }
 - (BOOL)composing { return _hasMarkedText; }
 - (CGFloat)frameX { return _textFrame.origin.x; }
+- (NSRect)inputFrame { return _textFrame; }
+- (void)setAlignment:(int)value { _textAlignment = value; }
 @end
 
 static NSEvent *keyEvent(NSString *characters, NSEventModifierFlags modifiers) {
@@ -285,6 +289,58 @@ int main(void) {
             CGFloat boundary = [view offsetForIndex:index];
             assert([view textIndexForEvent:[view mouseEvent:NSEventTypeLeftMouseDown offset:boundary + 0.01]] == index);
         }
+
+        for (int alignment = 1; alignment <= 2; alignment++) {
+            NSString *value = @"A中B";
+            NSData *utf8 = [value dataUsingEncoding:NSUTF8StringEncoding];
+            viva_text_input_config config = {0};
+            config.enabled = 1;
+            config.utf8 = utf8.bytes;
+            config.utf8_length = utf8.length;
+            config.x = 40;
+            config.y = 80;
+            config.width = 260;
+            config.height = 32;
+            config.font_size = 16;
+            config.alpha = 1;
+            config.alignment = alignment;
+            assert([view updateTextInput:config] == 0);
+            viva_editor_line line = [view newTextLine];
+            CGFloat inset = MAX(0, 260 - line.shaped->width) / (alignment == 1 ? 2 : 1);
+            viva_editor_line_free(line);
+            for (NSUInteger index = 0; index <= value.length; index++) {
+                CGFloat boundary = inset + [view offsetForIndex:index];
+                assert([view textIndexForEvent:[view mouseEvent:NSEventTypeLeftMouseDown offset:boundary + 0.01]] == index);
+            }
+        }
+
+        NSWindow *candidateWindow = [[NSWindow alloc] initWithContentRect:NSMakeRect(120, 120, 480, 320)
+            styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+        [candidateWindow setContentView:view];
+        for (int alignment = 0; alignment <= 2; alignment++) {
+            [view resetText:@"A中B"];
+            [view setAlignment:alignment];
+            viva_editor_line line = [view newTextLine];
+            NSRect inputFrame = [view inputFrame];
+            CGFloat inset = viva_editor_alignment_inset(line, inputFrame.size.width, alignment, NO);
+            CGFloat caret = [view textOffsetForIndex:2 line:line];
+            viva_editor_line_free(line);
+            NSRect expectedLocal = NSMakeRect(inputFrame.origin.x + inset + caret,
+                view.bounds.size.height - NSMaxY(inputFrame), 1, inputFrame.size.height);
+            NSRect expectedScreen = [candidateWindow convertRectToScreen:[view convertRect:expectedLocal toView:nil]];
+            NSRange actual = NSMakeRange(NSNotFound, 0);
+            NSRect candidate = [view firstRectForCharacterRange:NSMakeRange(2, 0) actualRange:&actual];
+            assert(NSEqualRanges(actual, NSMakeRange(2, 0)));
+            assert(fabs(NSMinX(candidate) - NSMinX(expectedScreen)) < 0.01);
+            if (alignment == 2) {
+                NSRect endCandidate = [view firstRectForCharacterRange:NSMakeRange(3, 0) actualRange:NULL];
+                NSRect field = [candidateWindow convertRectToScreen:[view convertRect:
+                    NSMakeRect(inputFrame.origin.x, view.bounds.size.height - NSMaxY(inputFrame), inputFrame.size.width, inputFrame.size.height) toView:nil]];
+                assert(NSMinX(endCandidate) < NSMaxX(field));
+            }
+        }
+        [candidateWindow setContentView:nil];
+        [candidateWindow release];
 
         [view resetText:@"marked"];
         [view beginComposition];

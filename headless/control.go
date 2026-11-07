@@ -63,10 +63,13 @@ import (
 //	                           (a dialog fading in) are played to their end first. With
 //	                           now, write the current frame as it is, so wait MS; shot
 //	                           PATH now catches an animation MS into it
-//	record DIR MS [FPS]        play MS more of animation and write it to DIR as a PNG
+//	record DIR MS [FPS] [input]
+//	                           play MS more of animation and write it to DIR as a PNG
 //	                           sequence and manifest.json, sampling FPS frames a second
 //	                           (default 60); frames that did not change are written once
-//	                           with a longer duration, and ok reports the count
+//	                           with a longer duration, and ok reports the count. With
+//	                           input, a ring where a press landed and a chip naming the
+//	                           keys typed are drawn over the frames they follow
 //	find "label"               ok id=7 x=.. y=.. w=.. h=.. label=".."
 //	                           A label argument of click, dblclick, rightclick and find may also
 //	                           be a selector: id:home/save (an identity, in full or from any "/"),
@@ -451,18 +454,22 @@ func execute(session *Session, line string) (reply string, quit bool) {
 		err := session.Screenshot(arguments[0])
 		return finish(err, " "+arguments[0])
 	case "record":
-		if len(arguments) < 2 || len(arguments) > 3 {
-			return finish(fmt.Errorf("record needs a directory and a duration in ms, and optionally fps"), "")
+		if len(arguments) < 2 || len(arguments) > 4 {
+			return finish(fmt.Errorf("record needs a directory and a duration in ms, and optionally fps and input"), "")
 		}
 		milliseconds, err := strconv.ParseFloat(arguments[1], 64)
 		if err != nil {
 			return finish(fmt.Errorf("record: %q is not a number", arguments[1]), "")
 		}
 		options := RecordOptions{Duration: time.Duration(milliseconds * float64(time.Millisecond))}
-		if len(arguments) == 3 {
-			fps, err := strconv.Atoi(arguments[2])
+		for _, argument := range arguments[2:] {
+			if argument == "input" {
+				options.ShowInput = true
+				continue
+			}
+			fps, err := strconv.Atoi(argument)
 			if err != nil {
-				return finish(fmt.Errorf("record: fps %q is not a whole number", arguments[2]), "")
+				return finish(fmt.Errorf("record: %q is neither fps nor input", argument), "")
 			}
 			options.FPS = fps
 		}

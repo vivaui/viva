@@ -49,6 +49,11 @@
 // height follows its width, and the last line of one that is cut ends with an
 // ellipsis.
 //
+// How an element looks under the pointer, held down and focused is declared on it (Hover,
+// Pressed, Focus, each a Look, with StateFrom to follow a container and Transition to fade
+// between them), and Ring, Opacity, Gradient and GradientStops are effects drawn without
+// a class string or any lookup at run time: see style.go.
+//
 // Progress and Spinner are leaves that animate only while they are on screen, and a
 // Splitter between two panes is dragged (pointer captured, resize cursor, minimum sizes) with
 // its position in a SplitterState; a container given Hit that has no Children and no size

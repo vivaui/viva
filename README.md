@@ -54,7 +54,7 @@ Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB and
 Vulkan loaders; on Windows, Win32 with Direct3D 11 and DirectWrite. Viva loads
 the system libraries at runtime and bundles none of them.
 
-The current release is `v0.3.1`; name it explicitly (`@v0.3.1`) to pin it. Guides,
+The current release is `v0.4.0`; name it explicitly (`@v0.4.0`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
@@ -65,8 +65,11 @@ and how to work on the framework rather than with it.
 
 ## Scope
 
-Viva targets native desktop applications on macOS, Windows, and Linux. A
-WebAssembly/WebGPU backend is optional and must not add cost to native builds.
+Viva targets native desktop applications on macOS, Windows, and Linux, and
+treats WebAssembly/Canvas2D as a supported web deployment target. Both targets
+share components, input, text, focus and accessibility semantics; capabilities
+the browser does not have are reported through explicit asynchronous APIs and
+`Capability`, never faked. The web target must not add cost to native builds.
 iOS, iPadOS, Android, mobile packaging, and a touch-first mobile runtime are
 explicitly out of scope. Desktop performance and native integration will not be
 weakened to preserve hypothetical future mobile compatibility.
@@ -183,8 +186,9 @@ Windows Mica, Mica Alt and Acrylic are enabled through `app.Config.WindowBackdro
 without changing build commands. Unconfigured windows keep the ordinary renderer. See [Windows materials](docs/windows-materials.md) for version
 limits, fallback behavior and the platforms actually verified.
 
-Native label renderers draw single-line labels. The browser preview runs on the
-Canvas2D backend.
+Native label renderers draw single-line labels. The browser target runs the same
+components on the Canvas2D backend; see [Web deployment](docs/web-deployment.md)
+for its capability matrix and hosting requirements.
 
 ## Run the repository
 
@@ -197,9 +201,11 @@ tools/build_web.sh           # viva build --target web, then serves http://127.0
 go run ./tools/docs -check   # the API and component data the website generates from
 ```
 
-The browser gallery paints the same Go components through the Canvas2D
-WebAssembly backend; its visual direction and measured costs are recorded in
-`docs/benchmarks/m3-gallery-style-darwin-arm64.md`.
+The browser build paints the same Go components through the Canvas2D
+WebAssembly backend. It is a deployment target, not only a gallery: file
+pickers, drops, clipboard, notifications, encrypted secret storage and embedded
+fonts have typed asynchronous APIs. Its visual direction and measured costs are
+recorded in `docs/benchmarks/m3-gallery-style-darwin-arm64.md`.
 
 ## Documentation website
 

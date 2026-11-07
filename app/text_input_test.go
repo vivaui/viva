@@ -153,7 +153,7 @@ func TestEditorBackedTextInputMirrorsEditorAndAppliesNativeEvents(t *testing.T) 
 	// same click carry no text-input change.
 	var enabled *platform.TextInput
 	for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
-		frame, err := painter.pointer(platform.PointerEvent{Kind: kind, X: 10, Y: 10})
+		frame, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 10, Y: 10})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,7 +207,7 @@ func TestTextInputTargetChangeWithIdenticalPresentation(t *testing.T) {
 	for i := 1; i <= 2; i++ {
 		changed := false
 		for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
-			frame, err := painter.pointer(platform.PointerEvent{Kind: kind, X: float32((i-1)*100 + 10), Y: 10})
+			frame, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: float32((i-1)*100 + 10), Y: 10})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -250,7 +250,7 @@ func TestSecureFieldIsMaskedForThePlatformAndSilentForAccessibility(t *testing.T
 
 	var enabled *platform.TextInput
 	for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
-		frame, err := painter.pointer(platform.PointerEvent{Kind: kind, X: 10, Y: 10})
+		frame, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 10, Y: 10})
 		if err != nil {
 			t.Fatal(err)
 		}

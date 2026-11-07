@@ -23,8 +23,9 @@ int viva_system_pasteboard_put_image(const char *pasteboard, const uint8_t *png,
 // Status: 0 paths returned in *paths (free with viva_system_free_string_array),
 // 1 no files, -1 failure with *error_message. At most max paths are returned.
 int viva_system_clipboard_files(const char *pasteboard, size_t max, viva_system_string_array *paths, char **error_message);
-// Puts file URLs on a named pasteboard, as Finder does after a copy.
-int viva_system_pasteboard_put_files(const char *pasteboard, const char *const *paths, size_t count);
+// Puts file URLs on a named pasteboard, as Finder does after a copy. names is
+// the text a file manager also leaves there (the file names, one per line).
+int viva_system_pasteboard_put_files(const char *pasteboard, const char *const *paths, size_t count, const char *names);
 // Shows a modal alert. It must run on the main thread; elsewhere it returns -1.
 int viva_system_show_fatal_error(const char *title, const char *message);
 int viva_system_set_cursor(uint8_t shape, char **error_message);
@@ -44,6 +45,18 @@ int viva_system_save_file(
     const char *default_extension,
     const char *const *extensions,
     size_t extension_count,
+    char **path,
+    char **error_message
+);
+int viva_system_save_file_with_checkbox(
+    const char *title,
+    const char *suggested_name,
+    const char *default_extension,
+    const char *const *extensions,
+    size_t extension_count,
+    const char *checkbox_label,
+    int checkbox_initial,
+    int *checkbox_checked,
     char **path,
     char **error_message
 );

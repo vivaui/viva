@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 	"unsafe"
+
+	"github.com/vivaui/viva/internal/platform"
 )
 
 // The selections Viva owns: CLIPBOARD, which an explicit copy writes, and PRIMARY, which
@@ -48,6 +50,12 @@ func (win *window) ensureClipboardAtoms() error {
 		return err
 	}
 	if win.targetsAtom, err = win.api.atom(win.connection, "TARGETS"); err != nil {
+		return err
+	}
+	if win.uriListAtom, err = win.api.atom(win.connection, "text/uri-list"); err != nil {
+		return err
+	}
+	if win.gnomeFilesAtom, err = win.api.atom(win.connection, "x-special/gnome-copied-files"); err != nil {
 		return err
 	}
 	return nil
@@ -151,9 +159,24 @@ func (win *window) handleSelectionRequest(request *xcbSelectionRequestEvent) err
 		}
 		switch request.Target {
 		case win.targetsAtom:
-			targets := [...]uint32{win.targetsAtom, win.utf8Atom, win.textAtom, xcbAtomString}
+			targets := make([]uint32, 0, 6)
+			targets = append(targets, win.targetsAtom, win.utf8Atom, win.textAtom, xcbAtomString)
+			if request.Selection == win.clipboardAtom && len(win.clipboardFiles) > 0 {
+				targets = append(targets, win.uriListAtom, win.gnomeFilesAtom)
+			}
 			win.api.changeProperty(win.connection, xcbPropertyReplace, request.Requestor, property, xcbAtomAtom, 32, uint32(len(targets)), unsafe.Pointer(&targets[0]))
 			notify.Property = property
+		case win.uriListAtom:
+			if request.Selection == win.clipboardAtom && len(win.clipboardFiles) > 0 && win.writeSelection(request.Requestor, property, request.Target, platform.FileURIList(win.clipboardFiles)) {
+				notify.Property = property
+			}
+		case win.gnomeFilesAtom:
+			if request.Selection == win.clipboardAtom && len(win.clipboardFiles) > 0 {
+				list := append([]byte("copy\n"), platform.FileURIList(win.clipboardFiles)...)
+				if win.writeSelection(request.Requestor, property, request.Target, list) {
+					notify.Property = property
+				}
+			}
 		case win.utf8Atom, win.textAtom:
 			if win.writeSelection(request.Requestor, property, request.Target, []byte(value)) {
 				notify.Property = property
@@ -247,7 +270,7 @@ func (win *window) handleSelectionClear(event *xcbSelectionClearEvent) {
 	defer win.mu.Unlock()
 	switch {
 	case event.Selection == win.clipboardAtom && win.clipboardAtom != 0:
-		win.clipboard = ""
+		win.clipboard, win.clipboardFiles = "", nil
 		win.ownsClipboard = false
 	case event.Selection == xcbAtomPrimary:
 		win.selections.primary = ""
@@ -263,7 +286,7 @@ func (win *window) handleSelectionClear(event *xcbSelectionClearEvent) {
 func (win *window) saveClipboardToManager() {
 	win.mu.Lock()
 	connection, api := win.connection, win.api
-	owned := connection != 0 && win.ownsClipboard && win.clipboard != ""
+	owned := connection != 0 && win.ownsClipboard && (win.clipboard != "" || len(win.clipboardFiles) > 0)
 	win.mu.Unlock()
 	if !owned || api.convertSelection == nil {
 		return
@@ -286,7 +309,10 @@ func (win *window) saveClipboardToManager() {
 	}
 	win.mu.Lock()
 	err = win.ensureClipboardAtoms()
-	targets := [...]uint32{win.utf8Atom, win.textAtom, xcbAtomString}
+	targets := []uint32{win.utf8Atom, win.textAtom, xcbAtomString}
+	if len(win.clipboardFiles) > 0 {
+		targets = append(targets, win.uriListAtom, win.gnomeFilesAtom)
+	}
 	win.mu.Unlock()
 	if err != nil {
 		return

@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"encoding/binary"
 	"errors"
 	"net/url"
 	"strings"
@@ -100,6 +101,36 @@ func FilesFromDropFiles(data []byte) []string {
 		start = end + 1
 	}
 	return paths
+}
+
+// DropFilesBytes builds the CF_HDROP block Windows puts on the clipboard for a
+// copied selection: a DROPFILES header whose list offset is the header's own
+// size, then each path as UTF-16LE, ended by a NUL, the list by one more.
+func DropFilesBytes(paths []string) []byte {
+	const header = 20
+	data := make([]byte, header)
+	binary.LittleEndian.PutUint32(data[0:4], header)
+	binary.LittleEndian.PutUint32(data[16:20], 1) // fWide
+	for _, path := range paths {
+		for _, unit := range utf16.Encode([]rune(path)) {
+			data = binary.LittleEndian.AppendUint16(data, unit)
+		}
+		data = binary.LittleEndian.AppendUint16(data, 0)
+	}
+	data = binary.LittleEndian.AppendUint16(data, 0)
+	return data
+}
+
+// FileURIList builds the text/uri-list form Linux file managers put on the
+// clipboard for a copied selection. Each absolute local path becomes a file:
+// URL on its own CRLF-terminated line.
+func FileURIList(paths []string) []byte {
+	var list strings.Builder
+	for _, path := range paths {
+		list.WriteString((&url.URL{Scheme: "file", Path: path}).String())
+		list.WriteString("\r\n")
+	}
+	return []byte(list.String())
 }
 
 func utf16ToString(units []uint16) string { return string(utf16.Decode(units)) }

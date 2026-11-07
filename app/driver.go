@@ -1,4 +1,4 @@
-//go:build darwin || windows || linux
+//go:build darwin || windows || linux || (js && wasm)
 
 package app
 
@@ -93,6 +93,8 @@ type Driver struct {
 	saveFileCount            int
 	lastSaveFileRequest      SaveFileOptions
 	hasSaveFileRequest       bool
+	lastSaveFileCheckbox     SaveFileCheckbox
+	hasSaveFileCheckbox      bool
 }
 
 // NewDriver creates a driver for config, painting into canvas (a fresh canvas
@@ -254,7 +256,7 @@ func (driver *Driver) pointer(kind platform.PointerEventKind, x, y float32, butt
 		return err
 	}
 	origin := driver.origin
-	_, err := driver.painter.pointer(platform.PointerEvent{
+	_, err := driver.painter.pointerEvent(platform.PointerEvent{
 		Kind: kind, Button: button, Modifiers: driver.heldModifiers(), X: x, Y: y, ScreenX: origin.X + x, ScreenY: origin.Y + y, ClickCount: clicks,
 	})
 	return err
@@ -335,7 +337,7 @@ func (driver *Driver) Maximized() bool { return driver.maximized }
 // point. It applies the same focus-scope and blocking-region rules as pointer
 // input without moving the pointer or repainting.
 func (driver *Driver) HitTest(x, y float32) (ui.ID, bool) {
-	return driver.painter.router.HitTest(x, y)
+	return driver.painter.focus.Router().HitTest(x, y)
 }
 
 // PressAt reports what a press at a point would do in a custom-titlebar window:
@@ -1010,6 +1012,7 @@ type Editor struct {
 	Bounds      ui.Rect
 	FontSize    float32
 	Weight      float32
+	Alignment   ui.Alignment
 	Layer       uint16
 	MonoFace    ui.MonoFace
 	Color       ui.Color
@@ -1072,7 +1075,7 @@ func (driver *Driver) Snapshot() Snapshot {
 		Runs:    append([]ui.TextRun(nil), painter.canvas.AllTextRuns()...),
 		Hits:    append([]ui.Hit(nil), painter.canvas.Hits()...),
 		Tree:    painter.canvas.Tree(),
-		Focused: painter.focused, Hovered: painter.hovered, Cursor: painter.cursor, CursorImage: painter.cursorImage, Now: driver.now,
+		Focused: painter.focus.Focused(), Hovered: painter.pointer.Hovered(), Cursor: painter.cursor, CursorImage: painter.cursorImage, Now: driver.now,
 	}
 	for _, rectangle := range painter.renderer.Rectangles() {
 		primitive := Primitive{
@@ -1124,7 +1127,7 @@ func (driver *Driver) Snapshot() Snapshot {
 		input := painter.nativeText
 		snapshot.Editor = &Editor{
 			Bounds:   ui.Rect{X: input.X, Y: input.Y, Width: input.Width, Height: input.Height},
-			FontSize: input.FontSize, Weight: input.Weight,
+			FontSize: input.FontSize, Weight: input.Weight, Alignment: input.Alignment,
 			// Layer keeps a field inside a popup, dialog or sheet above that
 			// surface's own paint in an offscreen render, as it already is in a
 			// window.

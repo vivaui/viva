@@ -34,6 +34,80 @@ func TestTableUsesHorizontalRulesAndOfficialRowStates(t *testing.T) {
 	}
 }
 
+func TestTableFontSizeAndCellPaddingOverrideBodyAndHeader(t *testing.T) {
+	theme := ui.LightTheme()
+	const size, padding = float32(12.5), float32(12)
+	columns := []TableColumn{{Width: 160}}
+	var canvas ui.Canvas
+	table := BeginTable(&canvas, theme, ui.Rect{Width: 160, Height: 120}, columns).
+		FontSize(size).CellPadding(padding)
+	table.Header([]string{"Heading"})
+	table.Row(ui.Item(1), []string{"Value"}, false)
+
+	texts := canvas.Texts()
+	if len(texts) != 2 {
+		t.Fatalf("table painted %d texts, want the header and body cell: %+v", len(texts), texts)
+	}
+	for _, text := range texts {
+		if text.Style.Size != size {
+			t.Errorf("%q is painted at %v px, want %v", text.Value, text.Style.Size, size)
+		}
+		if text.Bounds.X != padding {
+			t.Errorf("%q starts at x=%v, want the cell padding %v", text.Value, text.Bounds.X, padding)
+		}
+		if want := columns[0].Width - 2*padding; text.Bounds.Width != want {
+			t.Errorf("%q has %v px of room, want %v", text.Value, text.Bounds.Width, want)
+		}
+	}
+}
+
+func TestTableTypographyDefaultsToTheTheme(t *testing.T) {
+	theme := ui.DarkTheme()
+	columns := []TableColumn{{Width: 160}}
+	var canvas ui.Canvas
+	table := BeginTable(&canvas, theme, ui.Rect{Width: 160, Height: 120}, columns).
+		FontSize(0).CellPadding(0)
+	table.Header([]string{"Heading"})
+	table.Row(ui.Item(1), []string{"Value"}, false)
+
+	texts := canvas.Texts()
+	if len(texts) != 2 {
+		t.Fatalf("table painted %d texts, want the header and body cell: %+v", len(texts), texts)
+	}
+	for _, text := range texts {
+		if text.Style.Size != theme.Metrics.FontSizeM {
+			t.Errorf("%q is painted at %v px, want the theme's %v", text.Value, text.Style.Size, theme.Metrics.FontSizeM)
+		}
+		if text.Bounds.X != theme.Metrics.GapItem {
+			t.Errorf("%q starts at x=%v, want the theme's %v", text.Value, text.Bounds.X, theme.Metrics.GapItem)
+		}
+		if want := columns[0].Width - 2*theme.Metrics.GapItem; text.Bounds.Width != want {
+			t.Errorf("%q has %v px of room, want %v", text.Value, text.Bounds.Width, want)
+		}
+	}
+}
+
+func TestTableFontSizeAndCellPaddingOverrideSortableHeader(t *testing.T) {
+	theme := ui.LightTheme()
+	const size, padding = float32(12.5), float32(12)
+	columns := []TableColumn{{Width: 160}}
+	var canvas ui.Canvas
+	table := BeginTable(&canvas, theme, ui.Rect{Width: 160, Height: 120}, columns).
+		FontSize(size).CellPadding(padding)
+	table.SortableHeader([]TableHeader{{Label: "Heading"}})
+
+	texts := canvas.Texts()
+	if len(texts) != 1 {
+		t.Fatalf("sortable header painted %d texts, want one: %+v", len(texts), texts)
+	}
+	if texts[0].Style.Size != size || texts[0].Bounds.X != padding {
+		t.Fatalf("sortable header text is %+v, want size %v at x=%v", texts[0], size, padding)
+	}
+	if want := columns[0].Width - 2*padding; texts[0].Bounds.Width != want {
+		t.Fatalf("sortable header has %v px of room, want %v", texts[0].Bounds.Width, want)
+	}
+}
+
 func TestTableCommandStreamIsStable(t *testing.T) {
 	columns := []TableColumn{{Width: 100}, {Width: 0}}
 	var canvas ui.Canvas

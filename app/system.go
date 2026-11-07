@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/ui"
 )
@@ -77,6 +79,20 @@ type SaveFileOptions struct {
 	Filters          []FileFilter
 }
 
+// SaveFileCheckbox describes the single boolean choice offered beside a native
+// save picker. Label is shown verbatim on every platform; Checked is the initial
+// state.
+type SaveFileCheckbox struct {
+	Label   string
+	Checked bool
+}
+
+// SaveFileSelection is an accepted save path and the final state of its checkbox.
+type SaveFileSelection struct {
+	Path    string
+	Checked bool
+}
+
 type Notification struct {
 	Title string
 	Body  string
@@ -84,14 +100,16 @@ type Notification struct {
 
 // ReduceMotion reports the system accessibility preference for reduced
 // motion. Windows, macOS and Linux are queried (on Linux the settings portal, the
-// XSETTINGS manager or KDE's animation speed); other targets report false.
-func ReduceMotion() bool { return nativeReduceMotion() }
+// XSETTINGS manager or KDE's animation speed); the Web target reads and watches
+// the page's prefers-reduced-motion query; other targets report false.
+func ReduceMotion() bool { return platformReduceMotion() }
 
 // PlatformTextEngine is the text engine RunCanvas installs on a canvas: the
 // platform's own shaped lines, so widths, carets and hits agree with the glyphs it
-// draws. It is nil on a target that has none, whose canvases measure with the
+// draws. The Web target returns the document's shaped-line engine when a document
+// exists. It is nil on a target that has none, whose canvases measure with the
 // reference metrics.
-func PlatformTextEngine() ui.TextEngine { return nativeTextEngine() }
+func PlatformTextEngine() ui.TextEngine { return platformTextEngine() }
 
 func ClipboardText() (string, error) {
 	if value, err, handled := driverClipboardText(); handled {
@@ -144,6 +162,9 @@ func SetCursorImage(image *ui.CursorImage) error {
 	return nativeSetCursorImage(image)
 }
 
+// OpenFiles presents the platform's open-file picker. The Web target returns
+// ErrAsyncRequired because the browser answers through a Promise; use
+// OpenFilesAsync there.
 func OpenFiles(options OpenFileOptions) ([]string, error) {
 	if err := validateFilters(options.Filters); err != nil {
 		return nil, err
@@ -154,7 +175,8 @@ func OpenFiles(options OpenFileOptions) ([]string, error) {
 	return nativeOpenFiles(options)
 }
 
-// OpenDirectory asks the user to choose one existing local directory.
+// OpenDirectory asks the user to choose one existing local directory. The Web
+// target cannot expose a directory path and returns ErrUnsupported.
 func OpenDirectory(options OpenDirectoryOptions) (string, error) {
 	if path, err, handled := driverOpenDirectory(options); handled {
 		return path, err
@@ -162,6 +184,9 @@ func OpenDirectory(options OpenDirectoryOptions) (string, error) {
 	return nativeOpenDirectory(options)
 }
 
+// SaveFile presents the platform's save-file picker. The Web target returns
+// ErrAsyncRequired because the browser answers through a Promise; use
+// SaveFileAsync there.
 func SaveFile(options SaveFileOptions) (string, error) {
 	if err := validateFilters(options.Filters); err != nil {
 		return "", err
@@ -170,6 +195,27 @@ func SaveFile(options SaveFileOptions) (string, error) {
 		return path, err
 	}
 	return nativeSaveFile(options)
+}
+
+// SaveFileWithCheckbox presents one optional boolean choice in the native
+// save picker. The choice is returned only when the user accepts a path.
+//
+// An error wrapping ErrUnsupported means this target cannot present the choice
+// (browsers, and Linux desktops whose portal ignores it). On Linux that is only
+// known after the user has picked a path, so a caller that falls back to
+// SaveFile shows the picker a second time.
+func SaveFileWithCheckbox(options SaveFileOptions, checkbox SaveFileCheckbox) (SaveFileSelection, error) {
+	if err := validateFilters(options.Filters); err != nil {
+		return SaveFileSelection{}, err
+	}
+	if strings.TrimSpace(checkbox.Label) == "" || !utf8.ValidString(checkbox.Label) ||
+		utf8.RuneCountInString(checkbox.Label) > 120 || strings.IndexFunc(checkbox.Label, unicode.IsControl) >= 0 {
+		return SaveFileSelection{}, fmt.Errorf("app: invalid save checkbox label")
+	}
+	if result, err, handled := driverSaveFileWithCheckbox(options, checkbox); handled {
+		return result, err
+	}
+	return nativeSaveFileWithCheckbox(options, checkbox)
 }
 
 func OpenURL(target string) error {

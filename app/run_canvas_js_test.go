@@ -69,6 +69,16 @@ func TestRunCanvasRejectsWhatNativeRejects(t *testing.T) {
 	}
 }
 
+func TestRunStartsThePageAsTheWindow(t *testing.T) {
+	got := captureWeb(t)
+	if err := Run(Config{Title: "Static"}); err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "Static" || got.Paint != nil {
+		t.Fatalf("Run must mount a page with the config and no paint callback, got %q %v", got.Title, got.Paint != nil)
+	}
+}
+
 func TestWebTextInputConnectsAnEditorToTheBrowser(t *testing.T) {
 	editor := text.NewEditor("hello")
 	provider := webTextInput(func(context TextInputContext) *TextInput {
@@ -90,6 +100,30 @@ func TestWebTextInputConnectsAnEditorToTheBrowser(t *testing.T) {
 	}
 	if editor.String() != "hello there" || state.Value != "hello there" {
 		t.Errorf("an edit from the browser must reach the editor: editor %q, state %q", editor.String(), state.Value)
+	}
+}
+
+func TestWebTextInputPreservesAlignment(t *testing.T) {
+	for _, testcase := range []struct {
+		name      string
+		value     string
+		alignment ui.Alignment
+		want      ui.Alignment
+	}{
+		{"right", "hello", ui.AlignRight, ui.AlignRight},
+		{"start RTL", "שלום", ui.AlignStart, ui.AlignRight},
+		{"end RTL", "שלום", ui.AlignEnd, ui.AlignLeft},
+		{"end LTR", "hello", ui.AlignEnd, ui.AlignRight},
+	} {
+		t.Run(testcase.name, func(t *testing.T) {
+			provider := webTextInput(func(TextInputContext) *TextInput {
+				return &TextInput{Editor: text.NewEditor(testcase.value), Alignment: testcase.alignment}
+			})
+			input := provider(web.TextInputContext{ID: ui.Item(7), Bounds: ui.Rect{Width: 200, Height: 30}})
+			if input == nil || input.Alignment != testcase.want {
+				t.Fatalf("browser alignment = %+v, want %v", input, testcase.want)
+			}
+		})
 	}
 }
 
@@ -125,5 +159,19 @@ func TestWebTextInputPassesEventsToAHandlerThatOwnsThem(t *testing.T) {
 	}
 	if seen.Kind != TextInsert || seen.Text != "X" || state.Value != "abcX" {
 		t.Errorf("handler saw %+v and answered %q", seen, state.Value)
+	}
+}
+
+func TestWebTextInputKeepsTerminalKeyboardSemantics(t *testing.T) {
+	provider := webTextInput(func(TextInputContext) *TextInput {
+		return &TextInput{KeyReleases: true, AltSendsEscape: true}
+	})
+	input := provider(web.TextInputContext{ID: ui.Item(1), Terminal: true})
+	if input == nil || !input.Terminal || !input.KeyReleases || !input.AltSendsEscape {
+		t.Fatalf("terminal input = %+v, want Terminal and KeyReleases and AltSendsEscape", input)
+	}
+	typeAhead := provider(web.TextInputContext{ID: ui.Item(2), TypeAhead: true})
+	if typeAhead == nil || !typeAhead.Terminal || typeAhead.KeyReleases {
+		t.Fatalf("type-ahead input = %+v, want Terminal without releases", typeAhead)
 	}
 }

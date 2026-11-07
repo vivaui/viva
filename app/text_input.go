@@ -6,6 +6,14 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
+// resolveTextInputAlignment resolves a start- or end-relative alignment into the
+// physical edge a native editor places its glyphs with. The decision lives in
+// internal/platform so an application that drives a native editor directly gets
+// exactly what a viva window gets.
+func resolveTextInputAlignment(alignment ui.Alignment, value string, caret int) ui.Alignment {
+	return platform.ResolveTextAlignment(alignment, value, caret)
+}
+
 // TextRange is a half-open rune-indexed range.
 type TextRange struct {
 	Start int
@@ -152,6 +160,9 @@ type TextInput struct {
 	Weight   float32
 	Color    ui.Color
 	MonoFace ui.MonoFace
+	// Alignment places a fitted line within Bounds. Zero keeps the existing
+	// left-aligned input; terminal and self-placed inputs ignore it.
+	Alignment ui.Alignment
 	// AltSendsEscape asks printable Alt/Option chords on a terminal to arrive as
 	// raw key events with the unmodified character in KeyEvent.Text. Terminal
 	// encoders can then send the conventional Escape-prefixed Meta sequence.

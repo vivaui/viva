@@ -23,6 +23,13 @@ func (runtime *runtime) bindWaker() (unbind func()) {
 		if runtime.config.OnWake != nil {
 			runtime.config.OnWake()
 		}
+		if runtime.hidden {
+			// As on a covered native window: run the application's wake hook,
+			// but leave the paint for the frame that becomes visible.
+			runtime.missed = true
+			runtime.nextPaint = true
+			return nil
+		}
 		runtime.painter.repaint()
 		runtime.requestFrame()
 		return nil

@@ -34,13 +34,13 @@ viva dev .        # hot reload: save a file, the window updates and keeps its st
 
 环境要求：Go 1.26 或更新版本（缺失时 viva 会自己下载）。macOS 上需要 Xcode 命令行工具，因为 Viva 通过 cgo 访问 Cocoa 和 Metal；Linux 上需要带系统 XCB 和 Vulkan 加载库的 X11；Windows 上需要 Win32、Direct3D 11 和 DirectWrite。Viva 在运行时加载系统库，自身不捆绑任何一个。
 
-当前版本是 `v0.3.1`；要固定版本就写明（`@v0.3.1`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
+当前版本是 `v0.4.0`；要固定版本就写明（`@v0.4.0`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
 
 下面的一切描述的都是这个仓库：它的测量、它自己的程序，以及如何开发框架本身，而不是如何用框架。
 
 ## 范围
 
-Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用。WebAssembly/WebGPU 后端是可选的次要目标，不得给原生构建增加成本。iOS、iPadOS、Android、移动端打包，以及以触摸为主的移动运行时，明确不在范围内。不会为了保留假设中的未来移动兼容性而削弱桌面性能与原生集成。
+Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用，同时把 WebAssembly/Canvas2D 作为正式的 Web 发布目标：两个目标共享组件、输入、文本、焦点和无障碍语义，浏览器缺失的能力通过显式异步 API 和 `Capability` 报告，而不是伪造原生行为。Web 目标不得给原生构建增加成本。iOS、iPadOS、Android、移动端打包，以及以触摸为主的移动运行时，明确不在范围内。不会为了保留假设中的未来移动兼容性而削弱桌面性能与原生集成。
 
 三个后端都直接使用操作系统自己的窗口和 GPU API，没有 WebView，也不捆绑渲染运行时。
 
@@ -83,7 +83,7 @@ Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用。WebAssembly/Web
 
 Windows 后端支持 amd64 和 arm64 交叉构建，并在 Wine/DXVK 下通过平台测试以及 Gallery 的启动、指针和键盘冒烟测试。平台测试、conformance 场景，以及输入、拖放和设备丢失路径，在一台 Windows 11 虚拟机（WARP）和一台 Debian KDE/X11 机器（lavapipe）上运行；`docs/conformance.md` 记录了需要真实硬件的场景。UI Automation 在一台真实的 Windows 11 机器上由外部客户端检查（见 docs/accessibility.md），AT-SPI 在 KDE/X11 机器上针对 libatspi 检查。Linux 后端通过 Ubuntu arm64 Xvfb/llvmpipe 的 M0 和 Debian amd64 X11/Lavapipe 的保留式场景冒烟测试，包括中英混排文本和局部场景更新。macOS 运行时测试和基准在 arm64 上运行。
 
-原生标签渲染器绘制单行标签。浏览器预览运行在 Canvas2D 后端。
+原生标签渲染器绘制单行标签。浏览器目标运行在 Canvas2D 后端；能力矩阵、生命周期与静态托管要求见 [Web 部署](docs/web-deployment.md)。
 
 ## 运行这个仓库
 
@@ -96,7 +96,7 @@ tools/build_web.sh           # viva build --target web，然后服务 http://127
 go run ./tools/docs -check   # 网站生成的 API 与组件数据
 ```
 
-浏览器里的组件浏览器通过 Canvas2D WebAssembly 后端绘制相同的 Go 组件；它的视觉方向与测量成本记录在 `docs/benchmarks/m3-gallery-style-darwin-arm64.md`。
+浏览器构建通过 Canvas2D WebAssembly 后端绘制相同的 Go 组件，并且是正式发布目标：文件选择、拖放、剪贴板、通知、加密密钥存储和内置字体都有类型化的异步 API。视觉方向与测量成本记录在 `docs/benchmarks/m3-gallery-style-darwin-arm64.md`。
 
 ## 文档网站
 

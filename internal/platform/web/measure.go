@@ -28,7 +28,11 @@ func cssFontStyle(fontSize, weight float32, italic bool) string {
 	if italic {
 		slant = "italic "
 	}
-	return fmt.Sprintf("%s%d %gpx system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", slant, cssWeight, fontSize)
+	family := "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+	if interfaceFamily != "" {
+		family = cssFamily(interfaceFamily) + ", " + family
+	}
+	return fmt.Sprintf("%s%d %gpx %s", slant, cssWeight, fontSize, family)
 }
 
 // baselineMetrics mirrors the CoreText typographic values the native label

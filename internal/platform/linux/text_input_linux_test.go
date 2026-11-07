@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -166,6 +167,74 @@ func TestLinuxTextPointerPlacesCaretAtNearestCharacter(t *testing.T) {
 	}
 	if _, handled, err = state.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 111, Y: 35}); err != nil || handled {
 		t.Fatalf("outside pointer handled=%v err=%v", handled, err)
+	}
+}
+
+func TestLinuxTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testing.T) {
+	for _, testcase := range []struct {
+		alignment ui.Alignment
+		origin    float32
+	}{
+		{ui.AlignCenter, 55},
+		{ui.AlignRight, 100},
+	} {
+		t.Run(fmt.Sprint(testcase.alignment), func(t *testing.T) {
+			editor := text.NewEditor("abc")
+			inputState := platform.TextInput{
+				X: 10, Y: 20, Width: 120, Height: 30, FontSize: 16, Alignment: testcase.alignment,
+				State: platform.TextState{Value: "abc", Selection: text.Range{Start: 3, End: 3}, Composing: true, Composition: text.Range{Start: 0, End: 3}},
+				OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
+					event.Apply(editor)
+					return platform.TextState{Value: editor.String(), Selection: editor.Selection()}, nil
+				},
+			}
+			state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{advance: 10}}
+			frame, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if label := frame.TextLabels[len(frame.TextLabels)-1]; label.X != testcase.origin {
+				t.Fatalf("glyph origin = %v, want %v", label.X, testcase.origin)
+			}
+			wantCaret := platform.TextCaretInsideField(testcase.alignment, inputState.X, inputState.Width, testcase.origin+30, linuxTextCaretWidth)
+			if caret := state.caret.Bounds.X; caret != wantCaret {
+				t.Fatalf("caret = %v, want %v", caret, wantCaret)
+			}
+			if underline := frame.Rectangles[len(frame.Rectangles)-1].Bounds.X; underline != testcase.origin {
+				t.Fatalf("composition underline = %v, want %v", underline, testcase.origin)
+			}
+			state.state.Composing = false
+			state.input.State.Composing = false
+			_, handled, err := state.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: testcase.origin + 12, Y: 35})
+			if err != nil || !handled || editor.Caret() != 1 {
+				t.Fatalf("aligned click: caret=%d handled=%v err=%v", editor.Caret(), handled, err)
+			}
+		})
+	}
+}
+
+func TestLinuxRightToLeftAlignmentUsesLineWidthNotLogicalEndCaret(t *testing.T) {
+	const value = "אבג"
+	engine := ui.ReferenceTextEngine()
+	width := engine.Width(value, 20, 0)
+	if caret := engine.Caret(value, 20, 0, len(value)); caret >= width/2 {
+		t.Fatalf("fixture is not an RTL end-caret: caret=%v width=%v", caret, width)
+	}
+	for _, alignment := range []ui.Alignment{ui.AlignCenter, ui.AlignRight} {
+		inputState := platform.TextInput{
+			X: 10, Y: 20, Width: 120, Height: 32, FontSize: 20, Alignment: alignment,
+			State:   platform.TextState{Value: value, Selection: text.Range{Start: 3, End: 3}},
+			OnEvent: func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
+		}
+		state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: engine}
+		frame, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := inputState.X + platform.TextAlignmentInset(alignment, inputState.Width, width, false, false)
+		if got := frame.TextLabels[len(frame.TextLabels)-1].X; got < want-0.1 || got > want+0.1 {
+			t.Fatalf("RTL glyph origin = %v, want %v (line width %v)", got, want, width)
+		}
 	}
 }
 
@@ -378,7 +447,7 @@ func TestPrimaryCandidateIsTheNewlySelectedText(t *testing.T) {
 func TestLinuxTerminalPreeditIsLaidOnTheCellsAndUnderlined(t *testing.T) {
 	state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{}}
 	input := platform.TextInput{
-		X: 20, Y: 40, Width: 300, Height: 16, FontSize: 13, Terminal: true,
+		X: 20, Y: 40, Width: 300, Height: 16, FontSize: 13, Terminal: true, CellWidth: 7.5,
 		Color:   platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 		State:   platform.TextState{Value: "ni你好", Composing: true, Composition: text.Range{End: 4}},
 		OnEvent: func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
@@ -388,7 +457,7 @@ func TestLinuxTerminalPreeditIsLaidOnTheCellsAndUnderlined(t *testing.T) {
 		t.Fatal(err)
 	}
 	label := merged.TextLabels[len(merged.TextLabels)-1]
-	cell := platform.TerminalPreeditCellWidth(13)
+	cell := input.CellWidth
 	if !label.Mono || label.CellWidth != cell {
 		t.Fatalf("label = mono:%v cell:%v, want the terminal's cell %v", label.Mono, label.CellWidth, cell)
 	}
@@ -542,5 +611,31 @@ func TestLinuxMultilineFieldLaysOutTheCaretsLine(t *testing.T) {
 	index, err := state.nearestTextIndex(7 * 10)
 	if err != nil || index != first+7 {
 		t.Fatalf("click on the seventh character = %d (err %v), want %d", index, err, first+7)
+	}
+}
+
+// A field that paints its own caret still needs the engine's candidate window to
+// sit where the glyphs are, not at the field's left edge.
+func TestLinuxCandidateWindowFollowsAlignmentWhenNativeOverlaysAreHidden(t *testing.T) {
+	for _, alignment := range []ui.Alignment{ui.AlignCenter, ui.AlignRight} {
+		t.Run(fmt.Sprint(alignment), func(t *testing.T) {
+			inputState := platform.TextInput{
+				X: 10, Y: 20, Width: 120, Height: 30, FontSize: 16, Alignment: alignment,
+				HideNativeOverlays: true,
+				State:              platform.TextState{Value: "abc", Selection: text.Range{Start: 3, End: 3}},
+				OnEvent:            func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
+			}
+			state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{advance: 10}}
+			if _, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}}); err != nil {
+				t.Fatal(err)
+			}
+			x, _, _, height := (&linuxIME{text: state}).caretRectangle()
+			if height == 0 {
+				t.Fatal("candidate rectangle fell back to the field's origin box")
+			}
+			if x <= inputState.X || x > inputState.X+inputState.Width {
+				t.Fatalf("candidate x = %v, want inside the field and right of its left edge %v", x, inputState.X)
+			}
+		})
 	}
 }

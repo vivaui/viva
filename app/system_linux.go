@@ -40,6 +40,10 @@ func nativeClipboardFiles() ([]string, error) {
 	return paths, linuxSystemError(err)
 }
 
+func nativeSetClipboardFiles(paths []string) error {
+	return linuxSystemError(linuxplatform.SetClipboardFiles(paths))
+}
+
 func nativeClipboardImagePNG() ([]byte, error) {
 	png, err := linuxplatform.ClipboardImagePNG()
 	return png, linuxSystemError(err)
@@ -88,6 +92,24 @@ func nativeSaveFile(options SaveFileOptions) (string, error) {
 		return "", ErrCanceled
 	}
 	return path, linuxSystemError(err)
+}
+
+func nativeSaveFileWithCheckbox(options SaveFileOptions, checkbox SaveFileCheckbox) (SaveFileSelection, error) {
+	filters := make([]linuxplatform.FileFilter, len(options.Filters))
+	for index, filter := range options.Filters {
+		filters[index] = linuxplatform.FileFilter{Name: filter.Name, Pattern: filter.Pattern}
+	}
+	path, checked, canceled, err := linuxplatform.SaveFileWithCheckbox(linuxplatform.SaveFileOptions{
+		Title: options.Title, SuggestedName: options.SuggestedName,
+		DefaultExtension: options.DefaultExtension, Filters: filters,
+	}, checkbox.Label, checkbox.Checked)
+	if canceled {
+		return SaveFileSelection{}, ErrCanceled
+	}
+	if err != nil {
+		return SaveFileSelection{}, linuxSystemError(err)
+	}
+	return SaveFileSelection{Path: path, Checked: checked}, nil
 }
 
 func nativeOpenURL(target string) error {

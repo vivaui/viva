@@ -374,16 +374,38 @@ int viva_system_clipboard_files(const char *pasteboard, size_t max, viva_system_
     return status;
 }
 
-int viva_system_pasteboard_put_files(const char *pasteboard, const char *const *paths, size_t count) {
-    @autoreleasepool {
-        NSPasteboard *board = viva_pasteboard_named(pasteboard);
-        NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:count];
-        for (size_t index = 0; index < count; index++) {
-            [urls addObject:[NSURL fileURLWithPath:viva_string(paths[index])]];
+int viva_system_pasteboard_put_files(const char *pasteboard, const char *const *paths, size_t count, const char *names) {
+    __block int status = -1;
+    dispatch_block_t operation = ^{
+        @autoreleasepool {
+            NSPasteboard *board = viva_pasteboard_named(pasteboard);
+            NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:count];
+            for (size_t index = 0; index < count; index++) {
+                NSString *path = viva_string(paths[index]);
+                if (path == nil) {
+                    return;
+                }
+                [urls addObject:[NSURL fileURLWithPath:path]];
+            }
+            [board clearContents];
+            if (![board writeObjects:urls]) {
+                return;
+            }
+            if (names != NULL) {
+                NSString *text = viva_string(names);
+                if (text != nil) {
+                    [board setString:text forType:NSPasteboardTypeString];
+                }
+            }
+            status = 0;
         }
-        [board clearContents];
-        return [board writeObjects:urls] ? 0 : -1;
+    };
+    if (pasteboard == NULL) {
+        viva_on_main_sync(operation);
+    } else {
+        operation();
     }
+    return status;
 }
 
 static NSCursor *viva_cursor(uint8_t shape, NSString **error) {
@@ -648,21 +670,28 @@ int viva_system_open_files(
     return 0;
 }
 
-int viva_system_save_file(
+static int viva_system_save_file_internal(
     const char *title,
     const char *suggested_name,
     const char *default_extension,
     const char *const *extensions,
     size_t extension_count,
+    const char *checkbox_label,
+    int checkbox_initial,
+    int *checkbox_checked,
     char **path,
     char **error_message
 ) {
-    if (path == NULL) {
+    if (path == NULL || (checkbox_label != NULL && checkbox_checked == NULL)) {
         viva_set_error(error_message, @"save file output is missing");
         return -1;
     }
     *path = NULL;
+    if (checkbox_checked != NULL) {
+        *checkbox_checked = 0;
+    }
     __block int status = 0;
+    __block int selected = 0;
     __block char *failure = NULL;
     __block char *result = NULL;
     viva_on_main_sync(^{
@@ -672,7 +701,8 @@ int viva_system_save_file(
             NSString *panelTitle = viva_string(title);
             NSString *name = viva_string(suggested_name);
             NSString *defaultType = viva_string(default_extension);
-            if ((extension_count > 0 && allowed == nil) || panelTitle == nil || name == nil || defaultType == nil) {
+            NSString *checkboxLabel = checkbox_label != NULL ? viva_string(checkbox_label) : nil;
+            if ((extension_count > 0 && allowed == nil) || panelTitle == nil || name == nil || defaultType == nil || (checkbox_label != NULL && checkboxLabel == nil)) {
                 failure = viva_copy_utf8(extensionError ?: @"save file options are not valid UTF-8");
                 status = -1;
                 return;
@@ -681,6 +711,15 @@ int viva_system_save_file(
                 allowed = [@[defaultType] arrayByAddingObjectsFromArray:allowed ?: @[]];
             }
             NSSavePanel *panel = [NSSavePanel savePanel];
+            NSButton *checkbox = nil;
+            if (checkboxLabel != nil) {
+                NSView *accessory = [[[NSView alloc] initWithFrame:NSMakeRect(0, 0, 400, 32)] autorelease];
+                checkbox = [NSButton checkboxWithTitle:checkboxLabel target:nil action:nil];
+                checkbox.frame = NSMakeRect(0, 0, 400, 28);
+                checkbox.state = checkbox_initial != 0 ? NSControlStateValueOn : NSControlStateValueOff;
+                [accessory addSubview:checkbox];
+                panel.accessoryView = accessory;
+            }
             if (panelTitle.length > 0) {
                 panel.title = panelTitle;
             }
@@ -715,6 +754,8 @@ int viva_system_save_file(
             if (result == NULL) {
                 failure = viva_copy_utf8(@"failed to allocate save file path");
                 status = -1;
+            } else if (checkbox != nil) {
+                selected = checkbox.state == NSControlStateValueOn ? 1 : 0;
             }
         }
     });
@@ -730,7 +771,27 @@ int viva_system_save_file(
         return status;
     }
     *path = result;
+    if (checkbox_checked != NULL) {
+        *checkbox_checked = selected;
+    }
     return 0;
+}
+
+int viva_system_save_file(
+    const char *title, const char *suggested_name, const char *default_extension,
+    const char *const *extensions, size_t extension_count, char **path, char **error_message
+) {
+    return viva_system_save_file_internal(title, suggested_name, default_extension,
+        extensions, extension_count, NULL, 0, NULL, path, error_message);
+}
+
+int viva_system_save_file_with_checkbox(
+    const char *title, const char *suggested_name, const char *default_extension,
+    const char *const *extensions, size_t extension_count, const char *checkbox_label,
+    int checkbox_initial, int *checkbox_checked, char **path, char **error_message
+) {
+    return viva_system_save_file_internal(title, suggested_name, default_extension,
+        extensions, extension_count, checkbox_label, checkbox_initial, checkbox_checked, path, error_message);
 }
 
 int viva_system_reduce_motion(void) {

@@ -125,7 +125,8 @@ func (state *windowState) updateTextVisuals() error {
 	if caretX-state.textScroll > visibleWidth {
 		state.textScroll = caretX - visibleWidth
 	}
-	originX := input.X - state.textScroll
+	inset := platform.TextAlignmentInset(input.Alignment, input.Width, textWidth, input.Terminal, input.Placed)
+	originX := input.X + inset - state.textScroll
 	label := platform.TextLabel{
 		Value: line.value, X: originX, Y: input.Y,
 		Width:  max(input.Width+state.textScroll, textWidth+textCaretWidth),
@@ -138,7 +139,7 @@ func (state *windowState) updateTextVisuals() error {
 		label.Value = state.textDisplayValue()
 		color := ui.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 		state.textRuns = platform.TerminalPreeditRuns(state.textRuns[:0], label.Value, color)
-		label.Mono, label.MonoFace, label.CellWidth, label.Runs = true, input.MonoFace, terminalCellWidth(input.FontSize), state.textRuns
+		label.Mono, label.MonoFace, label.CellWidth, label.Runs = true, input.MonoFace, input.CellWidth, state.textRuns
 	}
 	state.textLabels[state.baseTextLabelCount] = label
 	base := state.baseRectangleCount
@@ -163,7 +164,7 @@ func (state *windowState) updateTextVisuals() error {
 		}
 		if state.caretVisible {
 			state.textRectangles[base+1] = render.Rectangle{
-				Bounds: scene.Rect{X: originX + caretX, Y: caretTop, Width: textCaretWidth, Height: caretHeight},
+				Bounds: scene.Rect{X: platform.TextCaretInsideField(input.Alignment, input.X, input.Width, originX+caretX, textCaretWidth), Y: caretTop, Width: textCaretWidth, Height: caretHeight},
 				Color:  caretColor,
 				Layer:  input.Layer,
 			}
@@ -267,17 +268,11 @@ func (state *windowState) lineWidth(line textLine, size float32) float32 {
 	return state.textEngine.Width(line.value, size, state.textInput.Weight)
 }
 
-// terminalCellWidth is the width of one terminal cell at a font size: the pitch every
-// platform's fixed-pitch text is placed on (see ui.Canvas.MonoCellSize).
-func terminalCellWidth(size float32) float32 {
-	return platform.TerminalPreeditCellWidth(size)
-}
-
 // lineCaret is the x of the caret before the rune index of the display value, from the
 // left of the line. A terminal's preedit is a single line on the terminal's cells.
 func (state *windowState) lineCaret(line textLine, size float32, runeIndex int) float32 {
 	if state.textInput.Terminal {
-		return float32(platform.TerminalPreeditColumn(state.textDisplayValue(), runeIndex)) * terminalCellWidth(size)
+		return float32(platform.TerminalPreeditColumn(state.textDisplayValue(), runeIndex)) * state.textInput.CellWidth
 	}
 	return state.textEngine.Caret(line.value, size, state.textInput.Weight, line.byteAt(runeIndex))
 }
@@ -332,7 +327,8 @@ func (state *windowState) textPointerEvent(event platform.PointerEvent) (platfor
 		return platform.TextEvent{}, false, nil
 	}
 	line := state.layoutLine()
-	offset := state.textEngine.OffsetAt(line.value, input.FontSize, input.Weight, event.X-input.X+state.textScroll)
+	inset := platform.TextAlignmentInset(input.Alignment, input.Width, state.lineWidth(line, input.FontSize), input.Terminal, input.Placed)
+	offset := state.textEngine.OffsetAt(line.value, input.FontSize, input.Weight, event.X-input.X-inset+state.textScroll)
 	index := line.first + utf8.RuneCountInString(line.value[:max(0, min(offset, len(line.value)))])
 	if event.Kind == platform.PointerDown {
 		state.textDragAnchor = index
@@ -720,7 +716,15 @@ func (state *windowState) caretCell() (x, y, height float32) {
 		// The field laid its rows out itself: this is where it painted its caret.
 		return input.CaretX, input.CaretY, input.CaretHeight
 	}
-	return input.X + state.textCaret(input.FontSize, state.textCaretIndex()) - state.textScroll, input.Y, input.Height
+	return state.alignedCaretX(state.textCaretIndex()), input.Y, input.Height
+}
+
+func (state *windowState) alignedCaretX(index int) float32 {
+	input := &state.textInput
+	line := state.layoutLine()
+	inset := platform.TextAlignmentInset(input.Alignment, input.Width, state.lineWidth(line, input.FontSize), input.Terminal, input.Placed)
+	caret := input.X + inset + state.textCaret(input.FontSize, index) - state.textScroll
+	return platform.TextCaretInsideField(input.Alignment, input.X, input.Width, caret, textCaretWidth)
 }
 
 // compositionTarget is the clause the input method is converting, as runes of the
