@@ -139,6 +139,10 @@ type CodeEditorSnapshot struct {
 	ShowWhitespace bool
 	// ShowEOL paints EOLLabel at hard line breaks, never at soft wraps or an unterminated final line.
 	ShowEOL bool
+	// ShowWrapSymbol paints an end marker on soft-wrapped rows when Wrap is enabled.
+	// It reserves the last cell of each row, so rows wrap one column earlier than
+	// without it; SoftWrapOffsets, which does not wrap, reports the full-width layout.
+	ShowWrapSymbol bool
 	// EOLLabel is the line-ending marker, such as LF or CRLF. An empty label uses LF.
 	EOLLabel string
 	// EOLLabels overrides EOLLabel per zero-based logical line for mixed line endings.
@@ -365,6 +369,10 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		Height: max(0, bounds.Height-2*codeEditorPadY-barHeight),
 	}
 	cols := max(1, int(content.Width/cellWidth))
+	showWrapSymbol := snapshot.Wrap && snapshot.ShowWrapSymbol && cols > 1
+	if showWrapSymbol {
+		cols--
+	}
 	editor.fitWithFolds(value, cols, snapshot.Wrap, tabWidth, snapshot.FoldedLines)
 	editor.content, editor.cellWidth, editor.lineHeight = content, cellWidth, lineHeight
 
@@ -423,7 +431,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		lineNumberPadding: lineNumberPadding,
 		language:          snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
-		showWhitespace: snapshot.ShowWhitespace, showEOL: snapshot.ShowEOL, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
+		showWhitespace: snapshot.ShowWhitespace, showEOL: snapshot.ShowEOL, showWrapSymbol: showWrapSymbol, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
 		invisibleColor: snapshot.InvisibleColor,
 	}
 	if paint.invisibleColor.Alpha == 0 {
@@ -642,21 +650,21 @@ type codePaint struct {
 	caretColor                               ui.Color
 	// lineNumberPadding is the space on each side of the digits, one cell
 	// unless a CodeEditorGutter sets it.
-	lineNumberPadding       float32
-	language                string
-	highlight               func(language, line string, dst []CodeEditorRun) []CodeEditorRun
-	highlightLine           func(language string, lineIndex int, line string, dst []CodeEditorRun) []CodeEditorRun
-	face                    ui.MonoFace
-	firstColumn, lastColumn int
-	marks                   []text.Span
-	current                 text.Span
-	markCursor              int
-	brackets                [2]int
-	bracketsOK              bool
-	showWhitespace, showEOL bool
-	eolLabel                string
-	eolLabels               []string
-	invisibleColor          ui.Color
+	lineNumberPadding                       float32
+	language                                string
+	highlight                               func(language, line string, dst []CodeEditorRun) []CodeEditorRun
+	highlightLine                           func(language string, lineIndex int, line string, dst []CodeEditorRun) []CodeEditorRun
+	face                                    ui.MonoFace
+	firstColumn, lastColumn                 int
+	marks                                   []text.Span
+	current                                 text.Span
+	markCursor                              int
+	brackets                                [2]int
+	bracketsOK                              bool
+	showWhitespace, showEOL, showWrapSymbol bool
+	eolLabel                                string
+	eolLabels                               []string
+	invisibleColor                          ui.Color
 }
 
 // firstMark is the index of the first mark that may reach the row at index.
@@ -851,6 +859,13 @@ func (paint *codePaint) row(index int, y float32) {
 	}
 	if paint.showEOL && !editor.softWrapped(index) && rowEnd < len(paint.value) && paint.value[rowEnd] == '\n' {
 		paint.lineEnding(row, y, left)
+	}
+	if paint.showWrapSymbol && editor.softWrapped(index) {
+		canvas.Label("↪", ui.Rect{
+			X:     editor.content.X + editor.content.Width - paint.cellWidth,
+			Y:     y + (paint.lineHeight-paint.cellHeight)/2,
+			Width: paint.cellWidth, Height: paint.cellHeight,
+		}, ui.TextStyle{Size: paint.size * 0.75, Color: paint.invisibleColor, Mono: true, MonoFace: paint.face})
 	}
 
 	if paint.compositionEnd > paint.compositionStart && paint.compositionStart <= rowEnd && paint.compositionEnd >= rowStart {
