@@ -4,6 +4,8 @@ package linux
 
 import (
 	"fmt"
+	"net/url"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -30,6 +32,7 @@ type gtkClipboards struct {
 	clear      func(clipboard uintptr)
 	saveBuffer func(pixbuf uintptr, buffer *uintptr, size *uint64, kind *byte, keys, values uintptr, err *uintptr) int32
 	waitURIs   func(clipboard uintptr) uintptr
+	setURIs    func(clipboard, uris uintptr)
 	strfreev   func(list uintptr)
 
 	clipboard, primary uintptr
@@ -64,6 +67,9 @@ func (a *gtkApplication) clipboardAPI() (*gtkClipboards, error) {
 	// Copied files are optional too: an older GTK without them still has the rest.
 	if !g.lookup(&c.waitURIs, "gtk_clipboard_wait_for_uris") || !g.lookup(&c.strfreev, "g_strfreev") {
 		c.waitURIs, c.strfreev = nil, nil
+	}
+	if !g.lookup(&c.setURIs, "gtk_clipboard_set_uris") {
+		c.setURIs = nil
 	}
 	// Images need gdk-pixbuf, which GTK links but this program has not opened. Without it text
 	// still works.
@@ -132,6 +138,12 @@ func (a *gtkApplication) installHooks() {
 		clipboardFiles: func() (paths []string, err error) {
 			if e := a.onMain(func() { paths, err = a.readFiles() }); e != nil {
 				return nil, e
+			}
+			return
+		},
+		setClipboardFiles: func(paths []string) (err error) {
+			if e := a.onMain(func() { err = a.writeFiles(paths) }); e != nil {
+				return e
 			}
 			return
 		},
@@ -217,6 +229,27 @@ func (a *gtkApplication) readFiles() ([]string, error) {
 		return nil, platform.ErrNoClipboardFiles
 	}
 	return paths, nil
+}
+
+// writeFiles makes the clipboard hold paths as URIs. GTK serves the list for
+// as long as it owns the clipboard; the call copies the strings.
+func (a *gtkApplication) writeFiles(paths []string) error {
+	c, err := a.clipboardAPI()
+	if err != nil {
+		return err
+	}
+	if c.setURIs == nil {
+		return ErrUnsupported
+	}
+	encoded := make([][]byte, len(paths))
+	pointers := make([]uintptr, len(paths)+1)
+	for index, path := range paths {
+		encoded[index] = cString((&url.URL{Scheme: "file", Path: path}).String())
+		pointers[index] = uintptr(unsafe.Pointer(&encoded[index][0]))
+	}
+	c.setURIs(c.clipboard, uintptr(unsafe.Pointer(&pointers[0])))
+	runtime.KeepAlive(encoded)
+	return nil
 }
 
 func (a *gtkApplication) imageAvailable() bool {

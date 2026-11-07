@@ -12,10 +12,19 @@ import (
 
 // TextInputContext describes the focused editable Canvas text-field hit.
 type TextInputContext struct {
-	ID        ui.ID
-	Bounds    ui.Rect
-	Multiline bool
-	Secure    bool
+	ID     ui.ID
+	Bounds ui.Rect
+	// Layer is the compositing layer captured by the focused hit.
+	Layer          uint16
+	Multiline      bool
+	ReadOnly       bool
+	Secure         bool
+	NavigationKeys bool
+	// Terminal reports a RoleTerminal hit. Plain keys reach the application as
+	// text events and the rest as raw key events, as they do natively.
+	Terminal bool
+	// TypeAhead reports a hit that takes typed text without being a text field.
+	TypeAhead bool
 	// TextBounds, FontSize, FontWeight and TextColor are the text geometry the component
 	// declared; they fill whatever the returned input leaves unset.
 	TextBounds         ui.Rect

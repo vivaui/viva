@@ -80,3 +80,28 @@ func TestClipboardFilesAreCutAtTheCap(t *testing.T) {
 		t.Fatalf("after no files were set: %v, want ErrNoFiles", err)
 	}
 }
+
+func TestSetClipboardFilesOfADriverRun(t *testing.T) {
+	driver := newFilesDriver(t)
+	want := []string{filepath.Join(t.TempDir(), "report.pdf"), filepath.Join(t.TempDir(), "文件夹")}
+	if err := SetClipboardFiles(want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ClipboardFiles()
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("ClipboardFiles = %q, %v; want %q", got, err, want)
+	}
+	if text, _ := ClipboardText(); text != "report.pdf\n文件夹" {
+		t.Fatalf("text beside the files = %q", text)
+	}
+	driver.SetClipboard("text")
+	if _, err := ClipboardFiles(); !errors.Is(err, ErrNoFiles) {
+		t.Fatalf("after text replaced the files: %v, want ErrNoFiles", err)
+	}
+	if err := SetClipboardFiles(nil); err == nil {
+		t.Fatal("an empty file list was accepted")
+	}
+	if err := SetClipboardFiles([]string{"relative.txt"}); err == nil {
+		t.Fatal("a relative path was accepted")
+	}
+}

@@ -47,6 +47,7 @@ func newDOMMeasurer(document js.Value) *domMeasurer {
 		})
 		fonts.Call("addEventListener", "loadingdone", measurer.listener)
 	}
+	fontInvalidators = append(fontInvalidators, measurer.forget)
 	return measurer
 }
 

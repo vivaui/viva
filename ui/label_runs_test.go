@@ -58,10 +58,9 @@ func TestLabelRunsDoesNotAllocateOnceWarm(t *testing.T) {
 	}
 }
 
-// A font whose line box is taller than 1.18 sizes gets rows no taller than
-// that, so a terminal is as dense on a platform whose mono font is loose as on one
-// whose font is tight; a tighter font keeps its own height.
-func TestCellHeightIsCappedForFontsWithTallLineBoxes(t *testing.T) {
+// A font's own line box is its row: a terminal in a font with a tall line box has tall
+// rows, as in every native terminal, and a tight one has tight rows.
+func TestCellHeightIsTheFontsOwnLineBox(t *testing.T) {
 	var canvas Canvas
 	canvas.SetCellMeasurer(func(size float32, face MonoFace) (float32, float32) {
 		if face == MonoClassic {
@@ -69,8 +68,8 @@ func TestCellHeightIsCappedForFontsWithTallLineBoxes(t *testing.T) {
 		}
 		return size * 0.6, size * 1.45
 	})
-	if _, h := canvas.MonoCellSize(20, MonoSystem); h != 24 { // 28.9 capped to 23.6
-		t.Errorf("loose font: height %v, want 24", h)
+	if _, h := canvas.MonoCellSize(20, MonoSystem); h != 29 { // 29.0 whole
+		t.Errorf("loose font: height %v, want its own 29", h)
 	}
 	if _, h := canvas.MonoCellSize(20, MonoClassic); h != 22 {
 		t.Errorf("tight font: height %v, want its own 22", h)
@@ -107,7 +106,7 @@ func TestCellSizeUsesTheMeasurerAndRoundsHeightUp(t *testing.T) {
 		t.Errorf("a new size did not measure: %d", calls)
 	}
 	classicWidth, classicHeight := canvas.MonoCellSize(14, MonoClassic)
-	if classicWidth != 14*0.62 || classicHeight != 17 || calls != 3 { // 18.3 is capped at 1.18 sizes, 16.5, then rounded up
+	if classicWidth != 14*0.62 || classicHeight != 19 || calls != 3 { // 18.3 rounded up to a whole pixel row
 		t.Errorf("classic cell = %v,%v calls=%d", classicWidth, classicHeight, calls)
 	}
 	canvas.MonoCellSize(14, MonoClassic)

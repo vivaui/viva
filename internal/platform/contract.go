@@ -796,6 +796,11 @@ type TextInput struct {
 	CopyOverride bool
 	// CopyText is evaluated only for a non-secure Copy/Cut action.
 	CopyText func() string
+	// CellWidth is the width of one cell of the terminal's grid, in logical pixels:
+	// ui.Canvas.MonoCellSize for the input's FontSize and MonoFace. A Terminal input's
+	// preedit is drawn on that pitch and its caret and underline are measured by it, so
+	// the composition stands where the committed text will. Other inputs leave it 0.
+	CellWidth float32
 	// AltSendsEscape routes printable Alt/Option chords in a Terminal input to
 	// raw key delivery, with the base character in KeyEvent.Text.
 	AltSendsEscape bool

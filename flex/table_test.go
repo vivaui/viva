@@ -82,6 +82,71 @@ func TestTableIsPaintedLikeTheComponent(t *testing.T) {
 	}
 }
 
+// The typography options reach both the body rows and the header: flex paints the
+// same cells as a component table given the same size and padding.
+func TestTableSpecTypographyMatchesTheComponent(t *testing.T) {
+	theme := ui.LightTheme()
+	const size, padding = float32(12.5), float32(12)
+	titles := []string{"Name", "State"}
+	data := TableRows{{"Ada", "Active"}, {"Grace", "Idle"}}
+	columns := []components.TableColumn{{Width: 140}, {Width: 100}}
+	height := components.TableHeaderHeight(theme) + 2*components.TableRowHeight(theme)
+
+	flexed, direct := testCanvas(), testCanvas()
+	var state TableState
+	var view View
+	view.Draw(flexed, theme, ui.Rect{Width: 240, Height: height}, func(f *Frame) {
+		f.Column().Children(func() {
+			f.Table(&state, TableSpec{
+				Rows: tableScope, Columns: columns, Headers: titles, Source: &data,
+				FontSize: size, CellPadding: padding,
+			}).Height(height)
+		})
+	})
+	table := components.BeginTable(direct, theme, ui.Rect{Width: 240, Height: height}, columns).
+		FontSize(size).CellPadding(padding)
+	table.Header(titles)
+	for i, row := range data {
+		table.Row(tableScope.At(i), row, false)
+	}
+	sameCanvas(t, "typography", flexed, direct)
+}
+
+func TestTableSpecFontSizeSizesTheSortArrow(t *testing.T) {
+	theme := ui.LightTheme()
+	const size = float32(12.5)
+	data := TableRows{{"b", "2"}, {"a", "1"}}
+	columns := []components.TableColumn{{Width: 140}, {Width: 100}}
+	cells := []string{"Name", "N"}
+	sortable := []bool{true, false}
+	var state TableState
+	state.SortBy(0)
+	canvas := testCanvas()
+	var view View
+	view.Draw(canvas, theme, ui.Rect{Width: 240, Height: 160}, func(f *Frame) {
+		f.Column().Children(func() {
+			f.Table(&state, TableSpec{
+				Rows: tableScope, Header: headerScope, Columns: columns, Headers: cells,
+				Sortable: sortable, Source: &data, FontSize: size,
+			}).Height(160)
+		})
+	})
+
+	arrow := false
+	for _, text := range canvas.Texts() {
+		if text.Value != "↑" {
+			continue
+		}
+		arrow = true
+		if text.Style.Size != size {
+			t.Fatalf("sort arrow is painted at %v px, want the table's %v", text.Style.Size, size)
+		}
+	}
+	if !arrow {
+		t.Fatal("the sorted header painted no arrow")
+	}
+}
+
 type countingRows struct {
 	n     int
 	reads int

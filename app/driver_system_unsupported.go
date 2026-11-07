@@ -1,4 +1,4 @@
-//go:build !darwin && !windows && !linux
+//go:build !darwin && !windows && !linux && !(js && wasm)
 
 package app
 
@@ -15,6 +15,8 @@ func driverPrimarySelection() (string, error, bool) { return "", nil, false }
 func driverClipboardImage() (png []byte, err error, handled bool) { return nil, nil, false }
 
 func driverClipboardFiles() (paths []string, err error, handled bool) { return nil, nil, false }
+
+func driverSetClipboardFiles([]string) (error, bool) { return nil, false }
 
 func driverOpenURL(string) (error, bool)    { return nil, false }
 func driverOpenPath(string) (error, bool)   { return nil, false }

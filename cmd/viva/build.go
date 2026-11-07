@@ -354,26 +354,38 @@ func webPage(title, wasm string) ([]byte, error) {
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>%s</title>
   <style>
-    html, body { margin: 0; height: 100%%; background: #1c1c1e; }
-    canvas { display: block; }
+    html, body { margin: 0; height: 100%%; background: #0e1117; overscroll-behavior: none; }
+    body { color-scheme: dark; }
+    canvas { display: block; touch-action: none; -webkit-tap-highlight-color: transparent; }
   </style>
 </head>
 <body>
   <script src="wasm_exec.js"></script>
   <script>
     const go = new Go();
-    WebAssembly.instantiateStreaming(fetch(%s), go.importObject)
-      .then((result) => go.run(result.instance))
-      .catch((e) => {
-        document.body.textContent = "Failed to load the application: " + e;
-      });
+    async function start() {
+      let result;
+      try {
+        result = await WebAssembly.instantiateStreaming(fetch(%s), go.importObject);
+      } catch (streamingError) {
+        // Static hosts often serve .wasm as application/octet-stream. Fall back
+        // to bytes instead of failing the whole page on a MIME mismatch.
+        const response = await fetch(%s);
+        if (!response.ok) throw new Error("HTTP " + response.status + " for " + %s);
+        result = await WebAssembly.instantiate(await response.arrayBuffer(), go.importObject);
+      }
+      await go.run(result.instance);
+    }
+    start().catch((e) => {
+      document.body.textContent = "Failed to load the application: " + e;
+    });
   </script>
 </body>
 </html>
-`, html.EscapeString(title), quoted)
+`, html.EscapeString(title), quoted, quoted, quoted)
 	return page.Bytes(), nil
 }
 

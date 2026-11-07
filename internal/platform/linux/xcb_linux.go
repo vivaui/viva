@@ -10,9 +10,12 @@ import (
 const (
 	xcbCopyFromParent            = 0
 	xcbWindowClassInput          = 1
+	xcbCWBackPixmap              = 1 << 0
 	xcbCWBackPixel               = 1 << 1
+	xcbCWBitGravity              = 1 << 4
 	xcbCWEventMask               = 1 << 11
 	xcbCWCursor                  = 1 << 14
+	xcbGravityNorthWest          = 1
 	xcbEventKeyPress             = 1 << 0
 	xcbEventKeyRelease           = 1 << 1
 	xcbEventButtonPress          = 1 << 2

@@ -42,6 +42,12 @@ type Session struct {
 	config   app.Config
 	options  Options
 	renderer *renderer
+	// canvas measures the text of the input overlay a recording can show.
+	canvas *ui.Canvas
+	// marks are the inputs delivered lately enough for the overlay to show, and
+	// showInput says a recording is drawing them.
+	marks     []inputMark
+	showInput bool
 }
 
 // Open starts config's application in a driver and paints its first frame.
@@ -68,7 +74,7 @@ func Open(config app.Config, canvas *ui.Canvas, options Options) (*Session, erro
 	if err != nil {
 		return nil, err
 	}
-	return &Session{driver: driver, config: config, options: options}, nil
+	return &Session{driver: driver, config: config, options: options, canvas: canvas}, nil
 }
 
 // Close releases the session.
@@ -94,11 +100,15 @@ func (session *Session) Move(x, y float32) error { return session.driver.Move(x,
 func (session *Session) PressAt(x, y float32) app.PressKind { return session.driver.PressAt(x, y) }
 
 // Click clicks at a logical-pixel point.
-func (session *Session) Click(x, y float32) error { return session.driver.Click(x, y) }
+func (session *Session) Click(x, y float32) error {
+	session.markPointer(x, y)
+	return session.driver.Click(x, y)
+}
 
 // RightClick presses and releases the secondary button at a logical-pixel point,
 // which is what opens a context menu.
 func (session *Session) RightClick(x, y float32) error {
+	session.markPointer(x, y)
 	return session.driver.ClickButton(x, y, ui.PointerButtonSecondary)
 }
 
@@ -109,11 +119,16 @@ func (session *Session) RightClickLabel(label string) error {
 	if err != nil {
 		return fmt.Errorf("headless: %w", err)
 	}
-	return session.driver.ClickButton(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2, ui.PointerButtonSecondary)
+	x, y := hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2
+	session.markPointer(x, y)
+	return session.driver.ClickButton(x, y, ui.PointerButtonSecondary)
 }
 
 // DoubleClick double-clicks at a logical-pixel point.
-func (session *Session) DoubleClick(x, y float32) error { return session.driver.DoubleClick(x, y) }
+func (session *Session) DoubleClick(x, y float32) error {
+	session.markPointer(x, y)
+	return session.driver.DoubleClick(x, y)
+}
 
 // DoubleClickLabel double-clicks the center of the control a selector names (see Locate).
 func (session *Session) DoubleClickLabel(label string) error {
@@ -121,11 +136,14 @@ func (session *Session) DoubleClickLabel(label string) error {
 	if err != nil {
 		return fmt.Errorf("headless: %w", err)
 	}
-	return session.driver.DoubleClick(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2)
+	x, y := hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2
+	session.markPointer(x, y)
+	return session.driver.DoubleClick(x, y)
 }
 
 // Press presses the primary button at a point; Release releases it.
 func (session *Session) Press(x, y float32) error {
+	session.markPointer(x, y)
 	return session.driver.Press(x, y, ui.PointerButtonPrimary)
 }
 
@@ -152,7 +170,10 @@ func (session *Session) SetSystemAppearance(appearance app.Appearance) {
 }
 
 // Type inserts text into the focused text field.
-func (session *Session) Type(value string) error { return session.driver.Type(value) }
+func (session *Session) Type(value string) error {
+	session.markKeys(value)
+	return session.driver.Type(value)
+}
 
 // Compose sets the input-method composition of the focused field; an empty
 // value ends it. See app.Driver.Compose.
@@ -212,7 +233,9 @@ func (session *Session) ClickLabel(label string) error {
 	if err != nil {
 		return fmt.Errorf("headless: %w", err)
 	}
-	return session.driver.Click(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2)
+	x, y := hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2
+	session.markPointer(x, y)
+	return session.driver.Click(x, y)
 }
 
 // Texts returns every text the application painted, in paint order.
@@ -317,7 +340,11 @@ func (session *Session) Image() (*image.RGBA, error) {
 	if session.renderer == nil {
 		session.renderer = newRenderer()
 	}
-	picture, err := session.renderer.render(session.driver.Snapshot(), session.options.Scale)
+	snapshot := session.driver.Snapshot()
+	if session.showInput {
+		snapshot = session.drawInput(snapshot)
+	}
+	picture, err := session.renderer.render(snapshot, session.options.Scale)
 	if err != nil {
 		return nil, err
 	}
@@ -355,6 +382,7 @@ func writePNG(path string, picture *image.RGBA) error {
 // Control and a terminal-configured Alt chord are raw application input. A bare
 // character is typed into the focused text field.
 func (session *Session) Keys(spec string) error {
+	session.markKeys(keysLabel(spec))
 	prefix, name := "", spec
 	if cut := strings.LastIndex(spec, "+"); cut > 0 {
 		if cut == len(spec)-1 { // the plus key itself, as in "cmd++"

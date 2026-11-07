@@ -2,6 +2,7 @@ package linux
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -14,6 +15,7 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
+	"github.com/vivaui/viva/ui"
 )
 
 func TestNativeStructureABI(t *testing.T) {
@@ -778,5 +780,294 @@ func TestPresentOutOfDateRebuilds(t *testing.T) {
 	}
 	if renderer.submissions != 2 {
 		t.Fatalf("completed submissions = %d, want the out-of-date present and the recreated one", renderer.submissions)
+	}
+}
+
+func TestResizeRecordsStagedCommandsAtAnAlreadyMatchingExtent(t *testing.T) {
+	recreations, recordings := 0, 0
+	renderer := newSuboptimalTestRenderer(vkSuccess, vkSuccess, &recreations)
+	renderer.width, renderer.height = 100, 100
+	renderer.framebuffers = []uintptr{60}
+	renderer.api.resetCommandPool = func(uintptr, uintptr, uint32) int32 { return vkSuccess }
+	renderer.api.endCommandBuffer = func(uintptr) int32 {
+		recordings++
+		return vkSuccess
+	}
+	// Recovery may already have rebuilt the surface to the requested extent,
+	// but retrying a staged upload still resets its drawing commands.
+	if changed, err := renderer.stage(platform.Frame{TextLabels: []platform.TextLabel{}}); !changed || err != nil {
+		t.Fatalf("stage: changed=%v err=%v", changed, err)
+	}
+	if err := renderer.resize(100, 100); err != nil {
+		t.Fatal(err)
+	}
+	if recordings != 1 || recreations != 0 {
+		t.Fatalf("matching extent recorded %d times and rebuilt %d times", recordings, recreations)
+	}
+	if err := renderer.resize(100, 100); err != nil {
+		t.Fatal(err)
+	}
+	if recordings != 1 {
+		t.Fatalf("unchanged resize recorded commands again: %d", recordings)
+	}
+}
+
+func TestResizeOnceSuppressesSecondSuboptimalSwapchainRebuildDuringPresent(t *testing.T) {
+	recreations := 0
+	renderer := newSuboptimalTestRenderer(vkSuccess, vkSuboptimal, &recreations)
+	renderer.width, renderer.height = 100, 100
+	renderer.api.getSurfaceCapabilities = func(_, _ uintptr, capabilities *vkSurfaceCapabilities) int32 {
+		capabilities.Current = vkExtent2D{Width: renderer.width, Height: renderer.height}
+		capabilities.MinImages = 2
+		capabilities.CompositeAlpha = vkCompositeOpaque
+		capabilities.Usage = vkImageUsageColorAttachment
+		return vkSuccess
+	}
+	renderer.api.queuePresent = func(uintptr, *vkPresentInfo) int32 {
+		return vkSuboptimal
+	}
+
+	if err := renderer.resizeOnce(200, 150); err != nil {
+		t.Fatalf("resizeOnce returned error: %v", err)
+	}
+	if recreations != 1 {
+		t.Fatalf("recreations after resizeOnce = %d, want 1", recreations)
+	}
+	if err := renderer.presentRebuilding(); err != nil {
+		t.Fatalf("presentRebuilding returned error: %v", err)
+	}
+	if recreations != 1 {
+		t.Fatalf("recreations after presentRebuilding = %d, want 1 (no mid-present double rebuild)", recreations)
+	}
+	if renderer.submissions != 1 {
+		t.Fatalf("completed submissions = %d, want 1", renderer.submissions)
+	}
+}
+
+func TestNextEventCoalescesConfigureNotifyAndInterleavedSyncAndExpose(t *testing.T) {
+	type rawEvent [32]byte
+	var queue []unsafe.Pointer
+	var freed int
+	push := func(ev rawEvent) {
+		box := new(rawEvent)
+		*box = ev
+		queue = append(queue, unsafe.Pointer(box))
+	}
+
+	winID := uint32(77)
+	wmProtocols := uint32(10)
+	syncAtom := uint32(11)
+
+	makeConfigure := func(w, h uint16) rawEvent {
+		var raw rawEvent
+		cfg := (*xcbConfigureEvent)(unsafe.Pointer(&raw))
+		cfg.ResponseType = xcbConfigureNotify
+		cfg.Window = winID
+		cfg.Width = w
+		cfg.Height = h
+		return raw
+	}
+	makeExpose := func() rawEvent {
+		var raw rawEvent
+		exp := (*xcbExposeEvent)(unsafe.Pointer(&raw))
+		exp.ResponseType = xcbExpose
+		exp.Window = winID
+		return raw
+	}
+	makeSync := func(lo, hi uint32) rawEvent {
+		var raw rawEvent
+		msg := (*xcbClientEvent)(unsafe.Pointer(&raw))
+		msg.ResponseType = xcbClientMessage
+		msg.Format = 32
+		msg.Window = winID
+		msg.Type = wmProtocols
+		binary.LittleEndian.PutUint32(msg.Data[0:4], syncAtom)
+		binary.LittleEndian.PutUint32(msg.Data[8:12], lo)
+		binary.LittleEndian.PutUint32(msg.Data[12:16], hi)
+		return raw
+	}
+
+	// Queue: Configure(400x300) -> Expose -> Sync(1) -> Configure(500x400) -> Sync(2) (for a future Configure not yet arrived)
+	push(makeConfigure(400, 300))
+	push(makeExpose())
+	push(makeSync(101, 0))
+	push(makeConfigure(500, 400))
+	push(makeSync(202, 0))
+
+	win := &window{
+		id:              winID,
+		wmProtocols:     wmProtocols,
+		syncRequestAtom: syncAtom,
+		syncCounter:     &syncCounter{id: 1},
+		api: &xcbAPI{
+			pollForEvent: func(uintptr) unsafe.Pointer {
+				if len(queue) == 0 {
+					return nil
+				}
+				ev := queue[0]
+				queue = queue[1:]
+				return ev
+			},
+			free: func(unsafe.Pointer) {
+				freed++
+			},
+		},
+	}
+	state := &linuxWindowState{win: win, exposed: true}
+
+	first := state.nextEvent()
+	if first == nil {
+		t.Fatal("first nextEvent returned nil")
+	}
+	gotCfg := (*xcbConfigureEvent)(first)
+	if gotCfg.Width != 500 || gotCfg.Height != 400 {
+		t.Fatalf("coalesced configure = %dx%d, want 500x400", gotCfg.Width, gotCfg.Height)
+	}
+	// Sync(101) belonged to Configure(500x400) and must be applied to syncPending;
+	// Sync(202) arrived after Configure(500x400) with no matching Configure yet and must be held!
+	if lo, _, ok := win.syncPending.take(); !ok || lo != 101 {
+		t.Fatalf("syncPending.take() = (%d, %v), want (101, true)", lo, ok)
+	}
+	win.api.free(first)
+
+	second := state.nextEvent()
+	if second == nil {
+		t.Fatal("second nextEvent returned nil, want held Sync(202)")
+	}
+	if (*xcbGenericEvent)(second).ResponseType&0x7f != xcbClientMessage {
+		t.Fatalf("second event kind = %d, want xcbClientMessage", (*xcbGenericEvent)(second).ResponseType&0x7f)
+	}
+	win.protocolMessage((*xcbClientEvent)(second))
+	if lo, _, ok := win.syncPending.take(); !ok || lo != 202 {
+		t.Fatalf("syncPending.take() after held Sync(202) = (%d, %v), want (202, true)", lo, ok)
+	}
+	win.api.free(second)
+	if freed != 5 {
+		t.Fatalf("freed events = %d, want 5", freed)
+	}
+}
+
+func TestTextureContentChangedPreservesLabelRunsTextureWhenGrowingWithinPreviousWidth(t *testing.T) {
+	runs := []ui.TextRun{{Column: 0, Bytes: 5, Cells: 5}}
+	prev := platform.TextLabel{
+		Value:     "hello",
+		Width:     60,
+		Height:    20,
+		FontSize:  14,
+		CellWidth: 8,
+		Runs:      runs,
+	}
+	nextWider := prev
+	nextWider.Width = 120
+	if textureContentChanged(prev, nextWider) {
+		t.Fatal("textureContentChanged invalidated fixed-pitch run label when growing width past unchanged runs")
+	}
+	nextClipped := prev
+	nextClipped.Width = 40
+	if !textureContentChanged(prev, nextClipped) {
+		t.Fatal("textureContentChanged did not invalidate fixed-pitch run label when shrinking width")
+	}
+}
+
+func TestVulkanTextUpdatePreservesTexturesAcrossIndexShift(t *testing.T) {
+	makeLabel := func(val string, y float32) platform.TextLabel {
+		return platform.TextLabel{
+			Value:     val,
+			X:         10,
+			Y:         y,
+			Width:     100,
+			Height:    20,
+			FontSize:  14,
+			CellWidth: 8,
+			Runs:      []ui.TextRun{{Column: 0, Bytes: int32(len(val)), Cells: int32(len(val))}},
+		}
+	}
+	var textState vulkanText
+	initial := []platform.TextLabel{
+		makeLabel("row-0", 0),
+		makeLabel("row-1", 20),
+		makeLabel("status-bar", 400),
+	}
+	if err := textState.update(nil, initial); err != nil {
+		t.Fatalf("initial update failed: %v", err)
+	}
+	// Simulate uploaded GPU handles on each slot.
+	for i := range textState.labels {
+		textState.labels[i].view = uintptr(100 + i)
+		textState.labels[i].image = uintptr(200 + i)
+		textState.labels[i].set = uintptr(300 + i)
+	}
+
+	// Now insert a wrapped line between row-0 and row-1 during resize;
+	// row-1 and status-bar shift to indices 2 and 3.
+	shifted := []platform.TextLabel{
+		makeLabel("row-0", 0),
+		makeLabel("wrapped-cont", 20),
+		makeLabel("row-1", 40),
+		makeLabel("status-bar", 420),
+	}
+	if err := textState.update(nil, shifted); err != nil {
+		t.Fatalf("shifted update failed: %v", err)
+	}
+	if textState.labels[0].view != 100 {
+		t.Fatalf("row-0 view = %d, want 100", textState.labels[0].view)
+	}
+	if textState.labels[1].view != 0 {
+		t.Fatalf("new wrapped-cont view = %d, want 0 (needs upload)", textState.labels[1].view)
+	}
+	if textState.labels[2].view != 101 || textState.labels[2].set != 301 {
+		t.Fatalf("shifted row-1 view/set = %d/%d, want 101/301", textState.labels[2].view, textState.labels[2].set)
+	}
+	if textState.labels[3].view != 102 || textState.labels[3].set != 302 {
+		t.Fatalf("shifted status-bar view/set = %d/%d, want 102/302", textState.labels[3].view, textState.labels[3].set)
+	}
+}
+
+func TestSelectPresentModePrefersMailboxWithFIFOFallback(t *testing.T) {
+	renderer := &vulkanRenderer{
+		physical: 1,
+		surface:  2,
+		api: &vulkanAPI{
+			getSurfacePresentModes: func(_, _ uintptr, count *uint32, modes *uint32) int32 {
+				offered := []uint32{vkPresentFIFO, vkPresentMailbox}
+				if modes == nil {
+					*count = uint32(len(offered))
+					return vkSuccess
+				}
+				copy(unsafe.Slice(modes, int(*count)), offered)
+				return vkSuccess
+			},
+		},
+	}
+	if got := renderer.selectPresentMode(); got != vkPresentMailbox {
+		t.Fatalf("selectPresentMode() = %d, want vkPresentMailbox (%d)", got, vkPresentMailbox)
+	}
+
+	fifoOnly := &vulkanRenderer{
+		physical: 1,
+		surface:  2,
+		api: &vulkanAPI{
+			getSurfacePresentModes: func(_, _ uintptr, count *uint32, modes *uint32) int32 {
+				offered := []uint32{vkPresentFIFO}
+				if modes == nil {
+					*count = uint32(len(offered))
+					return vkSuccess
+				}
+				copy(unsafe.Slice(modes, int(*count)), offered)
+				return vkSuccess
+			},
+		},
+	}
+	if got := fifoOnly.selectPresentMode(); got != vkPresentFIFO {
+		t.Fatalf("selectPresentMode() = %d, want vkPresentFIFO (%d)", got, vkPresentFIFO)
+	}
+}
+
+func TestClearPixelPacksRGBChannels(t *testing.T) {
+	got := clearPixel(platform.Color{Red: 0.055, Green: 0.065, Blue: 0.09, Alpha: 1})
+	// 0.055*255=14 (0x0e), 0.065*255=17 (0x11), 0.09*255=23 (0x17)
+	const want = uint32(14)<<16 | uint32(17)<<8 | uint32(23)
+	if got != want {
+		t.Fatalf("clearPixel() = %#06x, want %#06x", got, want)
 	}
 }

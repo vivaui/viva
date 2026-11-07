@@ -64,6 +64,7 @@ func SharedTextEngine() *TextEngine { return sharedTextEngine() }
 
 var _ ui.FontFamilyAware = (*TextEngine)(nil)
 var _ ui.TextRasterizer = (*TextEngine)(nil)
+var _ ui.MonoCellEngine = (*TextEngine)(nil)
 
 // SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
 // shaped in, "" for the system font. The name is told to C, which holds it for
@@ -84,6 +85,16 @@ func (engine *TextEngine) SetFontFamily(family string) {
 		engine.italicCache.Clear()
 	}
 	engine.generation.Add(1)
+}
+
+// MonoCell implements ui.MonoCellEngine: the advance and line height of the face's own
+// font, which is the cell a terminal is laid out on.
+func (engine *TextEngine) MonoCell(size float32, face ui.MonoFace) (advance, line float32) {
+	advance, line, err := MeasureMono(size, face)
+	if err != nil {
+		return 0, 0
+	}
+	return advance, line
 }
 
 // FontGeneration implements ui.FontFamilyAware.

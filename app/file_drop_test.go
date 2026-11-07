@@ -3,6 +3,8 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/vivaui/viva/components"
@@ -48,20 +50,28 @@ func TestFileDropReachesTheHitUnderThePointAndAnswersWhetherItTakesFiles(t *test
 	if _, err := driver.Drop(ui.FileDropEvent{Phase: ui.FileDropLeave}); err != nil {
 		t.Fatal(err)
 	}
-	accepted, err = driver.Drop(ui.FileDropEvent{Phase: ui.FileDropDrop, X: 20, Y: 20, Paths: []string{"/tmp/a.txt", "/tmp/dir"}})
+	dir := t.TempDir()
+	dropped := filepath.Join(dir, "dropped.txt")
+	if err := os.WriteFile(dropped, []byte("dropped"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	accepted, err = driver.Drop(ui.FileDropEvent{Phase: ui.FileDropDrop, X: 20, Y: 20, Paths: []string{dropped, dir}})
 	if err != nil || !accepted {
 		t.Fatalf("drop on the folder = %v, %v", accepted, err)
 	}
 	last := events[len(events)-1]
-	if last.Phase != ui.FileDropDrop || last.Target != ui.Item(1) || len(last.Paths) != 2 || last.Paths[1] != "/tmp/dir" {
+	if last.Phase != ui.FileDropDrop || last.Target != ui.Item(1) || len(last.Paths) != 2 || last.Paths[1] != dir {
 		t.Fatalf("drop event = %+v", last)
+	}
+	if len(last.Files) != 2 || last.Files[0].Name() != "dropped.txt" || !last.Files[1].IsDir() {
+		t.Fatalf("drop files = %+v", last.Files)
 	}
 	for _, event := range events {
 		if event.Phase == ui.FileDropLeave && (!event.Target.IsZero() || len(event.Paths) != 0) {
 			t.Fatalf("leave event = %+v", event)
 		}
-		if event.Phase == ui.FileDropOver && len(event.Paths) != 0 {
-			t.Fatalf("hover carried paths: %+v", event)
+		if event.Phase == ui.FileDropOver && (len(event.Paths) != 0 || len(event.Files) != 0) {
+			t.Fatalf("hover carried files: %+v", event)
 		}
 	}
 }

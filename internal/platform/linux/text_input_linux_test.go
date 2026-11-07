@@ -447,7 +447,7 @@ func TestPrimaryCandidateIsTheNewlySelectedText(t *testing.T) {
 func TestLinuxTerminalPreeditIsLaidOnTheCellsAndUnderlined(t *testing.T) {
 	state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{}}
 	input := platform.TextInput{
-		X: 20, Y: 40, Width: 300, Height: 16, FontSize: 13, Terminal: true,
+		X: 20, Y: 40, Width: 300, Height: 16, FontSize: 13, Terminal: true, CellWidth: 7.5,
 		Color:   platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 		State:   platform.TextState{Value: "ni你好", Composing: true, Composition: text.Range{End: 4}},
 		OnEvent: func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
@@ -457,7 +457,7 @@ func TestLinuxTerminalPreeditIsLaidOnTheCellsAndUnderlined(t *testing.T) {
 		t.Fatal(err)
 	}
 	label := merged.TextLabels[len(merged.TextLabels)-1]
-	cell := platform.TerminalPreeditCellWidth(13)
+	cell := input.CellWidth
 	if !label.Mono || label.CellWidth != cell {
 		t.Fatalf("label = mono:%v cell:%v, want the terminal's cell %v", label.Mono, label.CellWidth, cell)
 	}

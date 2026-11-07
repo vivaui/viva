@@ -1,4 +1,4 @@
-//go:build darwin || windows || linux
+//go:build darwin || windows || linux || (js && wasm)
 
 package app
 
@@ -74,6 +74,15 @@ func driverSetClipboardText(value string) (error, bool) {
 		return nil, false
 	}
 	system.driver.clipboard, system.driver.system.clipboardImage, system.driver.system.clipboardFiles = value, nil, nil
+	return nil, true
+}
+
+func driverSetClipboardFiles(paths []string) (error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, false
+	}
+	system.driver.SetClipboardFiles(paths)
 	return nil, true
 }
 
