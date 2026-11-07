@@ -3,9 +3,10 @@
 package app
 
 import (
+	"strconv"
+
 	windowsplatform "github.com/vivaui/viva/internal/platform/windows"
 	"github.com/vivaui/viva/ui"
-	"strconv"
 )
 
 func nativeRegisterGlobalShortcut(s GlobalShortcut, pressed func()) (func(), error) {

@@ -3,8 +3,9 @@
 package app
 
 import (
-	"github.com/vivaui/viva/ui"
 	"testing"
+
+	"github.com/vivaui/viva/ui"
 )
 
 func TestGlobalShortcutDriverRegistrationLifetime(t *testing.T) {

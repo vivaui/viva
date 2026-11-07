@@ -2,9 +2,10 @@ package app
 
 import (
 	"fmt"
-	"github.com/vivaui/viva/ui"
 	"strconv"
 	"strings"
+
+	"github.com/vivaui/viva/ui"
 )
 
 // GlobalShortcut is an optional system-wide key binding. It is independent of
@@ -39,8 +40,8 @@ func normalizeGlobalShortcut(s GlobalShortcut) (GlobalShortcut, error) {
 // thread-safe Show/Hide or an Invalidator to update UI state. No registration,
 // worker or native resource exists until this function is used. Driver-backed
 // runs keep bindings private and expose Driver.PressGlobalShortcut for tests.
-// The Windows backend supports system registration. Other native backends
-// currently return ErrUnsupported; normal focused-window shortcuts still work.
+// System registration is available on Windows, macOS and Linux/X11. Wayland
+// and other backends return ErrUnsupported; focused-window shortcuts still work.
 func RegisterGlobalShortcut(s GlobalShortcut, pressed func()) (stop func(), err error) {
 	s, err = normalizeGlobalShortcut(s)
 	if err != nil {

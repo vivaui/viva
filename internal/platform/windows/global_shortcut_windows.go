@@ -60,6 +60,11 @@ func RegisterGlobalShortcut(modifiers, key uint32, pressed func()) (func(), erro
 		for {
 			select {
 			case <-events:
+				select {
+				case <-done:
+					return
+				default:
+				}
 				pressed()
 			case <-done:
 				return

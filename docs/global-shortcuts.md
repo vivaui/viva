@@ -15,17 +15,26 @@ if stop != nil { defer stop() }
 ```
 
 Registration is optional. An application that never registers one starts no
-worker or native hotkey resource. Each live Windows binding has a blocking
-Win32 message queue; it does not poll or invalidate frames. `stop` releases the
-registration and is idempotent. Callbacks may execute off the window thread;
-use thread-safe Window methods or store an event and call an Invalidator.
+worker or native hotkey resource. Windows uses a blocking Win32 message queue.
+macOS uses Carbon application hotkey events. Linux/X11 uses a private XCB
+connection and a blocking wait; Caps Lock and Num Lock don't change the binding.
+`stop` releases the registration and is idempotent. Callbacks execute off the
+window thread; use thread-safe Window methods or store an event and call an
+Invalidator. Release macOS bindings as part of the application lifecycle while
+its main event loop is available (or on the main thread).
 
 Keys are ASCII letters/digits, F1–F24, Space, Enter, Escape or Tab; at least one
 modifier is required. Windows reserves F12 for debuggers and reports an error.
 Conflicts are returned to the caller, so it can retain the previous setting.
-Other native backends currently return `app.ErrUnsupported`.
+macOS supports F1–F20 and uses ANSI key positions for letters and digits.
+Linux resolves keycodes at registration using the current X keyboard map and
+uses the usual X11 Alt (Mod1) and Super (Mod4) masks. Native Wayland and other
+backends return `app.ErrUnsupported`. XWayland cannot provide desktop-wide
+bindings for native Wayland clients.
 
 Driver runs keep registrations private. `driver.PressGlobalShortcut(binding)`
 tests the callback without registering anything with the host OS. Closing the
-Driver clears those bindings. The opt-in native Windows registration/release
-test uses `VIVA_NATIVE_GLOBAL_SHORTCUT_TEST=1`; it does not synthesize user input.
+Driver clears those bindings. Opt-in native lifecycle tests use
+`VIVA_NATIVE_GLOBAL_SHORTCUT_TEST=1`. The Linux test also delivers an actual
+X11 key via xdotool under a dedicated Xvfb display. The macOS test dispatches
+Carbon events to the app's handler without injecting desktop input.
