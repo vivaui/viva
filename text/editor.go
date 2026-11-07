@@ -88,6 +88,7 @@ type Editor struct {
 	// resolved, so a caret that moves or types a little is found by walking from
 	// there instead of from the start; every mutation of runes trims it.
 	offsets offsetMemo
+	journal *editJournal
 
 	history      []historyEdit
 	historyIndex int
@@ -438,8 +439,6 @@ func (editor *Editor) collapse(index int) {
 // had to replace its last rune.
 func (editor *Editor) replace(target Range, value string, overwrite bool) textChange {
 	target = normalizeRange(target, len(editor.runes))
-	editor.textValid = false
-	editor.offsets.trim(target.Start)
 	replacement := []rune(value)
 	if editor.accept != nil {
 		kept := replacement[:0]
@@ -469,6 +468,9 @@ func (editor *Editor) replace(target Range, value string, overwrite bool) textCh
 		removed:  append([]rune(nil), editor.runes[target.Start:target.End]...),
 		inserted: replacement,
 	}
+	edit := editor.prepareEdit(target.Start, target.End, replacement)
+	editor.textValid = false
+	editor.offsets.trim(target.Start)
 	delta := len(replacement) - removed
 	if delta > 0 {
 		editor.runes = append(editor.runes, make([]rune, delta)...)
@@ -478,6 +480,7 @@ func (editor *Editor) replace(target Range, value string, overwrite bool) textCh
 		editor.runes = editor.runes[:len(editor.runes)+delta]
 	}
 	copy(editor.runes[target.Start:], replacement)
+	editor.recordEdit(edit)
 	return change
 }
 
@@ -640,6 +643,7 @@ func (editor *Editor) trimHistory() {
 func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 	start = clamp(start, 0, len(editor.runes))
 	end := clamp(start+removed, start, len(editor.runes))
+	edit := editor.prepareEdit(start, end, replacement)
 	delta := len(replacement) - (end - start)
 	if delta > 0 {
 		editor.runes = append(editor.runes, make([]rune, delta)...)
@@ -652,6 +656,7 @@ func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 	editor.lastReplaceStart = start
 	editor.textValid = false
 	editor.offsets.trim(start)
+	editor.recordEdit(edit)
 }
 
 func hasUndoBoundary(value string) bool {
