@@ -2,6 +2,7 @@ package linux
 
 import (
 	"fmt"
+	"hash/maphash"
 	"math"
 	"runtime"
 	"unsafe"
@@ -178,6 +179,61 @@ type vulkanText struct {
 	lcdPipeline                       uintptr
 	labels                            []vulkanLabelTexture
 	order                             []int
+	// A resize can insert or remove labels ahead of retained textures. These
+	// buffers match them by content without scanning every old slot per label.
+	match, next []int
+	used        []bool
+	candidates  map[vulkanTextureKey]int
+	reordered   []vulkanLabelTexture
+}
+
+type vulkanTextureKey struct {
+	value                       string
+	width, height               float32
+	fontSize, weight, cellWidth float32
+	color                       platform.Color
+	fontGeneration              uint32
+	monoFace                    ui.MonoFace
+	italic, mono                bool
+	content                     uint64
+	bitmap                      *byte
+	bitmapLength                int
+	bitmapID                    uint64
+	bitmapVersion               uint32
+}
+
+var vulkanTextRunSeed = maphash.MakeSeed()
+
+// textureKey normalizes away unused width. Grid labels also ignore the viewport
+// width here; contentChanged checks whether their retained texture covers it.
+func textureKey(label platform.TextLabel) vulkanTextureKey {
+	key := vulkanTextureKey{
+		value: label.Value, width: label.Width, height: label.Height,
+		fontSize: label.FontSize, weight: label.Weight, cellWidth: label.CellWidth,
+		color: label.Color, fontGeneration: label.FontGeneration, monoFace: label.MonoFace,
+		italic: label.Italic, mono: label.Mono,
+		bitmapLength: len(label.Bitmap), bitmapID: label.BitmapID, bitmapVersion: label.BitmapVersion,
+	}
+	// Keep the key small enough for inline map storage. The final comparison
+	// checks the runs and bitmap dimensions as well, so a hash collision
+	// cannot make two different pictures share a texture.
+	key.content = uint64(label.BitmapWidth)
+	key.content = (key.content ^ uint64(label.BitmapHeight)) * 1099511628211
+	key.content = (key.content ^ uint64(label.BitmapStride)) * 1099511628211
+	for _, run := range label.Runs {
+		key.content = (key.content ^ maphash.Comparable(vulkanTextRunSeed, run)) * 1099511628211
+	}
+	if len(label.Bitmap) > 0 {
+		key.bitmap = &label.Bitmap[0]
+		key.width, key.height = 0, 0
+	} else if len(label.Runs) > 0 {
+		// A grid texture may cover more than the visible width. Its owner checks
+		// the actual allocation before reusing it at a different width.
+		key.width = 0
+	} else if needed, ok := neededLabelWidth(label); ok {
+		key.width = min(key.width, needed)
+	}
+	return key
 }
 
 type vulkanStagingBuffer struct{ buffer, memory uintptr }
@@ -320,12 +376,31 @@ func sameTextRuns(left, right []ui.TextRun) bool {
 }
 
 func (label *vulkanLabelTexture) update(renderer *vulkanRenderer, next platform.TextLabel) {
-	if textureContentChanged(label.label, next) {
+	keptWidth := label.label.Width
+	changed := label.contentChanged(next)
+	if changed {
 		label.closeImage(renderer)
 	}
 	label.runs = append(label.runs[:0], next.Runs...)
 	label.label = next
+	if !changed && label.view != 0 && len(next.Bitmap) == 0 && len(next.Runs) == 0 && next.Width > keptWidth {
+		label.label.Width = keptWidth
+	}
 	label.label.Runs = label.runs
+}
+
+// A grid's glyphs stay on their cells when its visible width changes. Keep a
+// larger texture while shrinking, or while growing inside its reserved columns;
+// the scissor supplies the new right edge. All other content still has to match.
+func (label *vulkanLabelTexture) contentChanged(next platform.TextLabel) bool {
+	previous := label.label
+	if len(next.Bitmap) == 0 && len(next.Runs) > 0 && label.view != 0 && label.scale > 0 {
+		if needed, ok := neededLabelWidth(next); ok &&
+			math.Ceil(float64(min(next.Width, needed)*label.scale)) <= float64(label.width) {
+			previous.Width = next.Width
+		}
+	}
+	return textureContentChanged(previous, next)
 }
 
 // bitmapTextureStale is whether an image's texture no longer suits the size it is drawn at.
@@ -333,17 +408,55 @@ func bitmapTextureStale(label *vulkanLabelTexture, scale float32) bool {
 	return len(label.label.Bitmap) > 0 && label.view != 0 && platform.BitmapTextureStale(label.label, scale, label.width, label.height)
 }
 
+func neededLabelWidth(label platform.TextLabel) (float32, bool) {
+	if len(label.Bitmap) > 0 {
+		return 0, false
+	}
+	if label.Value == "" {
+		return 0, true
+	}
+	if len(label.Runs) > 0 {
+		lastRun := label.Runs[len(label.Runs)-1]
+		return float32(lastRun.Column+lastRun.Cells+1)*label.CellWidth + 2, true
+	}
+	// Proportional advances do not bound glyph ink (especially italics).
+	// Keep their full label bounds unless actual ink extents are available.
+	if label.Mono {
+		if label.CellWidth > 0 {
+			return float32(len(label.Value)+1)*label.CellWidth + 4, true
+		}
+		if label.FontSize > 0 {
+			return float32(len(label.Value)+1)*label.FontSize + 4, true
+		}
+	}
+	return 0, false
+}
+
 // textureContentChanged reports whether the texture a label owns holds a different picture.
 // An image's texture is independent of its drawn size, which bitmapTextureStale follows
 // instead; text is laid out for its size, so a new size is a new picture.
 // (soft_scene_linux.go's labelContentChanged is the CPU scene's, which repaints on any size.)
 func textureContentChanged(previous, next platform.TextLabel) bool {
-	isBitmap := len(previous.Bitmap) > 0 || len(next.Bitmap) > 0
-	return previous.Value != next.Value || (!isBitmap && (previous.Width != next.Width || previous.Height != next.Height)) || previous.FontSize != next.FontSize ||
+	if previous.Value != next.Value || previous.FontSize != next.FontSize ||
 		previous.Weight != next.Weight || previous.Italic != next.Italic || previous.Color != next.Color || previous.FontGeneration != next.FontGeneration || previous.Mono != next.Mono || previous.MonoFace != next.MonoFace || previous.CellWidth != next.CellWidth ||
 		!sameTextRuns(previous.Runs, next.Runs) || previous.BitmapID != next.BitmapID || previous.BitmapVersion != next.BitmapVersion ||
 		previous.BitmapWidth != next.BitmapWidth || previous.BitmapHeight != next.BitmapHeight || previous.BitmapStride != next.BitmapStride ||
-		!sameBitmapBytes(previous.Bitmap, next.Bitmap)
+		!sameBitmapBytes(previous.Bitmap, next.Bitmap) {
+		return true
+	}
+	if len(previous.Bitmap) > 0 || len(next.Bitmap) > 0 {
+		return false
+	}
+	if previous.Height != next.Height {
+		return true
+	}
+	if previous.Width == next.Width {
+		return false
+	}
+	if needed, ok := neededLabelWidth(next); ok {
+		return min(previous.Width, needed) != min(next.Width, needed)
+	}
+	return true
 }
 
 func sameBitmapBytes(left, right []byte) bool {
@@ -357,18 +470,103 @@ func (textState *vulkanText) update(renderer *vulkanRenderer, labels []platform.
 	if len(labels) > vkMaximumTextLabels {
 		return fmt.Errorf("linux: text label count %d exceeds limit %d", len(labels), vkMaximumTextLabels)
 	}
-	for index := len(labels); index < len(textState.labels); index++ {
-		textState.labels[index].closeImage(renderer)
-	}
-	if len(labels) > cap(textState.labels) {
-		textState.labels = append(textState.labels, make([]vulkanLabelTexture, len(labels)-len(textState.labels))...)
-	} else {
-		textState.labels = textState.labels[:len(labels)]
-	}
 	for index, label := range labels {
 		if err := validateTextLabel(index, label); err != nil {
 			return err
 		}
+	}
+	oldLen := len(textState.labels)
+	if cap(textState.match) < len(labels) {
+		textState.match = make([]int, len(labels))
+	}
+	match := textState.match[:len(labels)]
+	for i := range match {
+		match[i] = -1
+	}
+	if cap(textState.used) < oldLen {
+		textState.used = make([]bool, oldLen)
+		textState.next = make([]int, oldLen)
+	}
+	used := textState.used[:oldLen]
+	clear(used)
+	shifted := false
+	misses := false
+	for i, next := range labels {
+		if i < oldLen && !textState.labels[i].contentChanged(next) {
+			match[i] = i
+			used[i] = true
+		} else {
+			misses = true
+		}
+	}
+	if misses && oldLen > 0 {
+		if textState.candidates == nil {
+			textState.candidates = make(map[vulkanTextureKey]int, oldLen)
+		}
+		// Map values are index+1, so zero means no candidate. The linked
+		// lists retain separate textures for duplicate labels.
+		for j := oldLen - 1; j >= 0; j-- {
+			if !used[j] {
+				key := textureKey(textState.labels[j].label)
+				textState.next[j] = textState.candidates[key]
+				textState.candidates[key] = j + 1
+			}
+		}
+		for i, next := range labels {
+			if match[i] >= 0 {
+				continue
+			}
+			key := textureKey(next)
+			previous := -1
+			for candidate := textState.candidates[key]; candidate > 0; {
+				j := candidate - 1
+				if !textState.labels[j].contentChanged(next) {
+					match[i], used[j], shifted = j, true, true
+					if previous < 0 {
+						textState.candidates[key] = textState.next[j]
+					} else {
+						textState.next[previous] = textState.next[j]
+					}
+					break
+				}
+				previous, candidate = j, textState.next[j]
+			}
+		}
+		clear(textState.candidates)
+	}
+	for j := 0; j < oldLen; j++ {
+		if !used[j] {
+			textState.labels[j].closeImage(renderer)
+		}
+	}
+	n := max(oldLen, len(labels))
+	if len(labels) > cap(textState.labels) {
+		textState.labels = append(textState.labels, make([]vulkanLabelTexture, len(labels)-len(textState.labels))...)
+	} else {
+		textState.labels = textState.labels[:n]
+	}
+	if shifted {
+		if cap(textState.reordered) < n {
+			textState.reordered = make([]vulkanLabelTexture, n)
+		}
+		reordered := textState.reordered[:n]
+		free := 0
+		for i := range reordered {
+			if i < len(labels) && match[i] >= 0 {
+				reordered[i] = textState.labels[match[i]]
+			} else {
+				for free < oldLen && used[free] {
+					free++
+				}
+				reordered[i] = textState.labels[free]
+				free++
+			}
+		}
+		copy(textState.labels[:n], reordered)
+		clear(reordered)
+	}
+	textState.labels = textState.labels[:len(labels)]
+	for index, label := range labels {
 		textState.labels[index].update(renderer, label)
 	}
 	textState.order = groupTextLayers(textState.labels, textState.order)
@@ -430,8 +628,8 @@ func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32) err
 		if label.label.Value == "" && len(label.label.Bitmap) == 0 || label.label.Width <= 0 || label.label.Height <= 0 || label.view != 0 && label.scale == scale && !bitmapTextureStale(label, scale) {
 			continue
 		}
-		width := int(math.Ceil(float64(label.label.Width * scale)))
 		height := int(math.Ceil(float64(label.label.Height * scale)))
+		width := labelRasterWidth(label.label, scale, height)
 		var pixels []byte
 		lcd := false
 		var spans []colorSpan
@@ -474,6 +672,31 @@ func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32) err
 		return err
 	}
 	return vkCheck(renderer.api.deviceWaitIdle(renderer.device), "wait for text upload")
+}
+
+// Reserve up to sixteen cells on a grid row, so a pixel-by-pixel window resize
+// does not rasterize every row again. The reservation ends at the last run's
+// possible overhang and never exceeds the rasterizer's existing size limits.
+func labelRasterWidth(label platform.TextLabel, scale float32, height int) int {
+	width := int(math.Ceil(float64(label.Width * scale)))
+	if len(label.Bitmap) > 0 {
+		return width
+	}
+	needed, ok := neededLabelWidth(label)
+	if ok {
+		if capped := int(math.Ceil(float64(needed * scale))); capped > 0 && capped < width {
+			width = capped
+		}
+	}
+	if len(label.Runs) > 0 && label.CellWidth > 0 && height > 0 && width > 0 && ok {
+		step := float64(label.CellWidth) * 16
+		reserved := min(math.Ceil(float64(label.Width)/step)*step, float64(needed))
+		limit := min(16384, 16*1024*1024/height)
+		if width <= limit {
+			width = max(width, int(min(math.Ceil(reserved*float64(scale)), float64(limit))))
+		}
+	}
+	return width
 }
 
 func tightBitmap(source []byte, width, height, stride int) []byte {
@@ -682,15 +905,23 @@ func (label *vulkanLabelTexture) pixelOrigin(scale float32) (x, y int) {
 // clip leaves no pixel. Every draw sets its own scissor, so a clipped label
 // does not leak into the next.
 func labelScissor(label platform.TextLabel, scale float32, extent vkExtent2D) (scissor vkRect2D, visible bool) {
-	if !label.Clipped {
-		return vkRect2D{Extent: extent}, true
-	}
+	left, top := int64(0), int64(0)
+	right, bottom := int64(extent.Width), int64(extent.Height)
 	// The clip is in logical pixels; the label's glyphs are partial coverage at
 	// its edge, so the scissor takes every device pixel the clip touches.
-	left := max(int64(math.Floor(float64(label.Clip.X*scale))), 0)
-	top := max(int64(math.Floor(float64(label.Clip.Y*scale))), 0)
-	right := min(int64(math.Ceil(float64((label.Clip.X+label.Clip.Width)*scale))), int64(extent.Width))
-	bottom := min(int64(math.Ceil(float64((label.Clip.Y+label.Clip.Height)*scale))), int64(extent.Height))
+	if label.Clipped {
+		left = max(int64(math.Floor(float64(label.Clip.X*scale))), left)
+		top = max(int64(math.Floor(float64(label.Clip.Y*scale))), top)
+		right = min(int64(math.Ceil(float64((label.Clip.X+label.Clip.Width)*scale))), right)
+		bottom = min(int64(math.Ceil(float64((label.Clip.Y+label.Clip.Height)*scale))), bottom)
+	}
+	if len(label.Runs) > 0 && len(label.Bitmap) == 0 {
+		// Grid textures reserve columns beyond the visible row. Match the edge
+		// of the exact-width texture, including its whole-pixel placement.
+		x := int64(platform.DevicePosition(label.X, label.OriginX, scale))
+		left = max(left, x)
+		right = min(right, x+int64(math.Ceil(float64(label.Width*scale))))
+	}
 	if right <= left || bottom <= top {
 		return vkRect2D{}, false
 	}

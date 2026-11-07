@@ -160,3 +160,49 @@ func BenchmarkQueuedDragMotion(benchmark *testing.B) {
 		})
 	}
 }
+
+func TestConfigureCoalescingKeepsPointerCrossingsInOrder(t *testing.T) {
+	configure := func(width uint16) *xcbConfigureEvent {
+		return &xcbConfigureEvent{ResponseType: xcbConfigureNotify, Window: 1, Width: width, Height: 100}
+	}
+	pointer := func(kind uint8, x int16) *xcbInputEvent {
+		return &xcbInputEvent{ResponseType: kind, Event: 1, EventX: x}
+	}
+	leave, enter := pointer(xcbLeaveNotify, 0), pointer(xcbEnterNotify, 0)
+	queue := []unsafe.Pointer{
+		unsafe.Pointer(configure(200)),
+		unsafe.Pointer(pointer(xcbMotionNotify, 1)),
+		unsafe.Pointer(leave),
+		unsafe.Pointer(pointer(xcbMotionNotify, 2)),
+		unsafe.Pointer(enter),
+		unsafe.Pointer(configure(210)),
+	}
+	freed := 0
+	state := &linuxWindowState{win: &window{id: 1, api: &xcbAPI{
+		pollForEvent: func(uintptr) unsafe.Pointer {
+			if len(queue) == 0 {
+				return nil
+			}
+			event := queue[0]
+			queue = queue[1:]
+			return event
+		},
+		free: func(unsafe.Pointer) { freed++ },
+	}}}
+	if merged := (*xcbConfigureEvent)(state.nextEvent()); merged.Width != 210 {
+		t.Fatalf("merged configure width = %d, want 210", merged.Width)
+	}
+	if first := state.nextEvent(); first != unsafe.Pointer(leave) {
+		t.Fatal("a Leave between configures was dropped or reordered")
+	}
+	if second := state.nextEvent(); second != unsafe.Pointer(enter) {
+		t.Fatal("an Enter between configures was dropped or reordered")
+	}
+	if state.nextEvent() != nil {
+		t.Fatal("stale motion was replayed")
+	}
+	// The two stale motions are discarded; the superseded configure is freed.
+	if freed != 3 {
+		t.Fatalf("freed %d events, want 3", freed)
+	}
+}
