@@ -21,6 +21,8 @@ import (
 
 type window struct {
 	fullscreen                atomic.Bool
+	topmost                   atomic.Bool
+	topmostConfigured         atomic.Bool
 	fullscreenHandler         func(bool)
 	minimumSize               *minimumSizeCache
 	mu                        sync.Mutex

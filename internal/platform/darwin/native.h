@@ -367,6 +367,7 @@ int viva_application_window_frame(void *window, double *out);
 void viva_application_move_window(void *window, double x, double y);
 int viva_application_set_fullscreen(void *window, int fullscreen);
 int viva_application_fullscreen(void *window);
+int viva_application_set_always_on_top(void *window, int enabled);
 int viva_application_run(void);
 void viva_application_close_all(void);
 void viva_application_close_window(void *window);

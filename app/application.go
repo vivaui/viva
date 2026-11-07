@@ -19,6 +19,7 @@ var ErrNoWindows = errors.New("app: application opened no windows")
 // A fullscreen-capable host additionally implements SetFullscreen(bool) error
 // and Fullscreen() bool. It reports transitions through Config.OnFullscreen
 // before resize/frame callbacks and repaints afterward.
+// An always-on-top host additionally implements SetAlwaysOnTop(bool) error.
 type WindowControl interface {
 	Close()
 	Hide()
@@ -60,6 +61,8 @@ type Window struct {
 	// maximized mirrors what the platform last reported through OnMaximize.
 	maximized  atomic.Bool
 	fullscreen atomic.Bool
+	topmostMu  sync.Mutex
+	topmost    atomic.Bool
 }
 
 // Close requests that the native window close. Closing the final window ends

@@ -5436,6 +5436,7 @@ static void viva_set_secure_event_input(BOOL on) {
     NSMutableArray<NSView *> *_titlebarWatched; /* views whose frame changes re-center the traffic lights */
     BOOL _fullscreenTarget;
     BOOL _fullscreenTransition;
+    BOOL _alwaysOnTop;
     BOOL _closeInterceptEnabled;
     BOOL _fileDropEnabled;
     BOOL _modifierTapsEnabled;
@@ -5474,6 +5475,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)hideWindow;
 - (void)showWindow;
 - (void)setFullscreen:(BOOL)fullscreen;
+- (void)setAlwaysOnTop:(BOOL)enabled;
 - (BOOL)isFullscreen;
 - (void)reopenWindow;
 - (BOOL)isPanel;
@@ -6023,6 +6025,11 @@ static void viva_set_secure_event_input(BOOL on) {
     }
 }
 
+- (void)setAlwaysOnTop:(BOOL)enabled {
+    _alwaysOnTop = enabled;
+    _window.level = enabled ? NSFloatingWindowLevel : NSNormalWindowLevel;
+}
+
 - (void)windowWillEnterFullScreen:(NSNotification *)notification {
     (void)notification;
     if ([_window.contentView isKindOfClass:[VivaMetalView class]]) {
@@ -6060,6 +6067,7 @@ static void viva_set_secure_event_input(BOOL on) {
     if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
         [self keepTrafficLightsCentered];
     }
+    [self setAlwaysOnTop:_alwaysOnTop];
     [self setFullscreen:_fullscreenTarget];
     [self reportFrameChange];
 }
@@ -6737,6 +6745,25 @@ int viva_application_fullscreen(void *window) {
         dispatch_sync(dispatch_get_main_queue(), work);
     }
     return fullscreen;
+}
+
+int viva_application_set_always_on_top(void *window, int enabled) {
+    __block int found = 0;
+    void (^work)(void) = ^{
+        VivaAppDelegate *delegate = viva_find_window(window);
+        if (delegate != nil && [delegate isPanel]) {
+            found = -1;
+        } else if (delegate != nil) {
+            [delegate setAlwaysOnTop:enabled != 0];
+            found = 1;
+        }
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return found;
 }
 
 void viva_application_show_window(void *window) {
