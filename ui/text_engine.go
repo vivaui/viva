@@ -60,9 +60,8 @@ type StyledTextEngine interface {
 }
 
 // FontFamilyAware is a TextEngine whose proportional family the application can
-// name while it runs: the platform engines implement it. The reference engine's
-// widths know no family, and a backend whose text the system draws without a
-// say in the family (the browser) does not.
+// name while it runs: the platform engines implement it, including the
+// browser's document engine. The reference engine's widths know no family.
 type FontFamilyAware interface {
 	TextEngine
 	// SetFontFamily names the family the interface's proportional text is shaped

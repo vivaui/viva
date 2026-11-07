@@ -31,12 +31,16 @@ const MaxSecretSize = 2048
 //
 // The call is synchronous and may wait for the user: a locked store asks to be
 // unlocked. It must not be made from a hot path.
+//
+// The Web target has no synchronous system secret store and returns
+// ErrSecretStoreUnavailable; use StoreSecretAsync there, which encrypts the
+// secret in the page's origin storage.
 func StoreSecret(service, account string, secret []byte) error {
 	if err := validateSecretKey(service, account); err != nil {
 		return err
 	}
-	if len(secret) == 0 || len(secret) > MaxSecretSize {
-		return fmt.Errorf("app: a secret is 1 to %d bytes, got %d", MaxSecretSize, len(secret))
+	if err := validateSecretValue(secret); err != nil {
+		return err
 	}
 	if err, handled := driverStoreSecret(service, account, secret); handled {
 		return err
@@ -44,8 +48,16 @@ func StoreSecret(service, account string, secret []byte) error {
 	return nativeStoreSecret(service, account, secret)
 }
 
+func validateSecretValue(secret []byte) error {
+	if len(secret) == 0 || len(secret) > MaxSecretSize {
+		return fmt.Errorf("app: a secret is 1 to %d bytes, got %d", MaxSecretSize, len(secret))
+	}
+	return nil
+}
+
 // LoadSecret returns the secret saved for the service and account, or
-// ErrSecretNotFound. Like StoreSecret it may wait for the user.
+// ErrSecretNotFound. Like StoreSecret it may wait for the user. The Web target
+// returns ErrSecretStoreUnavailable; use LoadSecretAsync.
 func LoadSecret(service, account string) ([]byte, error) {
 	if err := validateSecretKey(service, account); err != nil {
 		return nil, err
@@ -57,7 +69,8 @@ func LoadSecret(service, account string) ([]byte, error) {
 }
 
 // DeleteSecret removes the secret saved for the service and account. Removing
-// what is not there is not an error.
+// what is not there is not an error. The Web target returns
+// ErrSecretStoreUnavailable; use DeleteSecretAsync.
 func DeleteSecret(service, account string) error {
 	if err := validateSecretKey(service, account); err != nil {
 		return err

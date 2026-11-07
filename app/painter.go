@@ -688,6 +688,7 @@ func (painter *painter) fileDrop(event platform.FileDropEvent) (platform.Frame, 
 	}
 	response := painter.onFileDrop(ui.FileDropEvent{
 		Phase: ui.FileDropPhase(event.Phase), X: event.X, Y: event.Y, Target: target, Paths: event.Paths,
+		Files: fileDropFilesFromPaths(event.Paths),
 	})
 	focusChanged := painter.applyEventResult(response)
 	if !response.Repaint && !focusChanged {

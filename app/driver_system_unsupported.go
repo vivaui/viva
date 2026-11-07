@@ -1,4 +1,4 @@
-//go:build !darwin && !windows && !linux
+//go:build !darwin && !windows && !linux && !(js && wasm)
 
 package app
 

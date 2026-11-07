@@ -242,6 +242,18 @@ const (
 	FileDropDrop
 )
 
+// FileDropFile is a file made available by a drag and drop. Name, Size, MIME
+// and IsDir are known without reading; Read delivers bytes asynchronously, so a
+// browser can settle its Promise without blocking the event loop. A directory
+// cannot be read.
+type FileDropFile interface {
+	Name() string
+	Size() int64
+	MIME() string
+	IsDir() bool
+	Read(offset int64, length int, done func([]byte, error)) error
+}
+
 // FileDropEvent is files dragged from the system over, or dropped on, a window.
 // Target is the hit under the point, as for a pointer event, so the application
 // need not hit-test itself. Return Handled for FileDropOver and FileDropDrop when
@@ -252,8 +264,13 @@ type FileDropEvent struct {
 	X, Y   float32
 	Target ID
 	// Paths are absolute file system paths, in the order the system gave them;
-	// set only for FileDropDrop. Folders are included as folders.
+	// set only for FileDropDrop, and only on a native target. Browsers do not
+	// expose paths; use Files there.
 	Paths []string
+	// Files are the dropped files, set only for FileDropDrop. Native targets
+	// also provide them, opened from Paths, so an application can read the same
+	// way on every platform. Folders have IsDir set and cannot be read.
+	Files []FileDropFile
 }
 
 // EventResult reports how an application handled an input event. Repaint asks
