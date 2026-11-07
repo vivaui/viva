@@ -660,6 +660,23 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state.web != nil {
 			state.web.layoutAll(true)
 		}
+		if state.ready {
+			// The desktop keeps the previous swap-chain frame and scales it over the
+			// client area the resize just made until the window presents a frame at
+			// the new size; a live drag then shows the whole interface stretched and
+			// snapping back. Draw it here, before returning to the window manager,
+			// and drop the paint this resize queued: it is already on screen.
+			if err := state.presentImmediate(int(uint16(second)), int(uint16(second>>16))); err != nil {
+				state.fail(err)
+			} else {
+				// Present(0) hands the frame to DXGI at once; DwmFlush then waits
+				// until the desktop composes, so this resize's frame and the
+				// window's new bounds land in the same composition.
+				dwmFlush.Call()
+				validateRect.Call(window, 0)
+			}
+			return 0
+		}
 		invalidateRect.Call(window, 0, 0)
 		return 0
 	case wmDPIChanged:

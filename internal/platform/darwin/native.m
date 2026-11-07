@@ -3684,6 +3684,13 @@ static int viva_navigation_command(SEL selector) {
         _metalLayer.opaque = clearColor.alpha >= 1.0 && windowMode != VIVA_WINDOW_PANEL && windowMode != VIVA_WINDOW_PREVIEW;
         _metalLayer.maximumDrawableCount = 2;
         _metalLayer.allowsNextDrawableTimeout = YES;
+        /* During a live resize AppKit resizes the layer before the frame drawn
+         * for the new bounds is presented. The default resize gravity stretches
+         * the previous drawable across those bounds, so cards and text visibly
+         * grow, snap back and wobble while the window is dragged. Pinning the
+         * contents to the top left keeps the last frame at its own size until
+         * the new one lands. */
+        _metalLayer.contentsGravity = kCAGravityTopLeft;
 
         self.wantsLayer = YES;
         self.layer = _metalLayer;
@@ -4643,9 +4650,9 @@ static void viva_set_secure_event_input(BOOL on) {
         }
 
         if (wait) {
-            // Live resize must not return to AppKit before the new frame is
-            // scheduled; otherwise the compositor stretches the previous
-            // drawable across the resized layer for one or more frames.
+            // A caller that asked for a synchronous frame does not return to
+            // AppKit before it is scheduled, so a burst of events (a scroll
+            // gesture outrunning the display) cannot pile up drawables.
             [commandBuffer waitUntilScheduled];
         } else if (_profileEnabled && !_reportedFirstFrame) {
             [commandBuffer waitUntilScheduled];

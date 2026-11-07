@@ -405,6 +405,14 @@ func makeRectangleInstance(rectangle render.Rectangle) rectangleInstance {
 }
 
 func (renderer *renderer) present(width, height int, scale float32) error {
+	return renderer.presentWithSync(width, height, scale, 1)
+}
+
+// presentWithSync presents with a DXGI sync interval. A live resize presents
+// immediately (0) and then waits for the desktop to compose (DwmFlush), so the
+// frame drawn for the new size and the window's new bounds land in the same
+// composition instead of the previous frame being stretched across the resize.
+func (renderer *renderer) presentWithSync(width, height int, scale float32, sync uintptr) error {
 	if width <= 0 || height <= 0 {
 		return nil
 	}
@@ -428,7 +436,7 @@ func (renderer *renderer) present(width, height int, scale float32) error {
 	if err := renderer.draw(width, height, scale); err != nil {
 		return err
 	}
-	return hresult(comCall(renderer.swap, 8, 1, 0))
+	return hresult(comCall(renderer.swap, 8, sync, 0))
 }
 
 // draw clears the bound-size render target to the clear color and paints every

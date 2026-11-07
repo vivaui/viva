@@ -71,14 +71,25 @@ func (state *windowState) recoverDevice(cause error) error {
 // present draws the window, and draws it again on a new device if the one it had
 // was lost.
 func (state *windowState) present(width, height int) error {
-	err := state.renderer.present(width, height, state.scale)
+	return state.presentWithSync(width, height, 1)
+}
+
+// presentImmediate draws the window without waiting for the display refresh. A
+// resize uses it and then DwmFlush: the new frame has to be in the composition
+// that carries the window's new bounds, not one refresh later.
+func (state *windowState) presentImmediate(width, height int) error {
+	return state.presentWithSync(width, height, 0)
+}
+
+func (state *windowState) presentWithSync(width, height int, sync uintptr) error {
+	err := state.renderer.presentWithSync(width, height, state.scale, sync)
 	if err == nil || !state.renderer.deviceLost() {
 		return err
 	}
 	if err := state.recoverDevice(err); err != nil {
 		return err
 	}
-	return state.renderer.present(width, height, state.scale)
+	return state.renderer.presentWithSync(width, height, state.scale, sync)
 }
 
 // applyFrame hands a frame to the renderer, making the device again first if it
