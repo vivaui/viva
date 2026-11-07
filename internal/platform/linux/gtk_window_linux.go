@@ -3,6 +3,7 @@
 package linux
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"sync/atomic"
@@ -282,6 +283,28 @@ func (w *gtkWindow) SetFullscreen(fullscreen bool) error {
 }
 
 func (w *gtkWindow) Fullscreen() bool { return w.fullscreen.Load() }
+
+func (w *gtkWindow) SetAlwaysOnTop(enabled bool) error {
+	if w == nil || w.app == nil {
+		return fmt.Errorf("linux: window is closed")
+	}
+	if w.config.WindowMode == platform.WindowPanel || w.config.WindowMode == platform.WindowPreview {
+		return platform.ErrAlwaysOnTopUnsupported
+	}
+	if w.app.wayland {
+		return platform.ErrAlwaysOnTopUnsupported
+	}
+	w.app.enqueue(func() {
+		if !w.closed {
+			value := int32(0)
+			if enabled {
+				value = 1
+			}
+			w.g.windowKeepAbove(w.toplevel, value)
+		}
+	})
+	return nil
+}
 
 func (w *gtkWindow) Show() {
 	w.app.enqueue(func() {

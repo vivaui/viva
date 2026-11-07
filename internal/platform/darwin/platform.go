@@ -113,6 +113,24 @@ func (window *nativeWindow) Fullscreen() bool {
 	return window != nil && !window.closed.Load() && C.viva_application_fullscreen(window.token) != 0
 }
 
+func (window *nativeWindow) SetAlwaysOnTop(enabled bool) error {
+	if window == nil || window.closed.Load() {
+		return fmt.Errorf("darwin: window is closed")
+	}
+	value := C.int(0)
+	if enabled {
+		value = 1
+	}
+	switch C.viva_application_set_always_on_top(window.token, value) {
+	case 1:
+		return nil
+	case -1:
+		return platform.ErrAlwaysOnTopUnsupported
+	default:
+		return fmt.Errorf("darwin: always-on-top window is unavailable")
+	}
+}
+
 type runState struct {
 	application       *nativeApplication
 	callbackHandle    cgo.Handle

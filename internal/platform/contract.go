@@ -211,6 +211,10 @@ var ErrNoGraphics = errors.New("platform: no graphics driver")
 // ErrFullscreenUnsupported means this host or window kind cannot go fullscreen.
 var ErrFullscreenUnsupported = errors.New("platform: fullscreen is unsupported")
 
+// ErrAlwaysOnTopUnsupported means this host or window kind cannot keep a window
+// above others.
+var ErrAlwaysOnTopUnsupported = errors.New("platform: always-on-top is unsupported")
+
 // ErrStatusAreaUnavailable is returned by AddStatusItem when the desktop has no
 // status area to put an icon in, as a Linux session without a StatusNotifier
 // host. The application keeps running; it only has no icon.

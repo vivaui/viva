@@ -415,6 +415,11 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 	}()
 	switch kind {
+	case wmAlwaysOnTop:
+		if state.setAlwaysOnTop(first != 0) {
+			return 1
+		}
+		return 0
 	case wmFullscreen:
 		state.setFullscreen(first != 0)
 		return 0
