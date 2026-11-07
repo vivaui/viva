@@ -7,11 +7,6 @@ import (
 	"sync"
 )
 
-type driverGlobalBinding struct {
-	shortcut GlobalShortcut
-	pressed  func()
-}
-
 func driverRegisterGlobalShortcut(s GlobalShortcut, pressed func()) (func(), error, bool) {
 	system := activeDriverSystem.Load()
 	if system == nil {

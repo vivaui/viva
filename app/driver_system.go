@@ -16,6 +16,11 @@ const driverSaveFileQueueSize = 8
 const driverOpenFilesQueueSize = 8
 const driverOpenDirectoryQueueSize = 8
 
+type driverGlobalBinding struct {
+	shortcut GlobalShortcut
+	pressed  func()
+}
+
 type driverSystem struct {
 	globalBindings []*driverGlobalBinding
 	globalMu       sync.Mutex
