@@ -64,7 +64,7 @@ func nativeSaveFile(SaveFileOptions) (string, error) {
 }
 
 func nativeSaveFileWithCheckbox(SaveFileOptions, SaveFileCheckbox) (SaveFileSelection, error) {
-	return SaveFileSelection{}, ErrAsyncRequired
+	return SaveFileSelection{}, fmt.Errorf("save file with checkbox: %w", ErrUnsupported)
 }
 
 func nativeOpenURL(target string) error {

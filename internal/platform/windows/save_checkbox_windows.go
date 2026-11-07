@@ -2,6 +2,7 @@ package windows
 
 import (
 	"fmt"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -18,7 +19,7 @@ func addSaveDialogCheckbox(dialog uintptr, label string, checked bool) (uintptr,
 	if err := hresult(comCall(dialog, 0, uintptr(unsafe.Pointer(&saveDialogCustomizeInterface)), uintptr(unsafe.Pointer(&custom)))); err != nil {
 		return 0, fmt.Errorf("windows: customize save file dialog: %w", err)
 	}
-	name, err := syscall.UTF16PtrFromString(label)
+	name, err := syscall.UTF16PtrFromString(strings.ReplaceAll(label, "&", "&&")) // a lone & would become a mnemonic
 	if err != nil {
 		release(&custom)
 		return 0, err

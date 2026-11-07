@@ -383,6 +383,8 @@ func (driver *Driver) QueueSaveFile(path string, err error) error {
 	return nil
 }
 
+// QueueSaveFileWithCheckbox queues the response to the next SaveFileWithCheckbox
+// call, including the final checkbox state.
 func (driver *Driver) QueueSaveFileWithCheckbox(path string, checked bool, err error) error {
 	if err == nil && path == "" {
 		return fmt.Errorf("app: queued save path is empty")
@@ -396,6 +398,8 @@ func (driver *Driver) QueueSaveFileWithCheckbox(path string, checked bool, err e
 	return nil
 }
 
+// LastSaveFileCheckboxRequest reports the most recent SaveFileWithCheckbox
+// request; the bool is false when none has been made.
 func (driver *Driver) LastSaveFileCheckboxRequest() (SaveFileOptions, SaveFileCheckbox, bool) {
 	return driver.lastSaveFileRequest, driver.lastSaveFileCheckbox, driver.hasSaveFileCheckbox
 }
