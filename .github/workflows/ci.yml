@@ -120,6 +120,8 @@ jobs:
 
   # The browser target is a release target: it compiles every package, runs the
   # shared tests under GOOS=js, and builds the browser entry points and a guide.
+  # The browser gate below is separate so installing Playwright's system
+  # dependencies does not extend this job's critical path.
   web:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -130,11 +132,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: tools/webcheck/package-lock.json
       - name: vet the browser target
         run: GOOS=js GOARCH=wasm go vet ./...
       - name: test under the Go wasm runtime
@@ -155,6 +152,26 @@ jobs:
           GOOS=js GOARCH=wasm go build \
             ./cmd/component-preview ./cmd/gallery-web \
             ./examples/guides/hello ./examples/guides/webview
+
+  # The real browser gate. It builds the fixture and drives it through the
+  # three engines in parallel with the wasm tests above; most of its elapsed
+  # time is Playwright's GTK/GStreamer dependency install, which has no place
+  # on the wasm job's critical path.
+  web-browser:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tools/webcheck/package-lock.json
       - name: build the browser verification fixture
         run: go run ./cmd/viva build --target web ./tools/webcheck/fixture -o build/webcheck
       - name: install the browser gate
@@ -298,7 +315,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, cross-vet, web, test, darwin, windows-materials, benchmarks]
+    needs: [changes, lint, cross-vet, web, web-browser, test, darwin, windows-materials, benchmarks]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed

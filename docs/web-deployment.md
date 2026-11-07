@@ -351,7 +351,8 @@ input method or candidate window.
 
 CI builds the fixture with `viva build --target web`, installs the pinned
 Playwright package and its three engines, and runs the driver once per engine
-in the `web` job. The same gate runs locally with:
+in a dedicated `web-browser` job that runs in parallel with the wasm tests.
+The same gate runs locally with:
 
 ```sh
 npm ci --prefix tools/webcheck
