@@ -312,6 +312,36 @@ const (
 	RoleSeparator
 )
 
+// roleNames are the names of the roles: what a selector or a printed tree calls
+// them, in the order of the constants.
+var roleNames = [...]string{
+	RoleButton: "button", RoleLink: "link", RoleCheckbox: "checkbox", RoleRadio: "radio",
+	RoleTab: "tab", RoleMenuItem: "menuitem", RoleCombobox: "combobox", RoleSwitch: "switch",
+	RoleTextField: "textfield", RoleSlider: "slider", RoleTerminal: "terminal", RoleGroup: "group",
+	RoleMenu: "menu", RoleMenubar: "menubar", RoleListBox: "listbox", RoleOption: "option",
+	RoleGrid: "grid", RoleGridCell: "gridcell", RoleHeading: "heading", RoleStatus: "status",
+	RoleSeparator: "separator",
+}
+
+// String is the role's name as selectors and printed trees write it, such as
+// "button" or "textfield". A region that declared no role is a plain "region".
+func (role Role) String() string {
+	if int(role) < len(roleNames) && roleNames[role] != "" {
+		return roleNames[role]
+	}
+	return "region"
+}
+
+// RoleNamed is the role a name String gives stands for.
+func RoleNamed(name string) (Role, bool) {
+	for role, candidate := range roleNames {
+		if candidate != "" && candidate == name {
+			return Role(role), true
+		}
+	}
+	return 0, false
+}
+
 // LiveRegion says how eagerly assistive technology announces a change to the
 // content of a region, as aria-live does. The zero value announces nothing.
 type LiveRegion uint8
@@ -1456,6 +1486,28 @@ func (canvas *Canvas) MoveRegion(bounds Rect) {
 // next Reset.
 func (canvas *Canvas) Hits() []Hit {
 	return canvas.hits
+}
+
+// HitBounds is the region the control with that identity has declared so far in
+// this paint, as the user can reach it: a control that is partly outside the
+// clip reports the part inside. It is the way to hang an overlay on the control
+// that opens it, a tooltip or a menu, without the application keeping a copy of
+// the control's rectangle between paints. If the control was declared more than
+// once, the last declaration is the one reported. ok is false for the zero ID
+// and for a control not declared yet, so a popup painted before its trigger
+// finds nothing and should be painted after it.
+//
+// The lookup is a scan from the newest hit and allocates nothing.
+func (canvas *Canvas) HitBounds(id ID) (bounds Rect, ok bool) {
+	if id.IsZero() {
+		return Rect{}, false
+	}
+	for index := len(canvas.hits) - 1; index >= 0; index-- {
+		if canvas.hits[index].ID == id {
+			return canvas.hits[index].Bounds, true
+		}
+	}
+	return Rect{}, false
 }
 
 // PushFocusScope assigns subsequent hits to a stable component scope.

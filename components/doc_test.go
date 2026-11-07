@@ -37,6 +37,7 @@ var docPrimaryEntries = map[string][]string{
 	"message.go":            {"Message"},
 	"metric_card.go":        {"MetricCard"},
 	"progress.go":           {"Progress"},
+	"text_selection.go":     {"TextSelection"},
 	"typography.go":         {"Typography"},
 }
 

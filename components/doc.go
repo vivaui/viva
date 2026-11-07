@@ -111,6 +111,13 @@
 //     editor's caret turns over on the terminal's rhythm and comes to rest lit
 //     when the window is left alone. The application keeps one next to its text
 //     and passes the result as ShowCaret.
+//   - Text selection: `TextSelection` follows a pointer drag that begins in one
+//     painted text and ends in another (a MarkdownView, a table, a plain block):
+//     `TextSelection.Pointer` begins, extends and ends it, `TextSelection.In`
+//     gives the part of each text to paint highlighted, and `TextSelection.Text`
+//     joins what a copy puts on the clipboard. The application numbers its texts
+//     in reading order and says where each lies; the caller-owned value
+//     schedules nothing and allocates nothing while the pointer moves.
 //   - Find bar: `PaintFindBar` paints the find and replace bar of an editor over
 //     two InputSnapshot fields, with option toggles, a count and step buttons;
 //     `FindBarCommandForKey` maps Command or Control+F, F3 and Enter to its
