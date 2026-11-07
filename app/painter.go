@@ -1145,6 +1145,10 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		painter.textEnabled = false
 		return platform.TextInputUpdate{Changed: true}
 	}
+	var cellWidth float32
+	if context.Terminal || context.TypeAhead {
+		cellWidth, _ = painter.canvas.MonoCellSize(fontSize, input.MonoFace)
+	}
 	alignment := ui.AlignLeft
 	if !context.Terminal && !context.TypeAhead && placement == nil {
 		alignment = resolveTextInputAlignment(input.Alignment, input.State.Value, input.State.Selection.End)
@@ -1154,7 +1158,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		X:      bounds.X, Y: bounds.Y,
 		Width: bounds.Width, Height: bounds.Height,
 		FontSize: fontSize, Weight: weight, Alignment: alignment, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
-		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace,
+		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace, CellWidth: cellWidth,
 		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
 		HideNativeOverlays: input.HideNativeOverlays || context.HideNativeOverlays,
 		Color: platform.Color{
@@ -1243,7 +1247,7 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 
 func samePlatformTextInput(left, right platform.TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y && left.Width == right.Width && left.Height == right.Height &&
-		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace &&
+		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.CellWidth == right.CellWidth &&
 		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases &&
 		left.NavigationKeys == right.NavigationKeys &&
 		left.HideNativeOverlays == right.HideNativeOverlays &&

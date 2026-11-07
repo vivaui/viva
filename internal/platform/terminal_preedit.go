@@ -3,7 +3,6 @@ package platform
 import (
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/internal/uniprops"
 	"github.com/vivaui/viva/ui"
 )
@@ -13,12 +12,6 @@ import (
 // of the character it belongs to. These helpers give a backend that draws the
 // preedit itself the same columns the terminal uses, so the composition text,
 // its underline and the candidate window all follow the cells.
-
-// TerminalPreeditCellWidth is the width of one terminal cell at a font size: the pitch
-// every platform's fixed-pitch text is placed on (see ui.Canvas.MonoCellSize).
-func TerminalPreeditCellWidth(size float32) float32 {
-	return size * textmetrics.MonoAdvance
-}
 
 // TerminalPreeditCells is how many cells r occupies: none for a combining mark, which
 // shares the cell of the character it follows, two for a wide character, else one. A

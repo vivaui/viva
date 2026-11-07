@@ -379,7 +379,7 @@ func (state *linuxTextInput) scrollFor(width, caretX, textWidth float32) float32
 // platform.TextInput.Terminal), only the underline of the composition.
 func (state *linuxTextInput) rebuildTerminalPreedit(shown string) {
 	input := &state.input
-	cell := platform.TerminalPreeditCellWidth(input.FontSize)
+	cell := input.CellWidth
 	color := ui.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 	label := &state.labels[len(state.baseLabels)]
 	// A new slice every time: the renderer may still compare against the last frame's label.

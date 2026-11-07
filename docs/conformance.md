@@ -197,16 +197,18 @@ from software rasterizers, which are not evidence for a GPU's rounding.
   measures with its own font (SF, Segoe UI, and Noto Sans or whatever the desktop names for
   sans), so a label that is as wide as its text is as wide as that platform's text.
   Layouts built from declared sizes do not move.
-- The columns of a terminal do not depend on the font: a cell is 0.6 em by 1.18 em
-  everywhere; the terminal grid is unchanged.
+- The columns of a terminal depend on the font: a cell is the advance and line box of the
+  face's own font as the platform measures them (`ui.MonoCellEngine`), so a terminal has
+  the columns and rows the same font gives a native terminal, and they differ between
+  platforms and fonts. A canvas with no such engine (the reference engine, the browser)
+  uses the reference cell, 0.6 em by 1.18 em.
 - The font of a script nobody asked for: CJK comes from PingFang (macOS), the font linked
   to Segoe UI (Microsoft YaHei UI on the Windows test machine) or Noto Sans CJK (Linux).
 - Emoji: Apple Color Emoji, Noto Color Emoji and (through DirectWrite) Segoe UI Emoji are
   colored.
 - Fixed-pitch faces: SF Mono, Consolas and Noto Sans Mono advance 0.62, 0.55 and 0.60 of the
-  size; a terminal is laid out on a 0.6 by 1.18 grid on all of them, the platform's characters
-  stand on it (Consolas looser than its own spacing). Non-ASCII runs of a grid keep their own
-  advances.
+  size, and a terminal's cell is that advance, made whole in device pixels. Non-ASCII runs of a
+  grid keep their own advances.
 - Windows draws text with DirectWrite at fractional advances, so a word can be
   off its layout width by the difference of the fonts; CJK widths vary with the size
   (a 13 px Chinese string is 1.24 to 1.32 times macOS's natural width).

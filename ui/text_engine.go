@@ -59,6 +59,21 @@ type StyledTextEngine interface {
 	OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int
 }
 
+// MonoCellEngine is a TextEngine that measures the character cell of a fixed-pitch
+// face: the platform engines implement it. Canvas.MonoCellSize asks it, so a terminal
+// is laid out on the pitch and line height of the font it is drawn in; an engine
+// without it, such as the reference engine, leaves the reference cell (0.6 of the size
+// wide, 1.18 high).
+type MonoCellEngine interface {
+	TextEngine
+	// MonoCell is the advance of one character and the height of one line of face's
+	// own font at a logical size, in logical pixels, whatever the families that draw
+	// what that font lacks. A cell it cannot measure is 0, 0. It is called with the
+	// same arguments again only after FontGeneration moved, or the canvas's memo
+	// dropped the answer.
+	MonoCell(size float32, face MonoFace) (advance, line float32)
+}
+
 // FontFamilyAware is a TextEngine whose proportional family the application can
 // name while it runs: the platform engines implement it, including the
 // browser's document engine. The reference engine's widths know no family.
@@ -87,6 +102,8 @@ type FontFamilyAware interface {
 func (canvas *Canvas) SetTextEngine(engine TextEngine) {
 	canvas.engine = engine
 	canvas.aware, _ = engine.(FontFamilyAware)
+	canvas.monoCells, _ = engine.(MonoCellEngine)
+	canvas.cellSizes = cellSizeMemos{}
 	clear(canvas.fits)
 }
 

@@ -139,7 +139,7 @@ func (state *windowState) updateTextVisuals() error {
 		label.Value = state.textDisplayValue()
 		color := ui.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 		state.textRuns = platform.TerminalPreeditRuns(state.textRuns[:0], label.Value, color)
-		label.Mono, label.MonoFace, label.CellWidth, label.Runs = true, input.MonoFace, terminalCellWidth(input.FontSize), state.textRuns
+		label.Mono, label.MonoFace, label.CellWidth, label.Runs = true, input.MonoFace, input.CellWidth, state.textRuns
 	}
 	state.textLabels[state.baseTextLabelCount] = label
 	base := state.baseRectangleCount
@@ -268,17 +268,11 @@ func (state *windowState) lineWidth(line textLine, size float32) float32 {
 	return state.textEngine.Width(line.value, size, state.textInput.Weight)
 }
 
-// terminalCellWidth is the width of one terminal cell at a font size: the pitch every
-// platform's fixed-pitch text is placed on (see ui.Canvas.MonoCellSize).
-func terminalCellWidth(size float32) float32 {
-	return platform.TerminalPreeditCellWidth(size)
-}
-
 // lineCaret is the x of the caret before the rune index of the display value, from the
 // left of the line. A terminal's preedit is a single line on the terminal's cells.
 func (state *windowState) lineCaret(line textLine, size float32, runeIndex int) float32 {
 	if state.textInput.Terminal {
-		return float32(platform.TerminalPreeditColumn(state.textDisplayValue(), runeIndex)) * terminalCellWidth(size)
+		return float32(platform.TerminalPreeditColumn(state.textDisplayValue(), runeIndex)) * state.textInput.CellWidth
 	}
 	return state.textEngine.Caret(line.value, size, state.textInput.Weight, line.byteAt(runeIndex))
 }
