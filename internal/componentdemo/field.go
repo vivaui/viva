@@ -80,8 +80,10 @@ func (state *State) paintField(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 		errorText = "Enter a valid work email."
 	}
 	control := field.Paint("Work email", "Used only for release notifications.", errorText)
-	components.PaintInput(canvas, theme, control, components.InputSnapshot{
+	input := components.InputSnapshot{
 		ID: fieldInput, Label: "Work email", Value: value, Hint: "Used only for release notifications", Invalid: invalid,
-		ReadOnly: !state.editing, PlatformEditing: state.platformFocused(canvas, value),
-	})
+		ReadOnly: !state.editing,
+	}
+	state.paintEditable(canvas, fieldInput, value, &input)
+	components.PaintInput(canvas, theme, control, input)
 }

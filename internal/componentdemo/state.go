@@ -90,7 +90,10 @@ type State struct {
 	switches    switchState
 	// editor is the Go-owned text behind the example's editable field once a
 	// runner has called EnableTextEditing; fieldID is the hit that edits it.
-	editor       *text.Editor
+	editor *text.Editor
+	// blink is the caret phase of the single-line fields this demo paints itself
+	// (see HideEditorText in components.InputSnapshot).
+	blink        components.CaretBlink
 	multiSelect  *components.MultiSelectState
 	singleSelect *components.SingleSelectState
 	fieldID      ui.ID

@@ -215,8 +215,11 @@ func TestPlatformInputEditingCompositionAndPlaceholder(t *testing.T) {
 	if value := findHit(t, &canvas, inputEditable).Value; value != "Go 中文😀" {
 		t.Fatalf("provider changes were not reflected in semantics: %q", value)
 	}
-	if hasText(&canvas, "Go 中文😀") || hasText(&canvas, "输入中文或 English…") {
-		t.Fatal("canvas duplicated platform text or retained a nonempty placeholder")
+	if !hasText(&canvas, "Go 中文😀") {
+		t.Fatal("the hidden platform editor's text was not painted on the canvas")
+	}
+	if hit := findHit(t, &canvas, inputEditable); hit.TextColor.Alpha != 0 || !hit.HideNativeOverlays {
+		t.Fatalf("the platform text was not hidden: %+v", hit)
 	}
 	if selection := editor.Selection(); selection != (text.Range{Start: 4, End: 5}) {
 		t.Fatalf("painting changed the editor selection: %+v", selection)

@@ -137,7 +137,17 @@ func (state *State) paintInputGroup(canvas *ui.Canvas, theme ui.Theme, size ui.S
 		value = inputGroupInitial(state.exampleID)
 	}
 	snapshot := components.InputGroupSnapshot{ID: inputGroupField, Label: "Project domain", Value: value, Placeholder: "project-name",
-		ReadOnly: !state.editing, NativeEditing: state.platformFocused(canvas, value), InlineStart: components.InputGroupSlot{Kind: components.InputGroupSlotText, Text: "https://", Separated: true}, InlineEnd: components.InputGroupSlot{Kind: components.InputGroupSlotButton, ID: inputGroupClear, Icon: inputGroupCrossIcon, ButtonSize: components.InputGroupButtonIconXS, Label: "Clear domain"}}
+		ReadOnly: !state.editing, HideEditorText: true, InlineStart: components.InputGroupSlot{Kind: components.InputGroupSlotText, Text: "https://", Separated: true}, InlineEnd: components.InputGroupSlot{Kind: components.InputGroupSlotButton, ID: inputGroupClear, Icon: inputGroupCrossIcon, ButtonSize: components.InputGroupButtonIconXS, Label: "Clear domain"}}
+	if state.editing && state.editor != nil && canvas.Focused() == inputGroupField {
+		selection := state.editor.Selection()
+		snapshot.SelectionStart, snapshot.SelectionEnd = byteOffsetOfRune(value, selection.Start), byteOffsetOfRune(value, selection.End)
+		snapshot.Caret = byteOffsetOfRune(value, state.editor.Caret())
+		snapshot.ShowCaret = selection.Start == selection.End
+		snapshot.Blink = &state.blink
+		if marked, composing := state.editor.Composition(); composing {
+			snapshot.CompositionStart, snapshot.CompositionEnd = byteOffsetOfRune(value, marked.Start), byteOffsetOfRune(value, marked.End)
+		}
+	}
 	if state.exampleID == "addons" {
 		snapshot.Multiline = true
 		// The description is not a domain: no "https://" in front of it.

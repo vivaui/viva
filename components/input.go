@@ -12,18 +12,26 @@ import (
 // it a password field: the value is never exposed, DisplayValue is ignored,
 // and the field paints one bullet per character.
 type InputSnapshot struct {
-	ID               ui.ID
-	Label            string
-	Value            string
-	DisplayValue     string
-	Placeholder      string
-	Hint             string
-	Disabled         bool
-	ReadOnly         bool
-	Invalid          bool
-	Secure           bool
-	Focused          bool
-	PlatformEditing  bool
+	ID              ui.ID
+	Label           string
+	Value           string
+	DisplayValue    string
+	Placeholder     string
+	Hint            string
+	Disabled        bool
+	ReadOnly        bool
+	Invalid         bool
+	Secure          bool
+	Focused         bool
+	PlatformEditing bool
+	// HideEditorText makes the platform editor behind a focused input invisible and the
+	// component paint the text, selection, composition and caret itself; the editor is
+	// only where input arrives (give Caret, SelectionStart/End and CompositionStart/End,
+	// and set ShowCaret while the field is focused). A platform that lays out its own text
+	// can put the line a fraction of a pixel away from the canvas line; with the text
+	// painted here it cannot move when the field opens. A fixed-pitch field does this
+	// always (see InputTextStyle.Mono).
+	HideEditorText   bool
 	NavigationKeys   bool
 	ShowCaret        bool
 	Caret            int
@@ -34,8 +42,8 @@ type InputSnapshot struct {
 	// Text styles the text of the field: its size, weight and color. The zero value is the
 	// theme's body size, regular weight and foreground, which is what the shadcn field is.
 	Text InputTextStyle
-	// Blink is the phase of the caret a field paints itself (see InputTextStyle.Mono): the
-	// caret is drawn only while it is lit. Nil keeps it lit.
+	// Blink is the phase of the caret a field paints itself (see InputTextStyle.Mono and
+	// HideEditorText): the caret is drawn only while it is lit. Nil keeps it lit.
 	Blink *CaretBlink
 }
 
@@ -127,14 +135,22 @@ func PaintInputContent(canvas *ui.Canvas, theme ui.Theme, bounds, content ui.Rec
 func paintInputContent(canvas *ui.Canvas, theme ui.Theme, bounds, content ui.Rect, snapshot InputSnapshot, focused bool) {
 	style := snapshot.Text.style(&theme)
 	// A mono field is painted by the component whatever the snapshot says of the platform: the
-	// platform's text service cannot draw its face, so its text and overlays are hidden.
-	selfPainted := snapshot.Text.Mono
-	if selfPainted {
+	// platform's text service cannot draw its face, so its text and overlays are hidden. A
+	// field that asked to hide the editor's text is painted by the component too, and the
+	// platform keeps only typing, the input method and the clipboard.
+	selfPainted := snapshot.Text.Mono || snapshot.HideEditorText
+	if snapshot.HideEditorText {
+		snapshot.PlatformEditing = false
+	}
+	if snapshot.Text.Mono {
 		snapshot.PlatformEditing = false
 		snapshot.ShowCaret = focused
-		if focused && snapshot.Blink != nil {
-			snapshot.ShowCaret = snapshot.Blink.Lit(canvas, snapshot.Caret)
-		}
+	}
+	// A caret the component paints keeps its own blink phase, whether the field is fixed
+	// pitch or asked to hide the editor's text; the platform's caret is not drawn, so its
+	// blink would otherwise be gone.
+	if selfPainted && focused && snapshot.ShowCaret && snapshot.Blink != nil {
+		snapshot.ShowCaret = snapshot.Blink.Lit(canvas, snapshot.Caret)
 	}
 	if !snapshot.PlatformEditing && content.Width > 0 && content.Height > 0 {
 		inputPaintText(canvas, theme, content, snapshot, focused)

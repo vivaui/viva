@@ -38,16 +38,37 @@ type accessibilityDescription struct {
 
 func describeAccessibility(destination []accessibilityDescription, hits []ui.Hit, activeScope ui.ID) []accessibilityDescription {
 	destination = destination[:0]
+	// A label is not a node of its own: its words name the control with its
+	// identity, as <label for> names an input. Collect them first so the control
+	// is described once, with that name, instead of being replaced by a label
+	// node and then by itself on every frame.
+	var names map[ui.ID]string
+	for index := range hits {
+		label := &hits[index]
+		if !label.IsLabel || label.ID.IsZero() {
+			continue
+		}
+		if names == nil {
+			names = make(map[ui.ID]string, 4)
+		}
+		if _, exists := names[label.ID]; !exists {
+			names[label.ID] = label.Label
+		}
+	}
 	for _, hit := range hits {
-		if hit.Block || hit.MovesWindow {
-			continue // an occluder or a move region, not a target
+		if hit.Block || hit.MovesWindow || hit.IsLabel {
+			continue // an occluder, a move region, or a label of another node
+		}
+		label := hit.Label
+		if name, ok := names[hit.ID]; ok {
+			label = name
 		}
 		destination = append(destination, accessibilityDescription{
 			ID:        hit.ID,
 			DOMID:     accessibilityDOMID(hit.ID),
 			Element:   accessibilityElement(hit.Role, hit.Multiline, hit.Range.Set),
 			Role:      accessibilityRole(hit.Role),
-			Label:     hit.Label,
+			Label:     label,
 			Value:     hit.Value,
 			Hint:      hit.Hint,
 			Disabled:  hit.Disabled,

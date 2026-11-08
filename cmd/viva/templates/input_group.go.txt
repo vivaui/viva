@@ -107,10 +107,15 @@ type InputGroupSnapshot struct {
 	Invalid      bool
 	// Secure makes a single-line control a password field, as for
 	// InputSnapshot.Secure.
-	Secure           bool
-	Focused          bool
-	Multiline        bool
-	NativeEditing    bool
+	Secure        bool
+	Focused       bool
+	Multiline     bool
+	NativeEditing bool
+	// HideEditorText makes the platform editor behind a focused control invisible and the
+	// component paint the text, selection, composition and caret itself; the editor is only
+	// where input arrives (give Caret, SelectionStart/End and CompositionStart/End, and set
+	// ShowCaret while the control is focused). See InputSnapshot.HideEditorText.
+	HideEditorText   bool
 	NavigationKeys   bool
 	ShowCaret        bool
 	Caret            int
@@ -211,7 +216,7 @@ func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot
 	inputGroupPaintSlot(canvas, theme, layout.InlineEnd, snapshot.InlineEnd, false, false, snapshot.Disabled)
 	content := inputGroupContent(theme, layout.Control, snapshot.Multiline,
 		snapshot.InlineStart.Kind != InputGroupSlotNone, snapshot.InlineEnd.Kind != InputGroupSlotNone)
-	if !snapshot.NativeEditing && content.Width > 0 && content.Height > 0 {
+	if (!snapshot.NativeEditing || snapshot.HideEditorText) && content.Width > 0 && content.Height > 0 {
 		inputGroupPaintControl(canvas, theme, content, snapshot, focused)
 	}
 
@@ -224,12 +229,17 @@ func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot
 			lineTop, lineHeight := inputLineBox(content, theme.Metrics.FontSizeM)
 			textBounds = ui.Rect{X: content.X, Y: lineTop, Width: content.Width, Height: lineHeight}
 		}
-		canvas.HitWithOptions(snapshot.ID, layout.Control, snapshot.Label, ui.HitOptions{
+		options := ui.HitOptions{
 			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: snapshot.Multiline, Secure: snapshot.Secure,
 			NavigationKeys: snapshot.NavigationKeys,
 			TextBounds:     textBounds, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
-		})
+		}
+		if snapshot.HideEditorText {
+			options.TextColor = ui.Color{}
+			options.HideNativeOverlays = true
+		}
+		canvas.HitWithOptions(snapshot.ID, layout.Control, snapshot.Label, options)
 	}
 	return layout
 }

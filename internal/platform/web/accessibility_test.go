@@ -115,3 +115,19 @@ func TestDescribeAccessibilityCarriesStructureAndRange(t *testing.T) {
 		t.Fatalf("description = %+v", description)
 	}
 }
+
+// A label is not a node of its own: it names the control with its identity, so
+// the mirror must describe one stable node for both, not replace the control
+// with a label node and back on every frame (which would tear down any editor
+// attached to it).
+func TestDescribeAccessibilityNamesTheControlWithItsLabel(t *testing.T) {
+	label := ui.Hit{ID: ui.Item(7), Label: "Username", IsLabel: true}
+	control := ui.Hit{ID: ui.Item(7), Role: ui.RoleTextField, Value: "gopher"}
+	got := describeAccessibility(nil, []ui.Hit{label, control}, ui.ID{})
+	if len(got) != 1 {
+		t.Fatalf("descriptions = %d, want only the control: %+v", len(got), got)
+	}
+	if got[0].Role != "textbox" || got[0].Label != "Username" || got[0].Value != "gopher" {
+		t.Fatalf("control description = %+v", got[0])
+	}
+}

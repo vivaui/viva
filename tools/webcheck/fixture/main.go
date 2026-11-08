@@ -85,14 +85,22 @@ func (f *fixture) paint(canvas *ui.Canvas, size ui.Size) {
 	slider(f.level).ValueText(fmt.Sprintf("%.0f", f.level)).Paint("Level")
 
 	// A real editable field, wired to the browser text service the same way
-	// flex.Fields is: the platform edits the Go-owned editor and publishes its
-	// value through the same ARIA mirror a screen reader reads.
+	// flex.Fields is: the browser edits the Go-owned editor and publishes its
+	// value through the same ARIA mirror a screen reader reads, while the
+	// component paints the line (HideEditorText) so both states share one line.
 	value := f.editor.String()
 	focused := canvas.Focused() == editorID
-	components.PaintInput(canvas, theme, editorRect, components.InputSnapshot{
+	selection := f.editor.Selection()
+	snapshot := components.InputSnapshot{
 		ID: editorID, Label: "Name", Value: value, Placeholder: "Name",
-		Focused: focused, PlatformEditing: focused,
-	})
+		Focused: focused, HideEditorText: true, ShowCaret: focused && selection.Start == selection.End,
+	}
+	snapshot.Caret = f.editor.ByteOffset(f.editor.Caret())
+	snapshot.SelectionStart, snapshot.SelectionEnd = f.editor.ByteOffset(selection.Start), f.editor.ByteOffset(selection.End)
+	if marked, composing := f.editor.Composition(); composing {
+		snapshot.CompositionStart, snapshot.CompositionEnd = f.editor.ByteOffset(marked.Start), f.editor.ByteOffset(marked.End)
+	}
+	components.PaintInput(canvas, theme, editorRect, snapshot)
 	canvas.HitWithOptions(statusID, statusRect, "Editor status", ui.HitOptions{
 		Role: ui.RoleStatus, SkipFocus: true, Live: ui.LivePolite,
 		Value: "Text: " + value,

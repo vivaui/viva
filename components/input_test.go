@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vivaui/viva/ui"
 )
@@ -111,6 +112,70 @@ func TestInputPlatformEditingLeavesTextToPlatformService(t *testing.T) {
 	}
 	if hits := canvas.Hits(); len(hits) != 1 || hits[0].Value != "hello@viva.dev" {
 		t.Fatalf("native editing semantics = %+v", hits)
+	}
+}
+
+// HideEditorText keeps the platform's text and overlays invisible and paints
+// the field from the same values a platform-independent field would: the line
+// cannot differ between the two renderers because there is only one.
+func TestInputCanHideThePlatformEditorAndPaintItsOwnText(t *testing.T) {
+	theme := ui.LightTheme()
+	paint := func(snapshot InputSnapshot) (*ui.Canvas, ui.Hit) {
+		var canvas ui.Canvas
+		canvas.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(4), false)
+		snapshot.ID = ui.Item(4)
+		PaintInput(&canvas, theme, ui.Rect{Width: 220}, snapshot)
+		hits := canvas.Hits()
+		if len(hits) != 1 {
+			t.Fatalf("%d hits", len(hits))
+		}
+		return &canvas, hits[0]
+	}
+	_, shown := paint(InputSnapshot{Value: "hi", PlatformEditing: true})
+	if shown.TextColor.Alpha == 0 {
+		t.Fatal("the platform's text is invisible by default")
+	}
+	canvas, hidden := paint(InputSnapshot{
+		Value: "hi", PlatformEditing: true, HideEditorText: true, ShowCaret: true, Caret: 2,
+	})
+	if hidden.TextColor.Alpha != 0 {
+		t.Errorf("HideEditorText left the platform's text visible: %+v", hidden.TextColor)
+	}
+	if !hidden.HideNativeOverlays {
+		t.Error("HideEditorText did not hide the platform caret and selection")
+	}
+	if len(canvas.Texts()) == 0 {
+		t.Error("the component did not paint the text it hid from the platform")
+	}
+}
+
+// A caret the component paints must keep the blink phase it would have had the
+// platform draw it: the platform's caret is hidden, so nothing else blinks.
+func TestInputHiddenEditorCaretBlinks(t *testing.T) {
+	theme := ui.LightTheme()
+	var canvas ui.Canvas
+	now := time.Duration(0)
+	canvas.SetClock(func() time.Duration { return now })
+	var blink CaretBlink
+	snapshot := InputSnapshot{
+		ID: ui.Item(4), Label: "Name", Value: "Gopher", HideEditorText: true,
+		ShowCaret: true, Caret: 2, Blink: &blink,
+	}
+	paint := func() int {
+		canvas.Reset()
+		canvas.BeginFrame()
+		canvas.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(4), false)
+		PaintInput(&canvas, theme, ui.Rect{Width: 200}, snapshot)
+		return len(canvas.Rectangles())
+	}
+	lit := paint()
+	now = CaretBlinkHalf + time.Millisecond
+	if dark := paint(); dark != lit-1 {
+		t.Fatalf("the dark phase painted %d rectangles, want one fewer than the %d of the lit phase", dark, lit)
+	}
+	now = 2*CaretBlinkHalf + time.Millisecond
+	if again := paint(); again != lit {
+		t.Fatalf("the next lit phase painted %d rectangles, want %d", again, lit)
 	}
 }
 

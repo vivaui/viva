@@ -77,15 +77,19 @@ func (field *Field) snapshot(f *Frame, id ui.ID, label, placeholder string) comp
 	selection := editor.Selection()
 	snapshot := components.InputSnapshot{
 		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure,
-		Focused:         focused,
-		PlatformEditing: focused && value != "",
-		ShowCaret:       focused && value == "",
-		Blink:           &field.blink,
+		Focused: focused,
+		// The field paints its own text, caret, selection and composition, and the
+		// platform's editor is only where input arrives. A platform that lays text out
+		// with its own metrics can put the line a fraction of a pixel away from the
+		// canvas line, which moves the value when the field gains the keyboard.
+		HideEditorText: true,
+		Blink:          &field.blink,
 	}
 	// Where the caret, the selection and the composition are: what a field that paints them
 	// itself needs, and what the platform's own presentation of them does without.
 	snapshot.Caret = editor.ByteOffset(editor.Caret())
 	snapshot.SelectionStart, snapshot.SelectionEnd = editor.ByteOffset(selection.Start), editor.ByteOffset(selection.End)
+	snapshot.ShowCaret = focused && selection.Start == selection.End
 	if marked, ok := editor.Composition(); ok {
 		snapshot.CompositionStart, snapshot.CompositionEnd = editor.ByteOffset(marked.Start), editor.ByteOffset(marked.End)
 	}

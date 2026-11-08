@@ -194,6 +194,15 @@ async function run(name, url) {
     }, canceled);
     await waitText('[role=status]', 'Text: typed日本!', 'canceling a composition removes its marked text');
 
+    // A cut empties the value through an input event whose result is the empty
+    // string. The host silences the input event that follows an IME commit, and
+    // must not mistake an emptied field for that silenced one.
+    const chord = process.platform === 'darwin' ? 'Meta' : 'Control';
+    await page.keyboard.press(`${chord}+A`);
+    await page.keyboard.press(`${chord}+X`);
+    await waitText('[role=status]', 'Text: ', 'cutting the selection reaches the Go-owned editor');
+    await waitValue('input[aria-label="Name"]', '', 'the browser mirrors the cut value');
+
     await page.mouse.click(310, 40);
     await waitLabel('[role=button][aria-label^="Menu:"]', 'Menu: true', 'the menu opened');
     await page.waitForSelector('[role=group][aria-label="Dismiss"]');
