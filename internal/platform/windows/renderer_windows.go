@@ -10,6 +10,7 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
+	"github.com/vivaui/viva/ui"
 )
 
 // rectangleInstance is one instance: bounds, color and style, then a triangle's
@@ -132,6 +133,12 @@ type renderer struct {
 	rectangleBatches                                             []render.Batch
 	labels                                                       []labelTexture
 	labelOrder                                                   []int
+	labelFrame                                                   []int // slot of each label in the last frame's order
+	labelNextFrame                                               []int
+	labelIdentities                                              map[ui.TextIdentity]int
+	labelNextIdentities                                          map[ui.TextIdentity]int
+	labelUsed                                                    []bool
+	labelFree                                                    []int
 	compositingBatches                                           []compositingBatch
 	color                                                        platform.Color
 	capacity, width, height                                      int
@@ -143,11 +150,8 @@ var textureIID = guid{0x6f15aaf2, 0xd208, 0x4e89, [8]byte{0x9a, 0xb4, 0x48, 0x95
 
 func initialUpdate(count int) render.Update { return render.Update{Count: count, Rebuild: true} }
 
-func groupTextLayers(labels []labelTexture, order []int) []int {
-	order = order[:0]
-	for index := range labels {
-		order = append(order, index)
-	}
+func groupTextLayers(labels []labelTexture, frameOrder, order []int) []int {
+	order = append(order[:0], frameOrder...)
 	slices.SortStableFunc(order, func(left, right int) int {
 		return int(labels[left].label.Layer) - int(labels[right].label.Layer)
 	})
@@ -340,24 +344,84 @@ func (renderer *renderer) apply(frame platform.Frame) error {
 		}
 	}
 	if frame.TextLabels != nil {
-		for index := len(frame.TextLabels); index < len(renderer.labels); index++ {
-			renderer.labels[index].close()
-		}
-		if len(frame.TextLabels) > cap(renderer.labels) {
-			renderer.labels = append(renderer.labels, make([]labelTexture, len(frame.TextLabels)-len(renderer.labels))...)
-		} else {
-			renderer.labels = renderer.labels[:len(frame.TextLabels)]
-		}
-		for index, label := range frame.TextLabels {
-			renderer.labels[index].update(label)
-		}
-		renderer.labelOrder = groupTextLayers(renderer.labels, renderer.labelOrder)
+		renderer.storeLabels(frame.TextLabels)
 		compositingChanged = true
 	}
 	if compositingChanged {
 		renderer.compositingBatches = groupCompositingLayers(renderer.rectangleBatches, renderer.labels, renderer.labelOrder, renderer.compositingBatches)
 	}
 	return nil
+}
+
+// storeLabels updates the retained text pictures for one frame. A label with a
+// stable identity keeps its slot when it moves in the paint list, so scrolling
+// a terminal reuses every row that stays visible instead of rasterizing the
+// whole screen again. Labels without an identity keep the old positional match.
+// Slots no label uses this frame are closed and made available to later labels.
+func (renderer *renderer) storeLabels(labels []platform.TextLabel) {
+	if len(renderer.labelUsed) < len(renderer.labels) {
+		renderer.labelUsed = append(renderer.labelUsed, make([]bool, len(renderer.labels)-len(renderer.labelUsed))...)
+	} else {
+		renderer.labelUsed = renderer.labelUsed[:len(renderer.labels)]
+	}
+	clear(renderer.labelUsed)
+	if renderer.labelIdentities == nil {
+		renderer.labelIdentities = make(map[ui.TextIdentity]int)
+		renderer.labelNextIdentities = make(map[ui.TextIdentity]int)
+	}
+	clear(renderer.labelNextIdentities)
+	renderer.labelNextFrame = renderer.labelNextFrame[:0]
+	for index, label := range labels {
+		slot := -1
+		if !label.Identity.IsZero() {
+			if previous, ok := renderer.labelIdentities[label.Identity]; ok && !renderer.labelUsed[previous] && renderer.labels[previous].label.Identity == label.Identity {
+				slot = previous
+			}
+		} else if index < len(renderer.labelFrame) {
+			// A label with no identity may still occupy the same place in the
+			// frame as it did last time, which is the old reuse rule.
+			previous := renderer.labelFrame[index]
+			if previous >= 0 && !renderer.labelUsed[previous] && renderer.labels[previous].label.Identity.IsZero() {
+				slot = previous
+			}
+		}
+		if slot < 0 {
+			slot = renderer.newLabelSlot()
+		}
+		renderer.labels[slot].update(label)
+		renderer.labelUsed[slot] = true
+		renderer.labelNextFrame = append(renderer.labelNextFrame, slot)
+		if !label.Identity.IsZero() {
+			if _, duplicate := renderer.labelNextIdentities[label.Identity]; !duplicate {
+				renderer.labelNextIdentities[label.Identity] = slot
+			}
+		}
+	}
+	renderer.labelFree = renderer.labelFree[:0]
+	for slot := range renderer.labels {
+		if !renderer.labelUsed[slot] {
+			renderer.labels[slot].close()
+			renderer.labelFree = append(renderer.labelFree, slot)
+		}
+	}
+	renderer.labelFrame, renderer.labelNextFrame = renderer.labelNextFrame, renderer.labelFrame
+	renderer.labelIdentities, renderer.labelNextIdentities = renderer.labelNextIdentities, renderer.labelIdentities
+	clear(renderer.labelNextIdentities)
+	renderer.labelOrder = groupTextLayers(renderer.labels, renderer.labelFrame, renderer.labelOrder)
+}
+
+// newLabelSlot returns a label slot no label in this frame uses: a closed one
+// from the free list, or a new one.
+func (renderer *renderer) newLabelSlot() int {
+	if count := len(renderer.labelFree); count > 0 {
+		slot := renderer.labelFree[count-1]
+		renderer.labelFree = renderer.labelFree[:count-1]
+		return slot
+	}
+	slot := len(renderer.labels)
+	renderer.labels = append(renderer.labels, labelTexture{})
+	renderer.labelUsed = append(renderer.labelUsed, false)
+	return slot
 }
 
 // growInstanceBuffer replaces the GPU buffer of rectangle instances by one that
@@ -563,6 +627,12 @@ func (renderer *renderer) close() {
 	}
 	renderer.labels = nil
 	renderer.labelOrder = nil
+	renderer.labelFrame = nil
+	renderer.labelNextFrame = nil
+	renderer.labelIdentities = nil
+	renderer.labelNextIdentities = nil
+	renderer.labelUsed = nil
+	renderer.labelFree = nil
 	renderer.instances = nil
 	renderer.rectangleClips = nil
 	renderer.rectangleBatches = nil

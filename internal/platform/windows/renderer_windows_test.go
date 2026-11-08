@@ -159,7 +159,8 @@ func TestGroupTextLayersStable(t *testing.T) {
 		{label: platform.TextLabel{Value: "layer one", Layer: 1}},
 		{label: platform.TextLabel{Value: "second layer zero", Layer: 0}},
 	}
-	got := groupTextLayers(labels, nil)
+	frame := []int{0, 1, 2, 3, 4}
+	got := groupTextLayers(labels, frame, nil)
 	want := []int{1, 4, 3, 0, 2}
 	for index := range want {
 		if got[index] != want[index] {
@@ -176,7 +177,7 @@ func TestGroupCompositingLayersInterleavesByLayer(t *testing.T) {
 		{label: platform.TextLabel{Value: "layer two", Layer: 2}},
 		{label: platform.TextLabel{Value: "second layer zero", Layer: 0}},
 	}
-	order := groupTextLayers(labels, nil)
+	order := groupTextLayers(labels, []int{0, 1, 2, 3}, nil)
 	got := groupCompositingLayers(rectangles, labels, order, nil)
 	want := []compositingBatch{
 		{Kind: compositeRectangles, Layer: 0, First: 1, Count: 1},
@@ -197,18 +198,115 @@ func TestGroupCompositingLayersInterleavesByLayer(t *testing.T) {
 	}
 }
 
-func TestRendererTruncatesLabelState(t *testing.T) {
+func TestRendererClosesLabelsRemovedFromTheFrame(t *testing.T) {
 	renderer := renderer{labels: []labelTexture{{label: platform.TextLabel{Value: "retained"}}, {label: platform.TextLabel{Value: "removed"}}}}
 	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{}}); err != nil {
 		t.Fatal(err)
 	}
-	if len(renderer.labels) != 0 {
-		t.Fatal("empty label update did not clear labels")
-	}
-	for _, label := range renderer.labels[:cap(renderer.labels)] {
+	for _, label := range renderer.labels {
 		if label.label.Value != "" {
 			t.Fatal("removed text retained by backing array")
 		}
+	}
+	if len(renderer.labelFree) != len(renderer.labels) {
+		t.Fatalf("free slots = %d, want all %d", len(renderer.labelFree), len(renderer.labels))
+	}
+}
+
+func TestRendererReusesAMovedLabelByIdentity(t *testing.T) {
+	first := platform.TextLabel{Value: "first", Width: 30, Height: 10, Identity: ui.TextIdentity{Owner: 1, Item: 11}}
+	second := platform.TextLabel{Value: "second", Y: 10, Width: 30, Height: 10, Identity: ui.TextIdentity{Owner: 1, Item: 12}}
+	var renderer renderer
+	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{first, second}}); err != nil {
+		t.Fatal(err)
+	}
+	firstSlot, secondSlot := renderer.labelFrame[0], renderer.labelFrame[1]
+	renderer.labels[firstSlot].stale = false
+	renderer.labels[secondSlot].stale = false
+
+	// The screen scrolled: the second row is now at the top.
+	movedSecond, movedFirst := second, first
+	movedSecond.Y, movedFirst.Y = 0, 10
+	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{movedSecond, movedFirst}}); err != nil {
+		t.Fatal(err)
+	}
+	if renderer.labelFrame[0] != secondSlot || renderer.labelFrame[1] != firstSlot {
+		t.Fatalf("slots after the move = %v, want %d then %d", renderer.labelFrame, secondSlot, firstSlot)
+	}
+	if renderer.labels[secondSlot].stale || renderer.labels[firstSlot].stale {
+		t.Fatal("a moved label was marked for rasterization")
+	}
+}
+
+func TestRendererDoesNotShareTexturesAcrossOwners(t *testing.T) {
+	first := platform.TextLabel{Value: "same", Width: 30, Height: 10, Identity: ui.TextIdentity{Owner: 1, Item: 7}}
+	other := platform.TextLabel{Value: "same", Width: 30, Height: 10, Identity: ui.TextIdentity{Owner: 2, Item: 7}}
+	var renderer renderer
+	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{first}}); err != nil {
+		t.Fatal(err)
+	}
+	firstSlot := renderer.labelFrame[0]
+	renderer.labels[firstSlot].stale = false
+	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{other}}); err != nil {
+		t.Fatal(err)
+	}
+	if renderer.labelFrame[0] == firstSlot {
+		t.Fatal("the same item number under another owner reused the texture")
+	}
+	otherSlot := renderer.labelFrame[0]
+	renderer.labels[otherSlot].stale = false
+	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{other}}); err != nil {
+		t.Fatal(err)
+	}
+	if renderer.labelFrame[0] != otherSlot || renderer.labels[otherSlot].stale {
+		t.Fatal("an unchanged identity did not keep its texture")
+	}
+}
+
+func TestRendererKeepsThePositionalMatchWithoutIdentity(t *testing.T) {
+	first := platform.TextLabel{Value: "first", Width: 30, Height: 10}
+	second := platform.TextLabel{Value: "second", Y: 10, Width: 30, Height: 10}
+	var renderer renderer
+	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{first, second}}); err != nil {
+		t.Fatal(err)
+	}
+	slots := append([]int(nil), renderer.labelFrame...)
+	renderer.labels[slots[0]].stale = false
+	renderer.labels[slots[1]].stale = false
+
+	// No identity means the frame index, as before: the slots stay put and the
+	// content comparison alone decides whether the textures are still valid.
+	first.Value, second.Value = "first changed", "second changed"
+	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{first, second}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(renderer.labelFrame) != len(slots) {
+		t.Fatalf("positional slots = %v, want %v", renderer.labelFrame, slots)
+	}
+	for index := range slots {
+		if renderer.labelFrame[index] != slots[index] {
+			t.Fatalf("positional slots = %v, want %v", renderer.labelFrame, slots)
+		}
+	}
+	if !renderer.labels[slots[0]].stale || !renderer.labels[slots[1]].stale {
+		t.Fatal("changed content at the same position was not marked stale")
+	}
+}
+
+func TestRendererRedrawsChangedContentUnderOneIdentity(t *testing.T) {
+	label := platform.TextLabel{Value: "before", Width: 30, Height: 10, Identity: ui.TextIdentity{Owner: 1, Item: 7}}
+	var renderer renderer
+	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{label}}); err != nil {
+		t.Fatal(err)
+	}
+	slot := renderer.labelFrame[0]
+	renderer.labels[slot].stale = false
+	label.Value = "after"
+	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{label}}); err != nil {
+		t.Fatal(err)
+	}
+	if renderer.labelFrame[0] != slot || !renderer.labels[slot].stale {
+		t.Fatal("changed content under one identity kept the old texture")
 	}
 }
 

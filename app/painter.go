@@ -1967,8 +1967,9 @@ func (painter *painter) syncLabels() {
 		// Integer logical-pixel bounds keep the texture exactly one texel per
 		// physical pixel so linear sampling stays crisp on scaled displays.
 		entry := platform.TextLabel{
-			Value: label.Value,
-			X:     float32(roundPixel(label.Bounds.X)), Y: float32(roundPixel(label.Bounds.Y)),
+			Value:    label.Value,
+			Identity: label.Identity,
+			X:        float32(roundPixel(label.Bounds.X)), Y: float32(roundPixel(label.Bounds.Y)),
 			Width: float32(width), Height: float32(height),
 			OriginX: roundingRemainder(label.Bounds.X), OriginY: roundingRemainder(label.Bounds.Y),
 			FontSize: label.Style.Size, Weight: label.Style.Weight, Italic: label.Style.Italic,
@@ -2180,7 +2181,7 @@ func (painter *painter) sameAsLastContent() bool {
 	}
 	for index := range left {
 		a, b := left[index], right[index]
-		if a.Value != b.Value || a.Style != b.Style || a.Layer != b.Layer {
+		if a.Value != b.Value || a.Style != b.Style || a.Identity != b.Identity || a.Layer != b.Layer {
 			return false
 		}
 		if a.Bounds != b.Bounds || a.CellWidth != b.CellWidth || a.RunCount != b.RunCount {

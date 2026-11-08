@@ -151,7 +151,7 @@ func TestWorkerProtocolPaintStateAndDeferredClose(t *testing.T) {
 func TestCanvasCodecPreservesGridLines(t *testing.T) {
 	var canvas ui.Canvas
 	canvas.Label("plain", ui.Rect{Width: 50, Height: 14}, ui.TextStyle{Size: 12})
-	canvas.LabelRuns("ls 世界", ui.Rect{Y: 20, Width: 70, Height: 15}, ui.TextStyle{Size: 13, MonoFace: ui.MonoClassic}, 7.5, []ui.TextRun{
+	canvas.LabelRunsWithIdentity(ui.TextIdentity{Owner: 4, Item: 21}, "ls 世界", ui.Rect{Y: 20, Width: 70, Height: 15}, ui.TextStyle{Size: 13, MonoFace: ui.MonoClassic}, 7.5, []ui.TextRun{
 		{Column: 0, Bytes: 2, Cells: 2, Color: ui.Color{Green: 0.8, Alpha: 1}, Weight: 0.4},
 		{Column: 3, Bytes: 3, Cells: 2, Color: ui.Color{Red: 1, Alpha: 1}, Italic: true, Underline: true, Strike: true},
 	})

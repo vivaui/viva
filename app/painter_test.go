@@ -1931,11 +1931,12 @@ func TestGridLinesPublishOnlyWhenTheirRunsChange(t *testing.T) {
 	color := ui.Color{Red: 1, Alpha: 1}
 	runs := []ui.TextRun{{Bytes: 2, Cells: 2, Color: color}}
 	style := ui.TextStyle{Size: 12}
+	identity := ui.TextIdentity{Owner: 2, Item: 3}
 	config := Config{Title: "grid", Width: 100, Height: 100}
 	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
 		// The application edits one buffer in place between paints, as a
 		// terminal view does.
-		canvas.LabelRuns("ab", ui.Rect{X: 2, Y: 2, Width: 14, Height: 12}, style, 7, runs)
+		canvas.LabelRunsWithIdentity(identity, "ab", ui.Rect{X: 2, Y: 2, Width: 14, Height: 12}, style, 7, runs)
 	}
 	painter := newTestPainter(t, &canvas, config)
 
@@ -1953,7 +1954,7 @@ func TestGridLinesPublishOnlyWhenTheirRunsChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(frame.TextLabels) != 1 || !frame.TextLabels[0].Mono || frame.TextLabels[0].CellWidth != 7 ||
-		len(frame.TextLabels[0].Runs) != 1 || frame.TextLabels[0].Runs[0].Color.Green != 1 {
+		len(frame.TextLabels[0].Runs) != 1 || frame.TextLabels[0].Runs[0].Color.Green != 1 || frame.TextLabels[0].Identity != identity {
 		t.Fatalf("a recolored run was not published: %+v", frame.TextLabels)
 	}
 
@@ -1981,6 +1982,15 @@ func TestGridLinesPublishOnlyWhenTheirRunsChange(t *testing.T) {
 	}
 	if len(frame.TextLabels) != 1 || len(frame.TextLabels[0].Runs) != 2 {
 		t.Fatalf("splitting a run was not published: %+v", frame.TextLabels)
+	}
+
+	identity = ui.TextIdentity{Owner: 2, Item: 4}
+	frame, err = painter.resize(size(100, 100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(frame.TextLabels) != 1 || frame.TextLabels[0].Identity != identity {
+		t.Fatalf("a changed identity was not published: %+v", frame.TextLabels)
 	}
 }
 
