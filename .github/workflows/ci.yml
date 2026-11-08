@@ -298,6 +298,23 @@ jobs:
       - name: Minimized windows keep their visible frame
         run: go test ./internal/platform/windows -run '^TestMinimizedPaintKeepsTheVisibleSwapChain$' -count=1 -v
 
+  # Cross-vet does not exercise the Windows ARM64 calling convention.
+  windows-arm64-text:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          architecture: arm64
+          cache: true
+      - name: Native ARM64 Direct2D text origins
+        run: |
+          if ((go env GOARCH) -ne 'arm64') { throw 'Expected native ARM64 Go' }
+          go test ./internal/platform/windows -run '^TestDirectTextLayoutOriginByValue$' -count=1 -v
+
   # A noise-tolerant benchmark regression gate for the pure-Go paths: the base
   # revision and the pull request run the same benchmarks on the same runner,
   # and a slowdown above benchmarks/history.sh's threshold (15% and at least
@@ -333,7 +350,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, cross-vet, web, web-browser, test, darwin, windows-materials, benchmarks]
+    needs: [changes, lint, cross-vet, web, web-browser, test, darwin, windows-materials, windows-arm64-text, benchmarks]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed
