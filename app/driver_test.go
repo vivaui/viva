@@ -190,9 +190,19 @@ func TestDriverEditsAFocusedTextFieldThroughTheTextSystem(t *testing.T) {
 	if snapshot.Editor == nil || snapshot.Editor.Value != "hello world" || snapshot.Editor.FontSize != theme.Metrics.FontSizeM {
 		t.Fatalf("editor overlay = %+v", snapshot.Editor)
 	}
-	// The overlay sits where the field painted its own text.
-	if want := (ui.Rect{X: 21, Y: 10, Width: 178, Height: 30}); snapshot.Editor.Bounds != want {
-		t.Fatalf("editor bounds = %+v, want %+v", snapshot.Editor.Bounds, want)
+	// The overlay sits on the text line the field declared, inside the control.
+	var field ui.Hit
+	for _, hit := range snapshot.Hits {
+		if hit.ID == ui.Item(5) {
+			field = hit
+			break
+		}
+	}
+	if field.TextBounds == (ui.Rect{}) || !containsRect(field.Bounds, field.TextBounds) {
+		t.Fatalf("field declared no text line inside its control: %+v", field)
+	}
+	if snapshot.Editor.Bounds != field.TextBounds {
+		t.Fatalf("editor bounds = %+v, text line = %+v", snapshot.Editor.Bounds, field.TextBounds)
 	}
 
 	// Editing keys reach the text system, not the application.
