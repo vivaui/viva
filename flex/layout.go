@@ -140,13 +140,21 @@ func (f *Frame) measureLeafIn(n *node) {
 			width += f.canvas.TextWidthWeight(option.Label, f.theme.Metrics.FontSizeM, ui.WeightMedium) + 28
 		}
 		n.pref = [2]float32{width, f.theme.Metrics.ControlHeight}
-	case kindInput, kindInputGroup:
+	case kindInput:
+		n.pref = [2]float32{n.padX(), f.inputLine(n) + n.padY()}
+		if n.flags&flagThemed != 0 {
+			n.pref = [2]float32{0, f.theme.Metrics.ControlHeight}
+		}
+	case kindInputGroup:
 		n.pref = [2]float32{0, f.theme.Metrics.ControlHeight}
 		if n.kind == kindInputGroup && f.groups[n.aux].Multiline {
 			n.pref[axisY] = 64
 		}
 	case kindTextarea:
-		n.pref = [2]float32{0, 64}
+		n.pref = [2]float32{n.padX(), f.theme.Metrics.FontSizeM + 7 + n.padY()}
+		if n.flags&flagThemed != 0 {
+			n.pref = [2]float32{0, 64}
+		}
 	case kindTable, kindTabs, kindSelect:
 		f.measureWidget(n)
 	case kindProgress:
@@ -244,6 +252,7 @@ func (f *Frame) solve(i int32, axis int) {
 	case n.dir == grid:
 		f.solveGrid(n, axis, start, avail)
 	case n.flows(axis):
+		f.placeSplitRatios(n, axis, avail)
 		f.solveFlow(n, axis, start, avail)
 	default:
 		f.solveAcross(n, axis, start, avail)

@@ -107,10 +107,15 @@ type InputGroupSnapshot struct {
 	Invalid      bool
 	// Secure makes a single-line control a password field, as for
 	// InputSnapshot.Secure.
-	Secure           bool
-	Focused          bool
-	Multiline        bool
-	NativeEditing    bool
+	Secure        bool
+	Focused       bool
+	Multiline     bool
+	NativeEditing bool
+	// HideEditorText makes the platform editor behind a focused control invisible and the
+	// component paint the text, selection, composition and caret itself; the editor is only
+	// where input arrives (give Caret, SelectionStart/End and CompositionStart/End, and set
+	// ShowCaret while the control is focused). See InputSnapshot.HideEditorText.
+	HideEditorText   bool
 	NavigationKeys   bool
 	ShowCaret        bool
 	Caret            int
@@ -118,10 +123,13 @@ type InputGroupSnapshot struct {
 	SelectionEnd     int
 	CompositionStart int
 	CompositionEnd   int
-	InlineStart      InputGroupSlot
-	InlineEnd        InputGroupSlot
-	BlockStart       InputGroupSlot
-	BlockEnd         InputGroupSlot
+	// Blink is the phase of the caret the component paints for a single-line control;
+	// see InputSnapshot.Blink. A multi-line control paints its caret steady.
+	Blink       *CaretBlink
+	InlineStart InputGroupSlot
+	InlineEnd   InputGroupSlot
+	BlockStart  InputGroupSlot
+	BlockEnd    InputGroupSlot
 }
 
 // Semantics returns a normalized, allocation-free semantic snapshot for the
@@ -204,24 +212,37 @@ func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot
 	layout.Control = ui.Rect{X: row.X + startWidth, Y: row.Y, Width: inputGroupMax(0, row.Width-startWidth-endWidth), Height: row.Height}
 
 	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	inputGroupPaintSlot(canvas, theme, layout.BlockStart, snapshot.BlockStart, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.BlockEnd, snapshot.BlockEnd, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.InlineStart, snapshot.InlineStart, false, true, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.InlineEnd, snapshot.InlineEnd, false, false, snapshot.Disabled)
 	content := inputGroupContent(theme, layout.Control, snapshot.Multiline,
 		snapshot.InlineStart.Kind != InputGroupSlotNone, snapshot.InlineEnd.Kind != InputGroupSlotNone)
-	if !snapshot.NativeEditing && content.Width > 0 && content.Height > 0 {
+	if (!snapshot.NativeEditing || snapshot.HideEditorText) && content.Width > 0 && content.Height > 0 {
 		inputGroupPaintControl(canvas, theme, content, snapshot, focused)
 	}
 
 	if !snapshot.ID.IsZero() && layout.Control.Width > 0 {
-		canvas.HitWithOptions(snapshot.ID, layout.Control, snapshot.Label, ui.HitOptions{
+		// A single line is centered in the field's text band, where the caret and
+		// selection live. A multi-line value starts at the content's top, so its
+		// hit bounds are the whole content rectangle.
+		textBounds := content
+		if !snapshot.Multiline {
+			lineTop, lineHeight := inputLineBox(content, theme.Metrics.FontSizeM)
+			textBounds = ui.Rect{X: content.X, Y: lineTop, Width: content.Width, Height: lineHeight}
+		}
+		options := ui.HitOptions{
 			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: snapshot.Multiline, Secure: snapshot.Secure,
 			NavigationKeys: snapshot.NavigationKeys,
-			TextBounds:     content, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
-		})
+			TextBounds:     textBounds, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
+		}
+		if snapshot.HideEditorText {
+			options.TextColor = ui.Color{}
+			options.HideNativeOverlays = true
+		}
+		canvas.HitWithOptions(snapshot.ID, layout.Control, snapshot.Label, options)
 	}
 	return layout
 }
@@ -467,9 +488,13 @@ func inputGroupPaintControl(canvas *ui.Canvas, theme ui.Theme, content ui.Rect, 
 		}, focused)
 		return
 	}
+	showCaret := snapshot.ShowCaret
+	if focused && showCaret && snapshot.Blink != nil {
+		showCaret = snapshot.Blink.Lit(canvas, snapshot.Caret)
+	}
 	inputPaintText(canvas, theme, content, InputSnapshot{
 		Value: snapshot.Value, DisplayValue: snapshot.DisplayValue, Placeholder: snapshot.Placeholder,
-		Disabled: snapshot.Disabled, Secure: snapshot.Secure, ShowCaret: snapshot.ShowCaret, Caret: snapshot.Caret,
+		Disabled: snapshot.Disabled, Secure: snapshot.Secure, ShowCaret: showCaret, Caret: snapshot.Caret,
 		SelectionStart: snapshot.SelectionStart, SelectionEnd: snapshot.SelectionEnd,
 		CompositionStart: snapshot.CompositionStart, CompositionEnd: snapshot.CompositionEnd,
 	}, focused)

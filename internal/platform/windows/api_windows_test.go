@@ -35,7 +35,7 @@ func TestNativeStructureABI(t *testing.T) {
 		{"D3D11_TEXTURE2D_DESC", unsafe.Sizeof(textureDesc{}), 44},
 		{"D3D11_SUBRESOURCE_DATA", unsafe.Sizeof(resourceData{}), 16},
 		{"D3D11_SHADER_RESOURCE_VIEW_DESC", unsafe.Sizeof(resourceViewDesc{}), 24},
-		{"DXGI_SWAP_CHAIN_DESC", unsafe.Sizeof(swapDesc{}), 72},
+		{"DXGI_SWAP_CHAIN_DESC1", unsafe.Sizeof(swapChainDesc1{}), 48},
 		{"D3D11_RENDER_TARGET_BLEND_DESC", unsafe.Sizeof(renderBlend{}), 32},
 		{"D3D11_BLEND_DESC", unsafe.Sizeof(blendDesc{}), 264},
 		{"D3D11_RASTERIZER_DESC", unsafe.Sizeof(rasterDesc{}), 40},
@@ -52,7 +52,7 @@ func TestNativeStructureABI(t *testing.T) {
 			t.Errorf("%s: size %d, want %d", layout.name, layout.size, layout.want)
 		}
 	}
-	if unsafe.Offsetof(swapDesc{}.Window) != 48 || unsafe.Offsetof(windowClass{}.Name) != 64 || unsafe.Offsetof(message{}.First) != 16 || unsafe.Offsetof(resourceData{}.Pitch) != 8 || unsafe.Offsetof(notifyIconData{}.Info) != 304 || unsafe.Offsetof(notifyIconData{}.BalloonIcon) != 968 {
+	if unsafe.Offsetof(swapChainDesc1{}.Scaling) != 32 || unsafe.Offsetof(windowClass{}.Name) != 64 || unsafe.Offsetof(message{}.First) != 16 || unsafe.Offsetof(resourceData{}.Pitch) != 8 || unsafe.Offsetof(notifyIconData{}.Info) != 304 || unsafe.Offsetof(notifyIconData{}.BalloonIcon) != 968 {
 		t.Fatal("native member alignment mismatch")
 	}
 	wantTextureIID := guid{0x6f15aaf2, 0xd208, 0x4e89, [8]byte{0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c}}

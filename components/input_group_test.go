@@ -45,6 +45,24 @@ func TestInputGroupTextareaState(t *testing.T) {
 	}
 }
 
+func TestInputGroupCanHideThePlatformEditorAndPaintItsOwnText(t *testing.T) {
+	var canvas ui.Canvas
+	PaintInputGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 220}, InputGroupSnapshot{
+		ID: ui.Item(5), Label: "Domain", Value: "viva.dev", NativeEditing: true,
+		HideEditorText: true, ShowCaret: true, Caret: 2,
+	})
+	hit := canvas.Hits()[0]
+	if hit.TextColor.Alpha != 0 {
+		t.Errorf("HideEditorText left the platform's text visible: %+v", hit.TextColor)
+	}
+	if !hit.HideNativeOverlays {
+		t.Error("HideEditorText did not hide the platform caret and selection")
+	}
+	if len(canvas.Texts()) == 0 {
+		t.Error("the component did not paint the text it hid from the platform")
+	}
+}
+
 func TestInputGroupTypedSemanticsAndCommands(t *testing.T) {
 	snapshot := InputGroupSnapshot{
 		ID: ui.Item(6), Label: "Message", Value: "A中B", DisplayValue: "A中B", Hint: "Body",

@@ -460,6 +460,22 @@ func (item *linuxStatusItem) handleMenu(call *dbus.Message) {
 		return
 	}
 	conn.Reply(call, result.Signature, result.Body)
+	if result.LayoutUpdated != 0 {
+		// A host that kept the ids of the last layout is told, the way the
+		// interface says, that the menu it is showing was rebuilt and that its
+		// ids no longer apply. The reply comes first, so a host that reads the
+		// layout in answer to this signal sees the build this call made.
+		var signal dbus.Encoder
+		signal.Uint32(result.LayoutUpdated)
+		signal.Int32(0)
+		conn.Emit(dbusmenu.Path, dbusmenu.Interface, "LayoutUpdated", "ui", signal.Bytes())
+	}
+	if len(result.ItemsUpdated) != 0 {
+		// The entries kept the ids the host holds; only what it draws changed.
+		// The host applies the properties where they are, and does not have to
+		// read the layout again to keep choosing entries by their ids.
+		conn.Emit(dbusmenu.Path, dbusmenu.Interface, "ItemsPropertiesUpdated", dbusmenu.ItemsUpdatedSignature, result.ItemsUpdated)
+	}
 }
 
 func (item *linuxStatusItem) handleMethod(call *dbus.Message) {

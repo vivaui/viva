@@ -155,7 +155,9 @@ type TextStyle struct {
 	Italic bool
 	Color  Color
 	// Mono selects the system fixed-pitch font instead of the proportional
-	// one. Every ASCII character then advances by Canvas.CellSize(Size).
+	// one and sets the line on its grid: every character stands on the cells of
+	// Canvas.MonoCellSize, a wide character on two and a combining mark on the
+	// cell of the character it follows (see Canvas.TextWidthStyle).
 	Mono     bool
 	MonoFace MonoFace
 	// Direction is the paragraph direction of the line. The zero value takes it from
@@ -229,9 +231,29 @@ type TextRun struct {
 	Ligatures bool
 }
 
+// TextIdentity names one text label across frames for backends that retain
+// rasterized text. Owner is a nonzero number for the application object that
+// owns the text, and Item is that owner's stable number for the label. Two
+// labels with the same pair name the same label even when they move in the
+// paint list; a label whose content changes keeps its identity and is redrawn
+// by content comparison. The zero value means no identity, which leaves
+// position-based matching in place.
+//
+// An identity is a rendering hint: a backend that drops it spends more work but
+// must draw the same pixels. Identities must be unique among the labels of one
+// frame.
+type TextIdentity struct {
+	Owner uint32
+	Item  uint64
+}
+
+// IsZero reports whether the identity is absent.
+func (identity TextIdentity) IsZero() bool { return identity.Owner == 0 }
+
 // Text is one immutable single-line label clipped like rectangles. A text
-// with RunCount > 0 is a fixed-pitch grid line (see LabelRuns); read its runs
-// with Canvas.TextRuns.
+// with RunCount > 0 is a fixed-pitch grid line (see LabelRuns), as is a Mono
+// label of a single direction (see LabelAligned); read its runs with
+// Canvas.TextRuns.
 type Text struct {
 	Value     string
 	Bounds    Rect
@@ -239,9 +261,12 @@ type Text struct {
 	CellWidth float32
 	RunFirst  int32
 	RunCount  int32
-	Layer     uint16
-	ClipOf    Rect
-	HasClip   bool
+	// Identity, when nonzero, names this label across frames so a backend can
+	// retain its texture when the paint list reorders. See TextIdentity.
+	Identity TextIdentity
+	Layer    uint16
+	ClipOf   Rect
+	HasClip  bool
 }
 
 // Bitmap is immutable premultiplied BGRA pixel data. Pixels are stored top
@@ -644,10 +669,11 @@ type Canvas struct {
 	cellMeasurer    func(size float32, face MonoFace) (width, height float32)
 	engine          TextEngine
 	aware           FontFamilyAware // engine, when it follows a family; nil otherwise
+	monoCells       MonoCellEngine  // engine, when it measures fixed-pitch cells; nil otherwise
 	// spans is what an engine writes a selection into. The engine is an interface, so
 	// a caller's own buffer passed to it would escape to the heap on every paint.
-	spans    []TextSpan
-	cellSize cellSizeMemo
+	spans     []TextSpan
+	cellSizes cellSizeMemos
 	// fits remembers the lines FitLine cut; a different measurement empties it.
 	fits    []fitEntry
 	hovered ID
@@ -706,7 +732,7 @@ func (canvas *Canvas) SetMeasurer(measure func(value string, size, weight float3
 // and tools.
 func (canvas *Canvas) SetCellMeasurer(measure func(size float32, face MonoFace) (width, height float32)) {
 	canvas.cellMeasurer = measure
-	canvas.cellSize = cellSizeMemo{}
+	canvas.cellSizes = cellSizeMemos{}
 }
 
 // CellSize is the size of one character cell of the fixed-pitch font at size,
@@ -716,14 +742,17 @@ func (canvas *Canvas) CellSize(size float32) (width, height float32) {
 	return canvas.MonoCellSize(size, MonoSystem)
 }
 
-// MonoCellSize is the cell size of face at size: 0.6 of the size wide and 1.18 high
-// on every platform, whatever the advance and line box of the font that draws the
-// characters (the platforms place each character on this grid, so a terminal has the
-// same columns and rows in the same window everywhere). On a canvas that knows the display
-// scale (SetPixelScale) the width is a whole number of device pixels, rounded to the nearest and
-// at least one, as a terminal's cells are on every platform: the edge between two cells is then a
-// pixel edge, so a glyph that fills its cell, such as a powerline arrow, ends where the next
-// cell's begins and no pixel column holds the glyphs of two cells drawn in two colors.
+// MonoCellSize is the cell size of face at size, in logical pixels: the advance of the
+// face's own font and the height of its line, as the platform's text engine measures them
+// (MonoCellEngine), so a terminal's characters stand on the pitch they were designed for
+// and rows are as tall as the font makes them, as in every native terminal. A canvas
+// without such an engine, or a cell measurer installed for a test (SetCellMeasurer),
+// answers with the reference cell: 0.6 of the size wide and 1.18 high. The height is a
+// whole number of pixels, so rows of cells tile without seams. On a canvas that knows
+// the display scale (SetPixelScale) the width is a whole number of device pixels, rounded
+// to the nearest and at least one: the edge between two cells is then a pixel edge, so a
+// glyph that fills its cell, such as a powerline arrow, ends where the next cell's begins
+// and no pixel column holds the glyphs of two cells drawn in two colors.
 func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height float32) {
 	if size <= 0 {
 		return 0, 0
@@ -731,30 +760,61 @@ func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height f
 	if !validMonoFace(face) {
 		face = MonoSystem
 	}
-	if memo := canvas.cellSize; memo.size == size && memo.face == face && memo.scale == canvas.pixelScale {
-		return memo.width, memo.height
+	generation := canvas.FontGeneration()
+	if width, height, ok := canvas.cellSizes.find(size, face, canvas.pixelScale, generation); ok {
+		return width, height
 	}
 	width, height = size*textmetrics.MonoAdvance, size*textmetrics.MonoLine
-	if canvas.cellMeasurer != nil {
+	switch {
+	case canvas.cellMeasurer != nil:
 		if w, h := canvas.cellMeasurer(size, face); w > 0 && h > 0 {
-			// A font's own line box says nothing about how tall a row should be.
-			width, height = w, min(h, size*textmetrics.MonoLine)
+			width, height = w, h
+		}
+	case canvas.monoCells != nil:
+		if w, h := canvas.monoCells.MonoCell(size, face); w > 0 && h > 0 {
+			width, height = w, h
 		}
 	}
 	height = float32(int32(height + 0.999))
 	if canvas.pixelScale > 0 {
 		width = float32(math.Max(math.Floor(float64(width)*float64(canvas.pixelScale)+0.5), 1)) / canvas.pixelScale
 	}
-	canvas.cellSize = cellSizeMemo{size: size, width: width, height: height, face: face, scale: canvas.pixelScale}
+	canvas.cellSizes.put(cellSizeMemo{size: size, width: width, height: height, face: face, scale: canvas.pixelScale, generation: generation})
 	return width, height
 }
 
-// cellSizeMemo remembers the last CellSize answer: a terminal asks every paint
-// for the same size.
+// cellSizeMemo is one remembered MonoCellSize answer.
 type cellSizeMemo struct {
 	size, width, height float32
 	face                MonoFace
 	scale               float32 // the canvas's pixel scale the width was made whole for
+	generation          uint32  // the font generation it was measured in
+	filled              bool
+}
+
+// cellSizeMemos remembers the last few MonoCellSize answers: a terminal asks every
+// paint for the same size, and a window shows a few faces and sizes at once. Measuring
+// a font is shaping a line, so a face alternating with another must not measure twice
+// per paint.
+type cellSizeMemos struct {
+	entries [4]cellSizeMemo
+	next    int
+}
+
+func (memos *cellSizeMemos) find(size float32, face MonoFace, scale float32, generation uint32) (width, height float32, ok bool) {
+	for i := range memos.entries {
+		memo := &memos.entries[i]
+		if memo.filled && memo.size == size && memo.face == face && memo.scale == scale && memo.generation == generation {
+			return memo.width, memo.height, true
+		}
+	}
+	return 0, 0, false
+}
+
+func (memos *cellSizeMemos) put(memo cellSizeMemo) {
+	memo.filled = true
+	memos.entries[memos.next] = memo
+	memos.next = (memos.next + 1) % len(memos.entries)
 }
 
 // TextWidth measures one regular-weight line. Text drawn in another weight is measured
@@ -786,11 +846,17 @@ func (canvas *Canvas) TextWidthWeight(value string, size, weight float32) float3
 	return textmetrics.Width(value, size, weight)
 }
 
-// TextWidthStyle is TextWidthWeight for a style that may be italic: the width of value in
-// the italic face of the interface font when style.Italic is set and the text engine
-// shapes one (ui.StyledTextEngine), and in the regular face otherwise. Only Size, Weight and
-// Italic of the style matter.
+// TextWidthStyle is TextWidthWeight for a style that may be italic or fixed-pitch: the width of
+// value in the italic face of the interface font when style.Italic is set and the text engine
+// shapes one (ui.StyledTextEngine), and in the regular face otherwise. A style.Mono text is
+// every character on the cells of its face (MonoCellSize), as a Mono Label draws it, so its
+// width is the cell times the cells it covers: one for each character, two for a wide one
+// (East Asian Width F or W) and none for a combining mark. Only Size, Weight, Italic, Mono
+// and MonoFace of the style matter.
 func (canvas *Canvas) TextWidthStyle(value string, style TextStyle) float32 {
+	if style.Mono {
+		return canvas.monoWidth(value, style)
+	}
 	if !style.Italic || value == "" {
 		return canvas.TextWidthWeight(value, style.Size, style.Weight)
 	}
@@ -830,6 +896,7 @@ func (canvas *Canvas) Reset() {
 	canvas.trimCommands = canvas.trimCommands[:0]
 	canvas.iconTrimTriangles = canvas.iconTrimTriangles[:0]
 	canvas.motion.open = canvas.motion.open[:0]
+	canvas.motion.hitMotions = canvas.motion.hitMotions[:0]
 	canvas.trappedScope = ID{}
 	canvas.escapeTarget = ID{}
 	canvas.initialFocus = ID{}
@@ -889,6 +956,7 @@ func (canvas *Canvas) Trim() {
 	canvas.earcut.nodes = trimCapacity(canvas.earcut.nodes)
 	canvas.earcut.triangles = trimCapacity(canvas.earcut.triangles)
 	canvas.earcut.holes = trimCapacity(canvas.earcut.holes)
+	canvas.motion.hitMotions = trimCapacity(canvas.motion.hitMotions)
 }
 
 // trimCapacity keeps a slice's content but gives back its backing array when
@@ -1021,6 +1089,13 @@ func (canvas *Canvas) Border(bounds Rect, width float32, border, fill Color) {
 // on all four sides and at least one: a 1 point border at 150% is one pixel, not a pixel and a
 // half blurred over two, as a browser draws it.
 func (canvas *Canvas) RoundedBorder(bounds Rect, radius, width float32, border, fill Color) {
+	// An element with no fill is an outline: painting the border as a solid
+	// backing and then a transparent interior would turn it into a filled box.
+	// RoundedOutline strokes the same ring and leaves what is behind it alone.
+	if fill == (Color{}) {
+		canvas.RoundedOutline(bounds, radius, width, border)
+		return
+	}
 	if canvas.pixelScale > 0 {
 		bounds = canvas.snapBox(bounds, radius)
 		width = canvas.borderWidth(width)
@@ -1125,9 +1200,29 @@ func (canvas *Canvas) LabelCenter(value string, bounds Rect, style TextStyle) {
 // the platform as an invisible LRM or RLM in front of the line, which the engines take
 // as the paragraph direction too; the text of such a line is then not the caller's
 // string, and costs one allocation.
+//
+// A style.Mono line is set on the grid of its face, as LabelRuns sets a line of one
+// color: every character on the cells TextWidthStyle counts for it, so the line ends
+// where it was measured to end and its columns line up with those of grid lines in the
+// same face. Its Text holds the cell width and the runs (TextRuns). In an installed
+// family (MonoFamily) each stretch of ASCII is shaped as one line fitted to its cells
+// (TextRun.Ligatures), so the family's programming ligatures appear; the built-in faces
+// have none, and each of their characters stands on its own cell. A Mono line that is
+// right to left or mixes directions has no runs: it is drawn in the visual order of
+// UAX #9 at the font's own advances.
 func (canvas *Canvas) LabelAligned(value string, bounds Rect, style TextStyle, alignment Alignment) {
 	value, bounds.X = canvas.placeLabel(value, bounds, style, alignment)
 	text := Text{Value: value, Bounds: bounds, Style: style, Layer: canvas.currentLayer()}
+	if style.Mono && value != "" {
+		if cell, _ := canvas.MonoCellSize(style.Size, style.MonoFace); cell > 0 {
+			first := len(canvas.runs)
+			ligatures := MonoFamilyName(style.MonoFace) != ""
+			if runs, ok := appendMonoRuns(canvas.runs, value, style, ligatures); ok {
+				canvas.runs = runs
+				text.CellWidth, text.RunFirst, text.RunCount = cell, int32(first), int32(len(runs)-first)
+			}
+		}
+	}
 	text.ClipOf, text.HasClip = canvas.clipSnapshot()
 	canvas.texts = append(canvas.texts, text)
 }
@@ -1207,8 +1302,11 @@ func (canvas *Canvas) TextCaret(value string, size, weight float32, offset int) 
 	return textmetrics.Caret(value, size, weight, offset)
 }
 
-// TextCaretStyle is TextCaret for a style that may be italic (see TextWidthStyle).
+// TextCaretStyle is TextCaret for a style that may be italic or fixed-pitch (see TextWidthStyle).
 func (canvas *Canvas) TextCaretStyle(value string, style TextStyle, offset int) float32 {
+	if style.Mono {
+		return canvas.monoWidth(value[:clampOffset(value, offset)], style)
+	}
 	if !style.Italic {
 		return canvas.TextCaret(value, style.Size, style.Weight, offset)
 	}
@@ -1240,8 +1338,16 @@ func (canvas *Canvas) TextSelection(dst []TextSpan, value string, size, weight f
 	return referenceEngine{}.Selection(dst, value, size, weight, start, end)
 }
 
-// TextSelectionStyle is TextSelection for a style that may be italic (see TextWidthStyle).
+// TextSelectionStyle is TextSelection for a style that may be italic or fixed-pitch (see
+// TextWidthStyle).
 func (canvas *Canvas) TextSelectionStyle(dst []TextSpan, value string, style TextStyle, start, end int) []TextSpan {
+	if style.Mono {
+		start, end = clampOffset(value, start), clampOffset(value, end)
+		if start > end {
+			start, end = end, start
+		}
+		return append(dst, TextSpan{X: canvas.monoWidth(value[:start], style), Width: canvas.monoWidth(value[start:end], style)})
+	}
 	if !style.Italic {
 		return canvas.TextSelection(dst, value, style.Size, style.Weight, start, end)
 	}
@@ -1271,8 +1377,12 @@ func (canvas *Canvas) TextOffsetAt(value string, size, weight, x float32) int {
 	return textmetrics.OffsetAt(value, size, weight, x)
 }
 
-// TextOffsetAtStyle is TextOffsetAt for a style that may be italic (see TextWidthStyle).
+// TextOffsetAtStyle is TextOffsetAt for a style that may be italic or fixed-pitch (see
+// TextWidthStyle).
 func (canvas *Canvas) TextOffsetAtStyle(value string, style TextStyle, x float32) int {
+	if style.Mono {
+		return offsetAtByPrefix(value, x, func(prefix string) float32 { return canvas.monoWidth(prefix, style) })
+	}
 	if !style.Italic {
 		return canvas.TextOffsetAt(value, style.Size, style.Weight, x)
 	}
@@ -1293,10 +1403,18 @@ func (canvas *Canvas) TextOffsetAtStyle(value string, style TextStyle, x float32
 // runs must cover value (see TextRun); the canvas copies them, so the caller
 // may reuse the slice as soon as the call returns.
 func (canvas *Canvas) LabelRuns(value string, bounds Rect, style TextStyle, cellWidth float32, runs []TextRun) {
+	canvas.LabelRunsWithIdentity(TextIdentity{}, value, bounds, style, cellWidth, runs)
+}
+
+// LabelRunsWithIdentity is LabelRuns with a stable identity for the line. A
+// backend that retains text pictures can then keep this line's picture when it
+// moves to another position, so scrolling a terminal redraws only the lines
+// that enter the viewport. See TextIdentity.
+func (canvas *Canvas) LabelRunsWithIdentity(identity TextIdentity, value string, bounds Rect, style TextStyle, cellWidth float32, runs []TextRun) {
 	style.Mono = true
 	text := Text{
 		Value: value, Bounds: bounds, Style: style, CellWidth: cellWidth,
-		RunFirst: int32(len(canvas.runs)), RunCount: int32(len(runs)), Layer: canvas.currentLayer(),
+		RunFirst: int32(len(canvas.runs)), RunCount: int32(len(runs)), Identity: identity, Layer: canvas.currentLayer(),
 	}
 	canvas.runs = append(canvas.runs, runs...)
 	text.ClipOf, text.HasClip = canvas.clipSnapshot()
@@ -1929,4 +2047,14 @@ func (canvas *Canvas) DeliverPointer(event PointerEvent, size Size, paint func(*
 	paint(canvas, size)
 	canvas.EndFrame()
 	return canvas.EndPointerPass()
+}
+
+// monoWidth is the width of value set in the fixed-pitch face of style: the cells
+// monoCells counts for its characters.
+func (canvas *Canvas) monoWidth(value string, style TextStyle) float32 {
+	if value == "" {
+		return 0
+	}
+	cell, _ := canvas.MonoCellSize(style.Size, style.MonoFace)
+	return float32(monoTextCells(value)) * cell
 }

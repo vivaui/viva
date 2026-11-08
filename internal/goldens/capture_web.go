@@ -52,11 +52,11 @@ func Capture() DrawList {
 func paintSnapshot(canvas *ui.Canvas, theme ui.Theme) {
 	canvas.Fill(ui.Rect{X: 0, Y: 0, Width: 400, Height: 300}, theme.Background)
 	row := ui.BeginRow(ui.Rect{X: 16, Y: 16, Width: 368, Height: 36}, 8)
-	components.BeginButton(canvas, theme, 7, row.Next(120)).Default("Save")
-	components.BeginButton(canvas, theme, 8, row.Next(120)).Secondary("Cancel")
+	components.BeginButton(canvas, theme, ui.Item(7), row.Next(120)).Default("Save")
+	components.BeginButton(canvas, theme, ui.Item(8), row.Next(120)).Secondary("Cancel")
 	components.PaintBadge(canvas, theme, row.NextFlex(), "Live", components.BadgeDefault)
-	components.BeginSwitch(canvas, theme, 9, ui.Rect{X: 16, Y: 64}, true).Paint()
-	components.BeginCheckbox(canvas, theme, 10, ui.Rect{X: 16, Y: 100, Width: 22, Height: 22}, false).Paint()
+	components.BeginSwitch(canvas, theme, ui.Item(9), ui.Rect{X: 16, Y: 64}, true).Paint()
+	components.BeginCheckbox(canvas, theme, ui.Item(10), ui.Rect{X: 16, Y: 100, Width: 22, Height: 22}, false).Paint()
 	components.PaintSeparator(canvas, theme, ui.Rect{X: 16, Y: 140, Width: 368, Height: 9}, components.SeparatorHorizontal)
 	components.MetricCard(canvas, theme, ui.Rect{X: 16, Y: 164, Width: 200, Height: 120}, "Revenue", "$1,234", "+5%", true)
 }

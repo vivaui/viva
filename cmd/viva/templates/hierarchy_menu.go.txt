@@ -679,8 +679,7 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 
 		canvas.Block(popup)
 		canvas.Container(popup, ui.RoleListBox, o.Label)
-		canvas.Elevate(popup, theme.Metrics.RadiusPopup(), ui.ShadowMD)
-		canvas.RoundedBorder(popup, theme.Metrics.RadiusPopup(), 1, theme.Border, theme.Popover)
+		paintPopupSurface(canvas, &theme, popup, ui.ShadowMD)
 		if m.compact {
 			canvas.Clip(popup)
 		}
@@ -695,12 +694,13 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 			// reachable even after scrolling to the last child.
 			bounds := ui.Rect{X: popup.X + 4, Y: popup.Y + 4, Width: max(popup.Width-8, 0), Height: min(float32(32), max(popup.Height-8, 0))}
 			label := m.nodes[parent].name
-			if canvas.Hovered() == o.OptionIDs.At(hierarchyBackIndex) {
-				canvas.Rounded(bounds, theme.Metrics.RadiusItem(), theme.Accent)
+			look := menuItemRecipe(&theme, ui.State{Hovered: canvas.Hovered() == o.OptionIDs.At(hierarchyBackIndex)})
+			if look.Fill.Alpha > 0 {
+				canvas.Rounded(bounds, look.Radius, look.Fill)
 			}
-			paintChevron(canvas, &hierarchyLeftIcon, ui.Rect{X: bounds.X + 8, Y: bounds.Y, Width: 16, Height: bounds.Height}, theme.PopoverForeground)
+			paintChevron(canvas, &hierarchyLeftIcon, ui.Rect{X: bounds.X + 8, Y: bounds.Y, Width: 16, Height: bounds.Height}, look.Foreground)
 			text := ui.Rect{X: bounds.X + 32, Y: bounds.Y, Width: max(bounds.Width-40, 0), Height: bounds.Height}
-			canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, ui.WeightRegular, text.Width), text, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.PopoverForeground})
+			canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, ui.WeightRegular, text.Width), text, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: look.Foreground})
 			canvas.HitWithOptions(o.OptionIDs.At(hierarchyBackIndex), bounds, label, ui.HitOptions{Role: ui.RoleButton, Description: m.nodes[parent].path, SkipFocus: true})
 			menu.top += bounds.Height
 			menu.viewHeight = max(menu.viewHeight-bounds.Height, 0)
@@ -725,13 +725,11 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 			}
 			selected := m.equal(m.value, info.path)
 			menu.paintRow(rowBounds, func() {
-				if !info.disabled && (open || l == m.level && i == m.active[l] && m.action.IsZero()) {
-					canvas.Rounded(rowBounds, theme.Metrics.RadiusItem(), theme.Accent)
+				look := menuItemRecipe(&theme, ui.State{Hovered: open || l == m.level && i == m.active[l] && m.action.IsZero(), Disabled: info.disabled})
+				if look.Fill.Alpha > 0 {
+					canvas.Rounded(rowBounds, look.Radius, look.Fill)
 				}
-				color := theme.PopoverForeground
-				if info.disabled {
-					color.Alpha *= .5
-				}
+				color := look.Foreground
 				reserve := float32(38)
 				if selected && info.count > 0 {
 					reserve += 16
@@ -793,12 +791,11 @@ func (m *HierarchyMenuState) paintAction(menu *menuSurface, action HierarchyMenu
 	}
 	menu.paintRow(row, func() {
 		canvas, theme := menu.canvas, menu.theme
-		color := theme.PopoverForeground
-		if action.Disabled {
-			color.Alpha *= .5
-		} else if m.level == 0 && m.action == action.ID {
-			canvas.Rounded(row, theme.Metrics.RadiusItem(), theme.Accent)
+		look := menuItemRecipe(&theme, ui.State{Hovered: m.level == 0 && m.action == action.ID, Disabled: action.Disabled})
+		if look.Fill.Alpha > 0 {
+			canvas.Rounded(row, look.Radius, look.Fill)
 		}
+		color := look.Foreground
 		label := ui.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-16, 0), Height: row.Height}
 		canvas.Label(canvas.FitLine(action.Label, theme.Metrics.FontSizeM, ui.WeightRegular, label.Width), label, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
 		row.Width = max(row.Width-menu.hitInset, 0)

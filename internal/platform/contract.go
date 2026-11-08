@@ -287,6 +287,14 @@ type MenuItem struct {
 	Checked   bool
 	Submenu   []MenuItem
 	OnSelect  func()
+	// ID, when not empty, names the entry across builds: a menu served to
+	// another process keeps the entry's id while its title, state or position
+	// changes. An ID must be unique among the entries of one menu; the same ID in
+	// another submenu names another entry, and one without an ID is known by its
+	// title, so a new title is a new entry. Two entries that share an ID among
+	// siblings are told apart only by their order, so removing one of them gives
+	// a new id to the ones after it.
+	ID string
 }
 
 // ApplicationStart initializes the first windows before the event loop waits.
@@ -302,6 +310,9 @@ type TextLabel struct {
 	Y      float32
 	Width  float32
 	Height float32
+	// Identity, when nonzero, names this label across frames so a backend can
+	// retain its picture when the paint list reorders. See ui.TextIdentity.
+	Identity ui.TextIdentity
 	// OriginX and OriginY are where layout put the text, less X and Y (which the painter
 	// rounds to whole logical pixels): within half a pixel either way. A backend that
 	// places glyphs at device-pixel positions, as the platform's own text does, draws
@@ -792,6 +803,11 @@ type TextInput struct {
 	// keys that are not text delivered as raw key events (see KeyEvent.Text).
 	Terminal bool
 	MonoFace ui.MonoFace
+	// CellWidth is the width of one cell of the terminal's grid, in logical pixels:
+	// ui.Canvas.MonoCellSize for the input's FontSize and MonoFace. A Terminal input's
+	// preedit is drawn on that pitch and its caret and underline are measured by it, so
+	// the composition stands where the committed text will. Other inputs leave it 0.
+	CellWidth float32
 	// AltSendsEscape routes printable Alt/Option chords in a Terminal input to
 	// raw key delivery, with the base character in KeyEvent.Text.
 	AltSendsEscape bool

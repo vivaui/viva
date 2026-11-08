@@ -46,6 +46,12 @@ type TableSpec struct {
 	// RowHeight is the height of every row, header included; zero takes the
 	// theme's components.TableRowHeight and TableHeaderHeight.
 	RowHeight float32
+	// FontSize is the size of body and header text; zero takes the theme's
+	// Metrics.FontSizeM.
+	FontSize float32
+	// CellPadding is the horizontal padding inside every cell; zero takes the
+	// theme's Metrics.GapItem.
+	CellPadding float32
 	// Striped shades every second row.
 	Striped bool
 }
@@ -285,7 +291,8 @@ func (f *Frame) paintTable(n *node) {
 			below := headerY + headerHeight
 			canvas.Clip(ui.Rect{X: r.X, Y: below, Width: r.Width, Height: max(r.Y+r.Height-below, 0)})
 		}
-		table := components.BeginTable(canvas, f.theme, ui.Rect{X: r.X, Y: top + float32(first)*rowHeight, Width: r.Width, Height: float32(last-first)*rowHeight + extra}, t.spec.Columns).RowHeight(rowHeight)
+		table := components.BeginTable(canvas, f.theme, ui.Rect{X: r.X, Y: top + float32(first)*rowHeight, Width: r.Width, Height: float32(last-first)*rowHeight + extra}, t.spec.Columns).
+			RowHeight(rowHeight).FontSize(t.spec.FontSize).CellPadding(t.spec.CellPadding)
 		w := &f.widgets
 		if cap(w.cells) < len(t.spec.Columns) {
 			w.cells = make([]string, len(t.spec.Columns))
@@ -369,11 +376,16 @@ func (f *Frame) paintTableHeader(t *tableDecl, r ui.Rect, headerHeight, rowHeigh
 	if r.Height <= headerHeight {
 		headerRow.Height = headerHeight
 	}
-	table := components.BeginTable(canvas, f.theme, headerRow, t.spec.Columns).RowHeight(rowHeight).HeaderHeight(headerHeight)
+	table := components.BeginTable(canvas, f.theme, headerRow, t.spec.Columns).
+		RowHeight(rowHeight).HeaderHeight(headerHeight).FontSize(t.spec.FontSize).CellPadding(t.spec.CellPadding)
 	table.Header(t.spec.Headers)
 
 	sorted, descending, isSorted := t.state.Sort()
 	metrics := f.theme.Metrics
+	fontSize := t.spec.FontSize
+	if fontSize <= 0 {
+		fontSize = metrics.FontSizeM
+	}
 	for column, cell := range cells {
 		if column >= len(t.spec.Sortable) || !t.spec.Sortable[column] || t.spec.Header.IsZero() {
 			continue
@@ -387,7 +399,7 @@ func (f *Frame) paintTableHeader(t *tableDecl, r ui.Rect, headerHeight, rowHeigh
 			if descending {
 				arrow = "↓"
 			}
-			width := canvas.TextWidthWeight(title, metrics.FontSizeM, ui.WeightMedium)
+			width := canvas.TextWidthWeight(title, fontSize, ui.WeightMedium)
 			text := ui.Rect{X: cell.X + metrics.PadControlX, Width: max(cell.Width-metrics.PadControlX*2, 0)}
 			x := text.X + min(width, text.Width) + 4
 			switch t.spec.Columns[column].Alignment {
@@ -396,7 +408,7 @@ func (f *Frame) paintTableHeader(t *tableDecl, r ui.Rect, headerHeight, rowHeigh
 			case components.TableAlignRight:
 				x = text.X + text.Width - min(width, text.Width) - 4 - 12
 			}
-			canvas.LabelCenter(arrow, ui.Rect{X: x, Y: cell.Y, Width: 12, Height: cell.Height}, ui.TextStyle{Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: f.theme.MutedForeground})
+			canvas.LabelCenter(arrow, ui.Rect{X: x, Y: cell.Y, Width: 12, Height: cell.Height}, ui.TextStyle{Size: fontSize, Weight: ui.WeightMedium, Color: f.theme.MutedForeground})
 		}
 		canvas.HitWithLabel(t.spec.Header.At(column), cell, title)
 	}

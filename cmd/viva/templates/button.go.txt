@@ -58,6 +58,7 @@ type Button struct {
 	// infer a motion of its own.
 	iconTransform ui.IconTransform
 	height        float32
+	fontSize      float32
 	disabled      bool
 }
 
@@ -110,6 +111,16 @@ func (button Button) Size(size ButtonSize) Button {
 // tall. A height of zero or less is the size's own.
 func (button Button) Height(height float32) Button {
 	button.height = max(height, 0)
+	return button
+}
+
+// FontSize paints the label size points instead of the size the button's size
+// gives, for a button that sits among text of its own size. The height, the
+// padding and the corner radius stay those of the size; a label grows the
+// button's width through SizeToFit and Paint as usual. A size of zero or less
+// is the size's own.
+func (button Button) FontSize(size float32) Button {
+	button.fontSize = max(size, 0)
 	return button
 }
 
@@ -337,26 +348,24 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 	if iconOnly {
 		button.bounds.Width = height
 	}
-	radius := button.theme.Metrics.RadiusControl
-	enabled := !button.disabled
-
-	style := buttonStyleFor(button.theme, variant, enabled && button.state.Hovered, enabled && button.state.Pressed)
-	if variant == ButtonOutline {
-		button.canvas.Elevate(button.bounds, radius, ui.ShadowXS) // shadow-xs
+	look := buttonRecipe(&button.theme, variant, ui.State{
+		Hovered: button.state.Hovered, Pressed: button.state.Pressed, FocusVisible: button.state.Focused,
+		Invalid: button.state.Invalid, Disabled: button.disabled,
+	})
+	radius := look.Radius
+	if look.Shadow != ui.ShadowNone {
+		button.canvas.Elevate(button.bounds, radius, look.Shadow) // shadow-xs
 	}
-	if button.state.Focused || button.state.Invalid {
-		ring, border := buttonRing(button.theme, variant, button.state.Invalid)
-		if button.theme.Background.Alpha < 1 {
-			button.canvas.RoundedOutline(expand(button.bounds, 3), radius+3, 2, ring)
+	if look.RingWidth > 0 {
+		if look.RingOutline {
+			button.canvas.RoundedOutline(expand(button.bounds, look.RingWidth), look.RingRadius, 2, look.Ring)
 		} else {
-			button.canvas.Rounded(expand(button.bounds, 3), radius+3, ring)
+			button.canvas.Rounded(expand(button.bounds, look.RingWidth), look.RingRadius, look.Ring)
 		}
-		style.border, style.bordered = border, true
 	}
-	if button.disabled {
-		style.background.Alpha *= 0.50
-		style.foreground.Alpha *= 0.50
-		style.border.Alpha *= 0.50
+	style := buttonStyle{
+		background: look.Background, foreground: look.Foreground, border: look.Border,
+		filled: look.Filled, bordered: look.Bordered, underlined: look.Underlined,
 	}
 	if style.bordered && style.filled {
 		paintBordered(button.canvas, button.theme, button.bounds, radius, style.border, style.background)
@@ -424,6 +433,9 @@ func (button Button) geometry() (height, padding, fontSize float32, iconOnly boo
 	if button.height > 0 {
 		height = button.height
 	}
+	if button.fontSize > 0 {
+		fontSize = button.fontSize
+	}
 	return height, padding, fontSize, iconOnly
 }
 
@@ -453,7 +465,7 @@ func paintBordered(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, radius flo
 
 // isDark reports whether the theme is a dark appearance. Viva's Theme has no
 // explicit mode, so every component that needs one asks the background.
-func isDark(theme ui.Theme) bool { return theme.Background.Red < 0.5 }
+func isDark(theme *ui.Theme) bool { return theme.Background.Red < 0.5 }
 
 // withAlpha is color at alpha, as a translucent color to be laid over whatever
 // is behind it (shadcn's bg-destructive/10).
@@ -470,7 +482,7 @@ func scaledAlpha(color ui.Color, factor float32) ui.Color {
 
 // outlineBorder is the border of an outline button: border-border in a light
 // theme, border-input in a dark one.
-func outlineBorder(theme ui.Theme) ui.Color {
+func outlineBorder(theme *ui.Theme) ui.Color {
 	if isDark(theme) {
 		return theme.Input
 	}
@@ -479,7 +491,7 @@ func outlineBorder(theme ui.Theme) ui.Color {
 
 // invalidRing is the ring around a control that fails validation:
 // ring-destructive/20, /40 in a dark theme.
-func invalidRing(theme ui.Theme) ui.Color {
+func invalidRing(theme *ui.Theme) ui.Color {
 	if isDark(theme) {
 		return withAlpha(theme.Danger, 0.40)
 	}
@@ -488,7 +500,7 @@ func invalidRing(theme ui.Theme) ui.Color {
 
 // invalidBorder is the border of an invalid control: border-destructive, /50 in a
 // dark theme.
-func invalidBorder(theme ui.Theme) ui.Color {
+func invalidBorder(theme *ui.Theme) ui.Color {
 	if isDark(theme) {
 		return withAlpha(theme.Danger, 0.50)
 	}
@@ -498,7 +510,7 @@ func invalidBorder(theme ui.Theme) ui.Color {
 // buttonRing is the ring and the border a focused or invalid button wears.
 // Focus is ring-ring/50 around a ring-colored border; the destructive variant
 // uses the danger color for both, as shadcn's does.
-func buttonRing(theme ui.Theme, variant ButtonVariant, invalid bool) (ring, border ui.Color) {
+func buttonRing(theme *ui.Theme, variant ButtonVariant, invalid bool) (ring, border ui.Color) {
 	switch {
 	case invalid:
 		return invalidRing(theme), invalidBorder(theme)
@@ -511,7 +523,7 @@ func buttonRing(theme ui.Theme, variant ButtonVariant, invalid bool) (ring, bord
 // buttonStyleFor is the Vega recipe of a variant: its colors at rest, under the
 // pointer, and held down. Vega has no pressed state; a press goes one step past
 // hover, because a desktop control needs the answer.
-func buttonStyleFor(theme ui.Theme, variant ButtonVariant, hovered, pressed bool) buttonStyle {
+func buttonStyleFor(theme *ui.Theme, variant ButtonVariant, hovered, pressed bool) buttonStyle {
 	dark := isDark(theme)
 	style := buttonStyle{
 		background: theme.Primary, foreground: theme.PrimaryForeground,
@@ -640,4 +652,57 @@ func expand(bounds ui.Rect, amount float32) ui.Rect {
 func tinted(color ui.Color, alpha float32, base ui.Color) ui.Color {
 	color.Alpha = alpha
 	return color.Over(base)
+}
+
+// ButtonLook is the look of a button of one variant in one state.
+type ButtonLook struct {
+	// Background, Foreground and Border are the colors of the surface, the label and the
+	// icon, and the line. Filled says the background is painted, Bordered the 1px line,
+	// and Underlined the label (a hovered link).
+	Background, Foreground, Border ui.Color
+	Filled, Bordered, Underlined   bool
+	// Radius is the corner radius of the surface.
+	Radius float32
+	// Shadow is the elevation under the surface; only the outline variant has one.
+	Shadow ui.ShadowLevel
+	// Ring is the halo of a focused or invalid button, transparent with a zero RingWidth
+	// when there is none. RingOutline says it is drawn as a line over a translucent theme
+	// rather than a disc under the surface.
+	Ring                  ui.Color
+	RingWidth, RingRadius float32
+	RingOutline           bool
+}
+
+// ButtonRecipe resolves the look of a button. Hovered and Pressed of state are read only
+// when the button is not Disabled; FocusVisible and Invalid add the halo and take the
+// border over, and Disabled dims the surface, the label and the line.
+func ButtonRecipe(theme ui.Theme, variant ButtonVariant, state ui.State) ButtonLook {
+	return buttonRecipe(&theme, variant, state)
+}
+
+// buttonRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
+// and a Theme is large.
+func buttonRecipe(theme *ui.Theme, variant ButtonVariant, state ui.State) ButtonLook {
+	enabled := !state.Disabled
+	style := buttonStyleFor(theme, variant, enabled && state.Hovered, enabled && state.Pressed)
+	look := ButtonLook{
+		Background: style.background, Foreground: style.foreground, Border: style.border,
+		Filled: style.filled, Bordered: style.bordered, Underlined: style.underlined,
+		Radius: theme.Metrics.RadiusControl,
+	}
+	if variant == ButtonOutline {
+		look.Shadow = ui.ShadowXS
+	}
+	if state.FocusVisible || state.Invalid {
+		ring, border := buttonRing(theme, variant, state.Invalid)
+		look.Ring, look.RingWidth, look.RingRadius = ring, 3, look.Radius+3
+		look.RingOutline = theme.Background.Alpha < 1
+		look.Border, look.Bordered = border, true
+	}
+	if state.Disabled {
+		look.Background.Alpha *= 0.50
+		look.Foreground.Alpha *= 0.50
+		look.Border.Alpha *= 0.50
+	}
+	return look
 }

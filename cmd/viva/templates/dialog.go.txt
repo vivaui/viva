@@ -188,7 +188,7 @@ func (dialog Dialog) Begin(title, description string) DialogLayout {
 	content, inner := layout.Content, layout.Header
 	metrics := dialog.theme.Metrics
 	dialog.canvas.BeginPresence(key, overlaySurfacePart, fadePresence(dialog.theme), centerOf(content))
-	dialog.canvas.RoundedBorder(content, metrics.RadiusSurface, 1, dialog.theme.Border, dialog.theme.Popover)
+	paintPanel(dialog.canvas, content, dialogRecipe(&dialog.theme))
 	// The surface is opaque to pointers: pressing its padding must not reach the
 	// dismiss target behind it.
 	dialog.canvas.Block(content)
@@ -430,4 +430,68 @@ func beginScrim(canvas *ui.Canvas, theme ui.Theme, key ui.ID, presence ui.Presen
 	canvas.BeginPresence(key, overlayBackdropPart, presence, centerOf(viewport))
 	canvas.Fill(viewport, overlayBackdrop(theme))
 	canvas.EndPresence()
+}
+
+// PopupLook is the surface of a panel that floats over the page: what a dialog, a popover, a
+// select's list, a command palette, a menu or a hover card is painted on. The panels differ in
+// their corners and their shadow (a dialog stands on a scrim and casts none; a list floats and
+// does), and each has its own recipe: DialogRecipe, PopoverRecipe and PopupRecipe.
+type PopupLook struct {
+	// Fill and Border are the colors of the panel and its 1px line.
+	Fill, Border ui.Color
+	// Radius is the corner radius of the panel.
+	Radius float32
+	// Shadow is the elevation of a panel that floats over a page; a menu bar's submenu takes a
+	// lower one, and a panel that sits inside another has none.
+	Shadow ui.ShadowLevel
+}
+
+// PopupRecipe resolves the look of a floating panel. It is a pure function of the theme, the
+// one definition the popup components paint their surface from (paintPopupSurface), so an
+// application that draws a panel of its own takes the same fill, line, corners and shadow.
+func PopupRecipe(theme ui.Theme) PopupLook {
+	return popupRecipe(&theme)
+}
+
+// popupRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
+// and a Theme is large.
+func popupRecipe(theme *ui.Theme) PopupLook {
+	return PopupLook{Fill: theme.Popover, Border: theme.Border, Radius: theme.Metrics.RadiusPopup(), Shadow: ui.ShadowMD}
+}
+
+// paintPopupSurface paints the panel of a popup with the given elevation: the shadow first,
+// then the fill with its line. ui.ShadowNone paints a panel that casts none.
+func paintPopupSurface(canvas *ui.Canvas, theme *ui.Theme, bounds ui.Rect, shadow ui.ShadowLevel) {
+	look := popupRecipe(theme)
+	look.Shadow = shadow
+	paintPanel(canvas, bounds, look)
+}
+
+// paintPanel paints a panel with a resolved look: the shadow it casts, if any, then its fill
+// with the 1px line.
+func paintPanel(canvas *ui.Canvas, bounds ui.Rect, look PopupLook) {
+	if look.Shadow != ui.ShadowNone {
+		canvas.Elevate(bounds, look.Radius, look.Shadow)
+	}
+	canvas.RoundedBorder(bounds, look.Radius, 1, look.Border, look.Fill)
+}
+
+// DialogRecipe resolves the look of the panel of a dialog, an alert dialog or a drawer: the
+// surface radius, and no shadow, because the panel stands on a scrim. A pure function.
+func DialogRecipe(theme ui.Theme) PopupLook {
+	return dialogRecipe(&theme)
+}
+
+func dialogRecipe(theme *ui.Theme) PopupLook {
+	return PopupLook{Fill: theme.Popover, Border: theme.Border, Radius: theme.Metrics.RadiusSurface, Shadow: ui.ShadowNone}
+}
+
+// PopoverRecipe resolves the look of the panel of a popover: the control radius and the
+// medium shadow. A pure function.
+func PopoverRecipe(theme ui.Theme) PopupLook {
+	return popoverRecipe(&theme)
+}
+
+func popoverRecipe(theme *ui.Theme) PopupLook {
+	return PopupLook{Fill: theme.Popover, Border: theme.Border, Radius: theme.Metrics.RadiusControl, Shadow: ui.ShadowMD}
 }

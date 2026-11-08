@@ -13,6 +13,10 @@ import (
 type SingleSelectOption struct {
 	Value, Label string
 	Disabled     bool
+	// Search is extra text the query matches besides the label and the value,
+	// for what the row does not show, such as an address or a group. It is never
+	// painted.
+	Search string
 }
 
 // SingleSelectChoice is one filtered existing or creatable option.
@@ -121,7 +125,9 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 		}
 		exact = exact || s.equal(query, option.Value) || s.equal(query, label)
 		haveValue = haveValue || s.equal(s.value, option.Value)
-		if query != "" && !strings.Contains(strings.ToLower(label), match) && !strings.Contains(strings.ToLower(option.Value), match) {
+		if query != "" && !strings.Contains(strings.ToLower(label), match) &&
+			!strings.Contains(strings.ToLower(option.Value), match) &&
+			!strings.Contains(strings.ToLower(option.Search), match) {
 			return
 		}
 		option.Label = label
@@ -381,7 +387,7 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 			canvas.PopOverlayClip()
 		}
 	}
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: canvas.Focused() == o.InputID || open, Disabled: o.Disabled, Invalid: o.Invalid})
+	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: canvas.Focused() == o.InputID || open, Disabled: o.Disabled, Invalid: o.Invalid})
 	canvas.HitWithOptions(o.TriggerID, bounds, o.Label, ui.HitOptions{Role: ui.RoleButton, Expanded: open, Disabled: o.Disabled, SkipFocus: true})
 	trigger := ui.Rect{X: bounds.X + bounds.Width - 28, Y: bounds.Y + (bounds.Height-24)/2, Width: 24, Height: 24}
 	right := trigger.X - 4
@@ -463,8 +469,7 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 	}
 	canvas.Block(layout.Popup)
 	canvas.Container(layout.Popup, ui.RoleListBox, o.Label)
-	canvas.Elevate(layout.Popup, theme.Metrics.RadiusPopup(), ui.ShadowMD)
-	canvas.RoundedBorder(layout.Popup, theme.Metrics.RadiusPopup(), 1, theme.Border, theme.Popover)
+	paintPopupSurface(canvas, &theme, layout.Popup, ui.ShadowMD)
 	s.scroll.BarID = o.ScrollID
 	menu := menuSurface{canvas: canvas, theme: theme, bounds: layout.Popup, options: menuSurfaceOptions{layer: o.Layer, scope: o.Scope, scroll: &s.scroll}, top: layout.Popup.Y + 4, bottom: layout.Popup.Y + layout.Popup.Height - 4, viewHeight: layout.Popup.Height - 8}
 	menu.beginScroll()
@@ -486,13 +491,11 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 			continue
 		}
 		menu.paintRow(row, func() {
-			if !choice.Disabled && i == s.Active {
-				canvas.Rounded(row, theme.Metrics.RadiusItem(), theme.Accent)
+			look := menuItemRecipe(&theme, ui.State{Hovered: i == s.Active, Disabled: choice.Disabled})
+			if look.Fill.Alpha > 0 {
+				canvas.Rounded(row, look.Radius, look.Fill)
 			}
-			color := theme.PopoverForeground
-			if choice.Disabled {
-				color.Alpha *= .5
-			}
+			color := look.Foreground
 			label := choice.Label
 			if choice.Create {
 				if s.createPrefix != o.CreatePrefix || s.createValue != label {

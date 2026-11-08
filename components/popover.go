@@ -148,8 +148,7 @@ func (popover Popover) Begin(title, description string) PopoverLayout {
 	content, side := popover.contentBounds(width, headerHeight)
 	popover.canvas.BeginPresence(overlayKey(popover.options.DismissID, popover.options.Scope), overlaySurfacePart,
 		popupPresence(popover.theme, overlayDuration, side), popupPivot(content, side, popover.anchor))
-	popover.canvas.Elevate(content, metrics.RadiusControl, ui.ShadowMD) // shadow-md
-	popover.canvas.RoundedBorder(content, metrics.RadiusControl, 1, popover.theme.Border, popover.theme.Popover)
+	paintPanel(popover.canvas, content, popoverRecipe(&popover.theme)) // shadow-md
 	// The popup is inside the popover: a press on its padding or header must not
 	// reach the trigger or the page underneath. Controls the caller paints into
 	// the body follow and take their own presses.

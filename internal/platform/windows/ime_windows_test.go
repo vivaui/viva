@@ -192,13 +192,14 @@ func TestTerminalPreeditStandsOnTheTerminalGrid(t *testing.T) {
 	field := testTextInput("ni好", 4)
 	field.Terminal = true
 	field.MonoFace = ui.MonoClassic
+	field.CellWidth = 7.5
 	field.State.Composing = true
 	field.State.Composition = text.Range{End: 3}
 	state.textInput, state.textState, state.textEnabled = field, field.State, true
 	if err := state.updateTextVisuals(); err != nil {
 		t.Fatal(err)
 	}
-	cell := terminalCellWidth(field.FontSize)
+	cell := field.CellWidth
 	label := state.textLabels[0]
 	if !label.Mono || label.MonoFace != ui.MonoClassic || label.CellWidth != cell {
 		t.Fatalf("label mono %v face %v cell %v, want a grid line of %v on the terminal face", label.Mono, label.MonoFace, label.CellWidth, cell)

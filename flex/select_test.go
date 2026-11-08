@@ -2,6 +2,7 @@ package flex
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -287,5 +288,112 @@ func TestSelectWheelScrollsTheOpenList(t *testing.T) {
 	state.Wheel(ui.ScrollEvent{DeltaY: -1e6})
 	if state.First != 0 {
 		t.Errorf("scrolled far up the window starts at %d, want 0", state.First)
+	}
+}
+
+var baseSizes = tree.Sub(page, tree.Name("base-sizes"))
+
+// A SelectBase is the select to the pointer, the keyboard and assistive technology and paints
+// nothing of its own: the trigger and the open list are the caller's, drawn where the select
+// says they are, with the rows' rectangles from Part.
+func TestSelectBaseDeclaresTheSelectAndLeavesThePaintingToTheCaller(t *testing.T) {
+	labels := []string{"Small", "Medium", "Large"}
+	theme := ui.LightTheme()
+	run := func(base, open bool) (*ui.Canvas, Box, ui.Rect, [3]ui.Rect) {
+		var view View
+		canvas := testCanvas()
+		state := SelectState{Open: open}
+		var box Box
+		var panel ui.Rect
+		var rows [3]ui.Rect
+		view.Draw(canvas, theme, ui.Rect{Width: 300, Height: 300}, func(f *Frame) {
+			f.Column().Pad(8).Children(func() {
+				if base {
+					box = f.SelectBase(baseSizes, &state, labels, 1).Width(160)
+				} else {
+					box = f.Select(baseSizes, &state, labels, 1).Width(160)
+				}
+				if popup, ok := box.Popup(); ok {
+					popup.Draw(func(d *DrawContext) {
+						panel = d.Rect
+						for i := range rows {
+							rows[i] = box.Part(i)
+						}
+					})
+				}
+			})
+		})
+		return canvas, box, panel, rows
+	}
+	painted, _, _, _ := run(false, true)
+	bare, box, panel, rows := run(true, true)
+	if len(painted.Rectangles()) == 0 {
+		t.Fatal("the painted select painted nothing: the comparison means nothing")
+	}
+	if len(bare.Rectangles()) != 0 || len(bare.Texts()) != 0 || len(bare.Shadows()) != 0 {
+		t.Errorf("a SelectBase painted: %d rectangles, %d texts, %d shadows", len(bare.Rectangles()), len(bare.Texts()), len(bare.Shadows()))
+	}
+	if !reflect.DeepEqual(painted.Hits(), bare.Hits()) {
+		t.Errorf("hits differ:\npainted %+v\nbare    %+v", painted.Hits(), bare.Hits())
+	}
+	if painted.TrappedFocusScope() != bare.TrappedFocusScope() || painted.EscapeTarget() != bare.EscapeTarget() {
+		t.Errorf("the focus scope or the escape target differ")
+	}
+	if panel.Width <= 0 || panel.Height <= 0 {
+		t.Fatalf("the open list has no panel: %+v", panel)
+	}
+	for i, row := range rows {
+		if row.Width <= 0 || row.Height <= 0 {
+			t.Errorf("option %d has no rectangle: %+v", i, row)
+		}
+		if row.X < panel.X || row.Y < panel.Y || row.X+row.Width > panel.X+panel.Width || row.Y+row.Height > panel.Y+panel.Height {
+			t.Errorf("option %d at %+v is outside the panel %+v", i, row, panel)
+		}
+		if i > 0 && row.Y <= rows[i-1].Y {
+			t.Errorf("option %d (%+v) is not below option %d (%+v)", i, row, i-1, rows[i-1])
+		}
+	}
+	// The row's rectangle is where its hit is: the caller paints where the pointer lands.
+	for i, row := range rows {
+		found := false
+		for _, hit := range bare.Hits() {
+			if hit.ID == baseSizes.At(i) && hit.Bounds.Y == row.Y && hit.Bounds.Height == row.Height {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no hit for option %d over its rectangle %+v", i, row)
+		}
+	}
+	if _, ok := box.Popup(); !ok {
+		t.Error("an open select has no popup")
+	}
+	closed, closedBox, _, closedRows := run(true, false)
+	if _, ok := closedBox.Popup(); ok || closedRows[0].Width != 0 || len(closed.Rectangles()) != 0 {
+		t.Errorf("a closed select reports a list: rows %+v", closedRows)
+	}
+}
+
+// A trigger narrower than the list's minimum still gets a list whose element is the panel the
+// rows are laid in: what the caller draws on it is not narrower than its options.
+func TestSelectBasePanelIsAsWideAsItsRowsForANarrowTrigger(t *testing.T) {
+	var view View
+	canvas := testCanvas()
+	state := SelectState{Open: true}
+	var panel ui.Rect
+	var row ui.Rect
+	view.Draw(canvas, ui.LightTheme(), ui.Rect{Width: 300, Height: 300}, func(f *Frame) {
+		f.Column().Pad(8).Children(func() {
+			box := f.SelectBase(baseSizes, &state, []string{"A", "B"}, 0).Width(60)
+			if popup, ok := box.Popup(); ok {
+				popup.Draw(func(d *DrawContext) { panel, row = d.Rect, box.Part(0) })
+			}
+		})
+	})
+	if panel.Width <= 60 {
+		t.Fatalf("the panel is %v wide, no wider than its 60 px trigger", panel.Width)
+	}
+	if row.X < panel.X || row.X+row.Width > panel.X+panel.Width {
+		t.Errorf("row %+v is outside the panel %+v", row, panel)
 	}
 }

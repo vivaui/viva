@@ -10,6 +10,7 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
+	"github.com/vivaui/viva/ui"
 )
 
 // rectangleInstance is one instance: bounds, color and style, then a triangle's
@@ -28,11 +29,12 @@ type resourceViewDesc struct {
 	Format, Dimension uint32
 	Fields            [4]uint32
 }
-type swapDesc struct {
-	Width, Height, RateNumerator, RateDenominator, Format, Scanline, Scaling, Samples, Quality, Usage, Buffers uint32
-	Window                                                                                                     uintptr
-	Windowed                                                                                                   int32
-	SwapEffect, Flags                                                                                          uint32
+type swapChainDesc1 struct {
+	Width, Height, Format, Stereo uint32
+	Samples, Quality              uint32
+	Usage, Buffers                uint32
+	Scaling, SwapEffect           uint32
+	AlphaMode, Flags              uint32
 }
 type renderBlend struct {
 	Enabled                                                                       int32
@@ -132,22 +134,24 @@ type renderer struct {
 	rectangleBatches                                             []render.Batch
 	labels                                                       []labelTexture
 	labelOrder                                                   []int
+	labelFrame                                                   []int // slot of each label in the last frame's order
+	labelNextFrame                                               []int
+	labelIdentities                                              map[ui.TextIdentity]int
+	labelNextIdentities                                          map[ui.TextIdentity]int
+	labelUsed                                                    []bool
+	labelFree                                                    []int
 	compositingBatches                                           []compositingBatch
 	color                                                        platform.Color
 	capacity, width, height                                      int
 	submissions, rebuilds, partials, labelRebuilds               uint64
 }
 
-var createDevice = systemDLL("d3d11.dll").NewProc("D3D11CreateDeviceAndSwapChain")
 var textureIID = guid{0x6f15aaf2, 0xd208, 0x4e89, [8]byte{0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c}}
 
 func initialUpdate(count int) render.Update { return render.Update{Count: count, Rebuild: true} }
 
-func groupTextLayers(labels []labelTexture, order []int) []int {
-	order = order[:0]
-	for index := range labels {
-		order = append(order, index)
-	}
+func groupTextLayers(labels []labelTexture, frameOrder, order []int) []int {
+	order = append(order[:0], frameOrder...)
 	slices.SortStableFunc(order, func(left, right int) int {
 		return int(labels[left].label.Layer) - int(labels[right].label.Layer)
 	})
@@ -194,26 +198,59 @@ func (renderer *renderer) createDeviceAndResources(software bool) error {
 	if renderer.initializeComposition(software) {
 		return nil
 	}
-	description := swapDesc{Format: 87, Samples: 1, Usage: 0x20, Buffers: 2, Window: renderer.window, Windowed: 1, SwapEffect: 3}
 	levels := [...]uint32{0xb000}
-	var status uintptr
 	drivers := []uintptr{1, 5} // D3D_DRIVER_TYPE_HARDWARE, then _WARP
 	if software {
 		drivers = drivers[1:]
 	}
+	var status uintptr
+	var failure error
 	for _, driver := range drivers {
-		status, _, _ = createDevice.Call(0, driver, 0, 0x20, uintptr(unsafe.Pointer(&levels[0])), 1, 7, uintptr(unsafe.Pointer(&description)), uintptr(unsafe.Pointer(&renderer.swap)), uintptr(unsafe.Pointer(&renderer.device)), 0, uintptr(unsafe.Pointer(&renderer.context)))
-		if hresult(status) == nil {
-			break
+		status, _, _ = createD3DDevice.Call(0, driver, 0, 0x20, uintptr(unsafe.Pointer(&levels[0])), 1, 7, uintptr(unsafe.Pointer(&renderer.device)), 0, uintptr(unsafe.Pointer(&renderer.context)))
+		if err := hresult(status); err != nil {
+			failure = err
+			release(&renderer.context)
+			release(&renderer.device)
+			continue
 		}
-		release(&renderer.context)
-		release(&renderer.device)
-		release(&renderer.swap)
+		if err := renderer.createWindowSwapChain(); err != nil {
+			failure = err
+			release(&renderer.context)
+			release(&renderer.device)
+			release(&renderer.swap)
+			continue
+		}
+		return renderer.createResources()
 	}
+	if failure == nil {
+		failure = fmt.Errorf("no Direct3D driver type was tried")
+	}
+	return fmt.Errorf("create D3D11 device and swap chain, hardware and software (WARP) both failed: %w: %w", platform.ErrNoGraphics, failure)
+}
+
+// createWindowSwapChain makes the swap chain the window presents through. The
+// scale mode is DXGI_SCALING_NONE: when the window changes size before the frame
+// for the new size is presented, the desktop keeps the previous back buffer at
+// its own size in the top-left corner instead of stretching it over the new
+// client area. DXGI_SCALING_STRETCH (the default of the older
+// D3D11CreateDeviceAndSwapChain path) is what made a live resize wobble.
+func (renderer *renderer) createWindowSwapChain() error {
+	var factory uintptr
+	status, _, _ := createDXGIFactory.Call(uintptr(unsafe.Pointer(&factory2IID)), uintptr(unsafe.Pointer(&factory)))
 	if err := hresult(status); err != nil {
-		return fmt.Errorf("create D3D11 device and swap chain, hardware and software (WARP) both failed: %w: %w", platform.ErrNoGraphics, err)
+		return fmt.Errorf("create DXGI factory: %w", err)
 	}
-	return renderer.createResources()
+	defer release(&factory)
+	description := swapChainDesc1{
+		Format: 87, Samples: 1, Usage: 0x20, Buffers: 2,
+		Scaling: 1, SwapEffect: 3, // DXGI_SCALING_NONE, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL
+	}
+	// IDXGIFactory2::CreateSwapChainForHwnd.
+	status = comCall(factory, 15, renderer.device, renderer.window, uintptr(unsafe.Pointer(&description)), 0, 0, uintptr(unsafe.Pointer(&renderer.swap)))
+	if err := hresult(status); err != nil {
+		return fmt.Errorf("create swap chain for window: %w", err)
+	}
+	return nil
 }
 
 // createResources builds the shaders, constant buffer and pipeline state both
@@ -340,24 +377,84 @@ func (renderer *renderer) apply(frame platform.Frame) error {
 		}
 	}
 	if frame.TextLabels != nil {
-		for index := len(frame.TextLabels); index < len(renderer.labels); index++ {
-			renderer.labels[index].close()
-		}
-		if len(frame.TextLabels) > cap(renderer.labels) {
-			renderer.labels = append(renderer.labels, make([]labelTexture, len(frame.TextLabels)-len(renderer.labels))...)
-		} else {
-			renderer.labels = renderer.labels[:len(frame.TextLabels)]
-		}
-		for index, label := range frame.TextLabels {
-			renderer.labels[index].update(label)
-		}
-		renderer.labelOrder = groupTextLayers(renderer.labels, renderer.labelOrder)
+		renderer.storeLabels(frame.TextLabels)
 		compositingChanged = true
 	}
 	if compositingChanged {
 		renderer.compositingBatches = groupCompositingLayers(renderer.rectangleBatches, renderer.labels, renderer.labelOrder, renderer.compositingBatches)
 	}
 	return nil
+}
+
+// storeLabels updates the retained text pictures for one frame. A label with a
+// stable identity keeps its slot when it moves in the paint list, so scrolling
+// a terminal reuses every row that stays visible instead of rasterizing the
+// whole screen again. Labels without an identity keep the old positional match.
+// Slots no label uses this frame are closed and made available to later labels.
+func (renderer *renderer) storeLabels(labels []platform.TextLabel) {
+	if len(renderer.labelUsed) < len(renderer.labels) {
+		renderer.labelUsed = append(renderer.labelUsed, make([]bool, len(renderer.labels)-len(renderer.labelUsed))...)
+	} else {
+		renderer.labelUsed = renderer.labelUsed[:len(renderer.labels)]
+	}
+	clear(renderer.labelUsed)
+	if renderer.labelIdentities == nil {
+		renderer.labelIdentities = make(map[ui.TextIdentity]int)
+		renderer.labelNextIdentities = make(map[ui.TextIdentity]int)
+	}
+	clear(renderer.labelNextIdentities)
+	renderer.labelNextFrame = renderer.labelNextFrame[:0]
+	for index, label := range labels {
+		slot := -1
+		if !label.Identity.IsZero() {
+			if previous, ok := renderer.labelIdentities[label.Identity]; ok && !renderer.labelUsed[previous] && renderer.labels[previous].label.Identity == label.Identity {
+				slot = previous
+			}
+		} else if index < len(renderer.labelFrame) {
+			// A label with no identity may still occupy the same place in the
+			// frame as it did last time, which is the old reuse rule.
+			previous := renderer.labelFrame[index]
+			if previous >= 0 && !renderer.labelUsed[previous] && renderer.labels[previous].label.Identity.IsZero() {
+				slot = previous
+			}
+		}
+		if slot < 0 {
+			slot = renderer.newLabelSlot()
+		}
+		renderer.labels[slot].update(label)
+		renderer.labelUsed[slot] = true
+		renderer.labelNextFrame = append(renderer.labelNextFrame, slot)
+		if !label.Identity.IsZero() {
+			if _, duplicate := renderer.labelNextIdentities[label.Identity]; !duplicate {
+				renderer.labelNextIdentities[label.Identity] = slot
+			}
+		}
+	}
+	renderer.labelFree = renderer.labelFree[:0]
+	for slot := range renderer.labels {
+		if !renderer.labelUsed[slot] {
+			renderer.labels[slot].close()
+			renderer.labelFree = append(renderer.labelFree, slot)
+		}
+	}
+	renderer.labelFrame, renderer.labelNextFrame = renderer.labelNextFrame, renderer.labelFrame
+	renderer.labelIdentities, renderer.labelNextIdentities = renderer.labelNextIdentities, renderer.labelIdentities
+	clear(renderer.labelNextIdentities)
+	renderer.labelOrder = groupTextLayers(renderer.labels, renderer.labelFrame, renderer.labelOrder)
+}
+
+// newLabelSlot returns a label slot no label in this frame uses: a closed one
+// from the free list, or a new one.
+func (renderer *renderer) newLabelSlot() int {
+	if count := len(renderer.labelFree); count > 0 {
+		slot := renderer.labelFree[count-1]
+		renderer.labelFree = renderer.labelFree[:count-1]
+		return slot
+	}
+	slot := len(renderer.labels)
+	renderer.labels = append(renderer.labels, labelTexture{})
+	renderer.labelUsed = append(renderer.labelUsed, false)
+	return slot
 }
 
 // growInstanceBuffer replaces the GPU buffer of rectangle instances by one that
@@ -405,6 +502,14 @@ func makeRectangleInstance(rectangle render.Rectangle) rectangleInstance {
 }
 
 func (renderer *renderer) present(width, height int, scale float32) error {
+	return renderer.presentWithSync(width, height, scale, 1)
+}
+
+// presentWithSync presents with a DXGI sync interval. A live resize presents
+// immediately (0) so the frame drawn for the new size reaches the swap chain
+// before WM_SIZE returns; the swap chain itself uses DXGI_SCALING_NONE, so an
+// older frame is shown at its own size instead of stretched over the window.
+func (renderer *renderer) presentWithSync(width, height int, scale float32, sync uintptr) error {
 	if width <= 0 || height <= 0 {
 		return nil
 	}
@@ -428,7 +533,7 @@ func (renderer *renderer) present(width, height int, scale float32) error {
 	if err := renderer.draw(width, height, scale); err != nil {
 		return err
 	}
-	return hresult(comCall(renderer.swap, 8, 1, 0))
+	return hresult(comCall(renderer.swap, 8, sync, 0))
 }
 
 // draw clears the bound-size render target to the clear color and paints every
@@ -563,6 +668,12 @@ func (renderer *renderer) close() {
 	}
 	renderer.labels = nil
 	renderer.labelOrder = nil
+	renderer.labelFrame = nil
+	renderer.labelNextFrame = nil
+	renderer.labelIdentities = nil
+	renderer.labelNextIdentities = nil
+	renderer.labelUsed = nil
+	renderer.labelFree = nil
 	renderer.instances = nil
 	renderer.rectangleClips = nil
 	renderer.rectangleBatches = nil

@@ -515,3 +515,24 @@ func TestFallbackFamiliesNeverChangeTheCell(t *testing.T) {
 		t.Errorf("the system face with a fallback measures %v x %v (%v), want %v x %v", width, height, err, system, systemHeight)
 	}
 }
+
+// A canvas on the platform engine lays a terminal out on the cell of the font that draws
+// it, as the platform measures that font, not on the reference 0.6 by 1.18.
+func TestACanvasOnTheEngineSizesTheTerminalCellByTheFont(t *testing.T) {
+	var canvas ui.Canvas
+	canvas.SetPixelScale(2)
+	canvas.SetTextEngine(SharedTextEngine())
+	for _, face := range []ui.MonoFace{ui.MonoSystem, ui.MonoFamily("Courier New")} {
+		advance, line, err := MeasureMono(13, face)
+		if err != nil {
+			t.Fatal(err)
+		}
+		width, height := canvas.MonoCellSize(13, face)
+		if diff := width - advance; diff < -0.25 || diff > 0.25 { // whole device pixels at scale 2
+			t.Errorf("face %v: cell width %v, font advance %v", face, width, advance)
+		}
+		if height < line || height >= line+1 {
+			t.Errorf("face %v: cell height %v, font line %v", face, height, line)
+		}
+	}
+}

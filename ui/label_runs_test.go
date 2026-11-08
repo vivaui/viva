@@ -8,7 +8,8 @@ import (
 func TestLabelRunsCopiesItsRunsAndExposesThemPerText(t *testing.T) {
 	var canvas Canvas
 	runs := []TextRun{{Column: 0, Bytes: 2, Cells: 2, Color: Color{Red: 1, Alpha: 1}, Ligatures: true}}
-	canvas.LabelRuns("hi", Rect{Width: 20, Height: 10}, TextStyle{Size: 12}, 6, runs)
+	identity := TextIdentity{Owner: 3, Item: 9}
+	canvas.LabelRunsWithIdentity(identity, "hi", Rect{Width: 20, Height: 10}, TextStyle{Size: 12}, 6, runs)
 	runs[0].Color = Color{Green: 1, Alpha: 1} // the caller reuses its buffer
 	canvas.LabelRuns("yo", Rect{Y: 10, Width: 20, Height: 10}, TextStyle{Size: 12}, 6,
 		[]TextRun{{Bytes: 1, Cells: 1}, {Column: 1, Bytes: 1, Cells: 1}})
@@ -20,6 +21,9 @@ func TestLabelRunsCopiesItsRunsAndExposesThemPerText(t *testing.T) {
 	}
 	if !texts[0].Style.Mono || texts[0].CellWidth != 6 {
 		t.Errorf("a runs label is fixed-pitch: %+v", texts[0])
+	}
+	if texts[0].Identity != identity || !texts[1].Identity.IsZero() {
+		t.Errorf("identities = %+v and %+v, want %+v and none", texts[0].Identity, texts[1].Identity, identity)
 	}
 	if got := canvas.TextRuns(texts[0]); len(got) != 1 || got[0].Color.Red != 1 || got[0].Color.Green != 0 || !got[0].Ligatures {
 		t.Errorf("first runs = %+v, want the red ligature run as it was when added", got)
@@ -58,10 +62,9 @@ func TestLabelRunsDoesNotAllocateOnceWarm(t *testing.T) {
 	}
 }
 
-// A font whose line box is taller than 1.18 sizes gets rows no taller than
-// that, so a terminal is as dense on a platform whose mono font is loose as on one
-// whose font is tight; a tighter font keeps its own height.
-func TestCellHeightIsCappedForFontsWithTallLineBoxes(t *testing.T) {
+// A font's own line box is its row: a terminal in a font with a tall line box has tall
+// rows, as in every native terminal, and a tight one has tight rows.
+func TestCellHeightIsTheFontsOwnLineBox(t *testing.T) {
 	var canvas Canvas
 	canvas.SetCellMeasurer(func(size float32, face MonoFace) (float32, float32) {
 		if face == MonoClassic {
@@ -69,8 +72,8 @@ func TestCellHeightIsCappedForFontsWithTallLineBoxes(t *testing.T) {
 		}
 		return size * 0.6, size * 1.45
 	})
-	if _, h := canvas.MonoCellSize(20, MonoSystem); h != 24 { // 28.9 capped to 23.6
-		t.Errorf("loose font: height %v, want 24", h)
+	if _, h := canvas.MonoCellSize(20, MonoSystem); h != 29 { // 29.0 whole
+		t.Errorf("loose font: height %v, want its own 29", h)
 	}
 	if _, h := canvas.MonoCellSize(20, MonoClassic); h != 22 {
 		t.Errorf("tight font: height %v, want its own 22", h)
@@ -107,7 +110,7 @@ func TestCellSizeUsesTheMeasurerAndRoundsHeightUp(t *testing.T) {
 		t.Errorf("a new size did not measure: %d", calls)
 	}
 	classicWidth, classicHeight := canvas.MonoCellSize(14, MonoClassic)
-	if classicWidth != 14*0.62 || classicHeight != 17 || calls != 3 { // 18.3 is capped at 1.18 sizes, 16.5, then rounded up
+	if classicWidth != 14*0.62 || classicHeight != 19 || calls != 3 { // 18.3 rounded up to a whole pixel row
 		t.Errorf("classic cell = %v,%v calls=%d", classicWidth, classicHeight, calls)
 	}
 	canvas.MonoCellSize(14, MonoClassic)

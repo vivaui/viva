@@ -150,7 +150,7 @@ func TestCheckboxFocusAndInvalidUseOfficialRings(t *testing.T) {
 		t.Fatalf("focus ring = %+v", ring)
 	}
 	wantInvalid := withAlpha(theme.Danger, 0.40)
-	wantBorder := invalidBorder(theme).Over(theme.Background)
+	wantBorder := invalidBorder(&theme).Over(theme.Background)
 	if ring := invalid.Rectangles()[0]; ring.Color != wantInvalid || invalid.Rectangles()[1].Color != wantBorder {
 		t.Fatalf("invalid ring/border = %+v / %+v", ring, invalid.Rectangles()[1])
 	}

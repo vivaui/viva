@@ -82,14 +82,14 @@ func TestAllOutlinesEveryRegionAndHoveredOnlyOne(t *testing.T) {
 	count := func(mode Mode) int {
 		var canvas ui.Canvas
 		page(&canvas)
-		before := len(canvas.Rectangles())
+		before := len(canvas.Triangles())
 		inspector := Inspector{}
 		inspector.Set(mode)
 		inspector.Paint(&canvas, ui.Rect{Width: 300, Height: 200})
-		return len(canvas.Rectangles()) - before
+		return len(canvas.Triangles()) - before
 	}
 	if hovered, all := count(Hovered), count(All); hovered != 0 || all == 0 {
-		t.Fatalf("with nothing hovered, Hovered painted %d and All painted %d rectangles", hovered, all)
+		t.Fatalf("with nothing hovered, Hovered painted %d and All painted %d outline segments", hovered, all)
 	}
 }
 

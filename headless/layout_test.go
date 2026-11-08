@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -93,6 +94,30 @@ func TestServeLayoutListsProblemsAndNeverFails(t *testing.T) {
 	reply := out.String()
 	if !strings.HasPrefix(reply, "offscreen ") || !strings.Contains(reply, `"Runs off the window"`) || !strings.Contains(reply, "ok 1 problems\n") {
 		t.Fatalf("reply = %q", reply)
+	}
+}
+
+// A snapshot's painted widths come from the platform font engine, which can be
+// slightly narrower than the reference metrics table for CJK runs. Sequentially
+// laid-out spans measured by the engine must not be reported as overlapping.
+func TestCheckLayoutPrefersPaintedTextWidths(t *testing.T) {
+	style := ui.TextStyle{Size: 16, Color: ui.Color{Alpha: 1}}
+	const first = "如果还需要详细的介绍，请查看"
+	approximate := textmetrics.Width(first, style.Size, style.Weight)
+	painted := approximate - 1.4
+	snapshot := app.Snapshot{
+		Width: 640, Height: 100,
+		Texts: []ui.Text{
+			{Value: first, Bounds: ui.Rect{X: 10, Y: 20, Width: 400, Height: 21}, Style: style},
+			{Value: " 芒小智帮助文档", Bounds: ui.Rect{X: 10 + painted, Y: 20, Width: 400, Height: 21}, Style: style},
+		},
+	}
+	if kinds := layoutKinds(CheckLayout(snapshot)); kinds[LayoutOverlap] == 0 {
+		t.Fatal("a hand-built snapshot without painted widths should keep using reference metrics")
+	}
+	snapshot.TextWidths = []float32{painted, 120}
+	if kinds := layoutKinds(CheckLayout(snapshot)); kinds[LayoutOverlap] != 0 {
+		t.Fatalf("painted widths still report a false overlap: %+v", kinds)
 	}
 }
 

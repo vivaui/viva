@@ -83,8 +83,10 @@ func (state *State) paintForm(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
 		snapshot.Error = "Use at least three characters."
 	}
 	layout := components.PaintFormField(canvas, theme, slot.Rect(), snapshot)
-	components.PaintInput(canvas, theme, layout.Control, components.InputSnapshot{
+	input := components.InputSnapshot{
 		ID: formInput, Label: layout.Semantics.Label, Value: value, Hint: layout.Semantics.AssistiveText(), Invalid: layout.Semantics.Invalid,
-		ReadOnly: !state.editing, PlatformEditing: state.platformFocused(canvas, value),
-	})
+		ReadOnly: !state.editing,
+	}
+	state.paintEditable(canvas, formInput, value, &input)
+	components.PaintInput(canvas, theme, layout.Control, input)
 }

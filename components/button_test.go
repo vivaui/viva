@@ -162,7 +162,7 @@ func TestButtonFocusAndInvalidRingsUseOfficialTokensInDark(t *testing.T) {
 	}
 	invalidRing := invalid.Rectangles()[0]
 	wantInvalid := withAlpha(theme.Danger, 0.40)
-	wantBorder := invalidBorder(theme).Over(theme.Background)
+	wantBorder := invalidBorder(&theme).Over(theme.Background)
 	if invalidRing.Color != wantInvalid || invalid.Rectangles()[1].Color != wantBorder {
 		t.Fatalf("invalid ring/border = %+v / %+v", invalidRing, invalid.Rectangles()[1])
 	}
@@ -284,5 +284,34 @@ func TestButtonHeightPaintsTheButtonThatTall(t *testing.T) {
 	// Zero or less is the size's own.
 	if _, same := paint(BeginButton(nil, theme, ui.Item(1), ui.Rect{Width: 80}).Height(-5)); same != plain {
 		t.Errorf("a negative height changed the button: %+v", same)
+	}
+}
+
+// FontSize changes only the label's size: the button keeps the height and radius
+// of its size, SizeToFit follows the label, and zero or less is the size's own.
+func TestButtonFontSizeChangesOnlyTheLabel(t *testing.T) {
+	theme := ui.LightTheme()
+	paint := func(button Button) *ui.Canvas {
+		canvas := &ui.Canvas{}
+		button.canvas = canvas
+		button.Default("Save")
+		return canvas
+	}
+	base := ui.Rect{Width: 80}
+	plain := paint(BeginButton(nil, theme, ui.Item(1), base).Small())
+	sized := paint(BeginButton(nil, theme, ui.Item(1), base).Small().FontSize(13))
+	if got := sized.Texts()[0].Style.Size; got != 13 {
+		t.Errorf("label size = %v, want 13", got)
+	}
+	if sized.Rectangles()[0].Bounds != plain.Rectangles()[0].Bounds || sized.Rectangles()[0].Radius != plain.Rectangles()[0].Radius {
+		t.Errorf("the box changed: %+v vs %+v", sized.Rectangles()[0], plain.Rectangles()[0])
+	}
+	if got, want := paint(BeginButton(nil, theme, ui.Item(1), base).Small().FontSize(-1)).Texts()[0].Style.Size, plain.Texts()[0].Style.Size; got != want {
+		t.Errorf("a negative size gave %v, want the size's %v", got, want)
+	}
+	small := BeginButton(&ui.Canvas{}, theme, ui.Item(1), base).Small().SizeToFit("Layout").BoundsWidth()
+	large := BeginButton(&ui.Canvas{}, theme, ui.Item(1), base).Small().FontSize(20).SizeToFit("Layout").BoundsWidth()
+	if large <= small {
+		t.Errorf("a bigger label fit in %v, no wider than %v", large, small)
 	}
 }

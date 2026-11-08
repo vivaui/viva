@@ -48,8 +48,8 @@ const (
 )
 
 // The reference fixed-pitch cell, in units of the font size: the advance of one
-// character and the height of one line. Every platform's fixed-pitch text is placed
-// on this grid whatever its own font's advance is.
+// character and the height of one line. A canvas whose text engine cannot measure a
+// font (ui.MonoCellEngine) lays fixed-pitch text on this grid.
 const (
 	MonoAdvance = 0.6
 	MonoLine    = 1.18

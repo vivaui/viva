@@ -110,48 +110,17 @@ func (checkbox Checkbox) Paint() CheckboxResult {
 	checkbox.bounds.Width = CheckboxExtent(checkbox.theme)
 	checkbox.bounds.Height = checkbox.bounds.Width
 
-	background := checkbox.theme.Background
-	background.Alpha = 0
-	border := checkbox.theme.Input
-	foreground := checkbox.theme.PrimaryForeground
-	if isDark(checkbox.theme) {
-		background = scaledAlpha(checkbox.theme.Input, 0.30)
+	state := ui.State{
+		Checked: checkbox.checked, Mixed: checkbox.indeterminate, FocusVisible: checkbox.focused,
+		Invalid: checkbox.invalid, Disabled: checkbox.disabled,
 	}
-	if checkbox.checked || checkbox.indeterminate {
-		background = checkbox.theme.Primary
-		border = checkbox.theme.Primary
+	look := checkboxRecipe(&checkbox.theme, state)
+	checkbox.canvas.Elevate(checkbox.bounds, look.Radius, look.Shadow) // shadow-xs
+	if look.RingWidth > 0 {
+		checkbox.canvas.Rounded(expand(checkbox.bounds, look.RingWidth), look.RingRadius, look.Ring)
 	}
-	if checkbox.focused && !checkbox.checked {
-		border = checkbox.theme.Ring
-	}
-	if checkbox.invalid && !checkbox.checked {
-		border = invalidBorder(checkbox.theme)
-	}
-	checkbox.canvas.Elevate(checkbox.bounds, 4*scale, ui.ShadowXS) // shadow-xs
-	if checkbox.focused || checkbox.invalid {
-		ring := scaledAlpha(checkbox.theme.Ring, 0.50)
-		if checkbox.invalid {
-			ring = invalidRing(checkbox.theme)
-		}
-		checkbox.canvas.Rounded(expand(checkbox.bounds, 3*scale), 7*scale, ring)
-	}
-	if checkbox.disabled {
-		background.Alpha *= 0.50
-		border.Alpha *= 0.50
-		foreground.Alpha *= 0.50
-	}
-	paintBordered(checkbox.canvas, checkbox.theme, checkbox.bounds, 4*scale, border, background)
-	if checkbox.indeterminate {
-		dash := checkbox.bounds.Width * 0.5
-		thickness := max(checkbox.bounds.Height/8, 1)
-		checkbox.canvas.Fill(ui.Rect{
-			X:     checkbox.bounds.X + (checkbox.bounds.Width-dash)/2,
-			Y:     checkbox.bounds.Y + (checkbox.bounds.Height-thickness)/2,
-			Width: dash, Height: thickness,
-		}, foreground)
-	} else if checkbox.checked {
-		paintCheck(checkbox.canvas, checkbox.bounds, checkbox.bounds.Height*0.875, foreground)
-	}
+	paintBordered(checkbox.canvas, checkbox.theme, checkbox.bounds, look.Radius, look.Border, look.Fill)
+	PaintCheckboxMark(checkbox.canvas, checkbox.bounds, state, look.Mark)
 	if !checkbox.id.IsZero() {
 		hitBounds := ui.Rect{
 			X: checkbox.bounds.X - 12*scale, Y: checkbox.bounds.Y - 8*scale,
@@ -181,4 +150,86 @@ var checkIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinR
 // paintCheck draws a check mark size pixels square, centered in bounds.
 func paintCheck(canvas *ui.Canvas, bounds ui.Rect, size float32, color ui.Color) {
 	canvas.DrawIcon(checkIcon, ui.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, color)
+}
+
+// CheckboxLook is the look of a checkbox in one state.
+type CheckboxLook struct {
+	// Fill, Border and Mark are the colors of the box, its line and its check or dash.
+	// Over an opaque theme Fill and Border are flattened onto the page background, as
+	// TextEntryLook's are, so the box paints as one solid shape (RoundedBorder).
+	Fill, Border, Mark ui.Color
+	// Radius is the corner radius of the box.
+	Radius float32
+	// Shadow is the elevation under the box.
+	Shadow ui.ShadowLevel
+	// Ring is the halo of a focused or invalid box; it is transparent, with a zero
+	// RingWidth, when there is none. RingRadius is its outer corner radius and
+	// RingWidth how far it reaches beyond the box.
+	Ring                  ui.Color
+	RingWidth, RingRadius float32
+}
+
+// CheckboxRecipe resolves the look of a checkbox. Checked, Mixed, FocusVisible, Invalid and
+// Disabled of state are read; a checked or mixed box takes the primary color whatever else
+// is true of it.
+func CheckboxRecipe(theme ui.Theme, state ui.State) CheckboxLook {
+	return checkboxRecipe(&theme, state)
+}
+
+// checkboxRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
+// and a Theme is large.
+func checkboxRecipe(theme *ui.Theme, state ui.State) CheckboxLook {
+	scale := theme.Metrics.ControlHeight / 32
+	on := state.Checked || state.Mixed
+	look := CheckboxLook{
+		Fill: theme.Background, Border: theme.Input, Mark: theme.PrimaryForeground,
+		Radius: 4 * scale, Shadow: ui.ShadowXS,
+	}
+	look.Fill.Alpha = 0
+	if isDark(theme) {
+		look.Fill = scaledAlpha(theme.Input, 0.30)
+	}
+	if on {
+		look.Fill, look.Border = theme.Primary, theme.Primary
+	}
+	if state.FocusVisible && !on {
+		look.Border = theme.Ring
+	}
+	if state.Invalid && !on {
+		look.Border = invalidBorder(theme)
+	}
+	if state.FocusVisible || state.Invalid {
+		look.Ring = scaledAlpha(theme.Ring, 0.50)
+		if state.Invalid {
+			look.Ring = invalidRing(theme)
+		}
+		look.RingWidth, look.RingRadius = 3*scale, 7*scale
+	}
+	if state.Disabled {
+		look.Fill.Alpha *= 0.50
+		look.Border.Alpha *= 0.50
+		look.Mark.Alpha *= 0.50
+	}
+	if theme.Background.Alpha >= 1 {
+		look.Fill, look.Border = look.Fill.Over(theme.Background), look.Border.Over(theme.Background)
+	}
+	return look
+}
+
+// PaintCheckboxMark draws the mark of a checkbox in bounds, the box: a dash when mixed,
+// a check when checked, nothing otherwise. The check is the vector the shadcn checkbox
+// draws, so a box of the application's own shows the same mark.
+func PaintCheckboxMark(canvas *ui.Canvas, bounds ui.Rect, state ui.State, color ui.Color) {
+	switch {
+	case state.Mixed:
+		dash := bounds.Width * 0.5
+		thickness := max(bounds.Height/8, 1)
+		canvas.Fill(ui.Rect{
+			X:     bounds.X + (bounds.Width-dash)/2,
+			Y:     bounds.Y + (bounds.Height-thickness)/2,
+			Width: dash, Height: thickness,
+		}, color)
+	case state.Checked:
+		paintCheck(canvas, bounds, bounds.Height*0.875, color)
+	}
 }

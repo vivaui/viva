@@ -9,3 +9,7 @@ import "errors"
 func Describe(mount, volume, name string) (File, error) {
 	return File{}, errors.New("dmg: disk images are made on macOS")
 }
+
+func volumeMounted(mount string) (bool, error) {
+	return false, errors.New("dmg: disk images are made on macOS")
+}

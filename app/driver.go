@@ -1,4 +1,4 @@
-//go:build darwin || windows || linux
+//go:build darwin || windows || linux || (js && wasm)
 
 package app
 
@@ -256,7 +256,7 @@ func (driver *Driver) pointer(kind platform.PointerEventKind, x, y float32, butt
 		return err
 	}
 	origin := driver.origin
-	_, err := driver.painter.pointer(platform.PointerEvent{
+	_, err := driver.painter.pointerEvent(platform.PointerEvent{
 		Kind: kind, Button: button, Modifiers: driver.heldModifiers(), X: x, Y: y, ScreenX: origin.X + x, ScreenY: origin.Y + y, ClickCount: clicks,
 	})
 	return err
@@ -337,7 +337,7 @@ func (driver *Driver) Maximized() bool { return driver.maximized }
 // point. It applies the same focus-scope and blocking-region rules as pointer
 // input without moving the pointer or repainting.
 func (driver *Driver) HitTest(x, y float32) (ui.ID, bool) {
-	return driver.painter.router.HitTest(x, y)
+	return driver.painter.focus.Router().HitTest(x, y)
 }
 
 // PressAt reports what a press at a point would do in a custom-titlebar window:
@@ -975,6 +975,9 @@ type Primitive struct {
 type Label struct {
 	Value  string
 	Bounds ui.Rect
+	// Identity is platform.TextLabel's stable text identity, when one was
+	// supplied.
+	Identity ui.TextIdentity
 	// OriginX and OriginY are platform.TextLabel's: the text's sub-pixel position
 	// within Bounds.
 	OriginX, OriginY float32
@@ -1042,6 +1045,10 @@ type Snapshot struct {
 	// Texts is every text the application painted this frame, before clipping,
 	// for queries; Labels holds what is actually drawn.
 	Texts []ui.Text
+	// TextWidths is the painted width of each Texts entry, measured with the same
+	// canvas font engine as the renderer. Headless layout checks prefer it over
+	// the approximate textmetrics table; a missing or zero entry falls back.
+	TextWidths []float32
 	// Runs are the text runs Texts refer to; see TextRuns.
 	Runs []ui.TextRun
 	Hits []ui.Hit
@@ -1075,7 +1082,18 @@ func (driver *Driver) Snapshot() Snapshot {
 		Runs:    append([]ui.TextRun(nil), painter.canvas.AllTextRuns()...),
 		Hits:    append([]ui.Hit(nil), painter.canvas.Hits()...),
 		Tree:    painter.canvas.Tree(),
-		Focused: painter.focused, Hovered: painter.hovered, Cursor: painter.cursor, CursorImage: painter.cursorImage, Now: driver.now,
+		Focused: painter.focus.Focused(), Hovered: painter.pointer.Hovered(), Cursor: painter.cursor, CursorImage: painter.cursorImage, Now: driver.now,
+	}
+	// Keep the widths aligned with Texts: the platform font engine can differ
+	// from the approximate metrics table by a fraction of a pixel per CJK run.
+	// Terminal grids, shaped runs, monospaced and empty texts are laid out by
+	// cells or runs, not by line width, so they are left unmeasured (zero).
+	snapshot.TextWidths = make([]float32, len(snapshot.Texts))
+	for index, text := range snapshot.Texts {
+		if text.Value == "" || text.CellWidth > 0 || text.RunCount > 0 || text.Style.Mono {
+			continue
+		}
+		snapshot.TextWidths[index] = painter.canvas.TextWidthStyle(text.Value, text.Style)
 	}
 	for _, rectangle := range painter.renderer.Rectangles() {
 		primitive := Primitive{
@@ -1108,9 +1126,10 @@ func (driver *Driver) Snapshot() Snapshot {
 	}
 	for _, label := range painter.labels {
 		captured := Label{
-			Value:   label.Value,
-			Bounds:  ui.Rect{X: label.X, Y: label.Y, Width: label.Width, Height: label.Height},
-			OriginX: label.OriginX, OriginY: label.OriginY,
+			Value:    label.Value,
+			Bounds:   ui.Rect{X: label.X, Y: label.Y, Width: label.Width, Height: label.Height},
+			Identity: label.Identity,
+			OriginX:  label.OriginX, OriginY: label.OriginY,
 			FontSize: label.FontSize, Weight: label.Weight, Italic: label.Italic,
 			Color: ui.Color{Red: float32(label.Color.Red), Green: float32(label.Color.Green), Blue: float32(label.Color.Blue), Alpha: float32(label.Color.Alpha)},
 			Layer: label.Layer, FontGeneration: label.FontGeneration,

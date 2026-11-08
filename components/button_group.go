@@ -89,21 +89,21 @@ func (group ButtonGroup) Paint() ButtonGroupResult {
 	for index, option := range group.options {
 		framed = framed || option.Variant == ButtonOutline || option.Variant == ButtonDestructiveOutline
 		if !group.disabled && !option.Disabled && !option.ID.IsZero() && group.canvas.FocusVisible() == option.ID {
-			ring, _ := buttonRing(group.theme, option.Variant, false)
+			ring, _ := buttonRing(&group.theme, option.Variant, false)
 			group.canvas.Rounded(expand(group.optionBounds(index, float32(count)), 3), radius+3, ring)
 		}
 	}
 	// The outline goes down first and the actions are painted inside it.
 	if framed {
 		group.canvas.Elevate(group.bounds, radius, ui.ShadowXS) // the outline buttons' shadow-xs
-		paintBordered(group.canvas, group.theme, group.bounds, radius, outlineBorder(group.theme), ui.Color{})
+		paintBordered(group.canvas, group.theme, group.bounds, radius, outlineBorder(&group.theme), ui.Color{})
 		radius--
 	}
 	for index, option := range group.options {
 		bounds := group.optionBounds(index, float32(count))
 		surface := joinedSurface(bounds, index, count, vertical, framed)
 		inert := group.disabled || option.Disabled || option.ID.IsZero()
-		style := buttonStyleFor(group.theme, option.Variant,
+		style := buttonStyleFor(&group.theme, option.Variant,
 			!inert && group.canvas.Hovered() == option.ID, !inert && group.canvas.Pressed() == option.ID)
 		fill := style.background
 		if !style.filled {

@@ -1,11 +1,27 @@
 package windows
 
 import (
+	"syscall"
 	"testing"
 
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/ui"
 )
+
+// Version 4 icons have no standard tooltip unless the shell is asked for one:
+// Windows suppresses it in that mode, and the application is expected to draw
+// its own. The icon must name itself, or hovering it shows nothing at all.
+func TestStatusItemAsksTheShellForTheStandardTooltip(t *testing.T) {
+	application := &windowsApplication{status: &statusState{window: 1}}
+	item := &statusItem{application: application, tooltip: "Motty"}
+	data := item.data()
+	if data.Flags&notifyShowTip == 0 {
+		t.Fatal("the status item does not ask for the standard tooltip that version 4 suppresses")
+	}
+	if got := syscall.UTF16ToString(data.Tip[:]); got != "Motty" {
+		t.Fatalf("tip = %q, want the tooltip text", got)
+	}
+}
 
 // Exercise the notification dispatcher, not only its button decoder. A menu
 // must not swallow primary activation when the application also has a callback.

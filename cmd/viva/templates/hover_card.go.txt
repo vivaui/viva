@@ -189,8 +189,7 @@ func (card HoverCard) Begin(title, description string) HoverCardLayout {
 	content, side := card.contentBounds(width, headerHeight)
 	card.canvas.BeginPresence(overlayKey(card.options.ID), overlaySurfacePart,
 		popupPresence(card.theme, overlayDuration, side), popupPivot(content, side, card.anchor))
-	card.canvas.Elevate(content, metrics.RadiusPopup(), ui.ShadowMD) // shadow-md
-	card.canvas.RoundedBorder(content, metrics.RadiusPopup(), 1, card.theme.Border, card.theme.Popover)
+	paintPopupSurface(card.canvas, &card.theme, content, ui.ShadowMD) // shadow-md
 	if !card.options.ID.IsZero() {
 		card.canvas.HitWithOptions(card.options.ID, content, title, ui.HitOptions{Role: ui.RoleGroup, SkipFocus: true})
 	}

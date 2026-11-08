@@ -37,7 +37,7 @@ func (f *Frame) paint(i int32) {
 		canvas.ElevateFaded(r, n.radius, style.shadow, f.opacity)
 	}
 	switch {
-	case n.borderWidth > 0 && extra.gradient == 0 && f.opacity >= 1:
+	case n.borderWidth > 0 && extra.gradient == 0 && f.opacity >= 1 && background.Alpha >= 1:
 		canvas.RoundedBorder(r, n.radius, n.borderWidth, border, background)
 	default:
 		// RoundedBorder paints the border color as a solid backing under the fill, which a
@@ -81,11 +81,21 @@ func (f *Frame) paint(i int32) {
 	}
 	n.color = color
 
+	var hooks drawHooks
+	if extra.draws != 0 {
+		hooks = f.draws[extra.draws-1]
+	}
+	if hooks.under != nil {
+		f.runDraw(n, hooks.under)
+	}
 	for c := n.first; c >= 0; c = f.nodes[c].next {
 		f.paint(c)
 	}
 	if n.outOfFlow&absChildren != 0 {
 		f.paintAbsolute(i)
+	}
+	if hooks.over != nil {
+		f.runDraw(n, hooks.over)
 	}
 	f.opacity = parentOpacity
 	if style.opacity < 1 {
@@ -119,11 +129,11 @@ func (f *Frame) paintControl(n *node, r ui.Rect) {
 		}
 		checkbox.Paint()
 	case kindInput:
-		components.PaintInput(canvas, f.theme, r, f.inputs[n.aux])
+		f.paintInput(n)
 	case kindInputGroup:
 		components.PaintInputGroup(canvas, f.theme, r, f.groups[n.aux])
 	case kindTextarea:
-		components.PaintTextarea(canvas, f.theme, r, f.textareas[n.aux])
+		f.paintTextarea(n)
 	case kindSegmented:
 		choice := f.segmented[n.aux]
 		components.BeginSegmentedControl(canvas, f.theme, r, choice.options, choice.selected).Paint()
@@ -222,4 +232,39 @@ func (f *Frame) paintButton(n *node) {
 	default:
 		button.Default(n.label)
 	}
+}
+
+// paintInput paints the text of an Input or InputBase inside the element's Pad and Border.
+// The element's box is already down, so only the content and the hit are left. The hit
+// is the whole element, whose looks follow the same identity, while the platform is told
+// the text sits in the padded rectangle.
+func (f *Frame) paintInput(n *node) {
+	// What the element says of its text (FontSize, Weight, Color) is the field's text style,
+	// over the snapshot's own: the one value the glyphs, the caret and the platform follow.
+	snapshot := f.inputs[n.aux]
+	if n.fontSize > 0 {
+		snapshot.Text.Size = n.fontSize
+	}
+	if n.weight > 0 {
+		snapshot.Text.Weight = n.weight
+	}
+	if n.flags&flagHasColor != 0 {
+		snapshot.Text.Color = n.color
+	}
+	if n.flags&flagMono != 0 {
+		snapshot.Text.Mono, snapshot.Text.MonoFace = true, n.face
+	}
+	components.PaintInputContent(f.canvas, f.theme, n.rect, f.contentRect(n), snapshot)
+}
+
+// paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
+// Border, as paintInput does for a line.
+func (f *Frame) paintTextarea(n *node) {
+	if n.flags&flagHasColor != 0 {
+		theme := f.theme
+		theme.Foreground = n.color
+		components.PaintTextareaContent(f.canvas, theme, n.rect, f.contentRect(n), f.textareas[n.aux])
+		return
+	}
+	components.PaintTextareaContent(f.canvas, f.theme, n.rect, f.contentRect(n), f.textareas[n.aux])
 }

@@ -271,3 +271,58 @@ func BenchmarkSlider(b *testing.B) {
 		})
 	}
 }
+
+// sliderBasePage is a SliderBase 200 wide whose track and thumb the caller draws.
+type sliderBasePage struct {
+	view  View
+	state SliderState
+	box   Box
+	thumb ui.Rect
+}
+
+func (p *sliderBasePage) paint(canvas *ui.Canvas, size ui.Size) {
+	p.view.Draw(canvas, ui.LightTheme(), ui.Rect{Width: 200, Height: 200}, func(f *Frame) {
+		f.Column().Fill().Children(func() {
+			p.box = f.SliderBase(volumeID, &p.state).Label("Volume").Draw(func(d *DrawContext) {
+				x := d.Rect.X + 8 + p.state.Fraction()*(d.Rect.Width-16)
+				p.thumb = ui.Rect{X: x - 8, Y: d.Rect.Y, Width: 16, Height: 16}
+				d.Canvas.Rounded(p.thumb, 8, ui.Color{Alpha: 1})
+			})
+		})
+	})
+}
+
+// A SliderBase is the slider to the pointer and the keyboard, with a thumb the caller draws
+// where Fraction says: dragging it moves the value as dragging the shadcn slider does.
+func TestSliderBaseDragsAndReportsLikeASliderAndDrawsNothingOfItsOwn(t *testing.T) {
+	p := &sliderBasePage{}
+	p.state.Value = 20
+	canvas := testCanvas()
+	p.paint(canvas, ui.Size{})
+	if len(canvas.Rectangles()) != 1 {
+		t.Fatalf("a SliderBase painted %d shapes, want only the caller's thumb", len(canvas.Rectangles()))
+	}
+	hits := canvas.Hits()
+	if len(hits) != 1 || hits[0].Role != ui.RoleSlider || hits[0].Label != "Volume" || hits[0].Value != "20" ||
+		!hits[0].Range.Set || hits[0].Range.Now != 20 || hits[0].Range.Max != 100 {
+		t.Fatalf("hits = %+v", hits)
+	}
+	if got, want := p.thumb.X+8, p.box.Rect().X+8+0.2*(p.box.Rect().Width-16); got != want {
+		t.Errorf("the thumb is centered at %v, want %v", got, want)
+	}
+	press := func(kind ui.PointerEventKind, x float32) {
+		canvas.DeliverPointer(ui.PointerEvent{Kind: kind, Button: ui.PointerButtonPrimary, X: x, Y: p.box.Rect().Y + 8, Target: volumeID, Captured: kind != ui.PointerDown}, ui.Size{Width: 200, Height: 200}, p.paint)
+	}
+	press(ui.PointerDown, trackFrom+(trackTo-trackFrom)*0.2)
+	press(ui.PointerMove, trackFrom+(trackTo-trackFrom)*0.5)
+	if v := p.state.Value; v < 49.9 || v > 50.1 {
+		t.Errorf("dragged to the middle: value %v, want 50", v)
+	}
+	press(ui.PointerUp, trackFrom+(trackTo-trackFrom)*0.5)
+	if p.state.Dragging() {
+		t.Error("the release did not end the drag")
+	}
+	if f := p.state.Fraction(); f < .49 || f > .51 {
+		t.Errorf("fraction = %v, want one half", f)
+	}
+}

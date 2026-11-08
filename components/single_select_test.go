@@ -104,6 +104,30 @@ func TestSingleSelectExactDisabledAndPendingQuery(t *testing.T) {
 	}
 }
 
+func TestSingleSelectSearchMatchesHiddenMetadata(t *testing.T) {
+	s := &SingleSelectState{}
+	s.SetOptions([]SingleSelectOption{
+		{Value: "1", Label: "Build box", Search: "root@10.0.0.5:22 production"},
+		{Value: "2", Label: "Database", Search: "deploy@10.0.0.6:22 staging"},
+	})
+	s.Open = true
+	s.Query.Insert("10.0.0.6")
+	choices := s.Choices()
+	if len(choices) != 1 || choices[0].Value != "2" || choices[0].Label != "Database" {
+		t.Fatalf("hidden metadata did not filter: %+v", choices)
+	}
+	s.Query = text.Editor{}
+	s.Query.Insert("PRODUCTION")
+	if choices := s.Choices(); len(choices) != 1 || choices[0].Value != "1" {
+		t.Fatalf("search text did not match case-insensitively: %+v", choices)
+	}
+	s.Query = text.Editor{}
+	s.Query.Insert("database")
+	if choices := s.Choices(); len(choices) != 1 || choices[0].Value != "2" {
+		t.Fatalf("label matching broke: %+v", choices)
+	}
+}
+
 func TestSingleSelectKeyboardAndComposition(t *testing.T) {
 	s := singleSelectFixture()
 	s.SetValue("dev")

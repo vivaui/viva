@@ -8,26 +8,32 @@ import (
 
 func TestDescribeAccessibilityMapsEveryRole(t *testing.T) {
 	tests := []struct {
-		role    ui.Role
-		want    string
-		element string
+		role     ui.Role
+		want     string
+		element  string
+		hasRange bool
 	}{
-		{ui.RoleButton, "button", "div"},
-		{ui.RoleLink, "link", "div"},
-		{ui.RoleCheckbox, "checkbox", "div"},
-		{ui.RoleRadio, "radio", "div"},
-		{ui.RoleTab, "tab", "div"},
-		{ui.RoleMenuItem, "menuitem", "div"},
-		{ui.RoleCombobox, "combobox", "input"},
-		{ui.RoleSwitch, "switch", "div"},
-		{ui.RoleTextField, "textbox", "input"},
-		{ui.RoleSlider, "slider", "div"},
-		{0, "button", "div"},
+		{ui.RoleButton, "button", "div", false},
+		{ui.RoleLink, "link", "div", false},
+		{ui.RoleCheckbox, "checkbox", "div", false},
+		{ui.RoleRadio, "radio", "div", false},
+		{ui.RoleTab, "tab", "div", false},
+		{ui.RoleMenuItem, "menuitem", "div", false},
+		{ui.RoleCombobox, "combobox", "input", false},
+		{ui.RoleSwitch, "switch", "div", false},
+		{ui.RoleTextField, "textbox", "input", false},
+		{ui.RoleTerminal, "textbox", "textarea", false},
+		{ui.RoleSlider, "slider", "div", false},
+		{ui.RoleSlider, "slider", "input", true},
+		{0, "button", "div", false},
 	}
 
 	hits := make([]ui.Hit, len(tests))
 	for index, test := range tests {
 		hits[index] = ui.Hit{ID: ui.Item(int(uint32(index + 1))), Role: test.role}
+		if test.hasRange {
+			hits[index].Range = ui.ValueRange{Now: 1, Min: 0, Max: 10, Step: 1, Set: true}
+		}
 	}
 	descriptions := describeAccessibility(nil, hits, ui.ID{})
 	for index, test := range tests {
@@ -35,8 +41,11 @@ func TestDescribeAccessibilityMapsEveryRole(t *testing.T) {
 			t.Fatalf("role %d = %q/%q, want %q/%q", test.role, descriptions[index].Element, descriptions[index].Role, test.element, test.want)
 		}
 	}
-	if got := accessibilityElement(ui.RoleTextField, true); got != "textarea" {
+	if got := accessibilityElement(ui.RoleTextField, true, false); got != "textarea" {
 		t.Fatalf("multiline textbox element = %q", got)
+	}
+	if got := accessibilityElement(ui.RoleSlider, false, true); got != "input" {
+		t.Fatalf("range slider element = %q", got)
 	}
 }
 
@@ -104,5 +113,21 @@ func TestDescribeAccessibilityCarriesStructureAndRange(t *testing.T) {
 	if description.Description != "Drag. Output level" || description.Level != 2 || description.PosInSet != 1 ||
 		description.SetSize != 3 || description.Live != "polite" || !description.Expandable || description.Range != hits[0].Range {
 		t.Fatalf("description = %+v", description)
+	}
+}
+
+// A label is not a node of its own: it names the control with its identity, so
+// the mirror must describe one stable node for both, not replace the control
+// with a label node and back on every frame (which would tear down any editor
+// attached to it).
+func TestDescribeAccessibilityNamesTheControlWithItsLabel(t *testing.T) {
+	label := ui.Hit{ID: ui.Item(7), Label: "Username", IsLabel: true}
+	control := ui.Hit{ID: ui.Item(7), Role: ui.RoleTextField, Value: "gopher"}
+	got := describeAccessibility(nil, []ui.Hit{label, control}, ui.ID{})
+	if len(got) != 1 {
+		t.Fatalf("descriptions = %d, want only the control: %+v", len(got), got)
+	}
+	if got[0].Role != "textbox" || got[0].Label != "Username" || got[0].Value != "gopher" {
+		t.Fatalf("control description = %+v", got[0])
 	}
 }

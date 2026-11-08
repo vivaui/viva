@@ -46,6 +46,14 @@ type SelectOptions struct {
 	// Content (see MenuScroll); without one such a popup shows only the items at
 	// its top. Keep it for as long as the popup is open and reset it when it opens.
 	Scroll *MenuScroll
+	// Unpainted makes the select declare everything it is to the pointer, the keyboard and
+	// assistive technology (the trigger's hit, the popup's focus scope, escape and dismiss
+	// targets, its entrance, the rows' hits and scrolling) and paint none of it: the caller
+	// paints the trigger, the panel and the rows in the rectangles TriggerBounds,
+	// ContentBounds and the AddItem results give, from SelectRecipe, PopupRecipe and
+	// MenuItemRecipe or from its own look. It is the same code path as the painted select, so
+	// a select of the application's own cannot behave differently.
+	Unpainted bool
 }
 
 // SelectItem describes one stable value in the open popup.
@@ -162,8 +170,9 @@ func BeginSelect(canvas *ui.Canvas, theme ui.Theme, triggerBounds ui.Rect, optio
 	side := popupSideOf(content, triggerBounds)
 	canvas.BeginPresence(overlayKey(options.TriggerID, options.DismissID, options.Scope), overlaySurfacePart,
 		popupPresence(theme, overlayDuration, side), popupPivot(content, side, triggerBounds))
-	canvas.Elevate(content, theme.Metrics.RadiusPopup(), ui.ShadowMD) // shadow-md
-	canvas.RoundedBorder(content, theme.Metrics.RadiusPopup(), 1, theme.Border, theme.Popover)
+	if !options.Unpainted {
+		paintPopupSurface(canvas, &theme, content, ui.ShadowMD) // shadow-md
+	}
 	selectControl.popOverlay()
 	return selectControl
 }
@@ -201,6 +210,9 @@ func (selectControl *Select) AddLabel(label string) ui.Rect {
 		return ui.Rect{}
 	}
 	selectControl.rows.paintRow(bounds, func() {
+		if selectControl.options.Unpainted {
+			return
+		}
 		selectControl.canvas.Label(label, ui.Rect{X: bounds.X + 8, Y: bounds.Y, Width: selectMax(0, bounds.Width-16), Height: bounds.Height}, ui.TextStyle{
 			Size: selectControl.theme.Metrics.FontSizeS, Weight: ui.WeightRegular, Color: selectControl.theme.MutedForeground,
 		})
@@ -227,6 +239,9 @@ func (selectControl *Select) AddSeparator() ui.Rect {
 		return ui.Rect{}
 	}
 	selectControl.rows.paintRow(bounds, func() {
+		if selectControl.options.Unpainted {
+			return
+		}
 		selectControl.canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y + 4, Width: bounds.Width, Height: 1}, selectControl.theme.Border)
 	})
 	return bounds
@@ -247,37 +262,33 @@ func (selectControl Select) paintTrigger() {
 	bounds := selectControl.triggerBounds
 	options := selectControl.options
 	enabled := !options.TriggerID.IsZero() && !options.Disabled
-	paintTextEntrySurface(canvas, selectControl.theme, bounds, textEntryState{
-		Focused:  enabled && canvas.FocusVisible() == options.TriggerID,
-		Invalid:  options.Invalid,
-		Disabled: options.Disabled,
-		Hovered:  enabled && (canvas.Hovered() == options.TriggerID || canvas.Pressed() == options.TriggerID),
-	})
-	foreground := selectControl.theme.Foreground
-	value := options.Value
-	if value == "" {
-		value = options.Placeholder
-		foreground = selectControl.theme.MutedForeground
+	if !options.Unpainted {
+		state := ui.State{
+			Focused:  enabled && canvas.FocusVisible() == options.TriggerID,
+			Invalid:  options.Invalid,
+			Disabled: options.Disabled,
+			Hovered:  enabled && (canvas.Hovered() == options.TriggerID || canvas.Pressed() == options.TriggerID),
+		}
+		look := selectRecipe(&selectControl.theme, state, options.Value == "")
+		paintTextEntryLook(canvas, selectControl.theme.Background.Alpha, bounds, look.Surface)
+		foreground := look.Foreground
+		value := options.Value
+		if value == "" {
+			value = options.Placeholder
+		}
+		// Vega: pl-2.5 and pr-2 inside the border, gap-1.5 before the 16px chevron.
+		const chevronSpan = 1 + 8 + selectIconSize
+		inset := selectControl.theme.Metrics.TextInsetX()
+		textX, textWidth := bounds.X+inset, bounds.Width-inset-chevronSpan-6
+		if paintSelectIcon(canvas, options.Icon, options.IconImage, options.IconText, ui.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.textSize) {
+			textX += selectIconSize + selectIconGap
+			textWidth -= selectIconSize + selectIconGap
+		}
+		canvas.Label(value, ui.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, ui.TextStyle{
+			Size: selectControl.textSize, Weight: ui.WeightRegular, Color: foreground,
+		})
+		paintChevron(canvas, &chevronDownIcon, ui.Rect{X: bounds.X + bounds.Width - chevronSpan, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, look.Chevron)
 	}
-	if options.Disabled {
-		foreground.Alpha *= 0.50
-	}
-	// Vega: pl-2.5 and pr-2 inside the border, gap-1.5 before the 16px chevron.
-	const chevronSpan = 1 + 8 + selectIconSize
-	inset := selectControl.theme.Metrics.TextInsetX()
-	textX, textWidth := bounds.X+inset, bounds.Width-inset-chevronSpan-6
-	if paintSelectIcon(canvas, options.Icon, options.IconImage, options.IconText, ui.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.textSize) {
-		textX += selectIconSize + selectIconGap
-		textWidth -= selectIconSize + selectIconGap
-	}
-	canvas.Label(value, ui.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, ui.TextStyle{
-		Size: selectControl.textSize, Weight: ui.WeightRegular, Color: foreground,
-	})
-	iconColor := selectControl.theme.MutedForeground
-	if options.Disabled {
-		iconColor.Alpha *= 0.50
-	}
-	paintChevron(canvas, &chevronDownIcon, ui.Rect{X: bounds.X + bounds.Width - chevronSpan, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, iconColor)
 	if !options.TriggerID.IsZero() {
 		canvas.HitWithOptions(options.TriggerID, bounds, options.Label, ui.HitOptions{
 			Role: ui.RoleCombobox, Value: options.Value, Hint: options.Hint,
@@ -287,25 +298,28 @@ func (selectControl Select) paintTrigger() {
 }
 
 func (selectControl *Select) paintItem(bounds ui.Rect, item SelectItem) {
-	enabled := !item.ID.IsZero() && !item.Disabled
-	active := enabled && (selectControl.canvas.Hovered() == item.ID || selectControl.canvas.Pressed() == item.ID || selectControl.canvas.FocusVisible() == item.ID)
-	if active {
-		selectControl.canvas.Rounded(bounds, selectControl.theme.Metrics.RadiusItem(), selectControl.theme.Accent)
-	}
-	foreground := selectControl.theme.PopoverForeground
-	if item.Disabled {
-		foreground.Alpha *= 0.50
-	}
-	textX, textWidth := bounds.X+8, bounds.Width-40
-	if paintSelectIcon(selectControl.canvas, item.Icon, item.IconImage, item.IconText, ui.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.theme.Metrics.FontSizeM) {
-		textX += selectIconSize + selectIconGap
-		textWidth -= selectIconSize + selectIconGap
-	}
-	selectControl.canvas.Label(item.Label, ui.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, ui.TextStyle{
-		Size: selectControl.theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground,
-	})
-	if item.Selected {
-		paintCheck(selectControl.canvas, ui.Rect{X: bounds.X + bounds.Width - 24, Y: bounds.Y, Width: 14, Height: bounds.Height}, 14, foreground)
+	if !selectControl.options.Unpainted {
+		state := ui.State{Disabled: item.Disabled}
+		if !item.ID.IsZero() {
+			state = selectControl.canvas.StateOf(item.ID)
+			state.Disabled = item.Disabled
+		}
+		look := menuItemRecipe(&selectControl.theme, state)
+		if look.Fill.Alpha > 0 {
+			selectControl.canvas.Rounded(bounds, look.Radius, look.Fill)
+		}
+		foreground := look.Foreground
+		textX, textWidth := bounds.X+8, bounds.Width-40
+		if paintSelectIcon(selectControl.canvas, item.Icon, item.IconImage, item.IconText, ui.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.theme.Metrics.FontSizeM) {
+			textX += selectIconSize + selectIconGap
+			textWidth -= selectIconSize + selectIconGap
+		}
+		selectControl.canvas.Label(item.Label, ui.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, ui.TextStyle{
+			Size: selectControl.theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground,
+		})
+		if item.Selected {
+			paintCheck(selectControl.canvas, ui.Rect{X: bounds.X + bounds.Width - 24, Y: bounds.Y, Width: 14, Height: bounds.Height}, 14, foreground)
+		}
 	}
 	if !item.ID.IsZero() {
 		hit := bounds
@@ -323,11 +337,13 @@ func (selectControl *Select) addScrollAction(id ui.ID, icon *ui.Icon, label stri
 		return ui.Rect{}
 	}
 	selectControl.rows.paintRow(bounds, func() {
-		color := selectControl.theme.MutedForeground
-		if disabled {
-			color.Alpha *= 0.50
+		if !selectControl.options.Unpainted {
+			color := selectControl.theme.MutedForeground
+			if disabled {
+				color.Alpha *= 0.50
+			}
+			paintChevron(selectControl.canvas, icon, bounds, color)
 		}
-		paintChevron(selectControl.canvas, icon, bounds, color)
 		if !id.IsZero() {
 			selectControl.canvas.HitWithOptions(id, bounds, label, ui.HitOptions{
 				Role: ui.RoleMenuItem, Disabled: disabled,
@@ -389,4 +405,37 @@ func selectMax(a, b float32) float32 {
 		return a
 	}
 	return b
+}
+
+// SelectLook is the look of a select's trigger in one state.
+type SelectLook struct {
+	// Surface is the trigger's box: the text-entry recipe, which the select shares with the
+	// input, in the state the trigger is in (a hovered or pressed trigger takes the dark
+	// theme's hover fill).
+	Surface TextEntryLook
+	// Foreground is the color of the value, or of the placeholder while there is no value.
+	Foreground ui.Color
+	// Chevron is the color of the arrow at the trigger's end.
+	Chevron ui.Color
+}
+
+// SelectRecipe resolves the look of a select trigger. Hovered, Focused, Invalid and Disabled of
+// state are read; placeholder says the trigger shows its placeholder, which is muted. A pure
+// function, the one definition the trigger is painted from.
+func SelectRecipe(theme ui.Theme, state ui.State, placeholder bool) SelectLook {
+	return selectRecipe(&theme, state, placeholder)
+}
+
+// selectRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
+// and a Theme is large.
+func selectRecipe(theme *ui.Theme, state ui.State, placeholder bool) SelectLook {
+	look := SelectLook{Surface: textEntryRecipe(theme, state), Foreground: theme.Foreground, Chevron: theme.MutedForeground}
+	if placeholder {
+		look.Foreground = theme.MutedForeground
+	}
+	if state.Disabled {
+		look.Foreground.Alpha *= 0.50
+		look.Chevron.Alpha *= 0.50
+	}
+	return look
 }

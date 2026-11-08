@@ -92,7 +92,7 @@ func BeginCommand(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options Com
 	// disabled row must not reach whatever is behind it.
 	canvas.Block(bounds)
 	canvas.Container(bounds, ui.RoleListBox, options.Label)
-	canvas.RoundedBorder(bounds, theme.Metrics.RadiusPopup(), 1, theme.Border, theme.Popover)
+	paintPopupSurface(canvas, &theme, bounds, ui.ShadowNone)
 	input := ui.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: inputHeight}
 	canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y + inputHeight - 1, Width: bounds.Width, Height: 1}, theme.Border)
 	iconColor := theme.MutedForeground

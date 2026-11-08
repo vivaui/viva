@@ -16,12 +16,19 @@ const (
 // minimum), give the pane that size, and a drag, an arrow key or a window resize
 // keeps it inside the limits. The rest is bookkeeping.
 type SplitterState struct {
-	Pos          float32
+	Pos float32
+	// Ratio is the share of the container the first pane takes, kept on every
+	// layout while it is non-zero. It lets an application say "the editor gets
+	// two thirds" without knowing the window's size, and a resize keeps the
+	// proportion. A drag or an arrow key updates Ratio from the new position;
+	// set Ratio to zero to hold Pos as pixels instead.
+	Ratio        float32
 	id           ui.ID
 	dragging     bool
 	startPointer float32
 	startPos     float32
 	lo, hi       float32 // the limits as of the last layout
+	span         float32 // the container's extent along the split
 }
 
 // Dragging reports whether the splitter is being dragged.
@@ -49,7 +56,18 @@ func (s *SplitterState) Key(event ui.KeyEvent) ui.EventResult {
 		return ui.EventResult{}
 	}
 	s.Pos = s.limit(pos)
+	s.keepRatio()
 	return ui.EventResult{Handled: true, Repaint: true}
+}
+
+// keepRatio stores the pane's current share after a drag or a key, so a window
+// resize keeps the proportion the user chose. A state that holds Pos in pixels
+// (Ratio zero) is left alone.
+func (s *SplitterState) keepRatio() {
+	if s.Ratio <= 0 || s.span <= splitterThickness {
+		return
+	}
+	s.Ratio = min(max(s.Pos/(s.span-splitterThickness), 0), 1)
 }
 
 func (s *SplitterState) limit(pos float32) float32 {
@@ -118,21 +136,58 @@ func (f *Frame) measureSplitter(n *node) {
 // splitLimits works out how far the first pane may grow once the page is laid out:
 // everything the two panes (and the gaps) have between them, less the bar and the
 // second pane's minimum.
-func (f *Frame) splitLimits(n *node) (lo, hi float32) {
+func (f *Frame) splitLimits(n *node) (lo, hi, span float32) {
 	d := &f.widgets.splits[n.aux]
 	lo = d.minFirst
 	if d.first < 0 || n.next < 0 {
-		return lo, lo
+		return lo, lo, 0
 	}
 	axis := axisY
 	if f.splitsRow(n) {
 		axis = axisX
 	}
 	first, second := &f.nodes[d.first], &f.nodes[n.next]
-	span := *origin(&second.rect, axis) + *extent(&second.rect, axis) - *origin(&first.rect, axis)
+	span = *origin(&second.rect, axis) + *extent(&second.rect, axis) - *origin(&first.rect, axis)
 	gaps := span - *extent(&first.rect, axis) - *extent(&n.rect, axis) - *extent(&second.rect, axis)
 	hi = span - *extent(&n.rect, axis) - gaps - d.minSecond
-	return lo, max(hi, lo)
+	return lo, max(hi, lo), span
+}
+
+// placeSplitRatios gives every splitter with a Ratio its first pane's size on
+// this axis before the container shares its room. Doing it in the layout pass,
+// rather than after it, means the first frame that shows the pane already has
+// the share and a resize keeps it without a second frame.
+func (f *Frame) placeSplitRatios(n *node, axis int, avail float32) {
+	if n.first < 0 {
+		return
+	}
+	count := 0
+	for c := n.first; c >= 0; c = f.nodes[c].next {
+		count++
+	}
+	gaps := n.gap * float32(max(count-1, 0))
+	for c := n.first; c >= 0; c = f.nodes[c].next {
+		bar := &f.nodes[c]
+		if bar.kind != kindSplitter {
+			continue
+		}
+		d := &f.widgets.splits[bar.aux]
+		state := d.state
+		if state.Ratio <= 0 || d.first < 0 {
+			continue
+		}
+		thickness := bar.pref[axis]
+		if thickness <= 0 {
+			thickness = splitterThickness
+		}
+		lo := d.minFirst
+		hi := max(avail-gaps-thickness-d.minSecond, lo)
+		pos := min(max(state.Ratio*(avail-gaps-thickness), lo), hi)
+		first := &f.nodes[d.first]
+		first.raw[axis], first.pref[axis] = pos, pos
+		state.Pos = pos
+		state.lo, state.hi, state.span = lo, hi, avail
+	}
 }
 
 // reportSplitters keeps every position inside its limits after a layout (a window that
@@ -145,7 +200,8 @@ func (f *Frame) reportSplitters() {
 			continue
 		}
 		s := f.widgets.splits[n.aux].state
-		s.lo, s.hi = f.splitLimits(n)
+		lo, hi, span := f.splitLimits(n)
+		s.lo, s.hi, s.span = lo, hi, span
 		if pos := s.limit(s.Pos); pos != s.Pos {
 			s.Pos = pos
 			if f.canvas != nil {
@@ -172,8 +228,9 @@ func (f *Frame) paintSplitter(n *node) {
 			s.dragging, s.startPointer, s.startPos = true, pointer, s.Pos
 			canvas.Consume()
 		case event.Kind == ui.PointerMove && s.dragging:
-			s.lo, s.hi = f.splitLimits(n)
+			s.lo, s.hi, s.span = f.splitLimits(n)
 			s.Pos = s.limit(s.startPos + pointer - s.startPointer)
+			s.keepRatio()
 			canvas.Consume()
 		case event.Kind == ui.PointerUp && s.dragging:
 			s.dragging = false

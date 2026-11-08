@@ -58,6 +58,23 @@ type CodeEditorFoldMarker struct {
 // plain: highlighting it would cost a megabyte of work for every frame.
 const CodeEditorMaxHighlightedLine = 10_000
 
+// CodeEditorGutter fixes a caller's gutter layout, in logical pixels. It exists
+// for editors whose design owns the lanes -- DBX, for example, uses a 28 px
+// statement-run lane, a 14 px bookmark lane, a line-number lane and a 16 px fold
+// lane -- which the component's automatic formulas cannot express.
+//
+// Lane order is Marker, Bookmark, LineNumbers, Fold when FoldLast is true, and
+// Fold, Marker, Bookmark, LineNumbers otherwise. A zero width omits that lane;
+// LineNumberPadding is the padding on each side of the line number's digits.
+type CodeEditorGutter struct {
+	Inset             float32
+	Marker            float32
+	Bookmark          float32
+	LineNumberPadding float32
+	Fold              float32
+	FoldLast          bool
+}
+
 // CodeEditorSnapshot is one caller-owned presentation of a code editor. The
 // text, selection and composition belong to the application's text.Editor; the
 // offsets are bytes of Value, which text.Editor.ByteOffset gives.
@@ -120,8 +137,14 @@ type CodeEditorSnapshot struct {
 	MatchBrackets bool
 	// ShowWhitespace paints markers over visible spaces and tab cells without changing text geometry.
 	ShowWhitespace bool
+	// ShowIndentGuides paints dotted guides at leading tab stops without changing text geometry.
+	ShowIndentGuides bool
 	// ShowEOL paints EOLLabel at hard line breaks, never at soft wraps or an unterminated final line.
 	ShowEOL bool
+	// ShowWrapSymbol paints an end marker on soft-wrapped rows when Wrap is enabled.
+	// It reserves the last cell of each row, so rows wrap one column earlier than
+	// without it; SoftWrapOffsets, which does not wrap, reports the full-width layout.
+	ShowWrapSymbol bool
 	// EOLLabel is the line-ending marker, such as LF or CRLF. An empty label uses LF.
 	EOLLabel string
 	// EOLLabels overrides EOLLabel per zero-based logical line for mixed line endings.
@@ -144,6 +167,10 @@ type CodeEditorSnapshot struct {
 	// horizontal one for text that does not wrap. Route pointer events to Pointer.
 	ScrollbarID           ui.ID
 	HorizontalScrollbarID ui.ID
+	// Gutter replaces the automatic lane layout when non-nil. Nil keeps the
+	// component's formulas; a non-nil value uses its widths as given, and its
+	// Inset also replaces the theme's text inset.
+	Gutter *CodeEditorGutter
 }
 
 // CodeEditor is the view of a code editor, held by the application next to its
@@ -164,6 +191,7 @@ type CodeEditor struct {
 	tabWidth  int
 	fitted    bool
 	rows      []codeRow
+	indents   []int
 	foldInput []CodeEditorFoldRange
 	folds     []CodeEditorFoldRange
 	shown     []string
@@ -253,7 +281,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 	} else {
 		editor.caretBlink.Rest()
 	}
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Disabled: snapshot.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: focused, Disabled: snapshot.Disabled})
 
 	size := snapshot.FontSize
 	if size <= 0 {
@@ -273,26 +301,64 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 	}
 	value := snapshot.Value
 
-	// The gutter is as wide as the number of the last line, a cell either side.
-	gutter := float32(0)
-	foldLane := float32(0)
-	if snapshot.FoldGutter || len(snapshot.FoldMarkers) > 0 {
-		foldLane = 16
-		gutter += foldLane
-	}
+	// The automatic gutter sizes its lanes from the text metrics; a caller's
+	// CodeEditorGutter replaces those formulas lane by lane.
+	inset := theme.Metrics.TextInsetX()
 	markerLane := float32(0)
 	if snapshot.MarkerGutter || len(snapshot.GutterMarkers) > 0 {
 		markerLane = lineHeight*0.4 + cellWidth
-		gutter += markerLane
 	}
+	foldLane := float32(0)
+	if snapshot.FoldGutter || len(snapshot.FoldMarkers) > 0 {
+		foldLane = 16
+	}
+	bookmarkLane := float32(0)
+	lineNumberPadding := cellWidth
+	foldLast := false
+	if custom := snapshot.Gutter; custom != nil {
+		inset = max(custom.Inset, 0)
+		markerLane = max(custom.Marker, 0)
+		if markerLane == 0 && len(snapshot.GutterMarkers) > 0 {
+			// Markers must stay somewhere: a zero width omits an empty lane, not
+			// one that has content to place.
+			markerLane = lineHeight*0.4 + cellWidth
+		}
+		foldLane = 0
+		if snapshot.FoldGutter || len(snapshot.FoldMarkers) > 0 {
+			foldLane = max(custom.Fold, 0)
+			if foldLane == 0 && len(snapshot.FoldMarkers) > 0 {
+				foldLane = 16
+			}
+		}
+		bookmarkLane = max(custom.Bookmark, 0)
+		lineNumberPadding = max(custom.LineNumberPadding, 0)
+		foldLast = custom.FoldLast
+	}
+	numberLane := float32(0)
 	if snapshot.LineNumbers {
 		lines := editor.lineCount
 		if !editor.fitted || editor.text != value {
 			lines = strings.Count(value, "\n") + 1
 		}
-		gutter += float32(max(decimalDigits(lines), 2)+2) * cellWidth
+		if snapshot.Gutter != nil {
+			numberLane = float32(decimalDigits(lines))*cellWidth + 2*lineNumberPadding
+		} else {
+			numberLane = float32(max(decimalDigits(lines), 2)+2) * cellWidth
+		}
 	}
-	inset := theme.Metrics.TextInsetX()
+	gutter := foldLane + markerLane + bookmarkLane + numberLane
+	laneStart := bounds.X + inset
+	foldX, markerX, bookmarkX, numberX := laneStart, float32(0), float32(0), float32(0)
+	if foldLast {
+		markerX = laneStart
+		bookmarkX = markerX + markerLane
+		numberX = bookmarkX + bookmarkLane
+		foldX = numberX + numberLane
+	} else {
+		markerX = laneStart + foldLane
+		bookmarkX = markerX + markerLane
+		numberX = bookmarkX + bookmarkLane
+	}
 	barWidth, barHeight := float32(0), float32(0)
 	if !snapshot.ScrollbarID.IsZero() {
 		barWidth = codeEditorBarSize
@@ -306,7 +372,14 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		Height: max(0, bounds.Height-2*codeEditorPadY-barHeight),
 	}
 	cols := max(1, int(content.Width/cellWidth))
+	showWrapSymbol := snapshot.Wrap && snapshot.ShowWrapSymbol && cols > 1
+	if showWrapSymbol {
+		cols--
+	}
 	editor.fitWithFolds(value, cols, snapshot.Wrap, tabWidth, snapshot.FoldedLines)
+	if snapshot.ShowIndentGuides && editor.indents == nil {
+		editor.indents = indentationLevels(editor.text, tabWidth)
+	}
 	editor.content, editor.cellWidth, editor.lineHeight = content, cellWidth, lineHeight
 
 	placeholder := value == ""
@@ -361,9 +434,10 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		caret: caret, caretRow: caretRow, caretColumn: caretColumn,
 		showCaret:  showCaret,
 		caretWidth: editorCaretWidth(snapshot.CaretWidth), caretColor: caretColor(snapshot.CaretColor, foreground),
-		language: snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
+		lineNumberPadding: lineNumberPadding,
+		language:          snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
-		showWhitespace: snapshot.ShowWhitespace, showEOL: snapshot.ShowEOL, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
+		showWhitespace: snapshot.ShowWhitespace, showIndentGuides: snapshot.ShowIndentGuides, showEOL: snapshot.ShowEOL, showWrapSymbol: showWrapSymbol, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
 		invisibleColor: snapshot.InvisibleColor,
 	}
 	if paint.invisibleColor.Alpha == 0 {
@@ -417,12 +491,12 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 				if snapshot.Disabled {
 					color.Alpha *= 0.5
 				}
-				canvas.Rounded(ui.Rect{X: bounds.X + inset + foldLane + (markerLane-dot)/2, Y: y + (lineHeight-dot)/2, Width: dot, Height: dot}, dot/2, color)
+				canvas.Rounded(ui.Rect{X: markerX + (markerLane-dot)/2, Y: y + (lineHeight-dot)/2, Width: dot, Height: dot}, dot/2, color)
 				markerIndex++
 			}
 		}
 		if snapshot.LineNumbers && editor.firstOfLine(index) {
-			paint.lineNumber(row, y, bounds.X+inset, gutter, int(row.line) == int(editor.rows[caretRow].line))
+			paint.lineNumber(row, y, numberX, numberLane, int(row.line) == int(editor.rows[caretRow].line))
 		}
 	}
 	canvas.Clip(ui.Rect{X: content.X, Y: content.Y, Width: content.Width, Height: content.Height})
@@ -452,7 +526,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 		canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, options)
 	}
 	if foldLane > 0 && len(snapshot.FoldMarkers) != 0 {
-		canvas.Clip(ui.Rect{X: bounds.X + inset, Y: content.Y, Width: foldLane, Height: content.Height})
+		canvas.Clip(ui.Rect{X: foldX, Y: content.Y, Width: foldLane, Height: content.Height})
 		markerIndex := 0
 		if firstRow < len(editor.rows) {
 			firstLine := int(editor.rows[firstRow].line)
@@ -484,7 +558,8 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 			if marker.Label != "" {
 				label = marker.Label
 			}
-			button := ui.Rect{X: bounds.X + inset, Y: y + (lineHeight-16)/2, Width: 16, Height: 16}
+			size := min(float32(16), foldLane)
+			button := ui.Rect{X: foldX + (foldLane-size)/2, Y: y + (lineHeight-size)/2, Width: size, Height: size}
 			canvas.DrawIcon(icon, button.Inset(ui.All(1)), theme.MutedForeground)
 			if !marker.ID.IsZero() {
 				canvas.HitWithOptions(marker.ID, button, label, ui.HitOptions{Role: ui.RoleButton, Disabled: snapshot.Disabled})
@@ -579,20 +654,24 @@ type codePaint struct {
 	showCaret                                bool
 	caretWidth                               float32
 	caretColor                               ui.Color
-	language                                 string
-	highlight                                func(language, line string, dst []CodeEditorRun) []CodeEditorRun
-	highlightLine                            func(language string, lineIndex int, line string, dst []CodeEditorRun) []CodeEditorRun
-	face                                     ui.MonoFace
-	firstColumn, lastColumn                  int
-	marks                                    []text.Span
-	current                                  text.Span
-	markCursor                               int
-	brackets                                 [2]int
-	bracketsOK                               bool
-	showWhitespace, showEOL                  bool
-	eolLabel                                 string
-	eolLabels                                []string
-	invisibleColor                           ui.Color
+	// lineNumberPadding is the space on each side of the digits, one cell
+	// unless a CodeEditorGutter sets it.
+	lineNumberPadding                       float32
+	language                                string
+	highlight                               func(language, line string, dst []CodeEditorRun) []CodeEditorRun
+	highlightLine                           func(language string, lineIndex int, line string, dst []CodeEditorRun) []CodeEditorRun
+	face                                    ui.MonoFace
+	firstColumn, lastColumn                 int
+	marks                                   []text.Span
+	current                                 text.Span
+	markCursor                              int
+	brackets                                [2]int
+	bracketsOK                              bool
+	showWhitespace, showEOL, showWrapSymbol bool
+	showIndentGuides                        bool
+	eolLabel                                string
+	eolLabels                               []string
+	invisibleColor                          ui.Color
 }
 
 // firstMark is the index of the first mark that may reach the row at index.
@@ -623,7 +702,7 @@ func (paint *codePaint) lineNumber(row codeRow, y, left, gutter float32, current
 		color.Alpha *= 0.5
 	}
 	width := float32(len(number)) * paint.cellWidth
-	bounds := ui.Rect{X: left + gutter - paint.cellWidth - width, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: width, Height: paint.cellHeight}
+	bounds := ui.Rect{X: left + gutter - paint.lineNumberPadding - width, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: width, Height: paint.cellHeight}
 	runs := [1]ui.TextRun{{Column: 0, Bytes: int32(len(number)), Cells: int32(len(number)), Color: color}}
 	paint.canvas.LabelRuns(number, bounds, ui.TextStyle{Size: paint.size, Color: color, Mono: true, MonoFace: paint.face}, paint.cellWidth, runs[:])
 }
@@ -700,6 +779,9 @@ func (paint *codePaint) row(index int, y float32) {
 	row := editor.rows[index]
 	left := editor.content.X - editor.scrollX
 	rowStart, rowEnd := int(row.start), int(row.end)
+	if paint.showIndentGuides && editor.firstOfLine(index) {
+		paint.indentGuides(row, y, left)
+	}
 
 	marks := columnWalker{editor: editor, row: row, at: rowStart}
 	// A fill is cut to the text area, so that a long line with many marks paints
@@ -788,6 +870,13 @@ func (paint *codePaint) row(index int, y float32) {
 	if paint.showEOL && !editor.softWrapped(index) && rowEnd < len(paint.value) && paint.value[rowEnd] == '\n' {
 		paint.lineEnding(row, y, left)
 	}
+	if paint.showWrapSymbol && editor.softWrapped(index) {
+		canvas.Label("↪", ui.Rect{
+			X:     editor.content.X + editor.content.Width - paint.cellWidth,
+			Y:     y + (paint.lineHeight-paint.cellHeight)/2,
+			Width: paint.cellWidth, Height: paint.cellHeight,
+		}, ui.TextStyle{Size: paint.size * 0.75, Color: paint.invisibleColor, Mono: true, MonoFace: paint.face})
+	}
 
 	if paint.compositionEnd > paint.compositionStart && paint.compositionStart <= rowEnd && paint.compositionEnd >= rowStart {
 		walker := columnWalker{editor: editor, row: row, at: rowStart}
@@ -816,6 +905,28 @@ func (paint *codePaint) row(index int, y float32) {
 			canvas.Fill(ui.Rect{X: x, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: paint.caretWidth, Height: paint.cellHeight}, paint.caretColor)
 		}
 		paint.caretCursor++
+	}
+}
+
+// indentGuides draws a hairline at the start of every complete indentation
+// level of the row's line, so a guide never lands on or past the first text
+// column.
+func (paint *codePaint) indentGuides(row codeRow, y, left float32) {
+	editor := paint.editor
+	if int(row.line) >= len(editor.indents) {
+		return
+	}
+	indent := editor.indents[row.line]
+	step := editor.tabWidth
+	first := (paint.firstColumn / step) * step
+	color := paint.invisibleColor
+	color.Alpha *= 0.5
+	for column := first; column+step <= indent && column <= paint.lastColumn; column += step {
+		x := left + float32(column)*paint.cellWidth
+		if x < editor.content.X || x+1 > editor.content.X+editor.content.Width {
+			continue
+		}
+		paint.canvas.Fill(ui.Rect{X: x, Y: y, Width: 1, Height: paint.lineHeight}, color)
 	}
 }
 

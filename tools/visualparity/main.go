@@ -1,3 +1,5 @@
+//go:build darwin || windows || linux
+
 // Command visualparity measures how alike Viva looks on macOS, Windows and Linux.
 //
 // run renders a fixed catalogue of scenes with the platform's own offscreen

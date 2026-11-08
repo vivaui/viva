@@ -136,6 +136,26 @@ func (state *State) platformFocused(canvas *ui.Canvas, value string) bool {
 	return state.editing && canvas.Focused() == state.fieldID && value != ""
 }
 
+// paintEditable fills what the component paints itself for the example's
+// editable single-line field: HideEditorText keeps the platform's text, caret
+// and selection out of the picture, and the caret, selection and composition
+// come from the same Go editor the platform edits. The value is then drawn by
+// one renderer, so it cannot move when the platform's editor appears.
+func (state *State) paintEditable(canvas *ui.Canvas, id ui.ID, value string, snapshot *components.InputSnapshot) {
+	snapshot.HideEditorText = true
+	if !state.editing || state.editor == nil || canvas.Focused() != id {
+		return
+	}
+	selection := state.editor.Selection()
+	snapshot.SelectionStart, snapshot.SelectionEnd = byteOffsetOfRune(value, selection.Start), byteOffsetOfRune(value, selection.End)
+	snapshot.Caret = byteOffsetOfRune(value, state.editor.Caret())
+	snapshot.ShowCaret = selection.Start == selection.End
+	if marked, composing := state.editor.Composition(); composing {
+		snapshot.CompositionStart, snapshot.CompositionEnd = byteOffsetOfRune(value, marked.Start), byteOffsetOfRune(value, marked.End)
+	}
+	snapshot.Blink = &state.blink
+}
+
 func (state *State) paintInput(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
 	mode := state.Text("Web / 原生文本服务 · 连接同一个 Go Editor", "Web / native text service · one Go Editor")
 	if state.editing {
@@ -171,11 +191,12 @@ func (state *State) paintInput(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 		}
 		f.Column().Gap(6).Children(func() {
 			f.Text(label).FontSize(theme.Metrics.FontSizeM)
-			f.Input(components.InputSnapshot{
+			snapshot := components.InputSnapshot{
 				ID: inputEditable, Label: label, Value: value, Placeholder: placeholder,
 				Hint: mode, Invalid: invalid, ReadOnly: !state.editing,
-				PlatformEditing: state.platformFocused(canvas, value),
-			})
+			}
+			state.paintEditable(canvas, inputEditable, value, &snapshot)
+			f.Input(snapshot)
 		})
 		caption := state.Text("Web 与原生预览均连接同一个 Go Editor。", "The Web and native previews connect the same Go Editor.")
 		if state.exampleID == "invalid" {
@@ -195,10 +216,12 @@ func (state *State) paintCustomInputs(canvas *ui.Canvas, theme ui.Theme, f *flex
 	value := state.fieldValue(state.Text("圆角与字号", "Radius and size"))
 	f.Column().Gap(6).Children(func() {
 		f.Text("RadiusFull · 16").FontSize(theme.Metrics.FontSizeM)
-		f.Input(components.InputSnapshot{
+		snapshot := components.InputSnapshot{
 			ID: inputEditable, Label: "Pill", Value: value, Placeholder: state.Text("输入中文或 English…", "Type in Chinese or English…"),
-			Hint: mode, ReadOnly: !state.editing, PlatformEditing: state.platformFocused(canvas, value),
-		}).Radius(ui.RadiusFull).FontSize(16).Height(40)
+			Hint: mode, ReadOnly: !state.editing,
+		}
+		state.paintEditable(canvas, inputEditable, value, &snapshot)
+		f.Input(snapshot).Radius(ui.RadiusFull).FontSize(16).Height(40)
 	})
 	f.Column().Gap(6).Children(func() {
 		f.Text("Radius 2 · 12").FontSize(theme.Metrics.FontSizeM)

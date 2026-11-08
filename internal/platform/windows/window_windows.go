@@ -654,11 +654,31 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state.config.OnResize != nil {
 			state.resizeEvents++
 			frame, err := state.config.OnResize(state.logicalSize(int(uint16(second)), int(uint16(second>>16))))
-			state.frame(frame, err)
+			if err := state.frameWithText(frame, err, false); err != nil {
+				return 0
+			}
 		}
 		state.reportFrame()
 		if state.web != nil {
 			state.web.layoutAll(true)
+		}
+		if state.ready {
+			// Draw the new size before returning to the window manager. The swap
+			// chain is scaled with DXGI_SCALING_NONE, so a frame that has not
+			// arrived yet is shown at its own size instead of stretched over the
+			// new client area. Maximize, restore and DPI changes take this path
+			// too; it is the same paint the queued WM_PAINT would have done, just
+			// earlier.
+			if err := state.presentImmediate(int(uint16(second)), int(uint16(second>>16))); err != nil {
+				state.fail(err)
+			} else {
+				state.scheduleTrim()
+				// presentImmediate drew the whole client area, so the invalidate
+				// PrepareFrame queued has nothing left to paint. ValidateRect
+				// removes it rather than drawing the same frame twice.
+				validateRect.Call(window, 0)
+			}
+			return 0
 		}
 		invalidateRect.Call(window, 0, 0)
 		return 0
@@ -869,10 +889,13 @@ func scaleOverride(value string) (float32, bool) {
 }
 
 func (state *windowState) frame(frame platform.Frame, err error) {
-	state.frameWithText(frame, err, false)
+	_ = state.frameWithText(frame, err, false)
 }
 
-func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) {
+// frameWithText applies a frame and reports an error that stopped it, as well as
+// handling it through fail. A caller that presents synchronously (WM_SIZE does)
+// must not present a frame that was never applied.
+func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) error {
 	views := frame.NativeViews
 	if err == nil {
 		state.applyBackdrop()
@@ -892,14 +915,15 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 	}
 	if err != nil {
 		state.fail(err)
-		return
+		return err
 	}
 	if frame.Accessibility != nil {
 		if err := state.accessibility.update(frame.Accessibility); err != nil {
 			state.fail(err)
-			return
+			return err
 		}
 	}
+	return nil
 }
 
 // destroyed releases what the window held when the system destroys it. The

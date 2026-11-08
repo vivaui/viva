@@ -86,8 +86,8 @@ func TestAccessibilityFocusMovesTheKeyboard(t *testing.T) {
 	if ok, err := painter.accessibilityRequest(platform.AccessibilityRequest{Node: ui.Item(2), Action: platform.AccessibilityFocus}, out.present); !ok || err != nil {
 		t.Fatalf("focus = %v, %v", ok, err)
 	}
-	if painter.focused != ui.Item(2) {
-		t.Fatalf("focused = %v", painter.focused)
+	if painter.focus.Focused() != ui.Item(2) {
+		t.Fatalf("focused = %v", painter.focus.Focused())
 	}
 	last := out.frames[len(out.frames)-1]
 	if last.Accessibility == nil {

@@ -125,7 +125,7 @@ func TestSwitchInvalidPaintsTheDangerRingAndBorder(t *testing.T) {
 	theme := ui.LightTheme()
 	var canvas ui.Canvas
 	BeginSwitch(&canvas, theme, ui.Item(1), ui.Rect{}, false).Invalid().Paint()
-	if canvas.Rectangles()[0].Color != invalidRing(theme) || canvas.Rectangles()[1].Color != invalidBorder(theme) {
+	if canvas.Rectangles()[0].Color != invalidRing(&theme) || canvas.Rectangles()[1].Color != invalidBorder(&theme) {
 		t.Fatalf("invalid switch rectangles = %+v", canvas.Rectangles())
 	}
 }

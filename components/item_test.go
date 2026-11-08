@@ -11,8 +11,8 @@ func TestItemOutlineLaysOutContentAndDeclaresHit(t *testing.T) {
 	theme := ui.DarkTheme()
 	var canvas ui.Canvas
 	BeginItem(&canvas, theme, ui.Item(42), ui.Rect{X: 8, Y: 10, Width: 320}).Variant(ItemOutline).LeadingSpace(24).Paint("Document", "Updated moments ago", "12 KB")
-	if len(canvas.Rectangles()) != 2 || len(canvas.Texts()) != 3 {
-		t.Fatalf("item commands = %d rectangles, %d texts", len(canvas.Rectangles()), len(canvas.Texts()))
+	if len(canvas.Rectangles()) != 0 || len(canvas.Triangles()) == 0 || len(canvas.Texts()) != 3 {
+		t.Fatalf("item commands = %d rectangles, %d triangles, %d texts", len(canvas.Rectangles()), len(canvas.Triangles()), len(canvas.Texts()))
 	}
 	if len(canvas.Hits()) != 1 || canvas.Hits()[0].ID != ui.Item(42) || canvas.Hits()[0].Label != "Document" {
 		t.Fatalf("item hits = %+v", canvas.Hits())

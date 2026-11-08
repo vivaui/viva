@@ -166,7 +166,7 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 		drawer.canvas.PushFocusScope(drawer.options.Scope)
 	}
 	key := overlayKey(drawer.options.DismissID, drawer.options.CloseID, drawer.options.Scope)
-	beginScrim(drawer.canvas, drawer.theme, key, scrimPresence(drawer.theme, drawerDuration, ui.EaseEmphasized), drawer.viewport)
+	beginScrim(drawer.canvas, drawer.theme, key, scrimPresence(drawer.theme, drawerDuration, ui.EaseCSS), drawer.viewport)
 	if !drawer.options.DismissID.IsZero() {
 		drawer.canvas.HitWithOptions(drawer.options.DismissID, drawer.viewport, "Dismiss drawer", ui.HitOptions{Role: ui.RoleButton, Disabled: drawer.disabled, SkipFocus: true, Backdrop: true})
 	}
@@ -176,9 +176,10 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 	lines := overlayWrap(drawer.canvas, &scratch, description, metrics.FontSizeM, ui.WeightRegular, drawer.contentWidth()-2*padding)
 	headerHeight := drawerHeaderHeight(metrics, len(lines))
 	content := drawer.contentBounds(headerHeight)
-	radius := metrics.RadiusSurface
+	look := dialogRecipe(&drawer.theme)
+	radius := look.Radius
 	drawer.canvas.BeginPresence(key, overlaySurfacePart, drawer.presence(content), centerOf(content))
-	drawer.canvas.RoundedBorder(content, radius, 1, drawer.theme.Border, drawer.theme.Popover)
+	paintPanel(drawer.canvas, content, look)
 	drawer.squareViewportEdge(content, radius)
 	// The panel is opaque to pointers: pressing it must not reach the dismiss
 	// target behind it.
@@ -240,7 +241,9 @@ func drawerHeaderHeight(metrics ui.Metrics, descriptionLines int) float32 {
 
 // presence is how the panel comes and goes: it slides in from beyond its edge
 // without fading, over Base UI's 450ms (its closed transform is the panel's own
-// size plus 2px).
+// size plus 2px). EaseCSS starts and lands softly; the emphasized curve moved a
+// sixth of the panel in the first 60 Hz frame, which reads as a jolt rather than
+// a slide.
 func (drawer Drawer) presence(content ui.Rect) ui.Presence {
 	if !moving(drawer.theme) {
 		return ui.Presence{}
@@ -254,7 +257,7 @@ func (drawer Drawer) presence(content ui.Rect) ui.Presence {
 	case DrawerLeft:
 		slide = ui.Point{X: -(content.Width + 2)}
 	}
-	return ui.Presence{Motion: ui.Motion{Duration: drawerDuration, Easing: ui.EaseEmphasized}, SlideIn: slide, SlideOut: slide}
+	return ui.Presence{Motion: ui.Motion{Duration: drawerDuration, Easing: ui.EaseCSS}, SlideIn: slide, SlideOut: slide}
 }
 
 // End closes the layer and installs modal focus and Escape routing. It also ends

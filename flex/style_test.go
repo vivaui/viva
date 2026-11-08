@@ -390,3 +390,24 @@ func TestAFadedBorderIsOnlyALineOverItsFill(t *testing.T) {
 		t.Fatal("the border was not painted at all")
 	}
 }
+
+// A translucent fill fades what is behind it, so its border cannot be a solid
+// backing under it either: the fill goes down whole and the border is a line
+// over it, as CSS paints.
+func TestATranslucentBorderIsOnlyALineOverItsFill(t *testing.T) {
+	canvas := testCanvas()
+	var view View
+	var box Box
+	fill := ui.Color{Red: 0.9, Green: 0.8, Blue: 0.1, Alpha: 0.1}
+	view.Draw(canvas, ui.LightTheme(), ui.Rect{Width: 100, Height: 100}, func(f *Frame) {
+		box = f.Row().Size(60, 40).Radius(8).Background(fill).Border(2, colorRest)
+	})
+	for _, rectangle := range canvas.Rectangles() {
+		if rectangle.Bounds == box.Rect() && rectangle.Color.Red == colorRest.Red {
+			t.Fatal("the border color was painted as a solid shape over the whole element")
+		}
+	}
+	if len(canvas.Triangles()) == 0 {
+		t.Fatal("the border was not painted at all")
+	}
+}

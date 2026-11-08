@@ -75,10 +75,10 @@ func TestRepaintPublishesABoundsChangeAfterTheGateOpens(t *testing.T) {
 	if _, err := painter.repaint(); err != nil {
 		t.Fatal(err)
 	}
-	if target, ok := painter.router.HitTest(140, 10); !ok || target != ui.Item(1) {
+	if target, ok := painter.focus.Router().HitTest(140, 10); !ok || target != ui.Item(1) {
 		t.Fatalf("new bounds not routed: %v, %v", target, ok)
 	}
-	if _, ok := painter.router.HitTest(10, 10); ok {
+	if _, ok := painter.focus.Router().HitTest(10, 10); ok {
 		t.Fatal("old bounds still routed")
 	}
 }
@@ -99,7 +99,7 @@ func TestRepaintPublishesAFocusChangeAfterTheGateOpens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused.IsZero() {
+	if painter.focus.Focused().IsZero() {
 		t.Fatal("Tab did not focus anything")
 	}
 	if frame.Accessibility == nil {
@@ -107,7 +107,7 @@ func TestRepaintPublishesAFocusChangeAfterTheGateOpens(t *testing.T) {
 	}
 	focused := false
 	for _, node := range painter.accessibility {
-		if node.Focused && node.ID == painter.focused {
+		if node.Focused && node.ID == painter.focus.Focused() {
 			focused = true
 		}
 	}

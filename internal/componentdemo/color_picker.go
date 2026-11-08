@@ -92,8 +92,10 @@ func (s *State) paintColorPicker(c *ui.Canvas, theme ui.Theme, size ui.Size) {
 		c.RequestFocus(demoPickerIDs.Trigger)
 	}
 	c.Label(s.Text("自定义颜色", "Custom color"), ui.Rect{X: 24, Y: 20, Width: 300, Height: 24}, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+	hex := components.InputSnapshot{Value: value, Focused: c.Focused() == demoPickerIDs.Hex, Invalid: p.invalid}
+	s.paintEditable(c, demoPickerIDs.Hex, value, &hex)
 	o := components.ColorPickerOptions{IDs: demoPickerIDs, Value: p.saved, Open: p.open, Empty: p.empty, ShowAlpha: s.exampleID == "alpha", Viewport: ui.Rect{Width: size.Width, Height: size.Height}, Layer: 3, Scope: demoPickerScope,
-		Hex: components.InputSnapshot{Value: value, Focused: c.Focused() == demoPickerIDs.Hex, PlatformEditing: s.platformFocused(c, value), Invalid: p.invalid}}
+		Hex: hex}
 	if p.open {
 		o.Value = p.draft
 	}
