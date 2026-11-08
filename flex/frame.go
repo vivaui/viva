@@ -91,6 +91,13 @@ const (
 	flagDialog    // a Dialog's root: painted by components.Dialog around its children
 	flagChildren  // Children was called on the element, even if it declared nothing
 	flagHasRadius // Radius was called: on a control, its corners are its own, not the theme's
+	flagThemed    // a control with the theme's look: what the caller did not set, the recipe does
+	flagSetBackground
+	flagSetBorder
+	flagSetShadow
+	flagSetPad
+	flagSelected // the element is the chosen one of several (State.Selected)
+	flagOpen     // the element shows what it controls (State.Open)
 )
 
 // node is one element of the page. Fields are plain values so a node is reused
@@ -188,38 +195,41 @@ type extra struct {
 	edges         [4]float32   // an absolute element's distance from its container's top, right, bottom, left
 	within        ui.Rect      // what a Popup is kept inside, when not the frame; empty for the frame
 	moves         bool         // the element's rectangle moves a custom-titlebar window (MovesWindow)
+	draws         int32        // 1 + the index of the element's Draw and DrawOver callbacks in Frame.draws, or 0 for none
 }
 
 // Frame is one page being declared. It is handed to the function given to
 // View.Draw; its methods add elements to the container being filled.
 type Frame struct {
-	canvas     *ui.Canvas
-	theme      ui.Theme
-	nodes      []node
-	inputs     []components.InputSnapshot
-	groups     []components.InputGroupSnapshot
-	textareas  []components.TextareaSnapshot
-	segmented  []segmented
-	choices    []components.SegmentOption // the options Choice builds, shared by the frame
-	images     []ui.Bitmap                // what each Image element draws, indexed by its aux
-	exts       []extra                    // exts[0] is never written: an element without extras points at it
-	floats     []int32                    // the Popups, which belong to no container
-	states     []stateLooks               // what Hover, Pressed and Focus declared, by element
-	gradients  []gradient                 // the gradients of the elements that have one
-	stops      []ui.GradientStop          // their stops, in the order declared
-	paintStops []ui.GradientStop          // the stops of the gradient being painted, faded
-	opacity    float32                    // the product of the opacities of the elements being painted
-	popupLayer uint16                     // the canvas layer the Popups are painted on
-	lines      []string
-	widgets    widgets            // Table, Tabs, Select, Dialog and Splitter declarations
-	ellipses   []ui.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
-	wraps      []wrapCache        // the full line sets of wrapped texts, kept between frames
-	wrapCursor int
-	scratch    scratch     // memory the layout borrows, see scratch.go
-	scrolls    scrollStore // the ScrollStates of the page's ScrollAreas, by identity
-	parent     int32
-	bounds     ui.Rect
-	done       bool
+	canvas      *ui.Canvas
+	theme       ui.Theme
+	nodes       []node
+	inputs      []components.InputSnapshot
+	groups      []components.InputGroupSnapshot
+	textareas   []components.TextareaSnapshot
+	segmented   []segmented
+	choices     []components.SegmentOption // the options Choice builds, shared by the frame
+	images      []ui.Bitmap                // what each Image element draws, indexed by its aux
+	exts        []extra                    // exts[0] is never written: an element without extras points at it
+	floats      []int32                    // the Popups, which belong to no container
+	states      []stateLooks               // what Hover, Pressed and Focus declared, by element
+	draws       []drawHooks                // what Draw and DrawOver declared, by element
+	drawContext DrawContext                // what a Draw callback is handed, reused for the frame
+	gradients   []gradient                 // the gradients of the elements that have one
+	stops       []ui.GradientStop          // their stops, in the order declared
+	paintStops  []ui.GradientStop          // the stops of the gradient being painted, faded
+	opacity     float32                    // the product of the opacities of the elements being painted
+	popupLayer  uint16                     // the canvas layer the Popups are painted on
+	lines       []string
+	widgets     widgets            // Table, Tabs, Select, Dialog and Splitter declarations
+	ellipses    []ui.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
+	wraps       []wrapCache        // the full line sets of wrapped texts, kept between frames
+	wrapCursor  int
+	scratch     scratch     // memory the layout borrows, see scratch.go
+	scrolls     scrollStore // the ScrollStates of the page's ScrollAreas, by identity
+	parent      int32
+	bounds      ui.Rect
+	done        bool
 }
 
 // View keeps the memory a page is laid out in between frames. The zero value is
@@ -246,6 +256,8 @@ func (view *View) Begin(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) *Fram
 	f.images = f.images[:0]
 	f.floats = f.floats[:0]
 	f.states, f.gradients, f.stops = f.states[:0], f.gradients[:0], f.stops[:0]
+	clear(f.draws) // a callback holds what it captured: not past the frame it was declared in
+	f.draws = f.draws[:0]
 	f.opacity = 1
 	f.popupLayer = 0
 	f.scratch.reset()
@@ -268,6 +280,7 @@ func (f *Frame) End() {
 	}
 	f.done = true
 	f.checkHits()
+	f.applyRecipes()
 	root := &f.nodes[0]
 	f.measure(axisX)
 	root.rect.X, root.rect.Width = f.bounds.X, f.bounds.Width
@@ -320,6 +333,7 @@ func (f *Frame) trim() {
 	f.choices = trimFlexCapacity(f.choices)
 	f.images = trimFlexCapacity(f.images)
 	f.exts = trimFlexCapacity(f.exts)
+	f.draws = trimFlexCapacity(f.draws)
 	f.floats = trimFlexCapacity(f.floats)
 	f.lines = trimFlexCapacity(f.lines)
 	f.ellipses = trimFlexCapacity(f.ellipses)
@@ -327,6 +341,7 @@ func (f *Frame) trim() {
 	f.widgets.tables = trimFlexCapacity(f.widgets.tables)
 	f.widgets.tabs = trimFlexCapacity(f.widgets.tabs)
 	f.widgets.selects = trimFlexCapacity(f.widgets.selects)
+	f.widgets.rows = trimFlexCapacity(f.widgets.rows)
 	f.widgets.dialogs = trimFlexCapacity(f.widgets.dialogs)
 	f.widgets.splits = trimFlexCapacity(f.widgets.splits)
 	f.widgets.sliders = trimFlexCapacity(f.widgets.sliders)
@@ -549,13 +564,45 @@ type segmented struct {
 	selected ui.ID
 }
 
-// Input adds a single-line text field painted by components.PaintInput, the height
-// of a control and as wide as its container unless given a width. The snapshot is
-// copied, so the caller may reuse it; its strings must stay valid until End.
+// Input adds a single-line text field with the shadcn look, the height of a control and
+// as wide as its container unless given a width. It is InputBase with that look: the
+// recipe (components.TextEntryRecipe) fills in the fill, border, corners, shadow and the
+// padding of the text, and whatever the element sets itself (Background, Border, Radius,
+// Shadow, Pad) replaces the recipe's, so the field is restyled with the calls any element
+// takes rather than with a variant:
+//
+//	f.Input(snapshot).Radius(0).Border(2, theme.Primary)
+//
+// The snapshot is copied, so the caller may reuse it; its strings must stay valid until End.
 func (f *Frame) Input(snapshot components.InputSnapshot) Box {
+	b := f.InputBase(snapshot)
+	f.nodes[b.i].flags |= flagThemed
+	return b
+}
+
+// InputBase adds a single-line text field without a look: no fill, border, shadow or
+// padding of its own, and no focus color. What it looks like is the element's, with the
+// calls any element takes (Background, Border, Radius, Shadow, Pad, Ring and the Hover,
+// Pressed and Focus looks, which follow the snapshot's ID); what it does is Input's:
+// the value, placeholder, selection, input-method composition, caret and masking are
+// painted by the same code and the platform edits it. The text sits inside the element's
+// Pad and Border. FontSize, Weight, Color and Mono (with MonoFace) style the text (with the
+// snapshot's own Text for what the element leaves unsaid): one value for the glyphs, the caret, the
+// selection and what the platform is told. A Mono field is painted by the component, since the
+// platform's text service draws one proportional face: it still edits through the platform, whose
+// own text and overlays are hidden, and a FieldBase gives the component the caret, the selection and
+// the composition from its editor. Radius rounds the element's own box.
+//
+// It is as tall as a line of its text (LineHeight, or the size plus seven) plus its Pad and
+// Border unless given a Height, and as wide as its container unless given a Width. Invalid has no look here: the caller draws
+// it, from the snapshot it passed.
+//
+//	f.InputBase(snapshot).Pad(8).Border(2, theme.Primary).Radius(0).Background(theme.Background)
+func (f *Frame) InputBase(snapshot components.InputSnapshot) Box {
 	b := f.box(kindInput)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.inputs))
+	n.id = snapshot.ID
 	f.inputs = append(f.inputs, snapshot)
 	return b
 }
@@ -570,11 +617,25 @@ func (f *Frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
 	return b
 }
 
-// Textarea adds a components.PaintTextarea, at least 64 pixels tall.
+// Textarea adds a multi-line text field with the shadcn look, at least 64 pixels tall. It
+// is TextareaBase with that look, dressed by components.TextEntryRecipe as Input is: what
+// the element sets itself (Background, Border, Radius, Shadow, Pad) replaces the recipe's.
 func (f *Frame) Textarea(snapshot components.TextareaSnapshot) Box {
+	b := f.TextareaBase(snapshot)
+	f.nodes[b.i].flags |= flagThemed
+	return b
+}
+
+// TextareaBase adds a multi-line text field without a look, as InputBase is a single-line
+// one: the rows, wrapping, selection, composition, caret and scrolling are the textarea's,
+// and the fill, border, corners, shadow and padding are the element's. The snapshot's
+// InsetTop, InsetBottom and InsetRight still reserve room inside the padded rectangle. It
+// is one row tall plus its Pad and Border unless given a Height.
+func (f *Frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
 	b := f.box(kindTextarea)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.textareas))
+	n.id = snapshot.ID
 	f.textareas = append(f.textareas, snapshot)
 	return b
 }

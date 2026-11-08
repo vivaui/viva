@@ -161,6 +161,7 @@ type selectDecl struct {
 	popup    int32 // the Popup that places the list, or -1 when it is closed
 	visible  int   // how many options the list shows at once
 	layer    uint16
+	rects    int32 // where the rows of this frame's list start in Frame.widgets.rows
 }
 
 // The parts of a Select's list, from components.Select: an option is 32 tall, the
@@ -189,10 +190,31 @@ const (
 // outside it or on an option closes it, and it reports the option chosen. The labels
 // slice is kept until End.
 func (f *Frame) Select(scope ui.Scope, state *SelectState, labels []string, selected int) Box {
+	b := f.SelectBase(scope, state, labels, selected)
+	f.nodes[b.i].flags |= flagThemed
+	return b
+}
+
+// SelectBase adds a drop-down without a look: the state (SelectState, Picked, type-ahead
+// and the wheel), the trigger and the list's place under it, and everything the control is to
+// the pointer, the keyboard and assistive technology (the trigger as a combobox, the open
+// list's focus scope, Escape and the dismiss target, its entrance and scrolling, the options
+// as options) are the select's, as for Select, and nothing of it is painted. The trigger, the
+// panel and the rows are the caller's: Draw on the select paints the trigger in Rect, and
+// Popup is the open list's element, whose Draw paints the panel, with Part(i) the rectangle
+// of option i (empty when it is scrolled out). components.SelectRecipe, PopupRecipe and
+// MenuItemRecipe give the theme's look to start from.
+//
+//	sel := f.SelectBase(sizes, &m.sizeOpen, labels, m.size).Draw(func(d *flex.DrawContext) { /* the trigger, in d.Rect */ })
+//	if list, ok := sel.Popup(); ok {
+//		list.Draw(func(d *flex.DrawContext) { /* the panel in d.Rect, option i in sel.Part(i) */ })
+//	}
+//	if i, ok := sel.Picked(); ok { m.size = i }
+func (f *Frame) SelectBase(scope ui.Scope, state *SelectState, labels []string, selected int) Box {
 	b := f.box(kindSelect)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.widgets.selects))
-	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, popup: -1, layer: f.widgets.layer + 1}
+	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, popup: -1, layer: f.widgets.layer + 1, rects: -1}
 	d.visible = selectRows(len(labels), f.bounds.Height)
 	state.labels, state.scope, state.selected, state.visible = labels, scope, selected, d.visible
 	if state.Open && len(labels) > 0 {
@@ -302,6 +324,7 @@ func (f *Frame) paintSelect(n *node) {
 	if n.flags&flagSmall != 0 {
 		options.Size = components.SelectSizeSmall
 	}
+	options.Unpainted = n.flags&flagThemed == 0
 	if d.selected >= 0 && d.selected < count {
 		options.Value = d.labels[d.selected]
 	}
@@ -318,14 +341,56 @@ func (f *Frame) paintSelect(n *node) {
 	if !open {
 		return
 	}
+	// The list is as wide as its trigger and as the component's minimum at least. The element
+	// that places it says so too, so what a caller draws on it (SelectBase) is the panel the
+	// options are laid in.
+	if panel := control.ContentBounds(); panel.Width > 0 {
+		f.nodes[d.popup].rect = panel
+	}
 	first, visible := d.state.First, d.visible
 	if visible < count {
 		control.AddScrollUp(d.scope.At(count+3), first == 0)
 	}
+	// The rows' rectangles are kept for the frame, for a list the caller paints (Part).
+	d.rects = int32(len(f.widgets.rows))
+	for range count {
+		f.widgets.rows = append(f.widgets.rows, ui.Rect{})
+	}
 	for index := first; index < first+visible && index < count; index++ {
-		control.AddItem(components.SelectItem{ID: d.scope.At(index), Label: d.labels[index], Selected: index == d.selected})
+		f.widgets.rows[int(d.rects)+index] = control.AddItem(components.SelectItem{ID: d.scope.At(index), Label: d.labels[index], Selected: index == d.selected})
 	}
 	if visible < count {
 		control.AddScrollDown(d.scope.At(count+4), first+visible >= count)
 	}
+}
+
+// Part is where option i of an open SelectBase's list is, valid once the select has been painted
+// (in the callbacks of Draw and DrawOver, and after End): the rectangle the caller paints the
+// row in. It is empty for a closed select, an option scrolled out of the list, and any other
+// element.
+func (b Box) Part(i int) ui.Rect { return b.f.selectPart(b.n(), i) }
+
+// Popup is the element that places the open list of a SelectBase, and false while the list is
+// closed. It is painted after the page, over it, so what is drawn on it with Draw is the panel.
+func (b Box) Popup() (Box, bool) {
+	n := b.n()
+	if n.kind != kindSelect {
+		return Box{}, false
+	}
+	d := &b.f.widgets.selects[n.aux]
+	if d.popup < 0 {
+		return Box{}, false
+	}
+	return Box{f: b.f, i: d.popup}, true
+}
+
+func (f *Frame) selectPart(n *node, i int) ui.Rect {
+	if n.kind != kindSelect {
+		return ui.Rect{}
+	}
+	d := &f.widgets.selects[n.aux]
+	if d.rects < 0 || i < 0 || i >= len(d.labels) {
+		return ui.Rect{}
+	}
+	return f.widgets.rows[int(d.rects)+i]
 }

@@ -36,6 +36,15 @@ type SliderState struct {
 	textOf   float32
 }
 
+// Fraction is how far along its range the value is, 0 to 1: where a slider the caller draws
+// puts its thumb.
+func (s *SliderState) Fraction() float32 {
+	if s.max <= s.min {
+		return 0
+	}
+	return min(max((s.Value-s.min)/(s.max-s.min), 0), 1)
+}
+
 // Dragging reports whether the thumb is being dragged.
 func (s *SliderState) Dragging() bool { return s.dragging }
 
@@ -102,6 +111,24 @@ type sliderDecl struct {
 //		m.player.SetVolume(m.volume.Value)
 //	}
 func (f *Frame) Slider(id ui.ID, state *SliderState) Box {
+	b := f.SliderBase(id, state)
+	f.nodes[b.i].flags |= flagThemed
+	return b
+}
+
+// SliderBase adds a slider without a look: the value, the pointer capture, the click on
+// the track, the keyboard (SliderState.Key), the range and the step, and the slider it is
+// to a screen reader, with no track or thumb painted. They are the caller's, drawn with
+// Draw; State.Fraction says how far along the range the value is, and the thumb is
+// sliderThickness (16) across for the pointer to take it where it is drawn. Range, Step,
+// Label, Vertical, Disabled and Changed work as on Slider.
+//
+//	f.SliderBase(id, &m.volume).Height(16).Draw(func(d *flex.DrawContext) {
+//		x := d.Rect.X + 8 + m.volume.Fraction()*(d.Rect.Width-16)
+//		d.Canvas.Rounded(d.Rect, 3, trackColor)
+//		d.Canvas.Rounded(ui.Rect{X: x - 8, Y: d.Rect.Y, Width: 16, Height: 16}, 8, thumbColor)
+//	})
+func (f *Frame) SliderBase(id ui.ID, state *SliderState) Box {
 	b := f.box(kindSlider)
 	n := &f.nodes[b.i]
 	n.id = id
@@ -214,6 +241,23 @@ func (f *Frame) paintSlider(n *node) {
 	d := &f.widgets.sliders[n.aux]
 	s := d.state
 	s.area = n.rect
+	if n.flags&flagThemed == 0 {
+		// A SliderBase paints nothing of its own: it is the slider to the pointer, the
+		// keyboard and assistive technology, over the element's whole rectangle.
+		label := n.label
+		if label == "" {
+			label = "Slider"
+		}
+		step := s.step
+		if step <= 0 {
+			step = 1
+		}
+		f.canvas.HitWithOptions(n.id, n.rect, label, ui.HitOptions{
+			Role: ui.RoleSlider, Value: s.valueText(), Disabled: n.flags&flagDisabled != 0,
+			Range: ui.ValueRange{Now: float64(s.Value), Min: float64(s.min), Max: float64(s.max), Step: float64(step), Set: true},
+		})
+		return
+	}
 	slider := components.BeginSlider(f.canvas, f.theme, n.id, n.rect, s.Value).Range(s.min, s.max).Step(s.step).ValueText(s.valueText())
 	if n.natural > 0 {
 		slider = slider.Vertical()

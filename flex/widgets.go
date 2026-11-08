@@ -16,12 +16,13 @@ type widgets struct {
 	sliders []sliderDecl
 	cells   []string  // one row's text, handed to components.Table
 	rects   []ui.Rect // one row's cells
+	rows    []ui.Rect // the rows of every open SelectBase list in the frame
 	layer   uint16    // the layer the declaration is in: a Dialog raises it for its body
 }
 
 func (w *widgets) reset() {
 	w.tables, w.tabs, w.selects, w.dialogs = w.tables[:0], w.tabs[:0], w.selects[:0], w.dialogs[:0]
-	w.splits, w.sliders = w.splits[:0], w.sliders[:0]
+	w.splits, w.sliders, w.rows = w.splits[:0], w.sliders[:0], w.rows[:0]
 	w.layer = 0
 }
 

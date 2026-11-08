@@ -11,7 +11,7 @@ import "github.com/vivaui/viva/ui"
 //		Focus(flex.Look{}.Ring(3, ring))
 //
 // Hover applies while the pointer is over the element, Pressed while it is held
-// down, and Focus while the keyboard has it and the focus is to be seen (the way
+// down, Focused while the keyboard has it however it got there, and Focus while the keyboard has it and the focus is to be seen (the way
 // :focus-visible does, so a click does not draw a ring). The element must have
 // the identity those states are tracked by (Hit, or a control that has one), which
 // is also what makes it focusable unless HitWith says ui.HitOptions.SkipFocus. A
@@ -102,10 +102,10 @@ func (l Look) Opacity(v float32) Look {
 // stateLooks is what Hover, Pressed, Focus, StateFrom and Transition declared on
 // one element.
 type stateLooks struct {
-	hover, pressed, focus Look
-	follow                int32 // 1 + the element whose state is followed, or 0 for its own
-	motion                ui.Motion
-	animated              bool
+	hover, pressed, focus, focused Look
+	follow                         int32 // 1 + the element whose state is followed, or 0 for its own
+	motion                         ui.Motion
+	animated                       bool
 }
 
 // The slots of the transitions of an element's states, among the animated values
@@ -115,6 +115,7 @@ const (
 	slotHover uint8 = 250 + iota
 	slotPressed
 	slotFocus
+	slotFocused
 )
 
 func (b Box) states() *stateLooks {
@@ -135,6 +136,14 @@ func (b Box) Pressed(look Look) Box { b.states().pressed = look; return b }
 // Focus is how the element looks while the keyboard has it and the focus is
 // visible, which is after the keyboard moved it there and not after a click.
 func (b Box) Focus(look Look) Box { b.states().focus = look; return b }
+
+// Focused is how the element looks while the keyboard has it, however it got there: a click
+// on a text field focuses it without making the focus visible, and a field that is being typed
+// into still reads as the one with the keyboard (CSS's :focus, where Focus is :focus-visible).
+// A container that takes its look from the field inside it follows that field with StateFrom.
+// Focused applies first, so a Focus look, which is the stronger statement, wins over it where
+// both say something about the same field.
+func (b Box) Focused(look Look) Box { b.states().focused = look; return b }
 
 // StateFrom makes the element take its Hover, Pressed and Focus looks, and the
 // timeline of its Transition, from the state of container instead of its own, so
@@ -234,6 +243,9 @@ func (f *Frame) resolve(n *node, extra *extra) resolved {
 		background: n.background, border: extra.border, color: n.color, ring: extra.ring,
 		ringWidth: extra.ringWidth, opacity: 1 - extra.fade, shadow: extra.shadow,
 	}
+	if n.flags&flagThemed != 0 {
+		f.themedDefaults(n, extra, &s)
+	}
 	if extra.states == 0 {
 		return s
 	}
@@ -247,11 +259,14 @@ func (f *Frame) resolve(n *node, extra *extra) resolved {
 	}
 	canvas := f.canvas
 	focus, hover, pressed := target(canvas.FocusVisible() == source), target(canvas.Hovered() == source), target(canvas.Pressed() == source)
+	focused := target(canvas.Focused() == source)
 	if looks.animated {
+		focused = canvas.Animate(source, slotFocused, focused, looks.motion)
 		focus = canvas.Animate(source, slotFocus, focus, looks.motion)
 		hover = canvas.Animate(source, slotHover, hover, looks.motion)
 		pressed = canvas.Animate(source, slotPressed, pressed, looks.motion)
 	}
+	s.apply(&looks.focused, focused)
 	s.apply(&looks.focus, focus)
 	s.apply(&looks.hover, hover)
 	s.apply(&looks.pressed, pressed)
