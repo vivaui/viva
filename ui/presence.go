@@ -407,6 +407,7 @@ func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, p
 		slide = presence.SlideOut
 	}
 	transform.offset = Point{X: slide.X * (1 - progress), Y: slide.Y * (1 - progress)}
+	moving := transform.scale != 1 || slide != (Point{})
 	if presence.Fade {
 		transform.alpha = progress
 	}
@@ -468,6 +469,16 @@ func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, p
 		text := &canvas.texts[index]
 		center := transform.point(Point{X: text.Bounds.X + text.Bounds.Width/2, Y: text.Bounds.Y + text.Bounds.Height/2})
 		text.Bounds.X, text.Bounds.Y = center.X-text.Bounds.Width/2, center.Y-text.Bounds.Height/2
+		if moving {
+			// A moving label's sub-pixel origin changes every frame. Native
+			// text backends key retained textures by it, so keeping the
+			// fraction would rasterize every visible label again on every
+			// frame. Whole-pixel motion leaves the origin at zero; the label
+			// still moves with its panel, and static text keeps its sub-pixel
+			// placement.
+			text.Bounds.X = float32(math.Round(float64(text.Bounds.X)))
+			text.Bounds.Y = float32(math.Round(float64(text.Bounds.Y)))
+		}
 		if fade {
 			text.Style.Color = transform.color(text.Style.Color)
 		}

@@ -1944,7 +1944,7 @@ func (painter *painter) syncLabels() {
 			layer = 0
 		}
 		// Rounded to logical pixels, unless the image is laid out in device pixels.
-		x, y, w, h := float32(roundPixel(image.Bounds.X)), float32(roundPixel(image.Bounds.Y)), float32(width), float32(height)
+		x, y, w, h := float32(roundPosition(image.Bounds.X)), float32(roundPosition(image.Bounds.Y)), float32(width), float32(height)
 		if image.DevicePixels {
 			x, y, w, h = image.Bounds.X, image.Bounds.Y, image.Bounds.Width, image.Bounds.Height
 		}
@@ -1969,7 +1969,7 @@ func (painter *painter) syncLabels() {
 		entry := platform.TextLabel{
 			Value:    label.Value,
 			Identity: label.Identity,
-			X:        float32(roundPixel(label.Bounds.X)), Y: float32(roundPixel(label.Bounds.Y)),
+			X:        float32(roundPosition(label.Bounds.X)), Y: float32(roundPosition(label.Bounds.Y)),
 			Width: float32(width), Height: float32(height),
 			OriginX: roundingRemainder(label.Bounds.X), OriginY: roundingRemainder(label.Bounds.Y),
 			FontSize: label.Style.Size, Weight: label.Style.Weight, Italic: label.Style.Italic,
@@ -2017,14 +2017,10 @@ func containsRect(outer, inner ui.Rect) bool {
 		inner.X+inner.Width <= outer.X+outer.Width && inner.Y+inner.Height <= outer.Y+outer.Height
 }
 
-// roundingRemainder is what roundPixel took off value: the sub-pixel position backends
-// that place text at device pixels draw it at (platform.TextLabel.OriginX). Positions
-// roundPixel clamps to zero have none.
+// roundingRemainder is what roundPosition took off value: the sub-pixel position
+// backends that place text at device pixels draw it at (platform.TextLabel.OriginX).
 func roundingRemainder(value float32) float32 {
-	if value < 0 {
-		return 0
-	}
-	return value - float32(roundPixel(value))
+	return value - float32(roundPosition(value))
 }
 
 func roundPixel(value float32) int32 {
@@ -2032,6 +2028,13 @@ func roundPixel(value float32) int32 {
 		return 0
 	}
 	return int32(value + 0.5)
+}
+
+// roundPosition rounds a coordinate to the nearest logical pixel. Unlike a
+// size, a position may be negative: a leaving drawer and its text move past the
+// window edge together, and clamping either to zero would stop it at the edge.
+func roundPosition(value float32) int32 {
+	return int32(math.Floor(float64(value) + 0.5))
 }
 
 func sceneRectangle(rectangle ui.Rectangle) render.Rectangle {
