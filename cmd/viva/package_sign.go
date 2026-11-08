@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Signing and notarizing a macOS package is optional: without an identity nothing
@@ -313,13 +314,37 @@ func parseNotarization(output string) notarization {
 	return result
 }
 
+// stapleAttempts and stapleWait bound the retries of a stapler call that lost its
+// connection to Apple. The wait grows with each attempt, and a test replaces it.
+var (
+	stapleAttempts = 5
+	stapleWait     = func(attempt int) { time.Sleep(time.Duration(attempt) * 10 * time.Second) }
+)
+
 // staple attaches the notarization ticket to a bundle or disk image, so it opens
 // on a Mac that is offline, and checks it took.
 func staple(run toolRunner, path string) error {
-	if _, err := run("xcrun", "stapler", "staple", path); err != nil {
+	if err := retryStapler(run, "staple", path); err != nil {
 		return err
 	}
-	_, err := run("xcrun", "stapler", "validate", path)
+	return retryStapler(run, "validate", path)
+}
+
+// retryStapler runs one stapler action. Both actions fetch the ticket from Apple
+// over the network, and a CI runner's connection to it drops now and then; that
+// failure is retried a few times. Any other failure, such as a bundle Apple has
+// not notarized, is final.
+func retryStapler(run toolRunner, action, path string) error {
+	var err error
+	for attempt := 1; attempt <= stapleAttempts; attempt++ {
+		if _, err = run("xcrun", "stapler", action, path); err == nil {
+			return nil
+		}
+		if !strings.Contains(err.Error(), "NSURLErrorDomain") || attempt == stapleAttempts {
+			return err
+		}
+		stapleWait(attempt)
+	}
 	return err
 }
 
