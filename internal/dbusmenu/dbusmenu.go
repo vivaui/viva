@@ -9,6 +9,7 @@
 package dbusmenu
 
 import (
+	"math"
 	"strings"
 
 	"github.com/vivaui/viva/internal/dbus"
@@ -26,28 +27,47 @@ const (
 	version    = 3
 
 	nodeType = "(ia{sv}av)"
+
+	// ItemsUpdatedSignature is the body signature of an ItemsPropertiesUpdated
+	// signal: the entries whose properties changed, then the properties that
+	// were removed.
+	ItemsUpdatedSignature = "a(ia{sv})a(ias)"
 )
 
 // Object is one icon's menu. Its content is asked for from the application each
 // time the host is about to show it, so it shows the state at that moment.
+//
+// The ids a host knows entries by are stable: an entry keeps its id for as long
+// as the application goes on listing it, whatever its title, state or position
+// does. A host that read the layout once can therefore go on choosing entries
+// by the ids it holds, which is what the hosts do: libdbusmenu keeps the layout
+// it read and reads it again only when it is told the layout changed.
 type Object struct {
-	menu     func() []platform.MenuItem
-	entries  []platform.MenuEntry
+	menu    func() []platform.MenuItem
+	entries []platform.MenuEntry
+	// wires is the id a host knows each entry by, one per entry.
+	wires []int32
+	// byWire is the entry each id names.
+	byWire map[int32]int
+	// keys remembers the id each entry's key was given, so a later build gives
+	// the same entry the same id. An id is never handed out twice: a host that
+	// kept an id this menu no longer uses chooses nothing rather than another
+	// entry.
+	keys map[string]int32
+	// nextID is the last id handed out.
+	nextID int32
+	// revision counts the layouts hosts were told about: it grows when entries,
+	// their ids or their order change, not when only a title or a state does.
 	revision uint32
-	// base is added to an entry's number to make the id a host knows it by.
-	// Every build takes ids no earlier build used, because a host that keeps
-	// what it was told about an id (KDE's keeps that an entry is a separator)
-	// would carry it over to whatever entry takes the id next.
-	base int32
 	// stale is true once a layout has been read: a host that asks for another
-	// without first saying it is about to show the menu is reading it again, and
-	// gets a new one.
+	// without first saying it is about to show the menu is reading it again,
+	// so the menu is built again.
 	stale bool
 }
 
 // New returns the menu of an icon, built by menu on demand.
 func New(menu func() []platform.MenuItem) *Object {
-	return &Object{menu: menu, stale: true}
+	return &Object{menu: menu, byWire: make(map[int32]int), keys: make(map[string]int32), stale: true}
 }
 
 // Result is what to send back for a call: a reply of Signature and Body, or the
@@ -57,6 +77,17 @@ type Result struct {
 	Body      []byte
 	ErrName   string
 	ErrText   string
+	// LayoutUpdated, when not zero, is the revision of a layout this call
+	// changed: entries were added, removed or reordered, and the ids a host
+	// holds no longer name the entries they did. The caller receives the new
+	// layout either way; the signal tells the other hosts, which kept the
+	// layout they read earlier, to read it.
+	LayoutUpdated uint32
+	// ItemsUpdated, when not empty, is the body of an ItemsPropertiesUpdated
+	// signal (ItemsUpdatedSignature): entries kept their ids, but their titles
+	// or states changed. The caller sends it after the reply, so a host applies
+	// the properties where they are without reading the layout again.
+	ItemsUpdated []byte
 }
 
 func failure(name, text string) Result { return Result{ErrName: name, ErrText: text} }
@@ -65,14 +96,100 @@ func reply(signature string, e *dbus.Encoder) Result {
 	return Result{Signature: signature, Body: e.Bytes()}
 }
 
-// refresh asks the application for the menu as it is now.
-func (object *Object) refresh() {
-	if object.base += int32(len(object.entries)); object.base > 1<<30 {
-		object.base = 0
+// change is how a build differs from the one hosts last saw.
+type change struct {
+	// layout is true when entries, their ids or their order changed.
+	layout bool
+	// items, when not empty, is the body of an ItemsPropertiesUpdated signal.
+	items []byte
+}
+
+// refresh asks the application for the menu as it is now, keeps each entry's id,
+// and reports how the menu differs from the one hosts last read.
+func (object *Object) refresh() change {
+	entries := platform.NumberMenu(object.menu())
+	wires := make([]int32, len(entries))
+	byWire := make(map[int32]int, len(entries))
+	keys := make(map[string]int32, len(entries))
+	// oldIndex says where each entry of the last build was, so an entry that is
+	// still listed compares with itself even after its position moved.
+	oldIndex := make(map[string]int, len(object.entries))
+	for index := range object.entries {
+		oldIndex[object.entries[index].Key] = index
 	}
-	object.entries = platform.NumberMenu(object.menu())
-	object.revision++
+	difference := change{layout: object.revision == 0 || len(entries) != len(object.entries)}
+	if object.nextID > math.MaxInt32-int32(len(entries)) {
+		// The id space is spent (a menu entry is added two billion times over):
+		// start over, and tell hosts the layout changed so none of them keeps an
+		// id from the generation before this one on purpose.
+		object.nextID = 0
+		object.keys = make(map[string]int32, len(entries))
+		difference.layout = true
+	}
+	var updated []int32
+	for index := range entries {
+		entry := &entries[index]
+		id, known := object.keys[entry.Key]
+		if known {
+			if previous, found := object.byWire[id]; found && object.entries[previous].Separator != entry.Separator {
+				// A host that keeps what it was told about an id (KDE keeps
+				// that an entry is a separator) must not be shown the other
+				// shape under the id it remembers.
+				known = false
+			}
+		}
+		if !known {
+			// The check above keeps this from overflowing: a build hands out at
+			// most one id per entry it lists.
+			object.nextID++
+			id = object.nextID
+		}
+		wires[index] = id
+		keys[entry.Key] = id
+		byWire[id] = index
+		if index < len(object.entries) {
+			old := &object.entries[index]
+			if old.Key != entry.Key || old.Separator != entry.Separator || old.Children != entry.Children {
+				difference.layout = true
+			}
+		}
+		if previous, found := oldIndex[entry.Key]; found && !difference.layout {
+			old := &object.entries[previous]
+			if old.Title != entry.Title || old.Disabled != entry.Disabled || old.Checked != entry.Checked {
+				updated = append(updated, id)
+			}
+		}
+	}
+	if difference.layout {
+		object.revision++
+	} else if len(updated) != 0 {
+		var e dbus.Encoder
+		object.writeItemsUpdated(&e, byWire, entries, updated)
+		difference.items = e.Bytes()
+	}
+	object.entries = entries
+	object.wires = wires
+	object.byWire = byWire
+	object.keys = keys
 	object.stale = false
+	return difference
+}
+
+// writeItemsUpdated writes the body of ItemsPropertiesUpdated for the entries
+// these ids name: every property of each as it is now, and no removals.
+func (object *Object) writeItemsUpdated(e *dbus.Encoder, byWire map[int32]int, entries []platform.MenuEntry, ids []int32) {
+	mark := e.BeginArray(8)
+	for _, id := range ids {
+		index, ok := byWire[id]
+		if !ok {
+			continue
+		}
+		e.Align(8)
+		e.Int32(id)
+		writeProps(e, &entries[index], entries[index].Children > 0, nil)
+	}
+	e.EndArray(mark)
+	e.EndArray(e.BeginArray(8))
 }
 
 // Call answers one call made to the menu's path, on either interface it has.
@@ -92,12 +209,13 @@ func (object *Object) Call(call *dbus.Message) Result {
 		if args.Err() != nil || call.Signature != "iias" {
 			return failure("org.freedesktop.DBus.Error.InvalidArgs", "expected (iias)")
 		}
+		var difference change
 		if parent == 0 {
 			// Reading the whole menu again, with no word that it is about to
 			// show, is a host that kept the last layout; reading a submenu is
 			// part of reading the one it has.
 			if object.stale || object.entries == nil {
-				object.refresh()
+				difference = object.refresh()
 			}
 			object.stale = true
 		}
@@ -105,7 +223,12 @@ func (object *Object) Call(call *dbus.Message) Result {
 		if !object.writeLayout(&e, parent, depth, names) {
 			return failure("org.freedesktop.DBus.Error.InvalidArgs", "no such menu item")
 		}
-		return reply("u"+nodeType, &e)
+		result := reply("u"+nodeType, &e)
+		if difference.layout {
+			result.LayoutUpdated = object.revision
+		}
+		result.ItemsUpdated = difference.items
+		return result
 	case "GetGroupProperties":
 		ids := readIDs(args)
 		names := readNames(args)
@@ -166,33 +289,42 @@ func (object *Object) Call(call *dbus.Message) Result {
 		// Only the menu's own opening is a chance to bring it up to date: the
 		// ids of a submenu's entries must not change under a host that is
 		// reading them.
-		update := id == 0
-		if update {
-			object.refresh()
-			object.stale = false
+		var difference change
+		if id == 0 {
+			difference = object.refresh()
 		}
-		e.Bool(update)
-		return reply("b", &e)
+		e.Bool(difference.layout)
+		result := reply("b", &e)
+		if difference.layout {
+			result.LayoutUpdated = object.revision
+		}
+		result.ItemsUpdated = difference.items
+		return result
 	case "AboutToShowGroup":
 		ids := readIDs(args)
 		if args.Err() != nil || call.Signature != "ai" {
 			return failure("org.freedesktop.DBus.Error.InvalidArgs", "expected (ai)")
 		}
-		update := false
+		var difference change
 		for _, id := range ids {
 			if id == 0 {
-				object.refresh()
-				update = true
+				difference = object.refresh()
+				break
 			}
 		}
 		updated := e.BeginArray(4)
-		if update {
+		if difference.layout {
 			e.Int32(0)
 		}
 		e.EndArray(updated)
 		errors := e.BeginArray(4)
 		e.EndArray(errors)
-		return reply("aiai", &e)
+		result := reply("aiai", &e)
+		if difference.layout {
+			result.LayoutUpdated = object.revision
+		}
+		result.ItemsUpdated = difference.items
+		return result
 	}
 	return failure("org.freedesktop.DBus.Error.UnknownMethod", call.Member)
 }
@@ -281,15 +413,9 @@ func writeObjectProperty(e *dbus.Encoder, name string) bool {
 
 // index is the position in the entries of the one with this id.
 func (object *Object) index(id int32) (int, bool) {
-	number := int64(id) - int64(object.base)
-	if number < 1 || number > int64(len(object.entries)) {
-		return 0, false
-	}
-	return int(number) - 1, true
+	index, ok := object.byWire[id]
+	return index, ok
 }
-
-// wireID is the id a host knows an entry by.
-func (object *Object) wireID(entry *platform.MenuEntry) int32 { return object.base + int32(entry.ID) }
 
 // writeLayout writes the layout node of parent and its descendants down to depth
 // levels (all of them when depth is negative), after the revision.
@@ -322,7 +448,7 @@ func (object *Object) writeLayout(e *dbus.Encoder, parent, depth int32, names []
 func (object *Object) writeNode(e *dbus.Encoder, cursor *int, depth int32, names []string) {
 	entry := &object.entries[*cursor]
 	e.Align(8)
-	e.Int32(object.wireID(entry))
+	e.Int32(object.wires[*cursor])
 	writeProps(e, entry, entry.Children > 0, names)
 	mark := e.BeginArray(1)
 	if depth != 0 && entry.Children > 0 {
@@ -344,9 +470,7 @@ func (object *Object) writeGroup(e *dbus.Encoder, ids []int32, names []string) {
 	if len(ids) == 0 {
 		ids = make([]int32, 0, len(object.entries)+1)
 		ids = append(ids, 0)
-		for _, entry := range object.entries {
-			ids = append(ids, object.wireID(&entry))
-		}
+		ids = append(ids, object.wires...)
 	}
 	mark := e.BeginArray(8)
 	for _, id := range ids {

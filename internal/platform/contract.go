@@ -287,6 +287,14 @@ type MenuItem struct {
 	Checked   bool
 	Submenu   []MenuItem
 	OnSelect  func()
+	// ID, when not empty, names the entry across builds: a menu served to
+	// another process keeps the entry's id while its title, state or position
+	// changes. An ID must be unique among the entries of one menu; the same ID in
+	// another submenu names another entry, and one without an ID is known by its
+	// title, so a new title is a new entry. Two entries that share an ID among
+	// siblings are told apart only by their order, so removing one of them gives
+	// a new id to the ones after it.
+	ID string
 }
 
 // ApplicationStart initializes the first windows before the event loop waits.

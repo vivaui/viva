@@ -145,9 +145,12 @@ func paintInputContent(canvas *ui.Canvas, theme ui.Theme, bounds, content ui.Rec
 	if snapshot.Text.Mono {
 		snapshot.PlatformEditing = false
 		snapshot.ShowCaret = focused
-		if focused && snapshot.Blink != nil {
-			snapshot.ShowCaret = snapshot.Blink.Lit(canvas, snapshot.Caret)
-		}
+	}
+	// A caret the component paints keeps its own blink phase, whether the field is fixed
+	// pitch or asked to hide the editor's text; the platform's caret is not drawn, so its
+	// blink would otherwise be gone.
+	if selfPainted && focused && snapshot.ShowCaret && snapshot.Blink != nil {
+		snapshot.ShowCaret = snapshot.Blink.Lit(canvas, snapshot.Caret)
 	}
 	if !snapshot.PlatformEditing && content.Width > 0 && content.Height > 0 {
 		inputPaintText(canvas, theme, content, snapshot, focused)

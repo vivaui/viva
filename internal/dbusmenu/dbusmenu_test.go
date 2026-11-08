@@ -47,12 +47,71 @@ func readNode(t *testing.T, d *dbus.Decoder) node {
 	return n
 }
 
+// propertyUpdate is one entry of an ItemsPropertiesUpdated signal.
+type propertyUpdate struct {
+	id    int32
+	props map[string]any
+}
+
+// readItemsUpdated decodes the body of an ItemsPropertiesUpdated signal.
+func readItemsUpdated(t *testing.T, body []byte) []propertyUpdate {
+	t.Helper()
+	if body == nil {
+		t.Fatal("no ItemsPropertiesUpdated body")
+	}
+	d := dbus.NewDecoder(body)
+	end := d.ArrayLength(8)
+	var updates []propertyUpdate
+	for d.Pos() < end && d.Err() == nil {
+		d.Align(8)
+		update := propertyUpdate{id: d.Int32(), props: map[string]any{}}
+		propsEnd := d.ArrayLength(8)
+		for d.Pos() < propsEnd && d.Err() == nil {
+			d.Align(8)
+			name := d.String()
+			switch sig := d.Signature(); sig {
+			case "s":
+				update.props[name] = d.String()
+			case "b":
+				update.props[name] = d.Bool()
+			case "i":
+				update.props[name] = d.Int32()
+			default:
+				t.Fatalf("property %q has signature %q", name, sig)
+			}
+		}
+		updates = append(updates, update)
+	}
+	removed := d.ArrayLength(8)
+	if d.Pos() != removed {
+		t.Fatal("a property removal was written")
+	}
+	if d.Err() != nil {
+		t.Fatal(d.Err())
+	}
+	return updates
+}
+
 func call(member, signature string, args func(e *dbus.Encoder)) *dbus.Message {
 	var e dbus.Encoder
 	if args != nil {
 		args(&e)
 	}
 	return &dbus.Message{Type: dbus.TypeCall, Path: Path, Interface: Interface, Member: member, Signature: signature, Body: e.Bytes()}
+}
+
+func aboutToShow(id int32) *dbus.Message {
+	return call("AboutToShow", "i", func(e *dbus.Encoder) { e.Int32(id) })
+}
+
+func aboutToShowGroup(ids ...int32) *dbus.Message {
+	return call("AboutToShowGroup", "ai", func(e *dbus.Encoder) {
+		mark := e.BeginArray(4)
+		for _, id := range ids {
+			e.Int32(id)
+		}
+		e.EndArray(mark)
+	})
 }
 
 func layoutCall(parent, depth int32, names ...string) *dbus.Message {
@@ -119,7 +178,7 @@ func TestLayoutIsTheWholeMenuWithItsPropertiesAndIDsInEntryOrder(t *testing.T) {
 	if !reflect.DeepEqual(titles, []string{"Header", "Sessions", "", "New__terminal", "Quit"}) {
 		t.Fatalf("labels %q", titles)
 	}
-	header, sessions, separator, terminal := root.children[0], root.children[1], root.children[2], root.children[3]
+	header, sessions, separator, terminal, quit := root.children[0], root.children[1], root.children[2], root.children[3], root.children[4]
 	if header.id != 1 || header.props["enabled"] != false {
 		t.Fatalf("header %+v", header)
 	}
@@ -135,10 +194,9 @@ func TestLayoutIsTheWholeMenuWithItsPropertiesAndIDsInEntryOrder(t *testing.T) {
 	// Every property is stated, defaults included, so a host that keeps what it
 	// was told does not carry a separator's look over to the entry that takes
 	// its id when the menu is built again.
-	quit := root.children[4]
 	want := map[string]any{"type": "standard", "label": "Quit", "enabled": true, "visible": true, "toggle-type": "", "toggle-state": int32(0), "children-display": ""}
 	if quit.id != 7 || !reflect.DeepEqual(quit.props, want) {
-		t.Fatalf("quit = %+v", quit)
+		t.Fatalf("quit = %+v, want %+v", quit, want)
 	}
 	if separator.props["label"] != "" || separator.props["enabled"] != true {
 		t.Fatalf("a separator leaves a property unsaid: %+v", separator.props)
@@ -149,7 +207,7 @@ func TestLayoutDepthAndParentSelectWhatIsWritten(t *testing.T) {
 	var chosen []string
 	var builds int
 	object := newTestObject(&chosen, &builds)
-	object.Call(layoutCall(0, -1))
+	ids := layoutIDs(t, object)
 
 	d := dbus.NewDecoder(succeeded(t, object.Call(layoutCall(0, 1))))
 	d.Uint32()
@@ -162,10 +220,11 @@ func TestLayoutDepthAndParentSelectWhatIsWritten(t *testing.T) {
 	if bare := readNode(t, d); len(bare.children) != 0 {
 		t.Fatalf("depth 0 wrote children: %+v", bare)
 	}
-	d = dbus.NewDecoder(succeeded(t, object.Call(layoutCall(object.base+2, -1))))
+	sessions := ids[1]
+	d = dbus.NewDecoder(succeeded(t, object.Call(layoutCall(sessions, -1))))
 	d.Uint32()
 	sub := readNode(t, d)
-	if sub.id != object.base+2 || len(sub.children) != 2 || sub.children[1].props["label"] != "beta" {
+	if sub.id != sessions || len(sub.children) != 2 || sub.children[1].props["label"] != "beta" {
 		t.Fatalf("submenu %+v", sub)
 	}
 	if r := object.Call(layoutCall(99, -1)); r.ErrName == "" {
@@ -186,26 +245,32 @@ func TestOpeningTheMenuAsksTheApplicationAgain(t *testing.T) {
 	var chosen []string
 	var builds int
 	object := newTestObject(&chosen, &builds)
-	object.Call(layoutCall(0, -1))
+	first := layoutIDs(t, object)
 	if builds != 1 {
 		t.Fatalf("builds %d", builds)
 	}
-	// A host that says it is about to show the menu is told to read it again,
-	// and reading it then does not build it a second time.
-	d := dbus.NewDecoder(succeeded(t, object.Call(call("AboutToShow", "i", func(e *dbus.Encoder) { e.Int32(0) }))))
-	if !d.Bool() || builds != 2 {
-		t.Fatalf("AboutToShow(0) did not refresh: builds %d", builds)
+	// A host that says it is about to show the menu asks the application
+	// again. The menu did not change, so no id moved and no layout is
+	// announced.
+	result := object.Call(aboutToShow(0))
+	d := dbus.NewDecoder(succeeded(t, result))
+	if d.Bool() || builds != 2 {
+		t.Fatalf("AboutToShow(0) said the layout changed: builds %d", builds)
 	}
-	d = dbus.NewDecoder(succeeded(t, object.Call(layoutCall(0, -1))))
-	if revision := d.Uint32(); revision != 2 || builds != 2 {
-		t.Fatalf("revision %d builds %d", revision, builds)
+	if result.LayoutUpdated != 0 || result.ItemsUpdated != nil {
+		t.Fatalf("AboutToShow(0) announced a change: revision %d, items %d", result.LayoutUpdated, len(result.ItemsUpdated))
+	}
+	second := layoutIDs(t, object)
+	if !reflect.DeepEqual(first, second) || builds != 2 {
+		t.Fatalf("ids %v then %v, builds %d", first, second, builds)
 	}
 	// A layout read with no announcement is a host that kept the old one.
 	object.Call(layoutCall(0, -1))
 	if builds != 3 {
 		t.Fatalf("builds %d", builds)
 	}
-	d = dbus.NewDecoder(succeeded(t, object.Call(call("AboutToShow", "i", func(e *dbus.Encoder) { e.Int32(2) }))))
+	result = object.Call(aboutToShow(2))
+	d = dbus.NewDecoder(succeeded(t, result))
 	if d.Bool() || builds != 3 {
 		t.Fatal("a submenu's opening rebuilt the menu under its own ids")
 	}
@@ -369,44 +434,298 @@ func FuzzCallNeverPanicsOnAnyBody(f *testing.F) {
 	})
 }
 
-func TestEachBuildOfTheMenuTakesIDsNoEarlierBuildUsed(t *testing.T) {
+// layoutIDs reads the whole menu and returns the ids it wrote, in order.
+func layoutIDs(t *testing.T, object *Object) []int32 {
+	t.Helper()
+	d := dbus.NewDecoder(succeeded(t, object.Call(layoutCall(0, -1))))
+	d.Uint32()
+	var found []int32
+	var walk func(n node)
+	walk = func(n node) {
+		if n.id != 0 {
+			found = append(found, n.id)
+		}
+		for _, child := range n.children {
+			walk(child)
+		}
+	}
+	walk(readNode(t, d))
+	return found
+}
+
+// newSessionMenu is a menu whose sessions a test can add to between builds.
+func newSessionMenu(chosen *[]string, sessions *[]string) *Object {
+	return New(func() []platform.MenuItem {
+		items := []platform.MenuItem{{Title: "Sessions", Disabled: true}}
+		for _, name := range *sessions {
+			name := name
+			items = append(items, platform.MenuItem{Title: name, OnSelect: func() { *chosen = append(*chosen, name) }})
+		}
+		return append(items, platform.MenuItem{Title: "Quit", OnSelect: func() { *chosen = append(*chosen, "quit") }})
+	})
+}
+
+func TestAnUnchangedMenuKeepsTheIDsAHostAlreadyRead(t *testing.T) {
 	var chosen []string
 	var builds int
 	object := newTestObject(&chosen, &builds)
-	ids := func() []int32 {
-		d := dbus.NewDecoder(succeeded(t, object.Call(layoutCall(0, -1))))
-		d.Uint32()
-		var found []int32
-		var walk func(n node)
-		walk = func(n node) {
-			if n.id != 0 {
-				found = append(found, n.id)
-			}
-			for _, child := range n.children {
-				walk(child)
-			}
-		}
-		walk(readNode(t, d))
-		return found
+	first := layoutIDs(t, object)
+
+	result := object.Call(aboutToShowGroup(0))
+	d := dbus.NewDecoder(succeeded(t, result))
+	if end := d.ArrayLength(4); d.Pos() != end {
+		t.Fatal("AboutToShowGroup said an unchanged menu had updates")
 	}
-	first := ids()
-	second := ids() // the whole menu read again with no announcement is built again
-	if len(first) != 7 || len(second) != 7 {
-		t.Fatalf("ids %v then %v", first, second)
+	if result.LayoutUpdated != 0 || result.ItemsUpdated != nil {
+		t.Fatalf("an unchanged menu announced revision %d with %d items", result.LayoutUpdated, len(result.ItemsUpdated))
 	}
-	if second[0] <= first[len(first)-1] {
-		t.Fatalf("the second build reused ids: %v then %v", first, second)
+	second := layoutIDs(t, object)
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("an unchanged menu changed its ids: %v then %v", first, second)
 	}
-	// An id from the earlier build leads nowhere, and one from this build to its entry.
 	object.Call(event(first[2], "clicked"))
-	if len(chosen) != 0 {
-		t.Fatalf("an old id ran %v", chosen)
-	}
-	object.Call(event(second[2], "clicked"))
 	if !reflect.DeepEqual(chosen, []string{"alpha"}) {
 		t.Fatalf("chosen %v", chosen)
 	}
-	if r := object.Call(layoutCall(first[1], -1)); r.ErrName == "" { // a submenu is read from the build the host has
-		t.Fatal("a layout was served for an id of an earlier build")
+}
+
+func TestAnAddedEntryTakesANewIDAndTheOthersKeepTheirs(t *testing.T) {
+	var chosen []string
+	sessions := []string{"alpha"}
+	object := newSessionMenu(&chosen, &sessions)
+	first := layoutIDs(t, object)
+	if len(first) != 3 {
+		t.Fatalf("ids %v", first)
+	}
+
+	sessions = append(sessions, "beta")
+	result := object.Call(aboutToShow(0))
+	d := dbus.NewDecoder(succeeded(t, result))
+	if !d.Bool() {
+		t.Fatal("AboutToShow did not report the changed layout")
+	}
+	if result.LayoutUpdated == 0 {
+		t.Fatal("a changed layout was not announced")
+	}
+	second := layoutIDs(t, object)
+	if len(second) != 4 {
+		t.Fatalf("ids %v then %v", first, second)
+	}
+	// The entries the menu still lists keep the ids hosts already hold,
+	// whatever position the new entry took between them.
+	if second[0] != first[0] || second[1] != first[1] || second[3] != first[2] {
+		t.Fatalf("an entry that is still listed changed its id: %v then %v", first, second)
+	}
+	for _, id := range first {
+		if second[2] == id {
+			t.Fatalf("the new entry reused the id %d: %v then %v", id, first, second)
+		}
+	}
+	// The ids a host holds go on choosing the entries they named, and the new
+	// id chooses the new entry.
+	object.Call(event(first[1], "clicked"))
+	if !reflect.DeepEqual(chosen, []string{"alpha"}) {
+		t.Fatalf("chosen %v", chosen)
+	}
+	object.Call(event(second[2], "clicked"))
+	if !reflect.DeepEqual(chosen, []string{"alpha", "beta"}) {
+		t.Fatalf("chosen %v", chosen)
+	}
+	object.Call(event(first[2], "clicked"))
+	if !reflect.DeepEqual(chosen, []string{"alpha", "beta", "quit"}) {
+		t.Fatalf("chosen %v", chosen)
+	}
+}
+
+func TestAPropertyChangeKeepsTheIDsAndIsAnnouncedInPlace(t *testing.T) {
+	var chosen []string
+	title, disabled := "Connecting", false
+	object := New(func() []platform.MenuItem {
+		return []platform.MenuItem{
+			{ID: "status", Title: title, Disabled: disabled, OnSelect: func() {}},
+			{ID: "quit", Title: "Quit", OnSelect: func() { chosen = append(chosen, "quit") }},
+		}
+	})
+	first := layoutIDs(t, object)
+
+	title, disabled = "Connected", true
+	result := object.Call(aboutToShow(0))
+	d := dbus.NewDecoder(succeeded(t, result))
+	if d.Bool() {
+		t.Fatal("AboutToShow asked for a re-read for a property change")
+	}
+	if result.LayoutUpdated != 0 {
+		t.Fatalf("a property change announced revision %d", result.LayoutUpdated)
+	}
+	updates := readItemsUpdated(t, result.ItemsUpdated)
+	if len(updates) != 1 || updates[0].id != first[0] {
+		t.Fatalf("updates %+v, ids %v", updates, first)
+	}
+	if updates[0].props["label"] != "Connected" || updates[0].props["enabled"] != false {
+		t.Fatalf("properties %+v", updates[0].props)
+	}
+	second := layoutIDs(t, object)
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("a property change moved the ids: %v then %v", first, second)
+	}
+	object.Call(event(first[1], "clicked"))
+	if !reflect.DeepEqual(chosen, []string{"quit"}) {
+		t.Fatalf("chosen %v", chosen)
+	}
+}
+
+func TestAnEntryWithoutIDThatChangesItsTitleTakesANewID(t *testing.T) {
+	title := "one"
+	object := New(func() []platform.MenuItem {
+		return []platform.MenuItem{
+			{Title: title, OnSelect: func() {}},
+			{Title: "Quit", OnSelect: func() {}},
+		}
+	})
+	first := layoutIDs(t, object)
+	title = "two"
+	result := object.Call(aboutToShow(0))
+	d := dbus.NewDecoder(succeeded(t, result))
+	if !d.Bool() || result.LayoutUpdated == 0 {
+		t.Fatal("an entry the application did not name changed under its id")
+	}
+	second := layoutIDs(t, object)
+	if second[0] == first[0] || second[1] != first[1] {
+		t.Fatalf("ids %v then %v", first, second)
+	}
+}
+
+func TestAnEntryThatChangesKindTakesANewID(t *testing.T) {
+	standard := false
+	object := New(func() []platform.MenuItem {
+		items := []platform.MenuItem{{ID: "first", Title: "First", OnSelect: func() {}}}
+		if standard {
+			items = append(items, platform.MenuItem{ID: "thing", Title: "Thing", OnSelect: func() {}})
+		} else {
+			items = append(items, platform.MenuItem{ID: "thing", Separator: true})
+		}
+		return append(items, platform.MenuItem{ID: "last", Title: "Last", OnSelect: func() {}})
+	})
+	first := layoutIDs(t, object)
+	standard = true
+	result := object.Call(aboutToShow(0))
+	d := dbus.NewDecoder(succeeded(t, result))
+	if !d.Bool() || result.LayoutUpdated == 0 {
+		t.Fatal("an entry that became selectable was not a layout change")
+	}
+	second := layoutIDs(t, object)
+	if second[0] != first[0] || second[2] != first[2] {
+		t.Fatalf("an entry that kept its kind changed its id: %v then %v", first, second)
+	}
+	if second[1] == first[1] {
+		t.Fatalf("the id of an entry that changed kind was reused: %v then %v", first, second)
+	}
+}
+
+func TestReorderingKeepsEachEntrysID(t *testing.T) {
+	order := []string{"a", "b", "c"}
+	object := New(func() []platform.MenuItem {
+		items := make([]platform.MenuItem, 0, len(order))
+		for _, name := range order {
+			items = append(items, platform.MenuItem{ID: name, Title: name, OnSelect: func() {}})
+		}
+		return items
+	})
+	first := layoutIDs(t, object)
+	order = []string{"c", "a", "b"}
+	result := object.Call(aboutToShow(0))
+	if result.LayoutUpdated == 0 {
+		t.Fatal("a reordered menu was not announced")
+	}
+	second := layoutIDs(t, object)
+	if !reflect.DeepEqual(second, []int32{first[2], first[0], first[1]}) {
+		t.Fatalf("ids %v then %v", first, second)
+	}
+}
+
+func TestIdsOfRemovedEntriesAreNotReused(t *testing.T) {
+	items := []string{"a", "b"}
+	object := New(func() []platform.MenuItem {
+		out := make([]platform.MenuItem, 0, len(items))
+		for _, name := range items {
+			out = append(out, platform.MenuItem{Title: name, OnSelect: func() {}})
+		}
+		return out
+	})
+	first := layoutIDs(t, object)
+	items = []string{"a"}
+	object.Call(aboutToShow(0))
+	items = []string{"a", "c"}
+	object.Call(aboutToShow(0))
+	third := layoutIDs(t, object)
+	if len(third) != 2 || third[1] == first[1] {
+		t.Fatalf("the id of a removed entry was reused: %v then %v", first, third)
+	}
+}
+
+func TestAReadAnnouncesPropertiesOnce(t *testing.T) {
+	title := "one"
+	object := New(func() []platform.MenuItem {
+		return []platform.MenuItem{{ID: "a", Title: title, OnSelect: func() {}}}
+	})
+	layoutIDs(t, object)
+	title = "two"
+	result := object.Call(layoutCall(0, -1))
+	if result.LayoutUpdated != 0 {
+		t.Fatalf("a property change announced revision %d", result.LayoutUpdated)
+	}
+	updates := readItemsUpdated(t, result.ItemsUpdated)
+	if len(updates) != 1 || updates[0].props["label"] != "two" {
+		t.Fatalf("updates %+v", updates)
+	}
+	again := object.Call(layoutCall(0, -1))
+	if again.ItemsUpdated != nil {
+		t.Fatal("the read that answered the update announced it again")
+	}
+}
+
+func TestAboutToShowGroupAnnouncesAChangedLayout(t *testing.T) {
+	var chosen []string
+	sessions := []string{"alpha"}
+	object := newSessionMenu(&chosen, &sessions)
+	layoutIDs(t, object)
+
+	sessions = append(sessions, "beta")
+	result := object.Call(aboutToShowGroup(0))
+	d := dbus.NewDecoder(succeeded(t, result))
+	end := d.ArrayLength(4)
+	if d.Pos() == end {
+		t.Fatal("AboutToShowGroup did not report the updated root")
+	}
+	if id := d.Int32(); id != 0 {
+		t.Fatalf("updated id %d, want the root", id)
+	}
+	if result.LayoutUpdated == 0 {
+		t.Fatal("a changed layout was not announced")
+	}
+}
+
+func TestAReadThatRebuildsAChangedMenuAnnouncesIt(t *testing.T) {
+	var chosen []string
+	sessions := []string{"alpha"}
+	object := newSessionMenu(&chosen, &sessions)
+	layoutIDs(t, object)
+
+	sessions = append(sessions, "beta")
+	// No AboutToShow: the read itself notices the change, and hosts that kept
+	// the earlier layout are told to read this one.
+	result := object.Call(layoutCall(0, -1))
+	if result.LayoutUpdated == 0 {
+		t.Fatal("a layout read that rebuilt the menu announced nothing")
+	}
+	d := dbus.NewDecoder(succeeded(t, result))
+	if revision := d.Uint32(); revision != result.LayoutUpdated {
+		t.Fatalf("reply revision %d, announced %d", revision, result.LayoutUpdated)
+	}
+	// The read that answers the announcement finds the same menu and does not
+	// announce it again.
+	again := object.Call(layoutCall(0, -1))
+	if again.LayoutUpdated != 0 {
+		t.Fatalf("the answering read announced revision %d", again.LayoutUpdated)
 	}
 }
