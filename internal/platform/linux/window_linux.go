@@ -193,6 +193,7 @@ const (
 	commandDesktop
 	commandEnterFullscreen
 	commandExitFullscreen
+	commandSetSize
 )
 
 type nativeWindow struct {
@@ -852,7 +853,7 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		case message.Format == 32 && message.Window == win.id && message.Type == win.closeAtom:
 			return true, nil
 		case message.Format == 32 && message.Window == win.id && message.Type == win.commandAtom:
-			return false, state.command(binary.LittleEndian.Uint32(message.Data[:4]))
+			return false, state.command(binary.LittleEndian.Uint32(message.Data[:4]), message.Data[:])
 		case message.Format == 32 && message.Window == win.id && message.Type == win.caretAtom:
 			generation := binary.LittleEndian.Uint32(message.Data[:4])
 			if frame, changed := textInput.blinkCaret(generation); changed {
@@ -1462,6 +1463,25 @@ func (win *window) postClientMessage(atom, value uint32) {
 		Type:         atom,
 	}
 	binary.LittleEndian.PutUint32(event.Data[:4], value)
+	win.api.sendEvent(win.connection, 0, win.id, 0, (*byte)(unsafe.Pointer(&event)))
+	win.api.flush(win.connection)
+}
+
+func (win *window) postClientSize(width, height uint32) {
+	win.mu.Lock()
+	defer win.mu.Unlock()
+	if win.connection == 0 || win.commandAtom == 0 {
+		return
+	}
+	event := xcbClientEvent{
+		ResponseType: xcbClientMessage,
+		Format:       32,
+		Window:       win.id,
+		Type:         win.commandAtom,
+	}
+	binary.LittleEndian.PutUint32(event.Data[0:4], commandSetSize)
+	binary.LittleEndian.PutUint32(event.Data[4:8], width)
+	binary.LittleEndian.PutUint32(event.Data[8:12], height)
 	win.api.sendEvent(win.connection, 0, win.id, 0, (*byte)(unsafe.Pointer(&event)))
 	win.api.flush(win.connection)
 }

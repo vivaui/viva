@@ -188,6 +188,13 @@ type WindowMover interface {
 	MoveTo(origin gfx.Point)
 }
 
+// WindowSizer is implemented by windows that can change their content size
+// without the user dragging a border. Sizes are logical pixels and the window
+// manager may clamp them to the display or the window's minimum size.
+type WindowSizer interface {
+	SetSize(width, height int) error
+}
+
 // Application creates windows that share one native application event loop.
 // OpenWindow, AddStatusItem, SetDockBadge and SetProgress are called on that
 // event-loop thread.
@@ -235,6 +242,10 @@ var ErrFullscreenUnsupported = errors.New("platform: fullscreen is unsupported")
 // ErrAlwaysOnTopUnsupported means this host or window kind cannot keep a window
 // above others.
 var ErrAlwaysOnTopUnsupported = errors.New("platform: always-on-top is unsupported")
+
+// ErrWindowSizeUnsupported means this window kind cannot be resized by the
+// application.
+var ErrWindowSizeUnsupported = errors.New("platform: programmatic window size is unsupported")
 
 // ErrStatusAreaUnavailable is returned by AddStatusItem when the desktop has no
 // status area to put an icon in, as a Linux session without a StatusNotifier
