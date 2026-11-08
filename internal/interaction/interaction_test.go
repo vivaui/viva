@@ -215,16 +215,16 @@ func TestTextInputHitRequiresAFieldTerminalOrPlacedCombobox(t *testing.T) {
 		{ID: ui.Item(3), Role: ui.RoleCombobox, TextBounds: ui.Rect{Width: 40, Height: 20}},
 		{ID: ui.Item(4), Role: ui.RoleButton},
 	}
-	if hit, ok := TextInputHit(hits, ui.Item(1)); !ok || hit.ID != ui.Item(1) {
-		t.Fatalf("text field = %v/%v", hit.ID, ok)
+	if hit, index, ok := TextInputHit(hits, ui.Item(1)); !ok || hit.ID != ui.Item(1) || index != 0 {
+		t.Fatalf("text field = %v/%d/%v", hit.ID, index, ok)
 	}
-	if _, ok := TextInputHit(hits, ui.Item(2)); ok {
+	if _, _, ok := TextInputHit(hits, ui.Item(2)); ok {
 		t.Fatal("a combobox that paints its own query took the editor")
 	}
-	if hit, ok := TextInputHit(hits, ui.Item(3)); !ok || hit.ID != ui.Item(3) {
-		t.Fatalf("placed combobox = %v/%v", hit.ID, ok)
+	if hit, index, ok := TextInputHit(hits, ui.Item(3)); !ok || hit.ID != ui.Item(3) || index != 2 {
+		t.Fatalf("placed combobox = %v/%d/%v", hit.ID, index, ok)
 	}
-	if _, ok := TextInputHit(hits, ui.Item(4)); ok {
+	if _, _, ok := TextInputHit(hits, ui.Item(4)); ok {
 		t.Fatal("a button took the editor")
 	}
 }

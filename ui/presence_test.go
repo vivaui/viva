@@ -195,6 +195,55 @@ func TestPresenceMovesTheWholeGroupAboutItsPivot(t *testing.T) {
 	}
 }
 
+// A native overlay anchored to a control must take the same placement as the
+// control's paint. Otherwise a text caret stays at the final place while its
+// drawer is still outside the window.
+func TestPresenceMovesHitsAlongWithTheirPaint(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	canvas.Reset()
+	frames.at(0, func() { paintPanel(&canvas, Item(1)) })
+
+	hit := canvas.Hits()[0]
+	moved, moving := canvas.HitPresenceRect(0, hit.Bounds)
+	if !moving {
+		t.Fatal("a hit in an entering overlay did not move")
+	}
+	if want := canvas.Rectangles()[0].Bounds; moved != want {
+		t.Fatalf("hit overlay rect = %+v, painted panel = %+v", moved, want)
+	}
+	if allocations := testing.AllocsPerRun(100, func() { canvas.HitPresenceRect(0, hit.Bounds) }); allocations != 0 {
+		t.Fatalf("moving a native overlay allocated %.2f objects", allocations)
+	}
+
+	canvas.Reset()
+	frames.at(100*time.Millisecond, func() { paintPanel(&canvas, Item(1)) })
+	if _, moving := canvas.HitPresenceRect(0, canvas.Hits()[0].Bounds); moving {
+		t.Fatal("a settled overlay still moved its hit")
+	}
+}
+
+func TestPresenceComposesNestedHitMotions(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	canvas.Reset()
+	frames.at(0, func() {
+		canvas.BeginPresence(Item(1), 0, Presence{
+			Motion: Motion{Duration: 100 * time.Millisecond, Easing: EaseLinear}, SlideIn: Point{X: 100},
+		}, Point{})
+		canvas.BeginPresence(Item(2), 0, Presence{
+			Motion: Motion{Duration: 100 * time.Millisecond, Easing: EaseLinear}, SlideIn: Point{Y: 10},
+		}, Point{})
+		canvas.Hit(Item(3), Rect{X: 5, Y: 7, Width: 20, Height: 20})
+		canvas.EndPresence()
+		canvas.EndPresence()
+	})
+	moved, moving := canvas.HitPresenceRect(0, canvas.Hits()[0].Bounds)
+	if !moving || moved != (Rect{X: 105, Y: 17, Width: 20, Height: 20}) {
+		t.Fatalf("nested motion = %+v/%v, want the inner and outer slides composed", moved, moving)
+	}
+}
+
 func TestPresenceKeepsPaintOrderOfAMixedGroup(t *testing.T) {
 	var canvas Canvas
 	frames := newTestFrames(&canvas)

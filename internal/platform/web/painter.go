@@ -492,10 +492,16 @@ func (p *painter) syncTextInput() {
 		p.noteKeyboardTarget(ui.ID{}, false)
 		return
 	}
-	field, found := interaction.TextInputHit(p.canvas.Hits(), p.focus.Focused())
+	field, hitIndex, found := interaction.TextInputHit(p.canvas.Hits(), p.focus.Focused())
 	if !found {
 		p.noteKeyboardTarget(ui.ID{}, false)
 		return
+	}
+	if bounds, moving := p.canvas.HitPresenceRect(hitIndex, field.Bounds); moving {
+		field.Bounds = roundPresenceRect(bounds)
+	}
+	if bounds, moving := p.canvas.HitPresenceRect(hitIndex, field.TextBounds); moving {
+		field.TextBounds = roundPresenceRect(bounds)
 	}
 	context := TextInputContext{
 		ID: field.ID, Bounds: field.Bounds, Layer: field.Layer, Multiline: field.Multiline,
@@ -598,6 +604,14 @@ func insertLayer(layers []uint16, layer uint16) []uint16 {
 	copy(layers[index+1:], layers[index:])
 	layers[index] = layer
 	return layers
+}
+
+// roundPresenceRect puts a browser editor on the whole logical pixels a moving
+// label takes, so the two do not drift by a fraction while an overlay slides.
+func roundPresenceRect(rect ui.Rect) ui.Rect {
+	round := func(value float32) float32 { return float32(math.Round(float64(value))) }
+	width, height := round(rect.Width), round(rect.Height)
+	return ui.Rect{X: round(rect.X), Y: round(rect.Y), Width: max(width, 0), Height: max(height, 0)}
 }
 
 // pointer applies one normalized pointer event and reports whether rendering

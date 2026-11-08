@@ -893,6 +893,7 @@ func (canvas *Canvas) Reset() {
 	canvas.trimCommands = canvas.trimCommands[:0]
 	canvas.iconTrimTriangles = canvas.iconTrimTriangles[:0]
 	canvas.motion.open = canvas.motion.open[:0]
+	canvas.motion.hitMotions = canvas.motion.hitMotions[:0]
 	canvas.trappedScope = ID{}
 	canvas.escapeTarget = ID{}
 	canvas.initialFocus = ID{}
@@ -952,6 +953,7 @@ func (canvas *Canvas) Trim() {
 	canvas.earcut.nodes = trimCapacity(canvas.earcut.nodes)
 	canvas.earcut.triangles = trimCapacity(canvas.earcut.triangles)
 	canvas.earcut.holes = trimCapacity(canvas.earcut.holes)
+	canvas.motion.hitMotions = trimCapacity(canvas.motion.hitMotions)
 }
 
 // trimCapacity keeps a slice's content but gives back its backing array when

@@ -294,6 +294,9 @@ type motionState struct {
 	// groups the current paint pass has begun and not yet ended (presence.go).
 	presences []presenceEntry
 	open      []presenceOpen
+	// hitMotions keeps the placement of hits painted inside a moving presence
+	// for this frame, so native overlays anchored to them move with the paint.
+	hitMotions []hitMotionEntry
 }
 
 // frameTime returns the time of the current frame, reading the clock on first

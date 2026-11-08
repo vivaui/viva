@@ -37,6 +37,59 @@ type presenceOpen struct {
 	rectangles, triangles, images, texts int
 	runs                                 int
 	shadows                              int
+	hits                                 int
+}
+
+// hitMotion is the placement a moving presence applies to one hit, as scale
+// and translation. It is the same transform the painted rectangles and text
+// take, so a native overlay anchored to the hit follows them.
+type hitMotion struct {
+	scale  float32
+	offset Point
+}
+
+func (transform presenceTransform) hitMotion() hitMotion {
+	scale := transform.scale
+	if scale == 0 {
+		scale = 1
+	}
+	return hitMotion{
+		scale: scale,
+		offset: Point{
+			X: transform.pivot.X - transform.pivot.X*scale + transform.offset.X,
+			Y: transform.pivot.Y - transform.pivot.Y*scale + transform.offset.Y,
+		},
+	}
+}
+
+func (motion hitMotion) moves() bool {
+	return motion.scale != 1 || motion.offset != (Point{})
+}
+
+func (motion hitMotion) rect(rect Rect) Rect {
+	return Rect{
+		X:      rect.X*motion.scale + motion.offset.X,
+		Y:      rect.Y*motion.scale + motion.offset.Y,
+		Width:  rect.Width * motion.scale,
+		Height: rect.Height * motion.scale,
+	}
+}
+
+// after composes outer after motion, in the order nested presences apply: an
+// inner popup moves first and the dialog around it moves the result.
+func (motion hitMotion) after(outer hitMotion) hitMotion {
+	return hitMotion{
+		scale: motion.scale * outer.scale,
+		offset: Point{
+			X: motion.offset.X*outer.scale + outer.offset.X,
+			Y: motion.offset.Y*outer.scale + outer.offset.Y,
+		},
+	}
+}
+
+type hitMotionEntry struct {
+	index  int
+	motion hitMotion
 }
 
 // presenceSnapshot is what an overlay painted in its last frame, untouched by
@@ -95,6 +148,7 @@ func (canvas *Canvas) BeginPresence(id ID, slot uint8, presence Presence, pivot 
 		entry:      -1,
 		rectangles: len(canvas.rectangles), triangles: len(canvas.triangles), images: len(canvas.images),
 		texts: len(canvas.texts), runs: len(canvas.runs), shadows: len(canvas.shadows),
+		hits: len(canvas.hits),
 	}
 	if state.active && !state.reduce && !id.IsZero() && presence.Motion.Duration > 0 && presence.moves() {
 		now := state.frameTime()
@@ -144,7 +198,72 @@ func (canvas *Canvas) EndPresence() {
 	}
 	if progress < 1 {
 		entry.presence.apply(canvas, open, entry.pivot, progress, false)
+		state.recordHitMotions(canvas, open, entry.presence.transform(entry.pivot, progress, false).hitMotion())
 	}
+}
+
+// transform returns the placement and opacity of the group at progress.
+// leaving selects the exit slide.
+func (presence Presence) transform(pivot Point, progress float32, leaving bool) presenceTransform {
+	transform := presenceTransform{pivot: pivot, scale: 1, alpha: 1}
+	if presence.Scale > 0 && presence.Scale != 1 {
+		transform.scale = Lerp(presence.Scale, 1, progress)
+	}
+	slide := presence.SlideIn
+	if leaving {
+		slide = presence.SlideOut
+	}
+	transform.offset = Point{X: slide.X * (1 - progress), Y: slide.Y * (1 - progress)}
+	if presence.Fade {
+		transform.alpha = progress
+	}
+	return transform
+}
+
+// recordHitMotions keeps the transform of every hit the group painted, so a
+// native overlay anchored to a control moves with it. Nested groups compose in
+// the order they end: an inner group records first, the outer one adds its
+// placement to it.
+func (state *motionState) recordHitMotions(canvas *Canvas, open presenceOpen, motion hitMotion) {
+	if !motion.moves() {
+		return
+	}
+	for index := open.hits; index < len(canvas.hits); index++ {
+		existing := -1
+		for entry := len(state.hitMotions) - 1; entry >= 0; entry-- {
+			if state.hitMotions[entry].index == index {
+				existing = entry
+				break
+			}
+		}
+		if existing >= 0 {
+			state.hitMotions[existing].motion = state.hitMotions[existing].motion.after(motion)
+			continue
+		}
+		state.hitMotions = append(state.hitMotions, hitMotionEntry{index: index, motion: motion})
+	}
+}
+
+// HitPresenceRect moves rect by the presence that painted the hit at index in
+// Canvas.Hits, and reports whether that hit is inside a moving presence. A
+// native overlay anchored to a control (a text editor's frame and caret) uses
+// it to follow the control while its overlay slides or grows, instead of
+// staying at the place the control will occupy once the motion ends.
+func (canvas *Canvas) HitPresenceRect(index int, rect Rect) (Rect, bool) {
+	if rect == (Rect{}) || index < 0 || index >= len(canvas.hits) {
+		return Rect{}, false
+	}
+	for entry := len(canvas.motion.hitMotions) - 1; entry >= 0; entry-- {
+		if canvas.motion.hitMotions[entry].index != index {
+			continue
+		}
+		motion := canvas.motion.hitMotions[entry].motion
+		if !motion.moves() {
+			return Rect{}, false
+		}
+		return motion.rect(rect), true
+	}
+	return Rect{}, false
 }
 
 // presenceFor finds the entry of an overlay part.
@@ -398,19 +517,8 @@ func reverseTriangles(triangles []Triangle) {
 // The size of text is not scaled: a glyph's size is a texture, and a few percent
 // is not worth one per frame, so a label moves with the overlay but keeps its size.
 func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, progress float32, leaving bool) {
-	transform := presenceTransform{pivot: pivot, scale: 1, alpha: 1}
-	if presence.Scale > 0 && presence.Scale != 1 {
-		transform.scale = Lerp(presence.Scale, 1, progress)
-	}
-	slide := presence.SlideIn
-	if leaving {
-		slide = presence.SlideOut
-	}
-	transform.offset = Point{X: slide.X * (1 - progress), Y: slide.Y * (1 - progress)}
-	moving := transform.scale != 1 || slide != (Point{})
-	if presence.Fade {
-		transform.alpha = progress
-	}
+	transform := presence.transform(pivot, progress, leaving)
+	moving := transform.scale != 1 || transform.offset != (Point{})
 	fade := presence.Fade
 	if fade && progress < 1 {
 		vectorizeBorderBackings(canvas, open.rectangles)

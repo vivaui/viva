@@ -366,7 +366,7 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 	default:
 		return false
 	}
-	context, placement := painter.focusedTextField()
+	context, placement, _ := painter.focusedTextField()
 	if placement == nil || context.ReadOnly || painter.textInput == nil {
 		painter.placing = false
 		return false
@@ -1069,18 +1069,19 @@ func (painter *painter) resyncRenderer() (render.Update, error) {
 
 // focusedTextField describes the focused text field of the last paint, and how
 // it places its caret when it lays its rows out itself.
-func (painter *painter) focusedTextField() (TextInputContext, ui.TextPlacement) {
-	hit, ok := interaction.TextInputHit(painter.canvas.Hits(), painter.focus.Focused())
+func (painter *painter) focusedTextField() (TextInputContext, ui.TextPlacement, int) {
+	hit, index, ok := interaction.TextInputHit(painter.canvas.Hits(), painter.focus.Focused())
 	if !ok {
-		return TextInputContext{}, nil
+		return TextInputContext{}, nil, -1
 	}
-	return TextInputContext{
+	context := TextInputContext{
 		ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == ui.RoleTerminal, TypeAhead: hit.TypeAhead && hit.Role != ui.RoleTerminal,
 		Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
 		NavigationKeys: hit.NavigationKeys,
 		TextBounds:     hit.TextBounds, FontSize: hit.TextSize, FontWeight: hit.TextWeight, TextColor: hit.TextColor,
 		HideNativeOverlays: hit.HideNativeOverlays,
-	}, hit.Placement
+	}
+	return context, hit.Placement, index
 }
 
 func (painter *painter) syncTextInput() platform.TextInputUpdate {
@@ -1088,7 +1089,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		painter.noteKeyboardTarget(ui.ID{}, false)
 		return platform.TextInputUpdate{}
 	}
-	context, placement := painter.focusedTextField()
+	context, placement, hitIndex := painter.focusedTextField()
 	var previousEditor *text.Editor
 	if painter.activeText != nil {
 		previousEditor = painter.activeText.Editor
@@ -1126,6 +1127,9 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		if bounds == (ui.Rect{}) {
 			bounds = context.Bounds
 		}
+	}
+	if transformed, moving := painter.canvas.HitPresenceRect(hitIndex, bounds); moving {
+		bounds = roundPresenceRect(transformed)
 	}
 	if fontSize == 0 {
 		fontSize = context.FontSize
@@ -1177,6 +1181,9 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	if placement != nil {
 		native.Placed = true
 		if caret, ok := placement.CaretBounds(); ok {
+			if transformed, moving := painter.canvas.HitPresenceRect(hitIndex, caret); moving {
+				caret = roundPresenceRect(transformed)
+			}
 			native.CaretX, native.CaretY, native.CaretWidth, native.CaretHeight = caret.X, caret.Y, caret.Width, caret.Height
 		}
 	}
@@ -2035,6 +2042,17 @@ func roundPixel(value float32) int32 {
 // window edge together, and clamping either to zero would stop it at the edge.
 func roundPosition(value float32) int32 {
 	return int32(math.Floor(float64(value) + 0.5))
+}
+
+// roundPresenceRect puts a native overlay on the same whole logical pixels as
+// the moving label it covers. Presence rounds a text label's origin so its
+// texture is not rebuilt every frame; the platform editor next to it has to
+// land on the same pixel.
+func roundPresenceRect(rect ui.Rect) ui.Rect {
+	return ui.Rect{
+		X: float32(roundPosition(rect.X)), Y: float32(roundPosition(rect.Y)),
+		Width: float32(roundPixel(rect.Width)), Height: float32(roundPixel(rect.Height)),
+	}
 }
 
 func sceneRectangle(rectangle ui.Rectangle) render.Rectangle {
