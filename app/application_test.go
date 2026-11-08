@@ -389,16 +389,21 @@ func BenchmarkApplicationOpenClosePair(b *testing.B) {
 func TestPlatformMenuCopiesEveryLevelAndItsSelectHandler(t *testing.T) {
 	var chosen []string
 	items := []MenuItem{
-		{Title: "Open", OnSelect: func() { chosen = append(chosen, "open") }},
+		{ID: "open", Title: "Open", OnSelect: func() { chosen = append(chosen, "open") }},
 		{Separator: true},
-		{Title: "Recent", Submenu: []MenuItem{
-			{Title: "One", Checked: true, OnSelect: func() { chosen = append(chosen, "one") }},
+		{ID: "recent", Title: "Recent", Submenu: []MenuItem{
+			{ID: "one", Title: "One", Checked: true, OnSelect: func() { chosen = append(chosen, "one") }},
 			{Title: "Two", Disabled: true},
 		}},
 	}
 	menu := platformMenu(items)
 	if len(menu) != 3 || menu[0].Title != "Open" || !menu[1].Separator || len(menu[2].Submenu) != 2 {
 		t.Fatalf("menu = %+v", menu)
+	}
+	// The ID an application gives an entry is what the Linux menu keeps across
+	// builds, at every level, and an entry without one stays without one.
+	if menu[0].ID != "open" || menu[1].ID != "" || menu[2].ID != "recent" || menu[2].Submenu[0].ID != "one" {
+		t.Fatalf("ids lost: %+v", menu)
 	}
 	if !menu[2].Submenu[0].Checked || !menu[2].Submenu[1].Disabled {
 		t.Fatalf("submenu flags lost: %+v", menu[2].Submenu)
