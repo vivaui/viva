@@ -48,19 +48,55 @@ func PaintInput(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Inpu
 	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	inset := theme.Metrics.TextInsetX()
 	content := ui.Rect{X: bounds.X + inset, Y: bounds.Y, Width: inputMax(0, bounds.Width-2*inset), Height: bounds.Height}
-	if !snapshot.PlatformEditing {
+	paintInputContent(canvas, theme, bounds, content, snapshot, focused, true)
+	return bounds
+}
+
+// PaintInputContent paints what is inside a single-line field and declares its
+// hit region, and nothing around it: no border, fill, shadow or focus color.
+// Everything PaintInput does for the text is done here, from the same code, so
+// a field the application dresses itself edits, selects, composes and masks
+// exactly as the shadcn one does.
+//
+// bounds is the whole control, which the pointer hits and focus belongs to;
+// content is the rectangle the text occupies inside it, the caller's own, so its
+// padding is the caller's to choose. The platform's caret and input-method
+// geometry follow content, so the value does not move when the field opens. A
+// zero snapshot ID paints a static preview without a hit region. A content
+// rectangle with no room (padding larger than the control) paints no text, and the
+// control is still a field the pointer and the keyboard reach.
+func PaintInputContent(canvas *ui.Canvas, theme ui.Theme, bounds, content ui.Rect, snapshot InputSnapshot) {
+	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 {
+		return
+	}
+	focused := snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID
+	// The caller already chose the text rectangle, so the platform's caret and
+	// input method use it as given rather than a band centered inside it.
+	paintInputContent(canvas, theme, bounds, content, snapshot, focused, false)
+}
+
+// paintInputContent paints the text of a field and declares its hit over bounds.
+// bandTextBounds centers the declared text bounds in content for a field whose
+// content is the whole control (PaintInput); a caller-chosen content rectangle
+// is declared as it is.
+func paintInputContent(canvas *ui.Canvas, theme ui.Theme, bounds, content ui.Rect, snapshot InputSnapshot, focused, bandTextBounds bool) {
+	if !snapshot.PlatformEditing && content.Width > 0 && content.Height > 0 {
 		inputPaintText(canvas, theme, content, snapshot, focused)
 	}
-
-	if !snapshot.ID.IsZero() {
-		canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, ui.HitOptions{
-			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
-			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Secure: snapshot.Secure,
-			NavigationKeys: snapshot.NavigationKeys,
-			TextBounds:     content, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
-		})
+	if snapshot.ID.IsZero() {
+		return
 	}
-	return bounds
+	textBounds := content
+	if bandTextBounds {
+		lineTop, lineHeight := inputLineBox(content, theme.Metrics.FontSizeM)
+		textBounds = ui.Rect{X: content.X, Y: lineTop, Width: content.Width, Height: lineHeight}
+	}
+	canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, ui.HitOptions{
+		Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
+		Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Secure: snapshot.Secure,
+		NavigationKeys: snapshot.NavigationKeys,
+		TextBounds:     textBounds, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
+	})
 }
 
 // inputPaintText paints the value (or the placeholder) of a single-line field
@@ -138,7 +174,13 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 		caretHeight := min(inputCaretHeight(fontSize), bandHeight)
 		canvas.Fill(ui.Rect{X: x, Y: bandTop + (bandHeight-caretHeight)/2, Width: 1, Height: caretHeight}, theme.Foreground)
 	}
-	canvas.Label(value, bounds, style)
+	// The line is centered in the field like the caret and the selection, but its
+	// box is the text's line box (20px at the 14px body size), not the taller
+	// band the caret and selection fill: accessibility and parity report label
+	// bounds, and those should describe the glyph line the field draws.
+	lineTop, lineHeight := inputLineBox(bounds, fontSize)
+	line := ui.Rect{X: bounds.X, Y: lineTop, Width: bounds.Width, Height: lineHeight}
+	canvas.Label(value, line, style)
 	for _, selection := range selections {
 		if selection.Width <= 0 {
 			continue
@@ -148,7 +190,7 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 		if snapshot.Disabled {
 			selectedColor.Alpha *= 0.50
 		}
-		canvas.Label(value, bounds, ui.TextStyle{Size: fontSize, Weight: ui.WeightRegular, Color: selectedColor})
+		canvas.Label(value, line, ui.TextStyle{Size: fontSize, Weight: ui.WeightRegular, Color: selectedColor})
 		canvas.Unclip()
 	}
 	canvas.Unclip()
@@ -175,6 +217,14 @@ func inputTextRanges(canvas *ui.Canvas, dst []ui.Rect, bounds ui.Rect, top, heig
 		dst = append(dst, ui.Rect{X: x, Y: top, Width: inputMax(0, width), Height: height})
 	}
 	return dst
+}
+
+// inputLineBox is the box of the glyph line itself, centered in a field: a
+// 20px line at the 14px body size. Labels and the declared text bounds use it;
+// the caret and selection use the taller inputLineBand.
+func inputLineBox(bounds ui.Rect, fontSize float32) (top, height float32) {
+	height = inputMax(0, min(fontSize+6, bounds.Height))
+	return bounds.Y + (bounds.Height-height)/2, height
 }
 
 // inputLineBand is the vertical band a line of text of fontSize occupies in a

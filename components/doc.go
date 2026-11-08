@@ -91,7 +91,8 @@
 // Inputs:
 //   - Input: `PaintInput` paints the single-line editor recipe from an
 //     InputSnapshot, including caret, selection, placeholder, and IME
-//     composition.
+//     composition. `PaintInputContent` paints the same editor without the
+//     surface, for fields the application dresses itself.
 //   - Textarea: `PaintTextarea` paints the multi-line editor recipe, wrapping
 //     long lines; `TextareaCommandForKey` maps key events to editor commands,
 //     and `TextareaMovementForKey` with a `TextareaLayout` moves the caret by
