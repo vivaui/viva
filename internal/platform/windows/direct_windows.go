@@ -167,10 +167,6 @@ func (target *directTarget) end() error {
 	return nil
 }
 
-func pointArgument(x, y float32) uintptr {
-	return uintptr(math.Float32bits(x)) | uintptr(math.Float32bits(y))<<32
-}
-
 // directRasterizer draws labels with DirectWrite. It is not safe for concurrent use.
 type directRasterizer struct {
 	// services is the process's DirectWrite factory, shared with the text engine.

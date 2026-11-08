@@ -27,5 +27,10 @@ previous crashing ARM64 path. Local x64 samples remain at 5 allocs/op; short
 loaded samples were 159327–159972 ns/op before and 163917–166752 ns/op after.
 Stripped x64 hello increased from 4,280,320 to 4,280,832 bytes (+512 bytes).
 
+The ARM64 call goes through purego's typed struct binding, which costs about
+5 more allocations per text draw than the x64 integer-slot call. That cost is
+accepted for correctness; an assembly or register-passing `SyscallN` path is a
+possible follow-up for this hot path.
+
 References: [Windows ARM64 ABI](https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions)
 and [DrawTextLayout](https://learn.microsoft.com/en-us/windows/win32/api/d2d1/nf-d2d1-id2d1rendertarget-drawtextlayout).
