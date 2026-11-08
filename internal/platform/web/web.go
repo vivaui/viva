@@ -302,7 +302,8 @@ func (runtime *runtime) scheduleFrame(delay time.Duration) {
 }
 
 // drawRuns draws a fixed-pitch grid line: each run at its cell, in its own
-// color and weight, wide characters centered in their cells.
+// color and weight, wide characters centered in their cells, ligature runs
+// shaped as one line fitted to their cells.
 func (runtime *runtime) drawRuns(text ui.Text) {
 	context := runtime.context
 	context.Call("save")
@@ -329,7 +330,17 @@ func (runtime *runtime) drawRuns(text ui.Text) {
 		if run.Cells > 0 && utf8.RuneCountInString(piece) == 1 {
 			x = left + (span-float32(context.Call("measureText", piece).Get("width").Float()))/2
 		}
-		if printableASCII(piece) && len(piece) > 1 {
+		if run.Ligatures && printableASCII(piece) && len(piece) > 1 {
+			// A ligature run is shaped as one line, so the font's ligatures appear, and
+			// fitted to its cells.
+			if width := float32(context.Call("measureText", piece).Get("width").Float()); width > 0 && span > 0 {
+				context.Call("save")
+				context.Call("translate", left, 0)
+				context.Call("scale", span/width, 1)
+				context.Call("fillText", piece, 0, baseline)
+				context.Call("restore")
+			}
+		} else if printableASCII(piece) && len(piece) > 1 {
 			// Plain ASCII: each character stands on its cell, whatever the font's own
 			// advance, and keeps its own shape.
 			for index := range len(piece) {
