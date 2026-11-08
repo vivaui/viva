@@ -13,7 +13,10 @@ with its own predecessor, not with whatever the application is on.
 
 ## Incompatible changes
 
-Newest first. A release that is not listed here only gains members.
+Newest first. This list was checked against [`releases/`](releases/) for every
+release from v0.2.2 to the newest tag: only the two below remove or change public
+members, and every other release says in its own notes that the public API only
+gains members.
 
 ### v0.4.0 - `flex.Box.HoverBackground` is removed
 
