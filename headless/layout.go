@@ -56,12 +56,13 @@ func CheckLayout(snapshot app.Snapshot) []LayoutProblem {
 	}
 	var texts []visibleText
 	var problems []LayoutProblem
-	for _, text := range snapshot.Texts {
+	for index, text := range snapshot.Texts {
 		// A terminal's grid is laid out by cells and checked by its own tests.
 		if text.Value == "" || text.CellWidth > 0 || text.RunCount > 0 || text.Style.Mono {
 			continue
 		}
-		extent := lineExtent(text)
+		width := paintedTextWidth(snapshot, index, text)
+		extent := lineExtent(text, width)
 		if extent.Width <= 0 || extent.Height <= 0 {
 			continue
 		}
@@ -83,7 +84,7 @@ func CheckLayout(snapshot app.Snapshot) []LayoutProblem {
 			problems = append(problems, LayoutProblem{LayoutClipped, extent, text.Value,
 				fmt.Sprintf("%g of %g px wide are cut off", cutW, extent.Width)})
 		}
-		if container, found := innermostControl(snapshot.Hits, text); found &&
+		if container, found := innermostControl(snapshot.Hits, text, width); found &&
 			!contains(container.Bounds, visible, layoutTolerance) {
 			problems = append(problems, LayoutProblem{LayoutSpill, visible, text.Value,
 				fmt.Sprintf("reaches out of %q at x=%g y=%g w=%g h=%g", container.Label, container.Bounds.X, container.Bounds.Y, container.Bounds.Width, container.Bounds.Height)})
@@ -132,12 +133,22 @@ func CheckLayout(snapshot app.Snapshot) []LayoutProblem {
 	return problems
 }
 
+// paintedTextWidth prefers the width the canvas measured with its font engine.
+// Snapshots built by hand (or by an older producer) fall back to the approximate
+// reference metrics, keeping CheckLayout's previous behaviour.
+func paintedTextWidth(snapshot app.Snapshot, index int, text ui.Text) float32 {
+	if index < len(snapshot.TextWidths) && snapshot.TextWidths[index] > 0 {
+		return snapshot.TextWidths[index]
+	}
+	return textmetrics.Width(text.Value, text.Style.Size, text.Style.Weight)
+}
+
 // lineExtent is where the line of text is drawn: Text.Bounds holds the box the
 // caller gave, in which the line starts at Bounds.X and is as wide as the
-// reference metrics measure it.
-func lineExtent(text ui.Text) ui.Rect {
+// painted (or reference) metrics measure it.
+func lineExtent(text ui.Text, width float32) ui.Rect {
 	box := text.Bounds
-	box.Width = textmetrics.Width(text.Value, text.Style.Size, text.Style.Weight)
+	box.Width = width
 	return box
 }
 
@@ -145,8 +156,8 @@ func lineExtent(text ui.Text) ui.Rect {
 // of the line. A line that runs out of its control by more than half of itself
 // belongs to no control and is not found. Opaque panels count; labels of a
 // control, which are the text's own extent, and backdrops do not.
-func innermostControl(hits []ui.Hit, text ui.Text) (ui.Hit, bool) {
-	line := lineExtent(text)
+func innermostControl(hits []ui.Hit, text ui.Text, width float32) (ui.Hit, bool) {
+	line := lineExtent(text, width)
 	middleY := line.Y + line.Height/2
 	var best ui.Hit
 	found := false
