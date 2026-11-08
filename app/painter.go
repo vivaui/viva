@@ -834,7 +834,8 @@ func (painter *painter) publish() (platform.Frame, error) {
 		frame.NativeViews = views
 	}
 
-	regionsUnchanged := painter.hitStructuresUnchanged()
+	// A paint that asks to take the focus away changes routing without changing a hit.
+	regionsUnchanged := painter.hitStructuresUnchanged() && painter.canvas.FocusRelease().IsZero()
 	if regionsUnchanged {
 		painter.reusedHits++
 	} else {

@@ -37,6 +37,162 @@ view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 
 控件就是 `components` 里的那些，外观完全一致：`Button`（以及 `Outline`、`Ghost`、`Secondary`、`Destructive`、`Small` 等变体）、`Checkbox`、`Switch`、`Icon`、`Divider`。`Clicked()` 在声明控件的地方读取：它只在递送这次点击的那一遍里为真。任何元素都可以用 `Hit(id, label)` 成为指针目标；它在指针悬停、按下和获得焦点时的样子用 `Hover`、`Pressed` 和 `Focus` 声明（见下文）。
 
+## 不起名字的页面：flex.Screen
+
+`flex.Screen` 是同一套布局，再替你做掉页面的簿记。Frame 的控件要用你在 `ui.Tree` 里声明的标识，点击结果要你自己写回；Screen 的控件接受它要修改的值，由 Screen 为它们命名：
+
+```go
+func (m *model) page(s flex.Screen) {
+	s.Column().Fill().Pad(24).Gap(12).Children(func() {
+		s.Field(&m.name, "Name", "Your name")
+		s.Switch(&m.sync, "Sync over SSH")
+		s.Choice(&m.theme, themes)
+		if s.Button("Save").Clicked() {
+			m.save()
+		}
+	})
+}
+
+flex.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
+```
+
+点击会在递送它的那一遍绘制里翻转 `m.sync`、设置 `m.theme`：在控件第一次被询问（`Clicked`、`Changed`）时写入，没有被询问就在页面结束时写入，所以写在控件之后的 `Disabled` 依然有效。`Field` 不需要 `Config.TextInput`：Screen 的 `Config` 把它声明的每个 Field 的编辑器交给平台，其他获得焦点的字段交给配置里原有的提供者。`Popover` 和 `Modal` 在一个 `*bool` 为真时打开，被关闭时把它设为 false（见[对话框、菜单与弹出层](/zh/docs/overlays/)）。`Box.NativeView` 把一个元素的位置交给系统网页引擎的页面。
+
+Screen 为控件命名的方式保证一个名字不会在用户不知情时转到另一个控件上：
+
+- 绑定了值的控件以该值的地址命名。在密码框上方出现的输入框不会拿走密码框的焦点和输入；过滤列表时，每个复选框的焦点留在它所在的行。要绑定模型里的字段，而不是副本：局部副本在每次绘制时地址都不同，它的点击会丢失（Screen 会通过 `diagnostics` 报告）。
+- 没有绑定值的控件（`Button`）按它在所在范围内的按钮里的顺序编号。用户按住它（按下或它有焦点）期间，如果某次绘制里它的编号被另一个按钮占了，这次按下不会递送，焦点也会释放。
+- 在 `s.Key(item.ID)` 或 `s.KeyIndex(id)` 里，控件只在这一行内部编号，所以带按钮的列表行要加 Key：行出现、消失或移动时，行里的按钮跟着它走。行消失两遍绘制之后它的 key 编号会被复用，所以列表的开销只取决于同时显示的行数。同一范围里两个没有 Key 的同名按钮会被报告，因为没有办法区分它们。
+
+`examples/guides/screen` 的 fleet 页面是一个完整的程序：一个过滤控件、一个可滚动的主机列表（每行一个绑定到该主机的复选框）、一个进度条和一个按钮，没有声明任何标识。
+
+<!-- example: screen/main.go -->
+```go
+// Fleet check with flex.Screen: the page examples/guides/fleet declares with a
+// Frame and a tree of identities, written without naming a control.
+//
+// Each checkbox writes into the host it shows, and is named by that host's field,
+// so filtering the list moves no focus or click from one host to another.
+package main
+
+import (
+	"log"
+
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/flex"
+)
+
+type host struct {
+	name    string
+	addr    string
+	item    string
+	handled bool
+}
+
+type model struct {
+	hosts  []host
+	filter int
+	scans  int
+}
+
+var filters = []string{"All", "Open", "Handled"}
+
+func newModel() *model {
+	return &model{hosts: []host{
+		{name: "edge-01", addr: "10.0.4.11", item: "Disable password auth"},
+		{name: "edge-02", addr: "10.0.4.12", item: "Rotate host key"},
+		{name: "build-01", addr: "10.0.8.3", item: "Pin to ed25519"},
+		{name: "build-02", addr: "10.0.8.4", item: "Restrict agent forwarding", handled: true},
+		{name: "db-primary", addr: "10.0.9.2", item: "Close port 22 to the world"},
+		{name: "db-replica", addr: "10.0.9.3", item: "Enable key-only login", handled: true},
+		{name: "jump-01", addr: "10.0.1.5", item: "Set a login grace time"},
+		{name: "nas-01", addr: "10.0.12.7", item: "Upgrade OpenSSH"},
+	}}
+}
+
+func (m *model) matches(h *host) bool {
+	switch filters[m.filter] {
+	case "Open":
+		return !h.handled
+	case "Handled":
+		return h.handled
+	}
+	return true
+}
+
+func (m *model) handled() int {
+	n := 0
+	for i := range m.hosts {
+		if m.hosts[i].handled {
+			n++
+		}
+	}
+	return n
+}
+
+func (m *model) page(s flex.Screen) {
+	s.Column().Fill().Pad(22).Gap(14).Children(func() {
+		s.Text("Fleet check").FontSize(26).Bold()
+		s.Text("SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
+		s.Choice(&m.filter, filters)
+
+		// The list takes the room left over, so the footer stays on screen.
+		s.ScrollArea("hosts").Grow(1).Gap(8).Children(func() {
+			for i := range m.hosts {
+				if h := &m.hosts[i]; m.matches(h) {
+					m.row(s, h)
+				}
+			}
+		})
+
+		handled, total := m.handled(), len(m.hosts)
+		s.Progress(float32(handled) / float32(max(total, 1))).FillWidth()
+		s.Row().FillWidth().Gap(10).Items(flex.Center).Children(func() {
+			s.Textf("%d of %d handled", handled, total).FontSize(12).Muted().Mono()
+			s.Spacer()
+			s.Textf("scanned %dx", m.scans).FontSize(12).Muted().Mono()
+			if s.Button("Scan again").Clicked() {
+				m.scans++
+			}
+		})
+	})
+}
+
+func (m *model) row(s flex.Screen, h *host) {
+	theme := s.Theme()
+	s.Row().FillWidth().Pad(12).Gap(12).Radius(10).Items(flex.Center).Background(theme.Card).Children(func() {
+		if h.handled {
+			s.Text("ok").FontSize(11).Color(theme.Success)
+		} else {
+			s.Text("open").FontSize(11).Color(theme.Danger)
+		}
+		s.Column().Grow(1).Gap(2).Children(func() {
+			s.Row().Gap(8).Items(flex.Center).Children(func() {
+				s.Text(h.name).FontSize(14).Bold()
+				s.Text(h.addr).FontSize(12).Muted().Mono()
+			})
+			item := s.Text(h.item).FontSize(12)
+			if h.handled {
+				item.Muted()
+			}
+		})
+		// The checkbox writes into the host; the bar above derives itself from the
+		// hosts on the next paint.
+		s.Checkbox(&h.handled, "").Label(h.name)
+	})
+}
+
+func main() {
+	if err := flex.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, newModel().page); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+`s.Raw()` 是底下的 Frame，用于 Screen 没有转发的东西（`Textarea`、`InputGroup`、各个 `Base` 控件）；`s.ID("word")` 给在那里声明的控件起一个你自己的名字，测试和无头驱动可以按它定位。画在窗口一部分（一个窗格）里的页面，用 `flex.NewScreen` 并传入窗口的 Tree，再调用 `screen.Draw(canvas, bounds, body)`。按标识集中分派事件的窗口级处理器，以及自定义控件，继续使用 Frame。
+
+`examples/guides/screen` 的 fleet 页面（一个选择控件、一个包含八行的滚动区域、每行一个复选框、一个进度条和一个按钮）在 Apple M2 Pro 上声明、布局并绘制一次需要 9.8 µs，同一页面用 Frame 写是 9.0 µs，预热后都不分配内存；一千个带 key 的行需要 0.68 ms，Frame 是 0.57 ms（`go test ./flex -bench 'Fleet$|Keyed1000$'`）。
+
 ## 状态与效果
 
 有标识的元素在指针悬停、被按住、键盘聚焦时会呈现不同的样子。每个状态是一个 `Look`：只列出发生变化的部分的值，用与元素本身相同的词来构造（`Background`、`Border`、`Color`、`Ring`、`Shadow`、`Opacity`）。

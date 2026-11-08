@@ -98,6 +98,8 @@ const (
 	flagSetPad
 	flagSelected // the element is the chosen one of several (State.Selected)
 	flagOpen     // the element shows what it controls (State.Open)
+	flagVeto     // a click on the element is not delivered: its identity moved to it under a held press or focus
+	flagPopover  // a Popover's root: painted with components.Popover's dismiss, focus scope and Escape around its children
 )
 
 // node is one element of the page. Fields are plain values so a node is reused
@@ -184,18 +186,20 @@ type extra struct {
 	iconTransform ui.IconTransform // moves the icon inside its box without moving the box
 	border        ui.Color
 	shadow        ui.ShadowLevel
-	ring          ui.Color     // Ring: a line around the outside of the element
-	ringWidth     float32      // its width; zero is none
-	fade          float32      // 1 less the opacity, so that the zero value is opaque
-	gradient      int32        // 1 + the index of the element's gradient in Frame.gradients, or 0 for none
-	states        int32        // 1 + the index of the element's Hover, Pressed and Focus looks in Frame.states, or 0 for none
-	scrollState   *ScrollState // the state a ScrollArea reports its extent to
-	maxPct        [2]float32   // MaxWidthPercent and MaxHeightPercent; zero is none
-	hitOut        [4]float32   // how far the hit region reaches beyond the rectangle: top, right, bottom, left
-	edges         [4]float32   // an absolute element's distance from its container's top, right, bottom, left
-	within        ui.Rect      // what a Popup is kept inside, when not the frame; empty for the frame
-	moves         bool         // the element's rectangle moves a custom-titlebar window (MovesWindow)
-	draws         int32        // 1 + the index of the element's Draw and DrawOver callbacks in Frame.draws, or 0 for none
+	ring          ui.Color        // Ring: a line around the outside of the element
+	ringWidth     float32         // its width; zero is none
+	fade          float32         // 1 less the opacity, so that the zero value is opaque
+	gradient      int32           // 1 + the index of the element's gradient in Frame.gradients, or 0 for none
+	states        int32           // 1 + the index of the element's Hover, Pressed and Focus looks in Frame.states, or 0 for none
+	scrollState   *ScrollState    // the state a ScrollArea reports its extent to
+	maxPct        [2]float32      // MaxWidthPercent and MaxHeightPercent; zero is none
+	hitOut        [4]float32      // how far the hit region reaches beyond the rectangle: top, right, bottom, left
+	edges         [4]float32      // an absolute element's distance from its container's top, right, bottom, left
+	within        ui.Rect         // what a Popup is kept inside, when not the frame; empty for the frame
+	moves         bool            // the element's rectangle moves a custom-titlebar window (MovesWindow)
+	nativeView    ui.NativeViewID // the native view that fills the element (NativeView)
+	bind          int32           // 1 + the index of the element's binding in Frame.binds, or 0 (see bind.go)
+	draws         int32           // 1 + the index of the element's Draw and DrawOver callbacks in Frame.draws, or 0 for none
 }
 
 // Frame is one page being declared. It is handed to the function given to
@@ -220,16 +224,24 @@ type Frame struct {
 	paintStops  []ui.GradientStop          // the stops of the gradient being painted, faded
 	opacity     float32                    // the product of the opacities of the elements being painted
 	popupLayer  uint16                     // the canvas layer the Popups are painted on
-	lines       []string
-	widgets     widgets            // Table, Tabs, Select, Dialog and Splitter declarations
-	ellipses    []ui.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
-	wraps       []wrapCache        // the full line sets of wrapped texts, kept between frames
-	wrapCursor  int
-	scratch     scratch     // memory the layout borrows, see scratch.go
-	scrolls     scrollStore // the ScrollStates of the page's ScrollAreas, by identity
-	parent      int32
-	bounds      ui.Rect
-	done        bool
+	nativeMark  int                        // how many native views the canvas had when the page began
+	binds       []bindDecl                 // the bound controls, see bind.go
+	// The paint of a Popover, the settling of bound values and the paint of a Caption
+	// are reached through these, set by the call that declares one, so an application
+	// that declares none does not link them.
+	paintPopoverFn func(f *Frame, i int32, n *node)
+	settleFn       func(f *Frame, i int32) *bindDecl // i < 0 settles them all
+	captionFn      func(f *Frame, n *node, control ui.Rect)
+	lines          []string
+	widgets        widgets            // Table, Tabs, Select, Dialog and Splitter declarations
+	ellipses       []ui.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
+	wraps          []wrapCache        // the full line sets of wrapped texts, kept between frames
+	wrapCursor     int
+	scratch        scratch     // memory the layout borrows, see scratch.go
+	scrolls        scrollStore // the ScrollStates of the page's ScrollAreas, by identity
+	parent         int32
+	bounds         ui.Rect
+	done           bool
 }
 
 // View keeps the memory a page is laid out in between frames. The zero value is
@@ -254,12 +266,18 @@ func (view *View) Begin(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) *Fram
 	f.exts = append(f.exts[:0], extra{})
 	f.inputs, f.groups, f.textareas, f.segmented, f.choices = f.inputs[:0], f.groups[:0], f.textareas[:0], f.segmented[:0], f.choices[:0]
 	f.images = f.images[:0]
+	clear(f.binds) // a binding holds pointers into the model: not past the frame
+	f.binds = f.binds[:0]
 	f.floats = f.floats[:0]
 	f.states, f.gradients, f.stops = f.states[:0], f.gradients[:0], f.stops[:0]
 	clear(f.draws) // a callback holds what it captured: not past the frame it was declared in
 	f.draws = f.draws[:0]
 	f.opacity = 1
 	f.popupLayer = 0
+	f.nativeMark = 0
+	if canvas != nil {
+		f.nativeMark = len(canvas.NativeViews())
+	}
 	f.scratch.reset()
 	f.widgets.reset()
 	f.scrolls.epoch++
@@ -277,6 +295,9 @@ func (view *View) Begin(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) *Fram
 func (f *Frame) End() {
 	if f.done {
 		return
+	}
+	if f.settleFn != nil && len(f.binds) > 0 {
+		f.settleFn(f, -1)
 	}
 	f.done = true
 	f.checkHits()
@@ -300,6 +321,7 @@ func (f *Frame) End() {
 	f.scrolls.sweep()
 	f.reportSplitters()
 	f.paint(0)
+	f.raiseOverNativeViews()
 	if f.popupLayer != 0 {
 		f.canvas.PushLayer(f.popupLayer)
 	}
@@ -334,6 +356,7 @@ func (f *Frame) trim() {
 	f.images = trimFlexCapacity(f.images)
 	f.exts = trimFlexCapacity(f.exts)
 	f.draws = trimFlexCapacity(f.draws)
+	f.binds = trimFlexCapacity(f.binds)
 	f.floats = trimFlexCapacity(f.floats)
 	f.lines = trimFlexCapacity(f.lines)
 	f.ellipses = trimFlexCapacity(f.ellipses)
@@ -343,6 +366,7 @@ func (f *Frame) trim() {
 	f.widgets.selects = trimFlexCapacity(f.widgets.selects)
 	f.widgets.rows = trimFlexCapacity(f.widgets.rows)
 	f.widgets.dialogs = trimFlexCapacity(f.widgets.dialogs)
+	f.widgets.popovers = trimFlexCapacity(f.widgets.popovers)
 	f.widgets.splits = trimFlexCapacity(f.widgets.splits)
 	f.widgets.sliders = trimFlexCapacity(f.widgets.sliders)
 	f.widgets.cells = trimFlexCapacity(f.widgets.cells)
@@ -364,6 +388,9 @@ func (f *Frame) Theme() ui.Theme    { return f.theme }
 func (f *Frame) Bounds() ui.Rect { return f.bounds }
 
 func (f *Frame) add(k kind) int32 {
+	if f.done {
+		panic("flex: an element was declared after the page was laid out (in a Draw callback, or after End): declare elements in the build function")
+	}
 	index := int32(len(f.nodes))
 	f.nodes = append(f.nodes, node{kind: k, parent: f.parent, first: -1, last: -1, next: -1, items: Auto})
 	if f.parent >= 0 {

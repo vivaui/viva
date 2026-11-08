@@ -7,9 +7,9 @@ group: guides
 
 Overlays are painted last, on a higher layer, and they change where input can go. In `flex` an overlay is declared in the page, in the place where it is open, and takes no room there. Viva gives every overlay three pieces.
 
-- **A layer.** `f.Popup()` and `f.Dialog` are painted over the page, and hits declared on them win over hits beneath.
-- **A focus scope.** `DialogSpec.Scope` traps Tab inside a dialog while it is open. Nothing behind it can take keyboard focus.
-- **A dismiss identity.** The identity that reports a click when the user presses Escape or presses outside the overlay. You read it where the overlay is declared, like any other click.
+- **A layer.** A popover, a dialog and `f.Popup()` are painted over the page, and hits declared on them win over hits beneath.
+- **A focus scope.** A dialog traps Tab inside itself while it is open, so nothing behind it can take keyboard focus; a popover keeps Tab among its own controls first. Both give the focus back to where it was as they close.
+- **A dismiss identity.** The identity that reports a click when the user presses Escape or presses outside the overlay. A `flex.Screen` makes it and closes the overlay for you; with a `flex.Frame` you name it and read it where the overlay is declared, like any other click.
 
 As everywhere in Viva, whether an overlay is open is your state. You declare it, or you do not.
 
@@ -22,116 +22,77 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/flex"
-	"github.com/vivaui/viva/ui"
-)
-
-// Identities are names in a tree, not numbers: the application declares the
-// tree once and every control it paints is a name inside a feature of it.
-var (
-	tree   = ui.Tree{}
-	page   = tree.Feature("overlays")
-	dialog = tree.Sub(page, tree.Name("dialog"))
-
-	trigger     = tree.ID(page, "trigger")
-	menuDismiss = tree.ID(page, "menu-dismiss")
-	menuNew     = tree.ID(page, "menu-new")
-	menuDelete  = tree.ID(page, "menu-delete")
-
-	dialogScope   = tree.ID(dialog, "scope")
-	dialogClose   = tree.ID(dialog, "close")
-	dialogCancel  = tree.ID(dialog, "cancel")
-	dialogConfirm = tree.ID(dialog, "confirm")
 )
 
 type model struct {
 	menuOpen   bool
 	dialogOpen bool
 	status     string
-	view       flex.View
 }
 
-func newConfig(m *model) app.Config {
-	theme := ui.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Overlays", Width: 640, Height: 360}
+func (m *model) page(s flex.Screen) {
+	s.Column().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
+		actions := s.Button("Actions").Outline()
+		if actions.Clicked() {
+			m.menuOpen = !m.menuOpen
+		}
+		s.Text(m.status).Muted()
 
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
-		canvas.Fill(bounds, theme.Background)
+		// A popover hangs off its anchor while menuOpen is true. A press outside it
+		// or Escape closes it, and the press goes on to what is under the pointer;
+		// the focus goes back to the anchor.
+		s.PopoverWith(actions, flex.PopoverSpec{Width: 180, Align: flex.Start}, &m.menuOpen, func(p flex.Screen) {
+			if p.Button("New file").Ghost().Clicked() {
+				m.menuOpen, m.status = false, "Created"
+			}
+			if p.Button("Delete…").Ghost().Destructive().Clicked() {
+				m.menuOpen, m.dialogOpen = false, true
+			}
+		})
 
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.Column().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
-				actions := f.Button(trigger, "Actions").Outline()
-				if actions.Clicked() {
-					m.menuOpen = !m.menuOpen
-				}
-				f.Text(m.status).Muted()
-
-				if m.menuOpen {
-					// A popup takes no room and is painted over the page. The first one
-					// covers the window so a press outside the menu lands on menuDismiss,
-					// and Escape is routed to the same identity.
-					canvas.SetEscapeTarget(menuDismiss)
-					f.Popup().At(0, 0).Fill().Hit(menuDismiss, "Close menu").Children(func() {})
-					if canvas.Clicked(menuDismiss) {
-						m.menuOpen = false
-					}
-					f.Popup().BelowBox(actions, 4, flex.Start).Width(180).Pad(4).Background(theme.Popover).
-						Border(1, theme.Border).Radius(theme.Metrics.RadiusControl).Shadow(ui.ShadowMD).Children(func() {
-						if f.Button(menuNew, "New file").Ghost().Clicked() {
-							m.menuOpen, m.status = false, "Created"
-						}
-						if f.Button(menuDelete, "Delete…").Ghost().Destructive().Clicked() {
-							m.menuOpen, m.dialogOpen = false, true
-						}
-					})
-				}
-
-				if m.dialogOpen {
-					d := f.Dialog(flex.DialogSpec{
-						Title: "Delete file?", Description: "This cannot be undone.", Width: 400,
-						Scope: dialogScope, DismissID: dialogCancel, CloseID: dialogClose,
-					})
-					d.Footer(func() {
-						f.Button(dialogCancel, "Cancel").Outline()
-						if f.Button(dialogConfirm, "Delete").Destructive().Clicked() {
-							m.dialogOpen, m.status = false, "Deleted"
-						}
-					})
-					if d.Dismissed() {
+		// A modal dims the page and keeps the keyboard while dialogOpen is true:
+		// Escape, a press on the dim and the close button set it to false.
+		s.ModalWith(flex.ModalSpec{Title: "Delete file?", Description: "This cannot be undone.", Width: 400}, &m.dialogOpen,
+			func(d flex.ModalScreen) {
+				d.Footer(func() {
+					if d.Button("Cancel").Outline().Clicked() {
 						m.dialogOpen = false
 					}
-				}
+					if d.Button("Delete").Destructive().Clicked() {
+						m.dialogOpen, m.status = false, "Deleted"
+					}
+				})
 			})
-		})
-	}
-	return config
+	})
 }
 
 func main() {
-	var canvas ui.Canvas
-	if err := app.RunCanvas(newConfig(&model{}), &canvas); err != nil {
+	m := &model{}
+	if err := flex.Run(app.Config{Title: "Overlays", Width: 640, Height: 360}, m.page); err != nil {
 		log.Fatal(err)
 	}
 }
 ```
 
-## Menus and popups
+## Popovers
 
-`f.Popup()` takes no room in its container, is as big as its content, is kept inside the window and is painted over everything. Place it with `BelowBox`, `AboveBox` or `BesideBox` for an element of the page, or with `At(x, y)`, `Below(rect, ...)` and `Above(rect, ...)` for a point or rectangle; it uses the side you ask for and flips to the other when there is no room. Keep the trigger's `Box` (`actions := f.Button(...)`) to anchor to it: `Box.Rect()` is zero until the frame ends. The rows of a menu are ordinary buttons or `Hit` boxes inside it, and a menu that may be long needs a `MaxHeight` and a `ScrollArea`.
+`s.Popover(anchor, &open, body)` shows the panel `body` declares, hanging off `anchor`, while `open` is true, with shadcn's popover look. `PopoverWith` takes a `flex.PopoverSpec` for the side, the alignment and the width. It opens below the anchor and flips above it when there is no room. Keep the trigger's `Box` (`actions := s.Button(...)`) to anchor to it.
 
-A context menu is the same popup placed `At` the pointer. Open it from `OnPointer` on a `PointerButtonSecondary` down.
+A press outside the panel or Escape sets `open` to false. The press then goes on to what is under the pointer, as a web popover's does, so one click on another button both closes the menu and presses that button. A press on the anchor only closes the panel, so a trigger that toggles `open` does not open it again in the same click. The focus goes back to where it was when the panel opened. `Popover` reports the paint that closed it; a panel that must stay open sets `open` back to true there. With a `flex.Frame`, `f.Popover(anchor, flex.PopoverSpec{Scope: ..., DismissID: ...})` is the same panel with identities of yours, and `Dismissed()` reports the closing press.
 
-### Closing on an outside press
+A popover shows in its window: one that must reach beyond the window's edges is a [window of its own](/en/docs/windows/).
 
-A popup does not close itself, because whether it is open is your state. The example declares a second, window-sized popup under the menu with a `Hit`: a press anywhere outside the menu, including on the button that opened it, lands on that identity, and `canvas.SetEscapeTarget` sends Escape to the same identity. Read it with `canvas.Clicked` and close the menu. The press does nothing else, so one click on the page behind does not both close the menu and activate whatever was under it.
+The example's test checks all of it: a press at the far corner closes the menu, Escape closes it, and choosing Delete… closes it and opens the dialog.
 
-The example's test checks all of it: the press at the far corner lands on the dismiss identity, Escape closes the menu, and choosing Delete… closes it and opens the dialog.
+## Popups
+
+`f.Popup()` is the piece popovers, selects and menus are built from: it takes no room in its container, is as big as its content, is kept inside the window and is painted over everything, and does nothing else. Place it with `BelowBox`, `AboveBox` or `BesideBox` for an element of the page, or with `At(x, y)`, `Below(rect, ...)` and `Above(rect, ...)` for a point or rectangle; it uses the side you ask for and flips to the other when there is no room. `Box.Rect()` is zero until the frame ends, which is why the `Box` variants exist. A context menu is a popup placed `At` the pointer, opened from `OnPointer` on a `PointerButtonSecondary` down; closing it is yours, with a window-sized `Hit` under it and `canvas.SetEscapeTarget`.
 
 ## Dialogs
 
-`f.Dialog(flex.DialogSpec{...})` dims the window, paints a centered surface with a title, a description and a close button, and traps focus. Declare it only while it is open. `Body` declares its content and `Footer` its buttons, which sit against the right edge in the order given; the surface is as tall as the body needs, so a short body never leaves a gap above the footer. `Dismissed()` is true in the paint that delivers a click on the scrim, the close button or Escape, and the dialog routes Escape itself.
+`s.Modal(&open, title, body)` dims the window, paints a centered surface with the title and a close button, and keeps the keyboard while `open` is true. The title is required: it is the dialog's name for assistive technology. `body` declares the content, and the `ModalScreen` it is given has `Footer` for the buttons, which sit against the right edge in the order given; the surface is as tall as the body needs. Escape, a press on the dim and the close button set `open` to false. The first control in the body takes the focus as the dialog opens (`ModalSpec.InitialFocus` names another), and the focus goes back to the control that opened it as it closes. `ModalWith` takes a `flex.ModalSpec` for a description, a size or no close button.
 
-`DismissID` is the identity the scrim and Escape report, and `CloseID` the corner button's. The example gives `DismissID` to Cancel's identity, so the scrim and Escape behave as Cancel. Opening a dialog does not move focus unless you set `InitialFocusID`, the control that should take it. Use it for a dialog with an input in it.
+With a `flex.Frame`, `f.Dialog(flex.DialogSpec{...})` is the same dialog with identities of yours: `Scope` is the focus scope, `DismissID` the identity the dim and Escape report, `CloseID` the corner button's, and `InitialFocusID` the control that takes the focus. `Dismissed()` is true in the paint that delivers one of those clicks.
 
 ## Selects and the rest
 

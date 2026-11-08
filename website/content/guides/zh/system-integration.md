@@ -45,7 +45,7 @@ group: guides
 
 ## 控件之间的网页
 
-系统网页引擎的页面可以和 Viva 自己的控件并排。应用在窗口就绪后用 `app.WebHost` 打开它，用 `flex` 的 slot 预留位置，再用 `Canvas.NativeView` 声明它所在的位置。页面可以由应用自己在专属 scheme 下从内存提供，并通过 `viva.postMessage` 和 `viva.onmessage` 与 Viva 通信。更高图层上的弹出层，例如下面的菜单，会盖在页面上，并在覆盖处接管指针。
+系统网页引擎的页面可以和 Viva 自己的控件并排。应用在窗口就绪后用 `app.WebHost` 打开它，再用 `Box.NativeView` 把一个元素的位置交给它：布局把这个元素放在哪里，页面就填满哪里，并沿用该元素绘制时的裁剪和图层，所以它会随滚动区域滚动，放在对话框里时位于对话框的图层。页面可以由应用自己在专属 scheme 下从内存提供，并通过 `viva.postMessage` 和 `viva.onmessage` 与 Viva 通信。页面上的弹出框、弹出层和对话框位于比网页更高的图层，所以下面的菜单会盖在网页上，并在覆盖处接管指针。弹出框打开期间，在网页上按下只会关闭弹出框，网页收不到这次按下。
 
 <!-- example: webview/main.go -->
 ```go
@@ -56,24 +56,12 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/flex"
-	"github.com/vivaui/viva/ui"
 )
 
 // A page of the system's web engine sits among Viva's own controls. The application opens it when
-// the window is ready, reserves its room with a flex Slot, and declares the place with
-// Canvas.NativeView. The menu is a popup on a higher layer: it stands over the page and takes the
+// the window is ready and gives it the room of an element with Box.NativeView: the page fills the
+// element where the layout puts it. The menu is a popover: it stands over the page and takes the
 // pointer where it covers it.
-var (
-	tree = ui.Tree{}
-	home = tree.Feature("browser")
-
-	back        = tree.ID(home, "back")
-	forward     = tree.ID(home, "forward")
-	reload      = tree.ID(home, "reload")
-	menu        = tree.ID(home, "menu")
-	menuDismiss = tree.ID(home, "menu-dismiss")
-	menuHello   = tree.ID(home, "menu-hello")
-)
 
 // The page is served by the application itself, from memory, under its own scheme: no server, no files.
 const page = `<!doctype html><meta charset=utf-8>
@@ -86,88 +74,68 @@ const page = `<!doctype html><meta charset=utf-8>
 type model struct {
 	web      app.WebHost
 	view     *app.WebView
-	flex     flex.View
 	menuOpen bool
 	status   string
 }
 
-func newConfig(m *model) app.Config {
-	theme := ui.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Web view", Width: 760, Height: 520, Web: &m.web}
-
-	m.web.OnReady = func() {
-		view, err := m.web.Open(app.WebViewConfig{
-			URL: "viva-app://page/index.html",
-			Scheme: &app.WebScheme{Name: "viva-app", Serve: func(path string) (string, []byte, bool) {
-				switch path {
-				case "index.html":
-					return "text/html; charset=utf-8", []byte(page), true
-				case "logo.svg":
-					return "image/svg+xml", []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28"><circle cx="14" cy="14" r="13" fill="#2563eb"/></svg>`), true
-				}
-				return "", nil, false
-			}},
-			OnMessage: func(text string) { m.status = "page: " + text }, // a paint follows
-		})
-		if err != nil {
-			m.status = err.Error() // no engine installed, or a platform without pages
-			return
-		}
-		m.view = view
+// open opens the page once the window can host one.
+func (m *model) open() {
+	view, err := m.web.Open(app.WebViewConfig{
+		URL: "viva-app://page/index.html",
+		Scheme: &app.WebScheme{Name: "viva-app", Serve: func(path string) (string, []byte, bool) {
+			switch path {
+			case "index.html":
+				return "text/html; charset=utf-8", []byte(page), true
+			case "logo.svg":
+				return "image/svg+xml", []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28"><circle cx="14" cy="14" r="13" fill="#2563eb"/></svg>`), true
+			}
+			return "", nil, false
+		}},
+		OnMessage: func(text string) { m.status = "page: " + text }, // a paint follows
+	})
+	if err != nil {
+		m.status = err.Error() // no engine installed, or a platform without pages
+		return
 	}
+	m.view = view
+}
 
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
-		canvas.Fill(bounds, theme.Background)
-
-		var content flex.Box
-		m.flex.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.PopupLayer(1) // the menu stands over the page, which is on layer 0
-			f.Column().Fill().Pad(8).Gap(8).Children(func() {
-				f.Row().Gap(8).Items(flex.Center).Children(func() {
-					if f.Button(back, "Back").Outline().Clicked() && m.view != nil {
-						m.view.Back()
-					}
-					if f.Button(forward, "Forward").Outline().Clicked() && m.view != nil {
-						m.view.Forward()
-					}
-					if f.Button(reload, "Reload").Outline().Clicked() && m.view != nil {
-						m.view.Reload()
-					}
-					menuButton := f.Button(menu, "Menu").Outline()
-					if menuButton.Clicked() {
-						m.menuOpen = !m.menuOpen
-					}
-					f.Text(m.status).Muted()
-
-					if m.menuOpen {
-						canvas.SetEscapeTarget(menuDismiss)
-						f.Popup().At(0, 0).Fill().Hit(menuDismiss, "Close menu").Children(func() {})
-						if canvas.Clicked(menuDismiss) {
-							m.menuOpen = false
-						}
-						f.Popup().BelowBox(menuButton, 4, flex.Start).Width(200).Pad(4).Background(theme.Popover).
-							Border(1, theme.Border).Radius(theme.Metrics.RadiusControl).Shadow(ui.ShadowMD).Children(func() {
-							if f.Button(menuHello, "Say hello to the page").Ghost().Clicked() && m.view != nil {
-								m.view.PostMessage("hello from Viva")
-								m.menuOpen = false
-							}
-						})
-					}
-				})
-				content = f.Slot().Grow(1)
+func (m *model) page(s flex.Screen) {
+	s.Column().Fill().Pad(8).Gap(8).Children(func() {
+		s.Row().Gap(8).Items(flex.Center).Children(func() {
+			if s.Button("Back").Outline().Clicked() && m.view != nil {
+				m.view.Back()
+			}
+			if s.Button("Forward").Outline().Clicked() && m.view != nil {
+				m.view.Forward()
+			}
+			if s.Button("Reload").Outline().Clicked() && m.view != nil {
+				m.view.Reload()
+			}
+			menu := s.Button("Menu").Outline()
+			if menu.Clicked() {
+				m.menuOpen = !m.menuOpen
+			}
+			s.Text(m.status).Muted()
+			s.PopoverWith(menu, flex.PopoverSpec{Width: 220, Align: flex.Start}, &m.menuOpen, func(p flex.Screen) {
+				if p.Button("Say hello to the page").Ghost().Clicked() && m.view != nil {
+					m.view.PostMessage("hello from Viva")
+					m.menuOpen = false
+				}
 			})
 		})
+		content := s.Slot().Grow(1)
 		if m.view != nil {
-			canvas.NativeView(m.view.ID(), content.Rect())
+			content.NativeView(m.view.ID())
 		}
-	}
-	return config
+	})
 }
 
 func main() {
-	var canvas ui.Canvas
-	if err := app.RunCanvas(newConfig(&model{}), &canvas); err != nil {
+	m := &model{}
+	m.web.OnReady = m.open
+	config := app.Config{Title: "Web view", Width: 760, Height: 520, Web: &m.web}
+	if err := flex.Run(config, m.page); err != nil {
 		log.Fatal(err)
 	}
 }

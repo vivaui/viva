@@ -37,7 +37,10 @@ func (b Box) Content() float32 { return b.n().content }
 // with Hit.
 func (b Box) Clicked() bool {
 	n := b.n()
-	return b.f.canvas != nil && b.f.canvas.Clicked(n.id)
+	if n.ext != 0 && b.f.exts[n.ext].bind != 0 {
+		b.f.settleFn(b.f, b.i) // a bound value is written before the caller reads it
+	}
+	return b.f.canvas != nil && n.flags&flagVeto == 0 && b.f.canvas.Clicked(n.id)
 }
 
 // Hit makes the element's whole rectangle a pointer target named id, with the

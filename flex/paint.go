@@ -13,6 +13,10 @@ func (f *Frame) paint(i int32) {
 		f.paintDialog(n)
 		return
 	}
+	if n.flags&flagPopover != 0 {
+		f.paintPopoverFn(f, i, n)
+		return
+	}
 	r := n.rect
 	canvas := f.canvas
 	extra := &f.exts[n.ext]
@@ -61,6 +65,9 @@ func (f *Frame) paint(i int32) {
 	}
 	if extra.moves {
 		canvas.MoveRegion(r)
+	}
+	if extra.nativeView != 0 {
+		canvas.NativeView(extra.nativeView, r)
 	}
 	if hasHit && (n.kind == kindContainer || n.kind == kindText || n.kind == kindIcon || n.kind == kindSlot) {
 		h := extra.hitOut
@@ -120,6 +127,10 @@ func (f *Frame) paintControl(n *node, r ui.Rect) {
 	case kindCheckbox:
 		side := components.CheckboxExtent(f.theme)
 		bounds := ui.Rect{X: r.X + (r.Width-side)/2, Y: r.Y + (r.Height-side)/2, Width: side, Height: side}
+		if n.text != "" {
+			bounds.X = r.X
+			f.captionFn(f, n, bounds)
+		}
 		checkbox := components.BeginCheckbox(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
 		if n.label != "" {
 			checkbox = checkbox.Label(n.label)
@@ -151,6 +162,10 @@ func (f *Frame) paintControl(n *node, r ui.Rect) {
 		small := n.flags&flagSmall != 0
 		width, height := components.SwitchExtent(f.theme, small)
 		bounds := ui.Rect{X: r.X + (r.Width-width)/2, Y: r.Y + (r.Height-height)/2, Width: width, Height: height}
+		if n.text != "" {
+			bounds.X = r.X
+			f.captionFn(f, n, bounds)
+		}
 		control := components.BeginSwitch(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
 		if small {
 			control = control.Small()

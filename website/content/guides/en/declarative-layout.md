@@ -37,6 +37,162 @@ view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 
 Controls are the ones in `components`, with the same look: `Button` (with `Outline`, `Ghost`, `Secondary`, `Destructive`, `Small` and the other variants), `Checkbox`, `Switch`, `Icon`, `Divider`. `Clicked()` is read where the control is declared: it is true in the one paint that delivers the click. Any element can be made a pointer target with `Hit(id, label)`; what it looks like under the pointer, pressed and focused is declared with `Hover`, `Pressed` and `Focus` (below).
 
+## Pages without identities: flex.Screen
+
+`flex.Screen` is the same layout with the bookkeeping of a page done for you. A Frame's controls take identities you declare in a `ui.Tree` and report clicks you write back yourself; a Screen's controls take the value they change, and the Screen names them:
+
+```go
+func (m *model) page(s flex.Screen) {
+	s.Column().Fill().Pad(24).Gap(12).Children(func() {
+		s.Field(&m.name, "Name", "Your name")
+		s.Switch(&m.sync, "Sync over SSH")
+		s.Choice(&m.theme, themes)
+		if s.Button("Save").Clicked() {
+			m.save()
+		}
+	})
+}
+
+flex.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
+```
+
+A click flips `m.sync` and sets `m.theme` in the paint that delivers it, the first time the control is asked (`Clicked`, `Changed`) or else when the page ends, so a `Disabled` written after the control still holds. `Field` needs no `Config.TextInput`: the Screen's `Config` gives the platform the editor of each Field it declared, and passes any other focused field to the provider the configuration already had. `Popover` and `Modal` open while a `*bool` is true and set it to false when dismissed (see [Dialogs, menus and popups](/en/docs/overlays/)). `Box.NativeView` gives a page of the system's web engine the room of an element.
+
+The Screen names its controls so that a name never moves to another control without the user knowing:
+
+- A control bound to a value is named by that value's address. A field shown above a password field does not take the password's focus and typing, and filtering a list keeps each checkbox's focus on its row. Bind fields of the model, not copies: a local copy has a new address in every paint, and its click is lost (the Screen reports it through `diagnostics`).
+- A control bound to nothing, a `Button`, is numbered among the buttons of its scope. While the user holds one (presses it, or it has the focus), a paint in which another button took its number does not deliver the press, and the focus is given up.
+- Inside `s.Key(item.ID)` or `s.KeyIndex(id)`, controls are numbered within that row, so a list whose rows have buttons keys its rows: the row's buttons then follow it when rows come, go or move. Keys are reused two paints after their row is gone, so a list costs what its rows on screen at once cost. Two buttons with one label and no Key in one scope are reported, since nothing can tell them apart.
+
+The fleet page of `examples/guides/screen` is a complete program: a filter, a scrolling list of hosts each with a checkbox bound to the host, a progress bar and a button, and not one identity declared.
+
+<!-- example: screen/main.go -->
+```go
+// Fleet check with flex.Screen: the page examples/guides/fleet declares with a
+// Frame and a tree of identities, written without naming a control.
+//
+// Each checkbox writes into the host it shows, and is named by that host's field,
+// so filtering the list moves no focus or click from one host to another.
+package main
+
+import (
+	"log"
+
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/flex"
+)
+
+type host struct {
+	name    string
+	addr    string
+	item    string
+	handled bool
+}
+
+type model struct {
+	hosts  []host
+	filter int
+	scans  int
+}
+
+var filters = []string{"All", "Open", "Handled"}
+
+func newModel() *model {
+	return &model{hosts: []host{
+		{name: "edge-01", addr: "10.0.4.11", item: "Disable password auth"},
+		{name: "edge-02", addr: "10.0.4.12", item: "Rotate host key"},
+		{name: "build-01", addr: "10.0.8.3", item: "Pin to ed25519"},
+		{name: "build-02", addr: "10.0.8.4", item: "Restrict agent forwarding", handled: true},
+		{name: "db-primary", addr: "10.0.9.2", item: "Close port 22 to the world"},
+		{name: "db-replica", addr: "10.0.9.3", item: "Enable key-only login", handled: true},
+		{name: "jump-01", addr: "10.0.1.5", item: "Set a login grace time"},
+		{name: "nas-01", addr: "10.0.12.7", item: "Upgrade OpenSSH"},
+	}}
+}
+
+func (m *model) matches(h *host) bool {
+	switch filters[m.filter] {
+	case "Open":
+		return !h.handled
+	case "Handled":
+		return h.handled
+	}
+	return true
+}
+
+func (m *model) handled() int {
+	n := 0
+	for i := range m.hosts {
+		if m.hosts[i].handled {
+			n++
+		}
+	}
+	return n
+}
+
+func (m *model) page(s flex.Screen) {
+	s.Column().Fill().Pad(22).Gap(14).Children(func() {
+		s.Text("Fleet check").FontSize(26).Bold()
+		s.Text("SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
+		s.Choice(&m.filter, filters)
+
+		// The list takes the room left over, so the footer stays on screen.
+		s.ScrollArea("hosts").Grow(1).Gap(8).Children(func() {
+			for i := range m.hosts {
+				if h := &m.hosts[i]; m.matches(h) {
+					m.row(s, h)
+				}
+			}
+		})
+
+		handled, total := m.handled(), len(m.hosts)
+		s.Progress(float32(handled) / float32(max(total, 1))).FillWidth()
+		s.Row().FillWidth().Gap(10).Items(flex.Center).Children(func() {
+			s.Textf("%d of %d handled", handled, total).FontSize(12).Muted().Mono()
+			s.Spacer()
+			s.Textf("scanned %dx", m.scans).FontSize(12).Muted().Mono()
+			if s.Button("Scan again").Clicked() {
+				m.scans++
+			}
+		})
+	})
+}
+
+func (m *model) row(s flex.Screen, h *host) {
+	theme := s.Theme()
+	s.Row().FillWidth().Pad(12).Gap(12).Radius(10).Items(flex.Center).Background(theme.Card).Children(func() {
+		if h.handled {
+			s.Text("ok").FontSize(11).Color(theme.Success)
+		} else {
+			s.Text("open").FontSize(11).Color(theme.Danger)
+		}
+		s.Column().Grow(1).Gap(2).Children(func() {
+			s.Row().Gap(8).Items(flex.Center).Children(func() {
+				s.Text(h.name).FontSize(14).Bold()
+				s.Text(h.addr).FontSize(12).Muted().Mono()
+			})
+			item := s.Text(h.item).FontSize(12)
+			if h.handled {
+				item.Muted()
+			}
+		})
+		// The checkbox writes into the host; the bar above derives itself from the
+		// hosts on the next paint.
+		s.Checkbox(&h.handled, "").Label(h.name)
+	})
+}
+
+func main() {
+	if err := flex.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, newModel().page); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+`s.Raw()` is the Frame underneath, for anything the Screen does not forward (`Textarea`, `InputGroup`, the `Base` controls); `s.ID("word")` gives a control declared there a name of yours, which a test or the headless driver can use. A page painted into part of a window (a pane) is `screen.Draw(canvas, bounds, body)` on a `flex.NewScreen` given the window's Tree. A window-level handler that switches on identities, or a custom control, keeps using a Frame.
+
+The fleet page of `examples/guides/screen` (a choice, a scroll area with eight rows each holding a checkbox, a progress bar and a button) declares, lays out and paints in 9.8 µs on an Apple M2 Pro against 9.0 µs for the same page written with a Frame, and allocates nothing once warm; a list of a thousand keyed rows costs 0.68 ms against 0.57 ms (`go test ./flex -bench 'Fleet$|Keyed1000$'`).
+
 ## States and effects
 
 An element that has an identity looks different while the pointer is over it, while it is held down and while the keyboard has it. Each state is a `Look`: a value that lists only what changes, built with the same words as the element (`Background`, `Border`, `Color`, `Ring`, `Shadow`, `Opacity`).

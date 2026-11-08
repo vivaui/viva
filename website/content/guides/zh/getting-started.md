@@ -42,49 +42,25 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/flex"
-	"github.com/vivaui/viva/ui"
-)
-
-// Identities are names in a tree, not numbers: the application declares the
-// tree once and every control it paints is a name inside a feature of it.
-var (
-	tree = ui.Tree{}
-	page = tree.Feature("hello")
-
-	click = tree.ID(page, "click")
 )
 
 type model struct {
 	clicks int
-	view   flex.View
 }
 
-// newConfig describes the window. Keeping it in a function lets a test drive
-// the same application without opening anything.
-func newConfig(m *model) app.Config {
-	theme := ui.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Hello", Width: 480, Height: 240}
-
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
-		canvas.Fill(bounds, theme.Background)
-
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.Column().Fill().Pad(24).Gap(12).Children(func() {
-				// A button is handled where it is declared: Clicked is true for the
-				// one paint that delivers its click, and only then may state change.
-				if f.Button(click, fmt.Sprintf("Clicked %d times", m.clicks)).Clicked() {
-					m.clicks++
-				}
-			})
-		})
-	}
-	return config
+// page declares the window's content. It runs on every repaint and reads the
+// model; a click changes the model, and the repaint that follows shows it.
+func (m *model) page(s flex.Screen) {
+	s.Column().Fill().Pad(24).Gap(12).Children(func() {
+		if s.Button(fmt.Sprintf("Clicked %d times", m.clicks)).Clicked() {
+			m.clicks++
+		}
+	})
 }
 
 func main() {
-	var canvas ui.Canvas
-	if err := app.RunCanvas(newConfig(&model{}), &canvas); err != nil {
+	m := &model{}
+	if err := flex.Run(app.Config{Title: "Hello", Width: 480, Height: 240}, m.page); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -92,9 +68,9 @@ func main() {
 
 用 `go run .` 运行。这个程序就是整个编程模型的缩影：
 
-- `newConfig` 描述窗口。把它放进一个函数，测试就可以在不打开任何窗口的情况下驱动同一个应用。
-- `Paint` 根据你自己的状态（这里是 `clicks` 计数）描述界面。Viva 不保存这份状态的副本。
-- `flex.View` 根据描述来布局页面：一个带内边距的列，里面放一个按钮。不写任何坐标，所以标签变长或窗口改变大小时页面依然正常。按钮有稳定的标识 `click`，是树中 `hello` feature 下的一个名字。
+- `page` 根据你自己的状态（这里是 `clicks` 计数）描述界面。它在每次重绘时运行；Viva 不保存这份状态的副本。
+- `flex.Screen` 根据描述来布局页面：一个带内边距的列，里面放一个按钮。不写任何坐标，所以标签变长或窗口改变大小时页面依然正常。按钮不需要你起名：Screen 为控件命名，并在其他控件出现或消失时保持每个控件的名字不变。
+- `flex.Run` 打开窗口并在其中绘制 `page`。测试用 `flex.NewScreen` 和 `app.NewDriver` 无头驱动同一个 `page`，不打开任何窗口。
 - 一次点击完成时，运行时会多画一遍，`Clicked()` 只在这一遍里、且只对被点击的按钮为真；你的代码就在按钮旁边修改自己的状态，窗口随后重绘一次。其他所有绘制都是只读的。
 
 除此之外什么都不会运行。你不点击时，应用不做布局、不向 GPU 提交任何东西，也没有被唤醒的定时器。

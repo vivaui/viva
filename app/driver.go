@@ -112,6 +112,10 @@ func NewDriver(config Config, canvas *ui.Canvas) (*Driver, error) {
 	driver.frame = ui.Rect{X: driver.origin.X, Y: driver.origin.Y, Width: float32(normalized.Width), Height: float32(normalized.Height)}
 
 	liveDrivers.Acquire()
+	// The first paint happens below: it must already see the driver's appearance,
+	// not ask the machine (which, off the main thread, may never answer).
+	enterDriverAppearance()
+	driver.appearanceOpen = true
 	// Motion preferences are the user's, not the test's: run animations.
 	canvas.SetReduceMotion(false)
 
@@ -137,8 +141,6 @@ func NewDriver(config Config, canvas *ui.Canvas) (*Driver, error) {
 		driver.Close()
 		return nil, err
 	}
-	enterDriverAppearance()
-	driver.appearanceOpen = true
 	if invalidator := driver.config.Invalidator; invalidator != nil {
 		invalidator.waker.Bind(driver.requestWake)
 	}

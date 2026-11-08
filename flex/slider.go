@@ -157,9 +157,14 @@ func (b Box) Step(step float32) Box {
 
 // Changed reports whether the user changed the Slider's value in this paint, by
 // dragging, clicking its track or a key; call it last in the chain, after Range, Step
-// and Disabled.
+// and Disabled. On a control bound to a value (as a Screen's are: a Checkbox, Switch,
+// Choice, Tabs, Select or Field) it reports that this paint wrote a new value into it,
+// or for a Field that its text was edited since it was last declared.
 func (b Box) Changed() bool {
 	n := b.n()
+	if n.ext != 0 && b.f.exts[n.ext].bind != 0 {
+		return b.f.settleFn(b.f, b.i).changed
+	}
 	if n.kind != kindSlider {
 		return false
 	}

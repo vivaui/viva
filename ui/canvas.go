@@ -706,7 +706,11 @@ type Canvas struct {
 	// focusRequest asks the runtime to focus one hit even without a trap, as a
 	// non-modal popover does. The runtime honors a given request once, so
 	// painting it every frame never pulls focus back after the user leaves.
-	focusRequest   ID
+	focusRequest ID
+	// focusRelease takes the focus away from one hit if it still has it, and
+	// focusReturns are the non-modal scopes that give the focus back on closing.
+	focusRelease   ID
+	focusReturns   []ID
 	tree           *Tree
 	iconCache      *iconCache
 	iconPaintCache *iconPaintCache
@@ -901,6 +905,8 @@ func (canvas *Canvas) Reset() {
 	canvas.escapeTarget = ID{}
 	canvas.initialFocus = ID{}
 	canvas.focusRequest = ID{}
+	canvas.focusRelease = ID{}
+	canvas.focusReturns = canvas.focusReturns[:0]
 	canvas.trapDepth, canvas.escapeDepth, canvas.initialDepth = -1, -1, -1
 	canvas.prevHovered = canvas.hovered
 	canvas.listensForClicks = false
@@ -928,6 +934,7 @@ func (canvas *Canvas) Trim() {
 	canvas.clips = trimCapacity(canvas.clips)
 	canvas.overlayClips = trimCapacity(canvas.overlayClips)
 	canvas.focusScopes = trimCapacity(canvas.focusScopes)
+	canvas.focusReturns = trimCapacity(canvas.focusReturns)
 	canvas.layers = trimCapacity(canvas.layers)
 	canvas.pathPoints = trimCapacity(canvas.pathPoints)
 	canvas.contourEnds = trimCapacity(canvas.contourEnds)
@@ -1667,6 +1674,30 @@ func (canvas *Canvas) RequestFocus(id ID) {
 
 // FocusRequest returns the non-modal focus request, or zero.
 func (canvas *Canvas) FocusRequest() ID { return canvas.focusRequest }
+
+// ReleaseFocus asks the runtime to take the keyboard focus away from id if id
+// still has it when this paint ends, and does nothing otherwise. A control that
+// finds its identity now names something else than what the user focused (a row
+// moved under a held identity) gives the focus up rather than let a key act on
+// the wrong thing.
+func (canvas *Canvas) ReleaseFocus(id ID) { canvas.focusRelease = id }
+
+// FocusRelease returns the identity ReleaseFocus named in this paint, or zero.
+func (canvas *Canvas) FocusRelease() ID { return canvas.focusRelease }
+
+// ReturnFocus declares that the non-modal focus scope, painted in this paint,
+// gives the keyboard back when it closes: once a paint no longer declares it,
+// focus that was inside it returns to the control that had it when the scope
+// first appeared, as a popover hands it back to its trigger. A modal scope
+// (TrapFocus) does this already. Declare it each paint the scope is open.
+func (canvas *Canvas) ReturnFocus(scope ID) {
+	if !scope.IsZero() {
+		canvas.focusReturns = append(canvas.focusReturns, scope)
+	}
+}
+
+// FocusReturns returns the scopes ReturnFocus declared in this paint.
+func (canvas *Canvas) FocusReturns() []ID { return canvas.focusReturns }
 
 // SetInitialFocus names the hit that receives keyboard focus when the trapped
 // scope opens, which is how a modal moves focus inside itself. It has no

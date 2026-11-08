@@ -8,8 +8,8 @@ group: guides
 文本是 Viva 与操作系统必须共享同一份文档的地方：平台的文本服务处理选区、光标、死键和输入法组合，而你的应用需要知道文本是什么。Viva 这样分工，让文本始终归应用所有。
 
 - **你持有文本。** 模型里的 `flex.Field` 包着一个 `text.Editor`。它保存文本、选区和输入法组合状态。你的代码用 `Text()` 读取它，用 `SetText` 修改它。
-- **平台驱动它。** 文本框获得焦点时，Viva 向你的 `Config.TextInput` 提供者（这里是 `flex.Fields`）询问这个字段对应哪个编辑器，把平台文本服务连到它，并把每个原生事件应用到它上面。
-- **绘制显示结果。** `f.Field` 根据编辑器绘制字段，焦点和光标已替你填好。
+- **平台驱动它。** 文本框获得焦点时，Viva 向窗口的 `Config.TextInput` 提供者询问这个字段对应哪个编辑器，把平台文本服务连到它，并把每个原生事件应用到它上面。`flex.Screen` 就是它所声明的 Field 的提供者。
+- **绘制显示结果。** `s.Field` 根据编辑器绘制字段，焦点和光标已替你填好。
 
 <!-- example: textfield/main.go -->
 ```go
@@ -20,55 +20,31 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/flex"
-	"github.com/vivaui/viva/ui"
-)
-
-// Identities are names in a tree, not numbers: the application declares the
-// tree once and every control it paints is a name inside a feature of it.
-var (
-	tree = ui.Tree{}
-	page = tree.Feature("form")
-
-	nameField = tree.ID(page, "name")
-	save      = tree.ID(page, "save")
 )
 
 type model struct {
 	name  flex.Field
 	saved string
-	view  flex.View
 }
 
-func newConfig(m *model) app.Config {
-	theme := ui.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Form", Width: 480, Height: 240}
-
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
-		canvas.Fill(bounds, theme.Background)
-
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.Column().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
-				f.Field(&m.name, nameField, "Name", "Your name").Width(320)
-				if f.Button(save, "Save").Clicked() {
-					m.saved = m.name.Text()
-				}
-				if m.saved != "" {
-					f.Text("Saved " + m.saved).Muted()
-				}
-			})
-		})
-	}
-
-	// The platform asks which editor belongs to the focused field; Fields answers
-	// for every flex.Field the application declares.
-	config.TextInput = flex.Fields(&m.name)
-	return config
+func (m *model) page(s flex.Screen) {
+	s.Column().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
+		// The field owns its editor: typing, the caret, selection, the clipboard
+		// and input methods need nothing more. The Screen tells the platform which
+		// editor belongs to the focused field.
+		s.Field(&m.name, "Name", "Your name").Width(320)
+		if s.Button("Save").Clicked() {
+			m.saved = m.name.Text()
+		}
+		if m.saved != "" {
+			s.Text("Saved " + m.saved).Muted()
+		}
+	})
 }
 
 func main() {
-	var canvas ui.Canvas
-	if err := app.RunCanvas(newConfig(&model{}), &canvas); err != nil {
+	m := &model{}
+	if err := flex.Run(app.Config{Title: "Form", Width: 480, Height: 240}, m.page); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -76,13 +52,13 @@ func main() {
 
 ## 提供者
 
-`flex.Fields(&m.name)` 是现成的提供者，可以接任意多个字段：它返回用获得焦点的标识声明的那个字段的编辑器。自己写一个也一样简短。调用 `TextInput` 时会传入一个 `app.TextInputContext`，描述获得焦点的命中区域：它的 ID、边界，以及 `Multiline`、`ReadOnly`、`Secure` 等标志。返回一个 `Editor` 是你自己的 `app.TextInput`，或者返回 `nil` 表示这个字段不做原生编辑。设置了 `Editor` 时，运行时会把它镜像到平台，并把每个原生事件应用到它上面，所以你不需要编写事件处理。如果需要自己过滤或转换编辑，就让 `Editor` 为空，改为设置 `OnEvent`。
+Screen 的 `Config` 按它给每个 Field 起的标识，为上一次绘制声明过的全部 Field 回答 `TextInput`；其他获得焦点的字段（比如你自己的终端）交给 `app.Config` 原有的提供者。用 `flex.Frame` 写的页面自己给字段命名（`f.Field(&m.name, nameID, ...)`），并把现成的提供者 `flex.Fields(&m.name)` 交给 `Config.TextInput`。自己写一个也一样简短。调用 `TextInput` 时会传入一个 `app.TextInputContext`，描述获得焦点的命中区域：它的 ID、边界，以及 `Multiline`、`ReadOnly`、`Secure` 等标志。返回一个 `Editor` 是你自己的 `app.TextInput`，或者返回 `nil` 表示这个字段不做原生编辑。设置了 `Editor` 时，运行时会把它镜像到平台，并把每个原生事件应用到它上面，所以你不需要编写事件处理。如果需要自己过滤或转换编辑，就让 `Editor` 为空，改为设置 `OnEvent`。
 
 字段声明的文本几何信息（边界、字号和颜色）会补全 `TextInput` 没有设置的部分。这正是文本在字段获得焦点时不会跳动的原因。
 
 ## 绘制字段
 
-`f.Field(&m.name, id, label, placeholder)` 直接从字段取得快照，不需要自己构造；密码字段在字段上设置 `Secure`。自己绘制字段的组件则接受 `InputSnapshot`，它是字段某一帧的视图：`Value`、`Placeholder`、`Invalid`、`Disabled`、`ReadOnly` 和 `Secure`，以及 `Focused` 和 `PlatformEditing`。要留意最后一个（`f.Field` 会替你设置）。平台编辑器显示在屏幕上时，文本、光标和选区都由它自己绘制，静态标签不能画在它下面。所以 `PlatformEditing` 只在字段获得焦点且有文本时为真；焦点离开后，下一帧会把当前文本重新画成普通标签。示例的测试检查的正是这一点：点击 Save 之后，原生编辑器就消失了。
+`s.Field(&m.name, label, placeholder)` 与 Frame 的 `f.Field(&m.name, id, label, placeholder)` 一样，直接从字段取得快照，不需要自己构造；`Changed` 报告用户编辑之后的第一次绘制，你自己调用的 `SetText` 不算；密码字段在字段上设置 `Secure`。自己绘制字段的组件则接受 `InputSnapshot`，它是字段某一帧的视图：`Value`、`Placeholder`、`Invalid`、`Disabled`、`ReadOnly` 和 `Secure`，以及 `Focused` 和 `PlatformEditing`。要留意最后一个（`f.Field` 会替你设置）。平台编辑器显示在屏幕上时，文本、光标和选区都由它自己绘制，静态标签不能画在它下面。所以 `PlatformEditing` 只在字段获得焦点且有文本时为真；焦点离开后，下一帧会把当前文本重新画成普通标签。示例的测试检查的正是这一点：点击 Save 之后，原生编辑器就消失了。
 
 快照里的选区和组合输入偏移量，是已绘制文本的 UTF-8 字节偏移；平台的文本事件使用的是 rune 索引。两者是不同的东西，不要在需要其中一个的地方传另一个。
 

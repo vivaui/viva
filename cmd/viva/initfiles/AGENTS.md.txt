@@ -12,14 +12,57 @@ viva help           # every command
 
 ## How a window works
 
-`Config.Paint(canvas, size)` is called again after every event that could change the
-picture. It draws the whole window from your state, and it may be called many times, so
-it must be cheap and must not change state, with one exception: a click is handled where
-its control is declared (below). Nothing draws unless an event, `Invalidate`, or a running
-animation asks for a frame; there is no frame loop to write.
+The window's page is a function, `page(s flex.Screen)` in main.go, which `flex.Run` paints.
+It is called again after every event that could change the picture. It draws the whole
+window from your state, and it may be called many times, so it must be cheap and must not
+change state, with one exception: a click is handled where its control is declared (below).
+Nothing draws unless an event, `Invalidate`, or a running animation asks for a frame; there
+is no frame loop to write.
 
-State lives in a struct (`model` in main.go). Paint reads it. Never keep a `flex.Box`,
-a `ui.Canvas` or a closure given to `Children` after Paint returns.
+State lives in a struct (`model` in main.go). The page reads it. Never keep a `flex.Box`,
+a `flex.Screen`, a `ui.Canvas` or a closure given to `Children` after the page returns.
+
+## Pages: flex.Screen
+
+A `flex.Screen` declares a page without naming its controls, and controls write into your
+values. Layout is the same as below (`s.Row()`, `s.Column()`, `s.Text(...)`: the Frame's calls,
+on `s` instead of `f`); controls take what they change:
+
+```go
+func (m *model) page(s flex.Screen) {
+	s.Column().Fill().Pad(24).Gap(12).Children(func() {
+		s.Field(&m.name, "Name", "Your name")      // a flex.Field in the model; typing needs nothing more
+		s.Switch(&m.notify, "Notify me")           // a click flips m.notify
+		s.Choice(&m.theme, themes)                 // m.theme is the chosen index
+		s.Select(&m.sizeState, &m.size, sizes)     // a flex.SelectState and the chosen index
+		s.ScrollArea("hosts").Grow(1).Children(func() {
+			for i := range m.hosts {
+				h := &m.hosts[i]
+				r := s.Key(h.ID)                    // a list row with a plain Button needs a Key
+				r.Row().Gap(8).Children(func() {
+					r.Checkbox(&h.done, h.Name)
+					if r.Button("Delete").Ghost().Clicked() {
+						r.AfterPaint(func() { m.remove(h.ID) }) // changes the list: after the paint
+					}
+				})
+			}
+		})
+		if s.Button("Save").Clicked() { m.save() }
+	})
+	s.Modal(&m.confirm, "Delete host?", func(d flex.ModalScreen) { /* d.Footer(...) */ })
+	s.Popover(anchorBox, &m.menuOpen, func(p flex.Screen) { /* the panel */ })
+}
+```
+
+- Bind controls to fields of the model (`&h.done`), not to a local copy: a copy has a new
+  address every paint, and its clicks are lost (the Screen reports it). Inside a `Key` row a
+  copy works; write it back on `.Changed()`.
+- `Changed()` reports the paint in which a bound control changed its value; `Clicked()` on a
+  `Button`. `Popover` and `Modal` set their `*bool` to false when dismissed (Escape, a press
+  outside, the close button) and give the focus back.
+- `s.Raw()` is the `*flex.Frame` underneath, for anything the Screen does not forward; give a
+  control declared there an identity with `s.ID("word")`.
+- In a test, find controls by their name (`Hit.Label`), as main_test.go does.
 
 ## Laying a page out (package github.com/vivaui/viva/flex)
 
@@ -236,9 +279,11 @@ m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 - Do not write `ui.Rect{X: ..., Y: ...}` arithmetic for ordinary parts of a page. It breaks
   when a label gets longer or the window gets narrower; flex does not.
 
-## Identities and clicks
+## Identities and clicks (flex.Frame)
 
-Every clickable thing has a stable identity: a name in a tree, declared once at the top.
+A Screen names its controls; this section is for a page written with a `flex.Frame` (or
+through `s.Raw()`), where every clickable thing has a stable identity you declare: a name in a
+tree, declared once at the top.
 
 ```go
 var (
@@ -255,7 +300,7 @@ var (
 the top, never inside Paint. A `ui.ID` names one control (`Button`, `Checkbox`, `Hit`, `Field`); a `ui.Scope` names a
 list of them (`Table`, `Tabs`, `Select`, `Choice`), and `scope.At(i)` is the ID of item i. Never pass `nil`,
 a string or your own data where either is wanted. `f.Checkbox(id, checked)` and `f.Switch(id, on)` take the identity first;
-`.Label("...")` names a checkbox or switch for accessibility (it is not a caption: put a `f.Text` beside it).
+`.Caption("...")` shows a label beside a checkbox or switch, and `.Label("...")` names one for accessibility only.
 
 All of a page's identities are made from its feature scope, menu items and popups included
 (`tree.ID(page, "filter-today")`): `tree.ID` takes a Scope (`page`, `rows`), never another ID.
@@ -294,7 +339,7 @@ f.Row().Fill().Children(func() {
 
 ## A modal dialog
 
-Use `f.Dialog` (see Laying a page out): `d.Dismissed()` is true for the scrim, the close button and Escape alike
+With a Screen, use `s.Modal(&open, title, body)` (see Pages). With a Frame, use `f.Dialog` (see Laying a page out): `d.Dismissed()` is true for the scrim, the close button and Escape alike
 (`OnKey` never sees Escape for an unfocused page, and needs not). For a modal of your own look, build it as the last
 child of a `Stack`, call `f.Canvas().SetEscapeTarget(scrim)` while it is open (Escape then arrives as a click on
 `scrim`), and give the panel a `Hit` of its own so a click inside does not reach the scrim.
@@ -387,9 +432,10 @@ model on the window's thread before the repaint.
 
 ## Testing
 
-`app.NewDriver(config, &canvas)` runs the real application with no window:
+`app.NewDriver(screen.Config(config()), nil)` runs the real application with no window
+(`flex.NewScreen(flex.ScreenConfig{Body: m.page})` makes the Screen):
 `driver.Click(x, y)`, `Type`, `Key`, `Move`, `Scroll`, `Resize`, then `driver.Snapshot()` for the
-labels, hits and rectangles painted. main_test.go clicks a control by its identity and reads
+labels, hits and rectangles painted. main_test.go clicks a control by its name and reads
 the labels; copy it. Test behaviour a user sees (the count changed, the row opened), not
 pixel positions.
 

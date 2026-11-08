@@ -26,6 +26,16 @@ type Focus struct {
 	// Autofocus hit takes the keyboard once. scratch is the next list.
 	painted []ui.ID
 	scratch []ui.ID
+	// returns are the non-modal scopes that give the focus back as they close
+	// (Canvas.ReturnFocus), as of the last Sync.
+	returns []focusReturn
+}
+
+// focusReturn is one open non-modal scope: where the focus goes back to when it
+// closes, and whether the focus was inside it at the last Sync.
+type focusReturn struct {
+	scope, to ui.ID
+	inside    bool
 }
 
 // Router exposes the retained input router for hit testing, press routing and
@@ -71,6 +81,7 @@ func (f *Focus) WasPainted(id ui.ID) bool {
 // appeared Autofocus hit, honors a canvas focus request, and resolves a pending
 // target. Callers paint again when the focused target changed.
 func (f *Focus) Sync(canvas *ui.Canvas) {
+	before := f.focused
 	f.regions = f.regions[:0]
 	hits := canvas.Hits()
 	for index := range hits {
@@ -103,6 +114,7 @@ func (f *Focus) Sync(canvas *ui.Canvas) {
 		slices.SortStableFunc(f.regions, compareRegionLayers)
 	}
 	f.router.SetRegions(f.regions)
+	f.syncReturns(canvas.FocusReturns(), before)
 	f.router.SetActiveScope(canvas.TrappedFocusScope(), input.Target(canvas.InitialFocus()))
 	f.applyAutofocus(hits)
 	if request := canvas.FocusRequest(); !request.IsZero() {
@@ -125,8 +137,56 @@ func (f *Focus) Sync(canvas *ui.Canvas) {
 		f.pendingFocus = ui.ID{}
 		f.pendingVisible = false
 	}
+	if release := canvas.FocusRelease(); !release.IsZero() {
+		if focused, ok := f.router.Focused(); ok && focused == input.Target(release) {
+			f.router.Blur()
+		}
+	}
 	f.escape = canvas.EscapeTarget()
 	f.refresh()
+	f.noteInside()
+}
+
+// syncReturns gives the focus back for the non-modal scopes that closed since the
+// last Sync, and notes the ones that opened, with the focus they found (before).
+func (f *Focus) syncReturns(declared []ui.ID, before ui.ID) {
+	kept := f.returns[:0]
+	for _, open := range f.returns {
+		if slices.Contains(declared, open.scope) {
+			kept = append(kept, open)
+			continue
+		}
+		// The focus goes back when it was inside, or went nowhere; focus the user
+		// moved to another control outside stays there.
+		if _, ok := f.router.Focused(); open.inside || !ok {
+			f.router.Focus(input.Target(open.to))
+		}
+	}
+	f.returns = kept
+	for _, scope := range declared {
+		if !slices.ContainsFunc(f.returns, func(open focusReturn) bool { return open.scope == scope }) {
+			f.returns = append(f.returns, focusReturn{scope: scope, to: before})
+		}
+	}
+}
+
+// noteInside records, for each open returning scope, whether the focus is in it.
+func (f *Focus) noteInside() {
+	if len(f.returns) == 0 {
+		return
+	}
+	var scope ui.ID
+	if !f.focused.IsZero() {
+		for _, region := range f.regions {
+			if region.Target == input.Target(f.focused) {
+				scope = region.Scope
+				break
+			}
+		}
+	}
+	for index := range f.returns {
+		f.returns[index].inside = !scope.IsZero() && f.returns[index].scope == scope
+	}
 }
 
 // Apply carries out the focus part of an event result. It reports whether the

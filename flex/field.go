@@ -31,6 +31,10 @@ type Field struct {
 	// blink is the phase of the caret when the field paints it itself, which a fixed-pitch
 	// field does (see Box.Mono): the platform draws the caret of the others.
 	blink components.CaretBlink
+	// seen is the text as the field was last declared, and changed whether that
+	// declaration found it edited since the one before (Box.Changed).
+	seen    string
+	changed bool
 }
 
 func (field *Field) ensure() *text.Editor {
@@ -48,6 +52,7 @@ func (field *Field) SetText(value string) {
 	editor := field.ensure()
 	editor.SetSelection(text.Range{Start: 0, End: editor.RuneCount()})
 	editor.Insert(value)
+	field.seen = editor.String() // the program's own change is not an edit
 }
 
 // Field adds a text field for field, named id (a stable identity from your Tree),
@@ -73,6 +78,8 @@ func (field *Field) snapshot(f *Frame, id ui.ID, label, placeholder string) comp
 	editor := field.ensure()
 	field.id = id
 	value := editor.String()
+	field.changed = value != field.seen
+	field.seen = value
 	focused := f.canvas != nil && f.canvas.Focused() == id
 	selection := editor.Selection()
 	snapshot := components.InputSnapshot{

@@ -4,24 +4,22 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/flex"
 	"github.com/vivaui/viva/ui"
 )
 
 func TestOverlays(t *testing.T) {
 	m := &model{}
-	var canvas ui.Canvas
-	driver, err := app.NewDriver(newConfig(m), &canvas)
+	screen := flex.NewScreen(flex.ScreenConfig{Body: m.page})
+	driver, err := app.NewDriver(screen.Config(app.Config{Width: 640, Height: 360}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer driver.Close()
 
-	clickHit(t, driver, trigger)
+	click(t, driver, "Actions")
 	if !m.menuOpen {
 		t.Fatal("menu did not open")
-	}
-	if id, ok := driver.HitTest(500, 300); !ok || id != menuDismiss {
-		t.Fatalf("outside press lands on %v, %v", id, ok)
 	}
 	if err := driver.Click(500, 300); err != nil {
 		t.Fatal(err)
@@ -30,7 +28,7 @@ func TestOverlays(t *testing.T) {
 		t.Fatal("an outside press must close the menu")
 	}
 
-	clickHit(t, driver, trigger)
+	click(t, driver, "Actions")
 	if err := driver.Key(ui.KeyEscape, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -39,26 +37,28 @@ func TestOverlays(t *testing.T) {
 	}
 
 	// Delete… opens the dialog; confirming closes it.
-	clickHit(t, driver, trigger)
-	clickHit(t, driver, menuDelete)
+	click(t, driver, "Actions")
+	click(t, driver, "Delete…")
 	if !m.dialogOpen || m.menuOpen {
 		t.Fatalf("dialog=%v menu=%v", m.dialogOpen, m.menuOpen)
 	}
-	clickHit(t, driver, dialogConfirm)
+	click(t, driver, "Delete")
 	if m.dialogOpen || m.status != "Deleted" {
 		t.Fatalf("dialog=%v status=%q", m.dialogOpen, m.status)
 	}
 }
 
-func clickHit(t *testing.T, driver *app.Driver, id ui.ID) {
+// click presses the middle of the control with the given accessible name.
+func click(t *testing.T, driver *app.Driver, name string) {
 	t.Helper()
-	for _, hit := range driver.Snapshot().Hits {
-		if hit.ID == id {
+	snapshot := driver.Snapshot()
+	for i := len(snapshot.Hits) - 1; i >= 0; i-- { // the front-most first
+		if hit := snapshot.Hits[i]; hit.Label == name && !hit.IsLabel && !hit.Backdrop {
 			if err := driver.Click(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2); err != nil {
 				t.Fatal(err)
 			}
 			return
 		}
 	}
-	t.Fatalf("no hit %v", id)
+	t.Fatalf("no control named %q", name)
 }

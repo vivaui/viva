@@ -110,9 +110,13 @@ func (b Box) dialogPart(fn func(), footer bool) Box {
 }
 
 // Dismissed reports whether this paint is delivering a click that closes a Dialog:
-// on its scrim (DismissID, which Escape reports too) or on its close button.
+// on its scrim (DismissID, which Escape reports too) or on its close button; or a
+// Popover: a press outside it or on its anchor, or Escape.
 func (b Box) Dismissed() bool {
 	n := b.n()
+	if n.flags&flagPopover != 0 && b.f.canvas != nil {
+		return b.f.canvas.Clicked(b.f.widgets.popovers[n.aux].spec.DismissID)
+	}
 	if n.flags&flagDialog == 0 || b.f.canvas == nil {
 		return false
 	}

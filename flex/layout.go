@@ -129,9 +129,16 @@ func (f *Frame) measureLeafIn(n *node) {
 	case kindCheckbox:
 		w, h := components.CheckboxHitExtent(f.theme)
 		n.pref = [2]float32{w, h}
+		if n.text != "" {
+			n.pref[axisX] = components.CheckboxExtent(f.theme) + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), ui.WeightMedium)
+		}
 	case kindSwitch:
 		w, h := components.SwitchHitExtent(f.theme, n.flags&flagSmall != 0)
 		n.pref = [2]float32{w, h}
+		if n.text != "" {
+			control, _ := components.SwitchExtent(f.theme, n.flags&flagSmall != 0)
+			n.pref[axisX] = control + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), ui.WeightMedium)
+		}
 	case kindIcon, kindImage:
 		n.pref = [2]float32{16, 16}
 	case kindSegmented:

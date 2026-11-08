@@ -158,10 +158,16 @@ type selectDecl struct {
 	state    *SelectState
 	labels   []string
 	selected int
+	canvas   *ui.Canvas
 	popup    int32 // the Popup that places the list, or -1 when it is closed
 	visible  int   // how many options the list shows at once
 	layer    uint16
 	rects    int32 // where the rows of this frame's list start in Frame.widgets.rows
+	// asked, pick and picked keep what Picked found, so asking again in the same
+	// paint reports the same option and does not open or close the list twice.
+	asked  bool
+	pick   int
+	picked bool
 }
 
 // The parts of a Select's list, from components.Select: an option is 32 tall, the
@@ -214,7 +220,7 @@ func (f *Frame) SelectBase(scope ui.Scope, state *SelectState, labels []string, 
 	b := f.box(kindSelect)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.widgets.selects))
-	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, popup: -1, layer: f.widgets.layer + 1, rects: -1}
+	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, canvas: f.canvas, popup: -1, layer: f.widgets.layer + 1, rects: -1}
 	d.visible = selectRows(len(labels), f.bounds.Height)
 	state.labels, state.scope, state.selected, state.visible = labels, scope, selected, d.visible
 	if state.Open && len(labels) > 0 {
@@ -275,8 +281,19 @@ func (b Box) Picked() (int, bool) {
 		return 0, false
 	}
 	d := &b.f.widgets.selects[n.aux]
+	if d.asked {
+		return d.pick, d.picked
+	}
+	d.asked = true
+	d.pick, d.picked = d.pickIn()
+	return d.pick, d.picked
+}
+
+// pickIn is Picked's work, done once a paint.
+func (d *selectDecl) pickIn() (int, bool) {
+	canvas := d.canvas
 	count := len(d.labels)
-	index, ok := b.f.canvas.ClickedIn(d.scope)
+	index, ok := canvas.ClickedIn(d.scope)
 	if !ok {
 		return 0, false
 	}

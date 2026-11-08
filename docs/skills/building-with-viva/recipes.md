@@ -16,6 +16,8 @@ Read after `SKILL.md`. The code is in [`examples/recipes`](../../../examples/rec
 | A list with nothing in it | `EmptyState` |
 | Anything that reacts but is none of these | `Interactive(box, theme, id, label)` around your own `Row` |
 
+The recipes take a `*flex.Frame` and identities, as components do. From a `flex.Screen` page, pass `s.Raw()`, `*s.Theme()` and an identity from `s.ID("word")`; in a list, from the row's Screen (`r := s.KeyIndex(item.ID)`; `r.ID("open")`), so each row's identity is its own.
+
 ## What makes it look right
 
 - **Take colors from the theme.** `theme.Card` for a surface, `theme.Border` for its line, `theme.MutedForeground` for secondary text, `theme.Accent` for a selected row. A literal color is right in one theme and wrong in the other. Translucent tokens that sit under a border are flattened with `Color.Over(background)` first.
