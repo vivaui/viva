@@ -158,11 +158,20 @@ func TestSplitterRatioPlacesTheFirstPaneOnTheFirstLayout(t *testing.T) {
 	if math.Abs(float64(state.Pos-want)) > 0.01 {
 		t.Fatalf("the first pane is %v, want %v", state.Pos, want)
 	}
+	// The share survives a resize.
+	canvas.Reset()
+	splitPage(&view, &state, 500)(canvas, ui.Size{Width: 500, Height: 100})
+	want = float32(0.6 * (500 - splitterThickness))
+	if math.Abs(float64(state.Pos-want)) > 0.01 {
+		t.Fatalf("after resizing the first pane is %v, want %v", state.Pos, want)
+	}
+	// A state that holds pixels clears the share.
+	state.Ratio = 0
 	state.Pos = 180
 	canvas.Reset()
 	splitPage(&view, &state, 400)(canvas, ui.Size{Width: 400, Height: 100})
 	if state.Pos != 180 {
-		t.Fatalf("a set position was overwritten by the ratio: %v", state.Pos)
+		t.Fatalf("a set position was overwritten: %v", state.Pos)
 	}
 }
 

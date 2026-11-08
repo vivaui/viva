@@ -17,16 +17,18 @@ const (
 // keeps it inside the limits. The rest is bookkeeping.
 type SplitterState struct {
 	Pos float32
-	// Ratio is the share of the container the first pane takes on the first
-	// layout, used only while Pos is zero. It lets an application say "the
-	// editor gets two thirds" without knowing the window's size. A drag, an
-	// arrow key, or any Pos set by the application takes over from then on.
+	// Ratio is the share of the container the first pane takes, kept on every
+	// layout while it is non-zero. It lets an application say "the editor gets
+	// two thirds" without knowing the window's size, and a resize keeps the
+	// proportion. A drag or an arrow key updates Ratio from the new position;
+	// set Ratio to zero to hold Pos as pixels instead.
 	Ratio        float32
 	id           ui.ID
 	dragging     bool
 	startPointer float32
 	startPos     float32
 	lo, hi       float32 // the limits as of the last layout
+	span         float32 // the container's extent along the split
 }
 
 // Dragging reports whether the splitter is being dragged.
@@ -54,7 +56,18 @@ func (s *SplitterState) Key(event ui.KeyEvent) ui.EventResult {
 		return ui.EventResult{}
 	}
 	s.Pos = s.limit(pos)
+	s.keepRatio()
 	return ui.EventResult{Handled: true, Repaint: true}
+}
+
+// keepRatio stores the pane's current share after a drag or a key, so a window
+// resize keeps the proportion the user chose. A state that holds Pos in pixels
+// (Ratio zero) is left alone.
+func (s *SplitterState) keepRatio() {
+	if s.Ratio <= 0 || s.span <= splitterThickness {
+		return
+	}
+	s.Ratio = min(max(s.Pos/(s.span-splitterThickness), 0), 1)
 }
 
 func (s *SplitterState) limit(pos float32) float32 {
@@ -159,9 +172,12 @@ func (f *Frame) reportSplitters() {
 		}
 		s := f.widgets.splits[n.aux].state
 		lo, hi, span := f.splitLimits(n)
-		s.lo, s.hi = lo, hi
-		if s.Pos == 0 && s.Ratio > 0 {
+		s.lo, s.hi, s.span = lo, hi, span
+		if s.Ratio > 0 {
 			s.Pos = min(max(s.Ratio*(span-*extent(&n.rect, axisOf(f.splitsRow(n)))), s.lo), s.hi)
+			if f.canvas != nil {
+				f.canvas.RequestFrame()
+			}
 		}
 		if pos := s.limit(s.Pos); pos != s.Pos {
 			s.Pos = pos
@@ -189,8 +205,9 @@ func (f *Frame) paintSplitter(n *node) {
 			s.dragging, s.startPointer, s.startPos = true, pointer, s.Pos
 			canvas.Consume()
 		case event.Kind == ui.PointerMove && s.dragging:
-			s.lo, s.hi, _ = f.splitLimits(n)
+			s.lo, s.hi, s.span = f.splitLimits(n)
 			s.Pos = s.limit(s.startPos + pointer - s.startPointer)
+			s.keepRatio()
 			canvas.Consume()
 		case event.Kind == ui.PointerUp && s.dragging:
 			s.dragging = false
