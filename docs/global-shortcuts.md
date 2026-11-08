@@ -18,10 +18,12 @@ Registration is optional. An application that never registers one starts no
 worker or native hotkey resource. Windows uses a blocking Win32 message queue.
 macOS uses Carbon application hotkey events. Linux/X11 uses a private XCB
 connection and a blocking wait; Caps Lock and Num Lock don't change the binding.
-`stop` releases the registration and is idempotent. Callbacks execute off the
+`stop` releases the registration and is idempotent. An in-flight callback may
+finish after `stop`; native bindings coalesce presses when a callback is still
+running. Callbacks execute off the
 window thread; use thread-safe Window methods or store an event and call an
-Invalidator. Release macOS bindings as part of the application lifecycle while
-its main event loop is available (or on the main thread).
+Invalidator. On macOS, register and release bindings on the main thread or
+while the main event loop is running.
 
 Keys are ASCII letters/digits, F1–F24, Space, Enter, Escape or Tab; at least one
 modifier is required. Windows reserves F12 for debuggers and reports an error.

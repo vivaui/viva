@@ -14,16 +14,18 @@ func TestGlobalShortcutDriverRegistrationLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	s := GlobalShortcut{Modifiers: ui.ModifierControl | ui.ModifierAlt, Key: "g"}
+	s := GlobalShortcut{Modifiers: ui.ModifierControl | ui.ModifierAlt, Key: "F1"}
 	calls := 0
 	stop, err := RegisterGlobalShortcut(s, func() { calls++ })
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = RegisterGlobalShortcut(s, func() {}); err == nil {
-		t.Fatal("duplicate binding accepted")
+	alias := GlobalShortcut{Modifiers: s.Modifiers, Key: " f01 "}
+	if duplicate, err := RegisterGlobalShortcut(alias, func() {}); err == nil {
+		duplicate()
+		t.Fatal("alternate spelling registered the same function key twice")
 	}
-	if ok, err := d.PressGlobalShortcut(s); !ok || err != nil || calls != 1 {
+	if ok, err := d.PressGlobalShortcut(alias); !ok || err != nil || calls != 1 {
 		t.Fatalf("press: %v %v %d", ok, err, calls)
 	}
 	stop()

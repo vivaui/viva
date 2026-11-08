@@ -25,6 +25,7 @@ func normalizeGlobalShortcut(s GlobalShortcut) (GlobalShortcut, error) {
 	}
 	if strings.HasPrefix(s.Key, "F") {
 		if n, e := strconv.Atoi(s.Key[1:]); e == nil && n >= 1 && n <= 24 {
+			s.Key = "F" + strconv.Itoa(n)
 			return s, nil
 		}
 	}
@@ -36,12 +37,15 @@ func normalizeGlobalShortcut(s GlobalShortcut) (GlobalShortcut, error) {
 }
 
 // RegisterGlobalShortcut registers a binding until the returned stop is called.
-// Stop is idempotent. The callback may run off the window thread: use a window's
+// Stop is idempotent. An in-flight callback may finish after stop. The callback
+// may run off the window thread: use a window's
 // thread-safe Show/Hide or an Invalidator to update UI state. No registration,
 // worker or native resource exists until this function is used. Driver-backed
 // runs keep bindings private and expose Driver.PressGlobalShortcut for tests.
 // System registration is available on Windows, macOS and Linux/X11. Wayland
 // and other backends return ErrUnsupported; focused-window shortcuts still work.
+// On macOS, register and stop from the main thread or while the main event loop
+// is running.
 func RegisterGlobalShortcut(s GlobalShortcut, pressed func()) (stop func(), err error) {
 	s, err = normalizeGlobalShortcut(s)
 	if err != nil {

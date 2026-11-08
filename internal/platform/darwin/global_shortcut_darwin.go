@@ -24,7 +24,7 @@ type carbonShortcut struct {
 	ref    C.EventHotKeyRef
 	events chan struct{}
 	stop   chan struct{}
-	once   sync.Once
+	closed atomic.Bool
 	down   bool // main thread only
 }
 
@@ -87,11 +87,14 @@ func registerCarbonShortcut(modifiers ui.Modifiers, key string, pressed func()) 
 }
 
 func (b *carbonShortcut) close() {
-	b.once.Do(func() {
-		carbonShortcuts.Delete(b.id)
-		close(b.stop)
-		C.viva_global_shortcut_unregister(b.ref)
-	})
+	// Do not make the AppKit thread wait for a worker that is itself waiting
+	// to unregister on AppKit. Only the first caller performs the release.
+	if b.closed.Swap(true) {
+		return
+	}
+	carbonShortcuts.Delete(b.id)
+	close(b.stop)
+	C.viva_global_shortcut_unregister(b.ref)
 }
 
 //export vivaGlobalShortcutEvent
