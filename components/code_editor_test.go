@@ -1099,9 +1099,16 @@ func TestCodeEditorCommandsEditText(t *testing.T) {
 }
 
 func BenchmarkCodeEditorPaintSteady(b *testing.B) {
+	b.Run("plain", func(b *testing.B) { benchmarkCodeEditorPaintSteady(b, false) })
+	b.Run("wrap symbol", func(b *testing.B) { benchmarkCodeEditorPaintSteady(b, true) })
+}
+
+func benchmarkCodeEditorPaintSteady(b *testing.B, wrapSymbol bool) {
 	f := newCodeFixture(strings.Repeat("key: value # comment with some 中文\n", 30000))
 	f.bounds = ui.Rect{Width: 900, Height: 600}
 	f.snapshot.LineNumbers = true
+	f.snapshot.Wrap = wrapSymbol
+	f.snapshot.ShowWrapSymbol = wrapSymbol
 	f.snapshot.ScrollbarID = ui.Item(2)
 	f.snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
 		return append(dst, CodeEditorRun{End: 3, Color: ui.RGB(200, 20, 20)}, CodeEditorRun{Start: 11, End: len(line), Color: ui.RGB(20, 120, 20)})
