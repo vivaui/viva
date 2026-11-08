@@ -1,4 +1,5 @@
-// Package filewatch reports that entries of one directory changed, using the
+// Package filewatch reports that entries of one directory, or of a whole
+// directory tree, changed, using the
 // platform's own change notification (inotify, FSEvents, ReadDirectoryChangesW).
 //
 // It does not poll. A Watch owns one operating-system registration and, while it
@@ -11,11 +12,20 @@ package filewatch
 
 import (
 	"errors"
+	"strings"
 	"sync"
 )
 
 // ErrUnsupported reports a platform without directory change notification.
 var ErrUnsupported = errors.New("filewatch: directory watching is not supported on this platform")
+
+// MaxDirectories bounds the directories one tree watch follows where the system
+// needs a registration for each (inotify). A tree with more is refused when
+// opened, and one that grows past it asks for a resync.
+const MaxDirectories = 8192
+
+// ErrTooLarge reports a tree with more directories than a watch can follow.
+var ErrTooLarge = errors.New("filewatch: the directory tree is too large to watch")
 
 // MaxPending bounds the distinct names held between two Drain calls. Past it the
 // names are dropped and Pending.Resync is set, so memory stays bounded however
@@ -37,6 +47,11 @@ type Pending struct {
 type Watch struct {
 	wake func()
 	back backend
+	// tree: names are slash-separated paths below the directory, and entries of
+	// its subdirectories are reported. skip drops any path with a component it
+	// names, so a tree can leave out version-control and hidden directories.
+	tree bool
+	skip func(name string) bool
 
 	mu     sync.Mutex
 	names  []string
@@ -55,10 +70,22 @@ type backend interface {
 // news is pending and must only hand it on (for example Invalidator.Invalidate);
 // one call can stand for many changes, and none is made once Close has returned.
 func Open(dir string, wake func()) (*Watch, error) {
+	return openWatch(dir, false, nil, wake)
+}
+
+// OpenTree is Open for the whole tree below dir. Names are slash-separated paths
+// relative to dir. A path with a component for which skip returns true is never
+// reported, and where the system needs a registration per directory, a skipped
+// directory gets none.
+func OpenTree(dir string, skip func(name string) bool, wake func()) (*Watch, error) {
+	return openWatch(dir, true, skip, wake)
+}
+
+func openWatch(dir string, tree bool, skip func(string) bool, wake func()) (*Watch, error) {
 	if wake == nil {
 		return nil, errors.New("filewatch: a wake function is required")
 	}
-	w := &Watch{wake: wake}
+	w := &Watch{wake: wake, tree: tree, skip: skip}
 	back, err := openBackend(dir, w)
 	if err != nil {
 		return nil, err
@@ -100,8 +127,26 @@ func (w *Watch) Close() {
 	}
 }
 
+// skipped reports whether a path has a component the watch leaves out.
+func (w *Watch) skipped(name string) bool {
+	if w.skip == nil {
+		return false
+	}
+	for name != "" {
+		part, rest, _ := strings.Cut(name, "/")
+		if w.skip(part) {
+			return true
+		}
+		name = rest
+	}
+	return false
+}
+
 // post records one changed name and wakes the owner when the batch was empty.
 func (w *Watch) post(name string) {
+	if w.skipped(name) {
+		return
+	}
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()

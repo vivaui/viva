@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"unicode/utf16"
@@ -43,6 +44,7 @@ const (
 // waits on its event together with a stop event, so Close ends the wait without
 // a race between issuing the read and cancelling it.
 type directoryBackend struct {
+	tree   bool
 	handle syscall.Handle
 	ioDone syscall.Handle
 	stop   syscall.Handle
@@ -76,7 +78,7 @@ func openBackend(dir string, w *Watch) (backend, error) {
 		syscall.CloseHandle(handle)
 		return nil, err
 	}
-	b := &directoryBackend{handle: handle, ioDone: ioDone, stop: stop, done: make(chan struct{})}
+	b := &directoryBackend{tree: w.tree, handle: handle, ioDone: ioDone, stop: stop, done: make(chan struct{})}
 	if err := b.issue(); err != nil {
 		syscall.CloseHandle(stop)
 		syscall.CloseHandle(ioDone)
@@ -111,8 +113,12 @@ func (b *directoryBackend) close() {
 // between.
 func (b *directoryBackend) issue() error {
 	b.overlapped = syscall.Overlapped{HEvent: b.ioDone}
+	subtree := uintptr(0)
+	if b.tree {
+		subtree = 1
+	}
 	r, _, err := procReadDirectoryChange.Call(uintptr(b.handle), uintptr(unsafe.Pointer(&b.buf[0])), uintptr(len(b.buf)),
-		0, filterChange, 0, uintptr(unsafe.Pointer(&b.overlapped)), 0)
+		subtree, filterChange, 0, uintptr(unsafe.Pointer(&b.overlapped)), 0)
 	if r == 0 {
 		return err
 	}
@@ -171,7 +177,7 @@ func parseNotifications(buf []byte, w *Watch) {
 				name[i] = binary.LittleEndian.Uint16(buf[12+2*i:])
 			}
 			if len(name) > 0 {
-				w.post(string(utf16.Decode(name)))
+				w.post(strings.ReplaceAll(string(utf16.Decode(name)), `\`, "/"))
 			}
 		}
 		if next == 0 || next > len(buf) {

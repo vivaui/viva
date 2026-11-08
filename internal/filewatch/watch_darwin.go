@@ -81,8 +81,12 @@ func (b *fseventsBackend) event(path string, flags int) {
 	}
 	// FSEvents reports on-disk names, which may differ in case from the name the
 	// caller used on a case-insensitive volume; an extra name is harmless.
-	if dir, name := filepath.Split(path); len(name) > 0 && strings.EqualFold(strings.TrimSuffix(dir, "/"), b.root) {
-		b.watch.post(name)
+	if len(path) <= len(b.root) || !strings.EqualFold(path[:len(b.root)], b.root) || path[len(b.root)] != '/' {
+		return
+	}
+	rel := path[len(b.root)+1:]
+	if b.watch.tree || !strings.Contains(rel, "/") {
+		b.watch.post(rel)
 	}
 }
 

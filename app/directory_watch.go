@@ -56,6 +56,35 @@ func WatchDirectory(dir string, wake func()) (*DirectoryWatch, error) {
 	return &DirectoryWatch{watch: watch}, nil
 }
 
+// WatchTree is WatchDirectory for the whole tree below dir. Names are
+// slash-separated paths relative to dir, and a name may be a directory that
+// appeared or moved in with contents of its own: list it rather than assume it is
+// empty. Any path with a component for which skip returns true (nil skips
+// nothing) is never reported, and where the system needs a registration for each
+// directory (Linux), a skipped directory gets none. A tree with more directories
+// than the system can follow is refused with ErrTooLarge when opened and asks for
+// a resync if it grows past that later.
+func WatchTree(dir string, skip func(name string) bool, wake func()) (*DirectoryWatch, error) {
+	if wake == nil {
+		return nil, errors.New("app: WatchTree needs a wake function")
+	}
+	watch, err := filewatch.OpenTree(dir, skip, wake)
+	if errors.Is(err, filewatch.ErrUnsupported) {
+		return nil, ErrUnsupported
+	}
+	if errors.Is(err, filewatch.ErrTooLarge) {
+		return nil, ErrWatchTooLarge
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &DirectoryWatch{watch: watch}, nil
+}
+
+// ErrWatchTooLarge reports a directory tree with more directories than a watch
+// can follow.
+var ErrWatchTooLarge = errors.New("app: the directory tree is too large to watch")
+
 // Changes returns what changed since the previous call and forgets it. It never
 // blocks on the file system and is meant for OnWake. The returned names reuse
 // buf when it has room, so a caller holding one slice allocates nothing in the

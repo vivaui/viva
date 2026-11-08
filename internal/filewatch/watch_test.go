@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -205,5 +206,147 @@ func BenchmarkPostDedup(b *testing.B) {
 		w.post("a.md")
 		w.post("a.md")
 		buf = w.Drain(buf).Names
+	}
+}
+
+func openTree(t *testing.T, dir string, skip func(string) bool) (*Watch, func() Pending) {
+	t.Helper()
+	woken := make(chan struct{}, 1)
+	w, err := OpenTree(dir, skip, func() {
+		select {
+		case woken <- struct{}{}:
+		default:
+		}
+	})
+	if err == ErrUnsupported {
+		t.Skip(err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(w.Close)
+	return w, func() Pending {
+		t.Helper()
+		select {
+		case <-woken:
+		case <-time.After(10 * time.Second):
+			t.Fatal("no wake")
+		}
+		return w.Drain(nil)
+	}
+}
+
+func TestTreeReportsNestedEntriesAsSlashPaths(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "a", "b"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_, next := openTree(t, dir, nil)
+	if err := os.WriteFile(filepath.Join(dir, "a", "b", "deep.md"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, next, "a/b/deep.md")
+}
+
+func TestTreeFollowsADirectoryCreatedLater(t *testing.T) {
+	dir := t.TempDir()
+	_, next := openTree(t, dir, nil)
+	if err := os.MkdirAll(filepath.Join(dir, "new", "inner"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, next, "new")
+	// Whether the registration came before this write is the race the watch has to
+	// close; the write below must be seen either way.
+	time.Sleep(200 * time.Millisecond)
+	if err := os.WriteFile(filepath.Join(dir, "new", "inner", "late.md"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, next, "new/inner/late.md")
+}
+
+func TestTreeSeesFilesMovedInWithADirectory(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "moved.md"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, next := openTree(t, dir, nil)
+	if err := os.Rename(outside, filepath.Join(dir, "arrived")); err != nil {
+		t.Skipf("cannot move across volumes: %v", err)
+	}
+	for range 20 {
+		p := next()
+		if p.Resync || slices.Contains(p.Names, "arrived/moved.md") {
+			return
+		}
+		if slices.Contains(p.Names, "arrived") {
+			return // the directory itself is the news: a consumer lists it
+		}
+	}
+	t.Fatal("the moved-in directory was not reported")
+}
+
+func TestTreeLeavesSkippedDirectoriesOut(t *testing.T) {
+	dir := t.TempDir()
+	for _, sub := range []string{".git", "docs"} {
+		if err := os.Mkdir(filepath.Join(dir, sub), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w, next := openTree(t, dir, func(name string) bool { return strings.HasPrefix(name, ".") })
+	if err := os.WriteFile(filepath.Join(dir, ".git", "HEAD"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "docs", "a.md"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, next, "docs/a.md")
+	time.Sleep(200 * time.Millisecond)
+	for _, name := range w.Drain(nil).Names {
+		if strings.HasPrefix(name, ".git") {
+			t.Fatalf("skipped directory leaked: %s", name)
+		}
+	}
+}
+
+func TestTreeStillReportsRenamedAndRemovedFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "d"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	old := filepath.Join(dir, "d", "old.md")
+	if err := os.WriteFile(old, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, next := openTree(t, dir, nil)
+	if err := os.Rename(old, filepath.Join(dir, "d", "new.md")); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, next, "d/new.md")
+	if err := os.Remove(filepath.Join(dir, "d", "new.md")); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, next, "d/new.md")
+}
+
+func TestPlainWatchStillIgnoresSubdirectories(t *testing.T) {
+	// Guards the non-tree contract on backends that watch recursively underneath.
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	w, next := open(t, dir)
+	if err := os.WriteFile(filepath.Join(dir, "sub", "in.md"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "top.md"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, next, "top.md")
+	time.Sleep(150 * time.Millisecond)
+	for _, name := range w.Drain(nil).Names {
+		if strings.Contains(name, "/") {
+			t.Fatalf("nested name %q from a plain watch", name)
+		}
 	}
 }
