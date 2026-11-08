@@ -113,10 +113,10 @@ jobs:
             wait "$pid" || status=1
           done
           exit "$status"
-      - name: GTK always-on-top contract
+      - name: GTK optional capability contracts
         run: |
           go vet -tags vivagtk ./app ./internal/platform/linux
-          go test -tags vivagtk ./internal/platform/linux -run '^TestGTKWaylandAlwaysOnTopReportsUnsupported$' -count=1
+          go test -tags vivagtk ./internal/platform/linux -run '^TestGTK(WaylandAlwaysOnTopReportsUnsupported|ClipboardFileWriteReportsUnsupportedWithoutASetter)$' -count=1
       - name: Native X11 global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'

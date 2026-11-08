@@ -13,6 +13,10 @@ import (
 type SingleSelectOption struct {
 	Value, Label string
 	Disabled     bool
+	// Search is extra text the query matches besides the label and the value,
+	// for what the row does not show, such as an address or a group. It is never
+	// painted.
+	Search string
 }
 
 // SingleSelectChoice is one filtered existing or creatable option.
@@ -121,7 +125,9 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 		}
 		exact = exact || s.equal(query, option.Value) || s.equal(query, label)
 		haveValue = haveValue || s.equal(s.value, option.Value)
-		if query != "" && !strings.Contains(strings.ToLower(label), match) && !strings.Contains(strings.ToLower(option.Value), match) {
+		if query != "" && !strings.Contains(strings.ToLower(label), match) &&
+			!strings.Contains(strings.ToLower(option.Value), match) &&
+			!strings.Contains(strings.ToLower(option.Search), match) {
 			return
 		}
 		option.Label = label
