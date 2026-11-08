@@ -121,7 +121,7 @@ func (dialog AlertDialog) Begin(title, description, actionLabel, cancelLabel str
 	content := dialog.contentBounds(width, headerHeight)
 
 	dialog.canvas.BeginPresence(key, overlaySurfacePart, fadePresence(dialog.theme), centerOf(content))
-	dialog.canvas.RoundedBorder(content, metrics.RadiusSurface, 1, dialog.theme.Border, dialog.theme.Popover)
+	paintPanel(dialog.canvas, content, dialogRecipe(&dialog.theme))
 
 	inner := content.Inset(ui.All(alertDialogPadding(metrics)))
 	footerHeight := dialogFooterHeight(metrics, dialog.options.ButtonSize)

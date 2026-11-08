@@ -320,7 +320,7 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 			canvas.PopOverlayClip()
 		}
 	}
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: canvas.Focused() == o.InputID || open, Invalid: o.Invalid, Disabled: o.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: canvas.Focused() == o.InputID || open, Invalid: o.Invalid, Disabled: o.Disabled})
 	canvas.HitWithOptions(o.TriggerID, bounds, o.Label, ui.HitOptions{Role: ui.RoleButton, Expanded: open, Disabled: o.Disabled, SkipFocus: true})
 	trigger := ui.Rect{X: bounds.X + bounds.Width - 28, Y: bounds.Y + (bounds.Height-24)/2, Width: 24, Height: 24}
 	x, right := bounds.X+7, trigger.X-6
@@ -393,8 +393,7 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 	}
 	canvas.Block(layout.Popup)
 	canvas.Container(layout.Popup, ui.RoleListBox, o.Label)
-	canvas.Elevate(layout.Popup, theme.Metrics.RadiusPopup(), ui.ShadowMD)
-	canvas.RoundedBorder(layout.Popup, theme.Metrics.RadiusPopup(), 1, theme.Border, theme.Popover)
+	paintPopupSurface(canvas, &theme, layout.Popup, ui.ShadowMD)
 	s.scroll.BarID = o.ScrollID
 	menu := menuSurface{canvas: canvas, theme: theme, bounds: layout.Popup, options: menuSurfaceOptions{layer: o.Layer, scope: o.Scope, scroll: &s.scroll}, top: layout.Popup.Y + 4, bottom: layout.Popup.Y + layout.Popup.Height - 4, viewHeight: layout.Popup.Height - 8}
 	menu.beginScroll()
@@ -416,13 +415,11 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 			continue
 		}
 		menu.paintRow(row, func() {
-			if !choice.Disabled && i == s.Active {
-				canvas.Rounded(row, theme.Metrics.RadiusItem(), theme.Accent)
+			look := menuItemRecipe(&theme, ui.State{Hovered: i == s.Active, Disabled: choice.Disabled})
+			if look.Fill.Alpha > 0 {
+				canvas.Rounded(row, look.Radius, look.Fill)
 			}
-			color := theme.PopoverForeground
-			if choice.Disabled {
-				color.Alpha *= .5
-			}
+			color := look.Foreground
 			label := choice.Label
 			if choice.Create {
 				if s.createPrefix != o.CreatePrefix || s.createValue != label {

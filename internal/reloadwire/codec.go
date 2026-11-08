@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ProtocolVersion = 22
+	ProtocolVersion = 23
 	MaxFrameBytes   = 32 << 20
 	MaxStateBytes   = 8 << 20
 	maxItems        = 200_000
@@ -518,6 +518,8 @@ func encodeCanvas(value CanvasSnapshot) ([]byte, error) {
 		result.u16(text.Layer)
 		encodeRect(&result, text.ClipOf)
 		result.bool(text.HasClip)
+		result.u32(text.Identity.Owner)
+		result.u64(text.Identity.Item)
 	}
 	result.u32(uint32(len(value.Hits)))
 	for _, hit := range value.Hits {
@@ -624,6 +626,7 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 			text.RunFirst, text.RunCount = 0, 0
 		}
 		text.Layer, text.ClipOf, text.HasClip = value.u16(), decodeRect(&value), value.bool()
+		text.Identity = ui.TextIdentity{Owner: value.u32(), Item: value.u64()}
 		result.Texts[index] = text
 	}
 	hitCount := decodeCount(&value)

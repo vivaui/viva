@@ -975,6 +975,9 @@ type Primitive struct {
 type Label struct {
 	Value  string
 	Bounds ui.Rect
+	// Identity is platform.TextLabel's stable text identity, when one was
+	// supplied.
+	Identity ui.TextIdentity
 	// OriginX and OriginY are platform.TextLabel's: the text's sub-pixel position
 	// within Bounds.
 	OriginX, OriginY float32
@@ -1108,9 +1111,10 @@ func (driver *Driver) Snapshot() Snapshot {
 	}
 	for _, label := range painter.labels {
 		captured := Label{
-			Value:   label.Value,
-			Bounds:  ui.Rect{X: label.X, Y: label.Y, Width: label.Width, Height: label.Height},
-			OriginX: label.OriginX, OriginY: label.OriginY,
+			Value:    label.Value,
+			Bounds:   ui.Rect{X: label.X, Y: label.Y, Width: label.Width, Height: label.Height},
+			Identity: label.Identity,
+			OriginX:  label.OriginX, OriginY: label.OriginY,
 			FontSize: label.FontSize, Weight: label.Weight, Italic: label.Italic,
 			Color: ui.Color{Red: float32(label.Color.Red), Green: float32(label.Color.Green), Blue: float32(label.Color.Blue), Alpha: float32(label.Color.Alpha)},
 			Layer: label.Layer, FontGeneration: label.FontGeneration,

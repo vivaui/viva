@@ -38,6 +38,7 @@ var docPrimaryEntries = map[string][]string{
 	"metric_card.go":        {"MetricCard"},
 	"progress.go":           {"Progress"},
 	"text_selection.go":     {"TextSelection"},
+	"tree_navigation.go":    {"NavigateTree"},
 	"typography.go":         {"Typography"},
 }
 

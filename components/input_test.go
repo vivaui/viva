@@ -32,6 +32,11 @@ func TestInputCapturesGeometryDisplayAndSemantics(t *testing.T) {
 	if len(canvas.Texts()) != 2 || canvas.Texts()[0].Value != "user@example.com" {
 		t.Fatalf("texts = %+v", canvas.Texts())
 	}
+	// The line is centered in the field's 20 px text line box, not placed at the
+	// field's top edge: the caret and the selection use the same vertical band.
+	if got := canvas.Texts()[0].Bounds.Y; got != 26 {
+		t.Errorf("the input line starts at y=%v, want the line box's 26", got)
+	}
 }
 
 // Focus is the same however it arrived (pointer or keyboard): the border turns

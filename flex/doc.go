@@ -54,6 +54,18 @@
 // between them), and Ring, Opacity, Gradient and GradientStops are effects drawn without
 // a class string or any lookup at run time: see style.go.
 //
+// A control with the theme's look is a base element dressed by a recipe, and the base is
+// there to be used: InputBase, TextareaBase (and FieldBase), SliderBase, ButtonBase, CheckboxBase
+// and SwitchBase are the controls without a look, and ToggleBase, TabBase, RadioBase, OptionBase
+// and ComboboxBase the items of the composite ones (tabs, a segmented control, a select), so what they look like is the element's own
+// Background, Border, Radius, Shadow, Pad and looks, with Draw and DrawOver for what those
+// cannot say. Draw runs after the element's background and before its children, DrawOver
+// after them, each with the laid-out rectangle, the element's ui.State and its opacity, so a
+// custom drawing sits where it belongs in the page instead of over all of it. Input and
+// Textarea take the same calls: what the element sets replaces the recipe's value
+// (components.TextEntryRecipe), the rest stays, and no variant is needed to make a field
+// square or thick-framed. See recipe.go, bases.go and draw.go.
+//
 // Progress and Spinner are leaves that animate only while they are on screen, and a
 // Splitter between two panes is dragged (pointer captured, resize cursor, minimum sizes) with
 // its position in a SplitterState; a container given Hit that has no Children and no size

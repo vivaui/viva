@@ -83,7 +83,7 @@ func (button SplitButton) Paint() SplitButtonResult {
 	framed := variant == ButtonOutline || variant == ButtonDestructiveOutline
 	if framed {
 		button.canvas.Elevate(bounds, radius, ui.ShadowXS)
-		paintBordered(button.canvas, theme, bounds, radius, outlineBorder(theme), ui.Color{})
+		paintBordered(button.canvas, theme, bounds, radius, outlineBorder(&theme), ui.Color{})
 		radius--
 	}
 
@@ -94,7 +94,7 @@ func (button SplitButton) Paint() SplitButtonResult {
 	paintJoinedSeparator(button.canvas, joinedSurface(geometry.Menu, 1, 2, false, framed), theme.Input, false)
 
 	enabled := !button.options.Disabled
-	style := buttonStyleFor(theme, variant, false, false)
+	style := buttonStyleFor(&theme, variant, false, false)
 	if button.options.Disabled {
 		style.foreground.Alpha *= 0.50
 	}
@@ -150,7 +150,7 @@ func (button SplitButton) paintFocus(bounds ui.Rect, variant ButtonVariant, id u
 	if button.options.Disabled || id.IsZero() || button.canvas.FocusVisible() != id {
 		return
 	}
-	ring, _ := buttonRing(button.theme, variant, false)
+	ring, _ := buttonRing(&button.theme, variant, false)
 	button.canvas.Rounded(expand(bounds, 3), button.theme.Metrics.RadiusControl+3, ring)
 }
 
@@ -160,7 +160,7 @@ func (button SplitButton) paintHalf(bounds ui.Rect, index int, variant ButtonVar
 	if enabled && index == 1 && button.options.Open {
 		hovered = true
 	}
-	style := buttonStyleFor(button.theme, variant,
+	style := buttonStyleFor(&button.theme, variant,
 		hovered,
 		enabled && button.canvas.Pressed() == id)
 	fill := style.background

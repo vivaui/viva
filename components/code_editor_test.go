@@ -710,6 +710,65 @@ func TestCodeEditorGutterNumbersLinesNotRows(t *testing.T) {
 	}
 }
 
+func TestCodeEditorGutterUsesCallerLanes(t *testing.T) {
+	value := "one\ntwo\nthree"
+	f := newCodeFixture(value)
+	f.bounds.Height = 400
+	f.snapshot.LineNumbers = true
+	f.snapshot.MarkerGutter = true
+	f.snapshot.FoldGutter = true
+	marker := ui.RGB(20, 80, 160)
+	f.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, Color: marker}}
+	f.snapshot.FoldMarkers = []CodeEditorFoldMarker{{Line: 0, ID: ui.Item(9)}}
+	f.snapshot.Gutter = &CodeEditorGutter{
+		Inset: 2, Marker: 28, Bookmark: 14, LineNumberPadding: 6.5, Fold: 16, FoldLast: true,
+	}
+	f.paint()
+
+	cell, _, _ := f.cell()
+	numberLane := cell + 13
+	wantContentX := f.bounds.X + 2 + 28 + 14 + numberLane + 16
+	if !near(f.editor.content.X, wantContentX) {
+		t.Fatalf("text starts at %v, want after the caller's lanes (%v)", f.editor.content.X, wantContentX)
+	}
+
+	marks := f.fills(marker)
+	if len(marks) != 1 || !near(marks[0].X, f.bounds.X+2+(28-marks[0].Width)/2) {
+		t.Fatalf("marker = %+v, want it centered in the 28 px lane", marks)
+	}
+
+	numberX := f.bounds.X + 2 + 28 + 14
+	var number ui.Text
+	for _, text := range f.canvas.Texts() {
+		if text.Value == "1" {
+			number = text
+			break
+		}
+	}
+	if number.Value == "" || !near(number.Bounds.X+number.Bounds.Width, numberX+numberLane-6.5) {
+		t.Fatalf("line number = %+v, want its right edge at %v", number.Bounds, numberX+numberLane-6.5)
+	}
+
+	foldX := numberX + numberLane
+	buttons := f.canvas.Hits()
+	var found bool
+	for _, hit := range buttons {
+		if hit.Bounds.X == foldX && hit.Bounds.Width == 16 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no fold button in the caller's last lane at %v; hits %+v", foldX, buttons)
+	}
+
+	// Nil keeps the automatic layout the rest of the component tests rely on.
+	f.snapshot.Gutter = nil
+	f.paint()
+	if f.editor.content.X == wantContentX {
+		t.Fatal("a nil gutter must keep the component's automatic lane layout")
+	}
+}
+
 func TestCodeEditorCurrentLineTint(t *testing.T) {
 	f := newCodeFixture("a\nb\nc")
 	f.snapshot.CurrentLine = true

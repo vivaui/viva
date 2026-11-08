@@ -3,6 +3,7 @@ package ui
 
 import (
 	"math"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/textmetrics"
 )
@@ -229,6 +230,25 @@ type TextRun struct {
 	Ligatures bool
 }
 
+// TextIdentity names one text label across frames for backends that retain
+// rasterized text. Owner is a nonzero number for the application object that
+// owns the text, and Item is that owner's stable number for the label. Two
+// labels with the same pair name the same label even when they move in the
+// paint list; a label whose content changes keeps its identity and is redrawn
+// by content comparison. The zero value means no identity, which leaves
+// position-based matching in place.
+//
+// An identity is a rendering hint: a backend that drops it spends more work but
+// must draw the same pixels. Identities must be unique among the labels of one
+// frame.
+type TextIdentity struct {
+	Owner uint32
+	Item  uint64
+}
+
+// IsZero reports whether the identity is absent.
+func (identity TextIdentity) IsZero() bool { return identity.Owner == 0 }
+
 // Text is one immutable single-line label clipped like rectangles. A text
 // with RunCount > 0 is a fixed-pitch grid line (see LabelRuns); read its runs
 // with Canvas.TextRuns.
@@ -239,9 +259,12 @@ type Text struct {
 	CellWidth float32
 	RunFirst  int32
 	RunCount  int32
-	Layer     uint16
-	ClipOf    Rect
-	HasClip   bool
+	// Identity, when nonzero, names this label across frames so a backend can
+	// retain its texture when the paint list reorders. See TextIdentity.
+	Identity TextIdentity
+	Layer    uint16
+	ClipOf   Rect
+	HasClip  bool
 }
 
 // Bitmap is immutable premultiplied BGRA pixel data. Pixels are stored top
@@ -821,11 +844,16 @@ func (canvas *Canvas) TextWidthWeight(value string, size, weight float32) float3
 	return textmetrics.Width(value, size, weight)
 }
 
-// TextWidthStyle is TextWidthWeight for a style that may be italic: the width of value in
-// the italic face of the interface font when style.Italic is set and the text engine
-// shapes one (ui.StyledTextEngine), and in the regular face otherwise. Only Size, Weight and
-// Italic of the style matter.
+// TextWidthStyle is TextWidthWeight for a style that may be italic or fixed-pitch: the width of
+// value in the italic face of the interface font when style.Italic is set and the text engine
+// shapes one (ui.StyledTextEngine), and in the regular face otherwise. A style.Mono text is
+// every character on the cell of its face (MonoCellSize), as a Mono Label draws it, so its
+// width is the number of characters times the cell. Only Size, Weight, Italic, Mono and MonoFace
+// of the style matter.
 func (canvas *Canvas) TextWidthStyle(value string, style TextStyle) float32 {
+	if style.Mono {
+		return canvas.monoWidth(value, style)
+	}
 	if !style.Italic || value == "" {
 		return canvas.TextWidthWeight(value, style.Size, style.Weight)
 	}
@@ -1056,6 +1084,13 @@ func (canvas *Canvas) Border(bounds Rect, width float32, border, fill Color) {
 // on all four sides and at least one: a 1 point border at 150% is one pixel, not a pixel and a
 // half blurred over two, as a browser draws it.
 func (canvas *Canvas) RoundedBorder(bounds Rect, radius, width float32, border, fill Color) {
+	// An element with no fill is an outline: painting the border as a solid
+	// backing and then a transparent interior would turn it into a filled box.
+	// RoundedOutline strokes the same ring and leaves what is behind it alone.
+	if fill == (Color{}) {
+		canvas.RoundedOutline(bounds, radius, width, border)
+		return
+	}
 	if canvas.pixelScale > 0 {
 		bounds = canvas.snapBox(bounds, radius)
 		width = canvas.borderWidth(width)
@@ -1242,8 +1277,11 @@ func (canvas *Canvas) TextCaret(value string, size, weight float32, offset int) 
 	return textmetrics.Caret(value, size, weight, offset)
 }
 
-// TextCaretStyle is TextCaret for a style that may be italic (see TextWidthStyle).
+// TextCaretStyle is TextCaret for a style that may be italic or fixed-pitch (see TextWidthStyle).
 func (canvas *Canvas) TextCaretStyle(value string, style TextStyle, offset int) float32 {
+	if style.Mono {
+		return canvas.monoWidth(value[:clampOffset(value, offset)], style)
+	}
 	if !style.Italic {
 		return canvas.TextCaret(value, style.Size, style.Weight, offset)
 	}
@@ -1275,8 +1313,16 @@ func (canvas *Canvas) TextSelection(dst []TextSpan, value string, size, weight f
 	return referenceEngine{}.Selection(dst, value, size, weight, start, end)
 }
 
-// TextSelectionStyle is TextSelection for a style that may be italic (see TextWidthStyle).
+// TextSelectionStyle is TextSelection for a style that may be italic or fixed-pitch (see
+// TextWidthStyle).
 func (canvas *Canvas) TextSelectionStyle(dst []TextSpan, value string, style TextStyle, start, end int) []TextSpan {
+	if style.Mono {
+		start, end = clampOffset(value, start), clampOffset(value, end)
+		if start > end {
+			start, end = end, start
+		}
+		return append(dst, TextSpan{X: canvas.monoWidth(value[:start], style), Width: canvas.monoWidth(value[start:end], style)})
+	}
 	if !style.Italic {
 		return canvas.TextSelection(dst, value, style.Size, style.Weight, start, end)
 	}
@@ -1306,8 +1352,12 @@ func (canvas *Canvas) TextOffsetAt(value string, size, weight, x float32) int {
 	return textmetrics.OffsetAt(value, size, weight, x)
 }
 
-// TextOffsetAtStyle is TextOffsetAt for a style that may be italic (see TextWidthStyle).
+// TextOffsetAtStyle is TextOffsetAt for a style that may be italic or fixed-pitch (see
+// TextWidthStyle).
 func (canvas *Canvas) TextOffsetAtStyle(value string, style TextStyle, x float32) int {
+	if style.Mono {
+		return offsetAtByPrefix(value, x, func(prefix string) float32 { return canvas.monoWidth(prefix, style) })
+	}
 	if !style.Italic {
 		return canvas.TextOffsetAt(value, style.Size, style.Weight, x)
 	}
@@ -1328,10 +1378,18 @@ func (canvas *Canvas) TextOffsetAtStyle(value string, style TextStyle, x float32
 // runs must cover value (see TextRun); the canvas copies them, so the caller
 // may reuse the slice as soon as the call returns.
 func (canvas *Canvas) LabelRuns(value string, bounds Rect, style TextStyle, cellWidth float32, runs []TextRun) {
+	canvas.LabelRunsWithIdentity(TextIdentity{}, value, bounds, style, cellWidth, runs)
+}
+
+// LabelRunsWithIdentity is LabelRuns with a stable identity for the line. A
+// backend that retains text pictures can then keep this line's picture when it
+// moves to another position, so scrolling a terminal redraws only the lines
+// that enter the viewport. See TextIdentity.
+func (canvas *Canvas) LabelRunsWithIdentity(identity TextIdentity, value string, bounds Rect, style TextStyle, cellWidth float32, runs []TextRun) {
 	style.Mono = true
 	text := Text{
 		Value: value, Bounds: bounds, Style: style, CellWidth: cellWidth,
-		RunFirst: int32(len(canvas.runs)), RunCount: int32(len(runs)), Layer: canvas.currentLayer(),
+		RunFirst: int32(len(canvas.runs)), RunCount: int32(len(runs)), Identity: identity, Layer: canvas.currentLayer(),
 	}
 	canvas.runs = append(canvas.runs, runs...)
 	text.ClipOf, text.HasClip = canvas.clipSnapshot()
@@ -1964,4 +2022,14 @@ func (canvas *Canvas) DeliverPointer(event PointerEvent, size Size, paint func(*
 	paint(canvas, size)
 	canvas.EndFrame()
 	return canvas.EndPointerPass()
+}
+
+// monoWidth is the width of value set in the fixed-pitch face of style: one cell for each
+// character.
+func (canvas *Canvas) monoWidth(value string, style TextStyle) float32 {
+	if value == "" {
+		return 0
+	}
+	cell, _ := canvas.MonoCellSize(style.Size, style.MonoFace)
+	return float32(utf8.RuneCountInString(value)) * cell
 }

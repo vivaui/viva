@@ -28,6 +28,9 @@ type Field struct {
 	// input is the stable TextInput the platform provider hands out. Returning
 	// a fresh one on every repaint allocated once per focused frame.
 	input app.TextInput
+	// blink is the phase of the caret when the field paints it itself, which a fixed-pitch
+	// field does (see Box.Mono): the platform draws the caret of the others.
+	blink components.CaretBlink
 }
 
 func (field *Field) ensure() *text.Editor {
@@ -51,16 +54,42 @@ func (field *Field) SetText(value string) {
 // with an accessible label and placeholder. It is Input with the snapshot taken from
 // the field: focus, platform editing and the caret are filled in for you.
 func (f *Frame) Field(field *Field, id ui.ID, label, placeholder string) Box {
+	return f.Input(field.snapshot(f, id, label, placeholder))
+}
+
+// FieldBase is Field without a look, as InputBase is Input without one: the same editor,
+// focus, caret and platform editing, with the element's own Background, Border, Pad and
+// looks around them. It is what a field that does not read as a form control is built
+// from, such as the editor of a table cell.
+//
+//	f.FieldBase(&m.cell, cellID, "Cell", "").Pad(8).Border(2, theme.Primary).Radius(0)
+func (f *Frame) FieldBase(field *Field, id ui.ID, label, placeholder string) Box {
+	return f.InputBase(field.snapshot(f, id, label, placeholder))
+}
+
+// snapshot is what the field is painted from: focus, platform editing and the caret are
+// filled in for the frame being declared.
+func (field *Field) snapshot(f *Frame, id ui.ID, label, placeholder string) components.InputSnapshot {
 	editor := field.ensure()
 	field.id = id
 	value := editor.String()
 	focused := f.canvas != nil && f.canvas.Focused() == id
-	return f.Input(components.InputSnapshot{
+	selection := editor.Selection()
+	snapshot := components.InputSnapshot{
 		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure,
 		Focused:         focused,
 		PlatformEditing: focused && value != "",
 		ShowCaret:       focused && value == "",
-	})
+		Blink:           &field.blink,
+	}
+	// Where the caret, the selection and the composition are: what a field that paints them
+	// itself needs, and what the platform's own presentation of them does without.
+	snapshot.Caret = editor.ByteOffset(editor.Caret())
+	snapshot.SelectionStart, snapshot.SelectionEnd = editor.ByteOffset(selection.Start), editor.ByteOffset(selection.End)
+	if marked, ok := editor.Composition(); ok {
+		snapshot.CompositionStart, snapshot.CompositionEnd = editor.ByteOffset(marked.Start), editor.ByteOffset(marked.End)
+	}
+	return snapshot
 }
 
 // Submitted reports whether this paint is delivering Enter pressed in the text field the

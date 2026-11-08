@@ -8,7 +8,8 @@ import (
 func TestLabelRunsCopiesItsRunsAndExposesThemPerText(t *testing.T) {
 	var canvas Canvas
 	runs := []TextRun{{Column: 0, Bytes: 2, Cells: 2, Color: Color{Red: 1, Alpha: 1}, Ligatures: true}}
-	canvas.LabelRuns("hi", Rect{Width: 20, Height: 10}, TextStyle{Size: 12}, 6, runs)
+	identity := TextIdentity{Owner: 3, Item: 9}
+	canvas.LabelRunsWithIdentity(identity, "hi", Rect{Width: 20, Height: 10}, TextStyle{Size: 12}, 6, runs)
 	runs[0].Color = Color{Green: 1, Alpha: 1} // the caller reuses its buffer
 	canvas.LabelRuns("yo", Rect{Y: 10, Width: 20, Height: 10}, TextStyle{Size: 12}, 6,
 		[]TextRun{{Bytes: 1, Cells: 1}, {Column: 1, Bytes: 1, Cells: 1}})
@@ -20,6 +21,9 @@ func TestLabelRunsCopiesItsRunsAndExposesThemPerText(t *testing.T) {
 	}
 	if !texts[0].Style.Mono || texts[0].CellWidth != 6 {
 		t.Errorf("a runs label is fixed-pitch: %+v", texts[0])
+	}
+	if texts[0].Identity != identity || !texts[1].Identity.IsZero() {
+		t.Errorf("identities = %+v and %+v, want %+v and none", texts[0].Identity, texts[1].Identity, identity)
 	}
 	if got := canvas.TextRuns(texts[0]); len(got) != 1 || got[0].Color.Red != 1 || got[0].Color.Green != 0 || !got[0].Ligatures {
 		t.Errorf("first runs = %+v, want the red ligature run as it was when added", got)

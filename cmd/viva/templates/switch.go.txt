@@ -131,35 +131,17 @@ func (switchControl Switch) Paint() SwitchResult {
 	}
 	progress := switchControl.canvas.Animate(switchControl.id, switchSlotChecked, target, switchControl.theme.Transition)
 
-	trackOff, trackOn := switchControl.theme.Input, switchControl.theme.Primary
-	thumbOff, thumbOn := switchControl.theme.Background, switchControl.theme.Background
-	if isDark(switchControl.theme) {
-		trackOff.Alpha *= 0.80
-		thumbOff, thumbOn = switchControl.theme.Foreground, switchControl.theme.PrimaryForeground
-	}
-	track := trackOff.Mix(trackOn, progress)
-	thumb := thumbOff.Mix(thumbOn, progress)
-	switchControl.canvas.Elevate(switchControl.bounds, switchControl.bounds.Height/2, ui.ShadowXS) // shadow-xs
-	var border ui.Color
-	bordered := switchControl.focused || switchControl.invalid
-	if bordered {
-		ring := scaledAlpha(switchControl.theme.Ring, 0.50)
-		border = switchControl.theme.Ring
-		if switchControl.invalid {
-			ring, border = invalidRing(switchControl.theme), invalidBorder(switchControl.theme)
-		}
-		switchControl.canvas.Rounded(expand(switchControl.bounds, 3), switchControl.bounds.Height/2+3, ring)
-	}
-	if switchControl.disabled {
-		track.Alpha *= 0.50
-		thumb.Alpha *= 0.50
-		border.Alpha *= 0.50
-	}
-	if bordered {
-		paintBordered(switchControl.canvas, switchControl.theme, switchControl.bounds, switchControl.bounds.Height/2, border, track)
+	look := switchRecipe(&switchControl.theme, ui.State{
+		FocusVisible: switchControl.focused, Invalid: switchControl.invalid, Disabled: switchControl.disabled,
+	}, progress)
+	switchControl.canvas.Elevate(switchControl.bounds, switchControl.bounds.Height/2, look.Shadow) // shadow-xs
+	if look.Bordered {
+		switchControl.canvas.Rounded(expand(switchControl.bounds, look.RingWidth), switchControl.bounds.Height/2+look.RingWidth, look.Ring)
+		paintBordered(switchControl.canvas, switchControl.theme, switchControl.bounds, switchControl.bounds.Height/2, look.Border, look.Track)
 	} else {
-		switchControl.canvas.Rounded(switchControl.bounds, switchControl.bounds.Height/2, track)
+		switchControl.canvas.Rounded(switchControl.bounds, switchControl.bounds.Height/2, look.Track)
 	}
+	thumb := look.Thumb
 
 	// The thumb sits inside the track's 1px border: one pixel from the left edge
 	// when off and one from the right when on (translate-x-[calc(100%-2px)]).
@@ -181,4 +163,53 @@ func (switchControl Switch) Paint() SwitchResult {
 		})
 	}
 	return result
+}
+
+// SwitchLook is the look of a switch in one state and at one point of its travel.
+type SwitchLook struct {
+	// Track and Thumb are the colors of the track and the knob at that point of the
+	// travel; Border is the track's line, drawn only when Bordered.
+	Track, Thumb, Border ui.Color
+	Bordered             bool
+	// Ring is the halo of a focused or invalid switch, transparent when there is none;
+	// RingWidth is how far it reaches beyond the track.
+	Ring      ui.Color
+	RingWidth float32
+	// Shadow is the elevation under the track.
+	Shadow ui.ShadowLevel
+}
+
+// SwitchRecipe resolves the look of a switch. progress is how far the thumb has travelled
+// toward on, 0 to 1 (see ui.Canvas.Animate), which the track and the thumb colors follow.
+// FocusVisible, Invalid and Disabled of state are read; whether the switch is on is the
+// progress, not state.Checked, so a switch that is changing is drawn between its looks.
+func SwitchRecipe(theme ui.Theme, state ui.State, progress float32) SwitchLook {
+	return switchRecipe(&theme, state, progress)
+}
+
+// switchRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
+// and a Theme is large.
+func switchRecipe(theme *ui.Theme, state ui.State, progress float32) SwitchLook {
+	trackOff, trackOn := theme.Input, theme.Primary
+	thumbOff, thumbOn := theme.Background, theme.Background
+	if isDark(theme) {
+		trackOff.Alpha *= 0.80
+		thumbOff, thumbOn = theme.Foreground, theme.PrimaryForeground
+	}
+	look := SwitchLook{Track: trackOff.Mix(trackOn, progress), Thumb: thumbOff.Mix(thumbOn, progress), Shadow: ui.ShadowXS}
+	if state.FocusVisible || state.Invalid {
+		look.Bordered = true
+		look.Ring = scaledAlpha(theme.Ring, 0.50)
+		look.Border = theme.Ring
+		if state.Invalid {
+			look.Ring, look.Border = invalidRing(theme), invalidBorder(theme)
+		}
+		look.RingWidth = 3
+	}
+	if state.Disabled {
+		look.Track.Alpha *= 0.50
+		look.Thumb.Alpha *= 0.50
+		look.Border.Alpha *= 0.50
+	}
+	return look
 }

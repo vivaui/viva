@@ -19,7 +19,7 @@ func TestTheGuideMentionsEveryMethod(t *testing.T) {
 	}
 	set := token.NewFileSet()
 	var missing []string
-	for _, file := range []string{"frame.go", "box.go", "absolute.go", "grid.go", "popup.go", "text_wrap.go", "table.go", "tabs.go", "select.go", "dialog.go", "leaves.go", "splitter.go", "field.go", "slider.go", "scroll.go"} {
+	for _, file := range []string{"frame.go", "box.go", "absolute.go", "grid.go", "popup.go", "text_wrap.go", "table.go", "tabs.go", "select.go", "dialog.go", "leaves.go", "splitter.go", "field.go", "slider.go", "scroll.go", "bases.go", "draw.go"} {
 		parsed, err := parser.ParseFile(set, file, nil, 0)
 		if err != nil {
 			t.Fatal(err)
@@ -30,7 +30,7 @@ func TestTheGuideMentionsEveryMethod(t *testing.T) {
 				continue
 			}
 			switch function.Name.Name {
-			case "Canvas", "Theme", "Begin", "End", "Draw", "Rect", "Children", "Content", "Clicked":
+			case "Canvas", "Theme", "Begin", "End", "Rect", "Children", "Content", "Clicked":
 				continue // plumbing the guide shows in context rather than lists
 			}
 			if !strings.Contains(string(guide), function.Name.Name) {

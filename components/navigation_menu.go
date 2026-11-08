@@ -259,8 +259,7 @@ func (menu NavigationMenu) BeginContent() NavigationMenuContent {
 	content.y = bounds.Y + 8
 	content.visible = true
 	content.push()
-	menu.canvas.Elevate(bounds, menu.theme.Metrics.RadiusPopup(), ui.ShadowSM) // shadow (= shadow-sm)
-	menu.canvas.RoundedBorder(bounds, menu.theme.Metrics.RadiusPopup(), 1, menu.theme.Border, menu.theme.Popover)
+	paintPopupSurface(menu.canvas, &menu.theme, bounds, ui.ShadowSM) // shadow (= shadow-sm)
 	if !menu.options.DirectContent && menu.active.Width > 0 {
 		indicator := ui.Rect{X: menu.active.X + menu.active.Width/2 - 4, Y: bounds.Y - 4, Width: 8, Height: 4}
 		menu.canvas.RoundedBorder(indicator, 2, 1, menu.theme.Border, menu.theme.Popover)

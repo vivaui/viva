@@ -204,7 +204,7 @@ func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot
 	layout.Control = ui.Rect{X: row.X + startWidth, Y: row.Y, Width: inputGroupMax(0, row.Width-startWidth-endWidth), Height: row.Height}
 
 	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	inputGroupPaintSlot(canvas, theme, layout.BlockStart, snapshot.BlockStart, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.BlockEnd, snapshot.BlockEnd, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.InlineStart, snapshot.InlineStart, false, true, snapshot.Disabled)
@@ -216,11 +216,19 @@ func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot
 	}
 
 	if !snapshot.ID.IsZero() && layout.Control.Width > 0 {
+		// A single line is centered in the field's text band, where the caret and
+		// selection live. A multi-line value starts at the content's top, so its
+		// hit bounds are the whole content rectangle.
+		textBounds := content
+		if !snapshot.Multiline {
+			lineTop, lineHeight := inputLineBox(content, theme.Metrics.FontSizeM)
+			textBounds = ui.Rect{X: content.X, Y: lineTop, Width: content.Width, Height: lineHeight}
+		}
 		canvas.HitWithOptions(snapshot.ID, layout.Control, snapshot.Label, ui.HitOptions{
 			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: snapshot.Multiline, Secure: snapshot.Secure,
 			NavigationKeys: snapshot.NavigationKeys,
-			TextBounds:     content, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
+			TextBounds:     textBounds, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
 		})
 	}
 	return layout

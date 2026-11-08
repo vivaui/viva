@@ -459,8 +459,7 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 
 		canvas.Block(popup)
 		canvas.Container(popup, ui.RoleListBox, o.Label)
-		canvas.Elevate(popup, theme.Metrics.RadiusPopup(), ui.ShadowMD)
-		canvas.RoundedBorder(popup, theme.Metrics.RadiusPopup(), 1, theme.Border, theme.Popover)
+		paintPopupSurface(canvas, &theme, popup, ui.ShadowMD)
 		scroll := &m.scrolls[l]
 		scroll.BarID = o.ScrollID
 		if l > 0 {
@@ -482,13 +481,11 @@ func PaintHierarchyMenu(canvas *ui.Canvas, theme ui.Theme, anchor ui.Rect, m *Hi
 			}
 			selected := m.equal(m.value, info.path)
 			menu.paintRow(rowBounds, func() {
-				if !info.disabled && (open || l == m.level && i == m.active[l]) {
-					canvas.Rounded(rowBounds, theme.Metrics.RadiusItem(), theme.Accent)
+				look := menuItemRecipe(&theme, ui.State{Hovered: open || l == m.level && i == m.active[l], Disabled: info.disabled})
+				if look.Fill.Alpha > 0 {
+					canvas.Rounded(rowBounds, look.Radius, look.Fill)
 				}
-				color := theme.PopoverForeground
-				if info.disabled {
-					color.Alpha *= .5
-				}
+				color := look.Foreground
 				reserve := float32(38)
 				if selected && info.count > 0 {
 					reserve += 16

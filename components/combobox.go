@@ -116,8 +116,7 @@ func BeginCombobox(canvas *ui.Canvas, theme ui.Theme, inputBounds ui.Rect, optio
 	side := popupSideOf(content, inputBounds)
 	canvas.BeginPresence(overlayKey(options.InputID, options.DismissID, options.Scope), overlaySurfacePart,
 		popupPresence(theme, overlayDuration, side), popupPivot(content, side, inputBounds))
-	canvas.Elevate(content, theme.Metrics.RadiusPopup(), ui.ShadowMD) // shadow-md
-	canvas.RoundedBorder(content, theme.Metrics.RadiusPopup(), 1, theme.Border, theme.Popover)
+	paintPopupSurface(canvas, &theme, content, ui.ShadowMD) // shadow-md
 	combobox.popOverlay()
 	return combobox
 }
@@ -182,14 +181,11 @@ func (combobox *Combobox) AddItem(item ComboboxItem) ui.Rect {
 		// Only the highlighted row is tinted (Vega's data-highlighted); a selected
 		// one is told apart by its check. Highlighted is the caller's row, so the
 		// tint, the pointer and Enter never name different rows.
-		active := !item.Disabled && !item.ID.IsZero() && item.Highlighted
-		if active {
-			combobox.canvas.Rounded(bounds, combobox.theme.Metrics.RadiusItem(), combobox.theme.Accent)
+		look := menuItemRecipe(&combobox.theme, ui.State{Hovered: !item.ID.IsZero() && item.Highlighted, Disabled: item.Disabled})
+		if look.Fill.Alpha > 0 {
+			combobox.canvas.Rounded(bounds, look.Radius, look.Fill)
 		}
-		foreground := combobox.theme.PopoverForeground
-		if item.Disabled {
-			foreground.Alpha *= 0.50
-		}
+		foreground := look.Foreground
 		combobox.canvas.Label(item.Label, ui.Rect{X: bounds.X + 8, Y: bounds.Y, Width: comboboxMax(0, bounds.Width-40), Height: bounds.Height}, ui.TextStyle{
 			Size: combobox.theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground,
 		})
@@ -345,7 +341,7 @@ func PaintComboboxChips(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, chips
 	if canvas == nil || bounds.Width <= 0 {
 		return layout
 	}
-	paintTextEntrySurface(canvas, theme, layout.Bounds, textEntryState{Focused: options.Focused, Invalid: options.Invalid, Disabled: options.Disabled})
+	paintTextEntrySurface(canvas, &theme, layout.Bounds, ui.State{Focused: options.Focused, Invalid: options.Invalid, Disabled: options.Disabled})
 	if !options.InputID.IsZero() {
 		canvas.HitWithOptions(options.InputID, layout.Bounds, options.Label, ui.HitOptions{
 			Role: ui.RoleCombobox, Hint: options.Hint, Disabled: options.Disabled, Expanded: options.Open, NavigationKeys: true,
@@ -375,7 +371,7 @@ func (combobox Combobox) paintInput() {
 	canvas := combobox.canvas
 	bounds := combobox.inputBounds
 	options := combobox.options
-	paintTextEntrySurface(canvas, combobox.theme, bounds, textEntryState{
+	paintTextEntrySurface(canvas, &combobox.theme, bounds, ui.State{
 		Focused:  !options.InputID.IsZero() && canvas.Focused() == options.InputID,
 		Invalid:  options.Invalid,
 		Disabled: options.Disabled,

@@ -55,7 +55,7 @@ func ApplyCanvas(canvas *ui.Canvas, snapshot CanvasSnapshot) {
 	for _, text := range snapshot.Texts {
 		pushLayerAndClip(canvas, text.Layer, text.ClipOf, text.HasClip)
 		if text.RunCount > 0 || text.CellWidth > 0 {
-			canvas.LabelRuns(text.Value, text.Bounds, text.Style, text.CellWidth, snapshot.Runs[text.RunFirst:text.RunFirst+text.RunCount])
+			canvas.LabelRunsWithIdentity(text.Identity, text.Value, text.Bounds, text.Style, text.CellWidth, snapshot.Runs[text.RunFirst:text.RunFirst+text.RunCount])
 		} else {
 			canvas.Label(text.Value, text.Bounds, text.Style)
 		}

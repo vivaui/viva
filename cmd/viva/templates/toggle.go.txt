@@ -122,7 +122,7 @@ func (toggle Toggle) paint(label string, variant ToggleVariant) ToggleResult {
 		focus := scaledAlpha(toggle.theme.Ring, 0.50)
 		border = toggle.theme.Ring
 		if toggle.invalid {
-			focus, border = invalidRing(toggle.theme), invalidBorder(toggle.theme)
+			focus, border = invalidRing(&toggle.theme), invalidBorder(&toggle.theme)
 		}
 		toggle.canvas.Rounded(expand(toggle.bounds, 3), radius+3, focus)
 	}

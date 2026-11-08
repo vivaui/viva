@@ -20,6 +20,8 @@ func (n *node) hasOwnTheme() bool {
 	switch n.kind {
 	case kindContainer, kindText, kindSpacer, kindIcon, kindSlot, kindImage:
 		return false
+	case kindInput, kindTextarea:
+		return n.fontSize > 0 // its corners are the element's own, and the recipe's
 	}
 	return n.fontSize > 0 || n.flags&flagHasRadius != 0
 }

@@ -71,7 +71,8 @@ m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
   and clickable); `Gradient(flex.ToBottomRight, from, to)` and `GradientStops(angle, ui.Stop(0, a), ui.Stop(1, b), ...)`
   fill the element, corners included, over `Background` and under `Border`.
 - States: an element with an identity (`Hit`, which also makes it focusable) changes with `Hover(flex.Look{}.Background(theme.Hover))`, `Pressed(...)` and
-  `Focus(flex.Look{}.Ring(3, theme.Ring))`. A `Look` lists only what differs from rest and has `Background`, `Border`,
+  `Focus(flex.Look{}.Ring(3, theme.Ring))` (keyboard focus, as `:focus-visible`), plus `Focused(...)` for any focus (a click in a text field focuses it
+  without making it visible; a group box that frames its field follows the field with `StateFrom(field)`). A `Look` lists only what differs from rest and has `Background`, `Border`,
   `Color`, `Ring`, `Shadow` and `Opacity`; looks combine field by field (Focus, then Hover, then Pressed win).
   `Transition()` fades between them over the theme's motion and schedules nothing while at rest. `StateFrom(row)` makes a
   child follow its row's state: a pencil that shows on hover is
@@ -120,6 +121,24 @@ m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 - Other fields, painted by their components in tree order: `f.Input(components.InputSnapshot{...})` (a control tall,
   as wide as its container), `f.InputGroup(...)`, `f.Textarea(...)` (at least 64 tall), and
   `f.Segmented(options, selectedID)`. Give them `Width`, `Grow` or `Height` like anything else.
+- Controls with your own look: every control with the theme's look has a Base, the same control without one, and the look is then
+  the element's own. `f.InputBase(snapshot)` / `f.FieldBase(&m.cell, id, "Cell", "")` and `f.TextareaBase(snapshot)` are the text
+  fields (the value, caret, selection and input method are the field's, the box is yours), `f.ButtonBase(id, "name")` a button
+  (give it `Children`), `f.CheckboxBase(id, on)` and `f.SwitchBase(id, on)` a box and a track of the shadcn size, and
+  `f.SliderBase(id, &state)` a slider whose thumb you draw where `state.Fraction()` says. The items of the composite controls are
+  `f.ToggleBase`, `f.TabBase`, `f.RadioBase` (a segmented option), `f.OptionBase` (a list row) and `f.ComboboxBase` (a select's
+  trigger): a tab strip with your own look is a `Row` of them, with `components.TabsKeyDown` on `OnKey`. A select with your own look
+  is `f.SelectBase(scope, &state, labels, selected)`: its state, `Picked`, popup, focus scope, Escape and type-ahead are the select's;
+  you paint the trigger with `.Draw` and the open list on `sel.Popup()` (`d.Part(i)` or `sel.Part(i)` is the rectangle of option i),
+  starting from `components.SelectRecipe`, `PopupRecipe` and `MenuItemRecipe`. Dress one with the calls
+  any element takes (`Pad`, `Border`, `Radius`, `Background`, `Shadow`, `Hover`, `Focus`; on a text field also `FontSize`, `Weight`, `Color`,
+  `Mono`/`MonoFace` and `LineHeight`; a mono field is painted by the component and hides the platform's own text), and draw what those cannot say with
+  `.Draw(func(d *flex.DrawContext) { ... })` (after the background, before the children) or `.DrawOver(...)` (after the children);
+  `d.Canvas`, `d.Rect` (laid out, so no `Slot` and no `Rect()` after `End`), `d.State` (a `ui.State`: `Hovered`, `Pressed`,
+  `Focused`, `FocusVisible`, `Disabled`, `Checked`; `Box.State()` is the same while declaring) and `d.Fade(color)`. A Draw callback only
+  paints and runs more than once a frame. The theme's look is a pure function you can start from: `components.TextEntryRecipe`,
+  `CheckboxRecipe`, `SwitchRecipe`, `ButtonRecipe`. `f.Input(...)` and `f.Textarea(...)` take `Radius`, `Border`, `Background`, `Shadow` and `Pad`
+  too: what you set replaces the recipe's, the rest stays, so `f.Input(s).Radius(0)` is a square shadcn field.
 - Interactive rows and cards: `Hit(id, "label")` or `HitWith(id, label, ui.HitOptions)` on a container box (`f.Row()`,
   `f.Column()`, `f.Slot()`; there is no `f.Hit`), then `Children`, then `.Clicked()`. `Hit` only makes a pointer target and an
   accessibility name; it paints nothing, so a container with `Hit` and no `Children` (and no size or background) panics

@@ -1,6 +1,7 @@
 package flex
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -143,6 +144,34 @@ func TestSplitterDragMovesTheFirstPaneWithinItsLimits(t *testing.T) {
 	paint(canvas, size)
 	if got := splitterAt(t, canvas).X; got != state.Pos {
 		t.Errorf("the bar is at %v after the drag, want it right after the first pane at %v", got, state.Pos)
+	}
+}
+
+// Ratio gives the first pane its initial share of the container; once it is
+// placed, the application can set Pos and a drag keeps the pixel position.
+func TestSplitterRatioPlacesTheFirstPaneOnTheFirstLayout(t *testing.T) {
+	var view View
+	state := SplitterState{Ratio: 0.6}
+	canvas := testCanvas()
+	splitPage(&view, &state, 400)(canvas, ui.Size{Width: 400, Height: 100})
+	want := float32(0.6 * (400 - splitterThickness))
+	if math.Abs(float64(state.Pos-want)) > 0.01 {
+		t.Fatalf("the first pane is %v, want %v", state.Pos, want)
+	}
+	// The share survives a resize.
+	canvas.Reset()
+	splitPage(&view, &state, 500)(canvas, ui.Size{Width: 500, Height: 100})
+	want = float32(0.6 * (500 - splitterThickness))
+	if math.Abs(float64(state.Pos-want)) > 0.01 {
+		t.Fatalf("after resizing the first pane is %v, want %v", state.Pos, want)
+	}
+	// A state that holds pixels clears the share.
+	state.Ratio = 0
+	state.Pos = 180
+	canvas.Reset()
+	splitPage(&view, &state, 400)(canvas, ui.Size{Width: 400, Height: 100})
+	if state.Pos != 180 {
+		t.Fatalf("a set position was overwritten: %v", state.Pos)
 	}
 }
 

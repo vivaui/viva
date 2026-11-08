@@ -19,6 +19,10 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 主题是一个值，`ui.LightTheme()` 或 `ui.DarkTheme()`。切换外观就是改用另一个主题绘制。
 
+## 树形导航
+
+`BeginTree` 根据应用自己扁平化的层级绘制可见行。处理键盘事件时，将可见行的实际深度、展开状态和禁用状态传给 `components.NavigateTree`；深度不能使用为了适应宽度而截断的视觉缩进。它返回下一个可见行的索引，或者展开、折叠动作。子节点加载、展开状态、选择和焦点仍由应用负责，不产生隐藏模型或后台工作；导航切片可作为调用方拥有的临时存储复用。
+
 ## 图表
 
 `PaintAreaChart` 和 `PaintBarChart` 用类型化切片绘制完整的图表：图例、坐标轴、网格、序列、悬停标记和提示框。没有字段映射，也没有反射：`Values[k]` 是 `Series[k]` 的 Y 值，每个点一个，`NaN` 表示断点。

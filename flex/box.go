@@ -119,14 +119,23 @@ func (b Box) Shrink(v float32) Box {
 // Pad is space inside the element, Margin outside it. The one-argument forms
 // give all four sides; the X and Y forms give two; Sides gives them in the order
 // top, right, bottom, left.
-func (b Box) Pad(v float32) Box     { return b.PadSides(v, v, v, v) }
-func (b Box) PadX(v float32) Box    { n := b.n(); n.pad[1], n.pad[3] = v, v; return b }
-func (b Box) PadY(v float32) Box    { n := b.n(); n.pad[0], n.pad[2] = v, v; return b }
+func (b Box) Pad(v float32) Box { return b.PadSides(v, v, v, v) }
+func (b Box) PadX(v float32) Box {
+	n := b.n()
+	n.pad[1], n.pad[3], n.flags = v, v, n.flags|flagSetPad
+	return b
+}
+func (b Box) PadY(v float32) Box {
+	n := b.n()
+	n.pad[0], n.pad[2], n.flags = v, v, n.flags|flagSetPad
+	return b
+}
 func (b Box) Margin(v float32) Box  { return b.MarginSides(v, v, v, v) }
 func (b Box) MarginX(v float32) Box { n := b.n(); n.margin[1], n.margin[3] = v, v; return b }
 func (b Box) MarginY(v float32) Box { n := b.n(); n.margin[0], n.margin[2] = v, v; return b }
 func (b Box) PadSides(top, right, bottom, left float32) Box {
-	b.n().pad = [4]float32{top, right, bottom, left}
+	n := b.n()
+	n.pad, n.flags = [4]float32{top, right, bottom, left}, n.flags|flagSetPad
 	return b
 }
 func (b Box) MarginSides(top, right, bottom, left float32) Box {
@@ -152,7 +161,18 @@ func (b Box) Center() Box { return b.Items(Center).Justify(Center) }
 // over it, pressed or focused is declared with Hover, Pressed and Focus (see
 // style.go). On a control (an Input, a Select, a Button), Radius is also the
 // radius of the control's own corners in place of the theme's.
-func (b Box) Background(c ui.Color) Box { b.n().background = c; return b }
+//
+// Which controls take these calls as their look: Input and Textarea do (what is set replaces
+// the recipe's value, the rest stays), and every Base (InputBase, ButtonBase, CheckboxBase...)
+// is dressed by them alone. A Button, Checkbox, Switch, Select, Tabs, Segmented, Slider or
+// InputGroup with the theme's look paints its own surface over the element's, so to give one
+// a look of your own use its Base, or the items it is made of (see bases.go); the recipes in
+// package components (ButtonRecipe, CheckboxRecipe...) give the theme's values to start from.
+func (b Box) Background(c ui.Color) Box {
+	n := b.n()
+	n.background, n.flags = c, n.flags|flagSetBackground
+	return b
+}
 func (b Box) Radius(v float32) Box {
 	n := b.n()
 	n.radius, n.flags = v, n.flags|flagHasRadius
@@ -160,14 +180,18 @@ func (b Box) Radius(v float32) Box {
 }
 func (b Box) Border(width float32, c ui.Color) Box {
 	n := b.n()
-	n.borderWidth = width
+	n.borderWidth, n.flags = width, n.flags|flagSetBorder
 	b.f.extra(b.i).border = c
 	return b
 }
 
 // Shadow casts the shadow of that level of the elevation scale (ui.ShadowXS to
 // ui.ShadowLG) around the element's rounded rectangle, under its fill.
-func (b Box) Shadow(level ui.ShadowLevel) Box { b.f.extra(b.i).shadow = level; return b }
+func (b Box) Shadow(level ui.ShadowLevel) Box {
+	b.f.extra(b.i).shadow = level
+	b.n().flags |= flagSetShadow
+	return b
+}
 
 // Clip keeps what is drawn inside the element to its rectangle.
 func (b Box) Clip() Box { b.n().flags |= flagClip; return b }

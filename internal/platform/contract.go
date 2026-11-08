@@ -302,6 +302,9 @@ type TextLabel struct {
 	Y      float32
 	Width  float32
 	Height float32
+	// Identity, when nonzero, names this label across frames so a backend can
+	// retain its picture when the paint list reorders. See ui.TextIdentity.
+	Identity ui.TextIdentity
 	// OriginX and OriginY are where layout put the text, less X and Y (which the painter
 	// rounds to whole logical pixels): within half a pixel either way. A backend that
 	// places glyphs at device-pixel positions, as the platform's own text does, draws
