@@ -86,6 +86,7 @@ const chineseComponentNames: Record<string, string> = {
   'message-scroller': '消息滚动',
   table: '表格',
   tree: '树',
+  'tree-navigation': '树形键盘导航',
   attachment: '附件',
   avatar: '头像',
   carousel: '走马灯',
@@ -158,6 +159,9 @@ export function componentLabel(locale: Locale, id: string, fallback: string): st
 }
 
 const englishComponents: Record<string, { summary: string; examples: Record<string, [string, string]> }> = {
+  'tree-navigation': { summary: 'Keyboard navigation for a tree whose visible rows and expansion state are owned by the application.', examples: {
+    default: ['Keyboard navigation', 'Focus Production. Press Right Arrow to expand it or move to its first child, and Left Arrow to return to its parent or collapse it.'],
+  } },
   button: { summary: 'Button variants, disabled states and caller-owned click counts.', examples: {
     default: ['Click counter', 'Click or use the keyboard to update an application-owned counter.'],
     variants: ['Six variants', 'Production button variants share the same click counter.'],

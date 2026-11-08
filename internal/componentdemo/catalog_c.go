@@ -27,5 +27,6 @@ var groupCComponents = []Component{
 	toggleGroupComponent,
 	tooltipComponent,
 	treeComponent,
+	treeNavigationComponent,
 	typographyComponent,
 }
