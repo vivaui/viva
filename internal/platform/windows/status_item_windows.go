@@ -33,9 +33,11 @@ const (
 
 	notifySetVersion = 4
 	notifyVersion4   = 4
-	notifyMessageTip = notifyMessage | notifyIcon | notifyTip
 	// notifyShowTip asks version 4 shells to show the tip as a standard tooltip.
-	notifyShowTip = 0x80
+	// Without it the shell suppresses the tip for every version 4 icon, and the
+	// icon has none until the application draws its own.
+	notifyShowTip    = 0x80
+	notifyMessageTip = notifyMessage | notifyIcon | notifyTip | notifyShowTip
 
 	hwndTopmost        = ^uintptr(0) // HWND_TOPMOST, -1
 	wsPopup            = 0x80000000
