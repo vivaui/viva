@@ -46,6 +46,12 @@ screenshot, when the code behind them changes:
   the system's menu when the item has a `Menu`, which closes on a click elsewhere
   and shows what the application listed when it opened, not what it listed the
   time before (KDE keeps what it was told about an id);
+- a menu entry keeps its identity while the application changes its title or
+  state, adds another entry above it or removes one: the click runs the handler
+  of the entry the panel shows (Linux: the panel keeps the layout it read, so a
+  reused id would run another entry's handler). An entry's ID must be unique
+  among the entries of its menu; the same ID in another submenu is another
+  entry, and an entry without an ID is known by its title.
 - a panel closes when it loses focus, and the click that did it does not reopen it;
 - the window manager's close button reaches `OnCloseRequest`;
 - a hidden window is repainted when shown again (a compositor drops its contents);
