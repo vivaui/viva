@@ -2420,6 +2420,13 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     uint64_t _bitmapID;
     uint32_t _bitmapVersion;
     id<MTLTexture> _texture;
+    // A text label wider than a texture holds is rasterized in part: the texture holds the
+    // device pixels _windowLeft to _windowRight of it, on the _windowPixelScale grid and
+    // counted from the frame's left edge. Unset, the texture holds the whole label.
+    BOOL _windowed;
+    size_t _windowLeft;
+    size_t _windowRight;
+    CGFloat _windowPixelScale;
 }
 - (instancetype)initWithConfig:(viva_text_label)config;
 - (BOOL)matchesConfig:(viva_text_label)config;
@@ -2429,13 +2436,15 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 - (void)updateClipFromConfig:(viva_text_label)config;
 - (BOOL)clipped;
 - (NSRect)clip;
-- (void)forceTextureRebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale;
+- (void)forceTextureRebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport;
 - (void)markContentRebuild;
-- (BOOL)rebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale;
+- (BOOL)rebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport;
+- (BOOL)refreshWindowWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport;
 - (void)drawLineInContext:(CGContextRef)context pixelScale:(CGFloat)pixelScale;
 - (void)drawRunsInContext:(CGContextRef)context pixelScale:(CGFloat)pixelScale;
 - (id<MTLTexture>)texture;
 - (NSRect)frame;
+- (NSRect)quad;
 @end
 
 static NSData *viva_downsample_bitmap(NSData *source, uint32_t sourceWidth, uint32_t sourceHeight, uint32_t sourceStride, size_t width, size_t height) {
@@ -2501,6 +2510,58 @@ static void viva_bitmap_texture_extent(NSRect frame, CGFloat scale, size_t sourc
 // internal/platform.BitmapTextureStale applies the same rule.
 static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
     return need > have || have >= 2 * need;
+}
+
+// VIVA_LABEL_TEXTURE_LIMIT is the widest and tallest texture a label is rasterized into, in
+// pixels: the 2D texture limit of every Metal device Viva runs on.
+#define VIVA_LABEL_TEXTURE_LIMIT 16384
+
+// viva_label_visible_span is the part of a label that can be seen: its frame cut by its clip
+// and by the viewport, as the device pixels left to right of the pixelScale grid, counted
+// from the frame's left edge and at most full. NO when none of the label can be seen.
+static BOOL viva_label_visible_span(NSRect frame, BOOL clipped, NSRect clip, NSSize viewport,
+                                    CGFloat pixelScale, size_t full, size_t *left, size_t *right) {
+    NSRect visible = NSIntersectionRect(frame, NSMakeRect(0, 0, viewport.width, viewport.height));
+    if (clipped) {
+        visible = NSIntersectionRect(visible, clip);
+    }
+    if (NSIsEmptyRect(visible)) {
+        return NO;
+    }
+    CGFloat from = floor((NSMinX(visible) - NSMinX(frame)) * pixelScale);
+    CGFloat to = ceil((NSMaxX(visible) - NSMinX(frame)) * pixelScale);
+    *left = (size_t)MIN(MAX(from, 0), (CGFloat)full);
+    *right = (size_t)MIN(MAX(to, 0), (CGFloat)full);
+    return *right > *left;
+}
+
+// viva_label_window chooses the device pixels of a label full pixels wide that a texture of
+// at most limit pixels holds. The visible span left to right is kept with as much margin on
+// both sides as the span itself, so a scroll of up to a viewport keeps the texture; at an
+// end of the label the margin goes to the other side. A span wider than limit keeps its
+// first limit pixels. A label none of which is visible keeps its start.
+static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, size_t right,
+                              size_t *windowLeft, size_t *windowRight) {
+    size_t width = MIN(full, limit);
+    if (!visible) {
+        *windowLeft = 0;
+        *windowRight = width;
+        return;
+    }
+    size_t span = right - left;
+    if (span >= width) {
+        *windowLeft = MIN(left, full - width);
+        *windowRight = *windowLeft + width;
+        return;
+    }
+    size_t margin = MIN(span, (width - span) / 2);
+    width = span + 2 * margin;
+    size_t low = left > margin ? left - margin : 0;
+    if (low + width > full) {
+        low = full - width;
+    }
+    *windowLeft = low;
+    *windowRight = low + width;
 }
 
 @implementation VivaTextLayer
@@ -2659,16 +2720,37 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
     _frame = frame;
 }
 
-- (void)forceTextureRebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale {
+- (void)forceTextureRebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport {
     _lastScale = 0;
-    [self rebuildWithDevice:device scale:scale];
+    [self rebuildWithDevice:device scale:scale viewport:viewport];
 }
 
 - (void)markContentRebuild {
     viva_label_texture_rebuild_count++;
 }
 
-- (BOOL)rebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale {
+// refreshWindowWithDevice rasterizes a label held in part again when the part of it that
+// can be seen in viewport is no longer all in its texture: it moved, or its clip or the
+// viewport did. Any other label is left as it is.
+- (BOOL)refreshWindowWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport {
+    if (!_windowed || _texture == nil) {
+        return YES;
+    }
+    size_t full = (size_t)MAX(1.0, ceil(_frame.size.width * _windowPixelScale));
+    size_t left = 0, right = 0;
+    if (!viva_label_visible_span(_frame, _clipped, _clip, viewport, _windowPixelScale, full, &left, &right) ||
+        (left >= _windowLeft && right <= _windowRight)) {
+        return YES;
+    }
+    _lastScale = 0;
+    if (![self rebuildWithDevice:device scale:scale viewport:viewport]) {
+        return NO;
+    }
+    [self markContentRebuild];
+    return YES;
+}
+
+- (BOOL)rebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport {
     size_t wantWidth = 0, wantHeight = 0;
     if (_bitmap != nil) {
         viva_bitmap_texture_extent(_frame, scale, _bitmapWidth, _bitmapHeight, &wantWidth, &wantHeight);
@@ -2727,9 +2809,22 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
     // Rasterize on the integer physical-pixel grid: a fractional frame origin
     // must not bleed anti-aliasing across texel boundaries.
     CGFloat pixelScale = ceil(scale);
-    size_t pixelWidth = (size_t)MAX(1.0, ceil(_frame.size.width * pixelScale));
+    size_t fullWidth = (size_t)MAX(1.0, ceil(_frame.size.width * pixelScale));
     size_t pixelHeight = (size_t)MAX(1.0, ceil(_frame.size.height * pixelScale));
-    if (pixelWidth > 16384 || pixelHeight > 16384 || pixelWidth > SIZE_MAX / 4) {
+    if (pixelHeight > VIVA_LABEL_TEXTURE_LIMIT) {
+        return NO;
+    }
+    // A line wider than a texture holds (a long line laid out at its full width and
+    // scrolled) is rasterized only around the part of it that can be seen.
+    BOOL windowed = fullWidth > VIVA_LABEL_TEXTURE_LIMIT;
+    size_t windowLeft = 0, windowRight = fullWidth;
+    if (windowed) {
+        size_t left = 0, right = 0;
+        BOOL visible = viva_label_visible_span(_frame, _clipped, _clip, viewport, pixelScale, fullWidth, &left, &right);
+        viva_label_window(fullWidth, VIVA_LABEL_TEXTURE_LIMIT, visible, left, right, &windowLeft, &windowRight);
+    }
+    size_t pixelWidth = windowRight - windowLeft;
+    if (pixelWidth > SIZE_MAX / 4) {
         return NO;
     }
     size_t rowBytes = pixelWidth * 4;
@@ -2761,6 +2856,10 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
     // the context is scaled to that grid: scaling by the display scale draws the text too small
     // wherever it is fractional.
     viva_prepare_text_context(context, pixelScale);
+    if (windowLeft > 0) {
+        // The label is drawn as it would be whole, moved so its window starts the bitmap.
+        CGContextTranslateCTM(context, -(CGFloat)windowLeft / pixelScale, 0);
+    }
     if (_runCount > 0) {
         [self drawRunsInContext:context pixelScale:pixelScale];
     } else {
@@ -2790,6 +2889,10 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
     [_texture release];
     _texture = texture;
     _lastScale = scale;
+    _windowed = windowed;
+    _windowLeft = windowLeft;
+    _windowRight = windowRight;
+    _windowPixelScale = pixelScale;
     return YES;
 }
 
@@ -2983,15 +3086,30 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
     return _frame;
 }
 
+// quad is where the texture is drawn: the frame, or for a label held in part, the part of
+// the frame its texture holds. Its last pixels end where the frame does, as a whole
+// label's texture does.
+- (NSRect)quad {
+    if (!_windowed) {
+        return _frame;
+    }
+    size_t full = (size_t)MAX(1.0, ceil(_frame.size.width * _windowPixelScale));
+    CGFloat left = (CGFloat)_windowLeft / _windowPixelScale;
+    CGFloat right = _windowRight >= full ? _frame.size.width : (CGFloat)_windowRight / _windowPixelScale;
+    return NSMakeRect(_frame.origin.x + left, _frame.origin.y, right - left, _frame.size.height);
+}
+
 @end
 
 // Keep native windows and offscreen frames on the same retained-texture path.
+// viewport is the size of the window or frame the labels are drawn in, logical pixels.
 static int viva_update_label_layers(
     NSArray<VivaTextLayer *> *previous,
     const viva_text_label *labels,
     NSUInteger count,
     id<MTLDevice> device,
     CGFloat scale,
+    NSSize viewport,
     NSMutableArray<VivaTextLayer *> **updated
 ) {
     NSMutableArray<VivaTextLayer *> *replacement =
@@ -3031,8 +3149,12 @@ static int viva_update_label_layers(
                 labels[index].x, labels[index].y,
                 labels[index].width, labels[index].height)];
             [existing updateClipFromConfig:labels[index]];
-            // An image drawn at a new size may need a texture of another resolution.
-            if ((labels[index].flags & VIVA_LABEL_BITMAP) != 0 && ![existing rebuildWithDevice:device scale:scale]) {
+            // An image drawn at a new size may need a texture of another resolution, and a
+            // line held in part another part of it.
+            BOOL rebuilt = (labels[index].flags & VIVA_LABEL_BITMAP) != 0
+                ? [existing rebuildWithDevice:device scale:scale viewport:viewport]
+                : [existing refreshWindowWithDevice:device scale:scale viewport:viewport];
+            if (!rebuilt) {
                 free(source);
                 [replacement release];
                 return 3;
@@ -3041,7 +3163,7 @@ static int viva_update_label_layers(
             continue;
         }
         VivaTextLayer *layer = [[VivaTextLayer alloc] initWithConfig:labels[index]];
-        if (layer == nil || ![layer rebuildWithDevice:device scale:scale]) {
+        if (layer == nil || ![layer rebuildWithDevice:device scale:scale viewport:viewport]) {
             int failure = layer == nil ? 2 : 3;
             free(source);
             [layer release];
@@ -3148,7 +3270,7 @@ static void viva_encode_scene(
         }
 
         VivaTextLayer *layer = [labels objectAtIndex:command.first];
-        NSRect frame = [layer frame];
+        NSRect frame = [layer quad];
         BOOL scissored = NO;
         if ([layer clipped]) {
             NSRect clip = [layer clip];
@@ -4436,7 +4558,7 @@ static int viva_navigation_command(SEL selector) {
     _liveResizeRelaxed = NO;
     CGFloat scale = MAX(_metalLayer.contentsScale, 1.0);
     for (VivaTextLayer *layer in _textLabels) {
-        [layer forceTextureRebuildWithDevice:_metalLayer.device scale:scale];
+        [layer forceTextureRebuildWithDevice:_metalLayer.device scale:scale viewport:self.bounds.size];
     }
     viva_label_texture_rebuild_count += _textLabels.count;
     // setNeedsDisplay is not honored without drawRect; render explicitly so
@@ -4462,7 +4584,7 @@ static int viva_navigation_command(SEL selector) {
 - (BOOL)rebuildTextLabels {
     CGFloat scale = MAX(_metalLayer.contentsScale, 1.0);
     for (VivaTextLayer *layer in _textLabels) {
-        if (![layer rebuildWithDevice:_metalLayer.device scale:scale]) {
+        if (![layer rebuildWithDevice:_metalLayer.device scale:scale viewport:self.bounds.size]) {
             return NO;
         }
     }
@@ -4809,7 +4931,7 @@ static void viva_set_secure_event_input(BOOL on) {
         }
     }
     NSMutableArray<VivaTextLayer *> *replacement = nil;
-    int status = viva_update_label_layers(_textLabels, labels, count, _metalLayer.device, scale, &replacement);
+    int status = viva_update_label_layers(_textLabels, labels, count, _metalLayer.device, scale, self.bounds.size, &replacement);
     if (status != 0) {
         free(replacementLayers);
         return status;
@@ -7279,7 +7401,7 @@ int viva_unregister_font_file(const char *path) {
         }
     }
     NSMutableArray<VivaTextLayer *> *replacement = nil;
-    if (viva_update_label_layers(_labels, labels, count, _device, _scale, &replacement) != 0) {
+    if (viva_update_label_layers(_labels, labels, count, _device, _scale, _size, &replacement) != 0) {
         free(replacementLayers);
         return NO;
     }
