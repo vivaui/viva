@@ -6,7 +6,7 @@ import (
 )
 
 type sizingWindow struct {
-	fakeWindow
+	WindowControl
 	width, height int
 	err           error
 }
@@ -41,7 +41,7 @@ func TestWindowSetSizeReachesTheNativeWindow(t *testing.T) {
 }
 
 func TestWindowSetSizeReportsUnsupportedHosts(t *testing.T) {
-	window := &Window{control: &fakeWindow{}}
+	window := &Window{control: struct{ WindowControl }{}}
 	if err := window.SetSize(800, 600); !errors.Is(err, ErrUnsupported) {
 		t.Fatalf("unsupported host error = %v", err)
 	}
