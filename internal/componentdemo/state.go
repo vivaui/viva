@@ -48,7 +48,7 @@ type editableField struct {
 var coreComponents = []Component{
 	buttonComponent, badgeComponent, checkboxComponent, colorSwatchComponent, colorPickerComponent,
 	switchComponent, inputComponent, dialogComponent,
-	codeEditorComponent, codeDiffComponent, splitButtonComponent, imageViewComponent,
+	codeEditorComponent, codeDiffComponent, codeMergeComponent, splitButtonComponent, imageViewComponent,
 	reorderListComponent, reorderGridComponent,
 }
 
@@ -102,6 +102,7 @@ type State struct {
 	textarea    *components.TextareaLayout
 	codeEditor  *components.CodeEditor
 	codeDiff    *codeDiffDemoState
+	codeMerge   *codeMergeDemoState
 	reorder     *reorderDemoState
 	reorderGrid *reorderGridDemoState
 	imageBitmap *ui.Bitmap

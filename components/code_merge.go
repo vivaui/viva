@@ -131,6 +131,7 @@ func (merge *CodeMerge) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect,
 	diff.lineWidth = merge.width
 	contentHeight := float32(len(snapshot.Rows)) * diff.rowHeight
 	paneWidth := max((bounds.Width-2*codeDiffPaneGap-scrollAreaBarSize)/3, 1)
+	diff.gutter = min(diff.gutter, max(paneWidth-codeDiffPadX, 1))
 	codeWidth := max(paneWidth-diff.gutter-codeDiffPadX, 1)
 	contentWidth := bounds.Width + max(diff.lineWidth-codeWidth+codeDiffPadX, 0)
 	area := BeginScrollArea(canvas, theme, bounds, ui.Size{Width: contentWidth, Height: contentHeight}).
@@ -147,6 +148,7 @@ func (merge *CodeMerge) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect,
 	diff.scrollX, diff.scrollY = diff.Geometry.OffsetX, diff.Geometry.OffsetY
 	viewport := diff.Geometry.Viewport
 	paneWidth = max((viewport.Width-2*codeDiffPaneGap)/3, 1)
+	diff.gutter = min(diff.gutter, max(paneWidth-codeDiffPadX, 1))
 	currentPane := ui.Rect{X: viewport.X, Y: viewport.Y, Width: paneWidth, Height: viewport.Height}
 	resultPane := ui.Rect{X: currentPane.X + paneWidth + codeDiffPaneGap, Y: viewport.Y, Width: paneWidth, Height: viewport.Height}
 	incomingPane := ui.Rect{X: resultPane.X + paneWidth + codeDiffPaneGap, Y: viewport.Y,

@@ -485,7 +485,7 @@ func (diff *CodeDiff) paintRowSide(canvas *ui.Canvas, rowBounds, pane ui.Rect, k
 	}
 	if kind == CodeDiffChanged && line >= 0 && (!left || line < len(diff.snapshot.Result.Left)) {
 		if left || line < len(diff.snapshot.Result.Right) && value == diff.snapshot.Result.Right[line] {
-			diff.paintInline(canvas, diff.inlineRow, value, left, origin, rowBounds)
+			diff.paintInline(canvas, diff.inlineRow, value, left, origin, code)
 		}
 	}
 	if !left && line >= 0 && line < len(diff.lines) {
@@ -557,7 +557,11 @@ func (diff *CodeDiff) paintInline(canvas *ui.Canvas, row int, value string, left
 		color.Alpha *= .28
 		first := gridWidth(value[:start], diff.tabWidth)
 		last := gridWidth(value[:end], diff.tabWidth)
-		canvas.Fill(ui.Rect{X: origin + float32(first)*diff.cellWidth, Y: bounds.Y, Width: float32(max(last-first, 1)) * diff.cellWidth, Height: bounds.Height}, color)
+		startX := max(origin+float32(first)*diff.cellWidth, bounds.X)
+		endX := min(origin+float32(max(last, first+1))*diff.cellWidth, bounds.X+bounds.Width)
+		if endX > startX {
+			canvas.Fill(ui.Rect{X: startX, Y: bounds.Y, Width: endX - startX, Height: bounds.Height}, color)
+		}
 	}
 }
 

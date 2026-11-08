@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/internal/grapheme"
+import "github.com/vivaui/viva/text"
 
 // CodeDiffInline marks one changed grapheme range in a paired row. Offsets are
 // UTF-8 byte offsets within the source lines; zero-width ranges are insertions.
@@ -15,7 +15,7 @@ const codeDiffMaxInlineClusters = 128
 func codeDiffBoundaries(line string, boundaries []int) []int {
 	boundaries = append(boundaries[:0], 0)
 	for at := 0; at < len(line) && len(boundaries) <= codeDiffMaxInlineClusters; {
-		at = grapheme.Next(line, at)
+		at = text.NextGraphemeBoundary(line, at)
 		boundaries = append(boundaries, at)
 	}
 	return boundaries
@@ -24,7 +24,7 @@ func codeDiffBoundaries(line string, boundaries []int) []int {
 func diffCodeInline(dst []CodeDiffInline, row int, left, right string, budget *int, scratch *[]uint16) []CodeDiffInline {
 	leftAt, rightAt := 0, 0
 	for leftAt < len(left) && rightAt < len(right) {
-		leftEnd, rightEnd := grapheme.Next(left, leftAt), grapheme.Next(right, rightAt)
+		leftEnd, rightEnd := text.NextGraphemeBoundary(left, leftAt), text.NextGraphemeBoundary(right, rightAt)
 		if left[leftAt:leftEnd] != right[rightAt:rightEnd] {
 			break
 		}
@@ -32,7 +32,7 @@ func diffCodeInline(dst []CodeDiffInline, row int, left, right string, budget *i
 	}
 	leftEnd, rightEnd := len(left), len(right)
 	for leftEnd > leftAt && rightEnd > rightAt {
-		leftStart, rightStart := grapheme.Prev(left, leftEnd), grapheme.Prev(right, rightEnd)
+		leftStart, rightStart := text.PreviousGraphemeBoundary(left, leftEnd), text.PreviousGraphemeBoundary(right, rightEnd)
 		if left[leftStart:leftEnd] != right[rightStart:rightEnd] {
 			break
 		}

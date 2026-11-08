@@ -111,7 +111,7 @@ func loadPages(root string) ([]Page, Manifest, error) {
 		// The files that belong to another component's page: its layout and the
 		// bars its examples show.
 		if file.Name() == "doc.go" || file.Name() == "direction.go" ||
-			file.Name() == "menu_typeahead.go" || file.Name() == "code_diff_model.go" ||
+			file.Name() == "menu_typeahead.go" || file.Name() == "code_diff_model.go" || file.Name() == "code_diff_inline.go" ||
 			file.Name() == "code_editor_layout.go" || file.Name() == "caret_blink.go" || file.Name() == "find_bar.go" || file.Name() == "go_to_line.go" || file.Name() == "hierarchy_menu.go" ||
 			file.Name() == "markdown_anchor.go" || file.Name() == "text_selection.go" {
 			continue
