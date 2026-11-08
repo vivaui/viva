@@ -146,8 +146,11 @@
 //     to a line; the application parses the number and moves the caret.
 //   - Code diff: `CodeDiff` paints an aligned, syntax-highlighted comparison on
 //     the same character grid as `CodeEditor`, with one read-only source and an
-//     editable right source; `DiffCodeLines`
-//     produces its bounded line alignment and statistics.
+//     editable right source, in side-by-side, stacked or unified layouts, with
+//     gutter hit regions and row navigation. `DiffCodeLines` produces bounded
+//     line alignment with `CodeDiffInline` grapheme changes. `CodeMerge` uses
+//     the same editor and grid for three caller-aligned sources and an editable
+//     center result.
 //   - Image preview: `PaintImageView` clips an immutable bitmap with fit, zoom
 //     and pan; actual size maps one bitmap pixel to one device pixel at any DPI.
 //   - One-time code: `PaintInputOTP` paints segmented code entry;

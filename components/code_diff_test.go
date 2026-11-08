@@ -170,6 +170,128 @@ found:
 	}
 }
 
+func TestCodeDiffInlineMarksSeparateGraphemeChanges(t *testing.T) {
+	left := "name: old 🧑‍💻 yes\n"
+	right := "name: new 🧑‍🚀 no\n"
+	result := DiffCodeLines(left, right)
+	if len(result.Inline) < 2 {
+		t.Fatalf("separate edits were merged: %+v", result.Inline)
+	}
+	for _, span := range result.Inline {
+		before := result.Left[result.Rows[span.Row].LeftLine]
+		after := result.Right[result.Rows[span.Row].RightLine]
+		if span.LeftStart < 0 || span.LeftEnd > len(before) || span.RightStart < 0 || span.RightEnd > len(after) {
+			t.Fatalf("out-of-bounds span: %+v", span)
+		}
+		for _, boundary := range []struct {
+			line  string
+			start int
+			end   int
+		}{
+			{before, span.LeftStart, span.LeftEnd}, {after, span.RightStart, span.RightEnd},
+		} {
+			if strings.Contains(boundary.line[boundary.start:boundary.end], "‍") &&
+				!strings.Contains(boundary.line[boundary.start:boundary.end], "🧑") {
+				t.Fatalf("intraline highlight splits an emoji cluster: %+v", span)
+			}
+		}
+	}
+}
+
+func BenchmarkDiffCodeLinesWithInlineChanges(b *testing.B) {
+	left := strings.Repeat("key: aaa-middle-zzz\n", 800)
+	right := strings.Repeat("key: bbb-middle-yyy\n", 800)
+	b.ReportAllocs()
+	for range b.N {
+		DiffCodeLines(left, right)
+	}
+}
+
+func TestCodeDiffGutterAndHunkNavigation(t *testing.T) {
+	result := DiffCodeLines("first\nold\nkeep\nold2\n", "first\nnew\nkeep\nnew2\n")
+	hunks := result.Hunks(nil)
+	if len(hunks) != 2 || hunks[0].End <= hunks[0].Start || hunks[1].Start <= hunks[0].End {
+		t.Fatalf("hunks = %+v", hunks)
+	}
+	if next, ok := result.NextHunk(hunks[0].Start, true); !ok || next != hunks[1] {
+		t.Fatalf("next hunk = %+v, %t", next, ok)
+	}
+	if previous, ok := result.NextHunk(hunks[1].Start, false); !ok || previous != hunks[0] {
+		t.Fatalf("previous hunk = %+v, %t", previous, ok)
+	}
+	var canvas ui.Canvas
+	var diff CodeDiff
+	var snapshot CodeDiffSnapshot
+	snapshot.Result, snapshot.Value = result, "first\nnew\nkeep\nnew2\n"
+	snapshot.LeftGutterID, snapshot.RightGutterID = ui.Item(11), ui.Item(12)
+	diff.Paint(&canvas, ui.DarkTheme(), ui.Rect{Width: 620, Height: 180}, snapshot)
+	point := ui.Point{X: diff.leftGutter.X + 1, Y: diff.leftGutter.Y + diff.rowHeight*1.5}
+	row, line, left, ok := diff.GutterAt(point)
+	if !ok || !left || row != hunks[0].Start || line != result.Rows[row].LeftLine {
+		t.Fatalf("gutter = row %d line %d left %t ok %t", row, line, left, ok)
+	}
+	canvas.Reset()
+	diff.Paint(&canvas, ui.DarkTheme(), ui.Rect{Width: 620, Height: diff.rowHeight * 2}, snapshot)
+	diff.RevealRow(hunks[1].Start)
+	if diff.scrollY <= 0 {
+		t.Fatal("next hunk was not revealed")
+	}
+}
+
+func TestCodeDiffStackedAndUnifiedKeepEditableTextAndRows(t *testing.T) {
+	left, right := "same\nold\nlast", "same\nnew\nlast"
+	for _, layout := range []CodeDiffLayout{CodeDiffStacked, CodeDiffUnified} {
+		var canvas ui.Canvas
+		var diff CodeDiff
+		snapshot := CodeDiffSnapshot{Result: DiffCodeLines(left, right), Value: right,
+			Layout: layout, ID: ui.Item(45), RightGutterID: ui.Item(46), ShowCaret: true, Focused: true,
+			Caret: len("same\nnew")}
+		diff.Paint(&canvas, ui.DarkTheme(), ui.Rect{Width: 620, Height: 150}, snapshot)
+		if diff.rightCode.Width <= 620/2-diff.gutter {
+			t.Fatalf("layout %d did not use a full-width editor", layout)
+		}
+		if _, ok := diff.OffsetAt(ui.Point{X: diff.rightCode.X + 1, Y: diff.rightCode.Y + diff.rowHeight*1.5}); !ok {
+			t.Fatalf("layout %d lost native text placement", layout)
+		}
+		if _, shown := diff.CaretBounds(); !shown {
+			t.Fatalf("layout %d lost the result caret", layout)
+		}
+		if layout == CodeDiffUnified {
+			if len(diff.visualRows) <= len(snapshot.Result.Rows) {
+				t.Fatal("changed lines did not split into removal and addition")
+			}
+			removed := diff.visualRows[1]
+			point := ui.Point{X: diff.rightGutter.X + 1, Y: diff.rightGutter.Y + diff.rowHeight*1.5}
+			row, line, left, ok := diff.GutterAt(point)
+			if !ok || !left || line != removed.line || row != removed.row {
+				t.Fatalf("unified removed row = %d %d %t %t", row, line, left, ok)
+			}
+		}
+	}
+}
+
+func TestCodeDiffGutterActionsAreIndividualButtons(t *testing.T) {
+	var canvas ui.Canvas
+	var diff CodeDiff
+	result := DiffCodeLines("old\nkeep", "new\nkeep")
+	action := CodeDiffGutterAction{Row: 0, Left: false, ID: ui.Item(70), Label: "Apply"}
+	diff.Paint(&canvas, ui.DarkTheme(), ui.Rect{Width: 700, Height: 180}, CodeDiffSnapshot{
+		Result: result, Value: "new\nkeep", RightGutterID: ui.Item(71), Actions: []CodeDiffGutterAction{action},
+	})
+	var actionHit, wholeGutter bool
+	for _, hit := range canvas.Hits() {
+		if hit.ID == action.ID {
+			actionHit = hit.Role == ui.RoleButton && hit.Bounds.Height <= diff.rowHeight
+		}
+		if hit.ID == ui.Item(71) {
+			wholeGutter = hit.Bounds.Height > diff.rowHeight
+		}
+	}
+	if !actionHit || !wholeGutter {
+		t.Fatalf("per-row action = %t; gutter = %t", actionHit, wholeGutter)
+	}
+}
+
 func TestCodeDiffPaintsOneSelectionPerLineAndRebuildsSelectedText(t *testing.T) {
 	theme := ui.DarkTheme()
 	value := "alpha\nmiddle\nomega\n"
