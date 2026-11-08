@@ -274,7 +274,7 @@ func (editor *CodeEditor) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rec
 	} else {
 		editor.caretBlink.Rest()
 	}
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Disabled: snapshot.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: focused, Disabled: snapshot.Disabled})
 
 	size := snapshot.FontSize
 	if size <= 0 {

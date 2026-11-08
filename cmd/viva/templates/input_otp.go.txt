@@ -246,7 +246,7 @@ func inputOTPSlotState(snapshot InputOTPSnapshot, focused bool, index int) (acti
 // when focus moves: only the colors and bounds of the slots involved change.
 func inputOTPPaintSlotShape(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, index, slots, groupSize int, active, selected bool, snapshot InputOTPSnapshot) {
 	// An active slot is marked by its border color alone.
-	border, fill := textEntryColors(theme, textEntryState{Focused: active, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
+	border, fill := textEntryColors(&theme, ui.State{Focused: active, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	if selected {
 		fill = theme.Primary
 		fill.Alpha *= 0.20

@@ -176,9 +176,10 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 	lines := overlayWrap(drawer.canvas, &scratch, description, metrics.FontSizeM, ui.WeightRegular, drawer.contentWidth()-2*padding)
 	headerHeight := drawerHeaderHeight(metrics, len(lines))
 	content := drawer.contentBounds(headerHeight)
-	radius := metrics.RadiusSurface
+	look := dialogRecipe(&drawer.theme)
+	radius := look.Radius
 	drawer.canvas.BeginPresence(key, overlaySurfacePart, drawer.presence(content), centerOf(content))
-	drawer.canvas.RoundedBorder(content, radius, 1, drawer.theme.Border, drawer.theme.Popover)
+	paintPanel(drawer.canvas, content, look)
 	drawer.squareViewportEdge(content, radius)
 	// The panel is opaque to pointers: pressing it must not reach the dismiss
 	// target behind it.

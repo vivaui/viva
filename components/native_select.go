@@ -157,7 +157,7 @@ func PaintNativeSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapsh
 		return bounds
 	}
 	enabled := !snapshot.Disabled && !snapshot.ID.IsZero()
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{
+	paintTextEntrySurface(canvas, &theme, bounds, ui.State{
 		Focused:  snapshot.Focused || enabled && canvas.FocusVisible() == snapshot.ID,
 		Invalid:  snapshot.Invalid,
 		Disabled: snapshot.Disabled,

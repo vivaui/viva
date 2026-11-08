@@ -105,7 +105,7 @@ func TestAlertDialogActionVariantStylesOnlyTheConfirmingButton(t *testing.T) {
 		}).Paint("Delete?", "This cannot be undone.", "Delete", "Cancel")
 		for _, rectangle := range canvas.Rectangles() {
 			switch rectangle.Color {
-			case buttonStyleFor(theme, ButtonDestructive, false, false).background:
+			case buttonStyleFor(&theme, ButtonDestructive, false, false).background:
 				danger++
 			case theme.Primary:
 				primary++

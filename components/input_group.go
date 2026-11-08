@@ -204,7 +204,7 @@ func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot
 	layout.Control = ui.Rect{X: row.X + startWidth, Y: row.Y, Width: inputGroupMax(0, row.Width-startWidth-endWidth), Height: row.Height}
 
 	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	inputGroupPaintSlot(canvas, theme, layout.BlockStart, snapshot.BlockStart, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.BlockEnd, snapshot.BlockEnd, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.InlineStart, snapshot.InlineStart, false, true, snapshot.Disabled)

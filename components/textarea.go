@@ -125,11 +125,35 @@ func PaintTextarea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot T
 		return bounds
 	}
 	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
-	top := min(max(snapshot.InsetTop, 0), max(bounds.Height-2*textareaPadY, 0))
+	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	inset := theme.Metrics.TextInsetX()
-	content := ui.Rect{X: bounds.X + inset, Y: bounds.Y + textareaPadY + top, Width: textareaMax(0, bounds.Width-2*inset), Height: textareaMax(0, bounds.Height-2*textareaPadY-top-snapshot.InsetBottom)}
-	content.Width = max(0, content.Width-snapshot.InsetRight)
+	area := ui.Rect{X: bounds.X + inset, Y: bounds.Y + textareaPadY, Width: textareaMax(0, bounds.Width-2*inset), Height: textareaMax(0, bounds.Height-2*textareaPadY)}
+	paintTextareaContent(canvas, theme, bounds, area, snapshot, focused)
+	return bounds
+}
+
+// TextareaPadY is the room above and below the rows of text in the shadcn textarea.
+const TextareaPadY = textareaPadY
+
+// PaintTextareaContent paints what is inside a multiline field and declares its hit
+// region, and nothing around it: no border, fill, shadow or focus color. It is what
+// PaintTextarea paints for the text, rows, selection, composition and caret, so a field
+// the application dresses itself edits and scrolls exactly as the shadcn one does.
+//
+// bounds is the whole control, which the pointer hits and focus belongs to; area is the
+// rectangle the rows are laid out in, the caller's own, which the snapshot's InsetTop,
+// InsetBottom and InsetRight then shrink (room for a toolbar or a button inside the box).
+func PaintTextareaContent(canvas *ui.Canvas, theme ui.Theme, bounds, area ui.Rect, snapshot TextareaSnapshot) {
+	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 {
+		return
+	}
+	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
+	paintTextareaContent(canvas, theme, bounds, area, snapshot, focused)
+}
+
+func paintTextareaContent(canvas *ui.Canvas, theme ui.Theme, bounds, area ui.Rect, snapshot TextareaSnapshot, focused bool) {
+	top := min(max(snapshot.InsetTop, 0), max(area.Height, 0))
+	content := ui.Rect{X: area.X, Y: area.Y + top, Width: textareaMax(0, area.Width-snapshot.InsetRight), Height: textareaMax(0, area.Height-top-snapshot.InsetBottom)}
 	display := snapshot.DisplayValue
 	if display == "" {
 		display = snapshot.Value
@@ -156,7 +180,6 @@ func PaintTextarea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot T
 		}
 		canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, options)
 	}
-	return bounds
 }
 
 // textareaRows walks the rows of the text being painted: the layout's, kept from

@@ -221,49 +221,25 @@ func (control SegmentedControl) Paint() SegmentedControlResult {
 
 	// Every option emits exactly one surface rectangle. Resting choices use the
 	// track color, so interaction changes colors without shifting scene nodes.
-	// The selected choice is a raised pill. On a light theme the card is
-	// lighter than the track, which does that; on a dark theme the card is
-	// darker than the track, so using it would sink the pill into the track
-	// with barely any contrast. There the pill is the track lifted toward the
-	// foreground instead.
-	selectedFill := control.theme.Card
-	if segmentedControlLuminance(selectedFill) < segmentedControlLuminance(trackFill)+0.02 {
-		selectedFill = segmentedControlBlend(trackFill, control.theme.Foreground, 0.14)
-	}
+	palette := newSegmentPalette(&control.theme, control.disabled)
 	for index, option := range control.options {
 		bounds := control.segmentBounds(index, count)
 		surface := segmentedControlInset(bounds, 2)
 		enabled := !control.disabled && !option.Disabled
-		hovered := enabled && !option.ID.IsZero() && control.hovered == option.ID
-		pressed := enabled && !option.ID.IsZero() && control.pressed == option.ID
-		selected := !option.ID.IsZero() && option.ID == control.selected
-
-		fill := trackFill
-		if control.theme.Background.Alpha < 1 {
-			// The track is already painted; resting segments must not tint it twice.
-			fill.Alpha = 0
+		state := ui.State{Disabled: !enabled, Selected: !option.ID.IsZero() && option.ID == control.selected}
+		if enabled && !option.ID.IsZero() {
+			state.Hovered = control.hovered == option.ID
+			state.Pressed = control.pressed == option.ID
+			state.FocusVisible = control.focused == option.ID
 		}
-		switch {
-		case selected && pressed:
-			fill = segmentedControlBlend(selectedFill, control.theme.Foreground, 0.08)
-		case selected && hovered:
-			fill = segmentedControlBlend(selectedFill, control.theme.Foreground, 0.04)
-		case selected:
-			fill = selectedFill
-		case pressed:
-			fill = control.theme.Border
-		case hovered:
-			fill = control.theme.Hover
-		}
-		if !enabled && selected {
-			fill = control.theme.Muted
-		}
-		if enabled && !option.ID.IsZero() && control.focused == option.ID {
+		fill := palette.fill(&control.theme, state)
+		if segmentFocused(state) {
 			// The segment that holds the keyboard, not the whole control.
+			ring := scaledAlpha(control.theme.Ring, 0.50)
 			if control.theme.Background.Alpha < 1 {
-				control.canvas.RoundedOutline(segmentedControlExpand(surface, 3), innerRadius+3, 2, scaledAlpha(control.theme.Ring, 0.50))
+				control.canvas.RoundedOutline(segmentedControlExpand(surface, 3), innerRadius+3, 2, ring)
 			} else {
-				control.canvas.Rounded(segmentedControlExpand(surface, 3), innerRadius+3, scaledAlpha(control.theme.Ring, 0.50))
+				control.canvas.Rounded(segmentedControlExpand(surface, 3), innerRadius+3, ring)
 			}
 			paintBordered(control.canvas, control.theme, surface, innerRadius, control.theme.Ring, fill)
 			continue
@@ -291,14 +267,7 @@ func (control SegmentedControl) Paint() SegmentedControlResult {
 		enabled := !control.disabled && !option.Disabled
 		active := !option.ID.IsZero() && option.ID == control.selected
 		hovered := enabled && !option.ID.IsZero() && control.hovered == option.ID
-
-		foreground := control.theme.MutedForeground
-		if active || hovered {
-			foreground = control.theme.Foreground
-		}
-		if !enabled {
-			foreground = control.theme.MutedForeground
-		}
+		foreground := palette.foreground(&control.theme, ui.State{Disabled: !enabled, Selected: active, Hovered: hovered})
 
 		// Every option shares one weight: a heavier selected label is wider at the
 		// same size, so it would look enlarged and shift off center.
@@ -354,3 +323,94 @@ func segmentedControlBlend(color, overlay ui.Color, amount float32) ui.Color {
 		Alpha: color.Alpha,
 	}
 }
+
+// SegmentLook is the look of one choice of a segmented control in one state.
+type SegmentLook struct {
+	// Fill is the choice's background: the raised pill when it is the selected one, the
+	// track's own color (transparent over a translucent theme) while it rests.
+	Fill ui.Color
+	// Foreground is the color of the label: muted until the choice is selected or under the
+	// pointer, and muted again when it is disabled.
+	Foreground ui.Color
+	// Border is the 1px line of the choice that holds the keyboard, painted over Fill with
+	// the halo Ring that reaches RingWidth beyond it, as an outline when RingOutline (over a
+	// translucent theme). RingWidth is zero for a choice the keyboard is not on.
+	Border, Ring ui.Color
+	RingWidth    float32
+	RingOutline  bool
+}
+
+// SegmentRecipe resolves the look of one choice. Selected, Hovered, Pressed, FocusVisible and
+// Disabled of state are read; groupDisabled says the whole control is disabled, which changes
+// the track the choices rest on. A pure function, the one definition the control is painted
+// from.
+func SegmentRecipe(theme ui.Theme, state ui.State, groupDisabled bool) SegmentLook {
+	palette := newSegmentPalette(&theme, groupDisabled)
+	look := SegmentLook{Fill: palette.fill(&theme, state), Foreground: palette.foreground(&theme, state)}
+	if segmentFocused(state) {
+		look.Border, look.Ring, look.RingWidth = theme.Ring, scaledAlpha(theme.Ring, 0.50), 3
+		look.RingOutline = theme.Background.Alpha < 1
+	}
+	return look
+}
+
+// segmentPalette is what the choices of one control share: the track they rest on and the pill
+// the selected one is raised on. It is worked out once for the control, not once per choice.
+type segmentPalette struct{ track, selected ui.Color }
+
+func newSegmentPalette(theme *ui.Theme, groupDisabled bool) segmentPalette {
+	trackFill := theme.Muted
+	if groupDisabled {
+		trackFill = theme.CardElevated
+	}
+	// The selected choice is a raised pill. On a light theme the card is lighter than the
+	// track, which does that; on a dark theme the card is darker than the track, so using it
+	// would sink the pill into the track with barely any contrast. There the pill is the track
+	// lifted toward the foreground instead.
+	selectedFill := theme.Card
+	if segmentedControlLuminance(selectedFill) < segmentedControlLuminance(trackFill)+0.02 {
+		selectedFill = segmentedControlBlend(trackFill, theme.Foreground, 0.14)
+	}
+	return segmentPalette{track: trackFill, selected: selectedFill}
+}
+
+// fill is the background of a choice in a state.
+func (p segmentPalette) fill(theme *ui.Theme, state ui.State) ui.Color {
+	enabled := !state.Disabled
+	hovered, pressed := enabled && state.Hovered, enabled && state.Pressed
+	fill := p.track
+	if theme.Background.Alpha < 1 {
+		// The track is already painted; resting segments must not tint it twice.
+		fill.Alpha = 0
+	}
+	switch {
+	case state.Selected && pressed:
+		fill = segmentedControlBlend(p.selected, theme.Foreground, 0.08)
+	case state.Selected && hovered:
+		fill = segmentedControlBlend(p.selected, theme.Foreground, 0.04)
+	case state.Selected:
+		fill = p.selected
+	case pressed:
+		fill = theme.Border
+	case hovered:
+		fill = theme.Hover
+	}
+	if !enabled && state.Selected {
+		fill = theme.Muted
+	}
+	return fill
+}
+
+// foreground is the color of the label of a choice in a state.
+func (p segmentPalette) foreground(theme *ui.Theme, state ui.State) ui.Color {
+	if state.Disabled {
+		return theme.MutedForeground
+	}
+	if state.Selected || state.Hovered {
+		return theme.Foreground
+	}
+	return theme.MutedForeground
+}
+
+// segmentFocused reports whether the choice holds the keyboard visibly: a disabled one never does.
+func segmentFocused(state ui.State) bool { return !state.Disabled && state.FocusVisible }

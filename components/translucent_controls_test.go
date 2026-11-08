@@ -10,7 +10,7 @@ func TestTranslucentInputDoesNotPaintThePageBackgroundAgain(t *testing.T) {
 	theme := ui.LightTheme()
 	theme.Background.Alpha = .5
 	var canvas ui.Canvas
-	paintTextEntrySurface(&canvas, theme, ui.Rect{Width: 200, Height: 32}, textEntryState{})
+	paintTextEntrySurface(&canvas, &theme, ui.Rect{Width: 200, Height: 32}, ui.State{})
 	for _, rect := range canvas.Rectangles() {
 		if rect.Color.Alpha > 0 && rect.Bounds.X <= 100 && rect.Bounds.X+rect.Bounds.Width >= 100 && rect.Bounds.Y <= 16 && rect.Bounds.Y+rect.Bounds.Height >= 16 {
 			t.Fatalf("transparent input repaints the page: %+v", rect)

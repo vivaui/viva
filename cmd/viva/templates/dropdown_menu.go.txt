@@ -740,8 +740,7 @@ func beginMenuSurface(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, minWidt
 	if options.submenu {
 		level = ui.ShadowLG
 	}
-	canvas.Elevate(bounds, theme.Metrics.RadiusPopup(), level)
-	canvas.RoundedBorder(bounds, theme.Metrics.RadiusPopup(), 1, theme.Border, theme.Popover)
+	paintPopupSurface(canvas, &theme, bounds, level)
 	menu.popOverlay()
 	return menu
 }
@@ -1116,4 +1115,34 @@ func SubmenuHover(state SubmenuState, hovered ui.ID, pointer ui.Point, hoveredRe
 	}
 	intent.Reset()
 	return state, 0
+}
+
+// MenuItemLook is the look of one row of a list in a popup: the highlight under the pointer or
+// the keyboard, and the color of its label.
+type MenuItemLook struct {
+	// Fill is the highlight behind the row, transparent while the row is not active.
+	Fill ui.Color
+	// Foreground is the color of the label and icon.
+	Foreground ui.Color
+	// Radius is the corner radius of the highlight.
+	Radius float32
+}
+
+// MenuItemRecipe resolves the look of a row of a popup list. The row is active, and takes the
+// accent highlight, while the pointer is over it or presses it or the keyboard has focused it
+// visibly, unless it is Disabled, which dims the label and never highlights. A pure function.
+func MenuItemRecipe(theme ui.Theme, state ui.State) MenuItemLook {
+	return menuItemRecipe(&theme, state)
+}
+
+// menuItemRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
+// and a Theme is large.
+func menuItemRecipe(theme *ui.Theme, state ui.State) MenuItemLook {
+	look := MenuItemLook{Foreground: theme.PopoverForeground, Radius: theme.Metrics.RadiusItem()}
+	if state.Disabled {
+		look.Foreground.Alpha *= 0.50
+	} else if state.Hovered || state.Pressed || state.FocusVisible {
+		look.Fill = theme.Accent
+	}
+	return look
 }

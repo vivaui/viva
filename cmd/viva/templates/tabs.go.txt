@@ -303,7 +303,6 @@ func (tabs Tabs) Paint() TabsResult {
 		listRadius = 0
 	}
 	tabs.canvas.Rounded(tabs.bounds, listRadius, listFill)
-	dark := segmentedControlLuminance(tabs.theme.Background) < segmentedControlLuminance(tabs.theme.Foreground)
 	inner := ui.Rect{
 		X: tabs.bounds.X + tabsPadding, Y: tabs.bounds.Y + tabsPadding,
 		Width: tabs.bounds.Width - tabsPadding*2, Height: tabs.bounds.Height - tabsPadding*2,
@@ -315,64 +314,31 @@ func (tabs Tabs) Paint() TabsResult {
 		if tabs.fit && tabs.direction != TabsVertical {
 			cursor += trigger.Width + gap
 		}
-		enabled := !tabs.disabled && !option.Disabled && !option.ID.IsZero()
-		hovered := enabled && tabs.canvas.Hovered() == option.ID
-		focused := enabled && tabs.canvas.FocusVisible() == option.ID
-		active := !option.ID.IsZero() && option.ID == tabs.selected
-		if focused {
-			focus := tabs.theme.Ring
-			focus.Alpha *= 0.50
-			tabs.canvas.Rounded(expand(trigger, 3), radius+3, focus)
-		}
-		fill := tabs.theme.Background
-		fill.Alpha = 0
-		if active && tabs.variant == TabsDefault {
-			fill = tabs.theme.Background
-		}
 		dimmed := tabs.disabled || option.Disabled
-		if active && tabs.variant == TabsDefault {
-			// A transparent 1px border around the fill. In a dark theme it is
-			// dark:border-input over dark:bg-input/30 on the list; otherwise it is
-			// the fill's own color, so both themes lay out the same rectangles.
-			border := fill
-			if dark {
-				input := tabs.theme.Input
-				border = segmentedControlBlend(tabs.theme.Muted, input, input.Alpha)
-				fill = segmentedControlBlend(tabs.theme.Muted, input, input.Alpha*0.30)
-			}
-			if dimmed {
-				border.Alpha *= 0.50
-				fill.Alpha *= 0.50
-			}
-			tabs.canvas.Elevate(trigger, radius, ui.ShadowSM) // the selected trigger's shadow-sm
-			tabs.canvas.RoundedBorder(trigger, radius, 1, border, fill)
+		state := ui.State{Disabled: dimmed, Selected: !option.ID.IsZero() && option.ID == tabs.selected}
+		if !dimmed && !option.ID.IsZero() {
+			state.Hovered = tabs.canvas.Hovered() == option.ID
+			state.FocusVisible = tabs.canvas.FocusVisible() == option.ID
+		}
+		look := tabTriggerRecipe(&tabs.theme, tabs.variant, state)
+		if look.RingWidth > 0 {
+			tabs.canvas.Rounded(expand(trigger, look.RingWidth), look.RingRadius, look.Ring)
+		}
+		if look.Bordered {
+			tabs.canvas.Elevate(trigger, radius, look.Shadow) // the selected trigger's shadow-sm
+			tabs.canvas.RoundedBorder(trigger, radius, 1, look.Border, look.Fill)
 		} else {
-			if dimmed {
-				fill.Alpha *= 0.50
-			}
-			tabs.canvas.Rounded(trigger, radius, fill)
+			tabs.canvas.Rounded(trigger, radius, look.Fill)
 		}
 
-		indicator := tabs.theme.Foreground
-		if !active || tabs.variant != TabsLine {
-			indicator.Alpha = 0
-		} else if dimmed {
-			indicator.Alpha *= 0.50
-		}
+		indicator := look.Indicator
 		indicatorBounds := ui.Rect{X: trigger.X, Y: trigger.Y + trigger.Height + tabsLineDrop, Width: trigger.Width, Height: tabsIndicator}
 		if tabs.direction == TabsVertical {
 			indicatorBounds = ui.Rect{X: trigger.X + trigger.Width + tabsLineRight, Y: trigger.Y, Width: tabsIndicator, Height: trigger.Height}
 		}
 		tabs.canvas.Rounded(indicatorBounds, 1, indicator)
 
-		foreground := tabs.theme.Foreground
-		if !active && !hovered {
-			foreground.Alpha *= 0.60
-		}
-		if dimmed {
-			foreground.Alpha *= 0.50
-		}
-		style := ui.TextStyle{Size: metrics.FontSizeM, Weight: weight, Color: foreground}
+		style := ui.TextStyle{Size: metrics.FontSizeM, Weight: weight, Color: look.Foreground}
 		tabs.paintContent(option, trigger, style)
 		if !option.ID.IsZero() {
 			hint := ""
@@ -382,7 +348,7 @@ func (tabs Tabs) Paint() TabsResult {
 			tabs.canvas.HitWithOptions(option.ID, trigger, option.Label, ui.HitOptions{
 				Role: ui.RoleTab, Value: option.Label, Hint: hint,
 				Disabled: dimmed, FocusableWhenDisabled: true,
-				Selected: active,
+				Selected: state.Selected,
 				SkipTab:  option.ID != tabs.tabStop,
 			})
 		}
@@ -459,4 +425,80 @@ func (tabs Tabs) paintContent(option TabOption, trigger ui.Rect, style ui.TextSt
 	b.X += size + gap
 	b.Width = max(0, width-size-gap)
 	tabs.canvas.Label(text, b, style)
+}
+
+// TabTriggerLook is the look of one tab of a strip in one state.
+type TabTriggerLook struct {
+	// Fill is the trigger's background, transparent unless the tab is the selected one of
+	// the default variant. Border is its 1px line, painted only when Bordered, which is the
+	// raised pill of that tab; it casts Shadow.
+	Fill, Border ui.Color
+	Bordered     bool
+	Shadow       ui.ShadowLevel
+	// Foreground is the color of the label and icon: dimmed while the tab is neither selected
+	// nor under the pointer.
+	Foreground ui.Color
+	// Indicator is the underline of the line variant's selected tab, transparent otherwise.
+	Indicator ui.Color
+	// Radius is the corner radius of the trigger.
+	Radius float32
+	// Ring is the halo of the tab the keyboard is on, transparent with a zero RingWidth when
+	// there is none; RingRadius is its outer radius.
+	Ring                  ui.Color
+	RingWidth, RingRadius float32
+}
+
+// TabTriggerRecipe resolves the look of one tab. Selected, Hovered, FocusVisible and Disabled
+// of state are read; a Disabled tab ignores the pointer and the keyboard and is dimmed. A pure
+// function, the one definition the strip is painted from.
+func TabTriggerRecipe(theme ui.Theme, variant TabsVariant, state ui.State) TabTriggerLook {
+	return tabTriggerRecipe(&theme, variant, state)
+}
+
+// tabTriggerRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
+// and a Theme is large.
+func tabTriggerRecipe(theme *ui.Theme, variant TabsVariant, state ui.State) TabTriggerLook {
+	radius := theme.Metrics.RadiusControl
+	look := TabTriggerLook{Radius: radius}
+	look.Fill = theme.Background
+	look.Fill.Alpha = 0
+	hovered := !state.Disabled && state.Hovered
+	if !state.Disabled && state.FocusVisible {
+		look.Ring = theme.Ring
+		look.Ring.Alpha *= 0.50
+		look.RingWidth, look.RingRadius = 3, radius+3
+	}
+	if state.Selected && variant == TabsDefault {
+		fill := theme.Background
+		// A transparent 1px border around the fill. In a dark theme it is dark:border-input
+		// over dark:bg-input/30 on the list; otherwise it is the fill's own color, so both
+		// themes lay out the same rectangles.
+		border := fill
+		if segmentedControlLuminance(theme.Background) < segmentedControlLuminance(theme.Foreground) {
+			input := theme.Input
+			border = segmentedControlBlend(theme.Muted, input, input.Alpha)
+			fill = segmentedControlBlend(theme.Muted, input, input.Alpha*0.30)
+		}
+		if state.Disabled {
+			border.Alpha *= 0.50
+			fill.Alpha *= 0.50
+		}
+		look.Fill, look.Border, look.Bordered, look.Shadow = fill, border, true, ui.ShadowSM
+	} else if state.Disabled {
+		look.Fill.Alpha *= 0.50
+	}
+	look.Indicator = theme.Foreground
+	if !state.Selected || variant != TabsLine {
+		look.Indicator.Alpha = 0
+	} else if state.Disabled {
+		look.Indicator.Alpha *= 0.50
+	}
+	look.Foreground = theme.Foreground
+	if !state.Selected && !hovered {
+		look.Foreground.Alpha *= 0.60
+	}
+	if state.Disabled {
+		look.Foreground.Alpha *= 0.50
+	}
+	return look
 }

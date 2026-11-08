@@ -58,7 +58,7 @@ func TestRadioGroupInvalidUsesDangerTreatment(t *testing.T) {
 	var canvas ui.Canvas
 	BeginRadioGroup(&canvas, theme, ui.Rect{Width: 160}, options[:], ui.ID{}).Paint()
 	rectangles := canvas.Rectangles()
-	if rectangles[0].Color != invalidRing(theme) || rectangles[1].Color != invalidBorder(theme) {
+	if rectangles[0].Color != invalidRing(&theme) || rectangles[1].Color != invalidBorder(&theme) {
 		t.Fatalf("invalid radio commands = %+v, want the invalid ring and a danger border", rectangles)
 	}
 }

@@ -162,7 +162,7 @@ func TestButtonFocusAndInvalidRingsUseOfficialTokensInDark(t *testing.T) {
 	}
 	invalidRing := invalid.Rectangles()[0]
 	wantInvalid := withAlpha(theme.Danger, 0.40)
-	wantBorder := invalidBorder(theme).Over(theme.Background)
+	wantBorder := invalidBorder(&theme).Over(theme.Background)
 	if invalidRing.Color != wantInvalid || invalid.Rectangles()[1].Color != wantBorder {
 		t.Fatalf("invalid ring/border = %+v / %+v", invalidRing, invalid.Rectangles()[1])
 	}

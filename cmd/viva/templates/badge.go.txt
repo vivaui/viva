@@ -44,7 +44,7 @@ func PaintBadge(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, label string,
 		foreground = theme.SecondaryForeground
 	case BadgeDestructive:
 		background = withAlpha(theme.Danger, 0.10)
-		if isDark(theme) {
+		if isDark(&theme) {
 			background.Alpha = 0.20
 		}
 		foreground = theme.Danger

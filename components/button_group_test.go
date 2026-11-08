@@ -68,12 +68,12 @@ func TestButtonGroupKeepsEveryVariantsOwnColors(t *testing.T) {
 	var canvas ui.Canvas
 	BeginButtonGroup(&canvas, theme, ui.Rect{Width: 270}, options[:]).Paint()
 	for index, option := range options {
-		want := buttonStyleFor(theme, option.Variant, false, false).foreground
+		want := buttonStyleFor(&theme, option.Variant, false, false).foreground
 		if got := canvas.Texts()[index].Style.Color; got != want {
 			t.Fatalf("%s label color = %+v, want %+v", option.Label, got, want)
 		}
 	}
-	if want := buttonStyleFor(theme, ButtonDestructive, false, false).background; !hasRectangleColor(&canvas, want) {
+	if want := buttonStyleFor(&theme, ButtonDestructive, false, false).background; !hasRectangleColor(&canvas, want) {
 		t.Fatalf("no destructive action fill %+v in %+v", want, canvas.Rectangles())
 	}
 }

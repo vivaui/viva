@@ -286,7 +286,7 @@ func (questionnaire *Questionnaire) Input(id ui.ID, value, placeholder string, d
 		foreground.Alpha *= 0.50
 	}
 	focused := interactive && questionnaire.canvas.FocusVisible() == id
-	paintTextEntrySurface(questionnaire.canvas, questionnaire.theme, bounds, textEntryState{Focused: focused, Invalid: questionnaire.invalid, Disabled: disabled})
+	paintTextEntrySurface(questionnaire.canvas, &questionnaire.theme, bounds, ui.State{Focused: focused, Invalid: questionnaire.invalid, Disabled: disabled})
 	questionnaire.canvas.Label(text, ui.Rect{X: bounds.X + metrics.PadControlX, Y: bounds.Y, Width: max(bounds.Width-metrics.PadControlX*2, 0), Height: bounds.Height}, ui.TextStyle{
 		Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground,
 	})

@@ -206,7 +206,7 @@ func (group RadioGroup) Paint() RadioGroupResult {
 		border := group.theme.Input
 		fill := group.theme.Background
 		fill.Alpha = 0
-		if isDark(group.theme) {
+		if isDark(&group.theme) {
 			fill = scaledAlpha(group.theme.Input, 0.30)
 		}
 		if selected {
@@ -217,9 +217,9 @@ func (group RadioGroup) Paint() RadioGroupResult {
 		case option.Invalid && enabled:
 			// The ring is for a control the user can act on; a selected invalid
 			// option keeps its primary border and still shows it.
-			group.canvas.Rounded(expand(circle, 3), diameter/2+3, invalidRing(group.theme))
+			group.canvas.Rounded(expand(circle, 3), diameter/2+3, invalidRing(&group.theme))
 			if !selected {
-				border = invalidBorder(group.theme)
+				border = invalidBorder(&group.theme)
 			}
 		case focused:
 			group.canvas.Rounded(expand(circle, 3), diameter/2+3, scaledAlpha(group.theme.Ring, 0.50))
@@ -227,7 +227,7 @@ func (group RadioGroup) Paint() RadioGroupResult {
 				border = group.theme.Ring
 			}
 		case option.Invalid && !selected:
-			border = invalidBorder(group.theme)
+			border = invalidBorder(&group.theme)
 		}
 		if group.disabled || option.Disabled {
 			border.Alpha *= 0.50
