@@ -27,8 +27,8 @@ import (
 // rules, driven by explicit calls.
 func open(t *testing.T, m *model) *app.Driver {
 	t.Helper()
-	screen := flex.NewScreen(flex.ScreenConfig{Body: m.page})
-	driver, err := app.NewDriver(screen.Config(app.Config{Width: 480, Height: 240}), nil)
+	page := flex.NewPage(flex.PageConfig{View: m.page})
+	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 240}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,19 +72,17 @@ func TestClickCounts(t *testing.T) {
 }
 ```
 
-The test finds controls by the name a user and a screen reader know them by (`Hit.Label`), not by coordinates. A `flex.Screen` names its controls itself, as paths such as `screen/~button/#0` in its tree; `Screen.Describe` writes one with the keys of `Key` rows in place of their numbers, and `Screen.ID` gives a control declared through `Raw` a name of yours when a test must address it by path.
-
-Background goroutines reach a driver only through `Config.Invalidator`, exactly as they reach a window, and `Pump` applies the wake. `examples/guides/background/main_test.go` shows a test that waits for a worker goroutine's result this way. The driver models the text system's editing commands (Home/End, word and document navigation, word delete, undo and redo) and the Command-A, C, X and V shortcuts, and gives a focused ordinary field those chords before `OnShortcut`, as Windows does. It does not model input-method composition.
+The test finds controls by the name a user and a screen reader know them by (`Hit.Label`), not by coordinates. A page names its elements itself, as paths such as `page/~k1/#0` in its tree; `c.Part("word")` gives an element a name of yours, which a test or the headless driver can address by path.
 
 ## Mistakes that compile
 
-A `flex.Screen` page can compile and still do the wrong thing: a checkbox bound to a copy (`for _, h := range m.hosts { s.Checkbox(&h.Done, ...) }`, where `h` is made again in every paint) loses its clicks, and a `Button` with the same label in every row of a loop without `s.Key` can take a click meant for another row. Under `app.Driver` these panic where they happen, with the line to write instead, so a test that reaches them fails. `viva vet` finds them without running anything:
+A page can compile and still do the wrong thing: a `Button` with the same label in every row of a loop whose rows have no Key can take a click meant for another row when a row is added above. `viva vet` finds it without running anything:
 
 ```sh
 viva vet            # or go tool viva vet; packages default to ./...
 ```
 
-It reports each one as `file:line:col: what is wrong and what to write (check)`, exits non-zero when it finds something, and runs with the project's own Go. A line, or the line above it, with `// viva:ignore <check>` silences one finding.
+It reports each one as `file:line:col: what is wrong and what to write (check)`, exits non-zero when it finds something, and runs with the project's own Go. A line, or the line above it, with `// viva:ignore <check>` silences one finding. A `flex.Memo` whose version misses something its function reads shows stale content: `flex.MemoCheck(true)` in a test declares every part and panics where a copy would have differed.
 
 ## The line protocol
 

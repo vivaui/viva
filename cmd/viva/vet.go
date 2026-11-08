@@ -20,9 +20,8 @@ import (
 	"strings"
 )
 
-// viva vet finds the mistakes in a page written with flex.Screen that compile and
-// run but do the wrong thing, before the program runs: the same ones a test under
-// app.Driver fails on, found without a test that reaches them. It reads the
+// viva vet finds the mistakes in a page written with flex that compile and run but
+// do the wrong thing, before the program runs. It reads the
 // packages with go/types and the export data `go list -export` builds, so it needs
 // nothing but the Go toolchain.
 
@@ -220,22 +219,15 @@ type vetChecker struct {
 	findings []vetFinding
 }
 
-// The Screen methods that bind a value, and which arguments are the bound values.
-var boundArguments = map[string][]int{
-	"Checkbox": {0}, "Switch": {0}, "Choice": {0}, "Tabs": {0}, "Select": {0, 1},
-	"Field": {0}, "Slider": {0}, "Splitter": {0}, "Table": {0},
-	"Popover": {1}, "PopoverWith": {2}, "Modal": {0}, "ModalWith": {1},
-}
-
-// isScreen reports whether t is flex.Screen or flex.ModalScreen, the values a page
-// body is given.
-func isScreen(t types.Type) bool {
-	named, ok := types.Unalias(t).(*types.Named)
-	if !ok || named.Obj().Pkg() == nil || named.Obj().Pkg().Path() != flexPath {
+// isContext reports whether t is flex.C (a *flex.Ctx): what a page and its
+// components are declared with.
+func isContext(t types.Type) bool {
+	pointer, ok := types.Unalias(t).(*types.Pointer)
+	if !ok {
 		return false
 	}
-	name := named.Obj().Name()
-	return name == "Screen" || name == "ModalScreen"
+	named, ok := types.Unalias(pointer.Elem()).(*types.Named)
+	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == flexPath && named.Obj().Name() == "Ctx"
 }
 
 // walk visits node with stack, the nodes around it, outermost first.
@@ -253,166 +245,61 @@ func (checker *vetChecker) walk(node ast.Node, stack []ast.Node) {
 	})
 }
 
-// call checks one call: a value bound to a Screen control, or a Button.
+// call checks one call: a Button of flex with a label that is the same in every
+// row of a loop whose rows have no Key.
 func (checker *vetChecker) call(call *ast.CallExpr, stack []ast.Node) {
 	selector, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
+	if !ok || selector.Sel.Name != "Button" || len(call.Args) != 2 {
 		return
 	}
-	receiver := checker.info.Types[selector.X].Type
-	if receiver == nil || !isScreen(receiver) {
+	if pkg, ok := checker.info.Uses[identOf(selector.X)].(*types.PkgName); !ok || pkg.Imported().Path() != flexPath {
 		return
 	}
-	keyed := checker.keyed(selector.X, stack)
-	body := screenBody(checker.info, stack)
-	if indexes, ok := boundArguments[selector.Sel.Name]; ok && !keyed && body != nil {
-		for _, index := range indexes {
-			if index < len(call.Args) {
-				if name, copied := checker.copied(call.Args[index], body); copied {
-					checker.report(call.Args[index], "bound-copy", fmt.Sprintf(
-						"%s is bound to %s, a variable made again in every paint, so the control's focus and clicks are lost and what it writes is thrown away: "+
-							"bind the model's own field (a pointer into it, such as &m.items[i].Done), or declare the control inside s.Key(...) and write the copy back on Changed()",
-						selector.Sel.Name, name))
-				}
-			}
-		}
+	if t := checker.info.Types[call.Args[0]].Type; t == nil || !isContext(t) {
+		return
 	}
-	if selector.Sel.Name == "Button" && !keyed && len(call.Args) == 1 && inLoop(stack, body) {
-		if value := checker.info.Types[call.Args[0]].Value; value != nil {
-			checker.report(call, "unkeyed-button", fmt.Sprintf(
-				"every row of this loop has a Button labeled %s and none has a Key, so a row added or removed above moves a click to the wrong row: "+
-					"declare each row with r := s.Key(item.ID) (or s.KeyIndex(id)) and call r.Button", value.ExactString()))
-		}
+	value := checker.info.Types[call.Args[1]].Value
+	loop := innermostLoop(stack)
+	if value == nil || loop == nil || checker.keyedIn(loop, call) {
+		return
 	}
+	checker.report(call, "unkeyed-button", fmt.Sprintf(
+		"every row of this loop has a Button labeled %s and the rows have no Key, so a row added or removed above moves a click to the wrong row: "+
+			"declare each row with flex.Row(c.KeyInt(item.ID)) (or c.Key(name)) and the Button inside it", value.ExactString()))
 }
 
-// keyed reports whether the Screen expression is a Key or KeyIndex row: a direct
-// s.Key(k) call, or a variable assigned from one.
-func (checker *vetChecker) keyed(expression ast.Expr, stack []ast.Node) bool {
-	expression = ast.Unparen(expression)
-	if isKeyCall(expression) {
-		return true
-	}
-	ident, ok := expression.(*ast.Ident)
-	if !ok {
-		return false
-	}
-	object := checker.info.Uses[ident]
-	if object == nil {
-		return false
-	}
-	keyed := false
-	for _, node := range stack {
-		ast.Inspect(node, func(n ast.Node) bool {
-			if keyed {
-				return false
-			}
-			switch assign := n.(type) {
-			case *ast.AssignStmt:
-				for i, left := range assign.Lhs {
-					if id, ok := left.(*ast.Ident); ok && i < len(assign.Rhs) && checker.objectOf(id) == object && isKeyCall(ast.Unparen(assign.Rhs[i])) {
-						keyed = true
-					}
-				}
-			case *ast.ValueSpec:
-				for i, name := range assign.Names {
-					if i < len(assign.Values) && checker.objectOf(name) == object && isKeyCall(ast.Unparen(assign.Values[i])) {
-						keyed = true
-					}
-				}
-			}
-			return true
-		})
-		if keyed {
-			return true
-		}
-	}
-	return false
-}
-
-func (checker *vetChecker) objectOf(ident *ast.Ident) types.Object {
-	if object := checker.info.Defs[ident]; object != nil {
-		return object
-	}
-	return checker.info.Uses[ident]
-}
-
-func isKeyCall(expression ast.Expr) bool {
-	call, ok := expression.(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	selector, ok := call.Fun.(*ast.SelectorExpr)
-	return ok && (selector.Sel.Name == "Key" || selector.Sel.Name == "KeyIndex")
-}
-
-// screenBody is the innermost function around the call that takes a Screen: the
-// body of the page, which runs in every paint.
-func screenBody(info *types.Info, stack []ast.Node) ast.Node {
+// innermostLoop is the innermost for or range statement around the call, inside
+// the function the call is in.
+func innermostLoop(stack []ast.Node) ast.Node {
 	for i := len(stack) - 1; i >= 0; i-- {
-		var fields *ast.FieldList
-		switch function := stack[i].(type) {
+		switch node := stack[i].(type) {
+		case *ast.ForStmt, *ast.RangeStmt:
+			return node
 		case *ast.FuncDecl:
-			fields = function.Type.Params
-		case *ast.FuncLit:
-			fields = function.Type.Params
-		default:
-			continue
-		}
-		for _, field := range fields.List {
-			if t := info.Types[field.Type].Type; t != nil && isScreen(t) {
-				return stack[i]
-			}
+			return nil
 		}
 	}
 	return nil
 }
 
-// copied reports whether &x names storage made in every paint: a variable declared
-// in the page body (a range variable, a v := copy), or a part of one reached
-// without going through a pointer or a slice.
-func (checker *vetChecker) copied(argument ast.Expr, body ast.Node) (string, bool) {
-	unary, ok := ast.Unparen(argument).(*ast.UnaryExpr)
-	if !ok || unary.Op != token.AND {
-		return "", false
-	}
-	expression := ast.Unparen(unary.X)
-	for {
-		switch part := expression.(type) {
-		case *ast.SelectorExpr:
-			base := checker.info.Types[part.X].Type
-			if base == nil {
-				return "", false
-			}
-			if _, pointer := base.Underlying().(*types.Pointer); pointer {
-				return "", false
-			}
-			if _, isPackage := checker.info.Uses[identOf(part.X)].(*types.PkgName); isPackage {
-				return "", false
-			}
-			expression = ast.Unparen(part.X)
-		case *ast.IndexExpr:
-			base := checker.info.Types[part.X].Type
-			if base == nil {
-				return "", false
-			}
-			if _, array := base.Underlying().(*types.Array); !array {
-				return "", false // a slice's elements live in its backing array, not in the variable
-			}
-			expression = ast.Unparen(part.X)
-		case *ast.Ident:
-			variable, ok := checker.info.Uses[part].(*types.Var)
-			if !ok || variable.Parent() == nil || variable.Parent() == variable.Pkg().Scope() {
-				return "", false
-			}
-			if variable.Pos() < body.Pos() || variable.Pos() >= body.End() {
-				return "", false // declared outside the page body: kept between paints
-			}
-			return checker.source(unary.X), true
-		default:
-			return "", false
+// keyedIn reports whether the loop's body names a row with Key, KeyInt or a
+// Memo's key before the call: c.Key(...) or c.KeyInt(...) anywhere in it.
+func (checker *vetChecker) keyedIn(loop ast.Node, call *ast.CallExpr) bool {
+	keyed := false
+	ast.Inspect(loop, func(n ast.Node) bool {
+		if keyed || n == nil {
+			return false
 		}
-	}
+		if inner, ok := n.(*ast.CallExpr); ok && inner.Pos() < call.Pos() {
+			if selector, ok := inner.Fun.(*ast.SelectorExpr); ok && (selector.Sel.Name == "Key" || selector.Sel.Name == "KeyInt") {
+				if t := checker.info.Types[selector.X].Type; t != nil && isContext(t) {
+					keyed = true
+				}
+			}
+		}
+		return true
+	})
+	return keyed
 }
 
 func identOf(expression ast.Expr) *ast.Ident {
@@ -435,17 +322,17 @@ func inLoop(stack []ast.Node, body ast.Node) bool {
 	return false
 }
 
-// retained reports struct fields and package variables of type flex.Screen: a
-// Screen is the page being declared, valid only inside its body. Keep the
-// *flex.Screen NewScreen returns instead.
+// retained reports struct fields and package variables of type flex.C: a C is the
+// page being declared, valid only inside its function. Keep the *flex.Page
+// NewPage returns instead.
 func (checker *vetChecker) retained(file *ast.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.StructType:
 			for _, field := range node.Fields.List {
-				if t := checker.info.Types[field.Type].Type; t != nil && isScreen(t) {
-					checker.report(field.Type, "kept-screen", "a flex.Screen is kept in a struct, but it is valid only inside the body it was given to: "+
-						"keep the *flex.Screen that NewScreen returns, or pass the Screen down as a parameter")
+				if t := checker.info.Types[field.Type].Type; t != nil && isContext(t) {
+					checker.report(field.Type, "kept-context", "a flex.C is kept in a struct, but it is valid only inside the page function it was given to: "+
+						"keep the *flex.Page that NewPage returns, or pass c down as a parameter")
 				}
 			}
 		case *ast.GenDecl:
@@ -455,27 +342,15 @@ func (checker *vetChecker) retained(file *ast.File) {
 			for _, spec := range node.Specs {
 				value := spec.(*ast.ValueSpec)
 				for _, name := range value.Names {
-					if variable, ok := checker.info.Defs[name].(*types.Var); ok && variable.Parent() == variable.Pkg().Scope() && isScreen(variable.Type()) {
-						checker.report(name, "kept-screen", "a flex.Screen is kept in a package variable, but it is valid only inside the body it was given to: "+
-							"keep the *flex.Screen that NewScreen returns, or pass the Screen down as a parameter")
+					if variable, ok := checker.info.Defs[name].(*types.Var); ok && variable.Parent() == variable.Pkg().Scope() && isContext(variable.Type()) {
+						checker.report(name, "kept-context", "a flex.C is kept in a package variable, but it is valid only inside the page function it was given to: "+
+							"keep the *flex.Page that NewPage returns, or pass c down as a parameter")
 					}
 				}
 			}
 		}
 		return true
 	})
-}
-
-func (checker *vetChecker) source(expression ast.Expr) string {
-	var buffer bytes.Buffer
-	start, end := checker.fset.Position(expression.Pos()), checker.fset.Position(expression.End())
-	if data, err := os.ReadFile(start.Filename); err == nil && end.Offset <= len(data) {
-		buffer.Write(data[start.Offset:end.Offset])
-	}
-	if buffer.Len() == 0 {
-		return "a local variable"
-	}
-	return "&" + buffer.String()
 }
 
 // report records a finding unless the line, or the one above it, says

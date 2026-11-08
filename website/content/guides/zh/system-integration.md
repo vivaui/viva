@@ -100,31 +100,31 @@ func (m *model) open() {
 	m.view = view
 }
 
-func (m *model) page(s flex.Screen) {
-	s.Column().Fill().Pad(8).Gap(8).Children(func() {
-		s.Row().Gap(8).Items(flex.Center).Children(func() {
-			if s.Button("Back").Outline().Clicked() && m.view != nil {
+func (m *model) page(c flex.C) {
+	flex.Column(c).Fill().Pad(8).Gap(8).Children(func() {
+		flex.Row(c).Gap(8).Items(flex.Center).Children(func() {
+			if flex.Button(c, "Back").Outline().Clicked() && m.view != nil {
 				m.view.Back()
 			}
-			if s.Button("Forward").Outline().Clicked() && m.view != nil {
+			if flex.Button(c, "Forward").Outline().Clicked() && m.view != nil {
 				m.view.Forward()
 			}
-			if s.Button("Reload").Outline().Clicked() && m.view != nil {
+			if flex.Button(c, "Reload").Outline().Clicked() && m.view != nil {
 				m.view.Reload()
 			}
-			menu := s.Button("Menu").Outline()
+			menu := flex.Button(c, "Menu").Outline()
 			if menu.Clicked() {
 				m.menuOpen = !m.menuOpen
 			}
-			s.Text(m.status).Muted()
-			s.PopoverWith(menu, flex.PopoverSpec{Width: 220, Align: flex.Start}, &m.menuOpen, func(p flex.Screen) {
-				if p.Button("Say hello to the page").Ghost().Clicked() && m.view != nil {
+			flex.Text(c, m.status).Muted()
+			flex.PopoverWith(c, menu, flex.PopoverSpec{Width: 220, Align: flex.Start}, &m.menuOpen, func() {
+				if flex.Button(c, "Say hello to the page").Ghost().Clicked() && m.view != nil {
 					m.view.PostMessage("hello from Viva")
 					m.menuOpen = false
 				}
 			})
 		})
-		content := s.Slot().Grow(1)
+		content := flex.Slot(c).Grow(1)
 		if m.view != nil {
 			content.NativeView(m.view.ID())
 		}

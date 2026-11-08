@@ -17,6 +17,12 @@ func (f *Frame) paint(i int32) {
 		f.paintPopoverFn(f, i, n)
 		return
 	}
+	if memo := f.exts[n.ext].memo; memo != 0 && f.memoFn != nil {
+		if f.memoFn(f, i, true) {
+			return
+		}
+		defer f.memoFn(f, i, false)
+	}
 	r := n.rect
 	canvas := f.canvas
 	extra := &f.exts[n.ext]

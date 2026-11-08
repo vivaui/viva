@@ -16,7 +16,7 @@ Read after `SKILL.md`. The code is in [`examples/recipes`](../../../examples/rec
 | A list with nothing in it | `EmptyState` |
 | Anything that reacts but is none of these | `Interactive(box, theme, id, label)` around your own `Row` |
 
-The recipes take a `*flex.Frame` and identities, as components do. From a `flex.Screen` page, pass `s.Raw()`, `*s.Theme()` and an identity from `s.ID("word")`; in a list, from the row's Screen (`r := s.KeyIndex(item.ID)`; `r.ID("open")`), so each row's identity is its own.
+The recipes take a `*flex.Frame` and identities, as components do. From a page, pass `c.Frame()`, `*c.Theme()` and `flex.ID(c)`; in a list, call `flex.ID(c)` inside the row's Key (`flex.Row(c.KeyInt(item.ID)).Children(func() { ... flex.ID(c) ... })`), so each row's identity is its own.
 
 ## What makes it look right
 

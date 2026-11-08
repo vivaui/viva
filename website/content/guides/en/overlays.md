@@ -9,7 +9,7 @@ Overlays are painted last, on a higher layer, and they change where input can go
 
 - **A layer.** A popover, a dialog and `f.Popup()` are painted over the page, and hits declared on them win over hits beneath.
 - **A focus scope.** A dialog traps Tab inside itself while it is open, so nothing behind it can take keyboard focus; a popover keeps Tab among its own controls first. Both give the focus back to where it was as they close.
-- **A dismiss identity.** The identity that reports a click when the user presses Escape or presses outside the overlay. A `flex.Screen` makes it and closes the overlay for you; with a `flex.Frame` you name it and read it where the overlay is declared, like any other click.
+- **A dismiss identity.** The identity that reports a click when the user presses Escape or presses outside the overlay. A page (`flex.Popover`, `flex.Modal`) makes it and closes the overlay for you; with a `flex.Frame` you name it and read it where the overlay is declared, like any other click.
 
 As everywhere in Viva, whether an overlay is open is your state. You declare it, or you do not.
 
@@ -30,39 +30,36 @@ type model struct {
 	status     string
 }
 
-func (m *model) page(s flex.Screen) {
-	s.Column().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
-		actions := s.Button("Actions").Outline()
+func (m *model) page(c flex.C) {
+	flex.Column(c).Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
+		actions := flex.Button(c, "Actions").Outline()
 		if actions.Clicked() {
 			m.menuOpen = !m.menuOpen
 		}
-		s.Text(m.status).Muted()
+		flex.Text(c, m.status).Muted()
 
 		// A popover hangs off its anchor while menuOpen is true. A press outside it
 		// or Escape closes it, and the press goes on to what is under the pointer;
 		// the focus goes back to the anchor.
-		s.PopoverWith(actions, flex.PopoverSpec{Width: 180, Align: flex.Start}, &m.menuOpen, func(p flex.Screen) {
-			if p.Button("New file").Ghost().Clicked() {
+		flex.PopoverWith(c, actions, flex.PopoverSpec{Width: 180, Align: flex.Start}, &m.menuOpen, func() {
+			if flex.Button(c, "New file").Ghost().Clicked() {
 				m.menuOpen, m.status = false, "Created"
 			}
-			if p.Button("Delete…").Ghost().Destructive().Clicked() {
+			if flex.Button(c, "Delete…").Ghost().Destructive().Clicked() {
 				m.menuOpen, m.dialogOpen = false, true
 			}
 		})
 
 		// A modal dims the page and keeps the keyboard while dialogOpen is true:
 		// Escape, a press on the dim and the close button set it to false.
-		s.ModalWith(flex.ModalSpec{Title: "Delete file?", Description: "This cannot be undone.", Width: 400}, &m.dialogOpen,
-			func(d flex.ModalScreen) {
-				d.Footer(func() {
-					if d.Button("Cancel").Outline().Clicked() {
-						m.dialogOpen = false
-					}
-					if d.Button("Delete").Destructive().Clicked() {
-						m.dialogOpen, m.status = false, "Deleted"
-					}
-				})
-			})
+		flex.ModalWith(c, &m.dialogOpen, "Delete file?", flex.ModalSpec{Description: "This cannot be undone.", Width: 400}, nil, func() {
+			if flex.Button(c, "Cancel").Outline().Clicked() {
+				m.dialogOpen = false
+			}
+			if flex.Button(c, "Delete").Destructive().Clicked() {
+				m.dialogOpen, m.status = false, "Deleted"
+			}
+		})
 	})
 }
 
@@ -76,7 +73,7 @@ func main() {
 
 ## Popovers
 
-`s.Popover(anchor, &open, body)` shows the panel `body` declares, hanging off `anchor`, while `open` is true, with shadcn's popover look. `PopoverWith` takes a `flex.PopoverSpec` for the side, the alignment and the width. It opens below the anchor and flips above it when there is no room. Keep the trigger's `Box` (`actions := s.Button(...)`) to anchor to it.
+`flex.Popover(c, anchor, &open, body)` shows the panel `body` declares, hanging off `anchor`, while `open` is true, with shadcn's popover look. `flex.PopoverWith` takes a `flex.PopoverSpec` for the side, the alignment and the width. It opens below the anchor and flips above it when there is no room. Keep the trigger's `Box` (`actions := flex.Button(c, ...)`) to anchor to it.
 
 A press outside the panel or Escape sets `open` to false. The press then goes on to what is under the pointer, as a web popover's does, so one click on another button both closes the menu and presses that button. A press on the anchor only closes the panel, so a trigger that toggles `open` does not open it again in the same click. The focus goes back to where it was when the panel opened. `Popover` reports the paint that closed it; a panel that must stay open sets `open` back to true there. With a `flex.Frame`, `f.Popover(anchor, flex.PopoverSpec{Scope: ..., DismissID: ...})` is the same panel with identities of yours, and `Dismissed()` reports the closing press.
 
@@ -90,7 +87,7 @@ The example's test checks all of it: a press at the far corner closes the menu, 
 
 ## Dialogs
 
-`s.Modal(&open, title, body)` dims the window, paints a centered surface with the title and a close button, and keeps the keyboard while `open` is true. The title is required: it is the dialog's name for assistive technology. `body` declares the content, and the `ModalScreen` it is given has `Footer` for the buttons, which sit against the right edge in the order given; the surface is as tall as the body needs. Escape, a press on the dim and the close button set `open` to false. The first control in the body takes the focus as the dialog opens (`ModalSpec.InitialFocus` names another), and the focus goes back to the control that opened it as it closes. `ModalWith` takes a `flex.ModalSpec` for a description, a size or no close button.
+`flex.Modal(c, &open, title, body, footer)` dims the window, paints a centered surface with the title and a close button, and keeps the keyboard while `open` is true. The title is required: it is the dialog's name for assistive technology. `body` declares the content and `footer` the buttons, which sit against the right edge in the order given; either may be nil, and the surface is as tall as the body needs. Escape, a press on the dim and the close button set `open` to false. The first control in the body takes the focus as the dialog opens (`ModalSpec.InitialFocus` names another), and the focus goes back to the control that opened it as it closes. `flex.ModalWith` takes a `flex.ModalSpec` for a description, a size or no close button.
 
 With a `flex.Frame`, `f.Dialog(flex.DialogSpec{...})` is the same dialog with identities of yours: `Scope` is the focus scope, `DismissID` the identity the dim and Escape report, `CloseID` the corner button's, and `InitialFocusID` the control that takes the focus. `Dismissed()` is true in the paint that delivers one of those clicks.
 

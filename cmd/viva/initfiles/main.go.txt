@@ -15,17 +15,17 @@ type model struct {
 }
 
 // page declares the window. It runs again on every repaint, from the model.
-func (m *model) page(s flex.Screen) {
-	s.Column().Fill().Pad(24).Gap(12).Children(func() {
-		s.Text("{{NAME}}").FontSize(20).Bold()
-		s.Paragraph("Edit main.go and save: viva dev reloads the window and keeps this count.", 3).Muted()
-		s.Spacer()
-		s.Text(fmt.Sprintf("Count: %d", m.count)).FontSize(28).Bold()
-		s.Row().Gap(8).Children(func() {
-			if s.Button("Add one").Clicked() {
+func (m *model) page(c flex.C) {
+	flex.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		flex.Text(c, "{{NAME}}").FontSize(20).Bold()
+		flex.Paragraph(c, "Edit main.go and save: viva dev reloads the window and keeps this count.", 3).Muted()
+		flex.Spacer(c)
+		flex.Text(c, fmt.Sprintf("Count: %d", m.count)).FontSize(28).Bold()
+		flex.Row(c).Gap(8).Children(func() {
+			if flex.Button(c, "Add one").Clicked() {
 				m.count++
 			}
-			if s.Button("Reset").Outline().Clicked() {
+			if flex.Button(c, "Reset").Outline().Clicked() {
 				m.count = 0
 			}
 		})

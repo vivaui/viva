@@ -199,6 +199,7 @@ type extra struct {
 	moves         bool            // the element's rectangle moves a custom-titlebar window (MovesWindow)
 	nativeView    ui.NativeViewID // the native view that fills the element (NativeView)
 	bind          int32           // 1 + the index of the element's binding in Frame.binds, or 0 (see bind.go)
+	memo          int32           // 1 + the index the element's cache has with whoever declared it (memoFn), or 0
 	draws         int32           // 1 + the index of the element's Draw and DrawOver callbacks in Frame.draws, or 0 for none
 }
 
@@ -232,16 +233,19 @@ type Frame struct {
 	paintPopoverFn func(f *Frame, i int32, n *node)
 	settleFn       func(f *Frame, i int32) *bindDecl // i < 0 settles them all
 	captionFn      func(f *Frame, n *node, control ui.Rect)
-	lines          []string
-	widgets        widgets            // Table, Tabs, Select, Dialog and Splitter declarations
-	ellipses       []ui.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
-	wraps          []wrapCache        // the full line sets of wrapped texts, kept between frames
-	wrapCursor     int
-	scratch        scratch     // memory the layout borrows, see scratch.go
-	scrolls        scrollStore // the ScrollStates of the page's ScrollAreas, by identity
-	parent         int32
-	bounds         ui.Rect
-	done           bool
+	// memoFn paints, or begins (before) and ends the paint of, an element a cache
+	// declared; it reports whether the element is painted and its paint is done.
+	memoFn     func(f *Frame, i int32, before bool) bool
+	lines      []string
+	widgets    widgets            // Table, Tabs, Select, Dialog and Splitter declarations
+	ellipses   []ui.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
+	wraps      []wrapCache        // the full line sets of wrapped texts, kept between frames
+	wrapCursor int
+	scratch    scratch     // memory the layout borrows, see scratch.go
+	scrolls    scrollStore // the ScrollStates of the page's ScrollAreas, by identity
+	parent     int32
+	bounds     ui.Rect
+	done       bool
 }
 
 // View keeps the memory a page is laid out in between frames. The zero value is

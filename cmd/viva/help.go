@@ -115,14 +115,23 @@ func commands() []command {
 			detail:  "Produces ui.Icon values, so no SVG parser ships in the application.",
 			run:     func(arguments []string, output, _ io.Writer) error { return runIcons(arguments, output) }},
 		{name: "vet", usage: "vet [-C dir] [packages]",
-			summary: "Find the mistakes in a flex.Screen page that compile but do the wrong thing.",
-			detail: "Reports a control bound to a copy that is made again in every paint (its clicks are lost), a Button with\n" +
-				"the same label in every row of a loop without a Key (a click can move to the wrong row), and a flex.Screen\n" +
-				"kept past its body. These are the mistakes a test under app.Driver fails on; vet finds them before a test\n" +
-				"reaches them. Run it with go vet; a line, or the line above it, with \"viva:ignore <check>\" silences one.\n" +
-				"The exit status is non-zero when it finds something. Packages default to ./...",
+			summary: "Find the mistakes in a flex page that compile but do the wrong thing.",
+			detail: "Reports a Button with the same label in every row of a loop whose rows have no Key (a click can move\n" +
+				"to the wrong row), and a flex.C kept past the page function it was given to. Run it with go vet; a line,\n" +
+				"or the line above it, with \"viva:ignore <check>\" silences one. The exit status is non-zero when it\n" +
+				"finds something. Packages default to ./...",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runVet(arguments, output, errorOutput)
+			}},
+		{name: "form", usage: "form [-C dir] [-type T,...]",
+			summary: "Write a Form method declaring a control for each field of a struct tagged form.",
+			detail: "Writes viva_form.go in the package's directory: func (v *T) Form(c flex.C) flex.Box, a column with a\n" +
+				"Switch for a bool (form:\"Label,checkbox\" for a Checkbox), a TextField for a flex.Field (placeholder:\"...\"),\n" +
+				"a Slider for a flex.SliderState, and a Choice for a field with choices:\"options\" or choices:\"options,nameFunc\"\n" +
+				"naming a package-level slice and a func(T) string (form:\"Label,select\" for a Select). Fields without a form\n" +
+				"tag, or with form:\"-\", get nothing. Run it from go:generate: //go:generate go tool viva form",
+			run: func(arguments []string, output, errorOutput io.Writer) error {
+				return runForm(arguments, output, errorOutput)
 			}},
 		{name: "doctor", usage: "doctor [-C dir]",
 			summary: "Check that this machine and project can build with viva.",

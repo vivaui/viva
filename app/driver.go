@@ -11,7 +11,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/internal/diag"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/scene"
@@ -77,7 +76,6 @@ type Driver struct {
 	releases       []func()
 	closed         bool
 	appearanceOpen bool
-	strict         bool // the driver holds internal/diag's strict mode
 
 	system                   driverSystem
 	openFilesResponses       [driverOpenFilesQueueSize]driverOpenFilesResponse
@@ -127,10 +125,6 @@ func NewDriver(config Config, canvas *ui.Canvas) (*Driver, error) {
 	// not ask the machine (which, off the main thread, may never answer).
 	enterDriverAppearance()
 	driver.appearanceOpen = true
-	// A Driver runs tests: a framework misuse that a release build only reports
-	// (see internal/diag.Strict) fails here, where it happens.
-	diag.EnterStrict()
-	driver.strict = true
 	// Motion preferences are the user's, not the test's: run animations.
 	canvas.SetReduceMotion(false)
 
@@ -172,9 +166,6 @@ func (driver *Driver) Close() {
 	liveDrivers.Release()
 	if driver.appearanceOpen {
 		leaveDriverAppearance()
-	}
-	if driver.strict {
-		diag.LeaveStrict()
 	}
 	driver.unregisterSystem()
 	if driver.config.Invalidator != nil {

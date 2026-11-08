@@ -37,17 +37,17 @@ view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 
 Controls are the ones in `components`, with the same look: `Button` (with `Outline`, `Ghost`, `Secondary`, `Destructive`, `Small` and the other variants), `Checkbox`, `Switch`, `Icon`, `Divider`. `Clicked()` is read where the control is declared: it is true in the one paint that delivers the click. Any element can be made a pointer target with `Hit(id, label)`; what it looks like under the pointer, pressed and focused is declared with `Hover`, `Pressed` and `Focus` (below).
 
-## Pages without identities: flex.Screen
+## Pages: flex.C
 
-`flex.Screen` is the same layout with the bookkeeping of a page done for you. A Frame's controls take identities you declare in a `ui.Tree` and report clicks you write back yourself; a Screen's controls take the value they change, and the Screen names them:
+The page API is the same layout with the bookkeeping of a page done for you. Every element is a function of `flex` that takes the page's `c` first; containers take their children in a function, and controls take the value they change. Nothing is named by you:
 
 ```go
-func (m *model) page(s flex.Screen) {
-	s.Column().Fill().Pad(24).Gap(12).Children(func() {
-		s.Field(&m.name, "Name", "Your name")
-		s.Switch(&m.sync, "Sync over SSH")
-		s.Choice(&m.theme, themes)
-		if s.Button("Save").Clicked() {
+func (m *model) page(c flex.C) {
+	flex.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		flex.TextField(c, &m.name, "Name", "Your name")
+		flex.Switch(c, &m.sync, "Sync over SSH")
+		flex.Choice(c, &m.theme, themes, nil)
+		if flex.Button(c, "Save").Clicked() {
 			m.save()
 		}
 	})
@@ -56,19 +56,35 @@ func (m *model) page(s flex.Screen) {
 flex.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
 ```
 
-A click flips `m.sync` and sets `m.theme` in the paint that delivers it, the first time the control is asked (`Clicked`, `Changed`) or else when the page ends, so a `Disabled` written after the control still holds. `Field` needs no `Config.TextInput`: the Screen's `Config` gives the platform the editor of each Field it declared, and passes any other focused field to the provider the configuration already had. `Popover` and `Modal` open while a `*bool` is true and set it to false when dismissed (see [Dialogs, menus and popups](/en/docs/overlays/)). `Box.NativeView` gives a page of the system's web engine the room of an element.
+A click flips `m.sync` in the paint that delivers it, the first time the control is asked (`Clicked`, `Changed`) or else when the page ends, so a `Disabled` written after the control still holds. `Choice`, `Tabs` and `Select` take a value of any comparable type and write it as they are declared: disable them with an `if`, not a `Disabled` after them. `TextField` needs no `Config.TextInput`: the page's `Config` gives the platform the editor of each field it declared, and passes any other focused field to the provider the configuration already had. `Popover` and `Modal` open while a `*bool` is true and set it to false when dismissed (see [Dialogs, menus and popups](/en/docs/overlays/)). `Box.NativeView` gives a page of the system's web engine the room of an element.
 
-The Screen names its controls so that a name never moves to another control without the user knowing:
+An element is named by where it is: its kind and its number among the elements of that kind in its container. Three things refine that:
 
-- A control bound to a value is named by that value's address. A field shown above a password field does not take the password's focus and typing, and filtering a list keeps each checkbox's focus on its row. Bind fields of the model, not copies: a local copy has a new address in every paint, and its click is lost (the Screen reports it through `diagnostics`).
-- A control bound to nothing, a `Button`, is numbered among the buttons of its scope. While the user holds one (presses it, or it has the focus), a paint in which another button took its number does not deliver the press, and the focus is given up.
-- Inside `s.Key(item.ID)` or `s.KeyIndex(id)`, controls are numbered within that row, so a list whose rows have buttons keys its rows: the row's buttons then follow it when rows come, go or move. Keys are reused two paints after their row is gone, so a list costs what its rows on screen at once cost. Two buttons with one label and no Key in one scope are reported, since nothing can tell them apart.
+- A control bound to a value is named by that value's address, and the name follows the value when it moves: a field shown above a password field does not take the password's focus, and filtering a list keeps each checkbox's focus on its row. A copy (`v := m.items[k]; flex.Checkbox(c, &v, ...)`) works too: it keeps the name of its place, so write the copy back after the call.
+- Inside `c.Key(item.ID)` or `c.KeyInt(id)`, elements are numbered within that row, so a row's buttons follow it when rows come, go or move. Keys are reused two paints after their row is gone. A loop whose rows hold a `Button` keys its rows; `viva vet` reports one that does not.
+- While the user holds a button (presses it, or it has the focus), a paint in which another button took its place does not deliver the press, and the focus is given up.
 
-The fleet page of `examples/guides/screen` is a complete program: a filter, a scrolling list of hosts each with a checkbox bound to the host, a progress bar and a button, and not one identity declared.
+`flex.List(c, &state, n, row)` declares only the rows on screen of a list of `n`, each as tall as its content, and scrolls it; `ListState.Key` names rows by an item's ID. `flex.State[T](c)` is an element's own small state (whether its menu is open), kept while its container is declared. `flex.Memo(c, version, fn)` copies the part `fn` declares from the last paint while `version` is unchanged, declaring it again when it is hovered, focused, animated or resized; see Cost below.
 
-<!-- example: screen/main.go -->
+A settings struct can have its form written for it. Tag the fields and run `viva form` (from `//go:generate go tool viva form`): it writes `viva_form.go` with `func (v *Settings) Form(c flex.C) flex.Box`, plain page code with no reflection:
+
 ```go
-// Fleet check with flex.Screen: the page examples/guides/fleet declares with a
+type Settings struct {
+	Name   flex.Field       `form:"Name" placeholder:"Your name"`
+	Sync   bool             `form:"Sync over SSH"`            // a Switch; "Sync,checkbox" for a Checkbox
+	Theme  Theme            `form:"Theme" choices:"themes,Theme.String"`
+	Size   string           `form:"Size,select" choices:"sizes"`
+	Volume flex.SliderState `form:"Volume"`
+}
+```
+
+`choices` names a package-level slice and, for options that are not strings, the function that names one. A field with no `form` tag gets nothing; a tag on a type it has no control for is an error that says which types it knows.
+
+The fleet page of `examples/guides/page` is a complete program: a filter, a scrolling list of hosts each with a checkbox bound to the host, a progress bar and a button, and not one identity declared.
+
+<!-- example: page/main.go -->
+```go
+// Fleet check with a flex page: the page examples/guides/fleet declares with a
 // Frame and a tree of identities, written without naming a control.
 //
 // Each checkbox writes into the host it shows, and is named by that host's field,
@@ -91,14 +107,14 @@ type host struct {
 
 type model struct {
 	hosts  []host
-	filter int
+	filter string
 	scans  int
 }
 
 var filters = []string{"All", "Open", "Handled"}
 
 func newModel() *model {
-	return &model{hosts: []host{
+	return &model{filter: "All", hosts: []host{
 		{name: "edge-01", addr: "10.0.4.11", item: "Disable password auth"},
 		{name: "edge-02", addr: "10.0.4.12", item: "Rotate host key"},
 		{name: "build-01", addr: "10.0.8.3", item: "Pin to ed25519"},
@@ -111,7 +127,7 @@ func newModel() *model {
 }
 
 func (m *model) matches(h *host) bool {
-	switch filters[m.filter] {
+	switch m.filter {
 	case "Open":
 		return !h.handled
 	case "Handled":
@@ -130,55 +146,56 @@ func (m *model) handled() int {
 	return n
 }
 
-func (m *model) page(s flex.Screen) {
-	s.Column().Fill().Pad(22).Gap(14).Children(func() {
-		s.Text("Fleet check").FontSize(26).Bold()
-		s.Text("SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
-		s.Choice(&m.filter, filters)
+func (m *model) page(c flex.C) {
+	flex.Column(c).Fill().Pad(22).Gap(14).Children(func() {
+		flex.Text(c, "Fleet check").FontSize(26).Bold()
+		flex.Text(c, "SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
+		flex.Choice(c, &m.filter, filters, nil)
 
 		// The list takes the room left over, so the footer stays on screen.
-		s.ScrollArea("hosts").Grow(1).Gap(8).Children(func() {
+		flex.Scroll(c).Grow(1).Gap(8).Children(func() {
 			for i := range m.hosts {
 				if h := &m.hosts[i]; m.matches(h) {
-					m.row(s, h)
+					m.row(c, h)
 				}
 			}
 		})
 
 		handled, total := m.handled(), len(m.hosts)
-		s.Progress(float32(handled) / float32(max(total, 1))).FillWidth()
-		s.Row().FillWidth().Gap(10).Items(flex.Center).Children(func() {
-			s.Textf("%d of %d handled", handled, total).FontSize(12).Muted().Mono()
-			s.Spacer()
-			s.Textf("scanned %dx", m.scans).FontSize(12).Muted().Mono()
-			if s.Button("Scan again").Clicked() {
+		flex.Progress(c, float32(handled)/float32(max(total, 1))).FillWidth()
+		flex.Row(c).FillWidth().Gap(10).Items(flex.Center).Children(func() {
+			flex.Textf(c, "%d of %d handled", handled, total).FontSize(12).Muted().Mono()
+			flex.Spacer(c)
+			flex.Textf(c, "scanned %dx", m.scans).FontSize(12).Muted().Mono()
+			if flex.Button(c, "Scan again").Clicked() {
 				m.scans++
 			}
 		})
 	})
 }
 
-func (m *model) row(s flex.Screen, h *host) {
-	theme := s.Theme()
-	s.Row().FillWidth().Pad(12).Gap(12).Radius(10).Items(flex.Center).Background(theme.Card).Children(func() {
+// row is one host: a component of the page's own, written as Viva's elements are.
+func (m *model) row(c flex.C, h *host) {
+	theme := c.Theme()
+	flex.Row(c).FillWidth().Pad(12).Gap(12).Radius(10).Items(flex.Center).Background(theme.Card).Children(func() {
 		if h.handled {
-			s.Text("ok").FontSize(11).Color(theme.Success)
+			flex.Text(c, "ok").FontSize(11).Color(theme.Success)
 		} else {
-			s.Text("open").FontSize(11).Color(theme.Danger)
+			flex.Text(c, "open").FontSize(11).Color(theme.Danger)
 		}
-		s.Column().Grow(1).Gap(2).Children(func() {
-			s.Row().Gap(8).Items(flex.Center).Children(func() {
-				s.Text(h.name).FontSize(14).Bold()
-				s.Text(h.addr).FontSize(12).Muted().Mono()
+		flex.Column(c).Grow(1).Gap(2).Children(func() {
+			flex.Row(c).Gap(8).Items(flex.Center).Children(func() {
+				flex.Text(c, h.name).FontSize(14).Bold()
+				flex.Text(c, h.addr).FontSize(12).Muted().Mono()
 			})
-			item := s.Text(h.item).FontSize(12)
+			item := flex.Text(c, h.item).FontSize(12)
 			if h.handled {
 				item.Muted()
 			}
 		})
 		// The checkbox writes into the host; the bar above derives itself from the
 		// hosts on the next paint.
-		s.Checkbox(&h.handled, "").Label(h.name)
+		flex.Checkbox(c, &h.handled, "").Label(h.name)
 	})
 }
 
@@ -189,9 +206,9 @@ func main() {
 }
 ```
 
-`s.Raw()` is the Frame underneath, for anything the Screen does not forward (`Textarea`, `InputGroup`, the `Base` controls); `s.ID("word")` gives a control declared there a name of yours, which a test or the headless driver can use. A page painted into part of a window (a pane) is `screen.Draw(canvas, bounds, body)` on a `flex.NewScreen` given the window's Tree. A window-level handler that switches on identities, or a custom control, keeps using a Frame.
+`c.Frame()` is the Frame underneath, for anything the page does not declare itself (`Textarea`, `InputGroup`, the `Base` controls); `c.Part("word")` gives the next element a name of yours, which a test or the headless driver can use. A page painted into part of a window (a pane) is `page.Draw(canvas, bounds, view)` on a `flex.NewPage` given the window's Tree and a root name. A window-level handler that switches on identities, or a custom control, keeps using a Frame.
 
-The fleet page of `examples/guides/screen` (a choice, a scroll area with eight rows each holding a checkbox, a progress bar and a button) declares, lays out and paints in 9.8 µs on an Apple M2 Pro against 9.0 µs for the same page written with a Frame, and allocates nothing once warm; a list of a thousand keyed rows costs 0.68 ms against 0.57 ms (`go test ./flex -bench 'Fleet$|Keyed1000$'`).
+The fleet page of `examples/guides/page` (a choice, a scroll area with eight rows each holding a checkbox, a progress bar and a button) declares, lays out and paints in 9.8 µs on an Apple M2 Pro against 9.0 µs for the same page written with a Frame, and allocates nothing once warm; a list of a thousand keyed rows costs 0.75 ms against 0.67 ms. With each row in a `Memo` a list of two hundred rows costs 87 µs instead of 271 µs, and 37 µs with the whole list in one; the copies keep the last paint's commands, about 0.5 MB for those two hundred rows (`go test ./flex -bench 'Fleet$|Rows1000|Rows200'`).
 
 ## States and effects
 

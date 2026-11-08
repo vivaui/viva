@@ -10,8 +10,8 @@ import (
 
 func TestTextField(t *testing.T) {
 	m := &model{}
-	screen := flex.NewScreen(flex.ScreenConfig{Body: m.page})
-	driver, err := app.NewDriver(screen.Config(app.Config{Width: 480, Height: 240}), nil)
+	page := flex.NewPage(flex.PageConfig{View: m.page})
+	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 240}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -709,8 +709,10 @@ type Canvas struct {
 	focusRequest ID
 	// focusRelease takes the focus away from one hit if it still has it, and
 	// focusReturns are the non-modal scopes that give the focus back on closing.
-	focusRelease   ID
-	focusReturns   []ID
+	focusRelease ID
+	focusReturns []ID
+	// previous is the previous paint's primitives, kept for Replay (see replay.go).
+	previous       previousPaint
 	tree           *Tree
 	iconCache      *iconCache
 	iconPaintCache *iconPaintCache
@@ -879,6 +881,7 @@ func (canvas *Canvas) TextWidthStyle(value string, style TextStyle) float32 {
 // for the next paint pass.
 func (canvas *Canvas) Reset() {
 	canvas.afterPaint = nil
+	canvas.rotate()
 	canvas.rectangles = canvas.rectangles[:0]
 	canvas.triangles = canvas.triangles[:0]
 	canvas.shadows = canvas.shadows[:0]
@@ -923,6 +926,9 @@ func (canvas *Canvas) Reset() {
 // large steady page would reallocate every frame. It keeps the current
 // contents, so it is safe between frames.
 func (canvas *Canvas) Trim() {
+	if canvas.previous.keep {
+		canvas.trimPrevious()
+	}
 	canvas.rectangles = trimCapacity(canvas.rectangles)
 	canvas.triangles = trimCapacity(canvas.triangles)
 	canvas.shadows = trimCapacity(canvas.shadows)

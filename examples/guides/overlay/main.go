@@ -13,39 +13,36 @@ type model struct {
 	status     string
 }
 
-func (m *model) page(s flex.Screen) {
-	s.Column().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
-		actions := s.Button("Actions").Outline()
+func (m *model) page(c flex.C) {
+	flex.Column(c).Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
+		actions := flex.Button(c, "Actions").Outline()
 		if actions.Clicked() {
 			m.menuOpen = !m.menuOpen
 		}
-		s.Text(m.status).Muted()
+		flex.Text(c, m.status).Muted()
 
 		// A popover hangs off its anchor while menuOpen is true. A press outside it
 		// or Escape closes it, and the press goes on to what is under the pointer;
 		// the focus goes back to the anchor.
-		s.PopoverWith(actions, flex.PopoverSpec{Width: 180, Align: flex.Start}, &m.menuOpen, func(p flex.Screen) {
-			if p.Button("New file").Ghost().Clicked() {
+		flex.PopoverWith(c, actions, flex.PopoverSpec{Width: 180, Align: flex.Start}, &m.menuOpen, func() {
+			if flex.Button(c, "New file").Ghost().Clicked() {
 				m.menuOpen, m.status = false, "Created"
 			}
-			if p.Button("Delete…").Ghost().Destructive().Clicked() {
+			if flex.Button(c, "Delete…").Ghost().Destructive().Clicked() {
 				m.menuOpen, m.dialogOpen = false, true
 			}
 		})
 
 		// A modal dims the page and keeps the keyboard while dialogOpen is true:
 		// Escape, a press on the dim and the close button set it to false.
-		s.ModalWith(flex.ModalSpec{Title: "Delete file?", Description: "This cannot be undone.", Width: 400}, &m.dialogOpen,
-			func(d flex.ModalScreen) {
-				d.Footer(func() {
-					if d.Button("Cancel").Outline().Clicked() {
-						m.dialogOpen = false
-					}
-					if d.Button("Delete").Destructive().Clicked() {
-						m.dialogOpen, m.status = false, "Deleted"
-					}
-				})
-			})
+		flex.ModalWith(c, &m.dialogOpen, "Delete file?", flex.ModalSpec{Description: "This cannot be undone.", Width: 400}, nil, func() {
+			if flex.Button(c, "Cancel").Outline().Clicked() {
+				m.dialogOpen = false
+			}
+			if flex.Button(c, "Delete").Destructive().Clicked() {
+				m.dialogOpen, m.status = false, "Deleted"
+			}
+		})
 	})
 }
 

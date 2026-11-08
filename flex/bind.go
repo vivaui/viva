@@ -38,6 +38,14 @@ func (f *Frame) bindField(b Box, field *Field) {
 	f.binds = append(f.binds, bindDecl{field: field})
 }
 
+// bindDone records that element b wrote its value where it was declared, and
+// whether it changed it, for Changed.
+func (f *Frame) bindDone(b Box, changed bool) {
+	f.extra(b.i).bind = int32(len(f.binds)) + 1
+	f.binds = append(f.binds, bindDecl{settled: true, changed: changed})
+	f.settleFn = (*Frame).settleAt
+}
+
 // bound returns the binding of element i, or nil.
 func (f *Frame) bound(i int32) *bindDecl {
 	n := &f.nodes[i]

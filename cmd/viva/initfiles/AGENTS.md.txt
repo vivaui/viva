@@ -6,14 +6,14 @@ the short form of how to write it; read it before changing the UI. The commands:
 ```sh
 viva dev .          # run with hot reload: save a file, the window reloads and keeps its state
 go test ./...      # tests drive the real application with no window (see Testing)
-viva vet            # the Screen mistakes that compile but do the wrong thing (see Mistakes)
+viva vet            # the page mistakes that compile but do the wrong thing (see Mistakes)
 viva build          # a release program in build/
 viva help           # every command
 ```
 
 ## How a window works
 
-The window's page is a function, `page(s flex.Screen)` in main.go, which `flex.Run` paints.
+The window's page is a function, `page(c flex.C)` in main.go, which `flex.Run` paints.
 It is called again after every event that could change the picture. It draws the whole
 window from your state, and it may be called many times, so it must be cheap and must not
 change state, with one exception: a click is handled where its control is declared (below).
@@ -21,48 +21,55 @@ Nothing draws unless an event, `Invalidate`, or a running animation asks for a f
 is no frame loop to write.
 
 State lives in a struct (`model` in main.go). The page reads it. Never keep a `flex.Box`,
-a `flex.Screen`, a `ui.Canvas` or a closure given to `Children` after the page returns.
+a `flex.C`, a `ui.Canvas` or a closure given to `Children` after the page returns.
 
-## Pages: flex.Screen
+## Pages: flex.C
 
-A `flex.Screen` declares a page without naming its controls, and controls write into your
-values. Layout is the same as below (`s.Row()`, `s.Column()`, `s.Text(...)`: the Frame's calls,
-on `s` instead of `f`); controls take what they change:
+Every element is a function of `flex` that takes the page's `c` first: layout, text, controls,
+overlays, lists, and your own components. What follows the call is the same chain as below
+(`.Pad`, `.Gap`, `.Grow`, `.Children(func() { ... })`). Controls take the value they change:
 
 ```go
-func (m *model) page(s flex.Screen) {
-	s.Column().Fill().Pad(24).Gap(12).Children(func() {
-		s.Field(&m.name, "Name", "Your name")      // a flex.Field in the model; typing needs nothing more
-		s.Switch(&m.notify, "Notify me")           // a click flips m.notify
-		s.Choice(&m.theme, themes)                 // m.theme is the chosen index
-		s.Select(&m.sizeState, &m.size, sizes)     // a flex.SelectState and the chosen index
-		s.ScrollArea("hosts").Grow(1).Children(func() {
+func (m *model) page(c flex.C) {
+	flex.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		flex.TextField(c, &m.name, "Name", "Your name") // a flex.Field in the model; typing needs nothing more
+		flex.Switch(c, &m.notify, "Notify me")          // a click flips m.notify
+		flex.Choice(c, &m.theme, themes, nil)           // m.theme is one of themes ([]string here; else pass a label func)
+		flex.Select(c, &m.size, sizes, nil)             // a drop-down; its open state is its own
+		flex.Scroll(c).Grow(1).Children(func() {
 			for i := range m.hosts {
 				h := &m.hosts[i]
-				r := s.Key(h.ID)                    // a list row with a plain Button needs a Key
-				r.Row().Gap(8).Children(func() {
-					r.Checkbox(&h.done, h.Name)
-					if r.Button("Delete").Ghost().Clicked() {
-						r.AfterPaint(func() { m.remove(h.ID) }) // changes the list: after the paint
+				flex.Row(c.KeyInt(h.ID)).Gap(8).Children(func() { // Key a row by its item: it keeps focus as rows move
+					flex.Checkbox(c, &h.Done, h.Name)
+					if flex.Button(c, "Delete").Ghost().Clicked() {
+						c.After(func() { m.remove(h.ID) }) // changes the list: after the paint
 					}
 				})
 			}
 		})
-		if s.Button("Save").Clicked() { m.save() }
+		if flex.Button(c, "Save").Clicked() { m.save() }
 	})
-	s.Modal(&m.confirm, "Delete host?", func(d flex.ModalScreen) { /* d.Footer(...) */ })
-	s.Popover(anchorBox, &m.menuOpen, func(p flex.Screen) { /* the panel */ })
+	flex.Modal(c, &m.confirm, "Delete host?", func() { /* body */ }, func() { /* footer buttons */ })
+	flex.Popover(c, anchorBox, &m.menuOpen, func() { /* the panel */ })
 }
 ```
 
-- Bind controls to fields of the model (`&h.done`), not to a local copy: a copy has a new
-  address every paint, and its clicks are lost (the Screen reports it). Inside a `Key` row a
-  copy works; write it back on `.Changed()`.
-- `Changed()` reports the paint in which a bound control changed its value; `Clicked()` on a
-  `Button`. `Popover` and `Modal` set their `*bool` to false when dismissed (Escape, a press
-  outside, the close button) and give the focus back.
-- `s.Raw()` is the `*flex.Frame` underneath, for anything the Screen does not forward; give a
-  control declared there an identity with `s.ID("word")`.
+- `c.Key("text")` / `c.KeyInt(id)` name the next element (a row); `c.Part("word")` names a part of a
+  component. Everything else is named by its place in its parent: no names to declare.
+- Bind fields of the model (`&h.Done`). A copy (`v := m.viewed[id]; flex.Checkbox(c, &v, ...)`) works too:
+  write it back on `.Changed()`.
+- `Changed()` reports the paint in which a bound control changed its value; `Clicked()` on a `Button`.
+  `Popover` and `Modal` set their `*bool` to false when dismissed (Escape, a press outside, the close
+  button) and give the focus back.
+- Long lists: `flex.List(c, &m.listState, len(items), func(i int) { ... })` declares only the rows on screen.
+- A part that rarely changes: `flex.Memo(c.KeyInt(id), version, func() { ... })` is copied from the last
+  paint while `version` is the same; bump `version` when what the function reads changes.
+- Your own component is a function of the same shape: `func Card(c flex.C, title string, body func()) flex.Box`.
+  Its own small state (whether it is open) is `flex.State[bool](c)`; the application's state stays in the model.
+- A settings form: tag the struct's fields (`form:"Label"`, `choices:"options,nameFunc"`, `placeholder:"..."`)
+  and run `go tool viva form` (or `//go:generate go tool viva form`); it writes `Form(c flex.C) flex.Box`.
+- `c.Frame()` is the `*flex.Frame` underneath, for a control with an identity of your own (see
+  Identities and clicks), named in a page by `flex.ID(c)`; `c.Theme()` is the theme.
 - In a test, find controls by their name (`Hit.Label`), as main_test.go does.
 
 ## Mistakes that compile (and how each is reported)
@@ -72,15 +79,14 @@ running anything; a test under `app.NewDriver` panics on them where they happen,
 
 | You wrote | What goes wrong | Write instead |
 | --- | --- | --- |
-| `for _, h := range m.hosts { s.Checkbox(&h.Done, ...) }` | `h` is a copy: clicks are lost, nothing is written | `for i := range m.hosts { h := &m.hosts[i]; s.Checkbox(&h.Done, ...) }` |
-| `v := m.flag; s.Switch(&v, ...)` | `v` is made again every paint | `s.Switch(&m.flag, ...)` |
-| `for ... { s.Button("Delete") }` | a row added above moves the click to another row | `r := s.Key(item.ID); r.Button("Delete")` |
-| a `flex.Screen` in a struct field or a global | it is valid only inside the body | keep `*flex.Screen` from `NewScreen`, pass `s` down |
-| deleting from the list inside its loop on `Clicked` | the loop still runs over it | `s.AfterPaint(func() { m.remove(id) })` |
-| `s.Modal(&open, "", ...)` | panics: a dialog needs a title | give it one; it names the dialog for screen readers |
-| two `s.Key("x")` rows in one paint | panics | key rows by something unique (an ID) |
+| `for ... { flex.Button(c, "Delete") }` with no Key | a row added above moves the click to another row | `flex.Row(c.KeyInt(item.ID)).Children(func() { flex.Button(c, "Delete") })` |
+| a `flex.C` in a struct field or a global | it is valid only inside the page function | keep the `*flex.Page`, pass `c` down |
+| deleting from the list inside its loop on `Clicked` | the loop still runs over it | `c.After(func() { m.remove(id) })` |
+| `flex.Modal(c, &open, "", ...)` | panics: a dialog needs a title | give it one; it names the dialog for screen readers |
+| two rows with `c.Key("x")` in one parent | panics | key rows by something unique (an ID) |
+| a `flex.Memo` whose function reads something its version does not cover | the part shows stale content | bump the version when that changes; `flex.MemoCheck(true)` in a test panics on it |
 
-A line, or the line above it, with `// viva:ignore unkeyed-button` (or `bound-copy`, `kept-screen`) silences
+A line, or the line above it, with `// viva:ignore unkeyed-button` (or `kept-context`) silences
 one finding you have checked.
 
 ## Laying a page out (package github.com/vivaui/viva/flex)
@@ -300,8 +306,8 @@ m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 
 ## Identities and clicks (flex.Frame)
 
-A Screen names its controls; this section is for a page written with a `flex.Frame` (or
-through `s.Raw()`), where every clickable thing has a stable identity you declare: a name in a
+A page names its elements; this section is for a page written with a `flex.Frame` (or
+through `c.Frame()`), where every clickable thing has a stable identity you declare: a name in a
 tree, declared once at the top.
 
 ```go
@@ -358,7 +364,7 @@ f.Row().Fill().Children(func() {
 
 ## A modal dialog
 
-With a Screen, use `s.Modal(&open, title, body)` (see Pages). With a Frame, use `f.Dialog` (see Laying a page out): `d.Dismissed()` is true for the scrim, the close button and Escape alike
+With a page, use `flex.Modal(c, &open, title, body, footer)` (see Pages). With a Frame, use `f.Dialog` (see Laying a page out): `d.Dismissed()` is true for the scrim, the close button and Escape alike
 (`OnKey` never sees Escape for an unfocused page, and needs not). For a modal of your own look, build it as the last
 child of a `Stack`, call `f.Canvas().SetEscapeTarget(scrim)` while it is open (Escape then arrives as a click on
 `scrim`), and give the panel a `Hit` of its own so a click inside does not reach the scrim.
@@ -451,8 +457,8 @@ model on the window's thread before the repaint.
 
 ## Testing
 
-`app.NewDriver(screen.Config(config()), nil)` runs the real application with no window
-(`flex.NewScreen(flex.ScreenConfig{Body: m.page})` makes the Screen):
+`app.NewDriver(page.Config(config()), nil)` runs the real application with no window
+(`flex.NewPage(flex.PageConfig{View: m.page})` makes the page):
 `driver.Click(x, y)`, `Type`, `Key`, `Move`, `Scroll`, `Resize`, then `driver.Snapshot()` for the
 labels, hits and rectangles painted. main_test.go clicks a control by its name and reads
 the labels; copy it. Test behaviour a user sees (the count changed, the row opened), not

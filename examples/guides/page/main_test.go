@@ -11,8 +11,8 @@ import (
 func open(t *testing.T, m *model) (*app.Driver, *app.Invalidator) {
 	t.Helper()
 	invalidator := new(app.Invalidator)
-	screen := flex.NewScreen(flex.ScreenConfig{Body: m.page})
-	driver, err := app.NewDriver(screen.Config(app.Config{Width: 460, Height: 900, Invalidator: invalidator}), nil)
+	page := flex.NewPage(flex.PageConfig{View: m.page})
+	driver, err := app.NewDriver(page.Config(app.Config{Width: 460, Height: 900, Invalidator: invalidator}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestFilteringKeepsTheFocusOnItsHost(t *testing.T) {
 	if !m.hosts[6].handled {
 		t.Fatal("the click did not reach jump-01")
 	}
-	m.filter = 2 // Handled: the rows above jump-01 change
+	m.filter = "Handled" // the rows above jump-01 change
 	invalidator.Invalidate()
 	if err := driver.Pump(); err != nil {
 		t.Fatal(err)

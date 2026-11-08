@@ -14,9 +14,9 @@ type model struct {
 
 // page declares the window's content. It runs on every repaint and reads the
 // model; a click changes the model, and the repaint that follows shows it.
-func (m *model) page(s flex.Screen) {
-	s.Column().Fill().Pad(24).Gap(12).Children(func() {
-		if s.Button(fmt.Sprintf("Clicked %d times", m.clicks)).Clicked() {
+func (m *model) page(c flex.C) {
+	flex.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		if flex.Button(c, fmt.Sprintf("Clicked %d times", m.clicks)).Clicked() {
 			m.clicks++
 		}
 	})

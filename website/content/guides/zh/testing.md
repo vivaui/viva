@@ -27,8 +27,8 @@ import (
 // rules, driven by explicit calls.
 func open(t *testing.T, m *model) *app.Driver {
 	t.Helper()
-	screen := flex.NewScreen(flex.ScreenConfig{Body: m.page})
-	driver, err := app.NewDriver(screen.Config(app.Config{Width: 480, Height: 240}), nil)
+	page := flex.NewPage(flex.PageConfig{View: m.page})
+	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 240}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,19 +72,17 @@ func TestClickCounts(t *testing.T) {
 }
 ```
 
-测试按用户和读屏器认识控件的名字（`Hit.Label`）找控件，而不是按坐标。`flex.Screen` 自己为控件命名，在它的树里是 `screen/~button/#0` 这样的路径；`Screen.Describe` 输出路径时会把 `Key` 行的编号换回 key 本身，测试需要按路径定位时，可以用 `Screen.ID` 给通过 `Raw` 声明的控件起一个你自己的名字。
-
-后台 goroutine 只能通过 `Config.Invalidator` 触及 driver，和触及窗口的方式完全一样，由 `Pump` 应用唤醒。`examples/guides/background/main_test.go` 是一个用这种方式等待工作 goroutine 结果的测试。driver 模拟文本系统的编辑命令（Home/End、按词和按文档移动、按词删除、撤销与重做）以及 Command-A、C、X、V 快捷键，并且像 Windows 一样，把获得焦点的普通文本框的编辑组合交给它先处理，再交给 `OnShortcut`，但不模拟输入法组合输入。
+测试按用户和读屏器认识控件的名字（`Hit.Label`）找控件，而不是按坐标。页面自己为元素命名，在它的树里是 `page/~k1/#0` 这样的路径；`c.Part("word")` 给元素起一个你自己的名字，测试和无头驱动可以按路径定位。
 
 ## 能编译却做错事的写法
 
-`flex.Screen` 页面可能能编译却做错事：绑定到副本的复选框（`for _, h := range m.hosts { s.Checkbox(&h.Done, ...) }`，`h` 每次绘制都会重新创建）会丢失点击；循环里每一行都有同名 `Button` 又没加 `s.Key`，点击可能落到别的行上。在 `app.Driver` 下这些错误会在发生处直接 panic，并给出应该怎么写，所以走到它们的测试会失败。`viva vet` 不运行程序就能找出它们：
+页面可能能编译却做错事：循环里每一行都有同名 `Button`、行又没加 Key 时，上方新增一行后，点击可能落到别的行上。`viva vet` 不运行程序就能找出它：
 
 ```sh
 viva vet            # 或 go tool viva vet；包默认为 ./...
 ```
 
-每个问题报告为 `文件:行:列: 哪里错了以及应该怎么写 (检查名)`，发现问题时以非零状态退出，并使用项目自己的 Go 运行。在该行或上一行写 `// viva:ignore <检查名>` 可以忽略一条。
+每个问题报告为 `文件:行:列: 哪里错了以及应该怎么写 (检查名)`，发现问题时以非零状态退出，并使用项目自己的 Go 运行。在该行或上一行写 `// viva:ignore <检查名>` 可以忽略一条。`flex.Memo` 的版本号漏掉了函数读取的某个状态时会显示旧内容：在测试里打开 `flex.MemoCheck(true)`，它会声明每个部件，并在复制结果与声明结果不同时 panic。
 
 ## 行协议
 

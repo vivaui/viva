@@ -21,45 +21,34 @@ type item struct {
 type model struct {
 	items []item
 	open  bool
-	kept  flex.Screen
+	kept  flex.C
 }
 
-func (m *model) page(s flex.Screen) {
+func (m *model) page(c flex.C) {
 	for _, it := range m.items {
-		s.Checkbox(&it.Done, it.Name) // copy: a range variable
-		s.Button("Delete")            // the same label in every row, no Key
+		flex.Checkbox(c, &it.Done, it.Name) // a copy: works, not reported
+		flex.Button(c, "Delete")            // the same label in every row, no Key
 	}
 	for i := range m.items {
 		it := &m.items[i]
-		s.Checkbox(&it.Done, it.Name) // a pointer into the model
-		r := s.KeyIndex(it.ID)
-		r.Button("Delete")
-		done := it.Done
-		if r.Checkbox(&done, "").Changed() {
-			it.Done = done
-		}
-		s.Key(it.Name).Button("Open")
+		flex.Row(c.KeyInt(it.ID)).Children(func() {
+			flex.Button(c, "Delete") // keyed
+		})
 	}
-	var local bool
-	s.Switch(&local, "Local") // copy: made in every paint
-	s.Modal(&m.open, "Title", func(flex.ModalScreen) {})
 	for _, label := range []string{"A", "B"} {
-		s.Button(label)
+		flex.Button(c, label) // the labels differ
 	}
 	for range 2 {
 		// viva:ignore unkeyed-button
-		s.Button("Same")
+		flex.Button(c, "Same")
 	}
+	flex.Modal(c, &m.open, "Title", nil, nil)
 }
 
-func main() {
-	shared := false
-	_ = func(s flex.Screen) { s.Checkbox(&shared, "Kept between paints") }
-	_ = (&model{}).page
-}
+func main() { _ = (&model{}).page }
 `
 
-func TestVetFindsScreenMistakes(t *testing.T) {
+func TestVetFindsPageMistakes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds a module")
 	}
@@ -91,7 +80,7 @@ func TestVetFindsScreenMistakes(t *testing.T) {
 	for _, finding := range findings {
 		got = append(got, finding.check+"@"+strconv.Itoa(finding.pos.Line))
 	}
-	want := []string{"kept-screen@14", "bound-copy@19", "unkeyed-button@20", "bound-copy@34"}
+	want := []string{"kept-context@14", "unkeyed-button@20"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("findings = %v, want %v", got, want)
 	}

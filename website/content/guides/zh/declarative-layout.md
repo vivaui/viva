@@ -37,17 +37,17 @@ view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
 
 控件就是 `components` 里的那些，外观完全一致：`Button`（以及 `Outline`、`Ghost`、`Secondary`、`Destructive`、`Small` 等变体）、`Checkbox`、`Switch`、`Icon`、`Divider`。`Clicked()` 在声明控件的地方读取：它只在递送这次点击的那一遍里为真。任何元素都可以用 `Hit(id, label)` 成为指针目标；它在指针悬停、按下和获得焦点时的样子用 `Hover`、`Pressed` 和 `Focus` 声明（见下文）。
 
-## 不起名字的页面：flex.Screen
+## 页面：flex.C
 
-`flex.Screen` 是同一套布局，再替你做掉页面的簿记。Frame 的控件要用你在 `ui.Tree` 里声明的标识，点击结果要你自己写回；Screen 的控件接受它要修改的值，由 Screen 为它们命名：
+页面 API 是同一套布局，再替你做掉页面的簿记。每个元素都是 `flex` 的一个函数，第一个参数是页面的 `c`；容器在一个函数里声明子元素，控件接收它要修改的值。不需要你起任何名字：
 
 ```go
-func (m *model) page(s flex.Screen) {
-	s.Column().Fill().Pad(24).Gap(12).Children(func() {
-		s.Field(&m.name, "Name", "Your name")
-		s.Switch(&m.sync, "Sync over SSH")
-		s.Choice(&m.theme, themes)
-		if s.Button("Save").Clicked() {
+func (m *model) page(c flex.C) {
+	flex.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		flex.TextField(c, &m.name, "Name", "Your name")
+		flex.Switch(c, &m.sync, "Sync over SSH")
+		flex.Choice(c, &m.theme, themes, nil)
+		if flex.Button(c, "Save").Clicked() {
 			m.save()
 		}
 	})
@@ -56,19 +56,35 @@ func (m *model) page(s flex.Screen) {
 flex.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
 ```
 
-点击会在递送它的那一遍绘制里翻转 `m.sync`、设置 `m.theme`：在控件第一次被询问（`Clicked`、`Changed`）时写入，没有被询问就在页面结束时写入，所以写在控件之后的 `Disabled` 依然有效。`Field` 不需要 `Config.TextInput`：Screen 的 `Config` 把它声明的每个 Field 的编辑器交给平台，其他获得焦点的字段交给配置里原有的提供者。`Popover` 和 `Modal` 在一个 `*bool` 为真时打开，被关闭时把它设为 false（见[对话框、菜单与弹出层](/zh/docs/overlays/)）。`Box.NativeView` 把一个元素的位置交给系统网页引擎的页面。
+点击会在递送它的那一遍绘制里翻转 `m.sync`：在控件第一次被询问（`Clicked`、`Changed`）时写入，没有被询问就在页面结束时写入，所以写在控件之后的 `Disabled` 依然有效。`Choice`、`Tabs` 和 `Select` 接受任意可比较类型的值，并在声明时就写入：要禁用它们，用 `if` 包起来，而不是在后面写 `Disabled`。`TextField` 不需要 `Config.TextInput`：页面的 `Config` 把它声明过的每个输入框的编辑器交给平台，其他获得焦点的输入框交给配置里原有的提供者。`Popover` 和 `Modal` 在一个 `*bool` 为真时打开，被关闭时把它设为 false（见[对话框、菜单和弹出层](/zh/docs/overlays/)）。`Box.NativeView` 把一个元素的区域交给系统网页引擎的页面。
 
-Screen 为控件命名的方式保证一个名字不会在用户不知情时转到另一个控件上：
+元素按位置命名：它的种类，以及它在所在容器里同类元素中的序号。另有三条细化：
 
-- 绑定了值的控件以该值的地址命名。在密码框上方出现的输入框不会拿走密码框的焦点和输入；过滤列表时，每个复选框的焦点留在它所在的行。要绑定模型里的字段，而不是副本：局部副本在每次绘制时地址都不同，它的点击会丢失（Screen 会通过 `diagnostics` 报告）。
-- 没有绑定值的控件（`Button`）按它在所在范围内的按钮里的顺序编号。用户按住它（按下或它有焦点）期间，如果某次绘制里它的编号被另一个按钮占了，这次按下不会递送，焦点也会释放。
-- 在 `s.Key(item.ID)` 或 `s.KeyIndex(id)` 里，控件只在这一行内部编号，所以带按钮的列表行要加 Key：行出现、消失或移动时，行里的按钮跟着它走。行消失两遍绘制之后它的 key 编号会被复用，所以列表的开销只取决于同时显示的行数。同一范围里两个没有 Key 的同名按钮会被报告，因为没有办法区分它们。
+- 绑定了值的控件以该值的地址命名，值移动时名字跟着走：在密码框上方出现的输入框不会拿走密码框的焦点；过滤列表时，每个复选框的焦点留在它那一行。绑定副本（`v := m.items[k]; flex.Checkbox(c, &v, ...)`）同样可用：它沿用所在位置的名字，调用之后把副本写回即可。
+- 在 `c.Key(item.ID)` 或 `c.KeyInt(id)` 里，元素只在这一行内部编号，所以行出现、消失或移动时，行里的按钮跟着这一行走。行消失两遍绘制之后，它的 Key 才会被复用。行里有 `Button` 的循环要给行加 Key；没加时 `viva vet` 会报告。
+- 用户按住一个按钮（按下它，或它有焦点）时，如果某一遍绘制里另一个按钮占了它的位置，这次按下不会递送，焦点也会被放弃。
 
-`examples/guides/screen` 的 fleet 页面是一个完整的程序：一个过滤控件、一个可滚动的主机列表（每行一个绑定到该主机的复选框）、一个进度条和一个按钮，没有声明任何标识。
+`flex.List(c, &state, n, row)` 只声明 `n` 行列表里显示在屏幕上的行，每行高度由内容决定，并负责滚动；`ListState.Key` 按条目 ID 为行命名。`flex.State[T](c)` 是元素自己的小状态（比如菜单是否打开），在它的容器被声明期间一直保留。`flex.Memo(c, version, fn)` 在 `version` 不变时从上一遍绘制复制 `fn` 声明的部分，在它被悬停、获得焦点、处于动画中或改变大小时重新声明；见下面的开销。
 
-<!-- example: screen/main.go -->
+设置类结构体的表单可以自动生成。给字段加 tag，然后运行 `viva form`（写成 `//go:generate go tool viva form`）：它生成 `viva_form.go`，里面是 `func (v *Settings) Form(c flex.C) flex.Box`，就是普通的页面代码，不用反射：
+
 ```go
-// Fleet check with flex.Screen: the page examples/guides/fleet declares with a
+type Settings struct {
+	Name   flex.Field       `form:"Name" placeholder:"Your name"`
+	Sync   bool             `form:"Sync over SSH"`            // Switch；写 "Sync,checkbox" 则为 Checkbox
+	Theme  Theme            `form:"Theme" choices:"themes,Theme.String"`
+	Size   string           `form:"Size,select" choices:"sizes"`
+	Volume flex.SliderState `form:"Volume"`
+}
+```
+
+`choices` 指定一个包级切片；选项不是字符串时，再指定一个为选项命名的函数。没有 `form` tag 的字段不生成任何东西；给它不认识的类型加 tag 会报错，并列出它支持的类型。
+
+`examples/guides/page` 的 fleet 页面是一个完整的程序：一个过滤控件、一个可滚动的主机列表（每台主机一个绑定到它的复选框）、一个进度条和一个按钮，没有声明任何一个标识。
+
+<!-- example: page/main.go -->
+```go
+// Fleet check with a flex page: the page examples/guides/fleet declares with a
 // Frame and a tree of identities, written without naming a control.
 //
 // Each checkbox writes into the host it shows, and is named by that host's field,
@@ -91,14 +107,14 @@ type host struct {
 
 type model struct {
 	hosts  []host
-	filter int
+	filter string
 	scans  int
 }
 
 var filters = []string{"All", "Open", "Handled"}
 
 func newModel() *model {
-	return &model{hosts: []host{
+	return &model{filter: "All", hosts: []host{
 		{name: "edge-01", addr: "10.0.4.11", item: "Disable password auth"},
 		{name: "edge-02", addr: "10.0.4.12", item: "Rotate host key"},
 		{name: "build-01", addr: "10.0.8.3", item: "Pin to ed25519"},
@@ -111,7 +127,7 @@ func newModel() *model {
 }
 
 func (m *model) matches(h *host) bool {
-	switch filters[m.filter] {
+	switch m.filter {
 	case "Open":
 		return !h.handled
 	case "Handled":
@@ -130,55 +146,56 @@ func (m *model) handled() int {
 	return n
 }
 
-func (m *model) page(s flex.Screen) {
-	s.Column().Fill().Pad(22).Gap(14).Children(func() {
-		s.Text("Fleet check").FontSize(26).Bold()
-		s.Text("SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
-		s.Choice(&m.filter, filters)
+func (m *model) page(c flex.C) {
+	flex.Column(c).Fill().Pad(22).Gap(14).Children(func() {
+		flex.Text(c, "Fleet check").FontSize(26).Bold()
+		flex.Text(c, "SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
+		flex.Choice(c, &m.filter, filters, nil)
 
 		// The list takes the room left over, so the footer stays on screen.
-		s.ScrollArea("hosts").Grow(1).Gap(8).Children(func() {
+		flex.Scroll(c).Grow(1).Gap(8).Children(func() {
 			for i := range m.hosts {
 				if h := &m.hosts[i]; m.matches(h) {
-					m.row(s, h)
+					m.row(c, h)
 				}
 			}
 		})
 
 		handled, total := m.handled(), len(m.hosts)
-		s.Progress(float32(handled) / float32(max(total, 1))).FillWidth()
-		s.Row().FillWidth().Gap(10).Items(flex.Center).Children(func() {
-			s.Textf("%d of %d handled", handled, total).FontSize(12).Muted().Mono()
-			s.Spacer()
-			s.Textf("scanned %dx", m.scans).FontSize(12).Muted().Mono()
-			if s.Button("Scan again").Clicked() {
+		flex.Progress(c, float32(handled)/float32(max(total, 1))).FillWidth()
+		flex.Row(c).FillWidth().Gap(10).Items(flex.Center).Children(func() {
+			flex.Textf(c, "%d of %d handled", handled, total).FontSize(12).Muted().Mono()
+			flex.Spacer(c)
+			flex.Textf(c, "scanned %dx", m.scans).FontSize(12).Muted().Mono()
+			if flex.Button(c, "Scan again").Clicked() {
 				m.scans++
 			}
 		})
 	})
 }
 
-func (m *model) row(s flex.Screen, h *host) {
-	theme := s.Theme()
-	s.Row().FillWidth().Pad(12).Gap(12).Radius(10).Items(flex.Center).Background(theme.Card).Children(func() {
+// row is one host: a component of the page's own, written as Viva's elements are.
+func (m *model) row(c flex.C, h *host) {
+	theme := c.Theme()
+	flex.Row(c).FillWidth().Pad(12).Gap(12).Radius(10).Items(flex.Center).Background(theme.Card).Children(func() {
 		if h.handled {
-			s.Text("ok").FontSize(11).Color(theme.Success)
+			flex.Text(c, "ok").FontSize(11).Color(theme.Success)
 		} else {
-			s.Text("open").FontSize(11).Color(theme.Danger)
+			flex.Text(c, "open").FontSize(11).Color(theme.Danger)
 		}
-		s.Column().Grow(1).Gap(2).Children(func() {
-			s.Row().Gap(8).Items(flex.Center).Children(func() {
-				s.Text(h.name).FontSize(14).Bold()
-				s.Text(h.addr).FontSize(12).Muted().Mono()
+		flex.Column(c).Grow(1).Gap(2).Children(func() {
+			flex.Row(c).Gap(8).Items(flex.Center).Children(func() {
+				flex.Text(c, h.name).FontSize(14).Bold()
+				flex.Text(c, h.addr).FontSize(12).Muted().Mono()
 			})
-			item := s.Text(h.item).FontSize(12)
+			item := flex.Text(c, h.item).FontSize(12)
 			if h.handled {
 				item.Muted()
 			}
 		})
 		// The checkbox writes into the host; the bar above derives itself from the
 		// hosts on the next paint.
-		s.Checkbox(&h.handled, "").Label(h.name)
+		flex.Checkbox(c, &h.handled, "").Label(h.name)
 	})
 }
 
@@ -189,9 +206,9 @@ func main() {
 }
 ```
 
-`s.Raw()` 是底下的 Frame，用于 Screen 没有转发的东西（`Textarea`、`InputGroup`、各个 `Base` 控件）；`s.ID("word")` 给在那里声明的控件起一个你自己的名字，测试和无头驱动可以按它定位。画在窗口一部分（一个窗格）里的页面，用 `flex.NewScreen` 并传入窗口的 Tree，再调用 `screen.Draw(canvas, bounds, body)`。按标识集中分派事件的窗口级处理器，以及自定义控件，继续使用 Frame。
+`c.Frame()` 是底下的 Frame，用于页面自己不声明的东西（`Textarea`、`InputGroup`、各个 `Base` 控件）；`c.Part("word")` 给下一个元素起一个你自己的名字，测试和无头驱动可以用它。画在窗口一部分（一个窗格）里的页面，是在一个拿到窗口 Tree 和根名字的 `flex.NewPage` 上调用 `page.Draw(canvas, bounds, view)`。按标识分派的窗口级处理器和自定义控件继续使用 Frame。
 
-`examples/guides/screen` 的 fleet 页面（一个选择控件、一个包含八行的滚动区域、每行一个复选框、一个进度条和一个按钮）在 Apple M2 Pro 上声明、布局并绘制一次需要 9.8 µs，同一页面用 Frame 写是 9.0 µs，预热后都不分配内存；一千个带 key 的行需要 0.68 ms，Frame 是 0.57 ms（`go test ./flex -bench 'Fleet$|Keyed1000$'`）。
+`examples/guides/page` 的 fleet 页面（一个选择控件、一个包含八行的滚动区域、每行一个复选框、一个进度条和一个按钮）在 Apple M2 Pro 上声明、布局并绘制用时 9.8 µs，用 Frame 写的同一页面是 9.0 µs，预热后都不分配；一千个带 Key 的行是 0.75 ms 对 0.67 ms。两百行的列表每行套一个 `Memo` 后从 271 µs 降到 87 µs，整个列表套一个是 37 µs；复制保留的是上一遍绘制的命令，这两百行约占 0.5 MB（`go test ./flex -bench 'Fleet$|Rows1000|Rows200'`）。
 
 ## 状态与效果
 
