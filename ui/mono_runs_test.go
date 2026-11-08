@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/vivaui/viva/internal/grapheme"
+	"github.com/vivaui/viva/text"
 )
 
 // newMonoTestCanvas is a canvas whose fixed-pitch cell at size 10 is exactly 6 wide and
@@ -114,6 +117,42 @@ func TestMonoLabelKeepsACombiningMarkWithItsCharacter(t *testing.T) {
 				if got[i] != c.want[i] {
 					t.Errorf("run %d = %+v, want %+v", i, got[i], c.want[i])
 				}
+			}
+		})
+	}
+}
+
+func TestMonoLabelKeepsShapedClustersTogether(t *testing.T) {
+	for _, value := range []string{
+		"a👩‍💻b",
+		"a🇨🇳b",
+		"aक्षb",
+		"a\u200db",
+		"a\ufe0fb",
+	} {
+		t.Run(value, func(t *testing.T) {
+			canvas := newMonoTestCanvas(t)
+			style := TextStyle{Size: 10, Mono: true}
+			canvas.Label(value, Rect{Width: 100, Height: 12}, style)
+			runs := canvas.TextRuns(canvas.Texts()[0])
+			offset, column := 0, int32(0)
+			for _, run := range runs {
+				end := offset + int(run.Bytes)
+				if !grapheme.Boundary(value, end) {
+					t.Errorf("run ending at byte %d splits a shaped cluster in %q", end, value)
+				}
+				cells := int32(0)
+				for _, character := range value[offset:end] {
+					cells += int32(text.CellWidth(character))
+				}
+				if run.Column != column || run.Cells != cells {
+					t.Errorf("run for %q occupies column %d, %d cells, want %d, %d", value[offset:end], run.Column, run.Cells, column, cells)
+				}
+				column += cells
+				offset = end
+			}
+			if offset != len(value) || canvas.TextWidthStyle(value, style) != float32(column)*6 {
+				t.Errorf("runs do not cover the measured line %q", value)
 			}
 		})
 	}

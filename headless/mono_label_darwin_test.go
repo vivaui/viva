@@ -90,6 +90,40 @@ func TestHeadlessMonoLabelIsDrawnLikeItsGridLine(t *testing.T) {
 	}
 }
 
+func TestHeadlessMonoLabelShapesWholeClusters(t *testing.T) {
+	white := ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	style := ui.TextStyle{Size: 20, Color: white, Mono: true}
+	for _, value := range []string{"👩‍💻", "🇨🇳", "क्ष"} {
+		t.Run(value, func(t *testing.T) {
+			session, err := Open(app.Config{
+				Title: "mono clusters", Width: 220, Height: 48,
+				ClearColor: app.Color{Alpha: 1},
+				Paint: func(canvas *ui.Canvas, _ ui.Size) {
+					cell, _ := canvas.MonoCellSize(style.Size, style.MonoFace)
+					cells := int32(canvas.TextWidthStyle(value, style) / cell)
+					canvas.Label(value, ui.Rect{X: 10, Width: 200, Height: 24}, style)
+					canvas.LabelRuns(value, ui.Rect{X: 10, Y: 24, Width: 200, Height: 24}, style, cell,
+						[]ui.TextRun{{Bytes: int32(len(value)), Cells: cells, Color: white}})
+				},
+			}, nil, Options{Scale: 2})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer session.Close()
+			picture, err := session.Image()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if first, _ := inkColumns(picture, 0, 48); first < 0 {
+				t.Fatal("no ink in the label's row")
+			}
+			if x, y, same := sameRows(picture, 0, 48, 48); !same {
+				t.Errorf("%q differs from its grid line at %d,%d", value, x, y)
+			}
+		})
+	}
+}
+
 // sameRows reports whether the height rows of picture from top are the same pixels as
 // those from other, and where they first differ.
 func sameRows(picture *image.RGBA, top, other, height int) (x, y int, same bool) {

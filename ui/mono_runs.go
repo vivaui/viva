@@ -3,6 +3,7 @@ package ui
 import (
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/internal/grapheme"
 	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/internal/uniprops"
 )
@@ -43,9 +44,10 @@ func monoTextCells(value string) int {
 
 // appendMonoRuns appends to dst the runs that draw value in style on a fixed-pitch grid,
 // the runs LabelRuns would be given for a line of one color: one for each stretch of
-// printable ASCII, and one for every other character, with the combining marks that
-// follow it, on the cells monoCells counts for it. With ligatures, a stretch of two or
-// more characters is shaped as one line fitted to its cells (TextRun.Ligatures). It
+// printable ASCII, and one for every other grapheme cluster (with a mark following a
+// control kept on that control), on the cells monoCells counts for its characters.
+// With ligatures, a stretch of two or more characters is shaped as one line fitted
+// to its cells (TextRun.Ligatures). It
 // reports false, and returns dst as it was, when value is not valid UTF-8, which no run
 // may split, or is laid out in more than one direction or from right to left, which a
 // grid in logical order cannot show.
@@ -66,8 +68,8 @@ func appendMonoRuns(dst []TextRun, value string, style TextStyle, ligatures bool
 	first := len(dst)
 	for offset, column := 0, int32(0); ; {
 		// end is where the printable ASCII from offset ends.
-		if end > offset && markAt(value, end) {
-			end-- // the last character goes with the marks that follow it
+		if end > offset && end < len(value) && !grapheme.Boundary(value, end) {
+			end--
 		}
 		if end > offset {
 			cells := int32(end - offset)
@@ -75,16 +77,19 @@ func appendMonoRuns(dst []TextRun, value string, style TextStyle, ligatures bool
 			dst = append(dst, run)
 			offset, column = end, column+cells
 		} else {
-			r, size := utf8.DecodeRuneInString(value[offset:])
-			if r == utf8.RuneError && size <= 1 {
-				return dst[:first], false
-			}
-			end = offset + size
+			end = grapheme.Next(value, offset)
 			for markAt(value, end) {
-				_, size := utf8.DecodeRuneInString(value[end:])
-				end += size
+				end = grapheme.Next(value, end)
 			}
-			cells := int32(monoCells(r))
+			cells := int32(0)
+			for at := offset; at < end; {
+				r, size := utf8.DecodeRuneInString(value[at:end])
+				if r == utf8.RuneError && size == 1 {
+					return dst[:first], false
+				}
+				cells += int32(monoCells(r))
+				at += size
+			}
 			run.Column, run.Bytes, run.Cells, run.Ligatures = column, int32(end-offset), cells, false
 			dst = append(dst, run)
 			offset, column = end, column+cells
@@ -96,7 +101,6 @@ func appendMonoRuns(dst []TextRun, value string, style TextStyle, ligatures bool
 	}
 }
 
-// markAt reports whether a combining mark starts at offset of value.
 func markAt(value string, offset int) bool {
 	if offset >= len(value) || value[offset] < utf8.RuneSelf {
 		return false
