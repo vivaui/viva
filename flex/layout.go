@@ -244,6 +244,7 @@ func (f *Frame) solve(i int32, axis int) {
 	case n.dir == grid:
 		f.solveGrid(n, axis, start, avail)
 	case n.flows(axis):
+		f.placeSplitRatios(n, axis, avail)
 		f.solveFlow(n, axis, start, avail)
 	default:
 		f.solveAcross(n, axis, start, avail)

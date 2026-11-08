@@ -125,14 +125,6 @@ func (b Box) Mins(first, second float32) Box {
 // bar is vertical and its pointer coordinate is x.
 func (f *Frame) splitsRow(n *node) bool { return n.parent < 0 || f.nodes[n.parent].dir != column }
 
-// axisOf is the axis a splitter's panes are laid out along.
-func axisOf(row bool) int {
-	if row {
-		return axisX
-	}
-	return axisY
-}
-
 func (f *Frame) measureSplitter(n *node) {
 	if f.splitsRow(n) {
 		n.pref = [2]float32{splitterThickness, 0}
@@ -161,6 +153,43 @@ func (f *Frame) splitLimits(n *node) (lo, hi, span float32) {
 	return lo, max(hi, lo), span
 }
 
+// placeSplitRatios gives every splitter with a Ratio its first pane's size on
+// this axis before the container shares its room. Doing it in the layout pass,
+// rather than after it, means the first frame that shows the pane already has
+// the share and a resize keeps it without a second frame.
+func (f *Frame) placeSplitRatios(n *node, axis int, avail float32) {
+	if n.first < 0 {
+		return
+	}
+	count := 0
+	for c := n.first; c >= 0; c = f.nodes[c].next {
+		count++
+	}
+	gaps := n.gap * float32(max(count-1, 0))
+	for c := n.first; c >= 0; c = f.nodes[c].next {
+		bar := &f.nodes[c]
+		if bar.kind != kindSplitter {
+			continue
+		}
+		d := &f.widgets.splits[bar.aux]
+		state := d.state
+		if state.Ratio <= 0 || d.first < 0 {
+			continue
+		}
+		thickness := bar.pref[axis]
+		if thickness <= 0 {
+			thickness = splitterThickness
+		}
+		lo := d.minFirst
+		hi := max(avail-gaps-thickness-d.minSecond, lo)
+		pos := min(max(state.Ratio*(avail-gaps-thickness), lo), hi)
+		first := &f.nodes[d.first]
+		first.raw[axis], first.pref[axis] = pos, pos
+		state.Pos = pos
+		state.lo, state.hi, state.span = lo, hi, avail
+	}
+}
+
 // reportSplitters keeps every position inside its limits after a layout (a window that
 // got smaller, a pane that was given a different size) and asks for one more frame when
 // it had to move one, so the panes follow.
@@ -173,12 +202,6 @@ func (f *Frame) reportSplitters() {
 		s := f.widgets.splits[n.aux].state
 		lo, hi, span := f.splitLimits(n)
 		s.lo, s.hi, s.span = lo, hi, span
-		if s.Ratio > 0 {
-			s.Pos = min(max(s.Ratio*(span-*extent(&n.rect, axisOf(f.splitsRow(n)))), s.lo), s.hi)
-			if f.canvas != nil {
-				f.canvas.RequestFrame()
-			}
-		}
 		if pos := s.limit(s.Pos); pos != s.Pos {
 			s.Pos = pos
 			if f.canvas != nil {
