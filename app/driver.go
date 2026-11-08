@@ -1045,6 +1045,10 @@ type Snapshot struct {
 	// Texts is every text the application painted this frame, before clipping,
 	// for queries; Labels holds what is actually drawn.
 	Texts []ui.Text
+	// TextWidths is the painted width of each Texts entry, measured with the same
+	// canvas font engine as the renderer. Headless layout checks prefer it over
+	// the approximate textmetrics table; a missing or zero entry falls back.
+	TextWidths []float32
 	// Runs are the text runs Texts refer to; see TextRuns.
 	Runs []ui.TextRun
 	Hits []ui.Hit
@@ -1079,6 +1083,12 @@ func (driver *Driver) Snapshot() Snapshot {
 		Hits:    append([]ui.Hit(nil), painter.canvas.Hits()...),
 		Tree:    painter.canvas.Tree(),
 		Focused: painter.focus.Focused(), Hovered: painter.pointer.Hovered(), Cursor: painter.cursor, CursorImage: painter.cursorImage, Now: driver.now,
+	}
+	// Keep the widths aligned with Texts: the platform font engine can differ
+	// from the approximate metrics table by a fraction of a pixel per CJK run.
+	snapshot.TextWidths = make([]float32, len(snapshot.Texts))
+	for index, text := range snapshot.Texts {
+		snapshot.TextWidths[index] = painter.canvas.TextWidthStyle(text.Value, text.Style)
 	}
 	for _, rectangle := range painter.renderer.Rectangles() {
 		primitive := Primitive{
