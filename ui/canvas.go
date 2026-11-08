@@ -3,7 +3,6 @@ package ui
 
 import (
 	"math"
-	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/textmetrics"
 )
@@ -156,7 +155,9 @@ type TextStyle struct {
 	Italic bool
 	Color  Color
 	// Mono selects the system fixed-pitch font instead of the proportional
-	// one. Every ASCII character then advances by Canvas.CellSize(Size).
+	// one and sets the line on its grid: every character stands on the cells of
+	// Canvas.MonoCellSize, a wide character on two and a combining mark on the
+	// cell of the character it follows (see Canvas.TextWidthStyle).
 	Mono     bool
 	MonoFace MonoFace
 	// Direction is the paragraph direction of the line. The zero value takes it from
@@ -250,8 +251,9 @@ type TextIdentity struct {
 func (identity TextIdentity) IsZero() bool { return identity.Owner == 0 }
 
 // Text is one immutable single-line label clipped like rectangles. A text
-// with RunCount > 0 is a fixed-pitch grid line (see LabelRuns); read its runs
-// with Canvas.TextRuns.
+// with RunCount > 0 is a fixed-pitch grid line (see LabelRuns), as is a Mono
+// label of a single direction (see LabelAligned); read its runs with
+// Canvas.TextRuns.
 type Text struct {
 	Value     string
 	Bounds    Rect
@@ -847,9 +849,10 @@ func (canvas *Canvas) TextWidthWeight(value string, size, weight float32) float3
 // TextWidthStyle is TextWidthWeight for a style that may be italic or fixed-pitch: the width of
 // value in the italic face of the interface font when style.Italic is set and the text engine
 // shapes one (ui.StyledTextEngine), and in the regular face otherwise. A style.Mono text is
-// every character on the cell of its face (MonoCellSize), as a Mono Label draws it, so its
-// width is the number of characters times the cell. Only Size, Weight, Italic, Mono and MonoFace
-// of the style matter.
+// every character on the cells of its face (MonoCellSize), as a Mono Label draws it, so its
+// width is the cell times the cells it covers: one for each character, two for a wide one
+// (East Asian Width F or W) and none for a combining mark. Only Size, Weight, Italic, Mono
+// and MonoFace of the style matter.
 func (canvas *Canvas) TextWidthStyle(value string, style TextStyle) float32 {
 	if style.Mono {
 		return canvas.monoWidth(value, style)
@@ -1197,9 +1200,29 @@ func (canvas *Canvas) LabelCenter(value string, bounds Rect, style TextStyle) {
 // the platform as an invisible LRM or RLM in front of the line, which the engines take
 // as the paragraph direction too; the text of such a line is then not the caller's
 // string, and costs one allocation.
+//
+// A style.Mono line is set on the grid of its face, as LabelRuns sets a line of one
+// color: every character on the cells TextWidthStyle counts for it, so the line ends
+// where it was measured to end and its columns line up with those of grid lines in the
+// same face. Its Text holds the cell width and the runs (TextRuns). In an installed
+// family (MonoFamily) each stretch of ASCII is shaped as one line fitted to its cells
+// (TextRun.Ligatures), so the family's programming ligatures appear; the built-in faces
+// have none, and each of their characters stands on its own cell. A Mono line that is
+// right to left or mixes directions has no runs: it is drawn in the visual order of
+// UAX #9 at the font's own advances.
 func (canvas *Canvas) LabelAligned(value string, bounds Rect, style TextStyle, alignment Alignment) {
 	value, bounds.X = canvas.placeLabel(value, bounds, style, alignment)
 	text := Text{Value: value, Bounds: bounds, Style: style, Layer: canvas.currentLayer()}
+	if style.Mono && value != "" {
+		if cell, _ := canvas.MonoCellSize(style.Size, style.MonoFace); cell > 0 {
+			first := len(canvas.runs)
+			ligatures := MonoFamilyName(style.MonoFace) != ""
+			if runs, ok := appendMonoRuns(canvas.runs, value, style, ligatures); ok {
+				canvas.runs = runs
+				text.CellWidth, text.RunFirst, text.RunCount = cell, int32(first), int32(len(runs)-first)
+			}
+		}
+	}
 	text.ClipOf, text.HasClip = canvas.clipSnapshot()
 	canvas.texts = append(canvas.texts, text)
 }
@@ -2026,12 +2049,12 @@ func (canvas *Canvas) DeliverPointer(event PointerEvent, size Size, paint func(*
 	return canvas.EndPointerPass()
 }
 
-// monoWidth is the width of value set in the fixed-pitch face of style: one cell for each
-// character.
+// monoWidth is the width of value set in the fixed-pitch face of style: the cells
+// monoCells counts for its characters.
 func (canvas *Canvas) monoWidth(value string, style TextStyle) float32 {
 	if value == "" {
 		return 0
 	}
 	cell, _ := canvas.MonoCellSize(style.Size, style.MonoFace)
-	return float32(utf8.RuneCountInString(value)) * cell
+	return float32(monoTextCells(value)) * cell
 }

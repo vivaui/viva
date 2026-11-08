@@ -2997,7 +2997,7 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
         CGColorRef foreground = CGColorCreateSRGB(run->red, run->green, run->blue, run->alpha);
         CGFloat cellLeft = (CGFloat)run->column * _cellWidth;
         CGFloat span = (CGFloat)run->cells * _cellWidth;
-        BOOL ascii = count <= kMaxGlyphRun;
+        BOOL ascii = YES;
         for (size_t at = 0; ascii && at < count; at++) {
             ascii = start[at] >= 0x20 && start[at] < 0x7F;
         }
@@ -3026,19 +3026,27 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
             }
         } else if (ascii) {
             // Plain ASCII needs no shaping in a fixed-pitch font: map the
-            // characters to glyphs and put glyph i exactly on cell i.
+            // characters to glyphs and put glyph i exactly on cell i. The run
+            // is drawn in pieces of kMaxGlyphRun, every glyph still on its
+            // own cell.
             UniChar characters[kMaxGlyphRun];
             CGGlyph glyphs[kMaxGlyphRun];
             CGPoint positions[kMaxGlyphRun];
-            for (size_t at = 0; at < count; at++) {
-                characters[at] = start[at];
-                positions[at] = CGPointMake(cellLeft + (CGFloat)at * _cellWidth, baseline);
-            }
-            CTFontGetGlyphsForCharacters(font, characters, glyphs, (CFIndex)count);
             CGContextSetFillColorWithColor(context, foreground);
             // Glyph positions are relative to the text position.
             CGContextSetTextPosition(context, 0, 0);
-            CTFontDrawGlyphs(font, glyphs, positions, (CFIndex)count, context);
+            for (size_t first = 0; first < count; first += kMaxGlyphRun) {
+                size_t piece = count - first;
+                if (piece > kMaxGlyphRun) {
+                    piece = kMaxGlyphRun;
+                }
+                for (size_t at = 0; at < piece; at++) {
+                    characters[at] = start[first + at];
+                    positions[at] = CGPointMake(cellLeft + (CGFloat)(first + at) * _cellWidth, baseline);
+                }
+                CTFontGetGlyphsForCharacters(font, characters, glyphs, (CFIndex)piece);
+                CTFontDrawGlyphs(font, glyphs, positions, (CFIndex)piece, context);
+            }
         } else {
             NSString *shown = [[NSString alloc] initWithBytes:start
                                                        length:count
