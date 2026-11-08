@@ -29,11 +29,12 @@ type resourceViewDesc struct {
 	Format, Dimension uint32
 	Fields            [4]uint32
 }
-type swapDesc struct {
-	Width, Height, RateNumerator, RateDenominator, Format, Scanline, Scaling, Samples, Quality, Usage, Buffers uint32
-	Window                                                                                                     uintptr
-	Windowed                                                                                                   int32
-	SwapEffect, Flags                                                                                          uint32
+type swapChainDesc1 struct {
+	Width, Height, Format, Stereo uint32
+	Samples, Quality              uint32
+	Usage, Buffers                uint32
+	Scaling, SwapEffect           uint32
+	AlphaMode, Flags              uint32
 }
 type renderBlend struct {
 	Enabled                                                                       int32
@@ -145,7 +146,6 @@ type renderer struct {
 	submissions, rebuilds, partials, labelRebuilds               uint64
 }
 
-var createDevice = systemDLL("d3d11.dll").NewProc("D3D11CreateDeviceAndSwapChain")
 var textureIID = guid{0x6f15aaf2, 0xd208, 0x4e89, [8]byte{0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c}}
 
 func initialUpdate(count int) render.Update { return render.Update{Count: count, Rebuild: true} }
@@ -198,26 +198,59 @@ func (renderer *renderer) createDeviceAndResources(software bool) error {
 	if renderer.initializeComposition(software) {
 		return nil
 	}
-	description := swapDesc{Format: 87, Samples: 1, Usage: 0x20, Buffers: 2, Window: renderer.window, Windowed: 1, SwapEffect: 3}
 	levels := [...]uint32{0xb000}
-	var status uintptr
 	drivers := []uintptr{1, 5} // D3D_DRIVER_TYPE_HARDWARE, then _WARP
 	if software {
 		drivers = drivers[1:]
 	}
+	var status uintptr
+	var failure error
 	for _, driver := range drivers {
-		status, _, _ = createDevice.Call(0, driver, 0, 0x20, uintptr(unsafe.Pointer(&levels[0])), 1, 7, uintptr(unsafe.Pointer(&description)), uintptr(unsafe.Pointer(&renderer.swap)), uintptr(unsafe.Pointer(&renderer.device)), 0, uintptr(unsafe.Pointer(&renderer.context)))
-		if hresult(status) == nil {
-			break
+		status, _, _ = createD3DDevice.Call(0, driver, 0, 0x20, uintptr(unsafe.Pointer(&levels[0])), 1, 7, uintptr(unsafe.Pointer(&renderer.device)), 0, uintptr(unsafe.Pointer(&renderer.context)))
+		if err := hresult(status); err != nil {
+			failure = err
+			release(&renderer.context)
+			release(&renderer.device)
+			continue
 		}
-		release(&renderer.context)
-		release(&renderer.device)
-		release(&renderer.swap)
+		if err := renderer.createWindowSwapChain(); err != nil {
+			failure = err
+			release(&renderer.context)
+			release(&renderer.device)
+			release(&renderer.swap)
+			continue
+		}
+		return renderer.createResources()
 	}
+	if failure == nil {
+		failure = fmt.Errorf("no Direct3D driver type was tried")
+	}
+	return fmt.Errorf("create D3D11 device and swap chain, hardware and software (WARP) both failed: %w: %w", platform.ErrNoGraphics, failure)
+}
+
+// createWindowSwapChain makes the swap chain the window presents through. The
+// scale mode is DXGI_SCALING_NONE: when the window changes size before the frame
+// for the new size is presented, the desktop keeps the previous back buffer at
+// its own size in the top-left corner instead of stretching it over the new
+// client area. DXGI_SCALING_STRETCH (the default of the older
+// D3D11CreateDeviceAndSwapChain path) is what made a live resize wobble.
+func (renderer *renderer) createWindowSwapChain() error {
+	var factory uintptr
+	status, _, _ := createDXGIFactory.Call(uintptr(unsafe.Pointer(&factory2IID)), uintptr(unsafe.Pointer(&factory)))
 	if err := hresult(status); err != nil {
-		return fmt.Errorf("create D3D11 device and swap chain, hardware and software (WARP) both failed: %w: %w", platform.ErrNoGraphics, err)
+		return fmt.Errorf("create DXGI factory: %w", err)
 	}
-	return renderer.createResources()
+	defer release(&factory)
+	description := swapChainDesc1{
+		Format: 87, Samples: 1, Usage: 0x20, Buffers: 2,
+		Scaling: 1, SwapEffect: 3, // DXGI_SCALING_NONE, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL
+	}
+	// IDXGIFactory2::CreateSwapChainForHwnd.
+	status = comCall(factory, 15, renderer.device, renderer.window, uintptr(unsafe.Pointer(&description)), 0, 0, uintptr(unsafe.Pointer(&renderer.swap)))
+	if err := hresult(status); err != nil {
+		return fmt.Errorf("create swap chain for window: %w", err)
+	}
+	return nil
 }
 
 // createResources builds the shaders, constant buffer and pipeline state both
@@ -469,6 +502,14 @@ func makeRectangleInstance(rectangle render.Rectangle) rectangleInstance {
 }
 
 func (renderer *renderer) present(width, height int, scale float32) error {
+	return renderer.presentWithSync(width, height, scale, 1)
+}
+
+// presentWithSync presents with a DXGI sync interval. A live resize presents
+// immediately (0) so the frame drawn for the new size reaches the swap chain
+// before WM_SIZE returns; the swap chain itself uses DXGI_SCALING_NONE, so an
+// older frame is shown at its own size instead of stretched over the window.
+func (renderer *renderer) presentWithSync(width, height int, scale float32, sync uintptr) error {
 	if width <= 0 || height <= 0 {
 		return nil
 	}
@@ -492,7 +533,7 @@ func (renderer *renderer) present(width, height int, scale float32) error {
 	if err := renderer.draw(width, height, scale); err != nil {
 		return err
 	}
-	return hresult(comCall(renderer.swap, 8, 1, 0))
+	return hresult(comCall(renderer.swap, 8, sync, 0))
 }
 
 // draw clears the bound-size render target to the clear color and paints every
