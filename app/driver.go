@@ -1086,8 +1086,13 @@ func (driver *Driver) Snapshot() Snapshot {
 	}
 	// Keep the widths aligned with Texts: the platform font engine can differ
 	// from the approximate metrics table by a fraction of a pixel per CJK run.
+	// Terminal grids, shaped runs, monospaced and empty texts are laid out by
+	// cells or runs, not by line width, so they are left unmeasured (zero).
 	snapshot.TextWidths = make([]float32, len(snapshot.Texts))
 	for index, text := range snapshot.Texts {
+		if text.Value == "" || text.CellWidth > 0 || text.RunCount > 0 || text.Style.Mono {
+			continue
+		}
 		snapshot.TextWidths[index] = painter.canvas.TextWidthStyle(text.Value, text.Style)
 	}
 	for _, rectangle := range painter.renderer.Rectangles() {
