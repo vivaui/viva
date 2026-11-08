@@ -1056,6 +1056,13 @@ func (canvas *Canvas) Border(bounds Rect, width float32, border, fill Color) {
 // on all four sides and at least one: a 1 point border at 150% is one pixel, not a pixel and a
 // half blurred over two, as a browser draws it.
 func (canvas *Canvas) RoundedBorder(bounds Rect, radius, width float32, border, fill Color) {
+	// An element with no fill is an outline: painting the border as a solid
+	// backing and then a transparent interior would turn it into a filled box.
+	// RoundedOutline strokes the same ring and leaves what is behind it alone.
+	if fill == (Color{}) {
+		canvas.RoundedOutline(bounds, radius, width, border)
+		return
+	}
 	if canvas.pixelScale > 0 {
 		bounds = canvas.snapBox(bounds, radius)
 		width = canvas.borderWidth(width)
