@@ -123,10 +123,13 @@ type InputGroupSnapshot struct {
 	SelectionEnd     int
 	CompositionStart int
 	CompositionEnd   int
-	InlineStart      InputGroupSlot
-	InlineEnd        InputGroupSlot
-	BlockStart       InputGroupSlot
-	BlockEnd         InputGroupSlot
+	// Blink is the phase of the caret the component paints for a single-line control;
+	// see InputSnapshot.Blink. A multi-line control paints its caret steady.
+	Blink       *CaretBlink
+	InlineStart InputGroupSlot
+	InlineEnd   InputGroupSlot
+	BlockStart  InputGroupSlot
+	BlockEnd    InputGroupSlot
 }
 
 // Semantics returns a normalized, allocation-free semantic snapshot for the
@@ -485,9 +488,13 @@ func inputGroupPaintControl(canvas *ui.Canvas, theme ui.Theme, content ui.Rect, 
 		}, focused)
 		return
 	}
+	showCaret := snapshot.ShowCaret
+	if focused && showCaret && snapshot.Blink != nil {
+		showCaret = snapshot.Blink.Lit(canvas, snapshot.Caret)
+	}
 	inputPaintText(canvas, theme, content, InputSnapshot{
 		Value: snapshot.Value, DisplayValue: snapshot.DisplayValue, Placeholder: snapshot.Placeholder,
-		Disabled: snapshot.Disabled, Secure: snapshot.Secure, ShowCaret: snapshot.ShowCaret, Caret: snapshot.Caret,
+		Disabled: snapshot.Disabled, Secure: snapshot.Secure, ShowCaret: showCaret, Caret: snapshot.Caret,
 		SelectionStart: snapshot.SelectionStart, SelectionEnd: snapshot.SelectionEnd,
 		CompositionStart: snapshot.CompositionStart, CompositionEnd: snapshot.CompositionEnd,
 	}, focused)
