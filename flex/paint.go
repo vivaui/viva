@@ -37,7 +37,7 @@ func (f *Frame) paint(i int32) {
 		canvas.ElevateFaded(r, n.radius, style.shadow, f.opacity)
 	}
 	switch {
-	case n.borderWidth > 0 && extra.gradient == 0 && f.opacity >= 1:
+	case n.borderWidth > 0 && extra.gradient == 0 && f.opacity >= 1 && background.Alpha >= 1:
 		canvas.RoundedBorder(r, n.radius, n.borderWidth, border, background)
 	default:
 		// RoundedBorder paints the border color as a solid backing under the fill, which a
