@@ -83,6 +83,52 @@ func TestHeadlessScreenshotDrawsLabelWiderThanATexture(t *testing.T) {
 	}
 }
 
+func TestHeadlessScreenshotDrawsEntireWideViewportAtFractionalScale(t *testing.T) {
+	const viewportWidth = 9000
+	text := strings.Repeat("8", 1800)
+	var left, width float32
+	session, err := Open(app.Config{
+		Title: "wide viewport", Width: viewportWidth, Height: 36, ClearColor: app.Color{Alpha: 1},
+		Paint: func(canvas *ui.Canvas, _ ui.Size) {
+			style := ui.TextStyle{Size: 14, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}
+			width = canvas.TextWidthStyle(text, style)
+			canvas.Label(text, ui.Rect{X: left, Width: width, Height: 30}, style)
+		},
+		OnScroll: func(ui.ScrollEvent) ui.EventResult { return ui.EventResult{Handled: true, Repaint: true} },
+	}, nil, Options{Scale: 1.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	for _, offset := range []float32{0, -1000} {
+		left = offset
+		if offset != 0 {
+			if err := session.Scroll(ui.ScrollEvent{X: 10, Y: 10, DeltaY: -1}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		picture, err := session.Image()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if width <= viewportWidth-left {
+			t.Fatalf("label width %.0f does not cover the viewport at offset %.0f", width, left)
+		}
+		for _, start := range []int{100, 12000, 12500, picture.Bounds().Dx() - 150} {
+			visible := false
+			for position := start; position < start+100; position++ {
+				if column(picture, position, 0, picture.Bounds().Dy()) {
+					visible = true
+					break
+				}
+			}
+			if !visible {
+				t.Fatalf("label at offset %.0f has no ink in columns %d..%d", offset, start, start+100)
+			}
+		}
+	}
+}
+
 // column says whether a column of picture has a light pixel between top and bottom.
 func column(picture *image.RGBA, x, top, bottom int) bool {
 	for y := top; y < bottom; y++ {

@@ -2420,7 +2420,8 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     uint64_t _bitmapID;
     uint32_t _bitmapVersion;
     id<MTLTexture> _texture;
-    // A text label wider than a texture holds is rasterized in part: the texture holds the
+    NSMutableArray<id<MTLTexture>> *_additionalTextures;
+    // A text label wider than a texture holds is rasterized in part: its textures hold the
     // device pixels _windowLeft to _windowRight of it, on the _windowPixelScale grid and
     // counted from the frame's left edge. Unset, the texture holds the whole label.
     BOOL _windowed;
@@ -2442,9 +2443,9 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 - (BOOL)refreshWindowWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport;
 - (void)drawLineInContext:(CGContextRef)context pixelScale:(CGFloat)pixelScale;
 - (void)drawRunsInContext:(CGContextRef)context pixelScale:(CGFloat)pixelScale;
-- (id<MTLTexture>)texture;
-- (NSRect)frame;
-- (NSRect)quad;
+- (id<MTLTexture>)textureAtIndex:(NSUInteger)index;
+- (NSUInteger)textureCount;
+- (NSRect)quadAtIndex:(NSUInteger)index;
 @end
 
 static NSData *viva_downsample_bitmap(NSData *source, uint32_t sourceWidth, uint32_t sourceHeight, uint32_t sourceStride, size_t width, size_t height) {
@@ -2538,8 +2539,8 @@ static BOOL viva_label_visible_span(NSRect frame, BOOL clipped, NSRect clip, NSS
 // viva_label_window chooses the device pixels of a label full pixels wide that a texture of
 // at most limit pixels holds. The visible span left to right is kept with as much margin on
 // both sides as the span itself, so a scroll of up to a viewport keeps the texture; at an
-// end of the label the margin goes to the other side. A span wider than limit keeps its
-// first limit pixels. A label none of which is visible keeps its start.
+// end of the label the margin goes to the other side. A span wider than limit is split
+// across textures, without a margin. A label none of which is visible keeps its start.
 static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, size_t right,
                               size_t *windowLeft, size_t *windowRight) {
     size_t width = MIN(full, limit);
@@ -2550,8 +2551,8 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
     }
     size_t span = right - left;
     if (span >= width) {
-        *windowLeft = MIN(left, full - width);
-        *windowRight = *windowLeft + width;
+        *windowLeft = left;
+        *windowRight = right;
         return;
     }
     size_t margin = MIN(span, (width - span) / 2);
@@ -2632,6 +2633,7 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
 
 - (void)dealloc {
     [_texture release];
+    [_additionalTextures release];
     [_value release];
     [_utf8 release];
     [_bitmap release];
@@ -2823,71 +2825,83 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
         BOOL visible = viva_label_visible_span(_frame, _clipped, _clip, viewport, pixelScale, fullWidth, &left, &right);
         viva_label_window(fullWidth, VIVA_LABEL_TEXTURE_LIMIT, visible, left, right, &windowLeft, &windowRight);
     }
-    size_t pixelWidth = windowRight - windowLeft;
-    if (pixelWidth > SIZE_MAX / 4) {
-        return NO;
-    }
-    size_t rowBytes = pixelWidth * 4;
-    if (pixelHeight > SIZE_MAX / rowBytes) {
-        return NO;
-    }
-    void *pixels = calloc(pixelHeight, rowBytes);
-    if (pixels == NULL) {
-        return NO;
-    }
-
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    CGContextRef context = CGBitmapContextCreate(
-        pixels,
-        pixelWidth,
-        pixelHeight,
-        8,
-        rowBytes,
-        colorSpace,
-        kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little
-    );
-    CGColorSpaceRelease(colorSpace);
-    if (context == NULL) {
+    id<MTLTexture> texture = nil;
+    NSMutableArray<id<MTLTexture>> *additionalTextures = nil;
+    for (size_t tileLeft = windowLeft; tileLeft < windowRight;) {
+        size_t tileRight = tileLeft + MIN(windowRight - tileLeft, VIVA_LABEL_TEXTURE_LIMIT);
+        size_t pixelWidth = tileRight - tileLeft;
+        size_t rowBytes = pixelWidth * 4;
+        if (pixelHeight > SIZE_MAX / rowBytes) {
+            [texture release];
+            [additionalTextures release];
+            return NO;
+        }
+        void *pixels = calloc(pixelHeight, rowBytes);
+        if (pixels == NULL) {
+            [texture release];
+            [additionalTextures release];
+            return NO;
+        }
+        CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+        CGContextRef context = CGBitmapContextCreate(
+            pixels, pixelWidth, pixelHeight, 8, rowBytes, colorSpace,
+            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little
+        );
+        CGColorSpaceRelease(colorSpace);
+        if (context == NULL) {
+            free(pixels);
+            [texture release];
+            [additionalTextures release];
+            return NO;
+        }
+        viva_prepare_text_context(context, pixelScale);
+        if (tileLeft > 0) {
+            CGContextTranslateCTM(context, -(CGFloat)tileLeft / pixelScale, 0);
+        }
+        if (_runCount > 0) {
+            [self drawRunsInContext:context pixelScale:pixelScale];
+        } else {
+            [self drawLineInContext:context pixelScale:pixelScale];
+        }
+        MTLTextureDescriptor *descriptor = [MTLTextureDescriptor
+            texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                         width:pixelWidth
+                                        height:pixelHeight
+                                     mipmapped:NO];
+        descriptor.storageMode = MTLStorageModeShared;
+        descriptor.usage = MTLTextureUsageShaderRead;
+        id<MTLTexture> nextTexture = [device newTextureWithDescriptor:descriptor];
+        if (nextTexture != nil) {
+            [nextTexture replaceRegion:MTLRegionMake2D(0, 0, pixelWidth, pixelHeight)
+                           mipmapLevel:0 withBytes:pixels bytesPerRow:rowBytes];
+        }
+        CGContextRelease(context);
         free(pixels);
-        return NO;
-    }
-
-    // The bitmap is on the ceil(scale) grid and the texture is sampled down to the frame, so
-    // the context is scaled to that grid: scaling by the display scale draws the text too small
-    // wherever it is fractional.
-    viva_prepare_text_context(context, pixelScale);
-    if (windowLeft > 0) {
-        // The label is drawn as it would be whole, moved so its window starts the bitmap.
-        CGContextTranslateCTM(context, -(CGFloat)windowLeft / pixelScale, 0);
-    }
-    if (_runCount > 0) {
-        [self drawRunsInContext:context pixelScale:pixelScale];
-    } else {
-        [self drawLineInContext:context pixelScale:pixelScale];
-    }
-
-    MTLTextureDescriptor *descriptor = [MTLTextureDescriptor
-        texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-                                     width:pixelWidth
-                                    height:pixelHeight
-                                 mipmapped:NO];
-    descriptor.storageMode = MTLStorageModeShared;
-    descriptor.usage = MTLTextureUsageShaderRead;
-    id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
-    if (texture != nil) {
-        [texture replaceRegion:MTLRegionMake2D(0, 0, pixelWidth, pixelHeight)
-                   mipmapLevel:0
-                     withBytes:pixels
-                   bytesPerRow:rowBytes];
-    }
-
-    CGContextRelease(context);
-    free(pixels);
-    if (texture == nil) {
-        return NO;
+        if (nextTexture == nil) {
+            [texture release];
+            [additionalTextures release];
+            return NO;
+        }
+        if (texture == nil) {
+            texture = nextTexture;
+        } else {
+            if (additionalTextures == nil) {
+                additionalTextures = [[NSMutableArray alloc] init];
+                if (additionalTextures == nil) {
+                    [nextTexture release];
+                    [texture release];
+                    return NO;
+                }
+            }
+            [additionalTextures addObject:nextTexture];
+            [nextTexture release];
+        }
+        tileLeft = tileRight;
     }
     [_texture release];
     _texture = texture;
+    [_additionalTextures release];
+    _additionalTextures = additionalTextures;
     _lastScale = scale;
     _windowed = windowed;
     _windowLeft = windowLeft;
@@ -3078,24 +3092,26 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
     }
 }
 
-- (id<MTLTexture>)texture {
-    return _texture;
+- (id<MTLTexture>)textureAtIndex:(NSUInteger)index {
+    return index == 0 ? _texture : [_additionalTextures objectAtIndex:index - 1];
 }
 
-- (NSRect)frame {
-    return _frame;
+- (NSUInteger)textureCount {
+    if (!_windowed) {
+        return 1;
+    }
+    return 1 + _additionalTextures.count;
 }
 
-// quad is where the texture is drawn: the frame, or for a label held in part, the part of
-// the frame its texture holds. Its last pixels end where the frame does, as a whole
-// label's texture does.
-- (NSRect)quad {
+- (NSRect)quadAtIndex:(NSUInteger)index {
     if (!_windowed) {
         return _frame;
     }
     size_t full = (size_t)MAX(1.0, ceil(_frame.size.width * _windowPixelScale));
-    CGFloat left = (CGFloat)_windowLeft / _windowPixelScale;
-    CGFloat right = _windowRight >= full ? _frame.size.width : (CGFloat)_windowRight / _windowPixelScale;
+    size_t tileLeft = _windowLeft + index * VIVA_LABEL_TEXTURE_LIMIT;
+    size_t tileRight = tileLeft + MIN(_windowRight - tileLeft, VIVA_LABEL_TEXTURE_LIMIT);
+    CGFloat left = (CGFloat)tileLeft / _windowPixelScale;
+    CGFloat right = tileRight >= full ? _frame.size.width : (CGFloat)tileRight / _windowPixelScale;
     return NSMakeRect(_frame.origin.x + left, _frame.origin.y, right - left, _frame.size.height);
 }
 
@@ -3270,7 +3286,6 @@ static void viva_encode_scene(
         }
 
         VivaTextLayer *layer = [labels objectAtIndex:command.first];
-        NSRect frame = [layer quad];
         BOOL scissored = NO;
         if ([layer clipped]) {
             NSRect clip = [layer clip];
@@ -3285,18 +3300,19 @@ static void viva_encode_scene(
             [encoder setScissorRect:scissor];
             scissored = YES;
         }
-        float bounds[4] = {
-            (float)frame.origin.x,
-            (float)frame.origin.y,
-            (float)frame.size.width,
-            (float)frame.size.height,
-        };
         [encoder setRenderPipelineState:textPipeline];
-        [encoder setVertexBytes:&bounds length:sizeof(bounds) atIndex:0];
         [encoder setVertexBytes:&viewportSize length:sizeof(viewportSize) atIndex:1];
-        [encoder setFragmentTexture:[layer texture] atIndex:0];
-        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
-        viva_gpu_draw_call_count++;
+        for (NSUInteger tile = 0; tile < [layer textureCount]; tile++) {
+            NSRect frame = [layer quadAtIndex:tile];
+            float bounds[4] = {
+                (float)frame.origin.x, (float)frame.origin.y,
+                (float)frame.size.width, (float)frame.size.height,
+            };
+            [encoder setVertexBytes:&bounds length:sizeof(bounds) atIndex:0];
+            [encoder setFragmentTexture:[layer textureAtIndex:tile] atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+            viva_gpu_draw_call_count++;
+        }
         if (scissored) {
             [encoder setScissorRect:fullTarget];
         }
