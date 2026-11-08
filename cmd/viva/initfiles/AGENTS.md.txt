@@ -6,6 +6,7 @@ the short form of how to write it; read it before changing the UI. The commands:
 ```sh
 viva dev .          # run with hot reload: save a file, the window reloads and keeps its state
 go test ./...      # tests drive the real application with no window (see Testing)
+viva vet            # the Screen mistakes that compile but do the wrong thing (see Mistakes)
 viva build          # a release program in build/
 viva help           # every command
 ```
@@ -63,6 +64,24 @@ func (m *model) page(s flex.Screen) {
 - `s.Raw()` is the `*flex.Frame` underneath, for anything the Screen does not forward; give a
   control declared there an identity with `s.ID("word")`.
 - In a test, find controls by their name (`Hit.Label`), as main_test.go does.
+
+## Mistakes that compile (and how each is reported)
+
+Run `go vet ./... && viva vet && go test ./...` before you finish. `viva vet` finds these without
+running anything; a test under `app.NewDriver` panics on them where they happen, with the fix.
+
+| You wrote | What goes wrong | Write instead |
+| --- | --- | --- |
+| `for _, h := range m.hosts { s.Checkbox(&h.Done, ...) }` | `h` is a copy: clicks are lost, nothing is written | `for i := range m.hosts { h := &m.hosts[i]; s.Checkbox(&h.Done, ...) }` |
+| `v := m.flag; s.Switch(&v, ...)` | `v` is made again every paint | `s.Switch(&m.flag, ...)` |
+| `for ... { s.Button("Delete") }` | a row added above moves the click to another row | `r := s.Key(item.ID); r.Button("Delete")` |
+| a `flex.Screen` in a struct field or a global | it is valid only inside the body | keep `*flex.Screen` from `NewScreen`, pass `s` down |
+| deleting from the list inside its loop on `Clicked` | the loop still runs over it | `s.AfterPaint(func() { m.remove(id) })` |
+| `s.Modal(&open, "", ...)` | panics: a dialog needs a title | give it one; it names the dialog for screen readers |
+| two `s.Key("x")` rows in one paint | panics | key rows by something unique (an ID) |
+
+A line, or the line above it, with `// viva:ignore unkeyed-button` (or `bound-copy`, `kept-screen`) silences
+one finding you have checked.
 
 ## Laying a page out (package github.com/vivaui/viva/flex)
 

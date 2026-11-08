@@ -116,7 +116,20 @@ type boundKey struct {
 	n     uint32
 }
 
-type boundEntry struct{ slot, epoch uint32 }
+// boundEntry is the number a bound value has, the paint it was last declared in,
+// and its place among the controls of its kind bound in that paint.
+type boundEntry struct{ slot, epoch, at uint32 }
+
+// bornAt is a bound control that took a new number in this paint, by kind and place.
+type bornAt struct {
+	kind screenKind
+	at   uint32
+}
+
+// copyStreak is how many paints in a row a bound control was given a new value
+// in the place another one left: a value whose address changes every paint, which
+// a copy has. Three in a row are no list being filtered.
+const copyStreak = 3
 
 // armedButton is an unbound button the user holds (pressed or focused) and its label.
 type armedButton struct {
@@ -173,6 +186,8 @@ func (s Screen) boundID(kind screenKind, value unsafe.Pointer) ui.ID {
 		return s.anonID(kind)
 	}
 	sh := s.sh
+	at := sh.boundAt[kind]
+	sh.boundAt[kind]++
 	key := boundKey{value: value, kind: kind}
 	for {
 		entry, ok := sh.bound[key]
@@ -185,8 +200,9 @@ func (s Screen) boundID(kind screenKind, value unsafe.Pointer) ui.ID {
 			if sh.bound == nil {
 				sh.bound = make(map[boundKey]boundEntry)
 			}
+			sh.born = append(sh.born, bornAt{kind: kind, at: at})
 		}
-		entry.epoch = sh.epoch
+		entry.epoch, entry.at = sh.epoch, at
 		sh.bound[key] = entry
 		return sh.kindScope(&sh.list[sh.rootRec], kind).At(int(entry.slot))
 	}
@@ -276,7 +292,7 @@ func (s Screen) guard(b Box, id ui.ID, label string) {
 	}
 	if !rec.dupWarned && slices.Contains(rec.labels, label) {
 		rec.dupWarned = true
-		diag.Report(diag.Warn, "flex", "screen-duplicate-button",
+		screenMistake("screen-duplicate-button",
 			"two buttons labeled \""+label+"\" in "+sh.tree.Path(s.scope)+" have no Key: wrap each row in s.Key(item.ID) or s.KeyIndex(item.ID), "+
 				"so a row added or removed above cannot move a click to the wrong row")
 	}
@@ -337,6 +353,8 @@ func (sh *screenShared) arm(button armedButton) {
 // are forgotten.
 func (sh *screenShared) beginIdentity(canvas *ui.Canvas) {
 	sh.epoch++
+	sh.boundAt = [screenKinds]uint32{}
+	sh.born = sh.born[:0]
 	for i := range sh.held {
 		if id := sh.held[i].id; !id.IsZero() && (canvas == nil || id != canvas.Pressed() && id != canvas.Focused()) {
 			sh.held[i] = armedButton{}
@@ -356,11 +374,26 @@ func (sh *screenShared) endIdentity(canvas *ui.Canvas) {
 			}
 		}
 	}
+	replaced := false
 	for key, entry := range sh.bound {
 		if entry.epoch != sh.epoch {
 			delete(sh.bound, key)
 			sh.boundSlots[key.kind].give(entry.slot, sh.epoch)
+			replaced = replaced || slices.Contains(sh.born, bornAt{kind: key.kind, at: entry.at})
 		}
+	}
+	if replaced {
+		sh.copies++
+	} else {
+		sh.copies = 0
+	}
+	if sh.copies >= copyStreak && !sh.copyWarned {
+		sh.copyWarned = true
+		kind := sh.born[0].kind
+		screenMistake("screen-bound-copy",
+			"a "+screenKindNames[kind][1:]+" is bound to a value with a new address in every paint, so its focus and its clicks are lost: "+
+				"bind the model's own field (s.Checkbox(&m.items[i].Done, ...), not a copy such as v := m.items[i] or a range variable), "+
+				"or declare the control inside s.Key(...) and write the copy back on Changed()")
 	}
 	if canvas == nil || sh.lostWarned {
 		return
@@ -381,7 +414,7 @@ func (sh *screenShared) endIdentity(canvas *ui.Canvas) {
 			}
 		}
 		sh.lostWarned = true
-		diag.Report(diag.Warn, "flex", "screen-lost-click",
+		screenMistake("screen-lost-click",
 			"a click on a "+screenKindNames[kind][1:]+" was lost: the value it is bound to has another address in every paint "+
 				"(a local copy, such as v := m[k]; s.Checkbox(&v, ...)). Bind the model's own field, or declare the control inside s.Key(...)")
 		return
@@ -408,4 +441,15 @@ func (s *Screen) Describe(id ui.ID) string {
 		}
 	}
 	return text
+}
+
+// screenMistake reports a misuse of a Screen that no single call can be stopped
+// for, since only the page as a whole shows it: in a test (an app.Driver is open)
+// it panics where it happens, with the fix; otherwise it goes to the diagnostic
+// stream once, as a warning, and the page goes on.
+func screenMistake(code, message string) {
+	if diag.Strict() {
+		panic("flex: " + message)
+	}
+	diag.Report(diag.Warn, "flex", code, message)
 }

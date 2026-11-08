@@ -76,6 +76,16 @@ The test finds controls by the name a user and a screen reader know them by (`Hi
 
 Background goroutines reach a driver only through `Config.Invalidator`, exactly as they reach a window, and `Pump` applies the wake. `examples/guides/background/main_test.go` shows a test that waits for a worker goroutine's result this way. The driver models the text system's editing commands (Home/End, word and document navigation, word delete, undo and redo) and the Command-A, C, X and V shortcuts, and gives a focused ordinary field those chords before `OnShortcut`, as Windows does. It does not model input-method composition.
 
+## Mistakes that compile
+
+A `flex.Screen` page can compile and still do the wrong thing: a checkbox bound to a copy (`for _, h := range m.hosts { s.Checkbox(&h.Done, ...) }`, where `h` is made again in every paint) loses its clicks, and a `Button` with the same label in every row of a loop without `s.Key` can take a click meant for another row. Under `app.Driver` these panic where they happen, with the line to write instead, so a test that reaches them fails. `viva vet` finds them without running anything:
+
+```sh
+viva vet            # or go tool viva vet; packages default to ./...
+```
+
+It reports each one as `file:line:col: what is wrong and what to write (check)`, exits non-zero when it finds something, and runs with the project's own Go. A line, or the line above it, with `// viva:ignore <check>` silences one finding.
+
 ## The line protocol
 
 Import `github.com/vivaui/viva/headless/auto` from a file guarded by a build tag, so release builds never contain it:

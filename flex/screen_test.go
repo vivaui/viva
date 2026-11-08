@@ -1,6 +1,7 @@
 package flex_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -552,5 +553,45 @@ func TestScreenDescribeShowsKeys(t *testing.T) {
 	})
 	if got := screen.Describe(id); got != `screen/~key/"edge-01"/go` {
 		t.Fatalf("Describe = %q", got)
+	}
+}
+
+// Under a Driver, which is how an application is tested, a mistake the release
+// build only reports fails the test where it happens, with the fix in the message.
+func TestScreenMistakesFailUnderADriver(t *testing.T) {
+	defer func() {
+		r := recover()
+		message, _ := r.(string)
+		if !strings.Contains(message, "have no Key") || !strings.Contains(message, "s.Key(") {
+			t.Fatalf("recover() = %v, want the unkeyed rows reported with the fix", r)
+		}
+	}()
+	openScreen(t, func(s flex.Screen) {
+		s.Column().Children(func() {
+			for range 2 {
+				s.Button("Delete")
+			}
+		})
+	})
+}
+
+func TestScreenCopyBoundFailsWhenClickedUnderADriver(t *testing.T) {
+	model := map[string]bool{"a": false}
+	d := openScreen(t, func(s flex.Screen) {
+		s.Column().Pad(16).Children(func() {
+			done := model["a"]
+			s.Checkbox(&done, "A")
+		})
+	})
+	err := func() (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("%v", r)
+			}
+		}()
+		return d.driver.Click(center(d.hit("A").Bounds))
+	}()
+	if err == nil || !strings.Contains(err.Error(), "new address in every paint") {
+		t.Fatalf("clicking a copy: %v, want the copy reported", err)
 	}
 }

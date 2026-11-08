@@ -99,6 +99,13 @@ type screenShared struct {
 	boundSlots [screenKinds]slotPool
 	held       [2]armedButton
 	lostWarned bool
+	// boundAt counts the bound controls of each kind in this paint, born lists the
+	// ones that took a new number, and copies the paints in a row that replaced one
+	// bound control by another in its place (see copyStreak).
+	boundAt    [screenKinds]uint32
+	born       []bornAt
+	copies     int
+	copyWarned bool
 
 	// fields are the Fields the last paint declared with their identities, which
 	// TextInput answers from; selects are its Selects, which Wheel scrolls.

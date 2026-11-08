@@ -408,3 +408,15 @@ func (buffer *eventBuffer) recent(limit int) []Event {
 	}
 	return events
 }
+
+// strict counts the open test harnesses (app.Driver) that want a framework
+// mistake to stop the program instead of being reported: in a test, a misuse a
+// release build only warns about must fail where it happens.
+var strict atomic.Int32
+
+// EnterStrict and LeaveStrict bracket a test harness's life.
+func EnterStrict() { strict.Add(1) }
+func LeaveStrict() { strict.Add(-1) }
+
+// Strict reports whether a test harness is open.
+func Strict() bool { return strict.Load() > 0 }

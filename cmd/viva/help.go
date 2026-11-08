@@ -114,6 +114,16 @@ func commands() []command {
 			summary: "Compile SVG icons into Go source.",
 			detail:  "Produces ui.Icon values, so no SVG parser ships in the application.",
 			run:     func(arguments []string, output, _ io.Writer) error { return runIcons(arguments, output) }},
+		{name: "vet", usage: "vet [-C dir] [packages]",
+			summary: "Find the mistakes in a flex.Screen page that compile but do the wrong thing.",
+			detail: "Reports a control bound to a copy that is made again in every paint (its clicks are lost), a Button with\n" +
+				"the same label in every row of a loop without a Key (a click can move to the wrong row), and a flex.Screen\n" +
+				"kept past its body. These are the mistakes a test under app.Driver fails on; vet finds them before a test\n" +
+				"reaches them. Run it with go vet; a line, or the line above it, with \"viva:ignore <check>\" silences one.\n" +
+				"The exit status is non-zero when it finds something. Packages default to ./...",
+			run: func(arguments []string, output, errorOutput io.Writer) error {
+				return runVet(arguments, output, errorOutput)
+			}},
 		{name: "doctor", usage: "doctor [-C dir]",
 			summary: "Check that this machine and project can build with viva.",
 			detail: "Reports the Go toolchain, the platform libraries Viva loads (Xcode tools on macOS, XCB and Vulkan on\n" +
