@@ -77,7 +77,12 @@ func (s *scrollStore) sweep() {
 // ScrollToEnd, Offset and AtEnd. The state is the View's: ask again each time instead
 // of keeping the pointer, and ask only for areas the page declares. An area that was
 // not declared in a frame loses its state at the end of it.
-func (view *View) ScrollState(id gfx.ID) *ScrollState { return view.frame.scrolls.get(id) }
+func (view *View) ScrollState(id gfx.ID) *ScrollState {
+	if view.frame == nil {
+		view.frame = new(Frame) // a state may be set before the first paint
+	}
+	return view.frame.scrolls.get(id)
+}
 
 // Max is how far the area can scroll.
 func (s *ScrollState) Max() float32 { return max(s.Content-s.Viewport, 0) }
@@ -140,7 +145,10 @@ func (s *ScrollState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // Table first, as they own the wheel while they are open or under the pointer. It
 // reports an event that no area under the pointer can use as not handled.
 func (view *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
-	f := &view.frame
+	f := view.frame
+	if f == nil {
+		return gfx.EventResult{}
+	}
 	for i := len(f.nodes) - 1; i >= 0; i-- {
 		n := &f.nodes[i]
 		if n.ext == 0 || f.exts[n.ext].scrollState == nil {

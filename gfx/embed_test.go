@@ -145,6 +145,34 @@ func TestBeginEmbeddedHandsTheViewItsOwnInteraction(t *testing.T) {
 	}
 }
 
+func TestBeginEmbeddedHandsTheViewTheClickItDelivers(t *testing.T) {
+	var page, view Canvas
+	mount := testMount(&page, 11)
+	target := page.Tree().MountID(mount, Item(7))
+	for _, test := range []struct {
+		name string
+		info ClickInfo
+	}{
+		{"shift click", ClickInfo{Modifiers: ModifierShift, Clicks: 1}},
+		{"double click", ClickInfo{Clicks: 2}},
+	} {
+		page.BeginEventPass(target, test.info)
+		view.BeginEmbedded(&page, mount)
+		if !view.Clicked(Item(7)) {
+			t.Fatalf("%s: the click did not reach the view", test.name)
+		}
+		if info, ok := view.ClickInfo(); !ok || info != test.info {
+			t.Fatalf("%s: ClickInfo = %+v, %v; want %+v", test.name, info, ok, test.info)
+		}
+		page.EndEventPass()
+	}
+
+	view.BeginEmbedded(&page, mount)
+	if _, ok := view.ClickInfo(); ok {
+		t.Fatal("an embedded view outside an event pass reports a click")
+	}
+}
+
 func TestEmbeddedViewSharesTheClockAndRequestsFrames(t *testing.T) {
 	now := time.Duration(0)
 	var page, view Canvas
@@ -297,5 +325,36 @@ func TestEmbeddedDevicePixelImagesStayOnDevicePixelsWhereverTheViewSits(t *testi
 				}
 			}
 		}
+	}
+}
+
+// Adopting a view hands the host its focus trap, initial focus, Escape target and
+// the keyboard focus it asks for or gives up, mounted in the host's identities; a
+// quiet view changes nothing.
+func TestAdoptEmbeddedTakesTheViewsFocusAndModalState(t *testing.T) {
+	var page, view, quiet Canvas
+	mount := testMount(&page, 12)
+	tree := page.Tree()
+	view.TrapFocus(Item(23))
+	view.SetInitialFocus(Item(1))
+	view.SetEscapeTarget(Item(9))
+	view.RequestFocus(Item(4))
+	view.ReleaseFocus(Item(5))
+	page.AdoptEmbedded(&view, mount)
+	if page.TrappedFocusScope() != tree.MountID(mount, Item(23)) ||
+		page.InitialFocus() != tree.MountID(mount, Item(1)) ||
+		page.EscapeTarget() != tree.MountID(mount, Item(9)) ||
+		page.FocusRequest() != tree.MountID(mount, Item(4)) ||
+		page.FocusRelease() != tree.MountID(mount, Item(5)) {
+		t.Fatalf("adopted trap %d initial %d escape %d request %d release %d",
+			page.TrappedFocusScope(), page.InitialFocus(), page.EscapeTarget(), page.FocusRequest(), page.FocusRelease())
+	}
+	page.AdoptEmbedded(&quiet, mount)
+	if page.TrappedFocusScope() != tree.MountID(mount, Item(23)) ||
+		page.InitialFocus() != tree.MountID(mount, Item(1)) ||
+		page.EscapeTarget() != tree.MountID(mount, Item(9)) ||
+		page.FocusRequest() != tree.MountID(mount, Item(4)) ||
+		page.FocusRelease() != tree.MountID(mount, Item(5)) {
+		t.Fatal("a quiet view changed the host's focus and modal state")
 	}
 }

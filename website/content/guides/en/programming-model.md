@@ -136,6 +136,30 @@ func main() {
 
 `Invalidator` owns no goroutine, timer or channel. An application that never calls it pays nothing for it, and `Paint` only ever reads state that `OnWake` already moved onto the window thread.
 
+### Scoped effects
+
+Work that belongs to a page — a directory listing for the current directory, a request for the selected host — is a `ui.Effect` instead of a goroutine of your own. Create its state once with the model and declare it in the page:
+
+```go
+var load = ui.NewEffect[dirListing, string](func(ctx context.Context) (dirListing, error) {
+	return readDir(ctx) // no C, Box or Frame: this runs off the paint
+})
+
+func (m *model) page(c ui.C) {
+	ui.Effect(c, m.load, m.dir) // the key: a new directory cancels the old run
+	if listing, err, ok := m.load.Take(); ok {
+		m.apply(listing, err)
+	}
+	// ...
+}
+```
+
+The key names one run. The same key does not start the work again; a different key cancels the run and starts a new one; a paint that no longer declares the effect cancels it; and closing the window cancels all of them. A result that arrives after its key changed, after the effect disappeared or after the window closed is dropped. `Take` returns the result once, on the window thread, after the effect is declared; the page wakes itself when the result lands. One state belongs to one page, and an effect is not declared inside a `Memo`.
+
+The run function receives a context and must return when it is done; the framework does not kill goroutines or poll. A page that only draws into a canvas of your own gives `PageConfig.Invalidator` the invalidator of that window, and calls `Page.Close` when the page goes away; a page given no invalidator keeps the result for the next paint but cannot wake the window by itself.
+
+A goroutine of your own, for something with no page key to cancel it, still publishes under its own lock and calls `Invalidator.Invalidate`.
+
 ## Text input
 
 Text belongs to the application too. Give `Config.TextInput` a provider that returns the `text.Editor` for the focused field, and Viva connects it to the platform text system, including selection and input-method composition. Only the focused field is handed to the native editor; when focus leaves, the current text is painted again as a static label in the same frame.

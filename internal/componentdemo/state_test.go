@@ -55,7 +55,7 @@ func click(canvas *gfx.Canvas, state *State, id gfx.ID) {
 }
 
 func clickAt(canvas *gfx.Canvas, state *State, id gfx.ID, now time.Duration, reduce bool) {
-	canvas.BeginEventPass(id)
+	canvas.BeginEventPass(id, gfx.ClickInfo{})
 	paintFrame(canvas, state, testSize, now, reduce)
 	canvas.EndEventPass()
 }
@@ -200,10 +200,14 @@ func TestPaintDeterministicResponsiveAndIdle(t *testing.T) {
 					t.Run(fmt.Sprintf("%s/%s/dark=%t/width=%.0f", component.ID, example.ID, dark, width), func(t *testing.T) {
 						state := newTestState(t, component.ID, example.ID)
 						state.SetDark(dark)
-						before := *state
 						var canvas gfx.Canvas
 						canvas.SetMeasurer(measureTestText)
 						size := gfx.Size{Width: width, Height: 340}
+						// A virtualized list lays its first frame out from estimated row
+						// heights and measures them as it goes; the frames after that are
+						// the ones that must not differ.
+						paintFrame(&canvas, state, size, time.Second, true)
+						before := *state
 						paintFrame(&canvas, state, size, time.Second, true)
 						assertLayout(t, &canvas, size)
 						if canvas.Animating() || *state != before {
@@ -220,7 +224,7 @@ func TestPaintDeterministicResponsiveAndIdle(t *testing.T) {
 						if canvas.Animating() {
 							t.Fatal("unchanged example requested another frame")
 						}
-						canvas.BeginEventPass(gfx.Item(999)) // a click on nothing the example declared
+						canvas.BeginEventPass(gfx.Item(999), gfx.ClickInfo{}) // a click on nothing the example declared
 						paintFrame(&canvas, state, size, 10*time.Second, true)
 						canvas.EndEventPass()
 						paintFrame(&canvas, state, size, 10*time.Second, true)
@@ -239,7 +243,19 @@ func assertLayout(t *testing.T, canvas *gfx.Canvas, size gfx.Size) {
 			bounds.X+bounds.Width <= size.Width+0.01 && bounds.Y+bounds.Height <= size.Height+0.01
 	}
 	for _, rectangle := range canvas.Rectangles() {
-		if !inside(rectangle.Bounds) {
+		bounds := rectangle.Bounds
+		if rectangle.HasClip {
+			// What a clip cuts is not painted: a row wider than the list that
+			// scrolls sideways is judged by the part of it the clip keeps.
+			clip := rectangle.ClipOf
+			left, top := max(bounds.X, clip.X), max(bounds.Y, clip.Y)
+			right, bottom := min(bounds.X+bounds.Width, clip.X+clip.Width), min(bounds.Y+bounds.Height, clip.Y+clip.Height)
+			if right <= left || bottom <= top {
+				continue // wholly outside the clip: nothing of it is painted
+			}
+			bounds = gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+		}
+		if !inside(bounds) {
 			t.Fatalf("rectangle outside viewport: %+v", rectangle)
 		}
 	}
@@ -252,7 +268,10 @@ func assertLayout(t *testing.T, canvas *gfx.Canvas, size gfx.Size) {
 			top := max(ink.Y, clip.Y)
 			right := min(ink.X+ink.Width, clip.X+clip.Width)
 			bottom := min(ink.Y+ink.Height, clip.Y+clip.Height)
-			ink = gfx.Rect{X: left, Y: top, Width: max(right-left, 0), Height: max(bottom-top, 0)}
+			if right <= left || bottom <= top {
+				continue // wholly outside the clip: nothing of it is painted
+			}
+			ink = gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
 		}
 		if !inside(ink) {
 			t.Fatalf("text outside viewport: %+v; measured %+v", label, ink)
@@ -294,18 +313,23 @@ func TestThemesAndNewResetState(t *testing.T) {
 			t.Run(component.ID+"/"+example.ID, func(t *testing.T) {
 				state := newTestState(t, component.ID, example.ID)
 				var canvas gfx.Canvas
+				// The first frame of a virtualized list is laid out from estimates; the
+				// steady frames are the ones a theme switch must reproduce.
+				paintFrame(&canvas, state, testSize, time.Second, true)
 				paintFrame(&canvas, state, testSize, time.Second, true)
 				expected := snapshot(&canvas)
 				state.SetDark(true)
+				paintFrame(&canvas, state, testSize, time.Second, true)
 				paintFrame(&canvas, state, testSize, time.Second, true)
 				if canvas.Rectangles()[0].Color != gfx.DarkTheme().Background {
 					t.Fatal("SetDark did not change the background")
 				}
 				state.SetDark(false)
 				paintFrame(&canvas, state, testSize, time.Second, true)
+				paintFrame(&canvas, state, testSize, time.Second, true)
 				assertSamePaint(t, expected, &canvas)
 				for _, hit := range expected.hits {
-					canvas.BeginEventPass(hit.ID)
+					canvas.BeginEventPass(hit.ID, gfx.ClickInfo{})
 					paintFrame(&canvas, state, testSize, time.Second, true)
 					canvas.EndEventPass()
 				}
@@ -314,6 +338,7 @@ func TestThemesAndNewResetState(t *testing.T) {
 					editor.Insert(" changed")
 				}
 				fresh := newTestState(t, component.ID, example.ID)
+				paintFrame(&canvas, fresh, testSize, time.Second, true) // its first frame is laid out from estimates
 				paintFrame(&canvas, fresh, testSize, time.Second, true)
 				assertSamePaint(t, expected, &canvas)
 			})

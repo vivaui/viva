@@ -24,6 +24,18 @@ func Scroll(c C) Box {
 	return b
 }
 
+// ScrollAt is Scroll with the area's offset set when it is declared. The offset
+// is clamped to the content at layout: read the settled value back from
+// box.ScrollState().Offset in the same paint, after Draw, rather than keeping
+// the ScrollState between paints.
+func ScrollAt(c C, offset float32) Box {
+	b := Scroll(c)
+	offset = max(offset, 0)
+	b.ScrollState().Offset = offset
+	b.n().scroll = offset // the layout reads the node; ScrollArea set it from the old state
+	return b
+}
+
 // Leaves without identity.
 
 func Text(c C, value string) Box { return c.f.Text(value) }
@@ -37,8 +49,13 @@ func Spinner(c C) Box                           { return c.f.Spinner() }
 func Icon(c C, icon gfx.Icon) Box               { return c.f.Icon(icon) }
 func Image(c C, bitmap gfx.Bitmap) Box          { return c.f.Image(bitmap) }
 
-// Paragraph is text that wraps to the width it gets, at most maxLines lines.
+// Paragraph is text that wraps to the width it gets, at most maxLines lines:
+// zero or less takes as many lines as the width needs, as Box.MaxLines.
 func Paragraph(c C, value string, maxLines int) Box { return c.f.Paragraph(value, maxLines) }
+
+// Wrap is text that wraps to the width it gets, with no line limit: Paragraph
+// without a maximum.
+func Wrap(c C, value string) Box { return c.f.Wrap(value) }
 
 // Slot reserves room for something painted by hand (Draw) or a native view
 // (NativeView): Rect says where, once the page is laid out.
@@ -46,6 +63,27 @@ func Slot(c C) Box { return c.f.Slot() }
 
 // Grid lays its children in equal cells at least minCell wide.
 func Grid(c C, minCell float32) Box { return c.page.container(c.f.Grid(minCell)) }
+
+// CustomLayout declares a container whose in-flow children layout measures and
+// places: a masonry, a dock, a flow of cards, a layout of the application's own.
+// The layout runs in four phases (see Layout); the page keeps identity, focus, hits,
+// clipping and absolute children. The layout owns the children's sizes and positions,
+// so Width, Height, Fill, Grow, Shrink and Margin on them are not applied here. Wrap
+// it in Scroll, List or Tree for scrolling and virtualization. Not inside a Memo.
+//
+//	ui.CustomLayout(c, &m.masonry).FillWidth().Children(func() {
+//		for _, card := range m.cards {
+//			ui.Column(c).Height(card.height).Children(card.body)
+//		}
+//	})
+func CustomLayout(c C, layout Layout) Box {
+	p := c.page
+	p.forbidInMemo("CustomLayout")
+	if layout == nil {
+		panic("ui: CustomLayout needs a Layout")
+	}
+	return p.container(c.f.customLayout(layout))
+}
 
 // Controls.
 

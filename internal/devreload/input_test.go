@@ -86,7 +86,7 @@ func TestSupervisorCarriesTheClickEventPassToTheWorker(t *testing.T) {
 	if !canvas.ListensForClicks() {
 		t.Fatal("the host does not listen for clicks the worker's paint reads")
 	}
-	canvas.BeginEventPass(save)
+	canvas.BeginEventPass(save, gfx.ClickInfo{})
 	config.Paint(&canvas, gfx.Size{Width: 200, Height: 100})
 	canvas.EndEventPass()
 	if clicks != 1 {

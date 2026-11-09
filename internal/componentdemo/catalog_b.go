@@ -15,6 +15,7 @@ var groupBComponents = []Component{
 	itemComponent,
 	kbdComponent,
 	labelComponent,
+	listComponent,
 	markdownComponent,
 	markerComponent,
 	menubarComponent,

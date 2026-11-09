@@ -25,7 +25,7 @@ func paintTall(state *State, width float32) *gfx.Canvas {
 // page, the event pass, in which the control that declared id reads Clicked.
 func click(state *State, id gfx.ID) {
 	canvas := &gfx.Canvas{}
-	canvas.BeginEventPass(id)
+	canvas.BeginEventPass(id, gfx.ClickInfo{})
 	state.Paint(canvas, tallSize(state, DefaultWidth))
 	canvas.EndEventPass()
 }
@@ -690,7 +690,7 @@ func TestAnExampleTransitionKeepsThePageAnimatingUntilItSettles(t *testing.T) {
 	if toggle.IsZero() {
 		t.Fatal("the switch page has no switch")
 	}
-	canvas.BeginEventPass(toggle) // the click, read by the demo while it paints
+	canvas.BeginEventPass(toggle, gfx.ClickInfo{}) // the click, read by the demo while it paints
 	frame()
 	canvas.EndEventPass()
 	now += 16 * time.Millisecond

@@ -19,6 +19,7 @@ type editJournal struct {
 	unlimited bool
 	tracking  bool
 	savePoint *int
+	lines     *lineJournal
 }
 
 // TrackEdits enables a bounded mutation journal and returns its current cursor.
@@ -108,24 +109,49 @@ func (editor *Editor) recordEdit(edit Edit) {
 	journal.revision++
 }
 
-func (editor *Editor) recordBatchEdits(primitives []Edit, inverse bool) {
-	if editor.journal == nil || !editor.journal.tracking {
+func (editor *Editor) recordBatchEdits(primitives []Edit, contexts []lineContext, inverse bool) {
+	if editor.journal == nil || !editor.journal.tracking || len(primitives) == 0 {
 		return
+	}
+	journal := editor.journal
+	start := journal.revision
+	lines := journal.lines
+	if lines != nil {
+		lines.position, lines.line, lines.delivery = 0, 0, nil
 	}
 	if inverse {
 		for index := len(primitives) - 1; index >= 0; index-- {
 			edit := primitives[index]
-			editor.recordEdit(Edit{Start: edit.Start, Removed: edit.Inserted, Inserted: edit.Removed})
+			var context lineContext
+			if len(contexts) == len(primitives) {
+				context = contexts[index].inverse()
+			}
+			inverseEdit := Edit{Start: edit.Start, Removed: edit.Inserted, Inserted: edit.Removed}
+			editor.recordEdit(inverseEdit)
+			if editor.journal.lines != nil {
+				editor.recordLineContext(inverseEdit, context)
+			}
 		}
 	} else {
-		for _, edit := range primitives {
+		for index, edit := range primitives {
+			var context lineContext
+			if len(contexts) == len(primitives) {
+				context = contexts[index]
+			}
 			editor.recordEdit(edit)
+			if editor.journal.lines != nil {
+				editor.recordLineContext(edit, context)
+			}
 		}
+	}
+	if lines != nil && len(primitives) > EditJournalLimit && len(contexts) == len(primitives) && journal.revision-start == uint64(len(primitives)) {
+		lines.delivery = &lineDelivery{first: start, last: journal.revision, primitives: primitives, contexts: contexts, inverse: inverse}
 	}
 }
 
 func (editor *Editor) replaceHistory(edit *historyEdit, inverse bool) {
 	journal := editor.journal
+	contexts := editor.lineBatchContexts(edit.primitives)
 	if len(edit.primitives) > 0 {
 		editor.journal = nil
 	}
@@ -135,5 +161,5 @@ func (editor *Editor) replaceHistory(edit *historyEdit, inverse bool) {
 		editor.replaceExact(edit.start, len(edit.removed), edit.inserted)
 	}
 	editor.journal = journal
-	editor.recordBatchEdits(edit.primitives, inverse)
+	editor.recordBatchEdits(edit.primitives, contexts, inverse)
 }

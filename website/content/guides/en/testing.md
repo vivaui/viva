@@ -82,7 +82,7 @@ A page can compile and still do the wrong thing: a `Button` with the same label 
 viva vet            # or go tool viva vet; packages default to ./...
 ```
 
-It reports each one as `file:line:col: what is wrong and what to write (check)`, exits non-zero when it finds something, and runs with the project's own Go. A line, or the line above it, with `// viva:ignore <check>` silences one finding. A `ui.Memo` whose version misses something its function reads shows stale content: `ui.MemoCheck(true)` in a test declares every part and panics where a copy would have differed.
+It reports each one as `file:line:col: what is wrong and what to write (check)`, exits non-zero when it finds something, and runs with the project's own Go. A line, or the line above it, with `// viva:ignore <check>` silences one finding. It also reports a `ui.C`, `ui.Box` or `*ui.Frame` kept past its paint (in a struct, a package variable or a goroutine), and a `ui.Memo` whose value misses a field its function reads. A `ui.Memo` whose value misses something its function reads shows stale content: `ui.MemoCheck(true)` (or `PageConfig.MemoCheck`) in a test declares every part and panics where a copy would have differed.
 
 ## The line protocol
 

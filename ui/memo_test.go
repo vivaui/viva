@@ -58,10 +58,15 @@ type memoPage struct {
 	canvas *gfx.Canvas
 }
 
-func newMemoPage() *memoPage {
+func newMemoPage() *memoPage { return newMemoPageWith(ui.PageConfig{}) }
+
+func newMemoPageWith(config ui.PageConfig) *memoPage {
 	canvas := benchCanvas()
 	canvas.KeepPrevious(true)
-	return &memoPage{page: ui.NewPage(ui.PageConfig{Theme: &pageTheme}), canvas: canvas}
+	if config.Theme == nil {
+		config.Theme = &pageTheme
+	}
+	return &memoPage{page: ui.NewPage(config), canvas: canvas}
 }
 
 func (mp *memoPage) draw(view func(ui.C)) { drawPage(mp.page, mp.canvas, view) }
@@ -202,19 +207,134 @@ func TestMemoRowsStayInteractive(t *testing.T) {
 	}
 }
 
-func TestMemoCheckCatchesAVersionThatMissesAChange(t *testing.T) {
+func TestMemoCheckCatchesAValueThatMissesAChange(t *testing.T) {
 	m := newMemoModel(3)
-	mp := newMemoPage()
+	mp := newMemoPageWith(ui.PageConfig{MemoCheck: true})
 	mp.draw(m.view)
-	ui.MemoCheck(true)
-	defer ui.MemoCheck(false)
-	m.rows[1].name = "changed without a new version"
+	m.rows[1].name = "changed without a new value"
 	defer func() {
 		if r := recover(); r == nil || !strings.Contains(r.(string), "MemoCheck") {
 			t.Fatalf("recover() = %v, want MemoCheck to report the row", r)
 		}
 	}()
 	mp.draw(m.view)
+}
+
+func TestMemoValueSnapshotDeclaresAgainOnChange(t *testing.T) {
+	m := newMemoModel(5)
+	mp := newMemoPage()
+	view := func(c ui.C) {
+		ui.Column(c).Fill().Gap(4).Children(func() {
+			for i := range m.rows {
+				r := &m.rows[i]
+				ui.Memo(c.KeyInt(r.id), *r, func() { m.row(c, r) })
+			}
+		})
+	}
+	mp.draw(view)
+	mp.draw(view)
+	m.rows[2].name = "renamed"
+	m.calls = 0
+	mp.draw(view)
+	if m.calls != 1 {
+		t.Fatalf("%d rows declared after one row's value changed, want 1", m.calls)
+	}
+	if !strings.Contains(textsOf(mp.canvas), "renamed") {
+		t.Fatal("the changed row does not show its new text")
+	}
+}
+
+func TestMemoValueSnapshotSteadyPaintAllocatesNothing(t *testing.T) {
+	m := newMemoModel(100)
+	mp := newMemoPage()
+	view := func(c ui.C) {
+		ui.Column(c).Fill().Gap(4).Children(func() {
+			for i := range m.rows {
+				r := &m.rows[i]
+				ui.Memo(c.KeyInt(r.id), *r, func() { m.row(c, r) })
+			}
+		})
+	}
+	for range 3 {
+		mp.draw(view)
+	}
+	if allocs := testing.AllocsPerRun(30, func() { mp.draw(view) }); allocs != 0 {
+		t.Fatalf("a steady value-snapshot page allocates %v times", allocs)
+	}
+}
+
+func TestMemoDeclaresAgainWhenTheThemeChanges(t *testing.T) {
+	m := newMemoModel(3)
+	theme := gfx.LightTheme()
+	mp := newMemoPageWith(ui.PageConfig{Theme: &theme})
+	mp.draw(m.view)
+	mp.draw(m.view)
+	m.calls = 0
+	theme = gfx.DarkTheme()
+	mp.draw(m.view)
+	if m.calls != 3 {
+		t.Fatalf("%d rows declared after the theme changed, want 3", m.calls)
+	}
+}
+
+func TestMemoDeclaresAgainWhenTheScaleChanges(t *testing.T) {
+	m := newMemoModel(3)
+	mp := newMemoPage()
+	mp.draw(m.view)
+	mp.draw(m.view)
+	m.calls = 0
+	mp.canvas.SetPixelScale(3)
+	mp.draw(m.view)
+	if m.calls != 3 {
+		t.Fatalf("%d rows declared after the scale changed, want 3", m.calls)
+	}
+}
+
+func TestMemoDeclaresAgainWhenTheInheritedOpacityChanges(t *testing.T) {
+	m := newMemoModel(3)
+	mp := newMemoPage()
+	opacity := float32(1)
+	view := func(c ui.C) {
+		ui.Column(c).Opacity(opacity).Children(func() {
+			for i := range m.rows {
+				r := &m.rows[i]
+				ui.Memo(c.KeyInt(r.id), r.version, func() { m.row(c, r) })
+			}
+		})
+	}
+	mp.draw(view)
+	mp.draw(view)
+	m.calls = 0
+	opacity = 0.5
+	mp.draw(view)
+	if m.calls != 3 {
+		t.Fatalf("%d rows declared after the inherited opacity changed, want 3", m.calls)
+	}
+}
+
+// fontGenerationEngine is a reference text engine with a generation a test moves.
+type fontGenerationEngine struct {
+	gfx.TextEngine
+	generation uint32
+}
+
+func (e *fontGenerationEngine) SetFontFamily(string) {}
+
+func (e *fontGenerationEngine) FontGeneration() uint32 { return e.generation }
+
+func TestMemoDeclaresAgainWhenTheFontGenerationChanges(t *testing.T) {
+	m := newMemoModel(3)
+	mp := newMemoPage()
+	engine := &fontGenerationEngine{TextEngine: gfx.ReferenceTextEngine(), generation: 1}
+	mp.canvas.SetTextEngine(engine)
+	mp.draw(m.view)
+	mp.draw(m.view)
+	m.calls = 0
+	engine.generation++
+	mp.draw(m.view)
+	if m.calls != 3 {
+		t.Fatalf("%d rows declared after the font generation changed, want 3", m.calls)
+	}
 }
 
 func TestMemoRejectsWhatItCannotKeep(t *testing.T) {
@@ -304,6 +424,25 @@ func BenchmarkRows200Memo(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		mp.draw(m.view)
+	}
+}
+
+// The same list, each row memoized by the value itself rather than a counter.
+func BenchmarkRows200MemoValue(b *testing.B) {
+	m := newMemoModel(200)
+	mp := newMemoPage()
+	view := func(c ui.C) {
+		ui.Column(c).Fill().Gap(4).Children(func() {
+			for i := range m.rows {
+				r := &m.rows[i]
+				ui.Memo(c.KeyInt(r.id), *r, func() { m.row(c, r) })
+			}
+		})
+	}
+	mp.draw(view)
+	b.ReportAllocs()
+	for b.Loop() {
+		mp.draw(view)
 	}
 }
 

@@ -197,13 +197,13 @@ func TestTabListNumbersItsOwnTabsAndReportsTheClickedOne(t *testing.T) {
 		t.Fatalf("selected = %v %v, want only the second", canvas.Hits()[0].Selected, canvas.Hits()[1].Selected)
 	}
 
-	canvas.BeginEventPass(tabs.At(2))
+	canvas.BeginEventPass(tabs.At(2), gfx.ClickInfo{})
 	index, ok := paint()
 	canvas.EndEventPass()
 	if !ok || index != 2 {
 		t.Fatalf("event pass on tab 2 reported %d, %v", index, ok)
 	}
-	canvas.BeginEventPass(tree.ID(tree.Feature("page"), "elsewhere"))
+	canvas.BeginEventPass(tree.ID(tree.Feature("page"), "elsewhere"), gfx.ClickInfo{})
 	if _, ok := paint(); ok {
 		t.Fatal("a click elsewhere was reported as a tab")
 	}
@@ -228,7 +228,7 @@ func TestTableRowAtReportsOnlyItsOwnRow(t *testing.T) {
 	if got := paint(); len(got) != 0 {
 		t.Fatalf("ordinary paint clicked %v", got)
 	}
-	canvas.BeginEventPass(rows.At(1))
+	canvas.BeginEventPass(rows.At(1), gfx.ClickInfo{})
 	got := paint()
 	canvas.EndEventPass()
 	if len(got) != 1 || got[0] != 1 {

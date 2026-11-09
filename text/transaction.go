@@ -26,6 +26,9 @@ func (editor *Editor) Transact(apply func(*Editor) error) error {
 	draft.anchor, draft.caret = selection.anchor, selection.caret
 	draft.code, draft.codeSet, draft.overwrite = editor.code, editor.codeSet, editor.overwrite
 	recorder := &editJournal{unlimited: true, tracking: true}
+	if editor.journal != nil && editor.journal.lines != nil {
+		recorder.lines = &lineJournal{}
+	}
 	draft.journal = recorder
 	if editor.savePointIndex() != nil {
 		draft.SetSavePoint()
@@ -47,10 +50,14 @@ func (editor *Editor) Transact(apply func(*Editor) error) error {
 		return err
 	}
 	primitives := slices.Clone(recorder.entries)
+	var contexts []lineContext
+	if recorder.lines != nil {
+		contexts = slices.Clone(recorder.lines.entries)
+	}
 	if len(primitives) == 0 && value == before {
 		editor.SetSelection(after)
 		return nil
 	}
-	editor.commitBatch(target, value, primitives, &after)
+	editor.commitBatch(target, value, primitives, contexts, &after)
 	return nil
 }

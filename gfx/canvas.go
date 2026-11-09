@@ -697,6 +697,7 @@ type Canvas struct {
 	// clicked is the control whose click the event pass is delivering; listens
 	// records that the last paint asked about clicks at all.
 	clicked                     ID
+	clickInfo                   ClickInfo
 	eventPass, listensForClicks bool
 	afterPaint                  []func()
 	// pointer is the pointer event the event pass is delivering; consumed records
@@ -2001,16 +2002,33 @@ func (canvas *Canvas) RunAfterPaint() bool {
 // whether a click needs the event pass.
 func (canvas *Canvas) ListensForClicks() bool { return canvas.listensForClicks }
 
-// BeginEventPass makes the next paint the event pass of a click on id: Clicked(id)
-// is true in it. Pair it with EndEventPass around that one paint. The runtime does
-// this; an application only calls Clicked.
-func (canvas *Canvas) BeginEventPass(id ID) {
-	canvas.clicked, canvas.eventPass = id, true
+// ClickInfo is what the runtime knows of the click an event pass delivers: the
+// modifier keys held when it happened, and whether it was a double click (Clicks
+// 2). The zero value is a plain click with no modifier, as Enter on a control is.
+type ClickInfo struct {
+	Modifiers Modifiers
+	Clicks    int
+}
+
+// BeginEventPass makes the next paint the event pass of a click on id, with what
+// the runtime knows of it: Clicked(id) is true in the pass, and ClickInfo says how
+// the click came. Pair it with EndEventPass around that one paint. The runtime does
+// this; an application only calls Clicked, ClickModifiers and DoubleClicked.
+func (canvas *Canvas) BeginEventPass(id ID, info ClickInfo) {
+	canvas.clicked, canvas.clickInfo, canvas.eventPass = id, info, true
 }
 
 // EndEventPass returns the canvas to ordinary, read-only painting.
 func (canvas *Canvas) EndEventPass() {
-	canvas.clicked, canvas.eventPass = ID{}, false
+	canvas.clicked, canvas.clickInfo, canvas.eventPass = ID{}, ClickInfo{}, false
+}
+
+// ClickInfo returns the click the event pass is delivering: its modifier keys and
+// whether it was a double click. It reports false outside an event pass, and
+// outside the click's own target: a control asks it after Clicked(id).
+func (canvas *Canvas) ClickInfo() (ClickInfo, bool) {
+	canvas.listensForClicks = true
+	return canvas.clickInfo, canvas.eventPass
 }
 
 // PointerOn returns the pointer event this paint is delivering to id, and false in

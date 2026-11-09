@@ -137,7 +137,7 @@ func TestClickedIsReadWhereTheControlIsDeclared(t *testing.T) {
 		t.Fatal("a paint that is not an event pass reports a click")
 	}
 	canvas.Reset()
-	canvas.BeginEventPass(save)
+	canvas.BeginEventPass(save, gfx.ClickInfo{})
 	saved, cancelled, _ := draw(canvas)
 	canvas.EndEventPass()
 	if !saved || cancelled {
@@ -624,7 +624,7 @@ func TestChosenReportsTheClickedSegment(t *testing.T) {
 		t.Fatal("a plain paint reports a choice")
 	}
 	canvas.Reset()
-	canvas.BeginEventPass(omit)
+	canvas.BeginEventPass(omit, gfx.ClickInfo{})
 	draw()
 	canvas.EndEventPass()
 	if got != omit {
@@ -700,7 +700,7 @@ func TestChoiceNeedsNoIdentitiesOfItsOwn(t *testing.T) {
 		t.Fatal("a plain paint reports a choice")
 	}
 	canvas.Reset()
-	canvas.BeginEventPass(scope.At(2))
+	canvas.BeginEventPass(scope.At(2), gfx.ClickInfo{})
 	draw()
 	canvas.EndEventPass()
 	if got != 2 {

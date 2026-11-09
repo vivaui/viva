@@ -7,16 +7,31 @@ import (
 
 // Box is a handle to one element of the page being declared. It is two words
 // and every method returns it, so a declaration reads as a chain; the element it
-// names lives in the Frame.
+// names lives in the Frame. A Box is valid until the next Begin on its Frame:
+// Rect and Content stay readable after End, but keeping a Box across paints is a
+// mistake, caught where it is used. Keep a gfx.ID or the *ui.Page's name instead.
 type Box struct {
-	f *Frame
-	i int32
+	f   *Frame
+	i   int32
+	gen uint32
 }
 
-func (b Box) n() *node { return &b.f.nodes[b.i] }
+// Valid reports whether the Box names an element of its Frame's current paint.
+// The zero value is not valid.
+func (b Box) Valid() bool {
+	return b.f != nil && b.gen == b.f.gen && b.i >= 0 && int(b.i) < len(b.f.nodes)
+}
+
+func (b Box) n() *node {
+	if b.f == nil || b.gen != b.f.gen {
+		panic("ui: a Box is used after its paint; a Box is valid until the next Begin: keep a gfx.ID or the *ui.Page's name across paints")
+	}
+	return &b.f.nodes[b.i]
+}
 
 // Children declares what is inside the element. fn runs at once, and is not kept.
 func (b Box) Children(fn func()) Box {
+	b.n()
 	saved := b.f.parent
 	b.f.parent = b.i
 	b.n().flags |= flagChildren
@@ -57,12 +72,14 @@ func (b Box) Hit(id gfx.ID, label string) Box {
 // it (see gfx.Canvas.MoveRegion). Controls declared inside the element take their
 // own presses. Declare it on the row that is the window's top bar.
 func (b Box) MovesWindow() Box {
+	b.n()
 	b.f.extra(b.i).moves = true
 	return b
 }
 
 // HitWith is Hit with the role, cursor and other options of gfx.HitOptions.
 func (b Box) HitWith(id gfx.ID, label string, options gfx.HitOptions) Box {
+	b.n()
 	b.f.extra(b.i).hit = options
 	return b.Hit(id, label)
 }
@@ -101,8 +118,16 @@ func (b Box) MaxHeight(v float32) Box { b.n().maxS[axisY] = v; return b }
 // most 70% of its row is `MaxWidthPercent(70)`, and a paragraph inside it wraps to what is
 // left. They combine with MaxWidth by taking the smaller, and apply to the children of a
 // Row, Column or Stack.
-func (b Box) MaxWidthPercent(p float32) Box  { b.f.extra(b.i).maxPct[axisX] = p; return b }
-func (b Box) MaxHeightPercent(p float32) Box { b.f.extra(b.i).maxPct[axisY] = p; return b }
+func (b Box) MaxWidthPercent(p float32) Box {
+	b.n()
+	b.f.extra(b.i).maxPct[axisX] = p
+	return b
+}
+func (b Box) MaxHeightPercent(p float32) Box {
+	b.n()
+	b.f.extra(b.i).maxPct[axisY] = p
+	return b
+}
 
 // Grow shares the free room along the container between the elements that grow,
 // in proportion to the numbers given. Shrink does the same for a shortage.
@@ -222,8 +247,11 @@ func (b Box) Color(c Color) Box {
 	n.flags |= flagHasColor
 	return b
 }
-func (b Box) Muted() Box { return b.Color(b.f.theme.MutedForeground) }
-func (b Box) Mono() Box  { b.n().flags |= flagMono; return b }
+func (b Box) Muted() Box {
+	b.n()
+	return b.Color(b.f.theme.MutedForeground)
+}
+func (b Box) Mono() Box { b.n().flags |= flagMono; return b }
 
 // IconTransform draws the icon scaled, turned and moved from the box it was laid
 // out in, without moving the layout or the hit region: a row keeps its size and
@@ -231,6 +259,7 @@ func (b Box) Mono() Box  { b.n().flags |= flagMono; return b }
 // short motion a press asks for; see gfx.IconTransform for what it costs to turn
 // an icon off the pixel grid.
 func (b Box) IconTransform(transform gfx.IconTransform) Box {
+	b.n()
 	b.f.extra(b.i).iconTransform = transform
 	return b
 }
@@ -240,6 +269,7 @@ func (b Box) IconTransform(transform gfx.IconTransform) Box {
 // returned value is the transform the current frame's progress asks for. The
 // zero binding, or one without a state, changes nothing.
 func (b Box) BindIconHover(hover IconHover) Box {
+	b.n()
 	return b.IconTransform(hover.Transform(b.f))
 }
 
@@ -358,6 +388,7 @@ func (b Box) Stroke(width float32, c Color) Box {
 // given amounts (top, right, bottom, left; negative shrinks it), so a row with an
 // inset rounded fill can still be clicked all the way across.
 func (b Box) HitOutset(top, right, bottom, left float32) Box {
+	b.n()
 	b.f.extra(b.i).hitOut = [4]float32{top, right, bottom, left}
 	return b
 }
@@ -387,18 +418,21 @@ func (b Box) Chosen() (gfx.ID, bool) {
 //	filter := f.Button(filterID, "Filter").Outline()
 //	f.Popup().BelowBox(filter, 6, ui.End).Children(func() { ... })
 func (b Box) BelowBox(anchor Box, gap float32, align Align) Box {
+	anchor.n()
 	b.Below(Rect{}, gap, align)
 	b.n().anchorRef = anchor.i + 1
 	return b
 }
 
 func (b Box) AboveBox(anchor Box, gap float32, align Align) Box {
+	anchor.n()
 	b.Above(Rect{}, gap, align)
 	b.n().anchorRef = anchor.i + 1
 	return b
 }
 
 func (b Box) BesideBox(anchor Box, gap float32, align Align) Box {
+	anchor.n()
 	b.Beside(Rect{}, gap, align)
 	b.n().anchorRef = anchor.i + 1
 	return b
@@ -417,4 +451,42 @@ func (b Box) ChosenIndex() (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// ClickModifiers returns the modifier keys held on the click this paint delivers
+// on the element: Primary (Command on macOS, Control elsewhere) distinguishes a
+// multi-selection click, Shift one that extends it. It is zero outside the paint
+// that delivers the click, and for Enter or Space on the element, which are not
+// pointer clicks.
+func (b Box) ClickModifiers() gfx.Modifiers {
+	info, _ := b.clickInfo()
+	return info.Modifiers
+}
+
+// DoubleClicked reports whether the click this paint delivers on the element was
+// the second of a double click.
+func (b Box) DoubleClicked() bool {
+	info, ok := b.clickInfo()
+	return ok && info.Clicks >= 2
+}
+
+func (b Box) clickInfo() (gfx.ClickInfo, bool) {
+	if b.f.canvas == nil || !b.f.canvas.Clicked(b.n().id) {
+		return gfx.ClickInfo{}, false
+	}
+	return b.f.canvas.ClickInfo()
+}
+
+// ScrollWith makes the element's content follow the sideways scroll of the rows of
+// list (ListState.RowWidth): a header above the list, whose columns line up with the
+// rows. The element is taken out of the flow and placed at the top left of its
+// container, moved left by the list's offset; give it the rows' width, and put it in
+// a container with the header's height that clips. It follows the rows exactly: a
+// negative margin would widen the header instead of moving it.
+//
+//	ui.Row(c).Clip().Height(28).Children(func() {
+//		ui.Row(c).Width(m.files.RowWidth).ScrollWith(&m.files).Children(m.columnTitles)
+//	})
+func (b Box) ScrollWith(list *ListState) Box {
+	return b.Absolute().Top(0).Left(-list.ScrollX())
 }

@@ -138,9 +138,11 @@ func (client *Client) Paint(ctx context.Context, request PaintRequest) (CanvasSn
 	return decodeCanvas(payload)
 }
 
-func (client *Client) Click(ctx context.Context, id gfx.ID) error {
+func (client *Client) Click(ctx context.Context, id gfx.ID, info gfx.ClickInfo) error {
 	var payload encoder
 	payload.id(id)
+	payload.u32(uint32(info.Modifiers))
+	payload.u8(uint8(max(info.Clicks, 0)))
 	_, err := client.request(ctx, messageClick, payload.data)
 	return err
 }

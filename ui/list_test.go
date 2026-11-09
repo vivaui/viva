@@ -24,9 +24,9 @@ func newListModel(n int) *listModel {
 
 func (m *listModel) view(c ui.C) {
 	ui.Column(c).Fill().Children(func() {
-		ui.List(c, &m.state, len(m.names), func(i int) {
+		ui.List(c, &m.state, len(m.names), func(row ui.ListRow) {
 			ui.Row(c).Pad(4).Children(func() {
-				ui.Text(c, m.names[i])
+				ui.Text(c, m.names[row.Index])
 				ui.Button(c, "Open")
 			})
 		}).Grow(1)
@@ -69,10 +69,10 @@ func TestListScrollsToTheRowsAtTheOffset(t *testing.T) {
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
 	view := func(c ui.C) {
 		ui.Column(c).Fill().Children(func() {
-			ui.List(c, &m.state, len(m.names), func(i int) {
-				row := ui.Column(c).Pad(4).Children(func() { ui.Text(c, m.names[i]) })
-				if i%3 == 0 {
-					row.Height(80)
+			ui.List(c, &m.state, len(m.names), func(row ui.ListRow) {
+				cell := ui.Column(c).Pad(4).Children(func() { ui.Text(c, m.names[row.Index]) })
+				if row.Index%3 == 0 {
+					cell.Height(80)
 				}
 			}).Grow(1)
 		})

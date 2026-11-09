@@ -1,6 +1,7 @@
 package ui_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -129,5 +130,113 @@ func TestFocusGroupRepaintAllocates(t *testing.T) {
 	d.key(gfx.KeyRight)
 	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
 		t.Fatalf("%v allocations a repaint", allocs)
+	}
+}
+
+// rovingStripModel is a third-party-style roving strip: page controls in a
+// FocusGroup, with the choice following the focus. It reads only public API:
+// FocusGroup moves the focus, and Box.State says which member has it.
+type rovingStripModel struct {
+	selected int
+	view     func(ui.C)
+}
+
+func (m *rovingStripModel) page(c ui.C) {
+	ui.Row(c).Gap(4).FocusGroup(ui.FocusHorizontal).Children(func() {
+		for i := range 3 {
+			member := ui.ButtonBase(c, fmt.Sprintf("tab %d", i)).Size(60, 24)
+			if member.State().Focused {
+				m.selected = i
+			}
+		}
+	})
+}
+
+// A component library can build its own roving strip with the public API: the
+// group moves the focus, and the component reads the focused member to choose it.
+// It does not need Page's internal rover.
+func TestRovingStripIsBuildableFromThePublicAPI(t *testing.T) {
+	m := &rovingStripModel{}
+	m.view = m.page
+	d := openPage(t, m.view)
+	d.click("tab 0")
+	d.key(gfx.KeyRight)
+	if d.focused() != "tab 1" || m.selected != 1 {
+		t.Fatalf("Right: focused %q, selected %d; want tab 1 and 1", d.focused(), m.selected)
+	}
+	d.key(gfx.KeyEnd)
+	if d.focused() != "tab 2" || m.selected != 2 {
+		t.Fatalf("End: focused %q, selected %d; want tab 2 and 2", d.focused(), m.selected)
+	}
+}
+
+// gridFocusModel is a third-party-style 2D grid: FocusOrder replaces the
+// group's linear arrows with row and column movement.
+type gridFocusModel struct {
+	columns int
+	orderFn ui.FocusOrder
+	view    func(ui.C)
+}
+
+func (m *gridFocusModel) order(current int, key gfx.Key, count int) (int, bool) {
+	switch key {
+	case gfx.KeyLeft:
+		if current%m.columns == 0 {
+			return current, true
+		}
+		return current - 1, true
+	case gfx.KeyRight:
+		if current%m.columns == m.columns-1 || current+1 >= count {
+			return current, true
+		}
+		return current + 1, true
+	case gfx.KeyUp:
+		return max(current-m.columns, 0), true
+	case gfx.KeyDown:
+		return min(current+m.columns, count-1), true
+	}
+	return 0, false
+}
+
+func (m *gridFocusModel) page(c ui.C) {
+	ui.Grid(c, 140).FocusGroup(ui.FocusBoth).FocusOrder(m.orderFn).Children(func() {
+		for i := range 6 {
+			ui.Button(c, fmt.Sprintf("cell %d", i))
+		}
+	})
+}
+
+// A grid moves the focus by row and column through FocusOrder, and keeps the
+// group's axis for the keys it leaves alone.
+func TestFocusOrderMovesAGridByRowsAndColumns(t *testing.T) {
+	m := &gridFocusModel{columns: 3}
+	m.orderFn = m.order
+	m.view = m.page
+	d := openPage(t, m.view)
+	d.click("cell 0")
+	d.key(gfx.KeyRight)
+	if d.focused() != "cell 1" {
+		t.Fatalf("Right focused %q", d.focused())
+	}
+	d.key(gfx.KeyDown)
+	if d.focused() != "cell 4" {
+		t.Fatalf("Down from cell 1 focused %q, want cell 4", d.focused())
+	}
+	d.key(gfx.KeyLeft)
+	if d.focused() != "cell 3" {
+		t.Fatalf("Left focused %q", d.focused())
+	}
+	d.key(gfx.KeyUp)
+	if d.focused() != "cell 0" {
+		t.Fatalf("Up focused %q", d.focused())
+	}
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyDown)
+	if d.focused() != "cell 5" {
+		t.Fatalf("Down twice focused %q", d.focused())
+	}
+	d.key(gfx.KeyEnd) // not handled by the order: the group's axis goes to the end
+	if d.focused() != "cell 5" {
+		t.Fatalf("End focused %q", d.focused())
 	}
 }

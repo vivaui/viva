@@ -36,6 +36,9 @@ import (
 //		}
 //	})
 //
+// An item may carry a second line with Description; WidthRange bounds the menu's
+// width; Above opens it over the anchor, for a trigger along the bottom of a panel.
+//
 // Not inside a Memo.
 func Menu(c C, anchor Box, open *bool, body func(*MenuItems)) {
 	p := c.page
@@ -116,7 +119,12 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 	width, height := menu.size()
 	popup := f.Popup()
 	if anchor >= 0 {
-		popup.BelowBox(Box{f: f, i: anchor}, 4, Start)
+		anchorBox := Box{f: f, i: anchor, gen: f.gen}
+		if menu.above {
+			popup.AboveBox(anchorBox, 4, Start)
+		} else {
+			popup.BelowBox(anchorBox, 4, Start)
+		}
 	} else {
 		popup.At(menu.at.X, menu.at.Y)
 	}
@@ -210,6 +218,12 @@ func (m *MenuItems) size() (width, height float32) {
 			}
 		}
 	}
+	if m.widthMin > 0 && width < m.widthMin {
+		width = m.widthMin
+	}
+	if m.widthMax > 0 && width > m.widthMax {
+		width = m.widthMax
+	}
 	return width, height
 }
 
@@ -249,6 +263,9 @@ type MenuItems struct {
 	shown   bool // a ContextMenu is open
 	at      Rect // where a ContextMenu opened
 
+	above              bool    // open over the anchor instead of under it (Menu only)
+	widthMin, widthMax float32 // the least and greatest surface width; zero keeps the default
+
 	// A submenu's menu, and the menu of the one open in it: root is the Menu or
 	// ContextMenu the chain hangs off, itself for that one, and parent the menu its
 	// row is in, nil for the root.
@@ -262,9 +279,10 @@ type MenuItems struct {
 }
 
 type menuRow struct {
-	kind  menuRowKind
-	label string
-	icon  gfx.Icon
+	kind        menuRowKind
+	label       string
+	description string
+	icon        gfx.Icon
 	// The shortcut the row shows, a keymap.Chord's fields: the Page's type would
 	// keep that type's methods in every program, Menu or not.
 	modifiers   gfx.Modifiers
@@ -288,7 +306,7 @@ func (m *MenuItems) minWidth() float32 {
 // good until the next row.
 func (m *MenuItems) row(i int) components.DropdownMenuItem {
 	row := &m.items[i]
-	item := components.DropdownMenuItem{ID: m.scope.At(menuRows + i), Label: row.label, Disabled: row.disabled, Icon: row.icon}
+	item := components.DropdownMenuItem{ID: m.scope.At(menuRows + i), Label: row.label, Description: row.description, Disabled: row.disabled, Icon: row.icon}
 	if row.destructive {
 		item.Variant = components.DropdownMenuItemDestructive
 	}
@@ -347,6 +365,22 @@ func (m *MenuItems) Sub(label string, body func(*MenuItems)) MenuItem {
 	return item
 }
 
+// Above opens the menu over its anchor instead of under it, flipping under when
+// there is no room over: the menu of a trigger along the bottom of a panel, which
+// should cover what is above it. A submenu opens beside its row and a ContextMenu
+// opens at the pointer, so neither is affected.
+func (m *MenuItems) Above() { m.above = true }
+
+// WidthRange sets the least and greatest width of the menu's surface. Zero keeps
+// the menu's own minimum (128 for a Menu, 144 for a ContextMenu) or leaves that end
+// unbounded. A row wider than the greatest is ellipsized to fit.
+func (m *MenuItems) WidthRange(least, greatest float32) {
+	if least < 0 || greatest < 0 || greatest > 0 && greatest < least {
+		panic("ui: MenuItems.WidthRange needs 0 <= least <= greatest, or greatest 0 for no limit")
+	}
+	m.widthMin, m.widthMax = least, greatest
+}
+
 // Label adds a heading over the items that follow it.
 func (m *MenuItems) Label(label string) {
 	m.items = append(m.items, menuRow{kind: menuRowLabel, label: label})
@@ -366,6 +400,13 @@ func (item MenuItem) Destructive() MenuItem {
 // Disabled dims the item and keeps it from being chosen; the arrows pass over it.
 func (item MenuItem) Disabled(disabled bool) MenuItem {
 	item.menu.items[item.i].disabled = disabled
+	return item
+}
+
+// Description adds a muted second line under the item's label, for an action whose
+// meaning needs a word more: what a model answers, which folder a file goes to.
+func (item MenuItem) Description(text string) MenuItem {
+	item.menu.items[item.i].description = text
 	return item
 }
 
@@ -500,7 +541,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 // contextItem is a dropdown row as a context menu's: the two describe one row.
 func contextItem(item components.DropdownMenuItem) components.ContextMenuItem {
 	context := components.ContextMenuItem{
-		ID: item.ID, Label: item.Label, Keys: item.Keys, Icon: item.Icon, Disabled: item.Disabled,
+		ID: item.ID, Label: item.Label, Description: item.Description, Keys: item.Keys, Icon: item.Icon, Disabled: item.Disabled,
 		Checked: item.Checked, Selected: item.Selected,
 	}
 	switch item.Kind {

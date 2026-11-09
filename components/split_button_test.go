@@ -61,7 +61,7 @@ func TestSplitButtonReportsEachActionAndDisabledState(t *testing.T) {
 			options := splitButtonTestOptions
 			options.Disabled = test.disabled
 			var canvas gfx.Canvas
-			canvas.BeginEventPass(test.target)
+			canvas.BeginEventPass(test.target, gfx.ClickInfo{})
 			result := BeginSplitButton(&canvas, gfx.LightTheme(), gfx.Rect{Width: 112, Height: 32}, options).Paint()
 			primary, menu := result.Clicked()
 			canvas.EndEventPass()

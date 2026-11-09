@@ -72,7 +72,7 @@ func TestTabsReportTheClickedTabAndTheContentFollowsTheIndex(t *testing.T) {
 		t.Fatalf("%d tab hits, want 3", len(canvas.Hits()))
 	}
 	canvas = testCanvas()
-	canvas.BeginEventPass(tabsScope.At(1))
+	canvas.BeginEventPass(tabsScope.At(1), gfx.ClickInfo{})
 	draw(canvas)
 	canvas.EndEventPass()
 	if current != 1 {

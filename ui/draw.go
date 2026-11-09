@@ -36,6 +36,9 @@ type DrawContext struct {
 	// Opacity is the product of the opacities of the element and what it is inside,
 	// 0 to 1.
 	Opacity float32
+	// Label is the element's accessibility name, as Box.Label set it: what a
+	// control of your own announces, and a list names itself by.
+	Label string
 
 	frame *Frame
 	node  *node
@@ -69,6 +72,7 @@ func (b Box) Draw(fn func(*DrawContext)) Box { b.hooks().under = fn; return b }
 func (b Box) DrawOver(fn func(*DrawContext)) Box { b.hooks().over = fn; return b }
 
 func (b Box) hooks() *drawHooks {
+	b.n()
 	extra := b.f.extra(b.i)
 	if extra.draws == 0 {
 		b.f.draws = append(b.f.draws, drawHooks{})
@@ -94,7 +98,7 @@ func (f *Frame) stateOf(n *node) gfx.State {
 // runDraw calls fn for n with the context reused for the frame.
 func (f *Frame) runDraw(n *node, fn func(*DrawContext)) {
 	d := &f.drawContext
-	d.Canvas, d.Theme, d.Rect, d.State, d.Opacity = f.canvas, &f.theme, n.rect, f.stateOf(n), f.opacity
+	d.Canvas, d.Theme, d.Rect, d.State, d.Opacity, d.Label = f.canvas, &f.theme, n.rect, f.stateOf(n), f.opacity, n.label
 	d.frame, d.node = f, n
 	fn(d)
 }

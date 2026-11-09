@@ -71,6 +71,77 @@ func (typeahead *MenuTypeahead) TypeItems(text string, now time.Time, items []Me
 	return typeahead.typeList(text, now, typeaheadItems(items), from)
 }
 
+// MenuTypeaheadRows is a list for TypeRows, read a row at a time: the label and
+// identity of row i, and whether it is skipped. It is for a virtualized list of a
+// million rows, which TypeItems would copy into a million items on every key.
+type MenuTypeaheadRows struct {
+	N     int
+	ID    func(i int) gfx.ID
+	Label func(i int) string
+	// Disabled may be nil, for a list with no disabled rows.
+	Disabled func(i int) bool
+}
+
+// TypeRows is TypeItems for rows read lazily: it matches the same way, without
+// building the items first.
+func (typeahead *MenuTypeahead) TypeRows(text string, now time.Time, rows MenuTypeaheadRows, from gfx.ID) (gfx.ID, bool) {
+	if rows.N <= 0 || rows.ID == nil || rows.Label == nil {
+		return gfx.ID{}, false
+	}
+	return typeahead.typeList(text, now, typeaheadRows(rows), from)
+}
+
+type typeaheadRows MenuTypeaheadRows
+
+func (rows typeaheadRows) match(prefix string, from gfx.ID) (gfx.ID, bool) {
+	if prefix == "" || rows.N <= 0 {
+		return gfx.ID{}, false
+	}
+	start := 0
+	if !from.IsZero() {
+		for i := 0; i < rows.N; i++ {
+			if rows.ID(i) == from {
+				start = i + 1
+				break
+			}
+		}
+	}
+	for offset := 0; offset < rows.N; offset++ {
+		i := (start + offset) % rows.N
+		id := rows.ID(i)
+		if id.IsZero() || rows.Disabled != nil && rows.Disabled(i) {
+			continue
+		}
+		label := rows.Label(i)
+		if label == "" {
+			continue
+		}
+		if menuLabelHasPrefix(label, prefix) {
+			return id, true
+		}
+	}
+	return gfx.ID{}, false
+}
+
+func (rows typeaheadRows) canCycle() bool {
+	for i := 0; i < rows.N; i++ {
+		id := rows.ID(i)
+		if id.IsZero() || rows.Disabled != nil && rows.Disabled(i) {
+			continue
+		}
+		label := rows.Label(i)
+		first, firstSize := utf8.DecodeRuneInString(label)
+		if firstSize == 0 {
+			continue
+		}
+		second, secondSize := utf8.DecodeRuneInString(label[firstSize:])
+		if secondSize > 0 && unicode.ToLower(first) == unicode.ToLower(second) {
+			return false
+		}
+	}
+	return true
+}
+
 func (typeahead *MenuTypeahead) typeList(text string, now time.Time, list typeaheadList, from gfx.ID) (gfx.ID, bool) {
 	if text == "" || utf8.RuneCountInString(text) != 1 {
 		return gfx.ID{}, false

@@ -62,7 +62,7 @@ func (f *Frame) settle(i int32) *bindDecl {
 		return d
 	}
 	d.settled = true
-	b := Box{f: f, i: i}
+	b := Box{f: f, i: i, gen: f.gen}
 	n := &f.nodes[i]
 	switch {
 	case d.field != nil:

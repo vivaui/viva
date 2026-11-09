@@ -154,6 +154,8 @@ func TestWorkerClickIsDeliveredInTheEventPass(t *testing.T) {
 	paint()
 	var payload encoder
 	payload.id(save)
+	payload.u32(0) // no modifier
+	payload.u8(1)  // a single click
 	if _, err, _ := handleRequest(&config, &canvas, CanvasSnapshot{}, frame{kind: messageClick, payload: payload.data}, nil); err != nil {
 		t.Fatal(err)
 	}

@@ -186,6 +186,15 @@ if id.Scope() == rows {                    // 点击到来时
 
 要自己移动焦点，在 `EventResult` 里返回 `Focus`（以及 `FocusVisible`），或用 `Blur` 清除焦点。
 
+页面想把焦点放在模型里时，在控件上用 `ui.FocusBind`。设置字段会把焦点移到那里；用户移动焦点会写回字段；`ui.FocusedValue` 读取已经提交的焦点，而不是等待隐藏控件的请求。请求是边沿触发的，控件未声明时会等待：
+
+```go
+ui.FocusBind(ui.TextField(c, &m.query, "Search", ""), &m.focus, focusSearch)
+// m.focus = focusSearch 把焦点移过去；FocusedValue 报告当前焦点。
+```
+
+控件需要有标识（控件本身，或用 `Hit` 的容器），并且焦点绑定不能声明在 `Memo` 里。
+
 ## 快捷键
 
 页面用 `ui.Shortcut` 和 `Box.Shortcut` 在快捷键起作用的地方声明它（见[声明式布局](/zh/docs/declarative-layout/)），不需要下面这些。自己写的处理器匹配到组合键、想让它像点击某个控件那样生效时，在结果里返回带那个控件标识的 `EventResult.Activate`：这一遍绘制会作为该点击的事件遍运行，与在获得焦点的按钮上按回车相同。

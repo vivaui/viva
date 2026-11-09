@@ -20,6 +20,7 @@ package ui
 // Within makes a Popup flip and stay inside r instead of the whole frame, for a menu
 // that keeps a margin from the window's edge or stays in a pane.
 func (b Box) Within(r Rect) Box {
+	b.n()
 	b.f.extra(b.i).within = r
 	return b
 }

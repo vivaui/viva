@@ -51,7 +51,7 @@ func (painter *painter) accessibilityRequest(request platform.AccessibilityReque
 			// Pressing a field is putting the caret in it.
 			return true, showFrame()
 		}
-		if !painter.deliverClick(hit.ID) {
+		if !painter.deliverClick(hit.ID, gfx.ClickInfo{}) {
 			return false, nil
 		}
 		return true, showFrame()

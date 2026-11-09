@@ -57,6 +57,7 @@ const (
 	row
 	stack
 	grid
+	custom // a Layout places the children itself (see layout_custom.go)
 )
 
 type dimKind uint8
@@ -205,6 +206,8 @@ type extra struct {
 	tooltip       string           // what Tooltip says over the element; empty for none
 	addons        int32            // 1 + the index of the field's icon and button in Frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
+	focusOrder    FocusOrder       // FocusOrder: how the group chooses the next member; nil is its axis
+	layout        Layout           // CustomLayout: who measures and places the children
 }
 
 // Frame is one page being declared. It is handed to the function given to
@@ -254,16 +257,19 @@ type Frame struct {
 	ellipses   []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
 	wraps      []wrapCache         // the full line sets of wrapped texts, kept between frames
 	wrapCursor int
-	scratch    scratch     // memory the layout borrows, see scratch.go
-	scrolls    scrollStore // the ScrollStates of the page's ScrollAreas, by identity
+	scratch    scratch       // memory the layout borrows, see scratch.go
+	layoutCtx  LayoutContext // the context a CustomLayout is handed, reused
+	scrolls    scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
 	parent     int32
 	bounds     Rect
+	gen        uint32 // the paint this Frame is declaring; a Box names it
+	shiftedX   bool   // a CustomLayout moved children after their width was solved
 	done       bool
 }
 
 // View keeps the memory a page is laid out in between frames. The zero value is
 // ready to use; keep one for each page that is painted every frame.
-type View struct{ frame Frame }
+type View struct{ frame *Frame }
 
 // Draw declares, lays out and paints one page inside bounds. build runs once.
 func (view *View) Draw(canvas *gfx.Canvas, theme Theme, bounds Rect, build func(*Frame)) {
@@ -276,7 +282,22 @@ func (view *View) Draw(canvas *gfx.Canvas, theme Theme, bounds Rect, build func(
 // before painting something of their own; End finishes it. Draw is Begin, build
 // and End.
 func (view *View) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *Frame {
-	f := &view.frame
+	if view.frame == nil {
+		view.frame = new(Frame)
+	}
+	f := view.frame
+	if f.gen == ^uint32(0) {
+		// A generation is about to wrap: retire this Frame, with the Boxes that
+		// name it, and declare the next paint in a copy. The copy shares the
+		// arrays, so no memory is duplicated; one allocation happens every 2³²
+		// Begins, not per paint.
+		next := *f
+		next.gen = 0
+		f.gen = 0 // retire this Frame: a Box of it has generation MaxUint32
+		view.frame = &next
+		f = &next
+	}
+	f.gen++
 	f.canvas, f.theme, f.bounds, f.done = canvas, theme, bounds, false
 	f.nodes = f.nodes[:0]
 	f.lines = f.lines[:0]
@@ -334,6 +355,16 @@ func (f *Frame) End() {
 	f.measure(axisY)
 	root.rect.Y, root.rect.Height = f.bounds.Y, f.bounds.Height
 	f.solve(0, axisY)
+	if f.shiftedX {
+		// A CustomLayout moved children horizontally after their width was solved.
+		// Their subtrees moved with them, and a popup that hangs off one is placed
+		// again from the anchor's final rectangle before its height is placed.
+		for _, index := range f.floats {
+			f.placePopup(&f.nodes[index], axisX)
+			f.solve(index, axisX)
+		}
+		f.shiftedX = false
+	}
 	for _, index := range f.floats {
 		f.placePopup(&f.nodes[index], axisY)
 		f.solve(index, axisY)
@@ -373,6 +404,7 @@ func (f *Frame) trim() {
 	if f.wrapCursor < len(f.ellipses) {
 		f.ellipses = f.ellipses[:f.wrapCursor]
 	}
+	f.layoutCtx.children = trimFlexCapacity(f.layoutCtx.children)
 	f.nodes = trimFlexCapacity(f.nodes)
 	f.inputs = trimFlexCapacity(f.inputs)
 	f.groups = trimFlexCapacity(f.groups)
@@ -431,7 +463,7 @@ func (f *Frame) add(k kind) int32 {
 	return index
 }
 
-func (f *Frame) box(k kind) Box { return Box{f: f, i: f.add(k)} }
+func (f *Frame) box(k kind) Box { return Box{f: f, i: f.add(k), gen: f.gen} }
 
 // Row opens a container that lays its children out left to right.
 func (f *Frame) Row() Box {
@@ -483,6 +515,15 @@ func (f *Frame) Grid(minCell float32) Box {
 	return b
 }
 
+// customLayout declares a container whose children a Layout measures and places.
+func (f *Frame) customLayout(layout Layout) Box {
+	b := f.box(kindContainer)
+	n := &f.nodes[b.i]
+	n.dir = custom
+	f.extra(b.i).layout = layout
+	return b
+}
+
 // Scroll opens a column whose children may be taller than it is: it clips them
 // and shows them offset pixels up. The caller owns the offset (wheel events and
 // scrollbars are the application's, as with components.ScrollArea); after End,
@@ -499,13 +540,10 @@ func (f *Frame) Scroll(offset float32) Box {
 
 // Paragraph adds text that breaks into lines to fit the width it is given, at most
 // maxLines of them (the last ends with an ellipsis), so its height follows its
-// width. It is what Text is not: a Text is one line and is clipped.
+// width. It is what Text is not: a Text is one line and is clipped. Zero or less
+// takes as many lines as the width needs, as Box.MaxLines.
 func (f *Frame) Paragraph(value string, maxLines int) Box {
-	b := f.Text(value)
-	n := &f.nodes[b.i]
-	n.flags |= flagWrap
-	n.maxLines = int32(max(maxLines, 1))
-	return b
+	return f.Text(value).MaxLines(maxLines)
 }
 
 // Text adds one line of text, in the theme's body size and foreground color.

@@ -21,7 +21,8 @@ Nothing draws unless an event, `Invalidate`, or a running animation asks for a f
 is no frame loop to write.
 
 State lives in a struct (`model` in main.go). The page reads it. Never keep a `ui.Box`,
-a `ui.C`, a `gfx.Canvas` or a closure given to `Children` after the page returns.
+a `ui.C`, a `gfx.Canvas` or a closure given to `Children` after the page returns; `Box.Valid()`
+says whether one still names an element of the current paint.
 
 ## Pages: ui.C
 
@@ -63,7 +64,20 @@ func (m *model) page(c ui.C) {
 - `Changed()` reports the paint in which a bound control changed its value; `Clicked()` on a `Button`.
   `Popover` and `Modal` set their `*bool` to false when dismissed (Escape, a press outside, the close
   button) and give the focus back.
-- Long lists: `ui.List(c, &m.listState, len(items), func(i int) { ... })` declares only the rows on screen.
+- Long lists: `ui.List(c, &m.list, len(items), func(row ui.ListRow) { row.Element.PadX(8).Children(...) })` declares only the rows
+  on screen; style the row with `row.Element`, declare what is in it with `row.C`, name the list with `.Label("Files")`. A click
+  chooses a row (`m.list.Selected()`, `Changed()`), the arrows, Home, End and Page Up/Down move, Enter or a double click is
+  `m.list.Submitted()`, and `m.list.Label = func(i int) string` makes typing a row's first letters move to it. Set `m.list.Selection =
+  &m.chosen` (a `ui.Selection`, held by `m.list.Key`) to let the user choose several: Primary-click toggles, Shift extends, Primary+A
+  chooses all. `m.list.ScrollTo(row, ui.ListCenter)`, `ScrollIntoView`, `ScrollToEnd`, `Visible()` and `AtEnd()` move and read it.
+  `box.ClickModifiers()` and `box.DoubleClicked()` read how a click on any element came. Do not number rows or keep a selected
+  index of your own. `row.Element` is a Row, so an icon, a name and a size lie side by side. `m.list.Header = func(i int) bool`
+  makes some rows section headings: the heading of the section at the top stays there until the next pushes it away (give it a
+  Background; it is not chosen, focused or typed to, and the keys pass over it). `m.list.Reorder = func(rows []int, to int)` lets
+  the user drag rows (the chosen ones when the row dragged is chosen) and calls it with the rows and the row they go before; move
+  them there, in the model. `m.list.RowWidth = 900` makes the rows at least that wide and the list scrolls sideways (the
+  horizontal wheel, or the wheel with Shift); a column header above it follows with
+  `ui.Row(c).Clip().Children(func() { ui.Row(c).Width(900).ScrollWith(&m.list).Children(titles) })`.
 - `.Tooltip("Delete")` on a control is the tip shown while the pointer rests on it (and its description).
 - A menu of actions off a button: `ui.Menu(c, more, &m.menu, func(menu *ui.MenuItems) { if menu.Item("Rename").Clicked() { ... } })`;
   `menu.Separator()`, `menu.Label("Group")`, `.Destructive()`, `.Disabled(x)`. Choosing an item closes it.
@@ -95,7 +109,10 @@ func (m *model) page(c ui.C) {
   `m.toaster.Acted()` (after `Toasts`) reports its press; a `ui.ToastLoading` toast stays until
   `m.toaster.Done(id, title, "", ui.ToastSuccess)` replaces it; `Toaster.Position` picks the corner.
 - `ui.TextField(...).AutoFocus()` focuses a field as it appears; `.Submitted()` is Enter pressed in it.
-  `ui.TextField(...).Secure()` is a password field.
+  `ui.TextField(...).Secure()` is a password field. Focus that lives in the model is
+  `ui.FocusBind(ui.TextField(...), &m.focus, FocusSearch)`: setting `m.focus` moves the focus, a user's
+  focus writes back, and `ui.FocusedValue(c, &m.focus)` reads the committed one. The element needs a
+  control or a Hit, and the binding is not for a Memo.
 - Keyboard shortcuts are declared where they act: `if ui.Shortcut(c, ui.Primary, "s") { m.save() }` (Primary is
   Command on macOS, Control elsewhere); `list.Shortcut(0, "delete")` on a container or control acts only while the
   focus is in it, the innermost one winning. A chord without Primary, Ctrl or Alt is left to a field being typed in.
@@ -113,8 +130,9 @@ func (m *model) page(c ui.C) {
 - A control with a look of your own: `ui.ButtonBase`, `CheckboxBase`, `SwitchBase`, `ToggleBase`, `RadioBase`, `TabBase`,
   `SliderBase`, `SelectBase` and `TextFieldBase` are the controls without their look, bound like their dressed forms; give them
   Background, Border, Radius and Draw (and Children, for the row-shaped ones). Do not copy a control to restyle it.
-- A part that rarely changes: `ui.Memo(c.KeyInt(id), version, func() { ... })` is copied from the last
-  paint while `version` is the same; bump `version` when what the function reads changes.
+- A part that rarely changes: `ui.Memo(c.KeyInt(id), *item, func() { ... })` is copied from the last
+  paint while that value compares equal: pass the row (or a comparable key of what the function
+  reads), not a counter you must remember to bump.
 - Your own component is a function of the same shape: `func Card(c ui.C, title string, body func()) ui.Box`.
   Its own small state (whether it is open) is `ui.State[bool](c, "open")`; the application's state stays in the model.
 - A settings form: tag the struct's fields (`form:"Label"`, `choices:"options,nameFunc"`, `placeholder:"..."`)
@@ -141,9 +159,9 @@ running anything; a test under `app.NewDriver` panics on them where they happen,
 | deleting from the list inside its loop on `Clicked` | the loop still runs over it | `c.After(func() { m.remove(id) })` |
 | `ui.Modal(c, &open, "", ...)` | panics: a dialog needs a title | give it one; it names the dialog for screen readers |
 | two rows with `c.Key("x")` in one parent | panics | key rows by something unique (an ID) |
-| a `ui.Memo` whose function reads something its version does not cover | the part shows stale content | bump the version when that changes; `ui.MemoCheck(true)` in a test panics on it |
+| a `ui.Memo` whose function reads something its value does not cover | the part shows stale content | pass the row (or a comparable key of what the function reads); `ui.MemoCheck(true)` in a test panics on it |
 
-A line, or the line above it, with `// viva:ignore unkeyed-button` (or `kept-context`) silences
+A line, or the line above it, with `// viva:ignore unkeyed-button` (or `kept-context`, `memo-value`) silences
 one finding you have checked.
 
 ## Laying a page out (package github.com/vivaui/viva/ui)
@@ -510,9 +528,30 @@ For tabs, tables and text fields use `f.Tabs`, `f.Table` and `f.Field` above, no
 
 ## Background work
 
-A goroutine never touches the window. It stores its result under a lock, then calls
-`invalidator.Invalidate()` (`Config.Invalidator`); `Config.OnWake` copies the result into the
-model on the window's thread before the repaint.
+A goroutine never touches the window. Work that belongs to the page — a directory listing, a
+request for the selected host — is a `ui.Effect`, not a goroutine of your own:
+
+```go
+var load = ui.NewEffect[dirListing, string](func(ctx context.Context) (dirListing, error) { ... })
+
+func (m *model) page(c ui.C) {
+	ui.Effect(c, m.load, m.dir) // the key: a new directory cancels the old run
+	if listing, err, ok := m.load.Take(); ok {
+		m.apply(listing, err)
+	}
+}
+```
+
+The run gets a context, must return when it is done, and must not touch a `C`, `Box` or `Frame`.
+The same key does not start again; a new key cancels the old run and starts the new one; a paint
+that stops declaring it cancels it; closing the window cancels all of them. `Take` reads the
+result once, on the window's thread, after the effect is declared, and the page wakes itself when
+the result lands. One state per page, and not inside a Memo. A page you draw into a window of your
+own takes that window's `PageConfig.Invalidator` and calls `page.Close()` when it goes away.
+
+A goroutine of your own, for something with no page key (a long-lived watcher), stores its result
+under a lock and calls `invalidator.Invalidate()` (`Config.Invalidator`); `Config.OnWake` copies
+the result into the model on the window's thread before the repaint.
 
 ## Testing
 
@@ -527,7 +566,8 @@ pixel positions.
 
 - Allocation-conscious: no `fmt.Sprintf` per frame for text that has not changed if it is in a
   hot path; keep the strings in the model.
-- No reflection, no `map[string]any` for UI state, no goroutines started from Paint.
+- No reflection, no `map[string]any` for UI state, no goroutines started from Paint by
+  hand: page work is a `ui.Effect`.
 
 ## Limits to know
 

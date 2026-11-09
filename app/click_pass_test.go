@@ -128,7 +128,7 @@ func TestClickedIsFalseOutsideTheEventPass(t *testing.T) {
 		t.Fatal("asking did not mark the paint as listening")
 	}
 	canvas.EndFrame()
-	canvas.BeginEventPass(passSave)
+	canvas.BeginEventPass(passSave, gfx.ClickInfo{})
 	if !canvas.Clicked(passSave) || canvas.Clicked(passOpen) || canvas.Clicked(gfx.ID{}) {
 		t.Fatal("the event pass names the wrong control")
 	}
@@ -317,5 +317,55 @@ func TestAfterPaintRunsOutsideThePaintAndTheRepaintShowsIt(t *testing.T) {
 	}
 	if runs != 1 {
 		t.Fatalf("an ordinary repaint ran the deferred function again: %d", runs)
+	}
+}
+
+// The event pass of a click carries the modifier keys held and how many clicks the
+// sequence had, for a pointer click, and a plain click for the keyboard's Enter.
+func TestTheClickPassSaysHowTheClickCame(t *testing.T) {
+	var got []gfx.ClickInfo
+	theme := gfx.LightTheme()
+	config := Config{
+		Title: "pass", Width: 400, Height: 200, Tree: &passTree,
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			if components.BeginButton(canvas, theme, passSave, gfx.Rect{X: 10, Y: 10, Width: 100, Height: 32}).Default("Save").Clicked() {
+				info, ok := canvas.ClickInfo()
+				if !ok {
+					t.Error("ClickInfo is not available in the pass that delivers the click")
+				}
+				got = append(got, info)
+			}
+		},
+	}
+	var canvas gfx.Canvas
+	driver, err := NewDriver(config, &canvas)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+
+	if err := driver.KeyDown(gfx.KeyShiftLeft, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Click(60, 26); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.KeyUp(gfx.KeyShiftLeft, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.DoubleClick(60, 26); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) < 3 {
+		t.Fatalf("%d clicks delivered", len(got))
+	}
+	if got[0].Modifiers&gfx.ModifierShift == 0 {
+		t.Errorf("a Shift-click arrived with modifiers %v", got[0].Modifiers)
+	}
+	if got[1].Modifiers != 0 {
+		t.Errorf("a click after Shift was released arrived with modifiers %v", got[1].Modifiers)
+	}
+	if last := got[len(got)-1]; last.Clicks != 2 {
+		t.Errorf("the second click of a double click arrived as click %d", last.Clicks)
 	}
 }

@@ -82,15 +82,27 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 	start, end := edits[0].Range.Start, edits[len(edits)-1].Range.End
 	replacement := make([]rune, 0, end-start)
 	primitives := make([]Edit, 0, len(edits))
+	var contexts []lineContext
+	if editor.journal != nil && editor.journal.lines != nil {
+		contexts = make([]lineContext, 0, len(edits))
+	}
 	position := start
 	runePosition, bytePosition := 0, 0
+	linePosition, lineShift := 0, 0
 	for _, edit := range edits {
 		for runePosition < edit.Range.Start {
+			if contexts != nil && editor.runes[runePosition] == '\n' {
+				linePosition++
+			}
 			bytePosition += runeBytes(editor.runes[runePosition])
 			runePosition++
 		}
 		primitive := Edit{Start: bytePosition}
+		sourceLine := linePosition
 		for runePosition < edit.Range.End {
+			if contexts != nil && editor.runes[runePosition] == '\n' {
+				linePosition++
+			}
 			width := runeBytes(editor.runes[runePosition])
 			primitive.Removed += width
 			bytePosition += width
@@ -100,10 +112,26 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 		for _, character := range inserted {
 			primitive.Inserted += runeBytes(character)
 		}
+		replacement = append(replacement, editor.runes[position:edit.Range.Start]...)
 		if primitive.Removed != 0 || primitive.Inserted != 0 {
 			primitives = append(primitives, primitive)
+			if contexts != nil {
+				atLineStart := edit.Range.Start == 0 || editor.runes[edit.Range.Start-1] == '\n'
+				if options.Forward {
+					atLineStart = start == 0 || editor.runes[start-1] == '\n'
+					if len(replacement) > 0 {
+						atLineStart = replacement[len(replacement)-1] == '\n'
+					}
+				}
+				line := sourceLine
+				if options.Forward {
+					line += lineShift
+				}
+				context := makeLineContext(line, atLineStart, editor.runes[edit.Range.Start:edit.Range.End], inserted)
+				contexts = append(contexts, context)
+				lineShift += context.inserted - context.removed
+			}
 		}
-		replacement = append(replacement, editor.runes[position:edit.Range.Start]...)
 		replacement = append(replacement, inserted...)
 		position = edit.Range.End
 	}
@@ -119,12 +147,13 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 		}
 	} else {
 		slices.Reverse(primitives)
+		slices.Reverse(contexts)
 	}
-	editor.commitBatch(Range{Start: start, End: end}, string(replacement), primitives, options.AfterSelection)
+	editor.commitBatch(Range{Start: start, End: end}, string(replacement), primitives, contexts, options.AfterSelection)
 	return nil
 }
 
-func (editor *Editor) commitBatch(target Range, replacement string, primitives []Edit, after *Range) {
+func (editor *Editor) commitBatch(target Range, replacement string, primitives []Edit, contexts []lineContext, after *Range) {
 	target = normalizeRange(target, len(editor.runes))
 	before := editor.selectionState()
 	journal := editor.journal
@@ -139,5 +168,6 @@ func (editor *Editor) commitBatch(target Range, replacement string, primitives [
 	if len(primitives) != 0 {
 		editor.recordWithPrimitives(change, before, editor.selectionState(), editSeparate, primitives)
 	}
-	editor.recordBatchEdits(primitives, false)
+	editor.rememberLineBatch(primitives, contexts)
+	editor.recordBatchEdits(primitives, contexts, false)
 }

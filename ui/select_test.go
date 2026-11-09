@@ -74,7 +74,7 @@ func TestSelectOpensChoosesAndClosesThroughItsClicks(t *testing.T) {
 	}
 	click := func(index int) {
 		canvas := testCanvas()
-		canvas.BeginEventPass(selScope.At(index))
+		canvas.BeginEventPass(selScope.At(index), gfx.ClickInfo{})
 		draw(canvas)
 		canvas.EndEventPass()
 	}
@@ -145,7 +145,7 @@ func TestSelectTooLongForTheFrameScrollsItsWindow(t *testing.T) {
 		t.Fatalf("a window of options %d..%d with %d arrows", first, last, arrows)
 	}
 	canvas := testCanvas()
-	canvas.BeginEventPass(selScope.At(44)) // scroll down
+	canvas.BeginEventPass(selScope.At(44), gfx.ClickInfo{}) // scroll down
 	draw(canvas)
 	canvas.EndEventPass()
 	if state.First <= first {

@@ -59,7 +59,7 @@ func TestToggleSizeAndInvalidVariants(t *testing.T) {
 
 func TestToggleClickedReportsTheClick(t *testing.T) {
 	var canvas gfx.Canvas
-	canvas.BeginEventPass(gfx.Item(41))
+	canvas.BeginEventPass(gfx.Item(41), gfx.ClickInfo{})
 	defer canvas.EndEventPass()
 	if !BeginToggle(&canvas, gfx.LightTheme(), gfx.Item(41), gfx.Rect{Width: 96}, false).Default("Bold").Clicked() {
 		t.Fatal("toggle did not report its own click")

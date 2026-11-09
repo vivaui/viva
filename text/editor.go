@@ -475,6 +475,14 @@ func (editor *Editor) replace(target Range, value string, overwrite bool) textCh
 		inserted: replacement,
 	}
 	edit := editor.prepareEdit(target.Start, target.End, replacement)
+	var lines *lineJournal
+	var context lineContext
+	if editor.journal != nil {
+		lines = editor.journal.lines
+		if lines != nil {
+			context = editor.prepareLineContext(target.Start, target.End, replacement)
+		}
+	}
 	editor.textValid = false
 	editor.offsets.trim(target.Start)
 	delta := len(replacement) - removed
@@ -487,6 +495,9 @@ func (editor *Editor) replace(target Range, value string, overwrite bool) textCh
 	}
 	copy(editor.runes[target.Start:], replacement)
 	editor.recordEdit(edit)
+	if lines != nil {
+		editor.recordLineContext(edit, context)
+	}
 	return change
 }
 
@@ -529,6 +540,10 @@ func (editor *Editor) BreakUndoGroup() { editor.coalescing = 0 }
 
 // ClearHistory forgets every undo and redo unit without changing the text.
 func (editor *Editor) ClearHistory() {
+	if editor.journal != nil && editor.journal.lines != nil {
+		editor.journal.lines.batches = nil
+		editor.journal.lines.delivery = nil
+	}
 	editor.history = nil
 	editor.historyIndex = 0
 	editor.historyRunes = 0
@@ -649,7 +664,7 @@ func (editor *Editor) discardRedo() {
 		*point = -1
 	}
 	for index := editor.historyIndex; index < len(editor.history); index++ {
-		editor.historyRunes -= editor.history[index].retainedRunes()
+		editor.historyRunes -= editor.history[index].retainedRunes() + editor.forgetLineBatch(&editor.history[index])
 	}
 	clear(editor.history[editor.historyIndex:])
 	editor.history = editor.history[:editor.historyIndex]
@@ -661,7 +676,7 @@ func (editor *Editor) trimHistory() {
 	remove := 0
 	for len(editor.history)-remove > 1 && (len(editor.history)-remove > maxHistoryEntries || editor.historyRunes > maxHistoryRunes) {
 		edit := editor.history[remove]
-		editor.historyRunes -= edit.retainedRunes()
+		editor.historyRunes -= edit.retainedRunes() + editor.forgetLineBatch(&editor.history[remove])
 		remove++
 	}
 	if len(editor.history)-remove == 1 && editor.historyRunes > maxSingleEditRunes {
@@ -690,6 +705,14 @@ func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 	start = clamp(start, 0, len(editor.runes))
 	end := clamp(start+removed, start, len(editor.runes))
 	edit := editor.prepareEdit(start, end, replacement)
+	var lines *lineJournal
+	var context lineContext
+	if editor.journal != nil {
+		lines = editor.journal.lines
+		if lines != nil {
+			context = editor.prepareLineContext(start, end, replacement)
+		}
+	}
 	delta := len(replacement) - (end - start)
 	if delta > 0 {
 		editor.runes = append(editor.runes, make([]rune, delta)...)
@@ -703,6 +726,9 @@ func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 	editor.textValid = false
 	editor.offsets.trim(start)
 	editor.recordEdit(edit)
+	if lines != nil {
+		editor.recordLineContext(edit, context)
+	}
 }
 
 func hasUndoBoundary(value string) bool {

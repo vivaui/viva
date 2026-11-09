@@ -119,6 +119,7 @@ const (
 )
 
 func (b Box) states() *stateLooks {
+	b.n()
 	extra := b.f.extra(b.i)
 	if extra.states == 0 {
 		b.f.states = append(b.f.states, stateLooks{})
@@ -146,6 +147,10 @@ func (b Box) Focus(look Look) Box { b.states().focus = look; return b }
 // copies are not declared.
 //
 //	ui.TextField(c, &m.query, "Search", "").AutoFocus()
+//
+// In a page embedded with gfx.Embed, the request stays on the view's canvas; the
+// host adopts it with gfx.Canvas.AdoptEmbedded when the view should take the
+// keyboard for the host.
 func (b Box) AutoFocus() Box {
 	if b.f.memoDepth > 0 {
 		panic("ui: AutoFocus in a Memo: a copied part is not declared, so it would take the focus again when it is; declare it outside the Memo")
@@ -176,6 +181,7 @@ func (b Box) StateFrom(container Box) Box { b.states().follow = container.i + 1;
 // Transition fades the element between its looks over the theme's Transition
 // motion; TransitionWith does it over another. An idle element schedules nothing.
 func (b Box) Transition() Box {
+	b.n()
 	return b.TransitionWith(b.f.theme.Transition)
 }
 
@@ -193,6 +199,7 @@ func (b Box) TransitionWith(motion gfx.Motion) Box {
 // other. A faded element is still laid out, hit and focused: an element at 0 is
 // invisible and clickable. An Image is not faded.
 func (b Box) Opacity(v float32) Box {
+	b.n()
 	b.f.extra(b.i).fade = 1 - min(max(v, 0), 1)
 	return b
 }
@@ -203,6 +210,7 @@ func (b Box) Opacity(v float32) Box {
 // the element's rectangle, so a Clip on a container around it cuts it, and not
 // inside it as Stroke is.
 func (b Box) Ring(width float32, c Color) Box {
+	b.n()
 	extra := b.f.extra(b.i)
 	extra.ringWidth, extra.ring = width, c
 	return b
@@ -243,6 +251,7 @@ func (b Box) Gradient(angle Angle, from, to Color) Box {
 //
 //	f.Row().Radius(12).GradientStops(ui.ToBottomRight, gfx.Stop(0, a), gfx.Stop(0.6, b), gfx.Stop(1, c))
 func (b Box) GradientStops(angle Angle, stops ...gfx.GradientStop) Box {
+	b.n()
 	if len(stops) == 0 {
 		return b
 	}

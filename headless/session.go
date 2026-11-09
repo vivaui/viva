@@ -31,6 +31,11 @@ type Options struct {
 	// default a session measures with the platform's text engine, as a window does
 	// through that engine, so a screenshot shows the layout the window would have.
 	ReferenceText bool
+	// Strict checks the frame after each settle: two controls that share a
+	// non-zero identity, or two interactive controls that share a label, are a
+	// mistake a page makes silently (the two identities name one state, and a
+	// selector finds one control by chance). Labels may repeat by default.
+	Strict bool
 }
 
 // Session is one application run without a window. It is not safe for
@@ -278,7 +283,7 @@ func (session *Session) WaitFor(condition func(app.Snapshot) bool, timeout time.
 			return err
 		}
 		if condition(session.driver.Snapshot()) {
-			return nil
+			return session.CheckStrict()
 		}
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
@@ -324,11 +329,43 @@ func (session *Session) Settle(quiet, timeout time.Duration) error {
 			if err := clock.advance(session.driver); err != nil {
 				return err
 			}
-			return session.driver.Pump()
+			if err := session.driver.Pump(); err != nil {
+				return err
+			}
+			return session.CheckStrict()
 		}
 		if err := clock.advance(session.driver); err != nil {
 			return err
 		}
+	}
+	return session.CheckStrict()
+}
+
+// CheckStrict reports the per-paint values a page gave two controls at once: a
+// non-zero identity, or a label among interactive controls. It is a no-op unless
+// Options.Strict is set.
+func (session *Session) CheckStrict() error {
+	if !session.options.Strict {
+		return nil
+	}
+	hits := session.driver.Snapshot().Hits
+	ids := map[gfx.ID]bool{}
+	labels := map[string]bool{}
+	for _, hit := range hits {
+		if hit.ID.IsZero() || hit.IsLabel || hit.Backdrop || hit.Block {
+			continue
+		}
+		if ids[hit.ID] {
+			return fmt.Errorf("headless: two controls share the identity %v", hit.ID)
+		}
+		ids[hit.ID] = true
+		if hit.Label == "" {
+			continue
+		}
+		if labels[hit.Label] {
+			return fmt.Errorf("headless: two controls share the label %q", hit.Label)
+		}
+		labels[hit.Label] = true
 	}
 	return nil
 }

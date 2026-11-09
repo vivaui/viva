@@ -105,7 +105,7 @@ func TestButtonGroupEndItemsAreRoundedOnlyOutside(t *testing.T) {
 
 func TestButtonGroupClickedReportsTheClickedAction(t *testing.T) {
 	var canvas gfx.Canvas
-	canvas.BeginEventPass(gfx.Item(62))
+	canvas.BeginEventPass(gfx.Item(62), gfx.ClickInfo{})
 	defer canvas.EndEventPass()
 	id, ok := BeginButtonGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 270}, buttonGroupTestOptions[:]).Paint().Clicked()
 	if !ok || id != gfx.Item(62) {

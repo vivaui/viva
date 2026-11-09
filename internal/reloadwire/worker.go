@@ -126,13 +126,14 @@ func handleRequest(config *WorkerConfig, canvas *gfx.Canvas, base CanvasSnapshot
 	case messageClick:
 		value := decoder{data: request.payload}
 		id := value.id()
+		info := gfx.ClickInfo{Modifiers: gfx.Modifiers(value.u32()), Clicks: int(value.u8())}
 		if err := value.finish(); err != nil {
 			return nil, err, false
 		}
 		// A paint that asks Clicked takes the click in its event pass, here in the
 		// worker, where the application's state lives.
 		if config.Paint != nil && canvas.ListensForClicks() {
-			canvas.BeginEventPass(id)
+			canvas.BeginEventPass(id, info)
 			canvas.Reset()
 			canvas.BeginFrame()
 			config.Paint(canvas, config.lastSize)

@@ -53,7 +53,8 @@ func (value *supervisor) paint(canvas *gfx.Canvas, size gfx.Size) {
 	if id, ok := canvas.ClickTarget(); ok {
 		// The event pass of a click: the application's state lives in the worker,
 		// which runs the pass there. Nothing is drawn; the host repaints next.
-		value.click(id)
+		info, _ := canvas.ClickInfo()
+		value.click(id, info)
 		return
 	}
 	request := reloadwire.PaintRequest{
@@ -94,14 +95,14 @@ func (value *supervisor) paint(canvas *gfx.Canvas, size gfx.Size) {
 	}
 }
 
-func (value *supervisor) click(id gfx.ID) {
+func (value *supervisor) click(id gfx.ID, info gfx.ClickInfo) {
 	value.mu.Lock()
 	defer value.mu.Unlock()
 	if value.active == nil || !value.active.config.HasClick {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	err := value.active.client.Click(ctx, id)
+	err := value.active.client.Click(ctx, id, info)
 	cancel()
 	if err != nil {
 		value.reportErrorLocked(fmt.Errorf("click worker: %w", err))

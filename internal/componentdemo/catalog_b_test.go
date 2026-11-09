@@ -12,7 +12,7 @@ func TestGroupBCatalogOrder(t *testing.T) {
 	expected := [...]string{
 		"command", "context-menu", "drawer", "dropdown-menu", "empty",
 		"field", "form", "hover-card", "icon-hover", "input-group", "input-otp",
-		"item", "kbd", "label", "markdown", "marker", "menubar", "message",
+		"item", "kbd", "label", "list", "markdown", "marker", "menubar", "message",
 		"message-scroller", "metric-card", "multi-select", "native-select",
 	}
 	if len(groupBComponents) != len(expected) {
@@ -43,6 +43,9 @@ func TestGroupBPaintsThemesResponsivelyAndDeterministically(t *testing.T) {
 					t.Run(name, func(t *testing.T) {
 						state := newGroupBState(component, example.ID)
 						var canvas gfx.Canvas
+						// A virtualized list lays its first frame out from estimates; the
+						// steady frames are the ones that must not differ.
+						paintGroupBFrame(&canvas, state, component, size, dark)
 						paintGroupBFrame(&canvas, state, component, size, dark)
 						if len(canvas.Texts()) == 0 && len(canvas.Rectangles()) <= 1 {
 							t.Fatal("example emitted no visible component commands")
