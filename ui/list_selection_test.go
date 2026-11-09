@@ -120,6 +120,52 @@ func TestListModifierClicks(t *testing.T) {
 	}
 }
 
+// An embedded page reads the click its host delivers, not a bare one: a List
+// painted through gfx.BeginEmbedded still sees the modifier keys of a
+// Shift-click and the count of a double click.
+func TestEmbeddedListReadsTheClicksModifiers(t *testing.T) {
+	m := newSelecting("alpha", "beta", "gamma", "delta")
+	embedded := ui.NewPage(ui.PageConfig{View: m.page, Theme: &pageTheme})
+	var host, view gfx.Canvas
+	tree := host.Tree()
+	mount := tree.Sub(tree.Feature("pane"), tree.Name("one"))
+	paint := func() {
+		host.Reset()
+		host.BeginFrame()
+		view.BeginEmbedded(&host, mount)
+		embedded.Draw(&view, gfx.Rect{Width: 400, Height: 400}, m.page)
+		view.EndFrame()
+		host.Embed(&view, gfx.Point{}, mount)
+		host.EndFrame()
+	}
+	click := func(label string, info gfx.ClickInfo) {
+		t.Helper()
+		var id gfx.ID
+		for _, hit := range host.Hits() {
+			if hit.Label == label && !hit.IsLabel && !hit.ID.IsZero() {
+				id = hit.ID
+			}
+		}
+		if id.IsZero() {
+			t.Fatalf("no row is labeled %q", label)
+		}
+		host.BeginEventPass(id, info)
+		paint()
+		host.EndEventPass()
+		paint()
+	}
+	paint()
+	click("alpha", gfx.ClickInfo{})
+	click("gamma", gfx.ClickInfo{Modifiers: gfx.ModifierShift, Clicks: 1})
+	if m.list.Selected() != 2 || m.selection.Len() != 3 || !m.selection.Has(0) || !m.selection.Has(1) || !m.selection.Has(2) {
+		t.Fatalf("Shift-click in an embedded page: selected %d, %d chosen", m.list.Selected(), m.selection.Len())
+	}
+	click("beta", gfx.ClickInfo{Clicks: 2})
+	if m.submitted != 1 {
+		t.Fatalf("double click in an embedded page submitted %d", m.submitted)
+	}
+}
+
 // The arrows move the focus and the choice, Shift extends from the anchor, and
 // Primary moves without choosing; Home and End go to the rows.
 func TestListKeysMoveAndChoose(t *testing.T) {

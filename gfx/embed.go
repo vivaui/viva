@@ -22,7 +22,7 @@ package gfx
 
 // BeginEmbedded prepares a canvas that is reused every frame to paint a view
 // that parent will embed at mount. It discards the previous frame, hands the
-// view the hover, press and focus of parent as its own identities, shares
+// view the hover, press, focus and click of parent as its own identities, shares
 // parent's identity tree, text measurer, display scale, clock and reduced-motion setting, and
 // opens an animated paint pass (end it with EndFrame before Embed).
 func (canvas *Canvas) BeginEmbedded(parent *Canvas, mount Scope) {
@@ -35,6 +35,7 @@ func (canvas *Canvas) BeginEmbedded(parent *Canvas, mount Scope) {
 	canvas.focused, _ = tree.Local(mount, parent.focused)
 	canvas.focusVisible = parent.focusVisible && !canvas.focused.IsZero()
 	canvas.clicked, _ = tree.Local(mount, parent.clicked)
+	canvas.clickInfo = parent.clickInfo
 	canvas.eventPass = parent.eventPass
 	if parent.hasPointer {
 		canvas.pointer, canvas.hasPointer = parent.pointer, true

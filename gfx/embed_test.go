@@ -145,6 +145,34 @@ func TestBeginEmbeddedHandsTheViewItsOwnInteraction(t *testing.T) {
 	}
 }
 
+func TestBeginEmbeddedHandsTheViewTheClickItDelivers(t *testing.T) {
+	var page, view Canvas
+	mount := testMount(&page, 11)
+	target := page.Tree().MountID(mount, Item(7))
+	for _, test := range []struct {
+		name string
+		info ClickInfo
+	}{
+		{"shift click", ClickInfo{Modifiers: ModifierShift, Clicks: 1}},
+		{"double click", ClickInfo{Clicks: 2}},
+	} {
+		page.BeginEventPass(target, test.info)
+		view.BeginEmbedded(&page, mount)
+		if !view.Clicked(Item(7)) {
+			t.Fatalf("%s: the click did not reach the view", test.name)
+		}
+		if info, ok := view.ClickInfo(); !ok || info != test.info {
+			t.Fatalf("%s: ClickInfo = %+v, %v; want %+v", test.name, info, ok, test.info)
+		}
+		page.EndEventPass()
+	}
+
+	view.BeginEmbedded(&page, mount)
+	if _, ok := view.ClickInfo(); ok {
+		t.Fatal("an embedded view outside an event pass reports a click")
+	}
+}
+
 func TestEmbeddedViewSharesTheClockAndRequestsFrames(t *testing.T) {
 	now := time.Duration(0)
 	var page, view Canvas
