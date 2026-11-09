@@ -115,6 +115,11 @@ func (c *Ctx) Bounds() Rect { return c.f.Bounds() }
 // through Draw; do not paint from here.
 func (c *Ctx) Canvas() *gfx.Canvas { return c.f.Canvas() }
 
+// PopupLayer raises the popups the page declares (menus, combobox lists,
+// dialogs) to layer, as Frame.PopupLayer does for a Frame's popups: a widget's
+// popup uses the higher of its own layer plus two and this one.
+func PopupLayer(c C, layer uint16) { c.f.PopupLayer(layer) }
+
 // element kinds, numbered apart in each parent.
 const (
 	pkContainer uint8 = iota
