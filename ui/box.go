@@ -445,13 +445,14 @@ func (b Box) clickInfo() (gfx.ClickInfo, bool) {
 
 // ScrollWith makes the element's content follow the sideways scroll of the rows of
 // list (ListState.RowWidth): a header above the list, whose columns line up with the
-// rows. Put it on the element holding the content, inside a container that clips:
+// rows. The element is taken out of the flow and placed at the top left of its
+// container, moved left by the list's offset; give it the rows' width, and put it in
+// a container with the header's height that clips. It follows the rows exactly: a
+// negative margin would widen the header instead of moving it.
 //
 //	ui.Row(c).Clip().Height(28).Children(func() {
-//		head := ui.Row(c).Width(m.files.RowWidth).ScrollWith(&m.files)
-//		head.Children(m.columnTitles)
+//		ui.Row(c).Width(m.files.RowWidth).ScrollWith(&m.files).Children(m.columnTitles)
 //	})
 func (b Box) ScrollWith(list *ListState) Box {
-	b.n().margin[3] = -list.ScrollX()
-	return b
+	return b.Absolute().Top(0).Left(-list.ScrollX())
 }

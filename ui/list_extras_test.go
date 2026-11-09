@@ -458,7 +458,7 @@ func newWidthModel(rowWidth float32, names ...string) *widthModel {
 func (m *widthModel) row(row ui.ListRow) {
 	row.Element.Height(24).PadX(8).Children(func() {
 		ui.Text(m.c, m.names[row.Index]).Grow(1)
-		ui.Text(m.c, "size")
+		ui.Text(m.c, "size").Width(60).TextEnd()
 	})
 }
 
@@ -549,22 +549,35 @@ func TestListRowWidthOffsetFollowsTheWindow(t *testing.T) {
 	}
 }
 
-// A header above the list goes with the rows, and what is outside the list does not
-// move; the rows' pointer regions stay inside the list.
+// A header above the list goes with the rows, every column of it, and what is outside
+// the list does not move; the rows' pointer regions stay inside the list.
 func TestListRowWidthHeaderFollowsAndHitsStayInside(t *testing.T) {
 	m := newWidthModel(800, "alpha", "beta")
 	m.head = func(c ui.C) {
 		ui.Row(c).Clip().Height(24).Children(func() {
-			ui.Row(c).Width(800).ScrollWith(&m.list).Children(func() { ui.Text(c, "Name header") })
+			ui.Row(c).Width(800).PadX(8).ScrollWith(&m.list).Children(func() {
+				ui.Text(c, "Name header").Grow(1)
+				ui.Text(c, "End header").Width(60).TextEnd()
+			})
 		})
 	}
 	d := openPage(t, m.page)
 	d.repaint()
 	area := d.listArea("Items")
 	h0 := firstX(d, "Name header")
+	e0 := firstX(d, "End header")
+	s0 := firstX(d, "size")
 	d.wheel(area, 90, 0, 0)
 	if got := firstX(d, "Name header"); got != h0-90 {
 		t.Fatalf("the header at %v, want %v: it did not follow the rows", got, h0-90)
+	}
+	// A header column aligned to the end must follow too: a negative margin widens the
+	// header row instead of moving it, which leaves its end columns behind.
+	if got := firstX(d, "End header"); got != e0-90 {
+		t.Fatalf("the header's end column at %v, want %v: it did not follow the rows", got, e0-90)
+	}
+	if got, want := firstX(d, "End header")-firstX(d, "size"), e0-s0; got != want {
+		t.Fatalf("the header's end column is %v from the rows' end, want %v", got, want)
 	}
 	row := d.hit("alpha").Bounds
 	if row.X < area.X-0.5 || row.X+row.Width > area.X+area.Width+0.5 {
