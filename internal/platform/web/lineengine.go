@@ -1,10 +1,10 @@
 package web
 
 import (
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/bidi"
 	"github.com/vivaui/viva/internal/grapheme"
 	"github.com/vivaui/viva/internal/textcache"
-	"github.com/vivaui/viva/ui"
 )
 
 // The web text engine. The browser measures a line's width (Canvas 2D
@@ -36,10 +36,10 @@ type styledLineMeasurer interface {
 }
 
 type lineRasterizer interface {
-	rasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error)
+	rasterizeText(value string, style gfx.TextStyle, scale float32, width, height int) (gfx.Bitmap, error)
 }
 
-// lineEngine implements ui.TextEngine over a lineMeasurer.
+// lineEngine implements gfx.TextEngine over a lineMeasurer.
 type lineEngine struct {
 	measurer    lineMeasurer
 	lines       *textcache.Cache[*measuredLine]
@@ -70,7 +70,7 @@ func newLineEngine(measurer lineMeasurer) *lineEngine {
 	return engine
 }
 
-// SetFontFamily implements ui.FontFamilyAware. The family applies to every
+// SetFontFamily implements gfx.FontFamilyAware. The family applies to every
 // engine in the page, as the native engines apply theirs to the process.
 func (engine *lineEngine) SetFontFamily(family string) {
 	if family == interfaceFamily {
@@ -80,7 +80,7 @@ func (engine *lineEngine) SetFontFamily(family string) {
 	fontGeneration++
 }
 
-// FontGeneration implements ui.FontFamilyAware.
+// FontGeneration implements gfx.FontFamilyAware.
 func (engine *lineEngine) FontGeneration() uint32 { return fontGeneration }
 
 // syncGeneration drops shaped lines when the page's font state moved since
@@ -96,10 +96,10 @@ func (engine *lineEngine) syncGeneration() {
 	}
 }
 
-func (engine *lineEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
+func (engine *lineEngine) RasterizeText(value string, style gfx.TextStyle, scale float32, width, height int) (gfx.Bitmap, error) {
 	rasterizer, ok := engine.measurer.(lineRasterizer)
 	if !ok {
-		return ui.Bitmap{}, ui.ErrTextRasterizerUnavailable
+		return gfx.Bitmap{}, gfx.ErrTextRasterizerUnavailable
 	}
 	return rasterizer.rasterizeText(value, style, scale, width, height)
 }
@@ -240,7 +240,7 @@ func (rects *clusterRects) caret(cluster int) float32 {
 	return rects.left[cluster]
 }
 
-// Width implements ui.TextEngine.
+// Width implements gfx.TextEngine.
 func (engine *lineEngine) Width(value string, size, weight float32) float32 {
 	return engine.WidthStyle(value, size, weight, false)
 }
@@ -252,7 +252,7 @@ func (engine *lineEngine) WidthStyle(value string, size, weight float32, italic 
 	return engine.lineStyle(value, size, weight, italic).width
 }
 
-// Caret implements ui.TextEngine.
+// Caret implements gfx.TextEngine.
 func (engine *lineEngine) Caret(value string, size, weight float32, offset int) float32 {
 	return engine.CaretStyle(value, size, weight, false, offset)
 }
@@ -269,14 +269,14 @@ func (engine *lineEngine) CaretStyle(value string, size, weight float32, italic 
 	return rects.caret(rects.cluster(offset))
 }
 
-// Selection implements ui.TextEngine. The clusters of [start, end) are joined where the
+// Selection implements gfx.TextEngine. The clusters of [start, end) are joined where the
 // display puts them side by side, so a selection that crosses a change of direction is
 // several spans, left to right.
-func (engine *lineEngine) Selection(dst []ui.TextSpan, value string, size, weight float32, start, end int) []ui.TextSpan {
+func (engine *lineEngine) Selection(dst []gfx.TextSpan, value string, size, weight float32, start, end int) []gfx.TextSpan {
 	return engine.SelectionStyle(dst, value, size, weight, false, start, end)
 }
 
-func (engine *lineEngine) SelectionStyle(dst []ui.TextSpan, value string, size, weight float32, italic bool, start, end int) []ui.TextSpan {
+func (engine *lineEngine) SelectionStyle(dst []gfx.TextSpan, value string, size, weight float32, italic bool, start, end int) []gfx.TextSpan {
 	if value == "" {
 		return dst
 	}
@@ -300,7 +300,7 @@ func (engine *lineEngine) SelectionStyle(dst []ui.TextSpan, value string, size, 
 				continue
 			}
 		}
-		dst = append(dst, ui.TextSpan{X: left, Width: right - left})
+		dst = append(dst, gfx.TextSpan{X: left, Width: right - left})
 	}
 	// Visual order, then join spans that touch after it.
 	added := dst[base:]
@@ -337,7 +337,7 @@ func abuts(a, b float32) bool {
 	return a-b < 0.25 && b-a < 0.25
 }
 
-// OffsetAt implements ui.TextEngine: the boundary whose caret is nearest x, the earlier
+// OffsetAt implements gfx.TextEngine: the boundary whose caret is nearest x, the earlier
 // one when two are equally near.
 func (engine *lineEngine) OffsetAt(value string, size, weight, x float32) int {
 	return engine.OffsetAtStyle(value, size, weight, false, x)
@@ -361,5 +361,5 @@ func (engine *lineEngine) OffsetAtStyle(value string, size, weight float32, ital
 	return int(rects.starts[best])
 }
 
-var _ ui.TextEngine = (*lineEngine)(nil)
-var _ ui.StyledTextEngine = (*lineEngine)(nil)
+var _ gfx.TextEngine = (*lineEngine)(nil)
+var _ gfx.StyledTextEngine = (*lineEngine)(nil)

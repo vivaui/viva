@@ -4,22 +4,22 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestInputOTPGroupedGeometryAndState(t *testing.T) {
-	var canvas ui.Canvas
-	layout := PaintInputOTP(&canvas, ui.LightTheme(), ui.Rect{X: 10, Y: 12}, InputOTPSnapshot{
-		ID: ui.Item(8), Label: "Verification code", Value: "12三456", Hint: "Six digits", Slots: 6, GroupSize: 3,
+	var canvas gfx.Canvas
+	layout := PaintInputOTP(&canvas, gfx.LightTheme(), gfx.Rect{X: 10, Y: 12}, InputOTPSnapshot{
+		ID: gfx.Item(8), Label: "Verification code", Value: "12三456", Hint: "Six digits", Slots: 6, GroupSize: 3,
 		Focused: true, HasActiveSlot: true, ActiveSlot: 2, ShowCaret: true,
 		HasSelection: true, SelectionStart: 0, SelectionEnd: 2,
 		HasComposition: true, CompositionStart: 2, CompositionEnd: 3,
 	})
-	if layout.Bounds != (ui.Rect{X: 10, Y: 12, Width: 224, Height: 32}) {
+	if layout.Bounds != (gfx.Rect{X: 10, Y: 12, Width: 224, Height: 32}) {
 		t.Fatalf("bounds = %+v", layout.Bounds)
 	}
-	if got := layout.SlotBounds(3); got != (ui.Rect{X: 138, Y: 12, Width: 32, Height: 32}) {
+	if got := layout.SlotBounds(3); got != (gfx.Rect{X: 138, Y: 12, Width: 32, Height: 32}) {
 		t.Fatalf("slot 3 = %+v", got)
 	}
 	// The six characters are text (the active slot's last, so its ring can
@@ -36,15 +36,15 @@ func TestInputOTPGroupedGeometryAndState(t *testing.T) {
 		t.Fatal("the separator between the groups painted no icon")
 	}
 	hit := canvas.Hits()[0]
-	if hit.Role != ui.RoleTextField || hit.Value != "12三456" || hit.Hint != "Six digits" {
+	if hit.Role != gfx.RoleTextField || hit.Value != "12三456" || hit.Hint != "Six digits" {
 		t.Fatalf("hit = %+v", hit)
 	}
 }
 
 func TestInputOTPDisabledReadOnlySemantics(t *testing.T) {
-	var canvas ui.Canvas
-	PaintInputOTP(&canvas, ui.DarkTheme(), ui.Rect{}, InputOTPSnapshot{
-		ID: ui.Item(1), Label: "Code", Value: "123", Slots: 4, Disabled: true, ReadOnly: true,
+	var canvas gfx.Canvas
+	PaintInputOTP(&canvas, gfx.DarkTheme(), gfx.Rect{}, InputOTPSnapshot{
+		ID: gfx.Item(1), Label: "Code", Value: "123", Slots: 4, Disabled: true, ReadOnly: true,
 	})
 	if hit := canvas.Hits()[0]; !hit.Disabled || !hit.ReadOnly || hit.Focusable {
 		t.Fatalf("hit = %+v", hit)
@@ -53,13 +53,13 @@ func TestInputOTPDisabledReadOnlySemantics(t *testing.T) {
 
 func TestInputOTPTypedSemanticsAndCommands(t *testing.T) {
 	snapshot := InputOTPSnapshot{
-		ID: ui.Item(3), Label: "Code", Value: "1234", Hint: "Four digits", Slots: 4,
+		ID: gfx.Item(3), Label: "Code", Value: "1234", Hint: "Four digits", Slots: 4,
 		Focused: true, Invalid: true, HasActiveSlot: true, ActiveSlot: 9,
 		HasSelection: true, SelectionStart: 3, SelectionEnd: -2,
 		HasComposition: true, CompositionStart: 2, CompositionEnd: 8,
 	}
 	want := InputOTPSemantics{
-		ID: ui.Item(3), Label: "Code", Value: "1234", Hint: "Four digits", Slots: 4,
+		ID: gfx.Item(3), Label: "Code", Value: "1234", Hint: "Four digits", Slots: 4,
 		Focused: true, Invalid: true, ActiveSlot: 3, HasActiveSlot: true,
 		SelectionStart: 0, SelectionEnd: 3, HasSelection: true,
 		CompositionStart: 2, CompositionEnd: 4, HasComposition: true,
@@ -95,16 +95,16 @@ func TestInputOTPTypedSemanticsAndCommands(t *testing.T) {
 }
 
 func TestInputOTPDisplayValueAndNativeEditing(t *testing.T) {
-	var canvas ui.Canvas
-	PaintInputOTP(&canvas, ui.LightTheme(), ui.Rect{}, InputOTPSnapshot{
-		ID: ui.Item(5), Label: "Code", Value: "12", DisplayValue: "••", Slots: 2,
+	var canvas gfx.Canvas
+	PaintInputOTP(&canvas, gfx.LightTheme(), gfx.Rect{}, InputOTPSnapshot{
+		ID: gfx.Item(5), Label: "Code", Value: "12", DisplayValue: "••", Slots: 2,
 	})
 	if texts := canvas.Texts(); len(texts) != 2 || texts[0].Value != "•" || texts[1].Value != "•" {
 		t.Fatalf("masked texts = %+v", texts)
 	}
 	canvas.Reset()
-	PaintInputOTP(&canvas, ui.LightTheme(), ui.Rect{}, InputOTPSnapshot{
-		ID: ui.Item(5), Label: "Code", Value: "12", DisplayValue: "••", Slots: 2,
+	PaintInputOTP(&canvas, gfx.LightTheme(), gfx.Rect{}, InputOTPSnapshot{
+		ID: gfx.Item(5), Label: "Code", Value: "12", DisplayValue: "••", Slots: 2,
 		NativeEditing: true, Focused: true, HasActiveSlot: true, ActiveSlot: 1, ShowCaret: true,
 	})
 	if len(canvas.Texts()) != 0 {
@@ -116,11 +116,11 @@ func TestInputOTPDisplayValueAndNativeEditing(t *testing.T) {
 }
 
 func TestInputOTPPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		PaintInputOTP(&canvas, ui.LightTheme(), ui.Rect{X: 2, Y: 3}, InputOTPSnapshot{
-			ID: ui.Item(2), Label: "Code", Value: "123456", Slots: 6, GroupSize: 3,
+		PaintInputOTP(&canvas, gfx.LightTheme(), gfx.Rect{X: 2, Y: 3}, InputOTPSnapshot{
+			ID: gfx.Item(2), Label: "Code", Value: "123456", Slots: 6, GroupSize: 3,
 			Focused: true, HasActiveSlot: true, ActiveSlot: 5, ShowCaret: true,
 			HasSelection: true, SelectionStart: 1, SelectionEnd: 3,
 		})
@@ -139,8 +139,8 @@ func TestInputOTPPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) 
 }
 
 // visibleAt returns the last rectangle painted over a point: what the user sees.
-func visibleAt(canvas *ui.Canvas, x, y float32) (ui.Rectangle, bool) {
-	var found ui.Rectangle
+func visibleAt(canvas *gfx.Canvas, x, y float32) (gfx.Rectangle, bool) {
+	var found gfx.Rectangle
 	ok := false
 	for _, rectangle := range canvas.Rectangles() {
 		bounds := rectangle.Bounds
@@ -153,9 +153,9 @@ func visibleAt(canvas *ui.Canvas, x, y float32) (ui.Rectangle, bool) {
 
 func TestInputOTPCaretMarksOnlyAnEmptyActiveSlot(t *testing.T) {
 	caretIn := func(snapshot InputOTPSnapshot) bool {
-		var canvas ui.Canvas
-		theme := ui.LightTheme()
-		layout := PaintInputOTP(&canvas, theme, ui.Rect{}, snapshot)
+		var canvas gfx.Canvas
+		theme := gfx.LightTheme()
+		layout := PaintInputOTP(&canvas, theme, gfx.Rect{}, snapshot)
 		slot := layout.SlotBounds(snapshot.ActiveSlot)
 		for _, rectangle := range canvas.Rectangles() {
 			if rectangle.Bounds.Width == 1 && rectangle.Bounds.Height == 16 && rectangle.Color == theme.Foreground &&
@@ -165,7 +165,7 @@ func TestInputOTPCaretMarksOnlyAnEmptyActiveSlot(t *testing.T) {
 		}
 		return false
 	}
-	base := InputOTPSnapshot{ID: ui.Item(1), Label: "Code", Slots: 6, GroupSize: 3, Focused: true, HasActiveSlot: true, ShowCaret: true}
+	base := InputOTPSnapshot{ID: gfx.Item(1), Label: "Code", Slots: 6, GroupSize: 3, Focused: true, HasActiveSlot: true, ShowCaret: true}
 
 	filled := base
 	filled.Value, filled.ActiveSlot = "482901", 0
@@ -189,10 +189,10 @@ func TestInputOTPCaretMarksOnlyAnEmptyActiveSlot(t *testing.T) {
 }
 
 func TestInputOTPNeighborsShareOneBorderLine(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	layout := PaintInputOTP(&canvas, theme, ui.Rect{X: 10, Y: 12}, InputOTPSnapshot{
-		ID: ui.Item(1), Label: "Code", Value: "482901", Slots: 6, GroupSize: 3,
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	layout := PaintInputOTP(&canvas, theme, gfx.Rect{X: 10, Y: 12}, InputOTPSnapshot{
+		ID: gfx.Item(1), Label: "Code", Value: "482901", Slots: 6, GroupSize: 3,
 	})
 	border := theme.Input.Over(theme.Background)
 	y := layout.Bounds.Y + layout.Bounds.Height/2
@@ -214,16 +214,16 @@ func TestInputOTPNeighborsShareOneBorderLine(t *testing.T) {
 }
 
 func TestInputOTPOnlyTheOuterCornersOfAGroupAreRounded(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	layout := PaintInputOTP(&canvas, theme, ui.Rect{X: 10, Y: 12}, InputOTPSnapshot{
-		ID: ui.Item(1), Label: "Code", Value: "482901", Slots: 6, GroupSize: 3,
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	layout := PaintInputOTP(&canvas, theme, gfx.Rect{X: 10, Y: 12}, InputOTPSnapshot{
+		ID: gfx.Item(1), Label: "Code", Value: "482901", Slots: 6, GroupSize: 3,
 	})
 	rounded := func(x, y float32) bool {
 		rectangle, ok := visibleAt(&canvas, x, y)
 		return ok && rectangle.Radius > 0
 	}
-	slot := func(index int) ui.Rect { return layout.SlotBounds(index) }
+	slot := func(index int) gfx.Rect { return layout.SlotBounds(index) }
 	for group := 0; group < 2; group++ {
 		first, middle, last := slot(group*3), slot(group*3+1), slot(group*3+2)
 		top, bottom := first.Y+0.5, first.Y+first.Height-0.5
@@ -253,12 +253,12 @@ func TestInputOTPOnlyTheOuterCornersOfAGroupAreRounded(t *testing.T) {
 }
 
 func TestInputOTPActiveSlotBorderIsCompleteOnEverySide(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	accent := theme.Primary.Over(theme.Background)
 	for active := 0; active < 6; active++ {
-		var canvas ui.Canvas
-		layout := PaintInputOTP(&canvas, theme, ui.Rect{X: 10, Y: 12}, InputOTPSnapshot{
-			ID: ui.Item(1), Label: "Code", Value: "482901", Slots: 6, GroupSize: 3,
+		var canvas gfx.Canvas
+		layout := PaintInputOTP(&canvas, theme, gfx.Rect{X: 10, Y: 12}, InputOTPSnapshot{
+			ID: gfx.Item(1), Label: "Code", Value: "482901", Slots: 6, GroupSize: 3,
 			Focused: true, HasActiveSlot: true, ActiveSlot: active,
 		})
 		slot := layout.SlotBounds(active)
@@ -298,11 +298,11 @@ func TestInputOTPActiveSlotBorderIsCompleteOnEverySide(t *testing.T) {
 }
 
 func TestInputOTPMovingFocusKeepsTheRectangleCountStable(t *testing.T) {
-	theme := ui.LightTheme()
-	paint := func(active int) []ui.Rectangle {
-		var canvas ui.Canvas
-		PaintInputOTP(&canvas, theme, ui.Rect{}, InputOTPSnapshot{
-			ID: ui.Item(1), Label: "Code", Value: "482901", Slots: 6, GroupSize: 3,
+	theme := gfx.LightTheme()
+	paint := func(active int) []gfx.Rectangle {
+		var canvas gfx.Canvas
+		PaintInputOTP(&canvas, theme, gfx.Rect{}, InputOTPSnapshot{
+			ID: gfx.Item(1), Label: "Code", Value: "482901", Slots: 6, GroupSize: 3,
 			Focused: true, HasActiveSlot: true, ActiveSlot: active,
 		})
 		return slices.Clone(canvas.Rectangles())
@@ -334,8 +334,8 @@ func TestInputOTPSlotsPastTheTypedCodeAreEmpty(t *testing.T) {
 		{"4829017", []string{"4", "8", "2", "9"}}, // longer than the slots: the rest is not drawn
 		{"你好a", []string{"你", "好", "a", ""}},
 	} {
-		var canvas ui.Canvas
-		PaintInputOTP(&canvas, ui.LightTheme(), ui.Rect{}, InputOTPSnapshot{ID: ui.Item(1), Label: "Code", Value: test.value, Slots: 4})
+		var canvas gfx.Canvas
+		PaintInputOTP(&canvas, gfx.LightTheme(), gfx.Rect{}, InputOTPSnapshot{ID: gfx.Item(1), Label: "Code", Value: test.value, Slots: 4})
 		var got []string
 		for index := range test.slots {
 			got = append(got, inputOTPCharacter(test.value, index))
@@ -362,11 +362,11 @@ func TestInputOTPSlotsPastTheTypedCodeAreEmpty(t *testing.T) {
 // Focus and invalid change borders only: the active slot's, or every slot's
 // when the code is invalid. No ring is painted around either.
 func TestInputOTPFocusAndInvalidAddNoRing(t *testing.T) {
-	theme := ui.LightTheme()
-	paint := func(snapshot InputOTPSnapshot) ui.Canvas {
-		var canvas ui.Canvas
-		snapshot.ID, snapshot.Label, snapshot.Value, snapshot.Slots, snapshot.GroupSize = ui.Item(1), "Code", "4829", 6, 3
-		PaintInputOTP(&canvas, theme, ui.Rect{X: 10, Y: 12}, snapshot)
+	theme := gfx.LightTheme()
+	paint := func(snapshot InputOTPSnapshot) gfx.Canvas {
+		var canvas gfx.Canvas
+		snapshot.ID, snapshot.Label, snapshot.Value, snapshot.Slots, snapshot.GroupSize = gfx.Item(1), "Code", "4829", 6, 3
+		PaintInputOTP(&canvas, theme, gfx.Rect{X: 10, Y: 12}, snapshot)
 		return canvas
 	}
 	idle := paint(InputOTPSnapshot{})

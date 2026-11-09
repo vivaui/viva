@@ -3,15 +3,15 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestMetricCardRowsStackWithoutOverlapAtEveryDensity(t *testing.T) {
-	for _, density := range []ui.Density{ui.DensityCompact, ui.DensityRegular, ui.DensityLarge} {
-		theme := ui.LightTheme()
+	for _, density := range []gfx.Density{gfx.DensityCompact, gfx.DensityRegular, gfx.DensityLarge} {
+		theme := gfx.LightTheme()
 		theme.Metrics = theme.Metrics.WithDensity(density)
-		var canvas ui.Canvas
-		MetricCard(&canvas, theme, ui.Rect{Width: 220, Height: 160}, "Revenue", "$48.2K", "+12.4%", true)
+		var canvas gfx.Canvas
+		MetricCard(&canvas, theme, gfx.Rect{Width: 220, Height: 160}, "Revenue", "$48.2K", "+12.4%", true)
 		texts := canvas.Texts()
 		if len(texts) != 3 {
 			t.Fatalf("density %d: %d texts", density, len(texts))

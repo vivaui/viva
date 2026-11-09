@@ -3,7 +3,7 @@ package keymap
 import (
 	"strings"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Chord is a modifier set and one key: a printable character in Char, or a
@@ -11,51 +11,51 @@ import (
 // stored in lower case, so Shift+P is Modifiers Shift with Char 'p'. The zero
 // Chord is no chord at all.
 type Chord struct {
-	Modifiers ui.Modifiers
+	Modifiers gfx.Modifiers
 	Char      byte
-	Key       ui.Key
+	Key       gfx.Key
 }
 
-const modifierMask = ui.ModifierShift | ui.ModifierControl | ui.ModifierAlt | ui.ModifierMeta
+const modifierMask = gfx.ModifierShift | gfx.ModifierControl | gfx.ModifierAlt | gfx.ModifierMeta
 
 // namedKeys are the keys without text a chord may use: the label a sentence
 // shows, the keycap a menu shows, and the name a settings file keeps. Space is
 // not here; it is the character ' '.
 var namedKeys = [...]struct {
-	key    ui.Key
+	key    gfx.Key
 	label  string
 	keycap string
 	saved  string
 }{
-	{ui.KeyTab, "Tab", "Tab", "tab"},
-	{ui.KeyPageUp, "PageUp", "PgUp", "page_up"},
-	{ui.KeyPageDown, "PageDown", "PgDn", "page_down"},
-	{ui.KeyLeft, "Left", "←", "left"},
-	{ui.KeyRight, "Right", "→", "right"},
-	{ui.KeyEnter, "Enter", "↵", "enter"},
-	{ui.KeyEscape, "Esc", "Esc", "escape"},
-	{ui.KeyUp, "Up", "↑", "up"},
-	{ui.KeyDown, "Down", "↓", "down"},
-	{ui.KeyHome, "Home", "Home", "home"},
-	{ui.KeyEnd, "End", "End", "end"},
-	{ui.KeyBackspace, "Backspace", "⌫", "backspace"},
-	{ui.KeyDelete, "Delete", "Del", "delete"},
-	{ui.KeyInsert, "Insert", "Ins", "insert"},
-	{ui.KeyF1, "F1", "F1", "f1"},
-	{ui.KeyF2, "F2", "F2", "f2"},
-	{ui.KeyF3, "F3", "F3", "f3"},
-	{ui.KeyF4, "F4", "F4", "f4"},
-	{ui.KeyF5, "F5", "F5", "f5"},
-	{ui.KeyF6, "F6", "F6", "f6"},
-	{ui.KeyF7, "F7", "F7", "f7"},
-	{ui.KeyF8, "F8", "F8", "f8"},
-	{ui.KeyF9, "F9", "F9", "f9"},
-	{ui.KeyF10, "F10", "F10", "f10"},
-	{ui.KeyF11, "F11", "F11", "f11"},
-	{ui.KeyF12, "F12", "F12", "f12"},
+	{gfx.KeyTab, "Tab", "Tab", "tab"},
+	{gfx.KeyPageUp, "PageUp", "PgUp", "page_up"},
+	{gfx.KeyPageDown, "PageDown", "PgDn", "page_down"},
+	{gfx.KeyLeft, "Left", "←", "left"},
+	{gfx.KeyRight, "Right", "→", "right"},
+	{gfx.KeyEnter, "Enter", "↵", "enter"},
+	{gfx.KeyEscape, "Esc", "Esc", "escape"},
+	{gfx.KeyUp, "Up", "↑", "up"},
+	{gfx.KeyDown, "Down", "↓", "down"},
+	{gfx.KeyHome, "Home", "Home", "home"},
+	{gfx.KeyEnd, "End", "End", "end"},
+	{gfx.KeyBackspace, "Backspace", "⌫", "backspace"},
+	{gfx.KeyDelete, "Delete", "Del", "delete"},
+	{gfx.KeyInsert, "Insert", "Ins", "insert"},
+	{gfx.KeyF1, "F1", "F1", "f1"},
+	{gfx.KeyF2, "F2", "F2", "f2"},
+	{gfx.KeyF3, "F3", "F3", "f3"},
+	{gfx.KeyF4, "F4", "F4", "f4"},
+	{gfx.KeyF5, "F5", "F5", "f5"},
+	{gfx.KeyF6, "F6", "F6", "f6"},
+	{gfx.KeyF7, "F7", "F7", "f7"},
+	{gfx.KeyF8, "F8", "F8", "f8"},
+	{gfx.KeyF9, "F9", "F9", "f9"},
+	{gfx.KeyF10, "F10", "F10", "f10"},
+	{gfx.KeyF11, "F11", "F11", "f11"},
+	{gfx.KeyF12, "F12", "F12", "f12"},
 }
 
-func namedKey(key ui.Key) (int, bool) {
+func namedKey(key gfx.Key) (int, bool) {
 	for index := range namedKeys {
 		if namedKeys[index].key == key {
 			return index, true
@@ -71,7 +71,7 @@ func (chord Chord) Valid() bool {
 	if chord.Modifiers&^modifierMask != 0 {
 		return false
 	}
-	if chord.Key != ui.KeyUnknown {
+	if chord.Key != gfx.KeyUnknown {
 		_, named := namedKey(chord.Key)
 		return named && chord.Char == 0
 	}
@@ -82,13 +82,13 @@ func (chord Chord) Valid() bool {
 // character of event.Text with the modifiers in effect. ok is false for an
 // event that is not a bindable chord: a modifier on its own, text of more than
 // one byte, a key a chord cannot name.
-func FromEvent(event ui.KeyEvent) (chord Chord, ok bool) {
-	if event.Key != ui.KeyUnknown {
+func FromEvent(event gfx.KeyEvent) (chord Chord, ok bool) {
+	if event.Key != gfx.KeyUnknown {
 		if _, named := namedKey(event.Key); named {
 			chord = Chord{Modifiers: event.Modifiers, Key: event.Key}
 			return chord, chord.Valid()
 		}
-		if event.Key == ui.KeySpace {
+		if event.Key == gfx.KeySpace {
 			return Chord{Modifiers: event.Modifiers, Char: ' '}, true
 		}
 	}
@@ -111,16 +111,16 @@ func (chord Chord) Label() string {
 		return ""
 	}
 	var label strings.Builder
-	if chord.Modifiers&ui.ModifierMeta != 0 {
+	if chord.Modifiers&gfx.ModifierMeta != 0 {
 		label.WriteString("Cmd+")
 	}
-	if chord.Modifiers&ui.ModifierControl != 0 {
+	if chord.Modifiers&gfx.ModifierControl != 0 {
 		label.WriteString("Ctrl+")
 	}
-	if chord.Modifiers&ui.ModifierAlt != 0 {
+	if chord.Modifiers&gfx.ModifierAlt != 0 {
 		label.WriteString("Alt+")
 	}
-	if chord.Modifiers&ui.ModifierShift != 0 {
+	if chord.Modifiers&gfx.ModifierShift != 0 {
 		label.WriteString("Shift+")
 	}
 	if index, ok := namedKey(chord.Key); ok {
@@ -135,15 +135,13 @@ func (chord Chord) Label() string {
 	return label.String()
 }
 
-// keycapText is the text of each character, made once: converting a byte to a
-// string allocates, and keycaps are painted on every menu.
-var keycapText = func() [256]string {
-	var table [256]string
-	for code := range table {
-		table[code] = string(rune(code))
-	}
-	return table
-}()
+// printable is every character a chord's key may be, in order from ' ': a keycap
+// is a slice of it, since converting a byte to a string allocates and keycaps are
+// painted on every menu.
+const printable = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+// keycapText is the text of a printable character c.
+func keycapText(c byte) string { return printable[c-' ' : c-' '+1] }
 
 // Keycaps appends the chord split into the keycaps a menu shows, one per
 // modifier and then the key, and returns the extended slice. Where the platform
@@ -154,17 +152,17 @@ func (chord Chord) Keycaps(dst []string) []string {
 	if !chord.Valid() {
 		return dst
 	}
-	if chord.Modifiers&ui.ModifierControl != 0 {
-		dst = append(dst, modifierKeycap(ui.ModifierControl))
+	if chord.Modifiers&gfx.ModifierControl != 0 {
+		dst = append(dst, modifierKeycap(gfx.ModifierControl))
 	}
-	if chord.Modifiers&ui.ModifierAlt != 0 {
-		dst = append(dst, modifierKeycap(ui.ModifierAlt))
+	if chord.Modifiers&gfx.ModifierAlt != 0 {
+		dst = append(dst, modifierKeycap(gfx.ModifierAlt))
 	}
-	if chord.Modifiers&ui.ModifierShift != 0 {
-		dst = append(dst, modifierKeycap(ui.ModifierShift))
+	if chord.Modifiers&gfx.ModifierShift != 0 {
+		dst = append(dst, modifierKeycap(gfx.ModifierShift))
 	}
-	if chord.Modifiers&ui.ModifierMeta != 0 {
-		dst = append(dst, modifierKeycap(ui.ModifierMeta))
+	if chord.Modifiers&gfx.ModifierMeta != 0 {
+		dst = append(dst, modifierKeycap(gfx.ModifierMeta))
 	}
 	if index, ok := namedKey(chord.Key); ok {
 		return append(dst, namedKeys[index].keycap)
@@ -172,7 +170,7 @@ func (chord Chord) Keycaps(dst []string) []string {
 	if chord.Char == ' ' {
 		return append(dst, "Space")
 	}
-	return append(dst, keycapText[upper(chord.Char)])
+	return append(dst, keycapText(upper(chord.Char)))
 }
 
 // Name is the chord's key as a settings file writes it, without the modifiers:
@@ -192,7 +190,7 @@ func (chord Chord) Name() string {
 // the name stands for. An upper-case letter is read as its lower-case form. ok
 // is false for a name that is neither a named key nor one character, and for a
 // result that is not a valid chord.
-func Parse(modifiers ui.Modifiers, name string) (Chord, bool) {
+func Parse(modifiers gfx.Modifiers, name string) (Chord, bool) {
 	for index := range namedKeys {
 		if namedKeys[index].saved == name {
 			chord := Chord{Modifiers: modifiers, Key: namedKeys[index].key}

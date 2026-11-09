@@ -3,7 +3,7 @@ package platform
 import (
 	"math"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // CursorPixels is a pointer picture in the device pixels of a window drawn at windowScale device
@@ -13,7 +13,7 @@ import (
 // matches is only converted; otherwise it is resampled, bilinear and in premultiplied color so
 // that a soft edge does not take the color of the transparent pixels around it. The hotspot is
 // the device pixel the mouse is at.
-func CursorPixels(image *ui.CursorImage, windowScale float32, premultiplied bool) (width, height, hotX, hotY int, bgra []byte) {
+func CursorPixels(image *gfx.CursorImage, windowScale float32, premultiplied bool) (width, height, hotX, hotY int, bgra []byte) {
 	sourceWidth, sourceHeight := image.Size()
 	source := image.Pixels()
 	factor := float64(windowScale) / float64(image.Scale())

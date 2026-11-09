@@ -6,8 +6,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestWeightedNativeEditorMatchesStaticLabelPixels(t *testing.T) {
@@ -21,14 +21,14 @@ func TestWeightedNativeEditorMatchesStaticLabelPixels(t *testing.T) {
 		defer offscreen.Close()
 		if editor {
 			err = offscreen.Set(nil, nil, &TextInput{
-				X: 0, Y: 0, Width: 280, Height: 48, FontSize: 26, Weight: ui.WeightSemibold,
+				X: 0, Y: 0, Width: 280, Height: 48, FontSize: 26, Weight: gfx.WeightSemibold,
 				Color: color, HideNativeOverlays: true, State: TextState{Value: value},
 				OnEvent: func(TextEvent) (TextState, error) { return TextState{}, nil },
 			})
 		} else {
 			err = offscreen.Set(nil, []TextLabel{{
 				Value: value, X: 0, Y: 0, Width: 280, Height: 48,
-				FontSize: 26, Weight: ui.WeightSemibold, Color: color,
+				FontSize: 26, Weight: gfx.WeightSemibold, Color: color,
 			}}, nil)
 		}
 		if err != nil {

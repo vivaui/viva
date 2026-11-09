@@ -95,8 +95,8 @@ func runDev(arguments []string, output, errorOutput io.Writer) error {
 
 func addComponents(arguments []string, output, errorOutput io.Writer) error {
 	flags := flag.NewFlagSet("add", flag.ContinueOnError)
-	destination := flags.String("out", "components/ui", "component output directory")
-	packageName := flags.String("package", "ui", "generated Go package name")
+	destination := flags.String("out", "components", "component output directory")
+	packageName := flags.String("package", "components", "generated Go package name")
 	force := flags.Bool("force", false, "replace existing component files")
 	c, _ := findCommand("add")
 	names, helped, err := parseFlags(c, flags, arguments, output)

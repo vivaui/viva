@@ -4,33 +4,33 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 var buttonGroupTestOptions = [...]ButtonGroupOption{
-	{ID: ui.Item(61), Label: "Save", Variant: ButtonDefault},
-	{ID: ui.Item(62), Label: "Preview", Variant: ButtonOutline},
-	{ID: ui.Item(63), Label: "More", Variant: ButtonGhost, Disabled: true},
+	{ID: gfx.Item(61), Label: "Save", Variant: ButtonDefault},
+	{ID: gfx.Item(62), Label: "Preview", Variant: ButtonOutline},
+	{ID: gfx.Item(63), Label: "More", Variant: ButtonGhost, Disabled: true},
 }
 
 func TestButtonGroupPaintsVariantsAndDisabledAction(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	BeginButtonGroup(&canvas, theme, ui.Rect{Width: 270}, buttonGroupTestOptions[:]).Paint()
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	BeginButtonGroup(&canvas, theme, gfx.Rect{Width: 270}, buttonGroupTestOptions[:]).Paint()
 	if !hasRectangleColor(&canvas, theme.Primary) {
 		t.Fatalf("no primary action fill in %+v", canvas.Rectangles())
 	}
-	if len(canvas.Hits()) != 3 || canvas.Hits()[0].Role != ui.RoleButton || canvas.Hits()[1].Label != "Preview" || !canvas.Hits()[2].Disabled {
+	if len(canvas.Hits()) != 3 || canvas.Hits()[0].Role != gfx.RoleButton || canvas.Hits()[1].Label != "Preview" || !canvas.Hits()[2].Disabled {
 		t.Fatalf("button group hits = %+v", canvas.Hits())
 	}
 }
 
 func TestButtonGroupStableAndAllocationFree(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		BeginButtonGroup(&canvas, theme, ui.Rect{Width: 270}, buttonGroupTestOptions[:]).Paint()
+		BeginButtonGroup(&canvas, theme, gfx.Rect{Width: 270}, buttonGroupTestOptions[:]).Paint()
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -46,8 +46,8 @@ func TestButtonGroupStableAndAllocationFree(t *testing.T) {
 }
 
 func TestButtonGroupVerticalStacksActions(t *testing.T) {
-	var canvas ui.Canvas
-	BeginButtonGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 120}, buttonGroupTestOptions[:]).Vertical().Paint()
+	var canvas gfx.Canvas
+	BeginButtonGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 120}, buttonGroupTestOptions[:]).Vertical().Paint()
 	if len(canvas.Hits()) != 3 || canvas.Hits()[1].Bounds.Y <= canvas.Hits()[0].Bounds.Y {
 		t.Fatalf("vertical button hits = %+v", canvas.Hits())
 	}
@@ -59,21 +59,21 @@ func TestButtonGroupVerticalStacksActions(t *testing.T) {
 // A group takes every variant's colors from the same recipe as a Button, so a
 // destructive or link action is not quietly drawn as a plain outline one.
 func TestButtonGroupKeepsEveryVariantsOwnColors(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	options := [...]ButtonGroupOption{
-		{ID: ui.Item(81), Label: "Delete", Variant: ButtonDestructive},
-		{ID: ui.Item(82), Label: "Docs", Variant: ButtonLink},
-		{ID: ui.Item(83), Label: "Undo", Variant: ButtonDestructiveOutline},
+		{ID: gfx.Item(81), Label: "Delete", Variant: ButtonDestructive},
+		{ID: gfx.Item(82), Label: "Docs", Variant: ButtonLink},
+		{ID: gfx.Item(83), Label: "Undo", Variant: ButtonDestructiveOutline},
 	}
-	var canvas ui.Canvas
-	BeginButtonGroup(&canvas, theme, ui.Rect{Width: 270}, options[:]).Paint()
+	var canvas gfx.Canvas
+	BeginButtonGroup(&canvas, theme, gfx.Rect{Width: 270}, options[:]).Paint()
 	for index, option := range options {
-		want := buttonStyleFor(theme, option.Variant, false, false).foreground
+		want := buttonStyleFor(&theme, option.Variant, false, false).foreground
 		if got := canvas.Texts()[index].Style.Color; got != want {
 			t.Fatalf("%s label color = %+v, want %+v", option.Label, got, want)
 		}
 	}
-	if want := buttonStyleFor(theme, ButtonDestructive, false, false).background; !hasRectangleColor(&canvas, want) {
+	if want := buttonStyleFor(&theme, ButtonDestructive, false, false).background; !hasRectangleColor(&canvas, want) {
 		t.Fatalf("no destructive action fill %+v in %+v", want, canvas.Rectangles())
 	}
 }
@@ -83,12 +83,12 @@ func TestButtonGroupKeepsEveryVariantsOwnColors(t *testing.T) {
 // group's rounded outline.
 func TestButtonGroupEndItemsAreRoundedOnlyOutside(t *testing.T) {
 	options := [...]ButtonGroupOption{
-		{ID: ui.Item(61), Label: "Save", Variant: ButtonDefault},
-		{ID: ui.Item(62), Label: "Preview", Variant: ButtonSecondary},
-		{ID: ui.Item(63), Label: "More", Variant: ButtonSecondary},
+		{ID: gfx.Item(61), Label: "Save", Variant: ButtonDefault},
+		{ID: gfx.Item(62), Label: "Preview", Variant: ButtonSecondary},
+		{ID: gfx.Item(63), Label: "More", Variant: ButtonSecondary},
 	}
-	var canvas ui.Canvas
-	BeginButtonGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 270}, options[:]).Paint()
+	var canvas gfx.Canvas
+	BeginButtonGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 270}, options[:]).Paint()
 	rectangles := canvas.Rectangles()
 	// Fills and the hairlines between them interleave: fill, fill, line, fill, line.
 	first, middle, last := rectangles[0], rectangles[1], rectangles[3]
@@ -104,16 +104,16 @@ func TestButtonGroupEndItemsAreRoundedOnlyOutside(t *testing.T) {
 }
 
 func TestButtonGroupClickedReportsTheClickedAction(t *testing.T) {
-	var canvas ui.Canvas
-	canvas.BeginEventPass(ui.Item(62))
+	var canvas gfx.Canvas
+	canvas.BeginEventPass(gfx.Item(62))
 	defer canvas.EndEventPass()
-	id, ok := BeginButtonGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 270}, buttonGroupTestOptions[:]).Paint().Clicked()
-	if !ok || id != ui.Item(62) {
+	id, ok := BeginButtonGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 270}, buttonGroupTestOptions[:]).Paint().Clicked()
+	if !ok || id != gfx.Item(62) {
 		t.Fatalf("Clicked() = (%v, %v), want the Preview action", id, ok)
 	}
 }
 
-func hasRectangleColor(canvas *ui.Canvas, color ui.Color) bool {
+func hasRectangleColor(canvas *gfx.Canvas, color gfx.Color) bool {
 	for _, rectangle := range canvas.Rectangles() {
 		if rectangle.Color == color {
 			return true

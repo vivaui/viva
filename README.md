@@ -54,7 +54,7 @@ Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB and
 Vulkan loaders; on Windows, Win32 with Direct3D 11 and DirectWrite. Viva loads
 the system libraries at runtime and bundles none of them.
 
-The current release is `v0.4.0`; name it explicitly (`@v0.4.0`) to pin it. Guides,
+The current release is `v0.5.1`; name it explicitly (`@v0.5.1`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
@@ -113,7 +113,7 @@ WebView and no bundled rendering runtime.
   corner of the application's Dock tile, and an empty label removes it.
 - `app.StoreSecret`/`LoadSecret`/`DeleteSecret` keep a small secret in the
   system's own store (Keychain, Credential Manager, Secret Service).
-- `ui.MonoFamily` draws fixed-pitch text in any installed family and
+- `gfx.MonoFamily` draws fixed-pitch text in any installed family and
   `app.MonospaceFamilies` lists them.
 - `Config.OnFileDrop` receives files dragged from the file manager, with the hit
   under the pointer.
@@ -157,7 +157,7 @@ WebView and no bundled rendering runtime.
   side, each live (clicks, hover, keyboard, drag, wheel and native text
   editing), with a draggable page scrollbar and hot-reload state preservation.
   The examples are the ones in `internal/componentdemo`, embedded into the page
-  with `ui.Canvas.Embed`, so the gallery holds no copy of any component.
+  with `gfx.Canvas.Embed`, so the gallery holds no copy of any component.
 - Structured diagnostics: the opt-in `diagnostics` package receives what the
   framework reports (caught panics, GPU device recovery, web view failures,
   startup measurements), adapts both ways to `log/slog`, and can keep a ring of
@@ -270,9 +270,9 @@ leak counters remain because they cost two atomics per window or driver.
 A static canvas can be presented through the public API:
 
 ```go
-theme := ui.DarkTheme()
-var canvas ui.Canvas
-components.Card(&canvas, theme, ui.Rect{X: 24, Y: 24, Width: 320, Height: 180})
+theme := gfx.DarkTheme()
+var canvas gfx.Canvas
+components.Card(&canvas, theme, gfx.Rect{X: 24, Y: 24, Width: 320, Height: 180})
 if err := app.RunCanvas(app.Config{Title: "My App"}, &canvas); err != nil {
     log.Fatal(err)
 }

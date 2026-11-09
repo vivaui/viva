@@ -6,8 +6,8 @@ import (
 	"syscall/js"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/textenginetest"
-	"github.com/vivaui/viva/ui"
 )
 
 // browserEngine is the engine over the page's real document; the tests skip under Node,
@@ -30,11 +30,11 @@ func TestBrowserEnginePassesTheTextEngineContract(t *testing.T) {
 func TestBrowserWidthAndCaretAgreeOnMixedScripts(t *testing.T) {
 	engine := browserEngine(t)
 	for _, value := range []string{"2213123中文", "office affine ffi", "abc שלום def", "👍🏽 ok"} {
-		width := engine.Width(value, 14, ui.WeightRegular)
+		width := engine.Width(value, 14, gfx.WeightRegular)
 		if width <= 0 {
 			t.Fatalf("%q: width %v", value, width)
 		}
-		spans := engine.Selection(nil, value, 14, ui.WeightRegular, 0, len(value))
+		spans := engine.Selection(nil, value, 14, gfx.WeightRegular, 0, len(value))
 		var covered float32
 		for _, span := range spans {
 			covered += span.Width
@@ -55,7 +55,7 @@ func BenchmarkBrowserWidthMiss(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
 		engine.lines.Clear()
-		engine.Width(values[i%len(values)], 14, ui.WeightRegular)
+		engine.Width(values[i%len(values)], 14, gfx.WeightRegular)
 	}
 }
 
@@ -64,20 +64,20 @@ func BenchmarkBrowserGeometryMiss(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		engine.lines.Clear()
-		engine.Caret("192.168.1.1 主机 office affine", 14, ui.WeightRegular, 10)
+		engine.Caret("192.168.1.1 主机 office affine", 14, gfx.WeightRegular, 10)
 	}
 }
 
 func BenchmarkBrowserHit(b *testing.B) {
 	engine := browserEngine(b)
 	const value = "192.168.1.1 主机 office affine"
-	dst := make([]ui.TextSpan, 0, 4)
-	engine.Caret(value, 14, ui.WeightRegular, 3)
+	dst := make([]gfx.TextSpan, 0, 4)
+	engine.Caret(value, 14, gfx.WeightRegular, 3)
 	b.ReportAllocs()
 	for b.Loop() {
-		engine.Width(value, 14, ui.WeightRegular)
-		engine.Caret(value, 14, ui.WeightRegular, 10)
-		engine.OffsetAt(value, 14, ui.WeightRegular, 60)
-		dst = engine.Selection(dst[:0], value, 14, ui.WeightRegular, 2, 12)
+		engine.Width(value, 14, gfx.WeightRegular)
+		engine.Caret(value, 14, gfx.WeightRegular, 10)
+		engine.OffsetAt(value, 14, gfx.WeightRegular, 60)
+		dst = engine.Selection(dst[:0], value, 14, gfx.WeightRegular, 2, 12)
 	}
 }

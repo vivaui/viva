@@ -7,15 +7,15 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/gallery"
-	"github.com/vivaui/viva/ui"
 )
 
 func main() {
 	showcase := gallery.New()
 	showcase.EnableTextEditing()
 	theme := showcase.Theme()
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var nativeInput app.TextInput
 	resolveTextInput := func(context app.TextInputContext) *app.TextInput {
 		editor, ok := showcase.TextEditor(context.ID)
@@ -26,7 +26,7 @@ func main() {
 		nativeInput = app.TextInput{Editor: editor}
 		return &nativeInput
 	}
-	showcase.Paint(&canvas, ui.Size{Width: gallery.DefaultWidth, Height: gallery.DefaultHeight})
+	showcase.Paint(&canvas, gfx.Size{Width: gallery.DefaultWidth, Height: gallery.DefaultHeight})
 	if err := app.RunCanvas(app.Config{
 		Title:  "Viva · component gallery",
 		Width:  gallery.DefaultWidth,

@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // SetFullscreenMonitor sets the simulated monitor's full bounds in logical
 // pixels, not its work area. The default monitor is 1920 by 1080 at (0, 0).
 // Updating the monitor while fullscreen resizes the window without changing
 // the placement that will be restored.
-func (driver *Driver) SetFullscreenMonitor(bounds ui.Rect) error {
+func (driver *Driver) SetFullscreenMonitor(bounds gfx.Rect) error {
 	if bounds.Width < 1 || bounds.Height < 1 ||
 		!finiteFullscreenCoordinate(bounds.X) || !finiteFullscreenCoordinate(bounds.Y) ||
 		!finiteFullscreenCoordinate(bounds.Width) || !finiteFullscreenCoordinate(bounds.Height) {
@@ -62,7 +62,7 @@ func (driver *Driver) transitionFullscreen(fullscreen bool) error {
 		driver.fullscreenRestore = driver.Frame()
 		bounds = driver.fullscreenMonitor
 		if bounds.Width == 0 {
-			bounds = ui.Rect{Width: 1920, Height: 1080}
+			bounds = gfx.Rect{Width: 1920, Height: 1080}
 		}
 	}
 	driver.fullscreen = fullscreen
@@ -81,8 +81,8 @@ func finiteFullscreenCoordinate(value float32) bool {
 	return !math.IsNaN(float64(value)) && !math.IsInf(float64(value), 0)
 }
 
-func (driver *Driver) applyFullscreenFrame(bounds ui.Rect) error {
-	driver.origin = ui.Point{X: bounds.X, Y: bounds.Y}
+func (driver *Driver) applyFullscreenFrame(bounds gfx.Rect) error {
+	driver.origin = gfx.Point{X: bounds.X, Y: bounds.Y}
 	driver.storeFrame(bounds)
 	_, err := driver.painter.resize(platform.Size{Width: bounds.Width, Height: bounds.Height, Scale: driver.painter.scale})
 	return err

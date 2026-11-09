@@ -8,8 +8,8 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func openFramedWindow(t *testing.T, config platform.Config) (*linuxApplication, *nativeWindow) {
@@ -129,11 +129,11 @@ func TestFramedWindowKeepsItsContentWhenTheScaleChanges(t *testing.T) {
 }
 
 func TestFramedWindowSuppressesFrameChangeWhileMaximized(t *testing.T) {
-	var frames []ui.Rect
+	var frames []gfx.Rect
 	var maximizes []bool
 	_, window := openFramedWindow(t, platform.Config{
 		Title: "framed", Width: 300, Height: 200, WindowMode: platform.WindowCustomTitlebar, Actions: &platform.WindowActions{},
-		OnFrameChange: func(frame ui.Rect) { frames = append(frames, frame) },
+		OnFrameChange: func(frame gfx.Rect) { frames = append(frames, frame) },
 		OnMaximize:    func(maximized bool) { maximizes = append(maximizes, maximized) },
 	})
 	state := window.state
@@ -163,7 +163,7 @@ func TestFramedWindowSuppressesFrameChangeWhileMaximized(t *testing.T) {
 	win.width = deviceLength(300, scale) + 2*win.margin
 	win.height = deviceLength(200, scale) + 2*win.margin
 	// Simulate move to a different position
-	win.lastFrame = ui.Rect{}
+	win.lastFrame = gfx.Rect{}
 	state.reportFrame()
 	if len(frames) != 2 {
 		t.Fatalf("frames reported after restore = %d, want 2", len(frames))
@@ -256,7 +256,7 @@ func TestConfigureNotifySynchronizesMarginAndGeometry(t *testing.T) {
 
 func TestPropertyNotifyBeforeConfigureNotifyDoesNotGlitch(t *testing.T) {
 	var resizes []platform.Size
-	var frames []ui.Rect
+	var frames []gfx.Rect
 	var maximizes []bool
 	_, window := openFramedWindow(t, platform.Config{
 		Title: "framed", Width: 300, Height: 200, WindowMode: platform.WindowCustomTitlebar, Actions: &platform.WindowActions{},
@@ -264,7 +264,7 @@ func TestPropertyNotifyBeforeConfigureNotifyDoesNotGlitch(t *testing.T) {
 			resizes = append(resizes, size)
 			return platform.Frame{}, nil
 		},
-		OnFrameChange: func(frame ui.Rect) { frames = append(frames, frame) },
+		OnFrameChange: func(frame gfx.Rect) { frames = append(frames, frame) },
 		OnMaximize:    func(maximized bool) { maximizes = append(maximizes, maximized) },
 	})
 	state := window.state
@@ -336,7 +336,7 @@ func TestPropertyNotifyBeforeConfigureNotifyDoesNotGlitch(t *testing.T) {
 
 func TestConfigureNotifyBeforePropertyNotifySynchronizesMargin(t *testing.T) {
 	var resizes []platform.Size
-	var frames []ui.Rect
+	var frames []gfx.Rect
 	var maximizes []bool
 	_, window := openFramedWindow(t, platform.Config{
 		Title: "framed", Width: 300, Height: 200, WindowMode: platform.WindowCustomTitlebar, Actions: &platform.WindowActions{},
@@ -344,7 +344,7 @@ func TestConfigureNotifyBeforePropertyNotifySynchronizesMargin(t *testing.T) {
 			resizes = append(resizes, size)
 			return platform.Frame{}, nil
 		},
-		OnFrameChange: func(frame ui.Rect) { frames = append(frames, frame) },
+		OnFrameChange: func(frame gfx.Rect) { frames = append(frames, frame) },
 		OnMaximize:    func(maximized bool) { maximizes = append(maximizes, maximized) },
 	})
 	state := window.state

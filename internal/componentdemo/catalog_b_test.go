@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestGroupBCatalogOrder(t *testing.T) {
@@ -33,7 +33,7 @@ func TestGroupBCatalogOrder(t *testing.T) {
 }
 
 func TestGroupBPaintsThemesResponsivelyAndDeterministically(t *testing.T) {
-	sizes := [...]ui.Size{{Width: 320, Height: 340}, {Width: 760, Height: 380}}
+	sizes := [...]gfx.Size{{Width: 320, Height: 340}, {Width: 760, Height: 380}}
 	for componentIndex := range groupBComponents {
 		component := &groupBComponents[componentIndex]
 		for _, example := range component.Examples {
@@ -42,7 +42,7 @@ func TestGroupBPaintsThemesResponsivelyAndDeterministically(t *testing.T) {
 					name := fmt.Sprintf("%s/%s/dark=%t/%.0fx%.0f", component.ID, example.ID, dark, size.Width, size.Height)
 					t.Run(name, func(t *testing.T) {
 						state := newGroupBState(component, example.ID)
-						var canvas ui.Canvas
+						var canvas gfx.Canvas
 						paintGroupBFrame(&canvas, state, component, size, dark)
 						if len(canvas.Texts()) == 0 && len(canvas.Rectangles()) <= 1 {
 							t.Fatal("example emitted no visible component commands")
@@ -66,9 +66,9 @@ func TestGroupBStaticWarmPaintAllocations(t *testing.T) {
 		for _, example := range component.Examples {
 			t.Run(component.ID+"/"+example.ID, func(t *testing.T) {
 				state := newGroupBState(component, example.ID)
-				var canvas ui.Canvas
+				var canvas gfx.Canvas
 				paint := func() {
-					paintGroupBFrame(&canvas, state, component, ui.Size{Width: 760, Height: 380}, false)
+					paintGroupBFrame(&canvas, state, component, gfx.Size{Width: 760, Height: 380}, false)
 				}
 				paint()
 				if allocations := testing.AllocsPerRun(100, paint); allocations != 0 {
@@ -87,16 +87,16 @@ func newGroupBState(component *Component, exampleID string) *State {
 	return state
 }
 
-func paintGroupBFrame(canvas *ui.Canvas, state *State, component *Component, size ui.Size, dark bool) {
+func paintGroupBFrame(canvas *gfx.Canvas, state *State, component *Component, size gfx.Size, dark bool) {
 	canvas.SetReduceMotion(true)
 	canvas.SetClock(func() time.Duration { return time.Second })
 	canvas.BeginFrame()
 	canvas.Reset()
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	if dark {
-		theme = ui.DarkTheme()
+		theme = gfx.DarkTheme()
 	}
-	viewport := ui.Rect{Width: size.Width, Height: size.Height}
+	viewport := gfx.Rect{Width: size.Width, Height: size.Height}
 	canvas.Clip(viewport)
 	canvas.Fill(viewport, theme.Background)
 	component.paint(state, canvas, theme, size)
@@ -106,10 +106,10 @@ func paintGroupBFrame(canvas *ui.Canvas, state *State, component *Component, siz
 
 // The group B controls change their demo's state through Clicked, in the event pass.
 func TestGroupBClicksChangeState(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	for _, test := range []struct {
 		component, example string
-		id                 ui.ID
+		id                 gfx.ID
 		changed            func(*State) bool
 	}{
 		{"command", "default", commandItem.At(2), func(s *State) bool { return s.values[0] == 2 }},

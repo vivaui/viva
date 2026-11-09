@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/reloadwire"
-	"github.com/vivaui/viva/ui"
 )
 
 type supervisor struct {
@@ -49,7 +49,7 @@ func (value *supervisor) hostConfig() app.Config {
 	return config
 }
 
-func (value *supervisor) paint(canvas *ui.Canvas, size ui.Size) {
+func (value *supervisor) paint(canvas *gfx.Canvas, size gfx.Size) {
 	if id, ok := canvas.ClickTarget(); ok {
 		// The event pass of a click: the application's state lives in the worker,
 		// which runs the pass there. Nothing is drawn; the host repaints next.
@@ -90,11 +90,11 @@ func (value *supervisor) paint(canvas *ui.Canvas, size ui.Size) {
 	if listens {
 		// The worker's paint reads clicks, so every click goes to it. The host
 		// cannot see which controls ask, so it declares that it listens.
-		canvas.Clicked(ui.ID{})
+		canvas.Clicked(gfx.ID{})
 	}
 }
 
-func (value *supervisor) click(id ui.ID) {
+func (value *supervisor) click(id gfx.ID) {
 	value.mu.Lock()
 	defer value.mu.Unlock()
 	if value.active == nil || !value.active.config.HasClick {
@@ -108,82 +108,82 @@ func (value *supervisor) click(id ui.ID) {
 	}
 }
 
-func (value *supervisor) pointer(event ui.PointerEvent) ui.EventResult {
+func (value *supervisor) pointer(event gfx.PointerEvent) gfx.EventResult {
 	value.mu.Lock()
 	defer value.mu.Unlock()
 	if value.active == nil || !value.active.config.HasPointer {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	result, err := value.active.client.Pointer(ctx, event)
 	cancel()
 	if err != nil {
 		value.reportErrorLocked(fmt.Errorf("pointer worker: %w", err))
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	return result
 }
 
-func (value *supervisor) key(event ui.KeyEvent) ui.EventResult {
+func (value *supervisor) key(event gfx.KeyEvent) gfx.EventResult {
 	value.mu.Lock()
 	defer value.mu.Unlock()
 	if value.active == nil || !value.active.config.HasKey {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	result, err := value.active.client.Key(ctx, event)
 	cancel()
 	if err != nil {
 		value.reportErrorLocked(fmt.Errorf("key worker: %w", err))
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	return result
 }
 
-func (value *supervisor) shortcut(event ui.KeyEvent) ui.EventResult {
+func (value *supervisor) shortcut(event gfx.KeyEvent) gfx.EventResult {
 	value.mu.Lock()
 	defer value.mu.Unlock()
 	if value.active == nil || !value.active.config.HasShortcut {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	result, err := value.active.client.Shortcut(ctx, event)
 	cancel()
 	if err != nil {
 		value.reportErrorLocked(fmt.Errorf("shortcut worker: %w", err))
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	return result
 }
 
-func (value *supervisor) scroll(event ui.ScrollEvent) ui.EventResult {
+func (value *supervisor) scroll(event gfx.ScrollEvent) gfx.EventResult {
 	value.mu.Lock()
 	defer value.mu.Unlock()
 	if value.active == nil || !value.active.config.HasScroll {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	result, err := value.active.client.Scroll(ctx, event)
 	cancel()
 	if err != nil {
 		value.reportErrorLocked(fmt.Errorf("scroll worker: %w", err))
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	return result
 }
 
-func (value *supervisor) modifierTap(event ui.ModifierTapEvent) ui.EventResult {
+func (value *supervisor) modifierTap(event gfx.ModifierTapEvent) gfx.EventResult {
 	value.mu.Lock()
 	defer value.mu.Unlock()
 	if value.active == nil || !value.active.config.HasModifierTap {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	result, err := value.active.client.ModifierTap(ctx, event)
 	cancel()
 	if err != nil {
 		value.reportErrorLocked(fmt.Errorf("modifier tap worker: %w", err))
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	return result
 }

@@ -6,7 +6,7 @@ import (
 	"math"
 	"syscall/js"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const (
@@ -59,7 +59,7 @@ func (cache *pathCache) endFrame() {
 
 // path returns the Path2D of run, building it on first sight. Its triangles
 // are wound the same way so overlapping ones fill as one shape.
-func (cache *pathCache) path(run []ui.Triangle) js.Value {
+func (cache *pathCache) path(run []gfx.Triangle) js.Value {
 	base := run[0].Points[0]
 	key := runKey(run, base)
 	if entry, ok := cache.paths[key]; ok {
@@ -97,12 +97,12 @@ func snap(value float32) float32 {
 	return float32(math.Round(float64(value)*pathUnit)) / pathUnit
 }
 
-func cross(p [3]ui.Point) float32 {
+func cross(p [3]gfx.Point) float32 {
 	return (p[1].X-p[0].X)*(p[2].Y-p[0].Y) - (p[2].X-p[0].X)*(p[1].Y-p[0].Y)
 }
 
 // runKey hashes a run's snapped geometry relative to base (FNV-1a).
-func runKey(run []ui.Triangle, base ui.Point) uint64 {
+func runKey(run []gfx.Triangle, base gfx.Point) uint64 {
 	const prime = 1099511628211
 	hash := uint64(14695981038295752099)
 	mix := func(word uint32) { hash = (hash ^ uint64(word)) * prime }

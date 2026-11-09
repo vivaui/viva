@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // carouselControlOffset is the 16px between the viewport and a button (-left-12
 // puts a size-8 button 48px out).
@@ -9,10 +9,10 @@ const carouselControlOffset float32 = 16
 // The arrows of the previous and next buttons, Lucide's arrow-left and arrow-right
 // rotated a quarter turn for a vertical carousel.
 var (
-	carouselArrowLeft  = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{ui.MoveTo(19, 12), ui.LineTo(5, 12), ui.MoveTo(12, 19), ui.LineTo(5, 12), ui.LineTo(12, 5)}}
-	carouselArrowRight = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{ui.MoveTo(5, 12), ui.LineTo(19, 12), ui.MoveTo(12, 5), ui.LineTo(19, 12), ui.LineTo(12, 19)}}
-	carouselArrowUp    = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{ui.MoveTo(12, 19), ui.LineTo(12, 5), ui.MoveTo(5, 12), ui.LineTo(12, 5), ui.LineTo(19, 12)}}
-	carouselArrowDown  = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{ui.MoveTo(12, 5), ui.LineTo(12, 19), ui.MoveTo(19, 12), ui.LineTo(12, 19), ui.LineTo(5, 12)}}
+	carouselArrowLeft  = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{gfx.MoveTo(19, 12), gfx.LineTo(5, 12), gfx.MoveTo(12, 19), gfx.LineTo(5, 12), gfx.LineTo(12, 5)}}
+	carouselArrowRight = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{gfx.MoveTo(5, 12), gfx.LineTo(19, 12), gfx.MoveTo(12, 5), gfx.LineTo(19, 12), gfx.LineTo(12, 19)}}
+	carouselArrowUp    = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{gfx.MoveTo(12, 19), gfx.LineTo(12, 5), gfx.MoveTo(5, 12), gfx.LineTo(12, 5), gfx.LineTo(19, 12)}}
+	carouselArrowDown  = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{gfx.MoveTo(12, 5), gfx.LineTo(12, 19), gfx.MoveTo(19, 12), gfx.LineTo(12, 19), gfx.LineTo(5, 12)}}
 )
 
 // CarouselOrientation selects the axis of caller-owned carousel content.
@@ -25,11 +25,11 @@ const (
 
 // CarouselGeometry exposes the full externally controlled carousel layout.
 type CarouselGeometry struct {
-	Bounds         ui.Rect
-	Viewport       ui.Rect
-	Content        ui.Rect
-	PreviousButton ui.Rect
-	NextButton     ui.Rect
+	Bounds         gfx.Rect
+	Viewport       gfx.Rect
+	Content        gfx.Rect
+	PreviousButton gfx.Rect
+	NextButton     gfx.Rect
 	Offset         float32
 	MaxOffset      float32
 	Index          int
@@ -43,7 +43,7 @@ type CarouselItemGeometry struct {
 	Index         int
 	ContentOffset float32
 	Extent        float32
-	Bounds        ui.Rect
+	Bounds        gfx.Rect
 	Visible       bool
 	Selected      bool
 }
@@ -53,17 +53,17 @@ type CarouselItemGeometry struct {
 // inertia, autoplay, observers, timers, and virtualization are runtime or
 // application responsibilities and are intentionally absent from this recipe.
 type Carousel struct {
-	canvas              *ui.Canvas
-	theme               ui.Theme
-	bounds              ui.Rect
+	canvas              *gfx.Canvas
+	theme               gfx.Theme
+	bounds              gfx.Rect
 	itemCount           int
 	index               int
 	contentExtent       float32
 	offset              float32
 	orientation         CarouselOrientation
-	previousID          ui.ID
+	previousID          gfx.ID
 	previousLabel       string
-	nextID              ui.ID
+	nextID              gfx.ID
 	nextLabel           string
 	label               string
 	disabled            bool
@@ -71,7 +71,7 @@ type Carousel struct {
 }
 
 // BeginCarousel declares carousel state without retaining item data.
-func BeginCarousel(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, itemCount, index int) Carousel {
+func BeginCarousel(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, itemCount, index int) Carousel {
 	return Carousel{canvas: canvas, theme: theme, bounds: bounds, itemCount: itemCount, index: index}
 }
 
@@ -89,7 +89,7 @@ func (carousel Carousel) Vertical() Carousel {
 }
 
 // Controls assigns stable previous and next action IDs and accessible labels.
-func (carousel Carousel) Controls(previousID ui.ID, previousLabel string, nextID ui.ID, nextLabel string) Carousel {
+func (carousel Carousel) Controls(previousID gfx.ID, previousLabel string, nextID gfx.ID, nextLabel string) Carousel {
 	carousel.previousID = previousID
 	carousel.previousLabel = previousLabel
 	carousel.nextID = nextID
@@ -106,24 +106,24 @@ func (carousel Carousel) Label(label string) Carousel {
 // CarouselStepForKey is the carousel region's keyboard movement: Left/Up go to
 // the previous slide, Right/Down to the next, and Home/End to the ends. The
 // caller owns the index and does not move past either end.
-func CarouselStepForKey(key ui.Key, index, count int, direction Direction) (int, bool) {
+func CarouselStepForKey(key gfx.Key, index, count int, direction Direction) (int, bool) {
 	if count <= 0 || index < 0 || index >= count {
 		return index, false
 	}
 	switch key {
-	case ui.KeyLeft, ui.KeyUp:
+	case gfx.KeyLeft, gfx.KeyUp:
 		if index > 0 {
 			return index - 1, true
 		}
 		return index, true
-	case ui.KeyRight, ui.KeyDown:
+	case gfx.KeyRight, gfx.KeyDown:
 		if index < count-1 {
 			return index + 1, true
 		}
 		return index, true
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		return 0, true
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		return count - 1, true
 	default:
 		return index, false
@@ -170,30 +170,30 @@ func (carousel Carousel) Geometry() CarouselGeometry {
 	}
 	geometry := CarouselGeometry{
 		Bounds: viewport, Viewport: viewport,
-		Content: ui.Rect{X: viewport.X - offset, Y: viewport.Y, Width: contentExtent, Height: viewport.Height},
+		Content: gfx.Rect{X: viewport.X - offset, Y: viewport.Y, Width: contentExtent, Height: viewport.Height},
 		Offset:  offset, MaxOffset: maximum, Index: index, ItemCount: itemCount,
 		CanPrevious: !carousel.disabled && itemCount > 0 && index > 0,
 		CanNext:     !carousel.disabled && itemCount > 0 && index+1 < itemCount,
 	}
 	if carousel.orientation == CarouselVertical {
-		geometry.Content = ui.Rect{X: viewport.X, Y: viewport.Y - offset, Width: viewport.Width, Height: contentExtent}
-		geometry.PreviousButton = ui.Rect{
+		geometry.Content = gfx.Rect{X: viewport.X, Y: viewport.Y - offset, Width: viewport.Width, Height: contentExtent}
+		geometry.PreviousButton = gfx.Rect{
 			X:     viewport.X + (viewport.Width-controlSize)/2,
 			Y:     viewport.Y - carouselControlOffset - controlSize,
 			Width: controlSize, Height: controlSize,
 		}
-		geometry.NextButton = ui.Rect{
+		geometry.NextButton = gfx.Rect{
 			X: geometry.PreviousButton.X, Y: viewport.Y + viewport.Height + carouselControlOffset,
 			Width: controlSize, Height: controlSize,
 		}
 		return geometry
 	}
-	geometry.PreviousButton = ui.Rect{
+	geometry.PreviousButton = gfx.Rect{
 		X:     viewport.X - carouselControlOffset - controlSize,
 		Y:     viewport.Y + (viewport.Height-controlSize)/2,
 		Width: controlSize, Height: controlSize,
 	}
-	geometry.NextButton = ui.Rect{
+	geometry.NextButton = gfx.Rect{
 		X: viewport.X + viewport.Width + carouselControlOffset, Y: geometry.PreviousButton.Y,
 		Width: controlSize, Height: controlSize,
 	}
@@ -206,12 +206,12 @@ func (carousel Carousel) ItemGeometry(index int, contentOffset, extent float32) 
 	geometry := carousel.Geometry()
 	contentOffset = carouselFiniteNonNegative(contentOffset)
 	extent = carouselFiniteNonNegative(extent)
-	bounds := ui.Rect{
+	bounds := gfx.Rect{
 		X: geometry.Content.X + contentOffset, Y: geometry.Content.Y,
 		Width: extent, Height: geometry.Viewport.Height,
 	}
 	if carousel.orientation == CarouselVertical {
-		bounds = ui.Rect{
+		bounds = gfx.Rect{
 			X: geometry.Content.X, Y: geometry.Content.Y + contentOffset,
 			Width: geometry.Viewport.Width, Height: extent,
 		}
@@ -228,7 +228,7 @@ func (carousel *Carousel) BeginContent() CarouselGeometry {
 	geometry := carousel.Geometry()
 	if carousel.canvas != nil && !carousel.contentClipIsActive && geometry.Viewport.Width > 0 && geometry.Viewport.Height > 0 {
 		if carousel.label != "" {
-			carousel.canvas.Container(geometry.Viewport, ui.RoleGroup, carousel.label)
+			carousel.canvas.Container(geometry.Viewport, gfx.RoleGroup, carousel.label)
 		}
 		carousel.canvas.Clip(geometry.Viewport)
 		carousel.contentClipIsActive = true
@@ -251,7 +251,7 @@ func (carousel *Carousel) EndContent() CarouselGeometry {
 	return geometry
 }
 
-func (carousel Carousel) paintControl(bounds ui.Rect, id ui.ID, label string, previous, disabled bool) {
+func (carousel Carousel) paintControl(bounds gfx.Rect, id gfx.ID, label string, previous, disabled bool) {
 	if id.IsZero() || bounds.Width <= 0 || bounds.Height <= 0 {
 		return
 	}
@@ -284,12 +284,12 @@ func (carousel Carousel) paintControl(bounds ui.Rect, id ui.ID, label string, pr
 		icon = &carouselArrowLeft
 	}
 	paintChevronSized(carousel.canvas, icon, bounds, 16, foreground)
-	carousel.canvas.HitWithOptions(id, bounds, label, ui.HitOptions{
-		Role: ui.RoleButton, Disabled: disabled,
+	carousel.canvas.HitWithOptions(id, bounds, label, gfx.HitOptions{
+		Role: gfx.RoleButton, Disabled: disabled,
 	})
 }
 
-func carouselNormalizeRect(bounds ui.Rect) ui.Rect {
+func carouselNormalizeRect(bounds gfx.Rect) gfx.Rect {
 	bounds.X = carouselFinite(bounds.X)
 	bounds.Y = carouselFinite(bounds.Y)
 	bounds.Width = carouselFiniteNonNegative(bounds.Width)
@@ -330,14 +330,14 @@ func carouselMax(left, right float32) float32 {
 	return right
 }
 
-func carouselIntersects(bounds, viewport ui.Rect) bool {
+func carouselIntersects(bounds, viewport gfx.Rect) bool {
 	return bounds.Width > 0 && bounds.Height > 0 &&
 		bounds.X < viewport.X+viewport.Width && bounds.X+bounds.Width > viewport.X &&
 		bounds.Y < viewport.Y+viewport.Height && bounds.Y+bounds.Height > viewport.Y
 }
 
-func carouselExpand(bounds ui.Rect, amount float32) ui.Rect {
-	return ui.Rect{
+func carouselExpand(bounds gfx.Rect, amount float32) gfx.Rect {
+	return gfx.Rect{
 		X: bounds.X - amount, Y: bounds.Y - amount,
 		Width: bounds.Width + amount*2, Height: bounds.Height + amount*2,
 	}

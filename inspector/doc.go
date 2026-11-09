@@ -8,9 +8,9 @@
 // Inspector, cycles it from a key of its choosing, and calls Paint last in its
 // paint function:
 //
-//	func paint(canvas *ui.Canvas, size ui.Size) {
+//	func paint(canvas *gfx.Canvas, size gfx.Size) {
 //		drawPage(canvas, size)
-//		inspect.Paint(canvas, ui.Rect{Width: size.Width, Height: size.Height})
+//		inspect.Paint(canvas, gfx.Rect{Width: size.Width, Height: size.Height})
 //	}
 //
 // The overlay declares no hit of its own, so it never takes a press or the

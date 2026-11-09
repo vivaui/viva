@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/dbus"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // atspiBridge serves the application's accessibility tree on the accessibility
@@ -186,7 +186,7 @@ func (bridge *atspiBridge) resolve(path string) (atspiTarget, bool) {
 	}
 	switch nodeText[0] {
 	case 'i':
-		if index := platform.AccessibilityIndexOf(window.nodes, ui.IDFromBits(value)); index >= 0 {
+		if index := platform.AccessibilityIndexOf(window.nodes, gfx.IDFromBits(value)); index >= 0 {
 			return atspiTarget{window: window, index: index}, true
 		}
 	case 'a':
@@ -330,7 +330,7 @@ func (bridge *atspiBridge) setActive(window *atspiWindow, active bool) {
 // update replaces a window's nodes and tells the reader what changed.
 func (bridge *atspiBridge) update(window *atspiWindow, nodes []platform.AccessibilityNode) {
 	old := window.nodes
-	oldPaths := make(map[ui.ID]int, len(old))
+	oldPaths := make(map[gfx.ID]int, len(old))
 	for index := range old {
 		if id := old[index].ID; !id.IsZero() {
 			oldPaths[id] = index
@@ -350,7 +350,7 @@ func (bridge *atspiBridge) update(window *atspiWindow, nodes []platform.Accessib
 		}
 	}
 	events, anonymous := 0, 0
-	seen := make(map[ui.ID]bool, len(nodes))
+	seen := make(map[gfx.ID]bool, len(nodes))
 	for index, node := range window.nodes {
 		path := bridge.nodePath(window, window.nodes, index)
 		if node.ID.IsZero() {
@@ -444,14 +444,14 @@ func (bridge *atspiBridge) announceChanges(window *atspiWindow, path string, old
 		bridge.emit(path, atspiEventObject, "TextCaretMoved", "", next.Selection.End, 0, nil)
 		bridge.emit(path, atspiEventObject, "TextSelectionChanged", "", 0, 0, nil)
 	}
-	if next.Live != ui.LiveOff && changed&(platform.ChangedName|platform.ChangedValue) != 0 {
+	if next.Live != gfx.LiveOff && changed&(platform.ChangedName|platform.ChangedValue) != 0 {
 		words := next.Value
 		if words == "" {
 			words = next.Label
 		}
 		if words != "" {
 			politeness := int32(1)
-			if next.Live == ui.LiveAssertive {
+			if next.Live == gfx.LiveAssertive {
 				politeness = 2
 			}
 			bridge.emit(path, atspiEventObject, "Announcement", words, politeness, 0, words)

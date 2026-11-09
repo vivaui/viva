@@ -5,12 +5,12 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // spinnerSpokeRectangles returns the rectangles painted for one spoke:
 // straight spokes are one pill, diagonal spokes are a staircase of strips.
-func spinnerSpokeRectangles(canvas *ui.Canvas, spoke int) []ui.Rectangle {
+func spinnerSpokeRectangles(canvas *gfx.Canvas, spoke int) []gfx.Rectangle {
 	start := spoke/2*(1+spinnerDiagonalRows) + spoke%2
 	count := 1
 	if spoke%2 == 1 {
@@ -20,9 +20,9 @@ func spinnerSpokeRectangles(canvas *ui.Canvas, spoke int) []ui.Rectangle {
 }
 
 func TestSpinnerPaintsExplicitOfficialSizedFrame(t *testing.T) {
-	var canvas ui.Canvas
-	layout := PaintSpinner(&canvas, ui.LightTheme(), ui.Rect{X: 10, Y: 20, Width: 20, Height: 24}, 10)
-	if layout != (SpinnerLayout{Bounds: ui.Rect{X: 12, Y: 24, Width: 16, Height: 16}, Phase: 2, Label: "Loading"}) {
+	var canvas gfx.Canvas
+	layout := PaintSpinner(&canvas, gfx.LightTheme(), gfx.Rect{X: 10, Y: 20, Width: 20, Height: 24}, 10)
+	if layout != (SpinnerLayout{Bounds: gfx.Rect{X: 12, Y: 24, Width: 16, Height: 16}, Phase: 2, Label: "Loading"}) {
 		t.Fatalf("layout = %+v", layout)
 	}
 	if want := 4 + 4*spinnerDiagonalRows; len(canvas.Rectangles()) != want || len(canvas.Texts()) != 0 || len(canvas.Hits()) != 0 {
@@ -36,8 +36,8 @@ func TestSpinnerPaintsExplicitOfficialSizedFrame(t *testing.T) {
 }
 
 func TestSpinnerFadeTrailsBehindTheClockwiseHead(t *testing.T) {
-	var canvas ui.Canvas
-	PaintSpinner(&canvas, ui.LightTheme(), ui.Rect{Width: 16, Height: 16}, 2)
+	var canvas gfx.Canvas
+	PaintSpinner(&canvas, gfx.LightTheme(), gfx.Rect{Width: 16, Height: 16}, 2)
 	alpha := func(spoke int) float32 {
 		rectangles := spinnerSpokeRectangles(&canvas, spoke)
 		for _, rectangle := range rectangles {
@@ -64,8 +64,8 @@ func TestSpinnerFadeTrailsBehindTheClockwiseHead(t *testing.T) {
 }
 
 func TestSpinnerDiagonalSpokesAreSlantedStaircases(t *testing.T) {
-	var canvas ui.Canvas
-	PaintSpinner(&canvas, ui.LightTheme(), ui.Rect{Width: 16, Height: 16}, 0)
+	var canvas gfx.Canvas
+	PaintSpinner(&canvas, gfx.LightTheme(), gfx.Rect{Width: 16, Height: 16}, 0)
 	// Outward direction of each diagonal spoke: top-right, bottom-right,
 	// bottom-left, top-left.
 	directions := [4][2]float32{{1, -1}, {1, 1}, {-1, 1}, {-1, -1}}
@@ -94,10 +94,10 @@ func TestSpinnerDiagonalSpokesAreSlantedStaircases(t *testing.T) {
 }
 
 func TestSpinnerSpokesAreSymmetricAndStayInsideTheIcon(t *testing.T) {
-	var canvas ui.Canvas
-	for _, bounds := range []ui.Rect{{Width: 16, Height: 16}, {X: 3, Y: 5, Width: 8, Height: 8}, {X: 1, Y: 2, Width: 24, Height: 24}} {
+	var canvas gfx.Canvas
+	for _, bounds := range []gfx.Rect{{Width: 16, Height: 16}, {X: 3, Y: 5, Width: 8, Height: 8}, {X: 1, Y: 2, Width: 24, Height: 24}} {
 		canvas.Reset()
-		layout := PaintSpinner(&canvas, ui.DarkTheme(), bounds, 0)
+		layout := PaintSpinner(&canvas, gfx.DarkTheme(), bounds, 0)
 		center := layout.Bounds.X + layout.Bounds.Width/2
 		middle := layout.Bounds.Y + layout.Bounds.Height/2
 		for index, rectangle := range canvas.Rectangles() {
@@ -125,13 +125,13 @@ func TestSpinnerSpokesAreSymmetricAndStayInsideTheIcon(t *testing.T) {
 }
 
 func TestSpinnerFitsSmallBoundsAndPaintsDeterministically(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		PaintSpinner(&canvas, ui.DarkTheme(), ui.Rect{X: 1, Y: 2, Width: 8, Height: 12}, 7)
+		PaintSpinner(&canvas, gfx.DarkTheme(), gfx.Rect{X: 1, Y: 2, Width: 8, Height: 12}, 7)
 	}
 	paint()
-	if got := canvas.Rectangles()[0].Bounds; got != (ui.Rect{X: 4.5, Y: 4, Width: 1, Height: 2}) {
+	if got := canvas.Rectangles()[0].Bounds; got != (gfx.Rect{X: 4.5, Y: 4, Width: 1, Height: 2}) {
 		t.Fatalf("first segment = %+v", got)
 	}
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -145,8 +145,8 @@ func TestSpinnerFitsSmallBoundsAndPaintsDeterministically(t *testing.T) {
 }
 
 func TestSpinnerRejectsEmptyPaint(t *testing.T) {
-	var canvas ui.Canvas
-	if layout := PaintSpinner(&canvas, ui.LightTheme(), ui.Rect{Width: 0, Height: 16}, 0); layout != (SpinnerLayout{}) {
+	var canvas gfx.Canvas
+	if layout := PaintSpinner(&canvas, gfx.LightTheme(), gfx.Rect{Width: 0, Height: 16}, 0); layout != (SpinnerLayout{}) {
 		t.Fatalf("empty layout = %+v", layout)
 	}
 	if len(canvas.Rectangles()) != 0 {
@@ -155,9 +155,9 @@ func TestSpinnerRejectsEmptyPaint(t *testing.T) {
 }
 
 func BenchmarkSpinner(b *testing.B) {
-	var canvas ui.Canvas
-	theme := ui.LightTheme()
-	bounds := ui.Rect{Width: 24, Height: 24}
+	var canvas gfx.Canvas
+	theme := gfx.LightTheme()
+	bounds := gfx.Rect{Width: 24, Height: 24}
 	PaintSpinner(&canvas, theme, bounds, 0)
 	b.ReportAllocs()
 	b.ResetTimer()

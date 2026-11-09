@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -31,9 +31,9 @@ var reorderGridComponent = Component{
 	initialize: func(state *State) {
 		state.reorderGrid = &reorderGridDemoState{order: [6]int{0, 1, 2, 3, 4, 5}}
 	},
-	paint: func(state *State, canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-		var slot flex.Box
-		state.page(canvas, theme, size, 620, state.Text("Reorder Grid · 卡片顺序", "Reorder Grid · Card order"), func(f *flex.Frame) {
+	paint: func(state *State, canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+		var slot ui.Box
+		state.page(canvas, theme, size, 620, state.Text("Reorder Grid · 卡片顺序", "Reorder Grid · Card order"), func(f *ui.Frame) {
 			slot = f.Slot().FillWidth().Height(220)
 		})
 		bounds := slot.Rect()
@@ -58,7 +58,7 @@ var reorderGridComponent = Component{
 		for order, index := range state.reorderGrid.order {
 			id := reorderGridDemoHandles.At(index)
 			column, row := order%columns, order/columns
-			card := ui.Rect{
+			card := gfx.Rect{
 				X:     bounds.X + float32(column)*(width+gap),
 				Y:     bounds.Y + float32(row)*(height+gap),
 				Width: width, Height: height,
@@ -68,23 +68,23 @@ var reorderGridComponent = Component{
 				edge = theme.Primary
 			}
 			if state.reorderGrid.grid.Dragging() && state.reorderGrid.grid.Active() == id {
-				canvas.Elevate(card, theme.Metrics.RadiusControl, ui.ShadowMD)
+				canvas.Elevate(card, theme.Metrics.RadiusControl, gfx.ShadowMD)
 				edge = theme.Primary
 			}
 			canvas.RoundedBorder(card, theme.Metrics.RadiusControl, 1, edge, theme.Background)
-			handle := ui.Rect{X: card.X + 8, Y: card.Y + 12, Width: 28, Height: card.Height - 24}
-			content := ui.Rect{X: card.X + 44, Y: card.Y, Width: max(card.Width-52, 0), Height: card.Height}
+			handle := gfx.Rect{X: card.X + 8, Y: card.Y + 12, Width: 28, Height: card.Height - 24}
+			content := gfx.Rect{X: card.X + 44, Y: card.Y, Width: max(card.Width-52, 0), Height: card.Height}
 			grid.Item(id, labels[index], 0, order, card, handle, false)
-			canvas.Label(labels[index], content, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+			canvas.Label(labels[index], content, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
 		}
 		grid.End()
 	},
-	pointer: func(state *State, event ui.PointerEvent) ui.EventResult {
+	pointer: func(state *State, event gfx.PointerEvent) gfx.EventResult {
 		move, result := state.reorderGrid.grid.Pointer(event)
 		state.reorderGrid.move(move)
 		return result
 	},
-	key: func(state *State, event ui.KeyEvent) ui.EventResult {
+	key: func(state *State, event gfx.KeyEvent) gfx.EventResult {
 		move, result := state.reorderGrid.grid.Key(event)
 		state.reorderGrid.move(move)
 		return result

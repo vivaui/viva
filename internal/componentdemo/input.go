@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
@@ -39,9 +39,9 @@ f.Input(components.InputSnapshot{
     ID: tree.ID(page, "read-only"), Label: "Read-only",
     Value: "Viva · read-only text", ReadOnly: true,
 })`},
-		{ID: "custom", Title: "圆角与字号", Description: "单个输入框用 Radius 和 FontSize 拥有自己的圆角与字号，光标、选区随字号缩放，旁边的输入框不受影响。", Snippet: `// In a flex page: this control only
+		{ID: "custom", Title: "圆角与字号", Description: "单个输入框用 Radius 和 FontSize 拥有自己的圆角与字号，光标、选区随字号缩放，旁边的输入框不受影响。", Snippet: `// In a ui page: this control only
 f.Input(components.InputSnapshot{ID: search, Label: "Search", Value: value}).
-    Radius(ui.RadiusFull).FontSize(16).Height(40)
+    Radius(gfx.RadiusFull).FontSize(16).Height(40)
 
 // Painted by hand: this call gets a theme of its own
 components.PaintInput(canvas, theme.WithRadius(2).WithFontSize(12), bounds, snapshot)`},
@@ -110,7 +110,7 @@ func (state *State) EnableTextEditing() {
 
 // Editor returns the editor behind a text hit, or false for every hit that is
 // not the example's editable field (and for all hits before EnableTextEditing).
-func (state *State) Editor(id ui.ID) (*text.Editor, bool) {
+func (state *State) Editor(id gfx.ID) (*text.Editor, bool) {
 	if !state.editing || id != state.fieldID || state.editor == nil {
 		return nil, false
 	}
@@ -132,11 +132,31 @@ func (state *State) fieldValue(initial string) string {
 // platformFocused reports whether the platform text service currently owns the
 // field: it is editable, has the focus and has text to show. An empty field
 // keeps painting its placeholder and caret.
-func (state *State) platformFocused(canvas *ui.Canvas, value string) bool {
+func (state *State) platformFocused(canvas *gfx.Canvas, value string) bool {
 	return state.editing && canvas.Focused() == state.fieldID && value != ""
 }
 
-func (state *State) paintInput(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+// paintEditable fills what the component paints itself for the example's
+// editable single-line field: HideEditorText keeps the platform's text, caret
+// and selection out of the picture, and the caret, selection and composition
+// come from the same Go editor the platform edits. The value is then drawn by
+// one renderer, so it cannot move when the platform's editor appears.
+func (state *State) paintEditable(canvas *gfx.Canvas, id gfx.ID, value string, snapshot *components.InputSnapshot) {
+	snapshot.HideEditorText = true
+	if !state.editing || state.editor == nil || canvas.Focused() != id {
+		return
+	}
+	selection := state.editor.Selection()
+	snapshot.SelectionStart, snapshot.SelectionEnd = byteOffsetOfRune(value, selection.Start), byteOffsetOfRune(value, selection.End)
+	snapshot.Caret = byteOffsetOfRune(value, state.editor.Caret())
+	snapshot.ShowCaret = selection.Start == selection.End
+	if marked, composing := state.editor.Composition(); composing {
+		snapshot.CompositionStart, snapshot.CompositionEnd = byteOffsetOfRune(value, marked.Start), byteOffsetOfRune(value, marked.End)
+	}
+	snapshot.Blink = &state.blink
+}
+
+func (state *State) paintInput(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	mode := state.Text("Web / 原生文本服务 · 连接同一个 Go Editor", "Web / native text service · one Go Editor")
 	if state.editing {
 		mode = state.Text("平台文本服务 · 支持输入、选区与 IME", "Platform text service · typing, selection and IME")
@@ -144,7 +164,7 @@ func (state *State) paintInput(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 	if state.exampleID == "states" {
 		mode = state.Text("禁用与只读 · 不连接编辑器", "Disabled and read-only · no editor")
 	}
-	state.page(canvas, theme, size, 440, state.Text("Input · 文本输入", "Input · Text input"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 440, state.Text("Input · 文本输入", "Input · Text input"), func(f *ui.Frame) {
 		f.Text(mode).FontSize(theme.Metrics.FontSizeS).Muted()
 		if state.exampleID == "states" {
 			f.Column().Gap(6).Children(func() {
@@ -171,11 +191,12 @@ func (state *State) paintInput(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 		}
 		f.Column().Gap(6).Children(func() {
 			f.Text(label).FontSize(theme.Metrics.FontSizeM)
-			f.Input(components.InputSnapshot{
+			snapshot := components.InputSnapshot{
 				ID: inputEditable, Label: label, Value: value, Placeholder: placeholder,
 				Hint: mode, Invalid: invalid, ReadOnly: !state.editing,
-				PlatformEditing: state.platformFocused(canvas, value),
-			})
+			}
+			state.paintEditable(canvas, inputEditable, value, &snapshot)
+			f.Input(snapshot)
 		})
 		caption := state.Text("Web 与原生预览均连接同一个 Go Editor。", "The Web and native previews connect the same Go Editor.")
 		if state.exampleID == "invalid" {
@@ -191,14 +212,16 @@ func (state *State) paintInput(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 // paintCustomInputs shows three fields in one column: a pill with larger text, a
 // squarer one with smaller text, and one with the theme's own radius and size.
 // Only the first is connected to the editor; the others are read-only samples.
-func (state *State) paintCustomInputs(canvas *ui.Canvas, theme ui.Theme, f *flex.Frame, mode string) {
+func (state *State) paintCustomInputs(canvas *gfx.Canvas, theme gfx.Theme, f *ui.Frame, mode string) {
 	value := state.fieldValue(state.Text("圆角与字号", "Radius and size"))
 	f.Column().Gap(6).Children(func() {
 		f.Text("RadiusFull · 16").FontSize(theme.Metrics.FontSizeM)
-		f.Input(components.InputSnapshot{
+		snapshot := components.InputSnapshot{
 			ID: inputEditable, Label: "Pill", Value: value, Placeholder: state.Text("输入中文或 English…", "Type in Chinese or English…"),
-			Hint: mode, ReadOnly: !state.editing, PlatformEditing: state.platformFocused(canvas, value),
-		}).Radius(ui.RadiusFull).FontSize(16).Height(40)
+			Hint: mode, ReadOnly: !state.editing,
+		}
+		state.paintEditable(canvas, inputEditable, value, &snapshot)
+		f.Input(snapshot).Radius(gfx.RadiusFull).FontSize(16).Height(40)
 	})
 	f.Column().Gap(6).Children(func() {
 		f.Text("Radius 2 · 12").FontSize(theme.Metrics.FontSizeM)

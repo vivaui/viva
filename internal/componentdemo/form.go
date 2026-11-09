@@ -4,7 +4,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -68,9 +68,9 @@ func formInitial(exampleID string) string {
 	return "gopher"
 }
 
-func (state *State) paintForm(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var slot flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Form · 显式字段状态", "Form · Explicit field state"), func(f *flex.Frame) {
+func (state *State) paintForm(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var slot ui.Box
+	state.page(canvas, theme, size, 560, state.Text("Form · 显式字段状态", "Form · Explicit field state"), func(f *ui.Frame) {
 		slot = f.Slot().FillWidth().Height(150)
 	})
 	value := state.fieldValue(formInitial(state.exampleID))
@@ -83,8 +83,10 @@ func (state *State) paintForm(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
 		snapshot.Error = "Use at least three characters."
 	}
 	layout := components.PaintFormField(canvas, theme, slot.Rect(), snapshot)
-	components.PaintInput(canvas, theme, layout.Control, components.InputSnapshot{
+	input := components.InputSnapshot{
 		ID: formInput, Label: layout.Semantics.Label, Value: value, Hint: layout.Semantics.AssistiveText(), Invalid: layout.Semantics.Invalid,
-		ReadOnly: !state.editing, PlatformEditing: state.platformFocused(canvas, value),
-	})
+		ReadOnly: !state.editing,
+	}
+	state.paintEditable(canvas, formInput, value, &input)
+	components.PaintInput(canvas, theme, layout.Control, input)
 }

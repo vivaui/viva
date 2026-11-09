@@ -3,33 +3,33 @@ package recipes
 import (
 	"testing"
 
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
 var (
-	tree = ui.Tree{}
+	tree = gfx.Tree{}
 	page = tree.Feature("recipes")
 	one  = tree.ID(page, "one")
 	two  = tree.ID(page, "two")
 
-	glyph = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Commands: []ui.PathCommand{ui.MoveTo(4, 12), ui.LineTo(20, 12)}}
+	glyph = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Commands: []gfx.PathCommand{gfx.MoveTo(4, 12), gfx.LineTo(20, 12)}}
 )
 
-var themes = map[string]ui.Theme{"light": ui.LightTheme(), "dark": ui.DarkTheme()}
+var themes = map[string]gfx.Theme{"light": gfx.LightTheme(), "dark": gfx.DarkTheme()}
 
-func canvasWith(hovered, focused ui.ID, focusVisible bool) *ui.Canvas {
-	canvas := &ui.Canvas{}
+func canvasWith(hovered, focused gfx.ID, focusVisible bool) *gfx.Canvas {
+	canvas := &gfx.Canvas{}
 	canvas.SetTree(&tree)
 	canvas.SetMeasurer(func(value string, size, weight float32) float32 { return float32(len(value)) * size / 2 })
-	canvas.SetInteraction(hovered, ui.ID{}, focused, focusVisible)
+	canvas.SetInteraction(hovered, gfx.ID{}, focused, focusVisible)
 	return canvas
 }
 
 // draw declares build into a 360 wide page and returns what it painted.
-func draw(theme ui.Theme, canvas *ui.Canvas, build func(f *flex.Frame)) {
-	var view flex.View
-	view.Draw(canvas, theme, ui.Rect{Width: 360, Height: 480}, func(f *flex.Frame) {
+func draw(theme gfx.Theme, canvas *gfx.Canvas, build func(f *ui.Frame)) {
+	var view ui.View
+	view.Draw(canvas, theme, gfx.Rect{Width: 360, Height: 480}, func(f *ui.Frame) {
 		f.Column().Pad(16).Gap(12).Children(func() { build(f) })
 	})
 }
@@ -38,35 +38,35 @@ func draw(theme ui.Theme, canvas *ui.Canvas, build func(f *flex.Frame)) {
 // themes: a recipe that overflows its column or paints nothing is broken
 // whatever it looks like.
 func TestEveryRecipePaintsInsideItsRoom(t *testing.T) {
-	recipes := map[string]func(f *flex.Frame, theme ui.Theme) flex.Box{
-		"settings row": func(f *flex.Frame, theme ui.Theme) flex.Box {
+	recipes := map[string]func(f *ui.Frame, theme gfx.Theme) ui.Box{
+		"settings row": func(f *ui.Frame, theme gfx.Theme) ui.Box {
 			return SettingsRow(f, theme, one, "Notifications", "Tell me when a long transfer finishes, even while the window is closed.", true)
 		},
-		"list row": func(f *flex.Frame, theme ui.Theme) flex.Box {
+		"list row": func(f *ui.Frame, theme gfx.Theme) ui.Box {
 			return ListRow(f, theme, one, glyph, glyph, "production-database-primary-replica-eu-west-1", "ssh", false)
 		},
-		"avatar": func(f *flex.Frame, theme ui.Theme) flex.Box { return Avatar(f, theme, 40, "AB", true) },
-		"badge":  func(f *flex.Frame, theme ui.Theme) flex.Box { return Badge(f, theme, ToneDanger, "Failed") },
-		"stat": func(f *flex.Frame, theme ui.Theme) flex.Box {
-			return StatCard(f, theme, "1,284", "Active sessions", ui.RGB(99, 102, 241), ui.RGB(236, 72, 153))
+		"avatar": func(f *ui.Frame, theme gfx.Theme) ui.Box { return Avatar(f, theme, 40, "AB", true) },
+		"badge":  func(f *ui.Frame, theme gfx.Theme) ui.Box { return Badge(f, theme, ToneDanger, "Failed") },
+		"stat": func(f *ui.Frame, theme gfx.Theme) ui.Box {
+			return StatCard(f, theme, "1,284", "Active sessions", gfx.RGB(99, 102, 241), gfx.RGB(236, 72, 153))
 		},
-		"hero": func(f *flex.Frame, theme ui.Theme) flex.Box {
+		"hero": func(f *ui.Frame, theme gfx.Theme) ui.Box {
 			return Hero(f, theme, one, "Welcome back", "Pick up where you left off on any of your hosts.", "Open")
 		},
-		"icon button": func(f *flex.Frame, theme ui.Theme) flex.Box { return IconButton(f, theme, one, glyph, "Search", false) },
-		"empty state": func(f *flex.Frame, theme ui.Theme) flex.Box {
+		"icon button": func(f *ui.Frame, theme gfx.Theme) ui.Box { return IconButton(f, theme, one, glyph, "Search", false) },
+		"empty state": func(f *ui.Frame, theme gfx.Theme) ui.Box {
 			return EmptyState(f, theme, one, glyph, "No hosts yet", "Add a host to connect to it from here.", "Add host")
 		},
-		"section": func(f *flex.Frame, theme ui.Theme) flex.Box {
+		"section": func(f *ui.Frame, theme gfx.Theme) ui.Box {
 			return Section(f, theme, "General", true, func() { f.Text("content") })
 		},
 	}
 	for name, recipe := range recipes {
 		for themeName, theme := range themes {
 			t.Run(name+"/"+themeName, func(t *testing.T) {
-				canvas := canvasWith(ui.ID{}, ui.ID{}, false)
-				var box flex.Box
-				draw(theme, canvas, func(f *flex.Frame) { box = recipe(f, theme) })
+				canvas := canvasWith(gfx.ID{}, gfx.ID{}, false)
+				var box ui.Box
+				draw(theme, canvas, func(f *ui.Frame) { box = recipe(f, theme) })
 				if len(canvas.Rectangles())+len(canvas.Triangles())+len(canvas.Texts()) == 0 {
 					t.Fatal("painted nothing")
 				}
@@ -79,31 +79,31 @@ func TestEveryRecipePaintsInsideItsRoom(t *testing.T) {
 }
 
 func TestPencilOfAListRowAppearsWithTheRowAndOnlyThen(t *testing.T) {
-	theme := ui.LightTheme()
-	triangles := func(hovered, focused ui.ID, visible bool) int {
+	theme := gfx.LightTheme()
+	triangles := func(hovered, focused gfx.ID, visible bool) int {
 		canvas := canvasWith(hovered, focused, visible)
-		draw(theme, canvas, func(f *flex.Frame) {
-			ListRow(f, theme, one, ui.Icon{ViewBox: 24}, glyph, "host", "ssh", false)
+		draw(theme, canvas, func(f *ui.Frame) {
+			ListRow(f, theme, one, gfx.Icon{ViewBox: 24}, glyph, "host", "ssh", false)
 		})
 		return len(canvas.Triangles())
 	}
-	rest := triangles(ui.ID{}, ui.ID{}, false)
-	if hovered := triangles(one, ui.ID{}, false); hovered <= rest {
+	rest := triangles(gfx.ID{}, gfx.ID{}, false)
+	if hovered := triangles(one, gfx.ID{}, false); hovered <= rest {
 		t.Errorf("hovering the row painted %d triangles, at rest %d: the pencil did not appear", hovered, rest)
 	}
-	if focused := triangles(ui.ID{}, one, true); focused <= rest {
+	if focused := triangles(gfx.ID{}, one, true); focused <= rest {
 		t.Errorf("focusing the row painted %d triangles, at rest %d: the pencil did not appear", focused, rest)
 	}
-	if other := triangles(two, ui.ID{}, false); other != rest {
+	if other := triangles(two, gfx.ID{}, false); other != rest {
 		t.Errorf("hovering another element painted %d triangles, want the %d of rest", other, rest)
 	}
 }
 
 func TestInteractiveDrawsItsRingOnlyForVisibleKeyboardFocus(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	ringed := func(focusVisible bool) bool {
-		canvas := canvasWith(ui.ID{}, one, focusVisible)
-		draw(theme, canvas, func(f *flex.Frame) {
+		canvas := canvasWith(gfx.ID{}, one, focusVisible)
+		draw(theme, canvas, func(f *ui.Frame) {
 			Interactive(f.Row().Size(80, 32).Radius(8), theme, one, "x").Children(func() { f.Text("x") })
 		})
 		for _, triangle := range canvas.Triangles() {
@@ -122,9 +122,9 @@ func TestInteractiveDrawsItsRingOnlyForVisibleKeyboardFocus(t *testing.T) {
 }
 
 func TestAvatarDotTakesNoRoom(t *testing.T) {
-	theme := ui.LightTheme()
-	var with, without flex.Box
-	draw(theme, canvasWith(ui.ID{}, ui.ID{}, false), func(f *flex.Frame) {
+	theme := gfx.LightTheme()
+	var with, without ui.Box
+	draw(theme, canvasWith(gfx.ID{}, gfx.ID{}, false), func(f *ui.Frame) {
 		with = Avatar(f, theme, 40, "AB", true)
 		without = Avatar(f, theme, 40, "AB", false)
 	})
@@ -137,9 +137,9 @@ func TestAvatarDotTakesNoRoom(t *testing.T) {
 }
 
 func TestDisabledIconButtonIsInert(t *testing.T) {
-	theme := ui.LightTheme()
-	canvas := canvasWith(one, ui.ID{}, false)
-	draw(theme, canvas, func(f *flex.Frame) { IconButton(f, theme, one, glyph, "Search", true) })
+	theme := gfx.LightTheme()
+	canvas := canvasWith(one, gfx.ID{}, false)
+	draw(theme, canvas, func(f *ui.Frame) { IconButton(f, theme, one, glyph, "Search", true) })
 	found := false
 	for _, hit := range canvas.Hits() {
 		if hit.ID == one {
@@ -155,11 +155,11 @@ func TestDisabledIconButtonIsInert(t *testing.T) {
 }
 
 func TestASwitchedOffSectionFadesTheControlsInIt(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	fill := func(enabled bool) float32 {
-		canvas := canvasWith(ui.ID{}, ui.ID{}, false)
-		var save flex.Box
-		draw(theme, canvas, func(f *flex.Frame) {
+		canvas := canvasWith(gfx.ID{}, gfx.ID{}, false)
+		var save ui.Box
+		draw(theme, canvas, func(f *ui.Frame) {
 			Section(f, theme, "General", enabled, func() { save = f.Button(two, "Save") })
 		})
 		for _, rectangle := range canvas.Rectangles() {
@@ -176,9 +176,9 @@ func TestASwitchedOffSectionFadesTheControlsInIt(t *testing.T) {
 }
 
 func TestRecipesReportClicks(t *testing.T) {
-	theme := ui.LightTheme()
-	canvas := canvasWith(ui.ID{}, ui.ID{}, false)
-	draw(theme, canvas, func(f *flex.Frame) {
+	theme := gfx.LightTheme()
+	canvas := canvasWith(gfx.ID{}, gfx.ID{}, false)
+	draw(theme, canvas, func(f *ui.Frame) {
 		if Hero(f, theme, one, "t", "x", "Open").Clicked() {
 			t.Error("a click was reported with none delivered")
 		}
@@ -186,18 +186,18 @@ func TestRecipesReportClicks(t *testing.T) {
 }
 
 func TestAWarmRecipePageAllocatesNothing(t *testing.T) {
-	theme := ui.LightTheme()
-	canvas := canvasWith(one, ui.ID{}, false)
-	var view flex.View
+	theme := gfx.LightTheme()
+	canvas := canvasWith(one, gfx.ID{}, false)
+	var view ui.View
 	run := func() {
 		canvas.Reset()
-		view.Draw(canvas, theme, ui.Rect{Width: 360, Height: 800}, func(f *flex.Frame) {
+		view.Draw(canvas, theme, gfx.Rect{Width: 360, Height: 800}, func(f *ui.Frame) {
 			f.Column().Pad(16).Gap(12).Children(func() {
 				SettingsRow(f, theme, one, "Notifications", "Tell me when a transfer finishes.", true)
 				ListRow(f, theme, two, glyph, glyph, "host", "ssh", true)
 				Avatar(f, theme, 40, "AB", true)
 				Badge(f, theme, ToneAccent, "New")
-				StatCard(f, theme, "12", "Sessions", ui.RGB(1, 2, 3), ui.RGB(4, 5, 6))
+				StatCard(f, theme, "12", "Sessions", gfx.RGB(1, 2, 3), gfx.RGB(4, 5, 6))
 				Hero(f, theme, one, "Hello", "A line of text.", "Open")
 				IconButton(f, theme, two, glyph, "Search", false)
 				Section(f, theme, "General", false, func() { f.Text("content") })

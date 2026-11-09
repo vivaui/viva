@@ -4,34 +4,34 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // overlayFrame paints one frame of a dialog (when open) and a dropdown menu (when
 // menuOpen) on a canvas with a clock.
-func overlayFrame(canvas *ui.Canvas, now *time.Duration, at time.Duration, open, menuOpen bool) {
+func overlayFrame(canvas *gfx.Canvas, now *time.Duration, at time.Duration, open, menuOpen bool) {
 	*now = at
 	canvas.Reset()
 	canvas.BeginFrame()
-	viewport := ui.Rect{Width: 800, Height: 600}
-	theme := ui.DarkTheme()
+	viewport := gfx.Rect{Width: 800, Height: 600}
+	theme := gfx.DarkTheme()
 	if open {
 		dialog := BeginDialog(canvas, theme, viewport, DialogOptions{
-			Layer: 1, Scope: ui.Item(1), DismissID: ui.Item(2), CloseID: ui.Item(3), ContentSize: ui.Size{Width: 400, Height: 200},
+			Layer: 1, Scope: gfx.Item(1), DismissID: gfx.Item(2), CloseID: gfx.Item(3), ContentSize: gfx.Size{Width: 400, Height: 200},
 		})
 		dialog.Begin("Delete host?", "This cannot be undone.")
 		dialog.End()
 	}
 	if menuOpen {
-		menu := BeginDropdownMenu(canvas, theme, ui.Rect{X: 20, Y: 20, Width: 160, Height: 80}, DropdownMenuOptions{Layer: 2, Scope: ui.Item(4), DismissID: ui.Item(5)})
-		menu.AddItem(DropdownMenuItem{ID: ui.Item(6), Label: "Open"})
+		menu := BeginDropdownMenu(canvas, theme, gfx.Rect{X: 20, Y: 20, Width: 160, Height: 80}, DropdownMenuOptions{Layer: 2, Scope: gfx.Item(4), DismissID: gfx.Item(5)})
+		menu.AddItem(DropdownMenuItem{ID: gfx.Item(6), Label: "Open"})
 		menu.End()
 	}
 	canvas.EndFrame()
 }
 
 func TestClosedDialogAndMenuFadeOutWithoutTakingInput(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var now time.Duration
 	canvas.SetClock(func() time.Duration { return now })
 
@@ -43,7 +43,7 @@ func TestClosedDialogAndMenuFadeOutWithoutTakingInput(t *testing.T) {
 	if canvas.Animating() {
 		t.Fatal("still animating long after both overlays came in")
 	}
-	if got := canvas.Rectangles()[0].Color.Alpha; got != overlayBackdrop(ui.DarkTheme()).Alpha {
+	if got := canvas.Rectangles()[0].Color.Alpha; got != overlayBackdrop(gfx.DarkTheme()).Alpha {
 		t.Fatalf("scrim at rest has alpha %v", got)
 	}
 	rest := len(canvas.Rectangles())
@@ -58,7 +58,7 @@ func TestClosedDialogAndMenuFadeOutWithoutTakingInput(t *testing.T) {
 	if len(canvas.Hits()) != 0 || !canvas.TrappedFocusScope().IsZero() || !canvas.EscapeTarget().IsZero() {
 		t.Fatalf("a leaving overlay holds input: %d hits, trap %v", len(canvas.Hits()), canvas.TrappedFocusScope())
 	}
-	if got := canvas.Rectangles()[0].Color.Alpha; got <= 0 || got >= overlayBackdrop(ui.DarkTheme()).Alpha {
+	if got := canvas.Rectangles()[0].Color.Alpha; got <= 0 || got >= overlayBackdrop(gfx.DarkTheme()).Alpha {
 		t.Fatalf("scrim halfway out has alpha %v", got)
 	}
 	overlayFrame(&canvas, &now, time.Second+time.Second, false, false)
@@ -71,22 +71,22 @@ func TestClosedDialogAndMenuFadeOutWithoutTakingInput(t *testing.T) {
 }
 
 func TestOverlaysAreFinalWithoutAClockOrUnderReducedMotion(t *testing.T) {
-	var plain ui.Canvas
+	var plain gfx.Canvas
 	var now time.Duration
 	// No clock: BeginFrame is a no-op for motion.
 	plain.BeginFrame()
-	dialog := BeginDialog(&plain, ui.DarkTheme(), ui.Rect{Width: 800, Height: 600}, DialogOptions{DismissID: ui.Item(2), ContentSize: ui.Size{Width: 400, Height: 200}})
+	dialog := BeginDialog(&plain, gfx.DarkTheme(), gfx.Rect{Width: 800, Height: 600}, DialogOptions{DismissID: gfx.Item(2), ContentSize: gfx.Size{Width: 400, Height: 200}})
 	dialog.Paint("Title", "")
 	plain.EndFrame()
-	if plain.Rectangles()[0].Color.Alpha != overlayBackdrop(ui.DarkTheme()).Alpha || plain.Animating() {
+	if plain.Rectangles()[0].Color.Alpha != overlayBackdrop(gfx.DarkTheme()).Alpha || plain.Animating() {
 		t.Fatalf("no clock: scrim alpha %v animating %v", plain.Rectangles()[0].Color.Alpha, plain.Animating())
 	}
 
-	var reduced ui.Canvas
+	var reduced gfx.Canvas
 	reduced.SetClock(func() time.Duration { return now })
 	reduced.SetReduceMotion(true)
 	overlayFrame(&reduced, &now, 0, true, false)
-	if reduced.Rectangles()[0].Color.Alpha != overlayBackdrop(ui.DarkTheme()).Alpha || reduced.Animating() {
+	if reduced.Rectangles()[0].Color.Alpha != overlayBackdrop(gfx.DarkTheme()).Alpha || reduced.Animating() {
 		t.Fatalf("reduced motion: scrim alpha %v animating %v", reduced.Rectangles()[0].Color.Alpha, reduced.Animating())
 	}
 	overlayFrame(&reduced, &now, 10*time.Millisecond, false, false)
@@ -96,7 +96,7 @@ func TestOverlaysAreFinalWithoutAClockOrUnderReducedMotion(t *testing.T) {
 }
 
 func TestContextMenuNeitherEntersNorLeaves(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var now time.Duration
 	canvas.SetClock(func() time.Duration { return now })
 	paint := func(at time.Duration, open bool) {
@@ -104,9 +104,9 @@ func TestContextMenuNeitherEntersNorLeaves(t *testing.T) {
 		canvas.Reset()
 		canvas.BeginFrame()
 		if open {
-			menu := BeginContextMenu(&canvas, ui.DarkTheme(), ui.Rect{X: 20, Y: 20, Width: 160, Height: 80},
-				ContextMenuOptions{Layer: 2, Scope: ui.Item(4), DismissID: ui.Item(5)})
-			menu.AddItem(ContextMenuItem{ID: ui.Item(6), Label: "Open"})
+			menu := BeginContextMenu(&canvas, gfx.DarkTheme(), gfx.Rect{X: 20, Y: 20, Width: 160, Height: 80},
+				ContextMenuOptions{Layer: 2, Scope: gfx.Item(4), DismissID: gfx.Item(5)})
+			menu.AddItem(ContextMenuItem{ID: gfx.Item(6), Label: "Open"})
 			menu.End()
 		}
 		canvas.EndFrame()

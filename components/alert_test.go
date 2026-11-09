@@ -4,13 +4,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestAlertDestructiveMatchesVegaTreatment(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	Alert(&canvas, theme, ui.Rect{X: 4, Y: 6, Width: 280, Height: 64}, AlertData{Variant: AlertDestructive, Title: "Unable to save", Description: "Check the destination and try again."})
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	Alert(&canvas, theme, gfx.Rect{X: 4, Y: 6, Width: 280, Height: 64}, AlertData{Variant: AlertDestructive, Title: "Unable to save", Description: "Check the destination and try again."})
 	if len(canvas.Rectangles()) != 2 || len(canvas.Texts()) != 2 {
 		t.Fatalf("danger alert commands = %d rectangles, %d texts", len(canvas.Rectangles()), len(canvas.Texts()))
 	}
@@ -20,15 +20,15 @@ func TestAlertDestructiveMatchesVegaTreatment(t *testing.T) {
 	if canvas.Texts()[0].Style.Color != theme.Danger || canvas.Texts()[1].Style.Color.Red != theme.Danger.Red || canvas.Texts()[1].Style.Color.Alpha != theme.Danger.Alpha*0.90 {
 		t.Fatalf("danger alert text styles = %+v", canvas.Texts())
 	}
-	if canvas.Texts()[0].Style.Weight != ui.WeightMedium || canvas.Texts()[1].Style.Size != theme.Metrics.FontSizeM {
+	if canvas.Texts()[0].Style.Weight != gfx.WeightMedium || canvas.Texts()[1].Style.Size != theme.Metrics.FontSizeM {
 		t.Fatalf("danger alert typography = %+v", canvas.Texts())
 	}
 }
 
 func TestAlertDefaultUsesNeutralCardTokens(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	Alert(&canvas, theme, ui.Rect{Width: 240}, AlertData{Title: "Saved"})
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	Alert(&canvas, theme, gfx.Rect{Width: 240}, AlertData{Title: "Saved"})
 	if canvas.Rectangles()[0].Color != theme.Border || canvas.Rectangles()[1].Color != theme.Card {
 		t.Fatalf("default alert surface = %+v", canvas.Rectangles())
 	}
@@ -38,10 +38,10 @@ func TestAlertDefaultUsesNeutralCardTokens(t *testing.T) {
 }
 
 func TestAlertRepeatedPaintIsStableAndAllocationFree(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		Alert(&canvas, ui.DarkTheme(), ui.Rect{Width: 260, Height: 64}, AlertData{Title: "Update available", Description: "Restart when convenient.", Icon: checkIcon})
+		Alert(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 260, Height: 64}, AlertData{Title: "Update available", Description: "Restart when convenient.", Icon: checkIcon})
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -56,10 +56,10 @@ func TestAlertRepeatedPaintIsStableAndAllocationFree(t *testing.T) {
 }
 
 func TestAlertIconShiftsTextAndLongDescriptionWrapsAndGrows(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
 	data := AlertData{Title: "Heads up", Description: "The remote host closed the connection while the transfer was still running, so the file may be incomplete."}
-	narrow := ui.Rect{Width: 220}
+	narrow := gfx.Rect{Width: 220}
 	plainHeight := AlertHeight(&canvas, theme, narrow.Width, AlertData{Title: "Heads up"})
 	height := AlertHeight(&canvas, theme, narrow.Width, data)
 	if height <= plainHeight+alertLineHeight(theme.Metrics) {

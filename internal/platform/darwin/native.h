@@ -155,7 +155,7 @@ typedef struct {
     float blue;
     float alpha;
     uint16_t layer;
-    // mono_face is the ui.MonoFace of a fixed-pitch label: 0 system, 1 classic,
+    // mono_face is the gfx.MonoFace of a fixed-pitch label: 0 system, 1 classic,
     // or a family registered with viva_register_mono_family.
     uint16_t mono_face;
     // The generation of the interface font the proportional text was laid out in
@@ -236,7 +236,7 @@ typedef struct {
     int multiline;
     int read_only;
     int secure;
-    // The control's identity (ui.ID.Bits), echoed back by an accessibility action.
+    // The control's identity (gfx.ID.Bits), echoed back by an accessibility action.
     uint64_t id;
     int focusable;
     int expandable;

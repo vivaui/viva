@@ -1,14 +1,14 @@
 package components
 
 import (
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // SegmentOption is one stable choice in a SegmentedControl. ID is returned by
 // the normal canvas pointer and keyboard activation path; callers should keep
 // both ID and order stable between paints.
 type SegmentOption struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Disabled bool
 }
@@ -17,24 +17,24 @@ type SegmentOption struct {
 // state: selection belongs to the application and every paint reads transient
 // pointer and focus state from the canvas.
 type SegmentedControl struct {
-	canvas   *ui.Canvas
-	theme    ui.Theme
-	bounds   ui.Rect
+	canvas   *gfx.Canvas
+	theme    gfx.Theme
+	bounds   gfx.Rect
 	options  []SegmentOption
-	selected ui.ID
-	hovered  ui.ID
-	pressed  ui.ID
-	focused  ui.ID
+	selected gfx.ID
+	hovered  gfx.ID
+	pressed  gfx.ID
+	focused  gfx.ID
 	disabled bool
 	// tabStop is the one segment Tab reaches; arrows move among the others.
-	tabStop ui.ID
+	tabStop gfx.ID
 }
 
 // BeginSegmentedControl starts a segmented choice declaration. Each enabled,
 // non-zero option ID becomes an independently focusable hit. The runtime's
 // existing hit routing therefore activates the focused option with Enter or
 // Space.
-func BeginSegmentedControl(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options []SegmentOption, selected ui.ID) SegmentedControl {
+func BeginSegmentedControl(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options []SegmentOption, selected gfx.ID) SegmentedControl {
 	control := SegmentedControl{
 		canvas:   canvas,
 		theme:    theme,
@@ -51,7 +51,7 @@ func BeginSegmentedControl(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, op
 
 // rovingTabStop keeps the Tab stop on the focused segment, else on the
 // selection, else on the first enabled one.
-func (control SegmentedControl) rovingTabStop() ui.ID {
+func (control SegmentedControl) rovingTabStop() gfx.ID {
 	enabled := func(option SegmentOption) bool {
 		return !control.disabled && !option.Disabled && !option.ID.IsZero()
 	}
@@ -70,44 +70,44 @@ func (control SegmentedControl) rovingTabStop() ui.ID {
 			return option.ID
 		}
 	}
-	return ui.ID{}
+	return gfx.ID{}
 }
 
 // SegmentedControlWidth is the narrowest width at which every option's label is
 // whole with the theme's control padding on both sides of it. The options are of
 // equal width, so it is the widest label's, times their number: a control given
 // less than this cuts its longest label.
-func SegmentedControlWidth(canvas *ui.Canvas, theme ui.Theme, options []SegmentOption) float32 {
+func SegmentedControlWidth(canvas *gfx.Canvas, theme gfx.Theme, options []SegmentOption) float32 {
 	var widest float32
 	for _, option := range options {
-		widest = max(widest, canvas.TextWidthWeight(option.Label, theme.Metrics.FontSizeM, ui.WeightMedium))
+		widest = max(widest, canvas.TextWidthWeight(option.Label, theme.Metrics.FontSizeM, gfx.WeightMedium))
 	}
 	return float32(len(options)) * (widest + 2*theme.Metrics.PadControlX)
 }
 
 // SegmentedControlResult is what painting a segmented control reports back.
 type SegmentedControlResult struct {
-	canvas  *ui.Canvas
+	canvas  *gfx.Canvas
 	options []SegmentOption
 }
 
 // Clicked returns the option whose click this paint is delivering, and false in
-// every other paint (see ui.Canvas.Clicked), so the code that declares the
+// every other paint (see gfx.Canvas.Clicked), so the code that declares the
 // control is the code that changes the selection:
 //
 //	if id, ok := components.BeginSegmentedControl(canvas, theme, bounds, options, selected).Paint().Clicked(); ok {
 //		selected = id
 //	}
-func (result SegmentedControlResult) Clicked() (ui.ID, bool) {
+func (result SegmentedControlResult) Clicked() (gfx.ID, bool) {
 	if result.canvas == nil {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	for _, option := range result.options {
 		if result.canvas.Clicked(option.ID) {
 			return option.ID, true
 		}
 	}
-	return ui.ID{}, false
+	return gfx.ID{}, false
 }
 
 // Disabled renders the complete control as inert.
@@ -120,22 +120,22 @@ func (control SegmentedControl) Disabled() SegmentedControl {
 // Right wrap through enabled non-zero options and reverse in RTL; Home and End
 // choose the first and last enabled options. Vertical arrows are not owned by
 // a horizontal segmented control.
-func SegmentedControlKeyDown(current ui.ID, options []SegmentOption, direction Direction, key ui.Key) (ui.ID, bool) {
+func SegmentedControlKeyDown(current gfx.ID, options []SegmentOption, direction Direction, key gfx.Key) (gfx.ID, bool) {
 	step := 0
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		step = -1
 		if direction.IsRTL() {
 			step = 1
 		}
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		step = 1
 		if direction.IsRTL() {
 			step = -1
 		}
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		return firstEnabledSegment(current, options, 1), true
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		return firstEnabledSegment(current, options, -1), true
 	default:
 		return current, false
@@ -143,7 +143,7 @@ func SegmentedControlKeyDown(current ui.ID, options []SegmentOption, direction D
 	return nextEnabledSegment(current, options, step), true
 }
 
-func firstEnabledSegment(current ui.ID, options []SegmentOption, step int) ui.ID {
+func firstEnabledSegment(current gfx.ID, options []SegmentOption, step int) gfx.ID {
 	for index := 0; index < len(options); index++ {
 		candidate := index
 		if step < 0 {
@@ -157,7 +157,7 @@ func firstEnabledSegment(current ui.ID, options []SegmentOption, step int) ui.ID
 	return current
 }
 
-func nextEnabledSegment(current ui.ID, options []SegmentOption, step int) ui.ID {
+func nextEnabledSegment(current gfx.ID, options []SegmentOption, step int) gfx.ID {
 	if len(options) == 0 {
 		return current
 	}
@@ -221,49 +221,25 @@ func (control SegmentedControl) Paint() SegmentedControlResult {
 
 	// Every option emits exactly one surface rectangle. Resting choices use the
 	// track color, so interaction changes colors without shifting scene nodes.
-	// The selected choice is a raised pill. On a light theme the card is
-	// lighter than the track, which does that; on a dark theme the card is
-	// darker than the track, so using it would sink the pill into the track
-	// with barely any contrast. There the pill is the track lifted toward the
-	// foreground instead.
-	selectedFill := control.theme.Card
-	if segmentedControlLuminance(selectedFill) < segmentedControlLuminance(trackFill)+0.02 {
-		selectedFill = segmentedControlBlend(trackFill, control.theme.Foreground, 0.14)
-	}
+	palette := newSegmentPalette(&control.theme, control.disabled)
 	for index, option := range control.options {
 		bounds := control.segmentBounds(index, count)
 		surface := segmentedControlInset(bounds, 2)
 		enabled := !control.disabled && !option.Disabled
-		hovered := enabled && !option.ID.IsZero() && control.hovered == option.ID
-		pressed := enabled && !option.ID.IsZero() && control.pressed == option.ID
-		selected := !option.ID.IsZero() && option.ID == control.selected
-
-		fill := trackFill
-		if control.theme.Background.Alpha < 1 {
-			// The track is already painted; resting segments must not tint it twice.
-			fill.Alpha = 0
+		state := gfx.State{Disabled: !enabled, Selected: !option.ID.IsZero() && option.ID == control.selected}
+		if enabled && !option.ID.IsZero() {
+			state.Hovered = control.hovered == option.ID
+			state.Pressed = control.pressed == option.ID
+			state.FocusVisible = control.focused == option.ID
 		}
-		switch {
-		case selected && pressed:
-			fill = segmentedControlBlend(selectedFill, control.theme.Foreground, 0.08)
-		case selected && hovered:
-			fill = segmentedControlBlend(selectedFill, control.theme.Foreground, 0.04)
-		case selected:
-			fill = selectedFill
-		case pressed:
-			fill = control.theme.Border
-		case hovered:
-			fill = control.theme.Hover
-		}
-		if !enabled && selected {
-			fill = control.theme.Muted
-		}
-		if enabled && !option.ID.IsZero() && control.focused == option.ID {
+		fill := palette.fill(&control.theme, state)
+		if segmentFocused(state) {
 			// The segment that holds the keyboard, not the whole control.
+			ring := scaledAlpha(control.theme.Ring, 0.50)
 			if control.theme.Background.Alpha < 1 {
-				control.canvas.RoundedOutline(segmentedControlExpand(surface, 3), innerRadius+3, 2, scaledAlpha(control.theme.Ring, 0.50))
+				control.canvas.RoundedOutline(segmentedControlExpand(surface, 3), innerRadius+3, 2, ring)
 			} else {
-				control.canvas.Rounded(segmentedControlExpand(surface, 3), innerRadius+3, scaledAlpha(control.theme.Ring, 0.50))
+				control.canvas.Rounded(segmentedControlExpand(surface, 3), innerRadius+3, ring)
 			}
 			paintBordered(control.canvas, control.theme, surface, innerRadius, control.theme.Ring, fill)
 			continue
@@ -283,7 +259,7 @@ func (control SegmentedControl) Paint() SegmentedControlResult {
 			color.Alpha = 0
 		}
 		x := control.bounds.X + control.bounds.Width*float32(index)/count
-		control.canvas.Fill(ui.Rect{X: x - 0.5, Y: separatorTop, Width: 1, Height: separatorHeight}, color)
+		control.canvas.Fill(gfx.Rect{X: x - 0.5, Y: separatorTop, Width: 1, Height: separatorHeight}, color)
 	}
 
 	for index, option := range control.options {
@@ -291,23 +267,16 @@ func (control SegmentedControl) Paint() SegmentedControlResult {
 		enabled := !control.disabled && !option.Disabled
 		active := !option.ID.IsZero() && option.ID == control.selected
 		hovered := enabled && !option.ID.IsZero() && control.hovered == option.ID
-
-		foreground := control.theme.MutedForeground
-		if active || hovered {
-			foreground = control.theme.Foreground
-		}
-		if !enabled {
-			foreground = control.theme.MutedForeground
-		}
+		foreground := palette.foreground(&control.theme, gfx.State{Disabled: !enabled, Selected: active, Hovered: hovered})
 
 		// Every option shares one weight: a heavier selected label is wider at the
 		// same size, so it would look enlarged and shift off center.
-		control.canvas.LabelCenter(option.Label, bounds, ui.TextStyle{
-			Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground,
+		control.canvas.LabelCenter(option.Label, bounds, gfx.TextStyle{
+			Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground,
 		})
 		if !option.ID.IsZero() {
-			control.canvas.HitWithOptions(option.ID, bounds, option.Label, ui.HitOptions{
-				Role: ui.RoleRadio, Value: option.Label, Disabled: !enabled,
+			control.canvas.HitWithOptions(option.ID, bounds, option.Label, gfx.HitOptions{
+				Role: gfx.RoleRadio, Value: option.Label, Disabled: !enabled,
 				Checked: active, Selected: active,
 				SkipTab: option.ID != control.tabStop,
 			})
@@ -316,13 +285,13 @@ func (control SegmentedControl) Paint() SegmentedControlResult {
 	return result
 }
 
-func (control SegmentedControl) segmentBounds(index int, count float32) ui.Rect {
+func (control SegmentedControl) segmentBounds(index int, count float32) gfx.Rect {
 	left := control.bounds.X + control.bounds.Width*float32(index)/count
 	right := control.bounds.X + control.bounds.Width*float32(index+1)/count
-	return ui.Rect{X: left, Y: control.bounds.Y, Width: right - left, Height: control.bounds.Height}
+	return gfx.Rect{X: left, Y: control.bounds.Y, Width: right - left, Height: control.bounds.Height}
 }
 
-func segmentedControlInset(bounds ui.Rect, amount float32) ui.Rect {
+func segmentedControlInset(bounds gfx.Rect, amount float32) gfx.Rect {
 	width := bounds.Width - amount*2
 	height := bounds.Height - amount*2
 	if width < 0 {
@@ -331,26 +300,117 @@ func segmentedControlInset(bounds ui.Rect, amount float32) ui.Rect {
 	if height < 0 {
 		height = 0
 	}
-	return ui.Rect{X: bounds.X + amount, Y: bounds.Y + amount, Width: width, Height: height}
+	return gfx.Rect{X: bounds.X + amount, Y: bounds.Y + amount, Width: width, Height: height}
 }
 
-func segmentedControlExpand(bounds ui.Rect, amount float32) ui.Rect {
-	return ui.Rect{
+func segmentedControlExpand(bounds gfx.Rect, amount float32) gfx.Rect {
+	return gfx.Rect{
 		X: bounds.X - amount, Y: bounds.Y - amount,
 		Width: bounds.Width + amount*2, Height: bounds.Height + amount*2,
 	}
 }
 
 // segmentedControlLuminance is the relative brightness of a color, 0 to 1.
-func segmentedControlLuminance(color ui.Color) float32 {
+func segmentedControlLuminance(color gfx.Color) float32 {
 	return 0.2126*color.Red + 0.7152*color.Green + 0.0722*color.Blue
 }
 
-func segmentedControlBlend(color, overlay ui.Color, amount float32) ui.Color {
-	return ui.Color{
+func segmentedControlBlend(color, overlay gfx.Color, amount float32) gfx.Color {
+	return gfx.Color{
 		Red:   color.Red + (overlay.Red-color.Red)*amount,
 		Green: color.Green + (overlay.Green-color.Green)*amount,
 		Blue:  color.Blue + (overlay.Blue-color.Blue)*amount,
 		Alpha: color.Alpha,
 	}
 }
+
+// SegmentLook is the look of one choice of a segmented control in one state.
+type SegmentLook struct {
+	// Fill is the choice's background: the raised pill when it is the selected one, the
+	// track's own color (transparent over a translucent theme) while it rests.
+	Fill gfx.Color
+	// Foreground is the color of the label: muted until the choice is selected or under the
+	// pointer, and muted again when it is disabled.
+	Foreground gfx.Color
+	// Border is the 1px line of the choice that holds the keyboard, painted over Fill with
+	// the halo Ring that reaches RingWidth beyond it, as an outline when RingOutline (over a
+	// translucent theme). RingWidth is zero for a choice the keyboard is not on.
+	Border, Ring gfx.Color
+	RingWidth    float32
+	RingOutline  bool
+}
+
+// SegmentRecipe resolves the look of one choice. Selected, Hovered, Pressed, FocusVisible and
+// Disabled of state are read; groupDisabled says the whole control is disabled, which changes
+// the track the choices rest on. A pure function, the one definition the control is painted
+// from.
+func SegmentRecipe(theme gfx.Theme, state gfx.State, groupDisabled bool) SegmentLook {
+	palette := newSegmentPalette(&theme, groupDisabled)
+	look := SegmentLook{Fill: palette.fill(&theme, state), Foreground: palette.foreground(&theme, state)}
+	if segmentFocused(state) {
+		look.Border, look.Ring, look.RingWidth = theme.Ring, scaledAlpha(theme.Ring, 0.50), 3
+		look.RingOutline = theme.Background.Alpha < 1
+	}
+	return look
+}
+
+// segmentPalette is what the choices of one control share: the track they rest on and the pill
+// the selected one is raised on. It is worked out once for the control, not once per choice.
+type segmentPalette struct{ track, selected gfx.Color }
+
+func newSegmentPalette(theme *gfx.Theme, groupDisabled bool) segmentPalette {
+	trackFill := theme.Muted
+	if groupDisabled {
+		trackFill = theme.CardElevated
+	}
+	// The selected choice is a raised pill. On a light theme the card is lighter than the
+	// track, which does that; on a dark theme the card is darker than the track, so using it
+	// would sink the pill into the track with barely any contrast. There the pill is the track
+	// lifted toward the foreground instead.
+	selectedFill := theme.Card
+	if segmentedControlLuminance(selectedFill) < segmentedControlLuminance(trackFill)+0.02 {
+		selectedFill = segmentedControlBlend(trackFill, theme.Foreground, 0.14)
+	}
+	return segmentPalette{track: trackFill, selected: selectedFill}
+}
+
+// fill is the background of a choice in a state.
+func (p segmentPalette) fill(theme *gfx.Theme, state gfx.State) gfx.Color {
+	enabled := !state.Disabled
+	hovered, pressed := enabled && state.Hovered, enabled && state.Pressed
+	fill := p.track
+	if theme.Background.Alpha < 1 {
+		// The track is already painted; resting segments must not tint it twice.
+		fill.Alpha = 0
+	}
+	switch {
+	case state.Selected && pressed:
+		fill = segmentedControlBlend(p.selected, theme.Foreground, 0.08)
+	case state.Selected && hovered:
+		fill = segmentedControlBlend(p.selected, theme.Foreground, 0.04)
+	case state.Selected:
+		fill = p.selected
+	case pressed:
+		fill = theme.Border
+	case hovered:
+		fill = theme.Hover
+	}
+	if !enabled && state.Selected {
+		fill = theme.Muted
+	}
+	return fill
+}
+
+// foreground is the color of the label of a choice in a state.
+func (p segmentPalette) foreground(theme *gfx.Theme, state gfx.State) gfx.Color {
+	if state.Disabled {
+		return theme.MutedForeground
+	}
+	if state.Selected || state.Hovered {
+		return theme.Foreground
+	}
+	return theme.MutedForeground
+}
+
+// segmentFocused reports whether the choice holds the keyboard visibly: a disabled one never does.
+func segmentFocused(state gfx.State) bool { return !state.Disabled && state.FocusVisible }

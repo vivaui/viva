@@ -2,7 +2,7 @@
 
 A dev tool (stdlib only) that measures how well a coding model writes a Viva page given only the
 guide a generated project ships (`cmd/viva/initfiles/AGENTS.md.txt`) and a plain request, the way a
-user would prompt it. Use it after changing `flex`, a component or the guide: the failures it finds
+user would prompt it. Use it after changing `ui`, a component or the guide: the failures it finds
 are gaps in the framework or the guide, not in the model.
 
 ```sh
@@ -14,7 +14,7 @@ go run ./tools/aieval -list                                  # the tasks
 
 For every task, model and run it builds the `viva` command from this checkout, makes a project with
 `viva init` (so the files are exactly what a user gets), sends the guide, the template `main.go` and the
-request to the model, extracts the Go file, runs `go vet`, and feeds compiler errors back for up to
+request to the model, extracts the Go file, runs `go vet` and then `viva vet`, and feeds what they report back for up to
 `-repairs` rounds (default 3). A page that compiles is driven headless (`github.com/vivaui/viva/headless`) through the
 task's expectations. Per run it records: compiled on the first try, repaired in k rounds, or failed; each
 expectation; tokens and wall time. Output (default under `$TMPDIR/viva-aieval/<time>/`): a table on

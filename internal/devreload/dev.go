@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/reloadwire"
-	"github.com/vivaui/viva/ui"
 )
 
 type Options struct {
@@ -89,7 +89,7 @@ func Run(ctx context.Context, options Options) error {
 		reloadLoop(ctx, watch.changes, options.Debounce, build, options, supervisor)
 	}()
 
-	canvas := &ui.Canvas{}
+	canvas := &gfx.Canvas{}
 	reloadwire.ApplyCanvas(canvas, snapshot)
 	fmt.Fprintf(options.Output, "viva dev: running %s\n", options.Package)
 	runErr := app.RunCanvas(supervisor.hostConfig(), canvas)

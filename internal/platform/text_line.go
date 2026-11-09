@@ -1,7 +1,7 @@
 package platform
 
 // A platform text engine measures one line: the shaped line that is drawn, with
-// its caret stops (ui.TextEngine). The native editor behind a field, though, is
+// its caret stops (gfx.TextEngine). The native editor behind a field, though, is
 // handed the whole value of the field, and a multi-line field's value is a
 // document. TextLine finds the one line of it the platform has to lay out, so
 // that the cost of a caret, a selection or an input-method window follows the

@@ -3,7 +3,7 @@ package components
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // SheetSide selects the viewport edge occupied by a sheet.
@@ -19,9 +19,9 @@ const (
 // SheetOptions contains caller-owned modal identities and side geometry.
 type SheetOptions struct {
 	Layer         uint16
-	Scope         ui.ID
-	DismissID     ui.ID
-	CloseID       ui.ID
+	Scope         gfx.ID
+	DismissID     gfx.ID
+	CloseID       gfx.ID
 	Side          SheetSide
 	ContentExtent float32
 	// BodyHeight sizes a top or bottom sheet that has no ContentExtent to its
@@ -35,30 +35,30 @@ type SheetOptions struct {
 	// InitialFocusID names the control that takes focus when the sheet opens.
 	// Zero leaves focus where the runtime puts it, which is nowhere when the
 	// opener is outside the new scope.
-	InitialFocusID ui.ID
+	InitialFocusID gfx.ID
 }
 
 // SheetLayout exposes the source-owned content slots.
 type SheetLayout struct {
-	Content ui.Rect
-	Header  ui.Rect
-	Body    ui.Rect
-	Footer  ui.Rect
-	Close   ui.Rect
+	Content gfx.Rect
+	Header  gfx.Rect
+	Body    gfx.Rect
+	Footer  gfx.Rect
+	Close   gfx.Rect
 }
 
 // Sheet is a modal edge panel matching the Vega sheet recipe.
 type Sheet struct {
-	canvas    *ui.Canvas
-	theme     ui.Theme
-	viewport  ui.Rect
+	canvas    *gfx.Canvas
+	theme     gfx.Theme
+	viewport  gfx.Rect
 	options   SheetOptions
 	disabled  bool
 	hideClose bool
 }
 
 // BeginSheet creates a sheet declaration.
-func BeginSheet(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, options SheetOptions) Sheet {
+func BeginSheet(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, options SheetOptions) Sheet {
 	return Sheet{canvas: canvas, theme: theme, viewport: viewport, options: options}
 }
 
@@ -98,42 +98,42 @@ func (sheet Sheet) Begin(title, description string) SheetLayout {
 		sheet.canvas.PushFocusScope(sheet.options.Scope)
 	}
 	key := overlayKey(sheet.options.DismissID, sheet.options.CloseID, sheet.options.Scope)
-	beginScrim(sheet.canvas, sheet.theme, key, scrimPresence(sheet.theme, sheetScrimTime, ui.EaseInOut), sheet.viewport)
+	beginScrim(sheet.canvas, sheet.theme, key, scrimPresence(sheet.theme, sheetScrimTime, gfx.EaseInOut), sheet.viewport)
 	if !sheet.options.DismissID.IsZero() {
-		sheet.canvas.HitWithOptions(sheet.options.DismissID, sheet.viewport, "Dismiss sheet", ui.HitOptions{
-			Role: ui.RoleButton, Disabled: sheet.disabled, SkipFocus: true, Backdrop: true,
+		sheet.canvas.HitWithOptions(sheet.options.DismissID, sheet.viewport, "Dismiss sheet", gfx.HitOptions{
+			Role: gfx.RoleButton, Disabled: sheet.disabled, SkipFocus: true, Backdrop: true,
 		})
 	}
 	metrics := sheet.theme.Metrics
 	padding := metrics.PadSurface
 	var scratch overlayLines
-	lines := overlayWrap(sheet.canvas, &scratch, description, metrics.FontSizeM, ui.WeightRegular, sheet.contentWidth()-2*padding)
+	lines := overlayWrap(sheet.canvas, &scratch, description, metrics.FontSizeM, gfx.WeightRegular, sheet.contentWidth()-2*padding)
 	headerHeight := sheetHeaderHeight(metrics, len(lines))
 	content := sheet.contentBounds(headerHeight)
 	sheet.canvas.BeginPresence(key, overlaySurfacePart, sheet.presence(), centerOf(content))
-	sheet.canvas.Elevate(content, 0, ui.ShadowLG) // shadow-lg
+	sheet.canvas.Elevate(content, 0, gfx.ShadowLG) // shadow-lg
 	sheet.canvas.Fill(content, sheet.theme.Popover)
 	sheet.paintInnerBorder(content)
 	// The panel is opaque to pointers: pressing it must not reach the dismiss
 	// target behind it.
 	sheet.canvas.Block(content)
 
-	inner := content.Inset(ui.All(padding))
+	inner := content.Inset(gfx.All(padding))
 	footerHeight := dialogFooterHeight(metrics, sheet.options.ButtonSize)
 	layout := SheetLayout{
 		Content: content,
-		Header:  ui.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: headerHeight},
-		Footer:  ui.Rect{X: inner.X, Y: inner.Y + inner.Height - footerHeight, Width: inner.Width, Height: footerHeight},
+		Header:  gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: headerHeight},
+		Footer:  gfx.Rect{X: inner.X, Y: inner.Y + inner.Height - footerHeight, Width: inner.Width, Height: footerHeight},
 	}
-	layout.Body = ui.Rect{X: inner.X, Y: layout.Header.Y + layout.Header.Height + metrics.GapItem*2, Width: inner.Width, Height: max(0, layout.Footer.Y-layout.Header.Y-layout.Header.Height-metrics.GapItem*5)}
+	layout.Body = gfx.Rect{X: inner.X, Y: layout.Header.Y + layout.Header.Height + metrics.GapItem*2, Width: inner.Width, Height: max(0, layout.Footer.Y-layout.Header.Y-layout.Header.Height-metrics.GapItem*5)}
 	titleHeight := overlayLineHeight(metrics)
-	sheet.canvas.Label(title, ui.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: titleHeight}, ui.TextStyle{Size: overlayTitleSize(metrics), Weight: ui.WeightMedium, Color: sheet.theme.Foreground})
-	overlayParagraph(sheet.canvas, lines, ui.Rect{X: inner.X, Y: inner.Y + titleHeight + sheetTitleGap, Width: inner.Width}, overlayLineHeight(metrics), ui.TextStyle{
-		Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: sheet.theme.MutedForeground,
+	sheet.canvas.Label(title, gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: titleHeight}, gfx.TextStyle{Size: overlayTitleSize(metrics), Weight: gfx.WeightMedium, Color: sheet.theme.Foreground})
+	overlayParagraph(sheet.canvas, lines, gfx.Rect{X: inner.X, Y: inner.Y + titleHeight + sheetTitleGap, Width: inner.Width}, overlayLineHeight(metrics), gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: sheet.theme.MutedForeground,
 	}, false)
 	if !sheet.hideClose {
 		closeSize := metrics.ControlHeight
-		layout.Close = ui.Rect{X: content.X + content.Width - padding - closeSize, Y: content.Y + padding, Width: closeSize, Height: closeSize}
+		layout.Close = gfx.Rect{X: content.X + content.Width - padding - closeSize, Y: content.Y + padding, Width: closeSize, Height: closeSize}
 		sheet.paintClose(layout.Close)
 	}
 	return layout
@@ -143,7 +143,7 @@ func (sheet Sheet) Begin(title, description string) SheetLayout {
 const sheetTitleGap = float32(6)
 
 // sheetHeaderHeight is the title and, under it, the description's lines.
-func sheetHeaderHeight(metrics ui.Metrics, descriptionLines int) float32 {
+func sheetHeaderHeight(metrics gfx.Metrics, descriptionLines int) float32 {
 	height := overlayLineHeight(metrics)
 	if descriptionLines > 0 {
 		height += sheetTitleGap + float32(descriptionLines)*overlayLineHeight(metrics)
@@ -153,20 +153,20 @@ func sheetHeaderHeight(metrics ui.Metrics, descriptionLines int) float32 {
 
 // presence is how the panel comes and goes: it fades and slides 40px from its
 // edge (Vega's `translate-*-[2.5rem]` with `duration-200 ease-in-out`).
-func (sheet Sheet) presence() ui.Presence {
+func (sheet Sheet) presence() gfx.Presence {
 	if !moving(sheet.theme) {
-		return ui.Presence{}
+		return gfx.Presence{}
 	}
-	slide := ui.Point{X: sheetSlide}
+	slide := gfx.Point{X: sheetSlide}
 	switch sheet.options.Side {
 	case SheetLeft:
-		slide = ui.Point{X: -sheetSlide}
+		slide = gfx.Point{X: -sheetSlide}
 	case SheetTop:
-		slide = ui.Point{Y: -sheetSlide}
+		slide = gfx.Point{Y: -sheetSlide}
 	case SheetBottom:
-		slide = ui.Point{Y: sheetSlide}
+		slide = gfx.Point{Y: sheetSlide}
 	}
-	return ui.Presence{Motion: ui.Motion{Duration: sheetDuration, Easing: ui.EaseInOut}, Fade: true, SlideIn: slide, SlideOut: slide}
+	return gfx.Presence{Motion: gfx.Motion{Duration: sheetDuration, Easing: gfx.EaseInOut}, Fade: true, SlideIn: slide, SlideOut: slide}
 }
 
 // End closes the layer and installs modal focus and Escape routing. It also ends
@@ -189,7 +189,7 @@ func (sheet Sheet) End() {
 		escapeTarget = sheet.options.CloseID
 	}
 	if sheet.disabled {
-		escapeTarget = ui.ID{}
+		escapeTarget = gfx.ID{}
 	}
 	sheet.canvas.SetEscapeTarget(escapeTarget)
 	if !sheet.options.Scope.IsZero() {
@@ -211,7 +211,7 @@ func (sheet Sheet) contentWidth() float32 {
 	return min(extent, sheet.viewport.Width)
 }
 
-func (sheet Sheet) contentBounds(headerHeight float32) ui.Rect {
+func (sheet Sheet) contentBounds(headerHeight float32) gfx.Rect {
 	extent := sheet.options.ContentExtent
 	if sheet.options.Side == SheetTop || sheet.options.Side == SheetBottom {
 		if extent <= 0 {
@@ -223,30 +223,30 @@ func (sheet Sheet) contentBounds(headerHeight float32) ui.Rect {
 		if sheet.options.Side == SheetBottom {
 			y = sheet.viewport.Y + sheet.viewport.Height - extent
 		}
-		return ui.Rect{X: sheet.viewport.X, Y: y, Width: sheet.viewport.Width, Height: extent}
+		return gfx.Rect{X: sheet.viewport.X, Y: y, Width: sheet.viewport.Width, Height: extent}
 	}
 	extent = sheet.contentWidth()
 	x := sheet.viewport.X
 	if sheet.options.Side == SheetRight {
 		x = sheet.viewport.X + sheet.viewport.Width - extent
 	}
-	return ui.Rect{X: x, Y: sheet.viewport.Y, Width: extent, Height: sheet.viewport.Height}
+	return gfx.Rect{X: x, Y: sheet.viewport.Y, Width: extent, Height: sheet.viewport.Height}
 }
 
-func (sheet Sheet) paintInnerBorder(content ui.Rect) {
+func (sheet Sheet) paintInnerBorder(content gfx.Rect) {
 	switch sheet.options.Side {
 	case SheetLeft:
-		sheet.canvas.Fill(ui.Rect{X: content.X + content.Width - 1, Y: content.Y, Width: 1, Height: content.Height}, sheet.theme.Border)
+		sheet.canvas.Fill(gfx.Rect{X: content.X + content.Width - 1, Y: content.Y, Width: 1, Height: content.Height}, sheet.theme.Border)
 	case SheetTop:
-		sheet.canvas.Fill(ui.Rect{X: content.X, Y: content.Y + content.Height - 1, Width: content.Width, Height: 1}, sheet.theme.Border)
+		sheet.canvas.Fill(gfx.Rect{X: content.X, Y: content.Y + content.Height - 1, Width: content.Width, Height: 1}, sheet.theme.Border)
 	case SheetBottom:
-		sheet.canvas.Fill(ui.Rect{X: content.X, Y: content.Y, Width: content.Width, Height: 1}, sheet.theme.Border)
+		sheet.canvas.Fill(gfx.Rect{X: content.X, Y: content.Y, Width: content.Width, Height: 1}, sheet.theme.Border)
 	default:
-		sheet.canvas.Fill(ui.Rect{X: content.X, Y: content.Y, Width: 1, Height: content.Height}, sheet.theme.Border)
+		sheet.canvas.Fill(gfx.Rect{X: content.X, Y: content.Y, Width: 1, Height: content.Height}, sheet.theme.Border)
 	}
 }
 
-func (sheet Sheet) paintClose(bounds ui.Rect) {
+func (sheet Sheet) paintClose(bounds gfx.Rect) {
 	fill := sheet.theme.Background
 	fill.Alpha = 0
 	foreground := sheet.theme.MutedForeground
@@ -260,7 +260,7 @@ func (sheet Sheet) paintClose(bounds ui.Rect) {
 	sheet.canvas.Rounded(bounds, sheet.theme.Metrics.RadiusControl, fill)
 	paintCross(sheet.canvas, bounds, 16, foreground)
 	if !sheet.options.CloseID.IsZero() {
-		sheet.canvas.HitWithOptions(sheet.options.CloseID, bounds, "Close sheet", ui.HitOptions{Role: ui.RoleButton, Disabled: sheet.disabled})
+		sheet.canvas.HitWithOptions(sheet.options.CloseID, bounds, "Close sheet", gfx.HitOptions{Role: gfx.RoleButton, Disabled: sheet.disabled})
 	}
 }
 

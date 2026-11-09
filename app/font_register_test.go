@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // A generated font with no third-party outlines: every printable ASCII character has one advance.
@@ -24,7 +24,7 @@ func TestARegisteredFontIsDrawnInItsFamily(t *testing.T) {
 	if family != "Viva Test Grid" {
 		t.Fatalf("family = %q", family)
 	}
-	engine := PlatformTextEngine().(ui.FontFamilyAware)
+	engine := PlatformTextEngine().(gfx.FontFamilyAware)
 	t.Cleanup(func() { engine.SetFontFamily("") })
 	engine.SetFontFamily(family)
 	// The registered font gives every printable ASCII character one advance.

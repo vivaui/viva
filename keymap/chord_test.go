@@ -3,23 +3,23 @@ package keymap
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestFromEventNamesTheKeyAWindowDelivers(t *testing.T) {
 	for _, test := range []struct {
 		name  string
-		event ui.KeyEvent
+		event gfx.KeyEvent
 		want  Chord
 		ok    bool
 	}{
-		{"printable chord", ui.KeyEvent{Modifiers: Primary, Text: "p"}, Chord{Modifiers: Primary, Char: 'p'}, true},
-		{"shift reports the capital", ui.KeyEvent{Modifiers: Primary | ui.ModifierShift, Text: "P"}, Chord{Modifiers: Primary | ui.ModifierShift, Char: 'p'}, true},
-		{"named key", ui.KeyEvent{Modifiers: ui.ModifierControl, Key: ui.KeyTab}, Chord{Modifiers: ui.ModifierControl, Key: ui.KeyTab}, true},
-		{"space is a character", ui.KeyEvent{Modifiers: ui.ModifierAlt, Key: ui.KeySpace}, Chord{Modifiers: ui.ModifierAlt, Char: ' '}, true},
-		{"a modifier alone", ui.KeyEvent{Key: ui.KeyShiftLeft}, Chord{}, false},
-		{"composed text", ui.KeyEvent{Text: "é"}, Chord{}, false},
-		{"nothing pressed", ui.KeyEvent{}, Chord{}, false},
+		{"printable chord", gfx.KeyEvent{Modifiers: Primary, Text: "p"}, Chord{Modifiers: Primary, Char: 'p'}, true},
+		{"shift reports the capital", gfx.KeyEvent{Modifiers: Primary | gfx.ModifierShift, Text: "P"}, Chord{Modifiers: Primary | gfx.ModifierShift, Char: 'p'}, true},
+		{"named key", gfx.KeyEvent{Modifiers: gfx.ModifierControl, Key: gfx.KeyTab}, Chord{Modifiers: gfx.ModifierControl, Key: gfx.KeyTab}, true},
+		{"space is a character", gfx.KeyEvent{Modifiers: gfx.ModifierAlt, Key: gfx.KeySpace}, Chord{Modifiers: gfx.ModifierAlt, Char: ' '}, true},
+		{"a modifier alone", gfx.KeyEvent{Key: gfx.KeyShiftLeft}, Chord{}, false},
+		{"composed text", gfx.KeyEvent{Text: "é"}, Chord{}, false},
+		{"nothing pressed", gfx.KeyEvent{}, Chord{}, false},
 	} {
 		got, ok := FromEvent(test.event)
 		if ok != test.ok || got != test.want {
@@ -33,8 +33,8 @@ func TestValidRejectsWhatCannotBeBound(t *testing.T) {
 		{},
 		{Char: 'P'},
 		{Char: 0x7f},
-		{Char: 'a', Key: ui.KeyTab},
-		{Key: ui.KeyShiftLeft},
+		{Char: 'a', Key: gfx.KeyTab},
+		{Key: gfx.KeyShiftLeft},
 		{Modifiers: 1 << 6, Char: 'a'},
 	} {
 		if chord.Valid() {
@@ -49,13 +49,13 @@ func TestValidRejectsWhatCannotBeBound(t *testing.T) {
 func TestNameAndParseRoundTrip(t *testing.T) {
 	var chords []Chord
 	for index := range namedKeys {
-		chords = append(chords, Chord{Modifiers: ui.ModifierAlt, Key: namedKeys[index].key})
+		chords = append(chords, Chord{Modifiers: gfx.ModifierAlt, Key: namedKeys[index].key})
 	}
 	for char := byte(' '); char <= '~'; char++ {
 		if char >= 'A' && char <= 'Z' {
 			continue
 		}
-		chords = append(chords, Chord{Modifiers: Primary | ui.ModifierShift, Char: char})
+		chords = append(chords, Chord{Modifiers: Primary | gfx.ModifierShift, Char: char})
 	}
 	for _, chord := range chords {
 		got, ok := Parse(chord.Modifiers, chord.Name())
@@ -74,10 +74,10 @@ func TestNameAndParseRoundTrip(t *testing.T) {
 }
 
 func TestLabelListsModifiersBeforeTheKey(t *testing.T) {
-	if got := (Chord{Modifiers: ui.ModifierMeta | ui.ModifierControl | ui.ModifierAlt | ui.ModifierShift, Char: 'p'}).Label(); got != "Cmd+Ctrl+Alt+Shift+P" {
+	if got := (Chord{Modifiers: gfx.ModifierMeta | gfx.ModifierControl | gfx.ModifierAlt | gfx.ModifierShift, Char: 'p'}).Label(); got != "Cmd+Ctrl+Alt+Shift+P" {
 		t.Errorf("label = %q", got)
 	}
-	if got := (Chord{Modifiers: ui.ModifierControl, Key: ui.KeyPageUp}).Label(); got != "Ctrl+PageUp" {
+	if got := (Chord{Modifiers: gfx.ModifierControl, Key: gfx.KeyPageUp}).Label(); got != "Ctrl+PageUp" {
 		t.Errorf("label = %q", got)
 	}
 	if got := (Chord{Char: ' '}).Label(); got != "Space" {
@@ -86,7 +86,7 @@ func TestLabelListsModifiersBeforeTheKey(t *testing.T) {
 }
 
 func TestKeycapsHaveOneCapPerModifierThenTheKey(t *testing.T) {
-	chord := Chord{Modifiers: Primary | ui.ModifierShift | ui.ModifierAlt, Char: 'p'}
+	chord := Chord{Modifiers: Primary | gfx.ModifierShift | gfx.ModifierAlt, Char: 'p'}
 	caps := chord.Keycaps(nil)
 	if len(caps) != 4 || caps[3] != "P" {
 		t.Fatalf("keycaps = %q", caps)
@@ -98,7 +98,7 @@ func TestKeycapsHaveOneCapPerModifierThenTheKey(t *testing.T) {
 		}
 		seen[cap] = true
 	}
-	if got := (Chord{Key: ui.KeyLeft}).Keycaps(nil); len(got) != 1 || got[0] != "←" {
+	if got := (Chord{Key: gfx.KeyLeft}).Keycaps(nil); len(got) != 1 || got[0] != "←" {
 		t.Errorf("named keycap = %q", got)
 	}
 	prefix := []string{"x"}
@@ -108,7 +108,7 @@ func TestKeycapsHaveOneCapPerModifierThenTheKey(t *testing.T) {
 }
 
 func TestPrimaryIsOneOfTheModifiers(t *testing.T) {
-	if Primary != ui.ModifierMeta && Primary != ui.ModifierControl {
+	if Primary != gfx.ModifierMeta && Primary != gfx.ModifierControl {
 		t.Fatalf("Primary = %v", Primary)
 	}
 }

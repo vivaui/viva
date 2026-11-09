@@ -46,6 +46,12 @@ screenshot, when the code behind them changes:
   the system's menu when the item has a `Menu`, which closes on a click elsewhere
   and shows what the application listed when it opened, not what it listed the
   time before (KDE keeps what it was told about an id);
+- a menu entry keeps its identity while the application changes its title or
+  state, adds another entry above it or removes one: the click runs the handler
+  of the entry the panel shows (Linux: the panel keeps the layout it read, so a
+  reused id would run another entry's handler). An entry's ID must be unique
+  among the entries of its menu; the same ID in another submenu is another
+  entry, and an entry without an ID is known by its title.
 - a panel closes when it loses focus, and the click that did it does not reopen it;
 - the window manager's close button reaches `OnCloseRequest`;
 - a hidden window is repainted when shown again (a compositor drops its contents);
@@ -122,10 +128,10 @@ checks that they *look* alike. The rule: sizes, spacing, colors,
 shapes and the layout of everything that does not depend on a font are the same on macOS,
 Windows and Linux. **Text is not**: Viva lays a line out, draws it, and places its caret,
 selection and clicks from the one line the platform's own engine shaped (CoreText,
-DirectWrite, Pango, the browser; `ui.TextEngine`), as a native application does. A string
+DirectWrite, Pango, the browser; `gfx.TextEngine`), as a native application does. A string
 is therefore as wide as the glyphs that are drawn, nothing is squeezed, and the widths of
 auto-sized buttons, tabs and tooltips differ between platforms by the difference between
-their fonts. A layout that must not move with the font declares its sizes (`flex`).
+their fonts. A layout that must not move with the font declares its sizes (`ui`).
 
 The reference metrics (`internal/textmetrics`: the advance widths of a reference font plus
 rules for CJK, emoji and the rest) remain as the measurer of unit tests and of
@@ -198,7 +204,7 @@ from software rasterizers, which are not evidence for a GPU's rounding.
   sans), so a label that is as wide as its text is as wide as that platform's text.
   Layouts built from declared sizes do not move.
 - The columns of a terminal depend on the font: a cell is the advance and line box of the
-  face's own font as the platform measures them (`ui.MonoCellEngine`), so a terminal has
+  face's own font as the platform measures them (`gfx.MonoCellEngine`), so a terminal has
   the columns and rows the same font gives a native terminal, and they differ between
   platforms and fonts. A canvas with no such engine (the reference engine, the browser)
   uses the reference cell, 0.6 em by 1.18 em.

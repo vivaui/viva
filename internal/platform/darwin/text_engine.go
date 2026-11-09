@@ -17,8 +17,8 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/textcache"
-	"github.com/vivaui/viva/ui"
 )
 
 // lineCacheLimit is how many shaped lines each generation of the cache keeps (see
@@ -28,7 +28,7 @@ const lineCacheLimit = 1024
 // selectionPieces is the most extents C writes for one selection.
 const selectionPieces = 32
 
-// TextEngine is ui.TextEngine over CoreText: a line is shaped once, in the
+// TextEngine is gfx.TextEngine over CoreText: a line is shaped once, in the
 // system font with the fallback CoreText picks per character, and the width layout
 // uses, the glyphs a label draws, the caret, the selection and a click all come from
 // that line. Use SharedTextEngine: the labels and the native editor draw from the same
@@ -40,7 +40,7 @@ type TextEngine struct {
 	// family is the family the interface's text is shaped in, "" for the system
 	// font. The name is also told to C, which keeps it for viva_system_font.
 	family string
-	// generation moves whenever a line shapes differently from before (ui.FontFamilyAware).
+	// generation moves whenever a line shapes differently from before (gfx.FontFamilyAware).
 	generation atomic.Uint32
 	// spans is where C writes a selection: an array passed to C would move to the heap
 	// on every call.
@@ -62,11 +62,11 @@ func sharedTextEngine() *TextEngine {
 // SharedTextEngine is the engine the darwin backend draws with.
 func SharedTextEngine() *TextEngine { return sharedTextEngine() }
 
-var _ ui.FontFamilyAware = (*TextEngine)(nil)
-var _ ui.TextRasterizer = (*TextEngine)(nil)
-var _ ui.MonoCellEngine = (*TextEngine)(nil)
+var _ gfx.FontFamilyAware = (*TextEngine)(nil)
+var _ gfx.TextRasterizer = (*TextEngine)(nil)
+var _ gfx.MonoCellEngine = (*TextEngine)(nil)
 
-// SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
+// SetFontFamily implements gfx.FontFamilyAware: the family the interface's text is
 // shaped in, "" for the system font. The name is told to C, which holds it for
 // every font it creates, and everything shaped with another family is forgotten.
 func (engine *TextEngine) SetFontFamily(family string) {
@@ -87,9 +87,9 @@ func (engine *TextEngine) SetFontFamily(family string) {
 	engine.generation.Add(1)
 }
 
-// MonoCell implements ui.MonoCellEngine: the advance and line height of the face's own
+// MonoCell implements gfx.MonoCellEngine: the advance and line height of the face's own
 // font, which is the cell a terminal is laid out on.
-func (engine *TextEngine) MonoCell(size float32, face ui.MonoFace) (advance, line float32) {
+func (engine *TextEngine) MonoCell(size float32, face gfx.MonoFace) (advance, line float32) {
 	advance, line, err := MeasureMono(size, face)
 	if err != nil {
 		return 0, 0
@@ -97,7 +97,7 @@ func (engine *TextEngine) MonoCell(size float32, face ui.MonoFace) (advance, lin
 	return advance, line
 }
 
-// FontGeneration implements ui.FontFamilyAware.
+// FontGeneration implements gfx.FontFamilyAware.
 func (engine *TextEngine) FontGeneration() uint32 { return engine.generation.Load() }
 
 // Reset forgets every shaped line, for a change of the system font or of the display
@@ -172,7 +172,7 @@ func (engine *TextEngine) retainedLineStyle(value string, size, weight float32, 
 	return line
 }
 
-// Width implements ui.TextEngine.
+// Width implements gfx.TextEngine.
 func (engine *TextEngine) Width(value string, size, weight float32) float32 {
 	if value == "" || size <= 0 {
 		return 0
@@ -202,17 +202,17 @@ func (engine *TextEngine) WidthStyle(value string, size, weight float32, italic 
 	return float32(line.width)
 }
 
-// RasterizeText implements ui.TextRasterizer with the same CoreText shaped line
+// RasterizeText implements gfx.TextRasterizer with the same CoreText shaped line
 // the engine measures and the native label renderer draws.
-func (engine *TextEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
+func (engine *TextEngine) RasterizeText(value string, style gfx.TextStyle, scale float32, width, height int) (gfx.Bitmap, error) {
 	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width > int(^uint(0)>>1)/4 || height > int(^uint(0)>>1)/(width*4) {
-		return ui.Bitmap{}, fmt.Errorf("darwin: invalid text bitmap size")
+		return gfx.Bitmap{}, fmt.Errorf("darwin: invalid text bitmap size")
 	}
 	if scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
-		return ui.Bitmap{}, fmt.Errorf("darwin: invalid text rasterization scale")
+		return gfx.Bitmap{}, fmt.Errorf("darwin: invalid text rasterization scale")
 	}
 	if !validTextSize(style.Size) {
-		return ui.Bitmap{}, fmt.Errorf("darwin: invalid text rasterization size")
+		return gfx.Bitmap{}, fmt.Errorf("darwin: invalid text rasterization size")
 	}
 	if value == "" {
 		// An empty line is a transparent bitmap of the size asked for, which is
@@ -228,7 +228,7 @@ func (engine *TextEngine) RasterizeText(value string, style ui.TextStyle, scale 
 	}
 	engine.mutex.Unlock()
 	if line == nil {
-		return ui.Bitmap{}, fmt.Errorf("darwin: shape text for rasterization")
+		return gfx.Bitmap{}, fmt.Errorf("darwin: shape text for rasterization")
 	}
 	defer C.viva_text_line_release(line)
 
@@ -246,9 +246,9 @@ func (engine *TextEngine) RasterizeText(value string, style ui.TextStyle, scale 
 		(*C.uchar)(unsafe.Pointer(&pixels[0])),
 	)
 	if status != 0 {
-		return ui.Bitmap{}, fmt.Errorf("darwin: rasterize text")
+		return gfx.Bitmap{}, fmt.Errorf("darwin: rasterize text")
 	}
-	return ui.Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4}, nil
+	return gfx.Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4}, nil
 }
 
 // validTextSize reports whether size is a font size the text system can shape
@@ -259,11 +259,11 @@ func validTextSize(size float32) bool {
 
 // transparentBitmap is an all-zero premultiplied BGRA bitmap of the given size:
 // what a line with nothing to draw leaves behind.
-func transparentBitmap(width, height int) ui.Bitmap {
-	return ui.Bitmap{Pix: make([]byte, width*height*4), Width: width, Height: height, Stride: width * 4}
+func transparentBitmap(width, height int) gfx.Bitmap {
+	return gfx.Bitmap{Pix: make([]byte, width*height*4), Width: width, Height: height, Stride: width * 4}
 }
 
-// Caret implements ui.TextEngine.
+// Caret implements gfx.TextEngine.
 func (engine *TextEngine) Caret(value string, size, weight float32, offset int) float32 {
 	return engine.CaretStyle(value, size, weight, false, offset)
 }
@@ -281,29 +281,29 @@ func (engine *TextEngine) CaretStyle(value string, size, weight float32, italic 
 	return float32(C.viva_text_line_caret(line, C.size_t(utf16Offset(value, offset))))
 }
 
-// Selection implements ui.TextEngine.
-func (engine *TextEngine) Selection(dst []ui.TextSpan, value string, size, weight float32, start, end int) []ui.TextSpan {
+// Selection implements gfx.TextEngine.
+func (engine *TextEngine) Selection(dst []gfx.TextSpan, value string, size, weight float32, start, end int) []gfx.TextSpan {
 	return engine.SelectionStyle(dst, value, size, weight, false, start, end)
 }
 
-func (engine *TextEngine) SelectionStyle(dst []ui.TextSpan, value string, size, weight float32, italic bool, start, end int) []ui.TextSpan {
+func (engine *TextEngine) SelectionStyle(dst []gfx.TextSpan, value string, size, weight float32, italic bool, start, end int) []gfx.TextSpan {
 	if value == "" || size <= 0 {
-		return append(dst, ui.TextSpan{})
+		return append(dst, gfx.TextSpan{})
 	}
 	engine.mutex.Lock()
 	defer engine.mutex.Unlock()
 	line := engine.lineStyle(value, size, weight, italic)
 	if line == nil {
-		return append(dst, ui.TextSpan{})
+		return append(dst, gfx.TextSpan{})
 	}
 	count := int(C.viva_text_line_selection(line, C.size_t(utf16Offset(value, start)), C.size_t(utf16Offset(value, end)), &engine.spans[0], selectionPieces))
 	for piece := 0; piece < count; piece++ {
-		dst = append(dst, ui.TextSpan{X: float32(engine.spans[2*piece]), Width: float32(engine.spans[2*piece+1])})
+		dst = append(dst, gfx.TextSpan{X: float32(engine.spans[2*piece]), Width: float32(engine.spans[2*piece+1])})
 	}
 	return dst
 }
 
-// OffsetAt implements ui.TextEngine.
+// OffsetAt implements gfx.TextEngine.
 func (engine *TextEngine) OffsetAt(value string, size, weight, x float32) int {
 	return engine.OffsetAtStyle(value, size, weight, false, x)
 }

@@ -4,7 +4,7 @@ package app
 import (
 	"fmt"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 	WindowFrameless
 	// WindowCustomTitlebar keeps traffic lights but extends content full
 	// height behind a transparent titlebar. The window is moved from the move
-	// regions the page declares (ui.Canvas.MoveRegion, flex Box.MovesWindow),
+	// regions the page declares (gfx.Canvas.MoveRegion, ui.Box.MovesWindow),
 	// and from nowhere else.
 	WindowCustomTitlebar
 	// WindowPanel is a transient popup beside a status item: no chrome, above
@@ -72,7 +72,7 @@ type Config struct {
 	// (kept on a screen); an X11 window manager places the window's frame there,
 	// so the content area sits below the title bar. Window.Frame reports where it
 	// really is.
-	Origin     *ui.Point
+	Origin     *gfx.Point
 	WindowMode WindowMode
 	// TitlebarHeight is the height in logical pixels of the strip the
 	// application paints under a custom titlebar's traffic lights, where the
@@ -107,27 +107,27 @@ type Config struct {
 	OnBackdropChange func(active bool)
 	// Paint, when set, repaints the whole canvas whenever the window size
 	// changes. It runs on the window thread and must not block.
-	Paint func(canvas *ui.Canvas, size ui.Size)
-	// Tree is the identity tree the application's ui.IDs are named in. Setting
+	Paint func(canvas *gfx.Canvas, size gfx.Size)
+	// Tree is the identity tree the application's gfx.IDs are named in. Setting
 	// it makes the window's canvas use it, so identities print as their paths in
 	// logs and in the headless driver's replies. An application with only a few
 	// controls may leave it nil.
-	Tree *ui.Tree
+	Tree *gfx.Tree
 	// OnPointer receives normalized down, move, up, and exit events with the
 	// current hit target and logical window coordinates. The moves of a drag may
 	// be coalesced to the latest queued position, as the platform does natively,
 	// so a handler follows the coordinates rather than the number of calls.
 	// Returning Repaint asks for one synchronous paint; Handled suppresses the
 	// click that press would complete.
-	OnPointer func(event ui.PointerEvent) ui.EventResult
+	OnPointer func(event gfx.PointerEvent) gfx.EventResult
 	// OnKey receives normalized keyboard events for the focused hit target.
 	// Handled suppresses built-in traversal, activation, and Escape dismissal.
-	OnKey func(event ui.KeyEvent) ui.EventResult
+	OnKey func(event gfx.KeyEvent) gfx.EventResult
 	// OnShortcut receives printable keys with any modifiers. Unmodified keys are
 	// offered after input-method processing on macOS and Linux, and on Windows
 	// from the message loop before the input method sees them, except while a
 	// composition is in progress. Control+Enter and Meta+Enter also arrive here
-	// (event.Key is ui.KeyEnter, event.Text empty), before a multiline field
+	// (event.Key is gfx.KeyEnter, event.Text empty), before a multiline field
 	// turns them into a line break. Return Handled only for keys the application
 	// owns; an unhandled chord continues through normal text and IME handling,
 	// so Control+Enter still reaches the field as before. Other named keys
@@ -135,32 +135,32 @@ type Config struct {
 	// text field that has focus takes the standard editing and clipboard chords
 	// first, so the application does not see them there.
 	// This callback runs on the window thread.
-	OnShortcut func(event ui.KeyEvent) ui.EventResult
+	OnShortcut func(event gfx.KeyEvent) gfx.EventResult
 	// OnModifierTap receives a modifier key that was pressed and released on its
-	// own (see ui.ModifierTapEvent), which OnKey never sees outside a terminal
+	// own (see gfx.ModifierTapEvent), which OnKey never sees outside a terminal
 	// that asked for the whole keyboard. It is how an application builds
 	// gestures such as pressing Shift twice. Setting it makes the window report
 	// modifier presses and releases to the runtime; it changes nothing else:
 	// text input and input methods behave as before. Handled and Repaint apply
 	// as for OnKey.
-	OnModifierTap func(event ui.ModifierTapEvent) ui.EventResult
+	OnModifierTap func(event gfx.ModifierTapEvent) gfx.EventResult
 	// OnScroll receives normalized pixel deltas and the hovered hit target.
 	// Handled suppresses the window's default canvas scroll offset.
-	OnScroll func(event ui.ScrollEvent) ui.EventResult
+	OnScroll func(event gfx.ScrollEvent) gfx.EventResult
 	// OnFileDrop receives files dragged from the system over this window: the
 	// pointer entering and moving with them (FileDropOver), leaving
 	// (FileDropLeave), and the drop. Each event carries the hit under the point;
 	// returning Handled says that hit takes files, which the system shows to the
 	// user. On Windows only the drop is reported. Unset, the window accepts no
 	// files and the system refuses the drag.
-	OnFileDrop func(event ui.FileDropEvent) ui.EventResult
+	OnFileDrop func(event gfx.FileDropEvent) gfx.EventResult
 	// OnResize runs on the window thread each time the window's content size
 	// changes, right before the repaint it causes, with the new size in
 	// logical pixels. Paint may only read state, so derive anything the new
 	// size implies (a terminal's rows and columns, a pty's window size) here.
 	// It is not called for the initial size, which is Width and Height, and a
 	// development reload worker does not receive it.
-	OnResize func(size ui.Size)
+	OnResize func(size gfx.Size)
 	// OnFrameChange runs on the window thread when the window's content
 	// rectangle moves or changes size on screen, with the same rectangle
 	// Window.Frame reports at that moment. OnResize still runs first on a
@@ -169,7 +169,7 @@ type Config struct {
 	// was; a live drag reports every intermediate position. On Linux and
 	// Windows, reports are suppressed while the window is maximized so the
 	// saved rectangle preserves the floating geometry for the next launch.
-	OnFrameChange func(frame ui.Rect)
+	OnFrameChange func(frame gfx.Rect)
 	// OnMinimize runs on the window thread when the window is minimized or
 	// restored, including by the system (the Dock, the taskbar, a window
 	// manager key binding), not only by Viva's own window controls. It lets an
@@ -282,9 +282,9 @@ func validComponent(value float64) bool {
 }
 
 // originPoint is Origin's value, or the zero point when none is set.
-func (config Config) originPoint() ui.Point {
+func (config Config) originPoint() gfx.Point {
 	if config.Origin == nil {
-		return ui.Point{}
+		return gfx.Point{}
 	}
 	return *config.Origin
 }

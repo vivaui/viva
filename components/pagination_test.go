@@ -4,19 +4,19 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestPaginationUsesGhostLinksAndOutlinedCurrentPage(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	pagination := BeginPagination(&canvas, theme, ui.Rect{Width: 340})
-	pagination.AddPrevious(ui.Item(1), "Previous", true)
-	pagination.AddPage(ui.Item(2), "1", false)
-	pagination.AddPage(ui.Item(3), "2", true)
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	pagination := BeginPagination(&canvas, theme, gfx.Rect{Width: 340})
+	pagination.AddPrevious(gfx.Item(1), "Previous", true)
+	pagination.AddPage(gfx.Item(2), "1", false)
+	pagination.AddPage(gfx.Item(3), "2", true)
 	pagination.AddEllipsis()
-	pagination.AddNext(ui.Item(4), "Next", false)
-	if len(canvas.Hits()) != 3 || canvas.Hits()[0].ID != ui.Item(2) || canvas.Hits()[1].ID != ui.Item(3) || canvas.Hits()[2].ID != ui.Item(4) {
+	pagination.AddNext(gfx.Item(4), "Next", false)
+	if len(canvas.Hits()) != 3 || canvas.Hits()[0].ID != gfx.Item(2) || canvas.Hits()[1].ID != gfx.Item(3) || canvas.Hits()[2].ID != gfx.Item(4) {
 		t.Fatalf("pagination hits = %+v", canvas.Hits())
 	}
 	if len(canvas.Rectangles()) != 2 || canvas.Rectangles()[0].Color != theme.Border || canvas.Rectangles()[1].Color != theme.Background {
@@ -31,14 +31,14 @@ func TestPaginationUsesGhostLinksAndOutlinedCurrentPage(t *testing.T) {
 }
 
 func TestPaginationCommandStreamIsStable(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		pagination := BeginPagination(&canvas, ui.DarkTheme(), ui.Rect{Width: 280})
-		pagination.AddPrevious(ui.Item(1), "Prev", false)
-		pagination.AddPage(ui.Item(2), "1", true)
-		pagination.AddPage(ui.Item(3), "2", false)
-		pagination.AddNext(ui.Item(4), "Next", false)
+		pagination := BeginPagination(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 280})
+		pagination.AddPrevious(gfx.Item(1), "Prev", false)
+		pagination.AddPage(gfx.Item(2), "1", true)
+		pagination.AddPage(gfx.Item(3), "2", false)
+		pagination.AddNext(gfx.Item(4), "Next", false)
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())

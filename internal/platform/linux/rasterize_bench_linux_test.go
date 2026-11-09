@@ -3,8 +3,8 @@ package linux
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // BenchmarkRasterizeSentence is one proportional sentence drawn word by word, grayscale and
@@ -40,14 +40,14 @@ func BenchmarkRasterizeSentence(benchmark *testing.B) {
 // BenchmarkGridRasterize is one terminal line of 100 cells in four colors, as grayscale and as
 // LCD text (an RGB surface, the coverage of each channel, a span per color).
 func BenchmarkGridRasterize(benchmark *testing.B) {
-	colors := []ui.Color{{Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Green: 1, Alpha: 1}, {Red: 1, Alpha: 1}, {Red: 0.2, Green: 0.4, Blue: 1, Alpha: 1}}
+	colors := []gfx.Color{{Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Green: 1, Alpha: 1}, {Red: 1, Alpha: 1}, {Red: 0.2, Green: 0.4, Blue: 1, Alpha: 1}}
 	value := make([]byte, 100)
 	for index := range value {
 		value[index] = byte('a' + index%26)
 	}
 	label := platform.TextLabel{Value: string(value), Mono: true, CellWidth: 8, Width: 800, Height: 20, FontSize: 14, Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}
 	for index, color := range colors {
-		label.Runs = append(label.Runs, ui.TextRun{Column: int32(index * 25), Bytes: 25, Cells: 25, Color: color})
+		label.Runs = append(label.Runs, gfx.TextRun{Column: int32(index * 25), Bytes: 25, Cells: 25, Color: color})
 	}
 	for _, test := range []struct {
 		name     string

@@ -6,20 +6,20 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/headless"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // Reproduce the real form's position and 125% Windows display scale. Geometry
 // near the origin can pass while fractional-size snapping shifts this glyph.
 func TestCheckboxCheckIsCenteredInWindowsPixels(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	session, err := headless.Open(app.Config{
 		Title: "Checkbox centering", Width: 512, Height: 640,
 		ClearColor: app.Color{Red: 1, Alpha: 1},
-		Paint: func(canvas *ui.Canvas, _ ui.Size) {
-			BeginCheckbox(canvas, theme, ui.Item(1), ui.Rect{X: 458, Y: 602}, true).Paint()
+		Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+			BeginCheckbox(canvas, theme, gfx.Item(1), gfx.Rect{X: 458, Y: 602}, true).Paint()
 		},
 	}, nil, headless.Options{Scale: 1.25})
 	if err != nil {

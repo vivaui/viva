@@ -4,21 +4,21 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestTerminalPreeditRunsPlaceCharactersOnCells(t *testing.T) {
-	color := ui.Color{Red: 1, Alpha: 1}
+	color := gfx.Color{Red: 1, Alpha: 1}
 	for _, test := range []struct {
 		name  string
 		value string
-		want  []ui.TextRun
+		want  []gfx.TextRun
 	}{
-		{"pinyin shares one run", "ni'hao", []ui.TextRun{{Column: 0, Bytes: 6, Cells: 6}}},
-		{"wide characters take two cells each", "你好", []ui.TextRun{{Column: 0, Bytes: 3, Cells: 2}, {Column: 2, Bytes: 3, Cells: 2}}},
-		{"mixed", "ni好", []ui.TextRun{{Column: 0, Bytes: 2, Cells: 2}, {Column: 2, Bytes: 3, Cells: 2}}},
-		{"a narrow non-ASCII letter is on its own cell", "lü", []ui.TextRun{{Column: 0, Bytes: 1, Cells: 1}, {Column: 1, Bytes: 2, Cells: 1}}},
-		{"a combining mark stays with its base", "éx", []ui.TextRun{{Column: 0, Bytes: 3, Cells: 1}, {Column: 1, Bytes: 1, Cells: 1}}},
+		{"pinyin shares one run", "ni'hao", []gfx.TextRun{{Column: 0, Bytes: 6, Cells: 6}}},
+		{"wide characters take two cells each", "你好", []gfx.TextRun{{Column: 0, Bytes: 3, Cells: 2}, {Column: 2, Bytes: 3, Cells: 2}}},
+		{"mixed", "ni好", []gfx.TextRun{{Column: 0, Bytes: 2, Cells: 2}, {Column: 2, Bytes: 3, Cells: 2}}},
+		{"a narrow non-ASCII letter is on its own cell", "lü", []gfx.TextRun{{Column: 0, Bytes: 1, Cells: 1}, {Column: 1, Bytes: 2, Cells: 1}}},
+		{"a combining mark stays with its base", "éx", []gfx.TextRun{{Column: 0, Bytes: 3, Cells: 1}, {Column: 1, Bytes: 1, Cells: 1}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			for index := range test.want {

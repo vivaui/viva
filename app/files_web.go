@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	webplatform "github.com/vivaui/viva/internal/platform/web"
-	"github.com/vivaui/viva/ui"
 )
 
 func asyncOpenFiles(options OpenFileOptions, done func([]platform.FileRef, error)) error {
@@ -55,4 +55,4 @@ func asyncFileError(action string, err error) error {
 
 // The canvas painter is shared with the native build, but the browser backend
 // never calls its file drop path; the web runtime supplies Files itself.
-func fileDropFilesFromPaths([]string) []ui.FileDropFile { return nil }
+func fileDropFilesFromPaths([]string) []gfx.FileDropFile { return nil }

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // fadingApp paints a rectangle that fades in over duration on the animation
@@ -23,9 +23,9 @@ func fadingApp(duration time.Duration) app.Config {
 	return app.Config{
 		Title: "fade", Width: 64, Height: 48,
 		ClearColor: app.Color{Red: 0.1, Green: 0.1, Blue: 0.1, Alpha: 1},
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.BeginPresence(ui.Item(1), 0, ui.Presence{Motion: ui.Motion{Duration: duration}, Fade: true}, ui.Point{})
-			canvas.Fill(ui.Rect{X: 8, Y: 8, Width: 32, Height: 32}, ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.BeginPresence(gfx.Item(1), 0, gfx.Presence{Motion: gfx.Motion{Duration: duration}, Fade: true}, gfx.Point{})
+			canvas.Fill(gfx.Rect{X: 8, Y: 8, Width: 32, Height: 32}, gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
 			canvas.EndPresence()
 		},
 	}
@@ -156,8 +156,8 @@ func TestRecordWritesOneFrameForAnApplicationAtRest(t *testing.T) {
 	session, err := Open(app.Config{
 		Title: "still", Width: 40, Height: 30,
 		ClearColor: app.Color{Alpha: 1},
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.Fill(ui.Rect{Width: 20, Height: 15}, ui.Color{Red: 1, Alpha: 1})
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.Fill(gfx.Rect{Width: 20, Height: 15}, gfx.Color{Red: 1, Alpha: 1})
 		},
 	}, nil, Options{Scale: 1})
 	if err != nil {
@@ -247,8 +247,8 @@ func BenchmarkRecordOneFrame(b *testing.B) {
 	session, err := Open(app.Config{
 		Title: "bench", Width: 320, Height: 160,
 		ClearColor: app.Color{Alpha: 1},
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.Fill(ui.Rect{Width: 120, Height: 40}, ui.Color{Red: 0.2, Green: 0.4, Blue: 0.9, Alpha: 1})
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.Fill(gfx.Rect{Width: 120, Height: 40}, gfx.Color{Red: 0.2, Green: 0.4, Blue: 0.9, Alpha: 1})
 		},
 	}, nil, Options{Scale: 1})
 	if err != nil {

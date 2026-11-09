@@ -8,18 +8,18 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestDropControlsDeliverHoverLeaveAndDropToTheHitUnderThePoint(t *testing.T) {
-	var events []ui.FileDropEvent
+	var events []gfx.FileDropEvent
 	config := app.Config{Width: 320, Height: 200}
-	config.Paint = func(canvas *ui.Canvas, _ ui.Size) {
-		canvas.Hit(ui.Item(7), ui.Rect{X: 40, Y: 50, Width: 100, Height: 80})
+	config.Paint = func(canvas *gfx.Canvas, _ gfx.Size) {
+		canvas.Hit(gfx.Item(7), gfx.Rect{X: 40, Y: 50, Width: 100, Height: 80})
 	}
-	config.OnFileDrop = func(event ui.FileDropEvent) ui.EventResult {
+	config.OnFileDrop = func(event gfx.FileDropEvent) gfx.EventResult {
 		events = append(events, event)
-		return ui.EventResult{Handled: event.Target == ui.Item(7)}
+		return gfx.EventResult{Handled: event.Target == gfx.Item(7)}
 	}
 	session, err := Open(config, nil, Options{})
 	if err != nil {
@@ -42,10 +42,10 @@ func TestDropControlsDeliverHoverLeaveAndDropToTheHitUnderThePoint(t *testing.T)
 	if len(events) != 5 {
 		t.Fatalf("events = %+v", events)
 	}
-	if events[0].Phase != ui.FileDropOver || events[0].Target != ui.Item(7) || !events[1].Target.IsZero() || events[2].Phase != ui.FileDropLeave {
+	if events[0].Phase != gfx.FileDropOver || events[0].Target != gfx.Item(7) || !events[1].Target.IsZero() || events[2].Phase != gfx.FileDropLeave {
 		t.Fatalf("events = %+v", events[:3])
 	}
-	if events[3].Phase != ui.FileDropDrop || events[3].Target != ui.Item(7) || !reflect.DeepEqual(events[3].Paths, []string{"/tmp/a", "/tmp/b c"}) {
+	if events[3].Phase != gfx.FileDropDrop || events[3].Target != gfx.Item(7) || !reflect.DeepEqual(events[3].Paths, []string{"/tmp/a", "/tmp/b c"}) {
 		t.Fatalf("drop = %+v", events[3])
 	}
 	for _, command := range []string{"drop 1 2", "drop 1", "dragover 1", "drop a b /x"} {

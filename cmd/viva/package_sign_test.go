@@ -342,3 +342,41 @@ func TestACertificateIsImportedIntoAKeychainOfItsOwnAndRemoved(t *testing.T) {
 		t.Errorf("a failed import: error %v, commands %v", err, failing.commands)
 	}
 }
+
+func TestStaplerRetriesALostConnectionButNotARefusal(t *testing.T) {
+	waits := 0
+	previousWait, previousAttempts := stapleWait, stapleAttempts
+	stapleWait = func(int) { waits++ }
+	t.Cleanup(func() { stapleWait, stapleAttempts = previousWait, previousAttempts })
+
+	lost := errors.New(`xcrun failed: exit status 68: error is Error Domain=NSURLErrorDomain Code=-1005 "The network connection was lost."`)
+	calls := 0
+	flaky := func(name string, arguments ...string) (string, error) {
+		calls++
+		if calls <= 2 {
+			return "", lost
+		}
+		return "", nil
+	}
+	if err := staple(flaky, "App.dmg"); err != nil {
+		t.Fatalf("a connection lost twice was not retried through: %v", err)
+	}
+	if waits != 2 {
+		t.Fatalf("waited %d times, want 2", waits)
+	}
+
+	calls, waits = 0, 0
+	refused := func(string, ...string) (string, error) {
+		calls++
+		return "", errors.New("xcrun failed: exit status 65: not notarized")
+	}
+	if err := staple(refused, "App.dmg"); err == nil || calls != 1 || waits != 0 {
+		t.Fatalf("a refusal was retried: err=%v calls=%d waits=%d", err, calls, waits)
+	}
+
+	calls, stapleAttempts = 0, 3
+	always := func(string, ...string) (string, error) { calls++; return "", lost }
+	if err := staple(always, "App.dmg"); err == nil || calls != 3 {
+		t.Fatalf("retries are not bounded: err=%v calls=%d", err, calls)
+	}
+}

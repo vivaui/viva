@@ -1,7 +1,7 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -10,7 +10,7 @@ var dialogComponent = Component{
 	paint: (*State).paintDialog, initialize: (*State).initDialog,
 	Examples: []Example{
 		{ID: "default", Title: "打开弹窗", Description: "从按钮打开；确认、取消、关闭与 Escape 均可结束弹窗。", Snippet: `if open {
-    d := f.Dialog(flex.DialogSpec{
+    d := f.Dialog(ui.DialogSpec{
         Title: "Save changes?", Description: "This updates the local example state.",
         Width: 440, Scope: scope, CloseID: closeID,
     })
@@ -21,7 +21,7 @@ var dialogComponent = Component{
     if d.Dismissed() { open = false }
 }`},
 		{ID: "confirm", Title: "确认操作", Description: "初始打开的确认弹窗；Tab 限于弹窗，关闭后可重新打开。", Snippet: `if open {
-    d := f.Dialog(flex.DialogSpec{
+    d := f.Dialog(ui.DialogSpec{
         Title: "Discard changes?", Description: "Unsaved edits will be lost.",
         Scope: scope, CloseID: closeID,
     })
@@ -32,7 +32,7 @@ var dialogComponent = Component{
     if d.Dismissed() { open = false }
 }`},
 		{ID: "destructive", Title: "危险操作", Description: "危险按钮仅改变本地示例结果，不删除任何数据。", Snippet: `if open {
-    d := f.Dialog(flex.DialogSpec{
+    d := f.Dialog(ui.DialogSpec{
         Title: "Remove draft?", Description: "Demo only; no data is deleted.",
         Scope: scope, CloseID: closeID,
     })
@@ -68,13 +68,13 @@ func (state *State) closeDialog(result string) {
 	state.dialog.result = result
 }
 
-func (state *State) paintDialog(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintDialog(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	result := state.dialog.result
 	if result == "" {
 		result = state.Text("等待操作 · Confirm / Cancel", "Awaiting action · Confirm / Cancel")
 	}
-	state.page(canvas, theme, size, 480, state.Text("Dialog · 模态操作", "Dialog · Modal actions"), func(f *flex.Frame) {
-		if f.Button(dialogOpen, "Open dialog").Outline().Self(flex.Start).Clicked() {
+	state.page(canvas, theme, size, 480, state.Text("Dialog · 模态操作", "Dialog · Modal actions"), func(f *ui.Frame) {
+		if f.Button(dialogOpen, "Open dialog").Outline().Self(ui.Start).Clicked() {
 			state.dialog.open = true
 		}
 		f.Text(result).FontSize(theme.Metrics.FontSizeS).Muted()
@@ -88,7 +88,7 @@ func (state *State) paintDialog(canvas *ui.Canvas, theme ui.Theme, size ui.Size)
 		// No DismissID: a press on the scrim does nothing, so the empty margin of
 		// the content is never mistaken for a cancel. Escape and the close button
 		// cancel.
-		dialog := f.Dialog(flex.DialogSpec{
+		dialog := f.Dialog(ui.DialogSpec{
 			Title: title, Description: description, Width: 440, Scope: dialogFocus, CloseID: dialogClose,
 		})
 		dialog.Body(func() {

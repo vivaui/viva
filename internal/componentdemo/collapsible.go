@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -33,11 +33,11 @@ var (
 
 func initializeCollapsible(state *State) { state.flags = 1 }
 
-func (state *State) paintCollapsible(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintCollapsible(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	open := state.flags&1 != 0
 	const contentHeight = 112
-	var slot flex.Box
-	state.page(canvas, theme, size, 520, state.Text("Collapsible · 构建输出", "Collapsible · Build output"), func(f *flex.Frame) {
+	var slot ui.Box
+	state.page(canvas, theme, size, 520, state.Text("Collapsible · 构建输出", "Collapsible · Build output"), func(f *ui.Frame) {
 		height := theme.Metrics.ControlHeight
 		if open {
 			height += contentHeight
@@ -60,6 +60,6 @@ func (state *State) paintCollapsible(canvas *ui.Canvas, theme ui.Theme, size ui.
 	for index, line := range [...]string{
 		"viva-darwin-arm64      3.8 MiB", "viva-windows-amd64     4.1 MiB", "viva-linux-amd64       3.9 MiB",
 	} {
-		canvas.Label(line, ui.Rect{X: content.X + 14, Y: content.Y + 12 + float32(index)*30, Width: content.Width - 28, Height: 22}, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+		canvas.Label(line, gfx.Rect{X: content.X + 14, Y: content.Y + 12 + float32(index)*30, Width: content.Width - 28, Height: 22}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
 	}
 }

@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -60,7 +60,7 @@ func (state *State) initializeQuestionnaire() {
 	}
 }
 
-func (state *State) paintQuestionnaire(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintQuestionnaire(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	multiple := state.exampleID == "multiple-choice"
 	data := components.QuestionnaireData{
 		Progress: "Question 2 of 5", Title: "What should Viva optimize first?",
@@ -70,8 +70,8 @@ func (state *State) paintQuestionnaire(canvas *ui.Canvas, theme ui.Theme, size u
 		data.Title = "Which performance goals matter?"
 		data.ChoiceType = components.QuestionnaireCheckbox
 	}
-	var card flex.Box
-	state.page(canvas, theme, size, 560, "Questionnaire", func(f *flex.Frame) {
+	var card ui.Box
+	state.page(canvas, theme, size, 560, "Questionnaire", func(f *ui.Frame) {
 		// The question fills what the page leaves: its own choices and actions
 		// decide what fits (a narrow card drops its last choice).
 		card = f.Slot().Height(max(size.Height-48-36, 0))

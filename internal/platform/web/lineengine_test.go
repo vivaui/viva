@@ -5,8 +5,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/textenginetest"
-	"github.com/vivaui/viva/ui"
 )
 
 // fakeBrowser lays a line out the way a browser does for a left-to-right paragraph:
@@ -173,7 +173,7 @@ func TestAMeasuredLineIsNotMeasuredAgainAndAnInvalidationForgetsIt(t *testing.T)
 	browser := &fakeBrowser{}
 	engine := newLineEngine(browser)
 	const value = "192.168.1.1 主机"
-	dst := make([]ui.TextSpan, 0, 4)
+	dst := make([]gfx.TextSpan, 0, 4)
 	query := func() {
 		engine.Width(value, 14, 0)
 		engine.Caret(value, 14, 0, 4)

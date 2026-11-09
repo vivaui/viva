@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
@@ -51,10 +51,10 @@ var codeDiffComponent = Component{
 		}
 	},
 	paint: (*State).paintCodeDiff,
-	pointer: func(state *State, event ui.PointerEvent) ui.EventResult {
+	pointer: func(state *State, event gfx.PointerEvent) gfx.EventResult {
 		return state.codeDiff.component.Pointer(event)
 	},
-	scroll: func(state *State, event ui.ScrollEvent) ui.EventResult {
+	scroll: func(state *State, event gfx.ScrollEvent) gfx.EventResult {
 		return state.codeDiff.component.Scroll(event)
 	},
 	editable: func(string) (editableField, bool) {
@@ -75,7 +75,7 @@ var codeDiffComponent = Component{
 	}},
 }
 
-func (state *State) paintCodeDiff(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintCodeDiff(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	demo := state.codeDiff
 	value := state.fieldValue(demo.right)
 	if value != demo.right {
@@ -104,8 +104,8 @@ func (state *State) paintCodeDiff(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 		}
 	}
 
-	var stage flex.Box
-	state.page(canvas, theme, size, 660, state.Text("Code Diff · 保存前对比", "Code Diff · Compare before saving"), func(f *flex.Frame) {
+	var stage ui.Box
+	state.page(canvas, theme, size, 660, state.Text("Code Diff · 保存前对比", "Code Diff · Compare before saving"), func(f *ui.Frame) {
 		stage = f.Slot().FillWidth().Height(min(float32(230), max(size.Height-105, 120)))
 		caption(f, state.Text(
 			"差异统计根据当前右侧文本重新计算；滚动和编辑状态由调用方持有。",

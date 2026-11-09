@@ -3,7 +3,7 @@ package keymap
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 type action uint8
@@ -99,7 +99,7 @@ func TestCloneIsIndependent(t *testing.T) {
 
 func TestSetKeepsTheReservedActionUnbound(t *testing.T) {
 	table := newTestTable()
-	if table.Set(actionNone, Chord{Modifiers: ui.ModifierAlt, Char: 'a'}) {
+	if table.Set(actionNone, Chord{Modifiers: gfx.ModifierAlt, Char: 'a'}) {
 		t.Fatal("the reserved action took a chord")
 	}
 }

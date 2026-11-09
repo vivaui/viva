@@ -12,10 +12,10 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestNativeStructureABI(t *testing.T) {
@@ -948,7 +948,7 @@ func TestNextEventCoalescesConfigureNotifyAndInterleavedSyncAndExpose(t *testing
 }
 
 func TestTextureContentChangedPreservesLabelRunsTextureWhenGrowingWithinPreviousWidth(t *testing.T) {
-	runs := []ui.TextRun{{Column: 0, Bytes: 5, Cells: 5}}
+	runs := []gfx.TextRun{{Column: 0, Bytes: 5, Cells: 5}}
 	prev := platform.TextLabel{
 		Value:     "hello",
 		Width:     60,
@@ -979,7 +979,7 @@ func TestVulkanTextUpdatePreservesTexturesAcrossIndexShift(t *testing.T) {
 			Height:    20,
 			FontSize:  14,
 			CellWidth: 8,
-			Runs:      []ui.TextRun{{Column: 0, Bytes: int32(len(val)), Cells: int32(len(val))}},
+			Runs:      []gfx.TextRun{{Column: 0, Bytes: int32(len(val)), Cells: int32(len(val))}},
 		}
 	}
 	var textState vulkanText

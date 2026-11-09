@@ -35,15 +35,15 @@ import (
 	"errors"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/fontfile"
-	"github.com/vivaui/viva/ui"
 )
 
 var fonts fontfile.Registry
 
-var _ ui.FontRegistrar = (*TextEngine)(nil)
+var _ gfx.FontRegistrar = (*TextEngine)(nil)
 
-// RegisterFont implements ui.FontRegistrar: the font is registered with CoreText for this
+// RegisterFont implements gfx.FontRegistrar: the font is registered with CoreText for this
 // process, so the text stack finds its family like an installed one, the fallback included.
 func (engine *TextEngine) RegisterFont(data []byte) (string, func(), error) {
 	family, unregister, err := fonts.Register(data, func(path string) error {

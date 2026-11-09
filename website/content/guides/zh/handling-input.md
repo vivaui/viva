@@ -5,7 +5,7 @@ order: 4
 group: guides
 ---
 
-输入以有类型的回调形式出现在 `app.Config` 上。每个回调接收一个事件，返回一个 `ui.EventResult`，说明应用是否使用了这个事件，以及窗口是否需要重绘。下面的示例用到了所有回调：一个带可拖动分隔条的面板、一个可以点击并用方向键移动的列表、一次次按钮按下、一个键盘快捷键和滚轮滚动。布局用的是 `flex`，所以示例只处理页面自己无法声明的部分。
+输入以有类型的回调形式出现在 `app.Config` 上。每个回调接收一个事件，返回一个 `gfx.EventResult`，说明应用是否使用了这个事件，以及窗口是否需要重绘。下面的示例用到了所有回调：一个带可拖动分隔条的面板、一个可以点击并用方向键移动的列表、一次次按钮按下、一个键盘快捷键和滚轮滚动。布局用的是 `ui`，所以示例只处理页面自己无法声明的部分。
 
 <!-- example: input/main.go -->
 ```go
@@ -17,14 +17,14 @@ import (
 	"runtime"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
 // Identities are names in a tree, not numbers: the application declares the
 // tree once and every control it paints is a name inside a feature of it.
 var (
-	tree = ui.Tree{}
+	tree = gfx.Tree{}
 	page = tree.Feature("mail")
 	rows = tree.Sub(page, tree.Name("rows"))
 
@@ -35,34 +35,34 @@ var (
 var mailboxes = []string{"Inbox", "Drafts", "Sent", "Archive", "Trash"}
 
 type model struct {
-	split    flex.SplitterState
+	split    ui.SplitterState
 	selected int
 	palette  bool
 	context  string
-	view     flex.View
+	view     ui.View
 }
 
 // primary is the modifier that means "the command key" on this platform.
-func primary() ui.Modifiers {
+func primary() gfx.Modifiers {
 	if runtime.GOOS == "darwin" {
-		return ui.ModifierMeta
+		return gfx.ModifierMeta
 	}
-	return ui.ModifierControl
+	return gfx.ModifierControl
 }
 
 func newConfig(m *model) app.Config {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	config := app.Config{Tree: &tree, Title: "Input", Width: 640, Height: 360}
 
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
 		canvas.Fill(bounds, theme.Background)
 
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
+		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
 			f.Row().Fill().Children(func() {
 				f.ScrollArea(list).Width(m.split.Pos).Background(theme.Card).Children(func() {
 					for i, name := range mailboxes {
-						row := f.Row().Pad(8).PadX(12).Hover(flex.Look{}.Background(theme.Hover)).Hit(rows.At(i), name)
+						row := f.Row().Pad(8).PadX(12).Hover(ui.Look{}.Background(theme.Hover)).Hit(rows.At(i), name)
 						if i == m.selected {
 							row.Background(theme.Hover)
 						}
@@ -90,41 +90,41 @@ func newConfig(m *model) app.Config {
 	// the pointer. A drag may be coalesced to its latest position, so a handler
 	// must follow the coordinates, not count moves. Here a secondary press on a
 	// row is the start of a context menu.
-	config.OnPointer = func(event ui.PointerEvent) ui.EventResult {
-		if event.Kind == ui.PointerDown && event.Button == ui.PointerButtonSecondary && event.Target.Scope() == rows {
+	config.OnPointer = func(event gfx.PointerEvent) gfx.EventResult {
+		if event.Kind == gfx.PointerDown && event.Button == gfx.PointerButtonSecondary && event.Target.Scope() == rows {
 			row, _ := event.Target.Name().Index()
 			m.context = "Context menu for " + mailboxes[row]
-			return ui.EventResult{Handled: true, Repaint: true}
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 
 	// OnKey is called for the control that has keyboard focus: a row of the list,
 	// or the divider, which moves with the arrow keys.
-	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
+	config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 		if result := m.split.Key(event); result.Handled {
 			return result
 		}
 		if event.Target.Scope() != rows {
-			return ui.EventResult{}
+			return gfx.EventResult{}
 		}
 		switch event.Key {
-		case ui.KeyDown:
+		case gfx.KeyDown:
 			m.selected = min(m.selected+1, len(mailboxes)-1)
-		case ui.KeyUp:
+		case gfx.KeyUp:
 			m.selected = max(m.selected-1, 0)
 		default:
-			return ui.EventResult{}
+			return gfx.EventResult{}
 		}
-		return ui.EventResult{Handled: true, Repaint: true, Focus: rows.At(m.selected), FocusVisible: true}
+		return gfx.EventResult{Handled: true, Repaint: true, Focus: rows.At(m.selected), FocusVisible: true}
 	}
 
-	config.OnShortcut = func(event ui.KeyEvent) ui.EventResult {
+	config.OnShortcut = func(event gfx.KeyEvent) gfx.EventResult {
 		if event.Modifiers == primary() && event.Text == "k" {
 			m.palette = !m.palette
-			return ui.EventResult{Handled: true, Repaint: true}
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 
 	// The wheel goes to the scroll area under the pointer.
@@ -133,8 +133,8 @@ func newConfig(m *model) app.Config {
 }
 
 func main() {
-	m := &model{split: flex.SplitterState{Pos: 220}}
-	var canvas ui.Canvas
+	m := &model{split: ui.SplitterState{Pos: 220}}
+	var canvas gfx.Canvas
 	if err := app.RunCanvas(newConfig(m), &canvas); err != nil {
 		log.Fatal(err)
 	}
@@ -143,17 +143,17 @@ func main() {
 
 ## 标识
 
-命中区域由 `ui.ID` 标识：一个位置（`ui.Scope`）加上位置内的名字。零值 ID 表示“没有目标”。任何东西都不再手工编号。程序声明一棵 `ui.Tree`，为每个页面或浮层取一个 feature，为每个控件取一个名字；列表是它自己的 scope，行就是 `ui.Index(i)`。
+命中区域由 `gfx.ID` 标识：一个位置（`gfx.Scope`）加上位置内的名字。零值 ID 表示“没有目标”。任何东西都不再手工编号。程序声明一棵 `gfx.Tree`，为每个页面或浮层取一个 feature，为每个控件取一个名字；列表是它自己的 scope，行就是 `gfx.Index(i)`。
 
 ```go
 var (
-	tree    ui.Tree
+	tree    gfx.Tree
 	mail    = tree.Feature("mail")
 	rows    = tree.Sub(mail, tree.Name("rows"))
 	hitSend = mail.ID(tree.Name("send"))   // 一个控件
 )
 
-canvas.Hit(rows.ID(ui.Index(row)), bounds) // 绘制时，每行一个 ID
+canvas.Hit(rows.ID(gfx.Index(row)), bounds) // 绘制时，每行一个 ID
 
 if id.Scope() == rows {                    // 点击到来时
 	row, _ := id.Name().Index()
@@ -188,11 +188,13 @@ if id.Scope() == rows {                    // 点击到来时
 
 ## 快捷键
 
+页面用 `ui.Shortcut` 和 `Box.Shortcut` 在快捷键起作用的地方声明它（见[声明式布局](/zh/docs/declarative-layout/)），不需要下面这些。自己写的处理器匹配到组合键、想让它像点击某个控件那样生效时，在结果里返回带那个控件标识的 `EventResult.Activate`：这一遍绘制会作为该点击的事件遍运行，与在获得焦点的按钮上按回车相同。
+
 `OnShortcut` 在原生文本系统看到之前，先收到可打印按键组合，主要是带 Control 或 Command 的。只对应用自己拥有的组合返回 `Handled`：未处理的组合会继续走正常的文本编辑，所以在文本框里 Command-C 仍然是复制。在 Windows 上，获得焦点的普通文本框会先拿走标准编辑与剪贴板组合（复制、剪切、粘贴、全选、撤销、重做、Home/End、按词和按文档移动），终端和 `Placed` 编辑器不会。示例用 `primary()` 辅助函数来比较 `Modifiers`，因为常规的按键在 macOS 上是 Command，在其他平台上是 Control。
 
 ## 在列表中打字
 
-输入即搜索的列表、树或表格，以及带单字母命令的控件，需要声明自己接收打字：在持有焦点的命中区域上设置 `ui.HitOptions{TypeAhead: true}`，并在 `config.TextInput` 里为它返回一个 `app.TextInput`（该命中区域的 `context.TypeAhead` 为 true）。它获得焦点时键盘是原始的，和终端一样：可打印字符和输入法输入（包括拼音）以 `app.TextInsert` 事件到达 `OnEvent`，其他按键（方向键、Enter、Escape、Backspace、Tab）作为 `ui.KeyEvent` 到达 `OnKey`。查询串由应用持有：追加插入的文本，并在 `TextState`（`Composing`、`Composition`）里回传输入法的组合状态，输入法才会在组合期间保留它需要的按键；移动选中项、自己画搜索浮层。把 `TextInput.Bounds` 设在希望输入法绘制组合文本的位置。没有声明的命中区域不受影响，没有设置 `TextInput` 的窗口也不付出任何代价。headless 测试里 `Session.Keys("f")` 会打进这样的命中区域。
+输入即搜索的列表、树或表格，以及带单字母命令的控件，需要声明自己接收打字：在持有焦点的命中区域上设置 `gfx.HitOptions{TypeAhead: true}`，并在 `config.TextInput` 里为它返回一个 `app.TextInput`（该命中区域的 `context.TypeAhead` 为 true）。它获得焦点时键盘是原始的，和终端一样：可打印字符和输入法输入（包括拼音）以 `app.TextInsert` 事件到达 `OnEvent`，其他按键（方向键、Enter、Escape、Backspace、Tab）作为 `gfx.KeyEvent` 到达 `OnKey`。查询串由应用持有：追加插入的文本，并在 `TextState`（`Composing`、`Composition`）里回传输入法的组合状态，输入法才会在组合期间保留它需要的按键；移动选中项、自己画搜索浮层。把 `TextInput.Bounds` 设在希望输入法绘制组合文本的位置。没有声明的命中区域不受影响，没有设置 `TextInput` 的窗口也不付出任何代价。headless 测试里 `Session.Keys("f")` 会打进这样的命中区域。
 
 `OnShortcut` 用于应用自己拥有的组合键，不用于打字：它早于输入法运行，被它拿走的按键不会进入输入法组合。
 
@@ -200,7 +202,7 @@ if id.Scope() == rows {                    // 点击到来时
 
 ## 滚动
 
-`f.ScrollArea(id)` 把偏移量保存在 `flex.View` 里，所以滚动不需要你保存任何状态：`config.OnScroll = m.view.Wheel` 把滚轮交给指针下方的区域。`OnScroll` 收到像素增量，附带窗口位置、修饰键、`Viewport`（当前窗口大小）和指针下方的命中区域，所以你自己的处理函数不依赖之前的某次指针移动。正的增量露出下方的内容。自己滚动的内容要用 `Canvas.Clip` 裁剪，避免它画到邻居上；被裁掉的命中区域也不再响应。
+`f.ScrollArea(id)` 把偏移量保存在 `ui.View` 里，所以滚动不需要你保存任何状态：`config.OnScroll = m.view.Wheel` 把滚轮交给指针下方的区域。`OnScroll` 收到像素增量，附带窗口位置、修饰键、`Viewport`（当前窗口大小）和指针下方的命中区域，所以你自己的处理函数不依赖之前的某次指针移动。正的增量露出下方的内容。自己滚动的内容要用 `Canvas.Clip` 裁剪，避免它画到邻居上；被裁掉的命中区域也不再响应。
 
 ## 重绘
 

@@ -9,7 +9,7 @@ const panelCornerRadius = 14
 
 // PanelCornerRadius is the radius, in logical pixels, at which the system cuts
 // the corners of a WindowPanel: whatever the panel paints beyond it is not
-// shown. Draw the panel's edge as a ui.Canvas.RoundedBorder of this radius so
+// shown. Draw the panel's edge as a gfx.Canvas.RoundedBorder of this radius so
 // the outline follows the corner instead of being clipped by it. It is zero
 // where panels have square corners.
 func PanelCornerRadius() float32 {

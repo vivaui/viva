@@ -5,19 +5,19 @@ package app
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // TestDriverReportsWindowFrameAndMinimizeState exercises the headless driver the
 // way a window manager would move, resize and minimize a real window.
 func TestDriverReportsWindowFrameAndMinimizeState(t *testing.T) {
-	var frames []ui.Rect
+	var frames []gfx.Rect
 	var minimizes []bool
 	var maximizes []bool
-	origin := ui.Point{X: 10, Y: 20}
+	origin := gfx.Point{X: 10, Y: 20}
 	driver, err := NewDriver(Config{
 		Title: "main", Width: 200, Height: 100, Origin: &origin,
-		OnFrameChange: func(frame ui.Rect) { frames = append(frames, frame) },
+		OnFrameChange: func(frame gfx.Rect) { frames = append(frames, frame) },
 		OnMinimize:    func(minimized bool) { minimizes = append(minimizes, minimized) },
 		OnMaximize:    func(maximized bool) { maximizes = append(maximizes, maximized) },
 	}, nil)
@@ -26,23 +26,23 @@ func TestDriverReportsWindowFrameAndMinimizeState(t *testing.T) {
 	}
 	defer driver.Close()
 
-	if got, want := driver.Frame(), (ui.Rect{X: 10, Y: 20, Width: 200, Height: 100}); got != want {
+	if got, want := driver.Frame(), (gfx.Rect{X: 10, Y: 20, Width: 200, Height: 100}); got != want {
 		t.Fatalf("initial frame = %+v, want %+v", got, want)
 	}
 	if err := driver.MoveWindow(30, 40); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := driver.Frame(), (ui.Rect{X: 30, Y: 40, Width: 200, Height: 100}); got != want {
+	if got, want := driver.Frame(), (gfx.Rect{X: 30, Y: 40, Width: 200, Height: 100}); got != want {
 		t.Fatalf("frame after move = %+v, want %+v", got, want)
 	}
 	if err := driver.Resize(400, 300); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := driver.Frame(), (ui.Rect{X: 30, Y: 40, Width: 400, Height: 300}); got != want {
+	if got, want := driver.Frame(), (gfx.Rect{X: 30, Y: 40, Width: 400, Height: 300}); got != want {
 		t.Fatalf("frame after resize = %+v, want %+v", got, want)
 	}
-	if len(frames) != 2 || frames[0] != (ui.Rect{X: 30, Y: 40, Width: 200, Height: 100}) ||
-		frames[1] != (ui.Rect{X: 30, Y: 40, Width: 400, Height: 300}) {
+	if len(frames) != 2 || frames[0] != (gfx.Rect{X: 30, Y: 40, Width: 200, Height: 100}) ||
+		frames[1] != (gfx.Rect{X: 30, Y: 40, Width: 400, Height: 300}) {
 		t.Fatalf("frame changes = %+v", frames)
 	}
 

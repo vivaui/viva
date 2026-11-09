@@ -5,8 +5,8 @@ package linux
 import (
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 // GdkEvent layouts for GTK 3 on LP64 Linux (amd64 and arm64). GDK hands the shell a pointer to the
@@ -227,18 +227,18 @@ func gdkModifiers(state uint32) input.Modifiers {
 
 // gdkPointerButton maps GDK's button numbers (the X11 numbering, also used for Wayland's evdev
 // buttons by GDK) to Viva's.
-func gdkPointerButton(button uint32) ui.PointerButton {
+func gdkPointerButton(button uint32) gfx.PointerButton {
 	switch button {
 	case 1:
-		return ui.PointerButtonPrimary
+		return gfx.PointerButtonPrimary
 	case 2:
-		return ui.PointerButtonMiddle
+		return gfx.PointerButtonMiddle
 	case 3:
-		return ui.PointerButtonSecondary
+		return gfx.PointerButtonSecondary
 	case 8:
-		return ui.PointerButtonBack
+		return gfx.PointerButtonBack
 	case 9:
-		return ui.PointerButtonForward
+		return gfx.PointerButtonForward
 	}
-	return ui.PointerButtonNone
+	return gfx.PointerButtonNone
 }

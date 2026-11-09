@@ -5,27 +5,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestToastPaintsOnlyCallerSnapshot(t *testing.T) {
-	var canvas ui.Canvas
-	layout := PaintToast(&canvas, ui.LightTheme(), ui.Rect{Width: 1000, Height: 700}, ToastSnapshot{
+	var canvas gfx.Canvas
+	layout := PaintToast(&canvas, gfx.LightTheme(), gfx.Rect{Width: 1000, Height: 700}, ToastSnapshot{
 		Title: "Deployment complete", Description: "Production is now up to date.", Type: ToastSuccess, Index: 1, Expanded: true,
-	}, ToastOptions{Layer: 12, Scope: ui.Item(63), DismissID: ui.Item(7), ActionID: ui.Item(8), ActionLabel: "View"})
-	if layout.Bounds != (ui.Rect{X: 600, Y: 516, Width: 384, Height: 78}) {
+	}, ToastOptions{Layer: 12, Scope: gfx.Item(63), DismissID: gfx.Item(7), ActionID: gfx.Item(8), ActionLabel: "View"})
+	if layout.Bounds != (gfx.Rect{X: 600, Y: 516, Width: 384, Height: 78}) {
 		t.Fatalf("toast bounds = %+v", layout.Bounds)
 	}
-	if canvas.EscapeTarget() != ui.Item(7) || !canvas.TrappedFocusScope().IsZero() {
+	if canvas.EscapeTarget() != gfx.Item(7) || !canvas.TrappedFocusScope().IsZero() {
 		t.Fatalf("toast escape=%d trap=%d", canvas.EscapeTarget(), canvas.TrappedFocusScope())
 	}
 	if len(canvas.Hits()) != 2 {
 		t.Fatalf("hits = %+v", canvas.Hits())
 	}
-	if action := canvas.Hits()[0]; action.ID != ui.Item(8) || action.Role != ui.RoleButton || action.Scope != ui.Item(63) {
+	if action := canvas.Hits()[0]; action.ID != gfx.Item(8) || action.Role != gfx.RoleButton || action.Scope != gfx.Item(63) {
 		t.Fatalf("action = %+v", action)
 	}
-	if close := canvas.Hits()[1]; close.ID != ui.Item(7) || close.Scope != ui.Item(63) {
+	if close := canvas.Hits()[1]; close.ID != gfx.Item(7) || close.Scope != gfx.Item(63) {
 		t.Fatalf("close = %+v", close)
 	}
 	for _, rectangle := range canvas.Rectangles() {
@@ -40,18 +40,18 @@ func TestToastPaintsOnlyCallerSnapshot(t *testing.T) {
 	}
 
 	canvas.Reset()
-	if hidden := PaintToast(&canvas, ui.LightTheme(), ui.Rect{Width: 1000, Height: 700}, ToastSnapshot{Limited: true}, ToastOptions{Layer: 12}); hidden != (ToastLayout{}) || len(canvas.Rectangles()) != 0 {
+	if hidden := PaintToast(&canvas, gfx.LightTheme(), gfx.Rect{Width: 1000, Height: 700}, ToastSnapshot{Limited: true}, ToastOptions{Layer: 12}); hidden != (ToastLayout{}) || len(canvas.Rectangles()) != 0 {
 		t.Fatalf("limited toast painted: layout=%+v rectangles=%+v", hidden, canvas.Rectangles())
 	}
 }
 
 func TestToastPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		PaintToast(&canvas, ui.DarkTheme(), ui.Rect{X: 2, Y: 3, Width: 800, Height: 600}, ToastSnapshot{
+		PaintToast(&canvas, gfx.DarkTheme(), gfx.Rect{X: 2, Y: 3, Width: 800, Height: 600}, ToastSnapshot{
 			Title: "Saving", Description: "Your changes are being written.", Type: ToastLoading, Index: 2, OffsetY: -4,
-		}, ToastOptions{Layer: 10, Scope: ui.Item(11), DismissID: ui.Item(1), ActionID: ui.Item(2), ActionLabel: "Cancel"})
+		}, ToastOptions{Layer: 10, Scope: gfx.Item(11), DismissID: gfx.Item(1), ActionID: gfx.Item(2), ActionLabel: "Cancel"})
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -67,10 +67,10 @@ func TestToastPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) {
 }
 
 func TestToastDescriptionWrapsAndTheToastGrows(t *testing.T) {
-	var canvas ui.Canvas
-	viewport := ui.Rect{Width: 1000, Height: 700}
+	var canvas gfx.Canvas
+	viewport := gfx.Rect{Width: 1000, Height: 700}
 	paint := func(description string) ToastLayout {
-		return PaintToast(&canvas, ui.LightTheme(), viewport, ToastSnapshot{Title: "Upload failed", Description: description}, ToastOptions{Layer: 3, DismissID: ui.Item(1)})
+		return PaintToast(&canvas, gfx.LightTheme(), viewport, ToastSnapshot{Title: "Upload failed", Description: description}, ToastOptions{Layer: 3, DismissID: gfx.Item(1)})
 	}
 	short := paint("Try again.")
 	long := paint("The server closed the connection before the whole file had been written, so nothing was kept on the remote side.")
@@ -80,22 +80,22 @@ func TestToastDescriptionWrapsAndTheToastGrows(t *testing.T) {
 }
 
 func TestToastPositionPicksTheCornerAndLoadingAsksForFramesOnlyWhileShown(t *testing.T) {
-	viewport := ui.Rect{Width: 1000, Height: 700}
-	var canvas ui.Canvas
-	topLeft := PaintToast(&canvas, ui.LightTheme(), viewport, ToastSnapshot{Title: "Hi"}, ToastOptions{Layer: 1, Position: ToastTopLeft})
-	center := PaintToast(&canvas, ui.LightTheme(), viewport, ToastSnapshot{Title: "Hi"}, ToastOptions{Layer: 1, Position: ToastBottomCenter})
+	viewport := gfx.Rect{Width: 1000, Height: 700}
+	var canvas gfx.Canvas
+	topLeft := PaintToast(&canvas, gfx.LightTheme(), viewport, ToastSnapshot{Title: "Hi"}, ToastOptions{Layer: 1, Position: ToastTopLeft})
+	center := PaintToast(&canvas, gfx.LightTheme(), viewport, ToastSnapshot{Title: "Hi"}, ToastOptions{Layer: 1, Position: ToastBottomCenter})
 	if topLeft.Bounds.X != 16 || topLeft.Bounds.Y != 16 || center.Bounds.X+center.Bounds.Width/2 != 500 {
 		t.Fatalf("top left %+v, bottom center %+v", topLeft.Bounds, center.Bounds)
 	}
 	if _, wake := canvas.NextFrame(); wake {
 		t.Fatal("toasts without a spinner asked for a frame")
 	}
-	PaintToast(&canvas, ui.LightTheme(), viewport, ToastSnapshot{Title: "Saving", Type: ToastLoading}, ToastOptions{Layer: 1})
+	PaintToast(&canvas, gfx.LightTheme(), viewport, ToastSnapshot{Title: "Saving", Type: ToastLoading}, ToastOptions{Layer: 1})
 	if _, wake := canvas.NextFrame(); !wake {
 		t.Fatal("a loading toast did not ask for the next spinner step")
 	}
-	canvas = ui.Canvas{}
-	PaintToast(&canvas, ui.LightTheme(), viewport, ToastSnapshot{Title: "Saving", Type: ToastLoading, Limited: true}, ToastOptions{Layer: 1})
+	canvas = gfx.Canvas{}
+	PaintToast(&canvas, gfx.LightTheme(), viewport, ToastSnapshot{Title: "Saving", Type: ToastLoading, Limited: true}, ToastOptions{Layer: 1})
 	if _, wake := canvas.NextFrame(); wake {
 		t.Fatal("a toast that is not shown kept the frame loop running")
 	}
@@ -107,20 +107,20 @@ func TestToastQueueExpiresPausesAndLimits(t *testing.T) {
 	now := time.Unix(0, 0)
 	var queue ToastQueue
 	for index := 1; index <= 3; index++ {
-		if evicted, ok := queue.Add(ui.Item(index), now, false); !ok || !evicted.IsZero() {
+		if evicted, ok := queue.Add(gfx.Item(index), now, false); !ok || !evicted.IsZero() {
 			t.Fatalf("add %d = (%v, %v)", index, evicted, ok)
 		}
 	}
-	if evicted, ok := queue.Add(ui.Item(4), now, false); !ok || evicted != ui.Item(1) || queue.Len() != 3 {
+	if evicted, ok := queue.Add(gfx.Item(4), now, false); !ok || evicted != gfx.Item(1) || queue.Len() != 3 {
 		t.Fatalf("limit add = (%v, %v), len %d", evicted, ok, queue.Len())
 	}
 	if id, expired := queue.Expire(now.Add(ToastQueueTimeout - time.Millisecond)); expired {
 		t.Fatalf("expired early: %v", id)
 	}
-	if id, expired := queue.Expire(now.Add(ToastQueueTimeout)); !expired || id != ui.Item(2) {
+	if id, expired := queue.Expire(now.Add(ToastQueueTimeout)); !expired || id != gfx.Item(2) {
 		t.Fatalf("first expiry = (%v, %v), want item 2", id, expired)
 	}
-	if !queue.Pause(ui.Item(3), now.Add(ToastQueueTimeout)) {
+	if !queue.Pause(gfx.Item(3), now.Add(ToastQueueTimeout)) {
 		t.Fatal("pause failed")
 	}
 	if _, expired := queue.Expire(now.Add(time.Hour)); expired {
@@ -130,13 +130,13 @@ func TestToastQueueExpiresPausesAndLimits(t *testing.T) {
 	if queue.Len() != 1 {
 		t.Fatalf("len after expiry = %d, want the paused toast only", queue.Len())
 	}
-	if !queue.Resume(ui.Item(3), now.Add(time.Hour)) {
+	if !queue.Resume(gfx.Item(3), now.Add(time.Hour)) {
 		t.Fatal("resume failed")
 	}
-	if id, expired := queue.Expire(now.Add(time.Hour + time.Millisecond)); !expired || id != ui.Item(3) {
+	if id, expired := queue.Expire(now.Add(time.Hour + time.Millisecond)); !expired || id != gfx.Item(3) {
 		t.Fatalf("resumed expiry = (%v, %v)", id, expired)
 	}
-	if _, ok := queue.Add(ui.Item(5), now, true); !ok {
+	if _, ok := queue.Add(gfx.Item(5), now, true); !ok {
 		t.Fatal("loading add failed")
 	}
 	if _, expired := queue.Expire(now.Add(time.Hour)); expired {

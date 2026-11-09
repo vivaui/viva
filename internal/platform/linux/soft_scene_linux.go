@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/raster"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 // softScene is the retained scene of a window drawn by the CPU (ADR 0064): the rectangle
@@ -39,7 +39,7 @@ type softScene struct {
 // softLabel is one slot of the label list.
 type softLabel struct {
 	label platform.TextLabel
-	runs  []ui.TextRun // backs label.Runs, which is only valid for the call that carried it
+	runs  []gfx.TextRun // backs label.Runs, which is only valid for the call that carried it
 	// image is the label's picture at imageScale, if it has been drawn.
 	image      labelImage
 	imageScale float32

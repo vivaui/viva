@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // A menu's typeahead starts after the row the keyboard was on, ignores case and
@@ -12,13 +12,13 @@ import (
 // the typed text and its 500ms session; Match only resolves one query.
 func TestMenuScrollMatchFindsLabelsByPrefix(t *testing.T) {
 	var scroll MenuScroll
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	labels := []string{"Save", "Save As", "Open", "Close", "Delete", "Select All"}
 	paint := func() {
 		canvas.Reset()
-		menu := BeginDropdownMenu(&canvas, ui.DarkTheme(), ui.Rect{X: 10, Y: 20, Width: 160, Height: 6*32 + 8}, DropdownMenuOptions{Layer: 7, Scope: ui.Item(42), Scroll: &scroll})
+		menu := BeginDropdownMenu(&canvas, gfx.DarkTheme(), gfx.Rect{X: 10, Y: 20, Width: 160, Height: 6*32 + 8}, DropdownMenuOptions{Layer: 7, Scope: gfx.Item(42), Scroll: &scroll})
 		for index, label := range labels {
-			menu.AddItem(DropdownMenuItem{ID: ui.Item(100 + index), Label: label, Disabled: label == "Delete"})
+			menu.AddItem(DropdownMenuItem{ID: gfx.Item(100 + index), Label: label, Disabled: label == "Delete"})
 		}
 		menu.End()
 	}
@@ -39,9 +39,9 @@ func TestMenuScrollMatchFindsLabelsByPrefix(t *testing.T) {
 		{"an unknown prefix matches nothing", "z", -1, -1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			from := ui.ID{}
+			from := gfx.ID{}
 			if test.from >= 0 {
-				from = ui.Item(100 + test.from)
+				from = gfx.Item(100 + test.from)
 			}
 			id, ok := scroll.Match(test.prefix, from)
 			if test.want < 0 {
@@ -50,7 +50,7 @@ func TestMenuScrollMatchFindsLabelsByPrefix(t *testing.T) {
 				}
 				return
 			}
-			if !ok || id != ui.Item(100+test.want) {
+			if !ok || id != gfx.Item(100+test.want) {
 				t.Fatalf("Match(%q) = (%v, %v), want item %d", test.prefix, id, ok, test.want)
 			}
 		})
@@ -59,29 +59,29 @@ func TestMenuScrollMatchFindsLabelsByPrefix(t *testing.T) {
 
 func TestMenuScrollMatchScrollsTheRowIntoView(t *testing.T) {
 	var scroll MenuScroll
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	labels := []string{"Item 0", "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6", "Item 7"}
-	paint := func() map[ui.ID]ui.Rect {
+	paint := func() map[gfx.ID]gfx.Rect {
 		canvas.Reset()
-		menu := BeginDropdownMenu(&canvas, ui.DarkTheme(), ui.Rect{X: 10, Y: 20, Width: 160, Height: 104}, DropdownMenuOptions{Layer: 7, Scope: ui.Item(42), Scroll: &scroll})
+		menu := BeginDropdownMenu(&canvas, gfx.DarkTheme(), gfx.Rect{X: 10, Y: 20, Width: 160, Height: 104}, DropdownMenuOptions{Layer: 7, Scope: gfx.Item(42), Scroll: &scroll})
 		for index, label := range labels {
-			menu.AddItem(DropdownMenuItem{ID: ui.Item(100 + index), Label: label})
+			menu.AddItem(DropdownMenuItem{ID: gfx.Item(100 + index), Label: label})
 		}
 		menu.End()
-		hits := map[ui.ID]ui.Rect{}
+		hits := map[gfx.ID]gfx.Rect{}
 		for _, hit := range canvas.Hits() {
 			hits[hit.ID] = hit.Bounds
 		}
 		return hits
 	}
-	if hits := paint(); hits[ui.Item(107)].Height > 0 {
+	if hits := paint(); hits[gfx.Item(107)].Height > 0 {
 		t.Fatal("the last row shows before the menu scrolled")
 	}
-	id, ok := scroll.Match("Item 7", ui.ID{})
-	if !ok || id != ui.Item(107) {
+	id, ok := scroll.Match("Item 7", gfx.ID{})
+	if !ok || id != gfx.Item(107) {
 		t.Fatalf("Match = (%v, %v)", id, ok)
 	}
-	bounds, shown := paint()[ui.Item(107)]
+	bounds, shown := paint()[gfx.Item(107)]
 	if !shown || bounds.Y < 20 || bounds.Y+bounds.Height > 124 {
 		t.Fatalf("the matched row is at %+v, outside the menu", bounds)
 	}
@@ -91,12 +91,12 @@ func TestMenuScrollMatchScrollsTheRowIntoView(t *testing.T) {
 // character rather than by a byte prefix.
 func TestMenuScrollMatchUsesRunes(t *testing.T) {
 	var scroll MenuScroll
-	var canvas ui.Canvas
-	menu := BeginDropdownMenu(&canvas, ui.DarkTheme(), ui.Rect{Width: 160, Height: 80}, DropdownMenuOptions{Layer: 7, Scroll: &scroll})
-	menu.AddItem(DropdownMenuItem{ID: ui.Item(1), Label: "设置"})
-	menu.AddItem(DropdownMenuItem{ID: ui.Item(2), Label: "关闭"})
+	var canvas gfx.Canvas
+	menu := BeginDropdownMenu(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 160, Height: 80}, DropdownMenuOptions{Layer: 7, Scroll: &scroll})
+	menu.AddItem(DropdownMenuItem{ID: gfx.Item(1), Label: "设置"})
+	menu.AddItem(DropdownMenuItem{ID: gfx.Item(2), Label: "关闭"})
 	menu.End()
-	if id, ok := scroll.Match("关", ui.ID{}); !ok || id != ui.Item(2) {
+	if id, ok := scroll.Match("关", gfx.ID{}); !ok || id != gfx.Item(2) {
 		t.Fatalf("Match(关) = (%v, %v)", id, ok)
 	}
 }
@@ -106,23 +106,23 @@ func TestMenuScrollMatchUsesRunes(t *testing.T) {
 // the query only while it is running.
 func TestMenuTypeaheadTypesAndCycles(t *testing.T) {
 	var scroll MenuScroll
-	var canvas ui.Canvas
-	menu := BeginDropdownMenu(&canvas, ui.DarkTheme(), ui.Rect{Width: 160, Height: 5*32 + 8}, DropdownMenuOptions{Layer: 7, Scroll: &scroll})
+	var canvas gfx.Canvas
+	menu := BeginDropdownMenu(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 160, Height: 5*32 + 8}, DropdownMenuOptions{Layer: 7, Scroll: &scroll})
 	for index, label := range []string{"Save", "Save As", "Open", "Select All", "Delete"} {
-		menu.AddItem(DropdownMenuItem{ID: ui.Item(100 + index), Label: label, Disabled: label == "Delete"})
+		menu.AddItem(DropdownMenuItem{ID: gfx.Item(100 + index), Label: label, Disabled: label == "Delete"})
 	}
 	menu.End()
 	now := time.Unix(0, 0)
 	var typeahead MenuTypeahead
-	typeKey := func(text string, at time.Time) (ui.ID, bool) {
+	typeKey := func(text string, at time.Time) (gfx.ID, bool) {
 		t.Helper()
-		return typeahead.Type(text, at, &scroll, ui.ID{})
+		return typeahead.Type(text, at, &scroll, gfx.ID{})
 	}
-	if id, ok := typeKey("s", now); !ok || id != ui.Item(100) {
+	if id, ok := typeKey("s", now); !ok || id != gfx.Item(100) {
 		t.Fatalf("s = (%v, %v), want Save", id, ok)
 	}
 	// A second letter narrows the same query rather than starting over.
-	if id, ok := typeKey("e", now.Add(10*time.Millisecond)); !ok || id != ui.Item(103) {
+	if id, ok := typeKey("e", now.Add(10*time.Millisecond)); !ok || id != gfx.Item(103) {
 		t.Fatalf("se = (%v, %v), want Select All", id, ok)
 	}
 	if _, ok := typeKey(" ", now.Add(20*time.Millisecond)); ok {
@@ -134,7 +134,7 @@ func TestMenuTypeaheadTypesAndCycles(t *testing.T) {
 
 	// A fresh session cycles through rows with the same initial.
 	typeahead.Reset()
-	for index, want := range []ui.ID{ui.Item(100), ui.Item(101), ui.Item(103), ui.Item(100)} {
+	for index, want := range []gfx.ID{gfx.Item(100), gfx.Item(101), gfx.Item(103), gfx.Item(100)} {
 		id, ok := typeKey("s", now.Add(time.Duration(index)*time.Millisecond))
 		if !ok || id != want {
 			t.Fatalf("repeated s #%d = (%v, %v), want %v", index+1, id, ok, want)
@@ -143,10 +143,10 @@ func TestMenuTypeaheadTypesAndCycles(t *testing.T) {
 
 	// Half a second later the same key starts a new session instead of cycling.
 	typeahead.Reset()
-	if id, _ := typeKey("s", now); id != ui.Item(100) {
+	if id, _ := typeKey("s", now); id != gfx.Item(100) {
 		t.Fatalf("first s = %v", id)
 	}
-	if id, _ := typeKey("s", now.Add(MenuTypeaheadReset+time.Millisecond)); id != ui.Item(100) {
+	if id, _ := typeKey("s", now.Add(MenuTypeaheadReset+time.Millisecond)); id != gfx.Item(100) {
 		t.Fatalf("s after the reset = %v, want a new session at Save", id)
 	}
 }
@@ -154,15 +154,15 @@ func TestMenuTypeaheadTypesAndCycles(t *testing.T) {
 // Space alone is activation, not a one-character query.
 func TestMenuTypeaheadLeavesASpaceToActivation(t *testing.T) {
 	var scroll MenuScroll
-	var canvas ui.Canvas
-	menu := BeginDropdownMenu(&canvas, ui.DarkTheme(), ui.Rect{Width: 160, Height: 40}, DropdownMenuOptions{Layer: 7, Scroll: &scroll})
-	menu.AddItem(DropdownMenuItem{ID: ui.Item(1), Label: "Open"})
+	var canvas gfx.Canvas
+	menu := BeginDropdownMenu(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 160, Height: 40}, DropdownMenuOptions{Layer: 7, Scroll: &scroll})
+	menu.AddItem(DropdownMenuItem{ID: gfx.Item(1), Label: "Open"})
 	menu.End()
 	var typeahead MenuTypeahead
-	if id, ok := typeahead.Type(" ", time.Unix(0, 0), &scroll, ui.ID{}); ok || !id.IsZero() {
+	if id, ok := typeahead.Type(" ", time.Unix(0, 0), &scroll, gfx.ID{}); ok || !id.IsZero() {
 		t.Fatalf("Space = (%v, %v), want activation", id, ok)
 	}
-	if id, ok := typeahead.Type("ab", time.Unix(0, 0), &scroll, ui.ID{}); ok || !id.IsZero() {
+	if id, ok := typeahead.Type("ab", time.Unix(0, 0), &scroll, gfx.ID{}); ok || !id.IsZero() {
 		t.Fatalf("a multi-rune key = (%v, %v)", id, ok)
 	}
 }
@@ -172,18 +172,18 @@ func TestMenuTypeaheadLeavesASpaceToActivation(t *testing.T) {
 // jumping to another row with the same initial.
 func TestMenuTypeaheadDoesNotCyclePastADoubledInitial(t *testing.T) {
 	var scroll MenuScroll
-	var canvas ui.Canvas
-	menu := BeginDropdownMenu(&canvas, ui.DarkTheme(), ui.Rect{Width: 160, Height: 3*32 + 8}, DropdownMenuOptions{Layer: 7, Scroll: &scroll})
+	var canvas gfx.Canvas
+	menu := BeginDropdownMenu(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 160, Height: 3*32 + 8}, DropdownMenuOptions{Layer: 7, Scroll: &scroll})
 	for index, label := range []string{"Aaron", "Alice"} {
-		menu.AddItem(DropdownMenuItem{ID: ui.Item(100 + index), Label: label})
+		menu.AddItem(DropdownMenuItem{ID: gfx.Item(100 + index), Label: label})
 	}
 	menu.End()
 	now := time.Unix(0, 0)
 	var typeahead MenuTypeahead
-	if id, ok := typeahead.Type("a", now, &scroll, ui.ID{}); !ok || id != ui.Item(100) {
+	if id, ok := typeahead.Type("a", now, &scroll, gfx.ID{}); !ok || id != gfx.Item(100) {
 		t.Fatalf("a = (%v, %v)", id, ok)
 	}
-	if id, ok := typeahead.Type("a", now.Add(time.Millisecond), &scroll, ui.ID{}); !ok || id != ui.Item(100) {
+	if id, ok := typeahead.Type("a", now.Add(time.Millisecond), &scroll, gfx.ID{}); !ok || id != gfx.Item(100) {
 		t.Fatalf("second a = (%v, %v), want Aaron to stay matched", id, ok)
 	}
 }
@@ -193,21 +193,21 @@ func TestMenuTypeaheadDoesNotCyclePastADoubledInitial(t *testing.T) {
 func TestMenuTypeaheadTypeItemsMatchesAClosedList(t *testing.T) {
 	now := time.Unix(0, 0)
 	items := []MenuTypeaheadItem{
-		{ID: ui.Item(1), Label: "zsh"},
-		{ID: ui.Item(2), Label: "bash"},
-		{ID: ui.Item(3), Label: "fish"},
-		{ID: ui.Item(4), Label: "disabled", Disabled: true},
+		{ID: gfx.Item(1), Label: "zsh"},
+		{ID: gfx.Item(2), Label: "bash"},
+		{ID: gfx.Item(3), Label: "fish"},
+		{ID: gfx.Item(4), Label: "disabled", Disabled: true},
 	}
 	var typeahead MenuTypeahead
-	if id, ok := typeahead.TypeItems("f", now, items, ui.ID{}); !ok || id != ui.Item(3) {
+	if id, ok := typeahead.TypeItems("f", now, items, gfx.ID{}); !ok || id != gfx.Item(3) {
 		t.Fatalf("f = (%v, %v), want fish", id, ok)
 	}
 	typeahead.Reset()
-	if id, ok := typeahead.TypeItems("b", now, items, ui.ID{}); !ok || id != ui.Item(2) {
+	if id, ok := typeahead.TypeItems("b", now, items, gfx.ID{}); !ok || id != gfx.Item(2) {
 		t.Fatalf("b = (%v, %v), want bash", id, ok)
 	}
 	typeahead.Reset()
-	if id, ok := typeahead.TypeItems("d", now, items, ui.ID{}); ok || !id.IsZero() {
+	if id, ok := typeahead.TypeItems("d", now, items, gfx.ID{}); ok || !id.IsZero() {
 		t.Fatalf("disabled option matched: (%v, %v)", id, ok)
 	}
 	// Repeating the initial cycles through rows that share it.
@@ -215,8 +215,8 @@ func TestMenuTypeaheadTypeItemsMatchesAClosedList(t *testing.T) {
 	items[0].Label = "sh"
 	items[1].Label = "shell"
 	items[2].Label = "fish"
-	for index, want := range []ui.ID{ui.Item(1), ui.Item(2), ui.Item(1)} {
-		id, ok := typeahead.TypeItems("s", now.Add(time.Duration(index)*time.Millisecond), items, ui.ID{})
+	for index, want := range []gfx.ID{gfx.Item(1), gfx.Item(2), gfx.Item(1)} {
+		id, ok := typeahead.TypeItems("s", now.Add(time.Duration(index)*time.Millisecond), items, gfx.ID{})
 		if !ok || id != want {
 			t.Fatalf("s #%d = (%v, %v), want %v", index+1, id, ok, want)
 		}

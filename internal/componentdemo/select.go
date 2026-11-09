@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -47,10 +47,10 @@ var (
 	selectItem = tree.Sub(selectUI, tree.Name("item"))
 )
 
-func (state *State) paintSelect(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var trigger, unavailable flex.Box
+func (state *State) paintSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var trigger, unavailable ui.Box
 	open := state.flags&1 != 0
-	state.page(canvas, theme, size, 520, "Renderer", func(f *flex.Frame) {
+	state.page(canvas, theme, size, 520, "Renderer", func(f *ui.Frame) {
 		trigger = f.Slot().FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
 		if state.exampleID == "states" {
 			unavailable = f.Slot().FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
@@ -69,7 +69,7 @@ func (state *State) paintSelect(canvas *ui.Canvas, theme ui.Theme, size ui.Size)
 	selectControl := components.BeginSelect(canvas, theme, bounds, components.SelectOptions{
 		TriggerID: selectTrigger, Label: "Renderer", Value: selectValueLabel(state.values[0]), Placeholder: "Select a backend",
 		Open: open, Invalid: state.exampleID == "states" && state.values[0] == 0,
-		Content: ui.Rect{X: bounds.X, Y: contentY, Width: bounds.Width, Height: contentHeight},
+		Content: gfx.Rect{X: bounds.X, Y: contentY, Width: bounds.Width, Height: contentHeight},
 		Layer:   4, Scope: selectScope, DismissID: selectDismiss,
 	})
 	selectControl.AddLabel("Native backends")

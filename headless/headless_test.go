@@ -15,8 +15,8 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // testApp is a small application: a button that counts, a text field, and a
@@ -29,30 +29,30 @@ type testApp struct {
 }
 
 func (a *testApp) config() app.Config {
-	theme := ui.DarkTheme()
-	theme.Metrics = theme.Metrics.WithDensity(ui.DensityCompact)
+	theme := gfx.DarkTheme()
+	theme.Metrics = theme.Metrics.WithDensity(gfx.DensityCompact)
 	return app.Config{
 		Title: "test app", Width: 320, Height: 160,
 		ClearColor: app.Color{Red: 0.1, Green: 0.1, Blue: 0.12, Alpha: 1},
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.Fill(ui.Rect{Width: size.Width, Height: size.Height}, theme.Background)
-			if components.BeginButton(canvas, theme, ui.Item(1), ui.Rect{X: 16, Y: 16, Width: 120, Height: 32}).Default("Add").Clicked() {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.Fill(gfx.Rect{Width: size.Width, Height: size.Height}, theme.Background)
+			if components.BeginButton(canvas, theme, gfx.Item(1), gfx.Rect{X: 16, Y: 16, Width: 120, Height: 32}).Default("Add").Clicked() {
 				a.clicks++
 			}
-			canvas.Label("Clicks: "+string(rune('0'+a.clicks)), ui.Rect{X: 160, Y: 22, Width: 100, Height: 20},
-				ui.TextStyle{Size: 13, Color: theme.Foreground})
-			focused := canvas.Focused() == ui.Item(2)
-			components.PaintInput(canvas, theme, ui.Rect{X: 16, Y: 64, Width: 288, Height: 30}, components.InputSnapshot{
-				ID: ui.Item(2), Label: "Name", Placeholder: "Your name", Value: a.editor.String(),
+			canvas.Label("Clicks: "+string(rune('0'+a.clicks)), gfx.Rect{X: 160, Y: 22, Width: 100, Height: 20},
+				gfx.TextStyle{Size: 13, Color: theme.Foreground})
+			focused := canvas.Focused() == gfx.Item(2)
+			components.PaintInput(canvas, theme, gfx.Rect{X: 16, Y: 64, Width: 288, Height: 30}, components.InputSnapshot{
+				ID: gfx.Item(2), Label: "Name", Placeholder: "Your name", Value: a.editor.String(),
 				PlatformEditing: focused && a.editor.String() != "",
 			})
 		},
-		OnPointer: func(event ui.PointerEvent) ui.EventResult {
-			if event.Kind == ui.PointerDown && event.Button == ui.PointerButtonSecondary {
+		OnPointer: func(event gfx.PointerEvent) gfx.EventResult {
+			if event.Kind == gfx.PointerDown && event.Button == gfx.PointerButtonSecondary {
 				a.secondary++
-				return ui.EventResult{Handled: true}
+				return gfx.EventResult{Handled: true}
 			}
-			return ui.EventResult{}
+			return gfx.EventResult{}
 		},
 		TextInput: func(app.TextInputContext) *app.TextInput { return &app.TextInput{Editor: &a.editor} },
 	}
@@ -92,26 +92,26 @@ func TestSessionOperatesTheApplicationAndAnswersQueries(t *testing.T) {
 	if target.editor.String() != "Ada" {
 		t.Fatalf("typed %q", target.editor.String())
 	}
-	if hit, ok := session.Hit("name"); !ok || hit.ID != ui.Item(2) {
+	if hit, ok := session.Hit("name"); !ok || hit.ID != gfx.Item(2) {
 		t.Fatalf("case-insensitive lookup = %+v %v", hit, ok)
 	}
 }
 
 func TestSessionHitUsesTheFrontMostReachableMatchingControl(t *testing.T) {
-	var clicked []ui.ID
+	var clicked []gfx.ID
 	config := app.Config{Title: "layered labels", Width: 320, Height: 180}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithLabel(ui.Item(1), ui.Rect{X: 10, Y: 10, Width: 120, Height: 32}, "Add Route")
-		canvas.HitWithLabel(ui.Item(2), ui.Rect{X: 10, Y: 55, Width: 120, Height: 32}, "Background Only")
-		canvas.HitWithLabel(ui.Item(3), ui.Rect{X: 155, Y: 10, Width: 140, Height: 32}, "Add Route Details")
-		canvas.PushFocusScope(ui.Item(9))
-		canvas.Block(ui.Rect{X: 0, Y: 0, Width: size.Width, Height: size.Height})
-		canvas.HitWithLabel(ui.Item(4), ui.Rect{X: 90, Y: 120, Width: 140, Height: 32}, "Add Route")
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithLabel(gfx.Item(1), gfx.Rect{X: 10, Y: 10, Width: 120, Height: 32}, "Add Route")
+		canvas.HitWithLabel(gfx.Item(2), gfx.Rect{X: 10, Y: 55, Width: 120, Height: 32}, "Background Only")
+		canvas.HitWithLabel(gfx.Item(3), gfx.Rect{X: 155, Y: 10, Width: 140, Height: 32}, "Add Route Details")
+		canvas.PushFocusScope(gfx.Item(9))
+		canvas.Block(gfx.Rect{X: 0, Y: 0, Width: size.Width, Height: size.Height})
+		canvas.HitWithLabel(gfx.Item(4), gfx.Rect{X: 90, Y: 120, Width: 140, Height: 32}, "Add Route")
 		canvas.PopFocusScope()
-		canvas.TrapFocus(ui.Item(9))
+		canvas.TrapFocus(gfx.Item(9))
 	}
 	paint := config.Paint
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 		paint(canvas, size)
 		for _, hit := range canvas.Hits() {
 			if canvas.Clicked(hit.ID) {
@@ -136,7 +136,7 @@ func TestSessionHitUsesTheFrontMostReachableMatchingControl(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			hit, ok := session.Hit(test.label)
-			if hit.ID != ui.Item(int(test.id)) || ok != test.ok {
+			if hit.ID != gfx.Item(int(test.id)) || ok != test.ok {
 				t.Fatalf("hit = %+v, %v; want ID %d, %v", hit, ok, test.id, test.ok)
 			}
 		})
@@ -144,16 +144,16 @@ func TestSessionHitUsesTheFrontMostReachableMatchingControl(t *testing.T) {
 	if err := session.ClickLabel("Add Route"); err != nil {
 		t.Fatal(err)
 	}
-	if len(clicked) != 1 || clicked[0] != ui.Item(4) {
+	if len(clicked) != 1 || clicked[0] != gfx.Item(4) {
 		t.Fatalf("clicks = %v; want [4]", clicked)
 	}
 }
 
 func TestSessionHitPrefersAnExactReachableLabelOverSubstringMatches(t *testing.T) {
 	config := app.Config{Title: "exact label", Width: 320, Height: 120}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithLabel(ui.Item(1), ui.Rect{X: 10, Y: 10, Width: 120, Height: 32}, "Save")
-		canvas.HitWithLabel(ui.Item(2), ui.Rect{X: 160, Y: 10, Width: 140, Height: 32}, "Save As")
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithLabel(gfx.Item(1), gfx.Rect{X: 10, Y: 10, Width: 120, Height: 32}, "Save")
+		canvas.HitWithLabel(gfx.Item(2), gfx.Rect{X: 160, Y: 10, Width: 140, Height: 32}, "Save As")
 	}
 	session, err := Open(config, nil, Options{})
 	if err != nil {
@@ -161,20 +161,20 @@ func TestSessionHitPrefersAnExactReachableLabelOverSubstringMatches(t *testing.T
 	}
 	defer session.Close()
 
-	if hit, ok := session.Hit("Save"); !ok || hit.ID != ui.Item(1) {
+	if hit, ok := session.Hit("Save"); !ok || hit.ID != gfx.Item(1) {
 		t.Fatalf("hit = %+v, %v; want the exact label 1", hit, ok)
 	}
 }
 
 func BenchmarkSessionHitLabel(b *testing.B) {
 	config := app.Config{Title: "hit label bench", Width: 640, Height: 480}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 		for index := uint32(0); index < 128; index++ {
 			label := "Cell"
 			if index == 127 {
 				label = "Selected Cell"
 			}
-			canvas.HitWithLabel(ui.Item(int(index+1)), ui.Rect{X: float32(index%16) * 40, Y: float32(index/16) * 40, Width: 38, Height: 38}, label)
+			canvas.HitWithLabel(gfx.Item(int(index+1)), gfx.Rect{X: float32(index%16) * 40, Y: float32(index/16) * 40, Width: 38, Height: 38}, label)
 		}
 	}
 	session, err := Open(config, nil, Options{})
@@ -185,7 +185,7 @@ func BenchmarkSessionHitLabel(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		hit, ok := session.Hit("Selected Cell")
-		if !ok || hit.ID != ui.Item(128) {
+		if !ok || hit.ID != gfx.Item(128) {
 			b.Fatalf("hit = %+v, %v; want 128", hit, ok)
 		}
 	}
@@ -230,14 +230,14 @@ func TestKeysParsesChordsAndRoutesThem(t *testing.T) {
 }
 
 func TestKeysPreservesCompleteCommandShortcutModifiers(t *testing.T) {
-	want := ui.ModifierMeta | ui.ModifierAlt | ui.ModifierShift
-	var got ui.KeyEvent
+	want := gfx.ModifierMeta | gfx.ModifierAlt | gfx.ModifierShift
+	var got gfx.KeyEvent
 	session, err := Open(app.Config{
 		Title: "shortcut", Width: 320, Height: 180,
-		Paint: func(*ui.Canvas, ui.Size) {},
-		OnShortcut: func(event ui.KeyEvent) ui.EventResult {
+		Paint: func(*gfx.Canvas, gfx.Size) {},
+		OnShortcut: func(event gfx.KeyEvent) gfx.EventResult {
 			got = event
-			return ui.EventResult{Handled: true}
+			return gfx.EventResult{Handled: true}
 		},
 	}, nil, Options{})
 	if err != nil {
@@ -435,8 +435,8 @@ func TestWaitForAppliesBackgroundWork(t *testing.T) {
 		default:
 		}
 	}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.Label(value, ui.Rect{Width: 100, Height: 20}, ui.TextStyle{Size: 13, Color: ui.Color{Alpha: 1}})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.Label(value, gfx.Rect{Width: 100, Height: 20}, gfx.TextStyle{Size: 13, Color: gfx.Color{Alpha: 1}})
 	}
 	session, err := Open(config, nil, Options{})
 	if err != nil {
@@ -475,14 +475,14 @@ func BenchmarkScreenshot(b *testing.B) {
 // An application that only paints is clicked through the headless
 // driver exactly as through a window: the click reaches the control that declared it.
 func TestHeadlessClickReachesTheControlThatDeclaredIt(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	count := 0
-	var tree ui.Tree
+	var tree gfx.Tree
 	save := tree.ID(tree.Feature("page"), "save")
 	config := app.Config{
 		Title: "decl", Width: 320, Height: 160, Tree: &tree,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			if components.BeginButton(canvas, theme, save, ui.Rect{X: 16, Y: 16, Width: 120, Height: 32}).Default("Save").Clicked() {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			if components.BeginButton(canvas, theme, save, gfx.Rect{X: 16, Y: 16, Width: 120, Height: 32}).Default("Save").Clicked() {
 				count++
 			}
 		},
@@ -511,16 +511,16 @@ func TestClippedShapesAreCutByTheScissorInRealPixels(t *testing.T) {
 	if !rendererAvailable {
 		t.Skip("no renderer on this build")
 	}
-	red := ui.Color{Red: 1, Alpha: 1}
+	red := gfx.Color{Red: 1, Alpha: 1}
 	session, err := Open(app.Config{
 		Title: "clip", Width: 100, Height: 100,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.Clip(ui.Rect{X: 20, Y: 20, Width: 40, Height: 40})
-			canvas.Fill(ui.Rect{X: 0, Y: 0, Width: 100, Height: 100}, red)
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.Clip(gfx.Rect{X: 20, Y: 20, Width: 40, Height: 40})
+			canvas.Fill(gfx.Rect{X: 0, Y: 0, Width: 100, Height: 100}, red)
 			canvas.Unclip()
-			canvas.Clip(ui.Rect{X: 20, Y: 70, Width: 40, Height: 20})
-			canvas.DrawPath(ui.NewPath(100, 10, ui.MoveTo(0, 5), ui.LineTo(100, 5)), ui.Rect{X: 0, Y: 75, Width: 100, Height: 10},
-				ui.PathStyle{Stroke: red, StrokeWidth: 6, Cap: ui.CapButt})
+			canvas.Clip(gfx.Rect{X: 20, Y: 70, Width: 40, Height: 20})
+			canvas.DrawPath(gfx.NewPath(100, 10, gfx.MoveTo(0, 5), gfx.LineTo(100, 5)), gfx.Rect{X: 0, Y: 75, Width: 100, Height: 10},
+				gfx.PathStyle{Stroke: red, StrokeWidth: 6, Cap: gfx.CapButt})
 			canvas.Unclip()
 		},
 	}, nil, Options{Scale: 1})
@@ -587,7 +587,7 @@ func TestSessionMeasuresWithThePlatformEngineUnlessAskedForTheReference(t *testi
 	}
 	const sample = "192.168.1.1 主机 Hello"
 	width := func(options Options) float32 {
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		session, err := Open((&testApp{}).config(), &canvas, options)
 		if err != nil {
 			t.Fatal(err)
@@ -595,28 +595,28 @@ func TestSessionMeasuresWithThePlatformEngineUnlessAskedForTheReference(t *testi
 		defer session.Close()
 		return canvas.TextWidth(sample, 14)
 	}
-	if got, want := width(Options{}), engine.Width(sample, 14, ui.WeightRegular); got != want {
+	if got, want := width(Options{}), engine.Width(sample, 14, gfx.WeightRegular); got != want {
 		t.Errorf("a default session measures %v, the platform engine %v", got, want)
 	}
-	if got, want := width(Options{ReferenceText: true}), ui.ReferenceTextEngine().Width(sample, 14, ui.WeightRegular); got != want {
+	if got, want := width(Options{ReferenceText: true}), gfx.ReferenceTextEngine().Width(sample, 14, gfx.WeightRegular); got != want {
 		t.Errorf("a reference session measures %v, the reference metrics %v", got, want)
 	}
-	if ui.ReferenceTextEngine().Width(sample, 14, ui.WeightRegular) == engine.Width(sample, 14, ui.WeightRegular) {
+	if gfx.ReferenceTextEngine().Width(sample, 14, gfx.WeightRegular) == engine.Width(sample, 14, gfx.WeightRegular) {
 		t.Fatal("the two engines agree on the sample; the test cannot tell them apart")
 	}
 }
 
 func TestKeysTypeIntoAHitThatDeclaresTypeAhead(t *testing.T) {
 	var query string
-	var keys []ui.Key
+	var keys []gfx.Key
 	session, err := Open(app.Config{
 		Title: "type-ahead", Width: 320, Height: 180,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 320, Height: 180}, "Files", ui.HitOptions{Role: ui.RoleGroup, TypeAhead: true})
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 320, Height: 180}, "Files", gfx.HitOptions{Role: gfx.RoleGroup, TypeAhead: true})
 		},
-		OnKey: func(event ui.KeyEvent) ui.EventResult {
+		OnKey: func(event gfx.KeyEvent) gfx.EventResult {
 			keys = append(keys, event.Key)
-			return ui.EventResult{Handled: true}
+			return gfx.EventResult{Handled: true}
 		},
 		TextInput: func(context app.TextInputContext) *app.TextInput {
 			if !context.TypeAhead {
@@ -642,7 +642,7 @@ func TestKeysTypeIntoAHitThatDeclaresTypeAhead(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if query != "foo" || len(keys) != 1 || keys[0] != ui.KeyDown {
+	if query != "foo" || len(keys) != 1 || keys[0] != gfx.KeyDown {
 		t.Fatalf("query = %q, keys = %v", query, keys)
 	}
 }

@@ -5,13 +5,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestChartAreaStyleOpacityAndGradient(t *testing.T) {
-	color := ui.RGB(80, 180, 220)
+	color := gfx.RGB(80, 180, 220)
 	close := func(a, b float32) bool { return math.Abs(float64(a-b)) < .00001 }
-	var gradient ui.LinearGradient
+	var gradient gfx.LinearGradient
 	defaults := chartAreaFillStyle(&gradient, ChartFillGradient, color, 10, 100, nil)
 	if defaults.FillGradient == nil || !close(gradient.From.Alpha, .32) || !close(gradient.To.Alpha, .04) {
 		t.Fatalf("defaults changed: %+v", gradient)
@@ -26,7 +26,7 @@ func TestChartAreaStyleOpacityAndGradient(t *testing.T) {
 			t.Fatalf("opacity %v: %+v", opacity, fill)
 		}
 	}
-	from, to := ui.RGB(100, 10, 200), ui.Color{Red: .2, Blue: 1, Alpha: .1}
+	from, to := gfx.RGB(100, 10, 200), gfx.Color{Red: .2, Blue: 1, Alpha: .1}
 	for _, bounds := range [][2]float32{{10, 100}, {100, 10}, {10, 10}, {10, 10.1}, {10.1, 10}} {
 		style := ChartAreaStyle{Opacity: .25, Gradient: &ChartAreaGradient{From: from, To: to}}
 		chartAreaFillStyle(&gradient, ChartFillGradient, color, bounds[0], bounds[1], &style)
@@ -40,7 +40,7 @@ func TestChartAreaStyleOpacityAndGradient(t *testing.T) {
 			t.Fatal("subpixel negative area inverted its gradient")
 		}
 	}
-	override := ui.RGB(255, 0, 0)
+	override := gfx.RGB(255, 0, 0)
 	fill := chartAreaFillStyle(&gradient, ChartFillSolid, color, 10, 100, &ChartAreaStyle{Color: override, Opacity: .5})
 	if fill.Fill.Red != override.Red || fill.Fill.Green != 0 || fill.Fill.Alpha != .5 {
 		t.Fatal("fill color override changed")
@@ -48,13 +48,13 @@ func TestChartAreaStyleOpacityAndGradient(t *testing.T) {
 }
 
 func TestTransparentAreaDoesNotTessellateAnInvisibleFill(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	chart := chartTestArea(theme)
 	chart.HideTooltip = true
 	chart.YAxis = ChartAxis{Fixed: true, Min: 0, Max: 400}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	chart.Fill = ChartFillNone
-	PaintAreaChart(&canvas, theme, ui.Rect{Width: 320, Height: 180}, ui.Item(1), chart, nil)
+	PaintAreaChart(&canvas, theme, gfx.Rect{Width: 320, Height: 180}, gfx.Item(1), chart, nil)
 	lines := slices.Clone(canvas.Triangles())
 	canvas.Reset()
 	area := ChartAreaStyle{Opacity: 0}
@@ -62,26 +62,26 @@ func TestTransparentAreaDoesNotTessellateAnInvisibleFill(t *testing.T) {
 		chart.Series[i].AreaStyle = &area
 	}
 	chart.Fill = ChartFillGradient
-	PaintAreaChart(&canvas, theme, ui.Rect{Width: 320, Height: 180}, ui.Item(1), chart, nil)
+	PaintAreaChart(&canvas, theme, gfx.Rect{Width: 320, Height: 180}, gfx.Item(1), chart, nil)
 	if !slices.Equal(lines, canvas.Triangles()) {
 		t.Fatal("transparent series changed the line or tessellated a fill")
 	}
 }
 
 func TestChartCustomAreaStyleGapsClipAndSteadyPaint(t *testing.T) {
-	theme := ui.LightTheme()
-	area := ChartAreaStyle{Opacity: .2, Gradient: &ChartAreaGradient{From: theme.Chart[0], To: ui.Color{}}}
+	theme := gfx.LightTheme()
+	area := ChartAreaStyle{Opacity: .2, Gradient: &ChartAreaGradient{From: theme.Chart[0], To: gfx.Color{}}}
 	chart := AreaChart{Series: []ChartSeries{{Key: "cpu", Color: theme.Chart[0], AreaStyle: &area}}, X: []float32{-5, 0, 1, 2, 3, 4, 5}, Values: [][]float32{{15, 25, 35, float32(math.NaN()), 45, 55, 65}},
 		Curve: ChartCurveMonotone, XAxis: ChartAxis{Hidden: true, Fixed: true, Min: 0, Max: 4}, YAxis: ChartAxis{Hidden: true, Fixed: true, Min: 0, Max: 100}, HideTooltip: true}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var state ChartState
 	paint := func() {
 		canvas.Reset()
-		PaintAreaChart(&canvas, theme, ui.Rect{X: 40, Y: 70, Width: 300, Height: 140}, ui.Item(1), chart, &state)
+		PaintAreaChart(&canvas, theme, gfx.Rect{X: 40, Y: 70, Width: 300, Height: 140}, gfx.Item(1), chart, &state)
 	}
 	paint()
 	paint()
-	plot := PaintAreaChart(&canvas, theme, ui.Rect{X: 40, Y: 70, Width: 300, Height: 140}, ui.Item(1), chart, &state).Plot
+	plot := PaintAreaChart(&canvas, theme, gfx.Rect{X: 40, Y: 70, Width: 300, Height: 140}, gfx.Item(1), chart, &state).Plot
 	if len(canvas.Triangles()) == 0 {
 		t.Fatal("custom area style painted nothing")
 	}

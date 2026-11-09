@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // MarkerVariant mirrors the official plain, centered-separator, and
 // bottom-border marker forms.
@@ -14,7 +14,7 @@ const (
 
 // markerLeading is what a marker shows before its content.
 type markerLeading struct {
-	icon    *ui.Icon
+	icon    *gfx.Icon
 	spinner bool
 	phase   SpinnerPhase
 }
@@ -25,7 +25,7 @@ func (leading markerLeading) present() bool { return leading.icon != nil || lead
 // timeline entry, a date separator, a "joined the chat" notice. A nil icon paints
 // none. Without a bounds height the marker is as tall as its line of text (plus the
 // official pb-2 and its rule for MarkerBorder).
-func Marker(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, variant MarkerVariant, icon *ui.Icon, content string) {
+func Marker(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, variant MarkerVariant, icon *gfx.Icon, content string) {
 	paintMarker(canvas, theme, bounds, variant, markerLeading{icon: icon}, content)
 }
 
@@ -33,11 +33,11 @@ func Marker(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, variant MarkerVar
 // does, at the given phase. Advancing the phase and scheduling the next frame are the
 // caller's, as for PaintSpinner. Mark the region a status role where the application
 // declares its accessibility tree: the official marker for progress is role=status.
-func MarkerProgress(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, variant MarkerVariant, phase SpinnerPhase, content string) {
+func MarkerProgress(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, variant MarkerVariant, phase SpinnerPhase, content string) {
 	paintMarker(canvas, theme, bounds, variant, markerLeading{spinner: true, phase: phase}, content)
 }
 
-func paintMarker(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, variant MarkerVariant, leading markerLeading, content string) {
+func paintMarker(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, variant MarkerVariant, leading markerLeading, content string) {
 	metrics := theme.Metrics
 	scale := metrics.ControlHeight / 32
 	line := metrics.FontSizeM + 7 // text-sm leading
@@ -49,7 +49,7 @@ func paintMarker(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, variant Mark
 		bounds.Height = line + rule
 	}
 	// The row the icon and text are centered in; a bottom border sits below it.
-	row := ui.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: max(bounds.Height-rule, 0)}
+	row := gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: max(bounds.Height-rule, 0)}
 	iconSize := 16 * scale
 	contentWidth := canvas.TextWidth(content, metrics.FontSizeM)
 	iconWidth := float32(0)
@@ -64,17 +64,17 @@ func paintMarker(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, variant Mark
 		lineGap := metrics.GapItem + 4*scale
 		leftWidth := x - bounds.X - lineGap
 		if leftWidth > 0 {
-			canvas.Fill(ui.Rect{X: bounds.X, Y: middle, Width: leftWidth, Height: 1}, theme.Border)
+			canvas.Fill(gfx.Rect{X: bounds.X, Y: middle, Width: leftWidth, Height: 1}, theme.Border)
 		}
 		rightX := x + groupWidth + lineGap
 		if rightX < bounds.X+bounds.Width {
-			canvas.Fill(ui.Rect{X: rightX, Y: middle, Width: bounds.X + bounds.Width - rightX, Height: 1}, theme.Border)
+			canvas.Fill(gfx.Rect{X: rightX, Y: middle, Width: bounds.X + bounds.Width - rightX, Height: 1}, theme.Border)
 		}
 	} else if variant == MarkerBorder {
-		canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y + bounds.Height - 1, Width: bounds.Width, Height: 1}, theme.Border)
+		canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y + bounds.Height - 1, Width: bounds.Width, Height: 1}, theme.Border)
 	}
 	if leading.present() {
-		slot := ui.Rect{X: x, Y: middle - iconSize/2, Width: iconSize, Height: iconSize}
+		slot := gfx.Rect{X: x, Y: middle - iconSize/2, Width: iconSize, Height: iconSize}
 		if leading.spinner {
 			muted := theme // the marker's svg takes the muted color, the spinner paints in Foreground
 			muted.Foreground = theme.MutedForeground
@@ -84,7 +84,7 @@ func paintMarker(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, variant Mark
 		}
 		x += iconWidth
 	}
-	canvas.Label(content, ui.Rect{X: x, Y: row.Y, Width: max(bounds.X+bounds.Width-x, 0), Height: row.Height}, ui.TextStyle{
-		Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: theme.MutedForeground,
+	canvas.Label(content, gfx.Rect{X: x, Y: row.Y, Width: max(bounds.X+bounds.Width-x, 0), Height: row.Height}, gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: theme.MutedForeground,
 	})
 }

@@ -9,12 +9,12 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func newFilesDriver(t *testing.T) *Driver {
 	t.Helper()
-	driver, err := NewDriver(Config{Title: "files", Width: 100, Height: 100, Paint: func(*ui.Canvas, ui.Size) {}}, nil)
+	driver, err := NewDriver(Config{Title: "files", Width: 100, Height: 100, Paint: func(*gfx.Canvas, gfx.Size) {}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

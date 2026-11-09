@@ -7,7 +7,7 @@ import (
 	"strings"
 	"syscall/js"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func cssFont(fontSize, weight float32) string {
@@ -43,7 +43,7 @@ type baselineMetrics struct {
 }
 
 // cssMonoFont is the browser's fixed-pitch font.
-func cssMonoFont(fontSize, weight float32, italic bool, face ui.MonoFace) string {
+func cssMonoFont(fontSize, weight float32, italic bool, face gfx.MonoFace) string {
 	cssWeight := 400
 	switch {
 	case weight >= 0.34:
@@ -62,23 +62,23 @@ func cssMonoFont(fontSize, weight float32, italic bool, face ui.MonoFace) string
 
 // cssMonoFamilies is the font-family list of a face: its primary font, then the
 // families that draw what the primary lacks, then the generic ones.
-func cssMonoFamilies(face ui.MonoFace) string {
+func cssMonoFamilies(face gfx.MonoFace) string {
 	var list strings.Builder
-	switch name := ui.MonoFamilyName(face); {
+	switch name := gfx.MonoFamilyName(face); {
 	case name != "":
 		list.WriteString(cssFamily(name))
 		list.WriteString(", ")
-	case ui.MonoIsClassic(face):
+	case gfx.MonoIsClassic(face):
 		list.WriteString("'Courier New', Courier, ")
 	}
-	for _, fallback := range ui.MonoFallbacks(face) {
+	for _, fallback := range gfx.MonoFallbacks(face) {
 		list.WriteString(cssFamily(fallback))
 		list.WriteString(", ")
 	}
 	switch {
-	case ui.MonoFamilyName(face) != "":
+	case gfx.MonoFamilyName(face) != "":
 		list.WriteString("monospace")
-	case ui.MonoIsClassic(face):
+	case gfx.MonoIsClassic(face):
 		list.WriteString("monospace")
 	default:
 		list.WriteString("ui-monospace, SFMono-Regular, Menlo, Consolas, monospace")
@@ -87,7 +87,7 @@ func cssMonoFamilies(face ui.MonoFace) string {
 }
 
 // monoBaseline reports the fixed-pitch font's ascent and descent at a size.
-func monoBaseline(context js.Value, fontSize float32, face ui.MonoFace) baselineMetrics {
+func monoBaseline(context js.Value, fontSize float32, face gfx.MonoFace) baselineMetrics {
 	context.Set("font", cssMonoFont(fontSize, 0, false, face))
 	metrics := context.Call("measureText", "Ag")
 	ascent := float32(metrics.Get("fontBoundingBoxAscent").Float())

@@ -8,9 +8,9 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 var writeFactory = systemDLL("dwrite.dll").NewProc("DWriteCreateFactory")
@@ -29,7 +29,7 @@ type textServices struct {
 }
 type labelTexture struct {
 	label         platform.TextLabel
-	runs          []ui.TextRun // the label's own copy of its runs
+	runs          []gfx.TextRun // the label's own copy of its runs
 	texture, view uintptr
 	scale         float32
 	// width and height are the texture's size in device pixels.
@@ -75,11 +75,11 @@ type textMetrics struct {
 // monoFamily is the family a face draws in first. The families that draw what it
 // lacks are the face's font fallback (see directRasterizer.fontFallback); the cell is
 // always measured in this one.
-func monoFamily(face ui.MonoFace) string {
-	if name := ui.MonoFamilyName(face); name != "" {
+func monoFamily(face gfx.MonoFace) string {
+	if name := gfx.MonoFamilyName(face); name != "" {
 		return name
 	}
-	if ui.MonoIsClassic(face) {
+	if gfx.MonoIsClassic(face) {
 		return "Courier New"
 	}
 	return "Consolas"
@@ -214,7 +214,7 @@ const gridInkColumnsStep = 16
 // plus one more for a glyph that overhangs its cell. A terminal row of a dozen
 // characters in a window two hundred cells wide is a few dozen cells of texture,
 // not two hundred. It is never wider than the label.
-func gridInkWidth(runs []ui.TextRun, cellWidth, scale float32) int {
+func gridInkWidth(runs []gfx.TextRun, cellWidth, scale float32) int {
 	end := int32(0)
 	for _, run := range runs {
 		end = max(end, run.Column+run.Cells)
@@ -251,7 +251,7 @@ func sameBitmapStorage(left, right []byte) bool {
 	return len(left) == 0 || &left[0] == &right[0]
 }
 
-func sameRuns(left, right []ui.TextRun) bool {
+func sameRuns(left, right []gfx.TextRun) bool {
 	if len(left) != len(right) {
 		return false
 	}
@@ -372,7 +372,7 @@ func isSingleCharacter(text string) bool {
 
 // MeasureMono reports the fixed-pitch font's character cell at a size: the
 // advance of one character and the height of one line.
-func MeasureMono(size float32, face ui.MonoFace) (width, height float32, err error) {
+func MeasureMono(size float32, face gfx.MonoFace) (width, height float32, err error) {
 	engine, err := theTextEngine()
 	if err != nil {
 		return 0, 0, err

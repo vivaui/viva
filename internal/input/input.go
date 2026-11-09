@@ -3,11 +3,11 @@ package input
 import (
 	"slices"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Target is a stable application-defined interaction identity.
-type Target = ui.ID
+type Target = gfx.ID
 
 // Rect is an axis-aligned logical-pixel hit region.
 type Rect struct {
@@ -21,7 +21,7 @@ type Rect struct {
 type Region struct {
 	Target    Target
 	Bounds    Rect
-	Scope     ui.ID
+	Scope     gfx.ID
 	Focusable bool
 	Disabled  bool
 	// FocusableDisabled keeps a disabled region focusable (but inert), as a
@@ -30,7 +30,7 @@ type Region struct {
 	// Role is the semantic role the region declared. The router uses it to
 	// decide which keys activate the focused control: a button takes Enter and
 	// Space, a checkbox only Space, a slider neither.
-	Role ui.Role
+	Role gfx.Role
 	// SkipTab keeps a focusable region out of Tab traversal while leaving it
 	// reachable by arrows and explicit Focus.
 	SkipTab bool
@@ -40,14 +40,14 @@ type Region struct {
 	// Label makes the region a label of Target: a press on it focuses the
 	// target's own focusable region. It is not focusable itself.
 	Label bool
-	// Backdrop marks a region that is not a control (see ui.HitOptions): it
+	// Backdrop marks a region that is not a control (see gfx.HitOptions): it
 	// takes presses like any other, but PressAt does not count it as one.
 	Backdrop bool
 	// MovesWindow marks a region a custom-titlebar window is moved from (see
-	// ui.Canvas.MoveRegion). Target is zero; it is never a hit target.
+	// gfx.Canvas.MoveRegion). Target is zero; it is never a hit target.
 	MovesWindow bool
 	// PassSecondary marks a Backdrop that hands a secondary press on to what lies
-	// beneath once it is dismissed (see ui.HitOptions).
+	// beneath once it is dismissed (see gfx.HitOptions).
 	PassSecondary bool
 	// PassPrimary marks a Backdrop that hands a primary press on to what lies
 	// beneath after dismissing its overlay.
@@ -58,56 +58,56 @@ type Region struct {
 }
 
 // Key is the internal alias of the public normalized keyboard identity.
-type Key = ui.Key
+type Key = gfx.Key
 
 const (
-	KeyUnknown   = ui.KeyUnknown
-	KeyTab       = ui.KeyTab
-	KeyEnter     = ui.KeyEnter
-	KeySpace     = ui.KeySpace
-	KeyEscape    = ui.KeyEscape
-	KeyLeft      = ui.KeyLeft
-	KeyRight     = ui.KeyRight
-	KeyUp        = ui.KeyUp
-	KeyDown      = ui.KeyDown
-	KeyHome      = ui.KeyHome
-	KeyEnd       = ui.KeyEnd
-	KeyBackspace = ui.KeyBackspace
-	KeyDelete    = ui.KeyDelete
-	KeyPageUp    = ui.KeyPageUp
-	KeyPageDown  = ui.KeyPageDown
-	KeyInsert    = ui.KeyInsert
-	KeyF1        = ui.KeyF1
-	KeyF2        = ui.KeyF2
-	KeyF3        = ui.KeyF3
-	KeyF4        = ui.KeyF4
-	KeyF5        = ui.KeyF5
-	KeyF6        = ui.KeyF6
-	KeyF7        = ui.KeyF7
-	KeyF8        = ui.KeyF8
-	KeyF9        = ui.KeyF9
-	KeyF10       = ui.KeyF10
-	KeyF11       = ui.KeyF11
-	KeyF12       = ui.KeyF12
+	KeyUnknown   = gfx.KeyUnknown
+	KeyTab       = gfx.KeyTab
+	KeyEnter     = gfx.KeyEnter
+	KeySpace     = gfx.KeySpace
+	KeyEscape    = gfx.KeyEscape
+	KeyLeft      = gfx.KeyLeft
+	KeyRight     = gfx.KeyRight
+	KeyUp        = gfx.KeyUp
+	KeyDown      = gfx.KeyDown
+	KeyHome      = gfx.KeyHome
+	KeyEnd       = gfx.KeyEnd
+	KeyBackspace = gfx.KeyBackspace
+	KeyDelete    = gfx.KeyDelete
+	KeyPageUp    = gfx.KeyPageUp
+	KeyPageDown  = gfx.KeyPageDown
+	KeyInsert    = gfx.KeyInsert
+	KeyF1        = gfx.KeyF1
+	KeyF2        = gfx.KeyF2
+	KeyF3        = gfx.KeyF3
+	KeyF4        = gfx.KeyF4
+	KeyF5        = gfx.KeyF5
+	KeyF6        = gfx.KeyF6
+	KeyF7        = gfx.KeyF7
+	KeyF8        = gfx.KeyF8
+	KeyF9        = gfx.KeyF9
+	KeyF10       = gfx.KeyF10
+	KeyF11       = gfx.KeyF11
+	KeyF12       = gfx.KeyF12
 
-	KeyShiftLeft    = ui.KeyShiftLeft
-	KeyShiftRight   = ui.KeyShiftRight
-	KeyControlLeft  = ui.KeyControlLeft
-	KeyControlRight = ui.KeyControlRight
-	KeyAltLeft      = ui.KeyAltLeft
-	KeyAltRight     = ui.KeyAltRight
-	KeyMetaLeft     = ui.KeyMetaLeft
-	KeyMetaRight    = ui.KeyMetaRight
+	KeyShiftLeft    = gfx.KeyShiftLeft
+	KeyShiftRight   = gfx.KeyShiftRight
+	KeyControlLeft  = gfx.KeyControlLeft
+	KeyControlRight = gfx.KeyControlRight
+	KeyAltLeft      = gfx.KeyAltLeft
+	KeyAltRight     = gfx.KeyAltRight
+	KeyMetaLeft     = gfx.KeyMetaLeft
+	KeyMetaRight    = gfx.KeyMetaRight
 )
 
 // Modifiers is a bitset of active keyboard modifiers.
-type Modifiers = ui.Modifiers
+type Modifiers = gfx.Modifiers
 
 const (
-	ModifierShift   = ui.ModifierShift
-	ModifierControl = ui.ModifierControl
-	ModifierAlt     = ui.ModifierAlt
-	ModifierMeta    = ui.ModifierMeta
+	ModifierShift   = gfx.ModifierShift
+	ModifierControl = gfx.ModifierControl
+	ModifierAlt     = gfx.ModifierAlt
+	ModifierMeta    = gfx.ModifierMeta
 )
 
 // KeyEvent is a normalized keyboard event.
@@ -130,7 +130,7 @@ type Router struct {
 	regions     []Region
 	focused     Target
 	focusedSlot uint32
-	activeScope ui.ID
+	activeScope gfx.ID
 	// activeInitial is the initial target announced with the active scope, to
 	// tell a dialog that replaces another in the same scope from one that is
 	// merely announced again.
@@ -158,7 +158,7 @@ func (router *Router) SetRegions(regions []Region) {
 		}
 	}
 	if !router.focused.IsZero() && router.focusedSlot == 0 {
-		router.focused = ui.ID{}
+		router.focused = gfx.ID{}
 	}
 }
 
@@ -172,7 +172,7 @@ func (router *Router) Regions() []Region {
 func (router *Router) HitTest(x float32, y float32) (Target, bool) {
 	index, ok := router.hitTestIndex(x, y)
 	if !ok {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	return router.regions[index].Target, true
 }
@@ -323,15 +323,15 @@ func (router *Router) focusedRegion() (Region, bool) {
 // menu items, options and the combobox trigger take Enter and Space; checkboxes,
 // radios and switches take Space only; sliders and group/container roles take
 // neither (a form would consume Enter).
-func activatesOn(role ui.Role, key Key) bool {
+func activatesOn(role gfx.Role, key Key) bool {
 	switch role {
-	case ui.RoleCheckbox, ui.RoleRadio, ui.RoleSwitch:
+	case gfx.RoleCheckbox, gfx.RoleRadio, gfx.RoleSwitch:
 		return key == KeySpace
-	case ui.RoleTextField:
+	case gfx.RoleTextField:
 		return key == KeyEnter // a form submits; a click on the field is its submit
-	case ui.RoleSlider, ui.RoleGroup, ui.RoleTerminal:
+	case gfx.RoleSlider, gfx.RoleGroup, gfx.RoleTerminal:
 		return false
-	case ui.RoleButton, ui.RoleLink, ui.RoleTab, ui.RoleMenuItem, ui.RoleCombobox:
+	case gfx.RoleButton, gfx.RoleLink, gfx.RoleTab, gfx.RoleMenuItem, gfx.RoleCombobox:
 		return key == KeyEnter || key == KeySpace
 	default:
 		return key == KeyEnter || key == KeySpace
@@ -361,7 +361,7 @@ func (router *Router) Focus(target Target) bool {
 // nonzero initial target means another dialog has taken the scope's place and
 // it takes focus as if the scope had just opened. It reports whether the
 // focused target changed.
-func (router *Router) SetActiveScope(scope ui.ID, initial Target) bool {
+func (router *Router) SetActiveScope(scope gfx.ID, initial Target) bool {
 	if scope == router.activeScope {
 		if scope.IsZero() || initial.IsZero() || initial == router.activeInitial {
 			return false
@@ -379,15 +379,15 @@ func (router *Router) SetActiveScope(scope ui.ID, initial Target) bool {
 	router.activeScope = scope
 	if scope.IsZero() {
 		target := router.returnFocus
-		router.returnFocus = ui.ID{}
-		router.focused = ui.ID{}
+		router.returnFocus = gfx.ID{}
+		router.focused = gfx.ID{}
 		router.focusedSlot = 0
 		if !target.IsZero() {
 			router.focusAvailable(target)
 		}
 	} else {
 		if !router.focusAvailable(router.focused) {
-			router.focused = ui.ID{}
+			router.focused = gfx.ID{}
 			router.focusedSlot = 0
 		}
 		router.focusAvailable(initial)
@@ -396,7 +396,7 @@ func (router *Router) SetActiveScope(scope ui.ID, initial Target) bool {
 }
 
 // ActiveScope returns the current focus trap, or zero.
-func (router *Router) ActiveScope() ui.ID {
+func (router *Router) ActiveScope() gfx.ID {
 	return router.activeScope
 }
 
@@ -405,7 +405,7 @@ func (router *Router) Blur() bool {
 	if router.focused.IsZero() {
 		return false
 	}
-	router.focused = ui.ID{}
+	router.focused = gfx.ID{}
 	router.focusedSlot = 0
 	return true
 }

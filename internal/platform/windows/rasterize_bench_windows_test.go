@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // BenchmarkLabelRasterize is a label whose text changes each frame, drawn and read
@@ -69,7 +69,7 @@ func BenchmarkRasterizeOnly(benchmark *testing.B) {
 }
 
 // terminalLine is a line of a terminal: cells columns of fixed pitch in several colors.
-func terminalLine(cells int, colors []ui.Color) platform.TextLabel {
+func terminalLine(cells int, colors []gfx.Color) platform.TextLabel {
 	value := make([]byte, cells)
 	for index := range value {
 		value[index] = byte('a' + index%26)
@@ -77,12 +77,12 @@ func terminalLine(cells int, colors []ui.Color) platform.TextLabel {
 	label := platform.TextLabel{Value: string(value), Mono: true, CellWidth: 8, Width: float32(cells) * 8, Height: 20, FontSize: 14, Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}
 	per := cells / len(colors)
 	for index, color := range colors {
-		label.Runs = append(label.Runs, ui.TextRun{Column: int32(index * per), Bytes: int32(per), Cells: int32(per), Color: color})
+		label.Runs = append(label.Runs, gfx.TextRun{Column: int32(index * per), Bytes: int32(per), Cells: int32(per), Color: color})
 	}
 	return label
 }
 
-var terminalColors = []ui.Color{{Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Green: 1, Alpha: 1}, {Red: 1, Alpha: 1}, {Red: 0.2, Green: 0.4, Blue: 1, Alpha: 1}}
+var terminalColors = []gfx.Color{{Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Green: 1, Alpha: 1}, {Red: 1, Alpha: 1}, {Red: 0.2, Green: 0.4, Blue: 1, Alpha: 1}}
 
 // BenchmarkGridRasterize is one terminal line of 100 cells in four colors rasterized, as
 // grayscale (what it was) and as ClearType.

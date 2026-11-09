@@ -5,7 +5,7 @@ package darwin
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestRetainedBitmapSurvivesSceneAndAnimationChanges(t *testing.T) {
@@ -52,7 +52,7 @@ func TestRetainedBitmapSurvivesSceneAndAnimationChanges(t *testing.T) {
 		render(t, bitmap, true, 10, 10, 0, 0, 0)
 	})
 	t.Run("clip changes without replacing the texture", func(t *testing.T) {
-		bitmap.Clipped, bitmap.Clip = true, ui.Rect{X: 32, Y: 8, Width: 6, Height: 12}
+		bitmap.Clipped, bitmap.Clip = true, gfx.Rect{X: 32, Y: 8, Width: 6, Height: 12}
 		render(t, bitmap, true, 34, 14, 255, 0, 255)
 		render(t, bitmap, true, 42, 14, 0, 0, 0)
 		bitmap.Clipped = false

@@ -1,11 +1,27 @@
 package windows
 
 import (
+	"syscall"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
+
+// Version 4 icons have no standard tooltip unless the shell is asked for one:
+// Windows suppresses it in that mode, and the application is expected to draw
+// its own. The icon must name itself, or hovering it shows nothing at all.
+func TestStatusItemAsksTheShellForTheStandardTooltip(t *testing.T) {
+	application := &windowsApplication{status: &statusState{window: 1}}
+	item := &statusItem{application: application, tooltip: "Motty"}
+	data := item.data()
+	if data.Flags&notifyShowTip == 0 {
+		t.Fatal("the status item does not ask for the standard tooltip that version 4 suppresses")
+	}
+	if got := syscall.UTF16ToString(data.Tip[:]); got != "Motty" {
+		t.Fatalf("tip = %q, want the tooltip text", got)
+	}
+}
 
 // Exercise the notification dispatcher, not only its button decoder. A menu
 // must not swallow primary activation when the application also has a callback.
@@ -15,22 +31,22 @@ func TestStatusNotificationRoutesActivationAndContextMenu(t *testing.T) {
 		callback, menu, removed bool
 		events                  []uint32
 		wantClicks, wantMenus   int
-		wantButton              ui.PointerButton
+		wantButton              gfx.PointerButton
 	}{
-		{"left with callback and menu", true, true, false, []uint32{0x0201, 0x0202, ninSelect}, 1, 0, ui.PointerButtonPrimary},
-		{"keyboard activation", true, true, false, []uint32{ninKeySelect}, 1, 0, ui.PointerButtonPrimary},
-		{"right with callback and menu", true, true, false, []uint32{0x0204, 0x0205, wmContextMenu}, 0, 1, ui.PointerButtonNone},
-		{"left menu only", false, true, false, []uint32{ninSelect}, 0, 1, ui.PointerButtonNone},
-		{"right menu only", false, true, false, []uint32{wmContextMenu}, 0, 1, ui.PointerButtonNone},
-		{"left callback only", true, false, false, []uint32{ninSelect}, 1, 0, ui.PointerButtonPrimary},
-		{"right callback only", true, false, false, []uint32{wmContextMenu}, 1, 0, ui.PointerButtonSecondary},
-		{"no handlers", false, false, false, []uint32{ninSelect, wmContextMenu}, 0, 0, ui.PointerButtonNone},
-		{"removed", true, true, true, []uint32{ninSelect, wmContextMenu}, 0, 0, ui.PointerButtonNone},
-		{"hover", true, true, false, []uint32{0x0200}, 0, 0, ui.PointerButtonNone},
+		{"left with callback and menu", true, true, false, []uint32{0x0201, 0x0202, ninSelect}, 1, 0, gfx.PointerButtonPrimary},
+		{"keyboard activation", true, true, false, []uint32{ninKeySelect}, 1, 0, gfx.PointerButtonPrimary},
+		{"right with callback and menu", true, true, false, []uint32{0x0204, 0x0205, wmContextMenu}, 0, 1, gfx.PointerButtonNone},
+		{"left menu only", false, true, false, []uint32{ninSelect}, 0, 1, gfx.PointerButtonNone},
+		{"right menu only", false, true, false, []uint32{wmContextMenu}, 0, 1, gfx.PointerButtonNone},
+		{"left callback only", true, false, false, []uint32{ninSelect}, 1, 0, gfx.PointerButtonPrimary},
+		{"right callback only", true, false, false, []uint32{wmContextMenu}, 1, 0, gfx.PointerButtonSecondary},
+		{"no handlers", false, false, false, []uint32{ninSelect, wmContextMenu}, 0, 0, gfx.PointerButtonNone},
+		{"removed", true, true, true, []uint32{ninSelect, wmContextMenu}, 0, 0, gfx.PointerButtonNone},
+		{"hover", true, true, false, []uint32{0x0200}, 0, 0, gfx.PointerButtonNone},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			clicks, menus := 0, 0
-			button := ui.PointerButtonNone
+			button := gfx.PointerButtonNone
 			item := &statusItem{id: 2}
 			item.removed.Store(test.removed)
 			if test.callback {
@@ -72,7 +88,7 @@ func TestStatusMessagesOfOneClickCountOnce(t *testing.T) {
 	count := func(messages []uint32) (primary, secondary int) {
 		for _, message := range messages {
 			if button, ok := statusButton(message); ok {
-				if button == ui.PointerButtonPrimary {
+				if button == gfx.PointerButtonPrimary {
 					primary++
 				} else {
 					secondary++

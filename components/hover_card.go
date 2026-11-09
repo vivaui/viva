@@ -3,7 +3,7 @@ package components
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // HoverCardSide selects the anchor edge used by a hover card.
@@ -82,7 +82,7 @@ func hoverCardDeadline(now time.Time, delay time.Duration) time.Time {
 // the caller should wait before asking again. Moving to another target, or
 // passing zero, starts over, so the caller schedules no timer of its own.
 type HoverIntent struct {
-	target ui.ID
+	target gfx.ID
 	since  time.Time
 }
 
@@ -90,10 +90,10 @@ type HoverIntent struct {
 // target has rested for delay; until then it returns zero and the remaining
 // wait. A zero target clears the candidate. A non-positive delay makes the
 // target ready at once.
-func (intent *HoverIntent) Rest(target ui.ID, now time.Time, delay time.Duration) (ui.ID, time.Duration) {
+func (intent *HoverIntent) Rest(target gfx.ID, now time.Time, delay time.Duration) (gfx.ID, time.Duration) {
 	if target.IsZero() {
 		*intent = HoverIntent{}
-		return ui.ID{}, 0
+		return gfx.ID{}, 0
 	}
 	if target != intent.target || now.Before(intent.since) {
 		intent.target, intent.since = target, now
@@ -104,7 +104,7 @@ func (intent *HoverIntent) Rest(target ui.ID, now time.Time, delay time.Duration
 	if elapsed := now.Sub(intent.since); elapsed >= delay {
 		return target, 0
 	} else {
-		return ui.ID{}, delay - elapsed
+		return gfx.ID{}, delay - elapsed
 	}
 }
 
@@ -117,12 +117,12 @@ type HoverCardOptions struct {
 	// ID names the card for its entrance and exit: while the application paints
 	// the card under one ID it fades in, and once it stops it fades out. Leave it
 	// zero for a card that appears and disappears at once.
-	ID ui.ID
+	ID gfx.ID
 	// DismissID, when set with ID, makes the card dismiss on Escape and on a
 	// press outside it. The press is passed on to the control beneath, as a
 	// non-modal preview card's is. The card surface is a group hit, so the
 	// pointer can move into it and keep it open.
-	DismissID  ui.ID
+	DismissID  gfx.ID
 	Side       HoverCardSide
 	Align      HoverCardAlign
 	SideOffset float32
@@ -132,28 +132,28 @@ type HoverCardOptions struct {
 	// ContentSize.Width defaults to 256 (`w-64`). A zero ContentSize.Height sizes
 	// the card to its parts: the header (its description wraps to the width) and,
 	// under it, BodyHeight.
-	ContentSize ui.Size
+	ContentSize gfx.Size
 	BodyHeight  float32
 }
 
 // HoverCardLayout exposes its surface and caller-owned body slot.
 type HoverCardLayout struct {
-	Content ui.Rect
-	Body    ui.Rect
+	Content gfx.Rect
+	Body    gfx.Rect
 }
 
 // HoverCard is a nonmodal preview card with no timers or background work.
 type HoverCard struct {
-	canvas   *ui.Canvas
-	theme    ui.Theme
-	viewport ui.Rect
-	anchor   ui.Rect
+	canvas   *gfx.Canvas
+	theme    gfx.Theme
+	viewport gfx.Rect
+	anchor   gfx.Rect
 	options  HoverCardOptions
 	disabled bool
 }
 
 // BeginHoverCard creates one preview declaration.
-func BeginHoverCard(canvas *ui.Canvas, theme ui.Theme, viewport, anchor ui.Rect, options HoverCardOptions) HoverCard {
+func BeginHoverCard(canvas *gfx.Canvas, theme gfx.Theme, viewport, anchor gfx.Rect, options HoverCardOptions) HoverCard {
 	return HoverCard{canvas: canvas, theme: theme, viewport: viewport, anchor: anchor, options: options}
 }
 
@@ -177,35 +177,34 @@ func (card HoverCard) Begin(title, description string) HoverCardLayout {
 	}
 	card.canvas.PushLayer(card.options.Layer)
 	if !card.options.ID.IsZero() && !card.options.DismissID.IsZero() && card.viewport.Width > 0 && card.viewport.Height > 0 {
-		card.canvas.HitWithOptions(card.options.DismissID, card.viewport, "Dismiss preview", ui.HitOptions{
-			Role: ui.RoleButton, SkipFocus: true, Backdrop: true, PassPrimary: true, PassSecondary: true,
+		card.canvas.HitWithOptions(card.options.DismissID, card.viewport, "Dismiss preview", gfx.HitOptions{
+			Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassPrimary: true, PassSecondary: true,
 		})
 	}
 	metrics := card.theme.Metrics
 	var scratch overlayLines
 	width := card.contentWidth()
-	lines := overlayWrap(card.canvas, &scratch, description, metrics.FontSizeM, ui.WeightRegular, width-2*metrics.PadSurface)
+	lines := overlayWrap(card.canvas, &scratch, description, metrics.FontSizeM, gfx.WeightRegular, width-2*metrics.PadSurface)
 	headerHeight := popoverHeaderHeight(metrics, len(lines))
 	content, side := card.contentBounds(width, headerHeight)
 	card.canvas.BeginPresence(overlayKey(card.options.ID), overlaySurfacePart,
 		popupPresence(card.theme, overlayDuration, side), popupPivot(content, side, card.anchor))
-	card.canvas.Elevate(content, metrics.RadiusPopup(), ui.ShadowMD) // shadow-md
-	card.canvas.RoundedBorder(content, metrics.RadiusPopup(), 1, card.theme.Border, card.theme.Popover)
+	paintPopupSurface(card.canvas, &card.theme, content, gfx.ShadowMD) // shadow-md
 	if !card.options.ID.IsZero() {
-		card.canvas.HitWithOptions(card.options.ID, content, title, ui.HitOptions{Role: ui.RoleGroup, SkipFocus: true})
+		card.canvas.HitWithOptions(card.options.ID, content, title, gfx.HitOptions{Role: gfx.RoleGroup, SkipFocus: true})
 	}
-	inner := content.Inset(ui.All(metrics.PadSurface))
+	inner := content.Inset(gfx.All(metrics.PadSurface))
 	lineHeight := overlayLineHeight(metrics)
-	card.canvas.Label(title, ui.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: lineHeight}, ui.TextStyle{
-		Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: card.theme.PopoverForeground,
+	card.canvas.Label(title, gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: lineHeight}, gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: card.theme.PopoverForeground,
 	})
-	overlayParagraph(card.canvas, lines, ui.Rect{X: inner.X, Y: inner.Y + lineHeight + popoverTitleGap, Width: inner.Width}, lineHeight, ui.TextStyle{
-		Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: card.theme.MutedForeground,
+	overlayParagraph(card.canvas, lines, gfx.Rect{X: inner.X, Y: inner.Y + lineHeight + popoverTitleGap, Width: inner.Width}, lineHeight, gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: card.theme.MutedForeground,
 	}, false)
 	bodyY := inner.Y + headerHeight + popoverBodyGap(metrics)
 	return HoverCardLayout{
 		Content: content,
-		Body:    ui.Rect{X: inner.X, Y: bodyY, Width: inner.Width, Height: max(0, inner.Y+inner.Height-bodyY)},
+		Body:    gfx.Rect{X: inner.X, Y: bodyY, Width: inner.Width, Height: max(0, inner.Y+inner.Height-bodyY)},
 	}
 }
 
@@ -231,7 +230,7 @@ func (card HoverCard) contentWidth() float32 {
 
 // contentBounds places the card beside its anchor, on the opposite side when the
 // requested one has no room (see PlaceOverlay).
-func (card HoverCard) contentBounds(width, headerHeight float32) (ui.Rect, OverlaySide) {
+func (card HoverCard) contentBounds(width, headerHeight float32) (gfx.Rect, OverlaySide) {
 	metrics := card.theme.Metrics
 	height := card.options.ContentSize.Height
 	if height <= 0 {
@@ -248,7 +247,7 @@ func (card HoverCard) contentBounds(width, headerHeight float32) (ui.Rect, Overl
 	if alignOffset == 0 {
 		alignOffset = 4
 	}
-	return PlaceOverlay(card.anchor, ui.Size{Width: width, Height: height}, card.viewport, OverlayPlacement{
+	return PlaceOverlay(card.anchor, gfx.Size{Width: width, Height: height}, card.viewport, OverlayPlacement{
 		Side: OverlaySide(card.options.Side), Align: OverlayAlign(card.options.Align),
 		SideOffset: offset, AlignOffset: alignOffset, Margin: 8,
 	})

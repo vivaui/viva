@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/fontfile"
-	"github.com/vivaui/viva/ui"
 )
 
 // frPrivate is FR_PRIVATE: the font is for this process only and is gone with it.
@@ -52,9 +52,9 @@ var customFonts struct {
 	revision   uint32 // changes with the collection, so that what was measured in the old one is measured again
 }
 
-var _ ui.FontRegistrar = (*textEngine)(nil)
+var _ gfx.FontRegistrar = (*textEngine)(nil)
 
-// RegisterFont implements ui.FontRegistrar. DirectWrite does not see a font GDI holds for the
+// RegisterFont implements gfx.FontRegistrar. DirectWrite does not see a font GDI holds for the
 // process, so the font goes to both: GDI, which lists it among the families and draws what GDI
 // draws, and a DirectWrite font collection that adds it to the system's, which every text format
 // of the engine is made from.

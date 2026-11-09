@@ -6,18 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
-var testSize = ui.Size{Width: 320, Height: 340}
+var testSize = gfx.Size{Width: 320, Height: 340}
 
 type paintSnapshot struct {
-	rectangles []ui.Rectangle
-	texts      []ui.Text
-	hits       []ui.Hit
-	scope      ui.ID
-	escape     ui.ID
+	rectangles []gfx.Rectangle
+	texts      []gfx.Text
+	hits       []gfx.Hit
+	scope      gfx.ID
+	escape     gfx.ID
 }
 
 func newTestState(testingContext testing.TB, componentID, exampleID string) *State {
@@ -29,7 +29,7 @@ func newTestState(testingContext testing.TB, componentID, exampleID string) *Sta
 	return state
 }
 
-func paintFrame(canvas *ui.Canvas, state *State, size ui.Size, now time.Duration, reduce bool) {
+func paintFrame(canvas *gfx.Canvas, state *State, size gfx.Size, now time.Duration, reduce bool) {
 	canvas.SetReduceMotion(reduce)
 	if !reduce {
 		canvas.SetClock(func() time.Duration { return now })
@@ -41,20 +41,20 @@ func paintFrame(canvas *ui.Canvas, state *State, size ui.Size, now time.Duration
 }
 
 // bareState is a State for a component painted without New, as the catalog
-// tests do. It has the layout memory New gives, so painting a flex page does not
+// tests do. It has the layout memory New gives, so painting a ui page does not
 // look like a change of the State.
 func bareState(componentID, exampleID string) *State {
-	return &State{componentID: componentID, exampleID: exampleID, view: new(flex.View)}
+	return &State{componentID: componentID, exampleID: exampleID, view: new(ui.View)}
 }
 
 // click delivers a click on id the way the runtime does: one paint, the event
 // pass, in which the control that declared id reads Clicked as true. The state it
 // changes shows in the next paint.
-func click(canvas *ui.Canvas, state *State, id ui.ID) {
+func click(canvas *gfx.Canvas, state *State, id gfx.ID) {
 	clickAt(canvas, state, id, time.Second, true)
 }
 
-func clickAt(canvas *ui.Canvas, state *State, id ui.ID, now time.Duration, reduce bool) {
+func clickAt(canvas *gfx.Canvas, state *State, id gfx.ID, now time.Duration, reduce bool) {
 	canvas.BeginEventPass(id)
 	paintFrame(canvas, state, testSize, now, reduce)
 	canvas.EndEventPass()
@@ -62,7 +62,7 @@ func clickAt(canvas *ui.Canvas, state *State, id ui.ID, now time.Duration, reduc
 
 // hitsWithoutPlacement copies hits without the row layout a Textarea hands the
 // runtime: each State owns its own, which is not part of what is painted.
-func hitsWithoutPlacement(hits []ui.Hit) []ui.Hit {
+func hitsWithoutPlacement(hits []gfx.Hit) []gfx.Hit {
 	hits = slices.Clone(hits)
 	for index := range hits {
 		hits[index].Placement = nil
@@ -70,14 +70,14 @@ func hitsWithoutPlacement(hits []ui.Hit) []ui.Hit {
 	return hits
 }
 
-func snapshot(canvas *ui.Canvas) paintSnapshot {
+func snapshot(canvas *gfx.Canvas) paintSnapshot {
 	return paintSnapshot{
 		rectangles: slices.Clone(canvas.Rectangles()), texts: slices.Clone(canvas.Texts()),
 		hits: hitsWithoutPlacement(canvas.Hits()), scope: canvas.TrappedFocusScope(), escape: canvas.EscapeTarget(),
 	}
 }
 
-func assertSamePaint(testingContext testing.TB, expected paintSnapshot, canvas *ui.Canvas) {
+func assertSamePaint(testingContext testing.TB, expected paintSnapshot, canvas *gfx.Canvas) {
 	testingContext.Helper()
 	if !slices.Equal(expected.rectangles, canvas.Rectangles()) || !slices.Equal(expected.texts, canvas.Texts()) ||
 		!slices.Equal(expected.hits, hitsWithoutPlacement(canvas.Hits())) || expected.scope != canvas.TrappedFocusScope() || expected.escape != canvas.EscapeTarget() {
@@ -85,7 +85,7 @@ func assertSamePaint(testingContext testing.TB, expected paintSnapshot, canvas *
 	}
 }
 
-func findHit(testingContext testing.TB, canvas *ui.Canvas, id ui.ID) ui.Hit {
+func findHit(testingContext testing.TB, canvas *gfx.Canvas, id gfx.ID) gfx.Hit {
 	testingContext.Helper()
 	for _, hit := range canvas.Hits() {
 		if hit.ID == id {
@@ -93,10 +93,10 @@ func findHit(testingContext testing.TB, canvas *ui.Canvas, id ui.ID) ui.Hit {
 		}
 	}
 	testingContext.Fatalf("missing hit %v", id)
-	return ui.Hit{}
+	return gfx.Hit{}
 }
 
-func hasText(canvas *ui.Canvas, value string) bool {
+func hasText(canvas *gfx.Canvas, value string) bool {
 	for _, label := range canvas.Texts() {
 		if label.Value == value {
 			return true
@@ -105,7 +105,7 @@ func hasText(canvas *ui.Canvas, value string) bool {
 	return false
 }
 
-func textBounds(testingContext testing.TB, canvas *ui.Canvas, value string) ui.Rect {
+func textBounds(testingContext testing.TB, canvas *gfx.Canvas, value string) gfx.Rect {
 	testingContext.Helper()
 	for _, label := range canvas.Texts() {
 		if label.Value == value {
@@ -113,7 +113,7 @@ func textBounds(testingContext testing.TB, canvas *ui.Canvas, value string) ui.R
 		}
 	}
 	testingContext.Fatalf("missing text %q", value)
-	return ui.Rect{}
+	return gfx.Rect{}
 }
 
 func measureTestText(value string, size, weight float32) float32 {
@@ -201,9 +201,9 @@ func TestPaintDeterministicResponsiveAndIdle(t *testing.T) {
 						state := newTestState(t, component.ID, example.ID)
 						state.SetDark(dark)
 						before := *state
-						var canvas ui.Canvas
+						var canvas gfx.Canvas
 						canvas.SetMeasurer(measureTestText)
-						size := ui.Size{Width: width, Height: 340}
+						size := gfx.Size{Width: width, Height: 340}
 						paintFrame(&canvas, state, size, time.Second, true)
 						assertLayout(t, &canvas, size)
 						if canvas.Animating() || *state != before {
@@ -220,7 +220,7 @@ func TestPaintDeterministicResponsiveAndIdle(t *testing.T) {
 						if canvas.Animating() {
 							t.Fatal("unchanged example requested another frame")
 						}
-						canvas.BeginEventPass(ui.Item(999)) // a click on nothing the example declared
+						canvas.BeginEventPass(gfx.Item(999)) // a click on nothing the example declared
 						paintFrame(&canvas, state, size, 10*time.Second, true)
 						canvas.EndEventPass()
 						paintFrame(&canvas, state, size, 10*time.Second, true)
@@ -232,9 +232,9 @@ func TestPaintDeterministicResponsiveAndIdle(t *testing.T) {
 	}
 }
 
-func assertLayout(t *testing.T, canvas *ui.Canvas, size ui.Size) {
+func assertLayout(t *testing.T, canvas *gfx.Canvas, size gfx.Size) {
 	t.Helper()
-	inside := func(bounds ui.Rect) bool {
+	inside := func(bounds gfx.Rect) bool {
 		return bounds.X >= 0 && bounds.Y >= 0 && bounds.Width >= 0 && bounds.Height >= 0 &&
 			bounds.X+bounds.Width <= size.Width+0.01 && bounds.Y+bounds.Height <= size.Height+0.01
 	}
@@ -252,13 +252,13 @@ func assertLayout(t *testing.T, canvas *ui.Canvas, size ui.Size) {
 			top := max(ink.Y, clip.Y)
 			right := min(ink.X+ink.Width, clip.X+clip.Width)
 			bottom := min(ink.Y+ink.Height, clip.Y+clip.Height)
-			ink = ui.Rect{X: left, Y: top, Width: max(right-left, 0), Height: max(bottom-top, 0)}
+			ink = gfx.Rect{X: left, Y: top, Width: max(right-left, 0), Height: max(bottom-top, 0)}
 		}
 		if !inside(ink) {
 			t.Fatalf("text outside viewport: %+v; measured %+v", label, ink)
 		}
 	}
-	seen := make(map[ui.ID]bool)
+	seen := make(map[gfx.ID]bool)
 	for index, hit := range canvas.Hits() {
 		if hit.Block || hit.Container {
 			// An occluder or a semantic container has no ID and may sit under
@@ -283,7 +283,7 @@ func assertLayout(t *testing.T, canvas *ui.Canvas, size ui.Size) {
 	}
 }
 
-func overlap(left, right ui.Rect) bool {
+func overlap(left, right gfx.Rect) bool {
 	return left.X < right.X+right.Width && right.X < left.X+left.Width &&
 		left.Y < right.Y+right.Height && right.Y < left.Y+left.Height
 }
@@ -293,12 +293,12 @@ func TestThemesAndNewResetState(t *testing.T) {
 		for _, example := range component.Examples {
 			t.Run(component.ID+"/"+example.ID, func(t *testing.T) {
 				state := newTestState(t, component.ID, example.ID)
-				var canvas ui.Canvas
+				var canvas gfx.Canvas
 				paintFrame(&canvas, state, testSize, time.Second, true)
 				expected := snapshot(&canvas)
 				state.SetDark(true)
 				paintFrame(&canvas, state, testSize, time.Second, true)
-				if canvas.Rectangles()[0].Color != ui.DarkTheme().Background {
+				if canvas.Rectangles()[0].Color != gfx.DarkTheme().Background {
 					t.Fatal("SetDark did not change the background")
 				}
 				state.SetDark(false)
@@ -323,8 +323,8 @@ func TestThemesAndNewResetState(t *testing.T) {
 
 func TestPaintPreservesHostCanvasAndFrameOwnership(t *testing.T) {
 	state := newTestState(t, "dialog", "confirm")
-	var canvas ui.Canvas
-	canvas.Fill(ui.Rect{Width: 1, Height: 1}, ui.Color{Red: 1, Alpha: 1})
+	var canvas gfx.Canvas
+	canvas.Fill(gfx.Rect{Width: 1, Height: 1}, gfx.Color{Red: 1, Alpha: 1})
 	canvas.SetClock(func() time.Duration { return 37 * time.Second })
 	canvas.BeginFrame()
 	state.Paint(&canvas, testSize)
@@ -332,9 +332,9 @@ func TestPaintPreservesHostCanvasAndFrameOwnership(t *testing.T) {
 	if canvas.Rectangles()[0].Bounds.Width != 1 || canvas.Now() != 37*time.Second {
 		t.Fatal("Paint reset the host canvas or frame clock")
 	}
-	canvas.HitWithLabel(ui.Item(999), ui.Rect{Width: 1, Height: 1}, "Host")
-	canvas.Fill(ui.Rect{Width: 1, Height: 1}, ui.Color{})
-	if !findHit(t, &canvas, ui.Item(999)).Scope.IsZero() {
+	canvas.HitWithLabel(gfx.Item(999), gfx.Rect{Width: 1, Height: 1}, "Host")
+	canvas.Fill(gfx.Rect{Width: 1, Height: 1}, gfx.Color{})
+	if !findHit(t, &canvas, gfx.Item(999)).Scope.IsZero() {
 		t.Fatal("Paint leaked a focus scope")
 	}
 	last := canvas.Rectangles()[len(canvas.Rectangles())-1]
@@ -343,7 +343,7 @@ func TestPaintPreservesHostCanvasAndFrameOwnership(t *testing.T) {
 	}
 	state.Paint(nil, testSize)
 	count := len(canvas.Rectangles())
-	state.Paint(&canvas, ui.Size{})
+	state.Paint(&canvas, gfx.Size{})
 	if len(canvas.Rectangles()) != count {
 		t.Fatal("empty viewport painted content")
 	}
@@ -352,7 +352,7 @@ func TestPaintPreservesHostCanvasAndFrameOwnership(t *testing.T) {
 func TestInputEditingConnectionIsExplicitAndShared(t *testing.T) {
 	for _, example := range inputComponent.Examples {
 		state := newTestState(t, "input", example.ID)
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		paintFrame(&canvas, state, testSize, time.Second, true)
 		if state.editor != nil {
 			t.Fatal("disconnected preview allocated an unused editor")
@@ -388,14 +388,14 @@ func TestInputEditingConnectionIsExplicitAndShared(t *testing.T) {
 }
 
 func TestSetDensityChangesControlMetrics(t *testing.T) {
-	paint := func(density ui.Density) float32 {
+	paint := func(density gfx.Density) float32 {
 		state, err := New("button", "default")
 		if err != nil {
 			t.Fatal(err)
 		}
 		state.SetDensity(density)
-		var canvas ui.Canvas
-		state.Paint(&canvas, ui.Size{Width: 420, Height: 340})
+		var canvas gfx.Canvas
+		state.Paint(&canvas, gfx.Size{Width: 420, Height: 340})
 		for _, hit := range canvas.Hits() {
 			if hit.ID == buttonPress.At(0) {
 				return hit.Bounds.Height
@@ -404,13 +404,13 @@ func TestSetDensityChangesControlMetrics(t *testing.T) {
 		t.Fatal("button hit not found")
 		return 0
 	}
-	regular, compact, large := paint(ui.DensityRegular), paint(ui.DensityCompact), paint(ui.DensityLarge)
+	regular, compact, large := paint(gfx.DensityRegular), paint(gfx.DensityCompact), paint(gfx.DensityLarge)
 	if !(compact < regular && regular < large) {
 		t.Fatalf("button heights compact %v, regular %v, large %v do not follow density", compact, regular, large)
 	}
 }
 
-func contains(outer, inner ui.Rect) bool {
+func contains(outer, inner gfx.Rect) bool {
 	return inner.X >= outer.X && inner.Y >= outer.Y &&
 		inner.X+inner.Width <= outer.X+outer.Width && inner.Y+inner.Height <= outer.Y+outer.Height
 }

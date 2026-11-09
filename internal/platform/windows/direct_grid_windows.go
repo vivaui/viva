@@ -1,15 +1,15 @@
 package windows
 
 import (
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // gridPiece is one run of a fixed-pitch label: its text, how it is drawn, and where it
 // stands, in device pixels from the label's left edge.
 type gridPiece struct {
 	text       string
-	run        ui.TextRun
+	run        gfx.TextRun
 	weight     float32
 	color      d2dColor
 	left, span float32

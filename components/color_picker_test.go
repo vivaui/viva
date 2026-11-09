@@ -4,13 +4,13 @@ import (
 	"math"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func pickerTestOptions() ColorPickerOptions {
 	return ColorPickerOptions{
-		IDs:   ColorPickerIDs{Trigger: ui.Item(1), Dismiss: ui.Item(2), Saturation: ui.Item(3), Hue: ui.Item(4), Alpha: ui.Item(5), Hex: ui.Item(6), Clear: ui.Item(7), Cancel: ui.Item(8), Apply: ui.Item(9)},
-		Scope: ui.Item(10), Layer: 3, Viewport: ui.Rect{Width: 500, Height: 400}, Open: true,
+		IDs:   ColorPickerIDs{Trigger: gfx.Item(1), Dismiss: gfx.Item(2), Saturation: gfx.Item(3), Hue: gfx.Item(4), Alpha: gfx.Item(5), Hex: gfx.Item(6), Clear: gfx.Item(7), Cancel: gfx.Item(8), Apply: gfx.Item(9)},
+		Scope: gfx.Item(10), Layer: 3, Viewport: gfx.Rect{Width: 500, Height: 400}, Open: true,
 		Value: ColorPickerValue{Hue: 210, Saturation: .7, Brightness: .8, Alpha: .5},
 		Hex:   InputSnapshot{Value: "#3D85CC"},
 	}
@@ -47,37 +47,37 @@ func TestColorPickerHexAndRoundTrip(t *testing.T) {
 	}
 	// Round trip all byte values, primaries and achromatic endpoints.
 	for i := range 256 {
-		c := ui.Color{Red: float32(i) / 255, Green: float32(255-i) / 255, Blue: float32(i/2) / 255, Alpha: 1}
+		c := gfx.Color{Red: float32(i) / 255, Green: float32(255-i) / 255, Blue: float32(i/2) / 255, Alpha: 1}
 		got := (ColorPickerValue{}.WithColor(c)).Color()
 		if math.Abs(float64(got.Red-c.Red)) > 1e-6 || math.Abs(float64(got.Green-c.Green)) > 1e-6 || math.Abs(float64(got.Blue-c.Blue)) > 1e-6 {
 			t.Fatal(c, got)
 		}
 	}
 	seed := ColorPickerValue{Hue: 270, Saturation: .6, Brightness: .7, Alpha: 1}
-	black := seed.WithColor(ui.Color{Alpha: 1})
-	gray := seed.WithColor(ui.Color{Red: .5, Green: .5, Blue: .5, Alpha: 1})
+	black := seed.WithColor(gfx.Color{Alpha: 1})
+	gray := seed.WithColor(gfx.Color{Red: .5, Green: .5, Blue: .5, Alpha: 1})
 	if black.Hue != 270 || black.Saturation != .6 || gray.Hue != 270 || gray.Saturation != 0 {
 		t.Fatal("achromatic edits lost HSV intent")
 	}
 	bad := ColorPickerValue{Hue: float32(math.NaN()), Saturation: -1, Brightness: float32(math.Inf(1)), Alpha: float32(math.NaN())}.Color()
-	if bad != (ui.Color{Red: 1, Green: 1, Blue: 1}) {
+	if bad != (gfx.Color{Red: 1, Green: 1, Blue: 1}) {
 		t.Fatal("nonfinite input", bad)
 	}
 }
 
 func TestColorPickerViewportAndInput(t *testing.T) {
-	for _, theme := range []ui.Theme{ui.LightTheme(), ui.DarkTheme()} {
+	for _, theme := range []gfx.Theme{gfx.LightTheme(), gfx.DarkTheme()} {
 		for _, scale := range []float32{1, 1.25, 1.5, 1.75, 2, 3} {
 			for _, height := range []float32{300, 400, 600} {
 				for _, alpha := range []bool{false, true} {
-					var c ui.Canvas
+					var c gfx.Canvas
 					c.SetPixelScale(scale)
 					o := pickerTestOptions()
-					o.Viewport = ui.Rect{Width: 320, Height: height}
+					o.Viewport = gfx.Rect{Width: 320, Height: height}
 					o.ShowAlpha = alpha
 					o.Error = "Invalid hex"
 					o.Hex.Invalid = true
-					l := BeginColorPicker(&c, theme, ui.Rect{X: 280, Y: height - 40, Width: 32, Height: 32}, o).Paint()
+					l := BeginColorPicker(&c, theme, gfx.Rect{X: 280, Y: height - 40, Width: 32, Height: 32}, o).Paint()
 					if c.TrappedFocusScope() != o.Scope || c.EscapeTarget() != o.IDs.Dismiss {
 						t.Fatal("popup routing lost")
 					}
@@ -93,22 +93,22 @@ func TestColorPickerViewportAndInput(t *testing.T) {
 							t.Fatal("invalid hex can be committed")
 						}
 					}
-					v, r := l.Pointer(ui.PointerEvent{Target: o.IDs.Saturation, Kind: ui.PointerDown, Button: ui.PointerButtonPrimary, X: l.Saturation.X + l.Saturation.Width*.75, Y: l.Saturation.Y + l.Saturation.Height*.25}, o.Value)
+					v, r := l.Pointer(gfx.PointerEvent{Target: o.IDs.Saturation, Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, X: l.Saturation.X + l.Saturation.Width*.75, Y: l.Saturation.Y + l.Saturation.Height*.25}, o.Value)
 					if !r.Handled || math.Abs(float64(v.Saturation-.75)) > .001 || math.Abs(float64(v.Brightness-.75)) > .001 {
 						t.Fatal(v, r)
 					}
-					v, r = l.Pointer(ui.PointerEvent{Target: o.IDs.Hue, Kind: ui.PointerMove, Captured: true, X: l.Hue.X + l.Hue.Width + 100}, v)
+					v, r = l.Pointer(gfx.PointerEvent{Target: o.IDs.Hue, Kind: gfx.PointerMove, Captured: true, X: l.Hue.X + l.Hue.Width + 100}, v)
 					if !r.Handled || v.Hue != 360 {
 						t.Fatal("captured drag should clamp", v, r)
 					}
-					v, r = l.Key(ui.KeyEvent{Target: o.IDs.Hue, Key: ui.KeyLeft, Modifiers: ui.ModifierShift}, v)
+					v, r = l.Key(gfx.KeyEvent{Target: o.IDs.Hue, Key: gfx.KeyLeft, Modifiers: gfx.ModifierShift}, v)
 					if !r.Handled || v.Hue != 350 {
 						t.Fatal("keyboard large step", v, r)
 					}
-					if _, r = l.Key(ui.KeyEvent{Target: o.IDs.Hex, Key: ui.KeyLeft}, v); r.Handled {
+					if _, r = l.Key(gfx.KeyEvent{Target: o.IDs.Hex, Key: gfx.KeyLeft}, v); r.Handled {
 						t.Fatal("stole hex key")
 					}
-					if _, r = l.Pointer(ui.PointerEvent{Target: o.IDs.Hue, Kind: ui.PointerDown, Button: ui.PointerButtonSecondary}, v); r.Handled {
+					if _, r = l.Pointer(gfx.PointerEvent{Target: o.IDs.Hue, Kind: gfx.PointerDown, Button: gfx.PointerButtonSecondary}, v); r.Handled {
 						t.Fatal("secondary button edits")
 					}
 				}
@@ -118,11 +118,11 @@ func TestColorPickerViewportAndInput(t *testing.T) {
 }
 
 func TestColorPickerClosedDisabledAndPaintAllocations(t *testing.T) {
-	var c ui.Canvas
+	var c gfx.Canvas
 	o := pickerTestOptions()
 	paint := func() {
 		c.Reset()
-		BeginColorPicker(&c, ui.LightTheme(), ui.Rect{X: 40, Y: 40, Width: 32, Height: 32}, o).Paint()
+		BeginColorPicker(&c, gfx.LightTheme(), gfx.Rect{X: 40, Y: 40, Width: 32, Height: 32}, o).Paint()
 	}
 	paint()
 	if n := testing.AllocsPerRun(100, paint); n != 0 {
@@ -155,12 +155,12 @@ func BenchmarkColorPicker(b *testing.B) {
 			name = "open"
 		}
 		b.Run(name, func(b *testing.B) {
-			var c ui.Canvas
+			var c gfx.Canvas
 			o := pickerTestOptions()
 			o.Open = open
 			paint := func() {
 				c.Reset()
-				BeginColorPicker(&c, ui.LightTheme(), ui.Rect{X: 40, Y: 40, Width: 32, Height: 32}, o).Paint()
+				BeginColorPicker(&c, gfx.LightTheme(), gfx.Rect{X: 40, Y: 40, Width: 32, Height: 32}, o).Paint()
 			}
 			paint()
 			b.ReportAllocs()

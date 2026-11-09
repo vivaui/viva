@@ -3,7 +3,7 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // The text-entry family shares one contract: focus is the border alone, in the
@@ -11,37 +11,37 @@ import (
 // focus. There is no halo around the field, and border and fill stay opaque so
 // they never tint its interior.
 func TestTextEntryFamilySharesOneFocusAndInvalidContract(t *testing.T) {
-	bounds := ui.Rect{Width: 160}
-	fields := map[string]func(canvas *ui.Canvas, theme ui.Theme, state InputSnapshot){
-		"input": func(canvas *ui.Canvas, theme ui.Theme, state InputSnapshot) {
-			PaintInput(canvas, theme, bounds, InputSnapshot{ID: ui.Item(1), Label: "x", Value: "v", Focused: state.Focused, Invalid: state.Invalid})
+	bounds := gfx.Rect{Width: 160}
+	fields := map[string]func(canvas *gfx.Canvas, theme gfx.Theme, state InputSnapshot){
+		"input": func(canvas *gfx.Canvas, theme gfx.Theme, state InputSnapshot) {
+			PaintInput(canvas, theme, bounds, InputSnapshot{ID: gfx.Item(1), Label: "x", Value: "v", Focused: state.Focused, Invalid: state.Invalid})
 		},
-		"textarea": func(canvas *ui.Canvas, theme ui.Theme, state InputSnapshot) {
-			PaintTextarea(canvas, theme, ui.Rect{Width: 160, Height: 80}, TextareaSnapshot{ID: ui.Item(1), Label: "x", Value: "v", Focused: state.Focused, Invalid: state.Invalid})
+		"textarea": func(canvas *gfx.Canvas, theme gfx.Theme, state InputSnapshot) {
+			PaintTextarea(canvas, theme, gfx.Rect{Width: 160, Height: 80}, TextareaSnapshot{ID: gfx.Item(1), Label: "x", Value: "v", Focused: state.Focused, Invalid: state.Invalid})
 		},
-		"input group": func(canvas *ui.Canvas, theme ui.Theme, state InputSnapshot) {
-			PaintInputGroup(canvas, theme, bounds, InputGroupSnapshot{ID: ui.Item(1), Label: "x", Value: "v", Focused: state.Focused, Invalid: state.Invalid})
+		"input group": func(canvas *gfx.Canvas, theme gfx.Theme, state InputSnapshot) {
+			PaintInputGroup(canvas, theme, bounds, InputGroupSnapshot{ID: gfx.Item(1), Label: "x", Value: "v", Focused: state.Focused, Invalid: state.Invalid})
 		},
-		"native select": func(canvas *ui.Canvas, theme ui.Theme, state InputSnapshot) {
-			PaintNativeSelect(canvas, theme, bounds, NativeSelectSnapshot{ID: ui.Item(1), Label: "x", Focused: state.Focused, Invalid: state.Invalid})
+		"native select": func(canvas *gfx.Canvas, theme gfx.Theme, state InputSnapshot) {
+			PaintNativeSelect(canvas, theme, bounds, NativeSelectSnapshot{ID: gfx.Item(1), Label: "x", Focused: state.Focused, Invalid: state.Invalid})
 		},
-		"select": func(canvas *ui.Canvas, theme ui.Theme, state InputSnapshot) {
+		"select": func(canvas *gfx.Canvas, theme gfx.Theme, state InputSnapshot) {
 			if state.Focused {
-				canvas.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(1), true)
+				canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.Item(1), true)
 			}
-			BeginSelect(canvas, theme, bounds, SelectOptions{TriggerID: ui.Item(1), Label: "x", Invalid: state.Invalid})
+			BeginSelect(canvas, theme, bounds, SelectOptions{TriggerID: gfx.Item(1), Label: "x", Invalid: state.Invalid})
 		},
-		"combobox": func(canvas *ui.Canvas, theme ui.Theme, state InputSnapshot) {
+		"combobox": func(canvas *gfx.Canvas, theme gfx.Theme, state InputSnapshot) {
 			if state.Focused {
-				canvas.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(1), true)
+				canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.Item(1), true)
 			}
-			BeginCombobox(canvas, theme, bounds, ComboboxOptions{InputID: ui.Item(1), Label: "x", Invalid: state.Invalid})
+			BeginCombobox(canvas, theme, bounds, ComboboxOptions{InputID: gfx.Item(1), Label: "x", Invalid: state.Invalid})
 		},
 	}
 	for name, paint := range fields {
-		for themeName, theme := range map[string]ui.Theme{"dark": ui.DarkTheme(), "light": ui.LightTheme()} {
+		for themeName, theme := range map[string]gfx.Theme{"dark": gfx.DarkTheme(), "light": gfx.LightTheme()} {
 			t.Run(name+"/"+themeName, func(t *testing.T) {
-				var idle, focused, invalid ui.Canvas
+				var idle, focused, invalid gfx.Canvas
 				paint(&idle, theme, InputSnapshot{})
 				paint(&focused, theme, InputSnapshot{Focused: true})
 				paint(&invalid, theme, InputSnapshot{Focused: true, Invalid: true})
@@ -71,10 +71,10 @@ func TestTextEntryFamilySharesOneFocusAndInvalidContract(t *testing.T) {
 // A disabled field cannot take focus, so it never gets the focus halo, and it
 // fades as a whole (opacity-50), border and fill included.
 func TestTextEntryDisabledIsFadedAndNeverRinged(t *testing.T) {
-	theme := ui.DarkTheme()
-	var enabled, disabled ui.Canvas
-	PaintInput(&enabled, theme, ui.Rect{Width: 160}, InputSnapshot{ID: ui.Item(1), Label: "x", Value: "v"})
-	PaintInput(&disabled, theme, ui.Rect{Width: 160}, InputSnapshot{ID: ui.Item(1), Label: "x", Value: "v", Focused: true, Disabled: true})
+	theme := gfx.DarkTheme()
+	var enabled, disabled gfx.Canvas
+	PaintInput(&enabled, theme, gfx.Rect{Width: 160}, InputSnapshot{ID: gfx.Item(1), Label: "x", Value: "v"})
+	PaintInput(&disabled, theme, gfx.Rect{Width: 160}, InputSnapshot{ID: gfx.Item(1), Label: "x", Value: "v", Focused: true, Disabled: true})
 	if len(disabled.Rectangles()) != len(enabled.Rectangles()) {
 		t.Fatalf("a disabled field painted %d rectangles, an enabled one %d: it must have no halo", len(disabled.Rectangles()), len(enabled.Rectangles()))
 	}

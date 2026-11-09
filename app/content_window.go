@@ -3,7 +3,7 @@ package app
 import (
 	"sync"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const contentWindowPostLimit = 256
@@ -24,7 +24,7 @@ type ContentWindow struct {
 // OpenContentWindow opens a resizable system window. Call it on the application
 // thread, like OpenWindow. The helper owns Invalidator and drains Post updates
 // before the supplied OnWake. Background workers never touch UI state directly.
-func (application *Application) OpenContentWindow(config Config, canvas *ui.Canvas) (*ContentWindow, error) {
+func (application *Application) OpenContentWindow(config Config, canvas *gfx.Canvas) (*ContentWindow, error) {
 	content := &ContentWindow{closeRequest: config.OnCloseRequest}
 	if config.Width <= 0 {
 		config.Width = 960

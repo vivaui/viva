@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // expectApp has a button, a checkbox with no name of its own, a field, a heading, and a button
 // that a panel in front of it covers.
 type expectApp struct {
-	tree    ui.Tree
+	tree    gfx.Tree
 	auto    bool
 	saved   int
 	status  string
@@ -28,15 +28,15 @@ func (a *expectApp) session(t *testing.T) *Session {
 	save, auto, name, behind := a.tree.ID(home, "save"), a.tree.ID(home, "auto"), a.tree.ID(home, "name"), a.tree.ID(home, "behind")
 	config := app.Config{Title: "expect", Width: 320, Height: 200, Tree: &a.tree, Invalidator: &a.invalid}
 	config.OnWake = func() {}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(save, ui.Rect{X: 10, Y: 10, Width: 80, Height: 30}, "Save", ui.HitOptions{Role: ui.RoleButton})
-		canvas.HitWithOptions(auto, ui.Rect{X: 10, Y: 50, Width: 20, Height: 20}, "", ui.HitOptions{Role: ui.RoleCheckbox, Checked: a.auto})
-		canvas.HitWithOptions(name, ui.Rect{X: 10, Y: 80, Width: 200, Height: 30}, "Host", ui.HitOptions{Role: ui.RoleTextField, Value: "example.com"})
-		canvas.HitWithOptions(behind, ui.Rect{X: 220, Y: 10, Width: 80, Height: 30}, "Behind", ui.HitOptions{Role: ui.RoleButton})
-		canvas.Block(ui.Rect{X: 220, Y: 10, Width: 80, Height: 30})
-		canvas.HitWithOptions(a.tree.ID(home, "off"), ui.Rect{X: 100, Y: 10, Width: 80, Height: 30}, "Off", ui.HitOptions{Role: ui.RoleButton, Disabled: true})
-		canvas.HitWithOptions(a.tree.ID(home, "panel"), ui.Rect{X: 215, Y: 5, Width: 90, Height: 40}, "Panel", ui.HitOptions{Role: ui.RoleGroup})
-		canvas.Label(a.status, ui.Rect{X: 10, Y: 150, Width: 200, Height: 20}, ui.TextStyle{Size: 13, Color: ui.Color{Alpha: 1}})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(save, gfx.Rect{X: 10, Y: 10, Width: 80, Height: 30}, "Save", gfx.HitOptions{Role: gfx.RoleButton})
+		canvas.HitWithOptions(auto, gfx.Rect{X: 10, Y: 50, Width: 20, Height: 20}, "", gfx.HitOptions{Role: gfx.RoleCheckbox, Checked: a.auto})
+		canvas.HitWithOptions(name, gfx.Rect{X: 10, Y: 80, Width: 200, Height: 30}, "Host", gfx.HitOptions{Role: gfx.RoleTextField, Value: "example.com"})
+		canvas.HitWithOptions(behind, gfx.Rect{X: 220, Y: 10, Width: 80, Height: 30}, "Behind", gfx.HitOptions{Role: gfx.RoleButton})
+		canvas.Block(gfx.Rect{X: 220, Y: 10, Width: 80, Height: 30})
+		canvas.HitWithOptions(a.tree.ID(home, "off"), gfx.Rect{X: 100, Y: 10, Width: 80, Height: 30}, "Off", gfx.HitOptions{Role: gfx.RoleButton, Disabled: true})
+		canvas.HitWithOptions(a.tree.ID(home, "panel"), gfx.Rect{X: 215, Y: 5, Width: 90, Height: 40}, "Panel", gfx.HitOptions{Role: gfx.RoleGroup})
+		canvas.Label(a.status, gfx.Rect{X: 10, Y: 150, Width: 200, Height: 20}, gfx.TextStyle{Size: 13, Color: gfx.Color{Alpha: 1}})
 		if canvas.Clicked(auto) {
 			a.auto = !a.auto
 		}
@@ -152,8 +152,8 @@ func TestExpectWithinWaitsForWhatBackgroundWorkBrings(t *testing.T) {
 		default:
 		}
 	}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.Label(a.status, ui.Rect{Width: 100, Height: 20}, ui.TextStyle{Size: 13, Color: ui.Color{Alpha: 1}})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.Label(a.status, gfx.Rect{Width: 100, Height: 20}, gfx.TextStyle{Size: 13, Color: gfx.Color{Alpha: 1}})
 	}
 	background, err := Open(config, nil, Options{})
 	if err != nil {

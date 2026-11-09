@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -11,7 +11,7 @@ var alertComponent = Component{
 	paint: (*State).paintAlert,
 	Examples: []Example{
 		{ID: "default", Title: "说明", Description: "展示普通通知及其补充说明。", Snippet: `data := components.AlertData{
-    Icon:        icon, // caller-owned ui.Icon, optional
+    Icon:        icon, // caller-owned gfx.Icon, optional
     Title:       "Sync complete",
     Description: "All local changes are safely on disk.",
 }
@@ -29,7 +29,7 @@ components.Alert(canvas, theme, dangerBounds, dangerData)`},
 	},
 }
 
-func (state *State) paintAlert(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintAlert(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	plainData := components.AlertData{
 		Icon:        infoIcon,
 		Title:       state.Text("同步已完成", "Sync complete"),
@@ -39,11 +39,11 @@ func (state *State) paintAlert(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 		Variant: components.AlertDestructive, Icon: alertIcon, Title: state.Text("无法删除项目", "Unable to delete project"),
 		Description: state.Text("请先移除仍在使用该项目的发布配置。", "Remove any release configurations that still use this project first."),
 	}
-	var plain, destructive flex.Box
+	var plain, destructive ui.Box
 	variants := state.exampleID == "variants"
 	// The page column is at most 560 wide inside 24 of padding.
 	contentWidth := min(float32(560), size.Width-48)
-	state.page(canvas, theme, size, 560, state.Text("Alert · 明确反馈", "Alert · Clear feedback"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 560, state.Text("Alert · 明确反馈", "Alert · Clear feedback"), func(f *ui.Frame) {
 		plain = f.Slot().FillWidth().Height(components.AlertHeight(canvas, theme, contentWidth, plainData))
 		if variants {
 			destructive = f.Slot().FillWidth().Height(components.AlertHeight(canvas, theme, contentWidth, dangerData))

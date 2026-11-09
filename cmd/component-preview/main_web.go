@@ -7,10 +7,10 @@ import (
 	"strings"
 	"syscall/js"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/componentdemo"
 	"github.com/vivaui/viva/internal/platform/web"
 	"github.com/vivaui/viva/internal/previewmeasure"
-	"github.com/vivaui/viva/ui"
 )
 
 func main() {
@@ -54,7 +54,7 @@ func main() {
 	}
 	err = web.Run(web.Config{
 		Title: "Viva · " + component + " · Web preview", Width: 760, Height: 380,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			state.Paint(canvas, size)
 			if height := previewmeasure.Content(canvas, size); embedded && height > 0 && height != lastHeight {
 				lastHeight = height

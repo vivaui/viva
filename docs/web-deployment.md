@@ -13,7 +13,7 @@ as unsupported rather than emulated.
 
 `app.Run` and `app.RunCanvas` both start that page: `Run` is the ordinary
 single-window entry point, and `RunCanvas` is for an application that already
-owns a retained `ui.Canvas`. A nil `Paint` is accepted, leaving a canvas painted
+owns a retained `gfx.Canvas`. A nil `Paint` is accepted, leaving a canvas painted
 by the caller on screen, exactly as on a native target. `app.RunApplication`
 returns `ErrUnsupported` on the web because a document hosts one window; a
 multi-window application needs a native backend and should branch on
@@ -84,7 +84,7 @@ The browser reports these integrations:
 
 | Capability | Browser behaviour |
 | --- | --- |
-| `CapabilityFileDrop` | Dropped files arrive with `ui.FileDropEvent.Files`; no paths |
+| `CapabilityFileDrop` | Dropped files arrive with `gfx.FileDropEvent.Files`; no paths |
 | `CapabilityClipboardTextAsync` | `navigator.clipboard.readText` / `writeText` |
 | `CapabilityClipboardImageAsync` | `navigator.clipboard.read`; PNG only |
 | `CapabilityFileDialogsAsync` | `showOpenFilePicker`, or an `<input type=file>` fallback |
@@ -176,7 +176,7 @@ removes the face. Use it before the first paint, or repaint after it completes.
 
 `SetInterfaceFontFamily` works on the Web target through the same shaped-line
 engine. `FontFamilies` and `MonospaceFamilies` are empty because browsers do not
-expose the machine's installed fonts. Use `ui.MonoSystem`, `ui.MonoClassic`, or
+expose the machine's installed fonts. Use `gfx.MonoSystem`, `gfx.MonoClassic`, or
 a family registered by the application.
 
 Text is shaped and measured in CSS pixels through the document, and painted by

@@ -7,7 +7,7 @@ group: guides
 
 ## 目录里有什么
 
-组件目录是对固定版本 shadcn/ui 组件集的静态类型 Go 翻译：按钮与表单、浮层与菜单、日历、表格、图表和反馈界面。它们都是通过 `ui.Canvas` 绘制的普通 Go 函数，没有反射，没有运行时样式解析器，底下也没有浏览器。[组件目录](/zh/ui/button/)展示了每一个组件的运行效果、示例、源码和键盘行为。
+组件目录是对固定版本 shadcn/ui 组件集的静态类型 Go 翻译：按钮与表单、浮层与菜单、日历、表格、图表和反馈界面。它们都是通过 `gfx.Canvas` 绘制的普通 Go 函数，没有反射，没有运行时样式解析器，底下也没有浏览器。[组件目录](/zh/ui/button/)展示了每一个组件的运行效果、示例、源码和键盘行为。
 
 ## 使用组件
 
@@ -17,7 +17,11 @@ group: guides
 components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 ```
 
-主题是一个值，`ui.LightTheme()` 或 `ui.DarkTheme()`。切换外观就是改用另一个主题绘制。
+主题是一个值，`gfx.LightTheme()` 或 `gfx.DarkTheme()`。切换外观就是改用另一个主题绘制。
+
+## 树形导航
+
+`BeginTree` 根据应用自己扁平化的层级绘制可见行。处理键盘事件时，将可见行的实际深度、展开状态和禁用状态传给 `components.NavigateTree`；深度不能使用为了适应宽度而截断的视觉缩进。它返回下一个可见行的索引，或者展开、折叠动作。子节点加载、展开状态、选择和焦点仍由应用负责，不产生隐藏模型或后台工作；导航切片可作为调用方拥有的临时存储复用。
 
 ## 图表
 
@@ -45,13 +49,13 @@ plot := components.PaintAreaChart(canvas, theme, bounds, chartID, chart, &state)
 ```sh
 # 先安装 viva（见「构建与打包」）；viva init 生成的项目里用 go tool viva
 viva list
-viva add --out ./components/ui button card badge
+viva add --out ./components button card badge
 ```
 
 | 参数 | 含义 |
 | --- | --- |
-| `--out` | 写入的目录，默认 `components/ui`。 |
-| `--package` | 生成文件的包名，默认 `ui`。 |
+| `--out` | 写入的目录，默认 `components`。 |
+| `--package` | 生成文件的包名，默认 `components`。 |
 | `--force` | 覆盖已存在的文件。 |
 
-复制出来的文件由你修改。它们仍然引入 Viva 的 `ui` 包来使用画布和主题类型，所以依赖 Viva 模块，但没有任何东西在中央注册或更新它们。每个组件都是安装器能复制的配方；一个配方若调用了另一个（例如 `badge` 用到 `button`），会连同它一起复制，保证复制出的这一组能独立编译。这些副本由 `github.com/vivaui/viva/components` 包的同一批源文件生成，所以与它保持一致。导入 `github.com/vivaui/viva/components` 但不调用任何配方，不会链接其中任何内容，因此只有在选项不够用时才需要复制组件。目录中每个组件页都有源码文件的**下载**链接和安装命令。
+复制出来的文件由你修改。它们仍然引入 Viva 的 `gfx` 包来使用画布和主题类型，所以依赖 Viva 模块，但没有任何东西在中央注册或更新它们。每个组件都是安装器能复制的配方；一个配方若调用了另一个（例如 `badge` 用到 `button`），会连同它一起复制，保证复制出的这一组能独立编译。这些副本由 `github.com/vivaui/viva/components` 包的同一批源文件生成，所以与它保持一致。导入 `github.com/vivaui/viva/components` 但不调用任何配方，不会链接其中任何内容，因此只有在选项不够用时才需要复制组件。目录中每个组件页都有源码文件的**下载**链接和安装命令。

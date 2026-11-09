@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Showing a busy page and then an empty one must give back what the page held: the
@@ -12,17 +12,17 @@ import (
 // A page that is shown and removed over and over must not leave a little behind
 // each time.
 func TestAPageThatIsRemovedLeavesNothingRetained(t *testing.T) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	page := tree.Feature("leak")
 	rows := tree.Sub(page, tree.Name("rows"))
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	rowCount := 0
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	painter := newTestPainter(t, &canvas, Config{Title: "leak", Width: 400, Height: 600, Tree: &tree,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			for i := 0; i < rowCount; i++ {
-				components.BeginButton(canvas, theme, rows.At(i), ui.Rect{X: 10, Y: float32(10 + i*40), Width: 200, Height: 32}).Default("Row")
-				canvas.Label("text", ui.Rect{X: 220, Y: float32(10 + i*40), Width: 100, Height: 20}, ui.TextStyle{Size: 13})
+				components.BeginButton(canvas, theme, rows.At(i), gfx.Rect{X: 10, Y: float32(10 + i*40), Width: 200, Height: 32}).Default("Row")
+				canvas.Label("text", gfx.Rect{X: 220, Y: float32(10 + i*40), Width: 100, Height: 20}, gfx.TextStyle{Size: 13})
 			}
 		}})
 	settle := func(count int) {
@@ -54,14 +54,14 @@ func TestAPageThatIsRemovedLeavesNothingRetained(t *testing.T) {
 }
 
 func TestALargePageThenASmallOneReleasesSlots(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	rowCount := 0
 	painter := newTestPainter(t, &canvas, Config{Title: "trim", Width: 400, Height: 600,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			for i := 0; i < rowCount; i++ {
-				bounds := ui.Rect{X: 10, Y: float32(i * 10), Width: 100, Height: 8}
-				canvas.Fill(bounds, ui.Color{Alpha: 1})
-				canvas.Hit(ui.Item(i+1), bounds)
+				bounds := gfx.Rect{X: 10, Y: float32(i * 10), Width: 100, Height: 8}
+				canvas.Fill(bounds, gfx.Color{Alpha: 1})
+				canvas.Hit(gfx.Item(i+1), bounds)
 			}
 		}})
 	settle := func(count int) {

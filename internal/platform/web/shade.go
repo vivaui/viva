@@ -1,6 +1,6 @@
 package web
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // shadeAxis turns a shaded triangle into what Canvas 2D can paint, a linear
 // gradient: it runs from start, where the color is from, to end, where it is to.
@@ -11,7 +11,7 @@ import "github.com/vivaui/viva/ui"
 // reached inside the triangle. For any other three colors it is the nearest such
 // line. ok is false when the triangle is effectively flat or degenerate and its
 // first color serves.
-func shadeAxis(points [3]ui.Point, colors [3]ui.Color) (start, end ui.Point, from, to ui.Color, ok bool) {
+func shadeAxis(points [3]gfx.Point, colors [3]gfx.Color) (start, end gfx.Point, from, to gfx.Color, ok bool) {
 	first, second := 0, 1
 	for _, pair := range [...][2]int{{0, 2}, {1, 2}} {
 		if colorDistance(colors[pair[0]], colors[pair[1]]) > colorDistance(colors[first], colors[second]) {
@@ -41,15 +41,15 @@ func shadeAxis(points [3]ui.Point, colors [3]ui.Color) (start, end ui.Point, fro
 		return start, end, colors[0], colors[0], false
 	}
 	start = points[first]
-	end = ui.Point{X: start.X + gx/length, Y: start.Y + gy/length}
+	end = gfx.Point{X: start.X + gx/length, Y: start.Y + gy/length}
 	return start, end, from, to, true
 }
 
 // colorDistance is the squared distance between two colors, alpha included.
-func colorDistance(a, b ui.Color) float32 { return colorDot(b, a, b) }
+func colorDistance(a, b gfx.Color) float32 { return colorDot(b, a, b) }
 
 // colorDot is (color-from)·(to-from).
-func colorDot(color, from, to ui.Color) float32 {
+func colorDot(color, from, to gfx.Color) float32 {
 	return (color.Red-from.Red)*(to.Red-from.Red) + (color.Green-from.Green)*(to.Green-from.Green) +
 		(color.Blue-from.Blue)*(to.Blue-from.Blue) + (color.Alpha-from.Alpha)*(to.Alpha-from.Alpha)
 }

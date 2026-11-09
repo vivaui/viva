@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // ToggleVariant selects the neutral or bordered treatment.
 type ToggleVariant uint8
@@ -22,10 +22,10 @@ const (
 // Toggle paints one two-state compact action. The application owns active
 // state and responds to the stable Canvas hit ID.
 type Toggle struct {
-	canvas   *ui.Canvas
-	theme    ui.Theme
-	id       ui.ID
-	bounds   ui.Rect
+	canvas   *gfx.Canvas
+	theme    gfx.Theme
+	id       gfx.ID
+	bounds   gfx.Rect
 	active   bool
 	size     ToggleSize
 	invalid  bool
@@ -51,7 +51,7 @@ func (toggle Toggle) Invalid() Toggle {
 }
 
 // BeginToggle starts a toggle declaration.
-func BeginToggle(canvas *ui.Canvas, theme ui.Theme, id ui.ID, bounds ui.Rect, active bool) Toggle {
+func BeginToggle(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect, active bool) Toggle {
 	return Toggle{canvas: canvas, theme: theme, id: id, bounds: bounds, active: active}
 }
 
@@ -74,20 +74,20 @@ func (toggle Toggle) BoundsWidth() float32 { return toggle.bounds.Width }
 
 // toggleFittedWidth is a toggle's width around label: padding on both sides, at
 // least as wide as it is tall.
-func toggleFittedWidth(canvas *ui.Canvas, theme ui.Theme, label string, height, padding float32) float32 {
-	return max(canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, ui.WeightMedium)+padding*2, height)
+func toggleFittedWidth(canvas *gfx.Canvas, theme gfx.Theme, label string, height, padding float32) float32 {
+	return max(canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, gfx.WeightMedium)+padding*2, height)
 }
 
 // ToggleResult is what painting a toggle reports back. Clicked is true in the
-// event pass of a click on it (see ui.Canvas.Clicked), so the code that declares
+// event pass of a click on it (see gfx.Canvas.Clicked), so the code that declares
 // a toggle is the code that flips it:
 //
 //	if components.BeginToggle(canvas, theme, bold, bounds, m.bold).Default("B").Clicked() {
 //		m.bold = !m.bold
 //	}
 type ToggleResult struct {
-	canvas *ui.Canvas
-	id     ui.ID
+	canvas *gfx.Canvas
+	id     gfx.ID
 }
 
 // Clicked reports whether this paint is delivering a click on the toggle.
@@ -122,7 +122,7 @@ func (toggle Toggle) paint(label string, variant ToggleVariant) ToggleResult {
 		focus := scaledAlpha(toggle.theme.Ring, 0.50)
 		border = toggle.theme.Ring
 		if toggle.invalid {
-			focus, border = invalidRing(toggle.theme), invalidBorder(toggle.theme)
+			focus, border = invalidRing(&toggle.theme), invalidBorder(&toggle.theme)
 		}
 		toggle.canvas.Rounded(expand(toggle.bounds, 3), radius+3, focus)
 	}
@@ -146,7 +146,7 @@ func (toggle Toggle) paint(label string, variant ToggleVariant) ToggleResult {
 	}
 	if variant == ToggleOutline || toggle.invalid || focused {
 		if variant == ToggleOutline {
-			toggle.canvas.Elevate(toggle.bounds, radius, ui.ShadowXS) // shadow-xs
+			toggle.canvas.Elevate(toggle.bounds, radius, gfx.ShadowXS) // shadow-xs
 		}
 		if toggle.disabled {
 			border.Alpha *= 0.50
@@ -155,12 +155,12 @@ func (toggle Toggle) paint(label string, variant ToggleVariant) ToggleResult {
 	} else {
 		toggle.canvas.Rounded(toggle.bounds, radius, fill)
 	}
-	toggle.canvas.LabelCenter(label, toggle.bounds, ui.TextStyle{
-		Size: toggle.theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground,
+	toggle.canvas.LabelCenter(label, toggle.bounds, gfx.TextStyle{
+		Size: toggle.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground,
 	})
 	if !toggle.id.IsZero() {
-		toggle.canvas.HitWithOptions(toggle.id, toggle.bounds, label, ui.HitOptions{
-			Role: ui.RoleButton, Disabled: toggle.disabled, Checked: toggle.active,
+		toggle.canvas.HitWithOptions(toggle.id, toggle.bounds, label, gfx.HitOptions{
+			Role: gfx.RoleButton, Disabled: toggle.disabled, Checked: toggle.active,
 			Selected: toggle.active,
 		})
 	}
@@ -171,7 +171,7 @@ func (toggle Toggle) controlHeight() float32 {
 	return toggleControlHeight(toggle.theme, toggle.size)
 }
 
-func toggleControlHeight(theme ui.Theme, size ToggleSize) float32 {
+func toggleControlHeight(theme gfx.Theme, size ToggleSize) float32 {
 	height := theme.Metrics.ControlHeight
 	switch size {
 	case ToggleSizeSmall:

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // TestEnglishExamplesPaintNoChinese catches a demo that still hands Chinese
@@ -17,10 +17,10 @@ func TestEnglishExamplesPaintNoChinese(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s/%s: %v", component.ID, example.ID, err)
 			}
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			canvas.BeginFrame()
 			canvas.Reset()
-			state.Paint(&canvas, ui.Size{Width: 760, Height: 600})
+			state.Paint(&canvas, gfx.Size{Width: 760, Height: 600})
 			canvas.EndFrame()
 			for _, text := range canvas.Texts() {
 				if containsHan(text.Value) {

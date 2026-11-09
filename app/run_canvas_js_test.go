@@ -5,10 +5,10 @@ package app
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/platform/web"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func captureWeb(t *testing.T) *web.Config {
@@ -22,13 +22,13 @@ func captureWeb(t *testing.T) *web.Config {
 
 func TestRunCanvasHandsTheApplicationToThePage(t *testing.T) {
 	got := captureWeb(t)
-	var tree ui.Tree
+	var tree gfx.Tree
 	var invalidator Invalidator
-	canvas := &ui.Canvas{}
+	canvas := &gfx.Canvas{}
 	woken := false
 	err := RunCanvas(Config{
 		Title: "Notes", Tree: &tree, Invalidator: &invalidator, OnWake: func() { woken = true },
-		Paint:     func(*ui.Canvas, ui.Size) {},
+		Paint:     func(*gfx.Canvas, gfx.Size) {},
 		TextInput: func(TextInputContext) *TextInput { return nil },
 	}, canvas)
 	if err != nil {
@@ -82,16 +82,16 @@ func TestRunStartsThePageAsTheWindow(t *testing.T) {
 func TestWebTextInputConnectsAnEditorToTheBrowser(t *testing.T) {
 	editor := text.NewEditor("hello")
 	provider := webTextInput(func(context TextInputContext) *TextInput {
-		if context.ID != ui.Item(7) {
+		if context.ID != gfx.Item(7) {
 			return nil
 		}
 		return &TextInput{Editor: editor}
 	})
-	if provider(web.TextInputContext{ID: ui.Item(8)}) != nil {
+	if provider(web.TextInputContext{ID: gfx.Item(8)}) != nil {
 		t.Fatal("a field the application does not edit must not become a browser editor")
 	}
-	input := provider(web.TextInputContext{ID: ui.Item(7), Bounds: ui.Rect{X: 5, Y: 6, Width: 100, Height: 20}, FontSize: 14})
-	if input == nil || input.State.Value != "hello" || input.Target != ui.Item(7) {
+	input := provider(web.TextInputContext{ID: gfx.Item(7), Bounds: gfx.Rect{X: 5, Y: 6, Width: 100, Height: 20}, FontSize: 14})
+	if input == nil || input.State.Value != "hello" || input.Target != gfx.Item(7) {
 		t.Fatalf("the browser must start from the editor's text, got %+v", input)
 	}
 	state, err := input.OnEvent(platform.TextEvent{Kind: platform.TextInsert, Text: " there"})
@@ -107,19 +107,19 @@ func TestWebTextInputPreservesAlignment(t *testing.T) {
 	for _, testcase := range []struct {
 		name      string
 		value     string
-		alignment ui.Alignment
-		want      ui.Alignment
+		alignment gfx.Alignment
+		want      gfx.Alignment
 	}{
-		{"right", "hello", ui.AlignRight, ui.AlignRight},
-		{"start RTL", "שלום", ui.AlignStart, ui.AlignRight},
-		{"end RTL", "שלום", ui.AlignEnd, ui.AlignLeft},
-		{"end LTR", "hello", ui.AlignEnd, ui.AlignRight},
+		{"right", "hello", gfx.AlignRight, gfx.AlignRight},
+		{"start RTL", "שלום", gfx.AlignStart, gfx.AlignRight},
+		{"end RTL", "שלום", gfx.AlignEnd, gfx.AlignLeft},
+		{"end LTR", "hello", gfx.AlignEnd, gfx.AlignRight},
 	} {
 		t.Run(testcase.name, func(t *testing.T) {
 			provider := webTextInput(func(TextInputContext) *TextInput {
 				return &TextInput{Editor: text.NewEditor(testcase.value), Alignment: testcase.alignment}
 			})
-			input := provider(web.TextInputContext{ID: ui.Item(7), Bounds: ui.Rect{Width: 200, Height: 30}})
+			input := provider(web.TextInputContext{ID: gfx.Item(7), Bounds: gfx.Rect{Width: 200, Height: 30}})
 			if input == nil || input.Alignment != testcase.want {
 				t.Fatalf("browser alignment = %+v, want %v", input, testcase.want)
 			}
@@ -135,7 +135,7 @@ func TestWebTextInputPreservesPaintedEditorOverlays(t *testing.T) {
 		}
 		return &TextInput{Editor: editor}
 	})
-	input := provider(web.TextInputContext{ID: ui.Item(1), HideNativeOverlays: true})
+	input := provider(web.TextInputContext{ID: gfx.Item(1), HideNativeOverlays: true})
 	if input == nil || !input.HideNativeOverlays {
 		t.Fatal("browser text input must not draw a second caret or selection over the canvas")
 	}
@@ -152,7 +152,7 @@ func TestWebTextInputPassesEventsToAHandlerThatOwnsThem(t *testing.T) {
 			},
 		}
 	})
-	input := provider(web.TextInputContext{ID: ui.Item(1)})
+	input := provider(web.TextInputContext{ID: gfx.Item(1)})
 	state, err := input.OnEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "X"})
 	if err != nil {
 		t.Fatal(err)
@@ -166,11 +166,11 @@ func TestWebTextInputKeepsTerminalKeyboardSemantics(t *testing.T) {
 	provider := webTextInput(func(TextInputContext) *TextInput {
 		return &TextInput{KeyReleases: true, AltSendsEscape: true}
 	})
-	input := provider(web.TextInputContext{ID: ui.Item(1), Terminal: true})
+	input := provider(web.TextInputContext{ID: gfx.Item(1), Terminal: true})
 	if input == nil || !input.Terminal || !input.KeyReleases || !input.AltSendsEscape {
 		t.Fatalf("terminal input = %+v, want Terminal and KeyReleases and AltSendsEscape", input)
 	}
-	typeAhead := provider(web.TextInputContext{ID: ui.Item(2), TypeAhead: true})
+	typeAhead := provider(web.TextInputContext{ID: gfx.Item(2), TypeAhead: true})
 	if typeAhead == nil || !typeAhead.Terminal || typeAhead.KeyReleases {
 		t.Fatalf("type-ahead input = %+v, want Terminal without releases", typeAhead)
 	}

@@ -12,7 +12,7 @@ func documentation() map[string]Page {
 	}
 	overrides := map[string]Page{
 		"button": {Sections: []Section{
-			{ID: "usage", Title: "Usage", Text: "flex.Frame.Button declares a labeled hit region and paints a source-owned button. Keep the stable ID across repaints; Clicked reports activation in the same declaration.", Items: []string{"Default, Secondary, Outline, Ghost, Destructive and Link share the same interaction model.", "Buttons measure their label by default; set Width to reserve a fixed size.", "XSmall, Small, Large and icon sizes are explicit options. Icon-only controls still need an accessible name."}},
+			{ID: "usage", Title: "Usage", Text: "ui.Frame.Button declares a labeled hit region and paints a source-owned button. Keep the stable ID across repaints; Clicked reports activation in the same declaration.", Items: []string{"Default, Secondary, Outline, Ghost, Destructive and Link share the same interaction model.", "Buttons measure their label by default; set Width to reserve a fixed size.", "XSmall, Small, Large and icon sizes are explicit options. Icon-only controls still need an accessible name."}},
 			{ID: "keyboard", Title: "Keyboard & state", Text: "Tab moves focus; Enter or Space activates the focused enabled button. Pointer focus does not paint a keyboard focus ring.", Items: []string{"Disabled controls cannot activate and are excluded from focus traversal.", "Hover, press and focus are read from Canvas, not stored as duplicate application state."}},
 		}},
 		"badge": {Sections: []Section{
@@ -34,6 +34,10 @@ func documentation() map[string]Page {
 		"code-diff": {Sections: []Section{
 			{ID: "usage", Title: "Aligned source comparison", Text: "CodeDiff paints two synchronized panes from a caller-owned CodeDiffResult. The left pane is a fixed baseline; the right pane connects to the same native text editor used by CodeEditor and Textarea.", Items: []string{"Use DiffCodeLines to create Added, Removed and Changed rows without changing either source string.", "Long lines share one horizontal offset and both panes share one vertical offset.", "Added and removed rows include signs and line numbers in addition to color."}},
 			{ID: "keyboard", Title: "Editing and scrolling", Text: "The right pane preserves byte-based selection, composition and caret placement while the aligned rows remain read-only on the left.", Items: []string{"Mouse wheel and scrollbar drags update the shared offsets.", "Read-only previews do not expose a platform editor.", "Applications should debounce expensive recomputation and discard stale results after newer text arrives."}},
+		}},
+		"code-merge": {Sections: []Section{
+			{ID: "usage", Title: "Three caller-aligned sources", Text: "CodeMerge displays Current and Incoming beside an editable Result on a shared line grid.", Items: []string{"Supply the three split sources and aligned row indices; update alignment after editing the result.", "Source gutter actions expose stable IDs and row coordinates; the caller decides what accepting a change means.", "Conflict detection, remaining counts and resolution policy are not part of the view."}},
+			{ID: "keyboard", Title: "Editing and scrolling", Text: "Result uses the same native text input, selection and composition bridge as CodeDiff.", Items: []string{"All three panes share vertical scrolling.", "The preview action records a click; it does not silently merge file contents."}},
 		}},
 		"split-button": {Sections: []Section{
 			{ID: "usage", Title: "Two independent actions", Text: "SplitButton paints a joined primary action and menu trigger while declaring separate stable IDs. Call Clicked after Paint to route either action.", Items: []string{"The primary and menu halves have independent hover, focus, pressed and disabled semantics.", "Open is caller-owned and is exposed as expanded state on the menu trigger.", "Use SplitButton when the menu selects a variation of one primary outcome."}},

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // The visual gate for the fallback macOS's own font machinery does not make: the
@@ -36,7 +36,7 @@ func registerTestIcons(t testing.TB) {
 
 // renderMonoLine draws one fixed-pitch label and returns its pixels. With runs it takes
 // the terminal row's path (a shaped run per cell span); without them the mono label's.
-func renderMonoLine(t testing.TB, face ui.MonoFace, value string, runs []ui.TextRun) []byte {
+func renderMonoLine(t testing.TB, face gfx.MonoFace, value string, runs []gfx.TextRun) []byte {
 	t.Helper()
 	offscreen, err := NewOffscreen(160, 32, 2, platform.Color{Alpha: 1})
 	if err != nil {
@@ -64,21 +64,21 @@ func renderMonoLine(t testing.TB, face ui.MonoFace, value string, runs []ui.Text
 // family has is the reference.
 func TestAnInstalledFamilyDrawsWhatCoreTextOnlyBoxes(t *testing.T) {
 	registerTestIcons(t)
-	boxed := renderMonoLine(t, ui.MonoSystem, "\U0010FFFE", nil)
-	first := renderMonoLine(t, ui.MonoSystem, "\ue0b0", nil)
-	second := renderMonoLine(t, ui.MonoSystem, "\ue0b1", nil)
+	boxed := renderMonoLine(t, gfx.MonoSystem, "\U0010FFFE", nil)
+	first := renderMonoLine(t, gfx.MonoSystem, "\ue0b0", nil)
+	second := renderMonoLine(t, gfx.MonoSystem, "\ue0b1", nil)
 	if bytes.Equal(first, boxed) {
 		t.Fatal("the default face boxed U+E0B0: the installed family that has it was not used")
 	}
 	if bytes.Equal(first, second) {
 		t.Fatal("two code points with different glyphs drew alike: the fallback did not follow the family")
 	}
-	if again := renderMonoLine(t, ui.MonoSystem, "\ue0b0", nil); !bytes.Equal(first, again) {
+	if again := renderMonoLine(t, gfx.MonoSystem, "\ue0b0", nil); !bytes.Equal(first, again) {
 		t.Fatal("the same face drew the same line two different ways")
 	}
 	// The application's own fallback family comes first: CoreText ignores a cascade list
 	// for private-use code points too, so the lookup has to try it itself.
-	if stacked := renderMonoLine(t, ui.MonoStack(ui.MonoSystem, testIconFamily), "\ue0b0", nil); !bytes.Equal(first, stacked) {
+	if stacked := renderMonoLine(t, gfx.MonoStack(gfx.MonoSystem, testIconFamily), "\ue0b0", nil); !bytes.Equal(first, stacked) {
 		t.Fatal("a face's own fallback family did not draw the code point it has")
 	}
 }
@@ -87,16 +87,16 @@ func TestAnInstalledFamilyDrawsWhatCoreTextOnlyBoxes(t *testing.T) {
 // Powerline separator is a one-cell run that must come from the installed family too.
 func TestAnInstalledFamilyDrawsAGridRun(t *testing.T) {
 	registerTestIcons(t)
-	white := ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
-	runs := func(value string) []ui.TextRun {
+	white := gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	runs := func(value string) []gfx.TextRun {
 		bytes := int32(len(value))
-		return []ui.TextRun{{Bytes: bytes, Cells: 1, Color: white}}
+		return []gfx.TextRun{{Bytes: bytes, Cells: 1, Color: white}}
 	}
-	glyph := renderMonoLine(t, ui.MonoSystem, "\ue0b0", runs("\ue0b0"))
-	if !bytes.Equal(glyph, renderMonoLine(t, ui.MonoStack(ui.MonoSystem, testIconFamily), "\ue0b0", runs("\ue0b0"))) {
+	glyph := renderMonoLine(t, gfx.MonoSystem, "\ue0b0", runs("\ue0b0"))
+	if !bytes.Equal(glyph, renderMonoLine(t, gfx.MonoStack(gfx.MonoSystem, testIconFamily), "\ue0b0", runs("\ue0b0"))) {
 		t.Fatal("a grid run did not draw its character from the installed family that has it")
 	}
-	if bytes.Equal(glyph, renderMonoLine(t, ui.MonoSystem, "\U0010FFFE", runs("\U0010FFFE"))) {
+	if bytes.Equal(glyph, renderMonoLine(t, gfx.MonoSystem, "\U0010FFFE", runs("\U0010FFFE"))) {
 		t.Fatal("a grid run boxed a code point the installed family draws")
 	}
 }
@@ -107,8 +107,8 @@ func TestAnInstalledFamilyDrawsAGridRun(t *testing.T) {
 func TestTheInstalledFallbackLeavesTheSystemChoiceAlone(t *testing.T) {
 	registerTestIcons(t)
 	value := "A\u4e2d\u276f\U0001F600"
-	if !bytes.Equal(renderMonoLine(t, ui.MonoSystem, value, nil),
-		renderMonoLine(t, ui.MonoStack(ui.MonoSystem, testIconFamily), value, nil)) {
+	if !bytes.Equal(renderMonoLine(t, gfx.MonoSystem, value, nil),
+		renderMonoLine(t, gfx.MonoStack(gfx.MonoSystem, testIconFamily), value, nil)) {
 		t.Fatal("a character the system draws changed because of the installed fallback")
 	}
 }
@@ -140,7 +140,7 @@ func BenchmarkRasterizeMonoLine(b *testing.B) {
 				err := offscreen.Set(nil, []TextLabel{{
 					Value: fmt.Sprintf("%s%d", c.value, round), Width: 160, Height: 32, FontSize: 20, CellWidth: 12,
 					Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
-					Mono:  true, MonoFace: ui.MonoSystem,
+					Mono:  true, MonoFace: gfx.MonoSystem,
 				}}, nil)
 				if err != nil {
 					b.Fatal(err)

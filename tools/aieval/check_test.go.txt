@@ -29,7 +29,7 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/headless"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 type aiOp struct{ Op, Arg string }
@@ -74,7 +74,7 @@ func TestAIEvalCheck(t *testing.T) {
 				saveAIPNG(path, img)
 			}
 		}
-		var markBG ui.Color
+		var markBG gfx.Color
 		var before, dragBefore string
 		for _, op := range ops {
 			name := strings.TrimSpace(op.Op + " " + op.Arg)
@@ -209,10 +209,10 @@ func TestAIEvalCheck(t *testing.T) {
 	}()
 }
 
-func resizeHit(s *headless.Session, dir string) (ui.Hit, bool) {
-	want := ui.PointerCursorResizeHorizontal
+func resizeHit(s *headless.Session, dir string) (gfx.Hit, bool) {
+	want := gfx.PointerCursorResizeHorizontal
 	if dir == "v" {
-		want = ui.PointerCursorResizeVertical
+		want = gfx.PointerCursorResizeVertical
 	}
 	hits := s.Snapshot().Hits
 	for i := len(hits) - 1; i >= 0; i-- {
@@ -220,7 +220,7 @@ func resizeHit(s *headless.Session, dir string) (ui.Hit, bool) {
 			return hits[i], true
 		}
 	}
-	return ui.Hit{}, false
+	return gfx.Hit{}, false
 }
 
 func textY(s *headless.Session, value string) float32 {
@@ -262,9 +262,9 @@ func shapes(s *headless.Session) string {
 	return b.String()
 }
 
-func background(s *headless.Session) ui.Color {
+func background(s *headless.Session) gfx.Color {
 	snap := s.Snapshot()
-	best, area := ui.Color{}, float32(-1)
+	best, area := gfx.Color{}, float32(-1)
 	for _, p := range snap.Primitives {
 		if a := p.Bounds.Width * p.Bounds.Height; a > area {
 			best, area = p.Color, a
@@ -276,7 +276,7 @@ func background(s *headless.Session) ui.Color {
 // inked is the part of a text's rectangle its glyphs can occupy. A centered label reports
 // the start of its glyphs with the width of the whole rectangle it is centered in, so the
 // width is capped by an estimate of the text's own (half an em per character, an em for CJK).
-func inked(value string, size float32, b ui.Rect) ui.Rect {
+func inked(value string, size float32, b gfx.Rect) gfx.Rect {
 	var width float32
 	for _, r := range value {
 		if r >= 0x2E80 {
@@ -319,7 +319,7 @@ func layoutProblems(snap app.Snapshot) []string {
 	return out
 }
 
-func overlap(a, b ui.Rect) bool {
+func overlap(a, b gfx.Rect) bool {
 	x := min(a.X+a.Width, b.X+b.Width) - max(a.X, b.X)
 	y := min(a.Y+a.Height, b.Y+b.Height) - max(a.Y, b.Y)
 	return x > 2 && y > 2
@@ -335,12 +335,12 @@ func clickByHint(s *headless.Session, want string, first error) error {
 	snapshot := s.Snapshot()
 	for index := len(snapshot.Hits) - 1; index >= 0; index-- {
 		hit := snapshot.Hits[index]
-		if hit.Block || hit.ID.IsZero() || hit.Role != ui.RoleTextField {
+		if hit.Block || hit.ID.IsZero() || hit.Role != gfx.RoleTextField {
 			continue
 		}
 		match := strings.Contains(strings.ToLower(hit.Value), lower) || strings.Contains(strings.ToLower(hit.Hint), lower)
 		for _, painted := range snapshot.Texts {
-			center := ui.Rect{X: painted.Bounds.X + painted.Bounds.Width/2, Y: painted.Bounds.Y + painted.Bounds.Height/2}
+			center := gfx.Rect{X: painted.Bounds.X + painted.Bounds.Width/2, Y: painted.Bounds.Y + painted.Bounds.Height/2}
 			inside := center.X >= hit.Bounds.X && center.X < hit.Bounds.X+hit.Bounds.Width && center.Y >= hit.Bounds.Y && center.Y < hit.Bounds.Y+hit.Bounds.Height
 			if inside && strings.Contains(strings.ToLower(painted.Value), lower) {
 				match = true
@@ -355,13 +355,13 @@ func clickByHint(s *headless.Session, want string, first error) error {
 
 // overlapMost is a region sharing a quarter of the smaller one's area: a control's click
 // target may reach a few pixels past its neighbour's without the two being on top of each other.
-func overlapMost(a, b ui.Rect) bool {
+func overlapMost(a, b gfx.Rect) bool {
 	x := min(a.X+a.Width, b.X+b.Width) - max(a.X, b.X)
 	y := min(a.Y+a.Height, b.Y+b.Height) - max(a.Y, b.Y)
 	return x > 0 && y > 0 && x*y > 0.25*min(a.Width*a.Height, b.Width*b.Height)
 }
 
-func contains(outer, inner ui.Rect) bool {
+func contains(outer, inner gfx.Rect) bool {
 	return inner.X >= outer.X-1 && inner.Y >= outer.Y-1 && inner.X+inner.Width <= outer.X+outer.Width+1 && inner.Y+inner.Height <= outer.Y+outer.Height+1
 }
 

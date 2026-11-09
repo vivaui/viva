@@ -3,8 +3,8 @@ package components
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // The spans are documented as sorted and disjoint, but the paint walks them with
@@ -13,7 +13,7 @@ import (
 func TestCodeEditorPaintsOutOfOrderExtraCaretsAndSelectionRanges(t *testing.T) {
 	fixture := newCodeFixture("abc\ndef\nghi")
 	fixture.snapshot.Caret = 0
-	fixture.snapshot.CaretColor = ui.RGB(12, 34, 56)
+	fixture.snapshot.CaretColor = gfx.RGB(12, 34, 56)
 	// Rows out of order, and two carets on the same row out of order.
 	fixture.snapshot.ExtraCarets = []CodeEditorCaret{{Offset: 9}, {Offset: 1}, {Offset: 5}, {Offset: 6}}
 	fixture.paint()

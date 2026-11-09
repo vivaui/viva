@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // FindBarLabels are the accessible names and hints of the bar's controls, in the
 // application's language: icon buttons have no text of their own to be read.
@@ -22,9 +22,9 @@ type FindBarSnapshot struct {
 	// Replacing shows the replacement row.
 	Replacing bool
 	// The IDs of the bar's buttons. A zero ID leaves its button out.
-	PreviousID, NextID, CloseID                 ui.ID
-	MatchCaseID, WholeWordID, RegexpID          ui.ID
-	ToggleReplaceID, ReplaceOneID, ReplaceAllID ui.ID
+	PreviousID, NextID, CloseID                 gfx.ID
+	MatchCaseID, WholeWordID, RegexpID          gfx.ID
+	ToggleReplaceID, ReplaceOneID, ReplaceAllID gfx.ID
 	// The options as the query is read.
 	MatchCase, WholeWord, Regexp bool
 	// Status is the count the bar shows, such as "3 of 12" or "No results",
@@ -44,11 +44,11 @@ type FindBarSnapshot struct {
 
 // FindBarLayout is where a paint put the bar's parts.
 type FindBarLayout struct {
-	Bounds        ui.Rect
-	Find          ui.Rect
-	Replacement   ui.Rect
-	Status        ui.Rect
-	ToggleReplace ui.Rect
+	Bounds        gfx.Rect
+	Find          gfx.Rect
+	Replacement   gfx.Rect
+	Status        gfx.Rect
+	ToggleReplace gfx.Rect
 }
 
 const (
@@ -62,7 +62,7 @@ const (
 
 // FindBarHeight is how tall the bar is for the theme, with or without the
 // replacement row.
-func FindBarHeight(theme ui.Theme, replacing bool) float32 {
+func FindBarHeight(theme gfx.Theme, replacing bool) float32 {
 	row := findBarRow(theme)
 	height := row + 2*findBarPadding
 	if replacing {
@@ -76,7 +76,7 @@ func FindBarHeight(theme ui.Theme, replacing bool) float32 {
 // without overlap, but its field is squeezed below that.
 func FindBarMinWidth(snapshot FindBarSnapshot) float32 {
 	count := 0
-	for _, id := range [...]ui.ID{
+	for _, id := range [...]gfx.ID{
 		snapshot.PreviousID, snapshot.NextID, snapshot.CloseID,
 		snapshot.MatchCaseID, snapshot.WholeWordID, snapshot.RegexpID, snapshot.ToggleReplaceID,
 	} {
@@ -87,7 +87,7 @@ func FindBarMinWidth(snapshot FindBarSnapshot) float32 {
 	return 2*findBarPadding + float32(count)*(findBarButton+findBarGap) + findBarMinField - findBarGap
 }
 
-func findBarRow(theme ui.Theme) float32 {
+func findBarRow(theme gfx.Theme) float32 {
 	return max(theme.Metrics.ControlHeight-4, findBarButton)
 }
 
@@ -95,14 +95,14 @@ func findBarRow(theme ui.Theme) float32 {
 // returns where it put its parts. The height of bounds is ignored: the bar is
 // FindBarHeight tall, from the top of bounds. The query field takes what the
 // buttons leave, and the count gives way first when the bar is narrow.
-func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot FindBarSnapshot) FindBarLayout {
+func PaintFindBar(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snapshot FindBarSnapshot) FindBarLayout {
 	bounds.Height = FindBarHeight(theme, snapshot.Replacing)
 	layout := FindBarLayout{Bounds: bounds}
 	if canvas == nil || bounds.Width <= 0 {
 		return layout
 	}
 	radius := theme.Metrics.RadiusControl
-	canvas.Elevate(bounds, radius, ui.ShadowMD)
+	canvas.Elevate(bounds, radius, gfx.ShadowMD)
 	paintBordered(canvas, theme, bounds, radius, theme.Border, theme.Popover)
 
 	row := findBarRow(theme)
@@ -112,9 +112,9 @@ func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Fi
 
 	// The right edge, back to front: close, next, previous, count, options.
 	x := right
-	place := func(width float32) ui.Rect {
+	place := func(width float32) gfx.Rect {
 		x -= width
-		rect := ui.Rect{X: x, Y: y + (row-findBarButton)/2, Width: width, Height: findBarButton}
+		rect := gfx.Rect{X: x, Y: y + (row-findBarButton)/2, Width: width, Height: findBarButton}
 		x -= findBarGap
 		return rect
 	}
@@ -124,8 +124,8 @@ func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Fi
 		button.Ghost(snapshot.Labels.Close)
 	}
 	for _, step := range [...]struct {
-		id   ui.ID
-		icon *ui.Icon
+		id   gfx.ID
+		icon *gfx.Icon
 		name string
 	}{{snapshot.NextID, &chevronDownIcon, snapshot.Labels.Next}, {snapshot.PreviousID, &chevronUpIcon, snapshot.Labels.Previous}} {
 		if step.id.IsZero() {
@@ -139,7 +139,7 @@ func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Fi
 		button.Ghost(step.name)
 	}
 	options := 0
-	for _, id := range [...]ui.ID{snapshot.MatchCaseID, snapshot.WholeWordID, snapshot.RegexpID} {
+	for _, id := range [...]gfx.ID{snapshot.MatchCaseID, snapshot.WholeWordID, snapshot.RegexpID} {
 		if !id.IsZero() {
 			options++
 		}
@@ -150,16 +150,16 @@ func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Fi
 		statusWidth = findBarStatus
 	}
 	if statusWidth > 0 {
-		layout.Status = ui.Rect{X: x - statusWidth + findBarGap, Y: y, Width: statusWidth - findBarGap, Height: row}
+		layout.Status = gfx.Rect{X: x - statusWidth + findBarGap, Y: y, Width: statusWidth - findBarGap, Height: row}
 		color := muted
 		if snapshot.NoResults {
 			color = theme.Danger
 		}
-		canvas.LabelCenter(snapshot.Status, layout.Status, ui.TextStyle{Size: theme.Metrics.FontSizeS, Color: color})
+		canvas.LabelCenter(snapshot.Status, layout.Status, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Color: color})
 		x -= statusWidth
 	}
 	optionList := [...]struct {
-		id     ui.ID
+		id     gfx.ID
 		label  string
 		name   string
 		active bool
@@ -178,7 +178,7 @@ func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Fi
 		paintFindBarToggle(canvas, theme, toggle, option.label, option.name)
 	}
 	if !snapshot.ToggleReplaceID.IsZero() {
-		layout.ToggleReplace = ui.Rect{X: left, Y: y + (row-findBarButton)/2, Width: findBarButton, Height: findBarButton}
+		layout.ToggleReplace = gfx.Rect{X: left, Y: y + (row-findBarButton)/2, Width: findBarButton, Height: findBarButton}
 		icon := &chevronRightIcon
 		if snapshot.Replacing {
 			icon = &chevronDownIcon
@@ -187,7 +187,7 @@ func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Fi
 		left += findBarButton + findBarGap
 	}
 
-	layout.Find = ui.Rect{X: left, Y: y, Width: max(x-left+findBarGap, 0), Height: row}
+	layout.Find = gfx.Rect{X: left, Y: y, Width: max(x-left+findBarGap, 0), Height: row}
 	find := snapshot.Find
 	find.Invalid = find.Invalid || snapshot.NoResults && find.Value != ""
 	PaintInput(canvas, theme, layout.Find, find)
@@ -196,7 +196,7 @@ func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Fi
 		y += row + findBarRowGap
 		right := bounds.X + bounds.Width - findBarPadding
 		buttons := [...]struct {
-			id   ui.ID
+			id   gfx.ID
 			text string
 			name string
 		}{
@@ -211,7 +211,7 @@ func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Fi
 			if caption == "" {
 				caption = entry.name
 			}
-			button := BeginButton(canvas, theme, entry.id, ui.Rect{X: right, Y: y, Height: row}).XSmall().SizeToFit(caption)
+			button := BeginButton(canvas, theme, entry.id, gfx.Rect{X: right, Y: y, Height: row}).XSmall().SizeToFit(caption)
 			button.bounds.X = right - button.bounds.Width
 			button.bounds.Y = y + (row-button.bounds.Height)/2
 			if snapshot.Disabled {
@@ -220,7 +220,7 @@ func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Fi
 			button.Outline(caption)
 			right -= button.bounds.Width + findBarGap
 		}
-		layout.Replacement = ui.Rect{X: left, Y: y, Width: max(right-left+findBarGap, 0), Height: row}
+		layout.Replacement = gfx.Rect{X: left, Y: y, Width: max(right-left+findBarGap, 0), Height: row}
 		PaintInput(canvas, theme, layout.Replacement, snapshot.Replacement)
 	}
 	return layout
@@ -229,7 +229,7 @@ func PaintFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Fi
 // paintFindBarToggle paints one option toggle: its caption in the fixed-pitch
 // font, as a code editor's find bar sets "Aa" and ".*", and the hit with the
 // option's accessible name.
-func paintFindBarToggle(canvas *ui.Canvas, theme ui.Theme, toggle Toggle, caption, name string) {
+func paintFindBarToggle(canvas *gfx.Canvas, theme gfx.Theme, toggle Toggle, caption, name string) {
 	bounds := toggle.bounds
 	enabled := !toggle.id.IsZero()
 	hovered := enabled && canvas.Hovered() == toggle.id
@@ -249,8 +249,8 @@ func paintFindBarToggle(canvas *ui.Canvas, theme ui.Theme, toggle Toggle, captio
 		canvas.Rounded(expand(bounds, 2), radius+2, scaledAlpha(theme.Ring, 0.50))
 	}
 	canvas.Rounded(bounds, radius, fill)
-	canvas.LabelCenter(caption, bounds, ui.TextStyle{Size: theme.Metrics.FontSizeS, Weight: ui.WeightMedium, Color: foreground, Mono: true})
-	canvas.HitWithOptions(toggle.id, bounds, name, ui.HitOptions{Role: ui.RoleButton, Checked: toggle.active, Selected: toggle.active})
+	canvas.LabelCenter(caption, bounds, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Weight: gfx.WeightMedium, Color: foreground, Mono: true})
+	canvas.HitWithOptions(toggle.id, bounds, name, gfx.HitOptions{Role: gfx.RoleButton, Checked: toggle.active, Selected: toggle.active})
 }
 
 // FindBarCommand is a command a key asks of a find bar.
@@ -276,28 +276,28 @@ const (
 // FindBarCommandForKey says which find command a key press asks for. inBar tells
 // whether the focus is in one of the bar's fields, where Enter and Escape belong
 // to the bar. Everything else of a key stays with the editor and the text system.
-func FindBarCommandForKey(event ui.KeyEvent, inBar bool) (FindBarCommand, bool) {
+func FindBarCommandForKey(event gfx.KeyEvent, inBar bool) (FindBarCommand, bool) {
 	if event.Release {
 		return FindBarNoCommand, false
 	}
-	shift := event.Modifiers&ui.ModifierShift != 0
-	primary := event.Modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0
+	shift := event.Modifiers&gfx.ModifierShift != 0
+	primary := event.Modifiers&(gfx.ModifierControl|gfx.ModifierMeta) != 0
 	switch {
-	case primary && !shift && event.Modifiers&ui.ModifierAlt == 0 && (event.Text == "f" || event.Text == "F"):
+	case primary && !shift && event.Modifiers&gfx.ModifierAlt == 0 && (event.Text == "f" || event.Text == "F"):
 		return FindBarOpen, true
-	case event.Modifiers&ui.ModifierAlt != 0 && event.Modifiers&ui.ModifierMeta != 0 && !shift && (event.Text == "f" || event.Text == "ƒ"):
+	case event.Modifiers&gfx.ModifierAlt != 0 && event.Modifiers&gfx.ModifierMeta != 0 && !shift && (event.Text == "f" || event.Text == "ƒ"):
 		return FindBarOpenReplace, true
-	case event.Key == ui.KeyF3 && !primary:
+	case event.Key == gfx.KeyF3 && !primary:
 		if shift {
 			return FindBarPrevious, true
 		}
 		return FindBarNext, true
-	case inBar && event.Key == ui.KeyEnter && !primary:
+	case inBar && event.Key == gfx.KeyEnter && !primary:
 		if shift {
 			return FindBarPrevious, true
 		}
 		return FindBarNext, true
-	case inBar && event.Key == ui.KeyEscape:
+	case inBar && event.Key == gfx.KeyEscape:
 		return FindBarCloseCommand, true
 	}
 	return FindBarNoCommand, false

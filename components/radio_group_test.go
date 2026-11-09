@@ -4,20 +4,20 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 var radioGroupTestOptions = [...]RadioOption{
-	{ID: ui.Item(21), Label: "Default"},
-	{ID: ui.Item(22), Label: "Comfortable"},
-	{ID: ui.Item(23), Label: "Compact", Disabled: true},
+	{ID: gfx.Item(21), Label: "Default"},
+	{ID: gfx.Item(22), Label: "Comfortable"},
+	{ID: gfx.Item(23), Label: "Compact", Disabled: true},
 }
 
 func TestRadioGroupPaintsOfficialSelectionAndTypedDisabledHit(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	BeginRadioGroup(&canvas, theme, ui.Rect{Width: 260}, radioGroupTestOptions[:], ui.Item(22)).Paint()
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	BeginRadioGroup(&canvas, theme, gfx.Rect{Width: 260}, radioGroupTestOptions[:], gfx.Item(22)).Paint()
 	if len(canvas.Rectangles()) != 9 || len(canvas.Texts()) != 3 {
 		t.Fatalf("radio commands = %d rectangles, %d texts", len(canvas.Rectangles()), len(canvas.Texts()))
 	}
@@ -27,17 +27,17 @@ func TestRadioGroupPaintsOfficialSelectionAndTypedDisabledHit(t *testing.T) {
 	if canvas.Rectangles()[3].Color != theme.Primary || canvas.Rectangles()[5].Color != theme.PrimaryForeground {
 		t.Fatalf("selected radio colors = %+v", canvas.Rectangles()[3:6])
 	}
-	if len(canvas.Hits()) != 3 || canvas.Hits()[1].Role != ui.RoleRadio || !canvas.Hits()[1].Checked || !canvas.Hits()[1].Selected || !canvas.Hits()[2].Disabled {
+	if len(canvas.Hits()) != 3 || canvas.Hits()[1].Role != gfx.RoleRadio || !canvas.Hits()[1].Checked || !canvas.Hits()[1].Selected || !canvas.Hits()[2].Disabled {
 		t.Fatalf("radio hits = %+v", canvas.Hits())
 	}
 }
 
 func TestRadioGroupHorizontalStableAndAllocationFree(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		BeginRadioGroup(&canvas, theme, ui.Rect{Width: 360, Height: 32}, radioGroupTestOptions[:], ui.Item(21)).Horizontal().Paint()
+		BeginRadioGroup(&canvas, theme, gfx.Rect{Width: 360, Height: 32}, radioGroupTestOptions[:], gfx.Item(21)).Horizontal().Paint()
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -53,21 +53,21 @@ func TestRadioGroupHorizontalStableAndAllocationFree(t *testing.T) {
 }
 
 func TestRadioGroupInvalidUsesDangerTreatment(t *testing.T) {
-	theme := ui.LightTheme()
-	options := [...]RadioOption{{ID: ui.Item(24), Label: "Invalid", Invalid: true}}
-	var canvas ui.Canvas
-	BeginRadioGroup(&canvas, theme, ui.Rect{Width: 160}, options[:], ui.ID{}).Paint()
+	theme := gfx.LightTheme()
+	options := [...]RadioOption{{ID: gfx.Item(24), Label: "Invalid", Invalid: true}}
+	var canvas gfx.Canvas
+	BeginRadioGroup(&canvas, theme, gfx.Rect{Width: 160}, options[:], gfx.ID{}).Paint()
 	rectangles := canvas.Rectangles()
-	if rectangles[0].Color != invalidRing(theme) || rectangles[1].Color != invalidBorder(theme) {
+	if rectangles[0].Color != invalidRing(&theme) || rectangles[1].Color != invalidBorder(&theme) {
 		t.Fatalf("invalid radio commands = %+v, want the invalid ring and a danger border", rectangles)
 	}
 }
 
 func TestRadioGroupClickedReportsTheClickedOption(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.BeginEventPass(radioGroupTestOptions[1].ID)
 	defer canvas.EndEventPass()
-	id, ok := BeginRadioGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 260}, radioGroupTestOptions[:], radioGroupTestOptions[0].ID).Paint().Clicked()
+	id, ok := BeginRadioGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 260}, radioGroupTestOptions[:], radioGroupTestOptions[0].ID).Paint().Clicked()
 	if !ok || id != radioGroupTestOptions[1].ID {
 		t.Fatalf("Clicked() = (%v, %v)", id, ok)
 	}
@@ -75,11 +75,11 @@ func TestRadioGroupClickedReportsTheClickedOption(t *testing.T) {
 
 func TestRadioGroupKeyDown(t *testing.T) {
 	options := [...]RadioOption{
-		{ID: ui.Item(101)},
-		{ID: ui.Item(102), Disabled: true},
+		{ID: gfx.Item(101)},
+		{ID: gfx.Item(102), Disabled: true},
 		{},
-		{ID: ui.Item(104)},
-		{ID: ui.Item(105)},
+		{ID: gfx.Item(104)},
+		{ID: gfx.Item(105)},
 	}
 	tests := []struct {
 		name      string
@@ -104,8 +104,8 @@ func TestRadioGroupKeyDown(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, handled := RadioGroupKeyDown(ui.Item(int(test.current)), options[:], test.direction, test.key)
-			if got != ui.Item(int(test.want)) || handled != test.handled {
+			got, handled := RadioGroupKeyDown(gfx.Item(int(test.current)), options[:], test.direction, test.key)
+			if got != gfx.Item(int(test.want)) || handled != test.handled {
 				t.Fatalf("RadioGroupKeyDown() = (%d, %v), want (%d, %v)", got, handled, test.want, test.handled)
 			}
 		})
@@ -113,27 +113,27 @@ func TestRadioGroupKeyDown(t *testing.T) {
 }
 
 func TestRadioGroupKeyDownNoAvailableOptionAndNoAllocations(t *testing.T) {
-	options := [...]RadioOption{{ID: ui.Item(101), Disabled: true}, {}, {ID: ui.Item(103), Disabled: true}}
-	if got, handled := RadioGroupKeyDown(ui.Item(77), options[:], LTR, input.KeyHome); got != ui.Item(77) || handled {
+	options := [...]RadioOption{{ID: gfx.Item(101), Disabled: true}, {}, {ID: gfx.Item(103), Disabled: true}}
+	if got, handled := RadioGroupKeyDown(gfx.Item(77), options[:], LTR, input.KeyHome); got != gfx.Item(77) || handled {
 		t.Fatalf("all-disabled Home = (%d, %v), want (77, false)", got, handled)
 	}
-	if got, handled := RadioGroupKeyDown(ui.Item(77), nil, LTR, input.KeyDown); got != ui.Item(77) || !handled {
+	if got, handled := RadioGroupKeyDown(gfx.Item(77), nil, LTR, input.KeyDown); got != gfx.Item(77) || !handled {
 		t.Fatalf("empty Down = (%d, %v), want (77, true)", got, handled)
 	}
 	if allocations := testing.AllocsPerRun(1000, func() {
-		RadioGroupKeyDown(ui.Item(101), radioGroupTestOptions[:], RTL, input.KeyLeft)
+		RadioGroupKeyDown(gfx.Item(101), radioGroupTestOptions[:], RTL, input.KeyLeft)
 	}); allocations != 0 {
 		t.Fatalf("RadioGroupKeyDown allocations = %v", allocations)
 	}
 }
 
-var radioGroupKeyDownResult ui.ID
+var radioGroupKeyDownResult gfx.ID
 
 func BenchmarkRadioGroupKeyDown(b *testing.B) {
-	var result ui.ID
+	var result gfx.ID
 	b.ReportAllocs()
 	for range b.N {
-		result, _ = RadioGroupKeyDown(ui.Item(21), radioGroupTestOptions[:], LTR, input.KeyRight)
+		result, _ = RadioGroupKeyDown(gfx.Item(21), radioGroupTestOptions[:], LTR, input.KeyRight)
 	}
 	radioGroupKeyDownResult = result
 }

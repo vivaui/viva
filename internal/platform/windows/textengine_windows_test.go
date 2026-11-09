@@ -8,14 +8,14 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/textenginetest"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
-var _ ui.StyledTextEngine = (*textEngine)(nil)
+var _ gfx.StyledTextEngine = (*textEngine)(nil)
 
 func TestItalicDirectWriteLineHasSeparateCacheEntry(t *testing.T) {
 	runtime.LockOSThread()
@@ -33,7 +33,7 @@ func TestItalicDirectWriteLineHasSeparateCacheEntry(t *testing.T) {
 	}
 }
 
-func newTestEngine(t testing.TB) ui.TextEngine {
+func newTestEngine(t testing.TB) gfx.TextEngine {
 	t.Helper()
 	engine := TextEngine()
 	if engine == nil {
@@ -55,8 +55,8 @@ func TestTextEngineRasterizesProportionalText(t *testing.T) {
 	if err != nil {
 		t.Skipf("DirectWrite unavailable: %v", err)
 	}
-	bitmap, err := engine.RasterizeText("Privacy 中文", ui.TextStyle{
-		Size: 14, Weight: ui.WeightSemibold, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+	bitmap, err := engine.RasterizeText("Privacy 中文", gfx.TextStyle{
+		Size: 14, Weight: gfx.WeightSemibold, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 	}, 2, 240, 56)
 	if err != nil {
 		t.Fatal(err)
@@ -261,7 +261,7 @@ func TestTextInputOverlayFollowsTheShapedLine(t *testing.T) {
 	defer runtime.UnlockOSThread()
 	engine := newTestEngine(t)
 	const value = "2213123中文"
-	input := platform.TextInput{X: 10, Y: 20, Width: 200, Height: 30, FontSize: 14, Weight: ui.WeightSemibold, Color: platform.Color{Alpha: 1},
+	input := platform.TextInput{X: 10, Y: 20, Width: 200, Height: 30, FontSize: 14, Weight: gfx.WeightSemibold, Color: platform.Color{Alpha: 1},
 		State: platform.TextState{Value: value, Selection: text.Range{Start: 3, End: 8}}}
 	state := windowState{
 		textEngine: engine, textInput: input, textState: input.State, textEnabled: true, caretVisible: true,
@@ -282,7 +282,7 @@ func TestTextInputOverlayFollowsTheShapedLine(t *testing.T) {
 		t.Errorf("caret x = %v, want %v", caret.X, 10+end)
 	}
 	boundary := engine.Caret(value, 14, input.Weight, 7) // between the digits and the Chinese text
-	event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 10 + boundary + 0.5, Y: 35})
+	event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: 10 + boundary + 0.5, Y: 35})
 	if err != nil || !handled || event.Selection != (text.Range{Start: 7, End: 7}) {
 		t.Errorf("a click beside the boundary placed %+v (handled %v, err %v), want rune 7", event.Selection, handled, err)
 	}

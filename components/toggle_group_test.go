@@ -4,20 +4,20 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 var toggleGroupTestOptions = [...]ToggleGroupOption{
-	{ID: ui.Item(51), Label: "B", Active: true},
-	{ID: ui.Item(52), Label: "I"},
-	{ID: ui.Item(53), Label: "U", Active: true, Disabled: true},
+	{ID: gfx.Item(51), Label: "B", Active: true},
+	{ID: gfx.Item(52), Label: "I"},
+	{ID: gfx.Item(53), Label: "U", Active: true, Disabled: true},
 }
 
 func TestToggleGroupSupportsMultipleActiveOptions(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	BeginToggleGroup(&canvas, theme, ui.Rect{Width: 120}, toggleGroupTestOptions[:]).Paint()
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	BeginToggleGroup(&canvas, theme, gfx.Rect{Width: 120}, toggleGroupTestOptions[:]).Paint()
 	if len(canvas.Rectangles()) != 3 {
 		t.Fatalf("toggle group rectangles = %d, want one surface per spaced item", len(canvas.Rectangles()))
 	}
@@ -33,25 +33,25 @@ func TestToggleGroupSupportsMultipleActiveOptions(t *testing.T) {
 }
 
 func TestToggleGroupJoinedOutlineAndVerticalVariants(t *testing.T) {
-	theme := ui.LightTheme()
-	var joined ui.Canvas
-	BeginToggleGroup(&joined, theme, ui.Rect{Width: 120}, toggleGroupTestOptions[:]).Outline().Spacing(0).Paint()
+	theme := gfx.LightTheme()
+	var joined gfx.Canvas
+	BeginToggleGroup(&joined, theme, gfx.Rect{Width: 120}, toggleGroupTestOptions[:]).Outline().Spacing(0).Paint()
 	if len(joined.Rectangles()) != 7 {
 		t.Fatalf("joined outline rectangles = %d", len(joined.Rectangles()))
 	}
-	var vertical ui.Canvas
-	BeginToggleGroup(&vertical, theme, ui.Rect{Width: 48}, toggleGroupTestOptions[:]).Vertical().Small().Paint()
+	var vertical gfx.Canvas
+	BeginToggleGroup(&vertical, theme, gfx.Rect{Width: 48}, toggleGroupTestOptions[:]).Vertical().Small().Paint()
 	if vertical.Hits()[1].Bounds.Y <= vertical.Hits()[0].Bounds.Y || vertical.Hits()[0].Bounds.Height != 28 {
 		t.Fatalf("vertical toggle hits = %+v", vertical.Hits())
 	}
 }
 
 func TestToggleGroupStableAndAllocationFree(t *testing.T) {
-	var canvas ui.Canvas
-	theme := ui.DarkTheme()
+	var canvas gfx.Canvas
+	theme := gfx.DarkTheme()
 	paint := func() {
 		canvas.Reset()
-		BeginToggleGroup(&canvas, theme, ui.Rect{Width: 120}, toggleGroupTestOptions[:]).Paint()
+		BeginToggleGroup(&canvas, theme, gfx.Rect{Width: 120}, toggleGroupTestOptions[:]).Paint()
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -68,11 +68,11 @@ func TestToggleGroupStableAndAllocationFree(t *testing.T) {
 
 func TestToggleGroupKeyDown(t *testing.T) {
 	options := [...]ToggleGroupOption{
-		{ID: ui.Item(301)},
-		{ID: ui.Item(302), Disabled: true},
+		{ID: gfx.Item(301)},
+		{ID: gfx.Item(302), Disabled: true},
 		{},
-		{ID: ui.Item(304)},
-		{ID: ui.Item(305)},
+		{ID: gfx.Item(304)},
+		{ID: gfx.Item(305)},
 	}
 	tests := []struct {
 		name        string
@@ -101,8 +101,8 @@ func TestToggleGroupKeyDown(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, handled := ToggleGroupKeyDown(ui.Item(int(test.current)), options[:], test.orientation, test.direction, test.key)
-			if got != ui.Item(int(test.want)) || handled != test.handled {
+			got, handled := ToggleGroupKeyDown(gfx.Item(int(test.current)), options[:], test.orientation, test.direction, test.key)
+			if got != gfx.Item(int(test.want)) || handled != test.handled {
 				t.Fatalf("ToggleGroupKeyDown() = (%d, %v), want (%d, %v)", got, handled, test.want, test.handled)
 			}
 		})
@@ -110,27 +110,27 @@ func TestToggleGroupKeyDown(t *testing.T) {
 }
 
 func TestToggleGroupKeyDownNoAvailableOptionAndNoAllocations(t *testing.T) {
-	options := [...]ToggleGroupOption{{ID: ui.Item(301), Disabled: true}, {}, {ID: ui.Item(303), Disabled: true}}
-	if got, handled := ToggleGroupKeyDown(ui.Item(77), options[:], ToggleGroupHorizontal, LTR, input.KeyHome); got != ui.Item(77) || !handled {
+	options := [...]ToggleGroupOption{{ID: gfx.Item(301), Disabled: true}, {}, {ID: gfx.Item(303), Disabled: true}}
+	if got, handled := ToggleGroupKeyDown(gfx.Item(77), options[:], ToggleGroupHorizontal, LTR, input.KeyHome); got != gfx.Item(77) || !handled {
 		t.Fatalf("all-disabled Home = (%d, %v), want (77, true)", got, handled)
 	}
-	if got, handled := ToggleGroupKeyDown(ui.Item(77), nil, ToggleGroupVertical, LTR, input.KeyDown); got != ui.Item(77) || !handled {
+	if got, handled := ToggleGroupKeyDown(gfx.Item(77), nil, ToggleGroupVertical, LTR, input.KeyDown); got != gfx.Item(77) || !handled {
 		t.Fatalf("empty Down = (%d, %v), want (77, true)", got, handled)
 	}
 	if allocations := testing.AllocsPerRun(1000, func() {
-		ToggleGroupKeyDown(ui.Item(51), toggleGroupTestOptions[:], ToggleGroupHorizontal, RTL, input.KeyLeft)
+		ToggleGroupKeyDown(gfx.Item(51), toggleGroupTestOptions[:], ToggleGroupHorizontal, RTL, input.KeyLeft)
 	}); allocations != 0 {
 		t.Fatalf("ToggleGroupKeyDown allocations = %v", allocations)
 	}
 }
 
-var toggleGroupKeyDownResult ui.ID
+var toggleGroupKeyDownResult gfx.ID
 
 func BenchmarkToggleGroupKeyDown(b *testing.B) {
-	var result ui.ID
+	var result gfx.ID
 	b.ReportAllocs()
 	for range b.N {
-		result, _ = ToggleGroupKeyDown(ui.Item(51), toggleGroupTestOptions[:], ToggleGroupHorizontal, LTR, input.KeyRight)
+		result, _ = ToggleGroupKeyDown(gfx.Item(51), toggleGroupTestOptions[:], ToggleGroupHorizontal, LTR, input.KeyRight)
 	}
 	toggleGroupKeyDownResult = result
 }
@@ -138,8 +138,8 @@ func BenchmarkToggleGroupKeyDown(b *testing.B) {
 // Joined, an item is rounded only at the group's outer corners: the items in
 // between are square, so neighbouring active items meet without a notch.
 func TestToggleGroupJoinedItemsAreRoundedOnlyAtTheGroupsEnds(t *testing.T) {
-	var canvas ui.Canvas
-	BeginToggleGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 120}, toggleGroupTestOptions[:]).Spacing(0).Paint()
+	var canvas gfx.Canvas
+	BeginToggleGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 120}, toggleGroupTestOptions[:]).Spacing(0).Paint()
 	rectangles := canvas.Rectangles()
 	if len(rectangles) != 3 {
 		t.Fatalf("joined default group painted %d rectangles, want one surface per item", len(rectangles))
@@ -151,23 +151,23 @@ func TestToggleGroupJoinedItemsAreRoundedOnlyAtTheGroupsEnds(t *testing.T) {
 }
 
 func TestToggleGroupClickedReportsTheClickedOption(t *testing.T) {
-	var canvas ui.Canvas
-	canvas.BeginEventPass(ui.Item(52))
+	var canvas gfx.Canvas
+	canvas.BeginEventPass(gfx.Item(52))
 	defer canvas.EndEventPass()
-	id, ok := BeginToggleGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 120}, toggleGroupTestOptions[:]).Paint().Clicked()
-	if !ok || id != ui.Item(52) {
+	id, ok := BeginToggleGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 120}, toggleGroupTestOptions[:]).Paint().Clicked()
+	if !ok || id != gfx.Item(52) {
 		t.Fatalf("Clicked() = (%v, %v)", id, ok)
 	}
 }
 
 func TestToggleGroupSizeToFitSizesItemsToTheirLabels(t *testing.T) {
 	options := [...]ToggleGroupOption{
-		{ID: ui.Item(1), Label: "B"},
-		{ID: ui.Item(2), Label: "Underline"},
+		{ID: gfx.Item(1), Label: "B"},
+		{ID: gfx.Item(2), Label: "Underline"},
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(func(value string, size, weight float32) float32 { return float32(len(value)) * 8 })
-	group := BeginToggleGroup(&canvas, ui.LightTheme(), ui.Rect{X: 5}, options[:]).SizeToFit()
+	group := BeginToggleGroup(&canvas, gfx.LightTheme(), gfx.Rect{X: 5}, options[:]).SizeToFit()
 	group.Paint()
 	hits := canvas.Hits()
 	// "B" is narrower than the group is tall, so it keeps the square minimum.

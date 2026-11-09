@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -57,7 +57,7 @@ var (
 	sidebarCollapse = tree.ID(sidebarUI, "collapse")
 )
 
-func (state *State) paintSidebar(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintSidebar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	options := components.SidebarOptions{Collapsible: components.SidebarFixed}
 	if state.exampleID == "floating" {
 		options.Variant = components.SidebarFloating
@@ -68,11 +68,11 @@ func (state *State) paintSidebar(canvas *ui.Canvas, theme ui.Theme, size ui.Size
 	}
 	// A collapsed icon bar is one control wide plus its gaps; otherwise the
 	// sidebar takes 42% of the stage, at most 260.
-	var rail flex.Box
+	var rail ui.Box
 	if state.view == nil {
-		state.view = new(flex.View)
+		state.view = new(ui.View)
 	}
-	state.view.Draw(canvas, theme, ui.Rect{Width: size.Width, Height: size.Height}, func(f *flex.Frame) {
+	state.view.Draw(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
 		f.Row().Fill().Pad(16).Gap(20).Children(func() {
 			rail = f.Slot().FillHeight()
 			if options.Collapsed {
@@ -81,13 +81,13 @@ func (state *State) paintSidebar(canvas *ui.Canvas, theme ui.Theme, size ui.Size
 				rail.WidthPercent(42).MaxWidth(260)
 			}
 			f.Column().Grow(1).Basis(0).Gap(16).PadSides(14, 0, 0, 0).Children(func() {
-				f.Text(sidebarSelectionLabel(state.values[0])).FontSize(theme.Metrics.FontSizeM + 4).Weight(ui.WeightSemibold)
+				f.Text(sidebarSelectionLabel(state.values[0])).FontSize(theme.Metrics.FontSizeM + 4).Weight(gfx.WeightSemibold)
 				if state.exampleID == "collapsed" {
 					label := "Collapse sidebar"
 					if options.Collapsed {
 						label = "Expand sidebar"
 					}
-					if f.Button(sidebarCollapse, label).Outline().Self(flex.Start).Clicked() {
+					if f.Button(sidebarCollapse, label).Outline().Self(ui.Start).Clicked() {
 						state.flags ^= 1
 					}
 				}

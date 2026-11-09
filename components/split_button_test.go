@@ -4,23 +4,23 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 var splitButtonTestOptions = SplitButtonOptions{
-	PrimaryID: ui.Item(71), MenuID: ui.Item(72),
+	PrimaryID: gfx.Item(71), MenuID: gfx.Item(72),
 	Label: "Save", MenuLabel: "More save options",
 	Hint: "Save the file", MenuHint: "Choose another save action",
 	Size: ButtonSizeSmall, TriggerWidth: 32, Open: true,
 }
 
 func TestSplitButtonPaintsConnectedIndependentActions(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	result := BeginSplitButton(&canvas, theme, ui.Rect{Width: 112, Height: 32}, splitButtonTestOptions).Paint()
-	geometry := BeginSplitButton(nil, theme, ui.Rect{Width: 112, Height: 32}, splitButtonTestOptions).Geometry()
-	if geometry.Primary != (ui.Rect{Width: 80, Height: 32}) ||
-		geometry.Menu != (ui.Rect{X: 80, Width: 32, Height: 32}) {
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	result := BeginSplitButton(&canvas, theme, gfx.Rect{Width: 112, Height: 32}, splitButtonTestOptions).Paint()
+	geometry := BeginSplitButton(nil, theme, gfx.Rect{Width: 112, Height: 32}, splitButtonTestOptions).Geometry()
+	if geometry.Primary != (gfx.Rect{Width: 80, Height: 32}) ||
+		geometry.Menu != (gfx.Rect{X: 80, Width: 32, Height: 32}) {
 		t.Fatalf("split geometry = %+v", geometry)
 	}
 	if len(canvas.Hits()) != 2 {
@@ -46,7 +46,7 @@ func TestSplitButtonPaintsConnectedIndependentActions(t *testing.T) {
 func TestSplitButtonReportsEachActionAndDisabledState(t *testing.T) {
 	for _, test := range []struct {
 		name         string
-		target       ui.ID
+		target       gfx.ID
 		wantPrimary  bool
 		wantMenu     bool
 		disabled     bool
@@ -60,9 +60,9 @@ func TestSplitButtonReportsEachActionAndDisabledState(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			options := splitButtonTestOptions
 			options.Disabled = test.disabled
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			canvas.BeginEventPass(test.target)
-			result := BeginSplitButton(&canvas, ui.LightTheme(), ui.Rect{Width: 112, Height: 32}, options).Paint()
+			result := BeginSplitButton(&canvas, gfx.LightTheme(), gfx.Rect{Width: 112, Height: 32}, options).Paint()
 			primary, menu := result.Clicked()
 			canvas.EndEventPass()
 			if primary != test.wantPrimary || menu != test.wantMenu {
@@ -79,18 +79,18 @@ func TestSplitButtonReportsEachActionAndDisabledState(t *testing.T) {
 func TestSplitButtonOutlineHasOneOuterBorderAndStablePaint(t *testing.T) {
 	options := splitButtonTestOptions
 	options.Variant = ButtonOutline
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		BeginSplitButton(&canvas, theme, ui.Rect{X: 12, Y: 15, Width: 132, Height: 32}, options).Paint()
+		BeginSplitButton(&canvas, theme, gfx.Rect{X: 12, Y: 15, Width: 132, Height: 32}, options).Paint()
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
 	texts := slices.Clone(canvas.Texts())
 	hits := slices.Clone(canvas.Hits())
 	border := rectangles[0]
-	if border.Bounds != (ui.Rect{X: 12, Y: 15, Width: 132, Height: 32}) || border.Radius == 0 {
+	if border.Bounds != (gfx.Rect{X: 12, Y: 15, Width: 132, Height: 32}) || border.Radius == 0 {
 		t.Fatalf("outer border = %+v", border)
 	}
 	paint()

@@ -11,7 +11,7 @@ import "math"
 // A column two runs both owned would be drawn twice, once with each run's color, over the same
 // coverage; a glyph that fills its cell, such as a powerline arrow, has full coverage in the
 // shared column, so the second color would cover the first as a line the height of the cell. The
-// cell width is a whole number of device pixels (ui.Canvas.MonoCellSize), so the edges of a cell
+// cell width is a whole number of device pixels (gfx.Canvas.MonoCellSize), so the edges of a cell
 // are columns already and rounding only absorbs the float error of the division by the scale.
 func GridColumns(left, span float64, width int) (from, to int) {
 	from = min(max(roundColumn(left), 0), width)

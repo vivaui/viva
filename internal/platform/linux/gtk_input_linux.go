@@ -7,9 +7,9 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // wheelStep is how many logical pixels one notch of a mouse wheel scrolls, as the XCB backend has
@@ -149,7 +149,7 @@ func (w *gtkWindow) buttonAt(x, y, screenX, screenY float32, gdkButton uint32, d
 		w.pointer.pending = false
 	}
 	button := gdkPointerButton(gdkButton)
-	if button == ui.PointerButtonNone {
+	if button == gfx.PointerButtonNone {
 		return
 	}
 	if down {

@@ -5,16 +5,16 @@
 // The gallery is a browser for the component demos in package componentdemo:
 // the catalog page lists every component, and a component page shows all of
 // its examples side by side, each one live. Each example is painted on a canvas
-// of its own and embedded into the page (see ui.Canvas.Embed), so the demos run
+// of its own and embedded into the page (see gfx.Canvas.Embed), so the demos run
 // exactly as they do in a standalone preview and the gallery owns no component
 // recipes that could drift from them.
 package gallery
 
 import (
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/componentdemo"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -59,23 +59,23 @@ var (
 	examplesScope = tree.Sub(galleryUI, tree.Name("examples"))
 )
 
-func exampleMount(slot int) ui.Scope { return tree.Sub(examplesScope, ui.Index(slot)) }
+func exampleMount(slot int) gfx.Scope { return tree.Sub(examplesScope, gfx.Index(slot)) }
 
 // decodeExample finds the live example that owns an identity and the identity
 // the example itself painted. ok is false for the gallery's own identities.
-func (state *State) decodeExample(id ui.ID) (slot int, local ui.ID, ok bool) {
+func (state *State) decodeExample(id gfx.ID) (slot int, local gfx.ID, ok bool) {
 	for slot := range state.live {
 		if local, ok := tree.Local(exampleMount(slot), id); ok {
 			return slot, local, true
 		}
 	}
-	return 0, ui.ID{}, false
+	return 0, gfx.ID{}, false
 }
 
 // Tree returns the identity tree the gallery and its demos name their places in.
 // A launcher sets it as its window's tree (app.Config.Tree) so identities print
 // as paths in logs and in the headless driver's replies.
-func Tree() *ui.Tree { return tree }
+func Tree() *gfx.Tree { return tree }
 
 // State is the complete interaction state for the gallery. Both launchers use
 // the same value so their pixels and behavior originate from one implementation.
@@ -83,7 +83,7 @@ type State struct {
 	// page is 0 for the catalog and n for catalog[n-1].
 	page        int
 	lightMode   bool
-	density     ui.Density
+	density     gfx.Density
 	textEditing bool
 
 	// viewScroll is the page offset. The gallery owns it (wheel and scrollbar
@@ -104,9 +104,9 @@ type State struct {
 // back into its own space.
 type liveExample struct {
 	demo   *componentdemo.State
-	canvas ui.Canvas
-	origin ui.Point
-	size   ui.Size
+	canvas gfx.Canvas
+	origin gfx.Point
+	size   gfx.Size
 }
 
 // New returns a gallery in its default desktop-light appearance.
@@ -115,10 +115,10 @@ func New() *State {
 }
 
 // Theme returns the active appearance and density.
-func (state *State) Theme() ui.Theme {
-	theme := ui.DarkTheme()
+func (state *State) Theme() gfx.Theme {
+	theme := gfx.DarkTheme()
 	if state.lightMode {
-		theme = ui.LightTheme()
+		theme = gfx.LightTheme()
 	}
 	theme.Metrics = theme.Metrics.WithDensity(state.density)
 	return theme
@@ -137,7 +137,7 @@ func (state *State) EnableTextEditing() {
 
 // TextEditor returns the application-owned editor behind a text hit of an
 // open example, if that example hands its field to the platform text service.
-func (state *State) TextEditor(id ui.ID) (*text.Editor, bool) {
+func (state *State) TextEditor(id gfx.ID) (*text.Editor, bool) {
 	slot, local, ok := state.decodeExample(id)
 	if !ok || slot >= len(state.live) {
 		return nil, false
@@ -182,7 +182,7 @@ func (state *State) openPage(page int) {
 // offset that makes the next gesture in the opposite direction appear to do
 // nothing. Every gesture is handled: the gallery has no horizontal scrolling
 // and owns the offset itself.
-func (state *State) Scroll(event ui.ScrollEvent) ui.EventResult {
+func (state *State) Scroll(event gfx.ScrollEvent) gfx.EventResult {
 	if slot, local, ok := state.decodeExample(event.Target); ok && slot < len(state.live) {
 		event.Target = local
 		if result := state.live[slot].demo.Scroll(event); result.Handled {
@@ -191,14 +191,14 @@ func (state *State) Scroll(event ui.ScrollEvent) ui.EventResult {
 	}
 	before := state.viewScroll
 	state.viewScroll = min(max(state.viewScroll+event.DeltaY, 0), state.scrollMax)
-	return ui.EventResult{Handled: true, Repaint: state.viewScroll != before}
+	return gfx.EventResult{Handled: true, Repaint: state.viewScroll != before}
 }
 
 // Key hands a key to the example that owns the focused control.
-func (state *State) Key(event ui.KeyEvent) ui.EventResult {
+func (state *State) Key(event gfx.KeyEvent) gfx.EventResult {
 	slot, local, ok := state.decodeExample(event.Target)
 	if !ok || slot >= len(state.live) {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	event.Target = local
 	return liftResult(state.live[slot].demo.Key(event), slot)
@@ -208,7 +208,7 @@ func (state *State) Key(event ui.KeyEvent) ui.EventResult {
 // centers the thumb on the pointer, and dragging moves the page) and routes
 // the pointer to the example it is over, or that has captured it, in the
 // example's own coordinates.
-func (state *State) Pointer(event ui.PointerEvent) ui.EventResult {
+func (state *State) Pointer(event gfx.PointerEvent) gfx.EventResult {
 	if slot, local, ok := state.decodeExample(event.Target); ok && slot < len(state.live) {
 		view := &state.live[slot]
 		event.X -= view.origin.X
@@ -218,9 +218,9 @@ func (state *State) Pointer(event ui.PointerEvent) ui.EventResult {
 		return liftResult(view.demo.Pointer(event), slot)
 	}
 	switch event.Kind {
-	case ui.PointerDown:
-		if event.Target != hitPageScrollbar || (event.Button != ui.PointerButtonPrimary && event.Button != ui.PointerButtonNone) {
-			return ui.EventResult{}
+	case gfx.PointerDown:
+		if event.Target != hitPageScrollbar || (event.Button != gfx.PointerButtonPrimary && event.Button != gfx.PointerButtonNone) {
+			return gfx.EventResult{}
 		}
 		thumb := state.scrollGeometry(event.Viewport).VerticalThumb
 		state.thumbGrab = thumb.Height / 2
@@ -229,48 +229,48 @@ func (state *State) Pointer(event ui.PointerEvent) ui.EventResult {
 		}
 		state.thumbDragging = true
 		return state.dragThumb(event)
-	case ui.PointerMove:
+	case gfx.PointerMove:
 		if !state.thumbDragging {
-			return ui.EventResult{}
+			return gfx.EventResult{}
 		}
 		return state.dragThumb(event)
-	case ui.PointerUp, ui.PointerExit:
+	case gfx.PointerUp, gfx.PointerExit:
 		if !state.thumbDragging {
-			return ui.EventResult{}
+			return gfx.EventResult{}
 		}
 		state.thumbDragging = false
-		return ui.EventResult{Handled: true}
+		return gfx.EventResult{Handled: true}
 	}
-	return ui.EventResult{}
+	return gfx.EventResult{}
 }
 
 // liftResult maps the control an example asks to focus back to the identity it
 // has on the page.
-func liftResult(result ui.EventResult, slot int) ui.EventResult {
+func liftResult(result gfx.EventResult, slot int) gfx.EventResult {
 	result.Focus = tree.MountID(exampleMount(slot), result.Focus)
 	return result
 }
 
-func (state *State) dragThumb(event ui.PointerEvent) ui.EventResult {
+func (state *State) dragThumb(event gfx.PointerEvent) gfx.EventResult {
 	offset := state.scrollGeometry(event.Viewport).VerticalOffsetForThumb(event.Y - state.thumbGrab)
 	changed := offset != state.viewScroll
 	state.viewScroll = offset
-	return ui.EventResult{Handled: true, Repaint: changed}
+	return gfx.EventResult{Handled: true, Repaint: changed}
 }
 
 // scrollArea declares the page scroll region: everything under the toolbar, at
 // the full window width so the scrollbar sits on the window edge while the
 // page keeps its side insets.
-func (state *State) scrollArea(canvas *ui.Canvas, theme ui.Theme, size ui.Size) components.ScrollArea {
-	viewport := ui.Rect{Y: toolbarHeight, Width: size.Width, Height: max(size.Height-toolbarHeight, 0)}
+func (state *State) scrollArea(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) components.ScrollArea {
+	viewport := gfx.Rect{Y: toolbarHeight, Width: size.Width, Height: max(size.Height-toolbarHeight, 0)}
 	pageHeight := state.contentHeight(max(size.Width-pageInset*2, 0))
-	return components.BeginScrollArea(canvas, theme, viewport, ui.Size{Width: viewport.Width, Height: pageTopGap + pageHeight + pageBottomGap}).
+	return components.BeginScrollArea(canvas, theme, viewport, gfx.Size{Width: viewport.Width, Height: pageTopGap + pageHeight + pageBottomGap}).
 		Offset(0, state.viewScroll).
 		VerticalScrollbar(hitPageScrollbar, "Page position", "")
 }
 
-func (state *State) scrollGeometry(size ui.Size) components.ScrollAreaGeometry {
-	return state.scrollArea(nil, ui.Theme{}, size).Geometry()
+func (state *State) scrollGeometry(size gfx.Size) components.ScrollAreaGeometry {
+	return state.scrollArea(nil, gfx.Theme{}, size).Geometry()
 }
 
 // contentHeight is the height of the open page at a page width.
@@ -282,11 +282,11 @@ func (state *State) contentHeight(width float32) float32 {
 }
 
 // Paint draws the same responsive gallery on every backend.
-func (state *State) Paint(canvas *ui.Canvas, size ui.Size) {
+func (state *State) Paint(canvas *gfx.Canvas, size gfx.Size) {
 	canvas.SetTree(tree)
 	theme := state.Theme()
 	width, height := size.Width, size.Height
-	canvas.Fill(ui.Rect{Width: width, Height: height}, theme.Background)
+	canvas.Fill(gfx.Rect{Width: width, Height: height}, theme.Background)
 	canvas.PushLayer(toolbarLayer)
 	page := state.paintToolbar(canvas, theme, width)
 	canvas.PopLayer()
@@ -300,7 +300,7 @@ func (state *State) Paint(canvas *ui.Canvas, size ui.Size) {
 	// the stored one past the new end.
 	state.viewScroll, state.scrollMax = geometry.OffsetY, geometry.MaxOffsetY
 	pageWidth := max(width-pageInset*2, 0)
-	content := ui.Rect{
+	content := gfx.Rect{
 		X: pageInset, Y: geometry.Content.Y + pageTopGap,
 		Width: pageWidth, Height: state.contentHeight(pageWidth),
 	}
@@ -314,10 +314,10 @@ func (state *State) Paint(canvas *ui.Canvas, size ui.Size) {
 
 // paintToolbar paints the toolbar and returns the page to show after it: the
 // open one, unless a click in this paint chose another.
-func (state *State) paintToolbar(canvas *ui.Canvas, theme ui.Theme, width float32) (page int) {
+func (state *State) paintToolbar(canvas *gfx.Canvas, theme gfx.Theme, width float32) (page int) {
 	page = state.page
-	canvas.Fill(ui.Rect{Width: width, Height: toolbarHeight}, theme.Card)
-	canvas.Fill(ui.Rect{Y: toolbarHeight - 1, Width: width, Height: 1}, theme.Border)
+	canvas.Fill(gfx.Rect{Width: width, Height: toolbarHeight}, theme.Card)
+	canvas.Fill(gfx.Rect{Y: toolbarHeight - 1, Width: width, Height: 1}, theme.Border)
 
 	// Every element is centered on the bar's own centerline (the area above
 	// its 1px border) at the active density's control height, rather than at
@@ -327,30 +327,30 @@ func (state *State) paintToolbar(canvas *ui.Canvas, theme ui.Theme, width float3
 	control := theme.Metrics.ControlHeight
 	top := (toolbarHeight - 1 - control) / 2
 	markSize := float32(20)
-	paintMark(canvas, theme, ui.Rect{X: pageInset, Y: (toolbarHeight - 1 - markSize) / 2, Width: markSize, Height: markSize})
+	paintMark(canvas, theme, gfx.Rect{X: pageInset, Y: (toolbarHeight - 1 - markSize) / 2, Width: markSize, Height: markSize})
 
 	// Clicks are read where the control is painted, in the event pass of the
-	// click (see ui.Canvas.Clicked).
-	if paintIconButton(canvas, theme, hitPagePrevious, ui.Rect{X: 72, Y: top, Width: 28, Height: control}, iconChevronLeft, "Previous page") {
+	// click (see gfx.Canvas.Clicked).
+	if paintIconButton(canvas, theme, hitPagePrevious, gfx.Rect{X: 72, Y: top, Width: 28, Height: control}, iconChevronLeft, "Previous page") {
 		page = (state.page + len(catalog)) % (len(catalog) + 1)
 	}
-	if paintIconButton(canvas, theme, hitPageNext, ui.Rect{X: 104, Y: top, Width: 28, Height: control}, iconChevronRight, "Next page") {
+	if paintIconButton(canvas, theme, hitPageNext, gfx.Rect{X: 104, Y: top, Width: 28, Height: control}, iconChevronRight, "Next page") {
 		page = (state.page + 1) % (len(catalog) + 1)
 	}
 	labelX := float32(148)
 	title := "Components"
 	if state.page != 0 {
-		if components.BeginButton(canvas, theme, hitPageCatalog, ui.Rect{X: labelX, Y: top, Width: 96}).Small().Ghost("Components").Clicked() {
+		if components.BeginButton(canvas, theme, hitPageCatalog, gfx.Rect{X: labelX, Y: top, Width: 96}).Small().Ghost("Components").Clicked() {
 			page = 0
 		}
 		labelX += 108
 		title = catalog[state.page-1].Title
 	}
-	canvas.Label(title, ui.Rect{
+	canvas.Label(title, gfx.Rect{
 		X: labelX, Y: top, Width: width - labelX - 210, Height: control,
-	}, ui.TextStyle{Size: theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: theme.MutedForeground})
+	}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.MutedForeground})
 
-	densityBounds := ui.Rect{X: width - 190, Y: top, Width: 88}
+	densityBounds := gfx.Rect{X: width - 190, Y: top, Width: 88}
 	if components.BeginButton(canvas, theme, hitDensityCycle, densityBounds).Small().Ghost(state.densityName()).Clicked() {
 		state.density = (state.density + 1) % 3
 	}
@@ -358,7 +358,7 @@ func (state *State) paintToolbar(canvas *ui.Canvas, theme ui.Theme, width float3
 	if state.lightMode {
 		appearance = "Dark"
 	}
-	if components.BeginButton(canvas, theme, hitThemeToggle, ui.Rect{
+	if components.BeginButton(canvas, theme, hitThemeToggle, gfx.Rect{
 		X: width - 92, Y: top, Width: 76,
 	}).Small().Outline(appearance).Clicked() {
 		state.lightMode = !state.lightMode
@@ -368,9 +368,9 @@ func (state *State) paintToolbar(canvas *ui.Canvas, theme ui.Theme, width float3
 
 func (state *State) densityName() string {
 	switch state.density {
-	case ui.DensityCompact:
+	case gfx.DensityCompact:
 		return "Compact"
-	case ui.DensityLarge:
+	case gfx.DensityLarge:
 		return "Large"
 	default:
 		return "Regular"
@@ -381,15 +381,15 @@ func (state *State) densityName() string {
 const pageHeaderHeight = float32(82)
 
 // pageHeader paints a page title and subtitle and returns the body below them.
-func pageHeader(canvas *ui.Canvas, theme ui.Theme, content ui.Rect, title, subtitle string) ui.Rect {
+func pageHeader(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, title, subtitle string) gfx.Rect {
 	metrics := theme.Metrics
-	canvas.Label(title, ui.Rect{X: content.X, Y: content.Y, Width: content.Width, Height: 38}, ui.TextStyle{
-		Size: metrics.FontSizeL, Weight: ui.WeightSemibold, Color: theme.Foreground,
+	canvas.Label(title, gfx.Rect{X: content.X, Y: content.Y, Width: content.Width, Height: 38}, gfx.TextStyle{
+		Size: metrics.FontSizeL, Weight: gfx.WeightSemibold, Color: theme.Foreground,
 	})
-	canvas.Label(subtitle, ui.Rect{X: content.X, Y: content.Y + 38, Width: content.Width, Height: 22}, ui.TextStyle{
+	canvas.Label(subtitle, gfx.Rect{X: content.X, Y: content.Y + 38, Width: content.Width, Height: 22}, gfx.TextStyle{
 		Size: metrics.FontSizeM, Color: theme.MutedForeground,
 	})
-	return ui.Rect{X: content.X, Y: content.Y + pageHeaderHeight, Width: content.Width, Height: max(content.Height-pageHeaderHeight, 0)}
+	return gfx.Rect{X: content.X, Y: content.Y + pageHeaderHeight, Width: content.Width, Height: max(content.Height-pageHeaderHeight, 0)}
 }
 
 // wrapLine splits value at a rune boundary so the first part fits width at

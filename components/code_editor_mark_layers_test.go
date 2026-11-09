@@ -4,13 +4,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestCodeEditorMarkLayersUseIndependentColorsBelowFindAndSelection(t *testing.T) {
 	fixture := newCodeFixture("cat cat\ncat")
-	cyan, orange := ui.RGB(0, 255, 255), ui.RGB(255, 128, 0)
+	cyan, orange := gfx.RGB(0, 255, 255), gfx.RGB(255, 128, 0)
 	fixture.snapshot.MarkLayers = []CodeEditorMarkLayer{
 		{Spans: []text.Span{{Start: 0, End: 3}, {Start: 8, End: 11}}, Color: cyan},
 		{Spans: []text.Span{{Start: 1, End: 2}, {Start: 4, End: 7}}, Color: orange},
@@ -53,7 +53,7 @@ func TestCodeEditorMarkLayersShareWrappedUnicodeAndTabGeometry(t *testing.T) {
 	fixture := newCodeFixture(value)
 	fixture.snapshot.Wrap = true
 	fixture.bounds.Width = fixture.widthFor(5)
-	color := ui.RGB(100, 200, 70)
+	color := gfx.RGB(100, 200, 70)
 	fixture.snapshot.MarkLayers = []CodeEditorMarkLayer{{Spans: []text.Span{{Start: 0, End: len(value)}}, Color: color}}
 	fixture.paint()
 	fills := fixture.fills(color)
@@ -72,7 +72,7 @@ func TestCodeEditorMarkLayersShareWrappedUnicodeAndTabGeometry(t *testing.T) {
 
 func TestCodeEditorMarkLayersOnlyPaintVisibleRanges(t *testing.T) {
 	fixture := newCodeFixture(strings.Repeat("abc\n", 5000))
-	color := ui.RGB(80, 130, 240)
+	color := gfx.RGB(80, 130, 240)
 	spans := make([]text.Span, 5000)
 	for index := range spans {
 		spans[index] = text.Span{Start: index * 4, End: index*4 + 3}

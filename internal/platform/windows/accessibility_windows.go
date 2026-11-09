@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -156,7 +156,7 @@ type uiaTree struct {
 	nextRuntime int32
 	root        *uiaProvider
 	children    []*uiaProvider
-	byID        map[ui.ID]*uiaProvider
+	byID        map[gfx.ID]*uiaProvider
 
 	// engaged is set when a client first asks for the window's elements. Until
 	// then the tree is only the application's newest nodes, kept by reference
@@ -333,7 +333,7 @@ func (tree *uiaTree) engageLocked() {
 		return
 	}
 	tree.engaged = true
-	tree.byID = make(map[ui.ID]*uiaProvider, len(tree.latest))
+	tree.byID = make(map[gfx.ID]*uiaProvider, len(tree.latest))
 	for index, node := range tree.latest {
 		provider := tree.newProviderLocked(index, false)
 		provider.Node = node
@@ -398,7 +398,7 @@ func (tree *uiaTree) update(nodes []platform.AccessibilityNode) error {
 		}
 	}
 	pool := tree.byID
-	tree.byID = make(map[ui.ID]*uiaProvider, len(nodes))
+	tree.byID = make(map[gfx.ID]*uiaProvider, len(nodes))
 	children := make([]*uiaProvider, 0, len(nodes))
 	var changes []uiaPropertyChange
 	var events []uiaEvent
@@ -493,7 +493,7 @@ func appendNodeEvents(events []uiaEvent, provider *uiaProvider, oldNode, newNode
 			events = append(events, uiaEvent{provider, uiaTextSelectionChangedEvent})
 		}
 	}
-	if newNode.Live != ui.LiveOff && changed&(platform.ChangedName|platform.ChangedValue) != 0 {
+	if newNode.Live != gfx.LiveOff && changed&(platform.ChangedName|platform.ChangedValue) != 0 {
 		events = append(events, uiaEvent{provider, uiaLiveRegionChangedEvent})
 	}
 	return events

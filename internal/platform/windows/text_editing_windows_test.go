@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestNativeTextDragEndsWhenCaptureIsLost(t *testing.T) {
@@ -127,20 +127,20 @@ func TestNativePointerSupportsDragShiftClickAndWordSelection(t *testing.T) {
 		}
 		edit.Apply(editor)
 	}
-	apply(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 60, Y: 35})
+	apply(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: 60, Y: 35})
 	apply(platform.PointerEvent{Kind: platform.PointerMove, X: 20, Y: 35})
 	if editor.Selection() != (text.Range{Start: 1, End: 5}) || editor.Caret() != 1 {
 		t.Fatalf("backwards drag=%+v", platform.EditorState(editor))
 	}
-	apply(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, Modifiers: input.ModifierShift, X: 30, Y: 35})
+	apply(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, Modifiers: input.ModifierShift, X: 30, Y: 35})
 	if editor.Selection() != (text.Range{Start: 2, End: 5}) {
 		t.Fatalf("shift click lost anchor: %+v", editor.Selection())
 	}
-	apply(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, ClickCount: 2, X: 60, Y: 35})
+	apply(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, ClickCount: 2, X: 60, Y: 35})
 	if editor.Selection() != (text.Range{Start: 4, End: 7}) {
 		t.Fatalf("double click=%+v", editor.Selection())
 	}
-	apply(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, ClickCount: 3, X: 60, Y: 35})
+	apply(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, ClickCount: 3, X: 60, Y: 35})
 	if editor.Selection() != (text.Range{End: 7}) {
 		t.Fatal("triple click did not select all")
 	}
@@ -189,7 +189,7 @@ func TestNativeTextScrollClipsAndMasksSecureFields(t *testing.T) {
 func TestNativeTextOverlayRasterizesOnlyTheVisibleColumns(t *testing.T) {
 	label := labelTexture{label: platform.TextLabel{
 		Value: "value", X: -1490, Y: 0, Width: 1700, Height: 24, FontSize: 16,
-		Clipped: true, Clip: ui.Rect{X: 10, Y: 0, Width: 200, Height: 24},
+		Clipped: true, Clip: gfx.Rect{X: 10, Y: 0, Width: 200, Height: 24},
 	}}
 	if skip, width, ok := label.window(2); !ok || skip != 3000 || width != 400 {
 		t.Fatalf("window = %d, %d, %v; want 3000, 400, true", skip, width, ok)

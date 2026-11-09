@@ -5,9 +5,9 @@ package darwin
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestMeasureTextSupportsSystemFallback(t *testing.T) {
@@ -192,7 +192,7 @@ func TestTextEventRedrawRecognizesAlreadyAppliedNativeState(t *testing.T) {
 		t.Fatal("changed editor geometry was skipped")
 	}
 	aligned := *input
-	aligned.Alignment = ui.AlignRight
+	aligned.Alignment = gfx.AlignRight
 	if state.textInputAlreadyUpdated(&aligned) {
 		t.Fatal("changed editor alignment was skipped")
 	}
@@ -365,16 +365,16 @@ func TestNativeFocusedTextInputDeliversFunctionKeysToTheApplication(t *testing.T
 }
 
 func TestNativeTextInputCarriesFontWeight(t *testing.T) {
-	native := makeNativeTextInput(TextInput{Weight: ui.WeightSemibold}, nil)
-	if float32(native.font_weight) != ui.WeightSemibold {
-		t.Fatalf("native font weight = %v, want %v", native.font_weight, ui.WeightSemibold)
+	native := makeNativeTextInput(TextInput{Weight: gfx.WeightSemibold}, nil)
+	if float32(native.font_weight) != gfx.WeightSemibold {
+		t.Fatalf("native font weight = %v, want %v", native.font_weight, gfx.WeightSemibold)
 	}
 }
 
 func TestNativeTextInputCarriesAlignment(t *testing.T) {
-	for _, alignment := range []ui.Alignment{ui.AlignLeft, ui.AlignCenter, ui.AlignRight} {
+	for _, alignment := range []gfx.Alignment{gfx.AlignLeft, gfx.AlignCenter, gfx.AlignRight} {
 		native := makeNativeTextInput(TextInput{Alignment: alignment}, nil)
-		if got := ui.Alignment(native.alignment); got != alignment {
+		if got := gfx.Alignment(native.alignment); got != alignment {
 			t.Errorf("native alignment = %v, want %v", got, alignment)
 		}
 	}
@@ -479,11 +479,11 @@ func TestMeasureTextIsWiderAtAHeavierWeight(t *testing.T) {
 }
 
 func TestARegisteredFamilyIsMeasuredAndAnUnknownOneFallsBackToTheSystemFace(t *testing.T) {
-	system, systemHeight, err := MeasureMono(13, ui.MonoSystem)
+	system, systemHeight, err := MeasureMono(13, gfx.MonoSystem)
 	if err != nil || system <= 0 {
 		t.Fatalf("system mono: %v %v", system, err)
 	}
-	courier := ui.MonoFamily("Courier New")
+	courier := gfx.MonoFamily("Courier New")
 	width, height, err := MeasureMono(13, courier)
 	if err != nil || width <= 0 || height <= 0 {
 		t.Fatalf("Courier New: %v %v %v", width, height, err)
@@ -491,7 +491,7 @@ func TestARegisteredFamilyIsMeasuredAndAnUnknownOneFallsBackToTheSystemFace(t *t
 	if width == system && height == systemHeight {
 		t.Fatalf("Courier New measures like the system face (%v x %v): the family was not used", width, height)
 	}
-	missing := ui.MonoFamily("No Such Family Installed")
+	missing := gfx.MonoFamily("No Such Family Installed")
 	fallbackWidth, fallbackHeight, err := MeasureMono(13, missing)
 	if err != nil || fallbackWidth != system || fallbackHeight != systemHeight {
 		t.Fatalf("a missing family measured %v x %v (%v), want the system face %v x %v", fallbackWidth, fallbackHeight, err, system, systemHeight)
@@ -499,19 +499,19 @@ func TestARegisteredFamilyIsMeasuredAndAnUnknownOneFallsBackToTheSystemFace(t *t
 }
 
 func TestFallbackFamiliesNeverChangeTheCell(t *testing.T) {
-	base := ui.MonoFamily("Menlo")
+	base := gfx.MonoFamily("Menlo")
 	plainWidth, plainHeight, err := MeasureMono(13, base)
 	if err != nil || plainWidth <= 0 {
 		t.Fatalf("Menlo: %v %v", plainWidth, err)
 	}
 	for _, fallbacks := range [][]string{{"Songti SC"}, {"No Such Family Installed", "Songti SC"}, {"Courier New", "Songti SC", "STHeiti"}} {
-		width, height, err := MeasureMono(13, ui.MonoStack(base, fallbacks...))
+		width, height, err := MeasureMono(13, gfx.MonoStack(base, fallbacks...))
 		if err != nil || width != plainWidth || height != plainHeight {
 			t.Errorf("Menlo with %q measures %v x %v (%v), want Menlo's own %v x %v", fallbacks, width, height, err, plainWidth, plainHeight)
 		}
 	}
-	system, systemHeight, _ := MeasureMono(13, ui.MonoSystem)
-	if width, height, err := MeasureMono(13, ui.MonoStack(ui.MonoSystem, "Songti SC")); err != nil || width != system || height != systemHeight {
+	system, systemHeight, _ := MeasureMono(13, gfx.MonoSystem)
+	if width, height, err := MeasureMono(13, gfx.MonoStack(gfx.MonoSystem, "Songti SC")); err != nil || width != system || height != systemHeight {
 		t.Errorf("the system face with a fallback measures %v x %v (%v), want %v x %v", width, height, err, system, systemHeight)
 	}
 }
@@ -519,10 +519,10 @@ func TestFallbackFamiliesNeverChangeTheCell(t *testing.T) {
 // A canvas on the platform engine lays a terminal out on the cell of the font that draws
 // it, as the platform measures that font, not on the reference 0.6 by 1.18.
 func TestACanvasOnTheEngineSizesTheTerminalCellByTheFont(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetPixelScale(2)
 	canvas.SetTextEngine(SharedTextEngine())
-	for _, face := range []ui.MonoFace{ui.MonoSystem, ui.MonoFamily("Courier New")} {
+	for _, face := range []gfx.MonoFace{gfx.MonoSystem, gfx.MonoFamily("Courier New")} {
 		advance, line, err := MeasureMono(13, face)
 		if err != nil {
 			t.Fatal(err)

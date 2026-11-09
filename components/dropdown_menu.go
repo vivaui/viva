@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // DropdownMenuItemVariant selects the standard or destructive treatment.
@@ -55,21 +55,21 @@ func (DropdownMenuState) OutsidePress() DropdownMenuState { return false }
 // submenu is open, or zero when none is. A submenu has its own state so Escape
 // and Left can close it without closing the menu around it, and so a hover
 // intent can move between siblings.
-type SubmenuState ui.ID
+type SubmenuState gfx.ID
 
 // IsOpen reports whether trigger's submenu is open.
-func (state SubmenuState) IsOpen(trigger ui.ID) bool {
-	return !trigger.IsZero() && ui.ID(state) == trigger
+func (state SubmenuState) IsOpen(trigger gfx.ID) bool {
+	return !trigger.IsZero() && gfx.ID(state) == trigger
 }
 
 // IsAnyOpen reports whether any submenu is open.
-func (state SubmenuState) IsAnyOpen() bool { return !ui.ID(state).IsZero() }
+func (state SubmenuState) IsAnyOpen() bool { return !gfx.ID(state).IsZero() }
 
 // Trigger returns the row whose submenu is open, or zero.
-func (state SubmenuState) Trigger() ui.ID { return ui.ID(state) }
+func (state SubmenuState) Trigger() gfx.ID { return gfx.ID(state) }
 
 // Open returns the state with trigger's submenu open. Zero is ignored.
-func (state SubmenuState) Open(trigger ui.ID) SubmenuState {
+func (state SubmenuState) Open(trigger gfx.ID) SubmenuState {
 	if trigger.IsZero() {
 		return state
 	}
@@ -84,7 +84,7 @@ func (SubmenuState) Close() SubmenuState { return SubmenuState{} }
 // submenu before it arrives. It is the box of the two rectangles with a small
 // margin: more forgiving than a strict triangle, and it does not block pointer
 // events outside the pair the way Base UI's safe polygon does.
-func SubmenuSafe(trigger, submenu ui.Rect, point ui.Point) bool {
+func SubmenuSafe(trigger, submenu gfx.Rect, point gfx.Point) bool {
 	if pointInRect(point, trigger) || pointInRect(point, submenu) {
 		return true
 	}
@@ -96,7 +96,7 @@ func SubmenuSafe(trigger, submenu ui.Rect, point ui.Point) bool {
 	return point.X >= left && point.X <= right && point.Y >= top && point.Y <= bottom
 }
 
-func pointInRect(point ui.Point, bounds ui.Rect) bool {
+func pointInRect(point gfx.Point, bounds gfx.Rect) bool {
 	return point.X >= bounds.X && point.X < bounds.X+bounds.Width &&
 		point.Y >= bounds.Y && point.Y < bounds.Y+bounds.Height
 }
@@ -116,11 +116,11 @@ const (
 // SubmenuCommandForKey maps the horizontal menu keys Base UI uses for submenu
 // levels: Right opens, Left closes. The application moves focus after it acts:
 // Right focuses the first row of the submenu, Left the row that opened it.
-func SubmenuCommandForKey(key ui.Key) (SubmenuCommand, bool) {
+func SubmenuCommandForKey(key gfx.Key) (SubmenuCommand, bool) {
 	switch key {
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		return SubmenuCommandOpen, true
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		return SubmenuCommandClose, true
 	default:
 		return SubmenuCommandNone, false
@@ -130,13 +130,13 @@ func SubmenuCommandForKey(key ui.Key) (SubmenuCommand, bool) {
 // DropdownMenuOptions supplies application-owned overlay identities.
 type DropdownMenuOptions struct {
 	Layer     uint16
-	Scope     ui.ID
-	DismissID ui.ID
+	Scope     gfx.ID
+	DismissID gfx.ID
 	// ID names the menu for its entrance and exit when DismissID, the default,
 	// does not tell it from another menu painted under the same Scope. Side is
 	// the edge of its anchor the menu opens on (the zero value is under it), which
 	// is the edge it slides in from. End has to be called for the menu to animate.
-	ID   ui.ID
+	ID   gfx.ID
 	Side OverlaySide
 	// Viewport, with DismissID, makes the menu declare a hit over the whole
 	// window behind its surface, so pressing anywhere outside it reports
@@ -144,7 +144,7 @@ type DropdownMenuOptions struct {
 	// back when it sticks out, and shortened, so that it scrolls, when it is taller
 	// than the window. Leave it empty to dismiss only on Escape and handle outside
 	// presses yourself.
-	Viewport ui.Rect
+	Viewport gfx.Rect
 	// Scroll is the scroll position of a menu whose items do not all fit its
 	// bounds (see MenuScroll). Without one such a menu shows only the items at
 	// its top.
@@ -156,7 +156,7 @@ type DropdownMenuOptions struct {
 
 // DropdownMenuItem describes one stable menu action.
 type DropdownMenuItem struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Shortcut string
 	// Keys, when set, replace Shortcut with one keycap per entry (for example
@@ -178,7 +178,7 @@ type DropdownMenuItem struct {
 	// Icon, when it has any geometry, is painted before the label (after the
 	// checkbox or radio indicator, if the item has one). A single-color icon takes
 	// the item's text color; a multi-color one keeps its own.
-	Icon ui.Icon
+	Icon gfx.Icon
 }
 
 func (item DropdownMenuItem) common() menuItem {
@@ -189,6 +189,26 @@ func (item DropdownMenuItem) common() menuItem {
 	}
 }
 
+// DropdownMenuItemWidth is the width a dropdown menu needs for item's row to show
+// its icon, label and trailing content whole: take the largest over the menu's
+// items as the bounds' Width. The menu's own minimum still applies.
+func DropdownMenuItemWidth(canvas *gfx.Canvas, theme gfx.Theme, item DropdownMenuItem) float32 {
+	return menuItemWidth(canvas, theme, item.common(), false)
+}
+
+// DropdownMenuItemHeight is the height AddItem reserves for item.
+func DropdownMenuItemHeight(theme gfx.Theme, item DropdownMenuItem) float32 {
+	return menuItemHeight(theme, item.common(), 0)
+}
+
+// The heights AddLabel and AddSeparator reserve, and the padding of the surface
+// around its rows: a menu's bounds are as tall as its rows and twice the padding.
+const (
+	DropdownMenuLabelHeight     = menuLabelHeight
+	DropdownMenuSeparatorHeight = menuSeparatorHeight
+	DropdownMenuPadding         = menuPadding
+)
+
 // DropdownMenu paints a source-owned menu surface. Selection, open state,
 // placement, and keyboard routing remain application/runtime state.
 type DropdownMenu struct {
@@ -198,7 +218,7 @@ type DropdownMenu struct {
 // BeginDropdownMenu paints an open menu using caller-owned layer, focus scope,
 // and Escape action identities. Bounds are normalized to Vega's 8rem minimum
 // (6rem for a submenu).
-func BeginDropdownMenu(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options DropdownMenuOptions) DropdownMenu {
+func BeginDropdownMenu(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options DropdownMenuOptions) DropdownMenu {
 	minWidth := float32(128)
 	if options.Submenu {
 		minWidth = 96
@@ -211,22 +231,22 @@ func BeginDropdownMenu(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, option
 }
 
 // Bounds returns the normalized overlay geometry.
-func (menu DropdownMenu) Bounds() ui.Rect { return menu.surface.bounds }
+func (menu DropdownMenu) Bounds() gfx.Rect { return menu.surface.bounds }
 
 // NextItemBounds returns the next 32px keyboard-navigation row without
 // advancing the declaration cursor.
-func (menu DropdownMenu) NextItemBounds() ui.Rect {
+func (menu DropdownMenu) NextItemBounds() gfx.Rect {
 	return menu.surface.rowBounds(menu.surface.itemHeight())
 }
 
 // AddLabel paints one medium-weight group label and returns its row geometry.
-func (menu *DropdownMenu) AddLabel(label string, inset bool) ui.Rect {
+func (menu *DropdownMenu) AddLabel(label string, inset bool) gfx.Rect {
 	return menu.surface.addLabel(label, inset)
 }
 
 // AddItem paints one action, checkbox, radio option, or submenu trigger. The
 // rectangle is empty when the row is scrolled out of the menu.
-func (menu *DropdownMenu) AddItem(item DropdownMenuItem) ui.Rect {
+func (menu *DropdownMenu) AddItem(item DropdownMenuItem) gfx.Rect {
 	bounds, _ := menu.AddItemSlot(item)
 	return bounds
 }
@@ -235,7 +255,7 @@ func (menu *DropdownMenu) AddItem(item DropdownMenuItem) ui.Rect {
 // TrailingWidth reserved, vertically centered in the row and ending 8px from its
 // edge. The slot is empty when the item has no TrailingWidth or is scrolled out
 // of the menu. Paint into it between BeginContent and EndContent.
-func (menu *DropdownMenu) AddItemSlot(item DropdownMenuItem) (row, slot ui.Rect) {
+func (menu *DropdownMenu) AddItemSlot(item DropdownMenuItem) (row, slot gfx.Rect) {
 	return menu.surface.addItem(item.common())
 }
 
@@ -248,7 +268,7 @@ func (menu *DropdownMenu) BeginContent() { menu.surface.pushOverlay() }
 func (menu *DropdownMenu) EndContent() { menu.surface.popOverlay() }
 
 // AddSeparator paints the official -mx-1/my-1 divider geometry.
-func (menu *DropdownMenu) AddSeparator() ui.Rect { return menu.surface.addSeparator() }
+func (menu *DropdownMenu) AddSeparator() gfx.Rect { return menu.surface.addSeparator() }
 
 // End paints the scrollbar of a menu whose items did not all fit, after the last
 // item, and ends the menu's entrance and exit: call it once the last item is
@@ -266,9 +286,9 @@ func (menu *DropdownMenu) End() { menu.surface.end() }
 //	... AddItem ...
 //	menu.End() // paints the scrollbar
 //	...
-//	config.OnScroll = func(event ui.ScrollEvent) ui.EventResult {
+//	config.OnScroll = func(event gfx.ScrollEvent) gfx.EventResult {
 //		if menuOpen && pointInRect(event.X, event.Y, menuBounds) {
-//			return ui.EventResult{Handled: true, Repaint: scroll.Wheel(event)}
+//			return gfx.EventResult{Handled: true, Repaint: scroll.Wheel(event)}
 //		}
 //		...
 //	}
@@ -284,7 +304,7 @@ type MenuScroll struct {
 	Offset float32
 	// BarID, when set, makes the scrollbar a hit of that identity so the thumb can
 	// be dragged (see Drag). The rows' hits then end where the bar starts.
-	BarID ui.ID
+	BarID gfx.ID
 	max   float32
 	// measured says a paint has found max, so Offset can be held to it; before
 	// that an Offset the caller set stands.
@@ -298,7 +318,7 @@ type MenuScroll struct {
 	// keeps Tab inside a context menu.
 	TabCloses bool
 	// followed is the keyboard focus the list last scrolled to.
-	followed ui.ID
+	followed gfx.ID
 	// barTop and thumb place the thumb of the last paint; grab is where in the
 	// thumb a drag holds it.
 	barTop, thumb, grab float32
@@ -308,7 +328,7 @@ type MenuScroll struct {
 // menuScrollItem is a selectable row: what it says and where it lies in the
 // content, so the keyboard can also match it by name.
 type menuScrollItem struct {
-	id          ui.ID
+	id          gfx.ID
 	label       string
 	top, height float32
 	disabled    bool
@@ -328,7 +348,7 @@ func (scroll *MenuScroll) Max() float32 { return scroll.max }
 
 // Wheel scrolls by one scroll gesture and reports whether the position changed.
 // A notch of a wheel (a gesture that is not Precise) moves at least 24 pixels.
-func (scroll *MenuScroll) Wheel(event ui.ScrollEvent) bool {
+func (scroll *MenuScroll) Wheel(event gfx.ScrollEvent) bool {
 	step := event.DeltaY
 	if !event.Precise {
 		if step > 0 && step < 24 {
@@ -352,7 +372,7 @@ func (scroll *MenuScroll) By(step float32) bool {
 // view, as the last paint laid the list out, and reports whether the position
 // changed. The first item scrolls to the top, so a group label above it shows,
 // and the last to the end. An identity the list did not paint changes nothing.
-func (scroll *MenuScroll) Reveal(id ui.ID) bool {
+func (scroll *MenuScroll) Reveal(id gfx.ID) bool {
 	if id.IsZero() {
 		return false
 	}
@@ -390,17 +410,17 @@ func (scroll *MenuScroll) revealAt(index int) bool {
 // scrolls it into view; ask the runtime to focus it:
 //
 //	if id, ok := scroll.Navigate(event.Key, event.Target, true); ok {
-//		return ui.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}
+//		return gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}
 //	}
 //
 // loop makes Down past the last item arrive at the first, and Up past the first
 // at the last, as a menu does; a list that does not loop stays on its edge. It
 // reports false for any other key, and for a list without an enabled item.
-func (scroll *MenuScroll) Navigate(key ui.Key, from ui.ID, loop bool) (ui.ID, bool) {
+func (scroll *MenuScroll) Navigate(key gfx.Key, from gfx.ID, loop bool) (gfx.ID, bool) {
 	switch key {
-	case ui.KeyUp, ui.KeyDown, ui.KeyHome, ui.KeyEnd, ui.KeyPageUp, ui.KeyPageDown:
+	case gfx.KeyUp, gfx.KeyDown, gfx.KeyHome, gfx.KeyEnd, gfx.KeyPageUp, gfx.KeyPageDown:
 	default:
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	first, last, current := -1, -1, -1
 	for index, item := range scroll.items {
@@ -416,7 +436,7 @@ func (scroll *MenuScroll) Navigate(key ui.Key, from ui.ID, loop bool) (ui.ID, bo
 		last = index
 	}
 	if first < 0 {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	next := func(from, step int) int {
 		for index := from + step; index >= 0 && index < len(scroll.items); index += step {
@@ -428,30 +448,30 @@ func (scroll *MenuScroll) Navigate(key ui.Key, from ui.ID, loop bool) (ui.ID, bo
 	}
 	target := -1
 	switch {
-	case key == ui.KeyHome:
+	case key == gfx.KeyHome:
 		target = first
-	case key == ui.KeyEnd:
+	case key == gfx.KeyEnd:
 		target = last
 	case current < 0:
 		target = first
-		if key == ui.KeyUp {
+		if key == gfx.KeyUp {
 			target = last
 		}
-	case key == ui.KeyDown:
+	case key == gfx.KeyDown:
 		if target = next(current, 1); target < 0 {
 			target = current
 			if loop {
 				target = first
 			}
 		}
-	case key == ui.KeyUp:
+	case key == gfx.KeyUp:
 		if target = next(current, -1); target < 0 {
 			target = current
 			if loop {
 				target = last
 			}
 		}
-	case key == ui.KeyPageDown:
+	case key == gfx.KeyPageDown:
 		reach := scroll.items[current].top + scroll.view
 		target = current
 		for index := next(current, 1); index >= 0 && scroll.items[index].top <= reach; index = next(index, 1) {
@@ -463,7 +483,7 @@ func (scroll *MenuScroll) Navigate(key ui.Key, from ui.ID, loop bool) (ui.ID, bo
 		if target < 0 {
 			target = last
 		}
-	case key == ui.KeyPageUp:
+	case key == gfx.KeyPageUp:
 		reach := scroll.items[current].top - scroll.view
 		target = current
 		for index := next(current, -1); index >= 0 && scroll.items[index].top >= reach; index = next(index, -1) {
@@ -489,9 +509,9 @@ func (scroll *MenuScroll) Navigate(key ui.Key, from ui.ID, loop bool) (ui.ID, bo
 // match continues after it, which is how a repeated first letter cycles through
 // same-initial rows. It reports false for an empty prefix or when nothing among
 // the last paint's rows matches.
-func (scroll *MenuScroll) Match(prefix string, from ui.ID) (ui.ID, bool) {
+func (scroll *MenuScroll) Match(prefix string, from gfx.ID) (gfx.ID, bool) {
 	if prefix == "" || len(scroll.items) == 0 {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	start := 0
 	if !from.IsZero() {
@@ -513,7 +533,7 @@ func (scroll *MenuScroll) Match(prefix string, from ui.ID) (ui.ID, bool) {
 			return item.id, true
 		}
 	}
-	return ui.ID{}, false
+	return gfx.ID{}, false
 }
 
 // menuLabelHasPrefix reports whether label starts with prefix, comparing one
@@ -538,9 +558,9 @@ func (scroll *MenuScroll) Dragging() bool { return scroll.dragging }
 // whose Target is BarID, and, while Dragging, every pointer event. A press on the
 // thumb holds it where it was grabbed; a press on the track elsewhere centers the
 // thumb on the pointer. It reports whether the position changed, to repaint.
-func (scroll *MenuScroll) Drag(event ui.PointerEvent) bool {
+func (scroll *MenuScroll) Drag(event gfx.PointerEvent) bool {
 	switch event.Kind {
-	case ui.PointerDown:
+	case gfx.PointerDown:
 		if scroll.BarID.IsZero() || event.Target != scroll.BarID || scroll.max <= 0 {
 			return false
 		}
@@ -551,7 +571,7 @@ func (scroll *MenuScroll) Drag(event ui.PointerEvent) bool {
 		}
 		scroll.dragging = true
 		return scroll.dragTo(event.Y)
-	case ui.PointerMove:
+	case gfx.PointerMove:
 		return scroll.dragging && scroll.dragTo(event.Y)
 	default:
 		scroll.dragging = false
@@ -572,7 +592,7 @@ func (scroll *MenuScroll) dragTo(y float32) bool {
 // follow scrolls the item the keyboard has just moved to into view, before the
 // list is laid out. A wheel gesture that leaves the focus where it was is not
 // undone.
-func (scroll *MenuScroll) follow(canvas *ui.Canvas) {
+func (scroll *MenuScroll) follow(canvas *gfx.Canvas) {
 	focus := canvas.FocusVisible()
 	if focus == scroll.followed {
 		return
@@ -612,7 +632,7 @@ const (
 
 // menuItem is a menu row, whichever menu it belongs to.
 type menuItem struct {
-	ID            ui.ID
+	ID            gfx.ID
 	Label         string
 	Description   string
 	Shortcut      string
@@ -627,19 +647,19 @@ type menuItem struct {
 	Disabled      bool
 	Inset         bool
 	Expanded      bool
-	Icon          ui.Icon
+	Icon          gfx.Icon
 }
 
 type menuSurfaceOptions struct {
 	layer     uint16
-	scope     ui.ID
-	dismissID ui.ID
+	scope     gfx.ID
+	dismissID gfx.ID
 	// key names the menu for its entrance and exit, side is the edge of its anchor
 	// it opens on, and submenu says it opens beside another menu of the same key.
-	key      ui.ID
+	key      gfx.ID
 	side     OverlaySide
 	submenu  bool
-	viewport ui.Rect
+	viewport gfx.Rect
 	scroll   *MenuScroll
 	// instant makes the menu appear and disappear at once, with no presence group.
 	instant bool
@@ -659,9 +679,9 @@ type menuSurfaceOptions struct {
 // have in common: the bordered surface, the rows laid out one under the other
 // (scrolled, when the caller gave a MenuScroll), and the painting of a row.
 type menuSurface struct {
-	canvas  *ui.Canvas
-	theme   ui.Theme
-	bounds  ui.Rect
+	canvas  *gfx.Canvas
+	theme   gfx.Theme
+	bounds  gfx.Rect
 	options menuSurfaceOptions
 	// top and bottom are the edges of the visible rows; y is where the next row
 	// goes, already moved up by the scroll offset; used is the rows' height so far.
@@ -686,12 +706,12 @@ type menuSurface struct {
 // pointer crosses onto a different row: a pointer that rests where it already
 // was never takes the cursor back from the keyboard, so arrow keys keep
 // working while the pointer is parked over the list.
-type pointerRow struct{ row ui.ID }
+type pointerRow struct{ row gfx.ID }
 
 // entered records row as the row under the pointer and reports whether the
 // pointer has just crossed onto it. Pass the zero ID, once per paint, to record
 // that no option is under the pointer.
-func (p *pointerRow) entered(row ui.ID) bool {
+func (p *pointerRow) entered(row gfx.ID) bool {
 	if row == p.row {
 		return false
 	}
@@ -699,7 +719,7 @@ func (p *pointerRow) entered(row ui.ID) bool {
 	return !row.IsZero()
 }
 
-func beginMenuSurface(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, minWidth float32, options menuSurfaceOptions) menuSurface {
+func beginMenuSurface(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, minWidth float32, options menuSurfaceOptions) menuSurface {
 	bounds.Width = max(bounds.Width, minWidth)
 	if options.viewport.Width > 0 && options.viewport.Height > 0 {
 		bounds = overlayClamp(bounds, options.viewport, menuPadding)
@@ -727,21 +747,20 @@ func beginMenuSurface(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, minWidt
 	// The surface itself is inside the menu: a press on its padding, a label, a
 	// separator, or a disabled row must not reach the dismiss backdrop behind it.
 	menu.canvas.Block(bounds)
-	menu.canvas.Container(bounds, ui.RoleMenu, "")
+	menu.canvas.Container(bounds, gfx.RoleMenu, "")
 	part := overlaySurfacePart
 	if options.submenu {
 		part = overlaySubmenuPart
 	}
 	if !options.instant {
 		menu.animated = true
-		canvas.BeginPresence(options.key, part, popupPresence(theme, overlayDuration, options.side), popupPivot(bounds, options.side, ui.Rect{}))
+		canvas.BeginPresence(options.key, part, popupPresence(theme, overlayDuration, options.side), popupPivot(bounds, options.side, gfx.Rect{}))
 	}
-	level := ui.ShadowMD // shadow-md; a submenu floats higher, shadow-lg
+	level := gfx.ShadowMD // shadow-md; a submenu floats higher, shadow-lg
 	if options.submenu {
-		level = ui.ShadowLG
+		level = gfx.ShadowLG
 	}
-	canvas.Elevate(bounds, theme.Metrics.RadiusPopup(), level)
-	canvas.RoundedBorder(bounds, theme.Metrics.RadiusPopup(), 1, theme.Border, theme.Popover)
+	paintPopupSurface(canvas, &theme, bounds, level)
 	menu.popOverlay()
 	return menu
 }
@@ -767,13 +786,13 @@ func (menu *menuSurface) beginScroll() {
 }
 
 // rowBounds is where a row of that height goes next.
-func (menu menuSurface) rowBounds(height float32) ui.Rect {
-	return ui.Rect{X: menu.bounds.X + menuPadding, Y: menu.y, Width: max(0, menu.bounds.Width-2*menuPadding), Height: height}
+func (menu menuSurface) rowBounds(height float32) gfx.Rect {
+	return gfx.Rect{X: menu.bounds.X + menuPadding, Y: menu.y, Width: max(0, menu.bounds.Width-2*menuPadding), Height: height}
 }
 
 // takeItem reserves a row like take, and lists it with the scroll position as
 // one the keyboard can move to and match by label.
-func (menu *menuSurface) takeItem(row ui.Rect, id ui.ID, label string, disabled bool) bool {
+func (menu *menuSurface) takeItem(row gfx.Rect, id gfx.ID, label string, disabled bool) bool {
 	if scroll := menu.options.scroll; scroll != nil && !id.IsZero() {
 		scroll.items = append(scroll.items, menuScrollItem{id: id, label: label, top: menu.used, height: row.Height, disabled: disabled})
 	}
@@ -781,7 +800,7 @@ func (menu *menuSurface) takeItem(row ui.Rect, id ui.ID, label string, disabled 
 }
 
 // take reserves a row and reports whether any of it shows.
-func (menu *menuSurface) take(row ui.Rect) bool {
+func (menu *menuSurface) take(row gfx.Rect) bool {
 	menu.y += row.Height
 	menu.used += row.Height
 	if scroll := menu.options.scroll; scroll != nil {
@@ -792,11 +811,11 @@ func (menu *menuSurface) take(row ui.Rect) bool {
 
 // paintRow runs paint for a row on the menu's layer and scope, clipped to the
 // visible part of the surface when the row is cut by an edge.
-func (menu *menuSurface) paintRow(row ui.Rect, paint func()) {
+func (menu *menuSurface) paintRow(row gfx.Rect, paint func()) {
 	menu.pushOverlay()
 	cut := row.Y < menu.top || row.Y+row.Height > menu.bottom
 	if cut {
-		menu.canvas.Clip(ui.Rect{X: menu.bounds.X, Y: menu.top, Width: menu.bounds.Width, Height: menu.bottom - menu.top})
+		menu.canvas.Clip(gfx.Rect{X: menu.bounds.X, Y: menu.top, Width: menu.bounds.Width, Height: menu.bottom - menu.top})
 	}
 	paint()
 	if cut {
@@ -813,49 +832,49 @@ func (menu *menuSurface) itemHeight() float32 {
 	return menuRowHeight
 }
 
-func (menu *menuSurface) addLabel(label string, inset bool) ui.Rect {
+func (menu *menuSurface) addLabel(label string, inset bool) gfx.Rect {
 	height := menu.itemHeight()
-	size, weight, color := menu.theme.Metrics.FontSizeM, ui.WeightMedium, menu.theme.PopoverForeground
+	size, weight, color := menu.theme.Metrics.FontSizeM, gfx.WeightMedium, menu.theme.PopoverForeground
 	if menu.options.labelMuted {
 		height, size, color = menuLabelHeight, menu.theme.Metrics.FontSizeS, menu.theme.MutedForeground
 	}
 	row := menu.rowBounds(height)
 	if !menu.take(row) {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	left := float32(8)
 	if inset {
 		left = 32
 	}
 	menu.paintRow(row, func() {
-		menu.canvas.Label(label, ui.Rect{X: row.X + left, Y: row.Y, Width: max(0, row.Width-left-8), Height: row.Height}, ui.TextStyle{
+		menu.canvas.Label(label, gfx.Rect{X: row.X + left, Y: row.Y, Width: max(0, row.Width-left-8), Height: row.Height}, gfx.TextStyle{
 			Size: size, Weight: weight, Color: color,
 		})
 	})
 	return row
 }
 
-func (menu *menuSurface) addSeparator() ui.Rect {
-	row := ui.Rect{X: menu.bounds.X, Y: menu.y, Width: menu.bounds.Width, Height: menuSeparatorHeight}
+func (menu *menuSurface) addSeparator() gfx.Rect {
+	row := gfx.Rect{X: menu.bounds.X, Y: menu.y, Width: menu.bounds.Width, Height: menuSeparatorHeight}
 	if !menu.take(row) {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	menu.paintRow(row, func() {
-		menu.canvas.Fill(ui.Rect{X: row.X, Y: row.Y + 4, Width: row.Width, Height: 1}, menu.theme.Border)
+		menu.canvas.Fill(gfx.Rect{X: row.X, Y: row.Y + 4, Width: row.Width, Height: 1}, menu.theme.Border)
 	})
 	return row
 }
 
 // addItem lays a row out and paints it. The slot is the room TrailingWidth
 // reserved, when the whole row shows.
-func (menu *menuSurface) addItem(item menuItem) (row, slot ui.Rect) {
+func (menu *menuSurface) addItem(item menuItem) (row, slot gfx.Rect) {
 	row = menu.rowBounds(menuItemHeight(menu.theme, item, menu.options.rowHeight))
 	if !menu.takeItem(row, item.ID, item.Label, item.Disabled) {
-		return ui.Rect{}, ui.Rect{}
+		return gfx.Rect{}, gfx.Rect{}
 	}
 	menu.paintRow(row, func() { menu.paintItem(row, item) })
 	if item.TrailingWidth > 0 && row.Y >= menu.top && row.Y+row.Height <= menu.bottom {
-		slot = ui.Rect{X: row.X + row.Width - menu.trailingEdge(item) - item.TrailingWidth, Y: row.Y, Width: item.TrailingWidth, Height: row.Height}
+		slot = gfx.Rect{X: row.X + row.Width - menu.trailingEdge(item) - item.TrailingWidth, Y: row.Y, Width: item.TrailingWidth, Height: row.Height}
 	}
 	return row, slot
 }
@@ -873,7 +892,7 @@ func (menu *menuSurface) trailingEdge(item menuItem) float32 {
 // menuItemWidth is the width of a menu whose row shows item with nothing cut,
 // mirroring the layout of paintItem: the left offset, the icon, the label, then
 // what is reserved at the trailing edge, between the surface's padding.
-func menuItemWidth(canvas *ui.Canvas, theme ui.Theme, item menuItem, indicatorLeft bool) float32 {
+func menuItemWidth(canvas *gfx.Canvas, theme gfx.Theme, item menuItem, indicatorLeft bool) float32 {
 	indicator := item.Kind == menuCheckbox || item.Kind == menuRadio
 	left := float32(8)
 	if item.Inset || indicator && indicatorLeft {
@@ -907,7 +926,7 @@ func menuItemWidth(canvas *ui.Canvas, theme ui.Theme, item menuItem, indicatorLe
 // FontSize+7 line the field, alert and dialog components already share.
 func menuLineHeight(size float32) float32 { return size + 7 }
 
-func menuItemHeight(theme ui.Theme, item menuItem, rowHeight float32) float32 {
+func menuItemHeight(theme gfx.Theme, item menuItem, rowHeight float32) float32 {
 	if rowHeight <= 0 {
 		rowHeight = menuRowHeight
 	}
@@ -918,7 +937,7 @@ func menuItemHeight(theme ui.Theme, item menuItem, rowHeight float32) float32 {
 	return rowHeight
 }
 
-func (menu *menuSurface) paintItem(bounds ui.Rect, item menuItem) {
+func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 	canvas, theme := menu.canvas, menu.theme
 	enabled := !item.ID.IsZero() && !item.Disabled
 	// The pointer moves the menu's current row the way Radix does: entering a
@@ -985,16 +1004,16 @@ func (menu *menuSurface) paintItem(bounds ui.Rect, item menuItem) {
 		right += item.TrailingWidth + 8
 	case len(item.Keys) > 0:
 		keysWidth := menuKeysWidth(canvas, theme, item.Keys)
-		paintMenuKeys(canvas, theme, ui.Rect{X: bounds.X + bounds.Width - edge - keysWidth, Y: labelY, Width: keysWidth, Height: labelHeight}, item.Keys, item.Disabled)
+		paintMenuKeys(canvas, theme, gfx.Rect{X: bounds.X + bounds.Width - edge - keysWidth, Y: labelY, Width: keysWidth, Height: labelHeight}, item.Keys, item.Disabled)
 		right += keysWidth + 12
 	case item.Shortcut != "":
 		shortcutWidth := canvas.TextWidth(item.Shortcut, theme.Metrics.FontSizeS)
-		canvas.Label(item.Shortcut, ui.Rect{X: bounds.X + bounds.Width - edge - shortcutWidth, Y: labelY, Width: shortcutWidth, Height: labelHeight}, ui.TextStyle{
-			Size: theme.Metrics.FontSizeS, Weight: ui.WeightRegular, Color: dropdownMenuOpacity(theme.MutedForeground, item.Disabled),
+		canvas.Label(item.Shortcut, gfx.Rect{X: bounds.X + bounds.Width - edge - shortcutWidth, Y: labelY, Width: shortcutWidth, Height: labelHeight}, gfx.TextStyle{
+			Size: theme.Metrics.FontSizeS, Weight: gfx.WeightRegular, Color: dropdownMenuOpacity(theme.MutedForeground, item.Disabled),
 		})
 		right += shortcutWidth + 12
 	case item.Kind == menuSubmenu:
-		paintChevron(canvas, &chevronRightIcon, ui.Rect{X: bounds.X + bounds.Width - 8 - menuIconSize, Y: labelY, Width: menuIconSize, Height: labelHeight}, foreground)
+		paintChevron(canvas, &chevronRightIcon, gfx.Rect{X: bounds.X + bounds.Width - 8 - menuIconSize, Y: labelY, Width: menuIconSize, Height: labelHeight}, foreground)
 		right += menuIconSize + 4
 	}
 	if item.Kind == menuCheckbox && item.Checked || item.Kind == menuRadio && item.Selected {
@@ -1002,15 +1021,15 @@ func (menu *menuSurface) paintItem(bounds ui.Rect, item menuItem) {
 		if menu.options.indicatorLeft {
 			x = bounds.X + 8
 		}
-		paintCheck(canvas, ui.Rect{X: x, Y: labelY, Width: menuIconSize, Height: labelHeight}, menuIconSize, foreground)
+		paintCheck(canvas, gfx.Rect{X: x, Y: labelY, Width: menuIconSize, Height: labelHeight}, menuIconSize, foreground)
 	}
 	if len(item.Icon.Commands) > 0 || len(item.Icon.Layers) > 0 {
 		side := min(menuIconSize, labelHeight)
-		canvas.DrawIcon(item.Icon, ui.Rect{X: bounds.X + left, Y: labelY + (labelHeight-side)/2, Width: side, Height: side}, foreground)
+		canvas.DrawIcon(item.Icon, gfx.Rect{X: bounds.X + left, Y: labelY + (labelHeight-side)/2, Width: side, Height: side}, foreground)
 		left += menuIconSize + menuIconGap
 	}
-	canvas.Label(item.Label, ui.Rect{X: bounds.X + left, Y: labelY, Width: max(0, bounds.Width-left-right), Height: labelHeight}, ui.TextStyle{
-		Size: theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground,
+	canvas.Label(item.Label, gfx.Rect{X: bounds.X + left, Y: labelY, Width: max(0, bounds.Width-left-right), Height: labelHeight}, gfx.TextStyle{
+		Size: theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 	})
 	if item.Description != "" {
 		color := theme.MutedForeground
@@ -1019,16 +1038,16 @@ func (menu *menuSurface) paintItem(bounds ui.Rect, item menuItem) {
 		}
 		color = dropdownMenuOpacity(color, item.Disabled)
 		width := max(0, bounds.Width-left-right-menu.hitInset)
-		value := canvas.FitLine(item.Description, theme.Metrics.FontSizeS, ui.WeightRegular, width)
-		canvas.Label(value, ui.Rect{X: bounds.X + left, Y: descriptionY, Width: width, Height: descriptionHeight}, ui.TextStyle{
-			Size: theme.Metrics.FontSizeS, Weight: ui.WeightRegular, Color: color,
+		value := canvas.FitLine(item.Description, theme.Metrics.FontSizeS, gfx.WeightRegular, width)
+		canvas.Label(value, gfx.Rect{X: bounds.X + left, Y: descriptionY, Width: width, Height: descriptionHeight}, gfx.TextStyle{
+			Size: theme.Metrics.FontSizeS, Weight: gfx.WeightRegular, Color: color,
 		})
 	}
 	if !item.ID.IsZero() {
 		hit := bounds
 		hit.Width -= menu.hitInset
-		canvas.HitWithOptions(item.ID, hit, item.Label, ui.HitOptions{
-			Role: ui.RoleMenuItem, Value: item.Value, Hint: item.Hint,
+		canvas.HitWithOptions(item.ID, hit, item.Label, gfx.HitOptions{
+			Role: gfx.RoleMenuItem, Value: item.Value, Hint: item.Hint,
 			Disabled: item.Disabled, Checked: item.Kind == menuCheckbox && item.Checked,
 			Selected: item.Kind == menuRadio && item.Selected,
 			Expanded: item.Kind == menuSubmenu && item.Expanded, Expandable: item.Kind == menuSubmenu,
@@ -1048,10 +1067,10 @@ func (menu *menuSurface) end() {
 		at := menu.top + (view-thumb)*scroll.Offset/scroll.max
 		scroll.barTop, scroll.thumb = menu.top, thumb
 		menu.pushOverlay()
-		menu.canvas.Rounded(ui.Rect{X: menu.bounds.X + menu.bounds.Width - 6, Y: at, Width: 4, Height: thumb}, 2, menu.theme.Border)
+		menu.canvas.Rounded(gfx.Rect{X: menu.bounds.X + menu.bounds.Width - 6, Y: at, Width: 4, Height: thumb}, 2, menu.theme.Border)
 		if !scroll.BarID.IsZero() {
-			menu.canvas.HitWithOptions(scroll.BarID, ui.Rect{X: menu.bounds.X + menu.bounds.Width - 2 - menuBarWidth, Y: menu.top, Width: menuBarWidth, Height: view},
-				"Scroll", ui.HitOptions{Role: ui.RoleSlider, SkipFocus: true})
+			menu.canvas.HitWithOptions(scroll.BarID, gfx.Rect{X: menu.bounds.X + menu.bounds.Width - 2 - menuBarWidth, Y: menu.top, Width: menuBarWidth, Height: view},
+				"Scroll", gfx.HitOptions{Role: gfx.RoleSlider, SkipFocus: true})
 		}
 		menu.popOverlay()
 	}
@@ -1081,10 +1100,10 @@ func (menu menuSurface) paintDismissBackdrop() {
 	if menu.options.dismissID.IsZero() || menu.options.viewport.Width <= 0 || menu.options.viewport.Height <= 0 {
 		return
 	}
-	menu.canvas.HitWithOptions(menu.options.dismissID, menu.options.viewport, "Dismiss menu", ui.HitOptions{Role: ui.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
+	menu.canvas.HitWithOptions(menu.options.dismissID, menu.options.viewport, "Dismiss menu", gfx.HitOptions{Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
 }
 
-func dropdownMenuOpacity(color ui.Color, disabled bool) ui.Color {
+func dropdownMenuOpacity(color gfx.Color, disabled bool) gfx.Color {
 	if disabled {
 		color.Alpha *= 0.50
 	}
@@ -1098,7 +1117,7 @@ func dropdownMenuOpacity(color ui.Color, disabled bool) ui.Color {
 // SubmenuSafe) keeps it open; a pointer outside both closes it at once, as Base
 // UI's default close delay does. It returns the state and how long to wait
 // before asking again (zero when nothing is pending).
-func SubmenuHover(state SubmenuState, hovered ui.ID, pointer ui.Point, hoveredRect, openTriggerRect, panelRect ui.Rect, now time.Time, intent *HoverIntent, delay time.Duration) (SubmenuState, time.Duration) {
+func SubmenuHover(state SubmenuState, hovered gfx.ID, pointer gfx.Point, hoveredRect, openTriggerRect, panelRect gfx.Rect, now time.Time, intent *HoverIntent, delay time.Duration) (SubmenuState, time.Duration) {
 	if !state.IsAnyOpen() {
 		intent.Reset()
 		return state, 0
@@ -1116,4 +1135,34 @@ func SubmenuHover(state SubmenuState, hovered ui.ID, pointer ui.Point, hoveredRe
 	}
 	intent.Reset()
 	return state, 0
+}
+
+// MenuItemLook is the look of one row of a list in a popup: the highlight under the pointer or
+// the keyboard, and the color of its label.
+type MenuItemLook struct {
+	// Fill is the highlight behind the row, transparent while the row is not active.
+	Fill gfx.Color
+	// Foreground is the color of the label and icon.
+	Foreground gfx.Color
+	// Radius is the corner radius of the highlight.
+	Radius float32
+}
+
+// MenuItemRecipe resolves the look of a row of a popup list. The row is active, and takes the
+// accent highlight, while the pointer is over it or presses it or the keyboard has focused it
+// visibly, unless it is Disabled, which dims the label and never highlights. A pure function.
+func MenuItemRecipe(theme gfx.Theme, state gfx.State) MenuItemLook {
+	return menuItemRecipe(&theme, state)
+}
+
+// menuItemRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
+// and a Theme is large.
+func menuItemRecipe(theme *gfx.Theme, state gfx.State) MenuItemLook {
+	look := MenuItemLook{Foreground: theme.PopoverForeground, Radius: theme.Metrics.RadiusItem()}
+	if state.Disabled {
+		look.Foreground.Alpha *= 0.50
+	} else if state.Hovered || state.Pressed || state.FocusVisible {
+		look.Fill = theme.Accent
+	}
+	return look
 }

@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -17,7 +17,7 @@ variants := []components.BadgeVariant{
 x := bounds.X
 for index, label := range labels {
     width, height := components.BadgeExtent(canvas, theme, label)
-    badge := ui.Rect{X: x, Width: width, Height: height}
+    badge := gfx.Rect{X: x, Width: width, Height: height}
     components.PaintBadge(canvas, theme, badge, label, variants[index])
     x += width + 12
 }`},
@@ -29,7 +29,7 @@ variants := []components.BadgeVariant{
 x := bounds.X
 for index, label := range labels {
     width, height := components.BadgeExtent(canvas, theme, label)
-    badge := ui.Rect{X: x, Width: width, Height: height}
+    badge := gfx.Rect{X: x, Width: width, Height: height}
     components.PaintBadge(canvas, theme, badge, label, variants[index])
     x += width + 12
 }`},
@@ -41,14 +41,14 @@ variants := []components.BadgeVariant{
 x := bounds.X
 for index, label := range labels {
     width, height := components.BadgeExtent(canvas, theme, label)
-    badge := ui.Rect{X: x, Width: width, Height: height}
+    badge := gfx.Rect{X: x, Width: width, Height: height}
     components.PaintBadge(canvas, theme, badge, label, variants[index])
     x += width + 12
 }`},
 	},
 }
 
-func (state *State) paintBadge(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintBadge(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	labels := []string{"New", "99+", state.Text("已发布", "Published")}
 	variants := []components.BadgeVariant{components.BadgeDefault, components.BadgeSecondary, components.BadgeOutline}
 	switch state.exampleID {
@@ -74,18 +74,18 @@ func (state *State) paintBadge(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 		width, _ := components.BadgeExtent(canvas, theme, label)
 		cell = max(cell, width)
 	}
-	var slots [6]flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Badge · 内容决定宽度", "Badge · Width follows content"), func(f *flex.Frame) {
+	var slots [6]ui.Box
+	state.page(canvas, theme, size, 560, state.Text("Badge · 内容决定宽度", "Badge · Width follows content"), func(f *ui.Frame) {
 		f.Grid(cell).Gap(12).Children(func() {
 			for index, label := range labels {
 				width, height := components.BadgeExtent(canvas, theme, label)
-				slots[index] = f.Slot().Size(width, height).Self(flex.Start)
+				slots[index] = f.Slot().Size(width, height).Self(ui.Start)
 			}
 		})
 		f.Text(state.Text("仅展示状态，不声明点击区域。", "Display only; no click target is declared.")).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 	for index, label := range labels {
 		bounds := slots[index].Rect()
-		components.PaintBadge(canvas, theme, ui.Rect{X: bounds.X, Y: bounds.Y}, label, variants[index])
+		components.PaintBadge(canvas, theme, gfx.Rect{X: bounds.X, Y: bounds.Y}, label, variants[index])
 	}
 }

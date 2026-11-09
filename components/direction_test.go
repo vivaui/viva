@@ -3,16 +3,16 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestDirectionResolvesLogicalGeometry(t *testing.T) {
-	container := ui.Rect{X: 10, Y: 20, Width: 100, Height: 40}
+	container := gfx.Rect{X: 10, Y: 20, Width: 100, Height: 40}
 	logical := LogicalRect{InlineStart: 8, BlockStart: 4, InlineSize: 30, BlockSize: 12}
-	if got := LTR.Rect(container, logical); got != (ui.Rect{X: 18, Y: 24, Width: 30, Height: 12}) {
+	if got := LTR.Rect(container, logical); got != (gfx.Rect{X: 18, Y: 24, Width: 30, Height: 12}) {
 		t.Fatalf("ltr rect = %+v", got)
 	}
-	if got := RTL.Rect(container, logical); got != (ui.Rect{X: 72, Y: 24, Width: 30, Height: 12}) {
+	if got := RTL.Rect(container, logical); got != (gfx.Rect{X: 72, Y: 24, Width: 30, Height: 12}) {
 		t.Fatalf("rtl rect = %+v", got)
 	}
 	if got := Direction(0).Rect(container, logical); got != LTR.Rect(container, logical) {
@@ -21,18 +21,18 @@ func TestDirectionResolvesLogicalGeometry(t *testing.T) {
 }
 
 func TestDirectionResolvesInsetsAndEdges(t *testing.T) {
-	bounds := ui.Rect{X: 10, Y: 20, Width: 100, Height: 40}
+	bounds := gfx.Rect{X: 10, Y: 20, Width: 100, Height: 40}
 	insets := LogicalInsets{Start: 8, Top: 3, End: 12, Bottom: 5}
-	if got := LTR.Inset(bounds, insets); got != (ui.Rect{X: 18, Y: 23, Width: 80, Height: 32}) {
+	if got := LTR.Inset(bounds, insets); got != (gfx.Rect{X: 18, Y: 23, Width: 80, Height: 32}) {
 		t.Fatalf("ltr inset = %+v", got)
 	}
-	if got := RTL.Inset(bounds, insets); got != (ui.Rect{X: 22, Y: 23, Width: 80, Height: 32}) {
+	if got := RTL.Inset(bounds, insets); got != (gfx.Rect{X: 22, Y: 23, Width: 80, Height: 32}) {
 		t.Fatalf("rtl inset = %+v", got)
 	}
-	if got := RTL.Start(bounds, 16); got != (ui.Rect{X: 94, Y: 20, Width: 16, Height: 40}) {
+	if got := RTL.Start(bounds, 16); got != (gfx.Rect{X: 94, Y: 20, Width: 16, Height: 40}) {
 		t.Fatalf("rtl start = %+v", got)
 	}
-	if got := RTL.End(bounds, 16); got != (ui.Rect{X: 10, Y: 20, Width: 16, Height: 40}) {
+	if got := RTL.End(bounds, 16); got != (gfx.Rect{X: 10, Y: 20, Width: 16, Height: 40}) {
 		t.Fatalf("rtl end = %+v", got)
 	}
 }

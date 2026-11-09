@@ -4,26 +4,26 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const wrapTestText = "the quick brown fox jumps over the lazy dog and keeps running through the forest until night"
 
 type wrapBox struct {
 	t      *testing.T
-	canvas ui.Canvas
+	canvas gfx.Canvas
 	layout TextareaLayout
-	bounds ui.Rect
-	theme  ui.Theme
+	bounds gfx.Rect
+	theme  gfx.Theme
 }
 
 func newWrapBox(t *testing.T, height float32) *wrapBox {
-	return &wrapBox{t: t, bounds: ui.Rect{X: 10, Y: 20, Width: 200, Height: height}, theme: ui.LightTheme()}
+	return &wrapBox{t: t, bounds: gfx.Rect{X: 10, Y: 20, Width: 200, Height: height}, theme: gfx.LightTheme()}
 }
 
 func (box *wrapBox) paint(snapshot TextareaSnapshot) {
 	box.canvas.Reset()
-	snapshot.ID, snapshot.Label, snapshot.Layout = ui.Item(1), "Notes", &box.layout
+	snapshot.ID, snapshot.Label, snapshot.Layout = gfx.Item(1), "Notes", &box.layout
 	if snapshot.Caret != 0 || snapshot.SelectionEnd != 0 {
 		snapshot.Focused, snapshot.ShowCaret = true, true
 	}
@@ -31,11 +31,11 @@ func (box *wrapBox) paint(snapshot TextareaSnapshot) {
 }
 
 // rows are the visual rows of text at the width of the box, as byte ranges.
-func (box *wrapBox) rows(text string) []ui.TextRow {
-	return box.canvas.WrapRows(nil, text, box.theme.Metrics.FontSizeM, ui.WeightRegular, box.bounds.Width-2*testInset)
+func (box *wrapBox) rows(text string) []gfx.TextRow {
+	return box.canvas.WrapRows(nil, text, box.theme.Metrics.FontSizeM, gfx.WeightRegular, box.bounds.Width-2*testInset)
 }
 
-func (box *wrapBox) caret() ui.Rect {
+func (box *wrapBox) caret() gfx.Rect {
 	rect, ok := box.layout.CaretBounds()
 	if !ok {
 		box.t.Fatal("the caret is not in view")
@@ -67,8 +67,8 @@ func TestTextareaWrapsLongLinesInsteadOfClippingThem(t *testing.T) {
 	}
 }
 
-func width(canvas ui.Canvas, value string) float32 {
-	return canvas.TextWidthWeight(value, 13, ui.WeightRegular)
+func width(canvas gfx.Canvas, value string) float32 {
+	return canvas.TextWidthWeight(value, 13, gfx.WeightRegular)
 }
 
 // A press lands on the visual row under it, wherever the row's text begins in
@@ -79,13 +79,13 @@ func TestTextareaPlacesTheCaretWhereAPressLands(t *testing.T) {
 	rows := box.rows(wrapTestText)
 	for index, row := range rows[:3] {
 		y := box.bounds.Y + textareaPadY + float32(index)*20 + 10
-		offset, ok := box.layout.OffsetAt(ui.Point{X: box.bounds.X + testInset + 1, Y: y})
+		offset, ok := box.layout.OffsetAt(gfx.Point{X: box.bounds.X + testInset + 1, Y: y})
 		if !ok || offset != row.Start {
 			t.Fatalf("a press at the start of row %d put the caret at %d (%v), want %d", index, offset, ok, row.Start)
 		}
 	}
 	// Past the end of a row that wrapped is the end of its text, not the start of the next.
-	offset, _ := box.layout.OffsetAt(ui.Point{X: box.bounds.X + box.bounds.Width, Y: box.bounds.Y + textareaPadY + 10})
+	offset, _ := box.layout.OffsetAt(gfx.Point{X: box.bounds.X + box.bounds.Width, Y: box.bounds.Y + textareaPadY + 10})
 	if want := len(strings.TrimRight(wrapTestText[rows[0].Start:rows[0].End], " ")); offset != want {
 		t.Errorf("a press past the end of row 0 put the caret at %d, want %d", offset, want)
 	}
@@ -94,7 +94,7 @@ func TestTextareaPlacesTheCaretWhereAPressLands(t *testing.T) {
 		t.Errorf("the caret at the end of row 0 is painted at y=%v, on another row", got)
 	}
 	// And below the last row is the last row.
-	last, _ := box.layout.OffsetAt(ui.Point{X: box.bounds.X + box.bounds.Width, Y: box.bounds.Y + box.bounds.Height})
+	last, _ := box.layout.OffsetAt(gfx.Point{X: box.bounds.X + box.bounds.Width, Y: box.bounds.Y + box.bounds.Height})
 	if last != len(wrapTestText) && last < rows[len(rows)-1].Start {
 		t.Errorf("a press below the text put the caret at %d", last)
 	}
@@ -141,7 +141,7 @@ func TestTextareaHomeAndEndAreTheEndsOfTheVisualRow(t *testing.T) {
 		t.Fatalf("End went to %d from %d; the row is %+v", end, caret, second)
 	}
 	box.paint(TextareaSnapshot{Value: wrapTestText, Caret: end})
-	if got, want := box.caret().Y, box.bounds.Y+textareaPadY+ui.LightTheme().Metrics.FontSizeM+7; got != want {
+	if got, want := box.caret().Y, box.bounds.Y+textareaPadY+gfx.LightTheme().Metrics.FontSizeM+7; got != want {
 		t.Errorf("the caret after End is on y=%v, want the second row at %v", got, want)
 	}
 	// The end of a row that wrapped without a space is also the start of the next
@@ -159,7 +159,7 @@ func TestTextareaHomeAndEndAreTheEndsOfTheVisualRow(t *testing.T) {
 	}
 	// Typing on, or arrowing elsewhere, no longer holds it there.
 	box.paint(TextareaSnapshot{Value: run, Caret: end + 1})
-	if box.caret().Y != box.bounds.Y+textareaPadY+ui.LightTheme().Metrics.FontSizeM+7 {
+	if box.caret().Y != box.bounds.Y+textareaPadY+gfx.LightTheme().Metrics.FontSizeM+7 {
 		t.Errorf("one character on, the caret is still on the first row")
 	}
 }
@@ -234,12 +234,12 @@ func TestTextareaWrapsAndAllocatesNothingOnceWarm(t *testing.T) {
 }
 
 func BenchmarkPaintTextareaWrapped(b *testing.B) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var layout TextareaLayout
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	text := strings.Repeat(wrapTestText+"\n", 8)
-	snapshot := TextareaSnapshot{ID: ui.Item(1), Value: text, Focused: true, ShowCaret: true, Caret: 300, Layout: &layout}
-	bounds := ui.Rect{Width: 360, Height: 160}
+	snapshot := TextareaSnapshot{ID: gfx.Item(1), Value: text, Focused: true, ShowCaret: true, Caret: 300, Layout: &layout}
+	bounds := gfx.Rect{Width: 360, Height: 160}
 	canvas.Reset()
 	PaintTextarea(&canvas, theme, bounds, snapshot)
 	b.ReportAllocs()
@@ -252,21 +252,21 @@ func BenchmarkPaintTextareaWrapped(b *testing.B) {
 
 func TestTextareaMovementForKey(t *testing.T) {
 	for _, test := range []struct {
-		key       ui.Key
-		modifiers ui.Modifiers
+		key       gfx.Key
+		modifiers gfx.Modifiers
 		want      TextareaMovement
 		extend    bool
 	}{
-		{ui.KeyUp, 0, TextareaMoveUp, false},
-		{ui.KeyDown, ui.ModifierShift, TextareaMoveDown, true},
-		{ui.KeyHome, 0, TextareaMoveLineStart, false},
-		{ui.KeyEnd, ui.ModifierShift, TextareaMoveLineEnd, true},
-		{ui.KeyLeft, ui.ModifierMeta, TextareaMoveLineStart, false},
-		{ui.KeyUp, ui.ModifierMeta, TextareaMoveTextStart, false},
-		{ui.KeyEnd, ui.ModifierControl, TextareaMoveTextEnd, false},
-		{ui.KeyPageDown, 0, TextareaMovePageDown, false},
-		{ui.KeyLeft, 0, TextareaMoveNone, false},
-		{ui.KeyEnter, 0, TextareaMoveNone, false},
+		{gfx.KeyUp, 0, TextareaMoveUp, false},
+		{gfx.KeyDown, gfx.ModifierShift, TextareaMoveDown, true},
+		{gfx.KeyHome, 0, TextareaMoveLineStart, false},
+		{gfx.KeyEnd, gfx.ModifierShift, TextareaMoveLineEnd, true},
+		{gfx.KeyLeft, gfx.ModifierMeta, TextareaMoveLineStart, false},
+		{gfx.KeyUp, gfx.ModifierMeta, TextareaMoveTextStart, false},
+		{gfx.KeyEnd, gfx.ModifierControl, TextareaMoveTextEnd, false},
+		{gfx.KeyPageDown, 0, TextareaMovePageDown, false},
+		{gfx.KeyLeft, 0, TextareaMoveNone, false},
+		{gfx.KeyEnter, 0, TextareaMoveNone, false},
 	} {
 		if got, extend := TextareaMovementForKey(test.key, test.modifiers); got != test.want || extend != test.extend {
 			t.Errorf("key %v with %v = (%v, %v), want (%v, %v)", test.key, test.modifiers, got, extend, test.want, test.extend)

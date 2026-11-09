@@ -6,14 +6,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/vivaui/viva/gfx"
 	webplatform "github.com/vivaui/viva/internal/platform/web"
-	"github.com/vivaui/viva/ui"
 )
 
 func nativeReduceMotion() bool { return false }
 
 // nativeTextEngine is the platform's text engine; nil keeps the reference metrics.
-func nativeTextEngine() ui.TextEngine { return nil }
+func nativeTextEngine() gfx.TextEngine { return nil }
 
 func nativePreferredLanguages() []string { return webplatform.PreferredLanguages() }
 
@@ -47,7 +47,7 @@ func nativeSetCursor(cursor Cursor) error {
 	return webSystemError("set cursor", webplatform.SetCursorShape(uint8(cursor)))
 }
 
-func nativeSetCursorImage(image *ui.CursorImage) error {
+func nativeSetCursorImage(image *gfx.CursorImage) error {
 	return webSystemError("set cursor image", webplatform.SetCursorImage(image))
 }
 

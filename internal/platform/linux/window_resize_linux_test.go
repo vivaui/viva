@@ -4,17 +4,17 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestMovingWindowDoesNotQueryVulkanSurface(t *testing.T) {
 	queries := 0
-	var frames []ui.Rect
+	var frames []gfx.Rect
 	state := &linuxWindowState{
 		win: &window{id: 1, width: 100, height: 100},
 		config: platform.Config{
-			OnFrameChange: func(frame ui.Rect) { frames = append(frames, frame) },
+			OnFrameChange: func(frame gfx.Rect) { frames = append(frames, frame) },
 		},
 		renderer: &vulkanRenderer{
 			physical: 1, surface: 2, width: 100, height: 100,
@@ -34,7 +34,7 @@ func TestMovingWindowDoesNotQueryVulkanSurface(t *testing.T) {
 	if queries != 0 || state.resizeEvents != 0 {
 		t.Fatalf("pure movement queried the surface %d times and resized %d times", queries, state.resizeEvents)
 	}
-	if len(frames) != 20 || frames[len(frames)-1] != (ui.Rect{X: 29, Y: 20, Width: 100, Height: 100}) {
+	if len(frames) != 20 || frames[len(frames)-1] != (gfx.Rect{X: 29, Y: 20, Width: 100, Height: 100}) {
 		t.Fatalf("movement stopped reporting the content frame: %v", frames)
 	}
 }

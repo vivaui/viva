@@ -18,9 +18,9 @@ web.OnReady = func() {
 	page, err = web.Open(app.WebViewConfig{URL: "https://example.com/"})
 	if err != nil { /* app.ErrUnsupported: no engine installed, or a platform without pages */ }
 }
-app.RunCanvas(app.Config{Web: web, Paint: func(canvas *ui.Canvas, size ui.Size) {
+app.RunCanvas(app.Config{Web: web, Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 	if page != nil {
-		canvas.NativeView(page.ID(), ui.Rect{Y: 48, Width: size.Width, Height: size.Height - 48})
+		canvas.NativeView(page.ID(), gfx.Rect{Y: 48, Width: size.Width, Height: size.Height - 48})
 	}
 }}, &canvas)
 ```
@@ -47,7 +47,7 @@ scheme, a message in each direction and a menu that stands over the page.
   addresses from it, so `http://127.0.0.1:3000/` would reach the user's own machine.
 - `Canvas.NativeView` declares where the page is, on the current layer and inside the current clip. What Viva
   paints on that layer or below is hidden by the page; what it paints on a higher layer (a menu, a tooltip,
-  `flex`'s `f.PopupLayer`) stands over it, and a hit region on a higher layer takes the pointer where it lies
+  `ui`'s `f.PopupLayer`) stands over it, and a hit region on a higher layer takes the pointer where it lies
   over the page (the backdrop that closes a menu on an outside press).
 - Keys go to the page after a press in it, and to Viva after a press in Viva's content.
 

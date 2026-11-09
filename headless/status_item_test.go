@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // trayApplication is a main window, a status item that toggles a panel, and a
@@ -18,7 +18,7 @@ type trayApplication struct {
 	application *applicationSession
 	main        *app.Window
 	panel       *app.Window
-	clicks      []ui.PointerButton
+	clicks      []gfx.PointerButton
 }
 
 func newTrayApplication(t *testing.T) *trayApplication {
@@ -47,7 +47,7 @@ func (tray *trayApplication) start(t *testing.T) func(*app.Application) error {
 			Icon:    app.StatusIcon{Size: 2, RGBA: make([]byte, 16), Template: true},
 			OnClick: func(click app.StatusClick) {
 				tray.clicks = append(tray.clicks, click.Button)
-				if click.Button == ui.PointerButtonSecondary {
+				if click.Button == gfx.PointerButtonSecondary {
 					application.Quit()
 					return
 				}

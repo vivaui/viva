@@ -6,14 +6,14 @@ import (
 	"runtime"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
 // Identities are names in a tree, not numbers: the application declares the
 // tree once and every control it paints is a name inside a feature of it.
 var (
-	tree = ui.Tree{}
+	tree = gfx.Tree{}
 	page = tree.Feature("mail")
 	rows = tree.Sub(page, tree.Name("rows"))
 
@@ -24,34 +24,34 @@ var (
 var mailboxes = []string{"Inbox", "Drafts", "Sent", "Archive", "Trash"}
 
 type model struct {
-	split    flex.SplitterState
+	split    ui.SplitterState
 	selected int
 	palette  bool
 	context  string
-	view     flex.View
+	view     ui.View
 }
 
 // primary is the modifier that means "the command key" on this platform.
-func primary() ui.Modifiers {
+func primary() gfx.Modifiers {
 	if runtime.GOOS == "darwin" {
-		return ui.ModifierMeta
+		return gfx.ModifierMeta
 	}
-	return ui.ModifierControl
+	return gfx.ModifierControl
 }
 
 func newConfig(m *model) app.Config {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	config := app.Config{Tree: &tree, Title: "Input", Width: 640, Height: 360}
 
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
 		canvas.Fill(bounds, theme.Background)
 
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
+		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
 			f.Row().Fill().Children(func() {
 				f.ScrollArea(list).Width(m.split.Pos).Background(theme.Card).Children(func() {
 					for i, name := range mailboxes {
-						row := f.Row().Pad(8).PadX(12).Hover(flex.Look{}.Background(theme.Hover)).Hit(rows.At(i), name)
+						row := f.Row().Pad(8).PadX(12).Hover(ui.Look{}.Background(theme.Hover)).Hit(rows.At(i), name)
 						if i == m.selected {
 							row.Background(theme.Hover)
 						}
@@ -79,41 +79,41 @@ func newConfig(m *model) app.Config {
 	// the pointer. A drag may be coalesced to its latest position, so a handler
 	// must follow the coordinates, not count moves. Here a secondary press on a
 	// row is the start of a context menu.
-	config.OnPointer = func(event ui.PointerEvent) ui.EventResult {
-		if event.Kind == ui.PointerDown && event.Button == ui.PointerButtonSecondary && event.Target.Scope() == rows {
+	config.OnPointer = func(event gfx.PointerEvent) gfx.EventResult {
+		if event.Kind == gfx.PointerDown && event.Button == gfx.PointerButtonSecondary && event.Target.Scope() == rows {
 			row, _ := event.Target.Name().Index()
 			m.context = "Context menu for " + mailboxes[row]
-			return ui.EventResult{Handled: true, Repaint: true}
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 
 	// OnKey is called for the control that has keyboard focus: a row of the list,
 	// or the divider, which moves with the arrow keys.
-	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
+	config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 		if result := m.split.Key(event); result.Handled {
 			return result
 		}
 		if event.Target.Scope() != rows {
-			return ui.EventResult{}
+			return gfx.EventResult{}
 		}
 		switch event.Key {
-		case ui.KeyDown:
+		case gfx.KeyDown:
 			m.selected = min(m.selected+1, len(mailboxes)-1)
-		case ui.KeyUp:
+		case gfx.KeyUp:
 			m.selected = max(m.selected-1, 0)
 		default:
-			return ui.EventResult{}
+			return gfx.EventResult{}
 		}
-		return ui.EventResult{Handled: true, Repaint: true, Focus: rows.At(m.selected), FocusVisible: true}
+		return gfx.EventResult{Handled: true, Repaint: true, Focus: rows.At(m.selected), FocusVisible: true}
 	}
 
-	config.OnShortcut = func(event ui.KeyEvent) ui.EventResult {
+	config.OnShortcut = func(event gfx.KeyEvent) gfx.EventResult {
 		if event.Modifiers == primary() && event.Text == "k" {
 			m.palette = !m.palette
-			return ui.EventResult{Handled: true, Repaint: true}
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 
 	// The wheel goes to the scroll area under the pointer.
@@ -122,8 +122,8 @@ func newConfig(m *model) app.Config {
 }
 
 func main() {
-	m := &model{split: flex.SplitterState{Pos: 220}}
-	var canvas ui.Canvas
+	m := &model{split: ui.SplitterState{Pos: 220}}
+	var canvas gfx.Canvas
 	if err := app.RunCanvas(newConfig(m), &canvas); err != nil {
 		log.Fatal(err)
 	}

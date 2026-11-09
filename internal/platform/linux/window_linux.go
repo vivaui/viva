@@ -12,11 +12,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/diag"
 	"github.com/vivaui/viva/internal/ibus"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 type window struct {
@@ -75,7 +75,7 @@ type window struct {
 	// maximizeHandler is the application's callback, run on the loop.
 	maximizeHandler platform.MaximizeHandler
 	// lastFrame is the content rectangle last reported to OnFrameChange.
-	lastFrame       ui.Rect
+	lastFrame       gfx.Rect
 	configureX      int16
 	configureY      int16
 	hasConfigurePos bool
@@ -784,7 +784,7 @@ func (state *linuxWindowState) reportFrame() (int32, int32, bool) {
 	rx, ry := win.configureRootOrigin()
 	x, y := rx+int32(win.margin), ry+int32(win.margin)
 	scale := win.displayScale()
-	frame := ui.Rect{
+	frame := gfx.Rect{
 		X: float32(x) / scale, Y: float32(y) / scale,
 		Width: float32(contentSize(win.width, win.margin)) / scale, Height: float32(contentSize(win.height, win.margin)) / scale,
 	}

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func BenchmarkFixedPitchPaddedRun(b *testing.B) {
@@ -22,7 +22,7 @@ func BenchmarkFixedPitchPaddedRun(b *testing.B) {
 	defer rasterizer.close()
 	value := "2026/10/26    "
 	label := platform.TextLabel{Value: value, Width: 240, Height: 24, FontSize: 14, CellWidth: 8, Mono: true,
-		Runs: []ui.TextRun{{Bytes: int32(len(value)), Cells: int32(len(value)), Ligatures: true, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}}}
+		Runs: []gfx.TextRun{{Bytes: int32(len(value)), Cells: int32(len(value)), Ligatures: true, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}}}
 	b.ReportAllocs()
 	for b.Loop() {
 		if _, _, err := rasterizer.rasterize(label, 1, 240, 24, true, 0); err != nil {
@@ -44,7 +44,7 @@ func TestFixedPitchTrailingSpacesDoNotStretchText(t *testing.T) {
 								value := prefix + strings.Repeat(" ", padding)
 								label := platform.TextLabel{
 									Value: value, Width: 260, Height: 36, FontSize: 20, CellWidth: 12,
-									Mono: true, Runs: []ui.TextRun{{Bytes: int32(len(value)), Cells: int32(len(value)), Weight: weight, Italic: italic, Ligatures: ligatures, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}},
+									Mono: true, Runs: []gfx.TextRun{{Bytes: int32(len(value)), Cells: int32(len(value)), Weight: weight, Italic: italic, Ligatures: ligatures, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}},
 								}
 								return renderScene(t, newOffscreen(t, 260, 36, scale), nil, []platform.TextLabel{label})
 							}
@@ -72,7 +72,7 @@ func TestFixedPitchLigatureRunShapesTheFont(t *testing.T) {
 		label := platform.TextLabel{
 			Value: "fi -> => != <=", Width: 240, Height: 36, FontSize: 22, CellWidth: 13,
 			Mono: true, Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
-			Runs: []ui.TextRun{{Bytes: 14, Cells: 14, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, Ligatures: ligatures}},
+			Runs: []gfx.TextRun{{Bytes: 14, Cells: 14, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, Ligatures: ligatures}},
 		}
 		pixels := renderScene(t, newOffscreen(t, 250, 40, 1), nil, []platform.TextLabel{label})
 		return pixels.Pix

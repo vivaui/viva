@@ -3,8 +3,8 @@ package platform
 import (
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/uniprops"
-	"github.com/vivaui/viva/ui"
 )
 
 // A terminal preedit is drawn on the terminal's own grid: every character on
@@ -45,7 +45,7 @@ func TerminalPreeditColumn(value string, runes int) int {
 // consecutive single-cell ASCII characters share a run, every other character
 // (with its combining marks) is a run of its own that spans the cells it
 // occupies, as a terminal line is drawn.
-func TerminalPreeditRuns(dst []ui.TextRun, value string, color ui.Color) []ui.TextRun {
+func TerminalPreeditRuns(dst []gfx.TextRun, value string, color gfx.Color) []gfx.TextRun {
 	column := int32(0)
 	ascii := false // whether the last run is a group of ASCII characters
 	for offset := 0; offset < len(value); {
@@ -56,7 +56,7 @@ func TerminalPreeditRuns(dst []ui.TextRun, value string, color ui.Color) []ui.Te
 				dst[last].Bytes++
 				dst[last].Cells++
 			} else {
-				dst = append(dst, ui.TextRun{Column: column, Bytes: 1, Cells: 1, Color: color})
+				dst = append(dst, gfx.TextRun{Column: column, Bytes: 1, Cells: 1, Color: color})
 				ascii = true
 			}
 			offset++
@@ -73,7 +73,7 @@ func TerminalPreeditRuns(dst []ui.TextRun, value string, color ui.Color) []ui.Te
 			end += nextSize
 		}
 		cells := int32(TerminalPreeditCells(r))
-		dst = append(dst, ui.TextRun{Column: column, Bytes: int32(end - offset), Cells: cells, Color: color})
+		dst = append(dst, gfx.TextRun{Column: column, Bytes: int32(end - offset), Cells: cells, Color: color})
 		offset = end
 		column += cells
 	}

@@ -3,7 +3,7 @@ package {{PACKAGE}}
 import (
 	"strings"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // ColorPickerValue is caller-owned HSV editing state. Keeping HSV rather than
@@ -29,7 +29,7 @@ func (v ColorPickerValue) normalized() ColorPickerValue {
 }
 
 // Color converts the selected HSV value to straight RGBA without allocating.
-func (v ColorPickerValue) Color() ui.Color {
+func (v ColorPickerValue) Color() gfx.Color {
 	v = v.normalized()
 	h := v.Hue / 60
 	sector := int(h)
@@ -48,12 +48,12 @@ func (v ColorPickerValue) Color() ui.Color {
 	case 5:
 		r, g, b = v.Brightness, p, q
 	}
-	return ui.Color{Red: r, Green: g, Blue: b, Alpha: v.Alpha}
+	return gfx.Color{Red: r, Green: g, Blue: b, Alpha: v.Alpha}
 }
 
 // WithColor loads an RGB edit, retaining hue for achromatic colors and the
 // previous saturation at black so a subsequent brightness change is useful.
-func (v ColorPickerValue) WithColor(c ui.Color) ColorPickerValue {
+func (v ColorPickerValue) WithColor(c gfx.Color) ColorPickerValue {
 	v = v.normalized()
 	r, g, b := pickerUnit(c.Red), pickerUnit(c.Green), pickerUnit(c.Blue)
 	hi, lo := max(r, g, b), min(r, g, b)
@@ -98,15 +98,15 @@ func (v ColorPickerValue) AppendHex(dst []byte, alpha bool) []byte {
 
 // ParseColorHex accepts #RGB/#RRGGBB and, when alpha is enabled, their alpha
 // forms. Product-specific formats and validation stay with the caller.
-func ParseColorHex(value string, alpha bool) (ui.Color, bool) {
+func ParseColorHex(value string, alpha bool) (gfx.Color, bool) {
 	value = strings.TrimSpace(value)
 	if len(value) == 0 || value[0] != '#' {
-		return ui.Color{}, false
+		return gfx.Color{}, false
 	}
 	value = value[1:]
 	short := len(value) == 3 || alpha && len(value) == 4
 	if !short && len(value) != 6 && !(alpha && len(value) == 8) {
-		return ui.Color{}, false
+		return gfx.Color{}, false
 	}
 	channels := [4]byte{0, 0, 0, 255}
 	count := len(value) / 2
@@ -120,18 +120,18 @@ func ParseColorHex(value string, alpha bool) (ui.Color, bool) {
 		}
 		a, ok := pickerHexDigit(value[at])
 		if !ok {
-			return ui.Color{}, false
+			return gfx.Color{}, false
 		}
 		b := a
 		if !short {
 			b, ok = pickerHexDigit(value[i*2+1])
 			if !ok {
-				return ui.Color{}, false
+				return gfx.Color{}, false
 			}
 		}
 		channels[i] = a*16 + b
 	}
-	return ui.Color{Red: float32(channels[0]) / 255, Green: float32(channels[1]) / 255, Blue: float32(channels[2]) / 255, Alpha: float32(channels[3]) / 255}, true
+	return gfx.Color{Red: float32(channels[0]) / 255, Green: float32(channels[1]) / 255, Blue: float32(channels[2]) / 255, Alpha: float32(channels[3]) / 255}, true
 }
 
 func pickerHexDigit(b byte) (byte, bool) {
@@ -148,7 +148,7 @@ func pickerHexDigit(b byte) (byte, bool) {
 
 // ColorPickerIDs remain stable across opening, resizing and value changes.
 type ColorPickerIDs struct {
-	Trigger, Dismiss, Saturation, Hue, Alpha, Hex, Clear, Cancel, Apply ui.ID
+	Trigger, Dismiss, Saturation, Hue, Alpha, Hex, Clear, Cancel, Apply gfx.ID
 }
 
 type ColorPickerLabels struct {
@@ -170,16 +170,16 @@ type ColorPickerOptions struct {
 	// RoundTrigger renders a circular swatch. TriggerIcon can identify a custom
 	// color action independently of its selected color.
 	RoundTrigger bool
-	TriggerIcon  *ui.Icon
-	Viewport     ui.Rect
+	TriggerIcon  *gfx.Icon
+	Viewport     gfx.Rect
 	Layer        uint16
-	Scope        ui.ID
+	Scope        gfx.ID
 }
 
 type ColorPicker struct {
-	canvas                 *ui.Canvas
-	theme                  ui.Theme
-	bounds                 ui.Rect
+	canvas                 *gfx.Canvas
+	theme                  gfx.Theme
+	bounds                 gfx.Rect
 	options                ColorPickerOptions
 	triggerOnly, panelOnly bool
 }
@@ -187,12 +187,12 @@ type ColorPicker struct {
 // ColorPickerLayout is also the input geometry. Pointer and Key update a copy
 // of caller-owned HSV state, using logical pixels at every display scale.
 type ColorPickerLayout struct {
-	Content, Saturation, Hue, Alpha, Hex ui.Rect
+	Content, Saturation, Hue, Alpha, Hex gfx.Rect
 	IDs                                  ColorPickerIDs
 	Disabled, ShowAlpha                  bool
 }
 
-func BeginColorPicker(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options ColorPickerOptions) ColorPicker {
+func BeginColorPicker(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options ColorPickerOptions) ColorPicker {
 	return ColorPicker{canvas: canvas, theme: theme, bounds: bounds, options: options}
 }
 
@@ -256,12 +256,12 @@ func (picker ColorPicker) Paint() ColorPickerLayout {
 				border.Alpha *= .4
 			}
 			c.Rounded(picker.bounds, radius, border)
-			inner := ui.Rect{X: picker.bounds.X + 2, Y: picker.bounds.Y + 2, Width: max(0, picker.bounds.Width-4), Height: max(0, picker.bounds.Height-4)}
+			inner := gfx.Rect{X: picker.bounds.X + 2, Y: picker.bounds.Y + 2, Width: max(0, picker.bounds.Width-4), Height: max(0, picker.bounds.Height-4)}
 			c.Rounded(inner, min(inner.Width, inner.Height)/2, theme.Background)
 		} else {
 			paintBordered(c, theme, picker.bounds, radius, theme.Border, theme.Background)
 		}
-		preview := ui.Rect{X: picker.bounds.X + 5, Y: picker.bounds.Y + 5, Width: max(picker.bounds.Width-10, 0), Height: max(picker.bounds.Height-10, 0)}
+		preview := gfx.Rect{X: picker.bounds.X + 5, Y: picker.bounds.Y + 5, Width: max(picker.bounds.Width-10, 0), Height: max(picker.bounds.Height-10, 0)}
 		if o.RoundTrigger {
 			c.Rounded(preview, min(preview.Width, preview.Height)/2, theme.Muted)
 		} else {
@@ -269,7 +269,7 @@ func (picker ColorPicker) Paint() ColorPickerLayout {
 		}
 		if o.Empty {
 			if o.TriggerIcon == nil {
-				c.LabelCenter("×", preview, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground})
+				c.LabelCenter("×", preview, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground})
 			}
 		} else {
 			if o.RoundTrigger {
@@ -282,12 +282,12 @@ func (picker ColorPicker) Paint() ColorPickerLayout {
 			iconColor := theme.Foreground
 			if !o.Empty {
 				if color := v.Color(); .2126*color.Red+.7152*color.Green+.0722*color.Blue > .5 {
-					iconColor = ui.Color{Alpha: 1}
+					iconColor = gfx.Color{Alpha: 1}
 				} else {
-					iconColor = ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+					iconColor = gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 				}
 			}
-			c.DrawIcon(*o.TriggerIcon, ui.Rect{X: picker.bounds.X + (picker.bounds.Width-16)/2, Y: picker.bounds.Y + (picker.bounds.Height-16)/2, Width: 16, Height: 16}, iconColor)
+			c.DrawIcon(*o.TriggerIcon, gfx.Rect{X: picker.bounds.X + (picker.bounds.Width-16)/2, Y: picker.bounds.Y + (picker.bounds.Height-16)/2, Width: 16, Height: 16}, iconColor)
 		}
 		if o.Disabled {
 			color := theme.Background
@@ -300,12 +300,12 @@ func (picker ColorPicker) Paint() ColorPickerLayout {
 		}
 		if c.FocusVisible() == o.IDs.Trigger && !o.Disabled {
 			if o.RoundTrigger {
-				c.RoundedBorder(picker.bounds, radius, 2, theme.Ring, ui.Color{})
+				c.RoundedBorder(picker.bounds, radius, 2, theme.Ring, gfx.Color{})
 			} else {
 				pickerFocusRing(c, theme, picker.bounds)
 			}
 		}
-		c.HitWithOptions(o.IDs.Trigger, picker.bounds, labels.Color, ui.HitOptions{Role: ui.RoleButton, Hint: labels.Color, Disabled: o.Disabled, Expanded: o.Open})
+		c.HitWithOptions(o.IDs.Trigger, picker.bounds, labels.Color, gfx.HitOptions{Role: gfx.RoleButton, Hint: labels.Color, Disabled: o.Disabled, Expanded: o.Open})
 	}
 	if picker.triggerOnly || !o.Open || o.Disabled || o.Viewport.Width <= 0 || o.Viewport.Height <= 0 {
 		return l
@@ -324,7 +324,7 @@ func (picker ColorPicker) Paint() ColorPickerLayout {
 	planeHeight := min(float32(160), max(0, o.Viewport.Height-fixed-overhead))
 	popover := BeginPopover(c, theme, o.Viewport, picker.bounds, PopoverOptions{
 		Layer: o.Layer, Scope: o.Scope, DismissID: o.IDs.Dismiss, AnchorDismiss: true, ConsumeOutsidePress: true,
-		Align: PopoverAlignEnd, SideOffset: 6, ContentSize: ui.Size{Width: 280}, BodyHeight: planeHeight + fixed,
+		Align: PopoverAlignEnd, SideOffset: 6, ContentSize: gfx.Size{Width: 280}, BodyHeight: planeHeight + fixed,
 		InitialFocusID: o.IDs.Saturation,
 	})
 	body := popover.Begin(labels.Color, "").Body
@@ -335,48 +335,48 @@ func (picker ColorPicker) Paint() ColorPickerLayout {
 	l.Content = body
 	c.Clip(body)
 	defer c.Unclip()
-	l.Saturation = ui.Rect{X: body.X, Y: body.Y, Width: body.Width, Height: planeHeight}
+	l.Saturation = gfx.Rect{X: body.X, Y: body.Y, Width: body.Width, Height: planeHeight}
 	hue := ColorPickerValue{Hue: v.Hue, Saturation: 1, Brightness: 1, Alpha: 1}.Color()
-	c.FillLinearGradient(l.Saturation, ui.LinearGradient{Start: ui.Point{X: body.X, Y: body.Y}, End: ui.Point{X: body.X + body.Width, Y: body.Y}, From: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, To: hue})
-	c.FillLinearGradient(l.Saturation, ui.LinearGradient{Start: ui.Point{X: body.X, Y: body.Y}, End: ui.Point{X: body.X, Y: body.Y + planeHeight}, From: ui.Color{}, To: ui.Color{Alpha: 1}})
+	c.FillLinearGradient(l.Saturation, gfx.LinearGradient{Start: gfx.Point{X: body.X, Y: body.Y}, End: gfx.Point{X: body.X + body.Width, Y: body.Y}, From: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, To: hue})
+	c.FillLinearGradient(l.Saturation, gfx.LinearGradient{Start: gfx.Point{X: body.X, Y: body.Y}, End: gfx.Point{X: body.X, Y: body.Y + planeHeight}, From: gfx.Color{}, To: gfx.Color{Alpha: 1}})
 	pickerHandle(c, theme, body.X+v.Saturation*body.Width, body.Y+(1-v.Brightness)*planeHeight)
-	c.HitWithOptions(o.IDs.Saturation, l.Saturation, labels.Saturation, ui.HitOptions{Role: ui.RoleSlider, Value: o.SaturationText, Range: ui.ValueRange{Min: 0, Max: 100, Now: float64(v.Saturation * 100), Step: 1, Set: true}})
+	c.HitWithOptions(o.IDs.Saturation, l.Saturation, labels.Saturation, gfx.HitOptions{Role: gfx.RoleSlider, Value: o.SaturationText, Range: gfx.ValueRange{Min: 0, Max: 100, Now: float64(v.Saturation * 100), Step: 1, Set: true}})
 	if c.FocusVisible() == o.IDs.Saturation {
 		pickerFocusRing(c, theme, l.Saturation)
 	}
-	l.Hue = ui.Rect{X: body.X, Y: body.Y + planeHeight + gap, Width: body.Width, Height: 16}
+	l.Hue = gfx.Rect{X: body.X, Y: body.Y + planeHeight + gap, Width: body.Width, Height: 16}
 	for i := range 6 {
 		left, right := body.X+float32(i)*body.Width/6, body.X+float32(i+1)*body.Width/6
 		from := ColorPickerValue{Hue: float32(i) * 60, Saturation: 1, Brightness: 1, Alpha: 1}.Color()
 		to := ColorPickerValue{Hue: float32(i+1) * 60, Saturation: 1, Brightness: 1, Alpha: 1}.Color()
-		c.FillLinearGradient(ui.Rect{X: left, Y: l.Hue.Y, Width: right - left, Height: 16}, ui.LinearGradient{Start: ui.Point{X: left, Y: l.Hue.Y}, End: ui.Point{X: right, Y: l.Hue.Y}, From: from, To: to})
+		c.FillLinearGradient(gfx.Rect{X: left, Y: l.Hue.Y, Width: right - left, Height: 16}, gfx.LinearGradient{Start: gfx.Point{X: left, Y: l.Hue.Y}, End: gfx.Point{X: right, Y: l.Hue.Y}, From: from, To: to})
 	}
 	pickerBarHandle(c, theme, l.Hue, v.Hue/360, c.FocusVisible() == o.IDs.Hue)
-	c.HitWithOptions(o.IDs.Hue, l.Hue, labels.Hue, ui.HitOptions{Role: ui.RoleSlider, Value: o.HueText, Range: ui.ValueRange{Min: 0, Max: 360, Now: float64(v.Hue), Step: 1, Set: true}})
+	c.HitWithOptions(o.IDs.Hue, l.Hue, labels.Hue, gfx.HitOptions{Role: gfx.RoleSlider, Value: o.HueText, Range: gfx.ValueRange{Min: 0, Max: 360, Now: float64(v.Hue), Step: 1, Set: true}})
 	y := l.Hue.Y + l.Hue.Height + gap
 	if o.ShowAlpha {
-		l.Alpha = ui.Rect{X: body.X, Y: y, Width: body.Width, Height: 16}
+		l.Alpha = gfx.Rect{X: body.X, Y: y, Width: body.Width, Height: 16}
 		pickerChecker(c, theme, l.Alpha)
 		from, to := v.Color(), v.Color()
 		from.Alpha, to.Alpha = 0, 1
-		c.FillLinearGradient(l.Alpha, ui.LinearGradient{Start: ui.Point{X: body.X, Y: y}, End: ui.Point{X: body.X + body.Width, Y: y}, From: from, To: to})
+		c.FillLinearGradient(l.Alpha, gfx.LinearGradient{Start: gfx.Point{X: body.X, Y: y}, End: gfx.Point{X: body.X + body.Width, Y: y}, From: from, To: to})
 		pickerBarHandle(c, theme, l.Alpha, v.Alpha, c.FocusVisible() == o.IDs.Alpha)
-		c.HitWithOptions(o.IDs.Alpha, l.Alpha, labels.Alpha, ui.HitOptions{Role: ui.RoleSlider, Value: o.AlphaText, Range: ui.ValueRange{Min: 0, Max: 100, Now: float64(v.Alpha * 100), Step: 1, Set: true}})
+		c.HitWithOptions(o.IDs.Alpha, l.Alpha, labels.Alpha, gfx.HitOptions{Role: gfx.RoleSlider, Value: o.AlphaText, Range: gfx.ValueRange{Min: 0, Max: 100, Now: float64(v.Alpha * 100), Step: 1, Set: true}})
 		y += alphaHeight
 	}
-	l.Hex = ui.Rect{X: body.X, Y: y, Width: body.Width, Height: control}
+	l.Hex = gfx.Rect{X: body.X, Y: y, Width: body.Width, Height: control}
 	input := o.Hex
 	input.ID, input.Label = o.IDs.Hex, labels.Hex
 	PaintInput(c, theme, l.Hex, input)
 	y += control + gap
 	if o.Error != "" {
-		c.Label(o.Error, ui.Rect{X: body.X, Y: y, Width: body.Width, Height: errorHeight - gap}, ui.TextStyle{Size: theme.Metrics.FontSizeS, Color: theme.Danger})
+		c.Label(o.Error, gfx.Rect{X: body.X, Y: y, Width: body.Width, Height: errorHeight - gap}, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Color: theme.Danger})
 		y += errorHeight
 	}
 	width := max(0, (body.Width-2*gap)/3)
-	BeginButton(c, theme, o.IDs.Clear, ui.Rect{X: body.X, Y: y, Width: width, Height: control}).Ghost(labels.Clear)
-	BeginButton(c, theme, o.IDs.Cancel, ui.Rect{X: body.X + width + gap, Y: y, Width: width, Height: control}).Outline(labels.Cancel)
-	apply := BeginButton(c, theme, o.IDs.Apply, ui.Rect{X: body.X + 2*(width+gap), Y: y, Width: width, Height: control})
+	BeginButton(c, theme, o.IDs.Clear, gfx.Rect{X: body.X, Y: y, Width: width, Height: control}).Ghost(labels.Clear)
+	BeginButton(c, theme, o.IDs.Cancel, gfx.Rect{X: body.X + width + gap, Y: y, Width: width, Height: control}).Outline(labels.Cancel)
+	apply := BeginButton(c, theme, o.IDs.Apply, gfx.Rect{X: body.X + 2*(width+gap), Y: y, Width: width, Height: control})
 	if input.Invalid {
 		apply = apply.Disabled()
 	}
@@ -384,111 +384,111 @@ func (picker ColorPicker) Paint() ColorPickerLayout {
 	return l
 }
 
-func pickerChecker(c *ui.Canvas, theme ui.Theme, b ui.Rect) {
+func pickerChecker(c *gfx.Canvas, theme gfx.Theme, b gfx.Rect) {
 	c.Fill(b, theme.Background)
 	for y := b.Y; y < b.Y+b.Height; y += 8 {
 		for x := b.X; x < b.X+b.Width; x += 8 {
 			if (int((x-b.X)/8)+int((y-b.Y)/8))%2 == 0 {
-				c.Fill(ui.Rect{X: x, Y: y, Width: min(8, b.X+b.Width-x), Height: min(8, b.Y+b.Height-y)}, theme.Muted)
+				c.Fill(gfx.Rect{X: x, Y: y, Width: min(8, b.X+b.Width-x), Height: min(8, b.Y+b.Height-y)}, theme.Muted)
 			}
 		}
 	}
 }
 
-func pickerHandle(c *ui.Canvas, theme ui.Theme, x, y float32) {
-	c.Rounded(ui.Rect{X: x - 6, Y: y - 6, Width: 12, Height: 12}, 6, theme.Foreground)
-	c.Rounded(ui.Rect{X: x - 4, Y: y - 4, Width: 8, Height: 8}, 4, ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
+func pickerHandle(c *gfx.Canvas, theme gfx.Theme, x, y float32) {
+	c.Rounded(gfx.Rect{X: x - 6, Y: y - 6, Width: 12, Height: 12}, 6, theme.Foreground)
+	c.Rounded(gfx.Rect{X: x - 4, Y: y - 4, Width: 8, Height: 8}, 4, gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
 }
 
-func pickerBarHandle(c *ui.Canvas, theme ui.Theme, b ui.Rect, value float32, focused bool) {
-	r := ui.Rect{X: b.X + pickerUnit(value)*b.Width - 3, Y: b.Y, Width: 6, Height: b.Height}
+func pickerBarHandle(c *gfx.Canvas, theme gfx.Theme, b gfx.Rect, value float32, focused bool) {
+	r := gfx.Rect{X: b.X + pickerUnit(value)*b.Width - 3, Y: b.Y, Width: 6, Height: b.Height}
 	if focused {
 		pickerFocusRing(c, theme, expand(r, 2))
 	}
-	paintBordered(c, theme, r, 2, theme.Foreground, ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
+	paintBordered(c, theme, r, 2, theme.Foreground, gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
 }
 
-func pickerFocusRing(c *ui.Canvas, theme ui.Theme, b ui.Rect) {
+func pickerFocusRing(c *gfx.Canvas, theme gfx.Theme, b gfx.Rect) {
 	const width = float32(2)
-	c.Fill(ui.Rect{X: b.X, Y: b.Y, Width: b.Width, Height: min(width, b.Height)}, theme.Ring)
-	c.Fill(ui.Rect{X: b.X, Y: b.Y + max(0, b.Height-width), Width: b.Width, Height: min(width, b.Height)}, theme.Ring)
-	c.Fill(ui.Rect{X: b.X, Y: b.Y, Width: min(width, b.Width), Height: b.Height}, theme.Ring)
-	c.Fill(ui.Rect{X: b.X + max(0, b.Width-width), Y: b.Y, Width: min(width, b.Width), Height: b.Height}, theme.Ring)
+	c.Fill(gfx.Rect{X: b.X, Y: b.Y, Width: b.Width, Height: min(width, b.Height)}, theme.Ring)
+	c.Fill(gfx.Rect{X: b.X, Y: b.Y + max(0, b.Height-width), Width: b.Width, Height: min(width, b.Height)}, theme.Ring)
+	c.Fill(gfx.Rect{X: b.X, Y: b.Y, Width: min(width, b.Width), Height: b.Height}, theme.Ring)
+	c.Fill(gfx.Rect{X: b.X + max(0, b.Width-width), Y: b.Y, Width: min(width, b.Width), Height: b.Height}, theme.Ring)
 }
 
 // Pointer handles primary press and captured dragging, including outside the
 // popup. Other buttons and hover do not change the draft or steal text editing.
-func (l ColorPickerLayout) Pointer(event ui.PointerEvent, v ColorPickerValue) (ColorPickerValue, ui.EventResult) {
-	if l.Disabled || l.Content.Width <= 0 || event.Kind != ui.PointerDown && !(event.Kind == ui.PointerMove && event.Captured) {
-		return v, ui.EventResult{}
+func (l ColorPickerLayout) Pointer(event gfx.PointerEvent, v ColorPickerValue) (ColorPickerValue, gfx.EventResult) {
+	if l.Disabled || l.Content.Width <= 0 || event.Kind != gfx.PointerDown && !(event.Kind == gfx.PointerMove && event.Captured) {
+		return v, gfx.EventResult{}
 	}
-	if event.Kind == ui.PointerDown && event.Button != ui.PointerButtonPrimary && event.Button != ui.PointerButtonNone {
-		return v, ui.EventResult{}
+	if event.Kind == gfx.PointerDown && event.Button != gfx.PointerButtonPrimary && event.Button != gfx.PointerButtonNone {
+		return v, gfx.EventResult{}
 	}
 	old := v
 	switch event.Target {
 	case l.IDs.Saturation:
 		if l.Saturation.Width <= 0 || l.Saturation.Height <= 0 {
-			return v, ui.EventResult{}
+			return v, gfx.EventResult{}
 		}
 		v.Saturation = pickerUnit((event.X - l.Saturation.X) / l.Saturation.Width)
 		v.Brightness = 1 - pickerUnit((event.Y-l.Saturation.Y)/l.Saturation.Height)
 	case l.IDs.Hue:
 		if l.Hue.Width <= 0 {
-			return v, ui.EventResult{}
+			return v, gfx.EventResult{}
 		}
 		v.Hue = 360 * pickerUnit((event.X-l.Hue.X)/l.Hue.Width)
 	case l.IDs.Alpha:
 		if !l.ShowAlpha || l.Alpha.Width <= 0 {
-			return v, ui.EventResult{}
+			return v, gfx.EventResult{}
 		}
 		v.Alpha = pickerUnit((event.X - l.Alpha.X) / l.Alpha.Width)
 	default:
-		return v, ui.EventResult{}
+		return v, gfx.EventResult{}
 	}
-	return v, ui.EventResult{Handled: true, Repaint: v != old, Focus: event.Target}
+	return v, gfx.EventResult{Handled: true, Repaint: v != old, Focus: event.Target}
 }
 
 // Key provides two-axis arrows on the color plane and scalar slider keys on
 // hue/alpha. Shift uses larger steps. Text-field and action keys stay native.
-func (l ColorPickerLayout) Key(event ui.KeyEvent, v ColorPickerValue) (ColorPickerValue, ui.EventResult) {
-	if l.Disabled || l.Content.Width <= 0 || event.Release || event.Modifiers & ^ui.ModifierShift != 0 {
-		return v, ui.EventResult{}
+func (l ColorPickerLayout) Key(event gfx.KeyEvent, v ColorPickerValue) (ColorPickerValue, gfx.EventResult) {
+	if l.Disabled || l.Content.Width <= 0 || event.Release || event.Modifiers & ^gfx.ModifierShift != 0 {
+		return v, gfx.EventResult{}
 	}
 	old := v
 	step := float32(.01)
-	if event.Modifiers&ui.ModifierShift != 0 {
+	if event.Modifiers&gfx.ModifierShift != 0 {
 		step = .1
 	}
 	switch event.Target {
 	case l.IDs.Saturation:
 		switch event.Key {
-		case ui.KeyLeft:
+		case gfx.KeyLeft:
 			v.Saturation -= step
-		case ui.KeyRight:
+		case gfx.KeyRight:
 			v.Saturation += step
-		case ui.KeyUp:
+		case gfx.KeyUp:
 			v.Brightness += step
-		case ui.KeyDown:
+		case gfx.KeyDown:
 			v.Brightness -= step
-		case ui.KeyHome:
+		case gfx.KeyHome:
 			v.Saturation = 0
-		case ui.KeyEnd:
+		case gfx.KeyEnd:
 			v.Saturation = 1
 		default:
-			return v, ui.EventResult{}
+			return v, gfx.EventResult{}
 		}
 	case l.IDs.Hue, l.IDs.Alpha:
 		value, maximum, unit, large := v.Hue, float32(360), float32(1), float32(10)
 		if event.Target == l.IDs.Alpha {
 			if !l.ShowAlpha {
-				return v, ui.EventResult{}
+				return v, gfx.EventResult{}
 			}
 			value, maximum, unit, large = v.Alpha, 1, .01, .1
 		}
 		next, ok := SliderKeyDownLarge(value, 0, maximum, unit, large, DirectionLTR, event.Key, event.Modifiers)
 		if !ok {
-			return v, ui.EventResult{}
+			return v, gfx.EventResult{}
 		}
 		if event.Target == l.IDs.Hue {
 			v.Hue = next
@@ -496,8 +496,8 @@ func (l ColorPickerLayout) Key(event ui.KeyEvent, v ColorPickerValue) (ColorPick
 			v.Alpha = next
 		}
 	default:
-		return v, ui.EventResult{}
+		return v, gfx.EventResult{}
 	}
 	v = v.normalized()
-	return v, ui.EventResult{Handled: true, Repaint: v != old, Focus: event.Target, FocusVisible: true}
+	return v, gfx.EventResult{Handled: true, Repaint: v != old, Focus: event.Target, FocusVisible: true}
 }

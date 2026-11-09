@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // ReloadStateVersion is bumped whenever the snapshot layout changes. 5 replaced
@@ -38,12 +38,12 @@ func (state *State) RestoreReloadState(data []byte) error {
 	reader := reloadStateReader{data: data}
 	component := reader.string()
 	flags := reader.uint8()
-	density := ui.Density(reader.uint8())
+	density := gfx.Density(reader.uint8())
 	viewScroll := math.Float32frombits(reader.uint32())
 	if err := reader.finish(); err != nil {
 		return err
 	}
-	if flags&^1 != 0 || density > ui.DensityCompact || !(viewScroll >= 0) || math.IsInf(float64(viewScroll), 0) {
+	if flags&^1 != 0 || density > gfx.DensityCompact || !(viewScroll >= 0) || math.IsInf(float64(viewScroll), 0) {
 		return fmt.Errorf("gallery: invalid reload state")
 	}
 	page := 0

@@ -4,19 +4,19 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 // storeMatchesCanvas checks the retained render store against what the canvas
 // painted: every rectangle and every triangle with the content the canvas gave
 // it, and the shapes of both kinds in the order they were painted.
-func storeMatchesCanvas(t *testing.T, painter *painter, painted []ui.Color, step int) {
+func storeMatchesCanvas(t *testing.T, painter *painter, painted []gfx.Color, step int) {
 	t.Helper()
 	var rects, triangles int
-	var order []ui.Color
+	var order []gfx.Color
 	for _, primitive := range painter.renderer.Rectangles() {
-		var color ui.Color
+		var color gfx.Color
 		if primitive.Kind == scene.KindTriangle {
 			if triangles >= len(painter.clippedPaths) {
 				t.Fatalf("step %d: the store holds more triangles than the canvas painted (%d)", step, len(painter.clippedPaths))
@@ -71,18 +71,18 @@ func TestStoreStaysEqualToTheCanvasAsShapesAppearAndDisappear(t *testing.T) {
 		return variant & 7, (variant >> 3) & 7
 	}
 	variant := 0
-	var painted []ui.Color
-	icon := ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(4, 4), ui.LineTo(20, 4), ui.LineTo(20, 20), ui.LineTo(4, 20), ui.LineTo(4, 4),
+	var painted []gfx.Color
+	icon := gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(4, 4), gfx.LineTo(20, 4), gfx.LineTo(20, 20), gfx.LineTo(4, 20), gfx.LineTo(4, 4),
 	}}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "consistency", Width: 400, Height: 300}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 		painted = painted[:0]
-		next := func() ui.Color {
+		next := func() gfx.Color {
 			// Distinct per shape within a pass: 1/255 apart in red, then green.
 			index := len(painted) + 1
-			color := ui.Color{Red: float32(index%250) / 255, Green: float32(index/250) / 255, Alpha: 1}
+			color := gfx.Color{Red: float32(index%250) / 255, Green: float32(index/250) / 255, Alpha: 1}
 			painted = append(painted, color)
 			return color
 		}
@@ -90,17 +90,17 @@ func TestStoreStaysEqualToTheCanvasAsShapesAppearAndDisappear(t *testing.T) {
 		// A fixed skeleton, with the variable parts in the middle: a nav item
 		// whose icon must stay above its highlight, between a bar that grows
 		// and content that follows.
-		canvas.Fill(ui.Rect{Width: 400, Height: 36}, next())
+		canvas.Fill(gfx.Rect{Width: 400, Height: 36}, next())
 		for index := 0; index < rectangles; index++ {
-			canvas.Rounded(ui.Rect{X: float32(10 + index*30), Y: 4, Width: 24, Height: 24}, 5, next())
+			canvas.Rounded(gfx.Rect{X: float32(10 + index*30), Y: 4, Width: 24, Height: 24}, 5, next())
 		}
 		for index := 0; index < icons; index++ {
-			canvas.DrawIcon(icon, ui.Rect{X: float32(10 + index*30), Y: 4, Width: 16, Height: 16}, next())
+			canvas.DrawIcon(icon, gfx.Rect{X: float32(10 + index*30), Y: 4, Width: 16, Height: 16}, next())
 		}
-		canvas.Rounded(ui.Rect{X: 9, Y: 105, Width: 180, Height: 36}, 7, next())
-		canvas.DrawIcon(icon, ui.Rect{X: 24, Y: 115, Width: 16, Height: 16}, next())
-		canvas.Rounded(ui.Rect{X: 200, Y: 60, Width: 100, Height: 100}, 8, next())
-		canvas.DrawIcon(icon, ui.Rect{X: 220, Y: 80, Width: 16, Height: 16}, next())
+		canvas.Rounded(gfx.Rect{X: 9, Y: 105, Width: 180, Height: 36}, 7, next())
+		canvas.DrawIcon(icon, gfx.Rect{X: 24, Y: 115, Width: 16, Height: 16}, next())
+		canvas.Rounded(gfx.Rect{X: 200, Y: 60, Width: 100, Height: 100}, 8, next())
+		canvas.DrawIcon(icon, gfx.Rect{X: 220, Y: 80, Width: 16, Height: 16}, next())
 	}
 	painter := newTestPainter(t, &canvas, config)
 	storeMatchesCanvas(t, painter, painted, 0)
@@ -117,21 +117,21 @@ func TestStoreStaysEqualToTheCanvasAsShapesAppearAndDisappear(t *testing.T) {
 // toolbar does on every pointer move. It must reach the renderer as a few
 // changed nodes without allocating.
 func BenchmarkPainterIconPageHoverToggle(b *testing.B) {
-	icon := ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(4, 4), ui.LineTo(20, 4), ui.LineTo(20, 20), ui.LineTo(4, 20), ui.LineTo(4, 4),
+	icon := gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(4, 4), gfx.LineTo(20, 4), gfx.LineTo(20, 20), gfx.LineTo(4, 20), gfx.LineTo(4, 4),
 	}}
 	hovered := false
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "icons", Width: 800, Height: 600}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.Fill(ui.Rect{Width: 800, Height: 600}, ui.Color{Alpha: 1})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.Fill(gfx.Rect{Width: 800, Height: 600}, gfx.Color{Alpha: 1})
 		for index := 0; index < 60; index++ {
 			x, y := float32(index%10*70), float32(index/10*50)
 			if hovered && index == 7 {
-				canvas.Rounded(ui.Rect{X: x, Y: y, Width: 64, Height: 44}, 6, ui.Color{Red: 0.3, Alpha: 1})
+				canvas.Rounded(gfx.Rect{X: x, Y: y, Width: 64, Height: 44}, 6, gfx.Color{Red: 0.3, Alpha: 1})
 			}
-			canvas.DrawIcon(icon, ui.Rect{X: x + 8, Y: y + 8, Width: 20, Height: 20}, ui.Color{Green: 1, Alpha: 1})
-			canvas.Rounded(ui.Rect{X: x + 34, Y: y + 12, Width: 24, Height: 20}, 4, ui.Color{Blue: 1, Alpha: 1})
+			canvas.DrawIcon(icon, gfx.Rect{X: x + 8, Y: y + 8, Width: 20, Height: 20}, gfx.Color{Green: 1, Alpha: 1})
+			canvas.Rounded(gfx.Rect{X: x + 34, Y: y + 12, Width: 24, Height: 20}, 4, gfx.Color{Blue: 1, Alpha: 1})
 		}
 	}
 	painter := newTestPainter(b, &canvas, config)
@@ -149,20 +149,20 @@ func BenchmarkPainterIconPageHoverToggle(b *testing.B) {
 // new node, not a rewrite of everything painted after it, and what the
 // renderer is told is that one node.
 func TestInsertingAShapeMidPageTouchesOnlyThatShape(t *testing.T) {
-	icon := ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(4, 4), ui.LineTo(20, 4), ui.LineTo(20, 20), ui.LineTo(4, 20), ui.LineTo(4, 4),
+	icon := gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(4, 4), gfx.LineTo(20, 4), gfx.LineTo(20, 20), gfx.LineTo(4, 20), gfx.LineTo(4, 4),
 	}}
 	highlighted := false
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "icons", Width: 800, Height: 600}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 		for index := 0; index < 30; index++ {
 			x, y := float32(index%10*70), float32(index/10*50)
 			if highlighted && index == 12 {
-				canvas.Rounded(ui.Rect{X: x, Y: y, Width: 64, Height: 44}, 6, ui.Color{Red: 0.3, Alpha: 1})
+				canvas.Rounded(gfx.Rect{X: x, Y: y, Width: 64, Height: 44}, 6, gfx.Color{Red: 0.3, Alpha: 1})
 			}
-			canvas.DrawIcon(icon, ui.Rect{X: x + 8, Y: y + 8, Width: 20, Height: 20}, ui.Color{Green: 1, Alpha: 1})
-			canvas.Rounded(ui.Rect{X: x + 34, Y: y + 12, Width: 24, Height: 20}, 4, ui.Color{Blue: 1, Alpha: 1})
+			canvas.DrawIcon(icon, gfx.Rect{X: x + 8, Y: y + 8, Width: 20, Height: 20}, gfx.Color{Green: 1, Alpha: 1})
+			canvas.Rounded(gfx.Rect{X: x + 34, Y: y + 12, Width: 24, Height: 20}, 4, gfx.Color{Blue: 1, Alpha: 1})
 		}
 	}
 	painter := newTestPainter(t, &canvas, config)
