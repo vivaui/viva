@@ -189,3 +189,41 @@ func BenchmarkPageControl(b *testing.B) {
 		drawPage(page, canvas, term.view)
 	}
 }
+
+// autofocusView is the pane's page with the control asking for the keyboard as it
+// appears, as a terminal does when its pane opens.
+func (t *console) autofocusView(c ui.C) {
+	ui.Column(c).Fill().Pad(16).Children(func() {
+		ui.Control(c, "Console", &t.input).Size(300, 200).Draw(t.draw).AutoFocus()
+	})
+}
+
+// A Control's AutoFocus on a page embedded in a host is the host's request, mounted:
+// the host adopts it with gfx.Canvas.AdoptEmbedded, and no app-local HitWith is needed.
+func TestControlAutoFocusCrossesAnEmbeddedPage(t *testing.T) {
+	term := newConsole()
+	page := ui.NewPage(ui.PageConfig{View: term.autofocusView, Root: "pane", Theme: &pageTheme})
+	var host, view gfx.Canvas
+	tree := host.Tree()
+	mount := tree.Sub(tree.Feature("pane"), tree.Name("one"))
+	host.Reset()
+	host.BeginFrame()
+	view.BeginEmbedded(&host, mount)
+	page.Draw(&view, gfx.Rect{Width: 400, Height: 300}, term.autofocusView)
+	view.EndFrame()
+	host.Embed(&view, gfx.Point{}, mount)
+	host.AdoptEmbedded(&view, mount)
+	host.EndFrame()
+	var id gfx.ID
+	for _, hit := range host.Hits() {
+		if hit.Label == "Console" && !hit.ID.IsZero() {
+			id = hit.ID
+		}
+	}
+	if id.IsZero() {
+		t.Fatal("the control is not painted in the host")
+	}
+	if got := host.FocusRequest(); got != id {
+		t.Fatalf("the host asks to focus %v, want the mounted control %v", got, id)
+	}
+}

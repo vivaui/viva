@@ -55,13 +55,13 @@ func (canvas *Canvas) BeginEmbedded(parent *Canvas, mount Scope) {
 // declaration, so a view scrolled partly out of sight keeps only the part that
 // can be reached.
 //
-// A view's modal state does not carry over: its focus trap, Escape target and
-// initial focus stay on the child, where the host can read them
-// (TrappedFocusScope, EscapeTarget, InitialFocus) and adopt them with
-// TrapFocus and SetEscapeTarget, mounted with Tree.MountID, if the view should be modal
-// for the whole host. Adopting by default would let one open dialog among many
-// previews lock the rest of the page. A child still animating asks canvas for
-// another frame.
+// A view's modal and focus state does not carry over: its focus trap, Escape
+// target, initial focus, and the keyboard focus it asks for or gives up stay on
+// the child, where the host can read them (TrappedFocusScope, EscapeTarget,
+// InitialFocus, FocusRequest, FocusRelease) and adopt them with AdoptEmbedded,
+// mounted with Tree.MountID, if the view should hold the keyboard for the whole
+// host. Adopting by default would let one open dialog among many previews lock the
+// rest of the page. A child still animating asks canvas for another frame.
 func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 	if child == nil || child == canvas {
 		return
@@ -151,6 +151,34 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 	}
 	if wake := child.motion.wake; wake > 0 && (canvas.motion.wake == 0 || wake < canvas.motion.wake) {
 		canvas.motion.wake = wake
+	}
+}
+
+// AdoptEmbedded makes the modal and focus state of an embedded view the host's:
+// its focus trap, Escape target, initial focus, and the focus it asks for or gives
+// up, mounted at mount. Call it after Embed for a view that should hold the
+// keyboard for the whole host, such as the active pane of a split; a view that must
+// not take focus leaves its state on its own canvas. A value the child did not set
+// changes nothing on the host, so adopting a quiet view is a no-op.
+func (canvas *Canvas) AdoptEmbedded(child *Canvas, mount Scope) {
+	if child == nil || child == canvas {
+		return
+	}
+	tree := canvas.Tree()
+	if scope := child.TrappedFocusScope(); !scope.IsZero() {
+		canvas.TrapFocus(tree.MountID(mount, scope))
+	}
+	if focus := child.InitialFocus(); !focus.IsZero() {
+		canvas.SetInitialFocus(tree.MountID(mount, focus))
+	}
+	if target := child.EscapeTarget(); !target.IsZero() {
+		canvas.SetEscapeTarget(tree.MountID(mount, target))
+	}
+	if request := child.FocusRequest(); !request.IsZero() {
+		canvas.RequestFocus(tree.MountID(mount, request))
+	}
+	if release := child.FocusRelease(); !release.IsZero() {
+		canvas.ReleaseFocus(tree.MountID(mount, release))
 	}
 }
 

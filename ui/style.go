@@ -146,6 +146,10 @@ func (b Box) Focus(look Look) Box { b.states().focus = look; return b }
 // copies are not declared.
 //
 //	ui.TextField(c, &m.query, "Search", "").AutoFocus()
+//
+// In a page embedded with gfx.Embed, the request stays on the view's canvas; the
+// host adopts it with gfx.Canvas.AdoptEmbedded when the view should take the
+// keyboard for the host.
 func (b Box) AutoFocus() Box {
 	if b.f.memoDepth > 0 {
 		panic("ui: AutoFocus in a Memo: a copied part is not declared, so it would take the focus again when it is; declare it outside the Memo")
