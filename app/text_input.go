@@ -97,6 +97,8 @@ const (
 )
 
 // TextEvent contains rune-indexed selection and replacement ranges.
+// Text is the text the event applies to, and MarkedSelection, when the input
+// method is composing, is a range into Text rather than into the document.
 type TextEvent struct {
 	Kind            TextEventKind
 	Text            string
