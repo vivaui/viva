@@ -28,6 +28,8 @@ export interface Capability {
 export interface Page extends Nav {
   Summary: string;
   Revision: string;
+  /** The Go file the examples call: components/<id>.go, or ui/list.go for a page-layer control. */
+  Source: string;
   All: Nav[];
   Examples: Demo[];
   InstallCommand: string;

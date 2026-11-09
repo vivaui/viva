@@ -18,6 +18,7 @@ const zhName = locale === 'zh' ? componentName(locale, page.ID, page.Title) : ''
 const text = messages[locale];
 const themes = { light: 'github-light', dark: 'github-dark' } as const;
 const sourceFile = `${page.ID.replaceAll('-', '_')}.go`;
+const sourcePath = page.Source || `components/${sourceFile}`;
 const sections = page.Sections.filter(section => section.ID !== 'source-ownership');
 ---
 
@@ -26,8 +27,8 @@ const sections = page.Sections.filter(section => section.ID !== 'source-ownershi
     <div class="breadcrumb"><a href={componentPath(locale)}>{text.components}</a><Icon name="chevron" size={12} /><span>{categoryLabel(locale, page.Category)}</span></div>
     <div class="title-line">
       <h1>{page.Title}{zhName && zhName !== page.Title && <span class="title-zh">{zhName}</span>}</h1>
-      <a class="source-link" href={`https://github.com/vivaui/viva/blob/main/components/${sourceFile}`} target="_blank" rel="noopener noreferrer" aria-label={`${text.viewSource}: components/${sourceFile}`}>
-        <span>{text.viewSource}</span><code>components/{sourceFile}</code><Icon name="arrow" size={14} />
+      <a class="source-link" href={`https://github.com/vivaui/viva/blob/main/${sourcePath}`} target="_blank" rel="noopener noreferrer" aria-label={`${text.viewSource}: ${sourcePath}`}>
+        <span>{text.viewSource}</span><code>{sourcePath}</code><Icon name="arrow" size={14} />
       </a>
     </div>
   </div>

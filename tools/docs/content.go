@@ -11,6 +11,10 @@ func documentation() map[string]Page {
 		}}
 	}
 	overrides := map[string]Page{
+		"list": {Sections: []Section{
+			{ID: "usage", Title: "Page-layer list", Text: "The examples call ui.List, the page layer's virtualized list: the application declares each row as an element, and the list owns virtualization, selection, the keyboard, typeahead, pinned section headings, drag-to-reorder and sideways scrolling. The model keeps the ListState, the selection and the rows' data. This control is not a component of the components package; its source is ui/list.go.", Items: []string{"Names, sizes and dates lie side by side; rows wider than the list scroll sideways with the horizontal wheel or the wheel with Shift.", "ListState.Header pins the heading of the section at the top until the next heading pushes it away.", "ListState.Selection adds Primary-click and Shift ranges to the choice, and ListState.Reorder reports rows dropped in a new place for the application to move."}},
+			{ID: "verification", Title: "Verification boundary", Text: "The preview runs the same page in the browser's WebAssembly build. Native lists, text metrics and platform input must be checked with the native preview."},
+		}},
 		"button": {Sections: []Section{
 			{ID: "usage", Title: "Usage", Text: "ui.Frame.Button declares a labeled hit region and paints a source-owned button. Keep the stable ID across repaints; Clicked reports activation in the same declaration.", Items: []string{"Default, Secondary, Outline, Ghost, Destructive and Link share the same interaction model.", "Buttons measure their label by default; set Width to reserve a fixed size.", "XSmall, Small, Large and icon sizes are explicit options. Icon-only controls still need an accessible name."}},
 			{ID: "keyboard", Title: "Keyboard & state", Text: "Tab moves focus; Enter or Space activates the focused enabled button. Pointer focus does not paint a keyboard focus ring.", Items: []string{"Disabled controls cannot activate and are excluded from focus traversal.", "Hover, press and focus are read from Canvas, not stored as duplicate application state."}},

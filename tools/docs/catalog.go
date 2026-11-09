@@ -36,11 +36,14 @@ type Capability struct {
 
 type Page struct {
 	ID, Title, Category, Summary, Revision string
-	All                                    []Nav
-	Examples                               []Demo
-	InstallCommand                         string
-	Sections                               []Section
-	Capabilities                           []Capability
+	// Source is the Go file the examples call, relative to the repository root:
+	// components/<ID>.go, or ui/list.go for a page-layer control.
+	Source         string
+	All            []Nav
+	Examples       []Demo
+	InstallCommand string
+	Sections       []Section
+	Capabilities   []Capability
 }
 
 type SourceFile struct {
@@ -83,6 +86,10 @@ func loadPages(root string) ([]Page, Manifest, error) {
 		}
 		page.ID, page.Title, page.Category, page.Summary = component.ID, component.Title, component.Category, component.Summary
 		page.All, page.Revision = navigation, manifest.Revision
+		page.Source = component.Source
+		if page.Source == "" {
+			page.Source = "components/" + strings.ReplaceAll(component.ID, "-", "_") + ".go"
+		}
 		page.InstallCommand = installCommand(root, component.ID)
 		exampleIDs := make(map[string]bool)
 		for _, example := range component.Examples {

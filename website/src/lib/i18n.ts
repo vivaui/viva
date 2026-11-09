@@ -148,6 +148,7 @@ const chineseComponentNames: Record<string, string> = {
   'code-diff': '代码差异',
   'code-merge': '三方合并',
   'split-button': '分离按钮',
+  list: '列表',
 };
 
 export function componentName(locale: Locale, id: string, fallback: string): string {
@@ -160,6 +161,9 @@ export function componentLabel(locale: Locale, id: string, fallback: string): st
 }
 
 const englishComponents: Record<string, { summary: string; examples: Record<string, [string, string]> }> = {
+  list: { summary: 'A virtualized page list with multi-selection, pinned section headings, drag-to-reorder rows and sideways scrolling.', examples: {
+    selection: ['File list', 'Icons, names, sizes and dates lie side by side; the heading of the section at the top stays there, and the list itself handles the selection and the drag.'],
+  } },
   'tree-navigation': { summary: 'Keyboard navigation for a tree whose visible rows and expansion state are owned by the application.', examples: {
     default: ['Keyboard navigation', 'Focus Production. Press Right Arrow to expand it or move to its first child, and Left Arrow to return to its parent or collapse it.'],
   } },
@@ -206,6 +210,10 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
 };
 
 const chineseSections: Record<string, Record<string, Omit<Section, 'ID'>>> = {
+  list: {
+    usage: { Title: '页面层列表', Text: '示例调用页面层的 ui.List：行是应用声明的元素，列表负责虚拟化、选择、键盘、typeahead、吸顶分组、拖动排序和横向滚动；模型持有 ListState、选择集合与行数据。', Items: ['名称、大小与修改时间并排，行宽大于列表时可横向滚动。', 'Header 标出的分组标题在滚动时留在顶部，直到下一组标题把它顶走。', 'Selection 让点击与 Shift、Primary 组合选择多行；Reorder 在放下后由应用改数据。'] },
+    keyboard: { Title: '键盘与状态', Text: '方向键、Home、End 和翻页键移动并选择，Shift 扩展，Primary+方向键只移动；Enter 或双击报告 Submitted，输入行名开头会跳到该行。', Items: ['行是列表的选项，Tab 只停一次，落在键盘所在的行。', '焦点、悬停、按下和滚动状态由页面与 Canvas 提供，应用不重复保存。'] },
+  },
   button: {
     usage: { Title: '用法', Text: '示例用 ui.Frame.Button 声明按钮；Clicked 在同一条声明里返回点击或键盘激活。重绘时保持 ID 稳定，状态由应用持有。', Items: ['Default、Secondary、Outline、Ghost、Destructive、Link 共用同一个交互模型。', '按钮默认按标签测量宽度；需要固定尺寸时用 Width。', 'XSmall、Small、Large 与图标尺寸由显式选项指定；纯图标按钮也需要可访问名称。'] },
     keyboard: { Title: '键盘与状态', Text: 'Tab 移动焦点，Enter 或空格激活可用按钮。鼠标获得焦点时不显示键盘焦点环。', Items: ['禁用控件不能激活，也不参与焦点遍历。', '悬停、按下和焦点状态直接读取 Canvas，不重复保存在应用状态里。'] },

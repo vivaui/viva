@@ -20,12 +20,16 @@ type Example struct {
 
 type Component struct {
 	ID, Title, Category, Summary string
-	Examples                     []Example
-	paint                        func(*State, *gfx.Canvas, gfx.Theme, gfx.Size)
-	pointer                      func(*State, gfx.PointerEvent) gfx.EventResult
-	key                          func(*State, gfx.KeyEvent) gfx.EventResult
-	scroll                       func(*State, gfx.ScrollEvent) gfx.EventResult
-	initialize                   func(*State)
+	// Source is the Go file the example calls, relative to the repository root, when
+	// the control is not one of the components package: a page-layer control such as
+	// ui.List. Empty means components/<ID>.go, the component's own file.
+	Source     string
+	Examples   []Example
+	paint      func(*State, *gfx.Canvas, gfx.Theme, gfx.Size)
+	pointer    func(*State, gfx.PointerEvent) gfx.EventResult
+	key        func(*State, gfx.KeyEvent) gfx.EventResult
+	scroll     func(*State, gfx.ScrollEvent) gfx.EventResult
+	initialize func(*State)
 	// editable names the one text field of an example that a platform text
 	// service may edit (see EnableTextEditing); examples that are fixed
 	// snapshots report false.
@@ -111,6 +115,8 @@ type State struct {
 	picker      *colorPickerDemoState
 	// chart keeps the hover and label caches of the chart examples.
 	chart *chartDemoState
+	// list is the page-layer List example: its rows, choice and page.
+	list *listDemo
 	// view keeps the memory the ui pages of this demo are laid out in (see page).
 	// It is a pointer so a State stays comparable.
 	view  *ui.View
