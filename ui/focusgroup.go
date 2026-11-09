@@ -26,6 +26,10 @@ const (
 //			if ui.Button(c.Key(tool.Name), tool.Name).Clicked() { m.tool = tool }
 //		}
 //	})
+//
+// The arrows move the focus, not the choice. A component that chooses as the
+// focus moves reads Box.State().Focused while it declares each member, as a
+// roving strip does; it needs no Page-internal rover.
 func (b Box) FocusGroup(axis FocusAxis) Box {
 	b.n()
 	p := b.f.page

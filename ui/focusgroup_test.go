@@ -1,6 +1,7 @@
 package ui_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -129,5 +130,42 @@ func TestFocusGroupRepaintAllocates(t *testing.T) {
 	d.key(gfx.KeyRight)
 	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
 		t.Fatalf("%v allocations a repaint", allocs)
+	}
+}
+
+// rovingStripModel is a third-party-style roving strip: page controls in a
+// FocusGroup, with the choice following the focus. It reads only public API:
+// FocusGroup moves the focus, and Box.State says which member has it.
+type rovingStripModel struct {
+	selected int
+	view     func(ui.C)
+}
+
+func (m *rovingStripModel) page(c ui.C) {
+	ui.Row(c).Gap(4).FocusGroup(ui.FocusHorizontal).Children(func() {
+		for i := range 3 {
+			member := ui.ButtonBase(c, fmt.Sprintf("tab %d", i)).Size(60, 24)
+			if member.State().Focused {
+				m.selected = i
+			}
+		}
+	})
+}
+
+// A component library can build its own roving strip with the public API: the
+// group moves the focus, and the component reads the focused member to choose it.
+// It does not need Page's internal rover.
+func TestRovingStripIsBuildableFromThePublicAPI(t *testing.T) {
+	m := &rovingStripModel{}
+	m.view = m.page
+	d := openPage(t, m.view)
+	d.click("tab 0")
+	d.key(gfx.KeyRight)
+	if d.focused() != "tab 1" || m.selected != 1 {
+		t.Fatalf("Right: focused %q, selected %d; want tab 1 and 1", d.focused(), m.selected)
+	}
+	d.key(gfx.KeyEnd)
+	if d.focused() != "tab 2" || m.selected != 2 {
+		t.Fatalf("End: focused %q, selected %d; want tab 2 and 2", d.focused(), m.selected)
 	}
 }
