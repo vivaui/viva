@@ -95,11 +95,13 @@ type treeDrag struct {
 	scrolled        time.Duration // the last step of the scroll at an edge
 }
 
-// treeDragStart is how far a pressed row moves before it is dragged, and not clicked.
-const treeDragStart = 4
-
-// treeEdgeSpeed is how fast a drag at the top or bottom edge of a tree scrolls it.
-const treeEdgeSpeed = 600 // pixels a second
+// dragStartDistance is how far a pressed row moves before it is dragged, and not
+// clicked; dragEdgeSpeed is how fast a drag resting at the top or bottom edge of a
+// tree or list scrolls it.
+const (
+	dragStartDistance = 4
+	dragEdgeSpeed     = 600 // pixels a second
+)
 
 // Dropped reports the drop this paint delivers: a row dragged onto another and let
 // go there, where CanDrop took it. The application moves it.
@@ -151,7 +153,7 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, content func(i
 		state.drag = treeDrag{}
 	}
 	state.declared = state.declared[:0]
-	area := p.listArea(c, &state.ListState, n, state.declare)
+	area := p.listArea(c, &state.ListState, n, false, state.declare)
 	state.scroll = c.f.exts[c.f.nodes[area.i].ext].scrollState
 	state.c, state.label, state.content = nil, nil, nil // the model's functions: not kept past the paint
 	p.trees = append(p.trees, state)
@@ -269,7 +271,7 @@ func (s *TreeState) dragPointer(canvas *gfx.Canvas) {
 			return
 		}
 		dx, dy := point.X-drag.start.X, point.Y-drag.start.Y
-		if !drag.active && dx*dx+dy*dy < treeDragStart*treeDragStart {
+		if !drag.active && dx*dx+dy*dy < dragStartDistance*dragStartDistance {
 			return
 		}
 		drag.active, drag.at = true, point
@@ -343,31 +345,40 @@ func (s *TreeState) dropAt(from, to int, y float32) (TreeDrop, bool) {
 	return 0, false
 }
 
-// edgeScroll scrolls a tree whose drag rests near its top or bottom edge, in steps
-// timed by the frame clock: a frame is asked for only while it does.
+// edgeScroll scrolls a tree whose drag rests near its top or bottom edge.
 func (s *TreeState) edgeScroll(canvas *gfx.Canvas) {
-	drag, scroll := &s.drag, s.scroll
-	if canvas == nil || scroll == nil || drag.view.Height <= 0 {
+	drag := &s.drag
+	if drag.view.Height <= 0 {
 		return
 	}
 	band := min(s.rowHeight(&s.c.f.theme), drag.view.Height/4)
+	dragEdgeScroll(canvas, s.scroll, drag.view, drag.at, band, &drag.scrolled)
+}
+
+// dragEdgeScroll scrolls scroll while a drag at the point at rests within band of the
+// top or bottom edge of view, in steps timed by the frame clock: since is when the
+// last step was taken, and a frame is asked for only while the drag stays there.
+func dragEdgeScroll(canvas *gfx.Canvas, scroll *ScrollState, view Rect, at gfx.Point, band float32, since *time.Duration) {
+	if canvas == nil || scroll == nil || view.Height <= 0 {
+		return
+	}
 	direction := float32(0)
 	switch {
-	case drag.at.Y < drag.view.Y+band && scroll.Offset > 0:
+	case at.Y < view.Y+band && scroll.Offset > 0:
 		direction = -1
-	case drag.at.Y > drag.view.Y+drag.view.Height-band && scroll.Offset+scroll.Viewport < scroll.Content:
+	case at.Y > view.Y+view.Height-band && scroll.Offset+scroll.Viewport < scroll.Content:
 		direction = 1
 	}
 	now := canvas.Now()
 	if direction == 0 {
-		drag.scrolled = 0
+		*since = 0
 		return
 	}
-	if drag.scrolled > 0 {
-		step := min(now-drag.scrolled, 100*time.Millisecond) // a late frame does not jump
-		scroll.ScrollTo(scroll.Offset + direction*treeEdgeSpeed*float32(step.Seconds()))
+	if *since > 0 {
+		step := min(now-*since, 100*time.Millisecond) // a late frame does not jump
+		scroll.ScrollTo(scroll.Offset + direction*dragEdgeSpeed*float32(step.Seconds()))
 	}
-	drag.scrolled = now
+	*since = now
 	canvas.RequestFrameIn(16 * time.Millisecond)
 }
 

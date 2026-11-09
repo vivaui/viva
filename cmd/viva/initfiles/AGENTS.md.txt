@@ -70,7 +70,13 @@ func (m *model) page(c ui.C) {
   &m.chosen` (a `ui.Selection`, held by `m.list.Key`) to let the user choose several: Primary-click toggles, Shift extends, Primary+A
   chooses all. `m.list.ScrollTo(row, ui.ListCenter)`, `ScrollIntoView`, `ScrollToEnd`, `Visible()` and `AtEnd()` move and read it.
   `box.ClickModifiers()` and `box.DoubleClicked()` read how a click on any element came. Do not number rows or keep a selected
-  index of your own.
+  index of your own. `row.Element` is a Row, so an icon, a name and a size lie side by side. `m.list.Header = func(i int) bool`
+  makes some rows section headings: the heading of the section at the top stays there until the next pushes it away (give it a
+  Background; it is not chosen, focused or typed to, and the keys pass over it). `m.list.Reorder = func(rows []int, to int)` lets
+  the user drag rows (the chosen ones when the row dragged is chosen) and calls it with the rows and the row they go before; move
+  them there, in the model. `m.list.RowWidth = 900` makes the rows at least that wide and the list scrolls sideways (the
+  horizontal wheel, or the wheel with Shift); a column header above it follows with
+  `ui.Row(c).Clip().Children(func() { ui.Row(c).Width(900).ScrollWith(&m.list).Children(titles) })`.
 - `.Tooltip("Delete")` on a control is the tip shown while the pointer rests on it (and its description).
 - A menu of actions off a button: `ui.Menu(c, more, &m.menu, func(menu *ui.MenuItems) { if menu.Item("Rename").Clicked() { ... } })`;
   `menu.Separator()`, `menu.Label("Group")`, `.Destructive()`, `.Disabled(x)`. Choosing an item closes it.

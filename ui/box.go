@@ -442,3 +442,16 @@ func (b Box) clickInfo() (gfx.ClickInfo, bool) {
 	}
 	return b.f.canvas.ClickInfo()
 }
+
+// ScrollWith makes the element's content follow the sideways scroll of the rows of
+// list (ListState.RowWidth): a header above the list, whose columns line up with the
+// rows. Put it on the element holding the content, inside a container that clips:
+//
+//	ui.Row(c).Clip().Height(28).Children(func() {
+//		head := ui.Row(c).Width(m.files.RowWidth).ScrollWith(&m.files)
+//		head.Children(m.columnTitles)
+//	})
+func (b Box) ScrollWith(list *ListState) Box {
+	b.n().margin[3] = -list.ScrollX()
+	return b
+}

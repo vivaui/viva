@@ -249,6 +249,7 @@ type Page struct {
 	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	listRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // moves and chooses rows of a List
+	wheelXRoute   func(*Page, gfx.ScrollEvent) (moved, only bool)   // the sideways wheel of a List with RowWidth
 	typeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // a Tree's typeahead, from OnShortcut
 	wheelRoute    func(*Page, gfx.ScrollEvent) (gfx.EventResult, bool)
 	textRoute     func(*Page, gfx.ID) *app.TextInput
@@ -959,8 +960,19 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 			return result
 		}
 	}
+	moved := false
+	if p.wheelXRoute != nil {
+		var only bool
+		if moved, only = p.wheelXRoute(p, event); only && moved {
+			return gfx.EventResult{Handled: true, Repaint: true}
+		}
+	}
 	if result := p.view.Wheel(event); result.Handled || result.Repaint {
+		result.Repaint = result.Repaint || moved
 		return result
+	}
+	if moved {
+		return gfx.EventResult{Handled: true, Repaint: true}
 	}
 	if p.baseScroll != nil {
 		return p.baseScroll(event)
