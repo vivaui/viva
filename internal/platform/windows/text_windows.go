@@ -121,7 +121,8 @@ func (services *textServices) formatStyle(name string, size, weight float32, ita
 }
 
 // nativeFontWeight is the DirectWrite weight of a Viva weight: regular, medium, semibold and
-// bold are the faces Segoe UI and Consolas have.
+// bold are the faces Segoe UI has. A font without one of them, such as Consolas, which has
+// regular and bold only, is drawn with the face DirectWrite finds nearest.
 func nativeFontWeight(weight float32) uint32 {
 	switch {
 	case weight >= 0.35:
