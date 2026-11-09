@@ -46,6 +46,13 @@ import (
 // function of the same shape as the ones Viva ships.
 type C = *Ctx
 
+// Bounds is the rectangle the page is being declared into.
+func (c C) Bounds() Rect { return c.f.Bounds() }
+
+// Canvas is the canvas the page paints on. Use it to measure text and to read
+// Hovered and Focused; paint with Draw and the element methods, not directly.
+func (c C) Canvas() *gfx.Canvas { return c.f.Canvas() }
+
 // Ctx is the declaration context of a Page. Use it through C. It is valid only
 // while the page declares; a *Page lives across paints, a C and the Boxes of one
 // paint do not.

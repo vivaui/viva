@@ -515,13 +515,10 @@ func (f *Frame) Scroll(offset float32) Box {
 
 // Paragraph adds text that breaks into lines to fit the width it is given, at most
 // maxLines of them (the last ends with an ellipsis), so its height follows its
-// width. It is what Text is not: a Text is one line and is clipped.
+// width. It is what Text is not: a Text is one line and is clipped. Zero or less
+// takes as many lines as the width needs, as Box.MaxLines.
 func (f *Frame) Paragraph(value string, maxLines int) Box {
-	b := f.Text(value)
-	n := &f.nodes[b.i]
-	n.flags |= flagWrap
-	n.maxLines = int32(max(maxLines, 1))
-	return b
+	return f.Text(value).MaxLines(maxLines)
 }
 
 // Text adds one line of text, in the theme's body size and foreground color.

@@ -24,6 +24,16 @@ func Scroll(c C) Box {
 	return b
 }
 
+// ScrollAt is Scroll with the area's offset set when it is declared. The offset
+// is clamped to the content at layout: read the settled value back from
+// box.ScrollState().Offset in the same paint, after Draw, rather than keeping
+// the ScrollState between paints.
+func ScrollAt(c C, offset float32) Box {
+	b := Scroll(c)
+	b.ScrollState().Offset = max(offset, 0)
+	return b
+}
+
 // Leaves without identity.
 
 func Text(c C, value string) Box { return c.f.Text(value) }
@@ -37,8 +47,13 @@ func Spinner(c C) Box                           { return c.f.Spinner() }
 func Icon(c C, icon gfx.Icon) Box               { return c.f.Icon(icon) }
 func Image(c C, bitmap gfx.Bitmap) Box          { return c.f.Image(bitmap) }
 
-// Paragraph is text that wraps to the width it gets, at most maxLines lines.
+// Paragraph is text that wraps to the width it gets, at most maxLines lines:
+// zero or less takes as many lines as the width needs, as Box.MaxLines.
 func Paragraph(c C, value string, maxLines int) Box { return c.f.Paragraph(value, maxLines) }
+
+// Wrap is text that wraps to the width it gets, with no line limit: Paragraph
+// without a maximum.
+func Wrap(c C, value string) Box { return c.f.Wrap(value) }
 
 // Slot reserves room for something painted by hand (Draw) or a native view
 // (NativeView): Rect says where, once the page is laid out.
