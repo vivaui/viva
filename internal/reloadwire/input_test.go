@@ -57,7 +57,7 @@ func TestInputEventCodecs(t *testing.T) {
 		t.Fatalf("scroll = %+v, want %+v, err = %v", got, scroll, err)
 	}
 
-	result := gfx.EventResult{Focus: gfx.Item(31), Handled: true, Repaint: true, Blur: true, FocusVisible: true, ClipboardText: "copied"}
+	result := gfx.EventResult{Focus: gfx.Item(31), Handled: true, Repaint: true, Blur: true, FocusVisible: true, ClipboardText: "copied", ContinueTraversal: true, Activate: gfx.Item(7)}
 	resultData := encodeEventResult(result)
 	if got, err := decodeEventResult(resultData); err != nil || got != result {
 		t.Fatalf("event result = %+v, want %+v, err = %v", got, result, err)

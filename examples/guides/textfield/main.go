@@ -8,18 +8,18 @@ import (
 )
 
 type model struct {
-	name  ui.Field
+	name  string
 	saved string
 }
 
 func (m *model) page(c ui.C) {
 	ui.Column(c).Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
-		// The field owns its editor: typing, the caret, selection, the clipboard
-		// and input methods need nothing more. The page tells the platform which
-		// editor belongs to the focused field.
+		// m.name is the text: the field writes what is typed into it, and shows
+		// what the program puts there. Typing, the caret, selection, the clipboard
+		// and input methods need nothing more; the page keeps the field's editor.
 		ui.TextField(c, &m.name, "Name", "Your name").Width(320)
 		if ui.Button(c, "Save").Clicked() {
-			m.saved = m.name.Text()
+			m.saved = m.name
 		}
 		if m.saved != "" {
 			ui.Text(c, "Saved "+m.saved).Muted()

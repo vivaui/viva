@@ -288,7 +288,7 @@ func formControlOf(typ ast.Expr, uiName, value string, tag reflect.StructTag) (f
 		if option == "checkbox" {
 			control.kind = "checkbox"
 		}
-	case isFlex("Field"):
+	case isFlex("Field"), isIdent(typ, "string"):
 		control.kind = "textfield"
 		if err := allow(); err != nil {
 			return control, err
@@ -300,10 +300,10 @@ func formControlOf(typ ast.Expr, uiName, value string, tag reflect.StructTag) (f
 			return control, err
 		}
 	default:
-		return control, fmt.Errorf("no control for its type: viva form makes a Switch for bool, a TextField for ui.Field, a Slider for ui.SliderState, and a Choice for a field with a choices tag")
+		return control, fmt.Errorf("no control for its type: viva form makes a Switch for bool, a TextField for string or ui.Field, a Slider for ui.SliderState, and a Choice for a field with a choices tag")
 	}
 	if hasPlaceholder && control.kind != "textfield" {
-		return control, fmt.Errorf("a placeholder tag applies to a ui.Field only")
+		return control, fmt.Errorf("a placeholder tag applies to a text field (a string or ui.Field) only")
 	}
 	return control, nil
 }

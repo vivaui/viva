@@ -219,6 +219,20 @@ func (canvas *Canvas) HitsSince(from Mark) []Hit {
 	return canvas.hits[from.hits:]
 }
 
+// HintSince gives the hits named id that the canvas took since from the Hint
+// hint: the tooltip and accessibility description of a control whose painter
+// declared its hit without one.
+func (canvas *Canvas) HintSince(from Mark, id ID, hint string) {
+	if id.IsZero() || int(from.hits) > len(canvas.hits) {
+		return
+	}
+	for index := int(from.hits); index < len(canvas.hits); index++ {
+		if canvas.hits[index].ID == id {
+			canvas.hits[index].Hint = hint
+		}
+	}
+}
+
 // SameAsPrevious reports whether what span painted in this paint is what prev
 // painted in the previous one, moved by (dx, dy): the check of a cache that
 // replays prev in place of painting span.

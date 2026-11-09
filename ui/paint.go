@@ -13,6 +13,10 @@ func (f *Frame) paint(i int32) {
 		f.paintDialog(n)
 		return
 	}
+	if n.flags&flagDrawer != 0 {
+		f.paintDrawerFn(f, n)
+		return
+	}
 	if n.flags&flagPopover != 0 {
 		f.paintPopoverFn(f, i, n)
 		return
@@ -75,6 +79,10 @@ func (f *Frame) paint(i int32) {
 	if extra.nativeView != 0 {
 		canvas.NativeView(extra.nativeView, r)
 	}
+	var hits gfx.Mark // where the element's own hits start, for its Tooltip
+	if extra.tooltip != "" {
+		hits = canvas.Mark()
+	}
 	if hasHit && (n.kind == kindContainer || n.kind == kindText || n.kind == kindIcon || n.kind == kindSlot) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
@@ -101,6 +109,9 @@ func (f *Frame) paint(i int32) {
 	if hooks.under != nil {
 		f.runDraw(n, hooks.under)
 	}
+	if hooks.page != nil {
+		hooks.page.Draw(f.canvas, n.rect, hooks.pageView)
+	}
 	for c := n.first; c >= 0; c = f.nodes[c].next {
 		f.paint(c)
 	}
@@ -109,6 +120,10 @@ func (f *Frame) paint(i int32) {
 	}
 	if hooks.over != nil {
 		f.runDraw(n, hooks.over)
+	}
+	if extra.tooltip != "" {
+		// The element's hit, which a container, a control or its Draw declared.
+		f.canvas.HintSince(hits, n.id, extra.tooltip)
 	}
 	f.opacity = parentOpacity
 	if style.opacity < 1 {
@@ -274,6 +289,10 @@ func (f *Frame) paintInput(n *node) {
 	}
 	if n.flags&flagMono != 0 {
 		snapshot.Text.Mono, snapshot.Text.MonoFace = true, n.face
+	}
+	if a := f.exts[n.ext].addons; a != 0 {
+		f.paintAddonsFn(f, n, snapshot, &f.addons[a-1])
+		return
 	}
 	components.PaintInputContent(f.canvas, f.theme, n.rect, f.contentRect(n), snapshot)
 }

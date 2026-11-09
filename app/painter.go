@@ -686,7 +686,11 @@ func (painter *painter) applyEventResult(result gfx.EventResult) bool {
 	if result.ClipboardText != "" && painter.setClipboardText != nil {
 		painter.setClipboardText(result.ClipboardText)
 	}
-	return painter.focus.Apply(result)
+	changed := painter.focus.Apply(result)
+	if !result.Activate.IsZero() && painter.deliverClick(result.Activate) {
+		changed = true // the click's pass changed the application: show it
+	}
+	return changed
 }
 
 // canClick reports whether a click on a control has anywhere to go: whether the
@@ -1140,6 +1144,11 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	}
 	if tint == (gfx.Color{}) {
 		tint = context.TextColor
+	}
+	if !(fontSize > 0) || math.IsInf(float64(fontSize), 0) {
+		// Every platform refuses an editor without a font size. What neither the
+		// application nor the declaration set is the body text's.
+		fontSize = gfx.DefaultMetrics().FontSizeM
 	}
 	if bounds.Width <= 0 || bounds.Height <= 0 ||
 		roundPixel(bounds.Width) <= 0 || roundPixel(bounds.Height) <= 0 {

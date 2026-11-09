@@ -249,6 +249,26 @@ func PaintInputGroup(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snaps
 
 // inputGroupContent is where the control's text sits inside its bounds: the
 // same inset as a standalone Input unless an addon is beside it.
+// InputAddonsLayout places an inline addon at each end of a single-line field in
+// bounds, as PaintInputGroup does, and returns their rectangles and the one the
+// text is centered in between them. A slot of kind InputGroupSlotNone takes no room.
+func InputAddonsLayout(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, start, end InputGroupSlot) (startBounds, endBounds, content gfx.Rect) {
+	startWidth := inputGroupInlineWidth(canvas, theme, start, bounds.Height)
+	endWidth := inputGroupInlineWidth(canvas, theme, end, bounds.Height)
+	startBounds = gfx.Rect{X: bounds.X, Y: bounds.Y, Width: startWidth, Height: bounds.Height}
+	endBounds = gfx.Rect{X: bounds.X + bounds.Width - endWidth, Y: bounds.Y, Width: endWidth, Height: bounds.Height}
+	control := gfx.Rect{X: bounds.X + startWidth, Y: bounds.Y, Width: inputGroupMax(0, bounds.Width-startWidth-endWidth), Height: bounds.Height}
+	content = inputGroupContent(theme, control, false, start.Kind != InputGroupSlotNone, end.Kind != InputGroupSlotNone)
+	return startBounds, endBounds, content
+}
+
+// PaintInputAddon paints one inline addon of a field in the rectangle
+// InputAddonsLayout gave it, start or end, and declares the hit of a button. Paint
+// it after the field's own hit, so that a press on the button is the button's.
+func PaintInputAddon(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, slot InputGroupSlot, start, disabled bool) {
+	inputGroupPaintSlot(canvas, theme, bounds, slot, false, start, disabled)
+}
+
 func inputGroupContent(theme gfx.Theme, control gfx.Rect, multiline, hasStart, hasEnd bool) gfx.Rect {
 	left := theme.Metrics.TextInsetX()
 	right := left

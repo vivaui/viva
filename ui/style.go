@@ -137,6 +137,29 @@ func (b Box) Pressed(look Look) Box { b.states().pressed = look; return b }
 // visible, which is after the keyboard moved it there and not after a click.
 func (b Box) Focus(look Look) Box { b.states().focus = look; return b }
 
+// AutoFocus gives the element the keyboard focus in the paint it first appears
+// in: the search field of a page as it opens, the first field of a form when it is
+// shown. It is asked once: when the user moves the focus away it stays away, and the
+// element takes it again only after it was gone for a paint and came back. One
+// element of a page asks for it at a time (the last declared wins). The element
+// needs an identity: a control, or a container after Hit. Not inside a Memo, whose
+// copies are not declared.
+//
+//	ui.TextField(c, &m.query, "Search", "").AutoFocus()
+func (b Box) AutoFocus() Box {
+	if b.f.memoDepth > 0 {
+		panic("ui: AutoFocus in a Memo: a copied part is not declared, so it would take the focus again when it is; declare it outside the Memo")
+	}
+	id := b.n().id
+	if id.IsZero() {
+		panic("ui: AutoFocus needs an element with an identity: a control, or a container given Hit before AutoFocus")
+	}
+	if b.f.canvas != nil {
+		b.f.canvas.RequestFocus(id)
+	}
+	return b
+}
+
 // Focused is how the element looks while the keyboard has it, however it got there: a click
 // on a text field focuses it without making the focus visible, and a field that is being typed
 // into still reads as the one with the keyboard (CSS's :focus, where Focus is :focus-visible).

@@ -34,7 +34,7 @@ what is below a page: painting, input events, keys and identities. Controls take
 ```go
 func (m *model) page(c ui.C) {
 	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
-		ui.TextField(c, &m.name, "Name", "Your name") // a ui.Field in the model; typing needs nothing more
+		ui.TextField(c, &m.name, "Name", "Your name") // m.name is a string; typing needs nothing more
 		ui.Switch(c, &m.notify, "Notify me")          // a click flips m.notify
 		ui.Choice(c, &m.theme, themes, nil)           // m.theme is one of themes ([]string here; else pass a label func)
 		ui.Select(c, &m.size, sizes, nil)             // a drop-down; its open state is its own
@@ -64,12 +64,42 @@ func (m *model) page(c ui.C) {
   `Popover` and `Modal` set their `*bool` to false when dismissed (Escape, a press outside, the close
   button) and give the focus back.
 - Long lists: `ui.List(c, &m.listState, len(items), func(i int) { ... })` declares only the rows on screen.
+- `.Tooltip("Delete")` on a control is the tip shown while the pointer rests on it (and its description).
+- A menu of actions off a button: `ui.Menu(c, more, &m.menu, func(menu *ui.MenuItems) { if menu.Item("Rename").Clicked() { ... } })`;
+  `menu.Separator()`, `menu.Label("Group")`, `.Destructive()`, `.Disabled(x)`. Choosing an item closes it.
+- A right-click menu: `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` (Shift+F10 opens it too); items
+  take `.Icon(icon)`, `.Keys(ui.Primary, "c")` (shown, not bound), `.Checked(on)` and `.Chosen(on)`.
+- A search field: `ui.TextField(c, &m.query, "Search", "").Icon(search).Action(cross, "Clear")`, and
+  `.ActionClicked()` for the button.
+- A side panel: `ui.Drawer(c, &m.open, "Title", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)`;
+  an empty title gives the body the whole panel, `NonModal` keeps the keyboard on the page.
+- A tree: keep a `ui.TreeState` with `Node` describing each visible row, `ui.Tree(c, &m.tree, n, label, nil)`,
+  then `m.tree.Toggled()` (open or close that branch, give the tree its new rows) and `m.tree.Chosen()`.
+- A long list to choose from by typing: `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` (Select's
+  arguments plus a label); it filters as the user types.
+- Toasts: keep a `ui.Toaster` in the model, `m.toaster.Show("Saved", "", ui.ToastSuccess)`, and declare
+  `ui.Toasts(c, &m.toaster)` once, last in the page.
+- `ui.TextField(...).AutoFocus()` focuses a field as it appears; `.Submitted()` is Enter pressed in it.
+  `ui.TextField(...).Secure()` is a password field.
+- Keyboard shortcuts are declared where they act: `if ui.Shortcut(c, ui.Primary, "s") { m.save() }` (Primary is
+  Command on macOS, Control elsewhere); `list.Shortcut(0, "delete")` on a container or control acts only while the
+  focus is in it, the innermost one winning. A chord without Primary, Ctrl or Alt is left to a field being typed in.
+  `ui.TextArea(c, &m.notes, "Notes", "").Height(120)` is several rows.
+- A control of your own (terminal, editor, drawing canvas): `ui.Control(c, "Label", &m.handlers).Grow(1).Draw(m.draw)`;
+  `ui.Handlers` has Key, Pointer, Scroll and, with Role RoleTerminal or RoleTextField, Text for typing
+  and input methods. Keep the Handlers and the draw function in the model; declare no identities.
 - A part that rarely changes: `ui.Memo(c.KeyInt(id), version, func() { ... })` is copied from the last
   paint while `version` is the same; bump `version` when what the function reads changes.
 - Your own component is a function of the same shape: `func Card(c ui.C, title string, body func()) ui.Box`.
-  Its own small state (whether it is open) is `ui.State[bool](c)`; the application's state stays in the model.
+  Its own small state (whether it is open) is `ui.State[bool](c, "open")`; the application's state stays in the model.
 - A settings form: tag the struct's fields (`form:"Label"`, `choices:"options,nameFunc"`, `placeholder:"..."`)
   and run `go tool viva form` (or `//go:generate go tool viva form`); it writes `Form(c ui.C) ui.Box`.
+- A pane of a window laid out with a Frame is a page with `f.Page(page, view).Grow(1)`. Give the page the
+  window's input: `TextInput` and `OnScroll` to `page.TextInput` and `page.Wheel`, and in `OnKey` and
+  `OnPointer` ask it first, `if r, ok := page.Key(event); ok { return r }` (its Controls, TextAreas and
+  open Popovers and Modals get nothing otherwise). Not inside a Memo. Do not call
+  `page.Draw` while the frame is being declared (the pane's rectangle is not known yet, and its clicks go
+  to the frame's controls).
 - `c.Frame()` is the `*ui.Frame` underneath, for a control with an identity of your own (see
   Identities and clicks), named in a page by `ui.ID(c)`; `c.Theme()` is the theme.
 - In a test, find controls by their name (`Hit.Label`), as main_test.go does.
@@ -188,6 +218,8 @@ m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
   read it with `m.name.Text()`, set it with `m.name.SetText("x")`. Do not build `text.Editor`s or snapshots by hand. In a `Row` a field has no width of its own: give it `Grow(1)` or `Width`, or it is invisible.
   Enter in a field: `if f.Field(&m.draft, id, "Message", "Type").Submitted() { m.send(); m.draft.SetText("") }` (true only in the
   repaint that delivers Enter, not for a click; `OnKey` is not needed). The label (first string) is never empty.
+- Several rows: `f.FieldArea(&m.notes, notesID, "Notes", "").Height(120)` (Enter is a new line); give the
+  field the window's keys first, `if r := m.notes.Key(event); r.Handled { return r }`, for Up/Down by row.
 - Other fields, painted by their components in tree order: `f.Input(components.InputSnapshot{...})` (a control tall,
   as wide as its container), `f.InputGroup(...)`, `f.Textarea(...)` (at least 64 tall), and
   `f.Segmented(options, selectedID)`. Give them `Width`, `Grow` or `Height` like anything else.

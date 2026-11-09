@@ -100,6 +100,7 @@ const (
 	flagOpen     // the element shows what it controls (State.Open)
 	flagVeto     // a click on the element is not delivered: its identity moved to it under a held press or focus
 	flagPopover  // a Popover's root: painted with components.Popover's dismiss, focus scope and Escape around its children
+	flagDrawer   // a Drawer's root: painted by components.Drawer around its children
 )
 
 // node is one element of the page. Fields are plain values so a node is reused
@@ -201,6 +202,8 @@ type extra struct {
 	bind          int32            // 1 + the index of the element's binding in Frame.binds, or 0 (see bind.go)
 	memo          int32            // 1 + the index the element's cache has with whoever declared it (memoFn), or 0
 	draws         int32            // 1 + the index of the element's Draw and DrawOver callbacks in Frame.draws, or 0 for none
+	tooltip       string           // what Tooltip says over the element; empty for none
+	addons        int32            // 1 + the index of the field's icon and button in Frame.addons, or 0
 }
 
 // Frame is one page being declared. It is handed to the function given to
@@ -210,6 +213,7 @@ type Frame struct {
 	theme       Theme
 	nodes       []node
 	inputs      []components.InputSnapshot
+	addons      []fieldAddons // the icons and buttons inside fields, by 1 + extra.addons
 	groups      []components.InputGroupSnapshot
 	textareas   []components.TextareaSnapshot
 	segmented   []segmented
@@ -219,6 +223,10 @@ type Frame struct {
 	floats      []int32                    // the Popups, which belong to no container
 	states      []stateLooks               // what Hover, Pressed and Focus declared, by element
 	draws       []drawHooks                // what Draw and DrawOver declared, by element
+	memoDepth   int                        // how many Memos of a page are recording what is declared now
+	page        *Page                      // the page declaring this frame; nil for a Frame of the application's
+	tooltips    bool                       // an element was given a Tooltip: End paints the one the pointer rests on
+	tooltip     components.HoverTooltip    // the Tooltip the pointer rests on, kept between paints
 	drawContext DrawContext                // what a Draw callback is handed, reused for the frame
 	gradients   []gradient                 // the gradients of the elements that have one
 	stops       []gfx.GradientStop         // their stops, in the order declared
@@ -231,7 +239,10 @@ type Frame struct {
 	// are reached through these, set by the call that declares one, so an application
 	// that declares none does not link them.
 	paintPopoverFn func(f *Frame, i int32, n *node)
-	settleFn       func(f *Frame, i int32) *bindDecl // i < 0 settles them all
+	paintDrawerFn  func(f *Frame, n *node)                                                    // set by the first Drawer, so a frame without one does not link it
+	paintAddonsFn  func(f *Frame, n *node, snapshot components.InputSnapshot, a *fieldAddons) // set by the first field Icon or Action
+	paintTooltipFn func(f *Frame)                                                             // set by the first Tooltip, so a frame without one does not link it
+	settleFn       func(f *Frame, i int32) *bindDecl                                          // i < 0 settles them all
 	captionFn      func(f *Frame, n *node, control Rect)
 	// memoFn paints, or begins (before) and ends the paint of, an element a cache
 	// declared; it reports whether the element is painted and its paint is done.
@@ -270,6 +281,7 @@ func (view *View) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *Frame {
 	f.exts = append(f.exts[:0], extra{})
 	f.inputs, f.groups, f.textareas, f.segmented, f.choices = f.inputs[:0], f.groups[:0], f.textareas[:0], f.segmented[:0], f.choices[:0]
 	f.images = f.images[:0]
+	f.addons = f.addons[:0]
 	clear(f.binds) // a binding holds pointers into the model: not past the frame
 	f.binds = f.binds[:0]
 	f.floats = f.floats[:0]
@@ -278,6 +290,9 @@ func (view *View) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *Frame {
 	f.draws = f.draws[:0]
 	f.opacity = 1
 	f.popupLayer = 0
+	f.memoDepth = 0
+	f.page = nil
+	f.tooltips = false
 	f.nativeMark = 0
 	if canvas != nil {
 		f.nativeMark = len(canvas.NativeViews())
@@ -334,6 +349,11 @@ func (f *Frame) End() {
 	}
 	if f.popupLayer != 0 {
 		f.canvas.PopLayer()
+	}
+	if f.tooltips {
+		f.paintTooltipFn(f)
+	} else if f.paintTooltipFn != nil {
+		f.tooltip = components.HoverTooltip{}
 	}
 	f.trim()
 }
@@ -578,6 +598,42 @@ func (f *Frame) Switch(id gfx.ID, on bool) Box {
 // Slot reserves room for something the caller paints itself: Rect gives where
 // once End has laid the page out. Give it a size, or let it grow.
 func (f *Frame) Slot() Box { return f.box(kindSlot) }
+
+// Page declares an element that a page fills: view declares the page into the
+// element's rectangle once this frame is laid out, painted in the element's place,
+// under what this frame paints over it and inside its clip. Give the element a size,
+// or let it grow, as a Slot:
+//
+//	f.Page(m.page, m.view).Grow(1).FillWidth()
+//
+// It is how a pane of a window written with a Frame is written as a page. Calling
+// page.Draw while this frame is being declared instead paints the page before the
+// frame is laid out, at a rectangle not yet known, under everything the frame paints.
+// Keep view in the model (a method value made in each paint allocates), and give the
+// page the window's input: its TextInput and Wheel (page.TextInput, page.Wheel) for
+// its fields and lists, and, before the window's own handling, its keys and pointer
+// (page.Key, page.Pointer), without which its Controls get no input, its TextAreas
+// do not move by row and its Popovers and Modals hold nothing behind them:
+//
+//	OnKey: func(event gfx.KeyEvent) gfx.EventResult {
+//		if result, ok := m.page.Key(event); ok {
+//			return result
+//		}
+//		return m.key(event)
+//	},
+//
+// A Modal of the page dims and holds the element, not the window. Not inside a
+// Memo: a copied part does not declare the page, which keeps its state (and its
+// Scrolls, Popovers and Controls) by being declared.
+func (f *Frame) Page(page *Page, view func(C)) Box {
+	if f.memoDepth > 0 {
+		panic("ui: Frame.Page in a Memo: a copied part does not declare the page, which keeps its state by being declared; declare it outside the Memo")
+	}
+	b := f.box(kindSlot)
+	h := b.hooks()
+	h.page, h.pageView = page, view
+	return b
+}
 
 // extra returns the extras of element i, giving it a set of its own if it has none.
 func (f *Frame) extra(i int32) *extra {

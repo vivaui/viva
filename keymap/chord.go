@@ -135,15 +135,13 @@ func (chord Chord) Label() string {
 	return label.String()
 }
 
-// keycapText is the text of each character, made once: converting a byte to a
-// string allocates, and keycaps are painted on every menu.
-var keycapText = func() [256]string {
-	var table [256]string
-	for code := range table {
-		table[code] = string(rune(code))
-	}
-	return table
-}()
+// printable is every character a chord's key may be, in order from ' ': a keycap
+// is a slice of it, since converting a byte to a string allocates and keycaps are
+// painted on every menu.
+const printable = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+// keycapText is the text of a printable character c.
+func keycapText(c byte) string { return printable[c-' ' : c-' '+1] }
 
 // Keycaps appends the chord split into the keycaps a menu shows, one per
 // modifier and then the key, and returns the extended slice. Where the platform
@@ -172,7 +170,7 @@ func (chord Chord) Keycaps(dst []string) []string {
 	if chord.Char == ' ' {
 		return append(dst, "Space")
 	}
-	return append(dst, keycapText[upper(chord.Char)])
+	return append(dst, keycapText(upper(chord.Char)))
 }
 
 // Name is the chord's key as a settings file writes it, without the modifiers:

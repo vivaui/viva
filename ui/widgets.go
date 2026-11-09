@@ -10,6 +10,7 @@ type widgets struct {
 	tabs     []tabsDecl
 	selects  []selectDecl
 	dialogs  []dialogDecl
+	drawers  []drawerDecl
 	popovers []popoverDecl
 	splits   []splitDecl
 	sliders  []sliderDecl
@@ -21,7 +22,7 @@ type widgets struct {
 
 func (w *widgets) reset() {
 	w.tables, w.tabs, w.selects, w.dialogs = w.tables[:0], w.tabs[:0], w.selects[:0], w.dialogs[:0]
-	w.popovers = w.popovers[:0]
+	w.popovers, w.drawers = w.popovers[:0], w.drawers[:0]
 	w.splits, w.sliders, w.rows = w.splits[:0], w.sliders[:0], w.rows[:0]
 	w.layer = 0
 }

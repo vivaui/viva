@@ -147,12 +147,15 @@ func Tabs[T comparable](c C, value *T, tabs []T, label func(T) string) Box {
 func Select[T comparable](c C, value *T, choices []T, label func(T) string) Box {
 	p := c.page
 	scope := p.boundScope(pkSelect, unsafe.Pointer(value))
-	state := State[SelectState](c)
+	state := stateIn[SelectState](p, scope, "select") // its open list follows its value
 	labels, selected := options(p, value, choices, label)
 	b := c.f.Select(scope, state, labels, selected)
 	p.selects = append(p.selects, state)
 	index, ok := b.Picked()
 	pick(c, b, value, choices, index, ok)
+	if state.Open {
+		p.overlay = true // its open list holds the pointer and keys as a Popover does
+	}
 	return b
 }
 
@@ -182,12 +185,33 @@ func Table(c C, state *TableState, spec TableSpec) Box {
 	return c.f.Table(state, spec)
 }
 
-// TextField adds a text field editing field; the page gives the platform its editor.
-func TextField(c C, field *Field, label, placeholder string) Box {
+// TextField adds a text field editing value, a string of the model or a Field; the
+// page gives the platform its editor. Changed is true in the paint that finds it
+// edited, and the string already holds the edit then.
+//
+//	ui.TextField(c, &m.name, "Name", "Your name")
+func TextField[T TextValue](c C, value T, label, placeholder string) Box {
 	p := c.page
-	id := p.boundID(pkField, unsafe.Pointer(field))
+	field, id := fieldOf(p, pkField, value)
 	b := c.f.Field(field, id, label, placeholder)
 	c.f.bindField(b, field)
+	p.fields = append(p.fields, fieldEntry{id: id, field: field})
+	return b
+}
+
+// TextArea adds a text field of several rows editing field: Enter starts a new
+// line, long lines wrap and the rows scroll to follow the caret. Give it a Height.
+// The page gives the platform its editor, as for a TextField; it has no Submitted.
+//
+//	ui.TextArea(c, &m.notes, "Notes", "Anything to add").Height(120)
+func TextArea[T TextValue](c C, value T, label, placeholder string) Box {
+	p := c.page
+	field, id := fieldOf(p, pkArea, value)
+	b := c.f.FieldArea(field, id, label, placeholder)
+	c.f.bindField(b, field)
+	if p.areaKey == nil {
+		p.keyRoute, p.areaKey = (*Page).routeKey, (*Field).Key // Up and Down by row
+	}
 	p.fields = append(p.fields, fieldEntry{id: id, field: field})
 	return b
 }
@@ -213,6 +237,7 @@ func PopoverWith(c C, anchor Box, spec PopoverSpec, open *bool, body func()) boo
 	if !*open {
 		return false
 	}
+	p.overlay = true
 	scope := p.boundScope(pkPopover, unsafe.Pointer(open))
 	if spec.Scope.IsZero() {
 		spec.Scope = scope.At(0)
@@ -259,6 +284,7 @@ func ModalWith(c C, open *bool, title string, spec ModalSpec, body, footer func(
 	if !*open {
 		return false
 	}
+	p.overlay = true
 	if title == "" {
 		panic("ui: Modal needs a title: it is the dialog's name for assistive technology")
 	}

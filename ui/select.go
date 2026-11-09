@@ -264,10 +264,16 @@ func selectRows(count int, frame float32) int {
 	return max(int((room-selectPad-2*selectArrow)/selectItem), 1)
 }
 
-// Placeholder is the text a Select shows while nothing is selected.
+// Placeholder is the text a Select or Combobox shows while nothing is selected.
 func (b Box) Placeholder(value string) Box {
 	if n := b.n(); n.kind == kindSelect {
 		n.text = value
+	} else if p := b.f.page; p != nil {
+		for _, s := range p.combos {
+			if s.f == b.f && s.node == b.i {
+				s.placeholder = value // a Combobox's
+			}
+		}
 	}
 	return b
 }

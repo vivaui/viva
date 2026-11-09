@@ -156,7 +156,8 @@
 //   - One-time code: `PaintInputOTP` paints segmented code entry;
 //     `InputOTPCommandForKey` maps key events to editor commands.
 //   - Input group: `PaintInputGroup` paints an input with leading and
-//     trailing text, button, key-cap, or icon addons.
+//     trailing text, button, key-cap, or icon addons; `InputAddonsLayout` and
+//     `PaintInputAddon` give a field painted by its owner the same inline addons.
 //   - Select: `BeginSelect` paints the trigger and filtered list popup;
 //     `SelectOptions.Unpainted` declares all of it and paints none, for a
 //     select the application draws itself, and `SelectRecipe` is the

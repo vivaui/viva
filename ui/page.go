@@ -52,7 +52,7 @@ type Ctx struct {
 	// next names the next element instead of its place: a Key, an index or a part.
 	next     protoName
 	nextSet  bool
-	stateSeq map[gfx.Scope]uint32 // reset each paint: the States asked for in each scope
+	stateSeq map[stateName]uint32 // reset each paint: the States of each name asked for in each scope
 }
 
 type protoName struct {
@@ -120,6 +120,14 @@ const (
 	pkSplitter
 	pkTable
 	pkCustom
+	pkControl
+	pkArea
+	pkShortcut
+	pkMenu
+	pkCombobox
+	pkToaster
+	pkDrawer
+	pkTree
 	pkKinds
 )
 
@@ -193,18 +201,41 @@ type Page struct {
 	held       [2]armedButton
 	states     map[protoStateKey]protoState
 	fields     []fieldEntry
-	selects    []*SelectState // the Selects of the last paint, which Wheel scrolls
-	labels     []string       // scratch for Choice's labels
+	texts      map[gfx.ID]*boundText // the Fields of the TextFields bound to strings
+	controls   []controlEntry        // the Controls of the last paint, which take their input
+	shortcuts  []shortcutEntry       // the Shortcuts of the last paint
+	menus      []*MenuItems          // the open Menus of the last paint
+	contexts   []contextTarget       // the ContextMenus of the last paint, which Shift+F10 opens
+	combos     []*comboState         // the Comboboxes of the last paint
+	trees      []*TreeState          // the Trees of the last paint
+	selects    []*SelectState        // the Selects of the last paint, which Wheel scrolls
+	labels     []string              // scratch for Choice's labels
 	memos      map[gfx.ID]*memoEntry
 	memoBoxes  []memoBox
 	memoChecks []memoCheckOf
 	recording  []*memoEntry // the Memos being declared, outermost first
 	retry      bool         // a Memo's copy failed: the paint is done again
+	overlay    bool         // the last paint declared an open Popover, Modal, Menu or Select
 	lists      []listDecl
 	listRows   []int32 // the row containers of this paint's Lists
 
-	baseText   app.TextInputProvider
-	baseScroll func(gfx.ScrollEvent) gfx.EventResult
+	baseText     app.TextInputProvider
+	baseScroll   func(gfx.ScrollEvent) gfx.EventResult
+	baseKey      func(gfx.KeyEvent) gfx.EventResult
+	basePointer  func(gfx.PointerEvent) gfx.EventResult
+	baseShortcut func(gfx.KeyEvent) gfx.EventResult
+	// keyRoute, pointerRoute, areaKey and shortcutRoute are set by the first
+	// Control, TextArea or Shortcut a page declares, so a page without them does
+	// not link what routes their input.
+	keyRoute      func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
+	pointerRoute  func(*Page, gfx.PointerEvent) (gfx.EventResult, bool)
+	areaKey       func(*Field, gfx.KeyEvent) gfx.EventResult
+	shortcutRoute func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
+	menuRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
+	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
+	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
+	wheelRoute    func(*Page, gfx.ScrollEvent) (gfx.EventResult, bool)
+	textRoute     func(*Page, gfx.ID) *app.TextInput
 }
 
 // protoNode is a container of the frame: where it is named (in the container at
@@ -232,9 +263,16 @@ type intKey struct {
 	number int
 }
 
-type protoStateKey struct {
+// stateName is a State's name in a scope; protoStateKey adds which of that name it
+// is, for a component declared twice in one container.
+type stateName struct {
 	scope gfx.Scope
-	n     uint32
+	name  string
+}
+
+type protoStateKey struct {
+	stateName
+	n uint32
 }
 
 type protoState struct {
@@ -288,8 +326,141 @@ func (p *Page) init(tree *gfx.Tree) {
 	p.names = map[gfx.ID]nameUse{}
 	p.memos = map[gfx.ID]*memoEntry{}
 	p.states = map[protoStateKey]protoState{}
-	p.ctx.stateSeq = map[gfx.Scope]uint32{}
+	p.texts = map[gfx.ID]*boundText{}
+	p.ctx.stateSeq = map[stateName]uint32{}
 	p.epoch = 1
+}
+
+// Owns reports whether id is one the page named: one of its controls, or what
+// its Popovers and Modals report a dismissal with.
+func (p *Page) Owns(id gfx.ID) bool {
+	return p.tree != nil && !id.IsZero() && p.tree.Within(id.Scope(), p.root)
+}
+
+// Overlay reports whether the last paint declared an open Popover, Modal, Menu,
+// Select or Combobox list: while it does, the overlay has the pointer and the
+// keyboard (see Pointer and Key).
+func (p *Page) Overlay() bool { return p.overlay }
+
+// Pointer is for a host that routes the window's pointer itself, a page being a
+// pane or an overlay of a window it does not own. It reports whether the event
+// is the page's business, and what the host returns for it then: a Control's go
+// to its Handlers, the page's other targets are left unhandled, so the press
+// completes its click in the page, and while an Overlay is open every other press
+// is taken, so nothing behind it acts.
+//
+//	if result, ok := page.Pointer(event); ok {
+//		return result
+//	}
+func (p *Page) Pointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
+	if result, ok := p.routePointer(event); ok {
+		return result, true
+	}
+	switch {
+	case p.Owns(event.Target):
+		return gfx.EventResult{}, true
+	case p.overlay:
+		return gfx.EventResult{Handled: true}, true
+	}
+	return gfx.EventResult{}, false
+}
+
+// Key is Pointer for the keyboard. A Shortcut the key presses acts first, then a
+// Control with the focus takes its keys. Give it the window's OnShortcut too: the
+// chords of printable keys (Primary+S) arrive there.
+// While an Overlay is open, a key whose target is the page's (a field in it) is left
+// to the page; of the others, Escape, Enter, Space and Tab are left to it (to close
+// it, press its buttons and move between them) and the rest are taken, so the host's
+// shortcuts do not act on what is behind it. With no Overlay it leaves the key to
+// the host.
+func (p *Page) Key(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if result, ok := p.routeKey(event); ok {
+		return result, true
+	}
+	if !p.overlay {
+		return gfx.EventResult{}, false
+	}
+	if p.Owns(event.Target) {
+		return gfx.EventResult{}, true
+	}
+	switch event.Key {
+	case gfx.KeyEscape, gfx.KeyEnter, gfx.KeySpace, gfx.KeyTab:
+		return gfx.EventResult{}, true
+	}
+	return gfx.EventResult{Handled: true}, true
+}
+
+// routeKey gives a key to the Combobox it is typed in or the open Menu it moves in,
+// else the Shortcut it presses, else the Control or TextArea it is for.
+func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if p.comboRoute != nil {
+		if result, ok := p.comboRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if p.treeRoute != nil {
+		if result, ok := p.treeRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if p.menuRoute != nil {
+		if result, ok := p.menuRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if p.shortcutRoute != nil {
+		if result, ok := p.shortcutRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if h := p.control(event.Target); h != nil && h.Key != nil {
+		return h.Key(event), true
+	}
+	if p.areaKey != nil {
+		for _, entry := range p.fields {
+			if entry.id == event.Target {
+				if result := p.areaKey(entry.field, event); result.Handled {
+					return result, true
+				}
+				break
+			}
+		}
+	}
+	return gfx.EventResult{}, false
+}
+
+// routePointer gives a pointer event to the Control it is for.
+func (p *Page) routePointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
+	if h := p.control(event.Target); h != nil && h.Pointer != nil {
+		return h.Pointer(event), true
+	}
+	return gfx.EventResult{}, false
+}
+
+// onKey and onPointer are the Config's: a Control's or TextArea's, then base's. A
+// full-window page has nothing behind its overlays, so they do not take keys here.
+func (p *Page) onKey(event gfx.KeyEvent) gfx.EventResult {
+	if p.keyRoute != nil {
+		if result, ok := p.keyRoute(p, event); ok {
+			return result
+		}
+	}
+	if p.baseKey != nil {
+		return p.baseKey(event)
+	}
+	return gfx.EventResult{}
+}
+
+func (p *Page) onPointer(event gfx.PointerEvent) gfx.EventResult {
+	if p.pointerRoute != nil {
+		if result, ok := p.pointerRoute(p, event); ok {
+			return result
+		}
+	}
+	if p.basePointer != nil {
+		return p.basePointer(event)
+	}
+	return gfx.EventResult{}
 }
 
 // currentTheme is the theme the page paints with: the one given, or the system's.
@@ -308,7 +479,8 @@ func (p *Page) currentTheme() Theme {
 	return p.theme
 }
 
-// Config returns base with the page's Tree, Paint, TextInput and OnScroll:
+// Config returns base with the page's Tree, Paint, TextInput, OnScroll, OnKey,
+// OnShortcut and OnPointer:
 //
 //   - Tree: base's is adopted when the page was given none; a different one panics.
 //   - Paint paints View over the whole window.
@@ -316,6 +488,8 @@ func (p *Page) currentTheme() Theme {
 //     focused field (a terminal of the application's, say).
 //   - OnScroll scrolls an open Select, then the page's scroll areas, and gives
 //     what they leave to base's.
+//   - OnKey, OnShortcut and OnPointer give a Shortcut its chord and a Control its
+//     own events, then base's the rest.
 //
 // FollowSystemTheme also sets an Invalidator when base has none, and stops
 // watching the appearance in OnClosed. Nothing else is touched.
@@ -330,6 +504,9 @@ func (p *Page) Config(base app.Config) app.Config {
 	config := base
 	config.Tree, config.Paint = p.tree, p.Paint
 	p.baseText, config.TextInput = base.TextInput, p.TextInput
+	p.baseKey, config.OnKey = base.OnKey, p.onKey
+	p.basePointer, config.OnPointer = base.OnPointer, p.onPointer
+	p.baseShortcut, config.OnShortcut = base.OnShortcut, p.onShortcut
 	p.baseScroll, config.OnScroll = base.OnScroll, p.Wheel
 	if p.config.FollowSystemTheme && p.config.Theme == nil {
 		invalidator := config.Invalidator
@@ -372,9 +549,15 @@ func (p *Page) Paint(canvas *gfx.Canvas, size Size) {
 
 // Draw declares view in bounds of canvas. When a Memo's copy does not fit where
 // the page put it, what the page painted is taken back and it is painted again,
-// with that Memo declared.
+// with that Memo declared. A page that is a pane of a window laid out with a
+// Frame is declared with Frame.Page, which calls Draw once the frame knows the
+// pane's rectangle; a page given no Tree names its controls in the canvas's.
 func (p *Page) Draw(canvas *gfx.Canvas, bounds Rect, view func(C)) {
-	p.init(nil)
+	if tree := canvas.Tree(); tree != nil && tree.Len() != 0 {
+		p.init(tree) // a page inside a window names its controls in the window's Tree
+	} else {
+		p.init(nil)
+	}
 	if tree := canvas.Tree(); tree != p.tree {
 		if tree.Len() != 0 {
 			panic("ui: Page.Draw: the canvas names its identities in another Tree than the page's; give NewPage the canvas's Tree")
@@ -397,8 +580,20 @@ func (p *Page) Draw(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.epoch++
 	p.retry = false
+	p.overlay = false
 	clear(p.fields)
 	p.fields = p.fields[:0]
+	clear(p.controls)
+	p.controls = p.controls[:0]
+	p.shortcuts = p.shortcuts[:0]
+	clear(p.menus)
+	p.menus = p.menus[:0]
+	clear(p.contexts)
+	p.contexts = p.contexts[:0]
+	clear(p.combos)
+	p.combos = p.combos[:0]
+	clear(p.trees)
+	p.trees = p.trees[:0]
 	clear(p.selects)
 	p.selects = p.selects[:0]
 	clear(p.ctx.stateSeq)
@@ -410,12 +605,14 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 		}
 	}
 	f := p.view.Begin(canvas, p.currentTheme(), bounds)
+	f.page = p
 	p.ctx.page, p.ctx.f, p.ctx.nextSet = p, f, false
 	p.nodes = append(p.nodes[:0], protoNode{scope: p.root, named: true, parentNode: -1}) // node 0, the root column
 	view(&p.ctx)
 	f.End()
 	p.measureLists()
 	p.sweep()
+	p.sweepTexts()
 	p.sweepMemos()
 }
 
@@ -686,6 +883,14 @@ func (p *Page) TextInput(context app.TextInputContext) *app.TextInput {
 			return &entry.field.input
 		}
 	}
+	if h := p.control(context.ID); h != nil && h.Text != nil {
+		return h.Text(context)
+	}
+	if p.textRoute != nil {
+		if input := p.textRoute(p, context.ID); input != nil {
+			return input
+		}
+	}
 	if p.baseText != nil {
 		return p.baseText(context)
 	}
@@ -695,9 +900,19 @@ func (p *Page) TextInput(context app.TextInputContext) *app.TextInput {
 // Wheel scrolls an open Select, else the scroll area under the pointer, and gives
 // an event neither takes to the OnScroll Config was given. It is the Config's OnScroll.
 func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
+	if h := p.control(event.Target); h != nil && h.Scroll != nil {
+		if result := h.Scroll(event); result.Handled {
+			return result
+		}
+	}
 	for _, state := range p.selects {
 		if state.Open {
 			return state.Wheel(event)
+		}
+	}
+	if p.wheelRoute != nil {
+		if result, ok := p.wheelRoute(p, event); ok {
+			return result
 		}
 	}
 	if result := p.view.Wheel(event); result.Handled || result.Repaint {
@@ -709,17 +924,31 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	return gfx.EventResult{}
 }
 
-// State returns the element-private state of type T for the container being
-// filled, the n-th asked for in it in this paint: kept while the container is
-// declared, dropped two paints after it is not. It is for a component's own small
-// state (whether its list is open); the application's state stays in its model.
-// The first call for a place allocates the value; later ones do not.
-func State[T any](c C) *T {
-	p := c.page
-	scope := p.scopeOf()
-	n := c.stateSeq[scope]
-	c.stateSeq[scope] = n + 1
-	key := protoStateKey{scope: scope, n: n}
+// State returns the element-private state named name, of type T, of the container
+// being filled: kept while the container is declared, dropped two paints after it is
+// not. It is for a component's own small state (whether its list is open); the
+// application's state stays in its model. The first call for a place allocates the
+// value; later ones do not.
+//
+//	open := ui.State[bool](c, "open")
+//
+// The name is the state's in its container, so a State asked for only in some paints
+// (behind an if) does not take another's value. A component declared twice in one
+// container asks for the same name twice: those are told apart by their order, as
+// two Buttons are, so give each its own container or a Key when one of them comes
+// and goes.
+func State[T any](c C, name string) *T {
+	return stateIn[T](c.page, c.page.scopeOf(), name)
+}
+
+// stateIn is State in scope: a control's own scope, for state that follows the
+// value it is bound to rather than its place.
+func stateIn[T any](p *Page, scope gfx.Scope, name string) *T {
+	c := &p.ctx
+	at := stateName{scope: scope, name: name}
+	n := c.stateSeq[at]
+	c.stateSeq[at] = n + 1
+	key := protoStateKey{stateName: at, n: n}
 	entry, ok := p.states[key]
 	value, typed := entry.value.(*T)
 	if !ok || !typed {

@@ -22,9 +22,9 @@ import "github.com/vivaui/viva/gfx"
 // declared again in the same paint (the page's paint is taken back and done again,
 // once).
 //
-// A Memo holds no Scroll, List, Popover or Modal: their state is kept by being
-// declared. MemoCheck(true) declares every part and panics where a copy would have
-// differed from it: run tests with it.
+// A Memo holds no Scroll, List, Popover, Modal, Control or page (Frame.Page): their
+// state is kept by being declared. MemoCheck(true) declares every part and panics
+// where a copy would have differed from it: run tests with it.
 func Memo(c C, version uint64, fn func()) Box {
 	p := c.page
 	at, _ := p.name(pkMemo)
@@ -57,12 +57,14 @@ func Memo(c C, version uint64, fn func()) Box {
 	entry.reset()
 	entry.version = version
 	p.recording = append(p.recording, entry)
+	c.f.memoDepth++
 	// The part is named by the Memo's own place, so what is in it keeps its names
 	// whether the parts around it were declared or copied.
 	b := f.Column()
 	p.setNode(b.i, at)
 	b.Children(fn)
 	p.recording = p.recording[:len(p.recording)-1]
+	c.f.memoDepth--
 	if parent := len(p.recording); parent > 0 {
 		p.recording[parent-1].memos = append(p.recording[parent-1].memos, entry)
 	}

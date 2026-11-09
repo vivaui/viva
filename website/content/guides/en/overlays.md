@@ -77,7 +77,7 @@ func main() {
 
 A press outside the panel or Escape sets `open` to false. The press then goes on to what is under the pointer, as a web popover's does, so one click on another button both closes the menu and presses that button. A press on the anchor only closes the panel, so a trigger that toggles `open` does not open it again in the same click. The focus goes back to where it was when the panel opened. `Popover` reports the paint that closed it; a panel that must stay open sets `open` back to true there. With a `ui.Frame`, `f.Popover(anchor, ui.PopoverSpec{Scope: ..., DismissID: ...})` is the same panel with identities of yours, and `Dismissed()` reports the closing press.
 
-A popover shows in its window: one that must reach beyond the window's edges is a [window of its own](/en/docs/windows/).
+It fades in sliding a few pixels away from its anchor and fades out the same way, with the theme's motion (none when `Theme.Transition` is zero); what is leaving is only a picture and takes no press. A popover shows in its window: one that must reach beyond the window's edges is a [window of its own](/en/docs/windows/).
 
 The example's test checks all of it: a press at the far corner closes the menu, Escape closes it, and choosing Delete… closes it and opens the dialog.
 

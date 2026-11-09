@@ -27,7 +27,8 @@ var (
 )
 
 type Settings struct {
-	Name     ui.Field       ` + "`form:\"Name\" placeholder:\"Your name\"`" + `
+	Name     string         ` + "`form:\"Name\" placeholder:\"Your name\"`" + `
+	Command  ui.Field       ` + "`form:\"Command\"`" + `
 	Sync     bool           ` + "`form:\"Sync over SSH\"`" + `
 	Beta     bool           ` + "`form:\"Beta builds,checkbox\"`" + `
 	Theme    Theme          ` + "`form:\"Theme\" choices:\"themes,Theme.String\"`" + `
@@ -65,6 +66,7 @@ func TestFormDeclaresAControlPerTaggedField(t *testing.T) {
 		formHeader,
 		`func (v *Settings) Form(c ui.C) ui.Box {`,
 		`ui.TextField(c, &v.Name, "Name", "Your name")`,
+		`ui.TextField(c, &v.Command, "Command", "")`,
 		`ui.Switch(c, &v.Sync, "Sync over SSH")`,
 		`ui.Checkbox(c, &v.Beta, "Beta builds")`,
 		`ui.Choice(c, &v.Theme, themes, Theme.String)`,
@@ -97,7 +99,7 @@ func TestFormRejectsWhatItCannotDeclare(t *testing.T) {
 		{"N bool `form:\"On,select\"`", `option "select" does not apply to a switch`},
 		{"N Kind `form:\"Kind\" choices:\"kinds\"`", "need a function naming them"},
 		{"N string `form:\"Kind\" choices:\"\"`", "choices tag"},
-		{"N bool `form:\"On\" placeholder:\"x\"`", "placeholder tag applies to a ui.Field only"},
+		{"N bool `form:\"On\" placeholder:\"x\"`", "placeholder tag applies to a text field"},
 	} {
 		directory := writePackage(t, map[string]string{"a.go": "package a\n\ntype Kind int\n\ntype S struct {\n\t" + test.field + "\n}\n"})
 		_, _, err := generateForms(directory, nil)

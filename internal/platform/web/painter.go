@@ -400,7 +400,11 @@ func (p *painter) applyEventResult(result gfx.EventResult) bool {
 	if result.ClipboardText != "" {
 		setClipboardTextFromGesture(result.ClipboardText)
 	}
-	return p.focus.Apply(result)
+	changed := p.focus.Apply(result)
+	if !result.Activate.IsZero() && p.deliverClick(result.Activate) {
+		changed = true // the click's pass changed the application: show it
+	}
+	return changed
 }
 
 // paint reruns the application's paint callback on a cleared canvas with the

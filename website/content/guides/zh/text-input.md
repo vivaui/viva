@@ -7,7 +7,7 @@ group: guides
 
 文本是 Viva 与操作系统必须共享同一份文档的地方：平台的文本服务处理选区、光标、死键和输入法组合，而你的应用需要知道文本是什么。Viva 这样分工，让文本始终归应用所有。
 
-- **你持有文本。** 模型里的 `ui.Field` 包着一个 `text.Editor`。它保存文本、选区和输入法组合状态。你的代码用 `Text()` 读取它，用 `SetText` 修改它。
+- **你持有文本。** `ui.TextField` 编辑模型里的一个 `string`：用户输入的内容在下一遍绘制时已写进它，你赋给它的值就是输入框显示的内容。输入框的 `text.Editor`（选区、光标、输入法组合）由页面保存。如果你的代码还要读取或移动光标和选区（命令行、查找栏），就在模型里放一个 `ui.Field`：它就是那个编辑器，用 `Text()` 读取、用 `SetText` 修改，`ui.TextField` 同样接受它。
 - **平台驱动它。** 文本框获得焦点时，Viva 向窗口的 `Config.TextInput` 提供者询问这个字段对应哪个编辑器，把平台文本服务连到它，并把每个原生事件应用到它上面。页面（`ui.Run`、`ui.NewPage`）就是它所声明的 TextField 的提供者。
 - **绘制显示结果。** `ui.TextField` 根据编辑器绘制字段，焦点和光标已替你填好。
 
@@ -23,18 +23,18 @@ import (
 )
 
 type model struct {
-	name  ui.Field
+	name  string
 	saved string
 }
 
 func (m *model) page(c ui.C) {
 	ui.Column(c).Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
-		// The field owns its editor: typing, the caret, selection, the clipboard
-		// and input methods need nothing more. The page tells the platform which
-		// editor belongs to the focused field.
+		// m.name is the text: the field writes what is typed into it, and shows
+		// what the program puts there. Typing, the caret, selection, the clipboard
+		// and input methods need nothing more; the page keeps the field's editor.
 		ui.TextField(c, &m.name, "Name", "Your name").Width(320)
 		if ui.Button(c, "Save").Clicked() {
-			m.saved = m.name.Text()
+			m.saved = m.name
 		}
 		if m.saved != "" {
 			ui.Text(c, "Saved "+m.saved).Muted()
@@ -58,7 +58,7 @@ func main() {
 
 ## 绘制字段
 
-`ui.TextField(c, &m.name, label, placeholder)` 与 Frame 的 `f.Field(&m.name, id, label, placeholder)` 一样，直接从字段取得快照，不需要自己构造；`Changed` 报告用户编辑之后的第一次绘制，你自己调用的 `SetText` 不算；密码字段在字段上设置 `Secure`。自己绘制字段的组件则接受 `InputSnapshot`，它是字段某一帧的视图：`Value`、`Placeholder`、`Invalid`、`Disabled`、`ReadOnly` 和 `Secure`，以及 `Focused` 和 `PlatformEditing`。要留意最后一个（`f.Field` 会替你设置）。平台编辑器显示在屏幕上时，文本、光标和选区都由它自己绘制，静态标签不能画在它下面。所以 `PlatformEditing` 只在字段获得焦点且有文本时为真；焦点离开后，下一帧会把当前文本重新画成普通标签。示例的测试检查的正是这一点：点击 Save 之后，原生编辑器就消失了。
+`ui.TextField(c, &m.name, label, placeholder)` 与 Frame 的 `f.Field(&m.name, id, label, placeholder)` 一样，直接从字段取得快照，不需要自己构造；`Changed` 报告用户编辑之后的第一次绘制，你自己赋值或调用 `SetText` 不算；`.Secure()` 让它成为密码字段。自己绘制字段的组件则接受 `InputSnapshot`，它是字段某一帧的视图：`Value`、`Placeholder`、`Invalid`、`Disabled`、`ReadOnly` 和 `Secure`，以及 `Focused` 和 `PlatformEditing`。要留意最后一个（`f.Field` 会替你设置）。平台编辑器显示在屏幕上时，文本、光标和选区都由它自己绘制，静态标签不能画在它下面。所以 `PlatformEditing` 只在字段获得焦点且有文本时为真；焦点离开后，下一帧会把当前文本重新画成普通标签。示例的测试检查的正是这一点：点击 Save 之后，原生编辑器就消失了。
 
 快照里的选区和组合输入偏移量，是已绘制文本的 UTF-8 字节偏移；平台的文本事件使用的是 rune 索引。两者是不同的东西，不要在需要其中一个的地方传另一个。
 
@@ -72,13 +72,15 @@ func main() {
 
 ## 密码字段
 
-在 `ui.Field` 上设置 `Secure`（或 `InputSnapshot.Secure`）。组件为每个字符画一个圆点，永远不会把值暴露给无障碍树，运行时也会遮住平台文本服务绘制的内容。
+在 `ui.TextField` 上调用 `.Secure()`（或在 `ui.Field` 上设置 `Secure`，或设置 `InputSnapshot.Secure`）。组件为每个字符画一个圆点，永远不会把值暴露给无障碍树，运行时也会遮住平台文本服务绘制的内容。
 
 ## 多行与附加元素
 
 `components.PaintInputGroup` 接受同类型的快照，支持 `Multiline`，并提供四个附加槽位 `InlineStart`、`InlineEnd`、`BlockStart` 和 `BlockEnd`，用于图标、文字前缀和按钮。`f.Textarea` 和其他字段建立在同样的部件之上；[组件目录](/zh/ui/input/)里每个都有一页，带可运行的示例。
 
 ## 多行文本区域
+
+页面里写多行输入框，和单行一样传它编辑的字段：`ui.TextArea(c, &m.notes, "Notes", "").Height(120)`。回车换行，长行自动折行，行会滚动以跟随光标；页面负责按行移动光标（上、下、Home、End），并把编辑器交给平台。用 Frame 时写 `f.FieldArea(&m.notes, notesID, "Notes", "")`，并在窗口的 `OnKey` 里先把按键交给字段：`if r := m.notes.Key(event); r.Handled { return r }`。下面说明这些写法背后做了什么，适用于直接用组件搭建的输入框。
 
 `components.PaintTextarea` 默认按框宽软换行（`NoWrap` 关闭）。平台编辑器只认识一行，所以多行字段设置 `HideEditorText`，由组件自己画文字、选区、组合输入下划线和光标。需要换行后的光标行为时，把一个 `components.TextareaLayout` 放在应用里、与编辑器放在一起，并通过 `TextareaSnapshot.Layout` 传给每一帧：
 

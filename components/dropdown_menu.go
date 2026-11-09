@@ -189,6 +189,26 @@ func (item DropdownMenuItem) common() menuItem {
 	}
 }
 
+// DropdownMenuItemWidth is the width a dropdown menu needs for item's row to show
+// its icon, label and trailing content whole: take the largest over the menu's
+// items as the bounds' Width. The menu's own minimum still applies.
+func DropdownMenuItemWidth(canvas *gfx.Canvas, theme gfx.Theme, item DropdownMenuItem) float32 {
+	return menuItemWidth(canvas, theme, item.common(), false)
+}
+
+// DropdownMenuItemHeight is the height AddItem reserves for item.
+func DropdownMenuItemHeight(theme gfx.Theme, item DropdownMenuItem) float32 {
+	return menuItemHeight(theme, item.common(), 0)
+}
+
+// The heights AddLabel and AddSeparator reserve, and the padding of the surface
+// around its rows: a menu's bounds are as tall as its rows and twice the padding.
+const (
+	DropdownMenuLabelHeight     = menuLabelHeight
+	DropdownMenuSeparatorHeight = menuSeparatorHeight
+	DropdownMenuPadding         = menuPadding
+)
+
 // DropdownMenu paints a source-owned menu surface. Selection, open state,
 // placement, and keyboard routing remain application/runtime state.
 type DropdownMenu struct {

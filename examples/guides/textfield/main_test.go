@@ -20,8 +20,8 @@ func TestTextField(t *testing.T) {
 	if err := driver.Type("Ada"); err != nil {
 		t.Fatal(err)
 	}
-	if m.name.Text() != "Ada" {
-		t.Fatalf("editor = %q", m.name.Text())
+	if m.name != "Ada" {
+		t.Fatalf("editor = %q", m.name)
 	}
 	if editor := driver.Snapshot().Editor; editor == nil || editor.Value != "Ada" {
 		t.Fatalf("native editor overlay = %+v", driver.Snapshot().Editor)

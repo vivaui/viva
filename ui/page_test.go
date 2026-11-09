@@ -3,7 +3,9 @@ package ui_test
 import (
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -322,7 +324,7 @@ func BenchmarkRows1000Page(b *testing.B) {
 func combobox[T comparable](c ui.C, value *T, options []T, label func(T) string) ui.Box {
 	var root ui.Box
 	root = ui.Column(c.Part("combobox")).Children(func() {
-		open := ui.State[bool](c)
+		open := ui.State[bool](c, "open")
 		trigger := ui.Button(c.Part("trigger"), label(*value)).Outline()
 		if trigger.Clicked() {
 			*open = !*open
@@ -336,4 +338,223 @@ func combobox[T comparable](c ui.C, value *T, options []T, label func(T) string)
 		})
 	})
 	return root
+}
+
+// AutoFocus takes the focus as its element appears, not again while it stays, and
+// again after it was gone; Enter in a page's TextField is Submitted.
+func TestPageAutoFocusAndSubmit(t *testing.T) {
+	var query ui.Field
+	shown, submitted := true, ""
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			ui.Button(c, "Other")
+			if shown && ui.TextField(c, &query, "Search", "").AutoFocus().Submitted() {
+				submitted = query.Text()
+			}
+		})
+	})
+	if d.focused() != "Search" {
+		t.Fatalf("focus on open = %q", d.focused())
+	}
+	d.typeText("go")
+	d.key(gfx.KeyEnter)
+	if submitted != "go" {
+		t.Fatalf("submitted %q", submitted)
+	}
+	d.click("Other")
+	d.repaint()
+	if d.focused() != "Other" {
+		t.Fatalf("AutoFocus took the focus back: %q", d.focused())
+	}
+	shown = false
+	d.repaint()
+	shown = true
+	d.repaint()
+	if d.focused() != "Search" {
+		t.Fatalf("a field shown again did not take the focus: %q", d.focused())
+	}
+}
+
+func TestPageAutoFocusInAMemoPanics(t *testing.T) {
+	var query ui.Field
+	defer func() {
+		if recover() == nil {
+			t.Fatal("AutoFocus in a Memo did not panic")
+		}
+	}()
+	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
+	drawPage(page, canvas, func(c ui.C) {
+		ui.Memo(c, 1, func() { ui.TextField(c, &query, "Search", "").AutoFocus() })
+	})
+}
+
+// A Popover enters and leaves with the theme's motion, and the leaving picture takes
+// no press; a theme without transitions shows and hides it at once.
+func TestPagePopoverMoves(t *testing.T) {
+	still := pageTheme
+	still.Transition.Duration = 0
+	for _, test := range []struct {
+		name  string
+		theme *gfx.Theme
+		moves bool
+	}{{"moving", &pageTheme, true}, {"still", &still, false}} {
+		t.Run(test.name, func(t *testing.T) {
+			open := false
+			d := openPageWith(t, ui.PageConfig{Theme: test.theme, View: func(c ui.C) {
+				ui.Column(c).Pad(16).Children(func() {
+					more := ui.Button(c, "More")
+					if more.Clicked() {
+						open = !open
+					}
+					ui.Popover(c, more, &open, func() { ui.Button(c, "Rename") })
+				})
+			}}, app.Config{})
+			d.click("More")
+			if !open || d.driver.Transitioning() != test.moves {
+				t.Fatalf("open=%v transitioning=%v", open, d.driver.Transitioning())
+			}
+			if err := d.driver.Advance(300 * time.Millisecond); err != nil {
+				t.Fatal(err)
+			}
+			if d.driver.Transitioning() || !d.has("Rename") {
+				t.Fatal("the popover did not come to rest open")
+			}
+			d.key(gfx.KeyEscape)
+			if open || d.has("Rename") || d.driver.Transitioning() != test.moves {
+				t.Fatalf("closing: open=%v pressable=%v transitioning=%v", open, d.has("Rename"), d.driver.Transitioning())
+			}
+			if err := d.driver.Advance(300 * time.Millisecond); err != nil {
+				t.Fatal(err)
+			}
+			if d.driver.Transitioning() {
+				t.Fatal("the popover's exit never ended")
+			}
+		})
+	}
+}
+
+func BenchmarkPagePopoverOpen(b *testing.B) {
+	open := true
+	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
+	var now time.Duration // the presence runs on a clock, as in a window
+	canvas.SetClock(func() time.Duration { return now })
+	view := func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			more := ui.Button(c, "More")
+			ui.Popover(c, more, &open, func() {
+				ui.Button(c, "Rename")
+				ui.Button(c, "Delete")
+			})
+		})
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		now += 16 * time.Millisecond
+		drawPage(page, canvas, view)
+	}
+}
+
+// A TextArea edits its Field in rows: Enter is a new line, not a submission.
+func TestPageTextArea(t *testing.T) {
+	var notes ui.Field
+	changes := 0
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			if ui.TextArea(c, &notes, "Notes", "Anything to add").Width(300).Height(120).Changed() {
+				changes++
+			}
+			ui.Button(c, "After")
+		})
+	})
+	d.click("Notes")
+	if d.focused() != "Notes" {
+		t.Fatalf("focus = %q", d.focused())
+	}
+	d.typeText("one")
+	d.key(gfx.KeyEnter)
+	d.typeText("two")
+	if notes.Text() != "one\ntwo" || changes == 0 {
+		t.Fatalf("text %q, changes %d", notes.Text(), changes)
+	}
+	d.key(gfx.KeyUp)
+	d.typeText("!")
+	if notes.Text() != "one!\ntwo" {
+		t.Fatalf("Up did not move to the row above: %q", notes.Text())
+	}
+}
+
+// A Field declared as a TextArea and then as a one-line TextField moves by its line
+// again: Up goes to the start, not to a row it no longer shows.
+func TestPageFieldLeavesItsRows(t *testing.T) {
+	var notes ui.Field
+	area := true
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			if area {
+				ui.TextArea(c, &notes, "Notes", "").Width(300).Height(120)
+			} else {
+				ui.TextField(c, &notes, "Notes", "").Width(300)
+			}
+		})
+	})
+	d.click("Notes")
+	d.typeText("one")
+	d.key(gfx.KeyEnter)
+	d.typeText("two")
+	area = false
+	d.repaint()
+	if result := notes.Key(gfx.KeyEvent{Key: gfx.KeyUp, Target: d.hit("Notes").ID}); result.Handled {
+		t.Fatal("a one-line field still moves by the rows of the TextArea it was")
+	}
+}
+
+// A State asked for only in some paints does not take the value of another in the
+// same container: each is found by its name.
+func TestStateIsFoundByName(t *testing.T) {
+	var expanded, open *bool
+	extra := false
+	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
+	view := func(c ui.C) {
+		ui.Column(c).Children(func() {
+			if extra {
+				expanded = ui.State[bool](c, "expanded")
+			}
+			open = ui.State[bool](c, "open")
+		})
+	}
+	drawPage(page, canvas, view)
+	*open = true
+	extra = true
+	drawPage(page, canvas, view)
+	if !*open || *expanded {
+		t.Fatalf("open=%v expanded=%v after a State appeared before it", *open, *expanded)
+	}
+}
+
+// A Select's open list follows its value: a Select that appears above it does not
+// open in its place.
+func TestSelectStaysOpenWhenOneAppearsAbove(t *testing.T) {
+	size, color, first := "", "", false
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			if first {
+				ui.Select(c, &color, []string{"Red", "Blue"}, nil).Placeholder("Color")
+			}
+			ui.Select(c, &size, []string{"S", "M", "L"}, nil).Placeholder("Size")
+		})
+	})
+	var trigger gfx.Hit
+	for _, hit := range d.driver.Snapshot().Hits {
+		if hit.Role == gfx.RoleCombobox {
+			trigger = hit
+		}
+	}
+	if err := d.driver.Click(center(trigger.Bounds)); err != nil {
+		t.Fatal(err)
+	}
+	first = true
+	d.repaint()
+	if !d.has("L") || d.has("Red") {
+		t.Fatalf("size open=%v, color open=%v", d.has("L"), d.has("Red"))
+	}
 }

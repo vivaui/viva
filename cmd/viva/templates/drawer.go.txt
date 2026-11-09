@@ -171,11 +171,9 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 		drawer.canvas.HitWithOptions(drawer.options.DismissID, drawer.viewport, "Dismiss drawer", gfx.HitOptions{Role: gfx.RoleButton, Disabled: drawer.disabled, SkipFocus: true, Backdrop: true})
 	}
 	metrics := drawer.theme.Metrics
-	padding := metrics.PadSurface
 	var scratch overlayLines
-	lines := overlayWrap(drawer.canvas, &scratch, description, metrics.FontSizeM, gfx.WeightRegular, drawer.contentWidth()-2*padding)
-	headerHeight := drawerHeaderHeight(metrics, len(lines))
-	content := drawer.contentBounds(headerHeight)
+	layout, lines := drawer.layout(&scratch, description)
+	content := layout.Content
 	look := dialogRecipe(&drawer.theme)
 	radius := look.Radius
 	drawer.canvas.BeginPresence(key, overlaySurfacePart, drawer.presence(content), centerOf(content))
@@ -184,12 +182,44 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 	// The panel is opaque to pointers: pressing it must not reach the dismiss
 	// target behind it.
 	drawer.canvas.Block(content)
+	if drawer.showHandle {
+		drawer.canvas.Rounded(layout.Handle, min(layout.Handle.Width, layout.Handle.Height)/2, drawer.theme.Muted)
+	}
+	inner := layout.Header
+	titleHeight := overlayLineHeight(metrics)
+	drawer.canvas.Label(title, gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: titleHeight}, gfx.TextStyle{Size: overlayTitleSize(metrics), Weight: gfx.WeightMedium, Color: drawer.theme.Foreground})
+	overlayParagraph(drawer.canvas, lines, gfx.Rect{X: inner.X, Y: inner.Y + titleHeight + drawerTitleGap, Width: inner.Width}, overlayLineHeight(metrics), gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: drawer.theme.MutedForeground,
+	}, false)
+	if !drawer.options.CloseID.IsZero() {
+		drawer.paintClose(layout.Close)
+	}
+	return layout
+}
 
+// Layout is where the parts of the drawer go for its viewport, without painting
+// anything: Begin paints at exactly these rectangles. The description wraps to
+// the drawer's width, so the header grows with its lines; without a canvas to
+// measure them it counts as one line.
+func (drawer Drawer) Layout(description string) DrawerLayout {
+	var scratch overlayLines
+	layout, _ := drawer.layout(&scratch, description)
+	return layout
+}
+
+func (drawer Drawer) layout(scratch *overlayLines, description string) (DrawerLayout, []string) {
+	if drawer.viewport.Width <= 0 || drawer.viewport.Height <= 0 {
+		return DrawerLayout{}, nil
+	}
+	metrics := drawer.theme.Metrics
+	padding := metrics.PadSurface
+	lines := overlayWrap(drawer.canvas, scratch, description, metrics.FontSizeM, gfx.WeightRegular, drawer.contentWidth()-2*padding)
+	headerHeight := drawerHeaderHeight(metrics, len(lines))
+	content := drawer.contentBounds(headerHeight)
 	inner := content.Inset(gfx.All(padding))
 	layout := DrawerLayout{Content: content}
 	if drawer.showHandle {
 		layout.Handle = drawer.handleBounds(content)
-		drawer.canvas.Rounded(layout.Handle, min(layout.Handle.Width, layout.Handle.Height)/2, drawer.theme.Muted)
 		if drawer.options.Side == DrawerTop || drawer.options.Side == DrawerBottom {
 			inner.Y += drawerHandleReach(metrics)
 			inner.Height = max(0, inner.Height-drawerHandleReach(metrics))
@@ -199,20 +229,14 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 		}
 	}
 	footerHeight := dialogFooterHeight(metrics, drawer.options.ButtonSize)
-	titleHeight := overlayLineHeight(metrics)
 	layout.Header = gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: headerHeight}
 	layout.Footer = gfx.Rect{X: inner.X, Y: inner.Y + inner.Height - footerHeight, Width: inner.Width, Height: footerHeight}
 	layout.Body = gfx.Rect{X: inner.X, Y: layout.Header.Y + layout.Header.Height + metrics.GapItem, Width: inner.Width, Height: max(0, layout.Footer.Y-layout.Header.Y-layout.Header.Height-metrics.GapItem*2)}
-	drawer.canvas.Label(title, gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: titleHeight}, gfx.TextStyle{Size: overlayTitleSize(metrics), Weight: gfx.WeightMedium, Color: drawer.theme.Foreground})
-	overlayParagraph(drawer.canvas, lines, gfx.Rect{X: inner.X, Y: inner.Y + titleHeight + drawerTitleGap, Width: inner.Width}, overlayLineHeight(metrics), gfx.TextStyle{
-		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: drawer.theme.MutedForeground,
-	}, false)
 	if !drawer.options.CloseID.IsZero() {
 		closeSize := metrics.ControlHeight
 		layout.Close = gfx.Rect{X: content.X + content.Width - padding - closeSize, Y: content.Y + padding, Width: closeSize, Height: closeSize}
-		drawer.paintClose(layout.Close)
 	}
-	return layout
+	return layout, lines
 }
 
 // The swipe handle is 100x6 (`h-1.5 w-[100px]`) and sits 16px (`mt-4`) in from the

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ProtocolVersion = 23
+	ProtocolVersion = 24
 	MaxFrameBytes   = 32 << 20
 	MaxStateBytes   = 8 << 20
 	maxItems        = 200_000
@@ -434,6 +434,8 @@ func encodeEventResult(value gfx.EventResult) []byte {
 	result.bool(value.Blur)
 	result.bool(value.FocusVisible)
 	result.string(value.ClipboardText)
+	result.bool(value.ContinueTraversal)
+	result.id(value.Activate)
 	return result.data
 }
 
@@ -441,7 +443,7 @@ func decodeEventResult(data []byte) (gfx.EventResult, error) {
 	value := decoder{data: data}
 	result := gfx.EventResult{
 		Focus: value.id(), Handled: value.bool(), Repaint: value.bool(), Blur: value.bool(), FocusVisible: value.bool(),
-		ClipboardText: value.string(),
+		ClipboardText: value.string(), ContinueTraversal: value.bool(), Activate: value.id(),
 	}
 	return result, value.finish()
 }

@@ -119,7 +119,10 @@ func (f *Frame) paintPopover(i int32, n *node) {
 	savedLayer := f.widgets.layer
 	f.widgets.layer = layer
 	n.flags &^= flagPopover
+	presence, pivot := components.PopupMotion(f.theme, n.rect, f.nodes[d.anchor].rect)
+	canvas.BeginPresence(spec.Scope, 0, presence, pivot)
 	f.paint(i)
+	canvas.EndPresence()
 	f.nodes[i].flags |= flagPopover
 	f.widgets.layer = savedLayer
 	if !spec.DismissID.IsZero() {

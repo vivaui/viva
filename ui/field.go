@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"unicode/utf8"
+
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
@@ -35,6 +37,11 @@ type Field struct {
 	// declaration found it edited since the one before (Box.Changed).
 	seen    string
 	changed bool
+	// area lays a field out in rows when it is declared as a FieldArea; nil until it
+	// is. rows is whether the last declaration was one: a field declared as a
+	// FieldArea once and as a Field since keeps its layout but moves by its line.
+	area *components.TextareaLayout
+	rows bool
 }
 
 func (field *Field) ensure() *text.Editor {
@@ -72,9 +79,53 @@ func (f *Frame) FieldBase(field *Field, id gfx.ID, label, placeholder string) Bo
 	return f.InputBase(field.snapshot(f, id, label, placeholder))
 }
 
+// FieldArea is Field in several rows, with the shadcn textarea look: the same
+// editor, focus and platform editing, Enter starting a new line, long lines wrapped
+// and the rows scrolled to follow the caret. Give it a Height (it is one row tall
+// otherwise). It has no Submitted: Enter is a new line.
+//
+//	f.FieldArea(&m.notes, notesID, "Notes", "Anything to add").Height(120)
+func (f *Frame) FieldArea(field *Field, id gfx.ID, label, placeholder string) Box {
+	input := field.snapshot(f, id, label, placeholder)
+	if field.area == nil {
+		field.area = new(components.TextareaLayout)
+	}
+	field.rows = true
+	return f.Textarea(components.TextareaSnapshot{
+		ID: input.ID, Label: input.Label, Value: input.Value, DisplayValue: input.Value, Placeholder: placeholder,
+		Focused: input.Focused, HideEditorText: true, ShowCaret: input.ShowCaret, Layout: field.area,
+		Caret: input.Caret, SelectionStart: input.SelectionStart, SelectionEnd: input.SelectionEnd,
+		CompositionStart: input.CompositionStart, CompositionEnd: input.CompositionEnd,
+	})
+}
+
+// Key moves the caret of a FieldArea by the rows it shows: Up and Down to the row
+// above and below at the same place across, Home and End to the start and end of
+// the row, with Shift to select. The platform's editor knows one line, so these
+// are the field's. It returns Handled for a key it acted on; give it the window's
+// keys before anything else that would take them (a page does this for its
+// TextAreas):
+//
+//	if result := m.notes.Key(event); result.Handled { return result }
+func (field *Field) Key(event gfx.KeyEvent) gfx.EventResult {
+	if !field.rows || event.Target != field.id || field.id.IsZero() {
+		return gfx.EventResult{}
+	}
+	movement, extend := components.TextareaMovementForKey(event.Key, event.Modifiers)
+	if movement == components.TextareaMoveNone {
+		return gfx.EventResult{}
+	}
+	editor := field.ensure()
+	value := editor.String()
+	to := field.area.Move(value, editor.ByteOffset(editor.Caret()), movement)
+	editor.MoveTo(utf8.RuneCountInString(value[:to]), extend)
+	return gfx.EventResult{Handled: true, Repaint: true}
+}
+
 // snapshot is what the field is painted from: focus, platform editing and the caret are
 // filled in for the frame being declared.
 func (field *Field) snapshot(f *Frame, id gfx.ID, label, placeholder string) components.InputSnapshot {
+	field.rows = false // FieldArea sets it again after
 	editor := field.ensure()
 	field.id = id
 	value := editor.String()

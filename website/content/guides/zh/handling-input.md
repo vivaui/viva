@@ -188,6 +188,8 @@ if id.Scope() == rows {                    // 点击到来时
 
 ## 快捷键
 
+页面用 `ui.Shortcut` 和 `Box.Shortcut` 在快捷键起作用的地方声明它（见[声明式布局](/zh/docs/declarative-layout/)），不需要下面这些。自己写的处理器匹配到组合键、想让它像点击某个控件那样生效时，在结果里返回带那个控件标识的 `EventResult.Activate`：这一遍绘制会作为该点击的事件遍运行，与在获得焦点的按钮上按回车相同。
+
 `OnShortcut` 在原生文本系统看到之前，先收到可打印按键组合，主要是带 Control 或 Command 的。只对应用自己拥有的组合返回 `Handled`：未处理的组合会继续走正常的文本编辑，所以在文本框里 Command-C 仍然是复制。在 Windows 上，获得焦点的普通文本框会先拿走标准编辑与剪贴板组合（复制、剪切、粘贴、全选、撤销、重做、Home/End、按词和按文档移动），终端和 `Placed` 编辑器不会。示例用 `primary()` 辅助函数来比较 `Modifiers`，因为常规的按键在 macOS 上是 Command，在其他平台上是 Control。
 
 ## 在列表中打字

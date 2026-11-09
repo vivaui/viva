@@ -422,6 +422,15 @@ func popupPivot(content gfx.Rect, side OverlaySide, anchor gfx.Rect) gfx.Point {
 	return gfx.Point{X: centerX, Y: content.Y}
 }
 
+// PopupMotion is how a popup that the application placed at content, next to
+// anchor, enters and leaves (fading, sliding a few pixels away from the anchor) and
+// the point it grows from: what a menu or popover passes to Canvas.BeginPresence
+// around its panel. The presence is empty when the theme turns transitions off.
+func PopupMotion(theme gfx.Theme, content, anchor gfx.Rect) (gfx.Presence, gfx.Point) {
+	side := popupSideOf(content, anchor)
+	return popupPresence(theme, overlayDuration, side), popupPivot(content, side, anchor)
+}
+
 // popupSideOf is the edge of anchor a popup that the application placed sits on:
 // under it, or over it when it is higher.
 func popupSideOf(content, anchor gfx.Rect) OverlaySide {

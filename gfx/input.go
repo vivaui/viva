@@ -292,4 +292,9 @@ type EventResult struct {
 	ContinueTraversal bool
 	FocusVisible      bool
 	ClipboardText     string
+	// Activate carries out a click on the control it names, as Enter on a focused
+	// button does: the paint runs once more as that click's event pass (Clicked is
+	// true for it there) and the window repaints. A keyboard shortcut is delivered
+	// this way, so the action it names runs where the control is declared.
+	Activate ID
 }

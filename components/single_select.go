@@ -33,6 +33,9 @@ type SingleSelectState struct {
 	Open                              bool
 	Active                            int
 	AllowCreate, MatchCaseInsensitive bool
+	// LabelsOnly makes the query match the options' labels (and Search), not their
+	// values: for values that are keys of the caller's, which the user never sees.
+	LabelsOnly bool
 	// Separator, when set, makes the popup hierarchical: values are paths whose
 	// segments are split at Separator, the list shows the first segment and a
 	// row with children opens a fly-out of the next. Choosing any row, a parent
@@ -126,7 +129,7 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 		exact = exact || s.equal(query, option.Value) || s.equal(query, label)
 		haveValue = haveValue || s.equal(s.value, option.Value)
 		if query != "" && !strings.Contains(strings.ToLower(label), match) &&
-			!strings.Contains(strings.ToLower(option.Value), match) &&
+			(s.LabelsOnly || !strings.Contains(strings.ToLower(option.Value), match)) &&
 			!strings.Contains(strings.ToLower(option.Search), match) {
 			return
 		}
