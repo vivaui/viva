@@ -533,6 +533,9 @@ func (editor *Editor) ClearHistory() {
 	editor.historyIndex = 0
 	editor.historyRunes = 0
 	editor.coalescing = 0
+	if point := editor.savePointIndex(); point != nil {
+		*point = 0
+	}
 }
 
 func (editor *Editor) selectionState() editorSelection {
@@ -546,21 +549,29 @@ func (editor *Editor) restoreSelection(selection editorSelection) {
 }
 
 func (editor *Editor) record(change textChange, before, after editorSelection, kind editKind) {
-	if runesEqual(change.removed, change.inserted) {
+	editor.recordWithPrimitives(change, before, after, kind, nil)
+}
+
+func (editor *Editor) recordWithPrimitives(change textChange, before, after editorSelection, kind editKind, primitives []Edit) {
+	if len(change.removed) == 0 && len(change.inserted) == 0 && len(primitives) == 0 {
+		return
+	}
+	if runesEqual(change.removed, change.inserted) && editor.savePointIndex() == nil {
 		return
 	}
 	editor.dropRedo()
-	if editor.merge(change, before, after, kind) {
+	if len(primitives) == 0 && editor.merge(change, before, after, kind) {
 		editor.trimHistory()
 		return
 	}
 	edit := historyEdit{
 		start: change.start, removed: change.removed, inserted: change.inserted,
 		before: before, after: after, kind: kind,
+		primitives: primitives,
 	}
 	editor.history = append(editor.history, edit)
 	editor.historyIndex = len(editor.history)
-	editor.historyRunes += len(edit.removed) + len(edit.inserted)
+	editor.historyRunes += edit.retainedRunes()
 	if kind == editSeparate {
 		editor.coalescing = 0
 	} else {
@@ -571,6 +582,9 @@ func (editor *Editor) record(change textChange, before, after editorSelection, k
 
 func (editor *Editor) merge(change textChange, before, after editorSelection, kind editKind) bool {
 	if editor.coalescing != kind || editor.historyIndex == 0 || editor.historyIndex != len(editor.history) {
+		return false
+	}
+	if editor.AtSavePoint() {
 		return false
 	}
 	previous := &editor.history[editor.historyIndex-1]
@@ -617,6 +631,9 @@ func (editor *Editor) dropRedo() {
 	if editor.historyIndex == len(editor.history) {
 		return
 	}
+	if point := editor.savePointIndex(); point != nil && *point > editor.historyIndex {
+		*point = -1
+	}
 	for index := editor.historyIndex; index < len(editor.history); index++ {
 		editor.historyRunes -= editor.history[index].retainedRunes()
 	}
@@ -635,10 +652,19 @@ func (editor *Editor) trimHistory() {
 	}
 	if len(editor.history)-remove == 1 && editor.historyRunes > maxSingleEditRunes {
 		editor.ClearHistory()
+		if point := editor.savePointIndex(); point != nil {
+			*point = -1
+		}
 		return
 	}
 	if remove == 0 {
 		return
+	}
+	if point := editor.savePointIndex(); point != nil && *point >= 0 {
+		*point -= remove
+		if *point < 0 {
+			*point = -1
+		}
 	}
 	copy(editor.history, editor.history[remove:])
 	clear(editor.history[len(editor.history)-remove:])

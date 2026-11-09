@@ -22,7 +22,8 @@ type ReplaceRangesOptions struct {
 	// retained by Undo/Redo. Nil keeps the default caret after the last target.
 	AfterSelection *Range
 	// ApplyUnchanged reports target primitives even when final text is equal.
-	// Equal text does not add an Undo unit or discard an existing Redo unit.
+	// Without save-point mode equal text adds no Undo unit and preserves Redo.
+	// SetSavePoint opts into retaining those actual replacements in history.
 	ApplyUnchanged bool
 }
 
@@ -70,7 +71,7 @@ func (editor *Editor) ValidateReplaceRanges(edits []Replacement, options Replace
 
 // ReplaceRangesWith validates and applies a batch with optional primitive order
 // and final selection. An empty batch is a no-op. Unchanged text is also a no-op
-// unless ApplyUnchanged is set; otherwise final selection is not changed.
+// unless ApplyUnchanged or save-point mode is enabled; otherwise final selection is unchanged.
 func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRangesOptions) error {
 	if err := editor.ValidateReplaceRanges(edits, options); err != nil {
 		return err
@@ -107,7 +108,7 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 		position = edit.Range.End
 	}
 	changed := !slices.Equal(replacement, editor.runes[start:end])
-	if !changed && !options.ApplyUnchanged {
+	if !changed && !options.ApplyUnchanged && editor.savePointIndex() == nil {
 		return nil
 	}
 	if options.Forward {
@@ -119,23 +120,24 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 	} else {
 		slices.Reverse(primitives)
 	}
-	editor.commitBatch(Range{Start: start, End: end}, string(replacement), primitives, options.AfterSelection, changed)
+	editor.commitBatch(Range{Start: start, End: end}, string(replacement), primitives, options.AfterSelection)
 	return nil
 }
 
-func (editor *Editor) commitBatch(target Range, replacement string, primitives []Edit, after *Range, changed bool) {
+func (editor *Editor) commitBatch(target Range, replacement string, primitives []Edit, after *Range) {
+	target = normalizeRange(target, len(editor.runes))
+	before := editor.selectionState()
 	journal := editor.journal
 	editor.journal = nil
-	editor.ReplaceRange(target, replacement)
+	change := editor.replace(target, replacement, false)
 	editor.journal = journal
+	editor.collapse(target.Start + len(change.inserted))
+	editor.composing = false
 	if after != nil {
 		editor.SetSelection(*after)
 	}
-	if changed && editor.historyIndex > 0 {
-		editor.history[editor.historyIndex-1].primitives = primitives
-		editor.history[editor.historyIndex-1].after = editor.selectionState()
-		editor.historyRunes += historyPrimitiveRunes * len(primitives)
-		editor.trimHistory()
+	if len(primitives) != 0 {
+		editor.recordWithPrimitives(change, before, editor.selectionState(), editSeparate, primitives)
 	}
 	editor.recordBatchEdits(primitives, false)
 }

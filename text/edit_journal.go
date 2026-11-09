@@ -17,6 +17,8 @@ type editJournal struct {
 	entries   []Edit
 	oldest    int
 	unlimited bool
+	tracking  bool
+	savePoint *int
 }
 
 // TrackEdits enables a bounded mutation journal and returns its current cursor.
@@ -26,6 +28,7 @@ func (editor *Editor) TrackEdits() uint64 {
 	if editor.journal == nil {
 		editor.journal = &editJournal{}
 	}
+	editor.journal.tracking = true
 	return editor.journal.revision
 }
 
@@ -40,7 +43,7 @@ func (editor *Editor) TrackEdits() uint64 {
 func (editor *Editor) EditsSince(cursor uint64, dst []Edit) ([]Edit, uint64, bool) {
 	dst = dst[:0]
 	journal := editor.journal
-	if journal == nil {
+	if journal == nil || !journal.tracking {
 		return dst, 0, false
 	}
 	if cursor > journal.revision || journal.revision-cursor > uint64(len(journal.entries)) {
@@ -55,7 +58,7 @@ func (editor *Editor) EditsSince(cursor uint64, dst []Edit) ([]Edit, uint64, boo
 }
 
 func (editor *Editor) prepareEdit(start, end int, replacement []rune) Edit {
-	if editor.journal == nil {
+	if editor.journal == nil || !editor.journal.tracking {
 		return Edit{}
 	}
 	at, offset := editor.offsets.index, editor.offsets.offset
@@ -93,7 +96,7 @@ func runeBytes(character rune) int {
 
 func (editor *Editor) recordEdit(edit Edit) {
 	journal := editor.journal
-	if journal == nil || edit.Removed == 0 && edit.Inserted == 0 {
+	if journal == nil || !journal.tracking || edit.Removed == 0 && edit.Inserted == 0 {
 		return
 	}
 	if journal.unlimited || len(journal.entries) < EditJournalLimit {
@@ -106,7 +109,7 @@ func (editor *Editor) recordEdit(edit Edit) {
 }
 
 func (editor *Editor) recordBatchEdits(primitives []Edit, inverse bool) {
-	if editor.journal == nil {
+	if editor.journal == nil || !editor.journal.tracking {
 		return
 	}
 	if inverse {

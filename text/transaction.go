@@ -25,8 +25,11 @@ func (editor *Editor) Transact(apply func(*Editor) error) error {
 	draft := NewEditor(before)
 	draft.anchor, draft.caret = selection.anchor, selection.caret
 	draft.code, draft.codeSet, draft.overwrite = editor.code, editor.codeSet, editor.overwrite
-	recorder := &editJournal{unlimited: true}
+	recorder := &editJournal{unlimited: true, tracking: true}
 	draft.journal = recorder
+	if editor.savePointIndex() != nil {
+		draft.SetSavePoint()
+	}
 	defer func() { draft.journal = nil }()
 	if err := apply(draft); err != nil {
 		return err
@@ -48,6 +51,6 @@ func (editor *Editor) Transact(apply func(*Editor) error) error {
 		editor.SetSelection(after)
 		return nil
 	}
-	editor.commitBatch(target, value, primitives, &after, value != before)
+	editor.commitBatch(target, value, primitives, &after)
 	return nil
 }
