@@ -206,6 +206,7 @@ type extra struct {
 	tooltip       string           // what Tooltip says over the element; empty for none
 	addons        int32            // 1 + the index of the field's icon and button in Frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
+	focusOrder    FocusOrder       // FocusOrder: how the group chooses the next member; nil is its axis
 	layout        Layout           // CustomLayout: who measures and places the children
 }
 

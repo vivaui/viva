@@ -169,3 +169,74 @@ func TestRovingStripIsBuildableFromThePublicAPI(t *testing.T) {
 		t.Fatalf("End: focused %q, selected %d; want tab 2 and 2", d.focused(), m.selected)
 	}
 }
+
+// gridFocusModel is a third-party-style 2D grid: FocusOrder replaces the
+// group's linear arrows with row and column movement.
+type gridFocusModel struct {
+	columns int
+	orderFn ui.FocusOrder
+	view    func(ui.C)
+}
+
+func (m *gridFocusModel) order(current int, key gfx.Key, count int) (int, bool) {
+	switch key {
+	case gfx.KeyLeft:
+		if current%m.columns == 0 {
+			return current, true
+		}
+		return current - 1, true
+	case gfx.KeyRight:
+		if current%m.columns == m.columns-1 || current+1 >= count {
+			return current, true
+		}
+		return current + 1, true
+	case gfx.KeyUp:
+		return max(current-m.columns, 0), true
+	case gfx.KeyDown:
+		return min(current+m.columns, count-1), true
+	}
+	return 0, false
+}
+
+func (m *gridFocusModel) page(c ui.C) {
+	ui.Grid(c, 140).FocusGroup(ui.FocusBoth).FocusOrder(m.orderFn).Children(func() {
+		for i := range 6 {
+			ui.Button(c, fmt.Sprintf("cell %d", i))
+		}
+	})
+}
+
+// A grid moves the focus by row and column through FocusOrder, and keeps the
+// group's axis for the keys it leaves alone.
+func TestFocusOrderMovesAGridByRowsAndColumns(t *testing.T) {
+	m := &gridFocusModel{columns: 3}
+	m.orderFn = m.order
+	m.view = m.page
+	d := openPage(t, m.view)
+	d.click("cell 0")
+	d.key(gfx.KeyRight)
+	if d.focused() != "cell 1" {
+		t.Fatalf("Right focused %q", d.focused())
+	}
+	d.key(gfx.KeyDown)
+	if d.focused() != "cell 4" {
+		t.Fatalf("Down from cell 1 focused %q, want cell 4", d.focused())
+	}
+	d.key(gfx.KeyLeft)
+	if d.focused() != "cell 3" {
+		t.Fatalf("Left focused %q", d.focused())
+	}
+	d.key(gfx.KeyUp)
+	if d.focused() != "cell 0" {
+		t.Fatalf("Up focused %q", d.focused())
+	}
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyDown)
+	if d.focused() != "cell 5" {
+		t.Fatalf("Down twice focused %q", d.focused())
+	}
+	d.key(gfx.KeyEnd) // not handled by the order: the group's axis goes to the end
+	if d.focused() != "cell 5" {
+		t.Fatalf("End focused %q", d.focused())
+	}
+}

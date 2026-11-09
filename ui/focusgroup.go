@@ -4,6 +4,31 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
+// FocusOrder chooses the member a key moves to in a FocusGroup: current is the
+// member's index in declaration order, count how many the group has. It returns
+// false for a key it does not handle, and the group then uses its axis. Keep the
+// function in the model; it runs on every paint and must not allocate.
+//
+// A grid uses it for two dimensions:
+//
+//	func (m *grid) order(current int, key gfx.Key, count int) (int, bool) {
+//		columns := m.columns
+//		switch key {
+//		case gfx.KeyLeft:
+//			if current%columns == 0 { return current, true }
+//			return current - 1, true
+//		case gfx.KeyRight:
+//			if current%columns == columns-1 || current+1 >= count { return current, true }
+//			return current + 1, true
+//		case gfx.KeyUp:
+//			return max(current-columns, 0), true
+//		case gfx.KeyDown:
+//			return min(current+columns, count-1), true
+//		}
+//		return 0, false
+//	}
+type FocusOrder func(current int, key gfx.Key, count int) (next int, ok bool)
+
 // FocusAxis is the arrow keys a FocusGroup moves the focus with.
 type FocusAxis uint8
 
@@ -47,10 +72,27 @@ func (b Box) FocusGroup(axis FocusAxis) Box {
 	return b
 }
 
-// focusGroup is a FocusGroup painted in the last paint: its axis, and where its
-// members are in Page.groupIDs.
+// FocusOrder gives a FocusGroup its own choice of the member each key moves to:
+// a grid moves by row and column instead of by declaration order. Call it after
+// FocusGroup. The function is kept as it is: keep it in the model, not in the
+// paint, and make it handle the keys it wants; any other key falls back to the
+// group's axis. Not inside a Memo.
+func (b Box) FocusOrder(order FocusOrder) Box {
+	if order == nil {
+		panic("ui: FocusOrder needs a function")
+	}
+	if b.f.extra(b.i).focusGroup == 0 {
+		panic("ui: FocusOrder is for a FocusGroup: call FocusGroup first")
+	}
+	b.f.extra(b.i).focusOrder = order
+	return b
+}
+
+// focusGroup is a FocusGroup painted in the last paint: its axis, its own order
+// when it has one, and where its members are in Page.groupIDs.
 type focusGroup struct {
 	axis       FocusAxis
+	order      FocusOrder
 	start, end int32
 }
 
@@ -78,7 +120,8 @@ func (f *Frame) endFocusGroup(i int32, axis FocusAxis, from gfx.Mark) {
 		p.groupStops = map[gfx.ID]groupStop{}
 	}
 	p.groupStops[key] = groupStop{id: stop, epoch: p.epoch}
-	p.groups = append(p.groups, focusGroup{axis: axis, start: start, end: int32(len(ids))})
+	order := f.exts[f.nodes[i].ext].focusOrder
+	p.groups = append(p.groups, focusGroup{axis: axis, order: order, start: start, end: int32(len(ids))})
 }
 
 // sweepGroups forgets the Tab stop of the groups the paint did not declare.
@@ -111,6 +154,14 @@ func (p *Page) groupKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		}
 		if at < 0 {
 			continue
+		}
+		if g.order != nil {
+			if next, ok := g.order(at, event.Key, len(members)); ok {
+				if next < 0 || next >= len(members) {
+					panic("ui: FocusOrder returned an index outside its group")
+				}
+				return gfx.EventResult{Handled: true, Repaint: true, Focus: members[next], FocusVisible: true}, true
+			}
 		}
 		horizontal, vertical := g.axis != FocusVertical, g.axis != FocusHorizontal
 		next := at
