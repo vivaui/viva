@@ -247,8 +247,8 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/ui"
 )
 
 var (
