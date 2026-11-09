@@ -21,6 +21,29 @@ func (p *Page) rove(f *Frame, node Box, tabs bool) {
 	}
 }
 
+// slides records that state, a Slider declared in this paint, takes the keys that
+// move its thumb while it has the focus.
+func (p *Page) slides(state *SliderState) {
+	p.sliders = append(p.sliders, state)
+	if p.sliderRoute == nil {
+		p.keyRoute, p.sliderRoute = (*Page).routeKey, (*Page).sliderKey
+	}
+}
+
+// sliderKey gives a key to the Slider that has the focus: arrows by a step, Shift and
+// Page Up and Down by ten, Home and End to the ends of the range.
+func (p *Page) sliderKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if event.Release {
+		return gfx.EventResult{}, false
+	}
+	for _, state := range p.sliders {
+		if result := state.Key(event); result.Handled {
+			return result, true
+		}
+	}
+	return gfx.EventResult{}, false
+}
+
 // roveKey moves between the options of the Choice or Tabs strip the focus is in:
 // Left and Right (Up and Down for vertical tabs) to the next enabled option, Home and
 // End to the first and last. The focus moves and the option it moves to is chosen,

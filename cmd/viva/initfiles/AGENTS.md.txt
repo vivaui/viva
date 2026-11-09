@@ -103,6 +103,16 @@ func (m *model) page(c ui.C) {
 - A control of your own (terminal, editor, drawing canvas): `ui.Control(c, "Label", &m.handlers).Grow(1).Draw(m.draw)`;
   `ui.Handlers` has Key, Pointer, Scroll and, with Role RoleTerminal or RoleTextField, Text for typing
   and input methods. Keep the Handlers and the draw function in the model; declare no identities.
+  A control with several interactive parts (the stars of a rating, a graph's nodes) declares them as it draws:
+  `d.Canvas.HitWithOptions(m.handlers.Parts().At(i), rect, "Star 3", opts)`; a key, press or wheel on a part reaches
+  the same Handlers with the part as the event's Target (`event.Target.In(m.handlers.Parts())` gives i). A printable key
+  typed while the control or a part has the focus reaches Key with its Text (Key zero), so typeahead needs no extra wiring.
+- A toolbar, or any row or column of controls that is one Tab stop with arrow keys between them:
+  `ui.Row(c).FocusGroup(ui.FocusHorizontal).Children(...)` (`FocusVertical`, `FocusBoth`); Tab reaches the member that had the
+  focus last, the arrows and Home/End move among the members (wrapping), and a text field, combobox or slider inside keeps its own.
+- A control with a look of your own: `ui.ButtonBase`, `CheckboxBase`, `SwitchBase`, `ToggleBase`, `RadioBase`, `TabBase`,
+  `SliderBase`, `SelectBase` and `TextFieldBase` are the controls without their look, bound like their dressed forms; give them
+  Background, Border, Radius and Draw (and Children, for the row-shaped ones). Do not copy a control to restyle it.
 - A part that rarely changes: `ui.Memo(c.KeyInt(id), version, func() { ... })` is copied from the last
   paint while `version` is the same; bump `version` when what the function reads changes.
 - Your own component is a function of the same shape: `func Card(c ui.C, title string, body func()) ui.Box`.

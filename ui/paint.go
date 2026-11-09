@@ -83,6 +83,10 @@ func (f *Frame) paint(i int32) {
 	if extra.tooltip != "" {
 		hits = canvas.Mark()
 	}
+	var group gfx.Mark // where the hits of a FocusGroup start
+	if extra.focusGroup != 0 && canvas != nil {
+		group = canvas.Mark()
+	}
 	if hasHit && (n.kind == kindContainer || n.kind == kindText || n.kind == kindIcon || n.kind == kindSlot) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
@@ -120,6 +124,9 @@ func (f *Frame) paint(i int32) {
 	}
 	if hooks.over != nil {
 		f.runDraw(n, hooks.over)
+	}
+	if extra.focusGroup != 0 && canvas != nil {
+		f.groupFn(f, i, extra.focusGroup, group)
 	}
 	if extra.tooltip != "" {
 		// The element's hit, which a container, a control or its Draw declared.

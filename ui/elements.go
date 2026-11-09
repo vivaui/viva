@@ -147,11 +147,21 @@ func Tabs[T comparable](c C, value *T, tabs []T, label func(T) string) Box {
 // it is none of them); picking an option sets it. Whether its list is open is the
 // Select's own state.
 func Select[T comparable](c C, value *T, choices []T, label func(T) string) Box {
+	return selectOf(c, value, choices, label, false)
+}
+
+// selectOf is Select, or SelectBase when base is set: the same control without the theme's look.
+func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, base bool) Box {
 	p := c.page
 	scope := p.boundScope(pkSelect, unsafe.Pointer(value))
 	state := stateIn[SelectState](p, scope, "select") // its open list follows its value
 	labels, selected := options(p, value, choices, label)
-	b := c.f.Select(scope, state, labels, selected)
+	var b Box
+	if base {
+		b = c.f.SelectBase(scope, state, labels, selected)
+	} else {
+		b = c.f.Select(scope, state, labels, selected)
+	}
 	p.selects = append(p.selects, state)
 	index, ok := b.Picked()
 	pick(c, b, value, choices, index, ok)
@@ -163,6 +173,7 @@ func Select[T comparable](c C, value *T, choices []T, label func(T) string) Box 
 
 // Slider is a slider over state.Value; Range, Step and Changed are the Frame's.
 func Slider(c C, state *SliderState) Box {
+	c.page.slides(state)
 	return c.f.Slider(c.page.boundID(pkSlider, unsafe.Pointer(state)), state)
 }
 
@@ -193,9 +204,19 @@ func Table(c C, state *TableState, spec TableSpec) Box {
 //
 //	ui.TextField(c, &m.name, "Name", "Your name")
 func TextField[T TextValue](c C, value T, label, placeholder string) Box {
+	return textFieldOf(c, value, label, placeholder, false)
+}
+
+// textFieldOf is TextField, or TextFieldBase when base is set.
+func textFieldOf[T TextValue](c C, value T, label, placeholder string, base bool) Box {
 	p := c.page
 	field, id := fieldOf(p, pkField, value)
-	b := c.f.Field(field, id, label, placeholder)
+	var b Box
+	if base {
+		b = c.f.FieldBase(field, id, label, placeholder)
+	} else {
+		b = c.f.Field(field, id, label, placeholder)
+	}
 	c.f.bindField(b, field)
 	p.fields = append(p.fields, fieldEntry{id: id, field: field})
 	return b

@@ -184,6 +184,14 @@ func (p *Page) onShortcut(event gfx.KeyEvent) gfx.EventResult {
 			}
 		}
 	}
+	if h := p.controlOf(event.Target); h != nil && h.Key != nil && event.Modifiers&^gfx.ModifierShift == 0 &&
+		event.Text != "" && h.Role != gfx.RoleTextField && h.Role != gfx.RoleTerminal {
+		// A printable key reaches a window as a shortcut when nothing edits text; a
+		// control that takes keys has the one typed while it has the focus.
+		if result := h.Key(event); result.Handled {
+			return result
+		}
+	}
 	if p.shortcutRoute != nil {
 		if result, ok := p.shortcutRoute(p, event); ok {
 			return result

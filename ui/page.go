@@ -129,6 +129,9 @@ const (
 	pkToaster
 	pkDrawer
 	pkTree
+	pkToggle
+	pkRadio
+	pkTab
 	pkKinds
 )
 
@@ -207,6 +210,10 @@ type Page struct {
 	shortcuts  []shortcutEntry       // the Shortcuts of the last paint
 	menus      []*MenuItems          // the open Menus of the last paint
 	rovers     []rover               // the Choices and Tabs of the last paint
+	sliders    []*SliderState        // the Sliders of the last paint
+	groups     []focusGroup          // the FocusGroups of the last paint
+	groupIDs   []gfx.ID              // their members, in order
+	groupStops map[gfx.ID]groupStop  // the member each group has the Tab stop on
 	contexts   []contextTarget       // the ContextMenus of the last paint, which Shift+F10 opens
 	combos     []*comboState         // the Comboboxes of the last paint
 	trees      []*TreeState          // the Trees of the last paint
@@ -235,6 +242,8 @@ type Page struct {
 	shortcutRoute func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	menuRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	roveRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // arrow keys in a Choice or Tabs
+	groupRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // arrow keys in a FocusGroup
+	sliderRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the keys of a Slider
 	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	typeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // a Tree's typeahead, from OnShortcut
@@ -417,12 +426,17 @@ func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 			return result, true
 		}
 	}
+	if p.sliderRoute != nil {
+		if result, ok := p.sliderRoute(p, event); ok {
+			return result, true
+		}
+	}
 	if p.shortcutRoute != nil {
 		if result, ok := p.shortcutRoute(p, event); ok {
 			return result, true
 		}
 	}
-	if h := p.control(event.Target); h != nil && h.Key != nil {
+	if h := p.controlOf(event.Target); h != nil && h.Key != nil {
 		return h.Key(event), true
 	}
 	if p.areaKey != nil {
@@ -435,12 +449,17 @@ func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 			}
 		}
 	}
+	if p.groupRoute != nil {
+		if result, ok := p.groupRoute(p, event); ok {
+			return result, true
+		}
+	}
 	return gfx.EventResult{}, false
 }
 
 // routePointer gives a pointer event to the Control it is for.
 func (p *Page) routePointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
-	if h := p.control(event.Target); h != nil && h.Pointer != nil {
+	if h := p.controlOf(event.Target); h != nil && h.Pointer != nil {
 		return h.Pointer(event), true
 	}
 	return gfx.EventResult{}, false
@@ -599,6 +618,9 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.menus = p.menus[:0]
 	clear(p.rovers)
 	p.rovers = p.rovers[:0]
+	clear(p.sliders)
+	p.sliders = p.sliders[:0]
+	p.groups, p.groupIDs = p.groups[:0], p.groupIDs[:0]
 	clear(p.contexts)
 	p.contexts = p.contexts[:0]
 	clear(p.combos)
@@ -625,6 +647,7 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.sweep()
 	p.sweepTexts()
 	p.sweepMemos()
+	p.sweepGroups()
 }
 
 // current is the container being filled that the page named: a container the
@@ -911,7 +934,7 @@ func (p *Page) TextInput(context app.TextInputContext) *app.TextInput {
 // Wheel scrolls an open Select, else the scroll area under the pointer, and gives
 // an event neither takes to the OnScroll Config was given. It is the Config's OnScroll.
 func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
-	if h := p.control(event.Target); h != nil && h.Scroll != nil {
+	if h := p.controlOf(event.Target); h != nil && h.Scroll != nil {
 		if result := h.Scroll(event); result.Handled {
 			return result
 		}

@@ -204,6 +204,7 @@ type extra struct {
 	draws         int32            // 1 + the index of the element's Draw and DrawOver callbacks in Frame.draws, or 0 for none
 	tooltip       string           // what Tooltip says over the element; empty for none
 	addons        int32            // 1 + the index of the field's icon and button in Frame.addons, or 0
+	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
 }
 
 // Frame is one page being declared. It is handed to the function given to
@@ -239,6 +240,7 @@ type Frame struct {
 	// are reached through these, set by the call that declares one, so an application
 	// that declares none does not link them.
 	paintPopoverFn func(f *Frame, i int32, n *node)
+	groupFn        func(f *Frame, i int32, axis FocusAxis, from gfx.Mark)                     // set by the first FocusGroup, like paintDrawerFn
 	paintDrawerFn  func(f *Frame, n *node)                                                    // set by the first Drawer, so a frame without one does not link it
 	paintAddonsFn  func(f *Frame, n *node, snapshot components.InputSnapshot, a *fieldAddons) // set by the first field Icon or Action
 	paintTooltipFn func(f *Frame)                                                             // set by the first Tooltip, so a frame without one does not link it

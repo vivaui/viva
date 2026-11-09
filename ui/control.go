@@ -20,7 +20,11 @@ type Handlers struct {
 	// control for. Zero is a group. RoleTextField or RoleTerminal make it a target
 	// of typing, given to Text.
 	Role gfx.Role
-	// Key receives the keys pressed while the control has the focus.
+	// Key receives the keys pressed while the control has the focus, or a part of it
+	// does (see Parts): named keys with their Key, and a printable key, typed with
+	// no modifier but Shift, with its Text (and Key zero), which a window offers as a
+	// shortcut when nothing edits text. A control of Role RoleTextField or
+	// RoleTerminal takes typed text through Text instead.
 	Key func(gfx.KeyEvent) gfx.EventResult
 	// Pointer receives the presses, moves and releases over the control, and the
 	// moves and release of a press it took while the pointer is held.
@@ -34,7 +38,19 @@ type Handlers struct {
 	// RoleTextField or RoleTerminal. What it leaves unset is the control's: its
 	// rectangle, and the page's body text size and color.
 	Text func(app.TextInputContext) *app.TextInput
+
+	parts gfx.Scope // the identities inside the control, made by Control
 }
+
+// Parts is the scope of the identities inside the control: Parts().At(i) names its
+// part i, a region the control declares in its Draw with Canvas.Hit or HitWithOptions
+// (a star of a rating, a close button on a tab, a node of a graph) and can ask about
+// with Canvas.Clicked. A key, a pointer event or the wheel aimed at a part goes to
+// the control's Key, Pointer or Scroll, with the part as the event's Target, which
+// ID.In(Parts()) turns back into i. It is empty until the control has been declared.
+//
+//	if i, ok := event.Target.In(m.stars.Parts()); ok { m.rating = i + 1 }
+func (h *Handlers) Parts() gfx.Scope { return h.parts }
 
 // controlEntry is a Control declared in the last paint.
 type controlEntry struct {
@@ -61,6 +77,7 @@ func Control(c C, label string, h *Handlers) Box {
 	if role == 0 {
 		role = gfx.RoleGroup
 	}
+	h.parts = p.tree.Sub(id.Scope(), id.Name())
 	p.controls = append(p.controls, controlEntry{id: id, handlers: h})
 	if p.pointerRoute == nil {
 		p.keyRoute, p.pointerRoute = (*Page).routeKey, (*Page).routePointer
@@ -79,6 +96,23 @@ func (p *Page) control(id gfx.ID) *Handlers {
 	for i := range p.controls {
 		if p.controls[i].id == id {
 			return p.controls[i].handlers
+		}
+	}
+	return nil
+}
+
+// controlOf is control for the control that owns id: the one named id, or the one
+// id is a part of (see Handlers.Parts).
+func (p *Page) controlOf(id gfx.ID) *Handlers {
+	if h := p.control(id); h != nil {
+		return h
+	}
+	if id.IsZero() || id.Scope() == 0 {
+		return nil
+	}
+	for i := range p.controls {
+		if h := p.controls[i].handlers; h.parts == id.Scope() {
+			return h
 		}
 	}
 	return nil
