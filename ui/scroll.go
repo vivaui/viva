@@ -204,6 +204,27 @@ func (b Box) Follow(on bool) Box {
 	return b
 }
 
+// ScrollState returns the scroll position of a scroll area: the one ui.Scroll
+// declares, or the area of a List or a Tree. Read Offset, Content and Viewport (as of
+// the last layout), or move it by program with ScrollTo and ScrollToEnd, for
+// instance to bring the selected row into view:
+//
+//	area := ui.Scroll(c).Grow(1)
+//	if m.revealSelection {
+//		area.ScrollState().ScrollTo(float32(m.selected) * rowHeight)
+//	}
+//
+// Ask again in each paint instead of keeping the pointer: the state of an area that a
+// paint does not declare is dropped, and its offset starts at the top when the area
+// comes back, as for a closed dialog or another tab.
+func (b Box) ScrollState() *ScrollState {
+	n := b.n()
+	if n.ext == 0 || b.f.exts[n.ext].scrollState == nil {
+		panic("ui: ScrollState is for a scroll area: ui.Scroll, or the area of a List or a Tree")
+	}
+	return b.f.exts[n.ext].scrollState
+}
+
 // reportScrolls tells each ScrollArea's state how tall its content and itself are, and
 // clamps the offset to them; the content was laid out at the offset it had, so a
 // state that was out of range is corrected for the next frame (the first one still
