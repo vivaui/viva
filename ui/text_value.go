@@ -63,6 +63,20 @@ func (p *Page) sweepTexts() {
 	}
 }
 
+// NavigationKeys sends Up, Down, PageUp and PageDown to the application while the
+// platform edits the field, instead of moving its caret: for a search box whose
+// arrows move a list's selection.
+//
+//	ui.TextField(c, &m.query, "Search", "").NavigationKeys()
+func (b Box) NavigationKeys() Box {
+	n := b.n()
+	if n.kind != kindInput {
+		panic("ui: NavigationKeys is for a TextField")
+	}
+	b.f.inputs[n.aux].NavigationKeys = true
+	return b
+}
+
 // Secure shows the field's text as bullets and keeps it out of accessibility, the
 // clipboard and the platform's suggestions: a password. It is Field.Secure for a
 // field bound to a string.

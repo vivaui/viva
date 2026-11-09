@@ -222,6 +222,24 @@ func textFieldOf[T TextValue](c C, value T, label, placeholder string, base bool
 	return b
 }
 
+// TextFieldID is TextField for a field the application already names: id is the
+// field's identity in the page's Tree, so a window's own input routing, an
+// initial focus or a test can address it. The page still gives the platform its
+// editor, as TextField does. Field.Bind gives it an editor the application keeps
+// and reads itself.
+//
+//	ui.TextFieldID(c, m.searchID, &m.searchField, "Search", "")
+func TextFieldID(c C, id gfx.ID, field *Field, label, placeholder string) Box {
+	if field == nil {
+		panic("ui: TextFieldID needs a Field")
+	}
+	p := c.page
+	b := c.f.Field(field, id, label, placeholder)
+	c.f.bindField(b, field)
+	p.fields = append(p.fields, fieldEntry{id: id, field: field})
+	return b
+}
+
 // TextArea adds a text field of several rows editing field: Enter starts a new
 // line, long lines wrap and the rows scroll to follow the caret. Give it a Height.
 // The page gives the platform its editor, as for a TextField; it has no Submitted.

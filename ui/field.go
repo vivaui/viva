@@ -51,6 +51,23 @@ func (field *Field) ensure() *text.Editor {
 	return field.editor
 }
 
+// Bind makes the field edit editor, an editor the application already has and reads
+// (its caret, its selection, its undo), instead of one of its own: for a field the
+// program drives itself, such as a search box that moves the caret on its own keys.
+// The field is the page's handle on that editor, not a copy; what the editor holds
+// when bound is not an edit, as SetText's is not. Bind once, where the model is
+// made, as the field is kept there.
+//
+//	m.searchField.Bind(&m.search)
+//	ui.TextFieldID(c, m.searchID, &m.searchField, "Search", "")
+func (field *Field) Bind(editor *text.Editor) {
+	if editor == nil {
+		panic("ui: Field.Bind needs an editor")
+	}
+	field.editor = editor
+	field.seen = editor.String()
+}
+
 // Text is what is in the field.
 func (field *Field) Text() string { return field.ensure().String() }
 
