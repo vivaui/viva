@@ -168,13 +168,17 @@ type DropdownMenuItem struct {
 	TrailingWidth float32
 	Value         string
 	Hint          string
-	Kind          DropdownMenuItemKind
-	Variant       DropdownMenuItemVariant
-	Checked       bool
-	Selected      bool
-	Disabled      bool
-	Inset         bool
-	Expanded      bool
+	// Description is an optional muted second line under the label. It grows the
+	// row's height and is measured into the menu's width; Hint may carry the full
+	// text for assistive technology.
+	Description string
+	Kind        DropdownMenuItemKind
+	Variant     DropdownMenuItemVariant
+	Checked     bool
+	Selected    bool
+	Disabled    bool
+	Inset       bool
+	Expanded    bool
 	// Icon, when it has any geometry, is painted before the label (after the
 	// checkbox or radio indicator, if the item has one). A single-color icon takes
 	// the item's text color; a multi-color one keeps its own.
@@ -184,7 +188,7 @@ type DropdownMenuItem struct {
 func (item DropdownMenuItem) common() menuItem {
 	return menuItem{
 		ID: item.ID, Label: item.Label, Shortcut: item.Shortcut, Keys: item.Keys, TrailingWidth: item.TrailingWidth,
-		Value: item.Value, Hint: item.Hint, Kind: menuKind(item.Kind), Destructive: item.Variant == DropdownMenuItemDestructive,
+		Value: item.Value, Hint: item.Hint, Description: item.Description, Kind: menuKind(item.Kind), Destructive: item.Variant == DropdownMenuItemDestructive,
 		Checked: item.Checked, Selected: item.Selected, Disabled: item.Disabled, Inset: item.Inset, Expanded: item.Expanded, Icon: item.Icon,
 	}
 }
@@ -1028,7 +1032,12 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 		canvas.DrawIcon(item.Icon, gfx.Rect{X: bounds.X + left, Y: labelY + (labelHeight-side)/2, Width: side, Height: side}, foreground)
 		left += menuIconSize + menuIconGap
 	}
-	canvas.Label(item.Label, gfx.Rect{X: bounds.X + left, Y: labelY, Width: max(0, bounds.Width-left-right), Height: labelHeight}, gfx.TextStyle{
+	labelWidth := max(0, bounds.Width-left-right)
+	label := item.Label
+	if canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, gfx.WeightRegular) > labelWidth {
+		label = canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, labelWidth)
+	}
+	canvas.Label(label, gfx.Rect{X: bounds.X + left, Y: labelY, Width: labelWidth, Height: labelHeight}, gfx.TextStyle{
 		Size: theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 	})
 	if item.Description != "" {
@@ -1047,7 +1056,7 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 		hit := bounds
 		hit.Width -= menu.hitInset
 		canvas.HitWithOptions(item.ID, hit, item.Label, gfx.HitOptions{
-			Role: gfx.RoleMenuItem, Value: item.Value, Hint: item.Hint,
+			Role: gfx.RoleMenuItem, Value: item.Value, Hint: item.Hint, Description: item.Description,
 			Disabled: item.Disabled, Checked: item.Kind == menuCheckbox && item.Checked,
 			Selected: item.Kind == menuRadio && item.Selected,
 			Expanded: item.Kind == menuSubmenu && item.Expanded, Expandable: item.Kind == menuSubmenu,

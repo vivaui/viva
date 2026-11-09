@@ -564,3 +564,34 @@ func TestDropdownMenuPointerMovesTheCurrentRowOnlyWhenItEntersOne(t *testing.T) 
 		t.Fatalf("a pointer-focused row tinted %d rows on the next paint", got)
 	}
 }
+
+// A description is a second line under the label: the row grows, the text is
+// painted, one hit still names the action, and the hint stays the caller's.
+func TestDropdownMenuDescriptionAddsASecondLine(t *testing.T) {
+	var canvas gfx.Canvas
+	theme := gfx.LightTheme()
+	menu := BeginDropdownMenu(&canvas, theme, gfx.Rect{Width: 240, Height: 200}, DropdownMenuOptions{Scope: gfx.Item(1), DismissID: gfx.Item(2)})
+	plain := menu.AddItem(DropdownMenuItem{ID: gfx.Item(3), Label: "Plain"})
+	described := menu.AddItem(DropdownMenuItem{ID: gfx.Item(4), Label: "Model", Description: "What answers", Hint: "the full text"})
+	if described.Height <= plain.Height {
+		t.Fatalf("a described row is %v tall, a plain one %v", described.Height, plain.Height)
+	}
+	found := false
+	for _, text := range canvas.Texts() {
+		if text.Value == "What answers" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the description was not painted")
+	}
+	for _, hit := range nonBlockHits(canvas.Hits()) {
+		if hit.ID == gfx.Item(4) {
+			if hit.Hint != "the full text" || hit.Description != "What answers" {
+				t.Fatalf("hit hint %q, description %q", hit.Hint, hit.Description)
+			}
+			return
+		}
+	}
+	t.Fatal("the described item has no hit")
+}

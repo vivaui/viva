@@ -395,3 +395,94 @@ func TestSubmenuRepaintAllocates(t *testing.T) {
 		t.Fatalf("%v allocations a repaint", allocs)
 	}
 }
+
+// menuOptionsModel exercises the menu calls that shape its surface: a second line
+// under an item, its width range, and opening over the anchor.
+type menuOptionsModel struct {
+	open            bool
+	above           bool
+	least, greatest float32
+	description     string
+	label           string
+	picked          int
+}
+
+func (m *menuOptionsModel) page(c ui.C) {
+	ui.Column(c).Fill().Children(func() {
+		if m.above {
+			ui.Slot(c).Height(200).Shrink(0)
+		}
+		more := ui.Button(c, "More")
+		if more.Clicked() {
+			m.open = !m.open
+		}
+		ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
+			menu.WidthRange(m.least, m.greatest)
+			if m.above {
+				menu.Above()
+			}
+			label := m.label
+			if label == "" {
+				label = "Model"
+			}
+			item := menu.Item(label)
+			if m.description != "" {
+				item.Description(m.description)
+			}
+			if item.Clicked() {
+				m.picked++
+			}
+			menu.Item("Other")
+		})
+	})
+}
+
+// An item with a description paints it under the label, grows its row, and still
+// chooses the one action.
+func TestMenuItemDescription(t *testing.T) {
+	m := &menuOptionsModel{description: "What answers"}
+	d := openPage(t, m.page)
+	d.click("More")
+	if len(d.textsNamed("What answers")) == 0 {
+		t.Fatal("the description was not painted")
+	}
+	if d.hit("Model").Bounds.Height <= d.hit("Other").Bounds.Height {
+		t.Fatalf("the described row is %v tall, the plain one %v", d.hit("Model").Bounds.Height, d.hit("Other").Bounds.Height)
+	}
+	d.click("Model")
+	if m.picked != 1 || m.open {
+		t.Fatalf("picked=%d open=%v", m.picked, m.open)
+	}
+}
+
+// WidthRange sets the surface's least and greatest width; rows that do not fit the
+// greatest are still one hit with their whole label.
+func TestMenuWidthRange(t *testing.T) {
+	t.Run("least", func(t *testing.T) {
+		m := &menuOptionsModel{least: 220}
+		d := openPage(t, m.page)
+		d.click("More")
+		if got := d.hit("Model").Bounds.Width; got < 200 {
+			t.Fatalf("the surface is %v wide, want at least the 220 it was given", got)
+		}
+	})
+	t.Run("greatest", func(t *testing.T) {
+		m := &menuOptionsModel{greatest: 160, label: "A model name that is far too long for a narrow menu"}
+		d := openPage(t, m.page)
+		d.click("More")
+		if got := d.hit(m.label).Bounds.Width; got > 160 {
+			t.Fatalf("the surface is %v wide, want at most the 160 it was given", got)
+		}
+	})
+}
+
+// Above puts the menu over the anchor even where it would fit under it.
+func TestMenuAbove(t *testing.T) {
+	m := &menuOptionsModel{above: true}
+	d := openPage(t, m.page)
+	d.click("More")
+	anchor, item := d.hit("More").Bounds, d.hit("Model").Bounds
+	if item.Y+item.Height > anchor.Y+0.5 {
+		t.Fatalf("the menu at %v is not over its anchor at %v", item, anchor)
+	}
+}
