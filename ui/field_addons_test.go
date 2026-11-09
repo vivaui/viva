@@ -52,3 +52,21 @@ func BenchmarkFieldAddons(b *testing.B) {
 		drawPage(page, canvas, view)
 	}
 }
+
+// A Button's Icon makes it wider by the icon than the same button without one.
+func TestButtonIcon(t *testing.T) {
+	width := func(icon bool) float32 {
+		d := openPage(t, func(c ui.C) {
+			ui.Row(c).Pad(16).Children(func() {
+				b := ui.Button(c, "Save")
+				if icon {
+					b.Icon(testIcon)
+				}
+			})
+		})
+		return d.hit("Save").Bounds.Width
+	}
+	if plain, iconed := width(false), width(true); iconed <= plain {
+		t.Fatalf("an icon took no room: %v with it, %v without", iconed, plain)
+	}
+}

@@ -168,8 +168,14 @@ func (p *Page) typing(id gfx.ID) bool {
 }
 
 // onShortcut is the Config's OnShortcut, where a window offers the chords of
-// printable keys (Primary+S): a Shortcut's, then base's.
+// printable keys (Primary+S), and a printable key itself when nothing edits text:
+// an open Menu's typeahead, then a Shortcut's, then base's.
 func (p *Page) onShortcut(event gfx.KeyEvent) gfx.EventResult {
+	if p.menuRoute != nil && event.Modifiers&^gfx.ModifierShift == 0 {
+		if result, ok := p.menuRoute(p, event); ok {
+			return result
+		}
+	}
 	if p.shortcutRoute != nil {
 		if result, ok := p.shortcutRoute(p, event); ok {
 			return result

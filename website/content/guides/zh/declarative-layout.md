@@ -64,7 +64,7 @@ ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
 - 在 `c.Key(item.ID)` 或 `c.KeyInt(id)` 里，元素只在这一行内部编号，所以行出现、消失或移动时，行里的按钮跟着这一行走。行消失两遍绘制之后，它的 Key 才会被复用。行里有 `Button` 的循环要给行加 Key；没加时 `viva vet` 会报告。
 - 用户按住一个按钮（按下它，或它有焦点）时，如果某一遍绘制里另一个按钮占了它的位置，这次按下不会递送，焦点也会被放弃。
 
-`ui.TextArea(c, &m.notes, label, placeholder)` 是多行输入框。自己写的控件（终端、编辑器、可以画画的画布）用 `ui.Control(c, label, &m.handlers)`：它是一个可获得焦点的空元素，用 `Draw` 绘制，`Handlers` 接收它的按键、指针和滚轮；角色为 `RoleTextField` 或 `RoleTerminal` 时，还通过 `Text` 接收平台的打字和输入法。不用声明任何标识，窗口也不用分派任何事件。`ui.TextField(...).AutoFocus()` 在输入框出现时把焦点给它（只给一次，用户移开后不抢回），`.Submitted()` 在递送回车的那一遍绘制里为真；`.Secure()` 让它成为密码字段。`.Tooltip("Delete")` 给控件一个指针停留时显示的提示，它同时也是控件的描述。`ui.Menu(c, anchor, &m.menu, func(menu *ui.MenuItems) { ... })` 是 shadcn 的下拉菜单：像读按钮一样用 `menu.Item("Rename").Clicked()` 读取一项，方向键在各项之间移动，选中一项后菜单关闭。`ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` 接受 Select 的参数再加一个标签，用户输入时（支持平台输入法）筛选选项。`ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` 在 `row` 上按下副键时于指针处打开同样的菜单项，按 Shift+F10 时在它下方打开；菜单项可以加 `.Icon`、用 `.Keys(ui.Primary, "c")` 显示快捷键键帽（只显示，快捷键本身是动作所在处的一个 `Shortcut`），用 `.Checked` 或 `.Chosen` 成为复选或单选项。搜索框是带 `.Icon(search)`（文字前的图标）和 `.Action(cross, "Clear")`（末尾的小按钮，用 `.ActionClicked()` 读取）的 TextField。`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` 从窗口一边滑入一个面板，即 shadcn 的 Sheet：标题为空时整个面板都给 body，`NonModal` 让键盘留在背后的页面。`ui.Tree(c, &m.tree, n, label, content)` 是应用自己的树里可见行组成的 List，由 `TreeState.Node` 描述每一行（深度、是否为分支、是否展开）；方向键移动、展开和折叠，树报告 `Toggled()` 和 `Chosen()` 由应用处理。Toast 是模型里的一个 `ui.Toaster`：`m.toaster.Show("Saved", "", ui.ToastSuccess)` 显示一条，`ui.Toasts(c, &m.toaster)` 在页面里声明一次、放在最后，负责绘制并在五秒后收起；它只在下一条到期时请求一帧，没有 toast 时不做任何调度。键盘快捷键在它起作用的地方声明，和读取点击一样：`if ui.Shortcut(c, ui.Primary, "s") { m.save() }` 是整个页面的快捷键（Primary 在 macOS 上是 Command，其他平台是 Control）；在容器或控件上用 `list.Shortcut(0, "delete")`，只在焦点位于它之内时生效，嵌套时最内层的生效。不带 Primary、Ctrl 或 Alt 的按键留给正在输入的输入框或终端；Popover、Modal、Menu 或 Select、Combobox 列表打开时，页面级快捷键不生效。`ui.List(c, &state, n, row)` 只声明 `n` 行列表里显示在屏幕上的行，每行高度由内容决定，并负责滚动；`ListState.Key` 按条目 ID 为行命名。`ui.State[T](c, "open")` 是元素自己的小状态（比如菜单是否打开），在它的容器里按名字查找，容器被声明期间一直保留。`ui.Memo(c, version, fn)` 在 `version` 不变时从上一遍绘制复制 `fn` 声明的部分，在它被悬停、获得焦点、处于动画中或改变大小时重新声明；见下面的开销。
+`ui.TextArea(c, &m.notes, label, placeholder)` 是多行输入框。自己写的控件（终端、编辑器、可以画画的画布）用 `ui.Control(c, label, &m.handlers)`：它是一个可获得焦点的空元素，用 `Draw` 绘制，`Handlers` 接收它的按键、指针和滚轮；角色为 `RoleTextField` 或 `RoleTerminal` 时，还通过 `Text` 接收平台的打字和输入法。不用声明任何标识，窗口也不用分派任何事件。`ui.TextField(...).AutoFocus()` 在输入框出现时把焦点给它（只给一次，用户移开后不抢回），`.Submitted()` 在递送回车的那一遍绘制里为真；`.Secure()` 让它成为密码字段。`.Tooltip("Delete")` 给控件一个指针停留时显示的提示，它同时也是控件的描述。`ui.Menu(c, anchor, &m.menu, func(menu *ui.MenuItems) { ... })` 是 shadcn 的下拉菜单：像读按钮一样用 `menu.Item("Rename").Clicked()` 读取一项，方向键在各项之间移动，输入字母会跳到以它开头的项，选中一项后菜单关闭。`menu.Sub("Move to", func(to *ui.MenuItems) { ... })` 是一个旁边带子菜单的项：指针在它上面停留、点击它，或按 Right、Enter、Space 时打开（键盘打开时焦点落在子菜单第一项）；Left 返回，Escape 关闭所有菜单，在子菜单里选中一项也会全部关闭。`ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` 接受 Select 的参数再加一个标签，用户输入时（支持平台输入法）筛选选项。`.Clearable()` 加一个清除选择的按钮，`.Empty("No zone matches")` 是没有匹配项时列表显示的文字，`.Creatable("")` 把输入的内容作为新选项提供（"Create dev"），由 `.Created()` 报告，应用自己把它加进选项。Button 用 `.Icon(plus)` 在标签前加图标，加 `.IconOnly()` 则只显示图标。`ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` 在 `row` 上按下副键时于指针处打开同样的菜单项，按 Shift+F10 时在它下方打开；菜单项可以加 `.Icon`、用 `.Keys(ui.Primary, "c")` 显示快捷键键帽（只显示，快捷键本身是动作所在处的一个 `Shortcut`），用 `.Checked` 或 `.Chosen` 成为复选或单选项。搜索框是带 `.Icon(search)`（文字前的图标）和 `.Action(cross, "Clear")`（末尾的小按钮，用 `.ActionClicked()` 读取）的 TextField。`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` 从窗口一边滑入一个面板，即 shadcn 的 Sheet：标题为空时整个面板都给 body，`NonModal` 让键盘留在背后的页面；`Swipe` 在面板内侧边缘加一个把手，拖动它面板随之移向边缘，拖过一半或快速甩出时关闭，否则滑回原位。`ui.Tree(c, &m.tree, n, label, content)` 是应用自己的树里可见行组成的 List，由 `TreeState.Node` 描述每一行（深度、是否为分支、是否展开）；方向键移动、展开和折叠，树报告 `Toggled()` 和 `Chosen()` 由应用处理。Toast 是模型里的一个 `ui.Toaster`：`m.toaster.Show("Saved", "", ui.ToastSuccess)` 显示一条，`ui.Toasts(c, &m.toaster)` 在页面里声明一次、放在最后，负责绘制并在五秒后收起；它只在下一条到期时请求一帧，没有 toast 时不做任何调度。`ShowAction(title, description, kind, "Undo")` 给 toast 加一个按钮，按下后 toast 收起，在 `Toasts` 之后用 `m.toaster.Acted()` 读取；`ui.ToastLoading` 的 toast 显示转圈且不会自动收起，直到 `m.toaster.Done(id, "Uploaded", "", ui.ToastSuccess)` 替换它；`Toaster.Position` 把整组 toast 放到别的角落或居中（`ui.ToastTopCenter`）。键盘快捷键在它起作用的地方声明，和读取点击一样：`if ui.Shortcut(c, ui.Primary, "s") { m.save() }` 是整个页面的快捷键（Primary 在 macOS 上是 Command，其他平台是 Control）；在容器或控件上用 `list.Shortcut(0, "delete")`，只在焦点位于它之内时生效，嵌套时最内层的生效。不带 Primary、Ctrl 或 Alt 的按键留给正在输入的输入框或终端；Popover、Modal、Menu 或 Select、Combobox 列表打开时，页面级快捷键不生效。`ui.List(c, &state, n, row)` 只声明 `n` 行列表里显示在屏幕上的行，每行高度由内容决定，并负责滚动；`ListState.Key` 按条目 ID 为行命名。`ui.State[T](c, "open")` 是元素自己的小状态（比如菜单是否打开），在它的容器里按名字查找，容器被声明期间一直保留。`ui.Memo(c, version, fn)` 在 `version` 不变时从上一遍绘制复制 `fn` 声明的部分，在它被悬停、获得焦点、处于动画中或改变大小时重新声明；见下面的开销。
 
 设置类结构体的表单可以自动生成。给字段加 tag，然后运行 `viva form`（写成 `//go:generate go tool viva form`）：它生成 `viva_form.go`，里面是 `func (v *Settings) Form(c ui.C) ui.Box`，就是普通的页面代码，不用反射：
 
@@ -209,6 +209,195 @@ func main() {
 `c.Frame()` 是底下的 Frame，用于页面自己不声明的东西（`Textarea`、`InputGroup`、各个 `Base` 控件）；`c.Part("word")` 给下一个元素起一个你自己的名字，测试和无头驱动可以用它。用 Frame 布局的窗口里，某个窗格要写成页面时，用 `f.Page(page, view).Grow(1)`：Frame 布局完成后，页面声明进这个元素的矩形，按元素在绘制顺序中的位置画出，并在窗口的 Tree 里、以 `PageConfig.Root` 为根为控件命名。如果在 Frame 还在声明时就调用 `page.Draw`，页面会在 Frame 知道窗格位置之前就画出来，压在 Frame 自己的控件下面，点击都会落到那些控件上。把窗口的 `TextInput` 和 `OnScroll` 交给 `page.TextInput` 和 `page.Wheel`，并在窗口的 `OnPointer` 和 `OnKey` 里先问页面：`if r, ok := page.Pointer(event); ok { return r }`，按键用 `page.Key` 同样处理；不这样接，页面里的 Control 收不到输入，TextArea 的上下键不按行移动，浮层也挡不住背后的东西。页面里的 `Modal` 只遮住这个窗格，不遮整个窗口。页面自己的点击交给页面；页面的 Popover、Modal、Menu 或展开的 Select、Combobox 列表打开时（`page.Overlay()`），背后的东西都不响应，Escape、Enter、Space 和 Tab 交给页面。窗格不能声明在 `Memo` 里。按标识分派的窗口级处理器继续使用 Frame。
 
 `examples/guides/page` 的 fleet 页面（一个选择控件、一个包含八行的滚动区域、每行一个复选框、一个进度条和一个按钮）在 Apple M2 Pro 上声明、布局并绘制用时 9.8 µs，用 Frame 写的同一页面是 9.0 µs，预热后都不分配；一千个带 Key 的行是 0.75 ms 对 0.67 ms。两百行的列表每行套一个 `Memo` 后从 271 µs 降到 87 µs，整个列表套一个是 37 µs；复制保留的是上一遍绘制的命令，这两百行约占 0.5 MB（`go test ./ui -bench 'Fleet$|Rows1000|Rows200'`）。
+
+这个数字对照的，是用 Frame 写的同一个页面：每个标识都手工声明，每次点击都按标识分派；页面版本这些都不用写：
+
+<!-- example: fleet/main.go -->
+```go
+// Fleet check in Viva: the same screen the nanoui and mygo versions show, so
+// the three can be compared on equal data.
+//
+// Two differences from the other two are Viva's architecture, not style:
+//
+//   - Controls carry identities from a declared tree, not pointers into the
+//     model. A checkbox reports a click; the program decides what that means.
+//   - Paint is a function of state, and state changes only where a control says
+//     it was clicked, so the progress figure is derived from the same rows the
+//     list draws.
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/ui"
+)
+
+// Identities are names in a tree, not numbers.
+var (
+	tree = gfx.Tree{}
+	page = tree.Feature("fleet")
+
+	filterScope = tree.Sub(page, tree.Name("filter"))
+	scanButton  = tree.ID(page, "scan")
+	listScroll  = tree.ID(page, "list")
+
+	// One checkbox identity per row, made once at start-up.
+	rows = [8]gfx.ID{
+		tree.ID(page, "row-0"), tree.ID(page, "row-1"),
+		tree.ID(page, "row-2"), tree.ID(page, "row-3"),
+		tree.ID(page, "row-4"), tree.ID(page, "row-5"),
+		tree.ID(page, "row-6"), tree.ID(page, "row-7"),
+	}
+)
+
+type host struct {
+	name    string
+	addr    string
+	item    string
+	handled bool
+}
+
+type model struct {
+	hosts  []host
+	filter int
+	scans  int
+	view   ui.View
+}
+
+const (
+	filterAll = iota
+	filterOpen
+	filterHandled
+)
+
+func newModel() *model {
+	return &model{hosts: []host{
+		{name: "edge-01", addr: "10.0.4.11", item: "Disable password auth"},
+		{name: "edge-02", addr: "10.0.4.12", item: "Rotate host key"},
+		{name: "build-01", addr: "10.0.8.3", item: "Pin to ed25519"},
+		{name: "build-02", addr: "10.0.8.4", item: "Restrict agent forwarding", handled: true},
+		{name: "db-primary", addr: "10.0.9.2", item: "Close port 22 to the world"},
+		{name: "db-replica", addr: "10.0.9.3", item: "Enable key-only login", handled: true},
+		{name: "jump-01", addr: "10.0.1.5", item: "Set a login grace time"},
+		{name: "nas-01", addr: "10.0.12.7", item: "Upgrade OpenSSH"},
+	}}
+}
+
+// handledCount reads the same slice the rows come from, so the bar cannot
+// disagree with the rows above it.
+func (m *model) handledCount() int {
+	n := 0
+	for _, h := range m.hosts {
+		if h.handled {
+			n++
+		}
+	}
+	return n
+}
+
+func (m *model) matches(h host) bool {
+	switch m.filter {
+	case filterOpen:
+		return !h.handled
+	case filterHandled:
+		return h.handled
+	}
+	return true
+}
+
+func newConfig(m *model) app.Config {
+	theme := gfx.LightTheme()
+	config := app.Config{Tree: &tree, Title: "Viva fleet", Width: 460, Height: 560}
+
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
+		canvas.Fill(bounds, theme.Background)
+
+		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
+			f.Column().Fill().Pad(22).Gap(14).Children(func() {
+				f.Text("Fleet check").FontSize(26).Bold()
+				f.Text("SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
+
+				labels := []string{"All", "Open", "Handled"}
+				if i, ok := f.Choice(filterScope, labels, m.filter).ChosenIndex(); ok {
+					m.filter = i
+				}
+
+				// A scroll region that takes only the room left over, so the
+				// footer below it stays on screen.
+				f.ScrollArea(listScroll).Grow(1).Gap(8).Children(func() {
+					for i := range m.hosts {
+						h := &m.hosts[i]
+						if !m.matches(*h) {
+							continue
+						}
+						m.row(f, theme, rows[i], h)
+					}
+				})
+
+				handled := m.handledCount()
+				total := len(m.hosts)
+				frac := float32(0)
+				if total > 0 {
+					frac = float32(handled) / float32(total)
+				}
+				f.Progress(frac).FillWidth()
+
+				f.Row().FillWidth().Gap(10).Items(ui.Center).Children(func() {
+					f.Text(fmt.Sprintf("%d of %d handled", handled, total)).FontSize(12).Muted().Mono()
+					f.Spacer()
+					f.Text(fmt.Sprintf("scanned %dx", m.scans)).FontSize(12).Muted().Mono()
+					if f.Button(scanButton, "Scan again").Clicked() {
+						m.scans++
+					}
+				})
+			})
+		})
+	}
+	return config
+}
+
+func (m *model) row(f *ui.Frame, theme gfx.Theme, id gfx.ID, h *host) {
+	f.Row().FillWidth().Pad(12).Gap(12).Radius(10).Items(ui.Center).
+		Background(theme.Card).Children(func() {
+		label := "open"
+		color := theme.Danger
+		if h.handled {
+			label = "ok"
+			color = theme.Success
+		}
+		f.Text(label).FontSize(11).Color(color)
+
+		f.Column().Grow(1).Gap(2).Children(func() {
+			f.Row().Gap(8).Items(ui.Center).Children(func() {
+				f.Text(h.name).FontSize(14).Bold()
+				f.Text(h.addr).FontSize(12).Muted().Mono()
+			})
+			if h.handled {
+				f.Text(h.item).FontSize(12).Muted()
+			} else {
+				f.Text(h.item).FontSize(12)
+			}
+		})
+
+		// The checkbox only reports the click; the model is what changes, and
+		// the bar above re-derives itself from it on the next paint.
+		if f.Checkbox(id, h.handled).Clicked() {
+			h.handled = !h.handled
+		}
+	})
+}
+
+func main() {
+	var canvas gfx.Canvas
+	if err := app.RunCanvas(newConfig(newModel()), &canvas); err != nil {
+		log.Fatal(err)
+	}
+}
+```
 
 ## 状态与效果
 

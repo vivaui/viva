@@ -453,13 +453,22 @@ func (canvas *Canvas) NextFrame() (delay time.Duration, ok bool) {
 }
 
 // Now returns the monotonic time of the current frame, sampling the clock if
-// no widget has yet. Painters that run transitions elsewhere, such as the
-// development reload host, forward it to the process that does.
+// no widget has yet, so every widget in a frame shares one time. Between frames,
+// in an event handler, it is the time now: a key's time, which typeahead measures
+// its pauses on. Painters that run transitions elsewhere, such as the development
+// reload host, forward it to the process that does.
 func (canvas *Canvas) Now() time.Duration {
-	if canvas.motion.clock == nil {
-		return canvas.motion.now
+	state := &canvas.motion
+	if state.clock == nil {
+		return state.now
 	}
-	return canvas.motion.frameTime()
+	if !state.active {
+		if now := state.clock(); now > state.now {
+			state.now = now
+		}
+		return state.now
+	}
+	return state.frameTime()
 }
 
 // SetReduceMotion makes every transition jump straight to its target, honoring

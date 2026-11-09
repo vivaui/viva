@@ -76,6 +76,39 @@ func TestMenuChoosesAnItem(t *testing.T) {
 	}
 }
 
+// Typing a letter in an open Menu goes to the item it begins, the same letter again
+// to the next such item, and a pause starts the word anew.
+func TestMenuTypeahead(t *testing.T) {
+	m := &menuModel{}
+	d := openPage(t, m.page)
+	d.click("More")
+	typed := func(letter rune, want string) {
+		t.Helper()
+		// A window offers a printable key to OnShortcut when nothing edits text.
+		if _, err := d.driver.ShortcutChord(0, letter); err != nil {
+			t.Fatal(err)
+		}
+		if d.focused() != want {
+			t.Fatalf("%q went to %q, not %q", letter, d.focused(), want)
+		}
+	}
+	typed('d', "Delete")
+	if err := d.driver.Advance(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	typed('r', "Rename")
+	if err := d.driver.Advance(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	m.locked = true
+	d.repaint()
+	typed('c', "Rename") // Copy is disabled: no item begins with c
+	d.key(gfx.KeyEnter)
+	if m.renamed != 1 || m.copied != 0 {
+		t.Fatalf("renamed=%d copied=%d", m.renamed, m.copied)
+	}
+}
+
 // The arrows pass over a disabled item, and a click on it chooses nothing.
 func TestMenuDisabledItem(t *testing.T) {
 	m := &menuModel{locked: true}
@@ -214,5 +247,151 @@ func TestContextMenuKeyboard(t *testing.T) {
 	d.key(gfx.KeyEscape)
 	if d.has("Connect") {
 		t.Fatal("Escape did not close the menu")
+	}
+}
+
+type submenuModel struct {
+	open  bool
+	moved string
+}
+
+func (m *submenuModel) page(c ui.C) {
+	ui.Column(c).Pad(16).Children(func() {
+		more := ui.Button(c, "More").Outline()
+		if more.Clicked() {
+			m.open = !m.open
+		}
+		ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
+			menu.Item("Rename")
+			menu.Sub("Move to", func(to *ui.MenuItems) {
+				for _, group := range [...]string{"Production", "Staging"} {
+					if to.Item(group).Clicked() {
+						m.moved = group
+					}
+				}
+			})
+			menu.Item("Delete")
+		})
+	})
+}
+
+func (d *pageDriver) rest(label string, for_ time.Duration) {
+	d.t.Helper()
+	if err := d.driver.Move(center(d.hit(label).Bounds)); err != nil {
+		d.t.Fatal(err)
+	}
+	if err := d.driver.Advance(for_); err != nil {
+		d.t.Fatal(err)
+	}
+}
+
+// A submenu opens beside its row as the pointer rests there, a sibling row the
+// pointer rests on closes it, and choosing in it closes the whole menu.
+func TestSubmenuPointer(t *testing.T) {
+	m := &submenuModel{}
+	d := openPage(t, m.page)
+	d.click("More")
+	d.rest("Move to", 150*time.Millisecond)
+	if !d.has("Production") {
+		t.Fatal("resting on the row did not open its submenu")
+	}
+	row, first := d.hit("Move to").Bounds, d.hit("Production").Bounds
+	if first.X < row.X+row.Width-8 || first.Y+first.Height < row.Y || first.Y > row.Y+row.Height {
+		t.Fatalf("the submenu at %v is not beside its row at %v", first, row)
+	}
+	d.rest("Rename", 150*time.Millisecond)
+	if d.has("Production") {
+		t.Fatal("resting on another row did not close the submenu")
+	}
+	d.click("Move to")
+	if !d.has("Staging") {
+		t.Fatal("a click on the row did not open its submenu")
+	}
+	d.click("Staging")
+	if m.moved != "Staging" || m.open || d.has("Rename") {
+		t.Fatalf("moved %q, menu open %v", m.moved, m.open)
+	}
+	// It opens again without the submenu, even in the next paint.
+	m.open = true
+	d.repaint()
+	if !d.has("Rename") || d.has("Production") {
+		t.Fatal("the menu opened again with its submenu")
+	}
+}
+
+// Right on the row opens the submenu with its first row focused, Left goes back to
+// the row, and Escape closes every menu.
+func TestSubmenuKeyboard(t *testing.T) {
+	m := &submenuModel{}
+	d := openPage(t, m.page)
+	d.click("More")
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyDown)
+	if d.focused() != "Move to" {
+		t.Fatalf("on %q", d.focused())
+	}
+	d.key(gfx.KeyRight)
+	if d.focused() != "Production" {
+		t.Fatalf("Right went to %q", d.focused())
+	}
+	d.key(gfx.KeyDown)
+	if d.focused() != "Staging" {
+		t.Fatalf("Down in the submenu went to %q", d.focused())
+	}
+	d.key(gfx.KeyLeft)
+	if d.focused() != "Move to" || d.has("Production") {
+		t.Fatalf("Left went to %q, submenu shown %v", d.focused(), d.has("Production"))
+	}
+	d.key(gfx.KeyEnter)
+	if d.focused() != "Production" {
+		t.Fatalf("Enter went to %q", d.focused())
+	}
+	d.key(gfx.KeyEscape)
+	if m.open || d.has("Rename") || d.has("Production") {
+		t.Fatal("Escape did not close the menus")
+	}
+	if m.moved != "" {
+		t.Fatalf("moved to %q", m.moved)
+	}
+}
+
+// A ContextMenu's submenu behaves as a Menu's.
+func TestContextSubmenu(t *testing.T) {
+	var chosen string
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			row := ui.Button(c, "web-1")
+			ui.ContextMenu(c, row, func(menu *ui.MenuItems) {
+				menu.Item("Connect")
+				menu.Sub("Copy", func(copy *ui.MenuItems) {
+					if copy.Item("Address").Clicked() {
+						chosen = "address"
+					}
+				})
+			})
+		})
+	})
+	r := d.hit("web-1").Bounds
+	if err := d.driver.ClickButton(r.X+10, r.Y+10, gfx.PointerButtonSecondary); err != nil {
+		t.Fatal(err)
+	}
+	d.rest("Copy", 150*time.Millisecond)
+	d.click("Address")
+	if chosen != "address" || d.has("Connect") {
+		t.Fatalf("chose %q, menu shown %v", chosen, d.has("Connect"))
+	}
+}
+
+// A menu with its submenu open repaints without allocating.
+func TestSubmenuRepaintAllocates(t *testing.T) {
+	m := &submenuModel{}
+	d := openPage(t, m.page)
+	d.click("More")
+	d.rest("Move to", 150*time.Millisecond)
+	if !d.has("Production") {
+		t.Fatal("no submenu")
+	}
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("%v allocations a repaint", allocs)
 	}
 }

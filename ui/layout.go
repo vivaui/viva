@@ -117,7 +117,7 @@ func (f *Frame) measureLeafIn(n *node) {
 		n.pref[axisX] += n.padX() // a Text takes its Pad and Border like a container
 		n.pref[axisY] += n.padY()
 	case kindButton:
-		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.buttonSize)
+		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.buttonSize).WithIcon(f.exts[n.ext].icon)
 		if d := n.size[axisY]; d.kind == dimPx {
 			button = button.Height(d.value) // an icon button is as wide as it is tall
 		}

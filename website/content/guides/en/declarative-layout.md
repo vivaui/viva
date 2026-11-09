@@ -64,7 +64,7 @@ An element is named by where it is: its kind and its number among the elements o
 - Inside `c.Key(item.ID)` or `c.KeyInt(id)`, elements are numbered within that row, so a row's buttons follow it when rows come, go or move. Keys are reused two paints after their row is gone. A loop whose rows hold a `Button` keys its rows; `viva vet` reports one that does not.
 - While the user holds a button (presses it, or it has the focus), a paint in which another button took its place does not deliver the press, and the focus is given up.
 
-`ui.TextArea(c, &m.notes, label, placeholder)` is a field of several rows. A control of your own (a terminal, an editor, a canvas the user draws on) is `ui.Control(c, label, &m.handlers)`: an empty, focusable element you paint with `Draw`, whose `Handlers` receive its keys, presses, wheel and, for `RoleTextField` or `RoleTerminal`, the platform's typing and input methods through `Text`; no identity is declared and the window dispatches nothing. `ui.TextField(...).AutoFocus()` takes the focus as the field appears (once: the user's choice stays), and `.Submitted()` is true in the paint that delivers Enter in it; `.Secure()` makes it a password field. `.Tooltip("Delete")` gives a control the tip shown while the pointer rests on it, which is also its description. `ui.Menu(c, anchor, &m.menu, func(menu *ui.MenuItems) { ... })` is shadcn's dropdown menu of actions: `menu.Item("Rename").Clicked()` reads one as a button is read, the arrows move between items, and choosing one closes the menu. `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` takes Select's arguments and a label, and filters the choices as the user types into it, with the platform's input methods. `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` opens the same items at the pointer on a secondary press of `row`, or under it on Shift+F10; items take an `.Icon`, the keycaps of a shortcut with `.Keys(ui.Primary, "c")` (shown only: the shortcut is a `Shortcut` where its action is), and `.Checked` or `.Chosen` to be a checkbox or a radio item. A search field is a TextField with `.Icon(search)` before its text and `.Action(cross, "Clear")`, a small button at its end that `.ActionClicked()` reads. `ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` slides a panel in from an edge, as shadcn's Sheet: with an empty title the body has the whole panel, and `NonModal` leaves the keyboard on the page behind it. `ui.Tree(c, &m.tree, n, label, content)` is a List of the visible rows of the application's tree, with `TreeState.Node` describing each (its depth, whether it is a branch and open); the arrows move, open and close, and the tree reports `Toggled()` and `Chosen()` for the application to act on. Toasts are a `ui.Toaster` kept in the model: `m.toaster.Show("Saved", "", ui.ToastSuccess)` puts one up, and `ui.Toasts(c, &m.toaster)`, declared once and last, paints them and takes each down after five seconds, asking for one frame when the next is due and none while nothing is up. A keyboard shortcut is declared where it acts, as a click is read: `if ui.Shortcut(c, ui.Primary, "s") { m.save() }` is the page's (Primary is Command on macOS, Control elsewhere), and `list.Shortcut(0, "delete")` on a container or control acts only while the focus is in it, the innermost of nested ones winning. A chord without Primary, Ctrl or Alt is left to a field or terminal being typed in, and while a Popover, Modal, Menu, or Select or Combobox list is open the page's own shortcuts wait. `ui.List(c, &state, n, row)` declares only the rows on screen of a list of `n`, each as tall as its content, and scrolls it; `ListState.Key` names rows by an item's ID. `ui.State[T](c, "open")` is an element's own small state (whether its menu is open), found by its name in its container and kept while the container is declared. `ui.Memo(c, version, fn)` copies the part `fn` declares from the last paint while `version` is unchanged, declaring it again when it is hovered, focused, animated or resized; see Cost below.
+`ui.TextArea(c, &m.notes, label, placeholder)` is a field of several rows. A control of your own (a terminal, an editor, a canvas the user draws on) is `ui.Control(c, label, &m.handlers)`: an empty, focusable element you paint with `Draw`, whose `Handlers` receive its keys, presses, wheel and, for `RoleTextField` or `RoleTerminal`, the platform's typing and input methods through `Text`; no identity is declared and the window dispatches nothing. `ui.TextField(...).AutoFocus()` takes the focus as the field appears (once: the user's choice stays), and `.Submitted()` is true in the paint that delivers Enter in it; `.Secure()` makes it a password field. `.Tooltip("Delete")` gives a control the tip shown while the pointer rests on it, which is also its description. `ui.Menu(c, anchor, &m.menu, func(menu *ui.MenuItems) { ... })` is shadcn's dropdown menu of actions: `menu.Item("Rename").Clicked()` reads one as a button is read, the arrows move between items, typing a letter goes to the item it begins, and choosing one closes the menu. `menu.Sub("Move to", func(to *ui.MenuItems) { ... })` is an item with a submenu beside it, which opens as the pointer rests on the item, on a click, or on Right, Enter or Space with its first item focused; Left goes back, Escape closes every menu, and choosing in it closes them all. `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` takes Select's arguments and a label, and filters the choices as the user types into it, with the platform's input methods. `.Clearable()` gives it a button that clears the choice, `.Empty("No zone matches")` is what its list says when nothing matches, and `.Creatable("")` offers what was typed as a new choice ("Create dev"), which `.Created()` reports for the application to add. A Button takes an icon before its label with `.Icon(plus)`, or alone with `.IconOnly()`. `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` opens the same items at the pointer on a secondary press of `row`, or under it on Shift+F10; items take an `.Icon`, the keycaps of a shortcut with `.Keys(ui.Primary, "c")` (shown only: the shortcut is a `Shortcut` where its action is), and `.Checked` or `.Chosen` to be a checkbox or a radio item. A search field is a TextField with `.Icon(search)` before its text and `.Action(cross, "Clear")`, a small button at its end that `.ActionClicked()` reads. `ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` slides a panel in from an edge, as shadcn's Sheet: with an empty title the body has the whole panel, and `NonModal` leaves the keyboard on the page behind it; `Swipe` adds a handle at its inner edge, and a drag on it moves the panel toward its edge, closing it when dragged past half its size or thrown, sliding it back otherwise. `ui.Tree(c, &m.tree, n, label, content)` is a List of the visible rows of the application's tree, with `TreeState.Node` describing each (its depth, whether it is a branch and open); the arrows move, open and close, and the tree reports `Toggled()` and `Chosen()` for the application to act on. Toasts are a `ui.Toaster` kept in the model: `m.toaster.Show("Saved", "", ui.ToastSuccess)` puts one up, and `ui.Toasts(c, &m.toaster)`, declared once and last, paints them and takes each down after five seconds, asking for one frame when the next is due and none while nothing is up. `ShowAction(title, description, kind, "Undo")` gives one a button, whose press `m.toaster.Acted()` reports after `Toasts` and which takes the toast down; a `ui.ToastLoading` toast spins and stays until `m.toaster.Done(id, "Uploaded", "", ui.ToastSuccess)` replaces it; `Toaster.Position` puts the stack in another corner or centered (`ui.ToastTopCenter`). A keyboard shortcut is declared where it acts, as a click is read: `if ui.Shortcut(c, ui.Primary, "s") { m.save() }` is the page's (Primary is Command on macOS, Control elsewhere), and `list.Shortcut(0, "delete")` on a container or control acts only while the focus is in it, the innermost of nested ones winning. A chord without Primary, Ctrl or Alt is left to a field or terminal being typed in, and while a Popover, Modal, Menu, or Select or Combobox list is open the page's own shortcuts wait. `ui.List(c, &state, n, row)` declares only the rows on screen of a list of `n`, each as tall as its content, and scrolls it; `ListState.Key` names rows by an item's ID. `ui.State[T](c, "open")` is an element's own small state (whether its menu is open), found by its name in its container and kept while the container is declared. `ui.Memo(c, version, fn)` copies the part `fn` declares from the last paint while `version` is unchanged, declaring it again when it is hovered, focused, animated or resized; see Cost below.
 
 A settings struct can have its form written for it. Tag the fields and run `viva form` (from `//go:generate go tool viva form`): it writes `viva_form.go` with `func (v *Settings) Form(c ui.C) ui.Box`, plain page code with no reflection:
 
@@ -209,6 +209,195 @@ func main() {
 `c.Frame()` is the Frame underneath, for anything the page does not declare itself (`Textarea`, `InputGroup`, the `Base` controls); `c.Part("word")` gives the next element a name of yours, which a test or the headless driver can use. A pane of a window laid out with a Frame is a page with `f.Page(page, view).Grow(1)`: the page is declared into the element's rectangle once the frame is laid out, in the element's place, and names its controls in the window's Tree under its `PageConfig.Root`. Calling `page.Draw` while the frame is still being declared paints the page before the frame knows where the pane is, under the frame's own controls, and its clicks go to them. Give the window's `TextInput` and `OnScroll` to `page.TextInput` and `page.Wheel`, and in the window's `OnPointer` and `OnKey` ask the page first, `if r, ok := page.Pointer(event); ok { return r }` and the same with `page.Key`; without that the page's Controls get no input, its TextAreas do not move by row, and its overlays hold nothing behind them. A `Modal` of the page dims the pane, not the window. The page's own presses go to it, and while one of its Popovers, Modals, Menus or open Select and Combobox lists is up (`page.Overlay()`) nothing behind it acts and Escape, Enter, Space and Tab reach it. A pane is not declared inside a `Memo`. A window-level handler that switches on identities keeps using a Frame.
 
 The fleet page of `examples/guides/page` (a choice, a scroll area with eight rows each holding a checkbox, a progress bar and a button) declares, lays out and paints in 9.8 µs on an Apple M2 Pro against 9.0 µs for the same page written with a Frame, and allocates nothing once warm; a list of a thousand keyed rows costs 0.75 ms against 0.67 ms. With each row in a `Memo` a list of two hundred rows costs 87 µs instead of 271 µs, and 37 µs with the whole list in one; the copies keep the last paint's commands, about 0.5 MB for those two hundred rows (`go test ./ui -bench 'Fleet$|Rows1000|Rows200'`).
+
+The same page written with a Frame, every identity declared by hand and every click dispatched by it, is what that figure compares against; the page writes none of this:
+
+<!-- example: fleet/main.go -->
+```go
+// Fleet check in Viva: the same screen the nanoui and mygo versions show, so
+// the three can be compared on equal data.
+//
+// Two differences from the other two are Viva's architecture, not style:
+//
+//   - Controls carry identities from a declared tree, not pointers into the
+//     model. A checkbox reports a click; the program decides what that means.
+//   - Paint is a function of state, and state changes only where a control says
+//     it was clicked, so the progress figure is derived from the same rows the
+//     list draws.
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/ui"
+)
+
+// Identities are names in a tree, not numbers.
+var (
+	tree = gfx.Tree{}
+	page = tree.Feature("fleet")
+
+	filterScope = tree.Sub(page, tree.Name("filter"))
+	scanButton  = tree.ID(page, "scan")
+	listScroll  = tree.ID(page, "list")
+
+	// One checkbox identity per row, made once at start-up.
+	rows = [8]gfx.ID{
+		tree.ID(page, "row-0"), tree.ID(page, "row-1"),
+		tree.ID(page, "row-2"), tree.ID(page, "row-3"),
+		tree.ID(page, "row-4"), tree.ID(page, "row-5"),
+		tree.ID(page, "row-6"), tree.ID(page, "row-7"),
+	}
+)
+
+type host struct {
+	name    string
+	addr    string
+	item    string
+	handled bool
+}
+
+type model struct {
+	hosts  []host
+	filter int
+	scans  int
+	view   ui.View
+}
+
+const (
+	filterAll = iota
+	filterOpen
+	filterHandled
+)
+
+func newModel() *model {
+	return &model{hosts: []host{
+		{name: "edge-01", addr: "10.0.4.11", item: "Disable password auth"},
+		{name: "edge-02", addr: "10.0.4.12", item: "Rotate host key"},
+		{name: "build-01", addr: "10.0.8.3", item: "Pin to ed25519"},
+		{name: "build-02", addr: "10.0.8.4", item: "Restrict agent forwarding", handled: true},
+		{name: "db-primary", addr: "10.0.9.2", item: "Close port 22 to the world"},
+		{name: "db-replica", addr: "10.0.9.3", item: "Enable key-only login", handled: true},
+		{name: "jump-01", addr: "10.0.1.5", item: "Set a login grace time"},
+		{name: "nas-01", addr: "10.0.12.7", item: "Upgrade OpenSSH"},
+	}}
+}
+
+// handledCount reads the same slice the rows come from, so the bar cannot
+// disagree with the rows above it.
+func (m *model) handledCount() int {
+	n := 0
+	for _, h := range m.hosts {
+		if h.handled {
+			n++
+		}
+	}
+	return n
+}
+
+func (m *model) matches(h host) bool {
+	switch m.filter {
+	case filterOpen:
+		return !h.handled
+	case filterHandled:
+		return h.handled
+	}
+	return true
+}
+
+func newConfig(m *model) app.Config {
+	theme := gfx.LightTheme()
+	config := app.Config{Tree: &tree, Title: "Viva fleet", Width: 460, Height: 560}
+
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
+		canvas.Fill(bounds, theme.Background)
+
+		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
+			f.Column().Fill().Pad(22).Gap(14).Children(func() {
+				f.Text("Fleet check").FontSize(26).Bold()
+				f.Text("SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
+
+				labels := []string{"All", "Open", "Handled"}
+				if i, ok := f.Choice(filterScope, labels, m.filter).ChosenIndex(); ok {
+					m.filter = i
+				}
+
+				// A scroll region that takes only the room left over, so the
+				// footer below it stays on screen.
+				f.ScrollArea(listScroll).Grow(1).Gap(8).Children(func() {
+					for i := range m.hosts {
+						h := &m.hosts[i]
+						if !m.matches(*h) {
+							continue
+						}
+						m.row(f, theme, rows[i], h)
+					}
+				})
+
+				handled := m.handledCount()
+				total := len(m.hosts)
+				frac := float32(0)
+				if total > 0 {
+					frac = float32(handled) / float32(total)
+				}
+				f.Progress(frac).FillWidth()
+
+				f.Row().FillWidth().Gap(10).Items(ui.Center).Children(func() {
+					f.Text(fmt.Sprintf("%d of %d handled", handled, total)).FontSize(12).Muted().Mono()
+					f.Spacer()
+					f.Text(fmt.Sprintf("scanned %dx", m.scans)).FontSize(12).Muted().Mono()
+					if f.Button(scanButton, "Scan again").Clicked() {
+						m.scans++
+					}
+				})
+			})
+		})
+	}
+	return config
+}
+
+func (m *model) row(f *ui.Frame, theme gfx.Theme, id gfx.ID, h *host) {
+	f.Row().FillWidth().Pad(12).Gap(12).Radius(10).Items(ui.Center).
+		Background(theme.Card).Children(func() {
+		label := "open"
+		color := theme.Danger
+		if h.handled {
+			label = "ok"
+			color = theme.Success
+		}
+		f.Text(label).FontSize(11).Color(color)
+
+		f.Column().Grow(1).Gap(2).Children(func() {
+			f.Row().Gap(8).Items(ui.Center).Children(func() {
+				f.Text(h.name).FontSize(14).Bold()
+				f.Text(h.addr).FontSize(12).Muted().Mono()
+			})
+			if h.handled {
+				f.Text(h.item).FontSize(12).Muted()
+			} else {
+				f.Text(h.item).FontSize(12)
+			}
+		})
+
+		// The checkbox only reports the click; the model is what changes, and
+		// the bar above re-derives itself from it on the next paint.
+		if f.Checkbox(id, h.handled).Clicked() {
+			h.handled = !h.handled
+		}
+	})
+}
+
+func main() {
+	var canvas gfx.Canvas
+	if err := app.RunCanvas(newConfig(newModel()), &canvas); err != nil {
+		log.Fatal(err)
+	}
+}
+```
 
 ## States and effects
 

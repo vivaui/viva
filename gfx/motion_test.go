@@ -691,3 +691,26 @@ func TestSpringOvershootsAndSettles(t *testing.T) {
 		}
 	}
 }
+
+// Inside a frame every reading is the frame's one time; between frames, where an
+// event handler measures the pause since the last key, it is the time now.
+func TestNowIsTheFramesTimeAndTheEventsBetween(t *testing.T) {
+	var canvas Canvas
+	now := time.Second
+	canvas.SetClock(func() time.Duration { return now })
+	canvas.BeginFrame()
+	first := canvas.Now()
+	now += time.Second
+	if canvas.Now() != first {
+		t.Fatalf("a frame read %v then %v", first, canvas.Now())
+	}
+	canvas.EndFrame()
+	now += time.Second
+	if canvas.Now() != now {
+		t.Fatalf("between frames Now is %v, the clock %v", canvas.Now(), now)
+	}
+	now -= time.Millisecond // a clock that steps back does not take Now back
+	if canvas.Now() != now+time.Millisecond {
+		t.Fatal("Now went back")
+	}
+}

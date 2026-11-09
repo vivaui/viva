@@ -14,7 +14,7 @@ type fieldAddons struct {
 func (b Box) addons() *fieldAddons {
 	n := b.n()
 	if n.kind != kindInput {
-		panic("ui: a field's Icon and Action are for a TextField")
+		panic("ui: Icon is for a Button or a TextField, Action for a TextField")
 	}
 	extra := b.f.extra(b.i)
 	if extra.addons == 0 {
@@ -25,11 +25,18 @@ func (b Box) addons() *fieldAddons {
 	return &b.f.addons[extra.addons-1]
 }
 
-// Icon puts icon inside a TextField before its text, as the magnifier of a search
-// field. It is decoration: it names nothing.
+// Icon puts icon on a Button before its label, or alone on an IconOnly one, whose
+// label is then its name for assistive technology and its hover hint; and inside a
+// TextField before its text, as the magnifier of a search field.
 //
+//	ui.Button(c, "New host").Icon(plus)
+//	ui.Button(c, "Delete").Icon(trash).IconOnly().Ghost()
 //	ui.TextField(c, &m.query, "Search", "Search hosts").Icon(search)
 func (b Box) Icon(icon gfx.Icon) Box {
+	if b.n().kind == kindButton {
+		b.f.extra(b.i).icon = icon
+		return b
+	}
 	b.addons().start = components.InputGroupSlot{Kind: components.InputGroupSlotIcon, Icon: icon}
 	return b
 }

@@ -76,6 +76,17 @@ func (s *SingleSelectState) SetValue(value string) {
 	s.revision++
 }
 
+// ForgetCreated drops the values the user created with AllowCreate, for a caller
+// that keeps them among the options it sets itself: the list would show each twice.
+func (s *SingleSelectState) ForgetCreated() {
+	if len(s.custom) == 0 {
+		return
+	}
+	clear(s.custom)
+	s.custom = s.custom[:0]
+	s.revision++
+}
+
 func (s *SingleSelectState) SetValidateCreate(validate func(string) bool) {
 	s.validateCreate = validate
 	s.revision++

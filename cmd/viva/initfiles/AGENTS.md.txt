@@ -67,18 +67,25 @@ func (m *model) page(c ui.C) {
 - `.Tooltip("Delete")` on a control is the tip shown while the pointer rests on it (and its description).
 - A menu of actions off a button: `ui.Menu(c, more, &m.menu, func(menu *ui.MenuItems) { if menu.Item("Rename").Clicked() { ... } })`;
   `menu.Separator()`, `menu.Label("Group")`, `.Destructive()`, `.Disabled(x)`. Choosing an item closes it.
+  Typing a letter goes to the item it begins. `menu.Sub("Move to", func(to *ui.MenuItems) { ... })` is a submenu
+  (opens as the pointer rests on it, on a click, or on Right/Enter/Space; Left goes back), in a ContextMenu too.
 - A right-click menu: `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` (Shift+F10 opens it too); items
   take `.Icon(icon)`, `.Keys(ui.Primary, "c")` (shown, not bound), `.Checked(on)` and `.Chosen(on)`.
 - A search field: `ui.TextField(c, &m.query, "Search", "").Icon(search).Action(cross, "Clear")`, and
   `.ActionClicked()` for the button.
 - A side panel: `ui.Drawer(c, &m.open, "Title", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)`;
-  an empty title gives the body the whole panel, `NonModal` keeps the keyboard on the page.
+  an empty title gives the body the whole panel, `NonModal` keeps the keyboard on the page, `Swipe` adds a
+  handle that a drag toward the edge closes it by (past half its size, or thrown).
 - A tree: keep a `ui.TreeState` with `Node` describing each visible row, `ui.Tree(c, &m.tree, n, label, nil)`,
   then `m.tree.Toggled()` (open or close that branch, give the tree its new rows) and `m.tree.Chosen()`.
 - A long list to choose from by typing: `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` (Select's
-  arguments plus a label); it filters as the user types.
+  arguments plus a label); it filters as the user types. `.Clearable()` adds a clear button, `.Empty("No zone")`
+  is what an empty list says, `.Creatable("")` offers what was typed as a new choice, read with `.Created()`.
+- A button with an icon: `ui.Button(c, "New host").Icon(plus)`; `.Icon(trash).IconOnly()` for the icon alone.
 - Toasts: keep a `ui.Toaster` in the model, `m.toaster.Show("Saved", "", ui.ToastSuccess)`, and declare
-  `ui.Toasts(c, &m.toaster)` once, last in the page.
+  `ui.Toasts(c, &m.toaster)` once, last in the page. `ShowAction(title, "", kind, "Undo")` adds a button,
+  `m.toaster.Acted()` (after `Toasts`) reports its press; a `ui.ToastLoading` toast stays until
+  `m.toaster.Done(id, title, "", ui.ToastSuccess)` replaces it; `Toaster.Position` picks the corner.
 - `ui.TextField(...).AutoFocus()` focuses a field as it appears; `.Submitted()` is Enter pressed in it.
   `ui.TextField(...).Secure()` is a password field.
 - Keyboard shortcuts are declared where they act: `if ui.Shortcut(c, ui.Primary, "s") { m.save() }` (Primary is

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/vivaui/viva/components"
@@ -35,8 +36,11 @@ func (side DrawerSide) component() components.DrawerSide {
 // when zero; never more than the window), a description, NoClose to leave out the
 // close button, NonModal for a panel that does not hold the keyboard (Tab and the
 // page's shortcuts go on reaching the page behind it, whose focus it does not take;
-// a press beside it still closes it), and the control that takes the keyboard as it
-// opens (the first of the body when zero; none for a NonModal one).
+// a press beside it still closes it), the control that takes the keyboard as it
+// opens (the first of the body when zero; none for a NonModal one), and Swipe for a
+// handle at its inner edge that a drag toward the edge closes it by, as vaul's
+// drawer: thrown, or dragged past half its size, it closes; let go short of that, it
+// slides back.
 type DrawerSpec struct {
 	Side         DrawerSide
 	Size         float32
@@ -44,6 +48,7 @@ type DrawerSpec struct {
 	NoClose      bool
 	NonModal     bool
 	InitialFocus gfx.ID
+	Swipe        bool
 }
 
 // Drawer shows a panel that slides in from an edge of the window while *open, as
@@ -72,6 +77,18 @@ func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func())
 	}
 	if spec.NonModal {
 		d.scope = gfx.ID{} // no trap: the page keeps the keyboard it had
+	}
+	if spec.Swipe {
+		d.handle = scope.At(3)
+		s := stateIn[drawerSwipe](p, scope, "swipe")
+		if s.seen+1 != p.epoch {
+			*s = drawerSwipe{} // opened again: where it opens, not where it was let go
+		}
+		s.seen = p.epoch
+		if d.swipe(c.f, s) {
+			*open = false
+			return true
+		}
 	}
 	drawer := c.f.drawer(d, footer != nil)
 	decl := &c.f.widgets.drawers[drawer.n().aux]
@@ -103,11 +120,73 @@ func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func())
 	return false
 }
 
-// drawerSpec is a Drawer as the frame paints it: its title and identities.
+// drawerSpec is a Drawer as the frame paints it: its title, its identities, and how
+// far a swipe has moved it.
 type drawerSpec struct {
 	DrawerSpec
-	title                 string
-	scope, dismiss, close gfx.ID
+	title                         string
+	scope, dismiss, close, handle gfx.ID
+	offset                        float32
+}
+
+// drawerSwipe is a swipe on a Drawer's handle: the component's, and where and when
+// the pointer last was, which the speed it is let go at comes from.
+type drawerSwipe struct {
+	components.DrawerSwipe
+	at   float32
+	when time.Duration
+	pace float32 // pixels a second toward the edge, over the last move
+	seen uint32  // the page's epoch the drawer was last declared in
+}
+
+// swipeMotion is how the panel slides back when let go short of closing.
+var swipeMotion = gfx.Motion{Duration: 300 * time.Millisecond, Easing: gfx.EaseOut}
+
+// swipe follows the pointer on the handle and reports whether letting it go
+// closes the drawer. It sets how far the panel is moved toward its edge.
+func (d *drawerSpec) swipe(f *Frame, s *drawerSwipe) bool {
+	canvas := f.canvas
+	if canvas == nil {
+		return false
+	}
+	if event, ok := canvas.PointerOn(d.handle); ok {
+		// The pointer's travel toward the edge, and how far the panel reaches from it.
+		content := d.component(canvas, f.theme, f.bounds, 0).Layout(d.Description).Content
+		toward, extent := event.Y, content.Height
+		switch d.Side {
+		case DrawerTop:
+			toward = -event.Y
+		case DrawerRight:
+			toward, extent = event.X, content.Width
+		case DrawerLeft:
+			toward, extent = -event.X, content.Width
+		}
+		now := canvas.Now()
+		switch {
+		case event.Kind == gfx.PointerDown && event.Button <= gfx.PointerButtonPrimary:
+			s.Begin(toward)
+			s.at, s.when, s.pace = toward, now, 0
+			canvas.Consume()
+		case event.Kind == gfx.PointerMove && s.Dragging():
+			if dt := (now - s.when).Seconds(); dt > 0 {
+				s.pace = float32(float64(toward-s.at) / dt)
+			}
+			s.at, s.when = toward, now
+			s.Move(toward, extent)
+			canvas.Consume()
+		case event.Kind == gfx.PointerUp && s.Dragging():
+			canvas.Consume()
+			if _, dismissed := s.End(extent, s.pace, nil); dismissed {
+				return true
+			}
+		}
+	}
+	motion := swipeMotion
+	if s.Dragging() {
+		motion = gfx.Motion{} // under the pointer, as it moves
+	}
+	d.offset = canvas.Animate(d.handle, 0, s.Offset(), motion)
+	return false
 }
 
 type drawerDecl struct {
@@ -117,10 +196,15 @@ type drawerDecl struct {
 }
 
 func (spec *drawerSpec) component(canvas *gfx.Canvas, theme Theme, bounds Rect, layer uint16) components.Drawer {
-	return components.BeginDrawer(canvas, theme, bounds, components.DrawerOptions{
+	drawer := components.BeginDrawer(canvas, theme, bounds, components.DrawerOptions{
 		Layer: layer, Scope: spec.scope, DismissID: spec.dismiss, CloseID: spec.close,
 		Side: spec.Side.component(), ContentExtent: spec.Size, InitialFocusID: spec.InitialFocus,
+		HandleID: spec.handle, Offset: spec.offset,
 	})
+	if spec.Swipe {
+		drawer = drawer.WithHandle()
+	}
+	return drawer
 }
 
 // drawer declares a Drawer's root: an element over the whole frame holding the

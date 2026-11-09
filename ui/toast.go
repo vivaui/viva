@@ -17,6 +17,21 @@ const (
 	ToastInfo
 	ToastWarning
 	ToastError
+	// ToastLoading spins, and the toast does not go by itself: something under way,
+	// which Show or Done replaces when it ends.
+	ToastLoading
+)
+
+// ToastPosition is where a Toaster's stack sits; the zero value is the bottom right.
+type ToastPosition uint8
+
+const (
+	ToastBottomRight ToastPosition = iota
+	ToastBottomLeft
+	ToastBottomCenter
+	ToastTopRight
+	ToastTopLeft
+	ToastTopCenter
 )
 
 // ToastLayer is the canvas layer toasts are painted on: over the page and its
@@ -37,19 +52,24 @@ const ToastLayer = TooltipLayer - 8
 //	}
 //	ui.Toasts(c, &m.toaster)
 type Toaster struct {
+	// Position is where the stack sits; the bottom right when zero.
+	Position ToastPosition
+
 	queue   components.ToastQueue
 	toasts  []toast // oldest first
 	next    uint32
 	scope   gfx.Scope
 	stack   []components.SonnerToast // scratch for one paint, newest first
 	entries []components.ToastQueueEntry
+	acted   ToastID // the toast whose action this paint delivered, or 0
 }
 
 type toast struct {
 	n                  uint32 // its number: ToastID, and its identity in the Toaster's scope
 	title, description string
 	kind               ToastKind
-	shown              bool // painted once: in the queue, with its time running
+	action             string // the label of its button; none when empty
+	shown              bool   // painted once: in the queue, with its time running
 }
 
 // ToastID names a toast for Close.
@@ -58,8 +78,17 @@ type ToastID uint32
 // Show puts up a toast: a title, and a description under it ("" for none). The
 // same title and description already up is not shown twice; its time starts again.
 func (t *Toaster) Show(title, description string, kind ToastKind) ToastID {
+	return t.ShowAction(title, description, kind, "")
+}
+
+// ShowAction is Show with a button labeled action, which Acted reports and which
+// takes the toast down: an Undo, a Retry, an Open. The action is not the only way
+// to it: what the toast offers is somewhere in the window too, for the toast goes
+// by itself.
+func (t *Toaster) ShowAction(title, description string, kind ToastKind, action string) ToastID {
 	for i := range t.toasts {
 		if item := &t.toasts[i]; item.title == title && item.description == description {
+			item.kind, item.action = kind, action
 			if item.shown {
 				t.queue.Remove(t.id(item.n))
 				item.shown = false // the next paint queues it again, with a fresh time
@@ -68,9 +97,28 @@ func (t *Toaster) Show(title, description string, kind ToastKind) ToastID {
 		}
 	}
 	t.next++
-	t.toasts = append(t.toasts, toast{n: t.next, title: title, description: description, kind: kind})
+	t.toasts = append(t.toasts, toast{n: t.next, title: title, description: description, kind: kind, action: action})
 	return ToastID(t.next)
 }
+
+// Done replaces toast id, a ToastLoading one, with what it ended in: its title,
+// description and kind now, and its time running from now.
+func (t *Toaster) Done(id ToastID, title, description string, kind ToastKind) {
+	for i := range t.toasts {
+		if item := &t.toasts[i]; item.n == uint32(id) {
+			item.title, item.description, item.kind = title, description, kind
+			if item.shown {
+				t.queue.Remove(t.id(item.n))
+				item.shown = false
+			}
+			return
+		}
+	}
+}
+
+// Acted reports the toast whose action button this paint delivers a press on; read
+// it after ui.Toasts.
+func (t *Toaster) Acted() (ToastID, bool) { return t.acted, t.acted != 0 }
 
 // Close takes a toast down before its time.
 func (t *Toaster) Close(id ToastID) {
@@ -91,14 +139,21 @@ func (t *Toaster) id(n uint32) gfx.ID {
 	if t.scope == 0 {
 		return gfx.ID{}
 	}
-	return t.scope.At(int(n) * 2)
+	return t.scope.At(int(n) * 3)
 }
 
-// toastEpoch turns the canvas's frame time into the times the queue keeps: only
-// their differences matter.
-var toastEpoch = time.Unix(0, 0)
+// A toast's identities in the Toaster's scope, after its own (n*3): its close button
+// and its action.
+const (
+	toastClose  = 1
+	toastAction = 2
+)
 
-// Toasts paints the toasts of t at the bottom right of the page, over everything
+// clockEpoch turns the canvas's monotonic time into the times the components keep,
+// a toast queue's or a typeahead's: only their differences matter.
+var clockEpoch = time.Unix(0, 0)
+
+// Toasts paints the toasts of t where t.Position says, over everything
 // else, and takes them down as their time is up. It asks for one frame when the
 // next is due and none while there is nothing up. Declare it once, last in the page.
 func Toasts(c C, t *Toaster) {
@@ -106,14 +161,18 @@ func Toasts(c C, t *Toaster) {
 	p.forbidInMemo("Toasts")
 	t.scope = p.boundScope(pkToaster, unsafe.Pointer(t))
 	canvas := c.f.canvas
+	t.acted = 0
 	if canvas == nil || len(t.toasts) == 0 {
 		return
 	}
-	now := toastEpoch.Add(canvas.Now())
-	// A press on a close button, delivered here.
+	now := clockEpoch.Add(canvas.Now())
+	// A press on a close or an action button, delivered here.
 	if id, ok := canvas.ClickTarget(); ok {
-		if at, inside := id.In(t.scope); inside && at%2 == 1 {
-			t.Close(ToastID(at / 2))
+		if at, inside := id.In(t.scope); inside && at%3 != 0 {
+			if at%3 == toastAction {
+				t.acted = ToastID(at / 3)
+			}
+			t.Close(ToastID(at / 3))
 		}
 	}
 	for {
@@ -122,18 +181,18 @@ func Toasts(c C, t *Toaster) {
 			break
 		}
 		at, _ := id.In(t.scope)
-		t.Close(ToastID(at / 2))
+		t.Close(ToastID(at / 3))
 	}
 	for i := 0; i < len(t.toasts); i++ {
 		item := &t.toasts[i]
 		if item.shown {
 			continue
 		}
-		evicted, ok := t.queue.Add(t.id(item.n), now, false)
+		evicted, ok := t.queue.Add(t.id(item.n), now, item.kind == ToastLoading)
 		item.shown = ok
 		if at, inside := evicted.In(t.scope); inside {
 			// The queue was full: the oldest goes, which is ahead of this one.
-			t.Close(ToastID(at / 2))
+			t.Close(ToastID(at / 3))
 			i--
 		}
 	}
@@ -153,13 +212,35 @@ func Toasts(c C, t *Toaster) {
 		} else {
 			t.queue.Resume(t.id(item.n), now)
 		}
-		t.stack = append(t.stack, components.SonnerToast{
-			Snapshot: components.ToastSnapshot{Title: item.title, Description: item.description, Type: components.ToastType(item.kind)},
-			Scope:    t.id(item.n), DismissID: t.scope.At(int(item.n)*2 + 1),
-		})
+		toast := components.SonnerToast{
+			Snapshot: components.ToastSnapshot{Title: item.title, Description: item.description, Type: item.kind.component()},
+			Scope:    t.id(item.n), DismissID: t.scope.At(int(item.n)*3 + toastClose),
+		}
+		if item.action != "" {
+			toast.ActionID, toast.ActionLabel = t.scope.At(int(item.n)*3+toastAction), item.action
+		}
+		t.stack = append(t.stack, toast)
 	}
-	components.PaintSonner(canvas, c.f.theme, c.f.bounds, t.stack, components.SonnerOptions{Layer: ToastLayer, Expanded: held})
+	components.PaintSonner(canvas, c.f.theme, c.f.bounds, t.stack, components.SonnerOptions{
+		Layer: ToastLayer, Expanded: held, Position: components.ToastPosition(t.Position),
+	})
 	if deadline, ok := t.queue.NextDeadline(); ok {
 		canvas.RequestFrameIn(max(deadline.Sub(now), time.Millisecond))
 	}
+}
+
+func (kind ToastKind) component() components.ToastType {
+	switch kind {
+	case ToastSuccess:
+		return components.ToastSuccess
+	case ToastInfo:
+		return components.ToastInfo
+	case ToastWarning:
+		return components.ToastWarning
+	case ToastError:
+		return components.ToastError
+	case ToastLoading:
+		return components.ToastLoading
+	}
+	return components.ToastDefault
 }

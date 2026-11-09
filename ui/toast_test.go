@@ -10,6 +10,8 @@ import (
 type toastModel struct {
 	toaster ui.Toaster
 	saves   int
+	undone  int
+	undo    ui.ToastID
 }
 
 func (m *toastModel) page(c ui.C) {
@@ -21,6 +23,9 @@ func (m *toastModel) page(c ui.C) {
 		ui.Button(c, "Other")
 	})
 	ui.Toasts(c, &m.toaster)
+	if id, ok := m.toaster.Acted(); ok && id == m.undo {
+		m.undone++
+	}
 }
 
 // A toast is up once shown and goes away when its time is up, and the window does
@@ -88,6 +93,48 @@ func TestToastDedupAndLimit(t *testing.T) {
 	}
 	if m.toaster.Len() != 3 || tooltipShown(d, "Saved") {
 		t.Fatalf("%d toasts, the oldest shown %v", m.toaster.Len(), tooltipShown(d, "Saved"))
+	}
+}
+
+// A toast's action is reported once and takes the toast down; one in progress stays
+// until Done replaces it, whose time then runs.
+func TestToastActionAndLoading(t *testing.T) {
+	m := &toastModel{}
+	d := openPage(t, m.page)
+	m.undo = m.toaster.ShowAction("Host deleted", "", ui.ToastInfo, "Undo")
+	d.repaint()
+	d.click("Undo")
+	if m.undone != 1 || m.toaster.Len() != 0 {
+		t.Fatalf("undone %d times, %d toasts up", m.undone, m.toaster.Len())
+	}
+	d.repaint()
+	if m.undone != 1 {
+		t.Fatal("the action is reported again on the next paint")
+	}
+
+	if err := d.driver.Move(1, 1); err != nil { // off the stack, which holds its time
+		t.Fatal(err)
+	}
+	id := m.toaster.Show("Uploading", "", ui.ToastLoading)
+	d.repaint()
+	if err := d.driver.Advance(20 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if !tooltipShown(d, "Uploading") {
+		t.Fatal("a toast in progress went by itself")
+	}
+	m.toaster.Done(id, "Uploaded", "", ui.ToastSuccess)
+	d.repaint()
+	if !tooltipShown(d, "Uploaded") || tooltipShown(d, "Uploading") {
+		t.Fatal("Done did not replace the toast")
+	}
+	for range 8 {
+		if err := d.driver.Advance(time.Second); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if m.toaster.Len() != 0 {
+		t.Fatal("the finished toast did not go by itself")
 	}
 }
 

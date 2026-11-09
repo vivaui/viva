@@ -113,3 +113,74 @@ func BenchmarkComboboxOpen(b *testing.B) {
 		drawPage(page, canvas, m.page)
 	}
 }
+
+type groupModel struct {
+	groups  []string
+	group   string
+	changes int
+	created []string
+}
+
+func (m *groupModel) page(c ui.C) {
+	ui.Column(c).Pad(16).Items(ui.Start).Children(func() {
+		field := ui.Combobox(c, &m.group, m.groups, nil, "Group").Width(240).Clearable().Empty("No groups").Creatable("New group ")
+		if field.Changed() {
+			m.changes++
+		}
+		if name, ok := field.Created(); ok {
+			m.created = append(m.created, name)
+			m.groups = append(m.groups, name)
+			m.group = name
+		}
+	})
+}
+
+// What is typed and no choice yet is offered as one: Created reports it, the
+// application adds it, and the list does not then show it twice.
+func TestComboboxCreates(t *testing.T) {
+	m := &groupModel{groups: []string{"prod", "staging"}}
+	d := openPage(t, m.page)
+	d.click("Group")
+	d.typeText("dev")
+	if got := options(d); len(got) != 1 || got[0] != "New group dev" {
+		t.Fatalf("typing a new name lists %v", got)
+	}
+	d.key(gfx.KeyEnter)
+	d.repaint()
+	if len(m.created) != 1 || m.created[0] != "dev" || m.group != "dev" {
+		t.Fatalf("created %v, group %q", m.created, m.group)
+	}
+	d.click("Group")
+	count := 0
+	for _, label := range options(d) {
+		if label == "dev" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("the created group shows %d times: %v", count, options(d))
+	}
+}
+
+// Clear sets the value back to none.
+func TestComboboxClear(t *testing.T) {
+	m := &groupModel{groups: []string{"prod", "staging"}, group: "prod"}
+	d := openPage(t, m.page)
+	d.click("Clear Group")
+	if m.group != "" || m.changes != 1 {
+		t.Fatalf("clear: group %q, changes %d", m.group, m.changes)
+	}
+}
+
+// A list with nothing to show says what Empty says.
+func TestComboboxEmpty(t *testing.T) {
+	chosen := zones[0]
+	d := openPage(t, func(c ui.C) {
+		ui.Combobox(c, &chosen, zones, zone.String, "Time zone").Width(240).Empty("No zone matches")
+	})
+	d.click("Time zone")
+	d.typeText("mars")
+	if len(options(d)) != 0 || !tooltipShown(d, "No zone matches") {
+		t.Fatalf("rows %v, the empty text shown %v", options(d), tooltipShown(d, "No zone matches"))
+	}
+}

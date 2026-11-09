@@ -36,6 +36,14 @@ type DrawerOptions struct {
 	// Zero leaves focus where the runtime puts it, which is nowhere when the
 	// opener is outside the new scope.
 	InitialFocusID gfx.ID
+	// HandleID names the strip along the panel's inner edge, around its handle
+	// (see WithHandle), that a swipe begins on: the caller reads the pointer on it
+	// with Canvas.PointerOn and feeds DrawerSwipe. Zero leaves the handle a picture.
+	HandleID gfx.ID
+	// Offset is how far a swipe has moved the panel toward its edge, as
+	// DrawerSwipe.Offset reports it: Layout and Begin place every part that much
+	// closer to closed, and the scrim fades with it.
+	Offset float32
 }
 
 // DrawerSwipe is caller-owned drag state for a drawer that is swiped toward
@@ -166,14 +174,21 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 		drawer.canvas.PushFocusScope(drawer.options.Scope)
 	}
 	key := overlayKey(drawer.options.DismissID, drawer.options.CloseID, drawer.options.Scope)
-	beginScrim(drawer.canvas, drawer.theme, key, scrimPresence(drawer.theme, drawerDuration, gfx.EaseCSS), drawer.viewport)
-	if !drawer.options.DismissID.IsZero() {
-		drawer.canvas.HitWithOptions(drawer.options.DismissID, drawer.viewport, "Dismiss drawer", gfx.HitOptions{Role: gfx.RoleButton, Disabled: drawer.disabled, SkipFocus: true, Backdrop: true})
-	}
 	metrics := drawer.theme.Metrics
 	var scratch overlayLines
 	layout, lines := drawer.layout(&scratch, description)
 	content := layout.Content
+	// The scrim fades as a swipe takes the panel toward its edge.
+	drawer.canvas.BeginPresence(key, overlayBackdropPart, scrimPresence(drawer.theme, drawerDuration, gfx.EaseCSS), centerOf(drawer.viewport))
+	scrim := overlayBackdrop(drawer.theme)
+	if extent := drawer.extent(content); drawer.options.Offset > 0 && extent > 0 {
+		scrim.Alpha *= max(1-drawer.options.Offset/extent, 0)
+	}
+	drawer.canvas.Fill(drawer.viewport, scrim)
+	drawer.canvas.EndPresence()
+	if !drawer.options.DismissID.IsZero() {
+		drawer.canvas.HitWithOptions(drawer.options.DismissID, drawer.viewport, "Dismiss drawer", gfx.HitOptions{Role: gfx.RoleButton, Disabled: drawer.disabled, SkipFocus: true, Backdrop: true})
+	}
 	look := dialogRecipe(&drawer.theme)
 	radius := look.Radius
 	drawer.canvas.BeginPresence(key, overlaySurfacePart, drawer.presence(content), centerOf(content))
@@ -184,6 +199,11 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 	drawer.canvas.Block(content)
 	if drawer.showHandle {
 		drawer.canvas.Rounded(layout.Handle, min(layout.Handle.Width, layout.Handle.Height)/2, drawer.theme.Muted)
+		if id := drawer.options.HandleID; !id.IsZero() {
+			drawer.canvas.HitWithOptions(id, drawer.handleStrip(content), "Drag to dismiss", gfx.HitOptions{
+				Role: gfx.RoleButton, Disabled: drawer.disabled, SkipFocus: true,
+			})
+		}
 	}
 	inner := layout.Header
 	titleHeight := overlayLineHeight(metrics)
@@ -341,14 +361,28 @@ func (drawer Drawer) contentBounds(headerHeight float32) gfx.Rect {
 		if drawer.options.Side == DrawerBottom {
 			y = drawer.viewport.Y + drawer.viewport.Height - extent
 		}
-		return gfx.Rect{X: drawer.viewport.X, Y: y, Width: drawer.viewport.Width, Height: extent}
+		return gfx.Rect{X: drawer.viewport.X, Y: y, Width: drawer.viewport.Width, Height: extent}.Offset(drawer.swipeShift())
 	}
 	extent = drawer.contentWidth()
 	x := drawer.viewport.X
 	if drawer.options.Side == DrawerRight {
 		x = drawer.viewport.X + drawer.viewport.Width - extent
 	}
-	return gfx.Rect{X: x, Y: drawer.viewport.Y, Width: extent, Height: drawer.viewport.Height}
+	return gfx.Rect{X: x, Y: drawer.viewport.Y, Width: extent, Height: drawer.viewport.Height}.Offset(drawer.swipeShift())
+}
+
+// swipeShift is how far Offset moves the panel, toward its edge.
+func (drawer Drawer) swipeShift() (dx, dy float32) {
+	offset := max(drawer.options.Offset, 0)
+	switch drawer.options.Side {
+	case DrawerTop:
+		return 0, -offset
+	case DrawerRight:
+		return offset, 0
+	case DrawerLeft:
+		return -offset, 0
+	}
+	return 0, offset
 }
 
 func (drawer Drawer) squareViewportEdge(content gfx.Rect, radius float32) {
@@ -362,6 +396,25 @@ func (drawer Drawer) squareViewportEdge(content gfx.Rect, radius float32) {
 	default:
 		drawer.canvas.Fill(gfx.Rect{X: content.X, Y: content.Y + content.Height - radius, Width: content.Width, Height: radius}, drawer.theme.Popover)
 	}
+}
+
+// extent is how far the panel reaches from its edge: how far a swipe takes it to
+// close it.
+func (drawer Drawer) extent(content gfx.Rect) float32 {
+	if drawer.options.Side == DrawerTop || drawer.options.Side == DrawerBottom {
+		return content.Height
+	}
+	return content.Width
+}
+
+// handleStrip is where a swipe begins: the band across the panel that holds its
+// handle (see handleBounds), with the handle's margin on both sides of it.
+func (drawer Drawer) handleStrip(content gfx.Rect) gfx.Rect {
+	reach := drawer.theme.Metrics.PadSurface + drawerHandleReach(drawer.theme.Metrics)
+	if drawer.options.Side == DrawerLeft || drawer.options.Side == DrawerRight {
+		return gfx.Rect{X: content.X, Y: content.Y, Width: reach, Height: content.Height}
+	}
+	return gfx.Rect{X: content.X, Y: content.Y, Width: content.Width, Height: reach}
 }
 
 func (drawer Drawer) handleBounds(content gfx.Rect) gfx.Rect {
