@@ -225,13 +225,34 @@ func hdiutil(arguments ...string) error {
 	return err
 }
 
+// runHdiutil runs the tool; a variable so that a test stands in for it, and pause waits
+// between attempts for the same reason.
+var (
+	runHdiutil = func(arguments ...string) ([]byte, error) {
+		return exec.Command("hdiutil", arguments...).CombinedOutput()
+	}
+	pause = time.Sleep
+)
+
+// busyAttempts is how many times a command that finds the system busy is run: the
+// disk image service is shared with whatever else on the machine is making or
+// mounting images, and refuses with "Resource busy" while it is.
+const busyAttempts = 5
+
 func hdiutilOutput(arguments ...string) (string, error) {
-	out, err := exec.Command("hdiutil", arguments...).CombinedOutput()
-	if err == nil {
-		return string(out), nil
+	for attempt := 1; ; attempt++ {
+		out, err := runHdiutil(arguments...)
+		if err == nil {
+			return string(out), nil
+		}
+		if errors.Is(err, exec.ErrNotFound) {
+			return "", errors.New("a .dmg needs hdiutil, which ships with macOS")
+		}
+		// detach has its own way of waiting, which checks whether the volume is gone.
+		if arguments[0] != "detach" && attempt < busyAttempts && strings.Contains(string(out), "Resource busy") {
+			pause(time.Duration(attempt) * time.Second)
+			continue
+		}
+		return "", fmt.Errorf("hdiutil %s failed: %w: %s", arguments[0], err, strings.TrimSpace(string(out)))
 	}
-	if errors.Is(err, exec.ErrNotFound) {
-		return "", errors.New("a .dmg needs hdiutil, which ships with macOS")
-	}
-	return "", fmt.Errorf("hdiutil %s failed: %w: %s", arguments[0], err, strings.TrimSpace(string(out)))
 }
