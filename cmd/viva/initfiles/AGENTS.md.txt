@@ -528,9 +528,30 @@ For tabs, tables and text fields use `f.Tabs`, `f.Table` and `f.Field` above, no
 
 ## Background work
 
-A goroutine never touches the window. It stores its result under a lock, then calls
-`invalidator.Invalidate()` (`Config.Invalidator`); `Config.OnWake` copies the result into the
-model on the window's thread before the repaint.
+A goroutine never touches the window. Work that belongs to the page — a directory listing, a
+request for the selected host — is a `ui.Effect`, not a goroutine of your own:
+
+```go
+var load = ui.NewEffect[dirListing, string](func(ctx context.Context) (dirListing, error) { ... })
+
+func (m *model) page(c ui.C) {
+	ui.Effect(c, m.load, m.dir) // the key: a new directory cancels the old run
+	if listing, err, ok := m.load.Take(); ok {
+		m.apply(listing, err)
+	}
+}
+```
+
+The run gets a context, must return when it is done, and must not touch a `C`, `Box` or `Frame`.
+The same key does not start again; a new key cancels the old run and starts the new one; a paint
+that stops declaring it cancels it; closing the window cancels all of them. `Take` reads the
+result once, on the window's thread, after the effect is declared, and the page wakes itself when
+the result lands. One state per page, and not inside a Memo. A page you draw into a window of your
+own takes that window's `PageConfig.Invalidator` and calls `page.Close()` when it goes away.
+
+A goroutine of your own, for something with no page key (a long-lived watcher), stores its result
+under a lock and calls `invalidator.Invalidate()` (`Config.Invalidator`); `Config.OnWake` copies
+the result into the model on the window's thread before the repaint.
 
 ## Testing
 
@@ -545,7 +566,8 @@ pixel positions.
 
 - Allocation-conscious: no `fmt.Sprintf` per frame for text that has not changed if it is in a
   hot path; keep the strings in the model.
-- No reflection, no `map[string]any` for UI state, no goroutines started from Paint.
+- No reflection, no `map[string]any` for UI state, no goroutines started from Paint by
+  hand: page work is a `ui.Effect`.
 
 ## Limits to know
 

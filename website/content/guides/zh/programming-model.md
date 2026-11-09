@@ -136,6 +136,30 @@ func main() {
 
 `Invalidator` 不拥有 goroutine、定时器或 channel。从不调用它的应用不为它付出任何代价，而 `Paint` 读到的始终是 `OnWake` 已经搬到窗口线程上的状态。
 
+### 页面作用域的 effect
+
+属于页面的工作——当前目录的列表、选中主机的请求——用 `ui.Effect`，不要自己起 goroutine。effect 状态和 model 一起创建一次，在页面里声明：
+
+```go
+var load = ui.NewEffect[dirListing, string](func(ctx context.Context) (dirListing, error) {
+	return readDir(ctx) // 不碰 C、Box、Frame：它在绘制之外运行
+})
+
+func (m *model) page(c ui.C) {
+	ui.Effect(c, m.load, m.dir) // key：目录变了就取消旧 run
+	if listing, err, ok := m.load.Take(); ok {
+		m.apply(listing, err)
+	}
+	// ...
+}
+```
+
+key 命名一次 run。同一个 key 不会再次启动；key 改变会取消旧 run 并启动新的；某次绘制不再声明它时取消；窗口关闭时全部取消。key 改变、effect 消失或窗口关闭之后才到的结果会被丢弃。`Take` 在窗口线程上、effect 声明之后读取一次；结果落地时页面会自己醒来。一个状态属于一个页面，effect 不能声明在 `Memo` 里。
+
+run 函数收到的 context 是取消信号，它必须在该 context 结束时返回；框架不杀 goroutine、不轮询。只把页面绘制到自己 canvas 里的应用，把该窗口的 invalidator 交给 `PageConfig.Invalidator`，并在页面消失时调用 `Page.Close`；没有给 invalidator 的页面保留结果到下一次绘制，但无法主动唤醒窗口。
+
+没有页面 key 可取消的长时间 watcher 仍然用自己的锁发布结果并调用 `Invalidator.Invalidate`。
+
 ## 文本输入
 
 文本同样归应用所有。给 `Config.TextInput` 一个返回当前焦点字段 `text.Editor` 的提供者，Viva 会把它接到平台文本系统，包括选区和输入法组合输入。只有获得焦点的字段才交给原生编辑器；焦点离开时，当前文本在同一帧里重新绘制为静态标签。

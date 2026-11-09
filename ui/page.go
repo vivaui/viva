@@ -32,6 +32,7 @@ package ui
 // application's own, for what a central click dispatcher or a custom painter needs.
 
 import (
+	"context"
 	"fmt"
 	"sync/atomic"
 	"unsafe"
@@ -180,6 +181,11 @@ type PageConfig struct {
 	// Background is the color Paint fills the window with, the theme's Background
 	// when nil. Draw fills nothing.
 	Background *Color
+	// Invalidator wakes the window the page is drawn in when an Effect of the page
+	// finishes. Config uses it instead of the app.Config's; a page the application
+	// draws into a window of its own (Draw, not Paint) needs it, since only Config
+	// would otherwise supply one.
+	Invalidator *app.Invalidator
 	// MemoCheck makes every Memo of this page declare its part and panic where a
 	// copy of the last paint would have differed, as MemoCheck(true) does for every
 	// page. It is for tests.
@@ -202,6 +208,11 @@ type Page struct {
 	window     bool        // the page paints a window of its own, and so asks the system for its look
 	stale      atomic.Bool // the system appearance changed since the theme was chosen
 	epoch      uint32
+
+	effects       []effectState      // the Effects of the last paint, which their work belongs to
+	effectContext context.Context    // what their runs derive from; cancelled when the page closes
+	effectCancel  context.CancelFunc // cancels effectContext
+	invalidator   *app.Invalidator   // wakes the window when work finishes, when the page has one
 
 	scopes      []*protoScope // by scope: Scopes are dense indexes into the Tree
 	nodes       []protoNode   // each container of the frame, by node index
@@ -315,7 +326,8 @@ func NewPage(config PageConfig) *Page {
 	if config.Root != "" {
 		checkName("PageConfig.Root", config.Root)
 	}
-	return &Page{config: config, checkMemos: config.MemoCheck}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Page{config: config, checkMemos: config.MemoCheck, effectContext: ctx, effectCancel: cancel, invalidator: config.Invalidator}
 }
 
 // Run opens a window that declares view, and blocks until it closes: an
@@ -545,8 +557,10 @@ func (p *Page) currentTheme() Theme {
 //   - OnKey, OnShortcut and OnPointer give a Shortcut its chord and a Control its
 //     own events, then base's the rest.
 //
-// FollowSystemTheme also sets an Invalidator when base has none, and stops
-// watching the appearance in OnClosed. Nothing else is touched.
+// Config gives the page an Invalidator when neither PageConfig.Invalidator nor
+// base has one, for the page's Effects and, with FollowSystemTheme, the appearance
+// watch. OnClosed cancels the page's effects and stops that watch before it runs
+// base's OnClosed. Nothing else is touched.
 func (p *Page) Config(base app.Config) app.Config {
 	if p.config.View == nil {
 		panic("ui: Page.Config needs PageConfig.View, the function that declares the page")
@@ -562,22 +576,33 @@ func (p *Page) Config(base app.Config) app.Config {
 	p.basePointer, config.OnPointer = base.OnPointer, p.onPointer
 	p.baseShortcut, config.OnShortcut = base.OnShortcut, p.onShortcut
 	p.baseScroll, config.OnScroll = base.OnScroll, p.Wheel
+	invalidator := p.config.Invalidator
+	if invalidator == nil {
+		invalidator = base.Invalidator
+	}
+	if invalidator == nil {
+		invalidator = new(app.Invalidator)
+	}
+	config.Invalidator = invalidator
+	p.invalidator = invalidator
 	if p.config.FollowSystemTheme && p.config.Theme == nil {
-		invalidator := config.Invalidator
-		if invalidator == nil {
-			invalidator = new(app.Invalidator)
-			config.Invalidator = invalidator
-		}
 		stop := app.WatchSystemAppearance(func() {
 			p.stale.Store(true)
 			invalidator.Invalidate()
 		})
-		closed := base.OnClosed
+		closed := config.OnClosed
 		config.OnClosed = func() {
 			stop()
 			if closed != nil {
 				closed()
 			}
+		}
+	}
+	closed := config.OnClosed
+	config.OnClosed = func() {
+		p.Close()
+		if closed != nil {
+			closed()
 		}
 	}
 	return config
@@ -627,6 +652,7 @@ func (p *Page) Draw(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	}
 	p.retry = false
 	p.settleFocus()
+	p.settleEffects()
 	if len(p.memos) > 0 {
 		canvas.KeepPrevious(true) // the next paint copies from this one
 	}
