@@ -124,6 +124,7 @@ func Choice[T comparable](c C, value *T, choices []T, label func(T) string) Box 
 	scope := p.boundScope(pkChoice, unsafe.Pointer(value))
 	labels, selected := options(p, value, choices, label)
 	b := c.f.Choice(scope, labels, selected)
+	p.rove(c.f, b, false)
 	index, ok := b.ChosenIndex()
 	pick(c, b, value, choices, index, ok)
 	return b
@@ -136,6 +137,7 @@ func Tabs[T comparable](c C, value *T, tabs []T, label func(T) string) Box {
 	scope := p.boundScope(pkTabs, unsafe.Pointer(value))
 	labels, selected := options(p, value, tabs, label)
 	b := c.f.Tabs(scope, labels, selected)
+	p.rove(c.f, b, true)
 	index, ok := b.TabClicked()
 	pick(c, b, value, tabs, index, ok)
 	return b

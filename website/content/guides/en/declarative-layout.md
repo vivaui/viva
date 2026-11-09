@@ -56,6 +56,8 @@ func (m *model) page(c ui.C) {
 ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
 ```
 
+`ui.Choice` and `ui.Tabs` are one tab stop each: Left and Right (Up and Down for vertical tabs) move to the next enabled option, wrapping, and choose it; Home and End go to the first and last.
+
 A click flips `m.sync` in the paint that delivers it, the first time the control is asked (`Clicked`, `Changed`) or else when the page ends, so a `Disabled` written after the control still holds. `Choice`, `Tabs` and `Select` take a value of any comparable type and write it as they are declared: disable them with an `if`, not a `Disabled` after them. `TextField` needs no `Config.TextInput`: the page's `Config` gives the platform the editor of each field it declared, and passes any other focused field to the provider the configuration already had. `Popover` and `Modal` open while a `*bool` is true and set it to false when dismissed (see [Dialogs, menus and popups](/en/docs/overlays/)). `Box.NativeView` gives a page of the system's web engine the room of an element.
 
 An element is named by where it is: its kind and its number among the elements of that kind in its container. Three things refine that:

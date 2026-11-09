@@ -206,6 +206,7 @@ type Page struct {
 	controls   []controlEntry        // the Controls of the last paint, which take their input
 	shortcuts  []shortcutEntry       // the Shortcuts of the last paint
 	menus      []*MenuItems          // the open Menus of the last paint
+	rovers     []rover               // the Choices and Tabs of the last paint
 	contexts   []contextTarget       // the ContextMenus of the last paint, which Shift+F10 opens
 	combos     []*comboState         // the Comboboxes of the last paint
 	trees      []*TreeState          // the Trees of the last paint
@@ -233,6 +234,7 @@ type Page struct {
 	areaKey       func(*Field, gfx.KeyEvent) gfx.EventResult
 	shortcutRoute func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	menuRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
+	roveRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // arrow keys in a Choice or Tabs
 	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	typeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // a Tree's typeahead, from OnShortcut
@@ -407,6 +409,11 @@ func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	}
 	if p.menuRoute != nil {
 		if result, ok := p.menuRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if p.roveRoute != nil {
+		if result, ok := p.roveRoute(p, event); ok {
 			return result, true
 		}
 	}
@@ -590,6 +597,8 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.shortcuts = p.shortcuts[:0]
 	clear(p.menus)
 	p.menus = p.menus[:0]
+	clear(p.rovers)
+	p.rovers = p.rovers[:0]
 	clear(p.contexts)
 	p.contexts = p.contexts[:0]
 	clear(p.combos)
