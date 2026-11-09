@@ -740,7 +740,9 @@ func (painter *painter) deliverPointer(event gfx.PointerEvent) bool {
 	}
 	painter.canvas.BeginPointerPass(event)
 	painter.paintCanvas()
-	return painter.canvas.EndPointerPass()
+	consumed := painter.canvas.EndPointerPass()
+	painter.canvas.RunAfterPaint()
+	return consumed
 }
 
 // repaint reruns the paint callback with current interaction state and

@@ -1966,10 +1966,11 @@ func (canvas *Canvas) ClickTarget() (ID, bool) {
 
 // AfterPaint defers fn until the event pass has returned: the runtime calls it on
 // the UI thread, outside any paint, and repaints afterwards, so the repaint shows
-// what fn changed. It only takes effect in the event pass of a click and is
-// ignored in an ordinary paint, so a read-only paint never schedules work. Use it
-// when the handler of a click may block or open a native dialog, which must not
-// run while a paint is in progress:
+// what fn changed. It only takes effect in the event pass of a click or of a
+// pointer event (PointerOn) and is ignored in an ordinary paint, so a read-only
+// paint never schedules work. Use it when the handler may block or open a native
+// dialog, which must not run while a paint is in progress, or changes what the
+// paint is declaring (a drop that moves a row):
 //
 //	if id, ok := canvas.ClickTarget(); ok {
 //		canvas.AfterPaint(func() { model.Click(id) })
@@ -1979,19 +1980,21 @@ func (canvas *Canvas) ClickTarget() (ID, bool) {
 // AfterPaint itself is ignored, because it no longer runs inside a paint. Nothing
 // is allocated until a function is deferred.
 func (canvas *Canvas) AfterPaint(fn func()) {
-	if canvas.eventPass && fn != nil {
+	if (canvas.eventPass || canvas.hasPointer) && fn != nil {
 		canvas.afterPaint = append(canvas.afterPaint, fn)
 	}
 }
 
-// RunAfterPaint runs and clears the functions deferred by AfterPaint. The runtime
-// calls it once the event pass has ended; an application never does.
-func (canvas *Canvas) RunAfterPaint() {
+// RunAfterPaint runs and clears the functions deferred by AfterPaint, and reports
+// whether there were any. The runtime calls it once the event pass has ended; an
+// application never does.
+func (canvas *Canvas) RunAfterPaint() bool {
 	fns := canvas.afterPaint
 	canvas.afterPaint = nil
 	for _, fn := range fns {
 		fn()
 	}
+	return len(fns) > 0
 }
 
 // ListensForClicks reports whether the last paint asked Clicked about anything:
@@ -2086,7 +2089,9 @@ func (canvas *Canvas) DeliverPointer(event PointerEvent, size Size, paint func(*
 	canvas.BeginFrame()
 	paint(canvas, size)
 	canvas.EndFrame()
-	return canvas.EndPointerPass()
+	consumed := canvas.EndPointerPass()
+	canvas.RunAfterPaint()
+	return consumed
 }
 
 // monoWidth is the width of value set in the fixed-pitch face of style: the cells

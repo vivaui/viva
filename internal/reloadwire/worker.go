@@ -138,6 +138,7 @@ func handleRequest(config *WorkerConfig, canvas *gfx.Canvas, base CanvasSnapshot
 			config.Paint(canvas, config.lastSize)
 			canvas.EndFrame()
 			canvas.EndEventPass()
+			canvas.RunAfterPaint()
 		}
 		return nil, nil, false
 	case messagePointer:
@@ -159,6 +160,9 @@ func handleRequest(config *WorkerConfig, canvas *gfx.Canvas, base CanvasSnapshot
 			canvas.EndFrame()
 			if canvas.EndPointerPass() {
 				result.Handled, result.Repaint = true, true
+			}
+			if canvas.RunAfterPaint() {
+				result.Repaint = true
 			}
 		}
 		return encodeEventResult(result), nil, false

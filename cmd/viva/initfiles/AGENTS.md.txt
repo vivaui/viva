@@ -78,6 +78,9 @@ func (m *model) page(c ui.C) {
   handle that a drag toward the edge closes it by (past half its size, or thrown).
 - A tree: keep a `ui.TreeState` with `Node` describing each visible row, `ui.Tree(c, &m.tree, n, label, nil)`,
   then `m.tree.Toggled()` (open or close that branch, give the tree its new rows) and `m.tree.Chosen()`.
+  Typing the start of a name moves to that row. To drag rows, set `m.tree.CanDrop = func(from, to int,
+  where ui.TreeDrop) bool` (`TreeDropBefore`, `TreeDropInside`, `TreeDropAfter`) and read `m.tree.Dropped()`;
+  change the rows in `c.After`, since the paint that reports the drop is declaring them.
 - A long list to choose from by typing: `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` (Select's
   arguments plus a label); it filters as the user types. `.Clearable()` adds a clear button, `.Empty("No zone")`
   is what an empty list says, `.Creatable("")` offers what was typed as a new choice, read with `.Created()`.

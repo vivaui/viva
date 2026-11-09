@@ -3,6 +3,7 @@ package ui_test
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
@@ -157,5 +158,236 @@ func BenchmarkTree(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		drawPage(page, canvas, view)
+	}
+}
+
+// dndModel is treeModel whose files can be dragged into another folder, and whose
+// folders can be reordered; nothing goes into a file.
+type dndModel struct {
+	*treeModel
+	moves []ui.TreeMove
+}
+
+func newDndModel() *dndModel {
+	m := &dndModel{treeModel: newTreeModel([]folder{
+		{name: "src", open: true, files: []string{"main.go", "page.go"}},
+		{name: "docs", files: []string{"guide.md"}},
+		{name: "test", files: []string{"a_test.go"}},
+	})}
+	m.state.CanDrop = func(from, to int, where ui.TreeDrop) bool {
+		f, t := m.visible[from], m.visible[to]
+		if f.file >= 0 { // a file: into another folder
+			return t.file < 0 && where == ui.TreeDropInside && t.folder != f.folder
+		}
+		return t.file < 0 && where != ui.TreeDropInside // a folder: beside another
+	}
+	return m
+}
+
+func (m *dndModel) page(c ui.C) {
+	m.treeModel.page(c)
+	if move, ok := m.state.Dropped(); ok {
+		m.moves = append(m.moves, move)
+		f, t := m.visible[move.From], m.visible[move.To]
+		c.After(func() { // the rows change after the paint that declared them
+			if f.file >= 0 {
+				from := &m.folders[f.folder]
+				to := &m.folders[t.folder]
+				to.files = append(to.files, from.files[f.file])
+				from.files = append(from.files[:f.file], from.files[f.file+1:]...)
+			}
+			m.flatten()
+		})
+	}
+}
+
+func (d *pageDriver) drag(from string, to gfx.Rect, fraction float32) {
+	d.t.Helper()
+	start := d.hit(from).Bounds
+	x, y := start.X+start.Width/2, start.Y+start.Height/2
+	if err := d.driver.Press(x, y, gfx.PointerButtonPrimary); err != nil {
+		d.t.Fatal(err)
+	}
+	tx, ty := to.X+to.Width/2, to.Y+to.Height*fraction
+	for _, step := range []float32{0.5, 1} { // past the threshold, then onto the row
+		if err := d.driver.Move(x+(tx-x)*step, y+(ty-y)*step); err != nil {
+			d.t.Fatal(err)
+		}
+	}
+}
+
+func (d *pageDriver) release(at gfx.Rect, fraction float32) {
+	d.t.Helper()
+	if err := d.driver.Release(at.X+at.Width/2, at.Y+at.Height*fraction, gfx.PointerButtonPrimary); err != nil {
+		d.t.Fatal(err)
+	}
+}
+
+// A file dragged onto a folder goes into it, and the release is not also a click; a
+// row CanDrop refuses takes nothing, and Escape lets go of a drag.
+func TestTreeDragIntoAFolder(t *testing.T) {
+	m := newDndModel()
+	d := openPage(t, m.page)
+	docs := d.hit("docs").Bounds
+	d.drag("page.go", docs, 0.5)
+	if !m.state.Dragging() {
+		t.Fatal("the press that moved is not a drag")
+	}
+	d.release(docs, 0.5)
+	want := ui.TreeMove{From: 2, To: 3, Where: ui.TreeDropInside}
+	if len(m.moves) != 1 || m.moves[0] != want {
+		t.Fatalf("drops %v, want [%v]", m.moves, want)
+	}
+	if m.opened != "" {
+		t.Fatalf("the drag ended in a click on %q", m.opened)
+	}
+	if got := m.folders[1].files; len(got) != 2 || got[1] != "page.go" {
+		t.Fatalf("docs holds %v", got)
+	}
+
+	// Onto a file: CanDrop takes nothing there.
+	main := d.hit("main.go").Bounds
+	d.drag("test", main, 0.5)
+	d.release(main, 0.5)
+	if len(m.moves) != 1 {
+		t.Fatalf("a refused drop was reported: %v", m.moves[1:])
+	}
+
+	// Escape in the middle of a drag.
+	d.drag("main.go", docs, 0.5)
+	d.key(gfx.KeyEscape)
+	if m.state.Dragging() {
+		t.Fatal("Escape did not let go of the drag")
+	}
+	d.release(docs, 0.5)
+	if len(m.moves) != 1 {
+		t.Fatalf("a drag let go by Escape dropped: %v", m.moves[1:])
+	}
+}
+
+// The top of a row drops before it and its bottom after it, and a press that does
+// not move is still a click.
+func TestTreeDragBeforeAndAfter(t *testing.T) {
+	m := newDndModel()
+	d := openPage(t, m.page)
+	src := d.hit("src").Bounds
+	d.drag("test", src, 0.1)
+	d.release(src, 0.1)
+	test := d.hit("test").Bounds
+	d.drag("src", test, 0.9)
+	d.release(test, 0.9)
+	// The rows: src, main.go, page.go, docs, test.
+	want := []ui.TreeMove{{From: 4, To: 0, Where: ui.TreeDropBefore}, {From: 0, To: 4, Where: ui.TreeDropAfter}}
+	if len(m.moves) != 2 || m.moves[0] != want[0] || m.moves[1] != want[1] {
+		t.Fatalf("drops %v, want %v", m.moves, want)
+	}
+	d.click("main.go")
+	if m.opened != "main.go" || len(m.moves) != 2 {
+		t.Fatalf("a click: opened %q, drops %v", m.opened, m.moves)
+	}
+}
+
+// Typing the start of a row's name moves to the next row it begins, and a pause
+// starts the word anew.
+func TestTreeTypeahead(t *testing.T) {
+	m := newDndModel()
+	d := openPage(t, m.page)
+	d.click("src")
+	typed := func(letter rune, want string) {
+		t.Helper()
+		if _, err := d.driver.ShortcutChord(0, letter); err != nil {
+			t.Fatal(err)
+		}
+		if d.focused() != want {
+			t.Fatalf("%q went to %q, not %q", letter, d.focused(), want)
+		}
+	}
+	typed('t', "test")
+	if err := d.driver.Advance(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	typed('p', "page.go")
+	typed('a', "page.go") // "pa"
+	if err := d.driver.Advance(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	typed('d', "docs")
+}
+
+// A drag that rests at the bottom edge of a tree scrolls it, and only while it rests
+// there are frames asked for.
+func TestTreeDragScrollsAtTheEdge(t *testing.T) {
+	var folders []folder
+	for i := range 40 {
+		folders = append(folders, folder{name: fmt.Sprintf("group %02d", i)})
+	}
+	m := newTreeModel(folders)
+	m.state.CanDrop = func(from, to int, where ui.TreeDrop) bool { return where != ui.TreeDropInside }
+	d := openPage(t, m.page)
+	start := d.hit("group 00").Bounds
+	x := start.X + start.Width/2
+	if err := d.driver.Press(x, start.Y+4, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	bottom := float32(480 - 12) // the window's height less the column's padding, inside the last row
+	if err := d.driver.Move(x, start.Y+40); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Move(x, bottom); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Advance(500 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if d.has("group 00") {
+		t.Fatal("a drag at the bottom edge did not scroll the tree")
+	}
+	if err := d.driver.Move(x, bottom-160); err != nil { // away from the edge
+		t.Fatal(err)
+	}
+	if err := d.driver.Advance(100 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if d.driver.Transitioning() {
+		t.Fatal("frames are still asked for with the drag away from the edge")
+	}
+	if err := d.driver.Release(x, bottom-160, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A drag repaints without allocating.
+func TestTreeDragRepaintAllocates(t *testing.T) {
+	m := newDndModel()
+	d := openPage(t, m.page)
+	d.drag("page.go", d.hit("docs").Bounds, 0.5)
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("%v allocations a repaint", allocs)
+	}
+}
+
+// A drag that comes back to the row it started on and is let go there drops nothing
+// and is not a click on it; with both taken, a row's top is before it and its
+// middle into it.
+func TestTreeDragBackAndZones(t *testing.T) {
+	m := newDndModel()
+	m.state.CanDrop = func(from, to int, where ui.TreeDrop) bool { return m.visible[to].file < 0 && where != ui.TreeDropAfter }
+	d := openPage(t, m.page)
+	main := d.hit("main.go").Bounds
+	d.drag("main.go", d.hit("docs").Bounds, 0.5)
+	if err := d.driver.Move(main.X+main.Width/2, main.Y+main.Height/2); err != nil {
+		t.Fatal(err)
+	}
+	d.release(main, 0.5)
+	if m.opened != "" || len(m.moves) != 0 {
+		t.Fatalf("a drag back to its row: opened %q, drops %v", m.opened, m.moves)
+	}
+	docs := d.hit("docs").Bounds
+	d.drag("main.go", docs, 0.1)
+	d.release(docs, 0.1)
+	d.drag("page.go", d.hit("test").Bounds, 0.5)
+	d.release(d.hit("test").Bounds, 0.5)
+	if len(m.moves) != 2 || m.moves[0].Where != ui.TreeDropBefore || m.moves[1].Where != ui.TreeDropInside {
+		t.Fatalf("drops %v: want before docs, then into test", m.moves)
 	}
 }

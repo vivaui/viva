@@ -171,9 +171,17 @@ func (p *Page) typing(id gfx.ID) bool {
 // printable keys (Primary+S), and a printable key itself when nothing edits text:
 // an open Menu's typeahead, then a Shortcut's, then base's.
 func (p *Page) onShortcut(event gfx.KeyEvent) gfx.EventResult {
-	if p.menuRoute != nil && event.Modifiers&^gfx.ModifierShift == 0 {
-		if result, ok := p.menuRoute(p, event); ok {
-			return result
+	if event.Modifiers&^gfx.ModifierShift == 0 {
+		// A printable key, when nothing edits text: an open Menu's or a Tree's typeahead.
+		if p.menuRoute != nil {
+			if result, ok := p.menuRoute(p, event); ok {
+				return result
+			}
+		}
+		if p.typeRoute != nil {
+			if result, ok := p.typeRoute(p, event); ok {
+				return result
+			}
 		}
 	}
 	if p.shortcutRoute != nil {

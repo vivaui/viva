@@ -84,8 +84,9 @@ func (c *Ctx) Part(name string) C {
 	return c
 }
 
-// After runs fn after the paint that delivers a click, outside any paint, then
-// repaints: for a handler that changes the list being declared.
+// After runs fn after the paint that delivers a click or a pointer event (a drop),
+// outside any paint, then repaints: for a handler that changes the list being
+// declared.
 func (c *Ctx) After(fn func()) {
 	if c.f.canvas != nil {
 		c.f.canvas.AfterPaint(fn)
@@ -234,6 +235,7 @@ type Page struct {
 	menuRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
+	typeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // a Tree's typeahead, from OnShortcut
 	wheelRoute    func(*Page, gfx.ScrollEvent) (gfx.EventResult, bool)
 	textRoute     func(*Page, gfx.ID) *app.TextInput
 }

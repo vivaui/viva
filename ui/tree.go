@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/vivaui/viva/components"
@@ -24,14 +25,28 @@ type TreeNode struct {
 // The tree's structure is the application's: a press on a branch's chevron, or
 // Left and Right on it, is Toggled, and the application opens or closes it and
 // gives the Tree the rows that then show; a click or Enter on a row is Chosen.
+//
+// With CanDrop set, a row can be dragged onto another, before it, into it or after
+// it: CanDrop says which of those the application takes, and Dropped reports the
+// one let go on. Typing the start of a row's name moves to it.
 type TreeState struct {
 	ListState
 	Node      func(i int) TreeNode
 	RowHeight float32
 	Indent    float32
+	// CanDrop says whether row from may be dropped at where of row to: a group not
+	// into itself or what is inside it, a row not before a sibling of another kind.
+	// It is asked as the pointer moves; nil makes the rows not draggable.
+	CanDrop func(from, to int, where TreeDrop) bool
 
 	toggled, chosen int
-	scope           gfx.Scope // the ids of the rows (scope.At(0)) and chevrons (At(1))
+	dropped         TreeMove
+	drag            treeDrag
+	typeahead       components.MenuTypeahead
+	names           []components.MenuTypeaheadItem // the rows as typeahead matches them
+	nameOf          func(int) string               // label, until the next paint: the keys between read it
+	f               *Frame                         // the frame the tree was last declared in
+	scope           gfx.Scope                      // the ids of the rows (scope.At(0)) and chevrons (At(1))
 	rows, chevrons  gfx.Scope
 	scroll          *ScrollState // the List's, between paints: its area's state lives while it is declared
 	n               int
@@ -49,6 +64,49 @@ type treeRow struct {
 	node  int32 // the row element
 	item  components.TreeItem
 }
+
+// TreeDrop is where a dragged row goes, relative to the row it is let go on.
+type TreeDrop uint8
+
+const (
+	TreeDropBefore TreeDrop = iota // above the row, as its sibling
+	TreeDropInside                 // into the row, as its child
+	TreeDropAfter                  // below the row, as its sibling
+)
+
+// TreeMove is a drop: row From let go at Where of row To, indices of the visible
+// rows as Node has them.
+type TreeMove struct {
+	From, To int
+	Where    TreeDrop
+}
+
+// treeDrag is a press on a row, and once the pointer has moved far enough with it,
+// a drag: where it is and where it would drop.
+type treeDrag struct {
+	pressed, active bool
+	from            int // the row's key, which survives rows opening above it
+	start           gfx.Point
+	at              gfx.Point
+	target, next    TreeMove // the drop the last paint found, and the one this paint finds
+	valid, nextOK   bool
+	rect            Rect          // the row the drop is at, as painted
+	view            Rect          // the tree's visible area, as of the last paint
+	scrolled        time.Duration // the last step of the scroll at an edge
+}
+
+// treeDragStart is how far a pressed row moves before it is dragged, and not clicked.
+const treeDragStart = 4
+
+// treeEdgeSpeed is how fast a drag at the top or bottom edge of a tree scrolls it.
+const treeEdgeSpeed = 600 // pixels a second
+
+// Dropped reports the drop this paint delivers: a row dragged onto another and let
+// go there, where CanDrop took it. The application moves it.
+func (s *TreeState) Dropped() (TreeMove, bool) { return s.dropped, s.dropped.From >= 0 }
+
+// Dragging reports whether a row is being dragged.
+func (s *TreeState) Dragging() bool { return s.drag.active }
 
 // Toggled reports which row's chevron this paint delivers a press on, or Left or
 // Right on a branch: the application opens or closes it.
@@ -84,14 +142,21 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, content func(i
 		state.scope, state.rows, state.chevrons = scope, p.tree.Sub(scope, gfx.Index(0)), p.tree.Sub(scope, gfx.Index(1))
 	}
 	state.toggled, state.chosen = -1, -1
+	state.dropped = TreeMove{From: -1}
 	state.c, state.label, state.content, state.n = c, label, content, n
+	state.nameOf, state.f = label, c.f
+	if state.CanDrop != nil {
+		state.dragPointer(c.f.canvas)
+	} else {
+		state.drag = treeDrag{}
+	}
 	state.declared = state.declared[:0]
 	area := List(c, &state.ListState, n, state.declare)
 	state.scroll = c.f.exts[c.f.nodes[area.i].ext].scrollState
 	state.c, state.label, state.content = nil, nil, nil // the model's functions: not kept past the paint
 	p.trees = append(p.trees, state)
 	if p.treeRoute == nil {
-		p.keyRoute, p.treeRoute = (*Page).routeKey, (*Page).treeKey
+		p.keyRoute, p.treeRoute, p.typeRoute = (*Page).routeKey, (*Page).treeKey, (*Page).treeType
 	}
 	return area
 }
@@ -155,7 +220,8 @@ func (s *TreeState) row(i int) {
 	})
 }
 
-// draw paints the row the context is for: its highlight, chevron and hits.
+// draw paints the row the context is for: its highlight, chevron and hits, and
+// where a drag over it would drop.
 func (s *TreeState) draw(d *DrawContext) {
 	for i := range s.declared {
 		row := &s.declared[i]
@@ -164,15 +230,195 @@ func (s *TreeState) draw(d *DrawContext) {
 		}
 		tree := components.BeginTree(d.Canvas, *d.Theme, d.Rect).RowHeight(d.Rect.Height).Indent(s.indent(d.Theme))
 		tree.Item(row.item)
+		if s.drag.active {
+			s.dragOver(row, d)
+		}
 		return
 	}
+}
+
+// dragPointer follows a press on a row, which turns into a drag once the pointer
+// moves far enough with it, and drops it when it is let go. It runs before the rows
+// are declared, from what the last paint found under the pointer.
+func (s *TreeState) dragPointer(canvas *gfx.Canvas) {
+	drag := &s.drag
+	if drag.active {
+		drag.target, drag.valid = drag.next, drag.nextOK // what the rows under the pointer found
+		drag.nextOK = false
+		s.edgeScroll(canvas)
+	}
+	if canvas == nil {
+		return
+	}
+	at, event, ok := canvas.PointerIn(s.rows)
+	if !ok {
+		return
+	}
+	point := gfx.Point{X: event.X, Y: event.Y}
+	switch event.Kind {
+	case gfx.PointerDown:
+		*drag = treeDrag{}
+		if event.Button <= gfx.PointerButtonPrimary {
+			// Not consumed: a press that does not move is still the row's click.
+			drag.pressed, drag.from, drag.start, drag.at = true, at, point, point
+		}
+	case gfx.PointerMove:
+		if !drag.pressed {
+			return
+		}
+		dx, dy := point.X-drag.start.X, point.Y-drag.start.Y
+		if !drag.active && dx*dx+dy*dy < treeDragStart*treeDragStart {
+			return
+		}
+		drag.active, drag.at = true, point
+		canvas.Consume()
+	case gfx.PointerUp:
+		active, move, valid := drag.active, drag.target, drag.valid
+		*drag = treeDrag{}
+		if !active {
+			return // a click
+		}
+		// A drag is not also a click on the row it ends on: its moves were consumed,
+		// which already says so, and so does its release.
+		canvas.Consume()
+		if valid {
+			s.dropped = move
+		}
+	}
+}
+
+// dragOver finds, as row is painted, whether the pointer is over it and where on
+// it the dragged row would drop, and paints that: a line between rows, or a ring
+// around the row it would go into.
+func (s *TreeState) dragOver(row *treeRow, d *DrawContext) {
+	drag := &s.drag
+	r := d.Rect
+	// The tree's visible area, from a row painted in it: the rows start where the
+	// list does, less how far it is scrolled.
+	drag.view = Rect{X: r.X, Y: r.Y - (s.top(row.index) - s.scrollOffset()), Width: r.Width}
+	if s.scroll != nil {
+		drag.view.Height = s.scroll.Viewport
+	}
+	from := s.indexOf(drag.from)
+	if from >= 0 && drag.at.Y >= r.Y && drag.at.Y < r.Y+r.Height && from != row.index {
+		if where, ok := s.dropAt(from, row.index, (drag.at.Y-r.Y)/r.Height); ok {
+			drag.next, drag.nextOK, drag.rect = TreeMove{From: from, To: row.index, Where: where}, true, r
+		}
+	}
+	if !drag.valid || drag.target.To != row.index {
+		return
+	}
+	theme := d.Theme
+	left := r.X + float32(row.item.Depth)*s.indent(theme)
+	switch drag.target.Where {
+	case TreeDropInside:
+		d.Canvas.RoundedBorder(r, theme.Metrics.RadiusItem(), 2, theme.Primary, gfx.Color{})
+	case TreeDropBefore:
+		d.Canvas.Fill(Rect{X: left, Y: r.Y - 1, Width: r.X + r.Width - left, Height: 2}, theme.Primary)
+	case TreeDropAfter:
+		d.Canvas.Fill(Rect{X: left, Y: r.Y + r.Height - 1, Width: r.X + r.Width - left, Height: 2}, theme.Primary)
+	}
+}
+
+// dropAt is where on row to the pointer, at fraction y down it, drops row from: its
+// top quarter before it, its bottom quarter after it, its middle into it, each
+// falling back to the next one CanDrop takes.
+func (s *TreeState) dropAt(from, to int, y float32) (TreeDrop, bool) {
+	order := [3]TreeDrop{TreeDropInside, TreeDropBefore, TreeDropAfter}
+	switch {
+	case y < 0.25:
+		order = [3]TreeDrop{TreeDropBefore, TreeDropInside, TreeDropAfter}
+	case y >= 0.75:
+		order = [3]TreeDrop{TreeDropAfter, TreeDropInside, TreeDropBefore}
+	case y >= 0.5:
+		order = [3]TreeDrop{TreeDropInside, TreeDropAfter, TreeDropBefore}
+	}
+	for _, where := range order {
+		if s.CanDrop(from, to, where) {
+			return where, true
+		}
+	}
+	return 0, false
+}
+
+// edgeScroll scrolls a tree whose drag rests near its top or bottom edge, in steps
+// timed by the frame clock: a frame is asked for only while it does.
+func (s *TreeState) edgeScroll(canvas *gfx.Canvas) {
+	drag, scroll := &s.drag, s.scroll
+	if canvas == nil || scroll == nil || drag.view.Height <= 0 {
+		return
+	}
+	band := min(s.rowHeight(&s.c.f.theme), drag.view.Height/4)
+	direction := float32(0)
+	switch {
+	case drag.at.Y < drag.view.Y+band && scroll.Offset > 0:
+		direction = -1
+	case drag.at.Y > drag.view.Y+drag.view.Height-band && scroll.Offset+scroll.Viewport < scroll.Content:
+		direction = 1
+	}
+	now := canvas.Now()
+	if direction == 0 {
+		drag.scrolled = 0
+		return
+	}
+	if drag.scrolled > 0 {
+		step := min(now-drag.scrolled, 100*time.Millisecond) // a late frame does not jump
+		scroll.ScrollTo(scroll.Offset + direction*treeEdgeSpeed*float32(step.Seconds()))
+	}
+	drag.scrolled = now
+	canvas.RequestFrameIn(16 * time.Millisecond)
+}
+
+// scrollOffset is how far the tree is scrolled.
+func (s *TreeState) scrollOffset() float32 {
+	if s.scroll == nil {
+		return 0
+	}
+	return s.scroll.Offset
+}
+
+// indexOf is the visible row named key in the last paint, or -1.
+func (s *TreeState) indexOf(key int) int {
+	if s.Key == nil {
+		if key < s.n {
+			return key
+		}
+		return -1
+	}
+	for i := range s.declared {
+		if s.declared[i].key == key {
+			return s.declared[i].index
+		}
+	}
+	for i := 0; i < s.n; i++ { // scrolled out of sight
+		if s.Key(i) == key {
+			return i
+		}
+	}
+	return -1
 }
 
 // treeKey moves through a Tree from the focused row with the arrows: Up and Down to
 // the row above and below, Home and End, Page Up and Down by a screen, Right to open
 // a branch or go to its first child, Left to close it or go to the parent.
 func (p *Page) treeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
-	if event.Release || event.Modifiers != 0 {
+	if event.Release {
+		return gfx.EventResult{}, false
+	}
+	if event.Key == gfx.KeyEscape {
+		for _, s := range p.trees {
+			if s.drag.active { // Escape lets go of a drag without dropping it
+				s.drag = treeDrag{}
+				return gfx.EventResult{Handled: true, Repaint: true}, true
+			}
+		}
+	}
+	if event.Modifiers&^gfx.ModifierShift == 0 {
+		if result, ok := p.treeType(event); ok {
+			return result, true
+		}
+	}
+	if event.Modifiers != 0 {
 		return gfx.EventResult{}, false
 	}
 	for _, s := range p.trees {
@@ -224,6 +470,42 @@ func (p *Page) treeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		}
 		s.reveal(target)
 		return gfx.EventResult{Handled: true, Repaint: true, Focus: s.rows.At(s.key(target)), FocusVisible: true}, true
+	}
+	return gfx.EventResult{}, false
+}
+
+// treeType moves to the next row whose name begins with the letters typed, from
+// the focused row of a Tree, as a file list does.
+func (p *Page) treeType(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	text := event.Text
+	if text == "" && event.Key == gfx.KeySpace {
+		text = " "
+	}
+	if text == "" {
+		return gfx.EventResult{}, false
+	}
+	for _, s := range p.trees {
+		if _, inside := event.Target.In(s.rows); !inside || s.nameOf == nil || s.f == nil || s.f.canvas == nil {
+			continue
+		}
+		s.names = s.names[:0]
+		for i := 0; i < s.n; i++ {
+			s.names = append(s.names, components.MenuTypeaheadItem{ID: s.rows.At(s.key(i)), Label: s.nameOf(i), Disabled: s.Node(i).Disabled})
+		}
+		now := clockEpoch.Add(s.f.canvas.Now())
+		typing := text == " " && s.typeahead.Typing(now)
+		if id, ok := s.typeahead.TypeItems(text, now, s.names, event.Target); ok {
+			for i := range s.names {
+				if s.names[i].ID == id {
+					s.reveal(i)
+				}
+			}
+			return gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}, true
+		}
+		if typing {
+			return gfx.EventResult{Handled: true}, true
+		}
+		return gfx.EventResult{}, false
 	}
 	return gfx.EventResult{}, false
 }
