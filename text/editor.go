@@ -549,33 +549,44 @@ func (editor *Editor) restoreSelection(selection editorSelection) {
 }
 
 func (editor *Editor) record(change textChange, before, after editorSelection, kind editKind) {
-	editor.recordWithPrimitives(change, before, after, kind, nil)
+	if runesEqual(change.removed, change.inserted) && (len(change.removed) == 0 || editor.savePointIndex() == nil) {
+		return
+	}
+	editor.dropRedo()
+	if editor.merge(change, before, after, kind) {
+		editor.trimHistory()
+		return
+	}
+	editor.appendHistory(historyEdit{
+		start: change.start, removed: change.removed, inserted: change.inserted,
+		before: before, after: after, kind: kind,
+	})
 }
 
 func (editor *Editor) recordWithPrimitives(change textChange, before, after editorSelection, kind editKind, primitives []Edit) {
-	if len(change.removed) == 0 && len(change.inserted) == 0 && len(primitives) == 0 {
+	if len(primitives) == 0 {
+		editor.record(change, before, after, kind)
 		return
 	}
 	if runesEqual(change.removed, change.inserted) && editor.savePointIndex() == nil {
 		return
 	}
 	editor.dropRedo()
-	if len(primitives) == 0 && editor.merge(change, before, after, kind) {
-		editor.trimHistory()
-		return
-	}
-	edit := historyEdit{
+	editor.appendHistory(historyEdit{
 		start: change.start, removed: change.removed, inserted: change.inserted,
 		before: before, after: after, kind: kind,
 		primitives: primitives,
-	}
+	})
+}
+
+func (editor *Editor) appendHistory(edit historyEdit) {
 	editor.history = append(editor.history, edit)
 	editor.historyIndex = len(editor.history)
 	editor.historyRunes += edit.retainedRunes()
-	if kind == editSeparate {
+	if edit.kind == editSeparate {
 		editor.coalescing = 0
 	} else {
-		editor.coalescing = kind
+		editor.coalescing = edit.kind
 	}
 	editor.trimHistory()
 }
@@ -628,9 +639,12 @@ func (editor *Editor) merge(change textChange, before, after editorSelection, ki
 }
 
 func (editor *Editor) dropRedo() {
-	if editor.historyIndex == len(editor.history) {
-		return
+	if editor.historyIndex < len(editor.history) {
+		editor.discardRedo()
 	}
+}
+
+func (editor *Editor) discardRedo() {
 	if point := editor.savePointIndex(); point != nil && *point > editor.historyIndex {
 		*point = -1
 	}
