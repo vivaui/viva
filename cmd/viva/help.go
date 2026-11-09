@@ -117,9 +117,10 @@ func commands() []command {
 		{name: "vet", usage: "vet [-C dir] [packages]",
 			summary: "Find the mistakes in a page that compile but do the wrong thing.",
 			detail: "Reports a Button with the same label in every row of a loop whose rows have no Key (a click can move\n" +
-				"to the wrong row), and a ui.C kept past the page function it was given to. Run it with go vet; a line,\n" +
-				"or the line above it, with \"viva:ignore <check>\" silences one. The exit status is non-zero when it\n" +
-				"finds something. Packages default to ./...",
+				"to the wrong row), a ui.C, Box or Frame kept past the paint it belongs to or given to a goroutine, and a\n" +
+				"ui.Memo whose value does not cover a field its function reads. Run it with go vet; a line, or the line\n" +
+				"above it, with \"viva:ignore <check>\" silences one. The exit status is non-zero when it finds something.\n" +
+				"Packages default to ./...",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runVet(arguments, output, errorOutput)
 			}},

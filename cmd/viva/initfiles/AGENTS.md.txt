@@ -21,7 +21,8 @@ Nothing draws unless an event, `Invalidate`, or a running animation asks for a f
 is no frame loop to write.
 
 State lives in a struct (`model` in main.go). The page reads it. Never keep a `ui.Box`,
-a `ui.C`, a `gfx.Canvas` or a closure given to `Children` after the page returns.
+a `ui.C`, a `gfx.Canvas` or a closure given to `Children` after the page returns; `Box.Valid()`
+says whether one still names an element of the current paint.
 
 ## Pages: ui.C
 
@@ -108,7 +109,10 @@ func (m *model) page(c ui.C) {
   `m.toaster.Acted()` (after `Toasts`) reports its press; a `ui.ToastLoading` toast stays until
   `m.toaster.Done(id, title, "", ui.ToastSuccess)` replaces it; `Toaster.Position` picks the corner.
 - `ui.TextField(...).AutoFocus()` focuses a field as it appears; `.Submitted()` is Enter pressed in it.
-  `ui.TextField(...).Secure()` is a password field.
+  `ui.TextField(...).Secure()` is a password field. Focus that lives in the model is
+  `ui.FocusBind(ui.TextField(...), &m.focus, FocusSearch)`: setting `m.focus` moves the focus, a user's
+  focus writes back, and `ui.FocusedValue(c, &m.focus)` reads the committed one. The element needs a
+  control or a Hit, and the binding is not for a Memo.
 - Keyboard shortcuts are declared where they act: `if ui.Shortcut(c, ui.Primary, "s") { m.save() }` (Primary is
   Command on macOS, Control elsewhere); `list.Shortcut(0, "delete")` on a container or control acts only while the
   focus is in it, the innermost one winning. A chord without Primary, Ctrl or Alt is left to a field being typed in.
@@ -126,8 +130,9 @@ func (m *model) page(c ui.C) {
 - A control with a look of your own: `ui.ButtonBase`, `CheckboxBase`, `SwitchBase`, `ToggleBase`, `RadioBase`, `TabBase`,
   `SliderBase`, `SelectBase` and `TextFieldBase` are the controls without their look, bound like their dressed forms; give them
   Background, Border, Radius and Draw (and Children, for the row-shaped ones). Do not copy a control to restyle it.
-- A part that rarely changes: `ui.Memo(c.KeyInt(id), version, func() { ... })` is copied from the last
-  paint while `version` is the same; bump `version` when what the function reads changes.
+- A part that rarely changes: `ui.Memo(c.KeyInt(id), *item, func() { ... })` is copied from the last
+  paint while that value compares equal: pass the row (or a comparable key of what the function
+  reads), not a counter you must remember to bump.
 - Your own component is a function of the same shape: `func Card(c ui.C, title string, body func()) ui.Box`.
   Its own small state (whether it is open) is `ui.State[bool](c, "open")`; the application's state stays in the model.
 - A settings form: tag the struct's fields (`form:"Label"`, `choices:"options,nameFunc"`, `placeholder:"..."`)
@@ -154,9 +159,9 @@ running anything; a test under `app.NewDriver` panics on them where they happen,
 | deleting from the list inside its loop on `Clicked` | the loop still runs over it | `c.After(func() { m.remove(id) })` |
 | `ui.Modal(c, &open, "", ...)` | panics: a dialog needs a title | give it one; it names the dialog for screen readers |
 | two rows with `c.Key("x")` in one parent | panics | key rows by something unique (an ID) |
-| a `ui.Memo` whose function reads something its version does not cover | the part shows stale content | bump the version when that changes; `ui.MemoCheck(true)` in a test panics on it |
+| a `ui.Memo` whose function reads something its value does not cover | the part shows stale content | pass the row (or a comparable key of what the function reads); `ui.MemoCheck(true)` in a test panics on it |
 
-A line, or the line above it, with `// viva:ignore unkeyed-button` (or `kept-context`) silences
+A line, or the line above it, with `// viva:ignore unkeyed-button` (or `kept-context`, `memo-value`) silences
 one finding you have checked.
 
 ## Laying a page out (package github.com/vivaui/viva/ui)

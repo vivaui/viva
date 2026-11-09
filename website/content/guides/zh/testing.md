@@ -82,7 +82,7 @@ func TestClickCounts(t *testing.T) {
 viva vet            # 或 go tool viva vet；包默认为 ./...
 ```
 
-每个问题报告为 `文件:行:列: 哪里错了以及应该怎么写 (检查名)`，发现问题时以非零状态退出，并使用项目自己的 Go 运行。在该行或上一行写 `// viva:ignore <检查名>` 可以忽略一条。`ui.Memo` 的版本号漏掉了函数读取的某个状态时会显示旧内容：在测试里打开 `ui.MemoCheck(true)`，它会声明每个部件，并在复制结果与声明结果不同时 panic。
+每个问题报告为 `文件:行:列: 哪里错了以及应该怎么写 (检查名)`，发现问题时以非零状态退出，并使用项目自己的 Go 运行。在该行或上一行写 `// viva:ignore <检查名>` 可以忽略一条。它还会报告跨帧保留的 `ui.C`、`ui.Box` 或 `*ui.Frame`（在结构体、包变量或 goroutine 里），以及 value 漏掉函数读取字段的 `ui.Memo`。`ui.Memo` 的值漏掉了函数读取的某个状态时会显示旧内容：在测试里打开 `ui.MemoCheck(true)`（或 `PageConfig.MemoCheck`），它会声明每个部件，并在复制结果与声明结果不同时 panic。
 
 ## 行协议
 

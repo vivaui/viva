@@ -186,6 +186,15 @@ Paint code reads these rather than keeping its own copy, so hover, press and foc
 
 To move focus yourself, return `Focus` (and `FocusVisible`) in the `EventResult`, or `Blur` to clear it.
 
+A page that keeps the focus in its model uses `ui.FocusBind` on the control. Setting the field moves the focus there; a focus the user moves writes back into the field; `ui.FocusedValue` reads the focus that is committed, not a request waiting for a hidden element. The request is edge-triggered and waits while the control is not declared:
+
+```go
+ui.FocusBind(ui.TextField(c, &m.query, "Search", ""), &m.focus, focusSearch)
+// m.focus = focusSearch moves the focus there; FocusedValue reports where it is.
+```
+
+The control needs an identity (a control, or a container given `Hit`), and a binding is not declared inside a `Memo`.
+
 ## Shortcuts
 
 A page declares its shortcuts where they act with `ui.Shortcut` and `Box.Shortcut` (see [Declarative layout](/en/docs/declarative-layout/)), and needs nothing below. A handler of your own that matches a chord and wants it to act as a click on a control returns `EventResult.Activate` with that control's identity: the paint runs as the click's event pass, as for Enter on a focused button.
