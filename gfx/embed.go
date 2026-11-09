@@ -72,6 +72,7 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 	layer := canvas.currentLayer()
 	outer, hasOuter := canvas.clipSnapshot()
 	rectsBefore := uint32(len(canvas.rectangles))
+	trianglesBefore := uint32(len(canvas.triangles))
 	runsBefore := int32(len(canvas.runs))
 
 	for _, rectangle := range child.rectangles {
@@ -89,6 +90,14 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 		triangle.RectsBefore += rectsBefore
 		triangle.ClipOf, triangle.HasClip = embedClip(triangle.ClipOf, triangle.HasClip, origin, outer, hasOuter)
 		canvas.triangles = append(canvas.triangles, triangle)
+	}
+	for _, shadow := range child.shadows {
+		shadow.Bounds = translateRect(shadow.Bounds, origin)
+		shadow.Layer += layer
+		shadow.RectsBefore += rectsBefore
+		shadow.TrianglesBefore += trianglesBefore
+		shadow.ClipOf, shadow.HasClip = embedClip(shadow.ClipOf, shadow.HasClip, origin, outer, hasOuter)
+		canvas.shadows = append(canvas.shadows, shadow)
 	}
 	// An image laid out in device pixels stays on them when it moves: the page
 	// puts the view at a logical position that need not be one.

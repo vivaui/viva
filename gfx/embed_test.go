@@ -358,3 +358,24 @@ func TestAdoptEmbeddedTakesTheViewsFocusAndModalState(t *testing.T) {
 		t.Fatal("a quiet view changed the host's focus and modal state")
 	}
 }
+
+func TestEmbedTranslatesShadowsAndTheirPaintOrder(t *testing.T) {
+	var child, page Canvas
+	page.Fill(Rect{Width: 10, Height: 10}, Color{Alpha: 1})
+	child.Fill(Rect{X: 1, Y: 2, Width: 20, Height: 10}, Color{Alpha: 1})
+	child.Shadow(Rect{X: 1, Y: 2, Width: 20, Height: 10}, 3, ShadowStyle{Blur: 4, OffsetX: 1, OffsetY: 2}, Color{Alpha: 1})
+	mount := testMount(&page, 1)
+	page.Embed(&child, Point{X: 100, Y: 200}, mount)
+
+	shadows := page.Shadows()
+	if len(shadows) != 1 {
+		t.Fatalf("shadows = %+v, want the child's one", shadows)
+	}
+	if shadows[0].Bounds != (Rect{X: 101, Y: 202, Width: 20, Height: 10}) {
+		t.Fatalf("shadow bounds = %+v, want them moved by the embed origin", shadows[0].Bounds)
+	}
+	if shadows[0].RectsBefore != 2 || shadows[0].TrianglesBefore != 0 {
+		t.Fatalf("paint order = %d rects, %d triangles; want the parent's 1 rect plus the child's 1 before it",
+			shadows[0].RectsBefore, shadows[0].TrianglesBefore)
+	}
+}
