@@ -64,6 +64,27 @@ func Slot(c C) Box { return c.f.Slot() }
 // Grid lays its children in equal cells at least minCell wide.
 func Grid(c C, minCell float32) Box { return c.page.container(c.f.Grid(minCell)) }
 
+// CustomLayout declares a container whose in-flow children layout measures and
+// places: a masonry, a dock, a flow of cards, a layout of the application's own.
+// The layout runs in four phases (see Layout); the page keeps identity, focus, hits,
+// clipping and absolute children. The layout owns the children's sizes and positions,
+// so Width, Height, Fill, Grow, Shrink and Margin on them are not applied here. Wrap
+// it in Scroll, List or Tree for scrolling and virtualization. Not inside a Memo.
+//
+//	ui.CustomLayout(c, &m.masonry).FillWidth().Children(func() {
+//		for _, card := range m.cards {
+//			ui.Column(c).Height(card.height).Children(card.body)
+//		}
+//	})
+func CustomLayout(c C, layout Layout) Box {
+	p := c.page
+	p.forbidInMemo("CustomLayout")
+	if layout == nil {
+		panic("ui: CustomLayout needs a Layout")
+	}
+	return p.container(c.f.customLayout(layout))
+}
+
 // Controls.
 
 // Button adds a button; Clicked reports a click on it.

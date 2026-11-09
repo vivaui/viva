@@ -57,6 +57,7 @@ const (
 	row
 	stack
 	grid
+	custom // a Layout places the children itself (see layout_custom.go)
 )
 
 type dimKind uint8
@@ -205,6 +206,7 @@ type extra struct {
 	tooltip       string           // what Tooltip says over the element; empty for none
 	addons        int32            // 1 + the index of the field's icon and button in Frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
+	layout        Layout           // CustomLayout: who measures and places the children
 }
 
 // Frame is one page being declared. It is handed to the function given to
@@ -254,8 +256,9 @@ type Frame struct {
 	ellipses   []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
 	wraps      []wrapCache         // the full line sets of wrapped texts, kept between frames
 	wrapCursor int
-	scratch    scratch     // memory the layout borrows, see scratch.go
-	scrolls    scrollStore // the ScrollStates of the page's ScrollAreas, by identity
+	scratch    scratch       // memory the layout borrows, see scratch.go
+	layoutCtx  LayoutContext // the context a CustomLayout is handed, reused
+	scrolls    scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
 	parent     int32
 	bounds     Rect
 	gen        uint32 // the paint this Frame is declaring; a Box names it
@@ -389,6 +392,7 @@ func (f *Frame) trim() {
 	if f.wrapCursor < len(f.ellipses) {
 		f.ellipses = f.ellipses[:f.wrapCursor]
 	}
+	f.layoutCtx.children = trimFlexCapacity(f.layoutCtx.children)
 	f.nodes = trimFlexCapacity(f.nodes)
 	f.inputs = trimFlexCapacity(f.inputs)
 	f.groups = trimFlexCapacity(f.groups)
@@ -496,6 +500,15 @@ func (f *Frame) Grid(minCell float32) Box {
 	n := &f.nodes[b.i]
 	n.dir = grid
 	n.gridMin = max(minCell, 1)
+	return b
+}
+
+// customLayout declares a container whose children a Layout measures and places.
+func (f *Frame) customLayout(layout Layout) Box {
+	b := f.box(kindContainer)
+	n := &f.nodes[b.i]
+	n.dir = custom
+	f.extra(b.i).layout = layout
 	return b
 }
 

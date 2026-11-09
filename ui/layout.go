@@ -180,6 +180,10 @@ func (f *Frame) measureContainer(n *node, axis int) {
 		f.measureGrid(n, axis)
 		return
 	}
+	if n.dir == custom {
+		f.measureCustom(n, axis)
+		return
+	}
 	var total float32
 	count := 0
 	for c := n.first; c >= 0; c = f.nodes[c].next {
@@ -258,6 +262,8 @@ func (f *Frame) solve(i int32, axis int) {
 	switch {
 	case n.dir == grid:
 		f.solveGrid(n, axis, start, avail)
+	case n.dir == custom:
+		f.solveCustom(n, axis, start, avail)
 	case n.flows(axis):
 		f.placeSplitRatios(n, axis, avail)
 		f.solveFlow(n, axis, start, avail)
