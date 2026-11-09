@@ -228,7 +228,7 @@ func (f *Frame) drawer(spec drawerSpec, footer bool) Box {
 	d := drawerDecl{spec: spec, layer: layer, footer: -1}
 	// A Stack's children sit at its top left; the margin moves each to its rectangle.
 	place := func(b Box, r Rect) Box {
-		return b.Size(r.Width, r.Height).Self(Start).MarginSides(r.Y-f.bounds.Y, 0, 0, r.X-f.bounds.X)
+		return b.Size(r.Width, r.Height).Self(Start).MarginTop(r.Y - f.bounds.Y).MarginLeft(r.X - f.bounds.X)
 	}
 	root.Children(func() {
 		d.body = place(f.Column(), body).i

@@ -200,8 +200,9 @@ m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
   `WidthPercent`, `HeightPercent` take a share of the container; `MinWidth`, `MaxWidth`,
   `MinHeight`, `MaxHeight` bound it (room a capped element cannot take goes to the others,
   as in CSS: `Grow(1).MaxWidth(470)` beside a `Spacer()` works); `MaxWidthPercent(70)` and `MaxHeightPercent` cap at a share of the container (a chat bubble).
-- Space: `Pad`, `PadX`, `PadY`, `PadSides(top,right,bottom,left)`; `Margin`, `MarginX`,
-  `MarginY`, `MarginSides`; `Gap` between children. `Pad`, `Border` and `Background` work on a `Text` or `Paragraph` too
+- Space: `Pad`, `PadX`, `PadY`, `PadTop`, `PadRight`, `PadBottom`, `PadLeft`, `PadSides(top,right,bottom,left)`;
+  `Margin`, `MarginX`, `MarginY`, `MarginTop`, `MarginRight`, `MarginBottom`, `MarginLeft`, `MarginSides`;
+  `Gap` between children. `Pad`, `Border` and `Background` work on a `Text` or `Paragraph` too
   (a chip, a badge, a chat bubble). Every length is a `float32`: `Width(float32(n))`, never an `int`.
 - Place: across a container children stretch by default; `Items(ui.Center)` or
   `ui.Start`/`ui.End`/`ui.Stretch` changes that; `ui.Baseline` lines a Row's children up

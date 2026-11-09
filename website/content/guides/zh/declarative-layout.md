@@ -26,7 +26,7 @@ view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
 - `Row` 从左到右排列子元素，`Column` 从上到下，`Stack` 相互叠放。
 - 子元素默认和内容一样大，或者按 `Width`、`Height`、`Size` 指定。`FillWidth`、`FillHeight`、`Fill` 占满容器的交叉方向，或者平分沿着容器方向剩下的空间。
 - `Grow(n)` 把容器方向的剩余空间按比例分给会伸缩的子元素。`Spacer()` 是会伸缩的空元素。
-- `Pad` 和 `Margin` 接收一个数字，更多情况用 `PadX`、`PadY`、`PadSides`。`Gap` 是子元素之间的间距。
+- `Pad` 和 `Margin` 接收一个数字；`PadX`、`PadY` 设置两边；`PadTop`、`PadRight`、`PadBottom`、`PadLeft` 及其 `Margin` 形式只设置一边；`PadSides`、`MarginSides` 按上、右、下、左的顺序设置四边。后调用的方法覆盖它设置的那些边。`Gap` 是子元素之间的间距。
 - 交叉方向上子元素默认拉伸；`Items(ui.Center)` 居中，`Self` 只对一个子元素生效。沿容器方向用 `Justify(ui.Center)`、`ui.End`、`ui.Between` 摆放剩余空间。`Center()` 两个方向都居中。
 - `Basis(px)` 是在分配剩余空间之前元素的起始尺寸，`WidthPercent`、`HeightPercent` 取容器的一个比例。`MinWidth`、`MaxWidth`、`MinHeight`、`MaxHeight` 限定尺寸；被上限卡住的元素吃不下的空间会分给其他元素（和 CSS 一样），所以 `Grow(1).MaxWidth(470)` 旁边放一个 `Spacer()`，后面的元素仍然贴着远端。
 - `Items(ui.Baseline)` 让一行里的子元素按第一行文字的基线对齐，大标题、小说明和按钮可以落在同一条基线上。`Text` 会先于固定尺寸的兄弟元素收缩并裁剪。

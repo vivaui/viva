@@ -121,7 +121,7 @@ func StatCard(f *ui.Frame, theme gfx.Theme, figure, caption string, from, to gfx
 	card := f.Column().Pad(16).Gap(4).Radius(theme.Metrics.RadiusSurface).
 		Background(theme.Card).Border(1, theme.Border).Shadow(gfx.ShadowXS)
 	return card.Children(func() {
-		f.Row().Height(4).Width(32).Radius(2).Gradient(ui.ToRight, from, to).MarginSides(0, 0, 8, 0)
+		f.Row().Height(4).Width(32).Radius(2).Gradient(ui.ToRight, from, to).MarginBottom(8)
 		f.Text(figure).FontSize(28).Weight(gfx.WeightSemibold)
 		f.Text(caption).Muted().FontSize(theme.Metrics.FontSizeS)
 	})
@@ -138,7 +138,7 @@ func Hero(f *ui.Frame, theme gfx.Theme, id gfx.ID, title, text, action string) u
 		Children(func() {
 			f.Text(title).FontSize(22).Weight(gfx.WeightSemibold).Color(white)
 			f.Paragraph(text, 3).Color(white.WithAlpha(0.85))
-			button = f.Button(id, action).Secondary().Self(ui.Start).MarginSides(8, 0, 0, 0)
+			button = f.Button(id, action).Secondary().Self(ui.Start).MarginTop(8)
 		})
 	return button
 }
@@ -172,7 +172,7 @@ func EmptyState(f *ui.Frame, theme gfx.Theme, id gfx.ID, icon gfx.Icon, title, t
 		})
 		f.Text(title).Weight(gfx.WeightMedium).FontSize(theme.Metrics.FontSizeL)
 		f.Paragraph(text, 3).Muted().TextCenter().MaxWidth(320)
-		button = f.Button(id, action).Outline().MarginSides(8, 0, 0, 0)
+		button = f.Button(id, action).Outline().MarginTop(8)
 	})
 	return button
 }

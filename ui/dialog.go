@@ -78,7 +78,7 @@ func (f *Frame) Dialog(spec DialogSpec) Box {
 		}
 		surface.Children(func() {
 			f.Slot().Height(geometry.Header.Height)
-			d.body = f.Column().Grow(1).Shrink(1).MarginSides(above, 0, below, 0).i
+			d.body = f.Column().Grow(1).Shrink(1).MarginTop(above).MarginBottom(below).i
 			d.footer = f.Row().Height(geometry.Footer.Height).Gap(gap).Justify(End).Items(Center).i
 		})
 	})

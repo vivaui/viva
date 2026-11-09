@@ -97,7 +97,7 @@ func main() {
 				f.Column().Fill().Children(func() {
 					// The bar is as tall as the title bar and leaves room for the
 					// window buttons on whichever side the platform puts them.
-					f.Row().Height(28).PadSides(0, trailing, 0, leading).Items(ui.Center).MovesWindow().Children(func() {
+					f.Row().Height(28).PadRight(trailing).PadLeft(leading).Items(ui.Center).MovesWindow().Children(func() {
 						f.Text("Notes").Muted()
 					})
 					f.Column().Grow(1).Pad(24).Items(ui.Start).Children(func() {

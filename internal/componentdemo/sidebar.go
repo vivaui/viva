@@ -80,7 +80,7 @@ func (state *State) paintSidebar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.S
 			} else {
 				rail.WidthPercent(42).MaxWidth(260)
 			}
-			f.Column().Grow(1).Basis(0).Gap(16).PadSides(14, 0, 0, 0).Children(func() {
+			f.Column().Grow(1).Basis(0).Gap(16).PadTop(14).Children(func() {
 				f.Text(sidebarSelectionLabel(state.values[0])).FontSize(theme.Metrics.FontSizeM + 4).Weight(gfx.WeightSemibold)
 				if state.exampleID == "collapsed" {
 					label := "Collapse sidebar"

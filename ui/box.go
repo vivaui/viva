@@ -145,8 +145,10 @@ func (b Box) Shrink(v float32) Box {
 }
 
 // Pad is space inside the element, Margin outside it. The one-argument forms
-// give all four sides; the X and Y forms give two; Sides gives them in the order
-// top, right, bottom, left.
+// give all four sides; the X and Y forms give two; Top, Right, Bottom and Left
+// give one; Sides gives them in the order top, right, bottom, left. A later call
+// sets the sides it names, so Pad(4).PadTop(8) pads the top by 8 and the other
+// sides by 4.
 func (b Box) Pad(v float32) Box { return b.PadSides(v, v, v, v) }
 func (b Box) PadX(v float32) Box {
 	n := b.n()
@@ -158,9 +160,49 @@ func (b Box) PadY(v float32) Box {
 	n.pad[0], n.pad[2], n.flags = v, v, n.flags|flagSetPad
 	return b
 }
+func (b Box) PadTop(v float32) Box {
+	n := b.n()
+	n.pad[0] = v
+	n.flags |= flagSetPad
+	return b
+}
+func (b Box) PadRight(v float32) Box {
+	n := b.n()
+	n.pad[1] = v
+	n.flags |= flagSetPad
+	return b
+}
+func (b Box) PadBottom(v float32) Box {
+	n := b.n()
+	n.pad[2] = v
+	n.flags |= flagSetPad
+	return b
+}
+func (b Box) PadLeft(v float32) Box {
+	n := b.n()
+	n.pad[3] = v
+	n.flags |= flagSetPad
+	return b
+}
 func (b Box) Margin(v float32) Box  { return b.MarginSides(v, v, v, v) }
 func (b Box) MarginX(v float32) Box { n := b.n(); n.margin[1], n.margin[3] = v, v; return b }
 func (b Box) MarginY(v float32) Box { n := b.n(); n.margin[0], n.margin[2] = v, v; return b }
+func (b Box) MarginTop(v float32) Box {
+	b.n().margin[0] = v
+	return b
+}
+func (b Box) MarginRight(v float32) Box {
+	b.n().margin[1] = v
+	return b
+}
+func (b Box) MarginBottom(v float32) Box {
+	b.n().margin[2] = v
+	return b
+}
+func (b Box) MarginLeft(v float32) Box {
+	b.n().margin[3] = v
+	return b
+}
 func (b Box) PadSides(top, right, bottom, left float32) Box {
 	n := b.n()
 	n.pad, n.flags = [4]float32{top, right, bottom, left}, n.flags|flagSetPad

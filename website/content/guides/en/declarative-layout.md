@@ -26,7 +26,7 @@ view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
 - `Row` lays children out left to right, `Column` top to bottom, `Stack` over one another.
 - A child is as big as its content, or as `Width`, `Height` or `Size` say. `FillWidth`, `FillHeight` and `Fill` take all the room across a container, or share what is left along it.
 - `Grow(n)` shares the free room along the container between the children that grow, in proportion. `Spacer()` is an empty child that grows.
-- `Pad` and `Margin` take one number, or `PadX`, `PadY`, `PadSides` for more. `Gap` is the space between children.
+- `Pad` and `Margin` take one number; `PadX` and `PadY` take two; `PadTop`, `PadRight`, `PadBottom` and `PadLeft`, and their `Margin` forms, take one side; `PadSides` and `MarginSides` take all four in the order top, right, bottom, left. A later call sets the sides it names. `Gap` is the space between children.
 - Across a container children stretch by default; `Items(ui.Center)` centers them, `Self` does it for one child. Along it, `Justify(ui.Center)`, `ui.End` and `ui.Between` place what is left. `Center()` does both.
 - `Basis(px)` is what an element starts from before free room is shared, and `WidthPercent` and `HeightPercent` take a share of the container. `MinWidth`, `MaxWidth`, `MinHeight` and `MaxHeight` bound a size; room a capped element cannot take goes to the others, as in CSS, so `Grow(1).MaxWidth(470)` beside a `Spacer()` keeps what follows against the far edge.
 - `Items(ui.Baseline)` lines a Row's children up on their first line of text, so a large heading, a small caption and a button sit on one baseline. A `Text` shrinks and clips before a fixed-size sibling does.

@@ -411,7 +411,7 @@ func TestANegativeMarginPullsAChildOut(t *testing.T) {
 	f := view.Begin(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100})
 	f.Column().Children(func() {
 		first = f.Slot().Height(20)
-		second = f.Slot().Height(20).MarginSides(-6, -12, 0, 0)
+		second = f.Slot().Height(20).MarginTop(-6).MarginRight(-12)
 	})
 	f.End()
 	if second.Rect().Y != 14 || second.Rect().Width != 112 {

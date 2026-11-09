@@ -213,7 +213,7 @@ func (s *TreeState) row(i int, rowBox Box) {
 		left += 24 // the chevron, as components.Tree places it
 	}
 	rowBox.Children(func() {
-		b := Row(c).Height(s.rowHeight(theme)).Shrink(0).PadSides(0, 8, 0, left).Gap(theme.Metrics.GapItem).Items(Center).Draw(s.paint)
+		b := Row(c).Height(s.rowHeight(theme)).Shrink(0).PadRight(8).PadLeft(left).Gap(theme.Metrics.GapItem).Items(Center).Draw(s.paint)
 		s.declared = append(s.declared, treeRow{index: i, key: key, node: b.i, gen: b.gen, item: item})
 		b.Children(func() {
 			if s.content != nil {
