@@ -104,7 +104,7 @@ func (b Box) dialogPart(fn func(), footer bool) Box {
 	if footer {
 		part = d.footer
 	}
-	Box{f: b.f, i: part}.Children(fn)
+	Box{f: b.f, i: part, gen: b.f.gen}.Children(fn)
 	b.f.widgets.layer = saved
 	return b
 }

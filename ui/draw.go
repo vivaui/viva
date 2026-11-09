@@ -72,6 +72,7 @@ func (b Box) Draw(fn func(*DrawContext)) Box { b.hooks().under = fn; return b }
 func (b Box) DrawOver(fn func(*DrawContext)) Box { b.hooks().over = fn; return b }
 
 func (b Box) hooks() *drawHooks {
+	b.n()
 	extra := b.f.extra(b.i)
 	if extra.draws == 0 {
 		b.f.draws = append(b.f.draws, drawHooks{})

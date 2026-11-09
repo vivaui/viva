@@ -400,7 +400,7 @@ func (b Box) Popup() (Box, bool) {
 	if d.popup < 0 {
 		return Box{}, false
 	}
-	return Box{f: b.f, i: d.popup}, true
+	return Box{f: b.f, i: d.popup, gen: b.f.gen}, true
 }
 
 func (f *Frame) selectPart(n *node, i int) Rect {

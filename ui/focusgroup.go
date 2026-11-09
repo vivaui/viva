@@ -27,6 +27,7 @@ const (
 //		}
 //	})
 func (b Box) FocusGroup(axis FocusAxis) Box {
+	b.n()
 	p := b.f.page
 	if p == nil {
 		panic("ui: FocusGroup is for a container of a page")

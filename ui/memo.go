@@ -3,20 +3,29 @@ package ui
 import "github.com/vivaui/viva/gfx"
 
 // Memo declares the part of a page fn declares, and in a later paint, when
-// version is what it was and nothing the part shows can have changed, does not
-// declare it at all: the page keeps its room and the canvas copies what it painted
-// last time (gfx.Canvas.Replay). A part of a page that is unchanged costs a lookup.
+// value compares equal to what it was and nothing the part shows can have
+// changed, does not declare it at all: the page keeps its room and the canvas
+// copies what it painted last time (gfx.Canvas.Replay). A part of a page that is
+// unchanged costs a lookup.
 //
 //	for i := range m.hosts {
 //		h := &m.hosts[i]
-//		ui.Memo(c.KeyInt(h.ID), h.Version, func() { m.row(c, h) })
+//		ui.Memo(c.KeyInt(h.ID), *h, func() { m.row(c, h) })
 //	}
 //
-// version is everything fn reads that can change: bump it when the part's data
-// does. The rest is the Memo's business; the part is declared again, as if it had
+// value is the data fn reads, compared with ==: pass the row or a small
+// comparable key, not a counter you must remember to bump. A pointer value is
+// compared by identity, so changes behind it are not seen; an interface value
+// whose dynamic type is not comparable panics on comparison. A value that is
+// expensive to compare may be a precomputed uint64 revision or hash. The cell
+// keeps a copy of value: a large row costs its size in memory for each Memo, so
+// pass a small key or revision for a large one.
+//
+// The rest is the Memo's business; the part is declared again, as if it had
 // no Memo, in a paint that delivers a click or a pointer event, while one of its
 // controls is hovered, pressed or focused (or was in the last paint), while a
-// transition runs anywhere on the canvas, and when the window's size changed. A
+// transition runs anywhere on the canvas, when the window's size changed, and
+// when the theme, display scale or font generation changed. A
 // part that moved (a row of a list that scrolled, or under a row that was added)
 // is copied moved; one that changed size, or moved where its clip would cut it, is
 // declared again in the same paint (the page's paint is taken back and done again,
@@ -25,7 +34,7 @@ import "github.com/vivaui/viva/gfx"
 // A Memo holds no Scroll, List, Popover, Modal, Control or page (Frame.Page): their
 // state is kept by being declared. MemoCheck(true) declares every part and panics
 // where a copy would have differed from it: run tests with it.
-func Memo(c C, version uint64, fn func()) Box {
+func Memo[T comparable](c C, value T, fn func()) Box {
 	p := c.page
 	at, _ := p.name(pkMemo)
 	id := p.id(at)
@@ -34,12 +43,22 @@ func Memo(c C, version uint64, fn func()) Box {
 		entry = &memoEntry{}
 		p.memos[id] = entry
 	}
+	cell, ok := entry.cell.(*memoCell[T])
+	if !ok {
+		if entry.cell != nil {
+			panic("ui: Memo: the same Memo was declared with a different value type; give each kind of value a place or a Key of its own")
+		}
+		cell = &memoCell[T]{}
+		entry.cell = cell
+	}
+	same := cell.set && cell.v == value
 	f := c.f
-	if p.memoHit(entry, version) && !memoCheck {
+	if p.memoHit(entry, same) && !p.checkingMemos() {
 		b := f.Slot().Size(entry.rect.Width, entry.rect.Height).Shrink(0)
 		f.extra(b.i).memo = p.memoBox(entry, true)
 		p.touchMemo(entry)
-		entry.epoch, entry.version = p.epoch, version
+		entry.epoch = p.epoch
+		cell.v, cell.set = value, true
 		if entry.listens && f.canvas != nil {
 			// The part's controls were not asked about a click this paint, as
 			// they were not declared: say they listen, so that the runtime
@@ -51,11 +70,10 @@ func Memo(c C, version uint64, fn func()) Box {
 	}
 	var prev gfx.Span
 	var prevAt Rect
-	if memoCheck && entry.painted && entry.epoch+1 == p.epoch && entry.version == version {
+	if p.checkingMemos() && entry.painted && entry.epoch+1 == p.epoch && same {
 		prev, prevAt = entry.span, entry.rect
 	}
 	entry.reset()
-	entry.version = version
 	p.recording = append(p.recording, entry)
 	c.f.memoDepth++
 	// The part is named by the Memo's own place, so what is in it keeps its names
@@ -73,6 +91,12 @@ func Memo(c C, version uint64, fn func()) Box {
 		p.memoChecks = append(p.memoChecks, memoCheckOf{span: prev, at: prevAt})
 		p.memoBoxes[len(p.memoBoxes)-1].check = int32(len(p.memoChecks))
 	}
+	cell.v, cell.set = value, true
+	entry.scale, entry.fonts = 0, 0
+	if f.canvas != nil {
+		entry.scale = f.canvas.PixelScale()
+		entry.fonts = f.canvas.FontGeneration()
+	}
 	entry.epoch = p.epoch
 	return b
 }
@@ -82,21 +106,37 @@ func Memo(c C, version uint64, fn func()) Box {
 var memoCheck bool
 
 // MemoCheck(true) makes every Memo declare its part and panic where a copy of the
-// last paint would have differed: a version that does not cover what fn reads. It
-// is for tests; it costs what having no Memo costs, and more.
+// last paint would have differed: a value that does not cover what fn reads. It
+// is for tests; it costs what having no Memo costs, and more. PageConfig.MemoCheck
+// does the same for one page, without the package-wide switch.
 func MemoCheck(on bool) { memoCheck = on }
+
+// checkingMemos reports whether this page's Memos declare every part and compare
+// it with the last paint.
+func (p *Page) checkingMemos() bool { return p.checkMemos || memoCheck }
+
+// memoCell is one Memo's last value. It is allocated once, on the Memo's first
+// paint, and updated in place, so a copied Memo compares without allocating.
+type memoCell[T comparable] struct {
+	v   T
+	set bool
+}
 
 // memoEntry is what a page keeps for one Memo between paints.
 type memoEntry struct {
-	version uint64
-	epoch   uint32   // the paint the part was last declared or copied in
-	rect    Rect     // where it was
-	bounds  Rect     // the page's bounds then
-	span    gfx.Span // what it painted
-	painted bool
-	held    bool // one of its controls was hovered, pressed or focused
-	stale   bool // its copy failed: declare it in the next try
-	listens bool // it declared hit regions: a click or pointer event may be for it
+	cell       any      // *memoCell[T] of the value the part was last declared with
+	themeEpoch uint32   // the page's theme when the part was last painted
+	opacity    float32  // the inherited opacity then
+	scale      float32  // the canvas's pixel scale then
+	fonts      uint32   // the canvas's font generation then
+	epoch      uint32   // the paint the part was last declared or copied in
+	rect       Rect     // where it was
+	bounds     Rect     // the page's bounds then
+	span       gfx.Span // what it painted
+	painted    bool
+	held       bool // one of its controls was hovered, pressed or focused
+	stale      bool // its copy failed: declare it in the next try
+	listens    bool // it declared hit regions: a click or pointer event may be for it
 
 	// What declaring the part told the page, so that a copy keeps it: the
 	// names of its bound values, its rows' keys, its State values and the Memos
@@ -141,10 +181,12 @@ func (p *Page) memoBox(entry *memoEntry, copy bool) int32 {
 }
 
 // memoHit reports whether the part may be copied rather than declared.
-func (p *Page) memoHit(entry *memoEntry, version uint64) bool {
+func (p *Page) memoHit(entry *memoEntry, same bool) bool {
 	canvas := p.ctx.f.canvas
-	if canvas == nil || !entry.painted || entry.stale || entry.version != version || entry.epoch+1 != p.epoch ||
-		entry.held || entry.bounds != p.ctx.f.bounds || canvas.Delivering() || canvas.Animating() {
+	if canvas == nil || !entry.painted || entry.stale || !same || entry.epoch+1 != p.epoch ||
+		entry.held || entry.bounds != p.ctx.f.bounds || entry.themeEpoch != p.themeEpoch ||
+		entry.opacity != p.ctx.f.opacity || canvas.PixelScale() != entry.scale ||
+		canvas.FontGeneration() != entry.fonts || canvas.Delivering() || canvas.Animating() {
 		return false
 	}
 	hovered, pressed, focused := canvas.Hovered(), canvas.Pressed(), canvas.Focused()
@@ -163,6 +205,11 @@ func (p *Page) memoPaint(f *Frame, i int32, before bool) bool {
 	canvas := f.canvas
 	rect := f.nodes[i].rect
 	if box.copy {
+		if entry.themeEpoch != p.themeEpoch || entry.opacity != f.opacity {
+			entry.stale = true
+			p.retry = true
+			return true
+		}
 		dx, dy := rect.X-entry.rect.X, rect.Y-entry.rect.Y
 		sameSize := rect.Width == entry.rect.Width && rect.Height == entry.rect.Height
 		span, ok := gfx.Span{}, entry.span.Empty() && sameSize
@@ -184,6 +231,7 @@ func (p *Page) memoPaint(f *Frame, i int32, before bool) bool {
 	entry.span = canvas.SpanSince(box.before)
 	entry.listens = len(canvas.HitsSince(box.before)) > 0
 	entry.rect, entry.bounds, entry.painted, entry.stale = rect, f.bounds, true, false
+	entry.themeEpoch, entry.opacity = p.themeEpoch, f.opacity
 	hovered, pressed, focused := canvas.Hovered(), canvas.Pressed(), canvas.Focused()
 	for _, hit := range canvas.HitsSince(box.before) {
 		if !hit.ID.IsZero() && (hit.ID == hovered || hit.ID == pressed || hit.ID == focused) {
@@ -192,7 +240,7 @@ func (p *Page) memoPaint(f *Frame, i int32, before bool) bool {
 	}
 	if box.check != 0 && !entry.held && !canvas.Delivering() && !canvas.Animating() && p.memoDiffers(entry.span, p.memoChecks[box.check-1], rect) {
 		panic("ui: MemoCheck: the part a Memo declared (" + p.tree.Text(f.nodes[i].id) + ") differs from what it painted last time " +
-			"with the same version: the version does not cover something its function reads")
+			"with the same value: the value does not cover something its function reads")
 	}
 	return false
 }

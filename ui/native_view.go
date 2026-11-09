@@ -12,6 +12,7 @@ import "github.com/vivaui/viva/gfx"
 //
 //	f.Slot().Grow(1).NativeView(m.docs.ID())
 func (b Box) NativeView(id gfx.NativeViewID) Box {
+	b.n()
 	b.f.extra(b.i).nativeView = id
 	return b
 }

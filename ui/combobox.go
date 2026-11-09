@@ -106,7 +106,7 @@ func Combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, l
 	// wide as its container, a control tall.
 	b := f.Slot().Height(f.theme.Metrics.ControlHeight)
 	b.n().id = ids.input // what Tooltip, Shortcut and AutoFocus name
-	state.node = b.i
+	state.node, state.gen = b.i, b.gen
 	b.Draw(state.paint)
 	f.bindDone(b, changed)
 	p.combos = append(p.combos, state)
@@ -132,6 +132,7 @@ type comboState struct {
 
 	f                         *Frame
 	node                      int32
+	gen                       uint32
 	label, placeholder, empty string
 	createPrefix              string
 	clearable                 bool
@@ -203,9 +204,10 @@ func (s *comboState) draw(d *DrawContext) {
 
 // combo is the Combobox the box declares, or nil.
 func (b Box) combo() *comboState {
+	b.n()
 	if p := b.f.page; p != nil {
 		for _, s := range p.combos {
-			if s.f == b.f && s.node == b.i {
+			if s.f == b.f && s.node == b.i && s.gen == b.gen {
 				return s
 			}
 		}

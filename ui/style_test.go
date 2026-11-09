@@ -244,8 +244,7 @@ func TestOpacityFadesAnElementAndWhatIsInsideIt(t *testing.T) {
 
 func TestAnElementAtNoOpacityIsStillLaidOutAndHit(t *testing.T) {
 	var view View
-	var plain, hidden Box
-	draw := func(opacity float32) (*gfx.Canvas, Box) {
+	draw := func(opacity float32) (*gfx.Canvas, Rect) {
 		canvas := testCanvas()
 		var row Box
 		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 100}, func(f *Frame) {
@@ -254,19 +253,20 @@ func TestAnElementAtNoOpacityIsStillLaidOutAndHit(t *testing.T) {
 				f.Slot().Size(10, 10)
 			})
 		})
-		return canvas, row
+		return canvas, row.Rect()
 	}
 	var visible, invisible *gfx.Canvas
+	var plain, hidden Rect
 	visible, plain = draw(1)
 	invisible, hidden = draw(0)
-	if plain.Rect() != hidden.Rect() {
-		t.Errorf("fading moved the element from %+v to %+v", plain.Rect(), hidden.Rect())
+	if plain != hidden {
+		t.Errorf("fading moved the element from %+v to %+v", plain, hidden)
 	}
 	if len(invisible.Hits()) != len(visible.Hits()) || len(invisible.Hits()) == 0 {
 		t.Errorf("%d hit regions when faded, %d when not", len(invisible.Hits()), len(visible.Hits()))
 	}
 	for _, rectangle := range invisible.Rectangles() {
-		if rectangle.Bounds == hidden.Rect() && rectangle.Color.Alpha != 0 {
+		if rectangle.Bounds == hidden && rectangle.Color.Alpha != 0 {
 			t.Error("an element at no opacity was painted")
 		}
 	}

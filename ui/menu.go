@@ -119,7 +119,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 	width, height := menu.size()
 	popup := f.Popup()
 	if anchor >= 0 {
-		anchorBox := Box{f: f, i: anchor}
+		anchorBox := Box{f: f, i: anchor, gen: f.gen}
 		if menu.above {
 			popup.AboveBox(anchorBox, 4, Start)
 		} else {

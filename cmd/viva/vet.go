@@ -192,9 +192,10 @@ func vetPackage(pkg listedPackage, exports map[string]string) ([]vetFinding, err
 	}
 	config := types.Config{Importer: importer.ForCompiler(fset, "gc", lookup), Error: func(error) {}}
 	info := &types.Info{
-		Types: map[ast.Expr]types.TypeAndValue{},
-		Defs:  map[*ast.Ident]types.Object{},
-		Uses:  map[*ast.Ident]types.Object{},
+		Types:      map[ast.Expr]types.TypeAndValue{},
+		Defs:       map[*ast.Ident]types.Object{},
+		Uses:       map[*ast.Ident]types.Object{},
+		Selections: map[*ast.SelectorExpr]*types.Selection{},
 	}
 	if _, err := checkTypes(config, pkg.ImportPath, fset, files, info); err != nil {
 		var typeErr types.Error
@@ -208,6 +209,7 @@ func vetPackage(pkg listedPackage, exports map[string]string) ([]vetFinding, err
 		checker.file = file
 		checker.walk(file, nil)
 		checker.retained(file)
+		checker.goroutines(file)
 	}
 	return checker.findings, nil
 }
@@ -230,6 +232,65 @@ func isContext(t types.Type) bool {
 	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == uiPath && named.Obj().Name() == "Ctx"
 }
 
+// isRetainedType reports whether t is a value that belongs to one paint: ui.C,
+// ui.Box or *ui.Frame, or a container or function type that can carry one.
+// Holding one across paints reads a reused node or a Frame no longer declaring.
+func isRetainedType(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	t = types.Unalias(t)
+	switch t := t.(type) {
+	case *types.Pointer:
+		return isRetainedType(t.Elem())
+	case *types.Slice:
+		return isRetainedType(t.Elem())
+	case *types.Array:
+		return isRetainedType(t.Elem())
+	case *types.Map:
+		return isRetainedType(t.Key()) || isRetainedType(t.Elem())
+	case *types.Chan:
+		return isRetainedType(t.Elem())
+	case *types.Signature:
+		if params := t.Params(); params != nil {
+			for i := range params.Len() {
+				if isRetainedType(params.At(i).Type()) {
+					return true
+				}
+			}
+		}
+		if results := t.Results(); results != nil {
+			for i := range results.Len() {
+				if isRetainedType(results.At(i).Type()) {
+					return true
+				}
+			}
+		}
+		return false
+	case *types.Named:
+		object := t.Obj()
+		if object.Pkg() == nil || object.Pkg().Path() != uiPath {
+			return false
+		}
+		switch object.Name() {
+		case "Ctx", "Box", "Frame":
+			return true
+		}
+		return false
+	}
+	return false
+}
+
+// retainedCheck names what is kept and how to keep the persistent identity instead.
+func retainedCheck(t types.Type) string {
+	if isContext(t) {
+		return "a ui.C is kept in a struct, but it is valid only inside the page function it was given to: " +
+			"keep the *ui.Page that NewPage returns, or pass c down as a parameter"
+	}
+	return "a per-paint ui value (a Box, Frame or parts value) is kept across paints, but it names a node of one paint: " +
+		"keep the *ui.Page and a gfx.ID, or pass the value down as a parameter"
+}
+
 // walk visits node with stack, the nodes around it, outermost first.
 func (checker *vetChecker) walk(node ast.Node, stack []ast.Node) {
 	ast.Inspect(node, func(n ast.Node) bool {
@@ -245,14 +306,30 @@ func (checker *vetChecker) walk(node ast.Node, stack []ast.Node) {
 	})
 }
 
-// call checks one call: a Button of package ui with a label that is the same in every
-// row of a loop whose rows have no Key.
+// call checks one call of package ui: a Button whose label is the same in every
+// row of a loop whose rows have no Key, or a Memo whose value does not cover
+// what its function reads.
 func (checker *vetChecker) call(call *ast.CallExpr, stack []ast.Node) {
 	selector, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || selector.Sel.Name != "Button" || len(call.Args) != 2 {
+	if !ok {
 		return
 	}
-	if pkg, ok := checker.info.Uses[identOf(selector.X)].(*types.PkgName); !ok || pkg.Imported().Path() != uiPath {
+	pkg, ok := checker.info.Uses[identOf(selector.X)].(*types.PkgName)
+	if !ok || pkg.Imported().Path() != uiPath {
+		return
+	}
+	switch selector.Sel.Name {
+	case "Button":
+		checker.unkeyedButton(call, stack)
+	case "Memo":
+		checker.memo(call)
+	}
+}
+
+// unkeyedButton reports a Button with the same label in every row of a loop
+// whose rows have no Key: a click can move to the wrong row.
+func (checker *vetChecker) unkeyedButton(call *ast.CallExpr, stack []ast.Node) {
+	if len(call.Args) != 2 {
 		return
 	}
 	if t := checker.info.Types[call.Args[0]].Type; t == nil || !isContext(t) {
@@ -266,6 +343,219 @@ func (checker *vetChecker) call(call *ast.CallExpr, stack []ast.Node) {
 	checker.report(call, "unkeyed-button", fmt.Sprintf(
 		"every row of this loop has a Button labeled %s and the rows have no Key, so a row added or removed above moves a click to the wrong row: "+
 			"declare each row with ui.Row(c.KeyInt(item.ID)) (or c.Key(name)) and the Button inside it", value.ExactString()))
+}
+
+// memo reports a Memo whose value does not cover a root or field its function
+// reads. The analysis is deliberately conservative: a named helper, an
+// interface value or a call is not followed, so a missed read is possible; a
+// read reported as missing is a real dependency the value expression never
+// mentions.
+func (checker *vetChecker) memo(call *ast.CallExpr) {
+	if len(call.Args) != 3 {
+		return
+	}
+	if t := checker.info.Types[call.Args[0]].Type; t == nil || !isContext(t) {
+		return
+	}
+	fn, ok := ast.Unparen(call.Args[2]).(*ast.FuncLit)
+	if !ok {
+		return
+	}
+	cover, known := memoCoverage(checker.info, call.Args[1])
+	if !known {
+		return
+	}
+	missing := []string{}
+	seen := map[string]bool{}
+	for _, path := range memoReads(checker.info, fn) {
+		if seen[path] || cover.covers(path) {
+			continue
+		}
+		seen[path] = true
+		missing = append(missing, path)
+	}
+	if len(missing) == 0 {
+		return
+	}
+	sort.Strings(missing)
+	if len(missing) > 3 {
+		missing = append(missing[:3], "...")
+	}
+	checker.report(call, "memo-value", "the Memo's value does not cover "+strings.Join(missing, ", ")+
+		", which its function reads: pass the row itself (ui.Memo(c, *row, ...)) or a key that includes these fields, "+
+		"or silence this line with viva:ignore memo-value")
+}
+
+// memoCover is what a Memo's value expression covers: a bare root (the whole
+// value, or a pointer to it) covers every field read through it; a field exact
+// path covers that one read.
+type memoCover struct {
+	bare  map[string]bool
+	exact map[string]bool
+}
+
+func (c memoCover) covers(path string) bool {
+	if c.exact[path] {
+		return true
+	}
+	for i := 0; i < len(path); i++ {
+		if path[i] == '.' && c.bare[path[:i]] {
+			return true
+		}
+	}
+	return c.bare[path]
+}
+
+// memoCoverage builds the covered paths of a Memo's value. A value it cannot
+// read statically (a call, an arithmetic expression) makes the check unknown
+// and the caller skips it.
+func memoCoverage(info *types.Info, value ast.Expr) (memoCover, bool) {
+	cover := memoCover{bare: map[string]bool{}, exact: map[string]bool{}}
+	known := true
+	var add func(ast.Expr)
+	add = func(e ast.Expr) {
+		e = ast.Unparen(e)
+		switch e := e.(type) {
+		case *ast.Ident:
+			if _, ok := info.Uses[e].(*types.Var); ok {
+				cover.bare[e.Name] = true
+			}
+		case *ast.StarExpr:
+			if path, ok := exprPath(e.X); ok {
+				cover.bare[path] = true
+			} else {
+				known = false
+			}
+		case *ast.SelectorExpr:
+			if path, ok := exprPath(e); ok {
+				if isStructValue(info.Types[e].Type) {
+					cover.bare[path] = true // a row, not one of its scalar fields
+				} else {
+					cover.exact[path] = true
+				}
+			} else {
+				known = false
+			}
+		case *ast.CompositeLit:
+			for _, element := range e.Elts {
+				if pair, ok := element.(*ast.KeyValueExpr); ok {
+					add(pair.Value)
+				} else {
+					add(element)
+				}
+			}
+		case *ast.BasicLit:
+			// A constant value covers no read.
+		default:
+			known = false
+		}
+	}
+	add(value)
+	return cover, known
+}
+
+// isStructValue reports whether a value is a struct or a pointer to one, so
+// reading its fields is covered by the value itself rather than by one field.
+func isStructValue(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	t = types.Unalias(t)
+	if pointer, ok := t.(*types.Pointer); ok {
+		t = types.Unalias(pointer.Elem())
+	}
+	_, ok := t.Underlying().(*types.Struct)
+	return ok
+}
+
+// memoReads lists the paths a Memo's function reads from outside itself: roots
+// and fields of variables declared before the closure, including arguments
+// passed to a call. Method calls are not followed, and locals, constants,
+// packages and the page's C are not reads of the value.
+func memoReads(info *types.Info, fn *ast.FuncLit) []string {
+	parents := map[ast.Node]ast.Node{}
+	var stack []ast.Node
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		if n == nil {
+			stack = stack[:len(stack)-1]
+			return false
+		}
+		if len(stack) > 0 {
+			parents[n] = stack[len(stack)-1]
+		}
+		stack = append(stack, n)
+		return true
+	})
+	var reads []string
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.SelectorExpr:
+			if parent, ok := parents[node].(*ast.SelectorExpr); ok && parent.X == node {
+				return true // the inner half of a chain: the outer path is the read
+			}
+			if parent, ok := parents[node].(*ast.CallExpr); ok && parent.Fun == node {
+				return true // the callee's reads are not visible
+			}
+			if selection, ok := info.Selections[node]; ok && (selection.Kind() == types.MethodVal || selection.Kind() == types.MethodExpr) {
+				return true
+			}
+			path, ok := exprPath(node)
+			if !ok {
+				return true
+			}
+			root := leftmostIdent(node)
+			if root == nil {
+				return true
+			}
+			if object, ok := info.Uses[root].(*types.Var); ok && !object.IsField() && !isContext(object.Type()) && object.Pos() < fn.Pos() {
+				reads = append(reads, path)
+			}
+		case *ast.Ident:
+			if parent, ok := parents[node].(*ast.SelectorExpr); ok && (parent.X == node || parent.Sel == node) {
+				return true
+			}
+			object, ok := info.Uses[node].(*types.Var)
+			if !ok || object.IsField() || isContext(object.Type()) || object.Pos() >= fn.Pos() {
+				return true
+			}
+			reads = append(reads, node.Name)
+		}
+		return true
+	})
+	return reads
+}
+
+// exprPath is the dotted path of an expression made of identifiers and
+// selectors, such as m.host.Name; a dereference has the path of what it points
+// to.
+func exprPath(e ast.Expr) (string, bool) {
+	switch e := ast.Unparen(e).(type) {
+	case *ast.Ident:
+		return e.Name, true
+	case *ast.SelectorExpr:
+		if path, ok := exprPath(e.X); ok {
+			return path + "." + e.Sel.Name, true
+		}
+	case *ast.StarExpr:
+		return exprPath(e.X)
+	}
+	return "", false
+}
+
+// leftmostIdent is the identifier the path of a selector starts at.
+func leftmostIdent(expr ast.Expr) *ast.Ident {
+	for {
+		switch node := ast.Unparen(expr).(type) {
+		case *ast.Ident:
+			return node
+		case *ast.SelectorExpr:
+			expr = node.X
+		case *ast.StarExpr:
+			expr = node.X
+		default:
+			return nil
+		}
+	}
 }
 
 // innermostLoop is the innermost for or range statement around the call, inside
@@ -322,17 +612,15 @@ func inLoop(stack []ast.Node, body ast.Node) bool {
 	return false
 }
 
-// retained reports struct fields and package variables of type ui.C: a C is the
-// page being declared, valid only inside its function. Keep the *ui.Page
-// NewPage returns instead.
+// retained reports struct fields and package variables of a value that belongs
+// to one paint: a C, Box or Frame kept past the paint reads a reused node.
 func (checker *vetChecker) retained(file *ast.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.StructType:
 			for _, field := range node.Fields.List {
-				if t := checker.info.Types[field.Type].Type; t != nil && isContext(t) {
-					checker.report(field.Type, "kept-context", "a ui.C is kept in a struct, but it is valid only inside the page function it was given to: "+
-						"keep the *ui.Page that NewPage returns, or pass c down as a parameter")
+				if t := checker.info.Types[field.Type].Type; t != nil && isRetainedType(t) {
+					checker.report(field.Type, "kept-context", retainedCheck(t))
 				}
 			}
 		case *ast.GenDecl:
@@ -342,13 +630,49 @@ func (checker *vetChecker) retained(file *ast.File) {
 			for _, spec := range node.Specs {
 				value := spec.(*ast.ValueSpec)
 				for _, name := range value.Names {
-					if variable, ok := checker.info.Defs[name].(*types.Var); ok && variable.Parent() == variable.Pkg().Scope() && isContext(variable.Type()) {
-						checker.report(name, "kept-context", "a ui.C is kept in a package variable, but it is valid only inside the page function it was given to: "+
-							"keep the *ui.Page that NewPage returns, or pass c down as a parameter")
+					if variable, ok := checker.info.Defs[name].(*types.Var); ok && variable.Parent() == variable.Pkg().Scope() && isRetainedType(variable.Type()) {
+						checker.report(name, "kept-context", retainedCheck(variable.Type()))
 					}
 				}
 			}
 		}
+		return true
+	})
+}
+
+// goroutines reports a per-paint value passed to, or captured by, a goroutine: the
+// goroutine outlives the paint the value names.
+func (checker *vetChecker) goroutines(file *ast.File) {
+	ast.Inspect(file, func(n ast.Node) bool {
+		statement, ok := n.(*ast.GoStmt)
+		if !ok {
+			return true
+		}
+		for _, argument := range statement.Call.Args {
+			if t := checker.info.Types[argument].Type; t != nil && isRetainedType(t) {
+				checker.report(argument, "kept-context", retainedCheck(t))
+			}
+		}
+		fn, ok := ast.Unparen(statement.Call.Fun).(*ast.FuncLit)
+		if !ok {
+			return true
+		}
+		seen := map[types.Object]bool{}
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			ident, ok := node.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			object, ok := checker.info.Uses[ident].(*types.Var)
+			if !ok || object.IsField() || seen[object] || object.Pos() >= statement.Pos() {
+				return true
+			}
+			if isRetainedType(object.Type()) {
+				seen[object] = true
+				checker.report(ident, "kept-context", retainedCheck(object.Type()))
+			}
+			return true
+		})
 		return true
 	})
 }

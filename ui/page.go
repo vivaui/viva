@@ -45,7 +45,9 @@ import (
 // function of the same shape as the ones Viva ships.
 type C = *Ctx
 
-// Ctx is the declaration context of a Page. Use it through C.
+// Ctx is the declaration context of a Page. Use it through C. It is valid only
+// while the page declares; a *Page lives across paints, a C and the Boxes of one
+// paint do not.
 type Ctx struct {
 	page *Page
 	f    *Frame
@@ -178,57 +180,67 @@ type PageConfig struct {
 	// Background is the color Paint fills the window with, the theme's Background
 	// when nil. Draw fills nothing.
 	Background *Color
+	// MemoCheck makes every Memo of this page declare its part and panic where a
+	// copy of the last paint would have differed, as MemoCheck(true) does for every
+	// page. It is for tests.
+	MemoCheck bool
 }
 
-// Page is a window's declaration: one tree for the whole window.
+// Page is a window's declaration: one tree for the whole window. A Page lives
+// across paints, as its C, Box and Frame values do not.
 type Page struct {
-	config PageConfig
-	tree   *gfx.Tree
-	root   gfx.Scope
-	view   View
-	ctx    Ctx
-	theme  Theme
-	themed bool
-	window bool        // the page paints a window of its own, and so asks the system for its look
-	stale  atomic.Bool // the system appearance changed since the theme was chosen
-	epoch  uint32
+	config     PageConfig
+	checkMemos bool
+	tree       *gfx.Tree
+	root       gfx.Scope
+	view       View
+	ctx        Ctx
+	theme      Theme
+	themeSet   bool
+	themeEpoch uint32
+	themed     bool
+	window     bool        // the page paints a window of its own, and so asks the system for its look
+	stale      atomic.Bool // the system appearance changed since the theme was chosen
+	epoch      uint32
 
-	scopes     []*protoScope // by scope: Scopes are dense indexes into the Tree
-	nodes      []protoNode   // each container of the frame, by node index
-	keys       map[keyKey]keyEntry
-	intKeys    map[intKey]keyEntry
-	bound      map[boundKey]protoBound
-	names      map[gfx.ID]nameUse // the names bound values were given
-	fresh      slotPool
-	freshAt    gfx.Scope
-	kindName   [pkKinds]gfx.Name
-	keyName    gfx.Name
-	held       [2]armedButton
-	states     map[protoStateKey]protoState
-	fields     []fieldEntry
-	texts      map[gfx.ID]*boundText // the Fields of the TextFields bound to strings
-	controls   []controlEntry        // the Controls of the last paint, which take their input
-	shortcuts  []shortcutEntry       // the Shortcuts of the last paint
-	menus      []*MenuItems          // the open Menus of the last paint
-	rovers     []rover               // the Choices and Tabs of the last paint
-	sliders    []*SliderState        // the Sliders of the last paint
-	groups     []focusGroup          // the FocusGroups of the last paint
-	groupIDs   []gfx.ID              // their members, in order
-	groupStops map[gfx.ID]groupStop  // the member each group has the Tab stop on
-	contexts   []contextTarget       // the ContextMenus of the last paint, which Shift+F10 opens
-	combos     []*comboState         // the Comboboxes of the last paint
-	trees      []*TreeState          // the Trees of the last paint
-	listStates []*ListState          // the Lists of the last paint
-	selects    []*SelectState        // the Selects of the last paint, which Wheel scrolls
-	labels     []string              // scratch for Choice's labels
-	memos      map[gfx.ID]*memoEntry
-	memoBoxes  []memoBox
-	memoChecks []memoCheckOf
-	recording  []*memoEntry // the Memos being declared, outermost first
-	retry      bool         // a Memo's copy failed: the paint is done again
-	overlay    bool         // the last paint declared an open Popover, Modal, Menu or Select
-	lists      []listDecl
-	listRows   []int32 // the row containers of this paint's Lists
+	scopes      []*protoScope // by scope: Scopes are dense indexes into the Tree
+	nodes       []protoNode   // each container of the frame, by node index
+	keys        map[keyKey]keyEntry
+	intKeys     map[intKey]keyEntry
+	bound       map[boundKey]protoBound
+	names       map[gfx.ID]nameUse // the names bound values were given
+	fresh       slotPool
+	freshAt     gfx.Scope
+	kindName    [pkKinds]gfx.Name
+	keyName     gfx.Name
+	held        [2]armedButton
+	states      map[protoStateKey]protoState
+	fields      []fieldEntry
+	focusFields map[any]any
+	focusPaint  []focusState
+	texts       map[gfx.ID]*boundText // the Fields of the TextFields bound to strings
+	controls    []controlEntry        // the Controls of the last paint, which take their input
+	shortcuts   []shortcutEntry       // the Shortcuts of the last paint
+	menus       []*MenuItems          // the open Menus of the last paint
+	rovers      []rover               // the Choices and Tabs of the last paint
+	sliders     []*SliderState        // the Sliders of the last paint
+	groups      []focusGroup          // the FocusGroups of the last paint
+	groupIDs    []gfx.ID              // their members, in order
+	groupStops  map[gfx.ID]groupStop  // the member each group has the Tab stop on
+	contexts    []contextTarget       // the ContextMenus of the last paint, which Shift+F10 opens
+	combos      []*comboState         // the Comboboxes of the last paint
+	trees       []*TreeState          // the Trees of the last paint
+	listStates  []*ListState          // the Lists of the last paint
+	selects     []*SelectState        // the Selects of the last paint, which Wheel scrolls
+	labels      []string              // scratch for Choice's labels
+	memos       map[gfx.ID]*memoEntry
+	memoBoxes   []memoBox
+	memoChecks  []memoCheckOf
+	recording   []*memoEntry // the Memos being declared, outermost first
+	retry       bool         // a Memo's copy failed: the paint is done again
+	overlay     bool         // the last paint declared an open Popover, Modal, Menu or Select
+	lists       []listDecl
+	listRows    []int32 // the row containers of this paint's Lists
 
 	baseText     app.TextInputProvider
 	baseScroll   func(gfx.ScrollEvent) gfx.EventResult
@@ -303,7 +315,7 @@ func NewPage(config PageConfig) *Page {
 	if config.Root != "" {
 		checkName("PageConfig.Root", config.Root)
 	}
-	return &Page{config: config}
+	return &Page{config: config, checkMemos: config.MemoCheck}
 }
 
 // Run opens a window that declares view, and blocks until it closes: an
@@ -502,18 +514,23 @@ func (p *Page) onPointer(event gfx.PointerEvent) gfx.EventResult {
 
 // currentTheme is the theme the page paints with: the one given, or the system's.
 func (p *Page) currentTheme() Theme {
+	theme := p.theme
 	if p.config.Theme != nil {
-		return *p.config.Theme
-	}
-	if !p.themed || p.stale.Swap(false) {
+		theme = *p.config.Theme
+	} else if !p.themed || p.stale.Swap(false) {
 		p.themed = true
 		if p.window && app.SystemAppearance() == app.AppearanceDark {
-			p.theme = gfx.DarkTheme()
+			theme = gfx.DarkTheme()
 		} else {
-			p.theme = gfx.LightTheme()
+			theme = gfx.LightTheme()
 		}
 	}
-	return p.theme
+	if !p.themeSet || theme != p.theme {
+		p.theme = theme
+		p.themeEpoch++
+		p.themeSet = true
+	}
+	return theme
 }
 
 // Config returns base with the page's Tree, Paint, TextInput, OnScroll, OnKey,
@@ -609,6 +626,7 @@ func (p *Page) Draw(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 		}
 	}
 	p.retry = false
+	p.settleFocus()
 	if len(p.memos) > 0 {
 		canvas.KeepPrevious(true) // the next paint copies from this one
 	}
@@ -643,6 +661,7 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	clear(p.ctx.stateSeq)
 	clear(p.labels)
 	p.labels = p.labels[:0]
+	p.focusPaint = p.focusPaint[:0]
 	for i := range p.held {
 		if id := p.held[i].id; !id.IsZero() && id != canvas.Pressed() && id != canvas.Focused() {
 			p.held[i] = armedButton{}

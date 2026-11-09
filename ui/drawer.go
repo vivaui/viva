@@ -97,10 +97,10 @@ func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func())
 		p.setScope(decl.footer, scope)
 	}
 	if body != nil {
-		Box{f: c.f, i: decl.body}.drawerPart(body, decl.layer)
+		Box{f: c.f, i: decl.body, gen: c.f.gen}.drawerPart(body, decl.layer)
 	}
 	if footer != nil {
-		Box{f: c.f, i: decl.footer}.drawerPart(footer, decl.layer)
+		Box{f: c.f, i: decl.footer, gen: c.f.gen}.drawerPart(footer, decl.layer)
 	}
 	if decl.spec.InitialFocus.IsZero() && !spec.NonModal {
 		for _, part := range [2]int32{decl.body, decl.footer} {
@@ -243,6 +243,7 @@ func (f *Frame) drawer(spec drawerSpec, footer bool) Box {
 
 // drawerPart declares fn inside a part of a Drawer, on its layer.
 func (b Box) drawerPart(fn func(), layer uint16) {
+	b.n()
 	saved := b.f.widgets.layer
 	b.f.widgets.layer = layer
 	b.Children(fn)

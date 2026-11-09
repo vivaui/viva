@@ -258,12 +258,13 @@ type Frame struct {
 	scrolls    scrollStore // the ScrollStates of the page's ScrollAreas, by identity
 	parent     int32
 	bounds     Rect
+	gen        uint32 // the paint this Frame is declaring; a Box names it
 	done       bool
 }
 
 // View keeps the memory a page is laid out in between frames. The zero value is
 // ready to use; keep one for each page that is painted every frame.
-type View struct{ frame Frame }
+type View struct{ frame *Frame }
 
 // Draw declares, lays out and paints one page inside bounds. build runs once.
 func (view *View) Draw(canvas *gfx.Canvas, theme Theme, bounds Rect, build func(*Frame)) {
@@ -276,7 +277,22 @@ func (view *View) Draw(canvas *gfx.Canvas, theme Theme, bounds Rect, build func(
 // before painting something of their own; End finishes it. Draw is Begin, build
 // and End.
 func (view *View) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *Frame {
-	f := &view.frame
+	if view.frame == nil {
+		view.frame = new(Frame)
+	}
+	f := view.frame
+	if f.gen == ^uint32(0) {
+		// A generation is about to wrap: retire this Frame, with the Boxes that
+		// name it, and declare the next paint in a copy. The copy shares the
+		// arrays, so no memory is duplicated; one allocation happens every 2³²
+		// Begins, not per paint.
+		next := *f
+		next.gen = 0
+		f.gen = 0 // retire this Frame: a Box of it has generation MaxUint32
+		view.frame = &next
+		f = &next
+	}
+	f.gen++
 	f.canvas, f.theme, f.bounds, f.done = canvas, theme, bounds, false
 	f.nodes = f.nodes[:0]
 	f.lines = f.lines[:0]
@@ -431,7 +447,7 @@ func (f *Frame) add(k kind) int32 {
 	return index
 }
 
-func (f *Frame) box(k kind) Box { return Box{f: f, i: f.add(k)} }
+func (f *Frame) box(k kind) Box { return Box{f: f, i: f.add(k), gen: f.gen} }
 
 // Row opens a container that lays its children out left to right.
 func (f *Frame) Row() Box {

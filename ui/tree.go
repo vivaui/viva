@@ -61,7 +61,8 @@ type TreeState struct {
 type treeRow struct {
 	index int
 	key   int
-	node  int32 // the row element
+	node  int32  // the row element
+	gen   uint32 // the paint it was declared in
 	item  components.TreeItem
 }
 
@@ -213,7 +214,7 @@ func (s *TreeState) row(i int, rowBox Box) {
 	}
 	rowBox.Children(func() {
 		b := Row(c).Height(s.rowHeight(theme)).Shrink(0).PadSides(0, 8, 0, left).Gap(theme.Metrics.GapItem).Items(Center).Draw(s.paint)
-		s.declared = append(s.declared, treeRow{index: i, key: key, node: b.i, item: item})
+		s.declared = append(s.declared, treeRow{index: i, key: key, node: b.i, gen: b.gen, item: item})
 		b.Children(func() {
 			if s.content != nil {
 				s.content(i)
@@ -229,7 +230,7 @@ func (s *TreeState) row(i int, rowBox Box) {
 func (s *TreeState) draw(d *DrawContext) {
 	for i := range s.declared {
 		row := &s.declared[i]
-		if &d.frame.nodes[row.node] != d.node {
+		if row.gen != d.frame.gen || &d.frame.nodes[row.node] != d.node {
 			continue
 		}
 		tree := components.BeginTree(d.Canvas, *d.Theme, d.Rect).RowHeight(d.Rect.Height).Indent(s.indent(d.Theme))
