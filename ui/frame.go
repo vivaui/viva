@@ -262,6 +262,7 @@ type Frame struct {
 	parent     int32
 	bounds     Rect
 	gen        uint32 // the paint this Frame is declaring; a Box names it
+	shiftedX   bool   // a CustomLayout moved children after their width was solved
 	done       bool
 }
 
@@ -353,6 +354,16 @@ func (f *Frame) End() {
 	f.measure(axisY)
 	root.rect.Y, root.rect.Height = f.bounds.Y, f.bounds.Height
 	f.solve(0, axisY)
+	if f.shiftedX {
+		// A CustomLayout moved children horizontally after their width was solved.
+		// Their subtrees moved with them, and a popup that hangs off one is placed
+		// again from the anchor's final rectangle before its height is placed.
+		for _, index := range f.floats {
+			f.placePopup(&f.nodes[index], axisX)
+			f.solve(index, axisX)
+		}
+		f.shiftedX = false
+	}
 	for _, index := range f.floats {
 		f.placePopup(&f.nodes[index], axisY)
 		f.solve(index, axisY)

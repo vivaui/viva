@@ -12,18 +12,17 @@ import (
 type masonry struct {
 	columns int
 	gap     float32
-	heights []float32 // the heights its cards want, known by the application
 
 	columnHeight []float32
 	columnOf     []int
 	placedHeight []float32
 }
 
-func newMasonry(columns int, gap float32, heights ...float32) *masonry {
+func newMasonry(columns int, gap float32, cards int) *masonry {
 	return &masonry{
-		columns: columns, gap: gap, heights: heights,
+		columns: columns, gap: gap,
 		columnHeight: make([]float32, columns),
-		columnOf:     make([]int, len(heights)),
+		columnOf:     make([]int, cards),
 		placedHeight: make([]float32, columns),
 	}
 }
@@ -31,10 +30,20 @@ func newMasonry(columns int, gap float32, heights ...float32) *masonry {
 func (m *masonry) MeasureWidth(*ui.LayoutContext) float32 { return 0 } // FillWidth decides
 
 func (m *masonry) PlaceWidth(ctx *ui.LayoutContext, bounds ui.Rect) {
+	width := (bounds.Width - m.gap*float32(m.columns-1)) / float32(m.columns)
+	for i := 0; i < ctx.Count(); i++ {
+		ctx.SetWidth(i, width)
+		ctx.SetX(i, bounds.X) // provisional; the column is chosen after heights are known
+	}
+}
+
+func (m *masonry) MeasureHeight(ctx *ui.LayoutContext) float32 {
+	if n := ctx.Count(); n > len(m.columnOf) {
+		m.columnOf = append(m.columnOf, make([]int, n-len(m.columnOf))...)
+	}
 	for i := range m.columnHeight {
 		m.columnHeight[i] = 0
 	}
-	width := (bounds.Width - m.gap*float32(m.columns-1)) / float32(m.columns)
 	for i := 0; i < ctx.Count(); i++ {
 		column := 0
 		for c := 1; c < m.columns; c++ {
@@ -43,18 +52,6 @@ func (m *masonry) PlaceWidth(ctx *ui.LayoutContext, bounds ui.Rect) {
 			}
 		}
 		m.columnOf[i] = column
-		m.columnHeight[column] += m.heights[i] + m.gap
-		ctx.SetWidth(i, width)
-		ctx.SetX(i, bounds.X+float32(column)*(width+m.gap))
-	}
-}
-
-func (m *masonry) MeasureHeight(ctx *ui.LayoutContext) float32 {
-	for i := range m.columnHeight {
-		m.columnHeight[i] = 0
-	}
-	for i := 0; i < ctx.Count(); i++ {
-		column := m.columnOf[i]
 		m.columnHeight[column] += ctx.Height(i) + m.gap
 	}
 	var tallest float32
@@ -65,12 +62,14 @@ func (m *masonry) MeasureHeight(ctx *ui.LayoutContext) float32 {
 }
 
 func (m *masonry) PlaceHeight(ctx *ui.LayoutContext, bounds ui.Rect) {
+	width := (bounds.Width - m.gap*float32(m.columns-1)) / float32(m.columns)
 	for i := range m.placedHeight {
 		m.placedHeight[i] = 0
 	}
 	for i := 0; i < ctx.Count(); i++ {
 		column := m.columnOf[i]
 		height := ctx.Height(i)
+		ctx.SetX(i, bounds.X+float32(column)*(width+m.gap))
 		ctx.SetHeight(i, height)
 		ctx.SetY(i, bounds.Y+m.placedHeight[column])
 		m.placedHeight[column] += height + m.gap
@@ -82,12 +81,14 @@ type masonryModel struct {
 	heights   []float32
 	labels    []string
 	overlay   bool
+	menu      bool
+	open      bool
 	container ui.Box
 	view      func(ui.C)
 }
 
 func newMasonryModel(columns int, heights ...float32) *masonryModel {
-	m := &masonryModel{heights: heights, layout: newMasonry(columns, 8, heights...)}
+	m := &masonryModel{heights: heights, layout: newMasonry(columns, 8, len(heights))}
 	m.labels = make([]string, len(heights))
 	for i := range heights {
 		m.labels[i] = fmt.Sprintf("card %d", i)
@@ -103,6 +104,12 @@ func (m *masonryModel) page(c ui.C) {
 			for i, height := range m.heights {
 				ui.Column(c).Height(height).Hit(ui.ID(c), m.labels[i]).Children(func() {
 					ui.Text(c, m.labels[i])
+					if m.menu && i == 1 {
+						more := ui.Button(c, "More")
+						ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
+							menu.Item("Rename")
+						})
+					}
 				})
 			}
 			if m.overlay {
@@ -146,6 +153,16 @@ func TestCustomLayoutMasonry(t *testing.T) {
 	}
 	if bounds[0].X == bounds[1].X {
 		t.Fatalf("cards 0 and 1 did not go to different columns: %v", bounds[0])
+	}
+	for i, label := range m.labels {
+		texts := d.textsNamed(label)
+		if len(texts) == 0 {
+			t.Fatalf("%s has no text", label)
+		}
+		text := texts[0]
+		if text.X < bounds[i].X-0.5 || text.X > bounds[i].X+bounds[i].Width+0.5 {
+			t.Fatalf("%s text at %v is not in its card %v: the child's subtree did not move with the column", label, text, bounds[i])
+		}
 	}
 	for _, column := range [][]int{{0, 2, 4}, {1, 3}} {
 		for j := 1; j < len(column); j++ {
@@ -266,3 +283,17 @@ func (wrongPhase) PlaceWidth(ctx *ui.LayoutContext, _ ui.Rect) {
 }
 func (wrongPhase) MeasureHeight(*ui.LayoutContext) float32 { return 0 }
 func (wrongPhase) PlaceHeight(*ui.LayoutContext, ui.Rect)  {}
+
+// A popup declared inside a card follows the card when the layout chooses its
+// column after measuring heights: End places it again from the final anchor.
+func TestCustomLayoutMovesOverlaysWithReorderedChildren(t *testing.T) {
+	m := newMasonryModel(2, 40, 60, 30, 50, 20)
+	m.menu, m.open = true, true
+	d := openPage(t, m.view)
+	container := m.container.Rect()
+	columnWidth := (container.Width - m.layout.gap) / 2
+	item := d.hit("Rename").Bounds
+	if item.X <= container.X+columnWidth/2 {
+		t.Fatalf("the menu at %v did not follow its card into the right column (container %v)", item, container)
+	}
+}

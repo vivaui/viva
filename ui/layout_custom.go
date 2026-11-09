@@ -9,8 +9,11 @@ package ui
 //     The page lays out each child at the width it was given, then measures heights.
 //   - MeasureHeight: how tall the container wants its content. The width it was
 //     given is ContentWidth(), and Height(i) is the height of child i at the width
-//     PlaceWidth gave it.
+//     PlaceWidth gave it. A layout that balances columns by height chooses them here
+//     or in PlaceHeight, from those heights.
 //   - PlaceHeight: divide that height between the children and set where each starts.
+//     It may move a child horizontally too: the page shifts the child's subtree with
+//     it and places its popups again from the new anchor.
 //
 // A layout is kept in the model: it is called on every paint, after the page has
 // declared its children, and must not declare, paint or keep the context. Put
@@ -56,7 +59,8 @@ const (
 type LayoutContext struct {
 	frame    *Frame
 	children []int32
-	width    float32 // content width, known from PlaceWidth on
+	beforeX  []float32 // the X of each child before PlaceHeight
+	width    float32   // content width, known from PlaceWidth on
 	phase    layoutPhase
 }
 
@@ -80,9 +84,11 @@ func (c *LayoutContext) SetWidth(i int, v float32) {
 	c.frame.nodes[c.child(i)].rect.Width = max(v, 0)
 }
 
-// SetX places the left edge of child i. It is a PlaceWidth call.
+// SetX places the left edge of child i. It is a PlaceWidth call, or a PlaceHeight
+// call for a layout that balances columns after measuring heights: the page moves
+// the child's subtree with it, and places its popups again from the new anchor.
 func (c *LayoutContext) SetX(i int, v float32) {
-	c.must(c.phase == phasePlaceWidth, "SetX is for PlaceWidth")
+	c.must(c.phase == phasePlaceWidth || c.phase == phasePlaceHeight, "SetX is for PlaceWidth or PlaceHeight")
 	c.frame.nodes[c.child(i)].rect.X = v
 }
 
@@ -161,12 +167,48 @@ func (f *Frame) solveCustom(n *node, axis int, start, avail float32) {
 		return
 	}
 	ctx.begin(f, n, phasePlaceHeight)
+	ctx.beforeX = ctx.beforeX[:0]
 	for _, i := range ctx.children {
 		child := &f.nodes[i]
+		ctx.beforeX = append(ctx.beforeX, child.rect.X)
 		child.rect.Height = clamp(child.pref[axisY], child.minS[axisY], f.maxOn(child, axisY, avail))
 		child.rect.Y = start
 	}
 	is, _ := n.inset(axisX)
 	ctx.width = max(n.rect.Width-n.padX(), 0)
 	layout.PlaceHeight(ctx, Rect{X: n.rect.X + is, Y: start, Width: ctx.width, Height: avail})
+	for index, i := range ctx.children {
+		if delta := f.nodes[i].rect.X - ctx.beforeX[index]; delta != 0 {
+			f.shiftSubtreeX(i, delta)
+		}
+	}
+}
+
+// shiftSubtreeX moves the descendants of child i by delta after the child itself
+// was placed. The nodes of a subtree are contiguous: the first node after it that
+// is not its descendant ends the range. Popups are not descendants; End places
+// them again from their anchors' final rectangles.
+func (f *Frame) shiftSubtreeX(i int32, delta float32) {
+	if delta == 0 {
+		return
+	}
+	start := int(i) + 1
+	end := start
+	for end < len(f.nodes) {
+		p := f.nodes[end].parent
+		if p < 0 {
+			break
+		}
+		for p > i {
+			p = f.nodes[p].parent
+		}
+		if p != i {
+			break
+		}
+		end++
+	}
+	for j := start; j < end; j++ {
+		f.nodes[j].rect.X += delta
+	}
+	f.shiftedX = true
 }
