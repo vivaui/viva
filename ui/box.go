@@ -418,3 +418,27 @@ func (b Box) ChosenIndex() (int, bool) {
 	}
 	return 0, false
 }
+
+// ClickModifiers returns the modifier keys held on the click this paint delivers
+// on the element: Primary (Command on macOS, Control elsewhere) distinguishes a
+// multi-selection click, Shift one that extends it. It is zero outside the paint
+// that delivers the click, and for Enter or Space on the element, which are not
+// pointer clicks.
+func (b Box) ClickModifiers() gfx.Modifiers {
+	info, _ := b.clickInfo()
+	return info.Modifiers
+}
+
+// DoubleClicked reports whether the click this paint delivers on the element was
+// the second of a double click.
+func (b Box) DoubleClicked() bool {
+	info, ok := b.clickInfo()
+	return ok && info.Clicks >= 2
+}
+
+func (b Box) clickInfo() (gfx.ClickInfo, bool) {
+	if b.f.canvas == nil || !b.f.canvas.Clicked(b.n().id) {
+		return gfx.ClickInfo{}, false
+	}
+	return b.f.canvas.ClickInfo()
+}

@@ -152,7 +152,7 @@ func TestToggleGroupJoinedItemsAreRoundedOnlyAtTheGroupsEnds(t *testing.T) {
 
 func TestToggleGroupClickedReportsTheClickedOption(t *testing.T) {
 	var canvas gfx.Canvas
-	canvas.BeginEventPass(gfx.Item(52))
+	canvas.BeginEventPass(gfx.Item(52), gfx.ClickInfo{})
 	defer canvas.EndEventPass()
 	id, ok := BeginToggleGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 120}, toggleGroupTestOptions[:]).Paint().Clicked()
 	if !ok || id != gfx.Item(52) {

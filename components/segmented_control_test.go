@@ -126,7 +126,7 @@ func TestSegmentedControlFocusRingIsAroundTheFocusedSegment(t *testing.T) {
 
 func TestSegmentedControlClickedReportsTheClickedOption(t *testing.T) {
 	var canvas gfx.Canvas
-	canvas.BeginEventPass(gfx.Item(13))
+	canvas.BeginEventPass(gfx.Item(13), gfx.ClickInfo{})
 	defer canvas.EndEventPass()
 	id, ok := BeginSegmentedControl(&canvas, gfx.LightTheme(), gfx.Rect{Width: 180}, segmentedControlTestOptions[:], gfx.Item(12)).Paint().Clicked()
 	if !ok || id != gfx.Item(13) {

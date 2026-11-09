@@ -280,7 +280,7 @@ func TestTableHeaderClicksSortAndShowTheArrow(t *testing.T) {
 		}
 	}
 	canvas = testCanvas()
-	canvas.BeginEventPass(headerScope.At(0))
+	canvas.BeginEventPass(headerScope.At(0), gfx.ClickInfo{})
 	if column, _ := draw(canvas); column != 0 {
 		t.Fatalf("the click on the Name header reported column %d", column)
 	}
@@ -301,7 +301,7 @@ func TestTableHeaderClicksSortAndShowTheArrow(t *testing.T) {
 		t.Errorf("a second click gives %d %v %v, want a descending sort of column 0", column, descending, ok)
 	}
 	canvas = testCanvas()
-	canvas.BeginEventPass(tableScope.At(1))
+	canvas.BeginEventPass(tableScope.At(1), gfx.ClickInfo{})
 	if _, row := draw(canvas); row != 1 {
 		t.Errorf("the click on the second row reported %d", row)
 	}

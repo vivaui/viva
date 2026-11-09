@@ -132,6 +132,7 @@ const (
 	pkToggle
 	pkRadio
 	pkTab
+	pkList
 	pkKinds
 )
 
@@ -217,6 +218,7 @@ type Page struct {
 	contexts   []contextTarget       // the ContextMenus of the last paint, which Shift+F10 opens
 	combos     []*comboState         // the Comboboxes of the last paint
 	trees      []*TreeState          // the Trees of the last paint
+	listStates []*ListState          // the Lists of the last paint
 	selects    []*SelectState        // the Selects of the last paint, which Wheel scrolls
 	labels     []string              // scratch for Choice's labels
 	memos      map[gfx.ID]*memoEntry
@@ -246,6 +248,7 @@ type Page struct {
 	sliderRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the keys of a Slider
 	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
+	listRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // moves and chooses rows of a List
 	typeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // a Tree's typeahead, from OnShortcut
 	wheelRoute    func(*Page, gfx.ScrollEvent) (gfx.EventResult, bool)
 	textRoute     func(*Page, gfx.ID) *app.TextInput
@@ -413,6 +416,11 @@ func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	}
 	if p.treeRoute != nil {
 		if result, ok := p.treeRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if p.listRoute != nil {
+		if result, ok := p.listRoute(p, event); ok {
 			return result, true
 		}
 	}
@@ -627,6 +635,8 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.combos = p.combos[:0]
 	clear(p.trees)
 	p.trees = p.trees[:0]
+	clear(p.listStates)
+	p.listStates = p.listStates[:0]
 	clear(p.selects)
 	p.selects = p.selects[:0]
 	clear(p.ctx.stateSeq)

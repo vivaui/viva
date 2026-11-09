@@ -371,7 +371,7 @@ func TestClickTargetListensAndNamesTheClickedControl(t *testing.T) {
 	if _, ok := canvas.ClickTarget(); ok || !canvas.ListensForClicks() {
 		t.Fatal("an ordinary paint must report no target and still listen")
 	}
-	canvas.BeginEventPass(id)
+	canvas.BeginEventPass(id, ClickInfo{})
 	got, ok := canvas.ClickTarget()
 	canvas.EndEventPass()
 	if !ok || got != id {
@@ -391,7 +391,7 @@ func TestAfterPaintDefersOnlyInTheEventPass(t *testing.T) {
 	if len(order) != 0 {
 		t.Fatal("an ordinary paint deferred a function")
 	}
-	canvas.BeginEventPass(id)
+	canvas.BeginEventPass(id, ClickInfo{})
 	canvas.AfterPaint(func() { order = append(order, 1) })
 	canvas.AfterPaint(func() { order = append(order, 2) })
 	canvas.EndEventPass()

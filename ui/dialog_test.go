@@ -77,7 +77,7 @@ func TestDialogReportsDismissalAndTheButtonsAreClicked(t *testing.T) {
 		dismissed, deleted bool
 	}{{dlgNo, true, false}, {dlgClose, true, false}, {dlgYes, false, true}} {
 		canvas = testCanvas()
-		canvas.BeginEventPass(test.click)
+		canvas.BeginEventPass(test.click, gfx.ClickInfo{})
 		dismissed, deleted := draw(canvas)
 		if dismissed != test.dismissed || deleted != test.deleted {
 			t.Errorf("click %v: dismissed=%v deleted=%v, want %v and %v", test.click, dismissed, deleted, test.dismissed, test.deleted)
@@ -177,7 +177,7 @@ func TestDialogRoutesEscapeToItsDismissTarget(t *testing.T) {
 			t.Errorf("%s: Escape goes to %v, want %v", name, got, want)
 		}
 		canvas = testCanvas()
-		canvas.BeginEventPass(want)
+		canvas.BeginEventPass(want, gfx.ClickInfo{})
 		dismissed := false
 		view.Draw(canvas, theme, gfx.Rect{Width: 640, Height: 400}, func(f *Frame) { dismissed = f.Dialog(spec).Dismissed() })
 		if !dismissed {

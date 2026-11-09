@@ -63,7 +63,14 @@ func (m *model) page(c ui.C) {
 - `Changed()` reports the paint in which a bound control changed its value; `Clicked()` on a `Button`.
   `Popover` and `Modal` set their `*bool` to false when dismissed (Escape, a press outside, the close
   button) and give the focus back.
-- Long lists: `ui.List(c, &m.listState, len(items), func(i int) { ... })` declares only the rows on screen.
+- Long lists: `ui.List(c, &m.list, len(items), func(row ui.ListRow) { row.Element.PadX(8).Children(...) })` declares only the rows
+  on screen; style the row with `row.Element`, declare what is in it with `row.C`, name the list with `.Label("Files")`. A click
+  chooses a row (`m.list.Selected()`, `Changed()`), the arrows, Home, End and Page Up/Down move, Enter or a double click is
+  `m.list.Submitted()`, and `m.list.Label = func(i int) string` makes typing a row's first letters move to it. Set `m.list.Selection =
+  &m.chosen` (a `ui.Selection`, held by `m.list.Key`) to let the user choose several: Primary-click toggles, Shift extends, Primary+A
+  chooses all. `m.list.ScrollTo(row, ui.ListCenter)`, `ScrollIntoView`, `ScrollToEnd`, `Visible()` and `AtEnd()` move and read it.
+  `box.ClickModifiers()` and `box.DoubleClicked()` read how a click on any element came. Do not number rows or keep a selected
+  index of your own.
 - `.Tooltip("Delete")` on a control is the tip shown while the pointer rests on it (and its description).
 - A menu of actions off a button: `ui.Menu(c, more, &m.menu, func(menu *ui.MenuItems) { if menu.Item("Rename").Clicked() { ... } })`;
   `menu.Separator()`, `menu.Label("Group")`, `.Destructive()`, `.Disabled(x)`. Choosing an item closes it.

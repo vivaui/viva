@@ -115,7 +115,7 @@ func TestWorkerProtocolPaintStateAndDeferredClose(t *testing.T) {
 	if len(snapshot.Rectangles) != 1 || snapshot.Rectangles[0].Bounds.Width != 640 {
 		t.Fatalf("unexpected paint response: %+v", snapshot)
 	}
-	if err := client.Click(ctx, gfx.Item(91)); err != nil || clicked != gfx.Item(91) {
+	if err := client.Click(ctx, gfx.Item(91), gfx.ClickInfo{Modifiers: gfx.ModifierShift, Clicks: 2}); err != nil || clicked != gfx.Item(91) {
 		t.Fatalf("click = %v, err = %v", clicked, err)
 	}
 	wantState := []StateSlot{{Key: 8, Version: 3, Data: []byte("after")}}

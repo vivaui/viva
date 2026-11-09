@@ -65,7 +65,7 @@ func TestRadioGroupInvalidUsesDangerTreatment(t *testing.T) {
 
 func TestRadioGroupClickedReportsTheClickedOption(t *testing.T) {
 	var canvas gfx.Canvas
-	canvas.BeginEventPass(radioGroupTestOptions[1].ID)
+	canvas.BeginEventPass(radioGroupTestOptions[1].ID, gfx.ClickInfo{})
 	defer canvas.EndEventPass()
 	id, ok := BeginRadioGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 260}, radioGroupTestOptions[:], radioGroupTestOptions[0].ID).Paint().Clicked()
 	if !ok || id != radioGroupTestOptions[1].ID {

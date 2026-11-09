@@ -55,7 +55,7 @@ func click(canvas *gfx.Canvas, state *State, id gfx.ID) {
 }
 
 func clickAt(canvas *gfx.Canvas, state *State, id gfx.ID, now time.Duration, reduce bool) {
-	canvas.BeginEventPass(id)
+	canvas.BeginEventPass(id, gfx.ClickInfo{})
 	paintFrame(canvas, state, testSize, now, reduce)
 	canvas.EndEventPass()
 }
@@ -220,7 +220,7 @@ func TestPaintDeterministicResponsiveAndIdle(t *testing.T) {
 						if canvas.Animating() {
 							t.Fatal("unchanged example requested another frame")
 						}
-						canvas.BeginEventPass(gfx.Item(999)) // a click on nothing the example declared
+						canvas.BeginEventPass(gfx.Item(999), gfx.ClickInfo{}) // a click on nothing the example declared
 						paintFrame(&canvas, state, size, 10*time.Second, true)
 						canvas.EndEventPass()
 						paintFrame(&canvas, state, size, 10*time.Second, true)
@@ -305,7 +305,7 @@ func TestThemesAndNewResetState(t *testing.T) {
 				paintFrame(&canvas, state, testSize, time.Second, true)
 				assertSamePaint(t, expected, &canvas)
 				for _, hit := range expected.hits {
-					canvas.BeginEventPass(hit.ID)
+					canvas.BeginEventPass(hit.ID, gfx.ClickInfo{})
 					paintFrame(&canvas, state, testSize, time.Second, true)
 					canvas.EndEventPass()
 				}

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ProtocolVersion = 24
+	ProtocolVersion = 25
 	MaxFrameBytes   = 32 << 20
 	MaxStateBytes   = 8 << 20
 	maxItems        = 200_000

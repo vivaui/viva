@@ -124,7 +124,7 @@ func (p *painter) keyDownCode(event gfx.KeyEvent, code uint32) bool {
 	}
 	if !response.Handled && event.Key == gfx.KeyEscape && !p.focus.EscapeTarget().IsZero() && p.canClick() &&
 		!p.textInput.State.Composing {
-		if p.deliverClick(p.focus.EscapeTarget()) {
+		if p.deliverClick(p.focus.EscapeTarget(), gfx.ClickInfo{}) {
 			p.repaint()
 			return true
 		}
@@ -134,7 +134,7 @@ func (p *painter) keyDownCode(event gfx.KeyEvent, code uint32) bool {
 		result = p.focus.Router().KeyDown(input.KeyEvent{Key: event.Key, Modifiers: event.Modifiers, Repeat: event.Repeat})
 	}
 	activated := false
-	if !response.Handled && result.Activated && p.deliverClick(result.Target) {
+	if !response.Handled && result.Activated && p.deliverClick(result.Target, gfx.ClickInfo{}) {
 		activated = true
 	}
 	p.focus.Refresh()
@@ -352,7 +352,7 @@ func (p *painter) accessibilityPress(id gfx.ID) bool {
 	if !p.canClick() {
 		return false
 	}
-	p.deliverClick(id)
+	p.deliverClick(id, gfx.ClickInfo{})
 	p.repaint()
 	return true
 }
@@ -401,7 +401,7 @@ func (p *painter) applyEventResult(result gfx.EventResult) bool {
 		setClipboardTextFromGesture(result.ClipboardText)
 	}
 	changed := p.focus.Apply(result)
-	if !result.Activate.IsZero() && p.deliverClick(result.Activate) {
+	if !result.Activate.IsZero() && p.deliverClick(result.Activate, gfx.ClickInfo{}) {
 		changed = true // the click's pass changed the application: show it
 	}
 	return changed
@@ -435,11 +435,11 @@ func (p *painter) canClick() bool {
 // application may change state, exactly as the native painter does. That pass's
 // drawing is discarded: the caller repaints next. It reports whether a paint
 // was in a position to consume the click at all.
-func (p *painter) deliverClick(id gfx.ID) bool {
+func (p *painter) deliverClick(id gfx.ID, info gfx.ClickInfo) bool {
 	if !p.canClick() {
 		return false
 	}
-	p.canvas.BeginEventPass(id)
+	p.canvas.BeginEventPass(id, info)
 	p.paint()
 	p.canvas.EndEventPass()
 	p.canvas.RunAfterPaint()
@@ -655,7 +655,7 @@ func (p *painter) pointerEvent(event gfx.PointerEvent) bool {
 			event.Button == gfx.PointerButtonPrimary && p.focus.Router().PassesPrimary(event.X, event.Y))
 	result, focusChanged, placed := p.pointerStep(event)
 	if passes {
-		if !result.Handled && p.deliverClick(p.pointer.Hovered()) {
+		if !result.Handled && p.deliverClick(p.pointer.Hovered(), pointerClickInfo(event)) {
 			result.Handled = true
 		}
 		p.paint()
@@ -714,7 +714,7 @@ func (p *painter) pointerStep(event gfx.PointerEvent) (result gfx.EventResult, f
 	switch event.Kind {
 	case gfx.PointerUp:
 		if id, ok := p.pointer.Click(); ok && !result.Handled {
-			if p.deliverClick(id) {
+			if p.deliverClick(id, pointerClickInfo(event)) {
 				result.Repaint = true
 			}
 		}
@@ -799,4 +799,10 @@ func (p *painter) placeCaret(event gfx.PointerEvent) bool {
 		return changed
 	}
 	return false
+}
+
+// pointerClickInfo is what a pointer event says of the click it delivers: its
+// modifier keys and whether it was a double click.
+func pointerClickInfo(event gfx.PointerEvent) gfx.ClickInfo {
+	return gfx.ClickInfo{Modifiers: event.Modifiers, Clicks: event.ClickCount}
 }

@@ -83,7 +83,7 @@ func TestGroupCClicksUpdateCallerState(t *testing.T) {
 				if step.id != popoverDismiss { // the backdrop has no hit of its own to find
 					findHit(t, &canvas, step.id) // the demo declares the control it reads the click on
 				}
-				canvas.BeginEventPass(step.id)
+				canvas.BeginEventPass(step.id, gfx.ClickInfo{})
 				paintFrame(&canvas, state, size, 0, true)
 				canvas.EndEventPass()
 				if !step.want(state) {
