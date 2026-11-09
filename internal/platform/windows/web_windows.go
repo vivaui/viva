@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/diag"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
-	"github.com/vivaui/viva/ui"
 )
 
 // Web pages inside the window (ADR 0064): WebView2, one controller per page, each in a child
@@ -50,7 +50,7 @@ type webHost struct {
 	state *windowState
 	pages map[uint32]*windowsWeb
 	rects []platform.NativeView
-	cuts  []ui.Rect
+	cuts  []gfx.Rect
 }
 
 // windowsWeb is one page.
@@ -67,18 +67,18 @@ type windowsWeb struct {
 	closed           bool
 	// device is where the child window is, and cutsSet the region it was last given.
 	device  rect
-	cutsSet []ui.Rect
+	cutsSet []gfx.Rect
 	shown   bool
 	// covers are windows over the page that take the pointer for Viva where something Viva handles
 	// lies over it without being drawn; they pass what they get to the window.
 	covers   []uintptr
-	coverSet []ui.Rect
+	coverSet []gfx.Rect
 }
 
 func newWebHost(state *windowState, host *platform.WebHost, initial []platform.NativeView) *webHost {
 	w := &webHost{state: state, pages: map[uint32]*windowsWeb{}}
 	for _, view := range initial {
-		view.Covers = append([]ui.Rect(nil), view.Covers...)
+		view.Covers = append([]gfx.Rect(nil), view.Covers...)
 		w.rects = append(w.rects, view)
 	}
 	host.Open = w.open
@@ -355,7 +355,7 @@ func (w *webHost) frame(views []platform.NativeView) {
 	if views != nil {
 		w.rects = w.rects[:0]
 		for _, view := range views {
-			view.Covers = append([]ui.Rect(nil), view.Covers...)
+			view.Covers = append([]gfx.Rect(nil), view.Covers...)
 			w.rects = append(w.rects, view)
 		}
 	}
@@ -519,7 +519,7 @@ func round(value float32) float32 {
 	return float32(int64(value + 0.5))
 }
 
-func sameRects(a, b []ui.Rect) bool {
+func sameRects(a, b []gfx.Rect) bool {
 	if len(a) != len(b) {
 		return false
 	}

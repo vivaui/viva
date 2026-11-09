@@ -12,8 +12,8 @@ import (
 	"sync"
 
 	"github.com/ebitengine/purego"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // Web pages inside the window (ADR 0064): the system's WebKitGTK, one widget per page, stacked over
@@ -551,7 +551,7 @@ func (w *gtkWindow) layoutViews() {
 		if right <= left || bottom <= top {
 			continue
 		}
-		w.snapped = append(w.snapped, platform.NativeView{ID: view.ID, Layer: view.Layer, Covers: view.Covers, Bounds: ui.Rect{
+		w.snapped = append(w.snapped, platform.NativeView{ID: view.ID, Layer: view.Layer, Covers: view.Covers, Bounds: gfx.Rect{
 			X: float32(left / ratio), Y: float32(top / ratio), Width: float32((right - left) / ratio), Height: float32((bottom - top) / ratio),
 		}})
 		w.places = append(w.places, viewPlace{int32(left), int32(top), int32(right - left), int32(bottom - top)})

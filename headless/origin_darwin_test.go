@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // inkCentroid renders a label laid out at (x, y) and returns where the centre of its ink is,
@@ -16,8 +16,8 @@ func inkCentroid(t *testing.T, x, y float32) (cx, cy float64) {
 	t.Helper()
 	config := app.Config{
 		Title: "origin", Width: 160, Height: 40, ClearColor: app.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.Label("Hamburgefonstiv", ui.Rect{X: x, Y: y, Width: 120, Height: 20}, ui.TextStyle{Size: 13, Color: ui.Color{Alpha: 1}})
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.Label("Hamburgefonstiv", gfx.Rect{X: x, Y: y, Width: 120, Height: 20}, gfx.TextStyle{Size: 13, Color: gfx.Color{Alpha: 1}})
 		},
 	}
 	session, err := Open(config, nil, Options{Scale: 2})

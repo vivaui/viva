@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func onePixelPNG(t testing.TB) []byte {
@@ -25,13 +25,13 @@ func onePixelPNG(t testing.TB) []byte {
 // A paste with a picture on the clipboard and no text changes no editor, but a
 // field that takes pictures is told, so that it can read the clipboard's image.
 func TestPasteWithNoTextTellsTheFieldAndChangesNothing(t *testing.T) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	editor := text.NewEditor("kept")
 	var events []TextEvent
 	config := Config{Title: "paste", Width: 300, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		components.PaintInput(canvas, theme, ui.Rect{X: 10, Y: 10, Width: 200, Height: 30}, components.InputSnapshot{
-			ID: ui.Item(5), Label: "Message", Value: editor.String(), PlatformEditing: canvas.Focused() == ui.Item(5),
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		components.PaintInput(canvas, theme, gfx.Rect{X: 10, Y: 10, Width: 200, Height: 30}, components.InputSnapshot{
+			ID: gfx.Item(5), Label: "Message", Value: editor.String(), PlatformEditing: canvas.Focused() == gfx.Item(5),
 		})
 	}
 	config.TextInput = func(TextInputContext) *TextInput {

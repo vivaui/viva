@@ -42,7 +42,7 @@ func TestAPIDocumentsTheRealExportedSurface(t *testing.T) {
 		t.Fatalf("packages = %d, want %d", len(data.Packages), len(apiPackages))
 	}
 	config := findType(t, data, "app", "Config")
-	for _, want := range []string{"Paint func(canvas *ui.Canvas, size ui.Size)", "OnPointer func(event ui.PointerEvent) ui.EventResult", "Invalidator *Invalidator"} {
+	for _, want := range []string{"Paint func(canvas *gfx.Canvas, size gfx.Size)", "OnPointer func(event gfx.PointerEvent) gfx.EventResult", "Invalidator *Invalidator"} {
 		if !strings.Contains(config.Decl, want) {
 			t.Errorf("app.Config declaration lacks %q:\n%s", want, config.Decl)
 		}
@@ -103,13 +103,13 @@ func TestAPIIsDeterministic(t *testing.T) {
 
 func TestDocLinksResolveToDocumentedSymbolsOnly(t *testing.T) {
 	index := symbolIndex{
-		"github.com/vivaui/viva/app.Config":        "app/Config",
-		"github.com/vivaui/viva/ui.Canvas":         "ui/Canvas",
-		"github.com/vivaui/viva/ui.Canvas.Hovered": "ui/Canvas#method-Hovered",
-		"github.com/vivaui/viva/app.RunCanvas":     "app#func-RunCanvas",
+		"github.com/vivaui/viva/app.Config":         "app/Config",
+		"github.com/vivaui/viva/gfx.Canvas":         "ui/Canvas",
+		"github.com/vivaui/viva/gfx.Canvas.Hovered": "ui/Canvas#method-Hovered",
+		"github.com/vivaui/viva/app.RunCanvas":      "app#func-RunCanvas",
 	}
 	converter := docConverter{importPath: "github.com/vivaui/viva/app", index: index}
-	blocks := converter.blocks("RunCanvas uses a [Config] and a [ui.Canvas]; see [ui.Canvas.Hovered] and [Missing].\n\n\tcode := block()\n\nThen:\n\n  - one\n  - two\n")
+	blocks := converter.blocks("RunCanvas uses a [Config] and a [gfx.Canvas]; see [gfx.Canvas.Hovered] and [Missing].\n\n\tcode := block()\n\nThen:\n\n  - one\n  - two\n")
 	if len(blocks) != 4 || blocks[0].Kind != "paragraph" || blocks[1].Kind != "code" || blocks[2].Kind != "paragraph" || blocks[3].Kind != "list" || len(blocks[3].Items) != 2 {
 		t.Fatalf("blocks = %+v", blocks)
 	}
@@ -121,7 +121,7 @@ func TestDocLinksResolveToDocumentedSymbolsOnly(t *testing.T) {
 			hrefs[inline.Text] = inline.Href
 		}
 	}
-	if hrefs["Config"] != "app/Config" || hrefs["ui.Canvas"] != "ui/Canvas" || hrefs["ui.Canvas.Hovered"] != "ui/Canvas#method-Hovered" {
+	if hrefs["Config"] != "app/Config" || hrefs["gfx.Canvas"] != "ui/Canvas" || hrefs["gfx.Canvas.Hovered"] != "ui/Canvas#method-Hovered" {
 		t.Errorf("hrefs = %v", hrefs)
 	}
 	if _, linked := hrefs["Missing"]; linked || !strings.Contains(plain.String(), "[Missing]") {

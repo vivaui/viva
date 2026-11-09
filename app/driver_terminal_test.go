@@ -7,14 +7,14 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // terminalProbe records what a focused terminal receives.
 type terminalProbe struct {
-	keys    []ui.KeyEvent
+	keys    []gfx.KeyEvent
 	text    []TextEvent
 	preedit TextState
 	altMeta bool
@@ -23,19 +23,19 @@ type terminalProbe struct {
 
 func (probe *terminalProbe) config() Config {
 	config := Config{Title: "terminal", Width: 400, Height: 200}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: size.Width, Height: size.Height}, "Terminal", ui.HitOptions{Role: ui.RoleTerminal})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: size.Width, Height: size.Height}, "Terminal", gfx.HitOptions{Role: gfx.RoleTerminal})
 	}
-	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
+	config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 		probe.keys = append(probe.keys, event)
-		return ui.EventResult{Handled: true}
+		return gfx.EventResult{Handled: true}
 	}
 	config.TextInput = func(context TextInputContext) *TextInput {
 		if !context.Terminal {
 			return nil
 		}
 		return &TextInput{
-			Bounds: ui.Rect{X: 8, Y: 16, Width: 8, Height: 16}, FontSize: 13,
+			Bounds: gfx.Rect{X: 8, Y: 16, Width: 8, Height: 16}, FontSize: 13,
 			State: probe.preedit, AltSendsEscape: probe.altMeta,
 			OnEvent: func(event TextEvent) (TextState, error) {
 				probe.text = append(probe.text, event)
@@ -64,7 +64,7 @@ func TestDriverHonorsATerminalsAltSendsEscapePolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := driver.Chord(ui.ModifierAlt, "x"); err != nil {
+	if err := driver.Chord(gfx.ModifierAlt, "x"); err != nil {
 		t.Fatal(err)
 	}
 	if len(probe.keys) != 0 || len(probe.text) != 1 || probe.text[0].Text != "x" {
@@ -75,17 +75,17 @@ func TestDriverHonorsATerminalsAltSendsEscapePolicy(t *testing.T) {
 	if err := driver.redraw(); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Chord(ui.ModifierAlt, "X"); err != nil {
+	if err := driver.Chord(gfx.ModifierAlt, "X"); err != nil {
 		t.Fatal(err)
 	}
-	if len(probe.keys) != 1 || probe.keys[0] != (ui.KeyEvent{Modifiers: ui.ModifierAlt, Target: ui.Item(1), Text: "x"}) {
+	if len(probe.keys) != 1 || probe.keys[0] != (gfx.KeyEvent{Modifiers: gfx.ModifierAlt, Target: gfx.Item(1), Text: "x"}) {
 		t.Fatalf("Meta Option route: keys=%+v", probe.keys)
 	}
 
 	if err := driver.textEvent(platformSetMarked("ni")); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Chord(ui.ModifierAlt, "x"); err != nil {
+	if err := driver.Chord(gfx.ModifierAlt, "x"); err != nil {
 		t.Fatal(err)
 	}
 	if len(probe.keys) != 1 || len(probe.text) != 3 || probe.text[2].Text != "x" {
@@ -101,7 +101,7 @@ func TestDriverDeliversATerminalsKeysRawAndItsTextThroughTheTextSystem(t *testin
 	}
 	defer driver.Close()
 
-	if err := driver.Chord(ui.ModifierControl, "c"); !errors.Is(err, ErrNoTerminal) {
+	if err := driver.Chord(gfx.ModifierControl, "c"); !errors.Is(err, ErrNoTerminal) {
 		t.Fatalf("a chord with nothing focused: %v", err)
 	}
 	if err := driver.Click(100, 100); err != nil {
@@ -115,23 +115,23 @@ func TestDriverDeliversATerminalsKeysRawAndItsTextThroughTheTextSystem(t *testin
 	}
 
 	// Named keys are raw, with the modifiers they came with and no text.
-	for _, key := range []ui.Key{ui.KeyUp, ui.KeyTab, ui.KeyEnter, ui.KeyEscape, ui.KeyBackspace, ui.KeyPageDown, ui.KeyF5} {
+	for _, key := range []gfx.Key{gfx.KeyUp, gfx.KeyTab, gfx.KeyEnter, gfx.KeyEscape, gfx.KeyBackspace, gfx.KeyPageDown, gfx.KeyF5} {
 		if err := driver.Key(key, 0); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := driver.Key(ui.KeyLeft, ui.ModifierAlt|ui.ModifierShift); err != nil {
+	if err := driver.Key(gfx.KeyLeft, gfx.ModifierAlt|gfx.ModifierShift); err != nil {
 		t.Fatal(err)
 	}
 	// Control chords carry their character; Key is unknown.
-	if err := driver.Chord(ui.ModifierControl, "C"); err != nil {
+	if err := driver.Chord(gfx.ModifierControl, "C"); err != nil {
 		t.Fatal(err)
 	}
-	want := []ui.KeyEvent{
-		{Key: ui.KeyUp, Target: ui.Item(1)}, {Key: ui.KeyTab, Target: ui.Item(1)}, {Key: ui.KeyEnter, Target: ui.Item(1)},
-		{Key: ui.KeyEscape, Target: ui.Item(1)}, {Key: ui.KeyBackspace, Target: ui.Item(1)}, {Key: ui.KeyPageDown, Target: ui.Item(1)}, {Key: ui.KeyF5, Target: ui.Item(1)},
-		{Key: ui.KeyLeft, Modifiers: ui.ModifierAlt | ui.ModifierShift, Target: ui.Item(1)},
-		{Modifiers: ui.ModifierControl, Target: ui.Item(1), Text: "c"},
+	want := []gfx.KeyEvent{
+		{Key: gfx.KeyUp, Target: gfx.Item(1)}, {Key: gfx.KeyTab, Target: gfx.Item(1)}, {Key: gfx.KeyEnter, Target: gfx.Item(1)},
+		{Key: gfx.KeyEscape, Target: gfx.Item(1)}, {Key: gfx.KeyBackspace, Target: gfx.Item(1)}, {Key: gfx.KeyPageDown, Target: gfx.Item(1)}, {Key: gfx.KeyF5, Target: gfx.Item(1)},
+		{Key: gfx.KeyLeft, Modifiers: gfx.ModifierAlt | gfx.ModifierShift, Target: gfx.Item(1)},
+		{Modifiers: gfx.ModifierControl, Target: gfx.Item(1), Text: "c"},
 	}
 	if !reflect.DeepEqual(probe.keys, want) {
 		t.Fatalf("raw keys =\n%+v\nwant\n%+v", probe.keys, want)
@@ -144,10 +144,10 @@ func TestDriverDeliversATerminalsKeysRawAndItsTextThroughTheTextSystem(t *testin
 	if err := driver.Type("你好"); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Key(ui.KeySpace, 0); err != nil {
+	if err := driver.Key(gfx.KeySpace, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Chord(ui.ModifierShift, "A"); err != nil {
+	if err := driver.Chord(gfx.ModifierShift, "A"); err != nil {
 		t.Fatal(err)
 	}
 	if len(probe.keys) != len(want) {
@@ -180,7 +180,7 @@ func TestDriverDeliversATerminalsKeysRawAndItsTextThroughTheTextSystem(t *testin
 	}
 	for index, character := range []string{"a", "c", "x"} {
 		event := probe.keys[len(probe.keys)-3+index]
-		if event.Modifiers != ui.ModifierMeta || event.Text != character || event.Target != ui.Item(1) {
+		if event.Modifiers != gfx.ModifierMeta || event.Text != character || event.Target != gfx.Item(1) {
 			t.Errorf("Command+%s event = %+v", character, event)
 		}
 	}
@@ -189,8 +189,8 @@ func TestDriverDeliversATerminalsKeysRawAndItsTextThroughTheTextSystem(t *testin
 func TestDriverKeepsApplicationClipboardRequestsPrivate(t *testing.T) {
 	probe := &terminalProbe{}
 	config := probe.config()
-	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
-		return ui.EventResult{Handled: true, ClipboardText: "selected terminal text"}
+	config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
+		return gfx.EventResult{Handled: true, ClipboardText: "selected terminal text"}
 	}
 	driver, err := NewDriver(config, nil)
 	if err != nil {
@@ -211,8 +211,8 @@ func TestDriverKeepsApplicationClipboardRequestsPrivate(t *testing.T) {
 func BenchmarkDriverApplicationClipboardResult(b *testing.B) {
 	probe := &terminalProbe{}
 	config := probe.config()
-	config.OnKey = func(ui.KeyEvent) ui.EventResult {
-		return ui.EventResult{Handled: true, ClipboardText: "selected terminal text"}
+	config.OnKey = func(gfx.KeyEvent) gfx.EventResult {
+		return gfx.EventResult{Handled: true, ClipboardText: "selected terminal text"}
 	}
 	driver, err := NewDriver(config, nil)
 	if err != nil {
@@ -264,7 +264,7 @@ func TestDriverDoesNotRepaintATerminalForCommittedTextWithoutPreedit(t *testing.
 	config := probe.config()
 	paints := 0
 	paint := config.Paint
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 		paints++
 		paint(canvas, size)
 	}
@@ -306,7 +306,7 @@ func TestDriverRepaintsATerminalThatAsksForTheFrame(t *testing.T) {
 	config := probe.config()
 	paints := 0
 	paint := config.Paint
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 		paints++
 		paint(canvas, size)
 	}

@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -32,7 +32,7 @@ if index, ok := strip.TabClicked(); ok {
 		{ID: "vertical", Title: "纵向标签", Description: "标签纵向排列，内容位于右侧。", Snippet: `tabs := tree.Sub(page, tree.Name("tab"))
 labels := []string{"Overview", "Activity", "Settings"}
 f.Row().Gap(20).Children(func() {
-    strip := f.Tabs(tabs, labels, selected).Line().Vertical().Self(flex.Start)
+    strip := f.Tabs(tabs, labels, selected).Line().Vertical().Self(ui.Start)
     if index, ok := strip.TabClicked(); ok {
         selected = index
     }
@@ -47,7 +47,7 @@ var (
 	tabsItem = tree.Sub(tabsUI, tree.Name("tab"))
 )
 
-// tabsLabelSets holds each language's tab labels. flex.Tabs keeps the label
+// tabsLabelSets holds each language's tab labels. ui.Tabs keeps the label
 // slice until the frame is drawn, so translating into a fresh array every paint
 // would allocate it; picking a preallocated set keeps the paint allocation-free.
 var tabsLabelSets = [2][3]string{
@@ -55,7 +55,7 @@ var tabsLabelSets = [2][3]string{
 	{"Overview", "Activity", "Settings"},
 }
 
-// tabsLabels returns the strip labels for the preview's language, before flex
+// tabsLabels returns the strip labels for the preview's language, before ui
 // lays the strip out.
 func (state *State) tabsLabels() []string {
 	language := 0
@@ -65,9 +65,9 @@ func (state *State) tabsLabels() []string {
 	return tabsLabelSets[language][:]
 }
 
-func (state *State) keyTabs(event ui.KeyEvent) ui.EventResult {
+func (state *State) keyTabs(event gfx.KeyEvent) gfx.EventResult {
 	if listIndex(event.Target, tabsItem) < 0 {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	orientation := components.TabsHorizontal
 	if state.exampleID == "vertical" {
@@ -81,19 +81,19 @@ func (state *State) keyTabs(event ui.KeyEvent) ui.EventResult {
 	}
 	next, handled := components.TabsKeyDown(event.Target, options[:], orientation, components.DirectionLTR, event.Key)
 	if !handled {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	// Base UI tabs move focus on arrows; Enter or Space activates the focused
 	// tab through the runtime's ordinary click activation.
-	return ui.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: true}
+	return gfx.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: true}
 }
 
-func (state *State) paintTabs(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintTabs(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	selected := int(state.values[0])
 	labels := state.tabsLabels()
 	if state.exampleID == "icons" {
-		var slot flex.Box
-		state.page(canvas, theme, size, 540, state.Text("Tabs · 图标标签", "Tabs · Icon labels"), func(f *flex.Frame) {
+		var slot ui.Box
+		state.page(canvas, theme, size, 540, state.Text("Tabs · 图标标签", "Tabs · Icon labels"), func(f *ui.Frame) {
 			slot = f.Slot().FillWidth().Height(36)
 			state.tabsPanel(f, theme, selected)
 		})
@@ -104,10 +104,10 @@ func (state *State) paintTabs(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
 		}
 		return
 	}
-	state.page(canvas, theme, size, 540, state.Text("Tabs · 内容切换", "Tabs · Content switching"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 540, state.Text("Tabs · 内容切换", "Tabs · Content switching"), func(f *ui.Frame) {
 		if state.exampleID == "vertical" {
 			f.Row().Gap(20).Children(func() {
-				strip := f.Tabs(tabsItem, labels, selected).Line().Vertical().Self(flex.Start)
+				strip := f.Tabs(tabsItem, labels, selected).Line().Vertical().Self(ui.Start)
 				if index, ok := strip.TabClicked(); ok {
 					state.values[0] = int32(index)
 				}
@@ -127,7 +127,7 @@ func (state *State) paintTabs(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
 }
 
 // tabsPanel declares the content of the selected tab.
-func (state *State) tabsPanel(f *flex.Frame, theme ui.Theme, selected int) flex.Box {
+func (state *State) tabsPanel(f *ui.Frame, theme gfx.Theme, selected int) ui.Box {
 	title, description := state.Text("项目概览", "Project overview"), state.Text("查看近期状态与关键摘要。", "See recent status and key highlights.")
 	switch selected {
 	case 1:
@@ -137,7 +137,7 @@ func (state *State) tabsPanel(f *flex.Frame, theme ui.Theme, selected int) flex.
 	}
 	panel := f.Column().Gap(8).Pad(16).Background(theme.Background).Border(1, theme.Border).Radius(theme.Metrics.RadiusSurface)
 	return panel.Children(func() {
-		f.Text(title).FontSize(theme.Metrics.FontSizeM).Weight(ui.WeightSemibold)
+		f.Text(title).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightSemibold)
 		f.Wrap(description).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 }

@@ -4,18 +4,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // caretFrames drives one CaretBlink on a fake clock, one frame per call.
 type caretFrames struct {
-	canvas *ui.Canvas
+	canvas *gfx.Canvas
 	blink  CaretBlink
 	now    time.Duration
 }
 
 func newCaretFrames() *caretFrames {
-	frames := &caretFrames{canvas: new(ui.Canvas)}
+	frames := &caretFrames{canvas: new(gfx.Canvas)}
 	frames.canvas.SetClock(func() time.Duration { return frames.now })
 	return frames
 }
@@ -109,7 +109,7 @@ func TestCaretBlinkRestRestartsLit(t *testing.T) {
 // stays lit: tests, static previews and a runtime without a frame loop all get
 // a caret without a rhythm.
 func TestCaretBlinkWithoutAFrameClockStaysLit(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var blink CaretBlink
 	if !blink.Lit(&canvas, 0) {
 		t.Fatal("a caret outside a frame went dark")

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func resizeTestLabels(count int, width float32) []platform.TextLabel {
@@ -21,7 +21,7 @@ func resizeTestLabels(count int, width float32) []platform.TextLabel {
 		labels[i] = platform.TextLabel{
 			Value: value, Y: float32(i * 20), Width: width, Height: 20,
 			FontSize: 14, Mono: true, CellWidth: 8,
-			Runs: []ui.TextRun{{Bytes: int32(len(value)), Cells: int32(len(value))}},
+			Runs: []gfx.TextRun{{Bytes: int32(len(value)), Cells: int32(len(value))}},
 		}
 	}
 	return labels
@@ -214,8 +214,8 @@ func TestVulkanGridResizeReusesReservedColumnsAcrossIndexShift(t *testing.T) {
 	if state.labels[0].view != 0 || state.labels[1].view != 1 {
 		t.Fatal("growing beyond the reserved columns did not invalidate only the wider row")
 	}
-	next[1].Runs = append([]ui.TextRun(nil), next[1].Runs...)
-	next[1].Runs[0].Color = ui.RGB(255, 0, 0)
+	next[1].Runs = append([]gfx.TextRun(nil), next[1].Runs...)
+	next[1].Runs[0].Color = gfx.RGB(255, 0, 0)
 	if err := state.update(nil, next); err != nil {
 		t.Fatal(err)
 	}
@@ -230,12 +230,12 @@ func TestVulkanGridTextureReservationIsBounded(t *testing.T) {
 		t.Fatalf("reserved width = %d, want 128", got)
 	}
 	label.Value = "hello"
-	label.Runs = []ui.TextRun{{Bytes: 5, Cells: 5}}
+	label.Runs = []gfx.TextRun{{Bytes: 5, Cells: 5}}
 	if got := labelRasterWidth(label, 1, 20); got != 50 {
 		t.Fatalf("short row width = %d, want its ink and overhang only", got)
 	}
 	label.Value = strings.Repeat("x", 100000)
-	label.Runs = []ui.TextRun{{Bytes: int32(len(label.Value)), Cells: int32(len(label.Value))}}
+	label.Runs = []gfx.TextRun{{Bytes: int32(len(label.Value)), Cells: int32(len(label.Value))}}
 	for _, test := range []struct {
 		width  float32
 		height int
@@ -258,11 +258,11 @@ func TestVulkanGridResizeKeepsTextureAndClipsItsPixels(t *testing.T) {
 			label := platform.TextLabel{
 				Value: "abcd界\uf306" + strings.Repeat("x", 24), X: 2.2, Y: 3.2, OriginX: 0.33,
 				Width: 128, Height: 24, FontSize: 14, Mono: true, CellWidth: 8,
-				Runs: []ui.TextRun{
-					{Bytes: 4, Cells: 4, Color: ui.RGB(255, 60, 60), Ligatures: true},
-					{Column: 4, Bytes: 3, Cells: 2, Color: ui.RGB(60, 255, 60)},
-					{Column: 6, Bytes: 3, Cells: 1, Color: ui.RGB(60, 60, 255)},
-					{Column: 8, Bytes: 24, Cells: 24, Color: ui.RGB(255, 255, 255), Underline: true, Ligatures: true},
+				Runs: []gfx.TextRun{
+					{Bytes: 4, Cells: 4, Color: gfx.RGB(255, 60, 60), Ligatures: true},
+					{Column: 4, Bytes: 3, Cells: 2, Color: gfx.RGB(60, 255, 60)},
+					{Column: 6, Bytes: 3, Cells: 1, Color: gfx.RGB(60, 60, 255)},
+					{Column: 8, Bytes: 24, Cells: 24, Color: gfx.RGB(255, 255, 255), Underline: true, Ligatures: true},
 				},
 			}
 			full := renderScene(t, offscreen, nil, []platform.TextLabel{label})
@@ -276,7 +276,7 @@ func TestVulkanGridResizeKeepsTextureAndClipsItsPixels(t *testing.T) {
 			for _, width := range []float32{53.5, 67.25, 99.5, 120.25, 41.5} {
 				label.Width = width
 				label.Clipped = width == 99.5
-				label.Clip = ui.Rect{X: 10, Y: 0, Width: 80, Height: 30}
+				label.Clip = gfx.Rect{X: 10, Y: 0, Width: 80, Height: 30}
 				// Compare against complete glyphs, then crop. Rasterizing directly
 				// into a surface that cuts through a glyph lets Cairo's clipping
 				// change its edge coverage; resizing should keep that glyph stable.
@@ -332,7 +332,7 @@ func TestVulkanGridResizeKeepsTextureAndClipsItsPixels(t *testing.T) {
 func TestVulkanTextResizeMatchesUnclippedWidthAndRejectsClippedWidth(t *testing.T) {
 	labels := resizeTestLabels(2, 80)
 	labels[1].Value = "short"
-	labels[1].Runs = []ui.TextRun{{Bytes: 5, Cells: 5}}
+	labels[1].Runs = []gfx.TextRun{{Bytes: 5, Cells: 5}}
 	var state vulkanText
 	if err := state.update(nil, labels); err != nil {
 		t.Fatal(err)

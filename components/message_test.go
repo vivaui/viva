@@ -4,13 +4,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestMessageSeparatesStructureFromBubbleContent(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	regions := Message(&canvas, theme, ui.Rect{Width: 280, Height: 96}, MessageData{Header: "Ada · 09:41", Footer: "Delivered", Initials: "AL", Alignment: MessageStart, ShowAvatar: true})
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	regions := Message(&canvas, theme, gfx.Rect{Width: 280, Height: 96}, MessageData{Header: "Ada · 09:41", Footer: "Delivered", Initials: "AL", Alignment: MessageStart, ShowAvatar: true})
 	if regions.Content.Width >= 280 || regions.Avatar.Width != theme.Metrics.ControlHeight {
 		t.Fatalf("message regions = %+v", regions)
 	}
@@ -24,10 +24,10 @@ func TestMessageSeparatesStructureFromBubbleContent(t *testing.T) {
 }
 
 func TestMessageEndAlignmentAndCommandsAreStable(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() MessageRegions {
 		canvas.Reset()
-		return Message(&canvas, ui.DarkTheme(), ui.Rect{Width: 260, Height: 80}, MessageData{Header: "You", Footer: "Sent", Initials: "Y", Alignment: MessageEnd, ShowAvatar: true})
+		return Message(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 260, Height: 80}, MessageData{Header: "You", Footer: "Sent", Initials: "Y", Alignment: MessageEnd, ShowAvatar: true})
 	}
 	regions := paint()
 	if regions.Avatar.X <= regions.Content.X {
@@ -42,16 +42,16 @@ func TestMessageEndAlignmentAndCommandsAreStable(t *testing.T) {
 }
 
 func TestMessageEndAlignsFooterToTheEnd(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	for _, alignment := range []MessageAlignment{MessageStart, MessageEnd} {
-		var canvas ui.Canvas
-		regions := Message(&canvas, theme, ui.Rect{Width: 300, Height: 96}, MessageData{Footer: "Sent", Alignment: alignment})
+		var canvas gfx.Canvas
+		regions := Message(&canvas, theme, gfx.Rect{Width: 300, Height: 96}, MessageData{Footer: "Sent", Alignment: alignment})
 		texts := canvas.Texts()
 		if len(texts) != 1 {
 			t.Fatalf("texts = %d", len(texts))
 		}
 		left := texts[0].Bounds.X
-		right := left + canvas.TextWidthWeight("Sent", theme.Metrics.FontSizeS, ui.WeightMedium)
+		right := left + canvas.TextWidthWeight("Sent", theme.Metrics.FontSizeS, gfx.WeightMedium)
 		inset := theme.Metrics.PadControlX
 		if alignment == MessageStart && left != regions.Footer.X+inset {
 			t.Fatalf("start footer begins at %v, want %v", left, regions.Footer.X+inset)
@@ -63,11 +63,11 @@ func TestMessageEndAlignsFooterToTheEnd(t *testing.T) {
 }
 
 func TestMessageReservedAvatarLinesUpConsecutiveMessages(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	first := Message(&canvas, theme, ui.Rect{Width: 300, Height: 64}, MessageData{ShowAvatar: true, Initials: "AL"})
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	first := Message(&canvas, theme, gfx.Rect{Width: 300, Height: 64}, MessageData{ShowAvatar: true, Initials: "AL"})
 	canvas.Reset()
-	next := Message(&canvas, theme, ui.Rect{Width: 300, Height: 64}, MessageData{ReserveAvatar: true})
+	next := Message(&canvas, theme, gfx.Rect{Width: 300, Height: 64}, MessageData{ReserveAvatar: true})
 	if next.Content != first.Content {
 		t.Fatalf("reserved content %+v, avatar content %+v", next.Content, first.Content)
 	}
@@ -77,8 +77,8 @@ func TestMessageReservedAvatarLinesUpConsecutiveMessages(t *testing.T) {
 }
 
 func TestMessageGroupStacksRowsWithTheGroupGap(t *testing.T) {
-	theme := ui.LightTheme()
-	group := BeginMessageGroup(theme, ui.Rect{X: 10, Y: 20, Width: 300})
+	theme := gfx.LightTheme()
+	group := BeginMessageGroup(theme, gfx.Rect{X: 10, Y: 20, Width: 300})
 	a, b := group.Row(40), group.Row(50)
 	if b.Y != a.Y+a.Height+MessageGroupGap(theme.Metrics) || a.X != 10 || group.Height() != 40+MessageGroupGap(theme.Metrics)+50 {
 		t.Fatalf("rows %+v %+v height %v", a, b, group.Height())

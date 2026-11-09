@@ -5,8 +5,8 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // customCursors are the cursors this package made for application pictures: the one the window
@@ -16,13 +16,13 @@ import (
 var customCursors struct {
 	sync.Mutex
 	shown, previous uintptr
-	image           *ui.CursorImage
+	image           *gfx.CursorImage
 	scale           float32
 }
 
 // SetCursorImage makes the window's pointer the picture, in device pixels: a picture made for
 // another scale than the window's is resampled to it, so it covers the same logical size.
-func SetCursorImage(image *ui.CursorImage) error {
+func SetCursorImage(image *gfx.CursorImage) error {
 	state := active.Load()
 	if state == nil || state.window == 0 {
 		return fmt.Errorf("windows: cursor requires a running window")
@@ -50,7 +50,7 @@ func SetCursorImage(image *ui.CursorImage) error {
 
 // retireCustomCursor records handle as the cursor in use and destroys the one before the one it
 // replaces. customCursors is locked.
-func retireCustomCursor(handle uintptr, image *ui.CursorImage, scale float32) {
+func retireCustomCursor(handle uintptr, image *gfx.CursorImage, scale float32) {
 	if customCursors.previous != 0 {
 		destroyIcon.Call(customCursors.previous)
 	}
@@ -61,7 +61,7 @@ func retireCustomCursor(handle uintptr, image *ui.CursorImage, scale float32) {
 // newCursorHandle makes an HCURSOR of the picture with its hotspot. A 32-bit cursor bitmap is
 // read as plain ARGB, the color not multiplied by alpha, which the cursor tests read back
 // from Windows itself.
-func newCursorHandle(image *ui.CursorImage, scale float32) (uintptr, error) {
+func newCursorHandle(image *gfx.CursorImage, scale float32) (uintptr, error) {
 	width, height, hotX, hotY, pixels := platform.CursorPixels(image, scale, false)
 	header := bitmapV4Header{
 		Size: uint32(unsafe.Sizeof(bitmapV4Header{})), Width: int32(width), Height: -int32(height),

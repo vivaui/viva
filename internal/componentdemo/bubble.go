@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -34,10 +34,10 @@ var (
 	bubbleReaction = tree.ID(bubbleUI, "reaction")
 )
 
-func (state *State) paintBubble(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var rows [3]flex.Box // the conversation uses two; the variants three
+func (state *State) paintBubble(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var rows [3]ui.Box // the conversation uses two; the variants three
 	variants := state.exampleID == "variants"
-	state.page(canvas, theme, size, 560, state.Text("Bubble · 项目讨论", "Bubble · Project discussion"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 560, state.Text("Bubble · 项目讨论", "Bubble · Project discussion"), func(f *ui.Frame) {
 		if variants {
 			for index := range rows {
 				rows[index] = f.Slot().FillWidth().Height(54)

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestApplicationFullscreenRequestRunsOnDriverAndRestores(t *testing.T) {
@@ -26,7 +26,7 @@ func TestApplicationFullscreenRequestRunsOnDriverAndRestores(t *testing.T) {
 				}
 				events = append(events, "fullscreen")
 			},
-			OnResize: func(ui.Size) {
+			OnResize: func(gfx.Size) {
 				if window != nil {
 					events = append(events, "resize")
 				}
@@ -40,7 +40,7 @@ func TestApplicationFullscreenRequestRunsOnDriverAndRestores(t *testing.T) {
 	defer host.closeAll()
 	entry := host.windows[1]
 	original := entry.session.driver.Frame()
-	if err := entry.session.driver.SetFullscreenMonitor(ui.Rect{Width: 1600, Height: 900}); err != nil {
+	if err := entry.session.driver.SetFullscreenMonitor(gfx.Rect{Width: 1600, Height: 900}); err != nil {
 		t.Fatal(err)
 	}
 	var requests sync.WaitGroup
@@ -63,7 +63,7 @@ func TestApplicationFullscreenRequestRunsOnDriverAndRestores(t *testing.T) {
 		len(events) != 2 || events[0] != "fullscreen" || events[1] != "resize" {
 		t.Fatalf("entry state/events: %v, %v", window.Fullscreen(), events)
 	}
-	monitor := ui.Rect{X: -1600, Width: 1600, Height: 900}
+	monitor := gfx.Rect{X: -1600, Width: 1600, Height: 900}
 	if err := entry.session.driver.SetFullscreenMonitor(monitor); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestFullscreenProtocolUsesMonitorBoundsAndRestores(t *testing.T) {
 			t.Fatalf("%s: %s", command, reply)
 		}
 	}
-	if !session.driver.Fullscreen() || session.driver.Frame() != (ui.Rect{X: -1600, Width: 1600, Height: 900}) {
+	if !session.driver.Fullscreen() || session.driver.Frame() != (gfx.Rect{X: -1600, Width: 1600, Height: 900}) {
 		t.Fatal("protocol did not enter full monitor bounds")
 	}
 	reply, _ := execute(session, "fullscreen off")

@@ -1,4 +1,4 @@
-// Package iconcompile turns SVG icon sources into ui.Icon Go values at
+// Package iconcompile turns SVG icon sources into gfx.Icon Go values at
 // build time. It understands the icon-dialect subset used by Lucide and
 // similar stroke-icon sets: path, line, polyline, polygon, rect, circle and ellipse
 // elements with fill="none" stroke-based geometry; groups and their
@@ -6,7 +6,7 @@
 // color (fill="#e65100", with fill-opacity, opacity and fill-rule) becomes a
 // colored layer of the icon, which is how multi-color glyphs such as file-type
 // icons compile. A fill of url(#id) naming a linearGradient with two stops and no
-// gradientTransform becomes a ui.LinearGradient layer, in userSpaceOnUse units or,
+// gradientTransform becomes a gfx.LinearGradient layer, in userSpaceOnUse units or,
 // when it runs along an axis, in SVG's default objectBoundingBox units; radial
 // gradients, more stops, slanted bounding-box gradients and other spread methods
 // are rejected with an error. It is a build tool: nothing here links into
@@ -20,17 +20,17 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
-// Compile parses one SVG document into a ui.Icon. Width and height default
+// Compile parses one SVG document into a gfx.Icon. Width and height default
 // to the viewBox; stroke metadata is taken from the document with Lucide
 // defaults (stroke 2, round cap and join). A stroke-width of 0 on the root
 // element means the icon's tinted shapes are filled instead.
-func Compile(name string, source []byte) (ui.Icon, error) {
+func Compile(name string, source []byte) (gfx.Icon, error) {
 	document := &svgNode{}
 	if err := xml.Unmarshal(source, document); err != nil {
-		return ui.Icon{}, fmt.Errorf("%s: %w", name, err)
+		return gfx.Icon{}, fmt.Errorf("%s: %w", name, err)
 	}
 	root := document
 	if root.XMLName.Local != "svg" {
@@ -42,7 +42,7 @@ func Compile(name string, source []byte) (ui.Icon, error) {
 		}
 	}
 	if root.XMLName.Local != "svg" {
-		return ui.Icon{}, fmt.Errorf("%s: no svg element", name)
+		return gfx.Icon{}, fmt.Errorf("%s: no svg element", name)
 	}
 
 	viewBox, viewHeight := 24.0, 0.0
@@ -68,8 +68,8 @@ func Compile(name string, source []byte) (ui.Icon, error) {
 
 	state := iconState{
 		stroke: 2,
-		cap:    ui.CapRound,
-		join:   ui.JoinRound,
+		cap:    gfx.CapRound,
+		join:   gfx.JoinRound,
 	}
 	if raw := root.Attr("stroke-width"); raw != "" {
 		// A root stroke-width of 0 makes the tinted shapes filled, not stroked.
@@ -93,15 +93,15 @@ func Compile(name string, source []byte) (ui.Icon, error) {
 	collectGradients(root, state.gradients)
 	state.walk(root, origin, sink)
 	if sink.err != nil {
-		return ui.Icon{}, fmt.Errorf("%s: %w", name, sink.err)
+		return gfx.Icon{}, fmt.Errorf("%s: %w", name, sink.err)
 	}
 	if len(sink.commands) == 0 && len(sink.layers) == 0 {
-		return ui.Icon{}, fmt.Errorf("%s: no drawable geometry", name)
+		return gfx.Icon{}, fmt.Errorf("%s: no drawable geometry", name)
 	}
 	if viewHeight == viewBox {
 		viewHeight = 0 // square: the icon's ViewHeight stays unset
 	}
-	return ui.Icon{
+	return gfx.Icon{
 		ViewBox:    float32(viewBox),
 		ViewHeight: float32(viewHeight),
 		Stroke:     float32(state.stroke),
@@ -115,13 +115,13 @@ func Compile(name string, source []byte) (ui.Icon, error) {
 // iconSink collects what the walk emits: stroked commands, and the colored
 // layers of elements that name a fill.
 type iconSink struct {
-	commands []ui.PathCommand
-	layers   []ui.IconLayer
+	commands []gfx.PathCommand
+	layers   []gfx.IconLayer
 	layer    int // the layer being filled, or -1 for the stroked commands
 	err      error
 }
 
-func (sink *iconSink) add(command ui.PathCommand) {
+func (sink *iconSink) add(command gfx.PathCommand) {
 	if sink.layer >= 0 {
 		sink.layers[sink.layer].Commands = append(sink.layers[sink.layer].Commands, command)
 		return
@@ -129,8 +129,8 @@ func (sink *iconSink) add(command ui.PathCommand) {
 	sink.commands = append(sink.commands, command)
 }
 
-func (sink *iconSink) begin(fill ui.Color, rule ui.PathFillRule, gradient *ui.LinearGradient) {
-	sink.layers = append(sink.layers, ui.IconLayer{Fill: fill, FillRule: rule, Gradient: gradient})
+func (sink *iconSink) begin(fill gfx.Color, rule gfx.PathFillRule, gradient *gfx.LinearGradient) {
+	sink.layers = append(sink.layers, gfx.IconLayer{Fill: fill, FillRule: rule, Gradient: gradient})
 	sink.layer = len(sink.layers) - 1
 }
 
@@ -149,8 +149,8 @@ func (sink *iconSink) fitBoxGradient(box *boxGradient) {
 	}
 	width, height := maxX-minX, maxY-minY
 	dx, dy := box.ends[2]-box.ends[0], box.ends[3]-box.ends[1]
-	at := func(offset float64) ui.Point {
-		return ui.Point{
+	at := func(offset float64) gfx.Point {
+		return gfx.Point{
 			X: float32(minX + (box.ends[0]+dx*offset)*width),
 			Y: float32(minY + (box.ends[1]+dy*offset)*height),
 		}
@@ -160,7 +160,7 @@ func (sink *iconSink) fitBoxGradient(box *boxGradient) {
 
 // commandBounds is the bounding box of a path, with each curve sampled, which is
 // within a small fraction of a unit of the exact one for icon-sized curves.
-func commandBounds(commands []ui.PathCommand) (minX, minY, maxX, maxY float64, ok bool) {
+func commandBounds(commands []gfx.PathCommand) (minX, minY, maxX, maxY float64, ok bool) {
 	minX, minY, maxX, maxY = math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
 	add := func(x, y float64) {
 		minX, maxX = math.Min(minX, x), math.Max(maxX, x)
@@ -170,14 +170,14 @@ func commandBounds(commands []ui.PathCommand) (minX, minY, maxX, maxY float64, o
 	var cx, cy, sx, sy float64
 	for _, command := range commands {
 		switch command.Kind {
-		case ui.PathCommandMove:
+		case gfx.PathCommandMove:
 			cx, cy = float64(command.Point.X), float64(command.Point.Y)
 			sx, sy = cx, cy
 			add(cx, cy)
-		case ui.PathCommandLine:
+		case gfx.PathCommandLine:
 			cx, cy = float64(command.Point.X), float64(command.Point.Y)
 			add(cx, cy)
-		case ui.PathCommandQuad:
+		case gfx.PathCommandQuad:
 			x1, y1 := float64(command.Control1.X), float64(command.Control1.Y)
 			x2, y2 := float64(command.Point.X), float64(command.Point.Y)
 			for step := 1; step <= 32; step++ {
@@ -186,7 +186,7 @@ func commandBounds(commands []ui.PathCommand) (minX, minY, maxX, maxY float64, o
 				add(u*u*cx+2*u*t*x1+t*t*x2, u*u*cy+2*u*t*y1+t*t*y2)
 			}
 			cx, cy = x2, y2
-		case ui.PathCommandCubic:
+		case gfx.PathCommandCubic:
 			x1, y1 := float64(command.Control1.X), float64(command.Control1.Y)
 			x2, y2 := float64(command.Control2.X), float64(command.Control2.Y)
 			x3, y3 := float64(command.Point.X), float64(command.Point.Y)
@@ -196,32 +196,32 @@ func commandBounds(commands []ui.PathCommand) (minX, minY, maxX, maxY float64, o
 				add(u*u*u*cx+3*u*u*t*x1+3*u*t*t*x2+t*t*t*x3, u*u*u*cy+3*u*u*t*y1+3*u*t*t*y2+t*t*t*y3)
 			}
 			cx, cy = x3, y3
-		case ui.PathCommandClose:
+		case gfx.PathCommandClose:
 			cx, cy = sx, sy
 		}
 	}
 	return minX, minY, maxX, maxY, ok
 }
 
-func parseCap(raw string) ui.StrokeCap {
+func parseCap(raw string) gfx.StrokeCap {
 	switch strings.TrimSpace(raw) {
 	case "round":
-		return ui.CapRound
+		return gfx.CapRound
 	case "square":
-		return ui.CapSquare
+		return gfx.CapSquare
 	default:
-		return ui.CapButt
+		return gfx.CapButt
 	}
 }
 
-func parseJoin(raw string) ui.StrokeJoin {
+func parseJoin(raw string) gfx.StrokeJoin {
 	switch strings.TrimSpace(raw) {
 	case "round":
-		return ui.JoinRound
+		return gfx.JoinRound
 	case "miter", "miter-clip", "arcs":
-		return ui.JoinMiter
+		return gfx.JoinMiter
 	default:
-		return ui.JoinBevel
+		return gfx.JoinBevel
 	}
 }
 
@@ -323,15 +323,15 @@ func parseTransform(raw string) transform {
 
 type iconState struct {
 	stroke float64
-	cap    ui.StrokeCap
-	join   ui.StrokeJoin
+	cap    gfx.StrokeCap
+	join   gfx.StrokeJoin
 	// Inherited paint: the fill attribute ("" when none was given), its
 	// opacities and the fill rule.
 	fill        string
 	strokePaint string // the stroke attribute, inherited ("" when none was given)
 	fillOpacity float64
 	opacity     float64
-	fillRule    ui.PathFillRule
+	fillRule    gfx.PathFillRule
 	// gradients are the document's gradient elements by id.
 	gradients map[string]*svgNode
 }
@@ -356,9 +356,9 @@ func (state iconState) inherit(node *svgNode) iconState {
 	}
 	if raw := node.Attr("fill-rule"); raw != "" {
 		if strings.TrimSpace(raw) == "evenodd" {
-			state.fillRule = ui.PathFillEvenOdd
+			state.fillRule = gfx.PathFillEvenOdd
 		} else {
-			state.fillRule = ui.PathFillNonZero
+			state.fillRule = gfx.PathFillNonZero
 		}
 	}
 	return state
@@ -366,23 +366,23 @@ func (state iconState) inherit(node *svgNode) iconState {
 
 // color resolves the element's fill: colored is false when the element is a
 // plain stroke-or-currentColor shape and the icon's tint applies.
-func (state iconState) color() (ui.Color, bool, error) {
+func (state iconState) color() (gfx.Color, bool, error) {
 	switch fill := state.fill; {
 	case fill == "" || fill == "none" || strings.EqualFold(fill, "currentColor"):
-		return ui.Color{}, false, nil
+		return gfx.Color{}, false, nil
 	case strings.HasPrefix(fill, "#"):
 		color, err := parseHexColor(fill)
 		if err != nil {
-			return ui.Color{}, false, err
+			return gfx.Color{}, false, err
 		}
 		color.Alpha *= float32(state.fillOpacity * state.opacity)
 		return color, true, nil
 	case strings.EqualFold(fill, "black"):
-		return ui.Color{Alpha: float32(state.fillOpacity * state.opacity)}, true, nil
+		return gfx.Color{Alpha: float32(state.fillOpacity * state.opacity)}, true, nil
 	case strings.EqualFold(fill, "white"):
-		return ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: float32(state.fillOpacity * state.opacity)}, true, nil
+		return gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: float32(state.fillOpacity * state.opacity)}, true, nil
 	}
-	return ui.Color{}, false, fmt.Errorf("fill %q is not supported", state.fill)
+	return gfx.Color{}, false, fmt.Errorf("fill %q is not supported", state.fill)
 }
 
 // invisible reports whether an element paints nothing: its fill is none and no
@@ -394,7 +394,7 @@ func (state iconState) invisible() bool {
 }
 
 // parseHexColor reads #rgb, #rgba, #rrggbb or #rrggbbaa.
-func parseHexColor(raw string) (ui.Color, error) {
+func parseHexColor(raw string) (gfx.Color, error) {
 	digits := strings.TrimPrefix(raw, "#")
 	if len(digits) == 3 || len(digits) == 4 {
 		expanded := make([]byte, 0, 8)
@@ -404,13 +404,13 @@ func parseHexColor(raw string) (ui.Color, error) {
 		digits = string(expanded)
 	}
 	if len(digits) != 6 && len(digits) != 8 {
-		return ui.Color{}, fmt.Errorf("color %q is not #rgb, #rgba, #rrggbb or #rrggbbaa", raw)
+		return gfx.Color{}, fmt.Errorf("color %q is not #rgb, #rgba, #rrggbb or #rrggbbaa", raw)
 	}
 	value, err := strconv.ParseUint(digits, 16, 32)
 	if err != nil {
-		return ui.Color{}, fmt.Errorf("color %q: %w", raw, err)
+		return gfx.Color{}, fmt.Errorf("color %q: %w", raw, err)
 	}
-	color := ui.Color{Alpha: 1}
+	color := gfx.Color{Alpha: 1}
 	if len(digits) == 8 {
 		color.Alpha = float32(value&0xff) / 255
 		value >>= 8
@@ -439,9 +439,9 @@ func (state iconState) walk(node *svgNode, at transform, sink *iconSink) {
 			elementAt = at.then(parseTransform(raw))
 		}
 		var (
-			fill     ui.Color
+			fill     gfx.Color
 			colored  bool
-			gradient *ui.LinearGradient
+			gradient *gfx.LinearGradient
 			box      *boxGradient
 			err      error
 		)
@@ -498,7 +498,7 @@ func (state iconState) point(at transform, x, y float64) (float32, float32) {
 	return float32(px), float32(py)
 }
 
-func (state iconState) emitPathData(data string, at transform, emit func(ui.PathCommand)) {
+func (state iconState) emitPathData(data string, at transform, emit func(gfx.PathCommand)) {
 	var currentX, currentY float64
 	var lastCX, lastCY float64 // reflected control points for S/T
 	var lastCommand byte
@@ -526,7 +526,7 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 				x32, y32 := state.point(at, x, y)
 				if first {
 					startX, startY = x, y
-					emit(ui.MoveTo(x32, y32))
+					emit(gfx.MoveTo(x32, y32))
 					first = false
 					if !parser.moreNumbers() {
 						break
@@ -535,7 +535,7 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 				}
 				// Subsequent coordinate pairs after a move are implicit
 				// lineto commands in the same relative/absolute mode.
-				emit(ui.LineTo(x32, y32))
+				emit(gfx.LineTo(x32, y32))
 				if !parser.moreNumbers() {
 					break
 				}
@@ -551,7 +551,7 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 				}
 				currentX, currentY = x, y
 				x32, y32 := state.point(at, x, y)
-				emit(ui.LineTo(x32, y32))
+				emit(gfx.LineTo(x32, y32))
 				if !parser.moreNumbers() {
 					break
 				}
@@ -567,7 +567,7 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 				}
 				currentX = x
 				x32, y32 := state.point(at, x, currentY)
-				emit(ui.LineTo(x32, y32))
+				emit(gfx.LineTo(x32, y32))
 				if !parser.moreNumbers() {
 					break
 				}
@@ -583,7 +583,7 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 				}
 				currentY = y
 				x32, y32 := state.point(at, currentX, y)
-				emit(ui.LineTo(x32, y32))
+				emit(gfx.LineTo(x32, y32))
 				if !parser.moreNumbers() {
 					break
 				}
@@ -602,7 +602,7 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 				c1x32, c1y32 := state.point(at, c1x, c1y)
 				c2x32, c2y32 := state.point(at, c2x, c2y)
 				x32, y32 := state.point(at, x, y)
-				emit(ui.CubicTo(c1x32, c1y32, c2x32, c2y32, x32, y32))
+				emit(gfx.CubicTo(c1x32, c1y32, c2x32, c2y32, x32, y32))
 				lastCX, lastCY = c2x, c2y
 				currentX, currentY = x, y
 				if !parser.moreNumbers() {
@@ -626,7 +626,7 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 				c1x32, c1y32 := state.point(at, c1x, c1y)
 				c2x32, c2y32 := state.point(at, c2x, c2y)
 				x32, y32 := state.point(at, x, y)
-				emit(ui.CubicTo(c1x32, c1y32, c2x32, c2y32, x32, y32))
+				emit(gfx.CubicTo(c1x32, c1y32, c2x32, c2y32, x32, y32))
 				lastCX, lastCY = c2x, c2y
 				currentX, currentY = x, y
 				if !parser.moreNumbers() {
@@ -645,7 +645,7 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 				}
 				cx32, cy32 := state.point(at, cx, cy)
 				x32, y32 := state.point(at, x, y)
-				emit(ui.QuadTo(cx32, cy32, x32, y32))
+				emit(gfx.QuadTo(cx32, cy32, x32, y32))
 				lastCX, lastCY = cx, cy
 				currentX, currentY = x, y
 				if !parser.moreNumbers() {
@@ -667,7 +667,7 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 				}
 				cx32, cy32 := state.point(at, cx, cy)
 				x32, y32 := state.point(at, x, y)
-				emit(ui.QuadTo(cx32, cy32, x32, y32))
+				emit(gfx.QuadTo(cx32, cy32, x32, y32))
 				lastCX, lastCY = cx, cy
 				currentX, currentY = x, y
 				if !parser.moreNumbers() {
@@ -695,7 +695,7 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 				}
 			}
 		case 'Z', 'z':
-			emit(ui.ClosePath())
+			emit(gfx.ClosePath())
 			currentX, currentY = startX, startY
 		}
 		lastCommand = command
@@ -705,14 +705,14 @@ func (state iconState) emitPathData(data string, at transform, emit func(ui.Path
 // emitArc converts one SVG arc from endpoint to center parameterization
 // and emits it as cubic segments, following the W3C SVG implementation
 // notes.
-func (state iconState) emitArc(currentX, currentY float64, args [7]float64, relative bool, at transform, emit func(ui.PathCommand)) {
+func (state iconState) emitArc(currentX, currentY float64, args [7]float64, relative bool, at transform, emit func(gfx.PathCommand)) {
 	rx, ry, rotation, largeArc, sweep, x, y := args[0], args[1], args[2], args[3], args[4], args[5], args[6]
 	if relative {
 		x, y = x+currentX, y+currentY
 	}
 	if rx == 0 || ry == 0 || (x == currentX && y == currentY) {
 		x32, y32 := state.point(at, x, y)
-		emit(ui.LineTo(x32, y32))
+		emit(gfx.LineTo(x32, y32))
 		return
 	}
 	rx, ry = math.Abs(rx), math.Abs(ry)
@@ -788,7 +788,7 @@ func (state iconState) emitArc(currentX, currentY float64, args [7]float64, rela
 		c1x32, c1y32 := state.point(at, c1x, c1y)
 		c2x32, c2y32 := state.point(at, c2x, c2y)
 		toX32, toY32 := state.point(at, toX, toY)
-		emit(ui.CubicTo(c1x32, c1y32, c2x32, c2y32, toX32, toY32))
+		emit(gfx.CubicTo(c1x32, c1y32, c2x32, c2y32, toX32, toY32))
 	}
 }
 
@@ -829,7 +829,7 @@ type boxGradient struct {
 // transform may then only move and scale it, and the gradient must run along an
 // axis, because only then do the lines of equal color stay perpendicular to it
 // after the box is stretched to the shape.
-func (state iconState) linearGradient(at transform) (*ui.LinearGradient, *boxGradient, error) {
+func (state iconState) linearGradient(at transform) (*gfx.LinearGradient, *boxGradient, error) {
 	reference := strings.TrimSpace(state.fill)
 	id := strings.Trim(strings.TrimSuffix(strings.TrimPrefix(reference, "url("), ")"), " '\"")
 	id = strings.TrimPrefix(id, "#")
@@ -876,7 +876,7 @@ func (state iconState) linearGradient(at transform) (*ui.LinearGradient, *boxGra
 		ends[index] = value
 	}
 	var offsets [2]float64
-	var colors [2]ui.Color
+	var colors [2]gfx.Color
 	stops := 0
 	for index := range node.Children {
 		stop := &node.Children[index]
@@ -909,7 +909,7 @@ func (state iconState) linearGradient(at transform) (*ui.LinearGradient, *boxGra
 		if math.Abs(ends[1]-ends[3]) > 1e-9 && math.Abs(ends[0]-ends[2]) > 1e-9 {
 			return nil, nil, fmt.Errorf("gradient %q is in bounding-box units and slanted; only horizontal and vertical ones are supported", id)
 		}
-		return &ui.LinearGradient{From: colors[0], To: colors[1]}, &boxGradient{ends: ends, offsets: offsets}, nil
+		return &gfx.LinearGradient{From: colors[0], To: colors[1]}, &boxGradient{ends: ends, offsets: offsets}, nil
 	}
 	a, b, c, d := at.a, at.b, at.c, at.d
 	scale := a*a + b*b
@@ -919,16 +919,16 @@ func (state iconState) linearGradient(at transform) (*ui.LinearGradient, *boxGra
 	dx, dy := ends[2]-ends[0], ends[3]-ends[1]
 	startX, startY := at.apply(ends[0]+dx*offsets[0], ends[1]+dy*offsets[0])
 	endX, endY := at.apply(ends[0]+dx*offsets[1], ends[1]+dy*offsets[1])
-	return &ui.LinearGradient{
-		Start: ui.Point{X: float32(startX), Y: float32(startY)},
-		End:   ui.Point{X: float32(endX), Y: float32(endY)},
+	return &gfx.LinearGradient{
+		Start: gfx.Point{X: float32(startX), Y: float32(startY)},
+		End:   gfx.Point{X: float32(endX), Y: float32(endY)},
 		From:  colors[0], To: colors[1],
 	}, nil, nil
 }
 
 // parseStop reads a stop's offset (0 to 1, or a percentage) and its color, taken
 // from the stop-color and stop-opacity attributes or the style attribute.
-func parseStop(stop *svgNode) (float64, ui.Color, error) {
+func parseStop(stop *svgNode) (float64, gfx.Color, error) {
 	property := func(name string) string {
 		if value := stop.Attr(name); value != "" {
 			return strings.TrimSpace(value)
@@ -949,29 +949,29 @@ func parseStop(stop *svgNode) (float64, ui.Color, error) {
 	if offsetText != "" {
 		value, err := strconv.ParseFloat(offsetText, 64)
 		if err != nil {
-			return 0, ui.Color{}, fmt.Errorf("stop offset %q is not a number", stop.Attr("offset"))
+			return 0, gfx.Color{}, fmt.Errorf("stop offset %q is not a number", stop.Attr("offset"))
 		}
 		offset = min(max(value*scale, 0), 1)
 	}
-	color := ui.Color{Alpha: 1}
+	color := gfx.Color{Alpha: 1}
 	switch text := property("stop-color"); {
 	case text == "" || strings.EqualFold(text, "black"):
 		// SVG's default stop color is black.
 	case strings.EqualFold(text, "white"):
-		color = ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+		color = gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 	case strings.HasPrefix(text, "#"):
 		parsed, err := parseHexColor(text)
 		if err != nil {
-			return 0, ui.Color{}, err
+			return 0, gfx.Color{}, err
 		}
 		color = parsed
 	default:
-		return 0, ui.Color{}, fmt.Errorf("stop-color %q is not supported", text)
+		return 0, gfx.Color{}, fmt.Errorf("stop-color %q is not supported", text)
 	}
 	if text := property("stop-opacity"); text != "" {
 		value, err := strconv.ParseFloat(text, 64)
 		if err != nil {
-			return 0, ui.Color{}, fmt.Errorf("stop-opacity %q is not a number", text)
+			return 0, gfx.Color{}, fmt.Errorf("stop-opacity %q is not a number", text)
 		}
 		color.Alpha *= float32(min(max(value, 0), 1))
 	}

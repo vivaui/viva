@@ -6,39 +6,39 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // keyProbe is a screen with a terminal that asks for key releases and a button
 // beside it, and records what the terminal's key handler and the pointer saw.
 type keyProbe struct {
 	releases bool // whether the terminal asks for key releases
-	keys     []ui.KeyEvent
-	pointers []ui.PointerEvent
+	keys     []gfx.KeyEvent
+	pointers []gfx.PointerEvent
 	text     []TextEvent
 }
 
 func (probe *keyProbe) config() Config {
 	config := Config{Title: "keys", Width: 400, Height: 200}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 200, Height: size.Height}, "Terminal", ui.HitOptions{Role: ui.RoleTerminal})
-		canvas.HitWithOptions(ui.Item(2), ui.Rect{X: 200, Width: 200, Height: size.Height}, "Other", ui.HitOptions{Role: ui.RoleButton})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 200, Height: size.Height}, "Terminal", gfx.HitOptions{Role: gfx.RoleTerminal})
+		canvas.HitWithOptions(gfx.Item(2), gfx.Rect{X: 200, Width: 200, Height: size.Height}, "Other", gfx.HitOptions{Role: gfx.RoleButton})
 	}
-	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
+	config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 		probe.keys = append(probe.keys, event)
-		return ui.EventResult{Handled: true}
+		return gfx.EventResult{Handled: true}
 	}
-	config.OnPointer = func(event ui.PointerEvent) ui.EventResult {
+	config.OnPointer = func(event gfx.PointerEvent) gfx.EventResult {
 		probe.pointers = append(probe.pointers, event)
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	config.TextInput = func(context TextInputContext) *TextInput {
 		if !context.Terminal {
 			return nil
 		}
 		return &TextInput{
-			Bounds: ui.Rect{X: 8, Y: 16, Width: 8, Height: 16}, FontSize: 13, KeyReleases: probe.releases,
+			Bounds: gfx.Rect{X: 8, Y: 16, Width: 8, Height: 16}, FontSize: 13, KeyReleases: probe.releases,
 			OnEvent: func(event TextEvent) (TextState, error) {
 				probe.text = append(probe.text, event)
 				return TextState{}, nil
@@ -63,14 +63,14 @@ func newKeyDriver(t *testing.T, probe *keyProbe) *Driver {
 }
 
 // summary reduces key events to what a remote desktop acts on.
-func summary(events []ui.KeyEvent) []string {
+func summary(events []gfx.KeyEvent) []string {
 	var out []string
 	for _, event := range events {
 		name := event.Text
 		switch {
 		case event.Key.IsModifier():
-			name = map[ui.Key]string{ui.KeyShiftLeft: "shift", ui.KeyControlLeft: "ctrl", ui.KeyAltLeft: "alt"}[event.Key]
-		case event.Key == ui.KeyLeft:
+			name = map[gfx.Key]string{gfx.KeyShiftLeft: "shift", gfx.KeyControlLeft: "ctrl", gfx.KeyAltLeft: "alt"}[event.Key]
+		case event.Key == gfx.KeyLeft:
 			name = "left"
 		}
 		if event.Release {
@@ -87,13 +87,13 @@ func TestKeyDownAndUpDeliverPairedPressesAndReleases(t *testing.T) {
 	probe := &keyProbe{releases: true}
 	driver := newKeyDriver(t, probe)
 	steps := []func() error{
-		func() error { return driver.KeyDown(ui.KeyShiftLeft, "") },
-		func() error { return driver.KeyDown(ui.KeyUnknown, "A") },
-		func() error { return driver.KeyDown(ui.KeyUnknown, "A") }, // the remote's own repeat stays the platform's
-		func() error { return driver.KeyDown(ui.KeyLeft, "") },
-		func() error { return driver.KeyUp(ui.KeyShiftLeft, "") }, // Shift comes up before the letter does
-		func() error { return driver.KeyUp(ui.KeyUnknown, "a") },
-		func() error { return driver.KeyUp(ui.KeyLeft, "") },
+		func() error { return driver.KeyDown(gfx.KeyShiftLeft, "") },
+		func() error { return driver.KeyDown(gfx.KeyUnknown, "A") },
+		func() error { return driver.KeyDown(gfx.KeyUnknown, "A") }, // the remote's own repeat stays the platform's
+		func() error { return driver.KeyDown(gfx.KeyLeft, "") },
+		func() error { return driver.KeyUp(gfx.KeyShiftLeft, "") }, // Shift comes up before the letter does
+		func() error { return driver.KeyUp(gfx.KeyUnknown, "a") },
+		func() error { return driver.KeyUp(gfx.KeyLeft, "") },
 	}
 	for _, step := range steps {
 		if err := step(); err != nil {
@@ -104,7 +104,7 @@ func TestKeyDownAndUpDeliverPairedPressesAndReleases(t *testing.T) {
 	if got := summary(probe.keys); !reflect.DeepEqual(got, want) {
 		t.Fatalf("keys = %v, want %v", got, want)
 	}
-	if probe.keys[1].Modifiers != ui.ModifierShift || probe.keys[5].Modifiers != 0 {
+	if probe.keys[1].Modifiers != gfx.ModifierShift || probe.keys[5].Modifiers != 0 {
 		t.Fatalf("modifiers at press and at release = %v, %v", probe.keys[1].Modifiers, probe.keys[5].Modifiers)
 	}
 	if len(probe.text) != 0 {
@@ -118,7 +118,7 @@ func TestKeyDownAndUpDeliverPairedPressesAndReleases(t *testing.T) {
 func TestKeyUpOfAKeyThatWentDownElsewhereIsDropped(t *testing.T) {
 	probe := &keyProbe{releases: true}
 	driver := newKeyDriver(t, probe)
-	if err := driver.KeyUp(ui.KeyUnknown, "x"); err != nil {
+	if err := driver.KeyUp(gfx.KeyUnknown, "x"); err != nil {
 		t.Fatal(err)
 	}
 	if len(probe.keys) != 0 {
@@ -130,10 +130,10 @@ func TestTerminalsThatDidNotAskNeverSeeReleasesOrModifierKeys(t *testing.T) {
 	probe := &keyProbe{}
 	driver := newKeyDriver(t, probe)
 	for _, step := range []func() error{
-		func() error { return driver.KeyDown(ui.KeyShiftLeft, "") },
-		func() error { return driver.KeyDown(ui.KeyLeft, "") },
-		func() error { return driver.KeyUp(ui.KeyLeft, "") },
-		func() error { return driver.KeyUp(ui.KeyShiftLeft, "") },
+		func() error { return driver.KeyDown(gfx.KeyShiftLeft, "") },
+		func() error { return driver.KeyDown(gfx.KeyLeft, "") },
+		func() error { return driver.KeyUp(gfx.KeyLeft, "") },
+		func() error { return driver.KeyUp(gfx.KeyShiftLeft, "") },
 	} {
 		if err := step(); err != nil {
 			t.Fatal(err)
@@ -144,7 +144,7 @@ func TestTerminalsThatDidNotAskNeverSeeReleasesOrModifierKeys(t *testing.T) {
 			t.Fatalf("unrequested event %+v", event)
 		}
 	}
-	if len(probe.keys) != 1 || probe.keys[0].Key != ui.KeyLeft || probe.keys[0].Modifiers != ui.ModifierShift {
+	if len(probe.keys) != 1 || probe.keys[0].Key != gfx.KeyLeft || probe.keys[0].Modifiers != gfx.ModifierShift {
 		t.Fatalf("keys = %+v", probe.keys)
 	}
 }
@@ -152,13 +152,13 @@ func TestTerminalsThatDidNotAskNeverSeeReleasesOrModifierKeys(t *testing.T) {
 func TestHeldModifiersApplyToPointerEvents(t *testing.T) {
 	probe := &keyProbe{}
 	driver := newKeyDriver(t, probe)
-	if err := driver.KeyDown(ui.KeyControlLeft, ""); err != nil {
+	if err := driver.KeyDown(gfx.KeyControlLeft, ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := driver.Click(50, 50); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.KeyUp(ui.KeyControlLeft, ""); err != nil {
+	if err := driver.KeyUp(gfx.KeyControlLeft, ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := driver.Click(50, 50); err != nil {
@@ -166,10 +166,10 @@ func TestHeldModifiersApplyToPointerEvents(t *testing.T) {
 	}
 	var held, plain int
 	for _, event := range probe.pointers {
-		if event.Kind != ui.PointerDown {
+		if event.Kind != gfx.PointerDown {
 			continue
 		}
-		if event.Modifiers == ui.ModifierControl {
+		if event.Modifiers == gfx.ModifierControl {
 			held++
 		} else if event.Modifiers == 0 {
 			plain++
@@ -183,7 +183,7 @@ func TestHeldModifiersApplyToPointerEvents(t *testing.T) {
 func TestLosingTheWindowFocusReleasesEveryHeldKey(t *testing.T) {
 	probe := &keyProbe{releases: true}
 	driver := newKeyDriver(t, probe)
-	for _, key := range []ui.Key{ui.KeyAltLeft, ui.KeyControlLeft, ui.KeyLeft} {
+	for _, key := range []gfx.Key{gfx.KeyAltLeft, gfx.KeyControlLeft, gfx.KeyLeft} {
 		if err := driver.KeyDown(key, ""); err != nil {
 			t.Fatal(err)
 		}
@@ -195,7 +195,7 @@ func TestLosingTheWindowFocusReleasesEveryHeldKey(t *testing.T) {
 	if got, want := summary(probe.keys), []string{"left up", "ctrl up", "alt up"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("releases = %v, want %v", got, want)
 	}
-	if err := driver.KeyUp(ui.KeyLeft, ""); err != nil {
+	if err := driver.KeyUp(gfx.KeyLeft, ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(probe.keys) != 3 {
@@ -206,10 +206,10 @@ func TestLosingTheWindowFocusReleasesEveryHeldKey(t *testing.T) {
 func TestMovingFocusOffTheTerminalReleasesItsKeys(t *testing.T) {
 	probe := &keyProbe{releases: true}
 	driver := newKeyDriver(t, probe)
-	if err := driver.KeyDown(ui.KeyShiftLeft, ""); err != nil {
+	if err := driver.KeyDown(gfx.KeyShiftLeft, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.KeyDown(ui.KeyUnknown, "q"); err != nil {
+	if err := driver.KeyDown(gfx.KeyUnknown, "q"); err != nil {
 		t.Fatal(err)
 	}
 	probe.keys = nil
@@ -222,7 +222,7 @@ func TestMovingFocusOffTheTerminalReleasesItsKeys(t *testing.T) {
 	if got, want := summary(probe.keys), []string{"q up", "shift up"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("releases = %v, want %v", got, want)
 	}
-	if probe.keys[0].Target != ui.Item(1) {
+	if probe.keys[0].Target != gfx.Item(1) {
 		t.Fatalf("a release goes to the hit the key was pressed on: %+v", probe.keys[0])
 	}
 }
@@ -230,7 +230,7 @@ func TestMovingFocusOffTheTerminalReleasesItsKeys(t *testing.T) {
 func TestStoppingTheRequestForReleasesReleasesHeldKeys(t *testing.T) {
 	probe := &keyProbe{releases: true}
 	driver := newKeyDriver(t, probe)
-	if err := driver.KeyDown(ui.KeyLeft, ""); err != nil {
+	if err := driver.KeyDown(gfx.KeyLeft, ""); err != nil {
 		t.Fatal(err)
 	}
 	probe.keys, probe.releases = nil, false
@@ -266,8 +266,8 @@ func TestOnlyKeysTheHandlerSawGoDownAreReleased(t *testing.T) {
 func TestKeyReleaseKeepsThePressConsoleIdentity(t *testing.T) {
 	probe := &keyProbe{releases: true}
 	driver := newKeyDriver(t, probe)
-	press := ui.Win32Key{VirtualKey: 'C', ScanCode: 46, Unicode: 3, ControlState: 0x0008, Repeat: 1}
-	release := ui.Win32Key{VirtualKey: 'C', ScanCode: 46, Unicode: 'c', ControlState: 0, Repeat: 1}
+	press := gfx.Win32Key{VirtualKey: 'C', ScanCode: 46, Unicode: 3, ControlState: 0x0008, Repeat: 1}
+	release := gfx.Win32Key{VirtualKey: 'C', ScanCode: 46, Unicode: 'c', ControlState: 0, Repeat: 1}
 	if _, err := driver.painter.key(platform.KeyEvent{Code: 46, Win32: press}); err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +285,7 @@ func TestKeyReleaseKeepsThePressConsoleIdentity(t *testing.T) {
 func BenchmarkKeyPressAndRelease(b *testing.B) {
 	probe := &keyProbe{releases: true}
 	config := probe.config()
-	config.OnKey = func(ui.KeyEvent) ui.EventResult { return ui.EventResult{Handled: true} }
+	config.OnKey = func(gfx.KeyEvent) gfx.EventResult { return gfx.EventResult{Handled: true} }
 	driver, err := NewDriver(config, nil)
 	if err != nil {
 		b.Fatal(err)
@@ -294,7 +294,7 @@ func BenchmarkKeyPressAndRelease(b *testing.B) {
 	if err := driver.Click(100, 100); err != nil {
 		b.Fatal(err)
 	}
-	press := platform.KeyEvent{Key: ui.KeyLeft, Code: 7}
+	press := platform.KeyEvent{Key: gfx.KeyLeft, Code: 7}
 	release := platform.KeyEvent{Release: true, Code: 7}
 	b.ReportAllocs()
 	b.ResetTimer()

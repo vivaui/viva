@@ -5,9 +5,9 @@ package darwin
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // inkRows is the first and last device row at or right of fromX that holds
@@ -117,7 +117,7 @@ func TestTerminalPreeditStandsWhereTheGridDrawsTheSameText(t *testing.T) {
 		}
 		return inkColumns(pixels, width, height)
 	}
-	runs := platform.TerminalPreeditRuns(nil, value, ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
+	runs := platform.TerminalPreeditRuns(nil, value, gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
 	grid := render(&TextLabel{
 		Value: value, X: 0, Y: 8, Width: 200, Height: 20, FontSize: size, Color: white,
 		Mono: true, CellWidth: cell, Runs: runs,

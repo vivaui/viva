@@ -8,33 +8,33 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // gridApp paints one fixed-pitch line "ab世cd" whose runs are red, green, blue
 // and white, so a screenshot shows which cell each one landed in.
 type gridApp struct {
 	cellWidth, cellHeight float32
-	origin                ui.Rect
-	runs                  []ui.TextRun
+	origin                gfx.Rect
+	runs                  []gfx.TextRun
 }
 
 func (g *gridApp) config() app.Config {
-	red, green := ui.Color{Red: 1, Alpha: 1}, ui.Color{Green: 1, Alpha: 1}
-	blue, white := ui.Color{Blue: 1, Alpha: 1}, ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	red, green := gfx.Color{Red: 1, Alpha: 1}, gfx.Color{Green: 1, Alpha: 1}
+	blue, white := gfx.Color{Blue: 1, Alpha: 1}, gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 	return app.Config{
 		Title: "grid", Width: 320, Height: 100,
 		ClearColor: app.Color{Alpha: 1},
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			g.cellWidth, g.cellHeight = canvas.CellSize(20)
-			g.origin = ui.Rect{X: 10, Y: 10, Width: g.cellWidth * 10, Height: g.cellHeight}
-			g.runs = []ui.TextRun{
+			g.origin = gfx.Rect{X: 10, Y: 10, Width: g.cellWidth * 10, Height: g.cellHeight}
+			g.runs = []gfx.TextRun{
 				{Column: 0, Bytes: 1, Cells: 1, Color: red},
 				{Column: 1, Bytes: 1, Cells: 1, Color: green},
 				{Column: 2, Bytes: 3, Cells: 2, Color: blue}, // a wide character
 				{Column: 4, Bytes: 2, Cells: 2, Color: white, Underline: true},
 			}
-			canvas.LabelRuns("ab世cd", g.origin, ui.TextStyle{Size: 20, Color: white}, g.cellWidth, g.runs)
+			canvas.LabelRuns("ab世cd", g.origin, gfx.TextStyle{Size: 20, Color: white}, g.cellWidth, g.runs)
 		},
 	}
 }

@@ -10,23 +10,23 @@ import (
 
 func TestTextField(t *testing.T) {
 	m := &model{}
-	var canvas ui.Canvas
-	driver, err := app.NewDriver(newConfig(m), &canvas)
+	page := ui.NewPage(ui.PageConfig{View: m.page})
+	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 240}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer driver.Close()
-	clickHit(t, driver, nameField)
+	click(t, driver, "Name")
 	if err := driver.Type("Ada"); err != nil {
 		t.Fatal(err)
 	}
-	if m.name.Text() != "Ada" {
-		t.Fatalf("editor = %q", m.name.Text())
+	if m.name != "Ada" {
+		t.Fatalf("editor = %q", m.name)
 	}
 	if editor := driver.Snapshot().Editor; editor == nil || editor.Value != "Ada" {
 		t.Fatalf("native editor overlay = %+v", driver.Snapshot().Editor)
 	}
-	clickHit(t, driver, save)
+	click(t, driver, "Save")
 	if m.saved != "Ada" {
 		t.Fatalf("saved = %q", m.saved)
 	}
@@ -43,10 +43,11 @@ func TestTextField(t *testing.T) {
 	}
 }
 
-func clickHit(t *testing.T, driver *app.Driver, id ui.ID) {
+// click presses the middle of the control with the given accessible name.
+func click(t *testing.T, driver *app.Driver, name string) {
 	t.Helper()
 	for _, hit := range driver.Snapshot().Hits {
-		if hit.ID == id {
+		if hit.Label == name && !hit.IsLabel {
 			b := hit.Bounds
 			if err := driver.Click(b.X+b.Width/2, b.Y+b.Height/2); err != nil {
 				t.Fatal(err)
@@ -54,5 +55,5 @@ func clickHit(t *testing.T, driver *app.Driver, id ui.ID) {
 			return
 		}
 	}
-	t.Fatalf("no control %v on screen", id)
+	t.Fatalf("no control named %q on screen", name)
 }

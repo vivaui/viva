@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // A labelled page used to cost O(controls*hits) in nameFromLabels. This keeps
@@ -11,14 +11,14 @@ import (
 func BenchmarkPainterLabelledPage(b *testing.B) {
 	for _, controls := range []int{1000, 4000} {
 		b.Run(map[int]string{1000: "1k", 4000: "4k"}[controls], func(b *testing.B) {
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			config := Config{Title: "labels", Width: 1200, Height: 1200}
-			config.Paint = func(c *ui.Canvas, _ ui.Size) {
+			config.Paint = func(c *gfx.Canvas, _ gfx.Size) {
 				for index := 0; index < controls; index++ {
-					id := ui.Item(index + 1)
-					bounds := ui.Rect{X: float32(index%100) * 10, Y: float32(index/100) * 10, Width: 8, Height: 8}
+					id := gfx.Item(index + 1)
+					bounds := gfx.Rect{X: float32(index%100) * 10, Y: float32(index/100) * 10, Width: 8, Height: 8}
 					c.HitWithLabel(id, bounds, "control")
-					c.HitLabel(id, ui.Rect{X: bounds.X, Y: bounds.Y + 2, Width: 4, Height: 4}, "label", false)
+					c.HitLabel(id, gfx.Rect{X: bounds.X, Y: bounds.Y + 2, Width: 4, Height: 4}, "label", false)
 				}
 			}
 			painter := newTestPainter(b, &canvas, config)
@@ -39,15 +39,15 @@ func BenchmarkPainterLabelledPage(b *testing.B) {
 func BenchmarkPainterLabelledPageChanged(b *testing.B) {
 	for _, controls := range []int{1000, 4000} {
 		b.Run(map[int]string{1000: "1k", 4000: "4k"}[controls], func(b *testing.B) {
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			config := Config{Title: "labels", Width: 1200, Height: 1200}
 			label := "odd"
-			config.Paint = func(c *ui.Canvas, _ ui.Size) {
+			config.Paint = func(c *gfx.Canvas, _ gfx.Size) {
 				for index := 0; index < controls; index++ {
-					id := ui.Item(index + 1)
-					bounds := ui.Rect{X: float32(index%100) * 10, Y: float32(index/100) * 10, Width: 8, Height: 8}
+					id := gfx.Item(index + 1)
+					bounds := gfx.Rect{X: float32(index%100) * 10, Y: float32(index/100) * 10, Width: 8, Height: 8}
 					c.HitWithLabel(id, bounds, "control")
-					c.HitLabel(id, ui.Rect{X: bounds.X, Y: bounds.Y + 2, Width: 4, Height: 4}, label, false)
+					c.HitLabel(id, gfx.Rect{X: bounds.X, Y: bounds.Y + 2, Width: 4, Height: 4}, label, false)
 				}
 			}
 			painter := newTestPainter(b, &canvas, config)

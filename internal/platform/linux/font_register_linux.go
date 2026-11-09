@@ -10,8 +10,8 @@ import (
 
 	"github.com/ebitengine/purego"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/fontfile"
-	"github.com/vivaui/viva/ui"
 )
 
 // fontConfigApp is fontconfig's application font set and Pango's way of being told it changed.
@@ -52,9 +52,9 @@ func loadFontConfigApp() (*fontConfigApp, error) {
 	return &fontApp, fontAppErr
 }
 
-var _ ui.FontRegistrar = (*textEngine)(nil)
+var _ gfx.FontRegistrar = (*textEngine)(nil)
 
-// RegisterFont implements ui.FontRegistrar: the font joins fontconfig's application fonts, which
+// RegisterFont implements gfx.FontRegistrar: the font joins fontconfig's application fonts, which
 // only this process sees, and Pango is told its font set changed.
 func (engine *textEngine) RegisterFont(data []byte) (string, func(), error) {
 	app, err := loadFontConfigApp()

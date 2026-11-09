@@ -22,6 +22,11 @@ type CodeDiffRow struct {
 	RightLine int
 }
 
+// CodeDiffHunk is one contiguous run of changed aligned rows. End is exclusive.
+type CodeDiffHunk struct {
+	Start, End int
+}
+
 // CodeDiffStats counts changed lines. Added describes lines present only on the
 // right, while Removed describes lines present only on the left. Coarse reports
 // that the comparison reached its work bound and grouped the remaining middle
@@ -34,10 +39,56 @@ type CodeDiffStats struct {
 
 // CodeDiffResult contains the split sources and their aligned rows.
 type CodeDiffResult struct {
-	Left  []string
-	Right []string
-	Rows  []CodeDiffRow
-	Stats CodeDiffStats
+	Left   []string
+	Right  []string
+	Rows   []CodeDiffRow
+	Inline []CodeDiffInline
+	Stats  CodeDiffStats
+}
+
+// Hunks appends contiguous changed row ranges to dst. The caller may reuse dst.
+func (result CodeDiffResult) Hunks(dst []CodeDiffHunk) []CodeDiffHunk {
+	dst = dst[:0]
+	for row := 0; row < len(result.Rows); {
+		if result.Rows[row].Kind == CodeDiffUnchanged {
+			row++
+			continue
+		}
+		start := row
+		for row < len(result.Rows) && result.Rows[row].Kind != CodeDiffUnchanged {
+			row++
+		}
+		dst = append(dst, CodeDiffHunk{Start: start, End: row})
+	}
+	return dst
+}
+
+// NextHunk finds the next or previous changed range whose start lies strictly
+// past or before row. It does not allocate and does not change the comparison.
+func (result CodeDiffResult) NextHunk(row int, forward bool) (CodeDiffHunk, bool) {
+	if forward {
+		for index := max(row+1, 0); index < len(result.Rows); index++ {
+			if result.Rows[index].Kind == CodeDiffUnchanged || index > 0 && result.Rows[index-1].Kind != CodeDiffUnchanged {
+				continue
+			}
+			end := index + 1
+			for end < len(result.Rows) && result.Rows[end].Kind != CodeDiffUnchanged {
+				end++
+			}
+			return CodeDiffHunk{Start: index, End: end}, true
+		}
+		return CodeDiffHunk{}, false
+	}
+	for index := min(row-1, len(result.Rows)-1); index >= 0; index-- {
+		if result.Rows[index].Kind != CodeDiffUnchanged && (index == 0 || result.Rows[index-1].Kind == CodeDiffUnchanged) {
+			end := index + 1
+			for end < len(result.Rows) && result.Rows[end].Kind != CodeDiffUnchanged {
+				end++
+			}
+			return CodeDiffHunk{Start: index, End: end}, true
+		}
+	}
+	return CodeDiffHunk{}, false
 }
 
 const codeDiffWorkLimit = 4_000_000
@@ -74,6 +125,14 @@ func diffCodeLines(left, right string, limit int) CodeDiffResult {
 	}, limit: limit}
 	builder.result.Rows = make([]CodeDiffRow, 0, len(builder.result.Left)+len(builder.result.Right))
 	builder.compare(0, len(builder.result.Left), 0, len(builder.result.Right), 0)
+	inlineBudget := codeDiffWorkLimit
+	var inlineScratch []uint16
+	for rowIndex, row := range builder.result.Rows {
+		if row.Kind == CodeDiffChanged && row.LeftLine >= 0 && row.RightLine >= 0 {
+			builder.result.Inline = diffCodeInline(builder.result.Inline, rowIndex,
+				builder.result.Left[row.LeftLine], builder.result.Right[row.RightLine], &inlineBudget, &inlineScratch)
+		}
+	}
 	return builder.result
 }
 

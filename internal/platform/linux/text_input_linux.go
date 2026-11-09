@@ -6,12 +6,12 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 const linuxTextCaretWidth = 2
@@ -21,7 +21,7 @@ type linuxTextInput struct {
 
 	// engine places the caret, the selection and the composition underline, and finds
 	// the character a click is on, from the same shaped line the glyphs are drawn from.
-	engine ui.TextEngine
+	engine gfx.TextEngine
 
 	input   platform.TextInput
 	state   platform.TextState
@@ -62,7 +62,7 @@ func newLinuxTextInput(config *platform.Config) (*linuxTextInput, error) {
 		// drawn: on the character boundaries of the engine's shaped line.
 		state.engine = TextEngine()
 		if state.engine == nil {
-			state.engine = ui.ReferenceTextEngine()
+			state.engine = gfx.ReferenceTextEngine()
 		}
 	}
 	if config.TextInput != nil {
@@ -126,7 +126,7 @@ func copyTextLabels(destination []platform.TextLabel, source []platform.TextLabe
 	}
 	for index, label := range source {
 		destination[index] = label
-		destination[index].Runs = append([]ui.TextRun(nil), label.Runs...)
+		destination[index].Runs = append([]gfx.TextRun(nil), label.Runs...)
 	}
 	return destination
 }
@@ -306,7 +306,7 @@ func (state *linuxTextInput) rebuild() error {
 	originX := inputState.X + inset - state.scroll
 	label := &state.labels[len(state.baseLabels)]
 	label.X, label.Width = originX, max(inputState.Width+state.scroll, textWidth+linuxTextCaretWidth)
-	label.Clipped, label.Clip = true, ui.Rect{X: inputState.X, Y: inputState.Y, Width: inputState.Width, Height: inputState.Height}
+	label.Clipped, label.Clip = true, gfx.Rect{X: inputState.X, Y: inputState.Y, Width: inputState.Width, Height: inputState.Height}
 	// Whatever the field shows of a highlight is the part inside it.
 	visible := func(left, width float32) (float32, float32) {
 		right := min(left+width, inputState.X+inputState.Width)
@@ -380,7 +380,7 @@ func (state *linuxTextInput) scrollFor(width, caretX, textWidth float32) float32
 func (state *linuxTextInput) rebuildTerminalPreedit(shown string) {
 	input := &state.input
 	cell := input.CellWidth
-	color := ui.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
+	color := gfx.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 	label := &state.labels[len(state.baseLabels)]
 	// A new slice every time: the renderer may still compare against the last frame's label.
 	label.CellWidth, label.Runs = cell, platform.TerminalPreeditRuns(nil, shown, color)
@@ -497,7 +497,7 @@ func (state *linuxTextInput) pointer(event platform.PointerEvent) (platform.Fram
 	switch event.Kind {
 	case platform.PointerDown:
 		state.dragging = false
-		if event.Button != ui.PointerButtonPrimary && event.Button != ui.PointerButtonMiddle {
+		if event.Button != gfx.PointerButtonPrimary && event.Button != gfx.PointerButtonMiddle {
 			return platform.Frame{}, false, nil
 		}
 		if event.X < inputState.X || event.X > inputState.X+inputState.Width || event.Y < inputState.Y || event.Y > inputState.Y+inputState.Height {
@@ -523,7 +523,7 @@ func (state *linuxTextInput) pointer(event platform.PointerEvent) (platform.Fram
 		frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextSetSelection, Selection: text.Range{Start: state.dragAnchor, End: index}})
 		return frame, true, err
 	}
-	if event.Button == ui.PointerButtonPrimary {
+	if event.Button == gfx.PointerButtonPrimary {
 		state.dragging, state.dragAnchor = true, index
 		if event.Modifiers&input.ModifierShift != 0 {
 			state.dragAnchor = state.state.Selection.Start

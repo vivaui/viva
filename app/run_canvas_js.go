@@ -3,8 +3,8 @@
 package app
 
 import (
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform/web"
-	"github.com/vivaui/viva/ui"
 )
 
 // RunCanvas mounts the application into the browser page and blocks until the
@@ -23,20 +23,20 @@ import (
 // with FileRef values instead of paths; OnFrameChange, OnMaximize and the
 // native frame hooks have no browser counterpart and are ignored. Text input
 // works through Config.TextInput.
-func RunCanvas(config Config, canvas *ui.Canvas) error {
+func RunCanvas(config Config, canvas *gfx.Canvas) error {
 	normalized, err := config.normalize()
 	if err != nil {
 		return err
 	}
 	if canvas == nil {
-		canvas = &ui.Canvas{}
+		canvas = &gfx.Canvas{}
 	}
 	if normalized.Tree != nil {
 		canvas.SetTree(normalized.Tree)
 	}
 	page := web.Config{
 		Title: normalized.Title, Width: normalized.Width, Height: normalized.Height,
-		ClearColor: ui.Color{
+		ClearColor: gfx.Color{
 			Red: float32(normalized.ClearColor.Red), Green: float32(normalized.ClearColor.Green),
 			Blue: float32(normalized.ClearColor.Blue), Alpha: float32(normalized.ClearColor.Alpha),
 		},

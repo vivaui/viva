@@ -1,11 +1,11 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // SliderThumbValue is one stable thumb in a range slider. Keep IDs and order
 // stable; each enabled thumb becomes its own focusable hit.
 type SliderThumbValue struct {
-	ID        ui.ID
+	ID        gfx.ID
 	Label     string
 	ValueText string
 	Value     float32
@@ -16,10 +16,10 @@ type SliderThumbValue struct {
 // is the first thumb for single-value convenience; ThumbCount reports all
 // thumbs available through ThumbBounds.
 type SliderGeometry struct {
-	Bounds     ui.Rect
-	Track      ui.Rect
-	Active     ui.Rect
-	Thumb      ui.Rect
+	Bounds     gfx.Rect
+	Track      gfx.Rect
+	Active     gfx.Rect
+	Thumb      gfx.Rect
 	Value      float32
 	ThumbCount int
 }
@@ -29,10 +29,10 @@ type SliderGeometry struct {
 // with ValueAt (the pointer events of the held thumb carry it, with capture while
 // it is dragged) and a key into one with SliderKeyDown, and passes the result back.
 type Slider struct {
-	canvas    *ui.Canvas
-	theme     ui.Theme
-	id        ui.ID
-	bounds    ui.Rect
+	canvas    *gfx.Canvas
+	theme     gfx.Theme
+	id        gfx.ID
+	bounds    gfx.Rect
 	minimum   float32
 	maximum   float32
 	value     float32
@@ -44,13 +44,13 @@ type Slider struct {
 }
 
 // BeginSlider starts a single-thumb 0..100 slider declaration.
-func BeginSlider(canvas *ui.Canvas, theme ui.Theme, id ui.ID, bounds ui.Rect, value float32) Slider {
+func BeginSlider(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect, value float32) Slider {
 	return Slider{canvas: canvas, theme: theme, id: id, bounds: bounds, maximum: 100, value: value}
 }
 
 // BeginRangeSlider starts a multi-thumb 0..100 slider declaration without
 // copying thumbs. The caller must keep the slice stable for the paint pass.
-func BeginRangeSlider(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, thumbs []SliderThumbValue) Slider {
+func BeginRangeSlider(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, thumbs []SliderThumbValue) Slider {
 	return Slider{canvas: canvas, theme: theme, bounds: bounds, maximum: 100, thumbs: thumbs}
 }
 
@@ -98,9 +98,9 @@ func (slider Slider) ThumbCount() int {
 }
 
 // ThumbBounds returns one thumb's geometry without painting.
-func (slider Slider) ThumbBounds(index int) ui.Rect {
+func (slider Slider) ThumbBounds(index int) gfx.Rect {
 	if index < 0 || index >= slider.ThumbCount() {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	value, _, _ := slider.thumb(index)
 	return slider.thumbBounds(value)
@@ -161,12 +161,12 @@ func (slider Slider) Paint(label string) SliderGeometry {
 			slider.canvas.Rounded(expand(thumb, 4), thumb.Height/2+4, ring)
 		}
 		thumbBorder := slider.theme.Primary
-		thumbFill := ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+		thumbFill := gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 		if slider.disabled || thumbDisabled {
 			thumbBorder.Alpha *= 0.50
 			thumbFill.Alpha *= 0.50
 		}
-		slider.canvas.Elevate(thumb, thumb.Height/2, ui.ShadowSM) // shadow-sm
+		slider.canvas.Elevate(thumb, thumb.Height/2, gfx.ShadowSM) // shadow-sm
 		paintBordered(slider.canvas, slider.theme, thumb, thumb.Height/2, thumbBorder, thumbFill)
 		if !id.IsZero() {
 			hitLabel := label
@@ -177,8 +177,8 @@ func (slider Slider) Paint(label string) SliderGeometry {
 			if len(slider.thumbs) == 0 {
 				hit = geometry.Bounds
 			}
-			slider.canvas.HitWithOptions(id, hit, hitLabel, ui.HitOptions{
-				Role: ui.RoleSlider, Value: slider.semanticValue(index),
+			slider.canvas.HitWithOptions(id, hit, hitLabel, gfx.HitOptions{
+				Role: gfx.RoleSlider, Value: slider.semanticValue(index),
 				Disabled: slider.disabled || thumbDisabled,
 				Range:    slider.semanticRange(index),
 			})
@@ -221,7 +221,7 @@ func (slider Slider) geometry() SliderGeometry {
 	}
 }
 
-func (slider Slider) resolvedBounds() ui.Rect {
+func (slider Slider) resolvedBounds() gfx.Rect {
 	bounds := slider.bounds
 	if slider.vertical {
 		if bounds.Height <= 0 {
@@ -245,12 +245,12 @@ const (
 )
 
 // trackBounds is the groove: the slider's whole length, as Vega's w-full track.
-func (slider Slider) trackBounds() ui.Rect {
+func (slider Slider) trackBounds() gfx.Rect {
 	bounds := slider.resolvedBounds()
 	if slider.vertical {
-		return ui.Rect{X: bounds.X + (bounds.Width-sliderTrack)/2, Y: bounds.Y, Width: sliderTrack, Height: bounds.Height}
+		return gfx.Rect{X: bounds.X + (bounds.Width-sliderTrack)/2, Y: bounds.Y, Width: sliderTrack, Height: bounds.Height}
 	}
-	return ui.Rect{X: bounds.X, Y: bounds.Y + (bounds.Height-sliderTrack)/2, Width: bounds.Width, Height: sliderTrack}
+	return gfx.Rect{X: bounds.X, Y: bounds.Y + (bounds.Height-sliderTrack)/2, Width: bounds.Width, Height: sliderTrack}
 }
 
 // travel is the stretch of the slider's axis the thumb's center moves over: the
@@ -265,14 +265,14 @@ func (slider Slider) travel() (origin, extent float32) {
 	return track.X + sliderThumb/2, max(track.Width-sliderThumb, 0)
 }
 
-func (slider Slider) thumbBounds(value float32) ui.Rect {
+func (slider Slider) thumbBounds(value float32) gfx.Rect {
 	track := slider.trackBounds()
 	origin, extent := slider.travel()
 	fraction := slider.fraction(value)
 	if slider.vertical {
-		return ui.Rect{X: track.X + (track.Width-sliderThumb)/2, Y: origin + extent*(1-fraction) - sliderThumb/2, Width: sliderThumb, Height: sliderThumb}
+		return gfx.Rect{X: track.X + (track.Width-sliderThumb)/2, Y: origin + extent*(1-fraction) - sliderThumb/2, Width: sliderThumb, Height: sliderThumb}
 	}
-	return ui.Rect{X: origin + extent*fraction - sliderThumb/2, Y: track.Y + (track.Height-sliderThumb)/2, Width: sliderThumb, Height: sliderThumb}
+	return gfx.Rect{X: origin + extent*fraction - sliderThumb/2, Y: track.Y + (track.Height-sliderThumb)/2, Width: sliderThumb, Height: sliderThumb}
 }
 
 func (slider Slider) activeFractions() (float32, float32) {
@@ -293,7 +293,7 @@ func (slider Slider) activeFractions() (float32, float32) {
 	return minimum, maximum
 }
 
-func (slider Slider) thumb(index int) (float32, ui.ID, bool) {
+func (slider Slider) thumb(index int) (float32, gfx.ID, bool) {
 	if len(slider.thumbs) == 0 {
 		return slider.snap(slider.value), slider.id, false
 	}
@@ -310,13 +310,13 @@ func (slider Slider) semanticValue(index int) string {
 
 // semanticRange is the number a thumb reports to assistive technology. A
 // slider with no step moves by one unit when the keyboard moves it.
-func (slider Slider) semanticRange(index int) ui.ValueRange {
+func (slider Slider) semanticRange(index int) gfx.ValueRange {
 	value, _, _ := slider.thumb(index)
 	step := slider.step
 	if step <= 0 {
 		step = 1
 	}
-	return ui.ValueRange{Now: float64(value), Min: float64(slider.minimum), Max: float64(slider.maximum), Step: float64(step), Set: true}
+	return gfx.ValueRange{Now: float64(value), Min: float64(slider.minimum), Max: float64(slider.maximum), Step: float64(step), Set: true}
 }
 
 func (slider Slider) fraction(value float32) float32 {
@@ -369,7 +369,7 @@ func snapSliderValue(value, minimum, maximum, step float32) float32 {
 // by the slider pattern, so the caller passes anything else on.
 //
 //	next, handled := components.SliderKeyDown(m.volume, 0, 100, 5, components.LTR, event.Key, event.Modifiers)
-func SliderKeyDown(value, minimum, maximum, step float32, direction Direction, key ui.Key, modifiers ui.Modifiers) (float32, bool) {
+func SliderKeyDown(value, minimum, maximum, step float32, direction Direction, key gfx.Key, modifiers gfx.Modifiers) (float32, bool) {
 	return SliderKeyDownLarge(value, minimum, maximum, step, 10, direction, key, modifiers)
 }
 
@@ -379,7 +379,7 @@ func SliderKeyDown(value, minimum, maximum, step float32, direction Direction, k
 // moves 10 units (two steps) rather than 50. A non-positive largeStep also uses
 // 10. The result is snapped to step, so a large step that is not a multiple of
 // step lands on the nearest one.
-func SliderKeyDownLarge(value, minimum, maximum, step, largeStep float32, direction Direction, key ui.Key, modifiers ui.Modifiers) (float32, bool) {
+func SliderKeyDownLarge(value, minimum, maximum, step, largeStep float32, direction Direction, key gfx.Key, modifiers gfx.Modifiers) (float32, bool) {
 	unit := step
 	if unit <= 0 {
 		unit = 1
@@ -388,13 +388,13 @@ func SliderKeyDownLarge(value, minimum, maximum, step, largeStep float32, direct
 		largeStep = 10
 	}
 	jump := unit
-	if modifiers&ui.ModifierShift != 0 {
+	if modifiers&gfx.ModifierShift != 0 {
 		jump = largeStep
 	}
 	var next float32
 	switch key {
-	case ui.KeyRight, ui.KeyLeft:
-		forward := key == ui.KeyRight
+	case gfx.KeyRight, gfx.KeyLeft:
+		forward := key == gfx.KeyRight
 		if direction.IsRTL() {
 			forward = !forward
 		}
@@ -402,17 +402,17 @@ func SliderKeyDownLarge(value, minimum, maximum, step, largeStep float32, direct
 		if forward {
 			next = value + jump
 		}
-	case ui.KeyUp:
+	case gfx.KeyUp:
 		next = value + jump
-	case ui.KeyDown:
+	case gfx.KeyDown:
 		next = value - jump
-	case ui.KeyPageUp:
+	case gfx.KeyPageUp:
 		next = value + largeStep
-	case ui.KeyPageDown:
+	case gfx.KeyPageDown:
 		next = value - largeStep
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		next = minimum
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		next = maximum
 	default:
 		return value, false
@@ -426,7 +426,7 @@ func SliderKeyDownLarge(value, minimum, maximum, step, largeStep float32, direct
 // ends of the thumb's own range. Thumbs keep minSteps*step apart: moving a thumb
 // pushes its neighbours, while Home and End stop at the neighbour as Base UI's
 // range thumb does.
-func RangeSliderKeyDown(values []float32, index int, minimum, maximum, step, largeStep float32, minSteps int, direction Direction, key ui.Key, modifiers ui.Modifiers) bool {
+func RangeSliderKeyDown(values []float32, index int, minimum, maximum, step, largeStep float32, minSteps int, direction Direction, key gfx.Key, modifiers gfx.Modifiers) bool {
 	if index < 0 || index >= len(values) {
 		return false
 	}
@@ -445,7 +445,7 @@ func RangeSliderKeyDown(values []float32, index int, minimum, maximum, step, lar
 	if !handled {
 		return false
 	}
-	if key == ui.KeyHome || key == ui.KeyEnd {
+	if key == gfx.KeyHome || key == gfx.KeyEnd {
 		if index > 0 && target < values[index-1]+gap {
 			target = values[index-1] + gap
 		}

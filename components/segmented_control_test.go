@@ -4,25 +4,25 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 var segmentedControlTestOptions = [...]SegmentOption{
-	{ID: ui.Item(11), Label: "Day"},
-	{ID: ui.Item(12), Label: "Week"},
-	{ID: ui.Item(13), Label: "Month"},
+	{ID: gfx.Item(11), Label: "Day"},
+	{ID: gfx.Item(12), Label: "Week"},
+	{ID: gfx.Item(13), Label: "Month"},
 }
 
 func TestSegmentedControlPaintsStableOptionsAndSelection(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
 	BeginSegmentedControl(
 		&canvas,
 		theme,
-		ui.Rect{X: 6, Y: 8, Width: 180},
+		gfx.Rect{X: 6, Y: 8, Width: 180},
 		segmentedControlTestOptions[:],
-		ui.Item(12),
+		gfx.Item(12),
 	).Paint()
 
 	if len(canvas.Hits()) != 3 || len(canvas.Texts()) != 3 {
@@ -46,13 +46,13 @@ func TestSegmentedControlPaintsStableOptionsAndSelection(t *testing.T) {
 }
 
 func TestSegmentedControlPointerFeedbackKeepsCommandTopology(t *testing.T) {
-	theme := ui.DarkTheme()
-	bounds := ui.Rect{Width: 180, Height: 32}
+	theme := gfx.DarkTheme()
+	bounds := gfx.Rect{Width: 180, Height: 32}
 
-	paint := func(hovered, pressed uint32) []ui.Rectangle {
-		var canvas ui.Canvas
-		canvas.SetInteraction(ui.Item(int(hovered)), ui.Item(int(pressed)), ui.ID{}, false)
-		BeginSegmentedControl(&canvas, theme, bounds, segmentedControlTestOptions[:], ui.Item(12)).Paint()
+	paint := func(hovered, pressed uint32) []gfx.Rectangle {
+		var canvas gfx.Canvas
+		canvas.SetInteraction(gfx.Item(int(hovered)), gfx.Item(int(pressed)), gfx.ID{}, false)
+		BeginSegmentedControl(&canvas, theme, bounds, segmentedControlTestOptions[:], gfx.Item(12)).Paint()
 		return canvas.Rectangles()
 	}
 	resting := paint(0, 0)
@@ -72,14 +72,14 @@ func TestSegmentedControlPointerFeedbackKeepsCommandTopology(t *testing.T) {
 func TestSegmentedControlDeclaresRadiosAndKeepsDisabledOnesInTheTree(t *testing.T) {
 	options := segmentedControlTestOptions
 	options[1].Disabled = true
-	var partial ui.Canvas
-	BeginSegmentedControl(&partial, ui.LightTheme(), ui.Rect{Width: 180}, options[:], ui.Item(12)).Paint()
+	var partial gfx.Canvas
+	BeginSegmentedControl(&partial, gfx.LightTheme(), gfx.Rect{Width: 180}, options[:], gfx.Item(12)).Paint()
 	hits := partial.Hits()
 	if len(hits) != 3 {
 		t.Fatalf("hits = %+v, want one per option", hits)
 	}
 	for index, hit := range hits {
-		if hit.Role != ui.RoleRadio || hit.Checked != (index == 1) || hit.Selected != (index == 1) {
+		if hit.Role != gfx.RoleRadio || hit.Checked != (index == 1) || hit.Selected != (index == 1) {
 			t.Fatalf("hit %d = %+v, want a radio checked only for the selected option", index, hit)
 		}
 	}
@@ -87,8 +87,8 @@ func TestSegmentedControlDeclaresRadiosAndKeepsDisabledOnesInTheTree(t *testing.
 		t.Fatalf("disabled flags = %+v", hits)
 	}
 
-	var disabled ui.Canvas
-	BeginSegmentedControl(&disabled, ui.LightTheme(), ui.Rect{Width: 180}, options[:], ui.Item(12)).Disabled().Paint()
+	var disabled gfx.Canvas
+	BeginSegmentedControl(&disabled, gfx.LightTheme(), gfx.Rect{Width: 180}, options[:], gfx.Item(12)).Disabled().Paint()
 	if len(disabled.Hits()) != 3 {
 		t.Fatalf("disabled control declared %d hits, want 3", len(disabled.Hits()))
 	}
@@ -98,7 +98,7 @@ func TestSegmentedControlDeclaresRadiosAndKeepsDisabledOnesInTheTree(t *testing.
 		}
 	}
 	for _, text := range disabled.Texts() {
-		if text.Style.Color != ui.LightTheme().MutedForeground {
+		if text.Style.Color != gfx.LightTheme().MutedForeground {
 			t.Fatalf("disabled label color = %+v", text.Style.Color)
 		}
 	}
@@ -107,12 +107,12 @@ func TestSegmentedControlDeclaresRadiosAndKeepsDisabledOnesInTheTree(t *testing.
 // The focus ring belongs to the segment that holds the keyboard, not to the whole
 // control: it lies within that segment's own bounds, give or take its 3px halo.
 func TestSegmentedControlFocusRingIsAroundTheFocusedSegment(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	canvas.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(13), true)
-	bounds := ui.Rect{X: 4, Y: 5, Width: 180, Height: 32}
-	BeginSegmentedControl(&canvas, theme, bounds, segmentedControlTestOptions[:], ui.Item(12)).Paint()
-	var ring ui.Rectangle
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.Item(13), true)
+	bounds := gfx.Rect{X: 4, Y: 5, Width: 180, Height: 32}
+	BeginSegmentedControl(&canvas, theme, bounds, segmentedControlTestOptions[:], gfx.Item(12)).Paint()
+	var ring gfx.Rectangle
 	for _, rectangle := range canvas.Rectangles() {
 		if rectangle.Color == scaledAlpha(theme.Ring, 0.50) {
 			ring = rectangle
@@ -125,21 +125,21 @@ func TestSegmentedControlFocusRingIsAroundTheFocusedSegment(t *testing.T) {
 }
 
 func TestSegmentedControlClickedReportsTheClickedOption(t *testing.T) {
-	var canvas ui.Canvas
-	canvas.BeginEventPass(ui.Item(13))
+	var canvas gfx.Canvas
+	canvas.BeginEventPass(gfx.Item(13))
 	defer canvas.EndEventPass()
-	id, ok := BeginSegmentedControl(&canvas, ui.LightTheme(), ui.Rect{Width: 180}, segmentedControlTestOptions[:], ui.Item(12)).Paint().Clicked()
-	if !ok || id != ui.Item(13) {
+	id, ok := BeginSegmentedControl(&canvas, gfx.LightTheme(), gfx.Rect{Width: 180}, segmentedControlTestOptions[:], gfx.Item(12)).Paint().Clicked()
+	if !ok || id != gfx.Item(13) {
 		t.Fatalf("Clicked() = (%v, %v)", id, ok)
 	}
 }
 
 func TestSegmentedControlRepeatedPaintIsStable(t *testing.T) {
-	var canvas ui.Canvas
-	paint := func() ([]ui.Rectangle, []ui.Text, []ui.Hit) {
+	var canvas gfx.Canvas
+	paint := func() ([]gfx.Rectangle, []gfx.Text, []gfx.Hit) {
 		canvas.Reset()
-		canvas.SetInteraction(ui.Item(11), ui.ID{}, ui.ID{}, false)
-		BeginSegmentedControl(&canvas, ui.LightTheme(), ui.Rect{Width: 181}, segmentedControlTestOptions[:], ui.Item(12)).Paint()
+		canvas.SetInteraction(gfx.Item(11), gfx.ID{}, gfx.ID{}, false)
+		BeginSegmentedControl(&canvas, gfx.LightTheme(), gfx.Rect{Width: 181}, segmentedControlTestOptions[:], gfx.Item(12)).Paint()
 		return slices.Clone(canvas.Rectangles()), slices.Clone(canvas.Texts()), slices.Clone(canvas.Hits())
 	}
 	firstRectangles, firstTexts, firstHits := paint()
@@ -152,46 +152,46 @@ func TestSegmentedControlRepeatedPaintIsStable(t *testing.T) {
 }
 
 func TestSegmentedControlHitsUseRuntimeKeyboardActivation(t *testing.T) {
-	var canvas ui.Canvas
-	BeginSegmentedControl(&canvas, ui.LightTheme(), ui.Rect{Width: 180}, segmentedControlTestOptions[:], ui.Item(11)).Paint()
+	var canvas gfx.Canvas
+	BeginSegmentedControl(&canvas, gfx.LightTheme(), gfx.Rect{Width: 180}, segmentedControlTestOptions[:], gfx.Item(11)).Paint()
 	regions := make([]input.Region, len(canvas.Hits()))
 	for index, hit := range canvas.Hits() {
 		regions[index] = input.Region{Target: input.Target(hit.ID), Focusable: true}
 	}
 	var router input.Router
 	router.SetRegions(regions)
-	if !router.Focus(ui.Item(12)) {
+	if !router.Focus(gfx.Item(12)) {
 		t.Fatal("runtime could not focus the second segment")
 	}
 	for _, key := range []input.Key{input.KeyEnter, input.KeySpace} {
 		result := router.KeyDown(input.KeyEvent{Key: key})
-		if !result.Activated || result.Target != ui.Item(12) {
+		if !result.Activated || result.Target != gfx.Item(12) {
 			t.Fatalf("key %d result = %+v", key, result)
 		}
 	}
 }
 
 func BenchmarkSegmentedControlPaint(b *testing.B) {
-	var canvas ui.Canvas
-	theme := ui.DarkTheme()
-	bounds := ui.Rect{Width: 240, Height: 32}
-	BeginSegmentedControl(&canvas, theme, bounds, segmentedControlTestOptions[:], ui.Item(12)).Paint()
+	var canvas gfx.Canvas
+	theme := gfx.DarkTheme()
+	bounds := gfx.Rect{Width: 240, Height: 32}
+	BeginSegmentedControl(&canvas, theme, bounds, segmentedControlTestOptions[:], gfx.Item(12)).Paint()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
 		canvas.Reset()
-		BeginSegmentedControl(&canvas, theme, bounds, segmentedControlTestOptions[:], ui.Item(12)).Paint()
+		BeginSegmentedControl(&canvas, theme, bounds, segmentedControlTestOptions[:], gfx.Item(12)).Paint()
 	}
 }
 
 func TestSegmentedControlKeyDown(t *testing.T) {
 	options := [...]SegmentOption{
-		{ID: ui.Item(201)},
-		{ID: ui.Item(202), Disabled: true},
+		{ID: gfx.Item(201)},
+		{ID: gfx.Item(202), Disabled: true},
 		{},
-		{ID: ui.Item(204)},
-		{ID: ui.Item(205)},
+		{ID: gfx.Item(204)},
+		{ID: gfx.Item(205)},
 	}
 	tests := []struct {
 		name      string
@@ -216,8 +216,8 @@ func TestSegmentedControlKeyDown(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, handled := SegmentedControlKeyDown(ui.Item(int(test.current)), options[:], test.direction, test.key)
-			if got != ui.Item(int(test.want)) || handled != test.handled {
+			got, handled := SegmentedControlKeyDown(gfx.Item(int(test.current)), options[:], test.direction, test.key)
+			if got != gfx.Item(int(test.want)) || handled != test.handled {
 				t.Fatalf("SegmentedControlKeyDown() = (%d, %v), want (%d, %v)", got, handled, test.want, test.handled)
 			}
 		})
@@ -225,27 +225,27 @@ func TestSegmentedControlKeyDown(t *testing.T) {
 }
 
 func TestSegmentedControlKeyDownNoAvailableOptionAndNoAllocations(t *testing.T) {
-	options := [...]SegmentOption{{ID: ui.Item(201), Disabled: true}, {}, {ID: ui.Item(203), Disabled: true}}
-	if got, handled := SegmentedControlKeyDown(ui.Item(77), options[:], LTR, input.KeyEnd); got != ui.Item(77) || !handled {
+	options := [...]SegmentOption{{ID: gfx.Item(201), Disabled: true}, {}, {ID: gfx.Item(203), Disabled: true}}
+	if got, handled := SegmentedControlKeyDown(gfx.Item(77), options[:], LTR, input.KeyEnd); got != gfx.Item(77) || !handled {
 		t.Fatalf("all-disabled End = (%d, %v), want (77, true)", got, handled)
 	}
-	if got, handled := SegmentedControlKeyDown(ui.Item(77), nil, LTR, input.KeyLeft); got != ui.Item(77) || !handled {
+	if got, handled := SegmentedControlKeyDown(gfx.Item(77), nil, LTR, input.KeyLeft); got != gfx.Item(77) || !handled {
 		t.Fatalf("empty Left = (%d, %v), want (77, true)", got, handled)
 	}
 	if allocations := testing.AllocsPerRun(1000, func() {
-		SegmentedControlKeyDown(ui.Item(11), segmentedControlTestOptions[:], RTL, input.KeyLeft)
+		SegmentedControlKeyDown(gfx.Item(11), segmentedControlTestOptions[:], RTL, input.KeyLeft)
 	}); allocations != 0 {
 		t.Fatalf("SegmentedControlKeyDown allocations = %v", allocations)
 	}
 }
 
-var segmentedControlKeyDownResult ui.ID
+var segmentedControlKeyDownResult gfx.ID
 
 func BenchmarkSegmentedControlKeyDown(b *testing.B) {
-	var result ui.ID
+	var result gfx.ID
 	b.ReportAllocs()
 	for range b.N {
-		result, _ = SegmentedControlKeyDown(ui.Item(11), segmentedControlTestOptions[:], LTR, input.KeyRight)
+		result, _ = SegmentedControlKeyDown(gfx.Item(11), segmentedControlTestOptions[:], LTR, input.KeyRight)
 	}
 	segmentedControlKeyDownResult = result
 }
@@ -255,13 +255,13 @@ func BenchmarkSegmentedControlKeyDown(b *testing.B) {
 func TestSegmentedControlSelectedPillIsLighterThanTheTrackInDarkThemes(t *testing.T) {
 	for _, test := range []struct {
 		name  string
-		theme ui.Theme
+		theme gfx.Theme
 	}{
-		{"dark", ui.DarkTheme()},
-		{"light", ui.LightTheme()},
+		{"dark", gfx.DarkTheme()},
+		{"light", gfx.LightTheme()},
 	} {
-		var canvas ui.Canvas
-		BeginSegmentedControl(&canvas, test.theme, ui.Rect{X: 6, Y: 8, Width: 180}, segmentedControlTestOptions[:], ui.Item(12)).Paint()
+		var canvas gfx.Canvas
+		BeginSegmentedControl(&canvas, test.theme, gfx.Rect{X: 6, Y: 8, Width: 180}, segmentedControlTestOptions[:], gfx.Item(12)).Paint()
 		rectangles := canvas.Rectangles()
 		// Two for the bordered track, then one pill per option.
 		rested, selected := rectangles[2].Color, rectangles[3].Color
@@ -275,18 +275,18 @@ func TestSegmentedControlSelectedPillIsLighterThanTheTrackInDarkThemes(t *testin
 }
 
 func TestSegmentedControlWidthKeepsEveryLabelWholeInItsSegment(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	options := []SegmentOption{
-		{ID: ui.Item(1), Label: "Off"},
-		{ID: ui.Item(2), Label: "Numbers and the time of day"},
-		{ID: ui.Item(3), Label: "Time"},
+		{ID: gfx.Item(1), Label: "Off"},
+		{ID: gfx.Item(2), Label: "Numbers and the time of day"},
+		{ID: gfx.Item(3), Label: "Time"},
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	width := SegmentedControlWidth(&canvas, theme, options)
-	BeginSegmentedControl(&canvas, theme, ui.Rect{Width: width}, options, options[0].ID).Paint()
+	BeginSegmentedControl(&canvas, theme, gfx.Rect{Width: width}, options, options[0].ID).Paint()
 	segment := width / float32(len(options))
 	for _, text := range canvas.Texts() {
-		if measured := canvas.TextWidthWeight(text.Value, theme.Metrics.FontSizeM, ui.WeightMedium); measured+2*theme.Metrics.PadControlX > segment+0.01 {
+		if measured := canvas.TextWidthWeight(text.Value, theme.Metrics.FontSizeM, gfx.WeightMedium); measured+2*theme.Metrics.PadControlX > segment+0.01 {
 			t.Fatalf("%q is %v wide in a segment of %v", text.Value, measured, segment)
 		}
 	}

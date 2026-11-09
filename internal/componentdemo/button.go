@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"strconv"
 
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -12,7 +12,7 @@ var buttonComponent = Component{
 	paint: (*State).paintButton, initialize: (*State).initializeButton,
 	Examples: []Example{
 		{ID: "default", Title: "点击计数", Description: "点击或键盘激活按钮，更新调用方持有的计数。", Snippet: `button := tree.ID(page, "button")
-if f.Button(button, "Click me").Self(flex.Start).Clicked() {
+if f.Button(button, "Click me").Self(ui.Start).Clicked() {
     state.clicks++
 }`, Height: 180},
 		{ID: "variants", Title: "六种变体", Description: "六种生产按钮外观共享同一个点击计数。", Snippet: `f.Grid(128).Gap(12).Children(func() {
@@ -58,14 +58,14 @@ func (state *State) countButtonClick() {
 	state.button.label = state.buttonLabel()
 }
 
-func (state *State) paintButton(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintButton(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	countLabel := state.button.label
 	if countLabel == "" {
 		countLabel = state.buttonLabel()
 	}
-	state.page(canvas, theme, size, 480, countLabel, func(f *flex.Frame) {
+	state.page(canvas, theme, size, 480, countLabel, func(f *ui.Frame) {
 		if state.exampleID == "default" {
-			if f.Button(buttonPress.At(0), "Click me").Self(flex.Start).Clicked() {
+			if f.Button(buttonPress.At(0), "Click me").Self(ui.Start).Clicked() {
 				state.countButtonClick()
 			}
 			f.Text(state.Text("点击按钮，或用 Tab / Enter 操作。", "Click the button, or use Tab / Enter.")).FontSize(theme.Metrics.FontSizeS).Muted()

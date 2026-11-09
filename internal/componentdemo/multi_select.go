@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
@@ -28,17 +28,17 @@ var multiSelectComponent = Component{
 		return editableField{ID: multiSelectInput}, example != "disabled"
 	},
 	editor: func(state *State) *text.Editor { return &state.multiSelect.Query },
-	key: func(state *State, event ui.KeyEvent) ui.EventResult {
+	key: func(state *State, event gfx.KeyEvent) gfx.EventResult {
 		if state.exampleID == "disabled" {
-			return ui.EventResult{}
+			return gfx.EventResult{}
 		}
-		if event.Target != multiSelectInput && (!state.multiSelect.Open || event.Key != ui.KeyEscape && event.Key != ui.KeyTab) {
-			return ui.EventResult{}
+		if event.Target != multiSelectInput && (!state.multiSelect.Open || event.Key != gfx.KeyEscape && event.Key != gfx.KeyTab) {
+			return gfx.EventResult{}
 		}
 		return state.multiSelect.Key(event)
 	},
-	scroll: func(state *State, event ui.ScrollEvent) ui.EventResult {
-		return ui.EventResult{Handled: state.multiSelect.Open, Repaint: state.multiSelect.Open && state.multiSelect.Wheel(event)}
+	scroll: func(state *State, event gfx.ScrollEvent) gfx.EventResult {
+		return gfx.EventResult{Handled: state.multiSelect.Open, Repaint: state.multiSelect.Open && state.multiSelect.Wheel(event)}
 	},
 	paint: (*State).paintMultiSelect,
 	Examples: []Example{
@@ -56,9 +56,9 @@ components.PaintMultiSelect(canvas, theme, bounds, &selection, options)`},
 	},
 }
 
-func (state *State) paintMultiSelect(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var field flex.Box
-	state.page(canvas, theme, size, 420, state.Text("Multi Select · 多选标签", "Multi Select · Tags"), func(f *flex.Frame) {
+func (state *State) paintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var field ui.Box
+	state.page(canvas, theme, size, 420, state.Text("Multi Select · 多选标签", "Multi Select · Tags"), func(f *ui.Frame) {
 		f.Text(state.Text("输入筛选，回车创建，支持中文输入法。", "Type to filter, press Enter to create. Native IME supported.")).Muted().FontSize(theme.Metrics.FontSizeS)
 		field = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
 	})
@@ -66,7 +66,7 @@ func (state *State) paintMultiSelect(canvas *ui.Canvas, theme ui.Theme, size ui.
 		InputID: multiSelectInput, TriggerID: multiSelectTrigger, DismissID: multiSelectDismiss, Scope: multiSelectScope,
 		OptionIDs: multiSelectOptions, RemoveIDs: multiSelectRemove, Label: state.Text("标签", "Tags"), Placeholder: state.Text("选择或输入标签", "Select or create tags"),
 		EmptyLabel: state.Text("没有匹配项", "No matching options"), CreatePrefix: state.Text("创建：", "Create: "), Disabled: state.exampleID == "disabled",
-		Viewport: ui.Rect{Width: size.Width, Height: size.Height}, Layer: 6,
+		Viewport: gfx.Rect{Width: size.Width, Height: size.Height}, Layer: 6,
 	})
 	if state.exampleID == "disabled" {
 		return

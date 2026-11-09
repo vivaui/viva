@@ -1,4 +1,4 @@
-// Package textenginetest is the contract every ui.TextEngine passes: the
+// Package textenginetest is the contract every gfx.TextEngine passes: the
 // reference metrics, and the engine of each backend, run Run from their own tests.
 package textenginetest
 
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const tolerance = 0.5 // logical pixels: hinting and rounding in a platform's own advances
@@ -32,10 +32,10 @@ var mixedDirection = []string{
 	"שלום",
 }
 
-var weights = []float32{ui.WeightRegular, ui.WeightBold}
+var weights = []float32{gfx.WeightRegular, gfx.WeightBold}
 
-// Run checks engine against the contract of ui.TextEngine.
-func Run(t *testing.T, engine ui.TextEngine) {
+// Run checks engine against the contract of gfx.TextEngine.
+func Run(t *testing.T, engine gfx.TextEngine) {
 	t.Helper()
 	t.Run("EmptyLine", func(t *testing.T) { emptyLine(t, engine) })
 	t.Run("LeftToRight", func(t *testing.T) {
@@ -50,29 +50,29 @@ func Run(t *testing.T, engine ui.TextEngine) {
 	})
 	t.Run("MixedDirection", func(t *testing.T) {
 		for _, value := range mixedDirection {
-			t.Run(fmt.Sprintf("%q", value), func(t *testing.T) { mixedLine(t, engine, value, 14, ui.WeightRegular) })
+			t.Run(fmt.Sprintf("%q", value), func(t *testing.T) { mixedLine(t, engine, value, 14, gfx.WeightRegular) })
 		}
 	})
 	t.Run("Scales", func(t *testing.T) { scales(t, engine) })
 	t.Run("WarmQueriesDoNotAllocate", func(t *testing.T) { allocations(t, engine) })
 }
 
-func emptyLine(t *testing.T, engine ui.TextEngine) {
-	if got := engine.Width("", 14, ui.WeightRegular); got != 0 {
+func emptyLine(t *testing.T, engine gfx.TextEngine) {
+	if got := engine.Width("", 14, gfx.WeightRegular); got != 0 {
 		t.Errorf("Width of an empty line = %v", got)
 	}
-	if got := engine.Caret("", 14, ui.WeightRegular, 0); got != 0 {
+	if got := engine.Caret("", 14, gfx.WeightRegular, 0); got != 0 {
 		t.Errorf("Caret of an empty line = %v", got)
 	}
-	if got := engine.OffsetAt("", 14, ui.WeightRegular, 50); got != 0 {
+	if got := engine.OffsetAt("", 14, gfx.WeightRegular, 50); got != 0 {
 		t.Errorf("OffsetAt of an empty line = %v", got)
 	}
-	if total := total(engine.Selection(nil, "", 14, ui.WeightRegular, 0, 0)); total != 0 {
+	if total := total(engine.Selection(nil, "", 14, gfx.WeightRegular, 0, 0)); total != 0 {
 		t.Errorf("Selection of an empty line has width %v", total)
 	}
 }
 
-func leftToRightLine(t *testing.T, engine ui.TextEngine, value string, size, weight float32) {
+func leftToRightLine(t *testing.T, engine gfx.TextEngine, value string, size, weight float32) {
 	width := engine.Width(value, size, weight)
 	if width <= 0 {
 		t.Fatalf("Width = %v", width)
@@ -142,7 +142,7 @@ func leftToRightLine(t *testing.T, engine ui.TextEngine, value string, size, wei
 	}
 }
 
-func mixedLine(t *testing.T, engine ui.TextEngine, value string, size, weight float32) {
+func mixedLine(t *testing.T, engine gfx.TextEngine, value string, size, weight float32) {
 	width := engine.Width(value, size, weight)
 	if width <= 0 {
 		t.Fatalf("Width = %v", width)
@@ -169,33 +169,33 @@ func mixedLine(t *testing.T, engine ui.TextEngine, value string, size, weight fl
 	}
 }
 
-func scales(t *testing.T, engine ui.TextEngine) {
+func scales(t *testing.T, engine gfx.TextEngine) {
 	const value = "The quick brown fox 2213123"
-	regular := engine.Width(value, 14, ui.WeightRegular)
+	regular := engine.Width(value, 14, gfx.WeightRegular)
 	// A font's spacing changes with its optical size (San Francisco is tighter at
 	// large sizes: 1.88x at twice the size), so only the order of magnitude is held.
-	if double := engine.Width(value, 28, ui.WeightRegular); double/regular < 1.7 || double/regular > 2.3 {
+	if double := engine.Width(value, 28, gfx.WeightRegular); double/regular < 1.7 || double/regular > 2.3 {
 		t.Errorf("twice the size is %vx as wide", double/regular)
 	}
-	if bold := engine.Width(value, 14, ui.WeightBold); bold < regular-tolerance {
+	if bold := engine.Width(value, 14, gfx.WeightBold); bold < regular-tolerance {
 		t.Errorf("bold (%v) is narrower than regular (%v)", bold, regular)
 	}
-	if cjk := engine.Width("日本語", 14, ui.WeightRegular); cjk < 2*14 {
+	if cjk := engine.Width("日本語", 14, gfx.WeightRegular); cjk < 2*14 {
 		t.Errorf("three CJK characters are %v wide: the fallback font is not measured", cjk)
 	}
 }
 
-func allocations(t *testing.T, engine ui.TextEngine) {
+func allocations(t *testing.T, engine gfx.TextEngine) {
 	if raceEnabled {
 		t.Skip("race instrumentation intentionally drops sync.Pool entries; allocation budgets run without -race")
 	}
 	const value = "192.168.1.1 主机 abc שלום"
-	dst := make([]ui.TextSpan, 0, 8)
+	dst := make([]gfx.TextSpan, 0, 8)
 	query := func() {
-		engine.Width(value, 14, ui.WeightRegular)
-		engine.Caret(value, 14, ui.WeightRegular, 5)
-		engine.OffsetAt(value, 14, ui.WeightRegular, 40)
-		dst = engine.Selection(dst[:0], value, 14, ui.WeightRegular, 2, 12)
+		engine.Width(value, 14, gfx.WeightRegular)
+		engine.Caret(value, 14, gfx.WeightRegular, 5)
+		engine.OffsetAt(value, 14, gfx.WeightRegular, 40)
+		dst = engine.Selection(dst[:0], value, 14, gfx.WeightRegular, 2, 12)
 	}
 	query()
 	if allocs := testing.AllocsPerRun(50, query); allocs != 0 {
@@ -203,7 +203,7 @@ func allocations(t *testing.T, engine ui.TextEngine) {
 	}
 }
 
-func total(spans []ui.TextSpan) float32 {
+func total(spans []gfx.TextSpan) float32 {
 	var sum float32
 	for _, span := range spans {
 		sum += span.Width

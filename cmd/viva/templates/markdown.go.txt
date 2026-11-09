@@ -6,8 +6,8 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/markdown"
-	"github.com/vivaui/viva/ui"
 )
 
 // MarkdownStyle sizes the text of a MarkdownView. The zero value is a 13-point
@@ -19,7 +19,7 @@ type MarkdownStyle struct {
 	// LineHeight is the distance between the lines of body text.
 	LineHeight float32
 	// MonoFace is the fixed-pitch family of code.
-	MonoFace ui.MonoFace
+	MonoFace gfx.MonoFace
 	// CodeInset keeps this much of the right side of every code block free of
 	// text: room for a button the application paints over the block.
 	CodeInset float32
@@ -60,21 +60,21 @@ type MarkdownCodeRun struct {
 
 // MarkdownLook colors a MarkdownView.
 type MarkdownLook struct {
-	Text           ui.Color // body text, headings and code
-	Muted          ui.Color // quotes, list markers
-	Link           ui.Color
-	CodeFill       ui.Color // behind a fenced block
-	InlineCodeFill ui.Color // behind code inside a line
-	Line           ui.Color // borders, rules and quote bars
+	Text           gfx.Color // body text, headings and code
+	Muted          gfx.Color // quotes, list markers
+	Link           gfx.Color
+	CodeFill       gfx.Color // behind a fenced block
+	InlineCodeFill gfx.Color // behind code inside a line
+	Line           gfx.Color // borders, rules and quote bars
 	// Code colors the classes of highlighted code, by class; a class left
 	// transparent is drawn in Text.
-	Code      [MarkdownCodeClasses]ui.Color
-	Selection ui.Color // behind selected text; transparent paints none
-	Radius    float32  // corners of code blocks and tables
+	Code      [MarkdownCodeClasses]gfx.Color
+	Selection gfx.Color // behind selected text; transparent paints none
+	Radius    float32   // corners of code blocks and tables
 }
 
 // MarkdownLookFor derives a look from a theme.
-func MarkdownLookFor(theme ui.Theme) MarkdownLook {
+func MarkdownLookFor(theme gfx.Theme) MarkdownLook {
 	selection := theme.Primary
 	selection.Alpha *= 0.50
 	return MarkdownLook{
@@ -120,7 +120,7 @@ func snapRune(text []byte, offset int) int {
 // MarkdownCode is a fenced code block of a laid-out document: where it is, so
 // the application can put a copy button on it, and what it holds.
 type MarkdownCode struct {
-	Bounds ui.Rect // relative to the origin the document is painted at
+	Bounds gfx.Rect // relative to the origin the document is painted at
 	Text   string
 }
 
@@ -131,11 +131,11 @@ type MarkdownPaint struct {
 	X, Y float32
 	// Clip is the visible part of the canvas. Nothing outside it is painted
 	// and no link outside it gets a hit region. The zero Rect means everything.
-	Clip ui.Rect
+	Clip gfx.Rect
 	// Links names the hit regions of links: fragment i of the view is
 	// Links.At(Base+i), and MarkdownView.Link(i) says where it points. Zero
 	// paints links without hits.
-	Links ui.Scope
+	Links gfx.Scope
 	// Base is added to the number of every fragment, so that several views
 	// painted in one frame can share a scope: give each the total of the
 	// LinkCount of the views before it.
@@ -144,7 +144,7 @@ type MarkdownPaint struct {
 	Selection MarkdownSelection
 }
 
-var _ ui.TextPlacement = (*MarkdownView)(nil)
+var _ gfx.TextPlacement = (*MarkdownView)(nil)
 
 // MarkdownView lays out and paints a markdown.Document. It keeps the arrays it
 // builds, so laying out the next version of a message that is still being typed
@@ -162,8 +162,8 @@ type MarkdownView struct {
 	pieces     []mdPiece
 	runs       []mdCodeRun
 	hl         []MarkdownCodeRun
-	scratch    []ui.TextRun
-	selScratch []ui.TextSpan
+	scratch    []gfx.TextRun
+	selScratch []gfx.TextSpan
 	boxes      []mdBox
 	links      []mdLink
 	codes      []MarkdownCode
@@ -174,12 +174,12 @@ type MarkdownView struct {
 	tabBound   []int32 // where each byte of a spread code line came from
 	plain      []byte  // the rendered text, for selection and copying
 	spanBase   []int32 // where each span of the current inline block starts in plain
-	measure    *ui.Canvas
+	measure    *gfx.Canvas
 	paintX     float32 // where the last Paint put the document
 	paintY     float32
 	painted    bool
 	bars       [markdownMaxQuote + 1]int32
-	face       ui.MonoFace
+	face       gfx.MonoFace
 	height     float32
 }
 
@@ -201,7 +201,7 @@ func (v *MarkdownView) SelectedText(sel MarkdownSelection) string {
 // answer text. It uses the origin and measurements of the last Paint, so it is
 // valid from that paint until the next Layout or Paint. Decoration such as list
 // markers is skipped; a point in the margin snaps to the nearest character.
-func (v *MarkdownView) OffsetAt(point ui.Point) (offset int, ok bool) {
+func (v *MarkdownView) OffsetAt(point gfx.Point) (offset int, ok bool) {
 	if !v.painted || v.measure == nil || len(v.pieces) == 0 {
 		return 0, false
 	}
@@ -219,7 +219,7 @@ func (v *MarkdownView) OffsetAt(point ui.Point) (offset int, ok bool) {
 			if end > start && x >= start && x <= end {
 				gap := int(piece.plainLo - previous.plainHi)
 				position := int(float32(gap)*(x-start)/(end-start) + 0.5)
-				return ui.GraphemeStart(unsafe.String(unsafe.SliceData(v.plain), len(v.plain)), int(previous.plainHi)+min(max(position, 0), gap)), true
+				return gfx.GraphemeStart(unsafe.String(unsafe.SliceData(v.plain), len(v.plain)), int(previous.plainHi)+min(max(position, 0), gap)), true
 			}
 		}
 		previous = piece
@@ -248,7 +248,7 @@ func (v *MarkdownView) OffsetAt(point ui.Point) (offset int, ok bool) {
 	if piece.mono {
 		local = v.codeOffsetAt(piece, localX)
 	} else {
-		local = v.measure.TextOffsetAtStyle(piece.text, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic}, localX)
+		local = v.measure.TextOffsetAtStyle(piece.text, gfx.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic}, localX)
 	}
 	local = min(max(local, 0), int(piece.plainHi-piece.plainLo))
 	return int(piece.plainLo) + local, true
@@ -256,12 +256,12 @@ func (v *MarkdownView) OffsetAt(point ui.Point) (offset int, ok bool) {
 
 // CaretAt returns the window rectangle for a rendered byte offset after Paint.
 // It reports geometry only; MarkdownView does not own the selection or editor.
-func (v *MarkdownView) CaretAt(offset int) (ui.Rect, bool) {
+func (v *MarkdownView) CaretAt(offset int) (gfx.Rect, bool) {
 	if !v.painted || v.measure == nil || len(v.pieces) == 0 {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
 	value := unsafe.String(unsafe.SliceData(v.plain), len(v.plain))
-	offset = ui.GraphemeStart(value, offset)
+	offset = gfx.GraphemeStart(value, offset)
 	var chosen, before, after *mdPiece
 	for index := range v.pieces {
 		piece := &v.pieces[index]
@@ -288,10 +288,10 @@ func (v *MarkdownView) CaretAt(offset int) (ui.Rect, bool) {
 			start := before.x + v.caretAdvance(before, int(before.plainHi-before.plainLo))
 			end := after.x + v.caretAdvance(after, 0)
 			fraction := float32(offset-int(before.plainHi)) / float32(after.plainLo-before.plainHi)
-			return ui.Rect{X: v.paintX + start + (end-start)*fraction, Y: v.paintY + before.y, Width: 1, Height: before.h}, true
+			return gfx.Rect{X: v.paintX + start + (end-start)*fraction, Y: v.paintY + before.y, Width: 1, Height: before.h}, true
 		}
 		if before == nil && after == nil {
-			return ui.Rect{}, false
+			return gfx.Rect{}, false
 		}
 		if before == nil || after != nil && int(after.plainLo)-offset <= offset-int(before.plainHi) {
 			chosen = after
@@ -303,7 +303,7 @@ func (v *MarkdownView) CaretAt(offset int) (ui.Rect, bool) {
 	}
 	local := min(max(offset-int(chosen.plainLo), 0), int(chosen.plainHi-chosen.plainLo))
 	advance := v.caretAdvance(chosen, local)
-	return ui.Rect{X: v.paintX + chosen.x + advance, Y: v.paintY + chosen.y, Width: 1, Height: chosen.h}, true
+	return gfx.Rect{X: v.paintX + chosen.x + advance, Y: v.paintY + chosen.y, Width: 1, Height: chosen.h}, true
 }
 
 func (v *MarkdownView) caretAdvance(piece *mdPiece, local int) float32 {
@@ -312,13 +312,13 @@ func (v *MarkdownView) caretAdvance(piece *mdPiece, local int) float32 {
 		_, display := v.codeDisplayRange(piece, local, local)
 		advance = piece.padX + float32(monoCells(piece.text[:display]))*piece.cell
 	} else {
-		advance = v.measure.TextCaretStyle(piece.text, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic}, local)
+		advance = v.measure.TextCaretStyle(piece.text, gfx.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic}, local)
 	}
 	return advance
 }
 
 // CaretBounds reports no caret: a MarkdownView paints text, not an input field.
-func (v *MarkdownView) CaretBounds() (ui.Rect, bool) { return ui.Rect{}, false }
+func (v *MarkdownView) CaretBounds() (gfx.Rect, bool) { return gfx.Rect{}, false }
 
 // codeOffsetAt is the source byte offset nearest x inside a fixed-pitch piece.
 // The piece's own cell width is used, because inline code is drawn smaller than
@@ -504,7 +504,7 @@ type mdFont struct {
 // mdLayout is the state of one Layout call.
 type mdLayout struct {
 	v      *MarkdownView
-	canvas *ui.Canvas
+	canvas *gfx.Canvas
 	style  MarkdownStyle
 	doc    *markdown.Document
 	lines  int
@@ -512,7 +512,7 @@ type mdLayout struct {
 
 // Layout positions the blocks of doc in a column width wide and returns its
 // height. Positions are relative to the point the document is painted at.
-func (v *MarkdownView) Layout(canvas *ui.Canvas, style MarkdownStyle, doc *markdown.Document, width float32) float32 {
+func (v *MarkdownView) Layout(canvas *gfx.Canvas, style MarkdownStyle, doc *markdown.Document, width float32) float32 {
 	if style.Size <= 0 {
 		style.Size = 13
 	}
@@ -527,7 +527,7 @@ func (v *MarkdownView) Layout(canvas *ui.Canvas, style MarkdownStyle, doc *markd
 	l := mdLayout{v: v, canvas: canvas, style: style, doc: doc}
 	width = max(width, 40)
 
-	body := mdFont{size: style.Size, line: style.LineHeight, weight: ui.WeightRegular, color: mdColText}
+	body := mdFont{size: style.Size, line: style.LineHeight, weight: gfx.WeightRegular, color: mdColText}
 	y := float32(0)
 	var prev *markdown.Block
 	for index := range doc.Blocks {
@@ -589,9 +589,9 @@ func (l *mdLayout) heading(level int, t mdFont) mdFont {
 	}
 	t.size *= scale
 	t.line = float32(int(t.line*scale + 0.5))
-	t.weight = ui.WeightSemibold
+	t.weight = gfx.WeightSemibold
 	if level == 1 {
-		t.weight = ui.WeightBold
+		t.weight = gfx.WeightBold
 	}
 	return t
 }
@@ -664,11 +664,11 @@ func (l *mdLayout) marker(b *markdown.Block, x, y float32, t mdFont) {
 		v.numbers = append(v.numbers, '.')
 		text = unsafe.String(&v.numbers[start], len(v.numbers)-start)
 	}
-	w := l.canvas.TextWidthWeight(text, t.size, ui.WeightRegular)
+	w := l.canvas.TextWidthWeight(text, t.size, gfx.WeightRegular)
 	v.pieces = append(v.pieces, mdPiece{
 		plainLo: -1, plainHi: -1,
 		text: text, x: x + markdownMarkerW - 6 - w, y: y, w: w + 2, h: t.line, size: t.size,
-		weight: ui.WeightRegular, color: mdColMuted, link: -1,
+		weight: gfx.WeightRegular, color: mdColMuted, link: -1,
 	})
 }
 
@@ -715,7 +715,7 @@ func (l *mdLayout) code(b *markdown.Block, x, width, y float32) float32 {
 				piece := mdPiece{
 					plainLo: plainLo, plainHi: int32(len(v.plain)), codeCol: int32(column), cell: cell, spread: true,
 					text: chunk, x: x + markdownCodePadX, y: y, w: float32(monoCells(chunk)) * cell, h: height,
-					size: size, weight: ui.WeightRegular, color: mdColText, mono: true, link: -1,
+					size: size, weight: gfx.WeightRegular, color: mdColText, mono: true, link: -1,
 				}
 				piece.runLo = int32(len(v.runs))
 				v.appendCodeRuns(line, start, end, marked)
@@ -736,7 +736,7 @@ func (l *mdLayout) code(b *markdown.Block, x, width, y float32) float32 {
 		text = rest
 	}
 	y += markdownCodePadY
-	rect := ui.Rect{X: x, Y: top, Width: width, Height: y - top}
+	rect := gfx.Rect{X: x, Y: top, Width: width, Height: y - top}
 	v.boxes = append(v.boxes, mdBox{kind: mdBoxCode, x: rect.X, y: rect.Y, w: rect.Width, h: rect.Height})
 	v.codes = append(v.codes, MarkdownCode{Bounds: rect, Text: b.Text})
 	return y
@@ -933,7 +933,7 @@ func (l *mdLayout) table(b *markdown.Block, x, width, y float32, t mdFont) float
 		natural[c] = 2 * markdownCellPadX
 	}
 	head := t
-	head.weight = ui.WeightSemibold
+	head.weight = gfx.WeightSemibold
 	for i, cell := range cells[:rows*columns] {
 		style := t
 		if i < columns {
@@ -1028,10 +1028,10 @@ func (l *mdLayout) natural(spans []markdown.Span, t mdFont) float32 {
 func spanWeight(base float32, style markdown.Style) float32 {
 	switch {
 	case style&markdown.Bold != 0:
-		if base >= ui.WeightSemibold {
-			return ui.WeightBold
+		if base >= gfx.WeightSemibold {
+			return gfx.WeightBold
 		}
-		return ui.WeightSemibold
+		return gfx.WeightSemibold
 	}
 	return base
 }
@@ -1061,8 +1061,8 @@ func (l *mdLayout) atomize(spans []markdown.Span, t mdFont) {
 	cell, _ := l.canvas.MonoCellSize(monoSize, l.style.MonoFace)
 	// A blank is as wide as one of the regular face whatever its span's weight, so that
 	// emphasis does not move the words around it. An italic span's blank is the italic face's.
-	space := l.canvas.TextWidthWeight(" ", t.size, ui.WeightRegular)
-	italicSpace := l.canvas.TextWidthStyle(" ", ui.TextStyle{Size: t.size, Weight: ui.WeightRegular, Italic: true})
+	space := l.canvas.TextWidthWeight(" ", t.size, gfx.WeightRegular)
+	italicSpace := l.canvas.TextWidthStyle(" ", gfx.TextStyle{Size: t.size, Weight: gfx.WeightRegular, Italic: true})
 	var pending float32
 	for si, sp := range spans {
 		if sp.Text == markdown.Newline {
@@ -1122,7 +1122,7 @@ func (l *mdLayout) atomize(spans []markdown.Span, t mdFont) {
 			if mono {
 				w = float32(monoCells(text[i:j]))*cell + 2*markdownInlinePad
 			} else if italic {
-				w = l.canvas.TextWidthStyle(text[i:j], ui.TextStyle{Size: size, Weight: weight, Italic: true})
+				w = l.canvas.TextWidthStyle(text[i:j], gfx.TextStyle{Size: size, Weight: weight, Italic: true})
 			} else {
 				w = l.canvas.TextWidthWeight(text[i:j], size, weight)
 			}
@@ -1241,7 +1241,7 @@ func (m *mdLine) spanWidth(sp markdown.Span, text string) float32 {
 	size, weight := m.t.size, spanWeight(m.t.weight, sp.Style)
 	if sp.Style&markdown.Mono == 0 {
 		if sp.Style&markdown.Italic != 0 {
-			return m.l.canvas.TextWidthStyle(text, ui.TextStyle{Size: size, Weight: weight, Italic: true})
+			return m.l.canvas.TextWidthStyle(text, gfx.TextStyle{Size: size, Weight: weight, Italic: true})
 		}
 		return m.l.canvas.TextWidthWeight(text, size, weight)
 	}
@@ -1561,7 +1561,7 @@ func (m *mdLine) endLine() {
 }
 
 // Paint draws the laid-out document.
-func (v *MarkdownView) Paint(canvas *ui.Canvas, p MarkdownPaint) {
+func (v *MarkdownView) Paint(canvas *gfx.Canvas, p MarkdownPaint) {
 	v.paintX, v.paintY, v.painted = p.X, p.Y, true
 	look := p.Look
 	clipped := p.Clip.Height > 0
@@ -1569,13 +1569,13 @@ func (v *MarkdownView) Paint(canvas *ui.Canvas, p MarkdownPaint) {
 		return !clipped || (y+h >= p.Clip.Y && y <= p.Clip.Y+p.Clip.Height)
 	}
 	if clipped {
-		canvas.Clip(ui.Rect{
+		canvas.Clip(gfx.Rect{
 			X: p.Clip.X, Y: p.Clip.Y, Width: p.Clip.Width, Height: p.Clip.Height,
 		})
 		defer canvas.Unclip()
 	}
 	for _, box := range v.boxes {
-		rect := ui.Rect{X: p.X + box.x, Y: p.Y + box.y, Width: box.w, Height: box.h}
+		rect := gfx.Rect{X: p.X + box.x, Y: p.Y + box.y, Width: box.w, Height: box.h}
 		if !visible(rect.Y, rect.Height) {
 			continue
 		}
@@ -1615,20 +1615,20 @@ func (v *MarkdownView) Paint(canvas *ui.Canvas, p MarkdownPaint) {
 					}
 					x := p.X + piece.x + piece.padX + float32(monoCells(piece.text[:from]))*cell
 					width := float32(monoCells(piece.text[from:to])) * cell
-					canvas.Fill(ui.Rect{X: x, Y: p.Y + piece.y, Width: width, Height: piece.h}, look.Selection)
+					canvas.Fill(gfx.Rect{X: x, Y: p.Y + piece.y, Width: width, Height: piece.h}, look.Selection)
 				}
 				continue
 			}
-			v.selScratch = canvas.TextSelectionStyle(v.selScratch[:0], piece.text, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic},
+			v.selScratch = canvas.TextSelectionStyle(v.selScratch[:0], piece.text, gfx.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic},
 				lo-int(piece.plainLo), hi-int(piece.plainLo))
 			for _, span := range v.selScratch {
-				canvas.Fill(ui.Rect{X: p.X + piece.x + span.X, Y: p.Y + piece.y, Width: span.Width, Height: piece.h}, look.Selection)
+				canvas.Fill(gfx.Rect{X: p.X + piece.x + span.X, Y: p.Y + piece.y, Width: span.Width, Height: piece.h}, look.Selection)
 			}
 		}
 	}
 	for index := range v.pieces {
 		piece := &v.pieces[index]
-		rect := ui.Rect{
+		rect := gfx.Rect{
 			X: p.X + piece.x + piece.padX, Y: p.Y + piece.y,
 			Width: piece.w - 2*piece.padX, Height: piece.h,
 		}
@@ -1650,31 +1650,31 @@ func (v *MarkdownView) Paint(canvas *ui.Canvas, p MarkdownPaint) {
 				if run.class > 0 && int(run.class) < len(look.Code) && look.Code[run.class].Alpha > 0 {
 					stretch = look.Code[run.class]
 				}
-				v.scratch = append(v.scratch, ui.TextRun{
+				v.scratch = append(v.scratch, gfx.TextRun{
 					Column: column, Bytes: run.bytes, Cells: run.cells, Color: stretch, Weight: piece.weight,
 				})
 				column += run.cells
 			}
-			canvas.LabelRuns(piece.text, rect, ui.TextStyle{
+			canvas.LabelRuns(piece.text, rect, gfx.TextStyle{
 				Size: piece.size, Weight: piece.weight, Color: color, Mono: true, MonoFace: v.face,
 			}, piece.cell, v.scratch)
 		} else {
-			canvas.Label(piece.text, rect, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic, Color: color, Mono: piece.mono, MonoFace: v.face})
+			canvas.Label(piece.text, rect, gfx.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic, Color: color, Mono: piece.mono, MonoFace: v.face})
 		}
 		if piece.strike {
-			canvas.Fill(ui.Rect{X: rect.X, Y: rect.Y + rect.Height/2, Width: rect.Width, Height: 1}, color)
+			canvas.Fill(gfx.Rect{X: rect.X, Y: rect.Y + rect.Height/2, Width: rect.Width, Height: 1}, color)
 		}
 	}
 	for index := range v.links {
 		link := &v.links[index]
-		rect := ui.Rect{X: p.X + link.x, Y: p.Y + link.y, Width: link.w, Height: link.h}
+		rect := gfx.Rect{X: p.X + link.x, Y: p.Y + link.y, Width: link.w, Height: link.h}
 		if !visible(rect.Y, rect.Height) || p.Links.IsZero() {
 			continue
 		}
 		id := p.Links.At(p.Base + index)
-		canvas.HitWithOptions(id, rect, link.text, ui.HitOptions{Role: ui.RoleLink})
+		canvas.HitWithOptions(id, rect, link.text, gfx.HitOptions{Role: gfx.RoleLink})
 		if canvas.Hovered() == id {
-			canvas.Fill(ui.Rect{X: rect.X, Y: rect.Y + rect.Height/2 + link.size*0.6, Width: rect.Width, Height: 1}, look.Link)
+			canvas.Fill(gfx.Rect{X: rect.X, Y: rect.Y + rect.Height/2 + link.size*0.6, Width: rect.Width, Height: 1}, look.Link)
 		}
 	}
 }

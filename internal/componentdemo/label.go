@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -29,10 +29,10 @@ var (
 	labelInput = tree.ID(labelUI, "input")
 )
 
-func (state *State) paintLabel(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var rows [3]flex.Box
-	var field flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Label · 表单语义", "Label · Form semantics"), func(f *flex.Frame) {
+func (state *State) paintLabel(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var rows [3]ui.Box
+	var field ui.Box
+	state.page(canvas, theme, size, 560, state.Text("Label · 表单语义", "Label · Form semantics"), func(f *ui.Frame) {
 		if state.exampleID == "default" {
 			f.Column().FillWidth().Gap(8).Children(func() {
 				rows[0] = f.Slot().FillWidth().Height(24)

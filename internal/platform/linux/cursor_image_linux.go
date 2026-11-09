@@ -6,8 +6,8 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // An application picture is an X cursor through the RENDER extension, the way every toolkit makes
@@ -107,7 +107,7 @@ const (
 
 // SetCursorImage makes the picture the pointer over the window. The X server draws it from its
 // own pixels, so a picture made for another scale than the window's is resampled to it.
-func SetCursorImage(image *ui.CursorImage) error {
+func SetCursorImage(image *gfx.CursorImage) error {
 	if hooks := shellHooks.Load(); hooks != nil {
 		return hooks.setCursorImage(image)
 	}
@@ -123,7 +123,7 @@ func SetCursorImage(image *ui.CursorImage) error {
 	return win.applyCursorImage(image)
 }
 
-func (win *window) applyCursorImage(image *ui.CursorImage) error {
+func (win *window) applyCursorImage(image *gfx.CursorImage) error {
 	if !win.renderTried {
 		win.renderTried = true
 		render, err := openRender(win.api, win.connection)

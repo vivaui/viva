@@ -1,10 +1,10 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // MetricCard paints a dashboard metric with a trend label. Its rows are placed from
 // the theme's metrics, so the card keeps its proportions at every density.
-func MetricCard(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, title, value, trend string, positive bool) {
+func MetricCard(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, title, value, trend string, positive bool) {
 	metrics := theme.Metrics
 	pad := metrics.PadSurface
 	Card(canvas, theme, bounds)
@@ -17,17 +17,17 @@ func MetricCard(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, title, value,
 	trendY := valueY + valueHeight + metrics.GapItem*1.125
 	width := bounds.Width - pad*2
 
-	canvas.Label(title, ui.Rect{X: bounds.X + pad, Y: titleY, Width: width, Height: smallHeight}, ui.TextStyle{
-		Size: metrics.FontSizeS, Weight: ui.WeightMedium, Color: theme.MutedForeground,
+	canvas.Label(title, gfx.Rect{X: bounds.X + pad, Y: titleY, Width: width, Height: smallHeight}, gfx.TextStyle{
+		Size: metrics.FontSizeS, Weight: gfx.WeightMedium, Color: theme.MutedForeground,
 	})
-	canvas.Label(value, ui.Rect{X: bounds.X + pad, Y: valueY, Width: width, Height: valueHeight}, ui.TextStyle{
-		Size: valueSize, Weight: ui.WeightSemibold, Color: theme.Foreground,
+	canvas.Label(value, gfx.Rect{X: bounds.X + pad, Y: valueY, Width: width, Height: valueHeight}, gfx.TextStyle{
+		Size: valueSize, Weight: gfx.WeightSemibold, Color: theme.Foreground,
 	})
 	trendColor := theme.Danger
 	if positive {
 		trendColor = theme.Success
 	}
-	canvas.Label(trend, ui.Rect{X: bounds.X + pad, Y: trendY, Width: width, Height: smallHeight}, ui.TextStyle{
-		Size: metrics.FontSizeS, Weight: ui.WeightMedium, Color: trendColor,
+	canvas.Label(trend, gfx.Rect{X: bounds.X + pad, Y: trendY, Width: width, Height: smallHeight}, gfx.TextStyle{
+		Size: metrics.FontSizeS, Weight: gfx.WeightMedium, Color: trendColor,
 	})
 }

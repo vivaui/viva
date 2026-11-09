@@ -8,11 +8,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestNormalizedKeysym(t *testing.T) {
@@ -94,14 +94,14 @@ func TestXCBModifiers(t *testing.T) {
 func TestXCBPointerButtons(t *testing.T) {
 	for _, testCase := range []struct {
 		button uint8
-		want   ui.PointerButton
+		want   gfx.PointerButton
 	}{
-		{xcbButtonLeft, ui.PointerButtonPrimary},
-		{xcbButtonRight, ui.PointerButtonSecondary},
-		{xcbButtonMiddle, ui.PointerButtonMiddle},
-		{xcbButtonBack, ui.PointerButtonBack},
-		{xcbButtonForward, ui.PointerButtonForward},
-		{xcbButtonScrollUp, ui.PointerButtonNone},
+		{xcbButtonLeft, gfx.PointerButtonPrimary},
+		{xcbButtonRight, gfx.PointerButtonSecondary},
+		{xcbButtonMiddle, gfx.PointerButtonMiddle},
+		{xcbButtonBack, gfx.PointerButtonBack},
+		{xcbButtonForward, gfx.PointerButtonForward},
+		{xcbButtonScrollUp, gfx.PointerButtonNone},
 	} {
 		if got := xcbPointerButton(testCase.button); got != testCase.want {
 			t.Fatalf("button %d = %d, want %d", testCase.button, got, testCase.want)
@@ -170,7 +170,7 @@ func TestEventRouterRoutesNativeInputAndFrames(t *testing.T) {
 	if handled, err := router.scroll(&native); err != nil || !handled {
 		t.Fatalf("scroll handled=%v err=%v", handled, err)
 	}
-	if len(pointers) != 2 || pointers[0] != (platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, Modifiers: input.ModifierShift, X: 17, Y: 23, ClickCount: 1}) || pointers[1].Kind != platform.PointerExit {
+	if len(pointers) != 2 || pointers[0] != (platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, Modifiers: input.ModifierShift, X: 17, Y: 23, ClickCount: 1}) || pointers[1].Kind != platform.PointerExit {
 		t.Fatalf("pointer events = %+v", pointers)
 	}
 	if len(keys) != 1 || keys[0] != (platform.KeyEvent{Key: input.KeyTab, Modifiers: input.ModifierShift, Repeat: true}) {

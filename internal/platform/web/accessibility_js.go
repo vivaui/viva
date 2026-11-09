@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"syscall/js"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 type accessibilityDOMNode struct {
@@ -23,15 +23,15 @@ type accessibilityMirror struct {
 	document         js.Value
 	root             js.Value
 	container        js.Value
-	nodes            map[ui.ID]*accessibilityDOMNode
-	order            []ui.ID
-	orderScratch     []ui.ID
+	nodes            map[gfx.ID]*accessibilityDOMNode
+	order            []gfx.ID
+	orderScratch     []gfx.ID
 	generation       uint64
 	activeDescendant string
 	text             *textInputHost
-	onPress          func(ui.ID)
-	onFocus          func(ui.ID)
-	onSetNumber      func(ui.ID, float64)
+	onPress          func(gfx.ID)
+	onFocus          func(gfx.ID)
+	onSetNumber      func(gfx.ID, float64)
 }
 
 func newAccessibilityMirror(document, root, container js.Value, label string) *accessibilityMirror {
@@ -44,7 +44,7 @@ func newAccessibilityMirror(document, root, container js.Value, label string) *a
 		document:  document,
 		root:      root,
 		container: container,
-		nodes:     make(map[ui.ID]*accessibilityDOMNode),
+		nodes:     make(map[gfx.ID]*accessibilityDOMNode),
 	}
 	mirror.text = newTextInputHost(mirror)
 	return mirror
@@ -52,7 +52,7 @@ func newAccessibilityMirror(document, root, container js.Value, label string) *a
 
 // setActions connects the ARIA nodes to the input router: a screen reader's
 // activation arrives as a DOM click, and its focus move as a DOM focus.
-func (mirror *accessibilityMirror) setActions(press, focus func(ui.ID), setNumber func(ui.ID, float64)) {
+func (mirror *accessibilityMirror) setActions(press, focus func(gfx.ID), setNumber func(gfx.ID, float64)) {
 	mirror.onPress, mirror.onFocus, mirror.onSetNumber = press, focus, setNumber
 	for _, node := range mirror.nodes {
 		node.unbindActions()
@@ -102,7 +102,7 @@ func (node *accessibilityDOMNode) unbindActions() {
 	node.actionListeners = node.actionListeners[:0]
 }
 
-func (mirror *accessibilityMirror) sync(descriptions []accessibilityDescription, focused ui.ID) {
+func (mirror *accessibilityMirror) sync(descriptions []accessibilityDescription, focused gfx.ID) {
 	mirror.generation++
 	mirror.orderScratch = mirror.orderScratch[:0]
 	orderChanged := false
@@ -253,7 +253,7 @@ func applyAccessibilityDescription(node *accessibilityDOMNode, description acces
 // step as the slider the canvas paints. The ARIA attributes are still set by
 // applyAccessibilityDescription; these are what the browser's native range
 // control and screen readers use to step and set the value.
-func applySliderRange(element js.Value, value ui.ValueRange) {
+func applySliderRange(element js.Value, value gfx.ValueRange) {
 	element.Set("type", "range")
 	element.Set("min", value.Min)
 	element.Set("max", value.Max)

@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -42,9 +42,9 @@ var (
 	messageScrollerEnd   = tree.ID(messageScrollerUI, "later")
 )
 
-func (state *State) paintMessageScroller(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var viewport flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Message Scroller · 受控偏移", "Message Scroller · Controlled offset"), func(f *flex.Frame) {
+func (state *State) paintMessageScroller(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var viewport ui.Box
+	state.page(canvas, theme, size, 560, state.Text("Message Scroller · 受控偏移", "Message Scroller · Controlled offset"), func(f *ui.Frame) {
 		viewport = f.Slot().FillWidth().Height(min(238, max(size.Height-84, 120)))
 	})
 	offset := float32(state.values[0])
@@ -59,7 +59,7 @@ func (state *State) paintMessageScroller(canvas *ui.Canvas, theme ui.Theme, size
 			continue
 		}
 		canvas.Rounded(item.Bounds, theme.Metrics.RadiusSurface, theme.Muted)
-		canvas.Label([...]string{"Project started", "Build complete", "Review requested", "Changes approved", "Release ready"}[index], ui.Rect{X: item.Bounds.X + 12, Y: item.Bounds.Y, Width: max(0, item.Bounds.Width-24), Height: item.Bounds.Height}, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+		canvas.Label([...]string{"Project started", "Build complete", "Review requested", "Changes approved", "Release ready"}[index], gfx.Rect{X: item.Bounds.X + 12, Y: item.Bounds.Y, Width: max(0, item.Bounds.Width-24), Height: item.Bounds.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
 	}
 	scroller.EndContent()
 	if canvas.Clicked(messageScrollerStart) {

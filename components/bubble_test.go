@@ -5,15 +5,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestBubbleMirrorsOfficialVariantsWithoutSpeechTail(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	variants := []BubbleVariant{BubbleDefault, BubbleSecondary, BubbleMuted, BubbleTinted, BubbleOutline, BubbleGhost, BubbleDestructive}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	for index, variant := range variants {
-		Bubble(&canvas, theme, ui.Rect{X: 0, Y: float32(index * 44), Width: 200, Height: 40}, BubbleEnd, variant, "Hello")
+		Bubble(&canvas, theme, gfx.Rect{X: 0, Y: float32(index * 44), Width: 200, Height: 40}, BubbleEnd, variant, "Hello")
 	}
 	if len(canvas.Texts()) != len(variants) {
 		t.Fatalf("bubble texts = %d", len(canvas.Texts()))
@@ -30,11 +30,11 @@ func TestBubbleMirrorsOfficialVariantsWithoutSpeechTail(t *testing.T) {
 }
 
 func TestBubbleReactionAndCommandsAreStable(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		Bubble(&canvas, ui.DarkTheme(), ui.Rect{Width: 220, Height: 40}, BubbleStart, BubbleOutline, "Review")
-		BubbleReaction(&canvas, ui.DarkTheme(), ui.Item(9), ui.Rect{Width: 176, Height: 40}, BubbleReactionBottom, BubbleEnd, "👍 2")
+		Bubble(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 220, Height: 40}, BubbleStart, BubbleOutline, "Review")
+		BubbleReaction(&canvas, gfx.DarkTheme(), gfx.Item(9), gfx.Rect{Width: 176, Height: 40}, BubbleReactionBottom, BubbleEnd, "👍 2")
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -47,9 +47,9 @@ func TestBubbleReactionAndCommandsAreStable(t *testing.T) {
 }
 
 func TestBubbleShrinksToShortTextAndWrapsLongText(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	row := ui.Rect{Width: 400}
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	row := gfx.Rect{Width: 400}
 	short := Bubble(&canvas, theme, row, BubbleStart, BubbleMuted, "Hi")
 	if short.Width >= row.Width*0.5 || len(canvas.Texts()) != 1 {
 		t.Fatalf("short bubble %+v with %d lines", short, len(canvas.Texts()))
@@ -68,9 +68,9 @@ func TestBubbleShrinksToShortTextAndWrapsLongText(t *testing.T) {
 }
 
 func TestBubbleSecondaryUsesTheSecondaryTokens(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	Bubble(&canvas, theme, ui.Rect{Width: 200}, BubbleStart, BubbleSecondary, "Hello")
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	Bubble(&canvas, theme, gfx.Rect{Width: 200}, BubbleStart, BubbleSecondary, "Hello")
 	if canvas.Rectangles()[0].Color != theme.Secondary || canvas.Texts()[0].Style.Color != theme.SecondaryForeground {
 		t.Fatalf("secondary bubble paints %+v / %+v", canvas.Rectangles()[0].Color, canvas.Texts()[0].Style.Color)
 	}

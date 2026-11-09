@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -10,7 +10,7 @@ var popoverComponent = Component{
 	ID: "popover", Title: "Popover", Category: "Overlay", Summary: "锚定、可关闭且不启动后台工作的非模态浮层。",
 	paint: (*State).paintPopover,
 	Examples: []Example{
-		{ID: "default", Title: "锚定浮层", Description: "点击触发器切换底部居中的生产 Popover。", Snippet: `trigger := f.Button(tree.ID(page, "trigger"), "Open details").Outline().Self(flex.Start)
+		{ID: "default", Title: "锚定浮层", Description: "点击触发器切换底部居中的生产 Popover。", Snippet: `trigger := f.Button(tree.ID(page, "trigger"), "Open details").Outline().Self(ui.Start)
 if trigger.Clicked() {
     open = !open
 }
@@ -26,7 +26,7 @@ if enabled {
     label = "Diagnostics enabled"
 }
 popover := components.BeginPopover(canvas, theme, viewport, anchor, components.PopoverOptions{
-    Layer: 3, Scope: scope, DismissID: dismissID, ContentSize: ui.Size{Width: 288}, BodyHeight: 34,
+    Layer: 3, Scope: scope, DismissID: dismissID, ContentSize: gfx.Size{Width: 288}, BodyHeight: 34,
 })
 layout := popover.Begin("Build status", "The stable host owns this overlay state.")
 if components.BeginButton(canvas, theme, actionID, layout.Body).Secondary(label).Clicked() {
@@ -44,15 +44,15 @@ var (
 	popoverScope   = tree.ID(popoverUI, "content")
 )
 
-func (state *State) paintPopover(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintPopover(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	open := state.flags&1 != 0
-	var anchor flex.Box
-	state.page(canvas, theme, size, 560, "Popover", func(f *flex.Frame) {
+	var anchor ui.Box
+	state.page(canvas, theme, size, 560, "Popover", func(f *ui.Frame) {
 		label := "Open details"
 		if open {
 			label = "Close details"
 		}
-		anchor = f.Button(popoverTrigger, label).Outline().Self(flex.Start)
+		anchor = f.Button(popoverTrigger, label).Outline().Self(ui.Start)
 		if anchor.Clicked() {
 			state.flags ^= 1
 		}
@@ -69,11 +69,11 @@ func (state *State) paintPopover(canvas *ui.Canvas, theme ui.Theme, size ui.Size
 	if state.exampleID == "custom-body" {
 		bodyHeight = 34
 	}
-	popover := components.BeginPopover(canvas, theme, ui.Rect{Width: size.Width, Height: size.Height}, anchor.Rect(), components.PopoverOptions{
+	popover := components.BeginPopover(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, anchor.Rect(), components.PopoverOptions{
 		Layer: 3, Scope: popoverScope, DismissID: popoverDismiss,
 		Side: components.PopoverBottom, Align: components.PopoverAlignStart, SideOffset: 8,
 		AnchorDismiss: true,
-		ContentSize:   ui.Size{Width: contentWidth}, BodyHeight: bodyHeight,
+		ContentSize:   gfx.Size{Width: contentWidth}, BodyHeight: bodyHeight,
 	})
 	if state.exampleID == "custom-body" {
 		layout := popover.Begin("Build status", "The stable host owns this overlay state.")
@@ -81,7 +81,7 @@ func (state *State) paintPopover(canvas *ui.Canvas, theme ui.Theme, size ui.Size
 		if state.flags&2 != 0 {
 			status = "Diagnostics enabled"
 		}
-		bounds := ui.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: 34}
+		bounds := gfx.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: 34}
 		if components.BeginButton(canvas, theme, popoverAction, bounds).Secondary(status).Clicked() {
 			state.flags ^= 2
 		}

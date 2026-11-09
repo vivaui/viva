@@ -4,7 +4,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // TextPoint is a place in a run of painted texts that a selection can cross:
@@ -98,11 +98,11 @@ func (selection *TextSelection) SelectAll(surfaces int, length func(surface int)
 // it is left unhandled so the caller can clear the selection or let the press
 // go on. A press that should not start a selection, such as one on a link or a
 // button painted over the text, is the caller's to keep from reaching Pointer.
-func (selection *TextSelection) Pointer(event ui.PointerEvent, at func(ui.Point) (TextPoint, bool)) TextSelectionResult {
-	point := ui.Point{X: event.X, Y: event.Y}
+func (selection *TextSelection) Pointer(event gfx.PointerEvent, at func(gfx.Point) (TextPoint, bool)) TextSelectionResult {
+	point := gfx.Point{X: event.X, Y: event.Y}
 	switch event.Kind {
-	case ui.PointerDown:
-		if event.Button != ui.PointerButtonPrimary && event.Button != ui.PointerButtonNone {
+	case gfx.PointerDown:
+		if event.Button != gfx.PointerButtonPrimary && event.Button != gfx.PointerButtonNone {
 			return TextSelectionResult{}
 		}
 		place, ok := at(point)
@@ -111,7 +111,7 @@ func (selection *TextSelection) Pointer(event ui.PointerEvent, at func(ui.Point)
 		}
 		*selection = TextSelection{Anchor: place, Focus: place, dragging: true}
 		return TextSelectionResult{Handled: true, Changed: true}
-	case ui.PointerMove:
+	case gfx.PointerMove:
 		if !selection.dragging || !event.Captured {
 			return TextSelectionResult{}
 		}
@@ -121,7 +121,7 @@ func (selection *TextSelection) Pointer(event ui.PointerEvent, at func(ui.Point)
 		}
 		selection.Focus = place
 		return TextSelectionResult{Handled: true, Changed: true}
-	case ui.PointerUp:
+	case gfx.PointerUp:
 		if !selection.dragging {
 			return TextSelectionResult{}
 		}
@@ -133,7 +133,7 @@ func (selection *TextSelection) Pointer(event ui.PointerEvent, at func(ui.Point)
 			selection.Clear()
 		}
 		return TextSelectionResult{Handled: true, Changed: true}
-	case ui.PointerExit:
+	case gfx.PointerExit:
 		// A held press keeps the pointer outside the window, and Exit reaches the
 		// application only once the press is over: the button came up beyond the
 		// window, or the system took the press away.

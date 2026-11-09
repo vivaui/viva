@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestCodeEditorFoldedRowsKeepSourceOffsetsAndLogicalNumbers(t *testing.T) {
@@ -24,7 +24,7 @@ func TestCodeEditorFoldedRowsKeepSourceOffsetsAndLogicalNumbers(t *testing.T) {
 		t.Fatalf("down across fold = %d, want %d", got, second.end)
 	}
 	_, _, line := fixture.cell()
-	point := ui.Point{X: fixture.editor.content.X + 1, Y: fixture.editor.content.Y + line + 2}
+	point := gfx.Point{X: fixture.editor.content.X + 1, Y: fixture.editor.content.Y + line + 2}
 	if got, ok := fixture.editor.OffsetAt(point); !ok || got != int(second.start) {
 		t.Fatalf("folded pointer placement = %d, %v", got, ok)
 	}
@@ -45,7 +45,7 @@ func TestCodeEditorFoldedWrapAndScrollbarUseOnlyVisibleRows(t *testing.T) {
 	fixture.bounds.Width = fixture.widthFor(10) + codeEditorBarSize
 	fixture.bounds.Height = 60
 	fixture.snapshot.Wrap = true
-	fixture.snapshot.ScrollbarID = ui.Item(7)
+	fixture.snapshot.ScrollbarID = gfx.Item(7)
 	fixture.snapshot.FoldedLines = []CodeEditorFoldRange{{Header: 0, LastLine: 2}}
 	fixture.paint()
 	if got := fixture.rowTexts(); !reflect.DeepEqual(got, []string{"abcdefghij", "abcdefghij", "after", "last"}) {
@@ -63,32 +63,32 @@ func TestCodeEditorFoldedWrapAndScrollbarUseOnlyVisibleRows(t *testing.T) {
 
 func TestCodeEditorFoldMarkersExposeOnlyVisibleGutterButtons(t *testing.T) {
 	fixture := newCodeFixture("head\nhidden\nvisible")
-	marker := ui.RGB(32, 88, 161)
+	marker := gfx.RGB(32, 88, 161)
 	fixture.snapshot.MarkerGutter = true
 	fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, Color: marker}}
 	fixture.snapshot.FoldGutter = true
 	fixture.snapshot.FoldedLines = []CodeEditorFoldRange{{Header: 0, LastLine: 1}}
 	fixture.snapshot.FoldMarkers = []CodeEditorFoldMarker{
-		{Line: 0, ID: ui.Item(20), Collapsed: true},
-		{Line: 1, ID: ui.Item(21)},
-		{Line: 2, ID: ui.Item(22)},
+		{Line: 0, ID: gfx.Item(20), Collapsed: true},
+		{Line: 1, ID: gfx.Item(21)},
+		{Line: 2, ID: gfx.Item(22)},
 	}
 	fixture.paint()
-	hits := map[ui.ID]ui.Hit{}
+	hits := map[gfx.ID]gfx.Hit{}
 	for _, hit := range fixture.canvas.Hits() {
 		hits[hit.ID] = hit
 	}
-	if _, hidden := hits[ui.Item(21)]; hidden {
+	if _, hidden := hits[gfx.Item(21)]; hidden {
 		t.Fatal("fold marker for a hidden logical line was hit-testable")
 	}
-	for _, id := range []ui.ID{ui.Item(20), ui.Item(22)} {
+	for _, id := range []gfx.ID{gfx.Item(20), gfx.Item(22)} {
 		hit, ok := hits[id]
-		if !ok || hit.Role != ui.RoleButton || hit.Bounds.Width < 12 || hit.Label == "" {
+		if !ok || hit.Role != gfx.RoleButton || hit.Bounds.Width < 12 || hit.Label == "" {
 			t.Fatalf("fold marker %v = %+v, %v", id, hit, ok)
 		}
 	}
-	if markers := fixture.fills(marker); len(markers) != 1 || hits[ui.Item(20)].Bounds.X >= markers[0].X {
-		t.Fatalf("fold and bookmark gutter lanes overlap: fold=%+v bookmark=%+v", hits[ui.Item(20)].Bounds, markers)
+	if markers := fixture.fills(marker); len(markers) != 1 || hits[gfx.Item(20)].Bounds.X >= markers[0].X {
+		t.Fatalf("fold and bookmark gutter lanes overlap: fold=%+v bookmark=%+v", hits[gfx.Item(20)].Bounds, markers)
 	}
 }
 
@@ -120,7 +120,7 @@ func TestCodeEditorFoldRangesIgnoreInvalidAndOverlappingEntries(t *testing.T) {
 
 func TestCodeEditorFoldMarkerSteadyPaintDoesNotAllocate(t *testing.T) {
 	fixture := newCodeFixture("head\ninside\nafter")
-	fixture.snapshot.FoldMarkers = []CodeEditorFoldMarker{{Line: 0, ID: ui.Item(20), Collapsed: true}}
+	fixture.snapshot.FoldMarkers = []CodeEditorFoldMarker{{Line: 0, ID: gfx.Item(20), Collapsed: true}}
 	fixture.paint()
 	if allocations := testing.AllocsPerRun(50, fixture.paint); allocations != 0 {
 		t.Fatalf("steady fold-marker paint allocated %g times", allocations)

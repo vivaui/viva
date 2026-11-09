@@ -4,10 +4,10 @@ import (
 	"image"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 var black = platform.Color{Alpha: 1}
@@ -244,7 +244,7 @@ func TestOffscreenScissorsAClippedLabelToItsClip(t *testing.T) {
 		t.Fatal("the unclipped label does not cover its bounds")
 	}
 
-	label.Clip, label.Clipped = ui.Rect{X: 0, Y: 0, Width: 10, Height: 6}, true
+	label.Clip, label.Clipped = gfx.Rect{X: 0, Y: 0, Width: 10, Height: 6}, true
 	pixels = renderScene(t, offscreen, nil, []platform.TextLabel{label})
 	if !lit(pixels, 5, 5) {
 		t.Fatal("the clipped label lost the part inside its clip")
@@ -258,7 +258,7 @@ func TestOffscreenScissorsAClippedLabelToItsClip(t *testing.T) {
 
 	// A clip with no area paints nothing, and the next frame without a clip
 	// paints the whole label again: the scissor does not leak.
-	label.Clip = ui.Rect{X: 30, Y: 0, Width: 5, Height: 5}
+	label.Clip = gfx.Rect{X: 30, Y: 0, Width: 5, Height: 5}
 	pixels = renderScene(t, offscreen, nil, []platform.TextLabel{label})
 	if lit(pixels, 5, 5) || lit(pixels, 15, 5) {
 		t.Fatal("a clip outside the target still painted")
@@ -288,7 +288,7 @@ func TestOffscreenRasterizesTextLabelsAndClipsThem(t *testing.T) {
 	if lit(pixels, 10, 40) < 30 || lit(pixels, 40, 190) < 30 {
 		t.Fatal("the label drew no glyph pixels")
 	}
-	label.Clip, label.Clipped = ui.Rect{X: 0, Y: 0, Width: 40, Height: 40}, true
+	label.Clip, label.Clipped = gfx.Rect{X: 0, Y: 0, Width: 40, Height: 40}, true
 	pixels = renderScene(t, offscreen, nil, []platform.TextLabel{label})
 	if lit(pixels, 10, 40) < 30 {
 		t.Fatal("the clipped label lost the part inside its clip")

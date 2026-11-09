@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -10,7 +10,7 @@ var checkboxComponent = Component{
 	ID: "checkbox", Title: "Checkbox", Category: "Forms", Summary: "由调用方保存选择的复选框。",
 	paint: (*State).paintCheckbox,
 	Examples: []Example{
-		{ID: "default", Title: "接受条款", Description: "点击切换勾选；语义状态与可见反馈同步。", Snippet: `f.Row().Gap(12).Items(flex.Center).Children(func() {
+		{ID: "default", Title: "接受条款", Description: "点击切换勾选；语义状态与可见反馈同步。", Snippet: `f.Row().Gap(12).Items(ui.Center).Children(func() {
     checked := accepted
     if f.Checkbox(tree.ID(page, "terms"), checked).Label("Accept terms of use").Clicked() {
         accepted = !checked
@@ -20,7 +20,7 @@ var checkboxComponent = Component{
 		{ID: "selection", Title: "多项选择", Description: "三项桌面偏好独立选择，不模拟生产 API 尚未提供的混合态。", Snippet: `boxes := tree.Sub(page, tree.Name("box"))
 for index, label := range [...]string{"Show line numbers", "Format on save", "Restore last window"} {
     checked := selected&(1<<index) != 0
-    f.Row().Gap(12).Items(flex.Center).Children(func() {
+    f.Row().Gap(12).Items(ui.Center).Children(func() {
         if f.Checkbox(boxes.At(index), checked).Label(label).Clicked() {
             selected ^= 1 << index
         }
@@ -46,7 +46,7 @@ var (
 
 type checkboxState struct{ selected uint8 }
 
-func (state *State) paintCheckbox(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintCheckbox(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	labels := []string{state.Text("接受使用条款", "Accept terms of use")}
 	switch state.exampleID {
 	case "selection":
@@ -62,18 +62,18 @@ func (state *State) paintCheckbox(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 			state.Text("禁用 · 已选择", "Disabled · Checked"),
 		}
 	}
-	// A required box that is still empty is drawn invalid, which flex's checkbox
+	// A required box that is still empty is drawn invalid, which ui's checkbox
 	// has no option for: its square is a Slot the component paints into.
-	var invalid flex.Box
+	var invalid ui.Box
 	hasInvalid := false
-	state.page(canvas, theme, size, 480, state.Text("Checkbox · 显式选择", "Checkbox · Explicit selection"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 480, state.Text("Checkbox · 显式选择", "Checkbox · Explicit selection"), func(f *ui.Frame) {
 		for index, label := range labels {
 			checked := state.checkbox.selected&(1<<index) != 0
 			disabled := state.exampleID == "states" && index > 0
 			if disabled {
 				checked = index == 2
 			}
-			f.Row().Gap(12).Items(flex.Center).PadX(12).MarginY(2).Children(func() {
+			f.Row().Gap(12).Items(ui.Center).PadX(12).MarginY(2).Children(func() {
 				if state.exampleID == "states" && index == 0 && !checked {
 					side := components.CheckboxExtent(theme)
 					invalid, hasInvalid = f.Slot().Size(side, side), true
@@ -95,7 +95,7 @@ func (state *State) paintCheckbox(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 	})
 	if hasInvalid {
 		bounds := invalid.Rect()
-		box := components.BeginCheckbox(canvas, theme, checkboxBox.At(0), ui.Rect{X: bounds.X, Y: bounds.Y}, false).
+		box := components.BeginCheckbox(canvas, theme, checkboxBox.At(0), gfx.Rect{X: bounds.X, Y: bounds.Y}, false).
 			Label(labels[0]).Invalid().Paint()
 		if box.Clicked() {
 			state.checkbox.selected ^= 1

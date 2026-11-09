@@ -4,21 +4,21 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestContextMenuUsesCallerPositionAndTypedMenuStates(t *testing.T) {
-	var canvas ui.Canvas
-	menu := BeginContextMenu(&canvas, ui.LightTheme(), ui.Rect{X: 240, Y: 180, Width: 150, Height: 150}, ContextMenuOptions{Layer: 12, Scope: ui.Item(64), DismissID: ui.Item(88)})
-	first := menu.AddItem(ContextMenuItem{ID: ui.Item(21), Label: "Grid", Kind: ContextMenuCheckbox, Checked: true})
-	menu.AddItem(ContextMenuItem{ID: ui.Item(22), Label: "Large", Kind: ContextMenuRadio, Selected: true})
-	menu.AddItem(ContextMenuItem{ID: ui.Item(23), Label: "Inspect", Hint: "Open inspector", Disabled: true})
-	menu.AddItem(ContextMenuItem{ID: ui.Item(24), Label: "Services", Kind: ContextMenuSubmenu, Expanded: true})
+	var canvas gfx.Canvas
+	menu := BeginContextMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 240, Y: 180, Width: 150, Height: 150}, ContextMenuOptions{Layer: 12, Scope: gfx.Item(64), DismissID: gfx.Item(88)})
+	first := menu.AddItem(ContextMenuItem{ID: gfx.Item(21), Label: "Grid", Kind: ContextMenuCheckbox, Checked: true})
+	menu.AddItem(ContextMenuItem{ID: gfx.Item(22), Label: "Large", Kind: ContextMenuRadio, Selected: true})
+	menu.AddItem(ContextMenuItem{ID: gfx.Item(23), Label: "Inspect", Hint: "Open inspector", Disabled: true})
+	menu.AddItem(ContextMenuItem{ID: gfx.Item(24), Label: "Services", Kind: ContextMenuSubmenu, Expanded: true})
 
-	if first != (ui.Rect{X: 244, Y: 184, Width: 142, Height: 32}) || menu.NextItemBounds().Y != 312 {
+	if first != (gfx.Rect{X: 244, Y: 184, Width: 142, Height: 32}) || menu.NextItemBounds().Y != 312 {
 		t.Fatalf("context geometry = first %+v next %+v", first, menu.NextItemBounds())
 	}
-	if canvas.TrappedFocusScope() != ui.Item(64) || canvas.EscapeTarget() != ui.Item(88) {
+	if canvas.TrappedFocusScope() != gfx.Item(64) || canvas.EscapeTarget() != gfx.Item(88) {
 		t.Fatalf("scope=%d escape=%d", canvas.TrappedFocusScope(), canvas.EscapeTarget())
 	}
 	hits := nonBlockHits(canvas.Hits())
@@ -26,7 +26,7 @@ func TestContextMenuUsesCallerPositionAndTypedMenuStates(t *testing.T) {
 		t.Fatalf("context hits = %+v", hits)
 	}
 	for _, hit := range hits {
-		if hit.Role != ui.RoleMenuItem || hit.Scope != ui.Item(64) {
+		if hit.Role != gfx.RoleMenuItem || hit.Scope != gfx.Item(64) {
 			t.Fatalf("context hit = %+v", hit)
 		}
 	}
@@ -38,14 +38,14 @@ func TestContextMenuUsesCallerPositionAndTypedMenuStates(t *testing.T) {
 }
 
 func TestContextMenuVariantsAndRepeatedPaintStayStable(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	canvas.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(31), true)
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.Item(31), true)
 	paint := func() {
 		canvas.Reset()
-		menu := BeginContextMenu(&canvas, theme, ui.Rect{Width: 144, Height: 84}, ContextMenuOptions{Layer: 5, Scope: ui.Item(7), DismissID: ui.Item(8)})
-		menu.AddItem(ContextMenuItem{ID: ui.Item(31), Label: "Remove", Variant: ContextMenuItemDestructive})
-		menu.AddItem(ContextMenuItem{ID: ui.Item(32), Label: "Disabled", Disabled: true, Inset: true})
+		menu := BeginContextMenu(&canvas, theme, gfx.Rect{Width: 144, Height: 84}, ContextMenuOptions{Layer: 5, Scope: gfx.Item(7), DismissID: gfx.Item(8)})
+		menu.AddItem(ContextMenuItem{ID: gfx.Item(31), Label: "Remove", Variant: ContextMenuItemDestructive})
+		menu.AddItem(ContextMenuItem{ID: gfx.Item(32), Label: "Disabled", Disabled: true, Inset: true})
 	}
 	paint()
 	remove := contextMenuTestText(canvas.Texts(), "Remove")
@@ -62,13 +62,13 @@ func TestContextMenuVariantsAndRepeatedPaintStayStable(t *testing.T) {
 	}
 }
 
-func contextMenuTestText(texts []ui.Text, value string) ui.Text {
+func contextMenuTestText(texts []gfx.Text, value string) gfx.Text {
 	for _, text := range texts {
 		if text.Value == value {
 			return text
 		}
 	}
-	return ui.Text{}
+	return gfx.Text{}
 }
 
 func TestContextMenuStateTransitionsAreAllocationFree(t *testing.T) {
@@ -89,12 +89,12 @@ func TestContextMenuStateTransitionsAreAllocationFree(t *testing.T) {
 }
 
 func TestContextMenuKeysPaintKeycapsAtTheTrailingEdge(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	bounds := ui.Rect{X: 10, Y: 10, Width: 240, Height: 80}
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	bounds := gfx.Rect{X: 10, Y: 10, Width: 240, Height: 80}
 	menu := BeginContextMenu(&canvas, theme, bounds, ContextMenuOptions{Layer: 5})
-	row := menu.AddItem(ContextMenuItem{ID: ui.Item(3), Label: "Split Right", Keys: []string{"⌘", "⌥", "H"}})
-	var caps []ui.Rect
+	row := menu.AddItem(ContextMenuItem{ID: gfx.Item(3), Label: "Split Right", Keys: []string{"⌘", "⌥", "H"}})
+	var caps []gfx.Rect
 	for _, rectangle := range canvas.Rectangles() {
 		if rectangle.Color == theme.Border && rectangle.Radius == kbdRadius(theme) {
 			caps = append(caps, rectangle.Bounds)
@@ -112,22 +112,22 @@ func TestContextMenuKeysPaintKeycapsAtTheTrailingEdge(t *testing.T) {
 }
 
 func TestContextMenuSlotHoldsCallerContentInsideTheMenu(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	menu := BeginContextMenu(&canvas, theme, ui.Rect{X: 10, Y: 10, Width: 240, Height: 120}, ContextMenuOptions{Layer: 7, Scope: ui.Item(9)})
-	row, slot := menu.AddItemSlot(ContextMenuItem{ID: ui.Item(1), Label: "Monitor", TrailingWidth: 36})
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	menu := BeginContextMenu(&canvas, theme, gfx.Rect{X: 10, Y: 10, Width: 240, Height: 120}, ContextMenuOptions{Layer: 7, Scope: gfx.Item(9)})
+	row, slot := menu.AddItemSlot(ContextMenuItem{ID: gfx.Item(1), Label: "Monitor", TrailingWidth: 36})
 	if slot.Width != 36 || slot.X+slot.Width != row.X+row.Width-8 || slot.Y != row.Y || slot.Height != row.Height {
 		t.Fatalf("slot %+v in row %+v", slot, row)
 	}
 	menu.BeginContent()
-	BeginSwitch(&canvas, theme, ui.Item(2), ui.Rect{X: slot.X, Y: slot.Y + 8, Width: 36, Height: 18}, true).Small().Paint()
+	BeginSwitch(&canvas, theme, gfx.Item(2), gfx.Rect{X: slot.X, Y: slot.Y + 8, Width: 36, Height: 18}, true).Small().Paint()
 	menu.EndContent()
 
 	var found bool
 	for _, hit := range canvas.Hits() {
-		if hit.ID == ui.Item(2) {
+		if hit.ID == gfx.Item(2) {
 			found = true
-			if hit.Layer != 7 || hit.Scope != ui.Item(9) {
+			if hit.Layer != 7 || hit.Scope != gfx.Item(9) {
 				t.Fatalf("custom content hit is on layer %d scope %d, want the menu's 7/9", hit.Layer, hit.Scope)
 			}
 		}
@@ -143,31 +143,31 @@ func TestContextMenuSlotHoldsCallerContentInsideTheMenu(t *testing.T) {
 }
 
 func TestContextMenuWithoutSlotReturnsAnEmptySlot(t *testing.T) {
-	var canvas ui.Canvas
-	menu := BeginContextMenu(&canvas, ui.DarkTheme(), ui.Rect{Width: 240, Height: 80}, ContextMenuOptions{Layer: 5})
-	if _, slot := menu.AddItemSlot(ContextMenuItem{ID: ui.Item(1), Label: "Plain"}); slot != (ui.Rect{}) {
+	var canvas gfx.Canvas
+	menu := BeginContextMenu(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 240, Height: 80}, ContextMenuOptions{Layer: 5})
+	if _, slot := menu.AddItemSlot(ContextMenuItem{ID: gfx.Item(1), Label: "Plain"}); slot != (gfx.Rect{}) {
 		t.Fatalf("slot = %+v, want empty", slot)
 	}
 }
 
 func TestContextMenuDismissBackdropCoversTheViewportBehindTheSurface(t *testing.T) {
-	viewport := ui.Rect{Width: 800, Height: 600}
-	var canvas ui.Canvas
-	menu := BeginContextMenu(&canvas, ui.DarkTheme(), ui.Rect{X: 10, Y: 20, Width: 160, Height: 80}, ContextMenuOptions{Layer: 7, Scope: ui.Item(42), DismissID: ui.Item(91), Viewport: viewport})
-	menu.AddItem(ContextMenuItem{ID: ui.Item(11), Label: "One"})
+	viewport := gfx.Rect{Width: 800, Height: 600}
+	var canvas gfx.Canvas
+	menu := BeginContextMenu(&canvas, gfx.DarkTheme(), gfx.Rect{X: 10, Y: 20, Width: 160, Height: 80}, ContextMenuOptions{Layer: 7, Scope: gfx.Item(42), DismissID: gfx.Item(91), Viewport: viewport})
+	menu.AddItem(ContextMenuItem{ID: gfx.Item(11), Label: "One"})
 	hits := canvas.Hits()
-	if len(hits) != 4 || hits[0].ID != ui.Item(91) || hits[0].Bounds != viewport || hits[0].Layer != 7 || hits[0].Scope != ui.Item(42) || hits[0].Focusable || !hits[1].Block || !hits[2].Container || hits[2].Role != ui.RoleMenu || hits[3].ID != ui.Item(11) {
+	if len(hits) != 4 || hits[0].ID != gfx.Item(91) || hits[0].Bounds != viewport || hits[0].Layer != 7 || hits[0].Scope != gfx.Item(42) || hits[0].Focusable || !hits[1].Block || !hits[2].Container || hits[2].Role != gfx.RoleMenu || hits[3].ID != gfx.Item(11) {
 		t.Fatalf("hits = %+v", hits)
 	}
 }
 
 func TestContextMenuRowHeightOptionPacksItemsDenser(t *testing.T) {
-	var canvas ui.Canvas
-	menu := BeginContextMenu(&canvas, ui.LightTheme(), ui.Rect{X: 10, Y: 20, Width: 160, Height: 4*24 + 9 + 8}, ContextMenuOptions{Layer: 1, Scope: ui.Item(2), DismissID: ui.Item(3), RowHeight: 24})
-	first := menu.AddItem(ContextMenuItem{ID: ui.Item(11), Label: "One"})
+	var canvas gfx.Canvas
+	menu := BeginContextMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 10, Y: 20, Width: 160, Height: 4*24 + 9 + 8}, ContextMenuOptions{Layer: 1, Scope: gfx.Item(2), DismissID: gfx.Item(3), RowHeight: 24})
+	first := menu.AddItem(ContextMenuItem{ID: gfx.Item(11), Label: "One"})
 	menu.AddSeparator()
-	second := menu.AddItem(ContextMenuItem{ID: ui.Item(12), Label: "Two"})
-	third := menu.AddItem(ContextMenuItem{ID: ui.Item(13), Label: "Three"})
+	second := menu.AddItem(ContextMenuItem{ID: gfx.Item(12), Label: "Two"})
+	third := menu.AddItem(ContextMenuItem{ID: gfx.Item(13), Label: "Three"})
 	if first.Height != 24 || second.Y != first.Y+24+menuSeparatorHeight || third.Y != second.Y+24 || menu.NextItemBounds().Height != 24 {
 		t.Fatalf("rows = %+v %+v %+v next %+v", first, second, third, menu.NextItemBounds())
 	}
@@ -179,13 +179,13 @@ func TestContextMenuRowHeightOptionPacksItemsDenser(t *testing.T) {
 }
 
 func TestContextMenuItemWidthKeepsTheLabelWhole(t *testing.T) {
-	var canvas ui.Canvas
-	theme := ui.LightTheme()
-	item := ContextMenuItem{ID: ui.Item(1), Label: "A rather long menu label that needs more than the minimum", Keys: []string{"⇧", "⌘", "S"}, Icon: ui.Icon{ViewBox: 24, Stroke: 2, Commands: []ui.PathCommand{ui.MoveTo(4, 12), ui.LineTo(20, 12)}}}
+	var canvas gfx.Canvas
+	theme := gfx.LightTheme()
+	item := ContextMenuItem{ID: gfx.Item(1), Label: "A rather long menu label that needs more than the minimum", Keys: []string{"⇧", "⌘", "S"}, Icon: gfx.Icon{ViewBox: 24, Stroke: 2, Commands: []gfx.PathCommand{gfx.MoveTo(4, 12), gfx.LineTo(20, 12)}}}
 	width := ContextMenuItemWidth(&canvas, theme, item)
-	label := func(width float32) ui.Text {
+	label := func(width float32) gfx.Text {
 		canvas.Reset()
-		menu := BeginContextMenu(&canvas, theme, ui.Rect{Width: width, Height: 40}, ContextMenuOptions{Layer: 1, Scope: ui.Item(2), DismissID: ui.Item(3)})
+		menu := BeginContextMenu(&canvas, theme, gfx.Rect{Width: width, Height: 40}, ContextMenuOptions{Layer: 1, Scope: gfx.Item(2), DismissID: gfx.Item(3)})
 		menu.AddItem(item)
 		return contextMenuTestText(canvas.Texts(), item.Label)
 	}

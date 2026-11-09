@@ -1,6 +1,6 @@
 package gallery
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 const (
 	// exampleHeaderHeight holds an example's title and up to two description
@@ -13,7 +13,7 @@ const (
 
 // exampleGrid lays a component's examples out: as many columns as fit at the
 // minimum stage width, stretched to fill the page.
-var exampleGrid = ui.GridSpec{MinCellWidth: 420, CellHeight: exampleHeaderHeight + exampleStageHeight, Gap: 28}
+var exampleGrid = gfx.GridSpec{MinCellWidth: 420, CellHeight: exampleHeaderHeight + exampleStageHeight, Gap: 28}
 
 // componentHeight returns the height of a component page with that many
 // examples at one page width.
@@ -23,27 +23,27 @@ func componentHeight(width float32, examples int) float32 {
 
 // paintComponent shows every example of the open component, each live on its
 // own stage.
-func (state *State) paintComponent(canvas *ui.Canvas, theme ui.Theme, content ui.Rect, viewport ui.Rect) {
+func (state *State) paintComponent(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, viewport gfx.Rect) {
 	component := &catalog[state.page-1]
 	body := pageHeader(canvas, theme, content, component.Title, componentLines[state.page-1])
-	grid := ui.BeginGrid(body, exampleGrid)
+	grid := gfx.BeginGrid(body, exampleGrid)
 	for index := range state.live {
 		cell := grid.Next()
 		example := &component.Examples[index]
-		canvas.Label(example.Title, ui.Rect{X: cell.X, Y: cell.Y, Width: cell.Width, Height: 22}, ui.TextStyle{
-			Size: 14, Weight: ui.WeightSemibold, Color: theme.Foreground,
+		canvas.Label(example.Title, gfx.Rect{X: cell.X, Y: cell.Y, Width: cell.Width, Height: 22}, gfx.TextStyle{
+			Size: 14, Weight: gfx.WeightSemibold, Color: theme.Foreground,
 		})
 		first, rest := wrapLine(example.Description, 12, cell.Width)
 		second, _ := wrapLine(rest, 12, cell.Width)
-		canvas.Label(first, ui.Rect{X: cell.X, Y: cell.Y + 24, Width: cell.Width, Height: 18}, ui.TextStyle{
+		canvas.Label(first, gfx.Rect{X: cell.X, Y: cell.Y + 24, Width: cell.Width, Height: 18}, gfx.TextStyle{
 			Size: 12, Color: theme.MutedForeground,
 		})
 		if second != "" {
-			canvas.Label(second, ui.Rect{X: cell.X, Y: cell.Y + 42, Width: cell.Width, Height: 18}, ui.TextStyle{
+			canvas.Label(second, gfx.Rect{X: cell.X, Y: cell.Y + 42, Width: cell.Width, Height: 18}, gfx.TextStyle{
 				Size: 12, Color: theme.MutedForeground,
 			})
 		}
-		state.paintStage(canvas, theme, index, ui.Rect{
+		state.paintStage(canvas, theme, index, gfx.Rect{
 			X: cell.X, Y: cell.Y + exampleHeaderHeight, Width: cell.Width, Height: exampleStageHeight,
 		}, viewport)
 	}
@@ -52,12 +52,12 @@ func (state *State) paintComponent(canvas *ui.Canvas, theme ui.Theme, content ui
 // paintStage frames one example and embeds what it paints. The example runs on
 // a canvas of its own, as it does in a standalone preview, and its hit IDs are
 // moved into the example's window of the page's ID space.
-func (state *State) paintStage(canvas *ui.Canvas, theme ui.Theme, slot int, stage ui.Rect, viewport ui.Rect) {
+func (state *State) paintStage(canvas *gfx.Canvas, theme gfx.Theme, slot int, stage gfx.Rect, viewport gfx.Rect) {
 	view := &state.live[slot]
 	canvas.Border(stage, 1, theme.Border, theme.Background)
-	inner := stage.Inset(ui.All(1))
-	view.origin = ui.Point{X: inner.X, Y: inner.Y}
-	view.size = ui.Size{Width: inner.Width, Height: inner.Height}
+	inner := stage.Inset(gfx.All(1))
+	view.origin = gfx.Point{X: inner.X, Y: inner.Y}
+	view.size = gfx.Size{Width: inner.Width, Height: inner.Height}
 	if inner.Y+inner.Height <= viewport.Y || inner.Y >= viewport.Y+viewport.Height {
 		return // scrolled out of sight: nothing to paint or reach
 	}

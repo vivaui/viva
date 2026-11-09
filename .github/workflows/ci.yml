@@ -113,10 +113,17 @@ jobs:
             wait "$pid" || status=1
           done
           exit "$status"
-      - name: GTK always-on-top contract
+      - name: GTK optional capability contracts
         run: |
           go vet -tags vivagtk ./app ./internal/platform/linux
-          go test -tags vivagtk ./internal/platform/linux -run '^TestGTKWaylandAlwaysOnTopReportsUnsupported$' -count=1
+          go test -tags vivagtk ./internal/platform/linux -run '^TestGTK(WaylandAlwaysOnTopReportsUnsupported|ClipboardFileWriteReportsUnsupportedWithoutASetter)$' -count=1
+      - name: Native X11 global shortcut
+        env:
+          VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
+        run: |
+          sudo apt-get install -y xvfb xdotool libx11-xcb1 ||
+            { sudo apt-get update && sudo apt-get install -y xvfb xdotool libx11-xcb1; }
+          xvfb-run -a go test ./internal/platform/linux -run '^TestNativeX11GlobalShortcut$' -count=1 -v
 
   # The browser target is a release target: it compiles every package, runs the
   # shared tests under GOOS=js, and builds the browser entry points and a guide.
@@ -255,6 +262,11 @@ jobs:
           done
           exit "$status"
 
+      - name: Native Carbon global shortcut
+        env:
+          VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
+        run: go test ./internal/platform/darwin -run '^TestNativeCarbonGlobalShortcut$' -count=1 -v
+
   windows-materials:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -270,6 +282,12 @@ jobs:
       # WARP is a Windows API: this cannot run anywhere else.
       - name: Material contracts and controls (WARP)
         run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|AlwaysOnTop|SaveDialogCheckbox)' -count=1 -v
+      - name: Native Windows global shortcut
+        env:
+          VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
+        run: go test ./internal/platform/windows -run '^TestNativeGlobalShortcutRegistration$' -count=1 -v
+      - name: Native Direct2D text origins
+        run: go test ./internal/platform/windows -run '^TestDirectTextLayoutOriginByValue$' -count=1 -v
       # The installer contracts, including WinVerifyTrust's struct layout, only
       # compile and run on Windows.
       - name: Update installer contracts
@@ -279,6 +297,23 @@ jobs:
       # what the taskbar previews.
       - name: Minimized windows keep their visible frame
         run: go test ./internal/platform/windows -run '^TestMinimizedPaintKeepsTheVisibleSwapChain$' -count=1 -v
+
+  # Cross-vet does not exercise the Windows ARM64 calling convention.
+  windows-arm64-text:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          architecture: arm64
+          cache: true
+      - name: Native ARM64 Direct2D text origins
+        run: |
+          if ((go env GOARCH) -ne 'arm64') { throw 'Expected native ARM64 Go' }
+          go test ./internal/platform/windows -run '^TestDirectTextLayoutOriginByValue$' -count=1 -v
 
   # A noise-tolerant benchmark regression gate for the pure-Go paths: the base
   # revision and the pull request run the same benchmarks on the same runner,
@@ -315,7 +350,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, cross-vet, web, web-browser, test, darwin, windows-materials, benchmarks]
+    needs: [changes, lint, cross-vet, web, web-browser, test, darwin, windows-materials, windows-arm64-text, benchmarks]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed

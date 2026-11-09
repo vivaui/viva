@@ -4,27 +4,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 type iconHoverFrames struct {
-	canvas *ui.Canvas
+	canvas *gfx.Canvas
 	now    time.Duration
 }
 
 func newIconHoverFrames() *iconHoverFrames {
-	frames := &iconHoverFrames{canvas: new(ui.Canvas)}
+	frames := &iconHoverFrames{canvas: new(gfx.Canvas)}
 	frames.canvas.SetClock(func() time.Duration { return frames.now })
 	return frames
 }
 
-func (frames *iconHoverFrames) at(at time.Duration, hovered ui.ID, state *IconHover, id ui.ID) (float32, bool) {
+func (frames *iconHoverFrames) at(at time.Duration, hovered gfx.ID, state *IconHover, id gfx.ID) (float32, bool) {
 	return frames.atSlot(at, hovered, state, id, 0)
 }
 
-func (frames *iconHoverFrames) atSlot(at time.Duration, hovered ui.ID, state *IconHover, id ui.ID, slot uint8) (float32, bool) {
+func (frames *iconHoverFrames) atSlot(at time.Duration, hovered gfx.ID, state *IconHover, id gfx.ID, slot uint8) (float32, bool) {
 	frames.now = at
-	frames.canvas.SetInteraction(hovered, ui.ID{}, ui.ID{}, false)
+	frames.canvas.SetInteraction(hovered, gfx.ID{}, gfx.ID{}, false)
 	frames.canvas.BeginFrame()
 	progress, playing := state.Progress(frames.canvas, id, slot, 130*time.Millisecond, 160*time.Millisecond)
 	frames.canvas.EndFrame()
@@ -39,9 +39,9 @@ type slotProgress struct {
 
 // atSlots advances several gestures of one identity in a single frame, which is
 // what a control painting more than one gesture on its glyph does.
-func (frames *iconHoverFrames) atSlots(at time.Duration, hovered ui.ID, state *IconHover, id ui.ID, slots ...uint8) []slotProgress {
+func (frames *iconHoverFrames) atSlots(at time.Duration, hovered gfx.ID, state *IconHover, id gfx.ID, slots ...uint8) []slotProgress {
 	frames.now = at
-	frames.canvas.SetInteraction(hovered, ui.ID{}, ui.ID{}, false)
+	frames.canvas.SetInteraction(hovered, gfx.ID{}, gfx.ID{}, false)
 	frames.canvas.BeginFrame()
 	out := make([]slotProgress, len(slots))
 	for index, slot := range slots {
@@ -53,7 +53,7 @@ func (frames *iconHoverFrames) atSlots(at time.Duration, hovered ui.ID, state *I
 }
 
 func TestIconHoverWaitsForItsDwellThenPlaysOnce(t *testing.T) {
-	id := ui.Item(1)
+	id := gfx.Item(1)
 	frames := newIconHoverFrames()
 	var hover IconHover
 	if progress, playing := frames.at(0, id, &hover, id); progress != 1 || playing {
@@ -80,22 +80,22 @@ func TestIconHoverWaitsForItsDwellThenPlaysOnce(t *testing.T) {
 }
 
 func TestIconHoverFinishesWhenThePointerLeaves(t *testing.T) {
-	id := ui.Item(2)
+	id := gfx.Item(2)
 	frames := newIconHoverFrames()
 	var hover IconHover
 	frames.at(0, id, &hover, id)
 	frames.at(130*time.Millisecond, id, &hover, id)
-	progress, playing := frames.at(170*time.Millisecond, ui.ID{}, &hover, id)
+	progress, playing := frames.at(170*time.Millisecond, gfx.ID{}, &hover, id)
 	if progress != 0.25 || !playing {
 		t.Fatalf("leaving mid-gesture = %v playing=%v, want it to finish", progress, playing)
 	}
-	if progress, playing := frames.at(290*time.Millisecond, ui.ID{}, &hover, id); progress != 1 || playing {
+	if progress, playing := frames.at(290*time.Millisecond, gfx.ID{}, &hover, id); progress != 1 || playing {
 		t.Fatalf("after leaving = %v playing=%v", progress, playing)
 	}
 }
 
 func TestIconHoverReArmsOnlyAfterLeaving(t *testing.T) {
-	id := ui.Item(3)
+	id := gfx.Item(3)
 	frames := newIconHoverFrames()
 	var hover IconHover
 	frames.at(0, id, &hover, id)
@@ -104,7 +104,7 @@ func TestIconHoverReArmsOnlyAfterLeaving(t *testing.T) {
 	if progress, playing := frames.at(300*time.Millisecond, id, &hover, id); progress != 1 || playing {
 		t.Fatalf("a held pointer replayed = %v playing=%v", progress, playing)
 	}
-	frames.at(310*time.Millisecond, ui.ID{}, &hover, id)
+	frames.at(310*time.Millisecond, gfx.ID{}, &hover, id)
 	frames.at(400*time.Millisecond, id, &hover, id)
 	if progress, playing := frames.at(530*time.Millisecond, id, &hover, id); progress != 0 || !playing {
 		t.Fatalf("the second hover = %v playing=%v", progress, playing)
@@ -112,7 +112,7 @@ func TestIconHoverReArmsOnlyAfterLeaving(t *testing.T) {
 }
 
 func TestIconHoverTracksEachSlotOnItsOwn(t *testing.T) {
-	id := ui.Item(5)
+	id := gfx.Item(5)
 	frames := newIconHoverFrames()
 	var hover IconHover
 	// Two gestures on one identity must not starve each other: before the dwell
@@ -134,7 +134,7 @@ func TestIconHoverTracksEachSlotOnItsOwn(t *testing.T) {
 		t.Fatalf("a held pointer restarted a slot: %+v", got)
 	}
 	// Leaving re-arms every slot on the identity.
-	frames.atSlots(400*time.Millisecond, ui.ID{}, &hover, id, 0, 1)
+	frames.atSlots(400*time.Millisecond, gfx.ID{}, &hover, id, 0, 1)
 	frames.atSlots(410*time.Millisecond, id, &hover, id, 0, 1)
 	if got := frames.atSlots(540*time.Millisecond, id, &hover, id, 0, 1); got[0].progress != 0 || !got[0].playing || got[1].progress != 0 || !got[1].playing {
 		t.Fatalf("the re-armed slots = %+v, want fresh passes on both", got)
@@ -142,7 +142,7 @@ func TestIconHoverTracksEachSlotOnItsOwn(t *testing.T) {
 }
 
 func TestIconHoverIsStillUnderReducedMotion(t *testing.T) {
-	id := ui.Item(4)
+	id := gfx.Item(4)
 	frames := newIconHoverFrames()
 	frames.canvas.SetReduceMotion(true)
 	var hover IconHover

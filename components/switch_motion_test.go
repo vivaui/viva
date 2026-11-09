@@ -4,34 +4,34 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // frameClock is a settable clock for animated test canvases.
 type frameClock struct{ now time.Duration }
 
-func newAnimatedCanvas() (*ui.Canvas, *frameClock) {
+func newAnimatedCanvas() (*gfx.Canvas, *frameClock) {
 	clock := &frameClock{}
-	canvas := &ui.Canvas{}
+	canvas := &gfx.Canvas{}
 	canvas.SetClock(func() time.Duration { return clock.now })
 	return canvas, clock
 }
 
 // paintSwitchFrame paints one switch inside an animated frame at time now.
-func paintSwitchFrame(canvas *ui.Canvas, clock *frameClock, theme ui.Theme, now time.Duration, id uint32, checked bool) {
+func paintSwitchFrame(canvas *gfx.Canvas, clock *frameClock, theme gfx.Theme, now time.Duration, id uint32, checked bool) {
 	clock.now = now
 	canvas.BeginFrame()
 	canvas.Reset()
-	BeginSwitch(canvas, theme, ui.Item(int(id)), ui.Rect{X: 20, Y: 20}, checked).Paint()
+	BeginSwitch(canvas, theme, gfx.Item(int(id)), gfx.Rect{X: 20, Y: 20}, checked).Paint()
 	canvas.EndFrame()
 }
 
 func TestSwitchSlidesThumbAndFadesTrackBetweenStates(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	canvas, clock := newAnimatedCanvas()
-	var off, on ui.Canvas
-	BeginSwitch(&off, theme, ui.Item(1), ui.Rect{X: 20, Y: 20}, false).Paint()
-	BeginSwitch(&on, theme, ui.Item(1), ui.Rect{X: 20, Y: 20}, true).Paint()
+	var off, on gfx.Canvas
+	BeginSwitch(&off, theme, gfx.Item(1), gfx.Rect{X: 20, Y: 20}, false).Paint()
+	BeginSwitch(&on, theme, gfx.Item(1), gfx.Rect{X: 20, Y: 20}, true).Paint()
 	offTrack, offThumb := off.Rectangles()[0], off.Rectangles()[1]
 	onTrack, onThumb := on.Rectangles()[0], on.Rectangles()[1]
 
@@ -74,7 +74,7 @@ func TestSwitchSlidesThumbAndFadesTrackBetweenStates(t *testing.T) {
 }
 
 func TestSwitchReversalContinuesFromCurrentThumb(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	canvas, clock := newAnimatedCanvas()
 	paintSwitchFrame(canvas, clock, theme, 0, 1, false)
 	paintSwitchFrame(canvas, clock, theme, time.Second, 1, true)
@@ -87,8 +87,8 @@ func TestSwitchReversalContinuesFromCurrentThumb(t *testing.T) {
 }
 
 func TestSwitchWithoutMotionPaintsFinalStateImmediately(t *testing.T) {
-	staticTheme := ui.LightTheme()
-	staticTheme.Transition = ui.Motion{}
+	staticTheme := gfx.LightTheme()
+	staticTheme.Transition = gfx.Motion{}
 	canvas, clock := newAnimatedCanvas()
 	paintSwitchFrame(canvas, clock, staticTheme, 0, 1, false)
 	paintSwitchFrame(canvas, clock, staticTheme, time.Second, 1, true)
@@ -96,7 +96,7 @@ func TestSwitchWithoutMotionPaintsFinalStateImmediately(t *testing.T) {
 		t.Fatal("a theme without transition tokens must stay instant")
 	}
 
-	preview := ui.LightTheme()
+	preview := gfx.LightTheme()
 	previewCanvas, previewClock := newAnimatedCanvas()
 	paintSwitchFrame(previewCanvas, previewClock, preview, 0, 0, false)
 	paintSwitchFrame(previewCanvas, previewClock, preview, time.Second, 0, true)
@@ -106,13 +106,13 @@ func TestSwitchWithoutMotionPaintsFinalStateImmediately(t *testing.T) {
 }
 
 func TestSwitchDisabledAlphaAppliesToBlendedColors(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	canvas, clock := newAnimatedCanvas()
 	paintSwitchFrame(canvas, clock, theme, 0, 1, false)
 	clock.now = time.Second
 	canvas.BeginFrame()
 	canvas.Reset()
-	BeginSwitch(canvas, theme, ui.Item(1), ui.Rect{X: 20, Y: 20}, true).Disabled().Paint()
+	BeginSwitch(canvas, theme, gfx.Item(1), gfx.Rect{X: 20, Y: 20}, true).Disabled().Paint()
 	canvas.EndFrame()
 	if got := canvas.Rectangles()[0].Color.Alpha; got != 0.5 {
 		t.Fatalf("disabled switch track alpha at the start of a transition = %v, want 0.5", got)
@@ -120,7 +120,7 @@ func TestSwitchDisabledAlphaAppliesToBlendedColors(t *testing.T) {
 }
 
 func TestSwitchAnimatedFramesDoNotAllocate(t *testing.T) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	canvas, clock := newAnimatedCanvas()
 	paintSwitchFrame(canvas, clock, theme, 0, 1, false)
 	now := time.Duration(0)
@@ -138,7 +138,7 @@ func TestSwitchAnimatedFramesDoNotAllocate(t *testing.T) {
 }
 
 func BenchmarkSwitchAnimatedFrame(b *testing.B) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	canvas, clock := newAnimatedCanvas()
 	paintSwitchFrame(canvas, clock, theme, 0, 1, false)
 	b.ReportAllocs()

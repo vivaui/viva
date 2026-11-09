@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func BenchmarkTextEngineWidthHit(b *testing.B) {
@@ -48,7 +48,7 @@ func BenchmarkTextEngineOffsetAtHit(b *testing.B) {
 
 func BenchmarkTextEngineSelectionHit(b *testing.B) {
 	engine := SharedTextEngine()
-	dst := make([]ui.TextSpan, 0, 8)
+	dst := make([]gfx.TextSpan, 0, 8)
 	dst = engine.Selection(dst[:0], "192.168.1.1 主机 office", 14, 0, 2, 14)
 	b.ReportAllocs()
 	for b.Loop() {

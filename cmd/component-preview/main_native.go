@@ -9,8 +9,8 @@ import (
 	"os"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/componentdemo"
-	"github.com/vivaui/viva/ui"
 )
 
 func main() {
@@ -27,11 +27,11 @@ func main() {
 	}
 	state.SetDark(*dark)
 	state.EnableTextEditing()
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	if *dark {
-		theme = ui.DarkTheme()
+		theme = gfx.DarkTheme()
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var nativeInput app.TextInput
 	resolveInput := func(context app.TextInputContext) *app.TextInput {
 		editor, supported := state.Editor(context.ID)

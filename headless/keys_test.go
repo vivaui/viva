@@ -7,26 +7,26 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestControlKeydownKeyupHoldKeysAndModifiers(t *testing.T) {
-	var keys []ui.KeyEvent
-	var pointers []ui.PointerEvent
+	var keys []gfx.KeyEvent
+	var pointers []gfx.PointerEvent
 	config := app.Config{Title: "hold", Width: 300, Height: 120}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: size.Width, Height: size.Height}, "Terminal", ui.HitOptions{Role: ui.RoleTerminal})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: size.Width, Height: size.Height}, "Terminal", gfx.HitOptions{Role: gfx.RoleTerminal})
 	}
-	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
+	config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 		keys = append(keys, event)
-		return ui.EventResult{Handled: true}
+		return gfx.EventResult{Handled: true}
 	}
-	config.OnPointer = func(event ui.PointerEvent) ui.EventResult {
+	config.OnPointer = func(event gfx.PointerEvent) gfx.EventResult {
 		pointers = append(pointers, event)
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	config.TextInput = func(app.TextInputContext) *app.TextInput {
-		return &app.TextInput{Bounds: ui.Rect{Width: 8, Height: 16}, FontSize: 13, KeyReleases: true}
+		return &app.TextInput{Bounds: gfx.Rect{Width: 8, Height: 16}, FontSize: 13, KeyReleases: true}
 	}
 	session, err := Open(config, nil, Options{})
 	if err != nil {
@@ -45,7 +45,7 @@ func TestControlKeydownKeyupHoldKeysAndModifiers(t *testing.T) {
 	}
 	var shiftClicks int
 	for _, event := range pointers {
-		if event.Kind == ui.PointerDown && event.Modifiers == ui.ModifierShift {
+		if event.Kind == gfx.PointerDown && event.Modifiers == gfx.ModifierShift {
 			shiftClicks++
 		}
 	}

@@ -3,7 +3,7 @@ package platform
 import (
 	"math"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // GridInk is how far the ink of one run's glyphs reaches past the cells of the run, in
@@ -43,7 +43,7 @@ const extraColumns = 1.0 / 3
 // wide. value is the label's text, which the runs split in order, and ink the reach of
 // each run's glyphs, one entry per run or nil when no glyph reaches out. The result is
 // valid until the next call.
-func (owner *GridOwner) Plan(runs []ui.TextRun, value string, pitch float64, width int, ink []GridInk) []GridSpan {
+func (owner *GridOwner) Plan(runs []gfx.TextRun, value string, pitch float64, width int, ink []GridInk) []GridSpan {
 	owner.owner = growInt32(owner.owner, width)
 	owner.blank = growBool(owner.blank, width)
 	if cap(owner.spans) < len(runs) {
@@ -120,7 +120,7 @@ func (owner *GridOwner) Plan(runs []ui.TextRun, value string, pitch float64, wid
 
 // columnsReached is the whole columns the ink of a run reaches out on one side: the
 // reach and the part of a pixel the ClearType filter adds, rounded up.
-func columnsReached(ink []GridInk, index int, run ui.TextRun, left bool) int {
+func columnsReached(ink []GridInk, index int, run gfx.TextRun, left bool) int {
 	if index >= len(ink) || run.Cells <= 0 {
 		return 0
 	}

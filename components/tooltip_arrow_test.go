@@ -3,13 +3,13 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // tooltipArrowMetrics describes one arrow step in axis-neutral terms: how far a
 // rectangle reaches out of the body toward the trigger, how wide it is across
 // the edge, and where it is centered along the edge.
-func tooltipArrowMetrics(side TooltipSide, body, step ui.Rect) (reach, width, center float32) {
+func tooltipArrowMetrics(side TooltipSide, body, step gfx.Rect) (reach, width, center float32) {
 	switch side {
 	case TooltipTop:
 		return step.Y + step.Height - (body.Y + body.Height), step.Width, step.X + step.Width/2
@@ -23,12 +23,12 @@ func tooltipArrowMetrics(side TooltipSide, body, step ui.Rect) (reach, width, ce
 }
 
 func TestTooltipArrowIsATriangleOnEverySidePointingAtTheTrigger(t *testing.T) {
-	viewport := ui.Rect{Width: 600, Height: 400}
-	anchor := ui.Rect{X: 260, Y: 180, Width: 80, Height: 32}
+	viewport := gfx.Rect{Width: 600, Height: 400}
+	anchor := gfx.Rect{X: 260, Y: 180, Width: 80, Height: 32}
 	anchorCenterX, anchorCenterY := anchor.X+anchor.Width/2, anchor.Y+anchor.Height/2
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	for _, side := range []TooltipSide{TooltipTop, TooltipRight, TooltipBottom, TooltipLeft} {
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		body := BeginTooltip(&canvas, theme, viewport, anchor, TooltipOptions{Side: side}).Paint("More information")
 		steps := canvas.Rectangles()[1:]
 		if len(steps) != tooltipArrowSteps {
@@ -70,9 +70,9 @@ func TestTooltipArrowIsATriangleOnEverySidePointingAtTheTrigger(t *testing.T) {
 }
 
 func TestTooltipArrowStepsOverlapTheBodyEdgeSoNoSeamOpens(t *testing.T) {
-	var canvas ui.Canvas
-	anchor := ui.Rect{X: 260, Y: 180, Width: 80, Height: 32}
-	body := BeginTooltip(&canvas, ui.LightTheme(), ui.Rect{Width: 600, Height: 400}, anchor, TooltipOptions{Side: TooltipBottom}).Paint("Add to library")
+	var canvas gfx.Canvas
+	anchor := gfx.Rect{X: 260, Y: 180, Width: 80, Height: 32}
+	body := BeginTooltip(&canvas, gfx.LightTheme(), gfx.Rect{Width: 600, Height: 400}, anchor, TooltipOptions{Side: TooltipBottom}).Paint("Add to library")
 	for index, step := range canvas.Rectangles()[1:] {
 		bottom := step.Bounds.Y + step.Bounds.Height
 		if bottom != body.Y+tooltipArrowInset {
@@ -82,16 +82,16 @@ func TestTooltipArrowStepsOverlapTheBodyEdgeSoNoSeamOpens(t *testing.T) {
 }
 
 func TestTooltipArrowStaysOnTheFlatPartOfAClampedBody(t *testing.T) {
-	theme := ui.LightTheme()
-	viewport := ui.Rect{Width: 300, Height: 200}
+	theme := gfx.LightTheme()
+	viewport := gfx.Rect{Width: 300, Height: 200}
 	for _, test := range []struct {
 		name   string
-		anchor ui.Rect
+		anchor gfx.Rect
 	}{
-		{name: "trigger at the left viewport edge", anchor: ui.Rect{X: 0, Y: 100, Width: 16, Height: 24}},
-		{name: "trigger at the right viewport edge", anchor: ui.Rect{X: 284, Y: 100, Width: 16, Height: 24}},
+		{name: "trigger at the left viewport edge", anchor: gfx.Rect{X: 0, Y: 100, Width: 16, Height: 24}},
+		{name: "trigger at the right viewport edge", anchor: gfx.Rect{X: 284, Y: 100, Width: 16, Height: 24}},
 	} {
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		body := BeginTooltip(&canvas, theme, viewport, test.anchor, TooltipOptions{Side: TooltipBottom}).Paint("A longer label here")
 		margin := theme.Metrics.RadiusControl + tooltipArrowBase/2
 		base := canvas.Rectangles()[1].Bounds

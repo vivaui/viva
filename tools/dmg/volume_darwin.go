@@ -32,3 +32,20 @@ func Describe(mount, volume, name string) (File, error) {
 		ID: uint32(fileStat.Ino), ParentID: uint32(rootStat.Ino),
 	}, nil
 }
+
+func volumeMounted(mount string) (bool, error) {
+	volume, err := os.Stat(mount)
+	if err != nil {
+		return false, err
+	}
+	parent, err := os.Stat(filepath.Dir(mount))
+	if err != nil {
+		return false, err
+	}
+	volumeStat, volumeOK := volume.Sys().(*syscall.Stat_t)
+	parentStat, parentOK := parent.Sys().(*syscall.Stat_t)
+	if !volumeOK || !parentOK {
+		return false, fmt.Errorf("dmg: cannot inspect mounted volume %s", mount)
+	}
+	return volumeStat.Dev != parentStat.Dev, nil
+}

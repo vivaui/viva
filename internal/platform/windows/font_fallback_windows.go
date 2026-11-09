@@ -6,7 +6,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // unicodeRange is DWRITE_UNICODE_RANGE.
@@ -14,7 +14,7 @@ type unicodeRange struct{ first, last uint32 }
 
 // faceFallback is the font fallback a face draws the characters its family lacks with.
 type faceFallback struct {
-	face     ui.MonoFace
+	face     gfx.MonoFace
 	fallback uintptr // an IDWriteFontFallback; 0 when it could not be made
 }
 
@@ -23,8 +23,8 @@ type faceFallback struct {
 // order, then the system's own fallback for what none of them has. It is 0 for a face
 // without fallback families, and where IDWriteFactory2 (Windows 8.1) is missing; the
 // text then takes the layout's default fallback, as it always did.
-func (rasterizer *directRasterizer) fontFallback(face ui.MonoFace) uintptr {
-	names := ui.MonoFallbacks(face)
+func (rasterizer *directRasterizer) fontFallback(face gfx.MonoFace) uintptr {
+	names := gfx.MonoFallbacks(face)
 	if len(names) == 0 {
 		return 0
 	}

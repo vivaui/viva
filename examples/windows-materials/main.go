@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func main() {
@@ -18,22 +18,22 @@ func main() {
 		log.Fatalf("unknown material %q", *choice)
 	}
 	active := false
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
 	err := app.RunCanvas(app.Config{
 		Title: "Viva " + *choice, Width: 640, Height: 400,
 		ClearColor:       app.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 		WindowBackdrop:   func() app.BackdropStyle { return app.BackdropStyle{Kind: kind} },
 		OnBackdropChange: func(enabled bool) { active = enabled },
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			background := theme.Background
 			label := "Material unavailable or disabled: solid fallback"
 			if active {
 				background.Alpha = .05
 				label = "Requested material: " + *choice
 			}
-			canvas.Fill(ui.Rect{Width: size.Width, Height: size.Height}, background)
-			canvas.Label(label, ui.Rect{X: 24, Y: 24, Width: size.Width - 48, Height: 40}, ui.TextStyle{Size: 16, Color: theme.Foreground})
+			canvas.Fill(gfx.Rect{Width: size.Width, Height: size.Height}, background)
+			canvas.Label(label, gfx.Rect{X: 24, Y: 24, Width: size.Width - 48, Height: 40}, gfx.TextStyle{Size: 16, Color: theme.Foreground})
 		},
 	}, &canvas)
 	if err != nil {

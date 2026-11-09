@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 type fullscreenTestControl struct {
@@ -67,7 +67,7 @@ func TestFullscreenHostCallbackPublishesBeforeApplicationCallback(t *testing.T) 
 			}
 			states = append(states, fullscreen)
 		},
-	}, &ui.Canvas{})
+	}, &gfx.Canvas{})
 	if err != nil {
 		t.Fatal(err)
 	}

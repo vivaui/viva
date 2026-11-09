@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // ReorderMove describes one completed move in the caller's list. ID identifies
 // the item independently of its position. From and To index the rows declared
@@ -8,7 +8,7 @@ import "github.com/vivaui/viva/ui"
 // declares every item, in order, on every paint. Apply the move once, then
 // repaint the list.
 type ReorderMove struct {
-	ID       ui.ID
+	ID       gfx.ID
 	From, To int
 }
 
@@ -17,11 +17,11 @@ func (move ReorderMove) Valid() bool {
 }
 
 type reorderHandle struct {
-	id       ui.ID
+	id       gfx.ID
 	disabled bool
 	// bounds is where the row was painted in the last pass, translated by
 	// whatever scroll the caller applied. RowBounds hands it back.
-	bounds ui.Rect
+	bounds gfx.Rect
 }
 
 // ReorderListState owns pointer geometry, never the application's data. Pointer
@@ -34,9 +34,9 @@ type reorderHandle struct {
 // so add RevealScroll(move.To) to the caller's offset when applying the move.
 type ReorderListState struct {
 	rows              []reorderHandle
-	bounds, viewport  ui.Rect
+	bounds, viewport  gfx.Rect
 	stride            float32
-	active            ui.ID
+	active            gfx.ID
 	from, to          int
 	startY, lastY     float32
 	pressed, dragging bool
@@ -44,20 +44,20 @@ type ReorderListState struct {
 
 func (state *ReorderListState) Dragging() bool { return state.dragging }
 func (state *ReorderListState) Cancel() {
-	state.active = ui.ID{}
+	state.active = gfx.ID{}
 	state.pressed, state.dragging = false, false
 }
 
 // RowBounds reports where a declared row was painted in the last pass, and
 // false when that ID was not declared. It is the geometry a caller scrolls by
 // to keep the row a keyboard move focused in view.
-func (state *ReorderListState) RowBounds(id ui.ID) (ui.Rect, bool) {
+func (state *ReorderListState) RowBounds(id gfx.ID) (gfx.Rect, bool) {
 	for index := range state.rows {
 		if state.rows[index].id == id {
 			return state.rows[index].bounds, true
 		}
 	}
-	return ui.Rect{}, false
+	return gfx.Rect{}, false
 }
 
 // RevealScroll is the change to add to the caller's scroll offset so the slot a
@@ -87,34 +87,34 @@ func (state *ReorderListState) target(y float32) int {
 	return min(max(int((y-state.bounds.Y)/state.stride), 0), len(state.rows)-1)
 }
 
-func (state *ReorderListState) Pointer(event ui.PointerEvent) (ReorderMove, ui.EventResult) {
-	if event.Kind == ui.PointerDown {
+func (state *ReorderListState) Pointer(event gfx.PointerEvent) (ReorderMove, gfx.EventResult) {
+	if event.Kind == gfx.PointerDown {
 		state.Cancel()
-		if event.Button != ui.PointerButtonPrimary {
-			return ReorderMove{}, ui.EventResult{}
+		if event.Button != gfx.PointerButtonPrimary {
+			return ReorderMove{}, gfx.EventResult{}
 		}
 		for i, row := range state.rows {
 			if row.id == event.Target && !row.disabled {
 				state.active, state.from, state.to = row.id, i, i
 				state.startY, state.lastY, state.pressed, state.dragging = event.Y, event.Y, true, false
-				return ReorderMove{}, ui.EventResult{Handled: true, Repaint: true, Focus: row.id}
+				return ReorderMove{}, gfx.EventResult{Handled: true, Repaint: true, Focus: row.id}
 			}
 		}
-		return ReorderMove{}, ui.EventResult{}
+		return ReorderMove{}, gfx.EventResult{}
 	}
 	if !state.pressed {
-		return ReorderMove{}, ui.EventResult{}
+		return ReorderMove{}, gfx.EventResult{}
 	}
-	result := ui.EventResult{Handled: true, Repaint: true}
+	result := gfx.EventResult{Handled: true, Repaint: true}
 	switch event.Kind {
-	case ui.PointerMove:
+	case gfx.PointerMove:
 		state.lastY = event.Y
 		delta := event.Y - state.startY
 		if delta >= 3 || delta <= -3 {
 			state.dragging = true
 		}
 		state.to = state.target(event.Y)
-	case ui.PointerUp:
+	case gfx.PointerUp:
 		var move ReorderMove
 		inside := event.X >= state.viewport.X && event.X <= state.viewport.X+state.viewport.Width && event.Y >= state.viewport.Y && event.Y <= state.viewport.Y+state.viewport.Height
 		if state.dragging && inside {
@@ -123,7 +123,7 @@ func (state *ReorderListState) Pointer(event ui.PointerEvent) (ReorderMove, ui.E
 		result.Focus = state.active
 		state.Cancel()
 		return move, result
-	case ui.PointerExit:
+	case gfx.PointerExit:
 		// The runtime releases capture after delivering Exit, including an Exit
 		// whose Target still names the previously captured handle.
 		state.Cancel()
@@ -131,14 +131,14 @@ func (state *ReorderListState) Pointer(event ui.PointerEvent) (ReorderMove, ui.E
 	return ReorderMove{}, result
 }
 
-func (state *ReorderListState) Key(event ui.KeyEvent) (ReorderMove, ui.EventResult) {
+func (state *ReorderListState) Key(event gfx.KeyEvent) (ReorderMove, gfx.EventResult) {
 	if event.Release || event.Modifiers != 0 {
-		return ReorderMove{}, ui.EventResult{}
+		return ReorderMove{}, gfx.EventResult{}
 	}
-	if state.pressed && event.Key == ui.KeyEscape {
+	if state.pressed && event.Key == gfx.KeyEscape {
 		id := state.active
 		state.Cancel()
-		return ReorderMove{}, ui.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}
+		return ReorderMove{}, gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}
 	}
 	for i, row := range state.rows {
 		if row.id != event.Target || row.disabled {
@@ -146,43 +146,43 @@ func (state *ReorderListState) Key(event ui.KeyEvent) (ReorderMove, ui.EventResu
 		}
 		to := i
 		switch event.Key {
-		case ui.KeyUp:
+		case gfx.KeyUp:
 			to = max(i-1, 0)
-		case ui.KeyDown:
+		case gfx.KeyDown:
 			to = min(i+1, len(state.rows)-1)
-		case ui.KeyHome:
+		case gfx.KeyHome:
 			to = 0
-		case ui.KeyEnd:
+		case gfx.KeyEnd:
 			to = len(state.rows) - 1
 		default:
-			return ReorderMove{}, ui.EventResult{}
+			return ReorderMove{}, gfx.EventResult{}
 		}
-		return ReorderMove{ID: row.id, From: i, To: to}, ui.EventResult{Handled: true, Repaint: true, Focus: row.id, FocusVisible: true}
+		return ReorderMove{ID: row.id, From: i, To: to}, gfx.EventResult{Handled: true, Repaint: true, Focus: row.id, FocusVisible: true}
 	}
-	return ReorderMove{}, ui.EventResult{}
+	return ReorderMove{}, gfx.EventResult{}
 }
 
 // ReorderRowLayout reserves an independent drag handle and a content slot for
 // icons, text, switches or other controls. Only the handle starts a drag.
-type ReorderRowLayout struct{ Bounds, Handle, Content ui.Rect }
+type ReorderRowLayout struct{ Bounds, Handle, Content gfx.Rect }
 
 type ReorderList struct {
-	canvas           *ui.Canvas
-	theme            ui.Theme
+	canvas           *gfx.Canvas
+	theme            gfx.Theme
 	state            *ReorderListState
-	bounds, viewport ui.Rect
+	bounds, viewport gfx.Rect
 	rowHeight, gap   float32
 	index            int
 }
 
-func BeginReorderList(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, state *ReorderListState) ReorderList {
+func BeginReorderList(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, state *ReorderListState) ReorderList {
 	state.rows = state.rows[:0]
 	return ReorderList{canvas: canvas, theme: theme, state: state, bounds: bounds, viewport: bounds, rowHeight: 44, gap: 4}
 }
 
 // Viewport bounds valid drops and clips the insertion indicator when the caller
 // has translated Bounds to scroll its content. Scrolling remains caller-owned.
-func (list ReorderList) Viewport(bounds ui.Rect) ReorderList { list.viewport = bounds; return list }
+func (list ReorderList) Viewport(bounds gfx.Rect) ReorderList { list.viewport = bounds; return list }
 func (list ReorderList) RowHeight(height float32) ReorderList {
 	if height > 0 {
 		list.rowHeight = height
@@ -193,9 +193,9 @@ func (list ReorderList) RowHeight(height float32) ReorderList {
 // Row declares one row in display order and paints it. Declare every item, in
 // order, on every paint: ReorderMove.From and To index this declaration, so a
 // partial or virtualized paint would move the wrong item.
-func (list *ReorderList) Row(id ui.ID, label string, disabled bool) ReorderRowLayout {
+func (list *ReorderList) Row(id gfx.ID, label string, disabled bool) ReorderRowLayout {
 	disabled = disabled || id.IsZero()
-	bounds := ui.Rect{X: list.bounds.X, Y: list.bounds.Y + float32(list.index)*(list.rowHeight+list.gap), Width: list.bounds.Width, Height: list.rowHeight}
+	bounds := gfx.Rect{X: list.bounds.X, Y: list.bounds.Y + float32(list.index)*(list.rowHeight+list.gap), Width: list.bounds.Width, Height: list.rowHeight}
 	list.index++
 	list.state.rows = append(list.state.rows, reorderHandle{id: id, disabled: disabled, bounds: bounds})
 	fill, edge := list.theme.Background, list.theme.Border
@@ -203,14 +203,14 @@ func (list *ReorderList) Row(id ui.ID, label string, disabled bool) ReorderRowLa
 		fill, edge = list.theme.Muted, list.theme.Primary
 	}
 	list.canvas.RoundedBorder(bounds, list.theme.Metrics.RadiusControl, 1, edge, fill)
-	handle := ui.Rect{X: bounds.X + 4, Y: bounds.Y + 4, Width: 28, Height: max(bounds.Height-8, 0)}
+	handle := gfx.Rect{X: bounds.X + 4, Y: bounds.Y + 4, Width: 28, Height: max(bounds.Height-8, 0)}
 	if list.canvas.FocusVisible() == id {
-		list.canvas.RoundedBorder(handle, list.theme.Metrics.RadiusControl, 1, list.theme.Ring, ui.Color{})
+		list.canvas.RoundedBorder(handle, list.theme.Metrics.RadiusControl, 1, list.theme.Ring, gfx.Color{})
 	}
 	if !id.IsZero() {
 		// PosInSet is left out on purpose: the set size is only known after the
 		// last Row, and half of that pair describes a position with no set.
-		list.canvas.HitWithOptions(id, handle, label, ui.HitOptions{Role: ui.RoleButton, Cursor: ui.PointerCursorHand, Disabled: disabled})
+		list.canvas.HitWithOptions(id, handle, label, gfx.HitOptions{Role: gfx.RoleButton, Cursor: gfx.PointerCursorHand, Disabled: disabled})
 	}
 	color := list.theme.MutedForeground
 	if disabled {
@@ -218,10 +218,10 @@ func (list *ReorderList) Row(id ui.ID, label string, disabled bool) ReorderRowLa
 	}
 	for y := float32(-4); y <= 4; y += 4 {
 		for _, x := range [...]float32{-2, 2} {
-			list.canvas.Rounded(ui.Rect{X: handle.X + handle.Width/2 + x - 1, Y: handle.Y + handle.Height/2 + y - 1, Width: 2, Height: 2}, 1, color)
+			list.canvas.Rounded(gfx.Rect{X: handle.X + handle.Width/2 + x - 1, Y: handle.Y + handle.Height/2 + y - 1, Width: 2, Height: 2}, 1, color)
 		}
 	}
-	return ReorderRowLayout{Bounds: bounds, Handle: handle, Content: ui.Rect{X: bounds.X + 40, Y: bounds.Y, Width: max(bounds.Width-48, 0), Height: bounds.Height}}
+	return ReorderRowLayout{Bounds: bounds, Handle: handle, Content: gfx.Rect{X: bounds.X + 40, Y: bounds.Y, Width: max(bounds.Width-48, 0), Height: bounds.Height}}
 }
 
 func (list *ReorderList) End() {
@@ -250,6 +250,6 @@ func (list *ReorderList) End() {
 		y += state.stride
 	}
 	list.canvas.Clip(list.viewport)
-	list.canvas.Rounded(ui.Rect{X: list.bounds.X + 2, Y: y, Width: max(list.bounds.Width-4, 0), Height: 3}, 1.5, list.theme.Primary)
+	list.canvas.Rounded(gfx.Rect{X: list.bounds.X + 2, Y: y, Width: max(list.bounds.Width-4, 0), Height: 3}, 1.5, list.theme.Primary)
 	list.canvas.Unclip()
 }

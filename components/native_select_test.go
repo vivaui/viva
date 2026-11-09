@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 var nativeSelectTestOptions = [...]NativeSelectOption{
@@ -15,40 +15,40 @@ var nativeSelectTestOptions = [...]NativeSelectOption{
 }
 
 func TestNativeSelectSizesAndComboboxSemantics(t *testing.T) {
-	var canvas ui.Canvas
-	bounds := PaintNativeSelect(&canvas, ui.LightTheme(), ui.Rect{X: 4, Y: 5, Width: 180}, NativeSelectSnapshot{
-		ID: ui.Item(1), Label: "Density", Value: "Compact", Hint: "UI density", Open: true, Focused: true,
+	var canvas gfx.Canvas
+	bounds := PaintNativeSelect(&canvas, gfx.LightTheme(), gfx.Rect{X: 4, Y: 5, Width: 180}, NativeSelectSnapshot{
+		ID: gfx.Item(1), Label: "Density", Value: "Compact", Hint: "UI density", Open: true, Focused: true,
 	})
 	if bounds.Height != 32 {
 		t.Fatalf("default height = %v", bounds.Height)
 	}
 	hit := canvas.Hits()[0]
-	if hit.Role != ui.RoleCombobox || hit.Value != "Compact" || hit.Hint != "UI density" || !hit.Expanded {
+	if hit.Role != gfx.RoleCombobox || hit.Value != "Compact" || hit.Hint != "UI density" || !hit.Expanded {
 		t.Fatalf("hit = %+v", hit)
 	}
 	canvas.Reset()
-	small := PaintNativeSelect(&canvas, ui.LightTheme(), ui.Rect{Width: 140}, NativeSelectSnapshot{Size: NativeSelectSmall, Placeholder: "Choose"})
+	small := PaintNativeSelect(&canvas, gfx.LightTheme(), gfx.Rect{Width: 140}, NativeSelectSnapshot{Size: NativeSelectSmall, Placeholder: "Choose"})
 	if small.Height != 28 || canvas.Texts()[0].Value != "Choose" {
 		t.Fatalf("small=%+v texts=%+v", small, canvas.Texts())
 	}
 }
 
 func TestNativeSelectDisabledReadOnlyState(t *testing.T) {
-	var canvas ui.Canvas
-	PaintNativeSelect(&canvas, ui.DarkTheme(), ui.Rect{Width: 150}, NativeSelectSnapshot{
-		ID: ui.Item(4), Label: "Language", Value: "Go", Disabled: true, ReadOnly: true, Invalid: true,
+	var canvas gfx.Canvas
+	PaintNativeSelect(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 150}, NativeSelectSnapshot{
+		ID: gfx.Item(4), Label: "Language", Value: "Go", Disabled: true, ReadOnly: true, Invalid: true,
 	})
-	if hit := canvas.Hits()[0]; !hit.Disabled || !hit.ReadOnly || hit.Focusable || hit.Role != ui.RoleCombobox {
+	if hit := canvas.Hits()[0]; !hit.Disabled || !hit.ReadOnly || hit.Focusable || hit.Role != gfx.RoleCombobox {
 		t.Fatalf("hit = %+v", hit)
 	}
-	if canvas.Texts()[0].Style.Color.Alpha >= ui.DarkTheme().Foreground.Alpha {
+	if canvas.Texts()[0].Style.Color.Alpha >= gfx.DarkTheme().Foreground.Alpha {
 		t.Fatalf("disabled text = %+v", canvas.Texts()[0])
 	}
 }
 
 func TestNativeSelectCallerOwnedSelectionAndSemanticPaint(t *testing.T) {
 	snapshot := NativeSelectSnapshot{
-		ID: ui.Item(11), Label: "Density", Hint: "UI density", Options: nativeSelectTestOptions[:],
+		ID: gfx.Item(11), Label: "Density", Hint: "UI density", Options: nativeSelectTestOptions[:],
 		Selection: NativeSelectSelection{Index: 2, Valid: true}, Open: true,
 		Focused: true, Invalid: true,
 	}
@@ -57,15 +57,15 @@ func TestNativeSelectCallerOwnedSelectionAndSemanticPaint(t *testing.T) {
 		t.Fatalf("selected option = %+v, %v", option, ok)
 	}
 	want := NativeSelectSemantics{
-		ID: ui.Item(11), Label: "Density", Value: "system", Hint: "UI density",
+		ID: gfx.Item(11), Label: "Density", Value: "system", Hint: "UI density",
 		Selection: NativeSelectSelection{Index: 2, Valid: true}, OptionCount: 3,
 		Focused: true, Open: true, Invalid: true,
 	}
 	if got := snapshot.Semantics(); got != want {
 		t.Fatalf("semantics = %+v, want %+v", got, want)
 	}
-	var canvas ui.Canvas
-	PaintNativeSelect(&canvas, ui.LightTheme(), ui.Rect{Width: 180}, snapshot)
+	var canvas gfx.Canvas
+	PaintNativeSelect(&canvas, gfx.LightTheme(), gfx.Rect{Width: 180}, snapshot)
 	if text := canvas.Texts()[0].Value; text != "System" {
 		t.Fatalf("display = %q", text)
 	}
@@ -73,7 +73,7 @@ func TestNativeSelectCallerOwnedSelectionAndSemanticPaint(t *testing.T) {
 		t.Fatalf("hit = %+v", hit)
 	}
 	canvas.Reset()
-	PaintNativeSelectSemantics(&canvas, ui.Rect{Width: 180, Height: 32}, snapshot)
+	PaintNativeSelectSemantics(&canvas, gfx.Rect{Width: 180, Height: 32}, snapshot)
 	if len(canvas.Rectangles()) != 0 || len(canvas.Texts()) != 0 || len(canvas.Hits()) != 1 {
 		t.Fatalf("semantic-only stream: rectangles=%+v texts=%+v hits=%+v", canvas.Rectangles(), canvas.Texts(), canvas.Hits())
 	}
@@ -110,12 +110,12 @@ func TestNativeSelectCommandHelperSkipsDisabledOptions(t *testing.T) {
 }
 
 func TestNativeSelectInvalidExplicitSelectionUsesPlaceholder(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	snapshot := NativeSelectSnapshot{
-		ID: ui.Item(2), Label: "Density", Options: nativeSelectTestOptions[:],
+		ID: gfx.Item(2), Label: "Density", Options: nativeSelectTestOptions[:],
 		Selection: NativeSelectSelection{Index: 99, Valid: true}, Value: "legacy", Display: "Legacy", Placeholder: "Choose",
 	}
-	PaintNativeSelect(&canvas, ui.LightTheme(), ui.Rect{Width: 150}, snapshot)
+	PaintNativeSelect(&canvas, gfx.LightTheme(), gfx.Rect{Width: 150}, snapshot)
 	if text := canvas.Texts()[0].Value; text != "Choose" {
 		t.Fatalf("display = %q", text)
 	}
@@ -125,11 +125,11 @@ func TestNativeSelectInvalidExplicitSelectionUsesPlaceholder(t *testing.T) {
 }
 
 func TestNativeSelectPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		PaintNativeSelect(&canvas, ui.LightTheme(), ui.Rect{X: 1, Y: 2, Width: 160}, NativeSelectSnapshot{
-			ID: ui.Item(3), Label: "Framework", Options: nativeSelectTestOptions[:],
+		PaintNativeSelect(&canvas, gfx.LightTheme(), gfx.Rect{X: 1, Y: 2, Width: 160}, NativeSelectSnapshot{
+			ID: gfx.Item(3), Label: "Framework", Options: nativeSelectTestOptions[:],
 			Selection: NativeSelectSelection{Index: 0, Valid: true}, Focused: true, Open: true,
 		})
 	}

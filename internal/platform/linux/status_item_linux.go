@@ -10,10 +10,10 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/dbus"
 	"github.com/vivaui/viva/internal/dbusmenu"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -197,19 +197,19 @@ func (win *window) requestActivation() error {
 
 // Frame is the content area in screen coordinates. It asks the X server, so any
 // goroutine may call it; the connection is guarded by the window lock.
-func (window *nativeWindow) Frame() (ui.Rect, bool) {
+func (window *nativeWindow) Frame() (gfx.Rect, bool) {
 	if window == nil || window.closed.Load() || window.state == nil || window.state.win == nil {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
 	win := window.state.win
 	win.mu.Lock()
 	defer win.mu.Unlock()
 	if win.connection == 0 {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
 	x, y := win.contentOrigin()
 	scale := win.displayScale()
-	return ui.Rect{X: float32(x) / scale, Y: float32(y) / scale, Width: float32(contentSize(win.width, win.margin)) / scale, Height: float32(contentSize(win.height, win.margin)) / scale}, true
+	return gfx.Rect{X: float32(x) / scale, Y: float32(y) / scale, Width: float32(contentSize(win.width, win.margin)) / scale, Height: float32(contentSize(win.height, win.margin)) / scale}, true
 }
 
 // Hide and Show post to the window's loop, so they may be called anywhere.
@@ -460,16 +460,32 @@ func (item *linuxStatusItem) handleMenu(call *dbus.Message) {
 		return
 	}
 	conn.Reply(call, result.Signature, result.Body)
+	if result.LayoutUpdated != 0 {
+		// A host that kept the ids of the last layout is told, the way the
+		// interface says, that the menu it is showing was rebuilt and that its
+		// ids no longer apply. The reply comes first, so a host that reads the
+		// layout in answer to this signal sees the build this call made.
+		var signal dbus.Encoder
+		signal.Uint32(result.LayoutUpdated)
+		signal.Int32(0)
+		conn.Emit(dbusmenu.Path, dbusmenu.Interface, "LayoutUpdated", "ui", signal.Bytes())
+	}
+	if len(result.ItemsUpdated) != 0 {
+		// The entries kept the ids the host holds; only what it draws changed.
+		// The host applies the properties where they are, and does not have to
+		// read the layout again to keep choosing entries by their ids.
+		conn.Emit(dbusmenu.Path, dbusmenu.Interface, "ItemsPropertiesUpdated", dbusmenu.ItemsUpdatedSignature, result.ItemsUpdated)
+	}
 }
 
 func (item *linuxStatusItem) handleMethod(call *dbus.Message) {
 	conn := item.notifier.conn
-	var button ui.PointerButton
+	var button gfx.PointerButton
 	switch call.Member {
 	case "Activate":
-		button = ui.PointerButtonPrimary
+		button = gfx.PointerButtonPrimary
 	case "ContextMenu", "SecondaryActivate":
-		button = ui.PointerButtonSecondary
+		button = gfx.PointerButtonSecondary
 	case "Scroll":
 		conn.Reply(call, "", nil)
 		return

@@ -3,7 +3,7 @@ package components
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // TooltipSide selects the anchor edge used by a tooltip.
@@ -85,7 +85,7 @@ type TooltipOptions struct {
 	Layer uint16
 	// ID names the tooltip for its entrance and exit, as HoverCardOptions.ID does.
 	// Leave it zero for a tooltip that appears and disappears at once.
-	ID          ui.ID
+	ID          gfx.ID
 	Side        TooltipSide
 	Align       TooltipAlign
 	SideOffset  float32
@@ -95,16 +95,16 @@ type TooltipOptions struct {
 
 // Tooltip is one noninteractive Vega tooltip declaration.
 type Tooltip struct {
-	canvas   *ui.Canvas
-	theme    ui.Theme
-	viewport ui.Rect
-	anchor   ui.Rect
+	canvas   *gfx.Canvas
+	theme    gfx.Theme
+	viewport gfx.Rect
+	anchor   gfx.Rect
 	options  TooltipOptions
 	disabled bool
 }
 
 // BeginTooltip creates a tooltip declaration.
-func BeginTooltip(canvas *ui.Canvas, theme ui.Theme, viewport, anchor ui.Rect, options TooltipOptions) Tooltip {
+func BeginTooltip(canvas *gfx.Canvas, theme gfx.Theme, viewport, anchor gfx.Rect, options TooltipOptions) Tooltip {
 	return Tooltip{canvas: canvas, theme: theme, viewport: viewport, anchor: anchor, options: options}
 }
 
@@ -117,9 +117,9 @@ func (tooltip Tooltip) Disabled() Tooltip {
 // Paint renders the label and arrow on the caller-provided layer. A label wider
 // than MaxWidth wraps. The tooltip opens on the opposite side when the requested
 // one has no room, and its arrow follows.
-func (tooltip Tooltip) Paint(label string) ui.Rect {
+func (tooltip Tooltip) Paint(label string) gfx.Rect {
 	if tooltip.disabled || tooltip.canvas == nil || label == "" || tooltip.viewport.Width <= 0 || tooltip.viewport.Height <= 0 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	metrics := tooltip.theme.Metrics
 	maxWidth := tooltip.options.MaxWidth
@@ -129,15 +129,15 @@ func (tooltip Tooltip) Paint(label string) ui.Rect {
 	maxWidth = min(maxWidth, tooltip.viewport.Width-8)
 	const padX, padY = float32(12), float32(6)
 	var scratch overlayLines
-	lines := overlayWrap(tooltip.canvas, &scratch, label, metrics.FontSizeS, ui.WeightRegular, maxWidth-2*padX)
+	lines := overlayWrap(tooltip.canvas, &scratch, label, metrics.FontSizeS, gfx.WeightRegular, maxWidth-2*padX)
 	// One line takes the width of its text; a wrapped label fills the whole
 	// maximum, as a `w-fit max-w-xs` box does.
 	textWidth := maxWidth - 2*padX
 	if len(lines) == 1 {
-		textWidth = tooltip.canvas.TextWidthWeight(lines[0], metrics.FontSizeS, ui.WeightRegular)
+		textWidth = tooltip.canvas.TextWidthWeight(lines[0], metrics.FontSizeS, gfx.WeightRegular)
 	}
 	lineHeight := tooltipLineHeight(metrics)
-	size := ui.Size{Width: textWidth + 2*padX, Height: float32(len(lines))*lineHeight + 2*padY}
+	size := gfx.Size{Width: textWidth + 2*padX, Height: float32(len(lines))*lineHeight + 2*padY}
 	offset := tooltip.options.SideOffset
 	if offset == 0 {
 		offset = TooltipDefaultSideOffset
@@ -150,8 +150,8 @@ func (tooltip Tooltip) Paint(label string) ui.Rect {
 	tooltip.canvas.BeginPresence(overlayKey(tooltip.options.ID), overlaySurfacePart,
 		popupPresence(tooltip.theme, tooltipDuration, side), popupPivot(content, side, tooltip.anchor))
 	tooltip.canvas.Rounded(content, metrics.RadiusControl, tooltip.theme.Foreground)
-	overlayParagraph(tooltip.canvas, lines, ui.Rect{X: content.X + padX, Y: content.Y + padY, Width: content.Width - 2*padX}, lineHeight, ui.TextStyle{
-		Size: metrics.FontSizeS, Weight: ui.WeightRegular, Color: tooltip.theme.Background,
+	overlayParagraph(tooltip.canvas, lines, gfx.Rect{X: content.X + padX, Y: content.Y + padY, Width: content.Width - 2*padX}, lineHeight, gfx.TextStyle{
+		Size: metrics.FontSizeS, Weight: gfx.WeightRegular, Color: tooltip.theme.Background,
 	}, false)
 	tooltip.paintArrow(content, tooltipSideOf(side))
 	tooltip.canvas.EndPresence()
@@ -160,7 +160,7 @@ func (tooltip Tooltip) Paint(label string) ui.Rect {
 }
 
 // tooltipLineHeight is the 16px line of `text-xs`.
-func tooltipLineHeight(metrics ui.Metrics) float32 { return metrics.FontSizeS + 5 }
+func tooltipLineHeight(metrics gfx.Metrics) float32 { return metrics.FontSizeS + 5 }
 
 func tooltipOverlaySide(side TooltipSide) OverlaySide {
 	switch side {
@@ -200,7 +200,7 @@ const (
 	tooltipArrowInset = float32(1)
 )
 
-func (tooltip Tooltip) paintArrow(content ui.Rect, side TooltipSide) {
+func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide) {
 	// Center on the trigger, but keep the base on the flat part of the body so
 	// it never straddles a rounded corner after the body was clamped on screen.
 	radius := tooltip.theme.Metrics.RadiusControl
@@ -219,16 +219,16 @@ func (tooltip Tooltip) paintArrow(content ui.Rect, side TooltipSide) {
 		reach := float32(step+1) * tooltipArrowStep
 		// Chord of the 45° triangle at the middle of this step.
 		width := tooltipArrowBase - 2*(float32(step)+0.5)*tooltipArrowStep
-		var bounds ui.Rect
+		var bounds gfx.Rect
 		switch side {
 		case TooltipRight:
-			bounds = ui.Rect{X: edge - reach, Y: center - width/2, Width: reach + tooltipArrowInset, Height: width}
+			bounds = gfx.Rect{X: edge - reach, Y: center - width/2, Width: reach + tooltipArrowInset, Height: width}
 		case TooltipBottom:
-			bounds = ui.Rect{X: center - width/2, Y: edge - reach, Width: width, Height: reach + tooltipArrowInset}
+			bounds = gfx.Rect{X: center - width/2, Y: edge - reach, Width: width, Height: reach + tooltipArrowInset}
 		case TooltipLeft:
-			bounds = ui.Rect{X: edge - tooltipArrowInset, Y: center - width/2, Width: reach + tooltipArrowInset, Height: width}
+			bounds = gfx.Rect{X: edge - tooltipArrowInset, Y: center - width/2, Width: reach + tooltipArrowInset, Height: width}
 		default:
-			bounds = ui.Rect{X: center - width/2, Y: edge - tooltipArrowInset, Width: width, Height: reach + tooltipArrowInset}
+			bounds = gfx.Rect{X: center - width/2, Y: edge - tooltipArrowInset, Width: width, Height: reach + tooltipArrowInset}
 		}
 		tooltip.canvas.Fill(bounds, tooltip.theme.Foreground)
 	}
@@ -257,21 +257,21 @@ const HoverTooltipDelay = 0
 // overlap. Holding no timer or goroutine, it asks the canvas for one frame at
 // the moment a tooltip is due and for nothing while idle.
 type HoverTooltip struct {
-	target ui.ID
+	target gfx.ID
 	since  time.Duration
 	// suppressed is the control a click just hid the tooltip of; it stays
 	// hidden until the pointer leaves that control, as Base UI's closeOnClick
 	// does.
-	suppressed ui.ID
+	suppressed gfx.ID
 	// focus shows the hint of the keyboard-focused control too, without a delay.
 	focus bool
 	// shown is the control whose tooltip the last Paint drew, so a press or an
 	// explicit Dismiss can suppress that control until the pointer leaves.
-	shown ui.ID
+	shown gfx.ID
 }
 
 // Showing returns the control whose tooltip the last Paint drew, or zero.
-func (hover *HoverTooltip) Showing() ui.ID { return hover.shown }
+func (hover *HoverTooltip) Showing() gfx.ID { return hover.shown }
 
 // Dismiss hides the tooltip that is showing and keeps it hidden until the
 // pointer leaves that control, returning whether anything was showing. The
@@ -280,7 +280,7 @@ func (hover *HoverTooltip) Dismiss() bool {
 	if hover.shown.IsZero() {
 		return false
 	}
-	hover.suppressed, hover.target, hover.shown = hover.shown, ui.ID{}, ui.ID{}
+	hover.suppressed, hover.target, hover.shown = hover.shown, gfx.ID{}, gfx.ID{}
 	return true
 }
 
@@ -293,21 +293,21 @@ func (hover *HoverTooltip) ShowOnFocus() { hover.focus = true }
 // delay, and reports whether it did. The tooltip goes below the control, or
 // above it when the viewport has no room below (see PlaceOverlay). It stays hidden while a button
 // is pressed and for hits without a Hint.
-func (hover *HoverTooltip) Paint(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, options TooltipOptions, delay time.Duration) bool {
+func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, options TooltipOptions, delay time.Duration) bool {
 	hovered := canvas.Hovered()
 	if !canvas.Pressed().IsZero() {
 		if !hover.shown.IsZero() {
 			hover.suppressed = hover.shown
 		}
-		hover.target, hover.shown = ui.ID{}, ui.ID{}
+		hover.target, hover.shown = gfx.ID{}, gfx.ID{}
 		return false
 	}
 	if !hover.suppressed.IsZero() {
 		if hovered == hover.suppressed {
-			hover.target, hover.shown = ui.ID{}, ui.ID{}
+			hover.target, hover.shown = gfx.ID{}, gfx.ID{}
 			return false
 		}
-		hover.suppressed = ui.ID{}
+		hover.suppressed = gfx.ID{}
 	}
 	id := hovered
 	immediate := false
@@ -317,11 +317,11 @@ func (hover *HoverTooltip) Paint(canvas *ui.Canvas, theme ui.Theme, viewport ui.
 		}
 	}
 	if id.IsZero() {
-		hover.target, hover.shown = ui.ID{}, ui.ID{}
+		hover.target, hover.shown = gfx.ID{}, gfx.ID{}
 		return false
 	}
 	hits := canvas.Hits()
-	var hit ui.Hit
+	var hit gfx.Hit
 	found := false
 	for index := len(hits) - 1; index >= 0; index-- {
 		if hits[index].ID == id && !hits[index].Block {
@@ -330,7 +330,7 @@ func (hover *HoverTooltip) Paint(canvas *ui.Canvas, theme ui.Theme, viewport ui.
 		}
 	}
 	if !found {
-		hover.target, hover.shown = ui.ID{}, ui.ID{}
+		hover.target, hover.shown = gfx.ID{}, gfx.ID{}
 		return false
 	}
 	now := canvas.Now()
@@ -342,7 +342,7 @@ func (hover *HoverTooltip) Paint(canvas *ui.Canvas, theme ui.Theme, viewport ui.
 	}
 	if remaining := delay - (now - hover.since); remaining > 0 {
 		canvas.RequestFrameIn(remaining)
-		hover.shown = ui.ID{}
+		hover.shown = gfx.ID{}
 		return false
 	}
 	options.Side = TooltipBottom

@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // fakeHost is an event loop with no windows: it records what the application
@@ -40,9 +40,9 @@ func (window *fakeWindow) Hide() { window.hides++ }
 func (window *fakeWindow) Show() { window.shows++ }
 
 // Frame is where the window's Config.Origin put it.
-func (window *fakeWindow) Frame() (ui.Rect, bool) {
+func (window *fakeWindow) Frame() (gfx.Rect, bool) {
 	origin := window.config.originPoint()
-	return ui.Rect{X: origin.X, Y: origin.Y, Width: float32(window.config.Width), Height: float32(window.config.Height)}, true
+	return gfx.Rect{X: origin.X, Y: origin.Y, Width: float32(window.config.Width), Height: float32(window.config.Height)}, true
 }
 
 type fakeStatusItem struct {
@@ -56,7 +56,7 @@ func (item *fakeStatusItem) SetIcon(icon StatusIcon) error { item.icon = icon; r
 func (item *fakeStatusItem) SetTooltip(tooltip string)     { item.tooltip = tooltip }
 func (item *fakeStatusItem) Remove()                       { item.removed++ }
 
-func (host *fakeHost) OpenWindow(config Config, canvas *ui.Canvas, closed func()) (WindowControl, error) {
+func (host *fakeHost) OpenWindow(config Config, canvas *gfx.Canvas, closed func()) (WindowControl, error) {
 	if host.reject != "" && config.Title == host.reject {
 		return nil, errors.New("rejected")
 	}
@@ -299,8 +299,8 @@ func TestStatusItemReportsClicksAndRemovesOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	host.items[0].config.OnClick(StatusClick{Button: ui.PointerButtonSecondary, PanelDismissed: true})
-	if len(clicks) != 1 || clicks[0].Button != ui.PointerButtonSecondary || !clicks[0].PanelDismissed {
+	host.items[0].config.OnClick(StatusClick{Button: gfx.PointerButtonSecondary, PanelDismissed: true})
+	if len(clicks) != 1 || clicks[0].Button != gfx.PointerButtonSecondary || !clicks[0].PanelDismissed {
 		t.Fatalf("clicks = %+v", clicks)
 	}
 	item.SetTooltip("Two sessions")
@@ -389,16 +389,21 @@ func BenchmarkApplicationOpenClosePair(b *testing.B) {
 func TestPlatformMenuCopiesEveryLevelAndItsSelectHandler(t *testing.T) {
 	var chosen []string
 	items := []MenuItem{
-		{Title: "Open", OnSelect: func() { chosen = append(chosen, "open") }},
+		{ID: "open", Title: "Open", OnSelect: func() { chosen = append(chosen, "open") }},
 		{Separator: true},
-		{Title: "Recent", Submenu: []MenuItem{
-			{Title: "One", Checked: true, OnSelect: func() { chosen = append(chosen, "one") }},
+		{ID: "recent", Title: "Recent", Submenu: []MenuItem{
+			{ID: "one", Title: "One", Checked: true, OnSelect: func() { chosen = append(chosen, "one") }},
 			{Title: "Two", Disabled: true},
 		}},
 	}
 	menu := platformMenu(items)
 	if len(menu) != 3 || menu[0].Title != "Open" || !menu[1].Separator || len(menu[2].Submenu) != 2 {
 		t.Fatalf("menu = %+v", menu)
+	}
+	// The ID an application gives an entry is what the Linux menu keeps across
+	// builds, at every level, and an entry without one stays without one.
+	if menu[0].ID != "open" || menu[1].ID != "" || menu[2].ID != "recent" || menu[2].Submenu[0].ID != "one" {
+		t.Fatalf("ids lost: %+v", menu)
 	}
 	if !menu[2].Submenu[0].Checked || !menu[2].Submenu[1].Disabled {
 		t.Fatalf("submenu flags lost: %+v", menu[2].Submenu)
@@ -416,11 +421,11 @@ func TestPlatformMenuCopiesEveryLevelAndItsSelectHandler(t *testing.T) {
 func TestWindowFrameIsWhereTheOriginPutIt(t *testing.T) {
 	host := &fakeHost{}
 	application := &Application{host: host}
-	window, err := application.OpenWindow(Config{Width: 300, Height: 200, Origin: &ui.Point{X: 40, Y: 50}}, nil)
+	window, err := application.OpenWindow(Config{Width: 300, Height: 200, Origin: &gfx.Point{X: 40, Y: 50}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if frame, ok := window.Frame(); !ok || frame != (ui.Rect{X: 40, Y: 50, Width: 300, Height: 200}) {
+	if frame, ok := window.Frame(); !ok || frame != (gfx.Rect{X: 40, Y: 50, Width: 300, Height: 200}) {
 		t.Fatalf("frame %+v, %v", frame, ok)
 	}
 	window.Close()

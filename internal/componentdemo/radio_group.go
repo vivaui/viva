@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -70,22 +70,22 @@ func (state *State) radioGroupOptionsFor() [len(radioGroupOptions)]components.Ra
 	return options
 }
 
-func (state *State) keyRadioGroup(event ui.KeyEvent) ui.EventResult {
+func (state *State) keyRadioGroup(event gfx.KeyEvent) gfx.EventResult {
 	if listIndex(event.Target, radioGroupItem) < 0 {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	options := state.radioGroupOptionsFor()
 	next, handled := components.RadioGroupKeyDown(event.Target, options[:], components.DirectionLTR, event.Key)
 	if !handled {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	nextValue := int32(listIndex(next, radioGroupItem))
 	changed := state.values[0] != nextValue
 	state.values[0] = nextValue
-	return ui.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
+	return gfx.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
 }
 
-func (state *State) paintRadioGroup(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintRadioGroup(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	horizontal := state.exampleID == "horizontal" && min(size.Width-48, float32(520)) >= 360
 	// Three control-height rows plus the group's 12px gaps; a horizontal group
 	// keeps the single-row default.
@@ -93,8 +93,8 @@ func (state *State) paintRadioGroup(canvas *ui.Canvas, theme ui.Theme, size ui.S
 	if horizontal {
 		height = theme.Metrics.ControlHeight
 	}
-	var slot flex.Box
-	state.page(canvas, theme, size, 520, "Workspace plan", func(f *flex.Frame) {
+	var slot ui.Box
+	state.page(canvas, theme, size, 520, "Workspace plan", func(f *ui.Frame) {
 		slot = f.Slot().Height(height)
 		caption(f, state.Text("方向键移动焦点并更新调用方选中值。", "Arrow keys move focus and update the caller's selection."))
 	})

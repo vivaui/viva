@@ -16,8 +16,8 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 type nativeStatusItem struct {
@@ -91,9 +91,9 @@ func vivaStatusItemClicked(handle C.uintptr_t, button C.int, x, y, width, height
 	if item.removed.Load() || item.onClick == nil {
 		return
 	}
-	pointer := ui.PointerButtonPrimary
+	pointer := gfx.PointerButtonPrimary
 	if button == 2 {
-		pointer = ui.PointerButtonSecondary
+		pointer = gfx.PointerButtonSecondary
 	}
 	item.onClick(platform.StatusClick{
 		Button:         pointer,

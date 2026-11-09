@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // ErrNoStatusArea is returned by AddStatusItem when the desktop has nowhere to
@@ -44,7 +44,7 @@ type StatusAnchor struct {
 
 // StatusClick is one press on a status item.
 type StatusClick struct {
-	Button ui.PointerButton
+	Button gfx.PointerButton
 	// Anchor locates the item for a panel opened in response.
 	Anchor StatusAnchor
 	// PanelDismissed is true when a WindowPanel closed itself, for losing
@@ -89,6 +89,15 @@ type MenuItem struct {
 	// OnSelect runs on the event-loop thread, after the menu has closed, when
 	// the user chooses the entry. An entry with a Submenu is not selectable.
 	OnSelect func()
+	// ID, when set, names the entry across builds, so a menu that outlives one
+	// build, as the Linux tray's does, still reaches this entry after its title
+	// or state changes. An ID must be unique among the entries of one menu: two
+	// entries that share one are told apart only by their order, so removing one
+	// of them gives a new id to the ones after it. The same ID in another submenu
+	// names another entry, and an entry that moves to another submenu is another
+	// entry. macOS and Windows rebuild the menu each time it opens; an entry
+	// without an ID is known by its title, so a new title is a new entry.
+	ID string
 }
 
 // StatusItemControl is what a Host gives back for a status item.
@@ -155,7 +164,7 @@ func platformMenu(items []MenuItem) []platform.MenuItem {
 	for index, item := range items {
 		converted[index] = platform.MenuItem{
 			Title: item.Title, Separator: item.Separator, Disabled: item.Disabled, Checked: item.Checked,
-			Submenu: platformMenu(item.Submenu), OnSelect: item.OnSelect,
+			Submenu: platformMenu(item.Submenu), OnSelect: item.OnSelect, ID: item.ID,
 		}
 	}
 	return converted
@@ -163,6 +172,6 @@ func platformMenu(items []MenuItem) []platform.MenuItem {
 
 // NewStatusClick is the press a development runner reports for a status item
 // that has no real icon to click. It has no anchor.
-func NewStatusClick(button ui.PointerButton) StatusClick {
+func NewStatusClick(button gfx.PointerButton) StatusClick {
 	return StatusClick{Button: button}
 }

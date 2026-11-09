@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -40,25 +40,25 @@ var (
 	toggleDisabled = tree.ID(toggleUI, "disabled")
 )
 
-// toggleSpecimen is one toggle: the slot flex gave it and how the component paints it.
+// toggleSpecimen is one toggle: the slot ui gave it and how the component paints it.
 type toggleSpecimen struct {
-	slot                          flex.Box
-	id                            ui.ID
+	slot                          ui.Box
+	id                            gfx.ID
 	label                         string
 	active, small, large, outline bool
 	invalid, disabled             bool
 }
 
-func (state *State) paintToggle(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintToggle(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var specimens [6]toggleSpecimen
 	count := 0
 	height := theme.Metrics.ControlHeight // default size; small and large adjust below
-	add := func(f *flex.Frame, specimen toggleSpecimen, width, extra float32) {
+	add := func(f *ui.Frame, specimen toggleSpecimen, width, extra float32) {
 		specimen.slot = f.Slot().Size(width, height+extra)
 		specimens[count] = specimen
 		count++
 	}
-	state.page(canvas, theme, size, 500, state.Text("Toggle · 双态操作", "Toggle · Two-state action"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 500, state.Text("Toggle · 双态操作", "Toggle · Two-state action"), func(f *ui.Frame) {
 		f.Row().Gap(12).Children(func() {
 			for index, label := range [...]string{"B", "I", "U"} {
 				add(f, toggleSpecimen{id: toggleItem.At(index), label: label, outline: true, active: state.flags&(1<<index) != 0}, 44, 0)
@@ -66,7 +66,7 @@ func (state *State) paintToggle(canvas *ui.Canvas, theme ui.Theme, size ui.Size)
 		})
 		switch state.exampleID {
 		case "variants":
-			f.Row().Gap(16).Items(flex.Center).Children(func() {
+			f.Row().Gap(16).Items(ui.Center).Children(func() {
 				add(f, toggleSpecimen{id: toggleItem.At(3), label: "Small", small: true, active: state.flags&(1<<3) != 0}, 80, -4)
 				add(f, toggleSpecimen{id: toggleLarge, label: "Large", large: true, outline: true, active: true}, 92, 4)
 			})

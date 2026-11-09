@@ -5,8 +5,8 @@ package app
 import (
 	"runtime"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // RunApplication starts the native application loop. start runs once on the
@@ -44,7 +44,7 @@ func RunApplication(start func(*Application) error) error {
 // nativeHost is the Host over a platform adapter.
 type nativeHost struct{ native platform.Application }
 
-func (host nativeHost) OpenWindow(config Config, canvas *ui.Canvas, closed func()) (WindowControl, error) {
+func (host nativeHost) OpenWindow(config Config, canvas *gfx.Canvas, closed func()) (WindowControl, error) {
 	windowConfig, cleanup, err := prepareNativeWindow(config, canvas)
 	if err != nil {
 		return nil, err

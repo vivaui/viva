@@ -1,44 +1,41 @@
 package ui
 
-// A native view is a part of the window that the system draws and serves instead of Viva: a page of
-// the system's web engine, for one. The application paints a hole where it goes with
-// Canvas.NativeView; the platform puts the view there and keeps Viva's own pointer and keyboard
-// handling away from it. What is painted on the same layer as the hole, or below, is hidden by the
-// view; what is painted on a higher layer (a popover, a menu, a tooltip opened with PushLayer) is
-// drawn over it and takes the pointer where it covers it.
+import "github.com/vivaui/viva/gfx"
+
+// NativeView makes a native view (a page of the system's web engine, app.WebView.ID)
+// fill the element's rectangle, on the layer and inside the clips the element is
+// painted in: in a ScrollArea it is cut to the area, in a Dialog's body it stands on
+// the dialog's layer. It is declared where the element is painted, so nothing is kept
+// past the frame and no callback is needed. What the page paints on the same layer
+// under or over the element is hidden by the view; the page's Popups, Popovers and
+// Dialogs go on a higher layer and stand over it.
 //
-//	canvas.NativeView(page.ID(), content)
-//	canvas.PushLayer(1)
-//	menu.Paint(canvas) // stands over the page
-//	canvas.PopLayer()
-
-// NativeViewID names a native view in a window. The values are chosen by whatever opens the view
-// (see app.WebHost); zero is never a view.
-type NativeViewID uint32
-
-// NativeView is one place a native view fills.
-type NativeView struct {
-	ID     NativeViewID
-	Bounds Rect
-	Layer  uint16
-	// ClipOf and HasClip capture the active clip at paint time: the view shows only inside it.
-	ClipOf  Rect
-	HasClip bool
+//	f.Slot().Grow(1).NativeView(m.docs.ID())
+func (b Box) NativeView(id gfx.NativeViewID) Box {
+	b.f.extra(b.i).nativeView = id
+	return b
 }
 
-// NativeView declares that the native view id fills bounds, on the current layer and inside the
-// current clip. A view declared in no paint is hidden; one declared twice in a paint is placed at
-// the last bounds.
-func (canvas *Canvas) NativeView(id NativeViewID, bounds Rect) {
-	if id == 0 || bounds.Width <= 0 || bounds.Height <= 0 {
-		return
+// raiseOverNativeViews puts the Popups over the native views the page declared,
+// which hide what is painted on their layer and below.
+func (f *Frame) raiseOverNativeViews() {
+	if top, ok := f.nativeTop(); ok && f.popupLayer <= top {
+		f.popupLayer = top + 1
 	}
-	view := NativeView{ID: id, Bounds: bounds, Layer: canvas.currentLayer()}
-	view.ClipOf, view.HasClip = canvas.clipSnapshot()
-	canvas.nativeViews = append(canvas.nativeViews, view)
 }
 
-// NativeViews returns the native views painted so far. The result is invalidated by Reset.
-func (canvas *Canvas) NativeViews() []NativeView {
-	return canvas.nativeViews
+// nativeTop is the highest layer a native view of this page is on.
+func (f *Frame) nativeTop() (uint16, bool) {
+	if f.canvas == nil {
+		return 0, false
+	}
+	views := f.canvas.NativeViews()
+	if len(views) <= f.nativeMark {
+		return 0, false
+	}
+	var top uint16
+	for _, view := range views[f.nativeMark:] {
+		top = max(top, view.Layer)
+	}
+	return top, true
 }

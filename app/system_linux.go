@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/vivaui/viva/gfx"
 	linuxplatform "github.com/vivaui/viva/internal/platform/linux"
-	"github.com/vivaui/viva/ui"
 )
 
 // nativeReduceMotion is the desktop's preference for less animation: the settings portal,
@@ -16,7 +16,7 @@ import (
 func nativeReduceMotion() bool { return linuxplatform.ReduceMotion() }
 
 // nativeTextEngine is the platform's text engine; nil keeps the reference metrics.
-func nativeTextEngine() ui.TextEngine { return linuxplatform.TextEngine() }
+func nativeTextEngine() gfx.TextEngine { return linuxplatform.TextEngine() }
 
 func nativePreferredLanguages() []string { return languagesFromEnvironment(os.Getenv) }
 
@@ -53,7 +53,7 @@ func nativeSetCursor(cursor Cursor) error {
 	return linuxSystemError(linuxplatform.SetCursorShape(uint8(cursor)))
 }
 
-func nativeSetCursorImage(image *ui.CursorImage) error {
+func nativeSetCursorImage(image *gfx.CursorImage) error {
 	return linuxSystemError(linuxplatform.SetCursorImage(image))
 }
 

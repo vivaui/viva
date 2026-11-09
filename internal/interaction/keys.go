@@ -1,15 +1,15 @@
 package interaction
 
 import (
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 // Keys follows the keys a terminal asked to see as presses and releases. The
 // zero value tracks nothing, so a page without such a terminal pays nothing.
 type Keys struct {
 	tracker    input.KeyTracker
-	target     ui.ID
+	target     gfx.ID
 	releaseDue bool
 }
 
@@ -39,7 +39,7 @@ func (k *Keys) Take(dst []input.HeldKey) []input.HeldKey { return k.tracker.Take
 
 // NoteTarget records, after a paint, whether the held keys still have a
 // terminal that wants them. If not, the next repaint ends their presses.
-func (k *Keys) NoteTarget(target ui.ID, wanted bool) {
+func (k *Keys) NoteTarget(target gfx.ID, wanted bool) {
 	if k.tracker.Len() > 0 && (!wanted || target != k.target) {
 		k.releaseDue = true
 	}

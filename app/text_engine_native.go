@@ -2,6 +2,6 @@
 
 package app
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
-func platformTextEngine() ui.TextEngine { return nativeTextEngine() }
+func platformTextEngine() gfx.TextEngine { return nativeTextEngine() }

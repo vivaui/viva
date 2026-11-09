@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // MonospaceFamilies lists the fixed-pitch font families installed on this
 // system, sorted and without duplicates. An application offers them to the user
-// and gives the chosen one to ui.MonoFamily to draw terminal text in it.
+// and gives the chosen one to gfx.MonoFamily to draw terminal text in it.
 //
 // What counts as monospace follows the platform. macOS and Windows measure
 // each family and offer every one whose printable ASCII characters share one
@@ -19,8 +19,8 @@ import (
 // The list is read from the system on every call and takes a moment, since a
 // family is measured rather than taken at its word, so it is for a settings
 // page, not for painting. It is empty where the platform cannot enumerate fonts
-// (a browser, an unsupported target), in which case ui.MonoSystem and
-// ui.MonoClassic remain the choices.
+// (a browser, an unsupported target), in which case gfx.MonoSystem and
+// gfx.MonoClassic remain the choices.
 func MonospaceFamilies() []string { return nativeMonospaceFamilies() }
 
 // FontFamilies lists the font families installed on this system, sorted and
@@ -41,8 +41,8 @@ func FontFamilies() []string { return nativeFontFamilies() }
 
 // RegisterFont makes the TrueType or OpenType font in data (a .ttf, .otf or .ttc, as an
 // application embeds with //go:embed) available to this process, without installing it in the
-// user's font library, and returns the family it names, ready for ui.MonoFamily,
-// ui.MonoStack and SetInterfaceFontFamily, and a function that takes the registration away
+// user's font library, and returns the family it names, ready for gfx.MonoFamily,
+// gfx.MonoStack and SetInterfaceFontFamily, and a function that takes the registration away
 // again. A collection registers every font in it and names the first one's family; the weights
 // and styles of a family are separate files, each registered. Registering the same data again
 // shares the registration, which ends with the last unregister.
@@ -56,7 +56,7 @@ func FontFamilies() []string { return nativeFontFamilies() }
 // target returns ErrUnsupported because FontFace loading is asynchronous; use RegisterFontAsync
 // there.
 func RegisterFont(data []byte) (family string, unregister func(), err error) {
-	registrar, ok := PlatformTextEngine().(ui.FontRegistrar)
+	registrar, ok := PlatformTextEngine().(gfx.FontRegistrar)
 	if !ok {
 		return "", nil, fmt.Errorf("%w: registering fonts", ErrUnsupported)
 	}
@@ -83,7 +83,7 @@ const maxInterfaceFamilyName = 96
 // process's: every window follows it. A name the system has no family for is
 // drawn in the system font.
 func SetInterfaceFontFamily(family string) bool {
-	if aware, ok := PlatformTextEngine().(ui.FontFamilyAware); ok {
+	if aware, ok := PlatformTextEngine().(gfx.FontFamilyAware); ok {
 		aware.SetFontFamily(interfaceFamilyName(family))
 		return true
 	}

@@ -14,7 +14,7 @@ Role, bounds, name (`Label`), `Value`, `Hint`, `Description`, the states
 `ReadOnly`, `Secure`), `Focusable`, `Expandable`, a heading `Level`, `PosInSet`
 and `SetSize`, a `Live` setting, a numeric `Range` for sliders, and, for the
 focused text field, its `Selection` in code points. Components set the extras
-through `ui.HitOptions` (and `Canvas.ContainerWithOptions` for regions).
+through `gfx.HitOptions` (and `Canvas.ContainerWithOptions` for regions).
 
 What a node can do follows from its role and state (`AccessibilityNode.Patterns`),
 so every platform offers the same set. A node with no `ID` is a region

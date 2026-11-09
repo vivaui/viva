@@ -4,14 +4,14 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
 // Identities are names in a tree, not numbers: the application declares the
 // tree once and every control it paints is a name inside a feature of it.
 var (
-	tree    = ui.Tree{}
+	tree    = gfx.Tree{}
 	page    = tree.Feature("notes")
 	confirm = tree.Sub(page, tree.Name("confirm"))
 
@@ -25,15 +25,15 @@ type notes struct {
 	unsaved        bool
 	confirmClosing bool
 	allowClose     func()
-	view           flex.View
+	view           ui.View
 }
 
 func main() {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	state := &notes{unsaved: true}
 
 	err := app.RunApplication(func(application *app.Application) error {
-		var main, settings ui.Canvas
+		var main, settings gfx.Canvas
 
 		config := app.Config{
 			Tree: &tree, Title: "Notes", Width: 720, Height: 480,
@@ -43,18 +43,18 @@ func main() {
 			WindowMode: app.WindowCustomTitlebar,
 		}
 		leading, trailing := app.TitlebarInsets()
-		config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-			bounds := ui.Rect{Width: size.Width, Height: size.Height}
+		config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+			bounds := gfx.Rect{Width: size.Width, Height: size.Height}
 			canvas.Fill(bounds, theme.Background)
 
-			state.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
+			state.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
 				f.Column().Fill().Children(func() {
 					// The bar is as tall as the title bar and leaves room for the
 					// window buttons on whichever side the platform puts them.
-					f.Row().Height(28).PadSides(0, trailing, 0, leading).Items(flex.Center).MovesWindow().Children(func() {
+					f.Row().Height(28).PadSides(0, trailing, 0, leading).Items(ui.Center).MovesWindow().Children(func() {
 						f.Text("Notes").Muted()
 					})
-					f.Column().Grow(1).Pad(24).Items(flex.Start).Children(func() {
+					f.Column().Grow(1).Pad(24).Items(ui.Start).Children(func() {
 						if f.Button(settingsButton, "Settings").Outline().Clicked() {
 							// Windows are opened from the start callback or from another
 							// window's callbacks, which run on the native event-loop thread.
@@ -62,7 +62,7 @@ func main() {
 						}
 					})
 					if state.confirmClosing {
-						d := f.Dialog(flex.DialogSpec{
+						d := f.Dialog(ui.DialogSpec{
 							Title: "Discard changes?", Description: "The note has not been saved.", Width: 400,
 							Scope: confirmScope, DismissID: keep, NoClose: true,
 						})

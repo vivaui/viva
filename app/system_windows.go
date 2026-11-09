@@ -3,8 +3,8 @@
 package app
 
 import (
+	"github.com/vivaui/viva/gfx"
 	windowsplatform "github.com/vivaui/viva/internal/platform/windows"
-	"github.com/vivaui/viva/ui"
 )
 
 func nativeClipboardText() (string, error) { return windowsplatform.ClipboardText() }
@@ -20,7 +20,7 @@ func nativeSetClipboardFiles(paths []string) error { return windowsplatform.SetC
 func nativeReduceMotion() bool { return windowsplatform.ReduceMotion() }
 
 // nativeTextEngine is the platform's text engine; nil keeps the reference metrics.
-func nativeTextEngine() ui.TextEngine { return windowsplatform.TextEngine() }
+func nativeTextEngine() gfx.TextEngine { return windowsplatform.TextEngine() }
 
 func nativePreferredLanguages() []string { return windowsplatform.PreferredLanguages() }
 
@@ -131,6 +131,6 @@ func nativeSetAppearance(appearance Appearance) {
 	windowsplatform.SetAppearance(appearance == AppearanceLight, appearance == AppearanceDark)
 }
 
-func nativeSetCursorImage(image *ui.CursorImage) error {
+func nativeSetCursorImage(image *gfx.CursorImage) error {
 	return windowsplatform.SetCursorImage(image)
 }

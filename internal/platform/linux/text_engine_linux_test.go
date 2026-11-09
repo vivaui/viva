@@ -6,12 +6,12 @@ import (
 	"math"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/textenginetest"
-	"github.com/vivaui/viva/ui"
 )
 
-var _ ui.StyledTextEngine = (*textEngine)(nil)
+var _ gfx.StyledTextEngine = (*textEngine)(nil)
 
 func TestItalicPangoLineHasSeparateCacheEntry(t *testing.T) {
 	engine := newTestEngine(t)
@@ -40,8 +40,8 @@ func TestEnginePassesTheTextEngineContract(t *testing.T) {
 
 func TestTextEngineRasterizesProportionalText(t *testing.T) {
 	engine := newTestEngine(t)
-	bitmap, err := engine.RasterizeText("Privacy 中文", ui.TextStyle{
-		Size: 14, Weight: ui.WeightSemibold, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+	bitmap, err := engine.RasterizeText("Privacy 中文", gfx.TextStyle{
+		Size: 14, Weight: gfx.WeightSemibold, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 	}, 2, 240, 56)
 	if err != nil {
 		t.Fatal(err)

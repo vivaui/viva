@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // step is how long a scenario waits for something that should happen at once, and
@@ -49,8 +49,8 @@ func main() {
 		control, err := application.OpenWindow(app.Config{
 			Title: "viva-conformance", Width: 320, Height: 120,
 			Invalidator: &runner.inv, OnWake: runner.drain,
-			Paint: func(canvas *ui.Canvas, size ui.Size) {
-				canvas.Label("running checks", ui.Rect{X: 12, Y: 12, Width: 280, Height: 24}, ui.TextStyle{Size: 14})
+			Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+				canvas.Label("running checks", gfx.Rect{X: 12, Y: 12, Width: 280, Height: 24}, gfx.TextStyle{Size: 14})
 			},
 		}, nil)
 		if err != nil {
@@ -167,7 +167,7 @@ func (r *runner) open(title string, mode app.WindowMode, refuseClose bool) (*pro
 		config := app.Config{
 			Title: title, Width: 300, Height: 160, WindowMode: mode,
 			Invalidator: &p.inv, OnWake: func() { p.wakes.Add(1) },
-			Paint:    func(*ui.Canvas, ui.Size) { p.paints.Add(1) },
+			Paint:    func(*gfx.Canvas, gfx.Size) { p.paints.Add(1) },
 			OnClosed: func() { close(p.closed) },
 		}
 		if refuseClose {

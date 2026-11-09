@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -74,15 +74,15 @@ func (state *State) toggleSliderRangePreset() {
 	state.bag().thumbs = preset
 }
 
-func (state *State) pointerSlider(event ui.PointerEvent) ui.EventResult {
+func (state *State) pointerSlider(event gfx.PointerEvent) gfx.EventResult {
 	if event.Target != sliderPrimary && event.Target != sliderLower && event.Target != sliderUpper {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
-	if event.Kind != ui.PointerDown && !(event.Kind == ui.PointerMove && event.Captured) {
-		return ui.EventResult{Handled: event.Kind == ui.PointerUp}
+	if event.Kind != gfx.PointerDown && !(event.Kind == gfx.PointerMove && event.Captured) {
+		return gfx.EventResult{Handled: event.Kind == gfx.PointerUp}
 	}
-	if event.Kind == ui.PointerDown && event.Button != ui.PointerButtonPrimary {
-		return ui.EventResult{}
+	if event.Kind == gfx.PointerDown && event.Button != gfx.PointerButtonPrimary {
+		return gfx.EventResult{}
 	}
 	position := event.X
 	if state.exampleID == "states" {
@@ -108,10 +108,10 @@ func (state *State) pointerSlider(event ui.PointerEvent) ui.EventResult {
 		thumbs[index].Value = float32(value)
 		thumbs[index].ValueText = sliderDemoValueText(value)
 	}
-	return ui.EventResult{Focus: event.Target, FocusVisible: false, Handled: true, Repaint: changed}
+	return gfx.EventResult{Focus: event.Target, FocusVisible: false, Handled: true, Repaint: changed}
 }
 
-func (state *State) keySlider(event ui.KeyEvent) ui.EventResult {
+func (state *State) keySlider(event gfx.KeyEvent) gfx.EventResult {
 	index := 0
 	switch event.Target {
 	case sliderPrimary:
@@ -120,17 +120,17 @@ func (state *State) keySlider(event ui.KeyEvent) ui.EventResult {
 	case sliderUpper:
 		index = 1
 	default:
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	values := []float32{float32(state.values[0]), float32(state.values[1])}
 	if state.exampleID == "range" {
 		if !components.RangeSliderKeyDown(values, index, 0, 100, 5, 10, 1, components.LTR, event.Key, event.Modifiers) {
-			return ui.EventResult{}
+			return gfx.EventResult{}
 		}
 	} else {
 		next, handled := components.SliderKeyDown(values[0], 0, 100, 10, components.LTR, event.Key, event.Modifiers)
 		if !handled {
-			return ui.EventResult{}
+			return gfx.EventResult{}
 		}
 		values[0] = next
 	}
@@ -142,7 +142,7 @@ func (state *State) keySlider(event ui.KeyEvent) ui.EventResult {
 		thumbs[index].Value = float32(nextValue)
 		thumbs[index].ValueText = sliderDemoValueText(nextValue)
 	}
-	return ui.EventResult{Handled: true, Repaint: changed}
+	return gfx.EventResult{Handled: true, Repaint: changed}
 }
 
 // sliderForExample is the interactive slider as the last paint placed it, for the
@@ -150,18 +150,18 @@ func (state *State) keySlider(event ui.KeyEvent) ui.EventResult {
 func (state *State) sliderForExample() components.Slider {
 	placed := state.bag().placed
 	if state.exampleID == "range" {
-		return components.BeginSlider(nil, ui.Theme{}, sliderLower, placed, float32(state.values[0])).Step(5)
+		return components.BeginSlider(nil, gfx.Theme{}, sliderLower, placed, float32(state.values[0])).Step(5)
 	}
-	slider := components.BeginSlider(nil, ui.Theme{}, sliderPrimary, placed, float32(state.values[0])).Step(10)
+	slider := components.BeginSlider(nil, gfx.Theme{}, sliderPrimary, placed, float32(state.values[0])).Step(10)
 	if state.exampleID == "states" {
 		slider = slider.Vertical()
 	}
 	return slider
 }
 
-func (state *State) paintSlider(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var track, disabled flex.Box
-	state.page(canvas, theme, size, 520, state.Text("Slider · 显式数值", "Slider · Explicit values"), func(f *flex.Frame) {
+func (state *State) paintSlider(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var track, disabled ui.Box
+	state.page(canvas, theme, size, 520, state.Text("Slider · 显式数值", "Slider · Explicit values"), func(f *ui.Frame) {
 		switch state.exampleID {
 		case "range":
 			track = f.Slot().Height(16)
@@ -169,7 +169,7 @@ func (state *State) paintSlider(canvas *ui.Canvas, theme ui.Theme, size ui.Size)
 			caption(f, state.Text("分别激活两个圆形滑块，演示调用方更新范围。", "Activate each round thumb to see the caller update the range."))
 		case "states":
 			f.Row().Gap(40).Children(func() {
-				f.Column().Gap(10).Items(flex.Center).Children(func() {
+				f.Column().Gap(10).Items(ui.Center).Children(func() {
 					track = f.Slot().Size(24, 160)
 					f.Text(state.Text("竖向", "Vertical")).FontSize(theme.Metrics.FontSizeM)
 				})

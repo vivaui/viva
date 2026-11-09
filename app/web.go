@@ -6,8 +6,8 @@ import (
 	"net/netip"
 	"sync/atomic"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // A window can host pages of the system's web engine among Viva's own drawing: WebKitGTK on Linux,
@@ -21,9 +21,9 @@ import (
 //	web.OnReady = func() {
 //		page, _ = web.Open(app.WebViewConfig{URL: "https://example.com/"})
 //	}
-//	app.Run(app.Config{Web: web, Paint: func(canvas *ui.Canvas, size ui.Size) {
+//	app.Run(app.Config{Web: web, Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 //		if page != nil {
-//			canvas.NativeView(page.ID(), ui.Rect{Y: 48, Width: size.Width, Height: size.Height - 48})
+//			canvas.NativeView(page.ID(), gfx.Rect{Y: 48, Width: size.Width, Height: size.Height - 48})
 //		}
 //		// ...toolbar, and popovers on a higher layer, which stand over the page...
 //	}})
@@ -121,7 +121,7 @@ type WebLoad struct {
 
 // WebView is one open page.
 type WebView struct {
-	id     ui.NativeViewID
+	id     gfx.NativeViewID
 	native platform.WebView
 	host   *WebHost
 }
@@ -141,7 +141,7 @@ func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 	if config.Proxy != "" && !loopbackAddress(config.Proxy) {
 		return nil, fmt.Errorf("app: web view proxy %q is not a loopback host:port", config.Proxy)
 	}
-	id := ui.NativeViewID(host.next.Add(1))
+	id := gfx.NativeViewID(host.next.Add(1))
 	platformConfig := platform.WebViewConfig{
 		ID: uint32(id), URL: config.URL, HTML: config.HTML, BaseURL: config.BaseURL, Proxy: config.Proxy,
 	}
@@ -174,7 +174,7 @@ func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 }
 
 // ID names the page for Canvas.NativeView.
-func (view *WebView) ID() ui.NativeViewID { return view.id }
+func (view *WebView) ID() gfx.NativeViewID { return view.id }
 
 // Load navigates to a URL.
 func (view *WebView) Load(url string) { view.native.Load(url) }

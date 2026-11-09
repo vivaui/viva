@@ -10,16 +10,16 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // A label has the same size in logical pixels at every display scale. At a
 // fractional one its bitmap used to be drawn at scale/ceil(scale) of its size.
 func TestLabelKeepsItsLogicalSizeAtFractionalScales(t *testing.T) {
 	width := func(scale float64) float64 {
-		session, err := Open(app.Config{Title: "label", Width: 300, Height: 60, Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.Label("Hello web-01 你好", ui.Rect{X: 10, Y: 10, Width: 280, Height: 40},
-				ui.TextStyle{Size: 13, Weight: ui.WeightRegular, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}})
+		session, err := Open(app.Config{Title: "label", Width: 300, Height: 60, Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.Label("Hello web-01 你好", gfx.Rect{X: 10, Y: 10, Width: 280, Height: 40},
+				gfx.TextStyle{Size: 13, Weight: gfx.WeightRegular, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}})
 		}}, nil, Options{Scale: scale})
 		if err != nil {
 			t.Fatal(err)
@@ -69,7 +69,7 @@ func readPNG(t *testing.T, path string) image.Image {
 // stripes one pixel wide stay black and white at 125% and 150%, where drawing
 // the same picture scaled to the same size smears them into greys.
 func TestSurfaceDrawPixelsIsNotResampledAtFractionalScales(t *testing.T) {
-	var surface ui.Surface
+	var surface gfx.Surface
 	const width, height = 600, 40
 	surface.Resize(width, height)
 	stripes := make([]byte, width*height*4)
@@ -88,13 +88,13 @@ func TestSurfaceDrawPixelsIsNotResampledAtFractionalScales(t *testing.T) {
 	// greys counts the pixels of the picture's row that are neither black nor
 	// white, and whites those that are white.
 	greys := func(scale float64, pixels bool) (greys, whites int) {
-		session, err := Open(app.Config{Title: "pixels", Width: 500, Height: 60, Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.Fill(ui.Rect{Width: size.Width, Height: size.Height}, ui.Color{Alpha: 1})
+		session, err := Open(app.Config{Title: "pixels", Width: 500, Height: 60, Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.Fill(gfx.Rect{Width: size.Width, Height: size.Height}, gfx.Color{Alpha: 1})
 			if pixels {
-				surface.DrawPixels(canvas, ui.Point{X: 10, Y: 10})
+				surface.DrawPixels(canvas, gfx.Point{X: 10, Y: 10})
 				return
 			}
-			surface.Draw(canvas, ui.Rect{X: 10, Y: 10, Width: width / float32(scale), Height: height / float32(scale)})
+			surface.Draw(canvas, gfx.Rect{X: 10, Y: 10, Width: width / float32(scale), Height: height / float32(scale)})
 		}}, nil, Options{Scale: scale})
 		if err != nil {
 			t.Fatal(err)

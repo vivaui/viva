@@ -16,9 +16,9 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
-	"github.com/vivaui/viva/ui"
 )
 
 // Web pages inside the window (ADR 0064): WKWebView, one per page, subviews of the window's Metal
@@ -36,7 +36,7 @@ type webState struct {
 	rects      []platform.NativeView
 	rectangles []render.Rectangle
 	labels     []platform.TextLabel
-	cuts       []ui.Rect
+	cuts       []gfx.Rect
 	scratch    []C.double
 }
 
@@ -49,7 +49,7 @@ type darwinWeb struct {
 	closed bool
 	// placed is where the page was last put, to leave AppKit alone when nothing changed.
 	placed  platform.NativeView
-	cutsSet []ui.Rect
+	cutsSet []gfx.Rect
 	shown   bool
 }
 

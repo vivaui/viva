@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/headless"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
@@ -85,7 +85,7 @@ func runCommand(options runOptions) error {
 	return nil
 }
 
-func appColor(c ui.Color) app.Color {
+func appColor(c gfx.Color) app.Color {
 	return app.Color{Red: float64(c.Red), Green: float64(c.Green), Blue: float64(c.Blue), Alpha: float64(c.Alpha)}
 }
 
@@ -101,21 +101,21 @@ func noRenderer(err error) bool {
 // to record next to each text how wide the platform would have drawn it naturally
 // (what Viva's layout does not use); nil leaves that out.
 func renderScene(sc *scene, dark bool, scale float64, wantImage, reference bool, measure text.MeasureFunc) (*Facts, *image.RGBA, error) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	if dark {
-		theme = ui.DarkTheme()
+		theme = gfx.DarkTheme()
 	}
-	view := &flex.View{}
+	view := &ui.View{}
 	config := app.Config{
 		Title: sc.name, Width: sc.width, Height: sc.height, ClearColor: appColor(theme.Background), Tree: &tree,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			if sc.before != nil {
 				sc.before(view)
 			}
-			view.Draw(canvas, theme, ui.Rect{Width: size.Width, Height: size.Height}, func(f *flex.Frame) { sc.build(f, theme) })
+			view.Draw(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) { sc.build(f, theme) })
 		},
 	}
-	canvas := &ui.Canvas{}
+	canvas := &gfx.Canvas{}
 	session, err := headless.Open(config, canvas, headless.Options{Scale: scale, ReferenceText: reference})
 	if err != nil {
 		return nil, nil, err

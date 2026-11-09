@@ -5,22 +5,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const testIcon = "" // three bytes, one cell
 
 // iconAt is one icon run on a cell, and its three bytes of text.
-func iconAt(column int32) ui.TextRun { return ui.TextRun{Column: column, Bytes: 3, Cells: 1} }
+func iconAt(column int32) gfx.TextRun { return gfx.TextRun{Column: column, Bytes: 3, Cells: 1} }
 
-func textAt(column int32, text string) ui.TextRun {
-	return ui.TextRun{Column: column, Bytes: int32(len(text)), Cells: int32(len(text))}
+func textAt(column int32, text string) gfx.TextRun {
+	return gfx.TextRun{Column: column, Bytes: int32(len(text)), Cells: int32(len(text))}
 }
 
 // Glyphs that stay inside their cells leave the columns exactly as GridColumns gave them.
 func TestGridOwnerWithoutInkIsGridColumns(t *testing.T) {
 	var owner GridOwner
-	runs := []ui.TextRun{textAt(0, "ab c"), iconAt(5), textAt(7, "de")}
+	runs := []gfx.TextRun{textAt(0, "ab c"), iconAt(5), textAt(7, "de")}
 	value := "ab c" + testIcon + "de"
 	for _, pitch := range []float64{7, 8, 8.4, 10.25} {
 		spans := owner.Plan(runs, value, pitch, 200, nil)
@@ -44,7 +44,7 @@ func TestGridOwnerWithoutInkIsGridColumns(t *testing.T) {
 // cell after it, as far as its ink goes, and the text after that cell keeps its columns.
 func TestGridOwnerIconTakesTheBlankCellAfterIt(t *testing.T) {
 	var owner GridOwner
-	runs := []ui.TextRun{iconAt(0), textAt(2, "ab")}
+	runs := []gfx.TextRun{iconAt(0), textAt(2, "ab")}
 	value := testIcon + "ab"
 	spans := owner.Plan(runs, value, 8, 100, []GridInk{{Right: 4}, {}})
 	if spans[0].From != 0 || spans[0].To < 8+4 || spans[0].To > 8+5 {
@@ -59,7 +59,7 @@ func TestGridOwnerIconTakesTheBlankCellAfterIt(t *testing.T) {
 // painted over.
 func TestGridOwnerIconDoesNotTakeAnOccupiedCell(t *testing.T) {
 	var owner GridOwner
-	runs := []ui.TextRun{iconAt(0), textAt(1, "ab")}
+	runs := []gfx.TextRun{iconAt(0), textAt(1, "ab")}
 	spans := owner.Plan(runs, testIcon+"ab", 8, 100, []GridInk{{Right: 6}, {}})
 	if spans[0] != (GridSpan{From: 0, To: 8}) || spans[1] != (GridSpan{From: 8, To: 24}) {
 		t.Errorf("icon %v, text %v: an occupied cell was taken", spans[0], spans[1])
@@ -70,7 +70,7 @@ func TestGridOwnerIconDoesNotTakeAnOccupiedCell(t *testing.T) {
 // whose ink reaches left takes the end of it, and the run before keeps the rest.
 func TestGridOwnerTakesBlankCellsFoldedIntoTheRunBefore(t *testing.T) {
 	var owner GridOwner
-	runs := []ui.TextRun{textAt(0, "ab  "), iconAt(4)}
+	runs := []gfx.TextRun{textAt(0, "ab  "), iconAt(4)}
 	spans := owner.Plan(runs, "ab  "+testIcon, 8, 100, []GridInk{{}, {Left: 5}})
 	if spans[1].To != 40 || spans[1].From > 32-5 || spans[1].From < 32-6 {
 		t.Errorf("the arrow owns %v, want its cell 32,40 and 5 pixels (and the filter's) to the left", spans[1])
@@ -89,7 +89,7 @@ func TestGridOwnerTakesBlankCellsFoldedIntoTheRunBefore(t *testing.T) {
 // takes the columns it reaches, the right one what is left of its own reach.
 func TestGridOwnerSharesABlankCellBetweenTwoIcons(t *testing.T) {
 	var owner GridOwner
-	runs := []ui.TextRun{iconAt(0), iconAt(2)}
+	runs := []gfx.TextRun{iconAt(0), iconAt(2)}
 	spans := owner.Plan(runs, testIcon+testIcon, 8, 100, []GridInk{{Right: 3}, {Left: 3}})
 	if spans[0].From != 0 || spans[1].To != 24 {
 		t.Fatalf("icons own %v and %v", spans[0], spans[1])
@@ -109,11 +109,11 @@ func TestGridOwnerSharesABlankCellBetweenTwoIcons(t *testing.T) {
 // Ink past the end of the line, or of the texture, takes what is there and no more.
 func TestGridOwnerStaysInsideTheTexture(t *testing.T) {
 	var owner GridOwner
-	spans := owner.Plan([]ui.TextRun{iconAt(0), iconAt(3)}, testIcon+testIcon, 8, 30, []GridInk{{Left: 9}, {Right: 100}})
+	spans := owner.Plan([]gfx.TextRun{iconAt(0), iconAt(3)}, testIcon+testIcon, 8, 30, []GridInk{{Left: 9}, {Right: 100}})
 	if spans[0].From != 0 || spans[1].To != 30 {
 		t.Errorf("icons own %v and %v of a 30 column texture", spans[0], spans[1])
 	}
-	spans = owner.Plan([]ui.TextRun{iconAt(1)}, testIcon, 8, 100, []GridInk{{Left: 1000, Right: 1000}})
+	spans = owner.Plan([]gfx.TextRun{iconAt(1)}, testIcon, 8, 100, []GridInk{{Left: 1000, Right: 1000}})
 	if spans[0] != (GridSpan{From: 0, To: 100}) {
 		t.Errorf("an icon with huge ink owns %v of an empty 100 column texture", spans[0])
 	}
@@ -127,7 +127,7 @@ func TestGridOwnerPartitionInvariants(t *testing.T) {
 	for round := 0; round < 3000; round++ {
 		pitch := []float64{6, 7, 8, 9, 10, 12}[random.Intn(6)]
 		cells := 1 + random.Intn(30)
-		var runs []ui.TextRun
+		var runs []gfx.TextRun
 		var icons []bool
 		var value strings.Builder
 		blank := make([]bool, cells)
@@ -216,7 +216,7 @@ func TestGridOwnerPartitionInvariants(t *testing.T) {
 
 func BenchmarkGridOwnerPlan(b *testing.B) {
 	var value strings.Builder
-	var runs []ui.TextRun
+	var runs []gfx.TextRun
 	var ink []GridInk
 	for cell := 0; cell < 200; cell += 10 {
 		runs = append(runs, textAt(int32(cell), "abc def "), iconAt(int32(cell+8)))

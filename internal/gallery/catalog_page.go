@@ -4,8 +4,8 @@ import (
 	"strconv"
 
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/componentdemo"
-	"github.com/vivaui/viva/ui"
 )
 
 // catalog is the component list the gallery browses, in the order the demo
@@ -74,7 +74,7 @@ const (
 
 // catalogGrid sizes the component cards: as many columns as fit at the minimum
 // card width, stretched to fill the page, so the grid tracks the window.
-var catalogGrid = ui.GridSpec{MinCellWidth: 240, CellHeight: 120, Gap: 14}
+var catalogGrid = gfx.GridSpec{MinCellWidth: 240, CellHeight: 120, Gap: 14}
 
 // catalogHeight returns the total catalog content height for one page width.
 func catalogHeight(width float32) float32 {
@@ -86,16 +86,16 @@ func catalogHeight(width float32) float32 {
 }
 
 // paintCatalog lays every component out as a card, grouped by category.
-func (state *State) paintCatalog(canvas *ui.Canvas, theme ui.Theme, content ui.Rect, viewport ui.Rect) {
+func (state *State) paintCatalog(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, viewport gfx.Rect) {
 	body := pageHeader(canvas, theme, content, "Components", catalogSubtitle)
 	y := body.Y
 	open := 0 // the page of the card clicked in this paint, if any
 	for _, section := range categories {
-		canvas.Label(section.name, ui.Rect{X: body.X, Y: y, Width: body.Width, Height: 20}, ui.TextStyle{
-			Size: 12, Weight: ui.WeightSemibold, Color: theme.MutedForeground,
+		canvas.Label(section.name, gfx.Rect{X: body.X, Y: y, Width: body.Width, Height: 20}, gfx.TextStyle{
+			Size: 12, Weight: gfx.WeightSemibold, Color: theme.MutedForeground,
 		})
 		y += sectionHeaderHeight
-		grid := ui.BeginGrid(ui.Rect{X: body.X, Y: y, Width: body.Width}, catalogGrid)
+		grid := gfx.BeginGrid(gfx.Rect{X: body.X, Y: y, Width: body.Width}, catalogGrid)
 		for index := section.first; index < section.first+section.count; index++ {
 			bounds := grid.Next()
 			if bounds.Y+bounds.Height <= viewport.Y || bounds.Y >= viewport.Y+viewport.Height {
@@ -114,9 +114,9 @@ func (state *State) paintCatalog(canvas *ui.Canvas, theme ui.Theme, content ui.R
 
 // paintComponentCard paints one card and reports whether this paint is
 // delivering a click on it.
-func paintComponentCard(canvas *ui.Canvas, theme ui.Theme, index int, bounds ui.Rect) bool {
+func paintComponentCard(canvas *gfx.Canvas, theme gfx.Theme, index int, bounds gfx.Rect) bool {
 	component := &catalog[index]
-	id := cardScope.ID(ui.Index(index))
+	id := cardScope.ID(gfx.Index(index))
 	canvas.HitWithLabel(id, bounds, component.Title)
 	components.Card(canvas, theme, bounds)
 	if canvas.Hovered() == id {
@@ -126,21 +126,21 @@ func paintComponentCard(canvas *ui.Canvas, theme ui.Theme, index int, bounds ui.
 	}
 
 	textWidth := bounds.Width - 32
-	canvas.Label(component.Title, ui.Rect{X: bounds.X + 16, Y: bounds.Y + 14, Width: textWidth, Height: 22}, ui.TextStyle{
-		Size: 14, Weight: ui.WeightSemibold, Color: theme.Foreground,
+	canvas.Label(component.Title, gfx.Rect{X: bounds.X + 16, Y: bounds.Y + 14, Width: textWidth, Height: 22}, gfx.TextStyle{
+		Size: 14, Weight: gfx.WeightSemibold, Color: theme.Foreground,
 	})
 	first, rest := wrapLine(component.Summary, 12, textWidth)
 	second, _ := wrapLine(rest, 12, textWidth)
-	canvas.Label(first, ui.Rect{X: bounds.X + 16, Y: bounds.Y + 40, Width: textWidth, Height: 18}, ui.TextStyle{
+	canvas.Label(first, gfx.Rect{X: bounds.X + 16, Y: bounds.Y + 40, Width: textWidth, Height: 18}, gfx.TextStyle{
 		Size: 12, Color: theme.MutedForeground,
 	})
 	if second != "" {
-		canvas.Label(second, ui.Rect{X: bounds.X + 16, Y: bounds.Y + 58, Width: textWidth, Height: 18}, ui.TextStyle{
+		canvas.Label(second, gfx.Rect{X: bounds.X + 16, Y: bounds.Y + 58, Width: textWidth, Height: 18}, gfx.TextStyle{
 			Size: 12, Color: theme.MutedForeground,
 		})
 	}
-	canvas.Label(exampleCounts[index], ui.Rect{X: bounds.X + 16, Y: bounds.Y + bounds.Height - 30, Width: textWidth, Height: 16}, ui.TextStyle{
-		Size: 11, Weight: ui.WeightMedium, Color: theme.MutedForeground,
+	canvas.Label(exampleCounts[index], gfx.Rect{X: bounds.X + 16, Y: bounds.Y + bounds.Height - 30, Width: textWidth, Height: 16}, gfx.TextStyle{
+		Size: 11, Weight: gfx.WeightMedium, Color: theme.MutedForeground,
 	})
 	return canvas.Clicked(id)
 }

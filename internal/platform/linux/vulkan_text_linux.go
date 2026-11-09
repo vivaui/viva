@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -159,7 +159,7 @@ type vkBufferImageCopy struct {
 
 type vulkanLabelTexture struct {
 	label                    platform.TextLabel
-	runs                     []ui.TextRun
+	runs                     []gfx.TextRun
 	image, memory, view, set uintptr
 	scale                    float32
 	// width and height are the texture's size in device pixels.
@@ -193,7 +193,7 @@ type vulkanTextureKey struct {
 	fontSize, weight, cellWidth float32
 	color                       platform.Color
 	fontGeneration              uint32
-	monoFace                    ui.MonoFace
+	monoFace                    gfx.MonoFace
 	italic, mono                bool
 	content                     uint64
 	bitmap                      *byte
@@ -363,7 +363,7 @@ func (textState *vulkanText) createPipeline(renderer *vulkanRenderer) (err error
 	return vkCheck(renderer.api.createGraphicsPipelines(renderer.device, 0, 1, &lcdInfo, nil, &textState.lcdPipeline), "create LCD text pipeline")
 }
 
-func sameTextRuns(left, right []ui.TextRun) bool {
+func sameTextRuns(left, right []gfx.TextRun) bool {
 	if len(left) != len(right) {
 		return false
 	}

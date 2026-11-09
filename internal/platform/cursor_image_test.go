@@ -3,12 +3,12 @@ package platform
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
-func cursorImage(t *testing.T, width, height, hotX, hotY int, scale float32, bgra []byte) *ui.CursorImage {
+func cursorImage(t *testing.T, width, height, hotX, hotY int, scale float32, bgra []byte) *gfx.CursorImage {
 	t.Helper()
-	image, err := ui.NewCursorImage(width, height, hotX, hotY, scale, bgra)
+	image, err := gfx.NewCursorImage(width, height, hotX, hotY, scale, bgra)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,18 +59,18 @@ func TestCursorPixelsKeepADevicePixelPictureExact(t *testing.T) {
 
 func TestNewCursorImageRefusesWhatNoSystemCouldShow(t *testing.T) {
 	good := make([]byte, 16)
-	for name, make := range map[string]func() (*ui.CursorImage, error){
-		"empty":          func() (*ui.CursorImage, error) { return ui.NewCursorImage(0, 1, 0, 0, 1, nil) },
-		"too large":      func() (*ui.CursorImage, error) { return ui.NewCursorImage(ui.MaxCursorImageSize+1, 1, 0, 0, 1, nil) },
-		"hotspot out":    func() (*ui.CursorImage, error) { return ui.NewCursorImage(2, 2, 2, 0, 1, good) },
-		"short pixels":   func() (*ui.CursorImage, error) { return ui.NewCursorImage(2, 2, 0, 0, 1, good[:12]) },
-		"negative scale": func() (*ui.CursorImage, error) { return ui.NewCursorImage(2, 2, 0, 0, -1, good) },
+	for name, make := range map[string]func() (*gfx.CursorImage, error){
+		"empty":          func() (*gfx.CursorImage, error) { return gfx.NewCursorImage(0, 1, 0, 0, 1, nil) },
+		"too large":      func() (*gfx.CursorImage, error) { return gfx.NewCursorImage(gfx.MaxCursorImageSize+1, 1, 0, 0, 1, nil) },
+		"hotspot out":    func() (*gfx.CursorImage, error) { return gfx.NewCursorImage(2, 2, 2, 0, 1, good) },
+		"short pixels":   func() (*gfx.CursorImage, error) { return gfx.NewCursorImage(2, 2, 0, 0, 1, good[:12]) },
+		"negative scale": func() (*gfx.CursorImage, error) { return gfx.NewCursorImage(2, 2, 0, 0, -1, good) },
 	} {
 		if _, err := make(); err == nil {
 			t.Errorf("%s was accepted", name)
 		}
 	}
-	if _, err := ui.NewCursorImage(2, 2, 1, 1, 0, good); err != nil {
+	if _, err := gfx.NewCursorImage(2, 2, 1, 1, 0, good); err != nil {
 		t.Errorf("a valid image was refused: %v", err)
 	}
 }

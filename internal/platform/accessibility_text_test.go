@@ -3,11 +3,11 @@ package platform
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
-func rangeOf(now, min, max float64) ui.ValueRange {
-	return ui.ValueRange{Now: now, Min: min, Max: max, Step: 1, Set: true}
+func rangeOf(now, min, max float64) gfx.ValueRange {
+	return gfx.ValueRange{Now: now, Min: min, Max: max, Step: 1, Set: true}
 }
 
 func runes(text string) []rune { return []rune(text) }

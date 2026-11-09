@@ -3,13 +3,13 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestCodeEditorPaintsAdditionalCaretInVirtualSpace(t *testing.T) {
 	fixture := newCodeFixture("ab\nc\nd")
 	fixture.snapshot.Caret = 0
-	fixture.snapshot.CaretColor = ui.RGB(12, 34, 56)
+	fixture.snapshot.CaretColor = gfx.RGB(12, 34, 56)
 	fixture.snapshot.ExtraCarets = []CodeEditorCaret{{Offset: 4, VirtualCells: 2}}
 	fixture.paint()
 	cell, _, lineHeight := fixture.cell()

@@ -5,8 +5,8 @@ package main
 import (
 	"path/filepath"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // MetricsFile is the platform text engine's answer for a fixed grid of strings,
@@ -63,7 +63,7 @@ func writeMetrics(out string, measure text.MeasureFunc) error {
 			}
 		}
 	}
-	for _, face := range []ui.MonoFace{ui.MonoSystem, ui.MonoClassic} {
+	for _, face := range []gfx.MonoFace{gfx.MonoSystem, gfx.MonoClassic} {
 		for _, size := range []float32{11, 12, 13, 14, 16, 20} {
 			if width, height, err := nativeMono(size, face); err == nil {
 				file.Mono = append(file.Mono, MonoCell{Face: uint8(face), Size: size, Width: width, Height: height})

@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -20,12 +20,12 @@ components.MetricCard(canvas, theme, right, "Refunds", "$1.3K", "+4.1%", false)`
 	},
 }
 
-func (state *State) paintMetricCard(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var cards [2]flex.Box
+func (state *State) paintMetricCard(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var cards [2]ui.Box
 	// Two cards share a row when the page is wide enough for both; otherwise
 	// the second example stacks them.
 	wide := state.exampleID == "trends" && min(size.Width-48, float32(600)) >= 480
-	state.page(canvas, theme, size, 600, state.Text("Metric Card · 关键指标", "Metric Card · Key metrics"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 600, state.Text("Metric Card · 关键指标", "Metric Card · Key metrics"), func(f *ui.Frame) {
 		switch {
 		case wide:
 			f.Row().FillWidth().Gap(16).Children(func() {

@@ -2,15 +2,15 @@
 // height the component preview should occupy.
 package previewmeasure
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // Content measures the painted primitives instead of trusting the iframe's
 // current height. The page background covers the viewport and is ignored; every
 // other primitive contributes its visible vertical extent.
-func Content(canvas *ui.Canvas, size ui.Size) int {
+func Content(canvas *gfx.Canvas, size gfx.Size) int {
 	minY, maxY := float32(1e9), float32(-1e9)
 	fillsHeight := false
-	add := func(bounds, clip ui.Rect, hasClip bool, alpha float32) {
+	add := func(bounds, clip gfx.Rect, hasClip bool, alpha float32) {
 		if alpha <= 0 {
 			return
 		}
@@ -57,7 +57,7 @@ func Content(canvas *ui.Canvas, size ui.Size) int {
 	if maxY < minY {
 		return 0
 	}
-	padding := ui.DefaultMetrics().PadSurface
+	padding := gfx.DefaultMetrics().PadSurface
 	height := int(maxY - minY + 2*padding + 0.5)
 	if fillsHeight && height < 420 {
 		height = 420
@@ -71,21 +71,21 @@ func Content(canvas *ui.Canvas, size ui.Size) int {
 	return height
 }
 
-func triangleBounds(points [3]ui.Point) ui.Rect {
+func triangleBounds(points [3]gfx.Point) gfx.Rect {
 	minX, minY := points[0].X, points[0].Y
 	maxX, maxY := points[0].X, points[0].Y
 	for _, point := range points[1:] {
 		minX, minY = min(minX, point.X), min(minY, point.Y)
 		maxX, maxY = max(maxX, point.X), max(maxY, point.Y)
 	}
-	return ui.Rect{X: minX, Y: minY, Width: maxX - minX, Height: maxY - minY}
+	return gfx.Rect{X: minX, Y: minY, Width: maxX - minX, Height: maxY - minY}
 }
 
-func intersect(a, b ui.Rect) ui.Rect {
+func intersect(a, b gfx.Rect) gfx.Rect {
 	left, top := max(a.X, b.X), max(a.Y, b.Y)
 	right, bottom := min(a.X+a.Width, b.X+b.Width), min(a.Y+a.Height, b.Y+b.Height)
 	if right <= left || bottom <= top {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
-	return ui.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+	return gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
 }

@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func asyncOpenFiles(options OpenFileOptions, done func([]platform.FileRef, error)) error {
@@ -125,8 +125,8 @@ func (sink *nativeFileSink) Close(done func(error)) error {
 
 // fileDropFilesFromPaths makes the files of a native drop readable through the
 // same interface a browser drop uses.
-func fileDropFilesFromPaths(paths []string) []ui.FileDropFile {
-	files := make([]ui.FileDropFile, 0, len(paths))
+func fileDropFilesFromPaths(paths []string) []gfx.FileDropFile {
+	files := make([]gfx.FileDropFile, 0, len(paths))
 	for _, path := range paths {
 		if file, ok := nativeFileRefFromPath(path); ok {
 			files = append(files, FileRef{ref: file})

@@ -23,20 +23,24 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-func hasLabel(snapshot app.Snapshot, want string) bool {
-	for _, label := range snapshot.Labels {
-		if strings.Contains(label.Value, want) {
-			return true
-		}
+// open runs the page in a headless window: the real painter, router and focus
+// rules, driven by explicit calls.
+func open(t *testing.T, m *model) *app.Driver {
+	t.Helper()
+	page := ui.NewPage(ui.PageConfig{View: m.page})
+	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 240}), nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return false
+	t.Cleanup(driver.Close)
+	return driver
 }
 
-// clickID presses the middle of the control with the given identity.
-func clickID(t *testing.T, driver *app.Driver, id ui.ID) {
+// click presses the middle of the control a user would find by its name.
+func click(t *testing.T, driver *app.Driver, name string) {
 	t.Helper()
 	for _, hit := range driver.Snapshot().Hits {
-		if hit.ID == id {
+		if strings.HasPrefix(hit.Label, name) {
 			b := hit.Bounds
 			if err := driver.Click(b.X+b.Width/2, b.Y+b.Height/2); err != nil {
 				t.Fatal(err)
@@ -44,28 +48,41 @@ func clickID(t *testing.T, driver *app.Driver, id ui.ID) {
 			return
 		}
 	}
-	t.Fatalf("no control %v on screen", id)
+	t.Fatalf("no control named %q on screen", name)
+}
+
+func shows(driver *app.Driver, want string) bool {
+	for _, label := range driver.Snapshot().Labels {
+		if strings.Contains(label.Value, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestClickCounts(t *testing.T) {
-	var canvas ui.Canvas
-	driver, err := app.NewDriver(newConfig(&model{}), &canvas)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer driver.Close()
-
-	if !hasLabel(driver.Snapshot(), "Clicked 0 times") {
+	driver := open(t, &model{})
+	if !shows(driver, "Clicked 0 times") {
 		t.Fatal("the button should start at zero")
 	}
-	clickID(t, driver, click)
-	if !hasLabel(driver.Snapshot(), "Clicked 1 times") {
+	click(t, driver, "Clicked")
+	if !shows(driver, "Clicked 1 times") {
 		t.Fatal("the click did not reach the button")
 	}
 }
 ```
 
-后台 goroutine 只能通过 `Config.Invalidator` 触及 driver，和触及窗口的方式完全一样，由 `Pump` 应用唤醒。`examples/guides/background/main_test.go` 是一个用这种方式等待工作 goroutine 结果的测试。driver 模拟文本系统的编辑命令（Home/End、按词和按文档移动、按词删除、撤销与重做）以及 Command-A、C、X、V 快捷键，并且像 Windows 一样，把获得焦点的普通文本框的编辑组合交给它先处理，再交给 `OnShortcut`，但不模拟输入法组合输入。
+测试按用户和读屏器认识控件的名字（`Hit.Label`）找控件，而不是按坐标。页面自己为元素命名，在它的树里是 `page/~k1/#0` 这样的路径；`c.Part("word")` 给元素起一个你自己的名字，测试和无头驱动可以按路径定位。
+
+## 能编译却做错事的写法
+
+页面可能能编译却做错事：循环里每一行都有同名 `Button`、行又没加 Key 时，上方新增一行后，点击可能落到别的行上。`viva vet` 不运行程序就能找出它：
+
+```sh
+viva vet            # 或 go tool viva vet；包默认为 ./...
+```
+
+每个问题报告为 `文件:行:列: 哪里错了以及应该怎么写 (检查名)`，发现问题时以非零状态退出，并使用项目自己的 Go 运行。在该行或上一行写 `// viva:ignore <检查名>` 可以忽略一条。`ui.Memo` 的版本号漏掉了函数读取的某个状态时会显示旧内容：在测试里打开 `ui.MemoCheck(true)`，它会声明每个部件，并在复制结果与声明结果不同时 panic。
 
 ## 行协议
 

@@ -9,9 +9,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/ebitengine/purego"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 const pangoScale = 1024
@@ -340,7 +340,7 @@ func MeasureText(value string, size, weight float32) (text.Metrics, error) {
 	return measure(value, size, weight)
 }
 
-func MeasureMono(size float32, face ui.MonoFace) (width, height float32, err error) {
+func MeasureMono(size float32, face gfx.MonoFace) (width, height float32, err error) {
 	services, err := newTextServices()
 	if err != nil {
 		return 0, 0, err
@@ -356,17 +356,17 @@ func MeasureMono(size float32, face ui.MonoFace) (width, height float32, err err
 // monoFamily is the Pango family list of a face: its primary font, then the
 // families that draw what the primary lacks, in the order the application gave,
 // then the generic fixed-pitch family fontconfig chooses for the rest.
-func monoFamily(face ui.MonoFace) string {
-	name := ui.MonoFamilyName(face)
-	fallbacks := ui.MonoFallbacks(face)
+func monoFamily(face gfx.MonoFace) string {
+	name := gfx.MonoFamilyName(face)
+	fallbacks := gfx.MonoFallbacks(face)
 	switch {
 	case name == "" && len(fallbacks) == 0:
-		if ui.MonoIsClassic(face) {
+		if gfx.MonoIsClassic(face) {
 			return "DejaVu Sans Mono"
 		}
 		return "monospace"
 	case name == "":
-		if ui.MonoIsClassic(face) {
+		if gfx.MonoIsClassic(face) {
 			name = "DejaVu Sans Mono"
 		}
 	}
@@ -508,7 +508,7 @@ func (services *textServices) setSourceColor(context uintptr, color platform.Col
 	services.cairoSetSourceRGBA(context, clampUnit64(color.Red), clampUnit64(color.Green), clampUnit64(color.Blue), clampUnit64(color.Alpha))
 }
 
-func (services *textServices) setSourceUIColor(context uintptr, color ui.Color) {
+func (services *textServices) setSourceUIColor(context uintptr, color gfx.Color) {
 	services.cairoSetSourceRGBA(context, clampUnit64(float64(color.Red)), clampUnit64(float64(color.Green)), clampUnit64(float64(color.Blue)), clampUnit64(float64(color.Alpha)))
 }
 

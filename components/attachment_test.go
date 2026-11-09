@@ -4,14 +4,14 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestAttachmentMirrorsStateSizeOrientationAndTrigger(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
 	data := AttachmentData{Name: "cover.png", Description: "128 KB", Kind: AttachmentImage, ResourceID: 99, State: AttachmentError, Size: AttachmentSizeSmall, Orientation: AttachmentVertical}
-	BeginAttachment(&canvas, theme, ui.Item(8), ui.Rect{Width: 120, Height: 110}, data).Paint()
+	BeginAttachment(&canvas, theme, gfx.Item(8), gfx.Rect{Width: 120, Height: 110}, data).Paint()
 	if len(canvas.Hits()) != 1 || canvas.Hits()[0].Label != "cover.png" {
 		t.Fatalf("attachment hits = %+v", canvas.Hits())
 	}
@@ -21,12 +21,12 @@ func TestAttachmentMirrorsStateSizeOrientationAndTrigger(t *testing.T) {
 }
 
 func TestAttachmentVerticalMediaIsASquareAsWideAsTheCard(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	attachment := BeginAttachment(&canvas, theme, ui.Item(1), ui.Rect{}, AttachmentData{Name: "cover.png", Description: "128 KB", Kind: AttachmentImage, Orientation: AttachmentVertical})
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	attachment := BeginAttachment(&canvas, theme, gfx.Item(1), gfx.Rect{}, AttachmentData{Name: "cover.png", Description: "128 KB", Kind: AttachmentImage, Orientation: AttachmentVertical})
 	size := attachment.Size()
 	attachment.Paint()
-	var media ui.Rect
+	var media gfx.Rect
 	for _, rectangle := range canvas.Rectangles() {
 		if rectangle.Color == theme.Muted {
 			media = rectangle.Bounds
@@ -38,15 +38,15 @@ func TestAttachmentVerticalMediaIsASquareAsWideAsTheCard(t *testing.T) {
 }
 
 func TestAttachmentActionsSitOnTopOfTheTrigger(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	for _, orientation := range []AttachmentOrientation{AttachmentHorizontal, AttachmentVertical} {
-		var canvas ui.Canvas
-		bounds := ui.Rect{X: 10, Y: 20}
-		BeginAttachment(&canvas, theme, ui.Item(1), bounds, AttachmentData{Name: "report.pdf", Description: "2 MB", Orientation: orientation}).
-			Action(AttachmentAction{ID: ui.Item(2), Label: "Retry"}).
-			Action(AttachmentAction{ID: ui.Item(3), Label: "Remove"}).Paint()
+		var canvas gfx.Canvas
+		bounds := gfx.Rect{X: 10, Y: 20}
+		BeginAttachment(&canvas, theme, gfx.Item(1), bounds, AttachmentData{Name: "report.pdf", Description: "2 MB", Orientation: orientation}).
+			Action(AttachmentAction{ID: gfx.Item(2), Label: "Retry"}).
+			Action(AttachmentAction{ID: gfx.Item(3), Label: "Remove"}).Paint()
 		hits := canvas.Hits()
-		if len(hits) != 3 || hits[0].ID != ui.Item(1) || hits[1].Label != "Retry" || hits[2].Label != "Remove" {
+		if len(hits) != 3 || hits[0].ID != gfx.Item(1) || hits[1].Label != "Retry" || hits[2].Label != "Remove" {
 			t.Fatalf("orientation %d: hits %+v", orientation, hits)
 		}
 		card := hits[0].Bounds
@@ -64,10 +64,10 @@ func TestAttachmentActionsSitOnTopOfTheTrigger(t *testing.T) {
 }
 
 func TestAttachmentUploadingShowsTheRealProgress(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	bar := func(progress float32) (width float32, found bool) {
-		var canvas ui.Canvas
-		BeginAttachment(&canvas, theme, ui.ID{}, ui.Rect{Width: 200}, AttachmentData{Name: "a.mov", State: AttachmentUploading, Progress: progress}).Paint()
+		var canvas gfx.Canvas
+		BeginAttachment(&canvas, theme, gfx.ID{}, gfx.Rect{Width: 200}, AttachmentData{Name: "a.mov", State: AttachmentUploading, Progress: progress}).Paint()
 		for _, rectangle := range canvas.Rectangles() {
 			if rectangle.Bounds.Height == 2 {
 				return rectangle.Bounds.Width, true
@@ -86,11 +86,11 @@ func TestAttachmentUploadingShowsTheRealProgress(t *testing.T) {
 }
 
 func TestAttachmentGroupPlacesCardsInARowAndMeasuresTheScroll(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	group := BeginAttachmentGroup(theme, ui.Rect{X: 5, Y: 10, Width: 300})
-	first := BeginAttachment(&canvas, theme, ui.ID{}, ui.Rect{}, AttachmentData{Name: "a"})
-	second := BeginAttachment(&canvas, theme, ui.ID{}, ui.Rect{}, AttachmentData{Name: "a much longer file name than the first one has.txt"})
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	group := BeginAttachmentGroup(theme, gfx.Rect{X: 5, Y: 10, Width: 300})
+	first := BeginAttachment(&canvas, theme, gfx.ID{}, gfx.Rect{}, AttachmentData{Name: "a"})
+	second := BeginAttachment(&canvas, theme, gfx.ID{}, gfx.Rect{}, AttachmentData{Name: "a much longer file name than the first one has.txt"})
 	firstSlot := group.Next(first.Size())
 	secondSlot := group.Next(second.Size())
 	if secondSlot.X <= firstSlot.X+firstSlot.Width || firstSlot.X != 5 {
@@ -105,11 +105,11 @@ func TestAttachmentGroupPlacesCardsInARowAndMeasuresTheScroll(t *testing.T) {
 }
 
 func TestAttachmentIdleAndProcessingCommandsAreStable(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
 		data := AttachmentData{Name: "report.pdf", Description: "2.4 MB", Kind: AttachmentFile, State: AttachmentIdle, Size: AttachmentSizeExtraSmall}
-		BeginAttachment(&canvas, ui.DarkTheme(), ui.Item(3), ui.Rect{Width: 200, Height: 38}, data).Disabled().Paint()
+		BeginAttachment(&canvas, gfx.DarkTheme(), gfx.Item(3), gfx.Rect{Width: 200, Height: 38}, data).Disabled().Paint()
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())

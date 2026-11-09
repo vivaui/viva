@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -51,26 +51,26 @@ func (state *State) initializeContextMenu() {
 	state.flags |= contextMenuOpenMask
 }
 
-func (state *State) pointerContextMenu(event ui.PointerEvent) ui.EventResult {
-	if event.Kind != ui.PointerDown || event.Button != ui.PointerButtonSecondary || event.Target != contextMenuSurface {
-		return ui.EventResult{}
+func (state *State) pointerContextMenu(event gfx.PointerEvent) gfx.EventResult {
+	if event.Kind != gfx.PointerDown || event.Button != gfx.PointerButtonSecondary || event.Target != contextMenuSurface {
+		return gfx.EventResult{}
 	}
 	changed := state.flags&contextMenuOpenMask == 0 || state.points[0] != event.X || state.points[1] != event.Y
 	state.flags |= contextMenuOpenMask
 	state.points[0], state.points[1] = event.X, event.Y
-	return ui.EventResult{Handled: true, Repaint: changed}
+	return gfx.EventResult{Handled: true, Repaint: changed}
 }
 
-func (state *State) paintContextMenu(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var area flex.Box
-	state.page(canvas, theme, size, 1000, state.Text("Context Menu · 上下文菜单", "Context Menu · Pointer actions"), func(f *flex.Frame) {
+func (state *State) paintContextMenu(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var area ui.Box
+	state.page(canvas, theme, size, 1000, state.Text("Context Menu · 上下文菜单", "Context Menu · Pointer actions"), func(f *ui.Frame) {
 		f.Text(state.Text("在空白区域按次要按钮打开菜单。", "Right-click the empty area to open the menu.")).FontSize(theme.Metrics.FontSizeS).Muted()
 		area = f.Slot().FillWidth().Height(max(size.Height-124, 120))
 	})
 	surface := area.Rect()
 	canvas.RoundedBorder(surface, theme.Metrics.RadiusSurface, 1, theme.Border, theme.Muted)
 	canvas.PushFocusScope(contextMenuSurface)
-	canvas.HitWithOptions(contextMenuSurface, surface, "Context menu surface", ui.HitOptions{SkipFocus: true})
+	canvas.HitWithOptions(contextMenuSurface, surface, "Context menu surface", gfx.HitOptions{SkipFocus: true})
 	canvas.PopFocusScope()
 	if state.flags&contextMenuOpenMask == 0 {
 		return
@@ -83,7 +83,7 @@ func (state *State) paintContextMenu(canvas *ui.Canvas, theme ui.Theme, size ui.
 	}
 	// Four 32px rows, a separator, and the surface's 4px top and bottom padding.
 	menuHeight := float32(4*32 + 9 + 2*4)
-	menu := components.BeginContextMenu(canvas, theme, ui.Rect{X: menuX, Y: menuY, Width: menuWidth, Height: min(menuHeight, size.Height-menuY-8)}, components.ContextMenuOptions{Layer: 1})
+	menu := components.BeginContextMenu(canvas, theme, gfx.Rect{X: menuX, Y: menuY, Width: menuWidth, Height: min(menuHeight, size.Height-menuY-8)}, components.ContextMenuOptions{Layer: 1})
 	if state.exampleID == "default" {
 		menu.AddItem(components.ContextMenuItem{ID: contextMenuItem.At(0), Label: "Open", Shortcut: "⌘O"})
 		menu.AddItem(components.ContextMenuItem{ID: contextMenuToggle, Label: "Show details", Kind: components.ContextMenuCheckbox, Checked: state.flags&1 != 0})

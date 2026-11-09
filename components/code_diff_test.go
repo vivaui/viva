@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestDiffCodeLinesPreservesAlignmentAndTrailingLines(t *testing.T) {
@@ -104,18 +104,18 @@ func TestDiffCodeLinesNormalizesIdenticalLinesInsideAnUnanchoredHunk(t *testing.
 }
 
 func TestCodeDiffPaintsEditableRightSourceWithSyntaxAndPlacement(t *testing.T) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	left := "key: old\n# keep\nend\n"
 	right := "key: 新值\n# keep\nadded\nend\n"
 	result := DiffCodeLines(left, right)
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var diff CodeDiff
 	snapshot := CodeDiffSnapshot{
-		Result: result, ID: ui.Item(10), Label: "Edited file", Value: right,
+		Result: result, ID: gfx.Item(10), Label: "Edited file", Value: right,
 		Language: "yaml", Focused: true, ShowCaret: true,
 		Caret: len("key: 新值"), SelectionStart: 0, SelectionEnd: 3,
 		CompositionStart: len("key: "), CompositionEnd: len("key: 新值"),
-		VerticalScrollbarID: ui.Item(11), HorizontalScrollbarID: ui.Item(12),
+		VerticalScrollbarID: gfx.Item(11), HorizontalScrollbarID: gfx.Item(12),
 		Highlight: func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
 			if strings.HasPrefix(line, "key:") {
 				return append(dst, CodeEditorRun{Start: 0, End: 3, Color: theme.Chart[0]})
@@ -125,7 +125,7 @@ func TestCodeDiffPaintsEditableRightSourceWithSyntaxAndPlacement(t *testing.T) {
 	}
 	paint := func() {
 		canvas.Reset()
-		diff.Paint(&canvas, theme, ui.Rect{X: 4, Y: 5, Width: 640, Height: 220}, snapshot)
+		diff.Paint(&canvas, theme, gfx.Rect{X: 4, Y: 5, Width: 640, Height: 220}, snapshot)
 	}
 	paint()
 	for _, hit := range canvas.Hits() {
@@ -135,7 +135,7 @@ func TestCodeDiffPaintsEditableRightSourceWithSyntaxAndPlacement(t *testing.T) {
 		if hit.Value != right || !hit.Multiline || hit.ReadOnly || hit.TextColor.Alpha != 0 || !hit.HideNativeOverlays || hit.Placement != &diff {
 			t.Fatalf("editable diff hit = %+v", hit)
 		}
-		offset, ok := diff.OffsetAt(ui.Point{X: hit.Bounds.X + 12, Y: hit.Bounds.Y + 4})
+		offset, ok := diff.OffsetAt(gfx.Point{X: hit.Bounds.X + 12, Y: hit.Bounds.Y + 4})
 		if !ok || offset < 0 || offset > len(right) {
 			t.Fatalf("placement = %d, %t", offset, ok)
 		}
@@ -170,21 +170,143 @@ found:
 	}
 }
 
+func TestCodeDiffInlineMarksSeparateGraphemeChanges(t *testing.T) {
+	left := "name: old 🧑‍💻 yes\n"
+	right := "name: new 🧑‍🚀 no\n"
+	result := DiffCodeLines(left, right)
+	if len(result.Inline) < 2 {
+		t.Fatalf("separate edits were merged: %+v", result.Inline)
+	}
+	for _, span := range result.Inline {
+		before := result.Left[result.Rows[span.Row].LeftLine]
+		after := result.Right[result.Rows[span.Row].RightLine]
+		if span.LeftStart < 0 || span.LeftEnd > len(before) || span.RightStart < 0 || span.RightEnd > len(after) {
+			t.Fatalf("out-of-bounds span: %+v", span)
+		}
+		for _, boundary := range []struct {
+			line  string
+			start int
+			end   int
+		}{
+			{before, span.LeftStart, span.LeftEnd}, {after, span.RightStart, span.RightEnd},
+		} {
+			if strings.Contains(boundary.line[boundary.start:boundary.end], "‍") &&
+				!strings.Contains(boundary.line[boundary.start:boundary.end], "🧑") {
+				t.Fatalf("intraline highlight splits an emoji cluster: %+v", span)
+			}
+		}
+	}
+}
+
+func BenchmarkDiffCodeLinesWithInlineChanges(b *testing.B) {
+	left := strings.Repeat("key: aaa-middle-zzz\n", 800)
+	right := strings.Repeat("key: bbb-middle-yyy\n", 800)
+	b.ReportAllocs()
+	for range b.N {
+		DiffCodeLines(left, right)
+	}
+}
+
+func TestCodeDiffGutterAndHunkNavigation(t *testing.T) {
+	result := DiffCodeLines("first\nold\nkeep\nold2\n", "first\nnew\nkeep\nnew2\n")
+	hunks := result.Hunks(nil)
+	if len(hunks) != 2 || hunks[0].End <= hunks[0].Start || hunks[1].Start <= hunks[0].End {
+		t.Fatalf("hunks = %+v", hunks)
+	}
+	if next, ok := result.NextHunk(hunks[0].Start, true); !ok || next != hunks[1] {
+		t.Fatalf("next hunk = %+v, %t", next, ok)
+	}
+	if previous, ok := result.NextHunk(hunks[1].Start, false); !ok || previous != hunks[0] {
+		t.Fatalf("previous hunk = %+v, %t", previous, ok)
+	}
+	var canvas gfx.Canvas
+	var diff CodeDiff
+	var snapshot CodeDiffSnapshot
+	snapshot.Result, snapshot.Value = result, "first\nnew\nkeep\nnew2\n"
+	snapshot.LeftGutterID, snapshot.RightGutterID = gfx.Item(11), gfx.Item(12)
+	diff.Paint(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 620, Height: 180}, snapshot)
+	point := gfx.Point{X: diff.leftGutter.X + 1, Y: diff.leftGutter.Y + diff.rowHeight*1.5}
+	row, line, left, ok := diff.GutterAt(point)
+	if !ok || !left || row != hunks[0].Start || line != result.Rows[row].LeftLine {
+		t.Fatalf("gutter = row %d line %d left %t ok %t", row, line, left, ok)
+	}
+	canvas.Reset()
+	diff.Paint(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 620, Height: diff.rowHeight * 2}, snapshot)
+	diff.RevealRow(hunks[1].Start)
+	if diff.scrollY <= 0 {
+		t.Fatal("next hunk was not revealed")
+	}
+}
+
+func TestCodeDiffStackedAndUnifiedKeepEditableTextAndRows(t *testing.T) {
+	left, right := "same\nold\nlast", "same\nnew\nlast"
+	for _, layout := range []CodeDiffLayout{CodeDiffStacked, CodeDiffUnified} {
+		var canvas gfx.Canvas
+		var diff CodeDiff
+		snapshot := CodeDiffSnapshot{Result: DiffCodeLines(left, right), Value: right,
+			Layout: layout, ID: gfx.Item(45), RightGutterID: gfx.Item(46), ShowCaret: true, Focused: true,
+			Caret: len("same\nnew")}
+		diff.Paint(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 620, Height: 150}, snapshot)
+		if diff.rightCode.Width <= 620/2-diff.gutter {
+			t.Fatalf("layout %d did not use a full-width editor", layout)
+		}
+		if _, ok := diff.OffsetAt(gfx.Point{X: diff.rightCode.X + 1, Y: diff.rightCode.Y + diff.rowHeight*1.5}); !ok {
+			t.Fatalf("layout %d lost native text placement", layout)
+		}
+		if _, shown := diff.CaretBounds(); !shown {
+			t.Fatalf("layout %d lost the result caret", layout)
+		}
+		if layout == CodeDiffUnified {
+			if len(diff.visualRows) <= len(snapshot.Result.Rows) {
+				t.Fatal("changed lines did not split into removal and addition")
+			}
+			removed := diff.visualRows[1]
+			point := gfx.Point{X: diff.rightGutter.X + 1, Y: diff.rightGutter.Y + diff.rowHeight*1.5}
+			row, line, left, ok := diff.GutterAt(point)
+			if !ok || !left || line != removed.line || row != removed.row {
+				t.Fatalf("unified removed row = %d %d %t %t", row, line, left, ok)
+			}
+		}
+	}
+}
+
+func TestCodeDiffGutterActionsAreIndividualButtons(t *testing.T) {
+	var canvas gfx.Canvas
+	var diff CodeDiff
+	result := DiffCodeLines("old\nkeep", "new\nkeep")
+	action := CodeDiffGutterAction{Row: 0, Left: false, ID: gfx.Item(70), Label: "Apply"}
+	diff.Paint(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 700, Height: 180}, CodeDiffSnapshot{
+		Result: result, Value: "new\nkeep", RightGutterID: gfx.Item(71), Actions: []CodeDiffGutterAction{action},
+	})
+	var actionHit, wholeGutter bool
+	for _, hit := range canvas.Hits() {
+		if hit.ID == action.ID {
+			actionHit = hit.Role == gfx.RoleButton && hit.Bounds.Height <= diff.rowHeight
+		}
+		if hit.ID == gfx.Item(71) {
+			wholeGutter = hit.Bounds.Height > diff.rowHeight
+		}
+	}
+	if !actionHit || !wholeGutter {
+		t.Fatalf("per-row action = %t; gutter = %t", actionHit, wholeGutter)
+	}
+}
+
 func TestCodeDiffPaintsOneSelectionPerLineAndRebuildsSelectedText(t *testing.T) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	value := "alpha\nmiddle\nomega\n"
 	start := len("al")
 	end := strings.LastIndex(value, "omega") + len("om")
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var diff CodeDiff
 	snapshot := CodeDiffSnapshot{
-		Result: DiffCodeLines(value, value), ID: ui.Item(41), Label: "Selected file", Value: value,
+		Result: DiffCodeLines(value, value), ID: gfx.Item(41), Label: "Selected file", Value: value,
 		Focused: true, SelectionStart: start, SelectionEnd: end,
 	}
-	diff.Paint(&canvas, theme, ui.Rect{Width: 620, Height: 180}, snapshot)
+	diff.Paint(&canvas, theme, gfx.Rect{Width: 620, Height: 180}, snapshot)
 
 	selectionBackground, selectionForeground := theme.Selection, theme.SelectionForeground
-	var selected []ui.Rect
+	var selected []gfx.Rect
 	for _, rectangle := range canvas.Rectangles() {
 		if rectangle.Color == selectionBackground {
 			selected = append(selected, rectangle.Bounds)
@@ -194,7 +316,7 @@ func TestCodeDiffPaintsOneSelectionPerLineAndRebuildsSelectedText(t *testing.T) 
 		t.Fatalf("selection rectangles = %+v, want one per selected line", selected)
 	}
 	wantCells := []int{len("pha"), len("middle"), len("om")}
-	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, ui.MonoSystem)
+	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, gfx.MonoSystem)
 	for index, rectangle := range selected {
 		if rectangle.Width <= 0 || rectangle.Width >= diff.rightCode.Width {
 			t.Errorf("line %d selection = %+v, right code width = %v", index, rectangle, diff.rightCode.Width)
@@ -227,7 +349,7 @@ func TestCodeDiffPaintsOneSelectionPerLineAndRebuildsSelectedText(t *testing.T) 
 }
 
 func TestCodeDiffDoesNotSyntaxColourUnchangedRows(t *testing.T) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	left := "keep: yes\nold: 1\n"
 	right := "keep: yes\nnew: 1\n"
 	var highlightedUnchanged bool
@@ -237,19 +359,19 @@ func TestCodeDiffDoesNotSyntaxColourUnchangedRows(t *testing.T) {
 			if strings.HasPrefix(line, "keep:") {
 				highlightedUnchanged = true
 			}
-			return append(dst, CodeEditorRun{Start: 0, End: len("keep:"), Color: ui.RGB(255, 191, 26)})
+			return append(dst, CodeEditorRun{Start: 0, End: len("keep:"), Color: gfx.RGB(255, 191, 26)})
 		},
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var diff CodeDiff
-	diff.Paint(&canvas, theme, ui.Rect{Width: 640, Height: 180}, snapshot)
+	diff.Paint(&canvas, theme, gfx.Rect{Width: 640, Height: 180}, snapshot)
 	if highlightedUnchanged {
 		t.Fatal("an unchanged row was passed through the syntax highlighter")
 	}
 }
 
 func TestCodeDiffPaintsEachRowAsOneGridLabelWhateverTheHighlight(t *testing.T) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	left := "<revision>41</revision>\n<log-level>info</log-level>\n"
 	right := "<revision>42</revision>\n<log-level>warning</log-level>\n"
 	snapshot := CodeDiffSnapshot{
@@ -272,10 +394,10 @@ func TestCodeDiffPaintsEachRowAsOneGridLabelWhateverTheHighlight(t *testing.T) {
 			return dst
 		},
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var diff CodeDiff
-	diff.Paint(&canvas, theme, ui.Rect{Width: 1000, Height: 300}, snapshot)
-	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, ui.MonoSystem)
+	diff.Paint(&canvas, theme, gfx.Rect{Width: 1000, Height: 300}, snapshot)
+	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, gfx.MonoSystem)
 	labels := 0
 	for _, text := range canvas.Texts() {
 		if !strings.Contains(text.Value, "<") {
@@ -310,16 +432,16 @@ func TestCodeDiffPaintsEachRowAsOneGridLabelWhateverTheHighlight(t *testing.T) {
 }
 
 func TestCodeDiffKeepsThePreviousAlignmentWhileTheEditableTextChanges(t *testing.T) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	left := "old value\nstable\n"
 	right := "new value\nstable\n"
 	snapshot := CodeDiffSnapshot{
 		Result: DiffCodeLines(left, right),
 		Value:  "brand new value\nstable\n",
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var diff CodeDiff
-	diff.Paint(&canvas, theme, ui.Rect{Width: 620, Height: 180}, snapshot)
+	diff.Paint(&canvas, theme, gfx.Rect{Width: 620, Height: 180}, snapshot)
 	var removed, added bool
 	for _, rectangle := range canvas.Rectangles() {
 		if rectangle.Color.Alpha <= 0 || rectangle.Color.Alpha >= theme.Danger.Alpha {
@@ -336,30 +458,30 @@ func TestCodeDiffKeepsThePreviousAlignmentWhileTheEditableTextChanges(t *testing
 }
 
 func TestCodeDiffScrollsBothColumns(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	left := strings.Repeat("old line"+strings.Repeat("x", 500)+"\n", 100)
 	right := strings.Repeat("new line"+strings.Repeat("y", 500)+"\n", 100)
 	result := DiffCodeLines(left, right)
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var diff CodeDiff
 	snapshot := CodeDiffSnapshot{
-		Result: result, ID: ui.Item(20), Label: "Changed file", Value: right,
+		Result: result, ID: gfx.Item(20), Label: "Changed file", Value: right,
 		Focused: true, Caret: 0,
-		VerticalScrollbarID: ui.Item(21), HorizontalScrollbarID: ui.Item(22),
+		VerticalScrollbarID: gfx.Item(21), HorizontalScrollbarID: gfx.Item(22),
 	}
-	diff.Paint(&canvas, theme, ui.Rect{Width: 500, Height: 120}, snapshot)
+	diff.Paint(&canvas, theme, gfx.Rect{Width: 500, Height: 120}, snapshot)
 	if diff.Geometry.MaxOffsetY <= 0 {
 		t.Fatal("vertical scrollbar missing")
 	}
-	resultScroll := diff.Scroll(ui.ScrollEvent{DeltaY: 240})
+	resultScroll := diff.Scroll(gfx.ScrollEvent{DeltaY: 240})
 	if !resultScroll.Handled || diff.scrollY <= 0 {
 		t.Fatalf("vertical scroll = %+v offset=%v", resultScroll, diff.scrollY)
 	}
-	if _, handled := diff.ScrollForKey(ui.KeyRight, false); !handled || diff.scrollX <= 0 {
+	if _, handled := diff.ScrollForKey(gfx.KeyRight, false); !handled || diff.scrollX <= 0 {
 		t.Fatalf("horizontal key scroll = %t offset=%v", handled, diff.scrollX)
 	}
 	canvas.Reset()
-	diff.Paint(&canvas, theme, ui.Rect{Width: 500, Height: 120}, snapshot)
+	diff.Paint(&canvas, theme, gfx.Rect{Width: 500, Height: 120}, snapshot)
 	if diff.Geometry.OffsetY <= 0 {
 		t.Fatal("paint discarded scroll position")
 	}
@@ -371,17 +493,17 @@ func TestCodeDiffScrollsBothColumns(t *testing.T) {
 }
 
 func TestCodeDiffLongLinesRemainReachableAndScrollbarDragsTrackThePointer(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	line := strings.Repeat("long-value-", 90)
 	left := strings.Repeat("stable\n", 30) + line + "\n"
 	right := strings.Repeat("stable\n", 30) + line + "\n"
 	snapshot := CodeDiffSnapshot{
-		Result: DiffCodeLines(left, right), ID: ui.Item(30), Label: "Long file", Value: right,
-		VerticalScrollbarID: ui.Item(31), HorizontalScrollbarID: ui.Item(32),
+		Result: DiffCodeLines(left, right), ID: gfx.Item(30), Label: "Long file", Value: right,
+		VerticalScrollbarID: gfx.Item(31), HorizontalScrollbarID: gfx.Item(32),
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var diff CodeDiff
-	bounds := ui.Rect{X: 10, Y: 20, Width: 500, Height: 180}
+	bounds := gfx.Rect{X: 10, Y: 20, Width: 500, Height: 180}
 	diff.Paint(&canvas, theme, bounds, snapshot)
 	if diff.Geometry.MaxOffsetX <= 0 || diff.Geometry.MaxOffsetY <= 0 {
 		t.Fatalf("missing scroll extents: %+v", diff.Geometry)
@@ -392,40 +514,40 @@ func TestCodeDiffLongLinesRemainReachableAndScrollbarDragsTrackThePointer(t *tes
 	}
 
 	vertical := diff.Geometry.VerticalThumb
-	down := diff.Pointer(ui.PointerEvent{
-		Kind: ui.PointerDown, Target: snapshot.VerticalScrollbarID,
+	down := diff.Pointer(gfx.PointerEvent{
+		Kind: gfx.PointerDown, Target: snapshot.VerticalScrollbarID,
 		X: vertical.X + vertical.Width/2, Y: vertical.Y + vertical.Height/2,
 	})
 	if !down.Handled || diff.scrollY != 0 {
 		t.Fatalf("vertical thumb press = %+v offset=%v", down, diff.scrollY)
 	}
 	before := diff.scrollY
-	first := diff.Pointer(ui.PointerEvent{
-		Kind: ui.PointerMove, Captured: true, Target: snapshot.VerticalScrollbarID,
+	first := diff.Pointer(gfx.PointerEvent{
+		Kind: gfx.PointerMove, Captured: true, Target: snapshot.VerticalScrollbarID,
 		X: vertical.X, Y: vertical.Y + vertical.Height/2 + 24,
 	})
-	second := diff.Pointer(ui.PointerEvent{
-		Kind: ui.PointerMove, Captured: true, Target: snapshot.VerticalScrollbarID,
+	second := diff.Pointer(gfx.PointerEvent{
+		Kind: gfx.PointerMove, Captured: true, Target: snapshot.VerticalScrollbarID,
 		X: vertical.X, Y: vertical.Y + vertical.Height/2 + 48,
 	})
 	if !first.Handled || !second.Handled || diff.scrollY <= before {
 		t.Fatalf("captured vertical drag did not follow downward motion: before=%v after=%v", before, diff.scrollY)
 	}
-	if up := diff.Pointer(ui.PointerEvent{Kind: ui.PointerUp, Captured: true, Target: snapshot.VerticalScrollbarID}); !up.Handled || diff.verticalDrag {
+	if up := diff.Pointer(gfx.PointerEvent{Kind: gfx.PointerUp, Captured: true, Target: snapshot.VerticalScrollbarID}); !up.Handled || diff.verticalDrag {
 		t.Fatalf("vertical drag did not release: %+v dragging=%t", up, diff.verticalDrag)
 	}
 
 	diff.ScrollTo(0, 0)
 	horizontal := diff.Geometry.HorizontalThumb
-	if result := diff.Pointer(ui.PointerEvent{
-		Kind: ui.PointerDown, Target: snapshot.HorizontalScrollbarID,
+	if result := diff.Pointer(gfx.PointerEvent{
+		Kind: gfx.PointerDown, Target: snapshot.HorizontalScrollbarID,
 		X: horizontal.X + horizontal.Width/2, Y: horizontal.Y + horizontal.Height/2,
 	}); !result.Handled || diff.scrollX != 0 {
 		t.Fatalf("horizontal thumb press = %+v offset=%v", result, diff.scrollX)
 	}
 	beforeX := diff.scrollX
-	if result := diff.Pointer(ui.PointerEvent{
-		Kind: ui.PointerMove, Captured: true, Target: snapshot.HorizontalScrollbarID,
+	if result := diff.Pointer(gfx.PointerEvent{
+		Kind: gfx.PointerMove, Captured: true, Target: snapshot.HorizontalScrollbarID,
 		X: horizontal.X + horizontal.Width/2 + 40, Y: horizontal.Y + horizontal.Height/2,
 	}); !result.Handled || diff.scrollX <= beforeX {
 		t.Fatalf("captured horizontal drag did not follow motion: before=%v after=%v", beforeX, diff.scrollX)
@@ -435,7 +557,7 @@ func TestCodeDiffLongLinesRemainReachableAndScrollbarDragsTrackThePointer(t *tes
 	canvas.Reset()
 	diff.Paint(&canvas, theme, bounds, snapshot)
 	foundRightEnd := false
-	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, ui.MonoSystem)
+	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, gfx.MonoSystem)
 	for _, text := range canvas.Texts() {
 		// The label of the right pane, which may start a few cells left of the view.
 		if text.RunCount == 0 || !strings.HasSuffix(line, text.Value) || text.Bounds.X+text.Bounds.Width <= diff.rightCode.X {
@@ -536,12 +658,12 @@ func BenchmarkDiffCodeLinesLongLine(b *testing.B) {
 }
 
 func BenchmarkCodeDiffPaintHalfMiBLine(b *testing.B) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	left := strings.Repeat("a", 512<<10)
 	right := strings.Repeat("b", 512<<10)
 	snapshot := CodeDiffSnapshot{Result: DiffCodeLines(left, right), Value: right}
-	bounds := ui.Rect{Width: 1000, Height: 300}
-	var canvas ui.Canvas
+	bounds := gfx.Rect{Width: 1000, Height: 300}
+	var canvas gfx.Canvas
 	var diff CodeDiff
 	b.ReportAllocs()
 	for b.Loop() {
@@ -582,13 +704,13 @@ func slicesEqual(left, right []string) bool {
 // The horizontal range follows the widest line of the file, wherever the view is, and a file
 // whose lines fit gets no horizontal bar at all.
 func TestCodeDiffHorizontalRangeCoversTheWholeFile(t *testing.T) {
-	theme := ui.LightTheme()
-	bounds := ui.Rect{X: 10, Y: 20, Width: 500, Height: 180}
+	theme := gfx.LightTheme()
+	bounds := gfx.Rect{X: 10, Y: 20, Width: 500, Height: 180}
 	paint := func(diff *CodeDiff, text string) {
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		diff.Paint(&canvas, theme, bounds, CodeDiffSnapshot{
-			Result: DiffCodeLines(text, text), ID: ui.Item(30), Label: "File", Value: text,
-			VerticalScrollbarID: ui.Item(31), HorizontalScrollbarID: ui.Item(32),
+			Result: DiffCodeLines(text, text), ID: gfx.Item(30), Label: "File", Value: text,
+			VerticalScrollbarID: gfx.Item(31), HorizontalScrollbarID: gfx.Item(32),
 		})
 	}
 
@@ -599,7 +721,7 @@ func TestCodeDiffHorizontalRangeCoversTheWholeFile(t *testing.T) {
 	if atTop <= 0 {
 		t.Fatalf("a line far below the view is not reachable: %+v", diff.Geometry)
 	}
-	diff.ScrollForKey(ui.KeyEnd, false)
+	diff.ScrollForKey(gfx.KeyEnd, false)
 	diff.scrollX = atTop
 	paint(&diff, long)
 	if diff.Geometry.MaxOffsetX != atTop || diff.Geometry.OffsetX != atTop {
@@ -608,7 +730,7 @@ func TestCodeDiffHorizontalRangeCoversTheWholeFile(t *testing.T) {
 
 	var short CodeDiff
 	paint(&short, strings.Repeat("short\n", 100))
-	if short.Geometry.MaxOffsetX != 0 || short.Geometry.HorizontalTrack != (ui.Rect{}) {
+	if short.Geometry.MaxOffsetX != 0 || short.Geometry.HorizontalTrack != (gfx.Rect{}) {
 		t.Fatalf("lines that fit got a horizontal bar: %+v", short.Geometry)
 	}
 }
@@ -696,22 +818,22 @@ func BenchmarkDiffCodeLinesRepeatedLinesAtLineLimit(b *testing.B) {
 
 func BenchmarkCodeDiffPaintLongFileWidestLineCached(b *testing.B) {
 	text := strings.Repeat("stable line of ordinary length\n", 19999) + strings.Repeat("long-value-", 90)
-	snapshot := CodeDiffSnapshot{Result: DiffCodeLines(text, text), ID: ui.Item(30), Label: "File", Value: text}
+	snapshot := CodeDiffSnapshot{Result: DiffCodeLines(text, text), ID: gfx.Item(30), Label: "File", Value: text}
 	var diff CodeDiff
-	var canvas ui.Canvas
-	theme := ui.LightTheme()
+	var canvas gfx.Canvas
+	theme := gfx.LightTheme()
 	b.ReportAllocs()
 	for b.Loop() {
 		canvas.Reset()
-		diff.Paint(&canvas, theme, ui.Rect{Width: 500, Height: 180}, snapshot)
+		diff.Paint(&canvas, theme, gfx.Rect{Width: 500, Height: 180}, snapshot)
 	}
 }
 
-func codeDiffFixture(left, right string) (*CodeDiff, *ui.Canvas, CodeDiffSnapshot) {
+func codeDiffFixture(left, right string) (*CodeDiff, *gfx.Canvas, CodeDiffSnapshot) {
 	var diff CodeDiff
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	snapshot := CodeDiffSnapshot{
-		Result: DiffCodeLines(left, right), ID: ui.Item(50), Label: "Edited", Value: right,
+		Result: DiffCodeLines(left, right), ID: gfx.Item(50), Label: "Edited", Value: right,
 		Focused: true, ShowCaret: true,
 	}
 	return &diff, &canvas, snapshot
@@ -719,9 +841,9 @@ func codeDiffFixture(left, right string) (*CodeDiff, *ui.Canvas, CodeDiffSnapsho
 
 func TestCodeDiffCaretDefaultsToEditorWidthWithoutOverridingHairline(t *testing.T) {
 	diff, canvas, snapshot := codeDiffFixture("old\n", "new\n")
-	paint := func() (ui.Rect, bool) {
+	paint := func() (gfx.Rect, bool) {
 		canvas.Reset()
-		diff.Paint(canvas, ui.LightTheme(), ui.Rect{Width: 500, Height: 180}, snapshot)
+		diff.Paint(canvas, gfx.LightTheme(), gfx.Rect{Width: 500, Height: 180}, snapshot)
 		return diff.CaretBounds()
 	}
 	defaultCaret, ok := paint()
@@ -736,11 +858,11 @@ func TestCodeDiffCaretDefaultsToEditorWidthWithoutOverridingHairline(t *testing.
 }
 
 func TestCodeDiffPlacesTheCaretAndPressesOnTheCellGrid(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	right := "ab\tc中d\nxyz\n"
 	diff, canvas, snapshot := codeDiffFixture("old\nxyz\n", right)
-	bounds := ui.Rect{X: 0, Y: 0, Width: 700, Height: 200}
-	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, ui.MonoSystem)
+	bounds := gfx.Rect{X: 0, Y: 0, Width: 700, Height: 200}
+	cell, _ := canvas.MonoCellSize(theme.Metrics.FontSizeM, gfx.MonoSystem)
 	for _, c := range []struct{ offset, column, line int }{{0, 0, 0}, {1, 1, 0}, {3, 4, 0}, {4, 5, 0}, {7, 7, 0}, {8, 8, 0}, {9, 0, 1}, {12, 3, 1}} {
 		snapshot.Caret = c.offset
 		canvas.Reset()
@@ -756,7 +878,7 @@ func TestCodeDiffPlacesTheCaretAndPressesOnTheCellGrid(t *testing.T) {
 		if want := diff.rightCode.Y + float32(c.line)*diff.rowHeight; caret.Y != want {
 			t.Errorf("offset %d: caret y %v, want %v", c.offset, caret.Y, want)
 		}
-		got, ok := diff.OffsetAt(ui.Point{X: caret.X + .01, Y: caret.Y + diff.rowHeight/2})
+		got, ok := diff.OffsetAt(gfx.Point{X: caret.X + .01, Y: caret.Y + diff.rowHeight/2})
 		if !ok || got != c.offset {
 			t.Errorf("offset %d: a press on its caret gave %d, %v", c.offset, got, ok)
 		}
@@ -766,7 +888,7 @@ func TestCodeDiffPlacesTheCaretAndPressesOnTheCellGrid(t *testing.T) {
 func TestCodeDiffMoveKeepsTheColumnAcrossShortLines(t *testing.T) {
 	right := "abcdef\nxy\nabcdefgh\n"
 	diff, canvas, snapshot := codeDiffFixture(right, right)
-	diff.Paint(canvas, ui.LightTheme(), ui.Rect{Width: 700, Height: 200}, snapshot)
+	diff.Paint(canvas, gfx.LightTheme(), gfx.Rect{Width: 700, Height: 200}, snapshot)
 	caret := 5
 	for _, want := range []int{9, 15, 9, 5} {
 		down := want == 9 && caret == 5 || want == 15
@@ -782,7 +904,7 @@ func TestCodeDiffMoveKeepsTheColumnAcrossShortLines(t *testing.T) {
 	// Home goes to the first character first, then to the start of the line.
 	indented := "x\n    text here\n"
 	diff2, canvas2, snapshot2 := codeDiffFixture(indented, indented)
-	diff2.Paint(canvas2, ui.LightTheme(), ui.Rect{Width: 700, Height: 200}, snapshot2)
+	diff2.Paint(canvas2, gfx.LightTheme(), gfx.Rect{Width: 700, Height: 200}, snapshot2)
 	caret = 12
 	for _, want := range []int{6, 2, 6} {
 		caret = diff2.Move(indented, caret, TextareaMoveLineStart)
@@ -793,10 +915,10 @@ func TestCodeDiffMoveKeepsTheColumnAcrossShortLines(t *testing.T) {
 }
 
 func TestCodeDiffExpandsTabsAndCountsWideCharactersAsTwoCells(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	diff, canvas, snapshot := codeDiffFixture("a\tb\n", "a\tb 中\n")
 	snapshot.TabWidth = 4
-	diff.Paint(canvas, theme, ui.Rect{Width: 700, Height: 120}, snapshot)
+	diff.Paint(canvas, theme, gfx.Rect{Width: 700, Height: 120}, snapshot)
 	var shown []string
 	for _, text := range canvas.Texts() {
 		if text.RunCount > 0 && strings.Contains(text.Value, "b") {
@@ -813,34 +935,34 @@ func TestCodeDiffExpandsTabsAndCountsWideCharactersAsTwoCells(t *testing.T) {
 }
 
 func TestCodeDiffGutterGrowsWithTheLineNumbers(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	small, canvasA, snapshotA := codeDiffFixture("a\n", "b\n")
-	small.Paint(canvasA, theme, ui.Rect{Width: 700, Height: 200}, snapshotA)
+	small.Paint(canvasA, theme, gfx.Rect{Width: 700, Height: 200}, snapshotA)
 	text := strings.Repeat("line\n", 123456)
 	large, canvasB, snapshotB := codeDiffFixture(text, text+"x")
-	large.Paint(canvasB, theme, ui.Rect{Width: 700, Height: 200}, snapshotB)
+	large.Paint(canvasB, theme, gfx.Rect{Width: 700, Height: 200}, snapshotB)
 	if small.gutter != codeDiffGutterWidth || large.gutter <= small.gutter {
 		t.Fatalf("gutters %v and %v: a 6 digit count needs more room than the minimum", small.gutter, large.gutter)
 	}
-	cell, _ := canvasB.MonoCellSize(theme.Metrics.FontSizeS, ui.MonoSystem)
+	cell, _ := canvasB.MonoCellSize(theme.Metrics.FontSizeS, gfx.MonoSystem)
 	if need := 17 + 6*cell + 6; large.gutter < need-.01 {
 		t.Fatalf("gutter %v cannot hold six digits (%v)", large.gutter, need)
 	}
 }
 
 func TestCodeDiffSteadyPaintAllocatesNothing(t *testing.T) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	left := strings.Repeat("key: old\n\n\tindented 中文\n", 300)
 	right := strings.Repeat("key: new\n\n\tindented 中文\n", 300)
 	diff, canvas, snapshot := codeDiffFixture(left, right)
-	snapshot.VerticalScrollbarID, snapshot.HorizontalScrollbarID = ui.Item(51), ui.Item(52)
+	snapshot.VerticalScrollbarID, snapshot.HorizontalScrollbarID = gfx.Item(51), gfx.Item(52)
 	snapshot.SelectionStart, snapshot.SelectionEnd, snapshot.Caret = 3, 40, 40
 	snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
-		return append(dst, CodeEditorRun{End: 3, Color: ui.RGB(200, 20, 20)})
+		return append(dst, CodeEditorRun{End: 3, Color: gfx.RGB(200, 20, 20)})
 	}
 	paint := func() {
 		canvas.Reset()
-		diff.Paint(canvas, theme, ui.Rect{Width: 800, Height: 300}, snapshot)
+		diff.Paint(canvas, theme, gfx.Rect{Width: 800, Height: 300}, snapshot)
 	}
 	paint()
 	if allocations := testing.AllocsPerRun(100, paint); allocations != 0 {
@@ -854,7 +976,7 @@ func TestCodeDiffSteadyPaintAllocatesNothing(t *testing.T) {
 func BenchmarkCodeDiffRelayoutOnEdit(b *testing.B) {
 	base := strings.Repeat("key: value # comment with some 中文 and a long tail to wrap around the edge of the box\n", 6000)
 	changed := strings.Replace(base, "key", "kex", 1)
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	diff, canvas, snapshot := codeDiffFixture(base, base)
 	b.SetBytes(int64(len(base)))
 	b.ReportAllocs()
@@ -867,6 +989,6 @@ func BenchmarkCodeDiffRelayoutOnEdit(b *testing.B) {
 			snapshot.Value = base
 		}
 		canvas.Reset()
-		diff.Paint(canvas, theme, ui.Rect{Width: 900, Height: 600}, snapshot)
+		diff.Paint(canvas, theme, gfx.Rect{Width: 900, Height: 600}, snapshot)
 	}
 }

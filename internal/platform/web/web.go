@@ -14,9 +14,9 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // Config describes the browser deployment.
@@ -26,22 +26,22 @@ type Config struct {
 	Height int
 	// ClearColor is the color the canvas is cleared to before Paint runs. The
 	// zero color keeps the backend's dark default.
-	ClearColor ui.Color
-	Paint      func(canvas *ui.Canvas, size ui.Size)
-	OnPointer  func(event ui.PointerEvent) ui.EventResult
-	OnKey      func(event ui.KeyEvent) ui.EventResult
-	OnShortcut func(event ui.KeyEvent) ui.EventResult
-	OnScroll   func(event ui.ScrollEvent) ui.EventResult
+	ClearColor gfx.Color
+	Paint      func(canvas *gfx.Canvas, size gfx.Size)
+	OnPointer  func(event gfx.PointerEvent) gfx.EventResult
+	OnKey      func(event gfx.KeyEvent) gfx.EventResult
+	OnShortcut func(event gfx.KeyEvent) gfx.EventResult
+	OnScroll   func(event gfx.ScrollEvent) gfx.EventResult
 	// OnFileDrop receives files dragged from the page's outside over the
 	// canvas, and the drop. The browser reports no paths: the event's Files carry
 	// the chosen File objects.
-	OnFileDrop func(event ui.FileDropEvent) ui.EventResult
+	OnFileDrop func(event gfx.FileDropEvent) gfx.EventResult
 	// OnModifierTap receives a modifier key pressed and released on its own
-	// (see ui.ModifierTapEvent).
-	OnModifierTap func(event ui.ModifierTapEvent) ui.EventResult
+	// (see gfx.ModifierTapEvent).
+	OnModifierTap func(event gfx.ModifierTapEvent) gfx.EventResult
 	// OnResize runs after the viewport size changes and before the repaint it
 	// causes. It is not called for the initial viewport size.
-	OnResize func(size ui.Size)
+	OnResize func(size gfx.Size)
 	// OnMinimize reports the page becoming hidden or visible, the browser
 	// counterpart of a window being minimized and restored.
 	OnMinimize func(hidden bool)
@@ -60,7 +60,7 @@ type Config struct {
 	ForwardWheel func(deltaX, deltaY float32)
 	TextInput    TextInputProvider
 	// Canvas is the retained canvas the runtime paints into; nil makes a fresh one.
-	Canvas *ui.Canvas
+	Canvas *gfx.Canvas
 	// Waker, when set, is bound for the life of the page: waking it runs OnWake
 	// and then repaints, so background work can ask for a frame from any goroutine.
 	Waker  *platform.Waker
@@ -69,7 +69,7 @@ type Config struct {
 
 type runtime struct {
 	config     Config
-	canvas     *ui.Canvas
+	canvas     *gfx.Canvas
 	painter    *painter
 	document   js.Value
 	window     js.Value
@@ -172,7 +172,7 @@ func (runtime *runtime) mount() {
 
 	runtime.canvas = runtime.config.Canvas
 	if runtime.canvas == nil {
-		runtime.canvas = &ui.Canvas{}
+		runtime.canvas = &gfx.Canvas{}
 	}
 	runtime.measurer = newDOMMeasurer(runtime.document)
 	runtime.canvas.SetTextEngine(newLineEngine(runtime.measurer))
@@ -190,19 +190,19 @@ func (runtime *runtime) mount() {
 	runtime.metrics = newTextMetrics(runtime.measurer)
 	runtime.painter = newPainter(runtime.canvas, &runtime.config)
 	runtime.a11y.setActions(
-		func(id ui.ID) {
+		func(id gfx.ID) {
 			// The painter repaints its own canvas; the runtime still has to
 			// publish that frame and the ARIA mirror to the document.
 			if runtime.painter.accessibilityPress(id) {
 				runtime.requestFrame()
 			}
 		},
-		func(id ui.ID) {
+		func(id gfx.ID) {
 			if runtime.painter.accessibilityFocus(id) {
 				runtime.requestFrame()
 			}
 		},
-		func(id ui.ID, value float64) {
+		func(id gfx.ID, value float64) {
 			if runtime.painter.accessibilitySetNumber(id, value) {
 				runtime.requestFrame()
 			}
@@ -234,7 +234,7 @@ func (runtime *runtime) resize() {
 	runtime.surface.Set("width", int(float32(width)*runtime.dpr))
 	runtime.surface.Set("height", int(float32(height)*runtime.dpr))
 	if changed && runtime.sized && runtime.config.OnResize != nil {
-		runtime.config.OnResize(ui.Size{Width: float32(width), Height: float32(height)})
+		runtime.config.OnResize(gfx.Size{Width: float32(width), Height: float32(height)})
 	}
 	if runtime.hidden {
 		runtime.painter.width, runtime.painter.height = float32(width), float32(height)
@@ -302,8 +302,9 @@ func (runtime *runtime) scheduleFrame(delay time.Duration) {
 }
 
 // drawRuns draws a fixed-pitch grid line: each run at its cell, in its own
-// color and weight, wide characters centered in their cells.
-func (runtime *runtime) drawRuns(text ui.Text) {
+// color and weight, wide characters centered in their cells, ligature runs
+// shaped as one line fitted to their cells.
+func (runtime *runtime) drawRuns(text gfx.Text) {
 	context := runtime.context
 	context.Call("save")
 	if text.HasClip {
@@ -329,7 +330,17 @@ func (runtime *runtime) drawRuns(text ui.Text) {
 		if run.Cells > 0 && utf8.RuneCountInString(piece) == 1 {
 			x = left + (span-float32(context.Call("measureText", piece).Get("width").Float()))/2
 		}
-		if printableASCII(piece) && len(piece) > 1 {
+		if run.Ligatures && printableASCII(piece) && len(piece) > 1 {
+			// A ligature run is shaped as one line, so the font's ligatures appear, and
+			// fitted to its cells.
+			if width := float32(context.Call("measureText", piece).Get("width").Float()); width > 0 && span > 0 {
+				context.Call("save")
+				context.Call("translate", left, 0)
+				context.Call("scale", span/width, 1)
+				context.Call("fillText", piece, 0, baseline)
+				context.Call("restore")
+			}
+		} else if printableASCII(piece) && len(piece) > 1 {
 			// Plain ASCII: each character stands on its cell, whatever the font's own
 			// advance, and keeps its own shape.
 			for index := range len(piece) {
@@ -356,7 +367,7 @@ func (runtime *runtime) textInputChanged() {
 	runtime.requestFrame()
 }
 
-func clipRect(context js.Value, bounds ui.Rect) {
+func clipRect(context js.Value, bounds gfx.Rect) {
 	context.Call("beginPath")
 	context.Call("rect", bounds.X, bounds.Y, bounds.Width, bounds.Height)
 	context.Call("clip")
@@ -450,7 +461,7 @@ func (runtime *runtime) bindEvents() {
 
 	surface.Call("addEventListener", "pointermove", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		event := args[0]
-		if runtime.painter.pointerEvent(pointerEvent(ui.PointerMove, event)) {
+		if runtime.painter.pointerEvent(pointerEvent(gfx.PointerMove, event)) {
 			runtime.requestFrame()
 		}
 		return nil
@@ -459,7 +470,7 @@ func (runtime *runtime) bindEvents() {
 		event := args[0]
 		pointerID := event.Get("pointerId").Int()
 		surface.Call("setPointerCapture", pointerID)
-		if runtime.painter.pointerEvent(pointerEvent(ui.PointerDown, event)) {
+		if runtime.painter.pointerEvent(pointerEvent(gfx.PointerDown, event)) {
 			runtime.requestFrame()
 		}
 		runtime.focusRoot.Call("focus", map[string]any{"preventScroll": true})
@@ -467,7 +478,7 @@ func (runtime *runtime) bindEvents() {
 	}))
 	surface.Call("addEventListener", "pointerup", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		event := args[0]
-		if runtime.painter.pointerEvent(pointerEvent(ui.PointerUp, event)) {
+		if runtime.painter.pointerEvent(pointerEvent(gfx.PointerUp, event)) {
 			runtime.requestFrame()
 		}
 		pointerID := event.Get("pointerId").Int()
@@ -477,13 +488,13 @@ func (runtime *runtime) bindEvents() {
 		return nil
 	}))
 	surface.Call("addEventListener", "pointerleave", js.FuncOf(func(_ js.Value, args []js.Value) any {
-		if runtime.painter.pointerEvent(pointerEvent(ui.PointerExit, args[0])) {
+		if runtime.painter.pointerEvent(pointerEvent(gfx.PointerExit, args[0])) {
 			runtime.requestFrame()
 		}
 		return nil
 	}))
 	surface.Call("addEventListener", "pointercancel", js.FuncOf(func(_ js.Value, args []js.Value) any {
-		if runtime.painter.pointerCancel(pointerEvent(ui.PointerExit, args[0])) {
+		if runtime.painter.pointerCancel(pointerEvent(gfx.PointerExit, args[0])) {
 			runtime.requestFrame()
 		}
 		pointerID := args[0].Get("pointerId").Int()
@@ -511,7 +522,7 @@ func (runtime *runtime) bindEvents() {
 			runtime.painter.width,
 			runtime.painter.height,
 		)
-		handled, changed := runtime.painter.wheel(ui.ScrollEvent{
+		handled, changed := runtime.painter.wheel(gfx.ScrollEvent{
 			Modifiers: webModifiers(event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(), event.Get("altKey").Bool(), event.Get("metaKey").Bool()),
 			X:         float32(event.Get("clientX").Float()),
 			Y:         float32(event.Get("clientY").Float()),
@@ -580,8 +591,8 @@ func (runtime *runtime) bindEvents() {
 		shortcut := strings.ToLower(event.Get("key").String())
 		enter := event.Get("key").String() == "Enter"
 		if runtime.config.OnShortcut != nil && !event.Get("isComposing").Bool() &&
-			(!enter || modifiers&(ui.ModifierControl|ui.ModifierMeta) != 0) && (enter || utf8.RuneCountInString(shortcut) == 1) {
-			chord := ui.KeyEvent{Modifiers: modifiers, Repeat: event.Get("repeat").Bool(), Text: shortcut}
+			(!enter || modifiers&(gfx.ModifierControl|gfx.ModifierMeta) != 0) && (enter || utf8.RuneCountInString(shortcut) == 1) {
+			chord := gfx.KeyEvent{Modifiers: modifiers, Repeat: event.Get("repeat").Bool(), Text: shortcut}
 			if enter {
 				chord.Key, chord.Text = input.KeyEnter, ""
 			}
@@ -605,14 +616,14 @@ func (runtime *runtime) bindEvents() {
 			if !ok {
 				return nil
 			}
-			altRaw := modifiers&ui.ModifierAlt != 0 && runtime.painter.textInput.AltSendsEscape
-			if keyEvent.Key == ui.KeySpace && modifiers&(ui.ModifierControl|ui.ModifierMeta) == 0 && !altRaw {
+			altRaw := modifiers&gfx.ModifierAlt != 0 && runtime.painter.textInput.AltSendsEscape
+			if keyEvent.Key == gfx.KeySpace && modifiers&(gfx.ModifierControl|gfx.ModifierMeta) == 0 && !altRaw {
 				// A terminal receives a plain space as committed text, not as a
 				// raw key: that is what lets it reach a remote pty as " ".
 				return nil
 			}
-			if keyEvent.Key == ui.KeyUnknown && modifiers&ui.ModifierAlt != 0 &&
-				modifiers&(ui.ModifierControl|ui.ModifierMeta) == 0 && !altRaw {
+			if keyEvent.Key == gfx.KeyUnknown && modifiers&gfx.ModifierAlt != 0 &&
+				modifiers&(gfx.ModifierControl|gfx.ModifierMeta) == 0 && !altRaw {
 				// Without Alt-as-Meta the text system owns the chord, as it does
 				// natively even for a terminal that asked for releases.
 				return nil
@@ -627,7 +638,7 @@ func (runtime *runtime) bindEvents() {
 				}
 				return nil
 			}
-			if keyEvent.Text != "" && modifiers&(ui.ModifierControl|ui.ModifierAlt|ui.ModifierMeta) == 0 {
+			if keyEvent.Text != "" && modifiers&(gfx.ModifierControl|gfx.ModifierAlt|gfx.ModifierMeta) == 0 {
 				// Plain typed text stays with the browser text service: it is
 				// what delivers committed text and input-method composition.
 				return nil
@@ -642,7 +653,7 @@ func (runtime *runtime) bindEvents() {
 			if key, ok := webKey(event.Get("key").String()); ok && !event.Get("isComposing").Bool() &&
 				(key == input.KeyTab || placedRowKey(runtime.painter.textInput, key, modifiers)) {
 				event.Call("preventDefault")
-				if runtime.painter.keyDown(ui.KeyEvent{
+				if runtime.painter.keyDown(gfx.KeyEvent{
 					Key:       key,
 					Modifiers: modifiers,
 					Repeat:    event.Get("repeat").Bool(),
@@ -654,7 +665,7 @@ func (runtime *runtime) bindEvents() {
 		}
 		if key, ok := webKey(event.Get("key").String()); ok {
 			event.Call("preventDefault")
-			if runtime.painter.keyDown(ui.KeyEvent{
+			if runtime.painter.keyDown(gfx.KeyEvent{
 				Key:       key,
 				Modifiers: modifiers,
 				Repeat:    event.Get("repeat").Bool(),
@@ -694,7 +705,7 @@ func (runtime *runtime) bindFileDrop() {
 			return nil
 		}
 		x, y := position(event)
-		handled, changed := runtime.painter.fileDrop(ui.FileDropOver, x, y, nil)
+		handled, changed := runtime.painter.fileDrop(gfx.FileDropOver, x, y, nil)
 		effect(event, handled)
 		if changed {
 			runtime.requestFrame()
@@ -708,7 +719,7 @@ func (runtime *runtime) bindFileDrop() {
 		event := args[0]
 		event.Call("preventDefault")
 		x, y := position(event)
-		handled, changed := runtime.painter.fileDrop(ui.FileDropOver, x, y, nil)
+		handled, changed := runtime.painter.fileDrop(gfx.FileDropOver, x, y, nil)
 		effect(event, handled)
 		if changed {
 			runtime.requestFrame()
@@ -725,7 +736,7 @@ func (runtime *runtime) bindFileDrop() {
 			return nil
 		}
 		depth = 0
-		_, changed := runtime.painter.fileDrop(ui.FileDropLeave, 0, 0, nil)
+		_, changed := runtime.painter.fileDrop(gfx.FileDropLeave, 0, 0, nil)
 		if changed {
 			runtime.requestFrame()
 		}
@@ -746,7 +757,7 @@ func (runtime *runtime) bindFileDrop() {
 				files = append(files, FileRefFromDOM(list.Index(index)))
 			}
 		}
-		_, changed := runtime.painter.fileDrop(ui.FileDropDrop, x, y, files)
+		_, changed := runtime.painter.fileDrop(gfx.FileDropDrop, x, y, files)
 		if changed {
 			runtime.requestFrame()
 		}
@@ -754,7 +765,7 @@ func (runtime *runtime) bindFileDrop() {
 	}))
 }
 
-func placedRowKey(editor TextInput, key input.Key, modifiers ui.Modifiers) bool {
+func placedRowKey(editor TextInput, key input.Key, modifiers gfx.Modifiers) bool {
 	if editor.NavigationKeys {
 		switch key {
 		case input.KeyUp, input.KeyDown, input.KeyPageUp, input.KeyPageDown:
@@ -768,22 +779,22 @@ func placedRowKey(editor TextInput, key input.Key, modifiers ui.Modifiers) bool 
 	case input.KeyUp, input.KeyDown, input.KeyHome, input.KeyEnd, input.KeyPageUp, input.KeyPageDown:
 		return true
 	case input.KeyLeft, input.KeyRight:
-		return modifiers&ui.ModifierMeta != 0
+		return modifiers&gfx.ModifierMeta != 0
 	}
 	return false
 }
 
-func pointerEvent(kind ui.PointerEventKind, event js.Value) ui.PointerEvent {
-	button := ui.PointerButtonNone
-	if kind == ui.PointerDown || kind == ui.PointerUp {
+func pointerEvent(kind gfx.PointerEventKind, event js.Value) gfx.PointerEvent {
+	button := gfx.PointerButtonNone
+	if kind == gfx.PointerDown || kind == gfx.PointerUp {
 		button = webPointerButton(event.Get("button").Int())
 	}
 	// UI Events defines detail on mousedown and mouseup as the click count.
 	clicks := 0
-	if kind == ui.PointerDown || kind == ui.PointerUp {
+	if kind == gfx.PointerDown || kind == gfx.PointerUp {
 		clicks = max(event.Get("detail").Int(), 1)
 	}
-	return ui.PointerEvent{
+	return gfx.PointerEvent{
 		Kind:       kind,
 		Button:     button,
 		Modifiers:  webModifiers(event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(), event.Get("altKey").Bool(), event.Get("metaKey").Bool()),
@@ -793,36 +804,36 @@ func pointerEvent(kind ui.PointerEventKind, event js.Value) ui.PointerEvent {
 	}
 }
 
-func webPointerButton(button int) ui.PointerButton {
+func webPointerButton(button int) gfx.PointerButton {
 	switch button {
 	case 0:
-		return ui.PointerButtonPrimary
+		return gfx.PointerButtonPrimary
 	case 1:
-		return ui.PointerButtonMiddle
+		return gfx.PointerButtonMiddle
 	case 2:
-		return ui.PointerButtonSecondary
+		return gfx.PointerButtonSecondary
 	case 3:
-		return ui.PointerButtonBack
+		return gfx.PointerButtonBack
 	case 4:
-		return ui.PointerButtonForward
+		return gfx.PointerButtonForward
 	default:
-		return ui.PointerButtonNone
+		return gfx.PointerButtonNone
 	}
 }
 
-func webModifiers(shift, control, alt, meta bool) ui.Modifiers {
-	var modifiers ui.Modifiers
+func webModifiers(shift, control, alt, meta bool) gfx.Modifiers {
+	var modifiers gfx.Modifiers
 	if shift {
-		modifiers |= ui.ModifierShift
+		modifiers |= gfx.ModifierShift
 	}
 	if control {
-		modifiers |= ui.ModifierControl
+		modifiers |= gfx.ModifierControl
 	}
 	if alt {
-		modifiers |= ui.ModifierAlt
+		modifiers |= gfx.ModifierAlt
 	}
 	if meta {
-		modifiers |= ui.ModifierMeta
+		modifiers |= gfx.ModifierMeta
 	}
 	return modifiers
 }
@@ -945,27 +956,27 @@ func webKey(key string) (input.Key, bool) {
 // webTerminalKey normalizes one browser keyboard event the way a native
 // terminal receives it: named keys keep their identity, printable keys carry
 // the character without modifiers in Text and the typed character in Typed.
-func webTerminalKey(event js.Value) (ui.KeyEvent, uint32, bool) {
+func webTerminalKey(event js.Value) (gfx.KeyEvent, uint32, bool) {
 	keyName := event.Get("key").String()
 	codeName := event.Get("code").String()
 	modifiers := webModifiers(event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(), event.Get("altKey").Bool(), event.Get("metaKey").Bool())
 	repeat := event.Get("repeat").Bool()
 	if key, ok := webModifierKey(codeName); ok {
-		return ui.KeyEvent{Key: key, Modifiers: modifiers, Repeat: repeat}, webKeyCode(codeName), true
+		return gfx.KeyEvent{Key: key, Modifiers: modifiers, Repeat: repeat}, webKeyCode(codeName), true
 	}
 	if key, ok := webKey(keyName); ok {
-		return ui.KeyEvent{Key: key, Modifiers: modifiers, Repeat: repeat}, webKeyCode(codeName), true
+		return gfx.KeyEvent{Key: key, Modifiers: modifiers, Repeat: repeat}, webKeyCode(codeName), true
 	}
 	text := printableKeyText(keyName)
 	if text == "" {
-		return ui.KeyEvent{}, 0, false
+		return gfx.KeyEvent{}, 0, false
 	}
 	base := unmodifiedKeyText(keyName, codeName)
 	typed := ""
-	if modifiers&(ui.ModifierControl|ui.ModifierAlt|ui.ModifierMeta) == 0 {
+	if modifiers&(gfx.ModifierControl|gfx.ModifierAlt|gfx.ModifierMeta) == 0 {
 		typed = keyName
 	}
-	return ui.KeyEvent{Key: ui.KeyUnknown, Modifiers: modifiers, Repeat: repeat, Text: base, Typed: typed}, webKeyCode(codeName), true
+	return gfx.KeyEvent{Key: gfx.KeyUnknown, Modifiers: modifiers, Repeat: repeat, Text: base, Typed: typed}, webKeyCode(codeName), true
 }
 
 func printableKeyText(key string) string {
@@ -1044,9 +1055,9 @@ func unmodifiedKeyText(key, code string) string {
 // triangleFill is what a triangle is filled with: its color, or, for a shaded
 // one, the linear gradient Canvas 2D can paint in place of per-corner colors
 // (see shadeAxis).
-func triangleFill(context js.Value, triangle ui.Triangle) any {
+func triangleFill(context js.Value, triangle gfx.Triangle) any {
 	if triangle.Shaded {
-		colors := [3]ui.Color{triangle.Color, triangle.Shade[0], triangle.Shade[1]}
+		colors := [3]gfx.Color{triangle.Color, triangle.Shade[0], triangle.Shade[1]}
 		if start, end, from, to, ok := shadeAxis(triangle.Points, colors); ok {
 			gradient := context.Call("createLinearGradient", start.X, start.Y, end.X, end.Y)
 			gradient.Call("addColorStop", 0, cssColor(from))
@@ -1057,7 +1068,7 @@ func triangleFill(context js.Value, triangle ui.Triangle) any {
 	return cssColor(triangle.Color)
 }
 
-func cssColor(color ui.Color) string {
+func cssColor(color gfx.Color) string {
 	red := int(color.Red*255 + 0.5)
 	green := int(color.Green*255 + 0.5)
 	blue := int(color.Blue*255 + 0.5)
@@ -1091,7 +1102,7 @@ const shadowFar = 100000
 // whatever is drawn. The casting rectangle is cut out of the result with an
 // even-odd clip. Shadow offsets and blur are in device pixels, outside the
 // canvas transform, so they are scaled by scale.
-func drawShadow(context js.Value, shadow ui.Shadow, scale float32) {
+func drawShadow(context js.Value, shadow gfx.Shadow, scale float32) {
 	style := shadow.Style
 	extent := style.Extent()
 	context.Call("save")
@@ -1102,7 +1113,7 @@ func drawShadow(context js.Value, shadow ui.Shadow, scale float32) {
 	context.Call("rect", shadow.Bounds.X-extent-1, shadow.Bounds.Y-extent-1, shadow.Bounds.Width+2*extent+2, shadow.Bounds.Height+2*extent+2)
 	appendRoundedRect(context, shadow.Bounds, shadow.Radius)
 	context.Call("clip", "evenodd")
-	source := ui.Rect{
+	source := gfx.Rect{
 		X:      shadow.Bounds.X - style.Spread - shadowFar,
 		Y:      shadow.Bounds.Y - style.Spread,
 		Width:  shadow.Bounds.Width + 2*style.Spread,
@@ -1124,14 +1135,14 @@ func drawShadow(context js.Value, shadow ui.Shadow, scale float32) {
 }
 
 // traceRoundedRect appends a rounded rectangle path to the context.
-func traceRoundedRect(context js.Value, bounds ui.Rect, radius float32) {
+func traceRoundedRect(context js.Value, bounds gfx.Rect, radius float32) {
 	context.Call("beginPath")
 	appendRoundedRect(context, bounds, radius)
 }
 
 // appendRoundedRect adds a rounded rectangle to the context's current path as a
 // subpath of its own.
-func appendRoundedRect(context js.Value, bounds ui.Rect, radius float32) {
+func appendRoundedRect(context js.Value, bounds gfx.Rect, radius float32) {
 	x, y := bounds.X, bounds.Y
 	w, h := bounds.Width, bounds.Height
 	r := radius

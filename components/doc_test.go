@@ -25,7 +25,9 @@ var docPrimaryEntries = map[string][]string{
 	"code_editor.go":        {"CodeEditor"},
 	"code_editor_layout.go": {"CodeEditor"},
 	"code_diff.go":          {"CodeDiff"},
+	"code_diff_inline.go":   {"CodeDiffInline"},
 	"code_diff_model.go":    {"DiffCodeLines"},
+	"code_merge.go":         {"CodeMerge"},
 	"direction.go":          {"Direction"},
 	"empty.go":              {"Empty"},
 	"icon_hover.go":         {"IconHover"},
@@ -38,6 +40,7 @@ var docPrimaryEntries = map[string][]string{
 	"metric_card.go":        {"MetricCard"},
 	"progress.go":           {"Progress"},
 	"text_selection.go":     {"TextSelection"},
+	"tree_navigation.go":    {"NavigateTree"},
 	"typography.go":         {"Typography"},
 }
 

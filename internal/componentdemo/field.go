@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -57,9 +57,9 @@ func fieldInitial(exampleID string) string {
 	return "team@viva.dev"
 }
 
-func (state *State) paintField(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var slot flex.Box
-	state.page(canvas, theme, size, 600, state.Text("Field · 结构化字段", "Field · Structured field"), func(f *flex.Frame) {
+func (state *State) paintField(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var slot ui.Box
+	state.page(canvas, theme, size, 600, state.Text("Field · 结构化字段", "Field · Structured field"), func(f *ui.Frame) {
 		slot = f.Slot().FillWidth().Height(136)
 	})
 	field := components.BeginField(canvas, theme, slot.Rect()).For(fieldInput)
@@ -80,8 +80,10 @@ func (state *State) paintField(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 		errorText = "Enter a valid work email."
 	}
 	control := field.Paint("Work email", "Used only for release notifications.", errorText)
-	components.PaintInput(canvas, theme, control, components.InputSnapshot{
+	input := components.InputSnapshot{
 		ID: fieldInput, Label: "Work email", Value: value, Hint: "Used only for release notifications", Invalid: invalid,
-		ReadOnly: !state.editing, PlatformEditing: state.platformFocused(canvas, value),
-	})
+		ReadOnly: !state.editing,
+	}
+	state.paintEditable(canvas, fieldInput, value, &input)
+	components.PaintInput(canvas, theme, control, input)
 }

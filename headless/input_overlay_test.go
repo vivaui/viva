@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // stillApp paints one control on a static page, so only the input overlay can
@@ -20,9 +20,9 @@ func stillApp() app.Config {
 	return app.Config{
 		Title: "still", Width: 240, Height: 140,
 		ClearColor: app.Color{Red: 0.1, Green: 0.1, Blue: 0.1, Alpha: 1},
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.Fill(ui.Rect{X: 20, Y: 20, Width: 80, Height: 30}, ui.Color{Red: 0.3, Green: 0.3, Blue: 0.3, Alpha: 1})
-			canvas.Hit(ui.Item(1), ui.Rect{X: 20, Y: 20, Width: 80, Height: 30})
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.Fill(gfx.Rect{X: 20, Y: 20, Width: 80, Height: 30}, gfx.Color{Red: 0.3, Green: 0.3, Blue: 0.3, Alpha: 1})
+			canvas.Hit(gfx.Item(1), gfx.Rect{X: 20, Y: 20, Width: 80, Height: 30})
 		},
 	}
 }

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func cardOrigin(t *testing.T, driver *app.Driver, text string) (x, y float32) {
@@ -19,7 +19,7 @@ func cardOrigin(t *testing.T, driver *app.Driver, text string) (x, y float32) {
 }
 
 func TestGridFollowsTheWindow(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := app.NewDriver(app.Config{Title: "Layout", Width: 720, Height: 480, Paint: paint}, &canvas)
 	if err != nil {
 		t.Fatal(err)

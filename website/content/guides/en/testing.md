@@ -23,20 +23,24 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-func hasLabel(snapshot app.Snapshot, want string) bool {
-	for _, label := range snapshot.Labels {
-		if strings.Contains(label.Value, want) {
-			return true
-		}
+// open runs the page in a headless window: the real painter, router and focus
+// rules, driven by explicit calls.
+func open(t *testing.T, m *model) *app.Driver {
+	t.Helper()
+	page := ui.NewPage(ui.PageConfig{View: m.page})
+	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 240}), nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return false
+	t.Cleanup(driver.Close)
+	return driver
 }
 
-// clickID presses the middle of the control with the given identity.
-func clickID(t *testing.T, driver *app.Driver, id ui.ID) {
+// click presses the middle of the control a user would find by its name.
+func click(t *testing.T, driver *app.Driver, name string) {
 	t.Helper()
 	for _, hit := range driver.Snapshot().Hits {
-		if hit.ID == id {
+		if strings.HasPrefix(hit.Label, name) {
 			b := hit.Bounds
 			if err := driver.Click(b.X+b.Width/2, b.Y+b.Height/2); err != nil {
 				t.Fatal(err)
@@ -44,28 +48,41 @@ func clickID(t *testing.T, driver *app.Driver, id ui.ID) {
 			return
 		}
 	}
-	t.Fatalf("no control %v on screen", id)
+	t.Fatalf("no control named %q on screen", name)
+}
+
+func shows(driver *app.Driver, want string) bool {
+	for _, label := range driver.Snapshot().Labels {
+		if strings.Contains(label.Value, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestClickCounts(t *testing.T) {
-	var canvas ui.Canvas
-	driver, err := app.NewDriver(newConfig(&model{}), &canvas)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer driver.Close()
-
-	if !hasLabel(driver.Snapshot(), "Clicked 0 times") {
+	driver := open(t, &model{})
+	if !shows(driver, "Clicked 0 times") {
 		t.Fatal("the button should start at zero")
 	}
-	clickID(t, driver, click)
-	if !hasLabel(driver.Snapshot(), "Clicked 1 times") {
+	click(t, driver, "Clicked")
+	if !shows(driver, "Clicked 1 times") {
 		t.Fatal("the click did not reach the button")
 	}
 }
 ```
 
-Background goroutines reach a driver only through `Config.Invalidator`, exactly as they reach a window, and `Pump` applies the wake. `examples/guides/background/main_test.go` shows a test that waits for a worker goroutine's result this way. The driver models the text system's editing commands (Home/End, word and document navigation, word delete, undo and redo) and the Command-A, C, X and V shortcuts, and gives a focused ordinary field those chords before `OnShortcut`, as Windows does. It does not model input-method composition.
+The test finds controls by the name a user and a screen reader know them by (`Hit.Label`), not by coordinates. A page names its elements itself, as paths such as `page/~k1/#0` in its tree; `c.Part("word")` gives an element a name of yours, which a test or the headless driver can address by path.
+
+## Mistakes that compile
+
+A page can compile and still do the wrong thing: a `Button` with the same label in every row of a loop whose rows have no Key can take a click meant for another row when a row is added above. `viva vet` finds it without running anything:
+
+```sh
+viva vet            # or go tool viva vet; packages default to ./...
+```
+
+It reports each one as `file:line:col: what is wrong and what to write (check)`, exits non-zero when it finds something, and runs with the project's own Go. A line, or the line above it, with `// viva:ignore <check>` silences one finding. A `ui.Memo` whose version misses something its function reads shows stale content: `ui.MemoCheck(true)` in a test declares every part and panics where a copy would have differed.
 
 ## The line protocol
 

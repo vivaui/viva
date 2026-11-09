@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // Cells of different brightness are drawn in separate passes. The second pass must not wipe out
@@ -21,19 +21,19 @@ func TestAlternatingColorsLeaveNoGapBetweenCells(t *testing.T) {
 		t.Skipf("no DirectWrite: %v", err)
 	}
 	defer rasterizer.close()
-	light, dark := ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, ui.Color{Red: 0.1, Green: 0.1, Blue: 0.1, Alpha: 1}
+	light, dark := gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, gfx.Color{Red: 0.1, Green: 0.1, Blue: 0.1, Alpha: 1}
 	const cells = 8
-	face := ui.MonoFamily("Consolas")
+	face := gfx.MonoFamily("Consolas")
 	for _, scale := range []float32{1, 1.25, 1.5} {
 		cellWidth, lineHeight, err := MeasureMono(16, face)
 		if err != nil {
 			t.Fatal(err)
 		}
-		// A cell is a whole number of device pixels wide (ui.Canvas.MonoCellSize).
+		// A cell is a whole number of device pixels wide (gfx.Canvas.MonoCellSize).
 		cellWidth = float32(math.Round(float64(cellWidth*scale))) / scale
-		runs := make([]ui.TextRun, cells)
+		runs := make([]gfx.TextRun, cells)
 		for i := range runs {
-			runs[i] = ui.TextRun{Column: int32(i), Bytes: 3, Cells: 1, Color: light}
+			runs[i] = gfx.TextRun{Column: int32(i), Bytes: 3, Cells: 1, Color: light}
 			if i%2 == 1 {
 				runs[i].Color = dark
 			}
@@ -81,13 +81,13 @@ func TestRunsOwnDisjointColumns(t *testing.T) {
 	}
 	defer rasterizer.close()
 	const cells = 12
-	face := ui.MonoFamily("Consolas")
-	colors := [3]ui.Color{{Red: 1, Alpha: 1}, {Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Green: 1, Alpha: 1}}
+	face := gfx.MonoFamily("Consolas")
+	colors := [3]gfx.Color{{Red: 1, Alpha: 1}, {Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Green: 1, Alpha: 1}}
 	for _, scale := range []float32{1, 1.25, 1.5, 1.75, 2} {
 		for _, cellWidth := range []float32{8, 8.4, 9.6, 10.25} {
-			runs := make([]ui.TextRun, cells)
+			runs := make([]gfx.TextRun, cells)
 			for i := range runs {
-				runs[i] = ui.TextRun{Column: int32(i), Bytes: 3, Cells: 1, Color: colors[i%len(colors)]}
+				runs[i] = gfx.TextRun{Column: int32(i), Bytes: 3, Cells: 1, Color: colors[i%len(colors)]}
 			}
 			label := platform.TextLabel{
 				Value: strings.Repeat("─", cells), Width: cells * cellWidth, Height: 20,
