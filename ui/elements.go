@@ -30,7 +30,9 @@ func Scroll(c C) Box {
 // the ScrollState between paints.
 func ScrollAt(c C, offset float32) Box {
 	b := Scroll(c)
-	b.ScrollState().Offset = max(offset, 0)
+	offset = max(offset, 0)
+	b.ScrollState().Offset = offset
+	b.n().scroll = offset // the layout reads the node; ScrollArea set it from the old state
 	return b
 }
 

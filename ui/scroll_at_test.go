@@ -12,12 +12,12 @@ import (
 // clamps it to the content; the settled value is readable from the same paint's
 // Box, so an application never keeps the ScrollState between paints.
 func TestScrollAtStartsAtItsOffset(t *testing.T) {
-	var area ui.Box
+	var area, first ui.Box
 	var page *ui.Page
 	view := func(c ui.C) {
 		ui.Column(c).Fill().Children(func() {
 			area = ui.ScrollAt(c, 80).Grow(1).Children(func() {
-				ui.Slot(c).Height(1600)
+				first = ui.Slot(c).Height(1600)
 			})
 		})
 	}
@@ -30,6 +30,9 @@ func TestScrollAtStartsAtItsOffset(t *testing.T) {
 	}
 	if state.Offset != 80 {
 		t.Fatalf("offset = %v, want the declared 80", state.Offset)
+	}
+	if first.Rect().Y != -80 {
+		t.Fatalf("first row at y=%v, want the content laid out 80 up", first.Rect().Y)
 	}
 	drawPage(page, canvas, view)
 	if got := area.ScrollState().Offset; got != 80 {
