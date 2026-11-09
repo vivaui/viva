@@ -4,13 +4,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestCollapsibleOpenReturnsContentAndKeepsGlyphCommands(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	content := BeginCollapsible(&canvas, theme, ui.Item(7), ui.Rect{X: 4, Y: 6, Width: 260}).Paint("Details", true, 56)
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	content := BeginCollapsible(&canvas, theme, gfx.Item(7), gfx.Rect{X: 4, Y: 6, Width: 260}).Paint("Details", true, 56)
 	wantY := float32(6) + theme.Metrics.ControlHeight
 	if content.Y != wantY || content.Height != 56 {
 		t.Fatalf("content bounds = %+v", content)
@@ -18,17 +18,17 @@ func TestCollapsibleOpenReturnsContentAndKeepsGlyphCommands(t *testing.T) {
 	if len(canvas.Rectangles()) != 0 {
 		t.Fatalf("unstyled collapsible painted %d rectangles", len(canvas.Rectangles()))
 	}
-	if len(canvas.Hits()) != 1 || canvas.Hits()[0].Label != "Details" || canvas.Hits()[0].Role != ui.RoleButton || !canvas.Hits()[0].Expanded {
+	if len(canvas.Hits()) != 1 || canvas.Hits()[0].Label != "Details" || canvas.Hits()[0].Role != gfx.RoleButton || !canvas.Hits()[0].Expanded {
 		t.Fatalf("collapsible hits = %+v", canvas.Hits())
 	}
 }
 
 func TestCollapsibleDisabledStableAndAllocationFree(t *testing.T) {
-	var canvas ui.Canvas
-	theme := ui.DarkTheme()
+	var canvas gfx.Canvas
+	theme := gfx.DarkTheme()
 	paint := func() {
 		canvas.Reset()
-		BeginCollapsible(&canvas, theme, ui.Item(5), ui.Rect{Width: 240}).Disabled().Paint("Advanced", false, 72)
+		BeginCollapsible(&canvas, theme, gfx.Item(5), gfx.Rect{Width: 240}).Disabled().Paint("Advanced", false, 72)
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -46,13 +46,13 @@ func TestCollapsibleDisabledStableAndAllocationFree(t *testing.T) {
 }
 
 func TestCollapsibleBareDeclaresTheTriggerAndPaintsNothing(t *testing.T) {
-	var canvas ui.Canvas
-	header, content := BeginCollapsible(&canvas, ui.LightTheme(), ui.Item(5), ui.Rect{Width: 200}).Bare("Details", true, 60)
+	var canvas gfx.Canvas
+	header, content := BeginCollapsible(&canvas, gfx.LightTheme(), gfx.Item(5), gfx.Rect{Width: 200}).Bare("Details", true, 60)
 	if len(canvas.Texts()) != 0 || len(canvas.Rectangles()) != 0 {
 		t.Fatalf("bare trigger painted %d texts, %d rectangles", len(canvas.Texts()), len(canvas.Rectangles()))
 	}
 	hits := canvas.Hits()
-	if len(hits) != 1 || hits[0].ID != ui.Item(5) || !hits[0].Expanded || hits[0].Bounds != header {
+	if len(hits) != 1 || hits[0].ID != gfx.Item(5) || !hits[0].Expanded || hits[0].Bounds != header {
 		t.Fatalf("bare trigger hits = %+v for header %+v", hits, header)
 	}
 	if content.Y != header.Y+header.Height || content.Height != 60 {

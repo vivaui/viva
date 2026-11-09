@@ -9,14 +9,14 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // RegisterGlobalShortcut grabs the specified key on an independent X11
 // connection, so it can receive the chord even when all app windows are hidden.
 // The stop pipe interrupts a blocking poll. Closing the connection releases
 // every grab, including the ones made before a conflict.
-func RegisterGlobalShortcut(modifiers ui.Modifiers, symbol uint32, pressed func()) (func(), error) {
+func RegisterGlobalShortcut(modifiers gfx.Modifiers, symbol uint32, pressed func()) (func(), error) {
 	api, connection, screen, err := openSystemConnection()
 	if err != nil {
 		return nil, err
@@ -109,17 +109,17 @@ func RegisterGlobalShortcut(modifiers ui.Modifiers, symbol uint32, pressed func(
 	return func() { once.Do(func() { _ = write.Close(); <-done }) }, nil
 }
 
-func shortcutModifierMask(modifiers ui.Modifiers) (mask uint16) {
-	if modifiers&ui.ModifierShift != 0 {
+func shortcutModifierMask(modifiers gfx.Modifiers) (mask uint16) {
+	if modifiers&gfx.ModifierShift != 0 {
 		mask |= xcbModShift
 	}
-	if modifiers&ui.ModifierControl != 0 {
+	if modifiers&gfx.ModifierControl != 0 {
 		mask |= xcbModControl
 	}
-	if modifiers&ui.ModifierAlt != 0 {
+	if modifiers&gfx.ModifierAlt != 0 {
 		mask |= xcbMod1
 	}
-	if modifiers&ui.ModifierMeta != 0 {
+	if modifiers&gfx.ModifierMeta != 0 {
 		mask |= xcbMod4
 	}
 	return

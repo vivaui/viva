@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -163,7 +163,7 @@ func TestLabelInkEndsWhereTheEngineSaysTheLineEnds(t *testing.T) {
 	if engine == nil {
 		t.Skip("this platform has no text engine yet")
 	}
-	sc := &scene{name: "fit", width: 640, height: 1400, build: func(f *flex.Frame, theme ui.Theme) {
+	sc := &scene{name: "fit", width: 640, height: 1400, build: func(f *ui.Frame, theme gfx.Theme) {
 		f.Column().Pad(16).Gap(4).Children(func() {
 			for _, size := range []float32{11, 13, 14, 16, 20} {
 				for _, w := range weights {
@@ -200,7 +200,7 @@ func TestLabelInkEndsWhereTheEngineSaysTheLineEnds(t *testing.T) {
 // lastClusterOrigin is the x where the last cluster of text begins, as the engine's own
 // caret reports it. The ink has to reach it; how far past it the ink stops short of the
 // line's width is the last glyph's side bearing, and that is the font's to decide.
-func lastClusterOrigin(engine ui.TextEngine, text TextFact) float64 {
+func lastClusterOrigin(engine gfx.TextEngine, text TextFact) float64 {
 	width := float64(engine.Width(text.Value, text.Size, text.Weight))
 	for offset := len(text.Value) - 1; offset > 0; offset-- {
 		if x := float64(engine.Caret(text.Value, text.Size, text.Weight, offset)); x < width {

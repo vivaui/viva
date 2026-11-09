@@ -41,7 +41,7 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/ui"
 )
 
 type model struct {
@@ -50,9 +50,9 @@ type model struct {
 
 // page declares the window's content. It runs on every repaint and reads the
 // model; a click changes the model, and the repaint that follows shows it.
-func (m *model) page(c flex.C) {
-	flex.Column(c).Fill().Pad(24).Gap(12).Children(func() {
-		if flex.Button(c, fmt.Sprintf("Clicked %d times", m.clicks)).Clicked() {
+func (m *model) page(c ui.C) {
+	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		if ui.Button(c, fmt.Sprintf("Clicked %d times", m.clicks)).Clicked() {
 			m.clicks++
 		}
 	})
@@ -60,7 +60,7 @@ func (m *model) page(c flex.C) {
 
 func main() {
 	m := &model{}
-	if err := flex.Run(app.Config{Title: "Hello", Width: 480, Height: 240}, m.page); err != nil {
+	if err := ui.Run(app.Config{Title: "Hello", Width: 480, Height: 240}, m.page); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -69,8 +69,8 @@ func main() {
 用 `go run .` 运行。这个程序就是整个编程模型的缩影：
 
 - `page` 根据你自己的状态（这里是 `clicks` 计数）描述界面。它在每次重绘时运行；Viva 不保存这份状态的副本。
-- `flex.Column(c)` 和 `flex.Button(c, ...)` 根据描述来布局页面：一个带内边距的列，里面放一个按钮。每个元素都是 `flex` 的一个函数，第一个参数是页面的 `c`。不写任何坐标，所以标签变长或窗口改变大小时页面依然正常。按钮不需要你起名：页面按元素所在的位置为它命名，其他元素出现或消失时每个名字保持不变。
-- `flex.Run` 打开窗口并在其中绘制 `page`。测试用 `flex.NewPage` 和 `app.NewDriver` 无头驱动同一个 `page`，不打开任何窗口。
+- `ui.Column(c)` 和 `ui.Button(c, ...)` 根据描述来布局页面：一个带内边距的列，里面放一个按钮。每个元素都是 `ui` 的一个函数，第一个参数是页面的 `c`。不写任何坐标，所以标签变长或窗口改变大小时页面依然正常。按钮不需要你起名：页面按元素所在的位置为它命名，其他元素出现或消失时每个名字保持不变。
+- `ui.Run` 打开窗口并在其中绘制 `page`。测试用 `ui.NewPage` 和 `app.NewDriver` 无头驱动同一个 `page`，不打开任何窗口。
 - 一次点击完成时，运行时会多画一遍，`Clicked()` 只在这一遍里、且只对被点击的按钮为真；你的代码就在按钮旁边修改自己的状态，窗口随后重绘一次。其他所有绘制都是只读的。
 
 除此之外什么都不会运行。你不点击时，应用不做布局、不向 GPU 提交任何东西，也没有被唤醒的定时器。

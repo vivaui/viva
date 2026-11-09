@@ -8,8 +8,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -395,7 +395,7 @@ func (status *statusState) notified(window, anchor, packed uintptr) {
 	// A primary activation belongs to the application when it supplied a
 	// callback (for example, to restore its window). Keep menu-only icons
 	// clickable, and reserve secondary activation for the context menu.
-	if item.menu != nil && (button == ui.PointerButtonSecondary || item.onClick == nil) {
+	if item.menu != nil && (button == gfx.PointerButtonSecondary || item.onClick == nil) {
 		item.popMenu(window, item.anchor(window, anchor))
 		return
 	}
@@ -408,14 +408,14 @@ func (status *statusState) notified(window, anchor, packed uintptr) {
 // NIN_SELECT, a right click both WM_RBUTTONUP and WM_CONTEXTMENU. Only the second
 // of each is taken, because it also covers the keyboard (Enter or Space on the
 // icon, the context menu key), which sends no button message.
-func statusButton(event uint32) (ui.PointerButton, bool) {
+func statusButton(event uint32) (gfx.PointerButton, bool) {
 	switch event {
 	case ninSelect, ninKeySelect:
-		return ui.PointerButtonPrimary, true
+		return gfx.PointerButtonPrimary, true
 	case wmContextMenu:
-		return ui.PointerButtonSecondary, true
+		return gfx.PointerButtonSecondary, true
 	}
-	return ui.PointerButtonNone, false
+	return gfx.PointerButtonNone, false
 }
 
 // anchor is the icon's rectangle on the screen, in pixels. When the shell cannot
@@ -532,7 +532,7 @@ func (state *windowState) placeOnScreen() {
 
 // placeAtOrigin puts the content area's top-left at a screen point given in
 // logical pixels, kept where the user can reach it on the monitor it lands on.
-func (state *windowState) placeAtOrigin(origin ui.Point) {
+func (state *windowState) placeAtOrigin(origin gfx.Point) {
 	var bounds rect
 	getWindowRect.Call(state.window, uintptr(unsafe.Pointer(&bounds)))
 	var client point
@@ -553,18 +553,18 @@ func (state *windowState) placeAtOrigin(origin ui.Point) {
 
 // Frame is the content area in screen coordinates, in the logical pixels of the
 // window's own display. It reads the system's state, so any goroutine may call it.
-func (window *nativeWindow) Frame() (ui.Rect, bool) {
+func (window *nativeWindow) Frame() (gfx.Rect, bool) {
 	if window == nil || window.closed.Load() || window.state == nil || window.state.window == 0 {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
 	handle := window.state.window
 	var client rect
 	if ok, _, _ := getClientRect.Call(handle, uintptr(unsafe.Pointer(&client))); ok == 0 {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
 	var origin point
 	if ok, _, _ := clientToScreen.Call(handle, uintptr(unsafe.Pointer(&origin))); ok == 0 {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
 	scale := float32(1)
 	if getDPI.Find() == nil {
@@ -572,7 +572,7 @@ func (window *nativeWindow) Frame() (ui.Rect, bool) {
 			scale = float32(dpi) / 96
 		}
 	}
-	return ui.Rect{
+	return gfx.Rect{
 		X: float32(origin.X) / scale, Y: float32(origin.Y) / scale,
 		Width: float32(client.Right-client.Left) / scale, Height: float32(client.Bottom-client.Top) / scale,
 	}, true

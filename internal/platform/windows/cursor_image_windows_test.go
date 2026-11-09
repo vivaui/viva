@@ -4,7 +4,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 var (
@@ -16,7 +16,7 @@ var (
 // does, and put its hotspot where the picture says; both are read back from Windows itself.
 func TestCursorHandleDrawsTheHalfTransparentPixelsAsAlphaBlended(t *testing.T) {
 	// A mid gray at half alpha over white is the middle of both: 100 and 255 mixed half and half.
-	image, err := ui.NewCursorImage(2, 2, 1, 0, 1, []byte{
+	image, err := gfx.NewCursorImage(2, 2, 1, 0, 1, []byte{
 		100, 100, 100, 128, 100, 100, 100, 128,
 		100, 100, 100, 128, 100, 100, 100, 128,
 	})

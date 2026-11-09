@@ -3,7 +3,7 @@ package {{PACKAGE}}
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // A text caret is lit for CaretBlinkHalf, dark for as long, and keeps going for
@@ -37,7 +37,7 @@ type CaretBlink struct {
 // such as its byte offset; a different anchor restarts the phase. A canvas
 // without a frame clock, a reduced-motion session, and a caret left alone for
 // CaretBlinkSpan all stay lit and ask for nothing.
-func (blink *CaretBlink) Lit(canvas *ui.Canvas, anchor int) bool {
+func (blink *CaretBlink) Lit(canvas *gfx.Canvas, anchor int) bool {
 	if !canvas.HasClock() {
 		return true
 	}

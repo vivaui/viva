@@ -2,7 +2,7 @@
 
 A dev tool (stdlib only) that measures how well a coding model writes a Viva page given only the
 guide a generated project ships (`cmd/viva/initfiles/AGENTS.md.txt`) and a plain request, the way a
-user would prompt it. Use it after changing `flex`, a component or the guide: the failures it finds
+user would prompt it. Use it after changing `ui`, a component or the guide: the failures it finds
 are gaps in the framework or the guide, not in the model.
 
 ```sh

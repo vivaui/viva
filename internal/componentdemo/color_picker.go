@@ -2,8 +2,8 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 var colorPickerComponent = Component{
@@ -59,7 +59,7 @@ func (s *State) pickerSetValue(v components.ColorPickerValue) {
 	}
 }
 
-func (s *State) paintColorPicker(c *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (s *State) paintColorPicker(c *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	p := s.picker
 	if c.Clicked(demoPickerIDs.Trigger) {
 		p.open = !p.open
@@ -91,10 +91,10 @@ func (s *State) paintColorPicker(c *ui.Canvas, theme ui.Theme, size ui.Size) {
 		p.open = false
 		c.RequestFocus(demoPickerIDs.Trigger)
 	}
-	c.Label(s.Text("自定义颜色", "Custom color"), ui.Rect{X: 24, Y: 20, Width: 300, Height: 24}, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+	c.Label(s.Text("自定义颜色", "Custom color"), gfx.Rect{X: 24, Y: 20, Width: 300, Height: 24}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
 	hex := components.InputSnapshot{Value: value, Focused: c.Focused() == demoPickerIDs.Hex, Invalid: p.invalid}
 	s.paintEditable(c, demoPickerIDs.Hex, value, &hex)
-	o := components.ColorPickerOptions{IDs: demoPickerIDs, Value: p.saved, Open: p.open, Empty: p.empty, ShowAlpha: s.exampleID == "alpha", Viewport: ui.Rect{Width: size.Width, Height: size.Height}, Layer: 3, Scope: demoPickerScope,
+	o := components.ColorPickerOptions{IDs: demoPickerIDs, Value: p.saved, Open: p.open, Empty: p.empty, ShowAlpha: s.exampleID == "alpha", Viewport: gfx.Rect{Width: size.Width, Height: size.Height}, Layer: 3, Scope: demoPickerScope,
 		Hex: hex}
 	if p.open {
 		o.Value = p.draft
@@ -103,12 +103,12 @@ func (s *State) paintColorPicker(c *ui.Canvas, theme ui.Theme, size ui.Size) {
 		o.Error = s.Text("请输入有效的十六进制色值", "Enter a valid hex color")
 	}
 	o.Labels = components.ColorPickerLabels{Color: s.Text("选择颜色", "Choose color"), Saturation: s.Text("饱和度与亮度", "Saturation and brightness"), Hue: s.Text("色相", "Hue"), Alpha: s.Text("透明度", "Opacity"), Hex: "HEX", Clear: s.Text("清空", "Clear"), Cancel: s.Text("取消", "Cancel"), Apply: s.Text("确定", "OK")}
-	p.layout = components.BeginColorPicker(c, theme, ui.Rect{X: 24, Y: 52, Width: 32, Height: 32}, o).Paint()
+	p.layout = components.BeginColorPicker(c, theme, gfx.Rect{X: 24, Y: 52, Width: 32, Height: 32}, o).Paint()
 }
 
-func (s *State) pointerColorPicker(e ui.PointerEvent) ui.EventResult {
+func (s *State) pointerColorPicker(e gfx.PointerEvent) gfx.EventResult {
 	if !s.picker.open {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	v, r := s.picker.layout.Pointer(e, s.picker.draft)
 	if r.Repaint {
@@ -116,9 +116,9 @@ func (s *State) pointerColorPicker(e ui.PointerEvent) ui.EventResult {
 	}
 	return r
 }
-func (s *State) keyColorPicker(e ui.KeyEvent) ui.EventResult {
+func (s *State) keyColorPicker(e gfx.KeyEvent) gfx.EventResult {
 	if !s.picker.open {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	v, r := s.picker.layout.Key(e, s.picker.draft)
 	if r.Repaint {

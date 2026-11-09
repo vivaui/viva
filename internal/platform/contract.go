@@ -7,10 +7,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // Color is a linear RGBA clear color.
@@ -39,7 +39,7 @@ type Config struct {
 	MinHeight int
 	// Origin, when HasOrigin, is where the top-left of the content area opens, in
 	// screen coordinates. Without one the system places the window.
-	Origin     ui.Point
+	Origin     gfx.Point
 	HasOrigin  bool
 	WindowMode WindowMode
 	// TitlebarHeight is the height in logical pixels of the strip a custom
@@ -157,7 +157,7 @@ type Window interface {
 	// Frame is the content area in screen coordinates (logical pixels from the
 	// primary display's top-left corner, y down), false when the window cannot
 	// say. It is safe to call from any goroutine.
-	Frame() (ui.Rect, bool)
+	Frame() (gfx.Rect, bool)
 }
 
 // WindowMover is implemented by the windows of an adapter that can put a window
@@ -165,7 +165,7 @@ type Window interface {
 // content area at origin, in the screen coordinates of Window.Frame. It is
 // called on the native event-loop thread.
 type WindowMover interface {
-	MoveTo(origin ui.Point)
+	MoveTo(origin gfx.Point)
 }
 
 // Application creates windows that share one native application event loop.
@@ -258,7 +258,7 @@ type ScreenRect struct {
 
 // StatusClick is one press on a status item.
 type StatusClick struct {
-	Button ui.PointerButton
+	Button gfx.PointerButton
 	// Anchor is where the item is, for a panel opened beside it.
 	Anchor ScreenRect
 	// PanelDismissed is true when a WindowPanel closed itself, for losing focus,
@@ -303,7 +303,7 @@ type ApplicationStart func(Application) error
 // TextLabel is one immutable line of system-font text composited by the native GPU backend.
 // A label with Runs is a fixed-pitch grid line: Mono selects the system
 // fixed-pitch font, CellWidth is the column pitch and each run colors a stretch
-// of Value (see ui.TextRun). Runs is only valid for the call that carries it.
+// of Value (see gfx.TextRun). Runs is only valid for the call that carries it.
 type TextLabel struct {
 	Value  string
 	X      float32
@@ -311,8 +311,8 @@ type TextLabel struct {
 	Width  float32
 	Height float32
 	// Identity, when nonzero, names this label across frames so a backend can
-	// retain its picture when the paint list reorders. See ui.TextIdentity.
-	Identity ui.TextIdentity
+	// retain its picture when the paint list reorders. See gfx.TextIdentity.
+	Identity gfx.TextIdentity
 	// OriginX and OriginY are where layout put the text, less X and Y (which the painter
 	// rounds to whole logical pixels): within half a pixel either way. A backend that
 	// places glyphs at device-pixel positions, as the platform's own text does, draws
@@ -325,10 +325,10 @@ type TextLabel struct {
 	Color     Color
 	Layer     uint16
 	Mono      bool
-	MonoFace  ui.MonoFace
+	MonoFace  gfx.MonoFace
 	CellWidth float32
-	Runs      []ui.TextRun
-	// FontGeneration is the generation of the interface font (ui.FontFamilyAware) the
+	Runs      []gfx.TextRun
+	// FontGeneration is the generation of the interface font (gfx.FontFamilyAware) the
 	// proportional text of this label was laid out in; it is zero for a label that
 	// does not follow the interface font (fixed-pitch text, images). A backend that
 	// keeps the picture of a label draws it again when this differs from the label's
@@ -340,7 +340,7 @@ type TextLabel struct {
 	// never sent), carry none. Renderers scissor the label's quad to it rather
 	// than rasterize a different texture, so scrolling a clipped label costs no
 	// text layout.
-	Clip    ui.Rect
+	Clip    gfx.Rect
 	Clipped bool
 	// Bitmap is premultiplied BGRA, top row first. When non-empty this label
 	// is an image quad rather than text; BitmapStride may exceed BitmapWidth*4.
@@ -388,12 +388,12 @@ const (
 // events only fire while the pointer is inside the window.
 type PointerEvent struct {
 	Kind      PointerEventKind
-	Button    ui.PointerButton
+	Button    gfx.PointerButton
 	Modifiers input.Modifiers
 	X         float32
 	Y         float32
 	// ScreenX and ScreenY are the pointer in screen coordinates (see
-	// ui.PointerEvent).
+	// gfx.PointerEvent).
 	ScreenX, ScreenY float32
 	// ClickCount is the number of consecutive presses this Down or Up belongs
 	// to (2 for a double click). Move and Exit events leave it 0.
@@ -427,13 +427,13 @@ type KeyEvent struct {
 	// and no release will be asked for.
 	Code uint32
 	// Text is the character of a chord without its modifiers, set for raw
-	// terminal keys and shortcut offers (see ui.KeyEvent).
+	// terminal keys and shortcut offers (see gfx.KeyEvent).
 	Text string
 	// Typed is the text a printable key types with the modifiers in effect,
-	// set on the press of a terminal that asked for releases (see ui.KeyEvent).
+	// set on the press of a terminal that asked for releases (see gfx.KeyEvent).
 	Typed string
 	// Win32 is the console key identity on Windows; other platforms leave it zero.
-	Win32 ui.Win32Key
+	Win32 gfx.Win32Key
 }
 
 // AccessibilityNode is one platform-neutral accessibility element derived
@@ -442,7 +442,7 @@ type KeyEvent struct {
 type AccessibilityNode struct {
 	// ID names the control the node stands for, so a request from assistive
 	// technology reaches it whatever position it has in the next frame.
-	ID        ui.ID
+	ID        gfx.ID
 	Role      uint8
 	X         float32
 	Y         float32
@@ -472,9 +472,9 @@ type AccessibilityNode struct {
 	// zero when not stated.
 	PosInSet, SetSize int32
 	// Live makes the node announce changes to its content.
-	Live ui.LiveRegion
+	Live gfx.LiveRegion
 	// Range is the numeric value of a slider or progress bar.
-	Range ui.ValueRange
+	Range gfx.ValueRange
 	// Selection is the selected span of the focused text field's Value.
 	Selection AccessibilitySelection
 }
@@ -518,7 +518,7 @@ type ResizeHandler func(Size) (Frame, error)
 
 // FrameChangeHandler reports the window's content rectangle in screen
 // coordinates after it moved or changed size. It runs on the window thread.
-type FrameChangeHandler func(ui.Rect)
+type FrameChangeHandler func(gfx.Rect)
 
 // MinimizeHandler reports that the window was minimized or restored. It runs
 // on the window thread.
@@ -778,7 +778,7 @@ type TextInput struct {
 	// input method is composing; a different target must end that composition
 	// even when both fields have identical text and presentation. Standalone
 	// platform clients may leave it zero when they have only one editor.
-	Target   ui.ID
+	Target   gfx.ID
 	X        float32
 	Y        float32
 	Width    float32
@@ -791,7 +791,7 @@ type TextInput struct {
 	// ResolveTextAlignment first, which is what a viva window does, so that a
 	// right-to-left line is not silently drawn left-aligned. Terminal and
 	// self-placed inputs ignore it.
-	Alignment ui.Alignment
+	Alignment gfx.Alignment
 	// Layer keeps native editor visuals in the component's compositing layer.
 	Layer     uint16
 	Multiline bool
@@ -802,9 +802,9 @@ type TextInput struct {
 	// terminal: text in the fixed-pitch font, no caret and no selection, and
 	// keys that are not text delivered as raw key events (see KeyEvent.Text).
 	Terminal bool
-	MonoFace ui.MonoFace
+	MonoFace gfx.MonoFace
 	// CellWidth is the width of one cell of the terminal's grid, in logical pixels:
-	// ui.Canvas.MonoCellSize for the input's FontSize and MonoFace. A Terminal input's
+	// gfx.Canvas.MonoCellSize for the input's FontSize and MonoFace. A Terminal input's
 	// preedit is drawn on that pitch and its caret and underline are measured by it, so
 	// the composition stands where the committed text will. Other inputs leave it 0.
 	CellWidth float32
@@ -820,7 +820,7 @@ type TextInput struct {
 	// application as raw key events while the field is focused, while
 	// cursor placement, selection, Home/End and IME remain native.
 	NavigationKeys bool
-	// Placed says the field lays its rows out itself (ui.TextPlacement): the
+	// Placed says the field lays its rows out itself (gfx.TextPlacement): the
 	// application places the caret from the pointer, so the platform editor must
 	// not (it knows one line only), and the keys that move between rows (Up,
 	// Down, Home, End, Page Up and Down, Command with Left and Right) reach the

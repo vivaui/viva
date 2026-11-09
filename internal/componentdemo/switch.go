@@ -1,7 +1,7 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -37,7 +37,7 @@ var (
 
 type switchState struct{ checked uint8 }
 
-func (state *State) paintSwitch(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintSwitch(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	labels := []string{state.Text("桌面通知", "Desktop notifications")}
 	switch state.exampleID {
 	case "sizes":
@@ -49,14 +49,14 @@ func (state *State) paintSwitch(canvas *ui.Canvas, theme ui.Theme, size ui.Size)
 			state.Text("禁用 · 开启", "Disabled · On"),
 		}
 	}
-	state.page(canvas, theme, size, 480, state.Text("Switch · 调用方持有状态", "Switch · Caller-owned state"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 480, state.Text("Switch · 调用方持有状态", "Switch · Caller-owned state"), func(f *ui.Frame) {
 		for index, label := range labels {
 			checked := state.switches.checked&(1<<index) != 0
 			disabled := state.exampleID == "states" && index > 0
 			if disabled {
 				checked = index == 2
 			}
-			f.Row().Gap(12).Items(flex.Center).PadX(12).MarginY(4).Children(func() {
+			f.Row().Gap(12).Items(ui.Center).PadX(12).MarginY(4).Children(func() {
 				control := f.Switch(switchToggle.At(index), checked).Label(label).Disabled(disabled)
 				if state.exampleID == "sizes" && index == 1 {
 					control.Small()

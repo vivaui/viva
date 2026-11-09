@@ -3,20 +3,20 @@ package components
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // DialogOptions carries the stable identities and requested content size for
 // one modal dialog. The application owns every ID and the open state.
 type DialogOptions struct {
 	Layer     uint16
-	Scope     ui.ID
-	DismissID ui.ID
-	CloseID   ui.ID
+	Scope     gfx.ID
+	DismissID gfx.ID
+	CloseID   gfx.ID
 	// InitialFocusID is the hit that takes keyboard focus when the dialog
 	// opens. Leave it zero to keep focus where it was.
-	InitialFocusID ui.ID
-	ContentSize    ui.Size
+	InitialFocusID gfx.ID
+	ContentSize    gfx.Size
 	// FitBody sizes the dialog to its parts instead of to ContentSize.Height: the
 	// height becomes the header, BodyHeight, the footer and the dialog's own
 	// spacing, so the body is exactly as tall as the caller paints it and no
@@ -31,26 +31,26 @@ type DialogOptions struct {
 
 // DialogLayout exposes the source-owned slots inside a painted dialog.
 type DialogLayout struct {
-	Content ui.Rect
-	Header  ui.Rect
-	Body    ui.Rect
-	Footer  ui.Rect
-	Close   ui.Rect
+	Content gfx.Rect
+	Header  gfx.Rect
+	Body    gfx.Rect
+	Footer  gfx.Rect
+	Close   gfx.Rect
 }
 
 // Dialog is a modal Vega dialog declaration. Begin keeps its layer and focus
 // scope active so callers can paint custom body content before End.
 type Dialog struct {
-	canvas    *ui.Canvas
-	theme     ui.Theme
-	viewport  ui.Rect
+	canvas    *gfx.Canvas
+	theme     gfx.Theme
+	viewport  gfx.Rect
 	options   DialogOptions
 	disabled  bool
 	hideClose bool
 }
 
 // BeginDialog creates a dialog declaration without retaining runtime state.
-func BeginDialog(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, options DialogOptions) Dialog {
+func BeginDialog(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, options DialogOptions) Dialog {
 	return Dialog{canvas: canvas, theme: theme, viewport: viewport, options: options}
 }
 
@@ -92,8 +92,8 @@ const (
 // high: by default the Default button, as tall as a field, so a dialog's
 // actions are not smaller than the fields they confirm. The overlay's options
 // pick another ButtonSize and the footer follows.
-func dialogFooterHeight(metrics ui.Metrics, size ButtonSize) float32 {
-	return Button{theme: ui.Theme{Metrics: metrics}, size: size}.BoundsHeight()
+func dialogFooterHeight(metrics gfx.Metrics, size ButtonSize) float32 {
+	return Button{theme: gfx.Theme{Metrics: metrics}, size: size}.BoundsHeight()
 }
 
 // Paint paints a complete title/description dialog and closes its layer scope.
@@ -116,13 +116,13 @@ func (dialog Dialog) Layout(description string) DialogLayout {
 // overlayTitleSize is the size of a dialog, sheet or drawer title. Vega sets no
 // size on them, so they inherit the base 16px, two steps above the 14px
 // description; at Viva's 13px body that is FontSizeM+2.
-func overlayTitleSize(metrics ui.Metrics) float32 { return metrics.FontSizeM + 2 }
+func overlayTitleSize(metrics gfx.Metrics) float32 { return metrics.FontSizeM + 2 }
 
 // dialogTitleHeight is the line box of the title: Vega's `leading-none`.
-func dialogTitleHeight(metrics ui.Metrics) float32 { return overlayTitleSize(metrics) + 1 }
+func dialogTitleHeight(metrics gfx.Metrics) float32 { return overlayTitleSize(metrics) + 1 }
 
 // dialogHeaderHeight is the title and, under it, the description's lines.
-func dialogHeaderHeight(metrics ui.Metrics, descriptionLines int) float32 {
+func dialogHeaderHeight(metrics gfx.Metrics, descriptionLines int) float32 {
 	height := dialogTitleHeight(metrics)
 	if descriptionLines > 0 {
 		height += metrics.GapItem + float32(descriptionLines)*overlayLineHeight(metrics)
@@ -137,10 +137,10 @@ func (dialog Dialog) layout(scratch *overlayLines, description string) (DialogLa
 	metrics := dialog.theme.Metrics
 	padding := metrics.PadSurface + metrics.GapItem
 	width := dialog.contentWidth()
-	lines := overlayWrap(dialog.canvas, scratch, description, metrics.FontSizeM, ui.WeightRegular, width-2*padding)
+	lines := overlayWrap(dialog.canvas, scratch, description, metrics.FontSizeM, gfx.WeightRegular, width-2*padding)
 	headerHeight := dialogHeaderHeight(metrics, len(lines))
 	content := dialog.contentBounds(width, headerHeight)
-	inner := content.Inset(ui.All(padding))
+	inner := content.Inset(gfx.All(padding))
 	footerHeight := dialogFooterHeight(metrics, dialog.options.ButtonSize)
 	bodyY := inner.Y + headerHeight + metrics.GapItem*dialogGapsAboveBody
 	bodyHeight := inner.Height - headerHeight - footerHeight - metrics.GapItem*(dialogGapsAboveBody+dialogGapsBelowBody)
@@ -149,13 +149,13 @@ func (dialog Dialog) layout(scratch *overlayLines, description string) (DialogLa
 	}
 	layout := DialogLayout{
 		Content: content,
-		Header:  ui.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: headerHeight},
-		Body:    ui.Rect{X: inner.X, Y: bodyY, Width: inner.Width, Height: bodyHeight},
-		Footer:  ui.Rect{X: inner.X, Y: inner.Y + inner.Height - footerHeight, Width: inner.Width, Height: footerHeight},
+		Header:  gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: headerHeight},
+		Body:    gfx.Rect{X: inner.X, Y: bodyY, Width: inner.Width, Height: bodyHeight},
+		Footer:  gfx.Rect{X: inner.X, Y: inner.Y + inner.Height - footerHeight, Width: inner.Width, Height: footerHeight},
 	}
 	if !dialog.hideClose {
 		closeSize := metrics.ControlHeight
-		layout.Close = ui.Rect{
+		layout.Close = gfx.Rect{
 			X:     content.X + content.Width - metrics.PadSurface - closeSize,
 			Y:     content.Y + metrics.PadSurface,
 			Width: closeSize, Height: closeSize,
@@ -176,10 +176,10 @@ func (dialog Dialog) Begin(title, description string) DialogLayout {
 	}
 
 	key := overlayKey(dialog.options.DismissID, dialog.options.CloseID, dialog.options.Scope)
-	beginScrim(dialog.canvas, dialog.theme, key, scrimPresence(dialog.theme, overlayDuration, ui.EaseCSS), dialog.viewport)
+	beginScrim(dialog.canvas, dialog.theme, key, scrimPresence(dialog.theme, overlayDuration, gfx.EaseCSS), dialog.viewport)
 	if !dialog.options.DismissID.IsZero() {
-		dialog.canvas.HitWithOptions(dialog.options.DismissID, dialog.viewport, "Dismiss dialog", ui.HitOptions{
-			Role: ui.RoleButton, Disabled: dialog.disabled, SkipFocus: true, Backdrop: true,
+		dialog.canvas.HitWithOptions(dialog.options.DismissID, dialog.viewport, "Dismiss dialog", gfx.HitOptions{
+			Role: gfx.RoleButton, Disabled: dialog.disabled, SkipFocus: true, Backdrop: true,
 		})
 	}
 
@@ -194,11 +194,11 @@ func (dialog Dialog) Begin(title, description string) DialogLayout {
 	dialog.canvas.Block(content)
 	titleHeight := dialogTitleHeight(metrics)
 
-	dialog.canvas.Label(title, ui.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: titleHeight}, ui.TextStyle{
-		Size: overlayTitleSize(metrics), Weight: ui.WeightMedium, Color: dialog.theme.PopoverForeground,
+	dialog.canvas.Label(title, gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: titleHeight}, gfx.TextStyle{
+		Size: overlayTitleSize(metrics), Weight: gfx.WeightMedium, Color: dialog.theme.PopoverForeground,
 	})
-	overlayParagraph(dialog.canvas, lines, ui.Rect{X: inner.X, Y: inner.Y + titleHeight + metrics.GapItem, Width: inner.Width}, overlayLineHeight(metrics), ui.TextStyle{
-		Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: dialog.theme.MutedForeground,
+	overlayParagraph(dialog.canvas, lines, gfx.Rect{X: inner.X, Y: inner.Y + titleHeight + metrics.GapItem, Width: inner.Width}, overlayLineHeight(metrics), gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: dialog.theme.MutedForeground,
 	}, false)
 
 	if !dialog.hideClose {
@@ -228,7 +228,7 @@ func (dialog Dialog) End() {
 		escapeTarget = dialog.options.CloseID
 	}
 	if dialog.disabled {
-		escapeTarget = ui.ID{}
+		escapeTarget = gfx.ID{}
 	}
 	dialog.canvas.SetEscapeTarget(escapeTarget)
 	if !dialog.options.Scope.IsZero() {
@@ -250,7 +250,7 @@ func (dialog Dialog) contentWidth() float32 {
 // contentBounds centers the dialog. With FitBody its height is the padding
 // around it, the header, the footer, BodyHeight, and the gaps Layout leaves
 // between header, body and footer.
-func (dialog Dialog) contentBounds(width, headerHeight float32) ui.Rect {
+func (dialog Dialog) contentBounds(width, headerHeight float32) gfx.Rect {
 	metrics := dialog.theme.Metrics
 	height := dialog.options.ContentSize.Height
 	if dialog.options.FitBody {
@@ -262,14 +262,14 @@ func (dialog Dialog) contentBounds(width, headerHeight float32) ui.Rect {
 		height = 192
 	}
 	height = max(min(height, dialog.viewport.Height-32), 0)
-	return ui.Rect{
+	return gfx.Rect{
 		X:     dialog.viewport.X + (dialog.viewport.Width-width)/2,
 		Y:     dialog.viewport.Y + (dialog.viewport.Height-height)/2,
 		Width: width, Height: height,
 	}
 }
 
-func (dialog Dialog) paintClose(bounds ui.Rect) {
+func (dialog Dialog) paintClose(bounds gfx.Rect) {
 	fill := dialog.theme.Background
 	fill.Alpha = 0
 	foreground := dialog.theme.MutedForeground
@@ -283,20 +283,20 @@ func (dialog Dialog) paintClose(bounds ui.Rect) {
 	dialog.canvas.Rounded(bounds, dialog.theme.Metrics.RadiusControl, fill)
 	paintCross(dialog.canvas, bounds, 16, foreground)
 	if !dialog.options.CloseID.IsZero() {
-		dialog.canvas.HitWithOptions(dialog.options.CloseID, bounds, "Close dialog", ui.HitOptions{
-			Role: ui.RoleButton, Disabled: dialog.disabled,
+		dialog.canvas.HitWithOptions(dialog.options.CloseID, bounds, "Close dialog", gfx.HitOptions{
+			Role: gfx.RoleButton, Disabled: dialog.disabled,
 		})
 	}
 }
 
 // The cross is a vector for the same reason as the check (see paintCheck).
-var crossIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-	ui.MoveTo(18, 6), ui.LineTo(6, 18), ui.MoveTo(6, 6), ui.LineTo(18, 18),
+var crossIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+	gfx.MoveTo(18, 6), gfx.LineTo(6, 18), gfx.MoveTo(6, 6), gfx.LineTo(18, 18),
 }}
 
 // paintCross draws a cross size pixels square, centered in bounds.
-func paintCross(canvas *ui.Canvas, bounds ui.Rect, size float32, color ui.Color) {
-	canvas.DrawIcon(crossIcon, ui.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, color)
+func paintCross(canvas *gfx.Canvas, bounds gfx.Rect, size float32, color gfx.Color) {
+	canvas.DrawIcon(crossIcon, gfx.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, color)
 }
 
 // overlayMaxLines bounds how many lines an overlay's description or tooltip text
@@ -310,12 +310,12 @@ type overlayLines [overlayMaxLines]string
 
 // overlayLineHeight is the line height of the 14px body text (text-sm, 20px
 // leading) of an overlay, at the theme's body size.
-func overlayLineHeight(metrics ui.Metrics) float32 { return metrics.FontSizeM + 7 }
+func overlayLineHeight(metrics gfx.Metrics) float32 { return metrics.FontSizeM + 7 }
 
 // overlayWrap breaks text into lines of at most width at the given size and
 // weight, the way a browser wraps a paragraph. Without a canvas to measure on
 // the text stays one line.
-func overlayWrap(canvas *ui.Canvas, scratch *overlayLines, text string, size, weight, width float32) []string {
+func overlayWrap(canvas *gfx.Canvas, scratch *overlayLines, text string, size, weight, width float32) []string {
 	if text == "" {
 		return nil
 	}
@@ -328,9 +328,9 @@ func overlayWrap(canvas *ui.Canvas, scratch *overlayLines, text string, size, we
 
 // overlayParagraph paints wrapped lines one under the other from the top of
 // bounds, each lineHeight high, and returns the height they took.
-func overlayParagraph(canvas *ui.Canvas, lines []string, bounds ui.Rect, lineHeight float32, style ui.TextStyle, center bool) float32 {
+func overlayParagraph(canvas *gfx.Canvas, lines []string, bounds gfx.Rect, lineHeight float32, style gfx.TextStyle, center bool) float32 {
 	for index, line := range lines {
-		row := ui.Rect{X: bounds.X, Y: bounds.Y + float32(index)*lineHeight, Width: bounds.Width, Height: lineHeight}
+		row := gfx.Rect{X: bounds.X, Y: bounds.Y + float32(index)*lineHeight, Width: bounds.Width, Height: lineHeight}
 		if center {
 			canvas.LabelCenter(line, row, style)
 		} else {
@@ -342,7 +342,7 @@ func overlayParagraph(canvas *ui.Canvas, lines []string, bounds ui.Rect, lineHei
 
 // overlayActions paints the buttons of a dialog, sheet or drawer footer against
 // its right edge at the default button size (see ButtonRow).
-func overlayActions(canvas *ui.Canvas, theme ui.Theme, footer ui.Rect, size ButtonSize, disabled bool, actions []ButtonAction) {
+func overlayActions(canvas *gfx.Canvas, theme gfx.Theme, footer gfx.Rect, size ButtonSize, disabled bool, actions []ButtonAction) {
 	row := BeginButtonRow(canvas, theme, footer).Size(size)
 	if disabled {
 		row = row.Disabled()
@@ -355,11 +355,11 @@ func overlayActions(canvas *ui.Canvas, theme ui.Theme, footer ui.Rect, size Butt
 // and a 10% scrim alone barely separates a modal from the page, least of all on
 // a dark theme. Until a blur exists the scrim is heavier: 50% on a dark theme,
 // 40% on a light one. Return to Vega's 10% when the blur lands.
-func overlayBackdrop(theme ui.Theme) ui.Color {
+func overlayBackdrop(theme gfx.Theme) gfx.Color {
 	if theme.Background.Red < 0.5 {
-		return ui.Color{Alpha: 0.50}
+		return gfx.Color{Alpha: 0.50}
 	}
-	return ui.Color{Alpha: 0.40}
+	return gfx.Color{Alpha: 0.40}
 }
 
 // Overlay motion. Vega gives every overlay an entrance and an exit:
@@ -392,41 +392,41 @@ const overlayDuration = 100 * time.Millisecond
 
 // overlayKey is the identity an overlay's motion is kept under: the first of ids
 // that is set, or zero.
-func overlayKey(ids ...ui.ID) ui.ID {
+func overlayKey(ids ...gfx.ID) gfx.ID {
 	for _, id := range ids {
 		if !id.IsZero() {
 			return id
 		}
 	}
-	return ui.ID{}
+	return gfx.ID{}
 }
 
 // moving reports whether the theme asks for overlay motion at all.
-func moving(theme ui.Theme) bool { return theme.Transition.Duration > 0 }
+func moving(theme gfx.Theme) bool { return theme.Transition.Duration > 0 }
 
-func scrimPresence(theme ui.Theme, duration time.Duration, easing ui.Easing) ui.Presence {
+func scrimPresence(theme gfx.Theme, duration time.Duration, easing gfx.Easing) gfx.Presence {
 	if !moving(theme) {
-		return ui.Presence{}
+		return gfx.Presence{}
 	}
-	return ui.Presence{Motion: ui.Motion{Duration: duration, Easing: easing}, Fade: true}
+	return gfx.Presence{Motion: gfx.Motion{Duration: duration, Easing: easing}, Fade: true}
 }
 
 // fadePresence is the dialog's `fade-in-0`, and its exit.
-func fadePresence(theme ui.Theme) ui.Presence {
+func fadePresence(theme gfx.Theme) gfx.Presence {
 	if !moving(theme) {
-		return ui.Presence{}
+		return gfx.Presence{}
 	}
-	return ui.Presence{Motion: ui.Motion{Duration: overlayDuration, Easing: ui.EaseCSS}, Fade: true}
+	return gfx.Presence{Motion: gfx.Motion{Duration: overlayDuration, Easing: gfx.EaseCSS}, Fade: true}
 }
 
 // centerOf is the middle of a rectangle.
-func centerOf(bounds ui.Rect) ui.Point {
-	return ui.Point{X: bounds.X + bounds.Width/2, Y: bounds.Y + bounds.Height/2}
+func centerOf(bounds gfx.Rect) gfx.Point {
+	return gfx.Point{X: bounds.X + bounds.Width/2, Y: bounds.Y + bounds.Height/2}
 }
 
 // beginScrim paints the scrim behind a modal overlay as its own group, so it
 // fades while the surface in front of it grows.
-func beginScrim(canvas *ui.Canvas, theme ui.Theme, key ui.ID, presence ui.Presence, viewport ui.Rect) {
+func beginScrim(canvas *gfx.Canvas, theme gfx.Theme, key gfx.ID, presence gfx.Presence, viewport gfx.Rect) {
 	canvas.BeginPresence(key, overlayBackdropPart, presence, centerOf(viewport))
 	canvas.Fill(viewport, overlayBackdrop(theme))
 	canvas.EndPresence()
@@ -438,30 +438,30 @@ func beginScrim(canvas *ui.Canvas, theme ui.Theme, key ui.ID, presence ui.Presen
 // does), and each has its own recipe: DialogRecipe, PopoverRecipe and PopupRecipe.
 type PopupLook struct {
 	// Fill and Border are the colors of the panel and its 1px line.
-	Fill, Border ui.Color
+	Fill, Border gfx.Color
 	// Radius is the corner radius of the panel.
 	Radius float32
 	// Shadow is the elevation of a panel that floats over a page; a menu bar's submenu takes a
 	// lower one, and a panel that sits inside another has none.
-	Shadow ui.ShadowLevel
+	Shadow gfx.ShadowLevel
 }
 
 // PopupRecipe resolves the look of a floating panel. It is a pure function of the theme, the
 // one definition the popup components paint their surface from (paintPopupSurface), so an
 // application that draws a panel of its own takes the same fill, line, corners and shadow.
-func PopupRecipe(theme ui.Theme) PopupLook {
+func PopupRecipe(theme gfx.Theme) PopupLook {
 	return popupRecipe(&theme)
 }
 
 // popupRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
 // and a Theme is large.
-func popupRecipe(theme *ui.Theme) PopupLook {
-	return PopupLook{Fill: theme.Popover, Border: theme.Border, Radius: theme.Metrics.RadiusPopup(), Shadow: ui.ShadowMD}
+func popupRecipe(theme *gfx.Theme) PopupLook {
+	return PopupLook{Fill: theme.Popover, Border: theme.Border, Radius: theme.Metrics.RadiusPopup(), Shadow: gfx.ShadowMD}
 }
 
 // paintPopupSurface paints the panel of a popup with the given elevation: the shadow first,
-// then the fill with its line. ui.ShadowNone paints a panel that casts none.
-func paintPopupSurface(canvas *ui.Canvas, theme *ui.Theme, bounds ui.Rect, shadow ui.ShadowLevel) {
+// then the fill with its line. gfx.ShadowNone paints a panel that casts none.
+func paintPopupSurface(canvas *gfx.Canvas, theme *gfx.Theme, bounds gfx.Rect, shadow gfx.ShadowLevel) {
 	look := popupRecipe(theme)
 	look.Shadow = shadow
 	paintPanel(canvas, bounds, look)
@@ -469,8 +469,8 @@ func paintPopupSurface(canvas *ui.Canvas, theme *ui.Theme, bounds ui.Rect, shado
 
 // paintPanel paints a panel with a resolved look: the shadow it casts, if any, then its fill
 // with the 1px line.
-func paintPanel(canvas *ui.Canvas, bounds ui.Rect, look PopupLook) {
-	if look.Shadow != ui.ShadowNone {
+func paintPanel(canvas *gfx.Canvas, bounds gfx.Rect, look PopupLook) {
+	if look.Shadow != gfx.ShadowNone {
 		canvas.Elevate(bounds, look.Radius, look.Shadow)
 	}
 	canvas.RoundedBorder(bounds, look.Radius, 1, look.Border, look.Fill)
@@ -478,20 +478,20 @@ func paintPanel(canvas *ui.Canvas, bounds ui.Rect, look PopupLook) {
 
 // DialogRecipe resolves the look of the panel of a dialog, an alert dialog or a drawer: the
 // surface radius, and no shadow, because the panel stands on a scrim. A pure function.
-func DialogRecipe(theme ui.Theme) PopupLook {
+func DialogRecipe(theme gfx.Theme) PopupLook {
 	return dialogRecipe(&theme)
 }
 
-func dialogRecipe(theme *ui.Theme) PopupLook {
-	return PopupLook{Fill: theme.Popover, Border: theme.Border, Radius: theme.Metrics.RadiusSurface, Shadow: ui.ShadowNone}
+func dialogRecipe(theme *gfx.Theme) PopupLook {
+	return PopupLook{Fill: theme.Popover, Border: theme.Border, Radius: theme.Metrics.RadiusSurface, Shadow: gfx.ShadowNone}
 }
 
 // PopoverRecipe resolves the look of the panel of a popover: the control radius and the
 // medium shadow. A pure function.
-func PopoverRecipe(theme ui.Theme) PopupLook {
+func PopoverRecipe(theme gfx.Theme) PopupLook {
 	return popoverRecipe(&theme)
 }
 
-func popoverRecipe(theme *ui.Theme) PopupLook {
-	return PopupLook{Fill: theme.Popover, Border: theme.Border, Radius: theme.Metrics.RadiusControl, Shadow: ui.ShadowMD}
+func popoverRecipe(theme *gfx.Theme) PopupLook {
+	return PopupLook{Fill: theme.Popover, Border: theme.Border, Radius: theme.Metrics.RadiusControl, Shadow: gfx.ShadowMD}
 }

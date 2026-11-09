@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // TypographyVariant selects a shadcn documentation typography role.
 type TypographyVariant uint8
@@ -19,33 +19,33 @@ const (
 
 // Typography paints one line using the theme's type scale. Rich text, wrapping,
 // and document layout remain separate concerns of the text subsystem.
-func Typography(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, variant TypographyVariant, text string) {
+func Typography(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, variant TypographyVariant, text string) {
 	metrics := theme.Metrics
-	style := ui.TextStyle{
-		Size: metrics.FontSizeM + 3, Weight: ui.WeightRegular, Color: theme.Foreground,
+	style := gfx.TextStyle{
+		Size: metrics.FontSizeM + 3, Weight: gfx.WeightRegular, Color: theme.Foreground,
 	}
 	switch variant {
 	case TypographyH1:
 		style.Size = metrics.FontSizeL * 1.5
-		style.Weight = ui.WeightBold
+		style.Weight = gfx.WeightBold
 	case TypographyH2:
 		style.Size = metrics.FontSizeL + 6
-		style.Weight = ui.WeightSemibold
+		style.Weight = gfx.WeightSemibold
 	case TypographyH3:
 		style.Size = metrics.FontSizeL
-		style.Weight = ui.WeightSemibold
+		style.Weight = gfx.WeightSemibold
 	case TypographyH4:
 		style.Size = metrics.FontSizeM + 7
-		style.Weight = ui.WeightSemibold
+		style.Weight = gfx.WeightSemibold
 	case TypographyLead:
 		style.Size = metrics.FontSizeM + 7
 		style.Color = theme.MutedForeground
 	case TypographyLarge:
 		style.Size = metrics.FontSizeM + 5
-		style.Weight = ui.WeightSemibold
+		style.Weight = gfx.WeightSemibold
 	case TypographySmall:
 		style.Size = metrics.FontSizeM
-		style.Weight = ui.WeightMedium
+		style.Weight = gfx.WeightMedium
 	case TypographyMuted:
 		style.Size = metrics.FontSizeM
 		style.Color = theme.MutedForeground

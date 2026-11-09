@@ -4,14 +4,14 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
 func open(t *testing.T, m *model) (*app.Driver, *app.Invalidator) {
 	t.Helper()
 	invalidator := new(app.Invalidator)
-	page := flex.NewPage(flex.PageConfig{View: m.page})
+	page := ui.NewPage(ui.PageConfig{View: m.page})
 	driver, err := app.NewDriver(page.Config(app.Config{Width: 460, Height: 900, Invalidator: invalidator}), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -20,7 +20,7 @@ func open(t *testing.T, m *model) (*app.Driver, *app.Invalidator) {
 	return driver, invalidator
 }
 
-func control(t *testing.T, driver *app.Driver, name string) ui.Hit {
+func control(t *testing.T, driver *app.Driver, name string) gfx.Hit {
 	t.Helper()
 	for _, hit := range driver.Snapshot().Hits {
 		if hit.Label == name && !hit.IsLabel {
@@ -28,7 +28,7 @@ func control(t *testing.T, driver *app.Driver, name string) ui.Hit {
 		}
 	}
 	t.Fatalf("no control named %q", name)
-	return ui.Hit{}
+	return gfx.Hit{}
 }
 
 func click(t *testing.T, driver *app.Driver, name string) {
@@ -79,7 +79,7 @@ func TestFilteringKeepsTheFocusOnItsHost(t *testing.T) {
 	if focusedName(driver) != "jump-01" {
 		t.Fatalf("focus is on %q after filtering, want jump-01", focusedName(driver))
 	}
-	if err := driver.Key(ui.KeySpace, 0); err != nil {
+	if err := driver.Key(gfx.KeySpace, 0); err != nil {
 		t.Fatal(err)
 	}
 	if m.hosts[6].handled || m.handled() != 2 {

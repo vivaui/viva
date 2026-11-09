@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
@@ -41,10 +41,10 @@ var codeMergeComponent = Component{
 		}
 	},
 	paint: (*State).paintCodeMerge,
-	pointer: func(state *State, event ui.PointerEvent) ui.EventResult {
+	pointer: func(state *State, event gfx.PointerEvent) gfx.EventResult {
 		return state.codeMerge.component.Pointer(event)
 	},
-	scroll: func(state *State, event ui.ScrollEvent) ui.EventResult {
+	scroll: func(state *State, event gfx.ScrollEvent) gfx.EventResult {
 		return state.codeMerge.component.Scroll(event)
 	},
 	editable: func(string) (editableField, bool) {
@@ -65,7 +65,7 @@ var codeMergeComponent = Component{
 	}},
 }
 
-func (state *State) paintCodeMerge(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintCodeMerge(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	demo := state.codeMerge
 	value := state.fieldValue(codeMergeResult)
 	if demo.value != value {
@@ -98,8 +98,8 @@ func (state *State) paintCodeMerge(canvas *ui.Canvas, theme ui.Theme, size ui.Si
 			snapshot.CompositionEnd = byteOffsetOfRune(value, marked.End)
 		}
 	}
-	var stage flex.Box
-	state.page(canvas, theme, size, 750, state.Text("Code Merge · 三方对比", "Code Merge · Three-way comparison"), func(frame *flex.Frame) {
+	var stage ui.Box
+	state.page(canvas, theme, size, 750, state.Text("Code Merge · 三方对比", "Code Merge · Three-way comparison"), func(frame *ui.Frame) {
 		stage = frame.Slot().FillWidth().Height(min(float32(230), max(size.Height-105, 120)))
 		caption(frame, state.Text("三栏同步滚动，冲突检测和接受策略由调用方负责。", "The three panes scroll together; conflict detection and acceptance remain caller-owned."))
 	})

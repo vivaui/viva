@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // ButtonVariant selects one of the shadcn Vega button treatments. Destructive is
 // Vega's quiet one: a danger-tinted surface with a danger label, not a solid red
@@ -46,17 +46,17 @@ type ButtonState struct {
 
 // Button is one allocation-free in-flight button declaration.
 type Button struct {
-	canvas *ui.Canvas
-	theme  ui.Theme
-	id     ui.ID
-	bounds ui.Rect
+	canvas *gfx.Canvas
+	theme  gfx.Theme
+	id     gfx.ID
+	bounds gfx.Rect
 	state  ButtonState
 	size   ButtonSize
-	icon   ui.Icon
+	icon   gfx.Icon
 	// iconTransform moves the icon inside its square. A caller sets it through
 	// IconTransform, usually from IconHover.Progress, and the button does not
 	// infer a motion of its own.
-	iconTransform ui.IconTransform
+	iconTransform gfx.IconTransform
 	height        float32
 	fontSize      float32
 	disabled      bool
@@ -64,7 +64,7 @@ type Button struct {
 
 // BeginButton starts a button declaration. Hit ID zero paints a static preview
 // without adding an interaction region.
-func BeginButton(canvas *ui.Canvas, theme ui.Theme, id ui.ID, bounds ui.Rect) Button {
+func BeginButton(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect) Button {
 	state := ButtonState{}
 	if canvas != nil && !id.IsZero() {
 		state.Hovered = canvas.Hovered() == id
@@ -82,7 +82,7 @@ func (button Button) WithState(state ButtonState) Button {
 
 // WithIcon adds a leading vector icon. At an icon size the label is hidden
 // visually and retained as the accessible name and hover hint.
-func (button Button) WithIcon(icon ui.Icon) Button {
+func (button Button) WithIcon(icon gfx.Icon) Button {
 	button.icon = icon
 	return button
 }
@@ -90,7 +90,7 @@ func (button Button) WithIcon(icon ui.Icon) Button {
 // IconTransform moves the button's vector icon inside its box without moving
 // the button, its label or its hit region. It is how an icon-only control plays
 // the short motion a hover asks for; a zero transform paints the still icon.
-func (button Button) IconTransform(transform ui.IconTransform) Button {
+func (button Button) IconTransform(transform gfx.IconTransform) Button {
 	button.iconTransform = transform
 	return button
 }
@@ -174,7 +174,7 @@ func buttonIconExtent(height float32) float32 {
 // SizeToFit widens the button to its label plus the selected size padding.
 func (button Button) SizeToFit(label string) Button {
 	height, padding, fontSize, iconOnly := button.geometry()
-	button.bounds.Width = button.canvas.TextWidthWeight(label, fontSize, ui.WeightMedium) + padding*2
+	button.bounds.Width = button.canvas.TextWidthWeight(label, fontSize, gfx.WeightMedium) + padding*2
 	if button.hasIcon() {
 		if iconOnly {
 			button.bounds.Width = height
@@ -191,22 +191,22 @@ func (button Button) SizeToFit(label string) Button {
 
 // CenterIn centers the button's current bounds within area. Call it after
 // SizeToFit when an empty state or dialog action needs a centered control.
-func (button Button) CenterIn(area ui.Rect) Button {
+func (button Button) CenterIn(area gfx.Rect) Button {
 	button.bounds.X = area.X + (area.Width-button.bounds.Width)/2
 	button.bounds.Y = area.Y + (area.Height-button.bounds.Height)/2
 	return button
 }
 
 // ButtonResult is what painting a button reports back. Clicked is true in the
-// event pass of a click on that button (see ui.Canvas.Clicked), so the code that
+// event pass of a click on that button (see gfx.Canvas.Clicked), so the code that
 // declares a button is the code that handles it:
 //
 //	if components.BeginButton(canvas, theme, save, bounds).Default("Save").Clicked() {
 //		model.save()
 //	}
 type ButtonResult struct {
-	canvas *ui.Canvas
-	id     ui.ID
+	canvas *gfx.Canvas
+	id     gfx.ID
 }
 
 // Clicked reports whether this paint is delivering a click on the button.
@@ -254,7 +254,7 @@ func (button Button) Link(label string) ButtonResult { return button.paint(label
 // identity. The zero Variant is the primary Default button, so the confirming
 // action needs no variant at all.
 type ButtonAction struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Variant  ButtonVariant
 	Disabled bool
@@ -263,9 +263,9 @@ type ButtonAction struct {
 // ButtonRow is a row of buttons against the right edge of an area: the footer
 // of a card, a panel or a dialog.
 type ButtonRow struct {
-	canvas   *ui.Canvas
-	theme    ui.Theme
-	area     ui.Rect
+	canvas   *gfx.Canvas
+	theme    gfx.Theme
+	area     gfx.Rect
 	size     ButtonSize
 	sized    bool
 	disabled bool
@@ -273,7 +273,7 @@ type ButtonRow struct {
 
 // BeginButtonRow declares a row of small buttons inside area. The buttons are
 // vertically centered in it.
-func BeginButtonRow(canvas *ui.Canvas, theme ui.Theme, area ui.Rect) ButtonRow {
+func BeginButtonRow(canvas *gfx.Canvas, theme gfx.Theme, area gfx.Rect) ButtonRow {
 	return ButtonRow{canvas: canvas, theme: theme, area: area}
 }
 
@@ -290,7 +290,7 @@ func (row ButtonRow) Size(size ButtonSize) ButtonRow {
 	return row
 }
 
-func (row ButtonRow) button(id ui.ID, bounds ui.Rect) Button {
+func (row ButtonRow) button(id gfx.ID, bounds gfx.Rect) Button {
 	button := BeginButton(row.canvas, row.theme, id, bounds)
 	if row.sized {
 		return button.Size(row.size)
@@ -314,7 +314,7 @@ func (row ButtonRow) Paint(actions ...ButtonAction) {
 	}
 	gaps := row.theme.Metrics.GapItem * float32(len(actions)-1)
 	fitted := func(action ButtonAction) float32 {
-		return row.button(ui.ID{}, area).SizeToFit(action.Label).BoundsWidth()
+		return row.button(gfx.ID{}, area).SizeToFit(action.Label).BoundsWidth()
 	}
 	var labels float32
 	for _, action := range actions {
@@ -327,7 +327,7 @@ func (row ButtonRow) Paint(actions ...ButtonAction) {
 	x := area.X + area.Width - (labels*scale + gaps)
 	for _, action := range actions {
 		width := fitted(action) * scale
-		button := row.button(action.ID, ui.Rect{X: x, Y: area.Y, Width: width})
+		button := row.button(action.ID, gfx.Rect{X: x, Y: area.Y, Width: width})
 		height, _, _, _ := button.geometry()
 		button.bounds.Y = area.Y + (area.Height-height)/2
 		if action.Disabled || row.disabled {
@@ -348,12 +348,12 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 	if iconOnly {
 		button.bounds.Width = height
 	}
-	look := buttonRecipe(&button.theme, variant, ui.State{
+	look := buttonRecipe(&button.theme, variant, gfx.State{
 		Hovered: button.state.Hovered, Pressed: button.state.Pressed, FocusVisible: button.state.Focused,
 		Invalid: button.state.Invalid, Disabled: button.disabled,
 	})
 	radius := look.Radius
-	if look.Shadow != ui.ShadowNone {
+	if look.Shadow != gfx.ShadowNone {
 		button.canvas.Elevate(button.bounds, radius, look.Shadow) // shadow-xs
 	}
 	if look.RingWidth > 0 {
@@ -377,13 +377,13 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 		size := min(buttonIconExtent(height), button.bounds.Width)
 		width := size
 		if !iconOnly && label != "" {
-			width = min(button.bounds.Width, width+buttonIconGap+button.canvas.TextWidthWeight(label, fontSize, ui.WeightMedium))
+			width = min(button.bounds.Width, width+buttonIconGap+button.canvas.TextWidthWeight(label, fontSize, gfx.WeightMedium))
 		}
 		x := button.bounds.X + (button.bounds.Width-width)/2
 		if size > 0 {
 			button.canvas.DrawIconTransformed(
 				button.icon,
-				ui.Rect{X: x, Y: button.bounds.Y + (height-size)/2, Width: size, Height: size},
+				gfx.Rect{X: x, Y: button.bounds.Y + (height-size)/2, Width: size, Height: size},
 				style.foreground,
 				button.iconTransform,
 			)
@@ -391,15 +391,15 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 		if iconOnly {
 			hint = label
 		} else if label != "" {
-			text := ui.Rect{X: x + size + buttonIconGap, Y: button.bounds.Y, Width: max(0, width-size-buttonIconGap), Height: height}
+			text := gfx.Rect{X: x + size + buttonIconGap, Y: button.bounds.Y, Width: max(0, width-size-buttonIconGap), Height: height}
 			paintButtonLabel(button.canvas, label, text, fontSize, style)
 		}
 	} else {
 		paintButtonLabel(button.canvas, label, button.bounds, fontSize, style)
 	}
 	if !button.id.IsZero() {
-		button.canvas.HitWithOptions(button.id, button.bounds, label, ui.HitOptions{
-			Role: ui.RoleButton, Disabled: button.disabled, Hint: hint,
+		button.canvas.HitWithOptions(button.id, button.bounds, label, gfx.HitOptions{
+			Role: gfx.RoleButton, Disabled: button.disabled, Hint: hint,
 		})
 	}
 	return result
@@ -443,7 +443,7 @@ func (button Button) geometry() (height, padding, fontSize float32, iconOnly boo
 // ButtonGroup both take their colors from buttonStyleFor, so the two cannot
 // drift apart.
 type buttonStyle struct {
-	background, foreground, border ui.Color
+	background, foreground, border gfx.Color
 	// filled paints background; bordered paints a 1px border; underlined
 	// underlines the label (a hovered link).
 	filled, bordered, underlined bool
@@ -454,7 +454,7 @@ type buttonStyle struct {
 // empty fill would show it through the whole interior; both colors are flattened
 // onto the page (the theme's Background) first, as the Input recipe does. A fill
 // with no alpha therefore leaves the page showing.
-func paintBordered(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, radius float32, border, fill ui.Color) {
+func paintBordered(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, radius float32, border, fill gfx.Color) {
 	if theme.Background.Alpha < 1 {
 		canvas.Rounded(bounds, radius, fill)
 		canvas.RoundedOutline(bounds, radius, 1, border)
@@ -465,24 +465,24 @@ func paintBordered(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, radius flo
 
 // isDark reports whether the theme is a dark appearance. Viva's Theme has no
 // explicit mode, so every component that needs one asks the background.
-func isDark(theme *ui.Theme) bool { return theme.Background.Red < 0.5 }
+func isDark(theme *gfx.Theme) bool { return theme.Background.Red < 0.5 }
 
 // withAlpha is color at alpha, as a translucent color to be laid over whatever
 // is behind it (shadcn's bg-destructive/10).
-func withAlpha(color ui.Color, alpha float32) ui.Color {
+func withAlpha(color gfx.Color, alpha float32) gfx.Color {
 	color.Alpha = alpha
 	return color
 }
 
 // scaledAlpha is color with its own alpha multiplied by factor (bg-input/30).
-func scaledAlpha(color ui.Color, factor float32) ui.Color {
+func scaledAlpha(color gfx.Color, factor float32) gfx.Color {
 	color.Alpha *= factor
 	return color
 }
 
 // outlineBorder is the border of an outline button: border-border in a light
 // theme, border-input in a dark one.
-func outlineBorder(theme *ui.Theme) ui.Color {
+func outlineBorder(theme *gfx.Theme) gfx.Color {
 	if isDark(theme) {
 		return theme.Input
 	}
@@ -491,7 +491,7 @@ func outlineBorder(theme *ui.Theme) ui.Color {
 
 // invalidRing is the ring around a control that fails validation:
 // ring-destructive/20, /40 in a dark theme.
-func invalidRing(theme *ui.Theme) ui.Color {
+func invalidRing(theme *gfx.Theme) gfx.Color {
 	if isDark(theme) {
 		return withAlpha(theme.Danger, 0.40)
 	}
@@ -500,7 +500,7 @@ func invalidRing(theme *ui.Theme) ui.Color {
 
 // invalidBorder is the border of an invalid control: border-destructive, /50 in a
 // dark theme.
-func invalidBorder(theme *ui.Theme) ui.Color {
+func invalidBorder(theme *gfx.Theme) gfx.Color {
 	if isDark(theme) {
 		return withAlpha(theme.Danger, 0.50)
 	}
@@ -510,7 +510,7 @@ func invalidBorder(theme *ui.Theme) ui.Color {
 // buttonRing is the ring and the border a focused or invalid button wears.
 // Focus is ring-ring/50 around a ring-colored border; the destructive variant
 // uses the danger color for both, as shadcn's does.
-func buttonRing(theme *ui.Theme, variant ButtonVariant, invalid bool) (ring, border ui.Color) {
+func buttonRing(theme *gfx.Theme, variant ButtonVariant, invalid bool) (ring, border gfx.Color) {
 	switch {
 	case invalid:
 		return invalidRing(theme), invalidBorder(theme)
@@ -523,7 +523,7 @@ func buttonRing(theme *ui.Theme, variant ButtonVariant, invalid bool) (ring, bor
 // buttonStyleFor is the Vega recipe of a variant: its colors at rest, under the
 // pointer, and held down. Vega has no pressed state; a press goes one step past
 // hover, because a desktop control needs the answer.
-func buttonStyleFor(theme *ui.Theme, variant ButtonVariant, hovered, pressed bool) buttonStyle {
+func buttonStyleFor(theme *gfx.Theme, variant ButtonVariant, hovered, pressed bool) buttonStyle {
 	dark := isDark(theme)
 	style := buttonStyle{
 		background: theme.Primary, foreground: theme.PrimaryForeground,
@@ -612,28 +612,28 @@ func buttonStyleFor(theme *ui.Theme, variant ButtonVariant, hovered, pressed boo
 }
 
 // paintButtonLabel centers a button's label and, for a hovered link, underlines it.
-func paintButtonLabel(canvas *ui.Canvas, label string, bounds ui.Rect, fontSize float32, style buttonStyle) {
-	canvas.LabelCenter(label, bounds, ui.TextStyle{
-		Size: fontSize, Weight: ui.WeightMedium, Color: style.foreground,
+func paintButtonLabel(canvas *gfx.Canvas, label string, bounds gfx.Rect, fontSize float32, style buttonStyle) {
+	canvas.LabelCenter(label, bounds, gfx.TextStyle{
+		Size: fontSize, Weight: gfx.WeightMedium, Color: style.foreground,
 	})
 	if !style.underlined {
 		return
 	}
-	width := min(canvas.TextWidthWeight(label, fontSize, ui.WeightMedium), bounds.Width)
-	canvas.Fill(ui.Rect{
+	width := min(canvas.TextWidthWeight(label, fontSize, gfx.WeightMedium), bounds.Width)
+	canvas.Fill(gfx.Rect{
 		X: bounds.X + (bounds.Width-width)/2, Y: bounds.Y + bounds.Height/2 + fontSize*0.6,
 		Width: width, Height: 1,
 	}, style.foreground)
 }
 
-func blend(color, overlay ui.Color, amount float32) ui.Color {
+func blend(color, overlay gfx.Color, amount float32) gfx.Color {
 	if amount < 0 {
 		amount = 0
 	}
 	if amount > 1 {
 		amount = 1
 	}
-	return ui.Color{
+	return gfx.Color{
 		Red:   color.Red + (overlay.Red-color.Red)*amount,
 		Green: color.Green + (overlay.Green-color.Green)*amount,
 		Blue:  color.Blue + (overlay.Blue-color.Blue)*amount,
@@ -641,15 +641,15 @@ func blend(color, overlay ui.Color, amount float32) ui.Color {
 	}
 }
 
-func expand(bounds ui.Rect, amount float32) ui.Rect {
-	return ui.Rect{
+func expand(bounds gfx.Rect, amount float32) gfx.Rect {
+	return gfx.Rect{
 		X: bounds.X - amount, Y: bounds.Y - amount,
 		Width: bounds.Width + amount*2, Height: bounds.Height + amount*2,
 	}
 }
 
 // tinted is color laid over base at alpha, as an opaque color.
-func tinted(color ui.Color, alpha float32, base ui.Color) ui.Color {
+func tinted(color gfx.Color, alpha float32, base gfx.Color) gfx.Color {
 	color.Alpha = alpha
 	return color.Over(base)
 }
@@ -659,16 +659,16 @@ type ButtonLook struct {
 	// Background, Foreground and Border are the colors of the surface, the label and the
 	// icon, and the line. Filled says the background is painted, Bordered the 1px line,
 	// and Underlined the label (a hovered link).
-	Background, Foreground, Border ui.Color
+	Background, Foreground, Border gfx.Color
 	Filled, Bordered, Underlined   bool
 	// Radius is the corner radius of the surface.
 	Radius float32
 	// Shadow is the elevation under the surface; only the outline variant has one.
-	Shadow ui.ShadowLevel
+	Shadow gfx.ShadowLevel
 	// Ring is the halo of a focused or invalid button, transparent with a zero RingWidth
 	// when there is none. RingOutline says it is drawn as a line over a translucent theme
 	// rather than a disc under the surface.
-	Ring                  ui.Color
+	Ring                  gfx.Color
 	RingWidth, RingRadius float32
 	RingOutline           bool
 }
@@ -676,13 +676,13 @@ type ButtonLook struct {
 // ButtonRecipe resolves the look of a button. Hovered and Pressed of state are read only
 // when the button is not Disabled; FocusVisible and Invalid add the halo and take the
 // border over, and Disabled dims the surface, the label and the line.
-func ButtonRecipe(theme ui.Theme, variant ButtonVariant, state ui.State) ButtonLook {
+func ButtonRecipe(theme gfx.Theme, variant ButtonVariant, state gfx.State) ButtonLook {
 	return buttonRecipe(&theme, variant, state)
 }
 
 // buttonRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
 // and a Theme is large.
-func buttonRecipe(theme *ui.Theme, variant ButtonVariant, state ui.State) ButtonLook {
+func buttonRecipe(theme *gfx.Theme, variant ButtonVariant, state gfx.State) ButtonLook {
 	enabled := !state.Disabled
 	style := buttonStyleFor(theme, variant, enabled && state.Hovered, enabled && state.Pressed)
 	look := ButtonLook{
@@ -691,7 +691,7 @@ func buttonRecipe(theme *ui.Theme, variant ButtonVariant, state ui.State) Button
 		Radius: theme.Metrics.RadiusControl,
 	}
 	if variant == ButtonOutline {
-		look.Shadow = ui.ShadowXS
+		look.Shadow = gfx.ShadowXS
 	}
 	if state.FocusVisible || state.Invalid {
 		ring, border := buttonRing(theme, variant, state.Invalid)

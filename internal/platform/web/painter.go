@@ -6,30 +6,30 @@ import (
 	"math"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/interaction"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // painter coordinates the immediate canvas vocabulary with the shared input
 // router, mirroring the native app painter without any platform coupling.
 type painter struct {
 	config        *Config
-	canvas        *ui.Canvas
+	canvas        *gfx.Canvas
 	focus         interaction.Focus
 	pointer       interaction.Pointer
 	width         float32
 	height        float32
-	clear         ui.Color
-	rectangles    []ui.Rectangle
-	shadows       []ui.Shadow
-	triangles     []ui.Triangle
-	texts         []ui.Text
+	clear         gfx.Color
+	rectangles    []gfx.Rectangle
+	shadows       []gfx.Shadow
+	triangles     []gfx.Triangle
+	texts         []gfx.Text
 	layers        []uint16
 	accessibility []accessibilityDescription
-	textInputID   ui.ID
+	textInputID   gfx.ID
 	textInput     TextInput
 	placing       bool
 	placeAnchor   int
@@ -42,8 +42,8 @@ type painter struct {
 	// keys follows keys a terminal asked to see as presses and releases. The
 	// zero value tracks nothing, so a page without such a terminal pays nothing.
 	keys        interaction.Keys
-	cursor      ui.PointerCursor
-	cursorImage *ui.CursorImage
+	cursor      gfx.PointerCursor
+	cursorImage *gfx.CursorImage
 	// again asks the runtime to render one more frame after this one: a key
 	// release delivered while the focused terminal stopped asking for releases
 	// may have changed what the application paints.
@@ -53,9 +53,9 @@ type painter struct {
 	tap input.ModifierTap
 }
 
-func newPainter(canvas *ui.Canvas, config *Config) *painter {
-	clear := ui.Color{Red: 0.067, Green: 0.067, Blue: 0.086, Alpha: 1}
-	if config.ClearColor != (ui.Color{}) {
+func newPainter(canvas *gfx.Canvas, config *Config) *painter {
+	clear := gfx.Color{Red: 0.067, Green: 0.067, Blue: 0.086, Alpha: 1}
+	if config.ClearColor != (gfx.Color{}) {
 		clear = config.ClearColor
 	}
 	return &painter{
@@ -82,7 +82,7 @@ func (p *painter) keyWanted() bool {
 // keyDown applies one normalized keyboard event and reports whether rendering
 // state changed. Application handling runs before built-in traversal,
 // activation, and Escape dismissal.
-func (p *painter) keyDown(event ui.KeyEvent) bool {
+func (p *painter) keyDown(event gfx.KeyEvent) bool {
 	p.tap.Cancel()
 	return p.keyDownCode(event, 0)
 }
@@ -90,7 +90,7 @@ func (p *painter) keyDown(event ui.KeyEvent) bool {
 // keyDownCode is keyDown for a platform event that names its physical key. The
 // code lets a terminal that asked for releases pair the press with its release
 // even when the modifiers changed in between.
-func (p *painter) keyDownCode(event ui.KeyEvent, code uint32) bool {
+func (p *painter) keyDownCode(event gfx.KeyEvent, code uint32) bool {
 	beforeFocus, beforeKeyboard := p.focus.Focused(), p.focus.KeyboardFocus()
 	event.Target = p.focus.Focused()
 	repeat := event.Repeat
@@ -101,7 +101,7 @@ func (p *painter) keyDownCode(event ui.KeyEvent, code uint32) bool {
 		repeat = repeat || again
 	}
 	event.Repeat = repeat
-	response := ui.EventResult{}
+	response := gfx.EventResult{}
 	if p.config.OnKey != nil {
 		response = p.config.OnKey(event)
 	}
@@ -119,10 +119,10 @@ func (p *painter) keyDownCode(event ui.KeyEvent, code uint32) bool {
 		// first, then let the same key traverse the page now underneath.
 		p.applyEventResult(response)
 		p.repaint()
-		response = ui.EventResult{}
+		response = gfx.EventResult{}
 		continued = true
 	}
-	if !response.Handled && event.Key == ui.KeyEscape && !p.focus.EscapeTarget().IsZero() && p.canClick() &&
+	if !response.Handled && event.Key == gfx.KeyEscape && !p.focus.EscapeTarget().IsZero() && p.canClick() &&
 		!p.textInput.State.Composing {
 		if p.deliverClick(p.focus.EscapeTarget()) {
 			p.repaint()
@@ -138,7 +138,7 @@ func (p *painter) keyDownCode(event ui.KeyEvent, code uint32) bool {
 		activated = true
 	}
 	p.focus.Refresh()
-	if event.Key == ui.KeyTab {
+	if event.Key == gfx.KeyTab {
 		p.focus.SetKeyboardFocus(!p.focus.Focused().IsZero())
 	}
 	focusChanged := p.applyEventResult(response)
@@ -152,13 +152,13 @@ func (p *painter) keyDownCode(event ui.KeyEvent, code uint32) bool {
 // keyUp applies one key going up. Only a key the application saw go down is
 // delivered, so an orphan release, such as the end of a key an input method
 // consumed, does nothing.
-func (p *painter) keyUp(event ui.KeyEvent, code uint32) bool {
+func (p *painter) keyUp(event gfx.KeyEvent, code uint32) bool {
 	beforePending := p.focus.PendingFocus()
-	response := ui.EventResult{}
+	response := gfx.EventResult{}
 	delivered := false
 	if p.keyWanted() {
 		if held, ok := p.keys.Release(code); ok && p.config.OnKey != nil {
-			response = p.config.OnKey(ui.KeyEvent{
+			response = p.config.OnKey(gfx.KeyEvent{
 				Key: held.Key, Modifiers: event.Modifiers, Target: held.Target, Release: true, Text: held.Text,
 			})
 			delivered = true
@@ -182,7 +182,7 @@ func (p *painter) releaseKeys() bool {
 	held := p.keys.Take(storage[:0])
 	repaint := false
 	for index := len(held) - 1; index >= 0 && p.config.OnKey != nil; index-- {
-		response := p.config.OnKey(ui.KeyEvent{Key: held[index].Key, Target: held[index].Target, Release: true, Text: held[index].Text})
+		response := p.config.OnKey(gfx.KeyEvent{Key: held[index].Key, Target: held[index].Target, Release: true, Text: held[index].Text})
 		repaint = p.applyEventResult(response) || response.Repaint || repaint
 	}
 	return repaint
@@ -201,7 +201,7 @@ func (p *painter) focusLost() bool {
 
 // noteKeyboardTarget records, after a paint, whether the held keys still have a
 // terminal that wants them; if not the next repaint ends their presses.
-func (p *painter) noteKeyboardTarget(target ui.ID, wanted bool) {
+func (p *painter) noteKeyboardTarget(target gfx.ID, wanted bool) {
 	p.keys.NoteTarget(target, wanted)
 }
 
@@ -214,7 +214,7 @@ func (p *painter) takeAgain() bool {
 
 // modifierDown notes a modifier key going down. Any other key ends the
 // candidate: keyDown cancels it before this runs for a modifier.
-func (p *painter) modifierDown(key input.Key, code uint32, modifiers ui.Modifiers, repeat bool) {
+func (p *painter) modifierDown(key input.Key, code uint32, modifiers gfx.Modifiers, repeat bool) {
 	if p.config.OnModifierTap != nil {
 		p.tap.Press(key, code, modifiers, repeat)
 	}
@@ -231,7 +231,7 @@ func (p *painter) modifierUp(code uint32) bool {
 		return false
 	}
 	beforeFocus := p.focus.Focused()
-	response := p.config.OnModifierTap(ui.ModifierTapEvent{Key: key, Target: p.focus.Focused()})
+	response := p.config.OnModifierTap(gfx.ModifierTapEvent{Key: key, Target: p.focus.Focused()})
 	focusChanged := p.applyEventResult(response)
 	if focusChanged || response.Repaint || p.focus.Focused() != beforeFocus {
 		p.repaint()
@@ -240,7 +240,7 @@ func (p *painter) modifierUp(code uint32) bool {
 	return false
 }
 
-func (p *painter) shortcut(event ui.KeyEvent) (handled, changed bool) {
+func (p *painter) shortcut(event gfx.KeyEvent) (handled, changed bool) {
 	p.tap.Cancel()
 	if p.config.OnShortcut == nil {
 		return false, false
@@ -258,19 +258,19 @@ func (p *painter) shortcut(event ui.KeyEvent) (handled, changed bool) {
 // fileDrop applies one step of a drag of files over the page. The point is
 // resolved to the hit under it, as a pointer's is, and the answer is whether
 // that hit takes files.
-func (p *painter) fileDrop(phase ui.FileDropPhase, x, y float32, files []platform.FileRef) (handled, changed bool) {
+func (p *painter) fileDrop(phase gfx.FileDropPhase, x, y float32, files []platform.FileRef) (handled, changed bool) {
 	if p.config.OnFileDrop == nil {
 		return false, false
 	}
-	target := ui.ID{}
-	if phase != ui.FileDropLeave {
+	target := gfx.ID{}
+	if phase != gfx.FileDropLeave {
 		if hit, ok := p.focus.Router().HitTest(x, y); ok {
 			target = hit
 		}
 	}
-	event := ui.FileDropEvent{Phase: phase, X: x, Y: y, Target: target}
-	if phase == ui.FileDropDrop {
-		event.Files = make([]ui.FileDropFile, len(files))
+	event := gfx.FileDropEvent{Phase: phase, X: x, Y: y, Target: target}
+	if phase == gfx.FileDropDrop {
+		event.Files = make([]gfx.FileDropFile, len(files))
 		for index, file := range files {
 			event.Files[index] = droppedFile{FileRef: file}
 		}
@@ -287,12 +287,12 @@ func (p *painter) fileDrop(phase ui.FileDropPhase, x, y float32, files []platfor
 // accessibleHit finds the control a request names. Labels share their
 // control's ID and are not controls, and a region declared by Container has no
 // target.
-func (p *painter) accessibleHit(id ui.ID) (ui.Hit, bool) {
+func (p *painter) accessibleHit(id gfx.ID) (gfx.Hit, bool) {
 	return interaction.Control(p.canvas.Hits(), id)
 }
 
 // accessibilityFocus gives a control the keyboard, as a Tab onto it would.
-func (p *painter) accessibilityFocus(id ui.ID) bool {
+func (p *painter) accessibilityFocus(id gfx.ID) bool {
 	if p.focus.Focused() == id && p.focus.KeyboardFocus() {
 		// A text field reports the DOM focus we just gave it. Answering that
 		// with another focus pass would re-enter the mirror for no change.
@@ -302,7 +302,7 @@ func (p *painter) accessibilityFocus(id ui.ID) bool {
 	if !ok || !hit.Focusable || hit.Disabled && !hit.FocusableDisabled {
 		return false
 	}
-	p.applyEventResult(ui.EventResult{Focus: id, FocusVisible: true})
+	p.applyEventResult(gfx.EventResult{Focus: id, FocusVisible: true})
 	p.repaint()
 	return true
 }
@@ -310,18 +310,18 @@ func (p *painter) accessibilityFocus(id ui.ID) bool {
 // accessibilitySetNumber brings a slider to the value a range control reports.
 // It presses the same keys a person would, so the application's slider logic
 // stays the only source of truth; the DOM range never writes state directly.
-func (p *painter) accessibilitySetNumber(id ui.ID, number float64) bool {
+func (p *painter) accessibilitySetNumber(id gfx.ID, number float64) bool {
 	hit, ok := p.accessibleHit(id)
-	if !ok || hit.Disabled || hit.Role != ui.RoleSlider || !hit.Focusable ||
+	if !ok || hit.Disabled || hit.Role != gfx.RoleSlider || !hit.Focusable ||
 		!hit.Range.Set || math.IsNaN(number) || math.IsInf(number, 0) {
 		return false
 	}
 	if p.focus.Focused() != id {
-		p.applyEventResult(ui.EventResult{Focus: id, FocusVisible: true})
+		p.applyEventResult(gfx.EventResult{Focus: id, FocusVisible: true})
 	}
 	number = min(max(number, hit.Range.Min), hit.Range.Max)
 	key, steps := interaction.SliderSteps(hit.Range, number)
-	if key == ui.KeyUnknown {
+	if key == gfx.KeyUnknown {
 		return false
 	}
 	if steps == 0 {
@@ -329,22 +329,22 @@ func (p *painter) accessibilitySetNumber(id ui.ID, number float64) bool {
 		return true
 	}
 	for range steps {
-		p.keyDown(ui.KeyEvent{Key: key})
+		p.keyDown(gfx.KeyEvent{Key: key})
 	}
 	return true
 }
 
 // accessibilityPress carries out the default action a screen reader asks for,
 // through the same focus and click paths a pointer uses.
-func (p *painter) accessibilityPress(id ui.ID) bool {
+func (p *painter) accessibilityPress(id gfx.ID) bool {
 	hit, ok := p.accessibleHit(id)
 	if !ok || hit.Disabled {
 		return false
 	}
 	if hit.Focusable {
-		p.applyEventResult(ui.EventResult{Focus: id, FocusVisible: true})
+		p.applyEventResult(gfx.EventResult{Focus: id, FocusVisible: true})
 	}
-	if hit.Role == ui.RoleTextField || hit.Role == ui.RoleTerminal {
+	if hit.Role == gfx.RoleTextField || hit.Role == gfx.RoleTerminal {
 		// Pressing a field is putting the caret in it.
 		p.repaint()
 		return true
@@ -365,17 +365,17 @@ type droppedFile struct{ platform.FileRef }
 // application used the gesture, and whether rendering state changed. Handled
 // events leave the default canvas offset untouched; an unused gesture can be
 // forwarded to an embedding page.
-func (p *painter) wheel(event ui.ScrollEvent) (handled, changed bool) {
+func (p *painter) wheel(event gfx.ScrollEvent) (handled, changed bool) {
 	p.tap.Cancel()
 	if event.DeltaX == 0 && event.DeltaY == 0 {
 		return false, false
 	}
-	event.Target = ui.ID{}
+	event.Target = gfx.ID{}
 	if target, ok := p.focus.Router().HitTest(event.X, event.Y); ok {
 		event.Target = target
 	}
-	event.Viewport = ui.Size{Width: p.width, Height: p.height}
-	response := ui.EventResult{}
+	event.Viewport = gfx.Size{Width: p.width, Height: p.height}
+	response := gfx.EventResult{}
 	if p.config.OnScroll != nil {
 		response = p.config.OnScroll(event)
 	}
@@ -396,7 +396,7 @@ func (p *painter) wheel(event ui.ScrollEvent) (handled, changed bool) {
 	return response.Handled || response.Repaint || focusChanged, changed
 }
 
-func (p *painter) applyEventResult(result ui.EventResult) bool {
+func (p *painter) applyEventResult(result gfx.EventResult) bool {
 	if result.ClipboardText != "" {
 		setClipboardTextFromGesture(result.ClipboardText)
 	}
@@ -416,12 +416,12 @@ func (p *painter) paint() {
 	p.canvas.SetInteraction(p.pointer.Hovered(), p.pointer.Pressed(), focused, visible)
 	p.canvas.SetScroll(p.scrollX, p.scrollY)
 	p.canvas.BeginFrame()
-	p.config.Paint(p.canvas, ui.Size{Width: p.width, Height: p.height})
+	p.config.Paint(p.canvas, gfx.Size{Width: p.width, Height: p.height})
 	p.canvas.EndFrame()
 }
 
 // canClick reports whether a click on a control has anywhere to go: whether the
-// last paint asked ui.Canvas.Clicked about anything.
+// last paint asked gfx.Canvas.Clicked about anything.
 func (p *painter) canClick() bool {
 	return p.config.Paint != nil && p.canvas.ListensForClicks()
 }
@@ -431,7 +431,7 @@ func (p *painter) canClick() bool {
 // application may change state, exactly as the native painter does. That pass's
 // drawing is discarded: the caller repaints next. It reports whether a paint
 // was in a position to consume the click at all.
-func (p *painter) deliverClick(id ui.ID) bool {
+func (p *painter) deliverClick(id gfx.ID) bool {
 	if !p.canClick() {
 		return false
 	}
@@ -443,10 +443,10 @@ func (p *painter) deliverClick(id ui.ID) bool {
 }
 
 // deliverPointer runs the paint once more as the event pass of a pointer event
-// when the last paint asked ui.Canvas.PointerOn or PointerIn, and reports
+// when the last paint asked gfx.Canvas.PointerOn or PointerIn, and reports
 // whether a control consumed the event. Only presses, releases and the moves of
 // a held press are offered: hovering is read from Hovered, not delivered.
-func (p *painter) deliverPointer(event ui.PointerEvent) bool {
+func (p *painter) deliverPointer(event gfx.PointerEvent) bool {
 	if p.config.Paint == nil || !p.canvas.ListensForPointer() {
 		return false
 	}
@@ -487,14 +487,14 @@ func (p *painter) repaint() {
 }
 
 func (p *painter) syncTextInput() {
-	p.textInputID = ui.ID{}
+	p.textInputID = gfx.ID{}
 	if p.config.TextInput == nil {
-		p.noteKeyboardTarget(ui.ID{}, false)
+		p.noteKeyboardTarget(gfx.ID{}, false)
 		return
 	}
 	field, hitIndex, found := interaction.TextInputHit(p.canvas.Hits(), p.focus.Focused())
 	if !found {
-		p.noteKeyboardTarget(ui.ID{}, false)
+		p.noteKeyboardTarget(gfx.ID{}, false)
 		return
 	}
 	if bounds, moving := p.canvas.HitPresenceRect(hitIndex, field.Bounds); moving {
@@ -506,7 +506,7 @@ func (p *painter) syncTextInput() {
 	context := TextInputContext{
 		ID: field.ID, Bounds: field.Bounds, Layer: field.Layer, Multiline: field.Multiline,
 		ReadOnly: field.ReadOnly, Secure: field.Secure, NavigationKeys: field.NavigationKeys,
-		Terminal: field.Role == ui.RoleTerminal, TypeAhead: field.TypeAhead && field.Role != ui.RoleTerminal,
+		Terminal: field.Role == gfx.RoleTerminal, TypeAhead: field.TypeAhead && field.Role != gfx.RoleTerminal,
 		TextBounds: field.TextBounds, FontSize: field.TextSize, FontWeight: field.TextWeight, TextColor: field.TextColor,
 		HideNativeOverlays: field.HideNativeOverlays,
 	}
@@ -529,7 +529,7 @@ func (p *painter) syncTextInput() {
 	p.textInput.HideNativeOverlays = input.HideNativeOverlays || field.HideNativeOverlays
 	if p.textInput.Width == 0 && p.textInput.Height == 0 {
 		bounds := field.TextBounds
-		if bounds == (ui.Rect{}) {
+		if bounds == (gfx.Rect{}) {
 			bounds = field.Bounds
 		}
 		p.textInput.X, p.textInput.Y = bounds.X, bounds.Y
@@ -557,13 +557,13 @@ func (p *painter) syncCursor() {
 	if next == p.cursor && image == p.cursorImage {
 		return
 	}
-	if next == ui.PointerCursorImage {
+	if next == gfx.PointerCursorImage {
 		if image == nil {
-			next = ui.PointerCursorDefault
+			next = gfx.PointerCursorDefault
 		} else if err := SetCursorImage(image); err != nil {
 			// A picture the browser refuses leaves the ordinary arrow, and is
 			// not asked for again until it changes.
-			next, image = ui.PointerCursorDefault, nil
+			next, image = gfx.PointerCursorDefault, nil
 			_ = SetCursorShape(uint8(next))
 		}
 	} else {
@@ -572,14 +572,14 @@ func (p *painter) syncCursor() {
 	p.cursor, p.cursorImage = next, image
 }
 
-func (p *painter) activeTextInput() (ui.ID, *TextInput) {
+func (p *painter) activeTextInput() (gfx.ID, *TextInput) {
 	if p.textInputID.IsZero() {
-		return ui.ID{}, nil
+		return gfx.ID{}, nil
 	}
 	return p.textInputID, &p.textInput
 }
 
-func collectLayers(destination []uint16, rectangles []ui.Rectangle, triangles []ui.Triangle, texts []ui.Text) []uint16 {
+func collectLayers(destination []uint16, rectangles []gfx.Rectangle, triangles []gfx.Triangle, texts []gfx.Text) []uint16 {
 	for _, rectangle := range rectangles {
 		destination = insertLayer(destination, rectangle.Layer)
 	}
@@ -608,45 +608,45 @@ func insertLayer(layers []uint16, layer uint16) []uint16 {
 
 // roundPresenceRect puts a browser editor on the whole logical pixels a moving
 // label takes, so the two do not drift by a fraction while an overlay slides.
-func roundPresenceRect(rect ui.Rect) ui.Rect {
+func roundPresenceRect(rect gfx.Rect) gfx.Rect {
 	round := func(value float32) float32 { return float32(math.Round(float64(value))) }
 	width, height := round(rect.Width), round(rect.Height)
-	return ui.Rect{X: round(rect.X), Y: round(rect.Y), Width: max(width, 0), Height: max(height, 0)}
+	return gfx.Rect{X: round(rect.X), Y: round(rect.Y), Width: max(width, 0), Height: max(height, 0)}
 }
 
 // pointer applies one normalized pointer event and reports whether rendering
 // state changed. A nonzero press target captures move and up delivery until the
 // press ends, while hover continues to track the actual hit target.
-func (p *painter) pointerEvent(event ui.PointerEvent) bool {
-	if event.Kind == ui.PointerDown {
+func (p *painter) pointerEvent(event gfx.PointerEvent) bool {
+	if event.Kind == gfx.PointerDown {
 		p.tap.Cancel()
 	}
-	event.Viewport = ui.Size{Width: p.width, Height: p.height}
+	event.Viewport = gfx.Size{Width: p.width, Height: p.height}
 	beforeHovered, beforePressed := p.pointer.Hovered(), p.pointer.Pressed()
 	beforeFocus, beforeKeyboard := p.focus.Focused(), p.focus.KeyboardFocus()
 	inside := event.X >= 0 && event.Y >= 0 && event.X < p.width && event.Y < p.height
-	if event.Kind == ui.PointerMove && p.pointerOutside && inside {
+	if event.Kind == gfx.PointerMove && p.pointerOutside && inside {
 		p.pointerOutside = false
 	}
-	if !inside && event.Kind != ui.PointerExit && !p.pointer.PressTarget().IsZero() {
+	if !inside && event.Kind != gfx.PointerExit && !p.pointer.PressTarget().IsZero() {
 		// Pointer capture keeps delivering moves past the page edge, but the
 		// browser need not send pointerleave while capture is active.
 		p.pointerOutside = true
 	}
-	if event.Kind == ui.PointerExit && !p.pointer.PressTarget().IsZero() {
+	if event.Kind == gfx.PointerExit && !p.pointer.PressTarget().IsZero() {
 		// The button is still down, so the press keeps the pointer until it
 		// comes up; only hover is gone. The release is delivered outside.
 		p.pointerOutside = true
-		p.pointer.SetHovered(ui.ID{})
+		p.pointer.SetHovered(gfx.ID{})
 		if beforeHovered.IsZero() {
 			return false
 		}
 		p.repaint()
 		return true
 	}
-	passes := event.Kind == ui.PointerDown &&
-		(event.Button == ui.PointerButtonSecondary && p.focus.Router().PassesSecondary(event.X, event.Y) ||
-			event.Button == ui.PointerButtonPrimary && p.focus.Router().PassesPrimary(event.X, event.Y))
+	passes := event.Kind == gfx.PointerDown &&
+		(event.Button == gfx.PointerButtonSecondary && p.focus.Router().PassesSecondary(event.X, event.Y) ||
+			event.Button == gfx.PointerButtonPrimary && p.focus.Router().PassesPrimary(event.X, event.Y))
 	result, focusChanged, placed := p.pointerStep(event)
 	if passes {
 		if !result.Handled && p.deliverClick(p.pointer.Hovered()) {
@@ -673,23 +673,23 @@ func (p *painter) pointerEvent(event ui.PointerEvent) bool {
 // pointerCancel ends a press the browser took for itself. Unlike a release, no
 // release will follow, so the press ends here and the application is told the
 // pointer is gone.
-func (p *painter) pointerCancel(event ui.PointerEvent) bool {
+func (p *painter) pointerCancel(event gfx.PointerEvent) bool {
 	p.pointerOutside = false
 	p.pointer.Up()
-	event.Kind = ui.PointerExit
+	event.Kind = gfx.PointerExit
 	return p.pointerEvent(event)
 }
 
 // pointerStep is one pass of a pointer event through hit testing, the press
 // state, the application and the controls' event pass.
-func (p *painter) pointerStep(event ui.PointerEvent) (result ui.EventResult, focusChanged, placed bool) {
-	p.pointer.SetHovered(ui.ID{})
-	if event.Kind != ui.PointerExit {
+func (p *painter) pointerStep(event gfx.PointerEvent) (result gfx.EventResult, focusChanged, placed bool) {
+	p.pointer.SetHovered(gfx.ID{})
+	if event.Kind != gfx.PointerExit {
 		if target, ok := p.focus.Router().HitTest(event.X, event.Y); ok {
 			p.pointer.SetHovered(target)
 		}
 	}
-	if event.Kind == ui.PointerDown {
+	if event.Kind == gfx.PointerDown {
 		p.pointer.Down(event.Button)
 		p.focus.PointerDown(event.X, event.Y, p.pointer.Hovered())
 	}
@@ -706,7 +706,7 @@ func (p *painter) pointerStep(event ui.PointerEvent) (result ui.EventResult, foc
 	focusChanged = p.applyEventResult(result)
 	placed = p.placeCaret(event)
 	switch event.Kind {
-	case ui.PointerUp:
+	case gfx.PointerUp:
 		if id, ok := p.pointer.Click(); ok && !result.Handled {
 			if p.deliverClick(id) {
 				result.Repaint = true
@@ -719,11 +719,11 @@ func (p *painter) pointerStep(event ui.PointerEvent) (result ui.EventResult, foc
 			// and hover-owned state.
 			p.pointerOutside = false
 			if p.config.OnPointer != nil {
-				gone := p.config.OnPointer(ui.PointerEvent{Kind: ui.PointerExit, Viewport: event.Viewport})
+				gone := p.config.OnPointer(gfx.PointerEvent{Kind: gfx.PointerExit, Viewport: event.Viewport})
 				result.Repaint = result.Repaint || gone.Repaint
 			}
 		}
-	case ui.PointerExit:
+	case gfx.PointerExit:
 		p.pointer.Exit()
 	}
 	return result, focusChanged, placed
@@ -733,28 +733,28 @@ func (p *painter) pointerStep(event ui.PointerEvent) (result ui.EventResult, foc
 // controls: presses and releases aimed at a control, and the moves of a press
 // that is held. A move over a control is hover, which a control reads from
 // Canvas.Hovered.
-func pointerIsDelivered(kind ui.PointerEventKind, target ui.ID, captured bool) bool {
+func pointerIsDelivered(kind gfx.PointerEventKind, target gfx.ID, captured bool) bool {
 	switch kind {
-	case ui.PointerDown, ui.PointerUp:
+	case gfx.PointerDown, gfx.PointerUp:
 		return !target.IsZero()
-	case ui.PointerMove:
+	case gfx.PointerMove:
 		return captured
 	}
 	return false
 }
 
-func (p *painter) placeCaret(event ui.PointerEvent) bool {
+func (p *painter) placeCaret(event gfx.PointerEvent) bool {
 	switch event.Kind {
-	case ui.PointerDown:
+	case gfx.PointerDown:
 		p.placing = false
-		if event.Button != ui.PointerButtonPrimary || p.pointer.Hovered() != p.focus.Focused() || p.focus.Focused().IsZero() {
+		if event.Button != gfx.PointerButtonPrimary || p.pointer.Hovered() != p.focus.Focused() || p.focus.Focused().IsZero() {
 			return false
 		}
-	case ui.PointerMove:
+	case gfx.PointerMove:
 		if !p.placing {
 			return false
 		}
-	case ui.PointerUp:
+	case gfx.PointerUp:
 		wasPlacing := p.placing
 		p.placing = false
 		if !wasPlacing {
@@ -773,13 +773,13 @@ func (p *painter) placeCaret(event ui.PointerEvent) bool {
 		if p.textInputID != p.focus.Focused() {
 			return false
 		}
-		offset, ok := hit.Placement.OffsetAt(ui.Point{X: event.X, Y: event.Y})
+		offset, ok := hit.Placement.OffsetAt(gfx.Point{X: event.X, Y: event.Y})
 		if !ok {
 			return false
 		}
 		value := p.textInput.State.Value
 		index := utf8.RuneCountInString(value[:max(0, min(offset, len(value)))])
-		if event.Kind == ui.PointerDown {
+		if event.Kind == gfx.PointerDown {
 			p.placing, p.placeAnchor = true, index
 		}
 		next, err := p.textInput.OnEvent(platform.TextEvent{

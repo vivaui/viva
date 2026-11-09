@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // ItemVariant selects the neutral surface treatment for an item row.
 type ItemVariant uint8
@@ -32,7 +32,7 @@ const (
 )
 
 // ItemMediaSize is the side of the media box for a variant at an item size.
-func ItemMediaSize(theme ui.Theme, size ItemSize, variant ItemMediaVariant) float32 {
+func ItemMediaSize(theme gfx.Theme, size ItemSize, variant ItemMediaVariant) float32 {
 	if variant == ItemMediaIcon {
 		return 16
 	}
@@ -48,9 +48,9 @@ func ItemMediaSize(theme ui.Theme, size ItemSize, variant ItemMediaVariant) floa
 // ItemLayout is where a painted item put its parts, for the caller to fill in.
 type ItemLayout struct {
 	// Media is the box reserved by Media or LeadingSpace; empty when none was.
-	Media ui.Rect
+	Media gfx.Rect
 	// Content is the column holding the title and description.
-	Content ui.Rect
+	Content gfx.Rect
 }
 
 // ItemGroupGap is the spacing between items of a group (ItemGroup's gap-4, or
@@ -71,18 +71,18 @@ const ItemSeparatorHeight = 17
 
 // PaintItemSeparator paints an ItemSeparator across bounds' width at its top and
 // returns the height it used (ItemSeparatorHeight).
-func PaintItemSeparator(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) float32 {
-	canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y + 8, Width: bounds.Width, Height: 1}, theme.Border)
+func PaintItemSeparator(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect) float32 {
+	canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y + 8, Width: bounds.Width, Height: 1}, theme.Border)
 	return ItemSeparatorHeight
 }
 
 // Item is one source-owned list row declaration. It keeps layout and transient
 // interaction state explicit and allocates no auxiliary collections.
 type Item struct {
-	canvas   *ui.Canvas
-	theme    ui.Theme
-	id       ui.ID
-	bounds   ui.Rect
+	canvas   *gfx.Canvas
+	theme    gfx.Theme
+	id       gfx.ID
+	bounds   gfx.Rect
 	variant  ItemVariant
 	size     ItemSize
 	leading  float32
@@ -90,7 +90,7 @@ type Item struct {
 }
 
 // BeginItem starts an item row. ID 0 paints a preview without interaction.
-func BeginItem(canvas *ui.Canvas, theme ui.Theme, id ui.ID, bounds ui.Rect) Item {
+func BeginItem(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect) Item {
 	return Item{canvas: canvas, theme: theme, id: id, bounds: bounds}
 }
 
@@ -153,10 +153,10 @@ func (item Item) Paint(title, description, trailing string) ItemLayout {
 	if focused {
 		focus := item.theme.Ring
 		focus.Alpha *= 0.50
-		item.canvas.RoundedBorder(expand(item.bounds, 3), metrics.RadiusControl+3, 3, focus, ui.Color{})
+		item.canvas.RoundedBorder(expand(item.bounds, 3), metrics.RadiusControl+3, 3, focus, gfx.Color{})
 	}
 
-	background := ui.Color{}
+	background := gfx.Color{}
 	if item.variant == ItemMuted {
 		background = item.theme.Muted
 		background.Alpha *= 0.50
@@ -185,12 +185,12 @@ func (item Item) Paint(title, description, trailing string) ItemLayout {
 	}
 	trailingWidth := float32(0)
 	if trailing != "" {
-		trailingWidth = item.canvas.TextWidthWeight(trailing, descriptionSize, ui.WeightMedium)
-		item.canvas.Label(trailing, ui.Rect{
+		trailingWidth = item.canvas.TextWidthWeight(trailing, descriptionSize, gfx.WeightMedium)
+		item.canvas.Label(trailing, gfx.Rect{
 			X: item.bounds.X + item.bounds.Width - padX - trailingWidth,
 			Y: item.bounds.Y, Width: trailingWidth, Height: item.bounds.Height,
-		}, ui.TextStyle{
-			Size: descriptionSize, Weight: ui.WeightMedium, Color: secondary,
+		}, gfx.TextStyle{
+			Size: descriptionSize, Weight: gfx.WeightMedium, Color: secondary,
 		})
 	}
 	var layout ItemLayout
@@ -201,7 +201,7 @@ func (item Item) Paint(title, description, trailing string) ItemLayout {
 		if description != "" {
 			mediaY = item.bounds.Y + padY + 2
 		}
-		layout.Media = ui.Rect{X: item.bounds.X + padX, Y: mediaY, Width: item.leading, Height: item.leading}
+		layout.Media = gfx.Rect{X: item.bounds.X + padX, Y: mediaY, Width: item.leading, Height: item.leading}
 	}
 	textWidth := item.bounds.Width - (textX - item.bounds.X) - padX
 	if trailingWidth > 0 {
@@ -210,29 +210,29 @@ func (item Item) Paint(title, description, trailing string) ItemLayout {
 	if textWidth < 0 {
 		textWidth = 0
 	}
-	layout.Content = ui.Rect{X: textX, Y: item.bounds.Y + padY, Width: textWidth, Height: item.bounds.Height - padY*2}
+	layout.Content = gfx.Rect{X: textX, Y: item.bounds.Y + padY, Width: textWidth, Height: item.bounds.Height - padY*2}
 	if description == "" {
-		item.canvas.Label(title, ui.Rect{
+		item.canvas.Label(title, gfx.Rect{
 			X: textX, Y: item.bounds.Y + padY, Width: textWidth, Height: titleHeight,
-		}, ui.TextStyle{
-			Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground,
+		}, gfx.TextStyle{
+			Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground,
 		})
 	} else {
 		textY := item.bounds.Y + padY
-		item.canvas.Label(title, ui.Rect{
+		item.canvas.Label(title, gfx.Rect{
 			X: textX, Y: textY, Width: textWidth, Height: titleHeight,
-		}, ui.TextStyle{
-			Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground,
+		}, gfx.TextStyle{
+			Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground,
 		})
 		availableDescriptionHeight := item.bounds.Height - padY*2 - titleHeight - textGap
 		if availableDescriptionHeight < 0 {
 			availableDescriptionHeight = 0
 		}
-		item.canvas.Label(description, ui.Rect{
+		item.canvas.Label(description, gfx.Rect{
 			X: textX, Y: textY + titleHeight + textGap,
 			Width: textWidth, Height: availableDescriptionHeight,
-		}, ui.TextStyle{
-			Size: descriptionSize, Weight: ui.WeightRegular, Color: secondary,
+		}, gfx.TextStyle{
+			Size: descriptionSize, Weight: gfx.WeightRegular, Color: secondary,
 		})
 	}
 	if !item.disabled && !item.id.IsZero() {

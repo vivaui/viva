@@ -5,18 +5,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestTextareaTopInsetKeepsTextAndNativeCaretBelowControls(t *testing.T) {
 	for _, scale := range []float32{1, 1.25, 1.5, 1.75, 2, 3} {
 		t.Run(fmt.Sprint(scale), func(t *testing.T) {
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			canvas.SetPixelScale(scale)
 			var layout TextareaLayout
-			bounds := ui.Rect{X: 8, Y: 9, Width: 260, Height: 180}
-			PaintTextarea(&canvas, ui.LightTheme(), bounds, TextareaSnapshot{
-				ID: ui.Item(1), Value: "中文输入\nsecond row", Focused: true,
+			bounds := gfx.Rect{X: 8, Y: 9, Width: 260, Height: 180}
+			PaintTextarea(&canvas, gfx.LightTheme(), bounds, TextareaSnapshot{
+				ID: gfx.Item(1), Value: "中文输入\nsecond row", Focused: true,
 				HideEditorText: true, ShowCaret: true, Layout: &layout,
 				InsetTop: 32, InsetBottom: 40,
 			})
@@ -33,11 +33,11 @@ func TestTextareaTopInsetKeepsTextAndNativeCaretBelowControls(t *testing.T) {
 }
 
 func TestTextareaTopInsetClampsAndKeepsTheDefaultLayout(t *testing.T) {
-	for _, theme := range []ui.Theme{ui.LightTheme(), ui.DarkTheme()} {
+	for _, theme := range []gfx.Theme{gfx.LightTheme(), gfx.DarkTheme()} {
 		for _, inset := range []float32{-32, 0, 32, 1000} {
-			var canvas ui.Canvas
-			bounds := ui.Rect{X: 8, Y: 9, Width: 260, Height: 120}
-			PaintTextarea(&canvas, theme, bounds, TextareaSnapshot{ID: ui.Item(1), Value: "hello", InsetTop: inset})
+			var canvas gfx.Canvas
+			bounds := gfx.Rect{X: 8, Y: 9, Width: 260, Height: 120}
+			PaintTextarea(&canvas, theme, bounds, TextareaSnapshot{ID: gfx.Item(1), Value: "hello", InsetTop: inset})
 			content := canvas.Hits()[0].TextBounds
 			if content.Height < 0 || content.Y < bounds.Y+textareaPadY || content.Y+content.Height > bounds.Y+bounds.Height-textareaPadY {
 				t.Fatalf("inset %g put the editor outside its surface: %+v", inset, content)
@@ -49,16 +49,16 @@ func TestTextareaTopInsetClampsAndKeepsTheDefaultLayout(t *testing.T) {
 	}
 }
 
-func textareaWithTopControls(canvas *ui.Canvas, layout *TextareaLayout, value string) {
+func textareaWithTopControls(canvas *gfx.Canvas, layout *TextareaLayout, value string) {
 	canvas.Reset()
-	PaintTextarea(canvas, ui.LightTheme(), ui.Rect{Width: 360, Height: 232}, TextareaSnapshot{
-		ID: ui.Item(1), Value: value, Focused: true, HideEditorText: true, ShowCaret: true,
+	PaintTextarea(canvas, gfx.LightTheme(), gfx.Rect{Width: 360, Height: 232}, TextareaSnapshot{
+		ID: gfx.Item(1), Value: value, Focused: true, HideEditorText: true, ShowCaret: true,
 		Caret: 300, Layout: layout, InsetTop: 32, InsetBottom: 40,
 	})
 }
 
 func TestTextareaTopControlsPaintAllocatesNothingOnceWarm(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var layout TextareaLayout
 	value := strings.Repeat(wrapTestText+"\n", 8)
 	textareaWithTopControls(&canvas, &layout, value)
@@ -68,7 +68,7 @@ func TestTextareaTopControlsPaintAllocatesNothingOnceWarm(t *testing.T) {
 }
 
 func BenchmarkPaintTextareaTopControls(b *testing.B) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var layout TextareaLayout
 	value := strings.Repeat(wrapTestText+"\n", 8)
 	textareaWithTopControls(&canvas, &layout, value)

@@ -5,9 +5,9 @@ import (
 	"math"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestVectorBoundaryCoversTheOutsideHalfPixel(t *testing.T) {
@@ -36,15 +36,15 @@ func TestVectorBoundaryCoversTheOutsideHalfPixel(t *testing.T) {
 }
 
 func vectorCoverageScene() []render.Rectangle {
-	icon := ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(20, 12), ui.CubicTo(20, 16.42, 16.42, 20, 12, 20), ui.CubicTo(7.58, 20, 4, 16.42, 4, 12),
-		ui.CubicTo(4, 7.58, 7.58, 4, 12, 4), ui.CubicTo(16.42, 4, 20, 7.58, 20, 12), ui.ClosePath(),
-		ui.MoveTo(6, 6), ui.LineTo(18, 18),
+	icon := gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(20, 12), gfx.CubicTo(20, 16.42, 16.42, 20, 12, 20), gfx.CubicTo(7.58, 20, 4, 16.42, 4, 12),
+		gfx.CubicTo(4, 7.58, 7.58, 4, 12, 4), gfx.CubicTo(16.42, 4, 20, 7.58, 20, 12), gfx.ClosePath(),
+		gfx.MoveTo(6, 6), gfx.LineTo(18, 18),
 	}}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetPixelScale(1.5)
 	for i := range 100 {
-		canvas.DrawIcon(icon, ui.Rect{X: float32(i%10)*20 + 2, Y: float32(i/10)*20 + 2, Width: 16, Height: 16}, ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
+		canvas.DrawIcon(icon, gfx.Rect{X: float32(i%10)*20 + 2, Y: float32(i/10)*20 + 2, Width: 16, Height: 16}, gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
 	}
 	rectangles := make([]render.Rectangle, 0, len(canvas.Triangles()))
 	for _, triangle := range canvas.Triangles() {

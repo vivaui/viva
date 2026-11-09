@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 const (
 	calendarColumnCount = 7
@@ -14,7 +14,7 @@ const (
 // date when Label alone would be ambiguous. Date arithmetic and selection
 // changes remain application responsibilities.
 type CalendarDay struct {
-	ID                 ui.ID
+	ID                 gfx.ID
 	Label              string
 	AccessibilityLabel string
 	Value              string
@@ -35,8 +35,8 @@ type CalendarOptions struct {
 	MonthTitle       string
 	Weekdays         [calendarColumnCount]string
 	Days             []CalendarDay
-	PreviousID       ui.ID
-	NextID           ui.ID
+	PreviousID       gfx.ID
+	NextID           gfx.ID
 	PreviousLabel    string
 	NextLabel        string
 	PreviousDisabled bool
@@ -51,9 +51,9 @@ type CalendarOptions struct {
 // or card: the surface it sits on (the page, a Popover, a Card) shows through,
 // so it never becomes a darker rectangle on a raised surface.
 type Calendar struct {
-	canvas    *ui.Canvas
-	theme     ui.Theme
-	bounds    ui.Rect
+	canvas    *gfx.Canvas
+	theme     gfx.Theme
+	bounds    gfx.Rect
 	options   CalendarOptions
 	cellSize  float32
 	contentX  float32
@@ -61,11 +61,11 @@ type Calendar struct {
 	weekdaysY float32
 	daysY     float32
 	// tabStop is the one day Tab reaches; arrows move among the others.
-	tabStop ui.ID
+	tabStop gfx.ID
 }
 
 // BeginCalendar prepares a deterministic seven-column month grid.
-func BeginCalendar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options CalendarOptions) Calendar {
+func BeginCalendar(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options CalendarOptions) Calendar {
 	cellSize := theme.Metrics.ControlHeight - 4
 	if cellSize < 0 {
 		cellSize = 0
@@ -96,11 +96,11 @@ func BeginCalendar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options Ca
 
 // rovingTabStop keeps one day in the Tab order: the focused day, else a
 // selected or range day, else the first enabled day.
-func (calendar Calendar) rovingTabStop() ui.ID {
+func (calendar Calendar) rovingTabStop() gfx.ID {
 	enabled := func(day CalendarDay) bool {
 		return !day.Disabled && !day.ID.IsZero()
 	}
-	focus := ui.ID{}
+	focus := gfx.ID{}
 	if calendar.canvas != nil {
 		focus = calendar.canvas.FocusVisible()
 	}
@@ -119,23 +119,23 @@ func (calendar Calendar) rovingTabStop() ui.ID {
 			return day.ID
 		}
 	}
-	return ui.ID{}
+	return gfx.ID{}
 }
 
 // Bounds returns the normalized outer geometry. A missing height is derived
 // from the number of caller-provided day cells.
-func (calendar Calendar) Bounds() ui.Rect {
+func (calendar Calendar) Bounds() gfx.Rect {
 	return calendar.bounds
 }
 
 // DayBounds returns the deterministic geometry for a display-order day index.
-func (calendar Calendar) DayBounds(index int) ui.Rect {
+func (calendar Calendar) DayBounds(index int) gfx.Rect {
 	if index < 0 || calendar.cellSize <= 0 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	column := index % calendarColumnCount
 	row := index / calendarColumnCount
-	return ui.Rect{
+	return gfx.Rect{
 		X:     calendar.contentX + float32(column)*calendar.cellSize,
 		Y:     calendar.daysY + float32(row)*(calendar.cellSize+calendarWeekGap),
 		Width: calendar.cellSize, Height: calendar.cellSize,
@@ -148,22 +148,22 @@ func (calendar Calendar) Paint() {
 		return
 	}
 	rows := (len(calendar.options.Days) + calendarColumnCount - 1) / calendarColumnCount
-	caption := ui.Rect{X: calendar.contentX + calendar.cellSize, Y: calendar.captionY, Width: max(calendar.bounds.Width-2*calendarPadding-2*calendar.cellSize, 0), Height: calendar.cellSize}
-	calendar.canvas.ContainerWithOptions(caption, ui.RoleStatus, calendar.options.MonthTitle, ui.HitOptions{Live: ui.LivePolite})
-	grid := ui.Rect{
+	caption := gfx.Rect{X: calendar.contentX + calendar.cellSize, Y: calendar.captionY, Width: max(calendar.bounds.Width-2*calendarPadding-2*calendar.cellSize, 0), Height: calendar.cellSize}
+	calendar.canvas.ContainerWithOptions(caption, gfx.RoleStatus, calendar.options.MonthTitle, gfx.HitOptions{Live: gfx.LivePolite})
+	grid := gfx.Rect{
 		X: calendar.contentX, Y: calendar.weekdaysY,
 		Width:  float32(calendarColumnCount) * calendar.cellSize,
 		Height: calendar.daysY + float32(rows)*(calendar.cellSize+calendarWeekGap) - calendar.weekdaysY,
 	}
-	calendar.canvas.Container(grid, ui.RoleGrid, calendar.options.MonthTitle)
+	calendar.canvas.Container(grid, gfx.RoleGrid, calendar.options.MonthTitle)
 	calendar.paintNavigation()
 	for column := 0; column < calendarColumnCount; column++ {
-		bounds := ui.Rect{
+		bounds := gfx.Rect{
 			X: calendar.contentX + float32(column)*calendar.cellSize,
 			Y: calendar.weekdaysY, Width: calendar.cellSize, Height: calendar.cellSize,
 		}
-		calendar.canvas.LabelCenter(calendar.options.Weekdays[column], bounds, ui.TextStyle{
-			Size: calendar.theme.Metrics.FontSizeS, Weight: ui.WeightRegular,
+		calendar.canvas.LabelCenter(calendar.options.Weekdays[column], bounds, gfx.TextStyle{
+			Size: calendar.theme.Metrics.FontSizeS, Weight: gfx.WeightRegular,
 			Color: calendar.theme.MutedForeground,
 		})
 	}
@@ -181,21 +181,21 @@ func (calendar Calendar) paintNavigation() {
 	if nextLabel == "" {
 		nextLabel = "Next month"
 	}
-	previousBounds := ui.Rect{X: calendar.contentX, Y: calendar.captionY, Width: calendar.cellSize, Height: calendar.cellSize}
-	nextBounds := ui.Rect{
+	previousBounds := gfx.Rect{X: calendar.contentX, Y: calendar.captionY, Width: calendar.cellSize, Height: calendar.cellSize}
+	nextBounds := gfx.Rect{
 		X: calendar.contentX + calendar.cellSize*(calendarColumnCount-1),
 		Y: calendar.captionY, Width: calendar.cellSize, Height: calendar.cellSize,
 	}
 	calendar.paintNavigationButton(previousBounds, calendar.options.PreviousID, previousLabel, &calendarPreviousIcon, calendar.options.PreviousDisabled)
 	calendar.paintNavigationButton(nextBounds, calendar.options.NextID, nextLabel, &chevronRightIcon, calendar.options.NextDisabled)
-	calendar.canvas.LabelCenter(calendar.options.MonthTitle, ui.Rect{
+	calendar.canvas.LabelCenter(calendar.options.MonthTitle, gfx.Rect{
 		X:     calendar.contentX + calendar.cellSize,
 		Y:     calendar.captionY,
 		Width: calendar.cellSize * (calendarColumnCount - 2), Height: calendar.cellSize,
-	}, ui.TextStyle{Size: calendar.theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: calendar.theme.Foreground})
+	}, gfx.TextStyle{Size: calendar.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: calendar.theme.Foreground})
 }
 
-func (calendar Calendar) paintNavigationButton(bounds ui.Rect, id ui.ID, label string, icon *ui.Icon, disabled bool) {
+func (calendar Calendar) paintNavigationButton(bounds gfx.Rect, id gfx.ID, label string, icon *gfx.Icon, disabled bool) {
 	enabled := !id.IsZero() && !disabled
 	background := calendar.theme.Background
 	background.Alpha = 0
@@ -212,13 +212,13 @@ func (calendar Calendar) paintNavigationButton(bounds ui.Rect, id ui.ID, label s
 	}
 	paintChevron(calendar.canvas, icon, bounds, foreground)
 	if !id.IsZero() {
-		calendar.canvas.HitWithOptions(id, bounds, label, ui.HitOptions{
-			Role: ui.RoleButton, Disabled: disabled,
+		calendar.canvas.HitWithOptions(id, bounds, label, gfx.HitOptions{
+			Role: gfx.RoleButton, Disabled: disabled,
 		})
 	}
 }
 
-func (calendar Calendar) paintDay(bounds ui.Rect, day CalendarDay) {
+func (calendar Calendar) paintDay(bounds gfx.Rect, day CalendarDay) {
 	selected := day.Selected || day.RangeStart || day.RangeMiddle || day.RangeEnd
 	enabled := !day.ID.IsZero() && !day.Disabled
 	if enabled && calendar.canvas.FocusVisible() == day.ID {
@@ -227,10 +227,10 @@ func (calendar Calendar) paintDay(bounds ui.Rect, day CalendarDay) {
 
 	radius := calendar.radius()
 	if day.RangeStart && !day.RangeEnd {
-		calendar.canvas.Fill(ui.Rect{X: bounds.X + bounds.Width/2, Y: bounds.Y, Width: bounds.Width / 2, Height: bounds.Height}, calendar.theme.Muted)
+		calendar.canvas.Fill(gfx.Rect{X: bounds.X + bounds.Width/2, Y: bounds.Y, Width: bounds.Width / 2, Height: bounds.Height}, calendar.theme.Muted)
 	}
 	if day.RangeEnd && !day.RangeStart {
-		calendar.canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width / 2, Height: bounds.Height}, calendar.theme.Muted)
+		calendar.canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width / 2, Height: bounds.Height}, calendar.theme.Muted)
 	}
 
 	background := calendar.theme.Background
@@ -262,8 +262,8 @@ func (calendar Calendar) paintDay(bounds ui.Rect, day CalendarDay) {
 		background.Alpha *= 0.50
 	}
 	calendar.canvas.Rounded(bounds, cellRadius, background)
-	calendar.canvas.LabelCenter(day.Label, bounds, ui.TextStyle{
-		Size: calendar.theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground,
+	calendar.canvas.LabelCenter(day.Label, bounds, gfx.TextStyle{
+		Size: calendar.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 	})
 
 	if day.ID.IsZero() {
@@ -273,17 +273,17 @@ func (calendar Calendar) paintDay(bounds ui.Rect, day CalendarDay) {
 	if accessibilityLabel == "" {
 		accessibilityLabel = day.Label
 	}
-	calendar.canvas.HitWithOptions(day.ID, bounds, accessibilityLabel, ui.HitOptions{
-		Role: ui.RoleGridCell, Value: day.Value, Hint: day.Hint,
+	calendar.canvas.HitWithOptions(day.ID, bounds, accessibilityLabel, gfx.HitOptions{
+		Role: gfx.RoleGridCell, Value: day.Value, Hint: day.Hint,
 		Disabled: day.Disabled, Selected: selected,
 		SkipTab: day.ID != calendar.tabStop,
 	})
 }
 
-func (calendar Calendar) paintFocus(bounds ui.Rect) {
+func (calendar Calendar) paintFocus(bounds gfx.Rect) {
 	ring := calendar.theme.Ring
 	ring.Alpha *= 0.50
-	calendar.canvas.Rounded(ui.Rect{
+	calendar.canvas.Rounded(gfx.Rect{
 		X: bounds.X - 3, Y: bounds.Y - 3,
 		Width: bounds.Width + 6, Height: bounds.Height + 6,
 	}, calendar.radius()+3, ring)
@@ -303,7 +303,7 @@ func (calendar Calendar) radius() float32 {
 // calendarPreviousIcon is Lucide's chevron-left, the previous-month arrow; the
 // next-month one is the chevron-right the tree uses. Like every other mark they
 // are paths, not the "‹" and "›" of a font.
-var calendarPreviousIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{ui.MoveTo(15, 18), ui.LineTo(9, 12), ui.LineTo(15, 6)}}
+var calendarPreviousIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{gfx.MoveTo(15, 18), gfx.LineTo(9, 12), gfx.LineTo(15, 6)}}
 
 // CalendarCommandKind is the intent of a navigation key, in the vocabulary of
 // react-day-picker's keyboard model.
@@ -339,28 +339,28 @@ type CalendarCommand struct {
 // for: the arrows move by day and week, PageUp and PageDown by month (by year
 // with Shift), Home and End to the edges of the week. Left and Right follow
 // the reading direction only if the caller flips them for right-to-left text.
-func CalendarCommandForKey(key ui.Key, modifiers ui.Modifiers) (CalendarCommand, bool) {
+func CalendarCommandForKey(key gfx.Key, modifiers gfx.Modifiers) (CalendarCommand, bool) {
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		return CalendarCommand{Kind: CalendarCommandMoveDays, Amount: -1}, true
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		return CalendarCommand{Kind: CalendarCommandMoveDays, Amount: 1}, true
-	case ui.KeyUp:
+	case gfx.KeyUp:
 		return CalendarCommand{Kind: CalendarCommandMoveWeeks, Amount: -1}, true
-	case ui.KeyDown:
+	case gfx.KeyDown:
 		return CalendarCommand{Kind: CalendarCommandMoveWeeks, Amount: 1}, true
-	case ui.KeyPageUp, ui.KeyPageDown:
+	case gfx.KeyPageUp, gfx.KeyPageDown:
 		amount := -1
-		if key == ui.KeyPageDown {
+		if key == gfx.KeyPageDown {
 			amount = 1
 		}
-		if modifiers&ui.ModifierShift != 0 {
+		if modifiers&gfx.ModifierShift != 0 {
 			return CalendarCommand{Kind: CalendarCommandMoveYears, Amount: amount}, true
 		}
 		return CalendarCommand{Kind: CalendarCommandMoveMonths, Amount: amount}, true
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		return CalendarCommand{Kind: CalendarCommandWeekStart}, true
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		return CalendarCommand{Kind: CalendarCommandWeekEnd}, true
 	default:
 		return CalendarCommand{}, false
@@ -373,7 +373,7 @@ func CalendarCommandForKey(key ui.Key, modifiers ui.Modifiers) (CalendarCommand,
 // disabled and zero days, and starts at the first enabled day when none is
 // focused. PageUp/PageDown and Shift+PageUp/PageDown change the month and stay
 // the caller's job, so this reports false for them.
-func CalendarFocusForKey(key ui.Key, direction Direction, days []CalendarDay, focused ui.ID) (ui.ID, bool) {
+func CalendarFocusForKey(key gfx.Key, direction Direction, days []CalendarDay, focused gfx.ID) (gfx.ID, bool) {
 	enabled := func(index int) bool {
 		day := days[index]
 		return !day.Disabled && !day.ID.IsZero()
@@ -395,32 +395,32 @@ func CalendarFocusForKey(key ui.Key, direction Direction, days []CalendarDay, fo
 	}
 	step := 0
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		step = -1
 		if direction.IsRTL() {
 			step = 1
 		}
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		step = 1
 		if direction.IsRTL() {
 			step = -1
 		}
-	case ui.KeyUp:
+	case gfx.KeyUp:
 		step = -7
-	case ui.KeyDown:
+	case gfx.KeyDown:
 		step = 7
-	case ui.KeyHome, ui.KeyEnd:
+	case gfx.KeyHome, gfx.KeyEnd:
 		start := index - index%7
 		end := min(start+6, len(days)-1)
 		target := start
-		if key == ui.KeyEnd {
+		if key == gfx.KeyEnd {
 			target = end
 		}
 		for target >= start && target <= end {
 			if enabled(target) {
 				return days[target].ID, true
 			}
-			if key == ui.KeyEnd {
+			if key == gfx.KeyEnd {
 				target--
 			} else {
 				target++

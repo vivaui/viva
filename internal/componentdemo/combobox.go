@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -48,7 +48,7 @@ combo.AddItem(components.ComboboxItem{
 })
 combo.End()`},
 		{ID: "chips", Title: "多选标签", Description: "标签与查询输入按宽度换行，容器随内容增高。", Snippet: `// chips is the caller-owned []components.ComboboxChip, one RemoveID each.
-var rects [5]ui.Rect
+var rects [5]gfx.Rect
 components.PaintComboboxChips(canvas, theme, bounds, chips, components.ComboboxChipsOptions{
     InputID: inputID, Label: "Framework", Query: query, Placeholder: "Add a framework…",
     Scope: scope, Focused: canvas.Focused() == inputID,
@@ -76,9 +76,9 @@ func initializeCombobox(state *State) { state.flags |= comboboxOpenFlag }
 // comboboxChipRemove's item i removes the i-th chip of the chips example.
 var comboboxChipRemove = tree.Sub(comboboxUI, tree.Name("chip-remove"))
 
-func (state *State) paintComboboxChips(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var field flex.Box
-	state.page(canvas, theme, size, 360, state.Text("Combobox · 多选标签", "Combobox · Multi-select chips"), func(f *flex.Frame) {
+func (state *State) paintComboboxChips(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var field ui.Box
+	state.page(canvas, theme, size, 360, state.Text("Combobox · 多选标签", "Combobox · Multi-select chips"), func(f *ui.Frame) {
 		field = f.Slot().FillWidth().Height(120)
 	})
 	names := [...]string{"Viva Native", "WebGPU", "Headless tests", "Windows", "Linux"}
@@ -92,7 +92,7 @@ func (state *State) paintComboboxChips(canvas *ui.Canvas, theme ui.Theme, size u
 		chips[count] = components.ComboboxChip{RemoveID: comboboxChipRemove.At(index), Label: name}
 		count++
 	}
-	var rectangles [len(names)]ui.Rect
+	var rectangles [len(names)]gfx.Rect
 	components.PaintComboboxChips(canvas, theme, field.Rect(), chips[:count], components.ComboboxChipsOptions{
 		InputID: comboboxInput, Label: state.Text("框架", "Framework"), Placeholder: state.Text("添加框架…", "Add a framework…"),
 		Scope:   comboboxScope,
@@ -103,7 +103,7 @@ func (state *State) paintComboboxChips(canvas *ui.Canvas, theme ui.Theme, size u
 	}
 }
 
-func (state *State) paintCombobox(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintCombobox(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	if state.exampleID == "chips" {
 		state.paintComboboxChips(canvas, theme, size)
 		return
@@ -115,8 +115,8 @@ func (state *State) paintCombobox(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 		query = "mobile"
 	}
 	open := state.flags&comboboxOpenFlag != 0
-	var field flex.Box
-	state.page(canvas, theme, size, 420, state.Text("Combobox · 框架", "Combobox · Framework"), func(f *flex.Frame) {
+	var field ui.Box
+	state.page(canvas, theme, size, 420, state.Text("Combobox · 框架", "Combobox · Framework"), func(f *ui.Frame) {
 		field = f.Slot().FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
 		if !open {
 			f.Text(state.Text("点击输入区域重新打开选项。", "Click the input to reopen the options.")).FontSize(theme.Metrics.FontSizeS).Muted()
@@ -134,7 +134,7 @@ func (state *State) paintCombobox(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 		Placeholder: state.Text("选择框架…", "Select a framework…"), Hint: state.Text("输入以筛选", "Type to filter"),
 		Open: open, Invalid: state.exampleID == "invalid",
 		ShowTrigger: true, ShowClear: selected > 0,
-		Content: ui.Rect{X: input.X + (input.Width-contentWidth)/2, Y: input.Y + input.Height + 8, Width: contentWidth, Height: contentHeight},
+		Content: gfx.Rect{X: input.X + (input.Width-contentWidth)/2, Y: input.Y + input.Height + 8, Width: contentWidth, Height: contentHeight},
 		Layer:   6, Scope: comboboxScope, DismissID: comboboxDismiss,
 	})
 	if canvas.Clicked(comboboxInput) {

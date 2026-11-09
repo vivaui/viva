@@ -1,13 +1,13 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // Skeleton is one static loading placeholder. It intentionally has no timer or
 // shimmer worker: applications that want animation must explicitly schedule it.
 type Skeleton struct {
-	canvas *ui.Canvas
-	theme  ui.Theme
-	bounds ui.Rect
+	canvas *gfx.Canvas
+	theme  gfx.Theme
+	bounds gfx.Rect
 	radius float32
 	phase  float32
 	pulsed bool
@@ -29,7 +29,7 @@ func (skeleton Skeleton) Phase(phase float32) Skeleton {
 }
 
 // BeginSkeleton starts a neutral placeholder declaration.
-func BeginSkeleton(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) Skeleton {
+func BeginSkeleton(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect) Skeleton {
 	return Skeleton{canvas: canvas, theme: theme, bounds: bounds, radius: theme.Metrics.RadiusControl}
 }
 

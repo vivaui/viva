@@ -4,14 +4,14 @@ package goldens
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Capture paints a fixed component snapshot into a draw list. The same
 // snapshot exists in the web backend; both must serialize identically.
 func Capture() DrawList {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
 	paintSnapshot(&canvas, theme)
 	var list DrawList
 	for _, rectangle := range canvas.Rectangles() {
@@ -51,14 +51,14 @@ func Capture() DrawList {
 
 // paintSnapshot draws a deterministic cross-component layout. It must stay
 // byte-identical to the web twin or the golden test fails by design.
-func paintSnapshot(canvas *ui.Canvas, theme ui.Theme) {
-	canvas.Fill(ui.Rect{X: 0, Y: 0, Width: 400, Height: 300}, theme.Background)
-	row := ui.BeginRow(ui.Rect{X: 16, Y: 16, Width: 368, Height: 36}, 8)
-	components.BeginButton(canvas, theme, ui.Item(7), row.Next(120)).Default("Save")
-	components.BeginButton(canvas, theme, ui.Item(8), row.Next(120)).Secondary("Cancel")
+func paintSnapshot(canvas *gfx.Canvas, theme gfx.Theme) {
+	canvas.Fill(gfx.Rect{X: 0, Y: 0, Width: 400, Height: 300}, theme.Background)
+	row := gfx.BeginRow(gfx.Rect{X: 16, Y: 16, Width: 368, Height: 36}, 8)
+	components.BeginButton(canvas, theme, gfx.Item(7), row.Next(120)).Default("Save")
+	components.BeginButton(canvas, theme, gfx.Item(8), row.Next(120)).Secondary("Cancel")
 	components.PaintBadge(canvas, theme, row.NextFlex(), "Live", components.BadgeDefault)
-	components.BeginSwitch(canvas, theme, ui.Item(9), ui.Rect{X: 16, Y: 64}, true).Paint()
-	components.BeginCheckbox(canvas, theme, ui.Item(10), ui.Rect{X: 16, Y: 100, Width: 22, Height: 22}, false).Paint()
-	components.PaintSeparator(canvas, theme, ui.Rect{X: 16, Y: 140, Width: 368, Height: 9}, components.SeparatorHorizontal)
-	components.MetricCard(canvas, theme, ui.Rect{X: 16, Y: 164, Width: 200, Height: 120}, "Revenue", "$1,234", "+5%", true)
+	components.BeginSwitch(canvas, theme, gfx.Item(9), gfx.Rect{X: 16, Y: 64}, true).Paint()
+	components.BeginCheckbox(canvas, theme, gfx.Item(10), gfx.Rect{X: 16, Y: 100, Width: 22, Height: 22}, false).Paint()
+	components.PaintSeparator(canvas, theme, gfx.Rect{X: 16, Y: 140, Width: 368, Height: 9}, components.SeparatorHorizontal)
+	components.MetricCard(canvas, theme, gfx.Rect{X: 16, Y: 164, Width: 200, Height: 120}, "Revenue", "$1,234", "+5%", true)
 }

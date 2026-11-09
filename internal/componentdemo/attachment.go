@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -33,7 +33,7 @@ components.BeginAttachment(canvas, theme, tree.ID(page, "cover"), cover,
     }).Paint()`},
 		{ID: "actions", Title: "操作与分组", Description: "附件上的删除、重试按钮，以及一行并排的附件组。", Snippet: `group := components.BeginAttachmentGroup(theme, bounds)
 for index, data := range attachments {
-    card := components.BeginAttachment(canvas, theme, items.At(index), ui.Rect{}, data)
+    card := components.BeginAttachment(canvas, theme, items.At(index), gfx.Rect{}, data)
     card = card.Action(components.AttachmentAction{
         ID: remove.At(index), Label: "Remove " + data.Name, Icon: crossIcon,
     })
@@ -55,27 +55,27 @@ var (
 	attachmentRetry  = tree.ID(attachmentUI, "retry")
 )
 
-// Lucide's x and rotate-ccw (the arc drawn as cubic curves), compiled to the ui.Icon form.
+// Lucide's x and rotate-ccw (the arc drawn as cubic curves), compiled to the gfx.Icon form.
 var (
-	attachmentCrossIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(18, 6), ui.LineTo(6, 18), ui.MoveTo(6, 6), ui.LineTo(18, 18),
+	attachmentCrossIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(18, 6), gfx.LineTo(6, 18), gfx.MoveTo(6, 6), gfx.LineTo(18, 18),
 	}}
-	attachmentRetryIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(3, 12),
-		ui.CubicTo(3, 7.03, 7.03, 3, 12, 3),
-		ui.CubicTo(14.6, 3, 16.95, 4.1, 18.6, 5.9),
-		ui.MoveTo(21, 12),
-		ui.CubicTo(21, 16.97, 16.97, 21, 12, 21),
-		ui.CubicTo(9.4, 21, 7.05, 19.9, 5.4, 18.1),
-		ui.MoveTo(21, 3), ui.LineTo(21, 8), ui.LineTo(16, 8),
-		ui.MoveTo(3, 21), ui.LineTo(3, 16), ui.LineTo(8, 16),
+	attachmentRetryIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(3, 12),
+		gfx.CubicTo(3, 7.03, 7.03, 3, 12, 3),
+		gfx.CubicTo(14.6, 3, 16.95, 4.1, 18.6, 5.9),
+		gfx.MoveTo(21, 12),
+		gfx.CubicTo(21, 16.97, 16.97, 21, 12, 21),
+		gfx.CubicTo(9.4, 21, 7.05, 19.9, 5.4, 18.1),
+		gfx.MoveTo(21, 3), gfx.LineTo(21, 8), gfx.LineTo(16, 8),
+		gfx.MoveTo(3, 21), gfx.LineTo(3, 16), gfx.LineTo(8, 16),
 	}}
 )
 
-func (state *State) paintAttachment(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var first, second flex.Box
+func (state *State) paintAttachment(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var first, second ui.Box
 	variants := state.exampleID == "variants"
-	state.page(canvas, theme, size, 560, state.Text("Attachment · 生产资源摘要", "Attachment · Production resource summary"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 560, state.Text("Attachment · 生产资源摘要", "Attachment · Production resource summary"), func(f *ui.Frame) {
 		switch state.exampleID {
 		case "variants":
 			first = f.Slot().FillWidth().Height(62)
@@ -109,7 +109,7 @@ func (state *State) paintAttachment(canvas *ui.Canvas, theme ui.Theme, size ui.S
 			if state.flags&(1<<index) != 0 {
 				continue // removed
 			}
-			card := components.BeginAttachment(canvas, theme, attachmentItem.At(index), ui.Rect{}, components.AttachmentData{
+			card := components.BeginAttachment(canvas, theme, attachmentItem.At(index), gfx.Rect{}, components.AttachmentData{
 				Name: name, Description: "18 KB", Kind: components.AttachmentFile,
 			}).Action(components.AttachmentAction{ID: attachmentRemove.At(index), Label: removeLabels[index], Icon: attachmentCrossIcon})
 			if !group.Fits(card.Size()) {
@@ -117,7 +117,7 @@ func (state *State) paintAttachment(canvas *ui.Canvas, theme ui.Theme, size ui.S
 			}
 			card.PaintIn(&group)
 		}
-		vertical := components.BeginAttachment(canvas, theme, attachmentItem.At(3), ui.Rect{X: second.Rect().X, Y: second.Rect().Y + 8}, components.AttachmentData{
+		vertical := components.BeginAttachment(canvas, theme, attachmentItem.At(3), gfx.Rect{X: second.Rect().X, Y: second.Rect().Y + 8}, components.AttachmentData{
 			Name: "cover.png", Description: state.Text("上传失败", "Upload failed"), Kind: components.AttachmentImage, State: components.AttachmentError, Orientation: components.AttachmentVertical,
 		}).Action(components.AttachmentAction{ID: attachmentRetry, Label: "Retry", Icon: attachmentRetryIcon})
 		vertical.Paint()

@@ -3,13 +3,13 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // texts stand for painted surfaces laid out one under another, ten pixels each.
 var selectionTexts = []string{"alpha beta", "gamma", "", "delta epsilon"}
 
-func selectionAt(point ui.Point) (TextPoint, bool) {
+func selectionAt(point gfx.Point) (TextPoint, bool) {
 	surface := int(point.Y / 10)
 	if point.Y < 0 || surface >= len(selectionTexts) {
 		return TextPoint{}, false
@@ -25,16 +25,16 @@ func selectionText(surface int, part MarkdownSelection) string {
 
 func selectionLength(surface int) int { return len(selectionTexts[surface]) }
 
-func press(x, y float32) ui.PointerEvent {
-	return ui.PointerEvent{Kind: ui.PointerDown, Button: ui.PointerButtonPrimary, X: x, Y: y}
+func press(x, y float32) gfx.PointerEvent {
+	return gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, X: x, Y: y}
 }
 
-func drag(x, y float32) ui.PointerEvent {
-	return ui.PointerEvent{Kind: ui.PointerMove, Button: ui.PointerButtonPrimary, X: x, Y: y, Captured: true}
+func drag(x, y float32) gfx.PointerEvent {
+	return gfx.PointerEvent{Kind: gfx.PointerMove, Button: gfx.PointerButtonPrimary, X: x, Y: y, Captured: true}
 }
 
-func release(x, y float32) ui.PointerEvent {
-	return ui.PointerEvent{Kind: ui.PointerUp, Button: ui.PointerButtonPrimary, X: x, Y: y, Captured: true}
+func release(x, y float32) gfx.PointerEvent {
+	return gfx.PointerEvent{Kind: gfx.PointerUp, Button: gfx.PointerButtonPrimary, X: x, Y: y, Captured: true}
 }
 
 func TestTextSelectionDragsFromOneSurfaceIntoAnother(t *testing.T) {
@@ -98,7 +98,7 @@ func TestTextSelectionPressOnNothingIsLeftToTheCaller(t *testing.T) {
 		t.Fatal("a press the selection did not take cleared it")
 	}
 	secondary := press(1, 1)
-	secondary.Button = ui.PointerButtonSecondary
+	secondary.Button = gfx.PointerButtonSecondary
 	if result := selection.Pointer(secondary, selectionAt); result.Handled {
 		t.Fatalf("a secondary press = %+v", result)
 	}
@@ -131,7 +131,7 @@ func TestTextSelectionKeepsWhatWasSelectedWhenThePointerLeavesTheWindow(t *testi
 	var selection TextSelection
 	selection.Pointer(press(2, 1), selectionAt)
 	selection.Pointer(drag(7, 1), selectionAt)
-	exit := ui.PointerEvent{Kind: ui.PointerExit}
+	exit := gfx.PointerEvent{Kind: gfx.PointerExit}
 	if result := selection.Pointer(exit, selectionAt); !result.Handled || selection.Dragging() || selection.Empty() {
 		t.Fatalf("exit = %+v selection=%+v", result, selection)
 	}

@@ -1,13 +1,13 @@
 package components
 
 import (
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // ToggleGroupOption is one stable toggle. Active is carried per option so the
 // same component supports single- and multiple-selection groups.
 type ToggleGroupOption struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Active   bool
 	Disabled bool
@@ -26,9 +26,9 @@ const (
 // into one connected control, rounded only at its outer corners, with hairlines
 // between outline items.
 type ToggleGroup struct {
-	canvas      *ui.Canvas
-	theme       ui.Theme
-	bounds      ui.Rect
+	canvas      *gfx.Canvas
+	theme       gfx.Theme
+	bounds      gfx.Rect
 	options     []ToggleGroupOption
 	variant     ToggleVariant
 	size        ToggleSize
@@ -37,32 +37,32 @@ type ToggleGroup struct {
 	disabled    bool
 	fit         bool
 	// tabStop is the one item Tab reaches; arrows move among the others.
-	tabStop ui.ID
+	tabStop gfx.ID
 }
 
 // ToggleGroupResult is what painting a toggle group reports back.
 type ToggleGroupResult struct {
-	canvas  *ui.Canvas
+	canvas  *gfx.Canvas
 	options []ToggleGroupOption
 }
 
 // Clicked returns the option whose click this paint is delivering, and false in
-// every other paint (see ui.Canvas.Clicked). The application flips that option's
+// every other paint (see gfx.Canvas.Clicked). The application flips that option's
 // Active, or moves the selection, itself.
-func (result ToggleGroupResult) Clicked() (ui.ID, bool) {
+func (result ToggleGroupResult) Clicked() (gfx.ID, bool) {
 	if result.canvas == nil {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	for _, option := range result.options {
 		if result.canvas.Clicked(option.ID) {
 			return option.ID, true
 		}
 	}
-	return ui.ID{}, false
+	return gfx.ID{}, false
 }
 
 // BeginToggleGroup starts a horizontal toggle group.
-func BeginToggleGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options []ToggleGroupOption) ToggleGroup {
+func BeginToggleGroup(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options []ToggleGroupOption) ToggleGroup {
 	group := ToggleGroup{canvas: canvas, theme: theme, bounds: bounds, options: options, spacing: 8}
 	group.tabStop = group.rovingTabStop()
 	return group
@@ -70,11 +70,11 @@ func BeginToggleGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options
 
 // rovingTabStop keeps one toggle in the Tab order: the focused one, else the
 // first active one, else the first enabled one.
-func (group ToggleGroup) rovingTabStop() ui.ID {
+func (group ToggleGroup) rovingTabStop() gfx.ID {
 	enabled := func(option ToggleGroupOption) bool {
 		return !group.disabled && !option.Disabled && !option.ID.IsZero()
 	}
-	focus := ui.ID{}
+	focus := gfx.ID{}
 	if group.canvas != nil {
 		focus = group.canvas.FocusVisible()
 	}
@@ -93,7 +93,7 @@ func (group ToggleGroup) rovingTabStop() ui.ID {
 			return option.ID
 		}
 	}
-	return ui.ID{}
+	return gfx.ID{}
 }
 
 // Outline selects the bordered item variant.
@@ -176,10 +176,10 @@ func (group ToggleGroup) Disabled() ToggleGroup {
 // ToggleGroupKeyDown applies orientation-aware roving focus to current. Arrow
 // keys on the group's layout axis wrap through enabled non-zero options; Home
 // and End choose the first and last. Horizontal Left and Right reverse in RTL.
-func ToggleGroupKeyDown(current ui.ID, options []ToggleGroupOption, orientation ToggleGroupOrientation, direction Direction, key ui.Key) (ui.ID, bool) {
+func ToggleGroupKeyDown(current gfx.ID, options []ToggleGroupOption, orientation ToggleGroupOrientation, direction Direction, key gfx.Key) (gfx.ID, bool) {
 	step := 0
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		if orientation != ToggleGroupHorizontal {
 			return current, false
 		}
@@ -187,7 +187,7 @@ func ToggleGroupKeyDown(current ui.ID, options []ToggleGroupOption, orientation 
 		if direction.IsRTL() {
 			step = 1
 		}
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		if orientation != ToggleGroupHorizontal {
 			return current, false
 		}
@@ -195,19 +195,19 @@ func ToggleGroupKeyDown(current ui.ID, options []ToggleGroupOption, orientation 
 		if direction.IsRTL() {
 			step = -1
 		}
-	case ui.KeyUp:
+	case gfx.KeyUp:
 		if orientation != ToggleGroupVertical {
 			return current, false
 		}
 		step = -1
-	case ui.KeyDown:
+	case gfx.KeyDown:
 		if orientation != ToggleGroupVertical {
 			return current, false
 		}
 		step = 1
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		return firstEnabledToggleGroupOption(current, options, 1), true
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		return firstEnabledToggleGroupOption(current, options, -1), true
 	default:
 		return current, false
@@ -215,7 +215,7 @@ func ToggleGroupKeyDown(current ui.ID, options []ToggleGroupOption, orientation 
 	return nextEnabledToggleGroupOption(current, options, step), true
 }
 
-func firstEnabledToggleGroupOption(current ui.ID, options []ToggleGroupOption, step int) ui.ID {
+func firstEnabledToggleGroupOption(current gfx.ID, options []ToggleGroupOption, step int) gfx.ID {
 	for index := 0; index < len(options); index++ {
 		candidate := index
 		if step < 0 {
@@ -229,7 +229,7 @@ func firstEnabledToggleGroupOption(current ui.ID, options []ToggleGroupOption, s
 	return current
 }
 
-func nextEnabledToggleGroupOption(current ui.ID, options []ToggleGroupOption, step int) ui.ID {
+func nextEnabledToggleGroupOption(current gfx.ID, options []ToggleGroupOption, step int) gfx.ID {
 	if len(options) == 0 {
 		return current
 	}
@@ -275,8 +275,8 @@ func (group ToggleGroup) Paint() ToggleGroupResult {
 	// inside it.
 	itemRadius := radius
 	if joinedOutline {
-		group.canvas.Elevate(group.bounds, radius, ui.ShadowXS) // the group's shadow-xs
-		paintBordered(group.canvas, group.theme, group.bounds, radius, group.theme.Input, ui.Color{})
+		group.canvas.Elevate(group.bounds, radius, gfx.ShadowXS) // the group's shadow-xs
+		paintBordered(group.canvas, group.theme, group.bounds, radius, group.theme.Input, gfx.Color{})
 		itemRadius--
 	}
 	var offset float32
@@ -316,7 +316,7 @@ func (group ToggleGroup) Paint() ToggleGroupResult {
 				paintJoinedSeparator(group.canvas, surface, group.theme.Input, vertical)
 			}
 		case group.variant == ToggleOutline:
-			group.canvas.Elevate(bounds, radius, ui.ShadowXS) // shadow-xs
+			group.canvas.Elevate(bounds, radius, gfx.ShadowXS) // shadow-xs
 			border := group.theme.Input
 			if group.disabled || option.Disabled {
 				border.Alpha *= 0.50
@@ -325,10 +325,10 @@ func (group ToggleGroup) Paint() ToggleGroupResult {
 		default:
 			group.canvas.Rounded(bounds, radius, fill)
 		}
-		group.canvas.LabelCenter(option.Label, bounds, ui.TextStyle{Size: group.theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground})
+		group.canvas.LabelCenter(option.Label, bounds, gfx.TextStyle{Size: group.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground})
 		if !option.ID.IsZero() {
-			group.canvas.HitWithOptions(option.ID, bounds, option.Label, ui.HitOptions{
-				Role: ui.RoleButton, Disabled: group.disabled || option.Disabled,
+			group.canvas.HitWithOptions(option.ID, bounds, option.Label, gfx.HitOptions{
+				Role: gfx.RoleButton, Disabled: group.disabled || option.Disabled,
 				Checked: option.Active, Selected: option.Active,
 				SkipTab: option.ID != group.tabStop,
 			})
@@ -353,21 +353,21 @@ func (group *ToggleGroup) resolveBounds() {
 // optionBounds is where option index sits. offset is how far along the row the
 // option starts when the group is sized to its labels (the sum of the widths and
 // gaps before it); an equal split computes it from the index.
-func (group ToggleGroup) optionBounds(index int, count, offset float32) ui.Rect {
+func (group ToggleGroup) optionBounds(index int, count, offset float32) gfx.Rect {
 	// Edges are computed rather than accumulated, so joined neighbours share an
 	// edge exactly instead of overlapping by a rounding error.
 	if group.orientation == ToggleGroupVertical {
 		available := group.bounds.Height - group.spacing*(count-1)
 		top := group.bounds.Y + available*float32(index)/count + group.spacing*float32(index)
 		bottom := group.bounds.Y + available*float32(index+1)/count + group.spacing*float32(index)
-		return ui.Rect{X: group.bounds.X, Y: top, Width: group.bounds.Width, Height: bottom - top}
+		return gfx.Rect{X: group.bounds.X, Y: top, Width: group.bounds.Width, Height: bottom - top}
 	}
 	if group.fit {
 		width := group.fittedWidth(group.options[index], toggleControlHeight(group.theme, group.size))
-		return ui.Rect{X: group.bounds.X + offset, Y: group.bounds.Y, Width: width, Height: group.bounds.Height}
+		return gfx.Rect{X: group.bounds.X + offset, Y: group.bounds.Y, Width: width, Height: group.bounds.Height}
 	}
 	available := group.bounds.Width - group.spacing*(count-1)
 	left := group.bounds.X + available*float32(index)/count + group.spacing*float32(index)
 	right := group.bounds.X + available*float32(index+1)/count + group.spacing*float32(index)
-	return ui.Rect{X: left, Y: group.bounds.Y, Width: right - left, Height: group.bounds.Height}
+	return gfx.Rect{X: left, Y: group.bounds.Y, Width: right - left, Height: group.bounds.Height}
 }

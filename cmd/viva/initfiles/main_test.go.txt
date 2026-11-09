@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/ui"
 )
 
 // open runs the page with no window: the real painter, input and focus rules.
 func open(t *testing.T, m *model) *app.Driver {
 	t.Helper()
-	page := flex.NewPage(flex.PageConfig{View: m.page})
+	page := ui.NewPage(ui.PageConfig{View: m.page})
 	driver, err := app.NewDriver(page.Config(config()), nil)
 	if err != nil {
 		t.Fatal(err)

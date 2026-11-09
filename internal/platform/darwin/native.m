@@ -1340,7 +1340,7 @@ static NSUInteger viva_text_index_at(viva_editor_line line, NSString *shown, CGF
 //
 // A face from 2 up stands for an installed family and the families that draw what it
 // lacks; viva_register_mono_family teaches the numbers, in registration order.
-#define VIVA_MONO_FAMILY_SLOTS 4098 /* the 2 built-in faces and ui.MaxMonoFaces */
+#define VIVA_MONO_FAMILY_SLOTS 4098 /* the 2 built-in faces and gfx.MaxMonoFaces */
 static NSString *viva_mono_families[VIVA_MONO_FAMILY_SLOTS];
 static NSArray<NSString *> *viva_mono_fallbacks[VIVA_MONO_FAMILY_SLOTS];
 static BOOL viva_mono_classic[VIVA_MONO_FAMILY_SLOTS];

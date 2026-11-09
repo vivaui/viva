@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const interfaceFontSample = "The quick brown fox 0123"
@@ -59,7 +59,7 @@ func aFamilyThatShapesDifferently(t *testing.T) string {
 
 // interfaceEngine is the platform's engine with the interface family restored to
 // the system's when the test ends: the engine is the process's.
-func interfaceEngine(t *testing.T) ui.TextEngine {
+func interfaceEngine(t *testing.T) gfx.TextEngine {
 	t.Helper()
 	engine := PlatformTextEngine()
 	if engine == nil {
@@ -132,11 +132,11 @@ func TestANameThatCannotBeAFamilyIsTheSystemFont(t *testing.T) {
 func TestAFamilyChangeSendsTheSameTextToTheRendererAgain(t *testing.T) {
 	interfaceEngine(t)
 	family := aFamilyThatShapesDifferently(t)
-	canvas := &ui.Canvas{}
+	canvas := &gfx.Canvas{}
 	canvas.SetTextEngine(PlatformTextEngine())
-	config := Config{Width: 240, Height: 80, Paint: func(canvas *ui.Canvas, _ ui.Size) {
-		canvas.Label("Settings", ui.Rect{X: 8, Y: 8, Width: 200, Height: 20}, ui.TextStyle{Size: 14})
-		canvas.Label("ls -la", ui.Rect{X: 8, Y: 40, Width: 200, Height: 20}, ui.TextStyle{Size: 14, Mono: true})
+	config := Config{Width: 240, Height: 80, Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+		canvas.Label("Settings", gfx.Rect{X: 8, Y: 8, Width: 200, Height: 20}, gfx.TextStyle{Size: 14})
+		canvas.Label("ls -la", gfx.Rect{X: 8, Y: 40, Width: 200, Height: 20}, gfx.TextStyle{Size: 14, Mono: true})
 	}}
 	painter, err := newPainter(canvas, &config)
 	if err != nil {

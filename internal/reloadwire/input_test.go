@@ -6,58 +6,58 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestInputEventCodecs(t *testing.T) {
-	pointer := ui.PointerEvent{
-		Kind: ui.PointerMove, Button: ui.PointerButtonSecondary,
-		Modifiers: ui.ModifierShift | ui.ModifierMeta,
-		X:         12.5, Y: -8.25, Viewport: ui.Size{Width: 760, Height: 380}, Target: ui.Item(19), Captured: true,
+	pointer := gfx.PointerEvent{
+		Kind: gfx.PointerMove, Button: gfx.PointerButtonSecondary,
+		Modifiers: gfx.ModifierShift | gfx.ModifierMeta,
+		X:         12.5, Y: -8.25, Viewport: gfx.Size{Width: 760, Height: 380}, Target: gfx.Item(19), Captured: true,
 	}
 	pointerData := encodePointerEvent(pointer)
 	if got, err := decodePointerEvent(pointerData); err != nil || got != pointer {
 		t.Fatalf("pointer = %+v, want %+v, err = %v", got, pointer, err)
 	}
 
-	for _, button := range []ui.PointerButton{ui.PointerButtonBack, ui.PointerButtonForward} {
-		side := ui.PointerEvent{Kind: ui.PointerDown, Button: button, X: 1, Y: 2}
+	for _, button := range []gfx.PointerButton{gfx.PointerButtonBack, gfx.PointerButtonForward} {
+		side := gfx.PointerEvent{Kind: gfx.PointerDown, Button: button, X: 1, Y: 2}
 		if got, err := decodePointerEvent(encodePointerEvent(side)); err != nil || got != side {
 			t.Fatalf("side button %d = %+v, err = %v", button, got, err)
 		}
 	}
-	if _, err := decodePointerEvent(encodePointerEvent(ui.PointerEvent{Kind: ui.PointerDown, Button: ui.PointerButtonForward + 1})); err == nil {
+	if _, err := decodePointerEvent(encodePointerEvent(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonForward + 1})); err == nil {
 		t.Fatal("a pointer button beyond Forward was accepted")
 	}
 
-	key := ui.KeyEvent{Key: ui.KeyEnd, Modifiers: ui.ModifierControl | ui.ModifierAlt, Target: ui.Item(23), Repeat: true}
+	key := gfx.KeyEvent{Key: gfx.KeyEnd, Modifiers: gfx.ModifierControl | gfx.ModifierAlt, Target: gfx.Item(23), Repeat: true}
 	keyData := encodeKeyEvent(key)
 	if got, err := decodeKeyEvent(keyData); err != nil || got != key {
 		t.Fatalf("key = %+v, want %+v, err = %v", got, key, err)
 	}
-	chord := ui.KeyEvent{Modifiers: ui.ModifierControl, Target: ui.Item(3), Text: "c"}
+	chord := gfx.KeyEvent{Modifiers: gfx.ModifierControl, Target: gfx.Item(3), Text: "c"}
 	if got, err := decodeKeyEvent(encodeKeyEvent(chord)); err != nil || got != chord {
 		t.Fatalf("chord = %+v, want %+v, err = %v", got, chord, err)
 	}
-	function := ui.KeyEvent{Key: ui.KeyF12, Target: ui.Item(3)}
+	function := gfx.KeyEvent{Key: gfx.KeyF12, Target: gfx.Item(3)}
 	if got, err := decodeKeyEvent(encodeKeyEvent(function)); err != nil || got != function {
 		t.Fatalf("function key = %+v, want %+v, err = %v", got, function, err)
 	}
-	if _, err := decodeKeyEvent(encodeKeyEvent(ui.KeyEvent{Key: ui.KeyF12 + 1})); err == nil {
+	if _, err := decodeKeyEvent(encodeKeyEvent(gfx.KeyEvent{Key: gfx.KeyF12 + 1})); err == nil {
 		t.Fatal("a key beyond F12 was accepted")
 	}
 
-	scroll := ui.ScrollEvent{
-		Modifiers: ui.ModifierShift | ui.ModifierControl,
+	scroll := gfx.ScrollEvent{
+		Modifiers: gfx.ModifierShift | gfx.ModifierControl,
 		X:         12.5, Y: 18.75, DeltaX: 3.5, DeltaY: -17.25,
-		Viewport: ui.Size{Width: 800, Height: 450}, Target: ui.Item(29), Precise: true,
+		Viewport: gfx.Size{Width: 800, Height: 450}, Target: gfx.Item(29), Precise: true,
 	}
 	scrollData := encodeScrollEvent(scroll)
 	if got, err := decodeScrollEvent(scrollData); err != nil || got != scroll {
 		t.Fatalf("scroll = %+v, want %+v, err = %v", got, scroll, err)
 	}
 
-	result := ui.EventResult{Focus: ui.Item(31), Handled: true, Repaint: true, Blur: true, FocusVisible: true, ClipboardText: "copied"}
+	result := gfx.EventResult{Focus: gfx.Item(31), Handled: true, Repaint: true, Blur: true, FocusVisible: true, ClipboardText: "copied"}
 	resultData := encodeEventResult(result)
 	if got, err := decodeEventResult(resultData); err != nil || got != result {
 		t.Fatalf("event result = %+v, want %+v, err = %v", got, result, err)
@@ -65,9 +65,9 @@ func TestInputEventCodecs(t *testing.T) {
 }
 
 func TestInputEventCodecsRejectInvalidPayloads(t *testing.T) {
-	pointer := encodePointerEvent(ui.PointerEvent{Kind: ui.PointerDown})
-	key := encodeKeyEvent(ui.KeyEvent{Key: ui.KeyEnter})
-	result := encodeEventResult(ui.EventResult{})
+	pointer := encodePointerEvent(gfx.PointerEvent{Kind: gfx.PointerDown})
+	key := encodeKeyEvent(gfx.KeyEvent{Key: gfx.KeyEnter})
+	result := encodeEventResult(gfx.EventResult{})
 	for _, testCase := range []struct {
 		name   string
 		decode func([]byte) error
@@ -80,8 +80,8 @@ func TestInputEventCodecsRejectInvalidPayloads(t *testing.T) {
 		{name: "key identity", decode: decodeKeyError, data: replaceByte(key, 1, 0xff)},
 		{name: "key modifiers", decode: decodeKeyError, data: replaceByte(key, 2, 0x80)},
 		{name: "key truncated", decode: decodeKeyError, data: key[:len(key)-1]},
-		{name: "scroll modifiers", decode: decodeScrollError, data: replaceByte(encodeScrollEvent(ui.ScrollEvent{}), 0, 0x80)},
-		{name: "result boolean", decode: decodeResultError, data: replaceByte(result, byteThatFlips(t, encodeEventResult(ui.EventResult{}), encodeEventResult(ui.EventResult{Handled: true})), 2)},
+		{name: "scroll modifiers", decode: decodeScrollError, data: replaceByte(encodeScrollEvent(gfx.ScrollEvent{}), 0, 0x80)},
+		{name: "result boolean", decode: decodeResultError, data: replaceByte(result, byteThatFlips(t, encodeEventResult(gfx.EventResult{}), encodeEventResult(gfx.EventResult{Handled: true})), 2)},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			if err := testCase.decode(testCase.data); err == nil {
@@ -100,33 +100,33 @@ func TestWorkerProtocolForwardsInputEventsAndResults(t *testing.T) {
 	t.Setenv(AddressEnvironment, listener.Addr().String())
 	t.Setenv(TokenEnvironment, "input-events")
 
-	wantPointer := ui.PointerEvent{Kind: ui.PointerUp, Button: ui.PointerButtonPrimary, X: 14, Y: 18, Target: ui.Item(7), Captured: true}
-	wantKey := ui.KeyEvent{Key: ui.KeySpace, Modifiers: ui.ModifierShift, Target: ui.Item(11), Repeat: true}
-	wantShortcut := ui.KeyEvent{Modifiers: ui.ModifierControl, Target: ui.Item(11), Text: "k"}
-	wantScroll := ui.ScrollEvent{
-		Modifiers: ui.ModifierMeta, X: 16, Y: 24, DeltaX: 2, DeltaY: -6,
-		Viewport: ui.Size{Width: 320, Height: 200}, Target: ui.Item(13), Precise: true,
+	wantPointer := gfx.PointerEvent{Kind: gfx.PointerUp, Button: gfx.PointerButtonPrimary, X: 14, Y: 18, Target: gfx.Item(7), Captured: true}
+	wantKey := gfx.KeyEvent{Key: gfx.KeySpace, Modifiers: gfx.ModifierShift, Target: gfx.Item(11), Repeat: true}
+	wantShortcut := gfx.KeyEvent{Modifiers: gfx.ModifierControl, Target: gfx.Item(11), Text: "k"}
+	wantScroll := gfx.ScrollEvent{
+		Modifiers: gfx.ModifierMeta, X: 16, Y: 24, DeltaX: 2, DeltaY: -6,
+		Viewport: gfx.Size{Width: 320, Height: 200}, Target: gfx.Item(13), Precise: true,
 	}
-	pointerResult := ui.EventResult{Focus: ui.Item(7), Handled: true, Repaint: true}
-	keyResult := ui.EventResult{Focus: ui.Item(11), Handled: true, FocusVisible: true}
-	shortcutResult := ui.EventResult{Handled: true, Repaint: true}
-	scrollResult := ui.EventResult{Blur: true, Repaint: true}
-	wantTap := ui.ModifierTapEvent{Key: ui.KeyShiftRight, Target: ui.Item(11)}
-	tapResult := ui.EventResult{Handled: true, Repaint: true}
-	var gotTap ui.ModifierTapEvent
-	var gotPointer ui.PointerEvent
-	var gotKey ui.KeyEvent
-	var gotShortcut ui.KeyEvent
-	var gotScroll ui.ScrollEvent
+	pointerResult := gfx.EventResult{Focus: gfx.Item(7), Handled: true, Repaint: true}
+	keyResult := gfx.EventResult{Focus: gfx.Item(11), Handled: true, FocusVisible: true}
+	shortcutResult := gfx.EventResult{Handled: true, Repaint: true}
+	scrollResult := gfx.EventResult{Blur: true, Repaint: true}
+	wantTap := gfx.ModifierTapEvent{Key: gfx.KeyShiftRight, Target: gfx.Item(11)}
+	tapResult := gfx.EventResult{Handled: true, Repaint: true}
+	var gotTap gfx.ModifierTapEvent
+	var gotPointer gfx.PointerEvent
+	var gotKey gfx.KeyEvent
+	var gotShortcut gfx.KeyEvent
+	var gotScroll gfx.ScrollEvent
 	serveDone := make(chan error, 1)
 	go func() {
 		serveDone <- Serve(WorkerConfig{
 			Window:      WindowConfig{Title: "input", Width: 320, Height: 200, HasPointer: true, HasKey: true, HasShortcut: true, HasScroll: true, HasModifierTap: true},
-			Pointer:     func(event ui.PointerEvent) ui.EventResult { gotPointer = event; return pointerResult },
-			Key:         func(event ui.KeyEvent) ui.EventResult { gotKey = event; return keyResult },
-			Shortcut:    func(event ui.KeyEvent) ui.EventResult { gotShortcut = event; return shortcutResult },
-			Scroll:      func(event ui.ScrollEvent) ui.EventResult { gotScroll = event; return scrollResult },
-			ModifierTap: func(event ui.ModifierTapEvent) ui.EventResult { gotTap = event; return tapResult },
+			Pointer:     func(event gfx.PointerEvent) gfx.EventResult { gotPointer = event; return pointerResult },
+			Key:         func(event gfx.KeyEvent) gfx.EventResult { gotKey = event; return keyResult },
+			Shortcut:    func(event gfx.KeyEvent) gfx.EventResult { gotShortcut = event; return shortcutResult },
+			Scroll:      func(event gfx.ScrollEvent) gfx.EventResult { gotScroll = event; return scrollResult },
+			ModifierTap: func(event gfx.ModifierTapEvent) gfx.EventResult { gotTap = event; return tapResult },
 		})
 	}()
 	connection, err := listener.Accept()
@@ -218,11 +218,11 @@ func byteThatFlips(t *testing.T, a, b []byte) int {
 }
 
 func TestModifierTapCodecRejectsAKeyThatIsNotAModifier(t *testing.T) {
-	good := encodeModifierTapEvent(ui.ModifierTapEvent{Key: ui.KeyShiftLeft, Target: ui.Item(2)})
+	good := encodeModifierTapEvent(gfx.ModifierTapEvent{Key: gfx.KeyShiftLeft, Target: gfx.Item(2)})
 	if _, err := decodeModifierTapEvent(good); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := decodeModifierTapEvent(replaceByte(good, 0, byte(ui.KeyEnter))); err == nil {
+	if _, err := decodeModifierTapEvent(replaceByte(good, 0, byte(gfx.KeyEnter))); err == nil {
 		t.Fatal("a tap of Enter decoded")
 	}
 	if _, err := decodeModifierTapEvent(good[:len(good)-1]); err == nil {

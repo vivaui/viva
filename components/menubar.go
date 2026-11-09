@@ -3,7 +3,7 @@ package components
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // MenubarItemVariant selects the standard or destructive content treatment.
@@ -26,21 +26,21 @@ const (
 
 // MenubarState is caller-owned top-level popup state. Its zero value is closed;
 // a nonzero value is the stable ID of the active trigger.
-type MenubarState ui.ID
+type MenubarState gfx.ID
 
 // IsOpen reports whether any top-level menu is open.
-func (state MenubarState) IsOpen() bool { return !ui.ID(state).IsZero() }
+func (state MenubarState) IsOpen() bool { return !gfx.ID(state).IsZero() }
 
 // ActiveID returns the open trigger ID, or zero when the menubar is closed.
-func (state MenubarState) ActiveID() ui.ID { return ui.ID(state) }
+func (state MenubarState) ActiveID() gfx.ID { return gfx.ID(state) }
 
 // IsOpenFor reports whether triggerID owns the open popup.
-func (state MenubarState) IsOpenFor(triggerID ui.ID) bool {
-	return !triggerID.IsZero() && ui.ID(state) == triggerID
+func (state MenubarState) IsOpenFor(triggerID gfx.ID) bool {
+	return !triggerID.IsZero() && gfx.ID(state) == triggerID
 }
 
 // Open returns the state with triggerID active. Zero IDs are ignored.
-func (state MenubarState) Open(triggerID ui.ID) MenubarState {
+func (state MenubarState) Open(triggerID gfx.ID) MenubarState {
 	if triggerID.IsZero() {
 		return state
 	}
@@ -51,7 +51,7 @@ func (state MenubarState) Open(triggerID ui.ID) MenubarState {
 func (MenubarState) Close() MenubarState { return MenubarState{} }
 
 // Toggle closes the active trigger or opens a different nonzero trigger.
-func (state MenubarState) Toggle(triggerID ui.ID) MenubarState {
+func (state MenubarState) Toggle(triggerID gfx.ID) MenubarState {
 	if triggerID.IsZero() {
 		return state
 	}
@@ -75,26 +75,26 @@ func (MenubarState) OutsidePress() MenubarState { return MenubarState{} }
 // wrapping (reversed in RTL), Home and End go to the ends, Down/Enter/Space open
 // the focused trigger, and Escape closes the open menu and returns to its
 // trigger. Items inside the open menu are the caller's to focus after an open.
-func MenubarKeyDown(current ui.ID, triggers []MenubarTrigger, open MenubarState, direction Direction, key ui.Key) (MenubarState, ui.ID, bool) {
+func MenubarKeyDown(current gfx.ID, triggers []MenubarTrigger, open MenubarState, direction Direction, key gfx.Key) (MenubarState, gfx.ID, bool) {
 	enabled := func(index int) bool {
 		trigger := triggers[index]
 		return !trigger.ID.IsZero() && !trigger.Disabled
 	}
 	step := 0
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		step = -1
 		if direction.IsRTL() {
 			step = 1
 		}
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		step = 1
 		if direction.IsRTL() {
 			step = -1
 		}
-	case ui.KeyHome, ui.KeyEnd:
+	case gfx.KeyHome, gfx.KeyEnd:
 		index := -1
-		if key == ui.KeyHome {
+		if key == gfx.KeyHome {
 			for at := 0; at < len(triggers); at++ {
 				if enabled(at) {
 					index = at
@@ -117,12 +117,12 @@ func MenubarKeyDown(current ui.ID, triggers []MenubarTrigger, open MenubarState,
 			open = open.Open(next)
 		}
 		return open, next, true
-	case ui.KeyDown, ui.KeyEnter, ui.KeySpace:
+	case gfx.KeyDown, gfx.KeyEnter, gfx.KeySpace:
 		if current.IsZero() {
 			return open, current, false
 		}
 		return open.Open(current), current, true
-	case ui.KeyEscape:
+	case gfx.KeyEscape:
 		if !open.IsOpen() {
 			return open, current, false
 		}
@@ -156,7 +156,7 @@ func MenubarKeyDown(current ui.ID, triggers []MenubarTrigger, open MenubarState,
 
 // MenubarTrigger describes one stable top-level menu trigger.
 type MenubarTrigger struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Hint     string
 	Open     bool
@@ -165,7 +165,7 @@ type MenubarTrigger struct {
 
 // MenubarItem describes one stable action inside an open menubar popup.
 type MenubarItem struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Shortcut string
 	// Keys, when set, replace Shortcut with one keycap per entry (for example
@@ -187,7 +187,7 @@ type MenubarItem struct {
 	// Icon, when it has any geometry, is painted before the label (after the
 	// checkbox or radio indicator, if the item has one). A single-color icon takes
 	// the item's text color; a multi-color one keeps its own.
-	Icon ui.Icon
+	Icon gfx.Icon
 }
 
 func (item MenubarItem) common() menuItem {
@@ -201,11 +201,11 @@ func (item MenubarItem) common() menuItem {
 // MenubarOverlayOptions supplies application-owned popup identities.
 type MenubarOverlayOptions struct {
 	Layer     uint16
-	Scope     ui.ID
-	DismissID ui.ID
+	Scope     gfx.ID
+	DismissID gfx.ID
 	// ID and Side are those of DropdownMenuOptions. End has to be called for the
 	// popup to animate.
-	ID   ui.ID
+	ID   gfx.ID
 	Side OverlaySide
 	// Viewport, with DismissID, makes the popup declare a hit over the whole
 	// window behind its surface, so pressing anywhere outside it reports
@@ -213,7 +213,7 @@ type MenubarOverlayOptions struct {
 	// back when it sticks out, and shortened, so that it scrolls, when it is taller
 	// than the window. Leave it empty to dismiss only on Escape and handle outside
 	// presses yourself.
-	Viewport ui.Rect
+	Viewport gfx.Rect
 	// Scroll is the scroll position of a popup whose items do not all fit its
 	// bounds (see MenuScroll). Without one such a popup shows only the items at
 	// its top.
@@ -225,15 +225,15 @@ type MenubarOverlayOptions struct {
 
 // Menubar paints the persistent top-level bar and advances trigger geometry.
 type Menubar struct {
-	canvas *ui.Canvas
-	theme  ui.Theme
-	bounds ui.Rect
+	canvas *gfx.Canvas
+	theme  gfx.Theme
+	bounds gfx.Rect
 	x      float32
 	hidden bool
 }
 
 // BeginMenubar paints the official 36px bordered root surface.
-func BeginMenubar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) Menubar {
+func BeginMenubar(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect) Menubar {
 	if bounds.Height <= 0 {
 		bounds.Height = 36
 	}
@@ -241,20 +241,20 @@ func BeginMenubar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) Menubar {
 	if menubar.hidden {
 		return menubar
 	}
-	canvas.Container(bounds, ui.RoleMenubar, "")
-	canvas.Elevate(bounds, theme.Metrics.RadiusControl, ui.ShadowXS) // shadow-xs
+	canvas.Container(bounds, gfx.RoleMenubar, "")
+	canvas.Elevate(bounds, theme.Metrics.RadiusControl, gfx.ShadowXS) // shadow-xs
 	canvas.RoundedBorder(bounds, theme.Metrics.RadiusControl, 1, theme.Border, theme.Background)
 	return menubar
 }
 
 // Bounds returns the normalized bar geometry.
-func (menubar Menubar) Bounds() ui.Rect {
+func (menubar Menubar) Bounds() gfx.Rect {
 	return menubar.bounds
 }
 
 // NextTriggerBounds computes the next trigger row without advancing it.
-func (menubar Menubar) NextTriggerBounds(label string) ui.Rect {
-	width := menubar.canvas.TextWidthWeight(label, menubar.theme.Metrics.FontSizeM, ui.WeightMedium) + 16
+func (menubar Menubar) NextTriggerBounds(label string) gfx.Rect {
+	width := menubar.canvas.TextWidthWeight(label, menubar.theme.Metrics.FontSizeM, gfx.WeightMedium) + 16
 	if width < 40 {
 		width = 40
 	}
@@ -262,17 +262,17 @@ func (menubar Menubar) NextTriggerBounds(label string) ui.Rect {
 	if width > remaining {
 		width = remaining
 	}
-	return ui.Rect{X: menubar.x, Y: menubar.bounds.Y + 4, Width: max(width, 0), Height: max(menubar.bounds.Height-8, 0)}
+	return gfx.Rect{X: menubar.x, Y: menubar.bounds.Y + 4, Width: max(width, 0), Height: max(menubar.bounds.Height-8, 0)}
 }
 
 // AddTrigger paints one top-level menu trigger and returns its geometry.
-func (menubar *Menubar) AddTrigger(trigger MenubarTrigger) ui.Rect {
+func (menubar *Menubar) AddTrigger(trigger MenubarTrigger) gfx.Rect {
 	if menubar.hidden {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	bounds := menubar.NextTriggerBounds(trigger.Label)
 	if bounds.Width <= 0 || bounds.Height <= 0 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	menubar.x += bounds.Width + 4
 	enabled := !trigger.ID.IsZero() && !trigger.Disabled
@@ -284,10 +284,10 @@ func (menubar *Menubar) AddTrigger(trigger MenubarTrigger) ui.Rect {
 	if trigger.Disabled {
 		foreground.Alpha *= 0.50
 	}
-	menubar.canvas.LabelCenter(trigger.Label, bounds, ui.TextStyle{Size: menubar.theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground})
+	menubar.canvas.LabelCenter(trigger.Label, bounds, gfx.TextStyle{Size: menubar.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground})
 	if !trigger.ID.IsZero() {
-		menubar.canvas.HitWithOptions(trigger.ID, bounds, trigger.Label, ui.HitOptions{
-			Role: ui.RoleMenuItem, Hint: trigger.Hint, Disabled: trigger.Disabled,
+		menubar.canvas.HitWithOptions(trigger.ID, bounds, trigger.Label, gfx.HitOptions{
+			Role: gfx.RoleMenuItem, Hint: trigger.Hint, Disabled: trigger.Disabled,
 			Selected: trigger.Open, Expanded: trigger.Open, Expandable: true,
 		})
 	}
@@ -301,7 +301,7 @@ type MenubarContent struct {
 
 // BeginMenubarContent starts an open popup. Menubar popups use Vega's 9rem
 // minimum width (8rem for a submenu).
-func BeginMenubarContent(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options MenubarOverlayOptions) MenubarContent {
+func BeginMenubarContent(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options MenubarOverlayOptions) MenubarContent {
 	minWidth := float32(144)
 	if options.Submenu {
 		minWidth = 128
@@ -314,21 +314,21 @@ func BeginMenubarContent(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, opti
 }
 
 // Bounds returns the normalized popup geometry.
-func (content MenubarContent) Bounds() ui.Rect { return content.surface.bounds }
+func (content MenubarContent) Bounds() gfx.Rect { return content.surface.bounds }
 
 // NextItemBounds reports the next keyboard-navigation row.
-func (content MenubarContent) NextItemBounds() ui.Rect {
+func (content MenubarContent) NextItemBounds() gfx.Rect {
 	return content.surface.rowBounds(content.surface.itemHeight())
 }
 
 // AddLabel paints one popup group label.
-func (content *MenubarContent) AddLabel(label string, inset bool) ui.Rect {
+func (content *MenubarContent) AddLabel(label string, inset bool) gfx.Rect {
 	return content.surface.addLabel(label, inset)
 }
 
 // AddItem paints one popup action, checkbox, radio option, or submenu trigger.
 // The rectangle is empty when the row is scrolled out of the popup.
-func (content *MenubarContent) AddItem(item MenubarItem) ui.Rect {
+func (content *MenubarContent) AddItem(item MenubarItem) gfx.Rect {
 	bounds, _ := content.AddItemSlot(item)
 	return bounds
 }
@@ -337,7 +337,7 @@ func (content *MenubarContent) AddItem(item MenubarItem) ui.Rect {
 // TrailingWidth reserved, vertically centered in the row and ending 8px from its
 // edge. The slot is empty when the item has no TrailingWidth or is scrolled out
 // of the popup. Paint into it between BeginContent and EndContent.
-func (content *MenubarContent) AddItemSlot(item MenubarItem) (row, slot ui.Rect) {
+func (content *MenubarContent) AddItemSlot(item MenubarItem) (row, slot gfx.Rect) {
 	return content.surface.addItem(item.common())
 }
 
@@ -349,7 +349,7 @@ func (content *MenubarContent) BeginContent() { content.surface.pushOverlay() }
 func (content *MenubarContent) EndContent() { content.surface.popOverlay() }
 
 // AddSeparator paints a group divider.
-func (content *MenubarContent) AddSeparator() ui.Rect { return content.surface.addSeparator() }
+func (content *MenubarContent) AddSeparator() gfx.Rect { return content.surface.addSeparator() }
 
 // End paints the scrollbar of a popup whose items did not all fit, after the
 // last item, and ends the popup's entrance and exit: call it once the last item
@@ -360,7 +360,7 @@ func (content *MenubarContent) End() { content.surface.end() }
 // resting on another trigger opens that trigger's menu after delay. With no
 // open menu, or with the pointer on the open trigger, it does nothing. It
 // returns the state and the wait before asking again.
-func MenubarHover(state MenubarState, trigger ui.ID, now time.Time, intent *HoverIntent, delay time.Duration) (MenubarState, time.Duration) {
+func MenubarHover(state MenubarState, trigger gfx.ID, now time.Time, intent *HoverIntent, delay time.Duration) (MenubarState, time.Duration) {
 	if !state.IsOpen() || trigger.IsZero() || state.IsOpenFor(trigger) {
 		intent.Reset()
 		return state, 0

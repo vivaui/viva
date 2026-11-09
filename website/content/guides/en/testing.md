@@ -20,14 +20,14 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/ui"
 )
 
 // open runs the page in a headless window: the real painter, router and focus
 // rules, driven by explicit calls.
 func open(t *testing.T, m *model) *app.Driver {
 	t.Helper()
-	page := flex.NewPage(flex.PageConfig{View: m.page})
+	page := ui.NewPage(ui.PageConfig{View: m.page})
 	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 240}), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ A page can compile and still do the wrong thing: a `Button` with the same label 
 viva vet            # or go tool viva vet; packages default to ./...
 ```
 
-It reports each one as `file:line:col: what is wrong and what to write (check)`, exits non-zero when it finds something, and runs with the project's own Go. A line, or the line above it, with `// viva:ignore <check>` silences one finding. A `flex.Memo` whose version misses something its function reads shows stale content: `flex.MemoCheck(true)` in a test declares every part and panics where a copy would have differed.
+It reports each one as `file:line:col: what is wrong and what to write (check)`, exits non-zero when it finds something, and runs with the project's own Go. A line, or the line above it, with `// viva:ignore <check>` silences one finding. A `ui.Memo` whose version misses something its function reads shows stale content: `ui.MemoCheck(true)` in a test declares every part and panics where a copy would have differed.
 
 ## The line protocol
 

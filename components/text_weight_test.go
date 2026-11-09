@@ -3,7 +3,7 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // weightedMeasure is a measurer whose lines grow with their weight, as a real
@@ -15,23 +15,23 @@ func weightedMeasure(value string, size, weight float32) float32 {
 // A label is as wide as the weight it is drawn at: fitting it at the regular
 // weight clips its last letters where a heavier face is wider.
 func TestFittedWidthsAreMeasuredAtTheWeightTheLabelIsDrawnWith(t *testing.T) {
-	theme := ui.DarkTheme()
-	regular := weightedMeasure("Download", 14, ui.WeightRegular)
-	medium := weightedMeasure("Download", 14, ui.WeightMedium)
+	theme := gfx.DarkTheme()
+	regular := weightedMeasure("Download", 14, gfx.WeightRegular)
+	medium := weightedMeasure("Download", 14, gfx.WeightMedium)
 	if medium <= regular {
 		t.Fatal("test measurer does not grow with weight")
 	}
 
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(weightedMeasure)
 
-	button := BeginButton(&canvas, theme, ui.ID{}, ui.Rect{}).SizeToFit("Download")
+	button := BeginButton(&canvas, theme, gfx.ID{}, gfx.Rect{}).SizeToFit("Download")
 	_, padding, _, _ := button.geometry()
 	if want := medium + padding*2; button.BoundsWidth() != want {
 		t.Errorf("button fits %.1f, want %.1f (its label is medium weight)", button.BoundsWidth(), want)
 	}
 
-	badge := PaintBadge(&canvas, theme, ui.Rect{Width: 800, Height: 100}, "Download", BadgeSecondary)
+	badge := PaintBadge(&canvas, theme, gfx.Rect{Width: 800, Height: 100}, "Download", BadgeSecondary)
 	canvas.Reset()
 	canvas.SetMeasurer(weightedMeasure)
 	if got := badge.Width; got < medium {

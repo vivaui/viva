@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestApplicationSessionRoutesStateFocusAndClosePerWindow(t *testing.T) {
@@ -48,12 +48,12 @@ func TestApplicationSessionRoutesStateFocusAndClosePerWindow(t *testing.T) {
 func editingWindow(title string, hit uint32, editor *text.Editor) app.Config {
 	return app.Config{
 		Title: title, Width: 240, Height: 100,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.Label(title+" "+editor.String(), ui.Rect{X: 8, Y: 8, Width: 220, Height: 20}, ui.TextStyle{Size: 14})
-			canvas.HitWithOptions(ui.Item(int(hit)), ui.Rect{X: 8, Y: 32, Width: 200, Height: 30}, title+" field", ui.HitOptions{Role: ui.RoleTextField})
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.Label(title+" "+editor.String(), gfx.Rect{X: 8, Y: 8, Width: 220, Height: 20}, gfx.TextStyle{Size: 14})
+			canvas.HitWithOptions(gfx.Item(int(hit)), gfx.Rect{X: 8, Y: 32, Width: 200, Height: 30}, title+" field", gfx.HitOptions{Role: gfx.RoleTextField})
 		},
 		TextInput: func(context app.TextInputContext) *app.TextInput {
-			if context.ID != ui.Item(int(hit)) {
+			if context.ID != gfx.Item(int(hit)) {
 				return nil
 			}
 			return &app.TextInput{Editor: editor}
@@ -90,7 +90,7 @@ func TestApplicationSessionIdleWindowsDoNotRepaint(t *testing.T) {
 	closes := make([]app.WindowControl, 0, 2)
 	for index := range paints {
 		config := app.Config{Width: 200, Height: 100}
-		config.Paint = func(*ui.Canvas, ui.Size) { paints[index]++ }
+		config.Paint = func(*gfx.Canvas, gfx.Size) { paints[index]++ }
 		closeWindow, err := application.OpenWindow(config, nil, func() {})
 		if err != nil {
 			t.Fatal(err)

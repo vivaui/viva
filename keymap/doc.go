@@ -3,7 +3,7 @@
 //
 // A Chord is a set of modifiers and one key: a printable ASCII character, or
 // one of the named keys that type nothing (Tab, the arrows, the function keys).
-// Chord.FromEvent turns the ui.KeyEvent a window delivers into one, and a chord
+// Chord.FromEvent turns the gfx.KeyEvent a window delivers into one, and a chord
 // writes itself three ways: Label for a sentence ("Cmd+Shift+P"), Keycaps for
 // the symbols a menu paints (⌘ ⇧ P on macOS, Ctrl Shift P elsewhere) and Name
 // for a settings file ("page_up"), which Parse reads back.

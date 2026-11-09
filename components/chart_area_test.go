@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
-func chartTestSeries(theme ui.Theme) []ChartSeries {
+func chartTestSeries(theme gfx.Theme) []ChartSeries {
 	return []ChartSeries{
 		{Key: "desktop", Label: "Desktop", Color: theme.Chart[0]},
 		{Key: "mobile", Label: "Mobile", Color: theme.Chart[1]},
@@ -19,7 +19,7 @@ var chartTestMonths = [...]string{"Jan", "Feb", "Mar", "Apr", "May", "Jun"}
 
 func chartTestMonth(dst []byte, v float32) []byte { return append(dst, chartTestMonths[int(v)]...) }
 
-func chartTestArea(theme ui.Theme) AreaChart {
+func chartTestArea(theme gfx.Theme) AreaChart {
 	return AreaChart{
 		Series: chartTestSeries(theme),
 		Values: [][]float32{{186, 305, 237, 73, 209, 214}, {80, 200, 120, 190, 130, 140}},
@@ -71,19 +71,19 @@ func TestChartStackedSpanAndDomain(t *testing.T) {
 }
 
 func TestChartIndexAt(t *testing.T) {
-	category := &chartGeometry{plot: ui.Rect{X: 10, Width: 100}, count: 5, xMin: 0, xMax: 4}
+	category := &chartGeometry{plot: gfx.Rect{X: 10, Width: 100}, count: 5, xMin: 0, xMax: 4}
 	for x, want := range map[float32]int{-50: 0, 10: 0, 40: 1, 60: 2, 110: 4, 500: 4} {
 		if got := category.indexAt(x); got != want {
 			t.Fatalf("category indexAt(%v) = %d, want %d", x, got, want)
 		}
 	}
-	numeric := &chartGeometry{plot: ui.Rect{Width: 100}, count: 4, x: []float32{0, 1, 10, 100}, xMin: 0, xMax: 100}
+	numeric := &chartGeometry{plot: gfx.Rect{Width: 100}, count: 4, x: []float32{0, 1, 10, 100}, xMin: 0, xMax: 100}
 	for x, want := range map[float32]int{0: 0, 0.4: 0, 0.8: 1, 6: 2, 54: 2, 70: 3, 100: 3} {
 		if got := numeric.indexAt(x); got != want {
 			t.Fatalf("numeric indexAt(%v) = %d, want %d", x, got, want)
 		}
 	}
-	band := &chartGeometry{plot: ui.Rect{Width: 100}, count: 4, band: true}
+	band := &chartGeometry{plot: gfx.Rect{Width: 100}, count: 4, band: true}
 	if band.indexAt(24) != 0 || band.indexAt(26) != 1 || band.px(0) != 12.5 {
 		t.Fatalf("band mapping: %d %d %v", band.indexAt(24), band.indexAt(26), band.px(0))
 	}
@@ -95,18 +95,18 @@ func TestChartIndexAt(t *testing.T) {
 
 func TestChartCachedGeometryFollowsContainerPosition(t *testing.T) {
 	for _, hidden := range []bool{false, true} {
-		theme := ui.LightTheme()
+		theme := gfx.LightTheme()
 		chart := chartTestArea(theme)
 		chart.YAxis.Hidden = hidden
 		var state ChartState
-		var canvas ui.Canvas
-		bounds := ui.Rect{X: 10, Y: 20, Width: 300, Height: 180}
-		first := PaintAreaChart(&canvas, theme, bounds, ui.ID{}, chart, &state)
+		var canvas gfx.Canvas
+		bounds := gfx.Rect{X: 10, Y: 20, Width: 300, Height: 180}
+		first := PaintAreaChart(&canvas, theme, bounds, gfx.ID{}, chart, &state)
 		key := state.labels.key
 		bounds.X += 640
 		bounds.Y += 80
 		canvas.Reset()
-		second := PaintAreaChart(&canvas, theme, bounds, ui.ID{}, chart, &state)
+		second := PaintAreaChart(&canvas, theme, bounds, gfx.ID{}, chart, &state)
 		if state.labels.key != key {
 			t.Fatal("moving a chart invalidated its label cache")
 		}
@@ -124,15 +124,15 @@ func TestChartCachedGeometryFollowsContainerPosition(t *testing.T) {
 
 func TestChartStepForKey(t *testing.T) {
 	cases := []struct {
-		key          ui.Key
+		key          gfx.Key
 		index, count int
 		want         int
 		handled      bool
 	}{
-		{ui.KeyRight, -1, 6, 0, true}, {ui.KeyLeft, -1, 6, 5, true},
-		{ui.KeyRight, 2, 6, 3, true}, {ui.KeyRight, 5, 6, 5, true}, {ui.KeyLeft, 0, 6, 0, true},
-		{ui.KeyHome, 3, 6, 0, true}, {ui.KeyEnd, 3, 6, 5, true},
-		{ui.KeyUp, 3, 6, 3, false}, {ui.KeyRight, 0, 0, 0, false},
+		{gfx.KeyRight, -1, 6, 0, true}, {gfx.KeyLeft, -1, 6, 5, true},
+		{gfx.KeyRight, 2, 6, 3, true}, {gfx.KeyRight, 5, 6, 5, true}, {gfx.KeyLeft, 0, 6, 0, true},
+		{gfx.KeyHome, 3, 6, 0, true}, {gfx.KeyEnd, 3, 6, 5, true},
+		{gfx.KeyUp, 3, 6, 3, false}, {gfx.KeyRight, 0, 0, 0, false},
 	}
 	for _, c := range cases {
 		if got, handled := ChartStepForKey(c.key, c.index, c.count); got != c.want || handled != c.handled {
@@ -142,13 +142,13 @@ func TestChartStepForKey(t *testing.T) {
 }
 
 func TestChartMonotoneDoesNotOvershoot(t *testing.T) {
-	points := []ui.Point{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 2, Y: 10}, {X: 3, Y: 10}, {X: 4, Y: 0}}
+	points := []gfx.Point{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 2, Y: 10}, {X: 3, Y: 10}, {X: 4, Y: 0}}
 	var scratch chartScratch
 	chartControls(ChartCurveMonotone, points, &scratch)
 	for index := range points[:len(points)-1] {
 		low := min(points[index].Y, points[index+1].Y)
 		high := max(points[index].Y, points[index+1].Y)
-		for _, control := range []ui.Point{scratch.c1[index], scratch.c2[index]} {
+		for _, control := range []gfx.Point{scratch.c1[index], scratch.c2[index]} {
 			if control.Y < low-1e-4 || control.Y > high+1e-4 {
 				t.Fatalf("segment %d control %v leaves [%v,%v]", index, control, low, high)
 			}
@@ -158,11 +158,11 @@ func TestChartMonotoneDoesNotOvershoot(t *testing.T) {
 
 func TestChartNaturalSplineIsSmooth(t *testing.T) {
 	// A natural spline through collinear points is that line.
-	points := []ui.Point{{X: 0, Y: 0}, {X: 1, Y: 2}, {X: 2, Y: 4}, {X: 3, Y: 6}}
+	points := []gfx.Point{{X: 0, Y: 0}, {X: 1, Y: 2}, {X: 2, Y: 4}, {X: 3, Y: 6}}
 	var scratch chartScratch
 	chartControls(ChartCurveNatural, points, &scratch)
 	for index := 0; index < 3; index++ {
-		for _, c := range []ui.Point{scratch.c1[index], scratch.c2[index]} {
+		for _, c := range []gfx.Point{scratch.c1[index], scratch.c2[index]} {
 			if math.Abs(float64(c.Y-2*c.X)) > 1e-4 {
 				t.Fatalf("control %v off the line", c)
 			}
@@ -171,10 +171,10 @@ func TestChartNaturalSplineIsSmooth(t *testing.T) {
 }
 
 func TestPaintAreaChartDrawsSeriesAndGrid(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(chartTestMeasure)
-	plot := PaintAreaChart(&canvas, theme, ui.Rect{X: 0, Y: 0, Width: 400, Height: 240}, ui.Item(1), chartTestArea(theme), nil)
+	plot := PaintAreaChart(&canvas, theme, gfx.Rect{X: 0, Y: 0, Width: 400, Height: 240}, gfx.Item(1), chartTestArea(theme), nil)
 	if plot.Plot.Width <= 0 || plot.Plot.Height <= 0 || plot.Count() != 6 {
 		t.Fatalf("plot = %+v count %d", plot.Plot, plot.Count())
 	}
@@ -193,21 +193,21 @@ func TestPaintAreaChartDrawsSeriesAndGrid(t *testing.T) {
 		t.Fatalf("x labels painted = %d, want %d", months, len(chartTestMonths))
 	}
 	hits := canvas.Hits()
-	if len(hits) != 1 || hits[0].ID != ui.Item(1) || hits[0].Bounds != plot.Plot {
+	if len(hits) != 1 || hits[0].ID != gfx.Item(1) || hits[0].Bounds != plot.Plot {
 		t.Fatalf("hits = %+v", hits)
 	}
 }
 
 func TestPaintAreaChartHoverShowsTooltip(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	chart := chartTestArea(theme)
 	var state ChartState
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(chartTestMeasure)
-	plot := PaintAreaChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, &state)
+	plot := PaintAreaChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, &state)
 	state.Hover(plot.IndexAt(plot.PointX(2)))
 	canvas.Reset()
-	PaintAreaChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, &state)
+	PaintAreaChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, &state)
 	found := map[string]bool{}
 	for _, text := range canvas.Texts() {
 		found[text.Value] = true
@@ -222,7 +222,7 @@ func TestPaintAreaChartHoverShowsTooltip(t *testing.T) {
 	}
 	chart.HideTooltip = true
 	canvas.Reset()
-	PaintAreaChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, &state)
+	PaintAreaChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, &state)
 	for _, text := range canvas.Texts() {
 		if text.Value == "237" {
 			t.Fatal("hidden tooltip still painted")
@@ -231,12 +231,12 @@ func TestPaintAreaChartHoverShowsTooltip(t *testing.T) {
 }
 
 func TestPaintAreaChartGapSplitsLine(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	nan := float32(math.NaN())
 	chart := AreaChart{Series: chartTestSeries(theme)[:1], Values: [][]float32{{1, 2, nan, 3, 4}}, Fill: ChartFillNone, XAxis: ChartAxis{Hidden: true}}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(chartTestMeasure)
-	plot := PaintAreaChart(&canvas, theme, ui.Rect{Width: 300, Height: 200}, ui.Item(1), chart, nil)
+	plot := PaintAreaChart(&canvas, theme, gfx.Rect{Width: 300, Height: 200}, gfx.Item(1), chart, nil)
 	gapX := plot.PointX(2)
 	for _, triangle := range canvas.Triangles() {
 		inside := 0
@@ -255,22 +255,22 @@ func TestPaintAreaChartGapSplitsLine(t *testing.T) {
 }
 
 func TestPaintAreaChartEmptyAndDegenerate(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(chartTestMeasure)
-	PaintAreaChart(&canvas, theme, ui.Rect{Width: 300, Height: 200}, ui.Item(1), AreaChart{}, nil)
-	PaintAreaChart(&canvas, theme, ui.Rect{Width: 300, Height: 200}, ui.Item(1), AreaChart{Series: chartTestSeries(theme)[:1], Values: [][]float32{{5}}}, nil)
-	PaintAreaChart(&canvas, theme, ui.Rect{Width: 4, Height: 4}, ui.Item(1), chartTestArea(theme), nil)
-	PaintAreaChart(nil, theme, ui.Rect{}, ui.Item(1), chartTestArea(theme), nil)
+	PaintAreaChart(&canvas, theme, gfx.Rect{Width: 300, Height: 200}, gfx.Item(1), AreaChart{}, nil)
+	PaintAreaChart(&canvas, theme, gfx.Rect{Width: 300, Height: 200}, gfx.Item(1), AreaChart{Series: chartTestSeries(theme)[:1], Values: [][]float32{{5}}}, nil)
+	PaintAreaChart(&canvas, theme, gfx.Rect{Width: 4, Height: 4}, gfx.Item(1), chartTestArea(theme), nil)
+	PaintAreaChart(nil, theme, gfx.Rect{}, gfx.Item(1), chartTestArea(theme), nil)
 }
 
 func TestPaintAreaChartStackedExpandAxis(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	chart := chartTestArea(theme)
 	chart.Stack = ChartStackExpand
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(chartTestMeasure)
-	PaintAreaChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, nil)
+	PaintAreaChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, nil)
 	percent := false
 	for _, text := range canvas.Texts() {
 		if text.Value == "100%" {
@@ -283,17 +283,17 @@ func TestPaintAreaChartStackedExpandAxis(t *testing.T) {
 }
 
 func TestPaintAreaChartSteadyStateAllocatesNothing(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	for name, curve := range map[string]ChartCurve{"linear": ChartCurveLinear, "natural": ChartCurveNatural, "monotone": ChartCurveMonotone, "step": ChartCurveStep} {
 		chart := chartTestArea(theme)
 		chart.Curve, chart.Stack = curve, ChartStackStacked
 		var state ChartState
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		canvas.SetMeasurer(chartTestMeasure)
 		state.Hover(2)
 		paint := func() {
 			canvas.Reset()
-			PaintAreaChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, &state)
+			PaintAreaChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, &state)
 		}
 		paint()
 		paint()
@@ -319,7 +319,7 @@ func chartBenchData(points, series int) ([][]float32, []float32) {
 }
 
 func BenchmarkAreaChart(b *testing.B) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	for _, series := range []int{1, 2, 4} {
 		for _, points := range []int{100, 1000, 10000} {
 			b.Run(chartBenchName(series, points), func(b *testing.B) {
@@ -329,11 +329,11 @@ func BenchmarkAreaChart(b *testing.B) {
 					chart.Series[k] = ChartSeries{Label: "s", Color: theme.Chart[k%5]}
 				}
 				var state ChartState
-				var canvas ui.Canvas
+				var canvas gfx.Canvas
 				canvas.SetMeasurer(chartTestMeasure)
 				paint := func() {
 					canvas.Reset()
-					PaintAreaChart(&canvas, theme, ui.Rect{Width: 640, Height: 320}, ui.Item(1), chart, &state)
+					PaintAreaChart(&canvas, theme, gfx.Rect{Width: 640, Height: 320}, gfx.Item(1), chart, &state)
 				}
 				paint()
 				b.ReportAllocs()
@@ -347,16 +347,16 @@ func BenchmarkAreaChart(b *testing.B) {
 }
 
 func BenchmarkAreaChartHover(b *testing.B) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	values, x := chartBenchData(1000, 2)
 	chart := AreaChart{Series: chartTestSeries(theme), X: x, Values: values, Curve: ChartCurveMonotone, Grid: ChartGridHorizontal}
 	var state ChartState
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(chartTestMeasure)
 	paint := func(index int) {
 		state.Hover(index)
 		canvas.Reset()
-		PaintAreaChart(&canvas, theme, ui.Rect{Width: 640, Height: 320}, ui.Item(1), chart, &state)
+		PaintAreaChart(&canvas, theme, gfx.Rect{Width: 640, Height: 320}, gfx.Item(1), chart, &state)
 	}
 	paint(10)
 	b.ReportAllocs()
@@ -427,15 +427,15 @@ func TestChartDownsampleReusesDestination(t *testing.T) {
 }
 
 func TestPaintBarChart(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	chart := BarChart{
 		Series: chartTestSeries(theme), Values: [][]float32{{186, 305, 237}, {80, 200, 120}},
 		XAxis: ChartAxis{Format: chartTestMonth}, Grid: ChartGridHorizontal, Legend: ChartLegendBottom,
 	}
 	var state ChartState
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(chartTestMeasure)
-	plot := PaintBarChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, &state)
+	plot := PaintBarChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, &state)
 	if plot.Count() != 3 || plot.IndexAt(plot.PointX(1)) != 1 {
 		t.Fatalf("plot count %d", plot.Count())
 	}
@@ -445,13 +445,13 @@ func TestPaintBarChart(t *testing.T) {
 	}
 	chart.Stack = ChartStackStacked
 	canvas.Reset()
-	PaintBarChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, &state)
+	PaintBarChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, &state)
 	if len(canvas.Rectangles()) == 0 {
 		t.Fatal("stacked bars painted nothing")
 	}
 	state.Hover(1)
 	canvas.Reset()
-	PaintBarChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, &state)
+	PaintBarChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, &state)
 	found := false
 	for _, text := range canvas.Texts() {
 		found = found || text.Value == "305"
@@ -459,19 +459,19 @@ func TestPaintBarChart(t *testing.T) {
 	if !found {
 		t.Fatal("hover tooltip missing")
 	}
-	PaintBarChart(&canvas, theme, ui.Rect{Width: 4, Height: 4}, ui.Item(2), BarChart{}, nil)
+	PaintBarChart(&canvas, theme, gfx.Rect{Width: 4, Height: 4}, gfx.Item(2), BarChart{}, nil)
 }
 
 func TestPaintBarChartSteadyStateAllocatesNothing(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	chart := BarChart{Series: chartTestSeries(theme), Values: [][]float32{{186, 305, 237}, {80, 200, 120}}, Grid: ChartGridHorizontal}
 	var state ChartState
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(chartTestMeasure)
 	state.Hover(1)
 	paint := func() {
 		canvas.Reset()
-		PaintBarChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, &state)
+		PaintBarChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, &state)
 	}
 	paint()
 	paint()
@@ -483,15 +483,15 @@ func TestPaintBarChartSteadyStateAllocatesNothing(t *testing.T) {
 // A series that crosses the baseline must fill both sides of it, each clipped to
 // its own side, instead of one self-intersecting outline.
 func TestPaintAreaChartFillsBothSidesOfTheBaseline(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	for _, curve := range []ChartCurve{ChartCurveLinear, ChartCurveMonotone, ChartCurveNatural, ChartCurveStep} {
 		chart := AreaChart{
 			Series: chartTestSeries(theme)[:1], Curve: curve, XAxis: ChartAxis{Hidden: true},
 			Values: [][]float32{{40, -30, 20, -50, 10, 60}},
 		}
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		canvas.SetMeasurer(chartTestMeasure)
-		plot := PaintAreaChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, nil)
+		plot := PaintAreaChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, nil)
 		baseline := plot.ValueY(0)
 		above, below := 0, 0
 		for _, triangle := range canvas.Triangles() {
@@ -511,9 +511,9 @@ func TestPaintAreaChartFillsBothSidesOfTheBaseline(t *testing.T) {
 	}
 	// Staying on one side needs no clipping.
 	chart := AreaChart{Series: chartTestSeries(theme)[:1], Values: [][]float32{{-5, -30, -20, -10}}, XAxis: ChartAxis{Hidden: true}}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(chartTestMeasure)
-	PaintAreaChart(&canvas, theme, ui.Rect{Width: 400, Height: 240}, ui.Item(1), chart, nil)
+	PaintAreaChart(&canvas, theme, gfx.Rect{Width: 400, Height: 240}, gfx.Item(1), chart, nil)
 	if len(canvas.Triangles()) == 0 {
 		t.Fatal("negative-only series painted nothing")
 	}
@@ -530,15 +530,15 @@ func TestStackedNegativeValuesStackAsZero(t *testing.T) {
 }
 
 func TestLinearXAxisTicksAreRoundValues(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	x := []float32{0, 13, 27, 31, 50, 77, 99}
 	chart := AreaChart{
 		Series: chartTestSeries(theme)[:1], X: x, Values: [][]float32{{1, 3, 2, 5, 4, 6, 5}},
 		XAxis: ChartAxis{Linear: true},
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(chartTestMeasure)
-	plot := PaintAreaChart(&canvas, theme, ui.Rect{Width: 480, Height: 240}, ui.Item(1), chart, nil)
+	plot := PaintAreaChart(&canvas, theme, gfx.Rect{Width: 480, Height: 240}, gfx.Item(1), chart, nil)
 	round := map[string]bool{"0": true, "20": true, "40": true, "60": true, "80": true, "100": true, "25": true, "50": true, "75": true, "10": true, "30": true, "70": true, "90": true}
 	seen := 0
 	for _, text := range canvas.Texts() {
@@ -555,15 +555,15 @@ func TestLinearXAxisTicksAreRoundValues(t *testing.T) {
 }
 
 func TestXAxisTimeLabelsStayInsideChart(t *testing.T) {
-	fontSize := ui.LightTheme().Metrics.FontSizeS
+	fontSize := gfx.LightTheme().Metrics.FontSizeS
 	for _, width := range []float32{60, 90, 180, 300, 480} {
 		for _, stamp := range []string{"20:33:25", "10-29 20:33", "2026-10-29 20:33:25"} {
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			canvas.SetMeasurer(chartTestMeasure)
-			theme := ui.LightTheme()
-			bounds := ui.Rect{X: 120, Y: 30, Width: width, Height: 200}
+			theme := gfx.LightTheme()
+			bounds := gfx.Rect{X: 120, Y: 30, Width: width, Height: 200}
 			chart := AreaChart{Series: chartTestSeries(theme)[:1], X: []float32{0, .5, 1}, Values: [][]float32{{10, 30, 20}}, XAxis: ChartAxis{Linear: true, Fixed: true, Min: 0, Max: 1, Ticks: 3, Format: func(dst []byte, value float32) []byte { return append(dst, stamp...) }}}
-			plot := PaintAreaChart(&canvas, theme, bounds, ui.Item(1), chart, nil)
+			plot := PaintAreaChart(&canvas, theme, bounds, gfx.Item(1), chart, nil)
 			seen := 0
 			truncated := false
 			for _, text := range canvas.Texts() {
@@ -592,16 +592,16 @@ func TestXAxisTimeLabelsStayInsideChart(t *testing.T) {
 }
 
 func TestFocusedChartDescribesItsLatestPoint(t *testing.T) {
-	theme := ui.LightTheme()
-	bounds := ui.Rect{X: 10, Y: 10, Width: 320, Height: 200}
+	theme := gfx.LightTheme()
+	bounds := gfx.Rect{X: 10, Y: 10, Width: 320, Height: 200}
 	chart := AreaChart{Series: chartTestSeries(theme)[:1], X: []float32{0, .5, 1}, Values: [][]float32{{10, 30, 20}}, XAxis: ChartAxis{Linear: true, Fixed: true, Min: 0, Max: 1, Ticks: 3, Format: func(dst []byte, _ float32) []byte { return append(dst, 't') }}}
 	for _, focused := range []bool{false, true} {
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		canvas.SetMeasurer(chartTestMeasure)
 		if focused {
-			canvas.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(1), true)
+			canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.Item(1), true)
 		}
-		PaintAreaChart(&canvas, theme, bounds, ui.Item(1), chart, nil)
+		PaintAreaChart(&canvas, theme, bounds, gfx.Item(1), chart, nil)
 		hits := canvas.Hits()
 		if len(hits) != 1 {
 			t.Fatalf("chart hits = %d", len(hits))

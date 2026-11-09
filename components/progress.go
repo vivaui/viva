@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // progressHeight is the track's h-1.5.
 const progressHeight = 6
@@ -11,7 +11,7 @@ const progressHeight = 6
 // Like the source, the indicator is a plain bar inside a rounded track that
 // clips it: its left end follows the track's round end at any width, and its
 // right end is flat until the bar fills the track.
-func Progress(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, fraction float32) {
+func Progress(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, fraction float32) {
 	if canvas == nil || bounds.Width <= 0 {
 		return
 	}
@@ -31,7 +31,7 @@ func Progress(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, fraction float3
 // across it, for work of unknown length. phase is the caller's position in the
 // cycle: 0 puts the segment off the left end, 1 off the right end. The caller
 // schedules the frames; nothing here keeps time.
-func ProgressIndeterminate(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, phase float32) {
+func ProgressIndeterminate(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, phase float32) {
 	if canvas == nil || bounds.Width <= 0 {
 		return
 	}
@@ -47,18 +47,18 @@ func ProgressIndeterminate(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, ph
 
 // paintProgressIndicator fills the track between two offsets from its left
 // edge, by painting the full pill in the indicator color under a clip.
-func paintProgressIndicator(canvas *ui.Canvas, theme ui.Theme, track ui.Rect, from, to float32) {
+func paintProgressIndicator(canvas *gfx.Canvas, theme gfx.Theme, track gfx.Rect, from, to float32) {
 	if to-from <= 0 {
 		return
 	}
-	canvas.Clip(ui.Rect{X: track.X + from, Y: track.Y, Width: to - from, Height: track.Height})
+	canvas.Clip(gfx.Rect{X: track.X + from, Y: track.Y, Width: to - from, Height: track.Height})
 	canvas.Rounded(track, track.Height/2, theme.Primary)
 	canvas.Unclip()
 }
 
 // ProgressRowHeight is the height of a labeled progress row: a text-sm line, the
 // root's gap-3 and the track.
-func ProgressRowHeight(theme ui.Theme) float32 {
+func ProgressRowHeight(theme gfx.Theme) float32 {
 	return theme.Metrics.FontSizeM + 7 + theme.Metrics.GapItem*1.5 + progressHeight
 }
 
@@ -66,15 +66,15 @@ func ProgressRowHeight(theme ui.Theme) float32 {
 // the end of a line, with the track on the line below, and returns the track's
 // rectangle. bounds.Height is ignored; the row is ProgressRowHeight tall.
 // value is the caller-formatted text, such as "64%".
-func PaintProgressRow(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, label, value string, fraction float32) ui.Rect {
+func PaintProgressRow(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, label, value string, fraction float32) gfx.Rect {
 	metrics := theme.Metrics
 	line := metrics.FontSizeM + 7
 	valueWidth := canvas.TextWidth(value, metrics.FontSizeM)
-	canvas.Label(label, ui.Rect{X: bounds.X, Y: bounds.Y, Width: max(bounds.Width-valueWidth-metrics.GapItem*1.5, 0), Height: line},
-		ui.TextStyle{Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: theme.Foreground})
-	canvas.LabelAligned(value, ui.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: line},
-		ui.TextStyle{Size: metrics.FontSizeM, Color: theme.MutedForeground}, ui.AlignRight)
-	track := ui.Rect{X: bounds.X, Y: bounds.Y + line + metrics.GapItem*1.5, Width: bounds.Width, Height: progressHeight}
+	canvas.Label(label, gfx.Rect{X: bounds.X, Y: bounds.Y, Width: max(bounds.Width-valueWidth-metrics.GapItem*1.5, 0), Height: line},
+		gfx.TextStyle{Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.Foreground})
+	canvas.LabelAligned(value, gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: line},
+		gfx.TextStyle{Size: metrics.FontSizeM, Color: theme.MutedForeground}, gfx.AlignRight)
+	track := gfx.Rect{X: bounds.X, Y: bounds.Y + line + metrics.GapItem*1.5, Width: bounds.Width, Height: progressHeight}
 	Progress(canvas, theme, track, fraction)
 	return track
 }

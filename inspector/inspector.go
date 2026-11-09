@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Mode says what an Inspector shows.
@@ -44,15 +44,15 @@ func (inspector *Inspector) Cycle() {
 }
 
 var (
-	interactiveOutline = ui.Color{Red: 0.20, Green: 0.52, Blue: 1, Alpha: 0.55}
-	regionOutline      = ui.Color{Red: 0.20, Green: 0.78, Blue: 0.45, Alpha: 0.55}
-	disabledOutline    = ui.Color{Red: 0.60, Green: 0.60, Blue: 0.60, Alpha: 0.55}
-	hoverFill          = ui.Color{Red: 0.20, Green: 0.52, Blue: 1, Alpha: 0.16}
-	hoverOutline       = ui.Color{Red: 0.20, Green: 0.52, Blue: 1, Alpha: 0.95}
-	chipFill           = ui.Color{Red: 0.07, Green: 0.08, Blue: 0.10, Alpha: 0.94}
-	chipBorder         = ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 0.22}
-	chipText           = ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
-	chipMuted          = ui.Color{Red: 0.72, Green: 0.76, Blue: 0.82, Alpha: 1}
+	interactiveOutline = gfx.Color{Red: 0.20, Green: 0.52, Blue: 1, Alpha: 0.55}
+	regionOutline      = gfx.Color{Red: 0.20, Green: 0.78, Blue: 0.45, Alpha: 0.55}
+	disabledOutline    = gfx.Color{Red: 0.60, Green: 0.60, Blue: 0.60, Alpha: 0.55}
+	hoverFill          = gfx.Color{Red: 0.20, Green: 0.52, Blue: 1, Alpha: 0.16}
+	hoverOutline       = gfx.Color{Red: 0.20, Green: 0.52, Blue: 1, Alpha: 0.95}
+	chipFill           = gfx.Color{Red: 0.07, Green: 0.08, Blue: 0.10, Alpha: 0.94}
+	chipBorder         = gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 0.22}
+	chipText           = gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	chipMuted          = gfx.Color{Red: 0.72, Green: 0.76, Blue: 0.82, Alpha: 1}
 )
 
 const (
@@ -67,7 +67,7 @@ const (
 // viewport, which keeps the description on screen. Call it last in the paint
 // function, after every region has been declared. It does nothing while the
 // inspector is off.
-func (inspector *Inspector) Paint(canvas *ui.Canvas, viewport ui.Rect) {
+func (inspector *Inspector) Paint(canvas *gfx.Canvas, viewport gfx.Rect) {
 	if inspector.mode == Off {
 		return
 	}
@@ -80,7 +80,7 @@ func (inspector *Inspector) Paint(canvas *ui.Canvas, viewport ui.Rect) {
 			if !outlined(hit) {
 				continue
 			}
-			canvas.Border(hit.Bounds, 1, outlineColor(hit), ui.Color{})
+			canvas.Border(hit.Bounds, 1, outlineColor(hit), gfx.Color{})
 		}
 	}
 	id := canvas.Hovered()
@@ -100,11 +100,11 @@ func (inspector *Inspector) Paint(canvas *ui.Canvas, viewport ui.Rect) {
 
 // outlined says whether a declared region is one a person looks for: not an
 // opaque block, a window-drag area or a label helper, which are no controls.
-func outlined(hit *ui.Hit) bool {
+func outlined(hit *gfx.Hit) bool {
 	return !hit.Block && !hit.MovesWindow && !hit.IsLabel && hit.Bounds.Width > 0 && hit.Bounds.Height > 0
 }
 
-func outlineColor(hit *ui.Hit) ui.Color {
+func outlineColor(hit *gfx.Hit) gfx.Color {
 	switch {
 	case hit.Disabled:
 		return disabledOutline
@@ -116,7 +116,7 @@ func outlineColor(hit *ui.Hit) ui.Color {
 
 // paintChip describes hit in a small box beside it: under it when there is room,
 // else over it, kept inside viewport.
-func paintChip(canvas *ui.Canvas, viewport ui.Rect, hit *ui.Hit) {
+func paintChip(canvas *gfx.Canvas, viewport gfx.Rect, hit *gfx.Hit) {
 	var lines [4]string
 	count := 0
 	add := func(line string) {
@@ -133,11 +133,11 @@ func paintChip(canvas *ui.Canvas, viewport ui.Rect, hit *ui.Hit) {
 	}
 	width := float32(0)
 	for _, line := range lines[:count] {
-		width = max(width, canvas.TextWidthWeight(line, chipSize, ui.WeightMedium))
+		width = max(width, canvas.TextWidthWeight(line, chipSize, gfx.WeightMedium))
 	}
 	// A viewport narrower than the longest line shortens the lines, which the
 	// label ends with an ellipsis, instead of letting the box run off the window.
-	box := ui.Rect{Width: min(width+2*chipPad, max(viewport.Width, 2*chipPad)), Height: float32(count)*chipLine + 2*chipPad}
+	box := gfx.Rect{Width: min(width+2*chipPad, max(viewport.Width, 2*chipPad)), Height: float32(count)*chipLine + 2*chipPad}
 	width = box.Width - 2*chipPad
 	box.X = min(max(hit.Bounds.X, viewport.X), max(viewport.X+viewport.Width-box.Width, viewport.X))
 	box.Y = hit.Bounds.Y + hit.Bounds.Height + chipGap
@@ -151,13 +151,13 @@ func paintChip(canvas *ui.Canvas, viewport ui.Rect, hit *ui.Hit) {
 		if index > 0 {
 			color = chipMuted
 		}
-		canvas.Label(line, ui.Rect{X: box.X + chipPad, Y: box.Y + chipPad + float32(index)*chipLine, Width: width, Height: chipLine},
-			ui.TextStyle{Size: chipSize, Weight: ui.WeightMedium, Color: color})
+		canvas.Label(line, gfx.Rect{X: box.X + chipPad, Y: box.Y + chipPad + float32(index)*chipLine, Width: width, Height: chipLine},
+			gfx.TextStyle{Size: chipSize, Weight: gfx.WeightMedium, Color: color})
 	}
 }
 
 // states lists the state worth reading at a glance, as the headless tree does.
-func states(canvas *ui.Canvas, hit *ui.Hit) string {
+func states(canvas *gfx.Canvas, hit *gfx.Hit) string {
 	var state []string
 	add := func(on bool, name string) {
 		if on {

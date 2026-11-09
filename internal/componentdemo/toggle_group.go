@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -54,9 +54,9 @@ var (
 
 func (state *State) initializeToggleGroup() { state.flags = 1 }
 
-func (state *State) keyToggleGroup(event ui.KeyEvent) ui.EventResult {
+func (state *State) keyToggleGroup(event gfx.KeyEvent) gfx.EventResult {
 	if listIndex(event.Target, toggleGroupItem) < 0 {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	options := state.toggleGroupOptions()
 	orientation := components.ToggleGroupHorizontal
@@ -65,7 +65,7 @@ func (state *State) keyToggleGroup(event ui.KeyEvent) ui.EventResult {
 	}
 	next, handled := components.ToggleGroupKeyDown(event.Target, options[:], orientation, components.DirectionLTR, event.Key)
 	if !handled {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	changed := false
 	if state.exampleID != "multiple" {
@@ -73,7 +73,7 @@ func (state *State) keyToggleGroup(event ui.KeyEvent) ui.EventResult {
 		changed = state.flags != bit
 		state.flags = bit
 	}
-	return ui.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
+	return gfx.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
 }
 
 func (state *State) toggleGroupOptions() [3]components.ToggleGroupOption {
@@ -100,12 +100,12 @@ func (state *State) toggleGroupOptions() [3]components.ToggleGroupOption {
 	return options
 }
 
-func (state *State) paintToggleGroup(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var group flex.Box
+func (state *State) paintToggleGroup(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var group ui.Box
 	vertical := state.exampleID == "vertical"
-	state.page(canvas, theme, size, 500, state.Text("Toggle Group · 显式选择", "Toggle Group · Explicit selection"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 500, state.Text("Toggle Group · 显式选择", "Toggle Group · Explicit selection"), func(f *ui.Frame) {
 		if vertical {
-			group = f.Slot().FillWidth().MaxWidth(168).Height(theme.Metrics.ControlHeight * 3).Self(flex.Start)
+			group = f.Slot().FillWidth().MaxWidth(168).Height(theme.Metrics.ControlHeight * 3).Self(ui.Start)
 			caption(f, state.Text("第三项禁用；上下方向键会自动跳过。", "The third item is disabled; arrow keys skip it."))
 			return
 		}

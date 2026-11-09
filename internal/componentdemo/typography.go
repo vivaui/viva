@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -71,9 +71,9 @@ var (
 	}
 )
 
-// The specimens are the component's roles themselves, painted in slots: flex.Text
+// The specimens are the component's roles themselves, painted in slots: ui.Text
 // would only imitate their size and weight.
-func (state *State) paintTypography(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintTypography(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	lines := typographyHierarchy[:]
 	switch state.exampleID {
 	case "content":
@@ -81,8 +81,8 @@ func (state *State) paintTypography(canvas *ui.Canvas, theme ui.Theme, size ui.S
 	case "muted":
 		lines = typographyMuted[:]
 	}
-	var slots [len(typographyHierarchy)]flex.Box
-	state.page(canvas, theme, size, 600, state.Text("Typography · 文字角色", "Typography · Text roles"), func(f *flex.Frame) {
+	var slots [len(typographyHierarchy)]ui.Box
+	state.page(canvas, theme, size, 600, state.Text("Typography · 文字角色", "Typography · Text roles"), func(f *ui.Frame) {
 		f.Column().Gap(6).Children(func() {
 			for index, line := range lines {
 				slots[index] = f.Slot().Height(line.height)

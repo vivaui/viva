@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -51,10 +51,10 @@ var (
 	menubarItem = tree.Sub(menubarUI, tree.Name("item"))
 )
 
-func (state *State) paintMenubar(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintMenubar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	open := state.flags&1 != 0 || state.exampleID == "states"
-	var strip flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Menubar · 桌面菜单", "Menubar · Desktop menu"), func(f *flex.Frame) {
+	var strip ui.Box
+	state.page(canvas, theme, size, 560, state.Text("Menubar · 桌面菜单", "Menubar · Desktop menu"), func(f *ui.Frame) {
 		strip = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
 		if !open {
 			f.Text(state.Text("点击 File 查看弹出菜单。", "Click File to open the popup menu.")).FontSize(theme.Metrics.FontSizeS).Muted()
@@ -67,7 +67,7 @@ func (state *State) paintMenubar(canvas *ui.Canvas, theme ui.Theme, size ui.Size
 	bar.AddTrigger(components.MenubarTrigger{ID: menubarHelp, Label: "Help", Disabled: state.exampleID == "states"})
 	if open {
 		// Three 32px rows, a separator, and the surface's 4px top and bottom padding.
-		popup := ui.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 8, Width: min(bounds.Width, float32(260)), Height: 3*32 + 9 + 2*4}
+		popup := gfx.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 8, Width: min(bounds.Width, float32(260)), Height: 3*32 + 9 + 2*4}
 		content := components.BeginMenubarContent(canvas, theme, popup, components.MenubarOverlayOptions{Layer: 2, Scope: menubarFocus, DismissID: menubarFile})
 		content.AddItem(components.MenubarItem{ID: menubarItem.At(0), Label: "New window", Shortcut: "⌘N"})
 		content.AddItem(components.MenubarItem{ID: menubarGrid, Label: "Show grid", Kind: components.MenubarCheckbox, Checked: state.flags&2 != 0})

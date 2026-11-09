@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -61,9 +61,9 @@ func (state *State) initializeInputOTP() {
 // pointerInputOTP puts the caret on the slot that was clicked, or after the last
 // digit when the click is past the end of the code: the next digit typed fills
 // that slot.
-func (state *State) pointerInputOTP(event ui.PointerEvent) ui.EventResult {
-	if !state.editing || event.Kind != ui.PointerDown || event.Target != inputOTPField {
-		return ui.EventResult{}
+func (state *State) pointerInputOTP(event gfx.PointerEvent) gfx.EventResult {
+	if !state.editing || event.Kind != gfx.PointerDown || event.Target != inputOTPField {
+		return gfx.EventResult{}
 	}
 	layout := state.inputOTPLayout(inputOTPLeft(pointerViewport(event).Width))
 	slot := inputOTPSlots - 1
@@ -76,7 +76,7 @@ func (state *State) pointerInputOTP(event ui.PointerEvent) ui.EventResult {
 	}
 	caret := min(slot, state.editor.RuneCount())
 	state.editor.SetSelection(textRange(caret, caret))
-	return ui.EventResult{Repaint: true}
+	return gfx.EventResult{Repaint: true}
 }
 
 // inputOTPWidth is the widest the demo page gets; inputOTPLeft is where its
@@ -92,14 +92,14 @@ func inputOTPLeft(viewport float32) float32 {
 // inputOTPLayout is the slot geometry for a code whose left edge is at x, shared
 // by painting and by hit-testing a click to a slot.
 func (state *State) inputOTPLayout(x float32) components.InputOTPLayout {
-	return components.PaintInputOTP(nil, state.theme(), ui.Rect{X: x}, components.InputOTPSnapshot{Slots: inputOTPSlots, GroupSize: 3})
+	return components.PaintInputOTP(nil, state.theme(), gfx.Rect{X: x}, components.InputOTPSnapshot{Slots: inputOTPSlots, GroupSize: 3})
 }
 
-func (state *State) paintInputOTP(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintInputOTP(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	measure := state.inputOTPLayout(0).Bounds
-	var code flex.Box
-	state.page(canvas, theme, size, inputOTPWidth, state.Text("Input OTP · 验证码", "Input OTP · Verification code"), func(f *flex.Frame) {
-		code = f.Slot().Size(measure.Width, measure.Height).Self(flex.Start)
+	var code ui.Box
+	state.page(canvas, theme, size, inputOTPWidth, state.Text("Input OTP · 验证码", "Input OTP · Verification code"), func(f *ui.Frame) {
+		code = f.Slot().Size(measure.Width, measure.Height).Self(ui.Start)
 		caption := "Slots: 6 · Groups: 3 + 3"
 		if state.editing {
 			caption = state.Text("只接受数字，最多 6 位 · 输入后自动前进 · 退格删除 · ← → 移动", "Digits only, up to 6 · advance as you type · backspace deletes · ← → moves")
@@ -139,7 +139,7 @@ func (state *State) paintInputOTP(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 		snapshot.CompositionEnd = 5
 		snapshot.ActiveSlot = 0
 	}
-	components.PaintInputOTP(canvas, theme, ui.Rect{X: bounds.X, Y: bounds.Y}, snapshot)
+	components.PaintInputOTP(canvas, theme, gfx.Rect{X: bounds.X, Y: bounds.Y}, snapshot)
 	// Without editing the code is a static snapshot: a click moves its active slot
 	// along. With editing the editor owns the position (typing, arrows, a click on
 	// a slot: see pointerInputOTP).

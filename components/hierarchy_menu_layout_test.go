@@ -7,16 +7,16 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func deepHierarchyMenu() (HierarchyMenuState, HierarchyMenuOptions) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	f := tree.Feature("deep-hierarchy-menu")
 	o := HierarchyMenuOptions{
 		OptionIDs: tree.Sub(f, tree.Name("option")), ScrollID: tree.ID(f, "scroll"),
 		Scope: tree.ID(f, "scope"), Layer: 4, Label: "Groups",
-		Viewport: ui.Rect{Width: 716, Height: 600}, Overlay: true, DismissID: tree.ID(f, "dismiss"),
+		Viewport: gfx.Rect{Width: 716, Height: 600}, Overlay: true, DismissID: tree.ID(f, "dismiss"),
 	}
 	values := []string{"A/B/C/D/E", "A/B/C/D/F"}
 	var m HierarchyMenuState
@@ -29,12 +29,12 @@ func TestHierarchyMenuKeepsVisibleLevelsReadableInsideViewport(t *testing.T) {
 		for _, width := range []float32{320, 716, 1400} {
 			t.Run(fmt.Sprintf("levels=%d/width=%.0f", levels, width), func(t *testing.T) {
 				m, o := deepHierarchyMenu()
-				o.Viewport = ui.Rect{X: 70, Y: 30, Width: width, Height: 600}
+				o.Viewport = gfx.Rect{X: 70, Y: 30, Width: width, Height: 600}
 				value := strings.Repeat("Wide group with many words/", levels-1) + "Leaf"
 				m.Build("/", value, nil, 1, func(int) HierarchyMenuItem { return HierarchyMenuItem{Value: value} })
-				var canvas ui.Canvas
-				anchor := ui.Rect{X: width + 20, Y: 60, Width: 160, Height: 26}
-				PaintHierarchyMenu(&canvas, ui.LightTheme(), anchor, &m, o)
+				var canvas gfx.Canvas
+				anchor := gfx.Rect{X: width + 20, Y: 60, Width: 160, Height: 26}
+				PaintHierarchyMenu(&canvas, gfx.LightTheme(), anchor, &m, o)
 				first := 0
 				if m.compact {
 					first = m.depth
@@ -57,7 +57,7 @@ func TestHierarchyMenuKeepsVisibleLevelsReadableInsideViewport(t *testing.T) {
 				}
 				visible := 0
 				for _, hit := range canvas.Hits() {
-					if _, ok := hit.ID.In(o.OptionIDs); ok && hit.Role == ui.RoleOption {
+					if _, ok := hit.ID.In(o.OptionIDs); ok && hit.Role == gfx.RoleOption {
 						visible++
 						if hit.Bounds.Width <= 0 || hit.Bounds.Height <= 0 {
 							t.Fatalf("empty row hit: %+v", hit)
@@ -81,7 +81,7 @@ func TestHierarchyMenuPointerNavigatesDeepCascade(t *testing.T) {
 	for _, anchorX := range []float32{10, 500, 1200} {
 		t.Run(fmt.Sprintf("anchor=%.0f", anchorX), func(t *testing.T) {
 			m, o := deepHierarchyMenu()
-			o.Viewport = ui.Rect{Width: 1400, Height: 600}
+			o.Viewport = gfx.Rect{Width: 1400, Height: 600}
 			values := []string{"A/B/C/D/E/F/G/H"}
 			for level := 0; level < hierarchyMaxLevels; level++ {
 				values = append(values, strings.Join(strings.Split(values[0], "/")[:level], "/")+"/Other")
@@ -89,12 +89,12 @@ func TestHierarchyMenuPointerNavigatesDeepCascade(t *testing.T) {
 			}
 			m.Build("/", "", nil, len(values), func(i int) HierarchyMenuItem { return HierarchyMenuItem{Value: values[i]} })
 			chosen := ""
-			driver, err := app.NewDriver(app.Config{Width: 1400, Height: 600, Paint: func(c *ui.Canvas, _ ui.Size) {
+			driver, err := app.NewDriver(app.Config{Width: 1400, Height: 600, Paint: func(c *gfx.Canvas, _ gfx.Size) {
 				if index, ok := c.ClickedIn(o.OptionIDs); ok {
 					chosen, _ = m.Choose(index)
 				}
-				PaintHierarchyMenu(c, ui.LightTheme(), ui.Rect{X: anchorX, Y: 20, Width: 160, Height: 26}, &m, o)
-			}, OnKey: func(event ui.KeyEvent) ui.EventResult { return m.Key(event, true).EventResult }}, nil)
+				PaintHierarchyMenu(c, gfx.LightTheme(), gfx.Rect{X: anchorX, Y: 20, Width: 160, Height: 26}, &m, o)
+			}, OnKey: func(event gfx.KeyEvent) gfx.EventResult { return m.Key(event, true).EventResult }}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -105,7 +105,7 @@ func TestHierarchyMenuPointerNavigatesDeepCascade(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			row := func(level, index int) ui.Rect {
+			row := func(level, index int) gfx.Rect {
 				t.Helper()
 				id := o.OptionIDs.At(level<<16 | index)
 				for _, hit := range driver.Snapshot().Hits {
@@ -118,7 +118,7 @@ func TestHierarchyMenuPointerNavigatesDeepCascade(t *testing.T) {
 					}
 				}
 				t.Fatalf("missing level %d row %d", level, index)
-				return ui.Rect{}
+				return gfx.Rect{}
 			}
 			move := func(level, index int) {
 				t.Helper()
@@ -151,13 +151,13 @@ func TestHierarchyMenuPointerNavigatesDeepCascade(t *testing.T) {
 			// Keyboard navigation still walks in and out of the same levels.
 			move(0, 0)
 			for level := 1; level < hierarchyMaxLevels; level++ {
-				must(driver.Key(ui.KeyRight, 0))
+				must(driver.Key(gfx.KeyRight, 0))
 				if m.level != level {
 					t.Fatalf("Right reached level %d, want %d", m.level, level)
 				}
 			}
 			for level := hierarchyMaxLevels - 2; level >= 0; level-- {
-				must(driver.Key(ui.KeyLeft, 0))
+				must(driver.Key(gfx.KeyLeft, 0))
 				if m.depth != level {
 					t.Fatalf("Left left depth %d, want %d", m.depth, level)
 				}
@@ -166,7 +166,7 @@ func TestHierarchyMenuPointerNavigatesDeepCascade(t *testing.T) {
 	}
 }
 
-func hierarchyTestHit(t *testing.T, driver *app.Driver, id ui.ID) ui.Rect {
+func hierarchyTestHit(t *testing.T, driver *app.Driver, id gfx.ID) gfx.Rect {
 	t.Helper()
 	for _, hit := range driver.Snapshot().Hits {
 		if hit.ID == id {
@@ -174,10 +174,10 @@ func hierarchyTestHit(t *testing.T, driver *app.Driver, id ui.ID) ui.Rect {
 		}
 	}
 	t.Fatalf("missing hierarchy hit %v", id)
-	return ui.Rect{}
+	return gfx.Rect{}
 }
 
-func hierarchyTestClick(t *testing.T, driver *app.Driver, id ui.ID) {
+func hierarchyTestClick(t *testing.T, driver *app.Driver, id gfx.ID) {
 	t.Helper()
 	bounds := hierarchyTestHit(t, driver, id)
 	if err := driver.Click(bounds.X+bounds.Width/2, bounds.Y+bounds.Height/2); err != nil {
@@ -194,11 +194,11 @@ func TestHierarchyMenuDirectClickStillChoosesItsParent(t *testing.T) {
 			values := []string{path, "Other"}
 			m.Build("/", "", nil, len(values), func(i int) HierarchyMenuItem { return HierarchyMenuItem{Value: values[i]} })
 			chosen := ""
-			driver, err := app.NewDriver(app.Config{Width: 716, Height: 600, Paint: func(c *ui.Canvas, _ ui.Size) {
+			driver, err := app.NewDriver(app.Config{Width: 716, Height: 600, Paint: func(c *gfx.Canvas, _ gfx.Size) {
 				if index, ok := c.ClickedIn(o.OptionIDs); ok {
 					chosen, _ = m.Choose(index)
 				}
-				PaintHierarchyMenu(c, ui.LightTheme(), ui.Rect{X: 500, Y: 20, Width: 160, Height: 26}, &m, o)
+				PaintHierarchyMenu(c, gfx.LightTheme(), gfx.Rect{X: 500, Y: 20, Width: 160, Height: 26}, &m, o)
 			}}, nil)
 			if err != nil {
 				t.Fatal(err)
@@ -223,12 +223,12 @@ func TestSingleSelectCompactHierarchyNavigatesAndSelects(t *testing.T) {
 	const path = "A/B/C/D/E/F/G/H"
 	s.SetOptions([]SingleSelectOption{{Value: path}, {Value: "Other"}})
 	s.Open = true
-	driver, err := app.NewDriver(app.Config{Width: 320, Height: 600, Paint: func(c *ui.Canvas, size ui.Size) {
-		o.Viewport = ui.Rect{Width: size.Width, Height: size.Height}
+	driver, err := app.NewDriver(app.Config{Width: 320, Height: 600, Paint: func(c *gfx.Canvas, size gfx.Size) {
+		o.Viewport = gfx.Rect{Width: size.Width, Height: size.Height}
 		if index, ok := c.ClickedIn(o.OptionIDs); ok {
 			s.Choose(index)
 		}
-		PaintSingleSelect(c, ui.LightTheme(), ui.Rect{X: 100, Y: 20, Width: 160, Height: 32}, s, o)
+		PaintSingleSelect(c, gfx.LightTheme(), gfx.Rect{X: 100, Y: 20, Width: 160, Height: 32}, s, o)
 	}, OnKey: s.Key}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -283,27 +283,27 @@ func TestSingleSelectCompactHierarchyNavigatesAndSelects(t *testing.T) {
 	if s.Open || s.Value() != "A" {
 		t.Fatalf("parent label chose %q (open=%v)", s.Value(), s.Open)
 	}
-	if err := driver.Key(ui.KeyDown, 0); err != nil {
+	if err := driver.Key(gfx.KeyDown, 0); err != nil {
 		t.Fatal(err)
 	}
 	for level := 1; level < hierarchyMaxLevels; level++ {
-		if err := driver.Key(ui.KeyRight, 0); err != nil {
+		if err := driver.Key(gfx.KeyRight, 0); err != nil {
 			t.Fatal(err)
 		}
 		if s.tree.level != level || s.tree.depth != level {
 			t.Fatalf("Right reached level %d depth %d, want %d", s.tree.level, s.tree.depth, level)
 		}
 	}
-	if err := driver.Key(ui.KeyLeft, 0); err != nil {
+	if err := driver.Key(gfx.KeyLeft, 0); err != nil {
 		t.Fatal(err)
 	}
 	if s.tree.depth != 6 {
 		t.Fatalf("Left left depth %d", s.tree.depth)
 	}
-	if err := driver.Key(ui.KeyRight, 0); err != nil {
+	if err := driver.Key(gfx.KeyRight, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Key(ui.KeyEnter, 0); err != nil {
+	if err := driver.Key(gfx.KeyEnter, 0); err != nil {
 		t.Fatal(err)
 	}
 	if s.Open || s.Value() != path {
@@ -319,14 +319,14 @@ func TestHierarchyMenuCompactBackRemainsReachableAfterScroll(t *testing.T) {
 		values = append(values, fmt.Sprintf("A/Child %d", i))
 	}
 	m.Build("/", "A/B", nil, len(values), func(i int) HierarchyMenuItem { return HierarchyMenuItem{Value: values[i]} })
-	driver, err := app.NewDriver(app.Config{Width: 320, Height: 600, Paint: func(c *ui.Canvas, _ ui.Size) {
+	driver, err := app.NewDriver(app.Config{Width: 320, Height: 600, Paint: func(c *gfx.Canvas, _ gfx.Size) {
 		if index, ok := c.ClickedIn(o.OptionIDs); ok {
 			m.Choose(index)
 		}
-		PaintHierarchyMenu(c, ui.LightTheme(), ui.Rect{X: 100, Y: 20, Width: 160, Height: 26}, &m, o)
-	}, OnScroll: func(event ui.ScrollEvent) ui.EventResult {
+		PaintHierarchyMenu(c, gfx.LightTheme(), gfx.Rect{X: 100, Y: 20, Width: 160, Height: 26}, &m, o)
+	}, OnScroll: func(event gfx.ScrollEvent) gfx.EventResult {
 		changed := m.Wheel(event)
-		return ui.EventResult{Handled: changed, Repaint: changed}
+		return gfx.EventResult{Handled: changed, Repaint: changed}
 	}}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -334,7 +334,7 @@ func TestHierarchyMenuCompactBackRemainsReachableAfterScroll(t *testing.T) {
 	defer driver.Close()
 	back := hierarchyTestHit(t, driver, o.OptionIDs.At(hierarchyBackIndex))
 	row := hierarchyTestHit(t, driver, o.OptionIDs.At(1<<16))
-	if err := driver.Scroll(ui.ScrollEvent{X: row.X + 20, Y: row.Y + 16, DeltaY: 1000}); err != nil {
+	if err := driver.Scroll(gfx.ScrollEvent{X: row.X + 20, Y: row.Y + 16, DeltaY: 1000}); err != nil {
 		t.Fatal(err)
 	}
 	if m.scrolls[1].Offset == 0 {
@@ -352,10 +352,10 @@ func TestHierarchyMenuCompactBackRemainsReachableAfterScroll(t *testing.T) {
 func TestHierarchyMenuRebuildAndSeekKeepCurrentLevelReachable(t *testing.T) {
 	m, o := deepHierarchyMenu()
 	o.Viewport.Width = 320
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		PaintHierarchyMenu(&canvas, ui.LightTheme(), ui.Rect{X: 100, Y: 20, Width: 160, Height: 26}, &m, o)
+		PaintHierarchyMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 100, Y: 20, Width: 160, Height: 26}, &m, o)
 	}
 	paint()
 	if !m.compact || m.level != m.depth {
@@ -385,8 +385,8 @@ func TestHierarchyMenuCompactNavigationClipsToShortPopup(t *testing.T) {
 	for _, height := range []float32{40, 80, 120} {
 		m, o := deepHierarchyMenu()
 		o.Viewport.Width, o.Viewport.Height = 320, height
-		var canvas ui.Canvas
-		PaintHierarchyMenu(&canvas, ui.LightTheme(), ui.Rect{X: 100, Y: 20, Width: 160, Height: 26}, &m, o)
+		var canvas gfx.Canvas
+		PaintHierarchyMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 100, Y: 20, Width: 160, Height: 26}, &m, o)
 		panel := m.panels[m.depth]
 		for _, hit := range canvas.Hits() {
 			if _, ok := hit.ID.In(o.OptionIDs); ok && (hit.Bounds.Y < panel.Y || hit.Bounds.Y+hit.Bounds.Height > panel.Y+panel.Height) {
@@ -400,8 +400,8 @@ func TestHierarchyMenuCompactNavigationClipsToShortPopup(t *testing.T) {
 // remain clickable when the complete cascade fits in the window.
 func TestHierarchyMenuDeepPathDoesNotCoverAncestorRows(t *testing.T) {
 	m, o := deepHierarchyMenu()
-	var canvas ui.Canvas
-	PaintHierarchyMenu(&canvas, ui.LightTheme(), ui.Rect{X: 240, Y: 20, Width: 100, Height: 26}, &m, o)
+	var canvas gfx.Canvas
+	PaintHierarchyMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 240, Y: 20, Width: 100, Height: 26}, &m, o)
 	if m.compact {
 		t.Fatal("a readable cascade fits beside the anchor")
 	}
@@ -420,10 +420,10 @@ func TestHierarchyMenuDeepPathDoesNotCoverAncestorRows(t *testing.T) {
 
 func BenchmarkHierarchyMenuDeepPathPaint(b *testing.B) {
 	m, o := deepHierarchyMenu()
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		PaintHierarchyMenu(&canvas, ui.LightTheme(), ui.Rect{X: 240, Y: 20, Width: 100, Height: 26}, &m, o)
+		PaintHierarchyMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 240, Y: 20, Width: 100, Height: 26}, &m, o)
 	}
 	paint()
 	b.ReportAllocs()
@@ -441,11 +441,11 @@ func BenchmarkHierarchyMenuBuildAndFirstPaint(b *testing.B) {
 	for i := range values {
 		values[i].Value = fmt.Sprintf("Group %02d/Branch %02d/Leaf %03d", i%20, i/20%5, i)
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		m.Build("/", "", nil, len(values), func(i int) HierarchyMenuItem { return values[i] })
 		canvas.Reset()
-		PaintHierarchyMenu(&canvas, ui.LightTheme(), ui.Rect{X: 20, Y: 20, Width: 240, Height: 26}, &m, o)
+		PaintHierarchyMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 20, Y: 20, Width: 240, Height: 26}, &m, o)
 	}
 	paint()
 	b.ReportAllocs()

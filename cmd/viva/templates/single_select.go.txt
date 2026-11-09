@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // SingleSelectOption is a stable selectable value; an empty Label displays Value.
@@ -227,12 +227,12 @@ func (s *SingleSelectState) CommitQuery() bool {
 	return false
 }
 
-func (s *SingleSelectState) Key(event ui.KeyEvent) ui.EventResult {
-	if event.Release || event.Modifiers != 0 && !(event.Key == ui.KeyTab && event.Modifiers == ui.ModifierShift) {
-		return ui.EventResult{}
+func (s *SingleSelectState) Key(event gfx.KeyEvent) gfx.EventResult {
+	if event.Release || event.Modifiers != 0 && !(event.Key == gfx.KeyTab && event.Modifiers == gfx.ModifierShift) {
+		return gfx.EventResult{}
 	}
 	if _, composing := s.Query.Composition(); composing {
-		return ui.EventResult{Handled: event.Key == ui.KeyEnter}
+		return gfx.EventResult{Handled: event.Key == gfx.KeyEnter}
 	}
 	choices := s.Choices()
 	if s.treeActive() {
@@ -249,13 +249,13 @@ func (s *SingleSelectState) Key(event ui.KeyEvent) ui.EventResult {
 		}
 	}
 	switch event.Key {
-	case ui.KeyDown, ui.KeyUp:
+	case gfx.KeyDown, gfx.KeyUp:
 		if !s.Open {
 			s.Open = true
-			return ui.EventResult{Handled: true, Repaint: true}
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
 		step := 1
-		if event.Key == ui.KeyUp {
+		if event.Key == gfx.KeyUp {
 			step = -1
 		}
 		for i, next := 0, s.Active; i < len(choices); i++ {
@@ -266,8 +266,8 @@ func (s *SingleSelectState) Key(event ui.KeyEvent) ui.EventResult {
 			}
 		}
 		s.reveal = true
-		return ui.EventResult{Handled: true, Repaint: true}
-	case ui.KeyEnter:
+		return gfx.EventResult{Handled: true, Repaint: true}
+	case gfx.KeyEnter:
 		if !event.Repeat {
 			if !s.Open && s.Query.String() == "" {
 				s.Open = true
@@ -275,75 +275,75 @@ func (s *SingleSelectState) Key(event ui.KeyEvent) ui.EventResult {
 				s.Choose(s.Active)
 			}
 		}
-		return ui.EventResult{Handled: true, Repaint: true}
-	case ui.KeyEscape:
+		return gfx.EventResult{Handled: true, Repaint: true}
+	case gfx.KeyEscape:
 		if s.Open || s.Query.String() != "" {
 			s.Dismiss()
-			return ui.EventResult{Handled: true, Repaint: true}
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
-	case ui.KeyTab:
+	case gfx.KeyTab:
 		if s.Open {
 			// Leaving the field drops the search text: a closed field paints the
 			// selected label, never the query it did not commit.
 			s.Dismiss()
-			return ui.EventResult{Handled: true, Repaint: true, ContinueTraversal: true}
+			return gfx.EventResult{Handled: true, Repaint: true, ContinueTraversal: true}
 		}
-	case ui.KeyBackspace:
+	case gfx.KeyBackspace:
 		if !event.Repeat && s.Query.String() == "" && s.value != "" {
 			s.Clear()
-			return ui.EventResult{Handled: true, Repaint: true}
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
 	}
-	return ui.EventResult{}
+	return gfx.EventResult{}
 }
 
 // Wheel scrolls the list, or in a hierarchical one the panel under the pointer.
-func (s *SingleSelectState) Wheel(event ui.ScrollEvent) bool {
+func (s *SingleSelectState) Wheel(event gfx.ScrollEvent) bool {
 	if s.treeActive() {
 		return s.tree.Wheel(event)
 	}
 	return s.scroll.Wheel(event)
 }
 
-func (s *SingleSelectState) Pointer(event ui.PointerEvent) ui.EventResult {
+func (s *SingleSelectState) Pointer(event gfx.PointerEvent) gfx.EventResult {
 	if s.treeActive() {
 		return s.tree.Pointer(event)
 	}
 	if s.scroll.BarID.IsZero() || event.Target != s.scroll.BarID && !s.scroll.Dragging() {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
-	return ui.EventResult{Handled: true, Repaint: s.scroll.Drag(event)}
+	return gfx.EventResult{Handled: true, Repaint: s.scroll.Drag(event)}
 }
 
 // SingleSelectOptions names the control's hit IDs, its popup layer and the
 // strings the caller supplies for its labels and create row.
 type SingleSelectOptions struct {
-	InputID, TriggerID, ClearID, DismissID, Scope, ScrollID  ui.ID
-	OptionIDs                                                ui.Scope
+	InputID, TriggerID, ClearID, DismissID, Scope, ScrollID  gfx.ID
+	OptionIDs                                                gfx.Scope
 	Label, Placeholder, EmptyLabel, CreatePrefix, ClearLabel string
 	// Viewport bounds the popup and backdrop independently of the input's
 	// ancestor scroll clips. Set it to the window or a narrower overlay region.
-	Viewport          ui.Rect
+	Viewport          gfx.Rect
 	Layer             uint16
 	Disabled, Invalid bool
 	MaxRows           int
 }
 
 // popupWidth is the width that shows every label of choices untruncated.
-func (s *SingleSelectState) popupWidth(canvas *ui.Canvas, theme ui.Theme, choices []SingleSelectChoice, o SingleSelectOptions) float32 {
+func (s *SingleSelectState) popupWidth(canvas *gfx.Canvas, theme gfx.Theme, choices []SingleSelectChoice, o SingleSelectOptions) float32 {
 	size := theme.Metrics.FontSizeM
 	if s.widestRebuilt != s.rebuilt || s.widestSize != size {
 		s.widest = 0
 		for _, choice := range choices {
 			if !choice.Create {
-				s.widest = max(s.widest, canvas.TextWidthWeight(choice.Label, size, ui.WeightRegular))
+				s.widest = max(s.widest, canvas.TextWidthWeight(choice.Label, size, gfx.WeightRegular))
 			}
 		}
 		s.widestRebuilt, s.widestSize = s.rebuilt, size
 	}
 	widest := s.widest
 	if len(choices) > 0 && choices[0].Create {
-		widest = max(widest, canvas.TextWidthWeight(o.CreatePrefix+choices[0].Label, size, ui.WeightRegular))
+		widest = max(widest, canvas.TextWidthWeight(o.CreatePrefix+choices[0].Label, size, gfx.WeightRegular))
 	}
 	// A row spends 8 on the left and 30 on the check before the menu padding.
 	return float32(math.Ceil(float64(widest))) + 46 + 1
@@ -351,12 +351,12 @@ func (s *SingleSelectState) popupWidth(canvas *ui.Canvas, theme ui.Theme, choice
 
 // SingleSelectLayout is where the control, its native input and its popup were
 // painted, for callers that route text input or place overlays.
-type SingleSelectLayout struct{ Bounds, Input, Popup ui.Rect }
+type SingleSelectLayout struct{ Bounds, Input, Popup gfx.Rect }
 
 // PaintSingleSelect shares text-entry and menu primitives with Combobox and
 // MultiSelect. The query stays a native editor; no chip or multi-selection is
 // introduced when the selected value changes.
-func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *SingleSelectState, o SingleSelectOptions) SingleSelectLayout {
+func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *SingleSelectState, o SingleSelectOptions) SingleSelectLayout {
 	if bounds.Height <= 0 {
 		bounds.Height = theme.Metrics.ControlHeight
 	}
@@ -382,14 +382,14 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 		if floating {
 			canvas.PushOverlayClip(o.Viewport)
 		}
-		canvas.HitWithOptions(o.DismissID, o.Viewport, o.Label, ui.HitOptions{Role: ui.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
+		canvas.HitWithOptions(o.DismissID, o.Viewport, o.Label, gfx.HitOptions{Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
 		if floating {
 			canvas.PopOverlayClip()
 		}
 	}
-	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: canvas.Focused() == o.InputID || open, Disabled: o.Disabled, Invalid: o.Invalid})
-	canvas.HitWithOptions(o.TriggerID, bounds, o.Label, ui.HitOptions{Role: ui.RoleButton, Expanded: open, Disabled: o.Disabled, SkipFocus: true})
-	trigger := ui.Rect{X: bounds.X + bounds.Width - 28, Y: bounds.Y + (bounds.Height-24)/2, Width: 24, Height: 24}
+	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: canvas.Focused() == o.InputID || open, Disabled: o.Disabled, Invalid: o.Invalid})
+	canvas.HitWithOptions(o.TriggerID, bounds, o.Label, gfx.HitOptions{Role: gfx.RoleButton, Expanded: open, Disabled: o.Disabled, SkipFocus: true})
+	trigger := gfx.Rect{X: bounds.X + bounds.Width - 28, Y: bounds.Y + (bounds.Height-24)/2, Width: 24, Height: 24}
 	right := trigger.X - 4
 	query := s.Query.String()
 	iconColor := theme.MutedForeground
@@ -397,7 +397,7 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 		iconColor.Alpha *= .5
 	}
 	if !o.ClearID.IsZero() && (s.value != "" || query != "") {
-		clear := ui.Rect{X: right - 24, Y: trigger.Y, Width: 24, Height: 24}
+		clear := gfx.Rect{X: right - 24, Y: trigger.Y, Width: 24, Height: 24}
 		if !o.Disabled && canvas.Hovered() == o.ClearID {
 			canvas.Rounded(clear, theme.Metrics.RadiusItem(), theme.Muted)
 		}
@@ -406,11 +406,11 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 		if label == "" {
 			label = "Clear selection"
 		}
-		canvas.HitWithOptions(o.ClearID, clear, label, ui.HitOptions{Role: ui.RoleButton, Disabled: o.Disabled})
+		canvas.HitWithOptions(o.ClearID, clear, label, gfx.HitOptions{Role: gfx.RoleButton, Disabled: o.Disabled})
 		right = clear.X - 4
 	}
 	inset := theme.Metrics.TextInsetX()
-	layout.Input = ui.Rect{X: bounds.X + inset, Y: bounds.Y + 1, Width: max(1, right-bounds.X-inset), Height: bounds.Height - 2}
+	layout.Input = gfx.Rect{X: bounds.X + inset, Y: bounds.Y + 1, Width: max(1, right-bounds.X-inset), Height: bounds.Height - 2}
 	display, color := query, theme.Foreground
 	if display == "" {
 		display = s.label(s.value)
@@ -424,13 +424,13 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 		color.Alpha *= .5
 	}
 	if canvas.Focused() != o.InputID || query == "" {
-		canvas.Label(canvas.FitLine(display, theme.Metrics.FontSizeM, ui.WeightRegular, layout.Input.Width), layout.Input, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+		canvas.Label(canvas.FitLine(display, theme.Metrics.FontSizeM, gfx.WeightRegular, layout.Input.Width), layout.Input, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
 	}
 	accessibleValue := query
 	if accessibleValue == "" {
 		accessibleValue = s.label(s.value)
 	}
-	canvas.HitWithOptions(o.InputID, layout.Input, o.Label, ui.HitOptions{Role: ui.RoleCombobox, Value: accessibleValue, Expanded: open, Disabled: o.Disabled, Cursor: ui.PointerCursorText, TextBounds: layout.Input, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground, NavigationKeys: true})
+	canvas.HitWithOptions(o.InputID, layout.Input, o.Label, gfx.HitOptions{Role: gfx.RoleCombobox, Value: accessibleValue, Expanded: open, Disabled: o.Disabled, Cursor: gfx.PointerCursorText, TextBounds: layout.Input, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground, NavigationKeys: true})
 	paintChevron(canvas, &chevronDownIcon, trigger, iconColor)
 	if s.focusInput {
 		canvas.RequestFocus(o.InputID)
@@ -451,7 +451,7 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 		rows = 7
 	}
 	height := float32(max(1, min(len(choices), rows))*32 + 8)
-	layout.Popup = ui.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 6, Width: bounds.Width, Height: height}
+	layout.Popup = gfx.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 6, Width: bounds.Width, Height: height}
 	// Like Radix's popper content, the list is at least as wide as the field and
 	// grows to its longest label so options that share a long prefix stay
 	// distinguishable, until the viewport stops it.
@@ -468,8 +468,8 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 		defer canvas.PopOverlayClip()
 	}
 	canvas.Block(layout.Popup)
-	canvas.Container(layout.Popup, ui.RoleListBox, o.Label)
-	paintPopupSurface(canvas, &theme, layout.Popup, ui.ShadowMD)
+	canvas.Container(layout.Popup, gfx.RoleListBox, o.Label)
+	paintPopupSurface(canvas, &theme, layout.Popup, gfx.ShadowMD)
 	s.scroll.BarID = o.ScrollID
 	menu := menuSurface{canvas: canvas, theme: theme, bounds: layout.Popup, options: menuSurfaceOptions{layer: o.Layer, scope: o.Scope, scroll: &s.scroll}, top: layout.Popup.Y + 4, bottom: layout.Popup.Y + layout.Popup.Height - 4, viewHeight: layout.Popup.Height - 8}
 	menu.beginScroll()
@@ -491,7 +491,7 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 			continue
 		}
 		menu.paintRow(row, func() {
-			look := menuItemRecipe(&theme, ui.State{Hovered: i == s.Active, Disabled: choice.Disabled})
+			look := menuItemRecipe(&theme, gfx.State{Hovered: i == s.Active, Disabled: choice.Disabled})
 			if look.Fill.Alpha > 0 {
 				canvas.Rounded(row, look.Radius, look.Fill)
 			}
@@ -504,15 +504,15 @@ func PaintSingleSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Sin
 				}
 				label = s.createText
 			}
-			canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, ui.WeightRegular, max(row.Width-38, 0)), ui.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+			canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, max(row.Width-38, 0)), gfx.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
 			if choice.Selected {
-				paintCheck(canvas, ui.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
+				paintCheck(canvas, gfx.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
 			}
-			canvas.HitWithOptions(id, row, label, ui.HitOptions{Role: ui.RoleOption, Value: choice.Value, Selected: choice.Selected, Disabled: choice.Disabled, SkipFocus: true})
+			canvas.HitWithOptions(id, row, label, gfx.HitOptions{Role: gfx.RoleOption, Value: choice.Value, Selected: choice.Selected, Disabled: choice.Disabled, SkipFocus: true})
 		})
 	}
 	if len(choices) == 0 {
-		canvas.LabelCenter(o.EmptyLabel, layout.Popup, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground})
+		canvas.LabelCenter(o.EmptyLabel, layout.Popup, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground})
 	}
 	menu.end()
 	if s.reveal && s.scroll.Reveal(o.OptionIDs.At(s.Active)) {

@@ -3,21 +3,21 @@ package reloadwire
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
-func CaptureCanvas(canvas *ui.Canvas) CanvasSnapshot {
+func CaptureCanvas(canvas *gfx.Canvas) CanvasSnapshot {
 	var delayMs uint32
 	if delay, ok := canvas.NextFrame(); ok && delay > 0 {
 		delayMs = uint32(max((delay+time.Millisecond-1)/time.Millisecond, 1)) // never rounded down to "now"
 	}
 	return CanvasSnapshot{
-		Rectangles:   append([]ui.Rectangle(nil), canvas.Rectangles()...),
-		Shadows:      append([]ui.Shadow(nil), canvas.Shadows()...),
-		Images:       append([]ui.Image(nil), canvas.Images()...),
-		Texts:        append([]ui.Text(nil), canvas.Texts()...),
-		Runs:         append([]ui.TextRun(nil), canvas.AllTextRuns()...),
-		Hits:         append([]ui.Hit(nil), canvas.Hits()...),
+		Rectangles:   append([]gfx.Rectangle(nil), canvas.Rectangles()...),
+		Shadows:      append([]gfx.Shadow(nil), canvas.Shadows()...),
+		Images:       append([]gfx.Image(nil), canvas.Images()...),
+		Texts:        append([]gfx.Text(nil), canvas.Texts()...),
+		Runs:         append([]gfx.TextRun(nil), canvas.AllTextRuns()...),
+		Hits:         append([]gfx.Hit(nil), canvas.Hits()...),
 		TrappedScope: canvas.TrappedFocusScope(),
 		EscapeTarget: canvas.EscapeTarget(),
 		InitialFocus: canvas.InitialFocus(),
@@ -26,7 +26,7 @@ func CaptureCanvas(canvas *ui.Canvas) CanvasSnapshot {
 	}
 }
 
-func ApplyCanvas(canvas *ui.Canvas, snapshot CanvasSnapshot) {
+func ApplyCanvas(canvas *gfx.Canvas, snapshot CanvasSnapshot) {
 	canvas.Reset()
 	// A shadow goes back among the rectangles where it was painted. Triangles are
 	// not carried, so only the rectangles count.
@@ -73,7 +73,7 @@ func ApplyCanvas(canvas *ui.Canvas, snapshot CanvasSnapshot) {
 		} else if hit.MovesWindow {
 			canvas.MoveRegion(hit.Bounds)
 		} else {
-			canvas.HitWithOptions(hit.ID, hit.Bounds, hit.Label, ui.HitOptions{
+			canvas.HitWithOptions(hit.ID, hit.Bounds, hit.Label, gfx.HitOptions{
 				Role: hit.Role, Value: hit.Value, Hint: hit.Hint, Disabled: hit.Disabled,
 				Checked: hit.Checked, Selected: hit.Selected, Expanded: hit.Expanded,
 				Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure, SkipFocus: !hit.Focusable, Autofocus: hit.Autofocus,
@@ -97,7 +97,7 @@ func ApplyCanvas(canvas *ui.Canvas, snapshot CanvasSnapshot) {
 	}
 }
 
-func pushLayerAndClip(canvas *ui.Canvas, layer uint16, clip ui.Rect, hasClip bool) {
+func pushLayerAndClip(canvas *gfx.Canvas, layer uint16, clip gfx.Rect, hasClip bool) {
 	if layer != 0 {
 		canvas.PushLayer(layer)
 	}
@@ -106,7 +106,7 @@ func pushLayerAndClip(canvas *ui.Canvas, layer uint16, clip ui.Rect, hasClip boo
 	}
 }
 
-func popLayerAndClip(canvas *ui.Canvas, layer uint16, hasClip bool) {
+func popLayerAndClip(canvas *gfx.Canvas, layer uint16, hasClip bool) {
 	if hasClip {
 		canvas.Unclip()
 	}

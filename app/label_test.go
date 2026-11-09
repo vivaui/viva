@@ -6,18 +6,18 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 var (
-	labelTree      = ui.Tree{}
+	labelTree      = gfx.Tree{}
 	labelPage      = labelTree.Feature("label")
 	labelSwitch    = labelPage.ID(labelTree.Name("switch"))
 	labelCheckbox  = labelPage.ID(labelTree.Name("checkbox"))
 	labelOff       = labelPage.ID(labelTree.Name("off"))
-	labelSwitchRow = ui.Rect{X: 10, Y: 10, Width: 200, Height: 20}
-	labelBoxRow    = ui.Rect{X: 10, Y: 50, Width: 200, Height: 20}
-	labelOffRow    = ui.Rect{X: 10, Y: 90, Width: 200, Height: 20}
+	labelSwitchRow = gfx.Rect{X: 10, Y: 10, Width: 200, Height: 20}
+	labelBoxRow    = gfx.Rect{X: 10, Y: 50, Width: 200, Height: 20}
+	labelOffRow    = gfx.Rect{X: 10, Y: 90, Width: 200, Height: 20}
 )
 
 // labelApp is a form whose switch and checkbox have a label beside them, as
@@ -28,22 +28,22 @@ type labelApp struct {
 }
 
 func (a *labelApp) config() Config {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	return Config{
 		Title: "label", Width: 400, Height: 200, Tree: &labelTree,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			components.FieldTitle(canvas, theme, labelSwitchRow, "Notifications", labelSwitch, false)
-			if components.BeginSwitch(canvas, theme, labelSwitch, ui.Rect{X: 300, Y: 10, Width: 32, Height: 18}, a.switched).Paint().Clicked() {
+			if components.BeginSwitch(canvas, theme, labelSwitch, gfx.Rect{X: 300, Y: 10, Width: 32, Height: 18}, a.switched).Paint().Clicked() {
 				a.switched = !a.switched
 				a.clicks++
 			}
 			components.FieldTitle(canvas, theme, labelBoxRow, "Accept terms", labelCheckbox, false)
-			if components.BeginCheckbox(canvas, theme, labelCheckbox, ui.Rect{X: 300, Y: 50}, a.checked).Label("terms").Paint().Clicked() {
+			if components.BeginCheckbox(canvas, theme, labelCheckbox, gfx.Rect{X: 300, Y: 50}, a.checked).Label("terms").Paint().Clicked() {
 				a.checked = !a.checked
 				a.clicks++
 			}
 			components.FieldTitle(canvas, theme, labelOffRow, "Unavailable", labelOff, true)
-			if components.BeginSwitch(canvas, theme, labelOff, ui.Rect{X: 300, Y: 90, Width: 32, Height: 18}, a.off).Disabled().Paint().Clicked() {
+			if components.BeginSwitch(canvas, theme, labelOff, gfx.Rect{X: 300, Y: 90, Width: 32, Height: 18}, a.off).Disabled().Paint().Clicked() {
 				a.off = !a.off
 			}
 		},
@@ -52,7 +52,7 @@ func (a *labelApp) config() Config {
 
 func TestPressingALabelFocusesAndClicksItsControl(t *testing.T) {
 	a := &labelApp{}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := NewDriver(a.config(), &canvas)
 	if err != nil {
 		t.Fatal(err)
@@ -89,8 +89,8 @@ func TestPressingALabelFocusesAndClicksItsControl(t *testing.T) {
 		t.Fatalf("a disabled control's label acted: off=%v focus=%v", a.off, driver.painter.focus.Focused())
 	}
 	// The keyboard visits each control once, not once more for its label.
-	for _, want := range []ui.ID{labelSwitch, labelCheckbox, labelSwitch} {
-		if err := driver.Key(ui.KeyTab, 0); err != nil {
+	for _, want := range []gfx.ID{labelSwitch, labelCheckbox, labelSwitch} {
+		if err := driver.Key(gfx.KeyTab, 0); err != nil {
 			t.Fatal(err)
 		}
 		if driver.painter.focus.Focused() != want {
@@ -101,7 +101,7 @@ func TestPressingALabelFocusesAndClicksItsControl(t *testing.T) {
 
 func TestALabelNamesItsControlForAssistiveTechnology(t *testing.T) {
 	a := &labelApp{}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := NewDriver(a.config(), &canvas)
 	if err != nil {
 		t.Fatal(err)

@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // AlertVariant selects the semantic treatment used by an alert surface.
 type AlertVariant uint8
@@ -15,7 +15,7 @@ const (
 // right by the icon column.
 type AlertData struct {
 	Variant     AlertVariant
-	Icon        ui.Icon
+	Icon        gfx.Icon
 	Title       string
 	Description string
 }
@@ -24,7 +24,7 @@ type AlertData struct {
 const alertMaxLines = 16
 
 // alertLineHeight is text-sm's leading-5 for the theme's body size.
-func alertLineHeight(metrics ui.Metrics) float32 { return metrics.FontSizeM + 7 }
+func alertLineHeight(metrics gfx.Metrics) float32 { return metrics.FontSizeM + 7 }
 
 const (
 	alertIconSize = 16
@@ -34,7 +34,7 @@ const (
 
 // alertTextBounds returns the text column of an alert of the given width: the
 // left edge offset from bounds.X and the column width.
-func alertTextBounds(metrics ui.Metrics, width float32, data AlertData) (offset, textWidth float32) {
+func alertTextBounds(metrics gfx.Metrics, width float32, data AlertData) (offset, textWidth float32) {
 	offset = metrics.PadSurface
 	if data.Icon.ViewBox > 0 {
 		offset += alertIconSize + alertIconGap
@@ -44,14 +44,14 @@ func alertTextBounds(metrics ui.Metrics, width float32, data AlertData) (offset,
 
 // AlertHeight returns the height of an alert of the given width: py-3 around a
 // title row and, when there is a description, its wrapped lines after a 2px gap.
-func AlertHeight(canvas *ui.Canvas, theme ui.Theme, width float32, data AlertData) float32 {
+func AlertHeight(canvas *gfx.Canvas, theme gfx.Theme, width float32, data AlertData) float32 {
 	metrics := theme.Metrics
 	line := alertLineHeight(metrics)
 	height := metrics.PadControlX*2 + line
 	if data.Description != "" {
 		_, textWidth := alertTextBounds(metrics, width, data)
 		var scratch [alertMaxLines]string
-		lines := canvas.WrapLines(scratch[:0], data.Description, metrics.FontSizeM, ui.WeightRegular, textWidth, alertMaxLines)
+		lines := canvas.WrapLines(scratch[:0], data.Description, metrics.FontSizeM, gfx.WeightRegular, textWidth, alertMaxLines)
 		height += alertRowGap + float32(len(lines))*line
 	}
 	return height
@@ -60,7 +60,7 @@ func AlertHeight(canvas *ui.Canvas, theme ui.Theme, width float32, data AlertDat
 // Alert paints a Vega alert: a bordered card surface with an optional leading
 // icon, a medium-weight title and a wrapped muted description. A non-positive
 // bounds.Height takes AlertHeight. The AlertAction slot remains caller-owned.
-func Alert(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, data AlertData) {
+func Alert(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, data AlertData) {
 	metrics := theme.Metrics
 	line := alertLineHeight(metrics)
 	if bounds.Height <= 0 {
@@ -82,19 +82,19 @@ func Alert(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, data AlertData) {
 	textY := bounds.Y + metrics.PadControlX
 	if data.Icon.ViewBox > 0 {
 		// The icon spans both rows and sits 2px low (translate-y-0.5).
-		canvas.DrawIcon(data.Icon, ui.Rect{X: bounds.X + metrics.PadSurface, Y: textY + 2, Width: alertIconSize, Height: alertIconSize}, titleColor)
+		canvas.DrawIcon(data.Icon, gfx.Rect{X: bounds.X + metrics.PadSurface, Y: textY + 2, Width: alertIconSize, Height: alertIconSize}, titleColor)
 	}
-	canvas.Label(data.Title, ui.Rect{X: textX, Y: textY, Width: textWidth, Height: line},
-		ui.TextStyle{Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: titleColor})
+	canvas.Label(data.Title, gfx.Rect{X: textX, Y: textY, Width: textWidth, Height: line},
+		gfx.TextStyle{Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: titleColor})
 	if data.Description == "" {
 		return
 	}
 	textY += line + alertRowGap
 	remaining := int((bounds.Y + bounds.Height - metrics.PadControlX - textY) / line)
 	var scratch [alertMaxLines]string
-	lines := canvas.WrapLines(scratch[:0], data.Description, metrics.FontSizeM, ui.WeightRegular, textWidth, min(max(remaining, 1), alertMaxLines))
+	lines := canvas.WrapLines(scratch[:0], data.Description, metrics.FontSizeM, gfx.WeightRegular, textWidth, min(max(remaining, 1), alertMaxLines))
 	for index, text := range lines {
-		canvas.Label(text, ui.Rect{X: textX, Y: textY + float32(index)*line, Width: textWidth, Height: line},
-			ui.TextStyle{Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: descriptionColor})
+		canvas.Label(text, gfx.Rect{X: textX, Y: textY + float32(index)*line, Width: textWidth, Height: line},
+			gfx.TextStyle{Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: descriptionColor})
 	}
 }

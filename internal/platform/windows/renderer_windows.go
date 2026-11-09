@@ -7,10 +7,10 @@ import (
 	"slices"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 // rectangleInstance is one instance: bounds, color and style, then a triangle's
@@ -136,8 +136,8 @@ type renderer struct {
 	labelOrder                                                   []int
 	labelFrame                                                   []int // slot of each label in the last frame's order
 	labelNextFrame                                               []int
-	labelIdentities                                              map[ui.TextIdentity]int
-	labelNextIdentities                                          map[ui.TextIdentity]int
+	labelIdentities                                              map[gfx.TextIdentity]int
+	labelNextIdentities                                          map[gfx.TextIdentity]int
 	labelUsed                                                    []bool
 	labelFree                                                    []int
 	compositingBatches                                           []compositingBatch
@@ -399,8 +399,8 @@ func (renderer *renderer) storeLabels(labels []platform.TextLabel) {
 	}
 	clear(renderer.labelUsed)
 	if renderer.labelIdentities == nil {
-		renderer.labelIdentities = make(map[ui.TextIdentity]int)
-		renderer.labelNextIdentities = make(map[ui.TextIdentity]int)
+		renderer.labelIdentities = make(map[gfx.TextIdentity]int)
+		renderer.labelNextIdentities = make(map[gfx.TextIdentity]int)
 	}
 	clear(renderer.labelNextIdentities)
 	renderer.labelNextFrame = renderer.labelNextFrame[:0]

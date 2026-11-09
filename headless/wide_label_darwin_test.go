@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // A label wider than a Metal texture draws: the renderer rasterizes the part
@@ -19,17 +19,17 @@ func TestHeadlessScreenshotDrawsLabelWiderThanATexture(t *testing.T) {
 	const scale = 2
 	head, blank, tail := strings.Repeat("8", 100), strings.Repeat(" ", 3000), strings.Repeat("8", 1000)
 	line := head + blank + tail
-	white := ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	white := gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 	var left, gap, width float32
 	config := app.Config{
 		Title: "wide label", Width: 400, Height: 60, ClearColor: app.Color{Alpha: 1},
-		Paint: func(canvas *ui.Canvas, _ ui.Size) {
-			style := ui.TextStyle{Size: 14, Color: white}
+		Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+			style := gfx.TextStyle{Size: 14, Color: white}
 			gap = canvas.TextWidthStyle(head+blank, style)
 			width = canvas.TextWidthStyle(line, style)
-			canvas.Label(line, ui.Rect{X: left, Y: 20, Width: width, Height: 20}, style)
+			canvas.Label(line, gfx.Rect{X: left, Y: 20, Width: width, Height: 20}, style)
 		},
-		OnScroll: func(ui.ScrollEvent) ui.EventResult { return ui.EventResult{Handled: true, Repaint: true} },
+		OnScroll: func(gfx.ScrollEvent) gfx.EventResult { return gfx.EventResult{Handled: true, Repaint: true} },
 	}
 	session, err := Open(config, nil, Options{Scale: scale})
 	if err != nil {
@@ -58,7 +58,7 @@ func TestHeadlessScreenshotDrawsLabelWiderThanATexture(t *testing.T) {
 	move := func(to float32) {
 		t.Helper()
 		left = to
-		if err := session.Scroll(ui.ScrollEvent{X: 200, Y: 30, DeltaY: -1}); err != nil {
+		if err := session.Scroll(gfx.ScrollEvent{X: 200, Y: 30, DeltaY: -1}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -89,12 +89,12 @@ func TestHeadlessScreenshotDrawsEntireWideViewportAtFractionalScale(t *testing.T
 	var left, width float32
 	session, err := Open(app.Config{
 		Title: "wide viewport", Width: viewportWidth, Height: 36, ClearColor: app.Color{Alpha: 1},
-		Paint: func(canvas *ui.Canvas, _ ui.Size) {
-			style := ui.TextStyle{Size: 14, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}
+		Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+			style := gfx.TextStyle{Size: 14, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}
 			width = canvas.TextWidthStyle(text, style)
-			canvas.Label(text, ui.Rect{X: left, Width: width, Height: 30}, style)
+			canvas.Label(text, gfx.Rect{X: left, Width: width, Height: 30}, style)
 		},
-		OnScroll: func(ui.ScrollEvent) ui.EventResult { return ui.EventResult{Handled: true, Repaint: true} },
+		OnScroll: func(gfx.ScrollEvent) gfx.EventResult { return gfx.EventResult{Handled: true, Repaint: true} },
 	}, nil, Options{Scale: 1.5})
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestHeadlessScreenshotDrawsEntireWideViewportAtFractionalScale(t *testing.T
 	for _, offset := range []float32{0, -1000} {
 		left = offset
 		if offset != 0 {
-			if err := session.Scroll(ui.ScrollEvent{X: 10, Y: 10, DeltaY: -1}); err != nil {
+			if err := session.Scroll(gfx.ScrollEvent{X: 10, Y: 10, DeltaY: -1}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -144,31 +144,31 @@ func column(picture *image.RGBA, x, top, bottom int) bool {
 // a whole pixel each time, so every frame keeps their textures: ordinary labels,
 // and one label wider than a texture scrolled 40 pixels a frame.
 func BenchmarkHeadlessScreenshotMovingLabels(b *testing.B) {
-	white := ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	white := gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 	wide := strings.Repeat("0123456789", 400)
 	for _, test := range []struct {
 		name string
 		step float32
-		draw func(canvas *ui.Canvas, left float32, style ui.TextStyle)
+		draw func(canvas *gfx.Canvas, left float32, style gfx.TextStyle)
 	}{
-		{"ordinary", 1, func(canvas *ui.Canvas, left float32, style ui.TextStyle) {
+		{"ordinary", 1, func(canvas *gfx.Canvas, left float32, style gfx.TextStyle) {
 			for row := 0; row < 24; row++ {
 				canvas.Label(fmt.Sprintf("%02d the quick brown fox jumps over the lazy dog", row),
-					ui.Rect{X: 10 + left, Y: float32(row * 20), Width: 320, Height: 20}, style)
+					gfx.Rect{X: 10 + left, Y: float32(row * 20), Width: 320, Height: 20}, style)
 			}
 		}},
-		{"wide", -40, func(canvas *ui.Canvas, left float32, style ui.TextStyle) {
-			canvas.Label(wide, ui.Rect{X: left, Y: 20, Width: canvas.TextWidthStyle(wide, style), Height: 20}, style)
+		{"wide", -40, func(canvas *gfx.Canvas, left float32, style gfx.TextStyle) {
+			canvas.Label(wide, gfx.Rect{X: left, Y: 20, Width: canvas.TextWidthStyle(wide, style), Height: 20}, style)
 		}},
 	} {
 		b.Run(test.name, func(b *testing.B) {
 			var left float32
 			session, err := Open(app.Config{
 				Title: "moving labels", Width: 640, Height: 480, ClearColor: app.Color{Alpha: 1},
-				Paint: func(canvas *ui.Canvas, _ ui.Size) {
-					test.draw(canvas, left, ui.TextStyle{Size: 13, Color: white})
+				Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+					test.draw(canvas, left, gfx.TextStyle{Size: 13, Color: white})
 				},
-				OnScroll: func(ui.ScrollEvent) ui.EventResult { return ui.EventResult{Handled: true, Repaint: true} },
+				OnScroll: func(gfx.ScrollEvent) gfx.EventResult { return gfx.EventResult{Handled: true, Repaint: true} },
 			}, nil, Options{Scale: 2})
 			if err != nil {
 				b.Fatal(err)
@@ -181,7 +181,7 @@ func BenchmarkHeadlessScreenshotMovingLabels(b *testing.B) {
 			b.ResetTimer()
 			for index := 0; index < b.N; index++ {
 				left = float32(index%400) * test.step
-				if err := session.Scroll(ui.ScrollEvent{X: 200, Y: 30, DeltaY: -1}); err != nil {
+				if err := session.Scroll(gfx.ScrollEvent{X: 200, Y: 30, DeltaY: -1}); err != nil {
 					b.Fatal(err)
 				}
 				if _, err := session.Image(); err != nil {

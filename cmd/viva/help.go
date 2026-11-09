@@ -88,7 +88,7 @@ func commands() []command {
 			}},
 		{name: "init", usage: "init [flags] <directory>",
 			summary: "Create a runnable project with a test and a guide for writing its UI.",
-			detail: "Writes main.go (a window laid out with github.com/vivaui/viva/flex), main_test.go (drives it without a window), viva.toml,\n" +
+			detail: "Writes main.go (a window laid out with github.com/vivaui/viva/ui), main_test.go (drives it without a window), viva.toml,\n" +
 				"go.mod and AGENTS.md, the short guide to the layout, identities, clicks and tests, which a coding\n" +
 				"assistant reads before it changes the UI. The project builds against the Viva source it finds above the\n" +
 				"working directory, or the one named by -viva.",
@@ -112,12 +112,12 @@ func commands() []command {
 			run:     func(arguments []string, output, _ io.Writer) error { return runList(arguments, output) }},
 		{name: "icons", usage: "icons [-o file] [-pkg name] [-license file] <svg files or directories>",
 			summary: "Compile SVG icons into Go source.",
-			detail:  "Produces ui.Icon values, so no SVG parser ships in the application.",
+			detail:  "Produces gfx.Icon values, so no SVG parser ships in the application.",
 			run:     func(arguments []string, output, _ io.Writer) error { return runIcons(arguments, output) }},
 		{name: "vet", usage: "vet [-C dir] [packages]",
-			summary: "Find the mistakes in a flex page that compile but do the wrong thing.",
+			summary: "Find the mistakes in a page that compile but do the wrong thing.",
 			detail: "Reports a Button with the same label in every row of a loop whose rows have no Key (a click can move\n" +
-				"to the wrong row), and a flex.C kept past the page function it was given to. Run it with go vet; a line,\n" +
+				"to the wrong row), and a ui.C kept past the page function it was given to. Run it with go vet; a line,\n" +
 				"or the line above it, with \"viva:ignore <check>\" silences one. The exit status is non-zero when it\n" +
 				"finds something. Packages default to ./...",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
@@ -125,9 +125,9 @@ func commands() []command {
 			}},
 		{name: "form", usage: "form [-C dir] [-type T,...]",
 			summary: "Write a Form method declaring a control for each field of a struct tagged form.",
-			detail: "Writes viva_form.go in the package's directory: func (v *T) Form(c flex.C) flex.Box, a column with a\n" +
-				"Switch for a bool (form:\"Label,checkbox\" for a Checkbox), a TextField for a flex.Field (placeholder:\"...\"),\n" +
-				"a Slider for a flex.SliderState, and a Choice for a field with choices:\"options\" or choices:\"options,nameFunc\"\n" +
+			detail: "Writes viva_form.go in the package's directory: func (v *T) Form(c ui.C) ui.Box, a column with a\n" +
+				"Switch for a bool (form:\"Label,checkbox\" for a Checkbox), a TextField for a ui.Field (placeholder:\"...\"),\n" +
+				"a Slider for a ui.SliderState, and a Choice for a field with choices:\"options\" or choices:\"options,nameFunc\"\n" +
 				"naming a package-level slice and a func(T) string (form:\"Label,select\" for a Select). Fields without a form\n" +
 				"tag, or with form:\"-\", get nothing. Run it from go:generate: //go:generate go tool viva form",
 			run: func(arguments []string, output, errorOutput io.Writer) error {

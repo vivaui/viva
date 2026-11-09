@@ -1,22 +1,22 @@
 package components
 
 import (
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 	"math"
 	"testing"
 )
 
 func TestImageViewFitActualSizeAndPanAtDisplayScales(t *testing.T) {
 	for _, scale := range []float32{1, 1.25, 1.5, 1.75, 2, 3} {
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		canvas.SetPixelScale(scale)
-		bounds := ui.Rect{X: 20, Y: 30, Width: 320, Height: 200}
-		bitmap := ui.Bitmap{Pix: make([]byte, 640*480*4), Width: 640, Height: 480, Stride: 640 * 4, ID: 1}
-		fit := PaintImageView(&canvas, ui.LightTheme(), bounds, ImageViewOptions{Bitmap: bitmap})
+		bounds := gfx.Rect{X: 20, Y: 30, Width: 320, Height: 200}
+		bitmap := gfx.Bitmap{Pix: make([]byte, 640*480*4), Width: 640, Height: 480, Stride: 640 * 4, ID: 1}
+		fit := PaintImageView(&canvas, gfx.LightTheme(), bounds, ImageViewOptions{Bitmap: bitmap})
 		if fit.Image.Width > bounds.Width || fit.Image.Height > bounds.Height || fit.Image.X < bounds.X || fit.Image.Y < bounds.Y {
 			t.Fatalf("fit %g: %+v", scale, fit)
 		}
-		actual := PaintImageView(&canvas, ui.LightTheme(), bounds, ImageViewOptions{Bitmap: bitmap, Zoom: 1, Pan: ui.Point{X: 1e6, Y: -1e6}})
+		actual := PaintImageView(&canvas, gfx.LightTheme(), bounds, ImageViewOptions{Bitmap: bitmap, Zoom: 1, Pan: gfx.Point{X: 1e6, Y: -1e6}})
 		if math.Abs(float64(actual.Image.Width*scale-640)) > .001 || math.Abs(float64(actual.Image.Height*scale-480)) > .001 {
 			t.Fatalf("actual size %g: %+v", scale, actual)
 		}

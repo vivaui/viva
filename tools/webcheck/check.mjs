@@ -131,7 +131,7 @@ async function run(name, url) {
     await waitAttribute('[role=slider]', 'aria-valuenow', '80', 'a screen-reader range change reaches application state');
 
     // The text field is a real editable hit backed by a text.Editor, wired with
-    // web.EditorInputs exactly as flex.Fields wires an application field.
+    // web.EditorInputs exactly as ui.Fields wires an application field.
     await page.mouse.click(100, 198);
     await wait(() => document.activeElement?.tagName === 'INPUT' &&
       document.activeElement?.getAttribute('aria-label') === 'Name',

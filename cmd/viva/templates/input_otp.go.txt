@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // InputOTPCommand is a request for the caller-owned one-time-code editor.
@@ -25,7 +25,7 @@ const (
 // InputOTPSemantics is the normalized typed state exposed to an accessibility
 // or native editing bridge. Slot offsets are rune indices, not UTF-8 bytes.
 type InputOTPSemantics struct {
-	ID               ui.ID
+	ID               gfx.ID
 	Label            string
 	Value            string
 	Hint             string
@@ -48,7 +48,7 @@ type InputOTPSemantics struct {
 // selection, composition, and caret visibility are snapshots only; this recipe
 // does not run an editor, IME, timer, or caret animation.
 type InputOTPSnapshot struct {
-	ID            ui.ID
+	ID            gfx.ID
 	Label         string
 	Value         string
 	DisplayValue  string
@@ -99,22 +99,22 @@ func (snapshot InputOTPSnapshot) Semantics() InputOTPSemantics {
 
 // InputOTPCommandForKey maps normalized non-text keys to editor requests. It
 // deliberately does not synthesize digits, paste, selection extension, or IME.
-func InputOTPCommandForKey(snapshot InputOTPSnapshot, key ui.Key) (InputOTPCommand, bool) {
+func InputOTPCommandForKey(snapshot InputOTPSnapshot, key gfx.Key) (InputOTPCommand, bool) {
 	if snapshot.Disabled || snapshot.ReadOnly {
 		return InputOTPCommandNone, false
 	}
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		return InputOTPCommandMovePrevious, true
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		return InputOTPCommandMoveNext, true
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		return InputOTPCommandMoveFirst, true
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		return InputOTPCommandMoveLast, true
-	case ui.KeyBackspace:
+	case gfx.KeyBackspace:
 		return InputOTPCommandDeleteBackward, true
-	case ui.KeyDelete:
+	case gfx.KeyDelete:
 		return InputOTPCommandDeleteForward, true
 	default:
 		return InputOTPCommandNone, false
@@ -123,7 +123,7 @@ func InputOTPCommandForKey(snapshot InputOTPSnapshot, key ui.Key) (InputOTPComma
 
 // InputOTPLayout describes the deterministic intrinsic geometry of an OTP row.
 type InputOTPLayout struct {
-	Bounds        ui.Rect
+	Bounds        gfx.Rect
 	SlotSize      float32
 	Slots         int
 	GroupSize     int
@@ -131,15 +131,15 @@ type InputOTPLayout struct {
 }
 
 // SlotBounds returns one slot rectangle, or zero for an invalid index.
-func (layout InputOTPLayout) SlotBounds(index int) ui.Rect {
+func (layout InputOTPLayout) SlotBounds(index int) gfx.Rect {
 	if index < 0 || index >= layout.Slots {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	groupsBefore := 0
 	if layout.GroupSize > 0 {
 		groupsBefore = index / layout.GroupSize
 	}
-	return ui.Rect{
+	return gfx.Rect{
 		X: layout.Bounds.X + float32(index)*layout.SlotSize + float32(groupsBefore)*layout.SeparatorSpan,
 		Y: layout.Bounds.Y, Width: layout.SlotSize, Height: layout.SlotSize,
 	}
@@ -147,7 +147,7 @@ func (layout InputOTPLayout) SlotBounds(index int) ui.Rect {
 
 // PaintInputOTP paints the official grouped 32px native adaptation of the
 // shadcn 36px slots and returns intrinsic layout information.
-func PaintInputOTP(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, snapshot InputOTPSnapshot) InputOTPLayout {
+func PaintInputOTP(canvas *gfx.Canvas, theme gfx.Theme, origin gfx.Rect, snapshot InputOTPSnapshot) InputOTPLayout {
 	slots := snapshot.Slots
 	if slots <= 0 {
 		slots = 6
@@ -160,7 +160,7 @@ func PaintInputOTP(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, snapshot I
 	separatorSpan := float32(32)
 	separatorCount := (slots - 1) / groupSize
 	width := float32(slots)*slotSize + float32(separatorCount)*separatorSpan
-	bounds := ui.Rect{X: origin.X, Y: origin.Y, Width: width, Height: slotSize}
+	bounds := gfx.Rect{X: origin.X, Y: origin.Y, Width: width, Height: slotSize}
 	layout := InputOTPLayout{Bounds: bounds, SlotSize: slotSize, Slots: slots, GroupSize: groupSize, SeparatorSpan: separatorSpan}
 	if canvas == nil || slotSize <= 0 {
 		return layout
@@ -181,8 +181,8 @@ func PaintInputOTP(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, snapshot I
 		inputOTPPaintSlot(canvas, theme, layout, activeIndex, groupSize, focused, snapshot)
 	}
 	if !snapshot.ID.IsZero() {
-		options := ui.HitOptions{
-			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
+		options := gfx.HitOptions{
+			Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly,
 		}
 		if snapshot.PlatformInput && !snapshot.Disabled && !snapshot.ReadOnly {
@@ -190,9 +190,9 @@ func PaintInputOTP(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, snapshot I
 			// the editor only has to exist where the typing happens. A zero
 			// color is fully transparent.
 			active := layout.SlotBounds(inputOTPClamp(snapshot.ActiveSlot, 0, slots-1))
-			options.TextBounds = ui.Rect{X: active.X, Y: active.Y, Width: 1, Height: active.Height}
+			options.TextBounds = gfx.Rect{X: active.X, Y: active.Y, Width: 1, Height: active.Height}
 			options.TextSize = theme.Metrics.FontSizeM
-			options.TextColor = ui.Color{}
+			options.TextColor = gfx.Color{}
 		}
 		canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, options)
 	}
@@ -201,25 +201,25 @@ func PaintInputOTP(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, snapshot I
 
 // inputOTPPaintSlot paints slot index with its content and, when it ends a
 // group that is not the last, the separator that follows.
-func inputOTPPaintSlot(canvas *ui.Canvas, theme ui.Theme, layout InputOTPLayout, index, groupSize int, focused bool, snapshot InputOTPSnapshot) {
+func inputOTPPaintSlot(canvas *gfx.Canvas, theme gfx.Theme, layout InputOTPLayout, index, groupSize int, focused bool, snapshot InputOTPSnapshot) {
 	slot := layout.SlotBounds(index)
 	active, selected, composing := inputOTPSlotState(snapshot, focused, index)
 	inputOTPPaintSlotShape(canvas, theme, slot, index, layout.Slots, groupSize, active, selected, snapshot)
 	inputOTPPaintSlotContent(canvas, theme, slot, index, active, composing, snapshot)
 	if (index+1)%groupSize == 0 && index+1 < layout.Slots {
-		separator := ui.Rect{X: slot.X + slot.Width + 8, Y: slot.Y, Width: 16, Height: slot.Height}
+		separator := gfx.Rect{X: slot.X + slot.Width + 8, Y: slot.Y, Width: 16, Height: slot.Height}
 		color := theme.MutedForeground
 		if snapshot.Disabled {
 			color.Alpha *= 0.50
 		}
-		canvas.DrawIcon(inputOTPSeparatorIcon, ui.Rect{X: separator.X, Y: separator.Y + (separator.Height-16)/2, Width: 16, Height: 16}, color)
+		canvas.DrawIcon(inputOTPSeparatorIcon, gfx.Rect{X: separator.X, Y: separator.Y + (separator.Height-16)/2, Width: 16, Height: 16}, color)
 	}
 }
 
 // inputOTPSeparatorIcon is Lucide's minus, the separator between groups. Like
 // the check and the cross it is a path, not the "-" of some font.
-var inputOTPSeparatorIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-	ui.MoveTo(5, 12), ui.LineTo(19, 12),
+var inputOTPSeparatorIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+	gfx.MoveTo(5, 12), gfx.LineTo(19, 12),
 }}
 
 // inputOTPSlotState reports whether one slot is the active, selected or
@@ -244,9 +244,9 @@ func inputOTPSlotState(snapshot InputOTPSnapshot, focused bool, index int) (acti
 // into the slot on its left to recolor the line it shares with it. Painting the
 // slots in order and never reordering them keeps the rectangle stream stable
 // when focus moves: only the colors and bounds of the slots involved change.
-func inputOTPPaintSlotShape(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, index, slots, groupSize int, active, selected bool, snapshot InputOTPSnapshot) {
+func inputOTPPaintSlotShape(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, index, slots, groupSize int, active, selected bool, snapshot InputOTPSnapshot) {
 	// An active slot is marked by its border color alone.
-	border, fill := textEntryColors(&theme, ui.State{Focused: active, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
+	border, fill := textEntryColors(&theme, gfx.State{Focused: active, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	if selected {
 		fill = theme.Primary
 		fill.Alpha *= 0.20
@@ -278,30 +278,30 @@ func inputOTPPaintSlotShape(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, i
 		// square corners.
 		canvas.RoundedBorder(bounds, radius, 1, border, fill)
 		x := bounds.X + arc
-		canvas.Fill(ui.Rect{X: x, Y: bounds.Y, Width: bounds.Width - arc, Height: bounds.Height}, border)
-		canvas.Fill(ui.Rect{X: x - 1, Y: bounds.Y + 1, Width: bounds.Width - arc, Height: bounds.Height - 2}, fill)
+		canvas.Fill(gfx.Rect{X: x, Y: bounds.Y, Width: bounds.Width - arc, Height: bounds.Height}, border)
+		canvas.Fill(gfx.Rect{X: x - 1, Y: bounds.Y + 1, Width: bounds.Width - arc, Height: bounds.Height - 2}, fill)
 	case last:
 		// Rounded on the right only: cover everything left of the arc.
 		canvas.RoundedBorder(bounds, radius, 1, border, fill)
 		width := bounds.Width - arc
-		canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y, Width: width, Height: bounds.Height}, border)
+		canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y, Width: width, Height: bounds.Height}, border)
 		if ownsLeft {
-			canvas.Fill(ui.Rect{X: bounds.X + 1, Y: bounds.Y + 1, Width: width, Height: bounds.Height - 2}, fill)
+			canvas.Fill(gfx.Rect{X: bounds.X + 1, Y: bounds.Y + 1, Width: width, Height: bounds.Height - 2}, fill)
 		} else {
-			canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y + 1, Width: width + 1, Height: bounds.Height - 2}, fill)
+			canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y + 1, Width: width + 1, Height: bounds.Height - 2}, fill)
 		}
 	case ownsLeft:
 		canvas.Border(bounds, 1, border, fill)
 	default:
 		canvas.Fill(bounds, border)
-		canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y + 1, Width: bounds.Width - 1, Height: bounds.Height - 2}, fill)
+		canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y + 1, Width: bounds.Width - 1, Height: bounds.Height - 2}, fill)
 	}
 }
 
 // inputOTPPaintSlotContent paints a slot's character, composition underline and
 // caret over the shapes. The caret marks where the next character goes, so it
 // appears only in an empty active slot; a filled one shows just its border.
-func inputOTPPaintSlotContent(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, index int, active, composing bool, snapshot InputOTPSnapshot) {
+func inputOTPPaintSlotContent(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, index int, active, composing bool, snapshot InputOTPSnapshot) {
 	value := snapshot.DisplayValue
 	if value == "" {
 		value = snapshot.Value
@@ -315,14 +315,14 @@ func inputOTPPaintSlotContent(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect,
 		color.Alpha *= 0.50
 	}
 	if character != "" {
-		canvas.LabelCenter(character, bounds, ui.TextStyle{Size: theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: color})
+		canvas.LabelCenter(character, bounds, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: color})
 	}
 	if composing {
-		canvas.Fill(ui.Rect{X: bounds.X + 9, Y: bounds.Y + bounds.Height - 5, Width: inputOTPMax(0, bounds.Width-18), Height: 1}, color)
+		canvas.Fill(gfx.Rect{X: bounds.X + 9, Y: bounds.Y + bounds.Height - 5, Width: inputOTPMax(0, bounds.Width-18), Height: 1}, color)
 	}
 	if active && character == "" && snapshot.ShowCaret && !snapshot.Disabled {
 		caretHeight := inputCaretHeight(theme.Metrics.FontSizeM)
-		canvas.Fill(ui.Rect{X: bounds.X + (bounds.Width-1)/2, Y: bounds.Y + (bounds.Height-caretHeight)/2, Width: 1, Height: caretHeight}, theme.Foreground)
+		canvas.Fill(gfx.Rect{X: bounds.X + (bounds.Width-1)/2, Y: bounds.Y + (bounds.Height-caretHeight)/2, Width: 1, Height: caretHeight}, theme.Foreground)
 	}
 }
 

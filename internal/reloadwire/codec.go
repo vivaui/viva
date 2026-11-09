@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const (
@@ -68,9 +68,9 @@ type Hello struct {
 type PaintRequest struct {
 	Width        float32
 	Height       float32
-	Hovered      ui.ID
-	Pressed      ui.ID
-	Focused      ui.ID
+	Hovered      gfx.ID
+	Pressed      gfx.ID
+	Focused      gfx.ID
 	FocusVisible bool
 	ScrollX      float32
 	ScrollY      float32
@@ -81,15 +81,15 @@ type PaintRequest struct {
 }
 
 type CanvasSnapshot struct {
-	Rectangles   []ui.Rectangle
-	Shadows      []ui.Shadow
-	Images       []ui.Image
-	Texts        []ui.Text
-	Runs         []ui.TextRun // the runs Texts refer to by RunFirst and RunCount
-	Hits         []ui.Hit
-	TrappedScope ui.ID
-	EscapeTarget ui.ID
-	InitialFocus ui.ID
+	Rectangles   []gfx.Rectangle
+	Shadows      []gfx.Shadow
+	Images       []gfx.Image
+	Texts        []gfx.Text
+	Runs         []gfx.TextRun // the runs Texts refer to by RunFirst and RunCount
+	Hits         []gfx.Hit
+	TrappedScope gfx.ID
+	EscapeTarget gfx.ID
+	InitialFocus gfx.ID
 	// Animating reports that a transition was still in flight, so the host
 	// must schedule another frame.
 	Animating bool
@@ -146,7 +146,7 @@ func (value *encoder) u64(number uint64) {
 }
 
 // id writes an identity as 64 bits.
-func (value *encoder) id(id ui.ID) { value.u64(id.Bits()) }
+func (value *encoder) id(id gfx.ID) { value.u64(id.Bits()) }
 
 func (value *encoder) f32(number float32) { value.u32(math.Float32bits(number)) }
 func (value *encoder) f64(number float64) { value.u64(math.Float64bits(number)) }
@@ -217,7 +217,7 @@ func (value *decoder) u64() uint64 {
 	}
 	return binary.LittleEndian.Uint64(data)
 }
-func (value *decoder) id() ui.ID { return ui.IDFromBits(value.u64()) }
+func (value *decoder) id() gfx.ID { return gfx.IDFromBits(value.u64()) }
 
 func (value *decoder) f32() float32 { return math.Float32frombits(value.u32()) }
 func (value *decoder) f64() float64 { return math.Float64frombits(value.u64()) }
@@ -318,7 +318,7 @@ func decodePaintRequest(data []byte) (PaintRequest, error) {
 	return result, value.finish()
 }
 
-func encodePointerEvent(value ui.PointerEvent) []byte {
+func encodePointerEvent(value gfx.PointerEvent) []byte {
 	var result encoder
 	result.u8(uint8(value.Kind))
 	result.u8(uint8(value.Button))
@@ -332,28 +332,28 @@ func encodePointerEvent(value ui.PointerEvent) []byte {
 	return result.data
 }
 
-func decodePointerEvent(data []byte) (ui.PointerEvent, error) {
+func decodePointerEvent(data []byte) (gfx.PointerEvent, error) {
 	value := decoder{data: data}
-	result := ui.PointerEvent{
-		Kind: ui.PointerEventKind(value.u8()), Button: ui.PointerButton(value.u8()), Modifiers: ui.Modifiers(value.u8()),
-		X: value.f32(), Y: value.f32(), Viewport: ui.Size{Width: value.f32(), Height: value.f32()}, Target: value.id(), Captured: value.bool(),
+	result := gfx.PointerEvent{
+		Kind: gfx.PointerEventKind(value.u8()), Button: gfx.PointerButton(value.u8()), Modifiers: gfx.Modifiers(value.u8()),
+		X: value.f32(), Y: value.f32(), Viewport: gfx.Size{Width: value.f32(), Height: value.f32()}, Target: value.id(), Captured: value.bool(),
 	}
 	if err := value.finish(); err != nil {
-		return ui.PointerEvent{}, err
+		return gfx.PointerEvent{}, err
 	}
-	if result.Kind < ui.PointerDown || result.Kind > ui.PointerExit {
-		return ui.PointerEvent{}, fmt.Errorf("invalid reload pointer event kind %d", result.Kind)
+	if result.Kind < gfx.PointerDown || result.Kind > gfx.PointerExit {
+		return gfx.PointerEvent{}, fmt.Errorf("invalid reload pointer event kind %d", result.Kind)
 	}
-	if result.Button > ui.PointerButtonForward {
-		return ui.PointerEvent{}, fmt.Errorf("invalid reload pointer button %d", result.Button)
+	if result.Button > gfx.PointerButtonForward {
+		return gfx.PointerEvent{}, fmt.Errorf("invalid reload pointer button %d", result.Button)
 	}
 	if !validModifiers(result.Modifiers) {
-		return ui.PointerEvent{}, fmt.Errorf("invalid reload pointer modifiers %d", result.Modifiers)
+		return gfx.PointerEvent{}, fmt.Errorf("invalid reload pointer modifiers %d", result.Modifiers)
 	}
 	return result, nil
 }
 
-func encodeKeyEvent(value ui.KeyEvent) []byte {
+func encodeKeyEvent(value gfx.KeyEvent) []byte {
 	var result encoder
 	result.u16(uint16(value.Key))
 	result.u8(uint8(value.Modifiers))
@@ -363,22 +363,22 @@ func encodeKeyEvent(value ui.KeyEvent) []byte {
 	return result.data
 }
 
-func decodeKeyEvent(data []byte) (ui.KeyEvent, error) {
+func decodeKeyEvent(data []byte) (gfx.KeyEvent, error) {
 	value := decoder{data: data}
-	result := ui.KeyEvent{Key: ui.Key(value.u16()), Modifiers: ui.Modifiers(value.u8()), Target: value.id(), Repeat: value.bool(), Text: value.string()}
+	result := gfx.KeyEvent{Key: gfx.Key(value.u16()), Modifiers: gfx.Modifiers(value.u8()), Target: value.id(), Repeat: value.bool(), Text: value.string()}
 	if err := value.finish(); err != nil {
-		return ui.KeyEvent{}, err
+		return gfx.KeyEvent{}, err
 	}
-	if result.Key > ui.KeyF12 {
-		return ui.KeyEvent{}, fmt.Errorf("invalid reload key %d", result.Key)
+	if result.Key > gfx.KeyF12 {
+		return gfx.KeyEvent{}, fmt.Errorf("invalid reload key %d", result.Key)
 	}
 	if !validModifiers(result.Modifiers) {
-		return ui.KeyEvent{}, fmt.Errorf("invalid reload key modifiers %d", result.Modifiers)
+		return gfx.KeyEvent{}, fmt.Errorf("invalid reload key modifiers %d", result.Modifiers)
 	}
 	return result, nil
 }
 
-func encodeScrollEvent(value ui.ScrollEvent) []byte {
+func encodeScrollEvent(value gfx.ScrollEvent) []byte {
 	var result encoder
 	result.u8(uint8(value.Modifiers))
 	result.f32(value.X)
@@ -392,41 +392,41 @@ func encodeScrollEvent(value ui.ScrollEvent) []byte {
 	return result.data
 }
 
-func decodeScrollEvent(data []byte) (ui.ScrollEvent, error) {
+func decodeScrollEvent(data []byte) (gfx.ScrollEvent, error) {
 	value := decoder{data: data}
-	result := ui.ScrollEvent{
-		Modifiers: ui.Modifiers(value.u8()), X: value.f32(), Y: value.f32(),
-		DeltaX: value.f32(), DeltaY: value.f32(), Viewport: ui.Size{Width: value.f32(), Height: value.f32()}, Target: value.id(), Precise: value.bool(),
+	result := gfx.ScrollEvent{
+		Modifiers: gfx.Modifiers(value.u8()), X: value.f32(), Y: value.f32(),
+		DeltaX: value.f32(), DeltaY: value.f32(), Viewport: gfx.Size{Width: value.f32(), Height: value.f32()}, Target: value.id(), Precise: value.bool(),
 	}
 	if err := value.finish(); err != nil {
-		return ui.ScrollEvent{}, err
+		return gfx.ScrollEvent{}, err
 	}
 	if !validModifiers(result.Modifiers) {
-		return ui.ScrollEvent{}, fmt.Errorf("invalid reload scroll modifiers %d", result.Modifiers)
+		return gfx.ScrollEvent{}, fmt.Errorf("invalid reload scroll modifiers %d", result.Modifiers)
 	}
 	return result, nil
 }
 
-func encodeModifierTapEvent(value ui.ModifierTapEvent) []byte {
+func encodeModifierTapEvent(value gfx.ModifierTapEvent) []byte {
 	var result encoder
 	result.u8(uint8(value.Key))
 	result.id(value.Target)
 	return result.data
 }
 
-func decodeModifierTapEvent(data []byte) (ui.ModifierTapEvent, error) {
+func decodeModifierTapEvent(data []byte) (gfx.ModifierTapEvent, error) {
 	value := decoder{data: data}
-	result := ui.ModifierTapEvent{Key: ui.Key(value.u8()), Target: value.id()}
+	result := gfx.ModifierTapEvent{Key: gfx.Key(value.u8()), Target: value.id()}
 	if err := value.finish(); err != nil {
-		return ui.ModifierTapEvent{}, err
+		return gfx.ModifierTapEvent{}, err
 	}
 	if !result.Key.IsModifier() {
-		return ui.ModifierTapEvent{}, fmt.Errorf("invalid reload modifier tap key %d", result.Key)
+		return gfx.ModifierTapEvent{}, fmt.Errorf("invalid reload modifier tap key %d", result.Key)
 	}
 	return result, nil
 }
 
-func encodeEventResult(value ui.EventResult) []byte {
+func encodeEventResult(value gfx.EventResult) []byte {
 	var result encoder
 	result.id(value.Focus)
 	result.bool(value.Handled)
@@ -437,17 +437,17 @@ func encodeEventResult(value ui.EventResult) []byte {
 	return result.data
 }
 
-func decodeEventResult(data []byte) (ui.EventResult, error) {
+func decodeEventResult(data []byte) (gfx.EventResult, error) {
 	value := decoder{data: data}
-	result := ui.EventResult{
+	result := gfx.EventResult{
 		Focus: value.id(), Handled: value.bool(), Repaint: value.bool(), Blur: value.bool(), FocusVisible: value.bool(),
 		ClipboardText: value.string(),
 	}
 	return result, value.finish()
 }
 
-func validModifiers(value ui.Modifiers) bool {
-	const supported = ui.ModifierShift | ui.ModifierControl | ui.ModifierAlt | ui.ModifierMeta
+func validModifiers(value gfx.Modifiers) bool {
+	const supported = gfx.ModifierShift | gfx.ModifierControl | gfx.ModifierAlt | gfx.ModifierMeta
 	return value&^supported == 0
 }
 
@@ -559,32 +559,32 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 	value := decoder{data: data}
 	var result CanvasSnapshot
 	rectangleCount := decodeCount(&value)
-	result.Rectangles = make([]ui.Rectangle, rectangleCount)
+	result.Rectangles = make([]gfx.Rectangle, rectangleCount)
 	for index := range result.Rectangles {
-		result.Rectangles[index] = ui.Rectangle{
+		result.Rectangles[index] = gfx.Rectangle{
 			Bounds: decodeRect(&value), Color: decodeColor(&value), Radius: value.f32(), Layer: value.u16(),
 			ClipOf: decodeRect(&value), HasClip: value.bool(),
 		}
 	}
 	shadowCount := decodeCount(&value)
-	result.Shadows = make([]ui.Shadow, shadowCount)
+	result.Shadows = make([]gfx.Shadow, shadowCount)
 	for index := range result.Shadows {
-		result.Shadows[index] = ui.Shadow{
+		result.Shadows[index] = gfx.Shadow{
 			Bounds: decodeRect(&value), Radius: value.f32(), Color: decodeColor(&value),
-			Style: ui.ShadowStyle{OffsetX: value.f32(), OffsetY: value.f32(), Blur: value.f32(), Spread: value.f32()},
+			Style: gfx.ShadowStyle{OffsetX: value.f32(), OffsetY: value.f32(), Blur: value.f32(), Spread: value.f32()},
 			Layer: value.u16(), ClipOf: decodeRect(&value), HasClip: value.bool(),
 			RectsBefore: value.u32(), TrianglesBefore: value.u32(),
 		}
 	}
 	imageCount := decodeCount(&value)
-	result.Images = make([]ui.Image, imageCount)
+	result.Images = make([]gfx.Image, imageCount)
 	for index := range result.Images {
 		pixels := value.bytes()
-		bitmap := ui.Bitmap{
+		bitmap := gfx.Bitmap{
 			Pix: pixels, Width: int(value.u32()), Height: int(value.u32()), Stride: int(value.u32()),
 			ID: value.u64(), Version: value.u32(),
 		}
-		result.Images[index] = ui.Image{
+		result.Images[index] = gfx.Image{
 			Bitmap: bitmap, Source: decodeRect(&value), Bounds: decodeRect(&value), Layer: value.u16(),
 			ClipOf: decodeRect(&value), HasClip: value.bool(),
 		}
@@ -600,23 +600,23 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 		}
 	}
 	runCount := decodeCount(&value)
-	result.Runs = make([]ui.TextRun, runCount)
+	result.Runs = make([]gfx.TextRun, runCount)
 	for index := range result.Runs {
-		result.Runs[index] = ui.TextRun{
+		result.Runs[index] = gfx.TextRun{
 			Column: int32(value.u32()), Bytes: int32(value.u32()), Cells: int32(value.u32()),
 			Color: decodeColor(&value), Weight: value.f32(),
 			Italic: value.bool(), Underline: value.bool(), Strike: value.bool(),
 		}
 	}
 	textCount := decodeCount(&value)
-	result.Texts = make([]ui.Text, textCount)
+	result.Texts = make([]gfx.Text, textCount)
 	for index := range result.Texts {
-		text := ui.Text{
+		text := gfx.Text{
 			Value: value.string(), Bounds: decodeRect(&value),
-			Style: ui.TextStyle{Size: value.f32(), Weight: value.f32(), Italic: value.bool(), Color: decodeColor(&value)},
+			Style: gfx.TextStyle{Size: value.f32(), Weight: value.f32(), Italic: value.bool(), Color: decodeColor(&value)},
 		}
 		text.Style.Mono = value.bool()
-		text.Style.MonoFace = ui.MonoFace(value.u16())
+		text.Style.MonoFace = gfx.MonoFace(value.u16())
 		text.CellWidth = value.f32()
 		text.RunFirst, text.RunCount = int32(value.u32()), int32(value.u32())
 		if text.RunFirst < 0 || text.RunCount < 0 || int64(text.RunFirst)+int64(text.RunCount) > int64(runCount) {
@@ -626,15 +626,15 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 			text.RunFirst, text.RunCount = 0, 0
 		}
 		text.Layer, text.ClipOf, text.HasClip = value.u16(), decodeRect(&value), value.bool()
-		text.Identity = ui.TextIdentity{Owner: value.u32(), Item: value.u64()}
+		text.Identity = gfx.TextIdentity{Owner: value.u32(), Item: value.u64()}
 		result.Texts[index] = text
 	}
 	hitCount := decodeCount(&value)
-	result.Hits = make([]ui.Hit, hitCount)
+	result.Hits = make([]gfx.Hit, hitCount)
 	for index := range result.Hits {
-		result.Hits[index] = ui.Hit{
+		result.Hits[index] = gfx.Hit{
 			ID: value.id(), Bounds: decodeRect(&value), Label: value.string(), Value: value.string(), Hint: value.string(),
-			Scope: value.id(), Layer: value.u16(), Role: ui.Role(value.u8()), Disabled: value.bool(), Checked: value.bool(),
+			Scope: value.id(), Layer: value.u16(), Role: gfx.Role(value.u8()), Disabled: value.bool(), Checked: value.bool(),
 			Selected: value.bool(), Expanded: value.bool(), Multiline: value.bool(), ReadOnly: value.bool(), Secure: value.bool(), Focusable: value.bool(), Autofocus: value.bool(), Block: value.bool(), MovesWindow: value.bool(),
 			TextBounds: decodeRect(&value), TextSize: value.f32(), TextColor: decodeColor(&value), TextWeight: value.f32(),
 		}
@@ -708,21 +708,21 @@ func decodeCount(value *decoder) int {
 	return int(count)
 }
 
-func encodeRect(result *encoder, value ui.Rect) {
+func encodeRect(result *encoder, value gfx.Rect) {
 	result.f32(value.X)
 	result.f32(value.Y)
 	result.f32(value.Width)
 	result.f32(value.Height)
 }
-func decodeRect(value *decoder) ui.Rect {
-	return ui.Rect{X: value.f32(), Y: value.f32(), Width: value.f32(), Height: value.f32()}
+func decodeRect(value *decoder) gfx.Rect {
+	return gfx.Rect{X: value.f32(), Y: value.f32(), Width: value.f32(), Height: value.f32()}
 }
-func encodeColor(result *encoder, value ui.Color) {
+func encodeColor(result *encoder, value gfx.Color) {
 	result.f32(value.Red)
 	result.f32(value.Green)
 	result.f32(value.Blue)
 	result.f32(value.Alpha)
 }
-func decodeColor(value *decoder) ui.Color {
-	return ui.Color{Red: value.f32(), Green: value.f32(), Blue: value.f32(), Alpha: value.f32()}
+func decodeColor(value *decoder) gfx.Color {
+	return gfx.Color{Red: value.f32(), Green: value.f32(), Blue: value.f32(), Alpha: value.f32()}
 }

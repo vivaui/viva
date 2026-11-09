@@ -3,10 +3,10 @@ package linux
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestCPUOffscreenDrawsShapesAndTextWithoutVulkan(t *testing.T) {
@@ -21,7 +21,7 @@ func TestCPUOffscreenDrawsShapesAndTextWithoutVulkan(t *testing.T) {
 	clipped := label
 	clipped.Y = 30
 	clipped.Value = "Clipped"
-	clipped.Clipped, clipped.Clip = true, ui.Rect{X: 0, Y: 30, Width: 5, Height: 20} // shows none of the text
+	clipped.Clipped, clipped.Clip = true, gfx.Rect{X: 0, Y: 30, Width: 5, Height: 20} // shows none of the text
 	if err := off.Set([]render.Rectangle{bar}, []platform.TextLabel{label, clipped}); err != nil {
 		t.Fatal(err)
 	}

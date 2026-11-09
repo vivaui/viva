@@ -12,8 +12,8 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // The desktop services that go through the display server, on GTK: the clipboard, the primary
@@ -153,7 +153,7 @@ func (a *gtkApplication) installHooks() {
 			}
 			return
 		},
-		setCursorImage: func(image *ui.CursorImage) (err error) {
+		setCursorImage: func(image *gfx.CursorImage) (err error) {
 			if e := a.onMain(func() { err = a.setCursorImage(image) }); e != nil {
 				return e
 			}
@@ -352,7 +352,7 @@ const cairoARGB32 = 0
 // setCursorImage makes the picture the pointer through GDK, sized in widget units from the
 // picture's own scale. The compositor-drawn Wayland subsurface has a pointer of its own that GDK
 // does not reach, so there the picture is refused and the pointer keeps its shape.
-func (w *gtkWindow) setCursorImage(image *ui.CursorImage) error {
+func (w *gtkWindow) setCursorImage(image *gfx.CursorImage) error {
 	if w.wl != nil {
 		return unsupported("an application cursor is not available on the Wayland subsurface")
 	}
@@ -384,7 +384,7 @@ func (w *gtkWindow) setCursorImage(image *ui.CursorImage) error {
 	return nil
 }
 
-func (a *gtkApplication) setCursorImage(image *ui.CursorImage) error {
+func (a *gtkApplication) setCursorImage(image *gfx.CursorImage) error {
 	window := a.active
 	if window == nil || window.closed {
 		return fmt.Errorf("linux: cursor requires a running window")

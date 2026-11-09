@@ -3,8 +3,8 @@ package linux
 import (
 	"strconv"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // The AT-SPI vocabulary this adapter speaks: the numbers an assistive
@@ -345,9 +345,9 @@ func atspiAttributes(node platform.AccessibilityNode) [][2]string {
 		attributes = append(attributes, [2]string{"setsize", strconv.Itoa(int(node.SetSize))})
 	}
 	switch node.Live {
-	case ui.LivePolite:
+	case gfx.LivePolite:
 		attributes = append(attributes, [2]string{"live", "polite"}, [2]string{"container-live", "polite"})
-	case ui.LiveAssertive:
+	case gfx.LiveAssertive:
 		attributes = append(attributes, [2]string{"live", "assertive"}, [2]string{"container-live", "assertive"})
 	}
 	if node.Role == platform.A11yRoleHeading {

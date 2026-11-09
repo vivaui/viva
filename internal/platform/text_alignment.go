@@ -1,13 +1,13 @@
 package platform
 
 import (
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/textmetrics"
-	"github.com/vivaui/viva/ui"
 )
 
 // ResolveTextAlignment turns a start- or end-relative alignment into the left or
 // right alignment a native editor can place its glyphs with. The decision is the
-// one ui.Canvas makes for a label: AlignStart is the left edge for left-to-right
+// one gfx.Canvas makes for a label: AlignStart is the left edge for left-to-right
 // text and the right edge for right-to-left text, and AlignEnd is the other one.
 // The direction is read from the line the caret is on, so a right-to-left cell
 // in a left-to-right document aligns by its own text.
@@ -15,21 +15,21 @@ import (
 // A caller that places a native editor must resolve before handing it over:
 // TextAlignmentInset only knows the physical edges, so an unresolved AlignStart
 // would silently render left-aligned.
-func ResolveTextAlignment(alignment ui.Alignment, value string, caret int) ui.Alignment {
+func ResolveTextAlignment(alignment gfx.Alignment, value string, caret int) gfx.Alignment {
 	switch alignment {
-	case ui.AlignStart, ui.AlignEnd:
+	case gfx.AlignStart, gfx.AlignEnd:
 		start, end, _ := TextLine(value, caret)
 		rightToLeft := textmetrics.RightToLeft(value[start:end])
-		if alignment == ui.AlignStart && rightToLeft || alignment == ui.AlignEnd && !rightToLeft {
-			return ui.AlignRight
+		if alignment == gfx.AlignStart && rightToLeft || alignment == gfx.AlignEnd && !rightToLeft {
+			return gfx.AlignRight
 		}
-		return ui.AlignLeft
-	case ui.AlignCenter:
-		return ui.AlignCenter
-	case ui.AlignRight:
-		return ui.AlignRight
+		return gfx.AlignLeft
+	case gfx.AlignCenter:
+		return gfx.AlignCenter
+	case gfx.AlignRight:
+		return gfx.AlignRight
 	default:
-		return ui.AlignLeft
+		return gfx.AlignLeft
 	}
 }
 
@@ -40,22 +40,22 @@ func ResolveTextAlignment(alignment ui.Alignment, value string, caret int) ui.Al
 //
 // Alignment must already be physical: callers holding an AlignStart or AlignEnd
 // resolve it through ResolveTextAlignment first.
-func TextAlignmentInset(alignment ui.Alignment, fieldWidth, lineWidth float32, terminal, placed bool) float32 {
+func TextAlignmentInset(alignment gfx.Alignment, fieldWidth, lineWidth float32, terminal, placed bool) float32 {
 	if terminal || placed || lineWidth >= fieldWidth {
 		return 0
 	}
 	switch alignment {
-	case ui.AlignCenter:
+	case gfx.AlignCenter:
 		return max(0, fieldWidth-lineWidth) / 2
-	case ui.AlignRight:
+	case gfx.AlignRight:
 		return max(0, fieldWidth-lineWidth)
 	default:
 		return 0
 	}
 }
 
-func TextCaretInsideField(alignment ui.Alignment, fieldX, fieldWidth, caretX, strokeWidth float32) float32 {
-	if alignment != ui.AlignRight {
+func TextCaretInsideField(alignment gfx.Alignment, fieldX, fieldWidth, caretX, strokeWidth float32) float32 {
+	if alignment != gfx.AlignRight {
 		return caretX
 	}
 	return min(caretX, fieldX+max(0, fieldWidth-strokeWidth))

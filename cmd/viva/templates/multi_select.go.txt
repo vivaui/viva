@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // MultiSelectOption is a stable selectable value. Empty labels display Value.
@@ -190,22 +190,22 @@ func (s *MultiSelectState) Remove(index int) bool {
 // Key keeps keyboard navigation in the editable input. Enter chooses the first
 // matching/create row; IME confirmation never creates a value. Tab closes the
 // popup without consuming normal focus traversal.
-func (s *MultiSelectState) Key(event ui.KeyEvent) ui.EventResult {
-	if event.Release || event.Modifiers != 0 && !(event.Key == ui.KeyTab && event.Modifiers == ui.ModifierShift) {
-		return ui.EventResult{}
+func (s *MultiSelectState) Key(event gfx.KeyEvent) gfx.EventResult {
+	if event.Release || event.Modifiers != 0 && !(event.Key == gfx.KeyTab && event.Modifiers == gfx.ModifierShift) {
+		return gfx.EventResult{}
 	}
 	if _, composing := s.Query.Composition(); composing {
-		return ui.EventResult{Handled: event.Key == ui.KeyEnter}
+		return gfx.EventResult{Handled: event.Key == gfx.KeyEnter}
 	}
 	choices := s.Choices()
 	switch event.Key {
-	case ui.KeyDown, ui.KeyUp:
+	case gfx.KeyDown, gfx.KeyUp:
 		if !s.Open {
 			s.Open = true
-			return ui.EventResult{Handled: true, Repaint: true}
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
 		step := 1
-		if event.Key == ui.KeyUp {
+		if event.Key == gfx.KeyUp {
 			step = -1
 		}
 		for i, next := 0, s.Active; i < len(choices); i++ {
@@ -216,12 +216,12 @@ func (s *MultiSelectState) Key(event ui.KeyEvent) ui.EventResult {
 			}
 		}
 		s.reveal = true
-		return ui.EventResult{Handled: true, Repaint: true}
-	case ui.KeyEnter:
+		return gfx.EventResult{Handled: true, Repaint: true}
+	case gfx.KeyEnter:
 		if !event.Repeat {
 			if !s.Open && s.Query.String() == "" {
 				s.Open = true
-				return ui.EventResult{Handled: true, Repaint: true}
+				return gfx.EventResult{Handled: true, Repaint: true}
 			}
 			if len(choices) > 0 {
 				if s.Query.String() != "" && choices[s.Active].Selected {
@@ -231,52 +231,52 @@ func (s *MultiSelectState) Key(event ui.KeyEvent) ui.EventResult {
 				}
 			}
 		}
-		return ui.EventResult{Handled: true, Repaint: true}
-	case ui.KeyEscape:
+		return gfx.EventResult{Handled: true, Repaint: true}
+	case gfx.KeyEscape:
 		if s.Open {
 			s.Open = false
-			return ui.EventResult{Handled: true, Repaint: true}
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
-	case ui.KeyTab:
+	case gfx.KeyTab:
 		if s.Open {
 			s.Open = false
-			return ui.EventResult{Handled: true, Repaint: true, ContinueTraversal: true}
+			return gfx.EventResult{Handled: true, Repaint: true, ContinueTraversal: true}
 		}
-	case ui.KeyBackspace:
+	case gfx.KeyBackspace:
 		if s.Query.String() == "" && !event.Repeat && s.Remove(len(s.values)-1) {
-			return ui.EventResult{Handled: true, Repaint: true}
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
 	}
-	return ui.EventResult{}
+	return gfx.EventResult{}
 }
 
-func (s *MultiSelectState) Wheel(event ui.ScrollEvent) bool { return s.scroll.Wheel(event) }
+func (s *MultiSelectState) Wheel(event gfx.ScrollEvent) bool { return s.scroll.Wheel(event) }
 
 // Pointer routes a configured popup scrollbar; other presses remain ordinary clicks.
-func (s *MultiSelectState) Pointer(event ui.PointerEvent) ui.EventResult {
+func (s *MultiSelectState) Pointer(event gfx.PointerEvent) gfx.EventResult {
 	if s.scroll.BarID.IsZero() || event.Target != s.scroll.BarID && !s.scroll.Dragging() {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
-	return ui.EventResult{Handled: true, Repaint: s.scroll.Drag(event)}
+	return gfx.EventResult{Handled: true, Repaint: s.scroll.Drag(event)}
 }
 
 // MultiSelectOptions supplies stable action IDs and localized presentation.
 // OptionIDs and RemoveIDs are indexed by Choices and Values respectively.
 type MultiSelectOptions struct {
-	InputID, TriggerID, DismissID, Scope         ui.ID
-	ScrollID                                     ui.ID
-	OptionIDs, RemoveIDs                         ui.Scope
+	InputID, TriggerID, DismissID, Scope         gfx.ID
+	ScrollID                                     gfx.ID
+	OptionIDs, RemoveIDs                         gfx.Scope
 	Label, Placeholder, EmptyLabel, CreatePrefix string
 	// Viewport bounds the popup and backdrop independently of the input's
 	// ancestor scroll clips. Set it to the window or a narrower overlay region.
-	Viewport          ui.Rect
+	Viewport          gfx.Rect
 	Layer             uint16
 	Disabled, Invalid bool
 	MaxRows           int
 }
 
 type MultiSelectLayout struct {
-	Bounds, Input, Popup ui.Rect
+	Bounds, Input, Popup gfx.Rect
 	Hidden               int
 }
 
@@ -284,7 +284,7 @@ type MultiSelectLayout struct {
 // beside the native query input collapse to +N; every value remains available
 // in the popup for deselection. The popup traps focus around the input as well
 // as the list, so typing and IME stay native while it is open.
-func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *MultiSelectState, o MultiSelectOptions) MultiSelectLayout {
+func PaintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *MultiSelectState, o MultiSelectOptions) MultiSelectLayout {
 	if bounds.Height <= 0 {
 		bounds.Height = theme.Metrics.ControlHeight
 	}
@@ -315,18 +315,18 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 		if floating {
 			canvas.PushOverlayClip(o.Viewport)
 		}
-		canvas.HitWithOptions(o.DismissID, o.Viewport, o.Label, ui.HitOptions{Role: ui.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
+		canvas.HitWithOptions(o.DismissID, o.Viewport, o.Label, gfx.HitOptions{Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
 		if floating {
 			canvas.PopOverlayClip()
 		}
 	}
-	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: canvas.Focused() == o.InputID || open, Invalid: o.Invalid, Disabled: o.Disabled})
-	canvas.HitWithOptions(o.TriggerID, bounds, o.Label, ui.HitOptions{Role: ui.RoleButton, Expanded: open, Disabled: o.Disabled, SkipFocus: true})
-	trigger := ui.Rect{X: bounds.X + bounds.Width - 28, Y: bounds.Y + (bounds.Height-24)/2, Width: 24, Height: 24}
+	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: canvas.Focused() == o.InputID || open, Invalid: o.Invalid, Disabled: o.Disabled})
+	canvas.HitWithOptions(o.TriggerID, bounds, o.Label, gfx.HitOptions{Role: gfx.RoleButton, Expanded: open, Disabled: o.Disabled, SkipFocus: true})
+	trigger := gfx.Rect{X: bounds.X + bounds.Width - 28, Y: bounds.Y + (bounds.Height-24)/2, Width: 24, Height: 24}
 	x, right := bounds.X+7, trigger.X-6
 	for i, value := range s.values {
 		label := s.label(value)
-		width := min(canvas.TextWidthWeight(label, theme.Metrics.FontSizeS, ui.WeightMedium)+34, max(bounds.Width/2, 32))
+		width := min(canvas.TextWidthWeight(label, theme.Metrics.FontSizeS, gfx.WeightMedium)+34, max(bounds.Width/2, 32))
 		reserve := float32(72)
 		if i < len(s.values)-1 {
 			reserve += 34
@@ -335,21 +335,21 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 			layout.Hidden = len(s.values) - i
 			break
 		}
-		chip := ui.Rect{X: x, Y: bounds.Y + (bounds.Height-22)/2, Width: width, Height: 22}
-		paintComboboxChip(canvas, theme, chip, ComboboxChip{RemoveID: o.RemoveIDs.At(i), Label: canvas.FitLine(label, theme.Metrics.FontSizeS, ui.WeightMedium, width-30), Value: value, Disabled: o.Disabled})
+		chip := gfx.Rect{X: x, Y: bounds.Y + (bounds.Height-22)/2, Width: width, Height: 22}
+		paintComboboxChip(canvas, theme, chip, ComboboxChip{RemoveID: o.RemoveIDs.At(i), Label: canvas.FitLine(label, theme.Metrics.FontSizeS, gfx.WeightMedium, width-30), Value: value, Disabled: o.Disabled})
 		x += width + 5
 	}
 	if layout.Hidden > 0 {
-		badge := ui.Rect{X: x, Y: bounds.Y + (bounds.Height-22)/2, Width: 30, Height: 22}
+		badge := gfx.Rect{X: x, Y: bounds.Y + (bounds.Height-22)/2, Width: 30, Height: 22}
 		canvas.Rounded(badge, theme.Metrics.RadiusItem(), theme.Muted)
 		if s.overflowCount != layout.Hidden {
 			s.overflowText = "+" + strconv.Itoa(layout.Hidden)
 			s.overflowCount = layout.Hidden
 		}
-		canvas.LabelCenter(s.overflowText, badge, ui.TextStyle{Size: theme.Metrics.FontSizeS, Color: theme.MutedForeground})
+		canvas.LabelCenter(s.overflowText, badge, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Color: theme.MutedForeground})
 		x += 35
 	}
-	layout.Input = ui.Rect{X: x, Y: bounds.Y + 1, Width: max(right-x, 1), Height: bounds.Height - 2}
+	layout.Input = gfx.Rect{X: x, Y: bounds.Y + 1, Width: max(right-x, 1), Height: bounds.Height - 2}
 	query := s.Query.String()
 	focused := canvas.Focused() == o.InputID
 	if !focused || query == "" {
@@ -359,7 +359,7 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 		}
 		inputPaintText(canvas, theme, layout.Input, InputSnapshot{Value: query, Placeholder: placeholder, Disabled: o.Disabled}, false)
 	}
-	canvas.HitWithOptions(o.InputID, layout.Input, o.Label, ui.HitOptions{Role: ui.RoleCombobox, Value: query, Expanded: open, Disabled: o.Disabled, Cursor: ui.PointerCursorText, TextBounds: layout.Input, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground, NavigationKeys: true})
+	canvas.HitWithOptions(o.InputID, layout.Input, o.Label, gfx.HitOptions{Role: gfx.RoleCombobox, Value: query, Expanded: open, Disabled: o.Disabled, Cursor: gfx.PointerCursorText, TextBounds: layout.Input, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground, NavigationKeys: true})
 	paintChevron(canvas, &chevronDownIcon, trigger, theme.MutedForeground)
 	if s.focusInput {
 		canvas.RequestFocus(o.InputID)
@@ -373,7 +373,7 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 		rows = 7
 	}
 	height := float32(max(1, min(len(choices), rows))*32 + 8)
-	layout.Popup = ui.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 6, Width: bounds.Width, Height: height}
+	layout.Popup = gfx.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 6, Width: bounds.Width, Height: height}
 	if o.Viewport.Height > 0 {
 		top, bottom := o.Viewport.Y+1, o.Viewport.Y+o.Viewport.Height-1
 		if layout.Popup.Y+layout.Popup.Height > bottom {
@@ -392,8 +392,8 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 		defer canvas.PopOverlayClip()
 	}
 	canvas.Block(layout.Popup)
-	canvas.Container(layout.Popup, ui.RoleListBox, o.Label)
-	paintPopupSurface(canvas, &theme, layout.Popup, ui.ShadowMD)
+	canvas.Container(layout.Popup, gfx.RoleListBox, o.Label)
+	paintPopupSurface(canvas, &theme, layout.Popup, gfx.ShadowMD)
 	s.scroll.BarID = o.ScrollID
 	menu := menuSurface{canvas: canvas, theme: theme, bounds: layout.Popup, options: menuSurfaceOptions{layer: o.Layer, scope: o.Scope, scroll: &s.scroll}, top: layout.Popup.Y + 4, bottom: layout.Popup.Y + layout.Popup.Height - 4, viewHeight: layout.Popup.Height - 8}
 	menu.beginScroll()
@@ -415,7 +415,7 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 			continue
 		}
 		menu.paintRow(row, func() {
-			look := menuItemRecipe(&theme, ui.State{Hovered: i == s.Active, Disabled: choice.Disabled})
+			look := menuItemRecipe(&theme, gfx.State{Hovered: i == s.Active, Disabled: choice.Disabled})
 			if look.Fill.Alpha > 0 {
 				canvas.Rounded(row, look.Radius, look.Fill)
 			}
@@ -428,16 +428,16 @@ func PaintMultiSelect(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, s *Mult
 				}
 				label = s.createText
 			}
-			label = canvas.FitLine(label, theme.Metrics.FontSizeM, ui.WeightRegular, max(row.Width-38, 0))
-			canvas.Label(label, ui.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+			label = canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, max(row.Width-38, 0))
+			canvas.Label(label, gfx.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
 			if choice.Selected {
-				paintCheck(canvas, ui.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
+				paintCheck(canvas, gfx.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
 			}
-			canvas.HitWithOptions(id, row, choice.Label, ui.HitOptions{Role: ui.RoleOption, Value: choice.Value, Selected: choice.Selected, Disabled: choice.Disabled, SkipFocus: true})
+			canvas.HitWithOptions(id, row, choice.Label, gfx.HitOptions{Role: gfx.RoleOption, Value: choice.Value, Selected: choice.Selected, Disabled: choice.Disabled, SkipFocus: true})
 		})
 	}
 	if len(choices) == 0 {
-		canvas.LabelCenter(o.EmptyLabel, layout.Popup, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground})
+		canvas.LabelCenter(o.EmptyLabel, layout.Popup, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground})
 	}
 	menu.end()
 	if s.reveal && s.scroll.Reveal(o.OptionIDs.At(s.Active)) {

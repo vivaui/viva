@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // Facts is the layout of one scene as the canvas captured it, before any
@@ -33,12 +33,12 @@ type Box struct {
 	X, Y, W, H float32
 }
 
-func box(r ui.Rect) Box { return Box{r.X, r.Y, r.Width, r.Height} }
+func box(r gfx.Rect) Box { return Box{r.X, r.Y, r.Width, r.Height} }
 
 // Hue is a color as four floats.
 type Hue [4]float32
 
-func hue(c ui.Color) Hue { return Hue{c.Red, c.Green, c.Blue, c.Alpha} }
+func hue(c gfx.Color) Hue { return Hue{c.Red, c.Green, c.Blue, c.Alpha} }
 
 // Measured is what the platform's text engine says about a text's string at
 // its style: the line a label of that text would be if the platform laid it out.
@@ -112,7 +112,7 @@ type HitFact struct {
 	Layer  uint16 `json:"layer,omitempty"`
 }
 
-func clipBox(r ui.Rect, has bool) *Box {
+func clipBox(r gfx.Rect, has bool) *Box {
 	if !has {
 		return nil
 	}
@@ -121,7 +121,7 @@ func clipBox(r ui.Rect, has bool) *Box {
 }
 
 // capture reads the canvas the way an application's painter would.
-func capture(canvas *ui.Canvas, tree *ui.Tree, measure text.MeasureFunc) (texts []TextFact, rects []RectFact, triangles []TriangleFact, shadows []ShadowFact, hits []HitFact) {
+func capture(canvas *gfx.Canvas, tree *gfx.Tree, measure text.MeasureFunc) (texts []TextFact, rects []RectFact, triangles []TriangleFact, shadows []ShadowFact, hits []HitFact) {
 	for _, t := range canvas.Texts() {
 		fact := TextFact{
 			Value: t.Value, Bounds: box(t.Bounds), Size: t.Style.Size, Weight: t.Style.Weight,

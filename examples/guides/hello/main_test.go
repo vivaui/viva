@@ -5,14 +5,14 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/ui"
 )
 
 // open runs the page in a headless window: the real painter, router and focus
 // rules, driven by explicit calls.
 func open(t *testing.T, m *model) *app.Driver {
 	t.Helper()
-	page := flex.NewPage(flex.PageConfig{View: m.page})
+	page := ui.NewPage(ui.PageConfig{View: m.page})
 	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 240}), nil)
 	if err != nil {
 		t.Fatal(err)

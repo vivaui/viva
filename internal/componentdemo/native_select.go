@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -39,9 +39,9 @@ var (
 	nativeSelectTrigger = tree.Sub(nativeSelectUI, tree.Name("trigger"))
 )
 
-func (state *State) paintNativeSelect(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var rows [3]flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Native Select · 系统弹窗", "Native Select · System popup"), func(f *flex.Frame) {
+func (state *State) paintNativeSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var rows [3]ui.Box
+	state.page(canvas, theme, size, 560, state.Text("Native Select · 系统弹窗", "Native Select · System popup"), func(f *ui.Frame) {
 		if state.exampleID == "default" {
 			rows[0] = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
 			f.Text(state.Text("平台适配器负责系统弹窗。", "The platform adapter owns the system popup.")).FontSize(theme.Metrics.FontSizeS).Muted()

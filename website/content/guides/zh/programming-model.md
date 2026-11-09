@@ -13,11 +13,11 @@ Viva 应用把自己的状态放在普通的 Go 值里。`Paint` 回调读取状
 
 ## 命中区域与标识
 
-任何可交互的东西都是绘制时声明的命中区域，标识由你在 `ui.Tree` 中命名。标识在帧与帧之间要保持稳定：焦点、悬停和按下状态都按标识跟踪，`Canvas.Focused`、`Canvas.FocusVisible` 和 `Canvas.Hovered` 会把它们报告回来，所以绘制代码读取它们，而不是自己再存一份。
+任何可交互的东西都是绘制时声明的命中区域，标识由你在 `gfx.Tree` 中命名。标识在帧与帧之间要保持稳定：焦点、悬停和按下状态都按标识跟踪，`Canvas.Focused`、`Canvas.FocusVisible` 和 `Canvas.Hovered` 会把它们报告回来，所以绘制代码读取它们，而不是自己再存一份。
 
 ```go
 var (
-	tree = ui.Tree{}
+	tree = gfx.Tree{}
 	page = tree.Feature("dashboard")
 
 	hitRefresh = page.ID(tree.Name("refresh"))
@@ -27,7 +27,7 @@ var (
 
 ## 事件
 
-按钮在声明处处理：`f.Button(save, "Save").Clicked()` 只在递送这次点击的那一遍（事件遍）里为真，也只有在这一遍里绘制才可以修改状态。只有绘制调用了 `Clicked`，运行时才会加这一遍，不用的应用不付出任何代价。如果应用只有一个集中的点击处理函数，在绘制开头读一次 `canvas.ClickTarget()`，并通过 `canvas.AfterPaint(func() { ... })` 把标识交给它：处理函数在这次绘制返回之后（绘制之外，所以可以阻塞或打开原生对话框）运行，随后重绘；这同样会让该次绘制被视为在监听点击。优先在每个控件处用 `Clicked`。需要更多的控件使用有类型的回调，每个都返回 `ui.EventResult`：
+按钮在声明处处理：`f.Button(save, "Save").Clicked()` 只在递送这次点击的那一遍（事件遍）里为真，也只有在这一遍里绘制才可以修改状态。只有绘制调用了 `Clicked`，运行时才会加这一遍，不用的应用不付出任何代价。如果应用只有一个集中的点击处理函数，在绘制开头读一次 `canvas.ClickTarget()`，并通过 `canvas.AfterPaint(func() { ... })` 把标识交给它：处理函数在这次绘制返回之后（绘制之外，所以可以阻塞或打开原生对话框）运行，随后重绘；这同样会让该次绘制被视为在监听点击。优先在每个控件处用 `Clicked`。需要更多的控件使用有类型的回调，每个都返回 `gfx.EventResult`：
 
 | 回调 | 收到什么 |
 | --- | --- |
@@ -36,15 +36,15 @@ var (
 | `OnShortcut` | 带 Control 或 Command 的可打印按键组合，早于原生文本系统收到。Windows 上获得焦点的普通文本框会先拿走标准编辑组合。 |
 | `OnScroll` | 像素增量，附带窗口位置、修饰键和目标。 |
 
-`ui.EventResult` 说明应用对事件做了什么。`Handled` 取消该事件的内置行为，`Repaint` 请求一次同步绘制，`Focus`、`Blur` 和 `FocusVisible` 用来移动焦点。事件没有改变任何东西时，返回零值就不会重绘。
+`gfx.EventResult` 说明应用对事件做了什么。`Handled` 取消该事件的内置行为，`Repaint` 请求一次同步绘制，`Focus`、`Blur` 和 `FocusVisible` 用来移动焦点。事件没有改变任何东西时，返回零值就不会重绘。
 
 ```go
-config.OnKey = func(event ui.KeyEvent) ui.EventResult {
-	if event.Key == ui.KeyEscape && state.open {
+config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
+	if event.Key == gfx.KeyEscape && state.open {
 		state.open = false
-		return ui.EventResult{Handled: true, Repaint: true}
+		return gfx.EventResult{Handled: true, Repaint: true}
 	}
-	return ui.EventResult{}
+	return gfx.EventResult{}
 }
 ```
 
@@ -64,14 +64,14 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Identities are names in a tree, not numbers: the application declares the
 // tree once and every control it paints is a name inside a feature of it.
 var (
-	tree = ui.Tree{}
+	tree = gfx.Tree{}
 	page = tree.Feature("background")
 
 	refresh = tree.ID(page, "refresh")
@@ -87,19 +87,19 @@ type model struct {
 	mu      sync.Mutex
 	pending string // written by the worker goroutine, under mu
 	status  string // read by Paint, written only on the window thread
-	view    flex.View
+	view    ui.View
 }
 
 func newConfig(m *model, invalidator *app.Invalidator) app.Config {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	config := app.Config{Tree: &tree, Title: "Background", Width: 480, Height: 240, Invalidator: invalidator}
 
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
 		canvas.Fill(bounds, theme.Background)
 
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.Row().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
+		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
+			f.Row().Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
 				if f.Button(refresh, "Refresh").Clicked() {
 					m.status = "working"
 					go func() {
@@ -127,7 +127,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 
 func main() {
 	var invalidator app.Invalidator
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	if err := app.RunCanvas(newConfig(&model{status: "idle"}, &invalidator), &canvas); err != nil {
 		log.Fatal(err)
 	}

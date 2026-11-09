@@ -1,16 +1,16 @@
 package app
 
 import (
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // resolveTextInputAlignment resolves a start- or end-relative alignment into the
 // physical edge a native editor places its glyphs with. The decision lives in
 // internal/platform so an application that drives a native editor directly gets
 // exactly what a viva window gets.
-func resolveTextInputAlignment(alignment ui.Alignment, value string, caret int) ui.Alignment {
+func resolveTextInputAlignment(alignment gfx.Alignment, value string, caret int) gfx.Alignment {
 	return platform.ResolveTextAlignment(alignment, value, caret)
 }
 
@@ -109,26 +109,26 @@ type TextEvent struct {
 
 // TextInputContext describes the focused Canvas text-field hit.
 type TextInputContext struct {
-	ID     ui.ID
-	Bounds ui.Rect
+	ID     gfx.ID
+	Bounds gfx.Rect
 	// Layer is the compositing layer captured by the focused hit.
 	Layer     uint16
 	Multiline bool
 	ReadOnly  bool
 	Secure    bool
 	// NavigationKeys reports a field that asked for Up, Down, PageUp and
-	// PageDown to be delivered to the application as raw ui.KeyEvents.
+	// PageDown to be delivered to the application as raw gfx.KeyEvents.
 	NavigationKeys bool
 	// Terminal reports a RoleTerminal hit. The native editor then is a
 	// preedit surface in the fixed-pitch font: it draws only the text being
 	// composed, with no caret or selection, and Bounds should be the cursor
 	// cell. Plain keys reach the application as TextInsert events and the
-	// rest as raw ui.KeyEvents (see ui.KeyEvent).
+	// rest as raw gfx.KeyEvents (see gfx.KeyEvent).
 	Terminal bool
 	// TypeAhead reports a hit that is not a text field but declared it takes
-	// typed text (ui.HitOptions.TypeAhead). It is delivered as a Terminal is:
+	// typed text (gfx.HitOptions.TypeAhead). It is delivered as a Terminal is:
 	// plain keys and input-method input arrive as text events, the rest as raw
-	// ui.KeyEvents, and the editor is a preedit surface that draws only the
+	// gfx.KeyEvents, and the editor is a preedit surface that draws only the
 	// text being composed, at Bounds. Return an input whose OnEvent keeps the
 	// query the application builds from the events.
 	TypeAhead bool
@@ -136,10 +136,10 @@ type TextInputContext struct {
 	// declared for this field. They fill whatever the returned TextInput leaves
 	// unset, so a bare &TextInput{Editor: editor} draws its text exactly where
 	// the field painted it; set them only to deliberately override.
-	TextBounds ui.Rect
+	TextBounds gfx.Rect
 	FontSize   float32
 	FontWeight float32
-	TextColor  ui.Color
+	TextColor  gfx.Color
 	// HideNativeOverlays requests that the platform editor keep its own caret
 	// and selection invisible. Editing, IME and clipboard behavior are
 	// unchanged. Components that paint those overlays themselves set it.
@@ -155,14 +155,14 @@ type TextInputProvider func(TextInputContext) *TextInput
 // geometry the focused component declared (see TextInputContext), which is
 // what keeps the text from jumping when a field gains focus.
 type TextInput struct {
-	Bounds   ui.Rect
+	Bounds   gfx.Rect
 	FontSize float32
 	Weight   float32
-	Color    ui.Color
-	MonoFace ui.MonoFace
+	Color    gfx.Color
+	MonoFace gfx.MonoFace
 	// Alignment places a fitted line within Bounds. Zero keeps the existing
 	// left-aligned input; terminal and self-placed inputs ignore it.
-	Alignment ui.Alignment
+	Alignment gfx.Alignment
 	// AltSendsEscape asks printable Alt/Option chords on a terminal to arrive as
 	// raw key events with the unmodified character in KeyEvent.Text. Terminal
 	// encoders can then send the conventional Escape-prefixed Meta sequence.
@@ -183,7 +183,7 @@ type TextInput struct {
 	// Implemented on macOS, Windows and X11, and by app.Driver.
 	KeyReleases bool
 	// NavigationKeys asks Up, Down, PageUp and PageDown to reach the
-	// application as raw ui.KeyEvents while the field is focused, instead
+	// application as raw gfx.KeyEvents while the field is focused, instead
 	// of being consumed by the text system or moving its caret. Use it
 	// for a search field, combobox or command palette with a dropdown.
 	// Cursor placement, selection, Home/End, word navigation and

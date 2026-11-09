@@ -7,8 +7,8 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // Labels are drawn with DirectWrite through Direct2D, the engine that draws the text of
@@ -459,7 +459,7 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 // drawRun draws a run of a grid line starting at left: printable ASCII characters advance by
 // exactly the pitch of the grid, a single wider character is centered on its cells, and
 // the run's decorations are DirectWrite's own.
-func (rasterizer *directRasterizer) drawRun(target *directTarget, family string, fallback uintptr, size, weight float32, run ui.TextRun, piece string, left, span, pitch, baseline float32, clip pieceClip) error {
+func (rasterizer *directRasterizer) drawRun(target *directTarget, family string, fallback uintptr, size, weight float32, run gfx.TextRun, piece string, left, span, pitch, baseline float32, clip pieceClip) error {
 	format, err := rasterizer.services.formatStyle(family, size, weight, run.Italic)
 	if err != nil {
 		return err

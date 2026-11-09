@@ -1,4 +1,4 @@
-// Fleet check with a flex page: the page examples/guides/fleet declares with a
+// Fleet check written as a page: the page examples/guides/fleet declares with a
 // Frame and a tree of identities, written without naming a control.
 //
 // Each checkbox writes into the host it shows, and is named by that host's field,
@@ -9,7 +9,7 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/ui"
 )
 
 type host struct {
@@ -60,14 +60,14 @@ func (m *model) handled() int {
 	return n
 }
 
-func (m *model) page(c flex.C) {
-	flex.Column(c).Fill().Pad(22).Gap(14).Children(func() {
-		flex.Text(c, "Fleet check").FontSize(26).Bold()
-		flex.Text(c, "SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
-		flex.Choice(c, &m.filter, filters, nil)
+func (m *model) page(c ui.C) {
+	ui.Column(c).Fill().Pad(22).Gap(14).Children(func() {
+		ui.Text(c, "Fleet check").FontSize(26).Bold()
+		ui.Text(c, "SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
+		ui.Choice(c, &m.filter, filters, nil)
 
 		// The list takes the room left over, so the footer stays on screen.
-		flex.Scroll(c).Grow(1).Gap(8).Children(func() {
+		ui.Scroll(c).Grow(1).Gap(8).Children(func() {
 			for i := range m.hosts {
 				if h := &m.hosts[i]; m.matches(h) {
 					m.row(c, h)
@@ -76,12 +76,12 @@ func (m *model) page(c flex.C) {
 		})
 
 		handled, total := m.handled(), len(m.hosts)
-		flex.Progress(c, float32(handled)/float32(max(total, 1))).FillWidth()
-		flex.Row(c).FillWidth().Gap(10).Items(flex.Center).Children(func() {
-			flex.Textf(c, "%d of %d handled", handled, total).FontSize(12).Muted().Mono()
-			flex.Spacer(c)
-			flex.Textf(c, "scanned %dx", m.scans).FontSize(12).Muted().Mono()
-			if flex.Button(c, "Scan again").Clicked() {
+		ui.Progress(c, float32(handled)/float32(max(total, 1))).FillWidth()
+		ui.Row(c).FillWidth().Gap(10).Items(ui.Center).Children(func() {
+			ui.Textf(c, "%d of %d handled", handled, total).FontSize(12).Muted().Mono()
+			ui.Spacer(c)
+			ui.Textf(c, "scanned %dx", m.scans).FontSize(12).Muted().Mono()
+			if ui.Button(c, "Scan again").Clicked() {
 				m.scans++
 			}
 		})
@@ -89,32 +89,32 @@ func (m *model) page(c flex.C) {
 }
 
 // row is one host: a component of the page's own, written as Viva's elements are.
-func (m *model) row(c flex.C, h *host) {
+func (m *model) row(c ui.C, h *host) {
 	theme := c.Theme()
-	flex.Row(c).FillWidth().Pad(12).Gap(12).Radius(10).Items(flex.Center).Background(theme.Card).Children(func() {
+	ui.Row(c).FillWidth().Pad(12).Gap(12).Radius(10).Items(ui.Center).Background(theme.Card).Children(func() {
 		if h.handled {
-			flex.Text(c, "ok").FontSize(11).Color(theme.Success)
+			ui.Text(c, "ok").FontSize(11).Color(theme.Success)
 		} else {
-			flex.Text(c, "open").FontSize(11).Color(theme.Danger)
+			ui.Text(c, "open").FontSize(11).Color(theme.Danger)
 		}
-		flex.Column(c).Grow(1).Gap(2).Children(func() {
-			flex.Row(c).Gap(8).Items(flex.Center).Children(func() {
-				flex.Text(c, h.name).FontSize(14).Bold()
-				flex.Text(c, h.addr).FontSize(12).Muted().Mono()
+		ui.Column(c).Grow(1).Gap(2).Children(func() {
+			ui.Row(c).Gap(8).Items(ui.Center).Children(func() {
+				ui.Text(c, h.name).FontSize(14).Bold()
+				ui.Text(c, h.addr).FontSize(12).Muted().Mono()
 			})
-			item := flex.Text(c, h.item).FontSize(12)
+			item := ui.Text(c, h.item).FontSize(12)
 			if h.handled {
 				item.Muted()
 			}
 		})
 		// The checkbox writes into the host; the bar above derives itself from the
 		// hosts on the next paint.
-		flex.Checkbox(c, &h.handled, "").Label(h.name)
+		ui.Checkbox(c, &h.handled, "").Label(h.name)
 	})
 }
 
 func main() {
-	if err := flex.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, newModel().page); err != nil {
+	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, newModel().page); err != nil {
 		log.Fatal(err)
 	}
 }

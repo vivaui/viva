@@ -6,8 +6,8 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestUIAStructureABI(t *testing.T) {
@@ -151,7 +151,7 @@ func TestUIABuildsNoElementsUntilAClientAsks(t *testing.T) {
 	}
 	tree := &uiaTree{supported: true, scale: 1, nextRuntime: 1}
 	tree.root = tree.newProviderLocked(-1, true)
-	nodes := []platform.AccessibilityNode{{ID: ui.Item(1), Role: platform.A11yRoleButton}}
+	nodes := []platform.AccessibilityNode{{ID: gfx.Item(1), Role: platform.A11yRoleButton}}
 	if err := tree.update(nodes); err != nil {
 		t.Fatal(err)
 	}
@@ -161,20 +161,20 @@ func TestUIABuildsNoElementsUntilAClientAsks(t *testing.T) {
 	tree.mu.Lock()
 	tree.engageLocked()
 	tree.mu.Unlock()
-	if len(tree.children) != 1 || tree.children[0].Node.ID != ui.Item(1) {
+	if len(tree.children) != 1 || tree.children[0].Node.ID != gfx.Item(1) {
 		t.Fatalf("children = %d", len(tree.children))
 	}
 }
 
 func TestUIAElementsFollowTheirControlAsTheListShifts(t *testing.T) {
 	tree := engagedTree(t, true, []platform.AccessibilityNode{
-		{ID: ui.Item(1), Role: platform.A11yRoleButton, Label: "A"},
-		{ID: ui.Item(2), Role: platform.A11yRoleButton, Label: "B"},
+		{ID: gfx.Item(1), Role: platform.A11yRoleButton, Label: "A"},
+		{ID: gfx.Item(2), Role: platform.A11yRoleButton, Label: "B"},
 	})
 	first, second := tree.children[0], tree.children[1]
 	if err := tree.update([]platform.AccessibilityNode{
-		{ID: ui.Item(3), Role: platform.A11yRoleButton, Label: "C"},
-		{ID: ui.Item(2), Role: platform.A11yRoleButton, Label: "B"},
+		{ID: gfx.Item(3), Role: platform.A11yRoleButton, Label: "C"},
+		{ID: gfx.Item(2), Role: platform.A11yRoleButton, Label: "B"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -184,17 +184,17 @@ func TestUIAElementsFollowTheirControlAsTheListShifts(t *testing.T) {
 	if first.Index != -1 {
 		t.Error("the element of a control that left is still in the tree")
 	}
-	if tree.children[0] == first || tree.children[0].Node.ID != ui.Item(3) {
+	if tree.children[0] == first || tree.children[0].Node.ID != gfx.Item(3) {
 		t.Error("a new control reused another's element")
 	}
 }
 
 func TestUIAOffersPatternsFromTheNode(t *testing.T) {
 	nodes := []platform.AccessibilityNode{
-		{ID: ui.Item(1), Role: platform.A11yRoleButton},
-		{ID: ui.Item(2), Role: platform.A11yRoleCheckbox},
-		{ID: ui.Item(3), Role: platform.A11yRoleSlider, Range: ui.ValueRange{Now: 1, Max: 10, Set: true}},
-		{ID: ui.Item(4), Role: platform.A11yRoleTextField, Value: "hello"},
+		{ID: gfx.Item(1), Role: platform.A11yRoleButton},
+		{ID: gfx.Item(2), Role: platform.A11yRoleCheckbox},
+		{ID: gfx.Item(3), Role: platform.A11yRoleSlider, Range: gfx.ValueRange{Now: 1, Max: 10, Set: true}},
+		{ID: gfx.Item(4), Role: platform.A11yRoleTextField, Value: "hello"},
 		{Role: platform.A11yRoleHeading},
 	}
 	tree := engagedTree(t, true, nodes)
@@ -230,9 +230,9 @@ func TestUIAOffersPatternsFromTheNode(t *testing.T) {
 
 func TestUIAPatternCallsBecomeRequests(t *testing.T) {
 	tree := engagedTree(t, true, []platform.AccessibilityNode{
-		{ID: ui.Item(1), Role: platform.A11yRoleButton},
-		{ID: ui.Item(2), Role: platform.A11yRoleButton, Disabled: true},
-		{ID: ui.Item(3), Role: platform.A11yRoleTextField, Value: "x"},
+		{ID: gfx.Item(1), Role: platform.A11yRoleButton},
+		{ID: gfx.Item(2), Role: platform.A11yRoleButton, Disabled: true},
+		{ID: gfx.Item(3), Role: platform.A11yRoleTextField, Value: "x"},
 	})
 	if status := uiaInvoke(tree.children[0].patternPointer(patternInvoke)); status != 0 {
 		t.Fatalf("Invoke = %#x", status)
@@ -245,7 +245,7 @@ func TestUIAPatternCallsBecomeRequests(t *testing.T) {
 		t.Fatalf("SetValue = %#x", status)
 	}
 	jobs := tree.takeJobs()
-	if len(jobs) != 2 || jobs[0].Action != platform.AccessibilityPress || jobs[0].Node != ui.Item(1) ||
+	if len(jobs) != 2 || jobs[0].Action != platform.AccessibilityPress || jobs[0].Node != gfx.Item(1) ||
 		jobs[1].Action != platform.AccessibilitySetText || jobs[1].Text != "hi" {
 		t.Fatalf("jobs = %+v", jobs)
 	}
@@ -253,7 +253,7 @@ func TestUIAPatternCallsBecomeRequests(t *testing.T) {
 
 func TestUIARangeValueReportsTheNode(t *testing.T) {
 	tree := engagedTree(t, true, []platform.AccessibilityNode{
-		{ID: ui.Item(1), Role: platform.A11yRoleSlider, Range: ui.ValueRange{Now: 4, Min: 0, Max: 20, Step: 2, Set: true}},
+		{ID: gfx.Item(1), Role: platform.A11yRoleSlider, Range: gfx.ValueRange{Now: 4, Min: 0, Max: 20, Step: 2, Set: true}},
 	})
 	this := tree.children[0].patternPointer(patternRangeValue)
 	var value float64
@@ -272,7 +272,7 @@ func TestUIARangeValueReportsTheNode(t *testing.T) {
 
 func TestUIATextRangesMoveByUnitAndSelect(t *testing.T) {
 	tree := engagedTree(t, true, []platform.AccessibilityNode{
-		{ID: ui.Item(1), Role: platform.A11yRoleTextField, Value: "one two three", Selection: platform.AccessibilitySelection{Start: 4, End: 4, Valid: true}},
+		{ID: gfx.Item(1), Role: platform.A11yRoleTextField, Value: "one two three", Selection: platform.AccessibilitySelection{Start: 4, End: 4, Valid: true}},
 	})
 	provider := tree.children[0]
 	var rangePointer uintptr
@@ -365,7 +365,7 @@ func TestUIANavigateRejectsAnUnwritableResult(t *testing.T) {
 // UI Automation's call to ElementProviderFromPoint run Navigate with whatever
 // the registers held, which wrote through a stale pointer into the heap.
 func TestUIAFragmentRootHasItsOwnInterfaceTable(t *testing.T) {
-	tree := engagedTree(t, true, []platform.AccessibilityNode{{ID: ui.Item(1), Role: platform.A11yRoleButton}})
+	tree := engagedTree(t, true, []platform.AccessibilityNode{{ID: gfx.Item(1), Role: platform.A11yRoleButton}})
 	root := tree.root
 	simple := root.simplePointer()
 	query := func(iid guid) uintptr {

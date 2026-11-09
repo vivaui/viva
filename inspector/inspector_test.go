@@ -4,22 +4,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // page declares two controls and a heading on canvas, as an application's paint
 // function would, and returns the identity of the first.
-func page(canvas *ui.Canvas) (save, cancel ui.ID) {
+func page(canvas *gfx.Canvas) (save, cancel gfx.ID) {
 	tree := canvas.Tree()
 	scope := tree.Feature("demo")
 	save, cancel = tree.ID(scope, "save"), tree.ID(scope, "cancel")
-	canvas.HitWithOptions(save, ui.Rect{X: 20, Y: 20, Width: 80, Height: 28}, "Save", ui.HitOptions{Role: ui.RoleButton})
-	canvas.HitWithOptions(cancel, ui.Rect{X: 120, Y: 20, Width: 80, Height: 28}, "Cancel", ui.HitOptions{Role: ui.RoleButton, Disabled: true})
-	canvas.Container(ui.Rect{X: 0, Y: 0, Width: 300, Height: 16}, ui.RoleHeading, "Title")
+	canvas.HitWithOptions(save, gfx.Rect{X: 20, Y: 20, Width: 80, Height: 28}, "Save", gfx.HitOptions{Role: gfx.RoleButton})
+	canvas.HitWithOptions(cancel, gfx.Rect{X: 120, Y: 20, Width: 80, Height: 28}, "Cancel", gfx.HitOptions{Role: gfx.RoleButton, Disabled: true})
+	canvas.Container(gfx.Rect{X: 0, Y: 0, Width: 300, Height: 16}, gfx.RoleHeading, "Title")
 	return save, cancel
 }
 
-func painted(canvas *ui.Canvas) string {
+func painted(canvas *gfx.Canvas) string {
 	var all []string
 	for _, text := range canvas.Texts() {
 		all = append(all, text.Value)
@@ -28,24 +28,24 @@ func painted(canvas *ui.Canvas) string {
 }
 
 func TestOffPaintsNothing(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	save, _ := page(&canvas)
-	canvas.SetInteraction(save, ui.ID{}, ui.ID{}, false)
+	canvas.SetInteraction(save, gfx.ID{}, gfx.ID{}, false)
 	before := len(canvas.Rectangles())
 	var inspector Inspector
-	inspector.Paint(&canvas, ui.Rect{Width: 300, Height: 200})
+	inspector.Paint(&canvas, gfx.Rect{Width: 300, Height: 200})
 	if len(canvas.Rectangles()) != before || len(canvas.Texts()) != 0 {
 		t.Fatal("an inspector that is off painted something")
 	}
 }
 
 func TestHoveredDescribesTheRegionUnderThePointer(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	save, _ := page(&canvas)
-	canvas.SetInteraction(save, ui.ID{}, save, true)
+	canvas.SetInteraction(save, gfx.ID{}, save, true)
 	inspector := Inspector{}
 	inspector.Set(Hovered)
-	inspector.Paint(&canvas, ui.Rect{Width: 300, Height: 200})
+	inspector.Paint(&canvas, gfx.Rect{Width: 300, Height: 200})
 	text := painted(&canvas)
 	for _, want := range []string{"button", "demo/save", `"Save"`, "80 × 28", "focused"} {
 		if !strings.Contains(text, want) {
@@ -58,11 +58,11 @@ func TestHoveredDescribesTheRegionUnderThePointer(t *testing.T) {
 }
 
 func TestOverlayDeclaresNoHitAndStaysOnScreen(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	save, _ := page(&canvas)
-	canvas.SetInteraction(save, ui.ID{}, ui.ID{}, false)
+	canvas.SetInteraction(save, gfx.ID{}, gfx.ID{}, false)
 	hits := len(canvas.Hits())
-	viewport := ui.Rect{Width: 150, Height: 120}
+	viewport := gfx.Rect{Width: 150, Height: 120}
 	inspector := Inspector{}
 	inspector.Set(All)
 	inspector.Paint(&canvas, viewport)
@@ -80,12 +80,12 @@ func TestOverlayDeclaresNoHitAndStaysOnScreen(t *testing.T) {
 
 func TestAllOutlinesEveryRegionAndHoveredOnlyOne(t *testing.T) {
 	count := func(mode Mode) int {
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		page(&canvas)
 		before := len(canvas.Triangles())
 		inspector := Inspector{}
 		inspector.Set(mode)
-		inspector.Paint(&canvas, ui.Rect{Width: 300, Height: 200})
+		inspector.Paint(&canvas, gfx.Rect{Width: 300, Height: 200})
 		return len(canvas.Triangles()) - before
 	}
 	if hovered, all := count(Hovered), count(All); hovered != 0 || all == 0 {
@@ -106,27 +106,27 @@ func TestCycleVisitsEveryModeAndReturnsToOff(t *testing.T) {
 }
 
 func TestOffDoesNotAllocate(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	page(&canvas)
 	var inspector Inspector
-	viewport := ui.Rect{Width: 300, Height: 200}
+	viewport := gfx.Rect{Width: 300, Height: 200}
 	if allocs := testing.AllocsPerRun(100, func() { inspector.Paint(&canvas, viewport) }); allocs != 0 {
 		t.Fatalf("an inspector that is off allocates %v times", allocs)
 	}
 }
 
 func BenchmarkPaintHovered(b *testing.B) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	save, _ := page(&canvas)
-	canvas.SetInteraction(save, ui.ID{}, ui.ID{}, false)
+	canvas.SetInteraction(save, gfx.ID{}, gfx.ID{}, false)
 	inspector := Inspector{}
 	inspector.Set(Hovered)
-	viewport := ui.Rect{Width: 300, Height: 200}
+	viewport := gfx.Rect{Width: 300, Height: 200}
 	b.ReportAllocs()
 	for b.Loop() {
 		canvas.Reset()
 		page(&canvas)
-		canvas.SetInteraction(save, ui.ID{}, ui.ID{}, false)
+		canvas.SetInteraction(save, gfx.ID{}, gfx.ID{}, false)
 		inspector.Paint(&canvas, viewport)
 	}
 }

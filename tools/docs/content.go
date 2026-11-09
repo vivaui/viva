@@ -12,7 +12,7 @@ func documentation() map[string]Page {
 	}
 	overrides := map[string]Page{
 		"button": {Sections: []Section{
-			{ID: "usage", Title: "Usage", Text: "flex.Frame.Button declares a labeled hit region and paints a source-owned button. Keep the stable ID across repaints; Clicked reports activation in the same declaration.", Items: []string{"Default, Secondary, Outline, Ghost, Destructive and Link share the same interaction model.", "Buttons measure their label by default; set Width to reserve a fixed size.", "XSmall, Small, Large and icon sizes are explicit options. Icon-only controls still need an accessible name."}},
+			{ID: "usage", Title: "Usage", Text: "ui.Frame.Button declares a labeled hit region and paints a source-owned button. Keep the stable ID across repaints; Clicked reports activation in the same declaration.", Items: []string{"Default, Secondary, Outline, Ghost, Destructive and Link share the same interaction model.", "Buttons measure their label by default; set Width to reserve a fixed size.", "XSmall, Small, Large and icon sizes are explicit options. Icon-only controls still need an accessible name."}},
 			{ID: "keyboard", Title: "Keyboard & state", Text: "Tab moves focus; Enter or Space activates the focused enabled button. Pointer focus does not paint a keyboard focus ring.", Items: []string{"Disabled controls cannot activate and are excluded from focus traversal.", "Hover, press and focus are read from Canvas, not stored as duplicate application state."}},
 		}},
 		"badge": {Sections: []Section{

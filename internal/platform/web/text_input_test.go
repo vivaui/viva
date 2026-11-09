@@ -1,7 +1,7 @@
 package web
 
 import (
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 	"testing"
 
 	"github.com/vivaui/viva/internal/platform"
@@ -37,12 +37,12 @@ func TestTextInputRuneUTF16Conversions(t *testing.T) {
 
 func TestTextInputCSSAlignment(t *testing.T) {
 	for _, testcase := range []struct {
-		alignment ui.Alignment
+		alignment gfx.Alignment
 		want      string
 	}{
-		{ui.AlignLeft, "left"},
-		{ui.AlignCenter, "center"},
-		{ui.AlignRight, "right"},
+		{gfx.AlignLeft, "left"},
+		{gfx.AlignCenter, "center"},
+		{gfx.AlignRight, "right"},
 	} {
 		if got := textAlignCSS(testcase.alignment); got != testcase.want {
 			t.Errorf("CSS text alignment = %q, want %q", got, testcase.want)
@@ -201,20 +201,20 @@ func TestBrowserEditsHonorTheEditorsOverwriteAndRestrictions(t *testing.T) {
 
 func TestEditorInputsResolvesOnlyEditableHits(t *testing.T) {
 	first, second := text.NewEditor("one"), text.NewEditor("two")
-	provider := EditorInputs(func(id ui.ID) (*text.Editor, bool) {
+	provider := EditorInputs(func(id gfx.ID) (*text.Editor, bool) {
 		switch id {
-		case ui.Item(1):
+		case gfx.Item(1):
 			return first, true
-		case ui.Item(2):
+		case gfx.Item(2):
 			return second, true
 		}
 		return nil, false
 	})
-	if input := provider(TextInputContext{ID: ui.Item(9)}); input != nil {
+	if input := provider(TextInputContext{ID: gfx.Item(9)}); input != nil {
 		t.Fatal("a hit with no editor was given a text input")
 	}
 
-	input := provider(TextInputContext{ID: ui.Item(1)})
+	input := provider(TextInputContext{ID: gfx.Item(1)})
 	if input == nil || input.State.Value != "one" || input.OnEvent == nil {
 		t.Fatalf("input = %+v", input)
 	}
@@ -227,7 +227,7 @@ func TestEditorInputsResolvesOnlyEditableHits(t *testing.T) {
 	}
 
 	// Focus moves to the second field: events now go there.
-	input = provider(TextInputContext{ID: ui.Item(2)})
+	input = provider(TextInputContext{ID: gfx.Item(2)})
 	if input.State.Value != "two" {
 		t.Fatalf("second input state = %+v", input.State)
 	}
@@ -236,7 +236,7 @@ func TestEditorInputsResolvesOnlyEditableHits(t *testing.T) {
 	}
 
 	// Focus leaves every editable field: a late event must not edit the last one.
-	provider(TextInputContext{ID: ui.Item(9)})
+	provider(TextInputContext{ID: gfx.Item(9)})
 	if _, err := input.OnEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "late"}); err == nil || second.String() != "two?" {
 		t.Fatalf("a late event was accepted: err %v, second %q", err, second.String())
 	}
@@ -244,9 +244,9 @@ func TestEditorInputsResolvesOnlyEditableHits(t *testing.T) {
 
 func TestEditorInputsResolvesWithoutAllocatingOnceWarm(t *testing.T) {
 	editor := text.NewEditor("abc")
-	provider := EditorInputs(func(ui.ID) (*text.Editor, bool) { return editor, true })
-	provider(TextInputContext{ID: ui.Item(1)})
-	if allocations := testing.AllocsPerRun(100, func() { provider(TextInputContext{ID: ui.Item(1)}) }); allocations != 0 {
+	provider := EditorInputs(func(gfx.ID) (*text.Editor, bool) { return editor, true })
+	provider(TextInputContext{ID: gfx.Item(1)})
+	if allocations := testing.AllocsPerRun(100, func() { provider(TextInputContext{ID: gfx.Item(1)}) }); allocations != 0 {
 		t.Fatalf("resolving the focused hit allocated %v times per repaint", allocations)
 	}
 }

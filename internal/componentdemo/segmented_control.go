@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -63,9 +63,9 @@ var segmentedControlStateOptions = [...]components.SegmentOption{
 	{ID: segmentedControlView.At(2), Label: "Timeline", Disabled: true},
 }
 
-func (state *State) keySegmentedControl(event ui.KeyEvent) ui.EventResult {
+func (state *State) keySegmentedControl(event gfx.KeyEvent) gfx.EventResult {
 	if listIndex(event.Target, segmentedControlView) < 0 {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	options := segmentedControlOptions[:]
 	if state.exampleID == "states" {
@@ -73,27 +73,27 @@ func (state *State) keySegmentedControl(event ui.KeyEvent) ui.EventResult {
 	}
 	next, handled := components.SegmentedControlKeyDown(event.Target, options, components.DirectionLTR, event.Key)
 	if !handled {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	nextValue := int32(listIndex(next, segmentedControlView))
 	changed := state.values[0] != nextValue
 	state.values[0] = nextValue
-	return ui.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
+	return gfx.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
 }
 
-func (state *State) paintSegmentedControl(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintSegmentedControl(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	options := segmentedControlOptions[:]
 	if state.exampleID == "states" {
 		options = segmentedControlStateOptions[:]
 	}
-	var disabled flex.Box
-	state.page(canvas, theme, size, 520, "View", func(f *flex.Frame) {
+	var disabled ui.Box
+	state.page(canvas, theme, size, 520, "View", func(f *ui.Frame) {
 		control := f.Segmented(options, segmentedControlView.At(int(state.values[0]))).FillWidth().MaxWidth(420)
 		if id, ok := control.Chosen(); ok {
 			state.values[0] = int32(listIndex(id, segmentedControlView))
 		}
 		if state.exampleID == "states" {
-			// flex has no whole-control disabled segmented control: the component
+			// ui has no whole-control disabled segmented control: the component
 			// paints it in a slot.
 			disabled = f.Slot().FillWidth().MaxWidth(420).Height(theme.Metrics.ControlHeight)
 		}

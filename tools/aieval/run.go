@@ -60,7 +60,7 @@ func systemPrompt(guide, template string) string {
 		"\n\nHere is the project's current main.go, a working example:\n\n```go\n" + template + "```\n\n" +
 		"Reply with ONE complete replacement main.go in a single ```go block and nothing else. Keep `package main`, a `type model struct`, " +
 		"`func newModel() *model` (initial data), `func newConfig(m *model) app.Config` and `main()` as in the example (the window size from the task goes in app.Config Width/Height). " +
-		"Use only APIs the guide or the example shows or that you are sure exist in packages github.com/vivaui/viva/app, github.com/vivaui/viva/ui, github.com/vivaui/viva/flex, github.com/vivaui/viva/components. No third-party packages."
+		"Use only APIs the guide or the example shows or that you are sure exist in packages github.com/vivaui/viva/app, github.com/vivaui/viva/ui, github.com/vivaui/viva/gfx, github.com/vivaui/viva/components. No third-party packages."
 }
 
 func sh(dir string, timeout time.Duration, extraEnv []string, name string, args ...string) (string, error) {

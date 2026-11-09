@@ -4,21 +4,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestContextMenuFitsAtFractionalOrigins(t *testing.T) {
 	for _, scale := range []float32{1, 1.25, 1.5, 1.75, 2} {
 		for _, origin := range []float32{0, 100.4, 100.9, 2048.1} {
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			canvas.SetPixelScale(scale)
-			scroll := MenuScroll{BarID: ui.Item(99)}
+			scroll := MenuScroll{BarID: gfx.Item(99)}
 			for range 3 {
 				canvas.Reset()
-				menu := BeginContextMenu(&canvas, ui.LightTheme(), ui.Rect{X: 20.2, Y: origin, Width: 220, Height: 65}, ContextMenuOptions{Scroll: &scroll, RowHeight: 24})
-				menu.AddItem(ContextMenuItem{ID: ui.Item(1), Label: "Open"})
+				menu := BeginContextMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 20.2, Y: origin, Width: 220, Height: 65}, ContextMenuOptions{Scroll: &scroll, RowHeight: 24})
+				menu.AddItem(ContextMenuItem{ID: gfx.Item(1), Label: "Open"})
 				menu.AddSeparator()
-				menu.AddItem(ContextMenuItem{ID: ui.Item(2), Label: "Upload"})
+				menu.AddItem(ContextMenuItem{ID: gfx.Item(2), Label: "Upload"})
 				menu.End()
 				if scroll.max != 0 {
 					t.Fatalf("scale=%v origin=%v: false overflow %v", scale, origin, scroll.max)
@@ -35,12 +35,12 @@ func TestContextMenuFitsAtFractionalOrigins(t *testing.T) {
 
 func TestContextMenuRetainsRealSubpixelOverflow(t *testing.T) {
 	for _, overflow := range []float32{0.25, 1, 12} {
-		var canvas ui.Canvas
-		scroll := MenuScroll{BarID: ui.Item(99)}
-		menu := BeginContextMenu(&canvas, ui.DarkTheme(), ui.Rect{Y: 100.4, Width: 220, Height: 65 - overflow}, ContextMenuOptions{Scroll: &scroll, RowHeight: 24})
-		menu.AddItem(ContextMenuItem{ID: ui.Item(1), Label: "Open"})
+		var canvas gfx.Canvas
+		scroll := MenuScroll{BarID: gfx.Item(99)}
+		menu := BeginContextMenu(&canvas, gfx.DarkTheme(), gfx.Rect{Y: 100.4, Width: 220, Height: 65 - overflow}, ContextMenuOptions{Scroll: &scroll, RowHeight: 24})
+		menu.AddItem(ContextMenuItem{ID: gfx.Item(1), Label: "Open"})
 		menu.AddSeparator()
-		menu.AddItem(ContextMenuItem{ID: ui.Item(2), Label: "Upload"})
+		menu.AddItem(ContextMenuItem{ID: gfx.Item(2), Label: "Upload"})
 		menu.End()
 		if scroll.max != overflow {
 			t.Fatalf("overflow=%v: scroll range=%v", overflow, scroll.max)
@@ -56,9 +56,9 @@ func TestContextMenuRetainsRealSubpixelOverflow(t *testing.T) {
 }
 
 func TestContextMenuDescriptionMeasuresPaintsAndKeepsOneAction(t *testing.T) {
-	for _, theme := range []ui.Theme{ui.LightTheme(), ui.DarkTheme()} {
-		var canvas ui.Canvas
-		item := ContextMenuItem{ID: ui.Item(2), Label: "Upload", Description: "/home/test/" + strings.Repeat("very-long-folder/", 12), Hint: "full remote path"}
+	for _, theme := range []gfx.Theme{gfx.LightTheme(), gfx.DarkTheme()} {
+		var canvas gfx.Canvas
+		item := ContextMenuItem{ID: gfx.Item(2), Label: "Upload", Description: "/home/test/" + strings.Repeat("very-long-folder/", 12), Hint: "full remote path"}
 		height := ContextMenuItemHeight(theme, item, 24)
 		if height <= 24 || ContextMenuItemHeight(theme, ContextMenuItem{Label: "Open"}, 24) != 24 {
 			t.Fatal("description row height is wrong")
@@ -66,10 +66,10 @@ func TestContextMenuDescriptionMeasuresPaintsAndKeepsOneAction(t *testing.T) {
 		if ContextMenuItemWidth(&canvas, theme, item) <= ContextMenuItemWidth(&canvas, theme, ContextMenuItem{Label: "Upload"}) {
 			t.Fatal("measurement ignored the description")
 		}
-		scroll := MenuScroll{BarID: ui.Item(99)}
-		menu := BeginContextMenu(&canvas, theme, ui.Rect{Y: 100.4, Width: 220, Height: 8 + height + 24}, ContextMenuOptions{Scroll: &scroll, RowHeight: 24})
+		scroll := MenuScroll{BarID: gfx.Item(99)}
+		menu := BeginContextMenu(&canvas, theme, gfx.Rect{Y: 100.4, Width: 220, Height: 8 + height + 24}, ContextMenuOptions{Scroll: &scroll, RowHeight: 24})
 		row := menu.AddItem(item)
-		next := menu.AddItem(ContextMenuItem{ID: ui.Item(3), Label: "Next"})
+		next := menu.AddItem(ContextMenuItem{ID: gfx.Item(3), Label: "Next"})
 		menu.End()
 		if next.Y != row.Y+row.Height || scroll.max != 0 {
 			t.Fatalf("description overlaps or scrolls: row=%+v next=%+v max=%v", row, next, scroll.max)
@@ -98,11 +98,11 @@ func TestContextMenuDescriptionMeasuresPaintsAndKeepsOneAction(t *testing.T) {
 }
 
 func TestContextMenuDescriptionRowGroupsTitleAndDetail(t *testing.T) {
-	for _, theme := range []ui.Theme{ui.LightTheme(), ui.DarkTheme()} {
-		var canvas ui.Canvas
-		item := ContextMenuItem{ID: ui.Item(2), Label: "Medium risk", Description: "Deletes still ask."}
+	for _, theme := range []gfx.Theme{gfx.LightTheme(), gfx.DarkTheme()} {
+		var canvas gfx.Canvas
+		item := ContextMenuItem{ID: gfx.Item(2), Label: "Medium risk", Description: "Deletes still ask."}
 		height := ContextMenuItemHeight(theme, item, 0)
-		menu := BeginContextMenu(&canvas, theme, ui.Rect{Y: 40, Width: 280, Height: 8 + height}, ContextMenuOptions{})
+		menu := BeginContextMenu(&canvas, theme, gfx.Rect{Y: 40, Width: 280, Height: 8 + height}, ContextMenuOptions{})
 		row := menu.AddItem(item)
 		menu.End()
 		var titleY, titleHeight, detailY, detailHeight float32
@@ -133,12 +133,12 @@ func TestContextMenuDescriptionRowGroupsTitleAndDetail(t *testing.T) {
 }
 
 func BenchmarkContextMenuDescription(b *testing.B) {
-	var canvas ui.Canvas
-	theme := ui.LightTheme()
-	item := ContextMenuItem{ID: ui.Item(1), Label: "Upload to current server folder", Description: "/home/test/a/long/path/that/needs/to/be/ellipsized"}
+	var canvas gfx.Canvas
+	theme := gfx.LightTheme()
+	item := ContextMenuItem{ID: gfx.Item(1), Label: "Upload to current server folder", Description: "/home/test/a/long/path/that/needs/to/be/ellipsized"}
 	paint := func() {
 		canvas.Reset()
-		menu := BeginContextMenu(&canvas, theme, ui.Rect{Y: 100.4, Width: 240, Height: 80}, ContextMenuOptions{RowHeight: 24})
+		menu := BeginContextMenu(&canvas, theme, gfx.Rect{Y: 100.4, Width: 240, Height: 80}, ContextMenuOptions{RowHeight: 24})
 		menu.AddItem(item)
 		menu.End()
 	}

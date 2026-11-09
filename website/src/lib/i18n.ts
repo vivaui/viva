@@ -207,7 +207,7 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
 
 const chineseSections: Record<string, Record<string, Omit<Section, 'ID'>>> = {
   button: {
-    usage: { Title: '用法', Text: '示例用 flex.Frame.Button 声明按钮；Clicked 在同一条声明里返回点击或键盘激活。重绘时保持 ID 稳定，状态由应用持有。', Items: ['Default、Secondary、Outline、Ghost、Destructive、Link 共用同一个交互模型。', '按钮默认按标签测量宽度；需要固定尺寸时用 Width。', 'XSmall、Small、Large 与图标尺寸由显式选项指定；纯图标按钮也需要可访问名称。'] },
+    usage: { Title: '用法', Text: '示例用 ui.Frame.Button 声明按钮；Clicked 在同一条声明里返回点击或键盘激活。重绘时保持 ID 稳定，状态由应用持有。', Items: ['Default、Secondary、Outline、Ghost、Destructive、Link 共用同一个交互模型。', '按钮默认按标签测量宽度；需要固定尺寸时用 Width。', 'XSmall、Small、Large 与图标尺寸由显式选项指定；纯图标按钮也需要可访问名称。'] },
     keyboard: { Title: '键盘与状态', Text: 'Tab 移动焦点，Enter 或空格激活可用按钮。鼠标获得焦点时不显示键盘焦点环。', Items: ['禁用控件不能激活，也不参与焦点遍历。', '悬停、按下和焦点状态直接读取 Canvas，不重复保存在应用状态里。'] },
   },
   badge: {

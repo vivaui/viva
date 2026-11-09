@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func terminalScrollLabels(count, first int) []platform.TextLabel {
@@ -16,7 +16,7 @@ func terminalScrollLabels(count, first int) []platform.TextLabel {
 		value := fmt.Sprintf("row %04d ", first+index)
 		value += strings.Repeat("the quick brown fox 0123456789 ", (columns-len(value))/30+1)
 		value = value[:columns]
-		runs := []ui.TextRun{
+		runs := []gfx.TextRun{
 			{Column: 0, Bytes: 33, Cells: 33, Color: platformTextColor(0.9, 0.4, 0.4)},
 			{Column: 33, Bytes: 33, Cells: 33, Color: platformTextColor(0.4, 0.9, 0.4)},
 			{Column: 66, Bytes: columns - 66, Cells: columns - 66, Color: platformTextColor(0.4, 0.5, 1)},
@@ -25,14 +25,14 @@ func terminalScrollLabels(count, first int) []platform.TextLabel {
 			Value: value, Y: float32(index) * 20, Width: columns * 8, Height: 20,
 			FontSize: 14, Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 			Mono: true, CellWidth: 8, Runs: runs,
-			Identity: ui.TextIdentity{Owner: 1, Item: uint64(first + index)},
+			Identity: gfx.TextIdentity{Owner: 1, Item: uint64(first + index)},
 		}
 	}
 	return labels
 }
 
-func platformTextColor(red, green, blue float32) ui.Color {
-	return ui.Color{Red: red, Green: green, Blue: blue, Alpha: 1}
+func platformTextColor(red, green, blue float32) gfx.Color {
+	return gfx.Color{Red: red, Green: green, Blue: blue, Alpha: 1}
 }
 
 func drawTerminalRows(t *testing.T, offscreen *Offscreen, labels []platform.TextLabel) {
@@ -90,7 +90,7 @@ func benchmarkScrollingTerminalRows(b *testing.B, identities bool) {
 		labels := terminalScrollLabels(rows, index+1)
 		if !identities {
 			for label := range labels {
-				labels[label].Identity = ui.TextIdentity{}
+				labels[label].Identity = gfx.TextIdentity{}
 			}
 		}
 		if err := offscreen.Set(nil, labels); err != nil {

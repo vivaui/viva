@@ -5,15 +5,15 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 type groupCPaintSnapshot struct {
-	rectangles []ui.Rectangle
-	texts      []ui.Text
-	hits       []ui.Hit
-	scope      ui.ID
-	escape     ui.ID
+	rectangles []gfx.Rectangle
+	texts      []gfx.Text
+	hits       []gfx.Hit
+	scope      gfx.ID
+	escape     gfx.ID
 }
 
 func TestGroupCCatalogOrder(t *testing.T) {
@@ -50,7 +50,7 @@ func TestGroupCCatalogOrder(t *testing.T) {
 }
 
 func TestGroupCPaintLightDarkVisibleAndDeterministic(t *testing.T) {
-	sizes := [...]ui.Size{{Width: 320, Height: 340}, {Width: 760, Height: 380}}
+	sizes := [...]gfx.Size{{Width: 320, Height: 340}, {Width: 760, Height: 380}}
 	for _, component := range groupCComponents {
 		component := component
 		for _, example := range component.Examples {
@@ -65,7 +65,7 @@ func TestGroupCPaintLightDarkVisibleAndDeterministic(t *testing.T) {
 							component.initialize(state)
 						}
 						before := *state
-						var canvas ui.Canvas
+						var canvas gfx.Canvas
 						canvas.SetMeasurer(measureTestText)
 						paintGroupCFrame(&canvas, &component, state, size, dark)
 						if len(canvas.Rectangles()) == 0 && len(canvas.Texts()) == 0 {
@@ -94,10 +94,10 @@ func TestGroupCPaintLightDarkVisibleAndDeterministic(t *testing.T) {
 	}
 }
 
-func paintGroupCFrame(canvas *ui.Canvas, component *Component, state *State, size ui.Size, dark bool) {
-	theme := ui.LightTheme()
+func paintGroupCFrame(canvas *gfx.Canvas, component *Component, state *State, size gfx.Size, dark bool) {
+	theme := gfx.LightTheme()
 	if dark {
-		theme = ui.DarkTheme()
+		theme = gfx.DarkTheme()
 	}
 	canvas.SetReduceMotion(true)
 	canvas.BeginFrame()
@@ -106,7 +106,7 @@ func paintGroupCFrame(canvas *ui.Canvas, component *Component, state *State, siz
 	canvas.EndFrame()
 }
 
-func groupCSnapshot(canvas *ui.Canvas) groupCPaintSnapshot {
+func groupCSnapshot(canvas *gfx.Canvas) groupCPaintSnapshot {
 	return groupCPaintSnapshot{
 		rectangles: slices.Clone(canvas.Rectangles()),
 		texts:      slices.Clone(canvas.Texts()),
@@ -116,7 +116,7 @@ func groupCSnapshot(canvas *ui.Canvas) groupCPaintSnapshot {
 	}
 }
 
-func assertSameGroupCPaint(t testing.TB, expected groupCPaintSnapshot, canvas *ui.Canvas) {
+func assertSameGroupCPaint(t testing.TB, expected groupCPaintSnapshot, canvas *gfx.Canvas) {
 	t.Helper()
 	if !slices.Equal(expected.rectangles, canvas.Rectangles()) ||
 		!slices.Equal(expected.texts, canvas.Texts()) ||
@@ -129,14 +129,14 @@ func assertSameGroupCPaint(t testing.TB, expected groupCPaintSnapshot, canvas *u
 func TestTreeNavigationPreviewMovesFocusAndHidesCollapsedChildren(t *testing.T) {
 	state := newTestState(t, "tree-navigation", "default")
 	root, child := treeNavigationRows.At(0), treeNavigationRows.At(1)
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paintAt(&canvas, state, testSize)
 	if hasText(&canvas, "Gateway") {
 		t.Fatal("collapsed preview paints a child")
 	}
-	step := func(target ui.ID, key ui.Key, want ui.ID) {
+	step := func(target gfx.ID, key gfx.Key, want gfx.ID) {
 		t.Helper()
-		result := state.Key(ui.KeyEvent{Target: target, Key: key})
+		result := state.Key(gfx.KeyEvent{Target: target, Key: key})
 		if !result.Handled || !result.Repaint || !result.FocusVisible || result.Focus != want {
 			t.Fatalf("key %v: result=%+v, want focus %v and repaint", key, result, want)
 		}
@@ -145,10 +145,10 @@ func TestTreeNavigationPreviewMovesFocusAndHidesCollapsedChildren(t *testing.T) 
 			t.Fatalf("key %v: the focused row is not selected", key)
 		}
 	}
-	step(root, ui.KeyRight, root)
-	step(root, ui.KeyRight, child)
-	step(child, ui.KeyLeft, root)
-	step(root, ui.KeyLeft, root)
+	step(root, gfx.KeyRight, root)
+	step(root, gfx.KeyRight, child)
+	step(child, gfx.KeyLeft, root)
+	step(root, gfx.KeyLeft, root)
 	if hasText(&canvas, "Gateway") {
 		t.Fatal("collapsing from the keyboard did not remove children")
 	}

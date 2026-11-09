@@ -6,18 +6,18 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
-var _ ui.StyledTextEngine = (*TextEngine)(nil)
+var _ gfx.StyledTextEngine = (*TextEngine)(nil)
 
 func TestItalicAndRegularLinesHaveSeparateCoreTextCacheEntries(t *testing.T) {
 	engine := SharedTextEngine()
 	engine.mutex.Lock()
 	defer engine.mutex.Unlock()
-	regular := engine.lineStyle("墨栈 Italic", 20, ui.WeightRegular, false)
-	italic := engine.lineStyle("墨栈 Italic", 20, ui.WeightRegular, true)
+	regular := engine.lineStyle("墨栈 Italic", 20, gfx.WeightRegular, false)
+	italic := engine.lineStyle("墨栈 Italic", 20, gfx.WeightRegular, true)
 	if regular == nil || italic == nil || regular == italic {
 		t.Fatal("italic and regular shared a shaped CoreText line")
 	}
@@ -33,7 +33,7 @@ func TestItalicProportionalLabelDrawsDifferentGlyphPixels(t *testing.T) {
 		defer offscreen.Close()
 		err = offscreen.Set(nil, []TextLabel{{
 			Value: "Italic 本文", X: 0, Y: 0, Width: 280, Height: 50,
-			FontSize: 24, Weight: ui.WeightRegular, Italic: italic, Color: color,
+			FontSize: 24, Weight: gfx.WeightRegular, Italic: italic, Color: color,
 		}}, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -85,7 +85,7 @@ func TestItalicLabelSlantsGlyphsOfFontsWithoutAnItalicFace(t *testing.T) {
 		defer offscreen.Close()
 		err = offscreen.Set(nil, []TextLabel{{
 			Value: text, X: 0, Y: 0, Width: 280, Height: 50,
-			FontSize: 24, Weight: ui.WeightRegular, Italic: italic, Color: color,
+			FontSize: 24, Weight: gfx.WeightRegular, Italic: italic, Color: color,
 		}}, nil)
 		if err != nil {
 			t.Fatal(err)

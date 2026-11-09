@@ -13,7 +13,7 @@ import (
 
 // The package promises that importing it costs nothing until a recipe is
 // called. A package-level variable built by a function call (an icon from a
-// helper, a ui.NewPath) breaks that: the linker must keep the initializer and
+// helper, a gfx.NewPath) breaks that: the linker must keep the initializer and
 // everything it reaches. This builds a program that only imports the package
 // and fails if any of its symbols are linked.
 func TestBlankImportLinksNoComponentSymbols(t *testing.T) {

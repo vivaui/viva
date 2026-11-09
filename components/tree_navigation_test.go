@@ -3,7 +3,7 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestNavigateTreeMovesAmongVisibleRowsAndBranches(t *testing.T) {
@@ -18,24 +18,24 @@ func TestNavigateTreeMovesAmongVisibleRowsAndBranches(t *testing.T) {
 	cases := []struct {
 		name   string
 		at     int
-		key    ui.Key
+		key    gfx.Key
 		page   int
 		want   int
 		action TreeNavigationAction
 	}{
-		{"down skips disabled", 2, ui.KeyDown, 3, 4, TreeNavigationMove},
-		{"up skips disabled", 4, ui.KeyUp, 3, 2, TreeNavigationMove},
-		{"home", 4, ui.KeyHome, 3, 0, TreeNavigationMove},
-		{"end", 0, ui.KeyEnd, 3, 5, TreeNavigationMove},
-		{"page down", 0, ui.KeyPageDown, 3, 4, TreeNavigationMove},
-		{"page up", 5, ui.KeyPageUp, 3, 2, TreeNavigationMove},
-		{"right child", 0, ui.KeyRight, 3, 1, TreeNavigationMove},
-		{"right open", 4, ui.KeyRight, 3, 4, TreeNavigationExpand},
-		{"left close", 1, ui.KeyLeft, 3, 1, TreeNavigationCollapse},
-		{"left parent", 2, ui.KeyLeft, 3, 1, TreeNavigationMove},
-		{"left finds parent across siblings", 4, ui.KeyLeft, 3, 0, TreeNavigationMove},
-		{"right leaf", 2, ui.KeyRight, 3, 2, TreeNavigationNone},
-		{"end edge", 5, ui.KeyEnd, 3, 5, TreeNavigationNone},
+		{"down skips disabled", 2, gfx.KeyDown, 3, 4, TreeNavigationMove},
+		{"up skips disabled", 4, gfx.KeyUp, 3, 2, TreeNavigationMove},
+		{"home", 4, gfx.KeyHome, 3, 0, TreeNavigationMove},
+		{"end", 0, gfx.KeyEnd, 3, 5, TreeNavigationMove},
+		{"page down", 0, gfx.KeyPageDown, 3, 4, TreeNavigationMove},
+		{"page up", 5, gfx.KeyPageUp, 3, 2, TreeNavigationMove},
+		{"right child", 0, gfx.KeyRight, 3, 1, TreeNavigationMove},
+		{"right open", 4, gfx.KeyRight, 3, 4, TreeNavigationExpand},
+		{"left close", 1, gfx.KeyLeft, 3, 1, TreeNavigationCollapse},
+		{"left parent", 2, gfx.KeyLeft, 3, 1, TreeNavigationMove},
+		{"left finds parent across siblings", 4, gfx.KeyLeft, 3, 0, TreeNavigationMove},
+		{"right leaf", 2, gfx.KeyRight, 3, 2, TreeNavigationNone},
+		{"end edge", 5, gfx.KeyEnd, 3, 5, TreeNavigationNone},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -45,17 +45,17 @@ func TestNavigateTreeMovesAmongVisibleRowsAndBranches(t *testing.T) {
 			}
 		})
 	}
-	if _, _, handled := NavigateTree(items, 0, ui.KeyEnter, 3); handled {
+	if _, _, handled := NavigateTree(items, 0, gfx.KeyEnter, 3); handled {
 		t.Fatal("activation belongs to the application")
 	}
-	if _, _, handled := NavigateTree(items, 3, ui.KeyDown, 3); handled {
+	if _, _, handled := NavigateTree(items, 3, gfx.KeyDown, 3); handled {
 		t.Fatal("disabled rows cannot navigate")
 	}
 }
 
 func TestNavigateTreeDoesNotTreatNonchildAsChild(t *testing.T) {
 	items := []TreeNavigationItem{{Depth: 255, Branch: true, Expanded: true}, {Depth: 0}}
-	if index, action, handled := NavigateTree(items, 0, ui.KeyRight, 0); !handled || index != 0 || action != TreeNavigationNone {
+	if index, action, handled := NavigateTree(items, 0, gfx.KeyRight, 0); !handled || index != 0 || action != TreeNavigationNone {
 		t.Fatalf("Right at depth limit = (%d, %v, %t)", index, action, handled)
 	}
 }
@@ -66,7 +66,7 @@ func TestNavigateTreeSkipsDisabledFirstChild(t *testing.T) {
 		{Depth: 1, Disabled: true},
 		{Depth: 1},
 	}
-	if index, action, handled := NavigateTree(items, 0, ui.KeyRight, 2); !handled || index != 2 || action != TreeNavigationMove {
+	if index, action, handled := NavigateTree(items, 0, gfx.KeyRight, 2); !handled || index != 2 || action != TreeNavigationMove {
 		t.Fatalf("Right past disabled child = (%d, %v, %t)", index, action, handled)
 	}
 }
@@ -81,6 +81,6 @@ func BenchmarkNavigateTree(b *testing.B) {
 	items[0] = TreeNavigationItem{Branch: true, Expanded: true}
 	b.ReportAllocs()
 	for b.Loop() {
-		benchmarkTreeNavigationIndex, _, _ = NavigateTree(items, 500, ui.KeyLeft, 30)
+		benchmarkTreeNavigationIndex, _, _ = NavigateTree(items, 500, gfx.KeyLeft, 30)
 	}
 }

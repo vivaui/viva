@@ -11,10 +11,10 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 // BenchmarkX11WindowLiveResize is opt-in because it briefly opens a real window.
@@ -39,7 +39,7 @@ func BenchmarkX11WindowLiveResize(b *testing.B) {
 					Value: value, X: 8, Y: float32(8 + i*16), Width: 624, Height: 16,
 					FontSize: 12, Mono: true, CellWidth: 7,
 					Color: platform.Color{Red: .9, Green: .9, Blue: .9, Alpha: 1},
-					Runs:  []ui.TextRun{{Bytes: int32(len(value)), Cells: int32(len(value)), Color: ui.RGB(230, 230, 230)}},
+					Runs:  []gfx.TextRun{{Bytes: int32(len(value)), Cells: int32(len(value)), Color: gfx.RGB(230, 230, 230)}},
 				}
 			}
 			config := platform.Config{

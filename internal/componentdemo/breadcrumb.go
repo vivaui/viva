@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -34,9 +34,9 @@ var (
 	breadcrumbMore = tree.ID(breadcrumbUI, "more")
 )
 
-func (state *State) paintBreadcrumb(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var trail flex.Box
-	state.page(canvas, theme, size, 620, state.Text("Breadcrumb · 当前上下文", "Breadcrumb · Current context"), func(f *flex.Frame) {
+func (state *State) paintBreadcrumb(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var trail ui.Box
+	state.page(canvas, theme, size, 620, state.Text("Breadcrumb · 当前上下文", "Breadcrumb · Current context"), func(f *ui.Frame) {
 		trail = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
 		caption := state.Text("选择上级路径以返回。", "Choose a parent path to go back.")
 		switch state.values[0] {

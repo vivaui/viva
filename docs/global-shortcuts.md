@@ -5,7 +5,7 @@ can also offer an explicit system-wide show/hide binding:
 
 ```go
 stop, err := app.RegisterGlobalShortcut(app.GlobalShortcut{
-    Modifiers: ui.ModifierControl | ui.ModifierAlt,
+    Modifiers: gfx.ModifierControl | gfx.ModifierAlt,
     Key: "G",
 }, func() {
     if window.Hidden() { window.Show() } else { window.Hide() }

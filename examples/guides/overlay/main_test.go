@@ -4,13 +4,13 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
 func TestOverlays(t *testing.T) {
 	m := &model{}
-	page := flex.NewPage(flex.PageConfig{View: m.page})
+	page := ui.NewPage(ui.PageConfig{View: m.page})
 	driver, err := app.NewDriver(page.Config(app.Config{Width: 640, Height: 360}), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -29,7 +29,7 @@ func TestOverlays(t *testing.T) {
 	}
 
 	click(t, driver, "Actions")
-	if err := driver.Key(ui.KeyEscape, 0); err != nil {
+	if err := driver.Key(gfx.KeyEscape, 0); err != nil {
 		t.Fatal(err)
 	}
 	if m.menuOpen {

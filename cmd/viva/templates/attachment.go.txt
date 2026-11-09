@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // AttachmentKind selects the media placeholder used until Canvas gains image
 // resources.
@@ -49,7 +49,7 @@ type AttachmentData struct {
 	ResourceID  uint64
 	// Icon, when it has any commands, is painted in the media square instead of the
 	// placeholder shape of Kind: a file-type or brand glyph the application owns.
-	Icon        ui.Icon
+	Icon        gfx.Icon
 	State       AttachmentState
 	Size        AttachmentSize
 	Orientation AttachmentOrientation
@@ -63,9 +63,9 @@ type AttachmentData struct {
 // the official AttachmentAction: a ghost icon-xs button that sits above the
 // attachment's own trigger, so pressing it never presses the attachment.
 type AttachmentAction struct {
-	ID    ui.ID
+	ID    gfx.ID
 	Label string // accessible name, "Remove"
-	Icon  ui.Icon
+	Icon  gfx.Icon
 }
 
 // attachmentMaxActions is how many AttachmentActions one attachment holds.
@@ -73,10 +73,10 @@ const attachmentMaxActions = 3
 
 // Attachment is one optional full-surface trigger around attachment content.
 type Attachment struct {
-	canvas      *ui.Canvas
-	theme       ui.Theme
-	id          ui.ID
-	bounds      ui.Rect
+	canvas      *gfx.Canvas
+	theme       gfx.Theme
+	id          gfx.ID
+	bounds      gfx.Rect
 	data        AttachmentData
 	disabled    bool
 	actions     [attachmentMaxActions]AttachmentAction
@@ -86,7 +86,7 @@ type Attachment struct {
 // BeginAttachment starts an attachment declaration. ID 0 paints static content.
 // A bounds width or height of zero means the attachment's natural size (see Size),
 // at the bounds origin.
-func BeginAttachment(canvas *ui.Canvas, theme ui.Theme, id ui.ID, bounds ui.Rect, data AttachmentData) Attachment {
+func BeginAttachment(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect, data AttachmentData) Attachment {
 	return Attachment{canvas: canvas, theme: theme, id: id, bounds: bounds, data: data}
 }
 
@@ -171,7 +171,7 @@ func (m attachmentMetrics) textHeight(description bool) float32 {
 // Size is the attachment's natural size: as wide as its text, media and actions
 // need but at least the official minimum width (a vertical attachment is a fixed
 // width), and as tall as its media or text.
-func (attachment Attachment) Size() ui.Size {
+func (attachment Attachment) Size() gfx.Size {
 	m := attachment.metrics()
 	hasDescription := attachment.data.Description != ""
 	if attachment.data.Orientation == AttachmentVertical {
@@ -179,15 +179,15 @@ func (attachment Attachment) Size() ui.Size {
 		if m.hasText {
 			height += m.gap + m.textHeight(hasDescription)
 		}
-		return ui.Size{Width: m.minWidth, Height: height}
+		return gfx.Size{Width: m.minWidth, Height: height}
 	}
 	width := (m.border+m.padX)*2 + m.media
 	if m.hasText {
 		text := float32(0)
 		if attachment.canvas != nil {
-			text = attachment.canvas.TextWidthWeight(attachment.data.Name, m.titleSize, ui.WeightMedium)
+			text = attachment.canvas.TextWidthWeight(attachment.data.Name, m.titleSize, gfx.WeightMedium)
 			if hasDescription {
-				text = max(text, attachment.canvas.TextWidthWeight(attachment.data.Description, m.descSize, ui.WeightRegular))
+				text = max(text, attachment.canvas.TextWidthWeight(attachment.data.Description, m.descSize, gfx.WeightRegular))
 			}
 		}
 		width += m.gap + text + 2*m.descGap // the platform draws a line a pixel or two wider than it measures
@@ -196,7 +196,7 @@ func (attachment Attachment) Size() ui.Size {
 		width += m.gap + float32(attachment.actionCount)*m.action
 	}
 	height := max(m.media, m.textHeight(hasDescription), m.action*min(float32(attachment.actionCount), 1))
-	return ui.Size{Width: max(width, m.minWidth), Height: (m.border+m.padY)*2 + height}
+	return gfx.Size{Width: max(width, m.minWidth), Height: (m.border+m.padY)*2 + height}
 }
 
 // Paint emits state, size, orientation, media, content, and trigger commands.
@@ -253,16 +253,16 @@ func (attachment Attachment) Paint() {
 		canvas.RoundedBorder(bounds, m.radius, 1, border, fill)
 	}
 
-	inner := ui.Rect{X: bounds.X + m.border + m.padX, Y: bounds.Y + m.border + m.padY, Width: max(bounds.Width-(m.border+m.padX)*2, 0), Height: max(bounds.Height-(m.border+m.padY)*2, 0)}
+	inner := gfx.Rect{X: bounds.X + m.border + m.padX, Y: bounds.Y + m.border + m.padY, Width: max(bounds.Width-(m.border+m.padX)*2, 0), Height: max(bounds.Height-(m.border+m.padY)*2, 0)}
 	hasDescription := data.Description != ""
 	textHeight := m.textHeight(hasDescription)
-	var media, text ui.Rect
+	var media, text gfx.Rect
 	var actionsLeft float32
 	if vertical {
-		media = ui.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: inner.Width}
-		text = ui.Rect{X: inner.X + m.textInset, Y: media.Y + media.Height + m.gap, Width: max(inner.Width-m.textInset*2, 0), Height: textHeight}
+		media = gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: inner.Width}
+		text = gfx.Rect{X: inner.X + m.textInset, Y: media.Y + media.Height + m.gap, Width: max(inner.Width-m.textInset*2, 0), Height: textHeight}
 	} else {
-		media = ui.Rect{X: inner.X, Y: inner.Y + (inner.Height-m.media)/2, Width: m.media, Height: m.media}
+		media = gfx.Rect{X: inner.X, Y: inner.Y + (inner.Height-m.media)/2, Width: m.media, Height: m.media}
 		right := inner.X + inner.Width
 		if attachment.actionCount > 0 {
 			right -= float32(attachment.actionCount) * m.action
@@ -270,7 +270,7 @@ func (attachment Attachment) Paint() {
 			right -= m.gap
 		}
 		textX := media.X + media.Width + m.gap
-		text = ui.Rect{X: textX, Y: inner.Y + (inner.Height-textHeight)/2, Width: max(right-textX, 0), Height: textHeight}
+		text = gfx.Rect{X: textX, Y: inner.Y + (inner.Height-textHeight)/2, Width: max(right-textX, 0), Height: textHeight}
 	}
 
 	mediaFill := theme.Muted
@@ -289,16 +289,16 @@ func (attachment Attachment) Paint() {
 	attachment.paintMedia(media, mediaForeground, vertical, data.Size == AttachmentSizeExtraSmall)
 
 	if data.Name != "" {
-		attachment.paintLine(data.Name, ui.Rect{X: text.X, Y: text.Y, Width: text.Width, Height: m.titleHeight}, m.titleSize, ui.WeightMedium, foreground)
+		attachment.paintLine(data.Name, gfx.Rect{X: text.X, Y: text.Y, Width: text.Width, Height: m.titleHeight}, m.titleSize, gfx.WeightMedium, foreground)
 	}
 	if hasDescription {
-		attachment.paintLine(data.Description, ui.Rect{X: text.X, Y: text.Y + m.titleHeight + m.descGap, Width: text.Width, Height: m.descHeight}, m.descSize, ui.WeightRegular, descriptionColor)
+		attachment.paintLine(data.Description, gfx.Rect{X: text.X, Y: text.Y + m.titleHeight + m.descGap, Width: text.Width, Height: m.descHeight}, m.descSize, gfx.WeightRegular, descriptionColor)
 	}
 	if data.State == AttachmentUploading && data.Progress > 0 {
 		progress := theme.Primary
 		progress.Alpha = 0.70
 		fraction := min(data.Progress, 1)
-		canvas.Rounded(ui.Rect{
+		canvas.Rounded(gfx.Rect{
 			X: inner.X, Y: bounds.Y + bounds.Height - m.border - 2,
 			Width: inner.Width * fraction, Height: 2,
 		}, 1, progress)
@@ -310,7 +310,7 @@ func (attachment Attachment) Paint() {
 	// The actions are above the trigger: declared after its hit, they win the pointer.
 	scale := theme.Metrics.ControlHeight / 32
 	for index := range attachment.actionCount {
-		action := ui.Rect{Width: m.action, Height: m.action}
+		action := gfx.Rect{Width: m.action, Height: m.action}
 		if vertical {
 			// absolute top-3 right-3, gap-1 between the actions
 			row := float32(attachment.actionCount)*m.action + float32(attachment.actionCount-1)*4*scale
@@ -326,17 +326,17 @@ func (attachment Attachment) Paint() {
 
 // paintLine draws one truncated line of text: a title or description that is too long
 // ends in an ellipsis.
-func (attachment Attachment) paintLine(value string, bounds ui.Rect, size, weight float32, color ui.Color) {
+func (attachment Attachment) paintLine(value string, bounds gfx.Rect, size, weight float32, color gfx.Color) {
 	var scratch [1]string
 	lines := attachment.canvas.WrapLines(scratch[:0], value, size, weight, bounds.Width, 1)
 	if len(lines) == 0 {
 		return
 	}
-	attachment.canvas.Label(lines[0], bounds, ui.TextStyle{Size: size, Weight: weight, Color: color})
+	attachment.canvas.Label(lines[0], bounds, gfx.TextStyle{Size: size, Weight: weight, Color: color})
 }
 
 // paintAction draws one ghost icon-xs button and declares its hit.
-func (attachment Attachment) paintAction(action AttachmentAction, bounds ui.Rect) {
+func (attachment Attachment) paintAction(action AttachmentAction, bounds gfx.Rect) {
 	theme, canvas := attachment.theme, attachment.canvas
 	interactive := !action.ID.IsZero() && !attachment.disabled
 	radius := theme.Metrics.RadiusControl
@@ -362,34 +362,34 @@ func (attachment Attachment) paintAction(action AttachmentAction, bounds ui.Rect
 		tint.Alpha *= 0.50
 	}
 	size := 12 * theme.Metrics.ControlHeight / 32
-	canvas.DrawIcon(action.Icon, ui.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, tint)
+	canvas.DrawIcon(action.Icon, gfx.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, tint)
 	if !action.ID.IsZero() {
-		canvas.HitWithOptions(action.ID, bounds, action.Label, ui.HitOptions{Role: ui.RoleButton, Disabled: attachment.disabled})
+		canvas.HitWithOptions(action.ID, bounds, action.Label, gfx.HitOptions{Role: gfx.RoleButton, Disabled: attachment.disabled})
 	}
 }
 
 // paintIdleBorder draws the dashed outline of an idle attachment. Three fixed dashes
 // per straight edge keep the idle/dashed distinction without a command count that
 // grows with the attachment's size; the rounded corners are left open.
-func (attachment Attachment) paintIdleBorder(bounds ui.Rect, radius float32, color ui.Color) {
+func (attachment Attachment) paintIdleBorder(bounds gfx.Rect, radius float32, color gfx.Color) {
 	canvas := attachment.canvas
 	horizontal := max(bounds.Width-radius*2, 0) / 5
 	for index := 0; index < 3; index++ {
 		x := bounds.X + radius + float32(index*2)*horizontal
-		canvas.Fill(ui.Rect{X: x, Y: bounds.Y, Width: horizontal, Height: 1}, color)
-		canvas.Fill(ui.Rect{X: x, Y: bounds.Y + bounds.Height - 1, Width: horizontal, Height: 1}, color)
+		canvas.Fill(gfx.Rect{X: x, Y: bounds.Y, Width: horizontal, Height: 1}, color)
+		canvas.Fill(gfx.Rect{X: x, Y: bounds.Y + bounds.Height - 1, Width: horizontal, Height: 1}, color)
 	}
 	vertical := max(bounds.Height-radius*2, 0) / 5
 	for index := 0; index < 3; index++ {
 		y := bounds.Y + radius + float32(index*2)*vertical
-		canvas.Fill(ui.Rect{X: bounds.X, Y: y, Width: 1, Height: vertical}, color)
-		canvas.Fill(ui.Rect{X: bounds.X + bounds.Width - 1, Y: y, Width: 1, Height: vertical}, color)
+		canvas.Fill(gfx.Rect{X: bounds.X, Y: y, Width: 1, Height: vertical}, color)
+		canvas.Fill(gfx.Rect{X: bounds.X + bounds.Width - 1, Y: y, Width: 1, Height: vertical}, color)
 	}
 }
 
 // paintMedia draws the glyph inside the media square: the caller's icon, else the
 // generic file or image glyph for the kind. The glyph is size-4 (size-6 vertical, size-3.5 xs).
-func (attachment Attachment) paintMedia(media ui.Rect, color ui.Color, vertical, extraSmall bool) {
+func (attachment Attachment) paintMedia(media gfx.Rect, color gfx.Color, vertical, extraSmall bool) {
 	scale := attachment.theme.Metrics.ControlHeight / 32
 	size := 16 * scale
 	switch {
@@ -398,7 +398,7 @@ func (attachment Attachment) paintMedia(media ui.Rect, color ui.Color, vertical,
 	case extraSmall:
 		size = 14 * scale
 	}
-	glyph := ui.Rect{X: media.X + (media.Width-size)/2, Y: media.Y + (media.Height-size)/2, Width: size, Height: size}
+	glyph := gfx.Rect{X: media.X + (media.Width-size)/2, Y: media.Y + (media.Height-size)/2, Width: size, Height: size}
 	icon := &attachmentFileIcon
 	switch {
 	case len(attachment.data.Icon.Commands) > 0 || len(attachment.data.Icon.Layers) > 0:
@@ -412,16 +412,16 @@ func (attachment Attachment) paintMedia(media ui.Rect, color ui.Color, vertical,
 // The media glyphs used when the caller gives no Icon: Lucide's file and image, with
 // the arcs drawn as quadratic curves.
 var (
-	attachmentFileIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(6, 22), ui.QuadTo(4, 22, 4, 20), ui.LineTo(4, 4), ui.QuadTo(4, 2, 6, 2), ui.LineTo(14, 2),
-		ui.LineTo(20, 8), ui.LineTo(20, 20), ui.QuadTo(20, 22, 18, 22), ui.ClosePath(),
-		ui.MoveTo(14, 2), ui.LineTo(14, 7), ui.QuadTo(14, 8, 15, 8), ui.LineTo(20, 8),
+	attachmentFileIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(6, 22), gfx.QuadTo(4, 22, 4, 20), gfx.LineTo(4, 4), gfx.QuadTo(4, 2, 6, 2), gfx.LineTo(14, 2),
+		gfx.LineTo(20, 8), gfx.LineTo(20, 20), gfx.QuadTo(20, 22, 18, 22), gfx.ClosePath(),
+		gfx.MoveTo(14, 2), gfx.LineTo(14, 7), gfx.QuadTo(14, 8, 15, 8), gfx.LineTo(20, 8),
 	}}
-	attachmentImageIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(5, 3), ui.LineTo(19, 3), ui.QuadTo(21, 3, 21, 5), ui.LineTo(21, 19), ui.QuadTo(21, 21, 19, 21),
-		ui.LineTo(5, 21), ui.QuadTo(3, 21, 3, 19), ui.LineTo(3, 5), ui.QuadTo(3, 3, 5, 3), ui.ClosePath(),
-		ui.MoveTo(9, 7), ui.QuadTo(11, 7, 11, 9), ui.QuadTo(11, 11, 9, 11), ui.QuadTo(7, 11, 7, 9), ui.QuadTo(7, 7, 9, 7), ui.ClosePath(),
-		ui.MoveTo(21, 15), ui.LineTo(17.5, 11.5), ui.QuadTo(16.5, 10.5, 15.5, 11.5), ui.LineTo(6, 21),
+	attachmentImageIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(5, 3), gfx.LineTo(19, 3), gfx.QuadTo(21, 3, 21, 5), gfx.LineTo(21, 19), gfx.QuadTo(21, 21, 19, 21),
+		gfx.LineTo(5, 21), gfx.QuadTo(3, 21, 3, 19), gfx.LineTo(3, 5), gfx.QuadTo(3, 3, 5, 3), gfx.ClosePath(),
+		gfx.MoveTo(9, 7), gfx.QuadTo(11, 7, 11, 9), gfx.QuadTo(11, 11, 9, 11), gfx.QuadTo(7, 11, 7, 9), gfx.QuadTo(7, 7, 9, 7), gfx.ClosePath(),
+		gfx.MoveTo(21, 15), gfx.LineTo(17.5, 11.5), gfx.QuadTo(16.5, 10.5, 15.5, 11.5), gfx.LineTo(6, 21),
 	}}
 )
 
@@ -436,7 +436,7 @@ func (attachment Attachment) PaintIn(group *AttachmentGroup) {
 // official one scrolls and snaps) is the caller's, by shifting the bounds it begins
 // with inside a clip, and Extent is how far there is to scroll.
 type AttachmentGroup struct {
-	bounds ui.Rect
+	bounds gfx.Rect
 	gap    float32
 	pad    float32
 	x      float32
@@ -444,14 +444,14 @@ type AttachmentGroup struct {
 }
 
 // BeginAttachmentGroup starts a row of attachments at the left of bounds.
-func BeginAttachmentGroup(theme ui.Theme, bounds ui.Rect) AttachmentGroup {
+func BeginAttachmentGroup(theme gfx.Theme, bounds gfx.Rect) AttachmentGroup {
 	scale := theme.Metrics.ControlHeight / 32
 	return AttachmentGroup{bounds: bounds, gap: 12 * scale, pad: 4 * scale, x: bounds.X}
 }
 
 // Fits reports whether a slot of the given size would end inside the group's width,
 // for a caller that wraps or truncates the row instead of scrolling it.
-func (group AttachmentGroup) Fits(size ui.Size) bool {
+func (group AttachmentGroup) Fits(size gfx.Size) bool {
 	end := group.x + size.Width
 	if group.count > 0 {
 		end += group.gap
@@ -461,11 +461,11 @@ func (group AttachmentGroup) Fits(size ui.Size) bool {
 
 // Next reserves a slot of the given size, vertically at the group's top padding, and
 // returns its bounds.
-func (group *AttachmentGroup) Next(size ui.Size) ui.Rect {
+func (group *AttachmentGroup) Next(size gfx.Size) gfx.Rect {
 	if group.count > 0 {
 		group.x += group.gap
 	}
-	slot := ui.Rect{X: group.x, Y: group.bounds.Y + group.pad, Width: size.Width, Height: size.Height}
+	slot := gfx.Rect{X: group.x, Y: group.bounds.Y + group.pad, Width: size.Width, Height: size.Height}
 	group.x += size.Width
 	group.count++
 	return slot

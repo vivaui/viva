@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -15,7 +15,7 @@ accordion := components.BeginAccordion(canvas, theme, bounds)
 for index, title := range titles {
     content := accordion.Item(items.At(index), title, open&(1<<index) != 0, 38)
     if content.Height > 0 {
-        style := ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground}
+        style := gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground}
         canvas.Label(answers[index], content, style)
     }
     if canvas.Clicked(items.At(index)) {
@@ -27,7 +27,7 @@ accordion := components.BeginAccordion(canvas, theme, bounds).Disabled()
 for index, title := range titles {
     content := accordion.Item(items.At(index), title, open&(1<<index) != 0, 38)
     if content.Height > 0 {
-        style := ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground}
+        style := gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground}
         canvas.Label(answers[index], content, style)
     }
 }`},
@@ -44,7 +44,7 @@ const accordionContentHeight = 38
 
 func initializeAccordion(state *State) { state.flags = 1 }
 
-func (state *State) paintAccordion(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintAccordion(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	titles := [...]string{
 		state.Text("是否持续重绘？", "Does it repaint constantly?"),
 		state.Text("状态由谁持有？", "Who owns the state?"),
@@ -63,8 +63,8 @@ func (state *State) paintAccordion(canvas *ui.Canvas, theme ui.Theme, size ui.Si
 			height += accordionContentHeight + 16
 		}
 	}
-	var slot flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Accordion · 常见问题", "Accordion · Common questions"), func(f *flex.Frame) {
+	var slot ui.Box
+	state.page(canvas, theme, size, 560, state.Text("Accordion · 常见问题", "Accordion · Common questions"), func(f *ui.Frame) {
 		slot = f.Slot().FillWidth().Height(height)
 	})
 	accordion := components.BeginAccordion(canvas, theme, slot.Rect())
@@ -77,7 +77,7 @@ func (state *State) paintAccordion(canvas *ui.Canvas, theme ui.Theme, size ui.Si
 		id := accordionItem.At(index)
 		content := accordion.Item(id, titles[index], open, accordionContentHeight)
 		if content.Height > 0 {
-			canvas.Label(answers[index], ui.Rect{X: content.X, Y: content.Y, Width: content.Width - 20, Height: 24}, ui.TextStyle{
+			canvas.Label(answers[index], gfx.Rect{X: content.X, Y: content.Y, Width: content.Width - 20, Height: 24}, gfx.TextStyle{
 				Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground,
 			})
 		}

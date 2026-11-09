@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // CodeMergeRow aligns one line of each source. A missing line is -1. The
 // caller owns this alignment and must update it when the editable result gains
@@ -14,7 +14,7 @@ type CodeMergeRow struct {
 type CodeMergeAction struct {
 	Row      int
 	Incoming bool
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 }
 
@@ -27,8 +27,8 @@ type CodeMergeSnapshot struct {
 	Current, Incoming []string
 	Rows              []CodeMergeRow
 	Editor            CodeDiffSnapshot
-	CurrentActionID   ui.ID
-	IncomingActionID  ui.ID
+	CurrentActionID   gfx.ID
+	IncomingActionID  gfx.ID
 	Actions           []CodeMergeAction
 }
 
@@ -43,8 +43,8 @@ type CodeMerge struct {
 	incomingKey    codeDiffLeftKey
 	widthKey       codeMergeWidthKey
 	width          float32
-	currentAction  ui.Rect
-	incomingAction ui.Rect
+	currentAction  gfx.Rect
+	incomingAction gfx.Rect
 }
 
 type codeMergeWidthKey struct {
@@ -56,13 +56,13 @@ type codeMergeWidthKey struct {
 }
 
 // Paint draws Current, Result and Incoming on one aligned vertical grid.
-func (merge *CodeMerge) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot CodeMergeSnapshot) ui.Rect {
+func (merge *CodeMerge) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snapshot CodeMergeSnapshot) gfx.Rect {
 	diff := &merge.CodeDiff
 	diff.canvas, diff.theme, diff.snapshot = canvas, theme, snapshot.Editor
 	diff.snapshot.Layout = CodeDiffSideBySide
 	merge.rows = snapshot.Rows
 	diff.caretShown = false
-	merge.currentAction, merge.incomingAction = ui.Rect{}, ui.Rect{}
+	merge.currentAction, merge.incomingAction = gfx.Rect{}, gfx.Rect{}
 	if bounds.Width <= 0 || bounds.Height <= 0 {
 		return bounds
 	}
@@ -134,7 +134,7 @@ func (merge *CodeMerge) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect,
 	diff.gutter = min(diff.gutter, max(paneWidth-codeDiffPadX, 1))
 	codeWidth := max(paneWidth-diff.gutter-codeDiffPadX, 1)
 	contentWidth := bounds.Width + max(diff.lineWidth-codeWidth+codeDiffPadX, 0)
-	area := BeginScrollArea(canvas, theme, bounds, ui.Size{Width: contentWidth, Height: contentHeight}).
+	area := BeginScrollArea(canvas, theme, bounds, gfx.Size{Width: contentWidth, Height: contentHeight}).
 		ReserveScrollbars().Offset(diff.scrollX, diff.scrollY).
 		VerticalScrollbar(snapshot.Editor.VerticalScrollbarID, snapshot.Editor.Label, "").
 		HorizontalScrollbar(snapshot.Editor.HorizontalScrollbarID, snapshot.Editor.Label, "")
@@ -149,18 +149,18 @@ func (merge *CodeMerge) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect,
 	viewport := diff.Geometry.Viewport
 	paneWidth = max((viewport.Width-2*codeDiffPaneGap)/3, 1)
 	diff.gutter = min(diff.gutter, max(paneWidth-codeDiffPadX, 1))
-	currentPane := ui.Rect{X: viewport.X, Y: viewport.Y, Width: paneWidth, Height: viewport.Height}
-	resultPane := ui.Rect{X: currentPane.X + paneWidth + codeDiffPaneGap, Y: viewport.Y, Width: paneWidth, Height: viewport.Height}
-	incomingPane := ui.Rect{X: resultPane.X + paneWidth + codeDiffPaneGap, Y: viewport.Y,
+	currentPane := gfx.Rect{X: viewport.X, Y: viewport.Y, Width: paneWidth, Height: viewport.Height}
+	resultPane := gfx.Rect{X: currentPane.X + paneWidth + codeDiffPaneGap, Y: viewport.Y, Width: paneWidth, Height: viewport.Height}
+	incomingPane := gfx.Rect{X: resultPane.X + paneWidth + codeDiffPaneGap, Y: viewport.Y,
 		Width: max(viewport.X+viewport.Width-(resultPane.X+paneWidth+codeDiffPaneGap), 1), Height: viewport.Height}
-	for _, pane := range [...]ui.Rect{currentPane, resultPane, incomingPane} {
+	for _, pane := range [...]gfx.Rect{currentPane, resultPane, incomingPane} {
 		canvas.Fill(pane, theme.Background)
 	}
-	diff.rightCode = ui.Rect{X: resultPane.X + diff.gutter, Y: resultPane.Y,
+	diff.rightCode = gfx.Rect{X: resultPane.X + diff.gutter, Y: resultPane.Y,
 		Width: max(resultPane.Width-diff.gutter, 1), Height: resultPane.Height}
 	diff.visibleRows = max(int(viewport.Height/diff.rowHeight), 0)
-	merge.currentAction = ui.Rect{X: currentPane.X, Y: viewport.Y, Width: min(diff.gutter, currentPane.Width), Height: viewport.Height}
-	merge.incomingAction = ui.Rect{X: incomingPane.X, Y: viewport.Y, Width: min(diff.gutter, incomingPane.Width), Height: viewport.Height}
+	merge.currentAction = gfx.Rect{X: currentPane.X, Y: viewport.Y, Width: min(diff.gutter, currentPane.Width), Height: viewport.Height}
+	merge.incomingAction = gfx.Rect{X: incomingPane.X, Y: viewport.Y, Width: min(diff.gutter, incomingPane.Width), Height: viewport.Height}
 	currentShown := diff.leftShown
 	first := max(int(diff.scrollY/diff.rowHeight), 0)
 	for rowIndex := first; rowIndex < len(snapshot.Rows); rowIndex++ {
@@ -173,36 +173,36 @@ func (merge *CodeMerge) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect,
 		if row.CurrentChanged {
 			kind = CodeDiffChanged
 		}
-		diff.paintRowSide(canvas, ui.Rect{X: currentPane.X, Y: y, Width: currentPane.Width, Height: diff.rowHeight},
+		diff.paintRowSide(canvas, gfx.Rect{X: currentPane.X, Y: y, Width: currentPane.Width, Height: diff.rowHeight},
 			currentPane, kind, row.CurrentLine, true, rowIndex)
 		kind = CodeDiffUnchanged
 		if row.CurrentChanged || row.IncomingChanged {
 			kind = CodeDiffChanged
 		}
-		diff.paintRowSide(canvas, ui.Rect{X: resultPane.X, Y: y, Width: resultPane.Width, Height: diff.rowHeight},
+		diff.paintRowSide(canvas, gfx.Rect{X: resultPane.X, Y: y, Width: resultPane.Width, Height: diff.rowHeight},
 			resultPane, kind, row.ResultLine, false, rowIndex)
 		kind = CodeDiffUnchanged
 		if row.IncomingChanged {
 			kind = CodeDiffChanged
 		}
 		diff.snapshot.Result.Left, diff.leftShown = snapshot.Incoming, merge.incomingShown
-		diff.paintRowSide(canvas, ui.Rect{X: incomingPane.X, Y: y, Width: incomingPane.Width, Height: diff.rowHeight},
+		diff.paintRowSide(canvas, gfx.Rect{X: incomingPane.X, Y: y, Width: incomingPane.Width, Height: diff.rowHeight},
 			incomingPane, kind, row.IncomingLine, true, rowIndex)
 		diff.snapshot.Result.Left, diff.leftShown = snapshot.Current, currentShown
 	}
 	if !snapshot.Editor.ID.IsZero() {
-		canvas.HitWithOptions(snapshot.Editor.ID, diff.rightCode, snapshot.Editor.Label, ui.HitOptions{
-			Role: ui.RoleTextField, Value: snapshot.Editor.Value, Hint: snapshot.Editor.Hint,
+		canvas.HitWithOptions(snapshot.Editor.ID, diff.rightCode, snapshot.Editor.Label, gfx.HitOptions{
+			Role: gfx.RoleTextField, Value: snapshot.Editor.Value, Hint: snapshot.Editor.Hint,
 			Disabled: snapshot.Editor.Disabled, ReadOnly: snapshot.Editor.ReadOnly, Multiline: true,
-			TextBounds: diff.rightCode, TextSize: size, TextColor: ui.Color{},
+			TextBounds: diff.rightCode, TextSize: size, TextColor: gfx.Color{},
 			HideNativeOverlays: true, Placement: merge,
 		})
 	}
 	if !snapshot.CurrentActionID.IsZero() {
-		canvas.HitWithOptions(snapshot.CurrentActionID, merge.currentAction, snapshot.Editor.Label, ui.HitOptions{Role: ui.RoleButton, Disabled: snapshot.Editor.Disabled})
+		canvas.HitWithOptions(snapshot.CurrentActionID, merge.currentAction, snapshot.Editor.Label, gfx.HitOptions{Role: gfx.RoleButton, Disabled: snapshot.Editor.Disabled})
 	}
 	if !snapshot.IncomingActionID.IsZero() {
-		canvas.HitWithOptions(snapshot.IncomingActionID, merge.incomingAction, snapshot.Editor.Label, ui.HitOptions{Role: ui.RoleButton, Disabled: snapshot.Editor.Disabled})
+		canvas.HitWithOptions(snapshot.IncomingActionID, merge.incomingAction, snapshot.Editor.Label, gfx.HitOptions{Role: gfx.RoleButton, Disabled: snapshot.Editor.Disabled})
 	}
 	for _, action := range snapshot.Actions {
 		if action.ID.IsZero() || action.Row < 0 || action.Row >= len(snapshot.Rows) {
@@ -216,19 +216,19 @@ func (merge *CodeMerge) Paint(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect,
 		if y < pane.Y || y+diff.rowHeight > pane.Y+pane.Height {
 			continue
 		}
-		button := ui.Rect{X: pane.X + 4, Y: y + 1, Width: min(float32(72), max(pane.Width-8, 1)), Height: max(diff.rowHeight-2, 1)}
+		button := gfx.Rect{X: pane.X + 4, Y: y + 1, Width: min(float32(72), max(pane.Width-8, 1)), Height: max(diff.rowHeight-2, 1)}
 		canvas.Border(button, 1, theme.Border, theme.Card)
 		canvas.Clip(button)
-		canvas.Label(action.Label, button, ui.TextStyle{Size: theme.Metrics.FontSizeS, Color: theme.Foreground})
+		canvas.Label(action.Label, button, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Color: theme.Foreground})
 		canvas.Unclip()
-		canvas.HitWithOptions(action.ID, button, action.Label, ui.HitOptions{Role: ui.RoleButton, Disabled: snapshot.Editor.Disabled})
+		canvas.HitWithOptions(action.ID, button, action.Label, gfx.HitOptions{Role: gfx.RoleButton, Disabled: snapshot.Editor.Disabled})
 	}
 	area.EndContent()
 	return bounds
 }
 
 // GutterAt identifies the row and source line of either action region.
-func (merge *CodeMerge) GutterAt(point ui.Point) (row, line int, incoming, ok bool) {
+func (merge *CodeMerge) GutterAt(point gfx.Point) (row, line int, incoming, ok bool) {
 	row, incoming, ok = merge.ActionAt(point)
 	if !ok {
 		return 0, 0, false, false
@@ -248,7 +248,7 @@ func (merge *CodeMerge) incomingLine(row int) int {
 
 // ActionAt maps a gutter pointer to its aligned row and side. The caller owns
 // the action and the meaning of each row; empty action regions return false.
-func (merge *CodeMerge) ActionAt(point ui.Point) (row int, incoming, ok bool) {
+func (merge *CodeMerge) ActionAt(point gfx.Point) (row int, incoming, ok bool) {
 	region := merge.currentAction
 	if point.X >= merge.incomingAction.X && point.X < merge.incomingAction.X+merge.incomingAction.Width {
 		region, incoming = merge.incomingAction, true

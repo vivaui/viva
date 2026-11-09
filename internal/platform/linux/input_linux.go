@@ -6,9 +6,9 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 const xcbWheelStep = 48
@@ -412,20 +412,20 @@ func (router eventRouter) deliverReleaseToApplication(keyEvent platform.KeyEvent
 	return router.presentFrame(frame, err)
 }
 
-func xcbPointerButton(button uint8) ui.PointerButton {
+func xcbPointerButton(button uint8) gfx.PointerButton {
 	switch button {
 	case xcbButtonLeft:
-		return ui.PointerButtonPrimary
+		return gfx.PointerButtonPrimary
 	case xcbButtonRight:
-		return ui.PointerButtonSecondary
+		return gfx.PointerButtonSecondary
 	case xcbButtonMiddle:
-		return ui.PointerButtonMiddle
+		return gfx.PointerButtonMiddle
 	case xcbButtonBack:
-		return ui.PointerButtonBack
+		return gfx.PointerButtonBack
 	case xcbButtonForward:
-		return ui.PointerButtonForward
+		return gfx.PointerButtonForward
 	default:
-		return ui.PointerButtonNone
+		return gfx.PointerButtonNone
 	}
 }
 

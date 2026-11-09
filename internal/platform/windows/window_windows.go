@@ -12,11 +12,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -84,7 +84,7 @@ type windowState struct {
 	// visibility reported to OnVisibility, with ok set once one has been.
 	hiddenByShow, shownVisible, shownKnown bool
 	maximized                              bool
-	lastFrame                              ui.Rect
+	lastFrame                              gfx.Rect
 	scale                                  float32
 	scaleFixed                             bool // VIVA_SCALE set it: the display's own scale is ignored
 	err                                    error
@@ -108,9 +108,9 @@ type windowState struct {
 	baseRectangleCount, baseTextLabelCount int
 	textLabels                             []platform.TextLabel
 	textRectangles                         []render.Rectangle
-	textEngine                             ui.TextEngine
-	textSpans                              []ui.TextSpan
-	textRuns                               []ui.TextRun
+	textEngine                             gfx.TextEngine
+	textSpans                              []gfx.TextSpan
+	textRuns                               []gfx.TextRun
 	captionPress                           captionPress
 	imeComposing                           bool
 	pendingHighSurrogate                   uint16
@@ -184,7 +184,7 @@ func (state *windowState) reportFrame() {
 	if scale <= 0 {
 		scale = 1
 	}
-	frame := ui.Rect{
+	frame := gfx.Rect{
 		X: float32(origin.X) / scale, Y: float32(origin.Y) / scale,
 		Width:  float32(client.Right-client.Left) / scale,
 		Height: float32(client.Bottom-client.Top) / scale,
@@ -732,14 +732,14 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			state.tracking = true
 		}
 		eventKind := platform.PointerMove
-		button := ui.PointerButtonNone
+		button := gfx.PointerButtonNone
 		switch kind {
 		case wmLeftDown, wmLeftUp:
-			button = ui.PointerButtonPrimary
+			button = gfx.PointerButtonPrimary
 		case wmRightDown, wmRightUp:
-			button = ui.PointerButtonSecondary
+			button = gfx.PointerButtonSecondary
 		case wmMiddleDown, wmMiddleUp:
-			button = ui.PointerButtonMiddle
+			button = gfx.PointerButtonMiddle
 		case wmXButtonDown, wmXButtonUp:
 			var known bool
 			if button, known = sideButton(first); !known {
@@ -1070,14 +1070,14 @@ func (state *windowState) testEvents() {
 
 // sideButton is the button a WM_XBUTTON message is for. The high word of wParam
 // says which: XBUTTON1 is the Back button of a mouse, XBUTTON2 Forward.
-func sideButton(wParam uintptr) (ui.PointerButton, bool) {
+func sideButton(wParam uintptr) (gfx.PointerButton, bool) {
 	switch uint16(wParam >> 16) {
 	case 1:
-		return ui.PointerButtonBack, true
+		return gfx.PointerButtonBack, true
 	case 2:
-		return ui.PointerButtonForward, true
+		return gfx.PointerButtonForward, true
 	}
-	return ui.PointerButtonNone, false
+	return gfx.PointerButtonNone, false
 }
 
 // configureClicks sets the double-click time and distance from the system

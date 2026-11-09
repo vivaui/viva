@@ -3,7 +3,7 @@ package components
 import (
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // InputSnapshot is one caller-owned single-line editor presentation. Value is
@@ -12,7 +12,7 @@ import (
 // it a password field: the value is never exposed, DisplayValue is ignored,
 // and the field paints one bullet per character.
 type InputSnapshot struct {
-	ID              ui.ID
+	ID              gfx.ID
 	Label           string
 	Value           string
 	DisplayValue    string
@@ -55,12 +55,12 @@ type InputSnapshot struct {
 type InputTextStyle struct {
 	// Size is the font size in points; zero is the theme's body size.
 	Size float32
-	// Weight is the font weight, 100 to 900 as in ui.TextStyle; zero is regular.
+	// Weight is the font weight, 100 to 900 as in gfx.TextStyle; zero is regular.
 	Weight float32
 	// Color is the color of the text; the zero color, which is transparent, is the theme's
 	// foreground.
-	Color ui.Color
-	// Mono sets the text in a fixed-pitch face, MonoFace choosing which (ui.TextStyle's own).
+	Color gfx.Color
+	// Mono sets the text in a fixed-pitch face, MonoFace choosing which (gfx.TextStyle's own).
 	// The platform's text service draws one proportional face, so a mono field is painted
 	// by the component: its glyphs, selection, composition underline and caret are drawn in
 	// the field, and the platform is kept for what only it does (typing, the input method
@@ -68,20 +68,20 @@ type InputTextStyle struct {
 	// where the caret, the selection and the composition are (Caret, SelectionStart and so
 	// on), and may give the caret's blink phase in Blink.
 	Mono     bool
-	MonoFace ui.MonoFace
+	MonoFace gfx.MonoFace
 }
 
-// style is the ui.TextStyle the field's text is drawn and measured in under a theme: the zero
+// style is the gfx.TextStyle the field's text is drawn and measured in under a theme: the zero
 // size, weight and color are the theme's body size, regular weight and foreground.
-func (s InputTextStyle) style(theme *ui.Theme) ui.TextStyle {
-	style := ui.TextStyle{Size: s.Size, Weight: s.Weight, Color: s.Color, Mono: s.Mono, MonoFace: s.MonoFace}
+func (s InputTextStyle) style(theme *gfx.Theme) gfx.TextStyle {
+	style := gfx.TextStyle{Size: s.Size, Weight: s.Weight, Color: s.Color, Mono: s.Mono, MonoFace: s.MonoFace}
 	if style.Size <= 0 {
 		style.Size = theme.Metrics.FontSizeM
 	}
 	if style.Weight <= 0 {
-		style.Weight = ui.WeightRegular
+		style.Weight = gfx.WeightRegular
 	}
-	if style.Color == (ui.Color{}) {
+	if style.Color == (gfx.Color{}) {
 		style.Color = theme.Foreground
 	}
 	return style
@@ -90,7 +90,7 @@ func (s InputTextStyle) style(theme *ui.Theme) ui.TextStyle {
 // PaintInput paints the official Vega input recipe and returns its normalized
 // geometry. Byte offsets describe DisplayValue (or Value when DisplayValue is
 // empty) and are clamped to UTF-8 boundaries before painting.
-func PaintInput(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot InputSnapshot) ui.Rect {
+func PaintInput(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snapshot InputSnapshot) gfx.Rect {
 	if bounds.Height <= 0 {
 		bounds.Height = theme.Metrics.ControlHeight
 	}
@@ -99,9 +99,9 @@ func PaintInput(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Inpu
 	}
 
 	focused := snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID
-	paintTextEntrySurface(canvas, &theme, bounds, ui.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	inset := theme.Metrics.TextInsetX()
-	content := ui.Rect{X: bounds.X + inset, Y: bounds.Y, Width: inputMax(0, bounds.Width-2*inset), Height: bounds.Height}
+	content := gfx.Rect{X: bounds.X + inset, Y: bounds.Y, Width: inputMax(0, bounds.Width-2*inset), Height: bounds.Height}
 	paintInputContent(canvas, theme, bounds, content, snapshot, focused)
 	return bounds
 }
@@ -120,7 +120,7 @@ func PaintInput(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot Inpu
 // zero snapshot ID paints a static preview without a hit region. A content
 // rectangle with no room (padding larger than the control) paints no text, and the
 // control is still a field the pointer and the keyboard reach.
-func PaintInputContent(canvas *ui.Canvas, theme ui.Theme, bounds, content ui.Rect, snapshot InputSnapshot) {
+func PaintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.Rect, snapshot InputSnapshot) {
 	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 {
 		return
 	}
@@ -132,7 +132,7 @@ func PaintInputContent(canvas *ui.Canvas, theme ui.Theme, bounds, content ui.Rec
 // The text bounds the platform is told are the line box centered in content, which
 // is where the glyphs are painted: a content rectangle exactly one line tall is its
 // own line box, and a taller one (a padded field, or the whole control) is not.
-func paintInputContent(canvas *ui.Canvas, theme ui.Theme, bounds, content ui.Rect, snapshot InputSnapshot, focused bool) {
+func paintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.Rect, snapshot InputSnapshot, focused bool) {
 	style := snapshot.Text.style(&theme)
 	// A mono field is painted by the component whatever the snapshot says of the platform: the
 	// platform's text service cannot draw its face, so its text and overlays are hidden. A
@@ -162,12 +162,12 @@ func paintInputContent(canvas *ui.Canvas, theme ui.Theme, bounds, content ui.Rec
 	// The platform draws no text of a field the component paints: its ink is transparent.
 	platformInk := ink
 	if selfPainted {
-		platformInk = ui.Color{}
+		platformInk = gfx.Color{}
 	}
 	lineTop, lineHeight := inputLineBox(content, size)
-	textBounds := ui.Rect{X: content.X, Y: lineTop, Width: content.Width, Height: lineHeight}
-	canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, ui.HitOptions{
-		Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
+	textBounds := gfx.Rect{X: content.X, Y: lineTop, Width: content.Width, Height: lineHeight}
+	canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, gfx.HitOptions{
+		Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 		Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Secure: snapshot.Secure,
 		NavigationKeys: snapshot.NavigationKeys,
 		TextBounds:     textBounds, TextSize: size, TextWeight: weight, TextColor: platformInk,
@@ -180,7 +180,7 @@ func paintInputContent(canvas *ui.Canvas, theme ui.Theme, bounds, content ui.Rec
 // character, and the offsets of the snapshot, which index the real text, are
 // mapped onto the bullets. InputGroup paints its embedded single-line control
 // through the same function, so the two cannot drift apart.
-func inputPaintText(canvas *ui.Canvas, theme ui.Theme, content ui.Rect, snapshot InputSnapshot, focused bool) {
+func inputPaintText(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, snapshot InputSnapshot, focused bool) {
 	display := snapshot.DisplayValue
 	if display == "" {
 		display = snapshot.Value
@@ -196,7 +196,7 @@ func inputPaintText(canvas *ui.Canvas, theme ui.Theme, content ui.Rect, snapshot
 	inputPaintLine(canvas, theme, content, display, snapshot.Placeholder, snapshot, focused)
 }
 
-func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, placeholder string, snapshot InputSnapshot, focused bool) {
+func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value, placeholder string, snapshot InputSnapshot, focused bool) {
 	textStyle := snapshot.Text.style(&theme)
 	fontSize, ink := textStyle.Size, textStyle.Color
 	color := ink
@@ -218,10 +218,10 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 	// The line starts where the label puts it: the right end of the field for text that
 	// reads right to left. The caret, selection and composition are measured from there,
 	// and follow the visual order of mixed text (a selection may be several stretches).
-	origin := canvas.LabelOrigin(value, bounds, style, ui.AlignStart)
-	var ranges [4]ui.Rect
+	origin := canvas.LabelOrigin(value, bounds, style, gfx.AlignStart)
+	var ranges [4]gfx.Rect
 	selectionStart, selectionEnd := inputRange(value, snapshot.SelectionStart, snapshot.SelectionEnd)
-	var selections []ui.Rect
+	var selections []gfx.Rect
 	if selectionEnd > selectionStart && !placeholderShown {
 		selections = inputTextRanges(canvas, ranges[:0], bounds, bandTop, bandHeight, origin, value, textStyle, selectionStart, selectionEnd)
 		selectionColor, _ := selectionColors(theme)
@@ -234,27 +234,27 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 	}
 	compositionStart, compositionEnd := inputRange(value, snapshot.CompositionStart, snapshot.CompositionEnd)
 	if compositionEnd > compositionStart && !placeholderShown {
-		var underlines [4]ui.Rect
+		var underlines [4]gfx.Rect
 		underline := ink
 		if snapshot.Disabled {
 			underline.Alpha *= 0.50
 		}
 		for _, composition := range inputTextRanges(canvas, underlines[:0], bounds, bandTop, bandHeight, origin, value, textStyle, compositionStart, compositionEnd) {
-			canvas.Fill(ui.Rect{X: composition.X, Y: bandTop + bandHeight - 1, Width: composition.Width, Height: 1}, underline)
+			canvas.Fill(gfx.Rect{X: composition.X, Y: bandTop + bandHeight - 1, Width: composition.Width, Height: 1}, underline)
 		}
 	}
 	if focused && snapshot.ShowCaret && !snapshot.Disabled {
 		caret := inputBoundary(value, snapshot.Caret)
 		x := origin + canvas.TextCaretStyle(value, textStyle, caret)
 		caretHeight := min(inputCaretHeight(fontSize), bandHeight)
-		canvas.Fill(ui.Rect{X: x, Y: bandTop + (bandHeight-caretHeight)/2, Width: 1, Height: caretHeight}, ink)
+		canvas.Fill(gfx.Rect{X: x, Y: bandTop + (bandHeight-caretHeight)/2, Width: 1, Height: caretHeight}, ink)
 	}
 	// The line is centered in the field like the caret and the selection, but its
 	// box is the text's line box (20px at the 14px body size), not the taller
 	// band the caret and selection fill: accessibility and parity report label
 	// bounds, and those should describe the glyph line the field draws.
 	lineTop, lineHeight := inputLineBox(bounds, fontSize)
-	line := ui.Rect{X: bounds.X, Y: lineTop, Width: bounds.Width, Height: lineHeight}
+	line := gfx.Rect{X: bounds.X, Y: lineTop, Width: bounds.Width, Height: lineHeight}
 	canvas.Label(value, line, style)
 	for _, selection := range selections {
 		if selection.Width <= 0 {
@@ -277,8 +277,8 @@ func inputPaintLine(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, pl
 // from x = origin in bounds, clamped to bounds: one for left-to-right text, more where the
 // range crosses a change of direction. They fill the band of the line (inputLineBand), top
 // and height.
-func inputTextRanges(canvas *ui.Canvas, dst []ui.Rect, bounds ui.Rect, top, height, origin float32, value string, style ui.TextStyle, start, end int) []ui.Rect {
-	var spans [4]ui.TextSpan
+func inputTextRanges(canvas *gfx.Canvas, dst []gfx.Rect, bounds gfx.Rect, top, height, origin float32, value string, style gfx.TextStyle, start, end int) []gfx.Rect {
+	var spans [4]gfx.TextSpan
 	for _, span := range canvas.TextSelectionStyle(spans[:0], value, style, start, end) {
 		x, width := origin+span.X, span.Width
 		if x < bounds.X {
@@ -291,7 +291,7 @@ func inputTextRanges(canvas *ui.Canvas, dst []ui.Rect, bounds ui.Rect, top, heig
 		if x+width > bounds.X+bounds.Width {
 			width = bounds.X + bounds.Width - x
 		}
-		dst = append(dst, ui.Rect{X: x, Y: top, Width: inputMax(0, width), Height: height})
+		dst = append(dst, gfx.Rect{X: x, Y: top, Width: inputMax(0, width), Height: height})
 	}
 	return dst
 }
@@ -299,7 +299,7 @@ func inputTextRanges(canvas *ui.Canvas, dst []ui.Rect, bounds ui.Rect, top, heig
 // inputLineBox is the box of the glyph line itself, centered in a field: a
 // 20px line at the 14px body size. Labels and the declared text bounds use it;
 // the caret and selection use the taller inputLineBand.
-func inputLineBox(bounds ui.Rect, fontSize float32) (top, height float32) {
+func inputLineBox(bounds gfx.Rect, fontSize float32) (top, height float32) {
 	height = inputMax(0, min(fontSize+6, bounds.Height))
 	return bounds.Y + (bounds.Height-height)/2, height
 }
@@ -309,7 +309,7 @@ func inputLineBox(bounds ui.Rect, fontSize float32) (top, height float32) {
 // composition is underlined at the foot of. It is centered in the field and
 // follows the size of the text, 24px of a 32px field at the 14px body size, and
 // never reaches nearer the border than 4px.
-func inputLineBand(bounds ui.Rect, fontSize float32) (top, height float32) {
+func inputLineBand(bounds gfx.Rect, fontSize float32) (top, height float32) {
 	height = inputMax(0, min(fontSize+10, bounds.Height-8))
 	return bounds.Y + (bounds.Height-height)/2, height
 }
@@ -372,22 +372,22 @@ const (
 
 // textEntryDark reports whether theme is a dark appearance, which Vega fills
 // text-entry controls for (dark:bg-input/30).
-func textEntryDark(theme *ui.Theme) bool { return theme.Background.Red < 0.5 }
+func textEntryDark(theme *gfx.Theme) bool { return theme.Background.Red < 0.5 }
 
 // TextEntryLook is the surface of a text-entry control in one state: what Input, Textarea,
 // InputGroup, Select, NativeSelect, Combobox, MultiSelect, SingleSelect and the slots of
 // InputOTP are painted with. It is the recipe those controls share, as plain values: an
-// application that builds a field from its own elements (flex.InputBase) reads it to take
+// application that builds a field from its own elements (ui.InputBase) reads it to take
 // the shadcn surface for a state and change what it wants of it.
 type TextEntryLook struct {
 	// Fill and Border are the colors of the surface. Over an opaque theme they are
 	// flattened onto the page background, as RoundedBorder needs, so a translucent token
 	// does not tint the control's interior; over a translucent theme they keep their alpha.
-	Fill, Border ui.Color
+	Fill, Border gfx.Color
 	// BorderWidth and Radius are the line and the corners.
 	BorderWidth, Radius float32
 	// Shadow is the elevation under the control.
-	Shadow ui.ShadowLevel
+	Shadow gfx.ShadowLevel
 }
 
 // TextEntryRecipe resolves the text-entry recipe for state:
@@ -400,31 +400,31 @@ type TextEntryLook struct {
 //
 // Only Hovered, Focused, Invalid and Disabled of state are read. It is a pure function:
 // the same theme and state give the same look, and nothing is painted.
-func TextEntryRecipe(theme ui.Theme, state ui.State) TextEntryLook {
+func TextEntryRecipe(theme gfx.Theme, state gfx.State) TextEntryLook {
 	return textEntryRecipe(&theme, state)
 }
 
 // textEntryRecipe is TextEntryRecipe for a theme that is not to be copied: the controls paint
 // every frame, and a Theme is large.
-func textEntryRecipe(theme *ui.Theme, state ui.State) TextEntryLook {
+func textEntryRecipe(theme *gfx.Theme, state gfx.State) TextEntryLook {
 	border, fill := textEntryTokens(theme, state)
 	if theme.Background.Alpha >= 1 {
 		border, fill = border.Over(theme.Background), fill.Over(theme.Background)
 	}
-	return TextEntryLook{Fill: fill, Border: border, BorderWidth: TextEntryBorderWidth, Radius: theme.Metrics.RadiusControl, Shadow: ui.ShadowXS}
+	return TextEntryLook{Fill: fill, Border: border, BorderWidth: TextEntryBorderWidth, Radius: theme.Metrics.RadiusControl, Shadow: gfx.ShadowXS}
 }
 
 // TextEntryBorderWidth is the line around a text-entry control, in every state.
 const TextEntryBorderWidth = 1
 
 // textEntryColors is TextEntryRecipe's colors flattened onto the page background.
-func textEntryColors(theme *ui.Theme, state ui.State) (border, fill ui.Color) {
+func textEntryColors(theme *gfx.Theme, state gfx.State) (border, fill gfx.Color) {
 	border, fill = textEntryTokens(theme, state)
 	return border.Over(theme.Background), fill.Over(theme.Background)
 }
 
 // textEntryTokens keeps alpha intact for surfaces composed over a material.
-func textEntryTokens(theme *ui.Theme, state ui.State) (border, fill ui.Color) {
+func textEntryTokens(theme *gfx.Theme, state gfx.State) (border, fill gfx.Color) {
 	border = theme.Input
 	fill = theme.Background
 	fill.Alpha = 0
@@ -450,13 +450,13 @@ func textEntryTokens(theme *ui.Theme, state ui.State) (border, fill ui.Color) {
 
 // paintTextEntrySurface paints the border and fill of one text-entry control:
 // the single place the Input family takes its look from.
-func paintTextEntrySurface(canvas *ui.Canvas, theme *ui.Theme, bounds ui.Rect, state ui.State) {
+func paintTextEntrySurface(canvas *gfx.Canvas, theme *gfx.Theme, bounds gfx.Rect, state gfx.State) {
 	paintTextEntryLook(canvas, theme.Background.Alpha, bounds, textEntryRecipe(theme, state))
 }
 
 // paintTextEntryLook paints a resolved look: the shadow, then the fill with its line, as one
 // solid shape over an opaque page and as a fill and an outline over a translucent one.
-func paintTextEntryLook(canvas *ui.Canvas, pageAlpha float32, bounds ui.Rect, look TextEntryLook) {
+func paintTextEntryLook(canvas *gfx.Canvas, pageAlpha float32, bounds gfx.Rect, look TextEntryLook) {
 	canvas.Elevate(bounds, look.Radius, look.Shadow) // shadow-xs
 	if pageAlpha < 1 {
 		canvas.Rounded(bounds, look.Radius, look.Fill)
@@ -469,7 +469,7 @@ func paintTextEntryLook(canvas *ui.Canvas, pageAlpha float32, bounds ui.Rect, lo
 // inputFitPlaceholder is value when it fits width in style, else its start ending in an ellipsis.
 // A proportional face is cut where WrapLines cuts a one-line text; a fixed-pitch one is cut at the
 // last whole cell that fits, since every character is as wide as the cell.
-func inputFitPlaceholder(canvas *ui.Canvas, value string, style ui.TextStyle, width float32) string {
+func inputFitPlaceholder(canvas *gfx.Canvas, value string, style gfx.TextStyle, width float32) string {
 	if !style.Mono {
 		var scratch [1]string
 		if lines := canvas.WrapLines(scratch[:0], value, style.Size, style.Weight, width, 1); len(lines) == 1 {

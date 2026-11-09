@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // A CodeEditor lays its text out on a grid of character cells, as a terminal
@@ -323,15 +323,15 @@ func (editor *CodeEditor) offsetAtColumn(row codeRow, x float32) int {
 
 // OffsetAt is the byte offset of the caret position nearest to a window point,
 // for the runtime to place the caret on a press or drag. It implements
-// ui.TextPlacement.
-func (editor *CodeEditor) OffsetAt(point ui.Point) (int, bool) {
+// gfx.TextPlacement.
+func (editor *CodeEditor) OffsetAt(point gfx.Point) (int, bool) {
 	offset, _, ok := editor.OffsetWithVirtualAt(point)
 	return offset, ok
 }
 
 // OffsetWithVirtualAt places a caret on the last-painted grid and reports the
 // number of cells beyond a hard line end. Soft-wrapped rows have no virtual space.
-func (editor *CodeEditor) OffsetWithVirtualAt(point ui.Point) (offset, virtualCells int, ok bool) {
+func (editor *CodeEditor) OffsetWithVirtualAt(point gfx.Point) (offset, virtualCells int, ok bool) {
 	if !editor.painted || !editor.fitted || len(editor.rows) == 0 || editor.cellWidth <= 0 {
 		return 0, 0, false
 	}
@@ -352,8 +352,8 @@ func (editor *CodeEditor) OffsetWithVirtualAt(point ui.Point) (offset, virtualCe
 
 // CaretBounds is where the caret was placed, with its requested width, in window
 // coordinates; false while it is scrolled out of view. It implements
-// ui.TextPlacement.
-func (editor *CodeEditor) CaretBounds() (ui.Rect, bool) {
+// gfx.TextPlacement.
+func (editor *CodeEditor) CaretBounds() (gfx.Rect, bool) {
 	return editor.caretRect, editor.painted && editor.caretShown
 }
 
@@ -455,12 +455,12 @@ func (editor *CodeEditor) ScrollBy(dx, dy float32) {
 // Scroll applies a wheel or trackpad gesture: vertical by whole rows for a
 // wheel and by the distance for a trackpad, horizontal when the text does not
 // wrap. Route the window's scroll events over the editor to it.
-func (editor *CodeEditor) Scroll(event ui.ScrollEvent) ui.EventResult {
+func (editor *CodeEditor) Scroll(event gfx.ScrollEvent) gfx.EventResult {
 	if !editor.painted {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	dx, dy := event.StepX(editor.cellWidth), event.StepY(editor.lineHeight)
-	if event.Modifiers&ui.ModifierShift != 0 && dx == 0 {
+	if event.Modifiers&gfx.ModifierShift != 0 && dx == 0 {
 		dx, dy = dy, 0
 	}
 	if editor.wrap {
@@ -469,9 +469,9 @@ func (editor *CodeEditor) Scroll(event ui.ScrollEvent) ui.EventResult {
 	beforeX, beforeY := editor.scrollX, editor.scrollY
 	editor.ScrollBy(dx, dy)
 	if editor.scrollX == beforeX && editor.scrollY == beforeY {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
-	return ui.EventResult{Handled: true, Repaint: true}
+	return gfx.EventResult{Handled: true, Repaint: true}
 }
 
 func (editor *CodeEditor) clampScrollY(scroll float32) float32 {
@@ -735,7 +735,7 @@ func startsWithMark(value string, offset, end int) bool {
 type gridRunSpec struct {
 	tabWidth                int
 	firstColumn, lastColumn int
-	foreground              ui.Color
+	foreground              gfx.Color
 	disabled                bool
 	// highlight colors ranges of the highlighted line, in order and without
 	// overlap; highlightBase is the offset of the line's first byte in it, which
@@ -746,7 +746,7 @@ type gridRunSpec struct {
 	selectionStart, selectionEnd int
 	selectionRanges              []text.Span
 	selectionBase                int
-	selectionForeground          ui.Color
+	selectionForeground          gfx.Color
 }
 
 // gridRuns builds the grid runs that draw the part of line in the columns
@@ -755,7 +755,7 @@ type gridRunSpec struct {
 // endColumn. A character is one run, except that consecutive plain ASCII
 // characters of one color share one, and a combining mark belongs to the run of
 // the character before it.
-func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextRun, from, to, startColumn, endColumn int) {
+func gridRuns(dst []gfx.TextRun, line string, spec *gridRunSpec) (runs []gfx.TextRun, from, to, startColumn, endColumn int) {
 	next := 0
 	selection := 0
 	if len(spec.selectionRanges) > 0 {
@@ -764,7 +764,7 @@ func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextR
 	column, offset := 0, 0
 	from = -1
 	included, ascii := true, false
-	var last ui.Color
+	var last gfx.Color
 	for at := 0; at < len(line); {
 		r, size := decodeAt(line, at)
 		width := codeCells(r, column, spec.tabWidth)
@@ -814,7 +814,7 @@ func gridRuns(dst []ui.TextRun, line string, spec *gridRunSpec) (runs []ui.TextR
 				tail.Bytes += int32(bytes)
 				tail.Cells += int32(width)
 			default:
-				dst = append(dst, ui.TextRun{Column: int32(column - startColumn), Bytes: int32(bytes), Cells: int32(width), Color: color})
+				dst = append(dst, gfx.TextRun{Column: int32(column - startColumn), Bytes: int32(bytes), Cells: int32(width), Color: color})
 				ascii, last = plain, color
 			}
 			to = offset + bytes

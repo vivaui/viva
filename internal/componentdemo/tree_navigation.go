@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -20,7 +20,7 @@ if handled {
         expanded = false
     }
     selected = next
-    return ui.EventResult{Focus: rowIDs[next], FocusVisible: true, Handled: true, Repaint: true}
+    return gfx.EventResult{Focus: rowIDs[next], FocusVisible: true, Handled: true, Repaint: true}
 }`},
 	},
 }
@@ -31,10 +31,10 @@ var (
 	treeNavigationDisclosure = tree.ID(treeNavigationUI, "disclosure")
 )
 
-func (state *State) paintTreeNavigation(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintTreeNavigation(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	rowHeight := theme.Metrics.ControlHeight
-	var stage flex.Box
-	state.page(canvas, theme, size, 440, state.Text("Tree Navigation · 键盘导航", "Tree Navigation · Keyboard"), func(f *flex.Frame) {
+	var stage ui.Box
+	state.page(canvas, theme, size, 440, state.Text("Tree Navigation · 键盘导航", "Tree Navigation · Keyboard"), func(f *ui.Frame) {
 		stage = f.Slot().FillWidth().Height(rowHeight * 4)
 		caption(f, state.Text("聚焦行后，使用方向键浏览、展开或收起。", "Focus a row and use the arrow keys to move, expand, or collapse."))
 	})
@@ -52,7 +52,7 @@ func (state *State) paintTreeNavigation(canvas *ui.Canvas, theme ui.Theme, size 
 			item.Depth = 1
 		}
 		row := rows.Item(item)
-		canvas.Label(label, row.Content, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+		canvas.Label(label, row.Content, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
 		if canvas.Clicked(item.ID) {
 			state.values[0] = int32(index)
 		}
@@ -64,13 +64,13 @@ func (state *State) paintTreeNavigation(canvas *ui.Canvas, theme ui.Theme, size 
 	}
 }
 
-func (state *State) keyTreeNavigation(event ui.KeyEvent) ui.EventResult {
+func (state *State) keyTreeNavigation(event gfx.KeyEvent) gfx.EventResult {
 	current := listIndex(event.Target, treeNavigationRows)
 	if event.Target == treeNavigationDisclosure {
 		current = 0
 	}
 	if event.Release || event.Modifiers != 0 || current < 0 {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	expanded := state.flags&1 != 0
 	items := [...]components.TreeNavigationItem{
@@ -82,7 +82,7 @@ func (state *State) keyTreeNavigation(event ui.KeyEvent) ui.EventResult {
 	}
 	next, action, handled := components.NavigateTree(visible, current, event.Key, len(items))
 	if !handled {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	switch action {
 	case components.TreeNavigationExpand:
@@ -92,5 +92,5 @@ func (state *State) keyTreeNavigation(event ui.KeyEvent) ui.EventResult {
 	}
 	changed := action != components.TreeNavigationNone || state.values[0] != int32(next)
 	state.values[0] = int32(next)
-	return ui.EventResult{Focus: treeNavigationRows.At(next), FocusVisible: true, Handled: true, Repaint: changed}
+	return gfx.EventResult{Focus: treeNavigationRows.At(next), FocusVisible: true, Handled: true, Repaint: changed}
 }

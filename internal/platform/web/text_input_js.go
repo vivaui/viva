@@ -7,9 +7,9 @@ import (
 	"syscall/js"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 type domListener struct {
@@ -93,7 +93,7 @@ func (host *textInputHost) unbind(node *accessibilityDOMNode) {
 	node.listeners = node.listeners[:0]
 }
 
-func (host *textInputHost) sync(id ui.ID, input *TextInput, onChange func()) {
+func (host *textInputHost) sync(id gfx.ID, input *TextInput, onChange func()) {
 	host.onChange = onChange
 	if id.IsZero() || input == nil {
 		host.deactivate(true)
@@ -178,7 +178,7 @@ func (host *textInputHost) show(element js.Value) {
 		element.Call("removeAttribute", "data-viva-hide-native-overlays")
 	}
 	style.Set("caretColor", caretColor)
-	if host.input.Terminal || host.input.MonoFace != ui.MonoSystem {
+	if host.input.Terminal || host.input.MonoFace != gfx.MonoSystem {
 		style.Set("font", cssMonoFont(host.input.FontSize, host.input.Weight, false, host.input.MonoFace))
 	} else {
 		style.Set("font", cssFont(host.input.FontSize, host.input.Weight))
@@ -378,7 +378,7 @@ func pixel(value float32) string {
 }
 
 func cssPlatformColor(color platform.Color) string {
-	return cssColor(ui.Color{
+	return cssColor(gfx.Color{
 		Red: float32(color.Red), Green: float32(color.Green),
 		Blue: float32(color.Blue), Alpha: float32(color.Alpha),
 	})

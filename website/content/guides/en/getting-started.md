@@ -41,7 +41,7 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/ui"
 )
 
 type model struct {
@@ -50,9 +50,9 @@ type model struct {
 
 // page declares the window's content. It runs on every repaint and reads the
 // model; a click changes the model, and the repaint that follows shows it.
-func (m *model) page(c flex.C) {
-	flex.Column(c).Fill().Pad(24).Gap(12).Children(func() {
-		if flex.Button(c, fmt.Sprintf("Clicked %d times", m.clicks)).Clicked() {
+func (m *model) page(c ui.C) {
+	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		if ui.Button(c, fmt.Sprintf("Clicked %d times", m.clicks)).Clicked() {
 			m.clicks++
 		}
 	})
@@ -60,7 +60,7 @@ func (m *model) page(c flex.C) {
 
 func main() {
 	m := &model{}
-	if err := flex.Run(app.Config{Title: "Hello", Width: 480, Height: 240}, m.page); err != nil {
+	if err := ui.Run(app.Config{Title: "Hello", Width: 480, Height: 240}, m.page); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -69,8 +69,8 @@ func main() {
 Run it with `go run .`. The program is the whole programming model in miniature:
 
 - `page` describes the interface from your own state, here the `clicks` counter. It runs on every repaint; Viva keeps no copy of that state.
-- `flex.Column(c)` and `flex.Button(c, ...)` lay the page out from a description: a padded column holding a button. Every element is a function of `flex` that takes the page's `c` first. No coordinates are written, so the page keeps working when the label or the window changes size. The button needs no name of yours: the page names its elements by their place, and keeps each name as other elements come and go.
-- `flex.Run` opens the window and paints `page` in it. A test drives the same `page` headlessly with `flex.NewPage` and `app.NewDriver`, without opening anything.
+- `ui.Column(c)` and `ui.Button(c, ...)` lay the page out from a description: a padded column holding a button. Every element is a function of `ui` that takes the page's `c` first. No coordinates are written, so the page keeps working when the label or the window changes size. The button needs no name of yours: the page names its elements by their place, and keeps each name as other elements come and go.
+- `ui.Run` opens the window and paints `page` in it. A test drives the same `page` headlessly with `ui.NewPage` and `app.NewDriver`, without opening anything.
 - `Clicked()` is true for exactly one paint: the extra paint the runtime makes when a click completes, and only for the button that was clicked. Your code changes its own state there, next to the button it handles. The window then repaints once. Every other paint is read-only.
 
 Nothing else runs. If you stop clicking, the application does no layout, submits nothing to the GPU and wakes no timers.

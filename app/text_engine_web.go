@@ -3,8 +3,8 @@
 package app
 
 import (
+	"github.com/vivaui/viva/gfx"
 	webplatform "github.com/vivaui/viva/internal/platform/web"
-	"github.com/vivaui/viva/ui"
 )
 
-func platformTextEngine() ui.TextEngine { return webplatform.NewTextEngine() }
+func platformTextEngine() gfx.TextEngine { return webplatform.NewTextEngine() }

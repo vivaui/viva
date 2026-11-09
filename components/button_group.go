@@ -1,10 +1,10 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // ButtonGroupOption describes one stable grouped action.
 type ButtonGroupOption struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Variant  ButtonVariant
 	Disabled bool
@@ -22,9 +22,9 @@ const (
 // takes its colors from the same recipe as a Button of its variant, so a group
 // can hold any of them.
 type ButtonGroup struct {
-	canvas      *ui.Canvas
-	theme       ui.Theme
-	bounds      ui.Rect
+	canvas      *gfx.Canvas
+	theme       gfx.Theme
+	bounds      gfx.Rect
 	options     []ButtonGroupOption
 	orientation ButtonGroupOrientation
 	disabled    bool
@@ -32,22 +32,22 @@ type ButtonGroup struct {
 
 // ButtonGroupResult is what painting a button group reports back.
 type ButtonGroupResult struct {
-	canvas  *ui.Canvas
+	canvas  *gfx.Canvas
 	options []ButtonGroupOption
 }
 
 // Clicked returns the action whose click this paint is delivering, and false in
-// every other paint (see ui.Canvas.Clicked).
-func (result ButtonGroupResult) Clicked() (ui.ID, bool) {
+// every other paint (see gfx.Canvas.Clicked).
+func (result ButtonGroupResult) Clicked() (gfx.ID, bool) {
 	if result.canvas == nil {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	for _, option := range result.options {
 		if result.canvas.Clicked(option.ID) {
 			return option.ID, true
 		}
 	}
-	return ui.ID{}, false
+	return gfx.ID{}, false
 }
 
 // Vertical stacks connected actions and collapses adjoining horizontal borders.
@@ -57,7 +57,7 @@ func (group ButtonGroup) Vertical() ButtonGroup {
 }
 
 // BeginButtonGroup starts a grouped action declaration.
-func BeginButtonGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options []ButtonGroupOption) ButtonGroup {
+func BeginButtonGroup(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options []ButtonGroupOption) ButtonGroup {
 	return ButtonGroup{canvas: canvas, theme: theme, bounds: bounds, options: options}
 }
 
@@ -95,8 +95,8 @@ func (group ButtonGroup) Paint() ButtonGroupResult {
 	}
 	// The outline goes down first and the actions are painted inside it.
 	if framed {
-		group.canvas.Elevate(group.bounds, radius, ui.ShadowXS) // the outline buttons' shadow-xs
-		paintBordered(group.canvas, group.theme, group.bounds, radius, outlineBorder(&group.theme), ui.Color{})
+		group.canvas.Elevate(group.bounds, radius, gfx.ShadowXS) // the outline buttons' shadow-xs
+		paintBordered(group.canvas, group.theme, group.bounds, radius, outlineBorder(&group.theme), gfx.Color{})
 		radius--
 	}
 	for index, option := range group.options {
@@ -116,8 +116,8 @@ func (group ButtonGroup) Paint() ButtonGroupResult {
 		paintJoinedSurface(group.canvas, surface, radius, fill, index, count, vertical)
 		paintButtonLabel(group.canvas, option.Label, bounds, metrics.FontSizeM, style)
 		if !option.ID.IsZero() {
-			group.canvas.HitWithOptions(option.ID, bounds, option.Label, ui.HitOptions{
-				Role: ui.RoleButton, Disabled: group.disabled || option.Disabled,
+			group.canvas.HitWithOptions(option.ID, bounds, option.Label, gfx.HitOptions{
+				Role: gfx.RoleButton, Disabled: group.disabled || option.Disabled,
 			})
 		}
 		if index > 0 {
@@ -127,22 +127,22 @@ func (group ButtonGroup) Paint() ButtonGroupResult {
 	return result
 }
 
-func (group ButtonGroup) optionBounds(index int, count float32) ui.Rect {
+func (group ButtonGroup) optionBounds(index int, count float32) gfx.Rect {
 	if group.orientation == ButtonGroupVertical {
 		top := group.bounds.Y + group.bounds.Height*float32(index)/count
 		bottom := group.bounds.Y + group.bounds.Height*float32(index+1)/count
-		return ui.Rect{X: group.bounds.X, Y: top, Width: group.bounds.Width, Height: bottom - top}
+		return gfx.Rect{X: group.bounds.X, Y: top, Width: group.bounds.Width, Height: bottom - top}
 	}
 	left := group.bounds.X + group.bounds.Width*float32(index)/count
 	right := group.bounds.X + group.bounds.Width*float32(index+1)/count
-	return ui.Rect{X: left, Y: group.bounds.Y, Width: right - left, Height: group.bounds.Height}
+	return gfx.Rect{X: left, Y: group.bounds.Y, Width: right - left, Height: group.bounds.Height}
 }
 
 // paintJoinedSurface fills item index of count in a connected group: rounded on
 // the corners that are the group's own, square where it meets a neighbour. There
 // is no per-corner rounding, so the end items are drawn as a rounded rectangle
 // grown past their square side and clipped back to their bounds.
-func paintJoinedSurface(canvas *ui.Canvas, bounds ui.Rect, radius float32, color ui.Color, index, count int, vertical bool) {
+func paintJoinedSurface(canvas *gfx.Canvas, bounds gfx.Rect, radius float32, color gfx.Color, index, count int, vertical bool) {
 	if count == 1 {
 		canvas.Rounded(bounds, radius, color)
 		return
@@ -172,7 +172,7 @@ func paintJoinedSurface(canvas *ui.Canvas, bounds ui.Rect, radius float32, color
 // joinedSurface is the part of item index's bounds the item paints on. A framed
 // group's outline takes the pixel along its outer edge, so the items lie inside
 // it.
-func joinedSurface(bounds ui.Rect, index, count int, vertical, framed bool) ui.Rect {
+func joinedSurface(bounds gfx.Rect, index, count int, vertical, framed bool) gfx.Rect {
 	if !framed {
 		return bounds
 	}
@@ -198,10 +198,10 @@ func joinedSurface(bounds ui.Rect, index, count int, vertical, framed bool) ui.R
 
 // paintJoinedSeparator draws the hairline on the leading edge of a connected
 // group's item.
-func paintJoinedSeparator(canvas *ui.Canvas, bounds ui.Rect, color ui.Color, vertical bool) {
+func paintJoinedSeparator(canvas *gfx.Canvas, bounds gfx.Rect, color gfx.Color, vertical bool) {
 	if vertical {
-		canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y - 0.5, Width: bounds.Width, Height: 1}, color)
+		canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y - 0.5, Width: bounds.Width, Height: 1}, color)
 		return
 	}
-	canvas.Fill(ui.Rect{X: bounds.X - 0.5, Y: bounds.Y, Width: 1, Height: bounds.Height}, color)
+	canvas.Fill(gfx.Rect{X: bounds.X - 0.5, Y: bounds.Y, Width: 1, Height: bounds.Height}, color)
 }

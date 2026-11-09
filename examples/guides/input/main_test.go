@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -18,7 +18,7 @@ func hasLabel(driver *app.Driver, want string) bool {
 	return false
 }
 
-func center(t *testing.T, driver *app.Driver, id ui.ID) (float32, float32) {
+func center(t *testing.T, driver *app.Driver, id gfx.ID) (float32, float32) {
 	t.Helper()
 	for _, hit := range driver.Snapshot().Hits {
 		if hit.ID == id {
@@ -30,8 +30,8 @@ func center(t *testing.T, driver *app.Driver, id ui.ID) (float32, float32) {
 }
 
 func TestInput(t *testing.T) {
-	m := &model{split: flex.SplitterState{Pos: 220}}
-	var canvas ui.Canvas
+	m := &model{split: ui.SplitterState{Pos: 220}}
+	var canvas gfx.Canvas
 	driver, err := app.NewDriver(newConfig(m), &canvas)
 	if err != nil {
 		t.Fatal(err)
@@ -40,13 +40,13 @@ func TestInput(t *testing.T) {
 
 	// Drag the divider.
 	x, y := center(t, driver, divider)
-	if err := driver.Press(x, y, ui.PointerButtonPrimary); err != nil {
+	if err := driver.Press(x, y, gfx.PointerButtonPrimary); err != nil {
 		t.Fatal(err)
 	}
 	if err := driver.Move(x+80, y); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Release(x+80, y, ui.PointerButtonPrimary); err != nil {
+	if err := driver.Release(x+80, y, gfx.PointerButtonPrimary); err != nil {
 		t.Fatal(err)
 	}
 	if m.split.Pos != 300 {
@@ -58,7 +58,7 @@ func TestInput(t *testing.T) {
 	if err := driver.Click(x, y); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Key(ui.KeyDown, 0); err != nil {
+	if err := driver.Key(gfx.KeyDown, 0); err != nil {
 		t.Fatal(err)
 	}
 	if m.selected != 1 || !hasLabel(driver, "Drafts selected") {
@@ -67,10 +67,10 @@ func TestInput(t *testing.T) {
 
 	// A secondary press is seen by OnPointer.
 	x, y = center(t, driver, rows.At(2))
-	if err := driver.Press(x, y, ui.PointerButtonSecondary); err != nil {
+	if err := driver.Press(x, y, gfx.PointerButtonSecondary); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Release(x, y, ui.PointerButtonSecondary); err != nil {
+	if err := driver.Release(x, y, gfx.PointerButtonSecondary); err != nil {
 		t.Fatal(err)
 	}
 	if !hasLabel(driver, "Context menu for Sent") {
@@ -87,7 +87,7 @@ func TestInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	x, y = center(t, driver, rows.At(0))
-	if err := driver.Scroll(ui.ScrollEvent{X: x, Y: y, DeltaY: 40}); err != nil {
+	if err := driver.Scroll(gfx.ScrollEvent{X: x, Y: y, DeltaY: 40}); err != nil {
 		t.Fatal(err)
 	}
 	if m.view.ScrollState(list).Offset != 40 {

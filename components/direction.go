@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // Direction is an explicit local inline-flow direction. The zero value and
 // unknown values resolve to LTR; no platform or process-global state is read or
@@ -37,12 +37,12 @@ func (direction Direction) IsRTL() bool {
 }
 
 // Rect resolves logical geometry inside a physical containing rectangle.
-func (direction Direction) Rect(container ui.Rect, logical LogicalRect) ui.Rect {
+func (direction Direction) Rect(container gfx.Rect, logical LogicalRect) gfx.Rect {
 	x := container.X + logical.InlineStart
 	if direction.IsRTL() {
 		x = container.X + container.Width - logical.InlineStart - logical.InlineSize
 	}
-	return ui.Rect{
+	return gfx.Rect{
 		X:      x,
 		Y:      container.Y + logical.BlockStart,
 		Width:  max(logical.InlineSize, 0),
@@ -52,7 +52,7 @@ func (direction Direction) Rect(container ui.Rect, logical LogicalRect) ui.Rect 
 
 // Inset resolves logical insets and clamps an over-constrained result to an
 // empty physical rectangle.
-func (direction Direction) Inset(bounds ui.Rect, insets LogicalInsets) ui.Rect {
+func (direction Direction) Inset(bounds gfx.Rect, insets LogicalInsets) gfx.Rect {
 	start := max(insets.Start, 0)
 	top := max(insets.Top, 0)
 	end := max(insets.End, 0)
@@ -63,17 +63,17 @@ func (direction Direction) Inset(bounds ui.Rect, insets LogicalInsets) ui.Rect {
 	}
 	width := max(bounds.Width-left-right, 0)
 	height := max(bounds.Height-top-bottom, 0)
-	return ui.Rect{X: bounds.X + left, Y: bounds.Y + top, Width: width, Height: height}
+	return gfx.Rect{X: bounds.X + left, Y: bounds.Y + top, Width: width, Height: height}
 }
 
 // Start returns a strip at logical inline-start.
-func (direction Direction) Start(bounds ui.Rect, size float32) ui.Rect {
+func (direction Direction) Start(bounds gfx.Rect, size float32) gfx.Rect {
 	size = min(max(size, 0), max(bounds.Width, 0))
 	return direction.Rect(bounds, LogicalRect{InlineSize: size, BlockSize: max(bounds.Height, 0)})
 }
 
 // End returns a strip at logical inline-end.
-func (direction Direction) End(bounds ui.Rect, size float32) ui.Rect {
+func (direction Direction) End(bounds gfx.Rect, size float32) gfx.Rect {
 	size = min(max(size, 0), max(bounds.Width, 0))
 	return direction.Rect(bounds, LogicalRect{InlineStart: max(bounds.Width-size, 0), InlineSize: size, BlockSize: max(bounds.Height, 0)})
 }

@@ -3,7 +3,7 @@ package linux
 import (
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // fixedAdvanceEngine gives every character the same advance, half the font size when
@@ -25,9 +25,9 @@ func (e fixedAdvanceEngine) Caret(value string, size, _ float32, offset int) flo
 	return float32(utf8.RuneCountInString(value[:max(0, min(offset, len(value)))])) * e.per(size)
 }
 
-func (e fixedAdvanceEngine) Selection(dst []ui.TextSpan, value string, size, weight float32, start, end int) []ui.TextSpan {
+func (e fixedAdvanceEngine) Selection(dst []gfx.TextSpan, value string, size, weight float32, start, end int) []gfx.TextSpan {
 	left := e.Caret(value, size, weight, start)
-	return append(dst, ui.TextSpan{X: left, Width: e.Caret(value, size, weight, end) - left})
+	return append(dst, gfx.TextSpan{X: left, Width: e.Caret(value, size, weight, end) - left})
 }
 
 func (e fixedAdvanceEngine) OffsetAt(value string, size, _ float32, x float32) int {

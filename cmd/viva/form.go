@@ -19,7 +19,7 @@ import (
 )
 
 // viva form writes, for each struct of a package whose fields are tagged form, a
-// method Form(c flex.C) flex.Box declaring a control for each tagged field. It reads
+// method Form(c ui.C) ui.Box declaring a control for each tagged field. It reads
 // the package's source as syntax only: what control a field gets follows from how its
 // type is written, so it needs no build and works on a package that does not compile
 // yet. The generated code is ordinary page code, with no reflection at run time.
@@ -133,7 +133,7 @@ func generateForms(directory string, wanted []string) ([]byte, []string, error) 
 	}
 	sort.Slice(chosen, func(i, j int) bool { return chosen[i].name < chosen[j].name })
 	var out bytes.Buffer
-	fmt.Fprintf(&out, "%s\n\npackage %s\n\nimport \"github.com/vivaui/viva/flex\"\n", formHeader, packageName)
+	fmt.Fprintf(&out, "%s\n\npackage %s\n\nimport \"github.com/vivaui/viva/ui\"\n", formHeader, packageName)
 	made := make([]string, 0, len(chosen))
 	for _, s := range chosen {
 		writeForm(&out, s)
@@ -158,12 +158,12 @@ func slicesIndex(structs []formStruct, name string) int {
 // formStructs returns the structs of file, with the controls of their tagged fields,
 // and marks every struct type it declares in declared.
 func formStructs(fileSet *token.FileSet, file *ast.File, declared map[string]bool) ([]formStruct, error) {
-	flexName := ""
+	uiName := ""
 	for _, spec := range file.Imports {
-		if path, _ := strconv.Unquote(spec.Path.Value); path == flexPath {
-			flexName = "flex"
+		if path, _ := strconv.Unquote(spec.Path.Value); path == uiPath {
+			uiName = "ui"
 			if spec.Name != nil {
-				flexName = spec.Name.Name
+				uiName = spec.Name.Name
 			}
 		}
 	}
@@ -201,7 +201,7 @@ func formStructs(fileSet *token.FileSet, file *ast.File, declared map[string]boo
 				if len(field.Names) == 0 {
 					return nil, fail("form: an embedded field cannot be tagged form; tag the fields of its type and call its Form")
 				}
-				control, err := formControlOf(field.Type, flexName, value, tag)
+				control, err := formControlOf(field.Type, uiName, value, tag)
 				if err != nil {
 					return nil, fail("form: field %s: %v", field.Names[0].Name, err)
 				}
@@ -218,7 +218,7 @@ func formStructs(fileSet *token.FileSet, file *ast.File, declared map[string]boo
 
 // formControlOf chooses the control for a field of type expression typ, tagged
 // form:"value" with the other keys of tag.
-func formControlOf(typ ast.Expr, flexName, value string, tag reflect.StructTag) (formControl, error) {
+func formControlOf(typ ast.Expr, uiName, value string, tag reflect.StructTag) (formControl, error) {
 	parts := strings.Split(value, ",")
 	control := formControl{label: strings.TrimSpace(parts[0])}
 	if control.label == "" {
@@ -234,11 +234,11 @@ func formControlOf(typ ast.Expr, flexName, value string, tag reflect.StructTag) 
 	choices, hasChoices := tag.Lookup("choices")
 	isFlex := func(name string) bool {
 		selector, ok := typ.(*ast.SelectorExpr)
-		if !ok || flexName == "" {
+		if !ok || uiName == "" {
 			return false
 		}
 		x, ok := selector.X.(*ast.Ident)
-		return ok && x.Name == flexName && selector.Sel.Name == name
+		return ok && x.Name == uiName && selector.Sel.Name == name
 	}
 	allow := func(options ...string) error {
 		if option == "" {
@@ -300,10 +300,10 @@ func formControlOf(typ ast.Expr, flexName, value string, tag reflect.StructTag) 
 			return control, err
 		}
 	default:
-		return control, fmt.Errorf("no control for its type: viva form makes a Switch for bool, a TextField for flex.Field, a Slider for flex.SliderState, and a Choice for a field with a choices tag")
+		return control, fmt.Errorf("no control for its type: viva form makes a Switch for bool, a TextField for ui.Field, a Slider for ui.SliderState, and a Choice for a field with a choices tag")
 	}
 	if hasPlaceholder && control.kind != "textfield" {
-		return control, fmt.Errorf("a placeholder tag applies to a flex.Field only")
+		return control, fmt.Errorf("a placeholder tag applies to a ui.Field only")
 	}
 	return control, nil
 }
@@ -314,28 +314,28 @@ func isIdent(expression ast.Expr, name string) bool {
 }
 
 func writeForm(out *bytes.Buffer, s formStruct) {
-	fmt.Fprintf(out, "\n// Form declares a control for each field of v tagged form, in a column.\nfunc (v *%s) Form(c flex.C) flex.Box {\n\treturn flex.Column(c).Gap(12).Children(func() {\n", s.name)
+	fmt.Fprintf(out, "\n// Form declares a control for each field of v tagged form, in a column.\nfunc (v *%s) Form(c ui.C) ui.Box {\n\treturn ui.Column(c).Gap(12).Children(func() {\n", s.name)
 	for _, control := range s.controls {
 		label := strconv.Quote(control.label)
 		value := "&v." + control.field
 		switch control.kind {
 		case "switch":
-			fmt.Fprintf(out, "\t\tflex.Switch(c, %s, %s)\n", value, label)
+			fmt.Fprintf(out, "\t\tui.Switch(c, %s, %s)\n", value, label)
 		case "checkbox":
-			fmt.Fprintf(out, "\t\tflex.Checkbox(c, %s, %s)\n", value, label)
+			fmt.Fprintf(out, "\t\tui.Checkbox(c, %s, %s)\n", value, label)
 		case "textfield":
-			fmt.Fprintf(out, "\t\tflex.TextField(c, %s, %s, %s)\n", value, label, strconv.Quote(control.placeholder))
+			fmt.Fprintf(out, "\t\tui.TextField(c, %s, %s, %s)\n", value, label, strconv.Quote(control.placeholder))
 		default:
 			call := ""
 			switch control.kind {
 			case "slider":
-				call = fmt.Sprintf("flex.Slider(c, %s)", value)
+				call = fmt.Sprintf("ui.Slider(c, %s)", value)
 			case "choice":
-				call = fmt.Sprintf("flex.Choice(c, %s, %s, %s)", value, control.choices, control.names)
+				call = fmt.Sprintf("ui.Choice(c, %s, %s, %s)", value, control.choices, control.names)
 			case "select":
-				call = fmt.Sprintf("flex.Select(c, %s, %s, %s)", value, control.choices, control.names)
+				call = fmt.Sprintf("ui.Select(c, %s, %s, %s)", value, control.choices, control.names)
 			}
-			fmt.Fprintf(out, "\t\tflex.Column(c).Gap(6).Children(func() {\n\t\t\tflex.Text(c, %s).Muted()\n\t\t\t%s\n\t\t})\n", label, call)
+			fmt.Fprintf(out, "\t\tui.Column(c).Gap(6).Children(func() {\n\t\t\tui.Text(c, %s).Muted()\n\t\t\t%s\n\t\t})\n", label, call)
 		}
 	}
 	out.WriteString("\t})\n}\n")

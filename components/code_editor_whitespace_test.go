@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestCodeEditorVisibleSpaceTabAndEOLDoNotChangeGeometry(t *testing.T) {
 	fixture := newCodeFixture("a \tb\nc")
-	marker := ui.RGB(33, 104, 171)
+	marker := gfx.RGB(33, 104, 171)
 	fixture.snapshot.InvisibleColor = marker
 	fixture.paint()
 	startX, startY := fixture.editor.content.X, fixture.editor.content.Y
@@ -62,7 +62,7 @@ func TestCodeEditorEOLMarkersOnlyAppearOnHardWraps(t *testing.T) {
 func TestCodeEditorWhitespaceMarkersStayClippedWhenHorizontallyScrolled(t *testing.T) {
 	fixture := newCodeFixture("a b c d e f g h")
 	fixture.bounds.Width = fixture.widthFor(4)
-	fixture.snapshot.InvisibleColor = ui.RGB(33, 104, 171)
+	fixture.snapshot.InvisibleColor = gfx.RGB(33, 104, 171)
 	fixture.snapshot.ShowWhitespace = true
 	fixture.snapshot.Caret = len(fixture.snapshot.Value)
 	fixture.paint()
@@ -97,7 +97,7 @@ func TestCodeEditorWhitespaceMarkersStopAtTheVisibleColumns(t *testing.T) {
 	// One minified line: walking it end to end would be megabytes per paint,
 	// for markers that are all off screen.
 	fixture := newCodeFixture(strings.Repeat("a ", 20000))
-	marker := ui.RGB(33, 104, 171)
+	marker := gfx.RGB(33, 104, 171)
 	fixture.snapshot.InvisibleColor = marker
 	fixture.snapshot.ShowWhitespace = true
 	fixture.paint()

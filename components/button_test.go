@@ -3,14 +3,14 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestButtonVectorIconKeepsAccessibleLabel(t *testing.T) {
 	icon := checkIcon
 	for _, disabled := range []bool{false, true} {
-		var canvas ui.Canvas
-		button := BeginButton(&canvas, ui.DarkTheme(), ui.Item(1), ui.Rect{Width: 80}).WithIcon(icon).Icon()
+		var canvas gfx.Canvas
+		button := BeginButton(&canvas, gfx.DarkTheme(), gfx.Item(1), gfx.Rect{Width: 80}).WithIcon(icon).Icon()
 		if disabled {
 			button = button.Disabled()
 		}
@@ -26,22 +26,22 @@ func TestButtonVectorIconKeepsAccessibleLabel(t *testing.T) {
 }
 
 func TestButtonIconAndTextFitTogether(t *testing.T) {
-	var canvas ui.Canvas
-	button := BeginButton(&canvas, ui.LightTheme(), ui.Item(1), ui.Rect{X: 10}).WithIcon(checkIcon).SizeToFit("Save")
+	var canvas gfx.Canvas
+	button := BeginButton(&canvas, gfx.LightTheme(), gfx.Item(1), gfx.Rect{X: 10}).WithIcon(checkIcon).SizeToFit("Save")
 	button.Default("Save")
 	if len(canvas.Triangles()) == 0 || len(canvas.Texts()) != 1 || canvas.Texts()[0].Value != "Save" {
 		t.Fatal("leading icon button must retain its visible text")
 	}
-	want := canvas.TextWidthWeight("Save", ui.LightTheme().Metrics.FontSizeM, ui.WeightMedium) + 20 + 16 + 8
+	want := canvas.TextWidthWeight("Save", gfx.LightTheme().Metrics.FontSizeM, gfx.WeightMedium) + 20 + 16 + 8
 	if button.BoundsWidth() != want {
 		t.Fatalf("icon and label fitted width = %v, want %v", button.BoundsWidth(), want)
 	}
 }
 
 func TestNarrowIconButtonKeepsItsIconInside(t *testing.T) {
-	bounds := ui.Rect{X: 40, Y: 10, Width: 12}
-	var canvas ui.Canvas
-	BeginButton(&canvas, ui.LightTheme(), ui.Item(1), bounds).WithIcon(checkIcon).Ghost("Edit panel")
+	bounds := gfx.Rect{X: 40, Y: 10, Width: 12}
+	var canvas gfx.Canvas
+	BeginButton(&canvas, gfx.LightTheme(), gfx.Item(1), bounds).WithIcon(checkIcon).Ghost("Edit panel")
 	triangles := canvas.Triangles()
 	if len(triangles) == 0 {
 		t.Fatal("narrow icon button drew no icon")
@@ -56,24 +56,24 @@ func TestNarrowIconButtonKeepsItsIconInside(t *testing.T) {
 }
 
 func TestButtonOfficialVariants(t *testing.T) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	tests := [...]struct {
 		variant    ButtonVariant
-		background ui.Color
-		foreground ui.Color
+		background gfx.Color
+		foreground gfx.Color
 		rectangles int
 	}{
 		{ButtonDefault, theme.Primary, theme.PrimaryForeground, 1},
 		{ButtonDestructive, withAlpha(theme.Danger, 0.10), theme.Danger, 1},
 		{ButtonSecondary, theme.Secondary, theme.SecondaryForeground, 1},
 		{ButtonOutline, theme.Background, theme.Foreground, 2},
-		{ButtonGhost, ui.Color{}, theme.Foreground, 0},
-		{ButtonLink, ui.Color{}, theme.Primary, 0},
+		{ButtonGhost, gfx.Color{}, theme.Foreground, 0},
+		{ButtonLink, gfx.Color{}, theme.Primary, 0},
 		{ButtonDestructiveOutline, theme.Background, theme.Danger, 2},
 	}
 	for _, test := range tests {
-		var canvas ui.Canvas
-		button := BeginButton(&canvas, theme, ui.Item(1), ui.Rect{Width: 120})
+		var canvas gfx.Canvas
+		button := BeginButton(&canvas, theme, gfx.Item(1), gfx.Rect{Width: 120})
 		button.paint("Action", test.variant)
 		if len(canvas.Rectangles()) != test.rectangles {
 			t.Fatalf("variant %d painted %d rectangles, want %d", test.variant, len(canvas.Rectangles()), test.rectangles)
@@ -91,7 +91,7 @@ func TestButtonOfficialVariants(t *testing.T) {
 }
 
 func TestButtonOfficialSizes(t *testing.T) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	tests := [...]struct {
 		size   ButtonSize
 		height float32
@@ -107,8 +107,8 @@ func TestButtonOfficialSizes(t *testing.T) {
 		{ButtonSizeIconLarge, 36, true},
 	}
 	for _, test := range tests {
-		var canvas ui.Canvas
-		BeginButton(&canvas, theme, ui.ID{}, ui.Rect{Width: 100}).Size(test.size).Default("A")
+		var canvas gfx.Canvas
+		BeginButton(&canvas, theme, gfx.ID{}, gfx.Rect{Width: 100}).Size(test.size).Default("A")
 		bounds := canvas.Rectangles()[0].Bounds
 		if bounds.Height != test.height {
 			t.Fatalf("size %d height = %v, want %v", test.size, bounds.Height, test.height)
@@ -120,23 +120,23 @@ func TestButtonOfficialSizes(t *testing.T) {
 }
 
 func TestButtonTypedHitAndZeroIDPreview(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	BeginButton(&canvas, theme, ui.Item(7), ui.Rect{Width: 100}).Default("Save")
-	BeginButton(&canvas, theme, ui.ID{}, ui.Rect{X: 120, Width: 100}).Default("Preview")
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	BeginButton(&canvas, theme, gfx.Item(7), gfx.Rect{Width: 100}).Default("Save")
+	BeginButton(&canvas, theme, gfx.ID{}, gfx.Rect{X: 120, Width: 100}).Default("Preview")
 	if len(canvas.Hits()) != 1 {
 		t.Fatalf("buttons declared %d hits, want only live declaration", len(canvas.Hits()))
 	}
 	hit := canvas.Hits()[0]
-	if hit.ID != ui.Item(7) || hit.Label != "Save" || hit.Role != ui.RoleButton || !hit.Focusable || hit.Disabled {
+	if hit.ID != gfx.Item(7) || hit.Label != "Save" || hit.Role != gfx.RoleButton || !hit.Focusable || hit.Disabled {
 		t.Fatalf("typed button hit = %+v", hit)
 	}
 }
 
 func TestButtonDisabledKeepsTypedSemanticsAtHalfOpacity(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	BeginButton(&canvas, theme, ui.Item(9), ui.Rect{Width: 100}).Disabled().Default("Unavailable")
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	BeginButton(&canvas, theme, gfx.Item(9), gfx.Rect{Width: 100}).Disabled().Default("Unavailable")
 	if len(canvas.Hits()) != 1 || !canvas.Hits()[0].Disabled || canvas.Hits()[0].Focusable {
 		t.Fatalf("disabled hit = %+v", canvas.Hits())
 	}
@@ -148,16 +148,16 @@ func TestButtonDisabledKeepsTypedSemanticsAtHalfOpacity(t *testing.T) {
 }
 
 func TestButtonFocusAndInvalidRingsUseOfficialTokensInDark(t *testing.T) {
-	theme := ui.DarkTheme()
-	var focused, invalid ui.Canvas
-	focused.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(1), true)
-	BeginButton(&focused, theme, ui.Item(1), ui.Rect{X: 4, Y: 4, Width: 100}).Default("Save")
-	BeginButton(&invalid, theme, ui.Item(2), ui.Rect{X: 4, Y: 4, Width: 100}).Invalid().Outline("Save")
+	theme := gfx.DarkTheme()
+	var focused, invalid gfx.Canvas
+	focused.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.Item(1), true)
+	BeginButton(&focused, theme, gfx.Item(1), gfx.Rect{X: 4, Y: 4, Width: 100}).Default("Save")
+	BeginButton(&invalid, theme, gfx.Item(2), gfx.Rect{X: 4, Y: 4, Width: 100}).Invalid().Outline("Save")
 
 	focusRing := focused.Rectangles()[0]
 	wantFocus := theme.Ring
 	wantFocus.Alpha *= 0.50
-	if focusRing.Color != wantFocus || focusRing.Bounds != (ui.Rect{X: 1, Y: 1, Width: 106, Height: 38}) {
+	if focusRing.Color != wantFocus || focusRing.Bounds != (gfx.Rect{X: 1, Y: 1, Width: 106, Height: 38}) {
 		t.Fatalf("focus ring = %+v, want Ring/50 expanded 3px", focusRing)
 	}
 	invalidRing := invalid.Rectangles()[0]
@@ -169,21 +169,21 @@ func TestButtonFocusAndInvalidRingsUseOfficialTokensInDark(t *testing.T) {
 }
 
 func TestButtonSizeToFitUsesSelectedPadding(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	defaultButton := BeginButton(&canvas, theme, ui.ID{}, ui.Rect{}).SizeToFit("Download")
-	xsmallButton := BeginButton(&canvas, theme, ui.ID{}, ui.Rect{}).XSmall().SizeToFit("Download")
-	wantDefault := canvas.TextWidthWeight("Download", theme.Metrics.FontSizeM, ui.WeightMedium) + 20
-	wantXSmall := canvas.TextWidthWeight("Download", theme.Metrics.FontSizeS, ui.WeightMedium) + 16
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	defaultButton := BeginButton(&canvas, theme, gfx.ID{}, gfx.Rect{}).SizeToFit("Download")
+	xsmallButton := BeginButton(&canvas, theme, gfx.ID{}, gfx.Rect{}).XSmall().SizeToFit("Download")
+	wantDefault := canvas.TextWidthWeight("Download", theme.Metrics.FontSizeM, gfx.WeightMedium) + 20
+	wantXSmall := canvas.TextWidthWeight("Download", theme.Metrics.FontSizeS, gfx.WeightMedium) + 16
 	if defaultButton.BoundsWidth() != wantDefault || xsmallButton.BoundsWidth() != wantXSmall {
 		t.Fatalf("fitted widths = %v and %v, want %v and %v", defaultButton.BoundsWidth(), xsmallButton.BoundsWidth(), wantDefault, wantXSmall)
 	}
 }
 
 func TestButtonCentersInItsArea(t *testing.T) {
-	var canvas ui.Canvas
-	area := ui.Rect{X: 100, Y: 50, Width: 300, Height: 100}
-	button := BeginButton(&canvas, ui.DarkTheme(), ui.ID{}, ui.Rect{}).
+	var canvas gfx.Canvas
+	area := gfx.Rect{X: 100, Y: 50, Width: 300, Height: 100}
+	button := BeginButton(&canvas, gfx.DarkTheme(), gfx.ID{}, gfx.Rect{}).
 		SizeToFit("Download").CenterIn(area)
 	if want := area.X + (area.Width-button.bounds.Width)/2; button.bounds.X != want {
 		t.Fatalf("centered X = %v, want %v", button.bounds.X, want)
@@ -194,12 +194,12 @@ func TestButtonCentersInItsArea(t *testing.T) {
 }
 
 func TestButtonRepeatedPaintReusesCanvasStorage(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	BeginButton(&canvas, theme, ui.Item(1), ui.Rect{Width: 100}).Default("Save")
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	BeginButton(&canvas, theme, gfx.Item(1), gfx.Rect{Width: 100}).Default("Save")
 	allocations := testing.AllocsPerRun(100, func() {
 		canvas.Reset()
-		BeginButton(&canvas, theme, ui.Item(1), ui.Rect{Width: 100}).Default("Save")
+		BeginButton(&canvas, theme, gfx.Item(1), gfx.Rect{Width: 100}).Default("Save")
 	})
 	if allocations != 0 {
 		t.Fatalf("repeated button paint allocated %v times", allocations)
@@ -209,18 +209,18 @@ func TestButtonRepeatedPaintReusesCanvasStorage(t *testing.T) {
 // A transform moves the button's glyph inside its square, not the button, its
 // label or the region that receives clicks.
 func TestButtonMovesOnlyItsIcon(t *testing.T) {
-	theme := ui.LightTheme()
-	bounds := ui.Rect{X: 20, Y: 10, Width: 120, Height: 40}
-	paint := func(transform ui.IconTransform) *ui.Canvas {
-		var canvas ui.Canvas
-		BeginButton(&canvas, theme, ui.Item(1), bounds).
+	theme := gfx.LightTheme()
+	bounds := gfx.Rect{X: 20, Y: 10, Width: 120, Height: 40}
+	paint := func(transform gfx.IconTransform) *gfx.Canvas {
+		var canvas gfx.Canvas
+		BeginButton(&canvas, theme, gfx.Item(1), bounds).
 			WithIcon(checkIcon).
 			IconTransform(transform).
 			Default("Save")
 		return &canvas
 	}
-	rest := paint(ui.IconTransform{})
-	moved := paint(ui.IconTransform{Translate: ui.Point{Y: -2}})
+	rest := paint(gfx.IconTransform{})
+	moved := paint(gfx.IconTransform{Translate: gfx.Point{Y: -2}})
 	if len(rest.Triangles()) == 0 || len(moved.Triangles()) != len(rest.Triangles()) {
 		t.Fatalf("rest painted %d triangles, the moving icon %d", len(rest.Triangles()), len(moved.Triangles()))
 	}
@@ -249,18 +249,18 @@ func TestButtonMovesOnlyItsIcon(t *testing.T) {
 // A button in a row of its own height is painted that tall, its label centered in
 // it, with the radius and text size of its size; without a height nothing changes.
 func TestButtonHeightPaintsTheButtonThatTall(t *testing.T) {
-	theme := ui.LightTheme()
-	paint := func(button Button) (*ui.Canvas, ui.Rect) {
-		canvas := &ui.Canvas{}
+	theme := gfx.LightTheme()
+	paint := func(button Button) (*gfx.Canvas, gfx.Rect) {
+		canvas := &gfx.Canvas{}
 		button.canvas = canvas
 		button.Default("Save")
 		return canvas, canvas.Rectangles()[0].Bounds
 	}
-	plainCanvas, plain := paint(BeginButton(nil, theme, ui.Item(1), ui.Rect{Width: 80}))
+	plainCanvas, plain := paint(BeginButton(nil, theme, gfx.Item(1), gfx.Rect{Width: 80}))
 	if plain.Height != theme.Metrics.ControlHeight {
 		t.Fatalf("a button without a height is %v tall, want the size's %v", plain.Height, theme.Metrics.ControlHeight)
 	}
-	tallCanvas, tall := paint(BeginButton(nil, theme, ui.Item(1), ui.Rect{Y: 10, Width: 80}).Height(48))
+	tallCanvas, tall := paint(BeginButton(nil, theme, gfx.Item(1), gfx.Rect{Y: 10, Width: 80}).Height(48))
 	if tall.Height != 48 || tall.Y != 10 {
 		t.Fatalf("a 48px button is %+v", tall)
 	}
@@ -277,12 +277,12 @@ func TestButtonHeightPaintsTheButtonThatTall(t *testing.T) {
 		t.Errorf("label %+v is not centered in the 48px button", label.Bounds)
 	}
 	// An icon button stays square, at the height.
-	_, icon := paint(BeginButton(nil, theme, ui.Item(1), ui.Rect{Width: 10}).Icon().Height(44))
+	_, icon := paint(BeginButton(nil, theme, gfx.Item(1), gfx.Rect{Width: 10}).Icon().Height(44))
 	if icon.Width != 44 || icon.Height != 44 {
 		t.Errorf("a 44px icon button is %vx%v, want square", icon.Width, icon.Height)
 	}
 	// Zero or less is the size's own.
-	if _, same := paint(BeginButton(nil, theme, ui.Item(1), ui.Rect{Width: 80}).Height(-5)); same != plain {
+	if _, same := paint(BeginButton(nil, theme, gfx.Item(1), gfx.Rect{Width: 80}).Height(-5)); same != plain {
 		t.Errorf("a negative height changed the button: %+v", same)
 	}
 }
@@ -290,27 +290,27 @@ func TestButtonHeightPaintsTheButtonThatTall(t *testing.T) {
 // FontSize changes only the label's size: the button keeps the height and radius
 // of its size, SizeToFit follows the label, and zero or less is the size's own.
 func TestButtonFontSizeChangesOnlyTheLabel(t *testing.T) {
-	theme := ui.LightTheme()
-	paint := func(button Button) *ui.Canvas {
-		canvas := &ui.Canvas{}
+	theme := gfx.LightTheme()
+	paint := func(button Button) *gfx.Canvas {
+		canvas := &gfx.Canvas{}
 		button.canvas = canvas
 		button.Default("Save")
 		return canvas
 	}
-	base := ui.Rect{Width: 80}
-	plain := paint(BeginButton(nil, theme, ui.Item(1), base).Small())
-	sized := paint(BeginButton(nil, theme, ui.Item(1), base).Small().FontSize(13))
+	base := gfx.Rect{Width: 80}
+	plain := paint(BeginButton(nil, theme, gfx.Item(1), base).Small())
+	sized := paint(BeginButton(nil, theme, gfx.Item(1), base).Small().FontSize(13))
 	if got := sized.Texts()[0].Style.Size; got != 13 {
 		t.Errorf("label size = %v, want 13", got)
 	}
 	if sized.Rectangles()[0].Bounds != plain.Rectangles()[0].Bounds || sized.Rectangles()[0].Radius != plain.Rectangles()[0].Radius {
 		t.Errorf("the box changed: %+v vs %+v", sized.Rectangles()[0], plain.Rectangles()[0])
 	}
-	if got, want := paint(BeginButton(nil, theme, ui.Item(1), base).Small().FontSize(-1)).Texts()[0].Style.Size, plain.Texts()[0].Style.Size; got != want {
+	if got, want := paint(BeginButton(nil, theme, gfx.Item(1), base).Small().FontSize(-1)).Texts()[0].Style.Size, plain.Texts()[0].Style.Size; got != want {
 		t.Errorf("a negative size gave %v, want the size's %v", got, want)
 	}
-	small := BeginButton(&ui.Canvas{}, theme, ui.Item(1), base).Small().SizeToFit("Layout").BoundsWidth()
-	large := BeginButton(&ui.Canvas{}, theme, ui.Item(1), base).Small().FontSize(20).SizeToFit("Layout").BoundsWidth()
+	small := BeginButton(&gfx.Canvas{}, theme, gfx.Item(1), base).Small().SizeToFit("Layout").BoundsWidth()
+	large := BeginButton(&gfx.Canvas{}, theme, gfx.Item(1), base).Small().FontSize(20).SizeToFit("Layout").BoundsWidth()
 	if large <= small {
 		t.Errorf("a bigger label fit in %v, no wider than %v", large, small)
 	}

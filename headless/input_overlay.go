@@ -8,7 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const (
@@ -80,13 +80,13 @@ func (session *Session) drawInput(snapshot app.Snapshot) app.Snapshot {
 		radius := 8 + 16*progress
 		snapshot.Primitives = append(snapshot.Primitives,
 			app.Primitive{
-				Bounds: ui.Rect{X: mark.x - radius, Y: mark.y - radius, Width: 2 * radius, Height: 2 * radius},
-				Color:  ui.Color{Red: 0.20, Green: 0.52, Blue: 1, Alpha: 0.45 * (1 - progress)},
+				Bounds: gfx.Rect{X: mark.x - radius, Y: mark.y - radius, Width: 2 * radius, Height: 2 * radius},
+				Color:  gfx.Color{Red: 0.20, Green: 0.52, Blue: 1, Alpha: 0.45 * (1 - progress)},
 				Radius: radius, Layer: inputLayer,
 			},
 			app.Primitive{
-				Bounds: ui.Rect{X: mark.x - 3, Y: mark.y - 3, Width: 6, Height: 6},
-				Color:  ui.Color{Red: 0.20, Green: 0.52, Blue: 1, Alpha: 0.9 * (1 - progress)},
+				Bounds: gfx.Rect{X: mark.x - 3, Y: mark.y - 3, Width: 6, Height: 6},
+				Color:  gfx.Color{Red: 0.20, Green: 0.52, Blue: 1, Alpha: 0.9 * (1 - progress)},
 				Radius: 3, Layer: inputLayer,
 			})
 	}
@@ -98,16 +98,16 @@ func (session *Session) drawInput(snapshot app.Snapshot) app.Snapshot {
 		fade = float32(left) / float32(keysFade)
 	}
 	const size, height, margin, pad = 15, 32, 24, 14
-	width := session.canvas.TextWidthWeight(chip.text, size, ui.WeightMedium)
-	box := ui.Rect{Width: width + 2*pad, Height: height}
+	width := session.canvas.TextWidthWeight(chip.text, size, gfx.WeightMedium)
+	box := gfx.Rect{Width: width + 2*pad, Height: height}
 	box.X = (float32(snapshot.Width) - box.Width) / 2
 	box.Y = float32(snapshot.Height) - margin - height
 	snapshot.Primitives = append(snapshot.Primitives, app.Primitive{
-		Bounds: box, Color: ui.Color{Red: 0.07, Green: 0.08, Blue: 0.10, Alpha: 0.9 * fade}, Radius: 8, Layer: inputLayer,
+		Bounds: box, Color: gfx.Color{Red: 0.07, Green: 0.08, Blue: 0.10, Alpha: 0.9 * fade}, Radius: 8, Layer: inputLayer,
 	})
 	snapshot.Labels = append(snapshot.Labels, app.Label{
-		Value: chip.text, Bounds: ui.Rect{X: box.X + pad, Y: box.Y + (height-size-4)/2, Width: width, Height: size + 4},
-		FontSize: size, Weight: ui.WeightMedium, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: fade}, Layer: inputLayer,
+		Value: chip.text, Bounds: gfx.Rect{X: box.X + pad, Y: box.Y + (height-size-4)/2, Width: width, Height: size + 4},
+		FontSize: size, Weight: gfx.WeightMedium, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: fade}, Layer: inputLayer,
 	})
 	return snapshot
 }

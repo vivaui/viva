@@ -10,13 +10,13 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/headless"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestCodeMergeHeadlessAcceptButtonAndNativeResultInput(t *testing.T) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	scope := tree.Feature("merge")
 	resultID := tree.ID(scope, "result")
 	actionID := tree.ID(scope, "accept-incoming")
@@ -26,10 +26,10 @@ func TestCodeMergeHeadlessAcceptButtonAndNativeResultInput(t *testing.T) {
 	var selected bool
 	config := app.Config{
 		Title: "Merge comparison", Width: 840, Height: 220,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			canvas.SetTree(&tree)
 			value := editor.String()
-			merge.Paint(canvas, ui.DarkTheme(), ui.Rect{Width: size.Width, Height: size.Height}, components.CodeMergeSnapshot{
+			merge.Paint(canvas, gfx.DarkTheme(), gfx.Rect{Width: size.Width, Height: size.Height}, components.CodeMergeSnapshot{
 				Current: strings.Split("head\nlocal\ntail", "\n"), Incoming: strings.Split("head\nremote\ntail", "\n"),
 				Rows: []components.CodeMergeRow{
 					{CurrentLine: 0, ResultLine: 0, IncomingLine: 0},
@@ -56,7 +56,7 @@ func TestCodeMergeHeadlessAcceptButtonAndNativeResultInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer session.Close()
-	var result, action ui.Rect
+	var result, action gfx.Rect
 	for _, hit := range session.Snapshot().Hits {
 		switch hit.ID {
 		case resultID:

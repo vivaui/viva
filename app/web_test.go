@@ -4,18 +4,18 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestNativeViewsReachThePlatformWhenTheyChange(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var declare bool
-	config := Config{Title: "web", Width: 200, Height: 100, Paint: func(canvas *ui.Canvas, size ui.Size) {
+	config := Config{Title: "web", Width: 200, Height: 100, Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 		if declare {
 			canvas.PushLayer(1)
-			canvas.Clip(ui.Rect{X: 0, Y: 0, Width: 150, Height: 100})
-			canvas.NativeView(4, ui.Rect{X: 10, Y: 20, Width: 300, Height: 60})
+			canvas.Clip(gfx.Rect{X: 0, Y: 0, Width: 150, Height: 100})
+			canvas.NativeView(4, gfx.Rect{X: 10, Y: 20, Width: 300, Height: 60})
 		}
 	}}
 	painter := newTestPainter(t, &canvas, config)

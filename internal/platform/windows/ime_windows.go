@@ -7,12 +7,12 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	inputpkg "github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -131,13 +131,13 @@ func (state *windowState) updateTextVisuals() error {
 		Value: line.value, X: originX, Y: input.Y,
 		Width:  max(input.Width+state.textScroll, textWidth+textCaretWidth),
 		Height: input.Height, FontSize: input.FontSize, Weight: input.Weight, Color: input.Color, Layer: input.Layer,
-		Clipped: true, Clip: ui.Rect{X: input.X, Y: input.Y, Width: input.Width, Height: input.Height},
+		Clipped: true, Clip: gfx.Rect{X: input.X, Y: input.Y, Width: input.Width, Height: input.Height},
 	}
 	if input.Terminal {
 		// A terminal's preedit stands on the terminal's cells, in its fixed-pitch font,
 		// not on the advances of the system UI font.
 		label.Value = state.textDisplayValue()
-		color := ui.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
+		color := gfx.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 		state.textRuns = platform.TerminalPreeditRuns(state.textRuns[:0], label.Value, color)
 		label.Mono, label.MonoFace, label.CellWidth, label.Runs = true, input.MonoFace, input.CellWidth, state.textRuns
 	}
@@ -310,7 +310,7 @@ func (state *windowState) textPointerEvent(event platform.PointerEvent) (platfor
 	switch event.Kind {
 	case platform.PointerDown:
 		state.textDragging = false
-		if event.Button != ui.PointerButtonPrimary || event.X < input.X || event.X > input.X+input.Width || event.Y < input.Y || event.Y > input.Y+input.Height {
+		if event.Button != gfx.PointerButtonPrimary || event.X < input.X || event.X > input.X+input.Width || event.Y < input.Y || event.Y > input.Y+input.Height {
 			return platform.TextEvent{}, false, nil
 		}
 	case platform.PointerMove:

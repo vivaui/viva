@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform/darwin"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -43,23 +43,23 @@ type terminal struct {
 	mu      sync.Mutex
 	pending []string // echoes that have arrived but are not applied yet
 	line    []byte   // what the program has echoed on the last row
-	rowRuns [][]ui.TextRun
+	rowRuns [][]gfx.TextRun
 	rowText []string
 }
 
 func newTerminal(echo time.Duration) *terminal {
 	t := &terminal{echo: echo}
-	palette := []ui.Color{
+	palette := []gfx.Color{
 		{Red: 0.62, Green: 0.81, Blue: 0.42, Alpha: 1}, {Red: 0.45, Green: 0.62, Blue: 0.95, Alpha: 1},
 		{Red: 0.85, Green: 0.84, Blue: 0.82, Alpha: 1}, {Red: 0.94, Green: 0.47, Blue: 0.47, Alpha: 1},
 	}
 	for row := 0; row < scrollRows; row++ {
 		var text strings.Builder
-		var runs []ui.TextRun
+		var runs []gfx.TextRun
 		for column := 0; column < columns-10; {
 			word := fmt.Sprintf("word%02d ", (row+column)%97)
 			text.WriteString(word)
-			runs = append(runs, ui.TextRun{
+			runs = append(runs, gfx.TextRun{
 				Column: int32(column), Bytes: int32(len(word)), Cells: int32(len(word)),
 				Color: palette[(row+column/7)%len(palette)],
 			})
@@ -86,7 +86,7 @@ func (t *terminal) config() app.Config {
 			cursor := len(t.line)
 			t.mu.Unlock()
 			return &app.TextInput{
-				Bounds:   ui.Rect{X: 8 + float32(cursor+2)*7.8, Y: 8 + float32(scrollRows)*16, Width: 7.8, Height: 16},
+				Bounds:   gfx.Rect{X: 8 + float32(cursor+2)*7.8, Y: 8 + float32(scrollRows)*16, Width: 7.8, Height: 16},
 				FontSize: fontSize,
 				OnEvent: func(event app.TextEvent) (app.TextState, error) {
 					if event.Kind == app.TextInsert {
@@ -116,22 +116,22 @@ func (t *terminal) apply() {
 	t.pending = t.pending[:0]
 }
 
-func (t *terminal) paint(canvas *ui.Canvas, size ui.Size) {
+func (t *terminal) paint(canvas *gfx.Canvas, size gfx.Size) {
 	cellWidth, cellHeight := canvas.CellSize(fontSize)
-	canvas.Fill(ui.Rect{Width: size.Width, Height: size.Height}, ui.Color{Red: 0.1, Green: 0.1, Blue: 0.1, Alpha: 1})
-	style := ui.TextStyle{Size: fontSize, Color: ui.Color{Red: 0.85, Green: 0.84, Blue: 0.82, Alpha: 1}}
+	canvas.Fill(gfx.Rect{Width: size.Width, Height: size.Height}, gfx.Color{Red: 0.1, Green: 0.1, Blue: 0.1, Alpha: 1})
+	style := gfx.TextStyle{Size: fontSize, Color: gfx.Color{Red: 0.85, Green: 0.84, Blue: 0.82, Alpha: 1}}
 	width := float32(columns) * cellWidth
 	for row := range t.rowText {
-		canvas.LabelRuns(t.rowText[row], ui.Rect{X: 8, Y: 8 + float32(row)*cellHeight, Width: width, Height: cellHeight}, style, cellWidth, t.rowRuns[row])
+		canvas.LabelRuns(t.rowText[row], gfx.Rect{X: 8, Y: 8 + float32(row)*cellHeight, Width: width, Height: cellHeight}, style, cellWidth, t.rowRuns[row])
 	}
 	t.mu.Lock()
 	prompt := "$ " + string(t.line)
 	t.mu.Unlock()
-	canvas.LabelRuns(prompt, ui.Rect{X: 8, Y: 8 + float32(scrollRows)*cellHeight, Width: width, Height: cellHeight}, style, cellWidth,
-		[]ui.TextRun{{Column: 0, Bytes: int32(len(prompt)), Cells: int32(len(prompt)), Color: style.Color}})
-	canvas.Rounded(ui.Rect{X: 8 + float32(len(prompt))*cellWidth, Y: 8 + float32(scrollRows)*cellHeight, Width: cellWidth, Height: cellHeight}, 0,
-		ui.Color{Red: 0.85, Green: 0.84, Blue: 0.82, Alpha: 1})
-	canvas.HitWithOptions(1, ui.Rect{Width: size.Width, Height: size.Height}, "Terminal", ui.HitOptions{Role: ui.RoleTerminal, Autofocus: true})
+	canvas.LabelRuns(prompt, gfx.Rect{X: 8, Y: 8 + float32(scrollRows)*cellHeight, Width: width, Height: cellHeight}, style, cellWidth,
+		[]gfx.TextRun{{Column: 0, Bytes: int32(len(prompt)), Cells: int32(len(prompt)), Color: style.Color}})
+	canvas.Rounded(gfx.Rect{X: 8 + float32(len(prompt))*cellWidth, Y: 8 + float32(scrollRows)*cellHeight, Width: cellWidth, Height: cellHeight}, 0,
+		gfx.Color{Red: 0.85, Green: 0.84, Blue: 0.82, Alpha: 1})
+	canvas.HitWithOptions(1, gfx.Rect{Width: size.Width, Height: size.Height}, "Terminal", gfx.HitOptions{Role: gfx.RoleTerminal, Autofocus: true})
 }
 
 func main() {

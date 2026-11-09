@@ -10,7 +10,7 @@ import (
 
 const formSource = `package settings
 
-import ui "github.com/vivaui/viva/flex"
+import "github.com/vivaui/viva/ui"
 
 type Theme int
 
@@ -63,13 +63,13 @@ func TestFormDeclaresAControlPerTaggedField(t *testing.T) {
 	text := string(source)
 	for _, want := range []string{
 		formHeader,
-		`func (v *Settings) Form(c flex.C) flex.Box {`,
-		`flex.TextField(c, &v.Name, "Name", "Your name")`,
-		`flex.Switch(c, &v.Sync, "Sync over SSH")`,
-		`flex.Checkbox(c, &v.Beta, "Beta builds")`,
-		`flex.Choice(c, &v.Theme, themes, Theme.String)`,
-		`flex.Select(c, &v.Size, sizes, nil)`,
-		`flex.Slider(c, &v.Volume)`,
+		`func (v *Settings) Form(c ui.C) ui.Box {`,
+		`ui.TextField(c, &v.Name, "Name", "Your name")`,
+		`ui.Switch(c, &v.Sync, "Sync over SSH")`,
+		`ui.Checkbox(c, &v.Beta, "Beta builds")`,
+		`ui.Choice(c, &v.Theme, themes, Theme.String)`,
+		`ui.Select(c, &v.Size, sizes, nil)`,
+		`ui.Slider(c, &v.Volume)`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("generated code lacks %s:\n%s", want, text)
@@ -97,7 +97,7 @@ func TestFormRejectsWhatItCannotDeclare(t *testing.T) {
 		{"N bool `form:\"On,select\"`", `option "select" does not apply to a switch`},
 		{"N Kind `form:\"Kind\" choices:\"kinds\"`", "need a function naming them"},
 		{"N string `form:\"Kind\" choices:\"\"`", "choices tag"},
-		{"N bool `form:\"On\" placeholder:\"x\"`", "placeholder tag applies to a flex.Field only"},
+		{"N bool `form:\"On\" placeholder:\"x\"`", "placeholder tag applies to a ui.Field only"},
 	} {
 		directory := writePackage(t, map[string]string{"a.go": "package a\n\ntype Kind int\n\ntype S struct {\n\t" + test.field + "\n}\n"})
 		_, _, err := generateForms(directory, nil)
@@ -117,7 +117,7 @@ func TestFormRejectsWhatItCannotDeclare(t *testing.T) {
 	}
 }
 
-// The generated Form compiles against flex and its controls write into the struct.
+// The generated Form compiles against package ui and its controls write into the struct.
 func TestFormDrivesTheStruct(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds a module")
@@ -141,12 +141,12 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/ui"
 )
 
 func TestForm(t *testing.T) {
 	s := &Settings{Size: "Small"}
-	page := flex.NewPage(flex.PageConfig{View: func(c flex.C) { s.Form(c).Pad(16) }})
+	page := ui.NewPage(ui.PageConfig{View: func(c ui.C) { s.Form(c).Pad(16) }})
 	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 480}), nil)
 	if err != nil {
 		t.Fatal(err)

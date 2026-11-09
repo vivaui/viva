@@ -3,14 +3,14 @@ package componentdemo
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Each step is a click on a control the demo declares, and what the caller-owned
 // state must be after it.
 func TestGroupCClicksUpdateCallerState(t *testing.T) {
 	type step struct {
-		id   ui.ID
+		id   gfx.ID
 		want func(*State) bool
 	}
 	tests := []struct {
@@ -72,11 +72,11 @@ func TestGroupCClicksUpdateCallerState(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.component+"/"+test.example, func(t *testing.T) {
 			state := newTestState(t, test.component, test.example)
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			canvas.SetMeasurer(measureTestText)
 			size := testSize
 			if test.component == "pagination" {
-				size = ui.Size{Width: 760, Height: 380} // the narrow stage shows only the current page
+				size = gfx.Size{Width: 760, Height: 380} // the narrow stage shows only the current page
 			}
 			for index, step := range test.steps {
 				paintFrame(&canvas, state, size, 0, true)

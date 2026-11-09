@@ -6,7 +6,7 @@
 // pay-for-what-you-use — the linker keeps only the functions an application
 // actually calls, and a blank import of this whole package links no symbol of
 // github.com/vivaui/viva/components (linkage_test.go builds that program and checks); the
-// standard-library packages and github.com/vivaui/viva/ui it imports add a fixed baseline that is
+// standard-library packages and github.com/vivaui/viva/gfx it imports add a fixed baseline that is
 // measured separately. Each file is both the
 // implementation and the documentation:
 // colors, geometry, metrics, and state rendering are visible in the source,
@@ -15,7 +15,7 @@
 //
 // # Declaration pattern
 //
-// Components are stateless immediate declarations over a shared ui.Canvas. A
+// Components are stateless immediate declarations over a shared gfx.Canvas. A
 // Begin constructor returns a small chainable value whose terminal method
 // paints; the application owns all state and re-declares on repaint:
 //
@@ -93,7 +93,7 @@
 //   - Slider: `BeginSlider` paints one draggable thumb; `BeginRangeSlider`
 //     paints several.
 //
-// Recipes: a control's look is a pure function of the theme and a ui.State, exported next to the
+// Recipes: a control's look is a pure function of the theme and a gfx.State, exported next to the
 // control as plain values (`TextEntryRecipe`, `ButtonRecipe`, `CheckboxRecipe`, `SwitchRecipe`);
 // the floating panels have one each, since their corners and shadows differ (`DialogRecipe` for a
 // dialog, alert dialog and drawer, `PopoverRecipe`, `PopupRecipe` for lists and menus).

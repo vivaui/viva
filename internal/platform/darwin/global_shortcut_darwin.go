@@ -16,7 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 type carbonShortcut struct {
@@ -33,7 +33,7 @@ var carbonShortcuts sync.Map // uint32 -> *carbonShortcut
 
 // RegisterGlobalShortcut uses the system hotkey API. It does not read other
 // keystrokes or need Accessibility or Input Monitoring permissions.
-func RegisterGlobalShortcut(modifiers ui.Modifiers, key string, pressed func()) (func(), error) {
+func RegisterGlobalShortcut(modifiers gfx.Modifiers, key string, pressed func()) (func(), error) {
 	binding, err := registerCarbonShortcut(modifiers, key, pressed)
 	if err != nil {
 		return nil, err
@@ -41,22 +41,22 @@ func RegisterGlobalShortcut(modifiers ui.Modifiers, key string, pressed func()) 
 	return binding.close, nil
 }
 
-func registerCarbonShortcut(modifiers ui.Modifiers, key string, pressed func()) (*carbonShortcut, error) {
+func registerCarbonShortcut(modifiers gfx.Modifiers, key string, pressed func()) (*carbonShortcut, error) {
 	code, ok := carbonKeycode(key)
 	if !ok {
 		return nil, fmt.Errorf("darwin: global shortcut key %q is unsupported", key)
 	}
 	mask := C.uint32_t(0)
-	if modifiers&ui.ModifierShift != 0 {
+	if modifiers&gfx.ModifierShift != 0 {
 		mask |= C.shiftKey
 	}
-	if modifiers&ui.ModifierControl != 0 {
+	if modifiers&gfx.ModifierControl != 0 {
 		mask |= C.controlKey
 	}
-	if modifiers&ui.ModifierAlt != 0 {
+	if modifiers&gfx.ModifierAlt != 0 {
 		mask |= C.optionKey
 	}
-	if modifiers&ui.ModifierMeta != 0 {
+	if modifiers&gfx.ModifierMeta != 0 {
 		mask |= C.cmdKey
 	}
 	id := nextCarbonShortcut.Add(1)

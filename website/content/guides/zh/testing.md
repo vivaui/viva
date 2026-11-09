@@ -20,14 +20,14 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/ui"
 )
 
 // open runs the page in a headless window: the real painter, router and focus
 // rules, driven by explicit calls.
 func open(t *testing.T, m *model) *app.Driver {
 	t.Helper()
-	page := flex.NewPage(flex.PageConfig{View: m.page})
+	page := ui.NewPage(ui.PageConfig{View: m.page})
 	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 240}), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestClickCounts(t *testing.T) {
 viva vet            # 或 go tool viva vet；包默认为 ./...
 ```
 
-每个问题报告为 `文件:行:列: 哪里错了以及应该怎么写 (检查名)`，发现问题时以非零状态退出，并使用项目自己的 Go 运行。在该行或上一行写 `// viva:ignore <检查名>` 可以忽略一条。`flex.Memo` 的版本号漏掉了函数读取的某个状态时会显示旧内容：在测试里打开 `flex.MemoCheck(true)`，它会声明每个部件，并在复制结果与声明结果不同时 panic。
+每个问题报告为 `文件:行:列: 哪里错了以及应该怎么写 (检查名)`，发现问题时以非零状态退出，并使用项目自己的 Go 运行。在该行或上一行写 `// viva:ignore <检查名>` 可以忽略一条。`ui.Memo` 的版本号漏掉了函数读取的某个状态时会显示旧内容：在测试里打开 `ui.MemoCheck(true)`，它会声明每个部件，并在复制结果与声明结果不同时 panic。
 
 ## 行协议
 

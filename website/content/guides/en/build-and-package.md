@@ -40,7 +40,7 @@ The download goes through `HTTPS_PROXY` like any Go program. On macOS you still 
 The recipes `viva add` writes come with the command, so the command and the Viva your project requires should be the same version. `viva init` therefore adds a `tool` line to `go.mod`, and `go tool viva` runs exactly the version the project pins; upgrading Viva upgrades the command with it, and CI needs no separate install:
 
 ```sh
-go tool viva add --out ./components/ui button
+go tool viva add --out ./components button
 go get -tool github.com/vivaui/viva/cmd/viva@v0.1.3   # pin an existing project
 ```
 

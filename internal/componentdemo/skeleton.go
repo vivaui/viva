@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -26,7 +26,7 @@ components.BeginSkeleton(canvas, theme, avatar.Rect()).Circle().Paint()
 components.BeginSkeleton(canvas, theme, name.Rect()).Paint()
 components.BeginSkeleton(canvas, theme, handle.Rect()).Radius(4).Paint()
 components.BeginSkeleton(canvas, theme, body.Rect()).Paint()`},
-		{ID: "phases", Title: "显式相位", Description: "由调用方提供固定动画相位；组件自身不启动计时器。", Snippet: `rows := [4]flex.Box{}
+		{ID: "phases", Title: "显式相位", Description: "由调用方提供固定动画相位；组件自身不启动计时器。", Snippet: `rows := [4]ui.Box{}
 for index := range rows {
     rows[index] = f.Slot().Height(20)
 }
@@ -36,26 +36,26 @@ for index, phase := range [...]float32{0, 0.25, 0.50, 0.75} {
 	},
 }
 
-// skeletonBlock is one placeholder: the slot flex gave it and how the component
+// skeletonBlock is one placeholder: the slot ui gave it and how the component
 // paints it.
 type skeletonBlock struct {
-	slot   flex.Box
+	slot   ui.Box
 	circle bool
 	radius float32
 	phased bool
 	phase  float32
 }
 
-func (state *State) paintSkeleton(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintSkeleton(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var blocks [6]skeletonBlock
 	count := 0
-	add := func(f *flex.Frame, block skeletonBlock) flex.Box {
+	add := func(f *ui.Frame, block skeletonBlock) ui.Box {
 		block.slot = f.Slot()
 		blocks[count] = block
 		count++
 		return block.slot
 	}
-	state.page(canvas, theme, size, 520, state.Text("Skeleton · 加载占位", "Skeleton · Loading placeholder"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 520, state.Text("Skeleton · 加载占位", "Skeleton · Loading placeholder"), func(f *ui.Frame) {
 		switch state.exampleID {
 		case "profile":
 			f.Row().Gap(16).Children(func() {

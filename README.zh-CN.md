@@ -60,7 +60,7 @@ Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用，同时把 WebAs
 - 状态区图标与弹出面板：`Application.AddStatusItem` 把图标放到 macOS 菜单栏、Windows 通知区域或 Linux 的 StatusNotifier 宿主；`StatusItemConfig.Menu` 让图标打开系统自己的菜单（NSMenu、Win32 弹出菜单、`com.canonical.dbusmenu`）；`WindowPanel` 是在它旁边打开、失焦即关闭的无边框弹出面板；`Window.Hide`/`Show` 让应用在没有可见窗口时继续运行。
 - `Application.SetDockBadge` 在 macOS 为应用 Dock 图标画出的红色角标里放一段文字，空文字表示去掉角标。
 - `app.StoreSecret`/`LoadSecret`/`DeleteSecret` 把少量机密保存在系统自己的存储里（Keychain、Credential Manager、Secret Service）。
-- `ui.MonoFamily` 用任何已安装的字体族绘制等宽文本，`app.MonospaceFamilies` 列出它们。
+- `gfx.MonoFamily` 用任何已安装的字体族绘制等宽文本，`app.MonospaceFamilies` 列出它们。
 - `Config.OnFileDrop` 接收从文件管理器拖入的文件，并带上指针下的命中区域。
 - 一棵独立的保留式语义无障碍树，镜像成原生 NSAccessibility 元素、Windows UI Automation 提供程序（Invoke、Toggle、Value、RangeValue、SelectionItem、ExpandCollapse 和 Text 模式，并带事件）和 Linux AT-SPI 对象，浏览器构建里映射为 ARIA。屏幕阅读器的按下、聚焦和设置值请求通过 `platform.AccessibilityHandler` 到达应用。见 [docs/accessibility.md](docs/accessibility.md)。
 - 事件驱动的窗口缩放重绘：每次缩放恰好一次 GPU 提交，尺寸不变时零工作。
@@ -75,7 +75,7 @@ Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用，同时把 WebAs
 - 实验性的 Linux/X11 shell：动态加载系统 XCB、Vulkan、Pango 和 Cairo；保留式圆角矩形与三角形、分层 GPU 合成的系统文本、指针与键盘输入、自定义标题栏拖动，以及没有空闲重绘的阻塞式事件循环。
 - 事件驱动渲染，没有空闲帧循环。
 - 主题令牌，以及把固定版本的 shadcn 组件目录静态类型化、源码自有的移植，包括表单、浮层、菜单、日历、滚动配方、反馈界面，以及从有类型切片绘制的面积图、折线图和柱状图，不需要浏览器运行时、反射或运行时样式解析器。
-- 共享的原生/WASM 组件浏览器：按分类分组的全部组件目录，以及每个组件一页、并排运行它的所有示例（点击、悬停、键盘、拖动、滚轮和原生文本编辑都可用），页面滚动条可拖动，热重载保留状态。示例就是 `internal/componentdemo` 里的那些，通过 `ui.Canvas.Embed` 嵌入页面，所以组件浏览器不保留任何组件的副本。
+- 共享的原生/WASM 组件浏览器：按分类分组的全部组件目录，以及每个组件一页、并排运行它的所有示例（点击、悬停、键盘、拖动、滚轮和原生文本编辑都可用），页面滚动条可拖动，热重载保留状态。示例就是 `internal/componentdemo` 里的那些，通过 `gfx.Canvas.Embed` 嵌入页面，所以组件浏览器不保留任何组件的副本。
 - 结构化诊断：可选的 `diagnostics` 包接收框架上报的事件（捕获的 panic、GPU 设备恢复、Web 视图失败、启动测量），与 `log/slog` 双向适配，可保留最近事件环与故障上下文；应用不安装 handler 时不写文件、不发送任何内容。见 [docs/diagnostics.md](docs/diagnostics.md)。
 - 签名应用更新：可选的 `update` 包读取 Ed25519 签名的清单，下载清单列出的归档，校验其长度与 SHA-256，再交给平台安装器（macOS 交换 `.app`、Windows 运行 NSIS 安装器、Linux 替换可执行文件）；`viva feed` 从 `viva package` 的产物生成并签名清单。见 [docs/updating.md](docs/updating.md)。
 - 窗口关闭或应用终止时干净地退出事件循环。
@@ -138,9 +138,9 @@ go run ./cmd/viva help package     # 每个命令和参数
 静态画布可以通过公开 API 呈现：
 
 ```go
-theme := ui.DarkTheme()
-var canvas ui.Canvas
-components.Card(&canvas, theme, ui.Rect{X: 24, Y: 24, Width: 320, Height: 180})
+theme := gfx.DarkTheme()
+var canvas gfx.Canvas
+components.Card(&canvas, theme, gfx.Rect{X: 24, Y: 24, Width: 320, Height: 180})
 if err := app.RunCanvas(app.Config{Title: "My App"}, &canvas); err != nil {
     log.Fatal(err)
 }

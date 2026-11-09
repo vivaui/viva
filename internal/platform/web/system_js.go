@@ -8,8 +8,8 @@ import (
 	"sync"
 	"syscall/js"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 var (
@@ -200,7 +200,7 @@ func SetCursorShape(shape uint8) error {
 }
 
 // SetCursorImage makes the picture the pointer over the page, through the CSS cursor property.
-func SetCursorImage(image *ui.CursorImage) error {
+func SetCursorImage(image *gfx.CursorImage) error {
 	cursor, err := cursorImageCSS(image)
 	if err != nil {
 		return err

@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
-func wrapSymbols(fixture *codeFixture) []ui.Text {
-	var marks []ui.Text
+func wrapSymbols(fixture *codeFixture) []gfx.Text {
+	var marks []gfx.Text
 	for _, label := range fixture.canvas.Texts() {
 		if label.Value == "↪" {
 			marks = append(marks, label)
@@ -21,7 +21,7 @@ func TestCodeEditorWrapSymbolMarksOnlySoftRowEndsAndReservesSpace(t *testing.T) 
 	fixture := newCodeFixture("abcdefghij\nlast")
 	fixture.bounds.Width = fixture.widthFor(5)
 	fixture.snapshot.Wrap = true
-	fixture.snapshot.InvisibleColor = ui.RGB(48, 96, 144)
+	fixture.snapshot.InvisibleColor = gfx.RGB(48, 96, 144)
 	fixture.paint()
 	without := len(fixture.editor.rows)
 	if len(wrapSymbols(fixture)) != 0 {

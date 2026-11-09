@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // A page that hands over after a delay asks for a frame at that delay. While a
@@ -19,14 +19,14 @@ func TestWaitingInRealTimeLetsAFrameTheApplicationAskedForComeDue(t *testing.T) 
 	config := app.Config{
 		Title: "hand over", Width: 200, Height: 80,
 		ClearColor: app.Color{Alpha: 1},
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			if time.Since(start) < 150*time.Millisecond {
-				canvas.Label("arriving", ui.Rect{X: 8, Y: 8, Width: 180, Height: 24}, ui.TextStyle{Size: 14})
+				canvas.Label("arriving", gfx.Rect{X: 8, Y: 8, Width: 180, Height: 24}, gfx.TextStyle{Size: 14})
 				canvas.RequestFrameIn(150 * time.Millisecond)
 				return
 			}
 			handedOver = true
-			canvas.Label("arrived", ui.Rect{X: 8, Y: 8, Width: 180, Height: 24}, ui.TextStyle{Size: 14})
+			canvas.Label("arrived", gfx.Rect{X: 8, Y: 8, Width: 180, Height: 24}, gfx.TextStyle{Size: 14})
 		},
 	}
 	session, err := Open(config, nil, Options{Scale: 1})

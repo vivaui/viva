@@ -5,30 +5,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // A leaving overlay keeps moving past the window edge. Its labels must take the
 // same negative position as its panel; clamping them to zero leaves the words
 // behind on the page the overlay is uncovering.
 func TestPresenceExitPublishesLabelsPastTheWindowEdge(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	now := time.Duration(0)
 	canvas.SetClock(func() time.Duration { return now })
 	show := true
 	config := Config{Title: "presence", Width: 200, Height: 100}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 		if !show {
 			return
 		}
-		canvas.BeginPresence(ui.Item(1), 0, ui.Presence{
-			Motion:   ui.Motion{Duration: 100 * time.Millisecond, Easing: ui.EaseLinear},
-			SlideIn:  ui.Point{X: -101},
-			SlideOut: ui.Point{X: -101},
-		}, ui.Point{})
-		canvas.Fill(ui.Rect{X: 0, Y: 0, Width: 100, Height: 100}, ui.Color{Alpha: 1})
-		canvas.Label("drawer", ui.Rect{X: 10, Y: 10, Width: 60, Height: 20}, ui.TextStyle{Size: 12})
+		canvas.BeginPresence(gfx.Item(1), 0, gfx.Presence{
+			Motion:   gfx.Motion{Duration: 100 * time.Millisecond, Easing: gfx.EaseLinear},
+			SlideIn:  gfx.Point{X: -101},
+			SlideOut: gfx.Point{X: -101},
+		}, gfx.Point{})
+		canvas.Fill(gfx.Rect{X: 0, Y: 0, Width: 100, Height: 100}, gfx.Color{Alpha: 1})
+		canvas.Label("drawer", gfx.Rect{X: 10, Y: 10, Width: 60, Height: 20}, gfx.TextStyle{Size: 12})
 		canvas.EndPresence()
 	}
 	normalized, err := config.normalize()
@@ -81,30 +81,30 @@ func TestPresenceExitPublishesLabelsPastTheWindowEdge(t *testing.T) {
 }
 
 type presencePlacement struct {
-	caret ui.Rect
+	caret gfx.Rect
 }
 
-func (placement presencePlacement) OffsetAt(ui.Point) (int, bool) { return 0, false }
-func (placement presencePlacement) CaretBounds() (ui.Rect, bool)  { return placement.caret, true }
+func (placement presencePlacement) OffsetAt(gfx.Point) (int, bool) { return 0, false }
+func (placement presencePlacement) CaretBounds() (gfx.Rect, bool)  { return placement.caret, true }
 
 // A text field focuses the moment its drawer opens, while the drawer is still
 // outside the window. The native editor and its caret must take the drawer's
 // slide, not appear at the place the field will occupy once it has arrived.
 func TestPresenceCarriesNativeTextInputWithTheDrawer(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	now := time.Duration(0)
 	canvas.SetClock(func() time.Duration { return now })
-	field := ui.Rect{X: 60, Y: 40, Width: 220, Height: 24}
-	caret := ui.Rect{X: 64, Y: 44, Width: 1, Height: 16}
+	field := gfx.Rect{X: 60, Y: 40, Width: 220, Height: 24}
+	caret := gfx.Rect{X: 64, Y: 44, Width: 1, Height: 16}
 	const slide = float32(-300)
 	config := Config{Title: "presence field", Width: 400, Height: 200}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.BeginPresence(ui.Item(1), 0, ui.Presence{
-			Motion:  ui.Motion{Duration: 100 * time.Millisecond, Easing: ui.EaseLinear},
-			SlideIn: ui.Point{X: slide}, SlideOut: ui.Point{X: slide},
-		}, ui.Point{})
-		canvas.HitWithOptions(ui.Item(2), field, "Search", ui.HitOptions{
-			Role: ui.RoleTextField, TextBounds: field, Autofocus: true, Placement: presencePlacement{caret: caret},
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.BeginPresence(gfx.Item(1), 0, gfx.Presence{
+			Motion:  gfx.Motion{Duration: 100 * time.Millisecond, Easing: gfx.EaseLinear},
+			SlideIn: gfx.Point{X: slide}, SlideOut: gfx.Point{X: slide},
+		}, gfx.Point{})
+		canvas.HitWithOptions(gfx.Item(2), field, "Search", gfx.HitOptions{
+			Role: gfx.RoleTextField, TextBounds: field, Autofocus: true, Placement: presencePlacement{caret: caret},
 		})
 		canvas.EndPresence()
 	}
@@ -123,7 +123,7 @@ func TestPresenceCarriesNativeTextInputWithTheDrawer(t *testing.T) {
 	if _, err := painter.repaint(); err != nil {
 		t.Fatal(err)
 	}
-	if painter.focus.Focused() != ui.Item(2) {
+	if painter.focus.Focused() != gfx.Item(2) {
 		t.Fatalf("focused = %d, want the drawer's search field", painter.focus.Focused())
 	}
 	native := painter.nativeText

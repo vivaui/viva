@@ -8,10 +8,10 @@ import (
 	"math"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 // newTestOffscreen skips the test on a machine with no Vulkan driver, as the
@@ -290,7 +290,7 @@ func TestOffscreenScissorsAClippedLabelToItsClip(t *testing.T) {
 		t.Fatal("the unclipped label does not cover its bounds")
 	}
 
-	label.Clip, label.Clipped = ui.Rect{X: 0, Y: 0, Width: 10, Height: 6}, true
+	label.Clip, label.Clipped = gfx.Rect{X: 0, Y: 0, Width: 10, Height: 6}, true
 	pixels = renderScene(t, offscreen, nil, []platform.TextLabel{label})
 	if !lit(pixels, 5, 5) {
 		t.Fatal("the clipped label lost the part inside its clip")
@@ -302,7 +302,7 @@ func TestOffscreenScissorsAClippedLabelToItsClip(t *testing.T) {
 		t.Fatal("the clipped label painted below its clip")
 	}
 
-	label.Clip = ui.Rect{X: 30, Y: 0, Width: 5, Height: 5}
+	label.Clip = gfx.Rect{X: 30, Y: 0, Width: 5, Height: 5}
 	pixels = renderScene(t, offscreen, nil, []platform.TextLabel{label})
 	if lit(pixels, 5, 5) || lit(pixels, 15, 5) {
 		t.Fatal("a clip outside the target still painted")
@@ -343,7 +343,7 @@ func TestOffscreenRendersShapedTextAndClipsIt(t *testing.T) {
 	if count(pixels, 0, 100) < 30 || count(pixels, 100, 200) < 30 {
 		t.Fatal("the label drew no glyph pixels across its width")
 	}
-	label.Clip, label.Clipped = ui.Rect{X: 0, Y: 0, Width: 100, Height: 40}, true
+	label.Clip, label.Clipped = gfx.Rect{X: 0, Y: 0, Width: 100, Height: 40}, true
 	pixels = renderScene(t, offscreen, nil, []platform.TextLabel{label})
 	if count(pixels, 0, 100) < 30 {
 		t.Fatal("the clipped label lost the part inside its clip")
@@ -515,7 +515,7 @@ func TestOffscreenTextIsRasterizedAtTheDeviceScale(t *testing.T) {
 func TestOffscreenScissorsAClippedLabelAtAFractionalScale(t *testing.T) {
 	offscreen := newScaledOffscreen(t, 20, 10, 1.5)
 	label := bitmapLabel()
-	label.Clip, label.Clipped = ui.Rect{X: 0, Y: 0, Width: 10, Height: 6}, true
+	label.Clip, label.Clipped = gfx.Rect{X: 0, Y: 0, Width: 10, Height: 6}, true
 	pixels := renderScene(t, offscreen, nil, []platform.TextLabel{label})
 	lit := func(x, y int) bool {
 		_, _, _, alpha := rgbaAt(pixels, x, y)

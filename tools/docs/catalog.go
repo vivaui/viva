@@ -151,7 +151,7 @@ func validID(value string) bool {
 
 func sourceManifest(root string) (Manifest, error) {
 	manifest := Manifest{}
-	for _, directory := range []string{"app", "ui", "components", "internal", "cmd/component-preview", "cmd/viva/templates", "tools/docs"} {
+	for _, directory := range []string{"app", "ui", "gfx", "components", "internal", "cmd/component-preview", "cmd/viva/templates", "tools/docs"} {
 		err := filepath.WalkDir(filepath.Join(root, filepath.FromSlash(directory)), func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err

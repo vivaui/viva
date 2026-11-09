@@ -4,7 +4,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // ChartStack selects how series combine at one X.
@@ -93,7 +93,7 @@ type AreaChart struct {
 type ChartPlot struct {
 	ChartLayout
 	// Plot is the data area inside the axes, where lines and bars are drawn.
-	Plot ui.Rect
+	Plot gfx.Rect
 	geo  chartGeometry
 }
 
@@ -139,24 +139,24 @@ func (state *ChartState) Index() (int, bool) { return state.index, state.active 
 // ChartStepForKey is a chart's keyboard movement: Left and Right step the hovered
 // point, Home and End jump to the ends. With no point hovered (index < 0) the
 // first key lands on the first or last. The caller owns the index.
-func ChartStepForKey(key ui.Key, index, count int) (int, bool) {
+func ChartStepForKey(key gfx.Key, index, count int) (int, bool) {
 	if count <= 0 {
 		return index, false
 	}
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		if index < 0 {
 			return count - 1, true
 		}
 		return max(index-1, 0), true
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		if index < 0 {
 			return 0, true
 		}
 		return min(index+1, count-1), true
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		return 0, true
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		return count - 1, true
 	}
 	return index, false
@@ -284,7 +284,7 @@ func (spec *chartSpec) domain() (low, high float32) {
 
 // chartGeometry maps data to canvas coordinates.
 type chartGeometry struct {
-	plot       ui.Rect
+	plot       gfx.Rect
 	x          []float32
 	count      int
 	xMin, xMax float32
@@ -401,7 +401,7 @@ type chartFrame struct {
 
 // chartBeginFrame paints everything under the data: legend, grid and axis
 // labels. dataLow and dataHigh are the extent of the values.
-func chartBeginFrame(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, spec *chartSpec, state *ChartState, dataLow, dataHigh float32) chartFrame {
+func chartBeginFrame(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, spec *chartSpec, state *ChartState, dataLow, dataHigh float32) chartFrame {
 	scale := theme.Metrics.ControlHeight / 32
 	fontSize := theme.Metrics.FontSizeS
 	rowHeight := 16 * scale
@@ -461,7 +461,7 @@ func chartBeginFrame(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, spec *ch
 		chartBuildLabels(canvas, spec, labels, key, area, step, fontSize, scale)
 	}
 
-	plot := ui.Rect{X: area.X + labels.plotLeft, Y: top, Width: labels.plotRight - labels.plotLeft, Height: height}
+	plot := gfx.Rect{X: area.X + labels.plotLeft, Y: top, Width: labels.plotRight - labels.plotLeft, Height: height}
 	geo.plot, geo.xMin, geo.xMax, geo.low, geo.high = plot, xMin, xMax, low, high
 	if plot.Width < 1 {
 		return chartFrame{layout: layout, plot: ChartPlot{ChartLayout: layout, geo: chartGeometry{count: count, x: spec.x, band: spec.band}}, scale: scale}
@@ -472,16 +472,16 @@ func chartBeginFrame(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, spec *ch
 	if spec.grid == ChartGridHorizontal || spec.grid == ChartGridBoth {
 		for _, value := range labels.yValues {
 			y := geo.py(value)
-			canvas.Fill(ui.Rect{X: plot.X, Y: y - 0.5, Width: plot.Width, Height: 1}, gridColor)
+			canvas.Fill(gfx.Rect{X: plot.X, Y: y - 0.5, Width: plot.Width, Height: 1}, gridColor)
 		}
 	}
 	if labels.key.gridVertical {
 		for _, frac := range labels.xFrac {
 			x := plot.X + frac*plot.Width
-			canvas.Fill(ui.Rect{X: x - 0.5, Y: plot.Y, Width: 1, Height: plot.Height}, gridColor)
+			canvas.Fill(gfx.Rect{X: x - 0.5, Y: plot.Y, Width: 1, Height: plot.Height}, gridColor)
 		}
 	}
-	labelStyle := ui.TextStyle{Size: fontSize, Color: theme.MutedForeground}
+	labelStyle := gfx.TextStyle{Size: fontSize, Color: theme.MutedForeground}
 	if !spec.yAxis.Hidden {
 		gap := chartAxisGap * scale
 		for index, value := range labels.yValues {
@@ -489,7 +489,7 @@ func chartBeginFrame(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, spec *ch
 				break
 			}
 			y := geo.py(value)
-			canvas.LabelAligned(labels.yText[index], ui.Rect{X: plot.X - gap - labels.yWidth, Y: y - rowHeight/2, Width: labels.yWidth, Height: rowHeight}, labelStyle, ui.AlignRight)
+			canvas.LabelAligned(labels.yText[index], gfx.Rect{X: plot.X - gap - labels.yWidth, Y: y - rowHeight/2, Width: labels.yWidth, Height: rowHeight}, labelStyle, gfx.AlignRight)
 		}
 	}
 	if !spec.xAxis.Hidden {
@@ -502,8 +502,8 @@ func chartBeginFrame(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, spec *ch
 			// Edge ticks remain anchored to their data, but their labels must
 			// fit inside the chart container rather than spill into a neighbor.
 			x := min(max(plot.X+frac*plot.Width-width/2, area.X), area.X+area.Width-width)
-			text = canvas.FitLine(text, fontSize, ui.WeightRegular, width)
-			canvas.Label(text, ui.Rect{X: x, Y: plot.Y + plot.Height + chartAxisGap*scale, Width: width, Height: rowHeight}, labelStyle)
+			text = canvas.FitLine(text, fontSize, gfx.WeightRegular, width)
+			canvas.Label(text, gfx.Rect{X: x, Y: plot.Y + plot.Height + chartAxisGap*scale, Width: width, Height: rowHeight}, labelStyle)
 		}
 	}
 	return chartFrame{layout: layout, plot: ChartPlot{ChartLayout: layout, Plot: plot, geo: geo}, scale: scale}
@@ -511,7 +511,7 @@ func chartBeginFrame(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, spec *ch
 
 // chartBuildLabels formats the tick labels and decides which points get an X
 // label. It runs when the inputs change, not on every paint.
-func chartBuildLabels(canvas *ui.Canvas, spec *chartSpec, labels *chartLabels, key chartLabelKey, area ui.Rect, step, fontSize, scale float32) {
+func chartBuildLabels(canvas *gfx.Canvas, spec *chartSpec, labels *chartLabels, key chartLabelKey, area gfx.Rect, step, fontSize, scale float32) {
 	labels.key, labels.valid = key, true
 	labels.yStep = step
 	labels.yValues = labels.yValues[:0]
@@ -696,7 +696,7 @@ func chartBuildTooltip(spec *chartSpec, state *ChartState, index int) *chartTool
 
 // chartFinish registers the plot's hit region and paints the hover tooltip. The
 // hovered mark (area line and dots, bar band) is the chart's own business.
-func chartFinish(canvas *ui.Canvas, theme ui.Theme, frame chartFrame, spec *chartSpec, state *ChartState, id ui.ID) {
+func chartFinish(canvas *gfx.Canvas, theme gfx.Theme, frame chartFrame, spec *chartSpec, state *ChartState, id gfx.ID) {
 	plot := frame.plot.Plot
 	if plot.Width < 1 || plot.Height < 1 {
 		return
@@ -720,7 +720,7 @@ func chartFinish(canvas *ui.Canvas, theme ui.Theme, frame chartFrame, spec *char
 	if label == "" {
 		label = "Chart"
 	}
-	canvas.HitWithOptions(id, plot, label, ui.HitOptions{Role: ui.RoleGroup, Cursor: ui.PointerCursorCrosshair, Value: value})
+	canvas.HitWithOptions(id, plot, label, gfx.HitOptions{Role: gfx.RoleGroup, Cursor: gfx.PointerCursorCrosshair, Value: value})
 	if !active || spec.hideTooltip || len(cache.rows) == 0 {
 		return
 	}
@@ -737,7 +737,7 @@ func chartFinish(canvas *ui.Canvas, theme ui.Theme, frame chartFrame, spec *char
 	}
 	x = max(x, frame.layout.Bounds.X)
 	y := min(plot.Y, frame.layout.Bounds.Y+frame.layout.Bounds.Height-size.Height)
-	PaintChartTooltip(canvas, theme, ui.Rect{X: x, Y: max(y, frame.layout.Bounds.Y)}, spec.series, cache.rows, options)
+	PaintChartTooltip(canvas, theme, gfx.Rect{X: x, Y: max(y, frame.layout.Bounds.Y)}, spec.series, cache.rows, options)
 }
 
 // PaintAreaChart paints an area or line chart into bounds, with its legend,
@@ -747,7 +747,7 @@ func chartFinish(canvas *ui.Canvas, theme ui.Theme, frame chartFrame, spec *char
 // ChartState.Hover from its own pointer and key events (ChartStepForKey).
 //
 // A steady chart allocates nothing per paint once its state has warmed up.
-func PaintAreaChart(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, id ui.ID, chart AreaChart, state *ChartState) ChartPlot {
+func PaintAreaChart(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, id gfx.ID, chart AreaChart, state *ChartState) ChartPlot {
 	if canvas == nil {
 		return ChartPlot{}
 	}
@@ -786,7 +786,7 @@ func chartNextRun(spec *chartSpec, series, from, count int) (start, end int) {
 	return from, end - 1
 }
 
-func chartPaintAreaSeries(canvas *ui.Canvas, theme ui.Theme, chart *AreaChart, spec *chartSpec, frame *chartFrame, state *ChartState) {
+func chartPaintAreaSeries(canvas *gfx.Canvas, theme gfx.Theme, chart *AreaChart, spec *chartSpec, frame *chartFrame, state *ChartState) {
 	geo := &frame.plot.geo
 	plot := frame.plot.Plot
 	count := geo.count
@@ -802,7 +802,7 @@ func chartPaintAreaSeries(canvas *ui.Canvas, theme ui.Theme, chart *AreaChart, s
 	}
 	width *= frame.scale
 	// Series coordinates are local to the plot so one view box covers them all.
-	origin := ui.Point{X: plot.X, Y: plot.Y}
+	origin := gfx.Point{X: plot.X, Y: plot.Y}
 	baseline := geo.py(min(max(0, geo.low), geo.high)) - origin.Y
 
 	for series := range spec.values {
@@ -828,7 +828,7 @@ func chartPaintAreaSeries(canvas *ui.Canvas, theme ui.Theme, chart *AreaChart, s
 			scratch.points = points
 			for index := start; index <= end; index++ {
 				_, top := spec.span(series, index)
-				points[index-start] = ui.Point{X: geo.px(index) - origin.X, Y: geo.py(top) - origin.Y}
+				points[index-start] = gfx.Point{X: geo.px(index) - origin.X, Y: geo.py(top) - origin.Y}
 			}
 			if fillVisible && end > start {
 				chartPaintAreaFill(canvas, chart, spec, frame, scratch, series, start, end, color, baseline, origin)
@@ -838,24 +838,24 @@ func chartPaintAreaSeries(canvas *ui.Canvas, theme ui.Theme, chart *AreaChart, s
 				builder.MoveTo(points[0].X, points[0].Y)
 				chartCurveForward(builder, chart.Curve, points, scratch)
 				canvas.DrawPath(builder.Path(plot.Width, plot.Height), plot,
-					ui.PathStyle{Stroke: color, StrokeWidth: width, Cap: ui.CapRound, Join: ui.JoinRound})
+					gfx.PathStyle{Stroke: color, StrokeWidth: width, Cap: gfx.CapRound, Join: gfx.JoinRound})
 			}
 			if chart.Dots {
 				radius := 3 * frame.scale
 				for _, point := range points {
-					canvas.Rounded(ui.Rect{X: origin.X + point.X - radius, Y: origin.Y + point.Y - radius, Width: 2 * radius, Height: 2 * radius}, radius, color)
+					canvas.Rounded(gfx.Rect{X: origin.X + point.X - radius, Y: origin.Y + point.Y - radius, Width: 2 * radius, Height: 2 * radius}, radius, color)
 				}
 			}
 		}
 	}
 }
 
-func chartPaintAreaFill(canvas *ui.Canvas, chart *AreaChart, spec *chartSpec, frame *chartFrame, scratch *chartScratch, series, start, end int, color ui.Color, baseline float32, origin ui.Point) {
+func chartPaintAreaFill(canvas *gfx.Canvas, chart *AreaChart, spec *chartSpec, frame *chartFrame, scratch *chartScratch, series, start, end int, color gfx.Color, baseline float32, origin gfx.Point) {
 	geo := &frame.plot.geo
 	plot := frame.plot.Plot
 	points := scratch.points
-	view := func(builder *ui.PathBuilder) ui.Path { return builder.Path(plot.Width, plot.Height) }
-	var gradient ui.LinearGradient
+	view := func(builder *gfx.PathBuilder) gfx.Path { return builder.Path(plot.Width, plot.Height) }
+	var gradient gfx.LinearGradient
 	areaStyle := spec.series[series].AreaStyle
 
 	if spec.stack != ChartStackNone {
@@ -867,7 +867,7 @@ func chartPaintAreaFill(canvas *ui.Canvas, chart *AreaChart, spec *chartSpec, fr
 		for index := start; index <= end; index++ {
 			base, _ := spec.span(series, index)
 			y := geo.py(base) - origin.Y
-			lower[index-start] = ui.Point{X: geo.px(index) - origin.X, Y: y}
+			lower[index-start] = gfx.Point{X: geo.px(index) - origin.X, Y: y}
 			top, bottom = min(top, points[index-start].Y), max(bottom, y)
 		}
 		builder := canvas.PathBuilder()
@@ -903,10 +903,10 @@ func chartPaintAreaFill(canvas *ui.Canvas, chart *AreaChart, spec *chartSpec, fr
 	if low < baseline-slack && high > baseline+slack {
 		for side := 0; side < 2; side++ {
 			edge, extreme := plot.Height, low // fill the region under the curve
-			clip := ui.Rect{X: plot.X, Y: plot.Y, Width: plot.Width, Height: baseline}
+			clip := gfx.Rect{X: plot.X, Y: plot.Y, Width: plot.Width, Height: baseline}
 			if side == 1 { // fill the region over the curve
 				edge, extreme = 0, high
-				clip = ui.Rect{X: plot.X, Y: plot.Y + baseline, Width: plot.Width, Height: plot.Height - baseline}
+				clip = gfx.Rect{X: plot.X, Y: plot.Y + baseline, Width: plot.Width, Height: plot.Height - baseline}
 			}
 			builder := canvas.PathBuilder()
 			builder.MoveTo(points[0].X, points[0].Y)
@@ -937,8 +937,8 @@ func chartPaintAreaFill(canvas *ui.Canvas, chart *AreaChart, spec *chartSpec, fr
 // is at extreme (plot-local Y): a flat translucent color, or a vertical gradient
 // from the full area opacity at the extreme to a faint tail at the baseline. The
 // gradient is written to the caller's storage so a paint allocates nothing.
-func chartAreaFillStyle(gradient *ui.LinearGradient, fill ChartFill, color ui.Color, extreme, baseline float32, area *ChartAreaStyle) ui.PathStyle {
-	var style ui.PathStyle
+func chartAreaFillStyle(gradient *gfx.LinearGradient, fill ChartFill, color gfx.Color, extreme, baseline float32, area *ChartAreaStyle) gfx.PathStyle {
+	var style gfx.PathStyle
 	opacity := chartFillOpacity
 	if area != nil {
 		opacity = area.Opacity
@@ -946,7 +946,7 @@ func chartAreaFillStyle(gradient *ui.LinearGradient, fill ChartFill, color ui.Co
 			opacity = 0
 		}
 		opacity = min(max(opacity, 0), 1)
-		if area.Color != (ui.Color{}) {
+		if area.Color != (gfx.Color{}) {
 			color = area.Color
 		}
 	}
@@ -971,8 +971,8 @@ func chartAreaFillStyle(gradient *ui.LinearGradient, fill ChartFill, color ui.Co
 	}
 	from.Alpha *= opacity
 	to.Alpha *= opacity
-	*gradient = ui.LinearGradient{
-		Start: ui.Point{Y: extreme + 0.05*span}, End: ui.Point{Y: extreme + 0.95*span},
+	*gradient = gfx.LinearGradient{
+		Start: gfx.Point{Y: extreme + 0.05*span}, End: gfx.Point{Y: extreme + 0.95*span},
 		From: from, To: to,
 	}
 	style.FillGradient = gradient
@@ -981,7 +981,7 @@ func chartAreaFillStyle(gradient *ui.LinearGradient, fill ChartFill, color ui.Co
 
 // chartPaintAreaCursor draws the hovered point's vertical line and one dot per
 // series.
-func chartPaintAreaCursor(canvas *ui.Canvas, theme ui.Theme, spec *chartSpec, frame *chartFrame, state *ChartState) {
+func chartPaintAreaCursor(canvas *gfx.Canvas, theme gfx.Theme, spec *chartSpec, frame *chartFrame, state *ChartState) {
 	index, active := state.Index()
 	geo := &frame.plot.geo
 	if !active || index >= geo.count || spec.hideTooltip {
@@ -994,7 +994,7 @@ func chartPaintAreaCursor(canvas *ui.Canvas, theme ui.Theme, spec *chartSpec, fr
 	}
 	canvas.Clip(plot)
 	defer canvas.Unclip()
-	canvas.Fill(ui.Rect{X: x - 0.5, Y: plot.Y, Width: 1, Height: plot.Height}, theme.Border)
+	canvas.Fill(gfx.Rect{X: x - 0.5, Y: plot.Y, Width: 1, Height: plot.Height}, theme.Border)
 	radius := 4 * frame.scale
 	ring := 2 * frame.scale
 	for series := range spec.values {
@@ -1006,8 +1006,8 @@ func chartPaintAreaCursor(canvas *ui.Canvas, theme ui.Theme, spec *chartSpec, fr
 			continue
 		}
 		y := geo.py(top)
-		canvas.Rounded(ui.Rect{X: x - radius - ring, Y: y - radius - ring, Width: 2 * (radius + ring), Height: 2 * (radius + ring)}, radius+ring, theme.Background)
-		canvas.Rounded(ui.Rect{X: x - radius, Y: y - radius, Width: 2 * radius, Height: 2 * radius}, radius, spec.series[series].Color)
+		canvas.Rounded(gfx.Rect{X: x - radius - ring, Y: y - radius - ring, Width: 2 * (radius + ring), Height: 2 * (radius + ring)}, radius+ring, theme.Background)
+		canvas.Rounded(gfx.Rect{X: x - radius, Y: y - radius, Width: 2 * radius, Height: 2 * radius}, radius, spec.series[series].Color)
 	}
 }
 
@@ -1160,10 +1160,10 @@ const (
 // one so that steady-state paints allocate nothing; without a state each paint
 // makes a fresh one.
 type chartScratch struct {
-	points []ui.Point
-	lower  []ui.Point
-	c1, c2 []ui.Point
-	rhs    []ui.Point
+	points []gfx.Point
+	lower  []gfx.Point
+	c1, c2 []gfx.Point
+	rhs    []gfx.Point
 	coefA  []float32
 	coefB  []float32
 }
@@ -1185,7 +1185,7 @@ func (scratch *chartScratch) clip() {
 
 // chartCurveForward appends the curve through points to builder. The builder's
 // current point must already be points[0]; it ends at the last point.
-func chartCurveForward(builder *ui.PathBuilder, curve ChartCurve, points []ui.Point, scratch *chartScratch) {
+func chartCurveForward(builder *gfx.PathBuilder, curve ChartCurve, points []gfx.Point, scratch *chartScratch) {
 	count := len(points)
 	if count < 2 {
 		return
@@ -1215,7 +1215,7 @@ func chartCurveForward(builder *ui.PathBuilder, curve ChartCurve, points []ui.Po
 // chartCurveReverse is chartCurveForward walked backwards: the builder's current
 // point must be the last point and it ends at the first. The path is the same
 // curve, which is what closes a stacked area along its lower edge.
-func chartCurveReverse(builder *ui.PathBuilder, curve ChartCurve, points []ui.Point, scratch *chartScratch) {
+func chartCurveReverse(builder *gfx.PathBuilder, curve ChartCurve, points []gfx.Point, scratch *chartScratch) {
 	count := len(points)
 	if count < 2 {
 		return
@@ -1251,7 +1251,7 @@ func chartEffectiveCurve(curve ChartCurve, count int) ChartCurve {
 	return curve
 }
 
-func chartControls(curve ChartCurve, points []ui.Point, scratch *chartScratch) {
+func chartControls(curve ChartCurve, points []gfx.Point, scratch *chartScratch) {
 	segments := len(points) - 1
 	scratch.c1 = chartGrow(scratch.c1, segments)
 	scratch.c2 = chartGrow(scratch.c2, segments)
@@ -1265,7 +1265,7 @@ func chartControls(curve ChartCurve, points []ui.Point, scratch *chartScratch) {
 // chartNaturalControls solves the tridiagonal system of d3's natural spline for
 // the two control points of every segment. The system is linear with the same
 // coefficients in x and y, so the right-hand side is carried as a point.
-func chartNaturalControls(points []ui.Point, scratch *chartScratch) {
+func chartNaturalControls(points []gfx.Point, scratch *chartScratch) {
 	segments := len(points) - 1
 	scratch.coefA = chartGrow(scratch.coefA, segments)
 	scratch.coefB = chartGrow(scratch.coefB, segments)
@@ -1274,33 +1274,33 @@ func chartNaturalControls(points []ui.Point, scratch *chartScratch) {
 	c1, c2 := scratch.c1, scratch.c2
 
 	a[0], b[0] = 0, 2
-	r[0] = ui.Point{X: points[0].X + 2*points[1].X, Y: points[0].Y + 2*points[1].Y}
+	r[0] = gfx.Point{X: points[0].X + 2*points[1].X, Y: points[0].Y + 2*points[1].Y}
 	for index := 1; index < segments-1; index++ {
 		a[index], b[index] = 1, 4
-		r[index] = ui.Point{X: 4*points[index].X + 2*points[index+1].X, Y: 4*points[index].Y + 2*points[index+1].Y}
+		r[index] = gfx.Point{X: 4*points[index].X + 2*points[index+1].X, Y: 4*points[index].Y + 2*points[index+1].Y}
 	}
 	last := segments - 1
 	a[last], b[last] = 2, 7
-	r[last] = ui.Point{X: 8*points[last].X + points[segments].X, Y: 8*points[last].Y + points[segments].Y}
+	r[last] = gfx.Point{X: 8*points[last].X + points[segments].X, Y: 8*points[last].Y + points[segments].Y}
 	for index := 1; index < segments; index++ {
 		ratio := a[index] / b[index-1]
 		b[index] -= ratio
 		r[index].X -= ratio * r[index-1].X
 		r[index].Y -= ratio * r[index-1].Y
 	}
-	c1[last] = ui.Point{X: r[last].X / b[last], Y: r[last].Y / b[last]}
+	c1[last] = gfx.Point{X: r[last].X / b[last], Y: r[last].Y / b[last]}
 	for index := segments - 2; index >= 0; index-- {
-		c1[index] = ui.Point{X: (r[index].X - c1[index+1].X) / b[index], Y: (r[index].Y - c1[index+1].Y) / b[index]}
+		c1[index] = gfx.Point{X: (r[index].X - c1[index+1].X) / b[index], Y: (r[index].Y - c1[index+1].Y) / b[index]}
 	}
-	c2[last] = ui.Point{X: (points[segments].X + c1[last].X) / 2, Y: (points[segments].Y + c1[last].Y) / 2}
+	c2[last] = gfx.Point{X: (points[segments].X + c1[last].X) / 2, Y: (points[segments].Y + c1[last].Y) / 2}
 	for index := 0; index < last; index++ {
-		c2[index] = ui.Point{X: 2*points[index+1].X - c1[index+1].X, Y: 2*points[index+1].Y - c1[index+1].Y}
+		c2[index] = gfx.Point{X: 2*points[index+1].X - c1[index+1].X, Y: 2*points[index+1].Y - c1[index+1].Y}
 	}
 }
 
 // chartMonotoneControls computes d3's monotoneX tangents (Fritsch and Carlson
 // with a limit on each side) and turns them into cubic Bezier control points.
-func chartMonotoneControls(points []ui.Point, scratch *chartScratch) {
+func chartMonotoneControls(points []gfx.Point, scratch *chartScratch) {
 	segments := len(points) - 1
 	scratch.coefA = chartGrow(scratch.coefA, segments+1)
 	scratch.coefB = chartGrow(scratch.coefB, segments+1)
@@ -1322,8 +1322,8 @@ func chartMonotoneControls(points []ui.Point, scratch *chartScratch) {
 	tangent[segments] = chartMonotoneEnd(points[segments].X-points[segments-1].X, slope[segments-1], tangent[segments-1])
 	for index := 0; index < segments; index++ {
 		third := (points[index+1].X - points[index].X) / 3
-		scratch.c1[index] = ui.Point{X: points[index].X + third, Y: points[index].Y + third*tangent[index]}
-		scratch.c2[index] = ui.Point{X: points[index+1].X - third, Y: points[index+1].Y - third*tangent[index+1]}
+		scratch.c1[index] = gfx.Point{X: points[index].X + third, Y: points[index].Y + third*tangent[index]}
+		scratch.c2[index] = gfx.Point{X: points[index+1].X - third, Y: points[index+1].Y - third*tangent[index+1]}
 	}
 }
 

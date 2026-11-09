@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/vivaui/viva/gfx"
 	darwinplatform "github.com/vivaui/viva/internal/platform/darwin"
-	"github.com/vivaui/viva/ui"
 )
 
 func nativeClipboardText() (string, error) { return darwinplatform.ClipboardText() }
@@ -23,7 +23,7 @@ func nativeSetClipboardFiles(paths []string) error { return darwinplatform.SetCl
 func nativeReduceMotion() bool { return darwinplatform.ReduceMotion() }
 
 // nativeTextEngine is the platform's text engine; nil keeps the reference metrics.
-func nativeTextEngine() ui.TextEngine { return darwinplatform.SharedTextEngine() }
+func nativeTextEngine() gfx.TextEngine { return darwinplatform.SharedTextEngine() }
 
 func nativePreferredLanguages() []string { return darwinplatform.PreferredLanguages() }
 
@@ -39,7 +39,7 @@ func nativeSetCursor(cursor Cursor) error {
 	return darwinplatform.SetCursorShape(uint8(cursor))
 }
 
-func nativeSetCursorImage(image *ui.CursorImage) error {
+func nativeSetCursorImage(image *gfx.CursorImage) error {
 	return darwinplatform.SetCursorImage(image)
 }
 

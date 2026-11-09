@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -17,7 +17,7 @@ var emptyComponent = Component{
     Description: "Create a project to get started.", ContentHeight: 32,
 }
 content := components.Empty(canvas, theme, bounds, data)
-components.BeginButton(canvas, theme, tree.ID(page, "create"), ui.Rect{Height: content.Height}).
+components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: content.Height}).
     SizeToFit("Create project").CenterIn(content).Default("Create project")`},
 		{ID: "icon", Title: "图标容器", Description: "带弱化图标背景的空状态。", Snippet: `data := components.EmptyData{
     Media: components.EmptyMediaIcon, Icon: icon,
@@ -25,14 +25,14 @@ components.BeginButton(canvas, theme, tree.ID(page, "create"), ui.Rect{Height: c
     ContentHeight: 32,
 }
 content := components.Empty(canvas, theme, bounds, data)
-components.BeginButton(canvas, theme, tree.ID(page, "create"), ui.Rect{Height: content.Height}).
+components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: content.Height}).
     SizeToFit("Create project").CenterIn(content).Default("Create project")`},
 	},
 }
 
-func (state *State) paintEmpty(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var stage flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Empty · 空状态", "Empty · No data"), func(f *flex.Frame) {
+func (state *State) paintEmpty(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var stage ui.Box
+	state.page(canvas, theme, size, 560, state.Text("Empty · 空状态", "Empty · No data"), func(f *ui.Frame) {
 		stage = f.Slot().FillWidth().Height(max(size.Height-110, 180))
 	})
 	data := components.EmptyData{
@@ -47,6 +47,6 @@ func (state *State) paintEmpty(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 	bounds.X, bounds.Width = bounds.X-16, bounds.Width+32
 	content := components.Empty(canvas, theme, bounds, data)
 	const label = "Create project"
-	components.BeginButton(canvas, theme, emptyCreate, ui.Rect{Height: content.Height}).
+	components.BeginButton(canvas, theme, emptyCreate, gfx.Rect{Height: content.Height}).
 		SizeToFit(label).CenterIn(content).Default(label)
 }

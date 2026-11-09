@@ -6,17 +6,17 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // TestLigatureRunFlagIsPacked guards the flag word the native renderer reads:
 // without it a run can never be shaped as one line.
 func TestLigatureRunFlagIsPacked(t *testing.T) {
-	if got := textRunFlags(ui.TextRun{Ligatures: true}); got&runLigatures == 0 {
+	if got := textRunFlags(gfx.TextRun{Ligatures: true}); got&runLigatures == 0 {
 		t.Fatalf("flags = %d, want the ligature bit", got)
 	}
-	if got := textRunFlags(ui.TextRun{}); got != 0 {
+	if got := textRunFlags(gfx.TextRun{}); got != 0 {
 		t.Fatalf("plain run flags = %d", got)
 	}
 }
@@ -36,7 +36,7 @@ func TestFixedPitchLigatureRunShapesTheFont(t *testing.T) {
 	if !installed {
 		t.Skipf("%s is not installed", family)
 	}
-	face := ui.MonoFamily(family)
+	face := gfx.MonoFamily(family)
 	render := func(ligatures bool) []byte {
 		offscreen, err := NewOffscreen(100, 32, 2, Color{Alpha: 1})
 		if err != nil {
@@ -47,7 +47,7 @@ func TestFixedPitchLigatureRunShapesTheFont(t *testing.T) {
 			Value: "->", Width: 100, Height: 32, FontSize: 20, CellWidth: 12,
 			Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 			Mono:  true, MonoFace: face,
-			Runs: []ui.TextRun{{Bytes: 2, Cells: 2, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, Ligatures: ligatures}},
+			Runs: []gfx.TextRun{{Bytes: 2, Cells: 2, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, Ligatures: ligatures}},
 		}}, nil)
 		if err != nil {
 			t.Fatal(err)

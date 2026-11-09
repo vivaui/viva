@@ -1,16 +1,16 @@
 package input
 
 import (
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 	"testing"
 )
 
 // fuzzID maps a byte to an identity, with zero meaning none.
-func fuzzID(n byte) ui.ID {
+func fuzzID(n byte) gfx.ID {
 	if n == 0 {
-		return ui.ID{}
+		return gfx.ID{}
 	}
-	return ui.Item(int(n))
+	return gfx.Item(int(n))
 }
 
 // routerOperation drives the router from fuzz bytes and checks that focus never
@@ -33,9 +33,9 @@ func runRouterOperations(t testing.TB, data []byte) {
 			for index := range regions {
 				flags := next()
 				regions[index] = Region{
-					Target:    ui.Item(int(next() % 6)),
+					Target:    gfx.Item(int(next() % 6)),
 					Bounds:    Rect{X: float32(next() % 40), Y: float32(next() % 40), Width: float32(next() % 30), Height: float32(next() % 30)},
-					Scope:     ui.Item(int(uint32(next() % 3))),
+					Scope:     gfx.Item(int(uint32(next() % 3))),
 					Focusable: flags&1 != 0,
 					Disabled:  flags&2 != 0,
 					Blocks:    flags&4 != 0,
@@ -47,7 +47,7 @@ func runRouterOperations(t testing.TB, data []byte) {
 		case 2:
 			router.KeyDown(KeyEvent{Key: KeyTab, Modifiers: Modifiers(next() % 2)})
 		case 3:
-			router.Focus(ui.Item(int(next() % 6)))
+			router.Focus(gfx.Item(int(next() % 6)))
 		case 4:
 			router.SetActiveScope(fuzzID(next()%3), fuzzID(next()%6))
 		case 5:

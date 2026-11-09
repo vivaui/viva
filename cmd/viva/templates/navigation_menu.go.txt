@@ -3,25 +3,25 @@ package {{PACKAGE}}
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // NavigationMenuOptions describes caller-owned disclosure and popup geometry.
 type NavigationMenuOptions struct {
 	Open          bool
 	DirectContent bool
-	Content       ui.Rect
+	Content       gfx.Rect
 	Layer         uint16
-	Scope         ui.ID
-	DismissID     ui.ID
+	Scope         gfx.ID
+	DismissID     gfx.ID
 	// Viewport, with DismissID, makes an open navigation menu dismiss on a press
 	// outside it and passes that press on, as a non-modal navigation menu does.
-	Viewport ui.Rect
+	Viewport gfx.Rect
 }
 
 // NavigationMenuTrigger describes one stable top-level disclosure.
 type NavigationMenuTrigger struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Hint     string
 	Open     bool
@@ -32,7 +32,7 @@ type NavigationMenuTrigger struct {
 
 // NavigationMenuLink describes a top-level or popup navigation destination.
 type NavigationMenuLink struct {
-	ID          ui.ID
+	ID          gfx.ID
 	Label       string
 	Description string
 	Value       string
@@ -44,32 +44,32 @@ type NavigationMenuLink struct {
 
 // NavigationMenu paints horizontal triggers and one caller-selected popup.
 type NavigationMenu struct {
-	canvas  *ui.Canvas
-	theme   ui.Theme
-	bounds  ui.Rect
+	canvas  *gfx.Canvas
+	theme   gfx.Theme
+	bounds  gfx.Rect
 	options NavigationMenuOptions
 	x       float32
-	active  ui.Rect
+	active  gfx.Rect
 }
 
 // NavigationMenuContent paints the active popup contents.
 type NavigationMenuContent struct {
-	canvas  *ui.Canvas
-	theme   ui.Theme
-	bounds  ui.Rect
+	canvas  *gfx.Canvas
+	theme   gfx.Theme
+	bounds  gfx.Rect
 	options NavigationMenuOptions
 	y       float32
 	visible bool
 }
 
 // BeginNavigationMenu begins one horizontal navigation declaration.
-func BeginNavigationMenu(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options NavigationMenuOptions) NavigationMenu {
+func BeginNavigationMenu(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options NavigationMenuOptions) NavigationMenu {
 	menu := NavigationMenu{canvas: canvas, theme: theme, bounds: bounds, options: options, x: bounds.X}
 	if canvas != nil && options.Open && !options.DismissID.IsZero() {
 		canvas.SetEscapeTarget(options.DismissID)
 		if options.Viewport.Width > 0 && options.Viewport.Height > 0 {
-			canvas.HitWithOptions(options.DismissID, options.Viewport, "Dismiss navigation", ui.HitOptions{
-				Role: ui.RoleButton, SkipFocus: true, Backdrop: true, PassPrimary: true, PassSecondary: true,
+			canvas.HitWithOptions(options.DismissID, options.Viewport, "Dismiss navigation", gfx.HitOptions{
+				Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassPrimary: true, PassSecondary: true,
 			})
 		}
 	}
@@ -77,19 +77,19 @@ func BeginNavigationMenu(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, opti
 }
 
 // AddTrigger paints one official 36px navigation disclosure.
-func (menu *NavigationMenu) AddTrigger(trigger NavigationMenuTrigger) ui.Rect {
+func (menu *NavigationMenu) AddTrigger(trigger NavigationMenuTrigger) gfx.Rect {
 	if menu.canvas == nil || menu.bounds.Width <= 0 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	height := float32(36)
 	width := trigger.Width
 	if width <= 0 {
-		width = menu.canvas.TextWidthWeight(trigger.Label, menu.theme.Metrics.FontSizeM, ui.WeightMedium) + 48
+		width = menu.canvas.TextWidthWeight(trigger.Label, menu.theme.Metrics.FontSizeM, gfx.WeightMedium) + 48
 	}
 	if menu.x+width > menu.bounds.X+menu.bounds.Width {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
-	bounds := ui.Rect{X: menu.x, Y: menu.bounds.Y, Width: width, Height: height}
+	bounds := gfx.Rect{X: menu.x, Y: menu.bounds.Y, Width: width, Height: height}
 	menu.x += width // the list is gap-0
 	if trigger.Open {
 		menu.active = bounds
@@ -109,14 +109,14 @@ func (menu *NavigationMenu) AddTrigger(trigger NavigationMenuTrigger) ui.Rect {
 		foreground.Alpha *= 0.50
 		icon.Alpha *= 0.50
 	}
-	menu.canvas.LabelCenter(trigger.Label, ui.Rect{X: bounds.X + 12, Y: bounds.Y, Width: navigationMenuMax(0, bounds.Width-32), Height: bounds.Height}, ui.TextStyle{Size: menu.theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground})
+	menu.canvas.LabelCenter(trigger.Label, gfx.Rect{X: bounds.X + 12, Y: bounds.Y, Width: navigationMenuMax(0, bounds.Width-32), Height: bounds.Height}, gfx.TextStyle{Size: menu.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground})
 	chevron := &chevronDownIcon
 	if trigger.Open {
 		chevron = &chevronUpIcon // rotate-180 while open
 	}
-	paintChevronSized(menu.canvas, chevron, ui.Rect{X: bounds.X + bounds.Width - 20, Y: bounds.Y, Width: 12, Height: bounds.Height}, 12, icon)
+	paintChevronSized(menu.canvas, chevron, gfx.Rect{X: bounds.X + bounds.Width - 20, Y: bounds.Y, Width: 12, Height: bounds.Height}, 12, icon)
 	if !trigger.ID.IsZero() {
-		menu.canvas.HitWithOptions(trigger.ID, bounds, trigger.Label, ui.HitOptions{Role: ui.RoleButton, Hint: trigger.Hint, Disabled: trigger.Disabled, Selected: trigger.Active, Expanded: trigger.Open, Expandable: true})
+		menu.canvas.HitWithOptions(trigger.ID, bounds, trigger.Label, gfx.HitOptions{Role: gfx.RoleButton, Hint: trigger.Hint, Disabled: trigger.Disabled, Selected: trigger.Active, Expanded: trigger.Open, Expandable: true})
 	}
 	return bounds
 }
@@ -126,26 +126,26 @@ func (menu *NavigationMenu) AddTrigger(trigger NavigationMenuTrigger) ui.Rect {
 // focused trigger, and Up/Escape closes the open one and returns to its trigger.
 // It returns the trigger to focus and the trigger whose panel is open (zero for
 // none), and whether it owned the key.
-func NavigationMenuKeyDown(current ui.ID, triggers []NavigationMenuTrigger, open ui.ID, direction Direction, key ui.Key) (ui.ID, ui.ID, bool) {
+func NavigationMenuKeyDown(current gfx.ID, triggers []NavigationMenuTrigger, open gfx.ID, direction Direction, key gfx.Key) (gfx.ID, gfx.ID, bool) {
 	enabled := func(index int) bool {
 		trigger := triggers[index]
 		return !trigger.ID.IsZero() && !trigger.Disabled
 	}
 	step := 0
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		step = -1
 		if direction.IsRTL() {
 			step = 1
 		}
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		step = 1
 		if direction.IsRTL() {
 			step = -1
 		}
-	case ui.KeyHome, ui.KeyEnd:
+	case gfx.KeyHome, gfx.KeyEnd:
 		index := -1
-		if key == ui.KeyHome {
+		if key == gfx.KeyHome {
 			for at := 0; at < len(triggers); at++ {
 				if enabled(at) {
 					index = at
@@ -168,16 +168,16 @@ func NavigationMenuKeyDown(current ui.ID, triggers []NavigationMenuTrigger, open
 			open = next
 		}
 		return next, open, true
-	case ui.KeyDown, ui.KeyEnter, ui.KeySpace:
+	case gfx.KeyDown, gfx.KeyEnter, gfx.KeySpace:
 		if current.IsZero() {
 			return current, open, false
 		}
 		return current, current, true
-	case ui.KeyUp, ui.KeyEscape:
+	case gfx.KeyUp, gfx.KeyEscape:
 		if open.IsZero() {
 			return current, open, false
 		}
-		return open, ui.ID{}, true
+		return open, gfx.ID{}, true
 	default:
 		return current, open, false
 	}
@@ -206,18 +206,18 @@ func NavigationMenuKeyDown(current ui.ID, triggers []NavigationMenuTrigger, open
 }
 
 // AddLink paints a top-level navigation link using the same trigger geometry.
-func (menu *NavigationMenu) AddLink(link NavigationMenuLink) ui.Rect {
+func (menu *NavigationMenu) AddLink(link NavigationMenuLink) gfx.Rect {
 	if menu.canvas == nil || menu.bounds.Width <= 0 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	width := link.Width
 	if width <= 0 {
-		width = menu.canvas.TextWidthWeight(link.Label, menu.theme.Metrics.FontSizeM, ui.WeightMedium) + 32
+		width = menu.canvas.TextWidthWeight(link.Label, menu.theme.Metrics.FontSizeM, gfx.WeightMedium) + 32
 	}
 	if menu.x+width > menu.bounds.X+menu.bounds.Width {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
-	bounds := ui.Rect{X: menu.x, Y: menu.bounds.Y, Width: width, Height: 36}
+	bounds := gfx.Rect{X: menu.x, Y: menu.bounds.Y, Width: width, Height: 36}
 	menu.x += width
 	interacted := !link.Disabled && !link.ID.IsZero() && (menu.canvas.Hovered() == link.ID || menu.canvas.FocusVisible() == link.ID)
 	if interacted || link.Active {
@@ -231,9 +231,9 @@ func (menu *NavigationMenu) AddLink(link NavigationMenuLink) ui.Rect {
 	if link.Disabled {
 		foreground.Alpha *= 0.50
 	}
-	menu.canvas.LabelCenter(link.Label, bounds, ui.TextStyle{Size: menu.theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground})
+	menu.canvas.LabelCenter(link.Label, bounds, gfx.TextStyle{Size: menu.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground})
 	if !link.ID.IsZero() {
-		menu.canvas.HitWithOptions(link.ID, bounds, link.Label, ui.HitOptions{Role: ui.RoleLink, Value: link.Value, Hint: link.Hint, Disabled: link.Disabled, Selected: link.Active})
+		menu.canvas.HitWithOptions(link.ID, bounds, link.Label, gfx.HitOptions{Role: gfx.RoleLink, Value: link.Value, Hint: link.Hint, Disabled: link.Disabled, Selected: link.Active})
 	}
 	return bounds
 }
@@ -259,9 +259,9 @@ func (menu NavigationMenu) BeginContent() NavigationMenuContent {
 	content.y = bounds.Y + 8
 	content.visible = true
 	content.push()
-	paintPopupSurface(menu.canvas, &menu.theme, bounds, ui.ShadowSM) // shadow (= shadow-sm)
+	paintPopupSurface(menu.canvas, &menu.theme, bounds, gfx.ShadowSM) // shadow (= shadow-sm)
 	if !menu.options.DirectContent && menu.active.Width > 0 {
-		indicator := ui.Rect{X: menu.active.X + menu.active.Width/2 - 4, Y: bounds.Y - 4, Width: 8, Height: 4}
+		indicator := gfx.Rect{X: menu.active.X + menu.active.Width/2 - 4, Y: bounds.Y - 4, Width: 8, Height: 4}
 		menu.canvas.RoundedBorder(indicator, 2, 1, menu.theme.Border, menu.theme.Popover)
 	}
 	content.pop()
@@ -269,21 +269,21 @@ func (menu NavigationMenu) BeginContent() NavigationMenuContent {
 }
 
 // Bounds returns the popup viewport geometry.
-func (content NavigationMenuContent) Bounds() ui.Rect { return content.bounds }
+func (content NavigationMenuContent) Bounds() gfx.Rect { return content.bounds }
 
 // AddLink paints a stacked title/description destination.
-func (content *NavigationMenuContent) AddLink(link NavigationMenuLink) ui.Rect {
+func (content *NavigationMenuContent) AddLink(link NavigationMenuLink) gfx.Rect {
 	if !content.visible {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	height := float32(56)
 	if link.Description == "" {
 		height = 36
 	}
 	if content.y+height > content.bounds.Y+content.bounds.Height-8 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
-	bounds := ui.Rect{X: content.bounds.X + 8, Y: content.y, Width: navigationMenuMax(0, content.bounds.Width-16), Height: height}
+	bounds := gfx.Rect{X: content.bounds.X + 8, Y: content.y, Width: navigationMenuMax(0, content.bounds.Width-16), Height: height}
 	content.y += height + 4
 	content.push()
 	interacted := !link.Disabled && !link.ID.IsZero() && (content.canvas.Hovered() == link.ID || content.canvas.FocusVisible() == link.ID)
@@ -301,27 +301,27 @@ func (content *NavigationMenuContent) AddLink(link NavigationMenuLink) ui.Rect {
 		description.Alpha *= 0.50
 	}
 	if link.Description == "" {
-		content.canvas.Label(link.Label, ui.Rect{X: bounds.X + 8, Y: bounds.Y, Width: navigationMenuMax(0, bounds.Width-16), Height: bounds.Height}, ui.TextStyle{Size: content.theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground})
+		content.canvas.Label(link.Label, gfx.Rect{X: bounds.X + 8, Y: bounds.Y, Width: navigationMenuMax(0, bounds.Width-16), Height: bounds.Height}, gfx.TextStyle{Size: content.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground})
 	} else {
-		content.canvas.Label(link.Label, ui.Rect{X: bounds.X + 8, Y: bounds.Y + 7, Width: navigationMenuMax(0, bounds.Width-16), Height: 18}, ui.TextStyle{Size: content.theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground})
-		content.canvas.Label(link.Description, ui.Rect{X: bounds.X + 8, Y: bounds.Y + 26, Width: navigationMenuMax(0, bounds.Width-16), Height: 18}, ui.TextStyle{Size: content.theme.Metrics.FontSizeS, Weight: ui.WeightRegular, Color: description})
+		content.canvas.Label(link.Label, gfx.Rect{X: bounds.X + 8, Y: bounds.Y + 7, Width: navigationMenuMax(0, bounds.Width-16), Height: 18}, gfx.TextStyle{Size: content.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground})
+		content.canvas.Label(link.Description, gfx.Rect{X: bounds.X + 8, Y: bounds.Y + 26, Width: navigationMenuMax(0, bounds.Width-16), Height: 18}, gfx.TextStyle{Size: content.theme.Metrics.FontSizeS, Weight: gfx.WeightRegular, Color: description})
 	}
 	if !link.ID.IsZero() {
-		content.canvas.HitWithOptions(link.ID, bounds, link.Label, ui.HitOptions{Role: ui.RoleLink, Value: link.Value, Hint: link.Hint, Disabled: link.Disabled, Selected: link.Active})
+		content.canvas.HitWithOptions(link.ID, bounds, link.Label, gfx.HitOptions{Role: gfx.RoleLink, Value: link.Value, Hint: link.Hint, Disabled: link.Disabled, Selected: link.Active})
 	}
 	content.pop()
 	return bounds
 }
 
 // AddSeparator paints a content divider.
-func (content *NavigationMenuContent) AddSeparator() ui.Rect {
+func (content *NavigationMenuContent) AddSeparator() gfx.Rect {
 	if !content.visible || content.y+9 > content.bounds.Y+content.bounds.Height-8 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
-	bounds := ui.Rect{X: content.bounds.X + 8, Y: content.y, Width: navigationMenuMax(0, content.bounds.Width-16), Height: 9}
+	bounds := gfx.Rect{X: content.bounds.X + 8, Y: content.y, Width: navigationMenuMax(0, content.bounds.Width-16), Height: 9}
 	content.y += 9
 	content.push()
-	content.canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y + 4, Width: bounds.Width, Height: 1}, content.theme.Border)
+	content.canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y + 4, Width: bounds.Width, Height: 1}, content.theme.Border)
 	content.pop()
 	return bounds
 }
@@ -348,7 +348,7 @@ func navigationMenuMax(a, b float32) float32 {
 // NavigationMenuHover advances the navigation menu's hover switch: while a
 // panel is open, resting on another trigger opens it after delay. It returns
 // the open trigger and the wait before asking again.
-func NavigationMenuHover(open, trigger ui.ID, now time.Time, intent *HoverIntent, delay time.Duration) (ui.ID, time.Duration) {
+func NavigationMenuHover(open, trigger gfx.ID, now time.Time, intent *HoverIntent, delay time.Duration) (gfx.ID, time.Duration) {
 	if open.IsZero() || trigger.IsZero() || trigger == open {
 		intent.Reset()
 		return open, 0

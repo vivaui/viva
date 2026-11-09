@@ -20,12 +20,12 @@ import (
 	"strings"
 )
 
-// viva vet finds the mistakes in a page written with flex that compile and run but
+// viva vet finds the mistakes in a page written with package ui that compile and run but
 // do the wrong thing, before the program runs. It reads the
 // packages with go/types and the export data `go list -export` builds, so it needs
 // nothing but the Go toolchain.
 
-const flexPath = "github.com/vivaui/viva/flex"
+const uiPath = "github.com/vivaui/viva/ui"
 
 // vetFinding is one mistake, at a place in a file.
 type vetFinding struct {
@@ -150,7 +150,7 @@ func vetPackages(directory string, patterns []string) ([]vetFinding, error) {
 
 func importsFlex(pkg listedPackage) bool {
 	for _, path := range pkg.Imports {
-		if path == flexPath {
+		if path == uiPath {
 			return true
 		}
 	}
@@ -219,7 +219,7 @@ type vetChecker struct {
 	findings []vetFinding
 }
 
-// isContext reports whether t is flex.C (a *flex.Ctx): what a page and its
+// isContext reports whether t is ui.C (a *ui.Ctx): what a page and its
 // components are declared with.
 func isContext(t types.Type) bool {
 	pointer, ok := types.Unalias(t).(*types.Pointer)
@@ -227,7 +227,7 @@ func isContext(t types.Type) bool {
 		return false
 	}
 	named, ok := types.Unalias(pointer.Elem()).(*types.Named)
-	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == flexPath && named.Obj().Name() == "Ctx"
+	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == uiPath && named.Obj().Name() == "Ctx"
 }
 
 // walk visits node with stack, the nodes around it, outermost first.
@@ -245,14 +245,14 @@ func (checker *vetChecker) walk(node ast.Node, stack []ast.Node) {
 	})
 }
 
-// call checks one call: a Button of flex with a label that is the same in every
+// call checks one call: a Button of package ui with a label that is the same in every
 // row of a loop whose rows have no Key.
 func (checker *vetChecker) call(call *ast.CallExpr, stack []ast.Node) {
 	selector, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok || selector.Sel.Name != "Button" || len(call.Args) != 2 {
 		return
 	}
-	if pkg, ok := checker.info.Uses[identOf(selector.X)].(*types.PkgName); !ok || pkg.Imported().Path() != flexPath {
+	if pkg, ok := checker.info.Uses[identOf(selector.X)].(*types.PkgName); !ok || pkg.Imported().Path() != uiPath {
 		return
 	}
 	if t := checker.info.Types[call.Args[0]].Type; t == nil || !isContext(t) {
@@ -265,7 +265,7 @@ func (checker *vetChecker) call(call *ast.CallExpr, stack []ast.Node) {
 	}
 	checker.report(call, "unkeyed-button", fmt.Sprintf(
 		"every row of this loop has a Button labeled %s and the rows have no Key, so a row added or removed above moves a click to the wrong row: "+
-			"declare each row with flex.Row(c.KeyInt(item.ID)) (or c.Key(name)) and the Button inside it", value.ExactString()))
+			"declare each row with ui.Row(c.KeyInt(item.ID)) (or c.Key(name)) and the Button inside it", value.ExactString()))
 }
 
 // innermostLoop is the innermost for or range statement around the call, inside
@@ -322,8 +322,8 @@ func inLoop(stack []ast.Node, body ast.Node) bool {
 	return false
 }
 
-// retained reports struct fields and package variables of type flex.C: a C is the
-// page being declared, valid only inside its function. Keep the *flex.Page
+// retained reports struct fields and package variables of type ui.C: a C is the
+// page being declared, valid only inside its function. Keep the *ui.Page
 // NewPage returns instead.
 func (checker *vetChecker) retained(file *ast.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -331,8 +331,8 @@ func (checker *vetChecker) retained(file *ast.File) {
 		case *ast.StructType:
 			for _, field := range node.Fields.List {
 				if t := checker.info.Types[field.Type].Type; t != nil && isContext(t) {
-					checker.report(field.Type, "kept-context", "a flex.C is kept in a struct, but it is valid only inside the page function it was given to: "+
-						"keep the *flex.Page that NewPage returns, or pass c down as a parameter")
+					checker.report(field.Type, "kept-context", "a ui.C is kept in a struct, but it is valid only inside the page function it was given to: "+
+						"keep the *ui.Page that NewPage returns, or pass c down as a parameter")
 				}
 			}
 		case *ast.GenDecl:
@@ -343,8 +343,8 @@ func (checker *vetChecker) retained(file *ast.File) {
 				value := spec.(*ast.ValueSpec)
 				for _, name := range value.Names {
 					if variable, ok := checker.info.Defs[name].(*types.Var); ok && variable.Parent() == variable.Pkg().Scope() && isContext(variable.Type()) {
-						checker.report(name, "kept-context", "a flex.C is kept in a package variable, but it is valid only inside the page function it was given to: "+
-							"keep the *flex.Page that NewPage returns, or pass c down as a parameter")
+						checker.report(name, "kept-context", "a ui.C is kept in a package variable, but it is valid only inside the page function it was given to: "+
+							"keep the *ui.Page that NewPage returns, or pass c down as a parameter")
 					}
 				}
 			}

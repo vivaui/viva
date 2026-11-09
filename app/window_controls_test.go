@@ -3,33 +3,33 @@ package app
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // controlsFixture is a painter that draws window buttons whatever the platform
 // it runs on, with actions that count what they are asked to do.
 type controlsFixture struct {
 	painter                  *painter
-	canvas                   *ui.Canvas
+	canvas                   *gfx.Canvas
 	minimizes, toggles, shut int
 	maximized                bool
-	clicks                   []ui.ID
+	clicks                   []gfx.ID
 }
 
 func newControlsFixture(t testing.TB, mutate func(*Config)) *controlsFixture {
 	t.Helper()
-	fixture := &controlsFixture{canvas: &ui.Canvas{}}
+	fixture := &controlsFixture{canvas: &gfx.Canvas{}}
 	config := Config{Title: "controls", Width: 600, Height: 300, WindowMode: WindowCustomTitlebar, TitlebarHeight: 36}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.Fill(ui.Rect{Width: size.Width, Height: 36}, ui.Color{Red: 0.1, Green: 0.1, Blue: 0.12, Alpha: 1})
-		canvas.HitWithLabel(ui.Item(1), ui.Rect{X: 10, Y: 4, Width: 80, Height: 28}, "Tab")
-		canvas.HitWithLabel(ui.Item(2), ui.Rect{X: 10, Y: 100, Width: 80, Height: 28}, "Content")
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.Fill(gfx.Rect{Width: size.Width, Height: 36}, gfx.Color{Red: 0.1, Green: 0.1, Blue: 0.12, Alpha: 1})
+		canvas.HitWithLabel(gfx.Item(1), gfx.Rect{X: 10, Y: 4, Width: 80, Height: 28}, "Tab")
+		canvas.HitWithLabel(gfx.Item(2), gfx.Rect{X: 10, Y: 100, Width: 80, Height: 28}, "Content")
 	}
 	if mutate != nil {
 		mutate(&config)
 	}
-	onClick(&config, func(id ui.ID) { fixture.clicks = append(fixture.clicks, id) })
+	onClick(&config, func(id gfx.ID) { fixture.clicks = append(fixture.clicks, id) })
 	normalized, err := config.normalize()
 	if err != nil {
 		t.Fatal(err)
@@ -54,19 +54,19 @@ func newControlsFixture(t testing.TB, mutate func(*Config)) *controlsFixture {
 func (fixture *controlsFixture) click(t testing.TB, x, y float32) {
 	t.Helper()
 	for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
-		if _, err := fixture.painter.pointerEvent(platform.PointerEvent{Kind: kind, Button: ui.PointerButtonPrimary, X: x, Y: y}); err != nil {
+		if _, err := fixture.painter.pointerEvent(platform.PointerEvent{Kind: kind, Button: gfx.PointerButtonPrimary, X: x, Y: y}); err != nil {
 			t.Fatal(err)
 		}
 	}
 }
 
-func (fixture *controlsFixture) hit(button int) (ui.Hit, bool) {
+func (fixture *controlsFixture) hit(button int) (gfx.Hit, bool) {
 	for _, hit := range fixture.canvas.Hits() {
 		if hit.ID == fixture.painter.controls.ids[button] {
 			return hit, true
 		}
 	}
-	return ui.Hit{}, false
+	return gfx.Hit{}, false
 }
 
 func TestWindowButtonsSitAtTheTrailingEndOfTheStripAndAreAsTallAsIt(t *testing.T) {
@@ -80,7 +80,7 @@ func TestWindowButtonsSitAtTheTrailingEndOfTheStripAndAreAsTallAsIt(t *testing.T
 			t.Fatalf("button %q has no hit", want.name)
 		}
 		wantX := float32(600 - (3-index)*WindowControlWidth)
-		if hit.Label != want.name || hit.Role != ui.RoleButton || hit.Bounds != (ui.Rect{X: wantX, Width: WindowControlWidth, Height: 36}) {
+		if hit.Label != want.name || hit.Role != gfx.RoleButton || hit.Bounds != (gfx.Rect{X: wantX, Width: WindowControlWidth, Height: 36}) {
 			t.Fatalf("%s = %+v", want.name, hit)
 		}
 		if hit.Layer != windowControlsLayer {
@@ -106,15 +106,15 @@ func TestClickingAWindowButtonActsAndNeverReachesTheApplication(t *testing.T) {
 	// The application's own hits still work next to them.
 	fixture.click(t, 20, 18)
 	fixture.click(t, 20, 110)
-	if len(fixture.clicks) != 2 || fixture.clicks[0] != ui.Item(1) || fixture.clicks[1] != ui.Item(2) {
+	if len(fixture.clicks) != 2 || fixture.clicks[0] != gfx.Item(1) || fixture.clicks[1] != gfx.Item(2) {
 		t.Fatalf("application clicks = %v", fixture.clicks)
 	}
 	// Pressing a button and letting go elsewhere is not a click.
 	before := fixture.minimizes
 	x := float32(600 - 3*WindowControlWidth + 20)
 	for _, event := range []platform.PointerEvent{
-		{Kind: platform.PointerMove, X: x, Y: 18}, {Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: x, Y: 18},
-		{Kind: platform.PointerMove, X: 200, Y: 200}, {Kind: platform.PointerUp, Button: ui.PointerButtonPrimary, X: 200, Y: 200},
+		{Kind: platform.PointerMove, X: x, Y: 18}, {Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: x, Y: 18},
+		{Kind: platform.PointerMove, X: 200, Y: 200}, {Kind: platform.PointerUp, Button: gfx.PointerButtonPrimary, X: 200, Y: 200},
 	} {
 		if _, err := fixture.painter.pointerEvent(event); err != nil {
 			t.Fatal(err)
@@ -146,13 +146,13 @@ func TestMaximizeButtonShowsTheOppositeActionAndFollowsTheWindowState(t *testing
 func TestWindowButtonsPaintHoverPressedAndTheCloseColor(t *testing.T) {
 	fixture := newControlsFixture(t, nil)
 	close := float32(600 - WindowControlWidth + 20)
-	fill := func() (ui.Color, bool) {
+	fill := func() (gfx.Color, bool) {
 		for _, rectangle := range fixture.canvas.Rectangles() {
 			if rectangle.Bounds.X >= 600-WindowControlWidth && (rectangle.Bounds.Width == WindowControlWidth || rectangle.Radius > 0) {
 				return rectangle.Color, true
 			}
 		}
-		return ui.Color{}, false
+		return gfx.Color{}, false
 	}
 	if _, ok := fill(); ok {
 		t.Fatal("a resting button has a background")
@@ -162,7 +162,7 @@ func TestWindowButtonsPaintHoverPressedAndTheCloseColor(t *testing.T) {
 	if !ok || hover.Red < 0.7 || hover.Alpha != 1 {
 		t.Fatalf("hovered close background = %+v, %t, want the red one", hover, ok)
 	}
-	fixture.painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: close, Y: 18})
+	fixture.painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: close, Y: 18})
 	if pressed, _ := fill(); pressed.Alpha >= hover.Alpha {
 		t.Fatalf("pressed close %+v is not fainter than hover %+v", pressed, hover)
 	}
@@ -202,7 +202,7 @@ func TestDesktopThemeStyling(t *testing.T) {
 	if _, err := fixture.painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: closeX, Y: 18}); err != nil {
 		t.Fatal(err)
 	}
-	var defaultRect *ui.Rectangle
+	var defaultRect *gfx.Rectangle
 	for _, rect := range fixture.canvas.Rectangles() {
 		if rect.Bounds.X >= 600-WindowControlWidth && rect.Bounds.Width == WindowControlWidth {
 			r := rect
@@ -219,7 +219,7 @@ func TestDesktopThemeStyling(t *testing.T) {
 	if _, err := fixture.painter.repaint(); err != nil {
 		t.Fatal(err)
 	}
-	var adwaitaRect *ui.Rectangle
+	var adwaitaRect *gfx.Rectangle
 	for _, rect := range fixture.canvas.Rectangles() {
 		if rect.Bounds.X >= 600-WindowControlWidth && rect.Radius > 0 {
 			r := rect
@@ -236,7 +236,7 @@ func TestDesktopThemeStyling(t *testing.T) {
 	if _, err := fixture.painter.repaint(); err != nil {
 		t.Fatal(err)
 	}
-	var breezeRect *ui.Rectangle
+	var breezeRect *gfx.Rectangle
 	for _, rect := range fixture.canvas.Rectangles() {
 		if rect.Bounds.X >= 600-WindowControlWidth && rect.Radius > 0 {
 			r := rect
@@ -254,12 +254,12 @@ func TestWindowControlsStyleIsReadAtEveryPaintAndDefaultsFollowTheClearColor(t *
 	fixture := newControlsFixture(t, func(config *Config) {
 		config.WindowControls = func() WindowControlsStyle {
 			if dark {
-				return WindowControlsStyle{Foreground: ui.Color{Red: 1, Green: 0, Blue: 0, Alpha: 1}}
+				return WindowControlsStyle{Foreground: gfx.Color{Red: 1, Green: 0, Blue: 0, Alpha: 1}}
 			}
-			return WindowControlsStyle{Foreground: ui.Color{Red: 0, Green: 0, Blue: 1, Alpha: 1}}
+			return WindowControlsStyle{Foreground: gfx.Color{Red: 0, Green: 0, Blue: 1, Alpha: 1}}
 		}
 	})
-	glyphColor := func() ui.Color {
+	glyphColor := func() gfx.Color {
 		for _, triangle := range fixture.canvas.Triangles() {
 			if triangle.Points[0].X >= 600-3*WindowControlWidth {
 				return triangle.Color
@@ -270,7 +270,7 @@ func TestWindowControlsStyleIsReadAtEveryPaintAndDefaultsFollowTheClearColor(t *
 				return rectangle.Color
 			}
 		}
-		return ui.Color{}
+		return gfx.Color{}
 	}
 	if got := glyphColor(); got.Red != 1 {
 		t.Fatalf("glyph color = %+v, want the first style", got)
@@ -288,7 +288,7 @@ func TestWindowControlsStyleIsReadAtEveryPaintAndDefaultsFollowTheClearColor(t *
 	if light.Foreground.Red >= 0.5 || night.Foreground.Red <= 0.5 {
 		t.Fatalf("default ink on light %+v and on dark %+v", light.Foreground, night.Foreground)
 	}
-	named := (WindowControlsStyle{Close: ui.Color{Red: 1, Alpha: 1}, Restore: "还原"}).withDefaults(Color{})
+	named := (WindowControlsStyle{Close: gfx.Color{Red: 1, Alpha: 1}, Restore: "还原"}).withDefaults(Color{})
 	if named.Close.Red != 1 || named.Close.Green != 0 || named.Restore != "还原" || named.Minimize != "Minimize" {
 		t.Fatalf("explicit fields were overwritten or defaults missing: %+v", named)
 	}
@@ -299,14 +299,14 @@ func TestWindowControlsStyleIsReadAtEveryPaintAndDefaultsFollowTheClearColor(t *
 func TestWindowButtonsStayUsableUnderAModalDialog(t *testing.T) {
 	fixture := newControlsFixture(t, func(config *Config) {
 		paint := config.Paint
-		config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+		config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 			paint(canvas, size)
 			canvas.PushLayer(600)
-			canvas.PushFocusScope(ui.Item(9))
-			canvas.Block(ui.Rect{Width: size.Width, Height: size.Height})
-			canvas.HitWithLabel(ui.Item(9), ui.Rect{X: 200, Y: 100, Width: 100, Height: 30}, "OK")
+			canvas.PushFocusScope(gfx.Item(9))
+			canvas.Block(gfx.Rect{Width: size.Width, Height: size.Height})
+			canvas.HitWithLabel(gfx.Item(9), gfx.Rect{X: 200, Y: 100, Width: 100, Height: 30}, "OK")
 			canvas.PopFocusScope()
-			canvas.TrapFocus(ui.Item(9))
+			canvas.TrapFocus(gfx.Item(9))
 			canvas.PopLayer()
 		}
 	})
@@ -319,7 +319,7 @@ func TestWindowButtonsStayUsableUnderAModalDialog(t *testing.T) {
 		t.Fatalf("a click under the scrim reached the application: %v", fixture.clicks)
 	}
 	fixture.click(t, 250, 110)
-	if len(fixture.clicks) != 1 || fixture.clicks[0] != ui.Item(9) {
+	if len(fixture.clicks) != 1 || fixture.clicks[0] != gfx.Item(9) {
 		t.Fatalf("the dialog's own button stopped working: %v", fixture.clicks)
 	}
 }
@@ -336,7 +336,7 @@ func TestWindowButtonsDoNothingUntilTheAdapterFillsItsActions(t *testing.T) {
 }
 
 func TestWindowActionsExistOnlyWhereVivaDrawsTheButtons(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	painter := newTestPainter(t, &canvas, Config{Title: "plain", Width: 100, Height: 100, WindowMode: WindowCustomTitlebar})
 	if (painter.windowActions() != nil) != controlsDrawnByViva {
 		t.Fatalf("actions %v, controlsDrawnByViva %t", painter.windowActions(), controlsDrawnByViva)
@@ -354,7 +354,7 @@ func TestSteadyStatePaintOfTheWindowButtonsDoesNotAllocate(t *testing.T) {
 	}
 	allocations := testing.AllocsPerRun(200, func() {
 		fixture.canvas.Reset()
-		fixture.painter.controls.paint(fixture.canvas, ui.Size{Width: 600, Height: 300})
+		fixture.painter.controls.paint(fixture.canvas, gfx.Size{Width: 600, Height: 300})
 	})
 	if allocations != 0 {
 		t.Fatalf("painting the buttons allocated %.1f objects", allocations)
@@ -366,7 +366,7 @@ func BenchmarkWindowControlsPaint(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		fixture.canvas.Reset()
-		fixture.painter.controls.paint(fixture.canvas, ui.Size{Width: 600, Height: 300})
+		fixture.painter.controls.paint(fixture.canvas, gfx.Size{Width: 600, Height: 300})
 	}
 }
 

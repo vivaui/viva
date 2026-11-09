@@ -13,11 +13,11 @@ Components follow the same rule. `f.Button`, `f.Dialog` and the rest do not own 
 
 ## Hit regions and identities
 
-Anything interactive is a hit region declared while painting, with an identity you name in a `ui.Tree`. Keep identities stable between frames: focus, hover and press state are tracked by ID, and `Canvas.Focused`, `Canvas.FocusVisible` and `Canvas.Hovered` report them back so painting code reads them rather than copying them.
+Anything interactive is a hit region declared while painting, with an identity you name in a `gfx.Tree`. Keep identities stable between frames: focus, hover and press state are tracked by ID, and `Canvas.Focused`, `Canvas.FocusVisible` and `Canvas.Hovered` report them back so painting code reads them rather than copying them.
 
 ```go
 var (
-	tree = ui.Tree{}
+	tree = gfx.Tree{}
 	page = tree.Feature("dashboard")
 
 	hitRefresh = page.ID(tree.Name("refresh"))
@@ -27,7 +27,7 @@ var (
 
 ## Events
 
-A button is handled where it is declared: `f.Button(save, "Save").Clicked()` is true in the one paint that delivers its click, the event pass, and only there may a paint change state. The runtime adds that pass only when a paint asks `Clicked`, so an application that does not pays nothing. An application that keeps one central click handler reads `canvas.ClickTarget()` once at the start of its paint and passes the identity on through `canvas.AfterPaint(func() { ... })`, which runs the handler after the paint has returned (outside it, so it may block or open a native dialog) and then repaints; it marks the paint as listening just as `Clicked` does. Prefer `Clicked` at each control. Controls that need more use typed callbacks, each returning a `ui.EventResult`:
+A button is handled where it is declared: `f.Button(save, "Save").Clicked()` is true in the one paint that delivers its click, the event pass, and only there may a paint change state. The runtime adds that pass only when a paint asks `Clicked`, so an application that does not pays nothing. An application that keeps one central click handler reads `canvas.ClickTarget()` once at the start of its paint and passes the identity on through `canvas.AfterPaint(func() { ... })`, which runs the handler after the paint has returned (outside it, so it may block or open a native dialog) and then repaints; it marks the paint as listening just as `Clicked` does. Prefer `Clicked` at each control. Controls that need more use typed callbacks, each returning a `gfx.EventResult`:
 
 | Callback | Receives |
 | --- | --- |
@@ -36,15 +36,15 @@ A button is handled where it is declared: `f.Button(save, "Save").Clicked()` is 
 | `OnShortcut` | Control- or Command-modified printable chords, before the native text system sees them. A focused ordinary text field on Windows takes the standard editing chords first. |
 | `OnScroll` | Pixel deltas with the window position, modifiers and target. |
 
-A `ui.EventResult` says what the application did with the event. `Handled` suppresses the built-in behavior for that event, `Repaint` asks for one synchronous paint, and `Focus`, `Blur` and `FocusVisible` move focus. Returning the zero value from an event that changed nothing performs no repaint.
+A `gfx.EventResult` says what the application did with the event. `Handled` suppresses the built-in behavior for that event, `Repaint` asks for one synchronous paint, and `Focus`, `Blur` and `FocusVisible` move focus. Returning the zero value from an event that changed nothing performs no repaint.
 
 ```go
-config.OnKey = func(event ui.KeyEvent) ui.EventResult {
-	if event.Key == ui.KeyEscape && state.open {
+config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
+	if event.Key == gfx.KeyEscape && state.open {
 		state.open = false
-		return ui.EventResult{Handled: true, Repaint: true}
+		return gfx.EventResult{Handled: true, Repaint: true}
 	}
-	return ui.EventResult{}
+	return gfx.EventResult{}
 }
 ```
 
@@ -64,14 +64,14 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Identities are names in a tree, not numbers: the application declares the
 // tree once and every control it paints is a name inside a feature of it.
 var (
-	tree = ui.Tree{}
+	tree = gfx.Tree{}
 	page = tree.Feature("background")
 
 	refresh = tree.ID(page, "refresh")
@@ -87,19 +87,19 @@ type model struct {
 	mu      sync.Mutex
 	pending string // written by the worker goroutine, under mu
 	status  string // read by Paint, written only on the window thread
-	view    flex.View
+	view    ui.View
 }
 
 func newConfig(m *model, invalidator *app.Invalidator) app.Config {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	config := app.Config{Tree: &tree, Title: "Background", Width: 480, Height: 240, Invalidator: invalidator}
 
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
 		canvas.Fill(bounds, theme.Background)
 
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.Row().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
+		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
+			f.Row().Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
 				if f.Button(refresh, "Refresh").Clicked() {
 					m.status = "working"
 					go func() {
@@ -127,7 +127,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 
 func main() {
 	var invalidator app.Invalidator
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	if err := app.RunCanvas(newConfig(&model{status: "idle"}, &invalidator), &canvas); err != nil {
 		log.Fatal(err)
 	}

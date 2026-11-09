@@ -11,26 +11,26 @@ import (
 	"fmt"
 
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform/web"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 var (
-	counterID  = ui.Item(1)
-	menuID     = ui.Item(2)
-	sliderID   = ui.Item(3)
-	backdropID = ui.Item(4)
-	editorID   = ui.Item(5)
-	statusID   = ui.Item(6)
+	counterID  = gfx.Item(1)
+	menuID     = gfx.Item(2)
+	sliderID   = gfx.Item(3)
+	backdropID = gfx.Item(4)
+	editorID   = gfx.Item(5)
+	statusID   = gfx.Item(6)
 )
 
 var (
-	counterRect = ui.Rect{X: 20, Y: 20, Width: 180, Height: 40}
-	menuRect    = ui.Rect{X: 220, Y: 20, Width: 180, Height: 40}
-	sliderRect  = ui.Rect{X: 20, Y: 100, Width: 300, Height: 32}
-	editorRect  = ui.Rect{X: 20, Y: 180, Width: 300, Height: 36}
-	statusRect  = ui.Rect{X: 20, Y: 240, Width: 300, Height: 32}
+	counterRect = gfx.Rect{X: 20, Y: 20, Width: 180, Height: 40}
+	menuRect    = gfx.Rect{X: 220, Y: 20, Width: 180, Height: 40}
+	sliderRect  = gfx.Rect{X: 20, Y: 100, Width: 300, Height: 32}
+	editorRect  = gfx.Rect{X: 20, Y: 180, Width: 300, Height: 36}
+	statusRect  = gfx.Rect{X: 20, Y: 240, Width: 300, Height: 32}
 )
 
 type fixture struct {
@@ -49,14 +49,14 @@ func main() {
 		Paint:     page.paint,
 		OnPointer: page.pointer,
 		OnKey:     page.key,
-		TextInput: web.EditorInputs(func(id ui.ID) (*text.Editor, bool) {
+		TextInput: web.EditorInputs(func(id gfx.ID) (*text.Editor, bool) {
 			return page.editor, id == editorID
 		}),
 	})
 }
 
-func (f *fixture) paint(canvas *ui.Canvas, size ui.Size) {
-	theme := ui.LightTheme()
+func (f *fixture) paint(canvas *gfx.Canvas, size gfx.Size) {
+	theme := gfx.LightTheme()
 	if components.BeginButton(canvas, theme, counterID, counterRect).Default(fmt.Sprintf("Count: %d", f.count)).Clicked() {
 		f.count++
 	}
@@ -68,24 +68,24 @@ func (f *fixture) paint(canvas *ui.Canvas, size ui.Size) {
 		return components.BeginSlider(canvas, theme, sliderID, sliderRect, value).Range(0, 100).Step(1)
 	}
 	// The slider reads its pointer only through the event pass, exactly as the
-	// flex slider does: the press, the captured moves and the release arrive in
+	// ui slider does: the press, the captured moves and the release arrive in
 	// a paint where PointerOn names this control.
 	if event, ok := canvas.PointerOn(sliderID); ok {
 		switch {
-		case event.Kind == ui.PointerDown && event.Button <= ui.PointerButtonPrimary:
+		case event.Kind == gfx.PointerDown && event.Button <= gfx.PointerButtonPrimary:
 			f.level = slider(f.level).ValueAt(event.X)
 			canvas.Consume()
-		case event.Kind == ui.PointerMove && event.Captured:
+		case event.Kind == gfx.PointerMove && event.Captured:
 			f.level = slider(f.level).ValueAt(event.X)
 			canvas.Consume()
-		case event.Kind == ui.PointerUp:
+		case event.Kind == gfx.PointerUp:
 			canvas.Consume()
 		}
 	}
 	slider(f.level).ValueText(fmt.Sprintf("%.0f", f.level)).Paint("Level")
 
 	// A real editable field, wired to the browser text service the same way
-	// flex.Fields is: the browser edits the Go-owned editor and publishes its
+	// ui.Fields is: the browser edits the Go-owned editor and publishes its
 	// value through the same ARIA mirror a screen reader reads, while the
 	// component paints the line (HideEditorText) so both states share one line.
 	value := f.editor.String()
@@ -101,8 +101,8 @@ func (f *fixture) paint(canvas *ui.Canvas, size ui.Size) {
 		snapshot.CompositionStart, snapshot.CompositionEnd = f.editor.ByteOffset(marked.Start), f.editor.ByteOffset(marked.End)
 	}
 	components.PaintInput(canvas, theme, editorRect, snapshot)
-	canvas.HitWithOptions(statusID, statusRect, "Editor status", ui.HitOptions{
-		Role: ui.RoleStatus, SkipFocus: true, Live: ui.LivePolite,
+	canvas.HitWithOptions(statusID, statusRect, "Editor status", gfx.HitOptions{
+		Role: gfx.RoleStatus, SkipFocus: true, Live: gfx.LivePolite,
 		Value: "Text: " + value,
 	})
 
@@ -110,35 +110,35 @@ func (f *fixture) paint(canvas *ui.Canvas, size ui.Size) {
 		if canvas.Clicked(backdropID) {
 			f.menuOpen = false
 		}
-		canvas.HitWithOptions(backdropID, ui.Rect{X: 0, Y: 0, Width: size.Width, Height: size.Height}, "Dismiss",
-			ui.HitOptions{Backdrop: true, PassPrimary: true, SkipFocus: true, Role: ui.RoleGroup})
+		canvas.HitWithOptions(backdropID, gfx.Rect{X: 0, Y: 0, Width: size.Width, Height: size.Height}, "Dismiss",
+			gfx.HitOptions{Backdrop: true, PassPrimary: true, SkipFocus: true, Role: gfx.RoleGroup})
 	}
 }
 
-func (f *fixture) pointer(ui.PointerEvent) ui.EventResult {
-	return ui.EventResult{}
+func (f *fixture) pointer(gfx.PointerEvent) gfx.EventResult {
+	return gfx.EventResult{}
 }
 
-func (f *fixture) key(event ui.KeyEvent) ui.EventResult {
+func (f *fixture) key(event gfx.KeyEvent) gfx.EventResult {
 	if event.Target != sliderID {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	value := f.level
 	switch event.Key {
-	case ui.KeyLeft, ui.KeyDown:
+	case gfx.KeyLeft, gfx.KeyDown:
 		value = max(0, value-1)
-	case ui.KeyRight, ui.KeyUp:
+	case gfx.KeyRight, gfx.KeyUp:
 		value = min(100, value+1)
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		value = 0
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		value = 100
 	default:
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	if value == f.level {
-		return ui.EventResult{Handled: true}
+		return gfx.EventResult{Handled: true}
 	}
 	f.level = value
-	return ui.EventResult{Handled: true, Repaint: true}
+	return gfx.EventResult{Handled: true, Repaint: true}
 }

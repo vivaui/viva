@@ -3,13 +3,13 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // targets returns the hits that are interaction targets, leaving out opaque
 // blocks.
-func targets(canvas *ui.Canvas) []ui.Hit {
-	var result []ui.Hit
+func targets(canvas *gfx.Canvas) []gfx.Hit {
+	var result []gfx.Hit
 	for _, hit := range canvas.Hits() {
 		if !hit.Block {
 			result = append(result, hit)
@@ -19,8 +19,8 @@ func targets(canvas *ui.Canvas) []ui.Hit {
 }
 
 // blocks returns the opaque regions.
-func blocks(canvas *ui.Canvas) []ui.Hit {
-	var result []ui.Hit
+func blocks(canvas *gfx.Canvas) []gfx.Hit {
+	var result []gfx.Hit
 	for _, hit := range canvas.Hits() {
 		if hit.Block {
 			result = append(result, hit)
@@ -32,20 +32,20 @@ func blocks(canvas *ui.Canvas) []ui.Hit {
 // A modal's panel must shield the dismiss target behind it. The block sits
 // after the backdrop and before the panel's own controls, so those still win.
 func TestModalPanelsShieldTheirDismissTargetButNotTheirOwnControls(t *testing.T) {
-	viewport := ui.Rect{Width: 800, Height: 600}
-	for name, paint := range map[string]func(*ui.Canvas){
-		"dialog": func(canvas *ui.Canvas) {
-			BeginDialog(canvas, ui.LightTheme(), viewport, DialogOptions{Layer: 1, Scope: ui.Item(7), DismissID: ui.Item(1), CloseID: ui.Item(2)}).Paint("T", "D")
+	viewport := gfx.Rect{Width: 800, Height: 600}
+	for name, paint := range map[string]func(*gfx.Canvas){
+		"dialog": func(canvas *gfx.Canvas) {
+			BeginDialog(canvas, gfx.LightTheme(), viewport, DialogOptions{Layer: 1, Scope: gfx.Item(7), DismissID: gfx.Item(1), CloseID: gfx.Item(2)}).Paint("T", "D")
 		},
-		"sheet": func(canvas *ui.Canvas) {
-			BeginSheet(canvas, ui.LightTheme(), viewport, SheetOptions{Layer: 1, Scope: ui.Item(7), DismissID: ui.Item(1), CloseID: ui.Item(2)}).Paint("T", "D")
+		"sheet": func(canvas *gfx.Canvas) {
+			BeginSheet(canvas, gfx.LightTheme(), viewport, SheetOptions{Layer: 1, Scope: gfx.Item(7), DismissID: gfx.Item(1), CloseID: gfx.Item(2)}).Paint("T", "D")
 		},
-		"drawer": func(canvas *ui.Canvas) {
-			BeginDrawer(canvas, ui.LightTheme(), viewport, DrawerOptions{Layer: 1, Scope: ui.Item(7), DismissID: ui.Item(1), CloseID: ui.Item(2)}).Paint("T", "D")
+		"drawer": func(canvas *gfx.Canvas) {
+			BeginDrawer(canvas, gfx.LightTheme(), viewport, DrawerOptions{Layer: 1, Scope: gfx.Item(7), DismissID: gfx.Item(1), CloseID: gfx.Item(2)}).Paint("T", "D")
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			paint(&canvas)
 			hits := canvas.Hits()
 			order := map[string]int{}
@@ -53,9 +53,9 @@ func TestModalPanelsShieldTheirDismissTargetButNotTheirOwnControls(t *testing.T)
 				switch {
 				case hit.Block:
 					order["block"] = index
-				case hit.ID == ui.Item(1):
+				case hit.ID == gfx.Item(1):
 					order["backdrop"] = index
-				case hit.ID == ui.Item(2):
+				case hit.ID == gfx.Item(2):
 					order["close"] = index
 				}
 			}

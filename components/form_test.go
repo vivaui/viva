@@ -4,26 +4,26 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestFormFieldReturnsDeterministicControlAndMetadataGeometry(t *testing.T) {
-	var canvas ui.Canvas
-	layout := PaintFormField(&canvas, ui.LightTheme(), ui.Rect{X: 10, Y: 20, Width: 200}, FormFieldSnapshot{
+	var canvas gfx.Canvas
+	layout := PaintFormField(&canvas, gfx.LightTheme(), gfx.Rect{X: 10, Y: 20, Width: 200}, FormFieldSnapshot{
 		Label: "Email", Description: "Used for receipts", Message: "Fallback message",
 		Error: "Enter a valid address", Required: true,
 	})
-	wantControl := ui.Rect{X: 10, Y: 42, Width: 200, Height: 32}
+	wantControl := gfx.Rect{X: 10, Y: 42, Width: 200, Height: 32}
 	if layout.Control != wantControl {
 		t.Fatalf("control = %+v, want %+v", layout.Control, wantControl)
 	}
-	if layout.Description != (ui.Rect{X: 10, Y: 78, Width: 200, Height: 21}) {
+	if layout.Description != (gfx.Rect{X: 10, Y: 78, Width: 200, Height: 21}) {
 		t.Fatalf("description = %+v", layout.Description)
 	}
-	if layout.Message != (ui.Rect{X: 10, Y: 103, Width: 200, Height: 21}) {
+	if layout.Message != (gfx.Rect{X: 10, Y: 103, Width: 200, Height: 21}) {
 		t.Fatalf("message = %+v", layout.Message)
 	}
-	if layout.Bounds != (ui.Rect{X: 10, Y: 20, Width: 200, Height: 104}) {
+	if layout.Bounds != (gfx.Rect{X: 10, Y: 20, Width: 200, Height: 104}) {
 		t.Fatalf("bounds = %+v", layout.Bounds)
 	}
 	if len(canvas.Rectangles()) != 0 || len(canvas.Hits()) != 0 {
@@ -35,9 +35,9 @@ func TestFormFieldReturnsDeterministicControlAndMetadataGeometry(t *testing.T) {
 }
 
 func TestFormFieldErrorStateAndTypedControlSemantics(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	layout := PaintFormField(&canvas, theme, ui.Rect{Width: 180}, FormFieldSnapshot{
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	layout := PaintFormField(&canvas, theme, gfx.Rect{Width: 180}, FormFieldSnapshot{
 		Label: "Framework", Description: "Choose one", Message: "Selection required",
 		Invalid: true, Disabled: true, Required: true,
 	})
@@ -49,7 +49,7 @@ func TestFormFieldErrorStateAndTypedControlSemantics(t *testing.T) {
 		t.Fatalf("semantic state = %+v", semantics)
 	}
 	PaintNativeSelect(&canvas, theme, layout.Control, NativeSelectSnapshot{
-		ID: ui.Item(7), Label: semantics.Label, Hint: semantics.AssistiveText(),
+		ID: gfx.Item(7), Label: semantics.Label, Hint: semantics.AssistiveText(),
 		Disabled: semantics.Disabled, Invalid: semantics.Invalid,
 	})
 	hit := canvas.Hits()[0]
@@ -62,9 +62,9 @@ func TestFormFieldErrorStateAndTypedControlSemantics(t *testing.T) {
 }
 
 func TestFormFieldOmitsAbsentDescriptionAndMessage(t *testing.T) {
-	var canvas ui.Canvas
-	layout := PaintFormField(&canvas, ui.LightTheme(), ui.Rect{X: 3, Y: 5, Width: 140}, FormFieldSnapshot{Label: "Name"})
-	if layout.Description != (ui.Rect{}) || layout.Message != (ui.Rect{}) {
+	var canvas gfx.Canvas
+	layout := PaintFormField(&canvas, gfx.LightTheme(), gfx.Rect{X: 3, Y: 5, Width: 140}, FormFieldSnapshot{Label: "Name"})
+	if layout.Description != (gfx.Rect{}) || layout.Message != (gfx.Rect{}) {
 		t.Fatalf("optional rows = description %+v, message %+v", layout.Description, layout.Message)
 	}
 	if layout.Bounds.Height != 54 || len(canvas.Texts()) != 1 {
@@ -76,10 +76,10 @@ func TestFormFieldOmitsAbsentDescriptionAndMessage(t *testing.T) {
 }
 
 func TestFormFieldPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		PaintFormField(&canvas, ui.LightTheme(), ui.Rect{X: 2, Y: 4, Width: 220}, FormFieldSnapshot{
+		PaintFormField(&canvas, gfx.LightTheme(), gfx.Rect{X: 2, Y: 4, Width: 220}, FormFieldSnapshot{
 			Label: "Email", Description: "Work address", Error: "Invalid email", Required: true,
 		})
 	}
@@ -94,7 +94,7 @@ func TestFormFieldPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T)
 	}
 }
 
-func formHalfAlpha(color ui.Color) ui.Color {
+func formHalfAlpha(color gfx.Color) gfx.Color {
 	color.Alpha *= 0.5
 	return color
 }

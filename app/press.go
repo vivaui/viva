@@ -6,7 +6,7 @@ import "github.com/vivaui/viva/internal/platform"
 // the application takes it, a control takes it, the platform moves the window
 // at once, or the application takes it and the platform moves the window if the
 // pointer drags. The platform asks the same question of the painted page when a
-// button goes down (see ui.Canvas.MoveRegion).
+// button goes down (see gfx.Canvas.MoveRegion).
 type PressKind = platform.PressKind
 
 const (

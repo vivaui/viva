@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // QuestionnaireChoiceType selects radio or checkbox indicator semantics.
 type QuestionnaireChoiceType uint8
@@ -24,7 +24,7 @@ type QuestionnaireData struct {
 
 // QuestionnaireChoice is one explicit answer state.
 type QuestionnaireChoice struct {
-	ID          ui.ID
+	ID          gfx.ID
 	Label       string
 	Description string
 	Shortcut    string
@@ -35,11 +35,11 @@ type QuestionnaireChoice struct {
 // QuestionnaireActions contains the official previous, skip, and next/submit
 // slots. Empty labels omit a slot; IDs of zero paint preview-only buttons.
 type QuestionnaireActions struct {
-	PreviousID    ui.ID
+	PreviousID    gfx.ID
 	PreviousLabel string
-	SkipID        ui.ID
+	SkipID        gfx.ID
 	SkipLabel     string
-	NextID        ui.ID
+	NextID        gfx.ID
 	NextLabel     string
 	NextDisabled  bool
 }
@@ -47,9 +47,9 @@ type QuestionnaireActions struct {
 // Questionnaire incrementally paints one item without owning navigation,
 // validation, checked values, or input text.
 type Questionnaire struct {
-	canvas  *ui.Canvas
-	theme   ui.Theme
-	bounds  ui.Rect
+	canvas  *gfx.Canvas
+	theme   gfx.Theme
+	bounds  gfx.Rect
 	typeOf  QuestionnaireChoiceType
 	invalid bool
 	y       float32
@@ -94,13 +94,13 @@ func (questionnaire *Questionnaire) place(part questionnairePart, height float32
 }
 
 // BeginQuestionnaire paints progress, title, and description slots.
-func BeginQuestionnaire(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, data QuestionnaireData) Questionnaire {
+func BeginQuestionnaire(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, data QuestionnaireData) Questionnaire {
 	metrics := theme.Metrics
 	scale := metrics.ControlHeight / 32
 	y := bounds.Y
 	if data.Progress != "" {
-		canvas.Label(data.Progress, ui.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: metrics.FontSizeS + 5}, ui.TextStyle{
-			Size: metrics.FontSizeS, Weight: ui.WeightMedium, Color: theme.MutedForeground,
+		canvas.Label(data.Progress, gfx.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: metrics.FontSizeS + 5}, gfx.TextStyle{
+			Size: metrics.FontSizeS, Weight: gfx.WeightMedium, Color: theme.MutedForeground,
 		})
 		y += metrics.FontSizeS + 5
 		if data.Title != "" || data.Description != "" {
@@ -109,8 +109,8 @@ func BeginQuestionnaire(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, data 
 	}
 	if data.Title != "" {
 		height := (metrics.FontSizeM + 2) * 1.5
-		canvas.Label(data.Title, ui.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: height}, ui.TextStyle{
-			Size: metrics.FontSizeM + 2, Weight: ui.WeightSemibold, Color: theme.Foreground,
+		canvas.Label(data.Title, gfx.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: height}, gfx.TextStyle{
+			Size: metrics.FontSizeM + 2, Weight: gfx.WeightSemibold, Color: theme.Foreground,
 		})
 		y += height
 		if data.Description != "" {
@@ -119,8 +119,8 @@ func BeginQuestionnaire(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, data 
 	}
 	if data.Description != "" {
 		height := metrics.FontSizeM * 1.5
-		canvas.Label(data.Description, ui.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: height}, ui.TextStyle{
-			Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: theme.MutedForeground,
+		canvas.Label(data.Description, gfx.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: height}, gfx.TextStyle{
+			Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: theme.MutedForeground,
 		})
 		y += height
 	}
@@ -147,7 +147,7 @@ func (questionnaire *Questionnaire) AddChoice(choice QuestionnaireChoice) {
 	if !ok {
 		return
 	}
-	bounds := ui.Rect{X: questionnaire.bounds.X, Y: y, Width: questionnaire.bounds.Width, Height: height}
+	bounds := gfx.Rect{X: questionnaire.bounds.X, Y: y, Width: questionnaire.bounds.Width, Height: height}
 	interactive := !choice.ID.IsZero() && !choice.Disabled
 	dark := theme.Background.Red < 0.5
 	focused := interactive && canvas.FocusVisible() == choice.ID
@@ -200,7 +200,7 @@ func (questionnaire *Questionnaire) AddChoice(choice QuestionnaireChoice) {
 	// The indicator is a solid primary box once checked, with the primary-foreground dot
 	// (radio) or check (checkbox) in it; unchecked it is an outline.
 	indicatorSize := CheckboxExtent(theme)
-	indicator := ui.Rect{X: bounds.X + padX, Y: bounds.Y + padY + (lineHeight-indicatorSize)/2, Width: indicatorSize, Height: indicatorSize}
+	indicator := gfx.Rect{X: bounds.X + padX, Y: bounds.Y + padY + (lineHeight-indicatorSize)/2, Width: indicatorSize, Height: indicatorSize}
 	indicatorRadius := 4 * scale
 	if questionnaire.typeOf == QuestionnaireRadio {
 		indicatorRadius = indicatorSize / 2
@@ -223,7 +223,7 @@ func (questionnaire *Questionnaire) AddChoice(choice QuestionnaireChoice) {
 		mark.Alpha *= dim
 		if questionnaire.typeOf == QuestionnaireRadio {
 			dot := 8 * scale
-			canvas.Rounded(ui.Rect{X: indicator.X + (indicator.Width-dot)/2, Y: indicator.Y + (indicator.Height-dot)/2, Width: dot, Height: dot}, dot/2, mark)
+			canvas.Rounded(gfx.Rect{X: indicator.X + (indicator.Width-dot)/2, Y: indicator.Y + (indicator.Height-dot)/2, Width: dot, Height: dot}, dot/2, mark)
 		} else {
 			paintCheck(canvas, indicator, 14*scale, mark)
 		}
@@ -234,47 +234,47 @@ func (questionnaire *Questionnaire) AddChoice(choice QuestionnaireChoice) {
 	if choice.Shortcut != "" {
 		badge := 20 * scale
 		textRight -= badge + 12*scale
-		questionnaire.paintShortcut(choice.Shortcut, ui.Rect{X: bounds.X + bounds.Width - padX - badge, Y: bounds.Y + padY + (lineHeight-badge)/2, Width: badge, Height: badge}, dim)
+		questionnaire.paintShortcut(choice.Shortcut, gfx.Rect{X: bounds.X + bounds.Width - padX - badge, Y: bounds.Y + padY + (lineHeight-badge)/2, Width: badge, Height: badge}, dim)
 	}
 	textX := indicator.X + indicator.Width + 12*scale
 	textWidth := max(textRight-textX, 0)
-	canvas.Label(choice.Label, ui.Rect{X: textX, Y: bounds.Y + padY, Width: textWidth, Height: lineHeight}, ui.TextStyle{
-		Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground,
+	canvas.Label(choice.Label, gfx.Rect{X: textX, Y: bounds.Y + padY, Width: textWidth, Height: lineHeight}, gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 	})
 	if choice.Description != "" {
-		canvas.Label(choice.Description, ui.Rect{X: textX, Y: bounds.Y + padY + lineHeight + 4*scale, Width: textWidth, Height: lineHeight}, ui.TextStyle{
-			Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: secondary,
+		canvas.Label(choice.Description, gfx.Rect{X: textX, Y: bounds.Y + padY + lineHeight + 4*scale, Width: textWidth, Height: lineHeight}, gfx.TextStyle{
+			Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: secondary,
 		})
 	}
 	if interactive {
-		role := ui.RoleRadio
+		role := gfx.RoleRadio
 		if questionnaire.typeOf == QuestionnaireCheckbox {
-			role = ui.RoleCheckbox
+			role = gfx.RoleCheckbox
 		}
-		canvas.HitWithOptions(choice.ID, bounds, choice.Label, ui.HitOptions{Role: role, Checked: choice.Checked})
+		canvas.HitWithOptions(choice.ID, bounds, choice.Label, gfx.HitOptions{Role: role, Checked: choice.Checked})
 	}
 }
 
 // paintShortcut draws the keyboard-shortcut badge: a bordered box with a 10px
 // monospaced key, the official size-5 rounded-md border font-mono.
-func (questionnaire Questionnaire) paintShortcut(key string, bounds ui.Rect, dim float32) {
+func (questionnaire Questionnaire) paintShortcut(key string, bounds gfx.Rect, dim float32) {
 	theme := questionnaire.theme
 	border, text := theme.Input, theme.MutedForeground
 	border.Alpha *= dim
 	text.Alpha *= dim
 	questionnaire.canvas.RoundedBorder(bounds, theme.Metrics.RadiusControl, 1, border.Over(theme.Background), theme.Background)
-	questionnaire.canvas.LabelCenter(key, bounds, ui.TextStyle{Size: theme.Metrics.FontSizeS - 1, Weight: ui.WeightMedium, Color: text, Mono: true})
+	questionnaire.canvas.LabelCenter(key, bounds, gfx.TextStyle{Size: theme.Metrics.FontSizeS - 1, Weight: gfx.WeightMedium, Color: text, Mono: true})
 }
 
 // Input paints the questionnaire free-text slot. It exposes a hit only; text
 // editing remains in the platform text subsystem rather than hidden here.
-func (questionnaire *Questionnaire) Input(id ui.ID, value, placeholder string, disabled bool) {
+func (questionnaire *Questionnaire) Input(id gfx.ID, value, placeholder string, disabled bool) {
 	metrics := questionnaire.theme.Metrics
 	y, ok := questionnaire.place(questionnaireInput, metrics.ControlHeight)
 	if !ok {
 		return
 	}
-	bounds := ui.Rect{X: questionnaire.bounds.X, Y: y, Width: questionnaire.bounds.Width, Height: metrics.ControlHeight}
+	bounds := gfx.Rect{X: questionnaire.bounds.X, Y: y, Width: questionnaire.bounds.Width, Height: metrics.ControlHeight}
 	foreground := questionnaire.theme.Foreground
 	text := value
 	if text == "" {
@@ -286,9 +286,9 @@ func (questionnaire *Questionnaire) Input(id ui.ID, value, placeholder string, d
 		foreground.Alpha *= 0.50
 	}
 	focused := interactive && questionnaire.canvas.FocusVisible() == id
-	paintTextEntrySurface(questionnaire.canvas, &questionnaire.theme, bounds, ui.State{Focused: focused, Invalid: questionnaire.invalid, Disabled: disabled})
-	questionnaire.canvas.Label(text, ui.Rect{X: bounds.X + metrics.PadControlX, Y: bounds.Y, Width: max(bounds.Width-metrics.PadControlX*2, 0), Height: bounds.Height}, ui.TextStyle{
-		Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground,
+	paintTextEntrySurface(questionnaire.canvas, &questionnaire.theme, bounds, gfx.State{Focused: focused, Invalid: questionnaire.invalid, Disabled: disabled})
+	questionnaire.canvas.Label(text, gfx.Rect{X: bounds.X + metrics.PadControlX, Y: bounds.Y, Width: max(bounds.Width-metrics.PadControlX*2, 0), Height: bounds.Height}, gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 	})
 	if interactive {
 		questionnaire.canvas.HitWithLabel(id, bounds, "Questionnaire input")
@@ -305,8 +305,8 @@ func (questionnaire *Questionnaire) Error(text string) {
 	if !ok {
 		return
 	}
-	questionnaire.canvas.Label(text, ui.Rect{X: questionnaire.bounds.X, Y: y, Width: questionnaire.bounds.Width, Height: size * 1.5}, ui.TextStyle{
-		Size: size, Weight: ui.WeightRegular, Color: questionnaire.theme.Danger,
+	questionnaire.canvas.Label(text, gfx.Rect{X: questionnaire.bounds.X, Y: y, Width: questionnaire.bounds.Width, Height: size * 1.5}, gfx.TextStyle{
+		Size: size, Weight: gfx.WeightRegular, Color: questionnaire.theme.Danger,
 	})
 }
 
@@ -319,27 +319,27 @@ func (questionnaire *Questionnaire) PaintActions(actions QuestionnaireActions) {
 	if !ok {
 		return
 	}
-	row := ui.Rect{X: questionnaire.bounds.X, Y: y, Width: questionnaire.bounds.Width, Height: height}
+	row := gfx.Rect{X: questionnaire.bounds.X, Y: y, Width: questionnaire.bounds.Width, Height: height}
 	if actions.PreviousLabel != "" {
 		width := questionnaire.actionWidth(actions.PreviousLabel)
-		questionnaire.paintAction(actions.PreviousID, ui.Rect{X: row.X, Y: row.Y, Width: width, Height: height}, actions.PreviousLabel, false, false)
+		questionnaire.paintAction(actions.PreviousID, gfx.Rect{X: row.X, Y: row.Y, Width: width, Height: height}, actions.PreviousLabel, false, false)
 	}
 	nextWidth := questionnaire.actionWidth(actions.NextLabel)
 	nextX := row.X + row.Width - nextWidth
 	if actions.NextLabel != "" {
-		questionnaire.paintAction(actions.NextID, ui.Rect{X: nextX, Y: row.Y, Width: nextWidth, Height: height}, actions.NextLabel, true, actions.NextDisabled)
+		questionnaire.paintAction(actions.NextID, gfx.Rect{X: nextX, Y: row.Y, Width: nextWidth, Height: height}, actions.NextLabel, true, actions.NextDisabled)
 	}
 	if actions.SkipLabel != "" {
 		skipWidth := questionnaire.actionWidth(actions.SkipLabel)
-		questionnaire.paintAction(actions.SkipID, ui.Rect{X: nextX - metrics.GapItem - skipWidth, Y: row.Y, Width: skipWidth, Height: height}, actions.SkipLabel, false, false)
+		questionnaire.paintAction(actions.SkipID, gfx.Rect{X: nextX - metrics.GapItem - skipWidth, Y: row.Y, Width: skipWidth, Height: height}, actions.SkipLabel, false, false)
 	}
 }
 
 func (questionnaire Questionnaire) actionWidth(label string) float32 {
-	return questionnaire.canvas.TextWidthWeight(label, questionnaire.theme.Metrics.FontSizeM, ui.WeightMedium) + questionnaire.theme.Metrics.PadControlX*2
+	return questionnaire.canvas.TextWidthWeight(label, questionnaire.theme.Metrics.FontSizeM, gfx.WeightMedium) + questionnaire.theme.Metrics.PadControlX*2
 }
 
-func (questionnaire Questionnaire) paintAction(id ui.ID, bounds ui.Rect, label string, primary, disabled bool) {
+func (questionnaire Questionnaire) paintAction(id gfx.ID, bounds gfx.Rect, label string, primary, disabled bool) {
 	fill := questionnaire.theme.Background
 	border := questionnaire.theme.Border
 	foreground := questionnaire.theme.Foreground
@@ -355,11 +355,11 @@ func (questionnaire Questionnaire) paintAction(id ui.ID, bounds ui.Rect, label s
 	} else if interactive && questionnaire.canvas.Hovered() == id {
 		fill = questionnaire.theme.Hover
 		if primary {
-			fill = blend(questionnaire.theme.Primary, ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, 0.08)
+			fill = blend(questionnaire.theme.Primary, gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, 0.08)
 		}
 	}
 	questionnaire.canvas.RoundedBorder(bounds, questionnaire.theme.Metrics.RadiusItem(), 1, border, fill)
-	questionnaire.canvas.LabelCenter(label, bounds, ui.TextStyle{Size: questionnaire.theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground})
+	questionnaire.canvas.LabelCenter(label, bounds, gfx.TextStyle{Size: questionnaire.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground})
 	if interactive {
 		questionnaire.canvas.HitWithLabel(id, bounds, label)
 	}

@@ -5,10 +5,10 @@ package app
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestEditingPriorityBelongsToTheBackend(t *testing.T) {
@@ -16,11 +16,11 @@ func TestEditingPriorityBelongsToTheBackend(t *testing.T) {
 	calls := 0
 	driver, err := NewDriver(Config{
 		Width: 320, Height: 180,
-		Paint: func(canvas *ui.Canvas, _ ui.Size) {
-			canvas.HitWithOptions(ui.Item(1), ui.Rect{X: 10, Y: 10, Width: 200, Height: 32}, "Field", ui.HitOptions{Role: ui.RoleTextField})
+		Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+			canvas.HitWithOptions(gfx.Item(1), gfx.Rect{X: 10, Y: 10, Width: 200, Height: 32}, "Field", gfx.HitOptions{Role: gfx.RoleTextField})
 		},
 		TextInput:  func(TextInputContext) *TextInput { return &TextInput{Editor: editor} },
-		OnShortcut: func(ui.KeyEvent) ui.EventResult { calls++; return ui.EventResult{Handled: true} },
+		OnShortcut: func(gfx.KeyEvent) gfx.EventResult { calls++; return gfx.EventResult{Handled: true} },
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -29,7 +29,7 @@ func TestEditingPriorityBelongsToTheBackend(t *testing.T) {
 	if err := driver.Click(20, 20); err != nil {
 		t.Fatal(err)
 	}
-	if handled, err := driver.ShortcutChord(ui.ModifierControl, 'a'); !handled || err != nil {
+	if handled, err := driver.ShortcutChord(gfx.ModifierControl, 'a'); !handled || err != nil {
 		t.Fatalf("select all: %v, %v", handled, err)
 	}
 	if calls != 0 || editor.Selection() != (text.Range{End: 5}) {
@@ -44,15 +44,15 @@ func TestEditingPriorityBelongsToTheBackend(t *testing.T) {
 }
 
 func TestDriverOffersGlobalShortcutsBeforeTerminalAndTextPaths(t *testing.T) {
-	var shortcuts []ui.KeyEvent
+	var shortcuts []gfx.KeyEvent
 	config := Config{
 		Width: 320, Height: 180,
-		Paint: func(canvas *ui.Canvas, _ ui.Size) {
-			canvas.HitWithOptions(ui.Item(1), ui.Rect{X: 10, Y: 10, Width: 200, Height: 32}, "Field", ui.HitOptions{Role: ui.RoleTextField})
+		Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+			canvas.HitWithOptions(gfx.Item(1), gfx.Rect{X: 10, Y: 10, Width: 200, Height: 32}, "Field", gfx.HitOptions{Role: gfx.RoleTextField})
 		},
-		OnShortcut: func(event ui.KeyEvent) ui.EventResult {
+		OnShortcut: func(event gfx.KeyEvent) gfx.EventResult {
 			shortcuts = append(shortcuts, event)
-			return ui.EventResult{Handled: event.Text == "k", Repaint: event.Text == "k"}
+			return gfx.EventResult{Handled: event.Text == "k", Repaint: event.Text == "k"}
 		},
 	}
 	driver, err := NewDriver(config, nil)
@@ -61,17 +61,17 @@ func TestDriverOffersGlobalShortcutsBeforeTerminalAndTextPaths(t *testing.T) {
 	}
 	defer driver.Close()
 
-	if err := driver.Chord(ui.ModifierControl, "K"); err != nil {
+	if err := driver.Chord(gfx.ModifierControl, "K"); err != nil {
 		t.Fatal(err)
 	}
-	if len(shortcuts) != 1 || shortcuts[0].Text != "k" || shortcuts[0].Modifiers != ui.ModifierControl {
+	if len(shortcuts) != 1 || shortcuts[0].Text != "k" || shortcuts[0].Modifiers != gfx.ModifierControl {
 		t.Fatalf("shortcuts = %+v", shortcuts)
 	}
 
 	if handled, err := driver.Shortcut('c'); err != nil || handled {
 		t.Fatalf("unfocused native editing shortcut = %t, %v", handled, err)
 	}
-	if len(shortcuts) != 2 || shortcuts[1].Text != "c" || shortcuts[1].Modifiers != ui.ModifierMeta {
+	if len(shortcuts) != 2 || shortcuts[1].Text != "c" || shortcuts[1].Modifiers != gfx.ModifierMeta {
 		t.Fatalf("fallback shortcuts = %+v", shortcuts)
 	}
 }
@@ -81,13 +81,13 @@ func TestPrintableShortcutsLeaveUnhandledTextAndCompositionNative(t *testing.T) 
 	calls := 0
 	driver, err := NewDriver(Config{
 		Width: 320, Height: 180,
-		Paint: func(canvas *ui.Canvas, _ ui.Size) {
-			canvas.HitWithOptions(ui.Item(1), ui.Rect{X: 10, Y: 10, Width: 200, Height: 32}, "Field", ui.HitOptions{Role: ui.RoleTextField})
+		Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+			canvas.HitWithOptions(gfx.Item(1), gfx.Rect{X: 10, Y: 10, Width: 200, Height: 32}, "Field", gfx.HitOptions{Role: gfx.RoleTextField})
 		},
 		TextInput: func(TextInputContext) *TextInput { return &TextInput{Editor: editor} },
-		OnShortcut: func(event ui.KeyEvent) ui.EventResult {
+		OnShortcut: func(event gfx.KeyEvent) gfx.EventResult {
 			calls++
-			return ui.EventResult{Handled: event.Text == "x"}
+			return gfx.EventResult{Handled: event.Text == "x"}
 		},
 	}, nil)
 	if err != nil {
@@ -97,7 +97,7 @@ func TestPrintableShortcutsLeaveUnhandledTextAndCompositionNative(t *testing.T) 
 	if err := driver.Click(20, 20); err != nil {
 		t.Fatal(err)
 	}
-	for _, modifiers := range []ui.Modifiers{0, ui.ModifierShift, ui.ModifierAlt} {
+	for _, modifiers := range []gfx.Modifiers{0, gfx.ModifierShift, gfx.ModifierAlt} {
 		if err := driver.Chord(modifiers, "x"); err != nil {
 			t.Fatal(err)
 		}
@@ -127,14 +127,14 @@ func TestPrintableShortcutsLeaveUnhandledTextAndCompositionNative(t *testing.T) 
 }
 
 func TestDriverShortcutChordPreservesEveryModifier(t *testing.T) {
-	want := ui.ModifierMeta | ui.ModifierAlt | ui.ModifierShift
-	var got ui.KeyEvent
+	want := gfx.ModifierMeta | gfx.ModifierAlt | gfx.ModifierShift
+	var got gfx.KeyEvent
 	driver, err := NewDriver(Config{
 		Width: 320, Height: 180,
-		Paint: func(*ui.Canvas, ui.Size) {},
-		OnShortcut: func(event ui.KeyEvent) ui.EventResult {
+		Paint: func(*gfx.Canvas, gfx.Size) {},
+		OnShortcut: func(event gfx.KeyEvent) gfx.EventResult {
 			got = event
-			return ui.EventResult{Handled: true}
+			return gfx.EventResult{Handled: true}
 		},
 	}, nil)
 	if err != nil {
@@ -168,19 +168,19 @@ func TestShortcutTextNormalizationIsPlatformIndependent(t *testing.T) {
 // calls the handler directly, still passed. Both paths take the handler from the
 // painter now, and this is what they take.
 func TestWindowsDeliverShortcutsToTheApplication(t *testing.T) {
-	var got []ui.KeyEvent
+	var got []gfx.KeyEvent
 	config := Config{
 		Width: 320, Height: 180,
-		OnShortcut: func(event ui.KeyEvent) ui.EventResult {
+		OnShortcut: func(event gfx.KeyEvent) gfx.EventResult {
 			got = append(got, event)
-			return ui.EventResult{Handled: event.Text == "w"}
+			return gfx.EventResult{Handled: event.Text == "w"}
 		},
 	}
 	normalized, err := config.normalize()
 	if err != nil {
 		t.Fatal(err)
 	}
-	painter, err := newPainter(&ui.Canvas{}, &normalized)
+	painter, err := newPainter(&gfx.Canvas{}, &normalized)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestWindowsDeliverShortcutsToTheApplication(t *testing.T) {
 	if _, handled, _ := handler(platform.KeyEvent{Modifiers: input.ModifierControl, Text: "x"}); handled {
 		t.Fatal("a chord the application did not take was reported handled")
 	}
-	if len(got) != 2 || got[0].Text != "w" || got[0].Modifiers != ui.ModifierControl {
+	if len(got) != 2 || got[0].Text != "w" || got[0].Modifiers != gfx.ModifierControl {
 		t.Fatalf("the application saw %+v", got)
 	}
 	// A window with no shortcut handler of its own does not claim chords.
@@ -212,9 +212,9 @@ func TestWindowsDeliverShortcutsToTheApplication(t *testing.T) {
 func BenchmarkDriverShortcutChord(b *testing.B) {
 	driver, err := NewDriver(Config{
 		Width: 320, Height: 180,
-		Paint: func(*ui.Canvas, ui.Size) {},
-		OnShortcut: func(ui.KeyEvent) ui.EventResult {
-			return ui.EventResult{Handled: true}
+		Paint: func(*gfx.Canvas, gfx.Size) {},
+		OnShortcut: func(gfx.KeyEvent) gfx.EventResult {
+			return gfx.EventResult{Handled: true}
 		},
 	}, nil)
 	if err != nil {
@@ -224,7 +224,7 @@ func BenchmarkDriverShortcutChord(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		handled, err := driver.ShortcutChord(ui.ModifierMeta|ui.ModifierAlt, 'x')
+		handled, err := driver.ShortcutChord(gfx.ModifierMeta|gfx.ModifierAlt, 'x')
 		if err != nil || !handled {
 			b.Fatalf("shortcut handled=%t err=%v", handled, err)
 		}
@@ -236,17 +236,17 @@ func BenchmarkDriverShortcutChord(b *testing.B) {
 // field, and a plain Enter is never offered.
 func TestControlEnterIsOfferedToTheApplicationBeforeAMultilineField(t *testing.T) {
 	editor := text.NewEditor("hi")
-	var offered []ui.KeyEvent
+	var offered []gfx.KeyEvent
 	send := true
 	driver, err := NewDriver(Config{
 		Width: 320, Height: 180,
-		Paint: func(canvas *ui.Canvas, _ ui.Size) {
-			canvas.HitWithOptions(ui.Item(1), ui.Rect{X: 10, Y: 10, Width: 200, Height: 90}, "Message", ui.HitOptions{Role: ui.RoleTextField, Multiline: true})
+		Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+			canvas.HitWithOptions(gfx.Item(1), gfx.Rect{X: 10, Y: 10, Width: 200, Height: 90}, "Message", gfx.HitOptions{Role: gfx.RoleTextField, Multiline: true})
 		},
 		TextInput: func(TextInputContext) *TextInput { return &TextInput{Editor: editor} },
-		OnShortcut: func(event ui.KeyEvent) ui.EventResult {
+		OnShortcut: func(event gfx.KeyEvent) gfx.EventResult {
 			offered = append(offered, event)
-			return ui.EventResult{Handled: send}
+			return gfx.EventResult{Handled: send}
 		},
 	}, nil)
 	if err != nil {
@@ -256,20 +256,20 @@ func TestControlEnterIsOfferedToTheApplicationBeforeAMultilineField(t *testing.T
 	if err := driver.Click(20, 20); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Key(ui.KeyEnter, ui.ModifierControl); err != nil {
+	if err := driver.Key(gfx.KeyEnter, gfx.ModifierControl); err != nil {
 		t.Fatal(err)
 	}
-	if len(offered) != 1 || offered[0].Key != ui.KeyEnter || offered[0].Modifiers != ui.ModifierControl || editor.String() != "hi" {
+	if len(offered) != 1 || offered[0].Key != gfx.KeyEnter || offered[0].Modifiers != gfx.ModifierControl || editor.String() != "hi" {
 		t.Fatalf("offered %+v, text %q; the application should have taken Control+Enter", offered, editor.String())
 	}
 	send = false
-	if err := driver.Key(ui.KeyEnter, ui.ModifierControl); err != nil {
+	if err := driver.Key(gfx.KeyEnter, gfx.ModifierControl); err != nil {
 		t.Fatal(err)
 	}
 	if len(offered) != 2 || editor.String() != "hi\n" {
 		t.Fatalf("offered %d times, text %q; a chord the application leaves belongs to the field", len(offered), editor.String())
 	}
-	if err := driver.Key(ui.KeyEnter, 0); err != nil {
+	if err := driver.Key(gfx.KeyEnter, 0); err != nil {
 		t.Fatal(err)
 	}
 	if len(offered) != 2 {

@@ -3,7 +3,7 @@ package components
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // DrawerSide selects the viewport edge occupied by a drawer.
@@ -19,9 +19,9 @@ const (
 // DrawerOptions contains caller-owned modal identities and side geometry.
 type DrawerOptions struct {
 	Layer         uint16
-	Scope         ui.ID
-	DismissID     ui.ID
-	CloseID       ui.ID
+	Scope         gfx.ID
+	DismissID     gfx.ID
+	CloseID       gfx.ID
 	Side          DrawerSide
 	ContentExtent float32
 	// BodyHeight sizes a top or bottom drawer that has no ContentExtent to its
@@ -35,7 +35,7 @@ type DrawerOptions struct {
 	// InitialFocusID names the control that takes focus when the drawer opens.
 	// Zero leaves focus where the runtime puts it, which is nowhere when the
 	// opener is outside the new scope.
-	InitialFocusID ui.ID
+	InitialFocusID gfx.ID
 }
 
 // DrawerSwipe is caller-owned drag state for a drawer that is swiped toward
@@ -106,27 +106,27 @@ func absFloat32(value float32) float32 {
 
 // DrawerLayout exposes the drawer's content, handle, and body slots.
 type DrawerLayout struct {
-	Content ui.Rect
-	Handle  ui.Rect
-	Header  ui.Rect
-	Body    ui.Rect
-	Footer  ui.Rect
-	Close   ui.Rect
+	Content gfx.Rect
+	Handle  gfx.Rect
+	Header  gfx.Rect
+	Body    gfx.Rect
+	Footer  gfx.Rect
+	Close   gfx.Rect
 }
 
 // Drawer is a modal edge surface. Drag state and snap-point policy remain
 // caller-owned until pointer capture is available in the runtime.
 type Drawer struct {
-	canvas     *ui.Canvas
-	theme      ui.Theme
-	viewport   ui.Rect
+	canvas     *gfx.Canvas
+	theme      gfx.Theme
+	viewport   gfx.Rect
 	options    DrawerOptions
 	disabled   bool
 	showHandle bool
 }
 
 // BeginDrawer creates a drawer declaration.
-func BeginDrawer(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, options DrawerOptions) Drawer {
+func BeginDrawer(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, options DrawerOptions) Drawer {
 	return Drawer{canvas: canvas, theme: theme, viewport: viewport, options: options}
 }
 
@@ -166,14 +166,14 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 		drawer.canvas.PushFocusScope(drawer.options.Scope)
 	}
 	key := overlayKey(drawer.options.DismissID, drawer.options.CloseID, drawer.options.Scope)
-	beginScrim(drawer.canvas, drawer.theme, key, scrimPresence(drawer.theme, drawerDuration, ui.EaseCSS), drawer.viewport)
+	beginScrim(drawer.canvas, drawer.theme, key, scrimPresence(drawer.theme, drawerDuration, gfx.EaseCSS), drawer.viewport)
 	if !drawer.options.DismissID.IsZero() {
-		drawer.canvas.HitWithOptions(drawer.options.DismissID, drawer.viewport, "Dismiss drawer", ui.HitOptions{Role: ui.RoleButton, Disabled: drawer.disabled, SkipFocus: true, Backdrop: true})
+		drawer.canvas.HitWithOptions(drawer.options.DismissID, drawer.viewport, "Dismiss drawer", gfx.HitOptions{Role: gfx.RoleButton, Disabled: drawer.disabled, SkipFocus: true, Backdrop: true})
 	}
 	metrics := drawer.theme.Metrics
 	padding := metrics.PadSurface
 	var scratch overlayLines
-	lines := overlayWrap(drawer.canvas, &scratch, description, metrics.FontSizeM, ui.WeightRegular, drawer.contentWidth()-2*padding)
+	lines := overlayWrap(drawer.canvas, &scratch, description, metrics.FontSizeM, gfx.WeightRegular, drawer.contentWidth()-2*padding)
 	headerHeight := drawerHeaderHeight(metrics, len(lines))
 	content := drawer.contentBounds(headerHeight)
 	look := dialogRecipe(&drawer.theme)
@@ -185,7 +185,7 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 	// target behind it.
 	drawer.canvas.Block(content)
 
-	inner := content.Inset(ui.All(padding))
+	inner := content.Inset(gfx.All(padding))
 	layout := DrawerLayout{Content: content}
 	if drawer.showHandle {
 		layout.Handle = drawer.handleBounds(content)
@@ -200,16 +200,16 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 	}
 	footerHeight := dialogFooterHeight(metrics, drawer.options.ButtonSize)
 	titleHeight := overlayLineHeight(metrics)
-	layout.Header = ui.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: headerHeight}
-	layout.Footer = ui.Rect{X: inner.X, Y: inner.Y + inner.Height - footerHeight, Width: inner.Width, Height: footerHeight}
-	layout.Body = ui.Rect{X: inner.X, Y: layout.Header.Y + layout.Header.Height + metrics.GapItem, Width: inner.Width, Height: max(0, layout.Footer.Y-layout.Header.Y-layout.Header.Height-metrics.GapItem*2)}
-	drawer.canvas.Label(title, ui.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: titleHeight}, ui.TextStyle{Size: overlayTitleSize(metrics), Weight: ui.WeightMedium, Color: drawer.theme.Foreground})
-	overlayParagraph(drawer.canvas, lines, ui.Rect{X: inner.X, Y: inner.Y + titleHeight + drawerTitleGap, Width: inner.Width}, overlayLineHeight(metrics), ui.TextStyle{
-		Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: drawer.theme.MutedForeground,
+	layout.Header = gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: headerHeight}
+	layout.Footer = gfx.Rect{X: inner.X, Y: inner.Y + inner.Height - footerHeight, Width: inner.Width, Height: footerHeight}
+	layout.Body = gfx.Rect{X: inner.X, Y: layout.Header.Y + layout.Header.Height + metrics.GapItem, Width: inner.Width, Height: max(0, layout.Footer.Y-layout.Header.Y-layout.Header.Height-metrics.GapItem*2)}
+	drawer.canvas.Label(title, gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: titleHeight}, gfx.TextStyle{Size: overlayTitleSize(metrics), Weight: gfx.WeightMedium, Color: drawer.theme.Foreground})
+	overlayParagraph(drawer.canvas, lines, gfx.Rect{X: inner.X, Y: inner.Y + titleHeight + drawerTitleGap, Width: inner.Width}, overlayLineHeight(metrics), gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: drawer.theme.MutedForeground,
 	}, false)
 	if !drawer.options.CloseID.IsZero() {
 		closeSize := metrics.ControlHeight
-		layout.Close = ui.Rect{X: content.X + content.Width - padding - closeSize, Y: content.Y + padding, Width: closeSize, Height: closeSize}
+		layout.Close = gfx.Rect{X: content.X + content.Width - padding - closeSize, Y: content.Y + padding, Width: closeSize, Height: closeSize}
 		drawer.paintClose(layout.Close)
 	}
 	return layout
@@ -226,12 +226,12 @@ const (
 // drawerHandleReach is how far the handle pushes the content in: its margin, its
 // thickness and the header's own padding, less the padding the content already
 // has.
-func drawerHandleReach(metrics ui.Metrics) float32 {
+func drawerHandleReach(metrics gfx.Metrics) float32 {
 	return metrics.PadSurface + drawerHandleThin
 }
 
 // drawerHeaderHeight is the title and, under it, the description's lines.
-func drawerHeaderHeight(metrics ui.Metrics, descriptionLines int) float32 {
+func drawerHeaderHeight(metrics gfx.Metrics, descriptionLines int) float32 {
 	height := overlayLineHeight(metrics)
 	if descriptionLines > 0 {
 		height += drawerTitleGap + float32(descriptionLines)*overlayLineHeight(metrics)
@@ -244,20 +244,20 @@ func drawerHeaderHeight(metrics ui.Metrics, descriptionLines int) float32 {
 // size plus 2px). EaseCSS starts and lands softly; the emphasized curve moved a
 // sixth of the panel in the first 60 Hz frame, which reads as a jolt rather than
 // a slide.
-func (drawer Drawer) presence(content ui.Rect) ui.Presence {
+func (drawer Drawer) presence(content gfx.Rect) gfx.Presence {
 	if !moving(drawer.theme) {
-		return ui.Presence{}
+		return gfx.Presence{}
 	}
-	slide := ui.Point{Y: content.Height + 2}
+	slide := gfx.Point{Y: content.Height + 2}
 	switch drawer.options.Side {
 	case DrawerTop:
-		slide = ui.Point{Y: -(content.Height + 2)}
+		slide = gfx.Point{Y: -(content.Height + 2)}
 	case DrawerRight:
-		slide = ui.Point{X: content.Width + 2}
+		slide = gfx.Point{X: content.Width + 2}
 	case DrawerLeft:
-		slide = ui.Point{X: -(content.Width + 2)}
+		slide = gfx.Point{X: -(content.Width + 2)}
 	}
-	return ui.Presence{Motion: ui.Motion{Duration: drawerDuration, Easing: ui.EaseCSS}, SlideIn: slide, SlideOut: slide}
+	return gfx.Presence{Motion: gfx.Motion{Duration: drawerDuration, Easing: gfx.EaseCSS}, SlideIn: slide, SlideOut: slide}
 }
 
 // End closes the layer and installs modal focus and Escape routing. It also ends
@@ -280,7 +280,7 @@ func (drawer Drawer) End() {
 		escapeTarget = drawer.options.CloseID
 	}
 	if drawer.disabled {
-		escapeTarget = ui.ID{}
+		escapeTarget = gfx.ID{}
 	}
 	drawer.canvas.SetEscapeTarget(escapeTarget)
 	if !drawer.options.Scope.IsZero() {
@@ -302,7 +302,7 @@ func (drawer Drawer) contentWidth() float32 {
 	return min(extent, drawer.viewport.Width)
 }
 
-func (drawer Drawer) contentBounds(headerHeight float32) ui.Rect {
+func (drawer Drawer) contentBounds(headerHeight float32) gfx.Rect {
 	extent := drawer.options.ContentExtent
 	if drawer.options.Side == DrawerTop || drawer.options.Side == DrawerBottom {
 		if extent <= 0 {
@@ -317,38 +317,38 @@ func (drawer Drawer) contentBounds(headerHeight float32) ui.Rect {
 		if drawer.options.Side == DrawerBottom {
 			y = drawer.viewport.Y + drawer.viewport.Height - extent
 		}
-		return ui.Rect{X: drawer.viewport.X, Y: y, Width: drawer.viewport.Width, Height: extent}
+		return gfx.Rect{X: drawer.viewport.X, Y: y, Width: drawer.viewport.Width, Height: extent}
 	}
 	extent = drawer.contentWidth()
 	x := drawer.viewport.X
 	if drawer.options.Side == DrawerRight {
 		x = drawer.viewport.X + drawer.viewport.Width - extent
 	}
-	return ui.Rect{X: x, Y: drawer.viewport.Y, Width: extent, Height: drawer.viewport.Height}
+	return gfx.Rect{X: x, Y: drawer.viewport.Y, Width: extent, Height: drawer.viewport.Height}
 }
 
-func (drawer Drawer) squareViewportEdge(content ui.Rect, radius float32) {
+func (drawer Drawer) squareViewportEdge(content gfx.Rect, radius float32) {
 	switch drawer.options.Side {
 	case DrawerTop:
-		drawer.canvas.Fill(ui.Rect{X: content.X, Y: content.Y, Width: content.Width, Height: radius}, drawer.theme.Popover)
+		drawer.canvas.Fill(gfx.Rect{X: content.X, Y: content.Y, Width: content.Width, Height: radius}, drawer.theme.Popover)
 	case DrawerRight:
-		drawer.canvas.Fill(ui.Rect{X: content.X + content.Width - radius, Y: content.Y, Width: radius, Height: content.Height}, drawer.theme.Popover)
+		drawer.canvas.Fill(gfx.Rect{X: content.X + content.Width - radius, Y: content.Y, Width: radius, Height: content.Height}, drawer.theme.Popover)
 	case DrawerLeft:
-		drawer.canvas.Fill(ui.Rect{X: content.X, Y: content.Y, Width: radius, Height: content.Height}, drawer.theme.Popover)
+		drawer.canvas.Fill(gfx.Rect{X: content.X, Y: content.Y, Width: radius, Height: content.Height}, drawer.theme.Popover)
 	default:
-		drawer.canvas.Fill(ui.Rect{X: content.X, Y: content.Y + content.Height - radius, Width: content.Width, Height: radius}, drawer.theme.Popover)
+		drawer.canvas.Fill(gfx.Rect{X: content.X, Y: content.Y + content.Height - radius, Width: content.Width, Height: radius}, drawer.theme.Popover)
 	}
 }
 
-func (drawer Drawer) handleBounds(content ui.Rect) ui.Rect {
+func (drawer Drawer) handleBounds(content gfx.Rect) gfx.Rect {
 	margin := drawer.theme.Metrics.PadSurface
 	if drawer.options.Side == DrawerLeft || drawer.options.Side == DrawerRight {
-		return ui.Rect{X: content.X + margin, Y: content.Y + (content.Height-drawerHandleLong)/2, Width: drawerHandleThin, Height: drawerHandleLong}
+		return gfx.Rect{X: content.X + margin, Y: content.Y + (content.Height-drawerHandleLong)/2, Width: drawerHandleThin, Height: drawerHandleLong}
 	}
-	return ui.Rect{X: content.X + (content.Width-drawerHandleLong)/2, Y: content.Y + margin, Width: drawerHandleLong, Height: drawerHandleThin}
+	return gfx.Rect{X: content.X + (content.Width-drawerHandleLong)/2, Y: content.Y + margin, Width: drawerHandleLong, Height: drawerHandleThin}
 }
 
-func (drawer Drawer) paintClose(bounds ui.Rect) {
+func (drawer Drawer) paintClose(bounds gfx.Rect) {
 	fill := drawer.theme.Background
 	fill.Alpha = 0
 	foreground := drawer.theme.MutedForeground
@@ -361,7 +361,7 @@ func (drawer Drawer) paintClose(bounds ui.Rect) {
 	}
 	drawer.canvas.Rounded(bounds, drawer.theme.Metrics.RadiusControl, fill)
 	paintCross(drawer.canvas, bounds, 16, foreground)
-	drawer.canvas.HitWithOptions(drawer.options.CloseID, bounds, "Close drawer", ui.HitOptions{Role: ui.RoleButton, Disabled: drawer.disabled})
+	drawer.canvas.HitWithOptions(drawer.options.CloseID, bounds, "Close drawer", gfx.HitOptions{Role: gfx.RoleButton, Disabled: drawer.disabled})
 }
 
 // drawerDuration is the 450ms of Base UI's drawer transition.

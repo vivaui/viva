@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
 // Identities are names in a tree, not numbers: the application declares the
 // tree once and every control it paints is a name inside a feature of it.
 var (
-	tree = ui.Tree{}
+	tree = gfx.Tree{}
 	page = tree.Feature("background")
 
 	refresh = tree.ID(page, "refresh")
@@ -29,19 +29,19 @@ type model struct {
 	mu      sync.Mutex
 	pending string // written by the worker goroutine, under mu
 	status  string // read by Paint, written only on the window thread
-	view    flex.View
+	view    ui.View
 }
 
 func newConfig(m *model, invalidator *app.Invalidator) app.Config {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	config := app.Config{Tree: &tree, Title: "Background", Width: 480, Height: 240, Invalidator: invalidator}
 
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
 		canvas.Fill(bounds, theme.Background)
 
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.Row().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
+		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
+			f.Row().Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
 				if f.Button(refresh, "Refresh").Clicked() {
 					m.status = "working"
 					go func() {
@@ -69,7 +69,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 
 func main() {
 	var invalidator app.Invalidator
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	if err := app.RunCanvas(newConfig(&model{status: "idle"}, &invalidator), &canvas); err != nil {
 		log.Fatal(err)
 	}

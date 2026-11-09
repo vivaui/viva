@@ -4,11 +4,11 @@ import (
 	"math"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestAspectRatioFitsAndCenters(t *testing.T) {
-	bounds := ui.Rect{X: 10, Y: 20, Width: 200, Height: 200}
+	bounds := gfx.Rect{X: 10, Y: 20, Width: 200, Height: 200}
 	got := AspectRatio(bounds, 16.0/9.0)
 	if got.Width != 200 || got.Height != 112.5 || got.X != 10 || got.Y != 63.75 {
 		t.Fatalf("16:9 fit = %+v", got)
@@ -20,8 +20,8 @@ func TestAspectRatioFitsAndCenters(t *testing.T) {
 }
 
 func TestAspectRatioInvalidInputIsStableAndAllocationFree(t *testing.T) {
-	bounds := ui.Rect{X: 5, Y: 7, Width: 100, Height: 80}
-	want := ui.Rect{X: 55, Y: 47}
+	bounds := gfx.Rect{X: 5, Y: 7, Width: 100, Height: 80}
+	want := gfx.Rect{X: 55, Y: 47}
 	if got := AspectRatio(bounds, 0); got != want {
 		t.Fatalf("invalid ratio = %+v, want %+v", got, want)
 	}
@@ -39,8 +39,8 @@ func TestAspectRatioInvalidInputIsStableAndAllocationFree(t *testing.T) {
 }
 
 func TestAspectRatioDerivesHeightFromWidthWhenUnconstrained(t *testing.T) {
-	got := AspectRatio(ui.Rect{X: 8, Y: 12, Width: 160}, 16.0/9.0)
-	want := ui.Rect{X: 8, Y: 12, Width: 160, Height: 90}
+	got := AspectRatio(gfx.Rect{X: 8, Y: 12, Width: 160}, 16.0/9.0)
+	want := gfx.Rect{X: 8, Y: 12, Width: 160, Height: 90}
 	if got != want {
 		t.Fatalf("unconstrained ratio = %+v, want %+v", got, want)
 	}

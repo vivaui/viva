@@ -10,7 +10,7 @@ import (
 
 const vetPage = `package main
 
-import "github.com/vivaui/viva/flex"
+import "github.com/vivaui/viva/ui"
 
 type item struct {
 	ID   int
@@ -21,28 +21,28 @@ type item struct {
 type model struct {
 	items []item
 	open  bool
-	kept  flex.C
+	kept  ui.C
 }
 
-func (m *model) page(c flex.C) {
+func (m *model) page(c ui.C) {
 	for _, it := range m.items {
-		flex.Checkbox(c, &it.Done, it.Name) // a copy: works, not reported
-		flex.Button(c, "Delete")            // the same label in every row, no Key
+		ui.Checkbox(c, &it.Done, it.Name) // a copy: works, not reported
+		ui.Button(c, "Delete")            // the same label in every row, no Key
 	}
 	for i := range m.items {
 		it := &m.items[i]
-		flex.Row(c.KeyInt(it.ID)).Children(func() {
-			flex.Button(c, "Delete") // keyed
+		ui.Row(c.KeyInt(it.ID)).Children(func() {
+			ui.Button(c, "Delete") // keyed
 		})
 	}
 	for _, label := range []string{"A", "B"} {
-		flex.Button(c, label) // the labels differ
+		ui.Button(c, label) // the labels differ
 	}
 	for range 2 {
 		// viva:ignore unkeyed-button
-		flex.Button(c, "Same")
+		ui.Button(c, "Same")
 	}
-	flex.Modal(c, &m.open, "Title", nil, nil)
+	ui.Modal(c, &m.open, "Title", nil, nil)
 }
 
 func main() { _ = (&model{}).page }

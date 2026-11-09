@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // TreeNavigationItem describes one visible row of a caller-owned, flattened
 // tree. Depth must describe the actual hierarchy, not its visual indentation.
@@ -28,9 +28,9 @@ const (
 // Home, End and Page keys navigate the visible rows without wrapping. pageRows
 // is the number of rows in one viewport. An accepted key returns true even
 // when navigation is already at an edge.
-func NavigateTree(items []TreeNavigationItem, current int, key ui.Key, pageRows int) (int, TreeNavigationAction, bool) {
+func NavigateTree(items []TreeNavigationItem, current int, key gfx.Key, pageRows int) (int, TreeNavigationAction, bool) {
 	switch key {
-	case ui.KeyUp, ui.KeyDown, ui.KeyHome, ui.KeyEnd, ui.KeyPageUp, ui.KeyPageDown, ui.KeyLeft, ui.KeyRight:
+	case gfx.KeyUp, gfx.KeyDown, gfx.KeyHome, gfx.KeyEnd, gfx.KeyPageUp, gfx.KeyPageDown, gfx.KeyLeft, gfx.KeyRight:
 	default:
 		return current, TreeNavigationNone, false
 	}
@@ -38,7 +38,7 @@ func NavigateTree(items []TreeNavigationItem, current int, key ui.Key, pageRows 
 		return current, TreeNavigationNone, false
 	}
 	item := items[current]
-	if key == ui.KeyRight {
+	if key == gfx.KeyRight {
 		if !item.Branch {
 			return current, TreeNavigationNone, true
 		}
@@ -52,7 +52,7 @@ func NavigateTree(items []TreeNavigationItem, current int, key ui.Key, pageRows 
 		}
 		return current, TreeNavigationNone, true
 	}
-	if key == ui.KeyLeft {
+	if key == gfx.KeyLeft {
 		if item.Branch && item.Expanded {
 			return current, TreeNavigationCollapse, true
 		}
@@ -71,17 +71,17 @@ func NavigateTree(items []TreeNavigationItem, current int, key ui.Key, pageRows 
 	}
 	step := 0
 	switch key {
-	case ui.KeyUp:
+	case gfx.KeyUp:
 		step = -1
-	case ui.KeyDown:
+	case gfx.KeyDown:
 		step = 1
-	case ui.KeyPageUp:
+	case gfx.KeyPageUp:
 		step = -pageRows
-	case ui.KeyPageDown:
+	case gfx.KeyPageDown:
 		step = pageRows
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		step = -current
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		step = len(items) - 1 - current
 	}
 	target := max(0, min(len(items)-1, current+step))

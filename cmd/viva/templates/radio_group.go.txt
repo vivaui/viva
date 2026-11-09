@@ -1,12 +1,12 @@
 package {{PACKAGE}}
 
 import (
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // RadioOption is one stable choice in a RadioGroup.
 type RadioOption struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Disabled bool
 	Invalid  bool
@@ -23,45 +23,45 @@ const (
 // RadioGroup paints a single-selection set. Selection remains application
 // state; each enabled option is an independently focusable stable hit.
 type RadioGroup struct {
-	canvas      *ui.Canvas
-	theme       ui.Theme
-	bounds      ui.Rect
+	canvas      *gfx.Canvas
+	theme       gfx.Theme
+	bounds      gfx.Rect
 	options     []RadioOption
-	selected    ui.ID
+	selected    gfx.ID
 	orientation RadioGroupOrientation
 	disabled    bool
 	// tabStop is the one option Tab reaches; the arrow helper can focus the
 	// others, which are SkipTab.
-	tabStop ui.ID
+	tabStop gfx.ID
 }
 
 // RadioGroupResult is what painting a radio group reports back.
 type RadioGroupResult struct {
-	canvas  *ui.Canvas
+	canvas  *gfx.Canvas
 	options []RadioOption
 }
 
 // Clicked returns the option whose click this paint is delivering, and false in
-// every other paint (see ui.Canvas.Clicked), so the code that declares the group
+// every other paint (see gfx.Canvas.Clicked), so the code that declares the group
 // is the code that moves the selection:
 //
 //	if id, ok := components.BeginRadioGroup(canvas, theme, bounds, options, selected).Paint().Clicked(); ok {
 //		selected = id
 //	}
-func (result RadioGroupResult) Clicked() (ui.ID, bool) {
+func (result RadioGroupResult) Clicked() (gfx.ID, bool) {
 	if result.canvas == nil {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	for _, option := range result.options {
 		if result.canvas.Clicked(option.ID) {
 			return option.ID, true
 		}
 	}
-	return ui.ID{}, false
+	return gfx.ID{}, false
 }
 
 // BeginRadioGroup starts a vertical radio group.
-func BeginRadioGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options []RadioOption, selected ui.ID) RadioGroup {
+func BeginRadioGroup(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options []RadioOption, selected gfx.ID) RadioGroup {
 	group := RadioGroup{canvas: canvas, theme: theme, bounds: bounds, options: options, selected: selected}
 	group.tabStop = group.rovingTabStop()
 	return group
@@ -69,11 +69,11 @@ func BeginRadioGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options 
 
 // rovingTabStop keeps the Tab stop on the option the user last focused, else on
 // the selection, else on the first enabled option.
-func (group RadioGroup) rovingTabStop() ui.ID {
+func (group RadioGroup) rovingTabStop() gfx.ID {
 	enabled := func(option RadioOption) bool {
 		return !group.disabled && !option.Disabled && !option.ID.IsZero()
 	}
-	focus := ui.ID{}
+	focus := gfx.ID{}
 	if group.canvas != nil {
 		focus = group.canvas.FocusVisible()
 	}
@@ -92,7 +92,7 @@ func (group RadioGroup) rovingTabStop() ui.ID {
 			return option.ID
 		}
 	}
-	return ui.ID{}
+	return gfx.ID{}
 }
 
 // Horizontal lays choices out in equal-width columns.
@@ -111,22 +111,22 @@ func (group RadioGroup) Disabled() RadioGroup {
 // Arrow keys wrap through enabled non-zero options. Physical Left and Right
 // reverse in RTL. Base UI leaves Home and End to the page, so they are not
 // owned here. The returned bool reports whether key is owned by the pattern.
-func RadioGroupKeyDown(current ui.ID, options []RadioOption, direction Direction, key ui.Key) (ui.ID, bool) {
+func RadioGroupKeyDown(current gfx.ID, options []RadioOption, direction Direction, key gfx.Key) (gfx.ID, bool) {
 	step := 0
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		step = -1
 		if direction.IsRTL() {
 			step = 1
 		}
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		step = 1
 		if direction.IsRTL() {
 			step = -1
 		}
-	case ui.KeyUp:
+	case gfx.KeyUp:
 		step = -1
-	case ui.KeyDown:
+	case gfx.KeyDown:
 		step = 1
 	default:
 		return current, false
@@ -134,7 +134,7 @@ func RadioGroupKeyDown(current ui.ID, options []RadioOption, direction Direction
 	return nextEnabledRadioOption(current, options, step), true
 }
 
-func firstEnabledRadioOption(current ui.ID, options []RadioOption, step int) ui.ID {
+func firstEnabledRadioOption(current gfx.ID, options []RadioOption, step int) gfx.ID {
 	for index := 0; index < len(options); index++ {
 		candidate := index
 		if step < 0 {
@@ -148,7 +148,7 @@ func firstEnabledRadioOption(current ui.ID, options []RadioOption, step int) ui.
 	return current
 }
 
-func nextEnabledRadioOption(current ui.ID, options []RadioOption, step int) ui.ID {
+func nextEnabledRadioOption(current gfx.ID, options []RadioOption, step int) gfx.ID {
 	if len(options) == 0 {
 		return current
 	}
@@ -202,7 +202,7 @@ func (group RadioGroup) Paint() RadioGroupResult {
 		selected := !option.ID.IsZero() && option.ID == group.selected
 
 		diameter := float32(16)
-		circle := ui.Rect{X: row.X, Y: row.Y + (row.Height-diameter)/2, Width: diameter, Height: diameter}
+		circle := gfx.Rect{X: row.X, Y: row.Y + (row.Height-diameter)/2, Width: diameter, Height: diameter}
 		border := group.theme.Input
 		fill := group.theme.Background
 		fill.Alpha = 0
@@ -242,7 +242,7 @@ func (group RadioGroup) Paint() RadioGroupResult {
 		if (group.disabled || option.Disabled) && selected {
 			indicator.Alpha *= 0.50
 		}
-		group.canvas.Rounded(ui.Rect{
+		group.canvas.Rounded(gfx.Rect{
 			X: circle.X + (diameter-indicatorSize)/2, Y: circle.Y + (diameter-indicatorSize)/2,
 			Width: indicatorSize, Height: indicatorSize,
 		}, indicatorSize/2, indicator)
@@ -251,14 +251,14 @@ func (group RadioGroup) Paint() RadioGroupResult {
 		if group.disabled || option.Disabled {
 			foreground.Alpha *= 0.50
 		}
-		group.canvas.Label(option.Label, ui.Rect{
+		group.canvas.Label(option.Label, gfx.Rect{
 			X: circle.X + circle.Width + metrics.GapItem, Y: row.Y,
 			Width:  row.X + row.Width - circle.X - circle.Width - metrics.GapItem,
 			Height: row.Height,
-		}, ui.TextStyle{Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground})
+		}, gfx.TextStyle{Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground})
 		if !option.ID.IsZero() {
-			group.canvas.HitWithOptions(option.ID, row, option.Label, ui.HitOptions{
-				Role: ui.RoleRadio, Value: option.Label,
+			group.canvas.HitWithOptions(option.ID, row, option.Label, gfx.HitOptions{
+				Role: gfx.RoleRadio, Value: option.Label,
 				Disabled: group.disabled || option.Disabled,
 				Checked:  selected, Selected: selected,
 				SkipTab: option.ID != group.tabStop,
@@ -268,14 +268,14 @@ func (group RadioGroup) Paint() RadioGroupResult {
 	return result
 }
 
-func (group RadioGroup) radioBounds(index int, rowHeight, gap float32) ui.Rect {
+func (group RadioGroup) radioBounds(index int, rowHeight, gap float32) gfx.Rect {
 	if group.orientation == RadioGroupHorizontal {
 		count := float32(len(group.options))
 		left := group.bounds.X + group.bounds.Width*float32(index)/count
 		right := group.bounds.X + group.bounds.Width*float32(index+1)/count
-		return ui.Rect{X: left, Y: group.bounds.Y, Width: right - left, Height: rowHeight}
+		return gfx.Rect{X: left, Y: group.bounds.Y, Width: right - left, Height: rowHeight}
 	}
-	return ui.Rect{
+	return gfx.Rect{
 		X: group.bounds.X, Y: group.bounds.Y + float32(index)*(rowHeight+gap),
 		Width: group.bounds.Width, Height: rowHeight,
 	}

@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestPaintRequestCodecCarriesFrameClockAndReducedMotion(t *testing.T) {
 	want := PaintRequest{
-		Width: 640, Height: 480, Focused: ui.Item(7), FocusVisible: true,
+		Width: 640, Height: 480, Focused: gfx.Item(7), FocusVisible: true,
 		Now: uint64(3*time.Second + 250*time.Millisecond), ReduceMotion: true,
 	}
 	got, err := decodePaintRequest(encodePaintRequest(want))
@@ -28,7 +28,7 @@ func TestCanvasCodecCarriesAnimatingFlagToHostCanvas(t *testing.T) {
 	if err != nil || !snapshot.Animating {
 		t.Fatalf("decoded snapshot = %+v, err = %v", snapshot, err)
 	}
-	var host ui.Canvas
+	var host gfx.Canvas
 	host.BeginFrame()
 	ApplyCanvas(&host, snapshot)
 	host.EndFrame()
@@ -47,15 +47,15 @@ func TestCanvasCodecCarriesAnimatingFlagToHostCanvas(t *testing.T) {
 // A worker repaints on the host's clock, so a transition progresses with the
 // Now values it is sent and the Animating flag falls once it settles.
 func TestWorkerPaintAdvancesTransitionsOnHostClock(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	checked := false
-	config := WorkerConfig{Paint: func(canvas *ui.Canvas, size ui.Size) {
+	config := WorkerConfig{Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 		target := float32(0)
 		if checked {
 			target = 1
 		}
-		position := canvas.Animate(ui.Item(1), 0, target, ui.Motion{Duration: 100 * time.Millisecond, Easing: ui.EaseLinear})
-		canvas.Fill(ui.Rect{X: position * 100, Width: 10, Height: 10}, ui.Color{Alpha: 1})
+		position := canvas.Animate(gfx.Item(1), 0, target, gfx.Motion{Duration: 100 * time.Millisecond, Easing: gfx.EaseLinear})
+		canvas.Fill(gfx.Rect{X: position * 100, Width: 10, Height: 10}, gfx.Color{Alpha: 1})
 	}}
 	paint := func(now time.Duration, reduce bool) CanvasSnapshot {
 		t.Helper()
@@ -98,7 +98,7 @@ func TestWorkerPaintAdvancesTransitionsOnHostClock(t *testing.T) {
 }
 
 func TestCanvasCodecCarriesADelayedFrameRequestToHostCanvas(t *testing.T) {
-	var worker ui.Canvas
+	var worker gfx.Canvas
 	worker.BeginFrame()
 	worker.RequestFrameIn(125 * time.Millisecond)
 	worker.EndFrame()
@@ -114,7 +114,7 @@ func TestCanvasCodecCarriesADelayedFrameRequestToHostCanvas(t *testing.T) {
 	if err != nil || decoded.FrameDelayMs != 125 {
 		t.Fatalf("decoded %+v, err = %v", decoded, err)
 	}
-	var host ui.Canvas
+	var host gfx.Canvas
 	host.BeginFrame()
 	ApplyCanvas(&host, decoded)
 	host.EndFrame()
@@ -134,12 +134,12 @@ func TestCanvasCodecCarriesADelayedFrameRequestToHostCanvas(t *testing.T) {
 // A click reaches a worker whose paint asks Clicked in the worker's own event
 // pass, where its state lives, and the host's next paint does not deliver it again.
 func TestWorkerClickIsDeliveredInTheEventPass(t *testing.T) {
-	var canvas ui.Canvas
-	var tree ui.Tree
+	var canvas gfx.Canvas
+	var tree gfx.Tree
 	save := tree.ID(tree.Feature("page"), "save")
 	saved := 0
-	config := WorkerConfig{Paint: func(canvas *ui.Canvas, size ui.Size) {
-		canvas.Hit(save, ui.Rect{Width: 10, Height: 10})
+	config := WorkerConfig{Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.Hit(save, gfx.Rect{Width: 10, Height: 10})
 		if canvas.Clicked(save) {
 			saved++
 		}
@@ -169,13 +169,13 @@ func TestWorkerClickIsDeliveredInTheEventPass(t *testing.T) {
 // A pointer event reaches a worker whose paint asks PointerOn in the worker's own
 // event pass, and what a control consumes comes back as handled.
 func TestWorkerPointerIsDeliveredInTheEventPass(t *testing.T) {
-	var canvas ui.Canvas
-	var tree ui.Tree
+	var canvas gfx.Canvas
+	var tree gfx.Tree
 	area := tree.ID(tree.Feature("page"), "area")
 	opened := 0
-	config := WorkerConfig{Paint: func(canvas *ui.Canvas, size ui.Size) {
-		canvas.Hit(area, ui.Rect{Width: 100, Height: 100})
-		if event, ok := canvas.PointerOn(area); ok && event.Button == ui.PointerButtonSecondary {
+	config := WorkerConfig{Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.Hit(area, gfx.Rect{Width: 100, Height: 100})
+		if event, ok := canvas.PointerOn(area); ok && event.Button == gfx.PointerButtonSecondary {
 			opened++
 			canvas.Consume()
 		}
@@ -184,7 +184,7 @@ func TestWorkerPointerIsDeliveredInTheEventPass(t *testing.T) {
 	if _, err, _ := handleRequest(&config, &canvas, CanvasSnapshot{}, request, nil); err != nil {
 		t.Fatal(err)
 	}
-	event := ui.PointerEvent{Kind: ui.PointerDown, Button: ui.PointerButtonSecondary, Target: area}
+	event := gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonSecondary, Target: area}
 	payload, err, _ := handleRequest(&config, &canvas, CanvasSnapshot{}, frame{kind: messagePointer, payload: encodePointerEvent(event)}, nil)
 	if err != nil {
 		t.Fatal(err)

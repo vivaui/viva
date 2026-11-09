@@ -1,7 +1,7 @@
 package components
 
 import (
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const (
@@ -40,7 +40,7 @@ type BarChart struct {
 // PaintBarChart paints a bar chart with the same chrome, state and hover model as
 // PaintAreaChart. Each category owns an equal band; the bars of a group sit side
 // by side, or pile up when Stack is set.
-func PaintBarChart(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, id ui.ID, chart BarChart, state *ChartState) ChartPlot {
+func PaintBarChart(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, id gfx.ID, chart BarChart, state *ChartState) ChartPlot {
 	if canvas == nil {
 		return ChartPlot{}
 	}
@@ -64,7 +64,7 @@ func PaintBarChart(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, id ui.ID, 
 			band := plot.Width / float32(geo.count)
 			highlight := theme.Muted
 			highlight.Alpha *= 0.5
-			canvas.Fill(ui.Rect{X: plot.X + float32(index)*band, Y: plot.Y, Width: band, Height: plot.Height}, highlight)
+			canvas.Fill(gfx.Rect{X: plot.X + float32(index)*band, Y: plot.Y, Width: band, Height: plot.Height}, highlight)
 		}
 		chartPaintBars(canvas, chart, &spec, &frame)
 	}
@@ -72,7 +72,7 @@ func PaintBarChart(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, id ui.ID, 
 	return frame.plot
 }
 
-func chartPaintBars(canvas *ui.Canvas, chart BarChart, spec *chartSpec, frame *chartFrame) {
+func chartPaintBars(canvas *gfx.Canvas, chart BarChart, spec *chartSpec, frame *chartFrame) {
 	geo := &frame.plot.geo
 	plot := frame.plot.Plot
 	band := plot.Width / float32(geo.count)
@@ -139,7 +139,7 @@ func chartPaintBars(canvas *ui.Canvas, chart BarChart, spec *chartSpec, frame *c
 			if height <= 0 {
 				continue
 			}
-			rect := ui.Rect{X: x, Y: y0, Width: barWidth, Height: height}
+			rect := gfx.Rect{X: x, Y: y0, Width: barWidth, Height: height}
 			color := spec.series[series].Color
 			if spec.stack != ChartStackNone && series != topSeries {
 				canvas.Fill(rect, color)
@@ -150,7 +150,7 @@ func chartPaintBars(canvas *ui.Canvas, chart BarChart, spec *chartSpec, frame *c
 				// Only the free end of a stack is rounded: square the end that
 				// touches the bar below it.
 				squareHeight := min(radius, height)
-				canvas.Fill(ui.Rect{X: x, Y: y1 - squareHeight, Width: barWidth, Height: squareHeight}, color)
+				canvas.Fill(gfx.Rect{X: x, Y: y1 - squareHeight, Width: barWidth, Height: squareHeight}, color)
 			}
 		}
 	}

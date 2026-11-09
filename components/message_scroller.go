@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 const (
 	messageScrollerBarWidth float32 = 6
@@ -17,7 +17,7 @@ const MessageScrollerEdgeThreshold float32 = 8
 
 // MessageScrollerGap is the space between transcript items, the official
 // MessageScrollerContent gap-8: 32px at the default density.
-func MessageScrollerGap(metrics ui.Metrics) float32 { return metrics.ControlHeight }
+func MessageScrollerGap(metrics gfx.Metrics) float32 { return metrics.ControlHeight }
 
 // MessageScrollerDirection identifies one explicit jump control.
 type MessageScrollerDirection uint8
@@ -30,13 +30,13 @@ const (
 // MessageScrollerGeometry exposes the translated content, scrollbar thumb,
 // and both stable button bounds for an externally controlled message stream.
 type MessageScrollerGeometry struct {
-	Bounds      ui.Rect
-	Viewport    ui.Rect
-	Content     ui.Rect
-	Track       ui.Rect
-	Thumb       ui.Rect
-	StartButton ui.Rect
-	EndButton   ui.Rect
+	Bounds      gfx.Rect
+	Viewport    gfx.Rect
+	Content     gfx.Rect
+	Track       gfx.Rect
+	Thumb       gfx.Rect
+	StartButton gfx.Rect
+	EndButton   gfx.Rect
 	Offset      float32
 	MaxOffset   float32
 	CanStart    bool
@@ -49,7 +49,7 @@ type MessageScrollerItemGeometry struct {
 	Index         int
 	ContentOffset float32
 	Extent        float32
-	Bounds        ui.Rect
+	Bounds        gfx.Rect
 	Visible       bool
 }
 
@@ -58,29 +58,29 @@ type MessageScrollerItemGeometry struct {
 // Scoped wheel routing, pointer capture, inertia, observers, timers, and
 // virtualization are runtime responsibilities and are not faked here.
 type MessageScroller struct {
-	canvas              *ui.Canvas
-	theme               ui.Theme
-	bounds              ui.Rect
+	canvas              *gfx.Canvas
+	theme               gfx.Theme
+	bounds              gfx.Rect
 	contentExtent       float32
 	offset              float32
-	scrollbarID         ui.ID
+	scrollbarID         gfx.ID
 	scrollbarLabel      string
 	scrollbarValue      string
-	startID             ui.ID
+	startID             gfx.ID
 	startLabel          string
-	endID               ui.ID
+	endID               gfx.ID
 	endLabel            string
 	disabled            bool
 	contentClipIsActive bool
 }
 
 // BeginMessageScroller declares a vertically clipped message viewport.
-func BeginMessageScroller(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, contentExtent, offset float32) MessageScroller {
+func BeginMessageScroller(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, contentExtent, offset float32) MessageScroller {
 	return MessageScroller{canvas: canvas, theme: theme, bounds: bounds, contentExtent: contentExtent, offset: offset}
 }
 
 // Scrollbar configures the optional thin scrollbar as a typed slider.
-func (scroller MessageScroller) Scrollbar(id ui.ID, label, value string) MessageScroller {
+func (scroller MessageScroller) Scrollbar(id gfx.ID, label, value string) MessageScroller {
 	scroller.scrollbarID = id
 	scroller.scrollbarLabel = label
 	scroller.scrollbarValue = value
@@ -89,7 +89,7 @@ func (scroller MessageScroller) Scrollbar(id ui.ID, label, value string) Message
 
 // Buttons configures start/end jump actions. Visibility is derived from the
 // clamped offset; inactive controls keep geometry but emit no paint or hit.
-func (scroller MessageScroller) Buttons(startID ui.ID, startLabel string, endID ui.ID, endLabel string) MessageScroller {
+func (scroller MessageScroller) Buttons(startID gfx.ID, startLabel string, endID gfx.ID, endLabel string) MessageScroller {
 	scroller.startID = startID
 	scroller.startLabel = startLabel
 	scroller.endID = endID
@@ -114,30 +114,30 @@ func (scroller MessageScroller) Geometry() MessageScrollerGeometry {
 	offset := messageScrollerClamp(scroller.offset, 0, maximum)
 	geometry := MessageScrollerGeometry{
 		Bounds: viewport, Viewport: viewport,
-		Content: ui.Rect{X: viewport.X, Y: viewport.Y - offset, Width: viewport.Width, Height: contentExtent},
+		Content: gfx.Rect{X: viewport.X, Y: viewport.Y - offset, Width: viewport.Width, Height: contentExtent},
 		Offset:  offset, MaxOffset: maximum,
 		CanStart: !scroller.disabled && offset > MessageScrollerEdgeThreshold,
 		CanEnd:   !scroller.disabled && offset < maximum-MessageScrollerEdgeThreshold,
 	}
-	geometry.StartButton = ui.Rect{
+	geometry.StartButton = gfx.Rect{
 		X:     viewport.X + (viewport.Width-messageScrollerButton)/2,
 		Y:     viewport.Y + messageScrollerInset,
 		Width: messageScrollerButton, Height: messageScrollerButton,
 	}
-	geometry.EndButton = ui.Rect{
+	geometry.EndButton = gfx.Rect{
 		X:     geometry.StartButton.X,
 		Y:     viewport.Y + viewport.Height - messageScrollerInset - messageScrollerButton,
 		Width: messageScrollerButton, Height: messageScrollerButton,
 	}
 	if maximum > 0 && viewport.Width > 0 && viewport.Height > 0 {
-		geometry.Track = ui.Rect{
+		geometry.Track = gfx.Rect{
 			X: viewport.X + viewport.Width - messageScrollerBarWidth,
 			Y: viewport.Y, Width: messageScrollerBarWidth, Height: viewport.Height,
 		}
 		thumbExtent := viewport.Height * viewport.Height / contentExtent
 		thumbExtent = messageScrollerClamp(thumbExtent, messageScrollerMin(messageScrollerThumbMin, viewport.Height), viewport.Height)
 		travel := viewport.Height - thumbExtent
-		geometry.Thumb = ui.Rect{
+		geometry.Thumb = gfx.Rect{
 			X: geometry.Track.X + 1, Y: viewport.Y + travel*offset/maximum,
 			Width: messageScrollerMax(messageScrollerBarWidth-2, 0), Height: thumbExtent,
 		}
@@ -163,7 +163,7 @@ func (scroller MessageScroller) ItemGeometry(index int, contentOffset, extent fl
 	geometry := scroller.Geometry()
 	contentOffset = messageScrollerFiniteNonNegative(contentOffset)
 	extent = messageScrollerFiniteNonNegative(extent)
-	bounds := ui.Rect{
+	bounds := gfx.Rect{
 		X: geometry.Content.X, Y: geometry.Content.Y + contentOffset,
 		Width: geometry.Content.Width, Height: extent,
 	}
@@ -222,14 +222,14 @@ func (scroller MessageScroller) paintThumb(geometry MessageScrollerGeometry) {
 	}
 	scroller.canvas.Rounded(geometry.Thumb, geometry.Thumb.Width/2, color)
 	if !scroller.scrollbarID.IsZero() {
-		scroller.canvas.HitWithOptions(scroller.scrollbarID, geometry.Track, scroller.scrollbarLabel, ui.HitOptions{
-			Role: ui.RoleSlider, Value: scroller.scrollbarValue,
+		scroller.canvas.HitWithOptions(scroller.scrollbarID, geometry.Track, scroller.scrollbarLabel, gfx.HitOptions{
+			Role: gfx.RoleSlider, Value: scroller.scrollbarValue,
 			Disabled: scroller.disabled,
 		})
 	}
 }
 
-func (scroller MessageScroller) paintButton(bounds ui.Rect, id ui.ID, label string, direction MessageScrollerDirection) {
+func (scroller MessageScroller) paintButton(bounds gfx.Rect, id gfx.ID, label string, direction MessageScrollerDirection) {
 	if id.IsZero() || bounds.Width <= 0 || bounds.Height <= 0 {
 		return
 	}
@@ -248,29 +248,29 @@ func (scroller MessageScroller) paintButton(bounds ui.Rect, id ui.ID, label stri
 		icon = &arrowUpIcon
 	}
 	size := scroller.theme.Metrics.ControlHeight / 2
-	scroller.canvas.DrawIcon(*icon, ui.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, scroller.theme.Foreground)
+	scroller.canvas.DrawIcon(*icon, gfx.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, scroller.theme.Foreground)
 	if label == "" {
 		label = "Scroll to end"
 		if direction == MessageScrollerStart {
 			label = "Scroll to start"
 		}
 	}
-	scroller.canvas.HitWithOptions(id, bounds, label, ui.HitOptions{Role: ui.RoleButton})
+	scroller.canvas.HitWithOptions(id, bounds, label, gfx.HitOptions{Role: gfx.RoleButton})
 }
 
 // The jump buttons' arrows: Lucide's ArrowDown and ArrowUp.
 var (
-	arrowDownIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{ui.MoveTo(12, 5), ui.LineTo(12, 19), ui.MoveTo(19, 12), ui.LineTo(12, 19), ui.LineTo(5, 12)}}
-	arrowUpIcon   = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{ui.MoveTo(12, 19), ui.LineTo(12, 5), ui.MoveTo(5, 12), ui.LineTo(12, 5), ui.LineTo(19, 12)}}
+	arrowDownIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{gfx.MoveTo(12, 5), gfx.LineTo(12, 19), gfx.MoveTo(19, 12), gfx.LineTo(12, 19), gfx.LineTo(5, 12)}}
+	arrowUpIcon   = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{gfx.MoveTo(12, 19), gfx.LineTo(12, 5), gfx.MoveTo(5, 12), gfx.LineTo(12, 5), gfx.LineTo(19, 12)}}
 )
 
-func messageScrollerIntersects(bounds, viewport ui.Rect) bool {
+func messageScrollerIntersects(bounds, viewport gfx.Rect) bool {
 	return bounds.Width > 0 && bounds.Height > 0 &&
 		bounds.X < viewport.X+viewport.Width && bounds.X+bounds.Width > viewport.X &&
 		bounds.Y < viewport.Y+viewport.Height && bounds.Y+bounds.Height > viewport.Y
 }
 
-func messageScrollerNormalizeRect(bounds ui.Rect) ui.Rect {
+func messageScrollerNormalizeRect(bounds gfx.Rect) gfx.Rect {
 	bounds.X = messageScrollerFinite(bounds.X)
 	bounds.Y = messageScrollerFinite(bounds.Y)
 	bounds.Width = messageScrollerFiniteNonNegative(bounds.Width)
@@ -318,8 +318,8 @@ func messageScrollerMin(left, right float32) float32 {
 	return right
 }
 
-func messageScrollerExpand(bounds ui.Rect, amount float32) ui.Rect {
-	return ui.Rect{
+func messageScrollerExpand(bounds gfx.Rect, amount float32) gfx.Rect {
+	return gfx.Rect{
 		X: bounds.X - amount, Y: bounds.Y - amount,
 		Width: bounds.Width + amount*2, Height: bounds.Height + amount*2,
 	}

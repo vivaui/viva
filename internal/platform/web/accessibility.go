@@ -3,13 +3,13 @@ package web
 import (
 	"strconv"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 const accessibilityIDPrefix = "viva-canvas-hit-"
 
 type accessibilityDescription struct {
-	ID        ui.ID
+	ID        gfx.ID
 	DOMID     string
 	Element   string
 	Role      string
@@ -33,23 +33,23 @@ type accessibilityDescription struct {
 	Level             uint8
 	PosInSet, SetSize int32
 	Live              string
-	Range             ui.ValueRange
+	Range             gfx.ValueRange
 }
 
-func describeAccessibility(destination []accessibilityDescription, hits []ui.Hit, activeScope ui.ID) []accessibilityDescription {
+func describeAccessibility(destination []accessibilityDescription, hits []gfx.Hit, activeScope gfx.ID) []accessibilityDescription {
 	destination = destination[:0]
 	// A label is not a node of its own: its words name the control with its
 	// identity, as <label for> names an input. Collect them first so the control
 	// is described once, with that name, instead of being replaced by a label
 	// node and then by itself on every frame.
-	var names map[ui.ID]string
+	var names map[gfx.ID]string
 	for index := range hits {
 		label := &hits[index]
 		if !label.IsLabel || label.ID.IsZero() {
 			continue
 		}
 		if names == nil {
-			names = make(map[ui.ID]string, 4)
+			names = make(map[gfx.ID]string, 4)
 		}
 		if _, exists := names[label.ID]; !exists {
 			names[label.ID] = label.Label
@@ -105,33 +105,33 @@ func accessibilityDescribedBy(hint, description string) string {
 	return hint + ". " + description
 }
 
-func accessibilityLive(live ui.LiveRegion) string {
+func accessibilityLive(live gfx.LiveRegion) string {
 	switch live {
-	case ui.LivePolite:
+	case gfx.LivePolite:
 		return "polite"
-	case ui.LiveAssertive:
+	case gfx.LiveAssertive:
 		return "assertive"
 	}
 	return ""
 }
 
-func accessibilityElement(role ui.Role, multiline, hasRange bool) string {
-	if role == ui.RoleCombobox {
+func accessibilityElement(role gfx.Role, multiline, hasRange bool) string {
+	if role == gfx.RoleCombobox {
 		return "input"
 	}
 	// A slider with a declared range is published as a real range input so a
 	// screen reader can change its value through the control it already knows
 	// how to operate; the canvas still paints the slider.
-	if role == ui.RoleSlider && hasRange {
+	if role == gfx.RoleSlider && hasRange {
 		return "input"
 	}
 	// A terminal is a text service surface too: hidden, but able to receive
 	// input-method composition and committed text. Its own cells are painted
 	// by the canvas.
-	if role == ui.RoleTerminal {
+	if role == gfx.RoleTerminal {
 		return "textarea"
 	}
-	if role == ui.RoleTextField {
+	if role == gfx.RoleTextField {
 		if multiline {
 			return "textarea"
 		}
@@ -140,57 +140,57 @@ func accessibilityElement(role ui.Role, multiline, hasRange bool) string {
 	return "div"
 }
 
-func accessibilityDOMID(id ui.ID) string {
+func accessibilityDOMID(id gfx.ID) string {
 	bits := id.Bits()
 	return accessibilityIDPrefix + strconv.FormatUint(bits>>32, 10) + "-" + strconv.FormatUint(bits&0xffffffff, 10)
 }
 
-func accessibilityRole(role ui.Role) string {
+func accessibilityRole(role gfx.Role) string {
 	switch role {
-	case ui.RoleLink:
+	case gfx.RoleLink:
 		return "link"
-	case ui.RoleCheckbox:
+	case gfx.RoleCheckbox:
 		return "checkbox"
-	case ui.RoleRadio:
+	case gfx.RoleRadio:
 		return "radio"
-	case ui.RoleTab:
+	case gfx.RoleTab:
 		return "tab"
-	case ui.RoleMenuItem:
+	case gfx.RoleMenuItem:
 		return "menuitem"
-	case ui.RoleCombobox:
+	case gfx.RoleCombobox:
 		return "combobox"
-	case ui.RoleSwitch:
+	case gfx.RoleSwitch:
 		return "switch"
-	case ui.RoleTextField, ui.RoleTerminal:
+	case gfx.RoleTextField, gfx.RoleTerminal:
 		return "textbox"
-	case ui.RoleSlider:
+	case gfx.RoleSlider:
 		return "slider"
-	case ui.RoleGroup:
+	case gfx.RoleGroup:
 		return "group"
-	case ui.RoleMenu:
+	case gfx.RoleMenu:
 		return "menu"
-	case ui.RoleMenubar:
+	case gfx.RoleMenubar:
 		return "menubar"
-	case ui.RoleListBox:
+	case gfx.RoleListBox:
 		return "listbox"
-	case ui.RoleOption:
+	case gfx.RoleOption:
 		return "option"
-	case ui.RoleGrid:
+	case gfx.RoleGrid:
 		return "grid"
-	case ui.RoleGridCell:
+	case gfx.RoleGridCell:
 		return "gridcell"
-	case ui.RoleHeading:
+	case gfx.RoleHeading:
 		return "heading"
-	case ui.RoleStatus:
+	case gfx.RoleStatus:
 		return "status"
-	case ui.RoleSeparator:
+	case gfx.RoleSeparator:
 		return "separator"
 	default:
 		return "button"
 	}
 }
 
-func accessibilityActiveDescendant(descriptions []accessibilityDescription, focused ui.ID) string {
+func accessibilityActiveDescendant(descriptions []accessibilityDescription, focused gfx.ID) string {
 	if focused.IsZero() {
 		return ""
 	}
@@ -202,7 +202,7 @@ func accessibilityActiveDescendant(descriptions []accessibilityDescription, focu
 	return ""
 }
 
-func sameAccessibilityOrder(order []ui.ID, descriptions []accessibilityDescription) bool {
+func sameAccessibilityOrder(order []gfx.ID, descriptions []accessibilityDescription) bool {
 	if len(order) != len(descriptions) {
 		return false
 	}

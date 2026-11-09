@@ -1,14 +1,14 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // Tree paints a compact vertical hierarchy. Applications own the hierarchy,
 // expansion, selection, and scrolling; the component owns indentation,
 // disclosure geometry, focus/hover feedback, and typed hit semantics.
 type Tree struct {
-	canvas    *ui.Canvas
-	theme     ui.Theme
-	bounds    ui.Rect
+	canvas    *gfx.Canvas
+	theme     gfx.Theme
+	bounds    gfx.Rect
 	cursorY   float32
 	rowHeight float32
 	indent    float32
@@ -18,8 +18,8 @@ type Tree struct {
 // distinct DisclosureID so expanding a branch never also activates its row.
 // Depth is clamped to 31 to keep malformed input from pushing content away.
 type TreeItem struct {
-	ID           ui.ID
-	DisclosureID ui.ID
+	ID           gfx.ID
+	DisclosureID gfx.ID
 	Label        string
 	Depth        uint8
 	Branch       bool
@@ -30,9 +30,9 @@ type TreeItem struct {
 
 // TreeRow is the geometry reserved for caller-owned row content.
 type TreeRow struct {
-	Bounds     ui.Rect
-	Content    ui.Rect
-	Disclosure ui.Rect
+	Bounds     gfx.Rect
+	Content    gfx.Rect
+	Disclosure gfx.Rect
 }
 
 // BeginTree starts a tree declaration. Keep item IDs and flattened order stable
@@ -41,7 +41,7 @@ type TreeRow struct {
 // shadcn has no tree; the reference is the file tree of AI Elements, whose rows are
 // small ghost buttons (one control tall) and whose children are indented 16px
 // (ml-4). RowHeight and Indent override both.
-func BeginTree(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) Tree {
+func BeginTree(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect) Tree {
 	return Tree{
 		canvas: canvas, theme: theme, bounds: bounds, cursorY: bounds.Y,
 		rowHeight: theme.Metrics.ControlHeight,
@@ -72,7 +72,7 @@ func (tree *Tree) Item(item TreeItem) TreeRow {
 		return TreeRow{}
 	}
 	depth := min(int(item.Depth), 31)
-	row := ui.Rect{X: tree.bounds.X, Y: tree.cursorY, Width: tree.bounds.Width, Height: tree.rowHeight}
+	row := gfx.Rect{X: tree.bounds.X, Y: tree.cursorY, Width: tree.bounds.Width, Height: tree.rowHeight}
 	tree.cursorY += tree.rowHeight
 
 	enabled := !item.Disabled && !item.ID.IsZero()
@@ -93,7 +93,7 @@ func (tree *Tree) Item(item TreeItem) TreeRow {
 	}
 
 	leading := row.X + float32(depth)*tree.indent
-	disclosure := ui.Rect{X: leading, Y: row.Y + (row.Height-20)/2, Width: 20, Height: 20}
+	disclosure := gfx.Rect{X: leading, Y: row.Y + (row.Height-20)/2, Width: 20, Height: 20}
 	contentX := leading
 	if item.Branch {
 		contentX += 24
@@ -103,26 +103,26 @@ func (tree *Tree) Item(item TreeItem) TreeRow {
 		}
 		paintTreeChevron(tree.canvas, disclosure, item.Expanded, color)
 		if !item.DisclosureID.IsZero() {
-			tree.canvas.HitWithOptions(item.DisclosureID, disclosure, item.Label, ui.HitOptions{
-				Role: ui.RoleButton, Disabled: item.Disabled, Expanded: item.Expanded, Expandable: true,
+			tree.canvas.HitWithOptions(item.DisclosureID, disclosure, item.Label, gfx.HitOptions{
+				Role: gfx.RoleButton, Disabled: item.Disabled, Expanded: item.Expanded, Expandable: true,
 			})
 		}
 	}
-	content := ui.Rect{X: contentX, Y: row.Y, Width: max(row.X+row.Width-contentX, float32(0)), Height: row.Height}
+	content := gfx.Rect{X: contentX, Y: row.Y, Width: max(row.X+row.Width-contentX, float32(0)), Height: row.Height}
 	if !item.ID.IsZero() {
 		hit := row
 		if item.Branch && !item.DisclosureID.IsZero() {
 			hit.X = disclosure.X + disclosure.Width
 			hit.Width = max(row.X+row.Width-hit.X, float32(0))
 		}
-		tree.canvas.HitWithOptions(item.ID, hit, item.Label, ui.HitOptions{
-			Role: ui.RoleButton, Disabled: item.Disabled, Selected: item.Selected,
+		tree.canvas.HitWithOptions(item.ID, hit, item.Label, gfx.HitOptions{
+			Role: gfx.RoleButton, Disabled: item.Disabled, Selected: item.Selected,
 		})
 	}
 	return TreeRow{Bounds: row, Content: content, Disclosure: disclosure}
 }
 
-func paintTreeChevron(canvas *ui.Canvas, bounds ui.Rect, expanded bool, color ui.Color) {
+func paintTreeChevron(canvas *gfx.Canvas, bounds gfx.Rect, expanded bool, color gfx.Color) {
 	icon := &chevronRightIcon
 	if expanded {
 		icon = &chevronDownIcon
@@ -130,21 +130,21 @@ func paintTreeChevron(canvas *ui.Canvas, bounds ui.Rect, expanded bool, color ui
 	paintChevron(canvas, icon, bounds, color)
 }
 
-func treeExpand(bounds ui.Rect, amount float32) ui.Rect {
-	return ui.Rect{X: bounds.X - amount, Y: bounds.Y - amount, Width: bounds.Width + amount*2, Height: bounds.Height + amount*2}
+func treeExpand(bounds gfx.Rect, amount float32) gfx.Rect {
+	return gfx.Rect{X: bounds.X - amount, Y: bounds.Y - amount, Width: bounds.Width + amount*2, Height: bounds.Height + amount*2}
 }
 
 // The disclosure arrows of the tree and the accordion: Lucide's chevrons, drawn
 // as stroked paths like every other icon, so they match the icons beside them
 // at any size and scale.
 var (
-	chevronDownIcon  = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{ui.MoveTo(6, 9), ui.LineTo(12, 15), ui.LineTo(18, 9)}}
-	chevronRightIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{ui.MoveTo(9, 18), ui.LineTo(15, 12), ui.LineTo(9, 6)}}
-	chevronUpIcon    = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{ui.MoveTo(18, 15), ui.LineTo(12, 9), ui.LineTo(6, 15)}}
+	chevronDownIcon  = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{gfx.MoveTo(6, 9), gfx.LineTo(12, 15), gfx.LineTo(18, 9)}}
+	chevronRightIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{gfx.MoveTo(9, 18), gfx.LineTo(15, 12), gfx.LineTo(9, 6)}}
+	chevronUpIcon    = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{gfx.MoveTo(18, 15), gfx.LineTo(12, 9), gfx.LineTo(6, 15)}}
 )
 
 // paintChevron draws a 16 point chevron centered in bounds.
-func paintChevron(canvas *ui.Canvas, icon *ui.Icon, bounds ui.Rect, color ui.Color) {
+func paintChevron(canvas *gfx.Canvas, icon *gfx.Icon, bounds gfx.Rect, color gfx.Color) {
 	paintChevronSized(canvas, icon, bounds, 16, color)
 }
 
@@ -152,6 +152,6 @@ func paintChevron(canvas *ui.Canvas, icon *ui.Icon, bounds ui.Rect, color ui.Col
 // what the dropdown arrows of selects, comboboxes and menus use: a text glyph for
 // the arrow sits low in its line box, so centering the line is not centering the
 // arrow, while the icon's own geometry is centered exactly.
-func paintChevronSized(canvas *ui.Canvas, icon *ui.Icon, bounds ui.Rect, size float32, color ui.Color) {
-	canvas.DrawIcon(*icon, ui.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, color)
+func paintChevronSized(canvas *gfx.Canvas, icon *gfx.Icon, bounds gfx.Rect, size float32, color gfx.Color) {
+	canvas.DrawIcon(*icon, gfx.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, color)
 }

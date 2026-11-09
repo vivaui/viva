@@ -7,7 +7,7 @@ group: guides
 
 ## Themes are values
 
-A `ui.Theme` is a struct of semantic color tokens and size metrics. There is no stylesheet and nothing is parsed at run time. Every component takes the theme you give it as an argument, so changing the appearance means painting with a different value:
+A `gfx.Theme` is a struct of semantic color tokens and size metrics. There is no stylesheet and nothing is parsed at run time. Every component takes the theme you give it as an argument, so changing the appearance means painting with a different value:
 
 <!-- example: theming/main.go -->
 ```go
@@ -17,14 +17,14 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Identities are names in a tree, not numbers: the application declares the
 // tree once and every control it paints is a name inside a feature of it.
 var (
-	tree = ui.Tree{}
+	tree = gfx.Tree{}
 	page = tree.Feature("theming")
 
 	toggle = tree.ID(page, "toggle")
@@ -32,31 +32,31 @@ var (
 
 type model struct {
 	dark bool
-	view flex.View
+	view ui.View
 }
 
 // theme is the active theme: a value, so changing appearance is changing which
 // value Paint reads.
-func (m *model) theme() ui.Theme {
-	theme := ui.LightTheme()
+func (m *model) theme() gfx.Theme {
+	theme := gfx.LightTheme()
 	if m.dark {
-		theme = ui.DarkTheme()
+		theme = gfx.DarkTheme()
 	}
 	// Tokens are plain fields. Override one to brand the application.
-	theme.Primary = ui.Color{Red: 0.9, Green: 0.45, Blue: 0.1, Alpha: 1}
-	theme.PrimaryForeground = ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	theme.Primary = gfx.Color{Red: 0.9, Green: 0.45, Blue: 0.1, Alpha: 1}
+	theme.PrimaryForeground = gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 	return theme
 }
 
 func newConfig(m *model) app.Config {
 	config := app.Config{Tree: &tree, Title: "Theme", Width: 480, Height: 240}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 		theme := m.theme()
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
+		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
 		canvas.Fill(bounds, theme.Background)
 
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.Column().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
+		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
+			f.Column().Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
 				if f.Button(toggle, "Toggle theme").Clicked() {
 					m.dark = !m.dark
 				}
@@ -68,14 +68,14 @@ func newConfig(m *model) app.Config {
 }
 
 func main() {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	if err := app.RunCanvas(newConfig(&model{}), &canvas); err != nil {
 		log.Fatal(err)
 	}
 }
 ```
 
-`ui.LightTheme()` and `ui.DarkTheme()` return complete themes. The tokens are plain fields: `Background` and `Foreground` for the page, `Card` and `CardForeground` for surfaces, `Popover` for menus and dialogs, `Primary`, `Secondary`, `Accent` and `Muted` with matching foregrounds, `Selection` and `SelectionForeground` for text selection, `Border`, `Input`, `Ring` for focus rings, `Success` and `Danger`, and five `Chart` colors. Override a field to brand the application, as the example does with `Primary`.
+`gfx.LightTheme()` and `gfx.DarkTheme()` return complete themes. The tokens are plain fields: `Background` and `Foreground` for the page, `Card` and `CardForeground` for surfaces, `Popover` for menus and dialogs, `Primary`, `Secondary`, `Accent` and `Muted` with matching foregrounds, `Selection` and `SelectionForeground` for text selection, `Border`, `Input`, `Ring` for focus rings, `Success` and `Danger`, and five `Chart` colors. Override a field to brand the application, as the example does with `Primary`.
 
 Keep one function that returns the active theme, like the `theme` method above, and read it at the top of `Paint`. Nothing else needs to know which theme is active.
 
@@ -85,11 +85,11 @@ Viva does not currently expose the operating system's light or dark setting, and
 
 ## Density
 
-`Theme.Metrics` carries the size tokens components consume: control height, corner radii, font sizes and padding. `Metrics.WithDensity(ui.DensityCompact)` (or `DensityLarge`) derives a set at another density without touching the colors:
+`Theme.Metrics` carries the size tokens components consume: control height, corner radii, font sizes and padding. `Metrics.WithDensity(gfx.DensityCompact)` (or `DensityLarge`) derives a set at another density without touching the colors:
 
 ```go
-theme := ui.DarkTheme()
-theme.Metrics = theme.Metrics.WithDensity(ui.DensityCompact)
+theme := gfx.DarkTheme()
+theme.Metrics = theme.Metrics.WithDensity(gfx.DensityCompact)
 ```
 
 Components read geometry from the metrics rather than hardcoding it, so every control in the window follows.
@@ -100,15 +100,15 @@ Density changes every control in the window. To change one control, give that co
 
 ```go
 // A pill-shaped search field with larger text; the fields around it are untouched.
-components.PaintInput(canvas, theme.WithRadius(ui.RadiusFull).WithFontSize(16), bounds, snapshot)
+components.PaintInput(canvas, theme.WithRadius(gfx.RadiusFull).WithFontSize(16), bounds, snapshot)
 ```
 
-`WithRadius` sets the corner radius of controls (`Metrics.RadiusControl`; what is derived from it, such as the rows of a menu, follows, while cards and dialogs keep `RadiusSurface`). `WithFontSize` sets the body size and keeps the small and large steps in proportion. `WithControlHeight` sets `Metrics.ControlHeight`, which the height of a button and the geometry scaled with it follow. `ui.RadiusFull` is a radius larger than any control, which rounds to a pill. The caret, selection and composition underline of a text field follow its font size, and the text starts where the density's padding puts it (`Metrics.TextInsetX`).
+`WithRadius` sets the corner radius of controls (`Metrics.RadiusControl`; what is derived from it, such as the rows of a menu, follows, while cards and dialogs keep `RadiusSurface`). `WithFontSize` sets the body size and keeps the small and large steps in proportion. `WithControlHeight` sets `Metrics.ControlHeight`, which the height of a button and the geometry scaled with it follow. `gfx.RadiusFull` is a radius larger than any control, which rounds to a pill. The caret, selection and composition underline of a text field follow its font size, and the text starts where the density's padding puts it (`Metrics.TextInsetX`).
 
-In a flex page the same two overrides are `Radius` and `FontSize` on the control's element. The control is measured and painted with them and its neighbours are not affected:
+In a page the same two overrides are `Radius` and `FontSize` on the control's element. The control is measured and painted with them and its neighbours are not affected:
 
 ```go
-f.Input(snapshot).Radius(ui.RadiusFull).FontSize(16).Height(40)
+f.Input(snapshot).Radius(gfx.RadiusFull).FontSize(16).Height(40)
 f.Select(scope, &state, labels, selected).FontSize(15)
 ```
 
@@ -120,8 +120,8 @@ f.Select(scope, &state, labels, selected).FontSize(15)
 
 ## Text
 
-`ui.TextStyle` takes a `Size`, a `Weight` and a `Color`. Text is drawn in the system font, so each platform shows its own face and CJK text falls back to the system's CJK font without any setup. Viva does not bundle fonts.
+`gfx.TextStyle` takes a `Size`, a `Weight` and a `Color`. Text is drawn in the system font, so each platform shows its own face and CJK text falls back to the system's CJK font without any setup. Viva does not bundle fonts.
 
-For code and terminals, set `Mono: true`. By default that is the system's fixed-pitch font. `MonoFace` selects another: `ui.MonoClassic` asks for a traditional terminal face, and `ui.MonoFamily(name)` selects any installed family. `app.MonospaceFamilies()` lists them for a settings page; it reads the system each time and can take tens of milliseconds, so call it when the page opens, not while painting. A fixed-pitch `Label` is set on a character grid: every character stands on a cell `Canvas.MonoCellSize(size, face)` wide, a wide character, such as a CJK ideograph, on two, and a combining mark on the cell of the character it follows. `Canvas.TextWidthStyle` counts the same cells, so the line ends where it was measured to end and its columns line up with a terminal row drawn with `LabelRuns` in the same face. In an installed family (`ui.MonoFamily`) each stretch of ASCII is shaped as one line and fitted to its cells, so the family's programming ligatures still appear; the built-in faces have none and draw one glyph on each cell.
+For code and terminals, set `Mono: true`. By default that is the system's fixed-pitch font. `MonoFace` selects another: `gfx.MonoClassic` asks for a traditional terminal face, and `gfx.MonoFamily(name)` selects any installed family. `app.MonospaceFamilies()` lists them for a settings page; it reads the system each time and can take tens of milliseconds, so call it when the page opens, not while painting. A fixed-pitch `Label` is set on a character grid: every character stands on a cell `Canvas.MonoCellSize(size, face)` wide, a wide character, such as a CJK ideograph, on two, and a combining mark on the cell of the character it follows. `Canvas.TextWidthStyle` counts the same cells, so the line ends where it was measured to end and its columns line up with a terminal row drawn with `LabelRuns` in the same face. In an installed family (`gfx.MonoFamily`) each stretch of ASCII is shaped as one line and fitted to its cells, so the family's programming ligatures still appear; the built-in faces have none and draw one glyph on each cell.
 
-An application can carry its own fonts. `app.RegisterFont(data)` takes the bytes of a `.ttf`, `.otf` or `.ttc` (embed them with `//go:embed`), makes the font available to this process without installing it, and returns the family it names, which goes straight to `ui.MonoFamily` or `app.SetInterfaceFontFamily`. Each weight or style of a family is its own file and its own call. Register before the first paint that uses the family; the function it returns takes the font away again. It works on macOS, Windows (10 version 1607 or later) and Linux, and returns `app.ErrUnsupported` elsewhere.
+An application can carry its own fonts. `app.RegisterFont(data)` takes the bytes of a `.ttf`, `.otf` or `.ttc` (embed them with `//go:embed`), makes the font available to this process without installing it, and returns the family it names, which goes straight to `gfx.MonoFamily` or `app.SetInterfaceFontFamily`. Each weight or style of a family is its own file and its own call. Register before the first paint that uses the family; the function it returns takes the font away again. It works on macOS, Windows (10 version 1607 or later) and Linux, and returns `app.ErrUnsupported` elsewhere.

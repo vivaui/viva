@@ -1,14 +1,14 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // SonnerToast is one caller-owned toast snapshot plus stable interaction IDs.
 // The caller owns insertion, expiry, swipe state, and removal.
 type SonnerToast struct {
 	Snapshot    ToastSnapshot
-	Scope       ui.ID
-	DismissID   ui.ID
-	ActionID    ui.ID
+	Scope       gfx.ID
+	DismissID   gfx.ID
+	ActionID    gfx.ID
 	ActionLabel string
 	Disabled    bool
 }
@@ -29,14 +29,14 @@ type SonnerOptions struct {
 // SonnerLayout summarizes the painted stack without allocating per-toast
 // layout storage.
 type SonnerLayout struct {
-	Bounds  ui.Rect
+	Bounds  gfx.Rect
 	Painted int
 }
 
 // PaintSonner paints a complete caller-owned stack using the official themed
 // Toast recipe. It does not retain entries, run timers, schedule frames, or
 // interpret swipe gestures.
-func PaintSonner(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, toasts []SonnerToast, options SonnerOptions) SonnerLayout {
+func PaintSonner(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, toasts []SonnerToast, options SonnerOptions) SonnerLayout {
 	if canvas == nil || viewport.Width <= 0 || viewport.Height <= 0 || len(toasts) == 0 {
 		return SonnerLayout{}
 	}
@@ -101,10 +101,10 @@ func sonnerLayer(base uint16, offset int) uint16 {
 	return base + uint16(offset)
 }
 
-func sonnerUnion(a, b ui.Rect) ui.Rect {
+func sonnerUnion(a, b gfx.Rect) gfx.Rect {
 	left := min(a.X, b.X)
 	top := min(a.Y, b.Y)
 	right := max(a.X+a.Width, b.X+b.Width)
 	bottom := max(a.Y+a.Height, b.Y+b.Height)
-	return ui.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+	return gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
 }

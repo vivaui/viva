@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -47,11 +47,11 @@ var (
 
 func (state *State) initializeDrawer() { state.flags |= 1 }
 
-func (state *State) paintDrawer(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintDrawer(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	open := state.flags&1 != 0
-	state.page(canvas, theme, size, 480, state.Text("Drawer · 边缘模态", "Drawer · Edge modal"), func(f *flex.Frame) {
+	state.page(canvas, theme, size, 480, state.Text("Drawer · 边缘模态", "Drawer · Edge modal"), func(f *ui.Frame) {
 		// The page behind an open drawer is just its title.
-		if !open && f.Button(drawerOpen, "Open drawer").Self(flex.Start).Clicked() {
+		if !open && f.Button(drawerOpen, "Open drawer").Self(ui.Start).Clicked() {
 			state.flags |= 1
 		}
 	})
@@ -64,13 +64,13 @@ func (state *State) paintDrawer(canvas *ui.Canvas, theme ui.Theme, size ui.Size)
 		side = components.DrawerRight
 		extent = min(float32(300), size.Width*0.78)
 	}
-	viewport := ui.Rect{Width: size.Width, Height: size.Height}
+	viewport := gfx.Rect{Width: size.Width, Height: size.Height}
 	drawer := components.BeginDrawer(canvas, theme, viewport, components.DrawerOptions{Layer: 2, Scope: drawerFocus, CloseID: drawerClose, Side: side, ContentExtent: extent}).WithHandle()
 	if state.exampleID == "disabled" {
 		drawer = drawer.Disabled()
 	}
 	layout := drawer.Begin("Workspace settings", "Applies immediately.")
-	canvas.Label("Native settings.", layout.Body, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+	canvas.Label("Native settings.", layout.Body, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
 	drawer.Actions(layout, components.ButtonAction{ID: drawerSave, Label: "Save changes"})
 	drawer.End()
 	if canvas.Clicked(drawerSave) || canvas.Clicked(drawerClose) {

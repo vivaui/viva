@@ -4,8 +4,8 @@ import (
 	"cmp"
 	"slices"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 // Focus owns the hit-region topology and the keyboard state that follows from
@@ -14,18 +14,18 @@ import (
 type Focus struct {
 	router         input.Router
 	regions        []input.Region
-	focused        ui.ID
+	focused        gfx.ID
 	keyboardFocus  bool
-	pendingFocus   ui.ID
+	pendingFocus   gfx.ID
 	pendingVisible bool
 	// focusClaim is the non-modal focus request already honored, so a popover
 	// painted every frame does not pull focus back after the user leaves it.
-	focusClaim ui.ID
-	escape     ui.ID
+	focusClaim gfx.ID
+	escape     gfx.ID
 	// painted is the hit list of the previous paint, so a newly appearing
 	// Autofocus hit takes the keyboard once. scratch is the next list.
-	painted []ui.ID
-	scratch []ui.ID
+	painted []gfx.ID
+	scratch []gfx.ID
 	// returns are the non-modal scopes that give the focus back as they close
 	// (Canvas.ReturnFocus), as of the last Sync.
 	returns []focusReturn
@@ -34,7 +34,7 @@ type Focus struct {
 // focusReturn is one open non-modal scope: where the focus goes back to when it
 // closes, and whether the focus was inside it at the last Sync.
 type focusReturn struct {
-	scope, to ui.ID
+	scope, to gfx.ID
 	inside    bool
 }
 
@@ -43,7 +43,7 @@ type focusReturn struct {
 func (f *Focus) Router() *input.Router { return &f.router }
 
 // Focused returns the target that owns the keyboard, or zero.
-func (f *Focus) Focused() ui.ID { return f.focused }
+func (f *Focus) Focused() gfx.ID { return f.focused }
 
 // KeyboardFocus reports whether the focus ring is visible because the keyboard
 // moved focus, as opposed to a pointer click.
@@ -53,11 +53,11 @@ func (f *Focus) KeyboardFocus() bool { return f.keyboardFocus }
 func (f *Focus) SetKeyboardFocus(visible bool) { f.keyboardFocus = visible }
 
 // PendingFocus returns a target whose paint-time reveal is not resolved yet.
-func (f *Focus) PendingFocus() ui.ID { return f.pendingFocus }
+func (f *Focus) PendingFocus() gfx.ID { return f.pendingFocus }
 
 // PaintTarget is the focus a paint should announce: a pending target wins,
 // because a virtualized list has to lay out around it before the hit exists.
-func (f *Focus) PaintTarget() (ui.ID, bool) {
+func (f *Focus) PaintTarget() (gfx.ID, bool) {
 	if !f.pendingFocus.IsZero() {
 		return f.pendingFocus, f.pendingVisible
 	}
@@ -65,10 +65,10 @@ func (f *Focus) PaintTarget() (ui.ID, bool) {
 }
 
 // EscapeTarget returns the control Escape dismisses, or zero.
-func (f *Focus) EscapeTarget() ui.ID { return f.escape }
+func (f *Focus) EscapeTarget() gfx.ID { return f.escape }
 
 // WasPainted reports whether the previous paint declared a hit with this ID.
-func (f *Focus) WasPainted(id ui.ID) bool {
+func (f *Focus) WasPainted(id gfx.ID) bool {
 	for _, previous := range f.painted {
 		if previous == id {
 			return true
@@ -80,7 +80,7 @@ func (f *Focus) WasPainted(id ui.ID) bool {
 // Sync rebuilds the routing regions from canvas, moves focus for a newly
 // appeared Autofocus hit, honors a canvas focus request, and resolves a pending
 // target. Callers paint again when the focused target changed.
-func (f *Focus) Sync(canvas *ui.Canvas) {
+func (f *Focus) Sync(canvas *gfx.Canvas) {
 	before := f.focused
 	f.regions = f.regions[:0]
 	hits := canvas.Hits()
@@ -126,7 +126,7 @@ func (f *Focus) Sync(canvas *ui.Canvas) {
 			}
 		}
 	} else {
-		f.focusClaim = ui.ID{}
+		f.focusClaim = gfx.ID{}
 	}
 	if !f.pendingFocus.IsZero() {
 		target := input.Target(f.pendingFocus)
@@ -134,7 +134,7 @@ func (f *Focus) Sync(canvas *ui.Canvas) {
 		if focused, ok := f.router.Focused(); ok && focused == target {
 			f.keyboardFocus = f.pendingVisible
 		}
-		f.pendingFocus = ui.ID{}
+		f.pendingFocus = gfx.ID{}
 		f.pendingVisible = false
 	}
 	if release := canvas.FocusRelease(); !release.IsZero() {
@@ -149,7 +149,7 @@ func (f *Focus) Sync(canvas *ui.Canvas) {
 
 // syncReturns gives the focus back for the non-modal scopes that closed since the
 // last Sync, and notes the ones that opened, with the focus they found (before).
-func (f *Focus) syncReturns(declared []ui.ID, before ui.ID) {
+func (f *Focus) syncReturns(declared []gfx.ID, before gfx.ID) {
 	kept := f.returns[:0]
 	for _, open := range f.returns {
 		if slices.Contains(declared, open.scope) {
@@ -175,7 +175,7 @@ func (f *Focus) noteInside() {
 	if len(f.returns) == 0 {
 		return
 	}
-	var scope ui.ID
+	var scope gfx.ID
 	if !f.focused.IsZero() {
 		for _, region := range f.regions {
 			if region.Target == input.Target(f.focused) {
@@ -191,15 +191,15 @@ func (f *Focus) noteInside() {
 
 // Apply carries out the focus part of an event result. It reports whether the
 // focused target or the presentation of focus changed.
-func (f *Focus) Apply(result ui.EventResult) bool {
+func (f *Focus) Apply(result gfx.EventResult) bool {
 	before, beforeVisible := f.focused, f.keyboardFocus
 	if result.Blur {
-		f.pendingFocus = ui.ID{}
+		f.pendingFocus = gfx.ID{}
 		f.pendingVisible = false
 		f.router.Blur()
 	} else if !result.Focus.IsZero() {
 		if f.router.Focus(input.Target(result.Focus)) {
-			f.pendingFocus = ui.ID{}
+			f.pendingFocus = gfx.ID{}
 			f.pendingVisible = false
 		} else if focused, ok := f.router.Focused(); !ok || focused != result.Focus {
 			// The event may have revealed this hit. Resolve it against the hit
@@ -221,7 +221,7 @@ func (f *Focus) Apply(result ui.EventResult) bool {
 // PointerDown applies the focus rule of a press: the hit under the pointer takes
 // focus, a press on empty space clears it unless a focus scope is active, and a
 // pointer never shows the keyboard ring.
-func (f *Focus) PointerDown(x, y float32, target ui.ID) {
+func (f *Focus) PointerDown(x, y float32, target gfx.ID) {
 	f.router.PointerDown(x, y)
 	if target.IsZero() && f.router.ActiveScope().IsZero() {
 		f.router.Blur()
@@ -245,13 +245,13 @@ func (f *Focus) refresh() {
 	if focused, ok := f.router.Focused(); ok {
 		f.focused = focused
 	} else {
-		f.focused = ui.ID{}
+		f.focused = gfx.ID{}
 	}
 }
 
 // applyAutofocus moves the keyboard to the first hit that asks for it and was
 // not painted last time. A trapped focus scope keeps its own say.
-func (f *Focus) applyAutofocus(hits []ui.Hit) {
+func (f *Focus) applyAutofocus(hits []gfx.Hit) {
 	next := f.scratch[:0]
 	focused := false
 	for index := range hits {

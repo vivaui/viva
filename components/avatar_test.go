@@ -4,13 +4,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestAvatarPaintsOfficialSizesFallbackBorderAndBadge(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	Avatar(&canvas, theme, ui.Rect{}, AvatarData{Name: "Ada Lovelace", Initials: "AL", Status: AvatarStatusOnline, Size: AvatarSizeSmall})
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	Avatar(&canvas, theme, gfx.Rect{}, AvatarData{Name: "Ada Lovelace", Initials: "AL", Status: AvatarStatusOnline, Size: AvatarSizeSmall})
 	if canvas.Rectangles()[0].Bounds.Width != 24 || canvas.Rectangles()[0].Color != theme.Border {
 		t.Fatalf("small avatar border = %+v", canvas.Rectangles()[0])
 	}
@@ -23,10 +23,10 @@ func TestAvatarPaintsOfficialSizesFallbackBorderAndBadge(t *testing.T) {
 }
 
 func TestAvatarGroupAndImagePlaceholderAreStable(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		group := BeginAvatarGroup(&canvas, ui.DarkTheme(), ui.Rect{X: 4, Y: 4}, AvatarSizeDefault)
+		group := BeginAvatarGroup(&canvas, gfx.DarkTheme(), gfx.Rect{X: 4, Y: 4}, AvatarSizeDefault)
 		group.Add(AvatarData{Name: "No Image", Initials: "N"})
 		group.Add(AvatarData{Name: "Bea", Initials: "B"})
 		group.AddCount("+3")
@@ -44,10 +44,10 @@ func TestAvatarGroupAndImagePlaceholderAreStable(t *testing.T) {
 }
 
 func TestAvatarImageStaysInsideCircleAndFallsBackWhenInvalid(t *testing.T) {
-	theme := ui.LightTheme()
-	bitmap := ui.Bitmap{Pix: make([]byte, 16*8*4), Width: 16, Height: 8, Stride: 16 * 4, ID: 7}
-	var canvas ui.Canvas
-	bounds := ui.Rect{X: 10, Y: 20, Width: 32, Height: 32}
+	theme := gfx.LightTheme()
+	bitmap := gfx.Bitmap{Pix: make([]byte, 16*8*4), Width: 16, Height: 8, Stride: 16 * 4, ID: 7}
+	var canvas gfx.Canvas
+	bounds := gfx.Rect{X: 10, Y: 20, Width: 32, Height: 32}
 	Avatar(&canvas, theme, bounds, AvatarData{Initials: "AL", Image: bitmap})
 	if len(canvas.Images()) == 0 || len(canvas.Texts()) != 0 {
 		t.Fatalf("image avatar: %d images, %d texts", len(canvas.Images()), len(canvas.Texts()))

@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -29,23 +29,23 @@ func (state *reorderDemoState) move(move components.ReorderMove) {
 var reorderListComponent = Component{
 	ID: "reorder-list", Title: "Reorder List", Category: "Layout", Summary: "拖动手柄或键盘排序，列表数据由调用方持有。",
 	initialize: func(state *State) { state.reorder = &reorderDemoState{order: [4]int{0, 1, 2, 3}} },
-	paint: func(state *State, canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-		var slot flex.Box
-		state.page(canvas, theme, size, 440, state.Text("Reorder List · 入口顺序", "Reorder List · Shortcut order"), func(f *flex.Frame) { slot = f.Slot().FillWidth().Height(188) })
+	paint: func(state *State, canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+		var slot ui.Box
+		state.page(canvas, theme, size, 440, state.Text("Reorder List · 入口顺序", "Reorder List · Shortcut order"), func(f *ui.Frame) { slot = f.Slot().FillWidth().Height(188) })
 		list := components.BeginReorderList(canvas, theme, slot.Rect(), &state.reorder.list)
 		labels := [4]string{state.Text("主机", "Hosts"), state.Text("文件传输", "File transfer"), state.Text("AI 助手", "AI assistant"), state.Text("设置", "Settings")}
 		for _, index := range state.reorder.order {
 			row := list.Row(reorderDemoHandles.At(index), labels[index], false)
-			canvas.Label(labels[index], row.Content, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+			canvas.Label(labels[index], row.Content, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
 		}
 		list.End()
 	},
-	pointer: func(state *State, event ui.PointerEvent) ui.EventResult {
+	pointer: func(state *State, event gfx.PointerEvent) gfx.EventResult {
 		move, result := state.reorder.list.Pointer(event)
 		state.reorder.move(move)
 		return result
 	},
-	key: func(state *State, event ui.KeyEvent) ui.EventResult {
+	key: func(state *State, event gfx.KeyEvent) gfx.EventResult {
 		move, result := state.reorder.list.Key(event)
 		state.reorder.move(move)
 		return result

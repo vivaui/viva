@@ -5,19 +5,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // GlobalShortcut is an optional system-wide key binding. It is independent of
 // Config.OnShortcut, which handles keys delivered to a focused window.
 type GlobalShortcut struct {
-	Modifiers ui.Modifiers
+	Modifiers gfx.Modifiers
 	Key       string
 }
 
 func normalizeGlobalShortcut(s GlobalShortcut) (GlobalShortcut, error) {
 	s.Key = strings.ToUpper(strings.TrimSpace(s.Key))
-	if s.Modifiers == 0 || s.Modifiers & ^(ui.ModifierControl|ui.ModifierAlt|ui.ModifierShift|ui.ModifierMeta) != 0 {
+	if s.Modifiers == 0 || s.Modifiers & ^(gfx.ModifierControl|gfx.ModifierAlt|gfx.ModifierShift|gfx.ModifierMeta) != 0 {
 		return s, fmt.Errorf("app: global shortcut requires valid modifiers")
 	}
 	if len(s.Key) == 1 && (s.Key[0] >= 'A' && s.Key[0] <= 'Z' || s.Key[0] >= '0' && s.Key[0] <= '9') {

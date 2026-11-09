@@ -4,13 +4,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestCodeEditorIndentGuidesFollowExpandedLeadingCellsWithoutMovingText(t *testing.T) {
 	fixture := newCodeFixture("    one\n\t\ttwo\n  three")
 	fixture.snapshot.TabWidth = 4
-	fixture.snapshot.InvisibleColor = ui.RGB(48, 96, 144)
+	fixture.snapshot.InvisibleColor = gfx.RGB(48, 96, 144)
 	fixture.paint()
 	startX, startY := fixture.editor.content.X, fixture.editor.content.Y
 	rows := strings.Join(fixture.rowTexts(), "|")
@@ -55,7 +55,7 @@ func TestCodeEditorBlankIndentLooksBothWaysAndWrappedRowsDoNotRepeatGuides(t *te
 	fixture.bounds.Height = 520
 	fixture.snapshot.TabWidth = 4
 	fixture.snapshot.Wrap = true
-	fixture.snapshot.InvisibleColor = ui.RGB(48, 96, 144)
+	fixture.snapshot.InvisibleColor = gfx.RGB(48, 96, 144)
 	fixture.snapshot.ShowIndentGuides = true
 	fixture.paint()
 	guide := fixture.snapshot.InvisibleColor
@@ -94,7 +94,7 @@ func TestCodeEditorIndentGuidesBoundWorkToScrolledViewport(t *testing.T) {
 	fixture.bounds.Width = fixture.widthFor(6)
 	fixture.snapshot.TabWidth = 4
 	fixture.snapshot.Caret = len(fixture.snapshot.Value)
-	fixture.snapshot.InvisibleColor = ui.RGB(48, 96, 144)
+	fixture.snapshot.InvisibleColor = gfx.RGB(48, 96, 144)
 	fixture.snapshot.ShowIndentGuides = true
 	fixture.paint()
 	guide := fixture.snapshot.InvisibleColor
@@ -116,7 +116,7 @@ func TestCodeEditorIndentGuidesFollowTabWidthAndVerticalScroll(t *testing.T) {
 	fixture.bounds.Height = 90
 	fixture.snapshot.Caret = len(fixture.snapshot.Value)
 	fixture.snapshot.ShowIndentGuides = true
-	fixture.snapshot.InvisibleColor = ui.RGB(48, 96, 144)
+	fixture.snapshot.InvisibleColor = gfx.RGB(48, 96, 144)
 	guide := fixture.snapshot.InvisibleColor
 	guide.Alpha *= 0.5
 	fixture.snapshot.TabWidth = 4
@@ -130,7 +130,7 @@ func TestCodeEditorIndentGuidesFollowTabWidthAndVerticalScroll(t *testing.T) {
 			t.Fatalf("scrolled guide escaped content: %+v", rectangle)
 		}
 	}
-	spacing := func(marks []ui.Rect) float32 {
+	spacing := func(marks []gfx.Rect) float32 {
 		for _, mark := range marks[1:] {
 			if mark.Y == marks[0].Y {
 				return mark.X - marks[0].X
@@ -155,7 +155,7 @@ func TestCodeEditorIndentGuidesFollowTabWidthAndVerticalScroll(t *testing.T) {
 func TestCodeEditorIndentGuidesNeverReachTheFirstTextColumn(t *testing.T) {
 	fixture := newCodeFixture("a\n    b\n        c\n\t\td\n   e")
 	fixture.snapshot.TabWidth = 4
-	fixture.snapshot.InvisibleColor = ui.RGB(48, 96, 144)
+	fixture.snapshot.InvisibleColor = gfx.RGB(48, 96, 144)
 	fixture.snapshot.ShowIndentGuides = true
 	fixture.paint()
 	guide := fixture.snapshot.InvisibleColor
@@ -179,10 +179,10 @@ func BenchmarkCodeEditorPaintIndentGuides(b *testing.B) {
 		}
 		b.Run(name, func(b *testing.B) {
 			f := newCodeFixture(source)
-			f.bounds = ui.Rect{Width: 900, Height: 600}
+			f.bounds = gfx.Rect{Width: 900, Height: 600}
 			f.snapshot.TabWidth = 4
 			f.snapshot.ShowIndentGuides = guides
-			f.snapshot.InvisibleColor = ui.RGB(48, 96, 144)
+			f.snapshot.InvisibleColor = gfx.RGB(48, 96, 144)
 			f.paint()
 			b.ReportAllocs()
 			for b.Loop() {

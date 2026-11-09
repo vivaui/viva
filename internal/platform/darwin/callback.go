@@ -13,12 +13,12 @@ import (
 	"runtime/cgo"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // vivaShapedLine is how the native drawing reaches the text engine's cache: the
@@ -66,7 +66,7 @@ func vivaPointerEvent(
 
 	frame, err := state.pointerHandler(PointerEvent{
 		Kind:       PointerEventKind(kind),
-		Button:     ui.PointerButton(button),
+		Button:     gfx.PointerButton(button),
 		Modifiers:  input.Modifiers(modifiers),
 		X:          float32(x),
 		Y:          float32(y),
@@ -125,7 +125,7 @@ func vivaFrameChanged(handle C.uintptr_t, view unsafe.Pointer, x, y, width, heig
 			C.viva_view_close(view)
 		}
 	}()
-	state.frameHandler(ui.Rect{X: float32(x), Y: float32(y), Width: float32(width), Height: float32(height)})
+	state.frameHandler(gfx.Rect{X: float32(x), Y: float32(y), Width: float32(width), Height: float32(height)})
 }
 
 //export vivaWindowReopenRequested
@@ -302,7 +302,7 @@ func vivaAccessibilityAction(handle C.uintptr_t, view unsafe.Pointer, node C.uin
 	if !ok || state.closed || state.accessibility == nil {
 		return 0
 	}
-	request := platform.AccessibilityRequest{Node: ui.IDFromBits(uint64(node)), Number: float64(number)}
+	request := platform.AccessibilityRequest{Node: gfx.IDFromBits(uint64(node)), Number: float64(number)}
 	switch action {
 	case C.VIVA_AX_PRESS:
 		request.Action = platform.AccessibilityPress

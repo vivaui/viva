@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestButtonCountsAndDisabledVariants(t *testing.T) {
 	for _, example := range buttonComponent.Examples {
 		state := newTestState(t, "button", example.ID)
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		paintFrame(&canvas, state, testSize, time.Second, true)
 		hits := slices.Clone(canvas.Hits())
 		wantCount := 6
@@ -25,7 +25,7 @@ func TestButtonCountsAndDisabledVariants(t *testing.T) {
 			t.Fatalf("%s has %d hits, want %d", example.ID, len(hits), wantCount)
 		}
 		for _, hit := range hits {
-			if hit.Role != ui.RoleButton || hit.Disabled != (example.ID == "disabled") || hit.Focusable == hit.Disabled {
+			if hit.Role != gfx.RoleButton || hit.Disabled != (example.ID == "disabled") || hit.Focusable == hit.Disabled {
 				t.Fatalf("incorrect button semantics: %+v", hit)
 			}
 			if !hit.Disabled { // the runtime never delivers a click to a disabled control
@@ -57,10 +57,10 @@ func TestButtonCountsAndDisabledVariants(t *testing.T) {
 
 func TestButtonUsesCanvasInteractionAndFocusVisible(t *testing.T) {
 	state := newTestState(t, "button", "default")
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paintFrame(&canvas, state, testSize, time.Second, true)
 	idle := snapshot(&canvas)
-	canvas.SetInteraction(ui.ID{}, ui.ID{}, buttonPress.At(0), false)
+	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, buttonPress.At(0), false)
 	paintFrame(&canvas, state, testSize, time.Second, true)
 	assertSamePaint(t, idle, &canvas)
 	canvas.SetInteraction(buttonPress.At(0), buttonPress.At(0), buttonPress.At(0), true)
@@ -74,7 +74,7 @@ func TestBadgesFitContentAndNeverDeclareHits(t *testing.T) {
 	for _, example := range badgeComponent.Examples {
 		for _, measured := range []bool{false, true} {
 			state := newTestState(t, "badge", example.ID)
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			if measured {
 				canvas.SetMeasurer(measureTestText)
 			}
@@ -85,7 +85,7 @@ func TestBadgesFitContentAndNeverDeclareHits(t *testing.T) {
 			}
 			if example.ID == "default" {
 				first := canvas.Rectangles()[1].Bounds
-				if first.Width != canvas.TextWidthWeight("New", ui.LightTheme().Metrics.FontSizeS, ui.WeightMedium)+18 {
+				if first.Width != canvas.TextWidthWeight("New", gfx.LightTheme().Metrics.FontSizeS, gfx.WeightMedium)+18 {
 					t.Fatalf("badge ignored natural width: %+v", first)
 				}
 			}
@@ -104,14 +104,14 @@ func TestBadgesFitContentAndNeverDeclareHits(t *testing.T) {
 func TestCheckboxAndSwitchAreControlled(t *testing.T) {
 	for _, componentID := range []string{"checkbox", "switch"} {
 		component := checkboxComponent
-		role := ui.RoleCheckbox
+		role := gfx.RoleCheckbox
 		if componentID == "switch" {
-			component, role = switchComponent, ui.RoleSwitch
+			component, role = switchComponent, gfx.RoleSwitch
 		}
 		for _, example := range component.Examples {
 			t.Run(componentID+"/"+example.ID, func(t *testing.T) {
 				state := newTestState(t, componentID, example.ID)
-				var canvas ui.Canvas
+				var canvas gfx.Canvas
 				paintFrame(&canvas, state, testSize, time.Second, true)
 				initial := snapshot(&canvas)
 				for _, hit := range initial.hits {
@@ -147,7 +147,7 @@ func TestCheckboxAndSwitchAreControlled(t *testing.T) {
 
 func TestSwitchMotionSettlesWithoutIdleFrames(t *testing.T) {
 	state := newTestState(t, "switch", "default")
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paintFrame(&canvas, state, testSize, time.Second, false)
 	if canvas.Animating() {
 		t.Fatal("initial switch requested animation")
@@ -157,7 +157,7 @@ func TestSwitchMotionSettlesWithoutIdleFrames(t *testing.T) {
 	if !canvas.Animating() || !findHit(t, &canvas, switchToggle.At(0)).Checked {
 		t.Fatal("switch did not animate toward its immediate semantic destination")
 	}
-	paintFrame(&canvas, state, testSize, 2*time.Second+ui.DefaultMotion().Duration, false)
+	paintFrame(&canvas, state, testSize, 2*time.Second+gfx.DefaultMotion().Duration, false)
 	if canvas.Animating() {
 		t.Fatal("switch transition did not terminate")
 	}
@@ -174,19 +174,19 @@ func TestEditorOnlyResolvesEditablePlatformInput(t *testing.T) {
 		for _, example := range component.Examples {
 			state := newTestState(t, component.ID, example.ID)
 			state.EnableTextEditing()
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			paintFrame(&canvas, state, testSize, time.Second, true)
 			for _, hit := range canvas.Hits() {
 				if hit.IsLabel { // a label has its control's identity, not its editor
 					continue
 				}
 				editor, ok := state.Editor(hit.ID)
-				want := (hit.Role == ui.RoleTextField || component.editable != nil && hit.Role == ui.RoleCombobox) && !hit.Disabled && !hit.ReadOnly
+				want := (hit.Role == gfx.RoleTextField || component.editable != nil && hit.Role == gfx.RoleCombobox) && !hit.Disabled && !hit.ReadOnly
 				if ok != want || (editor != nil) != want {
 					t.Fatalf("%s/%s: incorrect editor resolution for %+v", component.ID, example.ID, hit)
 				}
 			}
-			for _, id := range []ui.ID{{}, ui.Item(999), inputDisabled, inputReadOnly, buttonPress.At(0)} {
+			for _, id := range []gfx.ID{{}, gfx.Item(999), inputDisabled, inputReadOnly, buttonPress.At(0)} {
 				if editor, ok := state.Editor(id); ok || editor != nil {
 					t.Fatalf("unexpected editor for ID %v", id)
 				}
@@ -202,8 +202,8 @@ func TestPlatformInputEditingCompositionAndPlaceholder(t *testing.T) {
 	if !ok {
 		t.Fatal("editable case has no platform editor")
 	}
-	var canvas ui.Canvas
-	canvas.SetInteraction(ui.ID{}, ui.ID{}, inputEditable, true)
+	var canvas gfx.Canvas
+	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, inputEditable, true)
 	paintFrame(&canvas, state, testSize, time.Second, true)
 	if !hasText(&canvas, "输入中文或 English…") {
 		t.Fatal("focused empty platform input lost its placeholder")
@@ -232,7 +232,7 @@ func TestPlatformInputEditingCompositionAndPlaceholder(t *testing.T) {
 	if same, _ := state.Editor(inputEditable); same != editor || same.String() != "Go 中文😀" {
 		t.Fatal("re-enabling platform input reset its editor")
 	}
-	canvas.SetInteraction(ui.ID{}, ui.ID{}, ui.ID{}, false)
+	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.ID{}, false)
 	paintFrame(&canvas, state, testSize, time.Second, true)
 	if !hasText(&canvas, "Go 中文😀") {
 		t.Fatal("blurred input did not paint its updated value")
@@ -243,11 +243,11 @@ func TestInputInvalidStateReactsToRealEdits(t *testing.T) {
 	state := newTestState(t, "input", "invalid")
 	state.EnableTextEditing()
 	editor, _ := state.Editor(inputEditable)
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paintFrame(&canvas, state, testSize, time.Second, true)
 	dangerRectangles := func() (count int) {
 		for _, rectangle := range canvas.Rectangles() {
-			if rectangle.Color == ui.DarkTheme().Danger || rectangle.Color == ui.LightTheme().Danger {
+			if rectangle.Color == gfx.DarkTheme().Danger || rectangle.Color == gfx.LightTheme().Danger {
 				count++
 			}
 		}
@@ -264,7 +264,7 @@ func TestInputInvalidStateReactsToRealEdits(t *testing.T) {
 	}
 }
 
-func syncRouter(router *input.Router, canvas *ui.Canvas) {
+func syncRouter(router *input.Router, canvas *gfx.Canvas) {
 	regions := make([]input.Region, len(canvas.Hits()))
 	for index, hit := range canvas.Hits() {
 		regions[index] = input.Region{
@@ -278,9 +278,9 @@ func syncRouter(router *input.Router, canvas *ui.Canvas) {
 
 func TestDialogActionsFocusTrapEscapeAndRestoration(t *testing.T) {
 	for _, example := range dialogComponent.Examples {
-		for _, action := range []ui.ID{dialogConfirm, dialogCancel, dialogClose} {
+		for _, action := range []gfx.ID{dialogConfirm, dialogCancel, dialogClose} {
 			state := newTestState(t, "dialog", example.ID)
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			click(&canvas, state, dialogCancel)
 			var router input.Router
 			paintFrame(&canvas, state, testSize, time.Second, true)
@@ -302,7 +302,7 @@ func TestDialogActionsFocusTrapEscapeAndRestoration(t *testing.T) {
 				if reverse {
 					modifiers = input.ModifierShift
 				}
-				seen := make(map[ui.ID]bool)
+				seen := make(map[gfx.ID]bool)
 				for range 6 {
 					result := router.KeyDown(input.KeyEvent{Key: input.KeyTab, Modifiers: modifiers})
 					hit := findHit(t, &canvas, result.Target)
@@ -326,7 +326,7 @@ func TestDialogActionsFocusTrapEscapeAndRestoration(t *testing.T) {
 				if !result.Activated {
 					t.Fatal("dialog action could not be keyboard activated")
 				}
-				click(&canvas, state, ui.ID(result.Target))
+				click(&canvas, state, gfx.ID(result.Target))
 			}
 			paintFrame(&canvas, state, testSize, time.Second, true)
 			syncRouter(&router, &canvas)

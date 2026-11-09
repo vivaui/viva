@@ -1,13 +1,13 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // ReorderGridMove describes one completed move in an arbitrary two-dimensional
 // layout. ID is the item being moved and Target is the slot it was dropped on.
 // From and To are caller-owned stable order values, so virtualized layouts may
 // declare only the visible items.
 type ReorderGridMove struct {
-	ID, Target ui.ID
+	ID, Target gfx.ID
 	From, To   int
 }
 
@@ -16,12 +16,12 @@ func (move ReorderGridMove) Valid() bool {
 }
 
 type reorderGridItem struct {
-	id       ui.ID
+	id       gfx.ID
 	lane     int
 	order    int
 	disabled bool
 	visible  bool
-	bounds   ui.Rect
+	bounds   gfx.Rect
 }
 
 // ReorderGridState owns drag geometry for arbitrary rows/cards. The caller owns
@@ -34,42 +34,42 @@ type reorderGridItem struct {
 // losing the drag.
 type ReorderGridState struct {
 	items             []reorderGridItem
-	indices           map[ui.ID]int
-	viewport          ui.Rect
-	active, target    ui.ID
+	indices           map[gfx.ID]int
+	viewport          gfx.Rect
+	active, target    gfx.ID
 	lane, from, to    int
-	start, last       ui.Point
+	start, last       gfx.Point
 	pressed, dragging bool
 }
 
 func (state *ReorderGridState) Dragging() bool { return state.dragging }
-func (state *ReorderGridState) Active() ui.ID  { return state.active }
+func (state *ReorderGridState) Active() gfx.ID { return state.active }
 
 // PointerPosition is the last captured pointer position while a handle is held.
 // It lets a caller-owned scroll area keep auto-scrolling between pointer events.
-func (state *ReorderGridState) PointerPosition() (ui.Point, bool) {
+func (state *ReorderGridState) PointerPosition() (gfx.Point, bool) {
 	return state.last, state.pressed
 }
 
-func (state *ReorderGridState) Target() ui.ID {
+func (state *ReorderGridState) Target() gfx.ID {
 	if !state.dragging {
-		return ui.ID{}
+		return gfx.ID{}
 	}
 	return state.target
 }
 
 func (state *ReorderGridState) Cancel() {
-	state.active, state.target = ui.ID{}, ui.ID{}
+	state.active, state.target = gfx.ID{}, gfx.ID{}
 	state.from, state.to = -1, -1
 	state.pressed, state.dragging = false, false
 }
 
-func reorderGridContains(rect ui.Rect, x, y float32) bool {
+func reorderGridContains(rect gfx.Rect, x, y float32) bool {
 	return x >= rect.X && x <= rect.X+rect.Width && y >= rect.Y && y <= rect.Y+rect.Height
 }
 
-func reorderGridCenter(rect ui.Rect) ui.Point {
-	return ui.Point{X: rect.X + rect.Width/2, Y: rect.Y + rect.Height/2}
+func reorderGridCenter(rect gfx.Rect) gfx.Point {
+	return gfx.Point{X: rect.X + rect.Width/2, Y: rect.Y + rect.Height/2}
 }
 
 // targetAt chooses the item under the pointer when possible and otherwise the
@@ -110,31 +110,31 @@ func (state *ReorderGridState) targetAt(x, y float32) int {
 	return best
 }
 
-func (state *ReorderGridState) Pointer(event ui.PointerEvent) (ReorderGridMove, ui.EventResult) {
-	if event.Kind == ui.PointerDown {
+func (state *ReorderGridState) Pointer(event gfx.PointerEvent) (ReorderGridMove, gfx.EventResult) {
+	if event.Kind == gfx.PointerDown {
 		state.Cancel()
-		if event.Button != ui.PointerButtonPrimary {
-			return ReorderGridMove{}, ui.EventResult{}
+		if event.Button != gfx.PointerButtonPrimary {
+			return ReorderGridMove{}, gfx.EventResult{}
 		}
 		for _, item := range state.items {
 			if item.id == event.Target && !item.disabled {
 				state.active, state.target = item.id, item.id
 				state.lane, state.from, state.to = item.lane, item.order, item.order
-				state.start = ui.Point{X: event.X, Y: event.Y}
+				state.start = gfx.Point{X: event.X, Y: event.Y}
 				state.last, state.pressed = state.start, true
-				return ReorderGridMove{}, ui.EventResult{Handled: true, Repaint: true, Focus: item.id}
+				return ReorderGridMove{}, gfx.EventResult{Handled: true, Repaint: true, Focus: item.id}
 			}
 		}
-		return ReorderGridMove{}, ui.EventResult{}
+		return ReorderGridMove{}, gfx.EventResult{}
 	}
 	if !state.pressed {
-		return ReorderGridMove{}, ui.EventResult{}
+		return ReorderGridMove{}, gfx.EventResult{}
 	}
 
-	result := ui.EventResult{Handled: true, Repaint: true}
+	result := gfx.EventResult{Handled: true, Repaint: true}
 	switch event.Kind {
-	case ui.PointerMove:
-		state.last = ui.Point{X: event.X, Y: event.Y}
+	case gfx.PointerMove:
+		state.last = gfx.Point{X: event.X, Y: event.Y}
 		dx, dy := event.X-state.start.X, event.Y-state.start.Y
 		if dx*dx+dy*dy >= 9 {
 			state.dragging = true
@@ -144,10 +144,10 @@ func (state *ReorderGridState) Pointer(event ui.PointerEvent) (ReorderGridMove, 
 				item := state.items[index]
 				state.target, state.to = item.id, item.order
 			} else {
-				state.target, state.to = ui.ID{}, -1
+				state.target, state.to = gfx.ID{}, -1
 			}
 		}
-	case ui.PointerUp:
+	case gfx.PointerUp:
 		var move ReorderGridMove
 		inside := reorderGridContains(state.viewport, event.X, event.Y)
 		if state.dragging && inside {
@@ -160,7 +160,7 @@ func (state *ReorderGridState) Pointer(event ui.PointerEvent) (ReorderGridMove, 
 		result.Focus = state.active
 		state.Cancel()
 		return move, result
-	case ui.PointerExit:
+	case gfx.PointerExit:
 		state.Cancel()
 	}
 	return ReorderGridMove{}, result
@@ -170,14 +170,14 @@ func (state *ReorderGridState) Pointer(event ui.PointerEvent) (ReorderGridMove, 
 // the previous declared item, Right/Down to the next, and Home/End to the first
 // or last. The caller applies the returned move and repaints; focus follows the
 // stable item ID to its new position.
-func (state *ReorderGridState) Key(event ui.KeyEvent) (ReorderGridMove, ui.EventResult) {
+func (state *ReorderGridState) Key(event gfx.KeyEvent) (ReorderGridMove, gfx.EventResult) {
 	if event.Release || event.Modifiers != 0 {
-		return ReorderGridMove{}, ui.EventResult{}
+		return ReorderGridMove{}, gfx.EventResult{}
 	}
-	if state.pressed && event.Key == ui.KeyEscape {
+	if state.pressed && event.Key == gfx.KeyEscape {
 		id := state.active
 		state.Cancel()
-		return ReorderGridMove{}, ui.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}
+		return ReorderGridMove{}, gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}
 	}
 
 	for _, item := range state.items {
@@ -187,7 +187,7 @@ func (state *ReorderGridState) Key(event ui.KeyEvent) (ReorderGridMove, ui.Event
 		target := item
 		found := false
 		switch event.Key {
-		case ui.KeyLeft, ui.KeyUp:
+		case gfx.KeyLeft, gfx.KeyUp:
 			for _, candidate := range state.items {
 				if candidate.disabled || candidate.lane != item.lane || candidate.order >= item.order {
 					continue
@@ -196,7 +196,7 @@ func (state *ReorderGridState) Key(event ui.KeyEvent) (ReorderGridMove, ui.Event
 					target, found = candidate, true
 				}
 			}
-		case ui.KeyRight, ui.KeyDown:
+		case gfx.KeyRight, gfx.KeyDown:
 			for _, candidate := range state.items {
 				if candidate.disabled || candidate.lane != item.lane || candidate.order <= item.order {
 					continue
@@ -205,7 +205,7 @@ func (state *ReorderGridState) Key(event ui.KeyEvent) (ReorderGridMove, ui.Event
 					target, found = candidate, true
 				}
 			}
-		case ui.KeyHome:
+		case gfx.KeyHome:
 			for _, candidate := range state.items {
 				if candidate.disabled || candidate.lane != item.lane {
 					continue
@@ -214,7 +214,7 @@ func (state *ReorderGridState) Key(event ui.KeyEvent) (ReorderGridMove, ui.Event
 					target, found = candidate, true
 				}
 			}
-		case ui.KeyEnd:
+		case gfx.KeyEnd:
 			for _, candidate := range state.items {
 				if candidate.disabled || candidate.lane != item.lane {
 					continue
@@ -224,31 +224,31 @@ func (state *ReorderGridState) Key(event ui.KeyEvent) (ReorderGridMove, ui.Event
 				}
 			}
 		default:
-			return ReorderGridMove{}, ui.EventResult{}
+			return ReorderGridMove{}, gfx.EventResult{}
 		}
 		if !found {
 			target = item
 		}
 		move := ReorderGridMove{ID: item.id, Target: target.id, From: item.order, To: target.order}
 		state.Cancel()
-		return move, ui.EventResult{Handled: true, Repaint: true, Focus: item.id, FocusVisible: true}
+		return move, gfx.EventResult{Handled: true, Repaint: true, Focus: item.id, FocusVisible: true}
 	}
-	return ReorderGridMove{}, ui.EventResult{}
+	return ReorderGridMove{}, gfx.EventResult{}
 }
 
 // ReorderGrid records arbitrary item rectangles and paints only the framework's
 // drag affordances. The caller paints the actual rows/cards.
 type ReorderGrid struct {
-	canvas  *ui.Canvas
-	theme   ui.Theme
+	canvas  *gfx.Canvas
+	theme   gfx.Theme
 	state   *ReorderGridState
 	hitSlop float32
 }
 
-func BeginReorderGrid(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, state *ReorderGridState) ReorderGrid {
+func BeginReorderGrid(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, state *ReorderGridState) ReorderGrid {
 	state.items = state.items[:0]
 	if state.indices == nil {
-		state.indices = make(map[ui.ID]int)
+		state.indices = make(map[gfx.ID]int)
 	} else {
 		clear(state.indices)
 	}
@@ -268,7 +268,7 @@ func (grid ReorderGrid) HandleHitSlop(slop float32) ReorderGrid {
 // Virtualized layouts can declare every item through Order, then call Item only
 // for the rows/cards currently on screen. Pointer targeting uses visible items;
 // keyboard moves use the complete logical order.
-func (grid *ReorderGrid) Order(id ui.ID, lane, order int, disabled bool) {
+func (grid *ReorderGrid) Order(id gfx.ID, lane, order int, disabled bool) {
 	if id.IsZero() {
 		return
 	}
@@ -288,7 +288,7 @@ func (grid *ReorderGrid) Order(id ui.ID, lane, order int, disabled bool) {
 // groups; order is the caller's stable logical position. A prior Order call is
 // updated in place, so virtualized callers can keep a complete keyboard model
 // while exposing pointer geometry only for what is painted.
-func (grid *ReorderGrid) Item(id ui.ID, label string, lane, order int, bounds, handle ui.Rect, disabled bool) {
+func (grid *ReorderGrid) Item(id gfx.ID, label string, lane, order int, bounds, handle gfx.Rect, disabled bool) {
 	disabled = disabled || id.IsZero()
 	if id.IsZero() {
 		return
@@ -312,11 +312,11 @@ func (grid *ReorderGrid) Item(id ui.ID, label string, lane, order int, bounds, h
 		hit.Width = max(right-hit.X, 0)
 		hit.Height = max(bottom-hit.Y, 0)
 	}
-	grid.canvas.HitWithOptions(id, hit, label, ui.HitOptions{
-		Role: ui.RoleButton, Cursor: ui.PointerCursorHand, Disabled: disabled,
+	grid.canvas.HitWithOptions(id, hit, label, gfx.HitOptions{
+		Role: gfx.RoleButton, Cursor: gfx.PointerCursorHand, Disabled: disabled,
 	})
 	if grid.canvas.FocusVisible() == id {
-		grid.canvas.RoundedBorder(handle, grid.theme.Metrics.RadiusControl, 1, grid.theme.Ring, ui.Color{})
+		grid.canvas.RoundedBorder(handle, grid.theme.Metrics.RadiusControl, 1, grid.theme.Ring, gfx.Color{})
 	}
 	color := grid.theme.MutedForeground
 	if disabled {
@@ -328,7 +328,7 @@ func (grid *ReorderGrid) Item(id ui.ID, label string, lane, order int, bounds, h
 	const dot = float32(2.5)
 	for y := float32(-5); y <= 5; y += 5 {
 		for _, x := range [...]float32{-2.5, 2.5} {
-			grid.canvas.Rounded(ui.Rect{
+			grid.canvas.Rounded(gfx.Rect{
 				X:     handle.X + handle.Width/2 + x - dot/2,
 				Y:     handle.Y + handle.Height/2 + y - dot/2,
 				Width: dot, Height: dot,
@@ -346,7 +346,7 @@ func (grid *ReorderGrid) End() {
 		item := state.items[index]
 		state.target, state.to = item.id, item.order
 	} else {
-		state.target, state.to = ui.ID{}, -1
+		state.target, state.to = gfx.ID{}, -1
 	}
 
 	// Surface styling (including elevation and target indication) is caller-owned:

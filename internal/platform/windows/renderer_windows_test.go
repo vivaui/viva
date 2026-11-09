@@ -4,10 +4,10 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestTriangleEdgeMaskUsesTheExistingInstanceSlot(t *testing.T) {
@@ -214,8 +214,8 @@ func TestRendererClosesLabelsRemovedFromTheFrame(t *testing.T) {
 }
 
 func TestRendererReusesAMovedLabelByIdentity(t *testing.T) {
-	first := platform.TextLabel{Value: "first", Width: 30, Height: 10, Identity: ui.TextIdentity{Owner: 1, Item: 11}}
-	second := platform.TextLabel{Value: "second", Y: 10, Width: 30, Height: 10, Identity: ui.TextIdentity{Owner: 1, Item: 12}}
+	first := platform.TextLabel{Value: "first", Width: 30, Height: 10, Identity: gfx.TextIdentity{Owner: 1, Item: 11}}
+	second := platform.TextLabel{Value: "second", Y: 10, Width: 30, Height: 10, Identity: gfx.TextIdentity{Owner: 1, Item: 12}}
 	var renderer renderer
 	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{first, second}}); err != nil {
 		t.Fatal(err)
@@ -239,8 +239,8 @@ func TestRendererReusesAMovedLabelByIdentity(t *testing.T) {
 }
 
 func TestRendererDoesNotShareTexturesAcrossOwners(t *testing.T) {
-	first := platform.TextLabel{Value: "same", Width: 30, Height: 10, Identity: ui.TextIdentity{Owner: 1, Item: 7}}
-	other := platform.TextLabel{Value: "same", Width: 30, Height: 10, Identity: ui.TextIdentity{Owner: 2, Item: 7}}
+	first := platform.TextLabel{Value: "same", Width: 30, Height: 10, Identity: gfx.TextIdentity{Owner: 1, Item: 7}}
+	other := platform.TextLabel{Value: "same", Width: 30, Height: 10, Identity: gfx.TextIdentity{Owner: 2, Item: 7}}
 	var renderer renderer
 	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{first}}); err != nil {
 		t.Fatal(err)
@@ -294,7 +294,7 @@ func TestRendererKeepsThePositionalMatchWithoutIdentity(t *testing.T) {
 }
 
 func TestRendererRedrawsChangedContentUnderOneIdentity(t *testing.T) {
-	label := platform.TextLabel{Value: "before", Width: 30, Height: 10, Identity: ui.TextIdentity{Owner: 1, Item: 7}}
+	label := platform.TextLabel{Value: "before", Width: 30, Height: 10, Identity: gfx.TextIdentity{Owner: 1, Item: 7}}
 	var renderer renderer
 	if err := renderer.apply(platform.Frame{TextLabels: []platform.TextLabel{label}}); err != nil {
 		t.Fatal(err)
@@ -399,7 +399,7 @@ func TestChangedLabelKeepsItsTextureAndIsMarkedStale(t *testing.T) {
 // A grid line's texture covers its runs and a little more, never the whole
 // width of a mostly empty row, and never more than the label itself.
 func TestGridInkWidthStopsNearTheLastRun(t *testing.T) {
-	runs := []ui.TextRun{{Column: 0, Cells: 5}, {Column: 5, Cells: 7}}
+	runs := []gfx.TextRun{{Column: 0, Cells: 5}, {Column: 5, Cells: 7}}
 	const cell, scale = 8, 2
 	ink := gridInkWidth(runs, cell, scale)
 	if ink < 12*cell*scale {
@@ -408,7 +408,7 @@ func TestGridInkWidthStopsNearTheLastRun(t *testing.T) {
 	if ink >= 200*cell*scale {
 		t.Fatalf("ink width %d is as wide as an empty row", ink)
 	}
-	typed := append(append([]ui.TextRun(nil), runs...), ui.TextRun{Column: 12, Cells: 1})
+	typed := append(append([]gfx.TextRun(nil), runs...), gfx.TextRun{Column: 12, Cells: 1})
 	if gridInkWidth(typed, cell, scale) != ink {
 		t.Fatal("one more typed character changed the texture width, so every key would make a new texture")
 	}

@@ -6,24 +6,24 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/markdown"
-	"github.com/vivaui/viva/ui"
 )
 
 // markdownCanvas measures every rune as half its size wide, and every cell of
 // fixed-pitch text as 6 wide at size 12, so widths are counts of characters.
-func markdownCanvas() *ui.Canvas {
-	canvas := &ui.Canvas{}
+func markdownCanvas() *gfx.Canvas {
+	canvas := &gfx.Canvas{}
 	canvas.SetMeasurer(func(value string, size, weight float32) float32 {
 		return float32(utf8.RuneCountInString(value)) * size / 2
 	})
-	canvas.SetCellMeasurer(func(size float32, face ui.MonoFace) (float32, float32) { return size / 2, size * 1.25 })
+	canvas.SetCellMeasurer(func(size float32, face gfx.MonoFace) (float32, float32) { return size / 2, size * 1.25 })
 	return canvas
 }
 
 // nonlinearMarkdownCanvas makes a full run wider than the sum of its runes,
 // as native shaping can do. It keeps fixed-pitch measurement linear.
-func nonlinearMarkdownCanvas() *ui.Canvas {
+func nonlinearMarkdownCanvas() *gfx.Canvas {
 	canvas := markdownCanvas()
 	canvas.SetMeasurer(func(value string, size, weight float32) float32 {
 		n := float32(utf8.RuneCountInString(value))
@@ -258,7 +258,7 @@ func TestWrappedCodePiecesCoverTheSourceLineInOrder(t *testing.T) {
 	}
 }
 
-func paintedMarkdown(t *testing.T, src string, width float32) (*MarkdownView, *ui.Canvas) {
+func paintedMarkdown(t *testing.T, src string, width float32) (*MarkdownView, *gfx.Canvas) {
 	t.Helper()
 	canvas := markdownCanvas()
 	var doc markdown.Document
@@ -272,15 +272,15 @@ func paintedMarkdown(t *testing.T, src string, width float32) (*MarkdownView, *u
 func TestMarkdownOffsetAtFollowsThePaintedText(t *testing.T) {
 	view, _ := paintedMarkdown(t, "abc def", 300)
 	tests := []struct {
-		point  ui.Point
+		point  gfx.Point
 		offset int
 	}{
-		{point: ui.Point{X: 10, Y: 20}, offset: 0},
-		{point: ui.Point{X: 52, Y: 20}, offset: 7},
-		{point: ui.Point{X: 0, Y: 20}, offset: 0},
-		{point: ui.Point{X: 300, Y: 20}, offset: 7},
-		{point: ui.Point{X: 10, Y: -100}, offset: 0},
-		{point: ui.Point{X: 60, Y: 200}, offset: 7},
+		{point: gfx.Point{X: 10, Y: 20}, offset: 0},
+		{point: gfx.Point{X: 52, Y: 20}, offset: 7},
+		{point: gfx.Point{X: 0, Y: 20}, offset: 0},
+		{point: gfx.Point{X: 300, Y: 20}, offset: 7},
+		{point: gfx.Point{X: 10, Y: -100}, offset: 0},
+		{point: gfx.Point{X: 60, Y: 200}, offset: 7},
 	}
 	for _, test := range tests {
 		offset, ok := view.OffsetAt(test.point)
@@ -296,11 +296,11 @@ func TestMarkdownOffsetAtSeparatesVisualLines(t *testing.T) {
 		t.Fatalf("the line break made %d pieces", len(view.pieces))
 	}
 	first, second := view.pieces[0], view.pieces[1]
-	endOfFirst, ok := view.OffsetAt(ui.Point{X: 10 + first.x + first.w, Y: 20 + first.y})
+	endOfFirst, ok := view.OffsetAt(gfx.Point{X: 10 + first.x + first.w, Y: 20 + first.y})
 	if !ok || endOfFirst != 5 {
 		t.Fatalf("end of the first line = %d, %v", endOfFirst, ok)
 	}
-	startOfSecond, ok := view.OffsetAt(ui.Point{X: 10 + second.x, Y: 20 + second.y + 2})
+	startOfSecond, ok := view.OffsetAt(gfx.Point{X: 10 + second.x, Y: 20 + second.y + 2})
 	if !ok || startOfSecond != 6 {
 		t.Fatalf("start of the second line = %d, %v", startOfSecond, ok)
 	}
@@ -310,15 +310,15 @@ func TestMarkdownOffsetAtStaysOnCharacterBoundaries(t *testing.T) {
 	view, _ := paintedMarkdown(t, "中文", 300)
 	allowed := map[int]bool{0: true, 3: true, 6: true}
 	for x := float32(0); x <= 12; x++ {
-		offset, ok := view.OffsetAt(ui.Point{X: 10 + x, Y: 20})
+		offset, ok := view.OffsetAt(gfx.Point{X: 10 + x, Y: 20})
 		if !ok || !allowed[offset] {
 			t.Fatalf("x=%v gives offset %d, not a character boundary", x, offset)
 		}
 	}
-	if offset, _ := view.OffsetAt(ui.Point{X: 16, Y: 20}); offset != 3 {
+	if offset, _ := view.OffsetAt(gfx.Point{X: 16, Y: 20}); offset != 3 {
 		t.Errorf("the middle of the text gives %d, want 3", offset)
 	}
-	if offset, _ := view.OffsetAt(ui.Point{X: 22, Y: 20}); offset != 6 {
+	if offset, _ := view.OffsetAt(gfx.Point{X: 22, Y: 20}); offset != 6 {
 		t.Errorf("the end of the text gives %d, want 6", offset)
 	}
 }
@@ -335,11 +335,11 @@ func TestMarkdownOffsetAtSnapsInsideAnExpandedCodeTab(t *testing.T) {
 		t.Fatalf("no piece starts at the tab: %+v", view.pieces)
 	}
 	originX, originY := float32(10+tabPiece.x), float32(20+tabPiece.y+2)
-	left, ok := view.OffsetAt(ui.Point{X: originX + 3, Y: originY})
+	left, ok := view.OffsetAt(gfx.Point{X: originX + 3, Y: originY})
 	if !ok || left != 5 {
 		t.Fatalf("the left half of the tab gives %d, %v, want 5", left, ok)
 	}
-	right, ok := view.OffsetAt(ui.Point{X: originX + 15, Y: originY})
+	right, ok := view.OffsetAt(gfx.Point{X: originX + 15, Y: originY})
 	if !ok || right != 6 {
 		t.Fatalf("the right half of the tab gives %d, %v, want 6", right, ok)
 	}
@@ -347,13 +347,13 @@ func TestMarkdownOffsetAtSnapsInsideAnExpandedCodeTab(t *testing.T) {
 
 func TestMarkdownCaretBoundsReportsNoCaret(t *testing.T) {
 	view, _ := paintedMarkdown(t, "text", 300)
-	if bounds, ok := view.CaretBounds(); ok || bounds != (ui.Rect{}) {
+	if bounds, ok := view.CaretBounds(); ok || bounds != (gfx.Rect{}) {
 		t.Fatalf("CaretBounds = %+v, %v; a painted Markdown view has no caret", bounds, ok)
 	}
 }
 
-func markdownSelectionRects(canvas *ui.Canvas, color ui.Color) []ui.Rectangle {
-	var found []ui.Rectangle
+func markdownSelectionRects(canvas *gfx.Canvas, color gfx.Color) []gfx.Rectangle {
+	var found []gfx.Rectangle
 	for _, rectangle := range canvas.Rectangles() {
 		if rectangle.Color == color {
 			found = append(found, rectangle)
@@ -362,7 +362,7 @@ func markdownSelectionRects(canvas *ui.Canvas, color ui.Color) []ui.Rectangle {
 	return found
 }
 
-func markdownTextRunsCoverValue(canvas *ui.Canvas, text ui.Text) bool {
+func markdownTextRunsCoverValue(canvas *gfx.Canvas, text gfx.Text) bool {
 	runs := canvas.TextRuns(text)
 	if len(runs) == 0 || text.CellWidth <= 0 {
 		return false
@@ -384,8 +384,8 @@ func TestMarkdownPaintsPaintedSelection(t *testing.T) {
 	doc.Parse("alpha beta gamma")
 	var view MarkdownView
 	view.Layout(canvas, MarkdownStyle{Size: 12}, &doc, 300)
-	selected := ui.Color{Red: 1, Alpha: 1}
-	var painted ui.Canvas
+	selected := gfx.Color{Red: 1, Alpha: 1}
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{
 		Look: MarkdownLook{Selection: selected}, X: 10, Y: 20, Selection: MarkdownSelection{Anchor: 0, Focus: 5},
 	})
@@ -407,8 +407,8 @@ func TestMarkdownPaintsNoSelectionForAnEmptyRange(t *testing.T) {
 	doc.Parse("alpha beta gamma")
 	var view MarkdownView
 	view.Layout(canvas, MarkdownStyle{Size: 12}, &doc, 300)
-	selected := ui.Color{Red: 1, Alpha: 1}
-	var painted ui.Canvas
+	selected := gfx.Color{Red: 1, Alpha: 1}
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{
 		Look: MarkdownLook{Selection: selected}, Selection: MarkdownSelection{Anchor: 4, Focus: 4},
 	})
@@ -427,12 +427,12 @@ func TestMarkdownSelectionIsClippedToVisibleLines(t *testing.T) {
 		t.Fatalf("the document has %d pieces", len(view.pieces))
 	}
 	second := view.pieces[1]
-	selected := ui.Color{Red: 1, Alpha: 1}
-	paint := func(selection MarkdownSelection) *ui.Canvas {
-		var painted ui.Canvas
+	selected := gfx.Color{Red: 1, Alpha: 1}
+	paint := func(selection MarkdownSelection) *gfx.Canvas {
+		var painted gfx.Canvas
 		view.Paint(&painted, MarkdownPaint{
 			Look: MarkdownLook{Selection: selected}, Selection: selection,
-			Clip: ui.Rect{Y: second.y + 2, Width: 300, Height: second.h - 2},
+			Clip: gfx.Rect{Y: second.y + 2, Width: 300, Height: second.h - 2},
 		})
 		return &painted
 	}
@@ -450,9 +450,9 @@ func TestMarkdownCodeSelectionCoversATabAsCells(t *testing.T) {
 	doc.Parse("```\nabcde\tX\n```\n")
 	var view MarkdownView
 	view.Layout(canvas, MarkdownStyle{Size: 12}, &doc, 56)
-	selected := ui.Color{Red: 1, Alpha: 1}
-	behind := ui.Color{Green: 1, Alpha: 1}
-	var painted ui.Canvas
+	selected := gfx.Color{Red: 1, Alpha: 1}
+	behind := gfx.Color{Green: 1, Alpha: 1}
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{
 		Look: MarkdownLook{Selection: selected, CodeFill: behind}, Selection: MarkdownSelection{Anchor: 5, Focus: 6},
 	})
@@ -515,8 +515,8 @@ func TestMarkdownLinkRegionsFollowTheWrappedText(t *testing.T) {
 	if len(view.links) < 2 {
 		t.Fatalf("a link that wraps should have a region on each line, got %d", len(view.links))
 	}
-	var canvas ui.Canvas
-	scope := ui.Scope(7)
+	var canvas gfx.Canvas
+	scope := gfx.Scope(7)
 	view.Paint(&canvas, MarkdownPaint{Look: MarkdownLook{}, X: 10, Y: 100, Links: scope})
 	if len(canvas.Hits()) != len(view.links) {
 		t.Fatalf("%d hit regions for %d link fragments", len(canvas.Hits()), len(view.links))
@@ -529,7 +529,7 @@ func TestMarkdownLinkRegionsFollowTheWrappedText(t *testing.T) {
 	}
 	// Scrolled out of view, a link has no region.
 	canvas.Reset()
-	view.Paint(&canvas, MarkdownPaint{X: 10, Y: 100, Links: scope, Clip: ui.Rect{Y: 1000, Width: 100, Height: 100}})
+	view.Paint(&canvas, MarkdownPaint{X: 10, Y: 100, Links: scope, Clip: gfx.Rect{Y: 1000, Width: 100, Height: 100}})
 	if len(canvas.Hits()) != 0 || len(canvas.Texts()) != 0 {
 		t.Errorf("painted %d texts and %d hits outside the clip", len(canvas.Texts()), len(canvas.Hits()))
 	}
@@ -616,12 +616,12 @@ func TestMarkdownLayoutAndPaintDoNotAllocateOnceWarm(t *testing.T) {
 	doc.Parse(src)
 	canvas := markdownCanvas()
 	var view MarkdownView
-	look := MarkdownLookFor(ui.DarkTheme())
+	look := MarkdownLookFor(gfx.DarkTheme())
 	selection := MarkdownSelection{Anchor: 2, Focus: 40}
 	run := func() {
 		canvas.Reset()
 		view.Layout(canvas, MarkdownStyle{Size: 13}, &doc, 400)
-		view.Paint(canvas, MarkdownPaint{Look: look, Links: ui.Scope(3), Selection: selection})
+		view.Paint(canvas, MarkdownPaint{Look: look, Links: gfx.Scope(3), Selection: selection})
 	}
 	run()
 	if allocs := testing.AllocsPerRun(10, run); allocs != 0 {
@@ -812,15 +812,15 @@ func TestMarkdownClosingPunctuationUsesTheJoinedShapedWidth(t *testing.T) {
 }
 
 func TestMarkdownClosingPunctuationKeepsThePrecedingSpanStyle(t *testing.T) {
-	canvas := &ui.Canvas{}
+	canvas := &gfx.Canvas{}
 	canvas.SetMeasurer(func(value string, _ float32, weight float32) float32 {
 		width := float32(utf8.RuneCountInString(value))
-		if weight > ui.WeightRegular {
+		if weight > gfx.WeightRegular {
 			width *= 10
 		}
 		return width
 	})
-	canvas.SetCellMeasurer(func(size float32, _ ui.MonoFace) (float32, float32) { return size / 2, size * 1.25 })
+	canvas.SetCellMeasurer(func(size float32, _ gfx.MonoFace) (float32, float32) { return size / 2, size * 1.25 })
 	var doc markdown.Document
 	doc.Parse("x**abc**。。。。。。。。。。。")
 	var view MarkdownView
@@ -852,8 +852,8 @@ func TestMarkdownBreakpointRewindPaintsEachPieceBackgroundAndLinkOnce(t *testing
 	}
 	paintedFor := func(label string) map[string]int {
 		t.Helper()
-		var canvas ui.Canvas
-		view.Paint(&canvas, MarkdownPaint{Links: ui.Scope(1)})
+		var canvas gfx.Canvas
+		view.Paint(&canvas, MarkdownPaint{Links: gfx.Scope(1)})
 		counts := map[string]int{}
 		for _, text := range canvas.Texts() {
 			counts[label+":text:"+text.Value]++
@@ -1033,7 +1033,7 @@ func abs32(value float32) float32 {
 }
 
 func TestMarkdownMonoPiecesAlwaysUseFixedGridRuns(t *testing.T) {
-	for _, face := range []ui.MonoFace{ui.MonoSystem, ui.MonoClassic} {
+	for _, face := range []gfx.MonoFace{gfx.MonoSystem, gfx.MonoClassic} {
 		t.Run(fmt.Sprintf("face %d", face), func(t *testing.T) {
 			canvas := markdownCanvas()
 			var doc markdown.Document
@@ -1085,10 +1085,10 @@ func TestMarkdownInlineCodeKeepsItsWeightInGridRuns(t *testing.T) {
 			piece = &view.pieces[index]
 		}
 	}
-	if piece == nil || piece.weight <= ui.WeightRegular {
+	if piece == nil || piece.weight <= gfx.WeightRegular {
 		t.Fatalf("inline-code piece has no styled weight: %+v", piece)
 	}
-	var label *ui.Text
+	var label *gfx.Text
 	for index := range canvas.Texts() {
 		if canvas.Texts()[index].Value == piece.text {
 			label = &canvas.Texts()[index]
@@ -1116,10 +1116,10 @@ func TestMarkdownStrikeOnInlineCodeCoversOnlyTheTextArea(t *testing.T) {
 	doc.Parse("~~`code`~~")
 	var view MarkdownView
 	view.Layout(markdownCanvas(), MarkdownStyle{Size: 12}, &doc, 220)
-	var canvas ui.Canvas
-	strike := ui.Color{Red: 1, Alpha: 1}
+	var canvas gfx.Canvas
+	strike := gfx.Color{Red: 1, Alpha: 1}
 	view.Paint(&canvas, MarkdownPaint{Look: MarkdownLook{Text: strike}})
-	var label *ui.Text
+	var label *gfx.Text
 	for index := range canvas.Texts() {
 		if canvas.Texts()[index].Value == "code" {
 			label = &canvas.Texts()[index]
@@ -1239,8 +1239,8 @@ func TestInlineCodeSelectionRectsStayInsideThePaddedBackground(t *testing.T) {
 	if piece == nil || background.w == 0 {
 		t.Fatalf("fixture has piece %+v and background %+v", piece, background)
 	}
-	selected := ui.Color{Red: 1, Alpha: 1}
-	var painted ui.Canvas
+	selected := gfx.Color{Red: 1, Alpha: 1}
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{
 		Look:      MarkdownLook{Selection: selected},
 		Selection: MarkdownSelection{Anchor: int(piece.plainLo), Focus: int(piece.plainHi)},
@@ -1257,12 +1257,12 @@ func TestInlineCodeSelectionRectsStayInsideThePaddedBackground(t *testing.T) {
 }
 
 func TestMarkdownPaintAppliesTheFullClipRectangle(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var doc markdown.Document
 	doc.Parse("first\nsecond")
 	var view MarkdownView
 	view.Layout(markdownCanvas(), MarkdownStyle{Size: 12}, &doc, 300)
-	clip := ui.Rect{X: 0, Y: 20, Width: 40, Height: 18}
+	clip := gfx.Rect{X: 0, Y: 20, Width: 40, Height: 18}
 	view.Paint(&canvas, MarkdownPaint{Clip: clip})
 	for _, text := range canvas.Texts() {
 		if !text.HasClip || text.ClipOf != clip {
@@ -1277,18 +1277,18 @@ func TestMarkdownPaintAppliesTheFullClipRectangle(t *testing.T) {
 }
 
 func TestMarkdownPaintNestsItsClipAndRestoresTheCallerStack(t *testing.T) {
-	var canvas ui.Canvas
-	outer := ui.Rect{X: 5, Y: 10, Width: 120, Height: 80}
-	inner := ui.Rect{X: 20, Y: 20, Width: 50, Height: 100}
+	var canvas gfx.Canvas
+	outer := gfx.Rect{X: 5, Y: 10, Width: 120, Height: 80}
+	inner := gfx.Rect{X: 20, Y: 20, Width: 50, Height: 100}
 	canvas.Clip(outer)
 	var doc markdown.Document
 	doc.Parse("first `code` [link](https://example.com)")
 	var view MarkdownView
 	view.Layout(markdownCanvas(), MarkdownStyle{Size: 12}, &doc, 300)
-	selection := ui.Color{Red: 1, Alpha: 1}
+	selection := gfx.Color{Red: 1, Alpha: 1}
 	view.Paint(&canvas, MarkdownPaint{
 		Look: MarkdownLook{Selection: selection}, Selection: MarkdownSelection{Anchor: 0, Focus: view.TextLen()},
-		X: inner.X, Y: inner.Y, Clip: inner, Links: ui.Scope(1),
+		X: inner.X, Y: inner.Y, Clip: inner, Links: gfx.Scope(1),
 	})
 	if clips := canvas.Clips(); len(clips) != 1 || clips[0].Bounds != outer {
 		t.Fatalf("the caller's clip stack was not restored: %+v", clips)
@@ -1325,7 +1325,7 @@ func TestMarkdownPaintNestsItsClipAndRestoresTheCallerStack(t *testing.T) {
 			t.Errorf("link hit %+v escapes the nested clip %+v", hit.Bounds, effective)
 		}
 	}
-	canvas.Fill(ui.Rect{X: 60, Y: 40, Width: 20, Height: 10}, ui.Color{Blue: 1, Alpha: 1})
+	canvas.Fill(gfx.Rect{X: 60, Y: 40, Width: 20, Height: 10}, gfx.Color{Blue: 1, Alpha: 1})
 	if rectangle := canvas.Rectangles()[len(canvas.Rectangles())-1]; rectangle.ClipOf != outer {
 		t.Errorf("a later control was clipped by Markdown: %+v", rectangle)
 	}
@@ -1373,13 +1373,13 @@ func BenchmarkMarkdownSteadyPaint(b *testing.B) {
 	doc.Parse(src)
 	canvas := markdownCanvas()
 	var view MarkdownView
-	look := MarkdownLookFor(ui.DarkTheme())
+	look := MarkdownLookFor(gfx.DarkTheme())
 	view.Layout(canvas, MarkdownStyle{Size: 13}, &doc, 400)
 	canvas.Reset()
 	b.ReportAllocs()
 	for b.Loop() {
 		canvas.Reset()
-		view.Paint(canvas, MarkdownPaint{Look: look, Links: ui.Scope(3), Clip: ui.Rect{Width: 400, Height: 600}})
+		view.Paint(canvas, MarkdownPaint{Look: look, Links: gfx.Scope(3), Clip: gfx.Rect{Width: 400, Height: 600}})
 	}
 }
 
@@ -1400,9 +1400,9 @@ func TestHighlightedCodeIsDrawnInColoredRunsThatKeepTheText(t *testing.T) {
 	doc.Parse(src)
 	var view MarkdownView
 	view.Layout(markdownCanvas(), MarkdownStyle{Size: 12, Highlight: highlight}, &doc, 220)
-	var canvas ui.Canvas
-	look := MarkdownLookFor(ui.DarkTheme())
-	look.Code[CodeComment] = ui.Color{Red: 1, Alpha: 1}
+	var canvas gfx.Canvas
+	look := MarkdownLookFor(gfx.DarkTheme())
+	look.Code[CodeComment] = gfx.Color{Red: 1, Alpha: 1}
 	view.Paint(&canvas, MarkdownPaint{Look: look})
 
 	var joined strings.Builder
@@ -1497,8 +1497,8 @@ func TestInlineCodeSelectionUsesItsOwnCellWidth(t *testing.T) {
 	doc.Parse("alpha `code` beta")
 	var view MarkdownView
 	view.Layout(canvas, MarkdownStyle{Size: 12}, &doc, 300)
-	selected := ui.Color{Red: 1, Alpha: 1}
-	var painted ui.Canvas
+	selected := gfx.Color{Red: 1, Alpha: 1}
+	var painted gfx.Canvas
 	// "alpha " is six bytes, then the four bytes of the inline code.
 	view.Paint(&painted, MarkdownPaint{
 		Look: MarkdownLook{Selection: selected}, Selection: MarkdownSelection{Anchor: 6, Focus: 10},
@@ -1517,7 +1517,7 @@ func TestInlineCodeSelectionUsesItsOwnCellWidth(t *testing.T) {
 
 func TestMarkdownOffsetAtInsideInlineCode(t *testing.T) {
 	view, _ := layoutMarkdown(t, "alpha `code` beta", 300, MarkdownStyle{Size: 12})
-	var painted ui.Canvas
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{})
 	index := -1
 	for i := range view.pieces {
@@ -1530,7 +1530,7 @@ func TestMarkdownOffsetAtInsideInlineCode(t *testing.T) {
 	}
 	piece := &view.pieces[index]
 	const cell = float32(11) / 2
-	offset, ok := view.OffsetAt(ui.Point{X: piece.x + cell*2.1, Y: piece.y + 1})
+	offset, ok := view.OffsetAt(gfx.Point{X: piece.x + cell*2.1, Y: piece.y + 1})
 	if want := int(piece.plainLo) + 2; !ok || offset != want {
 		t.Fatalf("offset in inline code = %d, %v; want %d", offset, ok, want)
 	}
@@ -1542,7 +1542,7 @@ func TestMarkdownCaretAtStyledWrappedPiece(t *testing.T) {
 	doc.Parse("plain **bold words** *italic ending* [link](https://example.invalid) tail")
 	var view MarkdownView
 	view.Layout(canvas, MarkdownStyle{Size: 16, LineHeight: 26}, &doc, 145)
-	var painted ui.Canvas
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{X: 17, Y: 31})
 	for _, piece := range view.pieces {
 		if !piece.italic || piece.y == 0 || len(piece.text) < 2 {
@@ -1550,11 +1550,11 @@ func TestMarkdownCaretAtStyledWrappedPiece(t *testing.T) {
 		}
 		offset := int(piece.plainLo) + 1
 		caret, ok := view.CaretAt(offset)
-		want := float32(17) + piece.x + canvas.TextCaretStyle(piece.text, ui.TextStyle{Size: piece.size, Weight: piece.weight, Italic: true}, 1)
+		want := float32(17) + piece.x + canvas.TextCaretStyle(piece.text, gfx.TextStyle{Size: piece.size, Weight: piece.weight, Italic: true}, 1)
 		if !ok || caret.X != want || caret.Y != 31+piece.y || caret.Height != piece.h {
 			t.Fatalf("wrapped italic caret=%+v ok=%v, want x=%v y=%v h=%v", caret, ok, want, 31+piece.y, piece.h)
 		}
-		if hit, ok := view.OffsetAt(ui.Point{X: caret.X, Y: caret.Y + caret.Height/2}); !ok || hit != offset {
+		if hit, ok := view.OffsetAt(gfx.Point{X: caret.X, Y: caret.Y + caret.Height/2}); !ok || hit != offset {
 			t.Fatalf("caret hit=%d ok=%v, want=%d", hit, ok, offset)
 		}
 		return
@@ -1574,7 +1574,7 @@ func TestMarkdownCaretAtInlineCodeAndUnpaintedView(t *testing.T) {
 	if _, ok := view.CaretAt(0); ok {
 		t.Fatal("unpainted view reported a caret")
 	}
-	var painted ui.Canvas
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{X: 9, Y: 13})
 	for _, piece := range view.pieces {
 		if !piece.mono || piece.text != "code" {
@@ -1596,7 +1596,7 @@ func TestMarkdownCaretAtInlineCodeAndUnpaintedView(t *testing.T) {
 
 func TestMarkdownCaretAtSnapsGraphemeBoundary(t *testing.T) {
 	view, _ := layoutMarkdown(t, "a👩‍💻b", 300, MarkdownStyle{Size: 16})
-	var painted ui.Canvas
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{})
 	start, ok := view.CaretAt(len("a"))
 	inside, insideOK := view.CaretAt(len("a") + len("👩") + 1)
@@ -1611,7 +1611,7 @@ func TestMarkdownCaretAtPrefersTheWrappedLineStart(t *testing.T) {
 	doc.Parse("one two three four five six seven")
 	var view MarkdownView
 	view.Layout(canvas, MarkdownStyle{Size: 12, LineHeight: 20}, &doc, 64)
-	var painted ui.Canvas
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{X: 10, Y: 15})
 	for _, piece := range view.pieces {
 		if piece.y == 0 || piece.plainLo < 0 {
@@ -1646,7 +1646,7 @@ func TestMarkdownCaretAtIsStableUnderOffsetAt(t *testing.T) {
 		if !ok {
 			t.Fatalf("offset %d has no caret", offset)
 		}
-		hit, ok := view.OffsetAt(ui.Point{X: caret.X, Y: caret.Y + caret.Height/2})
+		hit, ok := view.OffsetAt(gfx.Point{X: caret.X, Y: caret.Y + caret.Height/2})
 		if !ok {
 			t.Fatalf("offset %d: caret %+v is not hittable", offset, caret)
 		}
@@ -1663,7 +1663,7 @@ func TestMarkdownCaretAtWarmDoesNotAllocate(t *testing.T) {
 	doc.Parse("plain **bold** *italic* tail")
 	var view MarkdownView
 	view.Layout(canvas, MarkdownStyle{Size: 16}, &doc, 145)
-	var painted ui.Canvas
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{})
 	offset := len("plain bold ita")
 	if _, ok := view.CaretAt(offset); !ok {
@@ -1680,7 +1680,7 @@ func TestMarkdownCaretAtCoversSpacesBetweenStyles(t *testing.T) {
 	doc.Parse("alpha   **bold** tail")
 	var view MarkdownView
 	view.Layout(canvas, MarkdownStyle{Size: 16}, &doc, 300)
-	var painted ui.Canvas
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{})
 	for offset := 0; offset <= view.TextLen(); offset++ {
 		caret, ok := view.CaretAt(offset)
@@ -1688,7 +1688,7 @@ func TestMarkdownCaretAtCoversSpacesBetweenStyles(t *testing.T) {
 			t.Fatalf("no caret for visible byte %d in %q", offset, view.plain)
 		}
 		if offset > len("alpha") && offset < len("alpha   ") {
-			if hit, hitOK := view.OffsetAt(ui.Point{X: caret.X, Y: caret.Y + caret.Height/2}); !hitOK || hit != offset {
+			if hit, hitOK := view.OffsetAt(gfx.Point{X: caret.X, Y: caret.Y + caret.Height/2}); !hitOK || hit != offset {
 				t.Fatalf("space byte %d hit %d, ok=%v", offset, hit, hitOK)
 			}
 		}
@@ -1701,7 +1701,7 @@ func BenchmarkMarkdownCaretAtHit(b *testing.B) {
 	doc.Parse("plain **bold** *italic* tail")
 	var view MarkdownView
 	view.Layout(canvas, MarkdownStyle{Size: 16}, &doc, 145)
-	var painted ui.Canvas
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{})
 	const offset = len("plain bold ita")
 	b.ReportAllocs()
@@ -1726,8 +1726,8 @@ func TestHeadingInlineCodeSelectionUsesItsOwnCellWidth(t *testing.T) {
 		t.Fatal("no inline code piece in the heading")
 	}
 	piece := &view.pieces[index]
-	selected := ui.Color{Red: 1, Alpha: 1}
-	var painted ui.Canvas
+	selected := gfx.Color{Red: 1, Alpha: 1}
+	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{
 		Look:      MarkdownLook{Selection: selected},
 		Selection: MarkdownSelection{Anchor: int(piece.plainLo), Focus: int(piece.plainHi)},

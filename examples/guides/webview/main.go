@@ -4,7 +4,7 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/ui"
 )
 
 // A page of the system's web engine sits among Viva's own controls. The application opens it when
@@ -49,31 +49,31 @@ func (m *model) open() {
 	m.view = view
 }
 
-func (m *model) page(c flex.C) {
-	flex.Column(c).Fill().Pad(8).Gap(8).Children(func() {
-		flex.Row(c).Gap(8).Items(flex.Center).Children(func() {
-			if flex.Button(c, "Back").Outline().Clicked() && m.view != nil {
+func (m *model) page(c ui.C) {
+	ui.Column(c).Fill().Pad(8).Gap(8).Children(func() {
+		ui.Row(c).Gap(8).Items(ui.Center).Children(func() {
+			if ui.Button(c, "Back").Outline().Clicked() && m.view != nil {
 				m.view.Back()
 			}
-			if flex.Button(c, "Forward").Outline().Clicked() && m.view != nil {
+			if ui.Button(c, "Forward").Outline().Clicked() && m.view != nil {
 				m.view.Forward()
 			}
-			if flex.Button(c, "Reload").Outline().Clicked() && m.view != nil {
+			if ui.Button(c, "Reload").Outline().Clicked() && m.view != nil {
 				m.view.Reload()
 			}
-			menu := flex.Button(c, "Menu").Outline()
+			menu := ui.Button(c, "Menu").Outline()
 			if menu.Clicked() {
 				m.menuOpen = !m.menuOpen
 			}
-			flex.Text(c, m.status).Muted()
-			flex.PopoverWith(c, menu, flex.PopoverSpec{Width: 220, Align: flex.Start}, &m.menuOpen, func() {
-				if flex.Button(c, "Say hello to the page").Ghost().Clicked() && m.view != nil {
+			ui.Text(c, m.status).Muted()
+			ui.PopoverWith(c, menu, ui.PopoverSpec{Width: 220, Align: ui.Start}, &m.menuOpen, func() {
+				if ui.Button(c, "Say hello to the page").Ghost().Clicked() && m.view != nil {
 					m.view.PostMessage("hello from Viva")
 					m.menuOpen = false
 				}
 			})
 		})
-		content := flex.Slot(c).Grow(1)
+		content := ui.Slot(c).Grow(1)
 		if m.view != nil {
 			content.NativeView(m.view.ID())
 		}
@@ -84,7 +84,7 @@ func main() {
 	m := &model{}
 	m.web.OnReady = m.open
 	config := app.Config{Title: "Web view", Width: 760, Height: 520, Web: &m.web}
-	if err := flex.Run(config, m.page); err != nil {
+	if err := ui.Run(config, m.page); err != nil {
 		log.Fatal(err)
 	}
 }

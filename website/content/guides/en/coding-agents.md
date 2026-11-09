@@ -12,7 +12,7 @@ Viva draws its own interface, repaints only on request and has no layout cache, 
 
 - How to decide whether a need is application behavior or a reusable desktop capability that belongs in Viva rather than in the application.
 - The rules that review rejects: no reflection or property bags in the paint path, no work while the application is idle, no per-paint allocation, no hand-numbered hit targets and no unmeasured claims about speed.
-- How a screen is written: identities in a `ui.Tree`, clicks handled where the control is declared, layout with `flex`.
+- How a screen is written: identities in a `gfx.Tree`, clicks handled where the control is declared, layout with `ui`.
 - How to verify a change without opening a window, in the order described in [Test without a window](/en/docs/testing/), and what to say about the parts that could not be checked.
 - Where the guides, examples and measurements are.
 

@@ -4,46 +4,46 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 var calendarTestWeekdays = [7]string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
 
 var calendarTestDays = [...]CalendarDay{
-	{ID: ui.Item(101), Label: "29", AccessibilityLabel: "September 29", Outside: true},
-	{ID: ui.Item(102), Label: "30", AccessibilityLabel: "September 30", Outside: true, Disabled: true},
-	{ID: ui.Item(103), Label: "1", AccessibilityLabel: "October 1", Today: true},
-	{ID: ui.Item(104), Label: "2", AccessibilityLabel: "October 2", Selected: true},
-	{ID: ui.Item(105), Label: "3", AccessibilityLabel: "October 3", RangeStart: true},
-	{ID: ui.Item(106), Label: "4", AccessibilityLabel: "October 4", RangeMiddle: true},
-	{ID: ui.Item(107), Label: "5", AccessibilityLabel: "October 5", RangeEnd: true},
-	{ID: ui.Item(108), Label: "6", AccessibilityLabel: "October 6", Value: "2026-10-06", Hint: "Available"},
+	{ID: gfx.Item(101), Label: "29", AccessibilityLabel: "September 29", Outside: true},
+	{ID: gfx.Item(102), Label: "30", AccessibilityLabel: "September 30", Outside: true, Disabled: true},
+	{ID: gfx.Item(103), Label: "1", AccessibilityLabel: "October 1", Today: true},
+	{ID: gfx.Item(104), Label: "2", AccessibilityLabel: "October 2", Selected: true},
+	{ID: gfx.Item(105), Label: "3", AccessibilityLabel: "October 3", RangeStart: true},
+	{ID: gfx.Item(106), Label: "4", AccessibilityLabel: "October 4", RangeMiddle: true},
+	{ID: gfx.Item(107), Label: "5", AccessibilityLabel: "October 5", RangeEnd: true},
+	{ID: gfx.Item(108), Label: "6", AccessibilityLabel: "October 6", Value: "2026-10-06", Hint: "Available"},
 }
 
 func calendarTestOptions() CalendarOptions {
 	return CalendarOptions{
 		MonthTitle: "October 2026", Weekdays: calendarTestWeekdays, Days: calendarTestDays[:],
-		PreviousID: ui.Item(91), NextID: ui.Item(92), PreviousLabel: "Previous month", NextLabel: "Next month",
+		PreviousID: gfx.Item(91), NextID: gfx.Item(92), PreviousLabel: "Previous month", NextLabel: "Next month",
 		PreviousDisabled: true,
 	}
 }
 
 func TestCalendarUsesSevenColumnGeometryAndCallerOwnedSnapshot(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	calendar := BeginCalendar(&canvas, theme, ui.Rect{X: 10, Y: 20, Width: 240}, calendarTestOptions())
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	calendar := BeginCalendar(&canvas, theme, gfx.Rect{X: 10, Y: 20, Width: 240}, calendarTestOptions())
 	calendar.Paint()
 
-	if got, want := calendar.Bounds(), (ui.Rect{X: 10, Y: 20, Width: 240, Height: 160}); got != want {
+	if got, want := calendar.Bounds(), (gfx.Rect{X: 10, Y: 20, Width: 240, Height: 160}); got != want {
 		t.Fatalf("calendar bounds = %+v, want %+v", got, want)
 	}
-	if got, want := calendar.DayBounds(0), (ui.Rect{X: 18, Y: 108, Width: 28, Height: 28}); got != want {
+	if got, want := calendar.DayBounds(0), (gfx.Rect{X: 18, Y: 108, Width: 28, Height: 28}); got != want {
 		t.Fatalf("first day bounds = %+v, want %+v", got, want)
 	}
-	if got, want := calendar.DayBounds(6), (ui.Rect{X: 186, Y: 108, Width: 28, Height: 28}); got != want {
+	if got, want := calendar.DayBounds(6), (gfx.Rect{X: 186, Y: 108, Width: 28, Height: 28}); got != want {
 		t.Fatalf("seventh day bounds = %+v, want %+v", got, want)
 	}
-	if got, want := calendar.DayBounds(7), (ui.Rect{X: 18, Y: 144, Width: 28, Height: 28}); got != want {
+	if got, want := calendar.DayBounds(7), (gfx.Rect{X: 18, Y: 144, Width: 28, Height: 28}); got != want {
 		t.Fatalf("eighth day bounds = %+v, want %+v", got, want)
 	}
 	// The navigation arrows are icons, not text: title, 7 weekdays, 8 days.
@@ -56,16 +56,16 @@ func TestCalendarUsesSevenColumnGeometryAndCallerOwnedSnapshot(t *testing.T) {
 	if len(nonBlockHits(canvas.Hits())) != 10 {
 		t.Fatalf("calendar hits = %d, want 10", len(nonBlockHits(canvas.Hits())))
 	}
-	if previous := nonBlockHits(canvas.Hits())[0]; previous.ID != ui.Item(91) || previous.Role != ui.RoleButton || !previous.Disabled || previous.Focusable {
+	if previous := nonBlockHits(canvas.Hits())[0]; previous.ID != gfx.Item(91) || previous.Role != gfx.RoleButton || !previous.Disabled || previous.Focusable {
 		t.Fatalf("previous hit = %+v", previous)
 	}
-	if next := nonBlockHits(canvas.Hits())[1]; next.ID != ui.Item(92) || next.Role != ui.RoleButton || next.Disabled || !next.Focusable {
+	if next := nonBlockHits(canvas.Hits())[1]; next.ID != gfx.Item(92) || next.Role != gfx.RoleButton || next.Disabled || !next.Focusable {
 		t.Fatalf("next hit = %+v", next)
 	}
 	if disabledDay := nonBlockHits(canvas.Hits())[3]; disabledDay.Label != "September 30" || !disabledDay.Disabled || disabledDay.Focusable {
 		t.Fatalf("disabled day hit = %+v", disabledDay)
 	}
-	if selected := nonBlockHits(canvas.Hits())[5]; !selected.Selected || selected.Role != ui.RoleGridCell {
+	if selected := nonBlockHits(canvas.Hits())[5]; !selected.Selected || selected.Role != gfx.RoleGridCell {
 		t.Fatalf("selected day hit = %+v", selected)
 	}
 	if rangeMiddle := nonBlockHits(canvas.Hits())[7]; !rangeMiddle.Selected {
@@ -77,9 +77,9 @@ func TestCalendarUsesSevenColumnGeometryAndCallerOwnedSnapshot(t *testing.T) {
 }
 
 func TestCalendarPaintsOfficialSingleRangeTodayAndOutsideStates(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	BeginCalendar(&canvas, theme, ui.Rect{Width: 240}, calendarTestOptions()).Paint()
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	BeginCalendar(&canvas, theme, gfx.Rect{Width: 240}, calendarTestOptions()).Paint()
 
 	texts := canvas.Texts()
 	if texts[8].Style.Color != theme.MutedForeground {
@@ -119,14 +119,14 @@ func TestCalendarPaintsOfficialSingleRangeTodayAndOutsideStates(t *testing.T) {
 }
 
 func TestCalendarFocusedDayUsesRingAndPreservesTypedSemantics(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	canvas.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(106), true)
-	calendar := BeginCalendar(&canvas, theme, ui.Rect{Width: 240}, calendarTestOptions())
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.Item(106), true)
+	calendar := BeginCalendar(&canvas, theme, gfx.Rect{Width: 240}, calendarTestOptions())
 	calendar.Paint()
 
 	focusedBounds := calendar.DayBounds(5)
-	wantRingBounds := ui.Rect{X: focusedBounds.X - 3, Y: focusedBounds.Y - 3, Width: 34, Height: 34}
+	wantRingBounds := gfx.Rect{X: focusedBounds.X - 3, Y: focusedBounds.Y - 3, Width: 34, Height: 34}
 	foundRing := false
 	for _, rectangle := range canvas.Rectangles() {
 		if rectangle.Bounds == wantRingBounds {
@@ -143,7 +143,7 @@ func TestCalendarFocusedDayUsesRingAndPreservesTypedSemantics(t *testing.T) {
 		t.Fatalf("focused day ring with bounds %+v not found", wantRingBounds)
 	}
 	focusedHit := nonBlockHits(canvas.Hits())[7]
-	if focusedHit.ID != ui.Item(106) || focusedHit.Role != ui.RoleGridCell || !focusedHit.Selected || !focusedHit.Focusable {
+	if focusedHit.ID != gfx.Item(106) || focusedHit.Role != gfx.RoleGridCell || !focusedHit.Selected || !focusedHit.Focusable {
 		t.Fatalf("focused range day semantics = %+v", focusedHit)
 	}
 }
@@ -151,9 +151,9 @@ func TestCalendarFocusedDayUsesRingAndPreservesTypedSemantics(t *testing.T) {
 // A calendar sits on whatever surface holds it. Painting the page background
 // itself would make a darker rectangle inside a popover or card in dark mode.
 func TestCalendarPaintsNoSurfaceOfItsOwn(t *testing.T) {
-	for _, theme := range []ui.Theme{ui.LightTheme(), ui.DarkTheme()} {
-		var canvas ui.Canvas
-		calendar := BeginCalendar(&canvas, theme, ui.Rect{Width: 240}, calendarTestOptions())
+	for _, theme := range []gfx.Theme{gfx.LightTheme(), gfx.DarkTheme()} {
+		var canvas gfx.Canvas
+		calendar := BeginCalendar(&canvas, theme, gfx.Rect{Width: 240}, calendarTestOptions())
 		calendar.Paint()
 		for _, rectangle := range canvas.Rectangles() {
 			if rectangle.Bounds == calendar.Bounds() && rectangle.Color.Alpha != 0 {
@@ -165,22 +165,22 @@ func TestCalendarPaintsNoSurfaceOfItsOwn(t *testing.T) {
 
 func TestCalendarCommandForKeyMapsNavigationIntents(t *testing.T) {
 	for _, test := range []struct {
-		key       ui.Key
-		modifiers ui.Modifiers
+		key       gfx.Key
+		modifiers gfx.Modifiers
 		want      CalendarCommand
 		handled   bool
 	}{
-		{ui.KeyLeft, 0, CalendarCommand{Kind: CalendarCommandMoveDays, Amount: -1}, true},
-		{ui.KeyRight, 0, CalendarCommand{Kind: CalendarCommandMoveDays, Amount: 1}, true},
-		{ui.KeyUp, 0, CalendarCommand{Kind: CalendarCommandMoveWeeks, Amount: -1}, true},
-		{ui.KeyDown, 0, CalendarCommand{Kind: CalendarCommandMoveWeeks, Amount: 1}, true},
-		{ui.KeyPageUp, 0, CalendarCommand{Kind: CalendarCommandMoveMonths, Amount: -1}, true},
-		{ui.KeyPageDown, 0, CalendarCommand{Kind: CalendarCommandMoveMonths, Amount: 1}, true},
-		{ui.KeyPageUp, ui.ModifierShift, CalendarCommand{Kind: CalendarCommandMoveYears, Amount: -1}, true},
-		{ui.KeyPageDown, ui.ModifierShift, CalendarCommand{Kind: CalendarCommandMoveYears, Amount: 1}, true},
-		{ui.KeyHome, 0, CalendarCommand{Kind: CalendarCommandWeekStart}, true},
-		{ui.KeyEnd, 0, CalendarCommand{Kind: CalendarCommandWeekEnd}, true},
-		{ui.KeyEnter, 0, CalendarCommand{}, false},
+		{gfx.KeyLeft, 0, CalendarCommand{Kind: CalendarCommandMoveDays, Amount: -1}, true},
+		{gfx.KeyRight, 0, CalendarCommand{Kind: CalendarCommandMoveDays, Amount: 1}, true},
+		{gfx.KeyUp, 0, CalendarCommand{Kind: CalendarCommandMoveWeeks, Amount: -1}, true},
+		{gfx.KeyDown, 0, CalendarCommand{Kind: CalendarCommandMoveWeeks, Amount: 1}, true},
+		{gfx.KeyPageUp, 0, CalendarCommand{Kind: CalendarCommandMoveMonths, Amount: -1}, true},
+		{gfx.KeyPageDown, 0, CalendarCommand{Kind: CalendarCommandMoveMonths, Amount: 1}, true},
+		{gfx.KeyPageUp, gfx.ModifierShift, CalendarCommand{Kind: CalendarCommandMoveYears, Amount: -1}, true},
+		{gfx.KeyPageDown, gfx.ModifierShift, CalendarCommand{Kind: CalendarCommandMoveYears, Amount: 1}, true},
+		{gfx.KeyHome, 0, CalendarCommand{Kind: CalendarCommandWeekStart}, true},
+		{gfx.KeyEnd, 0, CalendarCommand{Kind: CalendarCommandWeekEnd}, true},
+		{gfx.KeyEnter, 0, CalendarCommand{}, false},
 	} {
 		got, handled := CalendarCommandForKey(test.key, test.modifiers)
 		if got != test.want || handled != test.handled {
@@ -190,12 +190,12 @@ func TestCalendarCommandForKeyMapsNavigationIntents(t *testing.T) {
 }
 
 func TestCalendarRepeatedPaintIsStableAndAllocationFree(t *testing.T) {
-	theme := ui.DarkTheme()
+	theme := gfx.DarkTheme()
 	options := calendarTestOptions()
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		BeginCalendar(&canvas, theme, ui.Rect{Width: 240}, options).Paint()
+		BeginCalendar(&canvas, theme, gfx.Rect{Width: 240}, options).Paint()
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -215,25 +215,25 @@ func TestCalendarRepeatedPaintIsStableAndAllocationFree(t *testing.T) {
 func TestCalendarFocusForKeySkipsAndClamps(t *testing.T) {
 	days := make([]CalendarDay, 14)
 	for index := range days {
-		days[index] = CalendarDay{ID: ui.Item(index + 1), Label: "day"}
+		days[index] = CalendarDay{ID: gfx.Item(index + 1), Label: "day"}
 	}
 	days[1].Disabled = true
-	if id, ok := CalendarFocusForKey(ui.KeyRight, LTR, days, ui.Item(1)); !ok || id != ui.Item(3) {
+	if id, ok := CalendarFocusForKey(gfx.KeyRight, LTR, days, gfx.Item(1)); !ok || id != gfx.Item(3) {
 		t.Fatalf("Right over disabled = (%v, %v), want the next enabled day", id, ok)
 	}
-	if id, ok := CalendarFocusForKey(ui.KeyLeft, LTR, days, ui.Item(1)); !ok || id != ui.Item(1) {
+	if id, ok := CalendarFocusForKey(gfx.KeyLeft, LTR, days, gfx.Item(1)); !ok || id != gfx.Item(1) {
 		t.Fatalf("Left at the start = (%v, %v)", id, ok)
 	}
-	if id, ok := CalendarFocusForKey(ui.KeyRight, RTL, days, ui.Item(3)); !ok || id != ui.Item(1) {
+	if id, ok := CalendarFocusForKey(gfx.KeyRight, RTL, days, gfx.Item(3)); !ok || id != gfx.Item(1) {
 		t.Fatalf("Right in RTL = (%v, %v), want the previous enabled day", id, ok)
 	}
-	if id, ok := CalendarFocusForKey(ui.KeyEnd, LTR, days, ui.Item(1)); !ok || id != ui.Item(7) {
+	if id, ok := CalendarFocusForKey(gfx.KeyEnd, LTR, days, gfx.Item(1)); !ok || id != gfx.Item(7) {
 		t.Fatalf("End = (%v, %v), want the week end", id, ok)
 	}
-	if id, ok := CalendarFocusForKey(ui.KeyDown, LTR, days, ui.Item(7)); !ok || id != ui.Item(14) {
+	if id, ok := CalendarFocusForKey(gfx.KeyDown, LTR, days, gfx.Item(7)); !ok || id != gfx.Item(14) {
 		t.Fatalf("Down into the last week = (%v, %v)", id, ok)
 	}
-	if _, ok := CalendarFocusForKey(ui.KeyPageDown, LTR, days, ui.Item(1)); ok {
+	if _, ok := CalendarFocusForKey(gfx.KeyPageDown, LTR, days, gfx.Item(1)); ok {
 		t.Fatal("PageDown belongs to month navigation")
 	}
 }

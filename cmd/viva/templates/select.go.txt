@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // SelectSize selects the height of the trigger and, for the extra-small one, the
 // type step of its value.
@@ -17,7 +17,7 @@ const (
 
 // SelectOptions describes application-owned trigger and popup state.
 type SelectOptions struct {
-	TriggerID   ui.ID
+	TriggerID   gfx.ID
 	Label       string
 	Value       string
 	Placeholder string
@@ -28,20 +28,20 @@ type SelectOptions struct {
 	Size        SelectSize
 	// Icon, when it has any geometry, is painted before the trigger's value. A
 	// single-color icon takes the value's color; a multi-color one keeps its own.
-	Icon ui.Icon
+	Icon gfx.Icon
 	// IconImage is a full-color image in the icon slot when Icon is empty.
-	IconImage ui.Bitmap
+	IconImage gfx.Bitmap
 	// IconText is a short text glyph when Icon and IconImage are empty or invalid.
 	IconText  string
-	Content   ui.Rect
+	Content   gfx.Rect
 	Layer     uint16
-	Scope     ui.ID
-	DismissID ui.ID
+	Scope     gfx.ID
+	DismissID gfx.ID
 	// Viewport, with DismissID, makes the open popup declare a hit over the
 	// whole window behind its surface, so pressing anywhere outside it,
 	// including the trigger, reports DismissID (Escape reports it too). Leave
 	// it empty to dismiss only on Escape and handle outside presses yourself.
-	Viewport ui.Rect
+	Viewport gfx.Rect
 	// Scroll is the scroll position of a popup whose items do not all fit its
 	// Content (see MenuScroll); without one such a popup shows only the items at
 	// its top. Keep it for as long as the popup is open and reset it when it opens.
@@ -58,16 +58,16 @@ type SelectOptions struct {
 
 // SelectItem describes one stable value in the open popup.
 type SelectItem struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Value    string
 	Hint     string
 	Selected bool
 	Disabled bool
 	// Icon, when it has any geometry, is painted before the label.
-	Icon ui.Icon
+	Icon gfx.Icon
 	// IconImage is a full-color image in the icon slot when Icon is empty.
-	IconImage ui.Bitmap
+	IconImage gfx.Bitmap
 	// IconText is a short text glyph when Icon and IconImage are empty or invalid.
 	IconText string
 }
@@ -85,7 +85,7 @@ const (
 // selectTriggerSize is the height of a trigger and the type step of its value.
 // Only the extra-small step changes the type, as in Button: a compact control
 // keeps the body size and just gets shorter.
-func selectTriggerSize(metrics ui.Metrics, size SelectSize) (height, textSize float32) {
+func selectTriggerSize(metrics gfx.Metrics, size SelectSize) (height, textSize float32) {
 	switch size {
 	case SelectSizeSmall:
 		return metrics.ControlHeight - 4, metrics.FontSizeM
@@ -98,10 +98,10 @@ func selectTriggerSize(metrics ui.Metrics, size SelectSize) (height, textSize fl
 // Select paints a typed native select trigger and, when open, its source-owned
 // popup. Value ownership and popup placement remain application state.
 type Select struct {
-	canvas        *ui.Canvas
-	theme         ui.Theme
-	triggerBounds ui.Rect
-	contentBounds ui.Rect
+	canvas        *gfx.Canvas
+	theme         gfx.Theme
+	triggerBounds gfx.Rect
+	contentBounds gfx.Rect
 	options       SelectOptions
 	// textSize is the type step of the value in the trigger; the popup's rows
 	// stay at body size.
@@ -112,7 +112,7 @@ type Select struct {
 }
 
 // BeginSelect paints the trigger and optional open popup.
-func BeginSelect(canvas *ui.Canvas, theme ui.Theme, triggerBounds ui.Rect, options SelectOptions) Select {
+func BeginSelect(canvas *gfx.Canvas, theme gfx.Theme, triggerBounds gfx.Rect, options SelectOptions) Select {
 	height, textSize := selectTriggerSize(theme.Metrics, options.Size)
 	if triggerBounds.Height <= 0 {
 		triggerBounds.Height = height
@@ -161,17 +161,17 @@ func BeginSelect(canvas *ui.Canvas, theme ui.Theme, triggerBounds ui.Rect, optio
 		canvas.SetEscapeTarget(options.DismissID)
 	}
 	if !options.DismissID.IsZero() && options.Viewport.Width > 0 && options.Viewport.Height > 0 {
-		canvas.HitWithOptions(options.DismissID, options.Viewport, "Dismiss select", ui.HitOptions{Role: ui.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
+		canvas.HitWithOptions(options.DismissID, options.Viewport, "Dismiss select", gfx.HitOptions{Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
 	}
 	// The popup is inside the select: a press on its padding or a disabled option
 	// must not reach the dismiss backdrop behind it.
 	canvas.Block(content)
-	canvas.Container(content, ui.RoleListBox, options.Label)
+	canvas.Container(content, gfx.RoleListBox, options.Label)
 	side := popupSideOf(content, triggerBounds)
 	canvas.BeginPresence(overlayKey(options.TriggerID, options.DismissID, options.Scope), overlaySurfacePart,
 		popupPresence(theme, overlayDuration, side), popupPivot(content, side, triggerBounds))
 	if !options.Unpainted {
-		paintPopupSurface(canvas, &theme, content, ui.ShadowMD) // shadow-md
+		paintPopupSurface(canvas, &theme, content, gfx.ShadowMD) // shadow-md
 	}
 	selectControl.popOverlay()
 	return selectControl
@@ -189,32 +189,32 @@ func (selectControl Select) End() {
 }
 
 // TriggerBounds returns the normalized trigger geometry.
-func (selectControl Select) TriggerBounds() ui.Rect {
+func (selectControl Select) TriggerBounds() gfx.Rect {
 	return selectControl.triggerBounds
 }
 
 // ContentBounds returns the normalized popup geometry, or zero when closed.
-func (selectControl Select) ContentBounds() ui.Rect {
+func (selectControl Select) ContentBounds() gfx.Rect {
 	return selectControl.contentBounds
 }
 
 // NextItemBounds reports the next keyboard-navigation row.
-func (selectControl Select) NextItemBounds() ui.Rect {
+func (selectControl Select) NextItemBounds() gfx.Rect {
 	return selectControl.rowBounds(32)
 }
 
 // AddLabel paints one muted group label in the open popup.
-func (selectControl *Select) AddLabel(label string) ui.Rect {
+func (selectControl *Select) AddLabel(label string) gfx.Rect {
 	bounds := selectControl.rowBounds(28)
 	if !selectControl.reserve(bounds) {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	selectControl.rows.paintRow(bounds, func() {
 		if selectControl.options.Unpainted {
 			return
 		}
-		selectControl.canvas.Label(label, ui.Rect{X: bounds.X + 8, Y: bounds.Y, Width: selectMax(0, bounds.Width-16), Height: bounds.Height}, ui.TextStyle{
-			Size: selectControl.theme.Metrics.FontSizeS, Weight: ui.WeightRegular, Color: selectControl.theme.MutedForeground,
+		selectControl.canvas.Label(label, gfx.Rect{X: bounds.X + 8, Y: bounds.Y, Width: selectMax(0, bounds.Width-16), Height: bounds.Height}, gfx.TextStyle{
+			Size: selectControl.theme.Metrics.FontSizeS, Weight: gfx.WeightRegular, Color: selectControl.theme.MutedForeground,
 		})
 	})
 	return bounds
@@ -222,38 +222,38 @@ func (selectControl *Select) AddLabel(label string) ui.Rect {
 
 // AddItem paints one option with selected and disabled semantics. The rectangle
 // is empty when the row is scrolled out of the popup.
-func (selectControl *Select) AddItem(item SelectItem) ui.Rect {
+func (selectControl *Select) AddItem(item SelectItem) gfx.Rect {
 	bounds := selectControl.rowBounds(32)
 	if !selectControl.open || !selectControl.rows.takeItem(bounds, item.ID, item.Label, item.Disabled) {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	selectControl.rows.paintRow(bounds, func() { selectControl.paintItem(bounds, item) })
 	return bounds
 }
 
 // AddSeparator paints a group divider.
-func (selectControl *Select) AddSeparator() ui.Rect {
+func (selectControl *Select) AddSeparator() gfx.Rect {
 	bounds := selectControl.rowBounds(9)
 	bounds.X, bounds.Width = selectControl.contentBounds.X, selectControl.contentBounds.Width
 	if !selectControl.reserve(bounds) {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	selectControl.rows.paintRow(bounds, func() {
 		if selectControl.options.Unpainted {
 			return
 		}
-		selectControl.canvas.Fill(ui.Rect{X: bounds.X, Y: bounds.Y + 4, Width: bounds.Width, Height: 1}, selectControl.theme.Border)
+		selectControl.canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y + 4, Width: bounds.Width, Height: 1}, selectControl.theme.Border)
 	})
 	return bounds
 }
 
 // AddScrollUp paints the explicit scroll-up action used by bounded popups.
-func (selectControl *Select) AddScrollUp(id ui.ID, disabled bool) ui.Rect {
+func (selectControl *Select) AddScrollUp(id gfx.ID, disabled bool) gfx.Rect {
 	return selectControl.addScrollAction(id, &chevronUpIcon, "Scroll up", disabled)
 }
 
 // AddScrollDown paints the explicit scroll-down action used by bounded popups.
-func (selectControl *Select) AddScrollDown(id ui.ID, disabled bool) ui.Rect {
+func (selectControl *Select) AddScrollDown(id gfx.ID, disabled bool) gfx.Rect {
 	return selectControl.addScrollAction(id, &chevronDownIcon, "Scroll down", disabled)
 }
 
@@ -263,7 +263,7 @@ func (selectControl Select) paintTrigger() {
 	options := selectControl.options
 	enabled := !options.TriggerID.IsZero() && !options.Disabled
 	if !options.Unpainted {
-		state := ui.State{
+		state := gfx.State{
 			Focused:  enabled && canvas.FocusVisible() == options.TriggerID,
 			Invalid:  options.Invalid,
 			Disabled: options.Disabled,
@@ -280,26 +280,26 @@ func (selectControl Select) paintTrigger() {
 		const chevronSpan = 1 + 8 + selectIconSize
 		inset := selectControl.theme.Metrics.TextInsetX()
 		textX, textWidth := bounds.X+inset, bounds.Width-inset-chevronSpan-6
-		if paintSelectIcon(canvas, options.Icon, options.IconImage, options.IconText, ui.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.textSize) {
+		if paintSelectIcon(canvas, options.Icon, options.IconImage, options.IconText, gfx.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.textSize) {
 			textX += selectIconSize + selectIconGap
 			textWidth -= selectIconSize + selectIconGap
 		}
-		canvas.Label(value, ui.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, ui.TextStyle{
-			Size: selectControl.textSize, Weight: ui.WeightRegular, Color: foreground,
+		canvas.Label(value, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
+			Size: selectControl.textSize, Weight: gfx.WeightRegular, Color: foreground,
 		})
-		paintChevron(canvas, &chevronDownIcon, ui.Rect{X: bounds.X + bounds.Width - chevronSpan, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, look.Chevron)
+		paintChevron(canvas, &chevronDownIcon, gfx.Rect{X: bounds.X + bounds.Width - chevronSpan, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, look.Chevron)
 	}
 	if !options.TriggerID.IsZero() {
-		canvas.HitWithOptions(options.TriggerID, bounds, options.Label, ui.HitOptions{
-			Role: ui.RoleCombobox, Value: options.Value, Hint: options.Hint,
+		canvas.HitWithOptions(options.TriggerID, bounds, options.Label, gfx.HitOptions{
+			Role: gfx.RoleCombobox, Value: options.Value, Hint: options.Hint,
 			Disabled: options.Disabled, Expanded: options.Open,
 		})
 	}
 }
 
-func (selectControl *Select) paintItem(bounds ui.Rect, item SelectItem) {
+func (selectControl *Select) paintItem(bounds gfx.Rect, item SelectItem) {
 	if !selectControl.options.Unpainted {
-		state := ui.State{Disabled: item.Disabled}
+		state := gfx.State{Disabled: item.Disabled}
 		if !item.ID.IsZero() {
 			state = selectControl.canvas.StateOf(item.ID)
 			state.Disabled = item.Disabled
@@ -310,31 +310,31 @@ func (selectControl *Select) paintItem(bounds ui.Rect, item SelectItem) {
 		}
 		foreground := look.Foreground
 		textX, textWidth := bounds.X+8, bounds.Width-40
-		if paintSelectIcon(selectControl.canvas, item.Icon, item.IconImage, item.IconText, ui.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.theme.Metrics.FontSizeM) {
+		if paintSelectIcon(selectControl.canvas, item.Icon, item.IconImage, item.IconText, gfx.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.theme.Metrics.FontSizeM) {
 			textX += selectIconSize + selectIconGap
 			textWidth -= selectIconSize + selectIconGap
 		}
-		selectControl.canvas.Label(item.Label, ui.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, ui.TextStyle{
-			Size: selectControl.theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: foreground,
+		selectControl.canvas.Label(item.Label, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
+			Size: selectControl.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 		})
 		if item.Selected {
-			paintCheck(selectControl.canvas, ui.Rect{X: bounds.X + bounds.Width - 24, Y: bounds.Y, Width: 14, Height: bounds.Height}, 14, foreground)
+			paintCheck(selectControl.canvas, gfx.Rect{X: bounds.X + bounds.Width - 24, Y: bounds.Y, Width: 14, Height: bounds.Height}, 14, foreground)
 		}
 	}
 	if !item.ID.IsZero() {
 		hit := bounds
 		hit.Width -= selectControl.rows.hitInset
-		selectControl.canvas.HitWithOptions(item.ID, hit, item.Label, ui.HitOptions{
-			Role: ui.RoleOption, Value: item.Value, Hint: item.Hint,
+		selectControl.canvas.HitWithOptions(item.ID, hit, item.Label, gfx.HitOptions{
+			Role: gfx.RoleOption, Value: item.Value, Hint: item.Hint,
 			Disabled: item.Disabled, Selected: item.Selected,
 		})
 	}
 }
 
-func (selectControl *Select) addScrollAction(id ui.ID, icon *ui.Icon, label string, disabled bool) ui.Rect {
+func (selectControl *Select) addScrollAction(id gfx.ID, icon *gfx.Icon, label string, disabled bool) gfx.Rect {
 	bounds := selectControl.rowBounds(24)
 	if !selectControl.reserve(bounds) {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	selectControl.rows.paintRow(bounds, func() {
 		if !selectControl.options.Unpainted {
@@ -345,8 +345,8 @@ func (selectControl *Select) addScrollAction(id ui.ID, icon *ui.Icon, label stri
 			paintChevron(selectControl.canvas, icon, bounds, color)
 		}
 		if !id.IsZero() {
-			selectControl.canvas.HitWithOptions(id, bounds, label, ui.HitOptions{
-				Role: ui.RoleMenuItem, Disabled: disabled,
+			selectControl.canvas.HitWithOptions(id, bounds, label, gfx.HitOptions{
+				Role: gfx.RoleMenuItem, Disabled: disabled,
 			})
 		}
 	})
@@ -354,11 +354,11 @@ func (selectControl *Select) addScrollAction(id ui.ID, icon *ui.Icon, label stri
 }
 
 // reserve takes the row's room and reports whether any of it shows.
-func (selectControl *Select) reserve(row ui.Rect) bool {
+func (selectControl *Select) reserve(row gfx.Rect) bool {
 	return selectControl.open && selectControl.rows.take(row)
 }
 
-func (selectControl Select) rowBounds(height float32) ui.Rect {
+func (selectControl Select) rowBounds(height float32) gfx.Rect {
 	return selectControl.rows.rowBounds(height)
 }
 
@@ -378,13 +378,13 @@ func (selectControl Select) popOverlay() {
 
 // paintSelectIcon centers a vector icon, image or text glyph in the slot, in
 // that order of preference, and reports whether it had anything to draw.
-func paintSelectIcon(canvas *ui.Canvas, icon ui.Icon, image ui.Bitmap, text string, slot ui.Rect, tint ui.Color, fontSize float32) bool {
+func paintSelectIcon(canvas *gfx.Canvas, icon gfx.Icon, image gfx.Bitmap, text string, slot gfx.Rect, tint gfx.Color, fontSize float32) bool {
 	if icon.ViewBox <= 0 || len(icon.Commands) == 0 && len(icon.Layers) == 0 {
 		if image.Width > 0 && image.Height > 0 && len(image.Pix) > 0 {
 			before := len(canvas.Images())
 			scale := min(slot.Width/float32(image.Width), slot.Height/float32(image.Height))
 			width, height := float32(image.Width)*scale, float32(image.Height)*scale
-			canvas.DrawBitmap(image, ui.Rect{X: slot.X + (slot.Width-width)/2, Y: slot.Y + (slot.Height-height)/2, Width: width, Height: height})
+			canvas.DrawBitmap(image, gfx.Rect{X: slot.X + (slot.Width-width)/2, Y: slot.Y + (slot.Height-height)/2, Width: width, Height: height})
 			if len(canvas.Images()) > before {
 				return true
 			}
@@ -392,11 +392,11 @@ func paintSelectIcon(canvas *ui.Canvas, icon ui.Icon, image ui.Bitmap, text stri
 		if text == "" {
 			return false
 		}
-		canvas.LabelCenter(text, slot, ui.TextStyle{Size: fontSize, Weight: ui.WeightMedium, Color: tint})
+		canvas.LabelCenter(text, slot, gfx.TextStyle{Size: fontSize, Weight: gfx.WeightMedium, Color: tint})
 		return true
 	}
 	side := min(slot.Width, slot.Height)
-	canvas.DrawIcon(icon, ui.Rect{X: slot.X, Y: slot.Y + (slot.Height-side)/2, Width: side, Height: side}, tint)
+	canvas.DrawIcon(icon, gfx.Rect{X: slot.X, Y: slot.Y + (slot.Height-side)/2, Width: side, Height: side}, tint)
 	return true
 }
 
@@ -414,21 +414,21 @@ type SelectLook struct {
 	// theme's hover fill).
 	Surface TextEntryLook
 	// Foreground is the color of the value, or of the placeholder while there is no value.
-	Foreground ui.Color
+	Foreground gfx.Color
 	// Chevron is the color of the arrow at the trigger's end.
-	Chevron ui.Color
+	Chevron gfx.Color
 }
 
 // SelectRecipe resolves the look of a select trigger. Hovered, Focused, Invalid and Disabled of
 // state are read; placeholder says the trigger shows its placeholder, which is muted. A pure
 // function, the one definition the trigger is painted from.
-func SelectRecipe(theme ui.Theme, state ui.State, placeholder bool) SelectLook {
+func SelectRecipe(theme gfx.Theme, state gfx.State, placeholder bool) SelectLook {
 	return selectRecipe(&theme, state, placeholder)
 }
 
 // selectRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
 // and a Theme is large.
-func selectRecipe(theme *ui.Theme, state ui.State, placeholder bool) SelectLook {
+func selectRecipe(theme *gfx.Theme, state gfx.State, placeholder bool) SelectLook {
 	look := SelectLook{Surface: textEntryRecipe(theme, state), Foreground: theme.Foreground, Chevron: theme.MutedForeground}
 	if placeholder {
 		look.Foreground = theme.MutedForeground

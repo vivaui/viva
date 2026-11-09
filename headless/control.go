@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Serve runs the line protocol on in and out until "quit" or the end of input.
@@ -286,7 +286,7 @@ func execute(session *Session, line string) (reply string, quit bool) {
 		}
 		return finish(err, "")
 	case "drop", "dragover", "dragleave":
-		event := ui.FileDropEvent{Phase: ui.FileDropLeave}
+		event := gfx.FileDropEvent{Phase: gfx.FileDropLeave}
 		if command != "dragleave" {
 			if len(arguments) < 2 || command == "drop" && len(arguments) < 3 {
 				return finish(fmt.Errorf("%s needs X Y%s", command, map[bool]string{true: " and at least one path"}[command == "drop"]), "")
@@ -295,9 +295,9 @@ func execute(session *Session, line string) (reply string, quit bool) {
 			if err != nil {
 				return finish(err, "")
 			}
-			event = ui.FileDropEvent{Phase: ui.FileDropOver, X: values[0], Y: values[1]}
+			event = gfx.FileDropEvent{Phase: gfx.FileDropOver, X: values[0], Y: values[1]}
 			if command == "drop" {
-				event.Phase, event.Paths = ui.FileDropDrop, arguments[2:]
+				event.Phase, event.Paths = gfx.FileDropDrop, arguments[2:]
 			}
 		}
 		accepted, err := session.Drop(event)
@@ -314,14 +314,14 @@ func execute(session *Session, line string) (reply string, quit bool) {
 		if err != nil {
 			return finish(err, "")
 		}
-		var modifiers ui.Modifiers
+		var modifiers gfx.Modifiers
 		if len(arguments) == 5 {
 			modifiers, err = parseModifiers(arguments[4])
 			if err != nil {
 				return finish(err, "")
 			}
 		}
-		return finish(session.Scroll(ui.ScrollEvent{
+		return finish(session.Scroll(gfx.ScrollEvent{
 			Modifiers: modifiers, X: values[0], Y: values[1],
 			DeltaX: values[2], DeltaY: values[3], Precise: true,
 		}), "")
@@ -406,7 +406,7 @@ func execute(session *Session, line string) (reply string, quit bool) {
 		if err != nil {
 			return finish(err, "")
 		}
-		return finish(session.driver.SetFullscreenMonitor(ui.Rect{
+		return finish(session.driver.SetFullscreenMonitor(gfx.Rect{
 			X: float32(bounds[0]), Y: float32(bounds[1]), Width: float32(bounds[2]), Height: float32(bounds[3]),
 		}), "")
 	case "wait":
@@ -542,7 +542,7 @@ func execute(session *Session, line string) (reply string, quit bool) {
 	return finish(fmt.Errorf("unknown command %q", command), "")
 }
 
-func describeHit(tree *ui.Tree, hit ui.Hit) string {
+func describeHit(tree *gfx.Tree, hit gfx.Hit) string {
 	return fmt.Sprintf("id=%s x=%g y=%g w=%g h=%g label=%q", tree.Text(hit.ID), hit.Bounds.X, hit.Bounds.Y, hit.Bounds.Width, hit.Bounds.Height, hit.Label)
 }
 
@@ -608,7 +608,7 @@ func splitArguments(text string) ([]string, error) {
 // Session for config and serves the line protocol on standard input and
 // output instead of opening a window. VIVA_HEADLESS_SCALE sets the screenshot
 // scale (default 2).
-func Run(config app.Config, canvas *ui.Canvas) error {
+func Run(config app.Config, canvas *gfx.Canvas) error {
 	options := Options{}
 	if value := os.Getenv("VIVA_HEADLESS_SCALE"); value != "" {
 		scale, err := strconv.ParseFloat(value, 64)

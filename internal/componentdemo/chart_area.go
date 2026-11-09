@@ -4,7 +4,7 @@ import (
 	"math"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -175,7 +175,7 @@ func chartDemoMonth(dst []byte, v float32) []byte {
 }
 
 // fill points the demo's series and values at the month data in the theme's colors.
-func (demo *chartDemoState) fill(theme ui.Theme, english bool) {
+func (demo *chartDemoState) fill(theme gfx.Theme, english bool) {
 	desktop, mobile := "桌面端", "移动端"
 	if english {
 		desktop, mobile = "Desktop", "Mobile"
@@ -187,17 +187,17 @@ func (demo *chartDemoState) fill(theme ui.Theme, english bool) {
 	demo.values = [2][]float32{chartDemoDesktop, chartDemoMobile}
 }
 
-func (state *State) chartFrame(canvas *ui.Canvas, theme ui.Theme, size ui.Size, title string, paint func(bounds ui.Rect)) {
-	var card flex.Box
-	state.page(canvas, theme, size, 640, title, func(f *flex.Frame) {
+func (state *State) chartFrame(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, title string, paint func(bounds gfx.Rect)) {
+	var card ui.Box
+	state.page(canvas, theme, size, 640, title, func(f *ui.Frame) {
 		card = f.Slot().FillWidth().Height(280)
 	})
 	bounds := card.Rect()
 	components.PaintCard(canvas, theme, bounds, components.CardOptions{Size: components.CardSizeSmall})
-	paint(ui.Rect{X: bounds.X + 16, Y: bounds.Y + 14, Width: bounds.Width - 32, Height: bounds.Height - 28})
+	paint(gfx.Rect{X: bounds.X + 16, Y: bounds.Y + 14, Width: bounds.Width - 32, Height: bounds.Height - 28})
 }
 
-func (state *State) paintChartArea(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintChartArea(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	demo := state.chart
 	demo.fill(theme, state.english)
 	series := demo.series[:]
@@ -229,12 +229,12 @@ func (state *State) paintChartArea(canvas *ui.Canvas, theme ui.Theme, size ui.Si
 	case "interactive":
 		chart.Curve, chart.Legend = components.ChartCurveMonotone, components.ChartLegendBottom
 	}
-	state.chartFrame(canvas, theme, size, title, func(bounds ui.Rect) {
+	state.chartFrame(canvas, theme, size, title, func(bounds gfx.Rect) {
 		demo.plot = components.PaintAreaChart(canvas, theme, bounds, chartDemoPlot, chart, &demo.chart)
 	})
 }
 
-func (state *State) paintChartBar(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintChartBar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	demo := state.chart
 	demo.fill(theme, state.english)
 	chart := components.BarChart{
@@ -246,12 +246,12 @@ func (state *State) paintChartBar(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 	if state.exampleID == "stacked" {
 		chart.Stack = components.ChartStackStacked
 	}
-	state.chartFrame(canvas, theme, size, state.Text("柱状图 · 月访问量", "Bar chart · Monthly visitors"), func(bounds ui.Rect) {
+	state.chartFrame(canvas, theme, size, state.Text("柱状图 · 月访问量", "Bar chart · Monthly visitors"), func(bounds gfx.Rect) {
 		demo.plot = components.PaintBarChart(canvas, theme, bounds, chartDemoPlot, chart, &demo.chart)
 	})
 }
 
-func (state *State) paintChartDownsample(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintChartDownsample(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	demo := state.chart
 	label := state.Text("CPU 采样", "CPU samples")
 	demo.series[0] = components.ChartSeries{Key: "cpu", Label: label, Color: theme.Chart[2]}
@@ -264,31 +264,31 @@ func (state *State) paintChartDownsample(canvas *ui.Canvas, theme ui.Theme, size
 		Grid:  components.ChartGridHorizontal, Label: label, Version: 1,
 	}
 	title := state.Text("降采样 · 100,000 点 → 400 点", "Downsample · 100,000 points → 400")
-	state.chartFrame(canvas, theme, size, title, func(bounds ui.Rect) {
+	state.chartFrame(canvas, theme, size, title, func(bounds gfx.Rect) {
 		demo.plot = components.PaintAreaChart(canvas, theme, bounds, chartDemoPlot, chart, &demo.chart)
 	})
 }
 
-func (state *State) pointerChart(event ui.PointerEvent) ui.EventResult {
+func (state *State) pointerChart(event gfx.PointerEvent) gfx.EventResult {
 	demo := state.chart
-	if demo == nil || (event.Kind != ui.PointerMove && event.Kind != ui.PointerExit) {
-		return ui.EventResult{}
+	if demo == nil || (event.Kind != gfx.PointerMove && event.Kind != gfx.PointerExit) {
+		return gfx.EventResult{}
 	}
 	previous, wasActive := demo.chart.Index()
-	if event.Kind == ui.PointerExit || event.Target != chartDemoPlot {
+	if event.Kind == gfx.PointerExit || event.Target != chartDemoPlot {
 		demo.chart.Clear()
-		return ui.EventResult{Handled: wasActive, Repaint: wasActive}
+		return gfx.EventResult{Handled: wasActive, Repaint: wasActive}
 	}
 	index := demo.plot.IndexAt(event.X)
 	demo.chart.Hover(index)
 	changed := !wasActive || previous != index
-	return ui.EventResult{Handled: true, Repaint: changed}
+	return gfx.EventResult{Handled: true, Repaint: changed}
 }
 
-func (state *State) keyChart(event ui.KeyEvent) ui.EventResult {
+func (state *State) keyChart(event gfx.KeyEvent) gfx.EventResult {
 	demo := state.chart
 	if demo == nil || event.Release || demo.plot.Count() == 0 {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	index, active := demo.chart.Index()
 	if !active {
@@ -296,8 +296,8 @@ func (state *State) keyChart(event ui.KeyEvent) ui.EventResult {
 	}
 	next, handled := components.ChartStepForKey(event.Key, index, demo.plot.Count())
 	if !handled {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	demo.chart.Hover(next)
-	return ui.EventResult{Handled: true, Repaint: next != index}
+	return gfx.EventResult{Handled: true, Repaint: next != index}
 }

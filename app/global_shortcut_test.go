@@ -5,7 +5,7 @@ package app
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestGlobalShortcutDriverRegistrationLifetime(t *testing.T) {
@@ -14,7 +14,7 @@ func TestGlobalShortcutDriverRegistrationLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	s := GlobalShortcut{Modifiers: ui.ModifierControl | ui.ModifierAlt, Key: "F1"}
+	s := GlobalShortcut{Modifiers: gfx.ModifierControl | gfx.ModifierAlt, Key: "F1"}
 	calls := 0
 	stop, err := RegisterGlobalShortcut(s, func() { calls++ })
 	if err != nil {
@@ -44,12 +44,12 @@ func TestGlobalShortcutDriverRegistrationLifetime(t *testing.T) {
 	}
 }
 func TestGlobalShortcutValidation(t *testing.T) {
-	for _, s := range []GlobalShortcut{{Key: "G"}, {Modifiers: ui.ModifierControl, Key: "invalid"}} {
+	for _, s := range []GlobalShortcut{{Key: "G"}, {Modifiers: gfx.ModifierControl, Key: "invalid"}} {
 		if _, err := RegisterGlobalShortcut(s, func() {}); err == nil {
 			t.Fatal("invalid shortcut accepted")
 		}
 	}
-	if _, err := RegisterGlobalShortcut(GlobalShortcut{Modifiers: ui.ModifierAlt, Key: "g"}, nil); err == nil {
+	if _, err := RegisterGlobalShortcut(GlobalShortcut{Modifiers: gfx.ModifierAlt, Key: "g"}, nil); err == nil {
 		t.Fatal("nil callback accepted")
 	}
 }
@@ -60,7 +60,7 @@ func BenchmarkDriverGlobalShortcutRegistration(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer d.Close()
-	s := GlobalShortcut{Modifiers: ui.ModifierControl | ui.ModifierAlt, Key: "g"}
+	s := GlobalShortcut{Modifiers: gfx.ModifierControl | gfx.ModifierAlt, Key: "g"}
 	callback := func() {}
 	b.ReportAllocs()
 	b.ResetTimer()

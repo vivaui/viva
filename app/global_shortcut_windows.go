@@ -5,22 +5,22 @@ package app
 import (
 	"strconv"
 
+	"github.com/vivaui/viva/gfx"
 	windowsplatform "github.com/vivaui/viva/internal/platform/windows"
-	"github.com/vivaui/viva/ui"
 )
 
 func nativeRegisterGlobalShortcut(s GlobalShortcut, pressed func()) (func(), error) {
 	var modifiers uint32
-	if s.Modifiers&ui.ModifierAlt != 0 {
+	if s.Modifiers&gfx.ModifierAlt != 0 {
 		modifiers |= 1
 	}
-	if s.Modifiers&ui.ModifierControl != 0 {
+	if s.Modifiers&gfx.ModifierControl != 0 {
 		modifiers |= 2
 	}
-	if s.Modifiers&ui.ModifierShift != 0 {
+	if s.Modifiers&gfx.ModifierShift != 0 {
 		modifiers |= 4
 	}
-	if s.Modifiers&ui.ModifierMeta != 0 {
+	if s.Modifiers&gfx.ModifierMeta != 0 {
 		modifiers |= 8
 	}
 	key := uint32(0)

@@ -3,7 +3,7 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // A native editor takes over a focused field and draws where the hit says its
@@ -11,44 +11,44 @@ import (
 // when it is not focused, so each text field is checked against its own static
 // rendering, in both themes and both densities.
 func TestTextFieldsDeclareTheGeometryTheyPaint(t *testing.T) {
-	type paint func(canvas *ui.Canvas, theme ui.Theme)
+	type paint func(canvas *gfx.Canvas, theme gfx.Theme)
 	fields := []struct {
 		name  string
 		paint paint
 	}{
-		{"input", func(canvas *ui.Canvas, theme ui.Theme) {
-			PaintInput(canvas, theme, ui.Rect{X: 20, Y: 20, Width: 240, Height: 30}, InputSnapshot{ID: ui.Item(5), Label: "Name", Value: "hello"})
+		{"input", func(canvas *gfx.Canvas, theme gfx.Theme) {
+			PaintInput(canvas, theme, gfx.Rect{X: 20, Y: 20, Width: 240, Height: 30}, InputSnapshot{ID: gfx.Item(5), Label: "Name", Value: "hello"})
 		}},
-		{"textarea", func(canvas *ui.Canvas, theme ui.Theme) {
-			PaintTextarea(canvas, theme, ui.Rect{X: 20, Y: 20, Width: 240, Height: 80}, TextareaSnapshot{ID: ui.Item(5), Label: "Notes", Value: "hello"})
+		{"textarea", func(canvas *gfx.Canvas, theme gfx.Theme) {
+			PaintTextarea(canvas, theme, gfx.Rect{X: 20, Y: 20, Width: 240, Height: 80}, TextareaSnapshot{ID: gfx.Item(5), Label: "Notes", Value: "hello"})
 		}},
-		{"input group", func(canvas *ui.Canvas, theme ui.Theme) {
-			PaintInputGroup(canvas, theme, ui.Rect{X: 20, Y: 20, Width: 240, Height: 36}, InputGroupSnapshot{ID: ui.Item(5), Label: "Search", Value: "hello"})
+		{"input group", func(canvas *gfx.Canvas, theme gfx.Theme) {
+			PaintInputGroup(canvas, theme, gfx.Rect{X: 20, Y: 20, Width: 240, Height: 36}, InputGroupSnapshot{ID: gfx.Item(5), Label: "Search", Value: "hello"})
 		}},
-		{"multiline input group", func(canvas *ui.Canvas, theme ui.Theme) {
-			PaintInputGroup(canvas, theme, ui.Rect{X: 20, Y: 20, Width: 240, Height: 90}, InputGroupSnapshot{ID: ui.Item(5), Label: "Search", Value: "hello", Multiline: true})
+		{"multiline input group", func(canvas *gfx.Canvas, theme gfx.Theme) {
+			PaintInputGroup(canvas, theme, gfx.Rect{X: 20, Y: 20, Width: 240, Height: 90}, InputGroupSnapshot{ID: gfx.Item(5), Label: "Search", Value: "hello", Multiline: true})
 		}},
 	}
 	for _, field := range fields {
 		for _, dark := range []bool{false, true} {
 			for _, compact := range []bool{false, true} {
-				theme := ui.LightTheme()
+				theme := gfx.LightTheme()
 				if dark {
-					theme = ui.DarkTheme()
+					theme = gfx.DarkTheme()
 				}
 				if compact {
-					theme.Metrics = theme.Metrics.WithDensity(ui.DensityCompact)
+					theme.Metrics = theme.Metrics.WithDensity(gfx.DensityCompact)
 				}
-				var canvas ui.Canvas
+				var canvas gfx.Canvas
 				field.paint(&canvas, theme)
 
-				var hit ui.Hit
+				var hit gfx.Hit
 				for _, candidate := range canvas.Hits() {
-					if candidate.ID == ui.Item(5) && candidate.Role == ui.RoleTextField {
+					if candidate.ID == gfx.Item(5) && candidate.Role == gfx.RoleTextField {
 						hit = candidate
 					}
 				}
-				var painted ui.Text
+				var painted gfx.Text
 				for _, candidate := range canvas.Texts() {
 					if candidate.Value == "hello" {
 						painted = candidate
@@ -82,4 +82,4 @@ func TestTextFieldsDeclareTheGeometryTheyPaint(t *testing.T) {
 
 // testInset is where the text of a text-entry control starts at the default
 // density.
-var testInset = ui.DefaultMetrics().TextInsetX()
+var testInset = gfx.DefaultMetrics().TextInsetX()

@@ -4,51 +4,51 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestInputGroupLaysOutExplicitSlotsAndSemantics(t *testing.T) {
-	var canvas ui.Canvas
-	layout := PaintInputGroup(&canvas, ui.LightTheme(), ui.Rect{X: 10, Y: 20, Width: 260}, InputGroupSnapshot{
-		ID: ui.Item(1), Label: "Website", Value: "viva.dev", Hint: "Domain", Focused: true,
+	var canvas gfx.Canvas
+	layout := PaintInputGroup(&canvas, gfx.LightTheme(), gfx.Rect{X: 10, Y: 20, Width: 260}, InputGroupSnapshot{
+		ID: gfx.Item(1), Label: "Website", Value: "viva.dev", Hint: "Domain", Focused: true,
 		InlineStart: InputGroupSlot{Kind: InputGroupSlotText, Text: "https://", Width: 58},
-		InlineEnd:   InputGroupSlot{Kind: InputGroupSlotButton, ID: ui.Item(2), Text: "Copy", Label: "Copy URL", Width: 52},
+		InlineEnd:   InputGroupSlot{Kind: InputGroupSlotButton, ID: gfx.Item(2), Text: "Copy", Label: "Copy URL", Width: 52},
 		BlockStart:  InputGroupSlot{Kind: InputGroupSlotText, Text: "Public address", Separated: true},
 	})
-	if layout.Bounds.Height != 64 || layout.Control != (ui.Rect{X: 68, Y: 52, Width: 150, Height: 32}) {
+	if layout.Bounds.Height != 64 || layout.Control != (gfx.Rect{X: 68, Y: 52, Width: 150, Height: 32}) {
 		t.Fatalf("layout = %+v", layout)
 	}
 	if len(canvas.Hits()) != 2 {
 		t.Fatalf("hits = %+v", canvas.Hits())
 	}
-	if button := canvas.Hits()[0]; button.Role != ui.RoleButton || button.ID != ui.Item(2) {
+	if button := canvas.Hits()[0]; button.Role != gfx.RoleButton || button.ID != gfx.Item(2) {
 		t.Fatalf("button = %+v", button)
 	}
-	if control := canvas.Hits()[1]; control.Role != ui.RoleTextField || control.Value != "viva.dev" || control.Bounds != layout.Control {
+	if control := canvas.Hits()[1]; control.Role != gfx.RoleTextField || control.Value != "viva.dev" || control.Bounds != layout.Control {
 		t.Fatalf("control = %+v", control)
 	}
 }
 
 func TestInputGroupTextareaState(t *testing.T) {
-	var canvas ui.Canvas
-	layout := PaintInputGroup(&canvas, ui.DarkTheme(), ui.Rect{Width: 200}, InputGroupSnapshot{
-		ID: ui.Item(4), Label: "Message", Value: "hello\nworld", Multiline: true, ReadOnly: true,
+	var canvas gfx.Canvas
+	layout := PaintInputGroup(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 200}, InputGroupSnapshot{
+		ID: gfx.Item(4), Label: "Message", Value: "hello\nworld", Multiline: true, ReadOnly: true,
 		SelectionStart: 0, SelectionEnd: 5, CompositionStart: 6, CompositionEnd: 11,
 		BlockEnd: InputGroupSlot{Kind: InputGroupSlotKbd, Text: "⌘↵", Separated: true},
 	})
 	if layout.Bounds.Height != 96 || layout.Control.Height != 64 {
 		t.Fatalf("layout = %+v", layout)
 	}
-	if hit := canvas.Hits()[0]; !hit.Multiline || !hit.ReadOnly || hit.Role != ui.RoleTextField {
+	if hit := canvas.Hits()[0]; !hit.Multiline || !hit.ReadOnly || hit.Role != gfx.RoleTextField {
 		t.Fatalf("hit = %+v", hit)
 	}
 }
 
 func TestInputGroupCanHideThePlatformEditorAndPaintItsOwnText(t *testing.T) {
-	var canvas ui.Canvas
-	PaintInputGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 220}, InputGroupSnapshot{
-		ID: ui.Item(5), Label: "Domain", Value: "viva.dev", NativeEditing: true,
+	var canvas gfx.Canvas
+	PaintInputGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 220}, InputGroupSnapshot{
+		ID: gfx.Item(5), Label: "Domain", Value: "viva.dev", NativeEditing: true,
 		HideEditorText: true, ShowCaret: true, Caret: 2,
 	})
 	hit := canvas.Hits()[0]
@@ -65,12 +65,12 @@ func TestInputGroupCanHideThePlatformEditorAndPaintItsOwnText(t *testing.T) {
 
 func TestInputGroupTypedSemanticsAndCommands(t *testing.T) {
 	snapshot := InputGroupSnapshot{
-		ID: ui.Item(6), Label: "Message", Value: "A中B", DisplayValue: "A中B", Hint: "Body",
+		ID: gfx.Item(6), Label: "Message", Value: "A中B", DisplayValue: "A中B", Hint: "Body",
 		Focused: true, Invalid: true, Multiline: true,
 		SelectionStart: 4, SelectionEnd: 2, CompositionStart: 1, CompositionEnd: 99,
 	}
 	want := InputGroupSemantics{
-		ID: ui.Item(6), Label: "Message", Value: "A中B", Hint: "Body", Focused: true,
+		ID: gfx.Item(6), Label: "Message", Value: "A中B", Hint: "Body", Focused: true,
 		Invalid: true, Multiline: true, SelectionStart: 1, SelectionEnd: 4,
 		CompositionStart: 1, CompositionEnd: 5,
 	}
@@ -94,9 +94,9 @@ func TestInputGroupTypedSemanticsAndCommands(t *testing.T) {
 }
 
 func TestInputGroupNativeEditingKeepsSlotsAndSemantics(t *testing.T) {
-	var canvas ui.Canvas
-	PaintInputGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 220}, InputGroupSnapshot{
-		ID: ui.Item(8), Label: "Search", Value: "native", NativeEditing: true,
+	var canvas gfx.Canvas
+	PaintInputGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 220}, InputGroupSnapshot{
+		ID: gfx.Item(8), Label: "Search", Value: "native", NativeEditing: true,
 		InlineStart: InputGroupSlot{Kind: InputGroupSlotText, Text: "⌕", Width: 32},
 	})
 	if texts := canvas.Texts(); len(texts) != 1 || texts[0].Value != "⌕" {
@@ -108,14 +108,14 @@ func TestInputGroupNativeEditingKeepsSlotsAndSemantics(t *testing.T) {
 }
 
 func TestInputGroupPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		PaintInputGroup(&canvas, ui.LightTheme(), ui.Rect{X: 3, Y: 4, Width: 220}, InputGroupSnapshot{
-			ID: ui.Item(1), Label: "Query", Value: "native", Focused: true, ShowCaret: true, Caret: 6,
+		PaintInputGroup(&canvas, gfx.LightTheme(), gfx.Rect{X: 3, Y: 4, Width: 220}, InputGroupSnapshot{
+			ID: gfx.Item(1), Label: "Query", Value: "native", Focused: true, ShowCaret: true, Caret: 6,
 			SelectionStart: 0, SelectionEnd: 2, CompositionStart: 2, CompositionEnd: 6,
 			InlineStart: InputGroupSlot{Kind: InputGroupSlotText, Text: "⌕", Width: 32},
-			InlineEnd:   InputGroupSlot{Kind: InputGroupSlotButton, ID: ui.Item(2), Text: "Clear", Width: 52},
+			InlineEnd:   InputGroupSlot{Kind: InputGroupSlotButton, ID: gfx.Item(2), Text: "Clear", Width: 52},
 		})
 	}
 	paint()
@@ -135,14 +135,14 @@ func TestInputGroupPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T
 // its slot, no hit of its own, and the control (with its declared native text
 // geometry) starts after it.
 func TestInputGroupIconSlotDrawsAnIconAndShiftsTheControl(t *testing.T) {
-	icon := ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound,
-		Commands: []ui.PathCommand{ui.MoveTo(4, 4), ui.LineTo(20, 4), ui.LineTo(20, 20)}}
-	theme := ui.DarkTheme()
-	bounds := ui.Rect{X: 10, Y: 20, Width: 300, Height: 40}
-	var plain, withIcon ui.Canvas
-	PaintInputGroup(&plain, theme, bounds, InputGroupSnapshot{ID: ui.Item(1), Label: "Search", Value: "x"})
+	icon := gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound,
+		Commands: []gfx.PathCommand{gfx.MoveTo(4, 4), gfx.LineTo(20, 4), gfx.LineTo(20, 20)}}
+	theme := gfx.DarkTheme()
+	bounds := gfx.Rect{X: 10, Y: 20, Width: 300, Height: 40}
+	var plain, withIcon gfx.Canvas
+	PaintInputGroup(&plain, theme, bounds, InputGroupSnapshot{ID: gfx.Item(1), Label: "Search", Value: "x"})
 	layout := PaintInputGroup(&withIcon, theme, bounds, InputGroupSnapshot{
-		ID: ui.Item(1), Label: "Search", Value: "x", InlineStart: InputGroupSlot{Kind: InputGroupSlotIcon, Icon: icon},
+		ID: gfx.Item(1), Label: "Search", Value: "x", InlineStart: InputGroupSlot{Kind: InputGroupSlotIcon, Icon: icon},
 	})
 
 	if len(withIcon.Triangles()) == 0 || len(plain.Triangles()) != 0 {
@@ -165,7 +165,7 @@ func TestInputGroupIconSlotDrawsAnIconAndShiftsTheControl(t *testing.T) {
 			}
 		}
 	}
-	if len(withIcon.Hits()) != 1 || withIcon.Hits()[0].Role != ui.RoleTextField {
+	if len(withIcon.Hits()) != 1 || withIcon.Hits()[0].Role != gfx.RoleTextField {
 		t.Fatalf("hits = %+v, want only the text field", withIcon.Hits())
 	}
 	hit := withIcon.Hits()[0]
@@ -174,9 +174,9 @@ func TestInputGroupIconSlotDrawsAnIconAndShiftsTheControl(t *testing.T) {
 	}
 
 	// Disabled groups dim the icon like their other addons.
-	var disabled ui.Canvas
+	var disabled gfx.Canvas
 	PaintInputGroup(&disabled, theme, bounds, InputGroupSnapshot{
-		ID: ui.Item(1), Label: "Search", Disabled: true, InlineStart: InputGroupSlot{Kind: InputGroupSlotIcon, Icon: icon},
+		ID: gfx.Item(1), Label: "Search", Disabled: true, InlineStart: InputGroupSlot{Kind: InputGroupSlotIcon, Icon: icon},
 	})
 	if got := disabled.Triangles()[0].Color.Alpha; got != theme.MutedForeground.Alpha*0.5 {
 		t.Fatalf("disabled icon alpha = %v", got)
@@ -185,7 +185,7 @@ func TestInputGroupIconSlotDrawsAnIconAndShiftsTheControl(t *testing.T) {
 	paint := func() {
 		withIcon.Reset()
 		PaintInputGroup(&withIcon, theme, bounds, InputGroupSnapshot{
-			ID: ui.Item(1), Label: "Search", Value: "x", InlineStart: InputGroupSlot{Kind: InputGroupSlotIcon, Icon: icon},
+			ID: gfx.Item(1), Label: "Search", Value: "x", InlineStart: InputGroupSlot{Kind: InputGroupSlotIcon, Icon: icon},
 		})
 	}
 	paint()
@@ -198,11 +198,11 @@ func TestInputGroupIconSlotDrawsAnIconAndShiftsTheControl(t *testing.T) {
 // of the same width: the text starts at the same x, and a Secure group masks
 // and hides its value the same way.
 func TestInputGroupControlMatchesAStandaloneInput(t *testing.T) {
-	theme := ui.LightTheme()
-	bounds := ui.Rect{X: 5, Y: 6, Width: 200}
-	var input, group ui.Canvas
-	PaintInput(&input, theme, bounds, InputSnapshot{ID: ui.Item(1), Label: "Token", Value: "secret", Secure: true, Focused: true, ShowCaret: true, Caret: 3, SelectionStart: 1, SelectionEnd: 2})
-	PaintInputGroup(&group, theme, bounds, InputGroupSnapshot{ID: ui.Item(1), Label: "Token", Value: "secret", Secure: true, Focused: true, ShowCaret: true, Caret: 3, SelectionStart: 1, SelectionEnd: 2})
+	theme := gfx.LightTheme()
+	bounds := gfx.Rect{X: 5, Y: 6, Width: 200}
+	var input, group gfx.Canvas
+	PaintInput(&input, theme, bounds, InputSnapshot{ID: gfx.Item(1), Label: "Token", Value: "secret", Secure: true, Focused: true, ShowCaret: true, Caret: 3, SelectionStart: 1, SelectionEnd: 2})
+	PaintInputGroup(&group, theme, bounds, InputGroupSnapshot{ID: gfx.Item(1), Label: "Token", Value: "secret", Secure: true, Focused: true, ShowCaret: true, Caret: 3, SelectionStart: 1, SelectionEnd: 2})
 	if input.Hits()[0].TextBounds != group.Hits()[0].TextBounds {
 		t.Fatalf("group text bounds %+v, input %+v", group.Hits()[0].TextBounds, input.Hits()[0].TextBounds)
 	}
@@ -215,21 +215,21 @@ func TestInputGroupControlMatchesAStandaloneInput(t *testing.T) {
 }
 
 func TestInputGroupButtonsComeInTheShadcnSizes(t *testing.T) {
-	theme := ui.LightTheme()
-	icon := ui.Icon{ViewBox: 24, Stroke: 2, Commands: []ui.PathCommand{ui.MoveTo(4, 4), ui.LineTo(20, 20)}}
-	hitOf := func(slot InputGroupSlot, bounds ui.Rect) ui.Hit {
-		var canvas ui.Canvas
-		slot.Kind, slot.ID = InputGroupSlotButton, ui.Item(2)
-		PaintInputGroup(&canvas, theme, bounds, InputGroupSnapshot{ID: ui.Item(1), Label: "x", Value: "v", InlineEnd: slot})
+	theme := gfx.LightTheme()
+	icon := gfx.Icon{ViewBox: 24, Stroke: 2, Commands: []gfx.PathCommand{gfx.MoveTo(4, 4), gfx.LineTo(20, 20)}}
+	hitOf := func(slot InputGroupSlot, bounds gfx.Rect) gfx.Hit {
+		var canvas gfx.Canvas
+		slot.Kind, slot.ID = InputGroupSlotButton, gfx.Item(2)
+		PaintInputGroup(&canvas, theme, bounds, InputGroupSnapshot{ID: gfx.Item(1), Label: "x", Value: "v", InlineEnd: slot})
 		for _, hit := range canvas.Hits() {
-			if hit.ID == ui.Item(2) {
+			if hit.ID == gfx.Item(2) {
 				return hit
 			}
 		}
 		t.Fatal("button slot declared no hit")
-		return ui.Hit{}
+		return gfx.Hit{}
 	}
-	tall := ui.Rect{Width: 240, Height: 40}
+	tall := gfx.Rect{Width: 240, Height: 40}
 	iconXS := hitOf(InputGroupSlot{Icon: icon, Label: "Clear", ButtonSize: InputGroupButtonIconXS}, tall)
 	if iconXS.Bounds.Width != 24 || iconXS.Bounds.Height != 24 || iconXS.Label != "Clear" {
 		t.Fatalf("icon-xs button = %+v, want a 24px square named Clear", iconXS)
@@ -239,7 +239,7 @@ func TestInputGroupButtonsComeInTheShadcnSizes(t *testing.T) {
 		t.Fatalf("icon-sm button = %+v, want a 32px square", iconSM.Bounds)
 	}
 	// In a group of one control height there is not room for 32 inside the border.
-	snug := hitOf(InputGroupSlot{Icon: icon, Label: "Reveal", ButtonSize: InputGroupButtonIconSM}, ui.Rect{Width: 240})
+	snug := hitOf(InputGroupSlot{Icon: icon, Label: "Reveal", ButtonSize: InputGroupButtonIconSM}, gfx.Rect{Width: 240})
 	if snug.Bounds.Height >= 32 || snug.Bounds.Height != snug.Bounds.Width {
 		t.Fatalf("icon-sm button in a one-line group = %+v, want a smaller square inside the border", snug.Bounds)
 	}
@@ -258,32 +258,32 @@ func TestInputGroupButtonsComeInTheShadcnSizes(t *testing.T) {
 // region. This is what lets Motty reuse its icon-hover transform in a password
 // field, whose reveal control lives inside InputGroup.
 func TestInputGroupButtonIconTransformKeepsItsHitRegion(t *testing.T) {
-	theme := ui.LightTheme()
-	icon := ui.Icon{ViewBox: 24, Stroke: 2, Commands: []ui.PathCommand{ui.MoveTo(4, 4), ui.LineTo(20, 20)}}
-	bounds := ui.Rect{Width: 240, Height: 40}
-	paint := func(transform ui.IconTransform) (*ui.Canvas, InputGroupLayout) {
-		var canvas ui.Canvas
+	theme := gfx.LightTheme()
+	icon := gfx.Icon{ViewBox: 24, Stroke: 2, Commands: []gfx.PathCommand{gfx.MoveTo(4, 4), gfx.LineTo(20, 20)}}
+	bounds := gfx.Rect{Width: 240, Height: 40}
+	paint := func(transform gfx.IconTransform) (*gfx.Canvas, InputGroupLayout) {
+		var canvas gfx.Canvas
 		layout := PaintInputGroup(&canvas, theme, bounds, InputGroupSnapshot{
-			ID: ui.Item(1), Label: "Password", Value: "secret", Secure: true, InlineEnd: InputGroupSlot{
-				Kind: InputGroupSlotButton, ID: ui.Item(2), Icon: icon, Label: "Show password",
+			ID: gfx.Item(1), Label: "Password", Value: "secret", Secure: true, InlineEnd: InputGroupSlot{
+				Kind: InputGroupSlotButton, ID: gfx.Item(2), Icon: icon, Label: "Show password",
 				ButtonSize: InputGroupButtonIconXS, IconTransform: transform,
 			},
 		})
 		return &canvas, layout
 	}
-	stillCanvas, stillLayout := paint(ui.IconTransform{})
-	movedCanvas, movedLayout := paint(ui.IconTransform{Translate: ui.Point{X: 2}})
+	stillCanvas, stillLayout := paint(gfx.IconTransform{})
+	movedCanvas, movedLayout := paint(gfx.IconTransform{Translate: gfx.Point{X: 2}})
 	if stillLayout != movedLayout {
 		t.Fatalf("the icon transform moved the layout from %+v to %+v", stillLayout, movedLayout)
 	}
-	var stillHit, movedHit ui.Hit
+	var stillHit, movedHit gfx.Hit
 	for _, hit := range stillCanvas.Hits() {
-		if hit.ID == ui.Item(2) {
+		if hit.ID == gfx.Item(2) {
 			stillHit = hit
 		}
 	}
 	for _, hit := range movedCanvas.Hits() {
-		if hit.ID == ui.Item(2) {
+		if hit.ID == gfx.Item(2) {
 			movedHit = hit
 		}
 	}
@@ -296,9 +296,9 @@ func TestInputGroupButtonIconTransformKeepsItsHitRegion(t *testing.T) {
 }
 
 func TestInputGroupSpinnerSlotPaintsWithoutAHit(t *testing.T) {
-	var canvas ui.Canvas
-	layout := PaintInputGroup(&canvas, ui.LightTheme(), ui.Rect{Width: 200}, InputGroupSnapshot{
-		ID: ui.Item(1), Label: "Search", InlineEnd: InputGroupSlot{Kind: InputGroupSlotSpinner, Phase: 3},
+	var canvas gfx.Canvas
+	layout := PaintInputGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 200}, InputGroupSnapshot{
+		ID: gfx.Item(1), Label: "Search", InlineEnd: InputGroupSlot{Kind: InputGroupSlotSpinner, Phase: 3},
 	})
 	if layout.InlineEnd.Width <= 16 {
 		t.Fatalf("spinner slot = %+v", layout.InlineEnd)

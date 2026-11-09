@@ -7,7 +7,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 var (
@@ -109,7 +109,7 @@ func ReduceMotion() bool { return platformReduceMotion() }
 // draws. The Web target returns the document's shaped-line engine when a document
 // exists. It is nil on a target that has none, whose canvases measure with the
 // reference metrics.
-func PlatformTextEngine() ui.TextEngine { return platformTextEngine() }
+func PlatformTextEngine() gfx.TextEngine { return platformTextEngine() }
 
 func ClipboardText() (string, error) {
 	if value, err, handled := driverClipboardText(); handled {
@@ -153,9 +153,9 @@ func SetCursor(cursor Cursor) error {
 
 // SetCursorImage makes image the pointer over the window, drawn by the system as any pointer
 // is; the same call with a nil image is refused. Hits show a picture without this call
-// (ui.HitOptions.CursorImage), which is how a view normally chooses it. An error wrapping
+// (gfx.HitOptions.CursorImage), which is how a view normally chooses it. An error wrapping
 // ErrUnsupported means this target cannot show application pictures as its pointer.
-func SetCursorImage(image *ui.CursorImage) error {
+func SetCursorImage(image *gfx.CursorImage) error {
 	if image == nil {
 		return fmt.Errorf("app: cursor image is nil")
 	}

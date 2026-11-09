@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func interfaceFontLabel(generation uint32) platform.TextLabel {
@@ -29,7 +29,7 @@ func TestALabelIsDrawnAgainWhenTheInterfaceFamilyChanges(t *testing.T) {
 	}
 	engine.SetFontFamily("")
 	t.Cleanup(func() { engine.SetFontFamily("") })
-	var follower ui.FontFamilyAware = engine
+	var follower gfx.FontFamilyAware = engine
 
 	offscreen := newOffscreen(t, 240, 40, 1)
 	before := renderScene(t, offscreen, nil, []platform.TextLabel{interfaceFontLabel(follower.FontGeneration())})

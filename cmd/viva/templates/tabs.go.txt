@@ -1,7 +1,7 @@
 package {{PACKAGE}}
 
 import (
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // TabsVariant selects a contained list or an indicator-only list.
@@ -22,11 +22,11 @@ const (
 
 // TabOption is one stable tab trigger.
 type TabOption struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Disabled bool
 	// Icon is an optional leading icon. Icon and label form one centered group.
-	Icon ui.Icon
+	Icon gfx.Icon
 	// IconOnly hides the label while keeping it as the tab's accessible name.
 	// Set Label even when only the icon is painted.
 	IconOnly bool
@@ -37,20 +37,20 @@ type TabOption struct {
 type Tabs struct {
 	// list and labels, when set, replace options: the tabs are the items of the
 	// list scope, numbered by position, and selected is an item number.
-	list      ui.Scope
+	list      gfx.Scope
 	labels    []string
-	canvas    *ui.Canvas
-	theme     ui.Theme
-	bounds    ui.Rect
+	canvas    *gfx.Canvas
+	theme     gfx.Theme
+	bounds    gfx.Rect
 	options   []TabOption
-	selected  ui.ID
+	selected  gfx.ID
 	variant   TabsVariant
 	direction TabsOrientation
 	disabled  bool
 	fit       bool
 	// tabStop is the one tab Tab reaches; the arrow helper moves focus among the
 	// rest, which are SkipTab.
-	tabStop ui.ID
+	tabStop gfx.ID
 }
 
 // Line selects the transparent list with a two-pixel active indicator.
@@ -77,7 +77,7 @@ func (tabs Tabs) Vertical() Tabs {
 }
 
 // BeginTabs starts a tab-list declaration.
-func BeginTabs(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options []TabOption, selected ui.ID) Tabs {
+func BeginTabs(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options []TabOption, selected gfx.ID) Tabs {
 	tabs := Tabs{canvas: canvas, theme: theme, bounds: bounds, options: options, selected: selected}
 	tabs.tabStop = tabs.rovingTabStop()
 	return tabs
@@ -91,7 +91,7 @@ func BeginTabs(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options []TabO
 //	if index, ok := components.BeginTabList(c, theme, bounds, tabs, labels, current).Paint().Clicked(); ok {
 //		current = index
 //	}
-func BeginTabList(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, list ui.Scope, labels []string, selected int) Tabs {
+func BeginTabList(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, list gfx.Scope, labels []string, selected int) Tabs {
 	tabs := Tabs{canvas: canvas, theme: theme, bounds: bounds, list: list, labels: labels, selected: list.At(selected)}
 	tabs.tabStop = tabs.rovingTabStop()
 	return tabs
@@ -99,11 +99,11 @@ func BeginTabList(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, list ui.Sco
 
 // rovingTabStop keeps one tab in the Tab order: the focused one, else the
 // selected one, else the first enabled one.
-func (tabs Tabs) rovingTabStop() ui.ID {
+func (tabs Tabs) rovingTabStop() gfx.ID {
 	enabled := func(option TabOption) bool {
 		return !tabs.disabled && !option.Disabled && !option.ID.IsZero()
 	}
-	focus := ui.ID{}
+	focus := gfx.ID{}
 	if tabs.canvas != nil {
 		focus = tabs.canvas.FocusVisible()
 	}
@@ -122,7 +122,7 @@ func (tabs Tabs) rovingTabStop() ui.ID {
 			return option.ID
 		}
 	}
-	return ui.ID{}
+	return gfx.ID{}
 }
 
 // count is how many tabs there are, and option the nth of them.
@@ -142,14 +142,14 @@ func (tabs Tabs) option(index int) TabOption {
 
 // TabsResult is what painting a tab list reports back.
 type TabsResult struct {
-	canvas *ui.Canvas
-	list   ui.Scope
-	bounds ui.Rect
+	canvas *gfx.Canvas
+	list   gfx.Scope
+	bounds gfx.Rect
 }
 
 // Bounds is the rectangle the list occupied: bounds as given, or, with Fit, the
 // width the labels asked for. It is empty when nothing was painted.
-func (result TabsResult) Bounds() ui.Rect { return result.bounds }
+func (result TabsResult) Bounds() gfx.Rect { return result.bounds }
 
 // Clicked returns the number of the tab clicked in this paint's event pass, for a
 // list made with BeginTabList.
@@ -169,10 +169,10 @@ func (tabs Tabs) Disabled() Tabs {
 // TabsKeyDown applies orientation-aware roving focus to current. Arrow keys on
 // the tab list's layout axis wrap through enabled non-zero options; Home and
 // End choose the first and last. Horizontal Left and Right reverse in RTL.
-func TabsKeyDown(current ui.ID, options []TabOption, orientation TabsOrientation, direction Direction, key ui.Key) (ui.ID, bool) {
+func TabsKeyDown(current gfx.ID, options []TabOption, orientation TabsOrientation, direction Direction, key gfx.Key) (gfx.ID, bool) {
 	step := 0
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		if orientation != TabsHorizontal {
 			return current, false
 		}
@@ -180,7 +180,7 @@ func TabsKeyDown(current ui.ID, options []TabOption, orientation TabsOrientation
 		if direction.IsRTL() {
 			step = 1
 		}
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		if orientation != TabsHorizontal {
 			return current, false
 		}
@@ -188,19 +188,19 @@ func TabsKeyDown(current ui.ID, options []TabOption, orientation TabsOrientation
 		if direction.IsRTL() {
 			step = -1
 		}
-	case ui.KeyUp:
+	case gfx.KeyUp:
 		if orientation != TabsVertical {
 			return current, false
 		}
 		step = -1
-	case ui.KeyDown:
+	case gfx.KeyDown:
 		if orientation != TabsVertical {
 			return current, false
 		}
 		step = 1
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		return firstEnabledTab(current, options, 1), true
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		return firstEnabledTab(current, options, -1), true
 	default:
 		return current, false
@@ -208,7 +208,7 @@ func TabsKeyDown(current ui.ID, options []TabOption, orientation TabsOrientation
 	return nextEnabledTab(current, options, step), true
 }
 
-func firstEnabledTab(current ui.ID, options []TabOption, step int) ui.ID {
+func firstEnabledTab(current gfx.ID, options []TabOption, step int) gfx.ID {
 	for index := 0; index < len(options); index++ {
 		candidate := index
 		if step < 0 {
@@ -222,7 +222,7 @@ func firstEnabledTab(current ui.ID, options []TabOption, step int) ui.ID {
 	return current
 }
 
-func nextEnabledTab(current ui.ID, options []TabOption, step int) ui.ID {
+func nextEnabledTab(current gfx.ID, options []TabOption, step int) gfx.ID {
 	if len(options) == 0 {
 		return current
 	}
@@ -267,7 +267,7 @@ func (tabs Tabs) Paint() TabsResult {
 		return result
 	}
 	metrics := tabs.theme.Metrics
-	weight := ui.WeightMedium
+	weight := gfx.WeightMedium
 	gap := tabs.itemGap()
 	count := float32(tabs.count())
 	if tabs.fit {
@@ -303,7 +303,7 @@ func (tabs Tabs) Paint() TabsResult {
 		listRadius = 0
 	}
 	tabs.canvas.Rounded(tabs.bounds, listRadius, listFill)
-	inner := ui.Rect{
+	inner := gfx.Rect{
 		X: tabs.bounds.X + tabsPadding, Y: tabs.bounds.Y + tabsPadding,
 		Width: tabs.bounds.Width - tabsPadding*2, Height: tabs.bounds.Height - tabsPadding*2,
 	}
@@ -315,7 +315,7 @@ func (tabs Tabs) Paint() TabsResult {
 			cursor += trigger.Width + gap
 		}
 		dimmed := tabs.disabled || option.Disabled
-		state := ui.State{Disabled: dimmed, Selected: !option.ID.IsZero() && option.ID == tabs.selected}
+		state := gfx.State{Disabled: dimmed, Selected: !option.ID.IsZero() && option.ID == tabs.selected}
 		if !dimmed && !option.ID.IsZero() {
 			state.Hovered = tabs.canvas.Hovered() == option.ID
 			state.FocusVisible = tabs.canvas.FocusVisible() == option.ID
@@ -332,21 +332,21 @@ func (tabs Tabs) Paint() TabsResult {
 		}
 
 		indicator := look.Indicator
-		indicatorBounds := ui.Rect{X: trigger.X, Y: trigger.Y + trigger.Height + tabsLineDrop, Width: trigger.Width, Height: tabsIndicator}
+		indicatorBounds := gfx.Rect{X: trigger.X, Y: trigger.Y + trigger.Height + tabsLineDrop, Width: trigger.Width, Height: tabsIndicator}
 		if tabs.direction == TabsVertical {
-			indicatorBounds = ui.Rect{X: trigger.X + trigger.Width + tabsLineRight, Y: trigger.Y, Width: tabsIndicator, Height: trigger.Height}
+			indicatorBounds = gfx.Rect{X: trigger.X + trigger.Width + tabsLineRight, Y: trigger.Y, Width: tabsIndicator, Height: trigger.Height}
 		}
 		tabs.canvas.Rounded(indicatorBounds, 1, indicator)
 
-		style := ui.TextStyle{Size: metrics.FontSizeM, Weight: weight, Color: look.Foreground}
+		style := gfx.TextStyle{Size: metrics.FontSizeM, Weight: weight, Color: look.Foreground}
 		tabs.paintContent(option, trigger, style)
 		if !option.ID.IsZero() {
 			hint := ""
 			if option.IconOnly {
 				hint = option.Label
 			}
-			tabs.canvas.HitWithOptions(option.ID, trigger, option.Label, ui.HitOptions{
-				Role: ui.RoleTab, Value: option.Label, Hint: hint,
+			tabs.canvas.HitWithOptions(option.ID, trigger, option.Label, gfx.HitOptions{
+				Role: gfx.RoleTab, Value: option.Label, Hint: hint,
 				Disabled: dimmed, FocusableWhenDisabled: true,
 				Selected: state.Selected,
 				SkipTab:  option.ID != tabs.tabStop,
@@ -358,18 +358,18 @@ func (tabs Tabs) Paint() TabsResult {
 
 // triggerBounds returns the index-th trigger inside the list's padded interior.
 // cursor is the distance already used along the row in Fit mode.
-func (tabs Tabs) triggerBounds(inner ui.Rect, index int, count, cursor float32) ui.Rect {
+func (tabs Tabs) triggerBounds(inner gfx.Rect, index int, count, cursor float32) gfx.Rect {
 	gap := tabs.itemGap()
 	if tabs.direction == TabsVertical {
 		height := (inner.Height - gap*(count-1)) / count
-		return ui.Rect{X: inner.X, Y: inner.Y + float32(index)*(height+gap), Width: inner.Width, Height: height}
+		return gfx.Rect{X: inner.X, Y: inner.Y + float32(index)*(height+gap), Width: inner.Width, Height: height}
 	}
 	if tabs.fit {
 		width := tabs.contentWidth(tabs.option(index)) + tabsTriggerPad*2
-		return ui.Rect{X: inner.X + cursor, Y: inner.Y, Width: width, Height: inner.Height}
+		return gfx.Rect{X: inner.X + cursor, Y: inner.Y, Width: width, Height: inner.Height}
 	}
 	width := (inner.Width - gap*(count-1)) / count
-	return ui.Rect{X: inner.X + float32(index)*(width+gap), Y: inner.Y, Width: width, Height: inner.Height}
+	return gfx.Rect{X: inner.X + float32(index)*(width+gap), Y: inner.Y, Width: width, Height: inner.Height}
 }
 
 func (tabs Tabs) itemGap() float32 {
@@ -382,7 +382,7 @@ func (tabs Tabs) itemGap() float32 {
 func (tabs Tabs) contentWidth(option TabOption) float32 {
 	width := float32(0)
 	if !option.IconOnly {
-		width = tabs.canvas.TextWidthWeight(option.Label, tabs.theme.Metrics.FontSizeM, ui.WeightMedium)
+		width = tabs.canvas.TextWidthWeight(option.Label, tabs.theme.Metrics.FontSizeM, gfx.WeightMedium)
 	}
 	if len(option.Icon.Commands) > 0 || len(option.Icon.Layers) > 0 {
 		width += tabs.theme.Metrics.FontSizeM
@@ -393,8 +393,8 @@ func (tabs Tabs) contentWidth(option TabOption) float32 {
 	return width
 }
 
-func (tabs Tabs) paintContent(option TabOption, trigger ui.Rect, style ui.TextStyle) {
-	b := ui.Rect{X: trigger.X + tabsTriggerPad, Y: trigger.Y, Width: max(0, trigger.Width-tabsTriggerPad*2), Height: trigger.Height}
+func (tabs Tabs) paintContent(option TabOption, trigger gfx.Rect, style gfx.TextStyle) {
+	b := gfx.Rect{X: trigger.X + tabsTriggerPad, Y: trigger.Y, Width: max(0, trigger.Width-tabsTriggerPad*2), Height: trigger.Height}
 	tabs.canvas.Clip(trigger)
 	defer tabs.canvas.Unclip()
 	if len(option.Icon.Commands) == 0 && len(option.Icon.Layers) == 0 {
@@ -418,7 +418,7 @@ func (tabs Tabs) paintContent(option TabOption, trigger ui.Rect, style ui.TextSt
 	if tabs.direction != TabsVertical {
 		b.X += (b.Width - width) / 2
 	}
-	tabs.canvas.DrawIcon(option.Icon, ui.Rect{X: b.X, Y: b.Y + (b.Height-size)/2, Width: size, Height: size}, style.Color)
+	tabs.canvas.DrawIcon(option.Icon, gfx.Rect{X: b.X, Y: b.Y + (b.Height-size)/2, Width: size, Height: size}, style.Color)
 	if text == "" {
 		return
 	}
@@ -432,32 +432,32 @@ type TabTriggerLook struct {
 	// Fill is the trigger's background, transparent unless the tab is the selected one of
 	// the default variant. Border is its 1px line, painted only when Bordered, which is the
 	// raised pill of that tab; it casts Shadow.
-	Fill, Border ui.Color
+	Fill, Border gfx.Color
 	Bordered     bool
-	Shadow       ui.ShadowLevel
+	Shadow       gfx.ShadowLevel
 	// Foreground is the color of the label and icon: dimmed while the tab is neither selected
 	// nor under the pointer.
-	Foreground ui.Color
+	Foreground gfx.Color
 	// Indicator is the underline of the line variant's selected tab, transparent otherwise.
-	Indicator ui.Color
+	Indicator gfx.Color
 	// Radius is the corner radius of the trigger.
 	Radius float32
 	// Ring is the halo of the tab the keyboard is on, transparent with a zero RingWidth when
 	// there is none; RingRadius is its outer radius.
-	Ring                  ui.Color
+	Ring                  gfx.Color
 	RingWidth, RingRadius float32
 }
 
 // TabTriggerRecipe resolves the look of one tab. Selected, Hovered, FocusVisible and Disabled
 // of state are read; a Disabled tab ignores the pointer and the keyboard and is dimmed. A pure
 // function, the one definition the strip is painted from.
-func TabTriggerRecipe(theme ui.Theme, variant TabsVariant, state ui.State) TabTriggerLook {
+func TabTriggerRecipe(theme gfx.Theme, variant TabsVariant, state gfx.State) TabTriggerLook {
 	return tabTriggerRecipe(&theme, variant, state)
 }
 
 // tabTriggerRecipe is the recipe for a theme that is not to be copied: the controls paint every frame,
 // and a Theme is large.
-func tabTriggerRecipe(theme *ui.Theme, variant TabsVariant, state ui.State) TabTriggerLook {
+func tabTriggerRecipe(theme *gfx.Theme, variant TabsVariant, state gfx.State) TabTriggerLook {
 	radius := theme.Metrics.RadiusControl
 	look := TabTriggerLook{Radius: radius}
 	look.Fill = theme.Background
@@ -483,7 +483,7 @@ func tabTriggerRecipe(theme *ui.Theme, variant TabsVariant, state ui.State) TabT
 			border.Alpha *= 0.50
 			fill.Alpha *= 0.50
 		}
-		look.Fill, look.Border, look.Bordered, look.Shadow = fill, border, true, ui.ShadowSM
+		look.Fill, look.Border, look.Bordered, look.Shadow = fill, border, true, gfx.ShadowSM
 	} else if state.Disabled {
 		look.Fill.Alpha *= 0.50
 	}

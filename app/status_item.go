@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // ErrNoStatusArea is returned by AddStatusItem when the desktop has nowhere to
@@ -44,7 +44,7 @@ type StatusAnchor struct {
 
 // StatusClick is one press on a status item.
 type StatusClick struct {
-	Button ui.PointerButton
+	Button gfx.PointerButton
 	// Anchor locates the item for a panel opened in response.
 	Anchor StatusAnchor
 	// PanelDismissed is true when a WindowPanel closed itself, for losing
@@ -172,6 +172,6 @@ func platformMenu(items []MenuItem) []platform.MenuItem {
 
 // NewStatusClick is the press a development runner reports for a status item
 // that has no real icon to click. It has no anchor.
-func NewStatusClick(button ui.PointerButton) StatusClick {
+func NewStatusClick(button gfx.PointerButton) StatusClick {
 	return StatusClick{Button: button}
 }

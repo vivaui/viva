@@ -1,6 +1,6 @@
 package platform
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // Accessibility node roles, in the numbering of internal/semantic.Role, which
 // is what AccessibilityNode.Role carries.
@@ -55,7 +55,7 @@ const (
 
 // AccessibilityRequest is one request from assistive technology.
 type AccessibilityRequest struct {
-	Node   ui.ID
+	Node   gfx.ID
 	Action AccessibilityAction
 	// Number is the value of AccessibilitySetNumber.
 	Number float64
@@ -181,7 +181,7 @@ func AccessibilityParents(destination []int32, nodes []AccessibilityNode) []int3
 
 // AccessibilityIndexOf returns the position of the node with the given ID, or
 // -1. A zero ID never matches.
-func AccessibilityIndexOf(nodes []AccessibilityNode, id ui.ID) int {
+func AccessibilityIndexOf(nodes []AccessibilityNode, id gfx.ID) int {
 	if id.IsZero() {
 		return -1
 	}

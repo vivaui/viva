@@ -4,20 +4,20 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 var tabsTestOptions = [...]TabOption{
-	{ID: ui.Item(31), Label: "Overview"},
-	{ID: ui.Item(32), Label: "Analytics"},
-	{ID: ui.Item(33), Label: "Reports", Disabled: true},
+	{ID: gfx.Item(31), Label: "Overview"},
+	{ID: gfx.Item(32), Label: "Analytics"},
+	{ID: gfx.Item(33), Label: "Reports", Disabled: true},
 }
 
 func TestTabsPaintActiveIndicatorAndStableHits(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	BeginTabs(&canvas, theme, ui.Rect{Width: 360}, tabsTestOptions[:], ui.Item(32)).Line().Paint()
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	BeginTabs(&canvas, theme, gfx.Rect{Width: 360}, tabsTestOptions[:], gfx.Item(32)).Line().Paint()
 	if len(canvas.Rectangles()) != 7 || len(canvas.Texts()) != 3 {
 		t.Fatalf("tab commands = %d rectangles, %d texts", len(canvas.Rectangles()), len(canvas.Texts()))
 	}
@@ -27,7 +27,7 @@ func TestTabsPaintActiveIndicatorAndStableHits(t *testing.T) {
 	if canvas.Rectangles()[4].Color != theme.Foreground {
 		t.Fatalf("active indicator = %+v, want foreground", canvas.Rectangles()[4].Color)
 	}
-	if len(canvas.Hits()) != 3 || canvas.Hits()[1].Role != ui.RoleTab || !canvas.Hits()[1].Selected || !canvas.Hits()[2].Disabled {
+	if len(canvas.Hits()) != 3 || canvas.Hits()[1].Role != gfx.RoleTab || !canvas.Hits()[1].Selected || !canvas.Hits()[2].Disabled {
 		t.Fatalf("tab hits = %+v", canvas.Hits())
 	}
 	if canvas.Hits()[0].Bounds.Width != canvas.Hits()[1].Bounds.Width || canvas.Hits()[0].Bounds.Width*3 >= 360 {
@@ -40,14 +40,14 @@ func TestTabsPaintActiveIndicatorAndStableHits(t *testing.T) {
 }
 
 func TestTabsDefaultAndVerticalVariants(t *testing.T) {
-	theme := ui.LightTheme()
-	var defaultCanvas ui.Canvas
-	BeginTabs(&defaultCanvas, theme, ui.Rect{Width: 300}, tabsTestOptions[:], ui.Item(31)).Paint()
+	theme := gfx.LightTheme()
+	var defaultCanvas gfx.Canvas
+	BeginTabs(&defaultCanvas, theme, gfx.Rect{Width: 300}, tabsTestOptions[:], gfx.Item(31)).Paint()
 	if defaultCanvas.Rectangles()[0].Color != theme.Muted || defaultCanvas.Rectangles()[0].Bounds.Height != 36 || defaultCanvas.Rectangles()[1].Color != theme.Background || defaultCanvas.Rectangles()[2].Color != theme.Background {
 		t.Fatalf("default tabs surfaces = %+v", defaultCanvas.Rectangles()[:2])
 	}
-	var verticalCanvas ui.Canvas
-	BeginTabs(&verticalCanvas, theme, ui.Rect{Width: 140, Height: 96}, tabsTestOptions[:], ui.Item(31)).Line().Vertical().Paint()
+	var verticalCanvas gfx.Canvas
+	BeginTabs(&verticalCanvas, theme, gfx.Rect{Width: 140, Height: 96}, tabsTestOptions[:], gfx.Item(31)).Line().Vertical().Paint()
 	indicator := verticalCanvas.Rectangles()[2]
 	trigger := verticalCanvas.Hits()[0].Bounds
 	if indicator.Bounds.Width != 2 || indicator.Bounds.X <= trigger.X+trigger.Width {
@@ -56,9 +56,9 @@ func TestTabsDefaultAndVerticalVariants(t *testing.T) {
 }
 
 func TestTabsDarkActiveTriggerIsLiftedAndBordered(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
-	BeginTabs(&canvas, theme, ui.Rect{Width: 300}, tabsTestOptions[:], ui.Item(31)).Paint()
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	BeginTabs(&canvas, theme, gfx.Rect{Width: 300}, tabsTestOptions[:], gfx.Item(31)).Paint()
 	border, fill := canvas.Rectangles()[1], canvas.Rectangles()[2]
 	if border.Color == theme.Muted || fill.Color == theme.Muted || border.Color == fill.Color {
 		t.Fatalf("dark active trigger = border %+v fill %+v on %+v", border.Color, fill.Color, theme.Muted)
@@ -66,10 +66,10 @@ func TestTabsDarkActiveTriggerIsLiftedAndBordered(t *testing.T) {
 }
 
 func TestTabsFitSizesListToLabels(t *testing.T) {
-	theme := ui.LightTheme()
-	options := [...]TabOption{{ID: ui.Item(1), Label: "A"}, {ID: ui.Item(2), Label: "A much longer label"}}
-	var canvas ui.Canvas
-	result := BeginTabs(&canvas, theme, ui.Rect{X: 10, Y: 20}, options[:], ui.Item(1)).Fit().Paint()
+	theme := gfx.LightTheme()
+	options := [...]TabOption{{ID: gfx.Item(1), Label: "A"}, {ID: gfx.Item(2), Label: "A much longer label"}}
+	var canvas gfx.Canvas
+	result := BeginTabs(&canvas, theme, gfx.Rect{X: 10, Y: 20}, options[:], gfx.Item(1)).Fit().Paint()
 	hits := canvas.Hits()
 	if len(hits) != 2 || hits[1].Bounds.Width <= hits[0].Bounds.Width*2 {
 		t.Fatalf("fit triggers should follow label widths: %+v", hits)
@@ -84,11 +84,11 @@ func TestTabsFitSizesListToLabels(t *testing.T) {
 }
 
 func TestTabsRepeatedPaintIsStableAndAllocationFree(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		BeginTabs(&canvas, theme, ui.Rect{Width: 360}, tabsTestOptions[:], ui.Item(31)).Paint()
+		BeginTabs(&canvas, theme, gfx.Rect{Width: 360}, tabsTestOptions[:], gfx.Item(31)).Paint()
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -105,11 +105,11 @@ func TestTabsRepeatedPaintIsStableAndAllocationFree(t *testing.T) {
 
 func TestTabsKeyDown(t *testing.T) {
 	options := [...]TabOption{
-		{ID: ui.Item(401)},
-		{ID: ui.Item(402), Disabled: true},
+		{ID: gfx.Item(401)},
+		{ID: gfx.Item(402), Disabled: true},
 		{},
-		{ID: ui.Item(404)},
-		{ID: ui.Item(405)},
+		{ID: gfx.Item(404)},
+		{ID: gfx.Item(405)},
 	}
 	tests := []struct {
 		name        string
@@ -138,8 +138,8 @@ func TestTabsKeyDown(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, handled := TabsKeyDown(ui.Item(int(test.current)), options[:], test.orientation, test.direction, test.key)
-			if got != ui.Item(int(test.want)) || handled != test.handled {
+			got, handled := TabsKeyDown(gfx.Item(int(test.current)), options[:], test.orientation, test.direction, test.key)
+			if got != gfx.Item(int(test.want)) || handled != test.handled {
 				t.Fatalf("TabsKeyDown() = (%d, %v), want (%d, %v)", got, handled, test.want, test.handled)
 			}
 		})
@@ -147,40 +147,40 @@ func TestTabsKeyDown(t *testing.T) {
 }
 
 func TestTabsKeyDownNoAvailableOptionAndNoAllocations(t *testing.T) {
-	options := [...]TabOption{{ID: ui.Item(401), Disabled: true}, {}, {ID: ui.Item(403), Disabled: true}}
-	if got, handled := TabsKeyDown(ui.Item(77), options[:], TabsHorizontal, LTR, input.KeyEnd); got != ui.Item(77) || !handled {
+	options := [...]TabOption{{ID: gfx.Item(401), Disabled: true}, {}, {ID: gfx.Item(403), Disabled: true}}
+	if got, handled := TabsKeyDown(gfx.Item(77), options[:], TabsHorizontal, LTR, input.KeyEnd); got != gfx.Item(77) || !handled {
 		t.Fatalf("all-disabled End = (%d, %v), want (77, true)", got, handled)
 	}
-	if got, handled := TabsKeyDown(ui.Item(77), nil, TabsVertical, LTR, input.KeyUp); got != ui.Item(77) || !handled {
+	if got, handled := TabsKeyDown(gfx.Item(77), nil, TabsVertical, LTR, input.KeyUp); got != gfx.Item(77) || !handled {
 		t.Fatalf("empty Up = (%d, %v), want (77, true)", got, handled)
 	}
 	if allocations := testing.AllocsPerRun(1000, func() {
-		TabsKeyDown(ui.Item(31), tabsTestOptions[:], TabsHorizontal, RTL, input.KeyLeft)
+		TabsKeyDown(gfx.Item(31), tabsTestOptions[:], TabsHorizontal, RTL, input.KeyLeft)
 	}); allocations != 0 {
 		t.Fatalf("TabsKeyDown allocations = %v", allocations)
 	}
 }
 
-var tabsKeyDownResult ui.ID
+var tabsKeyDownResult gfx.ID
 
 func BenchmarkTabsKeyDown(b *testing.B) {
-	var result ui.ID
+	var result gfx.ID
 	b.ReportAllocs()
 	for range b.N {
-		result, _ = TabsKeyDown(ui.Item(31), tabsTestOptions[:], TabsHorizontal, LTR, input.KeyRight)
+		result, _ = TabsKeyDown(gfx.Item(31), tabsTestOptions[:], TabsHorizontal, LTR, input.KeyRight)
 	}
 	tabsKeyDownResult = result
 }
 
 func TestTabListNumbersItsOwnTabsAndReportsTheClickedOne(t *testing.T) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	tabs := tree.Sub(tree.Feature("page"), tree.Name("tabs"))
 	labels := []string{"Account", "Password", "Team"}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 
 	paint := func() (int, bool) {
 		canvas.Reset()
-		return BeginTabList(&canvas, ui.LightTheme(), ui.Rect{Width: 300, Height: 36}, tabs, labels, 1).Paint().Clicked()
+		return BeginTabList(&canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 36}, tabs, labels, 1).Paint().Clicked()
 	}
 	if _, ok := paint(); ok {
 		t.Fatal("an ordinary paint reported a click")
@@ -211,13 +211,13 @@ func TestTabListNumbersItsOwnTabsAndReportsTheClickedOne(t *testing.T) {
 }
 
 func TestTableRowAtReportsOnlyItsOwnRow(t *testing.T) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	rows := tree.Sub(tree.Feature("page"), tree.Name("rows"))
 	columns := []TableColumn{{Width: 100}, {}}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() (clicked []int) {
 		canvas.Reset()
-		table := BeginTable(&canvas, ui.LightTheme(), ui.Rect{Width: 300, Height: 200}, columns)
+		table := BeginTable(&canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 200}, columns)
 		for i := range 3 {
 			if table.RowAt(rows, i, []string{"row", "x"}, i == 0) {
 				clicked = append(clicked, i)

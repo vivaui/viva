@@ -93,7 +93,7 @@ func TestCatalogAndExportUseActualGoSource(t *testing.T) {
 func manifestFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	for _, directory := range []string{"app", "ui", "components", "internal", "cmd/component-preview", "cmd/viva/templates", "tools/docs"} {
+	for _, directory := range []string{"app", "ui", "gfx", "components", "internal", "cmd/component-preview", "cmd/viva/templates", "tools/docs"} {
 		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {
 			t.Fatal(err)
 		}

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestGlobalShortcutRepeatPairsDoNotRetrigger(t *testing.T) {
@@ -28,7 +28,7 @@ func TestNativeX11GlobalShortcut(t *testing.T) {
 	if os.Getenv("VIVA_NATIVE_GLOBAL_SHORTCUT_TEST") != "1" {
 		t.Skip("requires an isolated X11 display")
 	}
-	const modifiers = ui.ModifierControl | ui.ModifierAlt | ui.ModifierShift
+	const modifiers = gfx.ModifierControl | gfx.ModifierAlt | gfx.ModifierShift
 	presses := make(chan struct{}, 1)
 	stop, err := RegisterGlobalShortcut(modifiers, 'g', func() { presses <- struct{}{} })
 	if err != nil {

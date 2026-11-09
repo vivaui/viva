@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -98,7 +98,7 @@ func newCalendarRangeDays(month [35]components.CalendarDay) [35]components.Calen
 	return days
 }
 
-func (state *State) paintCalendar(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintCalendar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	monthTitle := state.Text("2026 年 10 月", "October 2026")
 	if state.values[0] < 0 {
 		monthTitle = state.Text("2026 年 9 月", "September 2026")
@@ -120,9 +120,9 @@ func (state *State) paintCalendar(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 		weekdays[index] = state.Text(label, calendarWeekdaysEnglish[index])
 	}
 	// The calendar is the whole demo: it takes the stage, at most 360 wide.
-	var slot flex.Box
-	state.view.Draw(canvas, theme, ui.Rect{Width: size.Width, Height: size.Height}, func(f *flex.Frame) {
-		f.Column().Fill().Pad(18).Items(flex.Center).Children(func() {
+	var slot ui.Box
+	state.view.Draw(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
+		f.Column().Fill().Pad(18).Items(ui.Center).Children(func() {
 			slot = f.Slot().FillWidth().MaxWidth(360).FillHeight()
 		})
 	})

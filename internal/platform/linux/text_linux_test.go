@@ -6,8 +6,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestMeasureTextSupportsSystemFallback(t *testing.T) {
@@ -36,7 +36,7 @@ func TestMeasureTextRejectsInvalidFontSize(t *testing.T) {
 }
 
 func TestMeasureMonoReportsStableCell(t *testing.T) {
-	width, height, err := MeasureMono(16, ui.MonoSystem)
+	width, height, err := MeasureMono(16, gfx.MonoSystem)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,9 +53,9 @@ func TestRasterizeTextSystemFallbackAndRuns(t *testing.T) {
 	defer services.close()
 	labels := []platform.TextLabel{
 		{Value: "Viva 原生界面", Width: 240, Height: 32, FontSize: 16, Color: platform.Color{Red: 0.8, Green: 0.6, Blue: 0.4, Alpha: 0.75}},
-		{Value: "A中", Width: 40, Height: 24, FontSize: 16, Mono: true, CellWidth: 10, Runs: []ui.TextRun{
-			{Bytes: 1, Cells: 1, Color: ui.Color{Red: 1, Alpha: 1}, Underline: true},
-			{Column: 1, Bytes: 3, Cells: 2, Color: ui.Color{Green: 1, Alpha: 0.8}, Weight: 0.35, Italic: true, Strike: true},
+		{Value: "A中", Width: 40, Height: 24, FontSize: 16, Mono: true, CellWidth: 10, Runs: []gfx.TextRun{
+			{Bytes: 1, Cells: 1, Color: gfx.Color{Red: 1, Alpha: 1}, Underline: true},
+			{Column: 1, Bytes: 3, Cells: 2, Color: gfx.Color{Green: 1, Alpha: 0.8}, Weight: 0.35, Italic: true, Strike: true},
 		}},
 	}
 	for _, label := range labels {
@@ -100,7 +100,7 @@ func TestRasterizeFixedPitchASCIIStartsAtItsColumn(t *testing.T) {
 	defer services.close()
 	label := platform.TextLabel{
 		Value: "A", Width: 32, Height: 32, FontSize: 20, Mono: true, CellWidth: 32,
-		Runs: []ui.TextRun{{Bytes: 1, Cells: 1, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}},
+		Runs: []gfx.TextRun{{Bytes: 1, Cells: 1, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}},
 	}
 	bounds := rasterAlphaBounds(t, services, label)
 	if bounds.minX > 3 {
@@ -117,9 +117,9 @@ func TestRasterizeLigatureRunsDoesNotAccumulateScaling(t *testing.T) {
 	services.useFonts(systemFonts().grayscale())
 	label := platform.TextLabel{
 		Value: "abcabc", Width: 64, Height: 24, FontSize: 16, Mono: true, CellWidth: 8,
-		Runs: []ui.TextRun{
-			{Bytes: 3, Cells: 3, Color: ui.RGB(255, 255, 255), Ligatures: true},
-			{Column: 4, Bytes: 3, Cells: 3, Color: ui.RGB(255, 255, 255), Ligatures: true},
+		Runs: []gfx.TextRun{
+			{Bytes: 3, Cells: 3, Color: gfx.RGB(255, 255, 255), Ligatures: true},
+			{Column: 4, Bytes: 3, Cells: 3, Color: gfx.RGB(255, 255, 255), Ligatures: true},
 		},
 	}
 	want, err := services.configureLayout("abc", monoFamily(label.MonoFace), label.FontSize, 0, false)
@@ -162,7 +162,7 @@ func TestRasterizeLigatureRunFitsItsCells(t *testing.T) {
 				// width the run is drawn at.
 				label := platform.TextLabel{
 					Value: value, Width: 600, Height: 28, FontSize: 14, Mono: true, CellWidth: 7,
-					Runs: []ui.TextRun{{Bytes: int32(len(value)), Cells: int32(len(value)), Color: ui.RGB(255, 255, 255), Ligatures: true}},
+					Runs: []gfx.TextRun{{Bytes: int32(len(value)), Cells: int32(len(value)), Color: gfx.RGB(255, 255, 255), Ligatures: true}},
 				}
 				services.useFonts(systemFonts().grayscale())
 				measured, err := services.configureLayout(value, monoFamily(label.MonoFace), label.FontSize*scale, 0, false)
@@ -222,7 +222,7 @@ func TestTextRunsMustCoverUTF8Label(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer services.close()
-	label := platform.TextLabel{Value: "中", Width: 20, Height: 20, FontSize: 14, CellWidth: 10, Runs: []ui.TextRun{{Bytes: 1, Cells: 1}}}
+	label := platform.TextLabel{Value: "中", Width: 20, Height: 20, FontSize: 14, CellWidth: 10, Runs: []gfx.TextRun{{Bytes: 1, Cells: 1}}}
 	if _, _, err := services.rasterize(label, 1, 20, 20, false); err == nil {
 		t.Fatal("a run splitting UTF-8 was accepted")
 	}
@@ -271,7 +271,7 @@ func BenchmarkRasterizeLigatureRun(benchmark *testing.B) {
 	label := platform.TextLabel{
 		Value: "workbench_workspaces_e2e-vision-conversation-smoke", Width: 480, Height: 24, FontSize: 16, Mono: true, CellWidth: 8,
 	}
-	label.Runs = []ui.TextRun{{Bytes: int32(len(label.Value)), Cells: int32(len(label.Value)), Color: ui.RGB(255, 255, 255), Ligatures: true}}
+	label.Runs = []gfx.TextRun{{Bytes: int32(len(label.Value)), Cells: int32(len(label.Value)), Color: gfx.RGB(255, 255, 255), Ligatures: true}}
 	benchmark.ReportAllocs()
 	benchmark.ResetTimer()
 	for range benchmark.N {

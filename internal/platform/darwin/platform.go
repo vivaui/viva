@@ -17,12 +17,12 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 type Color = platform.Color
@@ -202,20 +202,20 @@ func (window *nativeWindow) Show() {
 }
 
 // Frame is the content area in screen coordinates.
-func (window *nativeWindow) Frame() (ui.Rect, bool) {
+func (window *nativeWindow) Frame() (gfx.Rect, bool) {
 	if window == nil || window.closed.Load() {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
 	var out [4]C.double
 	if C.viva_application_window_frame(window.token, &out[0]) == 0 {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
-	return ui.Rect{X: float32(out[0]), Y: float32(out[1]), Width: float32(out[2]), Height: float32(out[3])}, true
+	return gfx.Rect{X: float32(out[0]), Y: float32(out[1]), Width: float32(out[2]), Height: float32(out[3])}, true
 }
 
 // MoveTo puts the top-left of the content area at origin. It runs on the
 // event-loop thread, where window callbacks are.
-func (window *nativeWindow) MoveTo(origin ui.Point) {
+func (window *nativeWindow) MoveTo(origin gfx.Point) {
 	if window != nil && !window.closed.Load() {
 		C.viva_application_move_window(window.token, C.double(origin.X), C.double(origin.Y))
 	}
@@ -643,7 +643,7 @@ const (
 )
 
 // textRunFlags is the native flag word of one fixed-pitch run.
-func textRunFlags(run ui.TextRun) uint32 {
+func textRunFlags(run gfx.TextRun) uint32 {
 	var flags uint32
 	if run.Italic {
 		flags |= runItalic

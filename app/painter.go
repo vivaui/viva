@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/interaction"
 	"github.com/vivaui/viva/internal/platform"
@@ -17,23 +18,22 @@ import (
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/internal/semantic"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // painter reconciles immediate canvas paints with the retained scene and the
 // native label list, so an unchanged repaint performs no renderer work.
 type painter struct {
 	fullscreen bool
-	paint      func(canvas *ui.Canvas, size ui.Size)
-	onPointer  func(ui.PointerEvent) ui.EventResult
-	onKey      func(ui.KeyEvent) ui.EventResult
-	onShortcut func(ui.KeyEvent) ui.EventResult
-	onScroll   func(ui.ScrollEvent) ui.EventResult
+	paint      func(canvas *gfx.Canvas, size gfx.Size)
+	onPointer  func(gfx.PointerEvent) gfx.EventResult
+	onKey      func(gfx.KeyEvent) gfx.EventResult
+	onShortcut func(gfx.KeyEvent) gfx.EventResult
+	onScroll   func(gfx.ScrollEvent) gfx.EventResult
 	// onModifierTap and tap recognize a modifier pressed and released on its own.
-	onModifierTap func(ui.ModifierTapEvent) ui.EventResult
+	onModifierTap func(gfx.ModifierTapEvent) gfx.EventResult
 	tap           input.ModifierTap
-	onFileDrop    func(ui.FileDropEvent) ui.EventResult
-	onResize      func(ui.Size)
+	onFileDrop    func(gfx.FileDropEvent) gfx.EventResult
+	onResize      func(gfx.Size)
 	// scale is the display's device pixels per logical pixel, zero when the platform
 	// does not report it (see platform.Size): the canvas then keeps the scale it was given.
 	scale       float32
@@ -49,8 +49,8 @@ type painter struct {
 	// TextInput.KeyReleases).
 	keys            interaction.Keys
 	textEnabled     bool
-	canvas          *ui.Canvas
-	size            ui.Size
+	canvas          *gfx.Canvas
+	size            gfx.Size
 	focus           interaction.Focus
 	pointer         interaction.Pointer
 	graph           *scene.Scene
@@ -65,31 +65,31 @@ type painter struct {
 	reusedHits      int        // publishes that kept the previous regions and semantics
 	shapeIDs        []scene.ID // one scene node per entry of order, in paint order
 	labels          []platform.TextLabel
-	lastTexts       []ui.Text
-	lastRuns        []ui.TextRun // the runs lastTexts refer to, copied out of the application's memory
+	lastTexts       []gfx.Text
+	lastRuns        []gfx.TextRun // the runs lastTexts refer to, copied out of the application's memory
 	// lastFontGeneration is the canvas's font generation at the labels last sent: text
 	// that has not changed still needs sending when the fonts have, so the renderer
 	// draws it again.
 	lastFontGeneration uint32
-	lastImages         []ui.Image
+	lastImages         []gfx.Image
 	views              []platform.NativeView // the native views of this publish
 	lastViews          []platform.NativeView // the ones last sent
-	covers             []ui.Rect             // backing of the views' Covers
+	covers             []gfx.Rect            // backing of the views' Covers
 	stateBySlot        []instanceState
 	// layerShift is 1 while the frame has a backdrop, which takes platform layer
 	// zero; every canvas layer then travels one higher. It is 0 otherwise.
 	layerShift uint16
-	hitScratch []ui.Hit
+	hitScratch []gfx.Hit
 	// publishedHits is the hit list the regions and the semantic tree were last
 	// built from. Comparing it byte for byte (the strings keep the previous
 	// allocations alive, so equal pointers mean equal bytes) lets a repaint that
 	// declared the same hits reuse both instead of mirroring the list again.
-	publishedHits      []ui.Hit
-	publishedFocus     ui.ID
-	publishedTrap      ui.ID
-	publishedInitial   ui.ID
-	publishedEscape    ui.ID
-	publishedRequest   ui.ID
+	publishedHits      []gfx.Hit
+	publishedFocus     gfx.ID
+	publishedTrap      gfx.ID
+	publishedInitial   gfx.ID
+	publishedEscape    gfx.ID
+	publishedRequest   gfx.ID
 	publishedText      string
 	publishedSelection TextRange
 	publishedCompose   TextRange
@@ -97,16 +97,16 @@ type painter struct {
 	publishedTextField bool
 	hitsPublished      bool
 	semanticsDirty     bool
-	labelNames         map[ui.ID]string
+	labelNames         map[gfx.ID]string
 	labelNamePeak      int
-	clipRects          [4]ui.Rect
-	clipped            []ui.Rectangle
-	clippedPaths       []ui.Triangle
-	clippedSoft        []ui.Shadow
-	order              []shapeRef     // clipped, clippedPaths and clippedSoft interleaved in paint order
-	blocks             []ui.Rectangle // scratch for appendBlockElements
-	clippedTexts       []ui.Text
-	clippedImages      []ui.Image
+	clipRects          [4]gfx.Rect
+	clipped            []gfx.Rectangle
+	clippedPaths       []gfx.Triangle
+	clippedSoft        []gfx.Shadow
+	order              []shapeRef      // clipped, clippedPaths and clippedSoft interleaved in paint order
+	blocks             []gfx.Rectangle // scratch for appendBlockElements
+	clippedTexts       []gfx.Text
+	clippedImages      []gfx.Image
 	// controls draws the window buttons of a custom titlebar, on platforms where
 	// Viva does; it is nil otherwise.
 	controls *windowControls
@@ -125,18 +125,18 @@ type painter struct {
 	scheduleFrame    func(delay time.Duration)
 	setClipboardText func(string)
 	setCursor        func(Cursor) error
-	setCursorImage   func(*ui.CursorImage) error
+	setCursorImage   func(*gfx.CursorImage) error
 	// cursorImage is the picture shown while cursor is CursorImage.
-	cursorImage *ui.CursorImage
+	cursorImage *gfx.CursorImage
 }
 
-func newPainter(canvas *ui.Canvas, config *Config) (*painter, error) {
+func newPainter(canvas *gfx.Canvas, config *Config) (*painter, error) {
 	return newPainterWithClock(canvas, config, monotonicClock())
 }
 
 // newPainterWithClock is newPainter with an explicit animation clock, so a
 // driver can run time on its own terms from the very first paint.
-func newPainterWithClock(canvas *ui.Canvas, config *Config, clock func() time.Duration) (*painter, error) {
+func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.Duration) (*painter, error) {
 	canvas.SetClock(clock)
 	if config.Tree != nil {
 		canvas.SetTree(config.Tree)
@@ -152,7 +152,7 @@ func newPainterWithClock(canvas *ui.Canvas, config *Config, clock func() time.Du
 		onResize:      config.OnResize,
 		textInput:     config.TextInput,
 		canvas:        canvas,
-		size:          ui.Size{Width: float32(config.Width), Height: float32(config.Height)},
+		size:          gfx.Size{Width: float32(config.Width), Height: float32(config.Height)},
 		graph:         scene.NewWithCapacity(len(canvas.Rectangles()) + len(canvas.Triangles()) + len(canvas.Shadows()) + 1),
 		semantics:     semantic.NewWithCapacity("Viva", len(canvas.Hits())+1),
 		semanticIDs:   make([]semantic.ID, 0, len(canvas.Hits())+1),
@@ -186,7 +186,7 @@ func newPainterWithClock(canvas *ui.Canvas, config *Config, clock func() time.Du
 
 // resize rebuilds the canvas at a new size and returns exactly one frame.
 func (painter *painter) resize(size platform.Size) (platform.Frame, error) {
-	next := ui.Size{Width: size.Width, Height: size.Height}
+	next := gfx.Size{Width: size.Width, Height: size.Height}
 	changed := next != painter.size
 	painter.size, painter.scale = next, size.Scale
 	if changed && painter.onResize != nil {
@@ -208,7 +208,7 @@ func (painter *painter) pressAt(x, y float32) platform.PressKind {
 // pointer applies one native pointer event to the interaction state machine
 // and repaints only when hover or pressed state actually changed.
 //
-// A secondary press on a backdrop that passes it on (ui.HitOptions.PassSecondary)
+// A secondary press on a backdrop that passes it on (gfx.HitOptions.PassSecondary)
 // is two presses in one: the first dismisses the overlay, as a click on the
 // backdrop would, and the second is the same press aimed at what the overlay
 // was covering, once the paint has taken it away.
@@ -238,14 +238,14 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 		if painter.pointer.Hovered().IsZero() {
 			return platform.Frame{}, nil
 		}
-		painter.pointer.SetHovered(ui.ID{})
+		painter.pointer.SetHovered(gfx.ID{})
 		return painter.repaint()
 	}
 	beforeHovered, beforePressed := painter.pointer.Hovered(), painter.pointer.Pressed()
 	beforeFocus, beforeKeyboard := painter.focus.Focused(), painter.focus.KeyboardFocus()
 	passes := event.Kind == platform.PointerDown &&
-		(event.Button == ui.PointerButtonSecondary && painter.focus.Router().PassesSecondary(event.X, event.Y) ||
-			event.Button == ui.PointerButtonPrimary && painter.focus.Router().PassesPrimary(event.X, event.Y))
+		(event.Button == gfx.PointerButtonSecondary && painter.focus.Router().PassesSecondary(event.X, event.Y) ||
+			event.Button == gfx.PointerButtonPrimary && painter.focus.Router().PassesPrimary(event.X, event.Y))
 	result, focusChanged, edgeChanged := painter.pointerStep(event)
 	if passes {
 		if !result.Handled && painter.deliverClick(painter.pointer.Hovered()) {
@@ -278,7 +278,7 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 			// and hover-owned state.
 			painter.pointerOutside = false
 			if painter.onPointer != nil {
-				gone := painter.onPointer(ui.PointerEvent{Kind: ui.PointerExit, Viewport: painter.size})
+				gone := painter.onPointer(gfx.PointerEvent{Kind: gfx.PointerExit, Viewport: painter.size})
 				result.Repaint = result.Repaint || gone.Repaint
 			}
 		}
@@ -301,8 +301,8 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 // pointerStep is one pass of a pointer event through hit testing, the press
 // state, the application and the controls' event pass. It returns what the
 // application answered and whether focus and the pointer's edge state changed.
-func (painter *painter) pointerStep(event platform.PointerEvent) (result ui.EventResult, focusChanged, edgeChanged bool) {
-	painter.pointer.SetHovered(ui.ID{})
+func (painter *painter) pointerStep(event platform.PointerEvent) (result gfx.EventResult, focusChanged, edgeChanged bool) {
+	painter.pointer.SetHovered(gfx.ID{})
 	if event.Kind != platform.PointerExit {
 		if target, ok := painter.focus.Router().HitTest(event.X, event.Y); ok {
 			painter.pointer.SetHovered(target)
@@ -315,24 +315,24 @@ func (painter *painter) pointerStep(event platform.PointerEvent) (result ui.Even
 		painter.focus.PointerDown(event.X, event.Y, painter.pointer.Hovered())
 	}
 
-	target, captured := painter.pointer.Delivery(ui.PointerEventKind(event.Kind))
+	target, captured := painter.pointer.Delivery(gfx.PointerEventKind(event.Kind))
 	if painter.onPointer != nil {
-		result = painter.onPointer(ui.PointerEvent{
-			Kind: ui.PointerEventKind(event.Kind), Button: event.Button, Modifiers: ui.Modifiers(event.Modifiers),
+		result = painter.onPointer(gfx.PointerEvent{
+			Kind: gfx.PointerEventKind(event.Kind), Button: event.Button, Modifiers: gfx.Modifiers(event.Modifiers),
 			X: event.X, Y: event.Y, ScreenX: event.ScreenX, ScreenY: event.ScreenY, Viewport: painter.size, Target: target, Captured: captured,
 			ClickCount: event.ClickCount,
 		})
 	}
 	if !result.Handled && pointerIsDelivered(event.Kind, target, captured) {
-		if painter.deliverPointer(ui.PointerEvent{
-			Kind: ui.PointerEventKind(event.Kind), Button: event.Button, Modifiers: ui.Modifiers(event.Modifiers),
+		if painter.deliverPointer(gfx.PointerEvent{
+			Kind: gfx.PointerEventKind(event.Kind), Button: event.Button, Modifiers: gfx.Modifiers(event.Modifiers),
 			X: event.X, Y: event.Y, ScreenX: event.ScreenX, ScreenY: event.ScreenY, Viewport: painter.size, Target: target, Captured: captured,
 			ClickCount: event.ClickCount,
 		}) {
 			result.Handled, result.Repaint = true, true
 		}
 	}
-	painter.pointer.NoteHandled(ui.PointerEventKind(event.Kind), result.Handled)
+	painter.pointer.NoteHandled(gfx.PointerEventKind(event.Kind), result.Handled)
 	focusChanged = painter.applyEventResult(result)
 	if painter.placeCaret(event) {
 		result.Repaint = true
@@ -341,7 +341,7 @@ func (painter *painter) pointerStep(event platform.PointerEvent) (result ui.Even
 }
 
 // placeCaret puts the caret of the focused text field where a press, or the drag
-// of one, lands, when the field lays its rows out itself (ui.TextPlacement): the
+// of one, lands, when the field lays its rows out itself (gfx.TextPlacement): the
 // platform editor knows one line only and leaves such a field to this. A press
 // puts the caret there and a drag extends the selection from it. It reports
 // whether the selection changed.
@@ -349,7 +349,7 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 	switch event.Kind {
 	case platform.PointerDown:
 		painter.placing = false
-		primary := event.Button == ui.PointerButtonPrimary || event.Button == ui.PointerButtonNone
+		primary := event.Button == gfx.PointerButtonPrimary || event.Button == gfx.PointerButtonNone
 		if !primary || painter.focus.Focused().IsZero() || painter.pointer.Hovered() != painter.focus.Focused() {
 			return false
 		}
@@ -371,7 +371,7 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 		painter.placing = false
 		return false
 	}
-	offset, ok := placement.OffsetAt(ui.Point{X: event.X, Y: event.Y})
+	offset, ok := placement.OffsetAt(gfx.Point{X: event.X, Y: event.Y})
 	input := painter.textInput(context)
 	if !ok || input == nil {
 		return false
@@ -402,7 +402,7 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 }
 
 // isWindowControl reports whether id is one of the window buttons Viva draws.
-func (painter *painter) isWindowControl(id ui.ID) bool {
+func (painter *painter) isWindowControl(id gfx.ID) bool {
 	if painter.controls == nil || painter.fullscreen {
 		return false
 	}
@@ -428,8 +428,8 @@ func (painter *painter) shortcut(event platform.KeyEvent) (platform.Frame, bool,
 		return platform.Frame{}, false, nil
 	}
 	event.Text = normalizeShortcutText(event.Text)
-	response := painter.onShortcut(ui.KeyEvent{
-		Key: ui.Key(event.Key), Modifiers: ui.Modifiers(event.Modifiers), Target: painter.focus.Focused(),
+	response := painter.onShortcut(gfx.KeyEvent{
+		Key: gfx.Key(event.Key), Modifiers: gfx.Modifiers(event.Modifiers), Target: painter.focus.Focused(),
 		Repeat: event.Repeat, Text: event.Text, Win32: event.Win32,
 	})
 	focusChanged := painter.applyEventResult(response)
@@ -475,7 +475,7 @@ func (painter *painter) key(event platform.KeyEvent) (platform.Frame, error) {
 	}
 	before := painter.focus.Focused()
 	beforeKeyboard := painter.focus.KeyboardFocus()
-	response := ui.EventResult{}
+	response := gfx.EventResult{}
 	if painter.onKey != nil {
 		repeat := event.Repeat
 		if event.Code != 0 && painter.keysWanted() {
@@ -484,7 +484,7 @@ func (painter *painter) key(event platform.KeyEvent) (platform.Frame, error) {
 			})
 			repeat = repeat || again
 		}
-		response = painter.onKey(ui.KeyEvent{Key: ui.Key(event.Key), Modifiers: ui.Modifiers(event.Modifiers), Target: painter.focus.Focused(), Repeat: repeat, Text: event.Text, Typed: event.Typed, Win32: event.Win32})
+		response = painter.onKey(gfx.KeyEvent{Key: gfx.Key(event.Key), Modifiers: gfx.Modifiers(event.Modifiers), Target: painter.focus.Focused(), Repeat: repeat, Text: event.Text, Typed: event.Typed, Win32: event.Win32})
 	}
 	if modifier {
 		return painter.afterKeyResponse(response)
@@ -496,7 +496,7 @@ func (painter *painter) key(event platform.KeyEvent) (platform.Frame, error) {
 		if _, err := painter.repaint(); err != nil {
 			return platform.Frame{}, err
 		}
-		response = ui.EventResult{}
+		response = gfx.EventResult{}
 	}
 	if !response.Handled && event.Key == input.KeyEscape && !painter.focus.EscapeTarget().IsZero() && painter.canClick() && !painter.nativeText.State.Composing {
 		// An input method owns Escape while it is composing: the key cancels
@@ -525,7 +525,7 @@ func (painter *painter) key(event platform.KeyEvent) (platform.Frame, error) {
 
 // afterKeyResponse applies the result of a key handler that has no focus
 // traversal of its own to do.
-func (painter *painter) afterKeyResponse(response ui.EventResult) (platform.Frame, error) {
+func (painter *painter) afterKeyResponse(response gfx.EventResult) (platform.Frame, error) {
 	if !painter.applyEventResult(response) && !response.Repaint {
 		return platform.Frame{}, nil
 	}
@@ -539,7 +539,7 @@ func (painter *painter) keyRelease(event platform.KeyEvent) (platform.Frame, err
 	tapRepaint := false
 	if painter.onModifierTap != nil {
 		if key, ok := painter.tap.Release(event.Code); ok {
-			response := painter.onModifierTap(ui.ModifierTapEvent{Key: ui.Key(key), Target: painter.focus.Focused()})
+			response := painter.onModifierTap(gfx.ModifierTapEvent{Key: gfx.Key(key), Target: painter.focus.Focused()})
 			tapRepaint = painter.applyEventResult(response) || response.Repaint
 		}
 	}
@@ -560,11 +560,11 @@ func (painter *painter) releaseHeldKey(event platform.KeyEvent) (frame platform.
 	// release may already differ, as when Ctrl is released before C, so the
 	// platform's release character can be a different one than the press named.
 	win32 := held.Win32
-	if win32 == (ui.Win32Key{}) {
+	if win32 == (gfx.Win32Key{}) {
 		win32 = event.Win32
 	}
-	response := painter.onKey(ui.KeyEvent{
-		Key: held.Key, Modifiers: ui.Modifiers(event.Modifiers), Target: held.Target, Release: true, Text: held.Text, Win32: win32,
+	response := painter.onKey(gfx.KeyEvent{
+		Key: held.Key, Modifiers: gfx.Modifiers(event.Modifiers), Target: held.Target, Release: true, Text: held.Text, Win32: win32,
 	})
 	if !painter.applyEventResult(response) && !response.Repaint {
 		return platform.Frame{}, false, nil
@@ -584,7 +584,7 @@ func (painter *painter) releaseKeys() bool {
 	held := painter.keys.Take(storage[:0])
 	repaint := false
 	for index := len(held) - 1; index >= 0 && painter.onKey != nil; index-- {
-		response := painter.onKey(ui.KeyEvent{Key: held[index].Key, Target: held[index].Target, Release: true, Text: held[index].Text})
+		response := painter.onKey(gfx.KeyEvent{Key: held[index].Key, Target: held[index].Target, Release: true, Text: held[index].Text})
 		repaint = painter.applyEventResult(response) || response.Repaint || repaint
 	}
 	return repaint
@@ -610,7 +610,7 @@ func (painter *painter) focusLost() (platform.Frame, error) {
 
 // noteKeyboardTarget records, after a paint, whether the held keys still have a
 // terminal that wants them; if not the next repaint ends releases them.
-func (painter *painter) noteKeyboardTarget(target ui.ID, wanted bool) {
+func (painter *painter) noteKeyboardTarget(target gfx.ID, wanted bool) {
 	painter.keys.NoteTarget(target, wanted)
 }
 
@@ -623,14 +623,14 @@ func (painter *painter) fileDrop(event platform.FileDropEvent) (platform.Frame, 
 	if painter.onFileDrop == nil {
 		return platform.Frame{}, false, nil
 	}
-	target := ui.ID{}
+	target := gfx.ID{}
 	if event.Phase != platform.FileDropLeave {
 		if hit, ok := painter.focus.Router().HitTest(event.X, event.Y); ok {
 			target = hit
 		}
 	}
-	response := painter.onFileDrop(ui.FileDropEvent{
-		Phase: ui.FileDropPhase(event.Phase), X: event.X, Y: event.Y, Target: target, Paths: event.Paths,
+	response := painter.onFileDrop(gfx.FileDropEvent{
+		Phase: gfx.FileDropPhase(event.Phase), X: event.X, Y: event.Y, Target: target, Paths: event.Paths,
 		Files: fileDropFilesFromPaths(event.Paths),
 	})
 	focusChanged := painter.applyEventResult(response)
@@ -646,14 +646,14 @@ func (painter *painter) scroll(event platform.ScrollEvent) (platform.Frame, erro
 	if event.DeltaY == 0 && event.DeltaX == 0 {
 		return platform.Frame{}, nil
 	}
-	target := ui.ID{}
+	target := gfx.ID{}
 	if hit, ok := painter.focus.Router().HitTest(event.X, event.Y); ok {
 		target = hit
 	}
-	response := ui.EventResult{}
+	response := gfx.EventResult{}
 	if painter.onScroll != nil {
-		response = painter.onScroll(ui.ScrollEvent{
-			Modifiers: ui.Modifiers(event.Modifiers), X: event.X, Y: event.Y,
+		response = painter.onScroll(gfx.ScrollEvent{
+			Modifiers: gfx.Modifiers(event.Modifiers), X: event.X, Y: event.Y,
 			DeltaX: event.DeltaX, DeltaY: event.DeltaY, Viewport: painter.size, Target: target, Precise: event.Precise,
 		})
 	}
@@ -682,7 +682,7 @@ func (painter *painter) initialTextInput() *platform.TextInput {
 	return &input
 }
 
-func (painter *painter) applyEventResult(result ui.EventResult) bool {
+func (painter *painter) applyEventResult(result gfx.EventResult) bool {
 	if result.ClipboardText != "" && painter.setClipboardText != nil {
 		painter.setClipboardText(result.ClipboardText)
 	}
@@ -696,12 +696,12 @@ func (painter *painter) canClick() bool {
 }
 
 // deliverClick carries out a completed click on id and reports whether anything
-// received it. When the last paint asked ui.Canvas.Clicked about anything, the
+// received it. When the last paint asked gfx.Canvas.Clicked about anything, the
 // paint runs once more as the event pass of this click, the one pass in which
 // Clicked(id) is true and the application may change state. That pass's drawing
 // is discarded: the repaint the caller asks for next is the one that shows the
 // result. A paint that never asks costs nothing here.
-func (painter *painter) deliverClick(id ui.ID) bool {
+func (painter *painter) deliverClick(id gfx.ID) bool {
 	if !painter.canClick() {
 		return false
 	}
@@ -715,7 +715,7 @@ func (painter *painter) deliverClick(id ui.ID) bool {
 // pointerIsDelivered says which pointer events the event pass offers to controls:
 // presses and releases aimed at a control, and the moves of a press that is held.
 // A move over a control is hover, which a control reads from Canvas.Hovered.
-func pointerIsDelivered(kind platform.PointerEventKind, target ui.ID, captured bool) bool {
+func pointerIsDelivered(kind platform.PointerEventKind, target gfx.ID, captured bool) bool {
 	switch kind {
 	case platform.PointerDown, platform.PointerUp:
 		return !target.IsZero()
@@ -726,11 +726,11 @@ func pointerIsDelivered(kind platform.PointerEventKind, target ui.ID, captured b
 }
 
 // deliverPointer runs the paint once more as the event pass of a pointer event when
-// the last paint asked ui.Canvas.PointerOn or PointerIn, and reports whether a
+// the last paint asked gfx.Canvas.PointerOn or PointerIn, and reports whether a
 // control consumed the event. Only presses, releases and the moves of a held press
 // are offered: hovering is read from Hovered, not delivered. A paint that never
 // asks costs nothing here.
-func (painter *painter) deliverPointer(event ui.PointerEvent) bool {
+func (painter *painter) deliverPointer(event gfx.PointerEvent) bool {
 	if painter.paint == nil || !painter.canvas.ListensForPointer() {
 		return false
 	}
@@ -881,7 +881,7 @@ func (painter *painter) syncNativeViews() ([]platform.NativeView, bool) {
 			if right <= left || bottom <= top {
 				continue
 			}
-			bounds = ui.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+			bounds = gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
 		}
 		native := platform.NativeView{ID: uint32(view.ID), Bounds: bounds, Layer: painter.platformLayer(view.Layer)}
 		start := len(painter.covers)
@@ -904,7 +904,7 @@ func (painter *painter) syncNativeViews() ([]platform.NativeView, bool) {
 }
 
 // coversOf lists the hit regions on layers above a view that lie over it, cut to it.
-func (painter *painter) coversOf(layer uint16, bounds ui.Rect, into []ui.Rect) []ui.Rect {
+func (painter *painter) coversOf(layer uint16, bounds gfx.Rect, into []gfx.Rect) []gfx.Rect {
 	for _, hit := range painter.canvas.Hits() {
 		if hit.Layer <= layer {
 			continue
@@ -913,7 +913,7 @@ func (painter *painter) coversOf(layer uint16, bounds ui.Rect, into []ui.Rect) [
 		right := min(bounds.X+bounds.Width, hit.Bounds.X+hit.Bounds.Width)
 		bottom := min(bounds.Y+bounds.Height, hit.Bounds.Y+hit.Bounds.Height)
 		if right > left && bottom > top {
-			into = append(into, ui.Rect{X: left, Y: top, Width: right - left, Height: bottom - top})
+			into = append(into, gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top})
 		}
 	}
 	return into
@@ -987,11 +987,11 @@ func trimPainterCapacity[T any](items []T) []T {
 
 func (painter *painter) syncCursor() error {
 	next := CursorArrow
-	var image *ui.CursorImage
+	var image *gfx.CursorImage
 	if painter.edge != platform.EdgeNone && painter.pointer.PressTarget().IsZero() {
 		return painter.applyCursor(cursorForEdge(painter.edge), nil)
 	}
-	if cursor, picture := interaction.CursorForTarget(painter.canvas.Hits(), painter.pointer.Hovered(), painter.pointer.PressTarget()); cursor != ui.PointerCursorDefault || picture != nil {
+	if cursor, picture := interaction.CursorForTarget(painter.canvas.Hits(), painter.pointer.Hovered(), painter.pointer.PressTarget()); cursor != gfx.PointerCursorDefault || picture != nil {
 		next, image = cursorFromHit(cursor), picture
 	}
 	return painter.applyCursor(next, image)
@@ -999,7 +999,7 @@ func (painter *painter) syncCursor() error {
 
 // applyCursor makes next the pointer, with image as its picture when it is CursorImage. A picture
 // is one pointer by identity, so the same value is not set again.
-func (painter *painter) applyCursor(next Cursor, image *ui.CursorImage) error {
+func (painter *painter) applyCursor(next Cursor, image *gfx.CursorImage) error {
 	if next == painter.cursor && image == painter.cursorImage {
 		return nil
 	}
@@ -1027,29 +1027,29 @@ func (painter *painter) applyCursor(next Cursor, image *ui.CursorImage) error {
 	return nil
 }
 
-func cursorFromHit(cursor ui.PointerCursor) Cursor {
+func cursorFromHit(cursor gfx.PointerCursor) Cursor {
 	switch cursor {
-	case ui.PointerCursorText:
+	case gfx.PointerCursorText:
 		return CursorText
-	case ui.PointerCursorHand:
+	case gfx.PointerCursorHand:
 		return CursorHand
-	case ui.PointerCursorCrosshair:
+	case gfx.PointerCursorCrosshair:
 		return CursorCrosshair
-	case ui.PointerCursorWait:
+	case gfx.PointerCursorWait:
 		return CursorWait
-	case ui.PointerCursorResizeHorizontal:
+	case gfx.PointerCursorResizeHorizontal:
 		return CursorResizeHorizontal
-	case ui.PointerCursorResizeVertical:
+	case gfx.PointerCursorResizeVertical:
 		return CursorResizeVertical
-	case ui.PointerCursorResizeNWSE:
+	case gfx.PointerCursorResizeNWSE:
 		return CursorResizeNWSE
-	case ui.PointerCursorResizeNESW:
+	case gfx.PointerCursorResizeNESW:
 		return CursorResizeNESW
-	case ui.PointerCursorNotAllowed:
+	case gfx.PointerCursorNotAllowed:
 		return CursorNotAllowed
-	case ui.PointerCursorHidden:
+	case gfx.PointerCursorHidden:
 		return CursorHidden
-	case ui.PointerCursorImage:
+	case gfx.PointerCursorImage:
 		return CursorImage
 	default:
 		return CursorArrow
@@ -1070,13 +1070,13 @@ func (painter *painter) resyncRenderer() (render.Update, error) {
 
 // focusedTextField describes the focused text field of the last paint, and how
 // it places its caret when it lays its rows out itself.
-func (painter *painter) focusedTextField() (TextInputContext, ui.TextPlacement, int) {
+func (painter *painter) focusedTextField() (TextInputContext, gfx.TextPlacement, int) {
 	hit, index, ok := interaction.TextInputHit(painter.canvas.Hits(), painter.focus.Focused())
 	if !ok {
 		return TextInputContext{}, nil, -1
 	}
 	context := TextInputContext{
-		ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == ui.RoleTerminal, TypeAhead: hit.TypeAhead && hit.Role != ui.RoleTerminal,
+		ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == gfx.RoleTerminal, TypeAhead: hit.TypeAhead && hit.Role != gfx.RoleTerminal,
 		Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
 		NavigationKeys: hit.NavigationKeys,
 		TextBounds:     hit.TextBounds, FontSize: hit.TextSize, FontWeight: hit.TextWeight, TextColor: hit.TextColor,
@@ -1087,7 +1087,7 @@ func (painter *painter) focusedTextField() (TextInputContext, ui.TextPlacement, 
 
 func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	if painter.textInput == nil {
-		painter.noteKeyboardTarget(ui.ID{}, false)
+		painter.noteKeyboardTarget(gfx.ID{}, false)
 		return platform.TextInputUpdate{}
 	}
 	context, placement, hitIndex := painter.focusedTextField()
@@ -1123,9 +1123,9 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	}
 	// What the application leaves unset comes from the component's declaration.
 	bounds, fontSize, weight, tint := input.Bounds, input.FontSize, input.Weight, input.Color
-	if bounds == (ui.Rect{}) {
+	if bounds == (gfx.Rect{}) {
 		bounds = context.TextBounds
-		if bounds == (ui.Rect{}) {
+		if bounds == (gfx.Rect{}) {
 			bounds = context.Bounds
 		}
 	}
@@ -1138,7 +1138,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	if weight == 0 {
 		weight = context.FontWeight
 	}
-	if tint == (ui.Color{}) {
+	if tint == (gfx.Color{}) {
 		tint = context.TextColor
 	}
 	if bounds.Width <= 0 || bounds.Height <= 0 ||
@@ -1154,7 +1154,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	if context.Terminal || context.TypeAhead {
 		cellWidth, _ = painter.canvas.MonoCellSize(fontSize, input.MonoFace)
 	}
-	alignment := ui.AlignLeft
+	alignment := gfx.AlignLeft
 	if !context.Terminal && !context.TypeAhead && placement == nil {
 		alignment = resolveTextInputAlignment(input.Alignment, input.State.Value, input.State.Selection.End)
 	}
@@ -1409,8 +1409,8 @@ func (painter *painter) applyClipping() {
 }
 
 // appendBlockElements paints the Block Elements of a fixed-pitch line as rectangles after
-// the canvas's own, as the line's text is drawn after them (see ui.Canvas.BlockRectangles).
-func (painter *painter) appendBlockElements(text ui.Text) {
+// the canvas's own, as the line's text is drawn after them (see gfx.Canvas.BlockRectangles).
+func (painter *painter) appendBlockElements(text gfx.Text) {
 	painter.blocks = painter.canvas.BlockRectangles(painter.blocks[:0], text)
 	for _, rectangle := range painter.blocks {
 		if rectangle.HasClip {
@@ -1427,7 +1427,7 @@ func (painter *painter) appendBlockElements(text ui.Text) {
 
 // clipVisibility reports whether any of bounds lies inside clip and whether the
 // clip cuts it, that is, whether part of bounds lies outside.
-func clipVisibility(bounds, clip ui.Rect) (visible, cut bool) {
+func clipVisibility(bounds, clip gfx.Rect) (visible, cut bool) {
 	if bounds.X+bounds.Width <= clip.X || bounds.Y+bounds.Height <= clip.Y ||
 		bounds.X >= clip.X+clip.Width || bounds.Y >= clip.Y+clip.Height {
 		return false, false
@@ -1437,31 +1437,31 @@ func clipVisibility(bounds, clip ui.Rect) (visible, cut bool) {
 
 // shadowBounds is the region a shadow paints in: the rectangle that casts it
 // grown by how far its blur, spread and offset reach.
-func shadowBounds(shadow ui.Shadow) ui.Rect {
+func shadowBounds(shadow gfx.Shadow) gfx.Rect {
 	extent := shadow.Style.Extent()
-	return ui.Rect{
+	return gfx.Rect{
 		X: shadow.Bounds.X - extent, Y: shadow.Bounds.Y - extent,
 		Width: shadow.Bounds.Width + 2*extent, Height: shadow.Bounds.Height + 2*extent,
 	}
 }
 
-func triangleBounds(points [3]ui.Point) ui.Rect {
+func triangleBounds(points [3]gfx.Point) gfx.Rect {
 	left := min32(points[0].X, min32(points[1].X, points[2].X))
 	top := min32(points[0].Y, min32(points[1].Y, points[2].Y))
 	right := max32(points[0].X, max32(points[1].X, points[2].X))
 	bottom := max32(points[0].Y, max32(points[1].Y, points[2].Y))
-	return ui.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+	return gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
 }
 
-func intersectVisible(bounds, clip ui.Rect) (ui.Rect, bool) {
+func intersectVisible(bounds, clip gfx.Rect) (gfx.Rect, bool) {
 	left := max32(bounds.X, clip.X)
 	top := max32(bounds.Y, clip.Y)
 	right := min32(bounds.X+bounds.Width, clip.X+clip.Width)
 	bottom := min32(bounds.Y+bounds.Height, clip.Y+clip.Height)
 	if right <= left || bottom <= top {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
-	return ui.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}, true
+	return gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}, true
 }
 
 func max32(a, b float32) float32 {
@@ -1593,7 +1593,7 @@ func (painter *painter) insertShape(root, previous scene.ID, ref shapeRef) scene
 	return id
 }
 
-func (painter *painter) setRectangle(id scene.ID, rectangle ui.Rectangle) {
+func (painter *painter) setRectangle(id scene.ID, rectangle gfx.Rectangle) {
 	value := sceneRectangle(rectangle)
 	painter.graph.SetRoundedRectangle(id, value.Bounds, value.Color, rectangle.Radius)
 }
@@ -1649,14 +1649,14 @@ func (painter *painter) structuresUnchanged() bool {
 // list keeps the previous string allocations reachable, so a matching pointer
 // cannot name different bytes. Padding bytes can only make the comparison
 // stricter (an unnecessary publish), never more permissive.
-func sameHits(published, current []ui.Hit) bool {
+func sameHits(published, current []gfx.Hit) bool {
 	if len(published) != len(current) {
 		return false
 	}
 	if len(published) == 0 {
 		return true
 	}
-	size := int(unsafe.Sizeof(ui.Hit{}))
+	size := int(unsafe.Sizeof(gfx.Hit{}))
 	left := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(published))), len(published)*size)
 	right := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(current))), len(current)*size)
 	return bytes.Equal(left, right)
@@ -1810,7 +1810,7 @@ func (painter *painter) syncSemantics() {
 			Range:       hit.Range,
 		}
 		if node.Focused && !hit.ID.IsZero() && painter.activeText != nil && !hit.Secure &&
-			(hit.Role == ui.RoleTextField || hit.Role == ui.RoleCombobox) && painter.activeText.State.Value == hit.Value {
+			(hit.Role == gfx.RoleTextField || hit.Role == gfx.RoleCombobox) && painter.activeText.State.Value == hit.Value {
 			selection := painter.activeText.State.Selection
 			node.Selection = platform.AccessibilitySelection{Start: int32(selection.Start), End: int32(selection.End), Valid: true}
 		}
@@ -1820,7 +1820,7 @@ func (painter *painter) syncSemantics() {
 
 // labelPair is a label hit waiting for the control it names.
 type labelPair struct {
-	id    ui.ID
+	id    gfx.ID
 	words string
 }
 
@@ -1829,10 +1829,10 @@ type labelPair struct {
 // label map once per paint instead of scanning every hit for every control:
 // a page with many labelled fields used to cost O(controls*hits), which made
 // a 4,000-field page take tens of milliseconds per repaint.
-func (painter *painter) nameFromLabels(controls []ui.Hit) {
+func (painter *painter) nameFromLabels(controls []gfx.Hit) {
 	all := painter.canvas.Hits()
 	if painter.labelNames == nil {
-		painter.labelNames = make(map[ui.ID]string, 8)
+		painter.labelNames = make(map[gfx.ID]string, 8)
 	}
 	clear(painter.labelNames)
 	for index := range all {
@@ -1854,7 +1854,7 @@ func (painter *painter) nameFromLabels(controls []ui.Hit) {
 	}
 }
 
-func semanticNode(hit ui.Hit, focused ui.ID) semantic.Node {
+func semanticNode(hit gfx.Hit, focused gfx.ID) semantic.Node {
 	return semantic.Node{
 		Role:      semanticRole(hit.Role),
 		Label:     hit.Label,
@@ -1874,47 +1874,47 @@ func semanticNode(hit ui.Hit, focused ui.ID) semantic.Node {
 	}
 }
 
-func semanticRole(role ui.Role) semantic.Role {
+func semanticRole(role gfx.Role) semantic.Role {
 	switch role {
-	case ui.RoleLink:
+	case gfx.RoleLink:
 		return semantic.RoleLink
-	case ui.RoleCheckbox:
+	case gfx.RoleCheckbox:
 		return semantic.RoleCheckbox
-	case ui.RoleRadio:
+	case gfx.RoleRadio:
 		return semantic.RoleRadio
-	case ui.RoleTab:
+	case gfx.RoleTab:
 		return semantic.RoleTab
-	case ui.RoleMenuItem:
+	case gfx.RoleMenuItem:
 		return semantic.RoleMenuItem
-	case ui.RoleCombobox:
+	case gfx.RoleCombobox:
 		return semantic.RoleCombobox
-	case ui.RoleSwitch:
+	case gfx.RoleSwitch:
 		return semantic.RoleSwitch
-	case ui.RoleTextField:
+	case gfx.RoleTextField:
 		return semantic.RoleTextField
-	case ui.RoleSlider:
+	case gfx.RoleSlider:
 		return semantic.RoleSlider
-	case ui.RoleTerminal:
+	case gfx.RoleTerminal:
 		return semantic.RoleTextField
-	case ui.RoleGroup:
+	case gfx.RoleGroup:
 		return semantic.RoleGroup
-	case ui.RoleMenu:
+	case gfx.RoleMenu:
 		return semantic.RoleMenu
-	case ui.RoleMenubar:
+	case gfx.RoleMenubar:
 		return semantic.RoleMenubar
-	case ui.RoleListBox:
+	case gfx.RoleListBox:
 		return semantic.RoleListBox
-	case ui.RoleOption:
+	case gfx.RoleOption:
 		return semantic.RoleOption
-	case ui.RoleGrid:
+	case gfx.RoleGrid:
 		return semantic.RoleGrid
-	case ui.RoleGridCell:
+	case gfx.RoleGridCell:
 		return semantic.RoleGridCell
-	case ui.RoleHeading:
+	case gfx.RoleHeading:
 		return semantic.RoleHeading
-	case ui.RoleStatus:
+	case gfx.RoleStatus:
 		return semantic.RoleStatus
-	case ui.RoleSeparator:
+	case gfx.RoleSeparator:
 		return semantic.RoleSeparator
 	default:
 		return semantic.RoleButton
@@ -1924,7 +1924,7 @@ func semanticRole(role ui.Role) semantic.Role {
 // syncLabels rebuilds the label list. A bitmap label carries its pixels across
 // the native boundary only when that bitmap is not exactly what the same place
 // in the previous frame showed, so a picture made of many bitmaps (see
-// ui.Surface) stages just the ones that changed.
+// gfx.Surface) stages just the ones that changed.
 func (painter *painter) syncLabels() {
 	texts := painter.clippedTexts
 	painter.labels = painter.labels[:0]
@@ -1994,7 +1994,7 @@ func (painter *painter) syncLabels() {
 		}
 		if label.RunCount > 0 {
 			// The font does not draw Block Elements; appendBlockElements did.
-			entry.Value, entry.Runs = ui.ReplaceBlockElements(entry.Value, entry.Runs)
+			entry.Value, entry.Runs = gfx.ReplaceBlockElements(entry.Value, entry.Runs)
 		}
 		if label.HasClip && !containsRect(label.ClipOf, label.Bounds) {
 			// The clip cuts the label partway: the renderers scissor to it.
@@ -2005,22 +2005,22 @@ func (painter *painter) syncLabels() {
 }
 
 // deviceBounds rounds the edges of bounds to whole device pixels of scale.
-func deviceBounds(bounds ui.Rect, scale float32) ui.Rect {
+func deviceBounds(bounds gfx.Rect, scale float32) gfx.Rect {
 	edge := func(value float32) float32 { return float32(math.Floor(float64(value)*float64(scale) + 0.5)) }
 	left, top := edge(bounds.X), edge(bounds.Y)
 	right, bottom := edge(bounds.X+bounds.Width), edge(bounds.Y+bounds.Height)
-	return ui.Rect{X: left / scale, Y: top / scale, Width: (right - left) / scale, Height: (bottom - top) / scale}
+	return gfx.Rect{X: left / scale, Y: top / scale, Width: (right - left) / scale, Height: (bottom - top) / scale}
 }
 
 // wholePixels rounds the edges of a bitmap region to whole bitmap pixels.
-func wholePixels(region ui.Rect) ui.Rect {
+func wholePixels(region gfx.Rect) gfx.Rect {
 	left, top := math.Floor(float64(region.X)+0.5), math.Floor(float64(region.Y)+0.5)
 	right, bottom := math.Floor(float64(region.X+region.Width)+0.5), math.Floor(float64(region.Y+region.Height)+0.5)
-	return ui.Rect{X: float32(left), Y: float32(top), Width: float32(right - left), Height: float32(bottom - top)}
+	return gfx.Rect{X: float32(left), Y: float32(top), Width: float32(right - left), Height: float32(bottom - top)}
 }
 
 // containsRect reports whether inner lies wholly inside outer.
-func containsRect(outer, inner ui.Rect) bool {
+func containsRect(outer, inner gfx.Rect) bool {
 	return inner.X >= outer.X && inner.Y >= outer.Y &&
 		inner.X+inner.Width <= outer.X+outer.Width && inner.Y+inner.Height <= outer.Y+outer.Height
 }
@@ -2049,14 +2049,14 @@ func roundPosition(value float32) int32 {
 // the moving label it covers. Presence rounds a text label's origin so its
 // texture is not rebuilt every frame; the platform editor next to it has to
 // land on the same pixel.
-func roundPresenceRect(rect ui.Rect) ui.Rect {
-	return ui.Rect{
+func roundPresenceRect(rect gfx.Rect) gfx.Rect {
+	return gfx.Rect{
 		X: float32(roundPosition(rect.X)), Y: float32(roundPosition(rect.Y)),
 		Width: float32(roundPixel(rect.Width)), Height: float32(roundPixel(rect.Height)),
 	}
 }
 
-func sceneRectangle(rectangle ui.Rectangle) render.Rectangle {
+func sceneRectangle(rectangle gfx.Rectangle) render.Rectangle {
 	return render.Rectangle{
 		Kind: scene.KindRectangle,
 		Bounds: scene.Rect{
@@ -2072,7 +2072,7 @@ func sceneRectangle(rectangle ui.Rectangle) render.Rectangle {
 	}
 }
 
-func sceneTriangle(triangle ui.Triangle) render.Rectangle {
+func sceneTriangle(triangle gfx.Triangle) render.Rectangle {
 	return render.Rectangle{
 		Kind: scene.KindTriangle,
 		Points: [3]scene.Point{
@@ -2092,7 +2092,7 @@ func sceneTriangle(triangle ui.Triangle) render.Rectangle {
 
 // sceneShade is the vertex colors of a shaded triangle, and the zero Shade for a
 // flat one, whatever stale colors its Shade array holds.
-func sceneShade(triangle ui.Triangle) scene.Shade {
+func sceneShade(triangle gfx.Triangle) scene.Shade {
 	if !triangle.Shaded {
 		return scene.Shade{}
 	}
@@ -2229,7 +2229,7 @@ func (painter *painter) sameAsLastContent() bool {
 	return true
 }
 
-func sameImages(left, right []ui.Image) bool {
+func sameImages(left, right []gfx.Image) bool {
 	if len(left) != len(right) {
 		return false
 	}
@@ -2250,7 +2250,7 @@ func sameImages(left, right []ui.Image) bool {
 // sameImageBitmap reports whether two draws show the very same pixels: the same
 // identity and version, source region and storage. A bitmap with no identity
 // (ID 0) is never the same: nothing says its pixels did not change.
-func sameImageBitmap(a, b ui.Image) bool {
+func sameImageBitmap(a, b gfx.Image) bool {
 	if a.Source != b.Source || a.Bitmap.Width != b.Bitmap.Width || a.Bitmap.Height != b.Bitmap.Height ||
 		a.Bitmap.Stride != b.Bitmap.Stride || a.Bitmap.ID != b.Bitmap.ID || a.Bitmap.Version != b.Bitmap.Version ||
 		len(a.Bitmap.Pix) != len(b.Bitmap.Pix) || a.Bitmap.ID == 0 {

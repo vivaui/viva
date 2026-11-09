@@ -3,7 +3,7 @@ package platform
 import (
 	"errors"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // A window can host native views: pages of the system's web engine that live inside the window
@@ -20,7 +20,7 @@ type NativeView struct {
 	// ID is the WebView it belongs to (WebViewConfig.ID).
 	ID uint32
 	// Bounds is the place in logical window pixels.
-	Bounds ui.Rect
+	Bounds gfx.Rect
 	// Layer is the compositing layer the view sits in: what Viva draws on a higher layer shows
 	// over the view, what it draws on this layer or a lower one is hidden by it.
 	Layer uint16
@@ -28,7 +28,7 @@ type NativeView struct {
 	// but handles (the invisible backdrop of a menu that closes on an outside press) lies over the
 	// view on a higher layer: the pointer belongs to Viva there. What Viva draws over the view
 	// there is already known to the adapter from the rectangles.
-	Covers []ui.Rect
+	Covers []gfx.Rect
 }
 
 // WebHost is how an application opens web pages in a window. The adapter assigns Open before the

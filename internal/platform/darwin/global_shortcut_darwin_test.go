@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestNativeCarbonGlobalShortcut(t *testing.T) {
 	if os.Getenv("VIVA_NATIVE_GLOBAL_SHORTCUT_TEST") != "1" {
 		t.Skip("requires a macOS desktop session")
 	}
-	const modifiers = ui.ModifierControl | ui.ModifierAlt | ui.ModifierShift
+	const modifiers = gfx.ModifierControl | gfx.ModifierAlt | gfx.ModifierShift
 	calls := make(chan struct{}, 2)
 	binding, err := registerCarbonShortcut(modifiers, "G", func() { calls <- struct{}{} })
 	if err != nil {

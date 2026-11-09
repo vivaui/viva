@@ -1,7 +1,7 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -24,8 +24,8 @@ for index, label := range labels {
 	},
 }
 
-func (state *State) paintProgress(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	state.page(canvas, theme, size, 520, "Deployment", func(f *flex.Frame) {
+func (state *State) paintProgress(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	state.page(canvas, theme, size, 520, "Deployment", func(f *ui.Frame) {
 		if state.exampleID == "default" {
 			f.Text("Uploading assets · 64%").FontSize(theme.Metrics.FontSizeM)
 			f.Progress(0.64)

@@ -5,8 +5,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 var (
@@ -87,9 +87,9 @@ var codeEditorComponent = Component{
 		return editor
 	},
 	paint:   (*State).paintCodeEditor,
-	pointer: func(state *State, event ui.PointerEvent) ui.EventResult { return state.codeEditor.Pointer(event) },
+	pointer: func(state *State, event gfx.PointerEvent) gfx.EventResult { return state.codeEditor.Pointer(event) },
 	key:     (*State).codeEditorKey,
-	scroll:  func(state *State, event ui.ScrollEvent) ui.EventResult { return state.codeEditor.Scroll(event) },
+	scroll:  func(state *State, event gfx.ScrollEvent) gfx.EventResult { return state.codeEditor.Scroll(event) },
 	Examples: []Example{
 		{ID: "default", Title: "编辑代码", Description: "每个字符占一个单元格（CJK 占两格），行号、当前行和括号配对都按单元格计算。Tab 缩进、Shift+Tab 反缩进、Cmd/Ctrl+/ 注释、Alt+↑↓ 移动行、Enter 自动缩进、括号自动闭合都是 text.Editor 的操作。", Snippet: `editor := text.NewEditor(source)
 editor.SetCode(text.CodeOptions{TabWidth: 4, HardTabs: true, AutoIndent: true, AutoClose: true, IndentAfter: "{[(", LineComment: "//"})
@@ -117,8 +117,8 @@ layout := components.PaintFindBar(canvas, theme, bar, components.FindBarSnapshot
 	},
 }
 
-func (state *State) paintCodeEditor(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	bounds := ui.Rect{X: 24, Y: 24, Width: max(0, size.Width-48), Height: max(64, size.Height-48)}
+func (state *State) paintCodeEditor(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	bounds := gfx.Rect{X: 24, Y: 24, Width: max(0, size.Width-48), Height: max(64, size.Height-48)}
 	sample := state.codeEditorSample()
 	value := sample.source
 	snapshot := components.CodeEditorSnapshot{
@@ -169,9 +169,9 @@ var (
 
 // paintCodeEditorFindBar lays a find bar over the top right of the editor, as an
 // editor's own sits, in front of the marks it paints.
-func (state *State) paintCodeEditorFindBar(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, sample *codeEditorSample) {
+func (state *State) paintCodeEditorFindBar(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, sample *codeEditorSample) {
 	width := min(bounds.Width-32, 460)
-	bar := ui.Rect{X: bounds.X + bounds.Width - width - 22, Y: bounds.Y + 8, Width: width}
+	bar := gfx.Rect{X: bounds.X + bounds.Width - width - 22, Y: bounds.Y + 8, Width: width}
 	canvas.PushLayer(2)
 	{
 		components.PaintFindBar(canvas, theme, bar, components.FindBarSnapshot{
@@ -195,21 +195,21 @@ func (state *State) paintCodeEditorFindBar(canvas *ui.Canvas, theme ui.Theme, bo
 
 // codeEditorKey is what the application does with the keys of a code editor: the
 // editing commands, then the movements that depend on how the rows are laid out.
-func (state *State) codeEditorKey(event ui.KeyEvent) ui.EventResult {
+func (state *State) codeEditorKey(event gfx.KeyEvent) gfx.EventResult {
 	if !state.editing || event.Target != codeEditorField || state.codeEditor == nil {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	if command, ok := components.CodeEditorCommandForKey(event); ok && command.Apply(state.editor) {
-		return ui.EventResult{Handled: true, Repaint: true}
+		return gfx.EventResult{Handled: true, Repaint: true}
 	}
 	movement, extend := components.TextareaMovementForKey(event.Key, event.Modifiers)
 	if movement == components.TextareaMoveNone {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	value := state.editor.String()
 	to := state.codeEditor.Move(value, state.editor.ByteOffset(state.editor.Caret()), movement)
 	state.editor.MoveTo(utf8.RuneCountInString(value[:to]), extend)
-	return ui.EventResult{Handled: true, Repaint: true}
+	return gfx.EventResult{Handled: true, Repaint: true}
 }
 
 func allIndexes(value, needle string) []int {
@@ -229,7 +229,7 @@ var demoKeywords = [...]string{"package", "import", "func", "for", "range", "if"
 // demoCodeHighlight colors comments, strings and keywords of one Go line: a
 // stand-in for the grammar an application owns.
 func demoCodeHighlight(_, line string, dst []components.CodeEditorRun) []components.CodeEditorRun {
-	keyword, comment, literal := ui.RGB(170, 59, 180), ui.RGB(110, 130, 118), ui.RGB(30, 120, 80)
+	keyword, comment, literal := gfx.RGB(170, 59, 180), gfx.RGB(110, 130, 118), gfx.RGB(30, 120, 80)
 	end := len(line)
 	if at := strings.Index(line, "//"); at >= 0 {
 		end = at

@@ -7,7 +7,7 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // multiSelectApp wires the component's state to a driver the way an application
@@ -20,9 +20,9 @@ type multiSelectApp struct {
 
 func newMultiSelectApp() *multiSelectApp {
 	app := &multiSelectApp{options: components.MultiSelectOptions{
-		InputID: ui.Item(11), TriggerID: ui.Item(12), DismissID: ui.Item(13), Scope: ui.Item(14),
+		InputID: gfx.Item(11), TriggerID: gfx.Item(12), DismissID: gfx.Item(13), Scope: gfx.Item(14),
 		Label: "Tags", Placeholder: "Select tags", EmptyLabel: "None", CreatePrefix: "Create: ",
-		Viewport: ui.Rect{Width: 640, Height: 300}, Layer: 6,
+		Viewport: gfx.Rect{Width: 640, Height: 300}, Layer: 6,
 	}}
 	app.state.AllowCreate = true
 	app.state.Open = true
@@ -33,17 +33,17 @@ func newMultiSelectApp() *multiSelectApp {
 func (a *multiSelectApp) config() app.Config {
 	return app.Config{
 		Title: "multi-select focus", Width: 640, Height: 300,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			theme := ui.LightTheme()
-			canvas.Fill(ui.Rect{Width: size.Width, Height: size.Height}, theme.Background)
-			components.PaintMultiSelect(canvas, theme, ui.Rect{X: 40, Y: 60, Width: 360}, &a.state, a.options)
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			theme := gfx.LightTheme()
+			canvas.Fill(gfx.Rect{Width: size.Width, Height: size.Height}, theme.Background)
+			components.PaintMultiSelect(canvas, theme, gfx.Rect{X: 40, Y: 60, Width: 360}, &a.state, a.options)
 			if canvas.Clicked(a.options.DismissID) {
 				a.state.Open = false
 			}
 		},
-		OnKey: func(event ui.KeyEvent) ui.EventResult {
+		OnKey: func(event gfx.KeyEvent) gfx.EventResult {
 			if event.Target != a.options.InputID && !a.state.Open {
-				return ui.EventResult{}
+				return gfx.EventResult{}
 			}
 			return a.state.Key(event)
 		},

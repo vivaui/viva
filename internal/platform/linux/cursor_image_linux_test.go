@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func formatRecord(id uint32, kind, depth byte, red, green, blue, alpha [2]uint16) []byte {
@@ -54,12 +54,12 @@ func TestAnApplicationPictureBecomesTheWindowsCursorOnARealServer(t *testing.T) 
 		activeWindow.Store(nil)
 		win.close()
 	})
-	picture := func(width, height, hotX, hotY int, scale float32) *ui.CursorImage {
+	picture := func(width, height, hotX, hotY int, scale float32) *gfx.CursorImage {
 		pixels := make([]byte, width*height*4)
 		for index := 0; index < len(pixels); index += 4 {
 			copy(pixels[index:], []byte{40, 120, 220, 200})
 		}
-		image, err := ui.NewCursorImage(width, height, hotX, hotY, scale, pixels)
+		image, err := gfx.NewCursorImage(width, height, hotX, hotY, scale, pixels)
 		if err != nil {
 			t.Fatal(err)
 		}
