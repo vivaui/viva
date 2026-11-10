@@ -393,6 +393,37 @@ func TestDynamicTextInputSwitchClearsComposition(t *testing.T) {
 	}
 }
 
+// TestDisableIMEInputAssociatesNoInputMethod guards platform.TextInput.DisableIME:
+// while the input that asks for it is focused, the window has no input-method
+// context — the host's method can neither compose nor answer its switch hotkeys —
+// and the context the window was created with returns for an ordinary input.
+func TestDisableIMEInputAssociatesNoInputMethod(t *testing.T) {
+	state := dynamicTextState(0, 0)
+	state.window = staticWindow(t)
+	before, _, _ := getInputContext.Call(state.window)
+	if before == 0 {
+		t.Skip("this session gives a window no input-method context")
+	}
+	remote := testTextInput("", 0)
+	remote.DisableIME = true
+	if _, _, err := state.applyTextInputUpdate(platform.TextInputUpdate{Changed: true, Input: &remote}); err != nil {
+		t.Fatal(err)
+	}
+	if context, _, _ := getInputContext.Call(state.window); context != 0 {
+		t.Fatalf("DisableIME left the window input-method context %v", context)
+	}
+	ordinary := testTextInput("", 0)
+	if _, _, err := state.applyTextInputUpdate(platform.TextInputUpdate{Changed: true, Input: &ordinary}); err != nil {
+		t.Fatal(err)
+	}
+	if context, _, _ := getInputContext.Call(state.window); context != before {
+		t.Fatalf("ordinary input restored context %v, want %v", context, before)
+	}
+	if state.imeContext != 0 || state.imeDisabled {
+		t.Fatalf("restored state = disabled %v context %v", state.imeDisabled, state.imeContext)
+	}
+}
+
 func TestCompositionSurvivesCaretAndLayoutUpdates(t *testing.T) {
 	for _, scale := range []float32{1, 1.25, 1.5, 1.75, 2, 2.5, 3} {
 		t.Run(fmt.Sprint(scale), func(t *testing.T) {

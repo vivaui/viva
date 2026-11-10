@@ -33,6 +33,36 @@ func TestTextSelectionAndIMEUseRuneRanges(t *testing.T) {
 	}
 }
 
+// TestDisableIMEPassesToThePlatformTextInput guards the pass-through: an input
+// that keeps the host's input method off a remote-desktop surface reaches the
+// platform editor, so the platform can act on it. A terminal hit is what such a
+// surface focuses; the flag is independent of it.
+func TestDisableIMEPassesToThePlatformTextInput(t *testing.T) {
+	field := gfx.Item(3)
+	config := Config{Width: 300, Height: 200}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(field, gfx.Rect{X: 10, Y: 10, Width: 200, Height: 30}, "Console", gfx.HitOptions{Role: gfx.RoleTerminal})
+	}
+	input := TextInput{KeyReleases: true, DisableIME: true, OnEvent: func(TextEvent) (TextState, error) {
+		return TextState{}, nil
+	}}
+	config.TextInput = func(TextInputContext) *TextInput { return &input }
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(100, 25); err != nil {
+		t.Fatal(err)
+	}
+	if !driver.painter.nativeText.DisableIME {
+		t.Fatal("the platform text input does not disable the host input method")
+	}
+	if !driver.painter.nativeText.KeyReleases {
+		t.Fatal("the platform text input stopped asking for key releases")
+	}
+}
+
 func TestTextCommandsMoveAndEditByGrapheme(t *testing.T) {
 	for _, testCase := range []struct {
 		name          string
