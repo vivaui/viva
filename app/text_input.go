@@ -182,6 +182,14 @@ type TextInput struct {
 	// first. Committed text from an input method still arrives as text events.
 	// Implemented on macOS, Windows and X11, and by app.Driver.
 	KeyReleases bool
+	// DisableIME keeps the host's input method off the window while this field
+	// is focused, the way a remote-desktop client does: every key, the
+	// input method's own switch hotkeys included, is the other machine's, so
+	// it composes with the input method over there. Text events still arrive
+	// if a method commits anyway, so a paste keeps working. Combine it with
+	// KeyReleases for a surface that shows another machine's desktop.
+	// Implemented on Windows.
+	DisableIME bool
 	// NavigationKeys asks Up, Down, PageUp and PageDown to reach the
 	// application as raw gfx.KeyEvents while the field is focused, instead
 	// of being consumed by the text system or moving its caret. Use it

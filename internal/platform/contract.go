@@ -816,6 +816,13 @@ type TextInput struct {
 	// input method consumed them), and a release for each press. Release
 	// events carry the Code of their press.
 	KeyReleases bool
+	// DisableIME keeps the host's input method off the window while this input
+	// is focused, the way a remote-desktop client does: the keys the method
+	// would take, and the hotkeys that switch it, belong to the machine on the
+	// other side of the surface, which runs its own input method. Text events
+	// still arrive if a method commits anyway, so a paste keeps working.
+	// Implemented on Windows; the other platforms have not needed it yet.
+	DisableIME bool
 	// NavigationKeys asks Up, Down, PageUp and PageDown to reach the
 	// application as raw key events while the field is focused, while
 	// cursor placement, selection, Home/End and IME remain native.

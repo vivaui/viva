@@ -113,19 +113,26 @@ type windowState struct {
 	textRuns                               []gfx.TextRun
 	captionPress                           captionPress
 	imeComposing                           bool
-	pendingHighSurrogate                   uint16
-	accessibility                          uiaTree
-	pendingKey                             pendingKey
-	deadKey                                bool
-	icons                                  [2]uintptr
-	drop                                   *dropTarget
-	wheel                                  wheelSettings
-	devices                                platform.DeviceRecovery
-	ncTracking                             bool
-	imeTarget                              text.Range
-	imeHasTarget                           bool
-	titlebarThemed, titlebarDark           bool
-	web                                    *webHost
+	// imeDisabled says the window's input-method context is disassociated, and
+	// imeContext holds the context to give back when it returns. A surface that
+	// shows another machine's desktop asks for it (platform.TextInput.DisableIME):
+	// the host's input method would otherwise take the keys that belong to the
+	// machine on the other side.
+	imeDisabled                  bool
+	imeContext                   uintptr
+	pendingHighSurrogate         uint16
+	accessibility                uiaTree
+	pendingKey                   pendingKey
+	deadKey                      bool
+	icons                        [2]uintptr
+	drop                         *dropTarget
+	wheel                        wheelSettings
+	devices                      platform.DeviceRecovery
+	ncTracking                   bool
+	imeTarget                    text.Range
+	imeHasTarget                 bool
+	titlebarThemed, titlebarDark bool
+	web                          *webHost
 }
 
 var active atomic.Pointer[windowState]
@@ -298,6 +305,9 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		state.closeText()
 		return nil, fmt.Errorf("windows: create window: %w", err)
 	}
+	// A window created with its input (config.TextInput) keeps the host's input
+	// method off it already when the input asked for that (DisableIME).
+	state.updateIMEAssociation()
 	application.windows++
 	if config.Waker != nil && config.OnRedraw != nil {
 		config.Waker.Bind(func() {
