@@ -341,9 +341,16 @@ func PopoverWith(c C, anchor Box, spec PopoverSpec, open *bool, body func()) boo
 
 // popoverHeader declares the title and description at the head of a Popover.
 func popoverHeader(c C, spec PopoverSpec) {
-	Column(c).FillWidth().Gap(4).Children(func() {
+	// The panel's gap is GapItem; a header is a surface padding above its body, as
+	// components.Popover has it.
+	gap := c.f.theme.Metrics
+	weight := spec.TitleWeight
+	if weight == 0 {
+		weight = gfx.WeightMedium
+	}
+	Column(c).FillWidth().Gap(4).MarginBottom(gap.PadSurface - gap.GapItem).Children(func() {
 		if spec.Title != "" {
-			Text(c, spec.Title).Weight(gfx.WeightMedium)
+			Text(c, spec.Title).Weight(weight)
 		}
 		if spec.Description != "" {
 			c.f.Wrap(spec.Description).Muted()

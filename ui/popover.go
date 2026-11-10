@@ -26,6 +26,9 @@ type PopoverSpec struct {
 	// does: the title in the popover foreground, medium weight, and under it the
 	// description in the muted color, wrapped to the width. The body follows.
 	Title, Description string
+	// TitleWeight is the title's font weight, medium when zero, as
+	// components.PopoverOptions.TitleWeight is.
+	TitleWeight float32
 	// Width is the panel's width, 288 when zero; its height fits what is in it
 	// (give the body a Height to fix it).
 	Width float32
