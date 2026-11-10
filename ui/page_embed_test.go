@@ -19,7 +19,6 @@ type paneModel struct {
 
 	sideClicks int
 	clicks     int
-	renames    int
 	on         bool
 	name       ui.Field
 	menu       bool
@@ -36,9 +35,6 @@ func newPaneModel() *paneModel {
 }
 
 func (m *paneModel) pane(c ui.C) {
-	if ui.Shortcut(c, ui.Primary, "r") {
-		m.renames++
-	}
 	ui.Column(c).Pad(8).Gap(8).Children(func() {
 		if ui.Button(c, "Inner").Clicked() {
 			m.clicks++
@@ -100,13 +96,7 @@ func openPane(t *testing.T, m *paneModel) *pageDriver {
 	t.Helper()
 	invalidator := new(app.Invalidator)
 	config := app.Config{Width: 640, Height: 480, Tree: &m.tree, Paint: m.paint, Invalidator: invalidator,
-		TextInput: m.page.TextInput, OnScroll: m.page.Wheel,
-		OnShortcut: func(event gfx.KeyEvent) gfx.EventResult {
-			if result, ok := m.page.Key(event); ok {
-				return result
-			}
-			return gfx.EventResult{}
-		}}
+		TextInput: m.page.TextInput, OnScroll: m.page.Wheel}
 	driver, err := app.NewDriver(config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -133,34 +123,9 @@ func TestFramePageIsAPaneThatTakesInput(t *testing.T) {
 	if m.name.Text() != "go" {
 		t.Fatalf("typing reached %q", m.name.Text())
 	}
-	if !m.page.Owns(d.hit("Inner").ID) || m.page.Owns(d.hit("Side").ID) {
-		t.Fatal("Owns does not tell the page's controls from the window's")
-	}
-	if m.page.Overlay() {
-		t.Fatal("Overlay with nothing open")
-	}
-	inner, side := d.hit("Inner").ID, d.hit("Side").ID
-	if r, ok := m.page.Pointer(gfx.PointerEvent{Target: inner}); !ok || r.Handled {
-		t.Fatal("Pointer does not leave the page's own press to it")
-	}
-	if _, ok := m.page.Pointer(gfx.PointerEvent{Target: side}); ok {
-		t.Fatal("Pointer claims the window's press with no overlay open")
-	}
-	if _, ok := m.page.Key(gfx.KeyEvent{Key: gfx.KeyDelete}); ok {
-		t.Fatal("Key claims a key with no overlay open")
-	}
 	d.click("More")
 	if !m.menu || !m.page.Overlay() {
-		t.Fatal("the popover did not open, or Overlay does not report it")
-	}
-	if r, ok := m.page.Pointer(gfx.PointerEvent{Target: side}); !ok || !r.Handled {
-		t.Fatal("Pointer lets a press through to the window behind an open overlay")
-	}
-	if r, ok := m.page.Key(gfx.KeyEvent{Key: gfx.KeyDelete}); !ok || !r.Handled {
-		t.Fatal("Key lets a shortcut through behind an open overlay")
-	}
-	if r, ok := m.page.Key(gfx.KeyEvent{Key: gfx.KeyEscape}); !ok || r.Handled {
-		t.Fatal("Key takes Escape from the overlay")
+		t.Fatal("the popover did not open")
 	}
 	d.key(gfx.KeyEscape)
 	if m.menu || m.page.Overlay() {
@@ -198,56 +163,5 @@ func BenchmarkFramePage(b *testing.B) {
 		canvas.BeginFrame()
 		m.paint(canvas, gfx.Size{Width: 640, Height: 480})
 		canvas.EndFrame()
-	}
-}
-
-// An open Select list in a pane holds the window behind it as a Popover does: the
-// window's shortcuts and presses do not act while it is open, Escape reaches it.
-func TestFramePageSelectIsAnOverlay(t *testing.T) {
-	m := newPaneModel()
-	d := openPane(t, m)
-	var trigger gfx.Hit
-	for _, hit := range d.driver.Snapshot().Hits {
-		if hit.Role == gfx.RoleCombobox {
-			trigger = hit
-		}
-	}
-	if err := d.driver.Click(center(trigger.Bounds)); err != nil {
-		t.Fatal(err)
-	}
-	if !d.has("L") || !m.page.Overlay() {
-		t.Fatal("the select did not open, or Overlay does not report it")
-	}
-	side := d.hit("Side").ID
-	if r, ok := m.page.Key(gfx.KeyEvent{Key: gfx.KeyDelete}); !ok || !r.Handled {
-		t.Fatal("Key lets a shortcut through behind an open select")
-	}
-	if r, ok := m.page.Pointer(gfx.PointerEvent{Target: side}); !ok || !r.Handled {
-		t.Fatal("Pointer lets a press through to the window behind an open select")
-	}
-	d.click("L")
-	if m.size != "L" || m.page.Overlay() {
-		t.Fatalf("size=%q overlay=%v after picking", m.size, m.page.Overlay())
-	}
-}
-
-// A pane's Shortcut acts with the focus in the pane, delivered through the window,
-// and not with the focus on the window's own controls.
-func TestFramePageShortcut(t *testing.T) {
-	m := newPaneModel()
-	d := openPane(t, m)
-	d.click("Side")
-	if _, err := d.driver.ShortcutChord(ui.Primary, 'r'); err != nil {
-		t.Fatal(err)
-	}
-	if m.renames != 0 {
-		t.Fatal("the pane's Shortcut acted with the focus outside it")
-	}
-	d.click("Inner")
-	if _, err := d.driver.ShortcutChord(ui.Primary, 'r'); err != nil {
-		t.Fatal(err)
-	}
-	if m.renames != 1 {
-		t.Fatalf("renames %d with the focus in the pane", m.renames)
 	}
 }

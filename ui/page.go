@@ -384,72 +384,10 @@ func (p *Page) init(tree *gfx.Tree) {
 	p.epoch = 1
 }
 
-// Owns reports whether id is one the page named: one of its controls, or what
+// owns reports whether id is one the page named: one of its controls, or what
 // its Popovers and Modals report a dismissal with.
-func (p *Page) Owns(id gfx.ID) bool {
+func (p *Page) owns(id gfx.ID) bool {
 	return p.tree != nil && !id.IsZero() && p.tree.Within(id.Scope(), p.root)
-}
-
-// Overlay reports whether the last paint declared an open Popover, Modal, Menu,
-// Select or Combobox list: while it does, the overlay has the pointer and the
-// keyboard (see Pointer and Key).
-func (p *Page) Overlay() bool { return p.overlay }
-
-// Pointer is for a host that routes the window's pointer itself, a page being a
-// pane or an overlay of a window it does not own. It reports whether the event
-// is the page's business, and what the host returns for it then: a DragState
-// has the drag it follows, a Control's go to its Handlers, the page's other
-// targets are left unhandled, so the press completes its click in the page, and
-// while an Overlay is open every other press is taken, so nothing behind it acts.
-//
-//	if result, ok := page.Pointer(event); ok {
-//		return result
-//	}
-func (p *Page) Pointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
-	if p.drag != nil || p.Owns(event.Target) {
-		if result, ok := p.dropPointer(event); ok {
-			return result, true
-		}
-	}
-	if result, ok := p.routePointer(event); ok {
-		return result, true
-	}
-	switch {
-	case p.Owns(event.Target):
-		return gfx.EventResult{}, true
-	case p.overlay:
-		return gfx.EventResult{Handled: true}, true
-	}
-	return gfx.EventResult{}, false
-}
-
-// Key is Pointer for the keyboard. An active drag is let go of by Escape; a
-// Shortcut the key presses acts next, then a Control with the focus takes its
-// keys. Give it the window's OnShortcut too: the chords of printable keys
-// (Primary+S) arrive there.
-// While an Overlay is open, a key whose target is the page's (a field in it) is left
-// to the page; of the others, Escape, Enter, Space and Tab are left to it (to close
-// it, press its buttons and move between them) and the rest are taken, so the host's
-// shortcuts do not act on what is behind it. With no Overlay it leaves the key to
-// the host.
-func (p *Page) Key(event gfx.KeyEvent) (gfx.EventResult, bool) {
-	if result, ok := p.cancelDrag(event); ok {
-		return result, true
-	}
-	if result, ok := p.routeKey(event); ok {
-		return result, true
-	}
-	if !p.overlay {
-		return gfx.EventResult{}, false
-	}
-	if p.Owns(event.Target) {
-		return gfx.EventResult{}, true
-	}
-	switch event.Key {
-	case gfx.KeyEscape, gfx.KeyEnter, gfx.KeySpace, gfx.KeyTab:
-		return gfx.EventResult{}, true
-	}
-	return gfx.EventResult{Handled: true}, true
 }
 
 // routeKey gives a key to the Combobox it is typed in or the open Menu it moves in,

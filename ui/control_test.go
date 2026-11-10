@@ -119,55 +119,6 @@ func TestControlTakesItsOwnInput(t *testing.T) {
 	}
 }
 
-// A Control in a pane of a Frame takes its input through the host's routing.
-func TestControlInAFramePane(t *testing.T) {
-	term := newConsole()
-	var tree gfx.Tree
-	side := tree.Feature("side")
-	page := ui.NewPage(ui.PageConfig{Root: "pane", Theme: &pageTheme})
-	var view ui.View
-	sideClicks := 0
-	config := app.Config{Width: 640, Height: 400, Tree: &tree, TextInput: page.TextInput, OnScroll: page.Wheel,
-		OnKey: func(event gfx.KeyEvent) gfx.EventResult {
-			if r, ok := page.Key(event); ok {
-				return r
-			}
-			return gfx.EventResult{}
-		},
-		OnPointer: func(event gfx.PointerEvent) gfx.EventResult {
-			if r, ok := page.Pointer(event); ok {
-				return r
-			}
-			return gfx.EventResult{}
-		}}
-	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
-		view.Draw(canvas, pageTheme, gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
-			f.Row().Fill().Children(func() {
-				if f.Button(side.ID(gfx.Index(0)), "Side").Clicked() {
-					sideClicks++
-				}
-				pageSlot(f, page, term.view).Grow(1).FillHeight()
-			})
-		})
-	}
-	driver, err := app.NewDriver(config, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(driver.Close)
-	d := &pageDriver{t: t, driver: driver, page: page}
-	d.click("Console")
-	d.key(gfx.KeyDown)
-	d.typeText("pwd")
-	if term.presses != 1 || len(term.keys) != 1 || term.typed != "pwd" {
-		t.Fatalf("presses=%d keys=%v typed=%q", term.presses, term.keys, term.typed)
-	}
-	d.click("Side")
-	if sideClicks != 1 {
-		t.Fatal("the window's own control lost its click")
-	}
-}
-
 func TestControlInAMemoPanics(t *testing.T) {
 	term := newConsole()
 	defer func() {
