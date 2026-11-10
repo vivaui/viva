@@ -414,3 +414,46 @@ func TestTreeDragBackAndZones(t *testing.T) {
 		t.Fatalf("drops %v: want before docs, then into test", m.moves)
 	}
 }
+
+// A row's and a chevron's identity are the ones the paint names, so the
+// application can focus a row or find its hit without scanning the canvas.
+func TestTreeRowAndDisclosureIDs(t *testing.T) {
+	m := newTreeModel([]folder{{name: "etc", files: []string{"hosts"}}, {name: "var"}})
+	if !m.state.RowID(0).IsZero() {
+		t.Fatal("RowID names a row before the tree is declared")
+	}
+	d := openPage(t, m.page)
+	var row, chevron bool
+	for _, hit := range d.driver.Snapshot().Hits {
+		if hit.ID == m.state.RowID(0) && hit.Label == "etc" {
+			row = true
+		}
+		if hit.ID == m.state.DisclosureID(0) && hit.Expandable {
+			chevron = true
+		}
+	}
+	if !row || !chevron {
+		t.Fatalf("hits do not carry RowID(0) (%v) and DisclosureID(0) (%v)", row, chevron)
+	}
+	if m.state.RowID(0) == m.state.RowID(1) || m.state.RowID(0) == m.state.DisclosureID(0) {
+		t.Fatal("identities collide")
+	}
+}
+
+func TestListRowID(t *testing.T) {
+	var state ui.ListState
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			ui.List(c, &state, 3, func(row ui.ListRow) {
+				ui.Text(row.C, fmt.Sprint("row ", row.Index))
+			}).Grow(1)
+		})
+	})
+	found := false
+	for _, hit := range d.driver.Snapshot().Hits {
+		found = found || hit.ID == state.RowID(1)
+	}
+	if !found || state.RowID(1) == state.RowID(2) {
+		t.Fatal("RowID(1) is not the identity of the second row's hit")
+	}
+}
