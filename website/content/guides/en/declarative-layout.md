@@ -231,6 +231,19 @@ ui.Row(c).Pad(8).Radius(8).Hit(ui.ID(c), "Open").Transition().
 
 Four effects have no state of their own. `Ring(width, color)` draws a line around the outside of the element without taking room, as a focus ring does. `Opacity(v)` fades the element and everything in it, controls included; it stays laid out and clickable at 0, and an `Image` is not faded. `Gradient(angle, from, to)` and `GradientStops(angle, stops...)` fill the element, corners included, with a linear gradient, over its `Background` and under its `Border`; the angle is in degrees clockwise from up, as in CSS, and `ui.ToRight`, `ui.ToBottomRight` and the others name the common ones.
 
+## Fields and overlays
+
+`ui.FormField(c, &m.proxyField, "Proxy").FillWidth().Children(func() { ... })` is a form row: the title, and the one control its children declare, in the control slot `components.BeginField` uses and at the same rhythm. Keep the `ui.FormFieldState` in the model beside the value; the field neither binds the value nor labels the control. In a fixed row it fills the row's height; on its own it is as tall as `BeginField` reserves (a title, the control, a description and an error). A Select's or Combobox's list may leave the field's bounds.
+
+`ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: r})` is an application overlay: a floating page region painted after the page on a band below Viva's menus and dialogs, with no dismissal, backdrop or focus trap. `ui.LayerPaneChrome` is for chrome over the workspace; `ui.LayerDrag` is for a drag ghost or drop indicator. Its children are page elements, with hits and Tab on the band. Its empty surface lets presses through unless you declare a `Canvas.Block` over it (Block stops presses only; route the wheel yourself). Two overlapping overlays on one band can interleave their shapes and text, so use different bands or keep them apart.
+
+```go
+ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: sidebar}).Children(func() {
+	ui.Slot(c).Fill().Draw(func(d *ui.DrawContext) { d.Canvas.Block(d.Rect) })
+	ui.Column(c).Fill().Children(func() { /* rows */ })
+})
+```
+
 ## Mixing with hand-placed painting
 
 `ui.Slot(c)` reserves a rectangle for something you paint yourself, and `Box.Rect()` says where it ended up; paint it with a `Draw` callback or a `ui.Control` when it needs input. Use the page's canvas (`c.Canvas()`) and its rectangles when you need to paint below the page's declarations.

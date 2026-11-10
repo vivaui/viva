@@ -231,6 +231,19 @@ ui.Row(c).Pad(8).Radius(8).Hit(ui.ID(c), "Open").Transition().
 
 另有四种不依赖状态的效果。`Ring(width, color)` 在元素外侧画一圈线且不占空间，焦点环就是这样画的。`Opacity(v)` 让元素及其内部的一切（包括控件）淡化；取 0 时仍参与布局、仍可点击；`Image` 不会被淡化。`Gradient(angle, from, to)` 和 `GradientStops(angle, stops...)` 沿圆角用线性渐变填充元素，画在 `Background` 之上、`Border` 之下；角度与 CSS 相同，以向上为 0 顺时针计，`ui.ToRight`、`ui.ToBottomRight` 等给常用方向命名。
 
+## 表单字段与覆盖层
+
+`ui.FormField(c, &m.proxyField, "Proxy").FillWidth().Children(func() { ... })` 是一个表单行：标题，以及 children 声明的唯一控件；控件落在 `components.BeginField` 的 control 槽位，节奏也相同。`ui.FormFieldState` 和值一起放在 model 里；字段不绑定值，也不给控件做 label。放在固定高度的行里时它填满该行；单独放置时和 `BeginField` 预留的高度一致（标题、控件，以及 description 和 error 两行）。Select 或 Combobox 的列表可以越出字段边界。
+
+`ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: r})` 是应用自己的覆盖层：一个浮动的页面区域，在页面之后绘制，层带低于 Viva 的菜单和对话框，没有 dismissal、backdrop 或 focus trap。`ui.LayerPaneChrome` 用于工作区之上的界面框架；`ui.LayerDrag` 用于拖拽幽灵或放置指示器。它的 children 是普通页面元素，命中与 Tab 都按层带处理。空白表面默认让按下事件穿透；要让整块区域挡住下层，在它上面声明一个 `Canvas.Block`（Block 只挡按下事件，滚轮需要应用自己处理）。同一层带上重叠的两个覆盖层可能让形状和文字交错，请用不同层带或避免重叠。
+
+```go
+ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: sidebar}).Children(func() {
+	ui.Slot(c).Fill().Draw(func(d *ui.DrawContext) { d.Canvas.Block(d.Rect) })
+	ui.Column(c).Fill().Children(func() { /* rows */ })
+})
+```
+
 ## 和手工绘制混用
 
 `ui.Slot(c)` 为你自己绘制的内容预留一块矩形，`Box.Rect()` 告诉你它最后落在哪里；用 `Draw` 回调画它，需要输入时用 `ui.Control`。需要页面声明之下的绘制时，用页面的画布（`c.Canvas()`）和它给出的矩形。
