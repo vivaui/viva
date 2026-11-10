@@ -139,7 +139,7 @@ func TestPageCustomControlFollowsItsRow(t *testing.T) {
 		ui.Column(c).Pad(16).Gap(4).Children(func() {
 			for _, name := range names {
 				ui.Row(c.Key(name)).Children(func() {
-					if c.Frame().Text("Row "+name).Pad(4).Hit(ui.ID(c), "Row "+name).Clicked() {
+					if ui.Text(c, "Row "+name).Pad(4).Hit(ui.ID(c), "Row "+name).Clicked() {
 						opened = name
 					}
 				})

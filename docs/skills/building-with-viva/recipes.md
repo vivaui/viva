@@ -16,7 +16,7 @@ Read after `SKILL.md`. The code is in [`examples/recipes`](../../../examples/rec
 | A list with nothing in it | `EmptyState` |
 | Anything that reacts but is none of these | `Interactive(box, theme, id, label)` around your own `Row` |
 
-The recipes take a `*ui.Frame` and identities, as components do. From a page, pass `c.Frame()`, `*c.Theme()` and `ui.ID(c)`; in a list, call `ui.ID(c)` inside the row's Key (`ui.Row(c.KeyInt(item.ID)).Children(func() { ... ui.ID(c) ... })`), so each row's identity is its own.
+The recipes take a `*ui.Frame` and identities, as Frame-based components do. They are for a component's own paint path, not for application pages; a page builds the same look with the `ui` elements or a `ui.Control`'s `Draw`, and names its own controls with `ui.ID(c)` inside the row's Key (`ui.Row(c.KeyInt(item.ID)).Children(func() { ... ui.ID(c) ... })`).
 
 ## What makes it look right
 

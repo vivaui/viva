@@ -104,9 +104,6 @@ func ID(c C) gfx.ID { return c.page.controlID(pkCustom) }
 // Theme is the page's theme. Read it; do not keep it.
 func (c *Ctx) Theme() *Theme { return &c.f.theme }
 
-// Frame is the Frame underneath, for what the prototype does not wrap.
-func (c *Ctx) Frame() *Frame { return c.f }
-
 // Bounds is the rectangle the page is laid out in, as the window gave it.
 func (c *Ctx) Bounds() Rect { return c.f.Bounds() }
 
@@ -641,9 +638,9 @@ func (p *Page) Paint(canvas *gfx.Canvas, size Size) {
 
 // Draw declares view in bounds of canvas. When a Memo's copy does not fit where
 // the page put it, what the page painted is taken back and it is painted again,
-// with that Memo declared. A page that is a pane of a window laid out with a
-// Frame is declared with Frame.Page, which calls Draw once the frame knows the
-// pane's rectangle; a page given no Tree names its controls in the canvas's.
+// with that Memo declared. A page drawn into a Frame slot by Slot.Draw is laid
+// out at the slot's rectangle; a page given no Tree names its controls in the
+// canvas's.
 func (p *Page) Draw(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	if tree := canvas.Tree(); tree != nil && tree.Len() != 0 {
 		p.init(tree) // a page inside a window names its controls in the window's Tree

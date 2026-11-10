@@ -71,6 +71,15 @@ func (m *paneModel) remove(row string) {
 	}
 }
 
+// pageSlot paints page into the slot the Frame laid out for it, as a pane of a
+// Frame-laid-out window is written as a page. The page is drawn on the host
+// canvas so its controls keep the host's identities.
+func pageSlot(f *ui.Frame, page *ui.Page, view func(ui.C)) ui.Box {
+	return f.Slot().Draw(func(d *ui.DrawContext) {
+		page.Draw(d.Canvas, d.Rect, view)
+	})
+}
+
 func (m *paneModel) paint(canvas *gfx.Canvas, size gfx.Size) {
 	m.view.Draw(canvas, pageTheme, gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
 		f.Row().Fill().Children(func() {
@@ -82,7 +91,7 @@ func (m *paneModel) paint(canvas *gfx.Canvas, size gfx.Size) {
 					}
 				}
 			})
-			f.Page(m.page, m.pageView).Grow(1).FillHeight()
+			pageSlot(f, m.page, m.pageView).Grow(1).FillHeight()
 		})
 	})
 }
@@ -220,20 +229,6 @@ func TestFramePageSelectIsAnOverlay(t *testing.T) {
 	if m.size != "L" || m.page.Overlay() {
 		t.Fatalf("size=%q overlay=%v after picking", m.size, m.page.Overlay())
 	}
-}
-
-// A page is declared by being painted, so a Memo, whose copies are not, cannot hold one.
-func TestFramePageInAMemoPanics(t *testing.T) {
-	inner := ui.NewPage(ui.PageConfig{Root: "inner", Theme: &pageTheme})
-	view := func(c ui.C) { ui.Text(c, "pane") }
-	defer func() {
-		if recover() == nil {
-			t.Fatal("Frame.Page in a Memo did not panic")
-		}
-	}()
-	drawPage(ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas(), func(c ui.C) {
-		ui.Memo(c, 1, func() { c.Frame().Page(inner, view).Height(40) })
-	})
 }
 
 // A pane's Shortcut acts with the focus in the pane, delivered through the window,

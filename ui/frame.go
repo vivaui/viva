@@ -639,42 +639,6 @@ func (f *Frame) Switch(id gfx.ID, on bool) Box {
 // once End has laid the page out. Give it a size, or let it grow.
 func (f *Frame) Slot() Box { return f.box(kindSlot) }
 
-// Page declares an element that a page fills: view declares the page into the
-// element's rectangle once this frame is laid out, painted in the element's place,
-// under what this frame paints over it and inside its clip. Give the element a size,
-// or let it grow, as a Slot:
-//
-//	f.Page(m.page, m.view).Grow(1).FillWidth()
-//
-// It is how a pane of a window written with a Frame is written as a page. Calling
-// page.Draw while this frame is being declared instead paints the page before the
-// frame is laid out, at a rectangle not yet known, under everything the frame paints.
-// Keep view in the model (a method value made in each paint allocates), and give the
-// page the window's input: its TextInput and Wheel (page.TextInput, page.Wheel) for
-// its fields and lists, and, before the window's own handling, its keys and pointer
-// (page.Key, page.Pointer), without which its Controls get no input, its TextAreas
-// do not move by row and its Popovers and Modals hold nothing behind them:
-//
-//	OnKey: func(event gfx.KeyEvent) gfx.EventResult {
-//		if result, ok := m.page.Key(event); ok {
-//			return result
-//		}
-//		return m.key(event)
-//	},
-//
-// A Modal of the page dims and holds the element, not the window. Not inside a
-// Memo: a copied part does not declare the page, which keeps its state (and its
-// Scrolls, Popovers and Controls) by being declared.
-func (f *Frame) Page(page *Page, view func(C)) Box {
-	if f.memoDepth > 0 {
-		panic("ui: Frame.Page in a Memo: a copied part does not declare the page, which keeps its state by being declared; declare it outside the Memo")
-	}
-	b := f.box(kindSlot)
-	h := b.hooks()
-	h.page, h.pageView = page, view
-	return b
-}
-
 // extra returns the extras of element i, giving it a set of its own if it has none.
 func (f *Frame) extra(i int32) *extra {
 	n := &f.nodes[i]

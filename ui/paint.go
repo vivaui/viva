@@ -113,9 +113,6 @@ func (f *Frame) paint(i int32) {
 	if hooks.under != nil {
 		f.runDraw(n, hooks.under)
 	}
-	if hooks.page != nil {
-		hooks.page.Draw(f.canvas, n.rect, hooks.pageView)
-	}
 	for c := n.first; c >= 0; c = f.nodes[c].next {
 		f.paint(c)
 	}

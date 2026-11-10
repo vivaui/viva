@@ -86,6 +86,27 @@ func (f *Frame) Dialog(spec DialogSpec) Box {
 	return root
 }
 
+// Dialog declares a dialog on a page whose targets and layer the application
+// names itself: DialogSpec.Scope, DismissID, CloseID and Layer keep the
+// identities the application dispatches, as they do for Frame.Dialog. Most
+// dialogs use Modal or ModalWith; use Dialog when the application owns those
+// targets and the dialog's layer.
+func Dialog(c C, spec DialogSpec) Box {
+	if c == nil || c.page == nil || c.f == nil {
+		panic("ui: Dialog is for a page")
+	}
+	p := c.page
+	p.forbidInMemo("Dialog")
+	p.overlay = true
+	dialog := c.f.Dialog(spec)
+	if !spec.Scope.IsZero() {
+		d := &c.f.widgets.dialogs[dialog.n().aux]
+		p.setScope(d.body, spec.Scope.Scope())
+		p.setScope(d.footer, spec.Scope.Scope())
+	}
+	return dialog
+}
+
 // Body declares the content of a Dialog between its header and its footer.
 func (b Box) Body(fn func()) Box { return b.dialogPart(fn, false) }
 

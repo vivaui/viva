@@ -31,9 +31,9 @@ import "github.com/vivaui/viva/gfx"
 // declared again in the same paint (the page's paint is taken back and done again,
 // once).
 //
-// A Memo holds no Scroll, List, Popover, Modal, Control or page (Frame.Page): their
-// state is kept by being declared. MemoCheck(true) declares every part and panics
-// where a copy would have differed from it: run tests with it.
+// A Memo holds no Scroll, List, Popover, Modal or Control: their state is kept
+// by being declared. MemoCheck(true) declares every part and panics where a copy
+// would have differed from it: run tests with it.
 func Memo[T comparable](c C, value T, fn func()) Box {
 	p := c.page
 	at, _ := p.name(pkMemo)

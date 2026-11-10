@@ -146,7 +146,7 @@ func TestControlInAFramePane(t *testing.T) {
 				if f.Button(side.ID(gfx.Index(0)), "Side").Clicked() {
 					sideClicks++
 				}
-				f.Page(page, term.view).Grow(1).FillHeight()
+				pageSlot(f, page, term.view).Grow(1).FillHeight()
 			})
 		})
 	}

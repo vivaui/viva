@@ -137,14 +137,8 @@ func (m *model) page(c ui.C) {
   Its own small state (whether it is open) is `ui.State[bool](c, "open")`; the application's state stays in the model.
 - A settings form: tag the struct's fields (`form:"Label"`, `choices:"options,nameFunc"`, `placeholder:"..."`)
   and run `go tool viva form` (or `//go:generate go tool viva form`); it writes `Form(c ui.C) ui.Box`.
-- A pane of a window laid out with a Frame is a page with `f.Page(page, view).Grow(1)`. Give the page the
-  window's input: `TextInput` and `OnScroll` to `page.TextInput` and `page.Wheel`, and in `OnKey` and
-  `OnPointer` ask it first, `if r, ok := page.Key(event); ok { return r }` (its Controls, TextAreas and
-  open Popovers and Modals get nothing otherwise). Not inside a Memo. Do not call
-  `page.Draw` while the frame is being declared (the pane's rectangle is not known yet, and its clicks go
-  to the frame's controls).
-- `c.Frame()` is the `*ui.Frame` underneath, for a control with an identity of your own (see
-  Identities and clicks), named in a page by `ui.ID(c)`; `c.Theme()` is the theme.
+- An independent window is a page: `ui.Run` or `ui.NewPage(...).Config(base)` wires its input. A pane of a window is a keyed container in the same page, not a second `Page`; do not draw a page into a Frame slot in application code.
+- `ui.ID(c)` names a custom control of your own (see Identities and clicks); `c.Theme()` is the theme; `c.Bounds()` and `c.Canvas()` are for measuring.
 - In a test, find controls by their name (`Hit.Label`), as main_test.go does.
 
 ## Mistakes that compile (and how each is reported)
@@ -382,11 +376,11 @@ m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
 - Do not write `gfx.Rect{X: ..., Y: ...}` arithmetic for ordinary parts of a page. It breaks
   when a label gets longer or the window gets narrower; a page laid out with ui does not.
 
-## Identities and clicks (ui.Frame)
+## Component authoring (ui.Frame)
 
-A page names its elements; this section is for a page written with a `ui.Frame` (or
-through `c.Frame()`), where every clickable thing has a stable identity you declare: a name in a
-tree, declared once at the top.
+A page names its elements; this section is for a component written with a `ui.Frame`, where every
+clickable thing has a stable identity you declare: a name in a tree, declared once at the top.
+Application pages do not reach the Frame.
 
 ```go
 var (

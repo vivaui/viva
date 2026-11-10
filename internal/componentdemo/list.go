@@ -29,6 +29,7 @@ type listDemo struct {
 	density   gfx.Density
 	viewFn    func(ui.C)
 	rowFn     func(ui.ListRow)
+	pageDraw  func(*ui.DrawContext)
 }
 
 func newListDemo(english bool) *listDemo {
@@ -64,6 +65,7 @@ func newListDemo(english bool) *listDemo {
 	d.list.Reorder = d.reorder
 	d.list.RowWidth = 640
 	d.viewFn, d.rowFn = d.view, d.row
+	d.pageDraw = d.drawPage
 	return d
 }
 
@@ -152,16 +154,22 @@ func (d *listDemo) reorder(rows []int, to int) {
 	d.rows = result
 }
 
+// drawPage paints the demo's page into the slot the Frame laid out for it.
+func (d *listDemo) drawPage(dc *ui.DrawContext) {
+	d.page.Draw(dc.Canvas, dc.Rect, d.viewFn)
+}
+
 var listComponent = Component{
 	ID: "list", Title: "List", Category: "Data", Summary: "虚拟化列表：多选、吸顶分组、拖动排序与横向滚动。",
 	Source:     "ui/list.go",
 	initialize: func(state *State) { state.list = newListDemo(state.english) },
 	paint: func(state *State, canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 		d := state.list
+		d.pageFor(state, theme)
 		state.page(canvas, theme, size, 560, d.text(
 			"List · 虚拟化、选择与排序", "List · virtualization, selection and reorder"),
 			func(f *ui.Frame) {
-				f.Page(d.pageFor(state, theme), d.viewFn).FillWidth().Height(310)
+				f.Slot().FillWidth().Height(310).Draw(d.pageDraw)
 			})
 	},
 	pointer: func(state *State, event gfx.PointerEvent) gfx.EventResult {

@@ -58,9 +58,6 @@ func (d *DrawContext) Fade(c Color) Color {
 // drawHooks is what Draw and DrawOver declared on one element.
 type drawHooks struct {
 	under, over func(*DrawContext)
-	// page is painted into the element after under, by Frame.Page.
-	page     *Page
-	pageView func(C)
 }
 
 // Draw paints on the element with fn after its background, border and control, before

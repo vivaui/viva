@@ -20,21 +20,9 @@
 // Geometry, colors, the theme and identities come from package gfx, re-exported here
 // (Rect, Color, RGB, Theme, ID and the rest of vocab.go) so a page imports ui alone.
 //
-// Underneath is the Frame, the same layout with identities declared in a gfx.Tree,
-// for a window-level handler that switches on them or a control of your own
-// (c.Frame() inside a page):
-//
-//	var view ui.View // in the application's state; the zero value is ready
-//
-//	config.Paint = func(canvas *gfx.Canvas, size Size) {
-//		view.Draw(canvas, theme, Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
-//			f.Column().Pad(24).Gap(12).Children(func() {
-//				if f.Button(save, "Save").Clicked() {
-//					model.save()
-//				}
-//			})
-//		})
-//	}
+// Frame is the component-author engine underneath: its layout with identities
+// declared in a gfx.Tree, which a component or a preview paints through
+// View.Draw. Applications write pages; a page does not expose its Frame.
 //
 // Layout is CSS flexbox's, from a declaration instead of coordinates.
 // A Row lays its children out left to right, a Column top to bottom, a Stack on
