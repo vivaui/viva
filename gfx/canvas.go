@@ -216,7 +216,7 @@ const (
 //
 // Block Elements (U+2580 to U+259F: halves, eighths, quadrants, shades) are not drawn from
 // a font: the renderer fills their exact fraction of the cell, so neighbouring cells meet
-// without a seam; see BlockRectangles.
+// without a seam; see Canvas.CellGlyphGeometry.
 //
 // Ligatures asks the fixed-pitch renderer to shape the run as one line instead
 // of placing one glyph per cell, so a font's programming ligatures appear. The
@@ -677,6 +677,7 @@ type Canvas struct {
 	// a caller's own buffer passed to it would escape to the heap on every paint.
 	spans     []TextSpan
 	cellSizes cellSizeMemos
+	cell      cellGlyph // scratch of CellGlyphGeometry
 	// fits remembers the lines FitLine cut; a different measurement empties it.
 	fits    []fitEntry
 	hovered ID
