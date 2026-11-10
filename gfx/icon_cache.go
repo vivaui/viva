@@ -49,17 +49,19 @@ type iconCache struct {
 	entries map[iconKey][]iconTriangle
 }
 
-// iconPaintKey identifies a fully materialized icon: the tessellation, where it
-// is, how it is tinted, and the canvas state its triangles carry. A repeated
-// paint can then be one slice copy instead of one Triangle fill per triangle.
+// iconPaintKey identifies a fully materialized icon: the tessellation, how it is
+// tinted, and the canvas state its triangles carry. Where the icon is and how
+// many rectangles came before it are applied when the entry is replayed: the
+// triangles are stored relative to the icon's origin, so moving an icon reuses
+// its entry instead of materializing a copy at every position. A repeated paint
+// can then be one translation per vertex instead of one Triangle fill per
+// triangle.
 type iconPaintKey struct {
-	icon        iconKey
-	origin      Point
-	tint        Color
-	layer       uint16
-	clip        Rect
-	hasClip     bool
-	rectsBefore uint32
+	icon    iconKey
+	tint    Color
+	layer   uint16
+	clip    Rect
+	hasClip bool
 }
 
 type iconPaintCache struct {
@@ -131,10 +133,16 @@ func (canvas *Canvas) drawIconCached(icon Icon, fit float32, origin Point, tint 
 	layer := canvas.currentLayer()
 	clip, hasClip := canvas.clipSnapshot()
 	rectsBefore := uint32(len(canvas.rectangles))
-	paintKey := iconPaintKey{icon: key, origin: origin, tint: tint, layer: layer, clip: clip, hasClip: hasClip, rectsBefore: rectsBefore}
+	paintKey := iconPaintKey{icon: key, tint: tint, layer: layer, clip: clip, hasClip: hasClip}
 	paints := canvas.iconPaints()
 	if cached, ok := paints.get(paintKey); ok {
-		canvas.triangles = append(canvas.triangles, cached...)
+		canvas.triangles = slices.Grow(canvas.triangles, len(cached))
+		for index := range cached {
+			triangle := cached[index]
+			triangle.Points = translatePoints(triangle.Points, origin)
+			triangle.RectsBefore = rectsBefore
+			canvas.triangles = append(canvas.triangles, triangle)
+		}
 		return
 	}
 	cache := canvas.icons()
@@ -146,18 +154,14 @@ func (canvas *Canvas) drawIconCached(icon Icon, fit float32, origin Point, tint 
 		}
 		cache.entries[key] = triangles
 	}
-	start := len(canvas.triangles)
+	relative := make([]Triangle, 0, len(triangles))
 	canvas.triangles = slices.Grow(canvas.triangles, len(triangles))
 	for index := range triangles {
 		cached := &triangles[index]
 		triangle := Triangle{
-			Points: [3]Point{
-				{X: cached.points[0].X + origin.X, Y: cached.points[0].Y + origin.Y},
-				{X: cached.points[1].X + origin.X, Y: cached.points[1].Y + origin.Y},
-				{X: cached.points[2].X + origin.X, Y: cached.points[2].Y + origin.Y},
-			},
-			Color: tint, Layer: layer, EdgeMask: cached.edges,
-			ClipOf: clip, HasClip: hasClip, RectsBefore: rectsBefore,
+			Points: cached.points,
+			Color:  tint, Layer: layer, EdgeMask: cached.edges,
+			ClipOf: clip, HasClip: hasClip,
 		}
 		if cached.layer >= 0 {
 			source := &icon.Layers[cached.layer]
@@ -170,9 +174,22 @@ func (canvas *Canvas) drawIconCached(icon Icon, fit float32, origin Point, tint 
 				continue
 			}
 		}
+		relative = append(relative, triangle)
+		triangle.Points = translatePoints(triangle.Points, origin)
+		triangle.RectsBefore = rectsBefore
 		canvas.triangles = append(canvas.triangles, triangle)
 	}
-	paints.put(paintKey, append([]Triangle(nil), canvas.triangles[start:]...))
+	paints.put(paintKey, relative)
+}
+
+// translatePoints moves a triangle stored relative to an icon's origin onto the
+// canvas.
+func translatePoints(points [3]Point, origin Point) [3]Point {
+	return [3]Point{
+		{X: points[0].X + origin.X, Y: points[0].Y + origin.Y},
+		{X: points[1].X + origin.X, Y: points[1].Y + origin.Y},
+		{X: points[2].X + origin.X, Y: points[2].Y + origin.Y},
+	}
 }
 
 // iconTriangles returns the icon's tessellation, tessellating it the first time.
