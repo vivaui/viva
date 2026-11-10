@@ -227,7 +227,7 @@ ui.Row(c).Pad(8).Radius(8).Hit(ui.ID(c), "Open").Transition().
 	Focus(ui.Look{}.Ring(3, theme.Ring))
 ```
 
-`Focus` applies when the focus is meant to be seen (after a key, not after a click); a `Hit` is focusable unless `HitWith` says `SkipFocus`. The looks combine field by field in the order Focus, Hover, Pressed, so a focused row that is hovered shows the ring of one and the fill of the other. `Transition()` fades between them over the theme's motion (`TransitionWith` takes another); while nothing changes it schedules no frames. `StateFrom(row)` makes an element follow the state of another, so what is inside a row can change with the row: `f.Icon(edit).Opacity(0).StateFrom(row).Hover(ui.Look{}.Opacity(1))` is an icon that appears when its row is hovered.
+`Focus` applies when the focus is meant to be seen (after a key, not after a click); a `Hit` is focusable unless `HitWith` says `SkipFocus`. The looks combine field by field in the order Focus, Hover, Pressed, so a focused row that is hovered shows the ring of one and the fill of the other. `Transition()` fades between them over the theme's motion (`TransitionWith` takes another); while nothing changes it schedules no frames. `StateFrom(row)` makes an element follow the state of another, so what is inside a row can change with the row: `ui.Icon(c, edit).Opacity(0).StateFrom(row).Hover(ui.Look{}.Opacity(1))` is an icon that appears when its row is hovered.
 
 Four effects have no state of their own. `Ring(width, color)` draws a line around the outside of the element without taking room, as a focus ring does. `Opacity(v)` fades the element and everything in it, controls included; it stays laid out and clickable at 0, and an `Image` is not faded. `Gradient(angle, from, to)` and `GradientStops(angle, stops...)` fill the element, corners included, with a linear gradient, over its `Background` and under its `Border`; the angle is in degrees clockwise from up, as in CSS, and `ui.ToRight`, `ui.ToBottomRight` and the others name the common ones.
 
@@ -257,55 +257,40 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-var (
-	tree = gfx.Tree{}
-	page = tree.Feature("layout")
-
-	save   = tree.ID(page, "save")
-	cancel = tree.ID(page, "cancel")
-)
-
 type model struct {
 	saved bool
 	notes bool
-	view  ui.View
+}
+
+func (m *model) page(c ui.C) {
+	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		ui.Text(c, "Deploy settings").FontSize(18).Bold()
+		ui.Text(c, "Where the build goes when it passes.").Muted()
+		ui.Divider(c)
+		ui.Row(c).Items(ui.Center).Gap(8).Children(func() {
+			ui.Text(c, "Notify the team")
+			ui.Spacer(c)
+			ui.Switch(c, &m.notes, "Notify the team")
+		})
+		ui.Spacer(c)
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ui.Button(c, "Cancel").Outline()
+			if ui.Button(c, "Save").Clicked() {
+				m.saved = true
+			}
+		})
+	})
 }
 
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Layout", Width: 420, Height: 220}
-
-	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
-		canvas.Fill(gfx.Rect{Width: size.Width, Height: size.Height}, theme.Background)
-		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
-
-		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
-			f.Column().Fill().Pad(24).Gap(12).Children(func() {
-				f.Text("Deploy settings").FontSize(18).Bold()
-				f.Text("Where the build goes when it passes.").Muted()
-				f.Divider()
-				f.Row().Items(ui.Center).Gap(8).Children(func() {
-					f.Text("Notify the team")
-					f.Spacer()
-					f.Switch(tree.ID(page, "notes"), m.notes).Label("Notify the team")
-				})
-				f.Spacer()
-				f.Row().Gap(8).Justify(ui.End).Children(func() {
-					f.Button(cancel, "Cancel").Outline()
-					if f.Button(save, "Save").Clicked() {
-						m.saved = true
-					}
-				})
-			})
-		})
-	}
-	return config
+	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
+	return page.Config(app.Config{Title: "Layout", Width: 420, Height: 220})
 }
 
 func main() {
-	m := &model{}
 	var canvas gfx.Canvas
-	if err := app.RunCanvas(newConfig(m), &canvas); err != nil {
+	if err := app.RunCanvas(newConfig(&model{}), &canvas); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -227,7 +227,7 @@ ui.Row(c).Pad(8).Radius(8).Hit(ui.ID(c), "Open").Transition().
 	Focus(ui.Look{}.Ring(3, theme.Ring))
 ```
 
-`Focus` 在焦点应当可见时生效（由按键移动而来，点击不算）；`Hit` 默认可获得焦点，除非用 `HitWith` 指定 `SkipFocus`。几个 Look 按 Focus、Hover、Pressed 的顺序逐字段合并，所以既聚焦又悬停的行会同时显示前者的光环和后者的底色。`Transition()` 按主题的动效在它们之间渐变（`TransitionWith` 可指定其他动效）；没有变化时不会安排任何帧。`StateFrom(row)` 让一个元素跟随另一个元素的状态，行内的内容就能随行变化：`f.Icon(edit).Opacity(0).StateFrom(row).Hover(ui.Look{}.Opacity(1))` 是一个在所在行悬停时才出现的图标。
+`Focus` 在焦点应当可见时生效（由按键移动而来，点击不算）；`Hit` 默认可获得焦点，除非用 `HitWith` 指定 `SkipFocus`。几个 Look 按 Focus、Hover、Pressed 的顺序逐字段合并，所以既聚焦又悬停的行会同时显示前者的光环和后者的底色。`Transition()` 按主题的动效在它们之间渐变（`TransitionWith` 可指定其他动效）；没有变化时不会安排任何帧。`StateFrom(row)` 让一个元素跟随另一个元素的状态，行内的内容就能随行变化：`ui.Icon(c, edit).Opacity(0).StateFrom(row).Hover(ui.Look{}.Opacity(1))` 是一个在所在行悬停时才出现的图标。
 
 另有四种不依赖状态的效果。`Ring(width, color)` 在元素外侧画一圈线且不占空间，焦点环就是这样画的。`Opacity(v)` 让元素及其内部的一切（包括控件）淡化；取 0 时仍参与布局、仍可点击；`Image` 不会被淡化。`Gradient(angle, from, to)` 和 `GradientStops(angle, stops...)` 沿圆角用线性渐变填充元素，画在 `Background` 之上、`Border` 之下；角度与 CSS 相同，以向上为 0 顺时针计，`ui.ToRight`、`ui.ToBottomRight` 等给常用方向命名。
 
@@ -257,55 +257,40 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-var (
-	tree = gfx.Tree{}
-	page = tree.Feature("layout")
-
-	save   = tree.ID(page, "save")
-	cancel = tree.ID(page, "cancel")
-)
-
 type model struct {
 	saved bool
 	notes bool
-	view  ui.View
+}
+
+func (m *model) page(c ui.C) {
+	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		ui.Text(c, "Deploy settings").FontSize(18).Bold()
+		ui.Text(c, "Where the build goes when it passes.").Muted()
+		ui.Divider(c)
+		ui.Row(c).Items(ui.Center).Gap(8).Children(func() {
+			ui.Text(c, "Notify the team")
+			ui.Spacer(c)
+			ui.Switch(c, &m.notes, "Notify the team")
+		})
+		ui.Spacer(c)
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ui.Button(c, "Cancel").Outline()
+			if ui.Button(c, "Save").Clicked() {
+				m.saved = true
+			}
+		})
+	})
 }
 
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Layout", Width: 420, Height: 220}
-
-	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
-		canvas.Fill(gfx.Rect{Width: size.Width, Height: size.Height}, theme.Background)
-		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
-
-		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
-			f.Column().Fill().Pad(24).Gap(12).Children(func() {
-				f.Text("Deploy settings").FontSize(18).Bold()
-				f.Text("Where the build goes when it passes.").Muted()
-				f.Divider()
-				f.Row().Items(ui.Center).Gap(8).Children(func() {
-					f.Text("Notify the team")
-					f.Spacer()
-					f.Switch(tree.ID(page, "notes"), m.notes).Label("Notify the team")
-				})
-				f.Spacer()
-				f.Row().Gap(8).Justify(ui.End).Children(func() {
-					f.Button(cancel, "Cancel").Outline()
-					if f.Button(save, "Save").Clicked() {
-						m.saved = true
-					}
-				})
-			})
-		})
-	}
-	return config
+	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
+	return page.Config(app.Config{Title: "Layout", Width: 420, Height: 220})
 }
 
 func main() {
-	m := &model{}
 	var canvas gfx.Canvas
-	if err := app.RunCanvas(newConfig(m), &canvas); err != nil {
+	if err := app.RunCanvas(newConfig(&model{}), &canvas); err != nil {
 		log.Fatal(err)
 	}
 }
