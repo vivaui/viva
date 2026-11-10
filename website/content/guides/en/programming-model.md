@@ -7,27 +7,19 @@ group: concepts
 
 ## State is yours
 
-A Viva application keeps its own state in ordinary Go values. The `Paint` callback reads that state and describes the interface; Viva reconciles each description with a retained scene. If nothing changed, the repaint costs no layout, no scene rebuild and no GPU submission. If one node changed, one small range of instance data is uploaded.
+A Viva application keeps its own state in ordinary Go values. The page function `func (m *model) page(c ui.C)` reads that state and declares the interface; Viva reconciles each declaration with a retained scene. If nothing changed, the repaint costs no layout, no scene rebuild and no GPU submission. If one node changed, one small range of instance data is uploaded.
 
-Components follow the same rule. `f.Button`, `f.Dialog` and the rest do not own a value, a checked flag or an open flag. You pass the current value in and handle the click that should change it.
+Components follow the same rule. `ui.Button`, `ui.Modal` and the rest do not own a value, a checked flag or an open flag. You pass the current value in and handle the click that should change it.
 
 ## Hit regions and identities
 
-Anything interactive is a hit region declared while painting, with an identity you name in a `gfx.Tree`. Keep identities stable between frames: focus, hover and press state are tracked by ID, and `Canvas.Focused`, `Canvas.FocusVisible` and `Canvas.Hovered` report them back so painting code reads them rather than copying them.
-
-```go
-var (
-	tree = gfx.Tree{}
-	page = tree.Feature("dashboard")
-
-	hitRefresh = page.ID(tree.Name("refresh"))
-	hitPanel   = page.ID(tree.Name("panel"))
-)
-```
+A page names its elements by their place among their siblings, and a row by `c.Key` or `c.KeyInt`, so focus, hover and press follow the row as items come, go and move. A control of your own takes `ui.ID(c)`. Read state where you declare: `Box.State().Focused`, `Hovered` and `Pressed`, and `Clicked()`. A page does not name controls in a `gfx.Tree`; a component written with a `ui.Frame` does.
 
 ## Events
 
-A button is handled where it is declared: `f.Button(save, "Save").Clicked()` is true in the one paint that delivers its click, the event pass, and only there may a paint change state. The runtime adds that pass only when a paint asks `Clicked`, so an application that does not pays nothing. An application that keeps one central click handler reads `canvas.ClickTarget()` once at the start of its paint and passes the identity on through `canvas.AfterPaint(func() { ... })`, which runs the handler after the paint has returned (outside it, so it may block or open a native dialog) and then repaints; it marks the paint as listening just as `Clicked` does. Prefer `Clicked` at each control. Controls that need more use typed callbacks, each returning a `gfx.EventResult`:
+## Events
+
+A button is handled where it is declared: `ui.Button(c, "Save").Clicked()` is true in the one paint that delivers its click, and only there may a paint change state. For a handler that changes the list being declared, use `c.After(func() { ... })`; it runs after the paint, may block or open a native dialog, and repaints. The page wires the window's pointer, key, wheel and text input itself through `Page.Config`; a `ui.Control`'s `ui.Handlers` takes the events for a control of your own. For input the page does not model, `app.Config` still has typed callbacks, each returning a `gfx.EventResult`:
 
 | Callback | Receives |
 | --- | --- |
@@ -68,15 +60,6 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-// Identities are names in a tree, not numbers: the application declares the
-// tree once and every control it paints is a name inside a feature of it.
-var (
-	tree = gfx.Tree{}
-	page = tree.Feature("background")
-
-	refresh = tree.ID(page, "refresh")
-)
-
 // slowWork stands in for anything that takes a while: a request, a disk scan.
 var slowWork = func() string {
 	time.Sleep(time.Second)
@@ -84,39 +67,36 @@ var slowWork = func() string {
 }
 
 type model struct {
-	mu      sync.Mutex
-	pending string // written by the worker goroutine, under mu
-	status  string // read by Paint, written only on the window thread
-	view    ui.View
+	mu          sync.Mutex
+	pending     string // written by the worker goroutine, under mu
+	status      string // read by the page, written only on the window thread
+	invalidator *app.Invalidator
+}
+
+func (m *model) page(c ui.C) {
+	ui.Row(c).Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
+		if ui.Button(c, "Refresh").Clicked() {
+			m.status = "working"
+			go func() {
+				result := slowWork()
+				m.mu.Lock()
+				m.pending = result
+				m.mu.Unlock()
+				m.invalidator.Invalidate() // wakes the window thread once
+			}()
+		}
+		ui.Text(c, m.status)
+	})
 }
 
 func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 	theme := gfx.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Background", Width: 480, Height: 240, Invalidator: invalidator}
-
-	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
-		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
-		canvas.Fill(bounds, theme.Background)
-
-		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
-			f.Row().Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
-				if f.Button(refresh, "Refresh").Clicked() {
-					m.status = "working"
-					go func() {
-						result := slowWork()
-						m.mu.Lock()
-						m.pending = result
-						m.mu.Unlock()
-						invalidator.Invalidate() // wakes the window thread once
-					}()
-				}
-				f.Text(m.status)
-			})
-		})
-	}
+	m.invalidator = invalidator
+	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
+	config := page.Config(app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
 
 	// OnWake runs on the window thread right before the repaint Invalidate asked
-	// for: move what the goroutine published into state that Paint reads.
+	// for: move what the goroutine published into state that the page reads.
 	config.OnWake = func() {
 		m.mu.Lock()
 		m.status, m.pending = m.pending, ""
@@ -134,7 +114,7 @@ func main() {
 }
 ```
 
-`Invalidator` owns no goroutine, timer or channel. An application that never calls it pays nothing for it, and `Paint` only ever reads state that `OnWake` already moved onto the window thread.
+`Invalidator` owns no goroutine, timer or channel. An application that never calls it pays nothing for it, and the page only ever reads state that `OnWake` already moved onto the window thread.
 
 ### Scoped effects
 

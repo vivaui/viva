@@ -7,27 +7,17 @@ group: concepts
 
 ## 状态归你
 
-Viva 应用把自己的状态放在普通的 Go 值里。`Paint` 回调读取状态并描述界面；Viva 把每次描述与一个保留式场景对齐。什么都没变时，重绘不做布局、不重建场景、不向 GPU 提交任何东西；只有一个节点变化时，只上传一小段实例数据。
+Viva 应用把自己的状态放在普通的 Go 值里。页面函数 `func (m *model) page(c ui.C)` 读取状态并声明界面；Viva 把每次声明与一个保留式场景对齐。什么都没变时，重绘不做布局、不重建场景、不向 GPU 提交任何东西；只有一个节点变化时，只上传一小段实例数据。
 
-组件遵循同样的规则。`f.Button`、`f.Dialog` 等都不拥有数值、勾选状态或打开状态。你把当前值传进去，再处理那次应该改变它的点击。
+组件遵循同样的规则。`ui.Button`、`ui.Modal` 等都不拥有数值、勾选状态或打开状态。你把当前值传进去，再处理那次应该改变它的点击。
 
 ## 命中区域与标识
 
-任何可交互的东西都是绘制时声明的命中区域，标识由你在 `gfx.Tree` 中命名。标识在帧与帧之间要保持稳定：焦点、悬停和按下状态都按标识跟踪，`Canvas.Focused`、`Canvas.FocusVisible` 和 `Canvas.Hovered` 会把它们报告回来，所以绘制代码读取它们，而不是自己再存一份。
-
-```go
-var (
-	tree = gfx.Tree{}
-	page = tree.Feature("dashboard")
-
-	hitRefresh = page.ID(tree.Name("refresh"))
-	hitPanel   = page.ID(tree.Name("panel"))
-)
-```
+页面按元素在兄弟中的位置命名，行用 `c.Key` 或 `c.KeyInt` 命名，所以项目增删和移动时焦点、悬停和按下状态跟着行走。自己的控件用 `ui.ID(c)`。在声明处读取状态：`Box.State().Focused`、`Hovered`、`Pressed` 和 `Clicked()`。页面不把控件命名在 `gfx.Tree` 里；用 `ui.Frame` 写的组件才会。
 
 ## 事件
 
-按钮在声明处处理：`f.Button(save, "Save").Clicked()` 只在递送这次点击的那一遍（事件遍）里为真，也只有在这一遍里绘制才可以修改状态。只有绘制调用了 `Clicked`，运行时才会加这一遍，不用的应用不付出任何代价。如果应用只有一个集中的点击处理函数，在绘制开头读一次 `canvas.ClickTarget()`，并通过 `canvas.AfterPaint(func() { ... })` 把标识交给它：处理函数在这次绘制返回之后（绘制之外，所以可以阻塞或打开原生对话框）运行，随后重绘；这同样会让该次绘制被视为在监听点击。优先在每个控件处用 `Clicked`。需要更多的控件使用有类型的回调，每个都返回 `gfx.EventResult`：
+按钮在声明处处理：`ui.Button(c, "Save").Clicked()` 只在递送这次点击的那一遍里为真，也只有在这一遍里绘制才可以修改状态。会改变正在声明的列表的处理函数放进 `c.After(func() { ... })`：它在绘制之后运行，可以阻塞或打开原生对话框，随后重绘。页面通过 `Page.Config` 自己接好窗口的指针、按键、滚轮和文本输入；自己的控件由 `ui.Control` 的 `ui.Handlers` 接收事件。页面没有建模的输入仍可用 `app.Config` 的有类型回调，每个都返回 `gfx.EventResult`：
 
 | 回调 | 收到什么 |
 | --- | --- |
@@ -68,15 +58,6 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-// Identities are names in a tree, not numbers: the application declares the
-// tree once and every control it paints is a name inside a feature of it.
-var (
-	tree = gfx.Tree{}
-	page = tree.Feature("background")
-
-	refresh = tree.ID(page, "refresh")
-)
-
 // slowWork stands in for anything that takes a while: a request, a disk scan.
 var slowWork = func() string {
 	time.Sleep(time.Second)
@@ -84,39 +65,36 @@ var slowWork = func() string {
 }
 
 type model struct {
-	mu      sync.Mutex
-	pending string // written by the worker goroutine, under mu
-	status  string // read by Paint, written only on the window thread
-	view    ui.View
+	mu          sync.Mutex
+	pending     string // written by the worker goroutine, under mu
+	status      string // read by the page, written only on the window thread
+	invalidator *app.Invalidator
+}
+
+func (m *model) page(c ui.C) {
+	ui.Row(c).Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
+		if ui.Button(c, "Refresh").Clicked() {
+			m.status = "working"
+			go func() {
+				result := slowWork()
+				m.mu.Lock()
+				m.pending = result
+				m.mu.Unlock()
+				m.invalidator.Invalidate() // wakes the window thread once
+			}()
+		}
+		ui.Text(c, m.status)
+	})
 }
 
 func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 	theme := gfx.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Background", Width: 480, Height: 240, Invalidator: invalidator}
-
-	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
-		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
-		canvas.Fill(bounds, theme.Background)
-
-		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
-			f.Row().Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
-				if f.Button(refresh, "Refresh").Clicked() {
-					m.status = "working"
-					go func() {
-						result := slowWork()
-						m.mu.Lock()
-						m.pending = result
-						m.mu.Unlock()
-						invalidator.Invalidate() // wakes the window thread once
-					}()
-				}
-				f.Text(m.status)
-			})
-		})
-	}
+	m.invalidator = invalidator
+	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
+	config := page.Config(app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
 
 	// OnWake runs on the window thread right before the repaint Invalidate asked
-	// for: move what the goroutine published into state that Paint reads.
+	// for: move what the goroutine published into state that the page reads.
 	config.OnWake = func() {
 		m.mu.Lock()
 		m.status, m.pending = m.pending, ""
@@ -134,7 +112,7 @@ func main() {
 }
 ```
 
-`Invalidator` 不拥有 goroutine、定时器或 channel。从不调用它的应用不为它付出任何代价，而 `Paint` 读到的始终是 `OnWake` 已经搬到窗口线程上的状态。
+`Invalidator` 不拥有 goroutine、定时器或 channel。从不调用它的应用不为它付出任何代价，而页面读到的始终是 `OnWake` 已经搬到窗口线程上的状态。
 
 ### 页面作用域的 effect
 
