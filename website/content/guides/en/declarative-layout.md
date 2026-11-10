@@ -8,17 +8,17 @@ group: guides
 Slicing rectangles by hand (see Drawing and layout) is the lowest level of Viva, and it is right for a custom control. For a page of ordinary parts (a header, a form, a list row, a footer) it is a lot of arithmetic, and the arithmetic goes wrong when a label gets longer. The `ui` package lays a page out the way CSS flexbox does, from a description.
 
 ```go
-view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
-	f.Column().Pad(24).Gap(12).Children(func() {
-		f.Text("Title").FontSize(18).Bold()
-		f.Row().Gap(8).Justify(ui.End).Children(func() {
-			f.Button(cancel, "Cancel").Outline()
-			if f.Button(save, "Save").Clicked() {
+func (m *model) page(c ui.C) {
+	ui.Column(c).Pad(24).Gap(12).Children(func() {
+		ui.Text(c, "Title").FontSize(18).Bold()
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ui.Button(c, "Cancel").Outline()
+			if ui.Button(c, "Save").Clicked() {
 				model.save()
 			}
 		})
 	})
-})
+}
 ```
 
 ## The model
@@ -214,203 +214,14 @@ A custom layout is `ui.CustomLayout(c, &m.masonry)`: the container's in-flow chi
 
 `c.Bounds()` and `c.Canvas()` give the page's rectangle and canvas, for measuring text or components and reading pointer and focus state; declare and paint through the page. `c.Part("word")` gives the next element a name of yours, which a test or the headless driver can use. An application window is one page: `ui.Run` or `Page.Config` wires its input, and a pane is a keyed container in that page, not a second `Page`. `ui.Dialog(c, ui.DialogSpec{...})` declares a dialog with targets the application names itself when `Modal`'s generated ones do not fit. The Frame is the component-author engine underneath; application code does not reach it from `C`.
 
-The fleet page of `examples/guides/page` (a choice, a scroll area with eight rows each holding a checkbox, a progress bar and a button) declares, lays out and paints in 9.8 µs on an Apple M2 Pro against 9.0 µs for the same page written with a Frame, and allocates nothing once warm; a list of a thousand keyed rows costs 0.75 ms against 0.67 ms. With each row in a `Memo` a list of two hundred rows costs 87 µs instead of 271 µs, and 37 µs with the whole list in one; the copies keep the last paint's commands, about 0.5 MB for those two hundred rows (`go test ./ui -bench 'Fleet$|Rows1000|Rows200'`).
-
-The same page written with a Frame, every identity declared by hand and every click dispatched by it, is what that figure compares against; the page writes none of this:
-
-<!-- example: fleet/main.go -->
-```go
-// Fleet check in Viva: the same screen the nanoui and mygo versions show, so
-// the three can be compared on equal data.
-//
-// Two differences from the other two are Viva's architecture, not style:
-//
-//   - Controls carry identities from a declared tree, not pointers into the
-//     model. A checkbox reports a click; the program decides what that means.
-//   - Paint is a function of state, and state changes only where a control says
-//     it was clicked, so the progress figure is derived from the same rows the
-//     list draws.
-package main
-
-import (
-	"fmt"
-	"log"
-
-	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/ui"
-)
-
-// Identities are names in a tree, not numbers.
-var (
-	tree = gfx.Tree{}
-	page = tree.Feature("fleet")
-
-	filterScope = tree.Sub(page, tree.Name("filter"))
-	scanButton  = tree.ID(page, "scan")
-	listScroll  = tree.ID(page, "list")
-
-	// One checkbox identity per row, made once at start-up.
-	rows = [8]gfx.ID{
-		tree.ID(page, "row-0"), tree.ID(page, "row-1"),
-		tree.ID(page, "row-2"), tree.ID(page, "row-3"),
-		tree.ID(page, "row-4"), tree.ID(page, "row-5"),
-		tree.ID(page, "row-6"), tree.ID(page, "row-7"),
-	}
-)
-
-type host struct {
-	name    string
-	addr    string
-	item    string
-	handled bool
-}
-
-type model struct {
-	hosts  []host
-	filter int
-	scans  int
-	view   ui.View
-}
-
-const (
-	filterAll = iota
-	filterOpen
-	filterHandled
-)
-
-func newModel() *model {
-	return &model{hosts: []host{
-		{name: "edge-01", addr: "10.0.4.11", item: "Disable password auth"},
-		{name: "edge-02", addr: "10.0.4.12", item: "Rotate host key"},
-		{name: "build-01", addr: "10.0.8.3", item: "Pin to ed25519"},
-		{name: "build-02", addr: "10.0.8.4", item: "Restrict agent forwarding", handled: true},
-		{name: "db-primary", addr: "10.0.9.2", item: "Close port 22 to the world"},
-		{name: "db-replica", addr: "10.0.9.3", item: "Enable key-only login", handled: true},
-		{name: "jump-01", addr: "10.0.1.5", item: "Set a login grace time"},
-		{name: "nas-01", addr: "10.0.12.7", item: "Upgrade OpenSSH"},
-	}}
-}
-
-// handledCount reads the same slice the rows come from, so the bar cannot
-// disagree with the rows above it.
-func (m *model) handledCount() int {
-	n := 0
-	for _, h := range m.hosts {
-		if h.handled {
-			n++
-		}
-	}
-	return n
-}
-
-func (m *model) matches(h host) bool {
-	switch m.filter {
-	case filterOpen:
-		return !h.handled
-	case filterHandled:
-		return h.handled
-	}
-	return true
-}
-
-func newConfig(m *model) app.Config {
-	theme := gfx.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Viva fleet", Width: 460, Height: 560}
-
-	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
-		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
-		canvas.Fill(bounds, theme.Background)
-
-		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
-			f.Column().Fill().Pad(22).Gap(14).Children(func() {
-				f.Text("Fleet check").FontSize(26).Bold()
-				f.Text("SSH posture across the hosts this workstation reaches.").FontSize(13).Muted()
-
-				labels := []string{"All", "Open", "Handled"}
-				if i, ok := f.Choice(filterScope, labels, m.filter).ChosenIndex(); ok {
-					m.filter = i
-				}
-
-				// A scroll region that takes only the room left over, so the
-				// footer below it stays on screen.
-				f.ScrollArea(listScroll).Grow(1).Gap(8).Children(func() {
-					for i := range m.hosts {
-						h := &m.hosts[i]
-						if !m.matches(*h) {
-							continue
-						}
-						m.row(f, theme, rows[i], h)
-					}
-				})
-
-				handled := m.handledCount()
-				total := len(m.hosts)
-				frac := float32(0)
-				if total > 0 {
-					frac = float32(handled) / float32(total)
-				}
-				f.Progress(frac).FillWidth()
-
-				f.Row().FillWidth().Gap(10).Items(ui.Center).Children(func() {
-					f.Text(fmt.Sprintf("%d of %d handled", handled, total)).FontSize(12).Muted().Mono()
-					f.Spacer()
-					f.Text(fmt.Sprintf("scanned %dx", m.scans)).FontSize(12).Muted().Mono()
-					if f.Button(scanButton, "Scan again").Clicked() {
-						m.scans++
-					}
-				})
-			})
-		})
-	}
-	return config
-}
-
-func (m *model) row(f *ui.Frame, theme gfx.Theme, id gfx.ID, h *host) {
-	f.Row().FillWidth().Pad(12).Gap(12).Radius(10).Items(ui.Center).
-		Background(theme.Card).Children(func() {
-		label := "open"
-		color := theme.Danger
-		if h.handled {
-			label = "ok"
-			color = theme.Success
-		}
-		f.Text(label).FontSize(11).Color(color)
-
-		f.Column().Grow(1).Gap(2).Children(func() {
-			f.Row().Gap(8).Items(ui.Center).Children(func() {
-				f.Text(h.name).FontSize(14).Bold()
-				f.Text(h.addr).FontSize(12).Muted().Mono()
-			})
-			if h.handled {
-				f.Text(h.item).FontSize(12).Muted()
-			} else {
-				f.Text(h.item).FontSize(12)
-			}
-		})
-
-		// The checkbox only reports the click; the model is what changes, and
-		// the bar above re-derives itself from it on the next paint.
-		if f.Checkbox(id, h.handled).Clicked() {
-			h.handled = !h.handled
-		}
-	})
-}
-
-func main() {
-	var canvas gfx.Canvas
-	if err := app.RunCanvas(newConfig(newModel()), &canvas); err != nil {
-		log.Fatal(err)
-	}
-}
-```
+The fleet page of `examples/guides/page` (a choice, a scroll area with eight rows each holding a checkbox, a progress bar and a button) declares, lays out and paints in 9.8 µs on an Apple M2 Pro, and allocates nothing once warm; a list of a thousand keyed rows costs 0.75 ms. With each row in a `Memo` a list of two hundred rows costs 87 µs instead of 271 µs, and 37 µs with the whole list in one; the copies keep the last paint's commands, about 0.5 MB for those two hundred rows (`go test ./ui -bench 'Fleet$|Rows1000|Rows200'`).
 
 ## States and effects
 
 An element that has an identity looks different while the pointer is over it, while it is held down and while the keyboard has it. Each state is a `Look`: a value that lists only what changes, built with the same words as the element (`Background`, `Border`, `Color`, `Ring`, `Shadow`, `Opacity`).
 
 ```go
-f.Row().Pad(8).Radius(8).Hit(id, "Open").Transition().
+ui.Row(c).Pad(8).Radius(8).Hit(ui.ID(c), "Open").Transition().
 	Hover(ui.Look{}.Background(theme.Hover)).
 	Pressed(ui.Look{}.Background(theme.Muted)).
 	Focus(ui.Look{}.Ring(3, theme.Ring))
@@ -422,11 +233,11 @@ Four effects have no state of their own. `Ring(width, color)` draws a line aroun
 
 ## Mixing with hand-placed painting
 
-`Slot()` reserves a rectangle for something you paint yourself, and `Box.Rect()` says where it ended up. Use `view.Begin(...)` and `f.End()` instead of `Draw` when you need the rectangles before painting: declare, call `End`, then paint into the slots. This is how a custom control sits inside a laid-out page.
+`ui.Slot(c)` reserves a rectangle for something you paint yourself, and `Box.Rect()` says where it ended up; paint it with a `Draw` callback or a `ui.Control` when it needs input. Use the page's canvas (`c.Canvas()`) and its rectangles when you need to paint below the page's declarations.
 
 ## Cost
 
-Declaring, measuring, arranging and painting a page of about sixty elements takes about 8 microseconds and allocates nothing once the `View` has seen its largest page. Keep one `View` per page that is painted every frame, in your state; the zero value is ready. The function you give `Children` is called at once and never stored, so it costs nothing either.
+Declaring, measuring, arranging and painting a page of about sixty elements takes about 8 microseconds and allocates nothing once the page has seen its largest page. Keep one `ui.Page` per window, in your state; the zero value of that page's config is ready. The function you give `Children` is called at once and never stored, so it costs nothing either.
 
 A single-line `Text` is not wrapped: a line that does not fit is clipped, and it shrinks before a fixed-size sibling does. Use `Paragraph` for text that should wrap.
 

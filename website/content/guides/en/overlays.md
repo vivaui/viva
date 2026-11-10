@@ -9,7 +9,7 @@ Overlays are painted last, on a higher layer, and they change where input can go
 
 - **A layer.** A popover, a dialog and `f.Popup()` are painted over the page, and hits declared on them win over hits beneath.
 - **A focus scope.** A dialog traps Tab inside itself while it is open, so nothing behind it can take keyboard focus; a popover keeps Tab among its own controls first. Both give the focus back to where it was as they close.
-- **A dismiss identity.** The identity that reports a click when the user presses Escape or presses outside the overlay. A page (`ui.Popover`, `ui.Modal`) makes it and closes the overlay for you; with a `ui.Frame` you name it and read it where the overlay is declared, like any other click.
+- **A dismiss identity.** The identity that reports a click when the user presses Escape or presses outside the overlay. A page (`ui.Popover`, `ui.Modal`) makes it and closes the overlay for you.
 
 As everywhere in Viva, whether an overlay is open is your state. You declare it, or you do not.
 
@@ -75,7 +75,7 @@ func main() {
 
 `ui.Popover(c, anchor, &open, body)` shows the panel `body` declares, hanging off `anchor`, while `open` is true, with shadcn's popover look. `ui.PopoverWith` takes a `ui.PopoverSpec` for the side, the alignment and the width. It opens below the anchor and flips above it when there is no room. Keep the trigger's `Box` (`actions := ui.Button(c, ...)`) to anchor to it.
 
-A press outside the panel or Escape sets `open` to false. The press then goes on to what is under the pointer, as a web popover's does, so one click on another button both closes the menu and presses that button. A press on the anchor only closes the panel, so a trigger that toggles `open` does not open it again in the same click. The focus goes back to where it was when the panel opened. `Popover` reports the paint that closed it; a panel that must stay open sets `open` back to true there. With a `ui.Frame`, `f.Popover(anchor, ui.PopoverSpec{Scope: ..., DismissID: ...})` is the same panel with identities of yours, and `Dismissed()` reports the closing press.
+A press outside the panel or Escape sets `open` to false. The press then goes on to what is under the pointer, as a web popover's does, so one click on another button both closes the menu and presses that button. A press on the anchor only closes the panel, so a trigger that toggles `open` does not open it again in the same click. The focus goes back to where it was when the panel opened. `Popover` reports the paint that closed it; a panel that must stay open sets `open` back to true there.
 
 It fades in sliding a few pixels away from its anchor and fades out the same way, with the theme's motion (none when `Theme.Transition` is zero); what is leaving is only a picture and takes no press. A popover shows in its window: one that must reach beyond the window's edges is a [window of its own](/en/docs/windows/).
 
@@ -89,7 +89,7 @@ The example's test checks all of it: a press at the far corner closes the menu, 
 
 `ui.Modal(c, &open, title, body, footer)` dims the window, paints a centered surface with the title and a close button, and keeps the keyboard while `open` is true. The title is required: it is the dialog's name for assistive technology. `body` declares the content and `footer` the buttons, which sit against the right edge in the order given; either may be nil, and the surface is as tall as the body needs. Escape, a press on the dim and the close button set `open` to false. The first control in the body takes the focus as the dialog opens (`ModalSpec.InitialFocus` names another), and the focus goes back to the control that opened it as it closes. `ui.ModalWith` takes a `ui.ModalSpec` for a description, a size or no close button.
 
-With a `ui.Frame`, `f.Dialog(ui.DialogSpec{...})` is the same dialog with identities of yours: `Scope` is the focus scope, `DismissID` the identity the dim and Escape report, `CloseID` the corner button's, and `InitialFocusID` the control that takes the focus. `Dismissed()` is true in the paint that delivers one of those clicks.
+`ui.Dialog(c, ui.DialogSpec{...})` is the application-named form of the same dialog: `Scope` is the focus scope, `DismissID` the identity the dim and Escape report, `CloseID` the corner button's, and `InitialFocusID` the control that takes the focus. `Dismissed()` is true in the paint that delivers one of those clicks.
 
 ## Selects and the rest
 

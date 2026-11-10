@@ -52,7 +52,7 @@ func main() {
 
 ## 提供者
 
-页面的 `Config` 按它给每个输入框起的标识，为上一次绘制声明过的全部 TextField 回答 `TextInput`；其他获得焦点的字段（比如你自己的终端）交给 `app.Config` 原有的提供者。用 `ui.Frame` 写的页面自己给字段命名（`f.Field(&m.name, nameID, ...)`），并把现成的提供者 `ui.Fields(&m.name)` 交给 `Config.TextInput`。自己写一个也一样简短。调用 `TextInput` 时会传入一个 `app.TextInputContext`，描述获得焦点的命中区域：它的 ID、边界，以及 `Multiline`、`ReadOnly`、`Secure` 等标志。返回一个 `Editor` 是你自己的 `app.TextInput`，或者返回 `nil` 表示这个字段不做原生编辑。设置了 `Editor` 时，运行时会把它镜像到平台，并把每个原生事件应用到它上面，所以你不需要编写事件处理。如果需要自己过滤或转换编辑，就让 `Editor` 为空，改为设置 `OnEvent`。
+页面的 `Config` 按它给每个输入框起的标识，为上一次绘制声明过的全部 TextField 回答 `TextInput`；其他获得焦点的字段（比如你自己的终端）交给 `app.Config` 原有的提供者。调用 `TextInput` 时会传入一个 `app.TextInputContext`，描述获得焦点的命中区域：它的 ID、边界，以及 `Multiline`、`ReadOnly`、`Secure` 等标志。返回一个 `Editor` 是你自己的 `app.TextInput`，或者返回 `nil` 表示这个字段不做原生编辑。设置了 `Editor` 时，运行时会把它镜像到平台，并把每个原生事件应用到它上面，所以你不需要编写事件处理。如果需要自己过滤或转换编辑，就让 `Editor` 为空，改为设置 `OnEvent`。
 
 字段声明的文本几何信息（边界、字号和颜色）会补全 `TextInput` 没有设置的部分。这正是文本在字段获得焦点时不会跳动的原因。
 
@@ -82,7 +82,7 @@ func main() {
 
 ## 多行文本区域
 
-页面里写多行输入框，和单行一样传它编辑的字段：`ui.TextArea(c, &m.notes, "Notes", "").Height(120)`。回车换行，长行自动折行，行会滚动以跟随光标；页面负责按行移动光标（上、下、Home、End），并把编辑器交给平台。用 Frame 时写 `f.FieldArea(&m.notes, notesID, "Notes", "")`，并在窗口的 `OnKey` 里先把按键交给字段：`if r := m.notes.Key(event); r.Handled { return r }`。下面说明这些写法背后做了什么，适用于直接用组件搭建的输入框。
+页面里写多行输入框，和单行一样传它编辑的字段：`ui.TextArea(c, &m.notes, "Notes", "").Height(120)`。回车换行，长行自动折行，行会滚动以跟随光标；页面负责按行移动光标（上、下、Home、End），并把编辑器交给平台。下面说明这些写法背后做了什么，适用于直接用组件搭建的输入框。
 
 `components.PaintTextarea` 默认按框宽软换行（`NoWrap` 关闭）。平台编辑器只认识一行，所以多行字段设置 `HideEditorText`，由组件自己画文字、选区、组合输入下划线和光标。需要换行后的光标行为时，把一个 `components.TextareaLayout` 放在应用里、与编辑器放在一起，并通过 `TextareaSnapshot.Layout` 传给每一帧：
 
