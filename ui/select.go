@@ -220,7 +220,7 @@ func (f *Frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 	b := f.box(kindSelect)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.widgets.selects))
-	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, canvas: f.canvas, popup: -1, layer: f.widgets.layer + 1, rects: -1}
+	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, canvas: f.canvas, popup: -1, layer: f.widgetLayer() + 1, rects: -1}
 	d.visible = selectRows(len(labels), f.bounds.Height)
 	state.labels, state.scope, state.selected, state.visible = labels, scope, selected, d.visible
 	if state.Open && len(labels) > 0 {

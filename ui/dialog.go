@@ -50,7 +50,7 @@ type dialogDecl struct {
 func (f *Frame) Dialog(spec DialogSpec) Box {
 	layer := spec.Layer
 	if layer == 0 {
-		layer = f.widgets.layer + 2
+		layer = f.widgetLayer() + 2
 	}
 	width := spec.Width
 	if width <= 0 {

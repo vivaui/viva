@@ -109,7 +109,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 	f := c.f
 	menu.page, menu.f, menu.open, menu.anchor = p, f, open, anchor
 	menu.scope, menu.root, menu.parent = scope, menu, nil
-	menu.layer = f.widgets.layer + 2 // over the page, and over a dialog it is declared in
+	menu.layer = f.widgetLayer() + 2 // over the page, and over a dialog it is declared in
 	menu.fresh()
 	menu.declare(body)
 	if f.canvas != nil && f.canvas.Clicked(scope.At(menuDismiss)) {

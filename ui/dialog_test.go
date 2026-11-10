@@ -110,8 +110,8 @@ func TestDialogRaisesTheLayerOfWhatIsInsideIt(t *testing.T) {
 			listLayer = hit.Layer
 		}
 	}
-	if dialogLayer != 2 || listLayer != 3 {
-		t.Errorf("dialog on layer %d and its select's list on %d, want 2 and 3", dialogLayer, listLayer)
+	if dialogLayer == 0 || listLayer <= dialogLayer {
+		t.Errorf("dialog on layer %d and its select's list on %d, want the list over the dialog", dialogLayer, listLayer)
 	}
 	if h := body.Rect().Height; h <= 0 {
 		t.Errorf("the body is %v tall", h)

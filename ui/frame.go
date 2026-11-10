@@ -160,6 +160,7 @@ type node struct {
 	base, want, bounded float32 // while flexible lengths are resolved
 	frozen              bool
 	rect                Rect
+	band                uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
 }
 
 // placement says where a Popup goes.
