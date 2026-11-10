@@ -25,9 +25,9 @@ type DialogSpec struct {
 }
 
 type dialogDecl struct {
-	spec         DialogSpec
-	body, footer int32
-	layer        uint16
+	spec                 DialogSpec
+	header, body, footer int32
+	layer                uint16
 }
 
 // Dialog adds a modal dialog painted by components.Dialog: a scrim over the whole
@@ -77,7 +77,7 @@ func (f *Frame) Dialog(spec DialogSpec) Box {
 			surface.Height(spec.Height)
 		}
 		surface.Children(func() {
-			f.Slot().Height(geometry.Header.Height)
+			d.header = f.Slot().Height(geometry.Header.Height).i
 			d.body = f.Column().Grow(1).Shrink(1).MarginTop(above).MarginBottom(below).i
 			d.footer = f.Row().Height(geometry.Footer.Height).Gap(gap).Justify(End).Items(Center).i
 		})
@@ -90,7 +90,8 @@ func (f *Frame) Dialog(spec DialogSpec) Box {
 // names itself: DialogSpec.Scope, DismissID, CloseID and Layer keep the
 // identities the application dispatches, as they do for Frame.Dialog. Most
 // dialogs use Modal or ModalWith; use Dialog when the application owns those
-// targets and the dialog's layer.
+// targets and the dialog's layer. Header declares controls in the title row,
+// Body the content and Footer the buttons.
 func Dialog(c C, spec DialogSpec) Box {
 	if c == nil || c.page == nil || c.f == nil {
 		panic("ui: Dialog is for a page")
@@ -101,14 +102,26 @@ func Dialog(c C, spec DialogSpec) Box {
 	return c.f.Dialog(spec)
 }
 
+// Header declares content in a Dialog's header slot, under the title when the
+// Dialog has one. It lets a page put its own controls in the title row, as a
+// command palette puts its filter switch there; the title remains the
+// accessible name.
+func (b Box) Header(fn func()) Box { return b.dialogPart(fn, dialogHeaderPart) }
+
 // Body declares the content of a Dialog between its header and its footer.
-func (b Box) Body(fn func()) Box { return b.dialogPart(fn, false) }
+func (b Box) Body(fn func()) Box { return b.dialogPart(fn, dialogBodyPart) }
 
 // Footer declares the buttons of a Dialog, laid out against its right edge in the
 // order given, so the last one sits in the corner.
-func (b Box) Footer(fn func()) Box { return b.dialogPart(fn, true) }
+func (b Box) Footer(fn func()) Box { return b.dialogPart(fn, dialogFooterPart) }
 
-func (b Box) dialogPart(fn func(), footer bool) Box {
+const (
+	dialogHeaderPart = iota
+	dialogBodyPart
+	dialogFooterPart
+)
+
+func (b Box) dialogPart(fn func(), partKind int) Box {
 	if b.n().flags&flagDialog == 0 {
 		return b
 	}
@@ -116,7 +129,10 @@ func (b Box) dialogPart(fn func(), footer bool) Box {
 	saved := b.f.widgets.layer
 	b.f.widgets.layer = d.layer
 	part := d.body
-	if footer {
+	switch partKind {
+	case dialogHeaderPart:
+		part = d.header
+	case dialogFooterPart:
 		part = d.footer
 	}
 	Box{f: b.f, i: part, gen: b.f.gen}.Children(fn)

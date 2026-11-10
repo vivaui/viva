@@ -28,6 +28,7 @@ func TestPageDialogKeepsItsExplicitTargets(t *testing.T) {
 				Title: "Delete host?", Scope: scope.ID(tree.Name("scope")),
 				DismissID: dismissID, CloseID: closeID, Width: 320,
 			})
+			dialog.Header(func() { ui.Text(c, "Header slot") })
 			dialog.Body(func() { ui.Text(c, "Body text") })
 			if dialog.Dismissed() {
 				open = false
@@ -38,8 +39,8 @@ func TestPageDialogKeepsItsExplicitTargets(t *testing.T) {
 	if !d.page.Overlay() {
 		t.Fatal("an open Dialog does not report an overlay")
 	}
-	if !hasText(d, "Body text") {
-		t.Fatal("the Dialog body is not painted")
+	if !hasText(d, "Body text") || !hasText(d, "Header slot") {
+		t.Fatal("the Dialog body or header is not painted")
 	}
 	d.click("Close dialog")
 	if open || d.page.Overlay() || hasText(d, "Body text") {
