@@ -326,12 +326,29 @@ func PopoverWith(c C, anchor Box, spec PopoverSpec, open *bool, body func()) boo
 	}
 	panel := c.f.Popover(anchor, spec)
 	p.setScope(panel.i, scope)
-	panel.Children(body)
+	panel.Children(func() {
+		if spec.Title != "" || spec.Description != "" {
+			popoverHeader(c, spec)
+		}
+		body()
+	})
 	if panel.Dismissed() {
 		*open = false
 		return true
 	}
 	return false
+}
+
+// popoverHeader declares the title and description at the head of a Popover.
+func popoverHeader(c C, spec PopoverSpec) {
+	Column(c).FillWidth().Gap(4).Children(func() {
+		if spec.Title != "" {
+			Text(c, spec.Title).Weight(gfx.WeightMedium)
+		}
+		if spec.Description != "" {
+			c.f.Wrap(spec.Description).Muted()
+		}
+	})
 }
 
 // ModalSpec declares a Modal beyond its title: a description, its size (448 wide
