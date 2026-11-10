@@ -12,15 +12,23 @@ import "github.com/vivaui/viva/gfx"
 //	ui.Row(c).Hit(ui.ID(c), "Group").DragSource(&m.drag)
 //	ui.Row(c).Hit(ui.ID(c), "Folder").DropTarget(&m.drag, m.canDrop, m.dropOn)
 //
+// A control that draws its own parts (a Control's Draw, a host card in a grid)
+// declares them on its DrawContext with the part's identity and rectangle:
+//
+//	d.Canvas.Hit(part, r)
+//	d.DragSource(&m.drag, part, r)
+//	d.DropTarget(&m.drag, part, r, m.canDrop, m.dropOn)
+//
 // The engine owns the press, the distance that turns it into a drag, the target
 // under the pointer and the release; the application only says which targets
 // take a source and what a drop does. A press that does not move is left to the
 // page as a click, and while a drag is over a target Target names it, so the
 // page can paint the highlight.
 //
-// A drag starts only when the press lands on the source itself, not on a control
-// inside it; declare the control as a source too if pressing it should drag.
-// Sources and targets declared in a Page's view are routed by the page. A
+// A drag starts when the press's target is a declared source: the source itself
+// for a box, the part's identity for a part. A press on a control inside the
+// box is not the box's; declare the control as a source too if pressing it should
+// drag. Sources and targets declared in a Page's view are routed by the page. A
 // surface painted through its own ui.View inside the page declares them with
 // DragSource and DropTarget and hands the state to the page with Drag, so the
 // page routes its pointer before the page's controls. A Frame application with
@@ -49,15 +57,23 @@ type DragState struct {
 }
 
 type dragSource struct {
-	id   gfx.ID
-	node int32
+	id     gfx.ID
+	region dragRegion
 }
 
 type dragTarget struct {
 	id     gfx.ID
-	node   int32
+	region dragRegion
 	accept func(source, target gfx.ID) bool
 	drop   func(source, target gfx.ID)
+}
+
+// dragRegion is where a source or target was declared: a page element's node,
+// whose rectangle the frame lays out, or a rectangle drawn for a part.
+type dragRegion struct {
+	node int32 // a page element of the frame
+	rect Rect  // or where the part was drawn
+	part bool  // rect, not node
 }
 
 // DragSource makes the element a draggable source for state. It needs a Hit
@@ -75,7 +91,7 @@ func (b Box) DragSource(state *DragState) Box {
 		p.forbidInMemo("DragSource")
 	}
 	state.begin(b.f)
-	state.sources = append(state.sources, dragSource{id: n.id, node: b.i})
+	state.sources = append(state.sources, dragSource{id: n.id, region: dragRegion{node: b.i}})
 	return b
 }
 
@@ -101,8 +117,64 @@ func (b Box) DropTarget(state *DragState, accept func(source, target gfx.ID) boo
 		p.forbidInMemo("DropTarget")
 	}
 	state.begin(b.f)
-	state.targets = append(state.targets, dragTarget{id: n.id, node: b.i, accept: accept, drop: drop})
+	state.targets = append(state.targets, dragTarget{id: n.id, region: dragRegion{node: b.i}, accept: accept, drop: drop})
 	return b
+}
+
+// DragSource makes a part drawn for the page a source for state: an identity
+// declared with Canvas.Hit inside a Control's Draw or another page Draw,
+// together with the rectangle it was drawn in. It is for what is not a page
+// element of its own, such as the cards of a custom grid painted by one Control.
+//
+//	d.Canvas.Hit(part, r)
+//	d.DragSource(&m.drag, part, r)
+//
+// Call it every paint, in the same callback that declares the part's hit: the
+// press reaches the state with the part as its identity, so the part must be a
+// hit or nothing can press it, and the rectangle it was drawn in is kept with it.
+// A DrawContext of a surface painted through its own ui.View, which is not a page,
+// panics, as a page-only API does; such a surface declares boxes with
+// Box.DragSource and calls Drag in the page.
+func (d *DrawContext) DragSource(state *DragState, id gfx.ID, rect Rect) {
+	d.partDrag("DragSource")
+	if state == nil {
+		panic("ui: DrawContext.DragSource needs its DragState")
+	}
+	if id.IsZero() {
+		panic("ui: DrawContext.DragSource needs the part's identity")
+	}
+	state.begin(d.frame)
+	state.sources = append(state.sources, dragSource{id: id, region: dragRegion{rect: rect, part: true}})
+}
+
+// DropTarget makes a part drawn for the page a target for state. accept and drop
+// are Box.DropTarget's, asked with the part's identity as the target. The part
+// needs no Canvas.Hit: the rectangle is what the pointer is tested against, so a
+// part the application only draws, or one whose region is larger than its hit,
+// still takes a drop.
+//
+//	d.DropTarget(&m.drag, part, r, m.canDrop, m.dropOn)
+func (d *DrawContext) DropTarget(state *DragState, id gfx.ID, rect Rect, accept func(source, target gfx.ID) bool, drop func(source, target gfx.ID)) {
+	d.partDrag("DropTarget")
+	if state == nil {
+		panic("ui: DrawContext.DropTarget needs its DragState")
+	}
+	if id.IsZero() {
+		panic("ui: DrawContext.DropTarget needs the part's identity")
+	}
+	if drop == nil {
+		panic("ui: DrawContext.DropTarget needs its drop callback")
+	}
+	state.begin(d.frame)
+	state.targets = append(state.targets, dragTarget{id: id, region: dragRegion{rect: rect, part: true}, accept: accept, drop: drop})
+}
+
+// partDrag checks that a Draw callback is a page's, whose drag records the page
+// routes.
+func (d *DrawContext) partDrag(what string) {
+	if d == nil || d.frame == nil || d.frame.page == nil {
+		panic("ui: DrawContext." + what + " is for a part of a page's Draw; a ui.View surface declares boxes with Box.DragSource and Drag")
+	}
 }
 
 // Drag hands state to the page that routes its pointer. It is for a surface the
@@ -309,7 +381,7 @@ func (s *DragState) reset() {
 func (s *DragState) targetAt(point gfx.Point, source gfx.ID) gfx.ID {
 	for i := len(s.targets) - 1; i >= 0; i-- {
 		target := &s.targets[i]
-		if !pointInRect(point.X, point.Y, s.hitRect(target.node)) {
+		if !pointInRect(point.X, point.Y, s.regionRect(target.region)) {
 			continue
 		}
 		if target.accept != nil && !target.accept(source, target.id) {
@@ -327,6 +399,15 @@ func (s *DragState) targetOf(id gfx.ID) *dragTarget {
 		}
 	}
 	return nil
+}
+
+// regionRect is where a source or target can be pointed at: the rectangle of
+// its page element, including HitOutset, or the part's drawn rectangle.
+func (s *DragState) regionRect(region dragRegion) Rect {
+	if region.part {
+		return region.rect
+	}
+	return s.hitRect(region.node)
 }
 
 // hitRect is the rectangle the element can be pointed at, including HitOutset.
