@@ -112,6 +112,26 @@ func TestListScrollsToTheRowsAtTheOffset(t *testing.T) {
 	}
 }
 
+// RowHeightAt reports the height the last paint gave each visible row, so an
+// application-owned drag can use the same rows the List laid out.
+func TestListRowHeightAtReportsLaidOutRows(t *testing.T) {
+	heights := []float32{20, 34, 28}
+	var state ui.ListState
+	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
+	drawPage(page, canvas, func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			ui.List(c, &state, len(heights), func(row ui.ListRow) {
+				row.Element.Height(heights[row.Index])
+			}).Grow(1)
+		})
+	})
+	for i, want := range heights {
+		if got := state.RowHeightAt(i); got != want {
+			t.Fatalf("row %d height = %v, want %v", i, got, want)
+		}
+	}
+}
+
 func fmtSscan(value string, i *int) (int, error) {
 	n, err := strconv.Atoi(strings.TrimPrefix(value, "row "))
 	*i = n

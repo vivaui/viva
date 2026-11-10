@@ -367,6 +367,12 @@ func (s *ListState) rowHeight(i int) float32 {
 	return s.estimate()
 }
 
+// RowHeightAt returns the height of visible row i as the last paint laid it out;
+// before the first paint it is the list's estimate. A TreeState has it through
+// its ListState. It is for a drag or a drop indicator the application paints
+// itself; the List's own Reorder and Tree's CanDrop use the same heights.
+func (s *ListState) RowHeightAt(i int) float32 { return s.rowHeight(i) }
+
 // pinnedHeightFor is the height of the header that stays at the top of the list
 // above row, which is not itself a header: what a row has to clear to be seen.
 func (s *ListState) pinnedHeightFor(row int) float32 {
