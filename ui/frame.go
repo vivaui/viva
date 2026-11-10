@@ -247,6 +247,7 @@ type Frame struct {
 	paintDrawerFn  func(f *Frame, n *node)                                                    // set by the first Drawer, so a frame without one does not link it
 	paintAddonsFn  func(f *Frame, n *node, snapshot components.InputSnapshot, a *fieldAddons) // set by the first field Icon or Action
 	paintTooltipFn func(f *Frame)                                                             // set by the first Tooltip, so a frame without one does not link it
+	paintBarsFn    func(f *Frame, n *node, s *ScrollState)                                    // set by the first Scrollbars, so a frame without one does not link them
 	settleFn       func(f *Frame, i int32) *bindDecl                                          // i < 0 settles them all
 	captionFn      func(f *Frame, n *node, control Rect)
 	// memoFn paints, or begins (before) and ends the paint of, an element a cache

@@ -122,6 +122,9 @@ func (f *Frame) paint(i int32) {
 	if hooks.over != nil {
 		f.runDraw(n, hooks.over)
 	}
+	if s := extra.scrollState; s != nil && s.bars && canvas != nil {
+		f.paintBarsFn(f, n, s) // over the content, inside the area's clip
+	}
 	if extra.focusGroup != 0 && canvas != nil {
 		f.groupFn(f, i, extra.focusGroup, group)
 	}

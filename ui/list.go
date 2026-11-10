@@ -1000,13 +1000,7 @@ func (p *Page) listWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	if dx == 0 {
 		return false, false
 	}
-	if !event.Precise { // a notch moves at least a line, as down the list
-		if dx > 0 && dx < 24 {
-			dx = 24
-		} else if dx < 0 && dx > -24 {
-			dx = -24
-		}
-	}
+	dx = wheelStep(dx, event.Precise) // a notch moves at least a line, as down the list
 	for _, s := range p.listStates {
 		in := &s.list
 		if s.RowWidth <= 0 || in.f == nil || !in.f.containsPoint(int(in.area), event.X, event.Y) {
