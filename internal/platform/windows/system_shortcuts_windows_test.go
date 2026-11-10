@@ -54,6 +54,7 @@ func sendKeys(t *testing.T, keys ...struct {
 func TestAFocusedWindowTakesTheWindowsKeyChords(t *testing.T) {
 	var mu sync.Mutex
 	var keys []input.Key
+	repeats := map[input.Key]bool{} // first press of each key: was it read as auto-repeat?
 	done := make(chan error, 1)
 	ready := make(chan *nativeWindow, 1)
 	go func() {
@@ -65,6 +66,9 @@ func TestAFocusedWindowTakesTheWindowsKeyChords(t *testing.T) {
 				OnKey: func(event platform.KeyEvent) (platform.Frame, error) {
 					mu.Lock()
 					keys = append(keys, event.Key)
+					if _, seen := repeats[event.Key]; !seen {
+						repeats[event.Key] = event.Repeat
+					}
 					mu.Unlock()
 					return platform.Frame{}, nil
 				},
@@ -120,12 +124,25 @@ func TestAFocusedWindowTakesTheWindowsKeyChords(t *testing.T) {
 
 	mu.Lock()
 	got := append([]input.Key(nil), keys...)
+	gotRepeats := map[input.Key]bool{}
+	for key, repeat := range repeats {
+		gotRepeats[key] = repeat
+	}
 	mu.Unlock()
 	if !containsKey(got, input.KeyF1+1) {
 		t.Fatalf("Win+F2 did not reach the window as F2: keys %v", got)
 	}
 	if !containsKey(got, input.KeyEscape) {
 		t.Fatalf("Ctrl+Esc did not reach the window as Escape: keys %v", got)
+	}
+	// The press the hook re-posts must say the key was up before (not
+	// auto-repeat), or a terminal that honours repeats drops the very press
+	// that sets the modifier, and the Windows key and Alt+Tab stop reaching a
+	// remote desktop that asked for the system's shortcuts.
+	for _, key := range []input.Key{input.KeyF1 + 1, input.KeyEscape} {
+		if gotRepeats[key] {
+			t.Errorf("the first press of %v was posted as an auto-repeat", key)
+		}
 	}
 	if !foreground() {
 		t.Error("the window lost the foreground to a shortcut it took")
