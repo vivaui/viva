@@ -100,6 +100,11 @@ func (m *model) page(c ui.C) {
   Typing the start of a name moves to that row. To drag rows, set `m.tree.CanDrop = func(from, to int,
   where ui.TreeDrop) bool` (`TreeDropBefore`, `TreeDropInside`, `TreeDropAfter`) and read `m.tree.Dropped()`;
   change the rows in `c.After`, since the paint that reports the drop is declaring them.
+- Any other box drags and drops with a `ui.DragState` in the model: declare a `Hit` box with
+  `.DragSource(&m.drag)` and another with `.DropTarget(&m.drag, accept, drop)`. The page routes the pointer;
+  `m.drag.Dragging()`, `Source()`, `Target()` and `At()` paint the gesture, `accept(source, target)` decides,
+  `drop(source, target)` runs on release, and Escape lets go. A press that does not move is still a click.
+  Save the callbacks in the model and do not declare the boxes in a `Memo`.
 - A long list to choose from by typing: `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` (Select's
   arguments plus a label); it filters as the user types. `.Clearable()` adds a clear button, `.Empty("No zone")`
   is what an empty list says, `.Creatable("")` offers what was typed as a new choice, read with `.Created()`.
