@@ -98,13 +98,7 @@ func Dialog(c C, spec DialogSpec) Box {
 	p := c.page
 	p.forbidInMemo("Dialog")
 	p.overlay = true
-	dialog := c.f.Dialog(spec)
-	if !spec.Scope.IsZero() {
-		d := &c.f.widgets.dialogs[dialog.n().aux]
-		p.setScope(d.body, spec.Scope.Scope())
-		p.setScope(d.footer, spec.Scope.Scope())
-	}
-	return dialog
+	return c.f.Dialog(spec)
 }
 
 // Body declares the content of a Dialog between its header and its footer.
