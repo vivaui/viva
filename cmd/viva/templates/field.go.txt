@@ -1,15 +1,18 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
+import (
+	fieldlayout "github.com/vivaui/viva/field"
+	"github.com/vivaui/viva/gfx"
+)
 
-// FieldOrientation mirrors the Base UI field group's vertical, horizontal,
-// and container-responsive arrangements.
-type FieldOrientation uint8
+// FieldOrientation is fieldlayout.Orientation, kept here so a form recipe has one
+// import for its controls and its field.
+type FieldOrientation = fieldlayout.Orientation
 
 const (
-	FieldVertical FieldOrientation = iota
-	FieldHorizontal
-	FieldResponsive
+	FieldVertical   = fieldlayout.Vertical
+	FieldHorizontal = fieldlayout.Horizontal
+	FieldResponsive = fieldlayout.Responsive
 )
 
 // Field is a structural form recipe. It paints label, description, and error
@@ -65,122 +68,23 @@ func (field Field) Disabled() Field {
 	return field
 }
 
-// Field and PaintFormField share one vertical rhythm: a title row, the control,
-// then the description and the error, each row preceded by fieldGap. Vega's
-// gap-3 is 12 beside a 36 pixel control; here, beside a 32 pixel one and in a
-// denser form, it is half an item gap, which keeps a title visibly attached to
-// its own control rather than to the control above it. Description and error
-// are text-sm like the title.
-func fieldTitleHeight(metrics gfx.Metrics) float32 { return metrics.FontSizeM + 4 }
-
-func fieldGap(metrics gfx.Metrics) float32 { return metrics.GapItem / 2 }
-
-func fieldTextHeight(metrics gfx.Metrics) float32 { return metrics.FontSizeM + 7 }
-
 // Paint emits metadata slots and returns the control rectangle. Error is
 // caller-deduplicated: avoiding a runtime map keeps paint deterministic and
 // allocation-free while preserving Base UI's alert treatment. For several
 // errors paint the control's slot yourself and use FieldError.
+//
+// The layout and painting are package fieldlayout, shared with
+// ui.FormField so the two forms of a field cannot drift apart.
 func (field Field) Paint(title, description, errorText string) gfx.Rect {
-	metrics := field.theme.Metrics
-	orientation := field.orientation
-	if orientation == FieldResponsive {
-		orientation = FieldVertical
-		if field.bounds.Width >= 360 {
-			orientation = FieldHorizontal
-		}
+	spec := fieldlayout.Spec{
+		Title: title, Description: description, Error: errorText,
+		Orientation: field.orientation,
+		Required:    field.required, Invalid: field.invalid, Disabled: field.disabled,
+		Control: field.control,
 	}
-	if field.bounds.Height <= 0 {
-		field.bounds.Height = fieldTitleHeight(metrics) + fieldGap(metrics) + metrics.ControlHeight + (fieldGap(metrics)+fieldTextHeight(metrics))*2
-	}
-
-	if orientation == FieldHorizontal {
-		return field.paintHorizontal(title, description, errorText)
-	}
-	return field.paintVertical(title, description, errorText)
-}
-
-func (field Field) paintVertical(title, description, errorText string) gfx.Rect {
-	metrics := field.theme.Metrics
-	titleHeight := fieldTitleHeight(metrics)
-	field.paintTitle(title, gfx.Rect{X: field.bounds.X, Y: field.bounds.Y, Width: field.bounds.Width, Height: titleHeight})
-	control := gfx.Rect{
-		X: field.bounds.X, Y: field.bounds.Y + titleHeight + fieldGap(metrics),
-		Width: field.bounds.Width, Height: metrics.ControlHeight,
-	}
-	y := control.Y + control.Height
-	if description != "" {
-		y += fieldGap(metrics)
-		FieldDescription(field.canvas, field.theme, gfx.Rect{X: field.bounds.X, Y: y, Width: field.bounds.Width, Height: fieldTextHeight(metrics)}, description, field.disabled)
-		y += fieldTextHeight(metrics)
-	}
-	if errorText != "" {
-		y += fieldGap(metrics)
-		field.paintError(gfx.Rect{X: field.bounds.X, Y: y, Width: field.bounds.Width, Height: fieldTextHeight(metrics)}, errorText)
-	}
-	return control
-}
-
-func (field Field) paintHorizontal(title, description, errorText string) gfx.Rect {
-	metrics := field.theme.Metrics
-	labelWidth := field.bounds.Width * 0.34
-	gap := metrics.PadSurface
-	if labelWidth+gap > field.bounds.Width {
-		labelWidth = field.bounds.Width
-		gap = 0
-	}
-	labelBounds := gfx.Rect{X: field.bounds.X, Y: field.bounds.Y, Width: labelWidth, Height: fieldTitleHeight(metrics)}
-	field.paintTitle(title, labelBounds)
-	if description != "" {
-		FieldDescription(field.canvas, field.theme, gfx.Rect{X: field.bounds.X, Y: field.bounds.Y + labelBounds.Height + fieldGap(metrics), Width: labelWidth, Height: fieldTextHeight(metrics)}, description, field.disabled)
-	}
-	control := gfx.Rect{
-		X: field.bounds.X + labelWidth + gap, Y: field.bounds.Y,
-		Width: fieldMax32(0, field.bounds.Width-labelWidth-gap), Height: metrics.ControlHeight,
-	}
-	if errorText != "" {
-		field.paintError(gfx.Rect{X: control.X, Y: control.Y + control.Height + fieldGap(metrics), Width: control.Width, Height: fieldTextHeight(metrics)}, errorText)
-	}
-	return control
-}
-
-func (field Field) paintError(bounds gfx.Rect, text string) {
-	if field.disabled {
-		// Disabled mutes the metadata; an error is no exception.
-		color := field.theme.Danger
-		color.Alpha *= 0.50
-		field.canvas.Label(text, bounds, gfx.TextStyle{Size: field.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: color})
-		return
-	}
-	FieldError(field.canvas, field.theme, bounds, []string{text})
-}
-
-func (field Field) paintTitle(title string, bounds gfx.Rect) {
-	metrics := field.theme.Metrics
-	titleColor := field.theme.Foreground
-	if field.invalid {
-		titleColor = field.theme.Danger
-	}
-	if field.disabled {
-		titleColor.Alpha *= 0.50
-	}
-	width := field.canvas.TextWidthWeight(title, metrics.FontSizeM, gfx.WeightMedium)
-	if width > bounds.Width {
-		width = bounds.Width
-	}
-	field.canvas.Label(title, gfx.Rect{X: bounds.X, Y: bounds.Y, Width: width, Height: bounds.Height}, gfx.TextStyle{
-		Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: titleColor,
-	})
-	field.canvas.HitLabel(field.control, gfx.Rect{X: bounds.X, Y: bounds.Y, Width: width, Height: bounds.Height}, title, field.disabled)
-	if field.required && width < bounds.Width {
-		markerColor := field.theme.Danger
-		if field.disabled {
-			markerColor.Alpha *= 0.50
-		}
-		field.canvas.Label("*", gfx.Rect{X: bounds.X + width + 3, Y: bounds.Y, Width: bounds.Width - width - 3, Height: bounds.Height}, gfx.TextStyle{
-			Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: markerColor,
-		})
-	}
+	layout := fieldlayout.Measure(field.theme, field.bounds, spec)
+	fieldlayout.Paint(field.canvas, field.theme, layout, spec)
+	return layout.Control
 }
 
 // FieldTitle paints the title of a field: text-sm font-medium, for a row whose
@@ -218,15 +122,15 @@ func FieldContent(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, title, d
 	metrics := theme.Metrics
 	y := bounds.Y
 	if title != "" {
-		FieldTitle(canvas, theme, gfx.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: fieldTitleHeight(metrics)}, title, control, disabled)
-		y += fieldTitleHeight(metrics)
+		FieldTitle(canvas, theme, gfx.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: fieldlayout.TitleHeight(metrics)}, title, control, disabled)
+		y += fieldlayout.TitleHeight(metrics)
 	}
 	if description != "" {
 		if title != "" {
-			y += fieldGap(metrics)
+			y += fieldlayout.Gap(metrics)
 		}
-		FieldDescription(canvas, theme, gfx.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: fieldTextHeight(metrics)}, description, disabled)
-		y += fieldTextHeight(metrics)
+		FieldDescription(canvas, theme, gfx.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: fieldlayout.TextHeight(metrics)}, description, disabled)
+		y += fieldlayout.TextHeight(metrics)
 	}
 	return gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: y - bounds.Y}
 }
@@ -237,7 +141,7 @@ func FieldContent(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, title, d
 // to say. The bullets are drawn dots, not characters.
 func FieldError(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, errors []string) gfx.Rect {
 	style := gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: theme.Danger}
-	rowHeight := fieldTextHeight(theme.Metrics)
+	rowHeight := fieldlayout.TextHeight(theme.Metrics)
 	count, last := 0, ""
 	for index, text := range errors {
 		if fieldRepeated(errors, index) {
@@ -262,9 +166,9 @@ func FieldError(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, errors []s
 		dot := gfx.Rect{X: bounds.X + indent - 9, Y: y + (rowHeight-4)/2, Width: 4, Height: 4}
 		canvas.Rounded(dot, 2, theme.Danger)
 		canvas.Label(text, gfx.Rect{X: bounds.X + indent, Y: y, Width: fieldMax32(0, bounds.Width-indent), Height: rowHeight}, style)
-		y += rowHeight + fieldGap(theme.Metrics)
+		y += rowHeight + fieldlayout.Gap(theme.Metrics)
 	}
-	return gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: y - fieldGap(theme.Metrics) - bounds.Y}
+	return gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: y - fieldlayout.Gap(theme.Metrics) - bounds.Y}
 }
 
 // fieldRepeated reports whether errors[index] is empty or already appeared

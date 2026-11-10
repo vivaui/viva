@@ -1,6 +1,9 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/field"
+	"github.com/vivaui/viva/gfx"
+)
 
 // FormFieldSnapshot is the caller-owned state for one form item. Error takes
 // precedence over Message, matching shadcn's FormMessage behavior without a
@@ -58,9 +61,9 @@ type FormFieldLayout struct {
 // so editor state, values, validation, and interaction remain caller-owned.
 func PaintFormField(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snapshot FormFieldSnapshot) FormFieldLayout {
 	metrics := theme.Metrics
-	gap := fieldGap(metrics)
-	labelHeight := fieldTitleHeight(metrics)
-	textHeight := fieldTextHeight(metrics)
+	gap := field.Gap(metrics)
+	labelHeight := field.TitleHeight(metrics)
+	textHeight := field.TextHeight(metrics)
 	controlHeight := snapshot.ControlHeight
 	if controlHeight <= 0 {
 		controlHeight = metrics.ControlHeight
