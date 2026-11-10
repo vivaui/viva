@@ -89,7 +89,7 @@ func main() {
 
 `ui.Modal(c, &open, title, body, footer)` 在 `open` 为真时把窗口变暗，画出居中的表面，带标题和关闭按钮，并占住键盘。标题是必填的：它是对话框给辅助技术的名字。`body` 声明正文，`footer` 声明按钮，按钮按给定顺序靠右排列；两者都可以为 nil，表面高度正好等于正文所需。Escape、点击变暗的背景和关闭按钮都会把 `open` 设为 false。对话框打开时，正文里的第一个控件获得焦点（`ModalSpec.InitialFocus` 可以指定另一个）；关闭时，焦点回到打开它的那个控件。`ui.ModalWith` 接受 `ui.ModalSpec`，用来加描述、指定大小或去掉关闭按钮。
 
-`ui.Dialog(c, ui.DialogSpec{...})` 是同一个对话框由应用命名目标的形式：`Scope` 是焦点范围，`DismissID` 是背景和 Escape 报告的标识，`CloseID` 是右上角按钮的，`InitialFocusID` 是获得焦点的控件。`Dismissed()` 在递送其中任一点击的那一遍绘制里为真。
+`ui.Dialog(c, ui.DialogSpec{...})` 是同一个对话框由应用命名目标的形式：`Scope` 是焦点范围，`DismissID` 是背景和 Escape 报告的标识，`CloseID` 是右上角按钮的，`InitialFocusID` 是获得焦点的控件。`dialog.Header(fn)` 在标题行声明控件，`Body` 声明正文，`Footer` 声明按钮；`Dismissed()` 在递送其中任一点击的那一遍绘制里为真。
 
 ## 选择框及其他
 

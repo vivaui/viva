@@ -89,7 +89,7 @@ The example's test checks all of it: a press at the far corner closes the menu, 
 
 `ui.Modal(c, &open, title, body, footer)` dims the window, paints a centered surface with the title and a close button, and keeps the keyboard while `open` is true. The title is required: it is the dialog's name for assistive technology. `body` declares the content and `footer` the buttons, which sit against the right edge in the order given; either may be nil, and the surface is as tall as the body needs. Escape, a press on the dim and the close button set `open` to false. The first control in the body takes the focus as the dialog opens (`ModalSpec.InitialFocus` names another), and the focus goes back to the control that opened it as it closes. `ui.ModalWith` takes a `ui.ModalSpec` for a description, a size or no close button.
 
-`ui.Dialog(c, ui.DialogSpec{...})` is the application-named form of the same dialog: `Scope` is the focus scope, `DismissID` the identity the dim and Escape report, `CloseID` the corner button's, and `InitialFocusID` the control that takes the focus. `Dismissed()` is true in the paint that delivers one of those clicks.
+`ui.Dialog(c, ui.DialogSpec{...})` is the application-named form of the same dialog: `Scope` is the focus scope, `DismissID` the identity the dim and Escape report, `CloseID` the corner button's, and `InitialFocusID` the control that takes the focus. `dialog.Header(fn)` declares controls in the title row, `Body` the content and `Footer` the buttons; `Dismissed()` is true in the paint that delivers one of those clicks.
 
 ## Selects and the rest
 
