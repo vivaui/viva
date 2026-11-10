@@ -1006,7 +1006,10 @@ type Label struct {
 	Mono      bool
 	MonoFace  gfx.MonoFace
 	CellWidth float32
-	Runs      []gfx.TextRun
+	// Baseline is platform.TextLabel's: the row of a fixed-pitch line's glyphs, counted
+	// from the top of Bounds.
+	Baseline float32
+	Runs     []gfx.TextRun
 	// Clip is the region the label may paint into when Clipped (see
 	// platform.TextLabel.Clip).
 	Clip          gfx.Rect
@@ -1145,7 +1148,7 @@ func (driver *Driver) Snapshot() Snapshot {
 			FontSize: label.FontSize, Weight: label.Weight, Italic: label.Italic,
 			Color: gfx.Color{Red: float32(label.Color.Red), Green: float32(label.Color.Green), Blue: float32(label.Color.Blue), Alpha: float32(label.Color.Alpha)},
 			Layer: label.Layer, FontGeneration: label.FontGeneration,
-			Mono: label.Mono, MonoFace: label.MonoFace, CellWidth: label.CellWidth, Runs: append([]gfx.TextRun(nil), label.Runs...),
+			Mono: label.Mono, MonoFace: label.MonoFace, CellWidth: label.CellWidth, Baseline: label.Baseline, Runs: append([]gfx.TextRun(nil), label.Runs...),
 			Clip: label.Clip, Clipped: label.Clipped,
 			BitmapWidth: label.BitmapWidth, BitmapHeight: label.BitmapHeight, BitmapStride: label.BitmapStride,
 			BitmapID: label.BitmapID, BitmapVersion: label.BitmapVersion,

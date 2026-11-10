@@ -262,8 +262,12 @@ type Text struct {
 	Bounds    Rect
 	Style     TextStyle
 	CellWidth float32
-	RunFirst  int32
-	RunCount  int32
+	// Baseline is the row of a fixed-pitch line, counted from the top of Bounds, on which
+	// its glyphs stand (Canvas.MonoBaseline): the font's own baseline in the line's cell.
+	// It is 0 for proportional text and for a face the canvas cannot measure.
+	Baseline float32
+	RunFirst int32
+	RunCount int32
 	// Identity, when nonzero, names this label across frames so a backend can
 	// retain its texture when the paint list reorders. See TextIdentity.
 	Identity TextIdentity
@@ -739,7 +743,8 @@ func (canvas *Canvas) SetMeasurer(measure func(value string, size, weight float3
 // SetCellMeasurer replaces the reference fixed-pitch cell (0.6 of the size wide,
 // 1.18 high) with a function returning the advance of one character cell and the
 // height of one line at a size; nil restores it. Like SetMeasurer it is for tests
-// and tools.
+// and tools. It measures a cell but no baseline, so fixed-pitch lines keep the
+// renderers' own row (MonoBaseline answers 0).
 func (canvas *Canvas) SetCellMeasurer(measure func(size float32, face MonoFace) (width, height float32)) {
 	canvas.cellMeasurer = measure
 	canvas.cellSizes = cellSizeMemos{}
@@ -753,26 +758,48 @@ func (canvas *Canvas) CellSize(size float32) (width, height float32) {
 }
 
 // MonoCellSize is the cell size of face at size, in logical pixels: the advance of the
-// face's own font and the height of its line, as the platform's text engine measures them
-// (MonoCellEngine), so a terminal's characters stand on the pitch they were designed for
-// and rows are as tall as the font makes them, as in every native terminal. A canvas
-// without such an engine, or a cell measurer installed for a test (SetCellMeasurer),
-// answers with the reference cell: 0.6 of the size wide and 1.18 high. The height is a
-// whole number of pixels, so rows of cells tile without seams. On a canvas that knows
-// the display scale (SetPixelScale) the width is a whole number of device pixels, rounded
-// to the nearest and at least one: the edge between two cells is then a pixel edge, so a
+// face's own font and the height of its line box rounded to a whole pixel (MonoCellMetrics),
+// so a terminal's characters stand on the pitch they were designed for and rows are as
+// tall as the font makes them, as in every native terminal. A canvas without such an
+// engine, or a cell measurer installed for a test (SetCellMeasurer), answers with the
+// reference cell: 0.6 of the size wide and 1.18 high, rounded up. The height is a whole
+// number of pixels, so rows of cells tile without seams. On a canvas that knows the
+// display scale (SetPixelScale) the width is a whole number of device pixels, rounded to
+// the nearest and at least one: the edge between two cells is then a pixel edge, so a
 // glyph that fills its cell, such as a powerline arrow, ends where the next cell's begins
 // and no pixel column holds the glyphs of two cells drawn in two colors.
 func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height float32) {
+	width, height, _ = canvas.monoCell(size, face)
+	return width, height
+}
+
+// MonoBaseline is the row of a fixed-pitch line, counted from the top of a label height
+// tall, on which its glyphs stand: the face's cell centered in the label, on the font's
+// own baseline (MonoCellMetrics.CellBaseline). A label the height of one cell, as a
+// terminal row is, puts its glyphs on the cell's baseline exactly; a taller one, as a
+// line in a roomier row, centers the cell in it. It is 0 for a canvas that cannot measure
+// the face, and for a label of no height: the renderers then place the line by their own
+// rule.
+func (canvas *Canvas) MonoBaseline(size float32, face MonoFace, height float32) float32 {
+	_, cell, baseline := canvas.monoCell(size, face)
+	if cell <= 0 || baseline <= 0 || height <= 0 {
+		return 0
+	}
+	return (height-cell)/2 + baseline
+}
+
+// monoCell is MonoCellSize and the baseline of the cell, measured once per face, size,
+// scale and font generation. The baseline is 0 when no engine measured the face.
+func (canvas *Canvas) monoCell(size float32, face MonoFace) (width, height, baseline float32) {
 	if size <= 0 {
-		return 0, 0
+		return 0, 0, 0
 	}
 	if !validMonoFace(face) {
 		face = MonoSystem
 	}
 	generation := canvas.FontGeneration()
-	if width, height, ok := canvas.cellSizes.find(size, face, canvas.pixelScale, generation); ok {
-		return width, height
+	if width, height, baseline, ok := canvas.cellSizes.find(size, face, canvas.pixelScale, generation); ok {
+		return width, height, baseline
 	}
 	width, height = size*textmetrics.MonoAdvance, size*textmetrics.MonoLine
 	switch {
@@ -781,25 +808,27 @@ func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height f
 			width, height = w, h
 		}
 	case canvas.monoCells != nil:
-		if w, h := canvas.monoCells.MonoCell(size, face); w > 0 && h > 0 {
-			width, height = w, h
+		if cell := canvas.monoCells.MonoCell(size, face); cell.Line() > 0 && cell.Advance > 0 {
+			width, height, baseline = cell.Advance, cell.CellHeight(), cell.CellBaseline()
 		}
 	}
+	// A font's own cell is whole already (MonoCellMetrics.CellHeight); the reference cell
+	// and a measurer's answer are rounded up, as they always were.
 	height = float32(int32(height + 0.999))
 	if canvas.pixelScale > 0 {
 		width = float32(math.Max(math.Floor(float64(width)*float64(canvas.pixelScale)+0.5), 1)) / canvas.pixelScale
 	}
-	canvas.cellSizes.put(cellSizeMemo{size: size, width: width, height: height, face: face, scale: canvas.pixelScale, generation: generation})
-	return width, height
+	canvas.cellSizes.put(cellSizeMemo{size: size, width: width, height: height, baseline: baseline, face: face, scale: canvas.pixelScale, generation: generation})
+	return width, height, baseline
 }
 
 // cellSizeMemo is one remembered MonoCellSize answer.
 type cellSizeMemo struct {
-	size, width, height float32
-	face                MonoFace
-	scale               float32 // the canvas's pixel scale the width was made whole for
-	generation          uint32  // the font generation it was measured in
-	filled              bool
+	size, width, height, baseline float32
+	face                          MonoFace
+	scale                         float32 // the canvas's pixel scale the width was made whole for
+	generation                    uint32  // the font generation it was measured in
+	filled                        bool
 }
 
 // cellSizeMemos remembers the last few MonoCellSize answers: a terminal asks every
@@ -811,14 +840,14 @@ type cellSizeMemos struct {
 	next    int
 }
 
-func (memos *cellSizeMemos) find(size float32, face MonoFace, scale float32, generation uint32) (width, height float32, ok bool) {
+func (memos *cellSizeMemos) find(size float32, face MonoFace, scale float32, generation uint32) (width, height, baseline float32, ok bool) {
 	for i := range memos.entries {
 		memo := &memos.entries[i]
 		if memo.filled && memo.size == size && memo.face == face && memo.scale == scale && memo.generation == generation {
-			return memo.width, memo.height, true
+			return memo.width, memo.height, memo.baseline, true
 		}
 	}
-	return 0, 0, false
+	return 0, 0, 0, false
 }
 
 func (memos *cellSizeMemos) put(memo cellSizeMemo) {
@@ -1231,6 +1260,7 @@ func (canvas *Canvas) LabelAligned(value string, bounds Rect, style TextStyle, a
 	value, bounds.X = canvas.placeLabel(value, bounds, style, alignment)
 	text := Text{Value: value, Bounds: bounds, Style: style, Layer: canvas.currentLayer()}
 	if style.Mono && value != "" {
+		text.Baseline = canvas.MonoBaseline(style.Size, style.MonoFace, bounds.Height)
 		if cell, _ := canvas.MonoCellSize(style.Size, style.MonoFace); cell > 0 {
 			first := len(canvas.runs)
 			ligatures := MonoFamilyName(style.MonoFace) != ""
@@ -1432,6 +1462,7 @@ func (canvas *Canvas) LabelRunsWithIdentity(identity TextIdentity, value string,
 	text := Text{
 		Value: value, Bounds: bounds, Style: style, CellWidth: cellWidth,
 		RunFirst: int32(len(canvas.runs)), RunCount: int32(len(runs)), Identity: identity, Layer: canvas.currentLayer(),
+		Baseline: canvas.MonoBaseline(style.Size, style.MonoFace, bounds.Height),
 	}
 	canvas.runs = append(canvas.runs, runs...)
 	text.ClipOf, text.HasClip = canvas.clipSnapshot()
