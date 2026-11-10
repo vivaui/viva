@@ -32,6 +32,24 @@ In a checkout of Viva itself, copy or symlink `docs/skills/building-with-viva` i
 
 If your agent does not load skills, copy the full text at the bottom of this page into the instructions file it does read, such as `AGENTS.md` or `CLAUDE.md`, or point it at this page.
 
+## Move an existing application to the page model
+
+An application written with `ui.Frame` can be moved to pages one window at a time. A window is one page; a page cannot be embedded in a Frame window with its input forwarded by the host any more. Give the agent a prompt like this, after installing the skill:
+
+```text
+Use the building-with-viva skill. Move the window in <file or package> from ui.Frame to the
+page model: one page function `func (m *model) page(c ui.C)` opened with ui.Run or
+ui.NewPage(...).Config(base). Replace hand-made gfx.Tree identities and ID comparisons in
+OnPointer with .Clicked() where each control is declared, hand-painted controls with
+ui.Control and ui.Handlers, dialogs with ui.Dialog or ui.Modal, and drags with ui.DragState.
+Do not keep a Frame, Frame.Page, C.Frame() or Page.Key/Pointer/Owns/Overlay bridge, and do not
+add application-local hit testing for what Viva provides. Keep behavior and layout the same.
+Do one window at a time; after each, run gofmt, go vet, viva vet and the tests, and check the
+interface with the headless driver. Report what you could not check.
+```
+
+Keep a `ui.Frame` only where the code is a component that paints through `ui.View.Draw`.
+
 ## Keep it current
 
 The website serves the file that is in `docs/skills` in the repository, rebuilt with every site build, so the download and the text shown on this page always match the guides next to it. Run the same command again after you upgrade Viva, and commit the file with your project so everyone who works on it, human or agent, reads the same briefing. The [programming model](/en/docs/programming-model/) guide is the place to send a person who wants the reasoning behind the rules.

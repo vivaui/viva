@@ -32,6 +32,22 @@ curl -fsSL https://vivaui.dev/skills/building-with-viva/SKILL.md \
 
 如果你的 AI 编程助手不加载 skill，就把本页下方的完整内容复制进它读取的指令文件，例如 `AGENTS.md` 或 `CLAUDE.md`，或者直接让它阅读这个页面。
 
+## 把已有的应用迁到页面模型
+
+用 `ui.Frame` 写的应用可以一个窗口一个窗口地迁到页面。一个窗口就是一个页面；不再支持把页面嵌进 Frame 窗口再由宿主转发它的输入。装好 skill 后，可以给 agent 这样一段提示：
+
+```text
+使用 building-with-viva skill。把 <文件或包> 里的窗口从 ui.Frame 迁到页面模型：一个页面函数
+`func (m *model) page(c ui.C)`，用 ui.Run 或 ui.NewPage(...).Config(base) 打开。把手工建的
+gfx.Tree 标识、以及在 OnPointer 里比较 ID 的写法，换成在每个控件声明处读 .Clicked()；手绘的控件
+换成 ui.Control 加 ui.Handlers；对话框换成 ui.Dialog 或 ui.Modal；拖拽换成 ui.DragState。
+不要保留 Frame、Frame.Page、C.Frame() 或 Page.Key/Pointer/Owns/Overlay 这类桥接，也不要为
+Viva 已经提供的能力写应用自己的命中测试。保持行为和布局不变。一次只迁一个窗口；每迁完一个，
+运行 gofmt、go vet、viva vet 和测试，并用无头驱动检查界面。说明哪些没能检查。
+```
+
+只有写组件、通过 `ui.View.Draw` 绘制的代码才保留 `ui.Frame`。
+
 ## 保持最新
 
 网站提供的就是仓库 `docs/skills` 中的那个文件，每次构建站点时都会重新生成，所以下载到的内容、本页展示的内容与旁边的指南始终一致。升级 Viva 之后再运行一次同样的命令，并把文件随项目一起提交，这样参与项目的人和 AI 助手读到的是同一份说明。想了解这些规则背后的原因，请阅读[编程模型](/zh/docs/programming-model/)指南。

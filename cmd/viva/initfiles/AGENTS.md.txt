@@ -100,6 +100,7 @@ func (m *model) page(c ui.C) {
   Typing the start of a name moves to that row. To drag rows, set `m.tree.CanDrop = func(from, to int,
   where ui.TreeDrop) bool` (`TreeDropBefore`, `TreeDropInside`, `TreeDropAfter`) and read `m.tree.Dropped()`;
   change the rows in `c.After`, since the paint that reports the drop is declaring them.
+  `m.tree.RowID(i)` (`DisclosureID(i)` for the chevron; `ListState` has `RowID`) is a row's identity, to focus it or find its hit.
 - Any other box drags and drops with a `ui.DragState` in the model: declare a `Hit` box with
   `.DragSource(&m.drag)` and another with `.DropTarget(&m.drag, accept, drop)`. The page routes the pointer;
   `m.drag.Dragging()`, `Source()`, `Target()` and `At()` paint the gesture, `accept(source, target)` decides,
