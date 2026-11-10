@@ -20,12 +20,20 @@ import "github.com/vivaui/viva/gfx"
 //
 // A drag starts only when the press lands on the source itself, not on a control
 // inside it; declare the control as a source too if pressing it should drag.
-// Sources and targets are declared in a Page's view; the page routes the
-// pointer. Do not declare them in a Memo: a copied part would not declare them
-// again. A tree's rows have their own before/inside/after drop in TreeState.
+// Sources and targets declared in a Page's view are routed by the page. A
+// surface painted through its own ui.View inside the page declares them with
+// DragSource and DropTarget and hands the state to the page with Drag, so the
+// page routes its pointer before the page's controls. A Frame application with
+// no page wires Pointer and Key into the window's handlers instead. Do not
+// declare them in a Memo: a copied part would not declare them again. A tree's
+// rows have their own before/inside/after drop in TreeState.
+//
+// A state belongs to one Frame: declare all of its sources and targets there.
+// A page's own view is one Frame; a surface painted through ui.View is another.
 type DragState struct {
 	frame *Frame
 	gen   uint32
+	epoch uint32 // the page paint this state was registered for
 
 	sources []dragSource
 	targets []dragTarget
@@ -63,10 +71,9 @@ func (b Box) DragSource(state *DragState) Box {
 		panic("ui: DragSource needs its DragState")
 	}
 	p := b.f.page
-	if p == nil {
-		panic("ui: DragSource needs a page; declare it in a Page's view")
+	if p != nil {
+		p.forbidInMemo("DragSource")
 	}
-	p.forbidInMemo("DragSource")
 	state.begin(b.f)
 	state.sources = append(state.sources, dragSource{id: n.id, node: b.i})
 	return b
@@ -90,13 +97,35 @@ func (b Box) DropTarget(state *DragState, accept func(source, target gfx.ID) boo
 		panic("ui: DropTarget needs its drop callback")
 	}
 	p := b.f.page
-	if p == nil {
-		panic("ui: DropTarget needs a page; declare it in a Page's view")
+	if p != nil {
+		p.forbidInMemo("DropTarget")
 	}
-	p.forbidInMemo("DropTarget")
 	state.begin(b.f)
 	state.targets = append(state.targets, dragTarget{id: n.id, node: b.i, accept: accept, drop: drop})
 	return b
+}
+
+// Drag hands state to the page that routes its pointer. It is for a surface the
+// page does not declare itself: the grid a custom ui.View paints into a slot.
+// Call it in the page's view, every paint, before the view that declares the
+// state's sources and targets; the page then gives the state the pointer before
+// its controls, as it does for a state its own boxes declared. A state declared
+// with DragSource in the page's own view needs no Drag.
+func Drag(c C, state *DragState) {
+	if state == nil {
+		panic("ui: Drag needs its DragState")
+	}
+	p := c.page
+	p.forbidInMemo("Drag")
+	if state.frame != nil && state.frame.page == p {
+		return // the page's own boxes registered it
+	}
+	if state.epoch == p.epoch {
+		return
+	}
+	state.epoch = p.epoch
+	state.sources, state.targets = state.sources[:0], state.targets[:0]
+	p.drags = append(p.drags, state)
 }
 
 // Dragging reports whether a press on a source has moved far enough to be a
@@ -113,6 +142,43 @@ func (s *DragState) Target() gfx.ID { return s.target }
 // At is where the pointer is while a drag is active, or the zero point. Paint a
 // drag ghost, or a line from the source, at it.
 func (s *DragState) At() gfx.Point { return s.at }
+
+// Pointer is for a Frame painted through its own ui.View, which no Page routes:
+// the host calls it from the window's pointer handler. It reports whether the
+// drag handled the event; call it before the host's own pointer handling, and
+// give the window's key handler Key too. A state declared in a Page is routed by
+// the page, and calling this for it panics.
+func (s *DragState) Pointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
+	if s == nil || s.frame == nil {
+		return gfx.EventResult{}, false
+	}
+	if s.frame.page != nil {
+		panic("ui: a Page routes its DragState; do not call Pointer")
+	}
+	if s.stale() {
+		if s.active {
+			s.Cancel()
+		} else {
+			s.sources, s.targets = s.sources[:0], s.targets[:0]
+		}
+	}
+	if s.pressed {
+		result, _ := s.pointer(event)
+		return result, result.Handled
+	}
+	s.press(event)
+	return gfx.EventResult{}, false
+}
+
+// Key lets go of a Frame's drag when Escape is pressed; the host gives it the
+// window's key events with Pointer.
+func (s *DragState) Key(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if s == nil || event.Key != gfx.KeyEscape || event.Release || !s.active {
+		return gfx.EventResult{}, false
+	}
+	s.Cancel()
+	return gfx.EventResult{Handled: true, Repaint: true}, true
+}
 
 // Cancel lets go of a drag without dropping it. The page does this when Escape
 // is pressed, or when a paint no longer declares the drag's elements. If the
@@ -144,9 +210,20 @@ func (s *DragState) begin(f *Frame) {
 	}
 	s.frame, s.gen = f, f.gen
 	s.sources, s.targets = s.sources[:0], s.targets[:0]
-	if p := f.page; p != nil {
+	if p := f.page; p != nil && s.epoch != p.epoch {
+		s.epoch = p.epoch
 		p.drags = append(p.drags, s)
 	}
+}
+
+// stale reports whether the frame painted again without declaring the state,
+// and marks its declarations current so the caller can drop them.
+func (s *DragState) stale() bool {
+	if s.frame == nil || s.gen == s.frame.gen {
+		return false
+	}
+	s.gen = s.frame.gen
+	return true
 }
 
 // press takes the press if it landed on one of the state's sources, and reports

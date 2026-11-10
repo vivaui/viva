@@ -763,7 +763,7 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.nodes = append(p.nodes[:0], protoNode{scope: p.root, named: true, parentNode: -1}) // node 0, the root column
 	view(&p.ctx)
 	f.End()
-	if s := p.drag; s != nil && s.gen != f.gen {
+	if s := p.drag; s != nil && s.epoch != p.epoch {
 		s.Cancel()
 	}
 	p.measureLists()

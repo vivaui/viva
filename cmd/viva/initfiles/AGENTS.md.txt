@@ -104,7 +104,8 @@ func (m *model) page(c ui.C) {
   `.DragSource(&m.drag)` and another with `.DropTarget(&m.drag, accept, drop)`. The page routes the pointer;
   `m.drag.Dragging()`, `Source()`, `Target()` and `At()` paint the gesture, `accept(source, target)` decides,
   `drop(source, target)` runs on release, and Escape lets go. A press that does not move is still a click.
-  Save the callbacks in the model and do not declare the boxes in a `Memo`.
+  Save the callbacks in the model and do not declare the boxes in a `Memo`. A surface painted through its
+  own `ui.View` calls `ui.Drag(c, &m.drag)` in the page so the page routes its pointer too.
 - A long list to choose from by typing: `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` (Select's
   arguments plus a label); it filters as the user types. `.Clearable()` adds a clear button, `.Empty("No zone")`
   is what an empty list says, `.Creatable("")` offers what was typed as a new choice, read with `.Created()`.

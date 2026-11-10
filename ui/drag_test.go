@@ -225,6 +225,103 @@ func TestDragStateTakesThePointerFromBase(t *testing.T) {
 	}
 }
 
+// A surface painted through a ui.View inside a page hands the state to the page
+// with Drag; the page routes it, without the window's own pointer handler.
+func TestDragStateInAPagePaintedView(t *testing.T) {
+	var tree gfx.Tree
+	feature := tree.Feature("grid")
+	sourceID, targetID := tree.ID(feature, "source"), tree.ID(feature, "target")
+	m := newDragModel(true)
+	var view ui.View
+	draw := func(d *ui.DrawContext) {
+		view.Draw(d.Canvas, gfx.LightTheme(), d.Rect, func(f *ui.Frame) {
+			f.Column().Fill().Pad(16).Gap(8).Children(func() {
+				f.Row().Height(30).FillWidth().Hit(sourceID, "Source").DragSource(&m.state)
+				f.Row().Height(30).FillWidth().Hit(targetID, "Target").DropTarget(&m.state, m.accept, m.drop)
+			})
+		})
+	}
+	d := openPage(t, func(c ui.C) {
+		ui.Drag(c, &m.state)
+		ui.Column(c).Fill().Children(func() {
+			ui.Slot(c).Fill().Draw(draw)
+		})
+	})
+	source, target := d.hit("Source"), d.hit("Target")
+	sx, sy := center(source.Bounds)
+	tx, ty := center(target.Bounds)
+	if err := d.driver.Press(sx, sy, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Move(tx, ty); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Release(tx, ty, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	if m.dropped != 1 || m.source != sourceID || m.target != targetID {
+		t.Fatalf("dropped=%d source=%v target=%v", m.dropped, m.source, m.target)
+	}
+}
+
+// A Frame painted through its own ui.View has no page; its host wires Pointer
+// and Key and gets the same gesture.
+func TestDragStateInAFrameView(t *testing.T) {
+	var tree gfx.Tree
+	feature := tree.Feature("drag")
+	sourceID, targetID := tree.ID(feature, "source"), tree.ID(feature, "target")
+	m := newDragModel(true)
+	var view ui.View
+	paint := func(canvas *gfx.Canvas, size gfx.Size) {
+		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
+			f.Column().Fill().Pad(16).Gap(8).Children(func() {
+				f.Row().Height(30).FillWidth().Hit(sourceID, "Source").DragSource(&m.state)
+				f.Row().Height(30).FillWidth().Hit(targetID, "Target").DropTarget(&m.state, m.accept, m.drop)
+			})
+		})
+	}
+	driver, err := app.NewDriver(app.Config{Width: 480, Height: 480, Tree: &tree, Paint: paint,
+		OnPointer: func(event gfx.PointerEvent) gfx.EventResult {
+			if result, ok := m.state.Pointer(event); ok {
+				return result
+			}
+			return gfx.EventResult{}
+		},
+		OnKey: func(event gfx.KeyEvent) gfx.EventResult {
+			if result, ok := m.state.Key(event); ok {
+				return result
+			}
+			return gfx.EventResult{}
+		}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	var source, target gfx.Hit
+	for _, hit := range driver.Snapshot().Hits {
+		switch hit.Label {
+		case "Source":
+			source = hit
+		case "Target":
+			target = hit
+		}
+	}
+	sx, sy := center(source.Bounds)
+	tx, ty := center(target.Bounds)
+	if err := driver.Press(sx, sy, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Move(tx, ty); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Release(tx, ty, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	if m.dropped != 1 {
+		t.Fatalf("a Frame's drag dropped %d times", m.dropped)
+	}
+}
+
 // A drag repaints without allocating.
 func TestDragRepaintAllocates(t *testing.T) {
 	_, d, _, target := testDrag(t)
