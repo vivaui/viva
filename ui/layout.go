@@ -43,9 +43,10 @@ func (n *node) marginOn(axis int) (start, end float32) {
 	return n.margin[startEdge(axis)], n.margin[endEdge(axis)]
 }
 
-// flows reports whether a container lays its children out along axis.
+// flows reports whether a container lays its children out along axis. A Flow does
+// across, as a Row does, and wraps onto lines down (see flow.go).
 func (n *node) flows(axis int) bool {
-	return n.dir == row && axis == axisX || n.dir == column && axis == axisY
+	return (n.dir == row || n.dir == flow) && axis == axisX || n.dir == column && axis == axisY
 }
 
 // leading is the height of one line of a text: its LineHeight, or the font size
@@ -184,6 +185,10 @@ func (f *Frame) measureContainer(n *node, axis int) {
 		f.measureCustom(n, axis)
 		return
 	}
+	if n.dir == flow && axis == axisY {
+		f.measureFlowLines(n)
+		return
+	}
 	var total float32
 	count := 0
 	for c := n.first; c >= 0; c = f.nodes[c].next {
@@ -264,11 +269,13 @@ func (f *Frame) solve(i int32, axis int) {
 		f.solveGrid(n, axis, start, avail)
 	case n.dir == custom:
 		f.solveCustom(n, axis, start, avail)
+	case n.dir == flow:
+		f.solveFlowLines(n, axis, start, avail)
 	case n.flows(axis):
 		f.placeSplitRatios(n, axis, avail)
-		f.solveFlow(n, axis, start, avail)
+		f.solveFlow(n, n.first, -1, axis, start, avail)
 	default:
-		f.solveAcross(n, axis, start, avail)
+		f.solveAcross(n, n.first, -1, axis, start, avail)
 	}
 	for c := n.first; c >= 0; c = f.nodes[c].next {
 		f.solve(c, axis)
@@ -279,22 +286,23 @@ func (f *Frame) solve(i int32, axis int) {
 }
 
 // solveAcross places children on an axis the container does not flow along (the
-// width of a Column, the height of a Row, either axis of a Stack).
-func (f *Frame) solveAcross(n *node, axis int, start, avail float32) {
+// width of a Column, the height of a Row, either axis of a Stack): those from first
+// up to stop, which is -1 after the last (a line of a Flow is a run of them).
+func (f *Frame) solveAcross(n *node, first, stop int32, axis int, start, avail float32) {
 	var line float32 // the baseline children are lined up on, from the top
-	if axis == axisY && n.dir == row {
-		for c := n.first; c >= 0; c = f.nodes[c].next {
+	if axis == axisY && (n.dir == row || n.dir == flow) {
+		for c := first; c != stop; c = f.nodes[c].next {
 			child := &f.nodes[c]
 			if child.alignOn(n) == Baseline {
 				line = max(line, child.margin[0]+child.baseline)
 			}
 		}
 	}
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := first; c != stop; c = f.nodes[c].next {
 		child := &f.nodes[c]
 		align := child.alignOn(n)
 		ms, me := child.marginOn(axis)
-		if align == Baseline && axis == axisY && n.dir == row {
+		if align == Baseline && axis == axisY && (n.dir == row || n.dir == flow) {
 			*extent(&child.rect, axis) = clamp(child.pref[axis], child.minS[axis], f.maxOn(child, axis, avail))
 			*origin(&child.rect, axis) = start + line - child.baseline
 			continue
@@ -348,28 +356,19 @@ func offset(align Align, free float32) float32 {
 // flexbox does: each child starts at its basis (a Basis, a percentage, or its
 // preferred size), then free room goes to the children that grow, or a shortage is
 // taken from the children that shrink, in proportion; a child that hits its minimum
-// or maximum is frozen there and the rest is shared again among the others.
-func (f *Frame) solveFlow(n *node, axis int, start, avail float32) {
+// or maximum is frozen there and the rest is shared again among the others. It shares
+// it among the children from first up to stop, which is -1 after the last (a line of
+// a Flow is a run of them).
+func (f *Frame) solveFlow(n *node, first, stop int32, axis int, start, avail float32) {
 	count := 0
 	var fixed float32
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := first; c != stop; c = f.nodes[c].next {
 		child := &f.nodes[c]
-		d := child.size[axis]
-		basis, grow := child.raw[axis], float32(0)
-		switch {
-		case child.flags&flagBasis != 0:
-			basis = child.basis
-		case d.kind == dimPercent:
-			basis = avail * d.value / 100
-		}
+		basis, grow := flexBasis(child, axis, avail), float32(0)
 		if child.flags&flagGrowSet != 0 {
 			grow = child.grow
-		}
-		if d.kind == dimFill {
-			basis = 0
-			if child.flags&flagGrowSet == 0 {
-				grow = 1
-			}
+		} else if child.size[axis].kind == dimFill {
+			grow = 1
 		}
 		child.growNow = grow
 		switch {
@@ -398,14 +397,14 @@ func (f *Frame) solveFlow(n *node, axis int, start, avail float32) {
 	// base size, clamp, and freeze the children whose clamp went the way the total
 	// violation went (all minimums if the sum grew, all maximums if it shrank),
 	// then share again among the rest. Every pass starts from the base sizes.
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := first; c != stop; c = f.nodes[c].next {
 		child := &f.nodes[c]
 		child.base = *extent(&child.rect, axis)
 		child.frozen = false
 	}
 	for pass := 0; pass <= count; pass++ {
 		var frozenSize, baseSum, growSum, shrinkSum float32
-		for c := n.first; c >= 0; c = f.nodes[c].next {
+		for c := first; c != stop; c = f.nodes[c].next {
 			child := &f.nodes[c]
 			if child.frozen {
 				frozenSize += *extent(&child.rect, axis)
@@ -421,7 +420,7 @@ func (f *Frame) solveFlow(n *node, axis int, start, avail float32) {
 		}
 		free := room - frozenSize - baseSum - fixed
 		var violation float32
-		for c := n.first; c >= 0; c = f.nodes[c].next {
+		for c := first; c != stop; c = f.nodes[c].next {
 			child := &f.nodes[c]
 			if child.frozen {
 				continue
@@ -440,7 +439,7 @@ func (f *Frame) solveFlow(n *node, axis int, start, avail float32) {
 			child.want = want
 		}
 		done := true
-		for c := n.first; c >= 0; c = f.nodes[c].next {
+		for c := first; c != stop; c = f.nodes[c].next {
 			child := &f.nodes[c]
 			if child.frozen {
 				continue
@@ -458,7 +457,7 @@ func (f *Frame) solveFlow(n *node, axis int, start, avail float32) {
 	}
 
 	var used float32
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := first; c != stop; c = f.nodes[c].next {
 		child := &f.nodes[c]
 		size := clamp(*extent(&child.rect, axis), child.minS[axis], f.maxOn(child, axis, avail))
 		*extent(&child.rect, axis) = size
@@ -489,13 +488,28 @@ func (f *Frame) solveFlow(n *node, axis int, start, avail float32) {
 		}
 		pos -= n.scroll
 	}
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := first; c != stop; c = f.nodes[c].next {
 		child := &f.nodes[c]
 		ms, me := child.marginOn(axis)
 		pos += ms
 		*origin(&child.rect, axis) = start + pos
 		pos += *extent(&child.rect, axis) + me + between
 	}
+}
+
+// flexBasis is the size a child starts from along axis before the room is shared: none
+// when it fills, else its Basis, its percentage of avail, or its preferred size.
+func flexBasis(child *node, axis int, avail float32) float32 {
+	d := child.size[axis]
+	switch {
+	case d.kind == dimFill:
+		return 0
+	case child.flags&flagBasis != 0:
+		return child.basis
+	case d.kind == dimPercent:
+		return avail * d.value / 100
+	}
+	return child.raw[axis]
 }
 
 // alignOn is how a child sits across its container: its own Self, else the
@@ -527,12 +541,15 @@ func (f *Frame) measureBaseline(n *node) {
 		is, _ := n.inset(axisY)
 		for c := n.first; c >= 0; c = f.nodes[c].next {
 			child := &f.nodes[c]
+			if n.dir == flow && child.gridRow != 0 {
+				break // a Flow's baseline is its first line's
+			}
 			if child.kind == kindContainer && child.baseline == child.pref[axisY] && child.first < 0 {
 				continue
 			}
 			value := is + child.margin[0] + child.baseline
-			if n.dir == row {
-				for k := n.first; k >= 0; k = f.nodes[k].next {
+			if n.dir == row || n.dir == flow {
+				for k := n.first; k >= 0 && (n.dir == row || f.nodes[k].gridRow == 0); k = f.nodes[k].next {
 					other := &f.nodes[k]
 					value = max(value, is+other.margin[0]+other.baseline)
 				}

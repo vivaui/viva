@@ -58,6 +58,7 @@ const (
 	stack
 	grid
 	custom // a Layout places the children itself (see layout_custom.go)
+	flow   // a row that wraps onto more lines (see flow.go)
 )
 
 type dimKind uint8
@@ -123,7 +124,7 @@ type node struct {
 	colSpan              uint8 // the columns a Grid child covers; zero is one
 	background           Color
 	borderWidth, radius  float32
-	gridCol, gridRow     uint16 // where a Grid placed the element
+	gridCol, gridRow     uint16 // where a Grid placed the element; gridRow is also the line a Flow put it on
 	text                 string
 	fontSize, weight     float32
 	lineH                float32 // 0 is the size plus seven
@@ -142,7 +143,7 @@ type node struct {
 	lineFirst, lineCount int32     // its lines, in Frame.lines
 	scroll               float32   // how far a Scroll is scrolled
 	content              float32   // the natural height of a Scroll's children
-	gridMin              float32   // the narrowest cell of a Grid
+	gridMin              float32   // the narrowest cell of a Grid; a Flow's LineGap, negative for Gap
 	basis                float32   // Basis, when flagBasis is set
 	aux                  int32     // index into the Frame\'s table for an Input, InputGroup, Textarea or Segmented
 	natural              float32   // the width of a Text on one line, before any size is applied; a Progress's fraction (negative: indeterminate)
@@ -515,6 +516,22 @@ func (f *Frame) Grid(minCell float32) Box {
 	return b
 }
 
+// Flow opens a row that wraps: it lays its children out left to right and starts a
+// new line below when the next one does not fit, as CSS's flex-wrap does. Each line
+// shares its room as a Row does, so Grow, Shrink and Justify apply to every line
+// alone; a line is as tall as its tallest child, and Items lines the children up
+// within it. Gap is the space between children and, unless LineGap says otherwise,
+// between lines. A child wider than the whole width has a line to itself; text and
+// containers give way to it as they do in a Row, so a text's Ellipsis or Wrap
+// decides how it fits.
+func (f *Frame) Flow() Box {
+	b := f.box(kindContainer)
+	n := &f.nodes[b.i]
+	n.dir = flow
+	n.gridMin = -1
+	return b
+}
+
 // customLayout declares a container whose children a Layout measures and places.
 func (f *Frame) customLayout(layout Layout) Box {
 	b := f.box(kindContainer)
@@ -566,12 +583,12 @@ func (f *Frame) Spacer() Box {
 }
 
 // Divider adds a one pixel line in the theme's border color across the
-// container: horizontal in a column, vertical in a row.
+// container: horizontal in a column, vertical in a row or a flow.
 func (f *Frame) Divider() Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
 	n.background = f.theme.Border
-	if f.parent >= 0 && f.nodes[f.parent].dir == row {
+	if f.parent >= 0 && (f.nodes[f.parent].dir == row || f.nodes[f.parent].dir == flow) {
 		n.size[axisX] = dimension{dimPx, 1}
 	} else {
 		n.size[axisY] = dimension{dimPx, 1}
