@@ -490,12 +490,16 @@ func (painter *painter) key(event platform.KeyEvent) (platform.Frame, error) {
 		return painter.afterKeyResponse(response)
 	}
 	if response.ContinueTraversal {
-		// The application closed an overlay in this handler. Show that frame
-		// first, then let the same key traverse the page that is now underneath.
+		// The application closed an overlay in this handler, so the same key has
+		// to traverse the page that is now underneath. Repaint the canvas and
+		// rebuild the routing regions from it, but do not publish here: this
+		// event still owes the platform exactly one frame, and a frame published
+		// now would be dropped by the repaint below. A dropped frame is a lost
+		// update, and the update that closes an overlay is a rebuild: the
+		// backend would keep the count it had and reject the smaller one.
 		painter.applyEventResult(response)
-		if _, err := painter.repaint(); err != nil {
-			return platform.Frame{}, err
-		}
+		painter.paintCanvas()
+		painter.focus.Sync(painter.canvas)
 		response = gfx.EventResult{}
 	}
 	if !response.Handled && event.Key == input.KeyEscape && !painter.focus.EscapeTarget().IsZero() && painter.canClick() && !painter.nativeText.State.Composing {
