@@ -9,18 +9,23 @@ import (
 )
 
 // TreeNode is what a Tree shows of one of its visible rows: how deep it is, whether
-// it has children and shows them, and whether it is the selected one.
+// it has children and shows them, whether it is the selected one, and its height.
 type TreeNode struct {
 	Depth              int
 	Branch, Expanded   bool
 	Selected, Disabled bool
+	// Height is this row's height; zero uses TreeState.RowHeight, or the
+	// theme's control height when that is zero too. It is read with the
+	// description of the row, so a tree of compact and full rows needs no
+	// per-row state outside Node.
+	Height float32
 }
 
 // TreeState is a Tree's: the visible rows of the application's tree, flattened in
 // order, described by Node; ListState's Key names them by an item's ID so that a
-// row keeps its focus as rows open and close above it. RowHeight and Indent are
-// the height of a row and the step of a level (a control tall and 16 when zero).
-// Keep one in the model.
+// row keeps its focus as rows open and close above it. RowHeight is the default
+// height of a row and Indent the step of a level (a control tall and 16 when
+// zero); TreeNode.Height overrides the default for its row. Keep one in the model.
 //
 // The tree's structure is the application's: a press on a branch's chevron, or
 // Left and Right on it, is Toggled, and the application opens or closes it and
@@ -171,6 +176,13 @@ func (s *TreeState) rowHeight(theme *Theme) float32 {
 	return theme.Metrics.ControlHeight
 }
 
+func (s *TreeState) heightOf(node TreeNode, theme *Theme) float32 {
+	if node.Height > 0 {
+		return node.Height
+	}
+	return s.rowHeight(theme)
+}
+
 func (s *TreeState) indent(theme *Theme) float32 {
 	if s.Indent > 0 {
 		return s.Indent
@@ -213,7 +225,7 @@ func (s *TreeState) row(i int, rowBox Box) {
 		left += 24 // the chevron, as components.Tree places it
 	}
 	rowBox.Children(func() {
-		b := Row(c).Height(s.rowHeight(theme)).Shrink(0).PadRight(8).PadLeft(left).Gap(theme.Metrics.GapItem).Items(Center).Draw(s.paint)
+		b := Row(c).Height(s.heightOf(node, theme)).Shrink(0).PadRight(8).PadLeft(left).Gap(theme.Metrics.GapItem).Items(Center).Draw(s.paint)
 		s.declared = append(s.declared, treeRow{index: i, key: key, node: b.i, gen: b.gen, item: item})
 		b.Children(func() {
 			if s.content != nil {

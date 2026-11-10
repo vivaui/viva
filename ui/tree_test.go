@@ -28,6 +28,29 @@ type treeEntry struct {
 	folder, file int // file -1 for the folder's own row
 }
 
+// A row's own height comes from the same Node description that names it, so a
+// tree of compact and full rows needs no hidden per-row state.
+func TestTreeRowsCanHaveTheirOwnHeights(t *testing.T) {
+	heights := []float32{20, 40, 30}
+	labels := []string{"compact", "full", "medium"}
+	var state ui.TreeState
+	state.Node = func(i int) ui.TreeNode { return ui.TreeNode{Height: heights[i]} }
+	state.Label = func(i int) string { return labels[i] }
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			ui.Tree(c, &state, len(labels), state.Label, nil).Grow(1)
+		})
+	})
+	for i, label := range labels {
+		if got := d.hit(label).Bounds.Height; got != heights[i] {
+			t.Fatalf("%s height = %v, want %v", label, got, heights[i])
+		}
+		if got := state.RowHeightAt(i); got != heights[i] {
+			t.Fatalf("RowHeightAt(%d) = %v, want %v", i, got, heights[i])
+		}
+	}
+}
+
 func newTreeModel(folders []folder) *treeModel {
 	m := &treeModel{folders: folders}
 	m.state.Node, m.label = m.node, m.name
