@@ -2,7 +2,9 @@ package gfx
 
 import (
 	"math"
+	"slices"
 	"testing"
+	"unicode/utf8"
 )
 
 // glyphShapes is the geometry of r drawn in cells cells of the given size.
@@ -222,4 +224,63 @@ func TestReplaceCellGlyphs(t *testing.T) {
 	if allocations := testing.AllocsPerRun(100, func() { ReplaceCellGlyphs(plain, plainRuns) }); allocations != 0 {
 		t.Fatalf("a line with no cell glyphs allocated %v times", allocations)
 	}
+}
+
+// FuzzReplaceCellGlyphs feeds terminal bytes to ReplaceCellGlyphs split into runs at
+// arbitrary byte offsets, including the middle of a glyph: whatever walks those bytes,
+// the text stays the same characters with every whole glyph standing in for one space,
+// and the runs still cover exactly the text it returns.
+func FuzzReplaceCellGlyphs(f *testing.F) {
+	f.Add("─┼╭", "")
+	f.Add("x\xe2\x96\x80\xe2\x96", "\x00")
+	f.Add("a⠀b▄", "\x01\x02")
+	f.Add("──│ mixed ──", "\x02")
+	f.Add("", "\x00")
+	f.Fuzz(func(t *testing.T, value, cuts string) {
+		runs := runsOver(value, cuts)
+		text, replaced := ReplaceCellGlyphs(value, runs)
+		if got, want := utf8.RuneCountInString(text), utf8.RuneCountInString(value); got != want {
+			t.Fatalf("%d runes in %q, %d in the value it replaced", got, text, want)
+		}
+		if len(text) > len(value) {
+			t.Fatalf("%d bytes out of %d in %q", len(text), len(value), value)
+		}
+		if !hasCellGlyph(value) {
+			if text != value || &replaced[0] != &runs[0] {
+				t.Fatalf("text without cell glyphs was rebuilt: %q became %q", value, text)
+			}
+		}
+		var covered int32
+		for _, run := range replaced {
+			if run.Bytes < 0 || covered+run.Bytes > int32(len(text)) {
+				t.Fatalf("run of %d bytes at %d does not fit %d bytes of %q", run.Bytes, covered, len(text), text)
+			}
+			covered += run.Bytes
+		}
+		if covered != int32(len(text)) {
+			t.Fatalf("runs cover %d of %d bytes of %q", covered, len(text), text)
+		}
+	})
+}
+
+// runsOver covers value with one run per stretch between the byte offsets the cuts
+// name, so a cut can fall anywhere, glyphs included.
+func runsOver(value, cuts string) []TextRun {
+	if len(value) == 0 {
+		return []TextRun{{Bytes: 0}}
+	}
+	edges := make([]int, 0, len(cuts)+1)
+	for _, cut := range []byte(cuts) {
+		edges = append(edges, int(cut)%(len(value)+1))
+	}
+	slices.Sort(edges)
+	runs := make([]TextRun, 0, len(edges)+1)
+	start := 0
+	for _, edge := range edges {
+		if edge > start {
+			runs = append(runs, TextRun{Bytes: int32(edge - start)})
+			start = edge
+		}
+	}
+	return append(runs, TextRun{Bytes: int32(len(value) - start)})
 }
