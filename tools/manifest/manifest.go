@@ -478,7 +478,7 @@ func (app *App) validateFileTypes() error {
 	fail := func(index int, key, format string, arguments ...any) error {
 		return fmt.Errorf("[[app.file_types]] #%d %s: %s", index+1, key, fmt.Sprintf(format, arguments...))
 	}
-	extensions, mimes := map[string]int{}, map[string]int{}
+	extensions, mimes, utis := map[string]int{}, map[string]int{}, map[string]int{}
 	for index := range app.FileTypes {
 		kind := &app.FileTypes[index]
 		if kind.Name == "" || strings.IndexFunc(kind.Name, func(r rune) bool { return r < ' ' || r == 0x7f }) >= 0 {
@@ -507,6 +507,12 @@ func (app *App) validateFileTypes() error {
 		}
 		if kind.UTI != "" && !utiPattern.MatchString(kind.UTI) {
 			return fail(index, "uti", "%q is not a Uniform Type Identifier such as net.daringfireball.markdown", kind.UTI)
+		}
+		if other, taken := utis[kind.UTI]; taken {
+			return fail(index, "uti", "%q is already the type of #%d", kind.UTI, other+1)
+		}
+		if kind.UTI != "" {
+			utis[kind.UTI] = index
 		}
 		if other, taken := mimes[kind.MIME]; taken {
 			return fail(index, "mime", "%q is already the type of #%d", kind.MIME, other+1)
