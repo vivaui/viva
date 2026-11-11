@@ -71,10 +71,10 @@ func (state *State) paintQuestionnaire(canvas *gfx.Canvas, theme gfx.Theme, size
 		data.ChoiceType = components.QuestionnaireCheckbox
 	}
 	var card ui.Box
-	state.page(canvas, theme, size, 560, "Questionnaire", func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 560, "Questionnaire", func(c ui.C) {
 		// The question fills what the page leaves: its own choices and actions
 		// decide what fits (a narrow card drops its last choice).
-		card = f.Slot().Height(max(size.Height-48-36, 0))
+		card = ui.Slot(c).Height(max(size.Height-48-36, 0))
 	})
 	bounds := card.Rect()
 	if bounds.Height < 280 {

@@ -61,9 +61,9 @@ func clampInt32(value, minimum, maximum int32) int32 {
 
 func (state *State) paintScrollArea(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var stage ui.Box
-	state.page(canvas, theme, size, 560, "Recent activity", func(f *ui.Frame) {
-		stage = f.Slot().Height(220)
-		caption(f, state.Text("偏移量由应用持有。", "The offset is caller-owned."))
+	state.drawPage(canvas, theme, size, 560, "Recent activity", func(c ui.C) {
+		stage = ui.Slot(c).Height(220)
+		caption(c, state.Text("偏移量由应用持有。", "The offset is caller-owned."))
 	})
 
 	viewport := stage.Rect()

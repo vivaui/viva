@@ -92,19 +92,19 @@ func inputOTPLeft(viewport float32) float32 {
 // inputOTPLayout is the slot geometry for a code whose left edge is at x, shared
 // by painting and by hit-testing a click to a slot.
 func (state *State) inputOTPLayout(x float32) components.InputOTPLayout {
-	return components.PaintInputOTP(nil, state.theme(), gfx.Rect{X: x}, components.InputOTPSnapshot{Slots: inputOTPSlots, GroupSize: 3})
+	return components.PaintInputOTP(nil, state.themeFor(), gfx.Rect{X: x}, components.InputOTPSnapshot{Slots: inputOTPSlots, GroupSize: 3})
 }
 
 func (state *State) paintInputOTP(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	measure := state.inputOTPLayout(0).Bounds
 	var code ui.Box
-	state.page(canvas, theme, size, inputOTPWidth, state.Text("Input OTP · 验证码", "Input OTP · Verification code"), func(f *ui.Frame) {
-		code = f.Slot().Size(measure.Width, measure.Height).Self(ui.Start)
+	state.drawPage(canvas, theme, size, inputOTPWidth, state.Text("Input OTP · 验证码", "Input OTP · Verification code"), func(c ui.C) {
+		code = ui.Slot(c).Size(measure.Width, measure.Height).Self(ui.Start)
 		caption := "Slots: 6 · Groups: 3 + 3"
 		if state.editing {
 			caption = state.Text("只接受数字，最多 6 位 · 输入后自动前进 · 退格删除 · ← → 移动", "Digits only, up to 6 · advance as you type · backspace deletes · ← → moves")
 		}
-		f.Paragraph(caption, 3).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Paragraph(c, caption, 3).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 	bounds := code.Rect()
 	value := state.fieldValue(inputOTPInitial(state.exampleID))

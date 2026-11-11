@@ -5,8 +5,8 @@ package windows
 // natural rendering, which does not. The two are the same glyphs at the same size, so the
 // tests here pin what must hold whichever draws a run: every character on its cell, the
 // decorations of a run, the brightness of its text; and the choice itself: ASCII runs are
-// GDI's, and ligatures, characters the font lacks and fonts GDI does not have stay with
-// Direct2D, even in a line that holds both.
+// GDI's, and ligatures, characters the font lacks, fonts GDI does not have and weights
+// between regular and bold stay with Direct2D, even in a line that holds both.
 
 import (
 	"bytes"
@@ -287,6 +287,36 @@ func TestFixedPitchRunsThatGDICannotDrawStayWithDirect2D(t *testing.T) {
 	}
 	if hinted.between(0, hinted.width) == 0 {
 		t.Error("the line holds no ink")
+	}
+}
+
+// TestFixedPitchWeightsGDIWouldMakeUpStayWithDirect2D guards the weight of a run: regular
+// and bold are faces of the family and GDI's, and medium and semibold, which GDI makes up
+// wider than the cells (semibold INFO read INFC in Consolas), are Direct2D's, which draws
+// them with a face the font has. A label without runs takes the label's weight.
+func TestFixedPitchWeightsGDIWouldMakeUpStayWithDirect2D(t *testing.T) {
+	label := gridLabel(8,
+		gridRun{text: "INFO ", run: gfx.TextRun{Weight: gfx.WeightRegular}},
+		gridRun{text: "INFO ", run: gfx.TextRun{Weight: gfx.WeightMedium}},
+		gridRun{text: "INFO ", run: gfx.TextRun{Weight: gfx.WeightSemibold}},
+		gridRun{text: "INFO", run: gfx.TextRun{Weight: gfx.WeightBold}})
+	hinted := rasterizeGrid(t, label, 1, false)
+	natural := rasterizeGrid(t, label, 1, true)
+	for index, wantHinted := range []bool{true, false, false, true} {
+		from, to := columnsOfRun(label, index, 1)
+		if hinted.between(from, to) == 0 {
+			t.Errorf("run %d holds no ink", index)
+		}
+		// The column an edge shares with a neighbour holds the coverage of both.
+		same := hinted.same(natural, from+1, to-1)
+		if same == wantHinted {
+			t.Errorf("run %d: drawn by GDI is %v, want %v", index, !same, wantHinted)
+		}
+	}
+	badge := platform.TextLabel{Value: "INFO", FontSize: 13, CellWidth: 8, Mono: true, Width: 34, Height: 18,
+		Weight: gfx.WeightSemibold, Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}
+	if !bytes.Equal(rasterizeGrid(t, badge, 1, false).pixels, rasterizeGrid(t, badge, 1, true).pixels) {
+		t.Error("a semibold label was drawn by GDI")
 	}
 }
 

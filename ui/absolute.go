@@ -71,7 +71,7 @@ func (b Box) edge(side int, v float32) Box {
 
 // solveAbsolute places the absolute children of container i on an axis, then lays out
 // what is inside them. The container's own rectangle on the axis is known.
-func (f *Frame) solveAbsolute(i int32, axis int) {
+func (f *frame) solveAbsolute(i int32, axis int) {
 	p := &f.nodes[i]
 	border := p.borderWidth
 	if p.flags&flagOutline != 0 {
@@ -124,7 +124,7 @@ func (f *Frame) solveAbsolute(i int32, axis int) {
 }
 
 // paintAbsolute paints the absolute children of container i, after its other children.
-func (f *Frame) paintAbsolute(i int32) {
+func (f *frame) paintAbsolute(i int32) {
 	for _, ai := range f.scratch.abs {
 		if f.nodes[ai].parent == i {
 			f.paint(ai)

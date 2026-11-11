@@ -65,7 +65,7 @@ func (b Box) FocusGroup(axis FocusAxis) Box {
 		panic("ui: FocusGroup needs FocusHorizontal, FocusVertical or FocusBoth")
 	}
 	b.f.extra(b.i).focusGroup = axis
-	b.f.groupFn = (*Frame).endFocusGroup
+	b.f.groupFn = (*frame).endFocusGroup
 	if p.groupRoute == nil {
 		p.keyRoute, p.groupRoute = (*Page).routeKey, (*Page).groupKey
 	}
@@ -104,7 +104,7 @@ type groupStop struct {
 
 // endFocusGroup finishes painting container i, a FocusGroup, whose hits start at from:
 // its members become one stop of Tab, and are kept for the arrow keys.
-func (f *Frame) endFocusGroup(i int32, axis FocusAxis, from gfx.Mark) {
+func (f *frame) endFocusGroup(i int32, axis FocusAxis, from gfx.Mark) {
 	p, canvas := f.page, f.canvas
 	if canvas == nil || int(i) >= len(p.nodes) {
 		return

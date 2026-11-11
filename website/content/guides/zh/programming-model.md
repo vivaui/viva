@@ -13,7 +13,7 @@ Viva 应用把自己的状态放在普通的 Go 值里。页面函数 `func (m *
 
 ## 命中区域与标识
 
-页面按元素在兄弟中的位置命名，行用 `c.Key` 或 `c.KeyInt` 命名，所以项目增删和移动时焦点、悬停和按下状态跟着行走。自己的控件用 `ui.ID(c)`。在声明处读取状态：`Box.State().Focused`、`Hovered`、`Pressed` 和 `Clicked()`。页面不把控件命名在 `gfx.Tree` 里；用 `ui.Frame` 写的组件才会。
+页面按元素在兄弟中的位置命名，行用 `c.Key` 或 `c.KeyInt` 命名，所以项目增删和移动时焦点、悬停和按下状态跟着行走。自己的控件用 `ui.ID(c)`。在声明处读取状态：`Box.State().Focused`、`Hovered`、`Pressed` 和 `Clicked()`。页面不把控件命名在 `gfx.Tree` 里。
 
 ## 事件
 

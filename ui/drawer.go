@@ -144,7 +144,7 @@ var swipeMotion = gfx.Motion{Duration: 300 * time.Millisecond, Easing: gfx.EaseO
 
 // swipe follows the pointer on the handle and reports whether letting it go
 // closes the drawer. It sets how far the panel is moved toward its edge.
-func (d *drawerSpec) swipe(f *Frame, s *drawerSwipe) bool {
+func (d *drawerSpec) swipe(f *frame, s *drawerSwipe) bool {
 	canvas := f.canvas
 	if canvas == nil {
 		return false
@@ -209,7 +209,7 @@ func (spec *drawerSpec) component(canvas *gfx.Canvas, theme Theme, bounds Rect, 
 
 // drawer declares a Drawer's root: an element over the whole frame holding the
 // body and footer at the rectangles components.Drawer gives them.
-func (f *Frame) drawer(spec drawerSpec, footer bool) Box {
+func (f *frame) drawer(spec drawerSpec, footer bool) Box {
 	layer := f.widgetLayer() + 2
 	layout := spec.component(f.canvas, f.theme, f.bounds, layer).Layout(spec.Description)
 	body := layout.Body
@@ -223,7 +223,7 @@ func (f *Frame) drawer(spec drawerSpec, footer bool) Box {
 	r := root.n()
 	r.dir = stack
 	r.flags |= flagDrawer
-	f.paintDrawerFn = (*Frame).paintDrawer
+	f.paintDrawerFn = (*frame).paintDrawer
 	r.aux = int32(len(f.widgets.drawers))
 	d := drawerDecl{spec: spec, layer: layer, footer: -1}
 	// A Stack's children sit at its top left; the margin moves each to its rectangle.
@@ -252,7 +252,7 @@ func (b Box) drawerPart(fn func(), layer uint16) {
 
 // paintDrawer paints a Drawer's root: the scrim, the panel and its header, then the
 // body and footer inside the layer and focus scope it opens.
-func (f *Frame) paintDrawer(n *node) {
+func (f *frame) paintDrawer(n *node) {
 	d := &f.widgets.drawers[n.aux]
 	drawer := d.spec.component(f.canvas, f.theme, n.rect, d.layer)
 	if n.flags&flagDisabled != 0 {

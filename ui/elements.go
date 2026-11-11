@@ -28,10 +28,13 @@ func Scroll(c C) Box {
 // is clamped to the content at layout: read the settled value back from
 // box.ScrollState().Offset in the same paint, after Draw, rather than keeping
 // the ScrollState between paints.
+// The application's Config.OnScroll owns wheel input for this area; the page
+// must not change a position that the next declaration will overwrite.
 func ScrollAt(c C, offset float32) Box {
 	b := Scroll(c)
 	offset = max(offset, 0)
 	b.ScrollState().Offset = offset
+	b.f.extra(b.i).scrollManual = true
 	b.n().scroll = offset // the layout reads the node; ScrollArea set it from the old state
 	return b
 }
@@ -63,6 +66,10 @@ func Slot(c C) Box { return c.f.Slot() }
 
 // Grid lays its children in equal cells at least minCell wide.
 func Grid(c C, minCell float32) Box { return c.page.container(c.f.Grid(minCell)) }
+
+// Flow lays its children out left to right and wraps onto a new line when the next
+// does not fit, as a Row that wraps; LineGap sets the space between lines.
+func Flow(c C) Box { return c.page.container(c.f.Flow()) }
 
 // CustomLayout declares a container whose in-flow children layout measures and
 // places: a masonry, a dock, a flow of cards, a layout of the application's own.
@@ -214,7 +221,7 @@ func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, ba
 	return b
 }
 
-// Slider is a slider over state.Value; Range, Step and Changed are the Frame's.
+// Slider is a slider over state.Value; Range, Step and Changed are the frame's.
 func Slider(c C, state *SliderState) Box {
 	c.page.slides(state)
 	return c.f.Slider(c.page.boundID(pkSlider, unsafe.Pointer(state)), state)
@@ -426,7 +433,7 @@ func (p *Page) Describe(id gfx.ID) string { return p.tree.Text(id) }
 // focusFirstControl makes the first control declared in a Dialog's body, or its
 // footer, the one that takes the keyboard as it opens; the close button when it has
 // none.
-func (f *Frame) focusFirstControl(dialog Box) {
+func (f *frame) focusFirstControl(dialog Box) {
 	d := &f.widgets.dialogs[dialog.n().aux]
 	for _, part := range [2]int32{d.body, d.footer} {
 		if id := f.firstControl(part); !id.IsZero() {
@@ -439,7 +446,7 @@ func (f *Frame) focusFirstControl(dialog Box) {
 
 // firstControl is the first element under i, in declaration order, with an identity
 // the keyboard can take: a control, or a container given Hit.
-func (f *Frame) firstControl(i int32) gfx.ID {
+func (f *frame) firstControl(i int32) gfx.ID {
 	for c := f.nodes[i].first; c >= 0; c = f.nodes[c].next {
 		n := &f.nodes[c]
 		if n.flags&flagDisabled == 0 && !n.id.IsZero() {

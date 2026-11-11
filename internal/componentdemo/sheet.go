@@ -41,9 +41,9 @@ var (
 )
 
 func (state *State) paintSheet(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	state.page(canvas, theme, size, 560, "Project settings", func(f *ui.Frame) {
-		f.Text("Edit without leaving this view.").FontSize(theme.Metrics.FontSizeS).Muted()
-		if f.Button(sheetTrigger, "Open settings").Self(ui.Start).Clicked() {
+	state.drawPage(canvas, theme, size, 560, "Project settings", func(c ui.C) {
+		ui.Text(c, "Edit without leaving this view.").FontSize(theme.Metrics.FontSizeS).Muted()
+		if ui.Button(c, "Open settings").Self(ui.Start).Hit(sheetTrigger, "Open settings").Clicked() {
 			state.flags |= 1
 		}
 	})

@@ -41,14 +41,14 @@ var (
 
 func (state *State) paintItem(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var rows [3]ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Item · 生产列表行", "Item · Production list rows"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 560, state.Text("Item · 生产列表行", "Item · Production list rows"), func(c ui.C) {
 		if state.exampleID == "default" {
-			rows[0] = f.Slot().FillWidth().Height(72)
+			rows[0] = ui.Slot(c).FillWidth().Height(72)
 			return
 		}
-		rows[0] = f.Slot().FillWidth().Height(68)
-		rows[1] = f.Slot().FillWidth().Height(54)
-		rows[2] = f.Slot().FillWidth().Height(42)
+		rows[0] = ui.Slot(c).FillWidth().Height(68)
+		rows[1] = ui.Slot(c).FillWidth().Height(54)
+		rows[2] = ui.Slot(c).FillWidth().Height(42)
 	})
 	if state.exampleID == "default" {
 		trailing := "Open"

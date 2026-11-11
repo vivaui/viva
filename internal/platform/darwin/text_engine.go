@@ -87,14 +87,14 @@ func (engine *TextEngine) SetFontFamily(family string) {
 	engine.generation.Add(1)
 }
 
-// MonoCell implements gfx.MonoCellEngine: the advance and line height of the face's own
-// font, which is the cell a terminal is laid out on.
-func (engine *TextEngine) MonoCell(size float32, face gfx.MonoFace) (advance, line float32) {
-	advance, line, err := MeasureMono(size, face)
+// MonoCell implements gfx.MonoCellEngine: the cell of the face's own font, which is the
+// cell a terminal is laid out on and stands on.
+func (engine *TextEngine) MonoCell(size float32, face gfx.MonoFace) gfx.MonoCellMetrics {
+	metrics, err := measureMonoMetrics(size, face)
 	if err != nil {
-		return 0, 0
+		return gfx.MonoCellMetrics{}
 	}
-	return advance, line
+	return gfx.MonoCellMetrics{Advance: metrics.Width, Ascent: metrics.Ascent, Descent: metrics.Descent, LineGap: metrics.Leading}
 }
 
 // FontGeneration implements gfx.FontFamilyAware.

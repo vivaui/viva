@@ -10,7 +10,7 @@ var hoverCardComponent = Component{
 	ID: "hover-card", Title: "Hover Card", Category: "Overlays", Summary: "无计时器的同步锚点预览卡。",
 	paint: (*State).paintHoverCard, pointer: (*State).pointerHoverCard,
 	Examples: []Example{
-		{ID: "default", Title: "个人资料", Description: "生产 HoverCard 根据锚点和视口放置预览。", Snippet: `trigger := f.Button(anchorID, "@viva-framework").Outline().Width(180)
+		{ID: "default", Title: "个人资料", Description: "生产 HoverCard 根据锚点和视口放置预览。", Snippet: `trigger := ui.Button(c, "@viva-framework").Outline().Width(180).Hit(anchorID, "@viva-framework")
 if canvas.Hovered() == anchorID {
     card := components.BeginHoverCard(canvas, theme, viewport, trigger.Rect(), components.HoverCardOptions{
         Layer: 1, Side: components.HoverCardBottom, BodyHeight: 24,
@@ -19,7 +19,7 @@ if canvas.Hovered() == anchorID {
     canvas.Label("Native • Retained", layout.Body, labelStyle)
     card.End()
 }`},
-		{ID: "sides", Title: "侧边放置", Description: "右侧放置在窄视口会自动限制到边缘。", Snippet: `trigger := f.Button(anchorID, "@viva-framework").Outline().Width(180)
+		{ID: "sides", Title: "侧边放置", Description: "右侧放置在窄视口会自动限制到边缘。", Snippet: `trigger := ui.Button(c, "@viva-framework").Outline().Width(180).Hit(anchorID, "@viva-framework")
 card := components.BeginHoverCard(canvas, theme, viewport, trigger.Rect(), components.HoverCardOptions{
     Layer: 1, Side: components.HoverCardRight, Align: components.HoverCardAlignCenter,
     ContentSize: gfx.Size{Width: min(280, size.Width-32)}, BodyHeight: 24,
@@ -27,7 +27,7 @@ card := components.BeginHoverCard(canvas, theme, viewport, trigger.Rect(), compo
 layout := card.Begin("Viva Framework", "Placed right and clamped to the viewport.")
 canvas.Label("@viva-framework", layout.Body, labelStyle)
 card.End()`},
-		{ID: "disabled", Title: "禁用触发器", Description: "禁用声明不绘制预览表面。", Snippet: `trigger := f.Button(anchorID, "@viva-framework").Outline().Width(180)
+		{ID: "disabled", Title: "禁用触发器", Description: "禁用声明不绘制预览表面。", Snippet: `trigger := ui.Button(c, "@viva-framework").Outline().Width(180).Hit(anchorID, "@viva-framework")
 card := components.BeginHoverCard(canvas, theme, viewport, trigger.Rect(),
     components.HoverCardOptions{Layer: 1, Side: components.HoverCardBottom}).Disabled()
 card.Paint("Viva Framework", "A disabled trigger shows no preview.")`},
@@ -55,8 +55,8 @@ func (state *State) pointerHoverCard(event gfx.PointerEvent) gfx.EventResult {
 
 func (state *State) paintHoverCard(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var trigger ui.Box
-	state.page(canvas, theme, size, 760, state.Text("Hover Card · 悬停预览", "Hover Card · Hover preview"), func(f *ui.Frame) {
-		trigger = f.Button(hoverCardAnchor, "@viva-framework").Outline().Width(180).Self(ui.Start)
+	state.drawPage(canvas, theme, size, 760, state.Text("Hover Card · 悬停预览", "Hover Card · Hover preview"), func(c ui.C) {
+		trigger = ui.Button(c, "@viva-framework").Outline().Width(180).Self(ui.Start).Hit(hoverCardAnchor, "@viva-framework")
 	})
 	anchor := trigger.Rect()
 	viewport := gfx.Rect{Width: size.Width, Height: size.Height}

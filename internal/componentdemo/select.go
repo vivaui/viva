@@ -50,12 +50,12 @@ var (
 func (state *State) paintSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var trigger, unavailable ui.Box
 	open := state.flags&1 != 0
-	state.page(canvas, theme, size, 520, "Renderer", func(f *ui.Frame) {
-		trigger = f.Slot().FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
+	state.drawPage(canvas, theme, size, 520, "Renderer", func(c ui.C) {
+		trigger = ui.Slot(c).FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
 		if state.exampleID == "states" {
-			unavailable = f.Slot().FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
+			unavailable = ui.Slot(c).FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
 		}
-		caption(f, state.Text("选中值与开合由应用持有。", "The application owns the selection and open state."))
+		caption(c, state.Text("选中值与开合由应用持有。", "The application owns the selection and open state."))
 	})
 
 	bounds := trigger.Rect()

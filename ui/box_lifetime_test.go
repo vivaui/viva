@@ -5,23 +5,22 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
-// A Box reads Rect after End, and stops naming its element at the next Begin.
+// A Box reads Rect after End, and stops naming its element at the next paint.
 func TestBoxIsValidAfterEndAndStaleAfterTheNextBegin(t *testing.T) {
-	var view ui.View
+	page, canvas := ui.NewPage(ui.PageConfig{}), benchCanvas()
 	var box ui.Box
-	view.Draw(benchCanvas(), gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100}, func(f *ui.Frame) {
-		box = f.Row().Size(20, 20)
+	drawPage(page, canvas, func(c ui.C) {
+		box = ui.Row(c).Size(20, 20)
 	})
 	if !box.Valid() {
 		t.Fatal("a Box is not valid after End")
 	}
 	_ = box.Rect()
-	view.Draw(benchCanvas(), gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100}, func(f *ui.Frame) {
-		f.Row().Size(20, 20) // the same node index is reused
+	drawPage(page, canvas, func(c ui.C) {
+		ui.Row(c).Size(20, 20) // the same node index is reused
 	})
 	if box.Valid() {
 		t.Fatal("a Box from the last paint is valid after the next Begin")

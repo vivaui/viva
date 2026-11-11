@@ -11,7 +11,8 @@ import (
 
 // The guide viva init writes into every new project is what a coding assistant reads
 // before it writes a page. A method it does not mention is one the assistant will
-// reinvent with coordinates, so every exported method of Frame and Box must appear in it.
+// reinvent with coordinates, so every exported method of Box and the public state
+// types must appear in it. Methods of the unexported engine are not application API.
 func TestTheGuideMentionsEveryMethod(t *testing.T) {
 	guide, err := os.ReadFile("../cmd/viva/initfiles/AGENTS.md.txt")
 	if err != nil {
@@ -29,6 +30,9 @@ func TestTheGuideMentionsEveryMethod(t *testing.T) {
 			if !ok || function.Recv == nil || !function.Name.IsExported() {
 				continue
 			}
+			if len(function.Recv.List) != 1 || !ast.IsExported(receiverName(function.Recv.List[0].Type)) {
+				continue // the unexported engine (frame, table, dialog, ...) is not application API
+			}
 			switch function.Name.Name {
 			case "Canvas", "Theme", "Begin", "End", "Rect", "Children", "Content", "Clicked":
 				continue // plumbing the guide shows in context rather than lists
@@ -40,6 +44,27 @@ func TestTheGuideMentionsEveryMethod(t *testing.T) {
 	}
 	if len(missing) > 0 {
 		t.Errorf("AGENTS.md.txt never mentions: %s", strings.Join(missing, ", "))
+	}
+}
+
+// receiverName is the type a method is declared on, through a pointer or a type
+// parameter: "Box" for func (b Box) ..., "Frame" for func (f *Frame) ...
+func receiverName(expr ast.Expr) string {
+	for {
+		switch typed := expr.(type) {
+		case *ast.StarExpr:
+			expr = typed.X
+		case *ast.IndexExpr:
+			expr = typed.X
+		case *ast.IndexListExpr:
+			expr = typed.X
+		case *ast.ParenExpr:
+			expr = typed.X
+		case *ast.Ident:
+			return typed.Name
+		default:
+			return ""
+		}
 	}
 }
 

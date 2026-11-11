@@ -99,9 +99,10 @@ func (state *State) paintCodeMerge(canvas *gfx.Canvas, theme gfx.Theme, size gfx
 		}
 	}
 	var stage ui.Box
-	state.page(canvas, theme, size, 750, state.Text("Code Merge · 三方对比", "Code Merge · Three-way comparison"), func(frame *ui.Frame) {
-		stage = frame.Slot().FillWidth().Height(min(float32(230), max(size.Height-105, 120)))
-		caption(frame, state.Text("三栏同步滚动，冲突检测和接受策略由调用方负责。", "The three panes scroll together; conflict detection and acceptance remain caller-owned."))
+	state.drawPage(canvas, theme, size, 750, state.Text("Code Merge · 三方对比", "Code Merge · Three-way comparison"), func(c ui.C) {
+		stage = ui.Slot(c).FillWidth().Height(min(float32(230), max(size.Height-105, 120)))
+		ui.Wrap(c, state.Text("三栏同步滚动，冲突检测和接受策略由调用方负责。", "The three panes scroll together; conflict detection and acceptance remain caller-owned.")).
+			FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 	var actions []components.CodeMergeAction
 	for rowIndex, row := range demo.rows {

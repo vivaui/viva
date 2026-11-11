@@ -37,12 +37,12 @@ func (state *State) paintCollapsible(canvas *gfx.Canvas, theme gfx.Theme, size g
 	open := state.flags&1 != 0
 	const contentHeight = 112
 	var slot ui.Box
-	state.page(canvas, theme, size, 520, state.Text("Collapsible · 构建输出", "Collapsible · Build output"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 520, state.Text("Collapsible · 构建输出", "Collapsible · Build output"), func(c ui.C) {
 		height := theme.Metrics.ControlHeight
 		if open {
 			height += contentHeight
 		}
-		slot = f.Slot().FillWidth().Height(height)
+		slot = ui.Slot(c).FillWidth().Height(height)
 	})
 	collapsible := components.BeginCollapsible(canvas, theme, collapsibleTrigger, slot.Rect())
 	disabled := state.exampleID == "disabled"

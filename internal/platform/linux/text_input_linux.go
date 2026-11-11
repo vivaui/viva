@@ -273,7 +273,7 @@ func (state *linuxTextInput) rebuild() error {
 	}
 	state.labels[len(state.baseLabels)] = platform.TextLabel{
 		Value: shown, X: inputState.X, Y: inputState.Y, Width: inputState.Width, Height: inputState.Height,
-		FontSize: inputState.FontSize, Weight: inputState.Weight, Color: inputState.Color, Layer: inputState.Layer, Mono: inputState.Terminal, MonoFace: inputState.MonoFace,
+		FontSize: inputState.FontSize, Weight: inputState.Weight, Color: inputState.Color, Layer: inputState.Layer, Mono: inputState.Terminal, MonoFace: inputState.MonoFace, Baseline: inputState.Baseline,
 	}
 	if inputState.Terminal {
 		state.rebuildTerminalPreedit(shown)
@@ -443,7 +443,7 @@ func (state *linuxTextInput) key(event platform.KeyEvent) (platform.Frame, bool,
 	}
 	if action := platform.TextClipboardAction(event); action != 0 {
 		// A clipboard that cannot be read or written leaves the field as it is.
-		clipboard, changed, err := platform.TextClipboardEvent(state.state, state.input.Secure, action, ClipboardText, SetClipboardText)
+		clipboard, changed, err := platform.TextClipboardEvent(state.input.ClipboardState(action), state.input.Secure, action, ClipboardText, SetClipboardText)
 		if err != nil || !changed {
 			return platform.Frame{}, true, nil
 		}

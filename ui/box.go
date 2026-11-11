@@ -7,16 +7,16 @@ import (
 
 // Box is a handle to one element of the page being declared. It is two words
 // and every method returns it, so a declaration reads as a chain; the element it
-// names lives in the Frame. A Box is valid until the next Begin on its Frame:
+// names lives in the frame. A Box is valid until the next Begin on its frame:
 // Rect and Content stay readable after End, but keeping a Box across paints is a
 // mistake, caught where it is used. Keep a gfx.ID or the *ui.Page's name instead.
 type Box struct {
-	f   *Frame
+	f   *frame
 	i   int32
 	gen uint32
 }
 
-// Valid reports whether the Box names an element of its Frame's current paint.
+// Valid reports whether the Box names an element of its frame's current paint.
 // The zero value is not valid.
 func (b Box) Valid() bool {
 	return b.f != nil && b.gen == b.f.gen && b.i >= 0 && int(b.i) < len(b.f.nodes)
@@ -213,8 +213,18 @@ func (b Box) MarginSides(top, right, bottom, left float32) Box {
 	return b
 }
 
-// Gap is the space between the children of a Row or a Column.
+// Gap is the space between the children of a Row, a Column or a Flow, and between
+// the lines of a Flow unless LineGap sets them apart.
 func (b Box) Gap(v float32) Box { b.n().gap = v; return b }
+
+// LineGap is the space between the lines of a Flow, when it is not its Gap. It has
+// no effect on any other container.
+func (b Box) LineGap(v float32) Box {
+	if n := b.n(); n.dir == flow {
+		n.gridMin = max(v, 0)
+	}
+	return b
+}
 
 // Items places the children across the container (Start, Center, End or
 // Stretch, the default); Self does it for this element alone; Justify places

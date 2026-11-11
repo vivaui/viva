@@ -16,6 +16,12 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 	}
 	var active *TextInput
 	native := platform.TextInput{
+		CopyText: func() string {
+			if active == nil || active.CopyText == nil {
+				return ""
+			}
+			return active.CopyText()
+		},
 		OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
 			if active == nil {
 				return platform.TextState{}, nil
@@ -51,6 +57,7 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 		native.AltSendsEscape = active.AltSendsEscape
 		native.KeyReleases = active.KeyReleases && context.Terminal
 		native.NavigationKeys = active.NavigationKeys || context.NavigationKeys
+		native.CopyOverride = active.CopyOverride
 		native.HideNativeOverlays = active.HideNativeOverlays || context.HideNativeOverlays
 		native.X, native.Y = active.Bounds.X, active.Bounds.Y
 		native.Width, native.Height = active.Bounds.Width, active.Bounds.Height

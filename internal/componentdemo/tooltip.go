@@ -30,7 +30,7 @@ for index, anchor := range anchors {
         Layer: uint16(60 + index), Side: sides[index], MaxWidth: 96,
     }).Paint(labels[index])
 }`},
-		{ID: "clamped", Title: "视口约束", Description: "靠近边缘时将提示内容限制在视口内。", Snippet: `anchor := f.Slot().Size(60, theme.Metrics.ControlHeight).Self(ui.Start).Rect()
+		{ID: "clamped", Title: "视口约束", Description: "靠近边缘时将提示内容限制在视口内。", Snippet: `anchor := ui.Slot(c).Size(60, theme.Metrics.ControlHeight).Self(ui.Start).Rect()
 anchor.X, anchor.Width = size.Width-76, 60 // pin the trigger to the window edge
 components.BeginTooltip(canvas, theme, viewport, anchor, components.TooltipOptions{
     Layer: 60, Side: components.TooltipBottom, MaxWidth: 176,
@@ -60,21 +60,21 @@ func (state *State) pointerTooltip(event gfx.PointerEvent) gfx.EventResult {
 func (state *State) paintTooltip(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	viewport := gfx.Rect{Width: size.Width, Height: size.Height}
 	var anchors [4]ui.Box
-	state.page(canvas, theme, size, 520, state.Text("Tooltip · 同步浮层", "Tooltip · Synchronous overlay"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 520, state.Text("Tooltip · 同步浮层", "Tooltip · Synchronous overlay"), func(c ui.C) {
 		if state.exampleID == "sides" {
 			// A cross: the anchor whose tip hangs below on top, the others in a row.
-			f.Column().Gap(36).Items(ui.Center).Children(func() {
-				anchors[2] = f.Slot().Size(56, theme.Metrics.ControlHeight)
-				f.Row().Gap(48).Children(func() {
-					anchors[1] = f.Slot().Size(56, theme.Metrics.ControlHeight)
-					anchors[0] = f.Slot().Size(56, theme.Metrics.ControlHeight)
-					anchors[3] = f.Slot().Size(56, theme.Metrics.ControlHeight)
+			ui.Column(c).Gap(36).Items(ui.Center).Children(func() {
+				anchors[2] = ui.Slot(c).Size(56, theme.Metrics.ControlHeight)
+				ui.Row(c).Gap(48).Children(func() {
+					anchors[1] = ui.Slot(c).Size(56, theme.Metrics.ControlHeight)
+					anchors[0] = ui.Slot(c).Size(56, theme.Metrics.ControlHeight)
+					anchors[3] = ui.Slot(c).Size(56, theme.Metrics.ControlHeight)
 				})
 			})
 			return
 		}
-		anchors[0] = f.Slot().Size(128, theme.Metrics.ControlHeight).Self(ui.Start)
-		caption(f, state.Text("开启策略和延时由调用方决定。", "Open policy and delay are caller-owned."))
+		anchors[0] = ui.Slot(c).Size(128, theme.Metrics.ControlHeight).Self(ui.Start)
+		caption(c, state.Text("开启策略和延时由调用方决定。", "Open policy and delay are caller-owned."))
 	})
 
 	if state.exampleID == "sides" {

@@ -33,7 +33,7 @@ import (
 // Sequential makes the next run wait for the previous one to return, for work
 // that must not overlap.
 //
-// The run function must not touch a C, Box or Frame: it runs off the paint.
+// The run function must not touch a C, Box or frame: it runs off the paint.
 // Its result is read in the page with Take, on the UI thread, after the effect
 // was declared; a page drawn into a canvas of the application's own without
 // PageConfig.Invalidator keeps the result for the next paint but cannot wake the

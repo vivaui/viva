@@ -44,8 +44,8 @@ func (state *State) paintChart(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 	// The card is a slot the page reserves; the plotting inside it is geometry
 	// the chart container and this function draw.
 	var card ui.Box
-	state.page(canvas, theme, size, 600, state.Text("Chart · 最近四周提交", "Chart · Last four weeks"), func(f *ui.Frame) {
-		card = f.Slot().FillWidth().Height(244)
+	state.drawPage(canvas, theme, size, 600, state.Text("Chart · 最近四周提交", "Chart · Last four weeks"), func(c ui.C) {
+		card = ui.Slot(c).FillWidth().Height(244)
 	})
 	bounds := card.Rect()
 	components.PaintCard(canvas, theme, bounds, components.CardOptions{Size: components.CardSizeSmall})

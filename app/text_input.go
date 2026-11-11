@@ -97,6 +97,8 @@ const (
 )
 
 // TextEvent contains rune-indexed selection and replacement ranges.
+// Text is the text the event applies to, and MarkedSelection, when the input
+// method is composing, is a range into Text rather than into the document.
 type TextEvent struct {
 	Kind            TextEventKind
 	Text            string
@@ -163,6 +165,13 @@ type TextInput struct {
 	// Alignment places a fitted line within Bounds. Zero keeps the existing
 	// left-aligned input; terminal and self-placed inputs ignore it.
 	Alignment gfx.Alignment
+	// CopyOverride supplies Copy/Cut with an application-owned selection such as
+	// disjoint code-editor rows. CopyText is called only on Copy/Cut; an empty
+	// result or nil callback leaves the clipboard and document unchanged, including
+	// on Cut. It never falls back to the native selection while CopyOverride is set.
+	// Editing still uses State or Editor.
+	CopyOverride bool
+	CopyText     func() string
 	// AltSendsEscape asks printable Alt/Option chords on a terminal to arrive as
 	// raw key events with the unmodified character in KeyEvent.Text. Terminal
 	// encoders can then send the conventional Escape-prefixed Meta sequence.

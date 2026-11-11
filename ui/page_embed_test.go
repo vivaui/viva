@@ -20,6 +20,7 @@ type paneModel struct {
 	sideClicks int
 	clicks     int
 	on         bool
+	tab        string
 	name       ui.Field
 	menu       bool
 	size       string
@@ -47,6 +48,7 @@ func (m *paneModel) pane(c ui.C) {
 		}
 		ui.Popover(c, more, &m.menu, func() { ui.Text(c, "Menu item") })
 		ui.Select(c, &m.size, []string{"S", "M", "L"}, nil).Placeholder("Size").Width(120)
+		ui.Tabs(c, &m.tab, []string{"General", "Keys"}, nil)
 		for _, row := range m.rows {
 			ui.Row(c.Key(row)).Gap(8).Children(func() {
 				ui.Text(c, row)
@@ -96,7 +98,7 @@ func openPane(t *testing.T, m *paneModel) *pageDriver {
 	t.Helper()
 	invalidator := new(app.Invalidator)
 	config := app.Config{Width: 640, Height: 480, Tree: &m.tree, Paint: m.paint, Invalidator: invalidator,
-		TextInput: m.page.TextInput, OnScroll: m.page.Wheel}
+		TextInput: m.page.TextInput, OnScroll: m.page.Wheel, OnKey: m.page.Key, OnPointer: m.page.Pointer}
 	driver, err := app.NewDriver(config, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -117,6 +119,11 @@ func TestFramePageIsAPaneThatTakesInput(t *testing.T) {
 	d.click("Toggle")
 	if m.clicks != 1 || !m.on || m.sideClicks != 0 {
 		t.Fatalf("clicks=%d on=%v side=%d", m.clicks, m.on, m.sideClicks)
+	}
+	d.click("General")
+	d.key(gfx.KeyRight)
+	if m.tab != "Keys" {
+		t.Fatalf("tab = %q after Right", m.tab)
 	}
 	d.click("Name")
 	d.typeText("go")
@@ -163,5 +170,63 @@ func BenchmarkFramePage(b *testing.B) {
 		canvas.BeginFrame()
 		m.paint(canvas, gfx.Size{Width: 640, Height: 480})
 		canvas.EndFrame()
+	}
+}
+
+func embeddedHitID(t *testing.T, canvas *gfx.Canvas, label string) gfx.ID {
+	t.Helper()
+	for _, hit := range canvas.Hits() {
+		if hit.Label == label && !hit.IsLabel && !hit.Backdrop {
+			return hit.ID
+		}
+	}
+	t.Fatalf("no control labeled %q", label)
+	return gfx.ID{}
+}
+
+// An embedded page routes its own keys, pointer and wheel: its roving tabs and
+// its Controls do not need the host to reimplement the page's routing.
+func TestEmbeddedPageRoutesInput(t *testing.T) {
+	m := &rovingModel{mode: "light", tab: "general"}
+	page := ui.NewPage(ui.PageConfig{View: m.page})
+	canvas := benchCanvas()
+	drawPage(page, canvas, m.page)
+	first := embeddedHitID(t, canvas, "general")
+	canvas.BeginEventPass(first, gfx.ClickInfo{})
+	drawPage(page, canvas, m.page)
+	canvas.EndEventPass()
+	first, second := embeddedHitID(t, canvas, "general"), embeddedHitID(t, canvas, "network")
+	result := page.Key(gfx.KeyEvent{Key: gfx.KeyRight, Target: first})
+	if !result.Handled || !result.FocusVisible || result.Focus != second {
+		t.Fatalf("key result = %+v", result)
+	}
+}
+
+type embeddedControlModel struct {
+	handlers                ui.Handlers
+	keys, pointers, scrolls int
+}
+
+func (m *embeddedControlModel) page(c ui.C) {
+	m.handlers.Key = func(gfx.KeyEvent) gfx.EventResult { m.keys++; return gfx.EventResult{Handled: true} }
+	m.handlers.Pointer = func(gfx.PointerEvent) gfx.EventResult { m.pointers++; return gfx.EventResult{Handled: true} }
+	m.handlers.Scroll = func(gfx.ScrollEvent) gfx.EventResult { m.scrolls++; return gfx.EventResult{Handled: true} }
+	ui.Control(c, "Canvas", &m.handlers).Fill()
+}
+
+func TestEmbeddedPageRoutesControls(t *testing.T) {
+	m := &embeddedControlModel{}
+	page := ui.NewPage(ui.PageConfig{View: m.page})
+	canvas := benchCanvas()
+	drawPage(page, canvas, m.page)
+	target := embeddedHitID(t, canvas, "Canvas")
+	if result := page.Key(gfx.KeyEvent{Key: gfx.KeyRight, Target: target}); !result.Handled || m.keys != 1 {
+		t.Fatalf("key result = %+v, keys = %d", result, m.keys)
+	}
+	if result := page.Pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, Target: target}); !result.Handled || m.pointers != 1 {
+		t.Fatalf("pointer result = %+v, pointers = %d", result, m.pointers)
+	}
+	if result := page.Wheel(gfx.ScrollEvent{DeltaY: 1, Target: target}); !result.Handled || m.scrolls != 1 {
+		t.Fatalf("wheel result = %+v, scrolls = %d", result, m.scrolls)
 	}
 }

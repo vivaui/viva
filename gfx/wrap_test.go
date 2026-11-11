@@ -285,12 +285,12 @@ func TestEllipsizeAgreesWithTryingEveryPrefixAndAllocatesOnce(t *testing.T) {
 	}
 	for _, line := range []string{"a long file name with spaces.tar.gz", "日本語のとても長いファイル名.txt", "x", "trailing spaces      ", "mixed 日本語 and ascii text"} {
 		for width := float32(0); width <= 200; width += 3.5 {
-			if got, want := canvas.ellipsize(line, 10, 0, width), linear(line, 10, 0, width); got != want {
+			if got, want := canvas.ellipsize(line, lineFont{size: 10}, width), linear(line, 10, 0, width); got != want {
 				t.Fatalf("ellipsize(%q, %v) = %q, trying every prefix gives %q", line, width, got, want)
 			}
 		}
 	}
-	if allocs := testing.AllocsPerRun(100, func() { _ = canvas.ellipsize("a long file name with spaces.tar.gz", 10, 0, 60) }); allocs > 1 {
+	if allocs := testing.AllocsPerRun(100, func() { _ = canvas.ellipsize("a long file name with spaces.tar.gz", lineFont{size: 10}, 60) }); allocs > 1 {
 		t.Errorf("ellipsize allocated %v times, want 1", allocs)
 	}
 }
@@ -318,7 +318,7 @@ func TestFitLineRemembersCutLinesAndNeverMixesThemUp(t *testing.T) {
 	for pass := 0; pass < 2; pass++ {
 		for _, line := range lines {
 			for _, width := range []float32{90, 130} {
-				if got, want := canvas.FitLine(line, 10, 0, width), canvas.ellipsize(line, 10, 0, width); got != want {
+				if got, want := canvas.FitLine(line, 10, 0, width), canvas.ellipsize(line, lineFont{size: 10}, width); got != want {
 					t.Fatalf("FitLine(%q, %v) = %q, want %q", line, width, got, want)
 				}
 			}
@@ -354,7 +354,7 @@ func TestFitLineReusesOneLabelAtDifferentControlWidths(t *testing.T) {
 		t.Fatalf("input and popup labels evict each other: %g allocations", allocations)
 	}
 	for _, width := range []float32{248, 282} {
-		if got, want := canvas.FitLine(label, 14, WeightRegular, width), canvas.ellipsize(label, 14, WeightRegular, width); got != want {
+		if got, want := canvas.FitLine(label, 14, WeightRegular, width), canvas.ellipsize(label, lineFont{size: 14, weight: WeightRegular}, width); got != want {
 			t.Fatalf("width %v: %q, want %q", width, got, want)
 		}
 	}

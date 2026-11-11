@@ -13,7 +13,7 @@ Components follow the same rule. `ui.Button`, `ui.Modal` and the rest do not own
 
 ## Hit regions and identities
 
-A page names its elements by their place among their siblings, and a row by `c.Key` or `c.KeyInt`, so focus, hover and press follow the row as items come, go and move. A control of your own takes `ui.ID(c)`. Read state where you declare: `Box.State().Focused`, `Hovered` and `Pressed`, and `Clicked()`. A page does not name controls in a `gfx.Tree`; a component written with a `ui.Frame` does.
+A page names its elements by their place among their siblings, and a row by `c.Key` or `c.KeyInt`, so focus, hover and press follow the row as items come, go and move. A control of your own takes `ui.ID(c)`. Read state where you declare: `Box.State().Focused`, `Hovered` and `Pressed`, and `Clicked()`. A page does not name controls in a `gfx.Tree`.
 
 ## Events
 

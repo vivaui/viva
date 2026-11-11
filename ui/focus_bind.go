@@ -32,7 +32,7 @@ func FocusBind[T comparable](box Box, field *T, value T) Box {
 	}
 	p := box.f.page
 	if p == nil {
-		panic("ui: FocusBind is for a page, not a Frame of the application's")
+		panic("ui: FocusBind is for a page, not a frame of the application's")
 	}
 	if p.focusFields == nil {
 		p.focusFields = map[any]any{}
