@@ -68,8 +68,8 @@ var tableColumns = [...]components.TableColumn{
 // scrolling one.
 func (state *State) paintTable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var slot ui.Box
-	state.page(canvas, theme, size, 620, state.Text("Table · 账单", "Table · Bills"), func(f *ui.Frame) {
-		slot = f.Slot().Height(220)
+	state.drawPage(canvas, theme, size, 620, state.Text("Table · 账单", "Table · Bills"), func(c ui.C) {
+		slot = ui.Slot(c).Height(220)
 	})
 	columns := tableColumns
 	header := [...]string{

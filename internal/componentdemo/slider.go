@@ -161,26 +161,26 @@ func (state *State) sliderForExample() components.Slider {
 
 func (state *State) paintSlider(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var track, disabled ui.Box
-	state.page(canvas, theme, size, 520, state.Text("Slider · 显式数值", "Slider · Explicit values"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 520, state.Text("Slider · 显式数值", "Slider · Explicit values"), func(c ui.C) {
 		switch state.exampleID {
 		case "range":
-			track = f.Slot().Height(16)
-			f.Text(state.Text("下限 / 上限", "Lower / upper bound")).FontSize(theme.Metrics.FontSizeM)
-			caption(f, state.Text("分别激活两个圆形滑块，演示调用方更新范围。", "Activate each round thumb to see the caller update the range."))
+			track = ui.Slot(c).Height(16)
+			ui.Text(c, state.Text("下限 / 上限", "Lower / upper bound")).FontSize(theme.Metrics.FontSizeM)
+			caption(c, state.Text("分别激活两个圆形滑块，演示调用方更新范围。", "Activate each round thumb to see the caller update the range."))
 		case "states":
-			f.Row().Gap(40).Children(func() {
-				f.Column().Gap(10).Items(ui.Center).Children(func() {
-					track = f.Slot().Size(24, 160)
-					f.Text(state.Text("竖向", "Vertical")).FontSize(theme.Metrics.FontSizeM)
+			ui.Row(c).Gap(40).Children(func() {
+				ui.Column(c).Gap(10).Items(ui.Center).Children(func() {
+					track = ui.Slot(c).Size(24, 160)
+					ui.Text(c, state.Text("竖向", "Vertical")).FontSize(theme.Metrics.FontSizeM)
 				})
-				f.Column().Grow(1).Basis(0).Gap(10).Children(func() {
-					disabled = f.Slot().Height(16)
-					f.Text(state.Text("禁用", "Disabled")).FontSize(theme.Metrics.FontSizeM).Muted()
+				ui.Column(c).Grow(1).Basis(0).Gap(10).Children(func() {
+					disabled = ui.Slot(c).Height(16)
+					ui.Text(c, state.Text("禁用", "Disabled")).FontSize(theme.Metrics.FontSizeM).Muted()
 				})
 			})
 		default:
-			track = f.Slot().Height(16)
-			caption(f, state.Text("拖动滑块按十为步长更新；激活仍可循环。", "Dragging steps by ten; activating cycles the caller's value."))
+			track = ui.Slot(c).Height(16)
+			caption(c, state.Text("拖动滑块按十为步长更新；激活仍可循环。", "Dragging steps by ten; activating cycles the caller's value."))
 		}
 	})
 

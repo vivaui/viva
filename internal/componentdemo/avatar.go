@@ -54,27 +54,27 @@ var avatarPhoto = func() gfx.Bitmap {
 func (state *State) paintAvatar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	// The avatars are drawn by components into the slots the page reserves.
 	var slots [4]ui.Box
-	state.page(canvas, theme, size, 520, state.Text("Avatar · 团队成员", "Avatar · Team members"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 520, state.Text("Avatar · 团队成员", "Avatar · Team members"), func(c ui.C) {
 		switch state.exampleID {
 		case "sizes":
-			f.Row().Gap(24).Items(ui.Start).Children(func() {
+			ui.Row(c).Gap(24).Items(ui.Start).Children(func() {
 				for index, side := range [...]float32{24, 32, 40, 40} {
-					f.Column().Gap(8).Items(ui.Center).Children(func() {
-						slots[index] = f.Slot().Size(side, side)
-						f.Text([...]string{"24 px", "32 px", "40 px", state.Text("图片", "Image")}[index]).FontSize(theme.Metrics.FontSizeS).Muted()
+					ui.Column(c).Gap(8).Items(ui.Center).Children(func() {
+						slots[index] = ui.Slot(c).Size(side, side)
+						ui.Text(c, [...]string{"24 px", "32 px", "40 px", state.Text("图片", "Image")}[index]).FontSize(theme.Metrics.FontSizeS).Muted()
 					})
 				}
 			})
 		case "group":
 			// Five overlapping 40 px avatars, each advancing by 32 px.
-			slots[0] = f.Slot().Size(5*32+8, 40)
-			f.Text(state.Text("12 位协作者", "12 collaborators")).FontSize(theme.Metrics.FontSizeS).Muted()
+			slots[0] = ui.Slot(c).Size(5*32+8, 40)
+			ui.Text(c, state.Text("12 位协作者", "12 collaborators")).FontSize(theme.Metrics.FontSizeS).Muted()
 		default:
-			f.Row().Gap(20).Items(ui.Center).Children(func() {
-				slots[0] = f.Slot().Size(64, 64)
-				f.Column().Gap(4).Children(func() {
-					f.Text("Skyler").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightSemibold)
-					f.Text(state.Text("在线 · 本地开发", "Online · Local development")).FontSize(theme.Metrics.FontSizeS).Muted()
+			ui.Row(c).Gap(20).Items(ui.Center).Children(func() {
+				slots[0] = ui.Slot(c).Size(64, 64)
+				ui.Column(c).Gap(4).Children(func() {
+					ui.Text(c, "Skyler").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightSemibold)
+					ui.Text(c, state.Text("在线 · 本地开发", "Online · Local development")).FontSize(theme.Metrics.FontSizeS).Muted()
 				})
 			})
 		}

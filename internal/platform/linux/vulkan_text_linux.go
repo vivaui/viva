@@ -191,6 +191,7 @@ type vulkanTextureKey struct {
 	value                       string
 	width, height               float32
 	fontSize, weight, cellWidth float32
+	baseline                    float32
 	color                       platform.Color
 	fontGeneration              uint32
 	monoFace                    gfx.MonoFace
@@ -209,7 +210,7 @@ var vulkanTextRunSeed = maphash.MakeSeed()
 func textureKey(label platform.TextLabel) vulkanTextureKey {
 	key := vulkanTextureKey{
 		value: label.Value, width: label.Width, height: label.Height,
-		fontSize: label.FontSize, weight: label.Weight, cellWidth: label.CellWidth,
+		fontSize: label.FontSize, weight: label.Weight, cellWidth: label.CellWidth, baseline: label.Baseline,
 		color: label.Color, fontGeneration: label.FontGeneration, monoFace: label.MonoFace,
 		italic: label.Italic, mono: label.Mono,
 		bitmapLength: len(label.Bitmap), bitmapID: label.BitmapID, bitmapVersion: label.BitmapVersion,
@@ -439,6 +440,7 @@ func neededLabelWidth(label platform.TextLabel) (float32, bool) {
 func textureContentChanged(previous, next platform.TextLabel) bool {
 	if previous.Value != next.Value || previous.FontSize != next.FontSize ||
 		previous.Weight != next.Weight || previous.Italic != next.Italic || previous.Color != next.Color || previous.FontGeneration != next.FontGeneration || previous.Mono != next.Mono || previous.MonoFace != next.MonoFace || previous.CellWidth != next.CellWidth ||
+		previous.Baseline != next.Baseline ||
 		!sameTextRuns(previous.Runs, next.Runs) || previous.BitmapID != next.BitmapID || previous.BitmapVersion != next.BitmapVersion ||
 		previous.BitmapWidth != next.BitmapWidth || previous.BitmapHeight != next.BitmapHeight || previous.BitmapStride != next.BitmapStride ||
 		!sameBitmapBytes(previous.Bitmap, next.Bitmap) {

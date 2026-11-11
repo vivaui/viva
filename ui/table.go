@@ -156,7 +156,7 @@ type tableDecl struct {
 //	tbl := f.Table(&state, ui.TableSpec{Rows: rows, Header: heads, Columns: cols, Headers: titles, Sortable: sortable, Source: &data})
 //	if row, ok := tbl.RowClicked(); ok { state.Select(row) }
 //	if col, ok := tbl.HeaderClicked(); ok { state.SortBy(col); data.Sort(state.Sort()) }
-func (f *Frame) Table(state *TableState, spec TableSpec) Box {
+func (f *frame) Table(state *TableState, spec TableSpec) Box {
 	b := f.box(kindTable)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.widgets.tables))
@@ -205,7 +205,7 @@ func (t *tableDecl) headerHeight(theme Theme) float32 {
 }
 
 // measureTable: as wide as its fixed columns, as tall as its header and rows.
-func (f *Frame) measureTable(n *node) {
+func (f *frame) measureTable(n *node) {
 	t := &f.widgets.tables[n.aux]
 	var width float32
 	for _, column := range t.spec.Columns {
@@ -215,7 +215,7 @@ func (f *Frame) measureTable(n *node) {
 }
 
 // scrollAncestor is the state and viewport of the ScrollArea nearest around element n.
-func (f *Frame) scrollAncestor(n *node) (*ScrollState, Rect) {
+func (f *frame) scrollAncestor(n *node) (*ScrollState, Rect) {
 	for p := n.parent; p >= 0; p = f.nodes[p].parent {
 		if ext := f.nodes[p].ext; ext != 0 && f.exts[ext].scrollState != nil {
 			return f.exts[ext].scrollState, f.nodes[p].rect
@@ -228,7 +228,7 @@ func (f *Frame) scrollAncestor(n *node) (*ScrollState, Rect) {
 // components.Table calls an application would make by hand. A table as tall as its
 // rows inside a clip (a ScrollArea) keeps its header at the top of what is visible
 // while its rows scroll under it.
-func (f *Frame) paintTable(n *node) {
+func (f *frame) paintTable(n *node) {
 	t := &f.widgets.tables[n.aux]
 	r := n.rect
 	rowHeight, headerHeight := t.rowHeight(f.theme), t.headerHeight(f.theme)
@@ -324,7 +324,7 @@ func (f *Frame) paintTable(n *node) {
 // revealSelected scrolls the selected row into view after a key moved it: the table's
 // own position when it scrolls itself, otherwise the ScrollArea around it (which takes
 // effect at the next frame, so one is asked for).
-func (f *Frame) revealSelected(n *node, t *tableDecl, body Rect, rowHeight, headerHeight float32, scrolls bool) {
+func (f *frame) revealSelected(n *node, t *tableDecl, body Rect, rowHeight, headerHeight float32, scrolls bool) {
 	t.state.reveal = false
 	row := t.state.Selected()
 	if row < 0 || row >= t.rows {
@@ -358,7 +358,7 @@ func (f *Frame) revealSelected(n *node, t *tableDecl, body Rect, rowHeight, head
 
 // paintTableHeader paints the header row and, over it, the hit regions and arrow
 // of the sortable columns.
-func (f *Frame) paintTableHeader(t *tableDecl, r Rect, headerHeight, rowHeight float32) {
+func (f *frame) paintTableHeader(t *tableDecl, r Rect, headerHeight, rowHeight float32) {
 	if headerHeight <= 0 {
 		return
 	}

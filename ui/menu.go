@@ -95,7 +95,7 @@ func ContextMenu(c C, target Box, body func(*MenuItems)) {
 type contextTarget struct {
 	id     gfx.ID
 	menu   *MenuItems
-	f      *Frame
+	f      *frame
 	target int32
 }
 
@@ -253,7 +253,7 @@ type MenuItems struct {
 	paint     func(*DrawContext)
 	keys      [6]string // the keycaps of the row being measured or painted
 	page      *Page
-	f         *Frame
+	f         *frame
 	open      *bool
 	anchor    int32 // the element a Menu hangs off; -1 for a ContextMenu
 	scope     gfx.Scope

@@ -134,7 +134,7 @@ func TestButtonExamplesCarryUsageSnippets(t *testing.T) {
 		t.Fatal("button page missing")
 	}
 	for _, example := range button.Examples {
-		if !strings.Contains(example.Snippet, "f.Button") {
+		if !strings.Contains(example.Snippet, "ui.Button(") {
 			t.Errorf("button/%s has no call-site snippet: %q", example.ID, example.Snippet)
 		}
 		if example.ID != "variants" && example.ID != "disabled" {

@@ -94,10 +94,10 @@ func (state *State) paintSonner(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 			visible = append(visible, toasts[index])
 		}
 	}
-	state.page(canvas, theme, size, 520, state.Text("Sonner · 通知堆栈", "Sonner · Notification stack"), func(f *ui.Frame) {
-		f.Text(state.Text("生命周期、过期与动画由调用方持有。", "Lifecycle, expiry, and animation belong to the caller.")).FontSize(theme.Metrics.FontSizeS).Muted()
+	state.drawPage(canvas, theme, size, 520, state.Text("Sonner · 通知堆栈", "Sonner · Notification stack"), func(c ui.C) {
+		ui.Text(c, state.Text("生命周期、过期与动画由调用方持有。", "Lifecycle, expiry, and animation belong to the caller.")).FontSize(theme.Metrics.FontSizeS).Muted()
 		if len(visible) == 0 {
-			f.Text(state.Text("通知已全部关闭。", "All notifications are dismissed.")).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium).Muted()
+			ui.Text(c, state.Text("通知已全部关闭。", "All notifications are dismissed.")).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium).Muted()
 		}
 	})
 	if len(visible) == 0 {

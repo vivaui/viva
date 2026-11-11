@@ -10,33 +10,25 @@ var tabsComponent = Component{
 	ID: "tabs", Title: "Tabs", Category: "Navigation", Summary: "调用方持有选中项的标签页导航。",
 	paint: (*State).paintTabs, key: (*State).keyTabs,
 	Examples: []Example{
-		{ID: "icons", Title: "图标与等宽标签", Description: "图标和文字作为整体居中；宽度随容器分配，支持键盘方向键。", Snippet: `options := []components.TabOption{
+		{ID: "icons", Title: "图标与等宽标签", Description: "图标和文字作为整体居中；宽度随容器分配，支持键盘方向键。", Snippet: `tabs := tree.Sub(page, tree.Name("tab"))
+options := []components.TabOption{
     {ID: tabs.At(0), Label: "Overview", Icon: overviewIcon},
     {ID: tabs.At(1), Label: "Activity", Icon: activityIcon},
     {ID: tabs.At(2), Label: "Settings", Icon: settingsIcon},
 }
 components.BeginTabs(canvas, theme, bounds, options, options[selected].ID).Paint()`},
-		{ID: "default", Title: "分段标签", Description: "三个稳定 tab ID 驱动关联内容。", Snippet: `tabs := tree.Sub(page, tree.Name("tab"))
-labels := []string{"Overview", "Activity", "Settings"}
-strip := f.Tabs(tabs, labels, selected)
-if index, ok := strip.TabClicked(); ok {
-    selected = index
-}
-f.Text(labels[selected]).FontSize(theme.Metrics.FontSizeM)`},
-		{ID: "line", Title: "线形标签", Description: "透明列表与两像素活动指示条。", Snippet: `tabs := tree.Sub(page, tree.Name("tab"))
-labels := []string{"Overview", "Activity", "Settings"}
-strip := f.Tabs(tabs, labels, selected).Line()
-if index, ok := strip.TabClicked(); ok {
-    selected = index
-}`},
-		{ID: "vertical", Title: "纵向标签", Description: "标签纵向排列，内容位于右侧。", Snippet: `tabs := tree.Sub(page, tree.Name("tab"))
-labels := []string{"Overview", "Activity", "Settings"}
-f.Row().Gap(20).Children(func() {
-    strip := f.Tabs(tabs, labels, selected).Line().Vertical().Self(ui.Start)
-    if index, ok := strip.TabClicked(); ok {
-        selected = index
-    }
-    f.Text(labels[selected]).Grow(1).Basis(0)
+		{ID: "default", Title: "分段标签", Description: "三个稳定 tab ID 驱动关联内容。", Snippet: `labels := []string{"Overview", "Activity", "Settings"}
+tab := labels[0]
+ui.Tabs(c, &tab, labels, nil)
+ui.Text(c, tab).FontSize(c.Theme().Metrics.FontSizeM)`},
+		{ID: "line", Title: "线形标签", Description: "透明列表与两像素活动指示条。", Snippet: `labels := []string{"Overview", "Activity", "Settings"}
+tab := labels[0]
+ui.Tabs(c, &tab, labels, nil).Line()`},
+		{ID: "vertical", Title: "纵向标签", Description: "标签纵向排列，内容位于右侧。", Snippet: `labels := []string{"Overview", "Activity", "Settings"}
+tab := labels[0]
+ui.Row(c).Gap(20).Children(func() {
+    ui.Tabs(c, &tab, labels, nil).Line().Vertical().Self(ui.Start)
+    ui.Text(c, tab).Grow(1).Basis(0)
 })`},
 	},
 }
@@ -65,13 +57,12 @@ func (state *State) tabsLabels() []string {
 	return tabsLabelSets[language][:]
 }
 
+// keyTabs moves the focus between the tabs of the icons example, which the
+// components package paints from explicit IDs. The other examples are ui.Tabs:
+// the Page's roving focus takes their arrow keys.
 func (state *State) keyTabs(event gfx.KeyEvent) gfx.EventResult {
-	if listIndex(event.Target, tabsItem) < 0 {
+	if state.exampleID != "icons" || listIndex(event.Target, tabsItem) < 0 {
 		return gfx.EventResult{}
-	}
-	orientation := components.TabsHorizontal
-	if state.exampleID == "vertical" {
-		orientation = components.TabsVertical
 	}
 	labels := state.tabsLabels()
 	options := [...]components.TabOption{
@@ -79,7 +70,7 @@ func (state *State) keyTabs(event gfx.KeyEvent) gfx.EventResult {
 		{ID: tabsItem.At(1), Label: labels[1]},
 		{ID: tabsItem.At(2), Label: labels[2]},
 	}
-	next, handled := components.TabsKeyDown(event.Target, options[:], orientation, components.DirectionLTR, event.Key)
+	next, handled := components.TabsKeyDown(event.Target, options[:], components.TabsHorizontal, components.DirectionLTR, event.Key)
 	if !handled {
 		return gfx.EventResult{}
 	}
@@ -89,13 +80,16 @@ func (state *State) keyTabs(event gfx.KeyEvent) gfx.EventResult {
 }
 
 func (state *State) paintTabs(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	selected := int(state.values[0])
 	labels := state.tabsLabels()
+	selected := int(state.values[0])
+	if selected < 0 || selected >= len(labels) {
+		selected = 0
+	}
 	if state.exampleID == "icons" {
 		var slot ui.Box
-		state.page(canvas, theme, size, 540, state.Text("Tabs · 图标标签", "Tabs · Icon labels"), func(f *ui.Frame) {
-			slot = f.Slot().FillWidth().Height(36)
-			state.tabsPanel(f, theme, selected)
+		state.drawPage(canvas, theme, size, 540, state.Text("Tabs · 图标标签", "Tabs · Icon labels"), func(c ui.C) {
+			slot = ui.Slot(c).FillWidth().Height(36)
+			state.tabsPanel(c, theme, selected)
 		})
 		options := [...]components.TabOption{{ID: tabsItem.At(0), Label: labels[0], Icon: infoIcon}, {ID: tabsItem.At(1), Label: labels[1], Icon: alertIcon}, {ID: tabsItem.At(2), Label: labels[2], Icon: folderIcon}}
 		components.BeginTabs(canvas, theme, slot.Rect(), options[:], options[selected].ID).Paint()
@@ -104,30 +98,31 @@ func (state *State) paintTabs(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size
 		}
 		return
 	}
-	state.page(canvas, theme, size, 540, state.Text("Tabs · 内容切换", "Tabs · Content switching"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 540, state.Text("Tabs · 内容切换", "Tabs · Content switching"), func(c ui.C) {
 		if state.exampleID == "vertical" {
-			f.Row().Gap(20).Children(func() {
-				strip := f.Tabs(tabsItem, labels, selected).Line().Vertical().Self(ui.Start)
-				if index, ok := strip.TabClicked(); ok {
-					state.values[0] = int32(index)
-				}
-				state.tabsPanel(f, theme, selected).Grow(1).Basis(0)
+			ui.Row(c).Gap(20).Children(func() {
+				ui.Tabs(c, &state.values[0], tabsChoices[:], state.tabLabel).Line().Vertical().Self(ui.Start)
+				state.tabsPanel(c, theme, selected).Grow(1).Basis(0)
 			})
 			return
 		}
-		strip := f.Tabs(tabsItem, labels, selected)
+		strip := ui.Tabs(c, &state.values[0], tabsChoices[:], state.tabLabel)
 		if state.exampleID == "line" {
 			strip.Line()
 		}
-		if index, ok := strip.TabClicked(); ok {
-			state.values[0] = int32(index)
-		}
-		state.tabsPanel(f, theme, selected)
+		state.tabsPanel(c, theme, selected)
 	})
 }
 
+// tabsChoices are the tab indices ui.Tabs chooses among.
+var tabsChoices = [...]int32{0, 1, 2}
+
+// tabLabel is the label of tab index in the preview's language. ui.Tabs calls it
+// where the tab is declared, so it needs the State's language only.
+func (state *State) tabLabel(index int32) string { return state.tabsLabels()[index] }
+
 // tabsPanel declares the content of the selected tab.
-func (state *State) tabsPanel(f *ui.Frame, theme gfx.Theme, selected int) ui.Box {
+func (state *State) tabsPanel(c ui.C, theme gfx.Theme, selected int) ui.Box {
 	title, description := state.Text("项目概览", "Project overview"), state.Text("查看近期状态与关键摘要。", "See recent status and key highlights.")
 	switch selected {
 	case 1:
@@ -135,9 +130,9 @@ func (state *State) tabsPanel(f *ui.Frame, theme gfx.Theme, selected int) ui.Box
 	case 2:
 		title, description = state.Text("工作区设置", "Workspace settings"), state.Text("配置显示与本地运行选项。", "Configure display and local runtime options.")
 	}
-	panel := f.Column().Gap(8).Pad(16).Background(theme.Background).Border(1, theme.Border).Radius(theme.Metrics.RadiusSurface)
+	panel := ui.Column(c).Gap(8).Pad(16).Background(theme.Background).Border(1, theme.Border).Radius(theme.Metrics.RadiusSurface)
 	return panel.Children(func() {
-		f.Text(title).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightSemibold)
-		f.Wrap(description).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Text(c, title).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightSemibold)
+		ui.Wrap(c, description).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 }

@@ -13,12 +13,12 @@ var aspectRatioComponent = Component{
 		{ID: "default", Title: "16:9 预览", Description: "通过生产布局函数计算媒体区域高度。", Snippet: `ratio := float32(16.0 / 9.0)
 width := min(size.Width-48, float32(520))
 height := components.AspectRatio(gfx.Rect{Width: width}, ratio).Height
-media := f.Slot().Size(width, height)
+media := ui.Slot(c).Size(width, height)
 bounds := components.AspectRatio(media.Rect(), ratio)
 canvas.Rounded(bounds, theme.Metrics.RadiusSurface, theme.Muted)`},
 		{ID: "square", Title: "方形封面", Description: "同一 API 使用 1:1 比例。", Snippet: `width := min(size.Width-48, float32(250))
 height := components.AspectRatio(gfx.Rect{Width: width}, 1).Height
-media := f.Slot().Size(width, height)
+media := ui.Slot(c).Size(width, height)
 bounds := components.AspectRatio(media.Rect(), 1)
 canvas.Rounded(bounds, theme.Metrics.RadiusSurface, theme.Muted)`},
 	},
@@ -38,8 +38,8 @@ func (state *State) paintAspectRatio(canvas *gfx.Canvas, theme gfx.Theme, size g
 	width := min(size.Width-48, maxWidth)
 	height := min(components.AspectRatio(gfx.Rect{Width: width}, ratio).Height, size.Height-92)
 	var media ui.Box
-	state.page(canvas, theme, size, maxWidth, heading, func(f *ui.Frame) {
-		media = f.Slot().Size(width, height)
+	state.drawPage(canvas, theme, size, maxWidth, heading, func(c ui.C) {
+		media = ui.Slot(c).Size(width, height)
 	})
 	bounds := components.AspectRatio(media.Rect(), ratio)
 	canvas.Rounded(bounds, theme.Metrics.RadiusSurface, theme.Muted)

@@ -28,18 +28,15 @@ import "github.com/vivaui/viva/gfx"
 // A drag starts when the press's target is a declared source: the source itself
 // for a box, the part's identity for a part. A press on a control inside the
 // box is not the box's; declare the control as a source too if pressing it should
-// drag. Sources and targets declared in a Page's view are routed by the page. A
-// surface painted through its own ui.View inside the page declares them with
-// DragSource and DropTarget and hands the state to the page with Drag, so the
-// page routes its pointer before the page's controls. A Frame application with
-// no page wires Pointer and Key into the window's handlers instead. Do not
+// drag. The Page routes the sources and targets declared in its view. Do not
 // declare them in a Memo: a copied part would not declare them again. A tree's
 // rows have their own before/inside/after drop in TreeState.
 //
-// A state belongs to one Frame: declare all of its sources and targets there.
-// A page's own view is one Frame; a surface painted through ui.View is another.
+// A state belongs to one frame: declare all of its sources and targets there.
+// A page's own view is one frame; a surface the engine paints for a page is
+// another, and is internal to the engine.
 type DragState struct {
-	frame *Frame
+	frame *frame
 	gen   uint32
 	epoch uint32 // the page paint this state was registered for
 
@@ -132,9 +129,7 @@ func (b Box) DropTarget(state *DragState, accept func(source, target gfx.ID) boo
 // Call it every paint, in the same callback that declares the part's hit: the
 // press reaches the state with the part as its identity, so the part must be a
 // hit or nothing can press it, and the rectangle it was drawn in is kept with it.
-// A DrawContext of a surface painted through its own ui.View, which is not a page,
-// panics, as a page-only API does; such a surface declares boxes with
-// Box.DragSource and calls Drag in the page.
+// A DrawContext not owned by a Page panics: this is a page-only API.
 func (d *DrawContext) DragSource(state *DragState, id gfx.ID, rect Rect) {
 	d.partDrag("DragSource")
 	if state == nil {
@@ -173,17 +168,17 @@ func (d *DrawContext) DropTarget(state *DragState, id gfx.ID, rect Rect, accept 
 // routes.
 func (d *DrawContext) partDrag(what string) {
 	if d == nil || d.frame == nil || d.frame.page == nil {
-		panic("ui: DrawContext." + what + " is for a part of a page's Draw; a ui.View surface declares boxes with Box.DragSource and Drag")
+		panic("ui: DrawContext." + what + " is for a part of a page's Draw; a view surface declares boxes with Box.DragSource")
 	}
 }
 
-// Drag hands state to the page that routes its pointer. It is for a surface the
-// page does not declare itself: the grid a custom ui.View paints into a slot.
-// Call it in the page's view, every paint, before the view that declares the
-// state's sources and targets; the page then gives the state the pointer before
-// its controls, as it does for a state its own boxes declared. A state declared
-// with DragSource in the page's own view needs no Drag.
-func Drag(c C, state *DragState) {
+// drag hands state to the page that routes its pointer. It is for an engine
+// surface the page does not declare itself: the grid a view paints into a slot.
+// It is called in the page's view, every paint, before the surface that declares
+// the state's sources and targets; the page then gives the state the pointer
+// before its controls, as it does for a state its own boxes declared. A state
+// declared with DragSource in the page's own view needs no drag.
+func drag(c C, state *DragState) {
 	if state == nil {
 		panic("ui: Drag needs its DragState")
 	}
@@ -215,17 +210,17 @@ func (s *DragState) Target() gfx.ID { return s.target }
 // drag ghost, or a line from the source, at it.
 func (s *DragState) At() gfx.Point { return s.at }
 
-// Pointer is for a Frame painted through its own ui.View, which no Page routes:
-// the host calls it from the window's pointer handler. It reports whether the
-// drag handled the event; call it before the host's own pointer handling, and
-// give the window's key handler Key too. A state declared in a Page is routed by
-// the page, and calling this for it panics.
-func (s *DragState) Pointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
+// pointerEvent is for an engine view surface outside a Page, which no Page
+// routes: the host calls it from the window's pointer handler. It reports
+// whether the drag handled the event; call it before the host's own pointer
+// handling, and give the window's key handler keyEvent too. A state declared in
+// a Page is routed by the page, and calling this for it panics.
+func (s *DragState) pointerEvent(event gfx.PointerEvent) (gfx.EventResult, bool) {
 	if s == nil || s.frame == nil {
 		return gfx.EventResult{}, false
 	}
 	if s.frame.page != nil {
-		panic("ui: a Page routes its DragState; do not call Pointer")
+		panic("ui: a Page routes its DragState; do not route it by hand")
 	}
 	if s.stale() {
 		if s.active {
@@ -242,9 +237,9 @@ func (s *DragState) Pointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
 	return gfx.EventResult{}, false
 }
 
-// Key lets go of a Frame's drag when Escape is pressed; the host gives it the
-// window's key events with Pointer.
-func (s *DragState) Key(event gfx.KeyEvent) (gfx.EventResult, bool) {
+// keyEvent lets go of an engine view surface's drag when Escape is pressed; the
+// host gives it the window's key events with pointerEvent.
+func (s *DragState) keyEvent(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if s == nil || event.Key != gfx.KeyEscape || event.Release || !s.active {
 		return gfx.EventResult{}, false
 	}
@@ -276,7 +271,7 @@ const dragStartThreshold = 4
 // begin records the frame a paint declares the state in, and adds the state to
 // the page that routes its pointer. The first declaration of a paint clears the
 // ones of the last.
-func (s *DragState) begin(f *Frame) {
+func (s *DragState) begin(f *frame) {
 	if s.frame == f && s.gen == f.gen {
 		return
 	}

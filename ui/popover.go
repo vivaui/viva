@@ -60,7 +60,7 @@ type popoverDecl struct {
 //		p := f.Popover(filter, ui.PopoverSpec{Scope: popScope, DismissID: dismissID}).Children(func() { ... })
 //		if p.Dismissed() { m.open = false }
 //	}
-func (f *Frame) Popover(anchor Box, spec PopoverSpec) Box {
+func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
 	metrics := f.theme.Metrics
 	look := components.PopoverRecipe(f.theme)
 	width := spec.Width
@@ -92,7 +92,7 @@ func (f *Frame) Popover(anchor Box, spec PopoverSpec) Box {
 	b.Within(f.bounds.Inset(gfx.All(8)))
 	n := b.n()
 	n.flags |= flagPopover
-	f.paintPopoverFn = (*Frame).paintPopover
+	f.paintPopoverFn = (*frame).paintPopover
 	n.aux = int32(len(f.widgets.popovers))
 	f.widgets.popovers = append(f.widgets.popovers, popoverDecl{spec: spec, anchor: anchor.i, layer: f.widgets.layer})
 	return b
@@ -100,7 +100,7 @@ func (f *Frame) Popover(anchor Box, spec PopoverSpec) Box {
 
 // paintPopover paints a Popover's root inside the layer and focus scope it opens: the
 // press outside, the anchor's press and Escape go to its DismissID.
-func (f *Frame) paintPopover(i int32, n *node) {
+func (f *frame) paintPopover(i int32, n *node) {
 	d := &f.widgets.popovers[n.aux]
 	spec := &d.spec
 	canvas := f.canvas

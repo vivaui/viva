@@ -55,9 +55,9 @@ components.PaintSingleSelect(canvas, theme, bounds, &selection, options)`},
 
 func (state *State) paintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var field ui.Box
-	state.page(canvas, theme, size, 420, state.Text("Single Select · 单选分组", "Single Select · Groups"), func(f *ui.Frame) {
-		f.Text(state.Text("输入筛选，回车创建；每次保留一个选项。", "Type to filter or create; keep one selected value.")).Muted().FontSize(theme.Metrics.FontSizeS)
-		field = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+	state.drawPage(canvas, theme, size, 420, state.Text("Single Select · 单选分组", "Single Select · Groups"), func(c ui.C) {
+		ui.Text(c, state.Text("输入筛选，回车创建；每次保留一个选项。", "Type to filter or create; keep one selected value.")).Muted().FontSize(theme.Metrics.FontSizeS)
+		field = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 	})
 	components.PaintSingleSelect(canvas, theme, field.Rect(), state.singleSelect, components.SingleSelectOptions{
 		InputID: singleSelectInput, TriggerID: singleSelectTrigger, ClearID: singleSelectClear, DismissID: singleSelectDismiss, Scope: singleSelectScope, ScrollID: singleSelectScroll, OptionIDs: singleSelectOptions,

@@ -71,8 +71,8 @@ func (state *State) paintCommand(canvas *gfx.Canvas, theme gfx.Theme, size gfx.S
 		height = 36 + 68 + 4
 	}
 	var panel ui.Box
-	state.page(canvas, theme, size, 520, state.Text("Command · 快速操作", "Command · Quick actions"), func(f *ui.Frame) {
-		panel = f.Slot().FillWidth().Height(min(height, max(size.Height-84, 120)))
+	state.drawPage(canvas, theme, size, 520, state.Text("Command · 快速操作", "Command · Quick actions"), func(c ui.C) {
+		panel = ui.Slot(c).FillWidth().Height(min(height, max(size.Height-84, 120)))
 	})
 	command := components.BeginCommand(canvas, theme, panel.Rect(), components.CommandOptions{InputID: commandInput, Label: "Command query", Query: query, Placeholder: "Type a command…", Hint: "Search commands", Variant: variant, Layer: 1})
 	if state.exampleID == "empty" {

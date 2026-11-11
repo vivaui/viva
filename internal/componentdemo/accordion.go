@@ -64,8 +64,8 @@ func (state *State) paintAccordion(canvas *gfx.Canvas, theme gfx.Theme, size gfx
 		}
 	}
 	var slot ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Accordion · 常见问题", "Accordion · Common questions"), func(f *ui.Frame) {
-		slot = f.Slot().FillWidth().Height(height)
+	state.drawPage(canvas, theme, size, 560, state.Text("Accordion · 常见问题", "Accordion · Common questions"), func(c ui.C) {
+		slot = ui.Slot(c).FillWidth().Height(height)
 	})
 	accordion := components.BeginAccordion(canvas, theme, slot.Rect())
 	disabled := state.exampleID == "disabled"

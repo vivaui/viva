@@ -105,12 +105,12 @@ func (state *State) paintCodeDiff(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 	}
 
 	var stage ui.Box
-	state.page(canvas, theme, size, 660, state.Text("Code Diff · 保存前对比", "Code Diff · Compare before saving"), func(f *ui.Frame) {
-		stage = f.Slot().FillWidth().Height(min(float32(230), max(size.Height-105, 120)))
-		caption(f, state.Text(
+	state.drawPage(canvas, theme, size, 660, state.Text("Code Diff · 保存前对比", "Code Diff · Compare before saving"), func(c ui.C) {
+		stage = ui.Slot(c).FillWidth().Height(min(float32(230), max(size.Height-105, 120)))
+		ui.Wrap(c, state.Text(
 			"差异统计根据当前右侧文本重新计算；滚动和编辑状态由调用方持有。",
 			"Diff statistics follow the current right text; scrolling and editing stay caller-owned.",
-		))
+		)).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 	demo.component.Paint(canvas, theme, stage.Rect(), snapshot)
 }

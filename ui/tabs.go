@@ -31,7 +31,7 @@ const (
 //	switch m.tab { case 0: ... }
 //
 // The labels slice is kept until End. Arrow keys between tabs are components.TabsKeyDown's.
-func (f *Frame) Tabs(scope gfx.Scope, labels []string, selected int) Box {
+func (f *frame) Tabs(scope gfx.Scope, labels []string, selected int) Box {
 	b := f.box(kindTabs)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.widgets.tabs))
@@ -69,7 +69,7 @@ func (b Box) TabClicked() (int, bool) {
 	return b.f.canvas.ClickedIn(b.f.widgets.tabs[n.aux].scope)
 }
 
-func (f *Frame) measureTabs(n *node) {
+func (f *frame) measureTabs(n *node) {
 	t := &f.widgets.tabs[n.aux]
 	var widest float32
 	for _, label := range t.labels {
@@ -93,7 +93,7 @@ func (f *Frame) measureTabs(n *node) {
 	}
 }
 
-func (f *Frame) paintTabs(n *node) {
+func (f *frame) paintTabs(n *node) {
 	t := &f.widgets.tabs[n.aux]
 	bounds := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: tabHeight}
 	if t.vertical {

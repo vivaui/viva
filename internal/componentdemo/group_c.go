@@ -8,8 +8,16 @@ import (
 
 // caption declares the muted explanatory line under a specimen; it wraps instead of
 // clipping, so it stays readable at the narrowest stage.
-func caption(f *ui.Frame, value string) {
-	f.Wrap(value).FontSize(f.Theme().Metrics.FontSizeS).Muted()
+func caption(c ui.C, value string) {
+	ui.Wrap(c, value).FontSize(c.Theme().Metrics.FontSizeS).Muted()
+}
+
+// drawStage lays content over the whole stage, with no page title: for a demo
+// whose body is the stage itself, such as the calendar or the sidebar. It shares
+// the State's Page with drawPage, so identities, theme and page memory follow
+// the same rules; the caller declares the root container that fills the stage.
+func (state *State) drawStage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, content func(c ui.C)) {
+	state.pageFor(theme).Draw(canvas, gfx.Rect{Width: size.Width, Height: size.Height}, content)
 }
 
 // listIndex returns the item number of id in the list scope, or -1: the way a key

@@ -33,8 +33,8 @@ var reorderGridComponent = Component{
 	},
 	paint: func(state *State, canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 		var slot ui.Box
-		state.page(canvas, theme, size, 620, state.Text("Reorder Grid · 卡片顺序", "Reorder Grid · Card order"), func(f *ui.Frame) {
-			slot = f.Slot().FillWidth().Height(220)
+		state.drawPage(canvas, theme, size, 620, state.Text("Reorder Grid · 卡片顺序", "Reorder Grid · Card order"), func(c ui.C) {
+			slot = ui.Slot(c).FillWidth().Height(220)
 		})
 		bounds := slot.Rect()
 		const (

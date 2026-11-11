@@ -8,13 +8,13 @@ import (
 // rover is a Choice or a Tabs strip declared in the last paint, whose arrow keys
 // move between its options.
 type rover struct {
-	f    *Frame
+	f    *frame
 	node int32
 	tabs bool
 }
 
 // rove records that node, a Choice or a Tabs, takes arrow keys.
-func (p *Page) rove(f *Frame, node Box, tabs bool) {
+func (p *Page) rove(f *frame, node Box, tabs bool) {
 	p.rovers = append(p.rovers, rover{f: f, node: node.i, tabs: tabs})
 	if p.roveRoute == nil {
 		p.keyRoute, p.roveRoute = (*Page).routeKey, (*Page).roveKey

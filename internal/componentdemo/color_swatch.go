@@ -41,13 +41,14 @@ func (state *State) keyColorSwatch(event gfx.KeyEvent) gfx.EventResult {
 
 func (state *State) paintColorSwatch(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var slots [4]ui.Box
-	state.page(canvas, theme, size, 360, state.Text("连接颜色", "Connection color"), func(f *ui.Frame) {
-		f.Row().Gap(12).Children(func() {
+	state.drawPage(canvas, theme, size, 360, state.Text("连接颜色", "Connection color"), func(c ui.C) {
+		ui.Row(c).Gap(12).Children(func() {
 			for i := range slots {
-				slots[i] = f.Slot().Size(36, 36)
+				slots[i] = ui.Slot(c).Size(36, 36)
 			}
 		})
-		caption(f, state.Text("Tab 进入色板，方向键移动，Space 选择。", "Tab enters the palette, arrows move, and Space selects."))
+		ui.Wrap(c, state.Text("Tab 进入色板，方向键移动，Space 选择。", "Tab enters the palette, arrows move, and Space selects.")).
+			FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 	colors := [...]gfx.Color{{}, {Green: 0.77, Red: 0.13, Blue: 0.37, Alpha: 1}, {Red: 0.23, Green: 0.51, Blue: 0.96, Alpha: 1}, {Red: 0.94, Green: 0.27, Blue: 0.27, Alpha: 1}}
 	labels := [...]string{"No color", "Green", "Blue", "Red (disabled)"}

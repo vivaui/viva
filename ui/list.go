@@ -59,7 +59,8 @@ type ListState struct {
 	// wider than the list it scrolls sideways too (the horizontal wheel, or the
 	// wheel with Shift), and where they are not they grow to its width, as the
 	// columns of a table do. A header above the list goes with the rows through
-	// Box.ScrollWith.
+	// Box.ScrollWith. Use RowWidth or Box.Sideways, not both: together they carry
+	// two independent horizontal offsets.
 	RowWidth float32
 
 	heights []float32 // the measured height of each row, zero when not measured
@@ -90,7 +91,7 @@ type listInternals struct {
 	pendingAt    float32    // where the last paint of it left the offset
 	pendingFrame uint8      // the paints it has been applied in, counted to a bound
 	declared     []listDeclRow
-	f            *Frame
+	f            *frame
 	typeahead    components.MenuTypeahead
 	paint        func(*DrawContext) // the area's Draw, made once
 	over         func(*DrawContext) // its DrawOver, made once
@@ -492,7 +493,7 @@ const listScrollFrames = 6
 // depended on rows it had not measured moves, so the request is applied again in the
 // next paint, which the list asks for, until the offset it asks for is where the list
 // already is.
-func (s *ListState) applyScrollRequest(f *Frame) {
+func (s *ListState) applyScrollRequest(f *frame) {
 	in := &s.list
 	scroll := in.scroll
 	if in.pending == listScrollNone || scroll == nil {
@@ -1127,13 +1128,7 @@ func (p *Page) listWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	if dx == 0 {
 		return false, false
 	}
-	if !event.Precise { // a notch moves at least a line, as down the list
-		if dx > 0 && dx < 24 {
-			dx = 24
-		} else if dx < 0 && dx > -24 {
-			dx = -24
-		}
-	}
+	dx = wheelStep(dx, event.Precise) // a notch moves at least a line, as down the list
 	for _, s := range p.listStates {
 		in := &s.list
 		if s.RowWidth <= 0 || in.f == nil || !in.f.containsPoint(int(in.area), event.X, event.Y) {

@@ -121,7 +121,8 @@ func (services *textServices) formatStyle(name string, size, weight float32, ita
 }
 
 // nativeFontWeight is the DirectWrite weight of a Viva weight: regular, medium, semibold and
-// bold are the faces Segoe UI and Consolas have.
+// bold are the faces Segoe UI has. A font without one of them, such as Consolas, which has
+// regular and bold only, is drawn with the face DirectWrite finds nearest.
 func nativeFontWeight(weight float32) uint32 {
 	switch {
 	case weight >= 0.35:
@@ -240,6 +241,7 @@ func labelContentChanged(previous, next platform.TextLabel) bool {
 	isBitmap := len(previous.Bitmap) > 0 || len(next.Bitmap) > 0
 	return previous.Value != next.Value || (!isBitmap && (previous.Width != next.Width || previous.Height != next.Height)) || previous.FontSize != next.FontSize || previous.Weight != next.Weight || previous.Italic != next.Italic || previous.Color != next.Color || previous.FontGeneration != next.FontGeneration ||
 		previous.Mono != next.Mono || previous.MonoFace != next.MonoFace || previous.CellWidth != next.CellWidth || !sameRuns(previous.Runs, next.Runs) ||
+		previous.Baseline != next.Baseline ||
 		previous.BitmapID != next.BitmapID || previous.BitmapVersion != next.BitmapVersion || previous.BitmapWidth != next.BitmapWidth ||
 		previous.BitmapHeight != next.BitmapHeight || previous.BitmapStride != next.BitmapStride || !sameBitmapStorage(previous.Bitmap, next.Bitmap)
 }

@@ -166,10 +166,10 @@ var listComponent = Component{
 	paint: func(state *State, canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 		d := state.list
 		d.pageFor(state, theme)
-		state.page(canvas, theme, size, 560, d.text(
+		state.drawPage(canvas, theme, size, 560, d.text(
 			"List · 虚拟化、选择与排序", "List · virtualization, selection and reorder"),
-			func(f *ui.Frame) {
-				f.Slot().FillWidth().Height(310).Draw(d.pageDraw)
+			func(c ui.C) {
+				ui.Slot(c).FillWidth().Height(310).Draw(d.pageDraw)
 			})
 	},
 	scroll: func(state *State, event gfx.ScrollEvent) gfx.EventResult {

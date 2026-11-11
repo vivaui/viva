@@ -63,9 +63,9 @@ func (state *State) pointerContextMenu(event gfx.PointerEvent) gfx.EventResult {
 
 func (state *State) paintContextMenu(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var area ui.Box
-	state.page(canvas, theme, size, 1000, state.Text("Context Menu · 上下文菜单", "Context Menu · Pointer actions"), func(f *ui.Frame) {
-		f.Text(state.Text("在空白区域按次要按钮打开菜单。", "Right-click the empty area to open the menu.")).FontSize(theme.Metrics.FontSizeS).Muted()
-		area = f.Slot().FillWidth().Height(max(size.Height-124, 120))
+	state.drawPage(canvas, theme, size, 1000, state.Text("Context Menu · 上下文菜单", "Context Menu · Pointer actions"), func(c ui.C) {
+		ui.Text(c, state.Text("在空白区域按次要按钮打开菜单。", "Right-click the empty area to open the menu.")).FontSize(theme.Metrics.FontSizeS).Muted()
+		area = ui.Slot(c).FillWidth().Height(max(size.Height-124, 120))
 	})
 	surface := area.Rect()
 	canvas.RoundedBorder(surface, theme.Metrics.RadiusSurface, 1, theme.Border, theme.Muted)

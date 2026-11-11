@@ -162,7 +162,7 @@ type selectDecl struct {
 	popup    int32 // the Popup that places the list, or -1 when it is closed
 	visible  int   // how many options the list shows at once
 	layer    uint16
-	rects    int32 // where the rows of this frame's list start in Frame.widgets.rows
+	rects    int32 // where the rows of this frame's list start in frame.widgets.rows
 	// asked, pick and picked keep what Picked found, so asking again in the same
 	// paint reports the same option and does not open or close the list twice.
 	asked  bool
@@ -195,7 +195,7 @@ const (
 // Picked does the bookkeeping: a click on the trigger opens or closes the list, a click
 // outside it or on an option closes it, and it reports the option chosen. The labels
 // slice is kept until End.
-func (f *Frame) Select(scope gfx.Scope, state *SelectState, labels []string, selected int) Box {
+func (f *frame) Select(scope gfx.Scope, state *SelectState, labels []string, selected int) Box {
 	b := f.SelectBase(scope, state, labels, selected)
 	f.nodes[b.i].flags |= flagThemed
 	return b
@@ -216,7 +216,7 @@ func (f *Frame) Select(scope gfx.Scope, state *SelectState, labels []string, sel
 //		list.Draw(func(d *ui.DrawContext) { /* the panel in d.Rect, option i in sel.Part(i) */ })
 //	}
 //	if i, ok := sel.Picked(); ok { m.size = i }
-func (f *Frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string, selected int) Box {
+func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string, selected int) Box {
 	b := f.box(kindSelect)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.widgets.selects))
@@ -247,7 +247,7 @@ func selectListWidth(canvas *gfx.Canvas, labels []string, size float32) float32 
 
 // sizeSelectList widens or narrows the open list of n to the font size the Select
 // was given after it was declared, which is when the size is known.
-func (f *Frame) sizeSelectList(n *node) {
+func (f *frame) sizeSelectList(n *node) {
 	d := &f.widgets.selects[n.aux]
 	if d.popup < 0 {
 		return
@@ -318,7 +318,7 @@ func (d *selectDecl) pickIn() (int, bool) {
 	return 0, false
 }
 
-func (f *Frame) measureSelect(n *node) {
+func (f *frame) measureSelect(n *node) {
 	d := &f.widgets.selects[n.aux]
 	var widest float32
 	for _, label := range d.labels {
@@ -331,7 +331,7 @@ func (f *Frame) measureSelect(n *node) {
 	n.pref = [2]float32{widest + f.theme.Metrics.PadControlX + 36, height}
 }
 
-func (f *Frame) paintSelect(n *node) {
+func (f *frame) paintSelect(n *node) {
 	d := &f.widgets.selects[n.aux]
 	count := len(d.labels)
 	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: n.pref[axisY]}
@@ -403,7 +403,7 @@ func (b Box) Popup() (Box, bool) {
 	return Box{f: b.f, i: d.popup, gen: b.f.gen}, true
 }
 
-func (f *Frame) selectPart(n *node, i int) Rect {
+func (f *frame) selectPart(n *node, i int) Rect {
 	if n.kind != kindSelect {
 		return Rect{}
 	}

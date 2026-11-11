@@ -25,13 +25,13 @@ for _, key := range []string{"Esc", "Enter", "Space", "⌥ Option"} {
 
 func (state *State) paintKbd(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var row ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Kbd · 系统快捷键", "Kbd · System shortcuts"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 560, state.Text("Kbd · 系统快捷键", "Kbd · System shortcuts"), func(c ui.C) {
 		if state.exampleID == "default" {
-			row = f.Slot().FillWidth().Height(theme.Metrics.FontSizeS + 9)
-			f.Text(state.Text("打开命令面板", "Open the command palette")).FontSize(theme.Metrics.FontSizeS).Muted()
+			row = ui.Slot(c).FillWidth().Height(theme.Metrics.FontSizeS + 9)
+			ui.Text(c, state.Text("打开命令面板", "Open the command palette")).FontSize(theme.Metrics.FontSizeS).Muted()
 			return
 		}
-		row = f.Slot().FillWidth().Height(theme.Metrics.FontSizeS + 9)
+		row = ui.Slot(c).FillWidth().Height(theme.Metrics.FontSizeS + 9)
 	})
 	bounds := row.Rect()
 	if state.exampleID == "default" {

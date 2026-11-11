@@ -60,10 +60,10 @@ func (state *State) initializePagination() {
 func (state *State) paintPagination(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	page := state.values[0]
 	var bar ui.Box
-	state.page(canvas, theme, size, 620, "Results", func(f *ui.Frame) {
-		f.Text(paginationPageStatus(page)).FontSize(theme.Metrics.FontSizeS).Muted()
-		bar = f.Slot().Height(theme.Metrics.ControlHeight)
-		caption(f, state.Text("窄视口自动减少页码；当前页保持非交互。", "Narrow viewports show fewer pages; the current page stays non-interactive."))
+	state.drawPage(canvas, theme, size, 620, "Results", func(c ui.C) {
+		ui.Text(c, paginationPageStatus(page)).FontSize(theme.Metrics.FontSizeS).Muted()
+		bar = ui.Slot(c).Height(theme.Metrics.ControlHeight)
+		caption(c, state.Text("窄视口自动减少页码；当前页保持非交互。", "Narrow viewports show fewer pages; the current page stays non-interactive."))
 	})
 
 	bounds := bar.Rect()

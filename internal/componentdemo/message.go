@@ -40,16 +40,16 @@ components.Bubble(canvas, theme, last.Content,
 
 func (state *State) paintMessage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var rows [3]ui.Box
-	state.page(canvas, theme, size, 600, state.Text("Message · 对话组合", "Message · Conversation"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 600, state.Text("Message · 对话组合", "Message · Conversation"), func(c ui.C) {
 		switch state.exampleID {
 		case "group":
 			// The rows of one group are stacked by BeginMessageGroup below.
-			rows[0] = f.Slot().FillWidth().Height(210)
+			rows[0] = ui.Slot(c).FillWidth().Height(210)
 		case "alignment":
-			rows[0] = f.Slot().FillWidth().Height(118)
-			rows[1] = f.Slot().FillWidth().Height(118)
+			rows[0] = ui.Slot(c).FillWidth().Height(118)
+			rows[1] = ui.Slot(c).FillWidth().Height(118)
 		default:
-			rows[0] = f.Slot().FillWidth().Height(118)
+			rows[0] = ui.Slot(c).FillWidth().Height(118)
 		}
 	})
 	paint := func(bounds gfx.Rect, data components.MessageData, variant components.BubbleVariant, body string) {

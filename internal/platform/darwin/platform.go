@@ -245,6 +245,7 @@ func sameTextInputPresentation(left, right TextInput) bool {
 		left.Width == right.Width && left.Height == right.Height &&
 		left.FontSize == right.FontSize && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
 		left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.Color == right.Color &&
+		left.CopyOverride == right.CopyOverride &&
 		left.State == right.State
 }
 
@@ -761,6 +762,7 @@ func makeNativeTextLabels(labels []TextLabel) (unsafe.Pointer, []unsafe.Pointer,
 			runs:            runs,
 			run_count:       C.size_t(len(label.Runs)),
 			cell_width:      C.float(label.CellWidth),
+			baseline:        C.float(label.Baseline),
 			flags:           flags,
 			bitmap:          (*C.uchar)(bitmapMemory),
 			bitmap_length:   C.size_t(len(label.Bitmap)),
@@ -844,6 +846,7 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 	return C.viva_text_input_config{
 		utf8:                 (*C.uchar)(value),
 		utf8_length:          C.size_t(len(input.State.Value)),
+		copy_override:        C.int(boolInt(input.CopyOverride)),
 		x:                    C.float(input.X),
 		y:                    C.float(input.Y),
 		width:                C.float(input.Width),
@@ -866,6 +869,7 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 		hide_native_overlays: C.int(boolInt(input.HideNativeOverlays)),
 		mono_face:            C.int(input.MonoFace),
 		cell_width:           C.float(input.CellWidth),
+		baseline:             C.float(input.Baseline),
 		alt_sends_escape:     C.int(boolInt(input.AltSendsEscape)),
 		key_releases:         C.int(boolInt(input.KeyReleases)),
 		navigation_keys:      C.int(boolInt(input.NavigationKeys)),

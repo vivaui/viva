@@ -115,7 +115,7 @@ func main() {
 
 A page does not name its elements by hand. It names each by its place among the elements of its kind in its parent, and a row by `c.Key`, `c.KeyInt` or, in a `ui.List`, `ListState.Key`, so focus, hover and press follow a row as rows are inserted above it. The names are also accessible names: `ListState.Label` names a row for assistive technology, is the text the type-ahead that moves to it matches, and is what a test finds it by; `ListState.Name`, when set, is the name assistive technology reads and the test looks for, for a row whose spoken name is more than its text. `Box.Label` names a container such as the list. A test finds a control by the same name a user hears, with no coordinates or tree identifiers of its own.
 
-A control of your own takes `ui.ID(c)`. A component written against a `ui.Frame` declares its hits in a `gfx.Tree` itself, and a page drawn into a canvas adopts the canvas's tree; an application page writes neither.
+A control of your own takes `ui.ID(c)`. An application page names neither a `gfx.Tree` nor its controls by hand.
 
 ## Pointer
 

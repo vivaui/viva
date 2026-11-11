@@ -233,8 +233,8 @@ func isContext(t types.Type) bool {
 }
 
 // isRetainedType reports whether t is a value that belongs to one paint: ui.C,
-// ui.Box or *ui.Frame, or a container or function type that can carry one.
-// Holding one across paints reads a reused node or a Frame no longer declaring.
+// ui.Box, or a container or function type that can carry one. Holding one
+// across paints reads a reused node.
 func isRetainedType(t types.Type) bool {
 	if t == nil {
 		return false
@@ -273,7 +273,7 @@ func isRetainedType(t types.Type) bool {
 			return false
 		}
 		switch object.Name() {
-		case "Ctx", "Box", "Frame":
+		case "Ctx", "Box":
 			return true
 		}
 		return false
@@ -287,7 +287,7 @@ func retainedCheck(t types.Type) string {
 		return "a ui.C is kept in a struct, but it is valid only inside the page function it was given to: " +
 			"keep the *ui.Page that NewPage returns, or pass c down as a parameter"
 	}
-	return "a per-paint ui value (a Box, Frame or parts value) is kept across paints, but it names a node of one paint: " +
+	return "a per-paint ui value (a Box or parts value) is kept across paints, but it names a node of one paint: " +
 		"keep the *ui.Page and a gfx.ID, or pass the value down as a parameter"
 }
 
@@ -613,7 +613,7 @@ func inLoop(stack []ast.Node, body ast.Node) bool {
 }
 
 // retained reports struct fields and package variables of a value that belongs
-// to one paint: a C, Box or Frame kept past the paint reads a reused node.
+// to one paint: a C or Box kept past the paint reads a reused node.
 func (checker *vetChecker) retained(file *ast.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {

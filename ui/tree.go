@@ -50,7 +50,7 @@ type TreeState struct {
 	typeahead       components.MenuTypeahead
 	names           []components.MenuTypeaheadItem // the rows as typeahead matches them
 	nameOf          func(int) string               // label, until the next paint: the keys between read it
-	f               *Frame                         // the frame the tree was last declared in
+	f               *frame                         // the frame the tree was last declared in
 	scope           gfx.Scope                      // the ids of the rows (scope.At(0)) and chevrons (At(1))
 	rows, chevrons  gfx.Scope
 	scroll          *ScrollState // the List's, between paints: its area's state lives while it is declared
