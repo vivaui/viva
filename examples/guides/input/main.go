@@ -19,8 +19,9 @@ type model struct {
 
 func newModel() *model {
 	m := &model{split: ui.SplitterState{Pos: 220}}
-	// ListState.Label is the row's name for assistive technology, for the text
-	// type-ahead matches, and for a test looking a row up by name.
+	// ListState.Label is the row's name for assistive technology and the text
+	// type-ahead matches; Name names it for assistive technology instead, and
+	// NoTypeahead turns the typing off.
 	m.list.Label = func(i int) string { return mailboxes[i] }
 	return m
 }

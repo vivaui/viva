@@ -159,6 +159,10 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, content func(i
 		state.drag = treeDrag{}
 	}
 	state.declared = state.declared[:0]
+	// The ListState a Tree builds on answers for the keyboard focus the way a
+	// List does: its rows sit in the tree's own row scope.
+	state.ListState.list.f = c.f
+	state.ListState.list.rows = state.rows
 	area := p.listArea(c, &state.ListState, n, false, state.declare)
 	state.scroll = c.f.exts[c.f.nodes[area.i].ext].scrollState
 	state.c, state.label, state.content = nil, nil, nil // the model's functions: not kept past the paint
