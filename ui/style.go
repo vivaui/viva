@@ -148,6 +148,9 @@ func (b Box) Focus(look Look) Box { b.states().focus = look; return b }
 //
 //	ui.TextField(c, &m.query, "Search", "").AutoFocus()
 //
+// A request made while handling a click or a shortcut takes effect in the
+// repaint that follows it, as Canvas.RequestFocus says.
+//
 // In a page embedded with gfx.Embed, the request stays on the view's canvas; the
 // host adopts it with gfx.Canvas.AdoptEmbedded when the view should take the
 // keyboard for the host.

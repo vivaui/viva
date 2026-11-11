@@ -330,6 +330,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 		f.nativeMark = len(canvas.NativeViews())
 	}
 	f.scratch.reset()
+	f.widgets.sweepPopoverFocus()
 	f.widgets.reset()
 	f.scrolls.epoch++
 	f.parent = -1
@@ -434,6 +435,7 @@ func (f *frame) trim() {
 	f.widgets.rows = trimFlexCapacity(f.widgets.rows)
 	f.widgets.dialogs = trimFlexCapacity(f.widgets.dialogs)
 	f.widgets.popovers = trimFlexCapacity(f.widgets.popovers)
+	f.widgets.popoverFocus = trimFlexCapacity(f.widgets.popoverFocus)
 	f.widgets.splits = trimFlexCapacity(f.widgets.splits)
 	f.widgets.sliders = trimFlexCapacity(f.widgets.sliders)
 	f.widgets.cells = trimFlexCapacity(f.widgets.cells)

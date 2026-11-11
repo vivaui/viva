@@ -725,6 +725,7 @@ func (painter *painter) deliverClick(id gfx.ID, info gfx.ClickInfo) bool {
 	painter.paintCanvas()
 	painter.canvas.EndEventPass()
 	painter.canvas.RunAfterPaint()
+	painter.focus.Carry(painter.canvas)
 	return true
 }
 
@@ -760,6 +761,7 @@ func (painter *painter) deliverPointer(event gfx.PointerEvent) bool {
 	painter.paintCanvas()
 	consumed := painter.canvas.EndPointerPass()
 	painter.canvas.RunAfterPaint()
+	painter.focus.Carry(painter.canvas)
 	return consumed
 }
 
@@ -767,7 +769,7 @@ func (painter *painter) deliverPointer(event gfx.PointerEvent) bool {
 // synchronizes the result with the retained renderer.
 func (painter *painter) repaint() (platform.Frame, error) {
 	painter.paintCanvas()
-	if !painter.focus.PendingFocus().IsZero() {
+	if !painter.focus.PendingFocus().IsZero() || painter.focus.Carries() {
 		before, beforeVisible := painter.focus.Focused(), painter.focus.KeyboardFocus()
 		painter.focus.Sync(painter.canvas)
 		if painter.focus.Focused() != before || painter.focus.KeyboardFocus() != beforeVisible {
@@ -859,7 +861,7 @@ func (painter *painter) publish() (platform.Frame, error) {
 	}
 
 	// A paint that asks to take the focus away changes routing without changing a hit.
-	regionsUnchanged := painter.hitStructuresUnchanged() && painter.canvas.FocusRelease().IsZero()
+	regionsUnchanged := painter.hitStructuresUnchanged() && painter.canvas.FocusRelease().IsZero() && !painter.focus.Carries()
 	if regionsUnchanged {
 		painter.reusedHits++
 	} else {

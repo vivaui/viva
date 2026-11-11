@@ -58,7 +58,7 @@ func main() {
 
 ## 绘制字段
 
-应用自己命名、并且自己持有 editor 的字段写成 `ui.TextFieldID(c, id, &m.searchField, label, placeholder)`，其中 `m.searchField.Bind(&m.search)` 在创建模型时调用一次（`ui.Field` 和其他字段一样放在模型里）：id 是字段在页面 Tree 里的身份，窗口自己的 `TextInput` 路由、初始焦点和测试都用它定位，而 editor 就是应用自己读取和移动的那一个。`.NavigationKeys()` 把 Up、Down、PageUp、PageDown 交给应用而不是移动光标，用于方向键移动列表选择项的搜索框。
+应用自己命名、并且自己持有 editor 的字段写成 `ui.TextFieldID(c, id, &m.searchField, label, placeholder)`，其中 `m.searchField.Bind(&m.search)` 在创建模型时调用一次（`ui.Field` 和其他字段一样放在模型里）：id 是字段在页面 Tree 里的身份，窗口自己的 `TextInput` 路由、初始焦点和测试都用它定位，而 editor 就是应用自己读取和移动的那一个。`.NavigationKeys()` 把 Up、Down、PageUp、PageDown 交给应用而不是移动光标，用于方向键移动列表选择项的搜索框。`.OnKey(fn)` 给字段一个处理函数，在它持有键盘时接收按键，先于页面把它们路由到别处：返回 `Handled` 就是认领这个键，返回空的 `EventResult` 则把它留给页面，所以 Enter 仍然可以提交。会输入文字的键从不交给它，总是到达字段。`OnKey` 同时启用 `NavigationKeys`，因为字段要认领 Up 和 Down，这两个键必须先到达应用。
 
 `ui.TextField(c, &m.name, label, placeholder)` 直接从字段取得快照，不需要自己构造；`Changed` 报告用户编辑之后的第一次绘制，你自己赋值或调用 `SetText` 不算；`.Secure()` 让它成为密码字段。自己绘制字段的组件则接受 `InputSnapshot`，它是字段某一帧的视图：`Value`、`Placeholder`、`Invalid`、`Disabled`、`ReadOnly` 和 `Secure`，以及 `Focused` 和 `PlatformEditing`。页面的字段会替你设置最后一个。平台编辑器显示在屏幕上时，文本、光标和选区都由它自己绘制，静态标签不能画在它下面。所以 `PlatformEditing` 只在字段获得焦点且有文本时为真；焦点离开后，下一帧会把当前文本重新画成普通标签。示例的测试检查的正是这一点：点击 Save 之后，原生编辑器就消失了。
 

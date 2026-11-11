@@ -188,6 +188,60 @@ func (b Box) Submitted() bool {
 	return b.f.canvas.ClickedByKey(b.f.inputs[n.aux].ID)
 }
 
+// OnKey gives the field a handler for the keys pressed while it has the
+// keyboard, before the page routes them anywhere else: a search field whose Up
+// and Down move a list below it, and whose Escape closes it. The handler is a
+// chain on the TextField or TextFieldID box:
+//
+//	search := ui.TextField(c, &m.query, "Search", "")
+//	search.OnKey(func(event gfx.KeyEvent) gfx.EventResult {
+//		switch event.Key {
+//		case gfx.KeyDown:
+//			m.next()
+//			return gfx.EventResult{Handled: true, Repaint: true}
+//		case gfx.KeyEnter:
+//			m.open()
+//			return gfx.EventResult{Handled: true}
+//		}
+//		return gfx.EventResult{}
+//	})
+//
+// Returning Handled claims the key; returning anything else leaves it to the
+// page's other routes, so Enter can still submit the form and Escape can still
+// close an overlay. Keys that type text are never offered, so typing always
+// reaches the field. The handler also switches the field to NavigationKeys:
+// Up, Down, PageUp and PageDown reach the application instead of moving the
+// caret, which is what a command palette needs.
+//
+// Not inside a Memo, whose copied fields are not declared.
+func (b Box) OnKey(handler func(gfx.KeyEvent) gfx.EventResult) Box {
+	n := b.n()
+	if n.kind != kindInput {
+		panic("ui: OnKey is for a TextField")
+	}
+	if handler == nil {
+		panic("ui: OnKey needs a handler")
+	}
+	if b.f.memoDepth > 0 {
+		panic("ui: OnKey in a Memo: a copied field is not declared, so its handler would disappear; declare it outside the Memo")
+	}
+	p := b.f.page
+	if p == nil {
+		panic("ui: OnKey is for a TextField of a page")
+	}
+	for i := len(p.fields) - 1; i >= 0; i-- {
+		if p.fields[i].id == n.id {
+			p.fields[i].key = handler
+			if p.fieldKeyRoute == nil {
+				p.keyRoute, p.fieldKeyRoute = (*Page).routeKey, (*Page).fieldKey
+			}
+			b.f.inputs[n.aux].NavigationKeys = true
+			return b
+		}
+	}
+	panic("ui: OnKey must be chained on a TextField or TextFieldID")
+}
+
 // Fields answers Config.TextInput for the fields: the platform asks which editor
 // belongs to the focused control, and gets the one of the field declared with that
 // identity.

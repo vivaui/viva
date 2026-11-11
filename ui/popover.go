@@ -13,7 +13,9 @@ type PopoverSpec struct {
 	// of a press outside the panel, of Escape and, unless KeepOpenOnAnchor, of a press
 	// on the anchor: Dismissed reports it.
 	Scope, DismissID gfx.ID
-	// InitialFocusID, when set, takes the keyboard as the panel opens.
+	// InitialFocusID, when set, takes the keyboard as the panel opens. It is asked
+	// once, as AutoFocus is, and not again while the panel stays open, so the user
+	// can move the focus inside it without the next paint pulling it back.
 	InitialFocusID gfx.ID
 	// Side is the edge of the anchor the panel opens on (below it unless set); it
 	// flips to the opposite edge when there is no room. Align lines the panel up with
@@ -108,8 +110,12 @@ func (f *frame) paintPopover(i int32, n *node) {
 	canvas.PushLayer(layer)
 	canvas.PushFocusScope(spec.Scope)
 	canvas.ReturnFocus(spec.Scope)
-	if !spec.InitialFocusID.IsZero() {
+	if !spec.InitialFocusID.IsZero() && !f.widgets.popoverAsked(popoverFocusAskFor(spec)) {
+		// As AutoFocus is: the keyboard is asked for as the panel opens, not on
+		// every paint, so moving the focus inside the panel stays where the user
+		// put it.
 		canvas.RequestFocus(spec.InitialFocusID)
+		f.widgets.popoverFocus = append(f.widgets.popoverFocus, popoverFocusAskFor(spec))
 	}
 	if !spec.DismissID.IsZero() {
 		pass := !spec.ConsumeOutsidePress

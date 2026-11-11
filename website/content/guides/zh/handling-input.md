@@ -127,7 +127,7 @@ func main() {
 
 ## 键盘与焦点
 
-页面把按键路由给持有焦点的控件。`ui.List` 自己使用它们：上和下移动选择，Home 和 End 到第一行和最后一行，Page Up 和 Page Down 按一屏移动，Enter 或双击由 `ListState.Submitted()` 报告，输入 `ListState.Label` 给出的名字的开头会跳到那一行（`ListState.NoTypeahead` 则把打出来的按键留给页面）。菜单打开时自己拿走方向键和 Escape，文本框自己拿走编辑键，都不需要处理函数。
+页面把按键路由给持有焦点的控件。`ui.List` 自己使用它们：上和下移动选择，Home 和 End 到第一行和最后一行，Page Up 和 Page Down 按一屏移动，Enter 或双击由 `ListState.Submitted()` 报告，输入 `ListState.Label` 给出的名字的开头会跳到那一行（`ListState.NoTypeahead` 则把打出来的按键留给页面）。菜单打开时自己拿走方向键和 Escape，文本框自己拿走编辑键，都不需要处理函数。`ui.List` 返回的 box 上的 `Shortcut` 覆盖列表的行，所以某一行持有焦点时 `list.Shortcut(0, "delete")` 会生效。TextField 的 `.OnKey` 处理函数认领它被输入时该拿走的按键；没有认领的键回到页面，而输入的文字总是到达字段。
 
 `ui.Splitter` 把键盘行为保存在自己的状态里：把 `SplitterState.Key` 交给窗口的按键回调，获得焦点的分隔条就能用方向键移动：
 

@@ -65,7 +65,8 @@ func (p *Page) sweepTexts() {
 
 // NavigationKeys sends Up, Down, PageUp and PageDown to the application while the
 // platform edits the field, instead of moving its caret: for a search box whose
-// arrows move a list's selection.
+// arrows move a list's selection. Box.OnKey is the handler form, and turns this on
+// for the field.
 //
 //	ui.TextField(c, &m.query, "Search", "").NavigationKeys()
 func (b Box) NavigationKeys() Box {

@@ -127,7 +127,7 @@ A click is handled where the control is declared: `ui.Button(c, "Save").Clicked(
 
 ## Keyboard and focus
 
-The page routes keys to the control with the focus. A `ui.List` uses them itself: Up and Down move the choice, Home and End go to the first and last row, Page Up and Down by a screen, Enter or a double click is `ListState.Submitted()`, and typing the start of a name given by `ListState.Label` moves to that row, unless `ListState.NoTypeahead` leaves typed keys to the page. A menu takes the arrows and Escape while it is open, and a text field takes the editing keys, all without a handler.
+The page routes keys to the control with the focus. A `ui.List` uses them itself: Up and Down move the choice, Home and End go to the first and last row, Page Up and Down by a screen, Enter or a double click is `ListState.Submitted()`, and typing the start of a name given by `ListState.Label` moves to that row, unless `ListState.NoTypeahead` leaves typed keys to the page. A menu takes the arrows and Escape while it is open, and a text field takes the editing keys, all without a handler. A `Shortcut` on the box `ui.List` returns covers the list's rows, so `list.Shortcut(0, "delete")` acts while a row has the focus. A TextField's `.OnKey` handler claims the keys its field should take while it is being typed in; anything it leaves unhandled goes back to the page, and typing always reaches the field.
 
 A `ui.Splitter` keeps its keyboard behavior in its own state, so give `SplitterState.Key` to the window's key callback and the focused divider moves with the arrow keys:
 
