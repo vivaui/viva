@@ -1019,6 +1019,10 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		// and the virtual details accompany a change that happened elsewhere and
 		// must not forget keys held here.
 		keyboardFocus := focus.Detail == xcbNotifyAncestor || focus.Detail == xcbNotifyNonlinear
+		// The same details, outside a grab, are the window becoming active.
+		if realFocus && keyboardFocus && config.OnActivate != nil {
+			config.OnActivate()
+		}
 		if keyboardFocus {
 			// A key pressed or released while another window or a grab held the
 			// keyboard left no event here. The server's bitmap says which keys
