@@ -73,6 +73,23 @@
 // (components.TextEntryRecipe), the rest stays, and no variant is needed to make a field
 // square or thick-framed. See recipe.go, bases.go and draw.go.
 //
+// A control of the application's own is Control(c, label, handlers): a focusable
+// empty element painted with Draw, whose Handlers take its keys, pointer and
+// wheel, and whose regions declared with Canvas.Hit inside Draw reach the same
+// Handlers with the region as the event target (Handlers.Parts). A region can also
+// be a drag source or target of a DragState, declared by the same Draw with
+// DrawContext.DragSource and DrawContext.DropTarget: a custom grid keeps its cards
+// as parts of one Control with stable identities and one group gesture, instead of
+// a page element per card. See control.go, drag.go and draw.go.
+//
+// A form row is FormField(c, state, label): the title, and the one control its
+// Children declare, in the control slot components.BeginField uses. The state is
+// kept in the model next to the value and reused every paint. An application
+// overlay is Overlay(c, OverlaySpec{Band, Bounds}): a floating page region
+// painted after the page on a band below Viva's menus and dialogs, with no
+// dismissal or focus trap. LayerPaneChrome is for chrome over the workspace and
+// LayerDrag for a drag ghost or drop indicator.
+//
 // Progress and Spinner are leaves that animate only while they are on screen, and a
 // Splitter between two panes is dragged (pointer captured, resize cursor, minimum sizes) with
 // its position in a SplitterState; a container given Hit that has no Children and no size

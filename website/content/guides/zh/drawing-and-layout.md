@@ -100,7 +100,7 @@ func main() {
 | `DrawBackdrop` | 画在整帧所有内容之下的图片，不受层和裁剪影响；半透明的界面会透出它。 |
 | `Clip`、`Unclip` | 把绘制和命中区域限制在一个矩形内，可以嵌套。 |
 
-文字使用 `gfx.TextStyle` 绘制：字号、字重（`gfx.WeightRegular`、`WeightMedium`、`WeightSemibold`……）、颜色，以及用于终端和代码的 `Mono`。文字是单行的。要把一段文字排进某个宽度，调用 `Canvas.WrapLines`，它在空格处和中日韩字符之间断行，然后每行画一个 `Label`。
+文字使用 `gfx.TextStyle` 绘制：字号、字重（`gfx.WeightRegular`、`WeightMedium`、`WeightSemibold`……）、颜色，以及用于终端和代码的 `Mono`。文字是单行的。要把一段文字排进某个宽度，调用 `Canvas.WrapLines`，它在空格处和中日韩字符之间断行，然后每行画一个 `Label`。用 `Mono` 或斜体样式绘制的行，改用 `Canvas.WrapLinesStyle`，它按该样式实际绘制的宽度量每一行，所以等宽段落在格子排满宽度处断行，一个中日韩字符占两格。
 
 排版文字时常常需要知道它的尺寸。`Canvas.TextWidth` 和 `TextWidthWeight` 用系统字体按你将要绘制的字重来测量，因为更粗的文字更宽。
 

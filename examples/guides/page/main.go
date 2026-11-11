@@ -1,5 +1,5 @@
-// Fleet check written as a page: the same screen the nanoui and mygo versions
-// show, written without naming a control.
+// Fleet check written as a page: a filter, a list of hosts with checkboxes, a
+// progress bar and a button, written without naming a control.
 //
 // Each checkbox writes into the host it shows, and is named by that host's field,
 // so filtering the list moves no focus or click from one host to another.

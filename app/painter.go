@@ -124,6 +124,7 @@ type painter struct {
 	// delay, while a transition is in flight or the application asked for one.
 	scheduleFrame    func(delay time.Duration)
 	setClipboardText func(string)
+	clipboardText    func() string
 	setCursor        func(Cursor) error
 	setCursorImage   func(*gfx.CursorImage) error
 	// cursorImage is the picture shown while cursor is CursorImage.
@@ -162,6 +163,12 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 		labels:        make([]platform.TextLabel, 0, len(canvas.Texts())+len(canvas.Images())+1),
 	}
 	painter.onTextEvent = painter.applyTextEvent
+	painter.clipboardText = func() string {
+		if painter.activeText == nil || painter.activeText.CopyText == nil {
+			return ""
+		}
+		return painter.activeText.CopyText()
+	}
 	if config.WindowMode == WindowCustomTitlebar && controlsDrawnByViva {
 		painter.controls = newWindowControls(config)
 	}
@@ -490,12 +497,16 @@ func (painter *painter) key(event platform.KeyEvent) (platform.Frame, error) {
 		return painter.afterKeyResponse(response)
 	}
 	if response.ContinueTraversal {
-		// The application closed an overlay in this handler. Show that frame
-		// first, then let the same key traverse the page that is now underneath.
+		// The application closed an overlay in this handler, so the same key has
+		// to traverse the page that is now underneath. Repaint the canvas and
+		// rebuild the routing regions from it, but do not publish here: this
+		// event still owes the platform exactly one frame, and a frame published
+		// now would be dropped by the repaint below. A dropped frame is a lost
+		// update, and the update that closes an overlay is a rebuild: the
+		// backend would keep the count it had and reject the smaller one.
 		painter.applyEventResult(response)
-		if _, err := painter.repaint(); err != nil {
-			return platform.Frame{}, err
-		}
+		painter.paintCanvas()
+		painter.focus.Sync(painter.canvas)
 		response = gfx.EventResult{}
 	}
 	if !response.Handled && event.Key == input.KeyEscape && !painter.focus.EscapeTarget().IsZero() && painter.canClick() && !painter.nativeText.State.Composing {
@@ -1180,8 +1191,10 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		X:      bounds.X, Y: bounds.Y,
 		Width: bounds.Width, Height: bounds.Height,
 		FontSize: fontSize, Weight: weight, Alignment: alignment, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
-		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, MonoFace: input.MonoFace, CellWidth: cellWidth,
+		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, DisableIME: input.DisableIME, MonoFace: input.MonoFace, CellWidth: cellWidth,
 		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
+		CopyOverride:       input.CopyOverride,
+		CopyText:           painter.clipboardText,
 		HideNativeOverlays: input.HideNativeOverlays || context.HideNativeOverlays,
 		Color: platform.Color{
 			Red: float64(tint.Red), Green: float64(tint.Green),
@@ -1273,8 +1286,9 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 func samePlatformTextInput(left, right platform.TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y && left.Width == right.Width && left.Height == right.Height &&
 		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.CellWidth == right.CellWidth &&
-		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases &&
+		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.DisableIME == right.DisableIME &&
 		left.NavigationKeys == right.NavigationKeys &&
+		left.CopyOverride == right.CopyOverride &&
 		left.HideNativeOverlays == right.HideNativeOverlays &&
 		left.Placed == right.Placed && left.CaretX == right.CaretX && left.CaretY == right.CaretY &&
 		left.CaretWidth == right.CaretWidth && left.CaretHeight == right.CaretHeight &&

@@ -106,6 +106,12 @@ func (s *ScrollState) MaxX() float32 { return max(s.ContentWidth-s.ViewportWidth
 // AtEnd reports whether the area shows its last row, as of the last layout.
 func (s *ScrollState) AtEnd() bool { return s.Offset >= s.Max()-0.5 }
 
+// Pinned reports whether the next layout puts the area at its end, as ScrollToEnd or
+// Follow asked, even though Offset has not caught up yet. Read it before the frame is
+// laid out; AtEnd answers the same question after it, for a page that decides what to
+// draw from where the area will be rather than from where it is.
+func (s *ScrollState) Pinned() bool { return s.pinned() }
+
 // ScrollToEnd scrolls to the end of the content in the next layout, even if that grows
 // in the same frame (add the message, then call it). With Follow set it also makes the
 // area follow the end again.
@@ -180,10 +186,13 @@ func (s *ScrollState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // (event.X, event.Y) is over: the innermost one when areas nest, and the next one out
 // when that is already at the end the wheel points to, as a browser does. Areas side
 // by side each scroll alone. A sideways wheel goes the same way, to the innermost
-// Sideways area that can move along it. It is the function to give as Config.OnScroll for a page
-// whose areas are all ScrollAreas; handle a Select's open list and a self-scrolling
-// Table first, as they own the wheel while they are open or under the pointer. It
-// reports an event that no area under the pointer can use as not handled.
+// Sideways area that can move along it. A wheel over a ScrollAt area goes to the
+// application's own Config.OnScroll instead: ScrollAt declares the area, and the
+// event is handed back unhandled rather than bubbled to an outer ScrollArea. It is
+// the function to give as Config.OnScroll for a page whose areas are all
+// ScrollAreas; handle a Select's open list and a self-scrolling Table first, as
+// they own the wheel while they are open or under the pointer. It reports an event
+// that no area under the pointer can use as not handled.
 func (view *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	f := view.frame
 	if f == nil {
@@ -194,8 +203,14 @@ func (view *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 		if n.ext == 0 || f.exts[n.ext].scrollState == nil {
 			continue
 		}
+		if !f.containsPoint(i, event.X, event.Y) {
+			continue
+		}
+		if f.exts[n.ext].scrollManual {
+			return gfx.EventResult{}
+		}
 		s := f.exts[n.ext].scrollState
-		if !s.canScroll(s.wheelSteps(event)) || !f.containsPoint(i, event.X, event.Y) {
+		if !s.canScroll(s.wheelSteps(event)) {
 			continue
 		}
 		return s.Wheel(event)

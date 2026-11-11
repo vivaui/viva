@@ -101,7 +101,7 @@ func Combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, l
 	// Clearable, Empty and Creatable say these again for this paint, after the clicks
 	// were taken with what the last paint showed.
 	state.clearable, state.empty, state.list.AllowCreate, state.createPrefix = false, "", false, ""
-	state.layer = f.widgets.layer + 1
+	state.layer = f.widgetLayer() + 1
 	// The field declares its own hits as it paints; the element only places it, as
 	// wide as its container, a control tall.
 	b := f.Slot().Height(f.theme.Metrics.ControlHeight)

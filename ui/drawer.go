@@ -210,7 +210,7 @@ func (spec *drawerSpec) component(canvas *gfx.Canvas, theme Theme, bounds Rect, 
 // drawer declares a Drawer's root: an element over the whole frame holding the
 // body and footer at the rectangles components.Drawer gives them.
 func (f *Frame) drawer(spec drawerSpec, footer bool) Box {
-	layer := f.widgets.layer + 2
+	layer := f.widgetLayer() + 2
 	layout := spec.component(f.canvas, f.theme, f.bounds, layer).Layout(spec.Description)
 	body := layout.Body
 	switch {

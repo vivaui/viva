@@ -28,10 +28,13 @@ func Scroll(c C) Box {
 // is clamped to the content at layout: read the settled value back from
 // box.ScrollState().Offset in the same paint, after Draw, rather than keeping
 // the ScrollState between paints.
+// The application's Config.OnScroll owns wheel input for this area; the page
+// must not change a position that the next declaration will overwrite.
 func ScrollAt(c C, offset float32) Box {
 	b := Scroll(c)
 	offset = max(offset, 0)
 	b.ScrollState().Offset = offset
+	b.f.extra(b.i).scrollManual = true
 	b.n().scroll = offset // the layout reads the node; ScrollArea set it from the old state
 	return b
 }
@@ -63,6 +66,10 @@ func Slot(c C) Box { return c.f.Slot() }
 
 // Grid lays its children in equal cells at least minCell wide.
 func Grid(c C, minCell float32) Box { return c.page.container(c.f.Grid(minCell)) }
+
+// Flow lays its children out left to right and wraps onto a new line when the next
+// does not fit, as a Row that wraps; LineGap sets the space between lines.
+func Flow(c C) Box { return c.page.container(c.f.Flow()) }
 
 // CustomLayout declares a container whose in-flow children layout measures and
 // places: a masonry, a dock, a flow of cards, a layout of the application's own.
@@ -326,12 +333,36 @@ func PopoverWith(c C, anchor Box, spec PopoverSpec, open *bool, body func()) boo
 	}
 	panel := c.f.Popover(anchor, spec)
 	p.setScope(panel.i, scope)
-	panel.Children(body)
+	panel.Children(func() {
+		if spec.Title != "" || spec.Description != "" {
+			popoverHeader(c, spec)
+		}
+		body()
+	})
 	if panel.Dismissed() {
 		*open = false
 		return true
 	}
 	return false
+}
+
+// popoverHeader declares the title and description at the head of a Popover.
+func popoverHeader(c C, spec PopoverSpec) {
+	// The panel's gap is GapItem; a header is a surface padding above its body, as
+	// components.Popover has it.
+	gap := c.f.theme.Metrics
+	weight := spec.TitleWeight
+	if weight == 0 {
+		weight = gfx.WeightMedium
+	}
+	Column(c).FillWidth().Gap(4).MarginBottom(gap.PadSurface - gap.GapItem).Children(func() {
+		if spec.Title != "" {
+			Text(c, spec.Title).Weight(weight)
+		}
+		if spec.Description != "" {
+			c.f.Wrap(spec.Description).Muted()
+		}
+	})
 }
 
 // ModalSpec declares a Modal beyond its title: a description, its size (448 wide

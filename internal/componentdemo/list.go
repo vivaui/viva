@@ -172,24 +172,6 @@ var listComponent = Component{
 				f.Slot().FillWidth().Height(310).Draw(d.pageDraw)
 			})
 	},
-	pointer: func(state *State, event gfx.PointerEvent) gfx.EventResult {
-		if state.list.page == nil {
-			return gfx.EventResult{}
-		}
-		if result, ok := state.list.page.Pointer(event); ok {
-			return result
-		}
-		return gfx.EventResult{}
-	},
-	key: func(state *State, event gfx.KeyEvent) gfx.EventResult {
-		if state.list.page == nil {
-			return gfx.EventResult{}
-		}
-		if result, ok := state.list.page.Key(event); ok {
-			return result
-		}
-		return gfx.EventResult{}
-	},
 	scroll: func(state *State, event gfx.ScrollEvent) gfx.EventResult {
 		if state.list.page == nil {
 			return gfx.EventResult{}

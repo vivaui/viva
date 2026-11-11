@@ -53,8 +53,8 @@ func TestPageFieldAppearingAboveKeepsTheTyping(t *testing.T) {
 	}
 }
 
-// A copy bound in every paint works as its place does, as in mygo: its click
-// arrives, and Changed writes it back.
+// A copy bound in every paint works as its place does: its click arrives, and
+// Changed writes it back.
 func TestPageCopyBoundWorksByPlace(t *testing.T) {
 	viewed := map[string]bool{}
 	d := openPage(t, func(c ui.C) {

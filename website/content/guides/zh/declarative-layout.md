@@ -33,6 +33,7 @@ func (m *model) page(c ui.C) {
 - `Background`、`Radius`、`Border`、`Shadow`、`Clip` 为容器设置样式。在 `Input`、`Select`、`Button` 等控件上，`Radius` 和 `FontSize` 为该控件设置它自己的圆角和字号；`Button` 上的 `Height` 就是按钮画出来的高度。
 - `Paragraph(text, maxLines)` 是会按所得宽度换行的文字，所以标签变长会让这一行变高，并把后面的内容往下推。`LineHeight` 设置行高。
 - `Grid(minCell)` 按宽度放下尽可能多的等宽列，并换到新的行。
+- `Flow()` 是会换行的 Row：子元素保持各自的宽度从左到右排列，放不下下一个时就换到新的一行，和 CSS 的 `flex-wrap` 一样。每一行像 Row 一样分配自己的空间，所以 `Grow` 和 `Justify` 对每一行单独生效，`Items` 在各自的行内对齐子元素。`Gap` 是子元素之间的间距，也是行与行之间的间距，除非用 `LineGap` 另行设置。会换行的标签、徽章和工具栏都用 Flow。
 - `Scroll(offset)` 是比自己更高的、带裁剪的列。偏移量由你持有（滚轮事件到 `Config.OnScroll`）；`End` 之后 `Content()` 是子元素的总高度，可据此限制偏移量。
 
 控件就是 `components` 里的那些，外观完全一致：`Button`（以及 `Outline`、`Ghost`、`Secondary`、`Destructive`、`Small` 等变体）、`Checkbox`、`Switch`、`Icon`、`Divider`。`Clicked()` 在声明控件的地方读取：它只在递送这次点击的那一遍里为真。任何元素都可以用 `Hit(id, label)` 成为指针目标；它在指针悬停、按下和获得焦点时的样子用 `Hover`、`Pressed` 和 `Focus` 声明（见下文）。
@@ -66,7 +67,7 @@ ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
 - 在 `c.Key(item.ID)` 或 `c.KeyInt(id)` 里，元素只在这一行内部编号，所以行出现、消失或移动时，行里的按钮跟着这一行走。行消失两遍绘制之后，它的 Key 才会被复用。行里有 `Button` 的循环要给行加 Key；没加时 `viva vet` 会报告。
 - 用户按住一个按钮（按下它，或它有焦点）时，如果某一遍绘制里另一个按钮占了它的位置，这次按下不会递送，焦点也会被放弃。
 
-`ui.TextArea(c, &m.notes, label, placeholder)` 是多行输入框。自己写的控件（终端、编辑器、可以画画的画布）用 `ui.Control(c, label, &m.handlers)`：它是一个可获得焦点的空元素，用 `Draw` 绘制，`Handlers` 接收它的按键、指针和滚轮；角色为 `RoleTextField` 或 `RoleTerminal` 时，还通过 `Text` 接收平台的打字和输入法。不用声明任何标识，窗口也不用分派任何事件。有多个可交互部分的控件（评分的几颗星、图的节点）在绘制时声明它们，用 `Handlers.Parts().At(i)` 作标识：落在某个部分上的按键、点击和滚轮，会连同该部分作为事件的 `Target` 交给同一个 `Handlers`；控件有焦点时打出的可打印字符，以 `Text` 交给 `Key`。在行或列上写 `.FocusGroup(ui.FocusHorizontal)`，里面的控件就成为一个 Tab 停靠点，方向键在它们之间移动，像工具栏一样；`.FocusOrder` 可以给自定义网格按行列移动。没有外观的控件有 `ui.ButtonBase`、`CheckboxBase`、`SwitchBase`、`ToggleBase`、`RadioBase`、`TabBase`、`SliderBase`、`SelectBase` 和 `TextFieldBase`：绑定和命名方式与带外观的版本相同，用来做你自己的设计。`ui.TextField(...).AutoFocus()` 在输入框出现时把焦点给它（只给一次，用户移开后不抢回），`.Submitted()` 在递送回车的那一遍绘制里为真；`.Secure()` 让它成为密码字段。`.Tooltip("Delete")` 给控件一个指针停留时显示的提示，它同时也是控件的描述。`ui.Menu(c, anchor, &m.menu, func(menu *ui.MenuItems) { ... })` 是 shadcn 的下拉菜单：像读按钮一样用 `menu.Item("Rename").Clicked()` 读取一项，方向键在各项之间移动，输入字母会跳到以它开头的项，选中一项后菜单关闭。`menu.Sub("Move to", func(to *ui.MenuItems) { ... })` 是一个旁边带子菜单的项：指针在它上面停留、点击它，或按 Right、Enter、Space 时打开（键盘打开时焦点落在子菜单第一项）；Left 返回，Escape 关闭所有菜单，在子菜单里选中一项也会全部关闭。 `menu.Item("Model").Description("What answers")` 给项加一行说明；`menu.WidthRange(140, 320)` 限制菜单宽度，`menu.Above()` 让菜单在锚点上方展开（锚点在面板底部时）。`ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` 接受 Select 的参数再加一个标签，用户输入时（支持平台输入法）筛选选项。`.Clearable()` 加一个清除选择的按钮，`.Empty("No zone matches")` 是没有匹配项时列表显示的文字，`.Creatable("")` 把输入的内容作为新选项提供（"Create dev"），由 `.Created()` 报告，应用自己把它加进选项。Button 用 `.Icon(plus)` 在标签前加图标，加 `.IconOnly()` 则只显示图标。`ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` 在 `row` 上按下副键时于指针处打开同样的菜单项，按 Shift+F10 时在它下方打开；菜单项可以加 `.Icon`、用 `.Keys(ui.Primary, "c")` 显示快捷键键帽（只显示，快捷键本身是动作所在处的一个 `Shortcut`），用 `.Checked` 或 `.Chosen` 成为复选或单选项。搜索框是带 `.Icon(search)`（文字前的图标）和 `.Action(cross, "Clear")`（末尾的小按钮，用 `.ActionClicked()` 读取）的 TextField。`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` 从窗口一边滑入一个面板，即 shadcn 的 Sheet：标题为空时整个面板都给 body，`NonModal` 让键盘留在背后的页面；`Swipe` 在面板内侧边缘加一个把手，拖动它面板随之移向边缘，拖过一半或快速甩出时关闭，否则滑回原位。`ui.Tree(c, &m.tree, n, label, content)` 是应用自己的树里可见行组成的 List，由 `TreeState.Node` 描述每一行（深度、是否为分支、是否展开）；方向键移动、展开和折叠，树报告 `Toggled()` 和 `Chosen()` 由应用处理。输入行名的开头会跳到那一行。设置 `TreeState.CanDrop` 后，行可以拖到另一行的前面、里面或后面（由 `CanDrop` 决定接受哪些），`Dropped()` 报告放下的那一次；移动行要放在 `c.After` 里做，因为报告它的那次绘制还在声明这些行。Toast 是模型里的一个 `ui.Toaster`：`m.toaster.Show("Saved", "", ui.ToastSuccess)` 显示一条，`ui.Toasts(c, &m.toaster)` 在页面里声明一次、放在最后，负责绘制并在五秒后收起；它只在下一条到期时请求一帧，没有 toast 时不做任何调度。`ShowAction(title, description, kind, "Undo")` 给 toast 加一个按钮，按下后 toast 收起，在 `Toasts` 之后用 `m.toaster.Acted()` 读取；`ui.ToastLoading` 的 toast 显示转圈且不会自动收起，直到 `m.toaster.Done(id, "Uploaded", "", ui.ToastSuccess)` 替换它；`Toaster.Position` 把整组 toast 放到别的角落或居中（`ui.ToastTopCenter`）。键盘快捷键在它起作用的地方声明，和读取点击一样：`if ui.Shortcut(c, ui.Primary, "s") { m.save() }` 是整个页面的快捷键（Primary 在 macOS 上是 Command，其他平台是 Control）；在容器或控件上用 `list.Shortcut(0, "delete")`，只在焦点位于它之内时生效，嵌套时最内层的生效。不带 Primary、Ctrl 或 Alt 的按键留给正在输入的输入框或终端；Popover、Modal、Menu 或 Select、Combobox 列表打开时，页面级快捷键不生效。`ui.List(c, &state, n, row)` 只声明 `n` 行列表里显示在屏幕上的行，每行高度由内容决定，并负责滚动；`row` 得到一个 `ui.ListRow`，其中 `Element` 是这一行的容器（用来设置样式），`C` 用来声明行里的内容，`ListState.Key` 按条目 ID 为行命名。点击会选中一行，方向键、Home、End、Page Up 和 Page Down 在行之间移动，选中的行在 `state.Selected()` 里，`state.Changed()` 报告用户做了选择；回车或双击是 `state.Submitted()`；设置 `ListState.Label` 后，输入行文字的开头会跳到那一行。把 `ListState.Selection` 设为一个 `ui.Selection` 就能让用户选多行（Primary 加点击增减一行，Shift 扩展，Primary+A 全选）。`ScrollTo`、`ScrollIntoView`、`ScrollToEnd`、`Visible` 和 `AtEnd` 移动并读取滚动位置，`box.ClickModifiers()` 和 `box.DoubleClicked()` 说明任何元素上的点击是怎么发生的。行的 `Element` 是一个 Row，所以图标、名称和大小并排放。`ListState.Header` 标出作为分组标题的行：处在顶部的那一组的标题会留在顶部，它的行从下面滚过，直到下一个标题把它顶走（给它设个背景；标题不会被选中、聚焦，也不参与输入跳转，按键会跳过它）。`ListState.Reorder` 让用户把行拖到别的位置，拖动的行被选中时拖走所有选中的行，并用这些行和它们要放到哪一行之前来调用它；列表会显示它们要去的位置，靠近边缘时自动滚动，按 Escape 放弃拖动。`ListState.RowWidth` 让行至少这么宽：行比列表宽时列表也能横向滚动（水平滚轮，或按住 Shift 用滚轮），不比列表宽时行会撑满列表，像表格的列那样；列表上方的表头用 `box.ScrollWith(&state)` 加在它的内容上，随行一起移动：给它和行一样的宽度，放在定高、会裁剪的容器里。`ui.State[T](c, "open")` 是元素自己的小状态（比如菜单是否打开），在它的容器里按名字查找，容器被声明期间一直保留。`ui.Memo(c, *row, fn)` 在那个值比较相等时从上一遍绘制复制 `fn` 声明的部分，在它被悬停、获得焦点、处于动画中或改变大小时重新声明；见下面的开销。
+`ui.TextArea(c, &m.notes, label, placeholder)` 是多行输入框。自己写的控件（终端、编辑器、可以画画的画布）用 `ui.Control(c, label, &m.handlers)`：它是一个可获得焦点的空元素，用 `Draw` 绘制，`Handlers` 接收它的按键、指针和滚轮；角色为 `RoleTextField` 或 `RoleTerminal` 时，还通过 `Text` 接收平台的打字和输入法。不用声明任何标识，窗口也不用分派任何事件。有多个可交互部分的控件（评分的几颗星、图的节点）在绘制时声明它们，用 `Handlers.Parts().At(i)` 作标识：落在某个部分上的按键、点击和滚轮，会连同该部分作为事件的 `Target` 交给同一个 `Handlers`；控件有焦点时打出的可打印字符，以 `Text` 交给 `Key`。在行或列上写 `.FocusGroup(ui.FocusHorizontal)`，里面的控件就成为一个 Tab 停靠点，方向键在它们之间移动，像工具栏一样；`.FocusOrder` 可以给自定义网格按行列移动。没有外观的控件有 `ui.ButtonBase`、`CheckboxBase`、`SwitchBase`、`ToggleBase`、`RadioBase`、`TabBase`、`SliderBase`、`SelectBase` 和 `TextFieldBase`：绑定和命名方式与带外观的版本相同，用来做你自己的设计。`ui.TextField(...).AutoFocus()` 在输入框出现时把焦点给它（只给一次，用户移开后不抢回），`.Submitted()` 在递送回车的那一遍绘制里为真；`.Secure()` 让它成为密码字段。`.Tooltip("Delete")` 给控件一个指针停留时显示的提示，它同时也是控件的描述。`ui.Menu(c, anchor, &m.menu, func(menu *ui.MenuItems) { ... })` 是 shadcn 的下拉菜单：像读按钮一样用 `menu.Item("Rename").Clicked()` 读取一项，方向键在各项之间移动，输入字母会跳到以它开头的项，选中一项后菜单关闭。`menu.Sub("Move to", func(to *ui.MenuItems) { ... })` 是一个旁边带子菜单的项：指针在它上面停留、点击它，或按 Right、Enter、Space 时打开（键盘打开时焦点落在子菜单第一项）；Left 返回，Escape 关闭所有菜单，在子菜单里选中一项也会全部关闭。 `menu.Item("Model").Description("What answers")` 给项加一行说明；`menu.WidthRange(140, 320)` 限制菜单宽度，`menu.Above()` 让菜单在锚点上方展开（锚点在面板底部时）。`ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` 接受 Select 的参数再加一个标签，用户输入时（支持平台输入法）筛选选项。`.Clearable()` 加一个清除选择的按钮，`.Empty("No zone matches")` 是没有匹配项时列表显示的文字，`.Creatable("")` 把输入的内容作为新选项提供（"Create dev"），由 `.Created()` 报告，应用自己把它加进选项。Button 用 `.Icon(plus)` 在标签前加图标，加 `.IconOnly()` 则只显示图标。`ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` 在 `row` 上按下副键时于指针处打开同样的菜单项，按 Shift+F10 时在它下方打开；菜单项可以加 `.Icon`、用 `.Keys(ui.Primary, "c")` 显示快捷键键帽（只显示，快捷键本身是动作所在处的一个 `Shortcut`），用 `.Checked` 或 `.Chosen` 成为复选或单选项。搜索框是带 `.Icon(search)`（文字前的图标）和 `.Action(cross, "Clear")`（末尾的小按钮，用 `.ActionClicked()` 读取）的 TextField。`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` 从窗口一边滑入一个面板，即 shadcn 的 Sheet：标题为空时整个面板都给 body，`NonModal` 让键盘留在背后的页面；`Swipe` 在面板内侧边缘加一个把手，拖动它面板随之移向边缘，拖过一半或快速甩出时关闭，否则滑回原位。`ui.Tree(c, &m.tree, n, label, content)` 是应用自己的树里可见行组成的 List，由 `TreeState.Node` 描述每一行（深度、是否为分支、是否展开）；方向键移动、展开和折叠，树报告 `Toggled()` 和 `Chosen()` 由应用处理。输入行名的开头会跳到那一行。设置 `TreeState.CanDrop` 后，行可以拖到另一行的前面、里面或后面（由 `CanDrop` 决定接受哪些），`Dropped()` 报告放下的那一次；移动行要放在 `c.After` 里做，因为报告它的那次绘制还在声明这些行。`state.RowID(i)` 是第 i 个可见行的身份（`DisclosureID(i)` 是它箭头的身份，`ListState` 也有 `RowID`），用来给某一行焦点或找到它的 hit。其他元素可以用模型里的 `ui.DragState` 拖放：`ui.Row(c).Hit(ui.ID(c), "Group").DragSource(&m.drag)` 把元素声明为源，`.DropTarget(&m.drag, m.accepts, m.drops)` 把它声明为目标。页面负责按下、把按下变成拖拽的短距离，以及指针下的目标；`m.drag.Dragging()`、`Source()`、`Target()` 和 `At()` 用来绘制拖拽，`accept(source, target)` 决定接不接受，`drop(source, target)` 在松开时执行，Escape 放弃。没有移动的按下仍然是点击。在 `ui.Control` 的 `Draw` 里，自定义网格的卡片用 `d.Canvas.Hit(part, r)` 声明为 part，再用 `d.DragSource(&m.drag, part, r)` 和 `d.DropTarget(&m.drag, part, r, accept, drop)` 声明为同一个状态的源和目标，一个控件就能承载多个身份稳定、可拖拽的 part；目标 part 不需要 Hit。回调保存在模型里，元素每遍绘制都重新声明，不要放在 `Memo` 里；用自己 `ui.View` 绘制的表面（自定义网格）在页面里调用 `ui.Drag(c, &m.drag)`，让页面也路由它的指针。Toast 是模型里的一个 `ui.Toaster`：`m.toaster.Show("Saved", "", ui.ToastSuccess)` 显示一条，`ui.Toasts(c, &m.toaster)` 在页面里声明一次、放在最后，负责绘制并在五秒后收起；它只在下一条到期时请求一帧，没有 toast 时不做任何调度。`ShowAction(title, description, kind, "Undo")` 给 toast 加一个按钮，按下后 toast 收起，在 `Toasts` 之后用 `m.toaster.Acted()` 读取；`ui.ToastLoading` 的 toast 显示转圈且不会自动收起，直到 `m.toaster.Done(id, "Uploaded", "", ui.ToastSuccess)` 替换它；`Toaster.Position` 把整组 toast 放到别的角落或居中（`ui.ToastTopCenter`）。键盘快捷键在它起作用的地方声明，和读取点击一样：`if ui.Shortcut(c, ui.Primary, "s") { m.save() }` 是整个页面的快捷键（Primary 在 macOS 上是 Command，其他平台是 Control）；在容器或控件上用 `list.Shortcut(0, "delete")`，只在焦点位于它之内时生效，嵌套时最内层的生效。不带 Primary、Ctrl 或 Alt 的按键留给正在输入的输入框或终端；Popover、Modal、Menu 或 Select、Combobox 列表打开时，页面级快捷键不生效。`ui.List(c, &state, n, row)` 只声明 `n` 行列表里显示在屏幕上的行，每行高度由内容决定，并负责滚动；`row` 得到一个 `ui.ListRow`，其中 `Element` 是这一行的容器（用来设置样式），`C` 用来声明行里的内容，`ListState.Key` 按条目 ID 为行命名。点击会选中一行，方向键、Home、End、Page Up 和 Page Down 在行之间移动，选中的行在 `state.Selected()` 里，`state.Changed()` 报告用户做了选择；回车或双击是 `state.Submitted()`；设置 `ListState.Label` 后，输入行文字的开头会跳到那一行。把 `ListState.Selection` 设为一个 `ui.Selection` 就能让用户选多行（Primary 加点击增减一行，Shift 扩展，Primary+A 全选）。`ScrollTo`、`ScrollIntoView`、`ScrollToEnd`、`Visible` 和 `AtEnd` 移动并读取滚动位置，`box.ClickModifiers()` 和 `box.DoubleClicked()` 说明任何元素上的点击是怎么发生的。行的 `Element` 是一个 Row，所以图标、名称和大小并排放。`ListState.Header` 标出作为分组标题的行：处在顶部的那一组的标题会留在顶部，它的行从下面滚过，直到下一个标题把它顶走（给它设个背景；标题不会被选中、聚焦，也不参与输入跳转，按键会跳过它）。`ListState.Reorder` 让用户把行拖到别的位置，拖动的行被选中时拖走所有选中的行，并用这些行和它们要放到哪一行之前来调用它；列表会显示它们要去的位置，靠近边缘时自动滚动，按 Escape 放弃拖动。`ListState.RowWidth` 让行至少这么宽：行比列表宽时列表也能横向滚动（水平滚轮，或按住 Shift 用滚轮），不比列表宽时行会撑满列表，像表格的列那样；列表上方的表头用 `box.ScrollWith(&state)` 加在它的内容上，随行一起移动：给它和行一样的宽度，放在定高、会裁剪的容器里。`ui.State[T](c, "open")` 是元素自己的小状态（比如菜单是否打开），在它的容器里按名字查找，容器被声明期间一直保留。`ui.Memo(c, *row, fn)` 在那个值比较相等时从上一遍绘制复制 `fn` 声明的部分，在它被悬停、获得焦点、处于动画中或改变大小时重新声明；见下面的开销。
 
 设置类结构体的表单可以自动生成。给字段加 tag，然后运行 `viva form`（写成 `//go:generate go tool viva form`）：它生成 `viva_form.go`，里面是 `func (v *Settings) Form(c ui.C) ui.Box`，就是普通的页面代码，不用反射：
 
@@ -86,8 +87,8 @@ type Settings struct {
 
 <!-- example: page/main.go -->
 ```go
-// Fleet check written as a page: the same screen the nanoui and mygo versions
-// show, written without naming a control.
+// Fleet check written as a page: a filter, a list of hosts with checkboxes, a
+// progress bar and a button, written without naming a control.
 //
 // Each checkbox writes into the host it shows, and is named by that host's field,
 // so filtering the list moves no focus or click from one host to another.
@@ -237,9 +238,22 @@ ui.Row(c).Pad(8).Radius(8).Hit(ui.ID(c), "Open").Transition().
 	Focus(ui.Look{}.Ring(3, theme.Ring))
 ```
 
-`Focus` 在焦点应当可见时生效（由按键移动而来，点击不算）；`Hit` 默认可获得焦点，除非用 `HitWith` 指定 `SkipFocus`。几个 Look 按 Focus、Hover、Pressed 的顺序逐字段合并，所以既聚焦又悬停的行会同时显示前者的光环和后者的底色。`Transition()` 按主题的动效在它们之间渐变（`TransitionWith` 可指定其他动效）；没有变化时不会安排任何帧。`StateFrom(row)` 让一个元素跟随另一个元素的状态，行内的内容就能随行变化：`f.Icon(edit).Opacity(0).StateFrom(row).Hover(ui.Look{}.Opacity(1))` 是一个在所在行悬停时才出现的图标。
+`Focus` 在焦点应当可见时生效（由按键移动而来，点击不算）；`Hit` 默认可获得焦点，除非用 `HitWith` 指定 `SkipFocus`。几个 Look 按 Focus、Hover、Pressed 的顺序逐字段合并，所以既聚焦又悬停的行会同时显示前者的光环和后者的底色。`Transition()` 按主题的动效在它们之间渐变（`TransitionWith` 可指定其他动效）；没有变化时不会安排任何帧。`StateFrom(row)` 让一个元素跟随另一个元素的状态，行内的内容就能随行变化：`ui.Icon(c, edit).Opacity(0).StateFrom(row).Hover(ui.Look{}.Opacity(1))` 是一个在所在行悬停时才出现的图标。
 
 另有四种不依赖状态的效果。`Ring(width, color)` 在元素外侧画一圈线且不占空间，焦点环就是这样画的。`Opacity(v)` 让元素及其内部的一切（包括控件）淡化；取 0 时仍参与布局、仍可点击；`Image` 不会被淡化。`Gradient(angle, from, to)` 和 `GradientStops(angle, stops...)` 沿圆角用线性渐变填充元素，画在 `Background` 之上、`Border` 之下；角度与 CSS 相同，以向上为 0 顺时针计，`ui.ToRight`、`ui.ToBottomRight` 等给常用方向命名。
+
+## 表单字段与覆盖层
+
+`ui.FormField(c, &m.proxyField, "Proxy").FillWidth().Children(func() { ... })` 是一个表单行：标题，以及 children 声明的唯一控件；控件落在 `components.BeginField` 的 control 槽位，节奏也相同。`ui.FormFieldState` 和值一起放在 model 里；字段不绑定值，也不给控件做 label。放在固定高度的行里时它填满该行；单独放置时和 `BeginField` 预留的高度一致（标题、控件，以及 description 和 error 两行）。Select 或 Combobox 的列表可以越出字段边界。
+
+`ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: r})` 是应用自己的覆盖层：一个浮动的页面区域，在页面之后绘制，层带低于 Viva 的菜单和对话框，没有 dismissal、backdrop 或 focus trap。`ui.LayerPaneChrome` 用于工作区之上的界面框架；`ui.LayerDrag` 用于拖拽幽灵或放置指示器。它的 children 是普通页面元素，命中与 Tab 都按层带处理。空白表面默认让按下事件穿透；要让整块区域挡住下层，在它上面声明一个 `Canvas.Block`（Block 只挡按下事件，滚轮需要应用自己处理）。同一层带上重叠的两个覆盖层可能让形状和文字交错，请用不同层带或避免重叠。
+
+```go
+ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: sidebar}).Children(func() {
+	ui.Slot(c).Fill().Draw(func(d *ui.DrawContext) { d.Canvas.Block(d.Rect) })
+	ui.Column(c).Fill().Children(func() { /* rows */ })
+})
+```
 
 ## 和手工绘制混用
 
@@ -267,55 +281,40 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-var (
-	tree = gfx.Tree{}
-	page = tree.Feature("layout")
-
-	save   = tree.ID(page, "save")
-	cancel = tree.ID(page, "cancel")
-)
-
 type model struct {
 	saved bool
 	notes bool
-	view  ui.View
+}
+
+func (m *model) page(c ui.C) {
+	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		ui.Text(c, "Deploy settings").FontSize(18).Bold()
+		ui.Text(c, "Where the build goes when it passes.").Muted()
+		ui.Divider(c)
+		ui.Row(c).Items(ui.Center).Gap(8).Children(func() {
+			ui.Text(c, "Notify the team")
+			ui.Spacer(c)
+			ui.Switch(c, &m.notes, "Notify the team")
+		})
+		ui.Spacer(c)
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ui.Button(c, "Cancel").Outline()
+			if ui.Button(c, "Save").Clicked() {
+				m.saved = true
+			}
+		})
+	})
 }
 
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Layout", Width: 420, Height: 220}
-
-	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
-		canvas.Fill(gfx.Rect{Width: size.Width, Height: size.Height}, theme.Background)
-		bounds := gfx.Rect{Width: size.Width, Height: size.Height}
-
-		m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
-			f.Column().Fill().Pad(24).Gap(12).Children(func() {
-				f.Text("Deploy settings").FontSize(18).Bold()
-				f.Text("Where the build goes when it passes.").Muted()
-				f.Divider()
-				f.Row().Items(ui.Center).Gap(8).Children(func() {
-					f.Text("Notify the team")
-					f.Spacer()
-					f.Switch(tree.ID(page, "notes"), m.notes).Label("Notify the team")
-				})
-				f.Spacer()
-				f.Row().Gap(8).Justify(ui.End).Children(func() {
-					f.Button(cancel, "Cancel").Outline()
-					if f.Button(save, "Save").Clicked() {
-						m.saved = true
-					}
-				})
-			})
-		})
-	}
-	return config
+	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
+	return page.Config(app.Config{Title: "Layout", Width: 420, Height: 220})
 }
 
 func main() {
-	m := &model{}
 	var canvas gfx.Canvas
-	if err := app.RunCanvas(newConfig(m), &canvas); err != nil {
+	if err := app.RunCanvas(newConfig(&model{}), &canvas); err != nil {
 		log.Fatal(err)
 	}
 }

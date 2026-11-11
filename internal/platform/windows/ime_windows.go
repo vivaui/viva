@@ -41,6 +41,7 @@ var getCompositionString = imm.NewProc("ImmGetCompositionStringW")
 var setCompositionWindow = imm.NewProc("ImmSetCompositionWindow")
 var notifyIME = imm.NewProc("ImmNotifyIME")
 var setCandidateWindow = imm.NewProc("ImmSetCandidateWindow")
+var associateContext = imm.NewProc("ImmAssociateContext")
 
 // candidateForm is CANDIDATEFORM.
 type candidateForm struct {
@@ -448,17 +449,47 @@ func (state *windowState) applyTextInputUpdate(update platform.TextInputUpdate) 
 		state.textState = platform.TextState{}
 		state.caretVisible = false
 		state.stopCaretTimer()
+		state.updateIMEAssociation()
 		return true, wasEnabled, nil
 	}
 	state.textInput = *update.Input
 	state.textState = state.textInput.State
 	state.textEnabled = true
 	state.caretVisible = true
+	state.updateIMEAssociation()
 	if err := state.restartCaretTimer(); err != nil {
 		return false, false, err
 	}
 	state.positionCompositionWindow()
 	return true, !wasEnabled, nil
+}
+
+// updateIMEAssociation follows the focused input in keeping the host's input
+// method on or off the window (platform.TextInput.DisableIME). A disabled
+// method neither composes nor answers its switch hotkeys here: the keys are
+// another machine's, and it runs its own method over there. What
+// ImmAssociateContext returned is kept for the input that brings the method
+// back, the default context the window was created with.
+func (state *windowState) updateIMEAssociation() {
+	disabled := state.textEnabled && state.textInput.DisableIME
+	if disabled == state.imeDisabled {
+		return
+	}
+	if state.window == 0 {
+		// No window to associate yet, as at OpenWindow time: the first update
+		// after one exists acts for the input that is focused then.
+		return
+	}
+	if disabled {
+		state.cancelComposition()
+		if previous, _, _ := associateContext.Call(state.window, 0); previous != 0 {
+			state.imeContext = previous
+		}
+	} else {
+		associateContext.Call(state.window, state.imeContext)
+		state.imeContext = 0
+	}
+	state.imeDisabled = disabled
 }
 
 func (state *windowState) prepareFrame(frame platform.Frame, nativeVisualChanged bool) (platform.Frame, bool, error) {

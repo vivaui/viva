@@ -78,7 +78,7 @@ Call `.Secure()` on the `ui.TextField` (or set `Secure` on a `ui.Field`, or `Inp
 
 ## Several lines and addons
 
-`components.PaintInputGroup` takes the same kind of snapshot with `Multiline`, and four addon slots, `InlineStart`, `InlineEnd`, `BlockStart` and `BlockEnd`, for icons, text prefixes and buttons. `f.Textarea` and the other fields build on the same pieces; each has a page in the [component catalog](/en/ui/input/) with runnable examples.
+`components.PaintInputGroup` takes the same kind of snapshot with `Multiline`, and four addon slots, `InlineStart`, `InlineEnd`, `BlockStart` and `BlockEnd`, for icons, text prefixes and buttons. `components.PaintTextarea` and the other fields build on the same pieces; each has a page in the [component catalog](/en/ui/input/) with runnable examples.
 
 ## Multiline text areas
 

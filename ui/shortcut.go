@@ -41,7 +41,7 @@ type shortcutEntry struct {
 // A Shortcut acts as a click does, in the paint that delivers it, and is matched
 // before the keys reach the control with the focus, except that a chord without
 // Primary, Control or Alt is left to a text field, Combobox or terminal being typed
-// in. While an overlay is open (Page.Overlay), a page-wide Shortcut does not act
+// in. While an overlay is open , a page-wide Shortcut does not act
 // (the overlay has the keyboard); Box.Shortcut on an element in it does. Not inside
 // a Memo.
 func Shortcut(c C, modifiers gfx.Modifiers, key string) bool {
@@ -101,7 +101,7 @@ func (p *Page) matchShortcut(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	target := event.Target
 	// A page-wide Shortcut acts with the focus in the page, or with none in a window
 	// the page fills; not while an overlay has the keyboard.
-	pageWide := !p.overlay && (p.Owns(target) || target.IsZero() && p.window)
+	pageWide := !p.overlay && (p.owns(target) || target.IsZero() && p.window)
 	best := -1
 	for i := range p.shortcuts {
 		entry := &p.shortcuts[i]

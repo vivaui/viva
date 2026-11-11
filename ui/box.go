@@ -213,8 +213,18 @@ func (b Box) MarginSides(top, right, bottom, left float32) Box {
 	return b
 }
 
-// Gap is the space between the children of a Row or a Column.
+// Gap is the space between the children of a Row, a Column or a Flow, and between
+// the lines of a Flow unless LineGap sets them apart.
 func (b Box) Gap(v float32) Box { b.n().gap = v; return b }
+
+// LineGap is the space between the lines of a Flow, when it is not its Gap. It has
+// no effect on any other container.
+func (b Box) LineGap(v float32) Box {
+	if n := b.n(); n.dir == flow {
+		n.gridMin = max(v, 0)
+	}
+	return b
+}
 
 // Items places the children across the container (Start, Center, End or
 // Stretch, the default); Self does it for this element alone; Justify places

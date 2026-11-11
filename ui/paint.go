@@ -9,6 +9,13 @@ import (
 
 func (f *Frame) paint(i int32) {
 	n := &f.nodes[i]
+	if n.band != 0 {
+		// An application overlay's subtree paints on its band, over the page and
+		// under Viva's widgets. Hits declared in it capture the same layer, so the
+		// band orders Tab and pointer routing with paint.
+		f.canvas.PushLayer(n.band)
+		defer f.canvas.PopLayer()
+	}
 	if n.flags&flagDialog != 0 {
 		f.paintDialog(n)
 		return

@@ -251,6 +251,8 @@ type Page struct {
 	contexts    []contextTarget       // the ContextMenus of the last paint, which Shift+F10 opens
 	combos      []*comboState         // the Comboboxes of the last paint
 	trees       []*TreeState          // the Trees of the last paint
+	drags       []*DragState          // the DragStates of the last paint
+	drag        *DragState            // the one following a press, if any
 	listStates  []*ListState          // the Lists of the last paint
 	selects     []*SelectState        // the Selects of the last paint, which Wheel scrolls
 	labels      []string              // scratch for Choice's labels
@@ -382,63 +384,10 @@ func (p *Page) init(tree *gfx.Tree) {
 	p.epoch = 1
 }
 
-// Owns reports whether id is one the page named: one of its controls, or what
+// owns reports whether id is one the page named: one of its controls, or what
 // its Popovers and Modals report a dismissal with.
-func (p *Page) Owns(id gfx.ID) bool {
+func (p *Page) owns(id gfx.ID) bool {
 	return p.tree != nil && !id.IsZero() && p.tree.Within(id.Scope(), p.root)
-}
-
-// Overlay reports whether the last paint declared an open Popover, Modal, Menu,
-// Select or Combobox list: while it does, the overlay has the pointer and the
-// keyboard (see Pointer and Key).
-func (p *Page) Overlay() bool { return p.overlay }
-
-// Pointer is for a host that routes the window's pointer itself, a page being a
-// pane or an overlay of a window it does not own. It reports whether the event
-// is the page's business, and what the host returns for it then: a Control's go
-// to its Handlers, the page's other targets are left unhandled, so the press
-// completes its click in the page, and while an Overlay is open every other press
-// is taken, so nothing behind it acts.
-//
-//	if result, ok := page.Pointer(event); ok {
-//		return result
-//	}
-func (p *Page) Pointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
-	if result, ok := p.routePointer(event); ok {
-		return result, true
-	}
-	switch {
-	case p.Owns(event.Target):
-		return gfx.EventResult{}, true
-	case p.overlay:
-		return gfx.EventResult{Handled: true}, true
-	}
-	return gfx.EventResult{}, false
-}
-
-// Key is Pointer for the keyboard. A Shortcut the key presses acts first, then a
-// Control with the focus takes its keys. Give it the window's OnShortcut too: the
-// chords of printable keys (Primary+S) arrive there.
-// While an Overlay is open, a key whose target is the page's (a field in it) is left
-// to the page; of the others, Escape, Enter, Space and Tab are left to it (to close
-// it, press its buttons and move between them) and the rest are taken, so the host's
-// shortcuts do not act on what is behind it. With no Overlay it leaves the key to
-// the host.
-func (p *Page) Key(event gfx.KeyEvent) (gfx.EventResult, bool) {
-	if result, ok := p.routeKey(event); ok {
-		return result, true
-	}
-	if !p.overlay {
-		return gfx.EventResult{}, false
-	}
-	if p.Owns(event.Target) {
-		return gfx.EventResult{}, true
-	}
-	switch event.Key {
-	case gfx.KeyEscape, gfx.KeyEnter, gfx.KeySpace, gfx.KeyTab:
-		return gfx.EventResult{}, true
-	}
-	return gfx.EventResult{Handled: true}, true
 }
 
 // routeKey gives a key to the Combobox it is typed in or the open Menu it moves in,
@@ -508,9 +457,13 @@ func (p *Page) routePointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
 	return gfx.EventResult{}, false
 }
 
-// onKey and onPointer are the Config's: a Control's or TextArea's, then base's. A
-// full-window page has nothing behind its overlays, so they do not take keys here.
+// onKey and onPointer are the Config's: a drag's, a Control's or TextArea's,
+// then base's. A full-window page has nothing behind its overlays, so they do
+// not take keys here.
 func (p *Page) onKey(event gfx.KeyEvent) gfx.EventResult {
+	if result, ok := p.cancelDrag(event); ok {
+		return result
+	}
 	if p.keyRoute != nil {
 		if result, ok := p.keyRoute(p, event); ok {
 			return result
@@ -523,6 +476,9 @@ func (p *Page) onKey(event gfx.KeyEvent) gfx.EventResult {
 }
 
 func (p *Page) onPointer(event gfx.PointerEvent) gfx.EventResult {
+	if result, ok := p.dropPointer(event); ok {
+		return result
+	}
 	if p.pointerRoute != nil {
 		if result, ok := p.pointerRoute(p, event); ok {
 			return result
@@ -532,6 +488,40 @@ func (p *Page) onPointer(event gfx.PointerEvent) gfx.EventResult {
 		return p.basePointer(event)
 	}
 	return gfx.EventResult{}
+}
+
+// dropPointer gives the pointer to the drag following a press, or to the
+// DragState a press on it starts. It reports whether the drag handled the event;
+// a press that does not move is left to the page's click.
+func (p *Page) dropPointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
+	if s := p.drag; s != nil {
+		result, done := s.pointer(event)
+		if done {
+			p.drag = nil
+		}
+		return result, result.Handled
+	}
+	if event.Kind != gfx.PointerDown || event.Button != gfx.PointerButtonPrimary {
+		return gfx.EventResult{}, false
+	}
+	for i := len(p.drags) - 1; i >= 0; i-- {
+		if p.drags[i].press(event) {
+			p.drag = p.drags[i]
+			break
+		}
+	}
+	return gfx.EventResult{}, false
+}
+
+// cancelDrag lets go of the drag an Escape pressed, and reports whether it did.
+// The state keeps the pointer until its release, so the cancelled drag does not
+// become a click.
+func (p *Page) cancelDrag(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if event.Key != gfx.KeyEscape || event.Release || p.drag == nil || !p.drag.active {
+		return gfx.EventResult{}, false
+	}
+	p.drag.Cancel()
+	return gfx.EventResult{Handled: true, Repaint: true}, true
 }
 
 // currentTheme is the theme the page paints with: the one given, or the system's.
@@ -564,8 +554,8 @@ func (p *Page) currentTheme() Theme {
 //     focused field (a terminal of the application's, say).
 //   - OnScroll scrolls an open Select, then the page's scroll areas, and gives
 //     what they leave to base's.
-//   - OnKey, OnShortcut and OnPointer give a Shortcut its chord and a Control its
-//     own events, then base's the rest.
+//   - OnKey, OnShortcut and OnPointer give a DragState its drag, a Shortcut its
+//     chord and a Control its own events, then base's the rest.
 //
 // Config gives the page an Invalidator when neither PageConfig.Invalidator nor
 // base has one, for the page's Effects and, with FollowSystemTheme, the appearance
@@ -690,6 +680,8 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.combos = p.combos[:0]
 	clear(p.trees)
 	p.trees = p.trees[:0]
+	clear(p.drags)
+	p.drags = p.drags[:0]
 	clear(p.listStates)
 	p.listStates = p.listStates[:0]
 	clear(p.selects)
@@ -709,6 +701,9 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.nodes = append(p.nodes[:0], protoNode{scope: p.root, named: true, parentNode: -1}) // node 0, the root column
 	view(&p.ctx)
 	f.End()
+	if s := p.drag; s != nil && s.epoch != p.epoch {
+		s.Cancel()
+	}
 	p.measureLists()
 	p.sweep()
 	p.sweepTexts()

@@ -803,6 +803,11 @@ type TextInput struct {
 	// keys that are not text delivered as raw key events (see KeyEvent.Text).
 	Terminal bool
 	MonoFace gfx.MonoFace
+	// CopyOverride makes Copy/Cut use CopyText instead of the native selection.
+	CopyOverride bool
+	// CopyText is evaluated only for a non-secure Copy/Cut action. A nil callback
+	// or empty result leaves the clipboard and document unchanged.
+	CopyText func() string
 	// CellWidth is the width of one cell of the terminal's grid, in logical pixels:
 	// gfx.Canvas.MonoCellSize for the input's FontSize and MonoFace. A Terminal input's
 	// preedit is drawn on that pitch and its caret and underline are measured by it, so
@@ -816,6 +821,13 @@ type TextInput struct {
 	// input method consumed them), and a release for each press. Release
 	// events carry the Code of their press.
 	KeyReleases bool
+	// DisableIME keeps the host's input method off the window while this input
+	// is focused, the way a remote-desktop client does: the keys the method
+	// would take, and the hotkeys that switch it, belong to the machine on the
+	// other side of the surface, which runs its own input method. Text events
+	// still arrive if a method commits anyway, so a paste keeps working.
+	// Implemented on Windows; the other platforms have not needed it yet.
+	DisableIME bool
 	// NavigationKeys asks Up, Down, PageUp and PageDown to reach the
 	// application as raw key events while the field is focused, while
 	// cursor placement, selection, Home/End and IME remain native.
@@ -837,6 +849,19 @@ type TextInput struct {
 	// invisible while preserving text input, IME and clipboard behavior.
 	// Canvas components that draw those overlays themselves set it.
 	HideNativeOverlays bool
+}
+
+// ClipboardState presents the application-owned selection only for a non-secure
+// Copy/Cut action ('c' or 'x'). Other actions keep the native editing state.
+func (input TextInput) ClipboardState(action byte) TextState {
+	if action != 'c' && action != 'x' || !input.CopyOverride || input.Secure {
+		return input.State
+	}
+	value := ""
+	if input.CopyText != nil {
+		value = input.CopyText()
+	}
+	return TextState{Value: value, Selection: text.Range{End: utf8.RuneCountInString(value)}}
 }
 
 // TextState is the complete platform-neutral state mirrored by NSTextInputClient.

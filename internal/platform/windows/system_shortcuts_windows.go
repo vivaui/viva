@@ -138,6 +138,7 @@ func shortcutTaken(kind uintptr, event *kbdLLHook) bool {
 	if !shortcutKeyBelongsToSystem(vk, down, shortcutHook.taken[vk]) {
 		return false
 	}
+	wasTaken := shortcutHook.taken[vk]
 	shortcutHook.taken[vk] = down
 	altDown := event.Flags&llkhfAltDown != 0
 	message := uintptr(wmKeyDown)
@@ -149,7 +150,7 @@ func shortcutTaken(kind uintptr, event *kbdLLHook) bool {
 	case !down:
 		message = wmKeyUp
 	}
-	postMessage.Call(foreground, message, uintptr(vk), shortcutKeyLParam(event, down, altDown))
+	postMessage.Call(foreground, message, uintptr(vk), shortcutKeyLParam(event, down, altDown, wasTaken))
 	return true
 }
 
@@ -187,7 +188,7 @@ func shortcutKeyBelongsToSystem(vk uint32, down, tookPress bool) bool {
 
 // shortcutKeyLParam is the lParam Windows would have given the key's message: repeat count,
 // scan code, the extended-key flag, the Alt context, the previous state and the transition.
-func shortcutKeyLParam(event *kbdLLHook, down, altDown bool) uintptr {
+func shortcutKeyLParam(event *kbdLLHook, down, altDown, wasTaken bool) uintptr {
 	lParam := uintptr(1) | uintptr(event.ScanCode&0xff)<<16
 	if event.Flags&llkhfExtended != 0 {
 		lParam |= 1 << 24
@@ -197,8 +198,12 @@ func shortcutKeyLParam(event *kbdLLHook, down, altDown bool) uintptr {
 	}
 	if !down {
 		lParam |= 1<<30 | 1<<31
-	} else if shortcutHook.taken[event.VkCode] {
-		lParam |= 1 << 30 // already down: this press repeats
+	} else if wasTaken {
+		// The press before this one was eaten as down, so the key was already
+		// down: this one repeats it. The press that first takes a key says it
+		// was up before (bit 30 clear), or a terminal reading it as auto-repeat
+		// drops the very press that would have set the modifier.
+		lParam |= 1 << 30
 	}
 	return lParam
 }

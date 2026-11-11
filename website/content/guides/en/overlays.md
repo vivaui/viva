@@ -7,7 +7,7 @@ group: guides
 
 Overlays are painted last, on a higher layer, and they change where input can go. In `ui` an overlay is declared in the page, in the place where it is open, and takes no room there. Viva gives every overlay three pieces.
 
-- **A layer.** A popover, a dialog and `f.Popup()` are painted over the page, and hits declared on them win over hits beneath.
+- **A layer.** A popover and a dialog are painted over the page, and hits declared on them win over hits beneath.
 - **A focus scope.** A dialog traps Tab inside itself while it is open, so nothing behind it can take keyboard focus; a popover keeps Tab among its own controls first. Both give the focus back to where it was as they close.
 - **A dismiss identity.** The identity that reports a click when the user presses Escape or presses outside the overlay. A page (`ui.Popover`, `ui.Modal`) makes it and closes the overlay for you.
 
@@ -81,19 +81,19 @@ It fades in sliding a few pixels away from its anchor and fades out the same way
 
 The example's test checks all of it: a press at the far corner closes the menu, Escape closes it, and choosing Delete… closes it and opens the dialog.
 
-## Popups
+## Popups (component authors)
 
-`f.Popup()` is the piece popovers, selects and menus are built from: it takes no room in its container, is as big as its content, is kept inside the window and is painted over everything, and does nothing else. Place it with `BelowBox`, `AboveBox` or `BesideBox` for an element of the page, or with `At(x, y)`, `Below(rect, ...)` and `Above(rect, ...)` for a point or rectangle; it uses the side you ask for and flips to the other when there is no room. `Box.Rect()` is zero until the frame ends, which is why the `Box` variants exist. A context menu is a popup placed `At` the pointer, opened from `OnPointer` on a `PointerButtonSecondary` down; closing it is yours, with a window-sized `Hit` under it and `canvas.SetEscapeTarget`.
+`f.Popup()` is the piece popovers, selects and menus are built from for a component's own paint path: it takes no room in its container, is as big as its content, is kept inside the window and is painted over everything, and does nothing else. Place it with `BelowBox`, `AboveBox` or `BesideBox` for an element of the page, or with `At(x, y)`, `Below(rect, ...)` and `Above(rect, ...)` for a point or rectangle; it uses the side you ask for and flips to the other when there is no room. `Box.Rect()` is zero until the frame ends, which is why the `Box` variants exist. A context menu is a popup placed `At` the pointer, opened from `OnPointer` on a `PointerButtonSecondary` down; closing it is yours, with a window-sized `Hit` under it and `canvas.SetEscapeTarget`. Application pages use `ui.Popover`, `ui.Menu`, `ui.ContextMenu`, `ui.Select` and `ui.Combobox` instead.
 
 ## Dialogs
 
 `ui.Modal(c, &open, title, body, footer)` dims the window, paints a centered surface with the title and a close button, and keeps the keyboard while `open` is true. The title is required: it is the dialog's name for assistive technology. `body` declares the content and `footer` the buttons, which sit against the right edge in the order given; either may be nil, and the surface is as tall as the body needs. Escape, a press on the dim and the close button set `open` to false. The first control in the body takes the focus as the dialog opens (`ModalSpec.InitialFocus` names another), and the focus goes back to the control that opened it as it closes. `ui.ModalWith` takes a `ui.ModalSpec` for a description, a size or no close button.
 
-`ui.Dialog(c, ui.DialogSpec{...})` is the application-named form of the same dialog: `Scope` is the focus scope, `DismissID` the identity the dim and Escape report, `CloseID` the corner button's, and `InitialFocusID` the control that takes the focus. `Dismissed()` is true in the paint that delivers one of those clicks.
+`ui.Dialog(c, ui.DialogSpec{...})` is the application-named form of the same dialog: `Scope` is the focus scope, `DismissID` the identity the dim and Escape report, `CloseID` the corner button's, and `InitialFocusID` the control that takes the focus. `dialog.Header(fn)` declares controls in the title row, `Body` the content and `Footer` the buttons; `Dismissed()` is true in the paint that delivers one of those clicks.
 
 ## Selects and the rest
 
-`f.Select` is a drop-down list: a `ui.SelectState` and a scope of its own in your model, and the list opens under the trigger, or above it when there is no room, painted over everything. Inside a dialog it opens above the dialog. Tooltips and other non-modal panels are popups that declare no dismiss identity, so they neither trap focus nor swallow outside presses. Combobox, command palette, menubar and navigation menu follow the same layer, scope and dismiss conventions; the [component catalog](/en/ui/dialog/) has a runnable example of each, and the [API reference](/en/api/components/) has every option.
+`ui.Select(c, &m.size, sizes, nil)` is a drop-down list: a `ui.SelectState` and a scope of its own in your model, and the list opens under the trigger, or above it when there is no room, painted over everything. Inside a dialog it opens above the dialog. Tooltips and other non-modal panels are popups that declare no dismiss identity, so they neither trap focus nor swallow outside presses. Combobox, command palette, menubar and navigation menu follow the same layer, scope and dismiss conventions; the [component catalog](/en/ui/dialog/) has a runnable example of each, and the [API reference](/en/api/components/) has every option.
 
 ## Entrance and exit
 

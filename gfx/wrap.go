@@ -46,18 +46,65 @@ func (canvas *Canvas) WrapLines(dst []string, value string, size, weight, width 
 // string. The zero value is ready; keep one for each text that is wrapped every
 // frame. Wrapping something else simply replaces what it holds.
 type EllipsisCache struct {
-	line         string
-	size, weight float32
-	width        float32
-	result       string
-	filled       bool
-	generation   uint32 // the canvas's FontGeneration when result was cut
+	line       string
+	font       lineFont
+	width      float32
+	result     string
+	filled     bool
+	generation uint32 // the canvas's FontGeneration when result was cut
 }
 
 // WrapLinesCached is WrapLines that takes the ellipsized last line from cache when
 // it is the one wanted, and stores it there when it is not. A nil cache builds the
 // string every time.
 func (canvas *Canvas) WrapLinesCached(dst []string, value string, size, weight, width float32, maxLines int, cache *EllipsisCache) []string {
+	return canvas.wrapLines(dst, value, lineFont{size: size, weight: weight}, width, maxLines, cache)
+}
+
+// WrapLinesStyle is WrapLinesCached for lines drawn in style, each measured as
+// TextWidthStyle measures it: a style.Mono text breaks where the cells of its face fill
+// width, a wide character taking two cells and a combining mark none, and its last line is
+// cut to the cells left beside the ellipsis; a style.Italic one is measured in the italic
+// face. Where a line may break is as WrapLines says. Only Size, Weight, Italic, Mono and
+// MonoFace of the style matter.
+//
+//	style := gfx.TextStyle{Size: 12, Mono: true, Color: muted}
+//	lines := canvas.WrapLinesStyle(scratch[:0], commitSubject, style, bounds.Width, 3, &cache)
+//	for index, line := range lines {
+//		canvas.Label(line, gfx.Rect{X: bounds.X, Y: bounds.Y + float32(index)*17, Width: bounds.Width, Height: 17}, style)
+//	}
+func (canvas *Canvas) WrapLinesStyle(dst []string, value string, style TextStyle, width float32, maxLines int, cache *EllipsisCache) []string {
+	return canvas.wrapLines(dst, value, fontOf(style), width, maxLines, cache)
+}
+
+// lineFont is what the width of a line depends on: the Size, Weight, Italic, Mono and
+// MonoFace of the TextStyle it is drawn in. A face is kept only for a Mono font, so the
+// fonts of two lines measured alike are equal.
+type lineFont struct {
+	size, weight float32
+	italic, mono bool
+	face         MonoFace
+}
+
+func fontOf(style TextStyle) lineFont {
+	font := lineFont{size: style.Size, weight: style.Weight, italic: style.Italic, mono: style.Mono}
+	if style.Mono {
+		font.face = style.MonoFace
+	}
+	return font
+}
+
+// widthIn is how wide value is in font, as TextWidthStyle measures it; a plain font is
+// measured as TextWidthWeight measures it.
+func (canvas *Canvas) widthIn(value string, font lineFont) float32 {
+	if !font.mono && !font.italic {
+		return canvas.TextWidthWeight(value, font.size, font.weight)
+	}
+	return canvas.TextWidthStyle(value, TextStyle{Size: font.size, Weight: font.weight, Italic: font.italic, Mono: font.mono, MonoFace: font.face})
+}
+
+// wrapLines is WrapLinesStyle in font.
+func (canvas *Canvas) wrapLines(dst []string, value string, font lineFont, width float32, maxLines int, cache *EllipsisCache) []string {
 	if maxLines <= 0 || width <= 0 {
 		return dst
 	}
@@ -68,15 +115,15 @@ func (canvas *Canvas) WrapLinesCached(dst []string, value string, size, weight, 
 		for {
 			line = trimSpaceRight(line)
 			last := len(dst)-first == maxLines-1
-			fits := canvas.TextWidthWeight(line, size, weight) <= width
+			fits := canvas.widthIn(line, font) <= width
 			if fits && !(last && more) {
 				dst = append(dst, line)
 				break
 			}
 			if last {
-				return append(dst, canvas.ellipsizeCached(line, size, weight, width, cache))
+				return append(dst, canvas.ellipsizeCached(line, font, width, cache))
 			}
-			cut := canvas.breakPoint(line, size, weight, width)
+			cut := canvas.breakPoint(line, font, width)
 			dst = append(dst, trimSpaceRight(line[:cut]))
 			if line = trimSpaceLeft(line[cut:]); line == "" {
 				break
@@ -103,16 +150,16 @@ func (canvas *Canvas) FitLine(line string, size, weight, width float32) string {
 	if canvas.TextWidthWeight(line, size, weight) <= width {
 		return line
 	}
-	return canvas.cutLine(line, size, weight, width)
+	return canvas.cutLine(line, lineFont{size: size, weight: weight}, width)
 }
 
-// cutLine is ellipsize remembered by the canvas: the same line at the same size,
-// weight and width is cut once, so a control that shows it again frame after
+// cutLine is ellipsize remembered by the canvas: the same line in the same font
+// at the same width is cut once, so a control that shows it again frame after
 // frame builds no string. Lines longer than fitMemoMaxLine are cut afresh every
 // time, since remembering them would hold a document open on the canvas.
-func (canvas *Canvas) cutLine(line string, size, weight, width float32) string {
+func (canvas *Canvas) cutLine(line string, font lineFont, width float32) string {
 	if len(line) > fitMemoMaxLine {
-		return canvas.ellipsize(line, size, weight, width)
+		return canvas.ellipsize(line, font, width)
 	}
 	hash := uint32(2166136261)
 	for index := 0; index < len(line); index++ {
@@ -121,8 +168,16 @@ func (canvas *Canvas) cutLine(line string, size, weight, width float32) string {
 	// Mix every byte: integer widths usually have identical low float bits.
 	// Hashing the whole word at once sends the same label at distinct widths
 	// to the same slot, making an input and its popup evict each other.
-	for _, dimension := range [3]float32{width, size, weight} {
-		bits := math.Float32bits(dimension)
+	// The face and the Mono and Italic flags go in too, so a Mono and a proportional
+	// line of the same text do not evict each other either.
+	style := uint32(font.face) << 2
+	if font.mono {
+		style |= 1
+	}
+	if font.italic {
+		style |= 2
+	}
+	for _, bits := range [4]uint32{math.Float32bits(width), math.Float32bits(font.size), math.Float32bits(font.weight), style} {
 		for shift := uint(0); shift < 32; shift += 8 {
 			hash = (hash ^ uint32(byte(bits>>shift))) * 16777619
 		}
@@ -132,17 +187,18 @@ func (canvas *Canvas) cutLine(line string, size, weight, width float32) string {
 	}
 	entry := &canvas.fits[hash&(fitMemoSize-1)]
 	generation := canvas.FontGeneration()
-	if entry.result == "" || entry.size != size || entry.weight != weight || entry.width != width || entry.line != line || entry.generation != generation {
-		*entry = fitEntry{line: line, result: canvas.ellipsize(line, size, weight, width), size: size, weight: weight, width: width, generation: generation}
+	if entry.result == "" || entry.font != font || entry.width != width || entry.line != line || entry.generation != generation {
+		*entry = fitEntry{line: line, result: canvas.ellipsize(line, font, width), font: font, width: width, generation: generation}
 	}
 	return entry.result
 }
 
 // fitEntry is one remembered cut line of FitLine.
 type fitEntry struct {
-	line, result        string
-	size, weight, width float32
-	generation          uint32 // the canvas's FontGeneration when result was cut
+	line, result string
+	font         lineFont
+	width        float32
+	generation   uint32 // the canvas's FontGeneration when result was cut
 }
 
 const (
@@ -150,18 +206,18 @@ const (
 	fitMemoMaxLine = 512
 )
 
-func (canvas *Canvas) ellipsizeCached(line string, size, weight, width float32, cache *EllipsisCache) string {
+func (canvas *Canvas) ellipsizeCached(line string, font lineFont, width float32, cache *EllipsisCache) string {
 	if cache == nil {
 		// No caller-owned cache: the canvas remembers the cut instead, so a
 		// control that wraps the same text every frame builds no string. This is
 		// the same memo FitLine uses, and it is what keeps a text field whose
 		// placeholder is wider than the field from allocating on every paint.
-		return canvas.cutLine(line, size, weight, width)
+		return canvas.cutLine(line, font, width)
 	}
 	generation := canvas.FontGeneration()
-	if !cache.filled || cache.size != size || cache.weight != weight || cache.width != width || cache.line != line || cache.generation != generation {
-		cache.line, cache.size, cache.weight, cache.width, cache.generation = line, size, weight, width, generation
-		cache.result, cache.filled = canvas.ellipsize(line, size, weight, width), true
+	if !cache.filled || cache.font != font || cache.width != width || cache.line != line || cache.generation != generation {
+		cache.line, cache.font, cache.width, cache.generation = line, font, width, generation
+		cache.result, cache.filled = canvas.ellipsize(line, font, width), true
 	}
 	return cache.result
 }
@@ -186,7 +242,7 @@ func splitLine(value string) (line, rest string) {
 // wider than the line, after the last path or hyphen separator that fits, whichever
 // fits more; else after the last whole grapheme cluster that fits, but never before the
 // first one.
-func (canvas *Canvas) breakPoint(line string, size, weight, width float32) int {
+func (canvas *Canvas) breakPoint(line string, font lineFont, width float32) int {
 	// The longest prefix that fits, found by bisection on rune boundaries: widths
 	// grow with the text, so the answer is the largest boundary whose prefix fits.
 	lo, hi := 0, len(line) // line[:lo] fits (the empty prefix does), line[:hi] does not
@@ -198,7 +254,7 @@ func (canvas *Canvas) breakPoint(line string, size, weight, width float32) int {
 				break
 			}
 		}
-		if canvas.TextWidthWeight(trimSpaceRight(line[:mid]), size, weight) <= width {
+		if canvas.widthIn(trimSpaceRight(line[:mid]), font) <= width {
 			lo = mid
 		} else {
 			hi = mid
@@ -287,10 +343,10 @@ func breaksInToken(prev2, prev, next rune) bool {
 
 // ellipsize ends line with an ellipsis, shortening it as far as it takes to
 // fit width, never inside a character (a base with its marks, an emoji sequence).
-func (canvas *Canvas) ellipsize(line string, size, weight, width float32) string {
+func (canvas *Canvas) ellipsize(line string, font lineFont, width float32) string {
 	// Find, by bisection on the width of the prefix alone, the longest prefix that
 	// leaves room for the ellipsis; only the winner is built as a string.
-	room := width - canvas.TextWidthWeight("…", size, weight)
+	room := width - canvas.widthIn("…", font)
 	lo, hi := 0, len(line) // the answer is the largest character boundary in [lo, hi] whose prefix fits
 	for lo < hi {
 		mid := clusterFloor(line, (lo+hi+1)/2)
@@ -299,7 +355,7 @@ func (canvas *Canvas) ellipsize(line string, size, weight, width float32) string
 				break
 			}
 		}
-		if canvas.TextWidthWeight(trimSpaceRight(line[:mid]), size, weight) <= room {
+		if canvas.widthIn(trimSpaceRight(line[:mid]), font) <= room {
 			lo = mid
 		} else {
 			hi = mid - 1
@@ -308,7 +364,7 @@ func (canvas *Canvas) ellipsize(line string, size, weight, width float32) string
 	// Shaping can make prefix plus ellipsis wider than the sum of their widths: check
 	// the real string, and give up a character at a time if it does not fit.
 	for end := lo; end > 0; {
-		if candidate := trimSpaceRight(line[:end]) + "…"; canvas.TextWidthWeight(candidate, size, weight) <= width {
+		if candidate := trimSpaceRight(line[:end]) + "…"; canvas.widthIn(candidate, font) <= width {
 			return candidate
 		}
 		end = prevCluster(line, end)

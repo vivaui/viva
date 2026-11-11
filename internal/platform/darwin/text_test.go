@@ -196,6 +196,11 @@ func TestTextEventRedrawRecognizesAlreadyAppliedNativeState(t *testing.T) {
 	if state.textInputAlreadyUpdated(&aligned) {
 		t.Fatal("changed editor alignment was skipped")
 	}
+	copied := *input
+	copied.CopyOverride, copied.CopyText = true, func() string { return "column rows" }
+	if state.textInputAlreadyUpdated(&copied) {
+		t.Fatal("changed clipboard selection was skipped")
+	}
 	if state.textInputAlreadyUpdated(nil) {
 		t.Fatal("disable update was skipped")
 	}
@@ -377,6 +382,13 @@ func TestNativeTextInputCarriesAlignment(t *testing.T) {
 		if got := gfx.Alignment(native.alignment); got != alignment {
 			t.Errorf("native alignment = %v, want %v", got, alignment)
 		}
+	}
+}
+
+func TestNativeTextInputCarriesCopyOverride(t *testing.T) {
+	native := makeNativeTextInput(TextInput{CopyOverride: true}, nil)
+	if native.copy_override == 0 {
+		t.Fatal("native copy override was disabled")
 	}
 }
 

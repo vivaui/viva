@@ -264,6 +264,33 @@ func TestIconPaintCacheIsBounded(t *testing.T) {
 	}
 }
 
+// Moving an icon must not materialize it again: scrolling paints the same icon
+// at a new origin every frame, and a position-keyed cache would copy it, per
+// frame, until the entry rotated out.
+func TestIconPaintCacheReusesEntryAcrossOrigins(t *testing.T) {
+	var canvas Canvas
+	tint := Color{Red: 0.2, Green: 0.4, Blue: 0.6, Alpha: 1}
+	for offset := 0; offset < 64; offset++ {
+		canvas.Reset()
+		canvas.DrawIcon(testStrokeIcon, Rect{X: float32(offset), Y: float32(offset * 3), Width: 16, Height: 16}, tint)
+	}
+	if got := len(canvas.iconPaints().entries); got != 1 {
+		t.Fatalf("the same icon at 64 origins made %d paint entries; want 1", got)
+	}
+}
+
+// The moving path must stay allocation-free once the canvas and caches have
+// warmed: an icon that scrolls is not a new icon.
+func BenchmarkDrawIconCachedMoving(b *testing.B) {
+	var canvas Canvas
+	tint := Color{Alpha: 1}
+	b.ReportAllocs()
+	for i := 0; b.Loop(); i++ {
+		canvas.Reset()
+		canvas.DrawIcon(testStrokeIcon, Rect{X: 40, Y: float32(i % 1024), Width: 16, Height: 16}, tint)
+	}
+}
+
 // triangleBounds is the box the canvas's triangles cover.
 func triangleBounds(canvas *Canvas) (minimum, maximum Point) {
 	minimum = Point{X: float32(math.Inf(1)), Y: float32(math.Inf(1))}

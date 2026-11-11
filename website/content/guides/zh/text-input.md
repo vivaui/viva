@@ -60,7 +60,7 @@ func main() {
 
 应用自己命名、并且自己持有 editor 的字段写成 `ui.TextFieldID(c, id, &m.searchField, label, placeholder)`，其中 `m.searchField.Bind(&m.search)` 在创建模型时调用一次（`ui.Field` 和其他字段一样放在模型里）：id 是字段在页面 Tree 里的身份，窗口自己的 `TextInput` 路由、初始焦点和测试都用它定位，而 editor 就是应用自己读取和移动的那一个。`.NavigationKeys()` 把 Up、Down、PageUp、PageDown 交给应用而不是移动光标，用于方向键移动列表选择项的搜索框。
 
-`ui.TextField(c, &m.name, label, placeholder)` 与 Frame 的 `f.Field(&m.name, id, label, placeholder)` 一样，直接从字段取得快照，不需要自己构造；`Changed` 报告用户编辑之后的第一次绘制，你自己赋值或调用 `SetText` 不算；`.Secure()` 让它成为密码字段。自己绘制字段的组件则接受 `InputSnapshot`，它是字段某一帧的视图：`Value`、`Placeholder`、`Invalid`、`Disabled`、`ReadOnly` 和 `Secure`，以及 `Focused` 和 `PlatformEditing`。要留意最后一个（`f.Field` 会替你设置）。平台编辑器显示在屏幕上时，文本、光标和选区都由它自己绘制，静态标签不能画在它下面。所以 `PlatformEditing` 只在字段获得焦点且有文本时为真；焦点离开后，下一帧会把当前文本重新画成普通标签。示例的测试检查的正是这一点：点击 Save 之后，原生编辑器就消失了。
+`ui.TextField(c, &m.name, label, placeholder)` 直接从字段取得快照，不需要自己构造；`Changed` 报告用户编辑之后的第一次绘制，你自己赋值或调用 `SetText` 不算；`.Secure()` 让它成为密码字段。自己绘制字段的组件则接受 `InputSnapshot`，它是字段某一帧的视图：`Value`、`Placeholder`、`Invalid`、`Disabled`、`ReadOnly` 和 `Secure`，以及 `Focused` 和 `PlatformEditing`。页面的字段会替你设置最后一个。平台编辑器显示在屏幕上时，文本、光标和选区都由它自己绘制，静态标签不能画在它下面。所以 `PlatformEditing` 只在字段获得焦点且有文本时为真；焦点离开后，下一帧会把当前文本重新画成普通标签。示例的测试检查的正是这一点：点击 Save 之后，原生编辑器就消失了。
 
 快照里的选区和组合输入偏移量，是已绘制文本的 UTF-8 字节偏移；平台的文本事件使用的是 rune 索引。两者是不同的东西，不要在需要其中一个的地方传另一个。
 
@@ -78,7 +78,7 @@ func main() {
 
 ## 多行与附加元素
 
-`components.PaintInputGroup` 接受同类型的快照，支持 `Multiline`，并提供四个附加槽位 `InlineStart`、`InlineEnd`、`BlockStart` 和 `BlockEnd`，用于图标、文字前缀和按钮。`f.Textarea` 和其他字段建立在同样的部件之上；[组件目录](/zh/ui/input/)里每个都有一页，带可运行的示例。
+`components.PaintInputGroup` 接受同类型的快照，支持 `Multiline`，并提供四个附加槽位 `InlineStart`、`InlineEnd`、`BlockStart` 和 `BlockEnd`，用于图标、文字前缀和按钮。`components.PaintTextarea` 和其他字段建立在同样的部件之上；[组件目录](/zh/ui/input/)里每个都有一页，带可运行的示例。
 
 ## 多行文本区域
 

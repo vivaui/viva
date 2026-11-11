@@ -22,7 +22,15 @@ type PopoverSpec struct {
 	Side   components.PopoverSide
 	Align  Align
 	Offset float32
-	// Width is the panel's width, 288 when zero; its height fits what is in it.
+	// Title and Description, when set, head the panel as shadcn's PopoverHeader
+	// does: the title in the popover foreground, medium weight, and under it the
+	// description in the muted color, wrapped to the width. The body follows.
+	Title, Description string
+	// TitleWeight is the title's font weight, medium when zero, as
+	// components.PopoverOptions.TitleWeight is.
+	TitleWeight float32
+	// Width is the panel's width, 288 when zero; its height fits what is in it
+	// (give the body a Height to fix it).
 	Width float32
 	// ConsumeOutsidePress keeps the press that closes the panel from also reaching
 	// the control under it, which it does by default, as a web popover's does.
@@ -96,7 +104,7 @@ func (f *Frame) paintPopover(i int32, n *node) {
 	d := &f.widgets.popovers[n.aux]
 	spec := &d.spec
 	canvas := f.canvas
-	layer := max(d.layer, f.popupLayer) + 2
+	layer := max(d.layer, f.popupLayer, widgetLayerBase) + 2
 	canvas.PushLayer(layer)
 	canvas.PushFocusScope(spec.Scope)
 	canvas.ReturnFocus(spec.Scope)

@@ -48,6 +48,7 @@ int vivaPressAt(uintptr_t handle, double x, double y) { return 0; }
 void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *utf8,
                   size_t length, int64_t start, int64_t selectedLength,
                   int64_t replacementStart, int64_t replacementLength, int command) {}
+unsigned char *vivaCopyText(uintptr_t handle, void *view, size_t *length) { *length = 0; return NULL; }
 
 // What AppKit hands a drop target: where the pointer is and what is dragged.
 @interface FakeDrag : NSObject

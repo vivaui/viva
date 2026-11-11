@@ -100,6 +100,16 @@ func (m *model) page(c ui.C) {
   Typing the start of a name moves to that row. To drag rows, set `m.tree.CanDrop = func(from, to int,
   where ui.TreeDrop) bool` (`TreeDropBefore`, `TreeDropInside`, `TreeDropAfter`) and read `m.tree.Dropped()`;
   change the rows in `c.After`, since the paint that reports the drop is declaring them.
+  `m.tree.RowID(i)` (`DisclosureID(i)` for the chevron; `ListState` has `RowID`) is a row's identity, to focus it or find its hit.
+- Any other box drags and drops with a `ui.DragState` in the model: declare a `Hit` box with
+  `.DragSource(&m.drag)` and another with `.DropTarget(&m.drag, accept, drop)`. The page routes the pointer;
+  `m.drag.Dragging()`, `Source()`, `Target()` and `At()` paint the gesture, `accept(source, target)` decides,
+  `drop(source, target)` runs on release, and Escape lets go. A press that does not move is still a click.
+  Save the callbacks in the model and do not declare the boxes in a `Memo`. A surface painted through its
+  own `ui.View` calls `ui.Drag(c, &m.drag)` in the page so the page routes its pointer too. Inside a
+  `ui.Control`'s `Draw`, a part (a card of a custom grid) is a source or target of the same state with
+  `d.DragSource(&m.drag, part, r)` and `d.DropTarget(&m.drag, part, r, accept, drop)`, declared beside
+  `d.Canvas.Hit(part, r)`; a target part needs no `Hit`.
 - A long list to choose from by typing: `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` (Select's
   arguments plus a label); it filters as the user types. `.Clearable()` adds a clear button, `.Empty("No zone")`
   is what an empty list says, `.Creatable("")` offers what was typed as a new choice, read with `.Created()`.
@@ -184,8 +194,10 @@ m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
 - `m.view` is a `ui.View` in your model: keep one per page painted every frame. It
   makes the page allocation-free once warm.
 - Containers: `Row` (left to right), `Column` (top to bottom), `Stack` (on top of each
-  other), `Grid(minCell)` (as many equal columns as fit), `Scroll(offset)` (a clipped
-  column taller than itself). Leaves: `Text`, `Paragraph`, `Wrap`, `Spacer`, `Divider`, `Icon`,
+  other), `Grid(minCell)` (as many equal columns as fit), `Flow()` (a row that wraps onto
+  new lines, each shared as a Row: tags, chips, a toolbar that wraps; `LineGap` sets the
+  space between lines, else it is `Gap`), `Scroll(offset)` (a clipped column taller than
+  itself). Leaves: `Text`, `Paragraph`, `Wrap`, `Spacer`, `Divider`, `Icon`,
   `Image(bitmap)` (a `gfx.Bitmap` such as `app.FileIcon` returns, 16 px square unless sized), `Button`, `Checkbox`, `Switch`, `Slot`, `Progress(fraction)` (a bar; `.Indeterminate()` for unknown length),
   `Spinner()`, `Splitter(id, &state)` (see Keys, drag and the mouse), `Slider(id, &state)` (a number picker, see below).
 - Size: nothing = as big as its content; `Width`, `Height`, `Size` fix it; `FillWidth`,
@@ -369,7 +381,7 @@ m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
   the pointer (the innermost, or the next one out when that is at its end), so side-by-side columns and nested lists each scroll alone.
   A log or chat that grows at the bottom: `.Follow(true)` keeps the area at its end until the user scrolls up (and again when they
   scroll back down; `.Follow(m.autoScroll)` makes it a switch). To move it by program, `s := m.view.ScrollState(listID)` has `Offset`,
-  `Max()`, `AtEnd()`, `ScrollTo(px)` and `ScrollToEnd()` (call that after adding the item: it holds in the frame that grows the content);
+  `Max()`, `AtEnd()`, `Pinned()`, `ScrollTo(px)` and `ScrollToEnd()` (call that after adding the item: it holds in the frame that grows the content; a list that draws only the visible rows asks `Pinned()` in `Children` as it builds the frame, since the next layout has not moved `Offset` yet, and `AtEnd()` after);
   ask for it each time and do not keep the pointer. An area a frame does not declare forgets its offset (a closed dialog, another
   tab). `.Sideways()` makes the area scroll left and right too (a row of tabs, long lines): its children keep the width they ask
   for, the wheel with Shift or a horizontal wheel moves it, and the state has `OffsetX`, `ContentWidth`, `ViewportWidth`, `MaxX()`
