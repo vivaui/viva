@@ -60,6 +60,9 @@ type applicationSession struct {
 	// openURL receives the links the "openurl" command delivers, as the system
 	// would deliver a registered scheme's link.
 	openURL func(string)
+	// openFile receives the documents the "openfile" command delivers, as the
+	// system would deliver a registered type's document.
+	openFile func(string)
 }
 
 func newApplicationSession(options Options) *applicationSession {
@@ -179,6 +182,14 @@ func (application *applicationSession) AddStatusItem(config app.StatusItemConfig
 func (application *applicationSession) SetOpenURLHandler(handler func(string)) {
 	application.mu.Lock()
 	application.openURL = handler
+	application.mu.Unlock()
+}
+
+// SetOpenFileHandler implements the optional host capability that passes
+// documents the system opened to the application.
+func (application *applicationSession) SetOpenFileHandler(handler func(path string)) {
+	application.mu.Lock()
+	application.openFile = handler
 	application.mu.Unlock()
 }
 
@@ -498,6 +509,18 @@ func executeApplication(application *applicationSession, line string) (string, b
 			return "error openurl needs a URL\n", false
 		case handler == nil:
 			return "error the application does not take links\n", false
+		}
+		handler(rest)
+		return application.afterCommand("ok\n")
+	case "openfile":
+		application.mu.Lock()
+		handler := application.openFile
+		application.mu.Unlock()
+		switch {
+		case rest == "":
+			return "error openfile needs a path\n", false
+		case handler == nil:
+			return "error the application does not take documents\n", false
 		}
 		handler(rest)
 		return application.afterCommand("ok\n")
