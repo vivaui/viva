@@ -43,9 +43,13 @@ func TestTextFieldsDeclareTheGeometryTheyPaint(t *testing.T) {
 				field.paint(&canvas, theme)
 
 				var hit gfx.Hit
-				for _, candidate := range canvas.Hits() {
+				var text gfx.HitText
+				hits := canvas.Hits()
+				for index := range hits {
+					candidate := &hits[index]
 					if candidate.ID == gfx.Item(5) && candidate.Role == gfx.RoleTextField {
-						hit = candidate
+						hit = *candidate
+						text, _ = canvas.HitText(candidate)
 					}
 				}
 				var painted gfx.Text
@@ -57,23 +61,23 @@ func TestTextFieldsDeclareTheGeometryTheyPaint(t *testing.T) {
 				if hit.ID.IsZero() || painted.Value == "" {
 					t.Fatalf("%s: hit=%+v painted=%+v", field.name, hit, painted)
 				}
-				if hit.TextSize != painted.Style.Size || hit.TextSize != theme.Metrics.FontSizeM {
-					t.Errorf("%s dark=%t compact=%t: declared size %v, painted %v, theme %v", field.name, dark, compact, hit.TextSize, painted.Style.Size, theme.Metrics.FontSizeM)
+				if text.Size != painted.Style.Size || text.Size != theme.Metrics.FontSizeM {
+					t.Errorf("%s dark=%t compact=%t: declared size %v, painted %v, theme %v", field.name, dark, compact, text.Size, painted.Style.Size, theme.Metrics.FontSizeM)
 				}
-				if hit.TextColor != painted.Style.Color {
-					t.Errorf("%s dark=%t compact=%t: declared color %+v, painted %+v", field.name, dark, compact, hit.TextColor, painted.Style.Color)
+				if text.Color != painted.Style.Color {
+					t.Errorf("%s dark=%t compact=%t: declared color %+v, painted %+v", field.name, dark, compact, text.Color, painted.Style.Color)
 				}
 				// A multiline row may reach into the padding at its right so that platform
 				// advances a little wider than the layout's do not cut its last letter;
 				// where it starts, and so where the native editor's text lands, is the same.
-				widening := painted.Bounds.Width - hit.TextBounds.Width
-				if hit.TextBounds.X != painted.Bounds.X || widening < 0 || widening > 0 && (!hit.Multiline || widening >= testInset) {
-					t.Errorf("%s dark=%t compact=%t: declared x/width %v/%v, painted %v/%v", field.name, dark, compact, hit.TextBounds.X, hit.TextBounds.Width, painted.Bounds.X, painted.Bounds.Width)
+				widening := painted.Bounds.Width - text.Bounds.Width
+				if text.Bounds.X != painted.Bounds.X || widening < 0 || widening > 0 && (!hit.Multiline || widening >= testInset) {
+					t.Errorf("%s dark=%t compact=%t: declared x/width %v/%v, painted %v/%v", field.name, dark, compact, text.Bounds.X, text.Bounds.Width, painted.Bounds.X, painted.Bounds.Width)
 				}
 				// A single line is vertically centered in the same box; a
 				// multiline field starts its first row at the box's top.
-				if hit.TextBounds.Y != painted.Bounds.Y {
-					t.Errorf("%s dark=%t compact=%t: declared y %v, painted %v", field.name, dark, compact, hit.TextBounds.Y, painted.Bounds.Y)
+				if text.Bounds.Y != painted.Bounds.Y {
+					t.Errorf("%s dark=%t compact=%t: declared y %v, painted %v", field.name, dark, compact, text.Bounds.Y, painted.Bounds.Y)
 				}
 			}
 		}

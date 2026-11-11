@@ -1051,7 +1051,7 @@ func TestVulkanTextUpdatePreservesTexturesAcrossIndexShift(t *testing.T) {
 	}
 }
 
-func TestSelectPresentModePrefersMailboxWithFIFOFallback(t *testing.T) {
+func TestSelectPresentModePrefersFIFOWithMailboxFallback(t *testing.T) {
 	renderer := &vulkanRenderer{
 		physical: 1,
 		surface:  2,
@@ -1067,8 +1067,8 @@ func TestSelectPresentModePrefersMailboxWithFIFOFallback(t *testing.T) {
 			},
 		},
 	}
-	if got := renderer.selectPresentMode(); got != vkPresentMailbox {
-		t.Fatalf("selectPresentMode() = %d, want vkPresentMailbox (%d)", got, vkPresentMailbox)
+	if got := renderer.selectPresentMode(); got != vkPresentFIFO {
+		t.Fatalf("selectPresentMode() = %d, want vkPresentFIFO (%d)", got, vkPresentFIFO)
 	}
 
 	fifoOnly := &vulkanRenderer{

@@ -209,22 +209,23 @@ func TestCursorFollowsThePressTargetAndHit(t *testing.T) {
 }
 
 func TestTextInputHitRequiresAFieldTerminalOrPlacedCombobox(t *testing.T) {
-	hits := []gfx.Hit{
-		{ID: gfx.Item(1), Role: gfx.RoleTextField},
-		{ID: gfx.Item(2), Role: gfx.RoleCombobox},
-		{ID: gfx.Item(3), Role: gfx.RoleCombobox, TextBounds: gfx.Rect{Width: 40, Height: 20}},
-		{ID: gfx.Item(4), Role: gfx.RoleButton},
-	}
-	if hit, index, ok := TextInputHit(hits, gfx.Item(1)); !ok || hit.ID != gfx.Item(1) || index != 0 {
+	var canvas gfx.Canvas
+	canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 10, Height: 10}, "", gfx.HitOptions{Role: gfx.RoleTextField})
+	canvas.HitWithOptions(gfx.Item(2), gfx.Rect{Width: 10, Height: 10}, "", gfx.HitOptions{Role: gfx.RoleCombobox})
+	canvas.HitWithOptions(gfx.Item(3), gfx.Rect{Width: 10, Height: 10}, "", gfx.HitOptions{
+		Role: gfx.RoleCombobox, TextBounds: gfx.Rect{Width: 40, Height: 20},
+	})
+	canvas.HitWithOptions(gfx.Item(4), gfx.Rect{Width: 10, Height: 10}, "", gfx.HitOptions{Role: gfx.RoleButton})
+	if hit, index, ok := TextInputHit(&canvas, gfx.Item(1)); !ok || hit.ID != gfx.Item(1) || index != 0 {
 		t.Fatalf("text field = %v/%d/%v", hit.ID, index, ok)
 	}
-	if _, _, ok := TextInputHit(hits, gfx.Item(2)); ok {
+	if _, _, ok := TextInputHit(&canvas, gfx.Item(2)); ok {
 		t.Fatal("a combobox that paints its own query took the editor")
 	}
-	if hit, index, ok := TextInputHit(hits, gfx.Item(3)); !ok || hit.ID != gfx.Item(3) || index != 2 {
+	if hit, index, ok := TextInputHit(&canvas, gfx.Item(3)); !ok || hit.ID != gfx.Item(3) || index != 2 {
 		t.Fatalf("placed combobox = %v/%d/%v", hit.ID, index, ok)
 	}
-	if _, _, ok := TextInputHit(hits, gfx.Item(4)); ok {
+	if _, _, ok := TextInputHit(&canvas, gfx.Item(4)); ok {
 		t.Fatal("a button took the editor")
 	}
 }

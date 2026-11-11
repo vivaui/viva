@@ -137,10 +137,12 @@ func TestMultiSelectInputOwnsNativeTextBoundsInsideThePopupScope(t *testing.T) {
 				t.Fatal("popup excludes its native query input")
 			}
 			inputHits := 0
-			for _, hit := range canvas.Hits() {
+			hits := canvas.Hits()
+			for index := range hits {
+				hit := &hits[index]
 				if hit.ID == o.InputID {
 					inputHits++
-					if hit.TextBounds != layout.Input || hit.Role != gfx.RoleCombobox || !hit.Expanded {
+					if hitText(&canvas, hit).Bounds != layout.Input || hit.Role != gfx.RoleCombobox || !hit.Expanded {
 						t.Fatal("native input geometry or semantics lost", hit)
 					}
 				}

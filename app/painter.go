@@ -90,6 +90,7 @@ type painter struct {
 	publishedInitial   gfx.ID
 	publishedEscape    gfx.ID
 	publishedRequest   gfx.ID
+	publishedReturns   []gfx.ID
 	publishedText      string
 	publishedSelection TextRange
 	publishedCompose   TextRange
@@ -123,7 +124,14 @@ type painter struct {
 	scrollY        float32
 	// scheduleFrame asks the runtime for one more frame, after at least the
 	// delay, while a transition is in flight or the application asked for one.
-	scheduleFrame    func(delay time.Duration)
+	scheduleFrame func(delay time.Duration)
+	// noteFrameStart records that a frame is beginning, so the timer measures
+	// its interval from the start of the paint rather than from its end.
+	noteFrameStart func()
+	// coalesceInput asks the pointer and wheel paths to leave their repaint to
+	// the frame clock, so a burst of events becomes one frame. A window that
+	// presents immediately sets it; the headless driver does not.
+	coalesceInput    bool
 	setClipboardText func(string)
 	clipboardText    func() string
 	setCursor        func(Cursor) error
@@ -247,7 +255,7 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 			return platform.Frame{}, nil
 		}
 		painter.pointer.SetHovered(gfx.ID{})
-		return painter.repaint()
+		return painter.repaintAfterInput()
 	}
 	beforeHovered, beforePressed := painter.pointer.Hovered(), painter.pointer.Pressed()
 	beforeFocus, beforeKeyboard := painter.focus.Focused(), painter.focus.KeyboardFocus()
@@ -303,7 +311,7 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 		}
 		return platform.Frame{}, nil
 	}
-	return painter.repaint()
+	return painter.repaintAfterInput()
 }
 
 // pointerStep is one pass of a pointer event through hit testing, the press
@@ -649,7 +657,7 @@ func (painter *painter) fileDrop(event platform.FileDropEvent) (platform.Frame, 
 	if !response.Repaint && !focusChanged {
 		return platform.Frame{}, response.Handled, nil
 	}
-	frame, err := painter.repaint()
+	frame, err := painter.repaintAfterInput()
 	return frame, response.Handled, err
 }
 
@@ -678,7 +686,7 @@ func (painter *painter) scroll(event platform.ScrollEvent) (platform.Frame, erro
 	if painter.scrollX == beforeX && painter.scrollY == beforeY && !focusChanged && !response.Repaint {
 		return platform.Frame{}, nil
 	}
-	return painter.repaint()
+	return painter.repaintAfterInput()
 }
 
 // initialTextInput is the native editor the first paint already calls for: a
@@ -768,6 +776,9 @@ func (painter *painter) deliverPointer(event gfx.PointerEvent) bool {
 // repaint reruns the paint callback with current interaction state and
 // synchronizes the result with the retained renderer.
 func (painter *painter) repaint() (platform.Frame, error) {
+	if painter.noteFrameStart != nil {
+		painter.noteFrameStart()
+	}
 	painter.paintCanvas()
 	if !painter.focus.PendingFocus().IsZero() || painter.focus.Carries() {
 		before, beforeVisible := painter.focus.Focused(), painter.focus.KeyboardFocus()
@@ -795,6 +806,17 @@ func (painter *painter) repaint() (platform.Frame, error) {
 	}
 	painter.scheduleIfAnimating()
 	return frame, nil
+}
+
+// repaintAfterInput is repaint for a pointer or wheel event: a window that
+// coalesces input asks its frame clock for the next frame instead, so a burst
+// of events costs one paint and lands on the display's own cadence.
+func (painter *painter) repaintAfterInput() (platform.Frame, error) {
+	if painter.coalesceInput && painter.scheduleFrame != nil {
+		painter.scheduleFrame(0)
+		return platform.Frame{}, nil
+	}
+	return painter.repaint()
 }
 
 func (painter *painter) paintCanvas() {
@@ -861,7 +883,12 @@ func (painter *painter) publish() (platform.Frame, error) {
 	}
 
 	// A paint that asks to take the focus away changes routing without changing a hit.
-	regionsUnchanged := painter.hitStructuresUnchanged() && painter.canvas.FocusRelease().IsZero() && !painter.focus.Carries()
+	// The regions the router keeps are built from a subset of the hit fields: a label,
+	// value or description change feeds the semantic payload but leaves every region
+	// as it was, so it must not rebuild them.
+	hitStructuresUnchanged := painter.hitStructuresUnchanged()
+	regionsUnchanged := (hitStructuresUnchanged || painter.regionStructuresUnchanged()) &&
+		painter.canvas.FocusRelease().IsZero() && !painter.focus.Carries()
 	if regionsUnchanged {
 		painter.reusedHits++
 	} else {
@@ -877,7 +904,7 @@ func (painter *painter) publish() (platform.Frame, error) {
 	// field reports to assistive technology is the one the editor holds now.
 	// A repaint that changed neither the hits, the focus, nor the text state
 	// keeps the payload from the previous publish.
-	if !regionsUnchanged || !painter.structuresUnchanged() {
+	if !hitStructuresUnchanged || !painter.structuresUnchanged() {
 		painter.syncSemantics()
 		painter.recordHitStructures()
 		if !sameAccessibility(painter.accessibility, painter.lastAccess) {
@@ -980,6 +1007,7 @@ func (painter *painter) trim() {
 	painter.lastImages = trimPainterCapacity(painter.lastImages)
 	painter.hitScratch = trimPainterCapacity(painter.hitScratch)
 	painter.publishedHits = trimPainterCapacity(painter.publishedHits)
+	painter.publishedReturns = trimPainterCapacity(painter.publishedReturns)
 	painter.clipped = trimPainterCapacity(painter.clipped)
 	painter.clippedPaths = trimPainterCapacity(painter.clippedPaths)
 	painter.clippedSoft = trimPainterCapacity(painter.clippedSoft)
@@ -1098,18 +1126,19 @@ func (painter *painter) resyncRenderer() (render.Update, error) {
 // focusedTextField describes the focused text field of the last paint, and how
 // it places its caret when it lays its rows out itself.
 func (painter *painter) focusedTextField() (TextInputContext, gfx.TextPlacement, int) {
-	hit, index, ok := interaction.TextInputHit(painter.canvas.Hits(), painter.focus.Focused())
+	hit, index, ok := interaction.TextInputHit(painter.canvas, painter.focus.Focused())
 	if !ok {
 		return TextInputContext{}, nil, -1
 	}
+	text, _ := painter.canvas.HitText(&hit)
 	context := TextInputContext{
 		ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == gfx.RoleTerminal, TypeAhead: hit.TypeAhead && hit.Role != gfx.RoleTerminal,
 		Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
 		NavigationKeys: hit.NavigationKeys,
-		TextBounds:     hit.TextBounds, FontSize: hit.TextSize, FontWeight: hit.TextWeight, TextColor: hit.TextColor,
+		TextBounds:     text.Bounds, FontSize: text.Size, FontWeight: text.Weight, TextColor: text.Color,
 		HideNativeOverlays: hit.HideNativeOverlays,
 	}
-	return context, hit.Placement, index
+	return context, text.Placement, index
 }
 
 func (painter *painter) syncTextInput() platform.TextInputUpdate {
@@ -1645,11 +1674,12 @@ func (painter *painter) setRectangle(id scene.ID, rectangle gfx.Rectangle) {
 }
 
 // hitStructuresUnchanged reports whether the paint produced exactly the input
-// the regions and the semantic tree were last built from, so both can be kept.
-// It compares every field those structures read, plus the focus, scope, escape
-// and text-selection state they carry outside the hit list. A page that only
-// changes colors, or does not change at all, therefore costs no per-hit
-// bookkeeping; any semantic change opens the gate and the full mirror runs.
+// the semantic tree and the accessibility payload were last built from, so both
+// can be kept. It compares every field those structures read, plus the focus,
+// scope, escape and text-selection state they carry outside the hit list. A page
+// that only changes colors, or does not change at all, therefore costs no
+// per-hit bookkeeping. Regions are gated separately by sameRegionHit, because a
+// changed label rebuilds the payload without moving a region.
 func (painter *painter) hitStructuresUnchanged() bool {
 	if !painter.structuresUnchanged() {
 		return false
@@ -1659,6 +1689,58 @@ func (painter *painter) hitStructuresUnchanged() bool {
 		return false
 	}
 	return sameHits(painter.publishedHits, hits)
+}
+
+// regionStructuresUnchanged reports whether the paint produced the same input
+// the input router's regions are built from. Focus.Sync copies a subset of each
+// hit (see internal/interaction/focus.go); the accessible name, value, hint and
+// description are not in it. A repaint that only changes those words must not
+// rebuild every region on a large page, so this check compares that subset
+// instead of the whole hit list.
+func (painter *painter) regionStructuresUnchanged() bool {
+	if !painter.hitsPublished || !painter.focus.PendingFocus().IsZero() {
+		return false
+	}
+	if painter.focus.Focused() != painter.publishedFocus ||
+		painter.canvas.TrappedFocusScope() != painter.publishedTrap ||
+		painter.canvas.InitialFocus() != painter.publishedInitial ||
+		painter.canvas.EscapeTarget() != painter.publishedEscape ||
+		painter.canvas.FocusRequest() != painter.publishedRequest ||
+		!slices.Equal(painter.canvas.FocusReturns(), painter.publishedReturns) {
+		return false
+	}
+	hits := painter.canvas.Hits()
+	if len(hits) != len(painter.publishedHits) {
+		return false
+	}
+	for index := range hits {
+		if !sameRegionHit(&painter.publishedHits[index], &hits[index]) {
+			return false
+		}
+	}
+	return true
+}
+
+// sameRegionHit compares the hit fields Focus.Sync copies into an input.Region.
+// It reads the hits by pointer: a hit is large, and a page has thousands of them.
+func sameRegionHit(published, current *gfx.Hit) bool {
+	return published.ID == current.ID &&
+		published.Bounds == current.Bounds &&
+		published.Scope == current.Scope &&
+		published.Layer == current.Layer &&
+		published.Role == current.Role &&
+		published.Focusable == current.Focusable &&
+		published.Disabled == current.Disabled &&
+		published.FocusableDisabled == current.FocusableDisabled &&
+		published.SkipTab == current.SkipTab &&
+		published.Block == current.Block &&
+		published.Container == current.Container &&
+		published.IsLabel == current.IsLabel &&
+		published.Backdrop == current.Backdrop &&
+		published.MovesWindow == current.MovesWindow &&
+		published.PassSecondary == current.PassSecondary &&
+		published.PassPrimary == current.PassPrimary &&
+		published.Autofocus == current.Autofocus
 }
 
 // structuresUnchanged is hitStructuresUnchanged without the hit comparison: the
@@ -1673,7 +1755,8 @@ func (painter *painter) structuresUnchanged() bool {
 		painter.canvas.TrappedFocusScope() != painter.publishedTrap ||
 		painter.canvas.InitialFocus() != painter.publishedInitial ||
 		painter.canvas.EscapeTarget() != painter.publishedEscape ||
-		painter.canvas.FocusRequest() != painter.publishedRequest {
+		painter.canvas.FocusRequest() != painter.publishedRequest ||
+		!slices.Equal(painter.canvas.FocusReturns(), painter.publishedReturns) {
 		return false
 	}
 	if painter.activeText == nil {
@@ -1690,11 +1773,14 @@ func (painter *painter) structuresUnchanged() bool {
 	return true
 }
 
-// sameHits reports whether two hit lists are field for field identical. It
-// compares the structs as bytes: Go strings are immutable, and the published
-// list keeps the previous string allocations reachable, so a matching pointer
-// cannot name different bytes. Padding bytes can only make the comparison
-// stricter (an unnecessary publish), never more permissive.
+// sameHits reports whether two hit lists are identical in the fields the
+// semantic tree and the accessibility payload read. The text-editor geometry
+// lives beside the hits (Canvas.HitText) and feeds neither, so it is not part of
+// the comparison. The structs are compared as bytes: Go strings are immutable,
+// and the published list keeps the previous string allocations reachable, so a
+// matching pointer cannot name different bytes. Padding, and the index into the
+// text table, can only make the comparison stricter (an unnecessary publish),
+// never more permissive.
 func sameHits(published, current []gfx.Hit) bool {
 	if len(published) != len(current) {
 		return false
@@ -1717,6 +1803,7 @@ func (painter *painter) recordHitStructures() {
 	painter.publishedInitial = painter.canvas.InitialFocus()
 	painter.publishedEscape = painter.canvas.EscapeTarget()
 	painter.publishedRequest = painter.canvas.FocusRequest()
+	painter.publishedReturns = append(painter.publishedReturns[:0], painter.canvas.FocusReturns()...)
 	painter.publishedTextField = painter.activeText != nil
 	if painter.activeText != nil {
 		painter.publishedText = painter.activeText.State.Value
@@ -1809,11 +1896,33 @@ func (painter *painter) syncSemantics() {
 	if len(hits) < common {
 		common = len(hits)
 	}
-	for index := 0; index < common; index++ {
-		painter.semantics.Set(painter.semanticIDs[index], semanticNode(hits[index], painter.focus.Focused()))
+	// The accessible payload is compared entry by entry: a repaint that changes
+	// one label must not rewrite the semantic tree or a thousand identical
+	// accessibility nodes. The retained payload is also the previous entry's
+	// copy, so an equal node means neither structure has anything to update.
+	focused := painter.focus.Focused()
+	previous := painter.accessibility
+	if len(hits) < len(previous) {
+		clear(previous[len(hits):])
 	}
-	for index := len(painter.semanticIDs); index < len(hits); index++ {
-		id, _ := painter.semantics.Add(root, semanticNode(hits[index], painter.focus.Focused()))
+	if cap(previous) >= len(hits) {
+		painter.accessibility = previous[:len(hits)]
+	} else {
+		painter.accessibility = make([]platform.AccessibilityNode, len(hits))
+		copy(painter.accessibility, previous)
+	}
+	for index := 0; index < common; index++ {
+		node := painter.accessibilityNode(&hits[index], focused)
+		if index < len(previous) && previous[index] == node {
+			continue
+		}
+		painter.accessibility[index] = node
+		painter.semantics.Set(painter.semanticIDs[index], semanticNode(hits[index], focused))
+	}
+	for index := common; index < len(hits); index++ {
+		node := painter.accessibilityNode(&hits[index], focused)
+		painter.accessibility[index] = node
+		id, _ := painter.semantics.Add(root, semanticNode(hits[index], focused))
 		painter.semanticIDs = append(painter.semanticIDs, id)
 	}
 	if len(hits) < len(painter.semanticIDs) {
@@ -1825,44 +1934,44 @@ func (painter *painter) syncSemantics() {
 	// The tree is only mirrored natively below; reusing the scratch avoids
 	// allocating a discarded change list every time the hit set changes.
 	painter.semanticChanges = painter.semantics.DrainChanges(painter.semanticChanges[:0])
+}
 
-	painter.accessibility = painter.accessibility[:0]
-	for _, hit := range hits {
-		node := platform.AccessibilityNode{
-			ID:          hit.ID,
-			Role:        uint8(semanticRole(hit.Role)),
-			X:           hit.Bounds.X,
-			Y:           hit.Bounds.Y,
-			Width:       hit.Bounds.Width,
-			Height:      hit.Bounds.Height,
-			Label:       hit.Label,
-			Value:       hit.Value,
-			Hint:        hit.Hint,
-			Focused:     !hit.ID.IsZero() && hit.ID == painter.focus.Focused(),
-			Disabled:    hit.Disabled,
-			Checked:     hit.Checked,
-			Mixed:       hit.Mixed,
-			Selected:    hit.Selected,
-			Expanded:    hit.Expanded,
-			Multiline:   hit.Multiline,
-			ReadOnly:    hit.ReadOnly,
-			Secure:      hit.Secure,
-			Focusable:   hit.Focusable,
-			Expandable:  hit.Expandable,
-			Description: hit.Description,
-			Level:       hit.Level,
-			PosInSet:    hit.PosInSet,
-			SetSize:     hit.SetSize,
-			Live:        hit.Live,
-			Range:       hit.Range,
-		}
-		if node.Focused && !hit.ID.IsZero() && painter.activeText != nil && !hit.Secure &&
-			(hit.Role == gfx.RoleTextField || hit.Role == gfx.RoleCombobox) && painter.activeText.State.Value == hit.Value {
-			selection := painter.activeText.State.Selection
-			node.Selection = platform.AccessibilitySelection{Start: int32(selection.Start), End: int32(selection.End), Valid: true}
-		}
-		painter.accessibility = append(painter.accessibility, node)
+// accessibilityNode is the payload entry for one hit.
+func (painter *painter) accessibilityNode(hit *gfx.Hit, focused gfx.ID) platform.AccessibilityNode {
+	node := platform.AccessibilityNode{
+		ID:          hit.ID,
+		Role:        uint8(semanticRole(hit.Role)),
+		X:           hit.Bounds.X,
+		Y:           hit.Bounds.Y,
+		Width:       hit.Bounds.Width,
+		Height:      hit.Bounds.Height,
+		Label:       hit.Label,
+		Value:       hit.Value,
+		Hint:        hit.Hint,
+		Focused:     !hit.ID.IsZero() && hit.ID == focused,
+		Disabled:    hit.Disabled,
+		Checked:     hit.Checked,
+		Mixed:       hit.Mixed,
+		Selected:    hit.Selected,
+		Expanded:    hit.Expanded,
+		Multiline:   hit.Multiline,
+		ReadOnly:    hit.ReadOnly,
+		Secure:      hit.Secure,
+		Focusable:   hit.Focusable,
+		Expandable:  hit.Expandable,
+		Description: hit.Description,
+		Level:       hit.Level,
+		PosInSet:    hit.PosInSet,
+		SetSize:     hit.SetSize,
+		Live:        hit.Live,
+		Range:       hit.Range,
 	}
+	if node.Focused && !hit.ID.IsZero() && painter.activeText != nil && !hit.Secure &&
+		(hit.Role == gfx.RoleTextField || hit.Role == gfx.RoleCombobox) && painter.activeText.State.Value == hit.Value {
+		selection := painter.activeText.State.Selection
+		node.Selection = platform.AccessibilitySelection{Start: int32(selection.Start), End: int32(selection.End), Valid: true}
+	}
+	return node
 }
 
 // labelPair is a label hit waiting for the control it names.

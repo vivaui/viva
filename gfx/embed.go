@@ -149,8 +149,15 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 		} else {
 			hit.Scope = tree.MountID(mount, hit.Scope)
 		}
-		if hit.TextBounds != (Rect{}) {
-			hit.TextBounds = translateRect(hit.TextBounds, origin)
+		// The child owns its side table; the parent gets its own entry, at the
+		// parent's place, so resetting the child cannot change the parent's hit.
+		text, hasText := child.HitText(&hit)
+		if hasText {
+			text.Bounds = translateRect(text.Bounds, origin)
+			canvas.hitTexts = append(canvas.hitTexts, text)
+			hit.Text = int32(len(canvas.hitTexts))
+		} else {
+			hit.Text = 0
 		}
 		canvas.hits = append(canvas.hits, hit)
 	}

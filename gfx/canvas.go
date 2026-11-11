@@ -544,6 +544,18 @@ type TextPlacement interface {
 	CaretBounds() (Rect, bool)
 }
 
+// HitText is the text-editor geometry of a hit declared through
+// HitOptions.TextBounds, TextSize, TextWeight, TextColor and Placement. It is
+// kept apart from Hit because it is large, only a text field asks for it, and
+// every copy and comparison of a page's hits would otherwise carry it.
+type HitText struct {
+	Bounds    Rect
+	Size      float32
+	Weight    float32
+	Color     Color
+	Placement TextPlacement
+}
+
 // Hit is one pointer interaction region in back-to-front paint order. The zero
 // ID is reserved for "no target". Label is the accessibility name of the region.
 type Hit struct {
@@ -602,20 +614,15 @@ type Hit struct {
 	PassSecondary bool
 	// PassPrimary is HitOptions.PassPrimary.
 	PassPrimary bool
-	// TextBounds, TextSize, TextWeight and TextColor are the text geometry declared through
-	// HitOptions.
-	TextBounds Rect
-	TextSize   float32
-	TextWeight float32
-	TextColor  Color
 	// HideNativeOverlays is HitOptions.HideNativeOverlays.
 	HideNativeOverlays bool
 	// NavigationKeys is HitOptions.NavigationKeys.
 	NavigationKeys bool
 	// TypeAhead is HitOptions.TypeAhead.
 	TypeAhead bool
-	// Placement is HitOptions.Placement.
-	Placement TextPlacement
+	// Text is 1 + the index of this hit's text geometry in Canvas.hitTexts,
+	// or 0 when the hit declared none. Use Canvas.HitText.
+	Text int32
 }
 
 // Clip is one clipping rectangle restricting the primitives painted after it
@@ -627,14 +634,17 @@ type Clip struct {
 // Canvas retains paint primitives and hit regions in deterministic
 // back-to-front order.
 type Canvas struct {
-	rectangles    []Rectangle
-	triangles     []Triangle
-	shadows       []Shadow
-	images        []Image
-	nativeViews   []NativeView
-	texts         []Text
-	runs          []TextRun
-	hits          []Hit
+	rectangles  []Rectangle
+	triangles   []Triangle
+	shadows     []Shadow
+	images      []Image
+	nativeViews []NativeView
+	texts       []Text
+	runs        []TextRun
+	hits        []Hit
+	// hitTexts holds the text geometry of the hits that declared any, in
+	// declaration order; Hit.Text is one more than the entry's index.
+	hitTexts      []HitText
 	clips         []Clip
 	overlayClips  []int // clip-stack baselines for floating content
 	focusScopes   []ID
@@ -926,6 +936,7 @@ func (canvas *Canvas) Reset() {
 	canvas.texts = canvas.texts[:0]
 	canvas.runs = canvas.runs[:0]
 	canvas.hits = canvas.hits[:0]
+	canvas.hitTexts = canvas.hitTexts[:0]
 	canvas.clips = canvas.clips[:0]
 	canvas.overlayClips = canvas.overlayClips[:0]
 	canvas.focusScopes = canvas.focusScopes[:0]
@@ -973,6 +984,7 @@ func (canvas *Canvas) Trim() {
 	canvas.texts = trimCapacity(canvas.texts)
 	canvas.runs = trimCapacity(canvas.runs)
 	canvas.hits = trimCapacity(canvas.hits)
+	canvas.hitTexts = trimCapacity(canvas.hitTexts)
 	canvas.clips = trimCapacity(canvas.clips)
 	canvas.overlayClips = trimCapacity(canvas.overlayClips)
 	canvas.focusScopes = trimCapacity(canvas.focusScopes)
@@ -1556,6 +1568,18 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 	if options.Secure {
 		options.Value = ""
 	}
+	// The text geometry lives beside the hit so that copying and comparing the
+	// hit list does not carry it. One declaration appends at most one entry, so a
+	// stretch of hits owns a contiguous stretch of hitTexts (see replay.go).
+	var text int32
+	if options.TextBounds != (Rect{}) || options.TextSize != 0 || options.TextWeight != 0 ||
+		options.TextColor != (Color{}) || options.Placement != nil {
+		canvas.hitTexts = append(canvas.hitTexts, HitText{
+			Bounds: options.TextBounds, Size: options.TextSize, Weight: options.TextWeight,
+			Color: options.TextColor, Placement: options.Placement,
+		})
+		text = int32(len(canvas.hitTexts))
+	}
 	canvas.hits = append(canvas.hits, Hit{
 		ID: id, Bounds: bounds, Label: label,
 		Value: options.Value, Hint: options.Hint,
@@ -1568,11 +1592,10 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 		Live: options.Live, Range: options.Range,
 		Focusable: focusable, SkipTab: focusable && options.SkipTab, Autofocus: options.Autofocus && focusable, IsLabel: options.label, Backdrop: options.Backdrop,
 		PassSecondary: options.Backdrop && options.PassSecondary, PassPrimary: options.Backdrop && options.PassPrimary,
-		TextBounds: options.TextBounds, TextSize: options.TextSize, TextWeight: options.TextWeight, TextColor: options.TextColor,
 		HideNativeOverlays: options.HideNativeOverlays,
 		NavigationKeys:     options.NavigationKeys,
 		TypeAhead:          options.TypeAhead,
-		Placement:          options.Placement,
+		Text:               text,
 	})
 }
 
@@ -1655,6 +1678,25 @@ func (canvas *Canvas) MoveRegion(bounds Rect) {
 // next Reset.
 func (canvas *Canvas) Hits() []Hit {
 	return canvas.hits
+}
+
+// HitText returns the text-editor geometry hit declared, and false when it
+// declared none. hit must come from this canvas's Hits.
+func (canvas *Canvas) HitText(hit *Hit) (HitText, bool) {
+	if hit == nil || hit.Text <= 0 {
+		return HitText{}, false
+	}
+	index := int(hit.Text) - 1
+	if index >= len(canvas.hitTexts) {
+		return HitText{}, false
+	}
+	return canvas.hitTexts[index], true
+}
+
+// HitTexts returns the sparse table Hit.Text indexes into. The result is
+// invalidated by the next Reset.
+func (canvas *Canvas) HitTexts() []HitText {
+	return canvas.hitTexts
 }
 
 // HitBounds is the region the control with that identity has declared so far in

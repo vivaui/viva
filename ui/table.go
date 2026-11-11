@@ -248,7 +248,7 @@ func (f *frame) paintTable(n *node) {
 	}
 	s.Offset = min(max(s.Offset, 0), s.Max())
 	if scrolls {
-		offset = s.Offset
+		offset = snapScroll(s.Offset)
 	}
 
 	// The rows on screen: the table's body, cut by every clip it sits in.

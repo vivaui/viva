@@ -1503,17 +1503,25 @@ func (renderer *vulkanRenderer) selectPresentMode() uint32 {
 	if renderer.hasPresentMode {
 		return renderer.presentMode
 	}
+	// FIFO is the pacing source: a present blocks until the compositor takes the
+	// frame, which is what lets the runtime ask for the next frame as soon as
+	// the last one is shown. MAILBOX would drop frames and let the loop outrun
+	// the display.
 	mode := uint32(vkPresentFIFO)
 	if renderer.api != nil && renderer.api.getSurfacePresentModes != nil {
 		var count uint32
 		if renderer.api.getSurfacePresentModes(renderer.physical, renderer.surface, &count, nil) == vkSuccess && count > 0 && count <= 64 {
 			modes := make([]uint32, count)
 			if renderer.api.getSurfacePresentModes(renderer.physical, renderer.surface, &count, &modes[0]) == vkSuccess {
+				fifo := false
 				for _, candidate := range modes[:count] {
-					if candidate == vkPresentMailbox {
-						mode = vkPresentMailbox
+					if candidate == vkPresentFIFO {
+						fifo = true
 						break
 					}
+				}
+				if !fifo {
+					mode = vkPresentMailbox
 				}
 			}
 		}

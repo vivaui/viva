@@ -267,3 +267,26 @@ func BenchmarkTenScrollAreas(b *testing.B) {
 		})
 	}
 }
+
+// A fractional scroll moves the painted content on whole logical pixels: the
+// reported Offset stays fractional for the application and the scrollbar, but a
+// label's sub-pixel origin does not change, so macOS keeps its texture.
+func TestScrollPaintsOnWholeLogicalPixels(t *testing.T) {
+	var view View
+	logPage(&view, false, 10)
+	state := view.ScrollState(listID)
+	state.Wheel(gfx.ScrollEvent{DeltaY: 1.3, Precise: true})
+	if state.Offset != 1.3 {
+		t.Fatalf("offset = %v, want the reported 1.3", state.Offset)
+	}
+	if last := logPage(&view, false, 10); last.Rect().Y != 269 {
+		t.Fatalf("after 1.3px the last row is at %v, want 269: the content moved one whole pixel", last.Rect().Y)
+	}
+	state.Wheel(gfx.ScrollEvent{DeltaY: 1.3, Precise: true})
+	if state.Offset != 2.6 {
+		t.Fatalf("offset = %v, want the reported 2.6", state.Offset)
+	}
+	if last := logPage(&view, false, 10); last.Rect().Y != 267 {
+		t.Fatalf("after 2.6px the last row is at %v, want 267: the content moved three whole pixels", last.Rect().Y)
+	}
+}

@@ -50,12 +50,14 @@ func TestInputContentHitFollowsTheCallersRectangles(t *testing.T) {
 	if len(canvas.Hits()) != 1 {
 		t.Fatalf("hits = %+v", canvas.Hits())
 	}
-	hit := canvas.Hits()[0]
-	if hit.Role != gfx.RoleTextField || hit.Bounds != bounds || hit.TextBounds != content || hit.Cursor != gfx.PointerCursorText || !hit.ReadOnly || hit.Hint != "h" {
-		t.Fatalf("hit = %+v, want a text field over %+v with its text in %+v", hit, bounds, content)
+	hits := canvas.Hits()
+	hit := hits[0]
+	text := hitText(&canvas, &hit)
+	if hit.Role != gfx.RoleTextField || hit.Bounds != bounds || text.Bounds != content || hit.Cursor != gfx.PointerCursorText || !hit.ReadOnly || hit.Hint != "h" {
+		t.Fatalf("hit = %+v, text = %+v, want a text field over %+v with its text in %+v", hit, text, bounds, content)
 	}
-	if hit.TextSize != theme.Metrics.FontSizeM {
-		t.Fatalf("text size = %v, want the theme's %v", hit.TextSize, theme.Metrics.FontSizeM)
+	if text.Size != theme.Metrics.FontSizeM {
+		t.Fatalf("text size = %v, want the theme's %v", text.Size, theme.Metrics.FontSizeM)
 	}
 }
 

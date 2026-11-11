@@ -131,15 +131,17 @@ func TestInputCanHideThePlatformEditorAndPaintItsOwnText(t *testing.T) {
 		}
 		return &canvas, hits[0]
 	}
-	_, shown := paint(InputSnapshot{Value: "hi", PlatformEditing: true})
-	if shown.TextColor.Alpha == 0 {
+	shownCanvas, shown := paint(InputSnapshot{Value: "hi", PlatformEditing: true})
+	shownText, _ := shownCanvas.HitText(&shown)
+	if shownText.Color.Alpha == 0 {
 		t.Fatal("the platform's text is invisible by default")
 	}
 	canvas, hidden := paint(InputSnapshot{
 		Value: "hi", PlatformEditing: true, HideEditorText: true, ShowCaret: true, Caret: 2,
 	})
-	if hidden.TextColor.Alpha != 0 {
-		t.Errorf("HideEditorText left the platform's text visible: %+v", hidden.TextColor)
+	hiddenText, _ := canvas.HitText(&hidden)
+	if hiddenText.Color.Alpha != 0 {
+		t.Errorf("HideEditorText left the platform's text visible: %+v", hiddenText.Color)
 	}
 	if !hidden.HideNativeOverlays {
 		t.Error("HideEditorText did not hide the platform caret and selection")

@@ -218,7 +218,9 @@ func TestPlatformInputEditingCompositionAndPlaceholder(t *testing.T) {
 	if !hasText(&canvas, "Go 中文😀") {
 		t.Fatal("the hidden platform editor's text was not painted on the canvas")
 	}
-	if hit := findHit(t, &canvas, inputEditable); hit.TextColor.Alpha != 0 || !hit.HideNativeOverlays {
+	hit := findHit(t, &canvas, inputEditable)
+	textInfo, _ := canvas.HitText(&hit)
+	if textInfo.Color.Alpha != 0 || !hit.HideNativeOverlays {
 		t.Fatalf("the platform text was not hidden: %+v", hit)
 	}
 	if selection := editor.Selection(); selection != (text.Range{Start: 4, End: 5}) {

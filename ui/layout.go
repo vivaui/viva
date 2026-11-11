@@ -1,11 +1,21 @@
 package ui
 
 import (
+	"math"
 	"strings"
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
+
+// snapScroll is the scroll offset the layout applies, in whole logical pixels.
+// ScrollState.Offset keeps its fraction (the scrollbar and the application read
+// it as reported), but the painted content moves on the logical pixel grid: a
+// label's sub-pixel origin then stays constant while scrolling, so its native
+// texture is reused instead of rebuilt. See app/painter.go's roundPosition.
+func snapScroll(offset float32) float32 {
+	return float32(math.Round(float64(offset)))
+}
 
 // The layout is solved one axis at a time, because a wrapped paragraph is as tall
 // as the width it gets: widths first (measure, then solve), then heights (measure,
@@ -304,7 +314,7 @@ func (f *frame) solveAcross(n *node, first, stop int32, axis int, start, avail f
 			// A Sideways area lays its children out across its content, or across
 			// itself where that is wider, and shows them OffsetX to the left, kept in
 			// range of the content it has now.
-			start -= min(s.OffsetX, max(s.ContentWidth-avail, 0))
+			start -= snapScroll(min(s.OffsetX, max(s.ContentWidth-avail, 0)))
 			avail = max(avail, s.ContentWidth)
 		}
 	}
@@ -505,7 +515,7 @@ func (f *frame) solveFlow(n *node, first, stop int32, axis int, start, avail flo
 		if state := f.exts[n.ext].scrollState; state != nil && state.pinned() {
 			n.scroll = max(used-avail, 0) // at the end of what is there now, not of last frame's
 		}
-		pos -= n.scroll
+		pos -= snapScroll(n.scroll)
 	}
 	for c := first; c != stop; c = f.nodes[c].next {
 		child := &f.nodes[c]

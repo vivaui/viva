@@ -329,6 +329,17 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 		return nil, err
 	}
 	state.renderer = renderer
+	if config.SetFrameInterval != nil {
+		if _, vulkan := renderer.(*vulkanRenderer); vulkan {
+			// A FIFO present blocks until the compositor takes the frame, so the
+			// display paces the window; the runtime asks for the next frame as
+			// soon as the last one is shown.
+			config.SetFrameInterval(0)
+		} else {
+			// PutImage has no display clock to block on; keep the frames at 60 Hz.
+			config.SetFrameInterval(time.Second / 60)
+		}
+	}
 	if win.margin > 0 && !renderer.alpha() {
 		// The surface cannot composite with alpha, and a transparent margin would
 		// show black: the window goes without its drawn frame.

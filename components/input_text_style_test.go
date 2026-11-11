@@ -39,9 +39,11 @@ func TestInputTextStyleDrivesGlyphsCaretSelectionAndThePlatformGeometry(t *testi
 	if line.Style.Size != 11 || line.Style.Weight != gfx.WeightSemibold || line.Style.Color != ink {
 		t.Errorf("the glyphs are painted in %+v, want the field's size 11, semibold and its ink", line.Style)
 	}
-	hit := canvas.Hits()[0]
-	if hit.TextSize != 11 || hit.TextWeight != gfx.WeightSemibold || hit.TextColor != ink {
-		t.Errorf("the platform is told size %v, weight %v, color %+v", hit.TextSize, hit.TextWeight, hit.TextColor)
+	hits := canvas.Hits()
+	hit := hits[0]
+	text := hitText(canvas, &hit)
+	if text.Size != 11 || text.Weight != gfx.WeightSemibold || text.Color != ink {
+		t.Errorf("the platform is told size %v, weight %v, color %+v", text.Size, text.Weight, text.Color)
 	}
 	// The caret stands where the prefix of that weight ends, not where a regular one would.
 	prefix := canvas.TextCaret("abcdef", 11, gfx.WeightSemibold, 4)
@@ -83,9 +85,11 @@ func TestInputWithoutATextStyleIsTheThemesText(t *testing.T) {
 	canvas := weightedCanvas()
 	bounds := gfx.Rect{Width: 200, Height: 32}
 	PaintInputContent(canvas, theme, bounds, bounds, InputSnapshot{ID: gfx.Item(1), Label: "x", Value: "abc"})
-	hit := canvas.Hits()[0]
-	if hit.TextSize != theme.Metrics.FontSizeM || hit.TextWeight != gfx.WeightRegular || hit.TextColor != theme.Foreground {
-		t.Errorf("the platform is told size %v, weight %v, color %+v", hit.TextSize, hit.TextWeight, hit.TextColor)
+	hits := canvas.Hits()
+	hit := hits[0]
+	text := hitText(canvas, &hit)
+	if text.Size != theme.Metrics.FontSizeM || text.Weight != gfx.WeightRegular || text.Color != theme.Foreground {
+		t.Errorf("the platform is told size %v, weight %v, color %+v", text.Size, text.Weight, text.Color)
 	}
 }
 
@@ -141,9 +145,11 @@ func TestMonoInputIsPaintedByTheComponentAndTheNativeLayerIsHidden(t *testing.T)
 	if !line.Style.Mono || line.Style.MonoFace != gfx.MonoClassic || line.Style.Weight != gfx.WeightMedium {
 		t.Fatalf("the glyphs were not painted by the component in the mono face: %+v (PlatformEditing must not matter)", line.Style)
 	}
-	hit := canvas.Hits()[0]
-	if !hit.HideNativeOverlays || hit.TextColor != (gfx.Color{}) {
-		t.Errorf("the platform's text and overlays are not hidden: hide=%v ink=%+v", hit.HideNativeOverlays, hit.TextColor)
+	hits := canvas.Hits()
+	hit := hits[0]
+	text := hitText(canvas, &hit)
+	if !hit.HideNativeOverlays || text.Color != (gfx.Color{}) {
+		t.Errorf("the platform's text and overlays are not hidden: hide=%v ink=%+v", hit.HideNativeOverlays, text.Color)
 	}
 	x := line.Bounds.X
 	var caret, selection gfx.Rectangle
@@ -218,9 +224,11 @@ func TestProportionalInputKeepsThePlatformsOverlays(t *testing.T) {
 	canvas := weightedCanvas()
 	bounds := gfx.Rect{Width: 200, Height: 32}
 	PaintInputContent(canvas, gfx.LightTheme(), bounds, bounds, InputSnapshot{ID: gfx.Item(1), Label: "x", Value: "abc", Focused: true, PlatformEditing: true})
-	hit := canvas.Hits()[0]
-	if hit.HideNativeOverlays || hit.TextColor == (gfx.Color{}) {
-		t.Errorf("a proportional field hid the platform's text: hide=%v ink=%+v", hit.HideNativeOverlays, hit.TextColor)
+	hits := canvas.Hits()
+	hit := hits[0]
+	text := hitText(canvas, &hit)
+	if hit.HideNativeOverlays || text.Color == (gfx.Color{}) {
+		t.Errorf("a proportional field hid the platform's text: hide=%v ink=%+v", hit.HideNativeOverlays, text.Color)
 	}
 	if len(canvas.Texts()) != 0 {
 		t.Errorf("the component painted text the platform draws: %+v", canvas.Texts())

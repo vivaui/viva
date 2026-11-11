@@ -15,6 +15,7 @@ type paintSnapshot struct {
 	rectangles []gfx.Rectangle
 	texts      []gfx.Text
 	hits       []gfx.Hit
+	hitTexts   []gfx.HitText
 	scope      gfx.ID
 	escape     gfx.ID
 }
@@ -59,27 +60,34 @@ func clickAt(canvas *gfx.Canvas, state *State, id gfx.ID, now time.Duration, red
 	canvas.EndEventPass()
 }
 
-// hitsWithoutPlacement copies hits without the row layout a Textarea hands the
-// runtime: each State owns its own, which is not part of what is painted.
-func hitsWithoutPlacement(hits []gfx.Hit) []gfx.Hit {
-	hits = slices.Clone(hits)
+// paintedHits copies the hits and their text geometry without the row layout a
+// Textarea hands the runtime: each State owns its own, which is not part of what
+// is painted.
+func paintedHits(canvas *gfx.Canvas) ([]gfx.Hit, []gfx.HitText) {
+	hits := slices.Clone(canvas.Hits())
+	texts := make([]gfx.HitText, len(hits))
 	for index := range hits {
-		hits[index].Placement = nil
+		texts[index], _ = canvas.HitText(&hits[index])
+		texts[index].Placement = nil
+		hits[index].Text = 0
 	}
-	return hits
+	return hits, texts
 }
 
 func snapshot(canvas *gfx.Canvas) paintSnapshot {
+	hits, texts := paintedHits(canvas)
 	return paintSnapshot{
 		rectangles: slices.Clone(canvas.Rectangles()), texts: slices.Clone(canvas.Texts()),
-		hits: hitsWithoutPlacement(canvas.Hits()), scope: canvas.TrappedFocusScope(), escape: canvas.EscapeTarget(),
+		hits: hits, hitTexts: texts, scope: canvas.TrappedFocusScope(), escape: canvas.EscapeTarget(),
 	}
 }
 
 func assertSamePaint(testingContext testing.TB, expected paintSnapshot, canvas *gfx.Canvas) {
 	testingContext.Helper()
+	hits, texts := paintedHits(canvas)
 	if !slices.Equal(expected.rectangles, canvas.Rectangles()) || !slices.Equal(expected.texts, canvas.Texts()) ||
-		!slices.Equal(expected.hits, hitsWithoutPlacement(canvas.Hits())) || expected.scope != canvas.TrappedFocusScope() || expected.escape != canvas.EscapeTarget() {
+		!slices.Equal(expected.hits, hits) || !slices.Equal(expected.hitTexts, texts) ||
+		expected.scope != canvas.TrappedFocusScope() || expected.escape != canvas.EscapeTarget() {
 		testingContext.Fatal("identical state produced different paint or interaction streams")
 	}
 }

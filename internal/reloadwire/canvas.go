@@ -11,13 +11,19 @@ func CaptureCanvas(canvas *gfx.Canvas) CanvasSnapshot {
 	if delay, ok := canvas.NextFrame(); ok && delay > 0 {
 		delayMs = uint32(max((delay+time.Millisecond-1)/time.Millisecond, 1)) // never rounded down to "now"
 	}
+	hits := canvas.Hits()
+	hitTexts := make([]gfx.HitText, len(hits))
+	for index := range hits {
+		hitTexts[index], _ = canvas.HitText(&hits[index])
+	}
 	return CanvasSnapshot{
 		Rectangles:   append([]gfx.Rectangle(nil), canvas.Rectangles()...),
 		Shadows:      append([]gfx.Shadow(nil), canvas.Shadows()...),
 		Images:       append([]gfx.Image(nil), canvas.Images()...),
 		Texts:        append([]gfx.Text(nil), canvas.Texts()...),
 		Runs:         append([]gfx.TextRun(nil), canvas.AllTextRuns()...),
-		Hits:         append([]gfx.Hit(nil), canvas.Hits()...),
+		Hits:         append([]gfx.Hit(nil), hits...),
+		HitTexts:     hitTexts,
 		TrappedScope: canvas.TrappedFocusScope(),
 		EscapeTarget: canvas.EscapeTarget(),
 		InitialFocus: canvas.InitialFocus(),
@@ -61,7 +67,7 @@ func ApplyCanvas(canvas *gfx.Canvas, snapshot CanvasSnapshot) {
 		}
 		popLayerAndClip(canvas, text.Layer, text.HasClip)
 	}
-	for _, hit := range snapshot.Hits {
+	for index, hit := range snapshot.Hits {
 		if hit.Layer != 0 {
 			canvas.PushLayer(hit.Layer)
 		}
@@ -73,11 +79,16 @@ func ApplyCanvas(canvas *gfx.Canvas, snapshot CanvasSnapshot) {
 		} else if hit.MovesWindow {
 			canvas.MoveRegion(hit.Bounds)
 		} else {
+			var text gfx.HitText
+			if index < len(snapshot.HitTexts) {
+				text = snapshot.HitTexts[index]
+			}
 			canvas.HitWithOptions(hit.ID, hit.Bounds, hit.Label, gfx.HitOptions{
 				Role: hit.Role, Value: hit.Value, Hint: hit.Hint, Disabled: hit.Disabled,
 				Checked: hit.Checked, Selected: hit.Selected, Expanded: hit.Expanded,
 				Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure, SkipFocus: !hit.Focusable, Autofocus: hit.Autofocus,
-				TextBounds: hit.TextBounds, TextSize: hit.TextSize, TextColor: hit.TextColor, TextWeight: hit.TextWeight,
+				TextBounds: text.Bounds, TextSize: text.Size, TextColor: text.Color, TextWeight: text.Weight,
+				Placement: text.Placement,
 			})
 		}
 		if !hit.Scope.IsZero() {

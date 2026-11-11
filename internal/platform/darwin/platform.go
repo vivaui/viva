@@ -491,6 +491,11 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 	application.windows++
 	setApplicationIcon(config.Icon)
+	if config.SetFrameInterval != nil {
+		// Metal's nextDrawable blocks once both drawables are in flight, so the
+		// display paces the frames; the runtime needs no interval of its own.
+		config.SetFrameInterval(0)
+	}
 	if state.web != nil {
 		state.web.token = token
 		if state.webReady != nil {

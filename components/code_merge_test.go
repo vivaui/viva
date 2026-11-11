@@ -48,12 +48,15 @@ func TestCodeMergePaintsThreeAlignedSourcesAndEditsResult(t *testing.T) {
 			t.Fatalf("action at %+v: row=%d incoming=%t ok=%t", action.region, row, incoming, ok)
 		}
 	}
-	for _, hit := range canvas.Hits() {
+	hits := canvas.Hits()
+	for index := range hits {
+		hit := &hits[index]
 		if hit.ID == gfx.Item(18) && (hit.Role != gfx.RoleButton || hit.Bounds.Height > merge.rowHeight) {
 			t.Fatalf("merge action is not row-sized: %+v", hit)
 		}
 		if hit.ID == snapshot.Editor.ID {
-			if hit.Value != result || hit.Placement != &merge || !hit.Multiline {
+			text := hitText(&canvas, hit)
+			if hit.Value != result || text.Placement != &merge || !hit.Multiline {
 				t.Fatalf("editable result = %+v", hit)
 			}
 			return

@@ -110,13 +110,15 @@ func TestMonoFieldBaseIsPaintedByTheComponentFromTheEditorsState(t *testing.T) {
 		t.Fatalf("the typed text is painted in %+v, want 11 point medium classic mono by the component", line.Style)
 	}
 	var hit gfx.Hit
-	for _, h := range snapshot.Hits {
+	var hitText gfx.HitText
+	for index, h := range snapshot.Hits {
 		if h.ID == id {
 			hit = h
+			hitText, _ = snapshot.HitTextAt(index)
 		}
 	}
-	if !hit.HideNativeOverlays || hit.TextColor != (gfx.Color{}) || hit.TextSize != 11 || hit.TextWeight != gfx.WeightMedium {
-		t.Errorf("the platform is told %+v", hit)
+	if !hit.HideNativeOverlays || hitText.Color != (gfx.Color{}) || hitText.Size != 11 || hitText.Weight != gfx.WeightMedium {
+		t.Errorf("the platform is told %+v, text %+v", hit, hitText)
 	}
 	cell, _ := canvas.MonoCellSize(11, gfx.MonoClassic)
 	caretX := func() (float32, bool) {

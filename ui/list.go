@@ -849,15 +849,19 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 		// takes the requested one too, which the rows are placed for below (as ScrollAt).
 		c.f.nodes[area.i].scroll = scroll.Offset
 	}
+	// The rows are placed and hit-tested on whole logical pixels, as the layout
+	// applies them, so a label's native texture survives a fractional scroll.
+	offset := snapScroll(scroll.Offset)
+	c.f.nodes[area.i].scroll = offset
 	viewport := scroll.Viewport
 	if viewport <= 0 {
 		viewport = c.f.bounds.Height
 	}
-	first := max(state.rowAt(scroll.Offset)-listOverscan, 0)
+	first := max(state.rowAt(offset)-listOverscan, 0)
 	if in.n == 0 {
 		first = 0
 	}
-	bottom := scroll.Offset + viewport
+	bottom := offset + viewport
 	last := first
 	for i := first; i < in.n; i++ {
 		last = i + 1
@@ -873,13 +877,13 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 	// pinned there, and pushed up by the next header as it arrives.
 	pin, pinTop := -1, float32(0)
 	if state.Header != nil && in.n > 0 {
-		r0 := state.rowAt(scroll.Offset)
-		if h := state.sectionHeader(r0); h >= 0 && state.top(h) < scroll.Offset-0.5 {
+		r0 := state.rowAt(offset)
+		if h := state.sectionHeader(r0); h >= 0 && state.top(h) < offset-0.5 {
 			pin = h
 			hh := state.rowHeight(h)
 			for j := r0 + 1; j < last; j++ {
 				if state.Header(j) {
-					if gap := state.top(j) - scroll.Offset; gap < hh {
+					if gap := state.top(j) - offset; gap < hh {
 						pinTop = gap - hh
 					}
 					break

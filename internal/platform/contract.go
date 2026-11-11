@@ -102,6 +102,13 @@ type Config struct {
 	// event-loop thread and presents the frames it hands back.
 	OnAccessibility AccessibilityHandler
 	OnRedraw        RedrawHandler
+	// SetFrameInterval, when set, is called by the adapter on the window thread
+	// once it knows how the window's frames are paced: the interval between
+	// display frames, or zero when presenting a frame blocks until the display
+	// takes it. The runtime starts with 1/120 s and uses zero to ask for the
+	// next frame as soon as the last one is presented. Adapters that present
+	// without blocking must report their display interval instead.
+	SetFrameInterval func(interval time.Duration)
 	// Waker, when set together with OnRedraw, lets the runtime request one
 	// redraw from any goroutine without a parked reader goroutine.
 	Waker          *Waker

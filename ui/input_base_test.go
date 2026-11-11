@@ -67,7 +67,7 @@ func TestInputBaseTextSitsInsideThePadAndBorderAndTheHitIsTheWholeElement(t *tes
 			content := gfx.Rect{X: rect.X + inset, Y: rect.Y + inset, Width: rect.Width - 2*inset, Height: rect.Height - 2*inset}
 			// The platform is told the line the text is drawn on, which is centered in the
 			// padded rectangle and never leaves it.
-			text := hit.TextBounds
+			text := hitText(canvas, &hit).Bounds
 			if text.X != content.X || text.Width != content.Width {
 				t.Errorf("text bounds %+v are not the padded rectangle %+v across", text, content)
 			}
@@ -112,12 +112,14 @@ func TestInputBaseFontSizeAndColorStyleTheText(t *testing.T) {
 	view.Draw(canvas, theme, gfx.Rect{Width: 240, Height: 80}, func(f *Frame) {
 		f.InputBase(baseSnapshot(baseField)).FontSize(20).Color(ink)
 	})
-	hit := canvas.Hits()[0]
-	if hit.TextSize != 20 {
-		t.Errorf("text size = %v, want 20", hit.TextSize)
+	hits := canvas.Hits()
+	hit := hits[0]
+	text := hitText(canvas, &hit)
+	if text.Size != 20 {
+		t.Errorf("text size = %v, want 20", text.Size)
 	}
-	if hit.TextColor != ink {
-		t.Errorf("text color = %+v, want %+v", hit.TextColor, ink)
+	if text.Color != ink {
+		t.Errorf("text color = %+v, want %+v", text.Color, ink)
 	}
 	found := false
 	for _, text := range canvas.Texts() {
@@ -227,7 +229,7 @@ func TestInputIsTheBaseDressedByTheRecipeAndPaintsAsTheComponentDoes(t *testing.
 				sameVisible(t, flexed, direct)
 				fh, dh := flexed.Hits(), direct.Hits()
 				if len(fh) != 1 || len(dh) != 1 || fh[0].Role != dh[0].Role || fh[0].Bounds != dh[0].Bounds ||
-					fh[0].TextBounds != dh[0].TextBounds || fh[0].Value != dh[0].Value || fh[0].Disabled != dh[0].Disabled {
+					hitText(flexed, &fh[0]).Bounds != hitText(direct, &dh[0]).Bounds || fh[0].Value != dh[0].Value || fh[0].Disabled != dh[0].Disabled {
 					t.Errorf("hits differ:\nflex   %+v\ndirect %+v", fh, dh)
 				}
 			})
@@ -328,7 +330,7 @@ func TestTextareaIsTheBaseDressedByTheRecipeAndPaintsAsTheComponentDoes(t *testi
 				components.PaintTextarea(direct, theme, box.Rect(), snapshot)
 				sameVisible(t, flexed, direct)
 				fh, dh := flexed.Hits(), direct.Hits()
-				if len(fh) != 1 || len(dh) != 1 || fh[0].Bounds != dh[0].Bounds || fh[0].TextBounds != dh[0].TextBounds || !fh[0].Multiline {
+				if len(fh) != 1 || len(dh) != 1 || fh[0].Bounds != dh[0].Bounds || hitText(flexed, &fh[0]).Bounds != hitText(direct, &dh[0]).Bounds || !fh[0].Multiline {
 					t.Errorf("hits differ:\nflex   %+v\ndirect %+v", fh, dh)
 				}
 			})
@@ -374,7 +376,7 @@ func TestFieldBaseCanBeACellEditorWhoseTextDoesNotMove(t *testing.T) {
 	if len(hits) != 1 {
 		t.Fatalf("hits = %+v", hits)
 	}
-	if got, want := hits[0].TextBounds.X, box.Rect().X+inset; got != want {
+	if got, want := hitText(canvas, &hits[0]).Bounds.X, box.Rect().X+inset; got != want {
 		t.Errorf("the text starts at x=%v, want the cell's own %v: it would jump when the editor opens", got, want)
 	}
 	if hits[0].Bounds != box.Rect() {
@@ -427,9 +429,11 @@ func TestInputBaseTakesItsTextStyleFromTheElement(t *testing.T) {
 				Width(120).FontSize(11).Weight(gfx.WeightMedium).Color(ink)
 		})
 	})
-	hit := canvas.Hits()[0]
-	if hit.TextSize != 11 || hit.TextWeight != gfx.WeightMedium || hit.TextColor != ink {
-		t.Errorf("the platform is told size %v, weight %v, color %+v, want the element's 11, medium and ink", hit.TextSize, hit.TextWeight, hit.TextColor)
+	hits := canvas.Hits()
+	hit := hits[0]
+	text := hitText(canvas, &hit)
+	if text.Size != 11 || text.Weight != gfx.WeightMedium || text.Color != ink {
+		t.Errorf("the platform is told size %v, weight %v, color %+v, want the element's 11, medium and ink", text.Size, text.Weight, text.Color)
 	}
 	for _, text := range canvas.Texts() {
 		if text.Value == "text" && (text.Style.Size != 11 || text.Style.Weight != gfx.WeightMedium || text.Style.Color != ink) {
@@ -446,17 +450,18 @@ func TestInputBaseTakesItsTextStyleFromTheElement(t *testing.T) {
 func TestInputBaseElementStyleOverridesTheSnapshotsAndTheSnapshotsStandsAlone(t *testing.T) {
 	theme := gfx.LightTheme()
 	snapshot := components.InputSnapshot{ID: baseField, Label: "x", Value: "v", Text: components.InputTextStyle{Size: 12, Weight: gfx.WeightBold}}
-	hitOf := func(style func(Box) Box) gfx.Hit {
+	textOf := func(style func(Box) Box) gfx.HitText {
 		var view View
 		canvas := testCanvas()
 		view.Draw(canvas, theme, gfx.Rect{Width: 240, Height: 80}, func(f *Frame) { style(f.InputBase(snapshot).Width(100)) })
-		return canvas.Hits()[0]
+		hits := canvas.Hits()
+		return hitText(canvas, &hits[0])
 	}
-	if hit := hitOf(func(b Box) Box { return b }); hit.TextSize != 12 || hit.TextWeight != gfx.WeightBold {
-		t.Errorf("the snapshot's own style was lost: size %v weight %v", hit.TextSize, hit.TextWeight)
+	if text := textOf(func(b Box) Box { return b }); text.Size != 12 || text.Weight != gfx.WeightBold {
+		t.Errorf("the snapshot's own style was lost: size %v weight %v", text.Size, text.Weight)
 	}
-	if hit := hitOf(func(b Box) Box { return b.FontSize(16) }); hit.TextSize != 16 || hit.TextWeight != gfx.WeightBold {
-		t.Errorf("the element's size should win and the snapshot's weight stay: size %v weight %v", hit.TextSize, hit.TextWeight)
+	if text := textOf(func(b Box) Box { return b.FontSize(16) }); text.Size != 16 || text.Weight != gfx.WeightBold {
+		t.Errorf("the element's size should win and the snapshot's weight stay: size %v weight %v", text.Size, text.Weight)
 	}
 }
 

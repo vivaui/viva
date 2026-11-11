@@ -21,7 +21,7 @@ import "slices"
 // Mark is a position in every primitive list of a paint: where a stretch starts
 // or ends.
 type Mark struct {
-	rectangles, triangles, shadows, images, texts, runs, hits, nativeViews uint32
+	rectangles, triangles, shadows, images, texts, runs, hits, hitTexts, nativeViews uint32
 	// epoch is the paint the mark was taken in.
 	epoch uint32
 	// The clip, layer and focus scope in effect at the mark: what everything the
@@ -55,8 +55,9 @@ func (canvas *Canvas) Mark() Mark {
 		rectangles: uint32(len(canvas.rectangles)), triangles: uint32(len(canvas.triangles)),
 		shadows: uint32(len(canvas.shadows)), images: uint32(len(canvas.images)),
 		texts: uint32(len(canvas.texts)), runs: uint32(len(canvas.runs)),
-		hits: uint32(len(canvas.hits)), nativeViews: uint32(len(canvas.nativeViews)),
-		epoch: canvas.previous.epoch, layer: canvas.currentLayer(), scope: canvas.currentFocusScope(),
+		hits: uint32(len(canvas.hits)), hitTexts: uint32(len(canvas.hitTexts)),
+		nativeViews: uint32(len(canvas.nativeViews)),
+		epoch:       canvas.previous.epoch, layer: canvas.currentLayer(), scope: canvas.currentFocusScope(),
 	}
 	mark.clip, mark.clipped = canvas.clipSnapshot()
 	return mark
@@ -129,7 +130,15 @@ func (canvas *Canvas) ReplayAt(span Span, dx, dy float32) (Span, bool) {
 		}
 	}
 	canvas.runs = append(canvas.runs, old.runs[f.runs:t.runs]...)
+	textBase := int32(len(canvas.hitTexts))
+	canvas.hitTexts = append(canvas.hitTexts, old.hitTexts[f.hitTexts:t.hitTexts]...)
+	hitBase := len(canvas.hits)
 	canvas.hits = append(canvas.hits, old.hits[f.hits:t.hits]...)
+	for index := hitBase; index < len(canvas.hits); index++ {
+		if canvas.hits[index].Text != 0 {
+			canvas.hits[index].Text += textBase
+		}
+	}
 	canvas.nativeViews = append(canvas.nativeViews, old.nativeViews[f.nativeViews:t.nativeViews]...)
 	if dx != 0 || dy != 0 {
 		canvas.moveSince(from, dx, dy)
@@ -162,8 +171,10 @@ func (canvas *Canvas) moveSince(from Mark, dx, dy float32) {
 	for i := from.hits; i < uint32(len(canvas.hits)); i++ {
 		hit := &canvas.hits[i]
 		hit.Bounds = hit.Bounds.Offset(dx, dy)
-		if hit.TextBounds.Width != 0 || hit.TextBounds.Height != 0 {
-			hit.TextBounds = hit.TextBounds.Offset(dx, dy)
+		if hit.Text != 0 {
+			if index := int(hit.Text) - 1; index < len(canvas.hitTexts) {
+				canvas.hitTexts[index].Bounds = canvas.hitTexts[index].Bounds.Offset(dx, dy)
+			}
 		}
 	}
 	for i := from.nativeViews; i < uint32(len(canvas.nativeViews)); i++ {
@@ -178,11 +189,13 @@ func (canvas *Canvas) moveSince(from Mark, dx, dy float32) {
 func (canvas *Canvas) Rewind(to Mark) bool {
 	if to.epoch != canvas.previous.epoch || int(to.rectangles) > len(canvas.rectangles) || int(to.triangles) > len(canvas.triangles) ||
 		int(to.shadows) > len(canvas.shadows) || int(to.images) > len(canvas.images) || int(to.texts) > len(canvas.texts) ||
-		int(to.runs) > len(canvas.runs) || int(to.hits) > len(canvas.hits) || int(to.nativeViews) > len(canvas.nativeViews) {
+		int(to.runs) > len(canvas.runs) || int(to.hits) > len(canvas.hits) || int(to.hitTexts) > len(canvas.hitTexts) ||
+		int(to.nativeViews) > len(canvas.nativeViews) {
 		return false
 	}
 	clear(canvas.texts[to.texts:]) // their strings are not kept past the rewind
 	clear(canvas.hits[to.hits:])
+	clear(canvas.hitTexts[to.hitTexts:])
 	clear(canvas.images[to.images:])
 	canvas.rectangles = canvas.rectangles[:to.rectangles]
 	canvas.triangles = canvas.triangles[:to.triangles]
@@ -191,6 +204,7 @@ func (canvas *Canvas) Rewind(to Mark) bool {
 	canvas.texts = canvas.texts[:to.texts]
 	canvas.runs = canvas.runs[:to.runs]
 	canvas.hits = canvas.hits[:to.hits]
+	canvas.hitTexts = canvas.hitTexts[:to.hitTexts]
 	canvas.nativeViews = canvas.nativeViews[:to.nativeViews]
 	kept := canvas.motion.hitMotions[:0]
 	for _, entry := range canvas.motion.hitMotions {
@@ -292,6 +306,7 @@ type primitiveLists struct {
 	texts       []Text
 	runs        []TextRun
 	hits        []Hit
+	hitTexts    []HitText
 	nativeViews []NativeView
 }
 
@@ -340,7 +355,7 @@ func (lists *primitiveLists) holds(span Span) bool {
 	return int(t.rectangles) <= len(lists.rectangles) && int(t.triangles) <= len(lists.triangles) &&
 		int(t.shadows) <= len(lists.shadows) && int(t.images) <= len(lists.images) &&
 		int(t.texts) <= len(lists.texts) && int(t.runs) <= len(lists.runs) &&
-		int(t.hits) <= len(lists.hits) && int(t.nativeViews) <= len(lists.nativeViews)
+		int(t.hits) <= len(lists.hits) && int(t.hitTexts) <= len(lists.hitTexts) && int(t.nativeViews) <= len(lists.nativeViews)
 }
 
 // previousPaint is the previous paint's lists, kept for Replay, and the number of
@@ -366,6 +381,7 @@ func (canvas *Canvas) rotate() {
 	canvas.texts, old.texts = old.texts[:0], canvas.texts
 	canvas.runs, old.runs = old.runs[:0], canvas.runs
 	canvas.hits, old.hits = old.hits[:0], canvas.hits
+	canvas.hitTexts, old.hitTexts = old.hitTexts[:0], canvas.hitTexts
 	canvas.nativeViews, old.nativeViews = old.nativeViews[:0], canvas.nativeViews
 }
 
@@ -380,5 +396,6 @@ func (canvas *Canvas) trimPrevious() {
 	old.texts = trimCapacity(old.texts)
 	old.runs = trimCapacity(old.runs)
 	old.hits = trimCapacity(old.hits)
+	old.hitTexts = trimCapacity(old.hitTexts)
 	old.nativeViews = trimCapacity(old.nativeViews)
 }

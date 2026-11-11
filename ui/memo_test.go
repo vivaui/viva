@@ -75,15 +75,23 @@ type painted struct {
 	Rectangles []gfx.Rectangle
 	Texts      []gfx.Text
 	Hits       []gfx.Hit
+	HitTexts   []gfx.HitText
 }
 
 func (mp *memoPage) output() painted {
-	var hits []gfx.Hit
-	for _, hit := range mp.canvas.Hits() {
-		hit.Placement = nil
-		hits = append(hits, hit)
+	canvas := mp.canvas
+	hits := append([]gfx.Hit(nil), canvas.Hits()...)
+	texts := make([]gfx.HitText, len(hits))
+	for index := range hits {
+		texts[index], _ = canvas.HitText(&hits[index])
+		texts[index].Placement = nil // the placement is the caller's, not something replay copies
+		hits[index].Text = 0         // the side entries are compared through HitTexts
 	}
-	return painted{append([]gfx.Rectangle(nil), mp.canvas.Rectangles()...), append([]gfx.Text(nil), mp.canvas.Texts()...), hits}
+	return painted{
+		append([]gfx.Rectangle(nil), canvas.Rectangles()...),
+		append([]gfx.Text(nil), canvas.Texts()...),
+		hits, texts,
+	}
 }
 
 // What a page paints with its rows copied is what it paints declaring them.

@@ -81,12 +81,15 @@ type PaintRequest struct {
 }
 
 type CanvasSnapshot struct {
-	Rectangles   []gfx.Rectangle
-	Shadows      []gfx.Shadow
-	Images       []gfx.Image
-	Texts        []gfx.Text
-	Runs         []gfx.TextRun // the runs Texts refer to by RunFirst and RunCount
-	Hits         []gfx.Hit
+	Rectangles []gfx.Rectangle
+	Shadows    []gfx.Shadow
+	Images     []gfx.Image
+	Texts      []gfx.Text
+	Runs       []gfx.TextRun // the runs Texts refer to by RunFirst and RunCount
+	Hits       []gfx.Hit
+	// HitTexts is dense: one entry per Hits entry, zero for a hit that
+	// declared no text geometry. Placement is not carried across the wire.
+	HitTexts     []gfx.HitText
 	TrappedScope gfx.ID
 	EscapeTarget gfx.ID
 	InitialFocus gfx.ID
@@ -524,7 +527,11 @@ func encodeCanvas(value CanvasSnapshot) ([]byte, error) {
 		result.u64(text.Identity.Item)
 	}
 	result.u32(uint32(len(value.Hits)))
-	for _, hit := range value.Hits {
+	for index, hit := range value.Hits {
+		var text gfx.HitText
+		if index < len(value.HitTexts) {
+			text = value.HitTexts[index]
+		}
 		result.id(hit.ID)
 		encodeRect(&result, hit.Bounds)
 		result.string(hit.Label)
@@ -544,10 +551,10 @@ func encodeCanvas(value CanvasSnapshot) ([]byte, error) {
 		result.bool(hit.Autofocus)
 		result.bool(hit.Block)
 		result.bool(hit.MovesWindow)
-		encodeRect(&result, hit.TextBounds)
-		result.f32(hit.TextSize)
-		encodeColor(&result, hit.TextColor)
-		result.f32(hit.TextWeight)
+		encodeRect(&result, text.Bounds)
+		result.f32(text.Size)
+		encodeColor(&result, text.Color)
+		result.f32(text.Weight)
 	}
 	result.id(value.TrappedScope)
 	result.id(value.EscapeTarget)
@@ -633,12 +640,15 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 	}
 	hitCount := decodeCount(&value)
 	result.Hits = make([]gfx.Hit, hitCount)
+	result.HitTexts = make([]gfx.HitText, hitCount)
 	for index := range result.Hits {
 		result.Hits[index] = gfx.Hit{
 			ID: value.id(), Bounds: decodeRect(&value), Label: value.string(), Value: value.string(), Hint: value.string(),
 			Scope: value.id(), Layer: value.u16(), Role: gfx.Role(value.u8()), Disabled: value.bool(), Checked: value.bool(),
 			Selected: value.bool(), Expanded: value.bool(), Multiline: value.bool(), ReadOnly: value.bool(), Secure: value.bool(), Focusable: value.bool(), Autofocus: value.bool(), Block: value.bool(), MovesWindow: value.bool(),
-			TextBounds: decodeRect(&value), TextSize: value.f32(), TextColor: decodeColor(&value), TextWeight: value.f32(),
+		}
+		result.HitTexts[index] = gfx.HitText{
+			Bounds: decodeRect(&value), Size: value.f32(), Color: decodeColor(&value), Weight: value.f32(),
 		}
 	}
 	result.TrappedScope = value.id()

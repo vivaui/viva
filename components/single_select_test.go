@@ -188,10 +188,12 @@ func TestSingleSelectKeepsItsNativeInputAndPopupInBounds(t *testing.T) {
 				t.Fatal("popup lost its native input focus scope")
 			}
 			inputs := 0
-			for _, hit := range canvas.Hits() {
+			hits := canvas.Hits()
+			for index := range hits {
+				hit := &hits[index]
 				if hit.ID == o.InputID {
 					inputs++
-					if hit.Role != gfx.RoleCombobox || hit.TextBounds != layout.Input || hit.Value != "Development" || !hit.Expanded {
+					if hit.Role != gfx.RoleCombobox || hitText(&canvas, hit).Bounds != layout.Input || hit.Value != "Development" || !hit.Expanded {
 						t.Fatal("native input geometry or selected-value semantics were lost", hit)
 					}
 				}

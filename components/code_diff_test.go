@@ -128,12 +128,15 @@ func TestCodeDiffPaintsEditableRightSourceWithSyntaxAndPlacement(t *testing.T) {
 		diff.Paint(&canvas, theme, gfx.Rect{X: 4, Y: 5, Width: 640, Height: 220}, snapshot)
 	}
 	paint()
-	for _, hit := range canvas.Hits() {
+	hits := canvas.Hits()
+	for index := range hits {
+		hit := &hits[index]
 		if hit.ID != snapshot.ID {
 			continue
 		}
-		if hit.Value != right || !hit.Multiline || hit.ReadOnly || hit.TextColor.Alpha != 0 || !hit.HideNativeOverlays || hit.Placement != &diff {
-			t.Fatalf("editable diff hit = %+v", hit)
+		text := hitText(&canvas, hit)
+		if hit.Value != right || !hit.Multiline || hit.ReadOnly || text.Color.Alpha != 0 || !hit.HideNativeOverlays || text.Placement != &diff {
+			t.Fatalf("editable diff hit = %+v, text = %+v", hit, text)
 		}
 		offset, ok := diff.OffsetAt(gfx.Point{X: hit.Bounds.X + 12, Y: hit.Bounds.Y + 4})
 		if !ok || offset < 0 || offset > len(right) {

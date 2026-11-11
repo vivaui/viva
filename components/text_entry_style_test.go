@@ -71,8 +71,8 @@ func TestInputWithAnotherFontSizeScalesWhatItPaintsOverTheText(t *testing.T) {
 	if text := canvas.Texts()[0]; text.Style.Size != size {
 		t.Errorf("text size = %v, want %d", text.Style.Size, size)
 	}
-	if hit := canvas.Hits()[0]; hit.TextSize != size {
-		t.Errorf("the platform editor is told %v, want %d", hit.TextSize, size)
+	if text := hitTextAt(canvas, 0); text.Size != size {
+		t.Errorf("the platform editor is told %v, want %d", text.Size, size)
 	}
 }
 
@@ -117,17 +117,17 @@ func TestTextEntryInsetFollowsDensity(t *testing.T) {
 
 		var canvas gfx.Canvas
 		PaintInput(&canvas, theme, gfx.Rect{Width: 200}, InputSnapshot{ID: gfx.Item(1), Label: "x", Value: "v"})
-		if got := canvas.Hits()[0].TextBounds.X; got != want {
+		if got := hitTextAt(&canvas, 0).Bounds.X; got != want {
 			t.Errorf("%s: Input text starts at %v, want %v", name, got, want)
 		}
 		canvas.Reset()
 		PaintTextarea(&canvas, theme, gfx.Rect{Width: 200, Height: 80}, TextareaSnapshot{ID: gfx.Item(1), Label: "x", Value: "v"})
-		if got := canvas.Hits()[0].TextBounds.X; got != want {
+		if got := hitTextAt(&canvas, 0).Bounds.X; got != want {
 			t.Errorf("%s: Textarea text starts at %v, want %v", name, got, want)
 		}
 		canvas.Reset()
 		PaintInputGroup(&canvas, theme, gfx.Rect{Width: 200}, InputGroupSnapshot{ID: gfx.Item(1), Label: "x", Value: "v"})
-		if got := canvas.Hits()[0].TextBounds.X; got != want {
+		if got := hitTextAt(&canvas, 0).Bounds.X; got != want {
 			t.Errorf("%s: InputGroup text starts at %v, want %v", name, got, want)
 		}
 	}

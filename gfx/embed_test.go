@@ -33,9 +33,10 @@ func TestEmbedTranslatesPrimitivesAndMountsIDs(t *testing.T) {
 	if len(hits) != 2 {
 		t.Fatalf("hits = %+v", hits)
 	}
-	if hits[0].ID != page.Tree().MountID(mount, Item(7)) || hits[0].Bounds != (Rect{X: 101, Y: 202, Width: 30, Height: 20}) || hits[0].Label != "seven" ||
-		hits[0].TextBounds != (Rect{X: 103, Y: 204, Width: 10, Height: 8}) {
-		t.Fatalf("hit = %+v", hits[0])
+	text, hasText := page.HitText(&hits[0])
+	if !hasText || hits[0].ID != page.Tree().MountID(mount, Item(7)) || hits[0].Bounds != (Rect{X: 101, Y: 202, Width: 30, Height: 20}) || hits[0].Label != "seven" ||
+		text.Bounds != (Rect{X: 103, Y: 204, Width: 10, Height: 8}) {
+		t.Fatalf("hit = %+v, text = %+v", hits[0], text)
 	}
 	if !hits[1].Block || !hits[1].ID.IsZero() || hits[1].Bounds.X != 100 {
 		t.Fatalf("a block region must stay ID-less and move with the view: %+v", hits[1])

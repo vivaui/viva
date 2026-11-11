@@ -816,11 +816,12 @@ func TestCodeEditorHitDescribesANativeEditorSurface(t *testing.T) {
 	if !hit.HideNativeOverlays || !hit.Multiline || hit.Role != gfx.RoleTextField || hit.Value != "first\nsecond\n" || hit.Hint != "hint" {
 		t.Fatalf("hit = %+v", hit)
 	}
-	if hit.Placement == nil || hit.TextBounds != f.editor.content {
-		t.Fatalf("placement %v, text bounds %v, want the painted content %v", hit.Placement, hit.TextBounds, f.editor.content)
+	text := hitText(&f.canvas, &hit)
+	if text.Placement == nil || text.Bounds != f.editor.content {
+		t.Fatalf("placement %v, text bounds %v, want the painted content %v", text.Placement, text.Bounds, f.editor.content)
 	}
-	if hit.TextColor.Alpha != 0 {
-		t.Fatalf("the platform's own text is drawn: %+v", hit.TextColor)
+	if text.Color.Alpha != 0 {
+		t.Fatalf("the platform's own text is drawn: %+v", text.Color)
 	}
 }
 

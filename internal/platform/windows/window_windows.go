@@ -366,6 +366,11 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		return nil, err
 	}
 	state.installFrame()
+	if config.SetFrameInterval != nil {
+		// Present(1) in WM_PAINT blocks until the display takes the frame, so
+		// the display paces the window; the runtime needs no interval of its own.
+		config.SetFrameInterval(0)
+	}
 	state.watchBackdropPower()
 	state.applyBackdrop()
 	state.ready = true
@@ -500,6 +505,10 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state.config.OnRedraw != nil {
 			frame, redrawErr := state.config.OnRedraw()
 			state.frame(frame, redrawErr)
+			// Present before returning: with a present-paced frame clock the next
+			// redraw is posted immediately, and leaving the update to a later
+			// WM_PAINT would starve it behind the queued wakes.
+			updateWindow.Call(window)
 		}
 		return 0
 	case wmGetObject:
@@ -597,6 +606,12 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmPaint:
 		var paint paintStruct
 		beginPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+		// A paint queued before UpdateWindow presented the frame has nothing left
+		// to draw. Presenting again would block on the next vblank for no change.
+		if paint.Bounds.Right <= paint.Bounds.Left || paint.Bounds.Bottom <= paint.Bounds.Top {
+			endPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+			return 0
+		}
 		// Nobody can see a minimized window, and its client area no longer matches what it
 		// showed: a custom frame reports the small minimized window (160x28) instead of an
 		// empty rectangle. Presenting at that size would resize the swap chain to the corner

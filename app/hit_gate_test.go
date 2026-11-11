@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -42,26 +43,30 @@ func TestRepaintReusesRegionsAndSemanticsWhenTheHitsAreUnchanged(t *testing.T) {
 	}
 }
 
-func TestRepaintPublishesASemanticChangeAfterTheGateOpens(t *testing.T) {
+func TestRepaintReusesRegionsButPublishesAChangedLabel(t *testing.T) {
 	page := &hitGatePage{label: "Save", bounds: gfx.Rect{Width: 80, Height: 20}}
 	config := Config{Title: "gate", Width: 200, Height: 80, Paint: page.paint}
 	var canvas gfx.Canvas
 	painter := newTestPainter(t, &canvas, config)
 	reused := painter.reusedHits
+	regions := append([]input.Region(nil), painter.focus.Router().Regions()...)
 
 	page.label = "Save and close"
 	frame, err := painter.repaint()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if painter.reusedHits != reused {
-		t.Fatal("a changed label was treated as an unchanged hit list")
+	if painter.reusedHits != reused+1 {
+		t.Fatal("a changed label rebuilt the input regions")
 	}
 	if got := painter.accessibility[0].Label; got != "Save and close" {
 		t.Fatalf("label = %q", got)
 	}
 	if frame.Accessibility == nil {
 		t.Fatal("the changed label did not reach the accessibility payload")
+	}
+	if !slices.Equal(regions, painter.focus.Router().Regions()) {
+		t.Fatal("a changed label changed the routed regions")
 	}
 }
 
@@ -147,5 +152,33 @@ func TestRepaintPublishesATextSelectionChangeAfterTheGateOpens(t *testing.T) {
 	last := out.frames[len(out.frames)-1]
 	if last.Accessibility == nil {
 		t.Fatal("a selection change did not republish accessibility")
+	}
+}
+
+// A paint can take focus away without changing a hit. That routing change must
+// still reach Focus.Sync even when the hit list itself is untouched.
+func TestRepaintReleasesFocusWhenThePaintAsksWithoutChangingHits(t *testing.T) {
+	release := false
+	var canvas gfx.Canvas
+	config := Config{Title: "gate", Width: 200, Height: 80}
+	config.Paint = func(canvas *gfx.Canvas, _ gfx.Size) {
+		canvas.HitWithLabel(gfx.Item(1), gfx.Rect{Width: 80, Height: 20}, "A")
+		if release {
+			canvas.ReleaseFocus(gfx.Item(1))
+		}
+	}
+	painter := newTestPainter(t, &canvas, config)
+	if _, err := painter.key(platform.KeyEvent{Key: input.KeyTab}); err != nil {
+		t.Fatal(err)
+	}
+	if painter.focus.Focused() != gfx.Item(1) {
+		t.Fatalf("focused = %v, want the only control", painter.focus.Focused())
+	}
+	release = true
+	if _, err := painter.repaint(); err != nil {
+		t.Fatal(err)
+	}
+	if !painter.focus.Focused().IsZero() {
+		t.Fatalf("focused = %v, want the focus released", painter.focus.Focused())
 	}
 }

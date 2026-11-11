@@ -51,9 +51,11 @@ func TestInputGroupCanHideThePlatformEditorAndPaintItsOwnText(t *testing.T) {
 		ID: gfx.Item(5), Label: "Domain", Value: "viva.dev", NativeEditing: true,
 		HideEditorText: true, ShowCaret: true, Caret: 2,
 	})
-	hit := canvas.Hits()[0]
-	if hit.TextColor.Alpha != 0 {
-		t.Errorf("HideEditorText left the platform's text visible: %+v", hit.TextColor)
+	hits := canvas.Hits()
+	hit := hits[0]
+	text := hitText(&canvas, &hit)
+	if text.Color.Alpha != 0 {
+		t.Errorf("HideEditorText left the platform's text visible: %+v", text.Color)
 	}
 	if !hit.HideNativeOverlays {
 		t.Error("HideEditorText did not hide the platform caret and selection")
@@ -168,9 +170,11 @@ func TestInputGroupIconSlotDrawsAnIconAndShiftsTheControl(t *testing.T) {
 	if len(withIcon.Hits()) != 1 || withIcon.Hits()[0].Role != gfx.RoleTextField {
 		t.Fatalf("hits = %+v, want only the text field", withIcon.Hits())
 	}
-	hit := withIcon.Hits()[0]
-	if hit.TextBounds.X <= layout.Control.X || hit.TextBounds.X > layout.Control.X+12 || hit.TextSize != theme.Metrics.FontSizeM {
-		t.Fatalf("native text geometry %+v / %v must follow the shifted control", hit.TextBounds, hit.TextSize)
+	hits := withIcon.Hits()
+	hit := hits[0]
+	text := hitText(&withIcon, &hit)
+	if text.Bounds.X <= layout.Control.X || text.Bounds.X > layout.Control.X+12 || text.Size != theme.Metrics.FontSizeM {
+		t.Fatalf("native text geometry %+v / %v must follow the shifted control", text.Bounds, text.Size)
 	}
 
 	// Disabled groups dim the icon like their other addons.
@@ -203,8 +207,8 @@ func TestInputGroupControlMatchesAStandaloneInput(t *testing.T) {
 	var input, group gfx.Canvas
 	PaintInput(&input, theme, bounds, InputSnapshot{ID: gfx.Item(1), Label: "Token", Value: "secret", Secure: true, Focused: true, ShowCaret: true, Caret: 3, SelectionStart: 1, SelectionEnd: 2})
 	PaintInputGroup(&group, theme, bounds, InputGroupSnapshot{ID: gfx.Item(1), Label: "Token", Value: "secret", Secure: true, Focused: true, ShowCaret: true, Caret: 3, SelectionStart: 1, SelectionEnd: 2})
-	if input.Hits()[0].TextBounds != group.Hits()[0].TextBounds {
-		t.Fatalf("group text bounds %+v, input %+v", group.Hits()[0].TextBounds, input.Hits()[0].TextBounds)
+	if hitTextAt(&input, 0).Bounds != hitTextAt(&group, 0).Bounds {
+		t.Fatalf("group text bounds %+v, input %+v", hitTextAt(&group, 0).Bounds, hitTextAt(&input, 0).Bounds)
 	}
 	if !slices.Equal(input.Texts(), group.Texts()) || !slices.Equal(input.Rectangles(), group.Rectangles()) {
 		t.Fatalf("group painted differently from the input:\ngroup %+v\ninput %+v", group.Rectangles(), input.Rectangles())

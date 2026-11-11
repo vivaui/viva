@@ -500,22 +500,23 @@ func (p *painter) syncTextInput() {
 		p.noteKeyboardTarget(gfx.ID{}, false)
 		return
 	}
-	field, hitIndex, found := interaction.TextInputHit(p.canvas.Hits(), p.focus.Focused())
+	field, hitIndex, found := interaction.TextInputHit(p.canvas, p.focus.Focused())
 	if !found {
 		p.noteKeyboardTarget(gfx.ID{}, false)
 		return
 	}
+	text, _ := p.canvas.HitText(&field)
 	if bounds, moving := p.canvas.HitPresenceRect(hitIndex, field.Bounds); moving {
 		field.Bounds = roundPresenceRect(bounds)
 	}
-	if bounds, moving := p.canvas.HitPresenceRect(hitIndex, field.TextBounds); moving {
-		field.TextBounds = roundPresenceRect(bounds)
+	if bounds, moving := p.canvas.HitPresenceRect(hitIndex, text.Bounds); moving {
+		text.Bounds = roundPresenceRect(bounds)
 	}
 	context := TextInputContext{
 		ID: field.ID, Bounds: field.Bounds, Layer: field.Layer, Multiline: field.Multiline,
 		ReadOnly: field.ReadOnly, Secure: field.Secure, NavigationKeys: field.NavigationKeys,
 		Terminal: field.Role == gfx.RoleTerminal, TypeAhead: field.TypeAhead && field.Role != gfx.RoleTerminal,
-		TextBounds: field.TextBounds, FontSize: field.TextSize, FontWeight: field.TextWeight, TextColor: field.TextColor,
+		TextBounds: text.Bounds, FontSize: text.Size, FontWeight: text.Weight, TextColor: text.Color,
 		HideNativeOverlays: field.HideNativeOverlays,
 	}
 	if field.ReadOnly {
@@ -530,13 +531,13 @@ func (p *painter) syncTextInput() {
 	p.textInputID = field.ID
 	p.textInput = *input
 	p.textInput.Multiline = field.Multiline
-	p.textInput.Placed = field.Placement != nil
+	p.textInput.Placed = text.Placement != nil
 	p.textInput.Terminal = context.Terminal || context.TypeAhead
 	p.textInput.Secure = field.Secure
 	p.textInput.NavigationKeys = input.NavigationKeys || context.NavigationKeys
 	p.textInput.HideNativeOverlays = input.HideNativeOverlays || field.HideNativeOverlays
 	if p.textInput.Width == 0 && p.textInput.Height == 0 {
-		bounds := field.TextBounds
+		bounds := text.Bounds
 		if bounds == (gfx.Rect{}) {
 			bounds = field.Bounds
 		}
@@ -544,13 +545,13 @@ func (p *painter) syncTextInput() {
 		p.textInput.Width, p.textInput.Height = bounds.Width, bounds.Height
 	}
 	if p.textInput.FontSize == 0 {
-		p.textInput.FontSize = field.TextSize
+		p.textInput.FontSize = text.Size
 	}
 	if p.textInput.Weight == 0 {
-		p.textInput.Weight = field.TextWeight
+		p.textInput.Weight = text.Weight
 	}
 	if p.textInput.Color == (platform.Color{}) {
-		tint := field.TextColor
+		tint := text.Color
 		p.textInput.Color = platform.Color{
 			Red: float64(tint.Red), Green: float64(tint.Green), Blue: float64(tint.Blue), Alpha: float64(tint.Alpha),
 		}
@@ -771,8 +772,14 @@ func (p *painter) placeCaret(event gfx.PointerEvent) bool {
 	default:
 		return false
 	}
-	for _, hit := range p.canvas.Hits() {
-		if hit.ID != p.focus.Focused() || hit.Placement == nil || hit.ReadOnly || hit.Disabled {
+	hits := p.canvas.Hits()
+	for at := range hits {
+		hit := &hits[at]
+		if hit.ID != p.focus.Focused() || hit.ReadOnly || hit.Disabled {
+			continue
+		}
+		textInfo, hasText := p.canvas.HitText(hit)
+		if !hasText || textInfo.Placement == nil {
 			continue
 		}
 		if p.textInputID != p.focus.Focused() {
@@ -781,7 +788,7 @@ func (p *painter) placeCaret(event gfx.PointerEvent) bool {
 		if p.textInputID != p.focus.Focused() {
 			return false
 		}
-		offset, ok := hit.Placement.OffsetAt(gfx.Point{X: event.X, Y: event.Y})
+		offset, ok := textInfo.Placement.OffsetAt(gfx.Point{X: event.X, Y: event.Y})
 		if !ok {
 			return false
 		}

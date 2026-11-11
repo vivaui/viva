@@ -1073,6 +1073,9 @@ type Snapshot struct {
 	// Runs are the text runs Texts refer to; see TextRuns.
 	Runs []gfx.TextRun
 	Hits []gfx.Hit
+	// HitTexts is dense: one entry per Hits entry, zero for a hit that
+	// declared no text geometry. Use HitTextAt.
+	HitTexts []gfx.HitText
 	// Tree is the identity tree the hits are named in, for printing them.
 	Tree *gfx.Tree
 	// Focused and Hovered are hit identities (0 for none).
@@ -1082,6 +1085,21 @@ type Snapshot struct {
 	// CursorImage is the picture shown as the pointer while Cursor is CursorImage.
 	CursorImage *gfx.CursorImage
 	Now         time.Duration
+}
+
+// HitTextAt returns the text geometry of the hit at index in Hits, and false
+// when that hit declared none.
+func (snapshot Snapshot) HitTextAt(index int) (gfx.HitText, bool) {
+	if index < 0 || index >= len(snapshot.Hits) {
+		return gfx.HitText{}, false
+	}
+	if index < len(snapshot.HitTexts) {
+		text := snapshot.HitTexts[index]
+		if text.Bounds != (gfx.Rect{}) || text.Size != 0 || text.Weight != 0 || text.Color != (gfx.Color{}) || text.Placement != nil {
+			return text, true
+		}
+	}
+	return gfx.HitText{}, false
 }
 
 // TextRuns returns the runs of one of the snapshot's Texts.
@@ -1096,14 +1114,20 @@ func (snapshot Snapshot) TextRuns(text gfx.Text) []gfx.TextRun {
 // driver calls.
 func (driver *Driver) Snapshot() Snapshot {
 	painter := driver.painter
+	hits := painter.canvas.Hits()
+	hitTexts := make([]gfx.HitText, len(hits))
+	for index := range hits {
+		hitTexts[index], _ = painter.canvas.HitText(&hits[index])
+	}
 	snapshot := Snapshot{
 		Title: driver.config.Title, Width: int(painter.size.Width), Height: int(painter.size.Height),
-		Clear:   driver.config.ClearColor,
-		Texts:   append([]gfx.Text(nil), painter.canvas.Texts()...),
-		Runs:    append([]gfx.TextRun(nil), painter.canvas.AllTextRuns()...),
-		Hits:    append([]gfx.Hit(nil), painter.canvas.Hits()...),
-		Tree:    painter.canvas.Tree(),
-		Focused: painter.focus.Focused(), Hovered: painter.pointer.Hovered(), Cursor: painter.cursor, CursorImage: painter.cursorImage, Now: driver.now,
+		Clear:    driver.config.ClearColor,
+		Texts:    append([]gfx.Text(nil), painter.canvas.Texts()...),
+		Runs:     append([]gfx.TextRun(nil), painter.canvas.AllTextRuns()...),
+		Hits:     append([]gfx.Hit(nil), hits...),
+		HitTexts: hitTexts,
+		Tree:     painter.canvas.Tree(),
+		Focused:  painter.focus.Focused(), Hovered: painter.pointer.Hovered(), Cursor: painter.cursor, CursorImage: painter.cursorImage, Now: driver.now,
 	}
 	// Keep the widths aligned with Texts: the platform font engine can differ
 	// from the approximate metrics table by a fraction of a pixel per CJK run.
