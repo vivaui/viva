@@ -174,7 +174,7 @@ WebView and no bundled rendering runtime.
 The Windows backend cross-builds for amd64 and arm64 and passes its platform
 tests plus Gallery startup, pointer, and keyboard smoke tests under Wine/DXVK.
 Platform tests, the conformance scenarios and the input, drop and device-loss
-paths run on a Windows 11 virtual machine (WARP) and a Debian KDE/X11 machine
+paths run on a physical Windows 11 machine and a Debian KDE/X11 machine
 (lavapipe); `docs/conformance.md` records the scenarios that need real hardware.
 UI Automation is checked against a real Windows 11 machine from an external
 client (see docs/accessibility.md), and AT-SPI against libatspi on KDE/X11. The

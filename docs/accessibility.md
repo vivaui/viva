@@ -67,7 +67,7 @@ Cost when nobody is listening:
 
 - Pure logic (roles, states, patterns, text units, the AT-SPI object model and
   signals, the host's off cost) runs under `go test` on every host.
-- Windows 11 (WARP VM): an external `System.Windows.Automation` client read the
+- Windows 11 (software rendering): an external `System.Windows.Automation` client read the
   tree, called Invoke, Toggle, RangeValue.SetValue, Value.SetValue, ExpandCollapse
   and the Text pattern (document range, selection, `Move` by word, `Select`), and
   received focus, property, text-changed and text-selection-changed events.
