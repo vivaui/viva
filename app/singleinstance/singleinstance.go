@@ -35,9 +35,11 @@ func (claim *Instance) Close() {
 // primary is false, and the caller should exit without opening a window.
 //
 // id names the application and must be the same for every copy, as its bundle
-// or reverse-DNS identifier. Copies run by different users do not meet. An error
-// means the claim could not be made either way; the caller may carry on as an
-// unclaimed copy.
+// or reverse-DNS identifier. Copies run by different users do not meet. The
+// claim lives in a per-user directory the platform keeps across launches, so
+// copies started from a desktop and from a terminal meet whatever temporary
+// directories their shells set. An error means the claim could not be made
+// either way; the caller may carry on as an unclaimed copy.
 func SingleInstance(id string, args []string, onLaunch func(args []string)) (claim *Instance, primary bool, err error) {
 	if onLaunch == nil {
 		return nil, false, errors.New("singleinstance: a launch handler is required")
