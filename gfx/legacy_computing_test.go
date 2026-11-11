@@ -65,7 +65,7 @@ func TestLegacyComputingEighthBlocksContinue(t *testing.T) {
 	}
 }
 
-// The sixteen sixteenth blocks partition the cell's top three quarters exactly.
+// The sixteen sixteenth blocks partition their cell exactly.
 func TestLegacyComputingSixteenthsPartitionTheirCell(t *testing.T) {
 	area := 0.0
 	for r := rune(0x1CE90); r <= 0x1CE9F; r++ {
