@@ -443,6 +443,7 @@ func (p *painter) deliverClick(id gfx.ID, info gfx.ClickInfo) bool {
 	p.paint()
 	p.canvas.EndEventPass()
 	p.canvas.RunAfterPaint()
+	p.focus.Carry(p.canvas)
 	return true
 }
 
@@ -458,6 +459,7 @@ func (p *painter) deliverPointer(event gfx.PointerEvent) bool {
 	p.paint()
 	consumed := p.canvas.EndPointerPass()
 	p.canvas.RunAfterPaint()
+	p.focus.Carry(p.canvas)
 	return consumed
 }
 

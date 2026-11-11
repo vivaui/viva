@@ -699,6 +699,17 @@ func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	return area
 }
 
+// listRowScope is the scope of the rows of the List whose area is area, so a
+// Shortcut on the box List returns covers them as well as the area's own scope.
+func (p *Page) listRowScope(area int32) gfx.Scope {
+	for _, state := range p.listStates {
+		if state.list.area == area {
+			return state.list.rows
+		}
+	}
+	return 0
+}
+
 // blockBehind keeps the pointer from the rows under a pinned header.
 func blockBehind(d *DrawContext) { d.Canvas.Block(d.Rect) }
 

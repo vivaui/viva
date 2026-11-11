@@ -274,6 +274,7 @@ type Page struct {
 	// Control, TextArea or Shortcut a page declares, so a page without them does
 	// not link what routes their input.
 	keyRoute      func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
+	fieldKeyRoute func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the focused field's Box.OnKey
 	pointerRoute  func(*Page, gfx.PointerEvent) (gfx.EventResult, bool)
 	areaKey       func(*Field, gfx.KeyEvent) gfx.EventResult
 	shortcutRoute func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
@@ -390,9 +391,15 @@ func (p *Page) owns(id gfx.ID) bool {
 	return p.tree != nil && !id.IsZero() && p.tree.Within(id.Scope(), p.root)
 }
 
-// routeKey gives a key to the Combobox it is typed in or the open Menu it moves in,
-// else the Shortcut it presses, else the Control or TextArea it is for.
+// routeKey gives a key to the focused field's OnKey handler, then to the Combobox
+// it is typed in or the open Menu it moves in, else the Shortcut it presses, else
+// the Control or TextArea it is for.
 func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if p.fieldKeyRoute != nil {
+		if result, ok := p.fieldKeyRoute(p, event); ok {
+			return result, true
+		}
+	}
 	if p.comboRoute != nil {
 		if result, ok := p.comboRoute(p, event); ok {
 			return result, true
@@ -445,6 +452,27 @@ func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		if result, ok := p.groupRoute(p, event); ok {
 			return result, true
 		}
+	}
+	return gfx.EventResult{}, false
+}
+
+// fieldKey gives a key to the handler Box.OnKey put on the focused field. Keys
+// that type text stay with the text system, so a handler cannot take typing away,
+// and a key it leaves unhandled goes on to the page's other routes.
+func (p *Page) fieldKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if event.Release || event.Text != "" || event.Key == gfx.KeyUnknown ||
+		event.Key == gfx.KeySpace || event.Key.IsModifier() {
+		return gfx.EventResult{}, false
+	}
+	for i := range p.fields {
+		entry := &p.fields[i]
+		if entry.key == nil || entry.id != event.Target {
+			continue
+		}
+		if result := entry.key(event); result.Handled {
+			return result, true
+		}
+		return gfx.EventResult{}, false
 	}
 	return gfx.EventResult{}, false
 }

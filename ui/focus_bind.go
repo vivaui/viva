@@ -9,7 +9,9 @@ import "github.com/vivaui/viva/gfx"
 //
 // The field is the application's: set it to a value to move the focus there.
 // The request is edge-triggered -- changing *field is what asks -- and waits
-// while the element is not declared (a hidden page, a control not shown yet).
+// while the element is not declared (a hidden page, a control not shown yet). A
+// value set while handling a click or a shortcut takes effect in the repaint that
+// follows it.
 // An element that disappears and comes back asks again if the field still names
 // it. Values must be unique among the elements bound to one field; the field
 // belongs to one window at a time, so give each window its own. The element

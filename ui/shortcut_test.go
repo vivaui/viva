@@ -140,3 +140,30 @@ func TestShortcutLeavesPlainKeysToAField(t *testing.T) {
 		t.Fatalf("ups %d, notes %q", ups, notes)
 	}
 }
+
+// A List's rows are inside the box List returns, so its Shortcut acts while one
+// of them has the keyboard focus.
+func TestListShortcutActsWhileARowHasFocus(t *testing.T) {
+	rows := []string{"alpha", "beta"}
+	var state ui.ListState
+	state.Label = func(i int) string { return rows[i] }
+	var deletes int
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Pad(16).Children(func() {
+			list := ui.List(c, &state, len(rows), func(row ui.ListRow) {
+				ui.Text(row.C, rows[row.Index])
+			}).Grow(1)
+			if list.Shortcut(0, "delete") {
+				deletes++
+			}
+		})
+	})
+	d.click("alpha")
+	if got := d.focused(); got != "alpha" {
+		t.Fatalf("focus = %q, want the row under the pointer", got)
+	}
+	d.key(gfx.KeyDelete)
+	if deletes != 1 {
+		t.Fatalf("the List's Delete acted %d times with a row focused", deletes)
+	}
+}

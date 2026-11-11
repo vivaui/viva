@@ -21,7 +21,11 @@ type Focus struct {
 	// focusClaim is the non-modal focus request already honored, so a popover
 	// painted every frame does not pull focus back after the user leaves it.
 	focusClaim gfx.ID
-	escape     gfx.ID
+	// carried is a request made while handling a click or a shortcut. The event
+	// pass paints with it, but the repaint that follows begins with a new frame
+	// and would clear it before Sync reads the published paint.
+	carried gfx.ID
+	escape  gfx.ID
 	// painted is the hit list of the previous paint, so a newly appearing
 	// Autofocus hit takes the keyboard once. scratch is the next list.
 	painted []gfx.ID
@@ -51,6 +55,15 @@ func (f *Focus) KeyboardFocus() bool { return f.keyboardFocus }
 
 // SetKeyboardFocus changes how focus is presented without moving it.
 func (f *Focus) SetKeyboardFocus(visible bool) { f.keyboardFocus = visible }
+
+// Carry keeps the focus request the paint that just ended as an event pass made,
+// so the repaint that follows applies it. Canvas.Reset clears a request between
+// paints, and Sync reads only the paint it publishes. A request the repaint
+// makes itself replaces this one.
+func (f *Focus) Carry(canvas *gfx.Canvas) { f.carried = canvas.FocusRequest() }
+
+// Carries reports whether an event-pass focus request waits for the next Sync.
+func (f *Focus) Carries() bool { return !f.carried.IsZero() }
 
 // PendingFocus returns a target whose paint-time reveal is not resolved yet.
 func (f *Focus) PendingFocus() gfx.ID { return f.pendingFocus }
@@ -117,8 +130,16 @@ func (f *Focus) Sync(canvas *gfx.Canvas) {
 	f.syncReturns(canvas.FocusReturns(), before)
 	f.router.SetActiveScope(canvas.TrappedFocusScope(), input.Target(canvas.InitialFocus()))
 	f.applyAutofocus(hits)
-	if request := canvas.FocusRequest(); !request.IsZero() {
-		if request != f.focusClaim {
+	request := canvas.FocusRequest()
+	carried := false
+	if request.IsZero() && !f.carried.IsZero() {
+		request, carried = f.carried, true
+	}
+	f.carried = gfx.ID{}
+	if !request.IsZero() {
+		// A carried request is a fresh one from a click or a shortcut, so it is
+		// applied even when it names the target an earlier paint already claimed.
+		if carried || request != f.focusClaim {
 			if focused, ok := f.router.Focused(); ok && focused == input.Target(request) {
 				f.focusClaim = request
 			} else if f.router.Focus(input.Target(request)) {
