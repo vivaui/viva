@@ -36,6 +36,19 @@ func (icon WindowIcon) Tile(size int, inset float64) WindowIcon {
 	return WindowIcon{Size: size, RGBA: tile.Pix}
 }
 
+// TileMark returns the icon as a size x size desktop tile whose mark fills it:
+// Mark crops away the canvas margin around the mark before the tile is shaped.
+// It is the form a desktop uses where it draws the icon small. An invalid icon
+// gives the zero icon.
+func (icon WindowIcon) TileMark(size int) WindowIcon {
+	if !icon.Valid() || size < 1 {
+		return WindowIcon{}
+	}
+	source := &image.NRGBA{Pix: icon.RGBA, Stride: icon.Size * 4, Rect: image.Rect(0, 0, icon.Size, icon.Size)}
+	tile := iconshape.TileMark(source, size)
+	return WindowIcon{Size: size, RGBA: tile.Pix}
+}
+
 // Silhouette returns the icon's mark as a black shape with alpha, cropped to its
 // extent, size x size. An invalid icon gives the zero icon.
 func (icon WindowIcon) Silhouette(size int) WindowIcon {

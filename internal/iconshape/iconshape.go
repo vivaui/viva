@@ -7,6 +7,7 @@ package iconshape
 
 import (
 	"image"
+	"image/draw"
 	"math"
 )
 
@@ -81,6 +82,94 @@ func Tile(picture image.Image, size int, inset float64) *image.NRGBA {
 		}
 	}
 	return canvas
+}
+
+// Mark returns the picture cropped to a square around its mark, with a margin of
+// an eighth of the side, so the mark fills the icon instead of the padding the
+// canvas carries for a desktop that draws it large. The square is centered on
+// the mark and, when the mark is near an edge, slid inside the picture. A picture
+// that already has a shape of its own, whose mark reaches both canvas edges, or
+// which has no mark at all, is returned as it is: there is no margin to spend.
+func Mark(picture image.Image) image.Image {
+	bounds := picture.Bounds()
+	extent, ok := markExtent(picture)
+	if !ok {
+		return picture
+	}
+	side := max(extent.Dx(), extent.Dy())
+	side += side / 8
+	if side >= bounds.Dx() || side >= bounds.Dy() {
+		return picture
+	}
+	x := extent.Min.X + extent.Dx()/2 - side/2
+	y := extent.Min.Y + extent.Dy()/2 - side/2
+	x = min(max(x, bounds.Min.X), bounds.Max.X-side)
+	y = min(max(y, bounds.Min.Y), bounds.Max.Y-side)
+	crop := image.NewNRGBA(image.Rect(0, 0, side, side))
+	draw.Draw(crop, crop.Bounds(), picture, image.Pt(x, y), draw.Src)
+	return crop
+}
+
+// TileMark returns the picture as a size x size desktop tile whose mark fills
+// it: Mark crops away the canvas margin around the mark, and the crop takes the
+// same rounded tile Tile gives. It is the form a desktop uses where it draws the
+// icon small, a taskbar button or a status-area item, so the surface's few
+// pixels carry the mark rather than the margin. A picture Mark does not crop
+// gives exactly Tile's tile.
+func TileMark(picture image.Image, size int) *image.NRGBA {
+	return Tile(Mark(picture), size, 1)
+}
+
+// markExtent is the bounds of the picture's mark: the pixels markAlpha puts
+// above a quarter-visible. ok is false when nothing stands out from the
+// background.
+func markExtent(picture image.Image) (extent image.Rectangle, ok bool) {
+	bounds := picture.Bounds()
+	if bounds.Empty() {
+		return image.Rectangle{}, false
+	}
+	shaped := Shaped(picture)
+	br, bg, bb, _ := pixelAt(picture, bounds.Min.X, bounds.Min.Y)
+	left, top, right, bottom := bounds.Dx(), bounds.Dy(), -1, -1
+	for y := 0; y < bounds.Dy(); y++ {
+		for x := 0; x < bounds.Dx(); x++ {
+			r, g, b, a := pixelAt(picture, bounds.Min.X+x, bounds.Min.Y+y)
+			if markAlpha(r, g, b, a, shaped, br, bg, bb) <= 24 {
+				continue
+			}
+			left, top, right, bottom = min(left, x), min(top, y), max(right, x), max(bottom, y)
+		}
+	}
+	if right < left {
+		return image.Rectangle{}, false
+	}
+	return image.Rect(bounds.Min.X+left, bounds.Min.Y+top, bounds.Min.X+right+1, bounds.Min.Y+bottom+1), true
+}
+
+// pixelAt is the picture's color at (x, y) as a pixel's RGBA gives it, reading
+// the bytes of an NRGBA or RGBA picture directly: scanning a whole icon through
+// image.Image.At allocates a color for every pixel.
+func pixelAt(picture image.Image, x, y int) (r, g, b, a uint32) {
+	switch source := picture.(type) {
+	case *image.NRGBA:
+		pixel := source.Pix[source.PixOffset(x, y):]
+		alpha := uint32(pixel[3])
+		return uint32(pixel[0]) * 0x101 * alpha / 0xff, uint32(pixel[1]) * 0x101 * alpha / 0xff, uint32(pixel[2]) * 0x101 * alpha / 0xff, alpha * 0x101
+	case *image.RGBA:
+		pixel := source.Pix[source.PixOffset(x, y):]
+		return uint32(pixel[0]) * 0x101, uint32(pixel[1]) * 0x101, uint32(pixel[2]) * 0x101, uint32(pixel[3]) * 0x101
+	}
+	return picture.At(x, y).RGBA()
+}
+
+// markAlpha is how much one pixel belongs to the picture's mark: a shaped
+// picture's own alpha, or how far its color is from the background with a little
+// gain, so a near-black mark on white reads as fully opaque.
+func markAlpha(r, g, b, a uint32, shaped bool, br, bg, bb uint32) uint8 {
+	if shaped {
+		return uint8(a >> 8)
+	}
+	return uint8(min(255, max(distance(r, br), distance(g, bg), distance(b, bb))*115/100))
 }
 
 // edgeCoverage is how much of pixel (x, y) of a body x body tile lies inside
@@ -184,19 +273,13 @@ func Silhouette(picture image.Image, size int) *image.NRGBA {
 		return canvas
 	}
 	shaped := Shaped(picture)
-	br, bg, bb, _ := picture.At(bounds.Min.X, bounds.Min.Y).RGBA()
+	br, bg, bb, _ := pixelAt(picture, bounds.Min.X, bounds.Min.Y)
 	mask := image.NewNRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
 	left, top, right, bottom := bounds.Dx(), bounds.Dy(), -1, -1
 	for y := 0; y < bounds.Dy(); y++ {
 		for x := 0; x < bounds.Dx(); x++ {
-			r, g, b, a := picture.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
-			var alpha uint32
-			if shaped {
-				alpha = a >> 8
-			} else {
-				// A little gain, so a near-black mark on white reads as fully opaque.
-				alpha = min(255, max(distance(r, br), distance(g, bg), distance(b, bb))*115/100)
-			}
+			r, g, b, a := pixelAt(picture, bounds.Min.X+x, bounds.Min.Y+y)
+			alpha := uint32(markAlpha(r, g, b, a, shaped, br, bg, bb))
 			if alpha == 0 {
 				continue
 			}

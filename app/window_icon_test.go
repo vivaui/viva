@@ -49,4 +49,21 @@ func TestStatusIconFitsWhatThePlatformsStatusAreaExpects(t *testing.T) {
 	if status.Template || status.RGBA[3] != 0 || middle[3] != 255 {
 		t.Errorf("elsewhere it is the colored tile: template %v, corner alpha %d, middle %v", status.Template, status.RGBA[3], middle[:4])
 	}
+	// The status area draws the icon tiny, so the mark fills it: the same canvas
+	// margin that suits a window's tile would leave the mark a size smaller.
+	tile := WindowIcon{Size: 64, RGBA: pixels}.platform().Tile(16, 1)
+	if got, canvas := darkPixels(status.RGBA), darkPixels(tile.RGBA); got <= canvas {
+		t.Errorf("the status icon holds %d pixels of the mark, the window tile %d: the margin was not spent", got, canvas)
+	}
+}
+
+// darkPixels counts the opaque pixels of a picture's dark mark.
+func darkPixels(pixels []byte) int {
+	count := 0
+	for index := 0; index < len(pixels); index += 4 {
+		if pixels[index+3] > 128 && pixels[index] < 64 {
+			count++
+		}
+	}
+	return count
 }

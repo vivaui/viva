@@ -18,11 +18,13 @@ func netWMIcon(icon platform.WindowIcon) []uint32 {
 		if size > icon.Size {
 			break
 		}
-		data = appendNetWMIcon(data, icon.Tile(size, 1))
+		// A panel and a task switcher draw these small, so the mark fills the
+		// icon rather than the margin the canvas carries for a large one.
+		data = appendNetWMIcon(data, icon.TileMark(size))
 	}
 	if len(data) == 0 {
 		// A source smaller than the smallest size is offered as it is.
-		data = appendNetWMIcon(data, icon.Tile(icon.Size, 1))
+		data = appendNetWMIcon(data, icon.TileMark(icon.Size))
 	}
 	return data
 }

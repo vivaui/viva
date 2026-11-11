@@ -25,6 +25,22 @@ func square(size int) *image.NRGBA {
 	return img
 }
 
+// marked is a white square with a dark mark a quarter of its side, as an
+// application draws its mark for a desktop that gives the tile a margin.
+func marked(size int) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, size, size))
+	for index := 0; index < len(img.Pix); index += 4 {
+		img.Pix[index], img.Pix[index+1], img.Pix[index+2], img.Pix[index+3] = 255, 255, 255, 255
+	}
+	mark := size / 4
+	for y := size/2 - mark/2; y < size/2+mark/2; y++ {
+		for x := size/2 - mark/2; x < size/2+mark/2; x++ {
+			img.SetNRGBA(x, y, color.NRGBA{R: 16, G: 16, B: 16, A: 255})
+		}
+	}
+	return img
+}
+
 type icoEntry struct {
 	width, height, planes, bits int
 	data                        []byte
@@ -88,6 +104,43 @@ func TestEncodeICOHoldsEverySizeUpToTheSource(t *testing.T) {
 	}
 	if err := checkICO(data); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestEncodeICOFillsTheFramesWindowsDrawsSmallWithTheMark(t *testing.T) {
+	data, _, err := EncodeICO(marked(512))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := parseICO(t, data)
+	share := func(pixels int) float64 {
+		for _, entry := range entries {
+			if entry.width != pixels {
+				continue
+			}
+			decoded, err := png.Decode(bytes.NewReader(entry.data))
+			if err != nil {
+				t.Fatalf("%d px: %v", pixels, err)
+			}
+			dark := 0
+			for y := 0; y < pixels; y++ {
+				for x := 0; x < pixels; x++ {
+					r, _, _, a := decoded.At(x, y).RGBA()
+					if a>>8 > 128 && r>>8 < 64 {
+						dark++
+					}
+				}
+			}
+			return float64(dark) / float64(pixels*pixels)
+		}
+		t.Fatalf("no %d px entry", pixels)
+		return 0
+	}
+	if small, big := share(32), share(256); small < 0.7 || big > 0.4 {
+		t.Errorf("the 32 px frame is %.0f%% mark and the 256 px frame %.0f%%: the frames Windows draws small must carry the mark, the large ones the application's tile", small*100, big*100)
+	}
+	if medium := share(64); medium > 0.5 {
+		t.Errorf("the 64 px frame is %.0f%% mark: only the frames Windows draws small crop the canvas margin", medium*100)
 	}
 }
 
