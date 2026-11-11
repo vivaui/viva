@@ -36,26 +36,41 @@ var errExit = errors.New("exit status 1")
 // A busy system is waited for, with a longer wait each time, and the command is run
 // again until it takes.
 func TestHdiutilWaitsOutABusySystem(t *testing.T) {
-	busy := reply{"hdiutil: create failed - Resource busy", errExit}
-	runs, waits := stub(t, []reply{busy, busy, {"created", nil}})
-	out, err := hdiutilOutput("create", "image")
-	if err != nil || out != "created" {
-		t.Fatalf("output %q, error %v", out, err)
-	}
-	if len(*runs) != 3 || len(*waits) != 2 || (*waits)[0] >= (*waits)[1] {
-		t.Fatalf("%d runs, waits %v", len(*runs), *waits)
+	for _, command := range []string{"create", "convert", "attach"} {
+		for _, message := range []string{"Resource busy", "Resource temporarily unavailable"} {
+			t.Run(command+"/"+message, func(t *testing.T) {
+				busy := reply{"hdiutil: " + command + " failed - " + message, errExit}
+				runs, waits := stub(t, []reply{busy, busy, {"ready", nil}})
+				out, err := hdiutilOutput(command, "image")
+				if err != nil || out != "ready" {
+					t.Fatalf("output %q, error %v", out, err)
+				}
+				if len(*runs) != 3 || len(*waits) != 2 || (*waits)[0] >= (*waits)[1] {
+					t.Fatalf("%d runs, waits %v", len(*runs), *waits)
+				}
+				for _, arguments := range *runs {
+					if len(arguments) != 2 || arguments[0] != command || arguments[1] != "image" {
+						t.Fatalf("retried arguments %v", arguments)
+					}
+				}
+			})
+		}
 	}
 }
 
 // It does not wait for ever, and the error says what the tool said.
 func TestHdiutilGivesUpOnAStaysBusySystem(t *testing.T) {
-	runs, _ := stub(t, []reply{{"hdiutil: create failed - Resource busy", errExit}})
-	_, err := hdiutilOutput("create", "image")
-	if err == nil || !strings.Contains(err.Error(), "Resource busy") {
-		t.Fatalf("error %v", err)
-	}
-	if len(*runs) != busyAttempts {
-		t.Fatalf("%d runs, want %d", len(*runs), busyAttempts)
+	for _, message := range []string{"Resource busy", "Resource temporarily unavailable"} {
+		t.Run(message, func(t *testing.T) {
+			runs, waits := stub(t, []reply{{"hdiutil: convert failed - " + message, errExit}})
+			_, err := hdiutilOutput("convert", "image")
+			if err == nil || !strings.Contains(err.Error(), message) || !errors.Is(err, errExit) {
+				t.Fatalf("error %v", err)
+			}
+			if len(*runs) != busyAttempts || len(*waits) != busyAttempts-1 {
+				t.Fatalf("%d runs, %d waits, want %d runs", len(*runs), len(*waits), busyAttempts)
+			}
+		})
 	}
 }
 
@@ -66,9 +81,10 @@ func TestHdiutilReportsOtherFailuresAtOnce(t *testing.T) {
 		command string
 		reply   reply
 	}{
-		"other":   {"create", reply{"hdiutil: create failed - No space left on device", errExit}},
-		"detach":  {"detach", reply{"hdiutil: couldn't unmount - Resource busy", errExit}},
-		"missing": {"create", reply{"", exec.ErrNotFound}},
+		"other":                          {"create", reply{"hdiutil: create failed - No space left on device", errExit}},
+		"detach":                         {"detach", reply{"hdiutil: couldn't unmount - Resource busy", errExit}},
+		"detach temporarily unavailable": {"detach", reply{"hdiutil: couldn't unmount - Resource temporarily unavailable", errExit}},
+		"missing":                        {"create", reply{"", exec.ErrNotFound}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			runs, waits := stub(t, []reply{c.reply})

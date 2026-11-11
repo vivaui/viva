@@ -873,7 +873,7 @@ func (driver *Driver) ShortcutChord(modifiers gfx.Modifiers, character rune) (bo
 }
 
 func (driver *Driver) clipboardEdit(action byte) error {
-	event, changed, err := platform.TextClipboardEvent(driver.painter.nativeText.State, driver.painter.nativeText.Secure, action,
+	event, changed, err := platform.TextClipboardEvent(driver.painter.nativeText.ClipboardState(action), driver.painter.nativeText.Secure, action,
 		func() (string, error) { return driver.clipboard, nil },
 		func(value string) error { driver.SetClipboard(value); return nil })
 	if err != nil || !changed {
