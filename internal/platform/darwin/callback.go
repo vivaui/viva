@@ -272,6 +272,16 @@ func vivaTerminalCells(character C.uint32_t) C.int {
 	return C.int(platform.TerminalPreeditCells(rune(character)))
 }
 
+// vivaWindowActivated reports that the window became the key window.
+//
+//export vivaWindowActivated
+func vivaWindowActivated(handle C.uintptr_t) {
+	state, ok := runStateFor(handle)
+	if ok && !state.closed && state.onActivate != nil {
+		state.onActivate()
+	}
+}
+
 // vivaFocusLost reports that the window stopped being the keyboard window.
 //
 //export vivaFocusLost
