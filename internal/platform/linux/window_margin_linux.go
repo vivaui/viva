@@ -155,7 +155,7 @@ func (win *window) wantsFrame(screenIndex int32) (visual uint32, ok bool) {
 		// Software drivers before Mesa 23 draw nothing into a window with alpha,
 		// and a machine drawing in software is a virtual one where a shadow is not
 		// worth the risk of an invisible window. "on" asks for it anyway.
-		if mode != "on" && (vulkanDeviceIsSoftware() || !win.supportsSyncedFrame()) {
+		if mode != "on" && (softwareRenderingRequested() || vulkanDeviceIsSoftware() || !win.supportsSyncedFrame()) {
 			return 0, false
 		}
 	}

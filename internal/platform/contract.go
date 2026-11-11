@@ -202,10 +202,11 @@ var (
 )
 
 // ErrNoGraphics is returned by OpenWindow (wrapped, with what to install) when the
-// machine has no graphics driver to draw a window with: no Vulkan on Linux, no
-// Direct3D 11 device, not even the software one, on Windows. A cloud server with
-// no GPU is the usual case, and it still runs with a software driver; a server with
-// no display at all needs the headless build instead.
+// machine has no graphics driver to draw a window with and the platform's CPU
+// fallback cannot draw either: no Direct3D 11 device, not even the software one, on
+// Windows, or a Linux machine whose CPU rasterizer cannot start. Linux without a
+// usable Vulkan driver draws the window with the CPU rasterizer and does not return
+// this. A cloud server with no display at all needs the headless build instead.
 var ErrNoGraphics = errors.New("platform: no graphics driver")
 
 // ErrFullscreenUnsupported means this host or window kind cannot go fullscreen.

@@ -27,6 +27,10 @@ func BenchmarkX11WindowLiveResize(b *testing.B) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	b.Setenv("VIVA_SCALE", "1")
+	// This benchmark measures the Vulkan swapchain path even where the only
+	// Vulkan device is a software one, which a window would otherwise replace
+	// with the CPU renderer.
+	b.Setenv("VIVA_LINUX_RENDERER", "vulkan")
 	for _, clipped := range []bool{false, true} {
 		b.Run(fmt.Sprintf("clipped=%t", clipped), func(b *testing.B) {
 			labels := make([]platform.TextLabel, 28)
@@ -64,7 +68,11 @@ func BenchmarkX11WindowLiveResize(b *testing.B) {
 			defer application.closeStatus()
 			defer application.atspiClose()
 			state := control.(*nativeWindow).state
-			win, renderer := state.win, state.renderer
+			win := state.win
+			renderer, ok := state.renderer.(*vulkanRenderer)
+			if !ok {
+				b.Skip("this machine has no Vulkan renderer")
+			}
 			var idleTime, createTime, destroyTime, submitTime, presentTime, acquireTime, fenceTime, dispatchTime time.Duration
 			var creates int
 			idle := renderer.api.deviceWaitIdle

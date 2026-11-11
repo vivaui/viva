@@ -58,6 +58,10 @@ type window struct {
 	// width and height are the window's size in device pixels, as X reports it;
 	// the application sees them divided by the display scale.
 	width, height uint32
+	// depth is the drawable depth the window was created with: the root depth,
+	// or 32 for a window whose drawn frame needs alpha. It decides how a CPU
+	// renderer sends its pixels.
+	depth uint8
 	// scaleBits is the display scale as float32 bits (zero is 1): the event loop
 	// changes it and Frame reads it from any goroutine.
 	scaleBits atomic.Uint32
@@ -131,7 +135,7 @@ type linuxWindowState struct {
 	config                  platform.Config
 	win                     *window
 	text                    *linuxTextInput
-	renderer                *vulkanRenderer
+	renderer                windowRenderer
 	router                  eventRouter
 	pendingKeyReleaseDetail uint8
 	pendingKeyReleaseTime   uint32
@@ -318,14 +322,14 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	textInput.bindCaretWaker(win.postCaretBlink)
 	textInput.bindScale(win.displayScale)
 	initialRectangles, initialLabels := textInput.initial()
-	renderer, err := newVulkanRenderer(win.connection, win.id, win.width, win.height, win.displayScale(), config.ClearColor, initialRectangles, initialLabels, win.margin)
+	renderer, err := newWindowPainter(win, win.displayScale(), config.ClearColor, initialRectangles, initialLabels)
 	if err != nil {
 		textInput.close()
 		win.close()
 		return nil, err
 	}
 	state.renderer = renderer
-	if win.margin > 0 && !renderer.frame.alpha {
+	if win.margin > 0 && !renderer.alpha() {
 		// The surface cannot composite with alpha, and a transparent margin would
 		// show black: the window goes without its drawn frame.
 		win.setMargin(0)
@@ -708,14 +712,21 @@ func (application *linuxApplication) closeWindow(target *linuxWindowState) {
 		target.config.Waker.Unbind()
 	}
 	if target.profile {
-		submissions, rebuilds, partials := target.renderer.submissions, target.renderer.rebuilds, target.renderer.partials
-		fmt.Fprintf(os.Stderr, "viva_gpu_submissions=%d\nviva_gpu_full_rebuilds=%d\nviva_gpu_partial_updates=%d\nviva_resize_events=%d\nviva_goroutines=%d\n", submissions, rebuilds, partials, target.resizeEvents, runtime.NumGoroutine())
+		stats := target.renderer.stats()
+		fmt.Fprintf(os.Stderr, "viva_renderer=%s\n", stats.backend)
+		if stats.backend == "vulkan" {
+			fmt.Fprintf(os.Stderr, "viva_gpu_submissions=%d\nviva_gpu_full_rebuilds=%d\nviva_gpu_partial_updates=%d\n", stats.presents, stats.rebuilds, stats.partials)
+		} else {
+			fmt.Fprintf(os.Stderr, "viva_cpu_presents=%d\nviva_cpu_full_paints=%d\nviva_cpu_partial_paints=%d\n", stats.presents, stats.rebuilds, stats.partials)
+		}
+		fmt.Fprintf(os.Stderr, "viva_resize_events=%d\nviva_goroutines=%d\n", target.resizeEvents, runtime.NumGoroutine())
 		if diag.Enabled(diag.Debug) {
 			goroutines := runtime.NumGoroutine()
 			diag.Report(diag.Debug, "render", "window-stats", "window closed",
-				diag.Int("gpu_submissions", int64(submissions)),
-				diag.Int("gpu_full_rebuilds", int64(rebuilds)),
-				diag.Int("gpu_partial_updates", int64(partials)),
+				diag.String("renderer", stats.backend),
+				diag.Int("presents", int64(stats.presents)),
+				diag.Int("full_rebuilds", int64(stats.rebuilds)),
+				diag.Int("partial_updates", int64(stats.partials)),
 				diag.Int("resize_events", int64(target.resizeEvents)),
 				diag.Int("goroutines", int64(goroutines)))
 		}
@@ -888,8 +899,8 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 			// Capabilities can be shared with this configure's resize only. An
 			// obsolete event may need no resize; a later present must then query
 			// the surface again instead of rebuilding for these old dimensions.
-			renderer.hasPendingCapabilities = false
-			defer func() { renderer.hasPendingCapabilities = false }()
+			renderer.forgetSurfaceCapabilities()
+			defer renderer.forgetSurfaceCapabilities()
 		}
 		moved := !win.hasConfigurePos || configure.X != win.configureX || configure.Y != win.configureY
 		if configure.Window == win.id {
@@ -1075,7 +1086,7 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	case xcbExpose:
 		if (state.hidden || !state.exposed) && (*xcbExposeEvent)(event).Count == 0 {
 			state.hidden, state.exposed = false, true
-			return false, renderer.present()
+			return false, renderer.presentFull()
 		}
 	case xcbSelectionRequest:
 		return false, win.handleSelectionRequest((*xcbSelectionRequestEvent)(event))
@@ -1089,7 +1100,8 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 // and swapchain for the new device size, and presents the frame it answers with.
 func (state *linuxWindowState) resized() error {
 	win, config, renderer := state.win, state.config, state.renderer
-	willResizeSwapchain := win.width > 0 && win.height > 0 && (win.width != renderer.width || win.height != renderer.height)
+	deviceWidth, deviceHeight := renderer.deviceSize()
+	willResizeSwapchain := win.width > 0 && win.height > 0 && (win.width != deviceWidth || win.height != deviceHeight)
 	if config.OnResize != nil {
 		frame, err := config.OnResize(win.logicalSize())
 		if err == nil {
@@ -1108,8 +1120,8 @@ func (state *linuxWindowState) resized() error {
 			return err
 		}
 	}
-	if !win.frameWanted && win.connection != 0 && win.id != 0 && len(renderer.rectangles) > 0 {
-		if first := renderer.rectangles[0]; first.Kind == 0 && first.Radius == 0 && first.Bounds.X <= 0 && first.Bounds.Y <= 0 && first.Color.Alpha >= 1 {
+	if !win.frameWanted && win.connection != 0 && win.id != 0 {
+		if first, ok := renderer.firstRectangle(); ok && first.Kind == 0 && first.Radius == 0 && first.Bounds.X <= 0 && first.Bounds.Y <= 0 && first.Color.Alpha >= 1 {
 			if pixel := clearPixel(platform.Color{Red: float64(first.Color.Red), Green: float64(first.Color.Green), Blue: float64(first.Color.Blue), Alpha: 1}); pixel != win.backPixel {
 				win.backPixel = pixel
 				win.api.changeWindow(win.connection, win.id, xcbCWBackPixel, &pixel)
@@ -1292,10 +1304,12 @@ func openWindow(config platform.Config) (*window, error) {
 	x, y := win.panelOrigin(config)
 	if win.frameWanted {
 		win.createFrameWindow(frameVisual, eventMask, x, y)
+		win.depth = 32
 		win.setFrameExtents(win.margin)
 		win.updateInputRegion()
 	} else {
 		api.createWindow(connection, xcbCopyFromParent, win.id, win.screen.Root, x, y, uint16(win.width), uint16(win.height), 0, xcbWindowClassInput, win.screen.RootVisual, xcbCWBackPixel|xcbCWBitGravity|xcbCWEventMask, &values[0])
+		win.depth = win.screen.RootDepth
 	}
 	if config.WindowMode != platform.WindowTitled {
 		motifHints, atomErr := api.atom(connection, "_MOTIF_WM_HINTS")

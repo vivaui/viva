@@ -109,18 +109,24 @@ is evidence for behavior, not for GPU performance.
 ## Machines without a GPU
 
 A window needs a graphics driver, not a GPU. Windows falls back to WARP, Direct3D's
-software device, by itself. Linux needs a Vulkan driver in software form, Mesa's
-lavapipe (`mesa-vulkan-drivers`, plus the loader `libvulkan1`); without one
-`OpenWindow` fails with an error that wraps `app.ErrNoGraphics` and names what to
-install. macOS always has Metal. A server with no display at all (most cloud
-machines) cannot open a window on any platform: give it a virtual display (Xvfb or
-Xvnc on Linux) or use the headless build (`-tags vivahead`), which renders offscreen.
+software device, by itself. Linux draws a window with Vulkan when a hardware device
+exists; otherwise it draws with the CPU rasterizer (`internal/raster`) and presents the
+changed region through XCB, without a Vulkan driver. A software Vulkan device (Mesa's
+lavapipe) is treated as no hardware acceleration and replaced by the CPU renderer unless
+`VIVA_LINUX_RENDERER=vulkan` asks for it; `VIVA_SOFTWARE_RENDERING=1` forces the CPU on
+any machine. The CPU path antialiases text in grayscale and cannot draw the transparent
+frame margin (shadow and round corners), so a custom-titlebar window keeps its content
+but loses that margin. If the CPU renderer cannot start either, `OpenWindow` fails with
+an error that wraps `app.ErrNoGraphics` and names what to install. macOS always has
+Metal. A server with no display at all (most cloud machines) cannot open a window on
+any platform: give it a virtual display (Xvfb or Xvnc on Linux) or use the headless
+build (`-tags vivahead`), which renders offscreen.
 The Linux headless renderer needs no Vulkan driver: with none it draws on the CPU
 (`internal/raster`), within a few levels of the Vulkan pipelines per channel (checked
-against lavapipe) and with grayscale instead of LCD text. A window on Linux still needs
-the Vulkan driver above.
+against lavapipe) and with grayscale instead of LCD text.
 The Linux test machine is a virtual display plus lavapipe. The case of no Vulkan
-loader at all is covered by a unit test, not by a machine without the library.
+loader at all is covered by a unit test and by the CPU renderer's live X11 test run
+with the loader hidden, not by a machine that physically lacks the library.
 
 ## Visual parity
 

@@ -145,7 +145,8 @@ WebView and no bundled rendering runtime.
 - Experimental Linux/X11 shell with dynamically loaded system XCB, Vulkan,
   Pango, and Cairo; retained rounded rectangles and triangles, layered
   GPU-composited system text, pointer and keyboard input, custom titlebar drag,
-  and a blocking event loop with no idle redraw.
+  a blocking event loop with no idle redraw, and a CPU rasterizer that draws the
+  window when no hardware Vulkan device exists.
 - Event-driven rendering with no idle frame loop.
 - Theme tokens and a statically typed, source-owned translation of the pinned
   shadcn component catalog, including forms, overlays, menus, calendars,

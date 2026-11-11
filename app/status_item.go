@@ -15,10 +15,10 @@ import (
 var ErrNoStatusArea = platform.ErrStatusAreaUnavailable
 
 // ErrNoGraphics is what opening a window returns, wrapped with what to install, on a
-// machine that has no graphics driver: Linux without Vulkan, or Windows without even
-// the software Direct3D device. A cloud server with no GPU runs a window through a
-// software driver (Mesa's lavapipe on Linux, WARP on Windows, used automatically);
-// one with no display needs the headless build. Test it with errors.Is.
+// machine that has no graphics driver and no CPU fallback that can draw: Windows
+// without even the software Direct3D device, or Linux when the CPU rasterizer cannot
+// start. Linux without a usable Vulkan driver draws the window on the CPU instead.
+// A cloud server with no display needs the headless build. Test it with errors.Is.
 var ErrNoGraphics = platform.ErrNoGraphics
 
 // StatusIcon is a square image for the system's status area.

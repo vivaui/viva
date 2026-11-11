@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -58,6 +59,10 @@ const (
 	vkErrorOutOfDate                 = -1000001004
 	vkErrorInitializationFailed      = -3
 	vkErrorIncompatibleDriver        = -9
+	// vkPropertiesSize is sizeof(VkPhysicalDeviceProperties); deviceType is
+	// the 32-bit field at offset 16.
+	vkPropertiesSize             = 824
+	vkPropertiesDeviceTypeOffset = 16
 )
 
 type vkExtent2D struct{ Width, Height uint32 }
@@ -309,6 +314,7 @@ type vulkanAPI struct {
 	enumeratePhysicalDevices          func(uintptr, *uint32, *uintptr) int32
 	getQueueFamilyProperties          func(uintptr, *uint32, *vkQueueFamilyProperties)
 	getPhysicalDeviceFeatures         func(uintptr, *[vkFeatureCount]uint32)
+	getPhysicalDeviceProperties       func(uintptr, *[vkPropertiesSize]byte)
 	createXcbSurface                  func(uintptr, *vkXcbSurfaceCreateInfo, unsafe.Pointer, *uintptr) int32
 	destroySurface                    func(uintptr, uintptr, unsafe.Pointer)
 	getSurfaceSupport                 func(uintptr, uint32, uintptr, *uint32) int32
@@ -407,7 +413,10 @@ type vulkanRenderer struct {
 	hasPendingCapabilities             bool
 	// dualSource is set when the device was created with dual-source blending, which
 	// blends LCD text per channel.
-	dualSource      bool
+	dualSource bool
+	// software is set when the selected device is a CPU rasterizer (lavapipe):
+	// the CPU renderer draws such a window instead (window_renderer_linux.go).
+	software        bool
 	enabledFeatures [vkFeatureCount]uint32
 	// scale is device pixels per logical pixel: width and height are device
 	// pixels, a scene is in logical pixels. Zero means 1.
@@ -475,6 +484,7 @@ func loadVulkan() (*vulkanAPI, error) {
 	purego.RegisterLibFunc(&api.enumeratePhysicalDevices, library, "vkEnumeratePhysicalDevices")
 	purego.RegisterLibFunc(&api.getQueueFamilyProperties, library, "vkGetPhysicalDeviceQueueFamilyProperties")
 	purego.RegisterLibFunc(&api.getPhysicalDeviceFeatures, library, "vkGetPhysicalDeviceFeatures")
+	purego.RegisterLibFunc(&api.getPhysicalDeviceProperties, library, "vkGetPhysicalDeviceProperties")
 	purego.RegisterLibFunc(&api.createXcbSurface, library, "vkCreateXcbSurfaceKHR")
 	purego.RegisterLibFunc(&api.destroySurface, library, "vkDestroySurfaceKHR")
 	purego.RegisterLibFunc(&api.getSurfaceSupport, library, "vkGetPhysicalDeviceSurfaceSupportKHR")
@@ -620,8 +630,17 @@ func (renderer *vulkanRenderer) createDevice(extensions []*byte) error {
 
 func (renderer *vulkanRenderer) selectDevice() error {
 	var deviceCount uint32
-	if err := vkCheck(renderer.api.enumeratePhysicalDevices(renderer.instance, &deviceCount, nil), "count physical devices"); err != nil {
-		return err
+	// A loader whose installed drivers fail to initialize fails enumeration with
+	// VK_ERROR_INITIALIZATION_FAILED, not only with the
+	// VK_ERROR_INCOMPATIBLE_DRIVER an empty driver list gives. Both are a machine
+	// with no usable Vulkan driver and need the same advice as one without a
+	// loader; any other result is a real failure.
+	switch status := renderer.api.enumeratePhysicalDevices(renderer.instance, &deviceCount, nil); status {
+	case vkSuccess:
+	case vkErrorInitializationFailed, vkErrorIncompatibleDriver:
+		return noVulkan(fmt.Sprintf("Vulkan has no driver (result %d)", status), nil)
+	default:
+		return vkCheck(status, "count physical devices")
 	}
 	if deviceCount == 0 {
 		return noVulkan("Vulkan reports no device", nil)
@@ -633,6 +652,12 @@ func (renderer *vulkanRenderer) selectDevice() error {
 	if err := vkCheck(renderer.api.enumeratePhysicalDevices(renderer.instance, &deviceCount, &devices[0]), "enumerate physical devices"); err != nil {
 		return err
 	}
+	// A CPU rasterizer (lavapipe) is not a hardware accelerator: the CPU
+	// renderer draws a changed region only, while software Vulkan redraws the
+	// whole window every frame. Prefer a hardware device; remember the software
+	// one in case no hardware device can present.
+	var softwareDevice uintptr
+	var softwareFamily uint32
 	for _, device := range devices[:deviceCount] {
 		var familyCount uint32
 		renderer.api.getQueueFamilyProperties(device, &familyCount, nil)
@@ -647,13 +672,31 @@ func (renderer *vulkanRenderer) selectDevice() error {
 			}
 			var supported uint32
 			if renderer.surface == 0 || renderer.api.getSurfaceSupport(device, uint32(index), renderer.surface, &supported) == vkSuccess && supported != 0 {
-				renderer.physical = device
-				renderer.queueFamily = uint32(index)
+				if renderer.physicalDeviceIsCPU(device) {
+					if softwareDevice == 0 {
+						softwareDevice, softwareFamily = device, uint32(index)
+					}
+					continue
+				}
+				renderer.physical, renderer.queueFamily, renderer.software = device, uint32(index), false
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("linux: no Vulkan graphics queue can present to XCB")
+	if softwareDevice != 0 {
+		renderer.physical, renderer.queueFamily, renderer.software = softwareDevice, softwareFamily, true
+		return nil
+	}
+	return noVulkan("no Vulkan graphics queue can present to XCB", nil)
+}
+
+// physicalDeviceIsCPU reports whether the device is a CPU rasterizer, such as
+// Mesa's lavapipe: VkPhysicalDeviceType CPU. Its properties struct is 824 bytes
+// and deviceType sits at offset 16.
+func (renderer *vulkanRenderer) physicalDeviceIsCPU(device uintptr) bool {
+	var properties [vkPropertiesSize]byte
+	renderer.api.getPhysicalDeviceProperties(device, &properties)
+	return binary.LittleEndian.Uint32(properties[vkPropertiesDeviceTypeOffset:]) == vkPhysicalDeviceTypeCPU
 }
 
 func (renderer *vulkanRenderer) createSwapchain() (err error) {
@@ -1377,7 +1420,7 @@ func (renderer *vulkanRenderer) close() {
 // platform.ErrNoGraphics and says what to install, because "load Vulkan failed"
 // does not tell a person on a cloud server with no GPU what to do next.
 func noVulkan(reason string, cause error) error {
-	const advice = "install the Vulkan loader (libvulkan1) and a driver; a machine without a GPU needs Mesa's software driver (mesa-vulkan-drivers, lavapipe), and a server with no display needs a virtual one such as Xvfb or the headless build"
+	const advice = "install the Vulkan loader (libvulkan1) and a driver; a machine without a GPU can use Mesa's software driver (mesa-vulkan-drivers, lavapipe), and a server with no display needs a virtual one such as Xvfb or the headless build"
 	if cause != nil {
 		return fmt.Errorf("linux: %s: %w (%w); %s", reason, platform.ErrNoGraphics, cause, advice)
 	}
