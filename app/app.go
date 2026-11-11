@@ -176,6 +176,12 @@ type Config struct {
 	// application stop work nobody can see, such as a remote desktop stream.
 	// Hide is the application's own request and is not reported here.
 	OnMinimize func(minimized bool)
+	// OnActivate runs on the window thread when the top-level window becomes
+	// the active window, including when the user switches back from another
+	// application. Moving focus between editors inside the window does not
+	// call it. It lets an application refresh data that may have gone stale
+	// while the window was in the background, without polling.
+	OnActivate func()
 	// OnMaximize runs on the window thread when the window is maximized or
 	// restored on Windows and Linux, including by the system (the window
 	// manager, the taskbar, or a keyboard shortcut), not only by Viva's own

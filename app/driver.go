@@ -329,6 +329,19 @@ func (driver *Driver) SetMinimized(minimized bool) error {
 	return nil
 }
 
+// ActivateWindow reports the window as activated, as the window manager would
+// when the user switches back to it, and calls OnActivate. A closed driver
+// reports nothing.
+func (driver *Driver) ActivateWindow() error {
+	if err := driver.Pump(); err != nil {
+		return err
+	}
+	if !driver.closed && driver.config.OnActivate != nil {
+		driver.config.OnActivate()
+	}
+	return driver.Pump()
+}
+
 // Minimized reports the state SetMinimized last reported.
 func (driver *Driver) Minimized() bool { return driver.minimized }
 
