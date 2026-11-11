@@ -76,6 +76,15 @@ An `Editor` is not safe for concurrent use: touch it only on the window thread.
 
 Call `.Secure()` on the `ui.TextField` (or set `Secure` on a `ui.Field`, or `InputSnapshot.Secure`). The component paints one bullet per character, never exposes the value to the accessibility tree, and the runtime masks what the platform text service draws.
 
+## Disabled and read-only fields
+
+`.Disabled(true)` (or `.Disabled(condition)`) makes a field inert and dimmed like the other controls: it is not a tab stop, a press does not focus it, and no editor opens for it. `.ReadOnly(true)` keeps the field focusable and shows its value, but with no caret, no typing and no input method; the platform is told the hit is read-only. Both can be undone with `false`, and a `ui.Field` in the model can carry `Disabled` or `ReadOnly` instead, which is what `Field`, `FieldBase` and `FieldArea` read:
+
+```go
+ui.TextField(c, &m.id, "Identifier", "").ReadOnly(true)
+ui.TextField(c, &m.name, "Name", "Your name").Disabled(m.pending)
+```
+
 ## Several lines and addons
 
 `components.PaintInputGroup` takes the same kind of snapshot with `Multiline`, and four addon slots, `InlineStart`, `InlineEnd`, `BlockStart` and `BlockEnd`, for icons, text prefixes and buttons. `components.PaintTextarea` and the other fields build on the same pieces; each has a page in the [component catalog](/en/ui/input/) with runnable examples.

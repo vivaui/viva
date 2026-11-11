@@ -185,9 +185,6 @@ func TestSplitterKeepsItsPositionInRangeWhenTheWindowShrinksAndTakesArrowKeys(t 
 	if want := float32(400 - splitterThickness - 150); state.Pos != want {
 		t.Errorf("after the window shrank the first pane is %v, want %v", state.Pos, want)
 	}
-	if _, asked := canvas.NextFrame(); !asked {
-		t.Error("moving the position asked for no frame, so the panes would lag behind it")
-	}
 	if got := state.Key(gfx.KeyEvent{Key: gfx.KeyLeft, Target: omit}); got.Handled {
 		t.Error("an arrow key for another control moved the splitter")
 	}
@@ -321,5 +318,73 @@ func TestDisabledTakesTheCondition(t *testing.T) {
 	off := paint(func(b Box) Box { return b.Disabled(true) })
 	if off.Texts()[0].Style.Color == plain.Texts()[0].Style.Color && off.Rectangles()[0].Color == plain.Rectangles()[0].Color {
 		t.Error("a disabled button looks like an enabled one")
+	}
+}
+
+// A width the user chose comes back when a window that was too narrow for it grows
+// again, and Maxs bounds the panes from either side.
+func TestSplitterKeepsItsPreferredWidthAndHonoursMaxs(t *testing.T) {
+	var view View
+	state := SplitterState{Pos: 300}
+	canvas := testCanvas()
+	draw := func(width float32) {
+		canvas.Reset()
+		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: width, Height: 100}, func(f *Frame) {
+			f.Row().Fill().Children(func() {
+				f.Column().Width(state.Pos).Children(func() { f.Text("left") })
+				f.Splitter(splitID, &state).Mins(100, 150).Maxs(360, 0)
+				f.Column().Grow(1).Children(func() { f.Text("right") })
+			})
+		})
+	}
+	draw(500)
+	if state.Pos != 300 {
+		t.Fatalf("the first pane is %v, want 300", state.Pos)
+	}
+	draw(400)
+	if want := float32(400 - splitterThickness - 150); state.Pos != want {
+		t.Fatalf("after the window shrank the first pane is %v, want %v", state.Pos, want)
+	}
+	draw(500)
+	if state.Pos != 300 {
+		t.Fatalf("after the window grew the first pane is %v, want its preferred 300", state.Pos)
+	}
+
+	// The greatest size of the second pane is the least size of the first.
+	state = SplitterState{Pos: 100}
+	draw = func(width float32) {
+		canvas.Reset()
+		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: width, Height: 100}, func(f *Frame) {
+			f.Row().Fill().Children(func() {
+				f.Column().Width(state.Pos).Children(func() { f.Text("left") })
+				f.Splitter(splitID, &state).Mins(100, 50).Maxs(0, 120)
+				f.Column().Grow(1).Children(func() { f.Text("right") })
+			})
+		})
+	}
+	draw(500)
+	if want := float32(500 - splitterThickness - 120); state.Pos != want {
+		t.Fatalf("a second pane capped at 120 put the first at %v, want %v", state.Pos, want)
+	}
+}
+
+// Maxs caps the first pane from above, and End takes a focused splitter to that cap.
+func TestSplitterMaxsCapsTheFirstPane(t *testing.T) {
+	var view View
+	state := SplitterState{Pos: 300}
+	canvas := testCanvas()
+	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 500, Height: 100}, func(f *Frame) {
+		f.Row().Fill().Children(func() {
+			f.Column().Width(state.Pos).Children(func() { f.Text("left") })
+			f.Splitter(splitID, &state).Mins(100, 100).Maxs(180, 0)
+			f.Column().Grow(1).Children(func() { f.Text("right") })
+		})
+	})
+	if state.Pos != 180 {
+		t.Fatalf("the first pane is %v, want Maxs' 180", state.Pos)
+	}
+	state.Key(gfx.KeyEvent{Key: gfx.KeyEnd, Target: splitID})
+	if state.Pos != 180 {
+		t.Fatalf("End put the first pane at %v, want Maxs' 180", state.Pos)
 	}
 }

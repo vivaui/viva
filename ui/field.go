@@ -24,6 +24,14 @@ import (
 type Field struct {
 	// Secure shows bullets instead of the text and keeps it out of accessibility.
 	Secure bool
+	// Disabled shows the field inert and dimmed, as Box.Disabled does, as field state
+	// that outlives the declaration: a field declared Disabled takes no focus, no
+	// pointer press and no typing.
+	Disabled bool
+	// ReadOnly shows the text without an editor: the field keeps the focus and is
+	// named read-only to assistive technology, but it has no caret, takes no typing
+	// and no input method, and what it shows is the value the program put there.
+	ReadOnly bool
 
 	editor *text.Editor
 	id     gfx.ID
@@ -110,6 +118,7 @@ func (f *Frame) FieldArea(field *Field, id gfx.ID, label, placeholder string) Bo
 	field.rows = true
 	return f.Textarea(components.TextareaSnapshot{
 		ID: input.ID, Label: input.Label, Value: input.Value, DisplayValue: input.Value, Placeholder: placeholder,
+		Disabled: input.Disabled, ReadOnly: input.ReadOnly,
 		Focused: input.Focused, HideEditorText: true, ShowCaret: input.ShowCaret, Layout: field.area,
 		Caret: input.Caret, SelectionStart: input.SelectionStart, SelectionEnd: input.SelectionEnd,
 		CompositionStart: input.CompositionStart, CompositionEnd: input.CompositionEnd,
@@ -152,6 +161,7 @@ func (field *Field) snapshot(f *Frame, id gfx.ID, label, placeholder string) com
 	selection := editor.Selection()
 	snapshot := components.InputSnapshot{
 		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure,
+		Disabled: field.Disabled, ReadOnly: field.ReadOnly,
 		Focused: focused,
 		// The field paints its own text, caret, selection and composition, and the
 		// platform's editor is only where input arrives. A platform that lays text out
@@ -164,7 +174,7 @@ func (field *Field) snapshot(f *Frame, id gfx.ID, label, placeholder string) com
 	// itself needs, and what the platform's own presentation of them does without.
 	snapshot.Caret = editor.ByteOffset(editor.Caret())
 	snapshot.SelectionStart, snapshot.SelectionEnd = editor.ByteOffset(selection.Start), editor.ByteOffset(selection.End)
-	snapshot.ShowCaret = focused && selection.Start == selection.End
+	snapshot.ShowCaret = focused && selection.Start == selection.End && !field.ReadOnly && !field.Disabled
 	if marked, ok := editor.Composition(); ok {
 		snapshot.CompositionStart, snapshot.CompositionEnd = editor.ByteOffset(marked.Start), editor.ByteOffset(marked.End)
 	}

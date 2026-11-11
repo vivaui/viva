@@ -106,6 +106,8 @@ ui.Select(c, &m.size, sizes, nil).FontSize(15)
 
 `Theme.Transition` is the default state-change motion for controls; a zero value disables animation, which is what a hand-built theme gets. `app.ReduceMotion()` reports the operating system's reduced-motion preference on macOS, Windows and Linux and `false` elsewhere. `Canvas.Animate` already honors it, returning the target value unchanged, so components that animate through the canvas need no extra handling.
 
+`Theme.TooltipDelay` is how long the pointer rests on a control before a `ui.Tooltip` appears; zero, the default and what a hand-built theme gets, shows it with the pointer. Half a second reads like a desktop.
+
 ## Text
 
 `gfx.TextStyle` takes a `Size`, a `Weight` and a `Color`. Text is drawn in the system font, so each platform shows its own face and CJK text falls back to the system's CJK font without any setup. Viva does not bundle fonts.

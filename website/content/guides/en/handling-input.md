@@ -95,10 +95,8 @@ func newConfig(m *model) app.Config {
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
 	return page.Config(app.Config{
 		Title: "Input", Width: 640, Height: 360,
-		// The page routes pointer, wheel, shortcut and text input to the controls
-		// it declares. A splitter keeps its arrow keys in its own state, so give
-		// them to the window's key callback.
-		OnKey: m.split.Key,
+		// The page routes pointer, wheel, keys and text input to the controls it
+		// declares; the focused splitter gets its arrow keys from the page.
 	})
 }
 
@@ -118,7 +116,7 @@ A control of your own takes `ui.ID(c)`. A component written against a `ui.Frame`
 
 ## Pointer
 
-A click is handled where the control is declared: `ui.Button(c, "Save").Clicked()`, or `ListRow.Selected()` as the list shows the choice the click made. A drag between two panes needs no handler either: `ui.Splitter(c, &m.split)` captures the pointer, shows the resize cursor and keeps both panes within their minimum sizes, and the example only gives the first pane `m.split.Pos` wide. The context menu is declared on its target as well: `ui.ContextMenu(c, row.Element, ...)` opens at the pointer on a secondary press, and Shift+F10 opens it from the keyboard.
+A click is handled where the control is declared: `ui.Button(c, "Save").Clicked()`, or `ListRow.Selected()` as the list shows the choice the click made. A drag between two panes needs no handler either: `ui.Splitter(c, &m.split)` captures the pointer, shows the resize cursor and keeps both panes within their minimum and maximum sizes (`Mins`, `Maxs`), and the example only gives the first pane `m.split.Pos` wide. The context menu is declared on its target as well: `ui.ContextMenu(c, row.Element, ...)` opens at the pointer on a secondary press, and Shift+F10 opens it from the keyboard.
 
 `OnPointer` is for what the page does not model: a custom-painted control or a host that routes another page's pointer events. It receives down, move, up and exit events in logical window pixels, and `Target` is the identity under the pointer. A press keeps its original target through the move and up events that follow, and `Captured` is true while that is the case, which is what makes a drag of your own work even when the pointer leaves the control. The moves of a drag may be coalesced to the latest queued position, as the platform does natively, so a handler depends on the coordinates rather than on the number of calls: a drag that follows the displacement from its press still ends where the pointer is.
 
@@ -128,10 +126,10 @@ A click is handled where the control is declared: `ui.Button(c, "Save").Clicked(
 
 The page routes keys to the control with the focus. A `ui.List` uses them itself: Up and Down move the choice, Home and End go to the first and last row, Page Up and Down by a screen, Enter or a double click is `ListState.Submitted()`, and typing the start of a name given by `ListState.Label` moves to that row. A menu takes the arrows and Escape while it is open, and a text field takes the editing keys, all without a handler.
 
-A `ui.Splitter` keeps its keyboard behavior in its own state, so give `SplitterState.Key` to the window's key callback and the focused divider moves with the arrow keys:
+A `ui.Splitter` declared in a page gets its arrow keys from the page: the focused divider moves with Left and Right by 16 pixels, and Home and End take it to its limits. The behavior is in `SplitterState.Key`, which a splitter declared on a `Frame` gives to the window's key callback:
 
 ```go
-page.Config(app.Config{OnKey: m.split.Key /* ... */})
+page.Config(app.Config{OnKey: m.split.Key /* a Frame-level splitter */})
 ```
 
 `OnKey` receives the key events the page did not take, for the focused target. `Target` says which one, so a handler checks it before acting. `Key` names navigation, editing and function keys (`KeyDown`, `KeyEscape`, `KeyEnter`, `KeyTab`…). For a chord such as Ctrl+C, `Key` is `KeyUnknown` and `Text` holds the character without modifiers. A control of your own takes its keys through `ui.Handlers` instead; `OnKey` is the fallback below the page.

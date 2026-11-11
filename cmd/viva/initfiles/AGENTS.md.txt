@@ -435,14 +435,15 @@ a struct, there is no `gfx.Handled` constant.
 A drag you handle yourself is `Config.OnPointer func(gfx.PointerEvent) gfx.EventResult`: `e.Kind` is `gfx.PointerDown`, `PointerMove`,
 `PointerUp` or `PointerExit`, `e.X`/`e.Y` are window pixels, `e.Target` is the identity pressed (it stays the pressed one while a
 drag runs). Two panes with a draggable divider need none of it: keep a `ui.SplitterState` in the model, give the first pane its
-`Pos` and declare `Splitter` between them (the pointer is captured, the resize cursor shows, `Mins` bounds both panes, and
-`config.OnKey = m.split.Key` adds the arrow keys, `m.split.Dragging()` says a drag is running):
+`Pos` and declare `Splitter` between them (the pointer is captured, the resize cursor shows, `Mins` and `Maxs` bound both
+panes, the page routes the arrow keys, and `m.split.Dragging()` says a drag is running; a Frame-level splitter needs
+`config.OnKey = m.split.Key`):
 
 ```go
 m.split = ui.SplitterState{Pos: 240} // once, in newModel
 f.Row().Fill().Children(func() {
 	f.Column().Width(m.split.Pos).Children(func() { /* left pane */ })
-	f.Splitter(splitID, &m.split).Mins(120, 200)
+	f.Splitter(splitID, &m.split).Mins(120, 200).Maxs(480, 0)
 	f.Column().Grow(1).Children(func() { /* right pane */ })
 })
 ```
@@ -519,7 +520,9 @@ it has `Mix(other, t)`, `Over(backdrop)` and `WithAlpha(a)`, and no `R` or `A`. 
 of `gfx.LightTheme()`: keep the theme in the model (`m.dark`) and pick it at the top of Paint; `Config.Paint` receives
 no theme, you fill `theme.Background` yourself.
 `theme.Metrics` has `ControlHeight`, `RadiusControl`, `RadiusSurface`, `FontSizeS`, `FontSizeM`, `FontSizeL`,
-`PadControlX`, `PadSurface`, `GapItem`. Take colors and sizes from the theme rather than writing literals.
+`PadControlX`, `PadSurface`, `GapItem`. The `TooltipDelay` field of the theme (a `time.Duration`) is how long
+the pointer rests before a `Tooltip` shows; zero, the default, shows it at once. Take colors and sizes from the
+theme rather than writing literals.
 
 ## Components (package github.com/vivaui/viva/components)
 

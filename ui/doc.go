@@ -63,7 +63,8 @@
 //
 // A control with the theme's look is a base element dressed by a recipe, and the base is
 // there to be used: InputBase, TextareaBase (and FieldBase), SliderBase, ButtonBase, CheckboxBase
-// and SwitchBase are the controls without a look, and ToggleBase, TabBase, RadioBase, OptionBase
+// and SwitchBase are the controls without a look, Radio the themed one over RadioBase, and
+// ToggleBase, TabBase, RadioBase, OptionBase
 // and ComboboxBase the items of the composite ones (tabs, a segmented control, a select), so what they look like is the element's own
 // Background, Border, Radius, Shadow, Pad and looks, with Draw and DrawOver for what those
 // cannot say. Draw runs after the element's background and before its children, DrawOver
@@ -91,8 +92,9 @@
 // LayerDrag for a drag ghost or drop indicator.
 //
 // Progress and Spinner are leaves that animate only while they are on screen, and a
-// Splitter between two panes is dragged (pointer captured, resize cursor, minimum sizes) with
-// its position in a SplitterState; a container given Hit that has no Children and no size
+// Splitter between two panes is dragged (pointer captured, resize cursor, minimum and maximum
+// sizes and a width that survives a narrow window) with its position in a SplitterState, and a
+// page routes the arrow keys of the focused one; a container given Hit that has no Children and no size
 // fails at once, because Hit paints nothing.
 //
 // A ScrollArea keeps its offset in the View under the identity it is given, so the

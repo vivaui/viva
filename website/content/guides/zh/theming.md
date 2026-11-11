@@ -106,6 +106,8 @@ ui.Select(c, &m.size, sizes, nil).FontSize(15)
 
 `Theme.Transition` 是控件默认的状态变化动效；零值会关闭动画，手写的主题就是这样。`app.ReduceMotion()` 在 macOS 和 Windows 上报告操作系统的减弱动效偏好，其他平台返回 `false`。`Canvas.Animate` 已经遵守它，会原样返回目标值，所以通过画布做动画的组件不需要额外处理。
 
+`Theme.TooltipDelay` 是指针在控件上停留多久之后显示 `ui.Tooltip`；零值（默认值，手写主题也是它）会随指针立即显示。半秒左右更接近桌面程序的感觉。
+
 ## 文字
 
 `gfx.TextStyle` 接受 `Size`、`Weight` 和 `Color`。文字用系统字体绘制，所以每个平台显示自己的字体，中日韩文字不需要任何设置就会回退到系统的中日韩字体。Viva 不捆绑字体。

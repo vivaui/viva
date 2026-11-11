@@ -57,3 +57,37 @@ func BenchmarkTreePaint(b *testing.B) {
 		}
 	}
 }
+
+// SelectedColor replaces the theme's Accent for the selected row; a zero color
+// leaves the theme's, so a theme's own fade or tint still applies.
+func TestTreeSelectedRowColourIsTheTrees(t *testing.T) {
+	theme := gfx.LightTheme()
+	selected := gfx.Color{Red: 0.2, Green: 0.5, Blue: 0.4, Alpha: 1}
+	paint := func(color gfx.Color) []gfx.Rectangle {
+		var canvas gfx.Canvas
+		tree := BeginTree(&canvas, theme, gfx.Rect{Width: 200, Height: 32}).SelectedColor(color)
+		tree.Item(TreeItem{ID: gfx.Item(1), Label: "Selected", Selected: true})
+		return canvas.Rectangles()
+	}
+	found := false
+	for _, rectangle := range paint(selected) {
+		if rectangle.Color == selected {
+			found = true
+		}
+		if rectangle.Color == theme.Accent {
+			t.Fatal("the selected row painted the theme's Accent instead of the tree's colour")
+		}
+	}
+	if !found {
+		t.Fatal("the selected row painted no background in the tree's colour")
+	}
+	found = false
+	for _, rectangle := range paint(gfx.Color{}) {
+		if rectangle.Color == theme.Accent {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("a zero SelectedColor did not keep the theme's Accent")
+	}
+}

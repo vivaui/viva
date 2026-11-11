@@ -84,10 +84,8 @@ func newConfig(m *model) app.Config {
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
 	return page.Config(app.Config{
 		Title: "Input", Width: 640, Height: 360,
-		// The page routes pointer, wheel, shortcut and text input to the controls
-		// it declares. A splitter keeps its arrow keys in its own state, so give
-		// them to the window's key callback.
-		OnKey: m.split.Key,
+		// The page routes pointer, wheel, keys and text input to the controls it
+		// declares; the focused splitter gets its arrow keys from the page.
 	})
 }
 

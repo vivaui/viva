@@ -25,7 +25,8 @@ type TreeNode struct {
 // order, described by Node; ListState's Key names them by an item's ID so that a
 // row keeps its focus as rows open and close above it. RowHeight is the default
 // height of a row and Indent the step of a level (a control tall and 16 when
-// zero); TreeNode.Height overrides the default for its row. Keep one in the model.
+// zero); TreeNode.Height overrides the default for its row, and SelectedColor the
+// theme's Accent for the selected one. Keep one in the model.
 //
 // The tree's structure is the application's: a press on a branch's chevron, or
 // Left and Right on it, is Toggled, and the application opens or closes it and
@@ -39,6 +40,9 @@ type TreeState struct {
 	Node      func(i int) TreeNode
 	RowHeight float32
 	Indent    float32
+	// SelectedColor paints the selected row's background instead of the theme's
+	// Accent. Zero keeps the theme's.
+	SelectedColor gfx.Color
 	// CanDrop says whether row from may be dropped at where of row to: a group not
 	// into itself or what is inside it, a row not before a sibling of another kind.
 	// It is asked as the pointer moves; nil makes the rows not draggable.
@@ -256,7 +260,7 @@ func (s *TreeState) draw(d *DrawContext) {
 		if row.gen != d.frame.gen || &d.frame.nodes[row.node] != d.node {
 			continue
 		}
-		tree := components.BeginTree(d.Canvas, *d.Theme, d.Rect).RowHeight(d.Rect.Height).Indent(s.indent(d.Theme))
+		tree := components.BeginTree(d.Canvas, *d.Theme, d.Rect).RowHeight(d.Rect.Height).Indent(s.indent(d.Theme)).SelectedColor(s.SelectedColor)
 		tree.Item(row.item)
 		if s.drag.active {
 			s.dragOver(row, d)

@@ -222,8 +222,11 @@ func Slider(c C, state *SliderState) Box {
 	return c.f.Slider(c.page.boundID(pkSlider, unsafe.Pointer(state)), state)
 }
 
-// Splitter is a draggable divider between the panes around it, at state.Pos.
+// Splitter is a draggable divider between the panes around it, at state.Pos. The
+// page routes the arrow keys of the focused divider to SplitterState.Key, so they
+// work without giving it to the window's key callback.
 func Splitter(c C, state *SplitterState) Box {
+	c.page.splits(state)
 	return c.f.Splitter(c.page.boundID(pkSplitter, unsafe.Pointer(state)), state)
 }
 

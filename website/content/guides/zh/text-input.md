@@ -76,6 +76,15 @@ func main() {
 
 在 `ui.TextField` 上调用 `.Secure()`（或在 `ui.Field` 上设置 `Secure`，或设置 `InputSnapshot.Secure`）。组件为每个字符画一个圆点，永远不会把值暴露给无障碍树，运行时也会遮住平台文本服务绘制的内容。
 
+## 禁用与只读字段
+
+`.Disabled(true)`（或 `.Disabled(条件)`）让字段像其他控件一样不可交互并变暗：它不再是 Tab 停靠点，按下不会给它焦点，也不会为它打开编辑器。`.ReadOnly(true)` 让字段保持可获得焦点并显示值，但没有光标、不能输入、不打开输入法；平台会被告知该命中区域是只读的。两者都可以用 `false` 恢复；模型里的 `ui.Field` 也可以直接设置 `Disabled` 或 `ReadOnly`，`Field`、`FieldBase` 和 `FieldArea` 都会读取它：
+
+```go
+ui.TextField(c, &m.id, "Identifier", "").ReadOnly(true)
+ui.TextField(c, &m.name, "Name", "Your name").Disabled(m.pending)
+```
+
 ## 多行与附加元素
 
 `components.PaintInputGroup` 接受同类型的快照，支持 `Multiline`，并提供四个附加槽位 `InlineStart`、`InlineEnd`、`BlockStart` 和 `BlockEnd`，用于图标、文字前缀和按钮。`components.PaintTextarea` 和其他字段建立在同样的部件之上；[组件目录](/zh/ui/input/)里每个都有一页，带可运行的示例。
