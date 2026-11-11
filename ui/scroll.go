@@ -146,10 +146,13 @@ func (s *ScrollState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // Wheel gives a scroll event to the ScrollArea of the page last drawn that the pointer
 // (event.X, event.Y) is over: the innermost one when areas nest, and the next one out
 // when that is already at the end the wheel points to, as a browser does. Areas side
-// by side each scroll alone. It is the function to give as Config.OnScroll for a page
-// whose areas are all ScrollAreas; handle a Select's open list and a self-scrolling
-// Table first, as they own the wheel while they are open or under the pointer. It
-// reports an event that no area under the pointer can use as not handled.
+// by side each scroll alone. A wheel over a ScrollAt area goes to the application's
+// own Config.OnScroll instead: ScrollAt declares the area, and the event is handed
+// back unhandled rather than bubbled to an outer ScrollArea. It is the function to
+// give as Config.OnScroll for a page whose areas are all ScrollAreas; handle a
+// Select's open list and a self-scrolling Table first, as they own the wheel while
+// they are open or under the pointer. It reports an event that no area under the
+// pointer can use as not handled.
 func (view *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	f := view.frame
 	if f == nil {
@@ -160,8 +163,14 @@ func (view *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 		if n.ext == 0 || f.exts[n.ext].scrollState == nil {
 			continue
 		}
+		if !f.containsPoint(i, event.X, event.Y) {
+			continue
+		}
+		if f.exts[n.ext].scrollManual {
+			return gfx.EventResult{}
+		}
 		s := f.exts[n.ext].scrollState
-		if !s.canScroll(event.DeltaY) || !f.containsPoint(i, event.X, event.Y) {
+		if !s.canScroll(event.DeltaY) {
 			continue
 		}
 		return s.Wheel(event)

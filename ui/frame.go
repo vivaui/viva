@@ -201,6 +201,7 @@ type extra struct {
 	edges         [4]float32       // an absolute element's distance from its container's top, right, bottom, left
 	within        Rect             // what a Popup is kept inside, when not the frame; empty for the frame
 	moves         bool             // the element's rectangle moves a custom-titlebar window (MovesWindow)
+	scrollManual  bool             // ScrollAt: the application owns the offset and wheel input
 	nativeView    gfx.NativeViewID // the native view that fills the element (NativeView)
 	bind          int32            // 1 + the index of the element's binding in Frame.binds, or 0 (see bind.go)
 	memo          int32            // 1 + the index the element's cache has with whoever declared it (memoFn), or 0
