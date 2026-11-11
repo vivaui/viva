@@ -208,13 +208,22 @@ func (f *Frame) measureContainer(n *node, axis int) {
 	}
 	is, ie := n.inset(axis)
 	n.pref[axis] = total + is + ie
-	if axis == axisY && n.flags&flagScroll != 0 {
-		// What a scroll area holds is its own business: it is as tall as it is
-		// told to be, not as its children. Content says how much they need.
+	if n.flags&flagScroll == 0 {
+		return
+	}
+	// What a scroll area holds is its own business: it is as tall as it is told to
+	// be, not as its children, and a Sideways one as wide. Content and ContentWidth
+	// say how much they need.
+	switch s := f.sidewaysState(n); {
+	case axis == axisY:
 		n.content = total
-		if n.size[axisY].kind == dimAuto && n.maxS[axisY] == 0 {
-			n.pref[axisY] = is + ie
-		}
+	case s != nil:
+		s.ContentWidth = total
+	default:
+		return
+	}
+	if n.size[axis].kind == dimAuto && n.maxS[axis] == 0 {
+		n.pref[axis] = is + ie
 	}
 }
 
@@ -290,6 +299,15 @@ func (f *Frame) solve(i int32, axis int) {
 // width of a Column, the height of a Row, either axis of a Stack): those from first
 // up to stop, which is -1 after the last (a line of a Flow is a run of them).
 func (f *Frame) solveAcross(n *node, first, stop int32, axis int, start, avail float32) {
+	if axis == axisX && n.flags&flagScroll != 0 {
+		if s := f.sidewaysState(n); s != nil {
+			// A Sideways area lays its children out across its content, or across
+			// itself where that is wider, and shows them OffsetX to the left, kept in
+			// range of the content it has now.
+			start -= min(s.OffsetX, max(s.ContentWidth-avail, 0))
+			avail = max(avail, s.ContentWidth)
+		}
+	}
 	var line float32 // the baseline children are lined up on, from the top
 	if axis == axisY && (n.dir == row || n.dir == flow) {
 		for c := first; c != stop; c = f.nodes[c].next {

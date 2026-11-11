@@ -383,7 +383,10 @@ m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
   scroll back down; `.Follow(m.autoScroll)` makes it a switch). To move it by program, `s := m.view.ScrollState(listID)` has `Offset`,
   `Max()`, `AtEnd()`, `Pinned()`, `ScrollTo(px)` and `ScrollToEnd()` (call that after adding the item: it holds in the frame that grows the content; a list that draws only the visible rows asks `Pinned()` in `Children` as it builds the frame, since the next layout has not moved `Offset` yet, and `AtEnd()` after);
   ask for it each time and do not keep the pointer. An area a frame does not declare forgets its offset (a closed dialog, another
-  tab). `f.Scroll(offset)` is the lower-level form where you own the offset (`gfx.ScrollEvent` has `DeltaY float32`, positive reveals
+  tab). `.Sideways()` makes the area scroll left and right too (a row of tabs, long lines): its children keep the width they ask
+  for, the wheel with Shift or a horizontal wheel moves it, and the state has `OffsetX`, `ContentWidth`, `ViewportWidth`, `MaxX()`
+  and `ScrollToX(px)`; like its height, its width is what it is given (`Grow` in a Row). `.Scrollbars()` draws thin bars the
+  pointer drags over the edges that overflow; do not draw bars by hand. `f.Scroll(offset)` is the lower-level form where you own the offset (`gfx.ScrollEvent` has `DeltaY float32`, positive reveals
   content below, and `Precise` for trackpads).
 - Do not write `gfx.Rect{X: ..., Y: ...}` arithmetic for ordinary parts of a page. It breaks
   when a label gets longer or the window gets narrower; a page laid out with ui does not.

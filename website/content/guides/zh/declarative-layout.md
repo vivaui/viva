@@ -211,6 +211,16 @@ func main() {
 
 `ui.Scroll(c)` 的偏移量由区域自己的名字保存；在它（或 `ui.List`、`ui.Tree` 返回的区域）上调用 `.ScrollState()`，可读取上一次布局时的 `Offset`、`Content`、`Viewport`，也可以用 `ScrollTo`、`ScrollToEnd` 用代码滚动，比如把选中行滚进视野。每次绘制都重新取，不要保存指针：某次绘制没有声明的区域会忘掉它的偏移量。
 
+`.Sideways()` 让区域也能左右滚动：子元素保持各自想要的宽度，最宽的那个决定内容有多宽，所有子元素都按这个宽度排布，区域更宽时按区域的宽度，所以一排标签保持各自的宽度，高亮的行横跨整个宽度。`Paragraph` 在这里不换行。和高度一样，区域的宽度是给它的宽度（在 `Row` 里需要 `Grow`），而不是内容的宽度。水平滚轮，或者按住 Shift 的滚轮，会横向移动它；状态里有 `OffsetX`、`ContentWidth`、`ViewportWidth`、`MaxX` 和 `ScrollToX`。`.Scrollbars()` 在内容溢出的边缘上画细滚动条，指针可以拖动；在滑块旁边按下，滑块会移到那里。
+
+```go
+ui.Scroll(c).Grow(1).Sideways().Scrollbars().Children(func() {
+	for _, line := range m.lines {
+		ui.Text(c, line).Mono()
+	}
+})
+```
+
 自定义布局用 `ui.CustomLayout(c, &m.masonry)`：容器里的流动子元素由 model 中的 `ui.Layout` 测量和摆放。`MeasureWidth`、`MeasureHeight` 说明内容想要多宽多高，`PlaceWidth`、`PlaceHeight` 给每个子元素尺寸和位置。页面负责 identity、焦点、命中、裁剪和绝对定位子元素；布局拥有子元素的尺寸和位置。`PlaceHeight` 还可以在知道高度后横向移动子元素（masonry 就在这里分列）；页面会一起移动子元素的子树，并按新锚点重新放置它的 popup。滚动和虚拟化请包在 `Scroll`/`List`/`Tree` 里，不要声明在 `Memo` 里。
 
 `c.Bounds()` 和 `c.Canvas()` 给出页面的矩形和画布，用来量文本或组件、读指针和焦点状态；声明和绘制仍走页面。`c.Part("word")` 给下一个元素起一个你自己的名字，测试和无头驱动可以用它。一个应用窗口就是一个 page：`ui.Run` 或 `Page.Config` 接好输入，窗格是同一个 page 里的 keyed 容器，不是第二个 `Page`。当 `Modal` 自动生成的 ID 不合适时，用 `ui.Dialog(c, ui.DialogSpec{...})` 声明由应用自己命名目标的对话框。Frame 是下面给组件作者的引擎；应用代码不从 `C` 触碰它。

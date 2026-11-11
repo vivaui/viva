@@ -50,7 +50,8 @@ type ListState struct {
 	// wider than the list it scrolls sideways too (the horizontal wheel, or the
 	// wheel with Shift), and where they are not they grow to its width, as the
 	// columns of a table do. A header above the list goes with the rows through
-	// Box.ScrollWith.
+	// Box.ScrollWith. Use RowWidth or Box.Sideways, not both: together they carry
+	// two independent horizontal offsets.
 	RowWidth float32
 
 	heights []float32 // the measured height of each row, zero when not measured
@@ -1007,13 +1008,7 @@ func (p *Page) listWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	if dx == 0 {
 		return false, false
 	}
-	if !event.Precise { // a notch moves at least a line, as down the list
-		if dx > 0 && dx < 24 {
-			dx = 24
-		} else if dx < 0 && dx > -24 {
-			dx = -24
-		}
-	}
+	dx = wheelStep(dx, event.Precise) // a notch moves at least a line, as down the list
 	for _, s := range p.listStates {
 		in := &s.list
 		if s.RowWidth <= 0 || in.f == nil || !in.f.containsPoint(int(in.area), event.X, event.Y) {

@@ -211,6 +211,16 @@ func main() {
 
 `ui.Scroll(c)` keeps its offset by the area's own name; `.ScrollState()` on it (or on the area a `ui.List` or `ui.Tree` returns) has `Offset`, `Content` and `Viewport` as of the last layout, and moves it by program with `ScrollTo` and `ScrollToEnd`, for instance to bring the selected row into view. Ask for it in each paint rather than keeping the pointer: an area a paint does not declare forgets its offset.
 
+`.Sideways()` makes the area scroll left and right as well: its children keep the width they ask for, the widest sets how wide the content is, and they are all laid out as wide as that, or as the area where it is wider, so a row of tabs keeps its tabs' widths and a highlighted row runs the whole width. A `Paragraph` does not wrap there. As with its height, the area's width is the one it is given (a `Row` needs `Grow`), not its content's. The horizontal wheel, or the wheel with Shift held, moves it, and the state has `OffsetX`, `ContentWidth`, `ViewportWidth`, `MaxX` and `ScrollToX`. `.Scrollbars()` draws thin bars over the edges the content overflows; the pointer drags them, and a press beside a thumb brings it there.
+
+```go
+ui.Scroll(c).Grow(1).Sideways().Scrollbars().Children(func() {
+	for _, line := range m.lines {
+		ui.Text(c, line).Mono()
+	}
+})
+```
+
 A custom layout is `ui.CustomLayout(c, &m.masonry)`: the container's in-flow children are measured and placed by a `ui.Layout` kept in the model. `MeasureWidth` and `MeasureHeight` say how wide and tall the content wants to be; `PlaceWidth` and `PlaceHeight` give every child its extent and origin. The page keeps identities, focus, hits, clipping and absolute children; the layout owns the children's sizes and positions. `PlaceHeight` may also move a child horizontally once heights are known—a masonry chooses its columns there; the page moves the child's subtree with it and places its popups again from the new anchor. Wrap it in `Scroll`, `List` or `Tree` for scrolling and virtualization, and do not declare it inside a `Memo`.
 
 `c.Bounds()` and `c.Canvas()` give the page's rectangle and canvas, for measuring text or components and reading pointer and focus state; declare and paint through the page. `c.Part("word")` gives the next element a name of yours, which a test or the headless driver can use. An application window is one page: `ui.Run` or `Page.Config` wires its input, and a pane is a keyed container in that page, not a second `Page`. `ui.Dialog(c, ui.DialogSpec{...})` declares a dialog with targets the application names itself when `Modal`'s generated ones do not fit. The Frame is the component-author engine underneath; application code does not reach it from `C`.
