@@ -45,6 +45,9 @@ type Config struct {
 	// OnMinimize reports the page becoming hidden or visible, the browser
 	// counterpart of a window being minimized and restored.
 	OnMinimize func(hidden bool)
+	// OnActivate reports the browser window gaining focus. Focus moving
+	// between elements inside the page does not call it.
+	OnActivate func()
 	// OnFullscreen reports a transition into or out of the browser's
 	// fullscreen mode.
 	OnFullscreen func(fullscreen bool)
@@ -568,6 +571,12 @@ func (runtime *runtime) bindEvents() {
 		runtime.painter.tap.Cancel()
 		return nil
 	}), true)
+	runtime.window.Call("addEventListener", "focus", js.FuncOf(func(js.Value, []js.Value) any {
+		if runtime.config.OnActivate != nil {
+			runtime.config.OnActivate()
+		}
+		return nil
+	}))
 	runtime.window.Call("addEventListener", "blur", js.FuncOf(func(js.Value, []js.Value) any {
 		// The page stopped being the one the keyboard types into. Releases for
 		// held keys will go to whatever has the keyboard now.

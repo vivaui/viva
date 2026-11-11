@@ -45,7 +45,7 @@ func RunCanvas(config Config, canvas *gfx.Canvas) error {
 		OnFileDrop: normalized.OnFileDrop,
 		OnResize:   normalized.OnResize, OnMinimize: normalized.OnMinimize,
 		OnFullscreen: normalized.OnFullscreen, OnCloseRequest: normalized.OnCloseRequest,
-		OnClosed:  normalized.OnClosed,
+		OnClosed: normalized.OnClosed, OnActivate: normalized.OnActivate,
 		TextInput: webTextInput(normalized.TextInput),
 		Canvas:    canvas,
 		OnWake:    normalized.OnWake,
