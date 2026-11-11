@@ -12,7 +12,10 @@ import (
 // SingleSelectOption is a stable selectable value; an empty Label displays Value.
 type SingleSelectOption struct {
 	Value, Label string
-	Disabled     bool
+	// Detail is secondary text displayed alongside Label (e.g. an address or subtitle).
+	// It is rendered with a smaller font and muted color.
+	Detail   string
+	Disabled bool
 	// Search is extra text the query matches besides the label and the value,
 	// for what the row does not show, such as an address or a group. It is never
 	// painted.
@@ -117,6 +120,15 @@ func (s *SingleSelectState) label(value string) string {
 	return value
 }
 
+func (s *SingleSelectState) option(value string) (SingleSelectOption, bool) {
+	for _, option := range s.options {
+		if s.equal(option.Value, value) {
+			return option, true
+		}
+	}
+	return SingleSelectOption{}, false
+}
+
 // Choices returns a read-only view until the next query or selection change.
 // It caches filtered rows, preserving selected and newly created values
 // even when the caller's options do not contain them. Exact labels and disabled
@@ -141,7 +153,8 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 		haveValue = haveValue || s.equal(s.value, option.Value)
 		if query != "" && !strings.Contains(strings.ToLower(label), match) &&
 			(s.LabelsOnly || !strings.Contains(strings.ToLower(option.Value), match)) &&
-			!strings.Contains(strings.ToLower(option.Search), match) {
+			!strings.Contains(strings.ToLower(option.Search), match) &&
+			!strings.Contains(strings.ToLower(option.Detail), match) {
 			return
 		}
 		option.Label = label
@@ -346,11 +359,16 @@ type SingleSelectOptions struct {
 // popupWidth is the width that shows every label of choices untruncated.
 func (s *SingleSelectState) popupWidth(canvas *gfx.Canvas, theme gfx.Theme, choices []SingleSelectChoice, o SingleSelectOptions) float32 {
 	size := theme.Metrics.FontSizeM
+	detailSize := theme.Metrics.FontSizeS
 	if s.widestRebuilt != s.rebuilt || s.widestSize != size {
 		s.widest = 0
 		for _, choice := range choices {
 			if !choice.Create {
-				s.widest = max(s.widest, canvas.TextWidthWeight(choice.Label, size, gfx.WeightRegular))
+				w := canvas.TextWidthWeight(choice.Label, size, gfx.WeightRegular)
+				if choice.Detail != "" {
+					w += 8 + canvas.TextWidthWeight(choice.Detail, detailSize, gfx.WeightRegular)
+				}
+				s.widest = max(s.widest, w)
 			}
 		}
 		s.widestRebuilt, s.widestSize = s.rebuilt, size
@@ -426,8 +444,19 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 	inset := theme.Metrics.TextInsetX()
 	layout.Input = gfx.Rect{X: bounds.X + inset, Y: bounds.Y + 1, Width: max(1, right-bounds.X-inset), Height: bounds.Height - 2}
 	display, color := query, theme.Foreground
+	var selectedOpt SingleSelectOption
+	var hasSelectedOpt bool
 	if display == "" {
-		display = s.label(s.value)
+		if opt, ok := s.option(s.value); ok {
+			selectedOpt = opt
+			hasSelectedOpt = true
+			display = opt.Label
+			if display == "" {
+				display = opt.Value
+			}
+		} else {
+			display = s.label(s.value)
+		}
 		if display == "" {
 			display, color = o.Placeholder, theme.MutedForeground
 		} else if open {
@@ -438,7 +467,25 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 		color.Alpha *= .5
 	}
 	if canvas.Focused() != o.InputID || query == "" {
-		canvas.Label(canvas.FitLine(display, theme.Metrics.FontSizeM, gfx.WeightRegular, layout.Input.Width), layout.Input, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+		if hasSelectedOpt && selectedOpt.Detail != "" && query == "" {
+			labelWidth := canvas.TextWidthWeight(display, theme.Metrics.FontSizeM, gfx.WeightMedium)
+			maxLabelWidth := max(0, layout.Input.Width-20)
+			labelWidth = min(labelWidth, maxLabelWidth)
+
+			canvas.Label(canvas.FitLine(display, theme.Metrics.FontSizeM, gfx.WeightMedium, labelWidth), gfx.Rect{X: layout.Input.X, Y: layout.Input.Y, Width: labelWidth, Height: layout.Input.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+
+			detailX := layout.Input.X + labelWidth + 8
+			detailWidth := max(0, layout.Input.X+layout.Input.Width-detailX)
+			if detailWidth > 0 {
+				detailColor := theme.MutedForeground
+				if o.Disabled {
+					detailColor.Alpha *= .5
+				}
+				canvas.Label(canvas.FitLine(selectedOpt.Detail, theme.Metrics.FontSizeS, gfx.WeightRegular, detailWidth), gfx.Rect{X: detailX, Y: layout.Input.Y, Width: detailWidth, Height: layout.Input.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Color: detailColor})
+			}
+		} else {
+			canvas.Label(canvas.FitLine(display, theme.Metrics.FontSizeM, gfx.WeightRegular, layout.Input.Width), layout.Input, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+		}
 	}
 	accessibleValue := query
 	if accessibleValue == "" {
@@ -518,7 +565,25 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 				}
 				label = s.createText
 			}
-			canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, max(row.Width-38, 0)), gfx.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+			if choice.Detail != "" && !choice.Create {
+				labelWidth := canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, gfx.WeightRegular)
+				maxLabelWidth := max(0, row.Width-38-40)
+				labelWidth = min(labelWidth, maxLabelWidth)
+
+				canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, labelWidth), gfx.Rect{X: row.X + 8, Y: row.Y, Width: labelWidth, Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+
+				detailX := row.X + 8 + labelWidth + 8
+				detailWidth := max(0, row.Width-38-labelWidth-8)
+				if detailWidth > 0 {
+					detailColor := theme.MutedForeground
+					if choice.Disabled {
+						detailColor.Alpha *= .5
+					}
+					canvas.Label(canvas.FitLine(choice.Detail, theme.Metrics.FontSizeS, gfx.WeightRegular, detailWidth), gfx.Rect{X: detailX, Y: row.Y, Width: detailWidth, Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Color: detailColor})
+				}
+			} else {
+				canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, max(row.Width-38, 0)), gfx.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+			}
 			if choice.Selected {
 				paintCheck(canvas, gfx.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
 			}

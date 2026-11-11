@@ -128,6 +128,30 @@ func TestSingleSelectSearchMatchesHiddenMetadata(t *testing.T) {
 	}
 }
 
+func TestSingleSelectDetailSearchAndRender(t *testing.T) {
+	s := &SingleSelectState{}
+	s.SetOptions([]SingleSelectOption{
+		{Value: "1", Label: "bastion-1", Detail: "10.0.0.1"},
+		{Value: "2", Label: "bastion-2", Detail: "192.168.1.100"},
+	})
+	s.SetValue("1")
+
+	// 匹配 Detail 中的 IP 地址
+	s.Query.Insert("192.168")
+	choices := s.Choices()
+	if len(choices) != 1 || choices[0].Value != "2" || choices[0].Detail != "192.168.1.100" {
+		t.Fatalf("detail IP did not filter choices: %+v", choices)
+	}
+
+	// 匹配 Label 中的主机名
+	s.Query = text.Editor{}
+	s.Query.Insert("bastion-1")
+	choices = s.Choices()
+	if len(choices) != 1 || choices[0].Value != "1" {
+		t.Fatalf("label did not filter choices: %+v", choices)
+	}
+}
+
 func TestSingleSelectKeyboardAndComposition(t *testing.T) {
 	s := singleSelectFixture()
 	s.SetValue("dev")
