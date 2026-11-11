@@ -37,7 +37,9 @@ import (
 //	})
 //
 // An item may carry a second line with Description; WidthRange bounds the menu's
-// width; Above opens it over the anchor, for a trigger along the bottom of a panel.
+// width; Above opens it over the anchor, for a trigger along the bottom of a panel,
+// and Beside to its right, for a row of a list whose actions should not cover the
+// rows under it.
 //
 // Not inside a Memo.
 func Menu(c C, anchor Box, open *bool, body func(*MenuItems)) {
@@ -110,6 +112,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 	menu.page, menu.f, menu.open, menu.anchor = p, f, open, anchor
 	menu.scope, menu.root, menu.parent = scope, menu, nil
 	menu.layer = f.widgetLayer() + 2 // over the page, and over a dialog it is declared in
+	menu.side = menuBelow            // unless body says otherwise again in this paint
 	menu.fresh()
 	menu.declare(body)
 	if f.canvas != nil && f.canvas.Clicked(scope.At(menuDismiss)) {
@@ -120,9 +123,12 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 	popup := f.Popup()
 	if anchor >= 0 {
 		anchorBox := Box{f: f, i: anchor, gen: f.gen}
-		if menu.above {
+		switch menu.side {
+		case menuAbove:
 			popup.AboveBox(anchorBox, 4, Start)
-		} else {
+		case menuBeside:
+			popup.BesideBox(anchorBox, 4, Start)
+		default:
 			popup.BelowBox(anchorBox, 4, Start)
 		}
 	} else {
@@ -263,8 +269,8 @@ type MenuItems struct {
 	shown   bool // a ContextMenu is open
 	at      Rect // where a ContextMenu opened
 
-	above              bool    // open over the anchor instead of under it (Menu only)
-	widthMin, widthMax float32 // the least and greatest surface width; zero keeps the default
+	side               menuSide // the edge of the anchor a Menu opens on
+	widthMin, widthMax float32  // the least and greatest surface width; zero keeps the default
 
 	// A submenu's menu, and the menu of the one open in it: root is the Menu or
 	// ContextMenu the chain hangs off, itself for that one, and parent the menu its
@@ -365,11 +371,26 @@ func (m *MenuItems) Sub(label string, body func(*MenuItems)) MenuItem {
 	return item
 }
 
+// menuSide is the edge of its anchor a Menu opens on.
+type menuSide uint8
+
+const (
+	menuBelow  menuSide = iota // under the anchor, flipping over it when there is no room
+	menuAbove                  // over the anchor, flipping under it when there is no room
+	menuBeside                 // right of the anchor, flipping to its left when there is no room
+)
+
 // Above opens the menu over its anchor instead of under it, flipping under when
 // there is no room over: the menu of a trigger along the bottom of a panel, which
 // should cover what is above it. A submenu opens beside its row and a ContextMenu
 // opens at the pointer, so neither is affected.
-func (m *MenuItems) Above() { m.above = true }
+func (m *MenuItems) Above() { m.side = menuAbove }
+
+// Beside opens the menu to the right of its anchor, its top at the anchor's,
+// flipping to the left when there is no room on the right: the menu of a row in a
+// list or a popup, which should leave the rows under it in sight, as a submenu
+// leaves its menu. A submenu and a ContextMenu are not affected.
+func (m *MenuItems) Beside() { m.side = menuBeside }
 
 // WidthRange sets the least and greatest width of the menu's surface. Zero keeps
 // the menu's own minimum (128 for a Menu, 144 for a ContextMenu) or leaves that end
@@ -497,11 +518,18 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 		}
 		menu.End()
 	} else {
-		side := components.OverlayRight
+		side := components.OverlayRight // the edge the menu slides in from, its anchor's
 		if m.parent == nil {
-			side = components.OverlayBottom
-			if anchor := f.nodes[m.anchor].rect; bounds.Y+bounds.Height <= anchor.Y+anchor.Height/2 {
+			anchor := f.nodes[m.anchor].rect
+			switch {
+			case m.side == menuBeside:
+				if bounds.X+bounds.Width <= anchor.X+anchor.Width/2 {
+					side = components.OverlayLeft // flipped for want of room
+				}
+			case bounds.Y+bounds.Height <= anchor.Y+anchor.Height/2:
 				side = components.OverlayTop
+			default:
+				side = components.OverlayBottom
 			}
 		}
 		menu := components.BeginDropdownMenu(canvas, *theme, bounds, components.DropdownMenuOptions{

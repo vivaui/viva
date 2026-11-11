@@ -397,10 +397,11 @@ func TestSubmenuRepaintAllocates(t *testing.T) {
 }
 
 // menuOptionsModel exercises the menu calls that shape its surface: a second line
-// under an item, its width range, and opening over the anchor.
+// under an item, its width range, and opening over or beside the anchor.
 type menuOptionsModel struct {
 	open            bool
 	above           bool
+	beside          bool
 	least, greatest float32
 	description     string
 	label           string
@@ -420,6 +421,9 @@ func (m *menuOptionsModel) page(c ui.C) {
 			menu.WidthRange(m.least, m.greatest)
 			if m.above {
 				menu.Above()
+			}
+			if m.beside {
+				menu.Beside()
 			}
 			label := m.label
 			if label == "" {
@@ -474,6 +478,24 @@ func TestMenuWidthRange(t *testing.T) {
 			t.Fatalf("the surface is %v wide, want at most the 160 it was given", got)
 		}
 	})
+}
+
+// Beside opens the menu right of its anchor, its first row level with the anchor
+// rather than under it, and a menu that stops asking for it opens under it again.
+func TestMenuBeside(t *testing.T) {
+	m := &menuOptionsModel{beside: true}
+	d := openPage(t, m.page)
+	d.click("More")
+	anchor, item := d.hit("More").Bounds, d.hit("Model").Bounds
+	if item.X < anchor.X+anchor.Width || item.Y > anchor.Y+anchor.Height {
+		t.Fatalf("the menu at %v is not beside its anchor at %v", item, anchor)
+	}
+	d.key(gfx.KeyEscape)
+	m.beside = false
+	d.click("More")
+	if item := d.hit("Model").Bounds; item.Y < anchor.Y+anchor.Height {
+		t.Fatalf("the menu at %v is not under its anchor at %v once Beside is gone", item, anchor)
+	}
 }
 
 // Above puts the menu over the anchor even where it would fit under it.
