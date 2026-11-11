@@ -10,6 +10,7 @@ static char drop_last_paths[512];
 static size_t drop_last_length;
 
 void vivaOpenURL(const char *url) {}
+void vivaOpenFile(const char *path) {}
 int vivaApplicationQuitRequested(void) { return 0; }
 int vivaApplicationReopenRequested(void) { return 0; }
 int vivaFileDropEvent(uintptr_t handle, void *view, int phase, double x, double y, const char *paths, size_t length) {
