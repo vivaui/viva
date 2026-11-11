@@ -43,6 +43,16 @@ func TestMeasureMonoReportsStableCell(t *testing.T) {
 	if width <= 0 || height <= 0 || width >= height {
 		t.Fatalf("monospace cell = %vx%v", width, height)
 	}
+	// The engine reports the same cell to the canvas, with the font's line box around its
+	// baseline: a baseline inside the cell, and half the line gap above and below it.
+	cell := sharedTextEngine().MonoCell(16, gfx.MonoSystem)
+	if cell.Advance != width || cell.Line() != height || cell.LineGap < 0 {
+		t.Fatalf("engine cell = %+v, MeasuredMono %vx%v", cell, width, height)
+	}
+	cellHeight, baseline := cell.CellHeight(), cell.CellBaseline()
+	if cellHeight != float32(int(cellHeight)) || baseline <= 0 || baseline >= cellHeight {
+		t.Fatalf("cell height %v, baseline %v: want a whole cell with a row inside it", cellHeight, baseline)
+	}
 }
 
 func TestRasterizeTextSystemFallbackAndRuns(t *testing.T) {

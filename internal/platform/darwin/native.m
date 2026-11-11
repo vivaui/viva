@@ -2004,6 +2004,14 @@ static CGFloat viva_baseline(CGFloat height, CGFloat fontSize, CGFloat pixelScal
     return (rows - fromTop) / pixelScale;
 }
 
+// viva_fixed_baseline is the height above a texture's bottom of the row a canvas worked out
+// for a fixed-pitch line, counted from the texture's top in points
+// (platform.TextLabel.Baseline), on a whole physical pixel.
+static CGFloat viva_fixed_baseline(CGFloat height, CGFloat fromTop, CGFloat pixelScale) {
+    CGFloat rows = MAX(1.0, ceil(height * pixelScale));
+    return (rows - floor(fromTop * pixelScale + 0.5)) / pixelScale;
+}
+
 int viva_text_line_rasterize(
     const viva_text_line *line,
     double font_size,
@@ -2063,6 +2071,7 @@ static id<MTLTexture> viva_text_input_texture(
     BOOL hideNativeOverlays,
     int monoFace,
     CGFloat cellWidth,
+    CGFloat cellBaseline,
     int alignment
 ) {
     size_t pixelWidth = (size_t)MAX(1.0, ceil(frameSize.width * scale));
@@ -2108,15 +2117,16 @@ static id<MTLTexture> viva_text_input_texture(
     CGFloat descent = 0;
     CGFloat baseline = 0;
     if (terminal) {
-        // Sit on the same baseline as the terminal's own text, whatever the
-        // composed characters' fallback fonts measure.
-        // The primary font alone: the fallbacks never take part in the metrics.
+        // Sit on the same row as the terminal's own text, whatever the composed
+        // characters' fallback fonts measure. The primary font alone stands in for the
+        // ascent and descent of the caret and selection, the fallbacks never taking part.
         CTFontRef gridFont = CTFontCreateWithName((CFStringRef)viva_mono_font_primary(fontSize, 0, monoFace).fontName, fontSize, NULL);
         ascent = CTFontGetAscent(gridFont);
         descent = CTFontGetDescent(gridFont);
         CFRelease(gridFont);
-        CGFloat pixelScale = ceil(scale);
-        baseline = ceil(((frameSize.height - ascent - descent) * 0.5 + descent) * pixelScale) / pixelScale;
+        baseline = cellBaseline > 0
+            ? viva_fixed_baseline(frameSize.height, cellBaseline, ceil(scale))
+            : viva_baseline(frameSize.height, fontSize, ceil(scale));
     } else {
         ascent = line.shaped->ascent;
         descent = line.shaped->descent;
@@ -2367,7 +2377,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     BOOL bitmap = (config.flags & VIVA_LABEL_BITMAP) != 0;
     float values[] = {bitmap ? 0 : config.width, bitmap ? 0 : config.height, config.font_size, config.font_weight,
                       config.red, config.green, config.blue, config.alpha, config.cell_width,
-                      viva_quantized_origin(config.origin_x), viva_quantized_origin(config.origin_y)};
+                      viva_quantized_origin(config.origin_x), viva_quantized_origin(config.origin_y), config.baseline};
     hash = viva_hash_bytes(hash, values, sizeof(values));
     uint32_t contentFlags = config.flags & ~VIVA_LABEL_CLIPPED;
     hash = viva_hash_bytes(hash, &contentFlags, sizeof(contentFlags));
@@ -2412,6 +2422,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     BOOL _mono;
     int _monoFace;
     CGFloat _cellWidth;
+    CGFloat _baseline;
     NSData *_utf8;       // the text as bytes, to slice into runs; only for run labels
     viva_text_run *_runs; // owned copy; NULL for an ordinary label
     size_t _runCount;
@@ -2605,6 +2616,7 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
         _mono = (config.flags & VIVA_LABEL_MONO) != 0;
         _monoFace = config.mono_face;
         _cellWidth = config.cell_width;
+        _baseline = config.baseline;
         if (config.run_count > 0 && config.runs != NULL) {
             _runs = malloc(config.run_count * sizeof(viva_text_run));
             if (_runs == NULL) {
@@ -2675,7 +2687,7 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
         return NO;
     }
     if (_mono != ((config.flags & VIVA_LABEL_MONO) != 0) ||
-        _monoFace != config.mono_face || _cellWidth != config.cell_width ||
+        _monoFace != config.mono_face || _cellWidth != config.cell_width || _baseline != config.baseline ||
         _runCount != (config.runs == NULL ? 0 : config.run_count) ||
         (_runCount > 0 && memcmp(_runs, config.runs, _runCount * sizeof(viva_text_run)) != 0)) {
         return NO;
@@ -2916,7 +2928,9 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
 // vertically centered.
 - (void)drawLineInContext:(CGContextRef)context pixelScale:(CGFloat)pixelScale {
     CGColorRef foreground = CGColorCreateSRGB(_red, _green, _blue, _alpha);
-    CGFloat baseline = viva_baseline(_frame.size.height, _fontSize, pixelScale);
+    CGFloat baseline = _baseline > 0
+        ? viva_fixed_baseline(_frame.size.height, _baseline, pixelScale)
+        : viva_baseline(_frame.size.height, _fontSize, pixelScale);
     // Text laid out at a fraction of a pixel below the frame: Core Graphics puts a baseline
     // on the next device row down (it floors in its y-up space, so AppKit does), and a
     // glyph at a fraction of a pixel across (it quantizes the position, in drawing the line).
@@ -2949,7 +2963,9 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
 // one baseline taken from the base font.
 - (void)drawRunsInContext:(CGContextRef)context pixelScale:(CGFloat)pixelScale {
     NSFont *baseFont = viva_mono_font(_fontSize, _fontWeight, _monoFace);
-    CGFloat baseline = viva_baseline(_frame.size.height, _fontSize, pixelScale);
+    CGFloat baseline = _baseline > 0
+        ? viva_fixed_baseline(_frame.size.height, _baseline, pixelScale)
+        : viva_baseline(_frame.size.height, _fontSize, pixelScale);
     CGFloat hairline = 1.0 / pixelScale;
     const unsigned char *bytes = (const unsigned char *)_utf8.bytes;
     size_t length = _utf8.length;
@@ -3576,6 +3592,7 @@ static void viva_encode_scene(
     BOOL _textHideNativeOverlays;
     int _textMonoFace;
     CGFloat _textCellWidth; // a terminal's cell, which its preedit is laid on
+    CGFloat _textBaseline;  // the row of that cell its preedit stands on
     BOOL _textAltSendsEscape;
     BOOL _textKeyReleases;
     BOOL _interpretingKey;
@@ -3781,6 +3798,7 @@ static int viva_navigation_command(SEL selector) {
         _textHideNativeOverlays = textInput.hide_native_overlays != 0;
         _textMonoFace = textInput.mono_face;
         _textCellWidth = textInput.cell_width;
+        _textBaseline = textInput.baseline;
         _textAltSendsEscape = textInput.alt_sends_escape != 0;
         _textKeyReleases = textInput.key_releases != 0;
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyWindowChanged:) name:NSWindowDidBecomeKeyNotification object:nil];
@@ -4680,7 +4698,7 @@ static void viva_set_secure_event_input(BOOL on) {
     id<MTLTexture> texture = viva_text_input_texture(
         _metalLayer.device, MAX(_metalLayer.contentsScale, 1.0), [self displayedText],
         _textFontSize, _textFontWeight, _textColor, _textFrame.size, _selectedRange, _hasMarkedText,
-        _markedRange, _caretVisible, _textTerminal, _textHideNativeOverlays, _textMonoFace, _textCellWidth, _textAlignment);
+        _markedRange, _caretVisible, _textTerminal, _textHideNativeOverlays, _textMonoFace, _textCellWidth, _textBaseline, _textAlignment);
     if (texture == nil) {
         return NO;
     }
@@ -5104,6 +5122,7 @@ static void viva_set_secure_event_input(BOOL on) {
         _textHideNativeOverlays = NO;
         _textMonoFace = 0;
         _textCellWidth = 0;
+        _textBaseline = 0;
         _textAltSendsEscape = NO;
         _textKeyReleases = NO;
         [_text release];
@@ -5155,6 +5174,7 @@ static void viva_set_secure_event_input(BOOL on) {
     _textHideNativeOverlays = textInput.hide_native_overlays != 0;
     _textMonoFace = textInput.mono_face;
     _textCellWidth = textInput.cell_width;
+    _textBaseline = textInput.baseline;
     _textAltSendsEscape = textInput.alt_sends_escape != 0;
     _textKeyReleases = textInput.key_releases != 0;
     _textInputEnabled = YES;
@@ -6590,7 +6610,7 @@ void *viva_application_open_window(viva_window_config config) {
         id<MTLBuffer> rectangleBuffer = nil;
         if (config.shader_library != NULL && config.shader_library_length > 0) {
             _Static_assert(sizeof(viva_rectangle) == 80, "rectangle ABI must be 80 bytes");
-            _Static_assert(sizeof(viva_text_label) == 160, "text label ABI must be 160 bytes");
+            _Static_assert(sizeof(viva_text_label) == 168, "text label ABI must be 168 bytes");
             _Static_assert(sizeof(viva_text_run) == 36, "text run ABI must be 36 bytes");
             _Static_assert(sizeof(viva_composite_command) == 32, "composite command ABI must be 32 bytes");
             dispatch_data_t libraryData = dispatch_data_create(
@@ -7233,8 +7253,8 @@ int viva_measure_text(
     }
 }
 
-int viva_measure_mono(double font_size, int mono_face, double *advance, double *height) {
-    if (advance == NULL || height == NULL || font_size <= 0) {
+int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading) {
+    if (advance == NULL || ascent == NULL || descent == NULL || leading == NULL || font_size <= 0) {
         return 1;
     }
     @autoreleasepool {
@@ -7253,7 +7273,9 @@ int viva_measure_mono(double font_size, int mono_face, double *advance, double *
         CGSize advances;
         CTFontGetAdvancesForGlyphs(font, kCTFontOrientationHorizontal, &glyph, &advances, 1);
         *advance = advances.width;
-        *height = CTFontGetAscent(font) + CTFontGetDescent(font) + CTFontGetLeading(font);
+        *ascent = CTFontGetAscent(font);
+        *descent = CTFontGetDescent(font);
+        *leading = CTFontGetLeading(font);
         CFRelease(font);
         return *advance > 0 ? 0 : 4;
     }
@@ -7491,7 +7513,7 @@ int viva_unregister_font_file(const char *path) {
         NSMakeRange(config.selected_start, config.selected_length),
         config.has_marked_text != 0,
         NSMakeRange(config.marked_start, config.marked_length), YES, config.terminal != 0,
-        config.hide_native_overlays != 0, config.mono_face, config.cell_width,
+        config.hide_native_overlays != 0, config.mono_face, config.cell_width, config.baseline,
         config.placed || config.terminal ? 0 : config.alignment);
     return _inputTexture != nil;
 }

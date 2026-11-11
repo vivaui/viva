@@ -447,7 +447,7 @@ func (services *textServices) draw(label platform.TextLabel, scale float32, widt
 			} else {
 				services.setSourceColor(context, label.Color)
 			}
-			target := float64(platform.LabelBaseline(height, float64(label.FontSize*scale)))
+			target := float64(platform.TextBaseline(label, height, scale))
 			if label.Mono {
 				// A fixed-pitch label is placed on its grid, not fitted.
 				metrics, err := services.configureLayout(label.Value, family, label.FontSize*scale, label.Weight, false)
@@ -536,7 +536,7 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 	if err != nil {
 		return err
 	}
-	baseline := float64(platform.LabelBaseline(height, float64(label.FontSize*scale)))
+	baseline := float64(platform.TextBaseline(label, height, scale))
 	columns := services.ownedColumns(label, family, scale, pitch, width)
 	offset := 0
 	for index, run := range label.Runs {

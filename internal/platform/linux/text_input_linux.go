@@ -273,7 +273,7 @@ func (state *linuxTextInput) rebuild() error {
 	}
 	state.labels[len(state.baseLabels)] = platform.TextLabel{
 		Value: shown, X: inputState.X, Y: inputState.Y, Width: inputState.Width, Height: inputState.Height,
-		FontSize: inputState.FontSize, Weight: inputState.Weight, Color: inputState.Color, Layer: inputState.Layer, Mono: inputState.Terminal, MonoFace: inputState.MonoFace,
+		FontSize: inputState.FontSize, Weight: inputState.Weight, Color: inputState.Color, Layer: inputState.Layer, Mono: inputState.Terminal, MonoFace: inputState.MonoFace, Baseline: inputState.Baseline,
 	}
 	if inputState.Terminal {
 		state.rebuildTerminalPreedit(shown)

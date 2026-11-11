@@ -3,6 +3,7 @@
 package darwin
 
 import (
+	"math"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -543,8 +544,11 @@ func TestACanvasOnTheEngineSizesTheTerminalCellByTheFont(t *testing.T) {
 		if diff := width - advance; diff < -0.25 || diff > 0.25 { // whole device pixels at scale 2
 			t.Errorf("face %v: cell width %v, font advance %v", face, width, advance)
 		}
-		if height < line || height >= line+1 {
-			t.Errorf("face %v: cell height %v, font line %v", face, height, line)
+		if want := float32(math.Round(float64(line))); height != want {
+			t.Errorf("face %v: cell height %v, font line %v rounded to %v", face, height, line, want)
+		}
+		if baseline := canvas.MonoBaseline(13, face, height); baseline <= 0 || baseline >= height {
+			t.Errorf("face %v: baseline %v of a cell %v tall, want a row inside it", face, baseline, height)
 		}
 	}
 }

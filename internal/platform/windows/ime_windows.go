@@ -140,7 +140,7 @@ func (state *windowState) updateTextVisuals() error {
 		label.Value = state.textDisplayValue()
 		color := gfx.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 		state.textRuns = platform.TerminalPreeditRuns(state.textRuns[:0], label.Value, color)
-		label.Mono, label.MonoFace, label.CellWidth, label.Runs = true, input.MonoFace, input.CellWidth, state.textRuns
+		label.Mono, label.MonoFace, label.CellWidth, label.Baseline, label.Runs = true, input.MonoFace, input.CellWidth, input.Baseline, state.textRuns
 	}
 	state.textLabels[state.baseTextLabelCount] = label
 	base := state.baseRectangleCount

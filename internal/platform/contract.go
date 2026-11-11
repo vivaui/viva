@@ -327,7 +327,13 @@ type TextLabel struct {
 	Mono      bool
 	MonoFace  gfx.MonoFace
 	CellWidth float32
-	Runs      []gfx.TextRun
+	// Baseline, when nonzero, is the row of the label, counted from its top in logical
+	// pixels, on which a fixed-pitch line's glyphs stand: gfx.Canvas.MonoBaseline for the
+	// label's face, size and height, which is the font's own baseline in the line's cell,
+	// centered in the label. It is 0 for proportional text and for a face the canvas could
+	// not measure: those stand on LabelBaseline.
+	Baseline float32
+	Runs     []gfx.TextRun
 	// FontGeneration is the generation of the interface font (gfx.FontFamilyAware) the
 	// proportional text of this label was laid out in; it is zero for a label that
 	// does not follow the interface font (fixed-pitch text, images). A backend that
@@ -813,6 +819,11 @@ type TextInput struct {
 	// preedit is drawn on that pitch and its caret and underline are measured by it, so
 	// the composition stands where the committed text will. Other inputs leave it 0.
 	CellWidth float32
+	// Baseline, when nonzero, is the row of a terminal input, counted from the top of the
+	// field in logical pixels, on which the cell's glyphs stand (gfx.Canvas.MonoBaseline):
+	// the composition stands on the same row as the grid's committed text. Other inputs
+	// leave it 0 and stand on LabelBaseline.
+	Baseline float32
 	// AltSendsEscape routes printable Alt/Option chords in a Terminal input to
 	// raw key delivery, with the base character in KeyEvent.Text.
 	AltSendsEscape bool

@@ -1180,9 +1180,10 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		painter.textEnabled = false
 		return platform.TextInputUpdate{Changed: true}
 	}
-	var cellWidth float32
+	var cellWidth, baseline float32
 	if context.Terminal || context.TypeAhead {
 		cellWidth, _ = painter.canvas.MonoCellSize(fontSize, input.MonoFace)
+		baseline = painter.canvas.MonoBaseline(fontSize, input.MonoFace, bounds.Height)
 	}
 	alignment := gfx.AlignLeft
 	if !context.Terminal && !context.TypeAhead && placement == nil {
@@ -1193,7 +1194,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		X:      bounds.X, Y: bounds.Y,
 		Width: bounds.Width, Height: bounds.Height,
 		FontSize: fontSize, Weight: weight, Alignment: alignment, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
-		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, DisableIME: input.DisableIME, MonoFace: input.MonoFace, CellWidth: cellWidth,
+		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, DisableIME: input.DisableIME, MonoFace: input.MonoFace, CellWidth: cellWidth, Baseline: baseline,
 		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
 		CopyOverride:       input.CopyOverride,
 		CopyText:           painter.clipboardText,
@@ -1287,7 +1288,7 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 
 func samePlatformTextInput(left, right platform.TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y && left.Width == right.Width && left.Height == right.Height &&
-		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.CellWidth == right.CellWidth &&
+		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.CellWidth == right.CellWidth && left.Baseline == right.Baseline &&
 		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.DisableIME == right.DisableIME &&
 		left.NavigationKeys == right.NavigationKeys &&
 		left.CopyOverride == right.CopyOverride &&
@@ -2029,7 +2030,7 @@ func (painter *painter) syncLabels() {
 				Blue: float64(label.Style.Color.Blue), Alpha: float64(label.Style.Color.Alpha),
 			},
 			Layer: painter.platformLayer(label.Layer),
-			Mono:  label.Style.Mono, MonoFace: label.Style.MonoFace, CellWidth: label.CellWidth, Runs: painter.canvas.TextRuns(label),
+			Mono:  label.Style.Mono, MonoFace: label.Style.MonoFace, CellWidth: label.CellWidth, Baseline: label.Baseline, Runs: painter.canvas.TextRuns(label),
 		}
 		if !label.Style.Mono && label.RunCount == 0 {
 			// Only text in the interface font follows its generation.
@@ -2249,7 +2250,7 @@ func (painter *painter) sameAsLastContent() bool {
 		if a.Value != b.Value || a.Style != b.Style || a.Identity != b.Identity || a.Layer != b.Layer {
 			return false
 		}
-		if a.Bounds != b.Bounds || a.CellWidth != b.CellWidth || a.RunCount != b.RunCount {
+		if a.Bounds != b.Bounds || a.CellWidth != b.CellWidth || a.Baseline != b.Baseline || a.RunCount != b.RunCount {
 			return false
 		}
 		if a.HasClip != b.HasClip || a.HasClip && a.ClipOf != b.ClipOf {
