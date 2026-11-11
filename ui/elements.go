@@ -28,10 +28,13 @@ func Scroll(c C) Box {
 // is clamped to the content at layout: read the settled value back from
 // box.ScrollState().Offset in the same paint, after Draw, rather than keeping
 // the ScrollState between paints.
+// The application's Config.OnScroll owns wheel input for this area; the page
+// must not change a position that the next declaration will overwrite.
 func ScrollAt(c C, offset float32) Box {
 	b := Scroll(c)
 	offset = max(offset, 0)
 	b.ScrollState().Offset = offset
+	b.f.extra(b.i).scrollManual = true
 	b.n().scroll = offset // the layout reads the node; ScrollArea set it from the old state
 	return b
 }

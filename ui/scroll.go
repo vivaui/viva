@@ -154,8 +154,14 @@ func (view *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 		if n.ext == 0 || f.exts[n.ext].scrollState == nil {
 			continue
 		}
+		if !f.containsPoint(i, event.X, event.Y) {
+			continue
+		}
+		if f.exts[n.ext].scrollManual {
+			return gfx.EventResult{}
+		}
 		s := f.exts[n.ext].scrollState
-		if !s.canScroll(event.DeltaY) || !f.containsPoint(i, event.X, event.Y) {
+		if !s.canScroll(event.DeltaY) {
 			continue
 		}
 		return s.Wheel(event)

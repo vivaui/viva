@@ -4,9 +4,44 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
+
+func TestScrollAtRoutesWheelToItsOwnerBeforeAnOuterArea(t *testing.T) {
+	var area, outer, first ui.Box
+	offset := float32(80)
+	view := func(c ui.C) {
+		outer = ui.Scroll(c).Fill().Children(func() {
+			area = ui.ScrollAt(c, offset).Height(150).Shrink(0).Children(func() {
+				first = ui.Slot(c).Height(1600)
+			})
+			ui.Slot(c).Height(2000).Shrink(0)
+		})
+	}
+	page := ui.NewPage(ui.PageConfig{Root: "scroll-at-wheel", View: view})
+	calls := 0
+	config := page.Config(app.Config{OnScroll: func(event gfx.ScrollEvent) gfx.EventResult {
+		calls++
+		offset += event.DeltaY
+		return gfx.EventResult{Handled: true, Repaint: true}
+	}})
+	canvas := benchCanvas()
+	drawPage(page, canvas, view)
+	r := area.Rect()
+	result := config.OnScroll(gfx.ScrollEvent{X: r.X + 10, Y: r.Y + 10, DeltaY: 20, Precise: true})
+	if calls != 1 || !result.Handled || !result.Repaint {
+		t.Fatalf("controlled area did not give its owner the wheel: calls=%d result=%+v", calls, result)
+	}
+	drawPage(page, canvas, view)
+	if offset != 100 || area.ScrollState().Offset != 100 || first.Rect().Y != r.Y-100 {
+		t.Fatalf("repaint lost the owner's offset: model=%v area=%v first=%+v", offset, area.ScrollState().Offset, first.Rect())
+	}
+	if outer.ScrollState().Offset != 0 {
+		t.Fatal("the controlled area's wheel moved its outer area")
+	}
+}
 
 // ScrollAt sets the area's offset when the page declares it, and the layout
 // clamps it to the content; the settled value is readable from the same paint's
