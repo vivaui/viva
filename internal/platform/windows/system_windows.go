@@ -37,8 +37,10 @@ const (
 	notifyMessage        = 1
 	notifyIcon           = 2
 	notifyTip            = 4
+	notifyState          = 8
 	notifyInfo           = 0x10
 	notifyInfoIcon       = 1
+	notifyHidden         = 1
 
 	maxClipboardBytes = 64 << 20
 )
@@ -640,10 +642,7 @@ func SendNotification(title, body string) error {
 			return windowsCallError("load notification icon", callErr)
 		}
 	}
-	data := notifyIconData{Size: uint32(unsafe.Sizeof(notifyIconData{})), Window: host, ID: 1, Flags: notifyIcon | notifyTip | notifyInfo, Icon: icon, InfoFlags: notifyInfoIcon}
-	copyUTF16(data.Tip[:], "Viva")
-	copyUTF16(data.InfoTitle[:], title)
-	copyUTF16(data.Info[:], body)
+	data := notificationIconData(host, icon, title, body)
 	notificationMu.Lock()
 	defer notificationMu.Unlock()
 	operation := uintptr(notifyModify)
@@ -660,6 +659,22 @@ func SendNotification(title, body string) error {
 	notificationAdded = true
 	notificationWindow = host
 	return nil
+}
+
+func notificationIconData(host, icon uintptr, title, body string) notifyIconData {
+	// NIF_INFO needs a notification-area icon, but the icon itself is only the
+	// carrier for the balloon. Keep it hidden so applications with their own
+	// tray item do not gain a second, framework-branded icon beside it.
+	data := notifyIconData{
+		Size: uint32(unsafe.Sizeof(notifyIconData{})), Window: host, ID: 1,
+		Flags: notifyIcon | notifyTip | notifyInfo | notifyState,
+		Icon:  icon, State: notifyHidden, StateMask: notifyHidden,
+		InfoFlags: notifyInfoIcon,
+	}
+	copyUTF16(data.Tip[:], title)
+	copyUTF16(data.InfoTitle[:], title)
+	copyUTF16(data.Info[:], body)
+	return data
 }
 
 func removeNotificationIcon(window uintptr) {
