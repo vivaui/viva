@@ -127,3 +127,64 @@ func TestSoftwareVulkanDeviceDrawsOnTheCPU(t *testing.T) {
 		t.Fatalf("no hardware Vulkan device produced %T, want the CPU renderer", state.renderer)
 	}
 }
+
+// A CPU window with a drawn frame presents through a 32-bit drawable: the
+// content is opaque in the middle, the shadow shows in the margin, the margin
+// away from the content is transparent, and the content's rounded corner is
+// not square.
+func TestSoftwareRendererDrawsTheFrame(t *testing.T) {
+	if testing.Short() || os.Getenv("VIVA_LINUX_XCB_SMOKE") == "" {
+		t.Skip("set VIVA_LINUX_XCB_SMOKE=1 with an X11 display")
+	}
+	t.Setenv("VIVA_SOFTWARE_RENDERING", "1")
+	t.Setenv("VIVA_LINUX_FRAME", "force")
+	red := scene.Color{Red: 1, Alpha: 1}
+	application := &linuxApplication{}
+	control, err := application.OpenWindow(platform.Config{
+		Title:      "Viva frame smoke",
+		Width:      100,
+		Height:     80,
+		WindowMode: platform.WindowCustomTitlebar,
+		Rectangles: []render.Rectangle{{Kind: scene.KindRectangle, Bounds: scene.Rect{Width: 100, Height: 80}, Color: red}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(application.closeAll)
+	state := control.(*nativeWindow).state
+	renderer, ok := state.renderer.(*cpuWindowRenderer)
+	if !ok {
+		t.Fatalf("renderer is %T, want the CPU renderer", state.renderer)
+	}
+	win := state.win
+	if win.margin == 0 || win.depth != 32 || !renderer.alpha() {
+		t.Fatalf("frame margin %d depth %d alpha %v, want a 32-bit framed window", win.margin, win.depth, renderer.alpha())
+	}
+	if err := state.renderer.present(); err != nil {
+		t.Fatal(err)
+	}
+	content := frameContent(win.width, win.height, win.margin)
+	margin := int(win.margin)
+	centerX, centerY := margin+int(content.width)/2, margin+int(content.height)/2
+
+	center := readWindowPixels(t, win, int16(centerX), int16(centerY), 1, 1)
+	if center[0] != 0 || center[1] != 0 || center[2] != 255 || center[3] != 255 {
+		t.Fatalf("content center is %v, want opaque red", center[:4])
+	}
+	far := readWindowPixels(t, win, 1, 1, 1, 1)
+	if far[3] != 0 {
+		t.Fatalf("a far margin pixel has alpha %d, want 0", far[3])
+	}
+	shadow := readWindowPixels(t, win, int16(margin-1), int16(centerY), 1, 1)
+	if shadow[3] == 0 {
+		t.Fatal("the shadow next to the content is transparent")
+	}
+	corner := readWindowPixels(t, win, int16(margin), int16(margin), 1, 1)
+	if corner[0] == 0 && corner[1] == 0 && corner[2] == 255 {
+		t.Fatal("the content's rounded corner is drawn as square content")
+	}
+	inside := readWindowPixels(t, win, int16(margin+12), int16(margin+12), 1, 1)
+	if inside[0] != 0 || inside[1] != 0 || inside[2] != 255 {
+		t.Fatalf("a pixel inside the rounded corner is %v, want red", inside[:4])
+	}
+}

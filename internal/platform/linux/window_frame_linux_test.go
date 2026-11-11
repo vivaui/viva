@@ -18,20 +18,13 @@ func openFramedWindow(t *testing.T, config platform.Config) (*linuxApplication, 
 		t.Skip("no X display")
 	}
 	t.Setenv("VIVA_LINUX_FRAME", "force")
-	// These tests check the Vulkan frame margin, so they keep the software Vulkan
-	// device that a window would otherwise replace with the CPU renderer.
-	t.Setenv("VIVA_LINUX_RENDERER", "vulkan")
 	application := &linuxApplication{}
 	opened, err := application.OpenWindow(config)
 	if errors.Is(err, platform.ErrNoGraphics) {
-		t.Skipf("no Vulkan device: %v", err)
+		t.Skipf("no graphics device: %v", err)
 	}
 	if err != nil {
 		t.Skipf("no window: %v", err)
-	}
-	state := opened.(*nativeWindow).state
-	if _, ok := state.renderer.(*cpuWindowRenderer); ok {
-		t.Skip("the CPU renderer has no alpha surface, so the window has no drawn frame")
 	}
 	t.Cleanup(application.closeAll)
 	return application, opened.(*nativeWindow)

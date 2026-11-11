@@ -115,9 +115,9 @@ changed region through XCB, without a Vulkan driver. A software Vulkan device (M
 lavapipe) is treated as no hardware acceleration and replaced by the CPU renderer unless
 `VIVA_LINUX_RENDERER=vulkan` asks for it; `VIVA_SOFTWARE_RENDERING=1` forces the CPU on
 any machine. The CPU path blends text with the same per-channel LCD antialiasing as the
-GPU when the desktop asks for it and the window is opaque, and in grayscale otherwise; it
-cannot draw the transparent frame margin (shadow and round corners), so a custom-titlebar
-window keeps its content but loses that margin. If the CPU renderer cannot start either,
+GPU when the desktop asks for it and the window is opaque, and in grayscale otherwise; on
+a compositing desktop it also draws the transparent frame margin (shadow and round
+corners) of a custom-titlebar window. If the CPU renderer cannot start either,
 `OpenWindow` fails with an error that wraps `app.ErrNoGraphics` and names what to install.
 macOS always has Metal. A server with no display at all (most cloud machines) cannot open
 a window on any platform: give it a virtual display (Xvfb or Xvnc on Linux) or use the

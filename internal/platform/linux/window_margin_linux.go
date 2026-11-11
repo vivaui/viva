@@ -152,10 +152,14 @@ func (win *window) wantsFrame(screenIndex int32) (visual uint32, ok bool) {
 		if !win.compositing(screenIndex) {
 			return 0, false
 		}
-		// Software drivers before Mesa 23 draw nothing into a window with alpha,
-		// and a machine drawing in software is a virtual one where a shadow is not
-		// worth the risk of an invisible window. "on" asks for it anyway.
-		if mode != "on" && (softwareRenderingRequested() || vulkanDeviceIsSoftware() || !win.supportsSyncedFrame()) {
+		// A software Vulkan device is the one backend still not trusted with an
+		// alpha window: Mesa before 23 drew nothing into one. The CPU renderer
+		// composites in software, so the drawn frame is kept for it. "on" asks
+		// for it anyway.
+		if mode != "on" && vulkanRenderingRequested() && vulkanDeviceIsSoftware() {
+			return 0, false
+		}
+		if mode != "on" && !win.supportsSyncedFrame() {
 			return 0, false
 		}
 	}
