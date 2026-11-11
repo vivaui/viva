@@ -36,6 +36,9 @@ type packageRequest struct {
 	sign        signingOptions
 	output      io.Writer
 	errorOutput io.Writer
+	// fileArgs are --file SRC=DEST values, resolved against the manifest when
+	// the Windows packages are made.
+	fileArgs []string
 }
 
 // build makes the program, unless --program supplied one.
@@ -56,11 +59,20 @@ func runPackage(arguments []string, output, errorOutput io.Writer) error {
 	var requested, formatList, program string
 	var makeZip bool
 	var sign signingOptions
+	var extraFiles []string
 	flags.StringVar(&requested, "o", "", "where to write: the .app for darwin, the output directory otherwise; default is [build] out")
 	flags.StringVar(&requested, "out", "", "same as -o")
 	flags.StringVar(&formatList, "format", "", "comma-separated formats: darwin app, zip, dmg; windows nsis, zip; linux tar.gz, deb")
 	flags.StringVar(&program, "program", "", "package this already built executable instead of building one (it must be for --target and --arch)")
 	flags.BoolVar(&makeZip, "zip", false, "same as adding zip to --format")
+	flags.Func("file", "windows: ship SRC beside the program as DEST (repeatable, SRC=DEST; DEST is relative)", func(value string) error {
+		source, destination, ok := strings.Cut(value, "=")
+		if !ok || source == "" || destination == "" {
+			return errors.New("expected SRC=DEST")
+		}
+		extraFiles = append(extraFiles, value)
+		return nil
+	})
 	flags.StringVar(&sign.identity, "sign-identity", "", "macOS: sign with this identity (default $APPLE_SIGNING_IDENTITY); - signs ad hoc, for this Mac only")
 	flags.StringVar(&sign.entitlements, "entitlements", "", "macOS: entitlements property list to sign with (default [mac] entitlements)")
 	flags.BoolVar(&sign.notarize, "notarize", false, "macOS: require notarization (it happens anyway when the credentials are in the environment)")
@@ -81,6 +93,9 @@ func runPackage(arguments []string, output, errorOutput io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if len(extraFiles) > 0 && shared.target != "windows" {
+		return errors.New("--file is for Windows packages only")
+	}
 
 	plan, err := newPlan(shared, "")
 	if err != nil {
@@ -96,7 +111,7 @@ func runPackage(arguments []string, output, errorOutput io.Writer) error {
 	}
 	defer os.RemoveAll(scratch)
 	request := packageRequest{
-		plan: plan, formats: formats, out: requested, sign: sign,
+		plan: plan, formats: formats, out: requested, sign: sign, fileArgs: extraFiles,
 		program: filepath.Join(scratch, plan.executable), output: output, errorOutput: errorOutput,
 	}
 	if program != "" {

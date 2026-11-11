@@ -3,6 +3,7 @@ package winpkg
 import (
 	"errors"
 	"fmt"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -45,6 +46,10 @@ type Script struct {
 	// the program for their extensions under "Open with", and passes the file's
 	// path as the argument.
 	FileTypes []FileType
+	// Files are shipped beside the program: native runtimes and helpers the
+	// program loads at runtime. They are installed under Destination and removed
+	// with the program.
+	Files []ExtraFile
 }
 
 // FileType is one kind of document: a description and its extensions without
@@ -121,6 +126,10 @@ func (script Script) Generate() ([]byte, error) {
 				return nil, fmt.Errorf("winpkg: %q is not a file extension", extension)
 			}
 		}
+	}
+	files, err := checkedExtraFiles(script.Files)
+	if err != nil {
+		return nil, err
 	}
 	scope := script.Scope
 	if scope == "" {
@@ -346,6 +355,24 @@ func (script Script) Generate() ([]byte, error) {
 	} else {
 		line(`  CreateShortcut "$SMPROGRAMS\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}"`)
 	}
+	if len(files) > 0 {
+		line(`  ; Native files the program loads at runtime.`)
+	}
+	for _, file := range files {
+		source, err := text("file", file.Source)
+		if err != nil {
+			return nil, err
+		}
+		directory := `$INSTDIR`
+		if parent := path.Dir(file.Destination); parent != "." {
+			directory += `\` + strings.ReplaceAll(parent, "/", `\`)
+		}
+		line(`  SetOutPath "%s"`, directory)
+		line(`  File "/oname=%s" "%s"`, path.Base(file.Destination), source)
+	}
+	if len(files) > 0 {
+		line(`  SetOutPath "$INSTDIR"`)
+	}
 	line(`  WriteUninstaller "$INSTDIR\Uninstall.exe"`)
 	line(`  WriteRegStr %s "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"`, root)
 	line(`  WriteRegStr %s "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"`, root)
@@ -401,6 +428,12 @@ func (script Script) Generate() ([]byte, error) {
 	line(`  Delete "$INSTDIR\${APP_EXE}"`)
 	if script.Icon != "" {
 		line(`  Delete "$INSTDIR\${APP_ICON}"`)
+	}
+	for _, file := range files {
+		line(`  Delete "$INSTDIR\%s"`, strings.ReplaceAll(file.Destination, "/", `\`))
+	}
+	for _, directory := range extraDirs(files) {
+		line(`  RMDir "$INSTDIR\%s"`, strings.ReplaceAll(directory, "/", `\`))
 	}
 	line(`  Delete "$SMPROGRAMS\${APP_NAME}.lnk"`)
 	line(`  ReadRegDWORD $0 %s "${UNINSTALL_KEY}" "DesktopShortcut"`, root)

@@ -109,6 +109,38 @@ func TestPackageWindowsInstallerWorksWithoutAnIcon(t *testing.T) {
 	}
 }
 
+func TestPackageWindowsShipsExtraFiles(t *testing.T) {
+	dir := fixture(t, windowsTOML)
+	writeIcon(t, filepath.Join(dir, "icon.png"), 64)
+	extra := filepath.Join(dir, "native", "conpty.dll")
+	if err := os.MkdirAll(filepath.Dir(extra), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(extra, []byte("MZ conpty"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := runCLI([]string{
+		"package", "-C", dir, "--target", "windows", "--arch", "amd64", "--format", "zip",
+		"--file", "native/conpty.dll=conpty/x64/conpty.dll",
+	}, &output, io.Discard); err != nil {
+		t.Fatalf("%v\n%s", err, output.String())
+	}
+	files := readZip(t, filepath.Join(dir, "build", "fixture-notes-2.0.1-windows-amd64.zip"))
+	if string(files["conpty/x64/conpty.dll"]) != "MZ conpty" {
+		t.Errorf("zip files: %v", files)
+	}
+	if !strings.Contains(output.String(), "  files    1 beside the program") {
+		t.Errorf("the report lacks the extra file:\n%s", output.String())
+	}
+	if err := runCLI([]string{
+		"package", "-C", dir, "--target", "windows", "--arch", "amd64", "--format", "zip",
+		"--file", "native/missing.dll=conpty/x64/missing.dll",
+	}, io.Discard, io.Discard); err == nil {
+		t.Error("a missing extra file was accepted")
+	}
+}
+
 func TestPackageWindowsZipNeedsNoInstallerTool(t *testing.T) {
 	dir := fixture(t, windowsTOML)
 	writeIcon(t, filepath.Join(dir, "icon.png"), 64) // too small, but a zip has no icon

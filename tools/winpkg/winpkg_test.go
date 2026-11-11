@@ -566,6 +566,107 @@ func TestZipProgramIsReproducible(t *testing.T) {
 	}
 }
 
+func TestGenerateInstallsAndRemovesExtraFiles(t *testing.T) {
+	script := sample()
+	script.Files = []ExtraFile{
+		{Source: "/tmp/p/conpty/x64/conpty.dll", Destination: "conpty/x64/conpty.dll"},
+		{Source: "/tmp/p/conpty/x64/x64/OpenConsole.exe", Destination: "conpty/x64/x64/OpenConsole.exe"},
+	}
+	got := generate(t, script)
+	for _, want := range []string{
+		`  SetOutPath "$INSTDIR\conpty\x64"`,
+		`  File "/oname=conpty.dll" "/tmp/p/conpty/x64/conpty.dll"`,
+		`  SetOutPath "$INSTDIR\conpty\x64\x64"`,
+		`  File "/oname=OpenConsole.exe" "/tmp/p/conpty/x64/x64/OpenConsole.exe"`,
+		`  SetOutPath "$INSTDIR"`,
+		`  Delete "$INSTDIR\conpty\x64\conpty.dll"`,
+		`  Delete "$INSTDIR\conpty\x64\x64\OpenConsole.exe"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the script lacks %q", want)
+		}
+	}
+	// The directory holding the files is removed before its parent, and both
+	// before the installation directory.
+	deep := strings.Index(got, `RMDir "$INSTDIR\conpty\x64\x64"`)
+	shallow := strings.Index(got, `RMDir "$INSTDIR\conpty\x64"`)
+	root := strings.LastIndex(got, `RMDir "$INSTDIR"`)
+	if deep < 0 || shallow < 0 || root < 0 || !(deep < shallow && shallow < root) {
+		t.Errorf("uninstall order: deep=%d shallow=%d root=%d", deep, shallow, root)
+	}
+}
+
+func TestExtraFileValidation(t *testing.T) {
+	for _, destination := range []string{
+		"", "/conpty/x64.dll", "conpty/../x64.dll", `conpty\x64.dll`, "conpty//x64.dll",
+		"conpty/.", "conpty/ x64.dll", "conpty/x64.dll.", "conpty/$x64.dll",
+	} {
+		files := []ExtraFile{{Source: "/tmp/p/x", Destination: destination}}
+		if _, err := checkedExtraFiles(files); err == nil {
+			t.Errorf("destination %q was accepted", destination)
+		}
+	}
+	good := []ExtraFile{
+		{Source: "/tmp/p/b", Destination: "conpty/arm64/OpenConsole.exe"},
+		{Source: "/tmp/p/a", Destination: "conpty/LICENSE.txt"},
+		{Source: "/tmp/p/c", Destination: "conpty/arm64/OpenConsole.exe"},
+	}
+	if _, err := checkedExtraFiles(good); err == nil {
+		t.Error("a duplicate destination was accepted")
+	}
+	if err := CheckExtraFiles([]ExtraFile{{Source: filepath.Join(t.TempDir(), "missing"), Destination: "conpty/x"}}); err == nil {
+		t.Error("a missing source was accepted")
+	}
+}
+
+func TestZipProgramIncludesExtraFilesInDestinationOrder(t *testing.T) {
+	dir := t.TempDir()
+	program := filepath.Join(dir, "p")
+	os.WriteFile(program, []byte("MZ program bytes"), 0o644)
+	written := map[string]string{
+		"beta":  "OpenConsole bytes",
+		"alpha": "conpty.dll bytes",
+	}
+	for name, body := range written {
+		os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644)
+	}
+	archive := filepath.Join(dir, "a.zip")
+	err := ZipProgram(program, "notes.exe", archive,
+		ExtraFile{Source: filepath.Join(dir, "beta"), Destination: "conpty/x64/OpenConsole.exe"},
+		ExtraFile{Source: filepath.Join(dir, "alpha"), Destination: "conpty/x64/conpty.dll"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := zip.OpenReader(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	var names []string
+	for _, entry := range reader.File {
+		names = append(names, entry.Name)
+	}
+	want := []string{"notes.exe", "conpty/x64/OpenConsole.exe", "conpty/x64/conpty.dll"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("entries = %v", names)
+	}
+	for index, name := range []string{"conpty/x64/OpenConsole.exe", "conpty/x64/conpty.dll"} {
+		entry, err := reader.File[index+1].Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(entry)
+		if string(body) != written[[]string{"beta", "alpha"}[index]] {
+			t.Errorf("%s body = %q", name, body)
+		}
+	}
+	if err := ZipProgram(program, "notes.exe", filepath.Join(dir, "b.zip"),
+		ExtraFile{Source: program, Destination: "notes.exe"}); err == nil {
+		t.Error("an extra file colliding with the program was accepted")
+	}
+}
+
 func TestGenerateRegistersLinkSchemes(t *testing.T) {
 	script := sample()
 	script.URLSchemes = []string{"ssh"}

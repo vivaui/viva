@@ -62,7 +62,8 @@ func commands() []command {
 				"Windows), timestamped by $WINDOWS_TIMESTAMP_URL; --sign-command or $WINDOWS_SIGN_COMMAND names a command\n" +
 				"that signs {file} in place, for keys in a token or a signing service. A program given with --program\n" +
 				"is used as it is. --no-sign skips all signing. Unsigned, macOS blocks a downloaded bundle and Windows\n" +
-				"SmartScreen warns about the installer; Linux packages are not signed.",
+				"SmartScreen warns about the installer; Linux packages are not signed. On Windows, --file SRC=DEST\n" +
+				"(repeatable) ships SRC beside the program at the relative DEST, in both the installer and the zip.",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runPackage(arguments, output, errorOutput)
 			}},
