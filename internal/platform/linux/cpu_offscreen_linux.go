@@ -14,8 +14,8 @@ import (
 // CPUOffscreen is Offscreen without a GPU: the scene is drawn by the CPU rasterizer
 // (internal/raster) and the labels by the system's Pango, so a machine with no Vulkan driver, or a
 // build that does not want to load one, still renders. The pixels agree with the Vulkan pipelines
-// to within a few levels (raster_parity_linux_test.go) except for text, which is always grayscale
-// antialiased here: the Vulkan path blends LCD text when the desktop's font settings ask for it.
+// to within a few levels (raster_parity_linux_test.go), and text is blended with the same per-channel
+// LCD antialiasing as the Vulkan path when the desktop asks for it and the target is opaque.
 // It is not safe for concurrent use.
 type CPUOffscreen struct {
 	services *textServices
@@ -57,7 +57,7 @@ func (offscreen *CPUOffscreen) Set(rectangles []render.Rectangle, labels []platf
 	offscreen.rects = append(offscreen.rects[:0], rectangles...)
 	offscreen.labels = offscreen.labels[:0]
 	for index := range labels {
-		prepared, ok, err := prepareLabel(offscreen.services, labels[index], offscreen.scale, offscreen.canvas.Width, offscreen.canvas.Height)
+		prepared, ok, err := prepareLabel(offscreen.services, labels[index], offscreen.scale, offscreen.canvas.Width, offscreen.canvas.Height, offscreen.clear.Alpha >= 1)
 		if err != nil {
 			return fmt.Errorf("linux: label %d: %w", index, err)
 		}
@@ -99,8 +99,8 @@ func (offscreen *CPUOffscreen) Close() {
 // on the device pixel grid the way the Vulkan backend places it: the texture's top left is a whole
 // device pixel (platform.DevicePosition), a clip takes every device pixel it touches. ok is false
 // when the label draws nothing.
-func prepareLabel(services *textServices, l platform.TextLabel, scale float32, canvasWidth, canvasHeight int) (label raster.Label, ok bool, err error) {
-	image, ok, err := rasterizeLabel(services, l, scale)
+func prepareLabel(services *textServices, l platform.TextLabel, scale float32, canvasWidth, canvasHeight int, allowLCD bool) (label raster.Label, ok bool, err error) {
+	image, ok, err := rasterizeLabel(services, l, scale, allowLCD)
 	if err != nil || !ok {
 		return raster.Label{}, false, err
 	}
@@ -108,16 +108,22 @@ func prepareLabel(services *textServices, l platform.TextLabel, scale float32, c
 	return label, ok, nil
 }
 
-// labelImage is a label's picture at one scale, premultiplied BGRA with no padding between rows.
+// labelImage is a label's picture at one scale, premultiplied BGRA with no padding between rows,
+// unless lcd: then it is per-channel coverage with the luminance in alpha, and spans are the column
+// ranges of a fixed-pitch line that are text of one color.
 type labelImage struct {
 	pixels        []byte
 	width, height int
+	lcd           bool
+	spans         []raster.Span
 }
 
 // rasterizeLabel draws a label's text, or resamples its image to the device pixels it covers. ok is
 // false when it draws nothing. The picture does not depend on where the label is, except that an
-// image smaller than its bitmap does, through the fraction of a pixel it starts at.
-func rasterizeLabel(services *textServices, l platform.TextLabel, scale float32) (image labelImage, ok bool, err error) {
+// image smaller than its bitmap does, through the fraction of a pixel it starts at. With allowLCD,
+// and the desktop asking for subpixel antialiasing, text comes back as per-channel coverage for the
+// rasterizer to tint, the same way the Vulkan LCD shader reads it.
+func rasterizeLabel(services *textServices, l platform.TextLabel, scale float32, allowLCD bool) (image labelImage, ok bool, err error) {
 	if l.Width <= 0 || l.Height <= 0 || (l.Value == "" && len(l.Bitmap) == 0) {
 		return labelImage{}, false, nil
 	}
@@ -128,17 +134,27 @@ func rasterizeLabel(services *textServices, l platform.TextLabel, scale float32)
 		case shownWidth <= 0 || shownHeight <= 0:
 			return labelImage{}, false, nil
 		case shownWidth <= width && shownHeight <= height && (shownWidth < width || shownHeight < height):
-			return labelImage{platform.ResampleBGRA(l.Bitmap, l.BitmapStride, width, height, shownWidth, shownHeight), shownWidth, shownHeight}, true, nil
+			return labelImage{pixels: platform.ResampleBGRA(l.Bitmap, l.BitmapStride, width, height, shownWidth, shownHeight), width: shownWidth, height: shownHeight}, true, nil
 		}
-		return labelImage{tightBitmap(l.Bitmap, width, height, l.BitmapStride), width, height}, true, nil
+		return labelImage{pixels: tightBitmap(l.Bitmap, width, height, l.BitmapStride), width: width, height: height}, true, nil
 	}
 	width := int(math.Ceil(float64(l.Width * scale)))
 	height := int(math.Ceil(float64(l.Height * scale)))
-	pixels, _, err := services.rasterize(l, scale, width, height, false)
+	pixels, lcd, err := services.rasterize(l, scale, width, height, allowLCD)
 	if err != nil {
 		return labelImage{}, false, err
 	}
-	return labelImage{pixels, width, height}, true, nil
+	image = labelImage{pixels: pixels, width: width, height: height, lcd: lcd}
+	if lcd && len(services.spans) > 0 {
+		image.spans = make([]raster.Span, len(services.spans))
+		for index, span := range services.spans {
+			image.spans[index] = raster.Span{
+				From: span.left, To: span.right,
+				Color: scene.Color{Red: span.color[0], Green: span.color[1], Blue: span.color[2], Alpha: span.color[3]},
+			}
+		}
+	}
+	return image, true, nil
 }
 
 // placeLabel puts a label's picture on the canvas: its top left on a whole device pixel and its
@@ -149,7 +165,9 @@ func placeLabel(l platform.TextLabel, scale float32, image labelImage, canvasWid
 	if len(l.Bitmap) > 0 {
 		x, y = platform.DevicePosition(l.X, 0, scale), platform.DevicePosition(l.Y, 0, scale)
 	}
-	label = raster.Label{Pix: image.pixels, Stride: image.width * 4, Width: image.width, Height: image.height, X: x, Y: y, Layer: l.Layer}
+	label = raster.Label{Pix: image.pixels, Stride: image.width * 4, Width: image.width, Height: image.height, X: x, Y: y, Layer: l.Layer,
+		LCD: image.lcd, Spans: image.spans,
+		Color: scene.Color{Red: float32(l.Color.Red), Green: float32(l.Color.Green), Blue: float32(l.Color.Blue), Alpha: float32(l.Color.Alpha)}}
 	if l.Clipped {
 		left := max(int(math.Floor(float64(l.Clip.X*scale))), 0)
 		top := max(int(math.Floor(float64(l.Clip.Y*scale))), 0)

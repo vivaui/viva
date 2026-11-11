@@ -114,16 +114,18 @@ exists; otherwise it draws with the CPU rasterizer (`internal/raster`) and prese
 changed region through XCB, without a Vulkan driver. A software Vulkan device (Mesa's
 lavapipe) is treated as no hardware acceleration and replaced by the CPU renderer unless
 `VIVA_LINUX_RENDERER=vulkan` asks for it; `VIVA_SOFTWARE_RENDERING=1` forces the CPU on
-any machine. The CPU path antialiases text in grayscale and cannot draw the transparent
-frame margin (shadow and round corners), so a custom-titlebar window keeps its content
-but loses that margin. If the CPU renderer cannot start either, `OpenWindow` fails with
-an error that wraps `app.ErrNoGraphics` and names what to install. macOS always has
-Metal. A server with no display at all (most cloud machines) cannot open a window on
-any platform: give it a virtual display (Xvfb or Xvnc on Linux) or use the headless
-build (`-tags vivahead`), which renders offscreen.
+any machine. The CPU path blends text with the same per-channel LCD antialiasing as the
+GPU when the desktop asks for it and the window is opaque, and in grayscale otherwise; it
+cannot draw the transparent frame margin (shadow and round corners), so a custom-titlebar
+window keeps its content but loses that margin. If the CPU renderer cannot start either,
+`OpenWindow` fails with an error that wraps `app.ErrNoGraphics` and names what to install.
+macOS always has Metal. A server with no display at all (most cloud machines) cannot open
+a window on any platform: give it a virtual display (Xvfb or Xvnc on Linux) or use the
+headless build (`-tags vivahead`), which renders offscreen.
 The Linux headless renderer needs no Vulkan driver: with none it draws on the CPU
 (`internal/raster`), within a few levels of the Vulkan pipelines per channel (checked
-against lavapipe) and with grayscale instead of LCD text.
+against lavapipe), with the same LCD text antialiasing when the desktop asks for it and
+the target is opaque.
 The Linux test machine is a virtual display plus lavapipe. The case of no Vulkan
 loader at all is covered by a unit test and by the CPU renderer's live X11 test run
 with the loader hidden, not by a machine that physically lacks the library.

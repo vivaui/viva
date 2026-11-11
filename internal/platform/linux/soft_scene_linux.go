@@ -174,7 +174,7 @@ func (s *softScene) setLabel(slot *softLabel, next platform.TextLabel) error {
 	slot.label = next
 	slot.label.Runs = slot.runs
 	if redraw {
-		image, ok, err := rasterizeLabel(s.services, slot.label, s.scale)
+		image, ok, err := rasterizeLabel(s.services, slot.label, s.scale, s.clear.Alpha >= 1)
 		if err != nil {
 			return err
 		}
