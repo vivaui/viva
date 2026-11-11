@@ -61,6 +61,27 @@ func TestFollowStaysAtTheEndUntilTheUserScrollsUpAndReturns(t *testing.T) {
 	}
 }
 
+func TestPinnedReportsTheEndBeforeTheFrameIsLaidOut(t *testing.T) {
+	var view View
+	logPage(&view, true, 10)
+	state := view.ScrollState(listID)
+	state.ScrollTo(0) // the user scrolls back to the top
+	if state.Pinned() {
+		t.Fatalf("a user at the top is not pinned: Pinned %v", state.Pinned())
+	}
+	state.ScrollToEnd() // the page asks for the end; no layout has happened yet
+	if !state.Pinned() {
+		t.Fatalf("ScrollToEnd did not pin the area before the layout: Pinned %v", state.Pinned())
+	}
+	if state.AtEnd() {
+		t.Fatalf("AtEnd is last-layout and cannot already be true: offset %v, max %v", state.Offset, state.Max())
+	}
+	logPage(&view, true, 10) // now the frame is laid out
+	if !state.AtEnd() || !state.Pinned() {
+		t.Fatalf("after the layout both are true: Pinned %v, AtEnd %v, offset %v", state.Pinned(), state.AtEnd(), state.Offset)
+	}
+}
+
 func TestAViewGivesTheWheelToTheAreaUnderThePointer(t *testing.T) {
 	var view View
 	left, right, inner, outer := tree.ID(page, "left"), tree.ID(page, "right"), tree.ID(page, "inner"), tree.ID(page, "outer")

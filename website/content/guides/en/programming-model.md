@@ -13,7 +13,7 @@ Components follow the same rule. `ui.Button`, `ui.Modal` and the rest do not own
 
 ## Hit regions and identities
 
-A page names its elements by their place among their siblings, and a row by `c.Key` or `c.KeyInt`, so focus, hover and press follow the row as items come, go and move. A control of your own takes `ui.ID(c)`. Read state where you declare: `Box.State().Focused`, `Hovered` and `Pressed`, and `Clicked()`. A page does not name controls in a `gfx.Tree`; a component written with a `ui.Frame` does.
+A page names its elements by their place among their siblings, and a row by `c.Key` or `c.KeyInt`, so focus, hover and press follow the row as items come, go and move. A control of your own takes `ui.ID(c)`. Read state where you declare: `Box.State().Focused`, `Hovered` and `Pressed`, and `Clicked()`. A page does not name controls in a `gfx.Tree`.
 
 ## Events
 
@@ -132,9 +132,9 @@ func (m *model) page(c ui.C) {
 }
 ```
 
-The key names one run. The same key does not start the work again; a different key cancels the run and starts a new one; a paint that no longer declares the effect cancels it; and closing the window cancels all of them. A result that arrives after its key changed, after the effect disappeared or after the window closed is dropped. `Take` returns the result once, on the window thread, after the effect is declared; the page wakes itself when the result lands. One state belongs to one page, and an effect is not declared inside a `Memo`.
+The key names one run. The same key does not start the work again; a different key cancels the run and starts a new one; a paint that no longer declares the effect cancels it; and closing the window cancels all of them. A result that arrives after its key changed, after the effect disappeared or after the window closed is dropped. `Take` returns the result once, on the window thread, after the effect is declared; the page wakes itself when the result lands. One state belongs to one page, and an effect is not declared inside a `Memo`. When the work needs the key itself, `ui.NewEffectKeyed[Result, Key](func(ctx context.Context, key Key) (Result, error))` passes the key the run was started for; `ui.NewEffect` is the same state when the run does not need it.
 
-The run function receives a context and must return when it is done; the framework does not kill goroutines or poll. A page that only draws into a canvas of your own gives `PageConfig.Invalidator` the invalidator of that window, and calls `Page.Close` when the page goes away; a page given no invalidator keeps the result for the next paint but cannot wake the window by itself.
+The run function receives a context and must return when it is done; the framework does not kill goroutines or poll. A new key starts its run at once by default, so a cancelled run that is slow to return can overlap the next one; `.Sequential()` on the state waits for the previous run to return, and a key declared while it waits replaces the one that will run. A page that only draws into a canvas of your own gives `PageConfig.Invalidator` the invalidator of that window, and calls `Page.Close` when the page goes away; a page given no invalidator keeps the result for the next paint but cannot wake the window by itself.
 
 A goroutine of your own, for something with no page key to cancel it, still publishes under its own lock and calls `Invalidator.Invalidate`.
 

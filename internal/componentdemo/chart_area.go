@@ -189,8 +189,8 @@ func (demo *chartDemoState) fill(theme gfx.Theme, english bool) {
 
 func (state *State) chartFrame(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, title string, paint func(bounds gfx.Rect)) {
 	var card ui.Box
-	state.page(canvas, theme, size, 640, title, func(f *ui.Frame) {
-		card = f.Slot().FillWidth().Height(280)
+	state.drawPage(canvas, theme, size, 640, title, func(c ui.C) {
+		card = ui.Slot(c).FillWidth().Height(280)
 	})
 	bounds := card.Rect()
 	components.PaintCard(canvas, theme, bounds, components.CardOptions{Size: components.CardSizeSmall})

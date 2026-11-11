@@ -70,9 +70,9 @@ const markdownUnclosed = "A **bold phrase that is still arriving, and `a code sp
 
 func (state *State) paintMarkdown(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var stage ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Markdown · 排版", "Markdown · Typesetting"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 560, state.Text("Markdown · 排版", "Markdown · Typesetting"), func(c ui.C) {
 		// The document paints itself into the rest of the stage; its height follows its text.
-		stage = f.Slot().FillWidth().Height(max(size.Height-100, 120))
+		stage = ui.Slot(c).FillWidth().Height(max(size.Height-100, 120))
 	})
 	source := state.Text(markdownAnswer, markdownAnswerEnglish)
 	switch state.exampleID {

@@ -13,7 +13,7 @@ Viva 应用把自己的状态放在普通的 Go 值里。页面函数 `func (m *
 
 ## 命中区域与标识
 
-页面按元素在兄弟中的位置命名，行用 `c.Key` 或 `c.KeyInt` 命名，所以项目增删和移动时焦点、悬停和按下状态跟着行走。自己的控件用 `ui.ID(c)`。在声明处读取状态：`Box.State().Focused`、`Hovered`、`Pressed` 和 `Clicked()`。页面不把控件命名在 `gfx.Tree` 里；用 `ui.Frame` 写的组件才会。
+页面按元素在兄弟中的位置命名，行用 `c.Key` 或 `c.KeyInt` 命名，所以项目增删和移动时焦点、悬停和按下状态跟着行走。自己的控件用 `ui.ID(c)`。在声明处读取状态：`Box.State().Focused`、`Hovered`、`Pressed` 和 `Clicked()`。页面不把控件命名在 `gfx.Tree` 里。
 
 ## 事件
 
@@ -132,9 +132,9 @@ func (m *model) page(c ui.C) {
 }
 ```
 
-key 命名一次 run。同一个 key 不会再次启动；key 改变会取消旧 run 并启动新的；某次绘制不再声明它时取消；窗口关闭时全部取消。key 改变、effect 消失或窗口关闭之后才到的结果会被丢弃。`Take` 在窗口线程上、effect 声明之后读取一次；结果落地时页面会自己醒来。一个状态属于一个页面，effect 不能声明在 `Memo` 里。
+key 命名一次 run。同一个 key 不会再次启动；key 改变会取消旧 run 并启动新的；某次绘制不再声明它时取消；窗口关闭时全部取消。key 改变、effect 消失或窗口关闭之后才到的结果会被丢弃。`Take` 在窗口线程上、effect 声明之后读取一次；结果落地时页面会自己醒来。一个状态属于一个页面，effect 不能声明在 `Memo` 里。工作本身需要 key 时，用 `ui.NewEffectKeyed[Result, Key](func(ctx context.Context, key Key) (Result, error))`，它把该次 run 启动时的 key 传给函数，不必从 model 读回（那时可能已经变了）；`ui.NewEffect` 是不需要 key 的同一种 state。
 
-run 函数收到的 context 是取消信号，它必须在该 context 结束时返回；框架不杀 goroutine、不轮询。只把页面绘制到自己 canvas 里的应用，把该窗口的 invalidator 交给 `PageConfig.Invalidator`，并在页面消失时调用 `Page.Close`；没有给 invalidator 的页面保留结果到下一次绘制，但无法主动唤醒窗口。
+run 函数收到的 context 是取消信号，它必须在该 context 结束时返回；框架不杀 goroutine、不轮询。key 改变时新 run 默认立刻启动，所以返回得慢的旧 run 可能与它重叠；在 state 上调用 `.Sequential()` 会等上一个 run 返回后再启动下一个，等待期间声明的 key 只有最新的那个会运行。只把页面绘制到自己 canvas 里的应用，把该窗口的 invalidator 交给 `PageConfig.Invalidator`，并在页面消失时调用 `Page.Close`；没有给 invalidator 的页面保留结果到下一次绘制，但无法主动唤醒窗口。
 
 没有页面 key 可取消的长时间 watcher 仍然用自己的锁发布结果并调用 `Invalidator.Invalidate`。
 

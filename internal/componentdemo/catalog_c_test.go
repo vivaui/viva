@@ -64,9 +64,14 @@ func TestGroupCPaintLightDarkVisibleAndDeterministic(t *testing.T) {
 						if component.initialize != nil {
 							component.initialize(state)
 						}
-						before := *state
+						// The Page caches the appearance it paints with, so the
+						// state after a paint holds it too. Paint once before the
+						// comparison: the first paint makes the Page.
+						state.theme = state.themeFor()
 						var canvas gfx.Canvas
 						canvas.SetMeasurer(measureTestText)
+						paintGroupCFrame(&canvas, &component, state, size, dark)
+						before := *state
 						paintGroupCFrame(&canvas, &component, state, size, dark)
 						if len(canvas.Rectangles()) == 0 && len(canvas.Texts()) == 0 {
 							t.Fatal("paint produced no visible commands")

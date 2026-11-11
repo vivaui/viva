@@ -85,8 +85,13 @@ func TestGroupAPaintDeterminism(t *testing.T) {
 					}
 					t.Run(name, func(t *testing.T) {
 						state := newGroupAState(component, example.ID)
-						before := *state
+						// The Page caches the appearance it paints with, so the
+						// state after a paint holds it too. Paint once before the
+						// comparison: the first paint makes the Page.
+						state.theme = theme.theme
 						var canvas gfx.Canvas
+						paintGroupAFrame(&canvas, component, state, theme.theme, size)
+						before := *state
 						paintGroupAFrame(&canvas, component, state, theme.theme, size)
 						if len(canvas.Rectangles()) == 0 && len(canvas.Texts()) == 0 {
 							t.Fatal("paint produced no visible commands")

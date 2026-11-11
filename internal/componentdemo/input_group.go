@@ -123,13 +123,13 @@ func (state *State) paintInputGroup(canvas *gfx.Canvas, theme gfx.Theme, size gf
 		height = theme.Metrics.ControlHeight * 4
 	}
 	var group, locked, searching ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Input Group · 附加槽", "Input Group · Add-on slots"), func(f *ui.Frame) {
-		group = f.Slot().FillWidth().Height(height)
+	state.drawPage(canvas, theme, size, 560, state.Text("Input Group · 附加槽", "Input Group · Add-on slots"), func(c ui.C) {
+		group = ui.Slot(c).FillWidth().Height(height)
 		if state.exampleID == "states" {
-			locked = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+			locked = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 		}
 		if state.exampleID == "buttons" {
-			searching = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+			searching = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 		}
 	})
 	value := state.fieldValue("")

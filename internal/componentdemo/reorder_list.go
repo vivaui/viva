@@ -31,7 +31,9 @@ var reorderListComponent = Component{
 	initialize: func(state *State) { state.reorder = &reorderDemoState{order: [4]int{0, 1, 2, 3}} },
 	paint: func(state *State, canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 		var slot ui.Box
-		state.page(canvas, theme, size, 440, state.Text("Reorder List · 入口顺序", "Reorder List · Shortcut order"), func(f *ui.Frame) { slot = f.Slot().FillWidth().Height(188) })
+		state.drawPage(canvas, theme, size, 440, state.Text("Reorder List · 入口顺序", "Reorder List · Shortcut order"), func(c ui.C) {
+			slot = ui.Slot(c).FillWidth().Height(188)
+		})
 		list := components.BeginReorderList(canvas, theme, slot.Rect(), &state.reorder.list)
 		labels := [4]string{state.Text("主机", "Hosts"), state.Text("文件传输", "File transfer"), state.Text("AI 助手", "AI assistant"), state.Text("设置", "Settings")}
 		for _, index := range state.reorder.order {

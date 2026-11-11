@@ -20,9 +20,10 @@
 // Geometry, colors, the theme and identities come from package gfx, re-exported here
 // (Rect, Color, RGB, Theme, ID and the rest of vocab.go) so a page imports ui alone.
 //
-// Frame is the component-author engine underneath: its layout with identities
-// declared in a gfx.Tree, which a component or a preview paints through
-// View.Draw. Applications write pages; a page does not expose its Frame.
+// The engine underneath is not part of the public model. A component is a
+// function of the page (func(c ui.C) ui.Box); a custom control uses Control
+// with Handlers, a custom layout uses CustomLayout, and a preview draws a Page
+// into a canvas region.
 //
 // Layout is CSS flexbox's, from a declaration instead of coordinates.
 // A Row lays its children out left to right, a Column top to bottom, a Stack on
@@ -44,7 +45,7 @@
 // painted in order; pointer and keyboard state are read where a control is
 // declared (Clicked), exactly as with the components in package components.
 //
-// Nothing here allocates once a View has seen its largest page: nodes live in
+// Nothing here allocates once a page has been laid out at its largest size: nodes live in
 // a slice that is reused, a Box is a two-word value, and the closure given to
 // Children is only called, never stored. A Text is one line: a line that does
 // not fit is clipped, and a Text shrinks before a fixed-size sibling does.
@@ -95,10 +96,9 @@
 // its position in a SplitterState; a container given Hit that has no Children and no size
 // fails at once, because Hit paints nothing.
 //
-// A ScrollArea keeps its offset in the View under the identity it is given, so the
-// application holds no scroll state: f.ScrollArea(listID), View.Wheel for the wheel,
-// Follow for a log that stays at its end, and View.ScrollState(listID) to move it by
-// program.
+// A ScrollArea keeps its offset in the page under the identity it is given, so
+// the application holds no scroll state: ui.Scroll(c), ScrollAt for an offset,
+// Page.Wheel for the wheel, and Box.ScrollState() to move it by program.
 //
 // Tables, tab strips, selects and dialogs are declared in the same way (Table,
 // Tabs, Select, Dialog): each is painted by the component of that name in package

@@ -19,14 +19,14 @@ func (b Box) NativeView(id gfx.NativeViewID) Box {
 
 // raiseOverNativeViews puts the Popups over the native views the page declared,
 // which hide what is painted on their layer and below.
-func (f *Frame) raiseOverNativeViews() {
+func (f *frame) raiseOverNativeViews() {
 	if top, ok := f.nativeTop(); ok && f.popupLayer <= top {
 		f.popupLayer = top + 1
 	}
 }
 
 // nativeTop is the highest layer a native view of this page is on.
-func (f *Frame) nativeTop() (uint16, bool) {
+func (f *frame) nativeTop() (uint16, bool) {
 	if f.canvas == nil {
 		return 0, false
 	}

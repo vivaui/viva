@@ -49,7 +49,7 @@ func (hover IconHover) Slot(slot uint8) IconHover {
 
 // Paint advances the gesture inside f's paint pass and returns its transform.
 // The zero hover (no state) leaves the icon still.
-func (hover IconHover) Transform(f *Frame) gfx.IconTransform {
+func (hover IconHover) Transform(f *frame) gfx.IconTransform {
 	if hover.state == nil || f == nil || hover.id.IsZero() {
 		return gfx.IconTransform{}
 	}

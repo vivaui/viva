@@ -82,7 +82,7 @@ func (field *Field) SetText(value string) {
 // Field adds a text field for field, named id (a stable identity from your Tree),
 // with an accessible label and placeholder. It is Input with the snapshot taken from
 // the field: focus, platform editing and the caret are filled in for you.
-func (f *Frame) Field(field *Field, id gfx.ID, label, placeholder string) Box {
+func (f *frame) Field(field *Field, id gfx.ID, label, placeholder string) Box {
 	return f.Input(field.snapshot(f, id, label, placeholder))
 }
 
@@ -92,7 +92,7 @@ func (f *Frame) Field(field *Field, id gfx.ID, label, placeholder string) Box {
 // from, such as the editor of a table cell.
 //
 //	f.FieldBase(&m.cell, cellID, "Cell", "").Pad(8).Border(2, theme.Primary).Radius(0)
-func (f *Frame) FieldBase(field *Field, id gfx.ID, label, placeholder string) Box {
+func (f *frame) FieldBase(field *Field, id gfx.ID, label, placeholder string) Box {
 	return f.InputBase(field.snapshot(f, id, label, placeholder))
 }
 
@@ -102,7 +102,7 @@ func (f *Frame) FieldBase(field *Field, id gfx.ID, label, placeholder string) Bo
 // otherwise). It has no Submitted: Enter is a new line.
 //
 //	f.FieldArea(&m.notes, notesID, "Notes", "Anything to add").Height(120)
-func (f *Frame) FieldArea(field *Field, id gfx.ID, label, placeholder string) Box {
+func (f *frame) FieldArea(field *Field, id gfx.ID, label, placeholder string) Box {
 	input := field.snapshot(f, id, label, placeholder)
 	if field.area == nil {
 		field.area = new(components.TextareaLayout)
@@ -141,7 +141,7 @@ func (field *Field) Key(event gfx.KeyEvent) gfx.EventResult {
 
 // snapshot is what the field is painted from: focus, platform editing and the caret are
 // filled in for the frame being declared.
-func (field *Field) snapshot(f *Frame, id gfx.ID, label, placeholder string) components.InputSnapshot {
+func (field *Field) snapshot(f *frame, id gfx.ID, label, placeholder string) components.InputSnapshot {
 	field.rows = false // FieldArea sets it again after
 	editor := field.ensure()
 	field.id = id

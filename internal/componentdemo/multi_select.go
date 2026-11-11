@@ -58,9 +58,9 @@ components.PaintMultiSelect(canvas, theme, bounds, &selection, options)`},
 
 func (state *State) paintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var field ui.Box
-	state.page(canvas, theme, size, 420, state.Text("Multi Select · 多选标签", "Multi Select · Tags"), func(f *ui.Frame) {
-		f.Text(state.Text("输入筛选，回车创建，支持中文输入法。", "Type to filter, press Enter to create. Native IME supported.")).Muted().FontSize(theme.Metrics.FontSizeS)
-		field = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+	state.drawPage(canvas, theme, size, 420, state.Text("Multi Select · 多选标签", "Multi Select · Tags"), func(c ui.C) {
+		ui.Text(c, state.Text("输入筛选，回车创建，支持中文输入法。", "Type to filter, press Enter to create. Native IME supported.")).Muted().FontSize(theme.Metrics.FontSizeS)
+		field = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 	})
 	components.PaintMultiSelect(canvas, theme, field.Rect(), state.multiSelect, components.MultiSelectOptions{
 		InputID: multiSelectInput, TriggerID: multiSelectTrigger, DismissID: multiSelectDismiss, Scope: multiSelectScope,

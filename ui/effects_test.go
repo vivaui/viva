@@ -82,6 +82,90 @@ func TestEffectRestartsWhenTheKeyChanges(t *testing.T) {
 	waitEffect(t, draw, func() bool { return starts.Load() == 2 && stopped.Load() == 1 })
 }
 
+func TestEffectKeyedRunGetsTheKeyItStartedFor(t *testing.T) {
+	state := ui.NewEffectKeyed[string, string](func(_ context.Context, key string) (string, error) {
+		return key, nil
+	})
+	key, result, took := "first", "", false
+	view := func(c ui.C) {
+		ui.Effect(c, state, key)
+		if value, err, ok := state.Take(); ok {
+			result, took = value, true
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		}
+	}
+	page, canvas := ui.NewPage(ui.PageConfig{View: view}), benchCanvas()
+	draw := func() { drawPage(page, canvas, view) }
+	waitEffect(t, draw, func() bool { return took })
+	if result != "first" {
+		t.Fatalf("result = %q, want the key %q", result, "first")
+	}
+
+	key, took = "second", false
+	waitEffect(t, draw, func() bool { return took })
+	if result != "second" {
+		t.Fatalf("result = %q, want the key %q", result, "second")
+	}
+}
+
+func TestSequentialEffectWaitsForTheCancelledRun(t *testing.T) {
+	events := make(chan string, 4)
+	releaseFirst, releaseSecond := make(chan struct{}), make(chan struct{})
+	var firstStarted, secondStarted atomic.Bool
+	state := ui.NewEffectKeyed[int, string](func(_ context.Context, key string) (int, error) {
+		events <- key + " starts"
+		if key == "first" {
+			firstStarted.Store(true)
+			<-releaseFirst
+			events <- "first returned"
+			return 100, nil // it returns a result even though its context was cancelled
+		}
+		secondStarted.Store(true)
+		<-releaseSecond
+		return 200, nil
+	}).Sequential()
+
+	key := "first"
+	var results []int
+	view := func(c ui.C) {
+		ui.Effect(c, state, key)
+		if value, _, ok := state.Take(); ok {
+			results = append(results, value)
+		}
+	}
+	page, canvas := ui.NewPage(ui.PageConfig{View: view}), benchCanvas()
+	draw := func() { drawPage(page, canvas, view) }
+	waitEffect(t, draw, func() bool { return firstStarted.Load() })
+
+	key = "second"
+	for range 4 {
+		draw()
+	}
+	if secondStarted.Load() {
+		t.Fatal("the second run started before the first returned")
+	}
+
+	close(releaseFirst)
+	waitEffect(t, draw, func() bool { return secondStarted.Load() })
+	draw() // the cancelled run's result would be taken here, while the second one runs
+	if len(results) != 0 {
+		t.Fatalf("the cancelled run published %v", results)
+	}
+	for i, want := range []string{"first starts", "first returned", "second starts"} {
+		if got := <-events; got != want {
+			t.Fatalf("event %d = %q, want %q", i, got, want)
+		}
+	}
+
+	close(releaseSecond)
+	waitEffect(t, draw, func() bool { return len(results) > 0 })
+	if len(results) != 1 || results[0] != 200 {
+		t.Fatalf("results = %v, want only the second run's 200", results)
+	}
+}
+
 func TestEffectCancelsWhenItDisappearsAndStartsAgainWhenBack(t *testing.T) {
 	var starts, stopped atomic.Int32
 	state := ui.NewEffect[int, int](func(ctx context.Context) (int, error) {
@@ -298,9 +382,10 @@ func TestEffectNeedsAPageAndItsState(t *testing.T) {
 	var noState *ui.EffectState[int, int]
 	page, canvas := ui.NewPage(ui.PageConfig{}), benchCanvas()
 	for name, fn := range map[string]func(){
-		"no page":  func() { ui.Effect(nil, state, 1) },
-		"no state": func() { drawPage(page, canvas, func(c ui.C) { ui.Effect(c, noState, 1) }) },
-		"nil run":  func() { ui.NewEffect[int, int](nil) },
+		"no page":       func() { ui.Effect(nil, state, 1) },
+		"no state":      func() { drawPage(page, canvas, func(c ui.C) { ui.Effect(c, noState, 1) }) },
+		"nil run":       func() { ui.NewEffect[int, int](nil) },
+		"nil keyed run": func() { ui.NewEffectKeyed[int, int](nil) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			defer func() {

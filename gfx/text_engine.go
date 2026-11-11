@@ -2,6 +2,7 @@ package gfx
 
 import (
 	"errors"
+	"math"
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/internal/textmetrics"
@@ -61,17 +62,52 @@ type StyledTextEngine interface {
 
 // MonoCellEngine is a TextEngine that measures the character cell of a fixed-pitch
 // face: the platform engines implement it. Canvas.MonoCellSize asks it, so a terminal
-// is laid out on the pitch and line height of the font it is drawn in; an engine
+// is laid out on the pitch and line height of the font it is drawn in, and
+// Canvas.MonoBaseline so its glyphs stand on that font's own baseline; an engine
 // without it, such as the reference engine, leaves the reference cell (0.6 of the size
-// wide, 1.18 high).
+// wide, 1.18 high) and the renderers' own baseline.
 type MonoCellEngine interface {
 	TextEngine
-	// MonoCell is the advance of one character and the height of one line of face's
-	// own font at a logical size, in logical pixels, whatever the families that draw
-	// what that font lacks. A cell it cannot measure is 0, 0. It is called with the
-	// same arguments again only after FontGeneration moved, or the canvas's memo
-	// dropped the answer.
-	MonoCell(size float32, face MonoFace) (advance, line float32)
+	// MonoCell is the cell of face's own font at a logical size, in logical pixels,
+	// whatever the families that draw what that font lacks. A cell it cannot measure is
+	// the zero value. It is called with the same arguments again only after
+	// FontGeneration moved, or the canvas's memo dropped the answer.
+	MonoCell(size float32, face MonoFace) MonoCellMetrics
+}
+
+// MonoCellMetrics is the character cell of a fixed-pitch face at one size: the advance
+// of one character and the font's line box around its baseline, in logical pixels. The
+// cell a terminal is laid out on is Line rounded to a whole pixel, and its glyphs stand
+// on the font's own baseline centered in that cell, as in Ghostty (src/font/Metrics.zig).
+type MonoCellMetrics struct {
+	Advance float32 // the width of one character
+	Ascent  float32 // baseline to the top of the line box
+	Descent float32 // baseline to the bottom of the line box
+	LineGap float32 // the space the font asks between two line boxes; zero where the engine derives Descent from the font's line height (Windows and Linux), which folds the gap into it
+}
+
+// Line is the height of the font's line box: its ascent, its descent and the gap it asks
+// between lines.
+func (metrics MonoCellMetrics) Line() float32 {
+	return metrics.Ascent + metrics.Descent + metrics.LineGap
+}
+
+// CellHeight is Line rounded to the nearest whole pixel. Rounding keeps the cell as
+// close to the font's design as a whole pixel gets, and keeps it the same size at any
+// display scale, where rounding up would add most of a pixel to every row.
+func (metrics MonoCellMetrics) CellHeight() float32 {
+	return float32(math.Round(float64(metrics.Line())))
+}
+
+// CellBaseline is the row of the cell, counted from its top, on which the font's glyphs
+// stand: half the line gap above the font's own baseline, with the cell's rounding
+// difference split evenly above and below the line box.
+func (metrics MonoCellMetrics) CellBaseline() float32 {
+	line, cell := float64(metrics.Line()), float64(metrics.CellHeight())
+	// Ghostty counts the baseline from the bottom of the cell, half the line gap above
+	// the descent, less half the difference the rounding made.
+	fromBottom := math.Round(float64(metrics.LineGap)/2 + float64(metrics.Descent) - (cell-line)/2)
+	return float32(cell - fromBottom)
 }
 
 // FontFamilyAware is a TextEngine whose proportional family the application can

@@ -7,7 +7,7 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
-func (f *Frame) paint(i int32) {
+func (f *frame) paint(i int32) {
 	n := &f.nodes[i]
 	if n.band != 0 {
 		// An application overlay's subtree paints on its band, over the page and
@@ -129,6 +129,9 @@ func (f *Frame) paint(i int32) {
 	if hooks.over != nil {
 		f.runDraw(n, hooks.over)
 	}
+	if s := extra.scrollState; s != nil && s.bars && canvas != nil {
+		f.paintBarsFn(f, n, s) // over the content, inside the area's clip
+	}
 	if extra.focusGroup != 0 && canvas != nil {
 		f.groupFn(f, i, extra.focusGroup, group)
 	}
@@ -144,7 +147,7 @@ func (f *Frame) paint(i int32) {
 
 // paintControl paints what the element is: its text, icon, or control. The
 // background and border of its box are already down.
-func (f *Frame) paintControl(n *node, r Rect) {
+func (f *frame) paintControl(n *node, r Rect) {
 	canvas := f.canvas
 	extra := &f.exts[n.ext]
 	switch n.kind {
@@ -212,7 +215,7 @@ func (f *Frame) paintControl(n *node, r Rect) {
 	}
 }
 
-func (f *Frame) paintText(n *node) {
+func (f *frame) paintText(n *node) {
 	if n.text == "" {
 		return
 	}
@@ -252,7 +255,7 @@ func (f *Frame) paintText(n *node) {
 	}
 }
 
-func (f *Frame) paintButton(n *node) {
+func (f *frame) paintButton(n *node) {
 	r := n.rect
 	extra := &f.exts[n.ext]
 	button := components.BeginButton(f.canvas, f.theme, n.id, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.buttonSize).
@@ -287,7 +290,7 @@ func (f *Frame) paintButton(n *node) {
 // The element's box is already down, so only the content and the hit are left. The hit
 // is the whole element, whose looks follow the same identity, while the platform is told
 // the text sits in the padded rectangle.
-func (f *Frame) paintInput(n *node) {
+func (f *frame) paintInput(n *node) {
 	// What the element says of its text (FontSize, Weight, Color) is the field's text style,
 	// over the snapshot's own: the one value the glyphs, the caret and the platform follow.
 	snapshot := f.inputs[n.aux]
@@ -312,7 +315,7 @@ func (f *Frame) paintInput(n *node) {
 
 // paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
 // Border, as paintInput does for a line.
-func (f *Frame) paintTextarea(n *node) {
+func (f *frame) paintTextarea(n *node) {
 	if n.flags&flagHasColor != 0 {
 		theme := f.theme
 		theme.Foreground = n.color

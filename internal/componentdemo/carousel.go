@@ -48,11 +48,11 @@ func (state *State) paintCarousel(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 	// The previous and next buttons sit just outside the viewport, so the slot is
 	// kept clear of the page edge and of the title by a margin.
 	var slot ui.Box
-	state.page(canvas, theme, size, 584, state.Text("Carousel · 产品导览", "Carousel · Product tour"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 584, state.Text("Carousel · 产品导览", "Carousel · Product tour"), func(c ui.C) {
 		if vertical {
-			slot = f.Slot().FillWidth().Height(180).MarginY(44).MarginX(32)
+			slot = ui.Slot(c).FillWidth().Height(180).MarginY(44).MarginX(32)
 		} else {
-			slot = f.Slot().FillWidth().Height(200).MarginX(32)
+			slot = ui.Slot(c).FillWidth().Height(200).MarginX(32)
 		}
 	})
 	bounds := slot.Rect()

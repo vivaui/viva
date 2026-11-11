@@ -17,7 +17,8 @@ import (
 //
 // GDI has no shaper and no font fallback, so a run with ligatures, a run with characters
 // outside printable ASCII (the grid gives each of those a run of its own), a font GDI
-// does not have, and colour glyphs are Direct2D's. A line may hold both: every run is
+// does not have, a weight between regular and bold (see gdiDrawsWeight), and colour
+// glyphs are Direct2D's. A line may hold both: every run is
 // drawn by one of the two, and its columns are read from that drawing, so a prompt in
 // ASCII next to a wide character is hinted and the wide character is not.
 //
@@ -232,8 +233,10 @@ func (rasterizer *directRasterizer) useGDI(pieces []gridPiece, family string, si
 	}
 	for index := range pieces {
 		piece := &pieces[index]
-		// GDI shapes nothing, and has no font to fall back to for what the font lacks.
-		if piece.run.Ligatures || !printableASCII(piece.text) {
+		weight := nativeFontWeight(piece.weight)
+		// GDI shapes nothing, has no font to fall back to for what the font lacks, and
+		// makes up the weights a family has no face for.
+		if piece.run.Ligatures || !printableASCII(piece.text) || !gdiDrawsWeight(weight) {
 			continue
 		}
 		if rasterizer.gdi == nil {
@@ -243,9 +246,17 @@ func (rasterizer *directRasterizer) useGDI(pieces []gridPiece, family string, si
 			return err
 		}
 		piece.font = rasterizer.gdi.font(gdiFontKey{
-			family: family, height: -emHeight, weight: int32(nativeFontWeight(piece.weight)),
+			family: family, height: -emHeight, weight: int32(weight),
 			italic: piece.run.Italic, underline: piece.run.Underline, strike: piece.run.Strike,
 		})
 	}
 	return nil
 }
+
+// gdiDrawsWeight reports whether GDI draws a DirectWrite weight with a face of the family.
+// GDI knows a family by its regular and bold faces (FW_NORMAL and FW_BOLD) and makes up
+// any weight between them. What it makes up is wider than the cells: semibold Consolas
+// comes out with every letter crowding the next and the last one cut off, so INFO reads
+// INFC. DirectWrite finds the face the font has for such a weight (bold, for Consolas),
+// so those runs are Direct2D's.
+func gdiDrawsWeight(weight uint32) bool { return weight == 400 || weight == 700 }

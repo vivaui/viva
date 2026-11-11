@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/ui"
 )
 
 var testSize = gfx.Size{Width: 320, Height: 340}
@@ -41,10 +40,10 @@ func paintFrame(canvas *gfx.Canvas, state *State, size gfx.Size, now time.Durati
 }
 
 // bareState is a State for a component painted without New, as the catalog
-// tests do. It has the layout memory New gives, so painting a ui page does not
-// look like a change of the State.
+// tests do. The Page a paint needs is made on its first draw, as New's State
+// does, so painting does not look like a change of the State.
 func bareState(componentID, exampleID string) *State {
-	return &State{componentID: componentID, exampleID: exampleID, view: new(ui.View)}
+	return &State{componentID: componentID, exampleID: exampleID}
 }
 
 // click delivers a click on id the way the runtime does: one paint, the event

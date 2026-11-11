@@ -98,7 +98,9 @@ type Driver struct {
 }
 
 // NewDriver creates a driver for config, painting into canvas (a fresh canvas
-// when nil). The first frame has been painted when it returns.
+// when nil). Config.Invalidator is bound before the first paint, so a wake the
+// application makes while that paint runs is kept for the next Pump. The first
+// frame has been painted when it returns.
 func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 	normalized, err := config.normalize()
 	if err != nil {
@@ -121,6 +123,13 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 			driver.Close()
 		}
 	}()
+	// Bind before the first paint: the application's first paint can start an
+	// effect that finishes at once, and a wake with nothing bound is dropped.
+	// requestWake touches only state made above, so this is safe before the
+	// painter exists, and Close unbinds on every failure path below.
+	if invalidator := driver.config.Invalidator; invalidator != nil {
+		invalidator.waker.Bind(driver.requestWake)
+	}
 	// The first paint happens below: it must already see the driver's appearance,
 	// not ask the machine (which, off the main thread, may never answer).
 	enterDriverAppearance()
@@ -149,9 +158,6 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 	if err := driver.registerSystem(); err != nil {
 		driver.Close()
 		return nil, err
-	}
-	if invalidator := driver.config.Invalidator; invalidator != nil {
-		invalidator.waker.Bind(driver.requestWake)
 	}
 	built = true
 	return driver, nil
@@ -873,7 +879,7 @@ func (driver *Driver) ShortcutChord(modifiers gfx.Modifiers, character rune) (bo
 }
 
 func (driver *Driver) clipboardEdit(action byte) error {
-	event, changed, err := platform.TextClipboardEvent(driver.painter.nativeText.State, driver.painter.nativeText.Secure, action,
+	event, changed, err := platform.TextClipboardEvent(driver.painter.nativeText.ClipboardState(action), driver.painter.nativeText.Secure, action,
 		func() (string, error) { return driver.clipboard, nil },
 		func(value string) error { driver.SetClipboard(value); return nil })
 	if err != nil || !changed {
@@ -1006,7 +1012,10 @@ type Label struct {
 	Mono      bool
 	MonoFace  gfx.MonoFace
 	CellWidth float32
-	Runs      []gfx.TextRun
+	// Baseline is platform.TextLabel's: the row of a fixed-pitch line's glyphs, counted
+	// from the top of Bounds.
+	Baseline float32
+	Runs     []gfx.TextRun
 	// Clip is the region the label may paint into when Clipped (see
 	// platform.TextLabel.Clip).
 	Clip          gfx.Rect
@@ -1145,7 +1154,7 @@ func (driver *Driver) Snapshot() Snapshot {
 			FontSize: label.FontSize, Weight: label.Weight, Italic: label.Italic,
 			Color: gfx.Color{Red: float32(label.Color.Red), Green: float32(label.Color.Green), Blue: float32(label.Color.Blue), Alpha: float32(label.Color.Alpha)},
 			Layer: label.Layer, FontGeneration: label.FontGeneration,
-			Mono: label.Mono, MonoFace: label.MonoFace, CellWidth: label.CellWidth, Runs: append([]gfx.TextRun(nil), label.Runs...),
+			Mono: label.Mono, MonoFace: label.MonoFace, CellWidth: label.CellWidth, Baseline: label.Baseline, Runs: append([]gfx.TextRun(nil), label.Runs...),
 			Clip: label.Clip, Clipped: label.Clipped,
 			BitmapWidth: label.BitmapWidth, BitmapHeight: label.BitmapHeight, BitmapStride: label.BitmapStride,
 			BitmapID: label.BitmapID, BitmapVersion: label.BitmapVersion,

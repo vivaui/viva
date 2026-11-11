@@ -47,7 +47,7 @@ type dialogDecl struct {
 //		})
 //		if d.Dismissed() { m.confirm = false }
 //	}
-func (f *Frame) Dialog(spec DialogSpec) Box {
+func (f *frame) Dialog(spec DialogSpec) Box {
 	layer := spec.Layer
 	if layer == 0 {
 		layer = f.widgetLayer() + 2
@@ -88,7 +88,7 @@ func (f *Frame) Dialog(spec DialogSpec) Box {
 
 // Dialog declares a dialog on a page whose targets and layer the application
 // names itself: DialogSpec.Scope, DismissID, CloseID and Layer keep the
-// identities the application dispatches, as they do for Frame.Dialog. Most
+// identities the application dispatches, as they do for frame.Dialog. Most
 // dialogs use Modal or ModalWith; use Dialog when the application owns those
 // targets and the dialog's layer. Header declares controls in the title row,
 // Body the content and Footer the buttons.
@@ -161,7 +161,7 @@ func (b Box) Dismissed() bool {
 
 // paintDialog paints a Dialog's root: components.Dialog's scrim and surface, then the
 // body and footer inside the layer and focus scope it opens, then its modal bookkeeping.
-func (f *Frame) paintDialog(n *node) {
+func (f *frame) paintDialog(n *node) {
 	d := &f.widgets.dialogs[n.aux]
 	surface := f.nodes[n.first].rect
 	dialog := components.BeginDialog(f.canvas, f.theme, n.rect, components.DialogOptions{

@@ -2527,17 +2527,57 @@ func TestGridLinesDrawBlockElementsAsRectanglesNotText(t *testing.T) {
 	}
 	var blocks int
 	for _, rectangle := range frame.Rectangles {
-		if rectangle.Color.Green == 1 {
-			blocks++
-			if rectangle.Bounds.X != 9 || rectangle.Bounds.Width != 14 || rectangle.Bounds.Y != 2 || rectangle.Bounds.Height != 12 {
-				t.Fatalf("the two blocks are %+v, want one rectangle over cells 1 and 2", rectangle.Bounds)
-			}
+		if rectangle.Color.Green != 1 {
+			continue
 		}
+		if want := (scene.Rect{X: 9 + 7*float32(blocks), Y: 2, Width: 7, Height: 12}); rectangle.Bounds != want {
+			t.Fatalf("block %d is %+v, want its cell's own %+v", blocks, rectangle.Bounds, want)
+		}
+		blocks++
 	}
-	if blocks != 1 {
+	if blocks != 2 {
 		t.Fatalf("%d block rectangles in %+v", blocks, frame.Rectangles)
 	}
 	if got := canvas.Texts()[0].Value; got != "a██b" {
 		t.Fatalf("the canvas's own text was rewritten: %q", got)
+	}
+}
+
+// A grid line's rounded corner reaches the platform as a stroked triangle — the one cell glyph a
+// renderer feathers — and never as a glyph the font would draw over it.
+func TestGridLinesDrawBoxArcsAsStrokesNotText(t *testing.T) {
+	var canvas gfx.Canvas
+	color := gfx.Color{Green: 1, Alpha: 1}
+	value := "╭"
+	runs := []gfx.TextRun{{Bytes: int32(len(value)), Cells: 1, Color: color}}
+	config := Config{Title: "arc", Width: 100, Height: 100}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.LabelRuns(value, gfx.Rect{X: 2, Y: 2, Width: 10, Height: 25}, gfx.TextStyle{Size: 15}, 10,
+			runs)
+	}
+	painter := newTestPainter(t, &canvas, config)
+
+	runs[0].Color.Red = 0.5 // a repaint with a change, which the platform is given
+	frame, err := painter.resize(size(100, 100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(frame.TextLabels) != 1 || frame.TextLabels[0].Value != " " {
+		t.Fatalf("the platform was given %+v, want the corner as a blank cell", frame.TextLabels)
+	}
+	var strokes int
+	for _, shape := range frame.Rectangles {
+		if shape.Kind != scene.KindTriangle || shape.Color.Green != 1 {
+			continue
+		}
+		strokes++
+		for _, point := range shape.Points {
+			if point.X < 2-3 || point.X > 12+3 || point.Y < 2-7 || point.Y > 27+7 {
+				t.Fatalf("the ring reaches %+v, outside its cell", point)
+			}
+		}
+	}
+	if strokes == 0 {
+		t.Fatalf("no stroked ring in %+v", frame.Rectangles)
 	}
 }

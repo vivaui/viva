@@ -77,9 +77,9 @@ func (state *State) previewResizable() components.Resizable {
 
 func (state *State) paintResizable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var stage ui.Box
-	state.page(canvas, theme, size, 600, "Editor layout", func(f *ui.Frame) {
-		stage = f.Slot().Height(200)
-		caption(f, state.Text("拖动抓手精确调整；激活循环 30% / 50% / 70%。", "Drag the handle to resize precisely; clicking cycles 30% / 50% / 70%."))
+	state.drawPage(canvas, theme, size, 600, "Editor layout", func(c ui.C) {
+		stage = ui.Slot(c).Height(200)
+		caption(c, state.Text("拖动抓手精确调整；激活循环 30% / 50% / 70%。", "Drag the handle to resize precisely; clicking cycles 30% / 50% / 70%."))
 	})
 
 	bounds := stage.Rect()

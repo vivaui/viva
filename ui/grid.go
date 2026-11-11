@@ -32,7 +32,7 @@ func gridColumns(width, minCell, gap float32) int {
 
 // placeGrid gives every child of the grid its column and row, and reports how many rows
 // there are.
-func (f *Frame) placeGrid(n *node, columns int) int {
+func (f *frame) placeGrid(n *node, columns int) int {
 	s := &f.scratch
 	total, tall := 0, false
 	for c := n.first; c >= 0; c = f.nodes[c].next {
@@ -90,7 +90,7 @@ func (s *scratch) free(columns, col, row, cs, rs int) bool {
 
 // gridRows sizes the rows of a placed grid into scratch.rows and their offsets from the
 // top of the content into scratch.rowAt, and returns how many there are.
-func (f *Frame) gridRows(n *node) int {
+func (f *frame) gridRows(n *node) int {
 	s := &f.scratch
 	rows, widest := 0, 1
 	for c := n.first; c >= 0; c = f.nodes[c].next {
@@ -133,7 +133,7 @@ func (f *Frame) gridRows(n *node) int {
 	return rows
 }
 
-func (f *Frame) measureGrid(n *node, axis int) {
+func (f *frame) measureGrid(n *node, axis int) {
 	is, ie := n.inset(axis)
 	if axis == axisX {
 		// As narrow as one cell: the grid takes the width it is given and fits
@@ -156,7 +156,7 @@ func (f *Frame) measureGrid(n *node, axis int) {
 }
 
 // solveGrid gives every child the cells it covers.
-func (f *Frame) solveGrid(n *node, axis int, start, avail float32) {
+func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
 	columns := gridColumns(n.rect.Width-n.padX(), n.gridMin, n.gap)
 	if axis == axisX {
 		cell := (avail - n.gap*float32(columns-1)) / float32(columns)

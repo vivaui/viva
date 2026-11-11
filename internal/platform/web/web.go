@@ -312,7 +312,12 @@ func (runtime *runtime) drawRuns(text gfx.Text) {
 	}
 	clipRect(context, text.Bounds)
 	metrics := monoBaseline(context, text.Style.Size, text.Style.MonoFace)
-	baseline := text.Bounds.Y + (text.Bounds.Height-metrics.Ascent-metrics.Descent)*0.5 + metrics.Ascent
+	// The canvas places a grid line on the font's own baseline in its cell; the document's
+	// own metrics center the line box for a canvas that could not measure the face.
+	baseline := text.Bounds.Y + text.Baseline
+	if text.Baseline <= 0 {
+		baseline = text.Bounds.Y + (text.Bounds.Height-metrics.Ascent-metrics.Descent)*0.5 + metrics.Ascent
+	}
 	context.Set("textBaseline", "alphabetic")
 	offset := 0
 	for _, run := range runtime.canvas.TextRuns(text) {

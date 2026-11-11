@@ -9,23 +9,17 @@ var switchComponent = Component{
 	ID: "switch", Title: "Switch", Category: "Forms", Summary: "受控开关与有界的状态过渡。",
 	paint: (*State).paintSwitch,
 	Examples: []Example{
-		{ID: "default", Title: "受控开关", Description: "点击改变目标状态，生产组件使用运行器的帧时钟过渡。", Snippet: `notify := f.Switch(tree.ID(page, "notifications"), enabled).Label("Desktop notifications")
-if notify.Clicked() {
-    enabled = !enabled
-}`},
-		{ID: "sizes", Title: "两种尺寸", Description: "默认与紧凑开关独立受控。", Snippet: `f.Row().Gap(12).Children(func() {
-    if f.Switch(tree.ID(page, "default"), normal).Label("Default size").Clicked() {
-        normal = !normal
-    }
-    if f.Switch(tree.ID(page, "small"), compact).Label("Compact size").Small().Clicked() {
-        compact = !compact
-    }
+		{ID: "default", Title: "受控开关", Description: "点击改变目标状态，生产组件使用运行器的帧时钟过渡。", Snippet: `ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+    ui.Switch(c, &enabled, "").Hit(notifications, "Desktop notifications")
+    ui.Text(c, "Desktop notifications").FontSize(theme.Metrics.FontSizeM)
 })`},
-		{ID: "states", Title: "启用与禁用", Description: "一个可切换开关和开、关两种禁用状态。", Snippet: `if f.Switch(tree.ID(page, "notify"), notify).Label("Desktop notifications").Clicked() {
-    notify = !notify
-}
-f.Switch(tree.ID(page, "off"), false).Label("Disabled · Off").Disabled(true)
-f.Switch(tree.ID(page, "on"), true).Label("Disabled · On").Disabled(true)`},
+		{ID: "sizes", Title: "两种尺寸", Description: "默认与紧凑开关独立受控。", Snippet: `ui.Row(c).Gap(12).Children(func() {
+    ui.Switch(c, &normal, "").Hit(defaultID, "Default size")
+    ui.Switch(c, &compact, "").Hit(smallID, "Compact size").Small()
+})`},
+		{ID: "states", Title: "启用与禁用", Description: "一个可切换开关和开、关两种禁用状态。", Snippet: `ui.Switch(c, &notify, "").Hit(notifyID, "Desktop notifications")
+ui.Switch(c, &off, "").Hit(offID, "Disabled · Off").Disabled(true)
+ui.Switch(c, &on, "").Hit(onID, "Disabled · On").Disabled(true)`},
 	},
 }
 
@@ -35,7 +29,12 @@ var (
 	switchToggle = tree.Sub(switchUI, tree.Name("toggle"))
 )
 
-type switchState struct{ checked uint8 }
+type switchState struct {
+	checked uint8
+	// toggles are the values a Page Switch binds, one per example row: a stable
+	// address keeps the page's bound names from allocating in every paint.
+	toggles [3]bool
+}
 
 func (state *State) paintSwitch(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	labels := []string{state.Text("桌面通知", "Desktop notifications")}
@@ -49,15 +48,16 @@ func (state *State) paintSwitch(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 			state.Text("禁用 · 开启", "Disabled · On"),
 		}
 	}
-	state.page(canvas, theme, size, 480, state.Text("Switch · 调用方持有状态", "Switch · Caller-owned state"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 480, state.Text("Switch · 调用方持有状态", "Switch · Caller-owned state"), func(c ui.C) {
 		for index, label := range labels {
 			checked := state.switches.checked&(1<<index) != 0
 			disabled := state.exampleID == "states" && index > 0
 			if disabled {
 				checked = index == 2
 			}
-			f.Row().Gap(12).Items(ui.Center).PadX(12).MarginY(4).Children(func() {
-				control := f.Switch(switchToggle.At(index), checked).Label(label).Disabled(disabled)
+			ui.Row(c).Gap(12).Items(ui.Center).PadX(12).MarginY(4).Children(func() {
+				state.switches.toggles[index] = checked
+				control := ui.Switch(c, &state.switches.toggles[index], "").Hit(switchToggle.At(index), label).Disabled(disabled)
 				if state.exampleID == "sizes" && index == 1 {
 					control.Small()
 				}
@@ -68,13 +68,13 @@ func (state *State) paintSwitch(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 				if disabled {
 					color.Alpha *= 0.50
 				}
-				f.Text(label).FontSize(theme.Metrics.FontSizeM).Color(color)
+				ui.Text(c, label).FontSize(theme.Metrics.FontSizeM).Color(color)
 			})
 		}
 		caption := state.Text("首项状态：关闭", "First switch: off")
 		if state.switches.checked&1 != 0 {
 			caption = state.Text("首项状态：开启", "First switch: on")
 		}
-		f.Text(caption).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Text(c, caption).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 }

@@ -140,6 +140,25 @@ const miterLimit = 4.0
 // tessellate into non-overlapping outlines so translucent stroke colors
 // composite without seams.
 func (canvas *Canvas) DrawPath(path Path, bounds Rect, style PathStyle) {
+	canvas.triangles = canvas.PathTriangles(canvas.triangles, path, bounds, style)
+}
+
+// PathTriangles appends to dst the triangles DrawPath would add for the same path, bounds
+// and style, without painting them. A line that has to draw its geometry in its own place in
+// the paint order — a fixed-pitch line's cell glyph strokes, which go before its text — asks
+// for the triangles and places them itself.
+func (canvas *Canvas) PathTriangles(dst []Triangle, path Path, bounds Rect, style PathStyle) []Triangle {
+	// The tessellator appends to the canvas's own list; lend it dst for the call.
+	saved := canvas.triangles
+	canvas.triangles = dst
+	canvas.drawPath(path, bounds, style)
+	dst = canvas.triangles
+	canvas.triangles = saved
+	return dst
+}
+
+// drawPath tessellates path into canvas.triangles; it is DrawPath's body.
+func (canvas *Canvas) drawPath(path Path, bounds Rect, style PathStyle) {
 	if path.width <= 0 || path.height <= 0 || bounds.Width <= 0 || bounds.Height <= 0 {
 		return
 	}

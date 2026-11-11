@@ -61,6 +61,7 @@ typedef struct viva_text_line {
 typedef struct {
     const unsigned char *utf8;
     size_t utf8_length;
+    int copy_override;
     float x;
     float y;
     float width;
@@ -90,6 +91,9 @@ typedef struct {
 	int mono_face;
     // The width of one terminal cell, which a terminal's preedit text is laid on.
     float cell_width;
+    // The row of a terminal's field, counted from its top, on which the preedit's glyphs
+    // stand (platform.TextInput.Baseline); 0 for every other field.
+    float baseline;
     // Printable Option chords become raw key events carrying their base
     // character, so terminal encoders can send Escape-prefixed Meta input.
     int alt_sends_escape;
@@ -183,6 +187,10 @@ typedef struct {
     // Where layout put the text, less x and y, in logical pixels (platform.TextLabel.OriginX).
     float origin_x;
     float origin_y;
+    // baseline is the row a fixed-pitch label's glyphs stand on, counted from the top of
+    // the label in logical pixels (platform.TextLabel.Baseline); 0 for every other label,
+    // which stands on the row all proportional text shares.
+    float baseline;
 } viva_text_label;
 
 // viva_clip is the region, in logical pixels, that one rectangle or triangle
@@ -505,9 +513,9 @@ int viva_text_line_rasterize(
     unsigned char *pixels
 );
 
-// viva_measure_mono reports the system fixed-pitch font's cell advance and line
-// height at a size.
-int viva_measure_mono(double font_size, int mono_face, double *advance, double *height);
+// viva_measure_mono reports the system fixed-pitch font's cell at a size: the advance of
+// one character and the ascent, descent and leading of its line box.
+int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading);
 // viva_register_mono_family teaches what a mono_face number (2 and up) stands for: the
 // installed family it draws in first (empty for a stack over a built-in face), whether
 // that built-in face is the classic one, and the families that draw the characters the

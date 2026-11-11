@@ -249,7 +249,8 @@ func hdiutilOutput(arguments ...string) (string, error) {
 			return "", errors.New("a .dmg needs hdiutil, which ships with macOS")
 		}
 		// detach has its own way of waiting, which checks whether the volume is gone.
-		if arguments[0] != "detach" && attempt < busyAttempts && strings.Contains(string(out), "Resource busy") {
+		if arguments[0] != "detach" && attempt < busyAttempts &&
+			(strings.Contains(string(out), "Resource busy") || strings.Contains(string(out), "Resource temporarily unavailable")) {
 			pause(time.Duration(attempt) * time.Second)
 			continue
 		}
