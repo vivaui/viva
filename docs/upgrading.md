@@ -16,7 +16,9 @@ with its own predecessor, not with whatever the application is on.
 Newest first. This list was checked against [`releases/`](releases/) for every
 release from v0.2.2 to the newest tag: only the two below remove or change public
 members, and every other release says in its own notes that the public API only
-gains members.
+gains members. Releases before v0.2.2 are not covered: [`releases/`](releases/)
+begins there, so a reader on v0.1.x to v0.2.1 has no notes to compare against
+here.
 
 ### v0.4.0 - `flex.Box.HoverBackground` is removed
 
@@ -75,6 +77,6 @@ The gate a change to Viva itself has to pass is in
 
 ## Where the releases are
 
-[`releases/`](releases/) holds one file per release in the order they shipped.
-Each is bilingual and is the body of the matching GitHub Release, so the two can
-be compared afterwards.
+[`releases/`](releases/) holds one file per release in the order they shipped,
+from v0.2.2 on. Each is bilingual and is the body of the matching GitHub
+Release, so the two can be compared afterwards.
