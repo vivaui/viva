@@ -2,11 +2,12 @@ package ui
 
 // A bound control writes what the user did into a value the application owns, as a
 // Screen declares its controls: a Checkbox or Switch flips a bool, a Choice, Tabs or
-// Select sets an int. The value is written in the paint that delivers the click (the
-// event pass), and only there, the first time the control is asked (Clicked, Changed)
-// or else when the page ends, so a Disabled given after the control was declared is
-// still obeyed. The event pass is not shown: the repaint that follows paints the new
-// value.
+// Select sets an int. The value is written in the paint that delivers the click, and
+// only there: a Checkbox or Switch writes the first time the control is asked (Clicked,
+// Changed) or else when the page ends, so reading the value before asking sees the old
+// one and a Disabled given after the control was declared is still obeyed. A Choice,
+// Tabs or Select writes where it is declared. The event pass is not shown: the repaint
+// that follows paints the new value.
 
 // bindDecl is one bound control of the frame.
 type bindDecl struct {

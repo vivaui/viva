@@ -103,6 +103,9 @@ func Button(c C, label string) Box {
 }
 
 // Checkbox adds a checkbox showing *value, flipped by a click, with label beside it.
+// The click writes *value when Clicked or Changed is first read on the box, or else
+// when the paint ends; reading *value earlier in that paint sees the previous value,
+// and a Disabled declared after the box still holds.
 func Checkbox(c C, value *bool, label string) Box {
 	b := c.f.Checkbox(c.page.boundID(pkCheckbox, unsafe.Pointer(value)), *value)
 	if label != "" {
@@ -112,7 +115,9 @@ func Checkbox(c C, value *bool, label string) Box {
 	return b
 }
 
-// Switch is Checkbox's two-state switch.
+// Switch is Checkbox's two-state switch. Like Checkbox, it writes *value when Clicked
+// or Changed is first read on it, or else when the paint ends; reading *value earlier
+// in that paint sees the previous value.
 func Switch(c C, value *bool, label string) Box {
 	b := c.f.Switch(c.page.boundID(pkSwitch, unsafe.Pointer(value)), *value)
 	if label != "" {
