@@ -60,7 +60,13 @@ func (f *Focus) SetKeyboardFocus(visible bool) { f.keyboardFocus = visible }
 // so the repaint that follows applies it. Canvas.Reset clears a request between
 // paints, and Sync reads only the paint it publishes. A request the repaint
 // makes itself replaces this one.
-func (f *Focus) Carry(canvas *gfx.Canvas) { f.carried = canvas.FocusRequest() }
+func (f *Focus) Carry(canvas *gfx.Canvas) {
+	// A channel that carries no request leaves the one a channel before it in
+	// the same event made: deliverPointer then deliverClick, each carrying.
+	if request := canvas.FocusRequest(); !request.IsZero() {
+		f.carried = request
+	}
+}
 
 // Carries reports whether an event-pass focus request waits for the next Sync.
 func (f *Focus) Carries() bool { return !f.carried.IsZero() }
