@@ -14,7 +14,7 @@ import (
 func macFileTypes(kinds []manifest.FileType) []appbundle.FileType {
 	result := make([]appbundle.FileType, len(kinds))
 	for index, kind := range kinds {
-		result[index] = appbundle.FileType{Name: kind.Name, Extensions: kind.Extensions}
+		result[index] = appbundle.FileType{Name: kind.Name, Extensions: kind.Extensions, UTI: kind.UTI}
 	}
 	return result
 }

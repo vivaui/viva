@@ -177,6 +177,7 @@ func (script Script) Generate() ([]byte, error) {
 	line(`!define APP_EXE "%s"`, fields["executable"])
 	line(`!define APP_ICON "%s"`, iconFile)
 	line(`!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID}"`)
+	line(`!define APP_CAPABILITIES "Software\${APP_ID}\Capabilities"`)
 	line("")
 	line(`!include "MUI2.nsh"`)
 	line(`!include "LogicLib.nsh"`)
@@ -370,6 +371,17 @@ func (script Script) Generate() ([]byte, error) {
 		line(`  WriteRegStr %s "%s\DefaultIcon" "" '"$INSTDIR\${APP_EXE}",0'`, root, key)
 		line(`  WriteRegStr %s "%s\shell\open\command" "" '"$INSTDIR\${APP_EXE}" "%%1"'`, root, key)
 	}
+	if len(script.FileTypes) > 0 {
+		appKey := `Software\Classes\Applications\${APP_EXE}`
+		line(`  WriteRegStr %s "%s" "FriendlyAppName" "${APP_NAME}"`, root, appKey)
+		line(`  WriteRegStr %s "%s" "ApplicationCompany" "${APP_PUBLISHER}"`, root, appKey)
+		line(`  WriteRegStr %s "%s\DefaultIcon" "" '"$INSTDIR\${APP_EXE}",0'`, root, appKey)
+		line(`  WriteRegStr %s "%s\shell\open\command" "" '"$INSTDIR\${APP_EXE}" "%%1"'`, root, appKey)
+		line(`  WriteRegStr %s "${APP_CAPABILITIES}" "ApplicationName" "${APP_NAME}"`, root)
+		line(`  WriteRegStr %s "${APP_CAPABILITIES}" "ApplicationDescription" "${APP_NAME}"`, root)
+		line(`  WriteRegStr %s "${APP_CAPABILITIES}" "ApplicationIcon" '"$INSTDIR\${APP_EXE}",0'`, root)
+		line(`  WriteRegStr %s "Software\RegisteredApplications" "${APP_ID}" "${APP_CAPABILITIES}"`, root)
+	}
 	for _, kind := range script.FileTypes {
 		name, err := text("file type", kind.Name)
 		if err != nil {
@@ -378,10 +390,13 @@ func (script Script) Generate() ([]byte, error) {
 		progID := script.ID + "." + kind.Extensions[0]
 		key := `Software\Classes\` + progID
 		line(`  WriteRegStr %s "%s" "" "%s"`, root, key, name)
+		line(`  WriteRegStr %s "%s" "FriendlyTypeName" "%s"`, root, key, name)
 		line(`  WriteRegStr %s "%s\DefaultIcon" "" '"$INSTDIR\${APP_EXE}",0'`, root, key)
 		line(`  WriteRegStr %s "%s\shell\open\command" "" '"$INSTDIR\${APP_EXE}" "%%1"'`, root, key)
 		for _, extension := range kind.Extensions {
+			line(`  WriteRegStr %s "Software\Classes\Applications\${APP_EXE}\SupportedTypes" ".%s" ""`, root, extension)
 			line(`  WriteRegStr %s "Software\Classes\.%s\OpenWithProgids" "%s" ""`, root, extension, progID)
+			line(`  WriteRegStr %s "${APP_CAPABILITIES}\FileAssociations" ".%s" "%s"`, root, extension, progID)
 		}
 	}
 	if len(script.FileTypes) > 0 || len(script.URLSchemes) > 0 {
@@ -418,6 +433,11 @@ func (script Script) Generate() ([]byte, error) {
 			line(`  DeleteRegValue %s "Software\Classes\.%s\OpenWithProgids" "%s"`, root, extension, progID)
 		}
 		line(`  DeleteRegKey %s "Software\Classes\%s"`, root, progID)
+	}
+	if len(script.FileTypes) > 0 {
+		line(`  DeleteRegKey %s "Software\Classes\Applications\${APP_EXE}"`, root)
+		line(`  DeleteRegValue %s "Software\RegisteredApplications" "${APP_ID}"`, root)
+		line(`  DeleteRegKey %s "${APP_CAPABILITIES}"`, root)
 	}
 	if len(script.FileTypes) > 0 || len(script.URLSchemes) > 0 {
 		line(`  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'`)

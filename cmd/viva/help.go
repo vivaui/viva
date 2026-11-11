@@ -50,7 +50,7 @@ func commands() []command {
 				"and the Homebrew build on Apple Silicon crashes, so build it on Linux or Windows), --target linux a\n" +
 				"tar.gz with an install script or a .deb (tar.gz, deb). --program packages an executable you built\n" +
 				"(or signed) yourself instead of building one. [app] url_schemes and [[app.file_types]] (name, extensions,\n" +
-				"optional mime) register the links and documents the program opens with every format; on Windows and\n" +
+				"optional mime and macOS uti) register the links and documents the program opens with every format; on Windows and\n" +
 				"Linux they arrive as arguments of a new process (app/singleinstance hands them to the running copy).\n" +
 				"macOS signing and notarization are optional and off unless an identity is given: --sign-identity or\n" +
 				"$APPLE_SIGNING_IDENTITY (\"-\" signs ad hoc, for this Mac only), $APPLE_CERTIFICATE and\n" +

@@ -32,6 +32,30 @@ synchronous forms report `ErrAsyncRequired`, `ErrSecretStoreUnavailable` or
 | Fullscreen (`RequestFullscreen`, `OnFullscreen`) | `NSWindow.toggleFullScreen:` | `SetWindowPos` / window style | window-manager fullscreen | `requestFullscreen` / `exitFullscreen`, reported by `fullscreenchange` |
 | Page visibility (`OnMinimize`) | window minimized/restored | window minimized/restored | window minimized/restored | `visibilitychange`; a hidden tab counts as minimized |
 
+## Opening registered documents
+
+Declare the documents an application opens in `viva.toml`:
+
+```toml
+[[app.file_types]]
+name = "Markdown document"
+extensions = ["md", "markdown"]
+mime = "text/markdown"
+uti = "net.daringfireball.markdown"
+```
+
+The package registers the extensions with the operating system. Windows adds
+the application to **Open with** and **Default apps**, Linux adds it to the
+desktop MIME associations, and macOS adds the extensions and optional UTI to
+the bundle document types. The operating system still asks the user to choose a
+default; applications cannot silently replace Windows' per-user `UserChoice`.
+
+Call `Application.OnOpenFile` during startup to receive each document. macOS
+delivers open documents to the running application through AppKit. Windows and
+Linux start the program with paths as arguments, so an application that keeps a
+single running copy should pass those arguments through
+`app/singleinstance`; the handler itself is not invoked on those systems.
+
 ## Error Semantics
 
 - `ErrUnsupported` means the target or its available desktop environment cannot

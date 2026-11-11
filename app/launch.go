@@ -43,6 +43,12 @@ type openURLHost interface {
 	SetOpenURLHandler(handler func(url string))
 }
 
+// openFileHost is what a Host implements to receive documents the system opens
+// the application with.
+type openFileHost interface {
+	SetOpenFileHandler(handler func(path string))
+}
+
 // OnOpenURL sets who receives a link the system opens the application with: one
 // whose scheme the application registered (viva.toml url_schemes). It is called
 // on the event-loop thread, also for links that arrived while the application
@@ -58,5 +64,23 @@ func (application *Application) OnOpenURL(handler func(url string)) {
 	}
 	if host, ok := application.host.(openURLHost); ok {
 		host.SetOpenURLHandler(handler)
+	}
+}
+
+// OnOpenFile sets who receives a document the system opens the application
+// with: one of the types the application registered in viva.toml. It is called
+// on the event-loop thread, also for documents that arrived while the
+// application was starting. Call it from the startup callback.
+//
+// macOS delivers documents to the running program. Windows and Linux start the
+// program with the path as an argument instead; package app/singleinstance
+// carries it to the running copy, and the program reads it from its arguments
+// at launch. Where the system delivers nothing, the handler is never called.
+func (application *Application) OnOpenFile(handler func(path string)) {
+	if application == nil || application.host == nil {
+		return
+	}
+	if host, ok := application.host.(openFileHost); ok {
+		host.SetOpenFileHandler(handler)
 	}
 }
