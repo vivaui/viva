@@ -195,6 +195,7 @@ The page is the window, so the lifecycle callbacks map onto document events:
 | `OnResize` | `resize` | Viewport size changed; not called for the initial size |
 | `OnMinimize` | `visibilitychange` | The tab became hidden or visible; a hidden tab is not necessarily minimized |
 | `OnFullscreen` | `fullscreenchange` | Entered or left the browser's fullscreen mode |
+| `OnActivate` | `focus` on the window | The browser window gained focus; focus moving inside the page does not call it |
 | `OnCloseRequest` | `beforeunload` | Ask before the page unloads; `allow` must be called synchronously |
 | `OnClosed` | `pagehide` (not persisted) and `unload` | The page is being torn down |
 | `OnFileDrop` | `dragenter`, `dragover`, `dragleave`, `drop` | Files dragged from outside the page |
