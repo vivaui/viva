@@ -2,7 +2,6 @@ package ui
 
 import (
 	"strings"
-	"unicode/utf8"
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
@@ -108,8 +107,10 @@ func (f *Frame) measureLeafIn(n *node) {
 	switch n.kind {
 	case kindText:
 		if n.flags&flagMono != 0 {
-			cw, ch := f.canvas.MonoCellSize(n.fontSize, n.face)
-			n.pref = [2]float32{cw * float32(utf8.RuneCountInString(n.text)), ch}
+			// A Mono text is as wide as its cells: a wide character takes two, a combining
+			// mark none, as the canvas measures and draws it.
+			_, ch := f.canvas.MonoCellSize(n.fontSize, n.face)
+			n.pref = [2]float32{f.canvas.TextWidthStyle(n.text, n.textStyle()), ch}
 		} else {
 			n.pref = [2]float32{f.canvas.TextWidthWeight(n.text, n.fontSize, n.weight), n.leading()}
 		}
