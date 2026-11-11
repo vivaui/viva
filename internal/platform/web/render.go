@@ -164,7 +164,7 @@ func (runtime *runtime) drawTexts(layer uint16) {
 			continue
 		}
 		metrics := runtime.metrics.baseline(text.Style.Size)
-		baseline := (text.Bounds.Height-metrics.Ascent-metrics.Descent)*0.5 + metrics.Ascent
+		baseline := runtime.canvas.LabelBaseline(gfx.Rect{Height: text.Bounds.Height}, gfx.TextStyle{Size: text.Style.Size})
 		y := text.Bounds.Y + baseline
 		// The line is drawn whole, in the font and direction the text engine measured it
 		// with. The base direction of a right-to-left paragraph puts the

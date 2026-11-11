@@ -223,6 +223,13 @@ func (button Button) BoundsHeight() float32 {
 	return height
 }
 
+// LabelFontSize reports the size of the label the button paints at: the size
+// its variant and theme give, or the one FontSize set.
+func (button Button) LabelFontSize() float32 {
+	_, _, fontSize, _ := button.geometry()
+	return fontSize
+}
+
 // Default paints the primary official default variant.
 func (button Button) Default(label string) ButtonResult { return button.paint(label, ButtonDefault) }
 
