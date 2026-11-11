@@ -83,7 +83,7 @@ type MonoCellMetrics struct {
 	Advance float32 // the width of one character
 	Ascent  float32 // baseline to the top of the line box
 	Descent float32 // baseline to the bottom of the line box
-	LineGap float32 // the space the font asks between two line boxes
+	LineGap float32 // the space the font asks between two line boxes; zero where the engine derives Descent from the font's line height (Windows and Linux), which folds the gap into it
 }
 
 // Line is the height of the font's line box: its ascent, its descent and the gap it asks
