@@ -8,6 +8,7 @@ static unsigned int raw_code;
 static int plain_key_calls;
 
 void vivaOpenURL(const char *url) {}
+void vivaOpenFile(const char *path) {}
 int vivaApplicationQuitRequested(void) { return 0; }
 int vivaApplicationReopenRequested(void) { return 0; }
 int vivaFileDropEvent(uintptr_t handle, void *view, int phase, double x, double y, const char *paths, size_t length) { return 0; }

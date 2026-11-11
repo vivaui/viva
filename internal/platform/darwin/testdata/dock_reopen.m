@@ -14,6 +14,7 @@ viva_text_line *vivaShapedLine(const unsigned char *utf8, size_t length, double 
 viva_text_line *vivaShapedLineStyle(const unsigned char *utf8, size_t length, double size, double weight, int italic) { return viva_text_line_create_style(utf8, length, size, weight, italic); }
 int vivaShortcutEvent(uintptr_t handle, void *view, int key, int modifiers, int repeat, const unsigned char *utf8, size_t utf8Length) { return 0; }
 void vivaOpenURL(const char *url) {}
+void vivaOpenFile(const char *path) {}
 int vivaApplicationQuitRequested(void) { return 0; }
 int vivaFileDropEvent(uintptr_t handle, void *view, int phase, double x, double y, const char *paths, size_t length) { return 0; }
 void vivaScrollEvent(uintptr_t handle, void *view, double deltaX, double deltaY, double x, double y, int modifiers, int precise) {}

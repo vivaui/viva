@@ -40,6 +40,13 @@ func vivaShapedLineStyle(utf8 *C.uchar, length C.size_t, size, weight C.double, 
 	return sharedTextEngine().retainedLineStyle(value, float32(size), float32(weight), italic != 0)
 }
 
+//export vivaOpenFile
+func vivaOpenFile(path *C.char) {
+	if path != nil {
+		deliverOpenFile(C.GoString(path))
+	}
+}
+
 //export vivaPointerEvent
 func vivaPointerEvent(
 	handle C.uintptr_t,

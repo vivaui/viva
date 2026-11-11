@@ -694,11 +694,21 @@ func TestGenerateRegistersFileTypes(t *testing.T) {
 	progID := script.ID + ".note"
 	for _, want := range []string{
 		`WriteRegStr HKCU "Software\Classes\` + progID + `" "" "Notes document"`,
+		`WriteRegStr HKCU "Software\Classes\` + progID + `" "FriendlyTypeName" "Notes document"`,
 		`WriteRegStr HKCU "Software\Classes\` + progID + `\shell\open\command" "" '"$INSTDIR\${APP_EXE}" "%1"'`,
+		`WriteRegStr HKCU "Software\Classes\Applications\${APP_EXE}" "FriendlyAppName" "${APP_NAME}"`,
+		`WriteRegStr HKCU "Software\Classes\Applications\${APP_EXE}" "ApplicationCompany" "${APP_PUBLISHER}"`,
+		`WriteRegStr HKCU "Software\Classes\Applications\${APP_EXE}\SupportedTypes" ".note" ""`,
+		`WriteRegStr HKCU "Software\RegisteredApplications" "${APP_ID}" "${APP_CAPABILITIES}"`,
+		`WriteRegStr HKCU "${APP_CAPABILITIES}" "ApplicationIcon" '"$INSTDIR\${APP_EXE}",0'`,
+		`WriteRegStr HKCU "${APP_CAPABILITIES}\FileAssociations" ".note" "` + progID + `"`,
 		`WriteRegStr HKCU "Software\Classes\.note\OpenWithProgids" "` + progID + `" ""`,
 		`WriteRegStr HKCU "Software\Classes\.nt\OpenWithProgids" "` + progID + `" ""`,
 		`DeleteRegValue HKCU "Software\Classes\.nt\OpenWithProgids" "` + progID + `"`,
 		`DeleteRegKey HKCU "Software\Classes\` + progID + `"`,
+		`DeleteRegKey HKCU "Software\Classes\Applications\${APP_EXE}"`,
+		`DeleteRegValue HKCU "Software\RegisteredApplications" "${APP_ID}"`,
+		`DeleteRegKey HKCU "${APP_CAPABILITIES}"`,
 		`SHChangeNotify`,
 	} {
 		if !strings.Contains(got, want) {
