@@ -548,11 +548,14 @@ func (m *model) page(c ui.C) {
 ```
 
 The run gets a context, must return when it is done, and must not touch a `C`, `Box` or `Frame`.
-The same key does not start again; a new key cancels the old run and starts the new one; a paint
-that stops declaring it cancels it; closing the window cancels all of them. `Take` reads the
-result once, on the window's thread, after the effect is declared, and the page wakes itself when
-the result lands. One state per page, and not inside a Memo. A page you draw into a window of your
-own takes that window's `PageConfig.Invalidator` and calls `page.Close()` when it goes away.
+The same key does not start again; a new key cancels the old run and starts the new one at once, so a
+run that is slow to return can overlap it. `.Sequential()` on the state waits for the old run to
+return before starting the next, and only the latest key declared while it waits runs.
+`ui.NewEffectKeyed` passes the key a run started for to the run function. A paint that stops declaring
+it cancels it; closing the window cancels all of them. `Take` reads the result once, on the window's
+thread, after the effect is declared, and the page wakes itself when the result lands. One state per
+page, and not inside a Memo. A page you draw into a window of your own takes that window's
+`PageConfig.Invalidator` and calls `page.Close()` when it goes away.
 
 A goroutine of your own, for something with no page key (a long-lived watcher), stores its result
 under a lock and calls `invalidator.Invalidate()` (`Config.Invalidator`); `Config.OnWake` copies

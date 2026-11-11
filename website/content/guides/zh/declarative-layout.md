@@ -58,7 +58,7 @@ ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
 
 `ui.Choice` 和 `ui.Tabs` 各占一个 Tab 停靠点：左右方向键（垂直的标签页用上下键）移动到下一个可用选项并选中它，到头会回绕；Home 和 End 去第一个和最后一个。
 
-点击会在递送它的那一遍绘制里翻转 `m.sync`：在控件第一次被询问（`Clicked`、`Changed`）时写入，没有被询问就在页面结束时写入，所以写在控件之后的 `Disabled` 依然有效。`Choice`、`Tabs` 和 `Select` 接受任意可比较类型的值，并在声明时就写入：要禁用它们，用 `if` 包起来，而不是在后面写 `Disabled`。`TextField` 不需要 `Config.TextInput`：页面的 `Config` 把它声明过的每个输入框的编辑器交给平台，其他获得焦点的输入框交给配置里原有的提供者。`Popover` 和 `Modal` 在一个 `*bool` 为真时打开，被关闭时把它设为 false（见[对话框、菜单和弹出层](/zh/docs/overlays/)）。`Box.NativeView` 把一个元素的区域交给系统网页引擎的页面。
+点击会在递送它的那一遍绘制里翻转 `m.sync`：在控件第一次被询问（`Clicked`、`Changed`）时写入，没有被询问就在页面结束时写入；在那之前读 `m.sync` 看到的还是点击前的值，所以写在控件之后的 `Disabled` 依然有效。`Choice`、`Tabs` 和 `Select` 接受任意可比较类型的值，并在声明时就写入：要禁用它们，用 `if` 包起来，而不是在后面写 `Disabled`。`TextField` 不需要 `Config.TextInput`：页面的 `Config` 把它声明过的每个输入框的编辑器交给平台，其他获得焦点的输入框交给配置里原有的提供者。`Popover` 和 `Modal` 在一个 `*bool` 为真时打开，被关闭时把它设为 false（见[对话框、菜单和弹出层](/zh/docs/overlays/)）。`Box.NativeView` 把一个元素的区域交给系统网页引擎的页面。
 
 元素按位置命名：它的种类，以及它在所在容器里同类元素中的序号。另有三条细化：
 
