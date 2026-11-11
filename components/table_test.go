@@ -2,6 +2,7 @@ package components
 
 import (
 	"encoding/csv"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -595,5 +596,153 @@ func BenchmarkTableSelectionPaint(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+func TestTableEndInsetReservesTrailingCellSpace(t *testing.T) {
+	theme := gfx.LightTheme()
+	const endInset = float32(28)
+	columns := []TableColumn{{Width: 240, EndInset: endInset}}
+	var canvas gfx.Canvas
+	table := BeginTable(&canvas, theme, gfx.Rect{Width: 240, Height: 120}, columns)
+	table.Header([]string{"Heading"})
+	table.Row(gfx.Item(1), []string{"a command that is too long to fit in one line"}, false)
+	want := columns[0].Width - 2*theme.Metrics.GapItem - endInset
+	for _, text := range canvas.Texts() {
+		if text.Bounds.Width != want {
+			t.Fatalf("%q has %v px of room, want %v", text.Value, text.Bounds.Width, want)
+		}
+	}
+}
+
+func TestTableEndInsetCannotMakeACellNegative(t *testing.T) {
+	theme := gfx.LightTheme()
+	columns := []TableColumn{{Width: 20, EndInset: 200}}
+	var canvas gfx.Canvas
+	table := BeginTable(&canvas, theme, gfx.Rect{Width: 20, Height: 80}, columns)
+	table.Header([]string{"H"})
+	table.Row(gfx.Item(1), []string{"value"}, false)
+	for _, text := range canvas.Texts() {
+		if text.Bounds.Width < 0 {
+			t.Fatalf("%q has negative room %v", text.Value, text.Bounds.Width)
+		}
+	}
+}
+
+func TestFitTableHeadingsIncludesTheEndInset(t *testing.T) {
+	theme := gfx.LightTheme()
+	columns := []TableColumn{{Width: 1, Inset: 6, EndInset: 40}}
+	var canvas gfx.Canvas
+	FitTableHeadings(&canvas, theme, columns[:], []string{"Command"})
+	need := float32(math.Ceil(float64(canvas.TextWidthWeight("Command", theme.Metrics.FontSizeM, gfx.WeightMedium)))) +
+		2*theme.Metrics.GapItem + 6 + 40
+	if columns[0].Width < need {
+		t.Fatalf("fitted width %v < needed %v", columns[0].Width, need)
+	}
+}
+
+func TestFitSortableTableHeadingsIncludesTheEndInset(t *testing.T) {
+	theme := gfx.LightTheme()
+	columns := []TableColumn{{Width: 1, EndInset: 40}}
+	var canvas gfx.Canvas
+	FitSortableTableHeadings(&canvas, theme, columns[:], []TableHeader{{ID: gfx.Item(1), Label: "Command"}})
+	need := float32(math.Ceil(float64(canvas.TextWidthWeight("Command", theme.Metrics.FontSizeM, gfx.WeightMedium)))) +
+		2*theme.Metrics.GapItem + 40 + tableSortIconSize + tableSortIconGap
+	if columns[0].Width < need {
+		t.Fatalf("fitted width %v < needed %v", columns[0].Width, need)
+	}
+}
+
+// lastFillCovering returns the last painted rectangle covering point, the one
+// that decides what the frame shows there.
+func lastFillCovering(rectangles []gfx.Rectangle, point gfx.Point) (gfx.Rectangle, bool) {
+	var found gfx.Rectangle
+	ok := false
+	for _, rectangle := range rectangles {
+		if point.X >= rectangle.Bounds.X && point.X < rectangle.Bounds.Right() &&
+			point.Y >= rectangle.Bounds.Y && point.Y < rectangle.Bounds.Bottom() {
+			found, ok = rectangle, true
+		}
+	}
+	return found, ok
+}
+
+func TestTableDetailContinuesUnderTheExpandedRow(t *testing.T) {
+	theme := gfx.DarkTheme()
+	columns := []TableColumn{{Width: 120}, {Width: 0}}
+	var canvas gfx.Canvas
+	table := BeginTable(&canvas, theme, gfx.Rect{Width: 400, Height: 400}, columns)
+	table.Header([]string{"Name", "Command"})
+	row := table.RowLayout(gfx.Item(1), []string{"Deploy", "for i in 1 2 3; do"}, TableRowState{Expanded: true}, nil)
+	detail := table.Detail(80)
+	if detail.Y != row.Bounds.Bottom() || detail.Height != 80 {
+		t.Fatalf("detail = %+v, want 80 px below the row bottom %v", detail, row.Bounds.Bottom())
+	}
+	// The row keeps its border at the seam, and the band below is painted on the
+	// table's background with an accent bar, not on the row's surface.
+	seam := gfx.Point{X: detail.X, Y: detail.Y - 1}
+	covering, ok := lastFillCovering(canvas.Rectangles(), seam)
+	if !ok || covering.Color != theme.Border {
+		t.Fatalf("the seam is painted %+v, want the row's border", covering)
+	}
+	body := gfx.Point{X: detail.X + tableDetailBar + 1, Y: detail.Y + detail.Height/2}
+	if fill, ok := lastFillCovering(canvas.Rectangles(), body); !ok || fill.Color != theme.Background {
+		t.Fatalf("the detail is painted %+v, want the table's background", fill)
+	}
+	bar := gfx.Point{X: detail.X + 1, Y: detail.Y + detail.Height/2}
+	fill, ok := lastFillCovering(canvas.Rectangles(), bar)
+	if !ok || fill.Color.Red != theme.Primary.Red || fill.Color.Green != theme.Primary.Green || fill.Color.Blue != theme.Primary.Blue {
+		t.Fatalf("the detail's leading bar is painted %+v, want the accent color", fill)
+	}
+	next := table.RowLayout(gfx.Item(2), []string{"Cleanup", "rm -rf build"}, TableRowState{}, nil)
+	if next.Bounds.Y != detail.Bottom() {
+		t.Fatalf("the next row starts at %v, want %v", next.Bounds.Y, detail.Bottom())
+	}
+}
+
+func TestTableDetailClipsToTheRoomLeft(t *testing.T) {
+	theme := gfx.DarkTheme()
+	columns := []TableColumn{{Width: 0}}
+	height := TableHeaderHeight(theme) + TableRowHeight(theme) + 30
+	var canvas gfx.Canvas
+	table := BeginTable(&canvas, theme, gfx.Rect{Width: 300, Height: height}, columns)
+	table.Header([]string{"Command"})
+	table.RowLayout(gfx.Item(1), []string{"x"}, TableRowState{Expanded: true}, nil)
+	detail := table.Detail(500)
+	if detail.Height != 30 || detail.Bottom() != height {
+		t.Fatalf("detail = %+v, want the 30 px left above the table's bottom %v", detail, height)
+	}
+	if after := table.Detail(30); after != (gfx.Rect{}) {
+		t.Fatalf("a detail with no room left is %+v, want nothing", after)
+	}
+}
+
+func TestTableDetailAddsNoSelectionText(t *testing.T) {
+	columns := []TableColumn{{Width: 0}}
+	var canvas gfx.Canvas
+	var state TableTextState
+	table := BeginTable(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 300, Height: 300}, columns)
+	table.Selection = TableSelection{Enabled: true}
+	table.UseSelectionState(&state)
+	table.Header([]string{"Command"})
+	table.Row(gfx.Item(1), []string{"echo hi"}, false)
+	before := table.TextLen()
+	table.Detail(60)
+	if got := table.TextLen(); got != before {
+		t.Fatalf("the table text grew from %d to %d bytes: a detail is not a row", before, got)
+	}
+}
+
+func BenchmarkTableDetailPaint(b *testing.B) {
+	var canvas gfx.Canvas
+	columns := []TableColumn{{Width: 160}, {Width: 0}}
+	b.ReportAllocs()
+	for b.Loop() {
+		canvas.Reset()
+		table := BeginTable(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 1000, Height: 400}, columns)
+		table.Header([]string{"Name", "Command"})
+		table.RowState(gfx.Item(1), []string{"Deploy", "for i in 1 2 3; do echo $i; done"}, TableRowState{Expanded: true})
+		table.Detail(120)
+		table.Row(gfx.Item(2), []string{"Cleanup", "rm -rf build"}, false)
 	}
 }

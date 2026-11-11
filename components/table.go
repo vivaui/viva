@@ -25,6 +25,9 @@ type TableColumn struct {
 	// Inset reserves leading content space inside a left-aligned cell, for
 	// example an application-painted file icon.
 	Inset float32
+	// EndInset reserves trailing content space inside a left-aligned cell, for
+	// example an application-painted expander.
+	EndInset float32
 }
 
 // TableSelection is an optional text selection for a Table. Anchor and Focus
@@ -251,6 +254,47 @@ func (table *Table) RowLayout(id gfx.ID, cells []string, state TableRowState, ds
 	return table.paintRow(id, cells, state, tableRowBody, dst)
 }
 
+// Detail paints the detail area an expanded body row shows under it, like the
+// full-width second row a data table adds for an expanded row, and returns its
+// bounds for the caller to paint into. The area is a recessed band on the table's
+// own background, ruled off from the row above and marked by an accent bar at its
+// leading edge, so a detail never reads as another line of its row. It advances
+// the row cursor and clips to the room left above the table's bottom edge. It
+// draws no hit and adds nothing to the selection text: TextLen, SelectedText and
+// OffsetAt keep addressing the table's real rows only.
+//
+// The caller clips what it paints into the returned bounds and keeps its content
+// clear of the leading bar; a long detail that does not fit is the caller's to
+// cap.
+func (table *Table) Detail(height float32) gfx.Rect {
+	bottom := table.bounds.Y + table.bounds.Height
+	if len(table.columns) == 0 || height <= 0 || table.y >= bottom {
+		return gfx.Rect{}
+	}
+	height = table.rowHeightFor(height)
+	if height <= 0 {
+		return gfx.Rect{}
+	}
+	bounds := gfx.Rect{X: table.bounds.X, Y: table.y, Width: table.bounds.Width, Height: height}
+	table.canvas.Fill(bounds, table.theme.Background)
+	// The row above already put its border at bounds.Y-1. The band sits on the
+	// table's background instead of the row's surface, and a bar at its leading
+	// edge marks it as belonging to the row without reading as part of it.
+	if bar := min(tableDetailBar, height); bar > 0 {
+		accent := table.theme.Primary
+		accent.Alpha *= 0.7
+		table.canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bar, Height: height}, accent)
+	}
+	table.y += height
+	if table.y < bottom {
+		table.canvas.Fill(gfx.Rect{X: bounds.X, Y: table.y - 1, Width: bounds.Width, Height: 1}, table.theme.Border)
+	}
+	return bounds
+}
+
+// tableDetailBar is the width of a Detail's leading accent bar.
+const tableDetailBar = float32(3)
+
 // Footer paints the official muted, medium-weight footer row.
 func (table *Table) Footer(cells []string) {
 	table.paintRow(gfx.ID{}, cells, TableRowState{}, tableRowFooter, nil)
@@ -366,14 +410,15 @@ func (table *Table) paintRow(id gfx.ID, cells []string, state TableRowState, kin
 		if index < len(cells) {
 			value = cells[index]
 		}
-		inset := float32(0)
+		inset, endInset := float32(0), float32(0)
 		if column.Alignment == TableAlignLeft {
-			inset = min(column.Inset, max(cellBounds.Width-pad*2, 0))
+			inset = min(max(column.Inset, 0), max(cellBounds.Width-pad*2, 0))
+			endInset = min(max(column.EndInset, 0), max(cellBounds.Width-pad*2-inset, 0))
 		}
 		textBounds := gfx.Rect{
 			X:      cellBounds.X + pad + inset,
 			Y:      cellBounds.Y,
-			Width:  tableMax32(0, cellBounds.Width-pad*2-inset),
+			Width:  tableMax32(0, cellBounds.Width-pad*2-inset-endInset),
 			Height: cellBounds.Height,
 		}
 		field := tableTextField{}
@@ -596,7 +641,7 @@ func FitTableHeadings(canvas *gfx.Canvas, theme gfx.Theme, columns []TableColumn
 		need := canvas.TextWidthWeight(headings[index], theme.Metrics.FontSizeM, gfx.WeightMedium)
 		inset := float32(0)
 		if column.Alignment == TableAlignLeft {
-			inset = column.Inset
+			inset = max(column.Inset, 0) + max(column.EndInset, 0)
 		}
 		// A heading is measured to the pixel, so round it up: it must fit, not tie.
 		column.Width = max(column.Width, float32(math.Ceil(float64(need)))+pad+inset)
@@ -821,7 +866,7 @@ func FitSortableTableHeadings(canvas *gfx.Canvas, theme gfx.Theme, columns []Tab
 		need := canvas.TextWidthWeight(headings[index].Label, theme.Metrics.FontSizeM, gfx.WeightMedium)
 		need = float32(math.Ceil(float64(need))) + 2*theme.Metrics.GapItem
 		if column.Alignment == TableAlignLeft {
-			need += max(column.Inset, 0)
+			need += max(column.Inset, 0) + max(column.EndInset, 0)
 		}
 		if !headings[index].ID.IsZero() {
 			need += tableSortIconSize + tableSortIconGap
@@ -937,6 +982,8 @@ func (table *Table) paintSortableHeaderCell(
 	if column.Alignment == TableAlignLeft {
 		inset := min(max(column.Inset, 0), max(textBounds.Width, 0))
 		textBounds.X, textBounds.Width = textBounds.X+inset, max(textBounds.Width-inset, 0)
+		endInset := min(max(column.EndInset, 0), textBounds.Width)
+		textBounds.Width -= endInset
 	}
 	style := gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color}
 	if !interactive {
