@@ -522,6 +522,12 @@ func (s *ListState) applyScrollRequest(f *Frame) {
 		// the offset to anyway.
 		target = scroll.Max()
 	}
+	if toEnd && target < 0 {
+		// A list shorter than the viewport sits at its end already, at offset
+		// zero, where the target past the top of the content would never land
+		// and the request would idle for its frame limit instead.
+		target = 0
+	}
 	settled := target >= scroll.Offset-listScrollSlack && target <= scroll.Offset+listScrollSlack
 	// A pin moves the offset at the end of a layout, so the paint that follows the
 	// request still shows the rows the list was at: the end is where it should be

@@ -226,6 +226,22 @@ func TestListScrollToEndLandsAtTheEnd(t *testing.T) {
 	}
 }
 
+// ScrollToEnd of a list shorter than the viewport settles at once: the list
+// already shows its end, and the request would only idle for its frame limit.
+func TestListScrollToEndOfAShortListSettlesAtOnce(t *testing.T) {
+	m := newLogRows(3)
+	d := openPage(t, m.page)
+	d.repaint()
+	m.list.ScrollToEnd()
+	d.repaint()
+	if d.driver.Transitioning() {
+		t.Fatal("a list shorter than the viewport asked for paints to reach the end it shows")
+	}
+	if !m.list.AtEnd() || !d.has("row 2") {
+		t.Fatalf("ScrollToEnd: at the end %v, Visible %v, the last row painted %v", m.list.AtEnd(), visibleOf(&m.list), d.has("row 2"))
+	}
+}
+
 // A request lets go when the user scrolls while it is still settling, instead of
 // pulling the list back to the row it was asked to show.
 func TestListScrollToLetsGoOfAUserScroll(t *testing.T) {
