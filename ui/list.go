@@ -90,6 +90,7 @@ type listInternals struct {
 	pendingRow   int32      // 1 + the row it asked to show
 	pendingAt    float32    // where the last paint of it left the offset
 	pendingFrame uint8      // the paints it has been applied in, counted to a bound
+	followFrame  uint8      // the paints a following list asked for to reach its end, counted to a bound
 	declared     []listDeclRow
 	f            *frame
 	typeahead    components.MenuTypeahead
@@ -554,11 +555,22 @@ func (s *ListState) applyScrollRequest(f *frame) bool {
 }
 
 // afterLayout records where a pending request left the list, so the next paint can
-// tell an offset the request moved from one something else moved.
+// tell an offset the request moved from one something else moved, and asks for the
+// paint a following list needs when this one did not place its last row: the first
+// paint of a list that starts following, whose rows were placed before Follow said
+// so, or one whose estimated heights fell short of the end.
 func (s *ListState) afterLayout() {
 	in := &s.list
 	if in.pending != listScrollNone && in.scroll != nil {
 		in.pendingAt = in.scroll.Offset
+	}
+	if in.scroll == nil || !in.scroll.pinned() || in.last >= in.n-1 {
+		in.followFrame = 0
+		return
+	}
+	if in.followFrame < listScrollFrames && in.f != nil && in.f.canvas != nil {
+		in.followFrame++
+		in.f.canvas.RequestFrame()
 	}
 }
 
@@ -837,7 +849,11 @@ func blockBehind(d *DrawContext) { d.Canvas.Block(d.Rect) }
 // i's element.
 func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(i int, box Box)) Box {
 	at, _ := p.name(pkContainer)
-	area := c.f.ScrollArea(p.id(at))
+	id := p.id(at)
+	// Follow is declared on the area the List returns, after its rows: whether the area
+	// keeps to its end is what the paint before left it, as ScrollState.Pinned says.
+	pinned := c.f.scrolls.get(id).pinned()
+	area := c.f.ScrollArea(id)
 	p.setNode(area.i, at)
 	in := &state.list
 	in.n, in.area, in.pinned = n, area.i, -1
@@ -849,14 +865,20 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 		// takes the requested one too, which the rows are placed for below (as ScrollAt).
 		c.f.nodes[area.i].scroll = scroll.Offset
 	}
-	// The rows are placed and hit-tested on whole logical pixels, as the layout
-	// applies them, so a label's native texture survives a fractional scroll.
-	offset := snapScroll(scroll.Offset)
-	c.f.nodes[area.i].scroll = offset
 	viewport := scroll.Viewport
 	if viewport <= 0 {
 		viewport = c.f.bounds.Height
 	}
+	if pinned || scroll.pinned() {
+		// The layout puts the area at its end, which the rows that arrived since the
+		// last paint moved: the rows are placed for that end, not for the offset the
+		// area had, which would leave the paint that adds them blank.
+		scroll.Offset = max(state.top(n)-viewport, 0)
+	}
+	// The rows are placed and hit-tested on whole logical pixels, as the layout
+	// applies them, so a label's native texture survives a fractional scroll.
+	offset := snapScroll(scroll.Offset)
+	c.f.nodes[area.i].scroll = offset
 	first := max(state.rowAt(offset)-listOverscan, 0)
 	if in.n == 0 {
 		first = 0
