@@ -17,7 +17,7 @@ type widgets struct {
 	// popoverFocus holds the panels whose InitialFocusID was already asked for.
 	// It outlives reset because a panel is open across paints, and is swept at
 	// the next Begin for the panels the last paint no longer declared.
-	popoverFocus []gfx.ID
+	popoverFocus []popoverFocusAsk
 	splits       []splitDecl
 	sliders      []sliderDecl
 	cells        []string // one row's text, handed to components.Table
@@ -33,23 +33,28 @@ func (w *widgets) reset() {
 	w.layer = 0
 }
 
-// popoverFocusKey names an open panel for the once-only InitialFocusID request:
-// its focus scope, or the control itself when the panel has no scope.
-func popoverFocusKey(spec *PopoverSpec) gfx.ID {
-	if !spec.Scope.IsZero() {
-		return spec.Scope
-	}
-	return spec.InitialFocusID
+// popoverFocusAsk names one InitialFocusID request a panel already made: its
+// focus scope together with the id it asked for, so the request is once per
+// target, and a panel that changes its InitialFocusID while it stays open, as
+// a bulk action appearing over a list does, asks once more for the new target.
+func popoverFocusAskFor(spec *PopoverSpec) popoverFocusAsk {
+	return popoverFocusAsk{scope: spec.Scope, id: spec.InitialFocusID}
+}
+
+// popoverFocusAsk is the panel and target of one already-made request.
+type popoverFocusAsk struct {
+	scope gfx.ID
+	id    gfx.ID
 }
 
 // sweepPopoverFocus forgets the panels the last paint no longer declared, so a
 // panel that opens again, or another popover, asks for the keyboard once more.
 func (w *widgets) sweepPopoverFocus() {
 	kept := w.popoverFocus[:0]
-	for _, key := range w.popoverFocus {
+	for _, ask := range w.popoverFocus {
 		for i := range w.popovers {
-			if popoverFocusKey(&w.popovers[i].spec) == key {
-				kept = append(kept, key)
+			if popoverFocusAskFor(&w.popovers[i].spec) == ask {
+				kept = append(kept, ask)
 				break
 			}
 		}
@@ -58,9 +63,9 @@ func (w *widgets) sweepPopoverFocus() {
 }
 
 // popoverAsked reports whether this panel already asked for its InitialFocusID.
-func (w *widgets) popoverAsked(key gfx.ID) bool {
+func (w *widgets) popoverAsked(ask popoverFocusAsk) bool {
 	for _, seen := range w.popoverFocus {
-		if seen == key {
+		if seen == ask {
 			return true
 		}
 	}

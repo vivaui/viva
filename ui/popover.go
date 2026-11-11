@@ -110,12 +110,12 @@ func (f *Frame) paintPopover(i int32, n *node) {
 	canvas.PushLayer(layer)
 	canvas.PushFocusScope(spec.Scope)
 	canvas.ReturnFocus(spec.Scope)
-	if !spec.InitialFocusID.IsZero() && !f.widgets.popoverAsked(popoverFocusKey(spec)) {
+	if !spec.InitialFocusID.IsZero() && !f.widgets.popoverAsked(popoverFocusAskFor(spec)) {
 		// As AutoFocus is: the keyboard is asked for as the panel opens, not on
 		// every paint, so moving the focus inside the panel stays where the user
 		// put it.
 		canvas.RequestFocus(spec.InitialFocusID)
-		f.widgets.popoverFocus = append(f.widgets.popoverFocus, popoverFocusKey(spec))
+		f.widgets.popoverFocus = append(f.widgets.popoverFocus, popoverFocusAskFor(spec))
 	}
 	if !spec.DismissID.IsZero() {
 		pass := !spec.ConsumeOutsidePress
