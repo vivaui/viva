@@ -108,4 +108,5 @@ func movedFrom(prev []string, label string, number int) bool {
 type fieldEntry struct {
 	id    gfx.ID
 	field *Field
+	key   func(gfx.KeyEvent) gfx.EventResult // Box.OnKey, while this field has the keyboard
 }

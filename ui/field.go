@@ -82,7 +82,7 @@ func (field *Field) SetText(value string) {
 // Field adds a text field for field, named id (a stable identity from your Tree),
 // with an accessible label and placeholder. It is Input with the snapshot taken from
 // the field: focus, platform editing and the caret are filled in for you.
-func (f *Frame) Field(field *Field, id gfx.ID, label, placeholder string) Box {
+func (f *frame) Field(field *Field, id gfx.ID, label, placeholder string) Box {
 	return f.Input(field.snapshot(f, id, label, placeholder))
 }
 
@@ -92,7 +92,7 @@ func (f *Frame) Field(field *Field, id gfx.ID, label, placeholder string) Box {
 // from, such as the editor of a table cell.
 //
 //	f.FieldBase(&m.cell, cellID, "Cell", "").Pad(8).Border(2, theme.Primary).Radius(0)
-func (f *Frame) FieldBase(field *Field, id gfx.ID, label, placeholder string) Box {
+func (f *frame) FieldBase(field *Field, id gfx.ID, label, placeholder string) Box {
 	return f.InputBase(field.snapshot(f, id, label, placeholder))
 }
 
@@ -102,7 +102,7 @@ func (f *Frame) FieldBase(field *Field, id gfx.ID, label, placeholder string) Bo
 // otherwise). It has no Submitted: Enter is a new line.
 //
 //	f.FieldArea(&m.notes, notesID, "Notes", "Anything to add").Height(120)
-func (f *Frame) FieldArea(field *Field, id gfx.ID, label, placeholder string) Box {
+func (f *frame) FieldArea(field *Field, id gfx.ID, label, placeholder string) Box {
 	input := field.snapshot(f, id, label, placeholder)
 	if field.area == nil {
 		field.area = new(components.TextareaLayout)
@@ -141,7 +141,7 @@ func (field *Field) Key(event gfx.KeyEvent) gfx.EventResult {
 
 // snapshot is what the field is painted from: focus, platform editing and the caret are
 // filled in for the frame being declared.
-func (field *Field) snapshot(f *Frame, id gfx.ID, label, placeholder string) components.InputSnapshot {
+func (field *Field) snapshot(f *frame, id gfx.ID, label, placeholder string) components.InputSnapshot {
 	field.rows = false // FieldArea sets it again after
 	editor := field.ensure()
 	field.id = id
@@ -186,6 +186,60 @@ func (b Box) Submitted() bool {
 		return false
 	}
 	return b.f.canvas.ClickedByKey(b.f.inputs[n.aux].ID)
+}
+
+// OnKey gives the field a handler for the keys pressed while it has the
+// keyboard, before the page routes them anywhere else: a search field whose Up
+// and Down move a list below it, and whose Escape closes it. The handler is a
+// chain on the TextField or TextFieldID box:
+//
+//	search := ui.TextField(c, &m.query, "Search", "")
+//	search.OnKey(func(event gfx.KeyEvent) gfx.EventResult {
+//		switch event.Key {
+//		case gfx.KeyDown:
+//			m.next()
+//			return gfx.EventResult{Handled: true, Repaint: true}
+//		case gfx.KeyEnter:
+//			m.open()
+//			return gfx.EventResult{Handled: true}
+//		}
+//		return gfx.EventResult{}
+//	})
+//
+// Returning Handled claims the key; returning anything else leaves it to the
+// page's other routes, so Enter can still submit the form and Escape can still
+// close an overlay. Keys that type text are never offered, so typing always
+// reaches the field. The handler also switches the field to NavigationKeys:
+// Up, Down, PageUp and PageDown reach the application instead of moving the
+// caret, which is what a command palette needs.
+//
+// Not inside a Memo, whose copied fields are not declared.
+func (b Box) OnKey(handler func(gfx.KeyEvent) gfx.EventResult) Box {
+	n := b.n()
+	if n.kind != kindInput {
+		panic("ui: OnKey is for a TextField")
+	}
+	if handler == nil {
+		panic("ui: OnKey needs a handler")
+	}
+	if b.f.memoDepth > 0 {
+		panic("ui: OnKey in a Memo: a copied field is not declared, so its handler would disappear; declare it outside the Memo")
+	}
+	p := b.f.page
+	if p == nil {
+		panic("ui: OnKey is for a TextField of a page")
+	}
+	for i := len(p.fields) - 1; i >= 0; i-- {
+		if p.fields[i].id == n.id {
+			p.fields[i].key = handler
+			if p.fieldKeyRoute == nil {
+				p.keyRoute, p.fieldKeyRoute = (*Page).routeKey, (*Page).fieldKey
+			}
+			b.f.inputs[n.aux].NavigationKeys = true
+			return b
+		}
+	}
+	panic("ui: OnKey must be chained on a TextField or TextFieldID")
 }
 
 // Fields answers Config.TextInput for the fields: the platform asks which editor

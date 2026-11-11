@@ -42,7 +42,7 @@ func (b Box) BesideLeftBox(anchor Box, gap float32, align Align) Box {
 }
 
 // placePopup sets a Popup's size and position on an axis by the rule above.
-func (f *Frame) placePopup(n *node, axis int) {
+func (f *frame) placePopup(n *node, axis int) {
 	bounds := f.bounds
 	if n.ext != 0 {
 		if w := f.exts[n.ext].within; w.Width > 0 && w.Height > 0 {

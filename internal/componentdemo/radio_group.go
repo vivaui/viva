@@ -94,9 +94,9 @@ func (state *State) paintRadioGroup(canvas *gfx.Canvas, theme gfx.Theme, size gf
 		height = theme.Metrics.ControlHeight
 	}
 	var slot ui.Box
-	state.page(canvas, theme, size, 520, "Workspace plan", func(f *ui.Frame) {
-		slot = f.Slot().Height(height)
-		caption(f, state.Text("方向键移动焦点并更新调用方选中值。", "Arrow keys move focus and update the caller's selection."))
+	state.drawPage(canvas, theme, size, 520, "Workspace plan", func(c ui.C) {
+		slot = ui.Slot(c).Height(height)
+		caption(c, state.Text("方向键移动焦点并更新调用方选中值。", "Arrow keys move focus and update the caller's selection."))
 	})
 
 	options := state.radioGroupOptionsFor()

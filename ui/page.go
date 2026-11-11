@@ -28,8 +28,9 @@ package ui
 // works as its place does. Names are exact paths in a gfx.Tree, such as
 // "page/~k0/#0", which the headless driver and the logs print.
 //
-// The Frame underneath (C.Frame) is the layer with identities of the
-// application's own, for what a central click dispatcher or a custom painter needs.
+// The engine underneath is not part of the application model: a page does not
+// expose it, and the frame and view types are unexported. A component is a
+// function of C; a preview draws a Page.
 
 import (
 	"context"
@@ -51,7 +52,7 @@ type C = *Ctx
 // paint do not.
 type Ctx struct {
 	page *Page
-	f    *Frame
+	f    *frame
 	// next names the next element instead of its place: a Key, an index or a part.
 	next     protoName
 	nextSet  bool
@@ -97,7 +98,7 @@ func (c *Ctx) After(fn func()) {
 }
 
 // ID is the identity of a control of the application's own declared next (one
-// made with the Frame, or a recipe taking an ID): named by its number among such
+// made with the frame, or a recipe taking an ID): named by its number among such
 // controls in the container being filled, or by the Key or Part set before it.
 func ID(c C) gfx.ID { return c.page.controlID(pkCustom) }
 
@@ -113,7 +114,7 @@ func (c *Ctx) Bounds() Rect { return c.f.Bounds() }
 func (c *Ctx) Canvas() *gfx.Canvas { return c.f.Canvas() }
 
 // PopupLayer raises the popups the page declares (menus, combobox lists,
-// dialogs) to layer, as Frame.PopupLayer does for a Frame's popups: a widget's
+// dialogs) to layer, as frame.PopupLayer does for a frame's popups: a widget's
 // popup uses the higher of its own layer plus two and this one.
 func PopupLayer(c C, layer uint16) { c.f.PopupLayer(layer) }
 
@@ -203,13 +204,13 @@ type PageConfig struct {
 }
 
 // Page is a window's declaration: one tree for the whole window. A Page lives
-// across paints, as its C, Box and Frame values do not.
+// across paints, as its C, Box and frame values do not.
 type Page struct {
 	config     PageConfig
 	checkMemos bool
 	tree       *gfx.Tree
 	root       gfx.Scope
-	view       View
+	view       view
 	ctx        Ctx
 	theme      Theme
 	themeSet   bool
@@ -274,6 +275,7 @@ type Page struct {
 	// Control, TextArea or Shortcut a page declares, so a page without them does
 	// not link what routes their input.
 	keyRoute      func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
+	fieldKeyRoute func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the focused field's Box.OnKey
 	pointerRoute  func(*Page, gfx.PointerEvent) (gfx.EventResult, bool)
 	areaKey       func(*Field, gfx.KeyEvent) gfx.EventResult
 	shortcutRoute func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
@@ -390,9 +392,15 @@ func (p *Page) owns(id gfx.ID) bool {
 	return p.tree != nil && !id.IsZero() && p.tree.Within(id.Scope(), p.root)
 }
 
-// routeKey gives a key to the Combobox it is typed in or the open Menu it moves in,
-// else the Shortcut it presses, else the Control or TextArea it is for.
+// routeKey gives a key to the focused field's OnKey handler, then to the Combobox
+// it is typed in or the open Menu it moves in, else the Shortcut it presses, else
+// the Control or TextArea it is for.
 func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if p.fieldKeyRoute != nil {
+		if result, ok := p.fieldKeyRoute(p, event); ok {
+			return result, true
+		}
+	}
 	if p.comboRoute != nil {
 		if result, ok := p.comboRoute(p, event); ok {
 			return result, true
@@ -445,6 +453,27 @@ func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		if result, ok := p.groupRoute(p, event); ok {
 			return result, true
 		}
+	}
+	return gfx.EventResult{}, false
+}
+
+// fieldKey gives a key to the handler Box.OnKey put on the focused field. Keys
+// that type text stay with the text system, so a handler cannot take typing away,
+// and a key it leaves unhandled goes on to the page's other routes.
+func (p *Page) fieldKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if event.Release || event.Text != "" || event.Key == gfx.KeyUnknown ||
+		event.Key == gfx.KeySpace || event.Key.IsModifier() {
+		return gfx.EventResult{}, false
+	}
+	for i := range p.fields {
+		entry := &p.fields[i]
+		if entry.key == nil || entry.id != event.Target {
+			continue
+		}
+		if result := entry.key(event); result.Handled {
+			return result, true
+		}
+		return gfx.EventResult{}, false
 	}
 	return gfx.EventResult{}, false
 }
@@ -549,7 +578,7 @@ func (p *Page) currentTheme() Theme {
 // OnShortcut and OnPointer:
 //
 //   - Tree: base's is adopted when the page was given none; a different one panics.
-//   - Paint paints View over the whole window.
+//   - Paint paints view over the whole window.
 //   - TextInput answers for the page's TextFields and asks base's for any other
 //     focused field (a terminal of the application's, say).
 //   - OnScroll scrolls an open Select, then the page's scroll areas, and gives
@@ -563,7 +592,7 @@ func (p *Page) currentTheme() Theme {
 // base's OnClosed. Nothing else is touched.
 func (p *Page) Config(base app.Config) app.Config {
 	if p.config.View == nil {
-		panic("ui: Page.Config needs PageConfig.View, the function that declares the page")
+		panic("ui: Page.Config needs PageConfig.view, the function that declares the page")
 	}
 	p.init(base.Tree)
 	if base.Tree != nil && base.Tree != p.tree {
@@ -612,7 +641,7 @@ func (p *Page) Config(base app.Config) app.Config {
 // is the Config's Paint.
 func (p *Page) Paint(canvas *gfx.Canvas, size Size) {
 	if p.config.View == nil {
-		panic("ui: Page.Paint needs PageConfig.View, the function that declares the page")
+		panic("ui: Page.Paint needs PageConfig.view, the function that declares the page")
 	}
 	p.init(nil)
 	p.window = true
@@ -628,9 +657,10 @@ func (p *Page) Paint(canvas *gfx.Canvas, size Size) {
 
 // Draw declares view in bounds of canvas. When a Memo's copy does not fit where
 // the page put it, what the page painted is taken back and it is painted again,
-// with that Memo declared. A page drawn into a Frame slot by Slot.Draw is laid
+// with that Memo declared. A page drawn into a frame slot by Slot.Draw is laid
 // out at the slot's rectangle; a page given no Tree names its controls in the
-// canvas's.
+// canvas's. A host that draws a page this way routes its input with Key,
+// Pointer, Wheel and TextInput; Config does that for a whole window.
 func (p *Page) Draw(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	if tree := canvas.Tree(); tree != nil && tree.Len() != 0 {
 		p.init(tree) // a page inside a window names its controls in the window's Tree
@@ -712,7 +742,7 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 }
 
 // current is the container being filled that the page named: a container the
-// Frame made for itself (a Dialog's surface) is looked through.
+// frame made for itself (a Dialog's surface) is looked through.
 func (p *Page) current() int32 {
 	for i := p.ctx.f.parent; i >= 0; i = p.ctx.f.nodes[i].parent {
 		if int(i) < len(p.nodes) && p.nodes[i].named {
@@ -992,8 +1022,23 @@ func (p *Page) TextInput(context app.TextInputContext) *app.TextInput {
 	return nil
 }
 
+// Key routes a key event for a page the application draws into a region of its
+// own (Draw, not Paint): its tabs, shortcuts, controls and drag states. A page
+// that paints a whole window gets the same routing from Config's OnKey. Give the
+// page the event before the host's own key handling, and do not call it for a
+// page Config already routes.
+func (p *Page) Key(event gfx.KeyEvent) gfx.EventResult { return p.onKey(event) }
+
+// Pointer routes a pointer event for a page the application draws into a region
+// of its own (Draw, not Paint): its controls and drag states. A page that paints
+// a whole window gets the same routing from Config's OnPointer, so a host that
+// embeds a page calls this and does not also give the event to the window's
+// OnPointer.
+func (p *Page) Pointer(event gfx.PointerEvent) gfx.EventResult { return p.onPointer(event) }
+
 // Wheel scrolls an open Select, else the scroll area under the pointer, and gives
-// an event neither takes to the OnScroll Config was given. It is the Config's OnScroll.
+// an event neither takes to the OnScroll Config was given. It is the Config's
+// OnScroll; a host that draws a page into a region calls it itself.
 func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	if h := p.controlOf(event.Target); h != nil && h.Scroll != nil {
 		if result := h.Scroll(event); result.Handled {

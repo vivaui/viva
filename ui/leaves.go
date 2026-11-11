@@ -27,7 +27,7 @@ const (
 //
 //	f.Progress(m.done / m.total).Height(8)
 //	f.Progress(0).Indeterminate()
-func (f *Frame) Progress(fraction float32) Box {
+func (f *frame) Progress(fraction float32) Box {
 	b := f.box(kindProgress)
 	f.nodes[b.i].natural = max(fraction, 0)
 	if fraction != fraction {
@@ -53,11 +53,11 @@ func (b Box) Indeterminate() Box {
 // Declare it only while the work runs.
 //
 //	if m.loading { f.Spinner() }
-func (f *Frame) Spinner() Box { return f.box(kindSpinner) }
+func (f *frame) Spinner() Box { return f.box(kindSpinner) }
 
 // visible reports whether any of element n is inside the frame and every clip it sits
 // in: the elements that animate ask for frames only then.
-func (f *Frame) visible(n *node) bool {
+func (f *frame) visible(n *node) bool {
 	r := intersect(n.rect, f.bounds)
 	for p := n.parent; p >= 0 && r.Width > 0 && r.Height > 0; p = f.nodes[p].parent {
 		if f.nodes[p].flags&flagClip != 0 {
@@ -72,7 +72,7 @@ func intersect(a, b Rect) Rect {
 	return Rect{X: x, Y: y, Width: min(a.X+a.Width, b.X+b.Width) - x, Height: min(a.Y+a.Height, b.Y+b.Height) - y}
 }
 
-func (f *Frame) paintProgress(n *node) {
+func (f *frame) paintProgress(n *node) {
 	r := n.rect
 	if n.natural >= 0 {
 		components.Progress(f.canvas, f.theme, r, n.natural)
@@ -100,7 +100,7 @@ func (f *Frame) paintProgress(n *node) {
 	canvas.Unclip()
 }
 
-func (f *Frame) paintSpinner(n *node) {
+func (f *frame) paintSpinner(n *node) {
 	canvas := f.canvas
 	phase := components.SpinnerPhase(0)
 	if !canvas.ReduceMotion() {

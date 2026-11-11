@@ -30,8 +30,9 @@ type model struct {
 
 func newModel() *model {
 	m := &model{split: ui.SplitterState{Pos: 220}}
-	// ListState.Label is the row's name for assistive technology, for the text
-	// type-ahead matches, and for a test looking a row up by name.
+	// ListState.Label is the row's name for assistive technology and the text
+	// type-ahead matches; Name names it for assistive technology instead, and
+	// NoTypeahead turns the typing off.
 	m.list.Label = func(i int) string { return mailboxes[i] }
 	return m
 }
@@ -112,9 +113,9 @@ func main() {
 
 ## 标识
 
-页面不会手工给元素命名。它按元素在父容器中同类元素里的位置命名，行则用 `c.Key`、`c.KeyInt`，或在 `ui.List` 里用 `ListState.Key` 命名，所以即使在上面插入行，焦点、悬停和按下仍会跟着那一行走。这些名字同时也是无障碍名称：`ListState.Label` 为辅助技术命名一行，也是输入前几个字母时跳转到的行，还是测试查找控件时使用的名字；`Box.Label` 为容器（例如列表）命名。测试用用户听到的同一个名字找到控件，不需要自己写坐标或树标识。
+页面不会手工给元素命名。它按元素在父容器中同类元素里的位置命名，行则用 `c.Key`、`c.KeyInt`，或在 `ui.List` 里用 `ListState.Key` 命名，所以即使在上面插入行，焦点、悬停和按下仍会跟着那一行走。这些名字同时也是无障碍名称：`ListState.Label` 为辅助技术命名一行，也是输入前几个字母时跳转到的行，还是测试查找控件时使用的名字；一行的朗读名比它的文字更多时，把 `ListState.Name` 设为那一行的名字，辅助技术读它、测试也用它查找，`ListState.Label` 仍只用于输入跳转；`Box.Label` 为容器（例如列表）命名。测试用用户听到的同一个名字找到控件，不需要自己写坐标或树标识。
 
-自己的控件用 `ui.ID(c)` 命名。用 `ui.Frame` 编写的组件自己在一棵 `gfx.Tree` 里声明命中区域；绘制到画布里的页面沿用画布的那棵树；应用页面两者都不写。
+自己的控件用 `ui.ID(c)` 命名。应用页面既不手写 `gfx.Tree`，也不手工命名控件。
 
 ## 指针
 
@@ -126,7 +127,7 @@ func main() {
 
 ## 键盘与焦点
 
-页面把按键路由给持有焦点的控件。`ui.List` 自己使用它们：上和下移动选择，Home 和 End 到第一行和最后一行，Page Up 和 Page Down 按一屏移动，Enter 或双击由 `ListState.Submitted()` 报告，输入 `ListState.Label` 给出的名字的开头会跳到那一行。菜单打开时自己拿走方向键和 Escape，文本框自己拿走编辑键，都不需要处理函数。
+页面把按键路由给持有焦点的控件。`ui.List` 自己使用它们：上和下移动选择，Home 和 End 到第一行和最后一行，Page Up 和 Page Down 按一屏移动，Enter 或双击由 `ListState.Submitted()` 报告，输入 `ListState.Label` 给出的名字的开头会跳到那一行（`ListState.NoTypeahead` 则把打出来的按键留给页面）。菜单打开时自己拿走方向键和 Escape，文本框自己拿走编辑键，都不需要处理函数。`ui.List` 返回的 box 上的 `Shortcut` 覆盖列表的行，所以某一行持有焦点时 `list.Shortcut(0, "delete")` 会生效。TextField 的 `.OnKey` 处理函数认领它被输入时该拿走的按键；没有认领的键回到页面，而输入的文字总是到达字段。
 
 `ui.Splitter` 把键盘行为保存在自己的状态里：把 `SplitterState.Key` 交给窗口的按键回调，获得焦点的分隔条就能用方向键移动：
 
@@ -157,7 +158,7 @@ ui.FocusBind(ui.TextField(c, &m.query, "Search", ""), &m.focus, focusSearch)
 
 ## 在列表中打字
 
-设置了 `ListState.Label` 的 `ui.List` 会在用户输入一行开头的字母时移动到那一行。需要输入即搜索的自绘控件要声明自己接收打字：在持有焦点的命中区域上设置 `gfx.HitOptions{TypeAhead: true}`，并在 `config.TextInput` 里为它返回一个 `app.TextInput`（该命中区域的 `context.TypeAhead` 为 true）。它获得焦点时键盘是原始的，和终端一样：可打印字符和输入法输入（包括拼音）以 `app.TextInsert` 事件到达 `OnEvent`，其他按键（方向键、Enter、Escape、Backspace、Tab）作为 `gfx.KeyEvent` 到达 `OnKey`。查询串由应用持有：追加插入的文本，并在 `TextState`（`Composing`、`Composition`）里回传输入法的组合状态，输入法才会在组合期间保留它需要的按键；移动选中项、自己画搜索浮层。把 `TextInput.Bounds` 设在希望输入法绘制组合文本的位置。没有声明的命中区域不受影响，没有设置 `TextInput` 的窗口也不付出任何代价。headless 测试里 `Session.Keys("f")` 会打进这样的命中区域。
+设置了 `ListState.Label` 的 `ui.List` 会在用户输入一行开头的字母时移动到那一行；行的文字是一句话、或者这些按键在列表里另有用途时，用 `ListState.NoTypeahead` 关掉它。需要输入即搜索的自绘控件要声明自己接收打字：在持有焦点的命中区域上设置 `gfx.HitOptions{TypeAhead: true}`，并在 `config.TextInput` 里为它返回一个 `app.TextInput`（该命中区域的 `context.TypeAhead` 为 true）。它获得焦点时键盘是原始的，和终端一样：可打印字符和输入法输入（包括拼音）以 `app.TextInsert` 事件到达 `OnEvent`，其他按键（方向键、Enter、Escape、Backspace、Tab）作为 `gfx.KeyEvent` 到达 `OnKey`。查询串由应用持有：追加插入的文本，并在 `TextState`（`Composing`、`Composition`）里回传输入法的组合状态，输入法才会在组合期间保留它需要的按键；移动选中项、自己画搜索浮层。把 `TextInput.Bounds` 设在希望输入法绘制组合文本的位置。没有声明的命中区域不受影响，没有设置 `TextInput` 的窗口也不付出任何代价。headless 测试里 `Session.Keys("f")` 会打进这样的命中区域。
 
 `OnShortcut` 用于应用自己拥有的组合键，不用于打字：它早于输入法运行，被它拿走的按键不会进入输入法组合。
 
@@ -165,7 +166,7 @@ ui.FocusBind(ui.TextField(c, &m.query, "Search", ""), &m.focus, focusSearch)
 
 ## 滚动
 
-`ui.List` 和 `ui.Scroll` 自己保存偏移量，所以滚轮交给指针下方的滚动区域，页面不需要偏移字段，也不需要 `OnScroll` 处理函数；示例里的滚轮就是列表的。`ListState.ScrollTo`、`ScrollIntoView`、`ScrollToEnd`、`Visible` 和 `AtEnd` 移动和读取列表，`ui.Scroll` 则在同一遍绘制里通过 `ScrollState()` 报告同样的信息。页面滚动的内容会被裁剪；自绘的绘制代码用 `Canvas.Clip` 裁剪自己的内容，避免画到邻居上，被裁掉的命中区域也不再响应。
+`ui.List` 和 `ui.Scroll` 自己保存偏移量，所以滚轮交给指针下方的滚动区域，页面不需要偏移字段，也不需要 `OnScroll` 处理函数；示例里的滚轮就是列表的。`ListState.ScrollTo`、`ScrollIntoView`、`ScrollToEnd`、`Visible` 和 `AtEnd` 移动和读取列表，`ui.Scroll` 则在同一遍绘制里通过 `ScrollState()` 报告同样的信息。目标行还没被量过时，列表按它已经量过的行的高度来放这一行，所以 `ScrollTo` 和 `ScrollToEnd` 会花上几遍绘制来量目标附近的那些行：列表自己请求这几遍绘制，并在偏移量不再移动、或者别的东西移动了列表时放弃这个请求。页面滚动的内容会被裁剪；自绘的绘制代码用 `Canvas.Clip` 裁剪自己的内容，避免画到邻居上，被裁掉的命中区域也不再响应。
 
 `OnScroll` 收到页面没有拿走的事件：像素增量，附带窗口位置、修饰键、`Viewport`（当前窗口大小）和指针下方的命中区域，所以你自己的处理函数不依赖之前的某次指针移动。正的增量露出下方的内容。
 

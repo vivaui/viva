@@ -140,14 +140,14 @@ type node struct {
 	outOfFlow            uint8 // absolute positioning: see absolute.go
 
 	maxLines             int32     // a wrapped Text breaks into at most this many lines
-	lineFirst, lineCount int32     // its lines, in Frame.lines
+	lineFirst, lineCount int32     // its lines, in frame.lines
 	scroll               float32   // how far a Scroll is scrolled
 	content              float32   // the natural height of a Scroll's children
 	gridMin              float32   // the narrowest cell of a Grid; a Flow's LineGap, negative for Gap
 	basis                float32   // Basis, when flagBasis is set
-	aux                  int32     // index into the Frame\'s table for an Input, InputGroup, Textarea or Segmented
+	aux                  int32     // index into the frame\'s table for an Input, InputGroup, Textarea or Segmented
 	natural              float32   // the width of a Text on one line, before any size is applied; a Progress's fraction (negative: indeterminate)
-	ext                  int32     // index into Frame.exts, or 0 for none (exts[0] is a zero value)
+	ext                  int32     // index into frame.exts, or 0 for none (exts[0] is a zero value)
 	place                placement // a Popup\'s position
 	anchor               Rect
 	placeGap             float32
@@ -193,8 +193,8 @@ type extra struct {
 	ring          Color            // Ring: a line around the outside of the element
 	ringWidth     float32          // its width; zero is none
 	fade          float32          // 1 less the opacity, so that the zero value is opaque
-	gradient      int32            // 1 + the index of the element's gradient in Frame.gradients, or 0 for none
-	states        int32            // 1 + the index of the element's Hover, Pressed and Focus looks in Frame.states, or 0 for none
+	gradient      int32            // 1 + the index of the element's gradient in frame.gradients, or 0 for none
+	states        int32            // 1 + the index of the element's Hover, Pressed and Focus looks in frame.states, or 0 for none
 	scrollState   *ScrollState     // the state a ScrollArea reports its extent to
 	maxPct        [2]float32       // MaxWidthPercent and MaxHeightPercent; zero is none
 	hitOut        [4]float32       // how far the hit region reaches beyond the rectangle: top, right, bottom, left
@@ -203,19 +203,23 @@ type extra struct {
 	moves         bool             // the element's rectangle moves a custom-titlebar window (MovesWindow)
 	scrollManual  bool             // ScrollAt: the application owns the offset and wheel input
 	nativeView    gfx.NativeViewID // the native view that fills the element (NativeView)
-	bind          int32            // 1 + the index of the element's binding in Frame.binds, or 0 (see bind.go)
+	bind          int32            // 1 + the index of the element's binding in frame.binds, or 0 (see bind.go)
 	memo          int32            // 1 + the index the element's cache has with whoever declared it (memoFn), or 0
-	draws         int32            // 1 + the index of the element's Draw and DrawOver callbacks in Frame.draws, or 0 for none
+	draws         int32            // 1 + the index of the element's Draw and DrawOver callbacks in frame.draws, or 0 for none
 	tooltip       string           // what Tooltip says over the element; empty for none
-	addons        int32            // 1 + the index of the field's icon and button in Frame.addons, or 0
+	addons        int32            // 1 + the index of the field's icon and button in frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
 	focusOrder    FocusOrder       // FocusOrder: how the group chooses the next member; nil is its axis
 	layout        Layout           // CustomLayout: who measures and places the children
 }
 
-// Frame is one page being declared. It is handed to the function given to
-// View.Draw; its methods add elements to the container being filled.
-type Frame struct {
+// frame is one page being declared. It is handed to the function given to
+// view.Draw; its methods add elements to the container being filled.
+//
+// frame is the engine under Page: a page declares with C and Box, and the page
+// gives the frame the declarations. Tests and previews that need the engine
+// paint through a View; applications do not reach a frame.
+type frame struct {
 	canvas      *gfx.Canvas
 	theme       Theme
 	nodes       []node
@@ -231,7 +235,7 @@ type Frame struct {
 	states      []stateLooks               // what Hover, Pressed and Focus declared, by element
 	draws       []drawHooks                // what Draw and DrawOver declared, by element
 	memoDepth   int                        // how many Memos of a page are recording what is declared now
-	page        *Page                      // the page declaring this frame; nil for a Frame of the application's
+	page        *Page                      // the page declaring this frame; nil for a frame of the application's
 	tooltips    bool                       // an element was given a Tooltip: End paints the one the pointer rests on
 	tooltip     components.HoverTooltip    // the Tooltip the pointer rests on, kept between paints
 	drawContext DrawContext                // what a Draw callback is handed, reused for the frame
@@ -245,17 +249,17 @@ type Frame struct {
 	// The paint of a Popover, the settling of bound values and the paint of a Caption
 	// are reached through these, set by the call that declares one, so an application
 	// that declares none does not link them.
-	paintPopoverFn func(f *Frame, i int32, n *node)
-	groupFn        func(f *Frame, i int32, axis FocusAxis, from gfx.Mark)                     // set by the first FocusGroup, like paintDrawerFn
-	paintDrawerFn  func(f *Frame, n *node)                                                    // set by the first Drawer, so a frame without one does not link it
-	paintAddonsFn  func(f *Frame, n *node, snapshot components.InputSnapshot, a *fieldAddons) // set by the first field Icon or Action
-	paintTooltipFn func(f *Frame)                                                             // set by the first Tooltip, so a frame without one does not link it
-	paintBarsFn    func(f *Frame, n *node, s *ScrollState)                                    // set by the first Scrollbars, so a frame without one does not link them
-	settleFn       func(f *Frame, i int32) *bindDecl                                          // i < 0 settles them all
-	captionFn      func(f *Frame, n *node, control Rect)
+	paintPopoverFn func(f *frame, i int32, n *node)
+	groupFn        func(f *frame, i int32, axis FocusAxis, from gfx.Mark)                     // set by the first FocusGroup, like paintDrawerFn
+	paintDrawerFn  func(f *frame, n *node)                                                    // set by the first Drawer, so a frame without one does not link it
+	paintAddonsFn  func(f *frame, n *node, snapshot components.InputSnapshot, a *fieldAddons) // set by the first field Icon or Action
+	paintTooltipFn func(f *frame)                                                             // set by the first Tooltip, so a frame without one does not link it
+	paintBarsFn    func(f *frame, n *node, s *ScrollState)                                    // set by the first Scrollbars, so a frame without one does not link them
+	settleFn       func(f *frame, i int32) *bindDecl                                          // i < 0 settles them all
+	captionFn      func(f *frame, n *node, control Rect)
 	// memoFn paints, or begins (before) and ends the paint of, an element a cache
 	// declared; it reports whether the element is painted and its paint is done.
-	memoFn     func(f *Frame, i int32, before bool) bool
+	memoFn     func(f *frame, i int32, before bool) bool
 	lines      []string
 	widgets    widgets             // Table, Tabs, Select, Dialog and Splitter declarations
 	ellipses   []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
@@ -266,17 +270,18 @@ type Frame struct {
 	scrolls    scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
 	parent     int32
 	bounds     Rect
-	gen        uint32 // the paint this Frame is declaring; a Box names it
+	gen        uint32 // the paint this frame is declaring; a Box names it
 	shiftedX   bool   // a CustomLayout moved children after their width was solved
 	done       bool
 }
 
-// View keeps the memory a page is laid out in between frames. The zero value is
-// ready to use; keep one for each page that is painted every frame.
-type View struct{ frame *Frame }
+// view keeps the memory a page is laid out in between frames. It is the engine
+// under Page; tests and previews that need the engine paint through a View. An
+// application uses a Page, not a view.
+type view struct{ frame *frame }
 
 // Draw declares, lays out and paints one page inside bounds. build runs once.
-func (view *View) Draw(canvas *gfx.Canvas, theme Theme, bounds Rect, build func(*Frame)) {
+func (view *view) Draw(canvas *gfx.Canvas, theme Theme, bounds Rect, build func(*frame)) {
 	f := view.Begin(canvas, theme, bounds)
 	build(f)
 	f.End()
@@ -285,19 +290,19 @@ func (view *View) Draw(canvas *gfx.Canvas, theme Theme, bounds Rect, build func(
 // Begin starts a page for callers that need the rectangles it lays out (Box.Rect)
 // before painting something of their own; End finishes it. Draw is Begin, build
 // and End.
-func (view *View) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *Frame {
+func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	if view.frame == nil {
-		view.frame = new(Frame)
+		view.frame = new(frame)
 	}
 	f := view.frame
 	if f.gen == ^uint32(0) {
-		// A generation is about to wrap: retire this Frame, with the Boxes that
+		// A generation is about to wrap: retire this frame, with the Boxes that
 		// name it, and declare the next paint in a copy. The copy shares the
 		// arrays, so no memory is duplicated; one allocation happens every 2³²
 		// Begins, not per paint.
 		next := *f
 		next.gen = 0
-		f.gen = 0 // retire this Frame: a Box of it has generation MaxUint32
+		f.gen = 0 // retire this frame: a Box of it has generation MaxUint32
 		view.frame = &next
 		f = &next
 	}
@@ -325,6 +330,7 @@ func (view *View) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *Frame {
 		f.nativeMark = len(canvas.NativeViews())
 	}
 	f.scratch.reset()
+	f.widgets.sweepPopoverFocus()
 	f.widgets.reset()
 	f.scrolls.epoch++
 	f.parent = -1
@@ -338,7 +344,7 @@ func (view *View) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *Frame {
 
 // End lays the page out and paints it. Rects are valid afterwards, until the
 // next Begin.
-func (f *Frame) End() {
+func (f *frame) End() {
 	if f.done {
 		return
 	}
@@ -398,7 +404,7 @@ func (f *Frame) End() {
 // trim releases the backing arrays of a large page after it has been replaced
 // by a smaller one. It keeps every element, so the Box results of this frame
 // (Rect, Clicked, TabClicked and so on) stay valid.
-func (f *Frame) trim() {
+func (f *frame) trim() {
 	// Cache entries past the wrapped texts this frame declared belong to a
 	// larger page that is gone. Drop them before trimming the outer slices so
 	// their strings do not stay reachable.
@@ -429,6 +435,7 @@ func (f *Frame) trim() {
 	f.widgets.rows = trimFlexCapacity(f.widgets.rows)
 	f.widgets.dialogs = trimFlexCapacity(f.widgets.dialogs)
 	f.widgets.popovers = trimFlexCapacity(f.widgets.popovers)
+	f.widgets.popoverFocus = trimFlexCapacity(f.widgets.popoverFocus)
 	f.widgets.splits = trimFlexCapacity(f.widgets.splits)
 	f.widgets.sliders = trimFlexCapacity(f.widgets.sliders)
 	f.widgets.cells = trimFlexCapacity(f.widgets.cells)
@@ -440,16 +447,16 @@ func (f *Frame) trim() {
 }
 
 // Canvas and Theme give the declaration what it was started with.
-func (f *Frame) Canvas() *gfx.Canvas { return f.canvas }
-func (f *Frame) Theme() Theme        { return f.theme }
+func (f *frame) Canvas() *gfx.Canvas { return f.canvas }
+func (f *frame) Theme() Theme        { return f.theme }
 
 // Bounds is the rectangle this frame lays out in, as the caller gave it to Draw
 // or Begin. Custom painting (a tooltip, a highlight) uses it to stay inside the
 // region it belongs to: the frame's bounds are known before End, unlike a
 // child's rectangle.
-func (f *Frame) Bounds() Rect { return f.bounds }
+func (f *frame) Bounds() Rect { return f.bounds }
 
-func (f *Frame) add(k kind) int32 {
+func (f *frame) add(k kind) int32 {
 	if f.done {
 		panic("ui: an element was declared after the page was laid out (in a Draw callback, or after End): declare elements in the build function")
 	}
@@ -467,21 +474,21 @@ func (f *Frame) add(k kind) int32 {
 	return index
 }
 
-func (f *Frame) box(k kind) Box { return Box{f: f, i: f.add(k), gen: f.gen} }
+func (f *frame) box(k kind) Box { return Box{f: f, i: f.add(k), gen: f.gen} }
 
 // Row opens a container that lays its children out left to right.
-func (f *Frame) Row() Box {
+func (f *frame) Row() Box {
 	b := f.box(kindContainer)
 	f.nodes[b.i].dir = row
 	return b
 }
 
 // Column opens a container that lays its children out top to bottom.
-func (f *Frame) Column() Box { return f.box(kindContainer) }
+func (f *frame) Column() Box { return f.box(kindContainer) }
 
 // Stack opens a container that lays its children over one another, each in the
 // whole content area unless it has a size of its own.
-func (f *Frame) Stack() Box {
+func (f *frame) Stack() Box {
 	b := f.box(kindContainer)
 	f.nodes[b.i].dir = stack
 	return b
@@ -494,7 +501,7 @@ func (f *Frame) Stack() Box {
 // off a rectangle or a pointer position; children are declared with Children as in any
 // container, and the popup's own layer is the caller's business (wrap End in
 // canvas.PushLayer if it must sit above components painted later).
-func (f *Frame) Popup() Box {
+func (f *frame) Popup() Box {
 	saved := f.parent
 	f.parent = -1
 	b := f.box(kindContainer)
@@ -506,12 +513,12 @@ func (f *Frame) Popup() Box {
 // PopupLayer paints the page's popups on a canvas layer of their own instead of the page's. A
 // native view (Canvas.NativeView) hides what is painted on its layer and below, so popups that
 // must stand over one go on a higher layer than the view's.
-func (f *Frame) PopupLayer(layer uint16) { f.popupLayer = layer }
+func (f *frame) PopupLayer(layer uint16) { f.popupLayer = layer }
 
 // Grid opens a container that lays its children in equal cells, as many columns
 // as fit when each is at least minCell wide, wrapping onto new rows; Gap is the
 // space between cells both ways. A row is as tall as its tallest cell.
-func (f *Frame) Grid(minCell float32) Box {
+func (f *frame) Grid(minCell float32) Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
 	n.dir = grid
@@ -527,7 +534,7 @@ func (f *Frame) Grid(minCell float32) Box {
 // between lines. A child wider than the whole width has a line to itself; text and
 // containers give way to it as they do in a Row, so a text's Ellipsis or Wrap
 // decides how it fits.
-func (f *Frame) Flow() Box {
+func (f *frame) Flow() Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
 	n.dir = flow
@@ -536,7 +543,7 @@ func (f *Frame) Flow() Box {
 }
 
 // customLayout declares a container whose children a Layout measures and places.
-func (f *Frame) customLayout(layout Layout) Box {
+func (f *frame) customLayout(layout Layout) Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
 	n.dir = custom
@@ -550,7 +557,7 @@ func (f *Frame) customLayout(layout Layout) Box {
 // Box.Content says how tall the children are, so the offset can be clamped to
 // Content - Rect().Height. Give it a size, Fill or Grow, or it is as tall as its
 // children.
-func (f *Frame) Scroll(offset float32) Box {
+func (f *frame) Scroll(offset float32) Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
 	n.flags |= flagScroll | flagClip
@@ -562,12 +569,12 @@ func (f *Frame) Scroll(offset float32) Box {
 // maxLines of them (the last ends with an ellipsis), so its height follows its
 // width. It is what Text is not: a Text is one line and is clipped. Zero or less
 // takes as many lines as the width needs, as Box.MaxLines.
-func (f *Frame) Paragraph(value string, maxLines int) Box {
+func (f *frame) Paragraph(value string, maxLines int) Box {
 	return f.Text(value).MaxLines(maxLines)
 }
 
 // Text adds one line of text, in the theme's body size and foreground color.
-func (f *Frame) Text(value string) Box {
+func (f *frame) Text(value string) Box {
 	b := f.box(kindText)
 	n := &f.nodes[b.i]
 	n.text = value
@@ -578,7 +585,7 @@ func (f *Frame) Text(value string) Box {
 }
 
 // Spacer adds empty space that grows to take what the other children leave.
-func (f *Frame) Spacer() Box {
+func (f *frame) Spacer() Box {
 	b := f.box(kindSpacer)
 	f.nodes[b.i].grow = 1
 	f.nodes[b.i].flags |= flagGrowSet
@@ -587,7 +594,7 @@ func (f *Frame) Spacer() Box {
 
 // Divider adds a one pixel line in the theme's border color across the
 // container: horizontal in a column, vertical in a row or a flow.
-func (f *Frame) Divider() Box {
+func (f *frame) Divider() Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
 	n.background = f.theme.Border
@@ -601,7 +608,7 @@ func (f *Frame) Divider() Box {
 
 // Icon adds an icon, 16 pixels square unless given a size, in the foreground
 // color unless given a Color.
-func (f *Frame) Icon(icon gfx.Icon) Box {
+func (f *frame) Icon(icon gfx.Icon) Box {
 	b := f.box(kindIcon)
 	n := &f.nodes[b.i]
 	f.extra(b.i).icon = icon
@@ -614,7 +621,7 @@ func (f *Frame) Icon(icon gfx.Icon) Box {
 // asks the system for, such as app.FileIcon, among text and icons; the bitmap
 // is not copied, so its pixels must stay unchanged while the page is on screen
 // (see gfx.Bitmap). An empty or invalid bitmap leaves the room blank.
-func (f *Frame) Image(bitmap gfx.Bitmap) Box {
+func (f *frame) Image(bitmap gfx.Bitmap) Box {
 	b := f.box(kindImage)
 	f.nodes[b.i].aux = int32(len(f.images))
 	f.images = append(f.images, bitmap)
@@ -623,7 +630,7 @@ func (f *Frame) Image(bitmap gfx.Bitmap) Box {
 
 // Button adds a button with the official look; Outline, Ghost and the other
 // variants choose another. Clicked reports a click on it.
-func (f *Frame) Button(id gfx.ID, label string) Box {
+func (f *frame) Button(id gfx.ID, label string) Box {
 	b := f.box(kindButton)
 	n := &f.nodes[b.i]
 	n.id, n.label = id, label
@@ -632,7 +639,7 @@ func (f *Frame) Button(id gfx.ID, label string) Box {
 }
 
 // Checkbox adds a checkbox in the given state; Clicked reports a click on it.
-func (f *Frame) Checkbox(id gfx.ID, checked bool) Box {
+func (f *frame) Checkbox(id gfx.ID, checked bool) Box {
 	b := f.box(kindCheckbox)
 	n := &f.nodes[b.i]
 	n.id = id
@@ -644,7 +651,7 @@ func (f *Frame) Checkbox(id gfx.ID, checked bool) Box {
 }
 
 // Switch adds a two-state switch in the given state; Clicked reports a click.
-func (f *Frame) Switch(id gfx.ID, on bool) Box {
+func (f *frame) Switch(id gfx.ID, on bool) Box {
 	b := f.box(kindSwitch)
 	n := &f.nodes[b.i]
 	n.id = id
@@ -657,10 +664,10 @@ func (f *Frame) Switch(id gfx.ID, on bool) Box {
 
 // Slot reserves room for something the caller paints itself: Rect gives where
 // once End has laid the page out. Give it a size, or let it grow.
-func (f *Frame) Slot() Box { return f.box(kindSlot) }
+func (f *frame) Slot() Box { return f.box(kindSlot) }
 
 // extra returns the extras of element i, giving it a set of its own if it has none.
-func (f *Frame) extra(i int32) *extra {
+func (f *frame) extra(i int32) *extra {
 	n := &f.nodes[i]
 	if n.ext == 0 {
 		n.ext = int32(len(f.exts))
@@ -685,7 +692,7 @@ type segmented struct {
 //	f.Input(snapshot).Radius(0).Border(2, theme.Primary)
 //
 // The snapshot is copied, so the caller may reuse it; its strings must stay valid until End.
-func (f *Frame) Input(snapshot components.InputSnapshot) Box {
+func (f *frame) Input(snapshot components.InputSnapshot) Box {
 	b := f.InputBase(snapshot)
 	f.nodes[b.i].flags |= flagThemed
 	return b
@@ -709,7 +716,7 @@ func (f *Frame) Input(snapshot components.InputSnapshot) Box {
 // it, from the snapshot it passed.
 //
 //	f.InputBase(snapshot).Pad(8).Border(2, theme.Primary).Radius(0).Background(theme.Background)
-func (f *Frame) InputBase(snapshot components.InputSnapshot) Box {
+func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
 	b := f.box(kindInput)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.inputs))
@@ -720,7 +727,7 @@ func (f *Frame) InputBase(snapshot components.InputSnapshot) Box {
 
 // InputGroup adds a components.PaintInputGroup (a field with slots beside or above
 // it). Give it a Height when it has block slots; without one it is a control tall.
-func (f *Frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
+func (f *frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
 	b := f.box(kindInputGroup)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.groups))
@@ -731,7 +738,7 @@ func (f *Frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
 // Textarea adds a multi-line text field with the shadcn look, at least 64 pixels tall. It
 // is TextareaBase with that look, dressed by components.TextEntryRecipe as Input is: what
 // the element sets itself (Background, Border, Radius, Shadow, Pad) replaces the recipe's.
-func (f *Frame) Textarea(snapshot components.TextareaSnapshot) Box {
+func (f *frame) Textarea(snapshot components.TextareaSnapshot) Box {
 	b := f.TextareaBase(snapshot)
 	f.nodes[b.i].flags |= flagThemed
 	return b
@@ -742,7 +749,7 @@ func (f *Frame) Textarea(snapshot components.TextareaSnapshot) Box {
 // and the fill, border, corners, shadow and padding are the element's. The snapshot's
 // InsetTop, InsetBottom and InsetRight still reserve room inside the padded rectangle. It
 // is one row tall plus its Pad and Border unless given a Height.
-func (f *Frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
+func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
 	b := f.box(kindTextarea)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.textareas))
@@ -753,7 +760,7 @@ func (f *Frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
 
 // Segmented adds a components.SegmentedControl choosing among options, selected
 // being the ID of the current one. The options slice is kept until End.
-func (f *Frame) Segmented(options []components.SegmentOption, selected gfx.ID) Box {
+func (f *frame) Segmented(options []components.SegmentOption, selected gfx.ID) Box {
 	b := f.box(kindSegmented)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(f.segmented))
@@ -767,7 +774,7 @@ func (f *Frame) Segmented(options []components.SegmentOption, selected gfx.ID) B
 // and read the click with Box.ChosenIndex.
 //
 //	if i, ok := f.Choice(themeScope, themeLabels, m.theme).ChosenIndex(); ok { m.theme = i }
-func (f *Frame) Choice(scope gfx.Scope, labels []string, selected int) Box {
+func (f *frame) Choice(scope gfx.Scope, labels []string, selected int) Box {
 	first := len(f.choices)
 	for index, label := range labels {
 		f.choices = append(f.choices, components.SegmentOption{ID: scope.At(index), Label: label})
@@ -787,7 +794,7 @@ func (f *Frame) Choice(scope gfx.Scope, labels []string, selected int) Box {
 // author had in mind: Hit names a region for the pointer and the accessibility tree,
 // it does not draw its label. Declare the content inside Children before Clicked, or
 // give an empty target a size, a background or Absolute.
-func (f *Frame) checkHits() {
+func (f *frame) checkHits() {
 	for i := range f.nodes {
 		n := &f.nodes[i]
 		if n.kind != kindContainer || n.flags&flagHasHit == 0 || n.flags&flagChildren != 0 || n.first >= 0 {

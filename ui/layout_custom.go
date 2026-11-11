@@ -57,7 +57,7 @@ const (
 // only for the call that received it; do not keep it. Children are the container's
 // in-flow children, in declaration order.
 type LayoutContext struct {
-	frame    *Frame
+	frame    *frame
 	children []int32
 	beforeX  []float32 // the X of each child before PlaceHeight
 	width    float32   // content width, known from PlaceWidth on
@@ -122,7 +122,7 @@ func (c *LayoutContext) must(ok bool, message string) {
 }
 
 // begin prepares the context for one phase of container n.
-func (c *LayoutContext) begin(f *Frame, n *node, phase layoutPhase) {
+func (c *LayoutContext) begin(f *frame, n *node, phase layoutPhase) {
 	c.frame, c.phase, c.width = f, phase, 0
 	c.children = c.children[:0]
 	for i := n.first; i >= 0; i = f.nodes[i].next {
@@ -131,7 +131,7 @@ func (c *LayoutContext) begin(f *Frame, n *node, phase layoutPhase) {
 }
 
 // measureCustom gives a CustomLayout container its preferred size on axis.
-func (f *Frame) measureCustom(n *node, axis int) {
+func (f *frame) measureCustom(n *node, axis int) {
 	layout := f.exts[n.ext].layout
 	if layout == nil {
 		panic("ui: a CustomLayout container has no Layout")
@@ -149,7 +149,7 @@ func (f *Frame) measureCustom(n *node, axis int) {
 
 // solveCustom gives a CustomLayout's children their extent and origin on axis,
 // then lets the page lay out each child there.
-func (f *Frame) solveCustom(n *node, axis int, start, avail float32) {
+func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 	layout := f.exts[n.ext].layout
 	if layout == nil {
 		panic("ui: a CustomLayout container has no Layout")
@@ -188,7 +188,7 @@ func (f *Frame) solveCustom(n *node, axis int, start, avail float32) {
 // was placed. The nodes of a subtree are contiguous: the first node after it that
 // is not its descendant ends the range. Popups are not descendants; End places
 // them again from their anchors' final rectangles.
-func (f *Frame) shiftSubtreeX(i int32, delta float32) {
+func (f *frame) shiftSubtreeX(i int32, delta float32) {
 	if delta == 0 {
 		return
 	}

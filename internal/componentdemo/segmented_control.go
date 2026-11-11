@@ -86,19 +86,19 @@ func (state *State) paintSegmentedControl(canvas *gfx.Canvas, theme gfx.Theme, s
 	if state.exampleID == "states" {
 		options = segmentedControlStateOptions[:]
 	}
-	var disabled ui.Box
-	state.page(canvas, theme, size, 520, "View", func(f *ui.Frame) {
-		control := f.Segmented(options, segmentedControlView.At(int(state.values[0]))).FillWidth().MaxWidth(420)
-		if id, ok := control.Chosen(); ok {
-			state.values[0] = int32(listIndex(id, segmentedControlView))
-		}
+	var live, disabled ui.Box
+	state.drawPage(canvas, theme, size, 520, "View", func(c ui.C) {
+		live = ui.Slot(c).FillWidth().MaxWidth(420).Height(theme.Metrics.ControlHeight)
 		if state.exampleID == "states" {
-			// ui has no whole-control disabled segmented control: the component
-			// paints it in a slot.
-			disabled = f.Slot().FillWidth().MaxWidth(420).Height(theme.Metrics.ControlHeight)
+			// The component paints a whole-control disabled specimen in a slot:
+			// it declares its own (inert) hits beside the live control's.
+			disabled = ui.Slot(c).FillWidth().MaxWidth(420).Height(theme.Metrics.ControlHeight)
 		}
-		caption(f, state.Text("方向键通过 typed helper 更新焦点与选择。", "Arrow keys update focus and selection through the typed helper."))
+		caption(c, state.Text("方向键通过 typed helper 更新焦点与选择。", "Arrow keys update focus and selection through the typed helper."))
 	})
+	if id, ok := components.BeginSegmentedControl(canvas, theme, live.Rect(), options, segmentedControlView.At(int(state.values[0]))).Paint().Clicked(); ok {
+		state.values[0] = int32(listIndex(id, segmentedControlView))
+	}
 	if state.exampleID == "states" {
 		components.BeginSegmentedControl(canvas, theme, disabled.Rect(), segmentedControlLockedOptions[:], segmentedControlLocked.At(1)).Disabled().Paint()
 	}

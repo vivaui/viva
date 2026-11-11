@@ -75,17 +75,17 @@ var (
 func (state *State) paintAttachment(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var first, second ui.Box
 	variants := state.exampleID == "variants"
-	state.page(canvas, theme, size, 560, state.Text("Attachment · 生产资源摘要", "Attachment · Production resource summary"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 560, state.Text("Attachment · 生产资源摘要", "Attachment · Production resource summary"), func(c ui.C) {
 		switch state.exampleID {
 		case "variants":
-			first = f.Slot().FillWidth().Height(62)
-			second = f.Slot().Size(120, 170)
+			first = ui.Slot(c).FillWidth().Height(62)
+			second = ui.Slot(c).Size(120, 170)
 		case "actions":
-			first = f.Slot().FillWidth().Height(66)
-			second = f.Slot().FillWidth().Height(170)
+			first = ui.Slot(c).FillWidth().Height(66)
+			second = ui.Slot(c).FillWidth().Height(170)
 		default:
-			first = f.Slot().FillWidth().Height(92)
-			f.Text(state.Text("点击附件切换状态。", "Click the attachment to cycle its state.")).FontSize(theme.Metrics.FontSizeS).Muted()
+			first = ui.Slot(c).FillWidth().Height(92)
+			ui.Text(c, state.Text("点击附件切换状态。", "Click the attachment to cycle its state.")).FontSize(theme.Metrics.FontSizeS).Muted()
 		}
 	})
 	if variants {

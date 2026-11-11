@@ -98,7 +98,9 @@ type Driver struct {
 }
 
 // NewDriver creates a driver for config, painting into canvas (a fresh canvas
-// when nil). The first frame has been painted when it returns.
+// when nil). Config.Invalidator is bound before the first paint, so a wake the
+// application makes while that paint runs is kept for the next Pump. The first
+// frame has been painted when it returns.
 func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 	normalized, err := config.normalize()
 	if err != nil {
@@ -121,6 +123,13 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 			driver.Close()
 		}
 	}()
+	// Bind before the first paint: the application's first paint can start an
+	// effect that finishes at once, and a wake with nothing bound is dropped.
+	// requestWake touches only state made above, so this is safe before the
+	// painter exists, and Close unbinds on every failure path below.
+	if invalidator := driver.config.Invalidator; invalidator != nil {
+		invalidator.waker.Bind(driver.requestWake)
+	}
 	// The first paint happens below: it must already see the driver's appearance,
 	// not ask the machine (which, off the main thread, may never answer).
 	enterDriverAppearance()
@@ -149,9 +158,6 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 	if err := driver.registerSystem(); err != nil {
 		driver.Close()
 		return nil, err
-	}
-	if invalidator := driver.config.Invalidator; invalidator != nil {
-		invalidator.waker.Bind(driver.requestWake)
 	}
 	built = true
 	return driver, nil

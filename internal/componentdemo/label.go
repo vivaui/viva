@@ -32,16 +32,16 @@ var (
 func (state *State) paintLabel(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var rows [3]ui.Box
 	var field ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Label · 表单语义", "Label · Form semantics"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 560, state.Text("Label · 表单语义", "Label · Form semantics"), func(c ui.C) {
 		if state.exampleID == "default" {
-			f.Column().FillWidth().Gap(8).Children(func() {
-				rows[0] = f.Slot().FillWidth().Height(24)
-				field = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+			ui.Column(c).FillWidth().Gap(8).Children(func() {
+				rows[0] = ui.Slot(c).FillWidth().Height(24)
+				field = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 			})
 			return
 		}
 		for index := range rows {
-			rows[index] = f.Slot().FillWidth().Height(24)
+			rows[index] = ui.Slot(c).FillWidth().Height(24)
 		}
 	})
 	if state.exampleID == "default" {

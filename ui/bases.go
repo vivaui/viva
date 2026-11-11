@@ -31,7 +31,7 @@ import (
 // keyboard focus, and reports Clicked for the pointer, Enter and Space. label is its
 // accessible name. It is as large as its children and its Pad; Button is the same with
 // the theme's look.
-func (f *Frame) ButtonBase(id gfx.ID, label string) Box {
+func (f *frame) ButtonBase(id gfx.ID, label string) Box {
 	b := f.Row().Center()
 	return b.HitWith(id, label, gfx.HitOptions{Role: gfx.RoleButton})
 }
@@ -47,7 +47,7 @@ func (f *Frame) ButtonBase(id gfx.ID, label string) Box {
 //
 // Label names it. A mixed box is HitWith the gfx.HitOptions it needs, and State.Mixed is the
 // caller's to say, as it is for Invalid.
-func (f *Frame) CheckboxBase(id gfx.ID, checked bool) Box {
+func (f *frame) CheckboxBase(id gfx.ID, checked bool) Box {
 	theme := f.theme
 	side := components.CheckboxExtent(theme)
 	scale := theme.Metrics.ControlHeight / 32
@@ -64,7 +64,7 @@ func (f *Frame) CheckboxBase(id gfx.ID, checked bool) Box {
 // are the caller's, drawn with Draw; gfx.Canvas.Animate gives the thumb's travel, and
 // components.SwitchRecipe the colors at a point of it. components.SwitchExtent is the
 // size of the small switch.
-func (f *Frame) SwitchBase(id gfx.ID, on bool) Box {
+func (f *frame) SwitchBase(id gfx.ID, on bool) Box {
 	width, height := components.SwitchExtent(f.theme, false)
 	b := f.Row().Center().Size(width, height).HitOutset(8, 12, 8, 12)
 	if on {
@@ -75,7 +75,7 @@ func (f *Frame) SwitchBase(id gfx.ID, on bool) Box {
 
 // ToggleBase adds a two-state button without a look, as ButtonBase is a button: it reports
 // Clicked, and to assistive technology it is a button that is pressed or not.
-func (f *Frame) ToggleBase(id gfx.ID, label string, pressed bool) Box {
+func (f *frame) ToggleBase(id gfx.ID, label string, pressed bool) Box {
 	b := f.Row().Center()
 	if pressed {
 		f.nodes[b.i].flags |= flagChecked | flagSelected
@@ -86,7 +86,7 @@ func (f *Frame) ToggleBase(id gfx.ID, label string, pressed bool) Box {
 // TabBase adds one tab without a look: it reports Clicked, and to assistive technology it
 // is a tab that is selected or not. A strip is a Row (or a Column) of them; the arrow keys
 // between them are components.TabsKeyDown's.
-func (f *Frame) TabBase(id gfx.ID, label string, selected bool) Box {
+func (f *frame) TabBase(id gfx.ID, label string, selected bool) Box {
 	b := f.Row().Center()
 	if selected {
 		f.nodes[b.i].flags |= flagSelected
@@ -96,7 +96,7 @@ func (f *Frame) TabBase(id gfx.ID, label string, selected bool) Box {
 
 // RadioBase adds one option of a segmented control or a radio group without a look: it
 // reports Clicked, and to assistive technology it is a radio button that is chosen or not.
-func (f *Frame) RadioBase(id gfx.ID, label string, chosen bool) Box {
+func (f *frame) RadioBase(id gfx.ID, label string, chosen bool) Box {
 	b := f.Row().Center()
 	if chosen {
 		f.nodes[b.i].flags |= flagChecked | flagSelected
@@ -107,7 +107,7 @@ func (f *Frame) RadioBase(id gfx.ID, label string, chosen bool) Box {
 // OptionBase adds one row of a list without a look, such as the options of a select's
 // popup: it reports Clicked, and to assistive technology it is an option that is selected or
 // not.
-func (f *Frame) OptionBase(id gfx.ID, label string, selected bool) Box {
+func (f *frame) OptionBase(id gfx.ID, label string, selected bool) Box {
 	b := f.Row()
 	if selected {
 		f.nodes[b.i].flags |= flagSelected
@@ -118,7 +118,7 @@ func (f *Frame) OptionBase(id gfx.ID, label string, selected bool) Box {
 // ComboboxBase adds the trigger of a select without a look: it reports Clicked, and to
 // assistive technology it is a combobox that is expanded or not and has value as its value.
 // The list it opens is a Popup of OptionBase rows.
-func (f *Frame) ComboboxBase(id gfx.ID, label, value string, open bool) Box {
+func (f *frame) ComboboxBase(id gfx.ID, label, value string, open bool) Box {
 	b := f.Row().Center()
 	if open {
 		f.nodes[b.i].flags |= flagOpen

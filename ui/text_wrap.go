@@ -26,9 +26,9 @@ type wrapCache struct {
 // does (spaces, East Asian text with its line-start and line-end rules, separators
 // inside a long path or URL, and as a last resort between whole characters), each
 // line measured as it is drawn: a Mono text on its cells. Both
-// the full line set and the ellipsized last line are kept for the life of the View,
+// the full line set and the ellipsized last line are kept for the life of the view,
 // so a page that does not change does no wrapping or string building.
-func (f *Frame) wrapText(dst []string, n *node) []string {
+func (f *frame) wrapText(dst []string, n *node) []string {
 	if f.wrapCursor == len(f.ellipses) {
 		f.ellipses = append(f.ellipses, gfx.EllipsisCache{})
 	}
@@ -64,7 +64,7 @@ func (n *node) textStyle() gfx.TextStyle {
 
 // Wrap adds text that breaks into as many lines as the width it is given needs,
 // so its height follows its width: Paragraph without a limit.
-func (f *Frame) Wrap(value string) Box { return f.Paragraph(value, math.MaxInt32) }
+func (f *frame) Wrap(value string) Box { return f.Paragraph(value, math.MaxInt32) }
 
 // MaxLines makes a Text a paragraph of at most n lines, the last ending with an
 // ellipsis when the text needs more (n of one is Ellipsis); n of zero or less

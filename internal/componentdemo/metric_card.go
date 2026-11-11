@@ -25,18 +25,18 @@ func (state *State) paintMetricCard(canvas *gfx.Canvas, theme gfx.Theme, size gf
 	// Two cards share a row when the page is wide enough for both; otherwise
 	// the second example stacks them.
 	wide := state.exampleID == "trends" && min(size.Width-48, float32(600)) >= 480
-	state.page(canvas, theme, size, 600, state.Text("Metric Card · 关键指标", "Metric Card · Key metrics"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 600, state.Text("Metric Card · 关键指标", "Metric Card · Key metrics"), func(c ui.C) {
 		switch {
 		case wide:
-			f.Row().FillWidth().Gap(16).Children(func() {
-				cards[0] = f.Slot().Grow(1).Height(120)
-				cards[1] = f.Slot().Grow(1).Height(120)
+			ui.Row(c).FillWidth().Gap(16).Children(func() {
+				cards[0] = ui.Slot(c).Grow(1).Height(120)
+				cards[1] = ui.Slot(c).Grow(1).Height(120)
 			})
 		case state.exampleID == "trends":
-			cards[0] = f.Slot().FillWidth().Height(120)
-			cards[1] = f.Slot().FillWidth().Height(120)
+			cards[0] = ui.Slot(c).FillWidth().Height(120)
+			cards[1] = ui.Slot(c).FillWidth().Height(120)
 		default:
-			cards[0] = f.Slot().FillWidth().Height(120)
+			cards[0] = ui.Slot(c).FillWidth().Height(120)
 		}
 	})
 	switch {

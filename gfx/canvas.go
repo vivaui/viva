@@ -1712,6 +1712,9 @@ func (canvas *Canvas) TrappedFocusScope() ID {
 // RequestFocus asks the runtime to focus id even when no focus trap is active,
 // as a non-modal popover does. The runtime applies one request once; painting
 // the same request every frame does not pull focus back after the user leaves.
+// A request made while handling a click, a pointer event or a shortcut takes
+// effect in the repaint that follows it, although that repaint starts a new
+// frame.
 func (canvas *Canvas) RequestFocus(id ID) {
 	canvas.focusRequest = id
 }

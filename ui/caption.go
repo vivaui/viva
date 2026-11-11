@@ -18,7 +18,7 @@ func (b Box) Caption(text string) Box {
 		return b
 	}
 	n.text = text
-	b.f.captionFn = (*Frame).paintCaption
+	b.f.captionFn = (*frame).paintCaption
 	if n.label == "" {
 		n.label = text
 	}
@@ -28,7 +28,7 @@ func (b Box) Caption(text string) Box {
 // captionGap is the room between a control and its Caption (`gap-2`).
 const captionGap = 8
 
-func (f *Frame) captionSize(n *node) float32 {
+func (f *frame) captionSize(n *node) float32 {
 	if n.fontSize > 0 {
 		return n.fontSize
 	}
@@ -37,7 +37,7 @@ func (f *Frame) captionSize(n *node) float32 {
 
 // paintCaption paints a Checkbox's or Switch's Caption after the control's bounds and
 // makes it a label of the control, so a click on it is a click on the control.
-func (f *Frame) paintCaption(n *node, control Rect) {
+func (f *frame) paintCaption(n *node, control Rect) {
 	size := f.captionSize(n)
 	line := size + 7
 	x := control.X + control.Width + captionGap

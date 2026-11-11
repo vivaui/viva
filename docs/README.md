@@ -25,6 +25,8 @@ can run its programs.
   matrix, lifecycle mapping, static-hosting headers and security limits.
 - [diagnostics.md](diagnostics.md) — the structured event stream, its slog
   adapters, the recent-event ring and fault context.
+- [upgrading.md](upgrading.md) — moving an application to a newer Viva, and the
+  call-site changes each release asks for.
 - [updating.md](updating.md) — the signed feed, the client API, and what each
   platform's installer replaces.
 - [initial-frame.md](initial-frame.md) — what the first frame does and does not

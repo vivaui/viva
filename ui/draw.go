@@ -40,7 +40,7 @@ type DrawContext struct {
 	// control of your own announces, and a list names itself by.
 	Label string
 
-	frame *Frame
+	frame *frame
 	node  *node
 }
 
@@ -83,7 +83,7 @@ func (b Box) hooks() *drawHooks {
 // what to build from it. Disabled, Checked, Selected and Open are the ones the element was declared with.
 func (b Box) State() gfx.State { return b.f.stateOf(b.n()) }
 
-func (f *Frame) stateOf(n *node) gfx.State {
+func (f *frame) stateOf(n *node) gfx.State {
 	state := f.canvas.StateOf(n.id)
 	state.Disabled = n.flags&flagDisabled != 0
 	state.Checked = n.flags&flagChecked != 0
@@ -93,7 +93,7 @@ func (f *Frame) stateOf(n *node) gfx.State {
 }
 
 // runDraw calls fn for n with the context reused for the frame.
-func (f *Frame) runDraw(n *node, fn func(*DrawContext)) {
+func (f *frame) runDraw(n *node, fn func(*DrawContext)) {
 	d := &f.drawContext
 	d.Canvas, d.Theme, d.Rect, d.State, d.Opacity, d.Label = f.canvas, &f.theme, n.rect, f.stateOf(n), f.opacity, n.label
 	d.frame, d.node = f, n

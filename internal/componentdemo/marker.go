@@ -50,7 +50,7 @@ func demoCircle(cx, cy, r float32) []gfx.PathCommand {
 
 func (state *State) paintMarker(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var rows [3]ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Marker · 内容分组", "Marker · Content grouping"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 560, state.Text("Marker · 内容分组", "Marker · Content grouping"), func(c ui.C) {
 		count := 3
 		if state.exampleID != "variants" {
 			count = 1
@@ -61,7 +61,7 @@ func (state *State) paintMarker(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 			if state.exampleID == "variants" && index == 2 {
 				height += 8*(theme.Metrics.ControlHeight/32) + 1 // MarkerBorder's rule
 			}
-			rows[index] = f.Slot().FillWidth().Height(height)
+			rows[index] = ui.Slot(c).FillWidth().Height(height)
 		}
 	})
 	switch state.exampleID {

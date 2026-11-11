@@ -65,8 +65,8 @@ func (state *State) paintTree(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size
 	// the tree's default single-line row height.
 	rowHeight := theme.Metrics.ControlHeight + 12
 	var stage ui.Box
-	state.page(canvas, theme, size, 600, state.Text("Tree · 主机目录", "Tree · Host directory"), func(f *ui.Frame) {
-		stage = f.Slot().Height(rowHeight * 4)
+	state.drawPage(canvas, theme, size, 600, state.Text("Tree · 主机目录", "Tree · Host directory"), func(c ui.C) {
+		stage = ui.Slot(c).Height(rowHeight * 4)
 	})
 	disabled := state.exampleID == "disabled"
 	expanded := state.flags&1 != 0

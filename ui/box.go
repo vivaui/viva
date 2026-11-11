@@ -7,16 +7,16 @@ import (
 
 // Box is a handle to one element of the page being declared. It is two words
 // and every method returns it, so a declaration reads as a chain; the element it
-// names lives in the Frame. A Box is valid until the next Begin on its Frame:
+// names lives in the frame. A Box is valid until the next Begin on its frame:
 // Rect and Content stay readable after End, but keeping a Box across paints is a
 // mistake, caught where it is used. Keep a gfx.ID or the *ui.Page's name instead.
 type Box struct {
-	f   *Frame
+	f   *frame
 	i   int32
 	gen uint32
 }
 
-// Valid reports whether the Box names an element of its Frame's current paint.
+// Valid reports whether the Box names an element of its frame's current paint.
 // The zero value is not valid.
 func (b Box) Valid() bool {
 	return b.f != nil && b.gen == b.f.gen && b.i >= 0 && int(b.i) < len(b.f.nodes)

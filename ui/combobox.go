@@ -130,7 +130,7 @@ type comboState struct {
 	created string // what the user created in this paint, for Created
 	paint   func(*DrawContext)
 
-	f                         *Frame
+	f                         *frame
 	node                      int32
 	gen                       uint32
 	label, placeholder, empty string

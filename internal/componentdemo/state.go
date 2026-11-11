@@ -117,9 +117,12 @@ type State struct {
 	chart *chartDemoState
 	// list is the page-layer List example: its rows, choice and page.
 	list *listDemo
-	// view keeps the memory the ui pages of this demo are laid out in (see page).
+	// page keeps the memory and identities of the demo's Page (see drawPage).
 	// It is a pointer so a State stays comparable.
-	view  *ui.View
+	page *ui.Page
+	// theme is the appearance and density the demo was last drawn with. The
+	// Page reads it through a pointer, so it is updated in place each paint.
+	theme gfx.Theme
 	flags uint64
 	// markdown keeps the Markdown example's arrays, so painting it again allocates nothing.
 	markdown *markdownScratch
@@ -150,7 +153,7 @@ func newState(componentID, exampleID string, english bool) (*State, error) {
 			if example.ID != exampleID {
 				continue
 			}
-			state := &State{componentID: componentID, exampleID: exampleID, descriptor: component, english: english, view: new(ui.View)}
+			state := &State{componentID: componentID, exampleID: exampleID, descriptor: component, english: english}
 			if component.initialize != nil {
 				component.initialize(state)
 			}
@@ -176,8 +179,8 @@ func (state *State) SetDark(dark bool) { state.dark = dark }
 // value is the regular density every runner used before this setter existed.
 func (state *State) SetDensity(density gfx.Density) { state.density = density }
 
-// theme is the appearance and density the example is painted at.
-func (state *State) theme() gfx.Theme {
+// themeFor is the appearance and density the example is painted at.
+func (state *State) themeFor() gfx.Theme {
 	theme := gfx.LightTheme()
 	if state.dark {
 		theme = gfx.DarkTheme()
@@ -191,7 +194,8 @@ func (state *State) Paint(canvas *gfx.Canvas, size gfx.Size) {
 		return
 	}
 	canvas.SetTree(&tree)
-	theme := state.theme()
+	theme := state.themeFor()
+	state.theme = theme
 	viewport := gfx.Rect{Width: size.Width, Height: size.Height}
 	canvas.Clip(viewport)
 	canvas.Fill(viewport, theme.Background)
@@ -202,6 +206,16 @@ func (state *State) Paint(canvas *gfx.Canvas, size gfx.Size) {
 }
 
 func (state *State) Pointer(event gfx.PointerEvent) gfx.EventResult {
+	if state.page != nil {
+		if result := state.page.Pointer(event); result != (gfx.EventResult{}) {
+			return result
+		}
+	}
+	if state.list != nil && state.list.page != nil {
+		if result := state.list.page.Pointer(event); result != (gfx.EventResult{}) {
+			return result
+		}
+	}
 	if state.descriptor == nil || state.descriptor.pointer == nil {
 		return gfx.EventResult{}
 	}
@@ -209,6 +223,18 @@ func (state *State) Pointer(event gfx.PointerEvent) gfx.EventResult {
 }
 
 func (state *State) Key(event gfx.KeyEvent) gfx.EventResult {
+	if state.page != nil {
+		if result := state.page.Key(event); result != (gfx.EventResult{}) {
+			return result
+		}
+	}
+	// The list demo draws its own Page in a Slot of the demo page; its list keys
+	// are routed by that page, not by the outer one.
+	if state.list != nil && state.list.page != nil {
+		if result := state.list.page.Key(event); result != (gfx.EventResult{}) {
+			return result
+		}
+	}
 	if state.descriptor == nil || state.descriptor.key == nil {
 		return gfx.EventResult{}
 	}
@@ -216,6 +242,11 @@ func (state *State) Key(event gfx.KeyEvent) gfx.EventResult {
 }
 
 func (state *State) Scroll(event gfx.ScrollEvent) gfx.EventResult {
+	if state.page != nil {
+		if result := state.page.Wheel(event); result != (gfx.EventResult{}) {
+			return result
+		}
+	}
 	if state.descriptor == nil || state.descriptor.scroll == nil {
 		return gfx.EventResult{}
 	}
@@ -231,19 +262,33 @@ func pointerViewport(event gfx.PointerEvent) gfx.Size {
 
 func textRange(start, end int) text.Range { return text.Range{Start: start, End: end} }
 
-// page lays a demo out with flex: the title over the content, centered on the
-// stage and at most maxWidth wide. content declares the specimens; a Slot it
-// declares has its Rect once page returns, for a specimen a component paints
-// itself. Clicks are read in content, where the control is declared.
-func (state *State) page(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, maxWidth float32, title string, content func(f *ui.Frame)) {
-	if state.view == nil {
-		state.view = new(ui.View)
+// pageFor returns the State's Page, made on its first paint with the demos'
+// Tree, Root and the State's theme. drawPage and drawStage share it, so both
+// declare identities in the same scope and read the theme through the same
+// pointer.
+func (state *State) pageFor(theme gfx.Theme) *ui.Page {
+	state.theme = theme
+	if state.page == nil {
+		state.page = ui.NewPage(ui.PageConfig{Tree: &tree, Root: "componentdemo", Theme: &state.theme})
 	}
-	state.view.Draw(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
-		f.Column().Fill().Pad(theme.Metrics.PadSurface).Items(ui.Center).Children(func() {
-			f.Column().FillWidth().MaxWidth(maxWidth).Gap(theme.Metrics.GapItem).Children(func() {
-				f.Text(title).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightSemibold)
-				content(f)
+	return state.page
+}
+
+// drawPage lays a demo out with a Page: the title over the content, centered on
+// the stage and at most maxWidth wide. content declares the specimens; a Slot it
+// declares has its Rect once drawPage returns, for a specimen a component paints
+// itself. Clicks are read in content, where the control is declared.
+//
+// The Page is kept on the State: its Tree is the demos' own, its Root names the
+// demo's scope, and its Theme points at the State's field so a density or
+// appearance change reaches the next paint.
+func (state *State) drawPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, maxWidth float32, title string, content func(c ui.C)) {
+	page := state.pageFor(theme)
+	page.Draw(canvas, gfx.Rect{Width: size.Width, Height: size.Height}, func(c ui.C) {
+		ui.Column(c).Fill().Pad(theme.Metrics.PadSurface).Items(ui.Center).Children(func() {
+			ui.Column(c).FillWidth().MaxWidth(maxWidth).Gap(theme.Metrics.GapItem).Children(func() {
+				ui.Text(c, title).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightSemibold)
+				content(c)
 			})
 		})
 	})

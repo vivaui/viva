@@ -44,8 +44,9 @@ func initializeAlertDialog(state *State) { state.flags |= alertDialogOpenFlag }
 
 func (state *State) paintAlertDialog(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	if state.flags&alertDialogOpenFlag == 0 {
-		state.page(canvas, theme, size, 320, state.Text("操作已取消", "Action canceled"), func(f *ui.Frame) {
-			if f.Button(alertDialogOpen, state.Text("再次打开警告", "Reopen alert")).Clicked() {
+		state.drawPage(canvas, theme, size, 320, state.Text("操作已取消", "Action canceled"), func(c ui.C) {
+			label := state.Text("再次打开警告", "Reopen alert")
+			if ui.Button(c, label).Hit(alertDialogOpen, label).Clicked() {
 				state.flags |= alertDialogOpenFlag
 			}
 		})

@@ -27,6 +27,7 @@ type shortcutEntry struct {
 	id        gfx.ID
 	focus     gfx.ID
 	scope     gfx.Scope
+	rows      gfx.Scope // a List's rows, which its box's Shortcut also covers
 }
 
 // Shortcut reports whether this paint delivers the chord modifiers+key pressed
@@ -38,20 +39,22 @@ type shortcutEntry struct {
 //		m.save()
 //	}
 //
-// A Shortcut acts as a click does, in the paint that delivers it, and is matched
-// before the keys reach the control with the focus, except that a chord without
-// Primary, Control or Alt is left to a text field, Combobox or terminal being typed
-// in. While an overlay is open , a page-wide Shortcut does not act
+// A Shortcut acts as a click does, in the paint that delivers it; a focus it
+// requests (Canvas.RequestFocus, AutoFocus or a FocusBind field) takes effect in
+// the repaint that follows. It is matched before the keys reach the control with
+// the focus, except that a chord without Primary, Control or Alt is left to a text
+// field, Combobox or terminal being typed in. While an overlay is open , a page-wide Shortcut does not act
 // (the overlay has the keyboard); Box.Shortcut on an element in it does. Not inside
 // a Memo.
 func Shortcut(c C, modifiers gfx.Modifiers, key string) bool {
-	return c.page.shortcut(c, modifiers, key, gfx.ID{}, 0)
+	return c.page.shortcut(c, modifiers, key, gfx.ID{}, 0, 0)
 }
 
 // Shortcut is ui.Shortcut for while the keyboard focus is on the element or in it: a
 // list's Delete acts on the list being worked in, a panel's Primary+F searches it.
 // Where Shortcuts of one chord nest, the innermost one with the focus acts. The
-// element is a control, or a container of the page.
+// element is a control, or a container of the page; the rows of a List count as
+// inside the box List returns, so its Shortcut acts while a row has the focus.
 //
 //	list := ui.Column(c).Children(rows)
 //	if list.Shortcut(0, "delete") {
@@ -63,22 +66,22 @@ func (b Box) Shortcut(modifiers gfx.Modifiers, key string) bool {
 		panic("ui: Box.Shortcut needs a page: declare it with a ui.C")
 	}
 	if int(b.i) < len(p.nodes) && p.nodes[b.i].named {
-		return p.shortcut(&p.ctx, modifiers, key, gfx.ID{}, p.resolve(b.i))
+		return p.shortcut(&p.ctx, modifiers, key, gfx.ID{}, p.resolve(b.i), p.listRowScope(b.i))
 	}
 	if id := b.n().id; !id.IsZero() {
-		return p.shortcut(&p.ctx, modifiers, key, id, 0)
+		return p.shortcut(&p.ctx, modifiers, key, id, 0, 0)
 	}
 	panic("ui: Box.Shortcut is for a control or a container: the element must be able to hold the focus or have it inside")
 }
 
-func (p *Page) shortcut(c C, modifiers gfx.Modifiers, key string, focus gfx.ID, scope gfx.Scope) bool {
+func (p *Page) shortcut(c C, modifiers gfx.Modifiers, key string, focus gfx.ID, scope, rows gfx.Scope) bool {
 	p.forbidInMemo("Shortcut")
 	chord, ok := keymap.Parse(modifiers, key)
 	if !ok {
 		panic("ui: Shortcut " + key + ": not a key keymap.Parse names, nor one character")
 	}
 	id := p.controlID(pkShortcut)
-	p.shortcuts = append(p.shortcuts, shortcutEntry{modifiers: chord.Modifiers, char: chord.Char, key: chord.Key, id: id, focus: focus, scope: scope})
+	p.shortcuts = append(p.shortcuts, shortcutEntry{modifiers: chord.Modifiers, char: chord.Char, key: chord.Key, id: id, focus: focus, scope: scope, rows: rows})
 	if p.shortcutRoute == nil {
 		p.keyRoute, p.shortcutRoute = (*Page).routeKey, (*Page).matchShortcut
 	}
@@ -114,7 +117,7 @@ func (p *Page) matchShortcut(event gfx.KeyEvent) (gfx.EventResult, bool) {
 				continue
 			}
 		case entry.scope != 0:
-			if target.IsZero() || !p.tree.Within(target.Scope(), entry.scope) {
+			if target.IsZero() || !p.shortcutCovers(entry, target.Scope()) {
 				continue
 			}
 		case !pageWide:
@@ -140,11 +143,24 @@ func (p *Page) narrower(a, b *shortcutEntry) bool {
 	case !a.focus.IsZero():
 		return true
 	case b.scope == 0:
-		return a.scope != 0
-	case a.scope == 0:
+		return a.scope != 0 || a.rows != 0
+	case a.scope == 0 && a.rows == 0:
 		return false
 	}
-	return a.scope != b.scope && p.tree.Within(a.scope, b.scope)
+	if a.scope == b.scope && a.rows == b.rows {
+		return false
+	}
+	return a.scope != b.scope && p.tree.Within(a.scope, b.scope) ||
+		a.rows != 0 && a.rows != b.rows && p.tree.Within(a.rows, b.scope)
+}
+
+// shortcutCovers reports whether scope is inside the element the entry belongs
+// to: the place the element names, or, for a List, the place its rows are named
+// in. The rows are not inside the area's scope, since row identities outlive the
+// area they are shown through, so they are covered by their own scope.
+func (p *Page) shortcutCovers(entry *shortcutEntry, scope gfx.Scope) bool {
+	return p.tree.Within(scope, entry.scope) ||
+		entry.rows != 0 && p.tree.Within(scope, entry.rows)
 }
 
 // typing reports whether the control named id takes typing: a text field, a

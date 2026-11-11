@@ -103,6 +103,9 @@ func Button(c C, label string) Box {
 }
 
 // Checkbox adds a checkbox showing *value, flipped by a click, with label beside it.
+// The click writes *value when Clicked or Changed is first read on the box, or else
+// when the paint ends; reading *value earlier in that paint sees the previous value,
+// and a Disabled declared after the box still holds.
 func Checkbox(c C, value *bool, label string) Box {
 	b := c.f.Checkbox(c.page.boundID(pkCheckbox, unsafe.Pointer(value)), *value)
 	if label != "" {
@@ -112,7 +115,9 @@ func Checkbox(c C, value *bool, label string) Box {
 	return b
 }
 
-// Switch is Checkbox's two-state switch.
+// Switch is Checkbox's two-state switch. Like Checkbox, it writes *value when Clicked
+// or Changed is first read on it, or else when the paint ends; reading *value earlier
+// in that paint sees the previous value.
 func Switch(c C, value *bool, label string) Box {
 	b := c.f.Switch(c.page.boundID(pkSwitch, unsafe.Pointer(value)), *value)
 	if label != "" {
@@ -216,7 +221,7 @@ func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, ba
 	return b
 }
 
-// Slider is a slider over state.Value; Range, Step and Changed are the Frame's.
+// Slider is a slider over state.Value; Range, Step and Changed are the frame's.
 func Slider(c C, state *SliderState) Box {
 	c.page.slides(state)
 	return c.f.Slider(c.page.boundID(pkSlider, unsafe.Pointer(state)), state)
@@ -428,7 +433,7 @@ func (p *Page) Describe(id gfx.ID) string { return p.tree.Text(id) }
 // focusFirstControl makes the first control declared in a Dialog's body, or its
 // footer, the one that takes the keyboard as it opens; the close button when it has
 // none.
-func (f *Frame) focusFirstControl(dialog Box) {
+func (f *frame) focusFirstControl(dialog Box) {
 	d := &f.widgets.dialogs[dialog.n().aux]
 	for _, part := range [2]int32{d.body, d.footer} {
 		if id := f.firstControl(part); !id.IsZero() {
@@ -441,7 +446,7 @@ func (f *Frame) focusFirstControl(dialog Box) {
 
 // firstControl is the first element under i, in declaration order, with an identity
 // the keyboard can take: a control, or a container given Hit.
-func (f *Frame) firstControl(i int32) gfx.ID {
+func (f *frame) firstControl(i int32) gfx.ID {
 	for c := f.nodes[i].first; c >= 0; c = f.nodes[c].next {
 		n := &f.nodes[c]
 		if n.flags&flagDisabled == 0 && !n.id.IsZero() {

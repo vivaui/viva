@@ -10,63 +10,64 @@ import (
 // state must be after it.
 func TestGroupCClicksUpdateCallerState(t *testing.T) {
 	type step struct {
-		id   gfx.ID
-		want func(*State) bool
+		id    gfx.ID
+		label string // when set, the step finds its control by accessibility label
+		want  func(*State) bool
 	}
 	tests := []struct {
 		component, example string
 		steps              []step
 	}{
 		{"navigation-menu", "default", []step{
-			{navigationMenuTrigger, func(s *State) bool { return s.flags&1 != 0 }},
-			{navigationMenuAPI, func(s *State) bool { return s.values[0] == 3 && s.flags&1 == 0 }},
+			{id: navigationMenuTrigger, want: func(s *State) bool { return s.flags&1 != 0 }},
+			{id: navigationMenuAPI, want: func(s *State) bool { return s.values[0] == 3 && s.flags&1 == 0 }},
 		}},
 		{"pagination", "default", []step{
-			{paginationNext, func(s *State) bool { return s.values[0] == 4 }},
-			{paginationPage.At(4), func(s *State) bool { return s.values[0] == 8 }},
-			{paginationPrevious, func(s *State) bool { return s.values[0] == 7 }},
+			{id: paginationNext, want: func(s *State) bool { return s.values[0] == 4 }},
+			{id: paginationPage.At(4), want: func(s *State) bool { return s.values[0] == 8 }},
+			{id: paginationPrevious, want: func(s *State) bool { return s.values[0] == 7 }},
 		}},
 		{"popover", "custom-body", []step{
-			{popoverTrigger, func(s *State) bool { return s.flags&1 != 0 }},
-			{popoverAction, func(s *State) bool { return s.flags&2 != 0 }},
-			{popoverDismiss, func(s *State) bool { return s.flags&1 == 0 }},
+			{id: popoverTrigger, want: func(s *State) bool { return s.flags&1 != 0 }},
+			{id: popoverAction, want: func(s *State) bool { return s.flags&2 != 0 }},
+			{id: popoverDismiss, want: func(s *State) bool { return s.flags&1 == 0 }},
 		}},
 		{"questionnaire", "multiple-choice", []step{
-			{questionnaireChoice.At(1), func(s *State) bool { return s.flags&2 != 0 }},
-			{questionnaireNext, func(s *State) bool { return s.values[1] == 1 }},
+			{id: questionnaireChoice.At(1), want: func(s *State) bool { return s.flags&2 != 0 }},
+			{id: questionnaireNext, want: func(s *State) bool { return s.values[1] == 1 }},
 		}},
-		{"radio-group", "vertical", []step{{radioGroupItem.At(0), func(s *State) bool { return s.values[0] == 0 }}}},
-		{"scroll-area", "both-axes", []step{{scrollAreaHorizontal, func(s *State) bool { return s.values[1] == 72 }}}},
-		{"segmented-control", "default", []step{{segmentedControlView.At(2), func(s *State) bool { return s.values[0] == 2 }}}},
+		{"radio-group", "vertical", []step{{id: radioGroupItem.At(0), want: func(s *State) bool { return s.values[0] == 0 }}}},
+		{"scroll-area", "both-axes", []step{{id: scrollAreaHorizontal, want: func(s *State) bool { return s.values[1] == 72 }}}},
+		{"segmented-control", "default", []step{{id: segmentedControlView.At(2), want: func(s *State) bool { return s.values[0] == 2 }}}},
 		{"select", "default", []step{
-			{selectTrigger, func(s *State) bool { return s.flags&1 != 0 }},
-			{selectItem.At(1), func(s *State) bool { return s.values[0] == 2 && s.flags&1 == 0 }},
+			{id: selectTrigger, want: func(s *State) bool { return s.flags&1 != 0 }},
+			{id: selectItem.At(1), want: func(s *State) bool { return s.values[0] == 2 && s.flags&1 == 0 }},
 		}},
 		{"sheet", "right", []step{
-			{sheetTrigger, func(s *State) bool { return s.flags&1 != 0 }},
-			{sheetSave, func(s *State) bool { return s.flags&1 == 0 }},
+			{id: sheetTrigger, want: func(s *State) bool { return s.flags&1 != 0 }},
+			{id: sheetSave, want: func(s *State) bool { return s.flags&1 == 0 }},
 		}},
 		{"sidebar", "collapsed", []step{
-			{sidebarItem.At(2), func(s *State) bool { return s.values[0] == 2 }},
-			{sidebarCollapse, func(s *State) bool { return s.flags&1 != 0 }},
+			{id: sidebarItem.At(2), want: func(s *State) bool { return s.values[0] == 2 }},
+			{id: sidebarCollapse, want: func(s *State) bool { return s.flags&1 != 0 }},
 		}},
-		{"slider", "default", []step{{sliderPrimary, func(s *State) bool { return s.values[0] == 50 }}}},
-		{"sonner", "stack", []step{{sonnerDismiss.At(1), func(s *State) bool { return s.flags&0b010 == 0 && s.flags&0b101 == 0b101 }}}},
+		{"slider", "default", []step{{id: sliderPrimary, want: func(s *State) bool { return s.values[0] == 50 }}}},
+		{"sonner", "stack", []step{{id: sonnerDismiss.At(1), want: func(s *State) bool { return s.flags&0b010 == 0 && s.flags&0b101 == 0b101 }}}},
 		{"table", "selection", []step{
-			{tableRow.At(1), func(s *State) bool { return s.flags&2 != 0 }},
-			{tableRow.At(1), func(s *State) bool { return s.flags&2 == 0 }},
+			{id: tableRow.At(1), want: func(s *State) bool { return s.flags&2 != 0 }},
+			{id: tableRow.At(1), want: func(s *State) bool { return s.flags&2 == 0 }},
 		}},
-		{"tabs", "line", []step{{tabsItem.At(1), func(s *State) bool { return s.values[0] == 1 }}}},
+		{"tabs", "line", []step{{label: "活动", want: func(s *State) bool { return s.values[0] == 1 }}}},
 		{"toast", "types", []step{
-			{toastAction, func(s *State) bool { return s.values[0] == 1 }},
-			{toastDismiss, func(s *State) bool { return s.flags&1 == 0 }},
+			{id: toastAction, want: func(s *State) bool { return s.values[0] == 1 }},
+			{id: toastDismiss, want: func(s *State) bool { return s.flags&1 == 0 }},
 		}},
-		{"toggle", "default", []step{{toggleItem.At(2), func(s *State) bool { return s.flags&4 != 0 }}}},
-		{"toggle-group", "single", []step{{toggleGroupItem.At(2), func(s *State) bool { return s.flags == 4 }}}},
-		{"tooltip", "default", []step{{tooltipTrigger, func(s *State) bool { return s.flags&1 != 0 }}}},
+		{"toggle", "default", []step{{id: toggleItem.At(2), want: func(s *State) bool { return s.flags&4 != 0 }}}},
+		{"toggle-group", "single", []step{{id: toggleGroupItem.At(2), want: func(s *State) bool { return s.flags == 4 }}}},
+		{"tooltip", "default", []step{{id: tooltipTrigger, want: func(s *State) bool { return s.flags&1 != 0 }}}},
 		{"tree", "selection", []step{
-			{treeLeaf.At(2), func(s *State) bool { return s.values[0] == 2 }},
-			{treeGroupDisclosure, func(s *State) bool { return s.flags&1 == 0 }},
+			{id: treeLeaf.At(2), want: func(s *State) bool { return s.values[0] == 2 }},
+			{id: treeGroupDisclosure, want: func(s *State) bool { return s.flags&1 == 0 }},
 		}},
 	}
 	for _, test := range tests {
@@ -80,16 +81,33 @@ func TestGroupCClicksUpdateCallerState(t *testing.T) {
 			}
 			for index, step := range test.steps {
 				paintFrame(&canvas, state, size, 0, true)
-				if step.id != popoverDismiss { // the backdrop has no hit of its own to find
-					findHit(t, &canvas, step.id) // the demo declares the control it reads the click on
+				target := step.id
+				if step.label != "" {
+					target = findHitByLabel(t, &canvas, step.label)
 				}
-				canvas.BeginEventPass(step.id, gfx.ClickInfo{})
+				if target != popoverDismiss { // the backdrop has no hit of its own to find
+					findHit(t, &canvas, target) // the demo declares the control it reads the click on
+				}
+				canvas.BeginEventPass(target, gfx.ClickInfo{})
 				paintFrame(&canvas, state, size, 0, true)
 				canvas.EndEventPass()
 				if !step.want(state) {
-					t.Fatalf("step %d: click on %v left flags=%b values=%v", index, step.id, state.flags, state.values)
+					t.Fatalf("step %d: click on %v left flags=%b values=%v", index, target, state.flags, state.values)
 				}
 			}
 		})
 	}
+}
+
+// findHitByLabel finds the control of the canvas with the accessibility label,
+// for a demo whose Page names a control by its place instead of a stable tree ID.
+func findHitByLabel(t testing.TB, canvas *gfx.Canvas, label string) gfx.ID {
+	t.Helper()
+	for _, hit := range canvas.Hits() {
+		if hit.Label == label && !hit.IsLabel && !hit.Backdrop {
+			return hit.ID
+		}
+	}
+	t.Fatalf("missing hit labelled %q", label)
+	return gfx.ID{}
 }

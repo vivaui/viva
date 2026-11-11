@@ -16,8 +16,10 @@ import (
 //	on := ui.SwitchBase(c, &m.dark, "Dark mode")
 //	on.Radius(999).Background(track(on.State())).Draw(m.paintThumb)
 //
-// They are declared like their dressed forms: a bound value is written in the paint
-// that delivers the click, and Changed says it did.
+// They are declared like their dressed forms: a CheckboxBase, SwitchBase or ToggleBase
+// writes *value when Clicked or Changed is first read on it, or else when the paint
+// ends, so reading *value before that sees the previous value and a Disabled declared
+// after the control still holds; RadioBase and TabBase write where they are declared.
 
 // ButtonBase is Button without a look: a row centering its children that is clicked by
 // the pointer, Enter and Space. label is its accessible name.
@@ -29,14 +31,19 @@ func ButtonBase(c C, label string) Box {
 }
 
 // CheckboxBase is Checkbox without a look: the box, which flips *value and is drawn by
-// you. label is its accessible name.
+// you. label is its accessible name. *value is written when Clicked or Changed is first
+// read on the box, or else when the paint ends; reading *value before that sees the
+// previous value, and a Disabled declared after the box still holds.
 func CheckboxBase(c C, value *bool, label string) Box {
 	b := c.f.CheckboxBase(c.page.boundID(pkCheckbox, unsafe.Pointer(value)), *value).Label(label)
 	c.f.bindBool(b, value)
 	return b
 }
 
-// SwitchBase is Switch without a look: the track, which flips *value and is drawn by you.
+// SwitchBase is Switch without a look: the track, which flips *value and is drawn by
+// you. *value is written when Clicked or Changed is first read on the track, or else
+// when the paint ends; reading *value before that sees the previous value, and a
+// Disabled declared after the track still holds.
 func SwitchBase(c C, value *bool, label string) Box {
 	b := c.f.SwitchBase(c.page.boundID(pkSwitch, unsafe.Pointer(value)), *value).Label(label)
 	c.f.bindBool(b, value)
@@ -44,7 +51,9 @@ func SwitchBase(c C, value *bool, label string) Box {
 }
 
 // ToggleBase is a two-state button without a look: it flips *value, and to assistive
-// technology it is a button that is pressed or not.
+// technology it is a button that is pressed or not. *value is written when Clicked or
+// Changed is first read on it, or else when the paint ends; reading *value before that
+// sees the previous value, and a Disabled declared after it still holds.
 func ToggleBase(c C, value *bool, label string) Box {
 	b := c.f.ToggleBase(c.page.boundID(pkToggle, unsafe.Pointer(value)), label, *value)
 	c.f.bindBool(b, value)

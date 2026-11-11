@@ -186,8 +186,10 @@ func TestGroupKeyboardHelpersUpdateFocusAndSelection(t *testing.T) {
 		wantFlags                uint64
 		checkFlags               bool
 	}{
-		{name: "tabs", component: "tabs", example: "default", target: tabsItem.At(0), key: gfx.KeyRight, wantFocus: tabsItem.At(1), wantValue: 0},
-		{name: "tabs vertical", component: "tabs", example: "vertical", target: tabsItem.At(0), key: gfx.KeyDown, wantFocus: tabsItem.At(1), wantValue: 0},
+		// The standard tabs examples are ui.Tabs: their arrow keys are the Page's
+		// roving focus (ui/roving_test.go). The icons example paints the strip
+		// from explicit IDs, so its keys stay in the demo.
+		{name: "tabs icons", component: "tabs", example: "icons", target: tabsItem.At(0), key: gfx.KeyRight, wantFocus: tabsItem.At(1), wantValue: 0},
 		{name: "radio skips disabled", component: "radio-group", example: "states", target: radioGroupItem.At(1), key: gfx.KeyDown, wantFocus: radioGroupItem.At(0), wantValue: 0},
 		{name: "segment skips disabled", component: "segmented-control", example: "states", target: segmentedControlView.At(1), key: gfx.KeyRight, wantFocus: segmentedControlView.At(0), wantValue: 0},
 		{name: "toggle vertical skips disabled", component: "toggle-group", example: "vertical", target: toggleGroupItem.At(1), key: gfx.KeyDown, wantFocus: toggleGroupItem.At(0), wantFlags: 1, checkFlags: true},
@@ -214,6 +216,28 @@ func TestGroupKeyboardHelpersUpdateFocusAndSelection(t *testing.T) {
 	result := multiple.Key(gfx.KeyEvent{Key: gfx.KeyRight, Target: toggleGroupItem.At(0)})
 	if !result.Handled || result.Focus != toggleGroupItem.At(1) || result.Repaint || multiple.flags != before {
 		t.Fatalf("multiple result=%+v flags=%d", result, multiple.flags)
+	}
+}
+
+func TestStandardTabsRouteKeysThroughThePage(t *testing.T) {
+	for _, example := range []string{"default", "line", "vertical"} {
+		t.Run(example, func(t *testing.T) {
+			state := newTestState(t, "tabs", example)
+			var canvas gfx.Canvas
+			paintAt(&canvas, state, testSize)
+			labels := state.tabsLabels()
+			first := findHitByLabel(t, &canvas, labels[0])
+			second := findHitByLabel(t, &canvas, labels[1])
+			click(&canvas, state, first)
+			key := gfx.KeyRight
+			if example == "vertical" {
+				key = gfx.KeyDown
+			}
+			result := state.Key(gfx.KeyEvent{Key: key, Target: first})
+			if !result.Handled || !result.FocusVisible || result.Focus != second {
+				t.Fatalf("key result = %+v, want focus %v", result, second)
+			}
+		})
 	}
 }
 
@@ -275,7 +299,6 @@ func TestTypedDemoEventsAllocateZero(t *testing.T) {
 	slider := newTestState(t, "slider", "default")
 	resizable := newTestState(t, "resizable", "horizontal")
 	scroll := newTestState(t, "scroll-area", "both-axes")
-	tabs := newTestState(t, "tabs", "default")
 	if allocations := testing.AllocsPerRun(100, func() {
 		slider.values[0] = 40
 		slider.Pointer(gfx.PointerEvent{Kind: gfx.PointerMove, X: 620, Target: sliderPrimary, Captured: true})
@@ -283,9 +306,26 @@ func TestTypedDemoEventsAllocateZero(t *testing.T) {
 		resizable.Pointer(gfx.PointerEvent{Kind: gfx.PointerMove, X: 500, Target: resizableHandle, Captured: true})
 		scroll.values[0], scroll.values[1] = 0, 0
 		scroll.Scroll(gfx.ScrollEvent{DeltaX: 10, DeltaY: 10, Target: scrollAreaViewport})
-		tabs.values[0] = 0
-		tabs.Key(gfx.KeyEvent{Key: gfx.KeyRight, Target: tabsItem.At(0)})
 	}); allocations != 0 {
 		t.Fatalf("typed demo events allocated %v times", allocations)
+	}
+}
+
+func TestListKeysUseTheEmbeddedPage(t *testing.T) {
+	state := newTestState(t, "list", "selection")
+	var canvas gfx.Canvas
+	paintAt(&canvas, state, testSize)
+	row := findHitByLabel(t, &canvas, "Report.pdf")
+	click(&canvas, state, row)
+	if selected := state.list.list.Selected(); selected < 0 || state.list.rows[selected].name != "Report.pdf" {
+		t.Fatalf("click selected %d", selected)
+	}
+	result := state.Key(gfx.KeyEvent{Key: gfx.KeyDown, Target: row})
+	if !result.Handled {
+		t.Fatalf("key result = %+v", result)
+	}
+	selected := state.list.list.Selected()
+	if selected < 0 || state.list.rows[selected].name != "Notes.md" {
+		t.Fatalf("Down selected %d", selected)
 	}
 }

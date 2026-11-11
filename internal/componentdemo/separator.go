@@ -11,20 +11,20 @@ var separatorComponent = Component{
 	Examples: []Example{
 		{ID: "horizontal", Title: "水平分组", Description: "在设置行之间绘制一像素生产分隔线。", Snippet: `rows := [...]string{"Profile", "Notifications", "Appearance"}
 for index, label := range rows {
-    f.Text(label).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+    ui.Text(c, label).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
     if index < len(rows)-1 {
-        f.Divider()
+        ui.Divider(c)
     }
 }`},
 		{ID: "vertical", Title: "垂直分组", Description: "在紧凑指标之间使用垂直分隔线。", Snippet: `labels := [...]string{"12 projects", "4 members", "99.9% uptime"}
-f.Row().Height(96).Background(theme.Card).Border(1, theme.Border).
+ui.Row(c).Height(96).Background(theme.Card).Border(1, theme.Border).
     Radius(theme.Metrics.RadiusSurface).Children(func() {
         for index, label := range labels {
-            f.Column().Grow(1).Basis(0).Center().Children(func() {
-                f.Text(label).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+            ui.Column(c).Grow(1).Basis(0).Center().Children(func() {
+                ui.Text(c, label).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
             })
             if index < len(labels)-1 {
-                f.Divider().MarginY(20)
+                ui.Divider(c).MarginY(20)
             }
         }
     })`},
@@ -32,28 +32,28 @@ f.Row().Height(96).Background(theme.Card).Border(1, theme.Border).
 }
 
 func (state *State) paintSeparator(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	state.page(canvas, theme, size, 560, "Workspace settings", func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 560, "Workspace settings", func(c ui.C) {
 		if state.exampleID == "vertical" {
 			labels := [...]string{"12 projects", "4 members", "99.9% uptime"}
-			f.Row().Height(96).Background(theme.Card).Border(1, theme.Border).Radius(theme.Metrics.RadiusSurface).Children(func() {
+			ui.Row(c).Height(96).Background(theme.Card).Border(1, theme.Border).Radius(theme.Metrics.RadiusSurface).Children(func() {
 				for index, label := range labels {
-					f.Column().Grow(1).Basis(0).Center().Children(func() {
-						f.Text(label).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+					ui.Column(c).Grow(1).Basis(0).Center().Children(func() {
+						ui.Text(c, label).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
 					})
 					if index < len(labels)-1 {
-						f.Divider().MarginY(20)
+						ui.Divider(c).MarginY(20)
 					}
 				}
 			})
 		} else {
 			rows := [...]string{"Profile", "Notifications", "Appearance"}
 			for index, label := range rows {
-				f.Text(label).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+				ui.Text(c, label).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
 				if index < len(rows)-1 {
-					f.Divider()
+					ui.Divider(c)
 				}
 			}
 		}
-		caption(f, state.Text("仅绘制结构边界。", "Draws structural boundaries only."))
+		caption(c, state.Text("仅绘制结构边界。", "Draws structural boundaries only."))
 	})
 }

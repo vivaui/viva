@@ -1,10 +1,9 @@
 #!/bin/bash
-# Run the visual parity harness on this Mac and on the Linux and Windows test
-# machines (set VIVA_LINUX_ENV and VIVA_WINDOWS_ENV; see tools/testenv/env.sh), and
-# collect the results in $OUT/{mac,linux,windows} (default /tmp/parity-*), then
-# compare them.
+# Run the visual parity harness on this Mac and on the Linux test machine (set
+# VIVA_LINUX_ENV; see tools/testenv/env.sh), and collect the results in
+# $OUT/{mac,linux} (default /tmp/parity-*), then compare them.
 #
-#   tools/visualparity/run_all.sh [mac|linux|windows ...]      (from the repository root)
+#   tools/visualparity/run_all.sh [mac|linux ...]      (from the repository root)
 #
 # Remote files are named with $TAG (default visualparity-$USER) and removed afterwards.
 set -eu
@@ -15,7 +14,7 @@ T=tools/testenv
 TAG=${TAG:-visualparity-$(id -un)}
 OUT=${OUT:-/tmp/parity}
 platforms=("$@")
-[ ${#platforms[@]} -eq 0 ] && platforms=(mac linux windows)
+[ ${#platforms[@]} -eq 0 ] && platforms=(mac linux)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
@@ -46,22 +45,10 @@ EOS
 		tar xzf "$tmp/linux.tgz" -C "$OUT-linux" --strip-components=1
 		$T/exec.sh linux "rm -rf /home/user/$TAG /home/user/$TAG-run.sh /tmp/$TAG-out /tmp/$TAG-home /tmp/$TAG-run /tmp/$TAG.tgz /tmp/$TAG.log"
 		;;
-	windows)
-		GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o "$tmp/vp.exe" ./tools/visualparity
-		$T/upload.sh windows "$tmp/vp.exe" "C:\\Users\\Docker\\Desktop\\$TAG.exe"
-		# The call is cut off after about a minute: run it in the background and poll.
-		($T/exec.sh cmd "cd /d C:\\Users\\Docker\\Desktop && (if exist $TAG-out rmdir /s /q $TAG-out) & $TAG.exe run -out C:\\Users\\Docker\\Desktop\\$TAG-out -scales 1,1.5,2 > $TAG.log 2>&1 & echo exit=%errorlevel% > $TAG.done" >/dev/null 2>&1 &)
-		for _ in $(seq 100); do sleep 3; $T/exec.sh cmd "if exist C:\\Users\\Docker\\Desktop\\$TAG.done (exit 0) else (exit 1)" && break; done
-		$T/exec.sh cmd "cd /d C:\\Users\\Docker\\Desktop && tar -cf $TAG.tar $TAG-out"
-		rm -rf "$OUT-windows"; mkdir -p "$OUT-windows"
-		curl -sf -X POST "$VIVA_WINDOWS_ENV/file" -F "file_path=C:\\Users\\Docker\\Desktop\\$TAG.tar" -o "$tmp/windows.tar"
-		tar xf "$tmp/windows.tar" -C "$OUT-windows" --strip-components=1
-		$T/exec.sh cmd "cd /d C:\\Users\\Docker\\Desktop && del /q $TAG.exe $TAG.tar $TAG.log $TAG.done & rmdir /s /q $TAG-out" || true
-		;;
 	*)
 		echo "unknown platform $platform" >&2
 		exit 2
 		;;
 	esac
 done
-echo "results in $OUT-{mac,linux,windows}; compare with: go run ./tools/visualparity compare -out $OUT-diff $OUT-mac $OUT-windows"
+echo "results in $OUT-{mac,linux}; compare with: go run ./tools/visualparity compare -out $OUT-diff $OUT-mac $OUT-linux"

@@ -41,15 +41,15 @@ var (
 
 func (state *State) paintNativeSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var rows [3]ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Native Select · 系统弹窗", "Native Select · System popup"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 560, state.Text("Native Select · 系统弹窗", "Native Select · System popup"), func(c ui.C) {
 		if state.exampleID == "default" {
-			rows[0] = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
-			f.Text(state.Text("平台适配器负责系统弹窗。", "The platform adapter owns the system popup.")).FontSize(theme.Metrics.FontSizeS).Muted()
+			rows[0] = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
+			ui.Text(c, state.Text("平台适配器负责系统弹窗。", "The platform adapter owns the system popup.")).FontSize(theme.Metrics.FontSizeS).Muted()
 			return
 		}
-		rows[0] = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight - 4)
-		rows[1] = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
-		rows[2] = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+		rows[0] = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight - 4)
+		rows[1] = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
+		rows[2] = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 	})
 	if state.exampleID == "default" {
 		components.PaintNativeSelect(canvas, theme, rows[0].Rect(), components.NativeSelectSnapshot{ID: nativeSelectTrigger.At(0), Label: "Environment", Value: "production", Display: "Production", Hint: "Choose environment", Open: state.flags&1 != 0})

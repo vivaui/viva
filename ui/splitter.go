@@ -98,7 +98,7 @@ type splitDecl struct {
 // shows the resize shape over it; with the keyboard, SplitterState.Key moves it. Mins
 // sets the least size of the first and the second pane (48 each by default). The
 // divider is 8 pixels thick, as long as the container is across.
-func (f *Frame) Splitter(id gfx.ID, state *SplitterState) Box {
+func (f *frame) Splitter(id gfx.ID, state *SplitterState) Box {
 	first := int32(-1)
 	if f.parent >= 0 {
 		first = f.nodes[f.parent].last
@@ -123,9 +123,9 @@ func (b Box) Mins(first, second float32) Box {
 
 // splitsRow reports whether the splitter's container lays out left to right, so its
 // bar is vertical and its pointer coordinate is x.
-func (f *Frame) splitsRow(n *node) bool { return n.parent < 0 || f.nodes[n.parent].dir != column }
+func (f *frame) splitsRow(n *node) bool { return n.parent < 0 || f.nodes[n.parent].dir != column }
 
-func (f *Frame) measureSplitter(n *node) {
+func (f *frame) measureSplitter(n *node) {
 	if f.splitsRow(n) {
 		n.pref = [2]float32{splitterThickness, 0}
 	} else {
@@ -136,7 +136,7 @@ func (f *Frame) measureSplitter(n *node) {
 // splitLimits works out how far the first pane may grow once the page is laid out:
 // everything the two panes (and the gaps) have between them, less the bar and the
 // second pane's minimum.
-func (f *Frame) splitLimits(n *node) (lo, hi, span float32) {
+func (f *frame) splitLimits(n *node) (lo, hi, span float32) {
 	d := &f.widgets.splits[n.aux]
 	lo = d.minFirst
 	if d.first < 0 || n.next < 0 {
@@ -157,7 +157,7 @@ func (f *Frame) splitLimits(n *node) (lo, hi, span float32) {
 // this axis before the container shares its room. Doing it in the layout pass,
 // rather than after it, means the first frame that shows the pane already has
 // the share and a resize keeps it without a second frame.
-func (f *Frame) placeSplitRatios(n *node, axis int, avail float32) {
+func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 	if n.first < 0 {
 		return
 	}
@@ -193,7 +193,7 @@ func (f *Frame) placeSplitRatios(n *node, axis int, avail float32) {
 // reportSplitters keeps every position inside its limits after a layout (a window that
 // got smaller, a pane that was given a different size) and asks for one more frame when
 // it had to move one, so the panes follow.
-func (f *Frame) reportSplitters() {
+func (f *frame) reportSplitters() {
 	for i := range f.nodes {
 		n := &f.nodes[i]
 		if n.kind != kindSplitter {
@@ -211,7 +211,7 @@ func (f *Frame) reportSplitters() {
 	}
 }
 
-func (f *Frame) paintSplitter(n *node) {
+func (f *frame) paintSplitter(n *node) {
 	canvas := f.canvas
 	d := &f.widgets.splits[n.aux]
 	s := d.state

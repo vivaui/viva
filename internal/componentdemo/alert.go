@@ -43,10 +43,10 @@ func (state *State) paintAlert(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 	variants := state.exampleID == "variants"
 	// The page column is at most 560 wide inside 24 of padding.
 	contentWidth := min(float32(560), size.Width-48)
-	state.page(canvas, theme, size, 560, state.Text("Alert · 明确反馈", "Alert · Clear feedback"), func(f *ui.Frame) {
-		plain = f.Slot().FillWidth().Height(components.AlertHeight(canvas, theme, contentWidth, plainData))
+	state.drawPage(canvas, theme, size, 560, state.Text("Alert · 明确反馈", "Alert · Clear feedback"), func(c ui.C) {
+		plain = ui.Slot(c).FillWidth().Height(components.AlertHeight(canvas, theme, contentWidth, plainData))
 		if variants {
-			destructive = f.Slot().FillWidth().Height(components.AlertHeight(canvas, theme, contentWidth, dangerData))
+			destructive = ui.Slot(c).FillWidth().Height(components.AlertHeight(canvas, theme, contentWidth, dangerData))
 		}
 	})
 	components.Alert(canvas, theme, plain.Rect(), plainData)

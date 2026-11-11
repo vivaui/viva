@@ -29,10 +29,10 @@ primary, menu := result.Clicked()`,
 
 func (state *State) paintSplitButton(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	open := state.flags&1 != 0
-	state.page(canvas, theme, size, 480, state.Text("Split Button · 主操作与菜单", "Split Button · Primary and menu"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 480, state.Text("Split Button · 主操作与菜单", "Split Button · Primary and menu"), func(c ui.C) {
 		var target ui.Box
-		f.Row().Self(ui.Start).Children(func() {
-			target = f.Slot().Width(196).Height(36)
+		ui.Row(c).Self(ui.Start).Children(func() {
+			target = ui.Slot(c).Width(196).Height(36)
 		})
 		result := components.BeginSplitButton(canvas, theme, target.Rect(), components.SplitButtonOptions{
 			PrimaryID: splitButtonPrimary, MenuID: splitButtonMenu,
@@ -55,11 +55,11 @@ func (state *State) paintSplitButton(canvas *gfx.Canvas, theme gfx.Theme, size g
 		} else if open {
 			status = state.Text("主操作：保存 · 菜单：展开", "Primary: Save · Menu: open")
 		}
-		f.Text(status).
+		ui.Text(c, status).
 			FontSize(theme.Metrics.FontSizeS).Muted()
-		caption(f, state.Text(
+		ui.Wrap(c, state.Text(
 			"主操作与菜单热区各自支持键盘焦点和独立可访问名称。",
 			"The primary and menu targets have separate keyboard focus and accessible names.",
-		))
+		)).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 }

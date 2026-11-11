@@ -148,6 +148,9 @@ func (b Box) Focus(look Look) Box { b.states().focus = look; return b }
 //
 //	ui.TextField(c, &m.query, "Search", "").AutoFocus()
 //
+// A request made while handling a click or a shortcut takes effect in the
+// repaint that follows it, as Canvas.RequestFocus says.
+//
 // In a page embedded with gfx.Embed, the request stays on the view's canvas; the
 // host adopts it with gfx.Canvas.AdoptEmbedded when the view should take the
 // keyboard for the host.
@@ -270,7 +273,7 @@ type resolved struct {
 	shadow                          gfx.ShadowLevel
 }
 
-func (f *Frame) resolve(n *node, extra *extra) resolved {
+func (f *frame) resolve(n *node, extra *extra) resolved {
 	s := resolved{
 		background: n.background, border: extra.border, color: n.color, ring: extra.ring,
 		ringWidth: extra.ringWidth, opacity: 1 - extra.fade, shadow: extra.shadow,
@@ -347,7 +350,7 @@ func fade(c Color, opacity float32) Color {
 }
 
 // paintRing draws the ring around r, outside it.
-func (f *Frame) paintRing(r Rect, radius float32, s *resolved) {
+func (f *frame) paintRing(r Rect, radius float32, s *resolved) {
 	color := fade(s.ring, f.opacity)
 	if s.ringWidth <= 0 || color.Alpha <= 0 {
 		return
@@ -361,7 +364,7 @@ func (f *Frame) paintRing(r Rect, radius float32, s *resolved) {
 }
 
 // paintGradient draws the gradient of an element over its whole rectangle.
-func (f *Frame) paintGradient(n *node, extra *extra) {
+func (f *frame) paintGradient(n *node, extra *extra) {
 	g := f.gradients[extra.gradient-1]
 	stops := f.stops[g.first : g.first+g.count]
 	if f.opacity < 1 {

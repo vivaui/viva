@@ -19,9 +19,18 @@ type ListState struct {
 	// above it: an item's ID, unique among the rows. Nil names a row by its index.
 	Key func(i int) int
 	// Label is the text of row i: typing the first letters of a row's text while
-	// the list has the keyboard focus chooses it, and assistive technology reads it
-	// as the row's name. Nil leaves the rows unnamed.
+	// the list has the keyboard focus chooses it. It is also the row's name for
+	// assistive technology unless Name says otherwise. Nil leaves the rows unnamed
+	// and turns typing to the list off.
 	Label func(i int) string
+	// Name is the name of row i for assistive technology, when the spoken name is
+	// more than what typing matches: a log row whose Label is its message is named
+	// by its time, level and message. Nil names the row by Label.
+	Name func(i int) string
+	// NoTypeahead leaves the keys typed in the list to the page, so that its first
+	// letters choose nothing: a list whose rows are typed into for something else,
+	// or one whose Label is a whole sentence rather than a first letter to jump by.
+	NoTypeahead bool
 	// Selection, when set, lets the user choose several rows, which it holds by
 	// their keys (Key), or their indices without one: a click chooses one, Primary
 	// (Command on macOS, Control elsewhere) with a click adds a row or takes it out,
@@ -79,8 +88,10 @@ type listInternals struct {
 	scroll       *ScrollState
 	pending      listScroll // where the application asked to scroll
 	pendingRow   int32      // 1 + the row it asked to show
+	pendingAt    float32    // where the last paint of it left the offset
+	pendingFrame uint8      // the paints it has been applied in, counted to a bound
 	declared     []listDeclRow
-	f            *Frame
+	f            *frame
 	typeahead    components.MenuTypeahead
 	paint        func(*DrawContext) // the area's Draw, made once
 	over         func(*DrawContext) // its DrawOver, made once
@@ -175,7 +186,23 @@ func (s *ListState) Submitted() (int, bool) {
 	return int(s.list.submittedRow) - 1, s.list.submitted
 }
 
-// ScrollTo scrolls the list to row at align, at its next declaration.
+// HasFocus reports whether the keyboard focus is on one of the list's rows, as of
+// the last paint, so a list can answer for the keys it takes without a visible row
+// at hand. It is true whether or not the focus is drawn; ListRow.Focused reports that
+// of the row it is called on.
+func (s *ListState) HasFocus() bool {
+	in := &s.list
+	if in.f == nil || in.f.canvas == nil || in.rows.IsZero() {
+		return false
+	}
+	return in.f.canvas.Focused().Scope() == in.rows
+}
+
+// ScrollTo scrolls the list to row at align, at its next declaration. A row the
+// list has not laid out is placed at the average height of the rows it has, so the
+// request stays for the paints that show the rows around the target and measure
+// them, and goes once the offset no longer moves; the list asks for those paints
+// itself, and lets the request go if anything else moves the list first.
 func (s *ListState) ScrollTo(row int, align ListAlign) {
 	kind := listScrollStart
 	switch align {
@@ -184,18 +211,18 @@ func (s *ListState) ScrollTo(row int, align ListAlign) {
 	case ListEnd:
 		kind = listScrollEnd
 	}
-	s.list.pending, s.list.pendingRow = kind, int32(row+1)
+	s.requestScroll(kind, row)
 }
 
 // ScrollIntoView scrolls the list as little as shows row whole, at its next
-// declaration.
+// declaration, settling as ScrollTo does.
 func (s *ListState) ScrollIntoView(row int) {
-	s.list.pending, s.list.pendingRow = listScrollNear, int32(row+1)
+	s.requestScroll(listScrollNear, row)
 }
 
-// ScrollToEnd scrolls the list to its end.
+// ScrollToEnd scrolls the list to its end, settling as ScrollTo does.
 func (s *ListState) ScrollToEnd() {
-	s.list.pending, s.list.pendingRow = listScrollToEnd, 0
+	s.requestScroll(listScrollToEnd, -1)
 }
 
 // Visible returns the first and the last row the list showed in the last paint,
@@ -434,54 +461,134 @@ func (s *ListState) indexOf(id gfx.ID) int {
 	return -1
 }
 
-// applyScrollRequest applies the scroll the application asked for, before the list
-// places its rows, and reports whether it moved the offset. A row near the end is
-// brought only as far as the rows go: the layout would clamp the offset to the
-// content too, but only for the next paint, and the rows are placed for this one.
-func (s *ListState) applyScrollRequest(f *Frame) bool {
+// requestScroll makes kind of scroll to row the one the next paints apply, as a new
+// request rather than the continuation of one still settling.
+func (s *ListState) requestScroll(kind listScroll, row int) {
 	in := &s.list
-	if in.pending == listScrollNone || in.scroll == nil {
+	in.pending, in.pendingRow = kind, int32(row+1)
+	in.pendingAt, in.pendingFrame = 0, 0
+}
+
+// clearScrollRequest forgets the scroll the application asked for.
+func (s *ListState) clearScrollRequest() {
+	in := &s.list
+	in.pending, in.pendingRow = listScrollNone, 0
+	in.pendingAt, in.pendingFrame = 0, 0
+}
+
+// listScrollSlack is how far a request may land from its target, in pixels, before
+// the list applies it again: the rows the target was estimated from are measured as
+// they show, so the paints that follow correct it until it moves no more.
+const listScrollSlack = 0.5
+
+// listScrollFrames bounds the paints one request may be applied in. A list of rows
+// of different heights places a row it has not measured by the average of those it
+// has, which settles in a few paints; the bound keeps one that never settles from
+// asking for frames forever.
+const listScrollFrames = 6
+
+// applyScrollRequest applies the scroll the application asked for, before the list
+// places its rows, and reports whether it moved the offset. A request is one offset
+// computed from the heights the list knows, and the rows it shows then are measured at
+// the end of the paint: a target that depended on rows it had not measured moves, so
+// the request is applied again in the next paint, which the list asks for, until the
+// offset it asks for is where the list already is.
+func (s *ListState) applyScrollRequest(f *frame) bool {
+	in := &s.list
+	scroll := in.scroll
+	if in.pending == listScrollNone || scroll == nil {
 		return false
 	}
-	kind, row := in.pending, int(in.pendingRow)-1
-	in.pending, in.pendingRow = listScrollNone, 0
-	scroll := in.scroll
 	viewport := scroll.Viewport
 	if viewport <= 0 {
 		viewport = f.bounds.Height
 	}
-	before, end := scroll.Offset, max(s.top(in.n)-viewport, 0)
-	to := func(y float32) { scroll.ScrollTo(min(y, end)) }
-	switch kind {
-	case listScrollToEnd:
-		// The layout puts the area at the end of what is there; the offset says which
-		// rows to place for it.
+	kind, row := in.pending, int(in.pendingRow)-1
+	if in.pendingFrame > 0 &&
+		(scroll.Offset < in.pendingAt-listScrollSlack || scroll.Offset > in.pendingAt+listScrollSlack) {
+		// The offset is not where the request left it: the user or the application
+		// scrolled in between, and the request gives way instead of pulling the list
+		// back from under them.
+		s.clearScrollRequest()
+		return false
+	}
+	target, toEnd, ok := s.scrollTarget(kind, row, viewport, scroll)
+	if !ok || in.pendingFrame >= listScrollFrames {
+		s.clearScrollRequest()
+		return false
+	}
+	if !toEnd && scroll.Content > 0 && target > scroll.Max() {
+		// The row is near enough the end that it cannot be put where it was asked
+		// for: the end is as far as the list goes, and where a layout would clamp
+		// the offset to anyway.
+		target = scroll.Max()
+	}
+	if toEnd && target < 0 {
+		// A list shorter than the viewport sits at its end already, at offset
+		// zero, where the target past the top of the content would never land
+		// and the request would idle for its frame limit instead.
+		target = 0
+	}
+	settled := target >= scroll.Offset-listScrollSlack && target <= scroll.Offset+listScrollSlack
+	// A pin moves the offset at the end of a layout, so the paint that follows the
+	// request still shows the rows the list was at: the end is where it should be
+	// only once a paint has laid it out and the heights put it there.
+	if settled && (!toEnd || (in.laidOut && in.last >= in.n-1)) {
+		s.clearScrollRequest()
+		return false
+	}
+	before := scroll.Offset
+	if toEnd {
+		// The pin puts the area at its end only at the end of the layout; the offset
+		// says which rows to place for it in this paint.
 		scroll.ScrollToEnd()
-		scroll.Offset = end
-	case listScrollStart:
-		if row >= 0 && row < in.n {
-			to(s.top(row))
-		}
-	case listScrollCenter:
-		if row >= 0 && row < in.n {
-			to((s.top(row)+s.top(row+1))/2 - viewport/2)
-		}
-	case listScrollEnd:
-		if row >= 0 && row < in.n {
-			to(s.top(row+1) - viewport)
-		}
-	case listScrollNear:
-		if row >= 0 && row < in.n {
-			top, bottom := s.top(row), s.top(row+1)
-			switch {
-			case top < scroll.Offset:
-				to(top)
-			case bottom > scroll.Offset+viewport:
-				to(bottom - viewport)
-			}
-		}
+		scroll.Offset = target
+	} else {
+		scroll.ScrollTo(target)
+	}
+	in.pendingFrame++
+	if f.canvas != nil {
+		f.canvas.RequestFrame()
 	}
 	return scroll.Offset != before
+}
+
+// afterLayout records where a pending request left the list, so the next paint can
+// tell an offset the request moved from one something else moved.
+func (s *ListState) afterLayout() {
+	in := &s.list
+	if in.pending != listScrollNone && in.scroll != nil {
+		in.pendingAt = in.scroll.Offset
+	}
+}
+
+// scrollTarget is where the request kind puts row as the list knows the heights now:
+// the offset to scroll to, and whether the end of the content is what it scrolls to,
+// which only a layout can place.
+func (s *ListState) scrollTarget(kind listScroll, row int, viewport float32, scroll *ScrollState) (target float32, toEnd, ok bool) {
+	if kind == listScrollToEnd {
+		return s.top(s.list.n) - viewport, true, s.list.n > 0
+	}
+	if row < 0 || row >= s.list.n {
+		return 0, false, false
+	}
+	switch kind {
+	case listScrollStart:
+		return s.top(row), false, true
+	case listScrollCenter:
+		return (s.top(row)+s.top(row+1))/2 - viewport/2, false, true
+	case listScrollEnd:
+		return s.top(row+1) - viewport, false, true
+	case listScrollNear:
+		top, bottom := s.top(row), s.top(row+1)
+		if top < scroll.Offset {
+			return top, false, true
+		}
+		if bottom > scroll.Offset+viewport {
+			return bottom - viewport, false, true
+		}
+	}
+	return 0, false, false
 }
 
 // estimate is the height a row not yet measured is taken to have: the average of
@@ -648,12 +755,14 @@ func (r ListRow) Focused() bool {
 // estimated from the measured ones. A click chooses a row; the arrows move between
 // rows, Home and End to the first and last, Page Up and Down by a screen; Enter or a
 // double click submits one (Submitted); typing a row's first letters moves to it
-// (Label). With a Selection the user chooses several (see ListState). Header makes
-// sections whose heading stays at the top, Reorder lets the user drag rows to
-// another place, and RowWidth makes the rows wider than the list, scrolled sideways.
+// (Label, unless NoTypeahead). Name is what assistive technology reads for a row
+// whose spoken name is more than the text typing matches. With a Selection the user
+// chooses several (see ListState). Header makes sections whose heading stays at the
+// top, Reorder lets the user drag rows to another place, and RowWidth makes the rows
+// wider than the list, scrolled sideways.
 //
-// The rows are one stop of Tab, on the row chosen last or the first shown. Name the
-// list for assistive technology with Box.Label after it:
+// The rows are one stop of Tab, on the row chosen last or the first shown. Give the
+// list a name for assistive technology with Box.Label after it:
 //
 //	files := ui.List(c, &m.files, len(m.files), func(row ui.ListRow) {
 //		row.Element.PadX(8).Gap(8).Items(ui.Center).Children(func() {
@@ -706,6 +815,17 @@ func List(c C, state *ListState, n int, row func(ListRow)) Box {
 		p.wheelXRoute = (*Page).listWheelX
 	}
 	return area
+}
+
+// listRowScope is the scope of the rows of the List whose area is area, so a
+// Shortcut on the box List returns covers them as well as the area's own scope.
+func (p *Page) listRowScope(area int32) gfx.Scope {
+	for _, state := range p.listStates {
+		if state.list.area == area {
+			return state.list.rows
+		}
+	}
+	return 0
 }
 
 // blockBehind keeps the pointer from the rows under a pinned header.
@@ -838,6 +958,17 @@ func (in *listInternals) draw(d *DrawContext) {
 	d.Canvas.Container(d.Rect, gfx.RoleListBox, d.Label)
 }
 
+// rowName is row i's name for assistive technology: Name when it is set, else Label.
+func (s *ListState) rowName(i int) string {
+	if s.Name != nil {
+		return s.Name(i)
+	}
+	if s.Label != nil {
+		return s.Label(i)
+	}
+	return ""
+}
+
 // declareRow declares row i of a List: its whole rectangle is a pointer target and a
 // stop of the keyboard, and a click delivered to it chooses, extends or toggles the
 // choice before the row shows it. A header is none of that.
@@ -853,10 +984,7 @@ func (in *listInternals) declareRow(c C, s *ListState, i int, box Box, row func(
 		return
 	}
 	id := in.rows.At(key)
-	label := ""
-	if s.Label != nil {
-		label = s.Label(i)
-	}
+	label := s.rowName(i)
 	if canvas := c.f.canvas; canvas != nil && !id.IsZero() && canvas.Clicked(id) {
 		info, _ := canvas.ClickInfo()
 		s.clickRow(c.page, i, info)
@@ -1071,7 +1199,7 @@ func (p *Page) listType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 			s.selectAll(epoch)
 			return gfx.EventResult{Handled: true, Repaint: true}, true
 		}
-		if s.Label == nil || event.Modifiers&^gfx.ModifierShift != 0 {
+		if s.Label == nil || s.NoTypeahead || event.Modifiers&^gfx.ModifierShift != 0 {
 			return gfx.EventResult{}, false
 		}
 		rows := components.MenuTypeaheadRows{
@@ -1106,6 +1234,7 @@ func (p *Page) measureLists() {
 		if list.pinned >= 0 {
 			list.state.measured(list.pinnedRow, p.ctx.f.nodes[list.pinned].rect.Height)
 		}
+		list.state.afterLayout() // the offset is the layout's now, not the request's
 	}
 	clear(p.lists)
 	p.lists = p.lists[:0]
