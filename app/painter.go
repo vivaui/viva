@@ -104,7 +104,8 @@ type painter struct {
 	clippedPaths       []gfx.Triangle
 	clippedSoft        []gfx.Shadow
 	order              []shapeRef      // clipped, clippedPaths and clippedSoft interleaved in paint order
-	blocks             []gfx.Rectangle // scratch for appendBlockElements
+	blocks             []gfx.Rectangle // scratch for appendCellGlyphs
+	strokes            []gfx.Triangle  // scratch for appendCellGlyphs
 	clippedTexts       []gfx.Text
 	clippedImages      []gfx.Image
 	// controls draws the window buttons of a custom titlebar, on platforms where
@@ -982,6 +983,7 @@ func (painter *painter) trim() {
 	painter.clippedSoft = trimPainterCapacity(painter.clippedSoft)
 	painter.order = trimPainterCapacity(painter.order)
 	painter.blocks = trimPainterCapacity(painter.blocks)
+	painter.strokes = trimPainterCapacity(painter.strokes)
 	painter.clippedTexts = trimPainterCapacity(painter.clippedTexts)
 	painter.clippedImages = trimPainterCapacity(painter.clippedImages)
 	painter.accessibility = trimPainterCapacity(painter.accessibility)
@@ -1346,38 +1348,12 @@ func (painter *painter) applyClipping() {
 			}
 			triangle := triangles[next]
 			next++
-			if triangle.HasClip {
-				bounds := triangleBounds(triangle.Points)
-				if triangle.EdgeMask != 0 {
-					// Native renderers also cover half a device pixel outside the
-					// silhouette. Keep the scissor when that fringe meets a clip.
-					half := 0.5 / painter.canvas.PixelScale()
-					bounds.X -= half
-					bounds.Y -= half
-					bounds.Width += 2 * half
-					bounds.Height += 2 * half
-				}
-				visible, cut := clipVisibility(bounds, triangle.ClipOf)
-				if !visible {
-					continue
-				}
-				triangle.HasClip = cut
-			}
-			painter.order = append(painter.order, shapeRef{index: int32(len(painter.clippedPaths)), triangle: true})
-			painter.clippedPaths = append(painter.clippedPaths, triangle)
+			painter.appendTriangle(triangle)
 		}
 	}
 	for number, rectangle := range painter.canvas.Rectangles() {
 		placeTrianglesBefore(number)
-		if rectangle.HasClip {
-			visible, cut := clipVisibility(rectangle.Bounds, rectangle.ClipOf)
-			if !visible {
-				continue
-			}
-			rectangle.HasClip = cut
-		}
-		painter.order = append(painter.order, shapeRef{index: int32(len(painter.clipped))})
-		painter.clipped = append(painter.clipped, rectangle)
+		painter.appendRectangle(rectangle)
 	}
 	placeTrianglesBefore(len(painter.canvas.Rectangles()))
 	for _, text := range painter.canvas.Texts() {
@@ -1395,7 +1371,7 @@ func (painter *painter) applyClipping() {
 		}
 		painter.clippedTexts = append(painter.clippedTexts, text)
 		if text.RunCount > 0 {
-			painter.appendBlockElements(text)
+			painter.appendCellGlyphs(text)
 		}
 	}
 	painter.layerShift = 0
@@ -1439,21 +1415,57 @@ func (painter *painter) applyClipping() {
 	}
 }
 
-// appendBlockElements paints the Block Elements of a fixed-pitch line as rectangles after
-// the canvas's own, as the line's text is drawn after them (see gfx.Canvas.BlockRectangles).
-func (painter *painter) appendBlockElements(text gfx.Text) {
-	painter.blocks = painter.canvas.BlockRectangles(painter.blocks[:0], text)
+// appendCellGlyphs paints the geometry of a fixed-pitch line's cell glyphs — the Block
+// Elements, Box Drawing, Braille and the corner shapes of Geometric Shapes — after the
+// canvas's own, as the line's text is drawn after them (see gfx.Canvas.CellGlyphGeometry).
+func (painter *painter) appendCellGlyphs(text gfx.Text) {
+	shapes := painter.canvas.CellGlyphGeometry(gfx.CellGlyphShapes{
+		Rectangles: painter.blocks[:0],
+		Triangles:  painter.strokes[:0],
+	}, text)
+	painter.blocks, painter.strokes = shapes.Rectangles, shapes.Triangles
 	for _, rectangle := range painter.blocks {
-		if rectangle.HasClip {
-			visible, cut := clipVisibility(rectangle.Bounds, rectangle.ClipOf)
-			if !visible {
-				continue
-			}
-			rectangle.HasClip = cut
-		}
-		painter.order = append(painter.order, shapeRef{index: int32(len(painter.clipped))})
-		painter.clipped = append(painter.clipped, rectangle)
+		painter.appendRectangle(rectangle)
 	}
+	for _, triangle := range painter.strokes {
+		painter.appendTriangle(triangle)
+	}
+}
+
+// appendRectangle puts rectangle in the frame's order after cutting it to its clip, and drops it
+// when nothing of it is inside.
+func (painter *painter) appendRectangle(rectangle gfx.Rectangle) {
+	if rectangle.HasClip {
+		visible, cut := clipVisibility(rectangle.Bounds, rectangle.ClipOf)
+		if !visible {
+			return
+		}
+		rectangle.HasClip = cut
+	}
+	painter.order = append(painter.order, shapeRef{index: int32(len(painter.clipped))})
+	painter.clipped = append(painter.clipped, rectangle)
+}
+
+// appendTriangle is appendRectangle for the triangles a renderer feathers: their scissor keeps the
+// half device pixel the edge reaches past the silhouette.
+func (painter *painter) appendTriangle(triangle gfx.Triangle) {
+	if triangle.HasClip {
+		bounds := triangleBounds(triangle.Points)
+		if triangle.EdgeMask != 0 {
+			half := 0.5 / painter.canvas.PixelScale()
+			bounds.X -= half
+			bounds.Y -= half
+			bounds.Width += 2 * half
+			bounds.Height += 2 * half
+		}
+		visible, cut := clipVisibility(bounds, triangle.ClipOf)
+		if !visible {
+			return
+		}
+		triangle.HasClip = cut
+	}
+	painter.order = append(painter.order, shapeRef{index: int32(len(painter.clippedPaths)), triangle: true})
+	painter.clippedPaths = append(painter.clippedPaths, triangle)
 }
 
 // clipVisibility reports whether any of bounds lies inside clip and whether the
@@ -2024,8 +2036,8 @@ func (painter *painter) syncLabels() {
 			entry.FontGeneration = fontGeneration
 		}
 		if label.RunCount > 0 {
-			// The font does not draw Block Elements; appendBlockElements did.
-			entry.Value, entry.Runs = gfx.ReplaceBlockElements(entry.Value, entry.Runs)
+			// The font does not draw the cell glyphs; appendCellGlyphs did.
+			entry.Value, entry.Runs = gfx.ReplaceCellGlyphs(entry.Value, entry.Runs)
 		}
 		if label.HasClip && !containsRect(label.ClipOf, label.Bounds) {
 			// The clip cuts the label partway: the renderers scissor to it.
