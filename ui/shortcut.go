@@ -53,8 +53,9 @@ func Shortcut(c C, modifiers gfx.Modifiers, key string) bool {
 // Shortcut is ui.Shortcut for while the keyboard focus is on the element or in it: a
 // list's Delete acts on the list being worked in, a panel's Primary+F searches it.
 // Where Shortcuts of one chord nest, the innermost one with the focus acts. The
-// element is a control, or a container of the page; the rows of a List count as
-// inside the box List returns, so its Shortcut acts while a row has the focus.
+// element is a control, or a container of the page; the rows of a List or a Tree
+// count as inside the box List or Tree returns, so its Shortcut acts while a row
+// has the focus.
 //
 //	list := ui.Column(c).Children(rows)
 //	if list.Shortcut(0, "delete") {
