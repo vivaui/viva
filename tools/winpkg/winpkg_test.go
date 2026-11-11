@@ -136,7 +136,7 @@ func TestEncodeICOFillsTheFramesWindowsDrawsSmallWithTheMark(t *testing.T) {
 		t.Fatalf("no %d px entry", pixels)
 		return 0
 	}
-	if small, big := share(32), share(256); small < 0.7 || big > 0.4 {
+	if small, big := share(32), share(256); small < 0.4 || big > 0.1 {
 		t.Errorf("the 32 px frame is %.0f%% mark and the 256 px frame %.0f%%: the frames Windows draws small must carry the mark, the large ones the application's tile", small*100, big*100)
 	}
 	if medium := share(64); medium > 0.5 {

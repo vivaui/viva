@@ -84,20 +84,22 @@ func Tile(picture image.Image, size int, inset float64) *image.NRGBA {
 	return canvas
 }
 
-// Mark returns the picture cropped to a square around its mark, with a margin of
-// an eighth of the side, so the mark fills the icon instead of the padding the
-// canvas carries for a desktop that draws it large. The square is centered on
-// the mark and, when the mark is near an edge, slid inside the picture. A picture
-// that already has a shape of its own, whose mark reaches both canvas edges, or
-// which has no mark at all, is returned as it is: there is no margin to spend.
+// Mark returns the picture cropped to a square around its mark, so the mark
+// fills seven tenths of it: more than the canvas's own padding, which is made
+// for a desktop that draws the icon large, while the rest keeps the tile's
+// breathing room around the mark. The square is centered on the mark and, when
+// the mark is near an edge, slid inside the picture. A picture that already has
+// a shape of its own, whose mark reaches both canvas edges, or which has no mark
+// at all, is returned as it is: there is no margin to spend.
 func Mark(picture image.Image) image.Image {
 	bounds := picture.Bounds()
 	extent, ok := markExtent(picture)
 	if !ok {
 		return picture
 	}
-	side := max(extent.Dx(), extent.Dy())
-	side += side / 8
+	// The mark fills seven tenths of the square; rounding keeps the square a
+	// whole number of pixels.
+	side := (max(extent.Dx(), extent.Dy())*10 + 3) / 7
 	if side >= bounds.Dx() || side >= bounds.Dy() {
 		return picture
 	}

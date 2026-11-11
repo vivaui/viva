@@ -106,10 +106,10 @@ func TestATileMarkFillsTheIconWithTheMark(t *testing.T) {
 		t.Errorf("the background above the mark is %+v, want the picture's own background", got)
 	}
 	mark := opaqueDarkRow(tight, 16)
-	if mark < 24 {
+	if mark < 20 {
 		t.Errorf("the mark spans %d of 32 px columns: the canvas margin was kept instead of spent", mark)
 	}
-	if grew := mark - opaqueDarkRow(tile, 16); grew < 8 {
+	if grew := mark - opaqueDarkRow(tile, 16); grew < 10 {
 		t.Errorf("the tight tile's mark spans %d px, the plain tile's %d: the status area must show the mark larger", mark, mark-grew)
 	}
 }
