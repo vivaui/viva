@@ -454,7 +454,7 @@ func (f *frame) firstControl(i int32) gfx.ID {
 			case kindButton, kindCheckbox, kindSwitch, kindInput, kindTextarea, kindSlider:
 				return n.id
 			case kindContainer:
-				if n.flags&flagHasHit != 0 {
+				if n.flags&flagHasHit != 0 && n.flags&flagLabelFor == 0 {
 					return n.id
 				}
 			}

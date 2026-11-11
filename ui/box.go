@@ -63,7 +63,7 @@ func (b Box) Clicked() bool {
 func (b Box) Hit(id gfx.ID, label string) Box {
 	n := b.n()
 	n.id, n.label = id, label
-	n.flags |= flagHasHit
+	n.flags = n.flags&^flagLabelFor | flagHasHit
 	return b
 }
 
@@ -82,6 +82,23 @@ func (b Box) HitWith(id gfx.ID, label string, options gfx.HitOptions) Box {
 	b.n()
 	b.f.extra(b.i).hit = options
 	return b.Hit(id, label)
+}
+
+// LabelFor makes the element's rectangle a label of the control named id, as HTML's
+// <label for> is (see gfx.Canvas.HitLabel): a click on it is the control's click, it
+// is hovered and pressed as the control is, and it is no tab stop and no node of its
+// own for assistive technology. A ContextMenu given the element opens on the control
+// too, so what a component declares inside one of its rows, such as a Tree's name, can
+// carry the row's menu without taking the row's clicks. The element's Label, or a
+// Text's words, names the control in place of its own label.
+//
+//	name := ui.Text(c, file.Name).LabelFor(m.files.RowID(i))
+//	ui.ContextMenu(c, name, func(menu *ui.MenuItems) { ... })
+func (b Box) LabelFor(id gfx.ID) Box {
+	n := b.n()
+	n.id = id
+	n.flags |= flagHasHit | flagLabelFor
+	return b
 }
 
 // Width, Height and Size fix a size in pixels. FillWidth, FillHeight and Fill take
