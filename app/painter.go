@@ -1754,8 +1754,9 @@ func (painter *painter) syncSemantics() {
 		case hit.IsLabel:
 			labelled = true
 			switch {
-			case hit.ID.IsZero():
-				// nameFromLabels ignores an anonymous label too.
+			case hit.ID.IsZero() || hit.Label == "":
+				// nameFromLabels ignores an anonymous label, and one without
+				// words, too: the control keeps its own name.
 			case len(hits) > 0 && lastAppended == index-1 && !patchedLabel && hits[len(hits)-1].ID == hit.ID:
 				// The label follows its control: patch the words in place.
 				hits[len(hits)-1].Label = hit.Label
@@ -1871,10 +1872,12 @@ type labelPair struct {
 }
 
 // nameFromLabels gives each control that has a label hit the words of the first
-// one as its accessible name, as `<label for>` names an input. It builds the
-// label map once per paint instead of scanning every hit for every control:
-// a page with many labelled fields used to cost O(controls*hits), which made
-// a 4,000-field page take tens of milliseconds per repaint.
+// one as its accessible name, as `<label for>` names an input. A label without
+// words names nothing: the control keeps its own name, as an empty label falls
+// through in HTML. It builds the label map once per paint instead of scanning
+// every hit for every control: a page with many labelled fields used to cost
+// O(controls*hits), which made a 4,000-field page take tens of milliseconds
+// per repaint.
 func (painter *painter) nameFromLabels(controls []gfx.Hit) {
 	all := painter.canvas.Hits()
 	if painter.labelNames == nil {
@@ -1883,7 +1886,7 @@ func (painter *painter) nameFromLabels(controls []gfx.Hit) {
 	clear(painter.labelNames)
 	for index := range all {
 		label := &all[index]
-		if !label.IsLabel || label.ID.IsZero() {
+		if !label.IsLabel || label.ID.IsZero() || label.Label == "" {
 			continue
 		}
 		if _, exists := painter.labelNames[label.ID]; !exists {

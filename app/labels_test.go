@@ -75,3 +75,17 @@ func TestTheFirstOfTwoLabelsForOneControlNamesIt(t *testing.T) {
 		t.Fatalf("label = %q, want the first label", got)
 	}
 }
+
+// A label without words names nothing: the control keeps its own label, as an
+// empty <label for> falls through to it in HTML. An icon declared LabelFor is
+// the case that reaches here.
+func TestALabelWithoutWordsLeavesTheControlsOwnName(t *testing.T) {
+	bounds := gfx.Rect{Width: 80, Height: 20}
+	painter := labelledPainter(t, func(canvas *gfx.Canvas) {
+		canvas.HitWithLabel(gfx.Item(1), bounds, "Button")
+		canvas.HitLabel(gfx.Item(1), bounds, "", false)
+	})
+	if got := accessibilityLabel(t, painter, gfx.Item(1)); got != "Button" {
+		t.Fatalf("label = %q, want the control's own", got)
+	}
+}
