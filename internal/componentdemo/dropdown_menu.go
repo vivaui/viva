@@ -52,8 +52,8 @@ func (state *State) paintDropdownMenu(canvas *gfx.Canvas, theme gfx.Theme, size 
 		height = 4*32 + 2*4
 	}
 	var panel ui.Box
-	state.page(canvas, theme, size, 260, "Dropdown Menu · Account", func(f *ui.Frame) {
-		panel = f.Slot().FillWidth().Height(min(height, max(size.Height-84, 120)))
+	state.drawPage(canvas, theme, size, 260, "Dropdown Menu · Account", func(c ui.C) {
+		panel = ui.Slot(c).FillWidth().Height(min(height, max(size.Height-84, 120)))
 	})
 	menu := components.BeginDropdownMenu(canvas, theme, panel.Rect(), components.DropdownMenuOptions{Layer: 1})
 	if state.exampleID == "default" {

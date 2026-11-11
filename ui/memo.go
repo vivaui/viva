@@ -198,8 +198,8 @@ func (p *Page) memoHit(entry *memoEntry, same bool) bool {
 	return canvas.CanReplay(entry.span) || entry.span.Empty()
 }
 
-// memoPaint is the Frame's paint hook for a Memo's element.
-func (p *Page) memoPaint(f *Frame, i int32, before bool) bool {
+// memoPaint is the frame's paint hook for a Memo's element.
+func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 	box := &p.memoBoxes[f.exts[f.nodes[i].ext].memo-1]
 	entry := box.entry
 	canvas := f.canvas

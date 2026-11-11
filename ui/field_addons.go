@@ -20,7 +20,7 @@ func (b Box) addons() *fieldAddons {
 	if extra.addons == 0 {
 		b.f.addons = append(b.f.addons, fieldAddons{})
 		extra.addons = int32(len(b.f.addons))
-		b.f.paintAddonsFn = (*Frame).paintAddons
+		b.f.paintAddonsFn = (*frame).paintAddons
 	}
 	return &b.f.addons[extra.addons-1]
 }
@@ -79,7 +79,7 @@ func (b Box) actionID() gfx.ID {
 
 // paintAddons paints a field with an icon or a button inside it: the addons where
 // InputGroup puts them, the text between them.
-func (f *Frame) paintAddons(n *node, snapshot components.InputSnapshot, a *fieldAddons) {
+func (f *frame) paintAddons(n *node, snapshot components.InputSnapshot, a *fieldAddons) {
 	canvas, theme := f.canvas, f.theme
 	disabled := n.flags&flagDisabled != 0 || snapshot.Disabled
 	start, end, content := components.InputAddonsLayout(canvas, theme, n.rect, a.start, a.end)

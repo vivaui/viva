@@ -103,18 +103,18 @@ func (state *State) toggleGroupOptions() [3]components.ToggleGroupOption {
 func (state *State) paintToggleGroup(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var group ui.Box
 	vertical := state.exampleID == "vertical"
-	state.page(canvas, theme, size, 500, state.Text("Toggle Group · 显式选择", "Toggle Group · Explicit selection"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 500, state.Text("Toggle Group · 显式选择", "Toggle Group · Explicit selection"), func(c ui.C) {
 		if vertical {
-			group = f.Slot().FillWidth().MaxWidth(168).Height(theme.Metrics.ControlHeight * 3).Self(ui.Start)
-			caption(f, state.Text("第三项禁用；上下方向键会自动跳过。", "The third item is disabled; arrow keys skip it."))
+			group = ui.Slot(c).FillWidth().MaxWidth(168).Height(theme.Metrics.ControlHeight * 3).Self(ui.Start)
+			caption(c, state.Text("第三项禁用；上下方向键会自动跳过。", "The third item is disabled; arrow keys skip it."))
 			return
 		}
-		group = f.Slot().Height(theme.Metrics.ControlHeight)
+		group = ui.Slot(c).Height(theme.Metrics.ControlHeight)
 		text := state.Text("单选模式由调用方在点击时替换选择位。", "Single selection: the caller replaces the selected bit on click.")
 		if state.exampleID == "multiple" {
 			text = state.Text("多选模式由调用方独立翻转每个选择位。", "Multiple selection: the caller flips each bit independently.")
 		}
-		caption(f, text)
+		caption(c, text)
 	})
 
 	options := state.toggleGroupOptions()

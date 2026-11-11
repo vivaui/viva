@@ -21,13 +21,13 @@ func (b Box) Tooltip(text string) Box {
 	}
 	b.f.extra(b.i).tooltip = text
 	b.f.tooltips = true
-	b.f.paintTooltipFn = (*Frame).paintTooltip
+	b.f.paintTooltipFn = (*frame).paintTooltip
 	return b
 }
 
 // paintTooltip paints the Tooltip of the element the pointer rests on, over
 // everything the frame painted.
-func (f *Frame) paintTooltip() {
+func (f *frame) paintTooltip() {
 	if f.canvas == nil {
 		return
 	}
@@ -44,7 +44,7 @@ func (f *Frame) paintTooltip() {
 // hasTooltip reports whether id names an element of this frame given a Tooltip.
 // A Memo declares what it holds again while the pointer is on it, so the element
 // under the pointer is always one the frame declared.
-func (f *Frame) hasTooltip(id gfx.ID) bool {
+func (f *frame) hasTooltip(id gfx.ID) bool {
 	if id.IsZero() {
 		return false
 	}

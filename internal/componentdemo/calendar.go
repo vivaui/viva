@@ -121,9 +121,9 @@ func (state *State) paintCalendar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 	}
 	// The calendar is the whole demo: it takes the stage, at most 360 wide.
 	var slot ui.Box
-	state.view.Draw(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
-		f.Column().Fill().Pad(18).Items(ui.Center).Children(func() {
-			slot = f.Slot().FillWidth().MaxWidth(360).FillHeight()
+	state.drawStage(canvas, theme, size, func(c ui.C) {
+		ui.Column(c).Fill().Pad(18).Items(ui.Center).Children(func() {
+			slot = ui.Slot(c).FillWidth().MaxWidth(360).FillHeight()
 		})
 	})
 	calendar := components.BeginCalendar(canvas, theme, slot.Rect(), components.CalendarOptions{

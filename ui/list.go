@@ -80,7 +80,7 @@ type listInternals struct {
 	pending      listScroll // where the application asked to scroll
 	pendingRow   int32      // 1 + the row it asked to show
 	declared     []listDeclRow
-	f            *Frame
+	f            *frame
 	typeahead    components.MenuTypeahead
 	paint        func(*DrawContext) // the area's Draw, made once
 	over         func(*DrawContext) // its DrawOver, made once
@@ -436,7 +436,7 @@ func (s *ListState) indexOf(id gfx.ID) int {
 
 // applyScrollRequest applies the scroll the application asked for, before the list
 // places its rows.
-func (s *ListState) applyScrollRequest(f *Frame) {
+func (s *ListState) applyScrollRequest(f *frame) {
 	in := &s.list
 	if in.pending == listScrollNone || in.scroll == nil {
 		return

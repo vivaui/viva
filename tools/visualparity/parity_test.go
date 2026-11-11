@@ -163,12 +163,12 @@ func TestLabelInkEndsWhereTheEngineSaysTheLineEnds(t *testing.T) {
 	if engine == nil {
 		t.Skip("this platform has no text engine yet")
 	}
-	sc := &scene{name: "fit", width: 640, height: 1400, build: func(f *ui.Frame, theme gfx.Theme) {
-		f.Column().Pad(16).Gap(4).Children(func() {
+	sc := &scene{name: "fit", width: 640, height: 1400, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(16).Gap(4).Children(func() {
 			for _, size := range []float32{11, 13, 14, 16, 20} {
 				for _, w := range weights {
-					f.Text("Settings and Preferences").FontSize(size).Weight(w.weight)
-					f.Text("2213123中文 192.168.1.1").FontSize(size).Weight(w.weight)
+					ui.Text(c, "Settings and Preferences").FontSize(size).Weight(w.weight)
+					ui.Text(c, "2213123中文 192.168.1.1").FontSize(size).Weight(w.weight)
 				}
 			}
 		})

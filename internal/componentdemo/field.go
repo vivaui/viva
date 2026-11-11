@@ -59,8 +59,8 @@ func fieldInitial(exampleID string) string {
 
 func (state *State) paintField(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var slot ui.Box
-	state.page(canvas, theme, size, 600, state.Text("Field · 结构化字段", "Field · Structured field"), func(f *ui.Frame) {
-		slot = f.Slot().FillWidth().Height(136)
+	state.drawPage(canvas, theme, size, 600, state.Text("Field · 结构化字段", "Field · Structured field"), func(c ui.C) {
+		slot = ui.Slot(c).FillWidth().Height(136)
 	})
 	field := components.BeginField(canvas, theme, slot.Rect()).For(fieldInput)
 	if state.exampleID == "orientations" {

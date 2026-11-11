@@ -20,7 +20,7 @@ import (
 // recipeTheme is the theme a themed control's recipe reads: the frame's, or one with the
 // element's own font size when it asked for one. It points into the frame, or at scratch the
 // caller owns, so reading it does not copy the theme.
-func (f *Frame) recipeTheme(n *node, scratch *Theme) *Theme {
+func (f *frame) recipeTheme(n *node, scratch *Theme) *Theme {
 	if n.hasOwnTheme() {
 		*scratch = f.ownTheme(n)
 		return scratch
@@ -42,7 +42,7 @@ func textEntryInsets(theme *Theme, k kind) (x, y float32) {
 // applyRecipes gives every themed element the measurements its recipe has, before the page
 // is laid out: the corners, the border and the padding of its text. Colors depend on the
 // state of the frame being painted, so they are filled in by themedDefaults at paint time.
-func (f *Frame) applyRecipes() {
+func (f *frame) applyRecipes() {
 	for i := range f.nodes {
 		n := &f.nodes[i]
 		if n.flags&flagThemed == 0 {
@@ -71,7 +71,7 @@ func (f *Frame) applyRecipes() {
 
 // themedDefaults fills in, for the state the element is in now, the colors of the resolved
 // look the element did not set itself.
-func (f *Frame) themedDefaults(n *node, extra *extra, s *resolved) {
+func (f *frame) themedDefaults(n *node, extra *extra, s *resolved) {
 	var state gfx.State
 	switch n.kind {
 	case kindInput:
@@ -97,7 +97,7 @@ func (f *Frame) themedDefaults(n *node, extra *extra, s *resolved) {
 }
 
 // focused reports whether the keyboard is on the element.
-func (f *Frame) focused(n *node) bool {
+func (f *frame) focused(n *node) bool {
 	return f.canvas != nil && !n.id.IsZero() && f.canvas.Focused() == n.id
 }
 
@@ -105,7 +105,7 @@ func (f *Frame) focused(n *node) bool {
 // control whose Pad is the recipe's keeps the text area the shadcn control has, which is
 // inset from the control's edge by the recipe's own amounts: the border is drawn over the
 // control's edge, not taken out of the area the text is centered in.
-func (f *Frame) contentRect(n *node) Rect {
+func (f *frame) contentRect(n *node) Rect {
 	r := n.rect
 	if n.flags&flagThemed != 0 && n.flags&flagSetPad == 0 {
 		var scratch Theme
@@ -121,7 +121,7 @@ func (f *Frame) contentRect(n *node) Rect {
 // LineHeight when it has one, and otherwise the size of the text plus the seven pixels a line of
 // text is given everywhere else. The size is the element's FontSize, or the snapshot's own text
 // size, or the theme's.
-func (f *Frame) inputLine(n *node) float32 {
+func (f *frame) inputLine(n *node) float32 {
 	if n.lineH > 0 {
 		return n.lineH
 	}

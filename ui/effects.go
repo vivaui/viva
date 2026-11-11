@@ -28,7 +28,7 @@ import (
 // disappeared or after the window closed is dropped. The run function must
 // return when ctx is done; the framework does not kill goroutines or poll.
 //
-// The run function must not touch a C, Box or Frame: it runs off the paint.
+// The run function must not touch a C, Box or frame: it runs off the paint.
 // Its result is read in the page with Take, on the UI thread, after the effect
 // was declared; a page drawn into a canvas of the application's own without
 // PageConfig.Invalidator keeps the result for the next paint but cannot wake the

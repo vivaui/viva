@@ -36,8 +36,8 @@ var (
 
 func (state *State) paintBreadcrumb(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var trail ui.Box
-	state.page(canvas, theme, size, 620, state.Text("Breadcrumb · 当前上下文", "Breadcrumb · Current context"), func(f *ui.Frame) {
-		trail = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+	state.drawPage(canvas, theme, size, 620, state.Text("Breadcrumb · 当前上下文", "Breadcrumb · Current context"), func(c ui.C) {
+		trail = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 		caption := state.Text("选择上级路径以返回。", "Choose a parent path to go back.")
 		switch state.values[0] {
 		case 1:
@@ -45,7 +45,7 @@ func (state *State) paintBreadcrumb(canvas *gfx.Canvas, theme gfx.Theme, size gf
 		case 2:
 			caption = state.Text("已选择：上一级", "Selected: Parent")
 		}
-		f.Text(caption).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Text(c, caption).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 	breadcrumb := components.BeginBreadcrumb(canvas, theme, trail.Rect())
 	breadcrumb.AddLink(breadcrumbLink.At(0), state.Text("工作区", "Workspace"))

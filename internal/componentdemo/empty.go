@@ -32,8 +32,8 @@ components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: 
 
 func (state *State) paintEmpty(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var stage ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Empty · 空状态", "Empty · No data"), func(f *ui.Frame) {
-		stage = f.Slot().FillWidth().Height(max(size.Height-110, 180))
+	state.drawPage(canvas, theme, size, 560, state.Text("Empty · 空状态", "Empty · No data"), func(c ui.C) {
+		stage = ui.Slot(c).FillWidth().Height(max(size.Height-110, 180))
 	})
 	data := components.EmptyData{
 		Icon: folderIcon, Title: "No projects yet", Description: "Create a project to get started.", ContentHeight: 32,

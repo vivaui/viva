@@ -70,8 +70,8 @@ func formInitial(exampleID string) string {
 
 func (state *State) paintForm(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var slot ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Form · 显式字段状态", "Form · Explicit field state"), func(f *ui.Frame) {
-		slot = f.Slot().FillWidth().Height(150)
+	state.drawPage(canvas, theme, size, 560, state.Text("Form · 显式字段状态", "Form · Explicit field state"), func(c ui.C) {
+		slot = ui.Slot(c).FillWidth().Height(150)
 	})
 	value := state.fieldValue(formInitial(state.exampleID))
 	snapshot := components.FormFieldSnapshot{Label: "Username", Description: "This name is visible to collaborators.", Required: true, ControlID: formInput}

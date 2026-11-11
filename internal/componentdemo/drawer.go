@@ -49,9 +49,9 @@ func (state *State) initializeDrawer() { state.flags |= 1 }
 
 func (state *State) paintDrawer(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	open := state.flags&1 != 0
-	state.page(canvas, theme, size, 480, state.Text("Drawer · 边缘模态", "Drawer · Edge modal"), func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 480, state.Text("Drawer · 边缘模态", "Drawer · Edge modal"), func(c ui.C) {
 		// The page behind an open drawer is just its title.
-		if !open && f.Button(drawerOpen, "Open drawer").Self(ui.Start).Clicked() {
+		if !open && ui.Button(c, "Open drawer").Self(ui.Start).Hit(drawerOpen, "Open drawer").Clicked() {
 			state.flags |= 1
 		}
 	})

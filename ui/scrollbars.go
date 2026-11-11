@@ -9,7 +9,7 @@ import (
 // edges, as the thin overlay bars of components.ScrollArea, and moves the area by a
 // drag on them. The bars measure the area with its padding: the content and the
 // viewport each with the area's insets, so the thumb travels the area's Max and MaxX.
-func (f *Frame) paintScrollbars(n *node, s *ScrollState) {
+func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 	xs, xe := n.inset(axisX)
 	ys, ye := n.inset(axisY)
 	content := gfx.Size{Width: s.ContentWidth + xs + xe, Height: s.Content + ys + ye}
@@ -35,7 +35,7 @@ func (f *Frame) paintScrollbars(n *node, s *ScrollState) {
 // a press beside it brings the middle of the thumb under the pointer, and the press
 // drags it until it is let go. The canvas captures the pointer for the press, so the
 // moves come to the bar wherever the pointer is.
-func (f *Frame) dragScrollbar(s *ScrollState, bar gfx.ID, geometry components.ScrollAreaGeometry, axis int) {
+func (f *frame) dragScrollbar(s *ScrollState, bar gfx.ID, geometry components.ScrollAreaGeometry, axis int) {
 	event, ok := f.canvas.PointerOn(bar)
 	if !ok {
 		return

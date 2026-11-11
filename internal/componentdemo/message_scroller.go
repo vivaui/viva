@@ -44,8 +44,8 @@ var (
 
 func (state *State) paintMessageScroller(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var viewport ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Message Scroller · 受控偏移", "Message Scroller · Controlled offset"), func(f *ui.Frame) {
-		viewport = f.Slot().FillWidth().Height(min(238, max(size.Height-84, 120)))
+	state.drawPage(canvas, theme, size, 560, state.Text("Message Scroller · 受控偏移", "Message Scroller · Controlled offset"), func(c ui.C) {
+		viewport = ui.Slot(c).FillWidth().Height(min(238, max(size.Height-84, 120)))
 	})
 	offset := float32(state.values[0])
 	if state.exampleID == "end" && state.values[0] == 0 {

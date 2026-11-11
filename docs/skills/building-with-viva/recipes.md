@@ -6,7 +6,7 @@ Read after `SKILL.md`. The code is in [`examples/recipes`](../../../examples/rec
 
 | You are building | Start from |
 | --- | --- |
-| A page of preferences | `SettingsRow` inside `Section` (a card with a divider between rows: `f.Divider()`) |
+| A page of preferences | `SettingsRow` inside `Section` (a card with a divider between rows: `ui.Divider(c)`) |
 | A list of hosts, files, mailboxes | `ListRow`: hover and keyboard focus reveal the trailing action |
 | A person or a host | `Avatar`, with the presence dot when it has one |
 | A tag, a count, a status | `Badge` with `ToneNeutral`, `ToneAccent` or `ToneDanger` |
@@ -14,9 +14,9 @@ Read after `SKILL.md`. The code is in [`examples/recipes`](../../../examples/rec
 | A landing banner or onboarding step | `Hero` (the one place literal colors belong: the gradient stops) |
 | A toolbar | `IconButton`: muted glyph that brightens with the button |
 | A list with nothing in it | `EmptyState` |
-| Anything that reacts but is none of these | `Interactive(box, theme, id, label)` around your own `Row` |
+| Anything that reacts but is none of these | `Interactive(box, theme)` around your own `Row` (give it `Hit` first) |
 
-The recipes take a `*ui.Frame` and identities, as Frame-based components do. They are for a component's own paint path, not for application pages; a page builds the same look with the `ui` elements or a `ui.Control`'s `Draw`, and names its own controls with `ui.ID(c)` inside the row's Key (`ui.Row(c.KeyInt(item.ID)).Children(func() { ... ui.ID(c) ... })`).
+The recipes take a `ui.C`, as every page component does, and return the Box the caller reacts from. They are page components: use them where you declare the row, give an interactive row `Hit(ui.ID(c), name)` before `Interactive`, and read `Clicked` from the result. They are not a separate Frame API.
 
 ## What makes it look right
 

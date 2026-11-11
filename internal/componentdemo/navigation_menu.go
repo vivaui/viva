@@ -58,11 +58,11 @@ func (state *State) paintNavigationMenu(canvas *gfx.Canvas, theme gfx.Theme, siz
 		status = state.Text("Products 已打开；Escape 使用稳定 dismiss ID", "Products open; Escape dismisses through a stable ID")
 	}
 	var brand, bar ui.Box
-	state.page(canvas, theme, size, 620, "Navigation Menu", func(f *ui.Frame) {
-		caption(f, status)
-		f.Row().Gap(12).Items(ui.Center).Children(func() {
-			brand = f.Text("Viva").FontSize(theme.Metrics.FontSizeM + 2).Weight(gfx.WeightSemibold)
-			bar = f.Slot().Grow(1).Height(theme.Metrics.ControlHeight)
+	state.drawPage(canvas, theme, size, 620, "Navigation Menu", func(c ui.C) {
+		caption(c, status)
+		ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+			brand = ui.Text(c, "Viva").FontSize(theme.Metrics.FontSizeM + 2).Weight(gfx.WeightSemibold)
+			bar = ui.Slot(c).Grow(1).Height(theme.Metrics.ControlHeight)
 		})
 	})
 

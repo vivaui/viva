@@ -54,10 +54,10 @@ var (
 func (state *State) paintMenubar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	open := state.flags&1 != 0 || state.exampleID == "states"
 	var strip ui.Box
-	state.page(canvas, theme, size, 560, state.Text("Menubar · 桌面菜单", "Menubar · Desktop menu"), func(f *ui.Frame) {
-		strip = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+	state.drawPage(canvas, theme, size, 560, state.Text("Menubar · 桌面菜单", "Menubar · Desktop menu"), func(c ui.C) {
+		strip = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 		if !open {
-			f.Text(state.Text("点击 File 查看弹出菜单。", "Click File to open the popup menu.")).FontSize(theme.Metrics.FontSizeS).Muted()
+			ui.Text(c, state.Text("点击 File 查看弹出菜单。", "Click File to open the popup menu.")).FontSize(theme.Metrics.FontSizeS).Muted()
 		}
 	})
 	bounds := strip.Rect()

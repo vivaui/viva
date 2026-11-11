@@ -3,7 +3,7 @@ package ui
 // widgets holds the declarations of the components that are painted by package
 // components at paint time, rather than built from containers and text: a
 // Table, a Tabs strip, a Select and a Dialog. Each is a slice reused every frame,
-// like the Frame's input and segmented tables, so declaring them allocates nothing
+// like the frame's input and segmented tables, so declaring them allocates nothing
 // once the page has been seen.
 type widgets struct {
 	tables   []tableDecl
@@ -28,7 +28,7 @@ func (w *widgets) reset() {
 }
 
 // measureWidget gives a Table, Tabs or Select the size its content wants.
-func (f *Frame) measureWidget(n *node) {
+func (f *frame) measureWidget(n *node) {
 	switch n.kind {
 	case kindTable:
 		f.measureTable(n)
@@ -40,7 +40,7 @@ func (f *Frame) measureWidget(n *node) {
 }
 
 // paintWidget paints a Table, Tabs or Select with the component it declares.
-func (f *Frame) paintWidget(n *node) {
+func (f *frame) paintWidget(n *node) {
 	switch n.kind {
 	case kindTable:
 		f.paintTable(n)

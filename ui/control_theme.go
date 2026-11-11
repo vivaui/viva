@@ -25,7 +25,7 @@ func (n *node) hasOwnTheme() bool {
 }
 
 // ownTheme is the frame's theme with the radius and font size n asked for.
-func (f *Frame) ownTheme(n *node) Theme {
+func (f *frame) ownTheme(n *node) Theme {
 	theme := f.theme
 	if n.fontSize > 0 {
 		theme = theme.WithFontSize(n.fontSize)

@@ -10,7 +10,7 @@ var popoverComponent = Component{
 	ID: "popover", Title: "Popover", Category: "Overlay", Summary: "锚定、可关闭且不启动后台工作的非模态浮层。",
 	paint: (*State).paintPopover,
 	Examples: []Example{
-		{ID: "default", Title: "锚定浮层", Description: "点击触发器切换底部居中的生产 Popover。", Snippet: `trigger := f.Button(tree.ID(page, "trigger"), "Open details").Outline().Self(ui.Start)
+		{ID: "default", Title: "锚定浮层", Description: "点击触发器切换底部居中的生产 Popover。", Snippet: `trigger := ui.Button(c, "Open details").Outline().Self(ui.Start).Hit(tree.ID(page, "trigger"), "Open details")
 if trigger.Clicked() {
     open = !open
 }
@@ -47,17 +47,17 @@ var (
 func (state *State) paintPopover(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	open := state.flags&1 != 0
 	var anchor ui.Box
-	state.page(canvas, theme, size, 560, "Popover", func(f *ui.Frame) {
+	state.drawPage(canvas, theme, size, 560, "Popover", func(c ui.C) {
 		label := "Open details"
 		if open {
 			label = "Close details"
 		}
-		anchor = f.Button(popoverTrigger, label).Outline().Self(ui.Start)
+		anchor = ui.Button(c, label).Outline().Self(ui.Start).Hit(popoverTrigger, label)
 		if anchor.Clicked() {
 			state.flags ^= 1
 		}
 		if !open {
-			caption(f, state.Text("点击触发器打开锚定浮层。", "Click the trigger to open the anchored popover."))
+			caption(c, state.Text("点击触发器打开锚定浮层。", "Click the trigger to open the anchored popover."))
 		}
 	})
 	if !open {

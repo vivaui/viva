@@ -110,7 +110,7 @@ type sliderDecl struct {
 //	if f.Slider(volumeID, &m.volume).Range(0, 1).Step(0.05).Label("Volume").Changed() {
 //		m.player.SetVolume(m.volume.Value)
 //	}
-func (f *Frame) Slider(id gfx.ID, state *SliderState) Box {
+func (f *frame) Slider(id gfx.ID, state *SliderState) Box {
 	b := f.SliderBase(id, state)
 	f.nodes[b.i].flags |= flagThemed
 	return b
@@ -128,7 +128,7 @@ func (f *Frame) Slider(id gfx.ID, state *SliderState) Box {
 //		d.Canvas.Rounded(d.Rect, 3, trackColor)
 //		d.Canvas.Rounded(Rect{X: x - 8, Y: d.Rect.Y, Width: 16, Height: 16}, 8, thumbColor)
 //	})
-func (f *Frame) SliderBase(id gfx.ID, state *SliderState) Box {
+func (f *frame) SliderBase(id gfx.ID, state *SliderState) Box {
 	b := f.box(kindSlider)
 	n := &f.nodes[b.i]
 	n.id = id
@@ -172,7 +172,7 @@ func (b Box) Changed() bool {
 	return b.f.widgets.sliders[n.aux].changed
 }
 
-func (f *Frame) measureSlider(n *node) {
+func (f *frame) measureSlider(n *node) {
 	if n.natural > 0 {
 		n.pref = [2]float32{sliderThickness, sliderLength}
 	} else {
@@ -183,7 +183,7 @@ func (f *Frame) measureSlider(n *node) {
 // settleSlider takes the pointer event this paint delivers, once a frame, and keeps
 // the value inside its range. It runs when Changed asks, so the caller sees the new
 // value at once, or else when the slider is painted.
-func (f *Frame) settleSlider(n *node) {
+func (f *frame) settleSlider(n *node) {
 	d := &f.widgets.sliders[n.aux]
 	if d.settled {
 		return
@@ -241,7 +241,7 @@ func (f *Frame) settleSlider(n *node) {
 	}
 }
 
-func (f *Frame) paintSlider(n *node) {
+func (f *frame) paintSlider(n *node) {
 	f.settleSlider(n)
 	d := &f.widgets.sliders[n.aux]
 	s := d.state

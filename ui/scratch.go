@@ -13,7 +13,7 @@ func (s *scratch) reset() { s.abs = s.abs[:0] }
 
 // trimFlexCapacity gives back a slice's backing array when it is far larger
 // than its content. A page that once had a large table should not keep that
-// capacity for the View's whole life.
+// capacity for the view's whole life.
 func trimFlexCapacity[T any](items []T) []T {
 	const minCapacity = 4096
 	const ratio = 4

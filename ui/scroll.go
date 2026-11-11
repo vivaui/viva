@@ -2,15 +2,15 @@ package ui
 
 import "github.com/vivaui/viva/gfx"
 
-// ScrollState is the scroll position of one ScrollArea. It lives in the View, keyed
+// ScrollState is the scroll position of one ScrollArea. It lives in the view, keyed
 // by the area's identity, so the application keeps nothing: declare the area with an
-// identity and give the wheel to the View.
+// identity and give the wheel to the view.
 //
 //	config.OnScroll = m.view.Wheel                       // the area under the pointer takes the wheel
 //	f.ScrollArea(listID).Grow(1).Children(func() { ... })
 //
 // The area reports how tall its content and how tall it itself is each time the page
-// is laid out; Wheel moves Offset by a scroll event and keeps it in range. View.ScrollState
+// is laid out; Wheel moves Offset by a scroll event and keeps it in range. view.ScrollState
 // returns the state of an area for the calls that move it by program (ScrollTo,
 // ScrollToEnd) or read it (Offset, AtEnd): ask for it when you need it and do not keep
 // the pointer, because the state of an area that a frame does not declare is dropped
@@ -43,7 +43,7 @@ type ScrollState struct {
 	dragging bool    // a press on one of the area's scrollbars has the pointer
 }
 
-// scrollStore keeps the ScrollStates of a View, by the identity of their areas. A slot
+// scrollStore keeps the ScrollStates of a view, by the identity of their areas. A slot
 // not asked for in a frame is dropped when the frame ends and reused by the next new
 // area, so the store holds the areas of the page and no more, and a warm page asks for
 // no memory.
@@ -87,12 +87,12 @@ func (s *scrollStore) sweep() {
 }
 
 // ScrollState returns the state of the ScrollArea with this identity, for ScrollTo,
-// ScrollToEnd, Offset and AtEnd. The state is the View's: ask again each time instead
+// ScrollToEnd, Offset and AtEnd. The state is the view's: ask again each time instead
 // of keeping the pointer, and ask only for areas the page declares. An area that was
 // not declared in a frame loses its state at the end of it.
-func (view *View) ScrollState(id gfx.ID) *ScrollState {
+func (view *view) ScrollState(id gfx.ID) *ScrollState {
 	if view.frame == nil {
-		view.frame = new(Frame) // a state may be set before the first paint
+		view.frame = new(frame) // a state may be set before the first paint
 	}
 	return view.frame.scrolls.get(id)
 }
@@ -171,7 +171,7 @@ func wheelStep(delta float32, precise bool) float32 {
 // notch moves at least a line and a trackpad exactly what it reports. A Sideways area
 // also moves left and right, by the horizontal wheel or by the wheel with Shift held.
 // It is the function to give as Config.OnScroll when one area owns the wheel; a page
-// with several areas gives View.Wheel instead, which finds the one under the pointer.
+// with several areas gives view.Wheel instead, which finds the one under the pointer.
 func (s *ScrollState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	dx, dy := s.wheelSteps(event)
 	before, beforeX := s.Offset, s.OffsetX
@@ -193,7 +193,7 @@ func (s *ScrollState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // ScrollAreas; handle a Select's open list and a self-scrolling Table first, as
 // they own the wheel while they are open or under the pointer. It reports an event
 // that no area under the pointer can use as not handled.
-func (view *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
+func (view *view) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	f := view.frame
 	if f == nil {
 		return gfx.EventResult{}
@@ -220,7 +220,7 @@ func (view *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 
 // containsPoint says whether a point is inside element i and inside every clip around
 // it, which is to say, whether it is where the element can be seen.
-func (f *Frame) containsPoint(i int, x, y float32) bool {
+func (f *frame) containsPoint(i int, x, y float32) bool {
 	for p := int32(i); p >= 0; p = f.nodes[p].parent {
 		n := &f.nodes[p]
 		if p != int32(i) && n.flags&flagClip == 0 {
@@ -234,7 +234,7 @@ func (f *Frame) containsPoint(i int, x, y float32) bool {
 	return true
 }
 
-// ScrollArea is Scroll whose offset the View keeps under id, with the height of the
+// ScrollArea is Scroll whose offset the view keeps under id, with the height of the
 // content and of the area up to date after each layout, and the offset clamped to them
 // after a window resize or a change of content. The id is the area's identity (a
 // tree.ID or one item of a Scope, as for a control); declare one area for each id.
@@ -243,7 +243,7 @@ func (f *Frame) containsPoint(i int, x, y float32) bool {
 //	f.ScrollArea(listID).Grow(1).Gap(4).Children(func() { ... })
 //	f.ScrollArea(logID).Grow(1).Follow(true).Children(func() { ... }) // a log that stays at its end
 //	f.ScrollArea(codeID).Grow(1).Sideways().Scrollbars().Children(func() { ... }) // both ways, with bars
-func (f *Frame) ScrollArea(id gfx.ID) Box {
+func (f *frame) ScrollArea(id gfx.ID) Box {
 	if id.IsZero() {
 		panic("ui: ScrollArea needs an identity, for example f.ScrollArea(listID) with listID = tree.ID(page, \"list\")")
 	}
@@ -276,7 +276,7 @@ func (b Box) Follow(on bool) Box {
 // wide as the longest, so a highlight runs across all of it. A Paragraph does not
 // wrap in it, as there is no width to wrap to. Like its height, the area's width is
 // what it is given (a Column stretches it, a Row needs Grow), not its content's,
-// unless it has a MaxWidth. View.Wheel moves it by the horizontal wheel or by the
+// unless it has a MaxWidth. view.Wheel moves it by the horizontal wheel or by the
 // wheel with Shift held; ScrollState().OffsetX says how far it is scrolled. It has no
 // effect on a box that is not a ScrollArea.
 func (b Box) Sideways() Box {
@@ -294,7 +294,7 @@ func (b Box) Sideways() Box {
 func (b Box) Scrollbars() Box {
 	if s := b.areaState(); s != nil {
 		s.bars = true
-		b.f.paintBarsFn = (*Frame).paintScrollbars
+		b.f.paintBarsFn = (*frame).paintScrollbars
 	}
 	return b
 }
@@ -335,7 +335,7 @@ func (b Box) ScrollState() *ScrollState {
 // following it, was laid out there: its offset is the new end. The width of a
 // Sideways area's content was reported when it was measured, and the layout already
 // kept OffsetX in range of it.
-func (f *Frame) reportScrolls() {
+func (f *frame) reportScrolls() {
 	for i := range f.nodes {
 		n := &f.nodes[i]
 		if n.ext == 0 || f.exts[n.ext].scrollState == nil {
@@ -360,7 +360,7 @@ func (f *Frame) reportScrolls() {
 }
 
 // sidewaysState is the state of a scroll area that scrolls left and right too, or nil.
-func (f *Frame) sidewaysState(n *node) *ScrollState {
+func (f *frame) sidewaysState(n *node) *ScrollState {
 	if s := f.exts[n.ext].scrollState; s != nil && s.sideways {
 		return s
 	}

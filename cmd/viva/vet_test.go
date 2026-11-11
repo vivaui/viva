@@ -177,9 +177,8 @@ const vetLifetimePage = `package main
 import "github.com/vivaui/viva/ui"
 
 type holder struct {
-	box   ui.Box    // want kept-context
-	frame *ui.Frame // want kept-context
-	boxes []ui.Box  // want kept-context
+	box   ui.Box   // want kept-context
+	boxes []ui.Box // want kept-context
 }
 
 var global ui.Box // want kept-context

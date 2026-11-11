@@ -105,14 +105,12 @@ func renderScene(sc *scene, dark bool, scale float64, wantImage, reference bool,
 	if dark {
 		theme = gfx.DarkTheme()
 	}
-	view := &ui.View{}
+	view := func(c ui.C) { sc.build(c, theme) }
+	page := ui.NewPage(ui.PageConfig{View: view, Tree: &tree, Root: "parity", Theme: &theme})
 	config := app.Config{
 		Title: sc.name, Width: sc.width, Height: sc.height, ClearColor: appColor(theme.Background), Tree: &tree,
 		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
-			if sc.before != nil {
-				sc.before(view)
-			}
-			view.Draw(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) { sc.build(f, theme) })
+			page.Draw(canvas, gfx.Rect{Width: size.Width, Height: size.Height}, view)
 		},
 	}
 	canvas := &gfx.Canvas{}
@@ -121,6 +119,18 @@ func renderScene(sc *scene, dark bool, scale float64, wantImage, reference bool,
 		return nil, nil, err
 	}
 	defer session.Close()
+	// The scenes that show a control open press it, as a user would; the pointer
+	// leaves the window again so the facts are those of the page at rest, unhovered.
+	for _, label := range sc.open {
+		if err := session.ClickLabel(label); err != nil {
+			return nil, nil, err
+		}
+	}
+	if len(sc.open) > 0 {
+		if err := session.Driver().Leave(); err != nil {
+			return nil, nil, err
+		}
+	}
 	// A dialog opens with an entrance; the facts are those of the scene at rest.
 	if err := session.Rest(); err != nil {
 		return nil, nil, err

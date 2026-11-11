@@ -78,8 +78,8 @@ var comboboxChipRemove = tree.Sub(comboboxUI, tree.Name("chip-remove"))
 
 func (state *State) paintComboboxChips(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var field ui.Box
-	state.page(canvas, theme, size, 360, state.Text("Combobox · 多选标签", "Combobox · Multi-select chips"), func(f *ui.Frame) {
-		field = f.Slot().FillWidth().Height(120)
+	state.drawPage(canvas, theme, size, 360, state.Text("Combobox · 多选标签", "Combobox · Multi-select chips"), func(c ui.C) {
+		field = ui.Slot(c).FillWidth().Height(120)
 	})
 	names := [...]string{"Viva Native", "WebGPU", "Headless tests", "Windows", "Linux"}
 	// Bit i of the flags above the open bit says chip i has been removed.
@@ -116,10 +116,10 @@ func (state *State) paintCombobox(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 	}
 	open := state.flags&comboboxOpenFlag != 0
 	var field ui.Box
-	state.page(canvas, theme, size, 420, state.Text("Combobox · 框架", "Combobox · Framework"), func(f *ui.Frame) {
-		field = f.Slot().FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
+	state.drawPage(canvas, theme, size, 420, state.Text("Combobox · 框架", "Combobox · Framework"), func(c ui.C) {
+		field = ui.Slot(c).FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
 		if !open {
-			f.Text(state.Text("点击输入区域重新打开选项。", "Click the input to reopen the options.")).FontSize(theme.Metrics.FontSizeS).Muted()
+			ui.Text(c, state.Text("点击输入区域重新打开选项。", "Click the input to reopen the options.")).FontSize(theme.Metrics.FontSizeS).Muted()
 		}
 	})
 	// The list is a popup under the input, at least 300 wide and centered on it.

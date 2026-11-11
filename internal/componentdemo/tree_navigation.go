@@ -34,9 +34,9 @@ var (
 func (state *State) paintTreeNavigation(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	rowHeight := theme.Metrics.ControlHeight
 	var stage ui.Box
-	state.page(canvas, theme, size, 440, state.Text("Tree Navigation · 键盘导航", "Tree Navigation · Keyboard"), func(f *ui.Frame) {
-		stage = f.Slot().FillWidth().Height(rowHeight * 4)
-		caption(f, state.Text("聚焦行后，使用方向键浏览、展开或收起。", "Focus a row and use the arrow keys to move, expand, or collapse."))
+	state.drawPage(canvas, theme, size, 440, state.Text("Tree Navigation · 键盘导航", "Tree Navigation · Keyboard"), func(c ui.C) {
+		stage = ui.Slot(c).FillWidth().Height(rowHeight * 4)
+		caption(c, state.Text("聚焦行后，使用方向键浏览、展开或收起。", "Focus a row and use the arrow keys to move, expand, or collapse."))
 	})
 
 	expanded := state.flags&1 != 0
