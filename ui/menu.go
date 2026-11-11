@@ -55,8 +55,9 @@ func Menu(c C, anchor Box, open *bool, body func(*MenuItems)) {
 // ContextMenu shows the items body declares at the pointer when target is pressed
 // with the secondary button, or at the target when it has the focus and Shift+F10
 // is pressed, as shadcn's ContextMenu. It behaves as a Menu then, but Tab does not
-// close it. Whether it is open is its own state. target is a control, or a
-// container given Hit.
+// close it. Whether it is open is its own state. target is a control, a
+// container given Hit, or a LabelFor element, whose menu opens on the control
+// it names.
 //
 //	row := ui.Row(c.KeyInt(h.ID)).Hit(ui.ID(c), h.Name).Children(...)
 //	ui.ContextMenu(c, row, func(menu *ui.MenuItems) {

@@ -90,7 +90,10 @@ func (b Box) HitWith(id gfx.ID, label string, options gfx.HitOptions) Box {
 // own for assistive technology. A ContextMenu given the element opens on the control
 // too, so what a component declares inside one of its rows, such as a Tree's name, can
 // carry the row's menu without taking the row's clicks. The element's Label, or a
-// Text's words, names the control in place of its own label.
+// Text's words, names the control in place of its own label; a label without
+// words names nothing, and the control keeps its own name. Declare LabelFor
+// before HitWith when the element needs the options too: after it, Hit restores
+// the element's own control semantics, and LabelFor would leave them unclaimed.
 //
 //	name := ui.Text(c, file.Name).LabelFor(m.files.RowID(i))
 //	ui.ContextMenu(c, name, func(menu *ui.MenuItems) { ... })
