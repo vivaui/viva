@@ -96,7 +96,7 @@ func (g *cellGlyph) blockElement(r rune) {
 
 // farEdge is where eighths of the way along extent lands, in whole device pixels.
 func (g cellGlyph) farEdge(extent int32, eighths uint8) int32 {
-	return (extent*int32(eighths) + 4) / 8
+	return fracMax(extent, int32(eighths), 8)
 }
 
 // nearEdge is where the edge one step before eighths lands. It is measured from the far end, the
@@ -104,5 +104,5 @@ func (g cellGlyph) farEdge(extent int32, eighths uint8) int32 {
 // half loses the odd pixel, and `▕` in a twelve pixel cell is the two pixels `round(12/8)` of it,
 // flush against the edge.
 func (g cellGlyph) nearEdge(extent int32, eighths uint8) int32 {
-	return extent - g.farEdge(extent, 8-eighths)
+	return fracMin(extent, int32(eighths), 8)
 }

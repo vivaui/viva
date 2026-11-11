@@ -179,7 +179,7 @@ func TestWideCellGlyphSpansItsCells(t *testing.T) {
 // Every family drawn as geometry replaces its characters with spaces for the font, while the
 // line's other text and runs stay where they were.
 func TestReplaceCellGlyphs(t *testing.T) {
-	for _, value := range []string{"█", "─", "⠋", "◢", "◸"} {
+	for _, value := range []string{"█", "─", "⠋", "◢", "◸", "\ue0b0", "\U0001fb00", "\U0001ce90"} {
 		if replaced, _ := ReplaceCellGlyphs(value, []TextRun{{Bytes: int32(len(value)), Cells: 1}}); replaced != " " {
 			t.Errorf("%q was replaced with %q, want a space", value, replaced)
 		}
@@ -208,6 +208,12 @@ func TestReplaceCellGlyphs(t *testing.T) {
 	}
 	if runs[1].Bytes != 3 || value != "a█é▀b" {
 		t.Fatal("the arguments were changed")
+	}
+
+	four := "a\U0001fb00b"
+	fourRuns := []TextRun{{Bytes: 1}, {Bytes: 4}, {Bytes: 1}}
+	if text, runs := ReplaceCellGlyphs(four, fourRuns); text != "a b" || runs[0].Bytes != 1 || runs[1].Bytes != 1 || runs[2].Bytes != 1 {
+		t.Fatalf("a four-byte glyph became %q with runs %+v", text, runs)
 	}
 
 	plain := "ls é \xe2\x96 \xff"
