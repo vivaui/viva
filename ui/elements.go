@@ -64,6 +64,10 @@ func Slot(c C) Box { return c.f.Slot() }
 // Grid lays its children in equal cells at least minCell wide.
 func Grid(c C, minCell float32) Box { return c.page.container(c.f.Grid(minCell)) }
 
+// Flow lays its children out left to right and wraps onto a new line when the next
+// does not fit, as a Row that wraps; LineGap sets the space between lines.
+func Flow(c C) Box { return c.page.container(c.f.Flow()) }
+
 // CustomLayout declares a container whose in-flow children layout measures and
 // places: a masonry, a dock, a flow of cards, a layout of the application's own.
 // The layout runs in four phases (see Layout); the page keeps identity, focus, hits,

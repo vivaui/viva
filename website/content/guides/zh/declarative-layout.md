@@ -33,6 +33,7 @@ func (m *model) page(c ui.C) {
 - `Background`、`Radius`、`Border`、`Shadow`、`Clip` 为容器设置样式。在 `Input`、`Select`、`Button` 等控件上，`Radius` 和 `FontSize` 为该控件设置它自己的圆角和字号；`Button` 上的 `Height` 就是按钮画出来的高度。
 - `Paragraph(text, maxLines)` 是会按所得宽度换行的文字，所以标签变长会让这一行变高，并把后面的内容往下推。`LineHeight` 设置行高。
 - `Grid(minCell)` 按宽度放下尽可能多的等宽列，并换到新的行。
+- `Flow()` 是会换行的 Row：子元素保持各自的宽度从左到右排列，放不下下一个时就换到新的一行，和 CSS 的 `flex-wrap` 一样。每一行像 Row 一样分配自己的空间，所以 `Grow` 和 `Justify` 对每一行单独生效，`Items` 在各自的行内对齐子元素。`Gap` 是子元素之间的间距，也是行与行之间的间距，除非用 `LineGap` 另行设置。会换行的标签、徽章和工具栏都用 Flow。
 - `Scroll(offset)` 是比自己更高的、带裁剪的列。偏移量由你持有（滚轮事件到 `Config.OnScroll`）；`End` 之后 `Content()` 是子元素的总高度，可据此限制偏移量。
 
 控件就是 `components` 里的那些，外观完全一致：`Button`（以及 `Outline`、`Ghost`、`Secondary`、`Destructive`、`Small` 等变体）、`Checkbox`、`Switch`、`Icon`、`Divider`。`Clicked()` 在声明控件的地方读取：它只在递送这次点击的那一遍里为真。任何元素都可以用 `Hit(id, label)` 成为指针目标；它在指针悬停、按下和获得焦点时的样子用 `Hover`、`Pressed` 和 `Focus` 声明（见下文）。

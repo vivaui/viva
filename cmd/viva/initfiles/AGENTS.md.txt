@@ -194,8 +194,10 @@ m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
 - `m.view` is a `ui.View` in your model: keep one per page painted every frame. It
   makes the page allocation-free once warm.
 - Containers: `Row` (left to right), `Column` (top to bottom), `Stack` (on top of each
-  other), `Grid(minCell)` (as many equal columns as fit), `Scroll(offset)` (a clipped
-  column taller than itself). Leaves: `Text`, `Paragraph`, `Wrap`, `Spacer`, `Divider`, `Icon`,
+  other), `Grid(minCell)` (as many equal columns as fit), `Flow()` (a row that wraps onto
+  new lines, each shared as a Row: tags, chips, a toolbar that wraps; `LineGap` sets the
+  space between lines, else it is `Gap`), `Scroll(offset)` (a clipped column taller than
+  itself). Leaves: `Text`, `Paragraph`, `Wrap`, `Spacer`, `Divider`, `Icon`,
   `Image(bitmap)` (a `gfx.Bitmap` such as `app.FileIcon` returns, 16 px square unless sized), `Button`, `Checkbox`, `Switch`, `Slot`, `Progress(fraction)` (a bar; `.Indeterminate()` for unknown length),
   `Spinner()`, `Splitter(id, &state)` (see Keys, drag and the mouse), `Slider(id, &state)` (a number picker, see below).
 - Size: nothing = as big as its content; `Width`, `Height`, `Size` fix it; `FillWidth`,
