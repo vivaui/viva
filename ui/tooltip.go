@@ -38,7 +38,7 @@ func (f *Frame) paintTooltip() {
 		return
 	}
 	f.tooltip.Paint(f.canvas, f.theme, f.bounds, components.TooltipOptions{Layer: TooltipLayer},
-		components.HoverTooltipDelay)
+		f.theme.TooltipDelay)
 }
 
 // hasTooltip reports whether id names an element of this frame given a Tooltip.

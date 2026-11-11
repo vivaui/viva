@@ -90,3 +90,18 @@ func (b Box) Secure() Box {
 	b.f.inputs[n.aux].Secure = true // what the field paints and the platform is told
 	return b
 }
+
+// ReadOnly makes the field show its text without editing it: no caret, no typing,
+// no input method, and the platform is told the field is read-only instead of
+// opening an editor for it. The value is the program's; ReadOnly(false) makes the
+// field editable again. It is Field.ReadOnly for a field the model owns.
+//
+//	ui.TextField(c, &m.id, "Identifier", "").ReadOnly(true)
+func (b Box) ReadOnly(on bool) Box {
+	n := b.n()
+	if n.kind != kindInput {
+		panic("ui: ReadOnly is for a TextField")
+	}
+	b.f.inputs[n.aux].ReadOnly = on
+	return b
+}

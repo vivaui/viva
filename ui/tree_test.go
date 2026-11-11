@@ -457,3 +457,30 @@ func TestListRowID(t *testing.T) {
 		t.Fatal("RowID(1) is not the identity of the second row's hit")
 	}
 }
+
+// TreeState.SelectedColor is the selected row's background, as Indent is the tree's
+// step: the theme's Accent unless the application chooses another.
+func TestTreeSelectedRowColourIsTheStates(t *testing.T) {
+	selected := gfx.Color{Red: 0.2, Green: 0.5, Blue: 0.4, Alpha: 1}
+	labels := []string{"one", "two"}
+	var state ui.TreeState
+	state.SelectedColor = selected
+	state.Node = func(i int) ui.TreeNode { return ui.TreeNode{Selected: i == 0} }
+	state.Label = func(i int) string { return labels[i] }
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			ui.Tree(c, &state, len(labels), state.Label, nil).Grow(1)
+		})
+	})
+	row := d.hit("one")
+	found := false
+	for _, p := range d.driver.Snapshot().Primitives {
+		if p.Color == selected && p.Bounds.X == row.Bounds.X && p.Bounds.Y == row.Bounds.Y &&
+			p.Bounds.Width == row.Bounds.Width && p.Bounds.Height == row.Bounds.Height {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the selected row %+v painted no background in %+v", row.Bounds, selected)
+	}
+}

@@ -2,7 +2,9 @@ package ui_test
 
 import (
 	"testing"
+	"time"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -54,5 +56,29 @@ func TestTooltip(t *testing.T) {
 		if tooltipShown(d, "Delete the host") {
 			t.Fatalf("memo=%v: the tip follows the pointer away", memo)
 		}
+	}
+}
+
+// The page's theme sets how long the pointer rests before a tip appears; zero, the
+// default, still shows it with the pointer.
+func TestTooltipDelayComesFromTheTheme(t *testing.T) {
+	theme := ui.LightTheme()
+	theme.TooltipDelay = 500 * time.Millisecond
+	d := openPageWith(t, ui.PageConfig{Theme: &theme, View: func(c ui.C) {
+		ui.Column(c).Pad(40).Children(func() {
+			ui.Button(c, "Delete").Tooltip("Delete the host")
+		})
+	}}, app.Config{})
+	if err := d.driver.Move(center(d.hit("Delete").Bounds)); err != nil {
+		t.Fatal(err)
+	}
+	if tooltipShown(d, "Delete the host") {
+		t.Fatal("the tip appeared before the theme's delay")
+	}
+	if err := d.driver.Advance(600 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if !tooltipShown(d, "Delete the host") {
+		t.Fatal("the tip did not appear after the theme's delay")
 	}
 }

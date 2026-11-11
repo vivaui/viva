@@ -97,7 +97,11 @@ func (f *Frame) paint(i int32) {
 	if hasHit && (n.kind == kindContainer || n.kind == kindText || n.kind == kindIcon || n.kind == kindSlot) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
-		canvas.HitWithOptions(n.id, hit, n.label, extra.hit)
+		options := extra.hit
+		// Box.Disabled is the declaration's, the hit the pointer's: one must not say
+		// otherwise of the other.
+		options.Disabled = options.Disabled || n.flags&flagDisabled != 0
+		canvas.HitWithOptions(n.id, hit, n.label, options)
 	}
 
 	// A Text and an Icon draw with their color, which is the one the looks give.
@@ -294,6 +298,14 @@ func (f *Frame) paintInput(n *node) {
 	// What the element says of its text (FontSize, Weight, Color) is the field's text style,
 	// over the snapshot's own: the one value the glyphs, the caret and the platform follow.
 	snapshot := f.inputs[n.aux]
+	// Disabled and read-only are the declaration's as well as the field's: Disabled
+	// comes from the Box, so a condition written after the field is still obeyed.
+	if n.flags&flagDisabled != 0 {
+		snapshot.Disabled = true
+	}
+	if snapshot.Disabled || snapshot.ReadOnly {
+		snapshot.ShowCaret = false
+	}
 	if n.fontSize > 0 {
 		snapshot.Text.Size = n.fontSize
 	}
@@ -316,11 +328,18 @@ func (f *Frame) paintInput(n *node) {
 // paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
 // Border, as paintInput does for a line.
 func (f *Frame) paintTextarea(n *node) {
+	snapshot := f.textareas[n.aux]
+	if n.flags&flagDisabled != 0 {
+		snapshot.Disabled = true
+	}
+	if snapshot.Disabled || snapshot.ReadOnly {
+		snapshot.ShowCaret = false
+	}
 	if n.flags&flagHasColor != 0 {
 		theme := f.theme
 		theme.Foreground = n.color
-		components.PaintTextareaContent(f.canvas, theme, n.rect, f.contentRect(n), f.textareas[n.aux])
+		components.PaintTextareaContent(f.canvas, theme, n.rect, f.contentRect(n), snapshot)
 		return
 	}
-	components.PaintTextareaContent(f.canvas, f.theme, n.rect, f.contentRect(n), f.textareas[n.aux])
+	components.PaintTextareaContent(f.canvas, f.theme, n.rect, f.contentRect(n), snapshot)
 }

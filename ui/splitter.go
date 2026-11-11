@@ -14,7 +14,9 @@ const (
 // Pos is the size in pixels of the pane before the splitter (its width in a Row, its
 // height in a Column); set it before the first frame (a zero Pos is the pane's
 // minimum), give the pane that size, and a drag, an arrow key or a window resize
-// keeps it inside the limits. The rest is bookkeeping.
+// keeps it inside the limits. A width the user chose is remembered even while the
+// window is too narrow for it, and comes back when the window grows; assign Pos
+// between paints to choose a new one. The rest is bookkeeping.
 type SplitterState struct {
 	Pos float32
 	// Ratio is the share of the container the first pane takes, kept on every
@@ -22,7 +24,14 @@ type SplitterState struct {
 	// two thirds" without knowing the window's size, and a resize keeps the
 	// proportion. A drag or an arrow key updates Ratio from the new position;
 	// set Ratio to zero to hold Pos as pixels instead.
-	Ratio        float32
+	Ratio float32
+
+	// preferred is the width the user chose, which Pos is clamped from when the
+	// window is temporarily too narrow; applied is the Pos the last layout left, so
+	// a Pos the program assigned between paints is taken as the new preference.
+	preferred    float32
+	applied      float32
+	hasPreferred bool
 	id           gfx.ID
 	dragging     bool
 	startPointer float32
@@ -35,8 +44,9 @@ type SplitterState struct {
 func (s *SplitterState) Dragging() bool { return s.dragging }
 
 // Key moves a focused splitter: Left and Up shrink the first pane, Right and Down
-// grow it by 16 pixels, Home and End take it to its smallest and largest. Give it to
-// Config.OnKey (or call it from yours); it ignores every other key and every other
+// grow it by 16 pixels, Home and End take it to its smallest and largest. A Splitter
+// declared in a Page gives it to the page's key routing; a Splitter declared on a
+// Frame is given it through Config.OnKey. It ignores every other key and every other
 // focus.
 func (s *SplitterState) Key(event gfx.KeyEvent) gfx.EventResult {
 	if s.id.IsZero() || event.Target != s.id {
@@ -56,8 +66,31 @@ func (s *SplitterState) Key(event gfx.KeyEvent) gfx.EventResult {
 		return gfx.EventResult{}
 	}
 	s.Pos = s.limit(pos)
+	s.preferred, s.applied = s.Pos, s.Pos
 	s.keepRatio()
 	return gfx.EventResult{Handled: true, Repaint: true}
+}
+
+// splits records that state, a Splitter declared in this paint, takes the keys that
+// move its divider while it has the focus.
+func (p *Page) splits(state *SplitterState) {
+	p.splitters = append(p.splitters, state)
+	if p.splitRoute == nil {
+		p.keyRoute, p.splitRoute = (*Page).routeKey, (*Page).splitKey
+	}
+}
+
+// splitKey gives a key to the Splitter that has the focus.
+func (p *Page) splitKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if event.Release {
+		return gfx.EventResult{}, false
+	}
+	for _, state := range p.splitters {
+		if result := state.Key(event); result.Handled {
+			return result, true
+		}
+	}
+	return gfx.EventResult{}, false
 }
 
 // keepRatio stores the pane's current share after a drag or a key, so a window
@@ -78,9 +111,10 @@ func (s *SplitterState) limit(pos float32) float32 {
 }
 
 type splitDecl struct {
-	state               *SplitterState
-	first               int32 // the pane before the splitter, or -1
-	minFirst, minSecond float32
+	state                *SplitterState
+	first                int32 // the pane before the splitter, or -1
+	minFirst, maxFirst   float32
+	minSecond, maxSecond float32
 }
 
 // Splitter adds a draggable divider between two siblings of a Row (a vertical bar,
@@ -96,8 +130,10 @@ type splitDecl struct {
 //
 // The pointer is captured for the drag, so it may leave the strip, and the cursor
 // shows the resize shape over it; with the keyboard, SplitterState.Key moves it. Mins
-// sets the least size of the first and the second pane (48 each by default). The
-// divider is 8 pixels thick, as long as the container is across.
+// sets the least size of the first and the second pane (48 each by default), Maxs the
+// greatest. A window too narrow for the width the user chose clamps the panes without
+// forgetting it, so they return to it when the window grows. The divider is 8 pixels
+// thick, as long as the container is across.
 func (f *Frame) Splitter(id gfx.ID, state *SplitterState) Box {
 	first := int32(-1)
 	if f.parent >= 0 {
@@ -108,8 +144,24 @@ func (f *Frame) Splitter(id gfx.ID, state *SplitterState) Box {
 	n.id = id
 	n.aux = int32(len(f.widgets.splits))
 	f.widgets.splits = append(f.widgets.splits, splitDecl{state: state, first: first, minFirst: splitterMin, minSecond: splitterMin})
+	state.adopt()
 	state.id = id
 	return b
+}
+
+// adopt keeps the width the state holds as the preferred one: the width first
+// declared, or one the program assigned between paints. reportSplitters only
+// clamps Pos, so a window that is briefly too narrow does not replace it.
+//
+// A splitter that named no size keeps sizing its first pane as the pane asks, as it
+// did before: Pos starts at zero, which is "unset" there rather than the minimum it
+// means once the splitter owns the pane, so a zero is only taken as a choice after a
+// width was chosen. That also keeps a Pos the page clamped, which reportSplitters
+// records in applied, from becoming a preferred width of its own.
+func (s *SplitterState) adopt() {
+	if s.Pos != s.applied && (s.hasPreferred || s.Pos > 0) {
+		s.preferred, s.applied, s.hasPreferred = s.Pos, s.Pos, true
+	}
 }
 
 // Mins sets the least size of the panes either side of a Splitter, along its container.
@@ -117,6 +169,20 @@ func (b Box) Mins(first, second float32) Box {
 	if n := b.n(); n.kind == kindSplitter {
 		d := &b.f.widgets.splits[n.aux]
 		d.minFirst, d.minSecond = max(first, 0), max(second, 0)
+	}
+	return b
+}
+
+// Maxs sets the greatest size of the panes either side of a Splitter, along its
+// container; it combines with the room there is. A max of zero is no greatest size,
+// and the pane's minimum wins over it when the two are said to be smaller than each
+// other.
+//
+//	ui.Splitter(c, &m.split).Mins(120, 200).Maxs(400, 0)
+func (b Box) Maxs(first, second float32) Box {
+	if n := b.n(); n.kind == kindSplitter {
+		d := &b.f.widgets.splits[n.aux]
+		d.maxFirst, d.maxSecond = max(first, 0), max(second, 0)
 	}
 	return b
 }
@@ -149,15 +215,29 @@ func (f *Frame) splitLimits(n *node) (lo, hi, span float32) {
 	first, second := &f.nodes[d.first], &f.nodes[n.next]
 	span = *origin(&second.rect, axis) + *extent(&second.rect, axis) - *origin(&first.rect, axis)
 	gaps := span - *extent(&first.rect, axis) - *extent(&n.rect, axis) - *extent(&second.rect, axis)
-	hi = span - *extent(&n.rect, axis) - gaps - d.minSecond
-	return lo, max(hi, lo), span
+	lo, hi = splitBounds(d.minFirst, d.maxFirst, d.minSecond, d.maxSecond, span, gaps, *extent(&n.rect, axis))
+	return lo, hi, span
 }
 
-// placeSplitRatios gives every splitter with a Ratio its first pane's size on
-// this axis before the container shares its room. Doing it in the layout pass,
-// rather than after it, means the first frame that shows the pane already has
-// the share and a resize keeps it without a second frame.
-func (f *Frame) placeSplitRatios(n *node, axis int, avail float32) {
+// splitBounds is the least and greatest size of the first pane for a span the two
+// panes and the splitter share, with the gaps between them: what Mins and Maxs say,
+// bounded by the room.
+func splitBounds(minFirst, maxFirst, minSecond, maxSecond, span, gaps, thickness float32) (lo, hi float32) {
+	lo, hi = max(minFirst, 0), span-gaps-thickness-max(minSecond, 0)
+	if maxSecond > 0 {
+		lo = max(lo, span-gaps-thickness-maxSecond)
+	}
+	if maxFirst > 0 {
+		hi = min(hi, maxFirst)
+	}
+	return lo, max(hi, lo)
+}
+
+// placeSplitters gives every splitter its first pane's size on this axis before the
+// container shares its room: the share from Ratio, or the width the user preferred.
+// Doing it in the layout pass, rather than after it, means the frame that shows the
+// pane already has the size the window allows, and a resize needs no second frame.
+func (f *Frame) placeSplitters(n *node, axis int, avail float32) {
 	if n.first < 0 {
 		return
 	}
@@ -173,19 +253,29 @@ func (f *Frame) placeSplitRatios(n *node, axis int, avail float32) {
 		}
 		d := &f.widgets.splits[bar.aux]
 		state := d.state
-		if state.Ratio <= 0 || d.first < 0 {
+		if d.first < 0 {
 			continue
 		}
 		thickness := bar.pref[axis]
 		if thickness <= 0 {
 			thickness = splitterThickness
 		}
-		lo := d.minFirst
-		hi := max(avail-gaps-thickness-d.minSecond, lo)
-		pos := min(max(state.Ratio*(avail-gaps-thickness), lo), hi)
+		lo, hi := splitBounds(d.minFirst, d.maxFirst, d.minSecond, d.maxSecond, avail, gaps, thickness)
+		var pos float32
+		switch {
+		case state.Ratio > 0:
+			pos = state.Ratio * (avail - gaps - thickness)
+		case state.hasPreferred:
+			// The width the user chose is what the pane goes back to when the room
+			// allows it again; Pos itself may have been clamped last frame.
+			pos = state.preferred
+		default:
+			continue
+		}
+		pos = min(max(pos, lo), hi)
 		first := &f.nodes[d.first]
 		first.raw[axis], first.pref[axis] = pos, pos
-		state.Pos = pos
+		state.Pos, state.applied = pos, pos
 		state.lo, state.hi, state.span = lo, hi, avail
 	}
 }
@@ -203,11 +293,14 @@ func (f *Frame) reportSplitters() {
 		lo, hi, span := f.splitLimits(n)
 		s.lo, s.hi, s.span = lo, hi, span
 		if pos := s.limit(s.Pos); pos != s.Pos {
+			// Pos follows the room the layout found; preferred stays as the user left
+			// it, so placeSplitRatios gives the pane that width when there is room.
 			s.Pos = pos
 			if f.canvas != nil {
 				f.canvas.RequestFrame()
 			}
 		}
+		s.applied = s.Pos
 	}
 }
 
@@ -230,6 +323,7 @@ func (f *Frame) paintSplitter(n *node) {
 		case event.Kind == gfx.PointerMove && s.dragging:
 			s.lo, s.hi, s.span = f.splitLimits(n)
 			s.Pos = s.limit(s.startPos + pointer - s.startPointer)
+			s.preferred, s.applied = s.Pos, s.Pos
 			s.keepRatio()
 			canvas.Consume()
 		case event.Kind == gfx.PointerUp && s.dragging:

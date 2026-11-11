@@ -95,10 +95,8 @@ func newConfig(m *model) app.Config {
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
 	return page.Config(app.Config{
 		Title: "Input", Width: 640, Height: 360,
-		// The page routes pointer, wheel, shortcut and text input to the controls
-		// it declares. A splitter keeps its arrow keys in its own state, so give
-		// them to the window's key callback.
-		OnKey: m.split.Key,
+		// The page routes pointer, wheel, keys and text input to the controls it
+		// declares; the focused splitter gets its arrow keys from the page.
 	})
 }
 
@@ -118,7 +116,7 @@ func main() {
 
 ## 指针
 
-点击在声明控件的地方处理：`ui.Button(c, "Save").Clicked()`，或 `ListRow.Selected()`，列表已经把点击造成的选择显示出来。两个窗格之间的拖动也不需要处理函数：`ui.Splitter(c, &m.split)` 会捕获指针、显示调整大小的光标，并让两个窗格都不小于各自的最小尺寸，示例只需要把第一个窗格的宽度设为 `m.split.Pos`。上下文菜单同样声明在它的目标上：`ui.ContextMenu(c, row.Element, ...)` 在次按钮按下时于指针处打开，Shift+F10 也可以从键盘打开。
+点击在声明控件的地方处理：`ui.Button(c, "Save").Clicked()`，或 `ListRow.Selected()`，列表已经把点击造成的选择显示出来。两个窗格之间的拖动也不需要处理函数：`ui.Splitter(c, &m.split)` 会捕获指针、显示调整大小的光标，并让两个窗格都在各自的最小和最大尺寸之间（`Mins`、`Maxs`），示例只需要把第一个窗格的宽度设为 `m.split.Pos`。上下文菜单同样声明在它的目标上：`ui.ContextMenu(c, row.Element, ...)` 在次按钮按下时于指针处打开，Shift+F10 也可以从键盘打开。
 
 `OnPointer` 负责页面没有建模的部分：自绘控件，或转发另一个页面指针事件的主机。它收到按下、移动、抬起和离开事件，坐标是逻辑窗口像素，`Target` 是指针下方的标识。一次按下会在之后的移动和抬起事件中保持原来的目标，此时 `Captured` 为真，这正是你自己实现的拖动在指针离开控件后仍然有效的原因。拖动过程中的移动事件可能被合并为队列里最新的位置（平台原生也会这样处理），因此处理逻辑应当依赖坐标而不是调用次数：按按下点到当前点的位移来拖动的实现，最终仍会停在指针所在的位置。
 
@@ -128,10 +126,10 @@ func main() {
 
 页面把按键路由给持有焦点的控件。`ui.List` 自己使用它们：上和下移动选择，Home 和 End 到第一行和最后一行，Page Up 和 Page Down 按一屏移动，Enter 或双击由 `ListState.Submitted()` 报告，输入 `ListState.Label` 给出的名字的开头会跳到那一行。菜单打开时自己拿走方向键和 Escape，文本框自己拿走编辑键，都不需要处理函数。
 
-`ui.Splitter` 把键盘行为保存在自己的状态里：把 `SplitterState.Key` 交给窗口的按键回调，获得焦点的分隔条就能用方向键移动：
+页面里的 `ui.Splitter` 由页面自己路由方向键：获得焦点的分隔条用 Left 和 Right 每次移动 16 像素，Home 和 End 到它的两端。行为在 `SplitterState.Key` 里，直接声明在 `Frame` 上的分隔条把它交给窗口的按键回调：
 
 ```go
-page.Config(app.Config{OnKey: m.split.Key /* ... */})
+page.Config(app.Config{OnKey: m.split.Key /* 直接声明在 Frame 上的分隔条 */})
 ```
 
 `OnKey` 收到页面没有拿走的按键事件，目标是当前持有焦点的控件。`Target` 说明是哪一个，所以处理函数在动手前要先检查它。`Key` 是导航键、编辑键和功能键的名字（`KeyDown`、`KeyEscape`、`KeyEnter`、`KeyTab`……）。对于 Ctrl+C 这样的组合，`Key` 是 `KeyUnknown`，`Text` 是不带修饰键的字符。自己的控件用 `ui.Handlers` 接收按键；`OnKey` 是页面之下的兜底。
