@@ -93,3 +93,16 @@ func TestAFontTheEngineRefusesIsNotKept(t *testing.T) {
 		t.Fatalf("after a refusal the font registers again: %v, added %d", err, added)
 	}
 }
+
+// BenchmarkKeyOf measures naming a face the size of a patched terminal font (2.5 MB), which an
+// application registers before its first paint.
+func BenchmarkKeyOf(b *testing.B) {
+	data := make([]byte, 5<<19)
+	for i := range data {
+		data[i] = byte(i * 31)
+	}
+	b.SetBytes(int64(len(data)))
+	for b.Loop() {
+		keyOf(data)
+	}
+}
