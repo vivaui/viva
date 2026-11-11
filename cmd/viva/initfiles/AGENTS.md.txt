@@ -67,9 +67,12 @@ func (m *model) page(c ui.C) {
 - Long lists: `ui.List(c, &m.list, len(items), func(row ui.ListRow) { row.Element.PadX(8).Children(...) })` declares only the rows
   on screen; style the row with `row.Element`, declare what is in it with `row.C`, name the list with `.Label("Files")`. A click
   chooses a row (`m.list.Selected()`, `Changed()`), the arrows, Home, End and Page Up/Down move, Enter or a double click is
-  `m.list.Submitted()`, and `m.list.Label = func(i int) string` makes typing a row's first letters move to it. Set `m.list.Selection =
+  `m.list.Submitted()`, and `m.list.Label = func(i int) string` makes typing a row's first letters move to it (`m.list.Name = func(i int) string`
+  is the name assistive technology reads when a row speaks more than its text, and `m.list.NoTypeahead` leaves typed keys to the page).
+  `m.list.HasFocus()` says the keyboard is on its rows. Set `m.list.Selection =
   &m.chosen` (a `ui.Selection`, held by `m.list.Key`) to let the user choose several: Primary-click toggles, Shift extends, Primary+A
-  chooses all. `m.list.ScrollTo(row, ui.ListCenter)`, `ScrollIntoView`, `ScrollToEnd`, `Visible()` and `AtEnd()` move and read it.
+  chooses all. `m.list.ScrollTo(row, ui.ListCenter)`, `ScrollIntoView`, `ScrollToEnd`, `Visible()` and `AtEnd()` move and read it; a
+  row it has not measured is placed from the rows it has, so a scroll request settles over the few paints it asks for itself.
   `box.ClickModifiers()` and `box.DoubleClicked()` read how a click on any element came. Do not number rows or keep a selected
   index of your own. `row.Element` is a Row, so an icon, a name and a size lie side by side. `m.list.Header = func(i int) bool`
   makes some rows section headings: the heading of the section at the top stays there until the next pushes it away (give it a

@@ -30,8 +30,9 @@ type model struct {
 
 func newModel() *model {
 	m := &model{split: ui.SplitterState{Pos: 220}}
-	// ListState.Label is the row's name for assistive technology, for the text
-	// type-ahead matches, and for a test looking a row up by name.
+	// ListState.Label is the row's name for assistive technology and the text
+	// type-ahead matches; Name names it for assistive technology instead, and
+	// NoTypeahead turns the typing off.
 	m.list.Label = func(i int) string { return mailboxes[i] }
 	return m
 }
@@ -112,7 +113,7 @@ func main() {
 
 ## Identities
 
-A page does not name its elements by hand. It names each by its place among the elements of its kind in its parent, and a row by `c.Key`, `c.KeyInt` or, in a `ui.List`, `ListState.Key`, so focus, hover and press follow a row as rows are inserted above it. The names are also accessible names: `ListState.Label` names a row for assistive technology, for the type-ahead that moves to it, and for a test that finds it, and `Box.Label` names a container such as the list. A test finds a control by the same name a user hears, with no coordinates or tree identifiers of its own.
+A page does not name its elements by hand. It names each by its place among the elements of its kind in its parent, and a row by `c.Key`, `c.KeyInt` or, in a `ui.List`, `ListState.Key`, so focus, hover and press follow a row as rows are inserted above it. The names are also accessible names: `ListState.Label` names a row for assistive technology, is the text the type-ahead that moves to it matches, and is what a test finds it by; `ListState.Name`, when set, is the name assistive technology reads and the test looks for, for a row whose spoken name is more than its text. `Box.Label` names a container such as the list. A test finds a control by the same name a user hears, with no coordinates or tree identifiers of its own.
 
 A control of your own takes `ui.ID(c)`. An application page names neither a `gfx.Tree` nor its controls by hand.
 
@@ -126,7 +127,7 @@ A click is handled where the control is declared: `ui.Button(c, "Save").Clicked(
 
 ## Keyboard and focus
 
-The page routes keys to the control with the focus. A `ui.List` uses them itself: Up and Down move the choice, Home and End go to the first and last row, Page Up and Down by a screen, Enter or a double click is `ListState.Submitted()`, and typing the start of a name given by `ListState.Label` moves to that row. A menu takes the arrows and Escape while it is open, and a text field takes the editing keys, all without a handler.
+The page routes keys to the control with the focus. A `ui.List` uses them itself: Up and Down move the choice, Home and End go to the first and last row, Page Up and Down by a screen, Enter or a double click is `ListState.Submitted()`, and typing the start of a name given by `ListState.Label` moves to that row, unless `ListState.NoTypeahead` leaves typed keys to the page. A menu takes the arrows and Escape while it is open, and a text field takes the editing keys, all without a handler.
 
 A `ui.Splitter` keeps its keyboard behavior in its own state, so give `SplitterState.Key` to the window's key callback and the focused divider moves with the arrow keys:
 
@@ -157,7 +158,7 @@ A handler of your own that matches a chord and wants it to act as a click on a c
 
 ## Typing into a list
 
-`ui.List` with `ListState.Label` set moves to a row as the user types its first letters. A control of your own that searches as you type declares that it takes typed text: set `gfx.HitOptions{TypeAhead: true}` on the hit that holds focus and return an `app.TextInput` for it from `config.TextInput` (`context.TypeAhead` is true for that hit). While it has focus the keyboard is raw, as in a terminal: printable characters and input-method input, pinyin included, arrive as `app.TextInsert` events in `OnEvent`, and every other key (arrows, Enter, Escape, Backspace, Tab) arrives as a `gfx.KeyEvent` in `OnKey`. The application owns the query: append the inserted text, and return the input method's composition in the `TextState` (`Composing`, `Composition`) so it keeps the keys it needs while composing; move the selection, and show your own search popup. Set `TextInput.Bounds` where the input method should draw its composition. Hits that do not declare it are unaffected, and a window with no `TextInput` provider pays nothing. `Session.Keys("f")` types into such a hit in headless tests.
+`ui.List` with `ListState.Label` set moves to a row as the user types its first letters; `ListState.NoTypeahead` turns that off for a list whose rows are typed into for something else, or whose row text is a sentence rather than a name to jump by. A control of your own that searches as you type declares that it takes typed text: set `gfx.HitOptions{TypeAhead: true}` on the hit that holds focus and return an `app.TextInput` for it from `config.TextInput` (`context.TypeAhead` is true for that hit). While it has focus the keyboard is raw, as in a terminal: printable characters and input-method input, pinyin included, arrive as `app.TextInsert` events in `OnEvent`, and every other key (arrows, Enter, Escape, Backspace, Tab) arrives as a `gfx.KeyEvent` in `OnKey`. The application owns the query: append the inserted text, and return the input method's composition in the `TextState` (`Composing`, `Composition`) so it keeps the keys it needs while composing; move the selection, and show your own search popup. Set `TextInput.Bounds` where the input method should draw its composition. Hits that do not declare it are unaffected, and a window with no `TextInput` provider pays nothing. `Session.Keys("f")` types into such a hit in headless tests.
 
 `OnShortcut` is for chords the application owns, not for typing: it runs before the input method, so a key it takes never composes.
 
@@ -165,7 +166,7 @@ A handler of your own that matches a chord and wants it to act as a click on a c
 
 ## Scrolling
 
-`ui.List` and `ui.Scroll` keep their offsets themselves, so the wheel goes to the scroll area under the pointer and the page needs no offset field and no `OnScroll` handler; the example's wheel is the list's. `ListState.ScrollTo`, `ScrollIntoView`, `ScrollToEnd`, `Visible` and `AtEnd` move and read a list, and a `ui.Scroll` reports `ScrollState()` in the paint for the same. Content the page scrolls is clipped; a custom painter clips its own with `Canvas.Clip`, so it does not paint over its neighbors, and clipped hit regions stop responding.
+`ui.List` and `ui.Scroll` keep their offsets themselves, so the wheel goes to the scroll area under the pointer and the page needs no offset field and no `OnScroll` handler; the example's wheel is the list's. `ListState.ScrollTo`, `ScrollIntoView`, `ScrollToEnd`, `Visible` and `AtEnd` move and read a list, and a `ui.Scroll` reports `ScrollState()` in the paint for the same. A row the list has not measured is placed by the heights of the rows it has, so `ScrollTo` and `ScrollToEnd` take the few paints that measure the rows around the target: the list keeps the request, asks for those paints itself, and lets it go once the offset settles or anything else moves the list. Content the page scrolls is clipped; a custom painter clips its own with `Canvas.Clip`, so it does not paint over its neighbors, and clipped hit regions stop responding.
 
 `OnScroll` receives the events the page does not take: pixel deltas with the window position, modifiers, `Viewport` (the current window size) and the hit under the pointer, so a handler of your own does not depend on a preceding pointer move. Positive deltas reveal content below.
 

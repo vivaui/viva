@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
@@ -139,6 +140,227 @@ func fmtSscan(value string, i *int) (int, error) {
 		return 0, strconv.ErrSyntax
 	}
 	return 1, nil
+}
+
+// --- a list whose rows are of different heights ---
+
+// logRows is a list of n rows whose heights differ, as the lines of a log are: the
+// height of row i comes from a table, so every run lays out the same.
+type logRows struct {
+	list ui.ListState
+	n    int
+}
+
+func newLogRows(n int) *logRows {
+	m := &logRows{n: n}
+	m.list.Label = func(i int) string { return "row " + strconv.Itoa(i) }
+	return m
+}
+
+func (m *logRows) height(i int) float32 { return float32(24 + (i*37)%53) }
+
+func (m *logRows) page(c ui.C) {
+	ui.Column(c).Fill().Children(func() {
+		ui.List(c, &m.list, m.n, func(row ui.ListRow) {
+			row.Element.Height(m.height(row.Index)).Children(func() {
+				ui.Text(row.C, "row "+strconv.Itoa(row.Index))
+			})
+		}).Label("Rows").Grow(1)
+	})
+}
+
+// One ScrollTo lands on a row the list has not measured, without the application
+// asking again: the list keeps the request while the rows around the target are
+// measured, asks for those paints itself, and stops when the offset settles.
+func TestListScrollToLandsOnARowOfVaryingHeight(t *testing.T) {
+	m := newLogRows(5000)
+	d := openPage(t, m.page)
+	d.repaint() // the first screen, which is all the list has measured
+	const target = 4000
+	m.list.ScrollTo(target, ui.ListStart)
+	d.repaint() // the one request the application makes
+	if !d.driver.Transitioning() {
+		t.Fatal("the list did not ask for the paints an estimated target needs")
+	}
+	for frames := 0; d.driver.Transitioning(); frames++ {
+		if frames == 10 {
+			t.Fatal("the list asked for ten paints of one request")
+		}
+		if err := d.driver.Advance(16 * time.Millisecond); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d.repaint() // a paint of the settled list: the row is still where it was asked
+	label := "row " + strconv.Itoa(target)
+	if !d.has(label) {
+		t.Fatalf("row %d is not painted: Visible %v", target, visibleOf(&m.list))
+	}
+	area := d.listArea("Rows")
+	if top := d.hit(label).Bounds.Y - area.Y; top < -2 || top > 2 {
+		t.Fatalf("row %d is %v px from the top of the list, want it at the top", target, top)
+	}
+}
+
+// ScrollToEnd settles the same way: the paints that measure the rows near the end
+// bring the list there, and the last row is shown at the end of it.
+func TestListScrollToEndLandsAtTheEnd(t *testing.T) {
+	m := newLogRows(5000)
+	d := openPage(t, m.page)
+	d.repaint()
+	m.list.ScrollToEnd()
+	d.repaint()
+	if !d.driver.Transitioning() {
+		t.Fatal("the list did not ask for the paints an estimated end needs")
+	}
+	for frames := 0; d.driver.Transitioning(); frames++ {
+		if frames == 10 {
+			t.Fatal("the list asked for ten paints to reach its end")
+		}
+		if err := d.driver.Advance(16 * time.Millisecond); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d.repaint()
+	if !m.list.AtEnd() || !d.has("row 4999") {
+		t.Fatalf("ScrollToEnd: at the end %v, Visible %v, the last row painted %v", m.list.AtEnd(), visibleOf(&m.list), d.has("row 4999"))
+	}
+}
+
+// ScrollToEnd of a list shorter than the viewport settles at once: the list
+// already shows its end, and the request would only idle for its frame limit.
+func TestListScrollToEndOfAShortListSettlesAtOnce(t *testing.T) {
+	m := newLogRows(3)
+	d := openPage(t, m.page)
+	d.repaint()
+	m.list.ScrollToEnd()
+	d.repaint()
+	if d.driver.Transitioning() {
+		t.Fatal("a list shorter than the viewport asked for paints to reach the end it shows")
+	}
+	if !m.list.AtEnd() || !d.has("row 2") {
+		t.Fatalf("ScrollToEnd: at the end %v, Visible %v, the last row painted %v", m.list.AtEnd(), visibleOf(&m.list), d.has("row 2"))
+	}
+}
+
+// A request lets go when the user scrolls while it is still settling, instead of
+// pulling the list back to the row it was asked to show.
+func TestListScrollToLetsGoOfAUserScroll(t *testing.T) {
+	m := newLogRows(5000)
+	d := openPage(t, m.page)
+	d.repaint()
+	m.list.ScrollTo(4000, ui.ListStart)
+	d.repaint()
+	d.wheel(d.listArea("Rows"), 0, -50000, 0) // the user scrolls far up while it settles
+	d.repaint()
+	d.repaint()
+	if d.has("row 4000") {
+		t.Fatalf("the list went back to row 4000: the request did not let go of the user's scroll (Visible %v)", visibleOf(&m.list))
+	}
+}
+
+// --- focus, names and type-ahead ---
+
+// focusRows is a list with a control before and after it, so the focus can leave the
+// list; focused is what ListState.HasFocus said in the last paint.
+type focusRows struct {
+	list    ui.ListState
+	names   []string
+	focused bool
+}
+
+func newFocusRows(names ...string) *focusRows {
+	m := &focusRows{names: names}
+	m.list.Label = func(i int) string { return m.names[i] }
+	return m
+}
+
+func (m *focusRows) page(c ui.C) {
+	ui.Column(c).Fill().Children(func() {
+		ui.Button(c, "before")
+		ui.List(c, &m.list, len(m.names), func(row ui.ListRow) {
+			row.Element.Height(24).Children(func() { ui.Text(row.C, m.names[row.Index]) })
+		}).Label("Rows").Grow(1)
+		ui.Button(c, "after")
+		m.focused = m.list.HasFocus()
+	})
+}
+
+// HasFocus says the keyboard is on the list's rows, without a row at hand to ask.
+func TestListHasFocus(t *testing.T) {
+	m := newFocusRows("alpha", "beta", "gamma")
+	d := openPage(t, m.page)
+	d.repaint()
+	if m.focused || m.list.HasFocus() {
+		t.Fatal("a list nothing has focused reports focus")
+	}
+	d.click("beta")
+	if d.focused() != "beta" {
+		t.Fatalf("clicking beta focused %q", d.focused())
+	}
+	if !m.focused || !m.list.HasFocus() {
+		t.Fatal("the list whose row has the keyboard does not report focus")
+	}
+	d.click("after")
+	if m.focused || m.list.HasFocus() {
+		t.Fatal("the list reports focus with the focus on the button after it")
+	}
+}
+
+// namedRows names its rows twice: the texts type-ahead matches and the lines
+// assistive technology reads.
+type namedRows struct {
+	list   ui.ListState
+	labels []string
+	names  []string
+}
+
+func newNamedRows() *namedRows {
+	m := &namedRows{
+		labels: []string{"disk full", "reconnected", "slow"},
+		names:  []string{"12:00 ERROR disk full", "12:01 INFO reconnected", "12:02 WARN slow"},
+	}
+	m.list.Label = func(i int) string { return m.labels[i] }
+	m.list.Name = func(i int) string { return m.names[i] }
+	return m
+}
+
+func (m *namedRows) page(c ui.C) {
+	ui.Column(c).Fill().Children(func() {
+		ui.List(c, &m.list, len(m.labels), func(row ui.ListRow) {
+			row.Element.Height(24).Children(func() { ui.Text(row.C, m.labels[row.Index]) })
+		}).Label("Rows").Grow(1)
+	})
+}
+
+// Name is the row's accessible name, so a row whose spoken name is more than the
+// text typing matches has both; NoTypeahead leaves the keys to the page.
+func TestListNameAndNoTypeahead(t *testing.T) {
+	m := newNamedRows()
+	d := openPage(t, m.page)
+	d.repaint()
+	if !d.has(m.names[0]) {
+		t.Fatal("the row is not named by Name")
+	}
+	if d.has(m.labels[0]) {
+		t.Fatal("the row is named by Label although Name is set")
+	}
+
+	d.click(m.names[1])
+	if _, err := d.driver.ShortcutChord(0, 's'); err != nil {
+		t.Fatal(err)
+	}
+	if d.focused() != m.names[2] || m.list.Selected() != 2 {
+		t.Fatalf("typing s went to %q (row %d): Label is no longer the text type-ahead matches", d.focused(), m.list.Selected())
+	}
+
+	m.list.NoTypeahead = true
+	d.click(m.names[0])
+	if _, err := d.driver.ShortcutChord(0, 's'); err != nil {
+		t.Fatal(err)
+	}
+	if d.focused() != m.names[0] || m.list.Selected() != 0 {
+		t.Fatalf("typing with NoTypeahead went to %q (row %d)", d.focused(), m.list.Selected())
+	}
 }
 
 func BenchmarkList100k(b *testing.B) {
