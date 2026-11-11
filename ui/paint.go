@@ -97,7 +97,15 @@ func (f *frame) paint(i int32) {
 	if hasHit && (n.kind == kindContainer || n.kind == kindText || n.kind == kindIcon || n.kind == kindSlot) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
-		canvas.HitWithOptions(n.id, hit, n.label, extra.hit)
+		if n.flags&flagLabelFor != 0 {
+			text := n.label
+			if text == "" && n.kind == kindText {
+				text = n.text
+			}
+			canvas.HitLabel(n.id, hit, text, n.flags&flagDisabled != 0)
+		} else {
+			canvas.HitWithOptions(n.id, hit, n.label, extra.hit)
+		}
 	}
 
 	// A Text and an Icon draw with their color, which is the one the looks give.

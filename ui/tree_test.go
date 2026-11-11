@@ -440,6 +440,89 @@ func TestTreeRowAndDisclosureIDs(t *testing.T) {
 	}
 }
 
+// labelTreeModel is a tree whose rows draw their name as a label of the row
+// (LabelFor), and give the name the row's context menu.
+type labelTreeModel struct {
+	*treeModel
+	c       ui.C
+	content func(int) // m.row, made once
+	renamed string
+}
+
+func newLabelTreeModel(folders []folder) *labelTreeModel {
+	m := &labelTreeModel{treeModel: newTreeModel(folders)}
+	m.content = m.row
+	return m
+}
+
+func (m *labelTreeModel) row(i int) {
+	name := m.name(i)
+	label := ui.Text(m.c, name).LabelFor(m.state.RowID(i))
+	ui.ContextMenu(m.c, label, func(menu *ui.MenuItems) {
+		if menu.Item("Rename").Clicked() {
+			m.renamed = name
+		}
+	})
+}
+
+func (m *labelTreeModel) page(c ui.C) {
+	m.c = c
+	ui.Column(c).Fill().Pad(8).Children(func() {
+		ui.Tree(c, &m.state, len(m.visible), m.label, m.content).Grow(1)
+		if i, ok := m.state.Chosen(); ok {
+			m.opened = m.name(i)
+		}
+	})
+}
+
+// A row's name drawn as a label of the row is the row to the pointer: pressing it
+// chooses and focuses the row, it hovers the row, and the context menu declared on
+// it opens on the name and on the rest of the row. It is no tab stop of its own.
+func TestTreeRowNameLabelsTheRow(t *testing.T) {
+	m := newLabelTreeModel([]folder{{name: "etc", files: []string{"hosts"}}, {name: "var"}})
+	d := openPage(t, m.page)
+	row := d.hit("etc")
+	var name gfx.Hit
+	for _, hit := range d.driver.Snapshot().Hits {
+		if hit.IsLabel && hit.Label == "etc" {
+			name = hit
+		}
+	}
+	if name.ID != row.ID || name.Bounds.Width <= 0 || name.Bounds.Width >= row.Bounds.Width/2 {
+		t.Fatalf("the name %v is not a label of its row %v", name, row)
+	}
+	if name.Focusable {
+		t.Fatal("the name is a tab stop")
+	}
+	x, y := center(name.Bounds)
+	if err := d.driver.Move(x, y); err != nil {
+		t.Fatal(err)
+	}
+	if hovered := d.driver.Snapshot().Hovered; hovered != row.ID {
+		t.Fatal("the pointer over the name does not hover its row")
+	}
+	if err := d.driver.Click(x, y); err != nil {
+		t.Fatal(err)
+	}
+	if m.opened != "etc" || d.driver.Snapshot().Focused != row.ID {
+		t.Fatalf("a click on the name chose %q, focused %q", m.opened, d.focused())
+	}
+	past := row.Bounds.X + row.Bounds.Width - 4
+	for _, at := range [2]float32{x, past} {
+		if err := d.driver.ClickButton(at, y, gfx.PointerButtonSecondary); err != nil {
+			t.Fatal(err)
+		}
+		if !d.has("Rename") {
+			t.Fatalf("a secondary click at x %v did not open the row's menu", at)
+		}
+		d.click("Rename")
+		if m.renamed != "etc" {
+			t.Fatalf("the menu at x %v renamed %q", at, m.renamed)
+		}
+		m.renamed = ""
+	}
+}
+
 func TestListRowID(t *testing.T) {
 	var state ui.ListState
 	d := openPage(t, func(c ui.C) {

@@ -301,7 +301,9 @@ func (m *model) page(c ui.C) {
   a row, and `c.Part("word")` names a part of a component. `HitWith(id, label, gfx.HitOptions)` adds `Cursor`
   (`gfx.PointerCursorResizeHorizontal`, `gfx.PointerCursorHand`, ...), `Selected`, `Disabled` and `Role`. `Hit` only makes a
   pointer target and an accessibility name; it paints nothing, so a container with `Hit` and no `Children` (and no size or
-  background) panics at the first paint.
+  background) panics at the first paint. A part of a row a component owns, such as a Tree row's name that carries the
+  row's `ContextMenu`, is `ui.Text(c, name).LabelFor(m.tree.RowID(i))`: a label of the row, which a click, the hover
+  and a right click reach as the row, where a `Hit` would be a control of its own that takes the row's clicks.
 - A segmented choice among labels: `if ui.Choice(c, &m.theme, themes, nil).Changed() { m.saveTheme() }`; the choice writes
   the option itself, so `m.theme` is the selected value (`Theme.String` names options that are not strings).
   `ChosenIndex()` reports the option index a click chose on a `ui.Choice` strip (the call the bound form uses itself), for
