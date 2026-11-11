@@ -548,6 +548,8 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmActivate:
 		if uint16(first) == waInactive {
 			state.panelDeactivated()
+		} else if state.config.OnActivate != nil {
+			state.config.OnActivate()
 		}
 	case wmSetFocus:
 		state.focused = true

@@ -9,6 +9,7 @@ void vivaViewResized(uintptr_t handle, void *view, double width, double height) 
 void vivaRedrawRequested(uintptr_t handle, void *view) {}
 void vivaKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int repeat, const unsigned char *utf8, size_t utf8Length) {}
 void vivaRawKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int flags, unsigned int code, const unsigned char *utf8, size_t utf8Length, const unsigned char *typed, size_t typedLength) {}
+void vivaWindowActivated(uintptr_t handle) {}
 void vivaFocusLost(uintptr_t handle, void *view) {}
 int vivaTerminalCells(uint32_t character) { return 1; }
 int vivaAccessibilityAction(uintptr_t handle, void *view, uint64_t node, int action, double number, const unsigned char *utf8, size_t utf8Length, int start, int end) { return 0; }

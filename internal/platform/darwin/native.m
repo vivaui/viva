@@ -404,6 +404,7 @@ extern void vivaRawKeyEvent(
 // vivaTerminalCells is how many terminal cells a character occupies, answered by the
 // terminal's own table in Go.
 extern int vivaTerminalCells(uint32_t character);
+extern void vivaWindowActivated(uintptr_t callbackHandle);
 extern void vivaFocusLost(
     uintptr_t callbackHandle,
     void *view
@@ -4680,6 +4681,10 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)keyWindowChanged:(NSNotification *)notification {
     [self syncSecureEventInput];
+    if ([notification.name isEqualToString:NSWindowDidBecomeKeyNotification] &&
+        notification.object == self.window && _callbackHandle != 0) {
+        vivaWindowActivated(_callbackHandle);
+    }
     // The keys that were down will be released to whichever window has the
     // keyboard now, so the application must let go of them here.
     if ([notification.name isEqualToString:NSWindowDidResignKeyNotification] &&

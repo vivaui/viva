@@ -145,6 +145,7 @@ type runState struct {
 	visibilityHandler platform.VisibilityHandler
 	fullscreenHandler func(bool)
 	onReopen          func()
+	onActivate        func()
 	keyHandler        KeyHandler
 	focusLostHandler  platform.FocusLostHandler
 	accessibility     platform.AccessibilityHandler
@@ -343,7 +344,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 
 	state := &runState{application: application, onClosed: config.OnClosed, waker: config.Waker, closeHandler: config.OnCloseRequest, pressAt: config.PressAt,
-		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, visibilityHandler: config.OnVisibility, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen}
+		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, visibilityHandler: config.OnVisibility, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen, onActivate: config.OnActivate}
 	{
 		state.captureRectangleLayers(config.Rectangles)
 		if config.OnPointer != nil {

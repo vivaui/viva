@@ -87,6 +87,10 @@ type Config struct {
 	// every other key is delivered as it was.
 	ModifierTaps bool
 	OnShortcut   ShortcutHandler
+	// OnActivate, when set, runs on the window thread when the top-level
+	// window becomes the active window. Focus moving between views inside the
+	// window does not call it.
+	OnActivate func()
 	// OnFocusLost, when set, runs when the window stops being the one the
 	// keyboard types into (another window or application took the focus), so
 	// the runtime can release the keys that were down: their releases will go

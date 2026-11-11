@@ -31,6 +31,7 @@ synchronous forms report `ErrAsyncRequired`, `ErrSecretStoreUnavailable` or
 | Reduced motion (`ReduceMotion`, returns `bool`) | `NSWorkspace.accessibilityDisplayShouldReduceMotion` | `SPI_GETCLIENTAREAANIMATION` | the settings portal's `reduced-motion` or `enable-animations`, else XSETTINGS `Gtk/EnableAnimations`, else KDE's `AnimationDurationFactor` of 0; a change is applied to a running canvas | `prefers-reduced-motion`, read at mount and watched with `matchMedia` |
 | Fullscreen (`RequestFullscreen`, `OnFullscreen`) | `NSWindow.toggleFullScreen:` | `SetWindowPos` / window style | window-manager fullscreen | `requestFullscreen` / `exitFullscreen`, reported by `fullscreenchange` |
 | Page visibility (`OnMinimize`) | window minimized/restored | window minimized/restored | window minimized/restored | `visibilitychange`; a hidden tab counts as minimized |
+| Window activation (`OnActivate`) | `NSWindowDidBecomeKeyNotification` | `WM_ACTIVATE`, when not `WA_INACTIVE` | an X11 `FocusIn` whose detail is `Ancestor` or `Nonlinear` outside a grab, or GTK's `focus-in-event` | the window `focus` event |
 
 ## Opening registered documents
 

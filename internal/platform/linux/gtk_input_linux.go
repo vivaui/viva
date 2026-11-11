@@ -335,6 +335,9 @@ func (w *gtkWindow) focusChanged(focused bool) {
 		w.ime.setFocused(focused)
 	}
 	if focused {
+		if w.config.OnActivate != nil {
+			w.config.OnActivate()
+		}
 		platform.NotifyAppearanceChanged()
 		return
 	}
