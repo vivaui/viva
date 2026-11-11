@@ -435,11 +435,13 @@ func (s *ListState) indexOf(id gfx.ID) int {
 }
 
 // applyScrollRequest applies the scroll the application asked for, before the list
-// places its rows.
-func (s *ListState) applyScrollRequest(f *Frame) {
+// places its rows, and reports whether it moved the offset. A row near the end is
+// brought only as far as the rows go: the layout would clamp the offset to the
+// content too, but only for the next paint, and the rows are placed for this one.
+func (s *ListState) applyScrollRequest(f *Frame) bool {
 	in := &s.list
 	if in.pending == listScrollNone || in.scroll == nil {
-		return
+		return false
 	}
 	kind, row := in.pending, int(in.pendingRow)-1
 	in.pending, in.pendingRow = listScrollNone, 0
@@ -448,32 +450,38 @@ func (s *ListState) applyScrollRequest(f *Frame) {
 	if viewport <= 0 {
 		viewport = f.bounds.Height
 	}
+	before, end := scroll.Offset, max(s.top(in.n)-viewport, 0)
+	to := func(y float32) { scroll.ScrollTo(min(y, end)) }
 	switch kind {
 	case listScrollToEnd:
+		// The layout puts the area at the end of what is there; the offset says which
+		// rows to place for it.
 		scroll.ScrollToEnd()
+		scroll.Offset = end
 	case listScrollStart:
 		if row >= 0 && row < in.n {
-			scroll.ScrollTo(s.top(row))
+			to(s.top(row))
 		}
 	case listScrollCenter:
 		if row >= 0 && row < in.n {
-			scroll.ScrollTo((s.top(row)+s.top(row+1))/2 - viewport/2)
+			to((s.top(row)+s.top(row+1))/2 - viewport/2)
 		}
 	case listScrollEnd:
 		if row >= 0 && row < in.n {
-			scroll.ScrollTo(s.top(row+1) - viewport)
+			to(s.top(row+1) - viewport)
 		}
 	case listScrollNear:
 		if row >= 0 && row < in.n {
 			top, bottom := s.top(row), s.top(row+1)
 			switch {
 			case top < scroll.Offset:
-				scroll.ScrollTo(top)
+				to(top)
 			case bottom > scroll.Offset+viewport:
-				scroll.ScrollTo(bottom - viewport)
+				to(bottom - viewport)
 			}
 		}
 	}
+	return scroll.Offset != before
 }
 
 // estimate is the height a row not yet measured is taken to have: the average of
@@ -716,7 +724,11 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 	state.resize(n)
 	scroll := c.f.exts[c.f.nodes[area.i].ext].scrollState
 	in.scroll = scroll
-	state.applyScrollRequest(c.f)
+	if state.applyScrollRequest(c.f) {
+		// The area was declared at the offset it had; the layout reads the node, so it
+		// takes the requested one too, which the rows are placed for below (as ScrollAt).
+		c.f.nodes[area.i].scroll = scroll.Offset
+	}
 	viewport := scroll.Viewport
 	if viewport <= 0 {
 		viewport = c.f.bounds.Height

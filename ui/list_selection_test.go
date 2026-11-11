@@ -292,8 +292,8 @@ func TestListSelectAll(t *testing.T) {
 	}
 }
 
-// ScrollTo, ScrollIntoView and ScrollToEnd move the list, and Visible reports what
-// it showed.
+// ScrollTo, ScrollIntoView and ScrollToEnd move the list in the one paint that applies
+// them, without waiting for another, and Visible reports what it showed.
 func TestListScrollToARow(t *testing.T) {
 	var names []string
 	for i := range 1000 {
@@ -307,21 +307,25 @@ func TestListScrollToARow(t *testing.T) {
 	}
 	m.list.ScrollTo(900, ui.ListStart)
 	d.repaint()
-	d.repaint()
 	if !d.has("row 900") {
 		t.Fatalf("ScrollTo(900) did not show it: Visible %v", visibleOf(&m.list))
 	}
 	m.list.ScrollToEnd()
-	d.repaint()
 	d.repaint()
 	if !m.list.AtEnd() || !d.has("row 999") {
 		t.Fatalf("ScrollToEnd: at end %v, Visible %v", m.list.AtEnd(), visibleOf(&m.list))
 	}
 	m.list.ScrollIntoView(10)
 	d.repaint()
-	d.repaint()
 	if !d.has("row 10") {
 		t.Fatalf("ScrollIntoView(10) did not show it: Visible %v", visibleOf(&m.list))
+	}
+	// The middle of the last row is past where the list can scroll to: the list stops at
+	// its end, in the same paint.
+	m.list.ScrollTo(999, ui.ListCenter)
+	d.repaint()
+	if !d.has("row 999") || !d.has("row 990") {
+		t.Fatalf("ScrollTo(999, ListCenter) did not show the end: Visible %v", visibleOf(&m.list))
 	}
 }
 
