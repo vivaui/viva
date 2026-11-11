@@ -1,16 +1,20 @@
 package gfx
 
-import "unicode/utf8"
+import (
+	"math"
+	"unicode/utf8"
+)
 
 // IsCellGlyph reports whether r is a character a fixed-pitch line draws as geometry in its cell
-// instead of from the font: the Block Elements, Box Drawing, Braille and the corner shapes of
-// Geometric Shapes. The line's text still holds the character, for accessibility and for
-// copying; see ReplaceCellGlyphs.
+// instead of from the font: the Block Elements, Box Drawing, Braille, the corner shapes of
+// Geometric Shapes, Powerline and the Symbols for Legacy Computing a cell fills. The line's text
+// still holds the character, for accessibility and for copying; see ReplaceCellGlyphs.
 func IsCellGlyph(r rune) bool { return cellGlyphDrawer(r) != nil }
 
 // cellGlyphDrawer is what draws r as geometry in a cell, or nil when the font should draw it. The
-// families are named here and nowhere else, so adding one is a method on cellGlyph and a case
-// here.
+// families small enough for one line are named here; the blocks that carry a table of their own
+// name themselves in their own drawer, beside it. Adding a character is a method on cellGlyph and
+// a case in one of the two.
 func cellGlyphDrawer(r rune) func(*cellGlyph, rune) {
 	switch {
 	case IsBoxDrawing(r):
@@ -22,7 +26,10 @@ func cellGlyphDrawer(r rune) func(*cellGlyph, rune) {
 	case IsGeometricShape(r):
 		return (*cellGlyph).geometricShape
 	}
-	return nil
+	if draw := powerlineDrawer(r); draw != nil {
+		return draw
+	}
+	return legacyDrawer(r)
 }
 
 // CellGlyphShapes is the geometry of a fixed-pitch line's cell glyphs: rectangles for what is
@@ -47,7 +54,8 @@ type cellMetrics struct {
 type cellGlyph struct {
 	canvas *Canvas // only a stroke needs it: a path is tessellated through the canvas
 	cellMetrics
-	shapes CellGlyphShapes
+	shapes     CellGlyphShapes
+	clipSource []Triangle // scratch of the glyphs that cut their shapes to the cell
 }
 
 // cellLine is a text seen as cells: the scale back to logical pixels, and what every cell of the
@@ -68,11 +76,17 @@ type cellLine struct {
 	rule int32
 }
 
-// rect fills the rectangle between two points of the cell, both in device pixels from its corner.
-// A shape may reach a quarter of a cell past the cell, the room a sprite has in ghostty, so a
-// diagonal can meet the line in the cell it points at; an empty rectangle adds nothing, so a
-// shape too small for the cell disappears instead of inverting.
+// rect fills the rectangle between two points of the cell, both in device pixels from its corner,
+// at the text's own opacity.
 func (g *cellGlyph) rect(x0, y0, x1, y1 int32) {
+	g.shadeRect(x0, y0, x1, y1, 1)
+}
+
+// shadeRect fills a rectangle of the cell at a shade of the text's opacity. A shape may reach a
+// quarter of a cell past the cell, the room a sprite has in ghostty, so a diagonal can meet the
+// line in the cell it points at; an empty rectangle adds nothing, so a shape too small for the cell
+// disappears instead of inverting.
+func (g *cellGlyph) shadeRect(x0, y0, x1, y1 int32, alpha float32) {
 	x0, x1 = max(x0, -g.padX), min(x1, g.width+g.padX)
 	y0, y1 = max(y0, -g.padY), min(y1, g.height+g.padY)
 	if x1 <= x0 || y1 <= y0 {
@@ -85,17 +99,109 @@ func (g *cellGlyph) rect(x0, y0, x1, y1 int32) {
 			Width:  float32(x1 - x0),
 			Height: float32(y1 - y0),
 		},
-		Color: Color{Alpha: 1},
+		Color: Color{Alpha: alpha},
 	})
 }
 
 // fill fills the triangle through three points of the cell, in device pixels from its corner.
 func (g *cellGlyph) fill(a, b, c Point) {
+	g.fillShade(a, b, c, 1)
+}
+
+// fillShade fills a triangle at a shade of the text's opacity, the way a dither-free shading
+// character fills its cell.
+func (g *cellGlyph) fillShade(a, b, c Point, alpha float32) {
 	g.shapes.Triangles = append(g.shapes.Triangles, Triangle{
 		Points:   [3]Point{a, b, c},
-		Color:    Color{Alpha: 1},
+		Color:    Color{Alpha: alpha},
 		EdgeMask: triangleAllEdges,
 	})
+}
+
+// fillPolygon fills a closed path through points of the cell, in device pixels from its corner.
+// A shape with fewer than three points adds nothing.
+func (g *cellGlyph) fillPolygon(points []Point) {
+	if len(points) < 3 {
+		return
+	}
+	var fixed [12]PathCommand
+	commands := fixed[:0]
+	commands = append(commands, MoveTo(points[0].X, points[0].Y))
+	for _, point := range points[1:] {
+		commands = append(commands, LineTo(point.X, point.Y))
+	}
+	commands = append(commands, ClosePath())
+	g.fillPath(NewPath(float32(g.width), float32(g.height), commands...), PathFillNonZero)
+}
+
+// cellAlign is where a block sits along one axis of its cell.
+type cellAlign int8
+
+const (
+	alignStart cellAlign = iota
+	alignCenter
+	alignEnd
+)
+
+// fracMax is where a fraction of the way along extent lands, in whole device pixels, rounded to
+// the nearest. It is Ghostty's Fraction.max.
+func fracMax(extent, numerator, denominator int32) int32 {
+	return int32(math.Round(float64(extent) * float64(numerator) / float64(denominator)))
+}
+
+// fracMin is where the fraction one step before a fraction lands, measured from the far end the
+// way ghostty measures it, so the two pieces a line splits a cell into keep the odd pixel between
+// them rather than one of them taking it.
+func fracMin(extent, numerator, denominator int32) int32 {
+	return extent - fracMax(extent, denominator-numerator, denominator)
+}
+
+// cellBlock is a block of the cell: a fraction of its width and height, flush with an edge or
+// centered. The zero block is the whole cell.
+type cellBlock struct {
+	horizontal, vertical cellAlign
+	width, height        cellFraction
+}
+
+// blockRect is the rectangle of the cell a block fills, with the odd pixel kept on the end side
+// the way ghostty places a block.
+func (g *cellGlyph) blockRect(block cellBlock) (x0, y0, x1, y1 int32) {
+	width, height := block.width.extent(g.width), block.height.extent(g.height)
+	x, y := int32(0), int32(0)
+	switch block.horizontal {
+	case alignCenter:
+		x = (g.width - width) / 2
+	case alignEnd:
+		x = g.width - width
+	}
+	switch block.vertical {
+	case alignCenter:
+		y = (g.height - height) / 2
+	case alignEnd:
+		y = g.height - height
+	}
+	return x, y, x + width, y + height
+}
+
+// extent is where a fraction of an axis lands, measured from its near edge; the zero fraction is
+// the whole axis, so a block that names only one side fills the other.
+func (f cellFraction) extent(size int32) int32 {
+	if f.denominator == 0 {
+		return size
+	}
+	return fracMax(size, f.numerator, f.denominator)
+}
+
+// block fills a block of the cell at a shade: the eighths, quarters and halves of a legacy
+// character that are not block elements of their own.
+func (g *cellGlyph) block(block cellBlock, alpha float32) {
+	x0, y0, x1, y1 := g.blockRect(block)
+	g.shadeRect(x0, y0, x1, y1, alpha)
+}
+
+// strokeLine strokes the line between two points of the cell, one rule wide, with butt ends.
+func (g *cellGlyph) strokeLine(x0, y0, x1, y1 float32) {
+	g.stroke(NewPath(float32(g.width), float32(g.height), MoveTo(x0, y0), LineTo(x1, y1)))
 }
 
 // bounds is the cell's own rectangle, the box a path is laid out in.
@@ -272,8 +378,9 @@ func ReplaceCellGlyphs(value string, runs []TextRun) (string, []TextRun) {
 		before := len(text)
 		for at := 0; at < len(segment); {
 			if isCellGlyphAt(segment, at) {
+				_, size := utf8.DecodeRuneInString(segment[at:])
 				text = append(text, ' ')
-				at += 3
+				at += size
 				continue
 			}
 			text = append(text, segment[at])
@@ -286,7 +393,7 @@ func ReplaceCellGlyphs(value string, runs []TextRun) (string, []TextRun) {
 
 // hasCellGlyph reports whether value holds a character CellGlyphGeometry draws.
 func hasCellGlyph(value string) bool {
-	for index := 0; index+2 < len(value); index++ {
+	for index := 0; index < len(value); index++ {
 		if isCellGlyphAt(value, index) {
 			return true
 		}
@@ -294,12 +401,12 @@ func hasCellGlyph(value string) bool {
 	return false
 }
 
-// isCellGlyphAt reports whether value holds a cell glyph at index. Every family drawn here is a
-// three-byte character that starts with E2.
+// isCellGlyphAt reports whether value holds a cell glyph at index. The lowest lead byte any cell
+// glyph starts with is 0xE2, of Box Drawing, so anything below it is skipped without decoding.
 func isCellGlyphAt(value string, index int) bool {
-	if index+2 >= len(value) || value[index] != 0xE2 {
+	if value[index] < 0xE2 {
 		return false
 	}
 	r, size := utf8.DecodeRuneInString(value[index:])
-	return size == 3 && IsCellGlyph(r)
+	return size > 1 && IsCellGlyph(r)
 }

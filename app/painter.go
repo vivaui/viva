@@ -1447,9 +1447,10 @@ func (painter *painter) applyClipping() {
 	}
 }
 
-// appendCellGlyphs paints the geometry of a fixed-pitch line's cell glyphs — the Block
-// Elements, Box Drawing, Braille and the corner shapes of Geometric Shapes — after the
-// canvas's own, as the line's text is drawn after them (see gfx.Canvas.CellGlyphGeometry).
+// appendCellGlyphs paints the geometry of a fixed-pitch line's cell glyphs — the Block Elements,
+// Box Drawing, Braille, the corner shapes of Geometric Shapes, the Powerline separators and the
+// Symbols for Legacy Computing — after the canvas's own, as the line's text is drawn after them
+// (see gfx.Canvas.CellGlyphGeometry).
 func (painter *painter) appendCellGlyphs(text gfx.Text) {
 	shapes := painter.canvas.CellGlyphGeometry(gfx.CellGlyphShapes{
 		Rectangles: painter.blocks[:0],

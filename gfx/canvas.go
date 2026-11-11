@@ -214,9 +214,10 @@ const (
 // on its own cell; a run holding a single character is centered within its
 // Cells. Decorations are drawn across the run's whole cell span.
 //
-// Block Elements (U+2580 to U+259F: halves, eighths, quadrants, shades) are not drawn from
-// a font: the renderer fills their exact fraction of the cell, so neighbouring cells meet
-// without a seam; see Canvas.CellGlyphGeometry.
+// The characters IsCellGlyph names — Block Elements, Box Drawing, Braille, the corner shapes of
+// Geometric Shapes, Powerline and the Symbols for Legacy Computing — are not drawn from a font:
+// the renderer draws their geometry in the cell, so neighbouring cells meet without a seam; see
+// Canvas.CellGlyphGeometry.
 //
 // Ligatures asks the fixed-pitch renderer to shape the run as one line instead
 // of placing one glyph per cell, so a font's programming ligatures appear. The
