@@ -50,7 +50,8 @@ type ListState struct {
 	// wider than the list it scrolls sideways too (the horizontal wheel, or the
 	// wheel with Shift), and where they are not they grow to its width, as the
 	// columns of a table do. A header above the list goes with the rows through
-	// Box.ScrollWith.
+	// Box.ScrollWith. Use RowWidth or Box.Sideways, not both: together they carry
+	// two independent horizontal offsets.
 	RowWidth float32
 
 	heights []float32 // the measured height of each row, zero when not measured
