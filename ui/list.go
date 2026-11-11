@@ -488,16 +488,16 @@ const listScrollSlack = 0.5
 const listScrollFrames = 6
 
 // applyScrollRequest applies the scroll the application asked for, before the list
-// places its rows. A request is one offset computed from the heights the list knows,
-// and the rows it shows then are measured at the end of the paint: a target that
-// depended on rows it had not measured moves, so the request is applied again in the
-// next paint, which the list asks for, until the offset it asks for is where the list
-// already is.
-func (s *ListState) applyScrollRequest(f *frame) {
+// places its rows, and reports whether it moved the offset. A request is one offset
+// computed from the heights the list knows, and the rows it shows then are measured at
+// the end of the paint: a target that depended on rows it had not measured moves, so
+// the request is applied again in the next paint, which the list asks for, until the
+// offset it asks for is where the list already is.
+func (s *ListState) applyScrollRequest(f *frame) bool {
 	in := &s.list
 	scroll := in.scroll
 	if in.pending == listScrollNone || scroll == nil {
-		return
+		return false
 	}
 	viewport := scroll.Viewport
 	if viewport <= 0 {
@@ -510,12 +510,12 @@ func (s *ListState) applyScrollRequest(f *frame) {
 		// scrolled in between, and the request gives way instead of pulling the list
 		// back from under them.
 		s.clearScrollRequest()
-		return
+		return false
 	}
 	target, toEnd, ok := s.scrollTarget(kind, row, viewport, scroll)
 	if !ok || in.pendingFrame >= listScrollFrames {
 		s.clearScrollRequest()
-		return
+		return false
 	}
 	if !toEnd && scroll.Content > 0 && target > scroll.Max() {
 		// The row is near enough the end that it cannot be put where it was asked
@@ -535,10 +535,14 @@ func (s *ListState) applyScrollRequest(f *frame) {
 	// only once a paint has laid it out and the heights put it there.
 	if settled && (!toEnd || (in.laidOut && in.last >= in.n-1)) {
 		s.clearScrollRequest()
-		return
+		return false
 	}
+	before := scroll.Offset
 	if toEnd {
+		// The pin puts the area at its end only at the end of the layout; the offset
+		// says which rows to place for it in this paint.
 		scroll.ScrollToEnd()
+		scroll.Offset = target
 	} else {
 		scroll.ScrollTo(target)
 	}
@@ -546,6 +550,7 @@ func (s *ListState) applyScrollRequest(f *frame) {
 	if f.canvas != nil {
 		f.canvas.RequestFrame()
 	}
+	return scroll.Offset != before
 }
 
 // afterLayout records where a pending request left the list, so the next paint can
@@ -839,7 +844,11 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 	state.resize(n)
 	scroll := c.f.exts[c.f.nodes[area.i].ext].scrollState
 	in.scroll = scroll
-	state.applyScrollRequest(c.f)
+	if state.applyScrollRequest(c.f) {
+		// The area was declared at the offset it had; the layout reads the node, so it
+		// takes the requested one too, which the rows are placed for below (as ScrollAt).
+		c.f.nodes[area.i].scroll = scroll.Offset
+	}
 	viewport := scroll.Viewport
 	if viewport <= 0 {
 		viewport = c.f.bounds.Height
