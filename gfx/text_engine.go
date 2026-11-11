@@ -131,6 +131,20 @@ type FontFamilyAware interface {
 	FontGeneration() uint32
 }
 
+// FontThickener is an optional TextEngine capability that draws the glyphs it
+// rasterizes with a thicker stroke, as the system's own text looks, or with the
+// font's own outlines. An engine without it has no such choice: the renderer
+// behind it has no knob for the weight, so an application leaves the text as it
+// is there.
+type FontThickener interface {
+	TextEngine
+	// SetFontThickening draws the text with a thicker stroke when on, and with the
+	// font's own outlines when off, which is what an engine starts with. The
+	// weight is the process's, not one canvas's; asking for the weight already in
+	// use changes nothing.
+	SetFontThickening(on bool)
+}
+
 // SetTextEngine installs the engine every text measurement of the canvas goes
 // through; nil restores the reference metrics (internal/textmetrics). A backend installs
 // its platform's engine; tests and tools that want fixed widths leave it unset, or

@@ -292,10 +292,12 @@ func TestLabelGlyphsAreWhatAppKitDraws(t *testing.T) {
 	t.Logf("%d cases against AppKit: worst rms of coverage %.4f, ink ratio %.4f, edge ratio %.4f", cases, worstRMS, worstInk, worstEdge)
 }
 
-// AppKit draws thinner text when the user turns font smoothing off (`defaults write -g
-// AppleFontSmoothing -int 0`); the text it draws for other values is the default's. A Core
-// Graphics bitmap context ignores the setting, so a label has to follow it itself.
-func TestLabelFollowsAppleFontSmoothing(t *testing.T) {
+// Font smoothing is what macOS calls thickening: with it on AppKit draws heavier text, with it
+// off (`defaults write -g AppleFontSmoothing -int 0`) the font's own outlines, and it draws the
+// same for every value but zero. A Core Graphics bitmap context ignores the setting, so a label
+// decides its own weight: off is what AppKit draws with smoothing off, on with it on, whichever
+// the user set, since the application decides.
+func TestLabelThickening(t *testing.T) {
 	c := fidelityCase{Text: "Hamburgefonstiv", Size: 13, Scale: 2, Foreground: 0.95, BG: 0.12}.sized()
 	inkOf := func(gray []float64, w, h int) float64 { return stats(c.coverage(gray), w, h).Ink }
 
@@ -307,21 +309,30 @@ func TestLabelFollowsAppleFontSmoothing(t *testing.T) {
 		t.Fatalf("AppKit with AppleFontSmoothing 0 draws ink %.0f against %.0f: the setting should thin white text by about a quarter", flat, smoothed)
 	}
 
+	engine := sharedTextEngine()
+	defer engine.SetFontThickening(true)
+	// The user's own setting is smoothing on; the label still draws what it was told.
+	OverrideDefaultInteger("AppleFontSmoothing", 1, false)
 	defer OverrideDefaultInteger("AppleFontSmoothing", 0, true)
-	for _, value := range []int{1, 2, 3} {
-		OverrideDefaultInteger("AppleFontSmoothing", value, false)
-		got, _, _ := c.viva(t)
-		if ratio := inkOf(got, w, h) / smoothed; ratio < 0.995 || ratio > 1.005 {
-			t.Errorf("AppleFontSmoothing %d: label ink is %.3f of AppKit's", value, ratio)
-		}
+	engine.SetFontThickening(false)
+	off, _, _ := c.viva(t)
+	if difference := rms(c.coverage(referenceOff), c.coverage(off)); difference > 0.003 {
+		t.Errorf("thickening off: label glyphs differ from AppKit's smoothing-off text: rms %.4f", difference)
 	}
-	OverrideDefaultInteger("AppleFontSmoothing", 0, false)
-	got, _, _ := c.viva(t)
-	if ratio := inkOf(got, w, h) / flat; ratio < 0.995 || ratio > 1.005 {
-		t.Errorf("AppleFontSmoothing 0: label ink is %.3f of AppKit's %.0f", ratio, flat)
+	engine.SetFontThickening(true)
+	on, _, _ := c.viva(t)
+	if ratio := inkOf(on, w, h) / smoothed; ratio < 0.995 || ratio > 1.005 {
+		t.Errorf("thickening on: label ink is %.3f of AppKit's", ratio)
 	}
-	if rms(c.coverage(referenceOff), c.coverage(got)) > 0.003 {
-		t.Errorf("AppleFontSmoothing 0: label glyphs differ from AppKit's")
+
+	// A label picture is kept per generation, so the generation has to move for the new
+	// weight to be drawn, and only then: asking for the weight it already has redraws
+	// nothing.
+	generation := engine.FontGeneration()
+	engine.SetFontThickening(false)
+	engine.SetFontThickening(false)
+	if moved := engine.FontGeneration() - generation; moved != 1 {
+		t.Errorf("the font generation moved %d times for one change", moved)
 	}
 }
 

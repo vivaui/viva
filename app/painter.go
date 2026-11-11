@@ -1195,7 +1195,8 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		Target: context.ID,
 		X:      bounds.X, Y: bounds.Y,
 		Width: bounds.Width, Height: bounds.Height,
-		FontSize: fontSize, Weight: weight, Alignment: alignment, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
+		FontSize: fontSize, Weight: weight, FontGeneration: painter.canvas.FontGeneration(),
+		Alignment: alignment, Layer: painter.platformLayer(context.Layer), Multiline: context.Multiline, Secure: context.Secure, Terminal: context.Terminal || context.TypeAhead,
 		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, DisableIME: input.DisableIME, MonoFace: input.MonoFace, CellWidth: cellWidth, Baseline: baseline,
 		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
 		CopyOverride:       input.CopyOverride,
@@ -1290,7 +1291,8 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 
 func samePlatformTextInput(left, right platform.TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y && left.Width == right.Width && left.Height == right.Height &&
-		left.FontSize == right.FontSize && left.Weight == right.Weight && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.CellWidth == right.CellWidth && left.Baseline == right.Baseline &&
+		left.FontSize == right.FontSize && left.Weight == right.Weight && left.FontGeneration == right.FontGeneration &&
+		left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.CellWidth == right.CellWidth && left.Baseline == right.Baseline &&
 		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.DisableIME == right.DisableIME &&
 		left.NavigationKeys == right.NavigationKeys &&
 		left.CopyOverride == right.CopyOverride &&

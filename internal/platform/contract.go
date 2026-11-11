@@ -792,6 +792,10 @@ type TextInput struct {
 	Height   float32
 	FontSize float32
 	Weight   float32
+	// FontGeneration is the canvas font generation the text is drawn in
+	// (gfx.Canvas.FontGeneration). The platform holds a picture of the editor, so a
+	// field already on screen has to be drawn again when the fonts change under it.
+	FontGeneration uint32
 	// Alignment places a fitted line inside the field. It is a physical edge:
 	// AlignLeft, AlignCenter or AlignRight, already resolved for the text's
 	// direction. A caller holding an AlignStart or AlignEnd passes it through
