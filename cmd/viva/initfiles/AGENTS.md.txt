@@ -379,7 +379,7 @@ m.view.Draw(canvas, theme, bounds, func(f *ui.Frame) {
   the pointer (the innermost, or the next one out when that is at its end), so side-by-side columns and nested lists each scroll alone.
   A log or chat that grows at the bottom: `.Follow(true)` keeps the area at its end until the user scrolls up (and again when they
   scroll back down; `.Follow(m.autoScroll)` makes it a switch). To move it by program, `s := m.view.ScrollState(listID)` has `Offset`,
-  `Max()`, `AtEnd()`, `ScrollTo(px)` and `ScrollToEnd()` (call that after adding the item: it holds in the frame that grows the content);
+  `Max()`, `AtEnd()`, `Pinned()`, `ScrollTo(px)` and `ScrollToEnd()` (call that after adding the item: it holds in the frame that grows the content; a list that draws only the visible rows asks `Pinned()` in `Children` as it builds the frame, since the next layout has not moved `Offset` yet, and `AtEnd()` after);
   ask for it each time and do not keep the pointer. An area a frame does not declare forgets its offset (a closed dialog, another
   tab). `f.Scroll(offset)` is the lower-level form where you own the offset (`gfx.ScrollEvent` has `DeltaY float32`, positive reveals
   content below, and `Precise` for trackpads).

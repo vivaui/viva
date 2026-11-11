@@ -90,6 +90,12 @@ func (s *ScrollState) Max() float32 { return max(s.Content-s.Viewport, 0) }
 // AtEnd reports whether the area shows its last row, as of the last layout.
 func (s *ScrollState) AtEnd() bool { return s.Offset >= s.Max()-0.5 }
 
+// Pinned reports whether the next layout puts the area at its end, as ScrollToEnd or
+// Follow asked, even though Offset has not caught up yet. Read it before the frame is
+// laid out; AtEnd answers the same question after it, for a page that decides what to
+// draw from where the area will be rather than from where it is.
+func (s *ScrollState) Pinned() bool { return s.pinned() }
+
 // ScrollToEnd scrolls to the end of the content in the next layout, even if that grows
 // in the same frame (add the message, then call it). With Follow set it also makes the
 // area follow the end again.
