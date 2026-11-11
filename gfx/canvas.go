@@ -742,6 +742,8 @@ func (canvas *Canvas) SetMeasurer(measure func(value string, size, weight float3
 func (canvas *Canvas) SetCellMeasurer(measure func(size float32, face MonoFace) (width, height float32)) {
 	canvas.cellMeasurer = measure
 	canvas.cellSizes = cellSizeMemos{}
+	// The fits memo caches Mono cuts, whose results depend on the cell width.
+	clear(canvas.fits)
 }
 
 // CellSize is the size of one character cell of the fixed-pitch font at size,
