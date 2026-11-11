@@ -14,7 +14,8 @@
 // not closed (a "**" with no partner, a fence nobody ended yet) stays as typed,
 // so half a message that is still arriving reads sensibly. Links are kept only
 // when they point to http, https or mailto; any other destination is shown as
-// plain text. HTML, images, footnotes and indented code are not interpreted.
+// plain text. HTML, footnotes and indented code are not interpreted; an image is a
+// Span whose Image is its destination.
 package markdown
 
 import "strings"
@@ -55,6 +56,10 @@ type Span struct {
 	// Link is the destination when the text is a link, and empty otherwise.
 	// Only http, https and mailto destinations are ever set.
 	Link string
+	// Image is the destination of an image (![alt](destination)) as written,
+	// whatever its scheme, and empty for text; Text is then the alt text. The
+	// package never reads it: a view asks the application for the bitmap.
+	Image string
 }
 
 // Newline is the Text of the Span that separates two lines of a block.

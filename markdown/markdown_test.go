@@ -297,3 +297,23 @@ func TestBlockRangesNameTheLinesOfTheirBlocks(t *testing.T) {
 		}
 	}
 }
+
+func TestAnImageIsASpanWithItsDestination(t *testing.T) {
+	var d Document
+	d.Parse("see ![the diagram](docs/arch.png) and [![build](https://x/badge.svg)](https://x/ci)")
+	var images []Span
+	for _, span := range d.Spans(&d.Blocks[0]) {
+		if span.Image != "" {
+			images = append(images, span)
+		}
+	}
+	if len(images) != 2 {
+		t.Fatalf("images = %+v", images)
+	}
+	if images[0].Image != "docs/arch.png" || images[0].Text != "the diagram" || images[0].Link != "" {
+		t.Errorf("first image %+v", images[0])
+	}
+	if images[1].Image != "https://x/badge.svg" || images[1].Link != "https://x/ci" {
+		t.Errorf("a linked badge %+v", images[1])
+	}
+}

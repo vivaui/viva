@@ -1740,3 +1740,41 @@ func TestHeadingInlineCodeSelectionUsesItsOwnCellWidth(t *testing.T) {
 		t.Errorf("heading inline code selection is %v wide, want %v", rects[0].Bounds.Width, want)
 	}
 }
+
+func TestMarkdownImagesAreScaledToTheColumnAndPainted(t *testing.T) {
+	wide := gfx.Bitmap{Pix: make([]byte, 400*100*4), Width: 400, Height: 100, Stride: 400 * 4, ID: 1}
+	small := gfx.Bitmap{Pix: make([]byte, 20*10*4), Width: 20, Height: 10, Stride: 20 * 4, ID: 2}
+	style := MarkdownStyle{Size: 12, Image: func(dest string) (gfx.Bitmap, bool) {
+		switch dest {
+		case "wide.png":
+			return wide, true
+		case "small.png":
+			return small, true
+		}
+		return gfx.Bitmap{}, false
+	}}
+	view, _ := layoutMarkdown(t, "![a](wide.png)\n\n[![b](small.png)](https://example.com/) ![missing](gone.png)", 200, style)
+	if len(view.images) != 2 {
+		t.Fatalf("images = %+v", view.images)
+	}
+	if got := view.images[0]; got.w != 200 || got.h != 50 {
+		t.Errorf("a wide image is %vx%v, want 200x50", got.w, got.h)
+	}
+	if got := view.images[1]; got.w != 20 || got.h != 10 {
+		t.Errorf("a small image is %vx%v, want its own 20x10", got.w, got.h)
+	}
+	if view.Height() < 50 {
+		t.Errorf("height %v leaves no room for the image", view.Height())
+	}
+	if view.LinkCount() != 1 || view.Link(0) != "https://example.com/" {
+		t.Errorf("the linked badge is not a link: %d", view.LinkCount())
+	}
+	if !strings.Contains(string(view.plain), "missing") {
+		t.Errorf("an unresolved image shows no alt text: %q", view.plain)
+	}
+	var canvas gfx.Canvas
+	view.Paint(&canvas, MarkdownPaint{X: 0, Y: 0})
+	if len(canvas.Images()) != 2 {
+		t.Errorf("painted %d images", len(canvas.Images()))
+	}
+}
