@@ -126,6 +126,14 @@ func TestTaskbarCreatedInvalidatesTheNotificationCarrier(t *testing.T) {
 	statusStates.Store(statusWindow, status)
 	defer statusStates.Delete(statusWindow)
 
+	previousCall := callNotifyIcon
+	operation := ^uintptr(0)
+	callNotifyIcon = func(operationHint uintptr, data *notifyIconData) (uintptr, uintptr, error) {
+		operation = operationHint
+		return 1, 0, nil
+	}
+	defer func() { callNotifyIcon = previousCall }()
+
 	notificationMu.Lock()
 	previousAdded, previousWindow := notificationAdded, notificationWindow
 	notificationAdded, notificationWindow = true, hostWindow
@@ -143,5 +151,45 @@ func TestTaskbarCreatedInvalidatesTheNotificationCarrier(t *testing.T) {
 	defer notificationMu.Unlock()
 	if notificationAdded || notificationWindow != 0 {
 		t.Fatalf("notification carrier survived TaskbarCreated: added=%v window=%#x", notificationAdded, notificationWindow)
+	}
+	if operation != notifyDelete {
+		t.Fatalf("TaskbarCreated operation = %d, want NIM_DELETE", operation)
+	}
+}
+
+func TestNotificationModifyFailureRetriesAdd(t *testing.T) {
+	const host = uintptr(0x303)
+	previousCall := callNotifyIcon
+	operations := make([]uintptr, 0, 2)
+	callNotifyIcon = func(operation uintptr, data *notifyIconData) (uintptr, uintptr, error) {
+		operations = append(operations, operation)
+		if operation == notifyModify {
+			return 0, 0, syscall.EINVAL
+		}
+		return 1, 0, nil
+	}
+	defer func() { callNotifyIcon = previousCall }()
+
+	notificationMu.Lock()
+	previousAdded, previousWindow := notificationAdded, notificationWindow
+	notificationAdded, notificationWindow = true, host
+	notificationMu.Unlock()
+	defer func() {
+		notificationMu.Lock()
+		notificationAdded, notificationWindow = previousAdded, previousWindow
+		notificationMu.Unlock()
+	}()
+
+	data := notificationIconData(host, 7, "Motty", "Motty is still running")
+	if err := sendNotificationIcon(&data); err != nil {
+		t.Fatal(err)
+	}
+	if len(operations) != 2 || operations[0] != notifyModify || operations[1] != notifyAdd {
+		t.Fatalf("notification operations = %v, want [NIM_MODIFY NIM_ADD]", operations)
+	}
+	notificationMu.Lock()
+	defer notificationMu.Unlock()
+	if !notificationAdded || notificationWindow != host {
+		t.Fatalf("recreated carrier was not recorded: added=%v window=%#x", notificationAdded, notificationWindow)
 	}
 }
