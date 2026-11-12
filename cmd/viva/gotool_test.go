@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -45,16 +46,29 @@ func TestParseGoVersion(t *testing.T) {
 }
 
 // The minimum Go viva fetches must be the one the module declares, or viva would
-// hand out a toolchain that cannot build the library.
+// hand out a toolchain that cannot build the library. The directive may name a
+// patch release, as `go 1.26.0` does; minGoMinor is the minor viva's downloads
+// satisfy, so compare that.
 func TestMinGoMinorMatchesGoMod(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "go.mod"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := fmt.Sprintf("\ngo 1.%d\n", minGoMinor)
-	if !strings.Contains(string(data), want) {
-		t.Errorf("go.mod does not declare %q; update minGoMinor", strings.TrimSpace(want))
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.HasPrefix(line, "go 1.") {
+			continue
+		}
+		minor := strings.TrimPrefix(strings.TrimSpace(line), "go 1.")
+		if dot := strings.IndexByte(minor, '.'); dot >= 0 {
+			minor = minor[:dot]
+		}
+		declared, err := strconv.Atoi(minor)
+		if err != nil || declared != minGoMinor {
+			t.Errorf("go.mod declares Go 1.%s but minGoMinor is %d; update one to match", minor, minGoMinor)
+		}
+		return
 	}
+	t.Error("go.mod has no `go 1.N` directive")
 }
 
 type fakeFile struct {
