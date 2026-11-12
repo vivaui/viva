@@ -410,6 +410,10 @@ int viva_view_update_labels(
     size_t count
 );
 
+/* The instance slots the renderer's rectangle buffers need for count
+ * instances, given the slots they already hold: the same capacity while it
+ * covers the count, doubled until it does otherwise. */
+size_t viva_rectangle_capacity(size_t capacity, size_t count);
 int viva_plan_composite(
     const viva_rectangle *rectangles,
     const viva_clip *clips,

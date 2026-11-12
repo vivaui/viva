@@ -205,6 +205,26 @@ static int viva_same_batch(
            clips[left].height == clips[right].height;
 }
 
+/* viva_rectangle_capacity answers the instance slots the renderer's rectangle
+ * buffers need to hold count instances, given the slots they already hold. A
+ * buffer that has room keeps it, so an append landing in the headroom of an
+ * earlier growth costs nothing; a buffer that must grow doubles, so a scene
+ * that appends one instance at a time allocates a logarithmic number of times
+ * and the buffers stay within twice the instances that exist. */
+size_t viva_rectangle_capacity(size_t capacity, size_t count) {
+    if (capacity >= count) {
+        return capacity;
+    }
+    size_t next = capacity > 0 ? capacity : 64;
+    while (next < count) {
+        if (next > SIZE_MAX / 2) {
+            return count;
+        }
+        next *= 2;
+    }
+    return next;
+}
+
 int viva_plan_composite(
     const viva_rectangle *rectangles,
     const viva_clip *clips,
@@ -3714,7 +3734,8 @@ static void viva_encode_scene(
     id<MTLBuffer> _rectangleBuffer;
     NSUInteger _rectangleCount;
     // Capacity is the slots the buffers hold; count is the instances the scene
-    // owns. Appends grow capacity geometrically, rebuilds re-tighten it.
+    // owns. An append past the capacity grows it by doubling; rebuilds
+    // re-tighten it to the exact count.
     NSUInteger _rectangleCapacity;
     viva_clip *_rectangleClips;
     id<MTLRenderPipelineState> _textPipeline;
@@ -5055,38 +5076,42 @@ static void viva_set_secure_event_input(BOOL on) {
             return 2;
         }
         BOOL grew = totalCount > _rectangleCount;
+        BOOL reallocated = NO;
         if (grew) {
-            // The scene appended instances. Grow the buffers with geometric
-            // headroom so a stream that appends every frame does not allocate,
-            // copy and re-flush the whole buffer each time; a rebuild
-            // re-tightens them to the exact count. Existing instance slots
-            // keep their values.
+            // The scene appended instances. A stream that appends every frame
+            // must not allocate, copy and re-flush the whole buffer each time,
+            // so the buffers carry headroom; a rebuild re-tightens them to the
+            // exact count. The headroom is only made when the new count no
+            // longer fits: growing on every append multiplied the capacity by
+            // a quarter per frame while the scene appended one instance, and
+            // the request passed what the device hands out within a few dozen
+            // appends.
             if (first > _rectangleCount || first + count != totalCount) {
                 return 2;
             }
-            NSUInteger capacity = totalCount;
-            if (_rectangleCapacity > 0) {
-                capacity = MAX(totalCount, _rectangleCapacity + _rectangleCapacity / 4 + 64);
+            NSUInteger capacity = viva_rectangle_capacity(_rectangleCapacity, totalCount);
+            if (capacity != _rectangleCapacity) {
+                id<MTLBuffer> replacement = [_metalLayer.device
+                    newBufferWithLength:capacity * sizeof(viva_rectangle)
+                                options:MTLResourceStorageModeShared];
+                if (replacement == nil) {
+                    return 3;
+                }
+                viva_clip *replacementClips = malloc(capacity * sizeof(viva_clip));
+                if (replacementClips == NULL) {
+                    [replacement release];
+                    return 3;
+                }
+                memcpy(replacementClips, _rectangleClips, _rectangleCount * sizeof(viva_clip));
+                memcpy(replacement.contents, _rectangleBuffer.contents, _rectangleCount * sizeof(viva_rectangle));
+                [_rectangleBuffer release];
+                free(_rectangleClips);
+                _rectangleBuffer = replacement;
+                _rectangleClips = replacementClips;
+                _rectangleCapacity = capacity;
+                reallocated = YES;
             }
-            id<MTLBuffer> replacement = [_metalLayer.device
-                newBufferWithLength:capacity * sizeof(viva_rectangle)
-                            options:MTLResourceStorageModeShared];
-            if (replacement == nil) {
-                return 3;
-            }
-            viva_clip *replacementClips = malloc(capacity * sizeof(viva_clip));
-            if (replacementClips == NULL) {
-                [replacement release];
-                return 3;
-            }
-            memcpy(replacementClips, _rectangleClips, _rectangleCount * sizeof(viva_clip));
-            memcpy(replacement.contents, _rectangleBuffer.contents, _rectangleCount * sizeof(viva_rectangle));
-            [_rectangleBuffer release];
-            free(_rectangleClips);
-            _rectangleBuffer = replacement;
-            _rectangleClips = replacementClips;
             _rectangleCount = totalCount;
-            _rectangleCapacity = capacity;
         }
         memcpy(_rectangleClips + first, clips, count * sizeof(viva_clip));
         memcpy(
@@ -5097,8 +5122,8 @@ static void viva_set_secure_event_input(BOOL on) {
         // The staged instances carry their layer in reserved0, so the memcpy
         // above has already written every field this buffer holds.
         [_rectangleBuffer didModifyRange:NSMakeRange(
-            grew ? 0 : first * sizeof(viva_rectangle),
-            grew ? totalCount * sizeof(viva_rectangle) : count * sizeof(viva_rectangle)
+            reallocated ? 0 : first * sizeof(viva_rectangle),
+            reallocated ? totalCount * sizeof(viva_rectangle) : count * sizeof(viva_rectangle)
         )];
         if (![self replaceCompositePlanForRectangles:_rectangleBuffer.contents
                                                clips:_rectangleClips

@@ -986,6 +986,12 @@ func labelQuadABI() (quadOffset, tintOffset uintptr) {
 		unsafe.Offsetof(C.viva_text_label{}.tint)
 }
 
+// rectangleCapacity is the instance slots the renderer's rectangle buffers
+// need for count instances, given the slots they already hold.
+func rectangleCapacity(capacity, count uintptr) uintptr {
+	return uintptr(C.viva_rectangle_capacity(C.size_t(capacity), C.size_t(count)))
+}
+
 // planLabelReuse runs the native plan that decides which old label texture each
 // new label takes over: source[i] is the old index or -1.
 func planLabelReuse(old, next []uint64) ([]int64, error) {
