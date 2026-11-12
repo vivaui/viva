@@ -31,6 +31,22 @@ type MarkdownStyle struct {
 	// string that runs over several lines is only colored where the lexer can
 	// tell from the line itself. The colors come from MarkdownLook.Code.
 	Highlight func(language, line string, dst []MarkdownCodeRun) []MarkdownCodeRun
+	// Image, when set, is asked for the bitmap of every image (![alt](destination)),
+	// with the destination as written, while the view lays out: the bitmap decides
+	// the room the image takes. It is asked on every Layout, and more than once for
+	// one image (a table measures its cells before laying them out), so answer from
+	// a cache. The view never reads files or the network; an application resolves
+	// relative paths and fetches what it allows. A bitmap's pixels are its size in
+	// the layout, scaled down to the column and never up. The renderer's texture
+	// cache knows a bitmap by gfx.Bitmap.ID and Version, as AvatarData's doc says,
+	// so give each bitmap a stable ID and bump Version when its pixels change.
+	// Without an ID every paint sends the pixels to the painter again, so a document
+	// with images re-uploads them on every frame. An ok of false lays the image out
+	// as its alt text, so an application can answer once the image has loaded, lay
+	// the document out again and invalidate. The alt text stays part of the
+	// document's text, for search and copy, while an image itself has no caret or
+	// selection highlight.
+	Image func(destination string) (gfx.Bitmap, bool)
 }
 
 // MarkdownCodeClass says what a stretch of code is, which MarkdownLook.Code turns
@@ -167,6 +183,7 @@ type MarkdownView struct {
 	boxes      []mdBox
 	links      []mdLink
 	codes      []MarkdownCode
+	images     []mdImage
 	anchors    []MarkdownAnchor
 	atoms      []mdAtom
 	numbers    []byte
@@ -489,11 +506,21 @@ type mdLink struct {
 	text, dest string
 }
 
+// mdImage is an image laid out at x, y, w by h.
+type mdImage struct {
+	bitmap     gfx.Bitmap
+	x, y, w, h float32
+}
+
 type mdAtom struct {
 	span, lo, hi int32
-	w, space     float32 // width, and the width of the blank that follows it
-	brk          bool    // a line break
-	glue         bool    // punctuation that may not start a line
+	// image marks an image's atom: w by h of bitmap.
+	image    bool
+	h        float32
+	bitmap   gfx.Bitmap
+	w, space float32 // width, and the width of the blank that follows it
+	brk      bool    // a line break
+	glue     bool    // punctuation that may not start a line
 }
 
 type mdFont struct {
@@ -503,6 +530,8 @@ type mdFont struct {
 
 // mdLayout is the state of one Layout call.
 type mdLayout struct {
+	// column is the widest an image may be laid out, set by inline.
+	column float32
 	v      *MarkdownView
 	canvas *gfx.Canvas
 	style  MarkdownStyle
@@ -519,6 +548,7 @@ func (v *MarkdownView) Layout(canvas *gfx.Canvas, style MarkdownStyle, doc *mark
 	if style.LineHeight <= 0 {
 		style.LineHeight = float32(int(style.Size*1.55 + 0.5))
 	}
+	v.images = v.images[:0]
 	v.pieces, v.boxes, v.links, v.codes, v.anchors, v.numbers, v.runs, v.tabs, v.tabBound, v.plain, v.spanBase = v.pieces[:0], v.boxes[:0], v.links[:0], v.codes[:0], v.anchors[:0], v.numbers[:0], v.runs[:0], v.tabs[:0], v.tabBound[:0], v.plain[:0], v.spanBase[:0]
 	v.bars = [markdownMaxQuote + 1]int32{}
 	v.face = style.MonoFace
@@ -1070,6 +1100,20 @@ func (l *mdLayout) atomize(spans []markdown.Span, t mdFont) {
 			pending = 0
 			continue
 		}
+		if sp.Image != "" && l.style.Image != nil {
+			if bitmap, ok := l.style.Image(sp.Image); ok && bitmap.Width > 0 && bitmap.Height > 0 {
+				w, h := float32(bitmap.Width), float32(bitmap.Height)
+				if column := l.column; column > 0 && w > column {
+					w, h = column, h*column/w
+				}
+				if pending > 0 && len(atoms) > 0 && !atoms[len(atoms)-1].brk {
+					atoms[len(atoms)-1].space = pending
+				}
+				pending = 0
+				atoms = append(atoms, mdAtom{span: int32(si), image: true, w: w, h: h, bitmap: bitmap})
+				continue
+			}
+		}
 		mono := sp.Style&markdown.Mono != 0
 		italic := sp.Style&markdown.Italic != 0
 		size, weight := t.size, spanWeight(t.weight, sp.Style)
@@ -1148,9 +1192,12 @@ type mdLine struct {
 	piece  int // the open piece, or -1
 	lo     int32
 	span   int32
-	pieceP int // first piece, box and link of the line, for alignment
+	pieceP int // first piece, box, link and image of the line, for alignment
 	pieceB int
 	pieceL int
+	pieceI int
+	// tall is the height of the tallest image on the line.
+	tall float32
 	// grew reports that the open piece took a second atom, so its width is a
 	// running sum that closePiece must settle.
 	grew bool
@@ -1167,7 +1214,9 @@ func (l *mdLayout) inline(spans []markdown.Span, x, width, y float32, t mdFont, 
 	if len(spans) == 0 {
 		return y
 	}
+	l.column = width
 	l.atomize(spans, t)
+	l.column = 0
 	m := mdLine{l: l, spans: spans, t: t, align: align, x0: x, width: width, y: y, piece: -1}
 	m.reset()
 	for _, a := range l.v.atoms {
@@ -1232,7 +1281,8 @@ func (m *mdLine) fit(a mdAtom) (mdAtom, bool) {
 func (m *mdLine) reset() {
 	v := m.l.v
 	m.x, m.w, m.has, m.piece = 0, 0, false, -1
-	m.pieceP, m.pieceB, m.pieceL = len(v.pieces), len(v.boxes), len(v.links)
+	m.pieceP, m.pieceB, m.pieceL, m.pieceI = len(v.pieces), len(v.boxes), len(v.links), len(v.images)
+	m.tall = 0
 	m.measuredSpan, m.measuredLo, m.measuredHi, m.measuredEnd = -1, 0, 0, 0
 	m.grew = false
 }
@@ -1261,6 +1311,9 @@ func (m *mdLine) spanPad(sp markdown.Span) float32 {
 }
 
 func (m *mdLine) exactWidth(a mdAtom) float32 {
+	if a.image {
+		return a.w
+	}
 	if a.hi <= a.lo {
 		return 0
 	}
@@ -1431,6 +1484,20 @@ func (m *mdLine) place(a mdAtom) {
 	v := l.v
 	sp := m.spans[a.span]
 	mono := sp.Style&markdown.Mono != 0
+	if a.image {
+		m.closePiece()
+		x := m.x0 + m.x
+		v.images = append(v.images, mdImage{bitmap: a.bitmap, x: x, y: m.y, w: a.w, h: a.h})
+		if sp.Link != "" {
+			v.links = append(v.links, mdLink{x: x, y: m.y, w: a.w, h: a.h, size: m.t.size, text: sp.Text, dest: sp.Link})
+		}
+		m.x += a.w
+		m.w = m.x
+		m.x += a.space
+		m.has = true
+		m.tall = max(m.tall, a.h)
+		return
+	}
 	if a.hi <= a.lo {
 		return
 	}
@@ -1553,9 +1620,14 @@ func (m *mdLine) endLine() {
 			for i := m.pieceL; i < len(v.links); i++ {
 				v.links[i].x += shift
 			}
+			for i := m.pieceI; i < len(v.images); i++ {
+				v.images[i].x += shift
+			}
 		}
 	}
-	m.y += m.t.line
+	// A line with an image is as tall as the tallest image, with the text along its
+	// top and a little air below the pixels so that stacked images do not touch.
+	m.y += max(m.t.line, m.tall+4)
 	m.l.lines++
 	m.reset()
 }
@@ -1590,6 +1662,12 @@ func (v *MarkdownView) Paint(canvas *gfx.Canvas, p MarkdownPaint) {
 			canvas.Fill(rect, look.Line)
 		case mdBoxHead:
 			canvas.Rounded(rect, 4, look.InlineCodeFill)
+		}
+	}
+	for _, image := range v.images {
+		rect := gfx.Rect{X: p.X + image.x, Y: p.Y + image.y, Width: image.w, Height: image.h}
+		if visible(rect.Y, rect.Height) {
+			canvas.DrawBitmap(image.bitmap, rect)
 		}
 	}
 	start, end := p.Selection.Range(v.plain)
