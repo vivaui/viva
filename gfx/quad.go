@@ -83,12 +83,19 @@ func (canvas *Canvas) FillQuad(quad Quad) {
 // line rather than a single quad for the page. A quad line is rasterised as a
 // whole line and has no fixed-pitch grid runs; TextStyle.Mono still selects the
 // fixed-pitch face.
+//
+// The macOS backend warps the line into the quad. A backend that cannot draw
+// text into a general quad paints the line axis-aligned in Bounds: the whole
+// line is still drawn, only its placement is not warped. FillQuad is triangles
+// and draws on every backend.
 func (canvas *Canvas) LabelQuad(value string, bounds Rect, quad Quad, style TextStyle) {
 	canvas.LabelQuadAligned(value, bounds, quad, style, AlignStart)
 }
 
 // LabelQuadAligned appends a system-font line drawn into quad with explicit
-// horizontal placement inside bounds, like LabelAligned inside a quad.
+// horizontal placement inside bounds, like LabelAligned inside a quad. A
+// backend that cannot draw text into a general quad paints the line
+// axis-aligned in bounds (see LabelQuad).
 func (canvas *Canvas) LabelQuadAligned(value string, bounds Rect, quad Quad, style TextStyle, alignment Alignment) {
 	if !quad.paintable() {
 		return

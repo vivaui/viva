@@ -98,6 +98,7 @@ mistakes an absence for an oversight. Items marked *measured* were tried or size
 | Native text events in `viva dev` | all | The worker protocol does not carry them; native Canvas examples do not run under `viva dev`. |
 | A flat accessibility tree | Windows, macOS | Every node hangs from the window; Linux derives parents from geometry. |
 | XIM input | Linux | Composition goes through IBus (IBus and Fcitx5's IBus frontend); XIM-only applications cannot compose. |
+| Text in arbitrary quads | Windows, Linux, Web, headless | `Canvas.LabelQuad` warps a line into a general quad on macOS only; the other backends paint the line axis-aligned in its bounds, readable but unwarped. `Canvas.FillQuad` is two triangles and draws on every backend. |
 
 ## Test environments
 
