@@ -27,7 +27,7 @@ type shortcutEntry struct {
 	id        gfx.ID
 	focus     gfx.ID
 	scope     gfx.Scope
-	rows      gfx.Scope // a List's rows, which its box's Shortcut also covers
+	rows      gfx.Scope // a List's or a Tree's rows, which its box's Shortcut also covers
 }
 
 // Shortcut reports whether this paint delivers the chord modifiers+key pressed
