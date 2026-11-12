@@ -237,6 +237,33 @@ func TestInputIsTheBaseDressedByTheRecipeAndPaintsAsTheComponentDoes(t *testing.
 	}
 }
 
+// withoutOrders clears paint order from a copy: two independent paints of the
+// same shapes may number their calls differently, and the order is not what
+// these comparisons are about.
+func withoutOrders(in []gfx.Rectangle) []gfx.Rectangle {
+	out := append([]gfx.Rectangle(nil), in...)
+	for index := range out {
+		out[index].Order = 0
+	}
+	return out
+}
+
+func withoutShadowOrders(in []gfx.Shadow) []gfx.Shadow {
+	out := append([]gfx.Shadow(nil), in...)
+	for index := range out {
+		out[index].Order = 0
+	}
+	return out
+}
+
+func withoutTextOrders(in []gfx.Text) []gfx.Text {
+	out := append([]gfx.Text(nil), in...)
+	for index := range out {
+		out[index].Order = 0
+	}
+	return out
+}
+
 // sameVisible fails unless two canvases painted the same shapes and texts. Fully transparent
 // fills paint nothing and are not compared.
 func sameVisible(t *testing.T, got, want *gfx.Canvas) {
@@ -249,13 +276,13 @@ func sameVisible(t *testing.T, got, want *gfx.Canvas) {
 		}
 		return out
 	}
-	if g, w := opaque(got.Rectangles()), opaque(want.Rectangles()); !reflect.DeepEqual(g, w) {
+	if g, w := opaque(got.Rectangles()), opaque(want.Rectangles()); !reflect.DeepEqual(withoutOrders(g), withoutOrders(w)) {
 		t.Errorf("rectangles differ:\ngot  %+v\nwant %+v", g, w)
 	}
-	if g, w := got.Shadows(), want.Shadows(); !reflect.DeepEqual(g, w) {
+	if g, w := got.Shadows(), want.Shadows(); !reflect.DeepEqual(withoutShadowOrders(g), withoutShadowOrders(w)) {
 		t.Errorf("shadows differ:\ngot  %+v\nwant %+v", g, w)
 	}
-	if g, w := got.Texts(), want.Texts(); !reflect.DeepEqual(g, w) {
+	if g, w := got.Texts(), want.Texts(); !reflect.DeepEqual(withoutTextOrders(g), withoutTextOrders(w)) {
 		t.Errorf("texts differ:\ngot  %+v\nwant %+v", g, w)
 	}
 	if g, w := len(got.Triangles()), len(want.Triangles()); g != w {

@@ -743,8 +743,8 @@ func TestShadowIsCastByTheElementsRoundedRectangleUnderItsFill(t *testing.T) {
 	if shadows[0].Bounds != (gfx.Rect{Width: 40, Height: 20}) || shadows[0].Radius != 6 {
 		t.Fatalf("shadow cast by %+v radius %v, want the element's rectangle", shadows[0].Bounds, shadows[0].Radius)
 	}
-	if len(canvas.Rectangles()) != 1 || shadows[1].RectsBefore != 0 {
-		t.Fatalf("the shadow must be painted before the fill: %d rectangles, shadow after %d", len(canvas.Rectangles()), shadows[1].RectsBefore)
+	if rectangles := canvas.Rectangles(); len(rectangles) != 1 || shadows[1].Order >= rectangles[0].Order {
+		t.Fatalf("the shadow must be painted before the fill: %d rectangles, shadow at %d", len(rectangles), shadows[1].Order)
 	}
 }
 

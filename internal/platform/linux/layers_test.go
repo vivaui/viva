@@ -46,9 +46,9 @@ func TestBitmapCacheResizesWithoutRecreatingImage(t *testing.T) {
 func TestCompositingLayersInterleaveRectanglesAndText(t *testing.T) {
 	rectangles := []render.Rectangle{{Layer: 0}, {Layer: 2}, {Layer: 2}, {Layer: 5}}
 	labels := []vulkanLabelTexture{
-		{label: platform.TextLabel{Value: "top", Layer: 5}},
-		{label: platform.TextLabel{Value: "middle", Layer: 2}},
-		{label: platform.TextLabel{Value: "back", Layer: 0}},
+		{label: platform.TextLabel{Value: "back", Layer: 0, ShapesBefore: 1}},
+		{label: platform.TextLabel{Value: "middle", Layer: 2, ShapesBefore: 3}},
+		{label: platform.TextLabel{Value: "top", Layer: 5, ShapesBefore: 4}},
 	}
 	rectangleBatches := render.GroupBatches(nil, rectangles)
 	order := groupTextLayers(labels, nil)

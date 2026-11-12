@@ -151,7 +151,7 @@ func (canvas *Canvas) appendGradientPiece(piece gradientPolygon, axis gradientAx
 	piece.emitTriangles(func(points [3]Point, edges uint8) {
 		triangle := Triangle{
 			Points: points, EdgeMask: edges, Layer: canvas.currentLayer(),
-			ClipOf: clip, HasClip: clipped, RectsBefore: uint32(len(canvas.rectangles)),
+			ClipOf: clip, HasClip: clipped, Order: canvas.nextOrder(),
 		}
 		triangle.Color = colorAt(points[0])
 		shade := [2]Color{colorAt(points[1]), colorAt(points[2])}

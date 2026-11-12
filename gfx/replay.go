@@ -14,9 +14,9 @@ import "slices"
 //
 // A stretch is replayed where it was painted, unmoved: the caller replays only a
 // part whose place, clip and layer are as they were. Everything a stretch holds
-// is copied, hit regions and native views included, with the indexes that refer
-// across lists (Triangle.RectsBefore, Text.RunFirst, Shadow.RectsBefore and
-// TrianglesBefore) moved to where the copy lands.
+// is copied, hit regions and native views included, with the paint orders and
+// the indexes that refer across lists (Text.RunFirst) moved to where the copy
+// lands.
 
 // Mark is a position in every primitive list of a paint: where a stretch starts
 // or ends.
@@ -105,30 +105,25 @@ func (canvas *Canvas) ReplayAt(span Span, dx, dy float32) (Span, bool) {
 	from := canvas.Mark()
 	old := &canvas.previous.lists
 	f, t := span.from, span.to
+	rectStart := len(canvas.rectangles)
 	canvas.rectangles = append(canvas.rectangles, old.rectangles[f.rectangles:t.rectangles]...)
-	rectShift := int64(from.rectangles) - int64(f.rectangles)
-	triShift := int64(from.triangles) - int64(f.triangles)
-	start := len(canvas.triangles)
+	triangleStart := len(canvas.triangles)
 	canvas.triangles = append(canvas.triangles, old.triangles[f.triangles:t.triangles]...)
-	for index := start; index < len(canvas.triangles); index++ {
-		canvas.triangles[index].RectsBefore = uint32(int64(canvas.triangles[index].RectsBefore) + rectShift)
-	}
-	start = len(canvas.shadows)
+	shadowStart := len(canvas.shadows)
 	canvas.shadows = append(canvas.shadows, old.shadows[f.shadows:t.shadows]...)
-	for index := start; index < len(canvas.shadows); index++ {
-		shadow := &canvas.shadows[index]
-		shadow.RectsBefore = uint32(int64(shadow.RectsBefore) + rectShift)
-		shadow.TrianglesBefore = uint32(int64(shadow.TrianglesBefore) + triShift)
-	}
+	imageStart := len(canvas.images)
 	canvas.images = append(canvas.images, old.images[f.images:t.images]...)
 	runShift := int32(int64(from.runs) - int64(f.runs))
-	start = len(canvas.texts)
+	textStart := len(canvas.texts)
 	canvas.texts = append(canvas.texts, old.texts[f.texts:t.texts]...)
-	for index := start; index < len(canvas.texts); index++ {
+	for index := textStart; index < len(canvas.texts); index++ {
 		if canvas.texts[index].RunCount > 0 {
 			canvas.texts[index].RunFirst += runShift
 		}
 	}
+	// The copy is painted here, so it takes the frame's next paint orders in
+	// the order the copy itself was painted in.
+	canvas.replayOrders(rectStart, triangleStart, shadowStart, imageStart, textStart)
 	canvas.runs = append(canvas.runs, old.runs[f.runs:t.runs]...)
 	textBase := int32(len(canvas.hitTexts))
 	canvas.hitTexts = append(canvas.hitTexts, old.hitTexts[f.hitTexts:t.hitTexts]...)
@@ -144,6 +139,54 @@ func (canvas *Canvas) ReplayAt(span Span, dx, dy float32) (Span, bool) {
 		canvas.moveSince(from, dx, dy)
 	}
 	return canvas.SpanSince(from), true
+}
+
+// replayOrders numbers the primitives appended after the given starts in the
+// order they were originally painted, continuing the frame's paint order. Ties
+// keep the list order the copy was painted in.
+func (canvas *Canvas) replayOrders(rectangles, triangles, shadows, images, texts int) {
+	order := canvas.order
+	ri, ti, si, ii, xi := rectangles, triangles, shadows, images, texts
+	for {
+		kind, best := 0, ^uint32(0)
+		if ri < len(canvas.rectangles) && canvas.rectangles[ri].Order < best {
+			kind, best = 1, canvas.rectangles[ri].Order
+		}
+		if ti < len(canvas.triangles) && canvas.triangles[ti].Order < best {
+			kind, best = 2, canvas.triangles[ti].Order
+		}
+		if si < len(canvas.shadows) && canvas.shadows[si].Order < best {
+			kind, best = 3, canvas.shadows[si].Order
+		}
+		if ii < len(canvas.images) && canvas.images[ii].Order < best {
+			kind, best = 4, canvas.images[ii].Order
+		}
+		if xi < len(canvas.texts) && canvas.texts[xi].Order < best {
+			kind = 5
+		}
+		if kind == 0 {
+			break
+		}
+		order++
+		switch kind {
+		case 1:
+			canvas.rectangles[ri].Order = order
+			ri++
+		case 2:
+			canvas.triangles[ti].Order = order
+			ti++
+		case 3:
+			canvas.shadows[si].Order = order
+			si++
+		case 4:
+			canvas.images[ii].Order = order
+			ii++
+		case 5:
+			canvas.texts[xi].Order = order
+			xi++
+		}
+	}
+	canvas.order = order
 }
 
 // moveSince moves everything painted since from by (dx, dy). Clips stay: the
@@ -279,15 +322,23 @@ func (canvas *Canvas) SameAsPrevious(span, prev Span, dx, dy float32) bool {
 	if !ok {
 		return false
 	}
-	return slices.Equal(canvas.rectangles[span.from.rectangles:span.to.rectangles], scratch.rectangles[copied.from.rectangles:]) &&
-		slices.Equal(canvas.triangles[span.from.triangles:span.to.triangles], scratch.triangles[copied.from.triangles:]) &&
-		slices.Equal(canvas.shadows[span.from.shadows:span.to.shadows], scratch.shadows[copied.from.shadows:]) &&
+	return slices.EqualFunc(canvas.rectangles[span.from.rectangles:span.to.rectangles], scratch.rectangles[copied.from.rectangles:], sameRectangle) &&
+		slices.EqualFunc(canvas.triangles[span.from.triangles:span.to.triangles], scratch.triangles[copied.from.triangles:], sameTriangle) &&
+		slices.EqualFunc(canvas.shadows[span.from.shadows:span.to.shadows], scratch.shadows[copied.from.shadows:], sameShadow) &&
 		slices.EqualFunc(canvas.images[span.from.images:span.to.images], scratch.images[copied.from.images:], sameImage) &&
-		slices.Equal(canvas.texts[span.from.texts:span.to.texts], scratch.texts[copied.from.texts:]) &&
+		slices.EqualFunc(canvas.texts[span.from.texts:span.to.texts], scratch.texts[copied.from.texts:], sameText) &&
 		slices.Equal(canvas.runs[span.from.runs:span.to.runs], scratch.runs[copied.from.runs:]) &&
 		slices.EqualFunc(canvas.hits[span.from.hits:span.to.hits], scratch.hits[copied.from.hits:], sameHit) &&
 		slices.Equal(canvas.nativeViews[span.from.nativeViews:span.to.nativeViews], scratch.nativeViews[copied.from.nativeViews:])
 }
+
+// The paint order a replay hands out is its own, so a comparison of what a
+// part painted ignores it: the copy's place among the other primitives is
+// checked by the span it lands in, not by the numbers.
+func sameRectangle(a, b Rectangle) bool { a.Order, b.Order = 0, 0; return a == b }
+func sameTriangle(a, b Triangle) bool   { a.Order, b.Order = 0, 0; return a == b }
+func sameShadow(a, b Shadow) bool       { a.Order, b.Order = 0, 0; return a == b }
+func sameText(a, b Text) bool           { a.Order, b.Order = 0, 0; return a == b }
 
 func sameImage(a, b Image) bool {
 	return a.Source == b.Source && a.Bounds == b.Bounds && a.Layer == b.Layer && a.ClipOf == b.ClipOf && a.HasClip == b.HasClip &&

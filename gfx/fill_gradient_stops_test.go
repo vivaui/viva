@@ -135,7 +135,7 @@ func TestFillGradientKeepsLayerClipAndOrder(t *testing.T) {
 	}
 	boundary := false
 	for _, triangle := range canvas.Triangles() {
-		if !triangle.HasClip || triangle.ClipOf != clip || triangle.Layer != 2 || triangle.RectsBefore != 1 {
+		if !triangle.HasClip || triangle.ClipOf != clip || triangle.Layer != 2 || triangle.Order <= canvas.Rectangles()[0].Order {
 			t.Fatalf("lost its clip, layer or place in the order: %+v", triangle)
 		}
 		boundary = boundary || triangle.EdgeMask != 0

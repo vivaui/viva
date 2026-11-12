@@ -71,13 +71,13 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 	canvas.consumed = canvas.consumed || child.consumed
 	layer := canvas.currentLayer()
 	outer, hasOuter := canvas.clipSnapshot()
-	rectsBefore := uint32(len(canvas.rectangles))
-	trianglesBefore := uint32(len(canvas.triangles))
+	orderBase := canvas.order
 	runsBefore := int32(len(canvas.runs))
 
 	for _, rectangle := range child.rectangles {
 		rectangle.Bounds = translateRect(rectangle.Bounds, origin)
 		rectangle.Layer += layer
+		rectangle.Order += orderBase
 		rectangle.ClipOf, rectangle.HasClip = embedClip(rectangle.ClipOf, rectangle.HasClip, origin, outer, hasOuter)
 		canvas.rectangles = append(canvas.rectangles, rectangle)
 	}
@@ -87,15 +87,14 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 			triangle.Points[index].Y += origin.Y
 		}
 		triangle.Layer += layer
-		triangle.RectsBefore += rectsBefore
+		triangle.Order += orderBase
 		triangle.ClipOf, triangle.HasClip = embedClip(triangle.ClipOf, triangle.HasClip, origin, outer, hasOuter)
 		canvas.triangles = append(canvas.triangles, triangle)
 	}
 	for _, shadow := range child.shadows {
 		shadow.Bounds = translateRect(shadow.Bounds, origin)
 		shadow.Layer += layer
-		shadow.RectsBefore += rectsBefore
-		shadow.TrianglesBefore += trianglesBefore
+		shadow.Order += orderBase
 		shadow.ClipOf, shadow.HasClip = embedClip(shadow.ClipOf, shadow.HasClip, origin, outer, hasOuter)
 		canvas.shadows = append(canvas.shadows, shadow)
 	}
@@ -112,6 +111,7 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 			image.Bounds = translateRect(image.Bounds, origin)
 		}
 		image.Layer += layer
+		image.Order += orderBase
 		image.ClipOf, image.HasClip = embedClip(image.ClipOf, image.HasClip, origin, outer, hasOuter)
 		canvas.images = append(canvas.images, image)
 	}
@@ -130,6 +130,7 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 			}
 		}
 		text.Layer += layer
+		text.Order += orderBase
 		if text.RunCount > 0 {
 			text.RunFirst += runsBefore
 		}
@@ -137,6 +138,7 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 		canvas.texts = append(canvas.texts, text)
 	}
 	canvas.runs = append(canvas.runs, child.runs...)
+	canvas.order += child.order
 
 	scope := canvas.currentFocusScope()
 	tree := canvas.Tree()

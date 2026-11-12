@@ -108,6 +108,8 @@ func (session *Session) drawInput(snapshot app.Snapshot) app.Snapshot {
 	snapshot.Labels = append(snapshot.Labels, app.Label{
 		Value: chip.text, Bounds: gfx.Rect{X: box.X + pad, Y: box.Y + (height-size-4)/2, Width: width, Height: size + 4},
 		FontSize: size, Weight: gfx.WeightMedium, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: fade}, Layer: inputLayer,
+		// The chip's background was just painted; put the words over it.
+		ShapesBefore: uint32(len(snapshot.Primitives)),
 	})
 	return snapshot
 }

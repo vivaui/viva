@@ -712,6 +712,7 @@ func makeNativeTextLabels(labels []TextLabel) (unsafe.Pointer, []unsafe.Pointer,
 			origin_x:        C.float(label.OriginX),
 			origin_y:        C.float(label.OriginY),
 			font_generation: C.uint32_t(label.FontGeneration),
+			shapes_before:   C.uint32_t(label.ShapesBefore),
 		}
 		if label.HasQuad {
 			// The corners and their colours decide where the label's picture
@@ -896,12 +897,13 @@ func nativeTerminalKeyCode(character uint16) input.Key {
 }
 
 type compositeCommand struct {
-	Layer   uint16
-	Kind    uint16
-	First   uint32
-	Count   uint32
-	Clipped bool
-	Clip    scene.Rect
+	Layer    uint16
+	Kind     uint16
+	First    uint32
+	Count    uint32
+	Clipped  bool
+	Clip     scene.Rect
+	Sequence uint32
 }
 
 func planComposite(rectangles []render.Rectangle, labels []TextLabel) ([]compositeCommand, error) {
@@ -918,8 +920,10 @@ func planComposite(rectangles []render.Rectangle, labels []TextLabel) ([]composi
 		}
 	}
 	textLayers := make([]C.uint16_t, len(labels))
+	textShapesBefore := make([]C.uint32_t, len(labels))
 	for index, label := range labels {
 		textLayers[index] = C.uint16_t(label.Layer)
+		textShapesBefore[index] = C.uint32_t(label.ShapesBefore)
 	}
 	nativeCommands := make([]C.viva_composite_command, len(rectangles)+len(labels))
 	var rectanglePointer *C.viva_rectangle
@@ -932,6 +936,10 @@ func planComposite(rectangles []render.Rectangle, labels []TextLabel) ([]composi
 	if len(textLayers) > 0 {
 		textPointer = &textLayers[0]
 	}
+	var shapesBeforePointer *C.uint32_t
+	if len(textShapesBefore) > 0 {
+		shapesBeforePointer = &textShapesBefore[0]
+	}
 	var commandPointer *C.viva_composite_command
 	if len(nativeCommands) > 0 {
 		commandPointer = &nativeCommands[0]
@@ -942,6 +950,7 @@ func planComposite(rectangles []render.Rectangle, labels []TextLabel) ([]composi
 		clipPointer,
 		C.size_t(len(nativeRectangles)),
 		textPointer,
+		shapesBeforePointer,
 		C.size_t(len(textLayers)),
 		commandPointer,
 		C.size_t(len(nativeCommands)),
@@ -953,10 +962,11 @@ func planComposite(rectangles []render.Rectangle, labels []TextLabel) ([]composi
 	commands := make([]compositeCommand, int(count))
 	for index := range commands {
 		commands[index] = compositeCommand{
-			Layer: uint16(nativeCommands[index].layer),
-			Kind:  uint16(nativeCommands[index].kind),
-			First: uint32(nativeCommands[index].first),
-			Count: uint32(nativeCommands[index].count),
+			Layer:    uint16(nativeCommands[index].layer),
+			Kind:     uint16(nativeCommands[index].kind),
+			First:    uint32(nativeCommands[index].first),
+			Count:    uint32(nativeCommands[index].count),
+			Sequence: uint32(nativeCommands[index].sequence),
 		}
 		if nativeCommands[index].clipped != 0 {
 			commands[index].Clipped = true

@@ -16,6 +16,32 @@ func recipeThemes() map[string]gfx.Theme {
 // A recipe is the one definition of a look: painting the shapes it describes with the
 // canvas calls a custom control makes gives what the component paints. This is what lets
 // an application draw its own checkbox without copying the control's rules.
+// Two independent paints of the same shapes need not number their primitives
+// alike; these comparisons are about the shapes and colours, not the numbers.
+func noOrders(in []gfx.Rectangle) []gfx.Rectangle {
+	out := append([]gfx.Rectangle(nil), in...)
+	for index := range out {
+		out[index].Order = 0
+	}
+	return out
+}
+
+func noTextOrders(in []gfx.Text) []gfx.Text {
+	out := append([]gfx.Text(nil), in...)
+	for index := range out {
+		out[index].Order = 0
+	}
+	return out
+}
+
+func noShadowOrders(in []gfx.Shadow) []gfx.Shadow {
+	out := append([]gfx.Shadow(nil), in...)
+	for index := range out {
+		out[index].Order = 0
+	}
+	return out
+}
+
 func TestCheckboxRecipePaintsAsTheComponentDoes(t *testing.T) {
 	states := map[string]gfx.State{
 		"off": {}, "on": {Checked: true}, "mixed": {Mixed: true}, "mixed and checked": {Mixed: true, Checked: true},
@@ -53,7 +79,7 @@ func TestCheckboxRecipePaintsAsTheComponentDoes(t *testing.T) {
 				paintBordered(&got, theme, bounds, look.Radius, look.Border, look.Fill)
 				PaintCheckboxMark(&got, bounds, state, look.Mark)
 				_ = id
-				if !reflect.DeepEqual(want.Rectangles(), got.Rectangles()) || !reflect.DeepEqual(want.Shadows(), got.Shadows()) ||
+				if !reflect.DeepEqual(noOrders(want.Rectangles()), noOrders(got.Rectangles())) || !reflect.DeepEqual(noShadowOrders(want.Shadows()), noShadowOrders(got.Shadows())) ||
 					len(want.Triangles()) != len(got.Triangles()) {
 					t.Errorf("recipe and component differ:\nwant %+v\n got %+v", want.Rectangles(), got.Rectangles())
 				}
@@ -184,7 +210,7 @@ func TestButtonRecipePaintsTheSurfaceAsTheComponentDoes(t *testing.T) {
 					if len(surface) == 0 && len(got.Rectangles()) == 0 {
 						surface = got.Rectangles()
 					}
-					if !reflect.DeepEqual(surface, got.Rectangles()) || !reflect.DeepEqual(want.Shadows(), got.Shadows()) ||
+					if !reflect.DeepEqual(noOrders(surface), noOrders(got.Rectangles())) || !reflect.DeepEqual(noShadowOrders(want.Shadows()), noShadowOrders(got.Shadows())) ||
 						len(want.Triangles()) != len(got.Triangles()) {
 						t.Errorf("recipe and component differ:\nwant %+v\n got %+v", surface, got.Rectangles())
 					}
@@ -217,7 +243,7 @@ func TestPopupRecipeIsTheSurfaceOfTheFloatingPanels(t *testing.T) {
 		var by gfx.Canvas
 		by.Elevate(gfx.Rect{Width: 100, Height: 60}, look.Radius, look.Shadow)
 		by.RoundedBorder(gfx.Rect{Width: 100, Height: 60}, look.Radius, 1, look.Border, look.Fill)
-		if !reflect.DeepEqual(canvas.Rectangles(), by.Rectangles()) || !reflect.DeepEqual(canvas.Shadows(), by.Shadows()) {
+		if !reflect.DeepEqual(noOrders(canvas.Rectangles()), noOrders(by.Rectangles())) || !reflect.DeepEqual(noShadowOrders(canvas.Shadows()), noShadowOrders(by.Shadows())) {
 			t.Errorf("%s: paintPopupSurface differs from the recipe's shapes", name)
 		}
 	}

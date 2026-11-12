@@ -21,7 +21,7 @@ func (canvas *Canvas) FillLinearGradient(bounds Rect, gradient LinearGradient) {
 	clip, clipped := canvas.clipSnapshot()
 	for _, points := range [2][3]Point{{a, b, c}, {a, c, d}} {
 		axis.each(points, 0, func(points [3]Point, edges uint8) {
-			triangle := Triangle{Points: points, Layer: canvas.currentLayer(), ClipOf: clip, HasClip: clipped, RectsBefore: uint32(len(canvas.rectangles))}
+			triangle := Triangle{Points: points, Layer: canvas.currentLayer(), ClipOf: clip, HasClip: clipped, Order: canvas.nextOrder()}
 			colorize(&triangle, &gradient, axis.vertexT(points), 1)
 			if triangle.visible() {
 				canvas.triangles = append(canvas.triangles, triangle)

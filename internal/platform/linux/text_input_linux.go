@@ -274,6 +274,8 @@ func (state *linuxTextInput) rebuild() error {
 	state.labels[len(state.baseLabels)] = platform.TextLabel{
 		Value: shown, X: inputState.X, Y: inputState.Y, Width: inputState.Width, Height: inputState.Height,
 		FontSize: inputState.FontSize, Weight: inputState.Weight, FontGeneration: inputState.FontGeneration, Color: inputState.Color, Layer: inputState.Layer, Mono: inputState.Terminal, MonoFace: inputState.MonoFace, Baseline: inputState.Baseline,
+		// The editor draws over the field, caret and selection: after every shape.
+		ShapesBefore: uint32(len(state.rectangles)),
 	}
 	if inputState.Terminal {
 		state.rebuildTerminalPreedit(shown)

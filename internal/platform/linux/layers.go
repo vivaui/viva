@@ -36,6 +36,10 @@ func groupTextLayers(labels []vulkanLabelTexture, order []int) []int {
 	return order
 }
 
+// groupCompositingLayers merges the shape batches and the text labels of each
+// layer into the order the application painted them. Each label says how many
+// shapes were painted before it, so a label may fall between two instances of
+// one batch, which then draws in two parts.
 func groupCompositingLayers(rectangles []render.Batch, labels []vulkanLabelTexture, labelOrder []int, batches []compositingBatch) []compositingBatch {
 	batches = batches[:0]
 	for rectangleIndex, labelIndex := 0, 0; rectangleIndex < len(rectangles) || labelIndex < len(labelOrder); {
@@ -46,17 +50,44 @@ func groupCompositingLayers(rectangles []render.Batch, labels []vulkanLabelTextu
 		if labelIndex < len(labelOrder) && labels[labelOrder[labelIndex]].label.Layer < layer {
 			layer = labels[labelOrder[labelIndex]].label.Layer
 		}
-		for rectangleIndex < len(rectangles) && rectangles[rectangleIndex].Layer == layer {
-			rectangle := rectangles[rectangleIndex]
-			batches = append(batches, compositingBatch{Kind: compositeRectangles, Layer: layer, Clipped: rectangle.Clipped, Clip: rectangle.Clip, First: rectangle.First, Count: rectangle.Count})
-			rectangleIndex++
+		batchEnd := rectangleIndex
+		for batchEnd < len(rectangles) && rectangles[batchEnd].Layer == layer {
+			batchEnd++
 		}
-		firstLabel := labelIndex
-		for labelIndex < len(labelOrder) && labels[labelOrder[labelIndex]].label.Layer == layer {
-			labelIndex++
+		labelEnd := labelIndex
+		for labelEnd < len(labelOrder) && labels[labelOrder[labelEnd]].label.Layer == layer {
+			labelEnd++
 		}
-		if labelIndex != firstLabel {
-			batches = append(batches, compositingBatch{Kind: compositeText, Layer: layer, First: firstLabel, Count: labelIndex - firstLabel})
+		cursor := 0
+		if rectangleIndex < batchEnd {
+			cursor = rectangles[rectangleIndex].First
+		}
+		for rectangleIndex < batchEnd || labelIndex < labelEnd {
+			if labelIndex < labelEnd && (rectangleIndex >= batchEnd || int(labels[labelOrder[labelIndex]].label.ShapesBefore) <= cursor) {
+				if count := len(batches); count > 0 && batches[count-1].Kind == compositeText &&
+					batches[count-1].Layer == layer && batches[count-1].First+batches[count-1].Count == labelIndex {
+					batches[count-1].Count++
+				} else {
+					batches = append(batches, compositingBatch{Kind: compositeText, Layer: layer, First: labelIndex, Count: 1})
+				}
+				labelIndex++
+				continue
+			}
+			batch := rectangles[rectangleIndex]
+			end := batch.First + batch.Count
+			first := cursor
+			for cursor < end && (labelIndex >= labelEnd || cursor < int(labels[labelOrder[labelIndex]].label.ShapesBefore)) {
+				cursor++
+			}
+			if cursor > first {
+				batches = append(batches, compositingBatch{Kind: compositeRectangles, Layer: layer, Clipped: batch.Clipped, Clip: batch.Clip, First: first, Count: cursor - first})
+			}
+			if cursor == end {
+				rectangleIndex++
+				if rectangleIndex < batchEnd {
+					cursor = rectangles[rectangleIndex].First
+				}
+			}
 		}
 	}
 	return batches

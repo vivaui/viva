@@ -199,6 +199,10 @@ typedef struct {
     // box, so the picture of the label is what the quad places.
     float quad[8];
     float tint[16];
+    // shapes_before is how many shape instances the frame painted before this
+    // label (platform.TextLabel.ShapesBefore): the composite plan interleaves
+    // text and shapes at that index.
+    uint32_t shapes_before;
 } viva_text_label;
 
 // viva_clip is the region, in logical pixels, that one rectangle or triangle
@@ -224,6 +228,9 @@ typedef struct {
     float clip_y;
     float clip_width;
     float clip_height;
+    // sequence is where this command falls in the frame's paint order. Commands
+    // are drawn layer by layer, and in sequence order within a layer.
+    uint32_t sequence;
 } viva_composite_command;
 
 enum {
@@ -423,6 +430,7 @@ int viva_plan_composite(
     const viva_clip *clips,
     size_t rectangle_count,
     const uint16_t *text_layers,
+    const uint32_t *text_shapes_before,
     size_t text_count,
     viva_composite_command *commands,
     size_t command_capacity,

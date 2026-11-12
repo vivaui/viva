@@ -128,11 +128,10 @@ func newIconKey(icon Icon, fit, scale float32, tint Color) iconKey {
 
 func (canvas *Canvas) drawIconCached(icon Icon, fit float32, origin Point, tint Color) {
 	key := newIconKey(icon, fit, canvas.PixelScale(), tint)
-	// The layer, the clip and the rectangle count are the same for every triangle
-	// of the icon: read them once.
+	// The layer and the clip are the same for every triangle of the icon: read
+	// them once.
 	layer := canvas.currentLayer()
 	clip, hasClip := canvas.clipSnapshot()
-	rectsBefore := uint32(len(canvas.rectangles))
 	paintKey := iconPaintKey{icon: key, tint: tint, layer: layer, clip: clip, hasClip: hasClip}
 	paints := canvas.iconPaints()
 	if cached, ok := paints.get(paintKey); ok {
@@ -140,7 +139,7 @@ func (canvas *Canvas) drawIconCached(icon Icon, fit float32, origin Point, tint 
 		for index := range cached {
 			triangle := cached[index]
 			triangle.Points = translatePoints(triangle.Points, origin)
-			triangle.RectsBefore = rectsBefore
+			triangle.Order = canvas.nextOrder()
 			canvas.triangles = append(canvas.triangles, triangle)
 		}
 		return
@@ -176,7 +175,7 @@ func (canvas *Canvas) drawIconCached(icon Icon, fit float32, origin Point, tint 
 		}
 		relative = append(relative, triangle)
 		triangle.Points = translatePoints(triangle.Points, origin)
-		triangle.RectsBefore = rectsBefore
+		triangle.Order = canvas.nextOrder()
 		canvas.triangles = append(canvas.triangles, triangle)
 	}
 	paints.put(paintKey, relative)
@@ -235,11 +234,12 @@ func (canvas *Canvas) drawIconTrianglesPlaced(triangles []iconTriangle, icon Ico
 					place.apply(cached.points[2]),
 				},
 				Color: tint, Layer: state.layer, EdgeMask: cached.edges,
-				ClipOf: state.clip, HasClip: state.hasClip, RectsBefore: state.rectsBefore,
+				ClipOf: state.clip, HasClip: state.hasClip,
 			}
 			if cached.layer >= 0 && !shadeIconTriangle(icon, tint, cached, &triangle) {
 				continue
 			}
+			triangle.Order = canvas.nextOrder()
 			canvas.triangles = append(canvas.triangles, triangle)
 		}
 		return
@@ -254,11 +254,12 @@ func (canvas *Canvas) drawIconTrianglesPlaced(triangles []iconTriangle, icon Ico
 		emit := func(points [3]Point, edges uint8, weights [3][3]float32) {
 			triangle := Triangle{
 				Points: points, Color: tint, Layer: state.layer, EdgeMask: edges,
-				ClipOf: state.clip, HasClip: state.hasClip, RectsBefore: state.rectsBefore,
+				ClipOf: state.clip, HasClip: state.hasClip,
 			}
 			if cached.layer >= 0 && !shadeIconTriangleAt(icon, tint, cached, weights, &triangle) {
 				return
 			}
+			triangle.Order = canvas.nextOrder()
 			canvas.triangles = append(canvas.triangles, triangle)
 		}
 		clip.eachTriangle(source, cached.edges, emit)
@@ -266,16 +267,15 @@ func (canvas *Canvas) drawIconTrianglesPlaced(triangles []iconTriangle, icon Ico
 }
 
 // iconPaintState is what every triangle of one icon shares: the layer it lands
-// in, the clip it was drawn under and how many rectangles came before it.
+// in and the clip it was drawn under.
 type iconPaintState struct {
-	layer       uint16
-	clip        Rect
-	hasClip     bool
-	rectsBefore uint32
+	layer   uint16
+	clip    Rect
+	hasClip bool
 }
 
 func (canvas *Canvas) iconPaintState() iconPaintState {
-	state := iconPaintState{layer: canvas.currentLayer(), rectsBefore: uint32(len(canvas.rectangles))}
+	state := iconPaintState{layer: canvas.currentLayer()}
 	state.clip, state.hasClip = canvas.clipSnapshot()
 	return state
 }
@@ -540,6 +540,9 @@ func (canvas *Canvas) tessellateIconInto(icon Icon, fit float32, tint Color, out
 		probe.Alpha = 0.5
 	}
 	start, rectangles := len(canvas.triangles), len(canvas.rectangles)
+	// The probe paints onto the canvas to use its tessellator, then takes the
+	// shapes back: it must not consume paint orders either.
+	order := canvas.order
 	canvas.paintIconShapes(icon, Rect{Width: fit, Height: fit * icon.height() / icon.ViewBox}, probe, func(layer int) {
 		if layer >= 0 && icon.Layers[layer].Gradient != nil {
 			axis := newGradientAxis(*icon.Layers[layer].Gradient, Rect{Width: fit, Height: fit * icon.height() / icon.ViewBox}, fit/icon.ViewBox, fit/icon.ViewBox)
@@ -556,5 +559,6 @@ func (canvas *Canvas) tessellateIconInto(icon Icon, fit float32, tint Color, out
 		canvas.triangles = canvas.triangles[:start]
 	})
 	canvas.rectangles = canvas.rectangles[:rectangles]
+	canvas.order = order
 	return out
 }

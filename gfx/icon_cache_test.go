@@ -80,7 +80,7 @@ func sameTriangles(t *testing.T, got, want []Triangle) {
 	for i := range got {
 		if !colorsClose(got[i].Color, want[i].Color) || got[i].Shaded != want[i].Shaded ||
 			got[i].Shaded && (!colorsClose(got[i].Shade[0], want[i].Shade[0]) || !colorsClose(got[i].Shade[1], want[i].Shade[1])) || got[i].Layer != want[i].Layer ||
-			got[i].RectsBefore != want[i].RectsBefore || got[i].HasClip != want[i].HasClip || got[i].ClipOf != want[i].ClipOf {
+			got[i].HasClip != want[i].HasClip || got[i].ClipOf != want[i].ClipOf {
 			t.Fatalf("triangle %d differs apart from position: %+v vs %+v", i, got[i], want[i])
 		}
 		for p := range got[i].Points {
@@ -236,14 +236,14 @@ func TestIconPaintCacheKeepsCanvasState(t *testing.T) {
 	canvas.Fill(Rect{Width: 40, Height: 40}, Color{Alpha: 1})
 	canvas.DrawIcon(testStrokeIcon, bounds, tint)
 	withRect := append([]Triangle(nil), canvas.Triangles()...)
-	if len(withRect) == 0 || withRect[0].RectsBefore != 1 {
-		t.Fatalf("the icon after a rectangle carries RectsBefore %d", withRect[0].RectsBefore)
+	if len(withRect) == 0 || withRect[0].Order <= canvas.Rectangles()[0].Order {
+		t.Fatalf("the icon after a rectangle carries order %d", withRect[0].Order)
 	}
 	canvas.Reset()
 	canvas.DrawIcon(testStrokeIcon, bounds, tint)
 	plain := canvas.Triangles()
-	if len(plain) != len(withRect) || plain[0].RectsBefore != 0 {
-		t.Fatalf("the plain icon reused RectsBefore %d", plain[0].RectsBefore)
+	if len(plain) != len(withRect) || plain[0].Order != 1 {
+		t.Fatalf("the plain icon reused order %d", plain[0].Order)
 	}
 	canvas.Reset()
 	canvas.Clip(Rect{Width: 30, Height: 30})

@@ -35,60 +35,69 @@ func CaptureCanvas(canvas *gfx.Canvas) CanvasSnapshot {
 
 func ApplyCanvas(canvas *gfx.Canvas, snapshot CanvasSnapshot) {
 	canvas.Reset()
-	// Rectangles, triangles and shadows live in separate lists. A triangle
-	// records how many rectangles came before it, and a shadow how many of both,
-	// which is what interleaves them back into paint order.
-	triangles := snapshot.Triangles
-	shadows := snapshot.Shadows
-	trianglesDone := 0
-	replayPainting := func(rectangles int) {
-		for {
-			if len(shadows) > 0 &&
-				int(shadows[0].RectsBefore) <= rectangles &&
-				int(shadows[0].TrianglesBefore) <= trianglesDone {
-				shadow := shadows[0]
-				shadows = shadows[1:]
-				pushLayerAndClip(canvas, shadow.Layer, shadow.ClipOf, shadow.HasClip)
-				canvas.Shadow(shadow.Bounds, shadow.Radius, shadow.Style, shadow.Color)
-				popLayerAndClip(canvas, shadow.Layer, shadow.HasClip)
-				continue
-			}
-			if len(triangles) > 0 && int(triangles[0].RectsBefore) <= rectangles {
-				triangle := triangles[0]
-				triangles = triangles[1:]
-				trianglesDone++
-				pushLayerAndClip(canvas, triangle.Layer, triangle.ClipOf, triangle.HasClip)
-				canvas.AppendTriangle(triangle)
-				popLayerAndClip(canvas, triangle.Layer, triangle.HasClip)
-				continue
-			}
-			break
+	// The primitive lists are separate but every primitive carries the paint
+	// order of the frame it came from. Replaying them in that order makes the
+	// canvas hand out the same relative order again.
+	rectangles, triangles, shadows := snapshot.Rectangles, snapshot.Triangles, snapshot.Shadows
+	images, texts := snapshot.Images, snapshot.Texts
+	ri, ti, si, ii, xi := 0, 0, 0, 0, 0
+	for ri < len(rectangles) || ti < len(triangles) || si < len(shadows) || ii < len(images) || xi < len(texts) {
+		kind, best := 0, ^uint32(0)
+		if ri < len(rectangles) && rectangles[ri].Order < best {
+			kind, best = 1, rectangles[ri].Order
 		}
-	}
-	for index, rectangle := range snapshot.Rectangles {
-		replayPainting(index)
-		pushLayerAndClip(canvas, rectangle.Layer, rectangle.ClipOf, rectangle.HasClip)
-		canvas.Rounded(rectangle.Bounds, rectangle.Radius, rectangle.Color)
-		popLayerAndClip(canvas, rectangle.Layer, rectangle.HasClip)
-	}
-	replayPainting(len(snapshot.Rectangles))
-	for _, image := range snapshot.Images {
-		pushLayerAndClip(canvas, image.Layer, image.ClipOf, image.HasClip)
-		canvas.DrawBitmapRegion(image.Bitmap, image.Source, image.Bounds)
-		popLayerAndClip(canvas, image.Layer, image.HasClip)
-	}
-	for _, text := range snapshot.Texts {
-		pushLayerAndClip(canvas, text.Layer, text.ClipOf, text.HasClip)
-		if text.RunCount > 0 || text.CellWidth > 0 {
-			canvas.LabelRunsWithIdentity(text.Identity, text.Value, text.Bounds, text.Style, text.CellWidth, snapshot.Runs[text.RunFirst:text.RunFirst+text.RunCount])
-		} else if text.HasQuad {
-			// Bounds and Quad are already placed; resolving AlignStart again
-			// would shift right-to-left text a second time.
-			canvas.LabelQuadAligned(text.Value, text.Bounds, gfx.Quad{Points: text.Quad, Tint: text.Tint}, text.Style, gfx.AlignLeft)
-		} else {
-			canvas.LabelAligned(text.Value, text.Bounds, text.Style, gfx.AlignLeft)
+		if ti < len(triangles) && triangles[ti].Order < best {
+			kind, best = 2, triangles[ti].Order
 		}
-		popLayerAndClip(canvas, text.Layer, text.HasClip)
+		if si < len(shadows) && shadows[si].Order < best {
+			kind, best = 3, shadows[si].Order
+		}
+		if ii < len(images) && images[ii].Order < best {
+			kind, best = 4, images[ii].Order
+		}
+		if xi < len(texts) && texts[xi].Order < best {
+			kind = 5
+		}
+		switch kind {
+		case 1:
+			rectangle := rectangles[ri]
+			ri++
+			pushLayerAndClip(canvas, rectangle.Layer, rectangle.ClipOf, rectangle.HasClip)
+			canvas.Rounded(rectangle.Bounds, rectangle.Radius, rectangle.Color)
+			popLayerAndClip(canvas, rectangle.Layer, rectangle.HasClip)
+		case 2:
+			triangle := triangles[ti]
+			ti++
+			pushLayerAndClip(canvas, triangle.Layer, triangle.ClipOf, triangle.HasClip)
+			canvas.AppendTriangle(triangle)
+			popLayerAndClip(canvas, triangle.Layer, triangle.HasClip)
+		case 3:
+			shadow := shadows[si]
+			si++
+			pushLayerAndClip(canvas, shadow.Layer, shadow.ClipOf, shadow.HasClip)
+			canvas.Shadow(shadow.Bounds, shadow.Radius, shadow.Style, shadow.Color)
+			popLayerAndClip(canvas, shadow.Layer, shadow.HasClip)
+		case 4:
+			image := images[ii]
+			ii++
+			pushLayerAndClip(canvas, image.Layer, image.ClipOf, image.HasClip)
+			canvas.DrawBitmapRegion(image.Bitmap, image.Source, image.Bounds)
+			popLayerAndClip(canvas, image.Layer, image.HasClip)
+		case 5:
+			text := texts[xi]
+			xi++
+			pushLayerAndClip(canvas, text.Layer, text.ClipOf, text.HasClip)
+			if text.RunCount > 0 || text.CellWidth > 0 {
+				canvas.LabelRunsWithIdentity(text.Identity, text.Value, text.Bounds, text.Style, text.CellWidth, snapshot.Runs[text.RunFirst:text.RunFirst+text.RunCount])
+			} else if text.HasQuad {
+				// Bounds and Quad are already placed; resolving AlignStart again
+				// would shift right-to-left text a second time.
+				canvas.LabelQuadAligned(text.Value, text.Bounds, gfx.Quad{Points: text.Quad, Tint: text.Tint}, text.Style, gfx.AlignLeft)
+			} else {
+				canvas.LabelAligned(text.Value, text.Bounds, text.Style, gfx.AlignLeft)
+			}
+			popLayerAndClip(canvas, text.Layer, text.HasClip)
+		}
 	}
 	for index, hit := range snapshot.Hits {
 		if hit.Layer != 0 {

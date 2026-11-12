@@ -29,7 +29,7 @@ func TestFillQuadKeepsCornerColorsClipAndOrder(t *testing.T) {
 		t.Fatalf("triangles = %d, want 2", len(triangles))
 	}
 	for index, triangle := range triangles {
-		if !triangle.HasClip || triangle.Layer != 2 || triangle.RectsBefore != 1 {
+		if !triangle.HasClip || triangle.Layer != 2 || triangle.Order <= 1 {
 			t.Fatalf("triangle %d lost clip, layer or order: %+v", index, triangle)
 		}
 		if !triangle.Shaded {

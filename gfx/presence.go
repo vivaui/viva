@@ -38,6 +38,9 @@ type presenceOpen struct {
 	runs                                 int
 	shadows                              int
 	hits                                 int
+	// order is the canvas's last paint order when the group opened. The
+	// snapshot stores its primitives relative to it.
+	order uint32
 }
 
 // hitMotion is the placement a moving presence applies to one hit, as scale
@@ -94,8 +97,7 @@ type hitMotionEntry struct {
 
 // presenceSnapshot is what an overlay painted in its last frame, untouched by
 // its transition: what a leaving overlay is drawn from after the application has
-// stopped painting it. Triangle.RectsBefore and Text.RunFirst are relative to
-// the start of the snapshot, and so are Shadow.RectsBefore and TrianglesBefore.
+// stopped painting it. Primitive orders are relative to the start of the group.
 type presenceSnapshot struct {
 	rectangles []Rectangle
 	shadows    []Shadow
@@ -148,7 +150,7 @@ func (canvas *Canvas) BeginPresence(id ID, slot uint8, presence Presence, pivot 
 		entry:      -1,
 		rectangles: len(canvas.rectangles), triangles: len(canvas.triangles), images: len(canvas.images),
 		texts: len(canvas.texts), runs: len(canvas.runs), shadows: len(canvas.shadows),
-		hits: len(canvas.hits),
+		hits: len(canvas.hits), order: canvas.order,
 	}
 	if state.active && !state.reduce && !id.IsZero() && presence.Motion.Duration > 0 && presence.moves() {
 		now := state.frameTime()
@@ -318,18 +320,24 @@ func (state *motionState) leave(canvas *Canvas) {
 // capture copies what the group painted since open.
 func (snapshot *presenceSnapshot) capture(canvas *Canvas, open presenceOpen) {
 	snapshot.rectangles = append(snapshot.rectangles[:0], canvas.rectangles[open.rectangles:]...)
+	for index := range snapshot.rectangles {
+		snapshot.rectangles[index].Order -= open.order
+	}
 	snapshot.shadows = append(snapshot.shadows[:0], canvas.shadows[open.shadows:]...)
 	for index := range snapshot.shadows {
-		snapshot.shadows[index].RectsBefore -= uint32(open.rectangles)
-		snapshot.shadows[index].TrianglesBefore -= uint32(open.triangles)
+		snapshot.shadows[index].Order -= open.order
 	}
 	snapshot.triangles = append(snapshot.triangles[:0], canvas.triangles[open.triangles:]...)
 	for index := range snapshot.triangles {
-		snapshot.triangles[index].RectsBefore -= uint32(open.rectangles)
+		snapshot.triangles[index].Order -= open.order
 	}
 	snapshot.images = append(snapshot.images[:0], canvas.images[open.images:]...)
+	for index := range snapshot.images {
+		snapshot.images[index].Order -= open.order
+	}
 	snapshot.texts = append(snapshot.texts[:0], canvas.texts[open.texts:]...)
 	for index := range snapshot.texts {
+		snapshot.texts[index].Order -= open.order
 		if snapshot.texts[index].RunCount > 0 {
 			snapshot.texts[index].RunFirst -= int32(open.runs)
 		}
@@ -342,24 +350,39 @@ func (snapshot *presenceSnapshot) replay(canvas *Canvas, presence Presence, pivo
 	open := presenceOpen{
 		rectangles: len(canvas.rectangles), triangles: len(canvas.triangles), images: len(canvas.images),
 		texts: len(canvas.texts), runs: len(canvas.runs), shadows: len(canvas.shadows),
+		order: canvas.order,
 	}
+	base := canvas.order
+	order := base
 	canvas.rectangles = append(canvas.rectangles, snapshot.rectangles...)
+	for index := open.rectangles; index < len(canvas.rectangles); index++ {
+		canvas.rectangles[index].Order += base
+		order = max(order, canvas.rectangles[index].Order)
+	}
 	canvas.shadows = append(canvas.shadows, snapshot.shadows...)
 	for index := open.shadows; index < len(canvas.shadows); index++ {
-		canvas.shadows[index].RectsBefore += uint32(open.rectangles)
-		canvas.shadows[index].TrianglesBefore += uint32(open.triangles)
+		canvas.shadows[index].Order += base
+		order = max(order, canvas.shadows[index].Order)
 	}
 	canvas.triangles = append(canvas.triangles, snapshot.triangles...)
 	for index := open.triangles; index < len(canvas.triangles); index++ {
-		canvas.triangles[index].RectsBefore += uint32(open.rectangles)
+		canvas.triangles[index].Order += base
+		order = max(order, canvas.triangles[index].Order)
 	}
 	canvas.images = append(canvas.images, snapshot.images...)
+	for index := open.images; index < len(canvas.images); index++ {
+		canvas.images[index].Order += base
+		order = max(order, canvas.images[index].Order)
+	}
 	canvas.texts = append(canvas.texts, snapshot.texts...)
 	for index := open.texts; index < len(canvas.texts); index++ {
+		canvas.texts[index].Order += base
+		order = max(order, canvas.texts[index].Order)
 		if canvas.texts[index].RunCount > 0 {
 			canvas.texts[index].RunFirst += int32(open.runs)
 		}
 	}
+	canvas.order = order
 	canvas.runs = append(canvas.runs, snapshot.runs...)
 	presence.apply(canvas, open, pivot, progress, true)
 }
@@ -402,7 +425,7 @@ func vectorizeBorderBackings(canvas *Canvas, first int) {
 			backing.Bounds.Width-fill.Bounds.Width != 2*width || backing.Bounds.Height-fill.Bounds.Height != 2*width {
 			continue
 		}
-		appendRoundedBorderRing(canvas, backing, fill, uint32(index+2))
+		appendRoundedBorderRing(canvas, backing, fill)
 		canvas.rectangles[index].Color = Color{}
 		index++
 	}
@@ -426,7 +449,7 @@ type ringCacheEntry struct {
 // page that cycles through many distinct borders must not keep them all.
 const ringCacheCap = 8
 
-func appendRoundedBorderRing(canvas *Canvas, backing, fill Rectangle, rectsBefore uint32) {
+func appendRoundedBorderRing(canvas *Canvas, backing, fill Rectangle) {
 	key := ringKey{backing: backing.Bounds, fill: fill.Bounds, backingRadius: backing.Radius, fillRadius: fill.Radius}
 	var cached []Triangle
 	for index := range canvas.rings {
@@ -459,7 +482,9 @@ func appendRoundedBorderRing(canvas *Canvas, backing, fill Rectangle, rectsBefor
 		triangle := &canvas.triangles[index]
 		triangle.Layer = backing.Layer
 		triangle.ClipOf, triangle.HasClip = backing.ClipOf, backing.HasClip
-		triangle.RectsBefore = rectsBefore
+		// The ring takes the place of the backing rectangle, whose own color is
+		// cleared: it is the same paint, so it shares that paint's order.
+		triangle.Order = backing.Order
 	}
 	if cached == nil && last-first > 0 && last-first <= 4096 {
 		entry := ringCacheEntry{key: key, triangles: make([]Triangle, last-first)}
@@ -478,7 +503,7 @@ func appendRoundedBorderRing(canvas *Canvas, backing, fill Rectangle, rectsBefor
 	}
 
 	at := 0
-	for at < first && canvas.triangles[at].RectsBefore < rectsBefore {
+	for at < first && canvas.triangles[at].Order <= backing.Order {
 		at++
 	}
 	reverseTriangles(canvas.triangles[at:first])

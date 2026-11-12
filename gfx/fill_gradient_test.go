@@ -19,7 +19,7 @@ func TestFillLinearGradientClampingClipAndScale(t *testing.T) {
 			t.Fatal("no gradient")
 		}
 		for _, tri := range c.Triangles() {
-			if !tri.HasClip || tri.ClipOf != clip || tri.Layer != 3 || tri.RectsBefore != 1 {
+			if !tri.HasClip || tri.ClipOf != clip || tri.Layer != 3 || tri.Order <= c.Rectangles()[0].Order {
 				t.Fatalf("lost order/clip %+v", tri)
 			}
 			for i, p := range tri.Points {

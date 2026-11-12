@@ -128,7 +128,7 @@ func (canvas *Canvas) LabelQuadAligned(value string, bounds Rect, quad Quad, sty
 	}
 	text := Text{
 		Value: value, Bounds: bounds, Style: style, Layer: canvas.currentLayer(),
-		Quad: quad.Points, Tint: quad.Tint, HasQuad: true,
+		Quad: quad.Points, Tint: quad.Tint, HasQuad: true, Order: canvas.nextOrder(),
 	}
 	if style.Mono && value != "" {
 		text.Baseline = canvas.MonoBaseline(style.Size, style.MonoFace, bounds.Height)

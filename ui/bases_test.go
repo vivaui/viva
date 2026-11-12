@@ -63,7 +63,7 @@ func TestCheckboxBaseWithTheRecipeIsTheShadcnCheckbox(t *testing.T) {
 					}
 					return out
 				}
-				if f, d := boxOf(flexed), boxOf(direct); len(f) == 0 || !reflect.DeepEqual(f, d) {
+				if f, d := boxOf(flexed), boxOf(direct); len(f) == 0 || !reflect.DeepEqual(withoutOrders(f), withoutOrders(d)) {
 					t.Errorf("the box differs:\nflex   %+v\ndirect %+v", f, d)
 				}
 				if s.on {

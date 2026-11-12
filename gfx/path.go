@@ -814,11 +814,11 @@ func (canvas *Canvas) appendTriangle(a, b, c Point, color Color) {
 
 func (canvas *Canvas) appendTriangleEdges(a, b, c Point, color Color, edgeMask uint8) {
 	triangle := Triangle{
-		Points:      [3]Point{a, b, c},
-		Color:       color,
-		Layer:       canvas.currentLayer(),
-		EdgeMask:    edgeMask,
-		RectsBefore: uint32(len(canvas.rectangles)),
+		Points:   [3]Point{a, b, c},
+		Color:    color,
+		Layer:    canvas.currentLayer(),
+		EdgeMask: edgeMask,
+		Order:    canvas.nextOrder(),
 	}
 	triangle.ClipOf, triangle.HasClip = canvas.clipSnapshot()
 	canvas.triangles = append(canvas.triangles, triangle)

@@ -250,6 +250,9 @@ func (l cellLine) place(dst, shapes CellGlyphShapes, at Point, color Color) Cell
 				Height: bounds.Height / scale,
 			},
 			Color: shaded(shape.Color), Layer: l.text.Layer, ClipOf: l.text.ClipOf, HasClip: l.text.HasClip,
+			// The geometry is part of the line's own paint: it shares the
+			// label's order and is drawn just beneath its glyphs.
+			Order: l.text.Order,
 		})
 	}
 	for _, shape := range shapes.Triangles {
@@ -258,6 +261,7 @@ func (l cellLine) place(dst, shapes CellGlyphShapes, at Point, color Color) Cell
 		}
 		shape.Color = shaded(shape.Color)
 		shape.Layer, shape.ClipOf, shape.HasClip = l.text.Layer, l.text.ClipOf, l.text.HasClip
+		shape.Order = l.text.Order
 		dst.Triangles = append(dst.Triangles, shape)
 	}
 	return dst

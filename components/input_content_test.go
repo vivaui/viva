@@ -26,7 +26,7 @@ func TestInputContentPaintsTheTextOfInputWithoutItsSurface(t *testing.T) {
 	PaintInput(&full, theme, bounds, snapshot)
 	PaintInputContent(&bare, theme, bounds, content, snapshot)
 
-	if !slices.Equal(full.Texts(), bare.Texts()) {
+	if !slices.Equal(noTextOrders(full.Texts()), noTextOrders(bare.Texts())) {
 		t.Fatalf("texts differ:\nfull %+v\nbare %+v", full.Texts(), bare.Texts())
 	}
 	// The surface is the full field's first shapes; the content adds nothing else of its own.
@@ -34,7 +34,7 @@ func TestInputContentPaintsTheTextOfInputWithoutItsSurface(t *testing.T) {
 	if surface <= 0 {
 		t.Fatalf("the full field painted %d rectangles and the content %d: no surface told apart", len(full.Rectangles()), len(bare.Rectangles()))
 	}
-	if !slices.Equal(full.Rectangles()[surface:], bare.Rectangles()) {
+	if !slices.Equal(noOrders(full.Rectangles()[surface:]), noOrders(bare.Rectangles())) {
 		t.Fatalf("selection and caret differ:\nfull %+v\nbare %+v", full.Rectangles()[surface:], bare.Rectangles())
 	}
 }

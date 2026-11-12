@@ -375,9 +375,9 @@ func TestEmbedTranslatesShadowsAndTheirPaintOrder(t *testing.T) {
 	if shadows[0].Bounds != (Rect{X: 101, Y: 202, Width: 20, Height: 10}) {
 		t.Fatalf("shadow bounds = %+v, want them moved by the embed origin", shadows[0].Bounds)
 	}
-	if shadows[0].RectsBefore != 2 || shadows[0].TrianglesBefore != 0 {
-		t.Fatalf("paint order = %d rects, %d triangles; want the parent's 1 rect plus the child's 1 before it",
-			shadows[0].RectsBefore, shadows[0].TrianglesBefore)
+	rectangles := page.Rectangles()
+	if len(rectangles) != 2 || shadows[0].Order < rectangles[1].Order {
+		t.Fatalf("paint order = %+v; want the shadow after the parent's and the child's rectangles", shadows[0])
 	}
 }
 

@@ -266,19 +266,20 @@ func TestPresenceKeepsPaintOrderOfAMixedGroup(t *testing.T) {
 	if len(canvas.Triangles()) == 0 {
 		t.Fatal("icon produced no triangles")
 	}
-	before := canvas.Triangles()[0].RectsBefore
 	frames.now = 20 * time.Millisecond
 	canvas.BeginFrame()
 	paint(false)
 	canvas.EndFrame()
 	// The leaving copy is appended after the rest of the frame, with the icon
 	// still between its two rectangles.
-	if len(canvas.Rectangles()) != 3 {
-		t.Fatalf("rectangles after leaving = %d", len(canvas.Rectangles()))
+	rectangles := canvas.Rectangles()
+	if len(rectangles) != 3 {
+		t.Fatalf("rectangles after leaving = %d", len(rectangles))
 	}
 	last := canvas.Triangles()[len(canvas.Triangles())-1]
-	if last.RectsBefore != before || last.RectsBefore != 2 {
-		t.Fatalf("triangle order after replay: RectsBefore %d (was %d), want the icon between the group's two rectangles", last.RectsBefore, before)
+	if last.Order <= rectangles[1].Order || last.Order >= rectangles[2].Order {
+		t.Fatalf("triangle order %d, want it between the group's two rectangles at %d and %d",
+			last.Order, rectangles[1].Order, rectangles[2].Order)
 	}
 }
 
@@ -370,8 +371,9 @@ func TestPresenceTakesTheOverlaysShadowAlong(t *testing.T) {
 	if len(canvas.Shadows()) != 2 || len(canvas.Rectangles()) != 2 {
 		t.Fatalf("leaving overlay has %d shadows and %d rectangles, want 2 and 2", len(canvas.Shadows()), len(canvas.Rectangles()))
 	}
+	rectangles := canvas.Rectangles()
 	for _, shadow := range canvas.Shadows() {
-		if shadow.RectsBefore != 1 || shadow.TrianglesBefore != 0 {
+		if shadow.Order <= rectangles[0].Order || shadow.Order >= rectangles[1].Order {
 			t.Fatalf("leaving shadow = %+v, want it between the page's rectangle and the overlay's", shadow)
 		}
 	}

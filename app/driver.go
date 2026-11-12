@@ -1017,6 +1017,10 @@ type Label struct {
 	Italic           bool
 	Color            gfx.Color
 	Layer            uint16
+	// ShapesBefore is how many shape instances the frame painted before this
+	// label. Shapes and labels are sent in separate lists; a renderer merges
+	// them back into paint order at this index.
+	ShapesBefore uint32
 	// FontGeneration is platform.TextLabel's: the interface font the text was laid out
 	// in, 0 for text that does not follow it.
 	FontGeneration uint32
@@ -1196,7 +1200,7 @@ func (driver *Driver) Snapshot() Snapshot {
 			OriginX:  label.OriginX, OriginY: label.OriginY,
 			FontSize: label.FontSize, Weight: label.Weight, Italic: label.Italic,
 			Color: gfx.Color{Red: float32(label.Color.Red), Green: float32(label.Color.Green), Blue: float32(label.Color.Blue), Alpha: float32(label.Color.Alpha)},
-			Layer: label.Layer, FontGeneration: label.FontGeneration,
+			Layer: label.Layer, ShapesBefore: label.ShapesBefore, FontGeneration: label.FontGeneration,
 			Mono: label.Mono, MonoFace: label.MonoFace, CellWidth: label.CellWidth, Baseline: label.Baseline, Runs: append([]gfx.TextRun(nil), label.Runs...),
 			Clip: label.Clip, Clipped: label.Clipped,
 			BitmapWidth: label.BitmapWidth, BitmapHeight: label.BitmapHeight, BitmapStride: label.BitmapStride,

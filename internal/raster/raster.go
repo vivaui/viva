@@ -20,6 +20,9 @@ type Label struct {
 	// X and Y are the device pixel of the image's top-left corner in the canvas.
 	X, Y  int
 	Layer uint16
+	// ShapesBefore is how many shape instances were painted before this label.
+	// Shapes and labels are kept apart; the rasterizer merges them at this index.
+	ShapesBefore uint32
 	// Clip, when Clipped, is the part of the canvas the image may touch (device pixels).
 	Clipped bool
 	Clip    render.Scissor
@@ -113,25 +116,61 @@ func (r *Rasterizer) Draw(c *Canvas, p Params, rects []render.Rectangle, labels 
 		if hi < len(holes) && holes[hi].Layer < layer {
 			layer = holes[hi].Layer
 		}
-		for ; bi < len(r.batches) && r.batches[bi].Layer == layer; bi++ {
+		// Interleave the layer's shape batches and labels by paint order. A
+		// label can fall between two instances of one batch, which then draws
+		// in two parts.
+		batchEnd := bi
+		for batchEnd < len(r.batches) && r.batches[batchEnd].Layer == layer {
+			batchEnd++
+		}
+		labelEnd := li
+		for labelEnd < len(r.order) && labels[r.order[labelEnd]].Layer == layer {
+			labelEnd++
+		}
+		cursor := 0
+		if bi < batchEnd {
+			cursor = r.batches[bi].First
+		}
+		for bi < batchEnd || li < labelEnd {
+			if li < labelEnd && (bi >= batchEnd || int(labels[r.order[li]].ShapesBefore) <= cursor) {
+				drawLabel(c, damage, &labels[r.order[li]])
+				li++
+				continue
+			}
 			batch := r.batches[bi]
 			area := damage
 			if batch.Clipped {
 				clip, visible := render.ScissorOf(batch.Clip, scale, c.Width, c.Height)
 				if !visible {
+					bi++
+					if bi < batchEnd {
+						cursor = r.batches[bi].First
+					}
 					continue
 				}
 				area = intersect(area, clip)
 			}
 			if empty(area) {
+				bi++
+				if bi < batchEnd {
+					cursor = r.batches[bi].First
+				}
 				continue
 			}
-			for k := batch.First; k < batch.First+batch.Count; k++ {
+			end := batch.First + batch.Count
+			first := cursor
+			for cursor < end && (li >= labelEnd || cursor < int(labels[r.order[li]].ShapesBefore)) {
+				cursor++
+			}
+			for k := first; k < cursor; k++ {
 				drawInstance(c, area, &rects[k], scale)
 			}
-		}
-		for ; li < len(r.order) && labels[r.order[li]].Layer == layer; li++ {
-			drawLabel(c, damage, &labels[r.order[li]])
+			if cursor == end {
+				bi++
+				if bi < batchEnd {
+					cursor = r.batches[bi].First
+				}
+			}
 		}
 		for ; hi < len(holes) && holes[hi].Layer == layer; hi++ {
 			if box := intersect(damage, holes[hi].Box); !empty(box) {

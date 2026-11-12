@@ -198,6 +198,9 @@ static int viva_compare_composite_commands(const void *left, const void *right) 
     if (a->layer != b->layer) {
         return a->layer < b->layer ? -1 : 1;
     }
+    if (a->sequence != b->sequence) {
+        return a->sequence < b->sequence ? -1 : 1;
+    }
     if (a->kind != b->kind) {
         return a->kind < b->kind ? -1 : 1;
     }
@@ -256,6 +259,7 @@ int viva_plan_composite(
     const viva_clip *clips,
     size_t rectangle_count,
     const uint16_t *text_layers,
+    const uint32_t *text_shapes_before,
     size_t text_count,
     viva_composite_command *commands,
     size_t command_capacity,
@@ -263,39 +267,57 @@ int viva_plan_composite(
 ) {
     if (command_count == NULL ||
         (rectangle_count > 0 && (rectangles == NULL || clips == NULL)) ||
-        (text_count > 0 && text_layers == NULL) ||
+        (text_count > 0 && (text_layers == NULL || text_shapes_before == NULL)) ||
         rectangle_count > UINT32_MAX || text_count > UINT32_MAX) {
         return 1;
     }
 
-    size_t required = text_count;
-    for (size_t index = 0; index < rectangle_count;) {
-        size_t head = index;
-        index++;
-        while (index < rectangle_count &&
-               viva_same_batch(rectangles, clips, head, index)) {
-            index++;
-        }
-        required++;
+    // At most one command per shape and one per label: a shape batch can be cut
+    // at every label boundary.
+    if (rectangle_count > SIZE_MAX - text_count) {
+        return 2;
     }
-    *command_count = required;
+    size_t required = rectangle_count + text_count;
     if (required > command_capacity || (required > 0 && commands == NULL)) {
         return 2;
     }
 
+    // Shapes and labels arrive in paint order. A label that says k shapes were
+    // painted before it belongs after instance k-1 and before instance k, so
+    // the plan walks both lists by that boundary, cutting a shape batch when a
+    // label falls inside it.
     size_t command_index = 0;
-    for (size_t first = 0; first < rectangle_count;) {
-        uint16_t layer = viva_rectangle_layer(rectangles[first]);
+    size_t rectangle_index = 0;
+    size_t text_index = 0;
+    while (rectangle_index < rectangle_count || text_index < text_count) {
+        if (text_index < text_count &&
+            (text_shapes_before[text_index] <= rectangle_index || rectangle_index >= rectangle_count)) {
+            uint32_t sequence = (uint32_t)command_index;
+            commands[command_index++] = (viva_composite_command){
+                .layer = text_layers[text_index],
+                .kind = VIVA_COMPOSITE_TEXT,
+                .first = (uint32_t)text_index,
+                .count = 1,
+                .sequence = sequence,
+            };
+            text_index++;
+            continue;
+        }
+        size_t first = rectangle_index;
         size_t end = first + 1;
         while (end < rectangle_count &&
-               viva_same_batch(rectangles, clips, first, end)) {
+               viva_same_batch(rectangles, clips, first, end) &&
+               (text_index >= text_count || end < text_shapes_before[text_index])) {
             end++;
         }
+        uint16_t layer = viva_rectangle_layer(rectangles[first]);
+        uint32_t sequence = (uint32_t)command_index;
         viva_composite_command command = {
             .layer = layer,
             .kind = VIVA_COMPOSITE_RECTANGLES,
             .first = (uint32_t)first,
             .count = (uint32_t)(end - first),
+            .sequence = sequence,
         };
         if (clips[first].clipped != 0) {
             command.clipped = 1;
@@ -305,18 +327,11 @@ int viva_plan_composite(
             command.clip_height = clips[first].height;
         }
         commands[command_index++] = command;
-        first = end;
+        rectangle_index = end;
     }
-    for (size_t index = 0; index < text_count; index++) {
-        commands[command_index++] = (viva_composite_command){
-            .layer = text_layers[index],
-            .kind = VIVA_COMPOSITE_TEXT,
-            .first = (uint32_t)index,
-            .count = 1,
-        };
-    }
-    qsort(commands, required, sizeof(viva_composite_command),
+    qsort(commands, command_index, sizeof(viva_composite_command),
           viva_compare_composite_commands);
+    *command_count = command_index;
     return 0;
 }
 
@@ -3768,6 +3783,7 @@ static void viva_encode_scene(
     id<MTLRenderPipelineState> _textPipeline;
     NSMutableArray<VivaTextLayer *> *_textLabels;
     uint16_t *_textLabelLayers;
+    uint32_t *_textLabelShapesBefore;
     NSUInteger _textLabelCount;
     viva_composite_command *_compositeCommands;
     NSUInteger _compositeCommandCount;
@@ -3871,6 +3887,7 @@ static void viva_encode_scene(
                                     clips:(const viva_clip *)clips
                             rectangleCount:(NSUInteger)rectangleCount
                                  textLayers:(const uint16_t *)textLayers
+                           textShapesBefore:(const uint32_t *)textShapesBefore
                                   textCount:(NSUInteger)textCount;
 - (int)updateAccessibility:(const viva_accessibility_node *)nodes
                      count:(NSUInteger)count;
@@ -4082,12 +4099,14 @@ static int viva_navigation_command(SEL selector) {
         [tracking release];
         if (textLabelCount > 0) {
             _textLabelLayers = malloc(textLabelCount * sizeof(uint16_t));
-            if (_textLabelLayers == NULL) {
+            _textLabelShapesBefore = malloc(textLabelCount * sizeof(uint32_t));
+            if (_textLabelLayers == NULL || _textLabelShapesBefore == NULL) {
                 [self release];
                 return nil;
             }
             for (NSUInteger index = 0; index < textLabelCount; index++) {
                 _textLabelLayers[index] = textLabels[index].layer;
+                _textLabelShapesBefore[index] = textLabels[index].shapes_before;
             }
         }
         _textLabelCount = textLabelCount;
@@ -4110,6 +4129,7 @@ static int viva_navigation_command(SEL selector) {
                                                clips:_rectangleClips
                                       rectangleCount:rectangleCount
                                            textLayers:_textLabelLayers
+                                     textShapesBefore:_textLabelShapesBefore
                                             textCount:_textLabelCount]) {
             [self release];
             return nil;
@@ -4147,6 +4167,7 @@ static int viva_navigation_command(SEL selector) {
     free(_compositeCommands);
     free(_rectangleClips);
     free(_textLabelLayers);
+    free(_textLabelShapesBefore);
     [_cursor release];
     [_rectangleBuffer release];
     [_rectanglePipeline release];
@@ -4165,6 +4186,7 @@ static int viva_navigation_command(SEL selector) {
                                     clips:(const viva_clip *)clips
                             rectangleCount:(NSUInteger)rectangleCount
                                  textLayers:(const uint16_t *)textLayers
+                           textShapesBefore:(const uint32_t *)textShapesBefore
                                   textCount:(NSUInteger)textCount {
     if (rectangleCount > SIZE_MAX - textCount) {
         return NO;
@@ -4186,6 +4208,7 @@ static int viva_navigation_command(SEL selector) {
         clips,
         rectangleCount,
         textLayers,
+        textShapesBefore,
         textCount,
         replacement,
         capacity,
@@ -5170,6 +5193,7 @@ static void viva_set_secure_event_input(BOOL on) {
                                                clips:replacementClips
                                       rectangleCount:totalCount
                                            textLayers:_textLabelLayers
+                                     textShapesBefore:_textLabelShapesBefore
                                             textCount:_textLabelCount]) {
             [replacement release];
             free(replacementClips);
@@ -5246,6 +5270,7 @@ static void viva_set_secure_event_input(BOOL on) {
                                                clips:_rectangleClips
                                       rectangleCount:_rectangleCount
                                            textLayers:_textLabelLayers
+                                     textShapesBefore:_textLabelShapesBefore
                                             textCount:_textLabelCount]) {
             return 3;
         }
@@ -5263,19 +5288,25 @@ static void viva_set_secure_event_input(BOOL on) {
               count:(NSUInteger)count {
     CGFloat scale = MAX(_metalLayer.contentsScale, 1.0);
     uint16_t *replacementLayers = NULL;
+    uint32_t *replacementShapesBefore = NULL;
     if (count > 0) {
         replacementLayers = malloc(count * sizeof(uint16_t));
-        if (replacementLayers == NULL) {
+        replacementShapesBefore = malloc(count * sizeof(uint32_t));
+        if (replacementLayers == NULL || replacementShapesBefore == NULL) {
+            free(replacementLayers);
+            free(replacementShapesBefore);
             return 3;
         }
         for (NSUInteger index = 0; index < count; index++) {
             replacementLayers[index] = labels[index].layer;
+            replacementShapesBefore[index] = labels[index].shapes_before;
         }
     }
     NSMutableArray<VivaTextLayer *> *replacement = nil;
     int status = viva_update_label_layers(_textLabels, labels, count, _metalLayer.device, scale, self.bounds.size, &replacement);
     if (status != 0) {
         free(replacementLayers);
+        free(replacementShapesBefore);
         return status;
     }
     if (![self replaceCompositePlanForRectangles:
@@ -5283,15 +5314,19 @@ static void viva_set_secure_event_input(BOOL on) {
                                            clips:_rectangleClips
                                   rectangleCount:_rectangleCount
                                        textLayers:replacementLayers
+                                 textShapesBefore:replacementShapesBefore
                                         textCount:count]) {
         [replacement release];
         free(replacementLayers);
+        free(replacementShapesBefore);
         return 3;
     }
     [_textLabels release];
     _textLabels = replacement;
     free(_textLabelLayers);
+    free(_textLabelShapesBefore);
     _textLabelLayers = replacementLayers;
+    _textLabelShapesBefore = replacementShapesBefore;
     _textLabelCount = count;
     viva_label_update_count++;
     return 0;
@@ -6989,7 +7024,7 @@ void *viva_application_open_window(viva_window_config config) {
             _Static_assert(sizeof(viva_rectangle) == 80, "rectangle ABI must be 80 bytes");
             _Static_assert(sizeof(viva_text_label) == 264, "text label ABI must be 264 bytes");
             _Static_assert(sizeof(viva_text_run) == 36, "text run ABI must be 36 bytes");
-            _Static_assert(sizeof(viva_composite_command) == 32, "composite command ABI must be 32 bytes");
+            _Static_assert(sizeof(viva_composite_command) == 36, "composite command ABI must be 36 bytes");
             dispatch_data_t libraryData = dispatch_data_create(
                 config.shader_library,
                 config.shader_library_length,
@@ -7724,6 +7759,7 @@ int viva_unregister_font_file(const char *path) {
     viva_clip *_rectangleClips;
     NSMutableArray<VivaTextLayer *> *_labels;
     uint16_t *_labelLayers;
+    uint32_t *_labelShapesBefore;
     NSUInteger _labelCount;
     viva_composite_command *_commands;
     NSUInteger _commandCount;
@@ -7803,6 +7839,7 @@ int viva_unregister_font_file(const char *path) {
     free(_commands);
     free(_rectangleClips);
     free(_labelLayers);
+    free(_labelShapesBefore);
     [_inputTexture release];
     [_labels release];
     [_rectangleBuffer release];
@@ -7828,7 +7865,7 @@ int viva_unregister_font_file(const char *path) {
     size_t count = 0;
     int status = viva_plan_composite(
         _rectangleBuffer == nil ? NULL : _rectangleBuffer.contents, _rectangleClips, _rectangleCount,
-        _labelLayers, _labelCount, replacement, capacity, &count);
+        _labelLayers, _labelShapesBefore, _labelCount, replacement, capacity, &count);
     if (status != 0) {
         free(replacement);
         return NO;
@@ -7864,24 +7901,32 @@ int viva_unregister_font_file(const char *path) {
 
 - (BOOL)setLabels:(const viva_text_label *)labels count:(NSUInteger)count {
     uint16_t *replacementLayers = NULL;
+    uint32_t *replacementShapesBefore = NULL;
     if (count > 0) {
         replacementLayers = malloc(count * sizeof(uint16_t));
-        if (replacementLayers == NULL) {
+        replacementShapesBefore = malloc(count * sizeof(uint32_t));
+        if (replacementLayers == NULL || replacementShapesBefore == NULL) {
+            free(replacementLayers);
+            free(replacementShapesBefore);
             return NO;
         }
     }
     NSMutableArray<VivaTextLayer *> *replacement = nil;
     if (viva_update_label_layers(_labels, labels, count, _device, _scale, _size, &replacement) != 0) {
         free(replacementLayers);
+        free(replacementShapesBefore);
         return NO;
     }
     for (NSUInteger index = 0; index < count; index++) {
         replacementLayers[index] = labels[index].layer;
+        replacementShapesBefore[index] = labels[index].shapes_before;
     }
     [_labels release];
     _labels = replacement;
     free(_labelLayers);
+    free(_labelShapesBefore);
     _labelLayers = replacementLayers;
+    _labelShapesBefore = replacementShapesBefore;
     _labelCount = count;
     return [self replan];
 }

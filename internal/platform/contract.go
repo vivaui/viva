@@ -329,16 +329,21 @@ type TextLabel struct {
 	// rounds to whole logical pixels): within half a pixel either way. A backend that
 	// places glyphs at device-pixel positions, as the platform's own text does, draws
 	// the text OriginX, OriginY from the label's top left; the others ignore them.
-	OriginX   float32
-	OriginY   float32
-	FontSize  float32
-	Weight    float32
-	Italic    bool
-	Color     Color
-	Layer     uint16
-	Mono      bool
-	MonoFace  gfx.MonoFace
-	CellWidth float32
+	OriginX  float32
+	OriginY  float32
+	FontSize float32
+	Weight   float32
+	Italic   bool
+	Color    Color
+	Layer    uint16
+	// ShapesBefore is how many shape instances the frame painted before this
+	// label. Shapes and labels are kept apart for batching; a renderer merges
+	// them back into paint order at this index, splitting a shape batch a label
+	// falls inside.
+	ShapesBefore uint32
+	Mono         bool
+	MonoFace     gfx.MonoFace
+	CellWidth    float32
 	// Baseline, when nonzero, is the row of the label, counted from its top in logical
 	// pixels, on which a fixed-pitch line's glyphs stand: gfx.Canvas.MonoBaseline for the
 	// label's face, size and height, which is the font's own baseline in the line's cell,

@@ -410,8 +410,9 @@ func TestShadowsRecordWhereTheyWerePainted(t *testing.T) {
 	canvas.Fill(Rect{Width: 10, Height: 10}, Color{Alpha: 1})
 	canvas.Shadow(Rect{Width: 10, Height: 10}, 0, ShadowStyle{Blur: 3}, Color{Alpha: 0.1})
 	got := canvas.Shadows()
-	if len(got) != 2 || got[0].RectsBefore != 1 || got[1].RectsBefore != 3 {
-		t.Fatalf("shadows = %+v, want them after 1 and 3 rectangles", got)
+	rectangles := canvas.Rectangles()
+	if len(got) != 2 || got[0].Order < rectangles[0].Order || got[0].Order > rectangles[1].Order || got[1].Order < rectangles[2].Order {
+		t.Fatalf("shadows = %+v, want each between the rectangles it was painted among", got)
 	}
 	canvas.Reset()
 	if len(canvas.Shadows()) != 0 {
