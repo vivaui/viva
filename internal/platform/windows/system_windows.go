@@ -655,7 +655,7 @@ func sendNotificationIcon(data *notifyIconData) error {
 	defer notificationMu.Unlock()
 	operation := uintptr(notifyModify)
 	if !notificationAdded || notificationWindow != data.Window {
-		if notificationAdded {
+		if notificationWindow != 0 {
 			removeNotificationIconLocked(notificationWindow)
 		}
 		operation = notifyAdd
@@ -665,13 +665,18 @@ func sendNotificationIcon(data *notifyIconData) error {
 		// Explorer can rebuild the notification area without the process seeing
 		// TaskbarCreated on a status window. Forget the stale uID and recreate
 		// the carrier once, including when the application has only normal
-		// windows.
-		notificationAdded = false
-		notificationWindow = 0
+		// windows. The shell may still hold the uID when the modify failed only
+		// for the moment: delete it first, or the add over it fails too.
+		removeNotificationIconLocked(notificationWindow)
 		operation = notifyAdd
 		ok, _, callErr = callNotifyIcon(operation, data)
 	}
 	if ok == 0 {
+		// The shell may still hold the uID under the window it was last sent to.
+		// Remember that window, so the next notification deletes the leftover
+		// instead of adding over it, which fails.
+		notificationAdded = false
+		notificationWindow = data.Window
 		return windowsCallError("send notification", callErr)
 	}
 	notificationAdded = true
@@ -712,8 +717,11 @@ func invalidateNotificationIcon() {
 	notificationWindow = 0
 }
 
+// removeNotificationIconLocked deletes the carrier the notification state last
+// named, also when a failed send left it there unconfirmed: the window is the
+// one the shell may still hold it under.
 func removeNotificationIconLocked(window uintptr) {
-	if !notificationAdded || notificationWindow != window {
+	if window == 0 || notificationWindow != window {
 		return
 	}
 	data := notifyIconData{Size: uint32(unsafe.Sizeof(notifyIconData{})), Window: window, ID: 1}

@@ -184,12 +184,72 @@ func TestNotificationModifyFailureRetriesAdd(t *testing.T) {
 	if err := sendNotificationIcon(&data); err != nil {
 		t.Fatal(err)
 	}
-	if len(operations) != 2 || operations[0] != notifyModify || operations[1] != notifyAdd {
-		t.Fatalf("notification operations = %v, want [NIM_MODIFY NIM_ADD]", operations)
+	if len(operations) != 3 || operations[0] != notifyModify || operations[1] != notifyDelete || operations[2] != notifyAdd {
+		t.Fatalf("notification operations = %v, want [NIM_MODIFY NIM_DELETE NIM_ADD]", operations)
 	}
 	notificationMu.Lock()
 	defer notificationMu.Unlock()
 	if !notificationAdded || notificationWindow != host {
 		t.Fatalf("recreated carrier was not recorded: added=%v window=%#x", notificationAdded, notificationWindow)
+	}
+}
+
+// A modify that fails while the shell still holds the carrier, followed by an
+// add that fails over it, must not wedge the carrier: the next notification
+// deletes the leftover instead of adding over it again, which would fail
+// forever, and the shell restart would be the only way out.
+func TestNotificationCarrierRecoversAfterAModifyAndAddFailure(t *testing.T) {
+	const host = uintptr(0x404)
+	previousCall := callNotifyIcon
+	var operations []uintptr
+	failAdds := true
+	callNotifyIcon = func(operation uintptr, data *notifyIconData) (uintptr, uintptr, error) {
+		operations = append(operations, operation)
+		switch {
+		case operation == notifyModify, operation == notifyAdd && failAdds:
+			return 0, 0, syscall.EINVAL
+		}
+		return 1, 0, nil
+	}
+	defer func() { callNotifyIcon = previousCall }()
+
+	notificationMu.Lock()
+	previousAdded, previousWindow := notificationAdded, notificationWindow
+	notificationAdded, notificationWindow = true, host
+	notificationMu.Unlock()
+	defer func() {
+		notificationMu.Lock()
+		notificationAdded, notificationWindow = previousAdded, previousWindow
+		notificationMu.Unlock()
+	}()
+
+	data := notificationIconData(host, 7, "Motty", "Motty is still running")
+	if err := sendNotificationIcon(&data); err == nil {
+		t.Fatal("a failed add reported success")
+	}
+	notificationMu.Lock()
+	if notificationAdded || notificationWindow != host {
+		notificationMu.Unlock()
+		t.Fatalf("a failed add forgot the window it may still be under: added=%v window=%#x", notificationAdded, notificationWindow)
+	}
+	notificationMu.Unlock()
+
+	failAdds = false
+	if err := sendNotificationIcon(&data); err != nil {
+		t.Fatal(err)
+	}
+	want := []uintptr{notifyModify, notifyDelete, notifyAdd, notifyDelete, notifyAdd}
+	if len(operations) != len(want) {
+		t.Fatalf("notification operations = %v, want %v", operations, want)
+	}
+	for i := range want {
+		if operations[i] != want[i] {
+			t.Fatalf("notification operations = %v, want %v", operations, want)
+		}
+	}
+	notificationMu.Lock()
+	defer notificationMu.Unlock()
+	if !notificationAdded || notificationWindow != host {
+		t.Fatalf("the carrier did not recover: added=%v window=%#x", notificationAdded, notificationWindow)
 	}
 }
