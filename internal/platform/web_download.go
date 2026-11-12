@@ -2,7 +2,6 @@ package platform
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -27,14 +26,70 @@ func DownloadsFolder() string {
 func DownloadFileName(suggested, address string) string {
 	name := cleanDownloadName(suggested)
 	if name == "" {
-		if parsed, err := url.Parse(address); err == nil {
-			name = cleanDownloadName(path.Base(parsed.Path))
-		}
+		name = cleanDownloadName(downloadPath(address))
 	}
 	if name == "" {
 		return "download"
 	}
 	return name
+}
+
+// downloadPath is the last element of address's path, without a scheme, a query or a fragment.
+// It does not unescape, and it does not use net/url: that parser, with the inlining data the linker
+// keeps for it, costs tens of kilobytes in every application that links app, for a name that is
+// only the fallback when the engine suggested nothing. A percent-encoded name is left as written.
+func downloadPath(address string) string {
+	if scheme := strings.Index(address, "://"); scheme >= 0 {
+		address = address[scheme+3:]
+	}
+	slash := strings.IndexByte(address, '/')
+	if slash < 0 {
+		return ""
+	}
+	name := address[slash+1:]
+	if cut := strings.IndexAny(name, "?#"); cut >= 0 {
+		name = name[:cut]
+	}
+	if end := strings.LastIndexByte(name, '/'); end >= 0 {
+		name = name[end+1:]
+	}
+	return unescapePath(name)
+}
+
+// unescapePath decodes the percent escapes of a path, as net/url does for the parsed path but in
+// the dozen lines it takes: a malformed escape is left as written rather than rejected.
+func unescapePath(name string) string {
+	if !strings.Contains(name, "%") {
+		return name
+	}
+	unescaped := make([]byte, 0, len(name))
+	for index := 0; index < len(name); index++ {
+		if name[index] != '%' || index+2 >= len(name) {
+			unescaped = append(unescaped, name[index])
+			continue
+		}
+		high, low := hexValue(name[index+1]), hexValue(name[index+2])
+		if high < 0 || low < 0 {
+			unescaped = append(unescaped, name[index])
+			continue
+		}
+		unescaped = append(unescaped, byte(high<<4|low))
+		index += 2
+	}
+	return string(unescaped)
+}
+
+// hexValue is the value of one hexadecimal digit, or -1.
+func hexValue(digit byte) int {
+	switch {
+	case digit >= '0' && digit <= '9':
+		return int(digit - '0')
+	case digit >= 'a' && digit <= 'f':
+		return int(digit-'a') + 10
+	case digit >= 'A' && digit <= 'F':
+		return int(digit-'A') + 10
+	}
+	return -1
 }
 
 // cleanDownloadName turns what an engine suggests into a name this file system takes. It keeps
