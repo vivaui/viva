@@ -575,8 +575,19 @@ func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, p
 	}
 	for index := open.texts; index < len(canvas.texts); index++ {
 		text := &canvas.texts[index]
-		center := transform.point(Point{X: text.Bounds.X + text.Bounds.Width/2, Y: text.Bounds.Y + text.Bounds.Height/2})
+		oldCenter := Point{X: text.Bounds.X + text.Bounds.Width/2, Y: text.Bounds.Y + text.Bounds.Height/2}
+		center := transform.point(oldCenter)
 		text.Bounds.X, text.Bounds.Y = center.X-text.Bounds.Width/2, center.Y-text.Bounds.Height/2
+		if text.HasQuad {
+			// The quad places the label's picture; the text's size is not
+			// scaled, so move the corners by the centre's delta. Its tints stay
+			// as they are: the fade is already in the label's colour.
+			dx, dy := center.X-oldCenter.X, center.Y-oldCenter.Y
+			for corner := range text.Quad {
+				text.Quad[corner].X += dx
+				text.Quad[corner].Y += dy
+			}
+		}
 		if moving {
 			// A moving label's sub-pixel origin changes every frame. Native
 			// text backends key retained textures by it, so keeping the

@@ -287,3 +287,24 @@ func TestSameAsPreviousSeesADifference(t *testing.T) {
 		}
 	})
 }
+
+// TestMoveSinceMovesAQuadLabel pins that replaying a span at another place
+// carries the label's quad, not only its rasterisation box.
+func TestMoveSinceMovesAQuadLabel(t *testing.T) {
+	var canvas Canvas
+	quad := quadCorners()
+	from := canvas.Mark()
+	canvas.LabelQuad("moved", Rect{X: 4, Y: 5, Width: 60, Height: 18}, quad, TextStyle{Size: 12})
+	canvas.moveSince(from, 40, -7)
+
+	texts := canvas.Texts()
+	if len(texts) != 1 {
+		t.Fatalf("texts = %d, want 1", len(texts))
+	}
+	for corner, point := range quad.Points {
+		want := Point{X: point.X + 40, Y: point.Y - 7}
+		if !pointNear(texts[0].Quad[corner], want) {
+			t.Fatalf("corner %d = %+v, want %+v", corner, texts[0].Quad[corner], want)
+		}
+	}
+}

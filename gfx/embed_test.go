@@ -380,3 +380,25 @@ func TestEmbedTranslatesShadowsAndTheirPaintOrder(t *testing.T) {
 			shadows[0].RectsBefore, shadows[0].TrianglesBefore)
 	}
 }
+
+// TestEmbedMovesAQuadLabel pins that an embedded view's warped label moves with
+// its view: Bounds is the rasterisation box and Quad is where the picture lands,
+// so moving only Bounds would leave the text on its old surface.
+func TestEmbedMovesAQuadLabel(t *testing.T) {
+	var child, page Canvas
+	quad := quadCorners()
+	child.LabelQuad("hello", Rect{X: 4, Y: 5, Width: 60, Height: 18}, quad, TextStyle{Size: 12})
+	mount := testMount(&page, 1)
+	page.Embed(&child, Point{X: 100, Y: 200}, mount)
+
+	texts := page.Texts()
+	if len(texts) != 1 {
+		t.Fatalf("texts = %d, want 1", len(texts))
+	}
+	for corner, point := range quad.Points {
+		want := Point{X: point.X + 100, Y: point.Y + 200}
+		if !pointNear(texts[0].Quad[corner], want) {
+			t.Fatalf("corner %d = %+v, want %+v", corner, texts[0].Quad[corner], want)
+		}
+	}
+}
