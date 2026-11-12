@@ -33,6 +33,32 @@ static uint64_t viva_scroll_event_count;
 static double viva_scroll_last_pixel_y;
 static NSUInteger viva_label_initial_count;
 
+/* The compiled shader library the application passes as it opens its windows,
+ * kept after the first one compiled its pipelines: a window that makes its
+ * Metal resources again builds a library from these bytes on the device it is
+ * given, which need not be the device the first library was compiled for. */
+static void *viva_shader_library_bytes = NULL;
+static size_t viva_shader_library_length = 0;
+
+static int viva_remember_shader_library(const unsigned char *bytes, size_t length) {
+    if (bytes == NULL || length == 0) {
+        return 0;
+    }
+    if (viva_shader_library_bytes != NULL && viva_shader_library_length == length &&
+        memcmp(viva_shader_library_bytes, bytes, length) == 0) {
+        return 1;
+    }
+    void *copy = malloc(length);
+    if (copy == NULL) {
+        return 0;
+    }
+    memcpy(copy, bytes, length);
+    free(viva_shader_library_bytes);
+    viva_shader_library_bytes = copy;
+    viva_shader_library_length = length;
+    return 1;
+}
+
 /* Window chrome modes. */
 enum {
     VIVA_WINDOW_TITLED = 0,
@@ -2493,7 +2519,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 - (NSRect)frame;
 - (BOOL)clipped;
 - (NSRect)clip;
-- (void)forceTextureRebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport;
+- (BOOL)forceTextureRebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport;
 - (void)markContentRebuild;
 - (BOOL)rebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport;
 - (BOOL)refreshWindowWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport;
@@ -2825,9 +2851,9 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
     _frame = frame;
 }
 
-- (void)forceTextureRebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport {
+- (BOOL)forceTextureRebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport {
     _lastScale = 0;
-    [self rebuildWithDevice:device scale:scale viewport:viewport];
+    return [self rebuildWithDevice:device scale:scale viewport:viewport];
 }
 
 - (void)markContentRebuild {
@@ -3828,6 +3854,7 @@ static void viva_encode_scene(
 - (void)setModifierTapsEnabled:(BOOL)enabled;
 - (void)render;
 - (void)renderWaitingForSchedule:(BOOL)wait;
+- (BOOL)recoverResources;
 - (int)updateRectangles:(const viva_rectangle *)rectangles
                   clips:(const viva_clip *)clips
               totalCount:(NSUInteger)totalCount
@@ -5015,6 +5042,91 @@ static void viva_set_secure_event_input(BOOL on) {
             fflush(stderr);
             _reportedFirstFrame = YES;
         }
+    }
+}
+
+/* recoverResources makes the window's Metal resources again after the device
+ * stopped serving them: the driver was reset, the GPU hung, an external GPU was
+ * unplugged or switched, or an allocation failed under pressure. What the
+ * window shows lives in the application, so the scene is sent again as a
+ * rebuild; the label layers rebuild their textures on the new device here.
+ * Returns NO when the device, its queue or the pipelines cannot be made, which
+ * is when the window cannot go on. */
+- (BOOL)recoverResources {
+    if (viva_shader_library_bytes == NULL) {
+        return NO;
+    }
+    @autoreleasepool {
+        id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+        if (device == nil) {
+            return NO;
+        }
+        id<MTLCommandQueue> queue = [device newCommandQueue];
+        if (queue == nil) {
+            [device release];
+            return NO;
+        }
+        dispatch_data_t libraryData = dispatch_data_create(
+            viva_shader_library_bytes,
+            viva_shader_library_length,
+            dispatch_get_main_queue(),
+            DISPATCH_DATA_DESTRUCTOR_DEFAULT
+        );
+        NSError *libraryError = nil;
+        id<MTLLibrary> library = [device newLibraryWithData:libraryData error:&libraryError];
+        dispatch_release(libraryData);
+        if (library == nil) {
+            [queue release];
+            [device release];
+            return NO;
+        }
+        // Both pipelines, whatever the window had: the frame that failed asked
+        // for rectangles, and a label texture of the old device cannot be drawn
+        // by the new one.
+        id<MTLRenderPipelineState> rectanglePipeline = viva_create_pipeline(
+            device, library, @"viva_rectangle_vertex", @"viva_rectangle_fragment", NULL);
+        id<MTLRenderPipelineState> textPipeline = viva_create_pipeline(
+            device, library, @"viva_text_vertex", @"viva_text_fragment", NULL);
+        [library release];
+        if (rectanglePipeline == nil || textPipeline == nil) {
+            [rectanglePipeline release];
+            [textPipeline release];
+            [queue release];
+            [device release];
+            return NO;
+        }
+        _metalLayer.device = device;
+        [self updateDrawableSize];
+        [_commandQueue release];
+        _commandQueue = queue;
+        [_rectanglePipeline release];
+        _rectanglePipeline = rectanglePipeline;
+        [_textPipeline release];
+        _textPipeline = textPipeline;
+        // The instance buffers belonged to the old device; the application
+        // sends every instance again, as a rebuild.
+        [_rectangleBuffer release];
+        _rectangleBuffer = nil;
+        free(_rectangleClips);
+        _rectangleClips = NULL;
+        _rectangleCount = 0;
+        _rectangleCapacity = 0;
+        free(_compositeCommands);
+        _compositeCommands = NULL;
+        _compositeCommandCount = 0;
+        CGFloat scale = MAX(_metalLayer.contentsScale, 1.0);
+        for (VivaTextLayer *layer in _textLabels) {
+            if (![layer forceTextureRebuildWithDevice:device scale:scale viewport:self.bounds.size]) {
+                [device release];
+                return NO;
+            }
+        }
+        viva_label_texture_rebuild_count += _textLabels.count;
+        [device release];
+        if (_textInputEnabled && ![self rebuildTextTexture]) {
+            return NO;
+        }
+        return YES;
     }
 }
 
@@ -6811,6 +6923,7 @@ void *viva_application_open_window(viva_window_config config) {
         id<MTLRenderPipelineState> textPipeline = nil;
         id<MTLBuffer> rectangleBuffer = nil;
         if (config.shader_library != NULL && config.shader_library_length > 0) {
+            viva_remember_shader_library(config.shader_library, config.shader_library_length);
             _Static_assert(sizeof(viva_rectangle) == 80, "rectangle ABI must be 80 bytes");
             _Static_assert(sizeof(viva_text_label) == 264, "text label ABI must be 264 bytes");
             _Static_assert(sizeof(viva_text_run) == 36, "text run ABI must be 36 bytes");
@@ -7272,6 +7385,15 @@ int viva_view_update_rectangles(
                        count:count
                      rebuild:rebuild != 0
                       render:render != 0];
+    }
+}
+
+int viva_view_recover(void *view) {
+    if (view == NULL) {
+        return 1;
+    }
+    @autoreleasepool {
+        return [(VivaMetalView *)view recoverResources] ? 0 : 1;
     }
 }
 

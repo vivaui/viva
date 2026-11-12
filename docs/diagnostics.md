@@ -44,9 +44,9 @@ on `Subsystem` and `Code`, not on the wording.
 | --- | --- | --- | --- |
 | `app` | `fault` | Error | a panic caught at a native boundary; attributes `where`, `stack`, and the context |
 | `app` | `fatal` | Error | `app.ShowFatalError`, with `title` |
-| `render` | `device-lost` | Error | the Windows graphics device was lost again and again |
-| `render` | `device-recovery-failed` | Error | the Windows device was lost and could not be made again |
-| `render` | `device-recovered` | Warn | the Windows device was lost and made again, with `software` |
+| `render` | `device-lost` | Error | the Windows or macOS graphics device was lost again and again |
+| `render` | `device-recovery-failed` | Error | the Windows or macOS device was lost and could not be made again |
+| `render` | `device-recovered` | Warn | the device was lost and made again, with `software` (Windows only) |
 | `render` | `first-frame` | Debug | the first frame on Linux, when `VIVA_PROFILE_STARTUP` measures it |
 | `render` | `window-stats` | Debug | a Linux window closed, with its GPU counters |
 | `web` | `environment` | Warn | a WebView2 environment could not be created, with `error` |

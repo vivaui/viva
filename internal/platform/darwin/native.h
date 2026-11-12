@@ -404,6 +404,10 @@ int viva_view_update_rectangles(
     int rebuild,
     int render
 );
+/* Makes the window's Metal device, pipelines and textures again after the
+ * renderer lost its resources; the scene must be sent again as a rebuild.
+ * Returns 0 on success. */
+int viva_view_recover(void *view);
 int viva_view_update_labels(
     void *view,
     const viva_text_label *labels,

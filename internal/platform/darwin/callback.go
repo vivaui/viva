@@ -9,18 +9,36 @@ package darwin
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"runtime/cgo"
+	"time"
 	"unicode/utf8"
 	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/diag"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/text"
 )
+
+// resourceError reports that the native renderer could not make a GPU
+// resource: an instance buffer, a label or text-input texture, the device's
+// pipelines. Metal gives a window no other sign that its device was reset,
+// hung, unplugged or ran out of memory, so this is the loss: the window makes
+// its resources again and the frame is sent once more. A frame the renderer
+// rejects for its content is not one.
+type resourceError struct{ message string }
+
+func (err *resourceError) Error() string { return err.message }
+
+func isResourceError(err error) bool {
+	var resource *resourceError
+	return errors.As(err, &resource)
+}
 
 // vivaShapedLine is how the native drawing reaches the text engine's cache: the
 // shaped line for the text, retained for the caller, which releases it with
@@ -560,6 +578,58 @@ func planTextEvent(terminal bool, previous, next TextState) textEventPlan {
 }
 
 func presentFrame(state *runState, view unsafe.Pointer, frame Frame, syncRender bool) error {
+	err := presentFrameOnce(state, view, frame, syncRender)
+	if err == nil || !isResourceError(err) || state == nil {
+		return err
+	}
+	return state.recoverRenderer(view, frame, syncRender, err)
+}
+
+// recoverRenderer answers a frame the renderer could not make resources for: it
+// makes the window's Metal resources again and sends the frame once more as a
+// rebuild, because the new instance buffers are empty.
+func (state *runState) recoverRenderer(view unsafe.Pointer, frame Frame, syncRender bool, cause error) error {
+	if err := state.recoverResources(view, cause); err != nil {
+		return err
+	}
+	state.rebuildNextFrame = true
+	return presentFrameOnce(state, view, frame, syncRender)
+}
+
+// recoverResources makes the window's Metal device, pipelines and textures
+// again after the renderer failed to make one. Losses that keep arriving close
+// together end the window instead of spinning; Darwin has no software
+// rasterizer, so the plan that would move there is answered with the GPU again.
+func (state *runState) recoverResources(view unsafe.Pointer, cause error) error {
+	if plan := state.devices.Next(time.Now()); plan == platform.RecoverGiveUp {
+		if diag.Enabled(diag.Error) {
+			diag.Report(diag.Error, "render", "device-lost", "the graphics device was lost again and again",
+				diag.String("error", cause.Error()))
+		}
+		return fmt.Errorf("darwin: the graphics device was lost again and again: %w", cause)
+	}
+	if status := C.viva_view_recover(view); status != 0 {
+		if diag.Enabled(diag.Error) {
+			diag.Report(diag.Error, "render", "device-recovery-failed", "the graphics device could not be made again",
+				diag.String("error", cause.Error()))
+		}
+		return fmt.Errorf("darwin: the graphics device was lost and could not be made again: %w", cause)
+	}
+	if diag.Enabled(diag.Warn) {
+		diag.Report(diag.Warn, "render", "device-recovered", "the graphics device was lost and made again",
+			diag.Bool("software", false))
+	}
+	return nil
+}
+
+func presentFrameOnce(state *runState, view unsafe.Pointer, frame Frame, syncRender bool) error {
+	if state != nil && state.rebuildNextFrame {
+		// The window made its Metal resources again since the last frame, so
+		// the instance buffers hold nothing: a partial update would be
+		// rejected, and only the whole scene can be drawn.
+		state.rebuildNextFrame = false
+		frame.Update = render.Update{Count: len(frame.Rectangles), Rebuild: true}
+	}
 	if err := presentTextInput(state, view, frame.TextInput); err != nil {
 		return err
 	}
@@ -614,6 +684,9 @@ func presentTextInput(state *runState, view unsafe.Pointer, update TextInputUpda
 		// A terminal's cursor moved: follow it without cancelling a composition.
 		moved := *update.Input
 		if status := C.viva_view_move_text_input(view, C.float(moved.X), C.float(moved.Y), C.float(moved.Width), C.float(moved.Height)); status != 0 {
+			if status == 3 {
+				return &resourceError{"darwin: failed to rebuild the text input texture"}
+			}
 			return fmt.Errorf("darwin: native text input move failed with status %d", status)
 		}
 		state.setTextInput(update.Input)
@@ -640,6 +713,9 @@ func presentTextInput(state *runState, view unsafe.Pointer, update TextInputUpda
 		state.textState = previousState
 		state.textInput = previousInput
 		state.textInputActive = previousActive
+		if status == 3 {
+			return &resourceError{"darwin: failed to rebuild the text input texture"}
+		}
 		return fmt.Errorf("darwin: native text input update failed with status %d", status)
 	}
 	return nil
@@ -753,6 +829,16 @@ func vivaTextInput(
 	next = next.WithoutRedraw() // a one-shot request, not editor state
 	if err == nil && plan.update {
 		err = updateText(view, next, state.redrawHandler == nil)
+		if isResourceError(err) {
+			// The editor's texture could not be made: make the window's
+			// resources again and type into the editor once more.
+			if recoverErr := state.recoverResources(view, err); recoverErr != nil {
+				err = recoverErr
+			} else {
+				state.rebuildNextFrame = true
+				err = updateText(view, next, state.redrawHandler == nil)
+			}
+		}
 	}
 	if err != nil {
 		state.err = err
@@ -813,6 +899,10 @@ func updateText(view unsafe.Pointer, state TextState, render bool) error {
 		C.int(boolInt(state.Composing)),
 		C.int(boolInt(render)),
 	)
+	if status == 3 {
+		// The editor's texture could not be made.
+		return &resourceError{"darwin: failed to rebuild the text input texture"}
+	}
 	if status != 0 {
 		return fmt.Errorf("darwin: native text update failed with status %d", status)
 	}
@@ -922,7 +1012,7 @@ func updateLabels(view unsafe.Pointer, labels []TextLabel) error {
 	case 2:
 		return fmt.Errorf("darwin: failed to rebuild a text label")
 	case 3:
-		return fmt.Errorf("darwin: failed to rebuild text label textures")
+		return &resourceError{"darwin: failed to rebuild text label textures"}
 	default:
 		return fmt.Errorf("darwin: label update failed with status %d", status)
 	}
@@ -995,13 +1085,20 @@ func makeNativeClip(rectangle render.Rectangle) C.viva_clip {
 }
 
 func rectangleUpdateStatus(status C.int) error {
+	return rectangleUpdateError(int(status))
+}
+
+// rectangleUpdateError maps the renderer's answer to a failed rectangle update.
+// Only a resource the device refused to make recovers; a range the scene got
+// wrong would fail the same way the second time.
+func rectangleUpdateError(status int) error {
 	switch status {
 	case 0:
 		return nil
 	case 2:
 		return fmt.Errorf("darwin: native renderer rejected rectangle update range")
 	case 3:
-		return fmt.Errorf("darwin: failed to rebuild rectangle instance buffer")
+		return &resourceError{"darwin: failed to rebuild rectangle instance buffer"}
 	default:
 		return fmt.Errorf("darwin: rectangle update failed with status %d", status)
 	}

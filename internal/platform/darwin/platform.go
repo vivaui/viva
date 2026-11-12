@@ -168,7 +168,13 @@ type runState struct {
 	webReady       func()
 	rectangleData  []C.viva_rectangle
 	rectangleClips []C.viva_clip
-	err            error
+	// devices decides how many times this window may make its Metal resources
+	// again when the renderer loses them.
+	devices platform.DeviceRecovery
+	// rebuildNextFrame says the window's instance buffers are empty because its
+	// resources were made again, so the next frame sends the whole scene.
+	rebuildNextFrame bool
+	err              error
 }
 
 type nativeApplication struct {
