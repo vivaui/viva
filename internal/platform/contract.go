@@ -1002,10 +1002,19 @@ type TextHandler func(TextEvent) (TextState, error)
 
 // Apply routes one platform text event into editor: the way a runtime connects
 // a platform text service straight to a Go-owned editor. A replacement range, if
-// the event names one, is selected first, so the event acts on it.
+// the event names one, is selected first, so the event acts on it. A marked-text
+// update that names the active composition itself is the input method continuing
+// that composition: selecting the range first would end it, so the cancel
+// snapshot would hold the preedit instead of the text the composition replaced.
 func (event TextEvent) Apply(editor *text.Editor) {
-	if event.HasReplacement {
-		editor.SetSelection(event.Replacement)
+	if event.HasReplacement && !event.continuesComposition(editor) {
+		replacement := event.Replacement
+		if selection := editor.Selection(); selection == replacement && selection.Start != selection.End && editor.Caret() == selection.Start {
+			// The selection is backwards: selecting the ordered range would flip
+			// it before the composition records the selection it must restore.
+			replacement = text.Range{Start: replacement.End, End: replacement.Start}
+		}
+		editor.SetSelection(replacement)
 	}
 	switch event.Kind {
 	case TextInsert:
@@ -1078,6 +1087,17 @@ func (event TextEvent) Apply(editor *text.Editor) {
 			editor.DeleteToLineBoundary(true)
 		}
 	}
+}
+
+// continuesComposition reports whether the event only updates the marked text
+// of the composition that is already active, instead of starting a new one whose
+// replacement range must be selected first.
+func (event TextEvent) continuesComposition(editor *text.Editor) bool {
+	if event.Kind != TextSetMarked {
+		return false
+	}
+	composition, composing := editor.Composition()
+	return composing && composition == event.Replacement
 }
 
 // TextHistoryCommand recognizes the conventional primary-modifier undo and

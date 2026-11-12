@@ -182,3 +182,57 @@ func TestTextInputRedrawRequestForcesAFrameOnceWithoutChangingTheState(t *testin
 		t.Fatal("the request outlived its event")
 	}
 }
+
+// A marked update that names the active composition's range continues the
+// composition instead of ending it: the replacement range must not be selected
+// first, or the cancel snapshot would hold the previous preedit.
+func TestTextEventApplyContinuesCompositionAcrossExplicitReplacement(t *testing.T) {
+	editor := text.NewEditor("abc")
+	editor.SetSelection(text.Range{Start: 0, End: 1})
+	TextEvent{Kind: TextSetMarked, Text: "ni", MarkedSelection: text.Range{Start: 2, End: 2}}.Apply(editor)
+	composition, composing := editor.Composition()
+	if !composing {
+		t.Fatal("the first marked update did not start a composition")
+	}
+	TextEvent{Kind: TextSetMarked, Text: "hao", MarkedSelection: text.Range{Start: 3, End: 3}, HasReplacement: true, Replacement: composition}.Apply(editor)
+	if value := editor.String(); value != "haobc" {
+		t.Fatalf("continued composition value = %q, want %q", value, "haobc")
+	}
+	TextEvent{Kind: TextCancelComposition}.Apply(editor)
+	if value := editor.String(); value != "abc" {
+		t.Fatalf("cancel after a continued composition left %q, want %q", value, "abc")
+	}
+	if selection := editor.Selection(); selection != (text.Range{Start: 0, End: 1}) {
+		t.Fatalf("cancel selection = %+v, want the replaced rune", selection)
+	}
+	if editor.Caret() != 1 {
+		t.Fatalf("cancel caret = %d, want 1", editor.Caret())
+	}
+	if _, composing := editor.Composition(); composing {
+		t.Fatal("cancel left the composition active")
+	}
+	if editor.CanUndo() || editor.CanRedo() {
+		t.Fatal("cancel after a continued composition invented history")
+	}
+}
+
+// The replacement range of a first marked update is ordered; selecting it must
+// not flip a backwards selection before the composition records it.
+func TestTextEventApplyKeepsBackwardsSelectionAcrossAReplacement(t *testing.T) {
+	editor := text.NewEditor("abc")
+	editor.SetSelection(text.Range{Start: 2, End: 1})
+	TextEvent{Kind: TextSetMarked, Text: "ni", MarkedSelection: text.Range{Start: 2, End: 2}, HasReplacement: true, Replacement: text.Range{Start: 1, End: 2}}.Apply(editor)
+	TextEvent{Kind: TextCancelComposition}.Apply(editor)
+	if value := editor.String(); value != "abc" {
+		t.Fatalf("cancel value = %q, want %q", value, "abc")
+	}
+	if selection := editor.Selection(); selection != (text.Range{Start: 1, End: 2}) {
+		t.Fatalf("cancel selection = %+v, want {1 2}", selection)
+	}
+	if editor.Caret() != 1 {
+		t.Fatalf("cancel caret = %d, want the backwards selection's moving end 1", editor.Caret())
+	}
+	if _, composing := editor.Composition(); composing {
+		t.Fatal("cancel left the composition active")
+	}
+}
