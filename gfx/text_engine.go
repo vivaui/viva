@@ -123,11 +123,13 @@ type FontFamilyAware interface {
 	// is forgotten, so the next measure shapes again.
 	SetFontFamily(family string)
 	// FontGeneration counts the changes after which the same line shapes
-	// differently: it moves on every SetFontFamily that changed the family, and
-	// when the system's own fonts changed under the engine. What the canvas or a
-	// renderer remembers of shaped text (a cut line, a rasterized label) is stale
-	// once it differs from the generation it was made at. Wrapping around is
-	// harmless: only equality is ever asked.
+	// differently: it moves on every SetFontFamily that changed the family,
+	// when the system's own fonts changed under the engine, and, on an engine
+	// that has the weight's choice (FontThickener), on every SetFontThickening
+	// that changed it. What the canvas or a renderer remembers of shaped text
+	// (a cut line, a rasterized label) is stale once it differs from the
+	// generation it was made at. Wrapping around is harmless: only equality is
+	// ever asked.
 	FontGeneration() uint32
 }
 
@@ -160,7 +162,8 @@ func (canvas *Canvas) SetTextEngine(engine TextEngine) {
 // FontGeneration is the generation of the installed engine's fonts
 // (FontFamilyAware.FontGeneration), 0 for an engine that has none. A painter
 // that sends text to a renderer stamps it on the text, so a renderer holding a
-// picture of a label made in other fonts draws it again.
+// picture of a label made in other fonts, or under another weight, draws it
+// again.
 func (canvas *Canvas) FontGeneration() uint32 {
 	if canvas.aware == nil {
 		return 0
