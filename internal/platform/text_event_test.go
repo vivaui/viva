@@ -30,6 +30,34 @@ func TestTextEventApplyPreservesUnicodeSelectionAndComposition(t *testing.T) {
 	}
 }
 
+func TestTextEventKindsAppendWithoutRenumbering(t *testing.T) {
+	if TextPasteNoText != 7 || TextCancelComposition != 8 {
+		t.Fatalf("text event kinds = %d, %d; want 7, 8", TextPasteNoText, TextCancelComposition)
+	}
+}
+
+func TestTextEventApplyCancelsComposition(t *testing.T) {
+	editor := text.NewEditor("A中B")
+	editor.SetSelection(text.Range{Start: 3, End: 1})
+	TextEvent{Kind: TextSetMarked, Text: "pin", MarkedSelection: text.Range{Start: 3, End: 3}}.Apply(editor)
+	TextEvent{Kind: TextCancelComposition}.Apply(editor)
+	if value := editor.String(); value != "A中B" {
+		t.Fatalf("cancel value = %q", value)
+	}
+	if selection := editor.Selection(); selection != (text.Range{Start: 1, End: 3}) {
+		t.Fatalf("cancel selection = %+v", selection)
+	}
+	if editor.Caret() != 1 {
+		t.Fatalf("cancel caret = %d", editor.Caret())
+	}
+	if _, composing := editor.Composition(); composing {
+		t.Fatal("cancel left the composition active")
+	}
+	if editor.CanUndo() || editor.CanRedo() {
+		t.Fatal("cancel created a history unit")
+	}
+}
+
 func TestTextHistoryCommandUsesPlatformConventionalChords(t *testing.T) {
 	for _, test := range []struct {
 		name    string

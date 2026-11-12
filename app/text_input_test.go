@@ -33,6 +33,35 @@ func TestTextSelectionAndIMEUseRuneRanges(t *testing.T) {
 	}
 }
 
+func TestTextEventKindsAppendWithoutRenumbering(t *testing.T) {
+	if TextPasteNoText != 7 || TextCancelComposition != 8 {
+		t.Fatalf("text event kinds = %d, %d; want 7, 8", TextPasteNoText, TextCancelComposition)
+	}
+}
+
+func TestTextEventAppliesCancelComposition(t *testing.T) {
+	editor := text.NewEditor("A👩‍💻B")
+	editor.SetSelection(text.Range{Start: 4, End: 1})
+	TextEvent{Kind: TextSetMarked, Text: "pin", MarkedSelection: TextRange{Start: 3, End: 3}}.Apply(editor)
+	TextEvent{Kind: TextCancelComposition}.Apply(editor)
+	want := TextState{
+		Value:             "A👩‍💻B",
+		Selection:         TextRange{Start: 1, End: 4},
+		SelectionReversed: true,
+	}
+	if got := TextStateOf(editor); got != want {
+		t.Fatalf("cancelled text state = %+v, want %+v", got, want)
+	}
+	if editor.CanUndo() || editor.CanRedo() {
+		t.Fatal("cancel created a history unit")
+	}
+	// Cancelling again changes nothing.
+	TextEvent{Kind: TextCancelComposition}.Apply(editor)
+	if got := TextStateOf(editor); got != want {
+		t.Fatalf("second cancel changed the state: %+v", got)
+	}
+}
+
 // TestDisableIMEPassesToThePlatformTextInput guards the pass-through: an input
 // that keeps the host's input method off a remote-desktop surface reaches the
 // platform editor, so the platform can act on it. A terminal hit is what such a

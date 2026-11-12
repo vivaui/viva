@@ -939,6 +939,10 @@ const (
 	// whose field accepts more than text (a chat box that takes a screenshot) reads
 	// the other formats itself, with ClipboardImagePNG. Terminals never receive it.
 	TextPasteNoText
+	// TextCancelComposition is an explicit input-method cancellation. It restores
+	// the text and selection the composition replaced and adds no history. An
+	// ordinary empty marked string is not this event.
+	TextCancelComposition
 )
 
 // TextCommand identifies keyboard editing commands emitted by AppKit.
@@ -1012,6 +1016,8 @@ func (event TextEvent) Apply(editor *text.Editor) {
 		editor.SetMarkedText(event.Text, event.MarkedSelection)
 	case TextUnmark:
 		editor.Unmark()
+	case TextCancelComposition:
+		editor.CancelComposition()
 	case TextSetSelection:
 		editor.SetSelection(event.Selection)
 	case TextCommandEvent:

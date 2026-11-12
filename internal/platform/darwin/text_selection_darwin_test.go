@@ -29,6 +29,7 @@ func TestNativeTextSelection(t *testing.T) {
 	} {
 		arguments = append(arguments, fmt.Sprintf("-DGO_TEXT_%s=%d", name, command))
 	}
+	arguments = append(arguments, fmt.Sprintf("-DGO_TEXT_CANCEL_COMPOSITION=%d", platform.TextCancelComposition))
 	arguments = append(arguments, "testdata/text_selection.m", "-o", executable,
 		"-framework", "Cocoa", "-framework", "CoreText", "-framework", "Metal", "-framework", "QuartzCore")
 	command := exec.Command("xcrun", arguments...)
