@@ -113,6 +113,15 @@ type Config struct {
 	// next frame as soon as the last one is presented. Adapters that present
 	// without blocking must report their display interval instead.
 	SetFrameInterval func(interval time.Duration)
+	// FramePresented, when set together with SetFrameInterval, is called by the
+	// adapter on the window thread once it has finished with a frame the runtime
+	// handed to OnRedraw: it presented the frame, or found nothing to present.
+	// An adapter that reports an interval of zero must call it for every frame,
+	// because the runtime asks for the next frame only then: a loop that holds a
+	// frame message queued at all times makes Windows defer the window's mouse
+	// input until the animation ends. Adapters paced by a positive interval
+	// ignore it.
+	FramePresented func()
 	// Waker, when set together with OnRedraw, lets the runtime request one
 	// redraw from any goroutine without a parked reader goroutine.
 	Waker          *Waker

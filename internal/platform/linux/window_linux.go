@@ -364,14 +364,19 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 				application.atspiFrame(state, frame.Accessibility)
 			}
 			merged, dirty, err := textInput.prepare(frame)
-			if err != nil || !dirty {
-				return err
+			if err == nil && dirty {
+				var changed bool
+				if changed, err = renderer.apply(merged); err == nil && changed {
+					err = renderer.present()
+				}
 			}
-			changed, err := renderer.apply(merged)
-			if err != nil || !changed {
-				return err
+			if err == nil && config.FramePresented != nil {
+				// The frame is shown, or had nothing to show: a present-paced
+				// frame clock may ask for the next one only now, so the event
+				// loop stays idle between frames and keeps reading input.
+				config.FramePresented()
 			}
-			return renderer.present()
+			return err
 		},
 	}
 	if err := renderer.present(); err != nil {

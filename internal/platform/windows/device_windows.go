@@ -84,13 +84,29 @@ func (state *windowState) presentImmediate(width, height int) error {
 
 func (state *windowState) presentWithSync(width, height int, sync uintptr) error {
 	err := state.renderer.presentWithSync(width, height, state.scale, sync)
-	if err == nil || !state.renderer.deviceLost() {
-		return err
+	if err != nil && state.renderer.deviceLost() {
+		if recoverErr := state.recoverDevice(err); recoverErr != nil {
+			return recoverErr
+		}
+		err = state.renderer.presentWithSync(width, height, state.scale, sync)
 	}
-	if err := state.recoverDevice(err); err != nil {
-		return err
+	if err == nil {
+		// The frame the runtime handed over is on the screen: it may ask for the
+		// next one. Asking before the present would keep a frame message in the
+		// queue the whole time a transition runs, and Windows defers the mouse
+		// input of a window that never lets its queue drain.
+		state.framePresented()
 	}
-	return state.renderer.presentWithSync(width, height, state.scale, sync)
+	return err
+}
+
+// framePresented tells the runtime the frame it was handed is done: it was
+// presented, or there was nothing to present. Its present-paced frame clock
+// asks for the next frame only after this.
+func (state *windowState) framePresented() {
+	if state.config.FramePresented != nil {
+		state.config.FramePresented()
+	}
 }
 
 // applyFrame hands a frame to the renderer, making the device again first if it

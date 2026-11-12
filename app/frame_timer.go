@@ -23,6 +23,14 @@ const minFrameInterval = time.Second / 240
 // transitions in flight; a settled canvas never calls it, so an idle
 // application owns no timer, goroutine, or wake-up. When the timer fires it
 // posts one redraw event through wake and the cycle repeats from the repaint.
+//
+// A presentation-paced window (interval zero) is asked for its next frame only
+// after the adapter reports that it has presented the current one. Asking
+// before the present keeps a frame message queued against the event loop the
+// whole time a transition runs, and Windows then defers the mouse input of a
+// window that never lets its queue drain: clicks during an animation wait until
+// it ends. The pause after a presentation also leaves the loop idle, so the
+// next frame starts from an event loop that has read its input.
 type frameTimer struct {
 	wake func()
 	// interval is the display period, zero when presentation blocks. It is
@@ -32,6 +40,15 @@ type frameTimer struct {
 	// from it, not from the end of the paint, so a slow frame does not push
 	// every later frame behind.
 	last time.Time
+	// painting is set while a frame is painted and cleared when the adapter
+	// reports it presented. A request made meanwhile is held in pending until
+	// then, which is what keeps the next frame's message out of the queue
+	// while the present blocks.
+	painting bool
+	pending  bool
+	// pendingDelay is the soonest delay asked for while painting; zero means
+	// the frame as soon as it is presented.
+	pendingDelay time.Duration
 	// now is time.Now, and a test's own clock.
 	now     func() time.Time
 	timer   *time.Timer
@@ -48,6 +65,26 @@ func newFrameTimer(wake func()) *frameTimer {
 // run on the window thread, before the paint calls request.
 func (frames *frameTimer) redrawing() {
 	frames.last = frames.now()
+	frames.painting = true
+	frames.pending = false
+}
+
+// presented records that the adapter has finished with the frame the runtime
+// handed it: it presented the frame or found nothing to present. The timer then
+// asks for the next frame the paint requested, so the event loop is left idle
+// until then. It must run on the window thread.
+func (frames *frameTimer) presented() {
+	if frames.stopped.Load() {
+		return
+	}
+	painting := frames.painting
+	frames.painting = false
+	if !painting || !frames.pending {
+		return
+	}
+	delay := frames.pendingDelay
+	frames.pending = false
+	frames.arm(delay, frames.now())
 }
 
 // setInterval tells the timer how the window is paced: zero when a presented
@@ -57,13 +94,21 @@ func (frames *frameTimer) setInterval(interval time.Duration) {
 	frames.interval = max(interval, 0)
 }
 
-// request arms the timer for a wake-up after delay, never sooner than one
-// display frame, unless a wake-up is already pending. A pending wake-up that
-// is later than the one asked for is brought forward, so an animation that
-// starts while a slow tick is waiting is not held back by it. It must be
-// called from the window thread, which is the timer's only writer.
+// request asks for the next frame after delay. A presentation-paced window
+// holds the request until presented, so the next frame's message is posted to
+// an event loop that has drained; otherwise it arms the timer at once, never
+// sooner than one display frame, unless a wake-up is already pending. A pending
+// wake-up that is later than the one asked for is brought forward, so an
+// animation that starts while a slow tick is waiting is not held back by it. It
+// must be called from the window thread, which is the timer's only writer.
 func (frames *frameTimer) request(delay time.Duration) {
 	if frames.stopped.Load() {
+		return
+	}
+	if frames.painting && frames.interval <= 0 {
+		if !frames.pending || delay < frames.pendingDelay {
+			frames.pending, frames.pendingDelay = true, max(delay, 0)
+		}
 		return
 	}
 	now := frames.now()
@@ -71,6 +116,13 @@ func (frames *frameTimer) request(delay time.Duration) {
 	if base.IsZero() {
 		base = now
 	}
+	frames.arm(delay, base)
+}
+
+// arm schedules one wake-up delay from base, paced by the display when the
+// adapter reported an interval. It must run on the window thread.
+func (frames *frameTimer) arm(delay time.Duration, base time.Time) {
+	now := frames.now()
 	step := max(delay, frames.interval)
 	if frames.interval <= 0 {
 		step = max(step, minFrameInterval)

@@ -158,6 +158,9 @@ type runState struct {
 	scrollHandler   ScrollHandler
 	dropHandler     FileDropHandler
 	redrawHandler   platform.RedrawHandler
+	// framePresented tells the runtime a frame it handed over is on the screen,
+	// so a present-paced frame clock asks for the next one only then.
+	framePresented  func()
 	closeHandler    CloseRequestHandler
 	textHandler     TextHandler
 	textState       TextState
@@ -361,6 +364,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	state.scrollHandler = config.OnScroll
 	state.dropHandler = config.OnFileDrop
 	state.redrawHandler = config.OnRedraw
+	state.framePresented = config.FramePresented
 	if config.TextInput != nil {
 		state.setTextInput(config.TextInput)
 	}

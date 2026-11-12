@@ -579,10 +579,22 @@ func planTextEvent(terminal bool, previous, next TextState) textEventPlan {
 
 func presentFrame(state *runState, view unsafe.Pointer, frame Frame, syncRender bool) error {
 	err := presentFrameOnce(state, view, frame, syncRender)
-	if err == nil || !isResourceError(err) || state == nil {
+	if err == nil {
+		if state != nil && state.framePresented != nil {
+			// The frame is on the screen (or had nothing to show), so the
+			// present-paced frame clock may ask for the next one.
+			state.framePresented()
+		}
+		return nil
+	}
+	if !isResourceError(err) || state == nil {
 		return err
 	}
-	return state.recoverRenderer(view, frame, syncRender, err)
+	err = state.recoverRenderer(view, frame, syncRender, err)
+	if err == nil && state.framePresented != nil {
+		state.framePresented()
+	}
+	return err
 }
 
 // recoverRenderer answers a frame the renderer could not make resources for: it

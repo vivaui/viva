@@ -512,10 +512,6 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state.config.OnRedraw != nil {
 			frame, redrawErr := state.config.OnRedraw()
 			state.frame(frame, redrawErr)
-			// Present before returning: with a present-paced frame clock the next
-			// redraw is posted immediately, and leaving the update to a later
-			// WM_PAINT would starve it behind the queued wakes.
-			updateWindow.Call(window)
 		}
 		return 0
 	case wmGetObject:
@@ -621,10 +617,11 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmPaint:
 		var paint paintStruct
 		beginPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
-		// A paint queued before UpdateWindow presented the frame has nothing left
-		// to draw. Presenting again would block on the next vblank for no change.
+		// An empty update region has nothing left to draw. Presenting again would
+		// block on the next vblank for no change.
 		if paint.Bounds.Right <= paint.Bounds.Left || paint.Bounds.Bottom <= paint.Bounds.Top {
 			endPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+			state.framePresented()
 			return 0
 		}
 		// Nobody can see a minimized window, and its client area no longer matches what it
@@ -634,6 +631,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		// The last visible frame stays until the restore's WM_SIZE paints the window again.
 		if state.iconic() {
 			endPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+			state.framePresented()
 			return 0
 		}
 		var bounds rect
@@ -949,8 +947,14 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 		if err == nil {
 			err = state.applyFrame(frame)
 		}
-		if err == nil && dirty {
-			invalidateRect.Call(state.window, 0, 0)
+		if err == nil {
+			if dirty {
+				invalidateRect.Call(state.window, 0, 0)
+			} else {
+				// Nothing reached the screen, so no WM_PAINT will report this
+				// frame as presented; the runtime can still ask for the next one.
+				state.framePresented()
+			}
 		}
 	}
 	if err != nil {

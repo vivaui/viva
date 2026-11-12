@@ -556,6 +556,12 @@ func (w *gtkWindow) present(frame platform.Frame, err error) {
 	if dirty {
 		w.apply(merged)
 	}
+	if w.config.FramePresented != nil {
+		// The frame is shown, or had nothing to show: a present-paced frame
+		// clock asks for the next one only now, so the event loop stays idle
+		// between frames and keeps reading input.
+		w.config.FramePresented()
+	}
 }
 
 // apply puts a frame the text layer has merged into the scene, and on to the screen.

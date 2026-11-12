@@ -104,7 +104,9 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		painter.scheduleIfAnimating()
 	}
 	var setFrameInterval func(time.Duration)
+	var framePresented func()
 	if frames != nil {
+		framePresented = frames.presented
 		setFrameInterval = func(interval time.Duration) {
 			frames.setInterval(interval)
 			if waker != nil {
@@ -182,6 +184,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		OnFileDrop:       dropHandler,
 		OnRedraw:         redrawHandler,
 		SetFrameInterval: setFrameInterval,
+		FramePresented:   framePresented,
 		Waker:            waker,
 		OnCloseRequest:   closeHandler,
 		OnClosed:         normalized.OnClosed,
