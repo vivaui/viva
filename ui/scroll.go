@@ -41,6 +41,7 @@ type ScrollState struct {
 	sideways bool    // Box.Sideways: the area scrolls left and right too
 	bars     bool    // Box.Scrollbars: the area draws its own scrollbars
 	dragging bool    // a press on one of the area's scrollbars has the pointer
+	barSize  float32 // ScrollbarSize: the bars' thickness; zero is the hover default
 }
 
 // scrollStore keeps the ScrollStates of a view, by the identity of their areas. A slot
@@ -102,6 +103,9 @@ func (s *ScrollState) Max() float32 { return max(s.Content-s.Viewport, 0) }
 
 // MaxX is how far a Sideways area can scroll left; zero for any other area.
 func (s *ScrollState) MaxX() float32 { return max(s.ContentWidth-s.ViewportWidth, 0) }
+
+// Dragging reports whether the pointer is dragging one of the area's bars.
+func (s *ScrollState) Dragging() bool { return s.dragging }
 
 // AtEnd reports whether the area shows its last row, as of the last layout.
 func (s *ScrollState) AtEnd() bool { return s.Offset >= s.Max()-0.5 }
@@ -261,7 +265,7 @@ func (f *frame) ScrollArea(id gfx.ID) Box {
 		panic("ui: ScrollArea needs an identity, for example f.ScrollArea(listID) with listID = tree.ID(page, \"list\")")
 	}
 	state := f.scrolls.get(id)
-	state.id, state.follow, state.sideways, state.bars = id, false, false, false
+	state.id, state.follow, state.sideways, state.bars, state.barSize = id, false, false, false, 0
 	b := f.Scroll(state.Offset)
 	f.extra(b.i).scrollState = state
 	return b
@@ -300,11 +304,23 @@ func (b Box) Sideways() Box {
 // edges, along whichever way its content overflows, which the pointer drags. A press
 // on a bar beside its thumb brings the middle of the thumb there and drags it on.
 // Without it, scrollbars are the application's, as they were. It has no effect on a
-// box that is not a ScrollArea.
+// box that is not a ScrollArea. The bars are revealed while the pointer is over the
+// area or a bar is dragged; a view drawn without a Page has no pointer, and keeps
+// them revealed.
 func (b Box) Scrollbars() Box {
 	if s := b.areaState(); s != nil {
 		s.bars = true
 		b.f.paintBarsFn = (*frame).paintScrollbars
+	}
+	return b
+}
+
+// ScrollbarSize sets the thickness of the scrollbars Scrollbars draws: a vertical
+// bar's width or a horizontal bar's height. Zero keeps the thin hover default.
+// Like Scrollbars, it has no effect on a box that is not a ScrollArea.
+func (b Box) ScrollbarSize(size float32) Box {
+	if s := b.areaState(); s != nil {
+		s.barSize = size
 	}
 	return b
 }

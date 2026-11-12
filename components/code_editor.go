@@ -16,6 +16,14 @@ type CodeEditorRun struct {
 	Color      gfx.Color
 }
 
+// CodeEditorMarkLayer paints colored byte ranges behind the text. Spans are
+// sorted, disjoint ranges of Value, as Marks is; layers may overlap each other.
+// A zero color is invisible. The caller owns the spans and updates them on edits.
+type CodeEditorMarkLayer struct {
+	Spans []text.Span
+	Color gfx.Color
+}
+
 // CodeEditorCaret paints a secondary caret at a byte offset, optionally beyond a line end.
 type CodeEditorCaret struct {
 	Offset       int
@@ -75,6 +83,16 @@ type CodeEditorGutter struct {
 	FoldLast          bool
 }
 
+// CodeRepresentation substitutes one source rune for a display-only label.
+// Entries in a snapshot must be sorted by Character and have unique keys.
+// An empty Label hides the rune without deleting its source bytes. Blob draws
+// an inset inverted background behind a visible label.
+type CodeRepresentation struct {
+	Character rune
+	Label     string
+	Blob      bool
+}
+
 // CodeEditorSnapshot is one caller-owned presentation of a code editor. The
 // text, selection and composition belong to the application's text.Editor; the
 // offsets are bytes of Value, which text.Editor.ByteOffset gives.
@@ -83,6 +101,9 @@ type CodeEditorSnapshot struct {
 	Label string
 	Hint  string
 	Value string
+	// Representations change display widths and labels, never source byte offsets.
+	// The caller keeps the sorted slice immutable until Paint returns.
+	Representations []CodeRepresentation
 	// Placeholder is shown, dim, while Value is empty.
 	Placeholder string
 	Disabled    bool
@@ -163,6 +184,9 @@ type CodeEditorSnapshot struct {
 	// painted brighter: the match the find bar is on.
 	Marks       []text.Span
 	CurrentMark text.Span
+	// MarkLayers paint in caller order, below Marks and the selection. They share
+	// the editor's clipping, wrapping, tabs and Unicode cell geometry.
+	MarkLayers []CodeEditorMarkLayer
 	// ScrollbarID enables a vertical scrollbar, and HorizontalScrollbarID a
 	// horizontal one for text that does not wrap. Route pointer events to Pointer.
 	ScrollbarID           gfx.ID
@@ -192,6 +216,7 @@ type CodeEditor struct {
 	fitted    bool
 	rows      []codeRow
 	indents   []int
+	reps      []CodeRepresentation
 	foldInput []CodeEditorFoldRange
 	folds     []CodeEditorFoldRange
 	shown     []string
@@ -377,9 +402,9 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 	if showWrapSymbol {
 		cols--
 	}
-	editor.fitWithFolds(value, cols, snapshot.Wrap, tabWidth, snapshot.FoldedLines)
+	editor.fitWithRepresentations(value, cols, snapshot.Wrap, tabWidth, snapshot.FoldedLines, snapshot.Representations)
 	if snapshot.ShowIndentGuides && editor.indents == nil {
-		editor.indents = indentationLevels(editor.text, tabWidth)
+		editor.indents = indentationLevels(editor.text, tabWidth, editor.reps)
 	}
 	editor.content, editor.cellWidth, editor.lineHeight = content, cellWidth, lineHeight
 
@@ -442,6 +467,7 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 		lineNumberPadding: lineNumberPadding,
 		language:          snapshot.Language, highlight: snapshot.Highlight, highlightLine: snapshot.HighlightLine, face: snapshot.MonoFace,
 		firstColumn: int(editor.scrollX / cellWidth), marks: snapshot.Marks, current: snapshot.CurrentMark,
+		markLayers:     snapshot.MarkLayers,
 		showWhitespace: snapshot.ShowWhitespace, showIndentGuides: snapshot.ShowIndentGuides, showEOL: snapshot.ShowEOL, showWrapSymbol: showWrapSymbol, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
 		invisibleColor: snapshot.InvisibleColor,
 	}
@@ -668,6 +694,7 @@ type codePaint struct {
 	face                                    gfx.MonoFace
 	firstColumn, lastColumn                 int
 	marks                                   []text.Span
+	markLayers                              []CodeEditorMarkLayer
 	current                                 text.Span
 	markCursor                              int
 	brackets                                [2]int
@@ -805,6 +832,22 @@ func (paint *codePaint) row(index int, y float32) {
 			canvas.Rounded(gfx.Rect{X: x0, Y: y, Width: x1 - x0, Height: paint.lineHeight}, 2, color)
 		}
 	}
+	for _, layer := range paint.markLayers {
+		if layer.Color.Alpha == 0 {
+			continue
+		}
+		first := sort.Search(len(layer.Spans), func(index int) bool { return layer.Spans[index].End > rowStart })
+		walker := columnWalker{editor: editor, row: row, at: rowStart}
+		for _, mark := range layer.Spans[first:] {
+			if mark.Start >= rowEnd {
+				break
+			}
+			start, end := max(mark.Start, rowStart), min(mark.End, rowEnd)
+			if end > start {
+				fill(&walker, start, end, 0, layer.Color)
+			}
+		}
+	}
 	for paint.markCursor < len(paint.marks) && paint.marks[paint.markCursor].End <= rowStart {
 		paint.markCursor++
 	}
@@ -857,13 +900,16 @@ func (paint *codePaint) row(index int, y float32) {
 	}
 
 	shown := editor.rowText(row)
+	highlight := paint.lineRuns(row)
+	paint.representationBlobs(row, y, left, highlight)
 	spec := gridRunSpec{
 		tabWidth: editor.tabWidth, firstColumn: paint.firstColumn, lastColumn: paint.lastColumn,
-		foreground: paint.foreground, disabled: editor.disabled,
-		highlight: paint.lineRuns(row), highlightBase: rowStart - int(row.lineStart),
+		representations: editor.reps, representationColor: paint.invisibleColor,
+		foreground: paint.foreground, background: paint.theme.Background, disabled: editor.disabled,
+		highlight: highlight, highlightBase: rowStart - int(row.lineStart),
 		selectionStart: paint.selectionStart - rowStart, selectionEnd: paint.selectionEnd - rowStart,
 		selectionRanges: paint.selectionRanges, selectionBase: rowStart,
-		selectionForeground: paint.selectionForeground,
+		selectionForeground: paint.selectionForeground, selectionBackground: paint.selectionBackground,
 	}
 	runs, from, to, startColumn, endColumn := gridRuns(editor.runs[:0], paint.value[rowStart:rowEnd], &spec)
 	editor.runs = runs
@@ -940,6 +986,50 @@ func (paint *codePaint) indentGuides(row codeRow, y, left float32) {
 	}
 }
 
+func (paint *codePaint) representationBlobs(row codeRow, y, left float32, highlight []CodeEditorRun) {
+	editor := paint.editor
+	if len(editor.reps) == 0 {
+		return
+	}
+	column, highlightIndex := 0, 0
+	for at := int(row.start); at < int(row.end); {
+		if column > paint.lastColumn {
+			break
+		}
+		character, size := decodeAt(paint.value, at)
+		representation, represented := representationOf(editor.reps, character)
+		width := displayCellsFor(character, column, editor.tabWidth, representation, represented)
+		if represented && representation.Blob && representation.Label != "" && width > 0 && column+width > paint.firstColumn {
+			sourceColumn := at - int(row.lineStart)
+			for highlightIndex < len(highlight) && highlight[highlightIndex].End <= sourceColumn {
+				highlightIndex++
+			}
+			color := paint.foreground
+			if highlightIndex < len(highlight) && highlight[highlightIndex].Start <= sourceColumn {
+				color = highlight[highlightIndex].Color
+				if editor.disabled {
+					color.Alpha *= 0.5
+				}
+			}
+			selected := at >= paint.selectionStart && at < paint.selectionEnd
+			if len(paint.selectionRanges) > 0 {
+				index := sort.Search(len(paint.selectionRanges), func(index int) bool { return paint.selectionRanges[index].End > at })
+				selected = index < len(paint.selectionRanges) && paint.selectionRanges[index].Start <= at
+			}
+			if selected {
+				color = paint.selectionForeground
+			}
+			paint.canvas.Rounded(gfx.Rect{
+				X:     left + float32(column)*paint.cellWidth + 1,
+				Y:     y + (paint.lineHeight-paint.cellHeight)/2 + 1,
+				Width: max(1, float32(width)*paint.cellWidth-2), Height: max(1, paint.cellHeight-2),
+			}, 2, color)
+		}
+		column += width
+		at += size
+	}
+}
+
 func (paint *codePaint) whitespace(row codeRow, y, left float32) {
 	column := 0
 	for at := int(row.start); at < int(row.end); {
@@ -950,8 +1040,9 @@ func (paint *codePaint) whitespace(row codeRow, y, left float32) {
 			break
 		}
 		character, size := decodeAt(paint.value, at)
-		width := codeCells(character, column, paint.editor.tabWidth)
-		if column+width >= paint.firstColumn && column <= paint.lastColumn {
+		representation, represented := representationOf(paint.editor.reps, character)
+		width := displayCellsFor(character, column, paint.editor.tabWidth, representation, represented)
+		if !represented && column+width >= paint.firstColumn && column <= paint.lastColumn {
 			x := left + float32(column)*paint.cellWidth
 			centerY := y + paint.lineHeight/2
 			switch character {

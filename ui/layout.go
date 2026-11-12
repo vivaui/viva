@@ -95,11 +95,13 @@ func (f *frame) measure(axis int) {
 		if d := n.size[axis]; d.kind == dimPx {
 			n.pref[axis] = d.value
 		}
+		n.raw[axis] = n.pref[axis]
+		n.pref[axis] = clamp(n.pref[axis], n.minS[axis], n.maxS[axis])
+		// A baseline is measured on the clamped size, the one paint lays the
+		// line out in.
 		if axis == axisY {
 			f.measureBaseline(n)
 		}
-		n.raw[axis] = n.pref[axis]
-		n.pref[axis] = clamp(n.pref[axis], n.minS[axis], n.maxS[axis])
 	}
 }
 
@@ -551,20 +553,42 @@ func (n *node) alignOn(parent *node) Align {
 }
 
 // measureBaseline finds the distance from the top of an element to its first line
-// of text, for Baseline alignment. Text sits at its leading's middle with an
-// ascent of about four fifths of the font size; a control's label is centered; an
-// element with no text has its bottom edge as baseline.
+// of text, for Baseline alignment. Text sits on the row the platform draws it on:
+// LabelBaseline's for interface-font lines, the mono font's own baseline
+// (Canvas.MonoBaseline) for a Mono text whose face the canvas measured. A control's
+// label uses LabelBaseline's row; an element with no text has its bottom edge as
+// baseline. The row is measured on an unstretched element: one that cross-stretches
+// paints its line centered in the taller box, below this row. An icon-only button
+// has no line, but still reports this row: its icon is centered where a label's
+// line would sit, so it aligns with the text beside it instead of pinning to the
+// row's bottom edge.
 func (f *frame) measureBaseline(n *node) {
 	switch n.kind {
 	case kindText:
-		top, _ := n.inset(axisY)
-		n.baseline = top + (n.leading()-n.fontSize)/2 + n.fontSize*0.8
-	case kindButton:
-		size := f.theme.Metrics.FontSizeM
-		if n.hasOwnTheme() {
-			size = f.ownTheme(n).Metrics.FontSizeM
+		top, bottom := n.inset(axisY)
+		height := n.leading()
+		if n.flags&flagWrap == 0 {
+			height = max(n.pref[axisY]-top-bottom, 0)
 		}
-		n.baseline = n.pref[axisY]/2 + size*0.3
+		row := f.canvas.LabelBaseline(gfx.Rect{Height: height}, gfx.TextStyle{Size: n.fontSize})
+		if n.flags&flagMono != 0 {
+			// A Mono line stands on its font's own baseline in its cell; a face no
+			// engine measured has no known row, and LabelBaseline's is the closest.
+			if mono := f.canvas.MonoBaseline(n.fontSize, n.face, height); mono > 0 {
+				row = mono
+			}
+		}
+		n.baseline = top + row
+	case kindButton:
+		theme := f.theme
+		if n.hasOwnTheme() {
+			theme = f.ownTheme(n)
+		}
+		button := components.BeginButton(f.canvas, theme, gfx.ID{}, Rect{}).Size(n.buttonSize)
+		n.baseline = f.canvas.LabelBaseline(
+			gfx.Rect{Height: n.pref[axisY]},
+			gfx.TextStyle{Size: button.LabelFontSize()},
+		)
 	case kindContainer:
 		n.baseline = n.pref[axisY]
 		is, _ := n.inset(axisY)

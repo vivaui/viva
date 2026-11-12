@@ -1040,6 +1040,12 @@ type Label struct {
 	BitmapID      uint64
 	BitmapVersion uint32
 	BitmapUpload  bool
+	// Quad, while HasQuad, is where the label's picture lands: four corners in
+	// logical pixels with the colour multiplied into each, as gfx.Canvas.LabelQuad
+	// draws it. Bounds stays the box the picture was rasterised in.
+	Quad    [4]gfx.Point
+	Tint    [4]gfx.Color
+	HasQuad bool
 }
 
 // Editor is the native text editor's overlay, drawn above everything else
@@ -1196,6 +1202,13 @@ func (driver *Driver) Snapshot() Snapshot {
 			BitmapWidth: label.BitmapWidth, BitmapHeight: label.BitmapHeight, BitmapStride: label.BitmapStride,
 			BitmapID: label.BitmapID, BitmapVersion: label.BitmapVersion,
 			BitmapUpload: label.BitmapUpload,
+			Quad:         label.Quad, HasQuad: label.HasQuad,
+		}
+		for corner, tint := range label.Tint {
+			captured.Tint[corner] = gfx.Color{
+				Red: float32(tint.Red), Green: float32(tint.Green),
+				Blue: float32(tint.Blue), Alpha: float32(tint.Alpha),
+			}
 		}
 		captured.Bitmap = append([]byte(nil), label.Bitmap...)
 		snapshot.Labels = append(snapshot.Labels, captured)

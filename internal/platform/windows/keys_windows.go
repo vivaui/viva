@@ -237,6 +237,13 @@ func (state *windowState) terminalKeyEvent(first, second uintptr, mods input.Mod
 			return platform.KeyEvent{Modifiers: mods, Repeat: repeat, Text: text, Code: keyCode(first, second), Win32: win32Key(first, second, 0, uint16(second&0xffff))}, true
 		}
 	}
+	// Alt+printable arrives as WM_SYSCHAR, so the terminal needs the key
+	// here to encode it. Control+Alt can be AltGr and still uses WM_CHAR.
+	if mods&input.ModifierAlt != 0 && mods&(input.ModifierControl|input.ModifierMeta) == 0 && printableKey(first) {
+		if text, ok := baseCharacter(first); ok {
+			return platform.KeyEvent{Modifiers: mods, Repeat: repeat, Text: text, Code: keyCode(first, second), Win32: win32Key(first, second, 0, uint16(second&0xffff))}, true
+		}
+	}
 	return platform.KeyEvent{}, false
 }
 

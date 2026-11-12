@@ -123,6 +123,12 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 	}
 	for _, text := range child.texts {
 		text.Bounds = translateRect(text.Bounds, origin)
+		if text.HasQuad {
+			for corner := range text.Quad {
+				text.Quad[corner].X += origin.X
+				text.Quad[corner].Y += origin.Y
+			}
+		}
 		text.Layer += layer
 		if text.RunCount > 0 {
 			text.RunFirst += runsBefore

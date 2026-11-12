@@ -17,12 +17,25 @@ func TestCanvasCodecPreservesRetainedOutput(t *testing.T) {
 	canvas.PushLayer(7)
 	canvas.Clip(gfx.Rect{X: 2, Y: 3, Width: 90, Height: 40})
 	canvas.Fill(gfx.Rect{X: 0, Y: 0, Width: 100, Height: 50}, gfx.Color{Alpha: 1})
+	canvas.AppendTriangle(gfx.Triangle{
+		Points: [3]gfx.Point{{X: 0, Y: 0}, {X: 12, Y: 0}, {X: 0, Y: 9}},
+		Color:  gfx.Color{Red: 1, Alpha: 0.5}, EdgeMask: 1,
+	})
 	canvas.Elevate(gfx.Rect{X: 1, Y: 2, Width: 80, Height: 30}, 6, gfx.ShadowMD)
 	canvas.Rounded(gfx.Rect{X: 1, Y: 2, Width: 80, Height: 30}, 6, gfx.Color{Red: 0.2, Green: 0.3, Blue: 0.4, Alpha: 1})
+	canvas.AppendTriangle(gfx.Triangle{
+		Points: [3]gfx.Point{{X: 1, Y: 1}, {X: 9, Y: 2}, {X: 3, Y: 8}},
+		Color:  gfx.Color{Alpha: 1}, Shaded: true,
+		Shade: [2]gfx.Color{{Green: 1, Alpha: 1}, {Blue: 1, Alpha: 1}},
+	})
 	canvas.DrawBitmapRegion(gfx.Bitmap{
 		Pix: []byte{0, 0, 255, 255, 0, 255, 0, 255}, Width: 2, Height: 1, Stride: 8, ID: 55, Version: 2,
 	}, gfx.Rect{X: 1, Width: 1, Height: 1}, gfx.Rect{X: 10, Y: 10, Width: 20, Height: 10})
 	canvas.Label("reload", gfx.Rect{X: 5, Y: 6, Width: 50, Height: 14}, gfx.TextStyle{Size: 12, Weight: 600, Italic: true, Color: gfx.Color{Alpha: 1}})
+	canvas.LabelQuad("warped", gfx.Rect{X: 12, Y: 20, Width: 48, Height: 16}, gfx.Quad{
+		Points: [4]gfx.Point{{X: 12, Y: 20}, {X: 56, Y: 22}, {X: 12, Y: 36}, {X: 56, Y: 38}},
+		Tint:   [4]gfx.Color{{Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Red: 0.9, Green: 0.9, Blue: 0.9, Alpha: 1}, {Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Red: 0.9, Green: 0.9, Blue: 0.9, Alpha: 1}},
+	}, gfx.TextStyle{Size: 12, Color: gfx.Color{Alpha: 1}})
 	canvas.Unclip()
 	canvas.PopLayer()
 	canvas.PushLayer(600)
@@ -218,5 +231,57 @@ func TestACloseWithoutAnAnswerIsStillAnEOF(t *testing.T) {
 
 	if _, err := client.await(context.Background(), 7, messageShutdown, result); !errors.Is(err, io.EOF) {
 		t.Fatalf("err = %v, want io.EOF", err)
+	}
+}
+
+func roundTripCanvas(t *testing.T, canvas *gfx.Canvas) *gfx.Canvas {
+	t.Helper()
+	snapshot := CaptureCanvas(canvas)
+	data, err := encodeCanvas(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := decodeCanvas(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored gfx.Canvas
+	ApplyCanvas(&restored, decoded)
+	return &restored
+}
+
+// TestCanvasCodecKeepsResolvedRTLPlacement pins that a label's place is not
+// aligned again when it crosses the wire. The snapshot carries the box and quad
+// after alignment; replaying them with AlignStart would shift right-to-left
+// text a second time.
+func TestCanvasCodecKeepsResolvedRTLPlacement(t *testing.T) {
+	const value = "שלום"
+	style := gfx.TextStyle{Size: 16, Color: gfx.Color{Alpha: 1}}
+	var measure gfx.Canvas
+	box := gfx.Rect{X: 10, Y: 12, Width: measure.TextWidthStyle(value, style) + 80, Height: 22}
+	quad := gfx.Quad{
+		Points: [4]gfx.Point{{X: 10, Y: 12}, {X: 90, Y: 15}, {X: 12, Y: 34}, {X: 92, Y: 31}},
+		Tint:   [4]gfx.Color{{Alpha: 1}, {Alpha: 1}, {Alpha: 1}, {Alpha: 1}},
+	}
+	for _, test := range []struct {
+		name  string
+		paint func(*gfx.Canvas)
+	}{
+		{"quad", func(canvas *gfx.Canvas) {
+			canvas.LabelQuadAligned(value, box, quad, style, gfx.AlignStart)
+		}},
+		{"text", func(canvas *gfx.Canvas) {
+			canvas.LabelAligned(value, box, style, gfx.AlignStart)
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var canvas gfx.Canvas
+			test.paint(&canvas)
+			want := CaptureCanvas(&canvas)
+			got := CaptureCanvas(roundTripCanvas(t, &canvas))
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("restored canvas differs\ngot:  %#v\nwant: %#v", got, want)
+			}
+		})
 	}
 }

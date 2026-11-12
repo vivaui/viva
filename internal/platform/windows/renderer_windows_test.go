@@ -238,7 +238,7 @@ func TestRendererReusesAMovedLabelByIdentity(t *testing.T) {
 	}
 }
 
-func TestRendererDoesNotShareTexturesAcrossOwners(t *testing.T) {
+func TestRendererDoesNotShareSlotsAcrossOwners(t *testing.T) {
 	first := platform.TextLabel{Value: "same", Width: 30, Height: 10, Identity: gfx.TextIdentity{Owner: 1, Item: 7}}
 	other := platform.TextLabel{Value: "same", Width: 30, Height: 10, Identity: gfx.TextIdentity{Owner: 2, Item: 7}}
 	var renderer renderer
@@ -251,7 +251,7 @@ func TestRendererDoesNotShareTexturesAcrossOwners(t *testing.T) {
 		t.Fatal(err)
 	}
 	if renderer.labelFrame[0] == firstSlot {
-		t.Fatal("the same item number under another owner reused the texture")
+		t.Fatal("the same item number under another owner reused the retained slot")
 	}
 	otherSlot := renderer.labelFrame[0]
 	renderer.labels[otherSlot].stale = false

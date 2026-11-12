@@ -31,6 +31,7 @@ const dxgiDevice3Trim = 17
 // trim flushes the device's deferred work and asks the driver to release the
 // memory it caches. A renderer without a device does nothing.
 func (renderer *renderer) trim() {
+	renderer.labelPictures.evict(0)
 	if renderer.device == 0 || renderer.context == 0 {
 		return
 	}

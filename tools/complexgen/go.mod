@@ -1,6 +1,6 @@
 module github.com/vivaui/viva/tools/complexgen
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/go-text/typesetting v0.3.5

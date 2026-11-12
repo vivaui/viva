@@ -166,7 +166,14 @@ func (canvas *Canvas) moveSince(from Mark, dx, dy float32) {
 		canvas.images[i].Bounds = canvas.images[i].Bounds.Offset(dx, dy)
 	}
 	for i := from.texts; i < uint32(len(canvas.texts)); i++ {
-		canvas.texts[i].Bounds = canvas.texts[i].Bounds.Offset(dx, dy)
+		text := &canvas.texts[i]
+		text.Bounds = text.Bounds.Offset(dx, dy)
+		if text.HasQuad {
+			for corner := range text.Quad {
+				text.Quad[corner].X += dx
+				text.Quad[corner].Y += dy
+			}
+		}
 	}
 	for i := from.hits; i < uint32(len(canvas.hits)); i++ {
 		hit := &canvas.hits[i]

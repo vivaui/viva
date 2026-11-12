@@ -252,7 +252,10 @@ func (renderer *renderer) prepareLabels(scale float32) error {
 		if !shown {
 			continue
 		}
-		if !(label.view == 0 || label.stale || label.scale != scale || label.skip != skip || skip > 0 && label.width != windowWidth) {
+		if !(label.view == 0 || label.stale || label.scale != scale || label.skip != skip || skip > 0 && label.width != windowWidth || renderer.pictureChanged(label, scale, skip, windowWidth)) {
+			continue
+		}
+		if renderer.reuseLabelPicture(label, scale) {
 			continue
 		}
 		_, full, err := batch.add(label, scale, allowLCD)

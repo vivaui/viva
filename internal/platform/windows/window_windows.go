@@ -66,6 +66,13 @@ const (
 	wsOverlappedWindow = 0x00cf0000
 )
 
+const (
+	spiSetFontSmoothing            = 0x4b
+	spiSetFontSmoothingContrast    = 0x200b
+	spiSetFontSmoothingType        = 0x200d
+	spiSetFontSmoothingOrientation = 0x2013
+)
+
 type windowState struct {
 	fullscreen          atomic.Bool
 	fullscreenChanging  bool
@@ -539,12 +546,18 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if engine, err := theTextEngine(); err == nil {
 			engine.forget()
 		}
+		state.renderer.invalidateText()
+		invalidateRect.Call(window, 0, 0)
 	case wmSettingChange:
 		// The user changed some system setting, perhaps the light or dark mode
 		// ("ImmersiveColorSet"). The observer reads the mode and ignores the rest.
 		state.wheel = readWheelSettings()
 		state.settingsChanged()
 		platform.NotifyAppearanceChanged()
+		if first == 0 || first == spiSetFontSmoothing || first == spiSetFontSmoothingContrast || first == spiSetFontSmoothingType || first == spiSetFontSmoothingOrientation {
+			state.renderer.invalidateText()
+			invalidateRect.Call(window, 0, 0)
+		}
 	case wmActivate:
 		if uint16(first) == waInactive {
 			state.panelDeactivated()

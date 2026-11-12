@@ -1406,7 +1406,7 @@ func (painter *painter) applyClipping() {
 			continue
 		}
 		if text.HasClip {
-			if _, visible := intersectVisible(text.Bounds, text.ClipOf); !visible {
+			if !textClipVisible(text) {
 				continue
 			}
 		}
@@ -1536,6 +1536,28 @@ func triangleBounds(points [3]gfx.Point) gfx.Rect {
 	right := max32(points[0].X, max32(points[1].X, points[2].X))
 	bottom := max32(points[0].Y, max32(points[1].Y, points[2].Y))
 	return gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+}
+
+func quadBounds(points [4]gfx.Point) gfx.Rect {
+	left := min32(min32(points[0].X, points[1].X), min32(points[2].X, points[3].X))
+	top := min32(min32(points[0].Y, points[1].Y), min32(points[2].Y, points[3].Y))
+	right := max32(max32(points[0].X, points[1].X), max32(points[2].X, points[3].X))
+	bottom := max32(max32(points[0].Y, points[1].Y), max32(points[2].Y, points[3].Y))
+	return gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+}
+
+func textClipVisible(text gfx.Text) bool {
+	_, visible := intersectVisible(text.Bounds, text.ClipOf)
+	if text.HasQuad {
+		_, warped := intersectVisible(quadBounds(text.Quad), text.ClipOf)
+		visible = visible || warped
+	}
+	return visible
+}
+
+func textClipCuts(text gfx.Text) bool {
+	return !containsRect(text.ClipOf, text.Bounds) ||
+		text.HasQuad && !containsRect(text.ClipOf, quadBounds(text.Quad))
 }
 
 func intersectVisible(bounds, clip gfx.Rect) (gfx.Rect, bool) {
@@ -2164,9 +2186,22 @@ func (painter *painter) syncLabels() {
 			// The font does not draw the cell glyphs; appendCellGlyphs did.
 			entry.Value, entry.Runs = painter.replaceCellGlyphs(entry.Value, entry.Runs)
 		}
-		if label.HasClip && !containsRect(label.ClipOf, label.Bounds) {
-			// The clip cuts the label partway: the renderers scissor to it.
-			entry.Clip, entry.Clipped = label.ClipOf, true
+		if label.HasClip {
+			if textClipCuts(label) {
+				// The clip cuts the label partway: the renderers scissor to it.
+				entry.Clip, entry.Clipped = label.ClipOf, true
+			}
+		}
+		if label.HasQuad {
+			// A warped line keeps its rasterisation box and moves only where the
+			// picture lands, so the platform draws the same texture as a quad.
+			entry.Quad, entry.HasQuad = label.Quad, true
+			for corner, tint := range label.Tint {
+				entry.Tint[corner] = platform.Color{
+					Red: float64(tint.Red), Green: float64(tint.Green),
+					Blue: float64(tint.Blue), Alpha: float64(tint.Alpha),
+				}
+			}
 		}
 		painter.labels = append(painter.labels, entry)
 	}
@@ -2417,6 +2452,14 @@ func (painter *painter) sameAsLastContent() bool {
 			return false
 		}
 		if a.HasClip != b.HasClip || a.HasClip && a.ClipOf != b.ClipOf {
+			return false
+		}
+		// Where a warped line lands changes every frame of an animation while
+		// its picture stays the same: the platform must still see the new quad.
+		if a.HasQuad != b.HasQuad {
+			return false
+		}
+		if a.HasQuad && (a.Quad != b.Quad || a.Tint != b.Tint) {
 			return false
 		}
 		if a.RunCount == 0 {

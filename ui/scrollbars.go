@@ -15,9 +15,17 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 	content := gfx.Size{Width: s.ContentWidth + xs + xe, Height: s.Content + ys + ye}
 	parts := f.canvas.Tree().Sub(s.id.Scope(), s.id.Name())
 	vertical, horizontal := parts.At(0), parts.At(1)
+	// A scroll area without a Page has no pointer to rest on it: a view's bars
+	// stay revealed, as they did before pages tracked the pointer.
+	hinted := f.page == nil || f.page.pointerOver(n.rect)
+	size := s.barSize
+	if size <= 0 && f.page != nil {
+		size = f.page.config.ScrollbarSize
+	}
 	area := components.BeginScrollArea(f.canvas, f.theme, n.rect, content).
 		Offset(s.OffsetX, s.Offset).
-		HoverScrollbars(true). // thin, over the content, shown while it overflows
+		ScrollbarSize(size).
+		HoverScrollbars(hinted || s.dragging).
 		VerticalScrollbar(vertical, "Vertical scrollbar", "").
 		HorizontalScrollbar(horizontal, "Horizontal scrollbar", "")
 	geometry := area.Geometry()

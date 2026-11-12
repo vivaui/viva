@@ -52,7 +52,13 @@ func scenery(snapshot app.Snapshot) ([]render.Rectangle, []platform.TextLabel, *
 			Bitmap: label.Bitmap, BitmapWidth: label.BitmapWidth, BitmapHeight: label.BitmapHeight,
 			BitmapStride: label.BitmapStride, BitmapID: label.BitmapID, BitmapVersion: label.BitmapVersion,
 			BitmapUpload: len(label.Bitmap) > 0,
-			Color:        platform.Color{Red: float64(label.Color.Red), Green: float64(label.Color.Green), Blue: float64(label.Color.Blue), Alpha: float64(label.Color.Alpha)},
+			Quad:         label.Quad, HasQuad: label.HasQuad,
+			Color: platform.Color{Red: float64(label.Color.Red), Green: float64(label.Color.Green), Blue: float64(label.Color.Blue), Alpha: float64(label.Color.Alpha)},
+		}
+		for corner, tint := range label.Tint {
+			labels[index].Tint[corner] = platform.Color{
+				Red: float64(tint.Red), Green: float64(tint.Green), Blue: float64(tint.Blue), Alpha: float64(tint.Alpha),
+			}
 		}
 	}
 	var input *platform.TextInput

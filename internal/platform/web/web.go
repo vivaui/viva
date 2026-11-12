@@ -225,6 +225,11 @@ func (runtime *runtime) resize() {
 		// Browser zoom changes the pixel size text is shaped at, and so its advances.
 		runtime.measurer.forget()
 	}
+	if runtime.canvas != nil {
+		// The canvas rounds icons, strokes and the label baseline to the display's
+		// device pixels, so it must count them at the ratio the context is scaled by.
+		runtime.canvas.SetPixelScale(runtime.dpr)
+	}
 	width := runtime.window.Get("innerWidth").Int()
 	if width <= 0 && runtime.config.Width > 0 {
 		width = runtime.config.Width

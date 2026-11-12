@@ -232,3 +232,51 @@ func TestCompositionAfterCancelUsesTheRestoredText(t *testing.T) {
 		t.Fatalf("undo after cancel and commit = %q", editor.String())
 	}
 }
+
+func TestCancelCompositionRestoresHistoryAfterOversizedPreedit(t *testing.T) {
+	editor := NewEditor("base")
+	editor.Paste("!")
+	marked := strings.Repeat("x", maxSingleEditRunes+1)
+	editor.SetMarkedText(marked, Range{Start: len(marked), End: len(marked)})
+	if editor.CanUndo() {
+		t.Fatal("oversized preedit did not exercise history clearing")
+	}
+	if !editor.CancelComposition() || editor.String() != "base!" {
+		t.Fatalf("cancel after oversized preedit left %q", editor.String())
+	}
+	if !editor.Undo() || editor.String() != "base" {
+		t.Fatalf("cancel lost the original undo history: %q", editor.String())
+	}
+	if !editor.Redo() || editor.String() != "base!" {
+		t.Fatalf("redo after oversized preedit cancel left %q", editor.String())
+	}
+}
+
+func TestClearHistoryDuringCompositionClearsTrackedHistory(t *testing.T) {
+	editor := NewEditor("ab\ncd")
+	editor.TrackLineEdits()
+	if err := editor.ReplaceRangesWith([]Replacement{
+		{Range: Range{Start: 0, End: 1}, Text: "A"},
+		{Range: Range{Start: 3, End: 4}, Text: "C"},
+	}, ReplaceRangesOptions{Forward: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(editor.journal.lines.batches) == 0 {
+		t.Fatal("setup did not retain line batch metadata")
+	}
+	editor.SetSavePoint()
+	editor.SetMarkedText("ni", Range{Start: 2, End: 2})
+	editor.ClearHistory()
+	if len(editor.journal.lines.batches) != 0 || editor.journal.lines.delivery != nil {
+		t.Fatal("ClearHistory retained line history metadata")
+	}
+	if !editor.AtSavePoint() || editor.CanUndo() || editor.CanRedo() {
+		t.Fatal("ClearHistory did not reset the save point and forget history")
+	}
+	if !editor.CancelComposition() || editor.String() != "Ab\nCd" {
+		t.Fatalf("cancel after tracked ClearHistory left %q", editor.String())
+	}
+	if !editor.AtSavePoint() || editor.CanUndo() || editor.CanRedo() {
+		t.Fatal("cancel resurrected cleared history or changed the reset save point")
+	}
+}

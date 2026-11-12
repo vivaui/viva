@@ -48,6 +48,8 @@ func TestATerminalGetsEditingKeysAndChordsAsRawKeys(t *testing.T) {
 		{"Enter", 13, 0, input.KeyEnter, ""},
 		{"Ctrl+R", 'R', input.ModifierControl, input.KeyUnknown, "r"},
 		{"Ctrl+Space", 0x20, input.ModifierControl, input.KeySpace, ""},
+		{"Alt+F", 'F', input.ModifierAlt, input.KeyUnknown, "f"},
+		{"Alt+B", 'B', input.ModifierAlt, input.KeyUnknown, "b"},
 	} {
 		events = events[:0]
 		if !state.textKey(test.vk, 0, test.mods) {

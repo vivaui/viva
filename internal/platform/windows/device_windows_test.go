@@ -47,6 +47,7 @@ func TestRendererMakesItsDeviceAgain(t *testing.T) {
 		t.Fatal("a healthy device reads as lost")
 	}
 	for _, software := range []bool{false, true} {
+		picture := drawn.labels[0].picture
 		if err := drawn.recover(software); err != nil {
 			t.Fatalf("recover(software %v): %v", software, err)
 		}
@@ -56,11 +57,17 @@ func TestRendererMakesItsDeviceAgain(t *testing.T) {
 		if drawn.labels[0].view != 0 || drawn.labels[0].label.Value != "Viva" {
 			t.Fatal("a label kept a texture of the old device, or lost its text")
 		}
+		if picture == nil || picture.view != 0 || picture.texture != 0 || drawn.labelPictures.bytes != 0 {
+			t.Fatal("device recovery retained a picture from the old device")
+		}
 		if err := drawn.present(64, 64, 1); err != nil {
 			t.Fatalf("present after recover(software %v): %v", software, err)
 		}
 		if drawn.labels[0].view == 0 {
 			t.Fatal("the label was not drawn on the new device")
+		}
+		if drawn.labels[0].picture == picture {
+			t.Fatal("device recovery reused a revoked picture")
 		}
 	}
 }

@@ -602,6 +602,39 @@ func TestRepaintMovesLabelWithoutChangingText(t *testing.T) {
 	}
 }
 
+func TestRepaintPublishesAQuadThatMovesWithoutTheText(t *testing.T) {
+	var canvas gfx.Canvas
+	shift := float32(0)
+	config := Config{Title: "quad", Width: 100, Height: 100}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		box := gfx.Rect{X: 10, Y: 40, Width: 60, Height: 12}
+		white := gfx.RGBA(255, 255, 255, 1)
+		canvas.LabelQuad("tilted", box, gfx.Quad{
+			Points: [4]gfx.Point{
+				{X: box.X + shift, Y: box.Y},
+				{X: box.X + box.Width + shift, Y: box.Y},
+				{X: box.X + shift, Y: box.Y + box.Height},
+				{X: box.X + box.Width + shift, Y: box.Y + box.Height},
+			},
+			Tint: [4]gfx.Color{white, white, white, white},
+		}, gfx.TextStyle{Size: 12})
+	}
+	painter := newTestPainter(t, &canvas, config)
+	if _, err := painter.resize(size(100, 100)); err != nil {
+		t.Fatal(err)
+	}
+	shift = 7
+	frame, err := painter.resize(size(100, 100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The picture and its box are unchanged; only where it lands is new. A
+	// renderer that skipped this frame would keep drawing the old quad.
+	if len(frame.TextLabels) != 1 || !frame.TextLabels[0].HasQuad || frame.TextLabels[0].Quad[1].X != 77 {
+		t.Fatalf("moved quad was not published: %+v", frame.TextLabels)
+	}
+}
+
 func TestRepaintWithTextChangeRebuildsLabels(t *testing.T) {
 	var canvas gfx.Canvas
 	canvas.Label("100", gfx.Rect{X: 2, Y: 2, Width: 40, Height: 12}, gfx.TextStyle{Size: 12})

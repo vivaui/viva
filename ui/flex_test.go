@@ -367,10 +367,11 @@ func TestPercentBasisAndCappedGrowth(t *testing.T) {
 func TestBaselineAlignmentLinesUpDifferentSizes(t *testing.T) {
 	var view View
 	var big, small Box
+	canvas := testCanvas()
 	baseline := func(b Box, size float32) float32 {
-		return b.Rect().Y + (b.Rect().Height-size-7)/2 + (size+7-size)/2 + size*0.8
+		return canvas.LabelBaseline(b.Rect(), gfx.TextStyle{Size: size})
 	}
-	f := view.Begin(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 300, Height: 60})
+	f := view.Begin(canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 60})
 	f.Row().Height(60).Items(Baseline).Children(func() {
 		big = f.Text("Big").FontSize(24)
 		small = f.Text("small").FontSize(11)

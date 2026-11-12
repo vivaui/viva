@@ -169,7 +169,13 @@ type runState struct {
 	webReady       func()
 	rectangleData  []C.viva_rectangle
 	rectangleClips []C.viva_clip
-	err            error
+	// devices decides how many times this window may make its Metal resources
+	// again when the renderer loses them.
+	devices platform.DeviceRecovery
+	// rebuildNextFrame says the window's instance buffers are empty because its
+	// resources were made again, so the next frame sends the whole scene.
+	rebuildNextFrame bool
+	err              error
 }
 
 type nativeApplication struct {
@@ -707,6 +713,20 @@ func makeNativeTextLabels(labels []TextLabel) (unsafe.Pointer, []unsafe.Pointer,
 			origin_y:        C.float(label.OriginY),
 			font_generation: C.uint32_t(label.FontGeneration),
 		}
+		if label.HasQuad {
+			// The corners and their colours decide where the label's picture
+			// lands; an all-zero quad is the axis-aligned box (see native.h).
+			for corner, point := range label.Quad {
+				native[validCount].quad[corner*2] = C.float(point.X)
+				native[validCount].quad[corner*2+1] = C.float(point.Y)
+			}
+			for corner, tint := range label.Tint {
+				native[validCount].tint[corner*4] = C.float(tint.Red)
+				native[validCount].tint[corner*4+1] = C.float(tint.Green)
+				native[validCount].tint[corner*4+2] = C.float(tint.Blue)
+				native[validCount].tint[corner*4+3] = C.float(tint.Alpha)
+			}
+		}
 		validCount++
 	}
 	if validCount == 0 {
@@ -964,6 +984,19 @@ func labelABI() (labelSize, runsOffset, runSize uintptr) {
 	return unsafe.Sizeof(C.viva_text_label{}),
 		unsafe.Offsetof(C.viva_text_label{}.runs),
 		unsafe.Sizeof(C.viva_text_run{})
+}
+
+// labelQuadABI reports where the quad and tint arrays sit in the label
+// structure shared with native code.
+func labelQuadABI() (quadOffset, tintOffset uintptr) {
+	return unsafe.Offsetof(C.viva_text_label{}.quad),
+		unsafe.Offsetof(C.viva_text_label{}.tint)
+}
+
+// rectangleCapacity is the instance slots the renderer's rectangle buffers
+// need for count instances, given the slots they already hold.
+func rectangleCapacity(capacity, count uintptr) uintptr {
+	return uintptr(C.viva_rectangle_capacity(C.size_t(capacity), C.size_t(count)))
 }
 
 // planLabelReuse runs the native plan that decides which old label texture each
