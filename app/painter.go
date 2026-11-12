@@ -2450,7 +2450,10 @@ func (painter *painter) sameAsLastContent() bool {
 		}
 		// Where a warped line lands changes every frame of an animation while
 		// its picture stays the same: the platform must still see the new quad.
-		if a.HasQuad != b.HasQuad || a.Quad != b.Quad || a.Tint != b.Tint {
+		if a.HasQuad != b.HasQuad {
+			return false
+		}
+		if a.HasQuad && (a.Quad != b.Quad || a.Tint != b.Tint) {
 			return false
 		}
 		if a.RunCount == 0 {
