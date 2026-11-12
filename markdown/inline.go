@@ -63,6 +63,16 @@ func (d *Document) inline(s string, style Style, link string, depth int) {
 			}
 			i += n
 			continue
+		case '!':
+			if i+1 < len(s) && s[i+1] == '[' {
+				if labelEnd, dest, end := d.findLink(s, i+1); end >= 0 {
+					d.emit(s[text:i], style, link)
+					d.spans = append(d.spans, Span{Text: s[i+2 : labelEnd], Style: style, Link: link, Image: dest})
+					i = end
+					text = i
+					continue
+				}
+			}
 		case '[':
 			if link == "" && depth < maxNesting {
 				if labelEnd, dest, end := d.findLink(s, i); end >= 0 {
