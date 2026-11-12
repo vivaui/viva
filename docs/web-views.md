@@ -92,6 +92,14 @@ scheme, a message in each direction and a menu that stands over the page.
   pointer in the clipped corners, and Windows cuts the same outline into the child window's region. GTK has no
   native rounded page: `Open` fails with `ErrUnsupported` for a nonzero radius rather than open a page with
   square corners.
+- `Ephemeral` keeps the page's cookies, `localStorage`, IndexedDB and caches in memory only, separate from
+  every other page, and drops them when the page closes: a run of the application leaves nothing the page kept
+  on disk. macOS gives the configuration a non-persistent `WKWebsiteDataStore`; Windows needs WebView2 1.0.1020
+  or newer and runs the page in an InPrivate controller (InPrivate is per controller, so two ephemeral pages
+  still share nothing, though the runtime's user data folder is shared by the whole application); Linux makes
+  the page's own ephemeral `WebKitWebContext` with `webkit_web_context_new_ephemeral` and creates the page in
+  it, and the context ends with the page (WebKitGTK 2.16 or newer). Where the engine cannot do it, the page is
+  refused or closed rather than opened with a store that persists.
 - `Canvas.NativeView` declares where the page is, on the current layer and inside the current clip. What Viva
   paints on that layer or below is hidden by the page; what it paints on a higher layer (a menu, a tooltip,
   `ui`'s `f.PopupLayer`) stands over it, and a hit region on a higher layer takes the pointer where it lies

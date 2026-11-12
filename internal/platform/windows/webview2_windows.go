@@ -361,8 +361,15 @@ func wide(text string) *uint16 {
 
 // The vtable slots used, counted from IUnknown's three.
 const (
-	envCreateController       = 3
-	envCreateResponse         = 4
+	envCreateController = 3
+	envCreateResponse   = 4
+	// ICoreWebView2Environment10 offers controller options and a controller made with them
+	// (WebView2 1.0.1020 and newer): CreateCoreWebView2ControllerOptions and
+	// CreateCoreWebView2ControllerWithOptions.
+	envCreateControllerOptions     = 20
+	envCreateControllerWithOptions = 21
+	// ICoreWebView2ControllerOptions::put_IsInPrivateModeEnabled.
+	optionsPutInPrivateMode   = 6
 	controllerPutVisible      = 4
 	controllerPutBounds       = 6
 	controllerMoveFocus       = 12
@@ -399,12 +406,16 @@ const (
 	downloadArgsPutResultPath = 7
 	downloadArgsPutHandled    = 9
 	downloadGetURI            = 9
+	resourceArgsGetRequest    = 3
+	resourceArgsPutResponse   = 5
 	// ICoreWebView2WebResourceRequestedEventArgs::GetDeferral holds the request open.
 	resourceArgsGetDeferral = 6
 	// ICoreWebView2Deferral::Complete says the request may continue.
-	deferralComplete        = 3
-	resourceArgsGetRequest  = 3
-	resourceArgsPutResponse = 5
-	resourceRequestGetURI   = 3
-	resourceContextAll      = 0
+	deferralComplete      = 3
+	resourceRequestGetURI = 3
+	resourceContextAll    = 0
 )
+
+// iidEnvironment10 is ICoreWebView2Environment10, which offers the controller options an InPrivate
+// page is made with. A runtime older than 1.0.1020 does not answer for it.
+var iidEnvironment10 = guid{0xee0eb9df, 0x6f12, 0x46ce, [8]byte{0xb5, 0x3f, 0x3f, 0x47, 0xb9, 0xc9, 0x28, 0xe0}}

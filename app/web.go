@@ -112,6 +112,11 @@ type WebViewConfig struct {
 	// BridgeMainFrameOnly injects window.viva into the main frame only, so an embedded frame does
 	// not get the bridge. False keeps it in every frame, as today.
 	BridgeMainFrameOnly bool
+	// Ephemeral keeps the page's cookies, storage and caches in memory only, separate from every
+	// other page, and drops them when the page closes: a run of the application leaves nothing the
+	// page kept on disk. It needs WebView2 1.0.1020 or newer on Windows and WebKitGTK 2.16 or newer
+	// on Linux; a runtime that cannot do it never falls back to a store that persists.
+	Ephemeral bool
 }
 
 // WebNavigation is one navigation the page wants to make.
@@ -207,6 +212,7 @@ func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 	platformConfig := platform.WebViewConfig{
 		ID: uint32(id), URL: config.URL, HTML: config.HTML, BaseURL: config.BaseURL, Proxy: config.Proxy,
 		TopCornerRadius: config.TopCornerRadius,
+		Ephemeral:       config.Ephemeral,
 	}
 	// What a page tells the application usually changes what it shows, so a callback is followed
 	// by a paint.

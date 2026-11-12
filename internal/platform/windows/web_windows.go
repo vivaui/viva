@@ -100,6 +100,10 @@ type windowsWeb struct {
 	// lies over it without being drawn; they pass what they get to the window.
 	covers   []uintptr
 	coverSet []gfx.Rect
+	// failure is why the runtime could not make the page as asked; returned says Open has given
+	// the page to the application already, which then hears of a failure only from the report.
+	failure  error
+	returned bool
 }
 
 func newWebHost(state *windowState, host *platform.WebHost, initial []platform.NativeView) *webHost {
@@ -168,6 +172,14 @@ func (w *webHost) open(config platform.WebViewConfig) (platform.WebView, error) 
 		}
 		page.createController(environment)
 	})
+	// The environment may answer inside withEnvironment, before the page's share of it is
+	// recorded above: a page that failed there has not let go of it yet.
+	if page.failure != nil {
+		page.environment.leave()
+		page.environment = nil
+		return nil, page.failure
+	}
+	page.returned = true
 	return page, nil
 }
 
@@ -186,7 +198,52 @@ func (page *windowsWeb) createController(environment uintptr) {
 		page.attach(environment)
 		return 0
 	})
-	comCall(environment, envCreateController, page.window, handler)
+	if !page.config.Ephemeral {
+		comCall(environment, envCreateController, page.window, handler)
+		return
+	}
+	// InPrivate belongs to the controller, not to the environment: the environment is shared by
+	// every page of the user data folder, and the controller is the page's own. A runtime too old
+	// to offer the options cannot make an ephemeral page, and must not fall back to a controller
+	// that keeps the page's data on disk.
+	if err := page.createPrivateController(environment, handler); err != nil {
+		page.fail(err)
+	}
+}
+
+// createPrivateController makes the page's controller with IsInPrivateModeEnabled, through the
+// options of ICoreWebView2Environment10 (WebView2 1.0.1020 and newer).
+func (page *windowsWeb) createPrivateController(environment, handler uintptr) error {
+	var environment10 uintptr
+	status := comCall(environment, 0, uintptr(unsafe.Pointer(&iidEnvironment10)), uintptr(unsafe.Pointer(&environment10)))
+	if int32(uint32(status)) < 0 || environment10 == 0 {
+		return fmt.Errorf("%w: an ephemeral page needs WebView2 1.0.1020 or newer", platform.ErrWebViewUnsupported)
+	}
+	defer comCall(environment10, 2)
+	var options uintptr
+	if status := comCall(environment10, envCreateControllerOptions, uintptr(unsafe.Pointer(&options))); int32(uint32(status)) < 0 || options == 0 {
+		return fmt.Errorf("windows: make the WebView2 controller options: HRESULT %#x", uint32(status))
+	}
+	defer comCall(options, 2)
+	if status := comCall(options, optionsPutInPrivateMode, 1); int32(uint32(status)) < 0 {
+		return fmt.Errorf("windows: turn on WebView2 InPrivate mode: HRESULT %#x", uint32(status))
+	}
+	if status := comCall(environment10, envCreateControllerWithOptions, page.window, options, handler); int32(uint32(status)) < 0 {
+		return fmt.Errorf("windows: create the InPrivate WebView2 controller: HRESULT %#x", uint32(status))
+	}
+	return nil
+}
+
+// fail ends a page the runtime could not make as the application asked: a page that must keep
+// nothing does not run with the shared store instead.
+func (page *windowsWeb) fail(err error) {
+	page.failure = err
+	page.closed = true
+	delete(page.host.pages, page.id)
+	page.release()
+	if page.returned {
+		fmt.Fprintln(os.Stderr, "windows:", err)
+	}
 }
 
 // attach wires the page's events and what it is given, and runs what was asked of it meanwhile.

@@ -100,8 +100,12 @@ func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error)
 	}
 	script := C.CString(scriptText)
 	defer C.free(unsafe.Pointer(script))
+	var ephemeral C.int
+	if config.Ephemeral {
+		ephemeral = 1
+	}
 	var failure *C.char
-	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, &failure)
+	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, ephemeral, &failure)
 	if native == nil {
 		message := "the page could not be created"
 		if failure != nil {
