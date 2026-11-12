@@ -954,12 +954,12 @@ func (paint *codePaint) representationBlobs(row codeRow, y, left float32, highli
 	}
 	column, highlightIndex := 0, 0
 	for at := int(row.start); at < int(row.end); {
-		character, size := decodeAt(paint.value, at)
-		width := displayCells(character, column, editor.tabWidth, editor.reps)
 		if column > paint.lastColumn {
 			break
 		}
+		character, size := decodeAt(paint.value, at)
 		representation, represented := representationOf(editor.reps, character)
+		width := displayCellsFor(character, column, editor.tabWidth, representation, represented)
 		if represented && representation.Blob && representation.Label != "" && width > 0 && column+width > paint.firstColumn {
 			sourceColumn := at - int(row.lineStart)
 			for highlightIndex < len(highlight) && highlight[highlightIndex].End <= sourceColumn {
@@ -1001,8 +1001,9 @@ func (paint *codePaint) whitespace(row codeRow, y, left float32) {
 			break
 		}
 		character, size := decodeAt(paint.value, at)
-		width := displayCells(character, column, paint.editor.tabWidth, paint.editor.reps)
-		if column+width >= paint.firstColumn && column <= paint.lastColumn {
+		representation, represented := representationOf(paint.editor.reps, character)
+		width := displayCellsFor(character, column, paint.editor.tabWidth, representation, represented)
+		if !represented && column+width >= paint.firstColumn && column <= paint.lastColumn {
 			x := left + float32(column)*paint.cellWidth
 			centerY := y + paint.lineHeight/2
 			switch character {

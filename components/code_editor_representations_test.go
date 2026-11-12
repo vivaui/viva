@@ -215,6 +215,115 @@ func TestCodeEditorPlainAndHiddenRepresentationsDoNotPaintBlob(t *testing.T) {
 	}
 }
 
+func TestCodeEditorRepresentedWhitespaceDoesNotPaintOrdinaryMarkers(t *testing.T) {
+	for _, sample := range []struct {
+		name      string
+		character rune
+		markers   int
+	}{
+		{name: "space", character: ' ', markers: 1},
+		{name: "tab", character: '\t', markers: 3},
+	} {
+		t.Run(sample.name, func(t *testing.T) {
+			fixture := newCodeFixture("A" + string(sample.character) + "B")
+			fixture.snapshot.ShowWhitespace = true
+			fixture.snapshot.InvisibleColor = gfx.RGB(48, 96, 144)
+			fixture.paint()
+			if marks := fixture.fills(fixture.snapshot.InvisibleColor); len(marks) != sample.markers {
+				t.Fatalf("ordinary whitespace markers = %d; want %d", len(marks), sample.markers)
+			}
+			for _, label := range []string{"", "LABEL"} {
+				fixture.snapshot.Representations = []CodeRepresentation{{Character: sample.character, Label: label}}
+				fixture.paint()
+				if marks := fixture.fills(fixture.snapshot.InvisibleColor); len(marks) != 0 {
+					t.Errorf("representation %q still paints ordinary whitespace markers: %+v", label, marks)
+				}
+			}
+			fixture.snapshot.Representations = nil
+			fixture.paint()
+			if marks := fixture.fills(fixture.snapshot.InvisibleColor); len(marks) != sample.markers {
+				t.Fatalf("removing representations left %d markers; want %d", len(marks), sample.markers)
+			}
+		})
+	}
+}
+
+func TestCodeEditorDisabledBlobLabelsFadeOnce(t *testing.T) {
+	for _, sample := range []struct {
+		name      string
+		highlight bool
+		selection bool
+		multiple  bool
+	}{
+		{name: "normal"},
+		{name: "highlight", highlight: true},
+		{name: "selection", selection: true},
+		{name: "multiple selections", selection: true, multiple: true},
+	} {
+		t.Run(sample.name, func(t *testing.T) {
+			fixture := newCodeFixture("A\u200bB")
+			fixture.snapshot.Disabled = true
+			fixture.snapshot.Representations = []CodeRepresentation{{Character: '\u200b', Label: "ZWSP", Blob: true}}
+			want := fixture.theme.Background
+			if sample.highlight {
+				fixture.snapshot.HighlightLine = func(_ string, _ int, _ string, dst []CodeEditorRun) []CodeEditorRun {
+					return append(dst, CodeEditorRun{Start: 1, End: 4, Color: gfx.RGB(180, 40, 60)})
+				}
+			}
+			if sample.selection {
+				want = fixture.theme.Selection
+				if sample.multiple {
+					fixture.snapshot.SelectionRanges = []text.Span{{Start: 1, End: 4}}
+				} else {
+					fixture.snapshot.SelectionStart, fixture.snapshot.SelectionEnd = 1, 4
+				}
+			}
+			want.Alpha *= 0.5
+			fixture.paint()
+			found := false
+			for _, label := range fixture.canvas.Texts() {
+				if !strings.Contains(label.Value, "ZWSP") {
+					continue
+				}
+				for _, run := range fixture.canvas.TextRuns(label) {
+					if run.Bytes == 4 && run.Cells == 4 {
+						found = true
+						if run.Color != want {
+							t.Errorf("disabled blob label color = %+v; want %+v", run.Color, want)
+						}
+					}
+				}
+			}
+			if !found {
+				t.Fatal("disabled blob label was not painted")
+			}
+		})
+	}
+}
+
+func BenchmarkCodeEditorPaintRepresentations(b *testing.B) {
+	for _, sample := range []struct {
+		name string
+		reps []CodeRepresentation
+	}{
+		{name: "default"},
+		{name: "labels", reps: []CodeRepresentation{{Character: '\t', Label: "TAB"}, {Character: '\u200b', Label: "ZWSP"}}},
+		{name: "blobs", reps: []CodeRepresentation{{Character: '\t', Label: "TAB", Blob: true}, {Character: '\u200b', Label: "ZWSP", Blob: true}}},
+	} {
+		b.Run(sample.name, func(b *testing.B) {
+			fixture := newCodeFixture(strings.Repeat("A\u200b\tB C\n", 100))
+			fixture.snapshot.Focused = false
+			fixture.snapshot.Representations = sample.reps
+			fixture.paint()
+			b.ReportAllocs()
+			b.ResetTimer()
+			for index := 0; index < b.N; index++ {
+				fixture.paint()
+			}
+		})
+	}
+}
+
 // TestCodeEditorIndentGuidesFollowDisplayedIndentation puts a representation and
 // an indentation guide on the same leading whitespace: the guides must be placed
 // in the displayed columns the layout used, not in the source tab stops, or a

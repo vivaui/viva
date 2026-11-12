@@ -95,8 +95,12 @@ func representationOf(reps []CodeRepresentation, character rune) (CodeRepresenta
 }
 
 func displayCells(character rune, column, tabWidth int, reps []CodeRepresentation) int {
-	representation, ok := representationOf(reps, character)
-	if !ok {
+	representation, represented := representationOf(reps, character)
+	return displayCellsFor(character, column, tabWidth, representation, represented)
+}
+
+func displayCellsFor(character rune, column, tabWidth int, representation CodeRepresentation, represented bool) int {
+	if !represented {
 		return codeCells(character, column, tabWidth)
 	}
 	cells := 0
@@ -809,7 +813,7 @@ func gridRuns(dst []gfx.TextRun, line string, spec *gridRunSpec) (runs []gfx.Tex
 	for at := 0; at < len(line); {
 		r, size := decodeAt(line, at)
 		representation, represented := representationOf(spec.representations, r)
-		width := displayCells(r, column, spec.tabWidth, spec.representations)
+		width := displayCellsFor(r, column, spec.tabWidth, representation, represented)
 		bytes := size
 		if represented {
 			bytes = len(representation.Label)
@@ -856,9 +860,13 @@ func gridRuns(dst []gfx.TextRun, line string, spec *gridRunSpec) (runs []gfx.Tex
 				color = spec.selectionForeground
 			}
 			if represented && representation.Blob {
-				color = spec.background
 				if selected {
 					color = spec.selectionBackground
+				} else {
+					color = spec.background
+					if spec.disabled {
+						color.Alpha *= 0.5
+					}
 				}
 			}
 			plain := !represented && (r == '\t' || r >= 0x20 && r < 0x7f && !startsWithMark(line, at+size, len(line)))
