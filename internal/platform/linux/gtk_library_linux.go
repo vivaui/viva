@@ -179,6 +179,8 @@ type gtkLibrary struct {
 	valueUnset           func(value *gValue)
 	listAppend           func(list, data uintptr) uintptr
 	listFree             func(list uintptr)
+	userSpecialDir       func(kind int32) uintptr
+	filenameToURI        func(filename, hostname *byte, err **byte) uintptr
 
 	// cairo.
 	cairoSurfaceForData func(data *byte, format, width, height, stride int32) uintptr
@@ -441,6 +443,8 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.valueUnset, "g_value_unset")
 	b(&g.listAppend, "g_list_append")
 	b(&g.listFree, "g_list_free")
+	b(&g.filenameToURI, "g_filename_to_uri")
+	g.lookup(&g.userSpecialDir, "g_get_user_special_dir")
 
 	b(&g.cairoSurfaceForData, "cairo_image_surface_create_for_data")
 	b(&g.cairoSurfaceDestroy, "cairo_surface_destroy")

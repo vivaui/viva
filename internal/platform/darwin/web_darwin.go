@@ -12,6 +12,7 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -91,10 +92,16 @@ func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error)
 		scheme = C.CString(config.Scheme.Name)
 		defer C.free(unsafe.Pointer(scheme))
 	}
-	script := C.CString(platform.WebBridgeScript)
+	scriptText := platform.WebBridgeScript
+	mainFrameOnly := C.int(0)
+	if config.BridgeMainFrameOnly {
+		scriptText = platform.WebBridgeMainFrameOnlyScript
+		mainFrameOnly = 1
+	}
+	script := C.CString(scriptText)
 	defer C.free(unsafe.Pointer(script))
 	var failure *C.char
-	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, scheme, &failure)
+	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, &failure)
 	if native == nil {
 		message := "the page could not be created"
 		if failure != nil {
@@ -271,6 +278,76 @@ func vivaWebLoad(handle C.uintptr_t, id C.uint32_t, phase C.int, url *C.char) {
 		return
 	}
 	page.config.OnLoad(platform.WebLoad{Phase: platform.WebLoadPhase(phase), URL: C.GoString(url)})
+}
+
+// vivaWebNavigate asks the application about a navigation before WebKit makes it. It answers 1 to
+// allow, which is what an application that set no Navigate wants.
+//
+//export vivaWebNavigate
+func vivaWebNavigate(handle C.uintptr_t, id C.uint32_t, url *C.char, mainFrame, userGesture C.int) C.int {
+	page := pageOf(handle, id)
+	if page == nil || page.config.Navigate == nil {
+		return 1
+	}
+	navigation := platform.WebNavigation{
+		URL:         C.GoString(url),
+		MainFrame:   mainFrame != 0,
+		UserGesture: userGesture != 0,
+	}
+	if !page.config.Navigate(navigation) {
+		return 0
+	}
+	return 1
+}
+
+// vivaWebNewWindow asks the application about a window.open or target=_blank. It answers 1 when the
+// address was handed to the system's browser, and 0 otherwise; the page itself is never opened in
+// the window.
+//
+//export vivaWebNewWindow
+func vivaWebNewWindow(handle C.uintptr_t, id C.uint32_t, url *C.char) C.int {
+	page := pageOf(handle, id)
+	if page == nil || page.config.NewWindow == nil {
+		return 0
+	}
+	address := C.GoString(url)
+	if !page.config.NewWindow(address) {
+		return 0
+	}
+	_ = OpenURL(address)
+	return 1
+}
+
+// vivaWebDownload asks the application about a download before its body is written. It answers 1
+// to allow and 0 otherwise, which is what an application that set no Download wants.
+//
+//export vivaWebDownload
+func vivaWebDownload(handle C.uintptr_t, id C.uint32_t, url *C.char) C.int {
+	page := pageOf(handle, id)
+	if page == nil || page.config.Download == nil {
+		return 0
+	}
+	if !page.config.Download(C.GoString(url)) {
+		return 0
+	}
+	return 1
+}
+
+// vivaWebDownloadPath is where a download the application allowed is saved: a free name under
+// folder, or under the user's downloads folder when the platform names none. The caller frees the
+// result.
+//
+//export vivaWebDownloadPath
+func vivaWebDownloadPath(folder, suggested, address *C.char) *C.char {
+	directory := C.GoString(folder)
+	if directory == "" {
+		directory = platform.DownloadsFolder()
+	}
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return nil
+	}
+	name := platform.DownloadFileName(C.GoString(suggested), C.GoString(address))
+	return C.CString(platform.FreeDownloadPath(directory, name))
 }
 
 //export vivaWebServe

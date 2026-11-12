@@ -138,3 +138,52 @@ func TestAPageWithoutASchemeGivesThePlatformNone(t *testing.T) {
 		t.Fatalf("a page with no scheme got %+v", opened.Scheme)
 	}
 }
+
+func TestNavigationDecisionsReachThePlatform(t *testing.T) {
+	var got platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		got = config
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	navigate := func(navigation WebNavigation) bool {
+		return navigation.URL == "viva-app://page/" && navigation.MainFrame
+	}
+	newWindow := func(url string) bool { return url == "https://example.com/" }
+	download := func(url string) bool { return url == "viva-app://page/file.txt" }
+	_, err := host.Open(WebViewConfig{
+		URL: "viva-app://page/", Navigate: navigate, NewWindow: newWindow, Download: download,
+		BridgeMainFrameOnly: true,
+	})
+	if !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v", err)
+	}
+	if got.Navigate == nil || !got.Navigate(platform.WebNavigation{URL: "viva-app://page/", MainFrame: true}) {
+		t.Fatal("Navigate is not the application's")
+	}
+	if got.Navigate(platform.WebNavigation{URL: "https://example.com/", MainFrame: true}) {
+		t.Fatal("Navigate let an address through the application refused")
+	}
+	if got.NewWindow == nil || !got.NewWindow("https://example.com/") || got.NewWindow("viva-app://page/") {
+		t.Fatal("NewWindow is not the application's")
+	}
+	if got.Download == nil || !got.Download("viva-app://page/file.txt") || got.Download("https://example.com/file.txt") {
+		t.Fatal("Download is not the application's")
+	}
+	if !got.BridgeMainFrameOnly {
+		t.Fatal("BridgeMainFrameOnly was not copied")
+	}
+}
+
+func TestNavigationDecisionsStayUnset(t *testing.T) {
+	var got platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		got = config
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	if _, err := host.Open(WebViewConfig{}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v", err)
+	}
+	if got.Navigate != nil || got.NewWindow != nil || got.Download != nil || got.BridgeMainFrameOnly {
+		t.Fatalf("unset decisions reached the platform as %+v", got)
+	}
+}

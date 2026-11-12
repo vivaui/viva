@@ -44,6 +44,8 @@ var (
 	getParent       = user.NewProc("GetParent")
 	webHostClass    = "VivaWebHost"
 	webHostRegister sync.Once
+
+	shGetKnownFolderPath = shell.NewProc("SHGetKnownFolderPath")
 )
 
 // webAnswer is an asynchronous scheme request the runtime is holding open with a deferral, and the
@@ -61,6 +63,12 @@ var (
 	webAnswers    = map[uintptr]*webAnswer{}
 	webAnswerNext uintptr
 )
+
+// folderIDDownloads is FOLDERID_Downloads, the known folder the user keeps downloads in.
+var folderIDDownloads = guid{0x374de290, 0x123f, 0x4565, [8]byte{0x91, 0x64, 0x39, 0xc4, 0x92, 0x5e, 0x46, 0x7b}}
+
+// interfaceWebView4 is IID_ICoreWebView2_4: the interface that adds DownloadStarting to the view.
+var interfaceWebView4 = guid{0x20d02d59, 0x6df2, 0x42dc, [8]byte{0xbd, 0x06, 0xf9, 0x8a, 0x69, 0x4b, 0x13, 0x02}}
 
 // webHost is the pages of one window.
 type webHost struct {
@@ -191,11 +199,18 @@ func (page *windowsWeb) attach(environment uintptr) {
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
 	comCall(view, viewAddNavStarting, newHandler(func(_, args uintptr) uintptr {
-		var address uintptr
-		comCall(args, startingGetURI, uintptr(unsafe.Pointer(&address)))
-		page.loaded(platform.WebLoadStarted, wideString(address))
+		page.navigationStarting(args, true)
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
+	comCall(view, viewAddFrameNavStarting, newHandler(func(_, args uintptr) uintptr {
+		page.navigationStarting(args, false)
+		return 0
+	}), uintptr(unsafe.Pointer(&token)))
+	comCall(view, viewAddNewWindowRequested, newHandler(func(_, args uintptr) uintptr {
+		page.newWindowRequested(args)
+		return 0
+	}), uintptr(unsafe.Pointer(&token)))
+	page.addDownloadHandler()
 	for _, event := range []struct {
 		slot  int
 		phase platform.WebLoadPhase
@@ -208,7 +223,11 @@ func (page *windowsWeb) attach(environment uintptr) {
 			return 0
 		}), uintptr(unsafe.Pointer(&token)))
 	}
-	comCall(view, viewAddScriptOnCreate, uintptr(unsafe.Pointer(wide(platform.WebBridgeScript))), 0)
+	script := platform.WebBridgeScript
+	if page.config.BridgeMainFrameOnly {
+		script = platform.WebBridgeMainFrameOnlyScript
+	}
+	comCall(view, viewAddScriptOnCreate, uintptr(unsafe.Pointer(wide(script))), 0)
 	if scheme := page.config.Scheme; scheme != nil && scheme.Name != "" {
 		comCall(view, viewAddWebResourceReq, newHandler(func(_, args uintptr) uintptr {
 			page.serve(environment, args)
@@ -247,12 +266,118 @@ func (page *windowsWeb) loaded(phase platform.WebLoadPhase, address string) {
 	if page.closed || page.config.OnLoad == nil {
 		return
 	}
+	page.config.OnLoad(platform.WebLoad{Phase: phase, URL: page.appAddress(address)})
+}
+
+// appAddress is an address as the application knows it: the page's own scheme is served as
+// https://<name>.viva-app.invalid/, and a decision or a load report names the address the
+// application wrote.
+func (page *windowsWeb) appAddress(address string) string {
 	if scheme := page.config.Scheme; scheme != nil {
 		if rest, ok := strings.CutPrefix(address, "https://"+scheme.Name+webSchemeTLD+"/"); ok {
-			address = scheme.Name + "://" + rest
+			return scheme.Name + "://" + rest
 		}
 	}
-	page.config.OnLoad(platform.WebLoad{Phase: phase, URL: address})
+	return address
+}
+
+// navigationStarting asks the application about a navigation before the request leaves. A
+// refused navigation is cancelled, so the foreign document is never fetched.
+func (page *windowsWeb) navigationStarting(args uintptr, mainFrame bool) {
+	var address uintptr
+	comCall(args, startingGetURI, uintptr(unsafe.Pointer(&address)))
+	url := wideString(address)
+	if mainFrame {
+		page.loaded(platform.WebLoadStarted, url)
+	}
+	if page.config.Navigate == nil {
+		return
+	}
+	var gesture, redirect int32
+	comCall(args, startingGetUserGesture, uintptr(unsafe.Pointer(&gesture)))
+	comCall(args, startingGetRedirected, uintptr(unsafe.Pointer(&redirect)))
+	if page.config.Navigate(platform.WebNavigation{
+		URL:         page.appAddress(url),
+		MainFrame:   mainFrame,
+		UserGesture: gesture != 0 && redirect == 0,
+	}) {
+		return
+	}
+	comCall(args, startingPutCancel, 1)
+}
+
+// newWindowRequested answers a window.open or target=_blank. The runtime opens its own window
+// unless the request says the application handled it, so an allowed address goes to the system's
+// browser and a refused or nil NewWindow opens nothing.
+func (page *windowsWeb) newWindowRequested(args uintptr) {
+	var address uintptr
+	comCall(args, newWindowGetURI, uintptr(unsafe.Pointer(&address)))
+	url := page.appAddress(wideString(address))
+	comCall(args, newWindowPutHandled, 1)
+	if page.config.NewWindow == nil || !page.config.NewWindow(url) {
+		return
+	}
+	_ = OpenURL(url)
+}
+
+// addDownloadHandler watches for downloads through ICoreWebView2_4, which is where DownloadStarting
+// lives. A runtime older than that cannot report one before it starts, so a download there cannot
+// be refused; it is said once rather than pretended away.
+func (page *windowsWeb) addDownloadHandler() {
+	var extended uintptr
+	if err := hresult(comCall(page.view, 0, uintptr(unsafe.Pointer(&interfaceWebView4)), uintptr(unsafe.Pointer(&extended)))); err != nil || extended == 0 {
+		if diag.Enabled(diag.Warn) {
+			diag.Report(diag.Warn, "web", "download", "the WebView2 runtime cannot report downloads (ICoreWebView2_4 is missing); Download cannot refuse them")
+		}
+		return
+	}
+	defer comCall(extended, 2)
+	var token int64
+	comCall(extended, viewAddDownloadStarting, newHandler(func(_, args uintptr) uintptr {
+		page.downloadStarting(args)
+		return 0
+	}), uintptr(unsafe.Pointer(&token)))
+}
+
+// downloadStarting asks the application about a download before the runtime writes it. The result
+// file path is a free name in the user's downloads folder, and the runtime's own download UI is
+// hidden either way.
+func (page *windowsWeb) downloadStarting(args uintptr) {
+	var operation uintptr
+	if comCall(args, downloadArgsGetOperation, uintptr(unsafe.Pointer(&operation))) != 0 || operation == 0 {
+		comCall(args, downloadArgsPutCancel, 1)
+		return
+	}
+	var address uintptr
+	comCall(operation, downloadGetURI, uintptr(unsafe.Pointer(&address)))
+	url := page.appAddress(wideString(address))
+	comCall(args, downloadArgsPutHandled, 1)
+	if page.config.Download == nil || !page.config.Download(url) {
+		comCall(args, downloadArgsPutCancel, 1)
+		return
+	}
+	suggested := ""
+	var result uintptr
+	if comCall(args, downloadArgsGetResultPath, uintptr(unsafe.Pointer(&result))) == 0 && result != 0 {
+		suggested = filepath.Base(wideString(result))
+	}
+	folder := downloadsFolder()
+	if err := os.MkdirAll(folder, 0o700); err != nil {
+		comCall(args, downloadArgsPutCancel, 1)
+		return
+	}
+	destination := platform.FreeDownloadPath(folder, platform.DownloadFileName(suggested, url))
+	comCall(args, downloadArgsPutResultPath, uintptr(unsafe.Pointer(wide(destination))))
+}
+
+// downloadsFolder is the user's downloads folder: the known folder, which may have been moved
+// (OneDrive does), or the fallback when the system cannot name it.
+func downloadsFolder() string {
+	var path uintptr
+	if status, _, _ := shGetKnownFolderPath.Call(uintptr(unsafe.Pointer(&folderIDDownloads)), 0, 0, uintptr(unsafe.Pointer(&path))); status == 0 && path != 0 {
+		return wideString(path) // copies and frees the task allocator's string
+	}
+	return platform.DownloadsFolder()
 }
 
 // serve answers a request for the page's scheme, which is served as https://<name>.viva-app.invalid/
