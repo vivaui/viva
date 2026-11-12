@@ -29,14 +29,26 @@ app.RunCanvas(app.Config{Web: web, Paint: func(canvas *gfx.Canvas, size gfx.Size
 scheme, a message in each direction and a menu that stands over the page.
 
 - `WebViewConfig` takes a `URL`, or `HTML`; a `Scheme` serves `name://host/path` from the application's own
-  resources without a server (`Serve` gets the path after the host). On Windows the scheme is served as
-  `https://name.viva-app.invalid/host/path` (WebView2 only takes a custom scheme registered before any page
-  exists), so write relative URLs in the pages; `OnLoad` reports addresses with the scheme as you wrote it.
-  `LoadHTML`'s base URL is ignored on Windows.
+  resources without a server (`Serve` gets the path after the host). `Respond` answers with a `WebResponse`
+  instead: a status (0 is 200), a MIME type, headers and a body; `ok` false is a 404. `ServeAsync` replaces
+  both: it is called on the window's thread, does its work wherever it likes, and answers once through
+  `respond`, from any goroutine; a second call, or one after the page closed, is ignored. `Headers` are merged
+  over `Content-Type`, `Content-Length` and `Access-Control-Allow-Origin: *`: a name is case-insensitive, and a
+  header with an empty value removes the default. A 204 or 304 carries no body. On Windows the scheme is
+  served as `https://name.viva-app.invalid/host/path` (WebView2 only takes a custom scheme registered before
+  any page exists), so write relative URLs in the pages; `OnLoad` reports addresses with the scheme as you
+  wrote it. `LoadHTML`'s base URL is ignored on Windows.
+- On Linux, the status and headers of a scheme's answer need WebKitGTK's `WebKitURISchemeResponse` (2.36 or
+  newer, and the 2.44 build used here has it). An older engine that lacks it finishes with
+  `webkit_uri_scheme_request_finish`, which drops them: the body is served as 200, and a 404 becomes the
+  engine's failed load. macOS (`NSHTTPURLResponse`) and Windows (`CreateWebResourceResponse`) answer with
+  the full response.
 - The page and the application talk through `window.viva.postMessage(text)` / `window.viva.onmessage` and
   `OnMessage` / `WebView.PostMessage`. A page sees nothing else of the application.
 - Everything runs on the window's thread: `OnReady`, the callbacks, the methods of `WebHost` and `WebView`.
-  Reach it from another goroutine with an `Invalidator` and `OnWake`. A callback is followed by a paint.
+  Reach it from another goroutine with an `Invalidator` and `OnWake`; the work of `ServeAsync` and its
+  `respond` is the one exception, and `respond` may be called from any goroutine. A callback is followed by a
+  paint.
 - `Proxy` (`"127.0.0.1:1080"`) holds a page to a SOCKS5 proxy on this machine: every request, loopback
   included, goes through it, names are resolved by the proxy, and WebRTC sends no UDP around it, so the page
   reaches only what the proxy reaches (a tunnel to a remote network, Tor, a test harness). On Windows each

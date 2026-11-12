@@ -10,8 +10,9 @@
 // What the page does reaches Go through these (web_darwin.go).
 extern void vivaWebMessage(uintptr_t handle, uint32_t id, char *utf8);
 extern void vivaWebLoad(uintptr_t handle, uint32_t id, int phase, char *url);
-extern int vivaWebServe(uintptr_t handle, uint32_t id, char *scheme, char *path, char **mime,
-                        unsigned char **data, size_t *length);
+extern int vivaWebServe(uintptr_t handle, uint32_t id, char *scheme, char *path, int *status,
+                        char **headers, unsigned char **data, size_t *length);
+extern int vivaWebServeAsync(uintptr_t handle, uint32_t id, char *scheme, char *path, uint64_t request);
 extern void vivaWebReady(uintptr_t handle);
 
 static void viva_web_main(void (^work)(void)) {
@@ -28,10 +29,37 @@ static void viva_web_main(void (^work)(void)) {
 @public
     uintptr_t _handle;
     uint32_t _id;
+    // The async requests still to be answered, by request id, and the reverse of the id by task, so
+    // stopURLSchemeTask can find one. The dictionary retains the task: a task is never messaged
+    // after it is removed from here, which is what keeps a late answer from touching a released one.
+    NSMutableDictionary<NSNumber *, id<WKURLSchemeTask>> *_tasks;
+    NSMutableDictionary<NSValue *, NSNumber *> *_taskIDs;
 }
+- (void)answerRequest:(uint64_t)request status:(int)status headers:(char *)headers data:(unsigned char *)data length:(size_t)length;
+- (void)cancelTasks;
 @end
 
+// The bridge that owns each outstanding request, and the request ids, both touched on the main thread
+// only: start and stop are main-thread calls, and an answer from Go is marshaled there first.
+static NSMutableDictionary<NSNumber *, VivaWebBridge *> *viva_web_answers;
+static uint64_t viva_web_next_request;
+
 @implementation VivaWebBridge
+
+- (instancetype)init {
+    self = [super init];
+    if (self != nil) {
+        _tasks = [[NSMutableDictionary alloc] init];
+        _taskIDs = [[NSMutableDictionary alloc] init];
+    }
+    return self;
+}
+
+- (void)dealloc {
+    [_tasks release];
+    [_taskIDs release];
+    [super dealloc];
+}
 
 - (void)userContentController:(WKUserContentController *)controller didReceiveScriptMessage:(WKScriptMessage *)message {
     (void)controller;
@@ -73,6 +101,64 @@ static void viva_web_main(void (^work)(void)) {
     [self notify:web phase:2];
 }
 
+// finishTask answers task and lets it go. headers is the header block Go resolved: one "Name: value"
+// line each.
+- (void)finishTask:(id<WKURLSchemeTask>)task status:(int)status headers:(char *)headers data:(unsigned char *)data length:(size_t)length {
+    NSMutableDictionary *fields = [NSMutableDictionary dictionary];
+    if (headers != NULL) {
+        NSString *block = [NSString stringWithUTF8String:headers];
+        for (NSString *line in [block componentsSeparatedByString:@"\r\n"]) {
+            NSRange colon = [line rangeOfString:@":"];
+            if (colon.location == NSNotFound) {
+                continue;
+            }
+            NSString *name = [[line substringToIndex:colon.location] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            NSString *value = [[line substringFromIndex:colon.location + 1] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            if (name.length > 0) {
+                [fields setObject:value forKey:name];
+            }
+        }
+    }
+    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:task.request.URL
+                                                              statusCode:status
+                                                             HTTPVersion:@"HTTP/1.1"
+                                                            headerFields:fields];
+    [task didReceiveResponse:response];
+    [response release];
+    if (data != NULL && length > 0) {
+        [task didReceiveData:[NSData dataWithBytes:data length:length]];
+    }
+    [task didFinish];
+}
+
+// answerRequest is the answer to an async request, on the main queue. A request that was stopped is
+// no longer in the dictionaries, and its task is not touched.
+- (void)answerRequest:(uint64_t)request status:(int)status headers:(char *)headers data:(unsigned char *)data length:(size_t)length {
+    NSNumber *key = [NSNumber numberWithUnsignedLongLong:request];
+    // The task is let go of only after it is answered: removing the dictionary's reference before
+    // messaging it could release the task the last time anyone holds it.
+    id<WKURLSchemeTask> task = [[_tasks objectForKey:key] retain];
+    if (task == nil) {
+        return;
+    }
+    [_taskIDs removeObjectForKey:[NSValue valueWithNonretainedObject:task]];
+    [_tasks removeObjectForKey:key];
+    [viva_web_answers removeObjectForKey:key];
+    [self finishTask:task status:status headers:headers data:data length:length];
+    [task release];
+}
+
+// cancelTasks lets go of the requests of a page that is closing. WebKit may not stop each one, and the
+// registry would otherwise keep the bridge alive.
+- (void)cancelTasks {
+    for (NSNumber *key in _tasks) {
+        id<WKURLSchemeTask> task = [_tasks objectForKey:key];
+        [_taskIDs removeObjectForKey:[NSValue valueWithNonretainedObject:task]];
+        [viva_web_answers removeObjectForKey:key];
+    }
+    [_tasks removeAllObjects];
+}
+
 - (void)webView:(WKWebView *)web startURLSchemeTask:(id<WKURLSchemeTask>)task {
     (void)web;
     NSURL *url = task.request.URL;
@@ -80,35 +166,62 @@ static void viva_web_main(void (^work)(void)) {
     if ([path hasPrefix:@"/"]) {
         path = [path substringFromIndex:1];
     }
-    char *mime = NULL;
+    char *scheme = (char *)url.scheme.UTF8String;
+    char *chars = (char *)path.UTF8String;
+    if (viva_web_answers == nil) {
+        viva_web_answers = [[NSMutableDictionary alloc] init];
+    }
+    viva_web_next_request++;
+    uint64_t request = viva_web_next_request;
+    // The asynchronous form answers from wherever the application's work is; the answer reaches this
+    // file through the main queue, so registering the task after the call returns is still before it.
+    if (vivaWebServeAsync(_handle, _id, scheme, chars, request)) {
+        NSNumber *key = [NSNumber numberWithUnsignedLongLong:request];
+        [_tasks setObject:task forKey:key];
+        [_taskIDs setObject:key forKey:[NSValue valueWithNonretainedObject:task]];
+        [viva_web_answers setObject:self forKey:key];
+        return;
+    }
+    int status = 404;
+    char *headers = NULL;
     unsigned char *data = NULL;
     size_t length = 0;
-    int found = vivaWebServe(_handle, _id, (char *)url.scheme.UTF8String, (char *)path.UTF8String, &mime, &data, &length);
-    NSDictionary *headers = @{
-        @"Content-Type": found && mime != NULL ? [NSString stringWithUTF8String:mime] : @"text/plain",
-        @"Content-Length": [NSString stringWithFormat:@"%zu", found ? length : (size_t)0],
-        @"Access-Control-Allow-Origin": @"*",
-    };
-    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:url
-                                                              statusCode:found ? 200 : 404
-                                                             HTTPVersion:@"HTTP/1.1"
-                                                            headerFields:headers];
-    [task didReceiveResponse:response];
-    [response release];
-    if (found && length > 0) {
-        [task didReceiveData:[NSData dataWithBytes:data length:length]];
+    if (!vivaWebServe(_handle, _id, scheme, chars, &status, &headers, &data, &length)) {
+        status = 404;
+        headers = strdup("Content-Type: text/plain\r\nContent-Length: 0\r\nAccess-Control-Allow-Origin: *");
     }
-    free(mime);
+    [self finishTask:task status:status headers:headers data:data length:length];
+    free(headers);
     free(data);
-    [task didFinish];
 }
 
 - (void)webView:(WKWebView *)web stopURLSchemeTask:(id<WKURLSchemeTask>)task {
     (void)web;
-    (void)task;
+    NSValue *key = [NSValue valueWithNonretainedObject:task];
+    NSNumber *request = [_taskIDs objectForKey:key];
+    if (request == nil) {
+        return;
+    }
+    [_taskIDs removeObjectForKey:key];
+    [_tasks removeObjectForKey:request]; // releases the task: a later answer finds no entry
+    [viva_web_answers removeObjectForKey:request];
 }
 
 @end
+
+// viva_web_scheme_answer takes the answer from Go, on any thread, and touches the task on the main
+// queue only, after the page may have closed. The buffers are freed here either way.
+void viva_web_scheme_answer(uint64_t request, int status, char *headers, unsigned char *data, size_t length) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSNumber *key = [NSNumber numberWithUnsignedLongLong:request];
+        VivaWebBridge *bridge = [viva_web_answers objectForKey:key];
+        if (bridge != nil) {
+            [bridge answerRequest:request status:status headers:headers data:data length:length];
+        }
+        free(headers);
+        free(data);
+    });
+}
 
 // VivaWebView is a page that lies over Viva's drawing and gives way where Viva draws over it: the
 // parts in cuts are masked off, so Viva's picture shows, and do not take the pointer, so Viva does.
@@ -120,6 +233,7 @@ static void viva_web_main(void (^work)(void)) {
 }
 - (void)setBridge:(VivaWebBridge *)bridge;
 - (void)setCutRects:(NSArray<NSValue *> *)cuts masks:(NSArray<NSValue *> *)masks;
+- (void)cancelSchemeTasks;
 @end
 
 @implementation VivaWebView
@@ -136,6 +250,10 @@ static void viva_web_main(void (^work)(void)) {
     [bridge retain];
     [_bridge release];
     _bridge = bridge;
+}
+
+- (void)cancelSchemeTasks {
+    [_bridge cancelTasks];
 }
 
 - (NSView *)hitTest:(NSPoint)point {
@@ -314,9 +432,16 @@ void viva_web_focus(void *web) {
 void viva_web_close(void *web) {
     viva_web_main(^{
         VivaWebView *view = (VivaWebView *)web;
+        [view cancelSchemeTasks];
         [view.configuration.userContentController removeScriptMessageHandlerForName:@"viva"];
         view.navigationDelegate = nil;
         [view removeFromSuperview];
+    });
+}
+
+void viva_web_cancel_scheme_tasks(void *web) {
+    viva_web_main(^{
+        [(VivaWebView *)web cancelSchemeTasks];
     });
 }
 

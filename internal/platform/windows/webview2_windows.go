@@ -386,6 +386,10 @@ const (
 	startingGetURI          = 3
 	resourceArgsGetRequest  = 3
 	resourceArgsPutResponse = 5
-	resourceRequestGetURI   = 3
-	resourceContextAll      = 0
+	// ICoreWebView2WebResourceRequestedEventArgs::GetDeferral holds the request open.
+	resourceArgsGetDeferral = 6
+	// ICoreWebView2Deferral::Complete says the request may continue.
+	deferralComplete      = 3
+	resourceRequestGetURI = 3
+	resourceContextAll    = 0
 )

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
@@ -242,6 +243,8 @@ func (w *webState) layout(force bool) {
 func (w *webState) closeAll() {
 	for _, page := range w.pages {
 		page.closed = true
+		// An answer still being made would otherwise message a task of a view that no longer exists.
+		C.viva_web_cancel_scheme_tasks(page.native)
 	}
 	clear(w.pages)
 }
@@ -271,19 +274,39 @@ func vivaWebLoad(handle C.uintptr_t, id C.uint32_t, phase C.int, url *C.char) {
 }
 
 //export vivaWebServe
-func vivaWebServe(handle C.uintptr_t, id C.uint32_t, scheme, path *C.char, mime **C.char, data **C.uchar, length *C.size_t) C.int {
+func vivaWebServe(handle C.uintptr_t, id C.uint32_t, scheme, path *C.char, status *C.int, headers **C.char, data **C.uchar, length *C.size_t) C.int {
 	page := pageOf(handle, id)
-	if page == nil || page.config.Scheme == nil || page.config.Scheme.Serve == nil ||
+	if page == nil || page.config.Scheme == nil ||
 		!strings.EqualFold(page.config.Scheme.Name, C.GoString(scheme)) {
 		return 0
 	}
-	contentType, body, ok := page.config.Scheme.Serve(C.GoString(path))
-	if !ok {
+	response, found := platform.ServeWebScheme(page.config.Scheme, C.GoString(path))
+	answer := platform.AnswerWebResponse(response, found)
+	*status = C.int(answer.Status)
+	*headers = C.CString(answer.HeaderBlock())
+	*data = (*C.uchar)(C.CBytes(answer.Body))
+	*length = C.size_t(len(answer.Body))
+	return 1
+}
+
+//export vivaWebServeAsync
+func vivaWebServeAsync(handle C.uintptr_t, id C.uint32_t, scheme, path *C.char, request C.uint64_t) C.int {
+	page := pageOf(handle, id)
+	if page == nil || page.config.Scheme == nil || page.config.Scheme.ServeAsync == nil ||
+		!strings.EqualFold(page.config.Scheme.Name, C.GoString(scheme)) {
 		return 0
 	}
-	*mime = C.CString(contentType)
-	*data = (*C.uchar)(C.CBytes(body))
-	*length = C.size_t(len(body))
+	serve := page.config.Scheme.ServeAsync
+	var answered sync.Once
+	serve(platform.WebRequest{Path: C.GoString(path)}, func(response platform.WebResponse) {
+		// A request has one answer: a second call has nothing left to answer into, and the bridge
+		// frees the buffers of one whose page closed meanwhile.
+		answered.Do(func() {
+			answer := platform.AnswerWebResponse(response, true)
+			C.viva_web_scheme_answer(request, C.int(answer.Status), C.CString(answer.HeaderBlock()),
+				(*C.uchar)(C.CBytes(answer.Body)), C.size_t(len(answer.Body)))
+		})
+	})
 	return 1
 }
 

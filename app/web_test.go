@@ -75,3 +75,66 @@ func TestAPageProxyMustBeOnThisMachine(t *testing.T) {
 		t.Fatalf("the platform got %q", opened)
 	}
 }
+
+func TestAWebSchemeIsCopiedForThePlatform(t *testing.T) {
+	var opened platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		opened = config
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	var asyncPath string
+	scheme := &WebScheme{
+		Name: "viva-app",
+		Serve: func(path string) (string, []byte, bool) {
+			return "text/html; charset=utf-8", []byte(path), true
+		},
+		Respond: func(request WebRequest) (WebResponse, bool) {
+			return WebResponse{
+				Status: 201, MIME: "text/css", Headers: map[string]string{"Cache-Control": "no-store"}, Data: []byte(request.Path),
+			}, true
+		},
+		ServeAsync: func(request WebRequest, respond func(WebResponse)) {
+			asyncPath = request.Path
+			respond(WebResponse{Status: 202, Data: []byte(request.Path)})
+		},
+	}
+	if _, err := host.Open(WebViewConfig{URL: "viva-app://host/index.html", Scheme: scheme}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v", err)
+	}
+	if opened.Scheme == nil {
+		t.Fatal("the platform got no scheme")
+	}
+	// The page holds its own copy: what the caller does to its value afterwards does not reach it.
+	scheme.Name = "changed"
+	scheme.Serve, scheme.Respond, scheme.ServeAsync = nil, nil, nil
+	native := opened.Scheme
+	if native.Name != "viva-app" || native.Serve == nil || native.Respond == nil || native.ServeAsync == nil {
+		t.Fatalf("the platform got a changed scheme: %+v", native)
+	}
+	if mime, data, ok := native.Serve("index.html"); !ok || mime != "text/html; charset=utf-8" || string(data) != "index.html" {
+		t.Fatalf("Serve = %q, %q, %v", mime, data, ok)
+	}
+	response, ok := native.Respond(platform.WebRequest{Path: "theme.css"})
+	if !ok || response.Status != 201 || response.MIME != "text/css" || string(response.Data) != "theme.css" || response.Headers["Cache-Control"] != "no-store" {
+		t.Fatalf("Respond = %+v, %v", response, ok)
+	}
+	var answered platform.WebResponse
+	native.ServeAsync(platform.WebRequest{Path: "late"}, func(response platform.WebResponse) { answered = response })
+	if asyncPath != "late" || answered.Status != 202 || string(answered.Data) != "late" {
+		t.Fatalf("ServeAsync got %q and answered %+v", asyncPath, answered)
+	}
+}
+
+func TestAPageWithoutASchemeGivesThePlatformNone(t *testing.T) {
+	var opened platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		opened = config
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	if _, err := host.Open(WebViewConfig{URL: "https://example.com/"}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v", err)
+	}
+	if opened.Scheme != nil {
+		t.Fatalf("a page with no scheme got %+v", opened.Scheme)
+	}
+}
