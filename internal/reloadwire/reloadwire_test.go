@@ -32,6 +32,10 @@ func TestCanvasCodecPreservesRetainedOutput(t *testing.T) {
 		Pix: []byte{0, 0, 255, 255, 0, 255, 0, 255}, Width: 2, Height: 1, Stride: 8, ID: 55, Version: 2,
 	}, gfx.Rect{X: 1, Width: 1, Height: 1}, gfx.Rect{X: 10, Y: 10, Width: 20, Height: 10})
 	canvas.Label("reload", gfx.Rect{X: 5, Y: 6, Width: 50, Height: 14}, gfx.TextStyle{Size: 12, Weight: 600, Italic: true, Color: gfx.Color{Alpha: 1}})
+	canvas.LabelQuad("warped", gfx.Rect{X: 12, Y: 20, Width: 48, Height: 16}, gfx.Quad{
+		Points: [4]gfx.Point{{X: 12, Y: 20}, {X: 56, Y: 22}, {X: 12, Y: 36}, {X: 56, Y: 38}},
+		Tint:   [4]gfx.Color{{Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Red: 0.9, Green: 0.9, Blue: 0.9, Alpha: 1}, {Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Red: 0.9, Green: 0.9, Blue: 0.9, Alpha: 1}},
+	}, gfx.TextStyle{Size: 12, Color: gfx.Color{Alpha: 1}})
 	canvas.Unclip()
 	canvas.PopLayer()
 	canvas.PushLayer(600)

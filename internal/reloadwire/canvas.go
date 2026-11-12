@@ -81,6 +81,8 @@ func ApplyCanvas(canvas *gfx.Canvas, snapshot CanvasSnapshot) {
 		pushLayerAndClip(canvas, text.Layer, text.ClipOf, text.HasClip)
 		if text.RunCount > 0 || text.CellWidth > 0 {
 			canvas.LabelRunsWithIdentity(text.Identity, text.Value, text.Bounds, text.Style, text.CellWidth, snapshot.Runs[text.RunFirst:text.RunFirst+text.RunCount])
+		} else if text.HasQuad {
+			canvas.LabelQuad(text.Value, text.Bounds, gfx.Quad{Points: text.Quad, Tint: text.Tint}, text.Style)
 		} else {
 			canvas.Label(text.Value, text.Bounds, text.Style)
 		}

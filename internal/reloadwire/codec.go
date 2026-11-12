@@ -544,6 +544,16 @@ func encodeCanvas(value CanvasSnapshot) ([]byte, error) {
 		result.bool(text.HasClip)
 		result.u32(text.Identity.Owner)
 		result.u64(text.Identity.Item)
+		result.bool(text.HasQuad)
+		if text.HasQuad {
+			for _, point := range text.Quad {
+				result.f32(point.X)
+				result.f32(point.Y)
+			}
+			for _, tint := range text.Tint {
+				encodeColor(&result, tint)
+			}
+		}
 	}
 	result.u32(uint32(len(value.Hits)))
 	for index, hit := range value.Hits {
@@ -671,6 +681,15 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 		}
 		text.Layer, text.ClipOf, text.HasClip = value.u16(), decodeRect(&value), value.bool()
 		text.Identity = gfx.TextIdentity{Owner: value.u32(), Item: value.u64()}
+		text.HasQuad = value.bool()
+		if text.HasQuad {
+			for corner := range text.Quad {
+				text.Quad[corner] = gfx.Point{X: value.f32(), Y: value.f32()}
+			}
+			for corner := range text.Tint {
+				text.Tint[corner] = decodeColor(&value)
+			}
+		}
 		result.Texts[index] = text
 	}
 	hitCount := decodeCount(&value)
