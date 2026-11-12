@@ -140,6 +140,9 @@ type renderer struct {
 	labelNextIdentities                                          map[gfx.TextIdentity]int
 	labelUsed                                                    []bool
 	labelFree                                                    []int
+	labelPictures                                                labelPictureCache
+	textGeneration                                               uint32
+	noLabelPictures                                              bool
 	compositingBatches                                           []compositingBatch
 	color                                                        platform.Color
 	capacity, width, height                                      int
@@ -615,7 +618,7 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 					label.close()
 					continue
 				}
-				if label.view == 0 || label.stale || label.scale != scale || label.skip != skip || skip > 0 && label.width != windowWidth ||
+				if label.view == 0 || label.stale || label.scale != scale || label.skip != skip || skip > 0 && label.width != windowWidth || renderer.pictureChanged(label, scale, skip, windowWidth) ||
 					len(label.label.Bitmap) > 0 && platform.BitmapTextureStale(label.label, scale, label.width, label.height) {
 					if err := renderer.rasterize(label, scale); err != nil {
 						return fmt.Errorf("rasterize label %d: %w", index, err)
@@ -700,9 +703,10 @@ func (renderer *renderer) releaseDevice() {
 		comCall(renderer.context, 111)
 	}
 	for index := range renderer.labels {
-		release(&renderer.labels[index].view)
-		release(&renderer.labels[index].texture)
+		renderer.labels[index].dropTexture()
 	}
+	renderer.labelPictures.evict(0)
+	renderer.labelPictures = labelPictureCache{}
 	renderer.capacity, renderer.width, renderer.height = 0, 0, 0
 	renderer.releaseComposition()
 	for _, object := range [...]*uintptr{&renderer.target, &renderer.swap, &renderer.view, &renderer.buffer, &renderer.constants, &renderer.blend, &renderer.textBlend, &renderer.raster, &renderer.sampler, &renderer.rectangleVertex, &renderer.rectangleFragment, &renderer.textVertex, &renderer.textFragment, &renderer.context, &renderer.device} {

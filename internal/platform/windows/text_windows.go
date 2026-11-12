@@ -29,6 +29,7 @@ type textServices struct {
 }
 type labelTexture struct {
 	label         platform.TextLabel
+	picture       *labelPicture
 	runs          []gfx.TextRun // the label's own copy of its runs
 	texture, view uintptr
 	scale         float32
@@ -141,8 +142,7 @@ func (services *textServices) close() {
 	services.createLayout = nil
 }
 func (label *labelTexture) close() {
-	release(&label.view)
-	release(&label.texture)
+	label.dropTexture()
 	label.label = platform.TextLabel{}
 	label.runs = label.runs[:0]
 	label.scale = 0
@@ -155,8 +155,14 @@ func (label *labelTexture) close() {
 
 // dropTexture gives the label's texture back, keeping what the label is.
 func (label *labelTexture) dropTexture() {
-	release(&label.view)
-	release(&label.texture)
+	if label.picture != nil {
+		label.picture.release()
+		label.picture = nil
+		label.view, label.texture = 0, 0
+	} else {
+		release(&label.view)
+		release(&label.texture)
+	}
 	label.width, label.height, label.skip = 0, 0, 0
 	label.stale = false
 }
@@ -170,6 +176,11 @@ func (label *labelTexture) quad(scale float32) [4]float32 {
 	l := label.label
 	x, y := label.pixelOrigin(scale)
 	width, height := label.width, label.height
+	if label.picture != nil {
+		x += label.picture.x
+		y += label.picture.y
+		width, height = label.picture.width, label.picture.height
+	}
 	if len(l.Bitmap) > 0 {
 		width, height = platform.DeviceExtent(l.X, l.Width, scale), platform.DeviceExtent(l.Y, l.Height, scale)
 	}
@@ -265,10 +276,12 @@ func sameRuns(left, right []gfx.TextRun) bool {
 	return true
 }
 func (renderer *renderer) rasterize(label *labelTexture, scale float32) error {
+	if renderer.reuseLabelPicture(label, scale) {
+		return nil
+	}
 	skip, width, ok := label.window(scale)
 	if !ok {
-		release(&label.view)
-		release(&label.texture)
+		label.dropTexture()
 		label.scale, label.width, label.height, label.skip = scale, 0, 0, 0
 		return nil
 	}
@@ -308,6 +321,12 @@ func (renderer *renderer) rasterize(label *labelTexture, scale float32) error {
 // texture when its size did not change, and makes one otherwise. The label's
 // lcd and spans are already set by the caller that made the pixels.
 func (renderer *renderer) uploadLabel(label *labelTexture, pixels []byte, scale float32, skip, width, height int) error {
+	if key, eligible := renderer.pictureKey(label, scale, skip, width, height); eligible {
+		return renderer.uploadLabelPicture(label, key, pixels, width, height)
+	}
+	if label.picture != nil {
+		label.dropTexture()
+	}
 	if label.texture != 0 && label.view != 0 && label.width == width && label.height == height {
 		// The same size as the texture it replaces: write the new pixels into it.
 		comCall(renderer.context, 48, label.texture, 0, 0, uintptr(unsafe.Pointer(&pixels[0])), uintptr(width*4), 0)
