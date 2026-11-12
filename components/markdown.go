@@ -32,11 +32,12 @@ type MarkdownStyle struct {
 	// tell from the line itself. The colors come from MarkdownLook.Code.
 	Highlight func(language, line string, dst []MarkdownCodeRun) []MarkdownCodeRun
 	// Image, when set, is asked for the bitmap of every image (![alt](destination)),
-	// with the destination as written. The view never reads files or the network:
-	// an application resolves relative paths and fetches what it allows. A bitmap's
+	// with the destination as written, while the view lays out: the bitmap decides
+	// the room the image takes. The view never reads files or the network; an
+	// application resolves relative paths and fetches what it allows. A bitmap's
 	// pixels are its size in the layout, scaled down to the column and never up.
-	// false lays the image out as its alt text, so an application can answer once
-	// the image has loaded and lay the document out again.
+	// An ok of false lays the image out as its alt text, so an application can
+	// answer once the image has loaded, lay the document out again and invalidate.
 	Image func(destination string) (gfx.Bitmap, bool)
 }
 
@@ -1616,7 +1617,8 @@ func (m *mdLine) endLine() {
 			}
 		}
 	}
-	// A line with an image is as tall as the image, with the text along its top.
+	// A line with an image is as tall as the tallest image, with the text along its
+	// top and a little air below the pixels so that stacked images do not touch.
 	m.y += max(m.t.line, m.tall+4)
 	m.l.lines++
 	m.reset()

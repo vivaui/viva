@@ -325,10 +325,11 @@
 //     a sequence.
 //   - Typography: `Typography` paints the heading and body text scale.
 //   - Markdown: `MarkdownView` lays out and paints a parsed `markdown.Document`
-//     (headings, lists, quotes, code blocks, tables, bold, links) in a column,
-//     with the link regions and code blocks it contains, and the vertical extent
-//     of each block against its range in the source (`MarkdownAnchor`) for
-//     keeping a source editor and its preview scrolled to the same place.
+//     (headings, lists, quotes, code blocks, tables, bold, links and images,
+//     whose bitmaps the application supplies) in a column, with the link regions
+//     and code blocks it contains, and the vertical extent of each block against
+//     its range in the source (`MarkdownAnchor`) for keeping a source editor and
+//     its preview scrolled to the same place.
 //
 // Foundation:
 //   - Direction: `Direction` selects LTR or RTL inline flow
