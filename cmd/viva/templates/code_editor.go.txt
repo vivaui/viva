@@ -75,6 +75,16 @@ type CodeEditorGutter struct {
 	FoldLast          bool
 }
 
+// CodeRepresentation substitutes one source rune for a display-only label.
+// Entries in a snapshot must be sorted by Character and have unique keys.
+// An empty Label hides the rune without deleting its source bytes. Blob draws
+// an inset inverted background behind a visible label.
+type CodeRepresentation struct {
+	Character rune
+	Label     string
+	Blob      bool
+}
+
 // CodeEditorSnapshot is one caller-owned presentation of a code editor. The
 // text, selection and composition belong to the application's text.Editor; the
 // offsets are bytes of Value, which text.Editor.ByteOffset gives.
@@ -83,6 +93,9 @@ type CodeEditorSnapshot struct {
 	Label string
 	Hint  string
 	Value string
+	// Representations change display widths and labels, never source byte offsets.
+	// The caller keeps the sorted slice immutable until Paint returns.
+	Representations []CodeRepresentation
 	// Placeholder is shown, dim, while Value is empty.
 	Placeholder string
 	Disabled    bool
@@ -192,6 +205,7 @@ type CodeEditor struct {
 	fitted    bool
 	rows      []codeRow
 	indents   []int
+	reps      []CodeRepresentation
 	foldInput []CodeEditorFoldRange
 	folds     []CodeEditorFoldRange
 	shown     []string
@@ -377,9 +391,9 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 	if showWrapSymbol {
 		cols--
 	}
-	editor.fitWithFolds(value, cols, snapshot.Wrap, tabWidth, snapshot.FoldedLines)
+	editor.fitWithRepresentations(value, cols, snapshot.Wrap, tabWidth, snapshot.FoldedLines, snapshot.Representations)
 	if snapshot.ShowIndentGuides && editor.indents == nil {
-		editor.indents = indentationLevels(editor.text, tabWidth)
+		editor.indents = indentationLevels(editor.text, tabWidth, editor.reps)
 	}
 	editor.content, editor.cellWidth, editor.lineHeight = content, cellWidth, lineHeight
 
@@ -857,13 +871,16 @@ func (paint *codePaint) row(index int, y float32) {
 	}
 
 	shown := editor.rowText(row)
+	highlight := paint.lineRuns(row)
+	paint.representationBlobs(row, y, left, highlight)
 	spec := gridRunSpec{
 		tabWidth: editor.tabWidth, firstColumn: paint.firstColumn, lastColumn: paint.lastColumn,
-		foreground: paint.foreground, disabled: editor.disabled,
-		highlight: paint.lineRuns(row), highlightBase: rowStart - int(row.lineStart),
+		representations: editor.reps, representationColor: paint.invisibleColor,
+		foreground: paint.foreground, background: paint.theme.Background, disabled: editor.disabled,
+		highlight: highlight, highlightBase: rowStart - int(row.lineStart),
 		selectionStart: paint.selectionStart - rowStart, selectionEnd: paint.selectionEnd - rowStart,
 		selectionRanges: paint.selectionRanges, selectionBase: rowStart,
-		selectionForeground: paint.selectionForeground,
+		selectionForeground: paint.selectionForeground, selectionBackground: paint.selectionBackground,
 	}
 	runs, from, to, startColumn, endColumn := gridRuns(editor.runs[:0], paint.value[rowStart:rowEnd], &spec)
 	editor.runs = runs
@@ -940,6 +957,50 @@ func (paint *codePaint) indentGuides(row codeRow, y, left float32) {
 	}
 }
 
+func (paint *codePaint) representationBlobs(row codeRow, y, left float32, highlight []CodeEditorRun) {
+	editor := paint.editor
+	if len(editor.reps) == 0 {
+		return
+	}
+	column, highlightIndex := 0, 0
+	for at := int(row.start); at < int(row.end); {
+		if column > paint.lastColumn {
+			break
+		}
+		character, size := decodeAt(paint.value, at)
+		representation, represented := representationOf(editor.reps, character)
+		width := displayCellsFor(character, column, editor.tabWidth, representation, represented)
+		if represented && representation.Blob && representation.Label != "" && width > 0 && column+width > paint.firstColumn {
+			sourceColumn := at - int(row.lineStart)
+			for highlightIndex < len(highlight) && highlight[highlightIndex].End <= sourceColumn {
+				highlightIndex++
+			}
+			color := paint.foreground
+			if highlightIndex < len(highlight) && highlight[highlightIndex].Start <= sourceColumn {
+				color = highlight[highlightIndex].Color
+				if editor.disabled {
+					color.Alpha *= 0.5
+				}
+			}
+			selected := at >= paint.selectionStart && at < paint.selectionEnd
+			if len(paint.selectionRanges) > 0 {
+				index := sort.Search(len(paint.selectionRanges), func(index int) bool { return paint.selectionRanges[index].End > at })
+				selected = index < len(paint.selectionRanges) && paint.selectionRanges[index].Start <= at
+			}
+			if selected {
+				color = paint.selectionForeground
+			}
+			paint.canvas.Rounded(gfx.Rect{
+				X:     left + float32(column)*paint.cellWidth + 1,
+				Y:     y + (paint.lineHeight-paint.cellHeight)/2 + 1,
+				Width: max(1, float32(width)*paint.cellWidth-2), Height: max(1, paint.cellHeight-2),
+			}, 2, color)
+		}
+		column += width
+		at += size
+	}
+}
+
 func (paint *codePaint) whitespace(row codeRow, y, left float32) {
 	column := 0
 	for at := int(row.start); at < int(row.end); {
@@ -950,8 +1011,9 @@ func (paint *codePaint) whitespace(row codeRow, y, left float32) {
 			break
 		}
 		character, size := decodeAt(paint.value, at)
-		width := codeCells(character, column, paint.editor.tabWidth)
-		if column+width >= paint.firstColumn && column <= paint.lastColumn {
+		representation, represented := representationOf(paint.editor.reps, character)
+		width := displayCellsFor(character, column, paint.editor.tabWidth, representation, represented)
+		if !represented && column+width >= paint.firstColumn && column <= paint.lastColumn {
 			x := left + float32(column)*paint.cellWidth
 			centerY := y + paint.lineHeight/2
 			switch character {
