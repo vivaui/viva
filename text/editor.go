@@ -20,8 +20,9 @@ type Span struct {
 }
 
 const (
-	maxHistoryEntries = 256
-	maxHistoryRunes   = 256 * 1024
+	maxHistoryEntries     = 256
+	maxHistoryRunes       = 256 * 1024
+	historyPrimitiveRunes = 6
 	// maxSingleEditRunes is the largest edit the history keeps once it is all that
 	// is left: a replace-all in a big file is one undo unit however many runes it
 	// touches, and losing every undo because it is large would cost more than the
@@ -49,6 +50,11 @@ type historyEdit struct {
 	removed, inserted []rune
 	before, after     editorSelection
 	kind              editKind
+	primitives        []Edit
+}
+
+func (edit *historyEdit) retainedRunes() int {
+	return len(edit.removed) + len(edit.inserted) + historyPrimitiveRunes*len(edit.primitives)
 }
 
 type textChange struct {
@@ -91,6 +97,7 @@ type Editor struct {
 	// resolved, so a caret that moves or types a little is found by walking from
 	// there instead of from the start; every mutation of runes trims it.
 	offsets offsetMemo
+	journal *editJournal
 
 	history      []historyEdit
 	historyIndex int
@@ -443,8 +450,6 @@ func (editor *Editor) collapse(index int) {
 // had to replace its last rune.
 func (editor *Editor) replace(target Range, value string, overwrite bool) textChange {
 	target = normalizeRange(target, len(editor.runes))
-	editor.textValid = false
-	editor.offsets.trim(target.Start)
 	replacement := []rune(value)
 	if editor.accept != nil {
 		kept := replacement[:0]
@@ -474,6 +479,17 @@ func (editor *Editor) replace(target Range, value string, overwrite bool) textCh
 		removed:  append([]rune(nil), editor.runes[target.Start:target.End]...),
 		inserted: replacement,
 	}
+	edit := editor.prepareEdit(target.Start, target.End, replacement)
+	var lines *lineJournal
+	var context lineContext
+	if editor.journal != nil {
+		lines = editor.journal.lines
+		if lines != nil {
+			context = editor.prepareLineContext(target.Start, target.End, replacement)
+		}
+	}
+	editor.textValid = false
+	editor.offsets.trim(target.Start)
 	delta := len(replacement) - removed
 	if delta > 0 {
 		editor.runes = append(editor.runes, make([]rune, delta)...)
@@ -483,6 +499,10 @@ func (editor *Editor) replace(target Range, value string, overwrite bool) textCh
 		editor.runes = editor.runes[:len(editor.runes)+delta]
 	}
 	copy(editor.runes[target.Start:], replacement)
+	editor.recordEdit(edit)
+	if lines != nil {
+		editor.recordLineContext(edit, context)
+	}
 	return change
 }
 
@@ -499,7 +519,7 @@ func (editor *Editor) Undo() bool {
 	}
 	editor.historyIndex--
 	edit := &editor.history[editor.historyIndex]
-	editor.replaceExact(edit.start, len(edit.inserted), edit.removed)
+	editor.replaceHistory(edit, true)
 	editor.restoreSelection(edit.before)
 	editor.BreakUndoGroup()
 	return true
@@ -511,7 +531,7 @@ func (editor *Editor) Redo() bool {
 		return false
 	}
 	edit := &editor.history[editor.historyIndex]
-	editor.replaceExact(edit.start, len(edit.removed), edit.inserted)
+	editor.replaceHistory(edit, false)
 	editor.restoreSelection(edit.after)
 	editor.historyIndex++
 	editor.BreakUndoGroup()
@@ -525,10 +545,17 @@ func (editor *Editor) BreakUndoGroup() { editor.coalescing = 0 }
 
 // ClearHistory forgets every undo and redo unit without changing the text.
 func (editor *Editor) ClearHistory() {
+	if editor.journal != nil && editor.journal.lines != nil {
+		editor.journal.lines.batches = nil
+		editor.journal.lines.delivery = nil
+	}
 	editor.history = nil
 	editor.historyIndex = 0
 	editor.historyRunes = 0
 	editor.coalescing = 0
+	if point := editor.savePointIndex(); point != nil {
+		*point = 0
+	}
 }
 
 func (editor *Editor) selectionState() editorSelection {
@@ -542,7 +569,7 @@ func (editor *Editor) restoreSelection(selection editorSelection) {
 }
 
 func (editor *Editor) record(change textChange, before, after editorSelection, kind editKind) {
-	if runesEqual(change.removed, change.inserted) {
+	if runesEqual(change.removed, change.inserted) && (len(change.removed) == 0 || editor.savePointIndex() == nil) {
 		return
 	}
 	editor.dropRedo()
@@ -550,23 +577,45 @@ func (editor *Editor) record(change textChange, before, after editorSelection, k
 		editor.trimHistory()
 		return
 	}
-	edit := historyEdit{
+	editor.appendHistory(historyEdit{
 		start: change.start, removed: change.removed, inserted: change.inserted,
 		before: before, after: after, kind: kind,
+	})
+}
+
+func (editor *Editor) recordWithPrimitives(change textChange, before, after editorSelection, kind editKind, primitives []Edit) {
+	if len(primitives) == 0 {
+		editor.record(change, before, after, kind)
+		return
 	}
+	if runesEqual(change.removed, change.inserted) && editor.savePointIndex() == nil {
+		return
+	}
+	editor.dropRedo()
+	editor.appendHistory(historyEdit{
+		start: change.start, removed: change.removed, inserted: change.inserted,
+		before: before, after: after, kind: kind,
+		primitives: primitives,
+	})
+}
+
+func (editor *Editor) appendHistory(edit historyEdit) {
 	editor.history = append(editor.history, edit)
 	editor.historyIndex = len(editor.history)
-	editor.historyRunes += len(edit.removed) + len(edit.inserted)
-	if kind == editSeparate {
+	editor.historyRunes += edit.retainedRunes()
+	if edit.kind == editSeparate {
 		editor.coalescing = 0
 	} else {
-		editor.coalescing = kind
+		editor.coalescing = edit.kind
 	}
 	editor.trimHistory()
 }
 
 func (editor *Editor) merge(change textChange, before, after editorSelection, kind editKind) bool {
 	if editor.coalescing != kind || editor.historyIndex == 0 || editor.historyIndex != len(editor.history) {
+		return false
+	}
+	if editor.AtSavePoint() {
 		return false
 	}
 	previous := &editor.history[editor.historyIndex-1]
@@ -610,11 +659,17 @@ func (editor *Editor) merge(change textChange, before, after editorSelection, ki
 }
 
 func (editor *Editor) dropRedo() {
-	if editor.historyIndex == len(editor.history) {
-		return
+	if editor.historyIndex < len(editor.history) {
+		editor.discardRedo()
+	}
+}
+
+func (editor *Editor) discardRedo() {
+	if point := editor.savePointIndex(); point != nil && *point > editor.historyIndex {
+		*point = -1
 	}
 	for index := editor.historyIndex; index < len(editor.history); index++ {
-		editor.historyRunes -= len(editor.history[index].removed) + len(editor.history[index].inserted)
+		editor.historyRunes -= editor.history[index].retainedRunes() + editor.forgetLineBatch(&editor.history[index])
 	}
 	clear(editor.history[editor.historyIndex:])
 	editor.history = editor.history[:editor.historyIndex]
@@ -626,15 +681,24 @@ func (editor *Editor) trimHistory() {
 	remove := 0
 	for len(editor.history)-remove > 1 && (len(editor.history)-remove > maxHistoryEntries || editor.historyRunes > maxHistoryRunes) {
 		edit := editor.history[remove]
-		editor.historyRunes -= len(edit.removed) + len(edit.inserted)
+		editor.historyRunes -= edit.retainedRunes() + editor.forgetLineBatch(&editor.history[remove])
 		remove++
 	}
 	if len(editor.history)-remove == 1 && editor.historyRunes > maxSingleEditRunes {
 		editor.ClearHistory()
+		if point := editor.savePointIndex(); point != nil {
+			*point = -1
+		}
 		return
 	}
 	if remove == 0 {
 		return
+	}
+	if point := editor.savePointIndex(); point != nil && *point >= 0 {
+		*point -= remove
+		if *point < 0 {
+			*point = -1
+		}
 	}
 	copy(editor.history, editor.history[remove:])
 	clear(editor.history[len(editor.history)-remove:])
@@ -645,6 +709,15 @@ func (editor *Editor) trimHistory() {
 func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 	start = clamp(start, 0, len(editor.runes))
 	end := clamp(start+removed, start, len(editor.runes))
+	edit := editor.prepareEdit(start, end, replacement)
+	var lines *lineJournal
+	var context lineContext
+	if editor.journal != nil {
+		lines = editor.journal.lines
+		if lines != nil {
+			context = editor.prepareLineContext(start, end, replacement)
+		}
+	}
 	delta := len(replacement) - (end - start)
 	if delta > 0 {
 		editor.runes = append(editor.runes, make([]rune, delta)...)
@@ -657,6 +730,10 @@ func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 	editor.lastReplaceStart = start
 	editor.textValid = false
 	editor.offsets.trim(start)
+	editor.recordEdit(edit)
+	if lines != nil {
+		editor.recordLineContext(edit, context)
+	}
 }
 
 func hasUndoBoundary(value string) bool {
