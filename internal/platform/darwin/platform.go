@@ -74,6 +74,7 @@ const (
 	TextSetSelection                = platform.TextSetSelection
 	TextPaste                       = platform.TextPaste
 	TextPasteNoText                 = platform.TextPasteNoText
+	TextCancelComposition           = platform.TextCancelComposition
 	TextDeleteBackward              = platform.TextDeleteBackward
 	TextDeleteForward               = platform.TextDeleteForward
 	TextMoveLeft                    = platform.TextMoveLeft

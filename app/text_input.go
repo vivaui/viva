@@ -54,6 +54,10 @@ const (
 	// as the cue to look at the clipboard's other formats (ClipboardImagePNG).
 	// Terminals receive it too, so they can handle non-text clipboard formats.
 	TextPasteNoText
+	// TextCancelComposition is an explicit input-method cancellation. It restores
+	// the text and selection the composition replaced and adds no history. An
+	// ordinary empty marked string is not this event.
+	TextCancelComposition
 )
 
 // TextCommand identifies one platform-normalized editing command.

@@ -949,6 +949,10 @@ const (
 	// whose field accepts more than text (a chat box that takes a screenshot) reads
 	// the other formats itself, with ClipboardImagePNG. Terminals never receive it.
 	TextPasteNoText
+	// TextCancelComposition is an explicit input-method cancellation. It restores
+	// the text and selection the composition replaced and adds no history. An
+	// ordinary empty marked string is not this event.
+	TextCancelComposition
 )
 
 // TextCommand identifies keyboard editing commands emitted by AppKit.
@@ -1008,10 +1012,19 @@ type TextHandler func(TextEvent) (TextState, error)
 
 // Apply routes one platform text event into editor: the way a runtime connects
 // a platform text service straight to a Go-owned editor. A replacement range, if
-// the event names one, is selected first, so the event acts on it.
+// the event names one, is selected first, so the event acts on it. A marked-text
+// update that names the active composition itself is the input method continuing
+// that composition: selecting the range first would end it, so the cancel
+// snapshot would hold the preedit instead of the text the composition replaced.
 func (event TextEvent) Apply(editor *text.Editor) {
-	if event.HasReplacement {
-		editor.SetSelection(event.Replacement)
+	if event.HasReplacement && !event.actsOnActiveComposition(editor) {
+		replacement := event.Replacement
+		if selection := editor.Selection(); selection == replacement && selection.Start != selection.End && editor.Caret() == selection.Start {
+			// The selection is backwards: selecting the ordered range would flip
+			// it before the composition records the selection it must restore.
+			replacement = text.Range{Start: replacement.End, End: replacement.Start}
+		}
+		editor.SetSelection(replacement)
 	}
 	switch event.Kind {
 	case TextInsert:
@@ -1022,6 +1035,8 @@ func (event TextEvent) Apply(editor *text.Editor) {
 		editor.SetMarkedText(event.Text, event.MarkedSelection)
 	case TextUnmark:
 		editor.Unmark()
+	case TextCancelComposition:
+		editor.CancelComposition()
 	case TextSetSelection:
 		editor.SetSelection(event.Selection)
 	case TextCommandEvent:
@@ -1082,6 +1097,21 @@ func (event TextEvent) Apply(editor *text.Editor) {
 			editor.DeleteToLineBoundary(true)
 		}
 	}
+}
+
+// actsOnActiveComposition reports whether the event updates or commits the
+// composition that is already active, instead of acting on some other range that
+// must be selected first. Selecting the composition's own range would end it
+// before the event runs, so a cancel would restore the previous preedit and a
+// commit would land in a separate undo unit from the composition it commits.
+func (event TextEvent) actsOnActiveComposition(editor *text.Editor) bool {
+	switch event.Kind {
+	case TextSetMarked, TextInsert:
+	default:
+		return false
+	}
+	composition, composing := editor.Composition()
+	return composing && composition == event.Replacement
 }
 
 // TextHistoryCommand recognizes the conventional primary-modifier undo and
