@@ -502,7 +502,9 @@ type mdBox struct {
 
 type mdLink struct {
 	x, y, w, h float32
-	size       float32
+	// underline is where the hover underline sits below the link's top: at
+	// the baseline of a text link, at the bottom edge of an image link.
+	underline  float32
 	text, dest string
 }
 
@@ -1489,7 +1491,7 @@ func (m *mdLine) place(a mdAtom) {
 		x := m.x0 + m.x
 		v.images = append(v.images, mdImage{bitmap: a.bitmap, x: x, y: m.y, w: a.w, h: a.h})
 		if sp.Link != "" {
-			v.links = append(v.links, mdLink{x: x, y: m.y, w: a.w, h: a.h, size: m.t.size, text: sp.Text, dest: sp.Link})
+			v.links = append(v.links, mdLink{x: x, y: m.y, w: a.w, h: a.h, underline: a.h - 1, text: sp.Text, dest: sp.Link})
 		}
 		m.x += a.w
 		m.w = m.x
@@ -1591,7 +1593,7 @@ func (m *mdLine) closePiece() {
 	if sp.Link != "" {
 		v.links = append(v.links, mdLink{
 			x: p.x + p.padX, y: p.y, w: p.w - 2*p.padX, h: p.h,
-			size: p.size, text: p.text, dest: sp.Link,
+			underline: p.h/2 + p.size*0.6, text: p.text, dest: sp.Link,
 		})
 		p.link = int32(len(v.links) - 1)
 	}
@@ -1752,7 +1754,7 @@ func (v *MarkdownView) Paint(canvas *gfx.Canvas, p MarkdownPaint) {
 		id := p.Links.At(p.Base + index)
 		canvas.HitWithOptions(id, rect, link.text, gfx.HitOptions{Role: gfx.RoleLink})
 		if canvas.Hovered() == id {
-			canvas.Fill(gfx.Rect{X: rect.X, Y: rect.Y + rect.Height/2 + link.size*0.6, Width: rect.Width, Height: 1}, look.Link)
+			canvas.Fill(gfx.Rect{X: rect.X, Y: rect.Y + link.underline, Width: rect.Width, Height: 1}, look.Link)
 		}
 	}
 }
