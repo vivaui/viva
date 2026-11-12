@@ -56,7 +56,7 @@ type lineEngine struct {
 var interfaceFamily string
 var fontGeneration uint32
 
-// lineCacheLimit is how many lines a generation holds (twice that many are kept).
+// lineCacheLimit is the line limit of each cache segment (twice as many are kept).
 const lineCacheLimit = 512
 
 func newLineEngine(measurer lineMeasurer) *lineEngine {

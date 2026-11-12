@@ -52,6 +52,22 @@ Viva can only keep the idle cost at zero if the application does too.
 - **Keep callbacks short.** They run on the window thread. Do slow work on another goroutine and publish the result through `OnWake`.
 - **Link only what you use.** Optional subsystems live in their own packages and build tags, so an unused one adds no code to your binary.
 
+## Text working sets
+
+The platform text engine shares shaped lines between measurement, caret queries,
+hit-testing, and drawing. Its cache is bounded: currently 1,024 lines per style on
+Windows, Linux, and the browser, and 2,048 on macOS. Different text, font sizes, or
+weights use different entries; regular and italic text have separate caches.
+Font changes invalidate the affected lines. Native memory per entry also depends
+on the length and complexity of the text.
+
+Once a working set fits and is cached, repeated queries reuse those lines without
+shaping or allocating again. An oversized working set cannot all stay resident.
+A recency window and frequency-based admission protect reused lines from
+one-pass scans, rather than clearing a whole generation at once; misses still
+require platform shaping. Keep large lists virtualized and avoid measuring an
+entire history on every repaint. Cache retention is not a substitute for that.
+
 ## Reproducing
 
 The `benchmarks/` directory holds the scripts behind the macOS and Linux baselines, and every report names the command that produced it. `viva build` reports a program's size on its own, separate from anything around it.

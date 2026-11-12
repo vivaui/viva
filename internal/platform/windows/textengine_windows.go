@@ -45,7 +45,7 @@ const (
 var writeFactory2IID = guid{0x0439fc60, 0xca44, 0x4994, [8]byte{0x8d, 0xee, 0x3a, 0x9a, 0xf7, 0xb7, 0x32, 0xec}}
 var writeTextFormat1IID = guid{0x5f174b49, 0x0d8b, 0x4cfb, [8]byte{0x8b, 0xca, 0xf1, 0xcc, 0xe9, 0xd0, 0x6c, 0x67}}
 
-// textEngineCapacity is how many shaped lines each generation of the cache holds.
+// textEngineCapacity is the line limit of each cache segment (twice as many are kept).
 const textEngineCapacity = 512
 
 // hitMetrics is DWRITE_HIT_TEST_METRICS.

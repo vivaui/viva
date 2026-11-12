@@ -21,8 +21,7 @@ import (
 	"github.com/vivaui/viva/internal/textcache"
 )
 
-// lineCacheLimit is how many shaped lines each generation of the cache keeps (see
-// textcache): a screenful of labels and fields is a few hundred.
+// lineCacheLimit is the line limit of each cache segment (twice as many are kept).
 const lineCacheLimit = 1024
 
 // selectionPieces is the most extents C writes for one selection.

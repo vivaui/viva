@@ -21,7 +21,7 @@ import (
 // calls into no library and allocates nothing; the same layout is the one the label is drawn
 // from, so what is measured is what is on screen.
 
-// engineCacheLimit is the number of shaped lines a generation of the cache holds.
+// engineCacheLimit is the line limit of each cache segment (twice as many are kept).
 const engineCacheLimit = 512
 
 // shapedLine is one line as Pango shaped it, at one font size. The size is a logical one
