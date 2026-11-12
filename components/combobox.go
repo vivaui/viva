@@ -114,6 +114,9 @@ func BeginCombobox(canvas *gfx.Canvas, theme gfx.Theme, inputBounds gfx.Rect, op
 	if !options.Scope.IsZero() {
 		canvas.TrapFocus(options.Scope)
 	}
+	if !options.InputID.IsZero() {
+		canvas.SetInitialFocus(options.InputID)
+	}
 	if !options.DismissID.IsZero() {
 		canvas.SetEscapeTarget(options.DismissID)
 	}
