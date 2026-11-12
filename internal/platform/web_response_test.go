@@ -70,9 +70,10 @@ func TestAnswerWebResponseResolvesEveryEngineTheSameWay(t *testing.T) {
 					"content-type":                "application/xhtml+xml",
 					"cache-control":               "no-store",
 					"X-Content-Type-Options":      "nosniff",
-					"Access-Control-Allow-Origin": "",        // removes the default
-					"Content-Length":              "",        // removes the default
-					"Two Words":                   "dropped", // not a header name
+					"Access-Control-Allow-Origin": "",                                          // removes the default
+					"Content-Length":              "",                                          // removes the default
+					"Two Words":                   "dropped",                                   // not a header name
+					"X-Disposition":               "inline; filename=\"a\r\nSet-Cookie: x=1\"", // a value with a line break would split into a second header
 				},
 				Data: []byte("hello"),
 			},

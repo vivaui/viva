@@ -111,6 +111,12 @@ func AnswerWebResponse(response WebResponse, found bool) WebAnswer {
 		if name == "" {
 			continue
 		}
+		if strings.ContainsAny(value, "\r\n\x00") {
+			// A value with a line break cannot survive the header block the engines are given
+			// either: the macOS and WebView2 bridges re-parse it line-wise, and the break turns
+			// one header into two.
+			continue
+		}
 		if value == "" {
 			delete(merged, name)
 			continue
