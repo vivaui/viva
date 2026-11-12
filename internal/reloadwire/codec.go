@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ProtocolVersion = 25
+	ProtocolVersion = 26
 	MaxFrameBytes   = 32 << 20
 	MaxStateBytes   = 8 << 20
 	maxItems        = 200_000
@@ -82,11 +82,14 @@ type PaintRequest struct {
 
 type CanvasSnapshot struct {
 	Rectangles []gfx.Rectangle
-	Shadows    []gfx.Shadow
-	Images     []gfx.Image
-	Texts      []gfx.Text
-	Runs       []gfx.TextRun // the runs Texts refer to by RunFirst and RunCount
-	Hits       []gfx.Hit
+	// Triangles are the canvas's vector-shape triangles; each one's
+	// RectsBefore places it among Rectangles in paint order.
+	Triangles []gfx.Triangle
+	Shadows   []gfx.Shadow
+	Images    []gfx.Image
+	Texts     []gfx.Text
+	Runs      []gfx.TextRun // the runs Texts refer to by RunFirst and RunCount
+	Hits      []gfx.Hit
 	// HitTexts is dense: one entry per Hits entry, zero for a hit that
 	// declared no text geometry. Placement is not carried across the wire.
 	HitTexts     []gfx.HitText
@@ -467,6 +470,22 @@ func encodeCanvas(value CanvasSnapshot) ([]byte, error) {
 		encodeRect(&result, rectangle.ClipOf)
 		result.bool(rectangle.HasClip)
 	}
+	result.u32(uint32(len(value.Triangles)))
+	for _, triangle := range value.Triangles {
+		for _, point := range triangle.Points {
+			result.f32(point.X)
+			result.f32(point.Y)
+		}
+		encodeColor(&result, triangle.Color)
+		encodeColor(&result, triangle.Shade[0])
+		encodeColor(&result, triangle.Shade[1])
+		result.bool(triangle.Shaded)
+		result.u16(triangle.Layer)
+		result.u8(triangle.EdgeMask)
+		encodeRect(&result, triangle.ClipOf)
+		result.bool(triangle.HasClip)
+		result.u32(triangle.RectsBefore)
+	}
 	result.u32(uint32(len(value.Shadows)))
 	for _, shadow := range value.Shadows {
 		encodeRect(&result, shadow.Bounds)
@@ -574,6 +593,22 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 			Bounds: decodeRect(&value), Color: decodeColor(&value), Radius: value.f32(), Layer: value.u16(),
 			ClipOf: decodeRect(&value), HasClip: value.bool(),
 		}
+	}
+	triangleCount := decodeCount(&value)
+	result.Triangles = make([]gfx.Triangle, triangleCount)
+	for index := range result.Triangles {
+		var triangle gfx.Triangle
+		for point := range triangle.Points {
+			triangle.Points[point] = gfx.Point{X: value.f32(), Y: value.f32()}
+		}
+		triangle.Color = decodeColor(&value)
+		triangle.Shade[0], triangle.Shade[1] = decodeColor(&value), decodeColor(&value)
+		triangle.Shaded = value.bool()
+		triangle.Layer = value.u16()
+		triangle.EdgeMask = value.u8()
+		triangle.ClipOf, triangle.HasClip = decodeRect(&value), value.bool()
+		triangle.RectsBefore = value.u32()
+		result.Triangles[index] = triangle
 	}
 	shadowCount := decodeCount(&value)
 	result.Shadows = make([]gfx.Shadow, shadowCount)

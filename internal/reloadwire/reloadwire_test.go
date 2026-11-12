@@ -17,8 +17,17 @@ func TestCanvasCodecPreservesRetainedOutput(t *testing.T) {
 	canvas.PushLayer(7)
 	canvas.Clip(gfx.Rect{X: 2, Y: 3, Width: 90, Height: 40})
 	canvas.Fill(gfx.Rect{X: 0, Y: 0, Width: 100, Height: 50}, gfx.Color{Alpha: 1})
+	canvas.AppendTriangle(gfx.Triangle{
+		Points: [3]gfx.Point{{X: 0, Y: 0}, {X: 12, Y: 0}, {X: 0, Y: 9}},
+		Color:  gfx.Color{Red: 1, Alpha: 0.5}, EdgeMask: 1,
+	})
 	canvas.Elevate(gfx.Rect{X: 1, Y: 2, Width: 80, Height: 30}, 6, gfx.ShadowMD)
 	canvas.Rounded(gfx.Rect{X: 1, Y: 2, Width: 80, Height: 30}, 6, gfx.Color{Red: 0.2, Green: 0.3, Blue: 0.4, Alpha: 1})
+	canvas.AppendTriangle(gfx.Triangle{
+		Points: [3]gfx.Point{{X: 1, Y: 1}, {X: 9, Y: 2}, {X: 3, Y: 8}},
+		Color:  gfx.Color{Alpha: 1}, Shaded: true,
+		Shade: [2]gfx.Color{{Green: 1, Alpha: 1}, {Blue: 1, Alpha: 1}},
+	})
 	canvas.DrawBitmapRegion(gfx.Bitmap{
 		Pix: []byte{0, 0, 255, 255, 0, 255, 0, 255}, Width: 2, Height: 1, Stride: 8, ID: 55, Version: 2,
 	}, gfx.Rect{X: 1, Width: 1, Height: 1}, gfx.Rect{X: 10, Y: 10, Width: 20, Height: 10})

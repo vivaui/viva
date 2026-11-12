@@ -18,6 +18,7 @@ func CaptureCanvas(canvas *gfx.Canvas) CanvasSnapshot {
 	}
 	return CanvasSnapshot{
 		Rectangles:   append([]gfx.Rectangle(nil), canvas.Rectangles()...),
+		Triangles:    append([]gfx.Triangle(nil), canvas.Triangles()...),
 		Shadows:      append([]gfx.Shadow(nil), canvas.Shadows()...),
 		Images:       append([]gfx.Image(nil), canvas.Images()...),
 		Texts:        append([]gfx.Text(nil), canvas.Texts()...),
@@ -34,25 +35,43 @@ func CaptureCanvas(canvas *gfx.Canvas) CanvasSnapshot {
 
 func ApplyCanvas(canvas *gfx.Canvas, snapshot CanvasSnapshot) {
 	canvas.Reset()
-	// A shadow goes back among the rectangles where it was painted. Triangles are
-	// not carried, so only the rectangles count.
+	// Rectangles, triangles and shadows live in separate lists. A triangle
+	// records how many rectangles came before it, and a shadow how many of both,
+	// which is what interleaves them back into paint order.
+	triangles := snapshot.Triangles
 	shadows := snapshot.Shadows
-	replayShadows := func(rectangles int) {
-		for len(shadows) > 0 && int(shadows[0].RectsBefore) <= rectangles {
-			shadow := shadows[0]
-			shadows = shadows[1:]
-			pushLayerAndClip(canvas, shadow.Layer, shadow.ClipOf, shadow.HasClip)
-			canvas.Shadow(shadow.Bounds, shadow.Radius, shadow.Style, shadow.Color)
-			popLayerAndClip(canvas, shadow.Layer, shadow.HasClip)
+	trianglesDone := 0
+	replayPainting := func(rectangles int) {
+		for {
+			if len(shadows) > 0 &&
+				int(shadows[0].RectsBefore) <= rectangles &&
+				int(shadows[0].TrianglesBefore) <= trianglesDone {
+				shadow := shadows[0]
+				shadows = shadows[1:]
+				pushLayerAndClip(canvas, shadow.Layer, shadow.ClipOf, shadow.HasClip)
+				canvas.Shadow(shadow.Bounds, shadow.Radius, shadow.Style, shadow.Color)
+				popLayerAndClip(canvas, shadow.Layer, shadow.HasClip)
+				continue
+			}
+			if len(triangles) > 0 && int(triangles[0].RectsBefore) <= rectangles {
+				triangle := triangles[0]
+				triangles = triangles[1:]
+				trianglesDone++
+				pushLayerAndClip(canvas, triangle.Layer, triangle.ClipOf, triangle.HasClip)
+				canvas.AppendTriangle(triangle)
+				popLayerAndClip(canvas, triangle.Layer, triangle.HasClip)
+				continue
+			}
+			break
 		}
 	}
 	for index, rectangle := range snapshot.Rectangles {
-		replayShadows(index)
+		replayPainting(index)
 		pushLayerAndClip(canvas, rectangle.Layer, rectangle.ClipOf, rectangle.HasClip)
 		canvas.Rounded(rectangle.Bounds, rectangle.Radius, rectangle.Color)
 		popLayerAndClip(canvas, rectangle.Layer, rectangle.HasClip)
 	}
-	replayShadows(len(snapshot.Rectangles))
+	replayPainting(len(snapshot.Rectangles))
 	for _, image := range snapshot.Images {
 		pushLayerAndClip(canvas, image.Layer, image.ClipOf, image.HasClip)
 		canvas.DrawBitmapRegion(image.Bitmap, image.Source, image.Bounds)
