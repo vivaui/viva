@@ -49,6 +49,7 @@ type ScrollArea struct {
 	reserveBars         bool
 	hoverBars           bool
 	barsRevealed        bool
+	barWidth            float32
 	contentClipIsActive bool
 }
 
@@ -114,15 +115,28 @@ func (area ScrollArea) HoverScrollbars(hovered bool) ScrollArea {
 	return area
 }
 
+// ScrollbarSize overrides the thickness of both bars: a vertical bar's width or
+// a horizontal bar's height. A zero or negative size keeps the style's default
+// (the full-size bar, or the narrower hover bar). The thumb and a reserved
+// viewport follow the same size, so a caller can give a hover bar the weight of
+// a full-size one without moving the content between hidden and revealed.
+func (area ScrollArea) ScrollbarSize(size float32) ScrollArea {
+	area.barWidth = size
+	return area
+}
+
 // Disabled preserves geometry and typed semantics while making both scrollbars inert.
 func (area ScrollArea) Disabled() ScrollArea {
 	area.disabled = true
 	return area
 }
 
-// barSize is the width of a bar's track: the narrow hover overlay or the
-// full-size bar.
+// barSize is the width of a bar's track: the caller's override, the narrow
+// hover overlay, or the full-size bar.
 func (area ScrollArea) barSize() float32 {
+	if width := scrollAreaFiniteNonNegative(area.barWidth); width > 0 {
+		return width
+	}
 	if area.hoverBars {
 		return scrollAreaHoverBarSize
 	}

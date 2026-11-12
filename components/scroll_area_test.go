@@ -244,6 +244,47 @@ func TestHoverScrollAreaCanReserveItsNarrowStrip(t *testing.T) {
 	}
 }
 
+// ScrollbarSize sets both bars' thickness without changing a hover area's
+// behavior: the content keeps its full width and the hidden/revealed geometry
+// stays the same.
+func TestScrollAreaScrollbarSizeOverridesTheStyleDefault(t *testing.T) {
+	bounds := gfx.Rect{X: 8, Y: 9, Width: 200, Height: 120}
+	content := gfx.Size{Width: 200, Height: 1000}
+	theme := gfx.LightTheme()
+
+	hover := BeginScrollArea(nil, theme, bounds, content).
+		HoverScrollbars(true).
+		ScrollbarSize(10).
+		Geometry()
+	if hover.Viewport != bounds {
+		t.Fatalf("a sized hover bar reserved width: viewport %+v", hover.Viewport)
+	}
+	if hover.VerticalTrack.Width != 10 || hover.VerticalThumb.Width != 10-2*scrollAreaBarInset {
+		t.Fatalf("sized hover track/thumb width = %v/%v", hover.VerticalTrack.Width, hover.VerticalThumb.Width)
+	}
+	if hover.VerticalTrack.X != bounds.X+bounds.Width-10 {
+		t.Fatalf("sized hover track x = %v", hover.VerticalTrack.X)
+	}
+
+	reserved := BeginScrollArea(nil, theme, bounds, gfx.Size{Width: bounds.Width - 10, Height: 1000}).
+		ReserveScrollbars().
+		ScrollbarSize(10).
+		Geometry()
+	if reserved.Viewport != (gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width - 10, Height: bounds.Height}) {
+		t.Fatalf("sized reserved viewport = %+v", reserved.Viewport)
+	}
+
+	// Zero keeps each style's default.
+	full := BeginScrollArea(nil, theme, bounds, content).ScrollbarSize(0).Geometry()
+	if full.VerticalTrack.Width != scrollAreaBarSize {
+		t.Fatalf("zero size changed the full bar: %+v", full.VerticalTrack)
+	}
+	overlay := BeginScrollArea(nil, theme, bounds, content).HoverScrollbars(true).ScrollbarSize(0).Geometry()
+	if overlay.VerticalTrack.Width != scrollAreaHoverBarSize {
+		t.Fatalf("zero size changed the hover bar: %+v", overlay.VerticalTrack)
+	}
+}
+
 // Painting a revealed hover bar performs no allocation, like the rest of the
 // scroll area.
 func TestHoverScrollAreaPaintIsAllocationFree(t *testing.T) {
