@@ -278,13 +278,17 @@ func TestBackdropFallbackInvalidatesUnchangedScene(t *testing.T) {
 			showWindow.Call(window, 4) // SW_SHOWNOACTIVATE: hidden windows have no paint region.
 			user.NewProc("ValidateRect").Call(window, 0)
 			state.applyBackdrop()
-			windowProc(window, wmRedraw, 0, 0)
-			if state.backdropActive || state.renderer.color != state.config.ClearColor {
-				t.Fatal("compositor loss did not restore the fallback color")
-			}
+			// The fallback changed the clear color; a native paint must be
+			// scheduled even though the scene did not change. Read the update
+			// region before asking for the redraw: with an OnRedraw callback the
+			// window paints there and then, consuming the region it was given.
 			dirty, _, _ := user.NewProc("GetUpdateRect").Call(window, 0, 0)
 			if dirty == 0 {
 				t.Fatal("fallback changed the clear color without scheduling a native paint")
+			}
+			windowProc(window, wmRedraw, 0, 0)
+			if state.backdropActive || state.renderer.color != state.config.ClearColor {
+				t.Fatal("compositor loss did not restore the fallback color")
 			}
 			user.NewProc("ValidateRect").Call(window, 0)
 			state.applyBackdrop()
