@@ -2,9 +2,11 @@ package linux
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/vivaui/viva/internal/dbus"
+	"github.com/vivaui/viva/internal/dbusmenu"
 	"github.com/vivaui/viva/internal/platform"
 )
 
@@ -116,6 +118,73 @@ func TestStatusItemServesPropertiesBeforeTheHostAcknowledges(t *testing.T) {
 	d := dbus.NewDecoder(conn.last.Body)
 	if signature := d.Signature(); signature != "a(iiay)" {
 		t.Fatalf("IconPixmap answered as %q", signature)
+	}
+}
+
+func TestStatusItemServesMenuBeforeTheHostAcknowledges(t *testing.T) {
+	services, conn := statusTestServices(t, watcherNames[0])
+	label := "显示窗口"
+	item, err := services.AddStatusItem(platform.StatusItemConfig{
+		Icon: statusTestIcon(),
+		Menu: func() []platform.MenuItem { return []platform.MenuItem{{Title: label}} },
+	})
+	if err != nil {
+		t.Fatalf("AddStatusItem: %v", err)
+	}
+	name := item.(*linuxStatusItem).name
+	var layout dbus.Encoder
+	layout.Int32(0)
+	layout.Int32(-1)
+	names := layout.BeginArray(4)
+	layout.String("type")
+	layout.String("children-display")
+	layout.EndArray(names)
+	conn.incoming = []*dbus.Message{{
+		Type: dbus.TypeCall, Serial: 10, Destination: name,
+		Path: dbusmenu.Path, Interface: dbusmenu.Interface,
+		Member: "GetLayout", Signature: "iias", Body: layout.Bytes(),
+	}}
+	services.serveStatus()
+	if conn.last == nil || conn.last.ReplySerial != 10 || conn.last.Signature != "u(ia{sv}av)" {
+		t.Fatalf("layout reply = %+v", conn.last)
+	}
+	var group dbus.Encoder
+	group.EndArray(group.BeginArray(4))
+	group.EndArray(group.BeginArray(4))
+	conn.incoming = []*dbus.Message{
+		{
+			Type: dbus.TypeCall, Serial: 11, Destination: name,
+			Path: dbusmenu.Path, Interface: dbusmenu.Interface,
+			Member: "GetGroupProperties", Signature: "aias", Body: group.Bytes(),
+		},
+		{Type: dbus.TypeReturn, ReplySerial: conn.sent[0].serial},
+	}
+	services.serveStatus()
+	if conn.replied != 2 || conn.last == nil || conn.last.ReplySerial != 11 || conn.last.Signature != "a(ia{sv})" {
+		t.Fatalf("menu replies = %d, last = %+v", conn.replied, conn.last)
+	}
+	decoder := dbus.NewDecoder(conn.last.Body)
+	decoder.Skip(conn.last.Signature)
+	if decoder.Err() != nil || !decoder.Done() || !strings.Contains(string(conn.last.Body), label) {
+		t.Fatalf("menu labels were not served alongside the registration reply: %v", decoder.Err())
+	}
+	if len(services.status.pending) != 0 {
+		t.Fatal("the registration acknowledgement was not dispatched")
+	}
+}
+
+func BenchmarkStatusRegistration(b *testing.B) {
+	conn := &fakeStatusConnection{}
+	notifier := &statusNotifier{conn: conn, pending: make(map[uint32]pendingRegistration)}
+	item := &linuxStatusItem{name: "org.kde.StatusNotifierItem-1-1"}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := notifier.register(item); err != nil {
+			b.Fatal(err)
+		}
+		notifier.settleRegistration(&dbus.Message{Type: dbus.TypeReturn, ReplySerial: conn.serial})
+		conn.sent = conn.sent[:0]
 	}
 }
 
