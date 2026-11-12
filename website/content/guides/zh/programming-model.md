@@ -44,6 +44,8 @@ config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 
 其他 goroutine 从不直接操作窗口。goroutine 在你自己的同步保护下发布结果，然后调用 `Invalidator.Invalidate`。窗口线程被唤醒一次，运行 `OnWake`，再重绘。
 
+这个所有权也覆盖模型和文本编辑器，不只是原生窗口方法。必须在启动 worker **之前**，在窗口线程上调用 `ui.Field.Text()` 或 `text.Editor.String()`，再把返回的不可变字符串传给 worker。getter 不一定是纯读：这些方法会填充缓存，字段还可能在首次使用时初始化编辑器。只有 worker 使用的锁无法与原生编辑、绘制同步。结果在窗口线程上应用；页面作用域的任务可以把快照作为 keyed effect 的 key，见[文本输入与表单](text-input)。
+
 <!-- example: background/main.go -->
 ```go
 package main

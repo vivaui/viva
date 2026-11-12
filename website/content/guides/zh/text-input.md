@@ -70,7 +70,40 @@ func main() {
 
 编辑器还持有有界的撤销历史。macOS 的 Command+Z、Command+Shift+Z，以及 Windows/Linux 的 Control+Z、Control+Y 或 Control+Shift+Z，会在应用没有接管该快捷键时调用 `Undo` 和 `Redo`。连续输入和连续删除会合并；粘贴、换行、替换选区和一次完整的输入法组合各自是独立单元。应用可以用 `BreakUndoGroup` 划分额外边界，用 `ClearHistory` 丢弃保留的历史。直接连接 `Editor` 的密码字段会在每次原生编辑后清空历史，避免为了撤销而继续保留旧密码。终端不使用这套历史，Control+Z 仍会发送给终端中的程序。
 
-`Editor` 不是并发安全的：只在窗口线程上访问它。
+## 文本与后台任务
+
+`Editor` 及其 `ui.Field` 都不是并发安全的，getter 或两个 reader 也不例外。连接到窗口之后，只在窗口线程上访问它们。`String()` 缓存 UTF-8 转换，`CommittedString()` 缓存输入法组合之前的文本，`Field.Text()` 还可能初始化编辑器。返回的字符串是不可变快照：后续编辑不会改变已经传给 worker 的快照。
+
+页面作用域的任务应把文本快照作为 `ui.NewEffectKeyed` 的 key，而不是在 worker 中捕获字段或编辑器：
+
+```go
+type model struct {
+	draft   ui.Field
+	preview *ui.EffectState[string, string]
+	result  string
+}
+
+func newModel() *model {
+	return &model{
+		preview: ui.NewEffectKeyed[string, string](func(ctx context.Context, snapshot string) (string, error) {
+			return makePreview(ctx, snapshot)
+		}),
+	}
+}
+
+func (m *model) page(c ui.C) {
+	ui.TextField(c, &m.draft, "Text", "Type here")
+	ui.Effect(c, m.preview, m.draft.Text())
+	if result, err, ok := m.preview.Take(); ok && err == nil {
+		m.result = result
+	}
+	ui.Text(c, m.result)
+}
+```
+
+`makePreview` 代表你的支持 context 的后台操作；导入 `context` 和 `github.com/vivaui/viva/ui`。worker 只接收字符串，字段与结果仍由窗口线程持有。文本变化会取消旧任务并丢弃其迟到结果，即使它在取消后仍成功返回；关闭页面也会取消任务。
+
+不属于页面 key 的任务，应在启动 worker 之前取得文本，在同步保护下发布结果，调用 `Invalidator.Invalidate` 后由 `Config.OnWake` 消费。`ContentWindow.Post` 也会在其窗口线程上执行更新；必须检查返回值，因为窗口已销毁或队列已满时它会拒绝更新。见[后台任务](programming-model#后台任务)。Invalidate 请求的是结果交付，不会让后台直接访问 UI 状态变得安全。失败后需要恢复草稿的操作，要先在窗口线程上核对请求身份或修订号，避免迟到的失败覆盖用户新输入。
 
 ## 密码字段
 

@@ -62,9 +62,11 @@ type textChange struct {
 	removed, inserted []rune
 }
 
-// Editor retains text, selection, and an optional IME composition range. Like
-// its mutators, String is not safe for concurrent use: it caches the converted
-// text.
+// Editor retains text, selection, and an optional IME composition range.
+// All access must be serialized, including getters: String and CommittedString
+// populate caches. When attached to a window, access it only on that window's
+// thread, where native input and painting run. Read a string snapshot there
+// before starting background work; the returned string remains valid after edits.
 type Editor struct {
 	runes               []rune
 	anchor              int
@@ -131,6 +133,8 @@ func NewEditor(initial string) *Editor {
 
 // String returns the current UTF-8 text. The conversion is cached until the
 // text next changes, so repeated calls between edits allocate nothing.
+// Like all Editor methods, it is not safe for concurrent use. The returned
+// string is an immutable snapshot that can be passed to background work.
 func (editor *Editor) String() string {
 	if !editor.composing {
 		editor.releaseCompositionHistory()
@@ -146,6 +150,7 @@ func (editor *Editor) String() string {
 }
 
 // CommittedString returns the text before marked input until the IME commits it.
+// Like String, it populates a cache and is not safe for concurrent use.
 func (editor *Editor) CommittedString() string {
 	if editor.composing {
 		if !editor.compositionBaseValid {

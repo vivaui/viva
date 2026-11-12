@@ -70,7 +70,40 @@ A `ui.Field` creates its editor on first use; `text.NewEditor(initial)` makes on
 
 The editor also owns a bounded undo history. Command+Z and Command+Shift+Z on macOS, and Control+Z plus Control+Y or Control+Shift+Z on Windows and Linux, reach `Undo` and `Redo` after the application declines the shortcut. Adjacent typing and deletion coalesce; a paste, line break, selection replacement or completed input-method composition is one separate unit. `BreakUndoGroup` adds an application-defined boundary and `ClearHistory` discards retained history. An `Editor`-backed secure field clears history after every native edit, so an old password is not retained for undo. Terminals do not use this history: Control+Z still reaches the program running in the terminal.
 
-An `Editor` is not safe for concurrent use: touch it only on the window thread.
+## Text and background work
+
+An `Editor` and its `ui.Field` are not safe for concurrent use, even for getters or two readers. Access them only on the window thread while attached to a window. `String()` caches its UTF-8 conversion, `CommittedString()` caches the text before IME composition, and `Field.Text()` can also initialize the editor. Their returned strings are immutable snapshots: later edits do not change a snapshot already passed to a worker.
+
+For page-scoped work, give `ui.NewEffectKeyed` the text snapshot as its key instead of capturing a field or editor in the worker:
+
+```go
+type model struct {
+	draft   ui.Field
+	preview *ui.EffectState[string, string]
+	result  string
+}
+
+func newModel() *model {
+	return &model{
+		preview: ui.NewEffectKeyed[string, string](func(ctx context.Context, snapshot string) (string, error) {
+			return makePreview(ctx, snapshot)
+		}),
+	}
+}
+
+func (m *model) page(c ui.C) {
+	ui.TextField(c, &m.draft, "Text", "Type here")
+	ui.Effect(c, m.preview, m.draft.Text())
+	if result, err, ok := m.preview.Take(); ok && err == nil {
+		m.result = result
+	}
+	ui.Text(c, m.result)
+}
+```
+
+Here `makePreview` is your context-aware background operation; import `context` and `github.com/vivaui/viva/ui`. The worker receives only a string, while the field and result remain on the window thread. Changing the text cancels the old run and discards its late result, even if it returns successfully after cancellation. Closing the page cancels its work too.
+
+For work independent of a page key, capture the text before launching the worker, publish its result under synchronization, and consume it in `Config.OnWake` after `Invalidator.Invalidate`. `ContentWindow.Post` also delivers updates on its window thread; check its return value because it rejects updates after teardown or when its queue is full. See [Background work](programming-model#background-work). Invalidation requests delivery; it does not make direct background access to UI state safe. For an operation that restores a draft on failure, check the request's identity or revision on the window thread before restoring it, so a late failure cannot overwrite newer typing.
 
 ## Password fields
 

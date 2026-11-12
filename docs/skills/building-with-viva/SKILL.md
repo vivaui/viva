@@ -20,6 +20,7 @@ If you are in a checkout of Viva itself, its `AGENTS.md` is the authority and ov
 
 - No reflection, `map[string]any` or dynamic property bags in layout, input, scene or render paths.
 - No goroutines, timers or polling loops that run while the app is idle. Animation is a scheduled, temporary reason to draw, never a heartbeat. An idle window draws nothing.
+- UI state belongs to the window thread, including `ui.Field.Text()` and `text.Editor.String()`: getters may initialize state or populate caches. Read a string snapshot before starting a worker, never capture a field/editor pointer in it. Use `ui.NewEffectKeyed` with the snapshot as its key and consume `Take` in the page; independent workers publish under synchronization and deliver through `Invalidator` / `OnWake`.
 - Declaring components and layout must not allocate per paint. State that is expensive to compute (shaped text, line breaks) is cached by whoever owns it and invalidated explicitly.
 - Never number hit targets by hand. Identities are names in a `gfx.Tree`; a page (`ui.C`) makes them for its elements.
 - Do not add a dependency to the code that ships in the app without measuring its stripped binary size, startup and idle memory.

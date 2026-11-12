@@ -14,6 +14,11 @@ import (
 // edits, so typing, the caret, selection, clipboard and input methods work without
 // any further wiring beyond giving Fields to Config.TextInput.
 //
+// A Field and its bound editor belong to the window thread. All access, including
+// Text, Bind and Secure, must happen there once the field is attached to a window.
+// Pass the string returned by Text to background work, not the Field itself;
+// apply results on the window thread with EffectState.Take or Config.OnWake.
+//
 //	type model struct{ name, password ui.Field }
 //
 //	m.password.Secure = true
@@ -68,10 +73,13 @@ func (field *Field) Bind(editor *text.Editor) {
 	field.seen = editor.String()
 }
 
-// Text is what is in the field.
+// Text returns an immutable snapshot of what is in the field. Call it on the
+// window thread before starting background work: it may initialize the editor
+// and populate its text cache, so concurrent calls are not safe either.
 func (field *Field) Text() string { return field.ensure().String() }
 
-// SetText replaces the contents and puts the caret at the end.
+// SetText replaces the contents and puts the caret at the end. Like Text, it
+// must run on the window thread, not in a background worker.
 func (field *Field) SetText(value string) {
 	editor := field.ensure()
 	editor.SetSelection(text.Range{Start: 0, End: editor.RuneCount()})
