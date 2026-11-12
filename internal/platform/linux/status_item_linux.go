@@ -241,16 +241,42 @@ func (application *linuxApplication) post(command uint32) {
 	}
 }
 
+// statusConnection is the session bus connection the status icons own. It is an
+// interface so a test can script the bus and the host, as the desktop watch's
+// connection lets its tests do.
+type statusConnection interface {
+	Call(destination, path, iface, member, signature string, body []byte) (*dbus.Message, error)
+	Send(destination, path, iface, member, signature string, body []byte) (uint32, error)
+	Receive() ([]*dbus.Message, error)
+	Reply(call *dbus.Message, signature string, body []byte) error
+	ReplyError(call *dbus.Message, name, text string) error
+	Emit(path, iface, member, signature string, body []byte) error
+	FD() int
+	Close()
+}
+
+var dialStatus = func() (statusConnection, error) { return dbus.DialSession() }
+
 // statusNotifier is the application's connection to the session bus and the
 // icons it has registered with the desktop's StatusNotifier host.
 type statusNotifier struct {
-	conn  *dbus.Conn
+	conn  statusConnection
 	items map[string]*linuxStatusItem // by the bus name each is registered under
 	post  func(command uint32)        // wakes the event loop from another goroutine
+	// pending is the registration call in flight to each watcher, by the serial
+	// the call was sent with. The host may answer it long after it was sent,
+	// while the icon already serves the properties the host asks for.
+	pending map[uint32]pendingRegistration
 
 	mu       sync.Mutex
 	removals []string
 	nextID   uint32
+}
+
+// pendingRegistration is one item's call to one watcher, still unanswered.
+type pendingRegistration struct {
+	item    *linuxStatusItem
+	watcher int // index in watcherNames the call was sent to
 }
 
 type linuxStatusItem struct {
@@ -269,7 +295,7 @@ func (services *desktopServices) AddStatusItem(config platform.StatusItemConfig)
 		return nil, errors.New("linux: status icon pixels do not match its size")
 	}
 	if services.status == nil {
-		conn, err := dbus.DialSession()
+		conn, err := dialStatus()
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", platform.ErrStatusAreaUnavailable, err)
 		}
@@ -281,10 +307,18 @@ func (services *desktopServices) AddStatusItem(config platform.StatusItemConfig)
 			conn.Close()
 			return nil, err
 		}
-		services.status = &statusNotifier{conn: conn, items: make(map[string]*linuxStatusItem), post: services.host.post}
+		services.status = &statusNotifier{
+			conn: conn, items: make(map[string]*linuxStatusItem), pending: make(map[uint32]pendingRegistration), post: services.host.post,
+		}
 		services.host.rebuildPoll()
 	}
 	notifier := services.status
+	if !notifier.hostPresent() {
+		// No desktop is drawing status icons. Saying so keeps a window from
+		// disappearing into a status area that is not there.
+		services.dropStatusIfEmpty()
+		return nil, fmt.Errorf("%w: no StatusNotifier host", platform.ErrStatusAreaUnavailable)
+	}
 	notifier.nextID++
 	item := &linuxStatusItem{
 		notifier: notifier, tooltip: config.Tooltip, icon: config.Icon, onClick: config.OnClick,
@@ -322,19 +356,99 @@ func (services *desktopServices) dropStatusIfEmpty() {
 	}
 }
 
-// register tells the watcher about an item.
-func (notifier *statusNotifier) register(item *linuxStatusItem) error {
-	var arguments dbus.Encoder
-	arguments.String(item.name)
-	var last error
+// hostPresent asks the bus whether a desktop is drawing status icons. The
+// question goes to the bus daemon, which answers at once even while the host
+// itself is still starting and slow to answer the calls made to it.
+func (notifier *statusNotifier) hostPresent() bool {
 	for _, watcher := range watcherNames {
-		_, err := notifier.conn.Call(watcher, watcherPath, watcher, "RegisterStatusNotifierItem", "s", arguments.Bytes())
-		if err == nil {
-			return nil
+		var arguments dbus.Encoder
+		arguments.String(watcher)
+		reply, err := notifier.conn.Call(busName, "/org/freedesktop/DBus", busName, "NameHasOwner", "s", arguments.Bytes())
+		if err != nil {
+			continue
 		}
-		last = err
+		if reply.Args().Bool() {
+			return true
+		}
 	}
-	return last
+	return false
+}
+
+// register tells a watcher about an item without waiting for its answer. A host
+// that is still starting can take seconds to answer, and the icon has to read
+// the properties the host asks for meanwhile; serveStatus reads the answer and
+// tries the other watcher name when one refuses.
+func (notifier *statusNotifier) register(item *linuxStatusItem) error {
+	if notifier.sendRegistration(item, 0) {
+		return nil
+	}
+	return errors.New("linux: no StatusNotifier watcher took the registration")
+}
+
+// sendRegistration sends the registration call to the first watcher name from
+// watcher on that is not already waiting for an answer, and reports whether a
+// call was sent or is already in flight.
+func (notifier *statusNotifier) sendRegistration(item *linuxStatusItem, watcher int) bool {
+	for ; watcher < len(watcherNames); watcher++ {
+		if notifier.awaitingAnswer(item, watcher) {
+			return true
+		}
+		var arguments dbus.Encoder
+		arguments.String(item.name)
+		name := watcherNames[watcher]
+		serial, err := notifier.conn.Send(name, watcherPath, name, "RegisterStatusNotifierItem", "s", arguments.Bytes())
+		if err != nil {
+			continue
+		}
+		notifier.pending[serial] = pendingRegistration{item: item, watcher: watcher}
+		return true
+	}
+	return false
+}
+
+// awaitingAnswer reports whether this item's call to this watcher name is
+// still unanswered.
+func (notifier *statusNotifier) awaitingAnswer(item *linuxStatusItem, watcher int) bool {
+	for _, pending := range notifier.pending {
+		if pending.item == item && pending.watcher == watcher {
+			return true
+		}
+	}
+	return false
+}
+
+// settleRegistration reads the answer to a registration that was in flight. A
+// refusal is tried on the next watcher name; an acceptance, and an item that
+// was removed meanwhile, need nothing more.
+func (notifier *statusNotifier) settleRegistration(message *dbus.Message) {
+	pending, ok := notifier.pending[message.ReplySerial]
+	if !ok {
+		return
+	}
+	delete(notifier.pending, message.ReplySerial)
+	if message.Type == dbus.TypeError && !pending.item.removed.Load() {
+		notifier.sendRegistration(pending.item, pending.watcher+1)
+	}
+}
+
+// forgetPending drops the registrations waiting on one watcher name: when its
+// owner changes, the call that was in flight went to the owner that is gone.
+func (notifier *statusNotifier) forgetPending(watcher string) {
+	for serial, pending := range notifier.pending {
+		if watcherNames[pending.watcher] == watcher {
+			delete(notifier.pending, serial)
+		}
+	}
+}
+
+// forgetItem drops the registrations of an item that is gone. Its calls may
+// never be answered, and no answer can matter after its bus name is released.
+func (notifier *statusNotifier) forgetItem(item *linuxStatusItem) {
+	for serial, pending := range notifier.pending {
+		if pending.item == item {
+			delete(notifier.pending, serial)
+		}
+	}
 }
 
 func (notifier *statusNotifier) release(item *linuxStatusItem) {
@@ -366,13 +480,22 @@ func (services *desktopServices) serveStatus() {
 		switch message.Type {
 		case dbus.TypeCall:
 			notifier.handle(message)
+		case dbus.TypeReturn, dbus.TypeError:
+			notifier.settleRegistration(message)
 		case dbus.TypeSignal:
 			if message.Member == "NameOwnerChanged" && message.Signature == "sss" {
 				args := message.Args()
 				name, _, owner := args.String(), args.String(), args.String()
 				for _, watcher := range watcherNames {
-					if name == watcher && owner != "" {
-						for _, item := range notifier.items {
+					if name != watcher {
+						continue
+					}
+					notifier.forgetPending(watcher)
+					if owner == "" {
+						continue
+					}
+					for _, item := range notifier.items {
+						if !item.removed.Load() {
 							notifier.register(item)
 						}
 					}
@@ -395,6 +518,7 @@ func (services *desktopServices) drainStatusRemovals() {
 	for _, name := range names {
 		if item := notifier.items[name]; item != nil {
 			notifier.release(item)
+			notifier.forgetItem(item)
 			delete(notifier.items, name)
 		}
 	}
