@@ -175,16 +175,21 @@ type directRasterizer struct {
 	factory     uintptr
 	opaque      *directTarget // alpha ignored: ClearType is allowed
 	translucent *directTarget // premultiplied alpha: color glyphs, grayscale
-	spacing     func(this uintptr, leading, trailing, minimum float32, span uint64) uintptr
-	output      []byte // the pixels of the last label, reused
-	pieces      []gridPiece
-	spans       []colorSpan // the colors of the last ClearType grid label, valid until the next call
-	fallbacks   []faceFallback
-	owner       platform.GridOwner // which run owns which column of a grid label
-	ink         []platform.GridInk // how far each run's glyphs reach past its cells
-	inkCache    map[inkKey]platform.GridInk
-	gdi         *gdiGridRasterizer // the GDI face of fixed-pitch runs, made on first use
-	directOnly  bool               // draw fixed-pitch runs with DirectWrite alone; tests compare the two
+	// batchOpaque and batchTranslucent draw a frame's changed labels in one
+	// Direct2D session each. They keep their own bitmaps, so a batch never grows
+	// the scratch the grid path draws one row at a time.
+	batchOpaque      *directTarget
+	batchTranslucent *directTarget
+	spacing          func(this uintptr, leading, trailing, minimum float32, span uint64) uintptr
+	output           []byte // the pixels of the last label, reused
+	pieces           []gridPiece
+	spans            []colorSpan // the colors of the last ClearType grid label, valid until the next call
+	fallbacks        []faceFallback
+	owner            platform.GridOwner // which run owns which column of a grid label
+	ink              []platform.GridInk // how far each run's glyphs reach past its cells
+	inkCache         map[inkKey]platform.GridInk
+	gdi              *gdiGridRasterizer // the GDI face of fixed-pitch runs, made on first use
+	directOnly       bool               // draw fixed-pitch runs with DirectWrite alone; tests compare the two
 }
 
 func newDirectRasterizer() (*directRasterizer, error) {
@@ -214,6 +219,14 @@ func (rasterizer *directRasterizer) close() {
 	}
 	if rasterizer.translucent != nil {
 		rasterizer.translucent.close()
+	}
+	if rasterizer.batchOpaque != nil {
+		rasterizer.batchOpaque.close()
+		rasterizer.batchOpaque = nil
+	}
+	if rasterizer.batchTranslucent != nil {
+		rasterizer.batchTranslucent.close()
+		rasterizer.batchTranslucent = nil
 	}
 	if rasterizer.gdi != nil {
 		rasterizer.gdi.close()
@@ -367,11 +380,42 @@ func (rasterizer *directRasterizer) pass(target *directTarget, line *shapedLine,
 	return scratch, nil
 }
 
+// batchTarget returns the target that draws a frame's changed proportional
+// labels in one session, making it on first use.
+func (rasterizer *directRasterizer) batchTarget(translucent bool) (*directTarget, error) {
+	slot, mode := &rasterizer.batchOpaque, uint32(d2dAlphaIgnore)
+	if translucent {
+		slot, mode = &rasterizer.batchTranslucent, d2dAlphaPremultiplied
+	}
+	if *slot == nil {
+		target, err := newDirectTarget(rasterizer.factory, mode)
+		if err != nil {
+			return nil, err
+		}
+		*slot = target
+	}
+	return *slot, nil
+}
+
+// pushClipRect limits what is drawn to a rectangle of the target, until popClip.
+// A batch draws many labels into one bitmap, so each label is cut to its own
+// rectangle instead of to the bitmap's corner.
+func (target *directTarget) pushClipRect(left, top, right, bottom int) {
+	target.clip.Left, target.clip.Top, target.clip.Right, target.clip.Bottom = float32(left), float32(top), float32(right), float32(bottom)
+	comCall(target.target, d2dPushAxisAlignedClip, uintptr(unsafe.Pointer(&target.clip)), d2dClipAliased)
+}
+
 // fill sets the top left width by height pixels of the bitmap to color.
 func fill(bitmap *textBitmap, width, height int, color d2dColor) {
+	fillIn(bitmap, 0, 0, width, height, color)
+}
+
+// fillIn sets the width by height pixels of the bitmap at x, y to color.
+func fillIn(bitmap *textBitmap, x, y, width, height int, color d2dColor) {
 	value := [4]byte{byte(color.B*255 + 0.5), byte(color.G*255 + 0.5), byte(color.R*255 + 0.5), byte(color.A*255 + 0.5)}
 	for row := 0; row < height; row++ {
-		line := bitmap.Pixels[row*bitmap.Width*4 : row*bitmap.Width*4+width*4]
+		start := (y+row)*bitmap.Width*4 + x*4
+		line := bitmap.Pixels[start : start+width*4]
 		for index := 0; index+3 < len(line); index += 4 {
 			copy(line[index:index+4], value[:])
 		}
@@ -387,17 +431,32 @@ func luminance(red, green, blue byte) byte {
 // on an opaque background: white text on black is the coverage itself, black text on white its
 // complement.
 func coverageOfPixels(pixels []byte, bitmap *textBitmap, width, height int, drawnLight bool) {
+	coverageOfPixelsIn(pixels, bitmap, 0, 0, width, height, drawnLight)
+}
+
+// coverageOfPixelsIn is coverageOfPixels for the width by height rectangle at x, y.
+func coverageOfPixelsIn(pixels []byte, bitmap *textBitmap, x, y, width, height int, drawnLight bool) {
 	var flip byte
 	if !drawnLight {
 		flip = 255
 	}
 	for row := 0; row < height; row++ {
-		source := bitmap.Pixels[row*bitmap.Width*4 : row*bitmap.Width*4+width*4]
+		start := (y+row)*bitmap.Width*4 + x*4
+		source := bitmap.Pixels[start : start+width*4]
 		out := pixels[row*width*4 : (row+1)*width*4]
 		for index := 0; index+3 < len(out); index += 4 {
 			blue, green, red := source[index]^flip, source[index+1]^flip, source[index+2]^flip
 			out[index], out[index+1], out[index+2], out[index+3] = blue, green, red, luminance(red, green, blue)
 		}
+	}
+}
+
+// copyPixelsIn copies the width by height rectangle at x, y of the bitmap into
+// pixels, row by row, for the grayscale labels a batch draws into one bitmap.
+func copyPixelsIn(pixels []byte, bitmap *textBitmap, x, y, width, height int) {
+	for row := 0; row < height; row++ {
+		start := (y+row)*bitmap.Width*4 + x*4
+		copy(pixels[row*width*4:(row+1)*width*4], bitmap.Pixels[start:start+width*4])
 	}
 }
 
