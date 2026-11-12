@@ -85,8 +85,8 @@ func BeginCombobox(canvas *gfx.Canvas, theme gfx.Theme, inputBounds gfx.Rect, op
 		combobox.open = false
 		return combobox
 	}
-	combobox.paintInput()
 	if !combobox.open || options.Content.Height <= 0 {
+		combobox.paintInput()
 		combobox.open = false
 		return combobox
 	}
@@ -120,6 +120,9 @@ func BeginCombobox(canvas *gfx.Canvas, theme gfx.Theme, inputBounds gfx.Rect, op
 	if !options.DismissID.IsZero() && options.Viewport.Width > 0 && options.Viewport.Height > 0 {
 		canvas.HitWithOptions(options.DismissID, options.Viewport, "Dismiss combobox", gfx.HitOptions{Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: true})
 	}
+	// Paint the input inside the overlay layer so it sits above the dismiss backdrop
+	// and receives input focus properly while the popup is open.
+	combobox.paintInput()
 	// The popup is inside the combobox: a press on its padding or a disabled
 	// option must not reach the dismiss backdrop behind it.
 	canvas.Block(content)
