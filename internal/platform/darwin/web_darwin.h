@@ -19,7 +19,12 @@ void viva_web_back(void *web);
 void viva_web_forward(void *web);
 void viva_web_eval(void *web, const char *script);
 void viva_web_focus(void *web);
+// viva_web_close closes the page. Its unanswered scheme requests are let go too.
 void viva_web_close(void *web);
+
+// viva_web_cancel_scheme_tasks lets go of a page's unanswered scheme requests, for a page that goes
+// away with its window before Close.
+void viva_web_cancel_scheme_tasks(void *web);
 
 // viva_web_place puts the page at a place in the view's top-left logical pixels. The first
 // visible_count of the count rectangles (x, y, width, height each) are cut out of its picture, where
@@ -29,5 +34,9 @@ void viva_web_place(void *web, int shown, double x, double y, double width, doub
 
 // viva_web_ready_later calls vivaWebReady(handle) from the main loop once it is idle.
 void viva_web_ready_later(uintptr_t handle);
+
+// viva_web_scheme_answer finishes an asynchronous scheme request from any thread. The buffers are
+// malloc'd and are freed here, whether the answer is used or the request has gone away.
+void viva_web_scheme_answer(uint64_t request, int status, char *headers, unsigned char *data, size_t length);
 
 #endif

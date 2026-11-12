@@ -62,11 +62,42 @@ type WebViewConfig struct {
 	OnLoad func(WebLoad)
 }
 
-// WebScheme serves a custom URL scheme.
+// WebScheme serves a custom URL scheme. Serve is the simple form, Respond adds a status and headers,
+// and ServeAsync answers later from another goroutine. The first of ServeAsync, Respond and Serve that
+// is set is the one used.
 type WebScheme struct {
 	Name string
 	// Serve answers one request: the path after the host, without a query. ok false is a 404.
 	Serve func(path string) (mime string, data []byte, ok bool)
+	// Respond, when set, answers with a status, headers and a body instead of Serve. A Status it sets
+	// wins, even when ok is false; otherwise ok false is a 404, which carries whatever body and MIME
+	// the answer names.
+	Respond func(request WebRequest) (WebResponse, bool)
+	// ServeAsync, when set, replaces both: it is called on the window's thread and answers once,
+	// later, from any goroutine. respond may be called from any goroutine, at most once; a second
+	// call, or one after the page closed, is ignored.
+	ServeAsync func(request WebRequest, respond func(WebResponse))
+}
+
+// WebRequest is one request for a resource of a custom scheme.
+type WebRequest struct {
+	// Path is the path after the host, without a query, as Serve receives it.
+	Path string
+}
+
+// WebResponse is a custom scheme's answer to a request. A 204 or 304 carries no body, whatever Data
+// says.
+type WebResponse struct {
+	// Status is the HTTP status; 0 means 200, or 404 when Serve or Respond did not find the resource.
+	Status int
+	// MIME is the Content-Type; empty means "application/octet-stream", or "text/plain" for a 404.
+	MIME string
+	// Headers are merged over the platform's defaults (Content-Type, Content-Length,
+	// Access-Control-Allow-Origin: *); a header with an empty value removes the default. Names are
+	// case-insensitive.
+	Headers map[string]string
+	// Data is the body.
+	Data []byte
 }
 
 // WebLoadPhase is where a navigation is.

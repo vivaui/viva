@@ -62,6 +62,20 @@ type webKit struct {
 	contextDataManager func(context uintptr) uintptr
 	managerSetProxy    func(manager uintptr, mode int32, settings uintptr)
 	contextSetProxy    func(context uintptr, mode int32, settings uintptr)
+	// The 2.36 answer, which carries a status and headers; nil on an engine that has only the stream
+	// and type form, where a scheme's status and headers are dropped.
+	schemeResponse    bool
+	responseNew       func(stream uintptr, length int64) uintptr
+	responseStatus    func(response uintptr, status uint32, reason *byte)
+	responseType      func(response uintptr, mime *byte)
+	responseHeaders   func(response uintptr, headers uintptr)
+	finishResponse    func(request, response uintptr)
+	soupHeadersNew    func(kind int32) uintptr
+	soupHeadersAppend func(headers uintptr, name, value *byte)
+	// schemeWebView tells which page the request is for, so a late answer for a page that closed can
+	// be dropped; objectRef keeps a request alive until its answer arrives.
+	schemeWebView func(request uintptr) uintptr
+	objectRef     func(object uintptr) uintptr
 }
 
 var (
@@ -108,6 +122,7 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			{&k.jscString, "jsc_value_to_string"},
 			{&k.memoryStream, "g_memory_input_stream_new_from_data"}, {&k.gMalloc, "g_malloc"},
 			{&k.quarkFrom, "g_quark_from_string"}, {&k.errorLiteral, "g_error_new_literal"},
+			{&k.objectRef, "g_object_ref"},
 		} {
 			if !g.lookup(r.function, r.symbol) {
 				webErr = fmt.Errorf("%w: WebKitGTK lacks %s", platform.ErrWebViewUnsupported, r.symbol)
@@ -140,6 +155,18 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			k.managerSetProxy = nil
 		}
 		g.lookup(&k.contextSetProxy, "webkit_web_context_set_network_proxy_settings")
+		// The answer object and libsoup's headers exist from WebKitGTK 2.36; on an older engine the
+		// shell falls back to webkit_uri_scheme_request_finish, which has no status or headers.
+		if g.lookup(&k.responseNew, "webkit_uri_scheme_response_new") &&
+			g.lookup(&k.responseStatus, "webkit_uri_scheme_response_set_status") &&
+			g.lookup(&k.responseType, "webkit_uri_scheme_response_set_content_type") &&
+			g.lookup(&k.responseHeaders, "webkit_uri_scheme_response_set_http_headers") &&
+			g.lookup(&k.finishResponse, "webkit_uri_scheme_request_finish_with_response") &&
+			g.lookup(&k.soupHeadersNew, "soup_message_headers_new") &&
+			g.lookup(&k.soupHeadersAppend, "soup_message_headers_append") {
+			k.schemeResponse = true
+		}
+		g.lookup(&k.schemeWebView, "webkit_uri_scheme_request_get_web_view")
 		webAPI = k
 	})
 	return webAPI, webErr
@@ -495,7 +522,9 @@ func (v *gtkWebView) loadChanged(event int32) {
 	}
 }
 
-// serveScheme answers a request to a custom scheme from the application's resources.
+// serveScheme answers a request to a custom scheme from the application's resources. An asynchronous
+// scheme keeps the request alive and finishes it on the loop, from the answer the application brings
+// back.
 func serveScheme(g *gtkLibrary, request uintptr) {
 	k := webAPI
 	if k == nil {
@@ -506,27 +535,101 @@ func serveScheme(g *gtkLibrary, request uintptr) {
 	if err != nil {
 		parsed = &url.URL{}
 	}
-	var (
-		mime string
-		data []byte
-		ok   bool
-	)
-	if scheme := webSchemes[parsed.Scheme]; scheme != nil && scheme.Serve != nil {
-		mime, data, ok = scheme.Serve(strings.TrimPrefix(parsed.Path, "/"))
+	path := strings.TrimPrefix(parsed.Path, "/")
+	scheme := webSchemes[parsed.Scheme]
+	// The page the request is for, so an answer that arrives after it closed is dropped. Only
+	// WebKitGTK 2.40 and newer can name it: an older engine has no
+	// webkit_uri_scheme_request_get_web_view, so the page is unknowable and its answer is finished as
+	// the engine asks, as before.
+	var page *gtkWebView
+	if k.schemeWebView != nil {
+		view := k.schemeWebView(request)
+		for _, candidate := range webViews {
+			if candidate.widget == view && !candidate.closed {
+				page = candidate
+				break
+			}
+		}
 	}
-	if !ok {
-		domain, message := cString("viva"), cString("not found")
-		failure := k.errorLiteral(k.quarkFrom(&domain[0]), 404, &message[0])
-		k.schemeFinishError(request, failure)
-		g.errorFree(failure)
+	if scheme != nil && scheme.ServeAsync != nil {
+		// The engine waits for the answer: hold the request until the application gives one, from
+		// whatever goroutine did the work, and finish it on the loop.
+		k.objectRef(request)
+		var answered sync.Once
+		scheme.ServeAsync(platform.WebRequest{Path: path}, func(response platform.WebResponse) {
+			// A request has one answer: a second call would make the engine finish it twice.
+			answered.Do(func() {
+				answer := platform.AnswerWebResponse(response, true)
+				app := gtkRunning.Load()
+				if app == nil {
+					// There is no loop left to finish on, and GTK may only be touched from there.
+					g.objectUnref(request)
+					return
+				}
+				app.enqueue(func() {
+					defer g.objectUnref(request) // the reference held for the wait
+					finishScheme(g, k, page, request, answer)
+				})
+			})
+		})
 		return
 	}
-	memory := k.gMalloc(uint64(max(len(data), 1)))
-	copy(unsafeSlice(memory, len(data)), data)
-	stream := k.memoryStream(memory, int64(len(data)), k.free)
-	mimeText := cString(mime)
-	k.schemeFinish(request, stream, int64(len(data)), &mimeText[0])
+	response, found := platform.ServeWebScheme(scheme, path)
+	finishScheme(g, k, page, request, platform.AnswerWebResponse(response, found))
+}
+
+// finishScheme sends one answer to the engine. The synchronous form arrives here inside the callback,
+// the asynchronous form later on the loop; either way the page may be gone by then. An engine before
+// 2.40 cannot name the request's page, so page is nil for a reason other than the page being gone: only
+// a request whose page the engine can name is checked, and one it cannot name is finished as before.
+func finishScheme(g *gtkLibrary, k *webKit, page *gtkWebView, request uintptr, answer platform.WebAnswer) {
+	if k.schemeWebView != nil && (page == nil || page.closed) {
+		// The page closed while the answer was being made: the engine has nothing left to show.
+		return
+	}
+	if !k.schemeResponse {
+		// An engine without the answer object takes a stream and a type only: the status and the
+		// headers are dropped. A 404 is still the failed load the engine shows for a missing resource.
+		if answer.Status == 404 {
+			domain, message := cString("viva"), cString("not found")
+			failure := k.errorLiteral(k.quarkFrom(&domain[0]), 404, &message[0])
+			k.schemeFinishError(request, failure)
+			g.errorFree(failure)
+			return
+		}
+		stream := schemeStream(k, answer.Body)
+		mime := cString(answer.MIME)
+		k.schemeFinish(request, stream, int64(len(answer.Body)), &mime[0])
+		g.objectUnref(stream)
+		return
+	}
+	stream := schemeStream(k, answer.Body)
+	response := k.responseNew(stream, int64(len(answer.Body)))
+	reason := cString(answer.Reason)
+	k.responseStatus(response, uint32(answer.Status), &reason[0])
+	mime := cString(answer.MIME)
+	k.responseType(response, &mime[0])
+	// The type and the stream's length are fields of the response of their own, so the header set
+	// carries everything else. The response takes ownership of it.
+	headers := k.soupHeadersNew(1) // SOUP_MESSAGE_HEADERS_RESPONSE
+	for _, header := range answer.Headers {
+		if header.Name == "Content-Type" || header.Name == "Content-Length" {
+			continue
+		}
+		name, value := cString(header.Name), cString(header.Value)
+		k.soupHeadersAppend(headers, &name[0], &value[0])
+	}
+	k.responseHeaders(response, headers)
+	k.finishResponse(request, response)
+	g.objectUnref(response)
 	g.objectUnref(stream)
+}
+
+// schemeStream is the body as a GInputStream the engine reads; the stream frees its memory.
+func schemeStream(k *webKit, body []byte) uintptr {
+	memory := k.gMalloc(uint64(max(len(body), 1)))
+	copy(unsafeSlice(memory, len(body)), body)
+	return k.memoryStream(memory, int64(len(body)), k.free)
 }
 
 // setNativeViews takes the places the application keeps for native views.

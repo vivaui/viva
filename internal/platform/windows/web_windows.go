@@ -24,6 +24,7 @@ import (
 
 const (
 	wmWebReady     = 32790
+	wmWebAnswer    = 32791
 	wsExLayered    = 0x00080000
 	wsExNoActivate = 0x08000000
 	wsChild        = 0x40000000
@@ -43,6 +44,22 @@ var (
 	getParent       = user.NewProc("GetParent")
 	webHostClass    = "VivaWebHost"
 	webHostRegister sync.Once
+)
+
+// webAnswer is an asynchronous scheme request the runtime is holding open with a deferral, and the
+// answer the application gave, which the UI thread turns into the runtime's response.
+type webAnswer struct {
+	page     *windowsWeb
+	args     uintptr
+	deferral uintptr
+	response platform.WebResponse
+	answered bool
+}
+
+var (
+	webAnswersMu  sync.Mutex
+	webAnswers    = map[uintptr]*webAnswer{}
+	webAnswerNext uintptr
 )
 
 // webHost is the pages of one window.
@@ -117,7 +134,7 @@ func (w *webHost) open(config platform.WebViewConfig) (platform.WebView, error) 
 	webHostRegister.Do(func() {
 		name := wide(webHostClass)
 		cursor, _, _ := loadCursor.Call(0, 32512)
-		class := windowClass{Size: uint32(unsafe.Sizeof(windowClass{})), Procedure: defaultWindowProc.Addr(), Instance: state.application.instance, Cursor: cursor, Name: name}
+		class := windowClass{Size: uint32(unsafe.Sizeof(windowClass{})), Procedure: syscall.NewCallback(webHostProc), Instance: state.application.instance, Cursor: cursor, Name: name}
 		registerClass.Call(uintptr(unsafe.Pointer(&class)))
 	})
 	window, _, err := createWindow.Call(0, uintptr(unsafe.Pointer(wide(webHostClass))), 0, wsChild|wsClipSibs|wsClipKids,
@@ -248,7 +265,7 @@ func (page *windowsWeb) serve(environment, args uintptr) {
 	comCall(request, resourceRequestGetURI, uintptr(unsafe.Pointer(&address)))
 	comCall(request, 2)
 	parsed, err := url.Parse(wideString(address))
-	if err != nil || scheme == nil || scheme.Serve == nil {
+	if err != nil || scheme == nil {
 		return
 	}
 	path := strings.TrimPrefix(parsed.Path, "/")
@@ -257,20 +274,26 @@ func (page *windowsWeb) serve(environment, args uintptr) {
 	} else {
 		path = ""
 	}
-	mime, data, found := scheme.Serve(path)
-	status, reason := 200, "OK"
-	if !found {
-		status, reason, mime, data = 404, "Not Found", "text/plain", nil
+	if scheme.ServeAsync != nil {
+		page.hold(args, path)
+		return
 	}
+	schemeResponse, found := platform.ServeWebScheme(scheme, path)
+	page.answer(environment, args, platform.AnswerWebResponse(schemeResponse, found))
+}
+
+// answer gives the runtime one response object for a request, now.
+func (page *windowsWeb) answer(environment, args uintptr, answer platform.WebAnswer) {
 	var stream uintptr
-	if len(data) > 0 {
-		stream, _, _ = createMemoryBlob.Call(uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)))
+	if len(answer.Body) > 0 {
+		stream, _, _ = createMemoryBlob.Call(uintptr(unsafe.Pointer(&answer.Body[0])), uintptr(len(answer.Body)))
 	} else {
 		stream, _, _ = createMemoryBlob.Call(0, 0)
 	}
-	headers := "Content-Type: " + mime + "\r\nAccess-Control-Allow-Origin: *"
 	var response uintptr
-	comCall(environment, envCreateResponse, stream, uintptr(status), uintptr(unsafe.Pointer(wide(reason))), uintptr(unsafe.Pointer(wide(headers))), uintptr(unsafe.Pointer(&response)))
+	comCall(environment, envCreateResponse, stream, uintptr(answer.Status),
+		uintptr(unsafe.Pointer(wide(answer.Reason))), uintptr(unsafe.Pointer(wide(answer.HeaderBlock()))),
+		uintptr(unsafe.Pointer(&response)))
 	if response != 0 {
 		comCall(args, resourceArgsPutResponse, response)
 		comCall(response, 2)
@@ -278,6 +301,81 @@ func (page *windowsWeb) serve(environment, args uintptr) {
 	if stream != 0 {
 		comCall(stream, 2)
 	}
+}
+
+// hold keeps the runtime waiting for an answer the application gives later, from any goroutine. The
+// deferral keeps the request's arguments alive; the answer reaches the UI thread as a message to the
+// page's window, which is where the runtime's objects may be touched.
+func (page *windowsWeb) hold(args uintptr, path string) {
+	var deferral uintptr
+	comCall(args, resourceArgsGetDeferral, uintptr(unsafe.Pointer(&deferral)))
+	if deferral == 0 {
+		return // the runtime will not wait, so there is nothing to answer into
+	}
+	webAnswersMu.Lock()
+	webAnswerNext++
+	id := webAnswerNext
+	webAnswers[id] = &webAnswer{page: page, args: args, deferral: deferral}
+	window := page.window
+	webAnswersMu.Unlock()
+	page.config.Scheme.ServeAsync(platform.WebRequest{Path: path}, func(response platform.WebResponse) {
+		webAnswersMu.Lock()
+		held := webAnswers[id]
+		if held == nil || held.answered {
+			webAnswersMu.Unlock()
+			return
+		}
+		held.response, held.answered = response, true
+		webAnswersMu.Unlock()
+		// A closed page's window is gone, and PostMessage to it fails without doing anything.
+		postMessage.Call(window, wmWebAnswer, uintptr(id), 0)
+	})
+}
+
+// answerSchemeRequest completes a held request on the UI thread.
+func answerSchemeRequest(id uintptr) {
+	webAnswersMu.Lock()
+	entry := webAnswers[id]
+	delete(webAnswers, id)
+	webAnswersMu.Unlock()
+	if entry == nil {
+		return
+	}
+	if entry.page.closed || entry.page.environment == nil || entry.page.environment.object == 0 {
+		comCall(entry.deferral, 2)
+		return
+	}
+	entry.page.answer(entry.page.environment.object, entry.args, platform.AnswerWebResponse(entry.response, true))
+	comCall(entry.deferral, deferralComplete)
+	comCall(entry.deferral, 2)
+}
+
+// releaseAnswers lets go of the requests the runtime holds open for a page that is closing. An answer
+// that still arrives afterwards finds no entry and is dropped.
+func (page *windowsWeb) releaseAnswers() {
+	webAnswersMu.Lock()
+	var held []*webAnswer
+	for id, entry := range webAnswers {
+		if entry.page == page {
+			held = append(held, entry)
+			delete(webAnswers, id)
+		}
+	}
+	webAnswersMu.Unlock()
+	for _, entry := range held {
+		comCall(entry.deferral, 2)
+	}
+}
+
+// webHostProc handles the answer to an asynchronous scheme request, posted to the page's own window
+// from the goroutine that produced it, and passes everything else to the system.
+func webHostProc(window, kind, first, second uintptr) uintptr {
+	if kind == wmWebAnswer {
+		answerSchemeRequest(first)
+		return 0
+	}
+	result, _, _ := defaultWindowProc.Call(window, kind, first, second)
+	return result
 }
 
 // mapAddress turns an address in the page's scheme into the one it is served at.
@@ -330,6 +428,7 @@ func (page *windowsWeb) Close() {
 
 // release lets go of the runtime's objects and the page's window.
 func (page *windowsWeb) release() {
+	page.releaseAnswers()
 	if page.controller != 0 {
 		comCall(page.controller, controllerClose)
 		comCall(page.view, 2)
