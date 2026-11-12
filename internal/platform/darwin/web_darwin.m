@@ -173,15 +173,21 @@ static uint64_t viva_web_next_request;
     }
     viva_web_next_request++;
     uint64_t request = viva_web_next_request;
-    // The asynchronous form answers from wherever the application's work is; the answer reaches this
-    // file through the main queue, so registering the task after the call returns is still before it.
+    NSNumber *key = [NSNumber numberWithUnsignedLongLong:request];
+    // Register the task before the call: ServeAsync may close its own page, and Close cancels the
+    // tasks registered at that moment. The answer always hops to the main queue, so it is delivered
+    // after this method returns even when ServeAsync answers synchronously.
+    [_tasks setObject:task forKey:key];
+    [_taskIDs setObject:key forKey:[NSValue valueWithNonretainedObject:task]];
+    [viva_web_answers setObject:self forKey:key];
     if (vivaWebServeAsync(_handle, _id, scheme, chars, request)) {
-        NSNumber *key = [NSNumber numberWithUnsignedLongLong:request];
-        [_tasks setObject:task forKey:key];
-        [_taskIDs setObject:key forKey:[NSValue valueWithNonretainedObject:task]];
-        [viva_web_answers setObject:self forKey:key];
         return;
     }
+    // The scheme has no asynchronous form (or this page is not its): withdraw the registration before
+    // the synchronous answer, which finishes the task here and now.
+    [_taskIDs removeObjectForKey:[NSValue valueWithNonretainedObject:task]];
+    [_tasks removeObjectForKey:key];
+    [viva_web_answers removeObjectForKey:key];
     int status = 404;
     char *headers = NULL;
     unsigned char *data = NULL;

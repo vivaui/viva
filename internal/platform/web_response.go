@@ -55,9 +55,9 @@ var webReasons = map[int]string{
 }
 
 // ServeWebScheme answers path from the synchronous forms of scheme: Respond when it is set, otherwise
-// Serve. It reports false when neither finds anything; AnswerWebResponse makes that a 404. ServeAsync
-// is not consulted here, because the backend that calls it owns the engine's task until the answer
-// arrives.
+// Serve. It reports false when neither finds anything; AnswerWebResponse makes that a 404 unless the
+// response names another status. ServeAsync is not consulted here, because the backend that calls it
+// owns the engine's task until the answer arrives.
 func ServeWebScheme(scheme *WebScheme, path string) (WebResponse, bool) {
 	if scheme == nil {
 		return WebResponse{}, false
@@ -73,7 +73,9 @@ func ServeWebScheme(scheme *WebScheme, path string) (WebResponse, bool) {
 }
 
 // AnswerWebResponse resolves response, which found or did not find the requested resource, into what
-// every backend sends.
+// every backend sends. A Status the application set wins, even when found is false; otherwise found is
+// 200 and not found is a 404. A 404 carries whatever body and MIME the answer names, like every other
+// status: an empty MIME is text/plain for a 404 and application/octet-stream otherwise.
 func AnswerWebResponse(response WebResponse, found bool) WebAnswer {
 	status := response.Status
 	switch {

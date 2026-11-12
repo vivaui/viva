@@ -537,7 +537,10 @@ func serveScheme(g *gtkLibrary, request uintptr) {
 	}
 	path := strings.TrimPrefix(parsed.Path, "/")
 	scheme := webSchemes[parsed.Scheme]
-	// The page the request is for, so an answer that arrives after it closed is dropped.
+	// The page the request is for, so an answer that arrives after it closed is dropped. Only
+	// WebKitGTK 2.40 and newer can name it: an older engine has no
+	// webkit_uri_scheme_request_get_web_view, so the page is unknowable and its answer is finished as
+	// the engine asks, as before.
 	var page *gtkWebView
 	if k.schemeWebView != nil {
 		view := k.schemeWebView(request)
@@ -576,9 +579,11 @@ func serveScheme(g *gtkLibrary, request uintptr) {
 }
 
 // finishScheme sends one answer to the engine. The synchronous form arrives here inside the callback,
-// the asynchronous form later on the loop; either way the page may be gone by then.
+// the asynchronous form later on the loop; either way the page may be gone by then. An engine before
+// 2.40 cannot name the request's page, so page is nil for a reason other than the page being gone: only
+// a request whose page the engine can name is checked, and one it cannot name is finished as before.
 func finishScheme(g *gtkLibrary, k *webKit, page *gtkWebView, request uintptr, answer platform.WebAnswer) {
-	if page != nil && page.closed {
+	if k.schemeWebView != nil && (page == nil || page.closed) {
 		// The page closed while the answer was being made: the engine has nothing left to show.
 		return
 	}

@@ -30,19 +30,22 @@ scheme, a message in each direction and a menu that stands over the page.
 
 - `WebViewConfig` takes a `URL`, or `HTML`; a `Scheme` serves `name://host/path` from the application's own
   resources without a server (`Serve` gets the path after the host). `Respond` answers with a `WebResponse`
-  instead: a status (0 is 200), a MIME type, headers and a body; `ok` false is a 404. `ServeAsync` replaces
-  both: it is called on the window's thread, does its work wherever it likes, and answers once through
-  `respond`, from any goroutine; a second call, or one after the page closed, is ignored. `Headers` are merged
-  over `Content-Type`, `Content-Length` and `Access-Control-Allow-Origin: *`: a name is case-insensitive, and a
-  header with an empty value removes the default. A 204 or 304 carries no body. On Windows the scheme is
-  served as `https://name.viva-app.invalid/host/path` (WebView2 only takes a custom scheme registered before
-  any page exists), so write relative URLs in the pages; `OnLoad` reports addresses with the scheme as you
-  wrote it. `LoadHTML`'s base URL is ignored on Windows.
-- On Linux, the status and headers of a scheme's answer need WebKitGTK's `WebKitURISchemeResponse` (2.36 or
-  newer, and the 2.44 build used here has it). An older engine that lacks it finishes with
+  instead: a status (0 is 200), a MIME type, headers and a body. A status the answer sets wins, even when
+  `ok` is false; otherwise `ok` false is a 404. A 404 carries whatever body and MIME the answer names, and an
+  empty MIME is `text/plain` for a 404. `ServeAsync` replaces both: it is called on the window's thread, does
+  its work wherever it likes, and answers once through `respond`, from any goroutine; a second call, or one
+  after the page closed, is ignored. `Headers` are merged over `Content-Type`, `Content-Length` and
+  `Access-Control-Allow-Origin: *`: a name is case-insensitive, and a header with an empty value removes the
+  default. A 204 or 304 carries no body. On Windows the scheme is served as
+  `https://name.viva-app.invalid/host/path` (WebView2 only takes a custom scheme registered before any page
+  exists), so write relative URLs in the pages; `OnLoad` reports addresses with the scheme as you wrote it.
+  `LoadHTML`'s base URL is ignored on Windows.
+- On Linux, the status and headers of a scheme's answer need WebKitGTK's `WebKitURISchemeResponse`, which
+  WebKitGTK added in 2.36: 2.36 and newer honour them. An older engine that lacks it finishes with
   `webkit_uri_scheme_request_finish`, which drops them: the body is served as 200, and a 404 becomes the
   engine's failed load. macOS (`NSHTTPURLResponse`) and Windows (`CreateWebResourceResponse`) answer with
-  the full response.
+  the full response. The feature was tested on macOS in a real WKWebView page; Linux (WebKitGTK) and Windows
+  (WebView2) were type-checked only, because no engine of either was available.
 - The page and the application talk through `window.viva.postMessage(text)` / `window.viva.onmessage` and
   `OnMessage` / `WebView.PostMessage`. A page sees nothing else of the application.
 - Everything runs on the window's thread: `OnReady`, the callbacks, the methods of `WebHost` and `WebView`.

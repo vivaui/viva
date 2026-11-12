@@ -39,6 +39,29 @@ func TestAnswerWebResponseResolvesEveryEngineTheSameWay(t *testing.T) {
 			headers: notFoundHeaders,
 		},
 		{
+			// Respond's ok false does not override a status the answer chose: a 403 stays a 403, and
+			// only a status of 0 becomes the 404.
+			name:     "Respond's status wins over ok false",
+			response: WebResponse{Status: 403, MIME: "text/plain", Data: []byte("forbidden")},
+			found:    false, status: 403, reason: "Forbidden", mime: "text/plain", body: "forbidden",
+			headers: []WebHeader{
+				{Name: "Access-Control-Allow-Origin", Value: "*"},
+				{Name: "Content-Length", Value: "9"},
+				{Name: "Content-Type", Value: "text/plain"},
+			},
+		},
+		{
+			// A 404 carries the body and MIME the answer names, as any other status does.
+			name:     "a 404 with a body",
+			response: WebResponse{Status: 404, MIME: "text/html", Data: []byte("<h1>gone</h1>")},
+			found:    false, status: 404, reason: "Not Found", mime: "text/html", body: "<h1>gone</h1>",
+			headers: []WebHeader{
+				{Name: "Access-Control-Allow-Origin", Value: "*"},
+				{Name: "Content-Length", Value: "13"},
+				{Name: "Content-Type", Value: "text/html"},
+			},
+		},
+		{
 			name: "headers merged, canonicalised and removed",
 			response: WebResponse{
 				Status: 201,

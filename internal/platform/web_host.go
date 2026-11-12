@@ -69,8 +69,9 @@ type WebScheme struct {
 	Name string
 	// Serve answers one request: the path after the host, without a query. ok false is a 404.
 	Serve func(path string) (mime string, data []byte, ok bool)
-	// Respond, when set, answers with a status, headers and a body instead of Serve. ok false is a
-	// 404, as Serve's is.
+	// Respond, when set, answers with a status, headers and a body instead of Serve. A Status it sets
+	// wins, even when ok is false; otherwise ok false is a 404, which carries whatever body and MIME
+	// the answer names.
 	Respond func(request WebRequest) (WebResponse, bool)
 	// ServeAsync, when set, replaces both: it is called on the window's thread and answers once,
 	// later, from any goroutine. respond may be called from any goroutine, at most once; a second
@@ -87,7 +88,7 @@ type WebRequest struct {
 // WebResponse is a custom scheme's answer to a request. A 204 or 304 carries no body, whatever Data
 // says.
 type WebResponse struct {
-	// Status is the HTTP status; 0 means 200.
+	// Status is the HTTP status; 0 means 200, or 404 when Serve or Respond did not find the resource.
 	Status int
 	// MIME is the Content-Type; empty means "application/octet-stream", or "text/plain" for a 404.
 	MIME string
