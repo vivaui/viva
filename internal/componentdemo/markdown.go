@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/markdown"
 	"github.com/vivaui/viva/ui"
 )
@@ -22,10 +22,10 @@ view.Paint(canvas, components.MarkdownPaint{
     Look: components.MarkdownLookFor(theme), X: x, Y: y,
 })
 for _, code := range view.Codes() {
-    button := ui.Rect{X: x + code.Bounds.X + code.Bounds.Width - 28,
+    button := gfx.Rect{X: x + code.Bounds.X + code.Bounds.Width - 28,
         Y: y + code.Bounds.Y + 8, Width: 20, Height: 20}
     canvas.Rounded(button, 4, theme.Muted)
-    style := ui.TextStyle{Size: theme.Metrics.FontSizeS, Color: theme.MutedForeground}
+    style := gfx.TextStyle{Size: theme.Metrics.FontSizeS, Color: theme.MutedForeground}
     canvas.LabelCenter("Copy", button, style)
 }`},
 		{ID: "unclosed", Title: "尚未写完", Description: "流式到达的文字中，未闭合的标记与围栏保持原样。", Snippet: `// A partial stream still lays out; unclosed markers stay literal.
@@ -68,11 +68,11 @@ const markdownBlocks = "```sh\nsudo systemctl restart nginx\njournalctl -u nginx
 const markdownUnclosed = "A **bold phrase that is still arriving, and `a code span\n" +
 	"```go\nfmt.Println(\"the fence is not closed yet"
 
-func (state *State) paintMarkdown(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var stage flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Markdown · 排版", "Markdown · Typesetting"), func(f *flex.Frame) {
+func (state *State) paintMarkdown(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var stage ui.Box
+	state.drawPage(canvas, theme, size, 560, state.Text("Markdown · 排版", "Markdown · Typesetting"), func(c ui.C) {
 		// The document paints itself into the rest of the stage; its height follows its text.
-		stage = f.Slot().FillWidth().Height(max(size.Height-100, 120))
+		stage = ui.Slot(c).FillWidth().Height(max(size.Height-100, 120))
 	})
 	source := state.Text(markdownAnswer, markdownAnswerEnglish)
 	switch state.exampleID {
@@ -86,5 +86,5 @@ func (state *State) paintMarkdown(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 	doc.Parse(source)
 	view := &state.markdown.view
 	view.Layout(canvas, components.MarkdownStyle{Size: theme.Metrics.FontSizeM, LineHeight: 20, CodeInset: 28}, doc, bounds.Width)
-	view.Paint(canvas, components.MarkdownPaint{Look: components.MarkdownLookFor(theme), X: bounds.X, Y: bounds.Y, Clip: ui.Rect{Y: 0, Width: size.Width, Height: size.Height}})
+	view.Paint(canvas, components.MarkdownPaint{Look: components.MarkdownLookFor(theme), X: bounds.X, Y: bounds.Y, Clip: gfx.Rect{Y: 0, Width: size.Width, Height: size.Height}})
 }

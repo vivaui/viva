@@ -1,3 +1,5 @@
+//go:build darwin || windows || linux
+
 package main
 
 import (
@@ -12,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/headless"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
@@ -83,7 +85,7 @@ func runCommand(options runOptions) error {
 	return nil
 }
 
-func appColor(c ui.Color) app.Color {
+func appColor(c gfx.Color) app.Color {
 	return app.Color{Red: float64(c.Red), Green: float64(c.Green), Blue: float64(c.Blue), Alpha: float64(c.Alpha)}
 }
 
@@ -99,26 +101,36 @@ func noRenderer(err error) bool {
 // to record next to each text how wide the platform would have drawn it naturally
 // (what Viva's layout does not use); nil leaves that out.
 func renderScene(sc *scene, dark bool, scale float64, wantImage, reference bool, measure text.MeasureFunc) (*Facts, *image.RGBA, error) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	if dark {
-		theme = ui.DarkTheme()
+		theme = gfx.DarkTheme()
 	}
-	view := &flex.View{}
+	view := func(c ui.C) { sc.build(c, theme) }
+	page := ui.NewPage(ui.PageConfig{View: view, Tree: &tree, Root: "parity", Theme: &theme})
 	config := app.Config{
 		Title: sc.name, Width: sc.width, Height: sc.height, ClearColor: appColor(theme.Background), Tree: &tree,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			if sc.before != nil {
-				sc.before(view)
-			}
-			view.Draw(canvas, theme, ui.Rect{Width: size.Width, Height: size.Height}, func(f *flex.Frame) { sc.build(f, theme) })
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			page.Draw(canvas, gfx.Rect{Width: size.Width, Height: size.Height}, view)
 		},
 	}
-	canvas := &ui.Canvas{}
+	canvas := &gfx.Canvas{}
 	session, err := headless.Open(config, canvas, headless.Options{Scale: scale, ReferenceText: reference})
 	if err != nil {
 		return nil, nil, err
 	}
 	defer session.Close()
+	// The scenes that show a control open press it, as a user would; the pointer
+	// leaves the window again so the facts are those of the page at rest, unhovered.
+	for _, label := range sc.open {
+		if err := session.ClickLabel(label); err != nil {
+			return nil, nil, err
+		}
+	}
+	if len(sc.open) > 0 {
+		if err := session.Driver().Leave(); err != nil {
+			return nil, nil, err
+		}
+	}
 	// A dialog opens with an entrance; the facts are those of the scene at rest.
 	if err := session.Rest(); err != nil {
 		return nil, nil, err

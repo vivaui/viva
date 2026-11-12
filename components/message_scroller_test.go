@@ -4,11 +4,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestMessageScrollerClampsAndMapsItems(t *testing.T) {
-	scroller := BeginMessageScroller(nil, ui.LightTheme(), ui.Rect{X: 20, Y: 30, Width: 240, Height: 180}, 620, 900)
+	scroller := BeginMessageScroller(nil, gfx.LightTheme(), gfx.Rect{X: 20, Y: 30, Width: 240, Height: 180}, 620, 900)
 	geometry := scroller.Geometry()
 	if geometry.Offset != 440 || geometry.MaxOffset != 440 || geometry.CanEnd || !geometry.CanStart {
 		t.Fatalf("message geometry = %+v", geometry)
@@ -27,13 +27,13 @@ func TestMessageScrollerClampsAndMapsItems(t *testing.T) {
 }
 
 func TestMessageScrollerClipsAndPaintsSliderAndActiveButton(t *testing.T) {
-	var canvas ui.Canvas
-	scroller := BeginMessageScroller(&canvas, ui.LightTheme(), ui.Rect{Width: 220, Height: 160}, 480, 120).
-		Scrollbar(ui.Item(21), "Message scroll position", "38%").
-		Buttons(ui.Item(22), "Scroll to start", ui.Item(23), "Scroll to end")
+	var canvas gfx.Canvas
+	scroller := BeginMessageScroller(&canvas, gfx.LightTheme(), gfx.Rect{Width: 220, Height: 160}, 480, 120).
+		Scrollbar(gfx.Item(21), "Message scroll position", "38%").
+		Buttons(gfx.Item(22), "Scroll to start", gfx.Item(23), "Scroll to end")
 	geometry := scroller.BeginContent()
 	item := scroller.ItemGeometry(3, 140, 48)
-	canvas.Fill(item.Bounds, ui.LightTheme().Muted)
+	canvas.Fill(item.Bounds, gfx.LightTheme().Muted)
 	scroller.EndContent()
 	if !canvas.Rectangles()[0].HasClip || canvas.Rectangles()[0].ClipOf != geometry.Viewport {
 		t.Fatalf("message item clip = %+v", canvas.Rectangles()[0])
@@ -41,19 +41,19 @@ func TestMessageScrollerClipsAndPaintsSliderAndActiveButton(t *testing.T) {
 	if len(canvas.Hits()) != 3 {
 		t.Fatalf("message hits = %+v", canvas.Hits())
 	}
-	if canvas.Hits()[0].Role != ui.RoleSlider || canvas.Hits()[1].Role != ui.RoleButton || canvas.Hits()[2].Role != ui.RoleButton {
+	if canvas.Hits()[0].Role != gfx.RoleSlider || canvas.Hits()[1].Role != gfx.RoleButton || canvas.Hits()[2].Role != gfx.RoleButton {
 		t.Fatalf("message semantics = %+v", canvas.Hits())
 	}
 }
 
 func TestMessageScrollerDisabledBoundsAndDeterministicStream(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
 	paint := func() MessageScrollerGeometry {
 		canvas.Reset()
-		scroller := BeginMessageScroller(&canvas, theme, ui.Rect{X: 5, Y: 6, Width: 200, Height: 120}, 360, 90).
-			Scrollbar(ui.Item(24), "Message scroll position", "38%").
-			Buttons(ui.Item(25), "Start", ui.Item(26), "End").Disabled()
+		scroller := BeginMessageScroller(&canvas, theme, gfx.Rect{X: 5, Y: 6, Width: 200, Height: 120}, 360, 90).
+			Scrollbar(gfx.Item(24), "Message scroll position", "38%").
+			Buttons(gfx.Item(25), "Start", gfx.Item(26), "End").Disabled()
 		scroller.BeginContent()
 		return scroller.EndContent()
 	}
@@ -72,16 +72,16 @@ func TestMessageScrollerDisabledBoundsAndDeterministicStream(t *testing.T) {
 }
 
 func TestMessageScrollerOffersJumpsOnlyBeyondTheEdgeThreshold(t *testing.T) {
-	bounds := ui.Rect{Width: 240, Height: 180}
-	nearEnd := BeginMessageScroller(nil, ui.LightTheme(), bounds, 620, 440-MessageScrollerEdgeThreshold+1).Geometry()
+	bounds := gfx.Rect{Width: 240, Height: 180}
+	nearEnd := BeginMessageScroller(nil, gfx.LightTheme(), bounds, 620, 440-MessageScrollerEdgeThreshold+1).Geometry()
 	if nearEnd.CanEnd {
 		t.Fatal("the end button flickers on within the edge threshold of the end")
 	}
-	farEnd := BeginMessageScroller(nil, ui.LightTheme(), bounds, 620, 440-MessageScrollerEdgeThreshold-1).Geometry()
+	farEnd := BeginMessageScroller(nil, gfx.LightTheme(), bounds, 620, 440-MessageScrollerEdgeThreshold-1).Geometry()
 	if !farEnd.CanEnd {
 		t.Fatal("no end button beyond the edge threshold")
 	}
-	if BeginMessageScroller(nil, ui.LightTheme(), bounds, 620, MessageScrollerEdgeThreshold-1).Geometry().CanStart {
+	if BeginMessageScroller(nil, gfx.LightTheme(), bounds, 620, MessageScrollerEdgeThreshold-1).Geometry().CanStart {
 		t.Fatal("the start button shows within the edge threshold of the start")
 	}
 }
@@ -180,7 +180,7 @@ func TestMessageScrollStateAllocatesNothing(t *testing.T) {
 }
 
 func TestMessageScrollerMapsThumbBackToAnOffset(t *testing.T) {
-	geometry := BeginMessageScroller(nil, ui.LightTheme(), ui.Rect{X: 20, Y: 30, Width: 240, Height: 180}, 620, 0).Geometry()
+	geometry := BeginMessageScroller(nil, gfx.LightTheme(), gfx.Rect{X: 20, Y: 30, Width: 240, Height: 180}, 620, 0).Geometry()
 	if got := geometry.OffsetForThumb(geometry.Thumb.Y); got != 0 {
 		t.Fatalf("thumb at the top maps to %v", got)
 	}
@@ -196,7 +196,7 @@ func TestMessageScrollerMapsThumbBackToAnOffset(t *testing.T) {
 		t.Fatalf("past the end maps to %v, want %v", got, geometry.MaxOffset)
 	}
 	// A full track has no travel: the offset is kept instead of jumping home.
-	full := BeginMessageScroller(nil, ui.LightTheme(), ui.Rect{X: 0, Y: 0, Width: 240, Height: 180}, 180, 0).Geometry()
+	full := BeginMessageScroller(nil, gfx.LightTheme(), gfx.Rect{X: 0, Y: 0, Width: 240, Height: 180}, 180, 0).Geometry()
 	if got := full.OffsetForThumb(120); got != full.Offset {
 		t.Fatalf("full track maps to %v, want %v", got, full.Offset)
 	}

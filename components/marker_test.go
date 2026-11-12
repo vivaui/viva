@@ -4,15 +4,15 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestMarkerMirrorsDefaultSeparatorAndBorderVariants(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	Marker(&canvas, theme, ui.Rect{Width: 240, Height: 24}, MarkerDefault, &checkIcon, "Default")
-	Marker(&canvas, theme, ui.Rect{Y: 28, Width: 240, Height: 24}, MarkerSeparator, nil, "Today")
-	Marker(&canvas, theme, ui.Rect{Y: 56, Width: 240, Height: 24}, MarkerBorder, nil, "Archived")
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	Marker(&canvas, theme, gfx.Rect{Width: 240, Height: 24}, MarkerDefault, &checkIcon, "Default")
+	Marker(&canvas, theme, gfx.Rect{Y: 28, Width: 240, Height: 24}, MarkerSeparator, nil, "Today")
+	Marker(&canvas, theme, gfx.Rect{Y: 56, Width: 240, Height: 24}, MarkerBorder, nil, "Archived")
 	if len(canvas.Rectangles()) != 3 {
 		t.Fatalf("marker rules = %+v", canvas.Rectangles())
 	}
@@ -27,10 +27,10 @@ func TestMarkerMirrorsDefaultSeparatorAndBorderVariants(t *testing.T) {
 }
 
 func TestMarkerCommandStreamIsStable(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		Marker(&canvas, ui.DarkTheme(), ui.Rect{Width: 200}, MarkerSeparator, nil, "Processing")
+		Marker(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 200}, MarkerSeparator, nil, "Processing")
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -42,9 +42,9 @@ func TestMarkerCommandStreamIsStable(t *testing.T) {
 }
 
 func TestMarkerProgressPaintsASpinnerInTheIconSlot(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	MarkerProgress(&canvas, theme, ui.Rect{Width: 240}, MarkerDefault, 2, "Thinking")
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	MarkerProgress(&canvas, theme, gfx.Rect{Width: 240}, MarkerDefault, 2, "Thinking")
 	if len(canvas.Rectangles()) == 0 {
 		t.Fatal("no spinner spokes")
 	}
@@ -55,10 +55,10 @@ func TestMarkerProgressPaintsASpinnerInTheIconSlot(t *testing.T) {
 }
 
 func TestMarkerWithoutAHeightIsAsTallAsItsText(t *testing.T) {
-	theme := ui.LightTheme()
-	var plain, bordered ui.Canvas
-	Marker(&plain, theme, ui.Rect{Width: 240}, MarkerDefault, nil, "Today")
-	Marker(&bordered, theme, ui.Rect{Width: 240}, MarkerBorder, nil, "Today")
+	theme := gfx.LightTheme()
+	var plain, bordered gfx.Canvas
+	Marker(&plain, theme, gfx.Rect{Width: 240}, MarkerDefault, nil, "Today")
+	Marker(&bordered, theme, gfx.Rect{Width: 240}, MarkerBorder, nil, "Today")
 	if got := plain.Texts()[0].Bounds.Height; got >= theme.Metrics.ControlHeight {
 		t.Fatalf("default marker row is %v tall, as tall as a control", got)
 	}

@@ -4,12 +4,12 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestSaveSitsAtTheBottomRightAndCountsClicks(t *testing.T) {
 	m := &model{}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := app.NewDriver(newConfig(m), &canvas)
 	if err != nil {
 		t.Fatal(err)

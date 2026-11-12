@@ -7,9 +7,9 @@ import (
 	"syscall/js"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 type domListener struct {
@@ -18,13 +18,24 @@ type domListener struct {
 }
 
 type textInputHost struct {
-	mirror        *accessibilityMirror
-	active        *accessibilityDOMNode
-	input         TextInput
-	composing     bool
-	syncing       bool
-	suppressInput string
-	onChange      func()
+	mirror           *accessibilityMirror
+	active           *accessibilityDOMNode
+	input            TextInput
+	composing        bool
+	syncing          bool
+	suppressInput    string
+	suppressInputSet bool
+	onChange         func()
+	// domStart and domEnd are the browser selection the host last wrote or read;
+	// a different one means the browser moved the caret itself (a click or an
+	// arrow key) and its event has not been applied yet. domKnown is false until
+	// the first write, so a newly active field adopts the editor's selection.
+	domStart, domEnd int
+	domKnown         bool
+	// selectionChange listens on the document: a caret moved with the arrow keys or a
+	// click changes the browser selection without a "select" event, and the editor must
+	// hear it or the component paints a caret that never moves.
+	selectionChange js.Func
 }
 
 func newTextInputHost(mirror *accessibilityMirror) *textInputHost {
@@ -33,13 +44,19 @@ func newTextInputHost(mirror *accessibilityMirror) *textInputHost {
 	if document.Call("getElementById", styleID).IsNull() {
 		style := document.Call("createElement", "style")
 		style.Set("id", styleID)
-		style.Set("textContent", `textarea[data-viva-hide-native-overlays="true"]::selection {
+		style.Set("textContent", `[data-viva-hide-native-overlays="true"]::selection {
 			background: transparent;
 			color: transparent;
 		}`)
 		document.Get("head").Call("appendChild", style)
 	}
-	return &textInputHost{mirror: mirror}
+	host := &textInputHost{mirror: mirror}
+	host.selectionChange = js.FuncOf(func(js.Value, []js.Value) any {
+		host.selectionChanged()
+		return nil
+	})
+	document.Call("addEventListener", "selectionchange", host.selectionChange)
+	return host
 }
 
 func (host *textInputHost) bind(node *accessibilityDOMNode) {
@@ -47,6 +64,8 @@ func (host *textInputHost) bind(node *accessibilityDOMNode) {
 		return
 	}
 	host.addListener(node, "input", host.inputEvent)
+	host.addListener(node, "copy", host.copyEvent)
+	host.addListener(node, "cut", host.cutEvent)
 	host.addListener(node, "paste", host.pasteEvent)
 	host.addListener(node, "select", host.selectEvent)
 	host.addListener(node, "compositionstart", host.compositionStart)
@@ -76,14 +95,14 @@ func (host *textInputHost) unbind(node *accessibilityDOMNode) {
 	node.listeners = node.listeners[:0]
 }
 
-func (host *textInputHost) sync(id ui.ID, input *TextInput, onChange func()) {
+func (host *textInputHost) sync(id gfx.ID, input *TextInput, onChange func()) {
 	host.onChange = onChange
 	if id.IsZero() || input == nil {
 		host.deactivate(true)
 		return
 	}
 	node := host.mirror.nodes[id]
-	if node == nil || node.description.Role != "textbox" {
+	if node == nil || (node.description.Role != "textbox" && node.description.Role != "combobox") {
 		host.deactivate(true)
 		return
 	}
@@ -92,7 +111,8 @@ func (host *textInputHost) sync(id ui.ID, input *TextInput, onChange func()) {
 		host.active = node
 		node.editing = true
 		host.composing = false
-		host.suppressInput = ""
+		host.suppressInput, host.suppressInputSet = "", false
+		host.domKnown = false
 	}
 	host.input = *input
 	host.show(node.element)
@@ -124,7 +144,8 @@ func (host *textInputHost) deactivate(focusRoot bool) {
 	host.syncing = false
 	host.active = nil
 	host.composing = false
-	host.suppressInput = ""
+	host.suppressInput, host.suppressInputSet = "", false
+	host.domKnown = false
 }
 
 func (host *textInputHost) activeElement(element js.Value) bool {
@@ -144,7 +165,13 @@ func (host *textInputHost) show(element js.Value) {
 	style.Set("border", "0")
 	style.Set("outline", "none")
 	style.Set("background", "transparent")
-	style.Set("color", cssPlatformColor(host.input.Color))
+	textColor := cssPlatformColor(host.input.Color)
+	if host.input.Terminal {
+		// A terminal paints its preedit on the canvas cells; the browser editor
+		// is there for input-method positioning and committed text only.
+		textColor = "transparent"
+	}
+	style.Set("color", textColor)
 	caretColor := cssPlatformColor(host.input.Color)
 	if host.input.HideNativeOverlays {
 		caretColor = "transparent"
@@ -153,7 +180,11 @@ func (host *textInputHost) show(element js.Value) {
 		element.Call("removeAttribute", "data-viva-hide-native-overlays")
 	}
 	style.Set("caretColor", caretColor)
-	style.Set("font", cssFont(host.input.FontSize, host.input.Weight))
+	if host.input.Terminal || host.input.MonoFace != gfx.MonoSystem {
+		style.Set("font", cssMonoFont(host.input.FontSize, host.input.Weight, false, host.input.MonoFace))
+	} else {
+		style.Set("font", cssFont(host.input.FontSize, host.input.Weight))
+	}
 	style.Set("textAlign", textAlignCSS(host.input.Alignment))
 	style.Set("opacity", "1")
 	style.Set("overflow", "hidden")
@@ -165,7 +196,7 @@ func (host *textInputHost) show(element js.Value) {
 	}
 	style.Set("userSelect", "text")
 	style.Set("zIndex", "1")
-	if host.input.Multiline {
+	if host.input.Multiline || host.input.Terminal {
 		style.Set("resize", "none")
 		style.Set("whiteSpace", "pre-wrap")
 		style.Set("lineHeight", "normal")
@@ -196,14 +227,57 @@ func hideAccessibilityElement(element js.Value) {
 
 func (host *textInputHost) syncValueAndSelection(element js.Value) {
 	host.syncing = true
-	if element.Get("value").String() != host.input.State.Value {
+	defer func() { host.syncing = false }()
+	changedValue := element.Get("value").String() != host.input.State.Value
+	if changedValue {
 		element.Set("value", host.input.State.Value)
 	}
 	start, end := runeRangeToUTF16(host.input.State.Value, host.input.State.Selection)
-	if element.Get("selectionStart").Int() != start || element.Get("selectionEnd").Int() != end {
+	domStart, domEnd := element.Get("selectionStart").Int(), element.Get("selectionEnd").Int()
+	if !changedValue && host.domKnown && (domStart != host.domStart || domEnd != host.domEnd) {
+		// The browser moved the selection since the host last mirrored it: a
+		// click or an arrow key whose selection event is still on its way.
+		// Writing the editor's selection here would put the caret back and the
+		// event would then find nothing to move.
+		return
+	}
+	if domStart != start || domEnd != end {
 		element.Call("setSelectionRange", start, end)
 	}
-	host.syncing = false
+	host.domStart, host.domEnd = start, end
+	host.domKnown = true
+}
+
+func (host *textInputHost) copyEvent(node *accessibilityDOMNode, event js.Value) {
+	host.copyCutEvent(node, event, 'c')
+}
+
+func (host *textInputHost) cutEvent(node *accessibilityDOMNode, event js.Value) {
+	host.copyCutEvent(node, event, 'x')
+}
+
+func (host *textInputHost) copyCutEvent(node *accessibilityDOMNode, event js.Value, action byte) {
+	if host.syncing || host.active != node || host.composing || !host.input.CopyOverride && !host.input.Secure {
+		return
+	}
+	event.Call("preventDefault")
+	if host.input.Secure {
+		return
+	}
+	data := event.Get("clipboardData")
+	if data.IsUndefined() || data.IsNull() {
+		return
+	}
+	value, edit, _ := browserCopyCut(host.input, action)
+	if value == "" {
+		return
+	}
+	data.Call("setData", "text/plain", value)
+	if edit.Kind != 0 {
+		changed := host.apply(edit)
+		host.syncValueAndSelection(node.element)
+		host.repaint(changed)
+	}
 }
 
 func (host *textInputHost) inputEvent(node *accessibilityDOMNode, event js.Value) {
@@ -211,8 +285,8 @@ func (host *textInputHost) inputEvent(node *accessibilityDOMNode, event js.Value
 		return
 	}
 	value := node.element.Get("value").String()
-	if host.suppressInput == value {
-		host.suppressInput = ""
+	if host.suppressInputSet && host.suppressInput == value {
+		host.suppressInput, host.suppressInputSet = "", false
 		return
 	}
 	changed := host.apply(inputTextEvent(host.input.State, value, event.Get("inputType").String()))
@@ -248,12 +322,26 @@ func (host *textInputHost) selectEvent(node *accessibilityDOMNode, _ js.Value) {
 	host.repaint(host.applySelection(node.element))
 }
 
+// selectionChanged mirrors a caret or selection the browser moved itself, such
+// as one placed by a click or moved with the arrow keys. Those change the
+// selection without an input event, and browsers do not all send "select" for a
+// collapsed caret, so the active editor is read from the document instead.
+func (host *textInputHost) selectionChanged() {
+	if host.active == nil || host.syncing || host.composing {
+		return
+	}
+	if !host.mirror.document.Get("activeElement").Equal(host.active.element) {
+		return
+	}
+	host.repaint(host.applySelection(host.active.element))
+}
+
 func (host *textInputHost) compositionStart(node *accessibilityDOMNode, _ js.Value) {
 	if host.syncing || host.active != node {
 		return
 	}
 	host.composing = true
-	host.suppressInput = ""
+	host.suppressInput, host.suppressInputSet = "", false
 }
 
 func (host *textInputHost) compositionUpdate(node *accessibilityDOMNode, event js.Value) {
@@ -281,7 +369,7 @@ func (host *textInputHost) compositionEnd(node *accessibilityDOMNode, event js.V
 		changed = host.apply(replaceTextEvent(host.input.State.Value, value)) || changed
 	}
 	changed = host.applySelection(node.element) || changed
-	host.suppressInput = value
+	host.suppressInput, host.suppressInputSet = value, true
 	host.repaint(changed)
 }
 
@@ -292,6 +380,8 @@ func (host *textInputHost) domSelection(element js.Value) text.Range {
 
 func (host *textInputHost) applySelection(element js.Value) bool {
 	selection := host.domSelection(element)
+	host.domStart, host.domEnd = element.Get("selectionStart").Int(), element.Get("selectionEnd").Int()
+	host.domKnown = true
 	if selection == host.input.State.Selection {
 		return false
 	}
@@ -322,7 +412,7 @@ func pixel(value float32) string {
 }
 
 func cssPlatformColor(color platform.Color) string {
-	return cssColor(ui.Color{
+	return cssColor(gfx.Color{
 		Red: float32(color.Red), Green: float32(color.Green),
 		Blue: float32(color.Blue), Alpha: float32(color.Alpha),
 	})

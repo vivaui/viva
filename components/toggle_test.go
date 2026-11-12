@@ -4,17 +4,17 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestToggleActiveUsesAccentAndDeclaresHit(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	BeginToggle(&canvas, theme, ui.Item(41), ui.Rect{Width: 96}, true).Default("Bold")
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	BeginToggle(&canvas, theme, gfx.Item(41), gfx.Rect{Width: 96}, true).Default("Bold")
 	if len(canvas.Rectangles()) != 1 || canvas.Rectangles()[0].Color != theme.Muted {
 		t.Fatalf("active toggle rectangles = %+v", canvas.Rectangles())
 	}
-	if len(canvas.Hits()) != 1 || canvas.Hits()[0].ID != ui.Item(41) || canvas.Hits()[0].Role != ui.RoleButton || !canvas.Hits()[0].Checked || !canvas.Hits()[0].Selected {
+	if len(canvas.Hits()) != 1 || canvas.Hits()[0].ID != gfx.Item(41) || canvas.Hits()[0].Role != gfx.RoleButton || !canvas.Hits()[0].Checked || !canvas.Hits()[0].Selected {
 		t.Fatalf("toggle hits = %+v", canvas.Hits())
 	}
 	if canvas.Texts()[0].Style.Color != theme.Foreground {
@@ -23,11 +23,11 @@ func TestToggleActiveUsesAccentAndDeclaresHit(t *testing.T) {
 }
 
 func TestToggleOutlineDisabledStableAndAllocationFree(t *testing.T) {
-	theme := ui.DarkTheme()
-	var canvas ui.Canvas
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		BeginToggle(&canvas, theme, ui.Item(42), ui.Rect{Width: 88}, false).Disabled().Outline("Italic")
+		BeginToggle(&canvas, theme, gfx.Item(42), gfx.Rect{Width: 88}, false).Disabled().Outline("Italic")
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())
@@ -45,36 +45,36 @@ func TestToggleOutlineDisabledStableAndAllocationFree(t *testing.T) {
 }
 
 func TestToggleSizeAndInvalidVariants(t *testing.T) {
-	var small ui.Canvas
-	BeginToggle(&small, ui.LightTheme(), ui.Item(1), ui.Rect{Width: 80}, false).Small().Default("S")
+	var small gfx.Canvas
+	BeginToggle(&small, gfx.LightTheme(), gfx.Item(1), gfx.Rect{Width: 80}, false).Small().Default("S")
 	if small.Rectangles()[0].Bounds.Height != 28 {
 		t.Fatalf("small toggle height = %v", small.Rectangles()[0].Bounds.Height)
 	}
-	var invalid ui.Canvas
-	BeginToggle(&invalid, ui.LightTheme(), ui.Item(2), ui.Rect{Width: 80}, false).Invalid().Default("Invalid")
-	if len(invalid.Rectangles()) != 3 || invalid.Rectangles()[1].Color != ui.LightTheme().Danger {
+	var invalid gfx.Canvas
+	BeginToggle(&invalid, gfx.LightTheme(), gfx.Item(2), gfx.Rect{Width: 80}, false).Invalid().Default("Invalid")
+	if len(invalid.Rectangles()) != 3 || invalid.Rectangles()[1].Color != gfx.LightTheme().Danger {
 		t.Fatalf("invalid toggle rectangles = %+v", invalid.Rectangles())
 	}
 }
 
 func TestToggleClickedReportsTheClick(t *testing.T) {
-	var canvas ui.Canvas
-	canvas.BeginEventPass(ui.Item(41))
+	var canvas gfx.Canvas
+	canvas.BeginEventPass(gfx.Item(41), gfx.ClickInfo{})
 	defer canvas.EndEventPass()
-	if !BeginToggle(&canvas, ui.LightTheme(), ui.Item(41), ui.Rect{Width: 96}, false).Default("Bold").Clicked() {
+	if !BeginToggle(&canvas, gfx.LightTheme(), gfx.Item(41), gfx.Rect{Width: 96}, false).Default("Bold").Clicked() {
 		t.Fatal("toggle did not report its own click")
 	}
-	if BeginToggle(&canvas, ui.LightTheme(), ui.Item(42), ui.Rect{Width: 96}, false).Outline("Italic").Clicked() {
+	if BeginToggle(&canvas, gfx.LightTheme(), gfx.Item(42), gfx.Rect{Width: 96}, false).Outline("Italic").Clicked() {
 		t.Fatal("toggle reported a click on another control")
 	}
 }
 
 func TestToggleSizeToFitWrapsTheLabelButStaysAsWideAsTall(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
 	canvas.SetMeasurer(func(value string, size, weight float32) float32 { return float32(len(value)) * 8 })
-	wide := BeginToggle(&canvas, theme, ui.Item(1), ui.Rect{}, false).SizeToFit("Underline")
-	narrow := BeginToggle(&canvas, theme, ui.Item(2), ui.Rect{}, false).SizeToFit("B")
+	wide := BeginToggle(&canvas, theme, gfx.Item(1), gfx.Rect{}, false).SizeToFit("Underline")
+	narrow := BeginToggle(&canvas, theme, gfx.Item(2), gfx.Rect{}, false).SizeToFit("B")
 	if wide.BoundsWidth() != 9*8+20 || narrow.BoundsWidth() != 32 {
 		t.Fatalf("fitted widths = %v and %v", wide.BoundsWidth(), narrow.BoundsWidth())
 	}

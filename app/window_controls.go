@@ -4,8 +4,8 @@ import (
 	"math"
 	"strings"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // WindowControlWidth is the width in logical pixels of each of the minimize,
@@ -55,10 +55,10 @@ func detectDesktopTheme(desktop string) desktopTheme {
 type WindowControlsStyle struct {
 	// Foreground is the glyph's color, Hover the button's background under the
 	// pointer, and Pressed while it is held down.
-	Foreground, Hover, Pressed ui.Color
+	Foreground, Hover, Pressed gfx.Color
 	// Close is the close button's background under the pointer, and
 	// CloseForeground its glyph then. Pressed fades it.
-	Close, CloseForeground ui.Color
+	Close, CloseForeground gfx.Color
 	// Names are what assistive technology calls the buttons. They default to
 	// English; an application that is translated sets them.
 	Minimize, Maximize, Restore, CloseName string
@@ -67,24 +67,24 @@ type WindowControlsStyle struct {
 // withDefaults fills what style leaves out for a window cleared to clear.
 func (style WindowControlsStyle) withDefaults(clear Color) WindowControlsStyle {
 	luminance := 0.2126*clear.Red + 0.7152*clear.Green + 0.0722*clear.Blue
-	ink := ui.Color{Red: 0.1, Green: 0.1, Blue: 0.1, Alpha: 1}
+	ink := gfx.Color{Red: 0.1, Green: 0.1, Blue: 0.1, Alpha: 1}
 	if luminance < 0.5 {
-		ink = ui.Color{Red: 0.95, Green: 0.95, Blue: 0.95, Alpha: 1}
+		ink = gfx.Color{Red: 0.95, Green: 0.95, Blue: 0.95, Alpha: 1}
 	}
-	if style.Foreground == (ui.Color{}) {
+	if style.Foreground == (gfx.Color{}) {
 		style.Foreground = ink
 	}
-	if style.Hover == (ui.Color{}) {
-		style.Hover = ui.Color{Red: ink.Red, Green: ink.Green, Blue: ink.Blue, Alpha: 0.10}
+	if style.Hover == (gfx.Color{}) {
+		style.Hover = gfx.Color{Red: ink.Red, Green: ink.Green, Blue: ink.Blue, Alpha: 0.10}
 	}
-	if style.Pressed == (ui.Color{}) {
-		style.Pressed = ui.Color{Red: ink.Red, Green: ink.Green, Blue: ink.Blue, Alpha: 0.18}
+	if style.Pressed == (gfx.Color{}) {
+		style.Pressed = gfx.Color{Red: ink.Red, Green: ink.Green, Blue: ink.Blue, Alpha: 0.18}
 	}
-	if style.Close == (ui.Color{}) {
-		style.Close = ui.Color{Red: 0.77, Green: 0.17, Blue: 0.11, Alpha: 1}
+	if style.Close == (gfx.Color{}) {
+		style.Close = gfx.Color{Red: 0.77, Green: 0.17, Blue: 0.11, Alpha: 1}
 	}
-	if style.CloseForeground == (ui.Color{}) {
-		style.CloseForeground = ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	if style.CloseForeground == (gfx.Color{}) {
+		style.CloseForeground = gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 	}
 	if style.Minimize == "" {
 		style.Minimize = "Minimize"
@@ -106,20 +106,20 @@ func (style WindowControlsStyle) withDefaults(clear Color) WindowControlsStyle {
 const glyph = 10
 
 var (
-	minimizeIcon = ui.Icon{ViewBox: glyph, Stroke: 1, Cap: ui.CapButt, Join: ui.JoinMiter, Commands: []ui.PathCommand{
-		ui.MoveTo(0, 5), ui.LineTo(glyph, 5),
+	minimizeIcon = gfx.Icon{ViewBox: glyph, Stroke: 1, Cap: gfx.CapButt, Join: gfx.JoinMiter, Commands: []gfx.PathCommand{
+		gfx.MoveTo(0, 5), gfx.LineTo(glyph, 5),
 	}}
-	maximizeIcon = ui.Icon{ViewBox: glyph, Stroke: 1, Cap: ui.CapButt, Join: ui.JoinMiter, Commands: []ui.PathCommand{
-		ui.MoveTo(0.5, 0.5), ui.LineTo(9.5, 0.5), ui.LineTo(9.5, 9.5), ui.LineTo(0.5, 9.5), ui.ClosePath(),
+	maximizeIcon = gfx.Icon{ViewBox: glyph, Stroke: 1, Cap: gfx.CapButt, Join: gfx.JoinMiter, Commands: []gfx.PathCommand{
+		gfx.MoveTo(0.5, 0.5), gfx.LineTo(9.5, 0.5), gfx.LineTo(9.5, 9.5), gfx.LineTo(0.5, 9.5), gfx.ClosePath(),
 	}}
-	restoreIcon = ui.Icon{ViewBox: glyph, Stroke: 1, Cap: ui.CapButt, Join: ui.JoinMiter, Commands: []ui.PathCommand{
+	restoreIcon = gfx.Icon{ViewBox: glyph, Stroke: 1, Cap: gfx.CapButt, Join: gfx.JoinMiter, Commands: []gfx.PathCommand{
 		// The window behind: its top and right edges, clear of the one in front.
-		ui.MoveTo(2.5, 2.5), ui.LineTo(2.5, 0.5), ui.LineTo(9.5, 0.5), ui.LineTo(9.5, 7.5), ui.LineTo(7.5, 7.5),
+		gfx.MoveTo(2.5, 2.5), gfx.LineTo(2.5, 0.5), gfx.LineTo(9.5, 0.5), gfx.LineTo(9.5, 7.5), gfx.LineTo(7.5, 7.5),
 		// The window in front.
-		ui.MoveTo(0.5, 2.5), ui.LineTo(7.5, 2.5), ui.LineTo(7.5, 9.5), ui.LineTo(0.5, 9.5), ui.ClosePath(),
+		gfx.MoveTo(0.5, 2.5), gfx.LineTo(7.5, 2.5), gfx.LineTo(7.5, 9.5), gfx.LineTo(0.5, 9.5), gfx.ClosePath(),
 	}}
-	closeIcon = ui.Icon{ViewBox: glyph, Stroke: 1, Cap: ui.CapButt, Join: ui.JoinMiter, Commands: []ui.PathCommand{
-		ui.MoveTo(0, 0), ui.LineTo(glyph, glyph), ui.MoveTo(glyph, 0), ui.LineTo(0, glyph),
+	closeIcon = gfx.Icon{ViewBox: glyph, Stroke: 1, Cap: gfx.CapButt, Join: gfx.JoinMiter, Commands: []gfx.PathCommand{
+		gfx.MoveTo(0, 0), gfx.LineTo(glyph, glyph), gfx.MoveTo(glyph, 0), gfx.LineTo(0, glyph),
 	}}
 )
 
@@ -132,8 +132,8 @@ type windowControls struct {
 	theme   desktopTheme
 	actions *platform.WindowActions
 	// tree and ids are the buttons' identities in the tree they were made in.
-	tree *ui.Tree
-	ids  [3]ui.ID
+	tree *gfx.Tree
+	ids  [3]gfx.ID
 }
 
 func newWindowControls(config *Config) *windowControls {
@@ -153,19 +153,19 @@ func (controls *windowControls) maximized() bool {
 
 // identify names the buttons in tree. It does nothing after the first time for
 // one tree.
-func (controls *windowControls) identify(tree *ui.Tree) {
+func (controls *windowControls) identify(tree *gfx.Tree) {
 	if controls.tree == tree {
 		return
 	}
 	scope := tree.Feature("viva.window-controls")
-	controls.ids = [3]ui.ID{
+	controls.ids = [3]gfx.ID{
 		scope.ID(tree.Name("minimize")), scope.ID(tree.Name("maximize")), scope.ID(tree.Name("close")),
 	}
 	controls.tree = tree
 }
 
 // control reports which button id is, and false for any other identity.
-func (controls *windowControls) control(id ui.ID) (int, bool) {
+func (controls *windowControls) control(id gfx.ID) (int, bool) {
 	for index, candidate := range controls.ids {
 		if candidate == id && !id.IsZero() {
 			return index, true
@@ -176,7 +176,7 @@ func (controls *windowControls) control(id ui.ID) (int, bool) {
 
 // paint draws the three buttons at the trailing end of the strip and declares
 // their hits. It runs after the application's own paint.
-func (controls *windowControls) paint(canvas *ui.Canvas, size ui.Size) {
+func (controls *windowControls) paint(canvas *gfx.Canvas, size gfx.Size) {
 	style := WindowControlsStyle{}
 	if controls.style != nil {
 		style = controls.style()
@@ -194,7 +194,7 @@ func (controls *windowControls) paint(canvas *ui.Canvas, size ui.Size) {
 	}
 	hovered, pressed := canvas.Hovered(), canvas.Pressed()
 	for index, id := range controls.ids {
-		bounds := ui.Rect{X: size.Width - float32(3-index)*WindowControlWidth, Width: WindowControlWidth, Height: controls.height}
+		bounds := gfx.Rect{X: size.Width - float32(3-index)*WindowControlWidth, Width: WindowControlWidth, Height: controls.height}
 		icon, name, tint := minimizeIcon, style.Minimize, style.Foreground
 		switch index {
 		case windowControlMaximize:
@@ -206,7 +206,7 @@ func (controls *windowControls) paint(canvas *ui.Canvas, size ui.Size) {
 			icon, name = closeIcon, style.CloseName
 		}
 		var (
-			bg    ui.Color
+			bg    gfx.Color
 			hasBg bool
 		)
 		switch {
@@ -227,7 +227,7 @@ func (controls *windowControls) paint(canvas *ui.Canvas, size ui.Size) {
 		if hasBg {
 			if controls.theme == desktopBreeze || controls.theme == desktopAdwaita {
 				btnSize := max(float32(16), min(float32(26), controls.height-6))
-				btnRect := ui.Rect{
+				btnRect := gfx.Rect{
 					X:      bounds.X + (bounds.Width-btnSize)/2,
 					Y:      (controls.height - btnSize) / 2,
 					Width:  btnSize,
@@ -238,8 +238,8 @@ func (controls *windowControls) paint(canvas *ui.Canvas, size ui.Size) {
 				canvas.Fill(bounds, bg)
 			}
 		}
-		canvas.DrawIcon(icon, ui.Rect{X: bounds.X + (WindowControlWidth-glyph)/2, Y: (controls.height - glyph) / 2, Width: glyph, Height: glyph}, tint)
-		canvas.HitWithOptions(id, bounds, name, ui.HitOptions{Role: ui.RoleButton, SkipFocus: true})
+		canvas.DrawIcon(icon, gfx.Rect{X: bounds.X + (WindowControlWidth-glyph)/2, Y: (controls.height - glyph) / 2, Width: glyph, Height: glyph}, tint)
+		canvas.HitWithOptions(id, bounds, name, gfx.HitOptions{Role: gfx.RoleButton, SkipFocus: true})
 	}
 	if !trapped.IsZero() {
 		canvas.PopFocusScope()
@@ -248,7 +248,7 @@ func (controls *windowControls) paint(canvas *ui.Canvas, size ui.Size) {
 }
 
 // activate carries out a click on one of the buttons.
-func (controls *windowControls) activate(id ui.ID) {
+func (controls *windowControls) activate(id gfx.ID) {
 	actions := controls.actions
 	if actions == nil {
 		return

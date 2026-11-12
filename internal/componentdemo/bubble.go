@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -34,18 +34,18 @@ var (
 	bubbleReaction = tree.ID(bubbleUI, "reaction")
 )
 
-func (state *State) paintBubble(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var rows [3]flex.Box // the conversation uses two; the variants three
+func (state *State) paintBubble(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var rows [3]ui.Box // the conversation uses two; the variants three
 	variants := state.exampleID == "variants"
-	state.page(canvas, theme, size, 560, state.Text("Bubble · 项目讨论", "Bubble · Project discussion"), func(f *flex.Frame) {
+	state.drawPage(canvas, theme, size, 560, state.Text("Bubble · 项目讨论", "Bubble · Project discussion"), func(c ui.C) {
 		if variants {
 			for index := range rows {
-				rows[index] = f.Slot().FillWidth().Height(54)
+				rows[index] = ui.Slot(c).FillWidth().Height(54)
 			}
 			return
 		}
-		rows[0] = f.Slot().FillWidth().Height(50)
-		rows[1] = f.Slot().FillWidth().Height(90)
+		rows[0] = ui.Slot(c).FillWidth().Height(50)
+		rows[1] = ui.Slot(c).FillWidth().Height(90)
 	})
 	if variants {
 		components.Bubble(canvas, theme, rows[0].Rect(), components.BubbleStart, components.BubbleSecondary, state.Text("构建已完成，可以开始验收。", "The build is done — ready for review."))

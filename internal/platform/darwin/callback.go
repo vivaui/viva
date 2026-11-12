@@ -11,14 +11,15 @@ import "C"
 import (
 	"fmt"
 	"runtime/cgo"
+	"unicode/utf8"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // vivaShapedLine is how the native drawing reaches the text engine's cache: the
@@ -37,6 +38,13 @@ func vivaShapedLineStyle(utf8 *C.uchar, length C.size_t, size, weight C.double, 
 		value = unsafe.String((*byte)(unsafe.Pointer(utf8)), int(length))
 	}
 	return sharedTextEngine().retainedLineStyle(value, float32(size), float32(weight), italic != 0)
+}
+
+//export vivaOpenFile
+func vivaOpenFile(path *C.char) {
+	if path != nil {
+		deliverOpenFile(C.GoString(path))
+	}
 }
 
 //export vivaPointerEvent
@@ -66,7 +74,7 @@ func vivaPointerEvent(
 
 	frame, err := state.pointerHandler(PointerEvent{
 		Kind:       PointerEventKind(kind),
-		Button:     ui.PointerButton(button),
+		Button:     gfx.PointerButton(button),
 		Modifiers:  input.Modifiers(modifiers),
 		X:          float32(x),
 		Y:          float32(y),
@@ -96,6 +104,11 @@ func vivaViewResized(handle C.uintptr_t, view unsafe.Pointer, width C.double, he
 
 	frame, err := state.resizeHandler(Size{Width: float32(width), Height: float32(height)})
 	if err == nil {
+		// The layer presents the frame in the same Core Animation transaction as
+		// the new bounds (see -[VivaMetalView beginLiveResizeRelaxation]), so the
+		// window never scales the previous frame. Waiting for the frame to be
+		// scheduled before returning keeps the next AppKit resize step behind
+		// the frame it belongs to.
 		err = presentFrame(state, view, frame, true)
 	}
 	if err == nil && state.web != nil {
@@ -120,7 +133,7 @@ func vivaFrameChanged(handle C.uintptr_t, view unsafe.Pointer, x, y, width, heig
 			C.viva_view_close(view)
 		}
 	}()
-	state.frameHandler(ui.Rect{X: float32(x), Y: float32(y), Width: float32(width), Height: float32(height)})
+	state.frameHandler(gfx.Rect{X: float32(x), Y: float32(y), Width: float32(width), Height: float32(height)})
 }
 
 //export vivaWindowReopenRequested
@@ -266,6 +279,16 @@ func vivaTerminalCells(character C.uint32_t) C.int {
 	return C.int(platform.TerminalPreeditCells(rune(character)))
 }
 
+// vivaWindowActivated reports that the window became the key window.
+//
+//export vivaWindowActivated
+func vivaWindowActivated(handle C.uintptr_t) {
+	state, ok := runStateFor(handle)
+	if ok && !state.closed && state.onActivate != nil {
+		state.onActivate()
+	}
+}
+
 // vivaFocusLost reports that the window stopped being the keyboard window.
 //
 //export vivaFocusLost
@@ -297,7 +320,7 @@ func vivaAccessibilityAction(handle C.uintptr_t, view unsafe.Pointer, node C.uin
 	if !ok || state.closed || state.accessibility == nil {
 		return 0
 	}
-	request := platform.AccessibilityRequest{Node: ui.IDFromBits(uint64(node)), Number: float64(number)}
+	request := platform.AccessibilityRequest{Node: gfx.IDFromBits(uint64(node)), Number: float64(number)}
 	switch action {
 	case C.VIVA_AX_PRESS:
 		request.Action = platform.AccessibilityPress
@@ -621,6 +644,36 @@ func presentTextInput(state *runState, view unsafe.Pointer, update TextInputUpda
 		return fmt.Errorf("darwin: native text input update failed with status %d", status)
 	}
 	return nil
+}
+
+//export vivaCopyText
+func vivaCopyText(handle C.uintptr_t, _ unsafe.Pointer, length *C.size_t) (result *C.uchar) {
+	if length == nil {
+		return nil
+	}
+	*length = 0
+	state, ok := runStateFor(handle)
+	if !ok || state.closed || !state.textInputActive || !state.textInput.CopyOverride || state.textInput.Secure || state.textInput.CopyText == nil {
+		return nil
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			platform.ReportFault("darwin: clipboard callback", recovered)
+			result = nil
+			*length = 0
+		}
+	}()
+	value := state.textInput.CopyText()
+	if value == "" || !utf8.ValidString(value) {
+		return nil
+	}
+	memory := C.malloc(C.size_t(len(value)))
+	if memory == nil {
+		return nil
+	}
+	copy(unsafe.Slice((*byte)(memory), len(value)), value)
+	*length = C.size_t(len(value))
+	return (*C.uchar)(memory)
 }
 
 func presentAccessibility(view unsafe.Pointer, nodes []AccessibilityNode) error {

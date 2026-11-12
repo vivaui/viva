@@ -2,6 +2,11 @@
 // listens on a local socket; a later one connects, hands over its command line
 // and exits. No file lock, polling or timer is involved: the first process
 // holds one blocked accept, and nothing else runs until a second process starts.
+//
+// The socket lives in a per-user directory the platform keeps across launches,
+// never in the process's temporary directory: TMPDIR and XDG_RUNTIME_DIR are
+// set by whichever shell or session started the process, and two copies that
+// disagree on them would not meet.
 package instance
 
 import (
@@ -84,34 +89,80 @@ func (instance *Instance) Close() {
 
 var errNobody = errors.New("instance: no process is listening")
 
+// claimDirectory is the directory a claim lives in. It is a variable so tests
+// can use a directory of their own; the program never changes it.
+var claimDirectory = defaultClaimDirectory
+
+// defaultClaimDirectory is the per-user directory claims live in. It is derived
+// from the user, not from the environment: a copy started from a desktop and one
+// started from a terminal must find each other, and their TMPDIR and
+// XDG_RUNTIME_DIR can differ (an SSH session, a service or a shell profile can
+// leave the first unset or set it to another place). If the claim followed the
+// environment, both copies would bind a socket and both would believe they are
+// the one running copy, writing the same saved data from two processes.
+func defaultClaimDirectory() (string, error) {
+	switch runtime.GOOS {
+	case "linux":
+		// The session runtime directory, derived from the user rather than read
+		// from XDG_RUNTIME_DIR, so a launch without the variable agrees with the
+		// desktop's own.
+		session := fmt.Sprintf("/run/user/%d", os.Getuid())
+		if info, err := os.Stat(session); err == nil && info.IsDir() && ownedByUser(info) {
+			return filepath.Join(session, "viva"), nil
+		}
+		return filepath.Join("/tmp", fmt.Sprintf("viva-%d", os.Getuid())), nil
+	case "windows":
+		// %LocalAppData%, which is the user's own and is not roamed between
+		// computers; a socket must stay on this machine.
+		base, err := os.UserCacheDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(base, "viva"), nil
+	default:
+		// ~/Library/Application Support on macOS. The cache directory can be
+		// purged under disk pressure, which would remove the socket of a
+		// running copy and let a second one claim the application.
+		base, err := os.UserConfigDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(base, "viva"), nil
+	}
+}
+
 // socketPath is where the id's socket lives: in a directory only this user can
 // enter, short enough for the 104-byte limit of a Unix socket path.
 func socketPath(id string) (string, error) {
+	dir, err := claimDirectory()
+	if err != nil {
+		return "", err
+	}
+	return socketPathIn(dir, id)
+}
+
+// socketPathIn is socketPath for a claim directory. The split lets a test reach
+// the length fallback without a machine whose home directory is that deep.
+func socketPathIn(dir, id string) (string, error) {
 	sum := sha256.Sum256([]byte(id))
 	name := "i-" + hex.EncodeToString(sum[:6]) + ".sock"
-	base := os.Getenv("XDG_RUNTIME_DIR")
-	if base == "" || runtime.GOOS != "linux" {
-		base = os.TempDir()
-	}
-	dir := filepath.Join(base, fmt.Sprintf("viva-%d", os.Getuid()))
-	if runtime.GOOS == "windows" {
-		dir = filepath.Join(base, "viva")
-	}
 	if len(dir)+len(name)+1 > maxSocketPath {
-		if runtime.GOOS != "windows" {
-			// A very long temporary directory: /tmp is always short.
-			dir = filepath.Join("/tmp", fmt.Sprintf("viva-%d", os.Getuid()))
-		} else {
-			// Windows AF_UNIX paths share the sockaddr limit, and there is
-			// no short system directory to fall back to; the 8.3 short form
-			// of the temporary directory usually fits.
-			if short, ok := shortPath(base); ok {
-				dir = filepath.Join(short, "viva")
+		if runtime.GOOS == "windows" {
+			// Windows AF_UNIX paths share the sockaddr limit, and there is no
+			// short system directory to fall back to; the 8.3 short form of the
+			// existing parent usually fits. The claim directory itself need not
+			// exist yet, so only its parent is shortened.
+			if short, ok := shortPath(filepath.Dir(dir)); ok {
+				dir = filepath.Join(short, filepath.Base(dir))
 			}
+		} else {
+			// A very long home directory: /tmp is always short, and every copy
+			// derives the same fallback from the user, not from the environment.
+			dir = filepath.Join("/tmp", fmt.Sprintf("viva-%d", os.Getuid()))
 		}
 	}
 	if socket := filepath.Join(dir, name); len(socket) > maxSocketPath {
-		return "", fmt.Errorf("instance: socket path %s is %d bytes, over the %d-byte limit; point TMPDIR and TEMP at a shorter directory", socket, len(socket), maxSocketPath)
+		return "", fmt.Errorf("instance: the claim path %s is %d bytes, over the %d-byte limit; the user's home directory is too deep", socket, len(socket), maxSocketPath)
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err

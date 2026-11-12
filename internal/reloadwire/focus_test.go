@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestPaintRequestCodecPreservesFocusVisibility(t *testing.T) {
@@ -22,7 +22,7 @@ func TestPaintRequestCodecPreservesFocusVisibility(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			want := PaintRequest{
-				Width: 640, Height: 480, Hovered: ui.Item(3), Pressed: ui.Item(5), Focused: ui.Item(7),
+				Width: 640, Height: 480, Hovered: gfx.Item(3), Pressed: gfx.Item(5), Focused: gfx.Item(7),
 				FocusVisible: testCase.focusVisible, ScrollX: 12.5, ScrollY: -8.25,
 			}
 			data := encodePaintRequest(want)
@@ -35,7 +35,7 @@ func TestPaintRequestCodecPreservesFocusVisibility(t *testing.T) {
 }
 
 func TestPaintRequestCodecRejectsMissingOrInvalidFocusVisibility(t *testing.T) {
-	request := PaintRequest{Width: 640, Height: 480, Focused: ui.Item(7), ScrollX: 12.5, ScrollY: -8.25}
+	request := PaintRequest{Width: 640, Height: 480, Focused: gfx.Item(7), ScrollX: 12.5, ScrollY: -8.25}
 	data := encodePaintRequest(request)
 	request.FocusVisible = true
 	at := byteThatFlips(t, data, encodePaintRequest(request))
@@ -97,7 +97,7 @@ func TestAcceptRejectsVersionOneWorkerBeforeReadingPayload(t *testing.T) {
 }
 
 func TestWorkerPaintPreservesRealAndVisibleFocus(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	for _, testCase := range []struct {
 		name         string
 		focused      uint32
@@ -110,12 +110,12 @@ func TestWorkerPaintPreservesRealAndVisibleFocus(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			want := PaintRequest{
-				Width: 640, Height: 480, Hovered: ui.Item(3), Pressed: ui.Item(5), Focused: ui.Item(int(testCase.focused)),
+				Width: 640, Height: 480, Hovered: gfx.Item(3), Pressed: gfx.Item(5), Focused: gfx.Item(int(testCase.focused)),
 				FocusVisible: testCase.focusVisible, ScrollX: 12.5, ScrollY: -8.25,
 			}
 			var observed PaintRequest
 			calls := 0
-			config := WorkerConfig{Paint: func(canvas *ui.Canvas, size ui.Size) {
+			config := WorkerConfig{Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 				calls++
 				observed = PaintRequest{
 					Width: size.Width, Height: size.Height, Hovered: canvas.Hovered(), Pressed: canvas.Pressed(),
@@ -136,7 +136,7 @@ func TestWorkerPaintPreservesRealAndVisibleFocus(t *testing.T) {
 }
 
 func BenchmarkPaintRequestCodec(b *testing.B) {
-	request := PaintRequest{Width: 640, Height: 480, Hovered: ui.Item(3), Pressed: ui.Item(5), Focused: ui.Item(7), FocusVisible: true, ScrollX: 12.5, ScrollY: -8.25}
+	request := PaintRequest{Width: 640, Height: 480, Hovered: gfx.Item(3), Pressed: gfx.Item(5), Focused: gfx.Item(7), FocusVisible: true, ScrollX: 12.5, ScrollY: -8.25}
 	b.ReportAllocs()
 	b.SetBytes(int64(len(encodePaintRequest(request))))
 	b.ResetTimer()

@@ -7,37 +7,37 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/reloadwire"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestSupervisorForwardsInputEventsAndResults(t *testing.T) {
-	wantPointer := ui.PointerEvent{Kind: ui.PointerMove, Button: ui.PointerButtonPrimary, X: 8, Y: 12, Target: ui.Item(3), Captured: true}
-	wantKey := ui.KeyEvent{Key: ui.KeyEnter, Modifiers: ui.ModifierMeta, Target: ui.Item(5), Repeat: true}
-	wantShortcut := ui.KeyEvent{Modifiers: ui.ModifierMeta, Target: ui.Item(5), Text: "k"}
-	wantScroll := ui.ScrollEvent{
-		Modifiers: ui.ModifierAlt, X: 17, Y: 23, DeltaX: 4, DeltaY: -9,
-		Viewport: ui.Size{Width: 200, Height: 100}, Target: ui.Item(7), Precise: true,
+	wantPointer := gfx.PointerEvent{Kind: gfx.PointerMove, Button: gfx.PointerButtonPrimary, X: 8, Y: 12, Target: gfx.Item(3), Captured: true}
+	wantKey := gfx.KeyEvent{Key: gfx.KeyEnter, Modifiers: gfx.ModifierMeta, Target: gfx.Item(5), Repeat: true}
+	wantShortcut := gfx.KeyEvent{Modifiers: gfx.ModifierMeta, Target: gfx.Item(5), Text: "k"}
+	wantScroll := gfx.ScrollEvent{
+		Modifiers: gfx.ModifierAlt, X: 17, Y: 23, DeltaX: 4, DeltaY: -9,
+		Viewport: gfx.Size{Width: 200, Height: 100}, Target: gfx.Item(7), Precise: true,
 	}
-	pointerResult := ui.EventResult{Focus: ui.Item(3), Handled: true, Repaint: true}
-	keyResult := ui.EventResult{Focus: ui.Item(5), Handled: true, FocusVisible: true}
-	shortcutResult := ui.EventResult{Handled: true, Repaint: true}
-	scrollResult := ui.EventResult{Blur: true, Repaint: true}
-	wantTap := ui.ModifierTapEvent{Key: ui.KeyControlLeft, Target: ui.Item(5)}
-	tapResult := ui.EventResult{Handled: true}
-	var gotTap ui.ModifierTapEvent
-	var gotPointer ui.PointerEvent
-	var gotKey ui.KeyEvent
-	var gotShortcut ui.KeyEvent
-	var gotScroll ui.ScrollEvent
+	pointerResult := gfx.EventResult{Focus: gfx.Item(3), Handled: true, Repaint: true}
+	keyResult := gfx.EventResult{Focus: gfx.Item(5), Handled: true, FocusVisible: true}
+	shortcutResult := gfx.EventResult{Handled: true, Repaint: true}
+	scrollResult := gfx.EventResult{Blur: true, Repaint: true}
+	wantTap := gfx.ModifierTapEvent{Key: gfx.KeyControlLeft, Target: gfx.Item(5)}
+	tapResult := gfx.EventResult{Handled: true}
+	var gotTap gfx.ModifierTapEvent
+	var gotPointer gfx.PointerEvent
+	var gotKey gfx.KeyEvent
+	var gotShortcut gfx.KeyEvent
+	var gotScroll gfx.ScrollEvent
 
 	worker, shutdown := startInputWorker(t, reloadwire.WorkerConfig{
 		Window:      reloadwire.WindowConfig{Title: "input", Width: 200, Height: 100, HasPointer: true, HasKey: true, HasShortcut: true, HasScroll: true, HasModifierTap: true},
-		Pointer:     func(event ui.PointerEvent) ui.EventResult { gotPointer = event; return pointerResult },
-		Key:         func(event ui.KeyEvent) ui.EventResult { gotKey = event; return keyResult },
-		Shortcut:    func(event ui.KeyEvent) ui.EventResult { gotShortcut = event; return shortcutResult },
-		Scroll:      func(event ui.ScrollEvent) ui.EventResult { gotScroll = event; return scrollResult },
-		ModifierTap: func(event ui.ModifierTapEvent) ui.EventResult { gotTap = event; return tapResult },
+		Pointer:     func(event gfx.PointerEvent) gfx.EventResult { gotPointer = event; return pointerResult },
+		Key:         func(event gfx.KeyEvent) gfx.EventResult { gotKey = event; return keyResult },
+		Shortcut:    func(event gfx.KeyEvent) gfx.EventResult { gotShortcut = event; return shortcutResult },
+		Scroll:      func(event gfx.ScrollEvent) gfx.EventResult { gotScroll = event; return scrollResult },
+		ModifierTap: func(event gfx.ModifierTapEvent) gfx.EventResult { gotTap = event; return tapResult },
 	})
 	defer shutdown()
 	supervisor := newSupervisor(worker, reloadwire.PaintRequest{}, reloadwire.CanvasSnapshot{}, io.Discard)
@@ -66,12 +66,12 @@ func TestSupervisorForwardsInputEventsAndResults(t *testing.T) {
 // The host cannot see which controls ask Clicked: it declares that it listens,
 // and carries the event pass of a click to the worker, where the state lives.
 func TestSupervisorCarriesTheClickEventPassToTheWorker(t *testing.T) {
-	save := ui.Item(3)
+	save := gfx.Item(3)
 	clicks := 0
 	worker, shutdown := startInputWorker(t, reloadwire.WorkerConfig{
 		Window: reloadwire.WindowConfig{Title: "click", Width: 200, Height: 100, HasClick: true},
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.Hit(save, ui.Rect{Width: 50, Height: 20})
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.Hit(save, gfx.Rect{Width: 50, Height: 20})
 			if canvas.Clicked(save) {
 				clicks++
 			}
@@ -81,18 +81,18 @@ func TestSupervisorCarriesTheClickEventPassToTheWorker(t *testing.T) {
 	supervisor := newSupervisor(worker, reloadwire.PaintRequest{}, reloadwire.CanvasSnapshot{}, io.Discard)
 	config := supervisor.hostConfig()
 
-	var canvas ui.Canvas
-	config.Paint(&canvas, ui.Size{Width: 200, Height: 100})
+	var canvas gfx.Canvas
+	config.Paint(&canvas, gfx.Size{Width: 200, Height: 100})
 	if !canvas.ListensForClicks() {
 		t.Fatal("the host does not listen for clicks the worker's paint reads")
 	}
-	canvas.BeginEventPass(save)
-	config.Paint(&canvas, ui.Size{Width: 200, Height: 100})
+	canvas.BeginEventPass(save, gfx.ClickInfo{})
+	config.Paint(&canvas, gfx.Size{Width: 200, Height: 100})
 	canvas.EndEventPass()
 	if clicks != 1 {
 		t.Fatalf("the worker read the click %d times, want once", clicks)
 	}
-	config.Paint(&canvas, ui.Size{Width: 200, Height: 100})
+	config.Paint(&canvas, gfx.Size{Width: 200, Height: 100})
 	if clicks != 1 {
 		t.Fatalf("an ordinary paint delivered the click again: %d", clicks)
 	}
@@ -102,9 +102,9 @@ func TestSupervisorKeepsInputCallbacksAvailableAcrossCapabilityChanges(t *testin
 	calls := 0
 	worker, shutdown := startInputWorker(t, reloadwire.WorkerConfig{
 		Window:  reloadwire.WindowConfig{Title: "input", Width: 200, Height: 100},
-		Pointer: func(ui.PointerEvent) ui.EventResult { calls++; return ui.EventResult{Handled: true} },
-		Key:     func(ui.KeyEvent) ui.EventResult { calls++; return ui.EventResult{Handled: true} },
-		Scroll:  func(ui.ScrollEvent) ui.EventResult { calls++; return ui.EventResult{Handled: true} },
+		Pointer: func(gfx.PointerEvent) gfx.EventResult { calls++; return gfx.EventResult{Handled: true} },
+		Key:     func(gfx.KeyEvent) gfx.EventResult { calls++; return gfx.EventResult{Handled: true} },
+		Scroll:  func(gfx.ScrollEvent) gfx.EventResult { calls++; return gfx.EventResult{Handled: true} },
 	})
 	defer shutdown()
 	supervisor := newSupervisor(worker, reloadwire.PaintRequest{}, reloadwire.CanvasSnapshot{}, io.Discard)
@@ -113,16 +113,16 @@ func TestSupervisorKeepsInputCallbacksAvailableAcrossCapabilityChanges(t *testin
 	if config.OnPointer == nil || config.OnKey == nil || config.OnShortcut == nil || config.OnScroll == nil {
 		t.Fatal("host input callbacks must remain installed for later worker swaps")
 	}
-	if got := config.OnPointer(ui.PointerEvent{Kind: ui.PointerDown}); got != (ui.EventResult{}) {
+	if got := config.OnPointer(gfx.PointerEvent{Kind: gfx.PointerDown}); got != (gfx.EventResult{}) {
 		t.Fatalf("unsupported pointer result = %+v", got)
 	}
-	if got := config.OnKey(ui.KeyEvent{Key: ui.KeyEnter}); got != (ui.EventResult{}) {
+	if got := config.OnKey(gfx.KeyEvent{Key: gfx.KeyEnter}); got != (gfx.EventResult{}) {
 		t.Fatalf("unsupported key result = %+v", got)
 	}
-	if got := config.OnShortcut(ui.KeyEvent{Modifiers: ui.ModifierControl, Text: "x"}); got != (ui.EventResult{}) {
+	if got := config.OnShortcut(gfx.KeyEvent{Modifiers: gfx.ModifierControl, Text: "x"}); got != (gfx.EventResult{}) {
 		t.Fatalf("unsupported shortcut result = %+v", got)
 	}
-	if got := config.OnScroll(ui.ScrollEvent{DeltaY: 1}); got != (ui.EventResult{}) {
+	if got := config.OnScroll(gfx.ScrollEvent{DeltaY: 1}); got != (gfx.EventResult{}) {
 		t.Fatalf("unsupported scroll result = %+v", got)
 	}
 	if calls != 0 {

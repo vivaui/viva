@@ -34,13 +34,13 @@ Windows 使用整个显示器而不是任务栏工作区，并保存之前的位
 
 全屏时 Viva 会隐藏自己的窗口按钮，并禁用标题栏的移动和缩放行为。macOS 的原生全屏外框仍由 AppKit 管理。全屏期间普通窗口位置不会通过 `OnFrameChange` 上报，所以持久化普通窗口边界时不会误存一个显示器矩形。`Frame()` 仍然描述当前的内容区域。
 
-测试时，`Driver.SetFullscreen(bool) error` 使用同一套回调并立即重绘。`Driver.SetFullscreenMonitor(ui.Rect) error` 以逻辑像素定义整个显示器的边界（默认 `(0,0,1920,1080)`）；负的原点表示位于主显示器左侧的显示器。全屏期间更换显示器或调整大小不会替换退出时恢复的位置。`Driver.Fullscreen()` 报告模拟出来的状态。与 `Window` 的方法不同，Driver 的操作在调用者的线程上运行，不是并发安全的。
+测试时，`Driver.SetFullscreen(bool) error` 使用同一套回调并立即重绘。`Driver.SetFullscreenMonitor(gfx.Rect) error` 以逻辑像素定义整个显示器的边界（默认 `(0,0,1920,1080)`）；负的原点表示位于主显示器左侧的显示器。全屏期间更换显示器或调整大小不会替换退出时恢复的位置。`Driver.Fullscreen()` 报告模拟出来的状态。与 `Window` 的方法不同，Driver 的操作在调用者的线程上运行，不是并发安全的。
 
 无头应用的 `Window.SetFullscreen` 把工作排进 driver 的下一次 pump，不需要 worker，也不轮询。它的命令协议还提供 `fullscreen on|off` 和 `fullscreenmonitor x y width height`。
 
 ## 完整示例
 
-下面的程序打开一个自定义标题栏窗口，其中的“Settings”按钮会打开第二个窗口，并且在有未保存的笔记时拒绝关闭。顶部条带是一个普通的 `Row`，用 `app.TitlebarInsets` 留出内边距，所以标题不会压到窗口按钮下面；确认框是 `f.Dialog`，只在有关闭请求挂起时才声明：
+下面的程序打开一个自定义标题栏窗口，其中的“Settings”按钮会打开第二个窗口，并且在有未保存的笔记时拒绝关闭。顶部条带是一个普通的 `ui.Row`，用 `app.TitlebarInsets` 留出内边距，所以标题不会压到窗口按钮下面；确认框是 `ui.ModalWith`，只在有关闭请求挂起时才声明：
 
 <!-- example: windows/main.go -->
 ```go
@@ -50,83 +50,63 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-)
-
-// Identities are names in a tree, not numbers: the application declares the
-// tree once and every control it paints is a name inside a feature of it.
-var (
-	tree    = ui.Tree{}
-	page    = tree.Feature("notes")
-	confirm = tree.Sub(page, tree.Name("confirm"))
-
-	settingsButton = tree.ID(page, "settings")
-	confirmScope   = tree.ID(confirm, "scope")
-	keep           = tree.ID(confirm, "keep")
-	discard        = tree.ID(confirm, "discard")
 )
 
 type notes struct {
 	unsaved        bool
 	confirmClosing bool
 	allowClose     func()
-	view           flex.View
+	application    *app.Application
+}
+
+func (state *notes) page(c ui.C) {
+	// The bar is as tall as the title bar and leaves room for the window buttons
+	// on whichever side the platform puts them.
+	leading, trailing := app.TitlebarInsets()
+	ui.Column(c).Fill().Children(func() {
+		ui.Row(c).Height(28).PadRight(trailing).PadLeft(leading).Items(ui.Center).MovesWindow().Children(func() {
+			ui.Text(c, "Notes").Muted()
+		})
+		ui.Column(c).Grow(1).Pad(24).Items(ui.Start).Children(func() {
+			if ui.Button(c, "Settings").Outline().Clicked() {
+				// Windows are opened from the start callback or from another
+				// window's callbacks, which run on the native event-loop thread.
+				var settings gfx.Canvas
+				_, _ = state.application.OpenWindow(app.Config{Title: "Settings", Width: 420, Height: 320}, &settings)
+			}
+		})
+		ui.ModalWith(c, &state.confirmClosing, "Discard changes?", ui.ModalSpec{
+			Description: "The note has not been saved.", Width: 400, NoClose: true,
+		}, nil, func() {
+			if ui.Button(c, "Keep editing").Outline().Clicked() {
+				state.confirmClosing = false
+			}
+			if ui.Button(c, "Discard").Destructive().Clicked() {
+				state.confirmClosing = false
+				state.unsaved = false
+				state.allowClose()
+			}
+		})
+	})
 }
 
 func main() {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	state := &notes{unsaved: true}
 
 	err := app.RunApplication(func(application *app.Application) error {
-		var main, settings ui.Canvas
-
-		config := app.Config{
-			Tree: &tree, Title: "Notes", Width: 720, Height: 480,
+		var main gfx.Canvas
+		state.application = application
+		page := ui.NewPage(ui.PageConfig{View: state.page, Theme: &theme})
+		config := page.Config(app.Config{
+			Title: "Notes", Width: 720, Height: 480,
 			// Content runs full height under a transparent title bar; the window
 			// moves from the row marked MovesWindow. Keep your own content clear of
 			// the window buttons.
 			WindowMode: app.WindowCustomTitlebar,
-		}
-		leading, trailing := app.TitlebarInsets()
-		config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-			bounds := ui.Rect{Width: size.Width, Height: size.Height}
-			canvas.Fill(bounds, theme.Background)
-
-			state.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-				f.Column().Fill().Children(func() {
-					// The bar is as tall as the title bar and leaves room for the
-					// window buttons on whichever side the platform puts them.
-					f.Row().Height(28).PadSides(0, trailing, 0, leading).Items(flex.Center).MovesWindow().Children(func() {
-						f.Text("Notes").Muted()
-					})
-					f.Column().Grow(1).Pad(24).Items(flex.Start).Children(func() {
-						if f.Button(settingsButton, "Settings").Outline().Clicked() {
-							// Windows are opened from the start callback or from another
-							// window's callbacks, which run on the native event-loop thread.
-							_, _ = application.OpenWindow(app.Config{Title: "Settings", Width: 420, Height: 320}, &settings)
-						}
-					})
-					if state.confirmClosing {
-						d := f.Dialog(flex.DialogSpec{
-							Title: "Discard changes?", Description: "The note has not been saved.", Width: 400,
-							Scope: confirmScope, DismissID: keep, NoClose: true,
-						})
-						d.Footer(func() {
-							f.Button(keep, "Keep editing").Outline()
-							if f.Button(discard, "Discard").Destructive().Clicked() {
-								state.confirmClosing = false
-								state.unsaved = false
-								state.allowClose()
-							}
-						})
-						if d.Dismissed() {
-							state.confirmClosing = false
-						}
-					}
-				})
-			})
-		}
+		})
 		// The close button asks. Call allow now, later, or never to keep the window.
 		config.OnCloseRequest = func(allow func()) {
 			if !state.unsaved {
@@ -153,7 +133,7 @@ func main() {
 
 ## 窗口在屏幕上的位置
 
-`Config.Origin` 请求窗口内容区打开的位置，`Window.Frame` 报告它实际所在的位置，两者都用屏幕坐标：从主显示器左上角起算的逻辑像素，y 向下。`ui.PointerEvent` 同时带有 `ScreenX` 和 `ScreenY`，按住不放的按键在指针离开窗口后仍会持续报告它们，所以结束在应用另一个窗口上的拖动，可以拿指针和各窗口的 `Frame` 比较来找到目标窗口。Windows 和 macOS 把内容区放在该原点；X11 窗口管理器把窗口框架放在那里，因此内容区在标题栏下面。在缩放比例不同的显示器之间，不同显示器上窗口的坐标只能近似比较。
+`Config.Origin` 请求窗口内容区打开的位置，`Window.Frame` 报告它实际所在的位置，两者都用屏幕坐标：从主显示器左上角起算的逻辑像素，y 向下。`gfx.PointerEvent` 同时带有 `ScreenX` 和 `ScreenY`，按住不放的按键在指针离开窗口后仍会持续报告它们，所以结束在应用另一个窗口上的拖动，可以拿指针和各窗口的 `Frame` 比较来找到目标窗口。Windows 和 macOS 把内容区放在该原点；X11 窗口管理器把窗口框架放在那里，因此内容区在标题栏下面。在缩放比例不同的显示器之间，不同显示器上窗口的坐标只能近似比较。
 
 `Config.OnFrameChange` 在这个矩形移动或在屏幕上改变大小时运行，运行在窗口线程上，参数就是那一刻 `Frame` 会返回的矩形；尺寸变化时 `OnResize` 仍会先运行，用于重建布局。应用在这里保存矩形（拖动过程中的连续事件需要自己防抖），下次开窗时再作为 `Config.Origin`、`Config.Width` 和 `Config.Height` 传回来。
 

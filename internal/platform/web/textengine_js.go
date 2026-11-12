@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"syscall/js"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/bidi"
-	"github.com/vivaui/viva/ui"
 )
 
 // domMeasurer is the browser as a lineMeasurer. Widths come from Canvas 2D
@@ -47,14 +47,15 @@ func newDOMMeasurer(document js.Value) *domMeasurer {
 		})
 		fonts.Call("addEventListener", "loadingdone", measurer.listener)
 	}
+	fontInvalidators = append(fontInvalidators, measurer.forget)
 	return measurer
 }
 
 func (measurer *domMeasurer) setInvalidate(invalidate func()) { measurer.invalidate = invalidate }
 
-func (measurer *domMeasurer) rasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
+func (measurer *domMeasurer) rasterizeText(value string, style gfx.TextStyle, scale float32, width, height int) (gfx.Bitmap, error) {
 	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width*height > 16*1024*1024 || scale <= 0 {
-		return ui.Bitmap{}, fmt.Errorf("web: invalid text bitmap size or scale")
+		return gfx.Bitmap{}, fmt.Errorf("web: invalid text bitmap size or scale")
 	}
 	if !measurer.rasterContext.Truthy() {
 		measurer.rasterContext = measurer.document.Call("createElement", "canvas").Call("getContext", "2d")
@@ -86,7 +87,7 @@ func (measurer *domMeasurer) rasterizeText(value string, style ui.TextStyle, sca
 	data := context.Call("getImageData", 0, 0, width, height).Get("data")
 	rgba := make([]byte, width*height*4)
 	if copied := js.CopyBytesToGo(rgba, data); copied != len(rgba) {
-		return ui.Bitmap{}, fmt.Errorf("web: copy text bitmap: copied %d of %d bytes", copied, len(rgba))
+		return gfx.Bitmap{}, fmt.Errorf("web: copy text bitmap: copied %d of %d bytes", copied, len(rgba))
 	}
 	pixels := make([]byte, len(rgba))
 	for index := 0; index < len(rgba); index += 4 {
@@ -96,7 +97,7 @@ func (measurer *domMeasurer) rasterizeText(value string, style ui.TextStyle, sca
 		pixels[index+2] = byte(int(rgba[index+0]) * alpha / 255)
 		pixels[index+3] = rgba[index+3]
 	}
-	return ui.Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4}, nil
+	return gfx.Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4}, nil
 }
 
 // forget drops everything measured so far: a font arrived, or the zoom changed.

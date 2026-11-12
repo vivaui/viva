@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -36,7 +36,7 @@ table.Footer([]string{"Total", "3 items", "¥ 4,540"})`},
 table := components.BeginTable(canvas, theme, bounds, columns)
 table.Header([]string{"Item", "Status", "Amount"})
 for _, cells := range bills {
-    table.Row(ui.ID{}, cells[:], false)
+    table.Row(gfx.ID{}, cells[:], false)
 }
 table.Caption("Item is left-aligned, status centered, amount right-aligned.")`},
 		{ID: "overflow", Title: "溢出与表头", Description: "放不下的单元格以省略号结尾；FitTableHeadings 让定宽列至少放得下自己的表头。", Snippet: `columns := []components.TableColumn{{Width: 96}, {Width: 40}, {Alignment: components.TableAlignRight}}
@@ -45,7 +45,7 @@ components.FitTableHeadings(canvas, theme, columns, headings)
 table := components.BeginTable(canvas, theme, bounds, columns)
 table.Header(headings)
 for _, cells := range bills {
-    table.Row(ui.ID{}, cells[:], false)
+    table.Row(gfx.ID{}, cells[:], false)
 }
 table.Caption("Item is cut with an ellipsis; Status grew to hold its heading.")`},
 	},
@@ -64,12 +64,12 @@ var tableColumns = [...]components.TableColumn{
 }
 
 // The demo paints the component table (with footer and caption, and a selection
-// bit per row the caller owns) in a slot: flex.Table is the selectable, sortable,
+// bit per row the caller owns) in a slot: ui.Table is the selectable, sortable,
 // scrolling one.
-func (state *State) paintTable(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var slot flex.Box
-	state.page(canvas, theme, size, 620, state.Text("Table · 账单", "Table · Bills"), func(f *flex.Frame) {
-		slot = f.Slot().Height(220)
+func (state *State) paintTable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var slot ui.Box
+	state.drawPage(canvas, theme, size, 620, state.Text("Table · 账单", "Table · Bills"), func(c ui.C) {
+		slot = ui.Slot(c).Height(220)
 	})
 	columns := tableColumns
 	header := [...]string{

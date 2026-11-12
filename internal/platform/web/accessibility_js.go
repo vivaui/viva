@@ -6,28 +6,32 @@ import (
 	"strconv"
 	"syscall/js"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 type accessibilityDOMNode struct {
-	element     js.Value
-	description accessibilityDescription
-	listeners   []domListener
-	seen        uint64
-	initialized bool
-	editing     bool
+	element         js.Value
+	description     accessibilityDescription
+	listeners       []domListener
+	actionListeners []domListener
+	seen            uint64
+	initialized     bool
+	editing         bool
 }
 
 type accessibilityMirror struct {
 	document         js.Value
 	root             js.Value
 	container        js.Value
-	nodes            map[ui.ID]*accessibilityDOMNode
-	order            []ui.ID
-	orderScratch     []ui.ID
+	nodes            map[gfx.ID]*accessibilityDOMNode
+	order            []gfx.ID
+	orderScratch     []gfx.ID
 	generation       uint64
 	activeDescendant string
 	text             *textInputHost
+	onPress          func(gfx.ID)
+	onFocus          func(gfx.ID)
+	onSetNumber      func(gfx.ID, float64)
 }
 
 func newAccessibilityMirror(document, root, container js.Value, label string) *accessibilityMirror {
@@ -40,13 +44,65 @@ func newAccessibilityMirror(document, root, container js.Value, label string) *a
 		document:  document,
 		root:      root,
 		container: container,
-		nodes:     make(map[ui.ID]*accessibilityDOMNode),
+		nodes:     make(map[gfx.ID]*accessibilityDOMNode),
 	}
 	mirror.text = newTextInputHost(mirror)
 	return mirror
 }
 
-func (mirror *accessibilityMirror) sync(descriptions []accessibilityDescription, focused ui.ID) {
+// setActions connects the ARIA nodes to the input router: a screen reader's
+// activation arrives as a DOM click, and its focus move as a DOM focus.
+func (mirror *accessibilityMirror) setActions(press, focus func(gfx.ID), setNumber func(gfx.ID, float64)) {
+	mirror.onPress, mirror.onFocus, mirror.onSetNumber = press, focus, setNumber
+	for _, node := range mirror.nodes {
+		node.unbindActions()
+		mirror.bindActions(node)
+	}
+}
+
+func (mirror *accessibilityMirror) bindActions(node *accessibilityDOMNode) {
+	if len(node.actionListeners) != 0 ||
+		(mirror.onPress == nil && mirror.onFocus == nil && mirror.onSetNumber == nil) {
+		return
+	}
+	if mirror.onPress != nil {
+		click := js.FuncOf(func(js.Value, []js.Value) any {
+			mirror.onPress(node.description.ID)
+			return nil
+		})
+		node.element.Call("addEventListener", "click", click)
+		node.actionListeners = append(node.actionListeners, domListener{name: "click", function: click})
+	}
+	if mirror.onFocus != nil {
+		focus := js.FuncOf(func(js.Value, []js.Value) any {
+			mirror.onFocus(node.description.ID)
+			return nil
+		})
+		node.element.Call("addEventListener", "focus", focus)
+		node.actionListeners = append(node.actionListeners, domListener{name: "focus", function: focus})
+	}
+	if mirror.onSetNumber != nil && node.description.Element == "input" && node.description.Role == "slider" {
+		input := js.FuncOf(func(js.Value, []js.Value) any {
+			value, err := strconv.ParseFloat(node.element.Get("value").String(), 64)
+			if err == nil {
+				mirror.onSetNumber(node.description.ID, value)
+			}
+			return nil
+		})
+		node.element.Call("addEventListener", "input", input)
+		node.actionListeners = append(node.actionListeners, domListener{name: "input", function: input})
+	}
+}
+
+func (node *accessibilityDOMNode) unbindActions() {
+	for _, listener := range node.actionListeners {
+		node.element.Call("removeEventListener", listener.name, listener.function)
+		listener.function.Release()
+	}
+	node.actionListeners = node.actionListeners[:0]
+}
+
+func (mirror *accessibilityMirror) sync(descriptions []accessibilityDescription, focused gfx.ID) {
 	mirror.generation++
 	mirror.orderScratch = mirror.orderScratch[:0]
 	orderChanged := false
@@ -54,6 +110,7 @@ func (mirror *accessibilityMirror) sync(descriptions []accessibilityDescription,
 		node := mirror.nodes[description.ID]
 		if node != nil && node.description.Element != description.Element {
 			mirror.text.unbind(node)
+			node.unbindActions()
 			mirror.container.Call("removeChild", node.element)
 			delete(mirror.nodes, description.ID)
 			node = nil
@@ -69,7 +126,10 @@ func (mirror *accessibilityMirror) sync(descriptions []accessibilityDescription,
 			mirror.container.Call("appendChild", element)
 		}
 		applyAccessibilityDescription(node, description)
-		if description.Role == "textbox" {
+		// A slider's range listener depends on the element and role the
+		// description names, so binding follows the description, not creation.
+		mirror.bindActions(node)
+		if description.Role == "textbox" || description.Role == "combobox" {
 			mirror.text.bind(node)
 		} else {
 			mirror.text.unbind(node)
@@ -83,6 +143,7 @@ func (mirror *accessibilityMirror) sync(descriptions []accessibilityDescription,
 			continue
 		}
 		mirror.text.unbind(node)
+		node.unbindActions()
 		mirror.container.Call("removeChild", node.element)
 		delete(mirror.nodes, id)
 	}
@@ -117,7 +178,7 @@ func applyAccessibilityDescription(node *accessibilityDOMNode, description acces
 	}
 	if initial || before.Role != description.Role || before.Value != description.Value {
 		if description.Element == "input" || description.Element == "textarea" {
-			if !node.editing {
+			if !node.editing && !(description.Role == "slider" && description.Range.Set) {
 				node.element.Set("value", description.Value)
 			}
 		} else {
@@ -149,6 +210,9 @@ func applyAccessibilityDescription(node *accessibilityDOMNode, description acces
 		setNumberAttribute(node.element, "aria-valuenow", description.Range.Now, rangeSet)
 		setNumberAttribute(node.element, "aria-valuemin", description.Range.Min, rangeSet)
 		setNumberAttribute(node.element, "aria-valuemax", description.Range.Max, rangeSet)
+		if description.Role == "slider" && rangeSet {
+			applySliderRange(node.element, description.Range)
+		}
 	}
 	if initial || before.Disabled != description.Disabled {
 		setBooleanState(node.element, "aria-disabled", description.Disabled, description.Disabled)
@@ -164,7 +228,7 @@ func applyAccessibilityDescription(node *accessibilityDOMNode, description acces
 		supported := description.Role == "combobox" || description.Expandable
 		setBooleanState(node.element, "aria-expanded", description.Expanded, supported)
 	}
-	if description.Element == "input" && (initial || before.Secure != description.Secure) {
+	if description.Element == "input" && description.Role != "slider" && (initial || before.Secure != description.Secure) {
 		// A password input masks what the browser shows and keeps the real
 		// text out of autofill-less copy and the accessibility value.
 		if description.Secure {
@@ -183,6 +247,22 @@ func applyAccessibilityDescription(node *accessibilityDOMNode, description acces
 
 	node.description = description
 	node.initialized = true
+}
+
+// applySliderRange makes the mirrored input range carry the same bounds and
+// step as the slider the canvas paints. The ARIA attributes are still set by
+// applyAccessibilityDescription; these are what the browser's native range
+// control and screen readers use to step and set the value.
+func applySliderRange(element js.Value, value gfx.ValueRange) {
+	element.Set("type", "range")
+	element.Set("min", value.Min)
+	element.Set("max", value.Max)
+	step := value.Step
+	if step <= 0 {
+		step = 1
+	}
+	element.Set("step", step)
+	element.Set("value", min(max(value.Now, value.Min), value.Max))
 }
 
 func applySelectionStates(element js.Value, description accessibilityDescription) {

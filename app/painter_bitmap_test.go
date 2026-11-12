@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestBitmapPaintIsRetainedAndClippedWithoutPixelCopies(t *testing.T) {
@@ -15,13 +15,13 @@ func TestBitmapPaintIsRetainedAndClippedWithoutPixelCopies(t *testing.T) {
 	for index := 3; index < len(pixels); index += 4 {
 		pixels[index] = 255
 	}
-	config := Config{Width: 40, Height: 40, Paint: func(canvas *ui.Canvas, _ ui.Size) {
-		canvas.Clip(ui.Rect{X: 10, Y: 10, Width: 20, Height: 20})
-		canvas.DrawBitmap(ui.Bitmap{Pix: pixels, Width: 4, Height: 4, Stride: 16, ID: 9}, ui.Rect{Width: 40, Height: 40})
-		canvas.Label(caption, ui.Rect{X: 12, Y: 12, Width: 16, Height: 10}, ui.TextStyle{Size: 10})
+	config := Config{Width: 40, Height: 40, Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+		canvas.Clip(gfx.Rect{X: 10, Y: 10, Width: 20, Height: 20})
+		canvas.DrawBitmap(gfx.Bitmap{Pix: pixels, Width: 4, Height: 4, Stride: 16, ID: 9}, gfx.Rect{Width: 40, Height: 40})
+		canvas.Label(caption, gfx.Rect{X: 12, Y: 12, Width: 16, Height: 10}, gfx.TextStyle{Size: 10})
 		canvas.Unclip()
 	}}
-	painter, err := newPainter(&ui.Canvas{}, &config)
+	painter, err := newPainter(&gfx.Canvas{}, &config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,18 +50,18 @@ func TestBitmapPaintIsRetainedAndClippedWithoutPixelCopies(t *testing.T) {
 }
 
 func TestInitialBitmapUploadAfterPreparationPaint(test *testing.T) {
-	bitmap := ui.Bitmap{Pix: []byte{0, 0, 255, 255}, Width: 1, Height: 1, Stride: 4, ID: 9}
+	bitmap := gfx.Bitmap{Pix: []byte{0, 0, 255, 255}, Width: 1, Height: 1, Stride: 4, ID: 9}
 	for _, preparation := range []string{"", "ready", "estimated"} {
 		test.Run(preparation, func(test *testing.T) {
 			caption := "ready"
-			config := Config{Width: 80, Height: 40, Paint: func(canvas *ui.Canvas, _ ui.Size) {
-				canvas.DrawBitmap(bitmap, ui.Rect{Width: 20, Height: 20})
-				canvas.Label(caption, ui.Rect{X: 20, Width: 60, Height: 20}, ui.TextStyle{Size: 12})
+			config := Config{Width: 80, Height: 40, Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+				canvas.DrawBitmap(bitmap, gfx.Rect{Width: 20, Height: 20})
+				canvas.Label(caption, gfx.Rect{X: 20, Width: 60, Height: 20}, gfx.TextStyle{Size: 12})
 			}}
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			if preparation != "" {
 				caption = preparation
-				config.Paint(&canvas, ui.Size{Width: 80, Height: 40})
+				config.Paint(&canvas, gfx.Size{Width: 80, Height: 40})
 				caption = "ready"
 			}
 			painter, err := newPainter(&canvas, &config)
@@ -98,18 +98,18 @@ func TestInitialBitmapUploadAfterPreparationPaint(test *testing.T) {
 }
 
 func BenchmarkBitmapStartup(bench *testing.B) {
-	bitmap := ui.Bitmap{Pix: make([]byte, 64*64*4), Width: 64, Height: 64, Stride: 256, ID: 9}
+	bitmap := gfx.Bitmap{Pix: make([]byte, 64*64*4), Width: 64, Height: 64, Stride: 256, ID: 9}
 	caption := "estimated"
-	config := Config{Width: 200, Height: 100, Paint: func(canvas *ui.Canvas, _ ui.Size) {
-		canvas.DrawBitmap(bitmap, ui.Rect{Width: 64, Height: 64})
-		canvas.Label(caption, ui.Rect{X: 64, Width: 120, Height: 20}, ui.TextStyle{Size: 12})
+	config := Config{Width: 200, Height: 100, Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+		canvas.DrawBitmap(bitmap, gfx.Rect{Width: 64, Height: 64})
+		canvas.Label(caption, gfx.Rect{X: 64, Width: 120, Height: 20}, gfx.TextStyle{Size: 12})
 	}}
 	bench.Run("initial", func(bench *testing.B) {
 		bench.ReportAllocs()
 		for bench.Loop() {
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			caption = "estimated"
-			config.Paint(&canvas, ui.Size{Width: 200, Height: 100})
+			config.Paint(&canvas, gfx.Size{Width: 200, Height: 100})
 			caption = "ready"
 			if _, err := newPainter(&canvas, &config); err != nil {
 				bench.Fatal(err)
@@ -117,7 +117,7 @@ func BenchmarkBitmapStartup(bench *testing.B) {
 		}
 	})
 	bench.Run("unchanged", func(bench *testing.B) {
-		painter, err := newPainter(&ui.Canvas{}, &config)
+		painter, err := newPainter(&gfx.Canvas{}, &config)
 		if err != nil {
 			bench.Fatal(err)
 		}
@@ -136,22 +136,22 @@ func TestBackdropIsBeneathEveryLayerAndShiftsThemOnlyWhilePresent(t *testing.T) 
 		pixels[index] = 255
 	}
 	backdrop := true
-	config := Config{Width: 40, Height: 40, Paint: func(canvas *ui.Canvas, _ ui.Size) {
+	config := Config{Width: 40, Height: 40, Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
 		if backdrop {
 			// Painted after the content, and clipped content around it: the
 			// backdrop is still first and unclipped.
-			defer canvas.DrawBackdrop(ui.Bitmap{Pix: pixels, Width: 4, Height: 4, Stride: 16, ID: 7}, ui.Rect{Width: 4, Height: 4}, ui.Rect{Width: 40, Height: 40})
+			defer canvas.DrawBackdrop(gfx.Bitmap{Pix: pixels, Width: 4, Height: 4, Stride: 16, ID: 7}, gfx.Rect{Width: 4, Height: 4}, gfx.Rect{Width: 40, Height: 40})
 		}
-		canvas.Fill(ui.Rect{Width: 10, Height: 10}, ui.Color{Alpha: 1})
-		canvas.Label("base", ui.Rect{Width: 20, Height: 10}, ui.TextStyle{Size: 10})
+		canvas.Fill(gfx.Rect{Width: 10, Height: 10}, gfx.Color{Alpha: 1})
+		canvas.Label("base", gfx.Rect{Width: 20, Height: 10}, gfx.TextStyle{Size: 10})
 		canvas.PushLayer(600)
-		canvas.Fill(ui.Rect{Width: 5, Height: 5}, ui.Color{Alpha: 1})
+		canvas.Fill(gfx.Rect{Width: 5, Height: 5}, gfx.Color{Alpha: 1})
 		canvas.PopLayer()
 		canvas.PushLayer(math.MaxUint16)
-		canvas.Fill(ui.Rect{Width: 2, Height: 2}, ui.Color{Alpha: 1})
+		canvas.Fill(gfx.Rect{Width: 2, Height: 2}, gfx.Color{Alpha: 1})
 		canvas.PopLayer()
 	}}
-	painter, err := newPainter(&ui.Canvas{}, &config)
+	painter, err := newPainter(&gfx.Canvas{}, &config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,12 +201,12 @@ func TestBackdropIsBeneathEveryLayerAndShiftsThemOnlyWhilePresent(t *testing.T) 
 
 func BenchmarkRepaintWithBackdrop(b *testing.B) {
 	pixels := make([]byte, 64*64*4)
-	config := Config{Width: 400, Height: 300, Paint: func(canvas *ui.Canvas, size ui.Size) {
-		canvas.DrawBackdrop(ui.Bitmap{Pix: pixels, Width: 64, Height: 64, Stride: 256, ID: 3}, ui.Rect{Width: 64, Height: 64}, ui.Rect{Width: size.Width, Height: size.Height})
-		canvas.Fill(ui.Rect{Width: 100, Height: 40}, ui.Color{Alpha: 0.5})
-		canvas.Label("steady", ui.Rect{Y: 50, Width: 100, Height: 20}, ui.TextStyle{Size: 12})
+	config := Config{Width: 400, Height: 300, Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.DrawBackdrop(gfx.Bitmap{Pix: pixels, Width: 64, Height: 64, Stride: 256, ID: 3}, gfx.Rect{Width: 64, Height: 64}, gfx.Rect{Width: size.Width, Height: size.Height})
+		canvas.Fill(gfx.Rect{Width: 100, Height: 40}, gfx.Color{Alpha: 0.5})
+		canvas.Label("steady", gfx.Rect{Y: 50, Width: 100, Height: 20}, gfx.TextStyle{Size: 12})
 	}}
-	painter, err := newPainter(&ui.Canvas{}, &config)
+	painter, err := newPainter(&gfx.Canvas{}, &config)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -219,14 +219,14 @@ func BenchmarkRepaintWithBackdrop(b *testing.B) {
 }
 
 func TestOnlyChangedBitmapsCrossTheNativeBoundary(t *testing.T) {
-	var surface ui.Surface
+	var surface gfx.Surface
 	surface.Resize(600, 300) // 3 x 2 tiles
 	caption := "one"
-	config := Config{Width: 600, Height: 320, Paint: func(canvas *ui.Canvas, _ ui.Size) {
-		surface.Draw(canvas, ui.Rect{Width: 600, Height: 300})
-		canvas.Label(caption, ui.Rect{Y: 300, Width: 100, Height: 16}, ui.TextStyle{Size: 10})
+	config := Config{Width: 600, Height: 320, Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+		surface.Draw(canvas, gfx.Rect{Width: 600, Height: 300})
+		canvas.Label(caption, gfx.Rect{Y: 300, Width: 100, Height: 16}, gfx.TextStyle{Size: 10})
 	}}
-	painter, err := newPainter(&ui.Canvas{}, &config)
+	painter, err := newPainter(&gfx.Canvas{}, &config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,20 +265,20 @@ func TestOnlyChangedBitmapsCrossTheNativeBoundary(t *testing.T) {
 // fractional display scale a tile that logical-pixel rounding moved by a
 // device pixel would be resampled and blurred.
 func TestDevicePixelBitmapsKeepTheirDevicePixelsAtFractionalScales(t *testing.T) {
-	var surface ui.Surface
+	var surface gfx.Surface
 	surface.Resize(1000, 300)
 	for _, scale := range []float32{1.25, 1.5, 1.75} {
 		clipped := false
-		config := Config{Width: 900, Height: 300, Paint: func(canvas *ui.Canvas, _ ui.Size) {
+		config := Config{Width: 900, Height: 300, Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
 			if clipped {
-				canvas.Clip(ui.Rect{X: 0, Y: 0, Width: 333.3, Height: 111.1})
+				canvas.Clip(gfx.Rect{X: 0, Y: 0, Width: 333.3, Height: 111.1})
 			}
-			surface.DrawPixels(canvas, ui.Point{X: 7.7, Y: 5.5})
+			surface.DrawPixels(canvas, gfx.Point{X: 7.7, Y: 5.5})
 			if clipped {
 				canvas.Unclip()
 			}
 		}}
-		painter, err := newPainter(&ui.Canvas{}, &config)
+		painter, err := newPainter(&gfx.Canvas{}, &config)
 		if err != nil {
 			t.Fatal(err)
 		}

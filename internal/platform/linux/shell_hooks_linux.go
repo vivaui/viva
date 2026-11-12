@@ -3,7 +3,7 @@ package linux
 import (
 	"sync/atomic"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // shellHooks is how a window shell that owns the display connection itself (the GTK shell) takes
@@ -18,8 +18,9 @@ type desktopHooks struct {
 	hasClipboardImage func() bool
 	clipboardImagePNG func() ([]byte, error)
 	clipboardFiles    func() ([]string, error)
+	setClipboardFiles func([]string) error
 	primaryText       func() (string, error)
 	setPrimaryText    func(string) error
 	setCursorShape    func(uint8) error
-	setCursorImage    func(*ui.CursorImage) error
+	setCursorImage    func(*gfx.CursorImage) error
 }

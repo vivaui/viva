@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -51,18 +51,18 @@ var (
 	navigationMenuScope   = tree.ID(navigationMenuUI, "content")
 )
 
-func (state *State) paintNavigationMenu(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintNavigationMenu(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	open := state.flags&1 != 0 || state.exampleID == "direct-content"
 	status := state.Text("Products 已关闭", "Products closed")
 	if open {
 		status = state.Text("Products 已打开；Escape 使用稳定 dismiss ID", "Products open; Escape dismisses through a stable ID")
 	}
-	var brand, bar flex.Box
-	state.page(canvas, theme, size, 620, "Navigation Menu", func(f *flex.Frame) {
-		caption(f, status)
-		f.Row().Gap(12).Items(flex.Center).Children(func() {
-			brand = f.Text("Viva").FontSize(theme.Metrics.FontSizeM + 2).Weight(ui.WeightSemibold)
-			bar = f.Slot().Grow(1).Height(theme.Metrics.ControlHeight)
+	var brand, bar ui.Box
+	state.drawPage(canvas, theme, size, 620, "Navigation Menu", func(c ui.C) {
+		caption(c, status)
+		ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+			brand = ui.Text(c, "Viva").FontSize(theme.Metrics.FontSizeM + 2).Weight(gfx.WeightSemibold)
+			bar = ui.Slot(c).Grow(1).Height(theme.Metrics.ControlHeight)
 		})
 	})
 
@@ -78,7 +78,7 @@ func (state *State) paintNavigationMenu(canvas *ui.Canvas, theme ui.Theme, size 
 	options := components.NavigationMenuOptions{
 		Open: open, DirectContent: state.exampleID == "direct-content",
 		// Two description rows (56 + 4 gap each) inside the content's 8px padding.
-		Content: ui.Rect{X: contentX, Y: bounds.Y + bounds.Height + 8, Width: contentWidth, Height: 8 + 2*(56+4) + 8},
+		Content: gfx.Rect{X: contentX, Y: bounds.Y + bounds.Height + 8, Width: contentWidth, Height: 8 + 2*(56+4) + 8},
 		Layer:   2, Scope: navigationMenuScope, DismissID: navigationMenuDismiss,
 	}
 	menu := components.BeginNavigationMenu(canvas, theme, bounds, options)

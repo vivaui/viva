@@ -5,8 +5,8 @@ import (
 	_ "embed"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // testIconsFont is a fixed-pitch font of 600 units whose private-use glyphs have ink from 120 to
@@ -17,7 +17,7 @@ var testIconsFont []byte
 
 const testIcon = "\ue0b0"
 
-func registerTestIcons(t *testing.T) ui.MonoFace {
+func registerTestIcons(t *testing.T) gfx.MonoFace {
 	t.Helper()
 	engine := sharedTextEngine()
 	if engine == nil {
@@ -28,7 +28,7 @@ func registerTestIcons(t *testing.T) ui.MonoFace {
 		t.Skipf("register the test font: %v", err)
 	}
 	t.Cleanup(unregister)
-	return ui.MonoFamily(family)
+	return gfx.MonoFamily(family)
 }
 
 // gridLine rasterizes runs with cell pixels per cell and returns the coverage of each column (the
@@ -44,7 +44,7 @@ type gridResult struct {
 	spans    []colorSpan
 }
 
-func gridLine(t *testing.T, services *textServices, face ui.MonoFace, size, cell float32, value string, runs []ui.TextRun, cells int) gridResult {
+func gridLine(t *testing.T, services *textServices, face gfx.MonoFace, size, cell float32, value string, runs []gfx.TextRun, cells int) gridResult {
 	t.Helper()
 	width, height := int(cell)*cells, int(size*1.5)
 	label := platform.TextLabel{
@@ -95,9 +95,9 @@ func TestIconShowsWholeOverTheBlankCellAfterIt(t *testing.T) {
 	}
 	defer services.close()
 	const size, cell = 20, 10
-	runs := []ui.TextRun{
-		{Bytes: 3, Cells: 1, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
-		{Column: 2, Bytes: 1, Cells: 1, Color: ui.Color{Red: 1, Green: 0.5, Alpha: 1}},
+	runs := []gfx.TextRun{
+		{Bytes: 3, Cells: 1, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+		{Column: 2, Bytes: 1, Cells: 1, Color: gfx.Color{Red: 1, Green: 0.5, Alpha: 1}},
 	}
 	line := gridLine(t, services, face, size, cell, testIcon+"x", runs, 6)
 	// The glyph is 0.76 of the size wide, 15.2 px, centered in a cell of 10 on its 12 px advance:
@@ -123,9 +123,9 @@ func TestIconInkStaysOutOfTheNeighborsColumns(t *testing.T) {
 	}
 	defer services.close()
 	const size, cell = 20, 10
-	white := ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
-	beside := []ui.TextRun{{Bytes: 3, Cells: 1, Color: white}, {Column: 1, Bytes: 2, Cells: 2, Color: white}}
-	alone := []ui.TextRun{{Column: 1, Bytes: 2, Cells: 2, Color: white}}
+	white := gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	beside := []gfx.TextRun{{Bytes: 3, Cells: 1, Color: white}, {Column: 1, Bytes: 2, Cells: 2, Color: white}}
+	alone := []gfx.TextRun{{Column: 1, Bytes: 2, Cells: 2, Color: white}}
 	with := gridLine(t, services, face, size, cell, testIcon+"ab", beside, 5)
 	without := gridLine(t, services, face, size, cell, "ab", alone, 5)
 	if !bytes.Equal(with.coverage[cell:], without.coverage[cell:]) {

@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // CardSize selects the official default or compact card treatment.
 type CardSize uint8
@@ -29,23 +29,23 @@ type CardOptions struct {
 // content box, already inset by the card's horizontal spacing. A section that
 // was not asked for is the zero rectangle.
 type CardLayout struct {
-	Header  ui.Rect
-	Content ui.Rect
-	Footer  ui.Rect
+	Header  gfx.Rect
+	Content gfx.Rect
+	Footer  gfx.Rect
 }
 
 // PaintCard paints a shadcn card surface and returns the layout of its sections:
 // py spacing above and below, gap spacing between sections, px spacing at the
 // sides, and the optional header and footer rules. The surface is the same at
 // both sizes; Size changes only the spacing.
-func PaintCard(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options CardOptions) CardLayout {
+func PaintCard(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options CardOptions) CardLayout {
 	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 {
 		return CardLayout{}
 	}
 	radius := theme.Metrics.RadiusSurface + 4
 	ring := theme.Foreground
 	ring.Alpha *= 0.10
-	canvas.Elevate(bounds, radius, ui.ShadowXS) // shadow-xs
+	canvas.Elevate(bounds, radius, gfx.ShadowXS) // shadow-xs
 	canvas.RoundedBorder(bounds, radius, 1, ring, theme.Card)
 
 	spacing := CardSpacing(theme, options.Size)
@@ -54,30 +54,30 @@ func PaintCard(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options CardOp
 	var layout CardLayout
 	top, bottom := bounds.Y+spacing, bounds.Y+bounds.Height-spacing
 	if options.HeaderHeight > 0 {
-		layout.Header = ui.Rect{X: x, Y: top, Width: width, Height: options.HeaderHeight}
+		layout.Header = gfx.Rect{X: x, Y: top, Width: width, Height: options.HeaderHeight}
 		top += options.HeaderHeight
 		if options.HeaderBorder {
 			top += spacing
-			canvas.Fill(ui.Rect{X: bounds.X + 1, Y: top, Width: max(bounds.Width-2, 0), Height: 1}, theme.Border)
+			canvas.Fill(gfx.Rect{X: bounds.X + 1, Y: top, Width: max(bounds.Width-2, 0), Height: 1}, theme.Border)
 			top++
 		}
 		top += spacing
 	}
 	if options.FooterHeight > 0 {
-		layout.Footer = ui.Rect{X: x, Y: bottom - options.FooterHeight, Width: width, Height: options.FooterHeight}
+		layout.Footer = gfx.Rect{X: x, Y: bottom - options.FooterHeight, Width: width, Height: options.FooterHeight}
 		bottom = layout.Footer.Y
 		if options.FooterBorder {
 			bottom -= spacing + 1
-			canvas.Fill(ui.Rect{X: bounds.X + 1, Y: bottom, Width: max(bounds.Width-2, 0), Height: 1}, theme.Border)
+			canvas.Fill(gfx.Rect{X: bounds.X + 1, Y: bottom, Width: max(bounds.Width-2, 0), Height: 1}, theme.Border)
 		}
 		bottom -= spacing
 	}
-	layout.Content = ui.Rect{X: x, Y: top, Width: width, Height: max(bottom-top, 0)}
+	layout.Content = gfx.Rect{X: x, Y: top, Width: width, Height: max(bottom-top, 0)}
 	return layout
 }
 
 // CardSpacing returns the official content spacing for a card size.
-func CardSpacing(theme ui.Theme, size CardSize) float32 {
+func CardSpacing(theme gfx.Theme, size CardSize) float32 {
 	if size == CardSizeSmall {
 		return 16 * theme.Metrics.ControlHeight / 32
 	}
@@ -85,22 +85,22 @@ func CardSpacing(theme ui.Theme, size CardSize) float32 {
 }
 
 // CardTitleStyle is CardTitle: text-base medium, text-sm in a small card.
-func CardTitleStyle(theme ui.Theme, size CardSize) ui.TextStyle {
+func CardTitleStyle(theme gfx.Theme, size CardSize) gfx.TextStyle {
 	fontSize := theme.Metrics.FontSizeM + 2
 	if size == CardSizeSmall {
 		fontSize = theme.Metrics.FontSizeM
 	}
-	return ui.TextStyle{Size: fontSize, Weight: ui.WeightMedium, Color: theme.CardForeground}
+	return gfx.TextStyle{Size: fontSize, Weight: gfx.WeightMedium, Color: theme.CardForeground}
 }
 
 // CardDescriptionStyle is CardDescription: text-sm in the muted foreground.
-func CardDescriptionStyle(theme ui.Theme) ui.TextStyle {
-	return ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground}
+func CardDescriptionStyle(theme gfx.Theme) gfx.TextStyle {
+	return gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground}
 }
 
 // CardHeaderHeight is the height of a header holding a title line and, when
 // hasDescription, a description line under it with the header's gap-1.
-func CardHeaderHeight(theme ui.Theme, size CardSize, hasDescription bool) float32 {
+func CardHeaderHeight(theme gfx.Theme, size CardSize, hasDescription bool) float32 {
 	height := CardTitleStyle(theme, size).Size * 1.5 // leading-normal
 	if hasDescription {
 		height += theme.Metrics.GapItem/2 + theme.Metrics.FontSizeM + 7
@@ -109,6 +109,6 @@ func CardHeaderHeight(theme ui.Theme, size CardSize, hasDescription bool) float3
 }
 
 // Card paints the official default card surface.
-func Card(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) {
+func Card(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect) {
 	PaintCard(canvas, theme, bounds, CardOptions{})
 }

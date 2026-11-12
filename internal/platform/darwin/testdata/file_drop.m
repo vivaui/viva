@@ -10,6 +10,7 @@ static char drop_last_paths[512];
 static size_t drop_last_length;
 
 void vivaOpenURL(const char *url) {}
+void vivaOpenFile(const char *path) {}
 int vivaApplicationQuitRequested(void) { return 0; }
 int vivaApplicationReopenRequested(void) { return 0; }
 int vivaFileDropEvent(uintptr_t handle, void *view, int phase, double x, double y, const char *paths, size_t length) {
@@ -29,6 +30,7 @@ void vivaViewResized(uintptr_t handle, void *view, double width, double height) 
 void vivaRedrawRequested(uintptr_t handle, void *view) {}
 void vivaKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int repeat, const unsigned char *utf8, size_t utf8Length) {}
 void vivaRawKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int flags, unsigned int code, const unsigned char *utf8, size_t utf8Length, const unsigned char *typed, size_t typedLength) {}
+void vivaWindowActivated(uintptr_t handle) {}
 void vivaFocusLost(uintptr_t handle, void *view) {}
 int vivaTerminalCells(uint32_t character) { return 1; }
 int vivaAccessibilityAction(uintptr_t handle, void *view, uint64_t node, int action, double number, const unsigned char *utf8, size_t utf8Length, int start, int end) { return 0; }
@@ -48,6 +50,7 @@ int vivaPressAt(uintptr_t handle, double x, double y) { return 0; }
 void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *utf8,
                   size_t length, int64_t start, int64_t selectedLength,
                   int64_t replacementStart, int64_t replacementLength, int command) {}
+unsigned char *vivaCopyText(uintptr_t handle, void *view, size_t *length) { *length = 0; return NULL; }
 
 // What AppKit hands a drop target: where the pointer is and what is dragged.
 @interface FakeDrag : NSObject

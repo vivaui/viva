@@ -6,7 +6,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestPaintAllocations(t *testing.T) {
@@ -14,7 +14,7 @@ func TestPaintAllocations(t *testing.T) {
 		for _, example := range component.Examples {
 			t.Run(component.ID+"/"+example.ID, func(t *testing.T) {
 				state := newTestState(t, component.ID, example.ID)
-				var canvas ui.Canvas
+				var canvas gfx.Canvas
 				paint := func() { paintFrame(&canvas, state, testSize, time.Second, true) }
 				paint()
 				if allocations := testing.AllocsPerRun(100, paint); allocations != 0 {
@@ -36,9 +36,9 @@ func TestPlatformInputDeterminismAndSnapshotAllocations(t *testing.T) {
 					state := newTestState(t, "input", example.ID)
 					state.EnableTextEditing()
 					state.SetDark(dark)
-					var canvas ui.Canvas
+					var canvas gfx.Canvas
 					if focused {
-						canvas.SetInteraction(ui.ID{}, ui.ID{}, inputEditable, true)
+						canvas.SetInteraction(gfx.ID{}, gfx.ID{}, inputEditable, true)
 					}
 					paint := func() { paintFrame(&canvas, state, testSize, time.Second, true) }
 					paint()
@@ -63,7 +63,7 @@ func TestPlatformInputDeterminismAndSnapshotAllocations(t *testing.T) {
 func TestControlledInteractionAllocations(t *testing.T) {
 	for _, componentID := range []string{"checkbox", "switch", "dialog"} {
 		state := newTestState(t, componentID, "default")
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		interact := func() {
 			switch componentID {
 			case "checkbox":
@@ -93,8 +93,8 @@ func BenchmarkPaint(b *testing.B) {
 			for _, width := range []float32{320, 760} {
 				b.Run(fmt.Sprintf("%s/%s/%.0f", component.ID, example.ID, width), func(b *testing.B) {
 					state := newTestState(b, component.ID, example.ID)
-					var canvas ui.Canvas
-					size := ui.Size{Width: width, Height: 340}
+					var canvas gfx.Canvas
+					size := gfx.Size{Width: width, Height: 340}
 					paintFrame(&canvas, state, size, time.Second, true)
 					b.ReportAllocs()
 					b.ResetTimer()
@@ -113,9 +113,9 @@ func BenchmarkNativeInputPaint(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/focused=%t", example.ID, focused), func(b *testing.B) {
 				state := newTestState(b, "input", example.ID)
 				state.EnableTextEditing()
-				var canvas ui.Canvas
+				var canvas gfx.Canvas
 				if focused {
-					canvas.SetInteraction(ui.ID{}, ui.ID{}, inputEditable, true)
+					canvas.SetInteraction(gfx.ID{}, gfx.ID{}, inputEditable, true)
 				}
 				paintFrame(&canvas, state, testSize, time.Second, true)
 				b.ReportAllocs()
@@ -132,7 +132,7 @@ func BenchmarkClickAndPaint(b *testing.B) {
 	for _, componentID := range []string{"button", "checkbox", "switch", "dialog"} {
 		b.Run(componentID, func(b *testing.B) {
 			state := newTestState(b, componentID, "default")
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			interact := func() {
 				switch componentID {
 				case "button":
@@ -161,7 +161,7 @@ func BenchmarkClickAndPaint(b *testing.B) {
 
 func BenchmarkSwitchAnimatedFrame(b *testing.B) {
 	state := newTestState(b, "switch", "default")
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paintFrame(&canvas, state, testSize, 0, false)
 	b.ReportAllocs()
 	b.ResetTimer()

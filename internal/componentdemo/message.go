@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -38,21 +38,21 @@ components.Bubble(canvas, theme, last.Content,
 	},
 }
 
-func (state *State) paintMessage(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var rows [3]flex.Box
-	state.page(canvas, theme, size, 600, state.Text("Message · 对话组合", "Message · Conversation"), func(f *flex.Frame) {
+func (state *State) paintMessage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var rows [3]ui.Box
+	state.drawPage(canvas, theme, size, 600, state.Text("Message · 对话组合", "Message · Conversation"), func(c ui.C) {
 		switch state.exampleID {
 		case "group":
 			// The rows of one group are stacked by BeginMessageGroup below.
-			rows[0] = f.Slot().FillWidth().Height(210)
+			rows[0] = ui.Slot(c).FillWidth().Height(210)
 		case "alignment":
-			rows[0] = f.Slot().FillWidth().Height(118)
-			rows[1] = f.Slot().FillWidth().Height(118)
+			rows[0] = ui.Slot(c).FillWidth().Height(118)
+			rows[1] = ui.Slot(c).FillWidth().Height(118)
 		default:
-			rows[0] = f.Slot().FillWidth().Height(118)
+			rows[0] = ui.Slot(c).FillWidth().Height(118)
 		}
 	})
-	paint := func(bounds ui.Rect, data components.MessageData, variant components.BubbleVariant, body string) {
+	paint := func(bounds gfx.Rect, data components.MessageData, variant components.BubbleVariant, body string) {
 		regions := components.Message(canvas, theme, bounds, data)
 		alignment := components.BubbleStart
 		if data.Alignment == components.MessageEnd {

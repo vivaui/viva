@@ -29,6 +29,13 @@ func packageWindows(request packageRequest) error {
 			return err
 		}
 	}
+	extras, err := extraFiles(request.fileArgs, loaded)
+	if err != nil {
+		return err
+	}
+	if err := winpkg.CheckExtraFiles(extras); err != nil {
+		return err
+	}
 
 	// The icon is read before the build: a bad one should not cost a build.
 	var iconData []byte
@@ -73,7 +80,7 @@ func packageWindows(request packageRequest) error {
 			Name: loaded.App.Name, Version: loaded.App.Version, Publisher: loaded.Windows.Publisher,
 			URL: loaded.Windows.URL, ID: loaded.App.ID, Scope: scope, Executable: exe,
 			Program: request.program, Arch: plan.arch, URLSchemes: loaded.App.URLSchemes,
-			FileTypes: windowsFileTypes(loaded.App.FileTypes),
+			FileTypes: windowsFileTypes(loaded.App.FileTypes), Files: extras,
 		}
 		if iconData != nil {
 			script.Icon = filepath.Join(filepath.Dir(request.program), "icon.ico")
@@ -103,7 +110,7 @@ func packageWindows(request packageRequest) error {
 	}
 	if request.wants("zip") {
 		archive := filepath.Join(dest, stem+".zip")
-		if err := winpkg.ZipProgram(request.program, exe, archive+".viva-tmp"); err != nil {
+		if err := winpkg.ZipProgram(request.program, exe, archive+".viva-tmp", extras...); err != nil {
 			return err
 		}
 		if err := os.Rename(archive+".viva-tmp", archive); err != nil {
@@ -120,6 +127,9 @@ func packageWindows(request packageRequest) error {
 		fmt.Fprintf(output, "  tags     %s\n", strings.Join(plan.tags, ","))
 	}
 	fmt.Fprintf(output, "  program  %s%s\n", formatSize(programInfo.Size()), sizeNote(plan, programInfo.Size()))
+	if len(extras) > 0 {
+		fmt.Fprintf(output, "  files    %d beside the program\n", len(extras))
+	}
 	if request.wants("nsis") {
 		scope := loaded.Windows.InstallScope()
 		where := "under the user's profile, no administrator rights"
@@ -156,4 +166,22 @@ func packageWindows(request packageRequest) error {
 		fmt.Fprintln(output, "  signing  none: Windows SmartScreen warns on an unsigned installer (see viva help package)")
 	}
 	return nil
+}
+
+// extraFiles turns --file SRC=DEST values into files resolved against the
+// manifest, so a package run from any directory names the application's files.
+func extraFiles(args []string, loaded *manifest.Manifest) ([]winpkg.ExtraFile, error) {
+	files := make([]winpkg.ExtraFile, 0, len(args))
+	for _, argument := range args {
+		source, destination, ok := strings.Cut(argument, "=")
+		if !ok || source == "" || destination == "" {
+			return nil, fmt.Errorf("--file %q: expected SRC=DEST", argument)
+		}
+		path, err := filepath.Abs(loaded.Path(source))
+		if err != nil {
+			return nil, fmt.Errorf("--file %q: %w", argument, err)
+		}
+		files = append(files, winpkg.ExtraFile{Source: path, Destination: destination})
+	}
+	return files, nil
 }

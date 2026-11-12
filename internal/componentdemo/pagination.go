@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -57,13 +57,13 @@ func (state *State) initializePagination() {
 	state.values[0] = 3
 }
 
-func (state *State) paintPagination(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintPagination(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	page := state.values[0]
-	var bar flex.Box
-	state.page(canvas, theme, size, 620, "Results", func(f *flex.Frame) {
-		f.Text(paginationPageStatus(page)).FontSize(theme.Metrics.FontSizeS).Muted()
-		bar = f.Slot().Height(theme.Metrics.ControlHeight)
-		caption(f, state.Text("窄视口自动减少页码；当前页保持非交互。", "Narrow viewports show fewer pages; the current page stays non-interactive."))
+	var bar ui.Box
+	state.drawPage(canvas, theme, size, 620, "Results", func(c ui.C) {
+		ui.Text(c, paginationPageStatus(page)).FontSize(theme.Metrics.FontSizeS).Muted()
+		bar = ui.Slot(c).Height(theme.Metrics.ControlHeight)
+		caption(c, state.Text("窄视口自动减少页码；当前页保持非交互。", "Narrow viewports show fewer pages; the current page stays non-interactive."))
 	})
 
 	bounds := bar.Rect()

@@ -7,27 +7,27 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestSessionDrivesATerminalWithRawKeysChordsTextAndPaste(t *testing.T) {
-	var keys []ui.KeyEvent
+	var keys []gfx.KeyEvent
 	var typed []string
 	config := app.Config{Title: "term", Width: 300, Height: 120}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: size.Width, Height: size.Height}, "Terminal", ui.HitOptions{Role: ui.RoleTerminal})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: size.Width, Height: size.Height}, "Terminal", gfx.HitOptions{Role: gfx.RoleTerminal})
 	}
-	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
+	config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 		keys = append(keys, event)
-		result := ui.EventResult{Handled: true}
-		if event.Modifiers == ui.ModifierMeta && event.Text == "c" {
+		result := gfx.EventResult{Handled: true}
+		if event.Modifiers == gfx.ModifierMeta && event.Text == "c" {
 			result.ClipboardText = "selected"
 		}
 		return result
 	}
 	config.TextInput = func(app.TextInputContext) *app.TextInput {
 		return &app.TextInput{
-			Bounds: ui.Rect{X: 4, Y: 4, Width: 8, Height: 16}, FontSize: 13,
+			Bounds: gfx.Rect{X: 4, Y: 4, Width: 8, Height: 16}, FontSize: 13,
 			AltSendsEscape: true,
 			OnEvent: func(event app.TextEvent) (app.TextState, error) {
 				typed = append(typed, event.Text)
@@ -65,16 +65,16 @@ func TestSessionDrivesATerminalWithRawKeysChordsTextAndPaste(t *testing.T) {
 	if err := session.Keys("cmd+v"); err != nil {
 		t.Fatal(err)
 	}
-	want := []ui.KeyEvent{
-		{Modifiers: ui.ModifierMeta, Text: "c"},
-		{Modifiers: ui.ModifierControl, Text: "c"}, {Modifiers: ui.ModifierControl, Text: "d"},
-		{Modifiers: ui.ModifierAlt, Text: "x"},
-		{Key: ui.KeyUp}, {Key: ui.KeyPageUp}, {Key: ui.KeyF5}, {Key: ui.KeyF12}, {Key: ui.KeyInsert},
-		{Key: ui.KeyTab, Modifiers: ui.ModifierShift}, {Key: ui.KeyLeft, Modifiers: ui.ModifierAlt},
-		{Key: ui.KeyEnter}, {Key: ui.KeyEscape},
+	want := []gfx.KeyEvent{
+		{Modifiers: gfx.ModifierMeta, Text: "c"},
+		{Modifiers: gfx.ModifierControl, Text: "c"}, {Modifiers: gfx.ModifierControl, Text: "d"},
+		{Modifiers: gfx.ModifierAlt, Text: "x"},
+		{Key: gfx.KeyUp}, {Key: gfx.KeyPageUp}, {Key: gfx.KeyF5}, {Key: gfx.KeyF12}, {Key: gfx.KeyInsert},
+		{Key: gfx.KeyTab, Modifiers: gfx.ModifierShift}, {Key: gfx.KeyLeft, Modifiers: gfx.ModifierAlt},
+		{Key: gfx.KeyEnter}, {Key: gfx.KeyEscape},
 	}
 	for index := range want {
-		want[index].Target = ui.Item(1)
+		want[index].Target = gfx.Item(1)
 	}
 	if !reflect.DeepEqual(keys, want) {
 		t.Fatalf("raw keys =\n%+v\nwant\n%+v", keys, want)
@@ -91,12 +91,12 @@ func TestComposeMarksTextWithoutCommittingIt(t *testing.T) {
 	var events []app.TextEvent
 	var state app.TextState
 	config := app.Config{Title: "compose", Width: 300, Height: 120}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: size.Width, Height: size.Height}, "Terminal", ui.HitOptions{Role: ui.RoleTerminal})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: size.Width, Height: size.Height}, "Terminal", gfx.HitOptions{Role: gfx.RoleTerminal})
 	}
 	config.TextInput = func(app.TextInputContext) *app.TextInput {
 		return &app.TextInput{
-			Bounds: ui.Rect{X: 4, Y: 4, Width: 24, Height: 16}, FontSize: 13, State: state,
+			Bounds: gfx.Rect{X: 4, Y: 4, Width: 24, Height: 16}, FontSize: 13, State: state,
 			OnEvent: func(event app.TextEvent) (app.TextState, error) {
 				events = append(events, event)
 				switch event.Kind {

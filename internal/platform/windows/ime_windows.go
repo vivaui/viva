@@ -7,12 +7,12 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	inputpkg "github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -41,6 +41,7 @@ var getCompositionString = imm.NewProc("ImmGetCompositionStringW")
 var setCompositionWindow = imm.NewProc("ImmSetCompositionWindow")
 var notifyIME = imm.NewProc("ImmNotifyIME")
 var setCandidateWindow = imm.NewProc("ImmSetCandidateWindow")
+var associateContext = imm.NewProc("ImmAssociateContext")
 
 // candidateForm is CANDIDATEFORM.
 type candidateForm struct {
@@ -131,15 +132,15 @@ func (state *windowState) updateTextVisuals() error {
 		Value: line.value, X: originX, Y: input.Y,
 		Width:  max(input.Width+state.textScroll, textWidth+textCaretWidth),
 		Height: input.Height, FontSize: input.FontSize, Weight: input.Weight, Color: input.Color, Layer: input.Layer,
-		Clipped: true, Clip: ui.Rect{X: input.X, Y: input.Y, Width: input.Width, Height: input.Height},
+		Clipped: true, Clip: gfx.Rect{X: input.X, Y: input.Y, Width: input.Width, Height: input.Height},
 	}
 	if input.Terminal {
 		// A terminal's preedit stands on the terminal's cells, in its fixed-pitch font,
 		// not on the advances of the system UI font.
 		label.Value = state.textDisplayValue()
-		color := ui.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
+		color := gfx.Color{Red: float32(input.Color.Red), Green: float32(input.Color.Green), Blue: float32(input.Color.Blue), Alpha: float32(input.Color.Alpha)}
 		state.textRuns = platform.TerminalPreeditRuns(state.textRuns[:0], label.Value, color)
-		label.Mono, label.MonoFace, label.CellWidth, label.Runs = true, input.MonoFace, terminalCellWidth(input.FontSize), state.textRuns
+		label.Mono, label.MonoFace, label.CellWidth, label.Baseline, label.Runs = true, input.MonoFace, input.CellWidth, input.Baseline, state.textRuns
 	}
 	state.textLabels[state.baseTextLabelCount] = label
 	base := state.baseRectangleCount
@@ -268,17 +269,11 @@ func (state *windowState) lineWidth(line textLine, size float32) float32 {
 	return state.textEngine.Width(line.value, size, state.textInput.Weight)
 }
 
-// terminalCellWidth is the width of one terminal cell at a font size: the pitch every
-// platform's fixed-pitch text is placed on (see ui.Canvas.MonoCellSize).
-func terminalCellWidth(size float32) float32 {
-	return platform.TerminalPreeditCellWidth(size)
-}
-
 // lineCaret is the x of the caret before the rune index of the display value, from the
 // left of the line. A terminal's preedit is a single line on the terminal's cells.
 func (state *windowState) lineCaret(line textLine, size float32, runeIndex int) float32 {
 	if state.textInput.Terminal {
-		return float32(platform.TerminalPreeditColumn(state.textDisplayValue(), runeIndex)) * terminalCellWidth(size)
+		return float32(platform.TerminalPreeditColumn(state.textDisplayValue(), runeIndex)) * state.textInput.CellWidth
 	}
 	return state.textEngine.Caret(line.value, size, state.textInput.Weight, line.byteAt(runeIndex))
 }
@@ -316,7 +311,7 @@ func (state *windowState) textPointerEvent(event platform.PointerEvent) (platfor
 	switch event.Kind {
 	case platform.PointerDown:
 		state.textDragging = false
-		if event.Button != ui.PointerButtonPrimary || event.X < input.X || event.X > input.X+input.Width || event.Y < input.Y || event.Y > input.Y+input.Height {
+		if event.Button != gfx.PointerButtonPrimary || event.X < input.X || event.X > input.X+input.Width || event.Y < input.Y || event.Y > input.Y+input.Height {
 			return platform.TextEvent{}, false, nil
 		}
 	case platform.PointerMove:
@@ -454,17 +449,47 @@ func (state *windowState) applyTextInputUpdate(update platform.TextInputUpdate) 
 		state.textState = platform.TextState{}
 		state.caretVisible = false
 		state.stopCaretTimer()
+		state.updateIMEAssociation()
 		return true, wasEnabled, nil
 	}
 	state.textInput = *update.Input
 	state.textState = state.textInput.State
 	state.textEnabled = true
 	state.caretVisible = true
+	state.updateIMEAssociation()
 	if err := state.restartCaretTimer(); err != nil {
 		return false, false, err
 	}
 	state.positionCompositionWindow()
 	return true, !wasEnabled, nil
+}
+
+// updateIMEAssociation follows the focused input in keeping the host's input
+// method on or off the window (platform.TextInput.DisableIME). A disabled
+// method neither composes nor answers its switch hotkeys here: the keys are
+// another machine's, and it runs its own method over there. What
+// ImmAssociateContext returned is kept for the input that brings the method
+// back, the default context the window was created with.
+func (state *windowState) updateIMEAssociation() {
+	disabled := state.textEnabled && state.textInput.DisableIME
+	if disabled == state.imeDisabled {
+		return
+	}
+	if state.window == 0 {
+		// No window to associate yet, as at OpenWindow time: the first update
+		// after one exists acts for the input that is focused then.
+		return
+	}
+	if disabled {
+		state.cancelComposition()
+		if previous, _, _ := associateContext.Call(state.window, 0); previous != 0 {
+			state.imeContext = previous
+		}
+	} else {
+		associateContext.Call(state.window, state.imeContext)
+		state.imeContext = 0
+	}
+	state.imeDisabled = disabled
 }
 
 func (state *windowState) prepareFrame(frame platform.Frame, nativeVisualChanged bool) (platform.Frame, bool, error) {

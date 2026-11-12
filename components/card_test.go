@@ -3,14 +3,14 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestPaintCardLaysOutSectionsInsideSpacingAndRules(t *testing.T) {
-	theme := ui.LightTheme()
-	bounds := ui.Rect{X: 10, Y: 20, Width: 300, Height: 260}
+	theme := gfx.LightTheme()
+	bounds := gfx.Rect{X: 10, Y: 20, Width: 300, Height: 260}
 	for _, size := range []CardSize{CardSizeDefault, CardSizeSmall} {
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		layout := PaintCard(&canvas, theme, bounds, CardOptions{Size: size, HeaderHeight: 40, FooterHeight: 32, HeaderBorder: true, FooterBorder: true})
 		spacing := CardSpacing(theme, size)
 		if layout.Header.X != bounds.X+spacing || layout.Header.Y != bounds.Y+spacing || layout.Header.Width != bounds.Width-2*spacing {
@@ -35,12 +35,12 @@ func TestPaintCardLaysOutSectionsInsideSpacingAndRules(t *testing.T) {
 }
 
 func TestPaintCardWithoutSectionsGivesAllTheInnerArea(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	layout := PaintCard(&canvas, theme, ui.Rect{Width: 200, Height: 120}, CardOptions{Size: CardSizeSmall})
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	layout := PaintCard(&canvas, theme, gfx.Rect{Width: 200, Height: 120}, CardOptions{Size: CardSizeSmall})
 	spacing := CardSpacing(theme, CardSizeSmall)
-	want := ui.Rect{X: spacing, Y: spacing, Width: 200 - 2*spacing, Height: 120 - 2*spacing}
-	if layout.Content != want || layout.Header != (ui.Rect{}) || layout.Footer != (ui.Rect{}) {
+	want := gfx.Rect{X: spacing, Y: spacing, Width: 200 - 2*spacing, Height: 120 - 2*spacing}
+	if layout.Content != want || layout.Header != (gfx.Rect{}) || layout.Footer != (gfx.Rect{}) {
 		t.Fatalf("layout = %+v, want content %+v only", layout, want)
 	}
 }

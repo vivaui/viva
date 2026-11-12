@@ -1,130 +1,100 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"runtime"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-)
-
-// Identities are names in a tree, not numbers: the application declares the
-// tree once and every control it paints is a name inside a feature of it.
-var (
-	tree = ui.Tree{}
-	page = tree.Feature("mail")
-	rows = tree.Sub(page, tree.Name("rows"))
-
-	divider = tree.ID(page, "divider")
-	list    = tree.ID(page, "list")
 )
 
 var mailboxes = []string{"Inbox", "Drafts", "Sent", "Archive", "Trash"}
 
 type model struct {
-	split    flex.SplitterState
-	selected int
-	palette  bool
-	context  string
-	view     flex.View
+	split   ui.SplitterState
+	list    ui.ListState
+	palette bool
+	context string
 }
 
-// primary is the modifier that means "the command key" on this platform.
-func primary() ui.Modifiers {
-	if runtime.GOOS == "darwin" {
-		return ui.ModifierMeta
+func newModel() *model {
+	m := &model{split: ui.SplitterState{Pos: 220}}
+	// ListState.Label is the row's name for assistive technology and the text
+	// type-ahead matches; Name names it for assistive technology instead, and
+	// NoTypeahead turns the typing off.
+	m.list.Label = func(i int) string { return mailboxes[i] }
+	return m
+}
+
+// selected is the mailbox the detail pane speaks of: the list's choice, or the
+// first one until the user makes a choice.
+func (m *model) selected() int {
+	if i := m.list.Selected(); i >= 0 {
+		return i
 	}
-	return ui.ModifierControl
+	return 0
+}
+
+// page declares the window. Each control writes what it changed into the model,
+// and the page reads that state as it declares the next paint.
+func (m *model) page(c ui.C) {
+	// A shortcut is declared where it acts, as a click is read where it acts.
+	if ui.Shortcut(c, ui.Primary, "k") {
+		m.palette = !m.palette
+	}
+
+	theme := c.Theme()
+	detail := mailboxes[m.selected()] + " selected"
+	if m.palette {
+		detail = "Command palette"
+	}
+	ui.Row(c).Fill().Children(func() {
+		// The first pane is as wide as the splitter's state says; the list itself
+		// keeps its selection and scrolling.
+		ui.Column(c).Width(m.split.Pos).Background(theme.Card).Children(func() {
+			ui.List(c, &m.list, len(mailboxes), m.row).Label("Mailboxes").Grow(1)
+		})
+		// The splitter is the draggable divider: it captures the pointer, shows
+		// the resize cursor and keeps both panes within their minimum sizes.
+		ui.Splitter(c, &m.split).Mins(120, 200).Label("Resize panes")
+		ui.Column(c).Grow(1).Pad(16).Gap(8).Children(func() {
+			ui.Text(c, detail)
+			ui.Text(c, m.context).Muted()
+		})
+	})
+}
+
+// row is one mailbox: a row a click chooses and the keys move through, with a
+// context menu on a secondary press.
+func (m *model) row(r ui.ListRow) {
+	theme := r.C.Theme()
+	r.Element.Pad(8).PadX(12).Hover(ui.Look{}.Background(theme.Hover))
+	if r.Index == m.selected() {
+		r.Element.Background(theme.Hover)
+	}
+	ui.Text(r.C, mailboxes[r.Index])
+	ui.ContextMenu(r.C, r.Element, func(menu *ui.MenuItems) {
+		if menu.Item("Open").Clicked() {
+			m.context = "Opened " + mailboxes[r.Index]
+		}
+	})
 }
 
 func newConfig(m *model) app.Config {
-	theme := ui.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Input", Width: 640, Height: 360}
-
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
-		canvas.Fill(bounds, theme.Background)
-
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.Row().Fill().Children(func() {
-				f.ScrollArea(list).Width(m.split.Pos).Background(theme.Card).Children(func() {
-					for i, name := range mailboxes {
-						row := f.Row().Pad(8).PadX(12).Hover(flex.Look{}.Background(theme.Hover)).Hit(rows.At(i), name)
-						if i == m.selected {
-							row.Background(theme.Hover)
-						}
-						if row.Children(func() { f.Text(name) }).Clicked() {
-							m.selected = i
-						}
-					}
-				})
-				// The splitter is the draggable divider: it captures the pointer, shows
-				// the resize cursor and keeps both panes within their minimum sizes.
-				f.Splitter(divider, &m.split).Mins(120, 200)
-				f.Column().Grow(1).Pad(16).Gap(8).Children(func() {
-					detail := fmt.Sprintf("%s selected", mailboxes[m.selected])
-					if m.palette {
-						detail = "Command palette"
-					}
-					f.Text(detail)
-					f.Text(m.context).Muted()
-				})
-			})
-		})
-	}
-
-	// OnPointer sees presses, releases and moves; Target is the identity under
-	// the pointer. A drag may be coalesced to its latest position, so a handler
-	// must follow the coordinates, not count moves. Here a secondary press on a
-	// row is the start of a context menu.
-	config.OnPointer = func(event ui.PointerEvent) ui.EventResult {
-		if event.Kind == ui.PointerDown && event.Button == ui.PointerButtonSecondary && event.Target.Scope() == rows {
-			row, _ := event.Target.Name().Index()
-			m.context = "Context menu for " + mailboxes[row]
-			return ui.EventResult{Handled: true, Repaint: true}
-		}
-		return ui.EventResult{}
-	}
-
-	// OnKey is called for the control that has keyboard focus: a row of the list,
-	// or the divider, which moves with the arrow keys.
-	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
-		if result := m.split.Key(event); result.Handled {
-			return result
-		}
-		if event.Target.Scope() != rows {
-			return ui.EventResult{}
-		}
-		switch event.Key {
-		case ui.KeyDown:
-			m.selected = min(m.selected+1, len(mailboxes)-1)
-		case ui.KeyUp:
-			m.selected = max(m.selected-1, 0)
-		default:
-			return ui.EventResult{}
-		}
-		return ui.EventResult{Handled: true, Repaint: true, Focus: rows.At(m.selected), FocusVisible: true}
-	}
-
-	config.OnShortcut = func(event ui.KeyEvent) ui.EventResult {
-		if event.Modifiers == primary() && event.Text == "k" {
-			m.palette = !m.palette
-			return ui.EventResult{Handled: true, Repaint: true}
-		}
-		return ui.EventResult{}
-	}
-
-	// The wheel goes to the scroll area under the pointer.
-	config.OnScroll = m.view.Wheel
-	return config
+	theme := gfx.LightTheme()
+	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
+	return page.Config(app.Config{
+		Title: "Input", Width: 640, Height: 360,
+		// The page routes pointer, wheel, shortcut and text input to the controls
+		// it declares. A splitter keeps its arrow keys in its own state, so give
+		// them to the window's key callback.
+		OnKey: m.split.Key,
+	})
 }
 
 func main() {
-	m := &model{split: flex.SplitterState{Pos: 220}}
-	var canvas ui.Canvas
-	if err := app.RunCanvas(newConfig(m), &canvas); err != nil {
+	var canvas gfx.Canvas
+	if err := app.RunCanvas(newConfig(newModel()), &canvas); err != nil {
 		log.Fatal(err)
 	}
 }

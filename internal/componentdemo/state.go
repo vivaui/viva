@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
@@ -20,12 +20,16 @@ type Example struct {
 
 type Component struct {
 	ID, Title, Category, Summary string
-	Examples                     []Example
-	paint                        func(*State, *ui.Canvas, ui.Theme, ui.Size)
-	pointer                      func(*State, ui.PointerEvent) ui.EventResult
-	key                          func(*State, ui.KeyEvent) ui.EventResult
-	scroll                       func(*State, ui.ScrollEvent) ui.EventResult
-	initialize                   func(*State)
+	// Source is the Go file the example calls, relative to the repository root, when
+	// the control is not one of the components package: a page-layer control such as
+	// ui.List. Empty means components/<ID>.go, the component's own file.
+	Source     string
+	Examples   []Example
+	paint      func(*State, *gfx.Canvas, gfx.Theme, gfx.Size)
+	pointer    func(*State, gfx.PointerEvent) gfx.EventResult
+	key        func(*State, gfx.KeyEvent) gfx.EventResult
+	scroll     func(*State, gfx.ScrollEvent) gfx.EventResult
+	initialize func(*State)
 	// editable names the one text field of an example that a platform text
 	// service may edit (see EnableTextEditing); examples that are fixed
 	// snapshots report false.
@@ -36,7 +40,7 @@ type Component struct {
 // editableField describes an example's editable text field. Accept and
 // MaxRunes, when set, restrict what can be typed into it.
 type editableField struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Initial  string
 	Accept   func(rune) bool
 	MaxRunes int
@@ -48,7 +52,7 @@ type editableField struct {
 var coreComponents = []Component{
 	buttonComponent, badgeComponent, checkboxComponent, colorSwatchComponent, colorPickerComponent,
 	switchComponent, inputComponent, dialogComponent,
-	codeEditorComponent, codeDiffComponent, splitButtonComponent, imageViewComponent,
+	codeEditorComponent, codeDiffComponent, codeMergeComponent, splitButtonComponent, imageViewComponent,
 	reorderListComponent, reorderGridComponent,
 }
 
@@ -83,33 +87,42 @@ type State struct {
 	descriptor  *Component
 	dark        bool
 	english     bool
-	density     ui.Density
+	density     gfx.Density
 	button      buttonState
 	iconHover   components.IconHover
 	checkbox    checkboxState
 	switches    switchState
 	// editor is the Go-owned text behind the example's editable field once a
 	// runner has called EnableTextEditing; fieldID is the hit that edits it.
-	editor       *text.Editor
+	editor *text.Editor
+	// blink is the caret phase of the single-line fields this demo paints itself
+	// (see HideEditorText in components.InputSnapshot).
+	blink        components.CaretBlink
 	multiSelect  *components.MultiSelectState
 	singleSelect *components.SingleSelectState
-	fieldID      ui.ID
+	fieldID      gfx.ID
 	editing      bool
 	// textarea keeps the rows and scroll of the Textarea example.
 	textarea    *components.TextareaLayout
 	codeEditor  *components.CodeEditor
 	codeDiff    *codeDiffDemoState
+	codeMerge   *codeMergeDemoState
 	reorder     *reorderDemoState
 	reorderGrid *reorderGridDemoState
-	imageBitmap *ui.Bitmap
+	imageBitmap *gfx.Bitmap
 	dialog      dialogState
 	slider      sliderDemoState
 	picker      *colorPickerDemoState
 	// chart keeps the hover and label caches of the chart examples.
 	chart *chartDemoState
-	// view keeps the memory the flex pages of this demo are laid out in (see page).
+	// list is the page-layer List example: its rows, choice and page.
+	list *listDemo
+	// page keeps the memory and identities of the demo's Page (see drawPage).
 	// It is a pointer so a State stays comparable.
-	view  *flex.View
+	page *ui.Page
+	// theme is the appearance and density the demo was last drawn with. The
+	// Page reads it through a pointer, so it is updated in place each paint.
+	theme gfx.Theme
 	flags uint64
 	// markdown keeps the Markdown example's arrays, so painting it again allocates nothing.
 	markdown *markdownScratch
@@ -140,7 +153,7 @@ func newState(componentID, exampleID string, english bool) (*State, error) {
 			if example.ID != exampleID {
 				continue
 			}
-			state := &State{componentID: componentID, exampleID: exampleID, descriptor: component, english: english, view: new(flex.View)}
+			state := &State{componentID: componentID, exampleID: exampleID, descriptor: component, english: english}
 			if component.initialize != nil {
 				component.initialize(state)
 			}
@@ -164,25 +177,26 @@ func (state *State) SetDark(dark bool) { state.dark = dark }
 
 // SetDensity selects the control density the example is painted at. The zero
 // value is the regular density every runner used before this setter existed.
-func (state *State) SetDensity(density ui.Density) { state.density = density }
+func (state *State) SetDensity(density gfx.Density) { state.density = density }
 
-// theme is the appearance and density the example is painted at.
-func (state *State) theme() ui.Theme {
-	theme := ui.LightTheme()
+// themeFor is the appearance and density the example is painted at.
+func (state *State) themeFor() gfx.Theme {
+	theme := gfx.LightTheme()
 	if state.dark {
-		theme = ui.DarkTheme()
+		theme = gfx.DarkTheme()
 	}
 	theme.Metrics = theme.Metrics.WithDensity(state.density)
 	return theme
 }
 
-func (state *State) Paint(canvas *ui.Canvas, size ui.Size) {
+func (state *State) Paint(canvas *gfx.Canvas, size gfx.Size) {
 	if canvas == nil || size.Width <= 0 || size.Height <= 0 {
 		return
 	}
 	canvas.SetTree(&tree)
-	theme := state.theme()
-	viewport := ui.Rect{Width: size.Width, Height: size.Height}
+	theme := state.themeFor()
+	state.theme = theme
+	viewport := gfx.Rect{Width: size.Width, Height: size.Height}
 	canvas.Clip(viewport)
 	canvas.Fill(viewport, theme.Background)
 	if state.descriptor != nil && state.descriptor.paint != nil {
@@ -191,49 +205,90 @@ func (state *State) Paint(canvas *ui.Canvas, size ui.Size) {
 	canvas.Unclip()
 }
 
-func (state *State) Pointer(event ui.PointerEvent) ui.EventResult {
+func (state *State) Pointer(event gfx.PointerEvent) gfx.EventResult {
+	if state.page != nil {
+		if result := state.page.Pointer(event); result != (gfx.EventResult{}) {
+			return result
+		}
+	}
+	if state.list != nil && state.list.page != nil {
+		if result := state.list.page.Pointer(event); result != (gfx.EventResult{}) {
+			return result
+		}
+	}
 	if state.descriptor == nil || state.descriptor.pointer == nil {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	return state.descriptor.pointer(state, event)
 }
 
-func (state *State) Key(event ui.KeyEvent) ui.EventResult {
+func (state *State) Key(event gfx.KeyEvent) gfx.EventResult {
+	if state.page != nil {
+		if result := state.page.Key(event); result != (gfx.EventResult{}) {
+			return result
+		}
+	}
+	// The list demo draws its own Page in a Slot of the demo page; its list keys
+	// are routed by that page, not by the outer one.
+	if state.list != nil && state.list.page != nil {
+		if result := state.list.page.Key(event); result != (gfx.EventResult{}) {
+			return result
+		}
+	}
 	if state.descriptor == nil || state.descriptor.key == nil {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	return state.descriptor.key(state, event)
 }
 
-func (state *State) Scroll(event ui.ScrollEvent) ui.EventResult {
+func (state *State) Scroll(event gfx.ScrollEvent) gfx.EventResult {
+	if state.page != nil {
+		if result := state.page.Wheel(event); result != (gfx.EventResult{}) {
+			return result
+		}
+	}
 	if state.descriptor == nil || state.descriptor.scroll == nil {
-		return ui.EventResult{}
+		return gfx.EventResult{}
 	}
 	return state.descriptor.scroll(state, event)
 }
 
-func pointerViewport(event ui.PointerEvent) ui.Size {
+func pointerViewport(event gfx.PointerEvent) gfx.Size {
 	if event.Viewport.Width > 0 && event.Viewport.Height > 0 {
 		return event.Viewport
 	}
-	return ui.Size{Width: 760, Height: 380}
+	return gfx.Size{Width: 760, Height: 380}
 }
 
 func textRange(start, end int) text.Range { return text.Range{Start: start, End: end} }
 
-// page lays a demo out with flex: the title over the content, centered on the
-// stage and at most maxWidth wide. content declares the specimens; a Slot it
-// declares has its Rect once page returns, for a specimen a component paints
-// itself. Clicks are read in content, where the control is declared.
-func (state *State) page(canvas *ui.Canvas, theme ui.Theme, size ui.Size, maxWidth float32, title string, content func(f *flex.Frame)) {
-	if state.view == nil {
-		state.view = new(flex.View)
+// pageFor returns the State's Page, made on its first paint with the demos'
+// Tree, Root and the State's theme. drawPage and drawStage share it, so both
+// declare identities in the same scope and read the theme through the same
+// pointer.
+func (state *State) pageFor(theme gfx.Theme) *ui.Page {
+	state.theme = theme
+	if state.page == nil {
+		state.page = ui.NewPage(ui.PageConfig{Tree: &tree, Root: "componentdemo", Theme: &state.theme})
 	}
-	state.view.Draw(canvas, theme, ui.Rect{Width: size.Width, Height: size.Height}, func(f *flex.Frame) {
-		f.Column().Fill().Pad(theme.Metrics.PadSurface).Items(flex.Center).Children(func() {
-			f.Column().FillWidth().MaxWidth(maxWidth).Gap(theme.Metrics.GapItem).Children(func() {
-				f.Text(title).FontSize(theme.Metrics.FontSizeM).Weight(ui.WeightSemibold)
-				content(f)
+	return state.page
+}
+
+// drawPage lays a demo out with a Page: the title over the content, centered on
+// the stage and at most maxWidth wide. content declares the specimens; a Slot it
+// declares has its Rect once drawPage returns, for a specimen a component paints
+// itself. Clicks are read in content, where the control is declared.
+//
+// The Page is kept on the State: its Tree is the demos' own, its Root names the
+// demo's scope, and its Theme points at the State's field so a density or
+// appearance change reaches the next paint.
+func (state *State) drawPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, maxWidth float32, title string, content func(c ui.C)) {
+	page := state.pageFor(theme)
+	page.Draw(canvas, gfx.Rect{Width: size.Width, Height: size.Height}, func(c ui.C) {
+		ui.Column(c).Fill().Pad(theme.Metrics.PadSurface).Items(ui.Center).Children(func() {
+			ui.Column(c).FillWidth().MaxWidth(maxWidth).Gap(theme.Metrics.GapItem).Children(func() {
+				ui.Text(c, title).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightSemibold)
+				content(c)
 			})
 		})
 	})

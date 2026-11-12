@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 type groupAPaintSnapshot struct {
-	rectangles []ui.Rectangle
-	texts      []ui.Text
-	hits       []ui.Hit
-	scope      ui.ID
-	escape     ui.ID
+	rectangles []gfx.Rectangle
+	texts      []gfx.Text
+	hits       []gfx.Hit
+	scope      gfx.ID
+	escape     gfx.ID
 }
 
 func newGroupAState(component Component, exampleID string) *State {
@@ -24,7 +24,7 @@ func newGroupAState(component Component, exampleID string) *State {
 	return state
 }
 
-func paintGroupAFrame(canvas *ui.Canvas, component Component, state *State, theme ui.Theme, size ui.Size) {
+func paintGroupAFrame(canvas *gfx.Canvas, component Component, state *State, theme gfx.Theme, size gfx.Size) {
 	canvas.SetReduceMotion(true)
 	canvas.BeginFrame()
 	canvas.Reset()
@@ -32,7 +32,7 @@ func paintGroupAFrame(canvas *ui.Canvas, component Component, state *State, them
 	canvas.EndFrame()
 }
 
-func snapshotGroupAPaint(canvas *ui.Canvas) groupAPaintSnapshot {
+func snapshotGroupAPaint(canvas *gfx.Canvas) groupAPaintSnapshot {
 	return groupAPaintSnapshot{
 		rectangles: slices.Clone(canvas.Rectangles()),
 		texts:      slices.Clone(canvas.Texts()),
@@ -65,13 +65,13 @@ func TestGroupACatalogOrder(t *testing.T) {
 }
 
 func TestGroupAPaintDeterminism(t *testing.T) {
-	sizes := []ui.Size{{Width: 320, Height: 340}, {Width: 760, Height: 380}}
+	sizes := []gfx.Size{{Width: 320, Height: 340}, {Width: 760, Height: 380}}
 	themes := []struct {
 		name  string
-		theme ui.Theme
+		theme gfx.Theme
 	}{
-		{name: "light", theme: ui.LightTheme()},
-		{name: "dark", theme: ui.DarkTheme()},
+		{name: "light", theme: gfx.LightTheme()},
+		{name: "dark", theme: gfx.DarkTheme()},
 	}
 	for _, component := range groupAComponents {
 		for _, example := range component.Examples {
@@ -85,8 +85,13 @@ func TestGroupAPaintDeterminism(t *testing.T) {
 					}
 					t.Run(name, func(t *testing.T) {
 						state := newGroupAState(component, example.ID)
+						// The Page caches the appearance it paints with, so the
+						// state after a paint holds it too. Paint once before the
+						// comparison: the first paint makes the Page.
+						state.theme = theme.theme
+						var canvas gfx.Canvas
+						paintGroupAFrame(&canvas, component, state, theme.theme, size)
 						before := *state
-						var canvas ui.Canvas
 						paintGroupAFrame(&canvas, component, state, theme.theme, size)
 						if len(canvas.Rectangles()) == 0 && len(canvas.Texts()) == 0 {
 							t.Fatal("paint produced no visible commands")
@@ -122,9 +127,9 @@ func TestGroupAStaticWarmPaintAllocations(t *testing.T) {
 		for _, example := range component.Examples {
 			t.Run(component.ID+"/"+example.ID, func(t *testing.T) {
 				state := newGroupAState(component, example.ID)
-				var canvas ui.Canvas
+				var canvas gfx.Canvas
 				paint := func() {
-					paintGroupAFrame(&canvas, component, state, ui.LightTheme(), ui.Size{Width: 760, Height: 380})
+					paintGroupAFrame(&canvas, component, state, gfx.LightTheme(), gfx.Size{Width: 760, Height: 380})
 				}
 				paint()
 				if allocations := testing.AllocsPerRun(100, paint); allocations != 0 {
@@ -140,7 +145,7 @@ func TestGroupAStaticWarmPaintAllocations(t *testing.T) {
 func TestGroupAClicksChangeCallerState(t *testing.T) {
 	cases := []struct {
 		component, example string
-		target             ui.ID
+		target             gfx.ID
 		changed            func(*State) bool
 	}{
 		{"accordion", "default", accordionItem.At(1), func(s *State) bool { return s.flags == 3 }},
@@ -161,7 +166,7 @@ func TestGroupAClicksChangeCallerState(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.component+"/"+test.example, func(t *testing.T) {
 			state := newTestState(t, test.component, test.example)
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			paintFrame(&canvas, state, testSize, time.Second, true)
 			findHit(t, &canvas, test.target)
 			click(&canvas, state, test.target)

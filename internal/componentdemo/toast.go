@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -54,12 +54,12 @@ var (
 
 func (state *State) initializeToast() { state.flags = 1 }
 
-func (state *State) paintToast(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintToast(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	open := state.flags&1 != 0
-	state.page(canvas, theme, size, 520, state.Text("Toast · 调用方生命周期", "Toast · Caller lifecycle"), func(f *flex.Frame) {
-		f.Text(state.Text("关闭后重新进入示例可恢复初始快照。", "Re-entering the example after dismissal restores the initial snapshot.")).FontSize(theme.Metrics.FontSizeS).Muted()
+	state.drawPage(canvas, theme, size, 520, state.Text("Toast · 调用方生命周期", "Toast · Caller lifecycle"), func(c ui.C) {
+		ui.Text(c, state.Text("关闭后重新进入示例可恢复初始快照。", "Re-entering the example after dismissal restores the initial snapshot.")).FontSize(theme.Metrics.FontSizeS).Muted()
 		if !open {
-			f.Text(state.Text("通知已关闭。", "Notification dismissed.")).FontSize(theme.Metrics.FontSizeM).Weight(ui.WeightMedium).Muted()
+			ui.Text(c, state.Text("通知已关闭。", "Notification dismissed.")).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium).Muted()
 		}
 	})
 	if !open {
@@ -89,7 +89,7 @@ func (state *State) paintToast(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 		snapshot.SwipeX = -8
 		actionLabel = state.Text("继续", "Continue")
 	}
-	components.PaintToast(canvas, theme, ui.Rect{Width: size.Width, Height: size.Height}, snapshot, components.ToastOptions{
+	components.PaintToast(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, snapshot, components.ToastOptions{
 		Layer: 52, Scope: toastScope, DismissID: toastDismiss, ActionID: toastAction, ActionLabel: actionLabel,
 	})
 

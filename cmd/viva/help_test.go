@@ -43,7 +43,7 @@ func TestEveryCommandPrintsItsOwnHelp(t *testing.T) {
 func TestCommandsWithFlagsListThem(t *testing.T) {
 	for name, flags := range map[string][]string{
 		"build":   {"-C", "-o", "-target", "-arch", "-tags", "-debug"},
-		"package": {"-C", "-o", "-zip", "-format", "-target", "-tags"},
+		"package": {"-C", "-o", "-zip", "-format", "-target", "-tags", "-file"},
 		"dev":     {"-debounce", "-poll", "-build-timeout"},
 		"add":     {"-out", "-package", "-force"},
 	} {

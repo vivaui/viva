@@ -3,16 +3,17 @@
 #
 #   tools/conformance/run.sh mac        run on this Mac (opens real windows)
 #   tools/conformance/run.sh linux      run in the Linux test container
-#   tools/conformance/run.sh windows    run in the Windows test VM
-#   tools/conformance/run.sh all        all three, one after another
+#   tools/conformance/run.sh all        both, one after another
 #
-# The container and VM are machines you provide: set VIVA_LINUX_ENV and
-# VIVA_WINDOWS_ENV to their addresses (or put them in tools/testenv/local.sh).
-# Exit status is 1 if any platform reported a FAIL or could not be reached.
+# Windows conformance runs by hand on a real Windows machine; see
+# docs/conformance.md.
+#
+# The container is a machine you provide: set VIVA_LINUX_ENV to its address (or
+# put it in tools/testenv/local.sh). Exit status is 1 if any platform reported a
+# FAIL or could not be reached.
 set -u
 root=$(cd "$(dirname "$0")/../.." && pwd)
 linux_env=${VIVA_LINUX_ENV:-}
-windows_env=${VIVA_WINDOWS_ENV:-}
 export no_proxy="${no_proxy:-},localhost,127.0.0.1"
 out=$(mktemp -d)
 status=0
@@ -46,17 +47,6 @@ run_linux() {
 	execute "$linux_env" '{"command":["bash","-c","chmod +x /home/user/viva-conformance; export DISPLAY=:1 XAUTHORITY=/home/user/.Xauthority; pid=$(pgrep -u user plasmashell | head -1); if [ -r /proc/$pid/environ ]; then export $(xargs -0 -n1 -a /proc/$pid/environ | grep ^DBUS_SESSION_BUS_ADDRESS=); fi; if [ -f /tmp/viva-vulkan/lvp-local.json ]; then export VK_ICD_FILENAMES=/tmp/viva-vulkan/lvp-local.json LD_LIBRARY_PATH=/tmp/viva-vulkan/root/usr/lib/x86_64-linux-gnu; fi; cd /tmp && timeout 50 /home/user/viva-conformance"],"shell":false}'
 }
 
-run_windows() {
-	if [ -z "$windows_env" ]; then
-		echo "set VIVA_WINDOWS_ENV to a Windows test environment" >&2
-		return 1
-	fi
-	(cd "$root" && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o "$out/windows.exe" ./cmd/viva-conformance) || return 1
-	upload "$windows_env" 'C:\Users\Docker\Desktop\viva-conformance.exe' "$out/windows.exe" || return 1
-	# The report goes to a file: the program's own console is not the desktop's.
-	execute "$windows_env" '{"command":["cmd.exe","/d","/s","/c","cd /d C:\\Users\\Docker\\Desktop && (viva-conformance.exe > conformance.txt 2>&1 & echo exit=%errorlevel% > conformance.exit) & type conformance.txt"]}'
-}
-
 run() {
 	echo "== $1"
 	local report
@@ -68,8 +58,8 @@ run() {
 }
 
 case "${1:-}" in
-mac | linux | windows) run "$1" ;;
-all) run mac; run linux; run windows ;;
-*) sed -n '2,12p' "$0"; exit 2 ;;
+mac | linux) run "$1" ;;
+all) run mac; run linux ;;
+*) sed -n '2,13p' "$0"; exit 2 ;;
 esac
 exit $status

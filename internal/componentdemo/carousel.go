@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -43,16 +43,16 @@ var (
 	carouselNext     = tree.ID(carouselUI, "next")
 )
 
-func (state *State) paintCarousel(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintCarousel(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	vertical := state.exampleID == "vertical"
 	// The previous and next buttons sit just outside the viewport, so the slot is
 	// kept clear of the page edge and of the title by a margin.
-	var slot flex.Box
-	state.page(canvas, theme, size, 584, state.Text("Carousel · 产品导览", "Carousel · Product tour"), func(f *flex.Frame) {
+	var slot ui.Box
+	state.drawPage(canvas, theme, size, 584, state.Text("Carousel · 产品导览", "Carousel · Product tour"), func(c ui.C) {
 		if vertical {
-			slot = f.Slot().FillWidth().Height(180).MarginY(44).MarginX(32)
+			slot = ui.Slot(c).FillWidth().Height(180).MarginY(44).MarginX(32)
 		} else {
-			slot = f.Slot().FillWidth().Height(200).MarginX(32)
+			slot = ui.Slot(c).FillWidth().Height(200).MarginX(32)
 		}
 	})
 	bounds := slot.Rect()
@@ -77,7 +77,7 @@ func (state *State) paintCarousel(canvas *ui.Canvas, theme ui.Theme, size ui.Siz
 	}
 }
 
-func paintCarouselSlides(canvas *ui.Canvas, theme ui.Theme, carousel *components.Carousel, itemExtent float32, vertical bool) {
+func paintCarouselSlides(canvas *gfx.Canvas, theme gfx.Theme, carousel *components.Carousel, itemExtent float32, vertical bool) {
 	labels := [...]string{"Retained scene", "Localized update", "Idle means idle"}
 	for index := range labels {
 		item := carousel.ItemGeometry(index, float32(index)*itemExtent, itemExtent)
@@ -97,6 +97,6 @@ func paintCarouselSlides(canvas *ui.Canvas, theme ui.Theme, carousel *components
 			fill = theme.Accent
 		}
 		canvas.Rounded(bounds, theme.Metrics.RadiusSurface, fill)
-		canvas.LabelCenter(labels[index], bounds, ui.TextStyle{Size: theme.Metrics.FontSizeM + 2, Weight: ui.WeightSemibold, Color: theme.Foreground})
+		canvas.LabelCenter(labels[index], bounds, gfx.TextStyle{Size: theme.Metrics.FontSizeM + 2, Weight: gfx.WeightSemibold, Color: theme.Foreground})
 	}
 }

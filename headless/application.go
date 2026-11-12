@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 type applicationWindow struct {
@@ -60,6 +60,9 @@ type applicationSession struct {
 	// openURL receives the links the "openurl" command delivers, as the system
 	// would deliver a registered scheme's link.
 	openURL func(string)
+	// openFile receives the documents the "openfile" command delivers, as the
+	// system would deliver a registered type's document.
+	openFile func(string)
 }
 
 func newApplicationSession(options Options) *applicationSession {
@@ -71,7 +74,7 @@ func newApplicationSession(options Options) *applicationSession {
 }
 
 // OpenWindow implements app.Host.
-func (application *applicationSession) OpenWindow(config app.Config, canvas *ui.Canvas, closed func()) (app.WindowControl, error) {
+func (application *applicationSession) OpenWindow(config app.Config, canvas *gfx.Canvas, closed func()) (app.WindowControl, error) {
 	entry := &applicationWindow{}
 	if config.Invalidator == nil {
 		config.Invalidator = &app.Invalidator{}
@@ -119,12 +122,12 @@ func (window *headlessWindow) Close() { window.once.Do(func() { window.applicati
 func (window *headlessWindow) Hide()  { window.application.setHidden(window.id, true) }
 
 // Frame is the window's content area where its Config.Origin put it.
-func (window *headlessWindow) Frame() (ui.Rect, bool) {
+func (window *headlessWindow) Frame() (gfx.Rect, bool) {
 	window.application.mu.Lock()
 	entry := window.application.windows[window.id]
 	window.application.mu.Unlock()
 	if entry == nil {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
 	return entry.session.driver.Frame(), true
 }
@@ -179,6 +182,14 @@ func (application *applicationSession) AddStatusItem(config app.StatusItemConfig
 func (application *applicationSession) SetOpenURLHandler(handler func(string)) {
 	application.mu.Lock()
 	application.openURL = handler
+	application.mu.Unlock()
+}
+
+// SetOpenFileHandler implements the optional host capability that passes
+// documents the system opened to the application.
+func (application *applicationSession) SetOpenFileHandler(handler func(path string)) {
+	application.mu.Lock()
+	application.openFile = handler
 	application.mu.Unlock()
 }
 
@@ -242,7 +253,7 @@ func (item *headlessStatusItem) Remove() {
 
 // clickStatusItem presses a status item the way the platform would: the click
 // handler runs, here on the caller's goroutine.
-func (application *applicationSession) clickStatusItem(id uint64, button ui.PointerButton) error {
+func (application *applicationSession) clickStatusItem(id uint64, button gfx.PointerButton) error {
 	application.mu.Lock()
 	item := application.items[id]
 	application.mu.Unlock()
@@ -251,7 +262,7 @@ func (application *applicationSession) clickStatusItem(id uint64, button ui.Poin
 	}
 	// With a menu the secondary press opens it, and so does the primary unless
 	// the application handles it, as a Linux desktop's tray reports it.
-	if item.menu != nil && (button != ui.PointerButtonPrimary || item.onClick == nil) {
+	if item.menu != nil && (button != gfx.PointerButtonPrimary || item.onClick == nil) {
 		return fmt.Errorf("headless: status item %d opens a menu; use statusmenu and statusselect", id)
 	}
 	if item.onClick != nil {
@@ -501,6 +512,18 @@ func executeApplication(application *applicationSession, line string) (string, b
 		}
 		handler(rest)
 		return application.afterCommand("ok\n")
+	case "openfile":
+		application.mu.Lock()
+		handler := application.openFile
+		application.mu.Unlock()
+		switch {
+		case rest == "":
+			return "error openfile needs a path\n", false
+		case handler == nil:
+			return "error the application does not take documents\n", false
+		}
+		handler(rest)
+		return application.afterCommand("ok\n")
 	case "statusitems":
 		if rest != "" {
 			return "error statusitems takes no arguments\n", false
@@ -558,12 +581,12 @@ func executeApplication(application *applicationSession, line string) (string, b
 		if err != nil || id == 0 {
 			return "error statusclick needs a positive numeric item ID\n", false
 		}
-		button := ui.PointerButtonPrimary
+		button := gfx.PointerButtonPrimary
 		if len(fields) == 2 {
 			switch fields[1] {
 			case "primary":
 			case "secondary":
-				button = ui.PointerButtonSecondary
+				button = gfx.PointerButtonSecondary
 			default:
 				return "error statusclick button is primary or secondary\n", false
 			}

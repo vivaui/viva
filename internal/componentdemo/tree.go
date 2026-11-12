@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -60,13 +60,13 @@ func initializeTree(state *State) {
 	state.values[0] = 1
 }
 
-func (state *State) paintTree(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintTree(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	// The demo draws a two-line row; the extra 12px is its own content, not
 	// the tree's default single-line row height.
 	rowHeight := theme.Metrics.ControlHeight + 12
-	var stage flex.Box
-	state.page(canvas, theme, size, 600, state.Text("Tree · 主机目录", "Tree · Host directory"), func(f *flex.Frame) {
-		stage = f.Slot().Height(rowHeight * 4)
+	var stage ui.Box
+	state.drawPage(canvas, theme, size, 600, state.Text("Tree · 主机目录", "Tree · Host directory"), func(c ui.C) {
+		stage = ui.Slot(c).Height(rowHeight * 4)
 	})
 	disabled := state.exampleID == "disabled"
 	expanded := state.flags&1 != 0
@@ -76,10 +76,10 @@ func (state *State) paintTree(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
 		Expanded: expanded, Disabled: disabled,
 	}
 	row := hosts.Item(group)
-	canvas.Label("Production", ui.Rect{X: row.Content.X + 2, Y: row.Content.Y + 10, Width: row.Content.Width - 80, Height: 24}, ui.TextStyle{
-		Size: theme.Metrics.FontSizeM, Weight: ui.WeightSemibold, Color: theme.Foreground,
+	canvas.Label("Production", gfx.Rect{X: row.Content.X + 2, Y: row.Content.Y + 10, Width: row.Content.Width - 80, Height: 24}, gfx.TextStyle{
+		Size: theme.Metrics.FontSizeM, Weight: gfx.WeightSemibold, Color: theme.Foreground,
 	})
-	canvas.Label("3 hosts", ui.Rect{X: row.Bounds.X + row.Bounds.Width - 72, Y: row.Bounds.Y + 11, Width: 64, Height: 22}, ui.TextStyle{
+	canvas.Label("3 hosts", gfx.Rect{X: row.Bounds.X + row.Bounds.Width - 72, Y: row.Bounds.Y + 11, Width: 64, Height: 22}, gfx.TextStyle{
 		Size: theme.Metrics.FontSizeS, Color: theme.MutedForeground,
 	})
 	if canvas.Clicked(treeGroupRow) || canvas.Clicked(treeGroupDisclosure) {
@@ -95,10 +95,10 @@ func (state *State) paintTree(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
 		row = hosts.Item(components.TreeItem{
 			ID: treeLeaf.At(index), Label: names[index], Depth: 1, Selected: selected, Disabled: disabled,
 		})
-		canvas.Label(names[index], ui.Rect{X: row.Content.X + 10, Y: row.Content.Y + 4, Width: 120, Height: 20}, ui.TextStyle{
-			Size: theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: theme.Foreground,
+		canvas.Label(names[index], gfx.Rect{X: row.Content.X + 10, Y: row.Content.Y + 4, Width: 120, Height: 20}, gfx.TextStyle{
+			Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.Foreground,
 		})
-		canvas.Label(addresses[index], ui.Rect{X: row.Content.X + 10, Y: row.Content.Y + 23, Width: row.Content.Width - 20, Height: 18}, ui.TextStyle{
+		canvas.Label(addresses[index], gfx.Rect{X: row.Content.X + 10, Y: row.Content.Y + 23, Width: row.Content.Width - 20, Height: 18}, gfx.TextStyle{
 			Size: theme.Metrics.FontSizeS, Color: theme.MutedForeground,
 		})
 	}

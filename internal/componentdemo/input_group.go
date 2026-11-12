@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
@@ -82,13 +82,13 @@ var (
 )
 
 // inputGroupCrossIcon is Lucide's x, the clear button's icon.
-var inputGroupCrossIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-	ui.MoveTo(18, 6), ui.LineTo(6, 18), ui.MoveTo(6, 6), ui.LineTo(18, 18),
+var inputGroupCrossIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+	gfx.MoveTo(18, 6), gfx.LineTo(6, 18), gfx.MoveTo(6, 6), gfx.LineTo(18, 18),
 }}
 
 // inputGroupEyeIcon is a stand-in for a reveal button's icon: a lens shape.
-var inputGroupEyeIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-	ui.MoveTo(2, 12), ui.LineTo(7, 7), ui.LineTo(17, 7), ui.LineTo(22, 12), ui.LineTo(17, 17), ui.LineTo(7, 17), ui.LineTo(2, 12),
+var inputGroupEyeIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+	gfx.MoveTo(2, 12), gfx.LineTo(7, 7), gfx.LineTo(17, 7), gfx.LineTo(22, 12), gfx.LineTo(17, 17), gfx.LineTo(7, 17), gfx.LineTo(2, 12),
 }}
 
 func inputGroupInitial(exampleID string) string {
@@ -116,20 +116,20 @@ func (state *State) clearInputGroup() {
 	state.editor.Insert(value)
 }
 
-func (state *State) paintInputGroup(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintInputGroup(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	height := theme.Metrics.ControlHeight
 	if state.exampleID == "addons" {
 		// A 32px block add-on above and below, and a 64px multiline control.
 		height = theme.Metrics.ControlHeight * 4
 	}
-	var group, locked, searching flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Input Group · 附加槽", "Input Group · Add-on slots"), func(f *flex.Frame) {
-		group = f.Slot().FillWidth().Height(height)
+	var group, locked, searching ui.Box
+	state.drawPage(canvas, theme, size, 560, state.Text("Input Group · 附加槽", "Input Group · Add-on slots"), func(c ui.C) {
+		group = ui.Slot(c).FillWidth().Height(height)
 		if state.exampleID == "states" {
-			locked = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+			locked = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 		}
 		if state.exampleID == "buttons" {
-			searching = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+			searching = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 		}
 	})
 	value := state.fieldValue("")
@@ -137,7 +137,17 @@ func (state *State) paintInputGroup(canvas *ui.Canvas, theme ui.Theme, size ui.S
 		value = inputGroupInitial(state.exampleID)
 	}
 	snapshot := components.InputGroupSnapshot{ID: inputGroupField, Label: "Project domain", Value: value, Placeholder: "project-name",
-		ReadOnly: !state.editing, NativeEditing: state.platformFocused(canvas, value), InlineStart: components.InputGroupSlot{Kind: components.InputGroupSlotText, Text: "https://", Separated: true}, InlineEnd: components.InputGroupSlot{Kind: components.InputGroupSlotButton, ID: inputGroupClear, Icon: inputGroupCrossIcon, ButtonSize: components.InputGroupButtonIconXS, Label: "Clear domain"}}
+		ReadOnly: !state.editing, HideEditorText: true, InlineStart: components.InputGroupSlot{Kind: components.InputGroupSlotText, Text: "https://", Separated: true}, InlineEnd: components.InputGroupSlot{Kind: components.InputGroupSlotButton, ID: inputGroupClear, Icon: inputGroupCrossIcon, ButtonSize: components.InputGroupButtonIconXS, Label: "Clear domain"}}
+	if state.editing && state.editor != nil && canvas.Focused() == inputGroupField {
+		selection := state.editor.Selection()
+		snapshot.SelectionStart, snapshot.SelectionEnd = byteOffsetOfRune(value, selection.Start), byteOffsetOfRune(value, selection.End)
+		snapshot.Caret = byteOffsetOfRune(value, state.editor.Caret())
+		snapshot.ShowCaret = selection.Start == selection.End
+		snapshot.Blink = &state.blink
+		if marked, composing := state.editor.Composition(); composing {
+			snapshot.CompositionStart, snapshot.CompositionEnd = byteOffsetOfRune(value, marked.Start), byteOffsetOfRune(value, marked.End)
+		}
+	}
 	if state.exampleID == "addons" {
 		snapshot.Multiline = true
 		// The description is not a domain: no "https://" in front of it.
@@ -176,7 +186,7 @@ func (state *State) paintInputGroup(canvas *ui.Canvas, theme ui.Theme, size ui.S
 		disabled.Invalid = false
 		disabled.Disabled = true
 		disabled.Value = "locked"
-		disabled.InlineEnd.ID = ui.ID{}
+		disabled.InlineEnd.ID = gfx.ID{}
 		components.PaintInputGroup(canvas, theme, locked.Rect(), disabled)
 	}
 }

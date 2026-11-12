@@ -6,7 +6,7 @@ Read after `SKILL.md`. The code is in [`examples/recipes`](../../../examples/rec
 
 | You are building | Start from |
 | --- | --- |
-| A page of preferences | `SettingsRow` inside `Section` (a card with a divider between rows: `f.Divider()`) |
+| A page of preferences | `SettingsRow` inside `Section` (a card with a divider between rows: `ui.Divider(c)`) |
 | A list of hosts, files, mailboxes | `ListRow`: hover and keyboard focus reveal the trailing action |
 | A person or a host | `Avatar`, with the presence dot when it has one |
 | A tag, a count, a status | `Badge` with `ToneNeutral`, `ToneAccent` or `ToneDanger` |
@@ -14,14 +14,16 @@ Read after `SKILL.md`. The code is in [`examples/recipes`](../../../examples/rec
 | A landing banner or onboarding step | `Hero` (the one place literal colors belong: the gradient stops) |
 | A toolbar | `IconButton`: muted glyph that brightens with the button |
 | A list with nothing in it | `EmptyState` |
-| Anything that reacts but is none of these | `Interactive(box, theme, id, label)` around your own `Row` |
+| Anything that reacts but is none of these | `Interactive(box, theme)` around your own `Row` (give it `Hit` first) |
+
+The recipes take a `ui.C`, as every page component does, and return the Box the caller reacts from. They are page components: use them where you declare the row, give an interactive row `Hit(ui.ID(c), name)` before `Interactive`, and read `Clicked` from the result. They are not a separate Frame API.
 
 ## What makes it look right
 
 - **Take colors from the theme.** `theme.Card` for a surface, `theme.Border` for its line, `theme.MutedForeground` for secondary text, `theme.Accent` for a selected row. A literal color is right in one theme and wrong in the other. Translucent tokens that sit under a border are flattened with `Color.Over(background)` first.
 - **One scale for space.** Lengths are 4, 8, 12, 16, 24. A row of controls uses `Gap(8)`, a card `Pad(16)`, a page `Pad(24)`. Equal gaps between siblings read as order; mixed ones read as accident.
-- **Two radii.** Controls and rows take `theme.Metrics.RadiusControl`, cards and panels `RadiusSurface`, a circle is half its size or `ui.RadiusFull`. Do not invent a third.
-- **Hierarchy by weight and color, not size.** A title is `Weight(ui.WeightMedium)`, its explanation is `.Muted()` at `FontSizeS`. Reserve a large `FontSize` for one figure or heading per screen.
+- **Two radii.** Controls and rows take `theme.Metrics.RadiusControl`, cards and panels `RadiusSurface`, a circle is half its size or `gfx.RadiusFull`. Do not invent a third.
+- **Hierarchy by weight and color, not size.** A title is `Weight(gfx.WeightMedium)`, its explanation is `.Muted()` at `FontSizeS`. Reserve a large `FontSize` for one figure or heading per screen.
 - **Every reactive thing has all three looks.** Hover to show it is live, Pressed to show it took the press, Focus with `Ring(3, ...)` so the keyboard user can see where they are. `Interactive` gives the standard set; `Transition()` makes them fade instead of snap.
 - **Reveal with `StateFrom`.** Secondary actions that appear on hover (`Opacity(0)` at rest, `Hover(Look{}.Opacity(1))`, and `Focus` too so a keyboard user can find them) keep a list calm. Do not read `canvas.Hovered()` by hand.
 - **Shadow sparingly.** `ShadowXS` for a card on the page, `ShadowMD` for something lifted (a hero, a popover). Never on every row.

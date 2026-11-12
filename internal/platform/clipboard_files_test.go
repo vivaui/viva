@@ -72,3 +72,20 @@ func BenchmarkFilesFromURIList(b *testing.B) {
 		}
 	}
 }
+
+func TestDropFilesBytesReadBackAsTheSamePaths(t *testing.T) {
+	want := []string{`C:\Users\me\Documents\a file.txt`, `C:\Temp\文件夹`, `D:\x`}
+	if got := FilesFromDropFiles(DropFilesBytes(want)); !slices.Equal(got, want) {
+		t.Fatalf("DropFilesBytes round trip = %q, want %q", got, want)
+	}
+	if got := FilesFromDropFiles(DropFilesBytes(nil)); len(got) != 0 {
+		t.Fatalf("an empty list read back as %q", got)
+	}
+}
+
+func TestFileURIListReadsBackAsTheSamePaths(t *testing.T) {
+	want := []string{"/tmp/a b.txt", "/home/u/中.txt", "/tmp/dir"}
+	if got := FilesFromURIList(FileURIList(want)); !slices.Equal(got, want) {
+		t.Fatalf("FileURIList round trip = %q, want %q", got, want)
+	}
+}

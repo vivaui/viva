@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 var (
-	passTree = ui.Tree{}
+	passTree = gfx.Tree{}
 	passPage = passTree.Feature("pass")
 	passSave = passPage.ID(passTree.Name("save"))
 	passOpen = passPage.ID(passTree.Name("open"))
@@ -24,16 +24,16 @@ type clickPassApp struct {
 }
 
 func (a *clickPassApp) config() Config {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	return Config{
 		Title: "pass", Width: 400, Height: 200, Tree: &passTree,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			a.paints++
-			if components.BeginButton(canvas, theme, passSave, ui.Rect{X: 10, Y: 10, Width: 100, Height: 32}).Default("Save").Clicked() {
+			if components.BeginButton(canvas, theme, passSave, gfx.Rect{X: 10, Y: 10, Width: 100, Height: 32}).Default("Save").Clicked() {
 				a.saves++
 				a.eventPaints++
 			}
-			if components.BeginButton(canvas, theme, passOpen, ui.Rect{X: 10, Y: 60, Width: 100, Height: 32}).Outline("Open").Clicked() {
+			if components.BeginButton(canvas, theme, passOpen, gfx.Rect{X: 10, Y: 60, Width: 100, Height: 32}).Outline("Open").Clicked() {
 				a.opens++
 			}
 		},
@@ -42,7 +42,7 @@ func (a *clickPassApp) config() Config {
 
 func TestAClickIsDeliveredToTheControlThatDeclaredItExactlyOnce(t *testing.T) {
 	a := &clickPassApp{}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := NewDriver(a.config(), &canvas)
 	if err != nil {
 		t.Fatal(err)
@@ -72,17 +72,17 @@ func TestAClickIsDeliveredToTheControlThatDeclaredItExactlyOnce(t *testing.T) {
 
 func TestEnterOnAFocusedButtonIsAClickInTheEventPass(t *testing.T) {
 	a := &clickPassApp{}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := NewDriver(a.config(), &canvas)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer driver.Close()
 
-	if err := driver.Key(ui.KeyTab, 0); err != nil {
+	if err := driver.Key(gfx.KeyTab, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Key(ui.KeyEnter, 0); err != nil {
+	if err := driver.Key(gfx.KeyEnter, 0); err != nil {
 		t.Fatal(err)
 	}
 	if a.saves != 1 {
@@ -92,15 +92,15 @@ func TestEnterOnAFocusedButtonIsAClickInTheEventPass(t *testing.T) {
 
 func TestAPaintThatNeverAsksCostsNoEventPass(t *testing.T) {
 	paints := 0
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	config := Config{
 		Title: "plain", Width: 400, Height: 200, Tree: &passTree,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			paints++
-			components.BeginButton(canvas, theme, passSave, ui.Rect{X: 10, Y: 10, Width: 100, Height: 32}).Default("Save")
+			components.BeginButton(canvas, theme, passSave, gfx.Rect{X: 10, Y: 10, Width: 100, Height: 32}).Default("Save")
 		},
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := NewDriver(config, &canvas)
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestAPaintThatNeverAsksCostsNoEventPass(t *testing.T) {
 
 // A disabled button is not clicked, and neither is one a modal dialog covers.
 func TestClickedIsFalseOutsideTheEventPass(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.BeginFrame()
 	if canvas.Clicked(passSave) {
 		t.Fatal("Clicked is true in an ordinary paint")
@@ -128,8 +128,8 @@ func TestClickedIsFalseOutsideTheEventPass(t *testing.T) {
 		t.Fatal("asking did not mark the paint as listening")
 	}
 	canvas.EndFrame()
-	canvas.BeginEventPass(passSave)
-	if !canvas.Clicked(passSave) || canvas.Clicked(passOpen) || canvas.Clicked(ui.ID{}) {
+	canvas.BeginEventPass(passSave, gfx.ClickInfo{})
+	if !canvas.Clicked(passSave) || canvas.Clicked(passOpen) || canvas.Clicked(gfx.ID{}) {
 		t.Fatal("the event pass names the wrong control")
 	}
 	canvas.EndEventPass()
@@ -140,7 +140,7 @@ func TestClickedIsFalseOutsideTheEventPass(t *testing.T) {
 
 func BenchmarkClickThroughTheEventPass(b *testing.B) {
 	a := &clickPassApp{}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := NewDriver(a.config(), &canvas)
 	if err != nil {
 		b.Fatal(err)
@@ -166,17 +166,17 @@ type pointerPassApp struct {
 func (a *pointerPassApp) config() Config {
 	return Config{
 		Title: "pointer", Width: 400, Height: 200, Tree: &passTree,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			bounds := ui.Rect{X: 10, Y: 10, Width: 200, Height: 100}
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			bounds := gfx.Rect{X: 10, Y: 10, Width: 200, Height: 100}
 			canvas.HitWithLabel(passMenu, bounds, "Area")
 			if event, ok := canvas.PointerOn(passMenu); ok {
 				switch {
-				case event.Kind == ui.PointerDown && event.Button == ui.PointerButtonSecondary:
+				case event.Kind == gfx.PointerDown && event.Button == gfx.PointerButtonSecondary:
 					a.menus++
 					canvas.Consume()
-				case event.Kind == ui.PointerDown && event.ClickCount == 2:
+				case event.Kind == gfx.PointerDown && event.ClickCount == 2:
 					a.doubles++
-				case event.Kind == ui.PointerMove && event.Captured:
+				case event.Kind == gfx.PointerMove && event.Captured:
 					a.drags++
 				}
 			}
@@ -189,17 +189,17 @@ func (a *pointerPassApp) config() Config {
 
 func TestRightClickDoubleClickAndDragReachTheControlThatDeclaredThem(t *testing.T) {
 	a := &pointerPassApp{}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := NewDriver(a.config(), &canvas)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer driver.Close()
 
-	if err := driver.Press(60, 60, ui.PointerButtonSecondary); err != nil {
+	if err := driver.Press(60, 60, gfx.PointerButtonSecondary); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Release(60, 60, ui.PointerButtonSecondary); err != nil {
+	if err := driver.Release(60, 60, gfx.PointerButtonSecondary); err != nil {
 		t.Fatal(err)
 	}
 	if a.menus != 1 {
@@ -212,7 +212,7 @@ func TestRightClickDoubleClickAndDragReachTheControlThatDeclaredThem(t *testing.
 		t.Fatalf("a double click reached the control %d times, want 1", a.doubles)
 	}
 	before := a.drags
-	if err := driver.Press(60, 60, ui.PointerButtonPrimary); err != nil {
+	if err := driver.Press(60, 60, gfx.PointerButtonPrimary); err != nil {
 		t.Fatal(err)
 	}
 	if err := driver.Move(90, 70); err != nil {
@@ -221,7 +221,7 @@ func TestRightClickDoubleClickAndDragReachTheControlThatDeclaredThem(t *testing.
 	if err := driver.Move(120, 80); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Release(120, 80, ui.PointerButtonPrimary); err != nil {
+	if err := driver.Release(120, 80, gfx.PointerButtonPrimary); err != nil {
 		t.Fatal(err)
 	}
 	if a.drags-before != 2 {
@@ -231,7 +231,7 @@ func TestRightClickDoubleClickAndDragReachTheControlThatDeclaredThem(t *testing.
 
 func TestMovingOverAControlIsHoverNotAPointerEvent(t *testing.T) {
 	a := &pointerPassApp{}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := NewDriver(a.config(), &canvas)
 	if err != nil {
 		t.Fatal(err)
@@ -250,16 +250,16 @@ func TestMovingOverAControlIsHoverNotAPointerEvent(t *testing.T) {
 // Pointer moves are the hottest event; an application that never asks PointerOn
 // must not pay an event pass for them.
 func BenchmarkPointerMoveWithoutPointerListeners(b *testing.B) {
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	paints := 0
 	config := Config{
 		Title: "move", Width: 400, Height: 200, Tree: &passTree,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			paints++
-			components.BeginButton(canvas, theme, passSave, ui.Rect{X: 10, Y: 10, Width: 100, Height: 32}).Default("Save")
+			components.BeginButton(canvas, theme, passSave, gfx.Rect{X: 10, Y: 10, Width: 100, Height: 32}).Default("Save")
 		},
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := NewDriver(config, &canvas)
 	if err != nil {
 		b.Fatal(err)
@@ -279,14 +279,14 @@ func BenchmarkPointerMoveWithoutPointerListeners(b *testing.B) {
 // returned (not inside it), and the repaint that follows shows what it changed.
 func TestAfterPaintRunsOutsideThePaintAndTheRepaintShowsIt(t *testing.T) {
 	inPaint, ranInPaint, runs, shown := false, false, 0, 0
-	theme := ui.LightTheme()
+	theme := gfx.LightTheme()
 	config := Config{
 		Title: "after", Width: 400, Height: 200, Tree: &passTree,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			inPaint = true
 			defer func() { inPaint = false }()
 			shown = runs
-			components.BeginButton(canvas, theme, passSave, ui.Rect{X: 10, Y: 10, Width: 100, Height: 32}).Default("Save")
+			components.BeginButton(canvas, theme, passSave, gfx.Rect{X: 10, Y: 10, Width: 100, Height: 32}).Default("Save")
 			if id, ok := canvas.ClickTarget(); ok {
 				canvas.AfterPaint(func() {
 					ranInPaint = ranInPaint || inPaint
@@ -297,7 +297,7 @@ func TestAfterPaintRunsOutsideThePaintAndTheRepaintShowsIt(t *testing.T) {
 			}
 		},
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := NewDriver(config, &canvas)
 	if err != nil {
 		t.Fatal(err)
@@ -317,5 +317,55 @@ func TestAfterPaintRunsOutsideThePaintAndTheRepaintShowsIt(t *testing.T) {
 	}
 	if runs != 1 {
 		t.Fatalf("an ordinary repaint ran the deferred function again: %d", runs)
+	}
+}
+
+// The event pass of a click carries the modifier keys held and how many clicks the
+// sequence had, for a pointer click, and a plain click for the keyboard's Enter.
+func TestTheClickPassSaysHowTheClickCame(t *testing.T) {
+	var got []gfx.ClickInfo
+	theme := gfx.LightTheme()
+	config := Config{
+		Title: "pass", Width: 400, Height: 200, Tree: &passTree,
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			if components.BeginButton(canvas, theme, passSave, gfx.Rect{X: 10, Y: 10, Width: 100, Height: 32}).Default("Save").Clicked() {
+				info, ok := canvas.ClickInfo()
+				if !ok {
+					t.Error("ClickInfo is not available in the pass that delivers the click")
+				}
+				got = append(got, info)
+			}
+		},
+	}
+	var canvas gfx.Canvas
+	driver, err := NewDriver(config, &canvas)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+
+	if err := driver.KeyDown(gfx.KeyShiftLeft, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Click(60, 26); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.KeyUp(gfx.KeyShiftLeft, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.DoubleClick(60, 26); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) < 3 {
+		t.Fatalf("%d clicks delivered", len(got))
+	}
+	if got[0].Modifiers&gfx.ModifierShift == 0 {
+		t.Errorf("a Shift-click arrived with modifiers %v", got[0].Modifiers)
+	}
+	if got[1].Modifiers != 0 {
+		t.Errorf("a click after Shift was released arrived with modifiers %v", got[1].Modifiers)
+	}
+	if last := got[len(got)-1]; last.Clicks != 2 {
+		t.Errorf("the second click of a double click arrived as click %d", last.Clicks)
 	}
 }

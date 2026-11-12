@@ -6,16 +6,16 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // movableWindow is a fake window that can be moved, as a preview's is.
 type movableWindow struct {
 	*fakeWindow
-	moves []ui.Point
+	moves []gfx.Point
 }
 
-func (window *movableWindow) MoveTo(origin ui.Point) { window.moves = append(window.moves, origin) }
+func (window *movableWindow) MoveTo(origin gfx.Point) { window.moves = append(window.moves, origin) }
 
 // previewingHost is a host whose adapter can show a drag preview.
 type previewingHost struct {
@@ -25,7 +25,7 @@ type previewingHost struct {
 
 func (host *previewingHost) CanPreview() bool { return true }
 
-func (host *previewingHost) OpenWindow(config Config, canvas *ui.Canvas, closed func()) (WindowControl, error) {
+func (host *previewingHost) OpenWindow(config Config, canvas *gfx.Canvas, closed func()) (WindowControl, error) {
 	control, err := host.fakeHost.OpenWindow(config, canvas, closed)
 	if err != nil {
 		return nil, err
@@ -56,26 +56,26 @@ func TestADragPreviewFollowsMovesAndGoesWhenClosed(t *testing.T) {
 			return err
 		}
 		var err error
-		preview, err = application.OpenDragPreview(DragPreviewConfig{Width: 120, Height: 28, Origin: ui.Point{X: 30, Y: 40}})
+		preview, err = application.OpenDragPreview(DragPreviewConfig{Width: 120, Height: 28, Origin: gfx.Point{X: 30, Y: 40}})
 		return err
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	config := host.windows[1].config
-	if config.WindowMode != windowPreview || config.Width != 120 || config.Height != 28 || config.originPoint() != (ui.Point{X: 30, Y: 40}) {
+	if config.WindowMode != windowPreview || config.Width != 120 || config.Height != 28 || config.originPoint() != (gfx.Point{X: 30, Y: 40}) {
 		t.Fatalf("the preview window was asked for as %+v", config)
 	}
 	if normalized, err := config.normalize(); err != nil || normalized.ClearColor.Alpha != 0 {
 		t.Fatalf("a preview must stay transparent: %+v, %v", normalized.ClearColor, err)
 	}
-	preview.MoveTo(ui.Point{X: 500, Y: 600})
-	if moves := host.opened[1].moves; len(moves) != 1 || moves[0] != (ui.Point{X: 500, Y: 600}) {
+	preview.MoveTo(gfx.Point{X: 500, Y: 600})
+	if moves := host.opened[1].moves; len(moves) != 1 || moves[0] != (gfx.Point{X: 500, Y: 600}) {
 		t.Fatalf("moves = %v", moves)
 	}
 	preview.Close()
 	preview.Close()
-	preview.MoveTo(ui.Point{X: 1, Y: 1})
+	preview.MoveTo(gfx.Point{X: 1, Y: 1})
 	if !host.windows[1].done || len(host.opened[1].moves) != 1 {
 		t.Fatalf("closed %v, moves after close %v", host.windows[1].done, host.opened[1].moves)
 	}
@@ -114,9 +114,9 @@ func BenchmarkDragPreviewMoveTo(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer preview.Close()
-	host.opened[0].moves = make([]ui.Point, 0, b.N)
+	host.opened[0].moves = make([]gfx.Point, 0, b.N)
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		preview.MoveTo(ui.Point{X: float32(i), Y: 1})
+		preview.MoveTo(gfx.Point{X: float32(i), Y: 1})
 	}
 }

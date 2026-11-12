@@ -86,6 +86,7 @@ const chineseComponentNames: Record<string, string> = {
   'message-scroller': '消息滚动',
   table: '表格',
   tree: '树',
+  'tree-navigation': '树形键盘导航',
   attachment: '附件',
   avatar: '头像',
   carousel: '走马灯',
@@ -145,7 +146,9 @@ const chineseComponentNames: Record<string, string> = {
   'dropdown-menu': '下拉菜单',
   'hover-card': '悬停卡片',
   'code-diff': '代码差异',
+  'code-merge': '三方合并',
   'split-button': '分离按钮',
+  list: '列表',
 };
 
 export function componentName(locale: Locale, id: string, fallback: string): string {
@@ -158,6 +161,12 @@ export function componentLabel(locale: Locale, id: string, fallback: string): st
 }
 
 const englishComponents: Record<string, { summary: string; examples: Record<string, [string, string]> }> = {
+  list: { summary: 'A virtualized page list with multi-selection, pinned section headings, drag-to-reorder rows and sideways scrolling.', examples: {
+    selection: ['File list', 'Icons, names, sizes and dates lie side by side; the heading of the section at the top stays there, and the list itself handles the selection and the drag.'],
+  } },
+  'tree-navigation': { summary: 'Keyboard navigation for a tree whose visible rows and expansion state are owned by the application.', examples: {
+    default: ['Keyboard navigation', 'Focus Production. Press Right Arrow to expand it or move to its first child, and Left Arrow to return to its parent or collapse it.'],
+  } },
   button: { summary: 'Button variants, disabled states and caller-owned click counts.', examples: {
     default: ['Click counter', 'Click or use the keyboard to update an application-owned counter.'],
     variants: ['Six variants', 'Production button variants share the same click counter.'],
@@ -192,14 +201,21 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
   'code-diff': { summary: 'An aligned two-pane comparison with native editing on the right.', examples: {
     default: ['Two-pane diff', 'Green marks local additions and red marks removed server content while both panes keep aligned line numbers.'],
   } },
+  'code-merge': { summary: 'A three-pane comparison with an editable result and caller-owned merge actions.', examples: {
+    default: ['Three-way alignment', 'Edit the center result; the source action reports a click without automatically merging file contents.'],
+  } },
   'split-button': { summary: 'Independent primary and menu actions in one joined control.', examples: {
     default: ['Save and more actions', 'The left target performs the primary action; the right target toggles the caller-owned menu state.'],
   } },
 };
 
 const chineseSections: Record<string, Record<string, Omit<Section, 'ID'>>> = {
+  list: {
+    usage: { Title: '页面层列表', Text: '示例调用页面层的 ui.List：行是应用声明的元素，列表负责虚拟化、选择、键盘、typeahead、吸顶分组、拖动排序和横向滚动；模型持有 ListState、选择集合与行数据。', Items: ['名称、大小与修改时间并排，行宽大于列表时可横向滚动。', 'Header 标出的分组标题在滚动时留在顶部，直到下一组标题把它顶走。', 'Selection 让点击与 Shift、Primary 组合选择多行；Reorder 在放下后由应用改数据。'] },
+    keyboard: { Title: '键盘与状态', Text: '方向键、Home、End 和翻页键移动并选择，Shift 扩展，Primary+方向键只移动；Enter 或双击报告 Submitted，输入行名开头会跳到该行。', Items: ['行是列表的选项，Tab 只停一次，落在键盘所在的行。', '焦点、悬停、按下和滚动状态由页面与 Canvas 提供，应用不重复保存。'] },
+  },
   button: {
-    usage: { Title: '用法', Text: '示例用 flex.Frame.Button 声明按钮；Clicked 在同一条声明里返回点击或键盘激活。重绘时保持 ID 稳定，状态由应用持有。', Items: ['Default、Secondary、Outline、Ghost、Destructive、Link 共用同一个交互模型。', '按钮默认按标签测量宽度；需要固定尺寸时用 Width。', 'XSmall、Small、Large 与图标尺寸由显式选项指定；纯图标按钮也需要可访问名称。'] },
+    usage: { Title: '用法', Text: '示例用 ui.Button(c, "标签") 声明按钮；Clicked 在同一条声明里返回点击或键盘激活。重绘时元素按位置或 Key 保持身份，状态由应用持有。', Items: ['Default、Secondary、Outline、Ghost、Destructive、Link 共用同一个交互模型。', '按钮默认按标签测量宽度；需要固定尺寸时用 Width。', 'XSmall、Small、Large 与图标尺寸由显式选项指定；纯图标按钮也需要可访问名称。'] },
     keyboard: { Title: '键盘与状态', Text: 'Tab 移动焦点，Enter 或空格激活可用按钮。鼠标获得焦点时不显示键盘焦点环。', Items: ['禁用控件不能激活，也不参与焦点遍历。', '悬停、按下和焦点状态直接读取 Canvas，不重复保存在应用状态里。'] },
   },
   badge: {
@@ -225,6 +241,10 @@ const chineseSections: Record<string, Record<string, Omit<Section, 'ID'>>> = {
   'code-diff': {
     usage: { Title: '行对齐的源码对比', Text: 'CodeDiff 根据调用方持有的 CodeDiffResult 绘制两栏并同步滚动。左栏是固定基准版本，右栏连接与 CodeEditor、Textarea 相同的平台文本编辑器。', Items: ['用 DiffCodeLines 生成新增、删除与修改行，不改变任一源码字符串。', '长行共享横向偏移，两栏共享纵向偏移。', '新增和删除行除背景色外，还提供符号与行号提示。'] },
     keyboard: { Title: '编辑与滚动', Text: '右栏保留基于字节偏移的选区、组合输入与插入点位置，左栏保持只读对齐。', Items: ['鼠标滚轮和滚动条拖动会更新共享偏移。', '只读预览不向平台暴露编辑器。', '应用应合并高频重算并丢弃较旧文本产生的结果。'] },
+  },
+  'code-merge': {
+    usage: { Title: '调用方对齐的三份源码', Text: 'CodeMerge 将 Current 和 Incoming 显示在可编辑 Result 两侧，三栏共享行网格。', Items: ['提供拆分的源码和对齐行；结果被编辑后应重新计算对齐。', '行号栏按钮提供稳定 ID 和行位置，由调用方决定接受改动的效果。', '冲突检测、剩余冲突数和解决策略不属于视图。'] },
+    keyboard: { Title: '编辑与滚动', Text: 'Result 使用与 CodeDiff 相同的原生文本输入、选区与输入法接线。', Items: ['三栏共享纵向滚动。', '预览的操作只记录点击，不会偷偷合并文件。'] },
   },
   'split-button': {
     usage: { Title: '两个独立操作', Text: 'SplitButton 用一个相连外观绘制主操作与菜单触发区，同时声明两个稳定 ID。调用 Paint 后通过 Clicked 分别读取结果。', Items: ['主操作与菜单两半具有独立的悬停、焦点、按下和禁用语义。', 'Open 由调用方持有，并作为菜单触发区的展开状态暴露。', '当菜单用于选择一个主要结果的不同方式时使用 SplitButton。'] },

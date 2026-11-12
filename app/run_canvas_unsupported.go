@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // RunCanvas reports that the current native backend is not implemented yet.
-func RunCanvas(config Config, canvas *ui.Canvas) error {
+func RunCanvas(config Config, canvas *gfx.Canvas) error {
 	if _, err := config.normalize(); err != nil {
 		return err
 	}

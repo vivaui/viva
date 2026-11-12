@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/semantic"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestTextSelectionAndIMEUseRuneRanges(t *testing.T) {
@@ -30,6 +30,36 @@ func TestTextSelectionAndIMEUseRuneRanges(t *testing.T) {
 	TextEvent{Kind: TextUnmark}.Apply(editor)
 	if TextStateOf(editor).Composing {
 		t.Fatal("unmark left active composition")
+	}
+}
+
+// TestDisableIMEPassesToThePlatformTextInput guards the pass-through: an input
+// that keeps the host's input method off a remote-desktop surface reaches the
+// platform editor, so the platform can act on it. A terminal hit is what such a
+// surface focuses; the flag is independent of it.
+func TestDisableIMEPassesToThePlatformTextInput(t *testing.T) {
+	field := gfx.Item(3)
+	config := Config{Width: 300, Height: 200}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(field, gfx.Rect{X: 10, Y: 10, Width: 200, Height: 30}, "Console", gfx.HitOptions{Role: gfx.RoleTerminal})
+	}
+	input := TextInput{KeyReleases: true, DisableIME: true, OnEvent: func(TextEvent) (TextState, error) {
+		return TextState{}, nil
+	}}
+	config.TextInput = func(TextInputContext) *TextInput { return &input }
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	if err := driver.Click(100, 25); err != nil {
+		t.Fatal(err)
+	}
+	if !driver.painter.nativeText.DisableIME {
+		t.Fatal("the platform text input does not disable the host input method")
+	}
+	if !driver.painter.nativeText.KeyReleases {
+		t.Fatal("the platform text input stopped asking for key releases")
 	}
 }
 
@@ -133,11 +163,11 @@ func TestTextStateOfPreservesRuneIndexedComposition(t *testing.T) {
 func TestEditorBackedTextInputMirrorsEditorAndAppliesNativeEvents(t *testing.T) {
 	const field, fieldLayer = 7, 600
 	editor := text.NewEditor("Go")
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "editor", Width: 200, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 		canvas.PushLayer(fieldLayer)
-		canvas.HitWithOptions(ui.Item(int(field)), ui.Rect{Width: 120, Height: 24}, "Name", ui.HitOptions{Role: ui.RoleTextField})
+		canvas.HitWithOptions(gfx.Item(int(field)), gfx.Rect{Width: 120, Height: 24}, "Name", gfx.HitOptions{Role: gfx.RoleTextField})
 		canvas.PopLayer()
 	}
 	var input TextInput
@@ -153,7 +183,7 @@ func TestEditorBackedTextInputMirrorsEditorAndAppliesNativeEvents(t *testing.T) 
 	// same click carry no text-input change.
 	var enabled *platform.TextInput
 	for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
-		frame, err := painter.pointer(platform.PointerEvent{Kind: kind, X: 10, Y: 10})
+		frame, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 10, Y: 10})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -161,7 +191,7 @@ func TestEditorBackedTextInputMirrorsEditorAndAppliesNativeEvents(t *testing.T) 
 			enabled = frame.TextInput.Input
 		}
 	}
-	if enabled == nil || enabled.State.Value != "Go" || enabled.Target != ui.Item(field) {
+	if enabled == nil || enabled.State.Value != "Go" || enabled.Target != gfx.Item(field) {
 		t.Fatalf("native input was not mirrored from the editor: %+v", enabled)
 	}
 	if context.Layer != fieldLayer || enabled.Layer != fieldLayer {
@@ -192,14 +222,14 @@ func TestEditorBackedTextInputMirrorsEditorAndAppliesNativeEvents(t *testing.T) 
 }
 
 func TestTextInputTargetChangeWithIdenticalPresentation(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	editor := text.NewEditor("same")
-	input := &TextInput{Editor: editor, Bounds: ui.Rect{Width: 100, Height: 24}, FontSize: 13}
+	input := &TextInput{Editor: editor, Bounds: gfx.Rect{Width: 100, Height: 24}, FontSize: 13}
 	painter := newTestPainter(t, &canvas, Config{
 		Title: "targets", Width: 200, Height: 100,
-		Paint: func(c *ui.Canvas, _ ui.Size) {
+		Paint: func(c *gfx.Canvas, _ gfx.Size) {
 			for i := 1; i <= 2; i++ {
-				c.HitWithOptions(ui.Item(i), ui.Rect{X: float32((i - 1) * 100), Width: 100, Height: 24}, "field", ui.HitOptions{Role: ui.RoleTextField})
+				c.HitWithOptions(gfx.Item(i), gfx.Rect{X: float32((i - 1) * 100), Width: 100, Height: 24}, "field", gfx.HitOptions{Role: gfx.RoleTextField})
 			}
 		},
 		TextInput: func(TextInputContext) *TextInput { return input },
@@ -207,12 +237,12 @@ func TestTextInputTargetChangeWithIdenticalPresentation(t *testing.T) {
 	for i := 1; i <= 2; i++ {
 		changed := false
 		for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
-			frame, err := painter.pointer(platform.PointerEvent{Kind: kind, X: float32((i-1)*100 + 10), Y: 10})
+			frame, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: float32((i-1)*100 + 10), Y: 10})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if frame.TextInput.Changed && frame.TextInput.Input != nil {
-				changed = frame.TextInput.Input.Target == ui.Item(i)
+				changed = frame.TextInput.Input.Target == gfx.Item(i)
 			}
 		}
 		if !changed {
@@ -222,7 +252,7 @@ func TestTextInputTargetChangeWithIdenticalPresentation(t *testing.T) {
 }
 
 func TestTextInputWithoutEditorOrHandlerRejectsNativeEvents(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	painter := newTestPainter(t, &canvas, Config{Title: "none", Width: 100, Height: 100})
 	if _, err := painter.applyTextEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "x"}); err == nil {
 		t.Fatal("a native text event without an active input must fail")
@@ -234,11 +264,11 @@ func TestTextInputWithoutEditorOrHandlerRejectsNativeEvents(t *testing.T) {
 func TestSecureFieldIsMaskedForThePlatformAndSilentForAccessibility(t *testing.T) {
 	const field = 9
 	editor := text.NewEditor("hunter2")
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "secure", Width: 200, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(ui.Item(int(field)), ui.Rect{Width: 120, Height: 24}, "Password", ui.HitOptions{
-			Role: ui.RoleTextField, Value: editor.String(), Secure: true,
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(int(field)), gfx.Rect{Width: 120, Height: 24}, "Password", gfx.HitOptions{
+			Role: gfx.RoleTextField, Value: editor.String(), Secure: true,
 		})
 	}
 	var context TextInputContext
@@ -250,7 +280,7 @@ func TestSecureFieldIsMaskedForThePlatformAndSilentForAccessibility(t *testing.T
 
 	var enabled *platform.TextInput
 	for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
-		frame, err := painter.pointer(platform.PointerEvent{Kind: kind, X: 10, Y: 10})
+		frame, err := painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 10, Y: 10})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -292,14 +322,14 @@ func TestSecureFieldIsMaskedForThePlatformAndSilentForAccessibility(t *testing.T
 // allocate. The handler closure and the provider's TextInput are both cached
 // across frames; returning a fresh one per paint used to cost two allocations.
 func TestFocusedTextFieldRepaintDoesNotAllocate(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	editor := text.NewEditor("hello")
 	input := &TextInput{Editor: editor}
 	config := Config{Title: "text", Width: 400, Height: 100}
 	config.TextInput = func(TextInputContext) *TextInput { return input }
-	config.Paint = func(c *ui.Canvas, _ ui.Size) {
-		c.HitWithOptions(ui.Item(1), ui.Rect{X: 10, Y: 10, Width: 200, Height: 30}, "field", ui.HitOptions{
-			Role: ui.RoleTextField, Autofocus: true,
+	config.Paint = func(c *gfx.Canvas, _ gfx.Size) {
+		c.HitWithOptions(gfx.Item(1), gfx.Rect{X: 10, Y: 10, Width: 200, Height: 30}, "field", gfx.HitOptions{
+			Role: gfx.RoleTextField, Autofocus: true,
 		})
 	}
 	painter := newTestPainter(t, &canvas, config)

@@ -40,6 +40,7 @@ void vivaKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int repe
     }
 }
 void vivaRawKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int flags, unsigned int code, const unsigned char *utf8, size_t utf8Length, const unsigned char *typed, size_t typedLength) {}
+void vivaWindowActivated(uintptr_t handle) {}
 void vivaFocusLost(uintptr_t handle, void *view) {}
 // The terminal's table, reduced to what these tests use: CJK ideographs take two cells,
 // combining marks none.
@@ -55,6 +56,7 @@ viva_text_line *vivaShapedLine(const unsigned char *utf8, size_t length, double 
 viva_text_line *vivaShapedLineStyle(const unsigned char *utf8, size_t length, double size, double weight, int italic) { return viva_text_line_create_style(utf8, length, size, weight, italic); }
 int vivaShortcutEvent(uintptr_t handle, void *view, int key, int modifiers, int repeat, const unsigned char *utf8, size_t utf8Length) { return 0; }
 void vivaOpenURL(const char *url) {}
+void vivaOpenFile(const char *path) {}
 int vivaApplicationQuitRequested(void) { return 0; }
 int vivaApplicationReopenRequested(void) { return 0; }
 int vivaFileDropEvent(uintptr_t handle, void *view, int phase, double x, double y, const char *paths, size_t length) { return 0; }
@@ -72,6 +74,8 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
                   size_t length, int64_t start, int64_t selectedLength,
                   int64_t replacementStart, int64_t replacementLength, int command) {}
 
+static NSUInteger copyRequests;
+
 @interface SelectionView : VivaMetalView {
 @public
     NSUInteger selectionEvents;
@@ -84,6 +88,7 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
     int lastKind;
     int lastCommand;
     NSString *lastText;
+    NSString *copyOverrideValue;
     // The modifiers the next Return key is taken to have.
     NSEventModifierFlags returnFlags;
 }
@@ -101,6 +106,7 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
 - (BOOL)hasCaretTimer;
 - (void)beginComposition;
 - (void)setTerminal:(BOOL)value;
+- (void)setCopyOverride:(NSString *)value enabled:(BOOL)enabled;
 - (void)setCellWidth:(CGFloat)value;
 - (void)enableKeyCallbacks;
 - (void)endComposition;
@@ -111,6 +117,15 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
 @end
 
 @implementation SelectionView
+- (void)setCopyOverride:(NSString *)value enabled:(BOOL)enabled {
+    _textCopyOverride = enabled;
+    [copyOverrideValue release];
+    copyOverrideValue = [value copy];
+}
+- (void)dealloc {
+    [copyOverrideValue release];
+    [super dealloc];
+}
 - (void)resetText:(NSString *)value {
     [self stopCaretBlink];
     [_text release];
@@ -192,6 +207,19 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
 - (NSRect)inputFrame { return _textFrame; }
 - (void)setAlignment:(int)value { _textAlignment = value; }
 @end
+
+unsigned char *vivaCopyText(uintptr_t handle, void *view, size_t *length) {
+    copyRequests++;
+    NSString *value = ((SelectionView *)view)->copyOverrideValue;
+    const char *utf8 = [value UTF8String];
+    *length = utf8 == NULL ? 0 : strlen(utf8);
+    if (*length == 0) {
+        return NULL;
+    }
+    unsigned char *result = malloc(*length);
+    memcpy(result, utf8, *length);
+    return result;
+}
 
 static NSEvent *keyEvent(NSString *characters, NSEventModifierFlags modifiers) {
     return [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
@@ -523,16 +551,42 @@ int main(void) {
         assert([view performKeyEquivalent:keyEvent(@"c", command)]);
         assert([[board stringForType:NSPasteboardTypeString] isEqualToString:@"keep"]);
 
-        // Cut copies, then deletes the selection the way Backspace does.
+        // Cut copies, then emits an empty paste to delete the application selection.
         [view selectTextRange:NSMakeRange(0, 1)];
         assert([view performKeyEquivalent:keyEvent(@"x", command)]);
         assert([[board stringForType:NSPasteboardTypeString] isEqualToString:@"A"]);
-        assert(view->editEvents == 1 && view->lastKind == VIVA_TEXT_COMMAND_EVENT &&
-               view->lastCommand == VIVA_TEXT_DELETE_BACKWARD);
+        assert(view->editEvents == 1 && view->lastKind == VIVA_TEXT_PASTE &&
+               view->lastCommand == 0);
         [view selectTextRange:NSMakeRange(2, 0)];
         NSUInteger edits = view->editEvents;
         assert([view performKeyEquivalent:keyEvent(@"x", command)]);
         assert(view->editEvents == edits);
+
+        // A component-owned disjoint selection copies its prepared text even
+        // though the native primary selection is collapsed.
+        [view setCopyOverride:@"bc\n  " enabled:YES];
+        NSUInteger previousCopies = copyRequests;
+        [view copy:nil];
+        assert(copyRequests == previousCopies + 1);
+        assert([[board stringForType:NSPasteboardTypeString] isEqualToString:@"bc\n  "]);
+        [view cut:nil];
+        assert(copyRequests == previousCopies + 2);
+        assert(view->editEvents == edits + 1 && view->lastKind == VIVA_TEXT_PASTE &&
+               view->lastCommand == 0);
+        [view setCopyOverride:@"" enabled:YES];
+        [board clearContents];
+        [board setString:@"keep" forType:NSPasteboardTypeString];
+        [view copy:nil];
+        [view cut:nil];
+        assert([[board stringForType:NSPasteboardTypeString] isEqualToString:@"keep"]);
+        assert(view->editEvents == edits + 1);
+        [view setCopyOverride:nil enabled:YES];
+        [view selectTextRange:NSMakeRange(0, 1)];
+        [view copy:nil];
+        [view cut:nil];
+        assert([[board stringForType:NSPasteboardTypeString] isEqualToString:@"keep"]);
+        assert(view->editEvents == edits + 1);
+        [view setCopyOverride:nil enabled:NO];
 
         // Paste inserts the pasteboard text; the case of the key does not matter.
         [board clearContents];

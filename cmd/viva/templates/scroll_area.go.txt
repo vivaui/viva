@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 const (
 	scrollAreaBarSize      float32 = 10
@@ -12,14 +12,14 @@ const (
 // ScrollAreaGeometry is the complete deterministic layout of one externally
 // controlled scroll area. Content is already translated by the clamped offset.
 type ScrollAreaGeometry struct {
-	Bounds          ui.Rect
-	Viewport        ui.Rect
-	Content         ui.Rect
-	VerticalTrack   ui.Rect
-	VerticalThumb   ui.Rect
-	HorizontalTrack ui.Rect
-	HorizontalThumb ui.Rect
-	Corner          ui.Rect
+	Bounds          gfx.Rect
+	Viewport        gfx.Rect
+	Content         gfx.Rect
+	VerticalTrack   gfx.Rect
+	VerticalThumb   gfx.Rect
+	HorizontalTrack gfx.Rect
+	HorizontalThumb gfx.Rect
+	Corner          gfx.Rect
 	OffsetX         float32
 	OffsetY         float32
 	MaxOffsetX      float32
@@ -31,19 +31,19 @@ type ScrollAreaGeometry struct {
 // pointer capture, inertial scrolling, and scroll scheduling belong to the
 // runtime and are intentionally not simulated here.
 type ScrollArea struct {
-	canvas              *ui.Canvas
-	theme               ui.Theme
-	bounds              ui.Rect
-	contentSize         ui.Size
+	canvas              *gfx.Canvas
+	theme               gfx.Theme
+	bounds              gfx.Rect
+	contentSize         gfx.Size
 	offsetX             float32
 	offsetY             float32
-	verticalID          ui.ID
+	verticalID          gfx.ID
 	verticalLabel       string
 	verticalValue       string
-	horizontalID        ui.ID
+	horizontalID        gfx.ID
 	horizontalLabel     string
 	horizontalValue     string
-	viewportID          ui.ID
+	viewportID          gfx.ID
 	viewportLabel       string
 	disabled            bool
 	reserveBars         bool
@@ -54,7 +54,7 @@ type ScrollArea struct {
 
 // BeginScrollArea declares a source-owned scroll area with explicit content
 // extents. Content smaller than the viewport is expanded to the viewport.
-func BeginScrollArea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, contentSize ui.Size) ScrollArea {
+func BeginScrollArea(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, contentSize gfx.Size) ScrollArea {
 	return ScrollArea{canvas: canvas, theme: theme, bounds: bounds, contentSize: contentSize}
 }
 
@@ -67,7 +67,7 @@ func (area ScrollArea) Offset(x, y float32) ScrollArea {
 
 // VerticalScrollbar assigns the stable action ID and accessibility strings for
 // the vertical thumb. ID zero keeps the visual geometry non-interactive.
-func (area ScrollArea) VerticalScrollbar(id ui.ID, label, value string) ScrollArea {
+func (area ScrollArea) VerticalScrollbar(id gfx.ID, label, value string) ScrollArea {
 	area.verticalID = id
 	area.verticalLabel = label
 	area.verticalValue = value
@@ -76,7 +76,7 @@ func (area ScrollArea) VerticalScrollbar(id ui.ID, label, value string) ScrollAr
 
 // HorizontalScrollbar assigns the stable action ID and accessibility strings
 // for the horizontal thumb. ID zero keeps the visual geometry non-interactive.
-func (area ScrollArea) HorizontalScrollbar(id ui.ID, label, value string) ScrollArea {
+func (area ScrollArea) HorizontalScrollbar(id gfx.ID, label, value string) ScrollArea {
 	area.horizontalID = id
 	area.horizontalLabel = label
 	area.horizontalValue = value
@@ -86,7 +86,7 @@ func (area ScrollArea) HorizontalScrollbar(id ui.ID, label, value string) Scroll
 // Viewport makes the scrollable content a focusable group of id, so the
 // keyboard can reach the area and ScrollForKey can move it. Content controls
 // painted after BeginContent keep their own hits and win the press.
-func (area ScrollArea) Viewport(id ui.ID, label string) ScrollArea {
+func (area ScrollArea) Viewport(id gfx.ID, label string) ScrollArea {
 	area.viewportID, area.viewportLabel = id, label
 	return area
 }
@@ -156,7 +156,7 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 
 	geometry := ScrollAreaGeometry{
 		Bounds: bounds, Viewport: viewport,
-		Content: ui.Rect{
+		Content: gfx.Rect{
 			X: viewport.X - offsetX, Y: viewport.Y - offsetY,
 			Width: contentWidth, Height: contentHeight,
 		},
@@ -172,21 +172,21 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 	if hasHorizontal && hasVertical {
 		verticalExtent = scrollAreaMax(verticalExtent-barSize, 0)
 		horizontalExtent = scrollAreaMax(horizontalExtent-barSize, 0)
-		geometry.Corner = ui.Rect{
+		geometry.Corner = gfx.Rect{
 			X:     bounds.X + bounds.Width - barSize,
 			Y:     bounds.Y + bounds.Height - barSize,
 			Width: barSize, Height: barSize,
 		}
 	}
 	if hasVertical {
-		geometry.VerticalTrack = ui.Rect{
+		geometry.VerticalTrack = gfx.Rect{
 			X: bounds.X + bounds.Width - barSize, Y: bounds.Y,
 			Width: barSize, Height: verticalExtent,
 		}
 		geometry.VerticalThumb = scrollAreaThumb(geometry.VerticalTrack, true, viewport.Height, contentHeight, offsetY, maximumY)
 	}
 	if hasHorizontal {
-		geometry.HorizontalTrack = ui.Rect{
+		geometry.HorizontalTrack = gfx.Rect{
 			X: bounds.X, Y: bounds.Y + bounds.Height - barSize,
 			Width: horizontalExtent, Height: barSize,
 		}
@@ -199,7 +199,7 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 // in it. Adding one bar can shrink the other axis enough to need its bar too, so the two
 // are resolved together. The content extents are the caller's, not yet widened to the
 // viewport.
-func scrollAreaReservedViewport(bounds ui.Rect, contentWidth, contentHeight, barSize float32) ui.Rect {
+func scrollAreaReservedViewport(bounds gfx.Rect, contentWidth, contentHeight, barSize float32) gfx.Rect {
 	hasHorizontal, hasVertical := contentWidth > bounds.Width, contentHeight > bounds.Height
 	for range 3 {
 		width, height := bounds.Width, bounds.Height
@@ -257,7 +257,7 @@ func (area *ScrollArea) BeginContent() ScrollAreaGeometry {
 	geometry := area.Geometry()
 	if area.canvas != nil && !area.contentClipIsActive && geometry.Viewport.Width > 0 && geometry.Viewport.Height > 0 {
 		if !area.viewportID.IsZero() && !area.disabled {
-			area.canvas.HitWithOptions(area.viewportID, geometry.Viewport, area.viewportLabel, ui.HitOptions{Role: ui.RoleGroup})
+			area.canvas.HitWithOptions(area.viewportID, geometry.Viewport, area.viewportLabel, gfx.HitOptions{Role: gfx.RoleGroup})
 		}
 		area.canvas.Clip(geometry.Viewport)
 		area.contentClipIsActive = true
@@ -280,7 +280,7 @@ func (area *ScrollArea) EndContent() ScrollAreaGeometry {
 	return geometry
 }
 
-func (area ScrollArea) paintScrollbar(track, thumb ui.Rect, id ui.ID, label, value string) {
+func (area ScrollArea) paintScrollbar(track, thumb gfx.Rect, id gfx.ID, label, value string) {
 	if area.hoverBars && !area.barsRevealed {
 		return
 	}
@@ -302,8 +302,8 @@ func (area ScrollArea) paintScrollbar(track, thumb ui.Rect, id ui.ID, label, val
 	}
 	area.canvas.Rounded(thumb, scrollAreaMin(thumb.Width, thumb.Height)/2, color)
 	if !id.IsZero() {
-		area.canvas.HitWithOptions(id, track, label, ui.HitOptions{
-			Role: ui.RoleSeparator, Value: value, Disabled: area.disabled, SkipFocus: true,
+		area.canvas.HitWithOptions(id, track, label, gfx.HitOptions{
+			Role: gfx.RoleSeparator, Value: value, Disabled: area.disabled, SkipFocus: true,
 		})
 	}
 }
@@ -313,28 +313,28 @@ func (area ScrollArea) paintScrollbar(track, thumb ui.Rect, id ui.ID, label, val
 // viewport, and Home/End to the start and end vertically. step is the arrow
 // step (32 pixels when non-positive). It returns the new offsets and whether
 // the key belongs to the scroll area.
-func (area ScrollArea) ScrollForKey(x, y float32, key ui.Key, step float32) (float32, float32, bool) {
+func (area ScrollArea) ScrollForKey(x, y float32, key gfx.Key, step float32) (float32, float32, bool) {
 	geometry := area.Geometry()
 	if step <= 0 {
 		step = 32
 	}
 	page := max(geometry.Viewport.Height*0.9, step)
 	switch key {
-	case ui.KeyLeft:
+	case gfx.KeyLeft:
 		x -= step
-	case ui.KeyRight:
+	case gfx.KeyRight:
 		x += step
-	case ui.KeyUp:
+	case gfx.KeyUp:
 		y -= step
-	case ui.KeyDown:
+	case gfx.KeyDown:
 		y += step
-	case ui.KeyPageUp:
+	case gfx.KeyPageUp:
 		y -= page
-	case ui.KeyPageDown:
+	case gfx.KeyPageDown:
 		y += page
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		y = 0
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		y = geometry.MaxOffsetY
 	default:
 		return x, y, false
@@ -342,8 +342,8 @@ func (area ScrollArea) ScrollForKey(x, y float32, key ui.Key, step float32) (flo
 	return scrollAreaClamp(x, 0, geometry.MaxOffsetX), scrollAreaClamp(y, 0, geometry.MaxOffsetY), true
 }
 
-func scrollAreaThumb(track ui.Rect, vertical bool, viewportExtent, contentExtent, offset, maximum float32) ui.Rect {
-	inner := ui.Rect{
+func scrollAreaThumb(track gfx.Rect, vertical bool, viewportExtent, contentExtent, offset, maximum float32) gfx.Rect {
+	inner := gfx.Rect{
 		X: track.X + scrollAreaBarInset, Y: track.Y + scrollAreaBarInset,
 		Width:  scrollAreaMax(track.Width-scrollAreaBarInset*2, 0),
 		Height: scrollAreaMax(track.Height-scrollAreaBarInset*2, 0),
@@ -353,7 +353,7 @@ func scrollAreaThumb(track ui.Rect, vertical bool, viewportExtent, contentExtent
 		trackExtent = inner.Height
 	}
 	if trackExtent <= 0 || contentExtent <= 0 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	thumbExtent := trackExtent * viewportExtent / contentExtent
 	thumbExtent = scrollAreaClamp(thumbExtent, scrollAreaMin(scrollAreaMinThumb, trackExtent), trackExtent)
@@ -362,12 +362,12 @@ func scrollAreaThumb(track ui.Rect, vertical bool, viewportExtent, contentExtent
 		position = (trackExtent - thumbExtent) * offset / maximum
 	}
 	if vertical {
-		return ui.Rect{X: inner.X, Y: inner.Y + position, Width: inner.Width, Height: thumbExtent}
+		return gfx.Rect{X: inner.X, Y: inner.Y + position, Width: inner.Width, Height: thumbExtent}
 	}
-	return ui.Rect{X: inner.X + position, Y: inner.Y, Width: thumbExtent, Height: inner.Height}
+	return gfx.Rect{X: inner.X + position, Y: inner.Y, Width: thumbExtent, Height: inner.Height}
 }
 
-func scrollAreaNormalizeRect(bounds ui.Rect) ui.Rect {
+func scrollAreaNormalizeRect(bounds gfx.Rect) gfx.Rect {
 	bounds.X = scrollAreaFinite(bounds.X)
 	bounds.Y = scrollAreaFinite(bounds.Y)
 	bounds.Width = scrollAreaFiniteNonNegative(bounds.Width)
@@ -415,8 +415,8 @@ func scrollAreaMin(left, right float32) float32 {
 	return right
 }
 
-func scrollAreaExpand(bounds ui.Rect, amount float32) ui.Rect {
-	return ui.Rect{
+func scrollAreaExpand(bounds gfx.Rect, amount float32) gfx.Rect {
+	return gfx.Rect{
 		X: bounds.X - amount, Y: bounds.Y - amount,
 		Width: bounds.Width + amount*2, Height: bounds.Height + amount*2,
 	}

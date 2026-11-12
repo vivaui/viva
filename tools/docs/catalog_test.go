@@ -44,7 +44,7 @@ func TestCatalogAndExportUseActualGoSource(t *testing.T) {
 	if module, err := os.ReadFile(filepath.Join(output, "public/sources/go.mod")); err != nil || !bytes.Contains(module, []byte("\nmodule ")) {
 		t.Fatalf("the published sources are not a module of their own: %v", err)
 	}
-	documented, examples := 0, 0
+	documented, componentPages, examples := 0, 0, 0
 	for _, entry := range manifest.Coverage {
 		if entry.Documented {
 			documented++
@@ -58,8 +58,16 @@ func TestCatalogAndExportUseActualGoSource(t *testing.T) {
 			t.Fatalf("source mismatch for %s: %v", entry.ID, err)
 		}
 	}
-	if documented != len(pages) {
-		t.Fatalf("documented coverage %d != pages %d", documented, len(pages))
+	for _, page := range pages {
+		if strings.HasPrefix(page.Source, "components/") {
+			componentPages++
+		}
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(page.Source))); err != nil {
+			t.Fatalf("%s: source %s: %v", page.ID, page.Source, err)
+		}
+	}
+	if documented != componentPages {
+		t.Fatalf("documented coverage %d != component pages %d", documented, componentPages)
 	}
 	for _, page := range pages {
 		if page.Revision != manifest.Revision {
@@ -93,7 +101,7 @@ func TestCatalogAndExportUseActualGoSource(t *testing.T) {
 func manifestFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	for _, directory := range []string{"app", "ui", "components", "internal", "cmd/component-preview", "cmd/viva/templates", "tools/docs"} {
+	for _, directory := range []string{"app", "ui", "gfx", "components", "internal", "cmd/component-preview", "cmd/viva/templates", "tools/docs"} {
 		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -126,7 +134,7 @@ func TestButtonExamplesCarryUsageSnippets(t *testing.T) {
 		t.Fatal("button page missing")
 	}
 	for _, example := range button.Examples {
-		if !strings.Contains(example.Snippet, "f.Button") {
+		if !strings.Contains(example.Snippet, "ui.Button(") {
 			t.Errorf("button/%s has no call-site snippet: %q", example.ID, example.Snippet)
 		}
 		if example.ID != "variants" && example.ID != "disabled" {

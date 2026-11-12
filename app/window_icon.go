@@ -23,13 +23,15 @@ type WindowIcon struct {
 // StatusIcon is the picture as a status-area icon of size pixels, in the form
 // the platform's status area expects. macOS tints its icons to the menu bar, so
 // there it is the picture's mark alone, a template; Windows and Linux show an
-// icon as it is, so there it is the same rounded tile a window shows.
+// icon as it is, so there it is the rounded tile a window shows, cropped to the
+// mark: a status area draws the icon tiny, and the margin the canvas carries for
+// a large icon would leave the mark a size smaller than the icons beside it.
 func (icon WindowIcon) StatusIcon(size int) StatusIcon {
 	if runtime.GOOS == "darwin" {
 		mark := icon.platform().Silhouette(size)
 		return StatusIcon{Size: mark.Size, RGBA: mark.RGBA, Template: true}
 	}
-	tile := icon.platform().Tile(size, 1)
+	tile := icon.platform().TileMark(size)
 	return StatusIcon{Size: tile.Size, RGBA: tile.RGBA}
 }
 

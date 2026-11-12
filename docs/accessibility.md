@@ -14,7 +14,7 @@ Role, bounds, name (`Label`), `Value`, `Hint`, `Description`, the states
 `ReadOnly`, `Secure`), `Focusable`, `Expandable`, a heading `Level`, `PosInSet`
 and `SetSize`, a `Live` setting, a numeric `Range` for sliders, and, for the
 focused text field, its `Selection` in code points. Components set the extras
-through `ui.HitOptions` (and `Canvas.ContainerWithOptions` for regions).
+through `gfx.HitOptions` (and `Canvas.ContainerWithOptions` for regions).
 
 What a node can do follows from its role and state (`AccessibilityNode.Patterns`),
 so every platform offers the same set. A node with no `ID` is a region
@@ -67,7 +67,7 @@ Cost when nobody is listening:
 
 - Pure logic (roles, states, patterns, text units, the AT-SPI object model and
   signals, the host's off cost) runs under `go test` on every host.
-- Windows 11 (WARP VM): an external `System.Windows.Automation` client read the
+- Windows 11 (software rendering): an external `System.Windows.Automation` client read the
   tree, called Invoke, Toggle, RangeValue.SetValue, Value.SetValue, ExpandCollapse
   and the Text pattern (document range, selection, `Move` by word, `Select`), and
   received focus, property, text-changed and text-selection-changed events.

@@ -1,7 +1,7 @@
 package {{PACKAGE}}
 
 import (
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // InputGroupCommand is a request for the caller-owned editor. Addon button
@@ -16,7 +16,7 @@ const (
 // InputGroupSemantics is the typed semantic projection of the embedded text
 // control. Selection and composition are normalized UTF-8 byte ranges.
 type InputGroupSemantics struct {
-	ID               ui.ID
+	ID               gfx.ID
 	Label            string
 	Value            string
 	Hint             string
@@ -77,11 +77,11 @@ const (
 // shadcn's InputGroupButton default.
 type InputGroupSlot struct {
 	Kind InputGroupSlotKind
-	ID   ui.ID
-	Icon ui.Icon
+	ID   gfx.ID
+	Icon gfx.Icon
 	// IconTransform moves the painted icon inside its addon without moving the
 	// addon, its label or its hit region.
-	IconTransform ui.IconTransform
+	IconTransform gfx.IconTransform
 	Text          string
 	Label         string
 	Hint          string
@@ -96,7 +96,7 @@ type InputGroupSlot struct {
 // InputGroupSnapshot is one caller-owned input or textarea presentation with
 // four explicit shadcn addon positions.
 type InputGroupSnapshot struct {
-	ID           ui.ID
+	ID           gfx.ID
 	Label        string
 	Value        string
 	DisplayValue string
@@ -107,10 +107,15 @@ type InputGroupSnapshot struct {
 	Invalid      bool
 	// Secure makes a single-line control a password field, as for
 	// InputSnapshot.Secure.
-	Secure           bool
-	Focused          bool
-	Multiline        bool
-	NativeEditing    bool
+	Secure        bool
+	Focused       bool
+	Multiline     bool
+	NativeEditing bool
+	// HideEditorText makes the platform editor behind a focused control invisible and the
+	// component paint the text, selection, composition and caret itself; the editor is only
+	// where input arrives (give Caret, SelectionStart/End and CompositionStart/End, and set
+	// ShowCaret while the control is focused). See InputSnapshot.HideEditorText.
+	HideEditorText   bool
 	NavigationKeys   bool
 	ShowCaret        bool
 	Caret            int
@@ -118,10 +123,13 @@ type InputGroupSnapshot struct {
 	SelectionEnd     int
 	CompositionStart int
 	CompositionEnd   int
-	InlineStart      InputGroupSlot
-	InlineEnd        InputGroupSlot
-	BlockStart       InputGroupSlot
-	BlockEnd         InputGroupSlot
+	// Blink is the phase of the caret the component paints for a single-line control;
+	// see InputSnapshot.Blink. A multi-line control paints its caret steady.
+	Blink       *CaretBlink
+	InlineStart InputGroupSlot
+	InlineEnd   InputGroupSlot
+	BlockStart  InputGroupSlot
+	BlockEnd    InputGroupSlot
 }
 
 // Semantics returns a normalized, allocation-free semantic snapshot for the
@@ -145,11 +153,11 @@ func (snapshot InputGroupSnapshot) Semantics() InputGroupSemantics {
 // InputGroupCommandForKey maps only commands owned by the selected control
 // shape. Single-line groups leave Enter to form activation; multiline groups
 // request a newline from the caller-owned editor.
-func InputGroupCommandForKey(snapshot InputGroupSnapshot, key ui.Key) (InputGroupCommand, bool) {
+func InputGroupCommandForKey(snapshot InputGroupSnapshot, key gfx.Key) (InputGroupCommand, bool) {
 	if snapshot.Disabled || snapshot.ReadOnly || !snapshot.Multiline {
 		return InputGroupCommandNone, false
 	}
-	if key == ui.KeyEnter {
+	if key == gfx.KeyEnter {
 		return InputGroupCommandInsertNewline, true
 	}
 	return InputGroupCommandNone, false
@@ -157,12 +165,12 @@ func InputGroupCommandForKey(snapshot InputGroupSnapshot, key ui.Key) (InputGrou
 
 // InputGroupLayout reports every deterministic region produced by a snapshot.
 type InputGroupLayout struct {
-	Bounds      ui.Rect
-	Control     ui.Rect
-	InlineStart ui.Rect
-	InlineEnd   ui.Rect
-	BlockStart  ui.Rect
-	BlockEnd    ui.Rect
+	Bounds      gfx.Rect
+	Control     gfx.Rect
+	InlineStart gfx.Rect
+	InlineEnd   gfx.Rect
+	BlockStart  gfx.Rect
+	BlockEnd    gfx.Rect
 }
 
 // The geometry of an input group, after Vega. Inline addons sit inside the
@@ -178,7 +186,7 @@ const (
 
 // PaintInputGroup paints one official bordered group. It only describes the
 // current editor/slot snapshot; focus changes, editing, and IME stay external.
-func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot InputGroupSnapshot) InputGroupLayout {
+func PaintInputGroup(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snapshot InputGroupSnapshot) InputGroupLayout {
 	blockStartHeight := inputGroupBlockHeight(snapshot.BlockStart)
 	blockEndHeight := inputGroupBlockHeight(snapshot.BlockEnd)
 	controlHeight := theme.Metrics.ControlHeight
@@ -194,41 +202,74 @@ func PaintInputGroup(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot
 		return layout
 	}
 
-	row := ui.Rect{X: bounds.X, Y: bounds.Y + blockStartHeight, Width: bounds.Width, Height: bounds.Height - blockStartHeight - blockEndHeight}
+	row := gfx.Rect{X: bounds.X, Y: bounds.Y + blockStartHeight, Width: bounds.Width, Height: bounds.Height - blockStartHeight - blockEndHeight}
 	startWidth := inputGroupInlineWidth(canvas, theme, snapshot.InlineStart, row.Height)
 	endWidth := inputGroupInlineWidth(canvas, theme, snapshot.InlineEnd, row.Height)
-	layout.BlockStart = ui.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: blockStartHeight}
-	layout.BlockEnd = ui.Rect{X: bounds.X, Y: bounds.Y + bounds.Height - blockEndHeight, Width: bounds.Width, Height: blockEndHeight}
-	layout.InlineStart = ui.Rect{X: row.X, Y: row.Y, Width: startWidth, Height: row.Height}
-	layout.InlineEnd = ui.Rect{X: row.X + row.Width - endWidth, Y: row.Y, Width: endWidth, Height: row.Height}
-	layout.Control = ui.Rect{X: row.X + startWidth, Y: row.Y, Width: inputGroupMax(0, row.Width-startWidth-endWidth), Height: row.Height}
+	layout.BlockStart = gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: blockStartHeight}
+	layout.BlockEnd = gfx.Rect{X: bounds.X, Y: bounds.Y + bounds.Height - blockEndHeight, Width: bounds.Width, Height: blockEndHeight}
+	layout.InlineStart = gfx.Rect{X: row.X, Y: row.Y, Width: startWidth, Height: row.Height}
+	layout.InlineEnd = gfx.Rect{X: row.X + row.Width - endWidth, Y: row.Y, Width: endWidth, Height: row.Height}
+	layout.Control = gfx.Rect{X: row.X + startWidth, Y: row.Y, Width: inputGroupMax(0, row.Width-startWidth-endWidth), Height: row.Height}
 
 	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	inputGroupPaintSlot(canvas, theme, layout.BlockStart, snapshot.BlockStart, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.BlockEnd, snapshot.BlockEnd, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.InlineStart, snapshot.InlineStart, false, true, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.InlineEnd, snapshot.InlineEnd, false, false, snapshot.Disabled)
 	content := inputGroupContent(theme, layout.Control, snapshot.Multiline,
 		snapshot.InlineStart.Kind != InputGroupSlotNone, snapshot.InlineEnd.Kind != InputGroupSlotNone)
-	if !snapshot.NativeEditing && content.Width > 0 && content.Height > 0 {
+	if (!snapshot.NativeEditing || snapshot.HideEditorText) && content.Width > 0 && content.Height > 0 {
 		inputGroupPaintControl(canvas, theme, content, snapshot, focused)
 	}
 
 	if !snapshot.ID.IsZero() && layout.Control.Width > 0 {
-		canvas.HitWithOptions(snapshot.ID, layout.Control, snapshot.Label, ui.HitOptions{
-			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
+		// A single line is centered in the field's text band, where the caret and
+		// selection live. A multi-line value starts at the content's top, so its
+		// hit bounds are the whole content rectangle.
+		textBounds := content
+		if !snapshot.Multiline {
+			lineTop, lineHeight := inputLineBox(content, theme.Metrics.FontSizeM)
+			textBounds = gfx.Rect{X: content.X, Y: lineTop, Width: content.Width, Height: lineHeight}
+		}
+		options := gfx.HitOptions{
+			Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: snapshot.Multiline, Secure: snapshot.Secure,
 			NavigationKeys: snapshot.NavigationKeys,
-			TextBounds:     content, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
-		})
+			TextBounds:     textBounds, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
+		}
+		if snapshot.HideEditorText {
+			options.TextColor = gfx.Color{}
+			options.HideNativeOverlays = true
+		}
+		canvas.HitWithOptions(snapshot.ID, layout.Control, snapshot.Label, options)
 	}
 	return layout
 }
 
 // inputGroupContent is where the control's text sits inside its bounds: the
 // same inset as a standalone Input unless an addon is beside it.
-func inputGroupContent(theme ui.Theme, control ui.Rect, multiline, hasStart, hasEnd bool) ui.Rect {
+// InputAddonsLayout places an inline addon at each end of a single-line field in
+// bounds, as PaintInputGroup does, and returns their rectangles and the one the
+// text is centered in between them. A slot of kind InputGroupSlotNone takes no room.
+func InputAddonsLayout(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, start, end InputGroupSlot) (startBounds, endBounds, content gfx.Rect) {
+	startWidth := inputGroupInlineWidth(canvas, theme, start, bounds.Height)
+	endWidth := inputGroupInlineWidth(canvas, theme, end, bounds.Height)
+	startBounds = gfx.Rect{X: bounds.X, Y: bounds.Y, Width: startWidth, Height: bounds.Height}
+	endBounds = gfx.Rect{X: bounds.X + bounds.Width - endWidth, Y: bounds.Y, Width: endWidth, Height: bounds.Height}
+	control := gfx.Rect{X: bounds.X + startWidth, Y: bounds.Y, Width: inputGroupMax(0, bounds.Width-startWidth-endWidth), Height: bounds.Height}
+	content = inputGroupContent(theme, control, false, start.Kind != InputGroupSlotNone, end.Kind != InputGroupSlotNone)
+	return startBounds, endBounds, content
+}
+
+// PaintInputAddon paints one inline addon of a field in the rectangle
+// InputAddonsLayout gave it, start or end, and declares the hit of a button. Paint
+// it after the field's own hit, so that a press on the button is the button's.
+func PaintInputAddon(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, slot InputGroupSlot, start, disabled bool) {
+	inputGroupPaintSlot(canvas, theme, bounds, slot, false, start, disabled)
+}
+
+func inputGroupContent(theme gfx.Theme, control gfx.Rect, multiline, hasStart, hasEnd bool) gfx.Rect {
 	left := theme.Metrics.TextInsetX()
 	right := left
 	if hasStart {
@@ -237,7 +278,7 @@ func inputGroupContent(theme ui.Theme, control ui.Rect, multiline, hasStart, has
 	if hasEnd {
 		right = inputGroupControlInset
 	}
-	content := ui.Rect{X: control.X + left, Y: control.Y, Width: inputGroupMax(0, control.Width-left-right), Height: control.Height}
+	content := gfx.Rect{X: control.X + left, Y: control.Y, Width: inputGroupMax(0, control.Width-left-right), Height: control.Height}
 	if multiline {
 		content.Y += inputGroupMultilinePad
 		content.Height = inputGroupMax(0, content.Height-2*inputGroupMultilinePad)
@@ -268,23 +309,23 @@ func inputGroupOuterPad(kind InputGroupSlotKind) float32 {
 
 // inputGroupContentSize is the natural size of an addon's content in a row of
 // the given height: what a slot without an explicit Width is as wide as.
-func inputGroupContentSize(canvas *ui.Canvas, theme ui.Theme, slot InputGroupSlot, rowHeight float32) (width, height float32) {
+func inputGroupContentSize(canvas *gfx.Canvas, theme gfx.Theme, slot InputGroupSlot, rowHeight float32) (width, height float32) {
 	switch slot.Kind {
 	case InputGroupSlotIcon, InputGroupSlotSpinner:
 		return inputGroupIconSize, inputGroupIconSize
 	case InputGroupSlotButton:
 		return inputGroupButtonSize(canvas, theme, slot, rowHeight)
 	case InputGroupSlotKbd:
-		return canvas.TextWidthWeight(slot.Text, theme.Metrics.FontSizeS, ui.WeightMedium) + 12, 20
+		return canvas.TextWidthWeight(slot.Text, theme.Metrics.FontSizeS, gfx.WeightMedium) + 12, 20
 	default:
-		return canvas.TextWidthWeight(slot.Text, theme.Metrics.FontSizeM, ui.WeightMedium), theme.Metrics.FontSizeM + 7
+		return canvas.TextWidthWeight(slot.Text, theme.Metrics.FontSizeM, gfx.WeightMedium), theme.Metrics.FontSizeM + 7
 	}
 }
 
 // inputGroupButtonSize sizes a button slot. Heights are Button's (xs and
 // icon-xs 24, sm 28 at the default density), and icon-sm is size-8, 32, kept inside the
 // border of a row of rowHeight; an icon button is square.
-func inputGroupButtonSize(canvas *ui.Canvas, theme ui.Theme, slot InputGroupSlot, rowHeight float32) (width, height float32) {
+func inputGroupButtonSize(canvas *gfx.Canvas, theme gfx.Theme, slot InputGroupSlot, rowHeight float32) (width, height float32) {
 	size := ButtonSizeXSmall
 	switch slot.ButtonSize {
 	case InputGroupButtonSM:
@@ -310,7 +351,7 @@ func inputGroupButtonSize(canvas *ui.Canvas, theme ui.Theme, slot InputGroupSlot
 	}
 	width = pad * 2
 	if slot.Text != "" {
-		width += canvas.TextWidthWeight(slot.Text, theme.Metrics.FontSizeM, ui.WeightMedium)
+		width += canvas.TextWidthWeight(slot.Text, theme.Metrics.FontSizeM, gfx.WeightMedium)
 	}
 	if inputGroupHasIcon(slot.Icon) {
 		width += inputGroupButtonIcon(slot)
@@ -321,7 +362,7 @@ func inputGroupButtonSize(canvas *ui.Canvas, theme ui.Theme, slot InputGroupSlot
 	return width, height
 }
 
-func inputGroupHasIcon(icon ui.Icon) bool { return len(icon.Commands) != 0 || len(icon.Layers) != 0 }
+func inputGroupHasIcon(icon gfx.Icon) bool { return len(icon.Commands) != 0 || len(icon.Layers) != 0 }
 
 // inputGroupButtonIcon is the icon size inside a button slot: 14 in the xs
 // text button (svg size-3.5), 16 elsewhere.
@@ -332,7 +373,7 @@ func inputGroupButtonIcon(slot InputGroupSlot) float32 {
 	return inputGroupIconSize
 }
 
-func inputGroupInlineWidth(canvas *ui.Canvas, theme ui.Theme, slot InputGroupSlot, rowHeight float32) float32 {
+func inputGroupInlineWidth(canvas *gfx.Canvas, theme gfx.Theme, slot InputGroupSlot, rowHeight float32) float32 {
 	if slot.Kind == InputGroupSlotNone {
 		return 0
 	}
@@ -343,7 +384,7 @@ func inputGroupInlineWidth(canvas *ui.Canvas, theme ui.Theme, slot InputGroupSlo
 	return inputGroupOuterPad(slot.Kind) + width
 }
 
-func inputGroupPaintSlot(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, slot InputGroupSlot, block, start, groupDisabled bool) {
+func inputGroupPaintSlot(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, slot InputGroupSlot, block, start, groupDisabled bool) {
 	if slot.Kind == InputGroupSlotNone || bounds.Width <= 0 || bounds.Height <= 0 {
 		return
 	}
@@ -351,10 +392,10 @@ func inputGroupPaintSlot(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, slot
 	if slot.Separated {
 		if block {
 			y := bounds.Y + bounds.Height
-			canvas.Fill(ui.Rect{X: bounds.X + 1, Y: y - 1, Width: inputGroupMax(0, bounds.Width-2), Height: 1}, theme.Border)
+			canvas.Fill(gfx.Rect{X: bounds.X + 1, Y: y - 1, Width: inputGroupMax(0, bounds.Width-2), Height: 1}, theme.Border)
 		} else {
 			x := bounds.X + bounds.Width
-			canvas.Fill(ui.Rect{X: x - 1, Y: bounds.Y + 6, Width: 1, Height: inputGroupMax(0, bounds.Height-12)}, theme.Border)
+			canvas.Fill(gfx.Rect{X: x - 1, Y: bounds.Y + 6, Width: 1, Height: inputGroupMax(0, bounds.Height-12)}, theme.Border)
 		}
 	}
 	// Where the content goes: a block addon starts at the Input inset
@@ -377,7 +418,7 @@ func inputGroupPaintSlot(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, slot
 	if !block {
 		x += (to - from - width) / 2
 	}
-	content := ui.Rect{X: x, Y: bounds.Y + (bounds.Height-height)/2, Width: width, Height: height}
+	content := gfx.Rect{X: x, Y: bounds.Y + (bounds.Height-height)/2, Width: width, Height: height}
 	color := theme.MutedForeground
 	if disabled {
 		color.Alpha *= 0.50
@@ -397,12 +438,12 @@ func inputGroupPaintSlot(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, slot
 			fill.Alpha *= 0.50
 		}
 		canvas.Rounded(content, theme.Metrics.RadiusItem(), fill)
-		canvas.LabelCenter(slot.Text, content, ui.TextStyle{Size: theme.Metrics.FontSizeS, Weight: ui.WeightMedium, Color: color})
+		canvas.LabelCenter(slot.Text, content, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Weight: gfx.WeightMedium, Color: color})
 	default:
 		// A little room either side: a label is clipped to its rectangle, and
 		// the measured width of a string is not always the width it draws.
-		canvas.LabelCenter(slot.Text, ui.Rect{X: content.X - 3, Y: bounds.Y, Width: content.Width + 6, Height: bounds.Height}, ui.TextStyle{
-			Size: theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: color,
+		canvas.LabelCenter(slot.Text, gfx.Rect{X: content.X - 3, Y: bounds.Y, Width: content.Width + 6, Height: bounds.Height}, gfx.TextStyle{
+			Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: color,
 		})
 	}
 }
@@ -410,7 +451,7 @@ func inputGroupPaintSlot(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, slot
 // inputGroupPaintButton paints an addon button: a ghost button that tints its
 // background and brightens its content under the pointer, with the icon first
 // and the text after it, centered as a unit.
-func inputGroupPaintButton(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, slot InputGroupSlot, disabled bool) {
+func inputGroupPaintButton(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, slot InputGroupSlot, disabled bool) {
 	radius := theme.Metrics.RadiusItem()
 	enabled := !disabled && !slot.ID.IsZero()
 	color := theme.MutedForeground
@@ -428,33 +469,33 @@ func inputGroupPaintButton(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, sl
 	if disabled {
 		color.Alpha *= 0.50
 	}
-	style := ui.TextStyle{Size: theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: color}
+	style := gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: color}
 	switch {
 	case !inputGroupHasIcon(slot.Icon):
 		canvas.LabelCenter(slot.Text, bounds, style)
 	case slot.Text == "":
 		side := min(inputGroupButtonIcon(slot), bounds.Width, bounds.Height)
-		canvas.DrawIconTransformed(slot.Icon, ui.Rect{X: bounds.X + (bounds.Width-side)/2, Y: bounds.Y + (bounds.Height-side)/2, Width: side, Height: side}, color, slot.IconTransform)
+		canvas.DrawIconTransformed(slot.Icon, gfx.Rect{X: bounds.X + (bounds.Width-side)/2, Y: bounds.Y + (bounds.Height-side)/2, Width: side, Height: side}, color, slot.IconTransform)
 	default:
 		side := inputGroupButtonIcon(slot)
 		text := canvas.TextWidthWeight(slot.Text, style.Size, style.Weight)
 		x := bounds.X + (bounds.Width-side-4-text)/2
-		canvas.DrawIconTransformed(slot.Icon, ui.Rect{X: x, Y: bounds.Y + (bounds.Height-side)/2, Width: side, Height: side}, color, slot.IconTransform)
-		canvas.Label(slot.Text, ui.Rect{X: x + side + 4, Y: bounds.Y, Width: inputGroupMax(0, bounds.X+bounds.Width-x-side-4), Height: bounds.Height}, style)
+		canvas.DrawIconTransformed(slot.Icon, gfx.Rect{X: x, Y: bounds.Y + (bounds.Height-side)/2, Width: side, Height: side}, color, slot.IconTransform)
+		canvas.Label(slot.Text, gfx.Rect{X: x + side + 4, Y: bounds.Y, Width: inputGroupMax(0, bounds.X+bounds.Width-x-side-4), Height: bounds.Height}, style)
 	}
 	if !slot.ID.IsZero() {
 		label := slot.Label
 		if label == "" {
 			label = slot.Text
 		}
-		canvas.HitWithOptions(slot.ID, bounds, label, ui.HitOptions{Role: ui.RoleButton, Hint: slot.Hint, Disabled: disabled})
+		canvas.HitWithOptions(slot.ID, bounds, label, gfx.HitOptions{Role: gfx.RoleButton, Hint: slot.Hint, Disabled: disabled})
 	}
 }
 
 // inputGroupPaintControl paints the embedded control's text through the same
 // painters as a standalone Input (single line, so Secure, bidirectional text
 // and the selection look all match) or Textarea (several rows).
-func inputGroupPaintControl(canvas *ui.Canvas, theme ui.Theme, content ui.Rect, snapshot InputGroupSnapshot, focused bool) {
+func inputGroupPaintControl(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, snapshot InputGroupSnapshot, focused bool) {
 	if snapshot.Multiline {
 		display := snapshot.DisplayValue
 		if display == "" {
@@ -467,9 +508,13 @@ func inputGroupPaintControl(canvas *ui.Canvas, theme ui.Theme, content ui.Rect, 
 		}, focused)
 		return
 	}
+	showCaret := snapshot.ShowCaret
+	if focused && showCaret && snapshot.Blink != nil {
+		showCaret = snapshot.Blink.Lit(canvas, snapshot.Caret)
+	}
 	inputPaintText(canvas, theme, content, InputSnapshot{
 		Value: snapshot.Value, DisplayValue: snapshot.DisplayValue, Placeholder: snapshot.Placeholder,
-		Disabled: snapshot.Disabled, Secure: snapshot.Secure, ShowCaret: snapshot.ShowCaret, Caret: snapshot.Caret,
+		Disabled: snapshot.Disabled, Secure: snapshot.Secure, ShowCaret: showCaret, Caret: snapshot.Caret,
 		SelectionStart: snapshot.SelectionStart, SelectionEnd: snapshot.SelectionEnd,
 		CompositionStart: snapshot.CompositionStart, CompositionEnd: snapshot.CompositionEnd,
 	}, focused)

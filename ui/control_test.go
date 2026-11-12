@@ -1,0 +1,180 @@
+package ui_test
+
+import (
+	"testing"
+
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/ui"
+)
+
+// console is a control of the application's own, as a terminal is: it paints its
+// lines itself and takes keys, presses, the wheel and typing (with input methods)
+// through its Handlers, with no identity declared and no window-level dispatch.
+type console struct {
+	input   ui.Handlers
+	draw    func(*ui.DrawContext)
+	typed   string
+	keys    []gfx.Key
+	presses int
+	drags   int
+	scroll  float32
+	focused bool
+	text    app.TextInput
+	asked   gfx.ID
+}
+
+func newConsole() *console {
+	t := &console{}
+	t.input = ui.Handlers{
+		Role: gfx.RoleTerminal,
+		Key: func(event gfx.KeyEvent) gfx.EventResult {
+			if event.Key == gfx.KeyTab {
+				return gfx.EventResult{} // leave Tab to the page: the focus moves on
+			}
+			t.keys = append(t.keys, event.Key)
+			return gfx.EventResult{Handled: true, Repaint: true}
+		},
+		Pointer: func(event gfx.PointerEvent) gfx.EventResult {
+			switch event.Kind {
+			case gfx.PointerDown:
+				t.presses++
+			case gfx.PointerMove:
+				if event.Captured {
+					t.drags++
+				}
+			}
+			return gfx.EventResult{Handled: true}
+		},
+		Scroll: func(event gfx.ScrollEvent) gfx.EventResult {
+			t.scroll += event.DeltaY
+			return gfx.EventResult{Handled: true}
+		},
+		Text: func(context app.TextInputContext) *app.TextInput {
+			t.asked = context.ID
+			t.text.Bounds = gfx.Rect{X: context.Bounds.X + 4, Y: context.Bounds.Y + 4, Width: 1, Height: 16}
+			t.text.OnEvent = t.onText
+			return &t.text
+		},
+	}
+	t.draw = func(d *ui.DrawContext) {
+		t.focused = d.State.Focused
+		d.Canvas.Fill(d.Rect, d.Theme.Card)
+	}
+	return t
+}
+
+func (t *console) onText(event app.TextEvent) (app.TextState, error) {
+	if event.Kind == app.TextInsert {
+		t.typed += event.Text
+	}
+	return app.TextState{}, nil
+}
+
+func (t *console) view(c ui.C) {
+	ui.Column(c).Fill().Pad(16).Gap(8).Children(func() {
+		ui.Control(c, "Console", &t.input).Size(300, 200).Draw(t.draw)
+		ui.Button(c, "After")
+	})
+}
+
+func TestControlTakesItsOwnInput(t *testing.T) {
+	term := newConsole()
+	d := openPage(t, term.view)
+	box := d.hit("Console").Bounds
+	x, y := center(box)
+	if err := d.driver.Press(x, y, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Move(x+20, y+10); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Release(x+20, y+10, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	if term.presses != 1 || term.drags == 0 {
+		t.Fatalf("presses=%d drags=%d", term.presses, term.drags)
+	}
+	if d.focused() != "Console" || !term.focused {
+		t.Fatalf("a press on the control did not focus it: %q, drawn focused %v", d.focused(), term.focused)
+	}
+	d.key(gfx.KeyUp)
+	d.key(gfx.KeyEnter)
+	if len(term.keys) != 2 || term.keys[0] != gfx.KeyUp || term.keys[1] != gfx.KeyEnter {
+		t.Fatalf("keys = %v", term.keys)
+	}
+	d.typeText("ls")
+	if term.typed != "ls" || term.asked != d.hit("Console").ID {
+		t.Fatalf("typed %q, text service asked for %v", term.typed, term.asked)
+	}
+	if err := d.driver.Scroll(gfx.ScrollEvent{X: x, Y: y, DeltaY: -3}); err != nil {
+		t.Fatal(err)
+	}
+	if term.scroll != -3 {
+		t.Fatalf("scroll = %v", term.scroll)
+	}
+	d.key(gfx.KeyTab)
+	if d.focused() != "After" {
+		t.Fatalf("Tab left unhandled did not move the focus on: %q", d.focused())
+	}
+}
+
+func TestControlInAMemoPanics(t *testing.T) {
+	term := newConsole()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("a Control in a Memo did not panic")
+		}
+	}()
+	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
+	drawPage(page, canvas, func(c ui.C) {
+		ui.Memo(c, 1, func() { ui.Control(c, "Console", &term.input).Size(10, 10) })
+	})
+}
+
+func BenchmarkPageControl(b *testing.B) {
+	term := newConsole()
+	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
+	b.ReportAllocs()
+	for b.Loop() {
+		drawPage(page, canvas, term.view)
+	}
+}
+
+// autofocusView is the pane's page with the control asking for the keyboard as it
+// appears, as a terminal does when its pane opens.
+func (t *console) autofocusView(c ui.C) {
+	ui.Column(c).Fill().Pad(16).Children(func() {
+		ui.Control(c, "Console", &t.input).Size(300, 200).Draw(t.draw).AutoFocus()
+	})
+}
+
+// A Control's AutoFocus on a page embedded in a host is the host's request, mounted:
+// the host adopts it with gfx.Canvas.AdoptEmbedded, and no app-local HitWith is needed.
+func TestControlAutoFocusCrossesAnEmbeddedPage(t *testing.T) {
+	term := newConsole()
+	page := ui.NewPage(ui.PageConfig{View: term.autofocusView, Root: "pane", Theme: &pageTheme})
+	var host, view gfx.Canvas
+	tree := host.Tree()
+	mount := tree.Sub(tree.Feature("pane"), tree.Name("one"))
+	host.Reset()
+	host.BeginFrame()
+	view.BeginEmbedded(&host, mount)
+	page.Draw(&view, gfx.Rect{Width: 400, Height: 300}, term.autofocusView)
+	view.EndFrame()
+	host.Embed(&view, gfx.Point{}, mount)
+	host.AdoptEmbedded(&view, mount)
+	host.EndFrame()
+	var id gfx.ID
+	for _, hit := range host.Hits() {
+		if hit.Label == "Console" && !hit.ID.IsZero() {
+			id = hit.ID
+		}
+	}
+	if id.IsZero() {
+		t.Fatal("the control is not painted in the host")
+	}
+	if got := host.FocusRequest(); got != id {
+		t.Fatalf("the host asks to focus %v, want the mounted control %v", got, id)
+	}
+}

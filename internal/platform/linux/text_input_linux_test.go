@@ -7,11 +7,11 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestLinuxTextEventCarriesNativeStateThroughApplicationRedraw(t *testing.T) {
@@ -158,25 +158,25 @@ func TestLinuxTextPointerPlacesCaretAtNearestCharacter(t *testing.T) {
 	if _, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}}); err != nil {
 		t.Fatal(err)
 	}
-	frame, handled, err := state.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 29, Y: 35})
+	frame, handled, err := state.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: 29, Y: 35})
 	if err != nil || !handled {
 		t.Fatalf("pointer handled=%v err=%v", handled, err)
 	}
 	if editor.Selection() != (text.Range{Start: 2, End: 2}) || frame.TextInput.Input == nil || frame.TextInput.Input.State.Selection != (text.Range{Start: 2, End: 2}) {
 		t.Fatalf("selection=%+v frame=%+v", editor.Selection(), frame.TextInput)
 	}
-	if _, handled, err = state.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 111, Y: 35}); err != nil || handled {
+	if _, handled, err = state.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: 111, Y: 35}); err != nil || handled {
 		t.Fatalf("outside pointer handled=%v err=%v", handled, err)
 	}
 }
 
 func TestLinuxTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testing.T) {
 	for _, testcase := range []struct {
-		alignment ui.Alignment
+		alignment gfx.Alignment
 		origin    float32
 	}{
-		{ui.AlignCenter, 55},
-		{ui.AlignRight, 100},
+		{gfx.AlignCenter, 55},
+		{gfx.AlignRight, 100},
 	} {
 		t.Run(fmt.Sprint(testcase.alignment), func(t *testing.T) {
 			editor := text.NewEditor("abc")
@@ -205,7 +205,7 @@ func TestLinuxTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testing.
 			}
 			state.state.Composing = false
 			state.input.State.Composing = false
-			_, handled, err := state.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: testcase.origin + 12, Y: 35})
+			_, handled, err := state.pointer(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: testcase.origin + 12, Y: 35})
 			if err != nil || !handled || editor.Caret() != 1 {
 				t.Fatalf("aligned click: caret=%d handled=%v err=%v", editor.Caret(), handled, err)
 			}
@@ -215,12 +215,12 @@ func TestLinuxTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testing.
 
 func TestLinuxRightToLeftAlignmentUsesLineWidthNotLogicalEndCaret(t *testing.T) {
 	const value = "אבג"
-	engine := ui.ReferenceTextEngine()
+	engine := gfx.ReferenceTextEngine()
 	width := engine.Width(value, 20, 0)
 	if caret := engine.Caret(value, 20, 0, len(value)); caret >= width/2 {
 		t.Fatalf("fixture is not an RTL end-caret: caret=%v width=%v", caret, width)
 	}
-	for _, alignment := range []ui.Alignment{ui.AlignCenter, ui.AlignRight} {
+	for _, alignment := range []gfx.Alignment{gfx.AlignCenter, gfx.AlignRight} {
 		inputState := platform.TextInput{
 			X: 10, Y: 20, Width: 120, Height: 32, FontSize: 20, Alignment: alignment,
 			State:   platform.TextState{Value: value, Selection: text.Range{Start: 3, End: 3}},
@@ -241,7 +241,7 @@ func TestLinuxRightToLeftAlignmentUsesLineWidthNotLogicalEndCaret(t *testing.T) 
 func TestLinuxTextInputMergesVisualsAndAppliesKeys(t *testing.T) {
 	editor := text.NewEditor("A")
 	inputState := platform.TextInput{
-		X: 10, Y: 20, Width: 120, Height: 28, FontSize: 16, Weight: ui.WeightSemibold, Layer: 600,
+		X: 10, Y: 20, Width: 120, Height: 28, FontSize: 16, Weight: gfx.WeightSemibold, Layer: 600,
 		Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 		State: platform.TextState{Value: "A", Selection: text.Range{Start: 1, End: 1}},
 		OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
@@ -258,7 +258,7 @@ func TestLinuxTextInputMergesVisualsAndAppliesKeys(t *testing.T) {
 	if err != nil || !dirty {
 		t.Fatalf("enable input: dirty=%v err=%v", dirty, err)
 	}
-	if len(merged.Rectangles) != 2 || len(merged.TextLabels) != 1 || merged.TextLabels[0].Value != "A" || merged.TextLabels[0].Weight != ui.WeightSemibold {
+	if len(merged.Rectangles) != 2 || len(merged.TextLabels) != 1 || merged.TextLabels[0].Value != "A" || merged.TextLabels[0].Weight != gfx.WeightSemibold {
 		t.Fatalf("input visuals = %d rectangles, %+v", len(merged.Rectangles), merged.TextLabels)
 	}
 	if merged.TextLabels[0].Layer != 600 || merged.Rectangles[0].Layer != 600 || merged.Rectangles[1].Layer != 600 {
@@ -447,7 +447,7 @@ func TestPrimaryCandidateIsTheNewlySelectedText(t *testing.T) {
 func TestLinuxTerminalPreeditIsLaidOnTheCellsAndUnderlined(t *testing.T) {
 	state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{}}
 	input := platform.TextInput{
-		X: 20, Y: 40, Width: 300, Height: 16, FontSize: 13, Terminal: true,
+		X: 20, Y: 40, Width: 300, Height: 16, FontSize: 13, Terminal: true, CellWidth: 7.5,
 		Color:   platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 		State:   platform.TextState{Value: "ni你好", Composing: true, Composition: text.Range{End: 4}},
 		OnEvent: func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
@@ -457,14 +457,14 @@ func TestLinuxTerminalPreeditIsLaidOnTheCellsAndUnderlined(t *testing.T) {
 		t.Fatal(err)
 	}
 	label := merged.TextLabels[len(merged.TextLabels)-1]
-	cell := platform.TerminalPreeditCellWidth(13)
+	cell := input.CellWidth
 	if !label.Mono || label.CellWidth != cell {
 		t.Fatalf("label = mono:%v cell:%v, want the terminal's cell %v", label.Mono, label.CellWidth, cell)
 	}
-	want := []ui.TextRun{
-		{Column: 0, Bytes: 2, Cells: 2, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
-		{Column: 2, Bytes: 3, Cells: 2, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
-		{Column: 4, Bytes: 3, Cells: 2, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+	want := []gfx.TextRun{
+		{Column: 0, Bytes: 2, Cells: 2, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+		{Column: 2, Bytes: 3, Cells: 2, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
+		{Column: 4, Bytes: 3, Cells: 2, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}},
 	}
 	if !reflect.DeepEqual(label.Runs, want) {
 		t.Fatalf("runs = %+v, want %+v", label.Runs, want)
@@ -501,7 +501,7 @@ func TestLinuxTextFieldSelectsWithThePointer(t *testing.T) {
 	state, editor := newEditableLinuxInput(t, "hello brave world", 400)
 	pointer := func(kind platform.PointerEventKind, x float32, clicks int) {
 		t.Helper()
-		if _, handled, err := state.pointer(platform.PointerEvent{Kind: kind, Button: ui.PointerButtonPrimary, X: x, Y: 20, ClickCount: clicks}); err != nil {
+		if _, handled, err := state.pointer(platform.PointerEvent{Kind: kind, Button: gfx.PointerButtonPrimary, X: x, Y: 20, ClickCount: clicks}); err != nil {
 			t.Fatal(err)
 		} else if kind == platform.PointerDown && !handled {
 			t.Fatal("a press in the field was not taken")
@@ -570,7 +570,7 @@ func TestLinuxLongTextScrollsAndKeepsTheSelectionInsideTheField(t *testing.T) {
 	}
 	field := state.input
 	label := state.labels[len(state.baseLabels)]
-	if !label.Clipped || label.Clip != (ui.Rect{X: field.X, Y: field.Y, Width: field.Width, Height: field.Height}) {
+	if !label.Clipped || label.Clip != (gfx.Rect{X: field.X, Y: field.Y, Width: field.Width, Height: field.Height}) {
 		t.Fatalf("the text is not clipped to the field: %+v", label)
 	}
 	if state.scroll <= 0 || label.X != field.X-state.scroll {
@@ -617,7 +617,7 @@ func TestLinuxMultilineFieldLaysOutTheCaretsLine(t *testing.T) {
 // A field that paints its own caret still needs the engine's candidate window to
 // sit where the glyphs are, not at the field's left edge.
 func TestLinuxCandidateWindowFollowsAlignmentWhenNativeOverlaysAreHidden(t *testing.T) {
-	for _, alignment := range []ui.Alignment{ui.AlignCenter, ui.AlignRight} {
+	for _, alignment := range []gfx.Alignment{gfx.AlignCenter, gfx.AlignRight} {
 		t.Run(fmt.Sprint(alignment), func(t *testing.T) {
 			inputState := platform.TextInput{
 				X: 10, Y: 20, Width: 120, Height: 30, FontSize: 16, Alignment: alignment,

@@ -9,7 +9,9 @@ import (
 )
 
 // Label is a prepared image placed in the canvas: text the platform's text engine rasterized, or
-// a bitmap, already at device resolution. Pix is premultiplied BGRA like the canvas.
+// a bitmap, already at device resolution. Pix is premultiplied BGRA like the canvas, unless LCD is
+// set: then it holds the coverage of each channel of subpixel-antialiased text and an alpha that is
+// their luminance, and the renderer tints it per channel instead.
 type Label struct {
 	Pix    []byte
 	Stride int // bytes per row of Pix
@@ -21,6 +23,21 @@ type Label struct {
 	// Clip, when Clipped, is the part of the canvas the image may touch (device pixels).
 	Clipped bool
 	Clip    render.Scissor
+	// LCD marks Pix as per-channel coverage of white text, times Color, as the
+	// GPU's LCD shader reads it. Spans, when not empty, give a color per column
+	// range of the picture, for a fixed-pitch line whose runs have different
+	// colors; the columns outside the spans draw nothing.
+	LCD   bool
+	Color scene.Color
+	Spans []Span
+}
+
+// Span is a range of device columns [From, To) of an LCD label's picture that
+// is text of one color. Its coverage is the same for every color, so one
+// picture is tinted once per span.
+type Span struct {
+	From, To int
+	Color    scene.Color
 }
 
 // Hole is a part of the canvas that stays transparent for something else to show through: a native
@@ -146,6 +163,29 @@ func drawLabel(c *Canvas, damage render.Scissor, l *Label) {
 	if empty(area) {
 		return
 	}
+	if !l.LCD {
+		drawPremultipliedLabel(c, area, l)
+		return
+	}
+	if len(l.Spans) == 0 {
+		drawLCDLabel(c, area, l, l.Color)
+		return
+	}
+	// A fixed-pitch line has a color per run: the coverage is one picture, tinted
+	// in the columns each run owns.
+	for index := range l.Spans {
+		span := &l.Spans[index]
+		columns := intersect(area, render.Scissor{Left: l.X + span.From, Top: l.Y, Right: l.X + span.To, Bottom: l.Y + l.Height})
+		if empty(columns) {
+			continue
+		}
+		drawLCDLabel(c, columns, l, span.Color)
+	}
+}
+
+// drawPremultipliedLabel composites an image already in its color, as every
+// bitmap and grayscale text is.
+func drawPremultipliedLabel(c *Canvas, area render.Scissor, l *Label) {
 	const inv = 1.0 / 255
 	for y := area.Top; y < area.Bottom; y++ {
 		src := l.Pix[(y-l.Y)*l.Stride+(area.Left-l.X)*4:]
@@ -162,6 +202,41 @@ func drawLabel(c *Canvas, damage render.Scissor, l *Label) {
 				c.Pix[di+1] = unorm8(float32(src[1])*inv + float32(c.Pix[di+1])*inv*k)
 				c.Pix[di+2] = unorm8(float32(src[2])*inv + float32(c.Pix[di+2])*inv*k)
 				c.Pix[di+3] = unorm8(float32(a)*inv + float32(c.Pix[di+3])*inv*k)
+			}
+			src = src[4:]
+			di += 4
+		}
+	}
+}
+
+// drawLCDLabel tints the per-channel coverage of white text with color and
+// composites it over the target, the blend the GPU's text_lcd shader does:
+// each channel keeps 1 minus its own coverage, and alpha keeps 1 minus the
+// coverage's luminance.
+func drawLCDLabel(c *Canvas, area render.Scissor, l *Label, color scene.Color) {
+	red, green, blue := uint32(unorm8(color.Red)), uint32(unorm8(color.Green)), uint32(unorm8(color.Blue))
+	alpha := uint32(unorm8(color.Alpha))
+	if alpha == 0 {
+		return
+	}
+	for y := area.Top; y < area.Bottom; y++ {
+		src := l.Pix[(y-l.Y)*l.Stride+(area.Left-l.X)*4:]
+		di := y*c.Stride + area.Left*4
+		for x := area.Left; x < area.Right; x++ {
+			// The color's alpha scales every coverage, as the shader's tint does.
+			coverageB := uint32(src[0]) * alpha / 255
+			coverageG := uint32(src[1]) * alpha / 255
+			coverageR := uint32(src[2]) * alpha / 255
+			sourceAlpha := uint32(src[3]) * alpha / 255
+			switch {
+			case coverageR == 0 && coverageG == 0 && coverageB == 0:
+			case coverageR == 255 && coverageG == 255 && coverageB == 255 && sourceAlpha == 255:
+				c.Pix[di], c.Pix[di+1], c.Pix[di+2], c.Pix[di+3] = byte(blue), byte(green), byte(red), 255
+			default:
+				c.Pix[di] = byte((blue*coverageB + uint32(c.Pix[di])*(255-coverageB) + 127) / 255)
+				c.Pix[di+1] = byte((green*coverageG + uint32(c.Pix[di+1])*(255-coverageG) + 127) / 255)
+				c.Pix[di+2] = byte((red*coverageR + uint32(c.Pix[di+2])*(255-coverageR) + 127) / 255)
+				c.Pix[di+3] = byte((sourceAlpha*255 + uint32(c.Pix[di+3])*(255-sourceAlpha) + 127) / 255)
 			}
 			src = src[4:]
 			di += 4

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const directories = ['app', 'ui', 'components', 'internal', 'cmd/component-preview', 'cmd/viva/templates', 'tools/docs'];
+const directories = ['app', 'ui', 'gfx', 'components', 'internal', 'cmd/component-preview', 'cmd/viva/templates', 'tools/docs'];
 const previewDirectory = path.join(root, 'build/docs-data/public/preview');
 
 export function previewAssetPath(requestURL, directory = previewDirectory) {

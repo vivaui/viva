@@ -92,7 +92,7 @@ when someone asks for it.
 ## What the workflow cannot check
 
 - Platform conformance. `cmd/viva-conformance` needs a real desktop on macOS, a
-  Windows VM and a Linux X session; the release runner has none of them. Run
+  Windows machine and a Linux X session; the release runner has none of them. Run
   `tools/conformance/run.sh` from [conformance.md](conformance.md) before
   tagging, and record what was not run in the confirmation gate.
 - The release notes' wording and their consistency with the committed tree. The

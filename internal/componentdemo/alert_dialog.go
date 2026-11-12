@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -25,7 +25,7 @@ if canvas.Clicked(confirmID) || canvas.Clicked(cancelID) {
 }).WithMedia()
 layout := dialog.Begin("Replace avatar?", "The new image replaces it.", "Replace", "Cancel")
 canvas.Rounded(layout.Media, min(layout.Media.Width, layout.Media.Height)/2, theme.Muted)
-canvas.LabelCenter("SK", layout.Media, ui.TextStyle{Size: theme.Metrics.FontSizeM})
+canvas.LabelCenter("SK", layout.Media, gfx.TextStyle{Size: theme.Metrics.FontSizeM})
 dialog.End()`},
 	},
 }
@@ -42,17 +42,18 @@ const alertDialogOpenFlag uint64 = 1
 
 func initializeAlertDialog(state *State) { state.flags |= alertDialogOpenFlag }
 
-func (state *State) paintAlertDialog(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintAlertDialog(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	if state.flags&alertDialogOpenFlag == 0 {
-		state.page(canvas, theme, size, 320, state.Text("操作已取消", "Action canceled"), func(f *flex.Frame) {
-			if f.Button(alertDialogOpen, state.Text("再次打开警告", "Reopen alert")).Clicked() {
+		state.drawPage(canvas, theme, size, 320, state.Text("操作已取消", "Action canceled"), func(c ui.C) {
+			label := state.Text("再次打开警告", "Reopen alert")
+			if ui.Button(c, label).Hit(alertDialogOpen, label).Clicked() {
 				state.flags |= alertDialogOpenFlag
 			}
 		})
 		return
 	}
 	// The alert dialog covers the whole viewport and lays itself out on it.
-	viewport := ui.Rect{Width: size.Width, Height: size.Height}
+	viewport := gfx.Rect{Width: size.Width, Height: size.Height}
 	options := components.AlertDialogOptions{
 		Layer: 8, Scope: alertDialogScope, ActionID: alertDialogAction, CancelID: alertDialogCancel,
 	}
@@ -66,7 +67,7 @@ func (state *State) paintAlertDialog(canvas *ui.Canvas, theme ui.Theme, size ui.
 			state.Text("取消", "Cancel"),
 		)
 		canvas.Rounded(layout.Media, min(layout.Media.Width, layout.Media.Height)/2, theme.Muted)
-		canvas.LabelCenter("SK", layout.Media, ui.TextStyle{Size: theme.Metrics.FontSizeM, Weight: ui.WeightSemibold, Color: theme.MutedForeground})
+		canvas.LabelCenter("SK", layout.Media, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightSemibold, Color: theme.MutedForeground})
 		dialog.End()
 	} else {
 		options.ActionVariant = components.ButtonDestructive

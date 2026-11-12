@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // windowPreview is the window mode of a DragPreview. It is not a public
@@ -19,9 +19,9 @@ type DragPreviewConfig struct {
 	Width, Height int
 	// Origin is where the picture's top-left starts, in screen coordinates
 	// (see Window.Frame).
-	Origin ui.Point
+	Origin gfx.Point
 	// Paint draws the picture on a transparent surface of the given size.
-	Paint func(canvas *ui.Canvas, size ui.Size)
+	Paint func(canvas *gfx.Canvas, size gfx.Size)
 }
 
 // DragPreview is a picture of what the user is dragging, kept under the pointer
@@ -71,7 +71,7 @@ func (application *Application) OpenDragPreview(config DragPreviewConfig) (*Drag
 
 // MoveTo puts the picture's top-left at origin, in screen coordinates. Call it
 // on the application thread, as from a pointer callback.
-func (preview *DragPreview) MoveTo(origin ui.Point) {
+func (preview *DragPreview) MoveTo(origin gfx.Point) {
 	if preview == nil || preview.window == nil || preview.window.closed.Load() {
 		return
 	}

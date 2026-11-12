@@ -7,19 +7,19 @@ import (
 	"strings"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // roleName is the protocol's name for role; a region that declared none is a plain "region".
-func roleName(role ui.Role) string { return role.String() }
+func roleName(role gfx.Role) string { return role.String() }
 
 // roleByName is the role a selector names.
-func roleByName(name string) (ui.Role, bool) { return ui.RoleNamed(name) }
+func roleByName(name string) (gfx.Role, bool) { return gfx.RoleNamed(name) }
 
 // control is one thing the application declared on the frame, as the protocol sees it: its
 // accessible name settled, its identity written out, and whether a press at its center reaches it.
 type control struct {
-	hit ui.Hit
+	hit gfx.Hit
 	// label is the accessible name: the hit's own, or that of a label declared for it.
 	label string
 	// id is the identity as the protocol writes it ("home/save", "#3").
@@ -32,7 +32,7 @@ type control struct {
 // container region (a heading, a status area), without the opaque blocks, window-drag areas and
 // label helpers that are no controls. A label declared for a control names it.
 func (session *Session) controls(snapshot app.Snapshot) []control {
-	names := make(map[ui.ID]string)
+	names := make(map[gfx.ID]string)
 	for _, hit := range snapshot.Hits {
 		if hit.IsLabel && !hit.ID.IsZero() {
 			if _, taken := names[hit.ID]; !taken {
@@ -60,7 +60,7 @@ func (session *Session) controls(snapshot app.Snapshot) []control {
 }
 
 // flags are the states of a control worth reading at a glance.
-func (c control) flags(focused ui.ID) []string {
+func (c control) flags(focused gfx.ID) []string {
 	var flags []string
 	add := func(on bool, name string) {
 		if on {
@@ -83,7 +83,7 @@ func (c control) flags(focused ui.ID) []string {
 }
 
 // describe is the control as one line of the tree.
-func (c control) describe(focused ui.ID) string {
+func (c control) describe(focused gfx.ID) string {
 	var line strings.Builder
 	fmt.Fprintf(&line, "role=%s id=%s label=%q", roleName(c.hit.Role), c.id, c.label)
 	if c.hit.Value != "" && !c.hit.Secure {
@@ -111,7 +111,7 @@ func (c control) describe(focused ui.ID) string {
 // interactive reports whether the control is something a user operates, as against a container
 // region that only structures the frame.
 func (c control) interactive() bool {
-	return !c.hit.Container && c.hit.Role != ui.RoleGroup && c.hit.Role != ui.RoleSeparator &&
+	return !c.hit.Container && c.hit.Role != gfx.RoleGroup && c.hit.Role != gfx.RoleSeparator &&
 		(c.hit.Role != 0 || c.hit.Focusable)
 }
 
@@ -139,7 +139,7 @@ func (session *Session) Tree(filter string) []string {
 type selector struct {
 	text  string
 	id    string
-	role  ui.Role
+	role  gfx.Role
 	label string
 	// plain is a bare name, which the session resolves as it always has.
 	plain bool
@@ -195,16 +195,16 @@ func (session *Session) matching(snapshot app.Snapshot, s selector) []control {
 
 // Locate returns the front-most reachable control a selector names (see selector for the forms).
 // A bare name is resolved exactly as Hit does.
-func (session *Session) Locate(text string) (ui.Hit, error) {
+func (session *Session) Locate(text string) (gfx.Hit, error) {
 	s, err := parseSelector(text)
 	if err != nil {
-		return ui.Hit{}, err
+		return gfx.Hit{}, err
 	}
 	if s.plain {
 		if hit, ok := session.Hit(text); ok {
 			return hit, nil
 		}
-		return ui.Hit{}, session.noControl(text)
+		return gfx.Hit{}, session.noControl(text)
 	}
 	snapshot := session.Snapshot()
 	all := session.controls(snapshot)
@@ -218,7 +218,7 @@ func (session *Session) Locate(text string) (ui.Hit, error) {
 			break
 		}
 	}
-	return ui.Hit{}, session.noControl(text)
+	return gfx.Hit{}, session.noControl(text)
 }
 
 // noControl is the error for a selector nothing answers to, with what the frame does offer.

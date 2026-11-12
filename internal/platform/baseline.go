@@ -21,6 +21,17 @@ func LabelBaseline(heightPixels int, sizePixels float64) int {
 	return int(math.Floor(float64(heightPixels)/2 + BaselineBelowCenter*sizePixels + 1e-6))
 }
 
+// TextBaseline is the row of a label's texture, counted from its top in device pixels, on
+// which its glyphs stand. A fixed-pitch label carries the font's own baseline
+// (TextLabel.Baseline), whether or not its font is the interface's; everything else stands
+// on LabelBaseline, which centers the line box on the interface font's optical middle.
+func TextBaseline(label TextLabel, heightPixels int, scale float32) int {
+	if label.Baseline > 0 && label.FontSize > 0 {
+		return int(math.Round(float64(label.Baseline) * float64(scale)))
+	}
+	return LabelBaseline(heightPixels, float64(label.FontSize*scale))
+}
+
 // TextCaretBand is the vertical extent, in logical pixels, of the caret and of the
 // selection highlight in a text input at y that is height tall: a band as tall as a line
 // of text, centered in the field, so the highlight neither fills the field's padding nor

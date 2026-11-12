@@ -1,19 +1,19 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // LabelPainter is a compact field-label declaration.
 type LabelPainter struct {
-	canvas   *ui.Canvas
-	theme    ui.Theme
-	bounds   ui.Rect
+	canvas   *gfx.Canvas
+	theme    gfx.Theme
+	bounds   gfx.Rect
 	disabled bool
 	required bool
-	control  ui.ID
+	control  gfx.ID
 }
 
 // BeginLabel starts a label declaration.
-func BeginLabel(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect) LabelPainter {
+func BeginLabel(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect) LabelPainter {
 	return LabelPainter{canvas: canvas, theme: theme, bounds: bounds}
 }
 
@@ -30,9 +30,9 @@ func (label LabelPainter) Required() LabelPainter {
 }
 
 // For makes the label the label of a control, as `htmlFor` does: pressing the
-// text focuses and clicks the control (see ui.Canvas.HitLabel), and the text
+// text focuses and clicks the control (see gfx.Canvas.HitLabel), and the text
 // names it for assistive technology. A disabled label does nothing.
-func (label LabelPainter) For(control ui.ID) LabelPainter {
+func (label LabelPainter) For(control gfx.ID) LabelPainter {
 	label.control = control
 	return label
 }
@@ -47,31 +47,31 @@ func (label LabelPainter) Paint(text string) {
 	if label.disabled {
 		foreground.Alpha *= 0.50
 	}
-	width := label.canvas.TextWidthWeight(text, metrics.FontSizeM, ui.WeightMedium)
+	width := label.canvas.TextWidthWeight(text, metrics.FontSizeM, gfx.WeightMedium)
 	if label.bounds.Width > 0 && width > label.bounds.Width {
 		width = label.bounds.Width
 	}
 	if width < 0 {
 		width = 0
 	}
-	label.canvas.Label(text, ui.Rect{
+	label.canvas.Label(text, gfx.Rect{
 		X: label.bounds.X, Y: label.bounds.Y, Width: width, Height: label.bounds.Height,
-	}, ui.TextStyle{
-		Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: foreground,
+	}, gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground,
 	})
 	if !label.control.IsZero() {
-		label.canvas.HitLabel(label.control, ui.Rect{X: label.bounds.X, Y: label.bounds.Y, Width: width, Height: label.bounds.Height}, text, label.disabled)
+		label.canvas.HitLabel(label.control, gfx.Rect{X: label.bounds.X, Y: label.bounds.Y, Width: width, Height: label.bounds.Height}, text, label.disabled)
 	}
 	if label.required && width < label.bounds.Width {
 		markerColor := label.theme.Danger
 		if label.disabled {
 			markerColor.Alpha *= 0.50
 		}
-		label.canvas.Label("*", ui.Rect{
+		label.canvas.Label("*", gfx.Rect{
 			X: label.bounds.X + width + 3, Y: label.bounds.Y,
 			Width: label.bounds.Width - width - 3, Height: label.bounds.Height,
-		}, ui.TextStyle{
-			Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: markerColor,
+		}, gfx.TextStyle{
+			Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: markerColor,
 		})
 	}
 }

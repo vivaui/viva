@@ -6,17 +6,8 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-)
-
-// Identities are names in a tree, not numbers: the application declares the
-// tree once and every control it paints is a name inside a feature of it.
-var (
-	tree = ui.Tree{}
-	page = tree.Feature("background")
-
-	refresh = tree.ID(page, "refresh")
 )
 
 // slowWork stands in for anything that takes a while: a request, a disk scan.
@@ -26,39 +17,36 @@ var slowWork = func() string {
 }
 
 type model struct {
-	mu      sync.Mutex
-	pending string // written by the worker goroutine, under mu
-	status  string // read by Paint, written only on the window thread
-	view    flex.View
+	mu          sync.Mutex
+	pending     string // written by the worker goroutine, under mu
+	status      string // read by the page, written only on the window thread
+	invalidator *app.Invalidator
+}
+
+func (m *model) page(c ui.C) {
+	ui.Row(c).Fill().Pad(24).Gap(12).Items(ui.Start).Children(func() {
+		if ui.Button(c, "Refresh").Clicked() {
+			m.status = "working"
+			go func() {
+				result := slowWork()
+				m.mu.Lock()
+				m.pending = result
+				m.mu.Unlock()
+				m.invalidator.Invalidate() // wakes the window thread once
+			}()
+		}
+		ui.Text(c, m.status)
+	})
 }
 
 func newConfig(m *model, invalidator *app.Invalidator) app.Config {
-	theme := ui.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Background", Width: 480, Height: 240, Invalidator: invalidator}
-
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
-		canvas.Fill(bounds, theme.Background)
-
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.Row().Fill().Pad(24).Gap(12).Items(flex.Start).Children(func() {
-				if f.Button(refresh, "Refresh").Clicked() {
-					m.status = "working"
-					go func() {
-						result := slowWork()
-						m.mu.Lock()
-						m.pending = result
-						m.mu.Unlock()
-						invalidator.Invalidate() // wakes the window thread once
-					}()
-				}
-				f.Text(m.status)
-			})
-		})
-	}
+	theme := gfx.LightTheme()
+	m.invalidator = invalidator
+	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
+	config := page.Config(app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
 
 	// OnWake runs on the window thread right before the repaint Invalidate asked
-	// for: move what the goroutine published into state that Paint reads.
+	// for: move what the goroutine published into state that the page reads.
 	config.OnWake = func() {
 		m.mu.Lock()
 		m.status, m.pending = m.pending, ""
@@ -69,7 +57,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 
 func main() {
 	var invalidator app.Invalidator
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	if err := app.RunCanvas(newConfig(&model{status: "idle"}, &invalidator), &canvas); err != nil {
 		log.Fatal(err)
 	}

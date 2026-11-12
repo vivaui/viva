@@ -16,6 +16,12 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 	}
 	var active *TextInput
 	native := platform.TextInput{
+		CopyText: func() string {
+			if active == nil || active.CopyText == nil {
+				return ""
+			}
+			return active.CopyText()
+		},
 		OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
 			if active == nil {
 				return platform.TextState{}, nil
@@ -34,6 +40,8 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 	return func(context web.TextInputContext) *platform.TextInput {
 		active = provider(TextInputContext{
 			ID: context.ID, Bounds: context.Bounds, Multiline: context.Multiline,
+			Layer: context.Layer, ReadOnly: context.ReadOnly, Secure: context.Secure,
+			NavigationKeys: context.NavigationKeys, Terminal: context.Terminal, TypeAhead: context.TypeAhead,
 			TextBounds: context.TextBounds, FontSize: context.FontSize, FontWeight: context.FontWeight,
 			TextColor: context.TextColor, HideNativeOverlays: context.HideNativeOverlays,
 		})
@@ -41,8 +49,15 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 			return nil
 		}
 		native.Target, native.Multiline = context.ID, context.Multiline
+		native.Layer = context.Layer
+		native.Secure = context.Secure
+		native.Terminal = context.Terminal || context.TypeAhead
 		native.FontSize, native.Weight = active.FontSize, active.Weight
-		native.NavigationKeys = active.NavigationKeys
+		native.MonoFace = active.MonoFace
+		native.AltSendsEscape = active.AltSendsEscape
+		native.KeyReleases = active.KeyReleases && context.Terminal
+		native.NavigationKeys = active.NavigationKeys || context.NavigationKeys
+		native.CopyOverride = active.CopyOverride
 		native.HideNativeOverlays = active.HideNativeOverlays || context.HideNativeOverlays
 		native.X, native.Y = active.Bounds.X, active.Bounds.Y
 		native.Width, native.Height = active.Bounds.Width, active.Bounds.Height

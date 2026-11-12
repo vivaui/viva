@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestInputOTPDefaultExampleIsACodeStillBeingTyped(t *testing.T) {
@@ -11,8 +11,8 @@ func TestInputOTPDefaultExampleIsACodeStillBeingTyped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var canvas ui.Canvas
-	state.Paint(&canvas, ui.Size{Width: 460, Height: 340})
+	var canvas gfx.Canvas
+	state.Paint(&canvas, gfx.Size{Width: 460, Height: 340})
 	digits := 0
 	for _, text := range canvas.Texts() {
 		switch text.Value {
@@ -41,8 +41,8 @@ func TestInputOTPCompleteCodeShowsNoCaret(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var canvas ui.Canvas
-	state.Paint(&canvas, ui.Size{Width: 460, Height: 340})
+	var canvas gfx.Canvas
+	state.Paint(&canvas, gfx.Size{Width: 460, Height: 340})
 	for _, rectangle := range canvas.Rectangles() {
 		if rectangle.Bounds.Width == 1 && rectangle.Bounds.Height == 16 {
 			t.Fatal("a caret was drawn through a digit of a complete code")

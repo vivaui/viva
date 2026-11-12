@@ -130,10 +130,19 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	mount := t.TempDir()
-	if out, err := exec.Command("hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mount, image).CombinedOutput(); err != nil {
+	out, err := exec.Command("hdiutil", "attach", "-plist", "-nobrowse", "-readonly", "-mountpoint", mount, image).CombinedOutput()
+	if err != nil {
 		t.Fatalf("attach: %v\n%s", err, out)
 	}
-	t.Cleanup(func() { _ = exec.Command("hdiutil", "detach", "-force", mount).Run() })
+	device, err := attachedDevice(string(out), mount)
+	if err != nil {
+		_ = hdiutil("detach", "-force", mount)
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = detach(mount, device) })
+	if mounted, err := volumeMounted(mount); err != nil || !mounted {
+		t.Fatalf("attached image is not mounted: %v", err)
+	}
 
 	if target, err := os.Readlink(filepath.Join(mount, "Applications")); err != nil || target != "/Applications" {
 		t.Fatalf("Applications link = %q, %v", target, err)
@@ -158,6 +167,22 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 		if !bytes.Contains(store, append(units, "Iloc"...)) {
 			t.Errorf(".DS_Store has no position for %s", name)
 		}
+	}
+	if err := detach(mount, device); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDetachAcceptsAnAlreadyUnmountedImage(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("disk images are made on macOS")
+	}
+	mount := filepath.Join(t.TempDir(), "mount")
+	if err := os.Mkdir(mount, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := detach(mount, "/dev/disk-not-attached"); err != nil {
+		t.Fatal(err)
 	}
 }
 

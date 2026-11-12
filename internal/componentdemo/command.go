@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -57,7 +57,7 @@ var (
 	commandItem = tree.Sub(commandUI, tree.Name("item"))
 )
 
-func (state *State) paintCommand(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintCommand(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	variant := components.CommandDefault
 	// Input row, group label, three result rows, separator, and bottom padding.
 	height := float32(36 + 28 + 3*32 + 9 + 4)
@@ -70,9 +70,9 @@ func (state *State) paintCommand(canvas *ui.Canvas, theme ui.Theme, size ui.Size
 	case "empty":
 		height = 36 + 68 + 4
 	}
-	var panel flex.Box
-	state.page(canvas, theme, size, 520, state.Text("Command · 快速操作", "Command · Quick actions"), func(f *flex.Frame) {
-		panel = f.Slot().FillWidth().Height(min(height, max(size.Height-84, 120)))
+	var panel ui.Box
+	state.drawPage(canvas, theme, size, 520, state.Text("Command · 快速操作", "Command · Quick actions"), func(c ui.C) {
+		panel = ui.Slot(c).FillWidth().Height(min(height, max(size.Height-84, 120)))
 	})
 	command := components.BeginCommand(canvas, theme, panel.Rect(), components.CommandOptions{InputID: commandInput, Label: "Command query", Query: query, Placeholder: "Type a command…", Hint: "Search commands", Variant: variant, Layer: 1})
 	if state.exampleID == "empty" {

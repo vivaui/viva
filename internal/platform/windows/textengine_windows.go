@@ -10,12 +10,12 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/bidi"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/textcache"
 	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // The text engine: a line is shaped once by DirectWrite into a retained
@@ -88,7 +88,7 @@ type lineTables struct {
 
 func (line *shapedLine) close() { release(&line.layout) }
 
-// textEngine is the ui.TextEngine of Windows. Its methods may be called from any
+// textEngine is the gfx.TextEngine of Windows. Its methods may be called from any
 // goroutine, one at a time.
 type textEngine struct {
 	mu          sync.Mutex
@@ -101,7 +101,7 @@ type textEngine struct {
 	// family is the family the interface's text is shaped in, "" for Segoe UI,
 	// the interface font Windows ships. Guarded by mu; a change forgets the cache.
 	family string
-	// generation moves whenever a line shapes differently from before (ui.FontFamilyAware).
+	// generation moves whenever a line shapes differently from before (gfx.FontFamilyAware).
 	generation atomic.Uint32
 
 	rasterMu sync.Mutex
@@ -123,15 +123,16 @@ func theTextEngine() (*textEngine, error) {
 	return &sharedEngine, nil
 }
 
-var _ ui.FontFamilyAware = (*textEngine)(nil)
-var _ ui.TextRasterizer = (*textEngine)(nil)
+var _ gfx.FontFamilyAware = (*textEngine)(nil)
+var _ gfx.TextRasterizer = (*textEngine)(nil)
+var _ gfx.MonoCellEngine = (*textEngine)(nil)
 
-// RasterizeText implements ui.TextRasterizer with the same DirectWrite/Direct2D
+// RasterizeText implements gfx.TextRasterizer with the same DirectWrite/Direct2D
 // path the native label renderer uses.
-func (engine *textEngine) RasterizeText(value string, style ui.TextStyle, scale float32, width, height int) (ui.Bitmap, error) {
+func (engine *textEngine) RasterizeText(value string, style gfx.TextStyle, scale float32, width, height int) (gfx.Bitmap, error) {
 	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width*height > 16*1024*1024 ||
 		scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
-		return ui.Bitmap{}, fmt.Errorf("windows: invalid text bitmap size or scale")
+		return gfx.Bitmap{}, fmt.Errorf("windows: invalid text bitmap size or scale")
 	}
 
 	engine.rasterMu.Lock()
@@ -140,7 +141,7 @@ func (engine *textEngine) RasterizeText(value string, style ui.TextStyle, scale 
 	if engine.raster == nil {
 		rasterizer, err := newDirectRasterizer()
 		if err != nil {
-			return ui.Bitmap{}, err
+			return gfx.Bitmap{}, err
 		}
 		engine.raster = rasterizer
 	}
@@ -152,13 +153,13 @@ func (engine *textEngine) RasterizeText(value string, style ui.TextStyle, scale 
 		},
 	}, scale, width, height, false, 0)
 	if err != nil {
-		return ui.Bitmap{}, err
+		return gfx.Bitmap{}, err
 	}
 	copyPixels := append([]byte(nil), pixels...)
-	return ui.Bitmap{Pix: copyPixels, Width: width, Height: height, Stride: width * 4}, nil
+	return gfx.Bitmap{Pix: copyPixels, Width: width, Height: height, Stride: width * 4}, nil
 }
 
-// SetFontFamily implements ui.FontFamilyAware: the family the interface's text is
+// SetFontFamily implements gfx.FontFamilyAware: the family the interface's text is
 // shaped in, "" for Segoe UI. Everything shaped with another family is forgotten.
 func (engine *textEngine) SetFontFamily(family string) {
 	family = strings.TrimSpace(family)
@@ -175,11 +176,28 @@ func (engine *textEngine) SetFontFamily(family string) {
 	engine.generation.Add(1)
 }
 
-// FontGeneration implements ui.FontFamilyAware.
+// MonoCell implements gfx.MonoCellEngine: the cell of the face's own font, which is the
+// cell a terminal is laid out on and stands on.
+func (engine *textEngine) MonoCell(size float32, face gfx.MonoFace) gfx.MonoCellMetrics {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	metrics, err := engine.services.measureIn(monoFamily(face), "M", size, 0)
+	if err != nil {
+		return gfx.MonoCellMetrics{}
+	}
+	return gfx.MonoCellMetrics{
+		Advance: metrics.Width,
+		Ascent:  metrics.Ascent,
+		Descent: metrics.Descent,
+		LineGap: max(metrics.Height-metrics.Ascent-metrics.Descent, 0),
+	}
+}
+
+// FontGeneration implements gfx.FontFamilyAware.
 func (engine *textEngine) FontGeneration() uint32 { return engine.generation.Load() }
 
 // TextEngine is the platform's text engine, or nil when DirectWrite is not available.
-func TextEngine() ui.TextEngine {
+func TextEngine() gfx.TextEngine {
 	engine, err := theTextEngine()
 	if err != nil {
 		return nil
@@ -460,11 +478,11 @@ func (engine *textEngine) CaretStyle(value string, size, weight float32, italic 
 }
 
 // Selection appends the extents of [start, end), left to right.
-func (engine *textEngine) Selection(dst []ui.TextSpan, value string, size, weight float32, start, end int) []ui.TextSpan {
+func (engine *textEngine) Selection(dst []gfx.TextSpan, value string, size, weight float32, start, end int) []gfx.TextSpan {
 	return engine.SelectionStyle(dst, value, size, weight, false, start, end)
 }
 
-func (engine *textEngine) SelectionStyle(dst []ui.TextSpan, value string, size, weight float32, italic bool, start, end int) []ui.TextSpan {
+func (engine *textEngine) SelectionStyle(dst []gfx.TextSpan, value string, size, weight float32, italic bool, start, end int) []gfx.TextSpan {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	line, ok := engine.tablesOfStyle(value, size, weight, italic)
@@ -477,13 +495,13 @@ func (engine *textEngine) SelectionStyle(dst []ui.TextSpan, value string, size, 
 		start, end = end, start
 	}
 	if start == end {
-		return append(dst, ui.TextSpan{X: tables.caret[start]})
+		return append(dst, gfx.TextSpan{X: tables.caret[start]})
 	}
 	const touching = 0.01
 	base := len(dst)
 	for at := start; at < end; at = int(tables.next[at]) {
 		left, width := tables.boxLeft[at], tables.boxWidth[at]
-		dst = append(dst, ui.TextSpan{X: left, Width: width})
+		dst = append(dst, gfx.TextSpan{X: left, Width: width})
 	}
 	// Order the pieces left to right and join the ones that touch: the boxes of a
 	// right-to-left stretch arrive from the right.

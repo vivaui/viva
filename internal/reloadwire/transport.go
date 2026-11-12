@@ -11,7 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 var frameMagic = [4]byte{'G', 'O', 'P', 'R'}
@@ -138,49 +138,51 @@ func (client *Client) Paint(ctx context.Context, request PaintRequest) (CanvasSn
 	return decodeCanvas(payload)
 }
 
-func (client *Client) Click(ctx context.Context, id ui.ID) error {
+func (client *Client) Click(ctx context.Context, id gfx.ID, info gfx.ClickInfo) error {
 	var payload encoder
 	payload.id(id)
+	payload.u32(uint32(info.Modifiers))
+	payload.u8(uint8(max(info.Clicks, 0)))
 	_, err := client.request(ctx, messageClick, payload.data)
 	return err
 }
 
-func (client *Client) Pointer(ctx context.Context, event ui.PointerEvent) (ui.EventResult, error) {
+func (client *Client) Pointer(ctx context.Context, event gfx.PointerEvent) (gfx.EventResult, error) {
 	payload, err := client.request(ctx, messagePointer, encodePointerEvent(event))
 	if err != nil {
-		return ui.EventResult{}, err
+		return gfx.EventResult{}, err
 	}
 	return decodeEventResult(payload)
 }
 
-func (client *Client) Key(ctx context.Context, event ui.KeyEvent) (ui.EventResult, error) {
+func (client *Client) Key(ctx context.Context, event gfx.KeyEvent) (gfx.EventResult, error) {
 	payload, err := client.request(ctx, messageKey, encodeKeyEvent(event))
 	if err != nil {
-		return ui.EventResult{}, err
+		return gfx.EventResult{}, err
 	}
 	return decodeEventResult(payload)
 }
 
-func (client *Client) Shortcut(ctx context.Context, event ui.KeyEvent) (ui.EventResult, error) {
+func (client *Client) Shortcut(ctx context.Context, event gfx.KeyEvent) (gfx.EventResult, error) {
 	payload, err := client.request(ctx, messageShortcut, encodeKeyEvent(event))
 	if err != nil {
-		return ui.EventResult{}, err
+		return gfx.EventResult{}, err
 	}
 	return decodeEventResult(payload)
 }
 
-func (client *Client) Scroll(ctx context.Context, event ui.ScrollEvent) (ui.EventResult, error) {
+func (client *Client) Scroll(ctx context.Context, event gfx.ScrollEvent) (gfx.EventResult, error) {
 	payload, err := client.request(ctx, messageScroll, encodeScrollEvent(event))
 	if err != nil {
-		return ui.EventResult{}, err
+		return gfx.EventResult{}, err
 	}
 	return decodeEventResult(payload)
 }
 
-func (client *Client) ModifierTap(ctx context.Context, event ui.ModifierTapEvent) (ui.EventResult, error) {
+func (client *Client) ModifierTap(ctx context.Context, event gfx.ModifierTapEvent) (gfx.EventResult, error) {
 	payload, err := client.request(ctx, messageModifierTap, encodeModifierTapEvent(event))
 	if err != nil {
-		return ui.EventResult{}, err
+		return gfx.EventResult{}, err
 	}
 	return decodeEventResult(payload)
 }

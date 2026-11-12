@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // ResizableOrientation selects side-by-side or stacked panels.
 type ResizableOrientation uint8
@@ -12,10 +12,10 @@ const (
 
 // ResizableLayout is the exact panel and handle geometry for one split.
 type ResizableLayout struct {
-	First  ui.Rect
-	Handle ui.Rect
-	Hit    ui.Rect
-	Second ui.Rect
+	First  gfx.Rect
+	Handle gfx.Rect
+	Hit    gfx.Rect
+	Second gfx.Rect
 }
 
 // Resizable paints a split handle, returns panel geometry, and maps pointer
@@ -23,10 +23,10 @@ type ResizableLayout struct {
 // in application state, so an idle split owns no timer, goroutine, or polling
 // work.
 type Resizable struct {
-	canvas    *ui.Canvas
-	theme     ui.Theme
-	id        ui.ID
-	bounds    ui.Rect
+	canvas    *gfx.Canvas
+	theme     gfx.Theme
+	id        gfx.ID
+	bounds    gfx.Rect
 	fraction  float32
 	valueText string
 	minimum   float32
@@ -51,7 +51,7 @@ func (resizable Resizable) WithHandle() Resizable {
 }
 
 // BeginResizable starts a horizontal split declaration.
-func BeginResizable(canvas *ui.Canvas, theme ui.Theme, id ui.ID, bounds ui.Rect, fraction float32) Resizable {
+func BeginResizable(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect, fraction float32) Resizable {
 	return Resizable{
 		canvas: canvas, theme: theme, id: id, bounds: bounds, fraction: fraction,
 		minimum: 0.1, maximum: 0.9, hitSize: 4, collapsed: -1, defaultFraction: fraction,
@@ -102,13 +102,13 @@ func (resizable Resizable) Step(pixels float32) Resizable {
 // the split's axis move it by Step pixels, or 5% of the group without a Step;
 // Home and End send it to the lower and upper limit. It returns the new
 // first-panel fraction and whether the key was one the handle uses.
-func (resizable Resizable) FractionForKey(key ui.Key) (float32, bool) {
+func (resizable Resizable) FractionForKey(key gfx.Key) (float32, bool) {
 	fraction := resizable.clampedFraction()
 	usable := resizable.bounds.Width - 1
-	less, more := ui.KeyLeft, ui.KeyRight
+	less, more := gfx.KeyLeft, gfx.KeyRight
 	if resizable.orientation == ResizableVertical {
 		usable = resizable.bounds.Height - 1
-		less, more = ui.KeyUp, ui.KeyDown
+		less, more = gfx.KeyUp, gfx.KeyDown
 	}
 	switch key {
 	case less, more:
@@ -123,9 +123,9 @@ func (resizable Resizable) FractionForKey(key ui.Key) (float32, bool) {
 			delta = -delta
 		}
 		return resizable.constrain(fraction + delta), true
-	case ui.KeyHome:
+	case gfx.KeyHome:
 		return resizable.constrain(0), true
-	case ui.KeyEnd:
+	case gfx.KeyEnd:
 		return resizable.constrain(1), true
 	}
 	return fraction, false
@@ -143,8 +143,8 @@ func (resizable Resizable) Collapsed(fraction float32) Resizable {
 // CollapseFraction is Enter on a focused handle: collapse to Collapsed (the
 // lower limit by default) when the panel is open, else restore restore, the
 // size it had before. It is the caller's job to remember that size.
-func (resizable Resizable) CollapseFraction(current, restore float32, key ui.Key) (float32, bool) {
-	if key != ui.KeyEnter {
+func (resizable Resizable) CollapseFraction(current, restore float32, key gfx.Key) (float32, bool) {
+	if key != gfx.KeyEnter {
 		return current, false
 	}
 	collapsed := resizable.minimum
@@ -179,9 +179,9 @@ func (resizable Resizable) FractionForClick(clickCount int) (float32, bool) {
 // ResizableHandleForKey moves focus between resize handles with F6 and
 // Shift+F6, wrapping and skipping zero identities. The application owns the
 // handles' identities and the focus result.
-func ResizableHandleForKey(key ui.Key, handles []ui.ID, current ui.ID, reverse bool) (ui.ID, bool) {
-	if key != ui.KeyF6 {
-		return ui.ID{}, false
+func ResizableHandleForKey(key gfx.Key, handles []gfx.ID, current gfx.ID, reverse bool) (gfx.ID, bool) {
+	if key != gfx.KeyF6 {
+		return gfx.ID{}, false
 	}
 	index := -1
 	for at, id := range handles {
@@ -202,7 +202,7 @@ func ResizableHandleForKey(key ui.Key, handles []ui.ID, current ui.ID, reverse b
 			return handles[at], true
 		}
 	}
-	return ui.ID{}, false
+	return gfx.ID{}, false
 }
 
 // HandleSize overrides the logical-pixel interaction strip thickness. Panel
@@ -279,12 +279,12 @@ func (resizable Resizable) Paint(label string) ResizableLayout {
 		resizable.paintGrip(layout.Handle)
 	}
 	if !resizable.id.IsZero() {
-		cursor := ui.PointerCursorResizeHorizontal
+		cursor := gfx.PointerCursorResizeHorizontal
 		if resizable.orientation == ResizableVertical {
-			cursor = ui.PointerCursorResizeVertical
+			cursor = gfx.PointerCursorResizeVertical
 		}
-		resizable.canvas.HitWithOptions(resizable.id, layout.Hit, label, ui.HitOptions{
-			Role: ui.RoleSeparator, Cursor: cursor, Value: resizable.valueText,
+		resizable.canvas.HitWithOptions(resizable.id, layout.Hit, label, gfx.HitOptions{
+			Role: gfx.RoleSeparator, Cursor: cursor, Value: resizable.valueText,
 			Disabled: resizable.disabled,
 		})
 	}
@@ -299,12 +299,12 @@ func (resizable Resizable) layout() ResizableLayout {
 			usable = 0
 		}
 		firstHeight := usable * fraction
-		handle := ui.Rect{X: resizable.bounds.X, Y: resizable.bounds.Y + firstHeight, Width: resizable.bounds.Width, Height: 1}
+		handle := gfx.Rect{X: resizable.bounds.X, Y: resizable.bounds.Y + firstHeight, Width: resizable.bounds.Width, Height: 1}
 		return ResizableLayout{
-			First:  ui.Rect{X: resizable.bounds.X, Y: resizable.bounds.Y, Width: resizable.bounds.Width, Height: firstHeight},
+			First:  gfx.Rect{X: resizable.bounds.X, Y: resizable.bounds.Y, Width: resizable.bounds.Width, Height: firstHeight},
 			Handle: handle,
 			Hit:    resizable.hitBounds(handle),
-			Second: ui.Rect{X: resizable.bounds.X, Y: handle.Y + handle.Height, Width: resizable.bounds.Width, Height: usable - firstHeight},
+			Second: gfx.Rect{X: resizable.bounds.X, Y: handle.Y + handle.Height, Width: resizable.bounds.Width, Height: usable - firstHeight},
 		}
 	}
 	usable := resizable.bounds.Width - 1
@@ -312,21 +312,21 @@ func (resizable Resizable) layout() ResizableLayout {
 		usable = 0
 	}
 	firstWidth := usable * fraction
-	handle := ui.Rect{X: resizable.bounds.X + firstWidth, Y: resizable.bounds.Y, Width: 1, Height: resizable.bounds.Height}
+	handle := gfx.Rect{X: resizable.bounds.X + firstWidth, Y: resizable.bounds.Y, Width: 1, Height: resizable.bounds.Height}
 	return ResizableLayout{
-		First:  ui.Rect{X: resizable.bounds.X, Y: resizable.bounds.Y, Width: firstWidth, Height: resizable.bounds.Height},
+		First:  gfx.Rect{X: resizable.bounds.X, Y: resizable.bounds.Y, Width: firstWidth, Height: resizable.bounds.Height},
 		Handle: handle,
 		Hit:    resizable.hitBounds(handle),
-		Second: ui.Rect{X: handle.X + handle.Width, Y: resizable.bounds.Y, Width: usable - firstWidth, Height: resizable.bounds.Height},
+		Second: gfx.Rect{X: handle.X + handle.Width, Y: resizable.bounds.Y, Width: usable - firstWidth, Height: resizable.bounds.Height},
 	}
 }
 
-func (resizable Resizable) hitBounds(handle ui.Rect) ui.Rect {
+func (resizable Resizable) hitBounds(handle gfx.Rect) gfx.Rect {
 	size := max(resizable.hitSize, float32(1))
 	if resizable.orientation == ResizableVertical {
-		return ui.Rect{X: handle.X, Y: handle.Y - (size-1)/2, Width: handle.Width, Height: size}
+		return gfx.Rect{X: handle.X, Y: handle.Y - (size-1)/2, Width: handle.Width, Height: size}
 	}
-	return ui.Rect{X: handle.X - (size-1)/2, Y: handle.Y, Width: size, Height: handle.Height}
+	return gfx.Rect{X: handle.X - (size-1)/2, Y: handle.Y, Width: size, Height: handle.Height}
 }
 
 func (resizable Resizable) clampedFraction() float32 {
@@ -352,14 +352,14 @@ func (resizable Resizable) constrain(fraction float32) float32 {
 	return min(max(fraction, low), high)
 }
 
-func (resizable Resizable) paintGrip(handle ui.Rect) {
+func (resizable Resizable) paintGrip(handle gfx.Rect) {
 	color := resizable.theme.Border
 	if resizable.disabled {
 		color.Alpha *= 0.50
 	}
 	if resizable.orientation == ResizableHorizontal {
-		resizable.canvas.Rounded(ui.Rect{X: handle.X - 1.5, Y: handle.Y + handle.Height/2 - 12, Width: 4, Height: 24}, 2, color)
+		resizable.canvas.Rounded(gfx.Rect{X: handle.X - 1.5, Y: handle.Y + handle.Height/2 - 12, Width: 4, Height: 24}, 2, color)
 		return
 	}
-	resizable.canvas.Rounded(ui.Rect{X: handle.X + handle.Width/2 - 12, Y: handle.Y - 1.5, Width: 24, Height: 4}, 2, color)
+	resizable.canvas.Rounded(gfx.Rect{X: handle.X + handle.Width/2 - 12, Y: handle.Y - 1.5, Width: 24, Height: 4}, 2, color)
 }

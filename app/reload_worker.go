@@ -3,28 +3,28 @@
 package app
 
 import (
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/reloadwire"
-	"github.com/vivaui/viva/ui"
 )
 
 // runReloadWorkerIfEnabled reports whether this process is a development
 // reload worker and, if so, runs it. The release build has no implementation
 // that mentions the protocol package at all (see reload_disabled.go).
-func runReloadWorkerIfEnabled(config Config, canvas *ui.Canvas) (bool, error) {
+func runReloadWorkerIfEnabled(config Config, canvas *gfx.Canvas) (bool, error) {
 	if !reloadwire.Enabled() {
 		return false, nil
 	}
 	return true, runReloadWorker(config, canvas)
 }
 
-func runReloadWorker(config Config, canvas *ui.Canvas) error {
+func runReloadWorker(config Config, canvas *gfx.Canvas) error {
 	if canvas == nil {
-		canvas = &ui.Canvas{}
+		canvas = &gfx.Canvas{}
 	}
 	return reloadwire.Serve(newReloadWorkerConfig(config, canvas))
 }
 
-func newReloadWorkerConfig(config Config, canvas *ui.Canvas) reloadwire.WorkerConfig {
+func newReloadWorkerConfig(config Config, canvas *gfx.Canvas) reloadwire.WorkerConfig {
 	worker := reloadwire.WorkerConfig{
 		Window: reloadwire.WindowConfig{
 			Title: config.Title, Width: config.Width, Height: config.Height,

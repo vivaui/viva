@@ -40,7 +40,7 @@ viva help package      # 某个命令的参数
 `viva add` 写出的配方随命令一起发布，所以命令和项目所依赖的 Viva 应该是同一个版本。`viva init` 因此会在 `go.mod` 里加一行 `tool`，`go tool viva` 运行的就是项目锁定的那个版本；升级 Viva 时命令一起升级，CI 也不需要另外安装：
 
 ```sh
-go tool viva add --out ./components/ui button
+go tool viva add --out ./components button
 go get -tool github.com/vivaui/viva/cmd/viva@v0.1.3   # 给已有项目锁定
 ```
 

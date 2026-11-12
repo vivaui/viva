@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/reloadwire"
-	"github.com/vivaui/viva/ui"
 )
 
 // startMotionWorker serves an in-process worker whose paint callback runs one
@@ -23,9 +23,9 @@ func startMotionWorker(t *testing.T, target *float32) *workerProcess {
 	t.Setenv(reloadwire.TokenEnvironment, "motion")
 	go reloadwire.Serve(reloadwire.WorkerConfig{
 		Window: reloadwire.WindowConfig{Title: "motion", Width: 200, Height: 100},
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			x := canvas.Animate(ui.Item(1), 0, *target, ui.Motion{Duration: 100 * time.Millisecond, Easing: ui.EaseLinear})
-			canvas.Fill(ui.Rect{X: x * 100, Width: 10, Height: 10}, ui.Color{Alpha: 1})
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			x := canvas.Animate(gfx.Item(1), 0, *target, gfx.Motion{Duration: 100 * time.Millisecond, Easing: gfx.EaseLinear})
+			canvas.Fill(gfx.Rect{X: x * 100, Width: 10, Height: 10}, gfx.Color{Alpha: 1})
 		},
 	})
 	connection, err := listener.Accept()
@@ -48,13 +48,13 @@ func TestHostCanvasFollowsWorkerTransitionsOnItsOwnClock(t *testing.T) {
 	worker := startMotionWorker(t, &target)
 	supervisor := newSupervisor(worker, reloadwire.PaintRequest{}, reloadwire.CanvasSnapshot{}, io.Discard)
 
-	var host ui.Canvas
+	var host gfx.Canvas
 	var hostNow time.Duration
 	host.SetClock(func() time.Duration { return hostNow })
 	frame := func(at time.Duration) float32 {
 		hostNow = at
 		host.BeginFrame()
-		supervisor.paint(&host, ui.Size{Width: 200, Height: 100})
+		supervisor.paint(&host, gfx.Size{Width: 200, Height: 100})
 		host.EndFrame()
 		return host.Rectangles()[0].Bounds.X
 	}
@@ -78,13 +78,13 @@ func TestHostFrameLoopStopsWhenWorkerSnapshotIsStale(t *testing.T) {
 	target := float32(0)
 	worker := startMotionWorker(t, &target)
 	supervisor := newSupervisor(worker, reloadwire.PaintRequest{}, reloadwire.CanvasSnapshot{}, io.Discard)
-	var host ui.Canvas
+	var host gfx.Canvas
 	var hostNow time.Duration
 	host.SetClock(func() time.Duration { return hostNow })
 	paintHost := func(at time.Duration) {
 		hostNow = at
 		host.BeginFrame()
-		supervisor.paint(&host, ui.Size{Width: 200, Height: 100})
+		supervisor.paint(&host, gfx.Size{Width: 200, Height: 100})
 		host.EndFrame()
 	}
 	paintHost(time.Second)

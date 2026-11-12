@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -40,44 +40,44 @@ var (
 	toggleDisabled = tree.ID(toggleUI, "disabled")
 )
 
-// toggleSpecimen is one toggle: the slot flex gave it and how the component paints it.
+// toggleSpecimen is one toggle: the slot ui gave it and how the component paints it.
 type toggleSpecimen struct {
-	slot                          flex.Box
-	id                            ui.ID
+	slot                          ui.Box
+	id                            gfx.ID
 	label                         string
 	active, small, large, outline bool
 	invalid, disabled             bool
 }
 
-func (state *State) paintToggle(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintToggle(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var specimens [6]toggleSpecimen
 	count := 0
 	height := theme.Metrics.ControlHeight // default size; small and large adjust below
-	add := func(f *flex.Frame, specimen toggleSpecimen, width, extra float32) {
-		specimen.slot = f.Slot().Size(width, height+extra)
+	add := func(c ui.C, specimen toggleSpecimen, width, extra float32) {
+		specimen.slot = ui.Slot(c).Size(width, height+extra)
 		specimens[count] = specimen
 		count++
 	}
-	state.page(canvas, theme, size, 500, state.Text("Toggle · 双态操作", "Toggle · Two-state action"), func(f *flex.Frame) {
-		f.Row().Gap(12).Children(func() {
+	state.drawPage(canvas, theme, size, 500, state.Text("Toggle · 双态操作", "Toggle · Two-state action"), func(c ui.C) {
+		ui.Row(c).Gap(12).Children(func() {
 			for index, label := range [...]string{"B", "I", "U"} {
-				add(f, toggleSpecimen{id: toggleItem.At(index), label: label, outline: true, active: state.flags&(1<<index) != 0}, 44, 0)
+				add(c, toggleSpecimen{id: toggleItem.At(index), label: label, outline: true, active: state.flags&(1<<index) != 0}, 44, 0)
 			}
 		})
 		switch state.exampleID {
 		case "variants":
-			f.Row().Gap(16).Items(flex.Center).Children(func() {
-				add(f, toggleSpecimen{id: toggleItem.At(3), label: "Small", small: true, active: state.flags&(1<<3) != 0}, 80, -4)
-				add(f, toggleSpecimen{id: toggleLarge, label: "Large", large: true, outline: true, active: true}, 92, 4)
+			ui.Row(c).Gap(16).Items(ui.Center).Children(func() {
+				add(c, toggleSpecimen{id: toggleItem.At(3), label: "Small", small: true, active: state.flags&(1<<3) != 0}, 80, -4)
+				add(c, toggleSpecimen{id: toggleLarge, label: "Large", large: true, outline: true, active: true}, 92, 4)
 			})
-			caption(f, state.Text("尺寸由显式链式选项决定。", "Size comes from explicit chained options."))
+			caption(c, state.Text("尺寸由显式链式选项决定。", "Size comes from explicit chained options."))
 		case "states":
-			f.Row().Gap(16).Children(func() {
-				add(f, toggleSpecimen{id: toggleInvalid, label: "Invalid", outline: true, active: true, invalid: true}, 96, 0)
-				add(f, toggleSpecimen{id: toggleDisabled, label: "Disabled", outline: true, disabled: true}, 96, 0)
+			ui.Row(c).Gap(16).Children(func() {
+				add(c, toggleSpecimen{id: toggleInvalid, label: "Invalid", outline: true, active: true, invalid: true}, 96, 0)
+				add(c, toggleSpecimen{id: toggleDisabled, label: "Disabled", outline: true, disabled: true}, 96, 0)
 			})
 		default:
-			caption(f, state.Text("每个按钮独立保存激活位。", "Each button keeps its own active bit."))
+			caption(c, state.Text("每个按钮独立保存激活位。", "Each button keeps its own active bit."))
 		}
 	})
 

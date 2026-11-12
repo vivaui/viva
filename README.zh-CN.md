@@ -34,13 +34,13 @@ viva dev .        # hot reload: save a file, the window updates and keeps its st
 
 环境要求：Go 1.26 或更新版本（缺失时 viva 会自己下载）。macOS 上需要 Xcode 命令行工具，因为 Viva 通过 cgo 访问 Cocoa 和 Metal；Linux 上需要带系统 XCB 和 Vulkan 加载库的 X11；Windows 上需要 Win32、Direct3D 11 和 DirectWrite。Viva 在运行时加载系统库，自身不捆绑任何一个。
 
-当前版本是 `v0.4.0`；要固定版本就写明（`@v0.4.0`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
+当前版本是 `v0.6.0`；要固定版本就写明（`@v0.6.0`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
 
 下面的一切描述的都是这个仓库：它的测量、它自己的程序，以及如何开发框架本身，而不是如何用框架。
 
 ## 范围
 
-Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用。WebAssembly/WebGPU 后端是可选的次要目标，不得给原生构建增加成本。iOS、iPadOS、Android、移动端打包，以及以触摸为主的移动运行时，明确不在范围内。不会为了保留假设中的未来移动兼容性而削弱桌面性能与原生集成。
+Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用，同时把 WebAssembly/Canvas2D 作为正式的 Web 发布目标：两个目标共享组件、输入、文本、焦点和无障碍语义，浏览器缺失的能力通过显式异步 API 和 `Capability` 报告，而不是伪造原生行为。Web 目标不得给原生构建增加成本。iOS、iPadOS、Android、移动端打包，以及以触摸为主的移动运行时，明确不在范围内。不会为了保留假设中的未来移动兼容性而削弱桌面性能与原生集成。
 
 三个后端都直接使用操作系统自己的窗口和 GPU API，没有 WebView，也不捆绑渲染运行时。
 
@@ -60,7 +60,7 @@ Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用。WebAssembly/Web
 - 状态区图标与弹出面板：`Application.AddStatusItem` 把图标放到 macOS 菜单栏、Windows 通知区域或 Linux 的 StatusNotifier 宿主；`StatusItemConfig.Menu` 让图标打开系统自己的菜单（NSMenu、Win32 弹出菜单、`com.canonical.dbusmenu`）；`WindowPanel` 是在它旁边打开、失焦即关闭的无边框弹出面板；`Window.Hide`/`Show` 让应用在没有可见窗口时继续运行。
 - `Application.SetDockBadge` 在 macOS 为应用 Dock 图标画出的红色角标里放一段文字，空文字表示去掉角标。
 - `app.StoreSecret`/`LoadSecret`/`DeleteSecret` 把少量机密保存在系统自己的存储里（Keychain、Credential Manager、Secret Service）。
-- `ui.MonoFamily` 用任何已安装的字体族绘制等宽文本，`app.MonospaceFamilies` 列出它们。
+- `gfx.MonoFamily` 用任何已安装的字体族绘制等宽文本，`app.MonospaceFamilies` 列出它们。
 - `Config.OnFileDrop` 接收从文件管理器拖入的文件，并带上指针下的命中区域。
 - 一棵独立的保留式语义无障碍树，镜像成原生 NSAccessibility 元素、Windows UI Automation 提供程序（Invoke、Toggle、Value、RangeValue、SelectionItem、ExpandCollapse 和 Text 模式，并带事件）和 Linux AT-SPI 对象，浏览器构建里映射为 ARIA。屏幕阅读器的按下、聚焦和设置值请求通过 `platform.AccessibilityHandler` 到达应用。见 [docs/accessibility.md](docs/accessibility.md)。
 - 事件驱动的窗口缩放重绘：每次缩放恰好一次 GPU 提交，尺寸不变时零工作。
@@ -72,10 +72,10 @@ Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用。WebAssembly/Web
 - 一棵独立的保留式语义无障碍树。
 - 直接 CoreText 整形、系统字体回退、GPU 合成的文本纹理，以及有上限的测量缓存。
 - 实验性的 Windows shell：Win32 事件、D3D11 保留式渲染、内嵌 DXBC 着色器、DirectWrite 测量，以及有上限的 GDI 标签纹理；原生构建不加载着色器编译器。
-- 实验性的 Linux/X11 shell：动态加载系统 XCB、Vulkan、Pango 和 Cairo；保留式圆角矩形与三角形、分层 GPU 合成的系统文本、指针与键盘输入、自定义标题栏拖动，以及没有空闲重绘的阻塞式事件循环。
+- 实验性的 Linux/X11 shell：动态加载系统 XCB、Vulkan、Pango 和 Cairo；保留式圆角矩形与三角形、分层 GPU 合成的系统文本、指针与键盘输入、自定义标题栏拖动、没有空闲重绘的阻塞式事件循环，以及在没有硬件 Vulkan 设备时用 CPU 光栅器绘制窗口。
 - 事件驱动渲染，没有空闲帧循环。
 - 主题令牌，以及把固定版本的 shadcn 组件目录静态类型化、源码自有的移植，包括表单、浮层、菜单、日历、滚动配方、反馈界面，以及从有类型切片绘制的面积图、折线图和柱状图，不需要浏览器运行时、反射或运行时样式解析器。
-- 共享的原生/WASM 组件浏览器：按分类分组的全部组件目录，以及每个组件一页、并排运行它的所有示例（点击、悬停、键盘、拖动、滚轮和原生文本编辑都可用），页面滚动条可拖动，热重载保留状态。示例就是 `internal/componentdemo` 里的那些，通过 `ui.Canvas.Embed` 嵌入页面，所以组件浏览器不保留任何组件的副本。
+- 共享的原生/WASM 组件浏览器：按分类分组的全部组件目录，以及每个组件一页、并排运行它的所有示例（点击、悬停、键盘、拖动、滚轮和原生文本编辑都可用），页面滚动条可拖动，热重载保留状态。示例就是 `internal/componentdemo` 里的那些，通过 `gfx.Canvas.Embed` 嵌入页面，所以组件浏览器不保留任何组件的副本。
 - 结构化诊断：可选的 `diagnostics` 包接收框架上报的事件（捕获的 panic、GPU 设备恢复、Web 视图失败、启动测量），与 `log/slog` 双向适配，可保留最近事件环与故障上下文；应用不安装 handler 时不写文件、不发送任何内容。见 [docs/diagnostics.md](docs/diagnostics.md)。
 - 签名应用更新：可选的 `update` 包读取 Ed25519 签名的清单，下载清单列出的归档，校验其长度与 SHA-256，再交给平台安装器（macOS 交换 `.app`、Windows 运行 NSIS 安装器、Linux 替换可执行文件）；`viva feed` 从 `viva package` 的产物生成并签名清单。见 [docs/updating.md](docs/updating.md)。
 - 窗口关闭或应用终止时干净地退出事件循环。
@@ -83,7 +83,7 @@ Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用。WebAssembly/Web
 
 Windows 后端支持 amd64 和 arm64 交叉构建，并在 Wine/DXVK 下通过平台测试以及 Gallery 的启动、指针和键盘冒烟测试。平台测试、conformance 场景，以及输入、拖放和设备丢失路径，在一台 Windows 11 虚拟机（WARP）和一台 Debian KDE/X11 机器（lavapipe）上运行；`docs/conformance.md` 记录了需要真实硬件的场景。UI Automation 在一台真实的 Windows 11 机器上由外部客户端检查（见 docs/accessibility.md），AT-SPI 在 KDE/X11 机器上针对 libatspi 检查。Linux 后端通过 Ubuntu arm64 Xvfb/llvmpipe 的 M0 和 Debian amd64 X11/Lavapipe 的保留式场景冒烟测试，包括中英混排文本和局部场景更新。macOS 运行时测试和基准在 arm64 上运行。
 
-原生标签渲染器绘制单行标签。浏览器预览运行在 Canvas2D 后端。
+原生标签渲染器绘制单行标签。浏览器目标运行在 Canvas2D 后端；能力矩阵、生命周期与静态托管要求见 [Web 部署](docs/web-deployment.md)。
 
 ## 运行这个仓库
 
@@ -96,7 +96,7 @@ tools/build_web.sh           # viva build --target web，然后服务 http://127
 go run ./tools/docs -check   # 网站生成的 API 与组件数据
 ```
 
-浏览器里的组件浏览器通过 Canvas2D WebAssembly 后端绘制相同的 Go 组件；它的视觉方向与测量成本记录在 `docs/benchmarks/m3-gallery-style-darwin-arm64.md`。
+浏览器构建通过 Canvas2D WebAssembly 后端绘制相同的 Go 组件，并且是正式发布目标：文件选择、拖放、剪贴板、通知、加密密钥存储和内置字体都有类型化的异步 API。视觉方向与测量成本记录在 `docs/benchmarks/m3-gallery-style-darwin-arm64.md`。
 
 ## 文档网站
 
@@ -138,9 +138,9 @@ go run ./cmd/viva help package     # 每个命令和参数
 静态画布可以通过公开 API 呈现：
 
 ```go
-theme := ui.DarkTheme()
-var canvas ui.Canvas
-components.Card(&canvas, theme, ui.Rect{X: 24, Y: 24, Width: 320, Height: 180})
+theme := gfx.DarkTheme()
+var canvas gfx.Canvas
+components.Card(&canvas, theme, gfx.Rect{X: 24, Y: 24, Width: 320, Height: 180})
 if err := app.RunCanvas(app.Config{Title: "My App"}, &canvas); err != nil {
     log.Fatal(err)
 }

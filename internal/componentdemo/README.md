@@ -8,10 +8,10 @@
 
 - 从 URL 或 flags 取得 component/example/theme，调用 `New(componentID, exampleID)`；
   空 example 选择首个，未知 component/example 返回错误，不隐式回退。
-- 以 `SetDark(bool)` 设置主题、`SetDensity(ui.Density)` 设置控件密度（默认 Regular）；切换示例或重置使用新的 `State`。
-- 展示页（`internal/gallery`）为每个示例准备独立 `ui.Canvas`，用 `Canvas.BeginEmbedded` / `Embed` 嵌入页面；
-  示例按自己的坐标与自己的身份绘制，页面把它挂载在自己的 scope 上（`ui.Tree.Mount`），
-  同一示例在多个槽位里得到互不相同的身份，见 `ui.Tree` 的身份说明。
+- 以 `SetDark(bool)` 设置主题、`SetDensity(gfx.Density)` 设置控件密度（默认 Regular）；切换示例或重置使用新的 `State`。
+- 展示页（`internal/gallery`）为每个示例准备独立 `gfx.Canvas`，用 `Canvas.BeginEmbedded` / `Embed` 嵌入页面；
+  示例按自己的坐标与自己的身份绘制，页面把它挂载在自己的 scope 上（`gfx.Tree.Mount`），
+  同一示例在多个槽位里得到互不相同的身份，见 `gfx.Tree` 的身份说明。
 - 所有示例共用一棵身份树：`componentdemo.Tree()`。独立运行器把它设为 `app.Config.Tree`；
   展示页在同一棵树里命名自己的控件。`State.Paint` 也会把它设给画布，因此裸画布同样可用。
 - 运行器清空 Canvas，并以单调时间调用 `BeginFrame` / `EndFrame` 包围 `Paint`。
@@ -30,22 +30,22 @@
 
 状态及 Editor 由运行器在 UI 所有者线程同步使用，不支持并发修改。状态只保留计数、选择、
 开关、一个按需 Editor 和弹窗结果，不保存 Canvas 或历史帧；New 是唯一重置边界。
-`State` 另持有一个 `*flex.View`（flex 页面的布局内存，`New` 分配，页面热起来后绘制不再分配）。
+`State` 另持有一个 `*ui.Page`（`drawPage` 的布局、身份与绘制内存，首次绘制时由 `ui.NewPage` 建立，页面热起来后绘制不再分配）。
 文本缓冲区的生命周期和内存由现有 `text.Editor` 管理，本包不新增池或后台任务。
 
 ## 如何写一个示例
 
-控件身份是树里的名字，点击在声明控件的地方读取，页面外观用 flex 声明。
+控件身份是树里的名字，点击在声明控件的地方读取；页面部分用 `ui.Page` 的 `C` 声明（`drawPage`），组件插槽仍由示例自己的身份绘制。
 
 1. **身份**：在示例文件里为示例声明一个 feature scope，为每组控件声明一个 list scope 或一个具名 ID
    （包级变量，启动时创建一次，绝不在 `Paint` 里创建）。`tree` 是包内共享的身份树（`ids.go`）。
 2. **点击**：在 `paintXxx` 里，控件声明处直接 `if control.Clicked() { ... }`
-   （flex 的 `Box.Clicked()`、`components.BeginX(...).Paint().Clicked()`，或 `canvas.Clicked(id)` /
+   （页面的 `Box.Clicked()`、组件绘制器的 `Paint().Clicked()`，或 `canvas.Clicked(id)` /
    `canvas.ClickedIn(list)`）。事件遍历是唯一允许改状态的绘制；运行时从不向禁用控件投递点击。
-3. **布局**：用 `state.page(canvas, theme, size, maxWidth, title, func(f *flex.Frame) {...})`
-   声明标题与内容（居中、最大宽度、16px 间距），控件用 flex 的 `Button`/`Checkbox`/`Switch`/`Input`/
-   `Dialog`/`Grid`/`Row`/`Column`/`Text`。flex 没有的外观（例如 Invalid 复选框、Badge）用 `f.Slot().Size(w, h)`
-   预留位置，`page` 返回后用 `Box.Rect()` 调用组件的绘制函数。只有真正的绘制几何才手算矩形。
+3. **布局**：用 `state.drawPage(canvas, theme, size, maxWidth, title, func(c ui.C) {...})`
+   声明标题与内容（居中、最大宽度、16px 间距），控件用页面的 `ui.Button`/`Checkbox`/`Switch`/`TextField`/
+   `Choice`/`Row`/`Column`/`Text`。没有 `ui` 元素的组件（例如 Invalid 复选框、Badge）用 `ui.Slot(c).Size(w, h)`
+   预留位置，`drawPage` 返回后按 `Box.Rect()` 调用组件的绘制函数。只有真正的绘制几何才手算矩形。
 4. **可编辑字段**：`editableField.ID` 使用树里的 ID（`inputEditable` 那样的包级变量）；
    `Editor(id)` 与 `fieldID` 比较的是示例自己的身份，展示页已经用 `Tree.Local` 还原过。
 5. **测试**：用 `click(&canvas, state, id)`（`state_test.go`）驱动：它把 `id` 作为事件遍历的点击，
@@ -60,15 +60,24 @@ var (
 	switchToggle = tree.Sub(switchUI, tree.Name("toggle")) // 第 i 个开关：switchToggle.At(i)
 )
 
-func (state *State) paintSwitch(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	state.page(canvas, theme, size, 480, "Switch · 调用方持有状态", func(f *flex.Frame) {
+func (state *State) paintSwitch(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	state.drawPage(canvas, theme, size, 480, "Switch · 调用方持有状态", func(c ui.C) {
 		for index, label := range labels {
-			f.Row().Gap(12).Items(flex.Center).PadX(12).Children(func() {
-				control := f.Switch(switchToggle.At(index), checked).Label(label).Disabled(disabled)
+			checked := state.switches.checked&(1<<index) != 0
+			disabled := state.exampleID == "states" && index > 0
+			if disabled {
+				checked = index == 2
+			}
+			state.switches.toggles[index] = checked
+			ui.Row(c).Gap(12).Items(ui.Center).PadX(12).MarginY(4).Children(func() {
+				control := ui.Switch(c, &state.switches.toggles[index], "").Hit(switchToggle.At(index), label).Disabled(disabled)
+				if state.exampleID == "sizes" && index == 1 {
+					control.Small()
+				}
 				if control.Clicked() {
 					state.switches.checked ^= 1 << index
 				}
-				f.Text(label).FontSize(13)
+				ui.Text(c, label).FontSize(theme.Metrics.FontSizeM)
 			})
 		}
 	})

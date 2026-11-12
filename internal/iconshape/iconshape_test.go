@@ -1,6 +1,7 @@
 package iconshape
 
 import (
+	"bytes"
 	"image"
 	"image/color"
 	"testing"
@@ -84,6 +85,93 @@ func BenchmarkTileTheDockIcon(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		Tile(picture, 512, MacInset)
+	}
+}
+
+func TestATileMarkFillsTheIconWithTheMark(t *testing.T) {
+	// A quarter-wide dark mark on a white canvas, as an application draws its
+	// mark for a desktop that gives the tile a margin.
+	picture := solid(128, color.NRGBA{R: 255, G: 255, B: 255, A: 255})
+	for y := 48; y < 80; y++ {
+		for x := 48; x < 80; x++ {
+			picture.SetNRGBA(x, y, color.NRGBA{R: 16, G: 16, B: 16, A: 255})
+		}
+	}
+	tight := TileMark(picture, 32)
+	tile := Tile(picture, 32, 1)
+	if got := alphaAt(tight, 0, 0); got != 0 {
+		t.Error("the corner of the tight tile stayed opaque: the square was not rounded")
+	}
+	if got := tight.NRGBAAt(16, 1); got.A != 255 || got.R < 200 {
+		t.Errorf("the background above the mark is %+v, want the picture's own background", got)
+	}
+	mark := opaqueDarkRow(tight, 16)
+	if mark < 20 {
+		t.Errorf("the mark spans %d of 32 px columns: the canvas margin was kept instead of spent", mark)
+	}
+	if grew := mark - opaqueDarkRow(tile, 16); grew < 10 {
+		t.Errorf("the tight tile's mark spans %d px, the plain tile's %d: the status area must show the mark larger", mark, mark-grew)
+	}
+}
+
+func TestTileMarkLeavesAPictureThatHasAShapeOfItsOwn(t *testing.T) {
+	disc := image.NewNRGBA(image.Rect(0, 0, 128, 128))
+	for y := 0; y < 128; y++ {
+		for x := 0; x < 128; x++ {
+			if dx, dy := x-64, y-64; dx*dx+dy*dy < 60*60 {
+				disc.SetNRGBA(x, y, color.NRGBA{R: 9, A: 255})
+			}
+		}
+	}
+	if !bytes.Equal(TileMark(disc, 64).Pix, Tile(disc, 64, 1).Pix) {
+		t.Error("a picture with its own shape must only be scaled, not cropped")
+	}
+}
+
+func TestTileMarkLeavesAPictureWhoseMarkFillsTheCanvas(t *testing.T) {
+	// The mark reaches both edges, so there is no margin to crop; a solid
+	// picture has no mark at all. Both must come out as the plain tile.
+	split := solid(128, color.NRGBA{R: 255, G: 255, B: 255, A: 255})
+	for y := 0; y < 128; y++ {
+		for x := 64; x < 128; x++ {
+			split.SetNRGBA(x, y, color.NRGBA{R: 16, G: 16, B: 16, A: 255})
+		}
+	}
+	for name, picture := range map[string]*image.NRGBA{
+		"mark to the edges": split,
+		"no mark":           solid(128, color.NRGBA{R: 30, G: 140, B: 90, A: 255}),
+	} {
+		if !bytes.Equal(TileMark(picture, 32).Pix, Tile(picture, 32, 1).Pix) {
+			t.Errorf("%s: the picture was cropped although there is no margin to spend", name)
+		}
+	}
+}
+
+// opaqueDarkRow is how many opaque, dark pixels row y holds: the mark's width
+// where it crosses that row.
+func opaqueDarkRow(picture *image.NRGBA, y int) int {
+	count := 0
+	for x := 0; x < picture.Bounds().Dx(); x++ {
+		if pixel := picture.NRGBAAt(x, y); pixel.A > 128 && pixel.R < 64 {
+			count++
+		}
+	}
+	return count
+}
+
+// BenchmarkTileMarkTheStatusIcon is the work a program does once per status
+// item: a 512 px picture cropped to its mark and shaped at the 16 px the
+// desktop draws.
+func BenchmarkTileMarkTheStatusIcon(b *testing.B) {
+	picture := solid(512, color.NRGBA{R: 255, G: 255, B: 255, A: 255})
+	for y := 200; y < 340; y++ {
+		for x := 180; x < 332; x++ {
+			picture.SetNRGBA(x, y, color.NRGBA{R: 16, G: 16, B: 16, A: 255})
+		}
+	}
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		TileMark(picture, 16)
 	}
 }
 

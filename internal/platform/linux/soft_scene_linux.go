@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/raster"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 // softScene is the retained scene of a window drawn by the CPU (ADR 0064): the rectangle
@@ -39,7 +39,7 @@ type softScene struct {
 // softLabel is one slot of the label list.
 type softLabel struct {
 	label platform.TextLabel
-	runs  []ui.TextRun // backs label.Runs, which is only valid for the call that carried it
+	runs  []gfx.TextRun // backs label.Runs, which is only valid for the call that carried it
 	// image is the label's picture at imageScale, if it has been drawn.
 	image      labelImage
 	imageScale float32
@@ -174,7 +174,7 @@ func (s *softScene) setLabel(slot *softLabel, next platform.TextLabel) error {
 	slot.label = next
 	slot.label.Runs = slot.runs
 	if redraw {
-		image, ok, err := rasterizeLabel(s.services, slot.label, s.scale)
+		image, ok, err := rasterizeLabel(s.services, slot.label, s.scale, s.clear.Alpha >= 1)
 		if err != nil {
 			return err
 		}
@@ -215,6 +215,7 @@ func labelBox(l *raster.Label) render.Scissor {
 func labelContentChanged(previous, next platform.TextLabel) bool {
 	return previous.Value != next.Value || previous.Width != next.Width || previous.Height != next.Height || previous.FontSize != next.FontSize || previous.Italic != next.Italic ||
 		previous.Weight != next.Weight || previous.Color != next.Color || previous.FontGeneration != next.FontGeneration || previous.Mono != next.Mono || previous.MonoFace != next.MonoFace || previous.CellWidth != next.CellWidth ||
+		previous.Baseline != next.Baseline ||
 		!sameTextRuns(previous.Runs, next.Runs) || previous.BitmapID != next.BitmapID || previous.BitmapVersion != next.BitmapVersion ||
 		previous.BitmapWidth != next.BitmapWidth || previous.BitmapHeight != next.BitmapHeight || previous.BitmapStride != next.BitmapStride ||
 		!sameBitmapBytes(previous.Bitmap, next.Bitmap)

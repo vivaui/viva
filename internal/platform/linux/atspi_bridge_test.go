@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/dbus"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 type atspiSignal struct {
@@ -73,13 +73,13 @@ func readStrings(d *dbus.Decoder) []string {
 func demoNodes() []platform.AccessibilityNode {
 	return []platform.AccessibilityNode{
 		{Role: platform.A11yRoleListBox, X: 0, Y: 100, Width: 200, Height: 100, Label: "Fruit"},
-		{ID: ui.Item(1), Role: platform.A11yRoleOption, X: 0, Y: 100, Width: 200, Height: 20, Label: "Apple", Selected: true, Focusable: true},
-		{ID: ui.Item(2), Role: platform.A11yRoleOption, X: 0, Y: 120, Width: 200, Height: 20, Label: "Pear", Focusable: true},
-		{ID: ui.Item(3), Role: platform.A11yRoleButton, X: 10, Y: 10, Width: 80, Height: 24, Label: "Save", Focusable: true},
-		{ID: ui.Item(4), Role: platform.A11yRoleTextField, X: 10, Y: 40, Width: 150, Height: 24, Label: "Name", Value: "hello wide world", Focusable: true,
+		{ID: gfx.Item(1), Role: platform.A11yRoleOption, X: 0, Y: 100, Width: 200, Height: 20, Label: "Apple", Selected: true, Focusable: true},
+		{ID: gfx.Item(2), Role: platform.A11yRoleOption, X: 0, Y: 120, Width: 200, Height: 20, Label: "Pear", Focusable: true},
+		{ID: gfx.Item(3), Role: platform.A11yRoleButton, X: 10, Y: 10, Width: 80, Height: 24, Label: "Save", Focusable: true},
+		{ID: gfx.Item(4), Role: platform.A11yRoleTextField, X: 10, Y: 40, Width: 150, Height: 24, Label: "Name", Value: "hello wide world", Focusable: true,
 			Selection: platform.AccessibilitySelection{Start: 6, End: 6, Valid: true}},
-		{ID: ui.Item(5), Role: platform.A11yRoleSlider, X: 10, Y: 70, Width: 150, Height: 16, Label: "Volume", Focusable: true,
-			Range: ui.ValueRange{Now: 30, Min: 0, Max: 100, Step: 5, Set: true}},
+		{ID: gfx.Item(5), Role: platform.A11yRoleSlider, X: 10, Y: 70, Width: 150, Height: 16, Label: "Volume", Focusable: true,
+			Range: gfx.ValueRange{Now: 30, Min: 0, Max: 100, Step: 5, Set: true}},
 	}
 }
 
@@ -107,12 +107,12 @@ func TestAtspiTreeFollowsContainersAndSurvivesShifts(t *testing.T) {
 	d = dbus.NewDecoder(list.body)
 	d.ArrayLength(8)
 	first := readRef(d)
-	if !strings.HasSuffix(first.Path, "/i"+strconv.FormatUint(ui.Item(1).Bits(), 10)) {
+	if !strings.HasSuffix(first.Path, "/i"+strconv.FormatUint(gfx.Item(1).Bits(), 10)) {
 		t.Fatalf("a control's path must name its identity, got %q", first.Path)
 	}
 
 	// The path of a control stays valid when the list shifts under it.
-	shifted := append([]platform.AccessibilityNode{{ID: ui.Item(9), Role: platform.A11yRoleButton, Label: "New"}}, demoNodes()...)
+	shifted := append([]platform.AccessibilityNode{{ID: gfx.Item(9), Role: platform.A11yRoleButton, Label: "New"}}, demoNodes()...)
 	test.update(test.window, shifted)
 	answer := test.call(first.Path, atspiIfaceAccessible, "GetRole", nil)
 	if role := dbus.NewDecoder(answer.body).Uint32(); role != atspiRoleListItem {
@@ -206,7 +206,7 @@ func TestAtspiActionsReachTheApplication(t *testing.T) {
 	if !dbus.NewDecoder(answer.body).Bool() {
 		t.Fatal("DoAction was refused")
 	}
-	if len(test.requests) != 1 || test.requests[0].Node != ui.Item(3) || test.requests[0].Action != platform.AccessibilityPress {
+	if len(test.requests) != 1 || test.requests[0].Node != gfx.Item(3) || test.requests[0].Action != platform.AccessibilityPress {
 		t.Fatalf("requests = %+v", test.requests)
 	}
 	test.requests = nil
@@ -264,7 +264,7 @@ func TestAtspiEventsNameWhatChanged(t *testing.T) {
 	changed[4].Selection = platform.AccessibilitySelection{Start: 11, End: 11, Valid: true}
 	changed[5].Range.Now = 35
 	changed = changed[:5+1]
-	changed = append(changed, platform.AccessibilityNode{ID: ui.Item(7), Role: platform.A11yRoleButton, Label: "Added"})
+	changed = append(changed, platform.AccessibilityNode{ID: gfx.Item(7), Role: platform.A11yRoleButton, Label: "Added"})
 	test.update(test.window, changed)
 
 	seen := map[string]atspiSignal{}
@@ -297,9 +297,9 @@ func TestAtspiEventsNameWhatChanged(t *testing.T) {
 }
 
 func TestAtspiLiveRegionAnnounces(t *testing.T) {
-	test := newTestBridge([]platform.AccessibilityNode{{Role: platform.A11yRoleStatus, Label: "Saved", X: 0, Y: 0, Width: 10, Height: 10, Live: ui.LivePolite}})
+	test := newTestBridge([]platform.AccessibilityNode{{Role: platform.A11yRoleStatus, Label: "Saved", X: 0, Y: 0, Width: 10, Height: 10, Live: gfx.LivePolite}})
 	test.signals = nil
-	test.update(test.window, []platform.AccessibilityNode{{Role: platform.A11yRoleStatus, Label: "Saving failed", X: 0, Y: 0, Width: 10, Height: 10, Live: ui.LiveAssertive}})
+	test.update(test.window, []platform.AccessibilityNode{{Role: platform.A11yRoleStatus, Label: "Saving failed", X: 0, Y: 0, Width: 10, Height: 10, Live: gfx.LiveAssertive}})
 	var announced bool
 	for _, signal := range test.signals {
 		if signal.member == "Announcement" && signal.detail == "Saving failed" && signal.detail1 == 2 {

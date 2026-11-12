@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestCodeEditorRepresentationExpandsDisplayButKeepsSourceCaretAndSelection(t *testing.T) {
@@ -28,7 +28,7 @@ func TestCodeEditorRepresentationExpandsDisplayButKeepsSourceCaretAndSelection(t
 		x    float32
 		want int
 	}{{left + 2*cell, 1}, {left + 4*cell, len("A\u200b")}} {
-		if offset, ok := fixture.editor.OffsetAt(ui.Point{X: sample.x, Y: fixture.editor.content.Y + fixture.editor.lineHeight/2}); !ok || offset != sample.want {
+		if offset, ok := fixture.editor.OffsetAt(gfx.Point{X: sample.x, Y: fixture.editor.content.Y + fixture.editor.lineHeight/2}); !ok || offset != sample.want {
 			t.Errorf("representation hit at %v = %d, %v; want source byte %d", sample.x, offset, ok, sample.want)
 		}
 	}
@@ -57,7 +57,7 @@ func TestCodeEditorRepresentationChangesWrapWithoutMakingUnicodeEOLALineBreak(t 
 		{Character: '\u200b', Label: "ZWSP"},
 		{Character: '\u2028', Label: "LS"},
 	}
-	accent := ui.RGB(180, 40, 60)
+	accent := gfx.RGB(180, 40, 60)
 	fixture.snapshot.HighlightLine = func(_ string, line int, _ string, dst []CodeEditorRun) []CodeEditorRun {
 		if line == 0 {
 			return append(dst, CodeEditorRun{Start: 1, End: len("A\u200b"), Color: accent})
@@ -145,7 +145,7 @@ func TestCodeEditorBlobRepresentationInvertsNormalHighlightAndSelectionColors(t 
 	fixture.paint()
 	cell := fixture.editor.cellWidth
 	blobX := fixture.editor.content.X + cell
-	assertBlob := func(background, foreground ui.Color) {
+	assertBlob := func(background, foreground gfx.Color) {
 		t.Helper()
 		foundFill, foundRun := false, false
 		for _, rectangle := range fixture.canvas.Rectangles() {
@@ -169,7 +169,7 @@ func TestCodeEditorBlobRepresentationInvertsNormalHighlightAndSelectionColors(t 
 		}
 	}
 	assertBlob(fixture.theme.Foreground, fixture.theme.Background)
-	accent := ui.RGB(180, 40, 60)
+	accent := gfx.RGB(180, 40, 60)
 	fixture.snapshot.HighlightLine = func(_ string, _ int, _ string, dst []CodeEditorRun) []CodeEditorRun {
 		return append(dst, CodeEditorRun{Start: 1, End: len("A\u200b"), Color: accent})
 	}
@@ -185,14 +185,14 @@ func TestCodeEditorBlobRepresentationInvertsNormalHighlightAndSelectionColors(t 
 	if fixture.snapshot.Value != value {
 		t.Fatal("blob paint changed the source text")
 	}
-	if offset, ok := fixture.editor.OffsetAt(ui.Point{X: blobX + 3*cell, Y: fixture.editor.content.Y + fixture.editor.lineHeight/2}); !ok || offset != len("A\u200b") {
+	if offset, ok := fixture.editor.OffsetAt(gfx.Point{X: blobX + 3*cell, Y: fixture.editor.content.Y + fixture.editor.lineHeight/2}); !ok || offset != len("A\u200b") {
 		t.Fatalf("blob hit = %d, %v; want source byte %d", offset, ok, len("A\u200b"))
 	}
 }
 
 func TestCodeEditorPlainAndHiddenRepresentationsDoNotPaintBlob(t *testing.T) {
 	fixture := newCodeFixture("A\u200bB\x01C")
-	fixture.snapshot.InvisibleColor = ui.RGB(48, 96, 144)
+	fixture.snapshot.InvisibleColor = gfx.RGB(48, 96, 144)
 	fixture.snapshot.Representations = []CodeRepresentation{
 		{Character: '\x01', Label: "", Blob: true},
 		{Character: '\u200b', Label: "ZWSP"},

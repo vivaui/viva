@@ -29,7 +29,9 @@ func (w *gtkWindow) setIcon() {
 		if size > icon.Size && len(pixbufs) > 0 {
 			break
 		}
-		tile := icon.Tile(min(size, icon.Size), 1)
+		// The title bar and the task switcher draw these small, so the mark
+		// fills the icon rather than the canvas's margin.
+		tile := icon.TileMark(min(size, icon.Size))
 		if !tile.Valid() {
 			continue
 		}

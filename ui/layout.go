@@ -1,293 +1,592 @@
 package ui
 
-// Insets describe uniform per-edge padding in logical pixels.
-type Insets struct {
-	Top    float32
-	Right  float32
-	Bottom float32
-	Left   float32
+import (
+	"math"
+	"strings"
+
+	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
+)
+
+// snapScroll is the scroll offset the layout applies, in whole logical pixels.
+// ScrollState.Offset keeps its fraction (the scrollbar and the application read
+// it as reported), but the painted content moves on the logical pixel grid: a
+// label's sub-pixel origin then stays constant while scrolling, so its native
+// texture is reused instead of rebuilt. See app/painter.go's roundPosition.
+func snapScroll(offset float32) float32 {
+	return float32(math.Round(float64(offset)))
 }
 
-// All returns insets with the same value on every edge.
-func All(value float32) Insets {
-	return Insets{Top: value, Right: value, Bottom: value, Left: value}
-}
+// The layout is solved one axis at a time, because a wrapped paragraph is as tall
+// as the width it gets: widths first (measure, then solve), then heights (measure,
+// then solve). Each is the same code with an axis, so a Row and a Column are one
+// algorithm.
 
-// Inset shrinks the rectangle by the insets on each edge.
-func (r Rect) Inset(insets Insets) Rect {
-	r.X += insets.Left
-	r.Y += insets.Top
-	r.Width -= insets.Left + insets.Right
-	r.Height -= insets.Top + insets.Bottom
-	if r.Width < 0 {
-		r.Width = 0
+func startEdge(axis int) int { return [2]int{3, 0}[axis] } // left, top
+func endEdge(axis int) int   { return [2]int{1, 2}[axis] } // right, bottom
+
+func extent(r *Rect, axis int) *float32 {
+	if axis == axisX {
+		return &r.Width
 	}
-	if r.Height < 0 {
-		r.Height = 0
+	return &r.Height
+}
+
+func origin(r *Rect, axis int) *float32 {
+	if axis == axisX {
+		return &r.X
 	}
-	return r
+	return &r.Y
 }
 
-// Right returns the x coordinate of the rectangle's right edge.
-func (r Rect) Right() float32 { return r.X + r.Width }
-
-// Bottom returns the y coordinate of the rectangle's bottom edge.
-func (r Rect) Bottom() float32 { return r.Y + r.Height }
-
-// Offset moves the rectangle by dx and dy without changing its size.
-func (r Rect) Offset(dx, dy float32) Rect {
-	r.X += dx
-	r.Y += dy
-	return r
-}
-
-// Centered returns a rectangle of the given size centered in r. A size larger
-// than r overflows evenly on both sides.
-func (r Rect) Centered(width, height float32) Rect {
-	return Rect{X: r.X + (r.Width-width)/2, Y: r.Y + (r.Height-height)/2, Width: width, Height: height}
-}
-
-// CutTop splits r into a strip of the given height along its top edge and the
-// rest below it. A height past r's own is clamped, so the strip never leaves r
-// and the rest is empty rather than negative.
-//
-//	header, body := bounds.CutTop(48)
-//	body = body.Inset(ui.All(16))
-func (r Rect) CutTop(height float32) (strip, rest Rect) {
-	height = min(max(height, 0), r.Height)
-	return Rect{X: r.X, Y: r.Y, Width: r.Width, Height: height},
-		Rect{X: r.X, Y: r.Y + height, Width: r.Width, Height: r.Height - height}
-}
-
-// CutBottom splits r into a strip of the given height along its bottom edge and
-// the rest above it.
-func (r Rect) CutBottom(height float32) (strip, rest Rect) {
-	height = min(max(height, 0), r.Height)
-	return Rect{X: r.X, Y: r.Y + r.Height - height, Width: r.Width, Height: height},
-		Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height - height}
-}
-
-// CutLeft splits r into a strip of the given width along its left edge and the
-// rest to its right.
-func (r Rect) CutLeft(width float32) (strip, rest Rect) {
-	width = min(max(width, 0), r.Width)
-	return Rect{X: r.X, Y: r.Y, Width: width, Height: r.Height},
-		Rect{X: r.X + width, Y: r.Y, Width: r.Width - width, Height: r.Height}
-}
-
-// CutRight splits r into a strip of the given width along its right edge and
-// the rest to its left.
-func (r Rect) CutRight(width float32) (strip, rest Rect) {
-	width = min(max(width, 0), r.Width)
-	return Rect{X: r.X + r.Width - width, Y: r.Y, Width: width, Height: r.Height},
-		Rect{X: r.X, Y: r.Y, Width: r.Width - width, Height: r.Height}
-}
-
-// Row lays out slots left to right with a fixed gap. It is a value type:
-// slot bookkeeping stays on the stack and layout allocates nothing.
-type Row struct {
-	bounds Rect
-	gap    float32
-	cursor float32
-}
-
-// BeginRow starts a horizontal stack inside bounds.
-func BeginRow(bounds Rect, gap float32) Row {
-	if gap < 0 {
-		gap = 0
+// inset is the padding and border on both sides of an axis.
+func (n *node) inset(axis int) (start, end float32) {
+	border := n.borderWidth
+	if n.flags&flagOutline != 0 {
+		border = 0 // an outline is drawn, it does not take room
 	}
-	return Row{bounds: bounds, gap: gap}
+	return n.pad[startEdge(axis)] + border, n.pad[endEdge(axis)] + border
 }
 
-// Next returns the next slot with the requested width. Slots are full height.
-func (r *Row) Next(width float32) Rect {
-	if width < 0 {
-		width = 0
-	}
-	slot := Rect{X: r.bounds.X + r.cursor, Y: r.bounds.Y, Width: width, Height: r.bounds.Height}
-	r.cursor += width + r.gap
-	return slot
+func (n *node) marginOn(axis int) (start, end float32) {
+	return n.margin[startEdge(axis)], n.margin[endEdge(axis)]
 }
 
-// NextFlex returns one slot filling all remaining width.
-func (r *Row) NextFlex() Rect {
-	width := r.bounds.Width - r.cursor
-	if width < 0 {
-		width = 0
-	}
-	slot := Rect{X: r.bounds.X + r.cursor, Y: r.bounds.Y, Width: width, Height: r.bounds.Height}
-	r.cursor = r.bounds.Width
-	return slot
+// flows reports whether a container lays its children out along axis. A Flow does
+// across, as a Row does, and wraps onto lines down (see flow.go).
+func (n *node) flows(axis int) bool {
+	return (n.dir == row || n.dir == flow) && axis == axisX || n.dir == column && axis == axisY
 }
 
-// Even returns n equal-width slots (divided over the remaining width, gaps
-// between them) in one call.
-func (r *Row) Even(n int) []Rect {
-	if n <= 0 {
-		return nil
+// leading is the height of one line of a text: its LineHeight, or the font size
+// plus seven, the same leading the components use.
+func (n *node) leading() float32 {
+	if n.lineH > 0 {
+		return n.lineH
 	}
-	total := r.bounds.Width - r.cursor - r.gap*float32(n-1)
-	if total < 0 {
-		total = 0
-	}
-	width := total / float32(n)
-	slots := make([]Rect, n)
-	for index := range slots {
-		slots[index] = r.Next(width)
-	}
-	return slots
+	return n.fontSize + 7
 }
 
-// Remaining reports the unclaimed width, ignoring a trailing gap.
-func (r Row) Remaining() float32 {
-	remaining := r.bounds.Width - r.cursor
-	if r.cursor > 0 && remaining < 0 {
-		// The trailing gap of the last slot does not consume layout space.
-		remaining += r.gap
-		if remaining < 0 {
-			remaining = 0
+// measure gives every element the size its content wants along axis. Elements
+// are stored parent before child, so walking the slice backwards visits children
+// first and needs no recursion.
+func (f *frame) measure(axis int) {
+	f.wrapCursor = 0
+	for i := len(f.nodes) - 1; i >= 0; i-- {
+		n := &f.nodes[i]
+		if axis == axisX && n.kind != kindContainer {
+			f.measureLeaf(n)
+		}
+		if n.kind == kindText && n.flags&flagWrap != 0 && axis == axisY {
+			first := int32(len(f.lines))
+			// An empty text has no line at all, as WrapLines gives it none; anything
+			// else that fits is one line and needs no breaking.
+			if n.text != "" && n.natural <= n.rect.Width-n.padX() && strings.IndexByte(n.text, '\n') < 0 {
+				f.lines = append(f.lines, n.text)
+			} else {
+				f.lines = f.wrapText(f.lines, n)
+			}
+			n.lineFirst, n.lineCount = first, int32(len(f.lines))-first
+			n.pref[axisY] = float32(n.lineCount)*n.leading() + n.padY()
+		}
+		if n.kind == kindContainer {
+			f.measureContainer(n, axis)
+		}
+		if d := n.size[axis]; d.kind == dimPx {
+			n.pref[axis] = d.value
+		}
+		if axis == axisY {
+			f.measureBaseline(n)
+		}
+		n.raw[axis] = n.pref[axis]
+		n.pref[axis] = clamp(n.pref[axis], n.minS[axis], n.maxS[axis])
+	}
+}
+
+func (f *frame) measureLeaf(n *node) {
+	if !n.hasOwnTheme() {
+		f.measureLeafIn(n)
+		return
+	}
+	saved := f.theme
+	f.theme = f.ownTheme(n)
+	f.measureLeafIn(n)
+	f.theme = saved
+}
+
+func (f *frame) measureLeafIn(n *node) {
+	switch n.kind {
+	case kindText:
+		if n.flags&flagMono != 0 {
+			// A Mono text is as wide as its cells: a wide character takes two, a combining
+			// mark none, as the canvas measures and draws it.
+			_, ch := f.canvas.MonoCellSize(n.fontSize, n.face)
+			n.pref = [2]float32{f.canvas.TextWidthStyle(n.text, n.textStyle()), ch}
+		} else {
+			n.pref = [2]float32{f.canvas.TextWidthWeight(n.text, n.fontSize, n.weight), n.leading()}
+		}
+		n.natural = n.pref[axisX]
+		n.pref[axisX] += n.padX() // a Text takes its Pad and Border like a container
+		n.pref[axisY] += n.padY()
+	case kindButton:
+		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.buttonSize).WithIcon(f.exts[n.ext].icon)
+		if d := n.size[axisY]; d.kind == dimPx {
+			button = button.Height(d.value) // an icon button is as wide as it is tall
+		}
+		button = button.SizeToFit(n.label)
+		n.pref = [2]float32{button.BoundsWidth(), button.BoundsHeight()}
+		if n.buttonSize >= components.ButtonSizeIcon {
+			n.pref[axisX] = n.pref[axisY]
+		}
+	case kindCheckbox:
+		w, h := components.CheckboxHitExtent(f.theme)
+		n.pref = [2]float32{w, h}
+		if n.text != "" {
+			n.pref[axisX] = components.CheckboxExtent(f.theme) + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
+		}
+	case kindSwitch:
+		w, h := components.SwitchHitExtent(f.theme, n.flags&flagSmall != 0)
+		n.pref = [2]float32{w, h}
+		if n.text != "" {
+			control, _ := components.SwitchExtent(f.theme, n.flags&flagSmall != 0)
+			n.pref[axisX] = control + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
+		}
+	case kindIcon, kindImage:
+		n.pref = [2]float32{16, 16}
+	case kindSegmented:
+		var width float32 = 8
+		for _, option := range f.segmented[n.aux].options {
+			width += f.canvas.TextWidthWeight(option.Label, f.theme.Metrics.FontSizeM, gfx.WeightMedium) + 28
+		}
+		n.pref = [2]float32{width, f.theme.Metrics.ControlHeight}
+	case kindInput:
+		n.pref = [2]float32{n.padX(), f.inputLine(n) + n.padY()}
+		if n.flags&flagThemed != 0 {
+			n.pref = [2]float32{0, f.theme.Metrics.ControlHeight}
+		}
+	case kindInputGroup:
+		n.pref = [2]float32{0, f.theme.Metrics.ControlHeight}
+		if n.kind == kindInputGroup && f.groups[n.aux].Multiline {
+			n.pref[axisY] = 64
+		}
+	case kindTextarea:
+		n.pref = [2]float32{n.padX(), f.theme.Metrics.FontSizeM + 7 + n.padY()}
+		if n.flags&flagThemed != 0 {
+			n.pref = [2]float32{0, 64}
+		}
+	case kindTable, kindTabs, kindSelect:
+		f.measureWidget(n)
+	case kindProgress:
+		n.pref = [2]float32{progressWidth, progressHeight}
+	case kindSpinner:
+		n.pref = [2]float32{16, 16}
+	case kindSplitter:
+		f.measureSplitter(n)
+	case kindSlider:
+		f.measureSlider(n)
+	}
+}
+
+func (f *frame) measureContainer(n *node, axis int) {
+	if n.dir == grid {
+		f.measureGrid(n, axis)
+		return
+	}
+	if n.dir == custom {
+		f.measureCustom(n, axis)
+		return
+	}
+	if n.dir == flow && axis == axisY {
+		f.measureFlowLines(n)
+		return
+	}
+	var total float32
+	count := 0
+	for c := n.first; c >= 0; c = f.nodes[c].next {
+		child := &f.nodes[c]
+		ms, me := child.marginOn(axis)
+		size := child.pref[axis] + ms + me
+		if n.flows(axis) {
+			total += size
+		} else {
+			total = max(total, size)
+		}
+		count++
+	}
+	if n.flows(axis) && count > 1 {
+		total += n.gap * float32(count-1)
+	}
+	is, ie := n.inset(axis)
+	n.pref[axis] = total + is + ie
+	if n.flags&flagScroll == 0 {
+		return
+	}
+	// What a scroll area holds is its own business: it is as tall as it is told to
+	// be, not as its children, and a Sideways one as wide. Content and ContentWidth
+	// say how much they need.
+	switch s := f.sidewaysState(n); {
+	case axis == axisY:
+		n.content = total
+	case s != nil:
+		s.ContentWidth = total
+	default:
+		return
+	}
+	if n.size[axis].kind == dimAuto && n.maxS[axis] == 0 {
+		n.pref[axis] = is + ie
+	}
+}
+
+func (n *node) padX() float32 {
+	s, e := n.inset(axisX)
+	return s + e
+}
+
+func (n *node) padY() float32 {
+	s, e := n.inset(axisY)
+	return s + e
+}
+
+func clamp(v, lo, hi float32) float32 {
+	if hi > 0 && v > hi {
+		v = hi
+	}
+	if v < lo {
+		v = lo
+	}
+	return max(v, 0)
+}
+
+// stretches reports whether an element with no size of its own fills the room
+// across its container: containers and text do, controls keep their own size.
+func (n *node) stretches(axis int) bool {
+	switch n.kind {
+	case kindSlider:
+		return (n.natural > 0) == (axis == axisY) // as long as its container, never as thick
+	case kindProgress:
+		return axis == axisX // a bar is as wide as its column, but a row does not make it tall
+	case kindContainer, kindText, kindSpacer, kindSlot, kindInput, kindInputGroup, kindTextarea, kindSegmented, kindTable, kindTabs, kindSelect, kindSplitter:
+		return true
+	}
+	return false
+}
+
+// solve sets the size and position along axis of the children of container i,
+// then of theirs. The container's own size and position on the axis are known.
+func (f *frame) solve(i int32, axis int) {
+	n := &f.nodes[i]
+	if n.first < 0 {
+		if n.outOfFlow&absChildren != 0 {
+			f.solveAbsolute(i, axis)
+		}
+		return
+	}
+	is, ie := n.inset(axis)
+	start := *origin(&n.rect, axis) + is
+	avail := max(*extent(&n.rect, axis)-is-ie, 0)
+	switch {
+	case n.dir == grid:
+		f.solveGrid(n, axis, start, avail)
+	case n.dir == custom:
+		f.solveCustom(n, axis, start, avail)
+	case n.dir == flow:
+		f.solveFlowLines(n, axis, start, avail)
+	case n.flows(axis):
+		f.placeSplitRatios(n, axis, avail)
+		f.solveFlow(n, n.first, -1, axis, start, avail)
+	default:
+		f.solveAcross(n, n.first, -1, axis, start, avail)
+	}
+	for c := n.first; c >= 0; c = f.nodes[c].next {
+		f.solve(c, axis)
+	}
+	if n.outOfFlow&absChildren != 0 {
+		f.solveAbsolute(i, axis)
+	}
+}
+
+// solveAcross places children on an axis the container does not flow along (the
+// width of a Column, the height of a Row, either axis of a Stack): those from first
+// up to stop, which is -1 after the last (a line of a Flow is a run of them).
+func (f *frame) solveAcross(n *node, first, stop int32, axis int, start, avail float32) {
+	if axis == axisX && n.flags&flagScroll != 0 {
+		if s := f.sidewaysState(n); s != nil {
+			// A Sideways area lays its children out across its content, or across
+			// itself where that is wider, and shows them OffsetX to the left, kept in
+			// range of the content it has now.
+			start -= snapScroll(min(s.OffsetX, max(s.ContentWidth-avail, 0)))
+			avail = max(avail, s.ContentWidth)
 		}
 	}
-	return remaining
-}
-
-// Column lays out slots top to bottom with a fixed gap. It mirrors Row.
-type Column struct {
-	bounds Rect
-	gap    float32
-	cursor float32
-}
-
-// BeginColumn starts a vertical stack inside bounds.
-func BeginColumn(bounds Rect, gap float32) Column {
-	if gap < 0 {
-		gap = 0
-	}
-	return Column{bounds: bounds, gap: gap}
-}
-
-// Next returns the next slot with the requested height. Slots are full width.
-func (c *Column) Next(height float32) Rect {
-	if height < 0 {
-		height = 0
-	}
-	slot := Rect{X: c.bounds.X, Y: c.bounds.Y + c.cursor, Width: c.bounds.Width, Height: height}
-	c.cursor += height + c.gap
-	return slot
-}
-
-// NextFlex returns one slot filling all remaining height.
-func (c *Column) NextFlex() Rect {
-	height := c.bounds.Height - c.cursor
-	if height < 0 {
-		height = 0
-	}
-	slot := Rect{X: c.bounds.X, Y: c.bounds.Y + c.cursor, Width: c.bounds.Width, Height: height}
-	c.cursor = c.bounds.Height
-	return slot
-}
-
-// Even returns n equal-height slots in one call.
-func (c *Column) Even(n int) []Rect {
-	if n <= 0 {
-		return nil
-	}
-	total := c.bounds.Height - c.cursor - c.gap*float32(n-1)
-	if total < 0 {
-		total = 0
-	}
-	height := total / float32(n)
-	slots := make([]Rect, n)
-	for index := range slots {
-		slots[index] = c.Next(height)
-	}
-	return slots
-}
-
-// Remaining reports the unclaimed height, ignoring a trailing gap.
-func (c Column) Remaining() float32 {
-	remaining := c.bounds.Height - c.cursor
-	if c.cursor > 0 && remaining < 0 {
-		remaining += c.gap
-		if remaining < 0 {
-			remaining = 0
+	var line float32 // the baseline children are lined up on, from the top
+	if axis == axisY && (n.dir == row || n.dir == flow) {
+		for c := first; c != stop; c = f.nodes[c].next {
+			child := &f.nodes[c]
+			if child.alignOn(n) == Baseline {
+				line = max(line, child.margin[0]+child.baseline)
+			}
 		}
 	}
-	return remaining
-}
-
-// GridSpec describes a wrapping grid of equal cells. MinCellWidth is the
-// narrowest a cell may become, not its size: the column count is the most
-// cells of at least that width that fit, and the cells then stretch to fill
-// the container exactly, so the grid follows its container instead of
-// sitting at a fixed size in one corner of it.
-type GridSpec struct {
-	MinCellWidth float32
-	CellHeight   float32
-	Gap          float32
-}
-
-// Columns returns the column count for a container width. It is never below
-// one: a container narrower than MinCellWidth gets a single, narrower column
-// rather than overflowing.
-func (spec GridSpec) Columns(width float32) int {
-	gap := max(spec.Gap, 0)
-	unit := max(spec.MinCellWidth, 1) + gap
-	if width <= 0 {
-		return 1
+	for c := first; c != stop; c = f.nodes[c].next {
+		child := &f.nodes[c]
+		align := child.alignOn(n)
+		ms, me := child.marginOn(axis)
+		if align == Baseline && axis == axisY && (n.dir == row || n.dir == flow) {
+			*extent(&child.rect, axis) = clamp(child.pref[axis], child.minS[axis], f.maxOn(child, axis, avail))
+			*origin(&child.rect, axis) = start + line - child.baseline
+			continue
+		}
+		size := crossSize(child, axis, avail-ms-me, align, f.maxOn(child, axis, avail-ms-me))
+		*extent(&child.rect, axis) = size
+		*origin(&child.rect, axis) = start + ms + offset(align, avail-ms-me-size)
 	}
-	return max(int((width+gap)/unit), 1)
 }
 
-// Rows returns the row count needed for count cells at a container width.
-func (spec GridSpec) Rows(width float32, count int) int {
-	if count <= 0 {
+// crossSize is the size of a child on an axis its container does not flow along.
+func crossSize(child *node, axis int, avail float32, align Align, hi float32) float32 {
+	d := child.size[axis]
+	lo := child.minS[axis]
+	switch {
+	case d.kind == dimPx:
+		return clamp(d.value, lo, hi)
+	case d.kind == dimPercent:
+		return clamp(avail*d.value/100, lo, hi)
+	case d.kind == dimFill, d.kind == dimAuto && (align == Stretch || align == Auto && child.stretches(axis)):
+		return clamp(max(avail, 0), lo, hi)
+	}
+	return clamp(child.pref[axis], lo, hi)
+}
+
+// maxOn is the largest size an element may have along axis in a container with avail
+// room for it: its MaxWidth or MaxHeight, or the share of avail MaxWidthPercent or
+// MaxHeightPercent gives, whichever is smaller. Zero is no limit.
+func (f *frame) maxOn(n *node, axis int, avail float32) float32 {
+	hi := n.maxS[axis]
+	if pct := f.exts[n.ext].maxPct[axis]; pct > 0 {
+		share := max(avail, 0) * pct / 100
+		if hi == 0 || share < hi {
+			hi = max(share, 0.001) // zero would mean no limit
+		}
+	}
+	return hi
+}
+
+func offset(align Align, free float32) float32 {
+	switch align {
+	case Center:
+		return free / 2
+	case End:
+		return free
+	}
+	return 0
+}
+
+// solveFlow shares the room along the axis the container flows on, the way CSS
+// flexbox does: each child starts at its basis (a Basis, a percentage, or its
+// preferred size), then free room goes to the children that grow, or a shortage is
+// taken from the children that shrink, in proportion; a child that hits its minimum
+// or maximum is frozen there and the rest is shared again among the others. It shares
+// it among the children from first up to stop, which is -1 after the last (a line of
+// a Flow is a run of them).
+func (f *frame) solveFlow(n *node, first, stop int32, axis int, start, avail float32) {
+	count := 0
+	var fixed float32
+	for c := first; c != stop; c = f.nodes[c].next {
+		child := &f.nodes[c]
+		basis, grow := flexBasis(child, axis, avail), float32(0)
+		if child.flags&flagGrowSet != 0 {
+			grow = child.grow
+		} else if child.size[axis].kind == dimFill {
+			grow = 1
+		}
+		child.growNow = grow
+		switch {
+		case child.flags&flagShrinkSet != 0:
+			child.shrinkNow = child.shrink
+		case axis == axisX && (child.kind == kindText || child.kind == kindContainer),
+			axis == axisY && child.flags&flagScroll != 0:
+			// Across a line of text or a container may give way; down a column an
+			// element keeps its content's height (as CSS min-height:auto does) unless it
+			// is a scroll area, which is what shrinking to fit is for.
+			child.shrinkNow = 1
+		default:
+			child.shrinkNow = 0
+		}
+		*extent(&child.rect, axis) = basis
+		ms, me := child.marginOn(axis)
+		fixed += ms + me
+		count++
+	}
+	if count > 1 {
+		fixed += n.gap * float32(count-1)
+	}
+	scrolls := axis == axisY && n.flags&flagScroll != 0
+
+	// Resolve flexible lengths as CSS does: share the room by each unfrozen child's
+	// base size, clamp, and freeze the children whose clamp went the way the total
+	// violation went (all minimums if the sum grew, all maximums if it shrank),
+	// then share again among the rest. Every pass starts from the base sizes.
+	for c := first; c != stop; c = f.nodes[c].next {
+		child := &f.nodes[c]
+		child.base = *extent(&child.rect, axis)
+		child.frozen = false
+	}
+	for pass := 0; pass <= count; pass++ {
+		var frozenSize, baseSum, growSum, shrinkSum float32
+		for c := first; c != stop; c = f.nodes[c].next {
+			child := &f.nodes[c]
+			if child.frozen {
+				frozenSize += *extent(&child.rect, axis)
+				continue
+			}
+			baseSum += child.base
+			growSum += child.growNow
+			shrinkSum += child.shrinkNow * child.base
+		}
+		room := avail
+		if scrolls {
+			room = max(avail, baseSum+frozenSize+fixed)
+		}
+		free := room - frozenSize - baseSum - fixed
+		var violation float32
+		for c := first; c != stop; c = f.nodes[c].next {
+			child := &f.nodes[c]
+			if child.frozen {
+				continue
+			}
+			want := child.base
+			switch {
+			case free > 0 && growSum > 0:
+				want += free * child.growNow / growSum
+			case free < 0 && shrinkSum > 0:
+				want += free * child.shrinkNow * child.base / shrinkSum
+			}
+			bounded := clamp(want, child.minS[axis], f.maxOn(child, axis, avail))
+			violation += bounded - want
+			*extent(&child.rect, axis) = bounded
+			child.bounded = bounded
+			child.want = want
+		}
+		done := true
+		for c := first; c != stop; c = f.nodes[c].next {
+			child := &f.nodes[c]
+			if child.frozen {
+				continue
+			}
+			clampedUp, clampedDown := child.bounded > child.want, child.bounded < child.want
+			if violation == 0 || violation > 0 && clampedUp || violation < 0 && clampedDown {
+				child.frozen = true
+			} else {
+				done = false
+			}
+		}
+		if done {
+			break
+		}
+	}
+
+	var used float32
+	for c := first; c != stop; c = f.nodes[c].next {
+		child := &f.nodes[c]
+		size := clamp(*extent(&child.rect, axis), child.minS[axis], f.maxOn(child, axis, avail))
+		*extent(&child.rect, axis) = size
+		used += size
+	}
+	used += fixed
+	room := avail
+	if scrolls {
+		room = max(avail, used)
+	}
+	leftover := room - used
+	pos, between := float32(0), n.gap
+	switch n.justify {
+	case Center:
+		if leftover > 0 {
+			pos = leftover / 2
+		}
+	case End:
+		pos = leftover // what does not fit overflows at the start, as the end is where it is anchored
+	case Between:
+		if leftover > 0 && count > 1 {
+			between += leftover / float32(count-1)
+		}
+	}
+	if scrolls {
+		if state := f.exts[n.ext].scrollState; state != nil && state.pinned() {
+			n.scroll = max(used-avail, 0) // at the end of what is there now, not of last frame's
+		}
+		pos -= snapScroll(n.scroll)
+	}
+	for c := first; c != stop; c = f.nodes[c].next {
+		child := &f.nodes[c]
+		ms, me := child.marginOn(axis)
+		pos += ms
+		*origin(&child.rect, axis) = start + pos
+		pos += *extent(&child.rect, axis) + me + between
+	}
+}
+
+// flexBasis is the size a child starts from along axis before the room is shared: none
+// when it fills, else its Basis, its percentage of avail, or its preferred size.
+func flexBasis(child *node, axis int, avail float32) float32 {
+	d := child.size[axis]
+	switch {
+	case d.kind == dimFill:
 		return 0
+	case child.flags&flagBasis != 0:
+		return child.basis
+	case d.kind == dimPercent:
+		return avail * d.value / 100
 	}
-	columns := spec.Columns(width)
-	return (count + columns - 1) / columns
+	return child.raw[axis]
 }
 
-// Height returns the height of count cells at a container width, without a
-// trailing gap.
-func (spec GridSpec) Height(width float32, count int) float32 {
-	rows := spec.Rows(width, count)
-	if rows == 0 {
-		return 0
+// alignOn is how a child sits across its container: its own Self, else the
+// container's Items.
+func (n *node) alignOn(parent *node) Align {
+	if n.self != Auto {
+		return n.self
 	}
-	return float32(rows)*spec.CellHeight + float32(rows-1)*max(spec.Gap, 0)
+	return parent.items
 }
 
-// Grid hands out the cells of a GridSpec left to right, wrapping at the
-// container edge. It is a value type: layout allocates nothing.
-type Grid struct {
-	bounds    Rect
-	spec      GridSpec
-	columns   int
-	cellWidth float32
-	next      int
-}
-
-// BeginGrid starts a grid inside bounds.
-func BeginGrid(bounds Rect, spec GridSpec) Grid {
-	spec.Gap = max(spec.Gap, 0)
-	columns := spec.Columns(bounds.Width)
-	cellWidth := max((bounds.Width-spec.Gap*float32(columns-1))/float32(columns), 0)
-	return Grid{bounds: bounds, spec: spec, columns: columns, cellWidth: cellWidth}
-}
-
-// Columns reports how many cells share one row.
-func (g Grid) Columns() int { return g.columns }
-
-// Next returns the next cell. Cells keep coming past the container height;
-// the caller owns scrolling and clipping.
-func (g *Grid) Next() Rect {
-	row, column := g.next/g.columns, g.next%g.columns
-	g.next++
-	return Rect{
-		X:      g.bounds.X + float32(column)*(g.cellWidth+g.spec.Gap),
-		Y:      g.bounds.Y + float32(row)*(g.spec.CellHeight+g.spec.Gap),
-		Width:  g.cellWidth,
-		Height: g.spec.CellHeight,
+// measureBaseline finds the distance from the top of an element to its first line
+// of text, for Baseline alignment. Text sits at its leading's middle with an
+// ascent of about four fifths of the font size; a control's label is centered; an
+// element with no text has its bottom edge as baseline.
+func (f *frame) measureBaseline(n *node) {
+	switch n.kind {
+	case kindText:
+		top, _ := n.inset(axisY)
+		n.baseline = top + (n.leading()-n.fontSize)/2 + n.fontSize*0.8
+	case kindButton:
+		size := f.theme.Metrics.FontSizeM
+		if n.hasOwnTheme() {
+			size = f.ownTheme(n).Metrics.FontSizeM
+		}
+		n.baseline = n.pref[axisY]/2 + size*0.3
+	case kindContainer:
+		n.baseline = n.pref[axisY]
+		is, _ := n.inset(axisY)
+		for c := n.first; c >= 0; c = f.nodes[c].next {
+			child := &f.nodes[c]
+			if n.dir == flow && child.gridRow != 0 {
+				break // a Flow's baseline is its first line's
+			}
+			if child.kind == kindContainer && child.baseline == child.pref[axisY] && child.first < 0 {
+				continue
+			}
+			value := is + child.margin[0] + child.baseline
+			if n.dir == row || n.dir == flow {
+				for k := n.first; k >= 0 && (n.dir == row || f.nodes[k].gridRow == 0); k = f.nodes[k].next {
+					other := &f.nodes[k]
+					value = max(value, is+other.margin[0]+other.baseline)
+				}
+			}
+			n.baseline = value
+			break
+		}
+	default:
+		n.baseline = n.pref[axisY]
 	}
 }

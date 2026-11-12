@@ -3,7 +3,7 @@ package {{PACKAGE}}
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // ToastType selects the official semantic icon treatment.
@@ -42,14 +42,14 @@ const (
 
 // ToastQueueEntry is one live toast as the queue sees it.
 type ToastQueueEntry struct {
-	ID        ui.ID
+	ID        gfx.ID
 	Loading   bool
 	Paused    bool
 	Remaining time.Duration // zero for a loading toast or after the deadline
 }
 
 type toastQueueEntry struct {
-	id        ui.ID
+	id        gfx.ID
 	deadline  time.Time
 	remaining time.Duration
 	loading   bool
@@ -87,13 +87,13 @@ func (queue *ToastQueue) limit() int {
 // Add enqueues a toast. When the limit is full it drops the oldest and returns
 // its ID so the caller can paint its exit. Add reports false for a zero ID or
 // one that is already queued.
-func (queue *ToastQueue) Add(id ui.ID, now time.Time, loading bool) (evicted ui.ID, ok bool) {
+func (queue *ToastQueue) Add(id gfx.ID, now time.Time, loading bool) (evicted gfx.ID, ok bool) {
 	if id.IsZero() {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	for index := range queue.entries {
 		if queue.entries[index].id == id {
-			return ui.ID{}, false
+			return gfx.ID{}, false
 		}
 	}
 	if len(queue.entries) >= queue.limit() {
@@ -109,7 +109,7 @@ func (queue *ToastQueue) Add(id ui.ID, now time.Time, loading bool) (evicted ui.
 }
 
 // Remove drops a toast, as its close button or a swipe does.
-func (queue *ToastQueue) Remove(id ui.ID) bool {
+func (queue *ToastQueue) Remove(id gfx.ID) bool {
 	for index := range queue.entries {
 		if queue.entries[index].id == id {
 			queue.entries = append(queue.entries[:index], queue.entries[index+1:]...)
@@ -121,7 +121,7 @@ func (queue *ToastQueue) Remove(id ui.ID) bool {
 
 // SetLoading changes whether a toast expires. A toast that stops loading gets
 // a fresh timeout; one that starts loading never expires.
-func (queue *ToastQueue) SetLoading(id ui.ID, loading bool, now time.Time) bool {
+func (queue *ToastQueue) SetLoading(id gfx.ID, loading bool, now time.Time) bool {
 	for index := range queue.entries {
 		entry := &queue.entries[index]
 		if entry.id != id {
@@ -142,7 +142,7 @@ func (queue *ToastQueue) SetLoading(id ui.ID, loading bool, now time.Time) bool 
 
 // Pause stops a toast's clock, remembering how much time was left, as hovering
 // or focusing its viewport does.
-func (queue *ToastQueue) Pause(id ui.ID, now time.Time) bool {
+func (queue *ToastQueue) Pause(id gfx.ID, now time.Time) bool {
 	for index := range queue.entries {
 		entry := &queue.entries[index]
 		if entry.id != id || entry.paused || entry.loading || entry.deadline.IsZero() {
@@ -157,7 +157,7 @@ func (queue *ToastQueue) Pause(id ui.ID, now time.Time) bool {
 }
 
 // Resume restarts a paused toast's remaining time.
-func (queue *ToastQueue) Resume(id ui.ID, now time.Time) bool {
+func (queue *ToastQueue) Resume(id gfx.ID, now time.Time) bool {
 	for index := range queue.entries {
 		entry := &queue.entries[index]
 		if entry.id != id || !entry.paused {
@@ -188,7 +188,7 @@ func (queue *ToastQueue) ResumeAll(now time.Time) {
 // Expire removes and returns the first toast whose time is up. Loading and
 // paused toasts never expire. Call it after NextDeadline comes due; it reports
 // false when nothing is due.
-func (queue *ToastQueue) Expire(now time.Time) (ui.ID, bool) {
+func (queue *ToastQueue) Expire(now time.Time) (gfx.ID, bool) {
 	for index := range queue.entries {
 		entry := &queue.entries[index]
 		if entry.paused || entry.loading || entry.deadline.IsZero() || now.Before(entry.deadline) {
@@ -198,7 +198,7 @@ func (queue *ToastQueue) Expire(now time.Time) (ui.ID, bool) {
 		queue.entries = append(queue.entries[:index], queue.entries[index+1:]...)
 		return id, true
 	}
-	return ui.ID{}, false
+	return gfx.ID{}, false
 }
 
 // NextDeadline is the earliest time an unpaused, non-loading toast expires, for
@@ -252,9 +252,9 @@ const (
 // ToastOptions contains stable action and overlay identities.
 type ToastOptions struct {
 	Layer       uint16
-	Scope       ui.ID
-	DismissID   ui.ID
-	ActionID    ui.ID
+	Scope       gfx.ID
+	DismissID   gfx.ID
+	ActionID    gfx.ID
 	ActionLabel string
 	Disabled    bool
 	// Position is where the toast sits; the zero value is the bottom right.
@@ -263,11 +263,11 @@ type ToastOptions struct {
 
 // ToastLayout exposes deterministic geometry for pointer routing and tests.
 type ToastLayout struct {
-	Bounds ui.Rect
-	Icon   ui.Rect
-	Body   ui.Rect
-	Action ui.Rect
-	Close  ui.Rect
+	Bounds gfx.Rect
+	Icon   gfx.Rect
+	Body   gfx.Rect
+	Action gfx.Rect
+	Close  gfx.Rect
 }
 
 // Toast geometry, from Base UI's toast: a `max-w-sm` box 16px in from the
@@ -296,7 +296,7 @@ type toastGeometry struct {
 	hasIcon       bool
 }
 
-func toastMeasure(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, snapshot ToastSnapshot, options ToastOptions, scratch *overlayLines) (toastGeometry, []string) {
+func toastMeasure(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, snapshot ToastSnapshot, options ToastOptions, scratch *overlayLines) (toastGeometry, []string) {
 	var geometry toastGeometry
 	geometry.width = min(toastMaxWidth, viewport.Width-2*toastInset)
 	if geometry.width <= 0 {
@@ -309,11 +309,11 @@ func toastMeasure(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, snapshot 
 		geometry.bodyWidth -= toastIconSize + toastItemGap
 	}
 	if !options.ActionID.IsZero() && options.ActionLabel != "" {
-		geometry.actionWidth = BeginButton(canvas, theme, ui.ID{}, ui.Rect{}).Small().SizeToFit(options.ActionLabel).BoundsWidth()
+		geometry.actionWidth = BeginButton(canvas, theme, gfx.ID{}, gfx.Rect{}).Small().SizeToFit(options.ActionLabel).BoundsWidth()
 		geometry.bodyWidth -= geometry.actionWidth + toastItemGap
 	}
 	geometry.bodyWidth = max(geometry.bodyWidth, 0)
-	lines := overlayWrap(canvas, scratch, snapshot.Description, metrics.FontSizeM, ui.WeightRegular, geometry.bodyWidth)
+	lines := overlayWrap(canvas, scratch, snapshot.Description, metrics.FontSizeM, gfx.WeightRegular, geometry.bodyWidth)
 	geometry.text = overlayLineHeight(metrics)
 	if len(lines) > 0 {
 		geometry.text += toastTextGap + float32(len(lines))*overlayLineHeight(metrics)
@@ -324,7 +324,7 @@ func toastMeasure(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, snapshot 
 
 // ToastHeight is how tall PaintToast makes the toast, for a caller that stacks
 // toasts itself.
-func ToastHeight(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, snapshot ToastSnapshot, options ToastOptions) float32 {
+func ToastHeight(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, snapshot ToastSnapshot, options ToastOptions) float32 {
 	var scratch overlayLines
 	geometry, _ := toastMeasure(canvas, theme, viewport, snapshot, options, &scratch)
 	return geometry.height
@@ -335,7 +335,7 @@ func ToastHeight(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, snapshot T
 // wraps. It schedules no work and retains no lifetime state, except that a
 // loading toast asks for a frame every 100ms to turn its spinner, until it is
 // no longer painted.
-func PaintToast(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, snapshot ToastSnapshot, options ToastOptions) ToastLayout {
+func PaintToast(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, snapshot ToastSnapshot, options ToastOptions) ToastLayout {
 	if canvas == nil || viewport.Width <= 0 || viewport.Height <= 0 || snapshot.Limited {
 		return ToastLayout{}
 	}
@@ -367,7 +367,7 @@ func PaintToast(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, snapshot To
 	}
 	x += snapshot.SwipeX
 	y += snapshot.OffsetY + snapshot.SwipeY
-	bounds := ui.Rect{X: x, Y: y, Width: width, Height: height}
+	bounds := gfx.Rect{X: x, Y: y, Width: width, Height: height}
 	layout := ToastLayout{Bounds: bounds}
 	canvas.PushLayer(options.Layer)
 	if !options.DismissID.IsZero() {
@@ -381,23 +381,23 @@ func PaintToast(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, snapshot To
 	}
 	canvas.BeginPresence(overlayKey(options.DismissID, options.Scope), overlaySurfacePart, toastPresence(theme, options.Position, height), centerOf(bounds))
 	// sonner's own shadow, 0 4px 12px rgb(0 0 0 / 10%): the pinned shadcn snapshot has none.
-	canvas.Shadow(bounds, metrics.RadiusSurface, ui.ShadowStyle{OffsetY: 4, Blur: 12}, ui.Color{Alpha: 0.10})
+	canvas.Shadow(bounds, metrics.RadiusSurface, gfx.ShadowStyle{OffsetY: 4, Blur: 12}, gfx.Color{Alpha: 0.10})
 	canvas.RoundedBorder(bounds, metrics.RadiusSurface, 1, theme.Border, theme.Popover)
 
 	// The icon, the text, the action and the close button are centered on the row
 	// the padding leaves.
-	row := ui.Rect{X: bounds.X + toastPadding, Y: bounds.Y + toastPadding, Width: bounds.Width - 2*toastPadding, Height: bounds.Height - 2*toastPadding}
+	row := gfx.Rect{X: bounds.X + toastPadding, Y: bounds.Y + toastPadding, Width: bounds.Width - 2*toastPadding, Height: bounds.Height - 2*toastPadding}
 	textX := row.X
 	if geometry.hasIcon {
-		layout.Icon = ui.Rect{X: row.X, Y: row.Y + (row.Height-toastIconSize)/2, Width: toastIconSize, Height: toastIconSize}
+		layout.Icon = gfx.Rect{X: row.X, Y: row.Y + (row.Height-toastIconSize)/2, Width: toastIconSize, Height: toastIconSize}
 		paintToastIcon(canvas, theme, layout.Icon, snapshot.Type)
 		textX += toastIconSize + toastItemGap
 	}
-	layout.Close = ui.Rect{X: row.X + row.Width - toastCloseSize, Y: row.Y + (row.Height-toastCloseSize)/2, Width: toastCloseSize, Height: toastCloseSize}
+	layout.Close = gfx.Rect{X: row.X + row.Width - toastCloseSize, Y: row.Y + (row.Height-toastCloseSize)/2, Width: toastCloseSize, Height: toastCloseSize}
 	right := layout.Close.X - toastItemGap
 	if geometry.actionWidth > 0 {
-		button := BeginButton(canvas, theme, options.ActionID, ui.Rect{X: right - geometry.actionWidth, Y: row.Y, Width: geometry.actionWidth}).Small()
-		layout.Action = ui.Rect{X: right - geometry.actionWidth, Y: row.Y + (row.Height-button.BoundsHeight())/2, Width: geometry.actionWidth, Height: button.BoundsHeight()}
+		button := BeginButton(canvas, theme, options.ActionID, gfx.Rect{X: right - geometry.actionWidth, Y: row.Y, Width: geometry.actionWidth}).Small()
+		layout.Action = gfx.Rect{X: right - geometry.actionWidth, Y: row.Y + (row.Height-button.BoundsHeight())/2, Width: geometry.actionWidth, Height: button.BoundsHeight()}
 		button.bounds = layout.Action
 		if options.Disabled {
 			button = button.Disabled()
@@ -415,14 +415,14 @@ func PaintToast(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, snapshot To
 	}
 	paintCross(canvas, layout.Close, 16, closeColor)
 	if !options.DismissID.IsZero() {
-		canvas.HitWithOptions(options.DismissID, layout.Close, "Close toast", ui.HitOptions{Role: ui.RoleButton, Disabled: options.Disabled})
+		canvas.HitWithOptions(options.DismissID, layout.Close, "Close toast", gfx.HitOptions{Role: gfx.RoleButton, Disabled: options.Disabled})
 	}
 
-	layout.Body = ui.Rect{X: textX, Y: row.Y + (row.Height-geometry.text)/2, Width: max(0, right-textX), Height: geometry.text}
+	layout.Body = gfx.Rect{X: textX, Y: row.Y + (row.Height-geometry.text)/2, Width: max(0, right-textX), Height: geometry.text}
 	lineHeight := overlayLineHeight(metrics)
-	canvas.Label(snapshot.Title, ui.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: lineHeight}, ui.TextStyle{Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: theme.PopoverForeground})
-	overlayParagraph(canvas, lines, ui.Rect{X: layout.Body.X, Y: layout.Body.Y + lineHeight + toastTextGap, Width: layout.Body.Width}, lineHeight, ui.TextStyle{
-		Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: theme.MutedForeground,
+	canvas.Label(snapshot.Title, gfx.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: lineHeight}, gfx.TextStyle{Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.PopoverForeground})
+	overlayParagraph(canvas, lines, gfx.Rect{X: layout.Body.X, Y: layout.Body.Y + lineHeight + toastTextGap, Width: layout.Body.Width}, lineHeight, gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: theme.MutedForeground,
 	}, false)
 	canvas.EndPresence()
 	if !options.Scope.IsZero() {
@@ -435,15 +435,15 @@ func PaintToast(canvas *ui.Canvas, theme ui.Theme, viewport ui.Rect, snapshot To
 // toastPresence is how a toast comes and goes: it slides from and to beyond its
 // edge of the window, by 150% of its height, over 500ms (Base UI's
 // `translateY(150%)` with `cubic-bezier(0.22, 1, 0.36, 1)`), without fading.
-func toastPresence(theme ui.Theme, position ToastPosition, height float32) ui.Presence {
+func toastPresence(theme gfx.Theme, position ToastPosition, height float32) gfx.Presence {
 	if !moving(theme) {
-		return ui.Presence{}
+		return gfx.Presence{}
 	}
-	slide := ui.Point{Y: height * 1.5}
+	slide := gfx.Point{Y: height * 1.5}
 	if position >= ToastTopRight {
 		slide.Y = -slide.Y
 	}
-	return ui.Presence{Motion: ui.Motion{Duration: toastDuration, Easing: ui.EaseEmphasized}, SlideIn: slide, SlideOut: slide}
+	return gfx.Presence{Motion: gfx.Motion{Duration: toastDuration, Easing: gfx.EaseEmphasized}, SlideIn: slide, SlideOut: slide}
 }
 
 // toastSpinnerStep is how long a loading toast's spinner holds each of its eight spokes.
@@ -453,7 +453,7 @@ const toastSpinnerStep = 100 * time.Millisecond
 // ToastIcon does: Lucide's circle-check, info, triangle-alert and octagon-x, in
 // the text color (the error's in the destructive one), and a spinner for a
 // loading toast, which turns with the frame clock and asks for the next step.
-func paintToastIcon(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, kind ToastType) {
+func paintToastIcon(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, kind ToastType) {
 	switch kind {
 	case ToastLoading:
 		phase := SpinnerPhase(0)
@@ -477,29 +477,29 @@ func paintToastIcon(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, kind Toas
 // four cubic arcs; the triangle's rounded corners are quadratic curves. Each is
 // a literal so the linker keeps it as data and no package initializer builds it.
 var (
-	circleCheckIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(22, 12),
-		ui.CubicTo(22, 17.523, 17.523, 22, 12, 22), ui.CubicTo(6.477, 22, 2, 17.523, 2, 12),
-		ui.CubicTo(2, 6.477, 6.477, 2, 12, 2), ui.CubicTo(17.523, 2, 22, 6.477, 22, 12),
-		ui.ClosePath(),
-		ui.MoveTo(9, 12), ui.LineTo(11, 14), ui.LineTo(15, 10),
+	circleCheckIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(22, 12),
+		gfx.CubicTo(22, 17.523, 17.523, 22, 12, 22), gfx.CubicTo(6.477, 22, 2, 17.523, 2, 12),
+		gfx.CubicTo(2, 6.477, 6.477, 2, 12, 2), gfx.CubicTo(17.523, 2, 22, 6.477, 22, 12),
+		gfx.ClosePath(),
+		gfx.MoveTo(9, 12), gfx.LineTo(11, 14), gfx.LineTo(15, 10),
 	}}
-	infoIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(22, 12),
-		ui.CubicTo(22, 17.523, 17.523, 22, 12, 22), ui.CubicTo(6.477, 22, 2, 17.523, 2, 12),
-		ui.CubicTo(2, 6.477, 6.477, 2, 12, 2), ui.CubicTo(17.523, 2, 22, 6.477, 22, 12),
-		ui.ClosePath(),
-		ui.MoveTo(12, 16), ui.LineTo(12, 12), ui.MoveTo(12, 8), ui.LineTo(12.01, 8),
+	infoIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(22, 12),
+		gfx.CubicTo(22, 17.523, 17.523, 22, 12, 22), gfx.CubicTo(6.477, 22, 2, 17.523, 2, 12),
+		gfx.CubicTo(2, 6.477, 6.477, 2, 12, 2), gfx.CubicTo(17.523, 2, 22, 6.477, 22, 12),
+		gfx.ClosePath(),
+		gfx.MoveTo(12, 16), gfx.LineTo(12, 12), gfx.MoveTo(12, 8), gfx.LineTo(12.01, 8),
 	}}
-	octagonXIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(7.86, 2), ui.LineTo(16.14, 2), ui.LineTo(22, 7.86), ui.LineTo(22, 16.14), ui.LineTo(16.14, 22),
-		ui.LineTo(7.86, 22), ui.LineTo(2, 16.14), ui.LineTo(2, 7.86), ui.ClosePath(),
-		ui.MoveTo(15, 9), ui.LineTo(9, 15), ui.MoveTo(9, 9), ui.LineTo(15, 15),
+	octagonXIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(7.86, 2), gfx.LineTo(16.14, 2), gfx.LineTo(22, 7.86), gfx.LineTo(22, 16.14), gfx.LineTo(16.14, 22),
+		gfx.LineTo(7.86, 22), gfx.LineTo(2, 16.14), gfx.LineTo(2, 7.86), gfx.ClosePath(),
+		gfx.MoveTo(15, 9), gfx.LineTo(9, 15), gfx.MoveTo(9, 9), gfx.LineTo(15, 15),
 	}}
-	triangleAlertIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-		ui.MoveTo(21.73, 18), ui.LineTo(13.73, 4), ui.QuadTo(12, 1.97, 10.25, 4), ui.LineTo(2.27, 18),
-		ui.QuadTo(0.56, 21, 4, 21), ui.LineTo(20, 21), ui.QuadTo(23.44, 21, 21.73, 18), ui.ClosePath(),
-		ui.MoveTo(12, 9), ui.LineTo(12, 13), ui.MoveTo(12, 17), ui.LineTo(12.01, 17),
+	triangleAlertIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+		gfx.MoveTo(21.73, 18), gfx.LineTo(13.73, 4), gfx.QuadTo(12, 1.97, 10.25, 4), gfx.LineTo(2.27, 18),
+		gfx.QuadTo(0.56, 21, 4, 21), gfx.LineTo(20, 21), gfx.QuadTo(23.44, 21, 21.73, 18), gfx.ClosePath(),
+		gfx.MoveTo(12, 9), gfx.LineTo(12, 13), gfx.MoveTo(12, 17), gfx.LineTo(12.01, 17),
 	}}
 )
 

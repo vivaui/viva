@@ -7,25 +7,25 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // codeFixture paints one editor repeatedly and reads back what it laid out.
 type codeFixture struct {
 	editor   CodeEditor
-	canvas   ui.Canvas
-	theme    ui.Theme
+	canvas   gfx.Canvas
+	theme    gfx.Theme
 	snapshot CodeEditorSnapshot
-	bounds   ui.Rect
+	bounds   gfx.Rect
 }
 
 func newCodeFixture(value string) *codeFixture {
-	theme := ui.LightTheme()
-	theme.Selection = ui.RGB(1, 2, 3)
-	theme.SelectionForeground = ui.RGB(4, 5, 6)
-	f := &codeFixture{theme: theme, bounds: ui.Rect{X: 10, Y: 20, Width: 400, Height: 200}}
-	f.snapshot = CodeEditorSnapshot{ID: ui.Item(1), Label: "Source", Value: value, Focused: true, ShowCaret: true}
+	theme := gfx.LightTheme()
+	theme.Selection = gfx.RGB(1, 2, 3)
+	theme.SelectionForeground = gfx.RGB(4, 5, 6)
+	f := &codeFixture{theme: theme, bounds: gfx.Rect{X: 10, Y: 20, Width: 400, Height: 200}}
+	f.snapshot = CodeEditorSnapshot{ID: gfx.Item(1), Label: "Source", Value: value, Focused: true, ShowCaret: true}
 	return f
 }
 
@@ -110,8 +110,8 @@ func (f *codeFixture) rowTexts() []string {
 	return out
 }
 
-func (f *codeFixture) fills(color ui.Color) []ui.Rect {
-	var out []ui.Rect
+func (f *codeFixture) fills(color gfx.Color) []gfx.Rect {
+	var out []gfx.Rect
 	for _, rectangle := range f.canvas.Rectangles() {
 		if rectangle.Color == color {
 			out = append(out, rectangle.Bounds)
@@ -127,7 +127,7 @@ func TestCodeEditorGutterMarkersUseFirstWrappedRowAndSeparateLane(t *testing.T) 
 	fixture.snapshot.Wrap = true
 	fixture.snapshot.LineNumbers = true
 	fixture.snapshot.MarkerGutter = true
-	first, third := ui.RGB(20, 80, 160), ui.RGB(180, 40, 60)
+	first, third := gfx.RGB(20, 80, 160), gfx.RGB(180, 40, 60)
 	fixture.paint()
 	emptyContentX := fixture.editor.content.X
 	fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, Color: first}, {Line: 2, Color: third}}
@@ -166,7 +166,7 @@ func TestCodeEditorGutterMarkersIgnoreOutOfContractInput(t *testing.T) {
 	fixture := newCodeFixture("one\ntwo\nthree")
 	fixture.bounds.Height = 600
 	fixture.snapshot.MarkerGutter = true
-	color := ui.RGB(20, 80, 160)
+	color := gfx.RGB(20, 80, 160)
 	// Past the end of the document, and a repeated line, paint nothing extra.
 	fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 1, Color: color}, {Line: 1, Color: color}, {Line: 99, Color: color}}
 	fixture.paint()
@@ -178,7 +178,7 @@ func TestCodeEditorGutterMarkersIgnoreOutOfContractInput(t *testing.T) {
 func TestCodeEditorGutterMarkersFadeWhenDisabled(t *testing.T) {
 	fixture := newCodeFixture("one")
 	fixture.bounds.Height = 600
-	color := ui.RGB(20, 80, 160)
+	color := gfx.RGB(20, 80, 160)
 	fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, Color: color}}
 	fixture.paint()
 	enabled := fixture.fills(color)
@@ -194,7 +194,7 @@ func TestCodeEditorGutterMarkersOnlyPaintVisibleLines(t *testing.T) {
 	fixture := newCodeFixture(value)
 	fixture.bounds.Height = 80
 	fixture.snapshot.Caret = len(value)
-	first, last := ui.RGB(20, 80, 160), ui.RGB(180, 40, 60)
+	first, last := gfx.RGB(20, 80, 160), gfx.RGB(180, 40, 60)
 	fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, Color: first}, {Line: 30, Color: last}}
 	fixture.paint()
 	if len(fixture.fills(first)) != 0 || len(fixture.fills(last)) != 1 {
@@ -296,26 +296,26 @@ func TestCodeEditorPlacesTheCaretOnTheCellGrid(t *testing.T) {
 			t.Errorf("offset %d: caret at y %v, want %v", c.offset, bounds.Y, want)
 		}
 		// A press on the caret's own edge puts it back where it was.
-		got, ok := f.editor.OffsetAt(ui.Point{X: bounds.X + 0.01, Y: bounds.Y + line/2})
+		got, ok := f.editor.OffsetAt(gfx.Point{X: bounds.X + 0.01, Y: bounds.Y + line/2})
 		if !ok || got != c.offset {
 			t.Errorf("offset %d: a press at its caret gave %d, %v", c.offset, got, ok)
 		}
 	}
 	// Inside a wide character the nearer edge wins.
 	row := content.Y + line/2
-	if got, _ := f.editor.OffsetAt(ui.Point{X: content.X + 5.9*cell, Y: row}); got != 4 {
+	if got, _ := f.editor.OffsetAt(gfx.Point{X: content.X + 5.9*cell, Y: row}); got != 4 {
 		t.Errorf("left half of 中 = %d, want 4", got)
 	}
-	if got, _ := f.editor.OffsetAt(ui.Point{X: content.X + 6.1*cell, Y: row}); got != 7 {
+	if got, _ := f.editor.OffsetAt(gfx.Point{X: content.X + 6.1*cell, Y: row}); got != 7 {
 		t.Errorf("right half of 中 = %d, want 7", got)
 	}
-	if got, _ := f.editor.OffsetAt(ui.Point{X: content.X + 50*cell, Y: row}); got != 8 {
+	if got, _ := f.editor.OffsetAt(gfx.Point{X: content.X + 50*cell, Y: row}); got != 8 {
 		t.Errorf("past the end of the line = %d, want 8", got)
 	}
-	if got, _ := f.editor.OffsetAt(ui.Point{X: content.X, Y: content.Y + 900}); got != 9 {
+	if got, _ := f.editor.OffsetAt(gfx.Point{X: content.X, Y: content.Y + 900}); got != 9 {
 		t.Errorf("below the text = %d, want the last row's start", got)
 	}
-	if got, _ := f.editor.OffsetAt(ui.Point{X: content.X - 30, Y: content.Y - 30}); got != 0 {
+	if got, _ := f.editor.OffsetAt(gfx.Point{X: content.X - 30, Y: content.Y - 30}); got != 0 {
 		t.Errorf("above the text = %d", got)
 	}
 }
@@ -425,7 +425,7 @@ func TestCodeEditorEndAtASoftWrapStaysOnItsRow(t *testing.T) {
 func TestCodeEditorPaintsOneLabelPerRowWhateverTheHighlight(t *testing.T) {
 	value := "key: 中文 # note\n\tindented x\nplain"
 	f := newCodeFixture(value)
-	red, blue := ui.RGB(200, 20, 20), ui.RGB(20, 20, 200)
+	red, blue := gfx.RGB(200, 20, 20), gfx.RGB(20, 20, 200)
 	f.snapshot.Language = "yaml"
 	f.snapshot.Highlight = func(language, line string, dst []CodeEditorRun) []CodeEditorRun {
 		if language != "yaml" {
@@ -437,7 +437,7 @@ func TestCodeEditorPaintsOneLabelPerRowWhateverTheHighlight(t *testing.T) {
 		return append([]CodeEditorRun{{Start: 0, End: 3, Color: red}}, dst...)
 	}
 	f.paint()
-	var texts []ui.Text
+	var texts []gfx.Text
 	for _, text := range f.canvas.Texts() {
 		if text.RunCount > 0 {
 			texts = append(texts, text)
@@ -471,7 +471,7 @@ func TestCodeEditorPaintsOneLabelPerRowWhateverTheHighlight(t *testing.T) {
 	if first[0].Color != red || first[0].Cells != 3 {
 		t.Errorf("first run = %+v, want 3 red cells", first[0])
 	}
-	var wide []ui.TextRun
+	var wide []gfx.TextRun
 	for _, run := range first {
 		if run.Cells == 2 && run.Bytes == 3 {
 			wide = append(wide, run)
@@ -489,7 +489,7 @@ func TestCodeEditorPaintsOneLabelPerRowWhateverTheHighlight(t *testing.T) {
 func TestCodeEditorHighlightLineReceivesLogicalIndexAfterScrolling(t *testing.T) {
 	value := "same\n" + strings.Repeat("padding\n", 25) + "same"
 	fixture := newCodeFixture(value)
-	firstColor, lastColor := ui.RGB(195, 40, 45), ui.RGB(30, 90, 190)
+	firstColor, lastColor := gfx.RGB(195, 40, 45), gfx.RGB(30, 90, 190)
 	var indexes []int
 	legacyCalls := 0
 	fixture.snapshot.Language = "go"
@@ -556,7 +556,7 @@ func TestCodeEditorHighlightLineSanitizesRunsAndSkipsOversizedLine(t *testing.T)
 	value := "key: 中文\n" + strings.Repeat("x", CodeEditorMaxHighlightedLine+1)
 	fixture := newCodeFixture(value)
 	fixture.bounds.Height = 600
-	color := ui.RGB(195, 40, 45)
+	color := gfx.RGB(195, 40, 45)
 	var indexes []int
 	fixture.snapshot.HighlightLine = func(_ string, lineIndex int, line string, runs []CodeEditorRun) []CodeEditorRun {
 		indexes = append(indexes, lineIndex)
@@ -565,7 +565,7 @@ func TestCodeEditorHighlightLineSanitizesRunsAndSkipsOversizedLine(t *testing.T)
 		}
 		return append(runs,
 			CodeEditorRun{Start: 0, End: 3, Color: color},
-			CodeEditorRun{Start: 2, End: 4, Color: ui.RGB(1, 2, 3)},
+			CodeEditorRun{Start: 2, End: 4, Color: gfx.RGB(1, 2, 3)},
 			CodeEditorRun{Start: len(line) + 1, End: len(line) + 2, Color: color},
 		)
 	}
@@ -589,12 +589,12 @@ func TestCodeEditorIgnoresBadHighlightRuns(t *testing.T) {
 	f := newCodeFixture("key: 中文")
 	f.snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
 		return append(dst,
-			CodeEditorRun{Start: -2, End: 3, Color: ui.RGB(1, 1, 1)},
-			CodeEditorRun{Start: 2, End: 4, Color: ui.RGB(2, 2, 2)}, // overlaps the one before
-			CodeEditorRun{Start: 5, End: 5, Color: ui.RGB(3, 3, 3)}, // empty
-			CodeEditorRun{Start: 7, End: 8, Color: ui.RGB(4, 4, 4)}, // inside 中
-			CodeEditorRun{Start: len(line) + 10, End: len(line) + 20, Color: ui.RGB(5, 5, 5)},
-			CodeEditorRun{Start: 4, End: 5, Color: ui.Color{}}, // invisible
+			CodeEditorRun{Start: -2, End: 3, Color: gfx.RGB(1, 1, 1)},
+			CodeEditorRun{Start: 2, End: 4, Color: gfx.RGB(2, 2, 2)}, // overlaps the one before
+			CodeEditorRun{Start: 5, End: 5, Color: gfx.RGB(3, 3, 3)}, // empty
+			CodeEditorRun{Start: 7, End: 8, Color: gfx.RGB(4, 4, 4)}, // inside 中
+			CodeEditorRun{Start: len(line) + 10, End: len(line) + 20, Color: gfx.RGB(5, 5, 5)},
+			CodeEditorRun{Start: 4, End: 5, Color: gfx.Color{}}, // invisible
 		)
 	}
 	f.paint()
@@ -710,6 +710,65 @@ func TestCodeEditorGutterNumbersLinesNotRows(t *testing.T) {
 	}
 }
 
+func TestCodeEditorGutterUsesCallerLanes(t *testing.T) {
+	value := "one\ntwo\nthree"
+	f := newCodeFixture(value)
+	f.bounds.Height = 400
+	f.snapshot.LineNumbers = true
+	f.snapshot.MarkerGutter = true
+	f.snapshot.FoldGutter = true
+	marker := gfx.RGB(20, 80, 160)
+	f.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, Color: marker}}
+	f.snapshot.FoldMarkers = []CodeEditorFoldMarker{{Line: 0, ID: gfx.Item(9)}}
+	f.snapshot.Gutter = &CodeEditorGutter{
+		Inset: 2, Marker: 28, Bookmark: 14, LineNumberPadding: 6.5, Fold: 16, FoldLast: true,
+	}
+	f.paint()
+
+	cell, _, _ := f.cell()
+	numberLane := cell + 13
+	wantContentX := f.bounds.X + 2 + 28 + 14 + numberLane + 16
+	if !near(f.editor.content.X, wantContentX) {
+		t.Fatalf("text starts at %v, want after the caller's lanes (%v)", f.editor.content.X, wantContentX)
+	}
+
+	marks := f.fills(marker)
+	if len(marks) != 1 || !near(marks[0].X, f.bounds.X+2+(28-marks[0].Width)/2) {
+		t.Fatalf("marker = %+v, want it centered in the 28 px lane", marks)
+	}
+
+	numberX := f.bounds.X + 2 + 28 + 14
+	var number gfx.Text
+	for _, text := range f.canvas.Texts() {
+		if text.Value == "1" {
+			number = text
+			break
+		}
+	}
+	if number.Value == "" || !near(number.Bounds.X+number.Bounds.Width, numberX+numberLane-6.5) {
+		t.Fatalf("line number = %+v, want its right edge at %v", number.Bounds, numberX+numberLane-6.5)
+	}
+
+	foldX := numberX + numberLane
+	buttons := f.canvas.Hits()
+	var found bool
+	for _, hit := range buttons {
+		if hit.Bounds.X == foldX && hit.Bounds.Width == 16 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no fold button in the caller's last lane at %v; hits %+v", foldX, buttons)
+	}
+
+	// Nil keeps the automatic layout the rest of the component tests rely on.
+	f.snapshot.Gutter = nil
+	f.paint()
+	if f.editor.content.X == wantContentX {
+		t.Fatal("a nil gutter must keep the component's automatic lane layout")
+	}
+}
+
 func TestCodeEditorCurrentLineTint(t *testing.T) {
 	f := newCodeFixture("a\nb\nc")
 	f.snapshot.CurrentLine = true
@@ -734,7 +793,7 @@ func TestCodeEditorCompositionIsUnderlined(t *testing.T) {
 	f.snapshot.CompositionStart, f.snapshot.CompositionEnd, f.snapshot.Caret = 2, 8, 8
 	f.paint()
 	cell, _, line := f.cell()
-	var underline []ui.Rect
+	var underline []gfx.Rect
 	for _, rectangle := range f.canvas.Rectangles() {
 		if rectangle.Bounds.Height == 1 && rectangle.Bounds.Width == 4*cell && rectangle.Color == f.theme.Foreground {
 			underline = append(underline, rectangle.Bounds)
@@ -754,14 +813,15 @@ func TestCodeEditorHitDescribesANativeEditorSurface(t *testing.T) {
 		t.Fatalf("hits = %+v", hits)
 	}
 	hit := hits[0]
-	if !hit.HideNativeOverlays || !hit.Multiline || hit.Role != ui.RoleTextField || hit.Value != "first\nsecond\n" || hit.Hint != "hint" {
+	if !hit.HideNativeOverlays || !hit.Multiline || hit.Role != gfx.RoleTextField || hit.Value != "first\nsecond\n" || hit.Hint != "hint" {
 		t.Fatalf("hit = %+v", hit)
 	}
-	if hit.Placement == nil || hit.TextBounds != f.editor.content {
-		t.Fatalf("placement %v, text bounds %v, want the painted content %v", hit.Placement, hit.TextBounds, f.editor.content)
+	text := hitText(&f.canvas, &hit)
+	if text.Placement == nil || text.Bounds != f.editor.content {
+		t.Fatalf("placement %v, text bounds %v, want the painted content %v", text.Placement, text.Bounds, f.editor.content)
 	}
-	if hit.TextColor.Alpha != 0 {
-		t.Fatalf("the platform's own text is drawn: %+v", hit.TextColor)
+	if text.Color.Alpha != 0 {
+		t.Fatalf("the platform's own text is drawn: %+v", text.Color)
 	}
 }
 
@@ -809,8 +869,8 @@ func TestCodeEditorCaretIsPaintedInTheTextColorByDefault(t *testing.T) {
 	}
 	// The fill is snapped to the pixel grid, so it is found by where it is and
 	// how thick it is rather than by an exact bounds match.
-	caretFills := func() []ui.Rectangle {
-		var fills []ui.Rectangle
+	caretFills := func() []gfx.Rectangle {
+		var fills []gfx.Rectangle
 		for _, rect := range f.canvas.Rectangles() {
 			if rect.Bounds.Width == bounds.Width && rect.Bounds.X == bounds.X && rect.Bounds.Height <= bounds.Height+1 {
 				fills = append(fills, rect)
@@ -830,7 +890,7 @@ func TestCodeEditorCaretIsPaintedInTheTextColorByDefault(t *testing.T) {
 	}
 
 	// An application that does choose a color keeps it.
-	own := ui.RGB(0, 128, 255)
+	own := gfx.RGB(0, 128, 255)
 	f.snapshot.CaretColor = own
 	f.paint()
 	fills = caretFills()
@@ -856,7 +916,7 @@ func TestCodeEditorScrollFollowsTheCaretAndTheWheelIsKept(t *testing.T) {
 	if f.editor.scrollY != moved {
 		t.Fatalf("paint undid the wheel: %v -> %v", moved, f.editor.scrollY)
 	}
-	result := f.editor.Scroll(ui.ScrollEvent{DeltaY: -3 * line, Precise: true})
+	result := f.editor.Scroll(gfx.ScrollEvent{DeltaY: -3 * line, Precise: true})
 	if !result.Handled || f.editor.scrollY != moved-3*line {
 		t.Fatalf("Scroll moved %v -> %v", moved, f.editor.scrollY)
 	}
@@ -874,11 +934,11 @@ func TestCodeEditorScrollFollowsTheCaretAndTheWheelIsKept(t *testing.T) {
 func TestCodeEditorWithoutWrapScrollsSidewaysAndShowsOnlyWhatIsInView(t *testing.T) {
 	value := strings.Repeat("0123456789", 20000) // one 200,000 column line
 	f := newCodeFixture(value)
-	f.snapshot.HorizontalScrollbarID = ui.Item(3)
+	f.snapshot.HorizontalScrollbarID = gfx.Item(3)
 	f.snapshot.Caret = 100000
 	f.paint()
 	cell, _, _ := f.cell()
-	var label ui.Text
+	var label gfx.Text
 	for _, text := range f.canvas.Texts() {
 		if text.RunCount > 0 {
 			label = text
@@ -913,13 +973,13 @@ func TestCodeEditorWithoutWrapScrollsSidewaysAndShowsOnlyWhatIsInView(t *testing
 
 func TestCodeEditorScrollbarDragKeepsSelectionAndAllocatesNothingWhenSteady(t *testing.T) {
 	f := newCodeFixture(strings.Repeat("key: 中文\n", 100))
-	f.bounds = ui.Rect{Width: 300, Height: 200}
-	f.snapshot.ScrollbarID = ui.Item(2)
+	f.bounds = gfx.Rect{Width: 300, Height: 200}
+	f.snapshot.ScrollbarID = gfx.Item(2)
 	f.snapshot.LineNumbers = true
 	f.snapshot.CurrentLine = true
 	f.snapshot.MatchBrackets = true
 	f.snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
-		return append(dst, CodeEditorRun{End: 3, Color: ui.RGB(200, 20, 20)})
+		return append(dst, CodeEditorRun{End: 3, Color: gfx.RGB(200, 20, 20)})
 	}
 	f.snapshot.Marks = []text.Span{{Start: 0, End: 3}, {Start: 14, End: 17}}
 	f.paint()
@@ -929,7 +989,7 @@ func TestCodeEditorScrollbarDragKeepsSelectionAndAllocatesNothingWhenSteady(t *t
 	if allocations := testing.AllocsPerRun(100, f.paint); allocations != 0 {
 		t.Fatalf("steady editor allocations: %g", allocations)
 	}
-	result := f.editor.Pointer(ui.PointerEvent{Kind: ui.PointerDown, Target: ui.Item(2), Y: f.editor.barV.VerticalTrack.Y + f.editor.barV.VerticalTrack.Height + 100})
+	result := f.editor.Pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Target: gfx.Item(2), Y: f.editor.barV.VerticalTrack.Y + f.editor.barV.VerticalTrack.Height + 100})
 	if !result.Handled || f.editor.scrollY != f.editor.barV.MaxOffsetY {
 		t.Fatalf("scrollbar did not reach the bottom: %v of %v", f.editor.scrollY, f.editor.barV.MaxOffsetY)
 	}
@@ -937,29 +997,29 @@ func TestCodeEditorScrollbarDragKeepsSelectionAndAllocatesNothingWhenSteady(t *t
 	if f.editor.scrollY == 0 {
 		t.Fatal("paint undid the user's scroll")
 	}
-	f.editor.Pointer(ui.PointerEvent{Kind: ui.PointerUp})
+	f.editor.Pointer(gfx.PointerEvent{Kind: gfx.PointerUp})
 	if f.editor.drag != codeDragNone {
 		t.Fatal("scrollbar retained the pointer")
 	}
-	if got := f.editor.Pointer(ui.PointerEvent{Kind: ui.PointerDown, Target: ui.Item(9)}); got.Handled {
+	if got := f.editor.Pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Target: gfx.Item(9)}); got.Handled {
 		t.Fatal("a press elsewhere is not the scrollbar's")
 	}
 }
 
 func TestCodeEditorHorizontalScrollbarDrag(t *testing.T) {
 	f := newCodeFixture(strings.Repeat("x", 5000))
-	f.snapshot.HorizontalScrollbarID = ui.Item(3)
+	f.snapshot.HorizontalScrollbarID = gfx.Item(3)
 	f.paint()
 	if f.editor.barH.MaxOffsetX <= 0 {
 		t.Fatal("missing horizontal scrollbar")
 	}
 	thumb := f.editor.barH.HorizontalThumb
-	f.editor.Pointer(ui.PointerEvent{Kind: ui.PointerDown, Target: ui.Item(3), X: thumb.X + thumb.Width/2})
-	f.editor.Pointer(ui.PointerEvent{Kind: ui.PointerMove, X: thumb.X + thumb.Width/2 + 40})
+	f.editor.Pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Target: gfx.Item(3), X: thumb.X + thumb.Width/2})
+	f.editor.Pointer(gfx.PointerEvent{Kind: gfx.PointerMove, X: thumb.X + thumb.Width/2 + 40})
 	if f.editor.scrollX <= 0 {
 		t.Fatal("dragging the thumb did not scroll")
 	}
-	f.editor.Pointer(ui.PointerEvent{Kind: ui.PointerUp})
+	f.editor.Pointer(gfx.PointerEvent{Kind: gfx.PointerUp})
 }
 
 func TestCodeEditorFollowsTheCaretAcrossAWrapChange(t *testing.T) {
@@ -982,28 +1042,28 @@ func TestCodeEditorFollowsTheCaretAcrossAWrapChange(t *testing.T) {
 }
 
 func TestCodeEditorCommandsForKeys(t *testing.T) {
-	primary := ui.ModifierControl
+	primary := gfx.ModifierControl
 	cases := []struct {
-		event ui.KeyEvent
+		event gfx.KeyEvent
 		want  CodeEditorCommand
 		ok    bool
 	}{
-		{ui.KeyEvent{Key: ui.KeyTab}, CodeEditorInsertTab, true},
-		{ui.KeyEvent{Key: ui.KeyTab, Modifiers: ui.ModifierShift}, CodeEditorOutdent, true},
-		{ui.KeyEvent{Key: ui.KeyTab, Modifiers: primary}, 0, false}, // Ctrl+Tab switches tabs
-		{ui.KeyEvent{Key: ui.KeyUnknown, Modifiers: primary, Text: "/"}, CodeEditorToggleComment, true},
-		{ui.KeyEvent{Key: ui.KeyUnknown, Modifiers: ui.ModifierMeta, Text: "/"}, CodeEditorToggleComment, true},
-		{ui.KeyEvent{Modifiers: primary, Text: "]"}, CodeEditorIndent, true},
-		{ui.KeyEvent{Modifiers: primary, Text: "["}, CodeEditorOutdent, true},
-		{ui.KeyEvent{Key: ui.KeyUp, Modifiers: ui.ModifierAlt}, CodeEditorMoveLinesUp, true},
-		{ui.KeyEvent{Key: ui.KeyDown, Modifiers: ui.ModifierAlt}, CodeEditorMoveLinesDown, true},
-		{ui.KeyEvent{Key: ui.KeyUp, Modifiers: ui.ModifierAlt | ui.ModifierShift}, CodeEditorDuplicateLinesUp, true},
-		{ui.KeyEvent{Key: ui.KeyDown, Modifiers: ui.ModifierAlt | ui.ModifierShift}, CodeEditorDuplicateLinesDown, true},
-		{ui.KeyEvent{Modifiers: primary | ui.ModifierShift, Text: "K"}, CodeEditorDeleteLines, true},
-		{ui.KeyEvent{Modifiers: primary | ui.ModifierShift, Text: "k"}, CodeEditorDeleteLines, true},
-		{ui.KeyEvent{Key: ui.KeyUp}, 0, false},
-		{ui.KeyEvent{Modifiers: primary, Text: "s"}, 0, false},
-		{ui.KeyEvent{Key: ui.KeyTab, Release: true}, 0, false},
+		{gfx.KeyEvent{Key: gfx.KeyTab}, CodeEditorInsertTab, true},
+		{gfx.KeyEvent{Key: gfx.KeyTab, Modifiers: gfx.ModifierShift}, CodeEditorOutdent, true},
+		{gfx.KeyEvent{Key: gfx.KeyTab, Modifiers: primary}, 0, false}, // Ctrl+Tab switches tabs
+		{gfx.KeyEvent{Key: gfx.KeyUnknown, Modifiers: primary, Text: "/"}, CodeEditorToggleComment, true},
+		{gfx.KeyEvent{Key: gfx.KeyUnknown, Modifiers: gfx.ModifierMeta, Text: "/"}, CodeEditorToggleComment, true},
+		{gfx.KeyEvent{Modifiers: primary, Text: "]"}, CodeEditorIndent, true},
+		{gfx.KeyEvent{Modifiers: primary, Text: "["}, CodeEditorOutdent, true},
+		{gfx.KeyEvent{Key: gfx.KeyUp, Modifiers: gfx.ModifierAlt}, CodeEditorMoveLinesUp, true},
+		{gfx.KeyEvent{Key: gfx.KeyDown, Modifiers: gfx.ModifierAlt}, CodeEditorMoveLinesDown, true},
+		{gfx.KeyEvent{Key: gfx.KeyUp, Modifiers: gfx.ModifierAlt | gfx.ModifierShift}, CodeEditorDuplicateLinesUp, true},
+		{gfx.KeyEvent{Key: gfx.KeyDown, Modifiers: gfx.ModifierAlt | gfx.ModifierShift}, CodeEditorDuplicateLinesDown, true},
+		{gfx.KeyEvent{Modifiers: primary | gfx.ModifierShift, Text: "K"}, CodeEditorDeleteLines, true},
+		{gfx.KeyEvent{Modifiers: primary | gfx.ModifierShift, Text: "k"}, CodeEditorDeleteLines, true},
+		{gfx.KeyEvent{Key: gfx.KeyUp}, 0, false},
+		{gfx.KeyEvent{Modifiers: primary, Text: "s"}, 0, false},
+		{gfx.KeyEvent{Key: gfx.KeyTab, Release: true}, 0, false},
 	}
 	for _, c := range cases {
 		got, ok := CodeEditorCommandForKey(c.event)
@@ -1040,12 +1100,19 @@ func TestCodeEditorCommandsEditText(t *testing.T) {
 }
 
 func BenchmarkCodeEditorPaintSteady(b *testing.B) {
+	b.Run("plain", func(b *testing.B) { benchmarkCodeEditorPaintSteady(b, false) })
+	b.Run("wrap symbol", func(b *testing.B) { benchmarkCodeEditorPaintSteady(b, true) })
+}
+
+func benchmarkCodeEditorPaintSteady(b *testing.B, wrapSymbol bool) {
 	f := newCodeFixture(strings.Repeat("key: value # comment with some 中文\n", 30000))
-	f.bounds = ui.Rect{Width: 900, Height: 600}
+	f.bounds = gfx.Rect{Width: 900, Height: 600}
 	f.snapshot.LineNumbers = true
-	f.snapshot.ScrollbarID = ui.Item(2)
+	f.snapshot.Wrap = wrapSymbol
+	f.snapshot.ShowWrapSymbol = wrapSymbol
+	f.snapshot.ScrollbarID = gfx.Item(2)
 	f.snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
-		return append(dst, CodeEditorRun{End: 3, Color: ui.RGB(200, 20, 20)}, CodeEditorRun{Start: 11, End: len(line), Color: ui.RGB(20, 120, 20)})
+		return append(dst, CodeEditorRun{End: 3, Color: gfx.RGB(200, 20, 20)}, CodeEditorRun{Start: 11, End: len(line), Color: gfx.RGB(20, 120, 20)})
 	}
 	f.paint()
 	b.ReportAllocs()
@@ -1066,7 +1133,7 @@ func BenchmarkCodeEditorRelayoutOnEdit(b *testing.B) {
 		}
 		b.Run(name, func(b *testing.B) {
 			f := newCodeFixture(base)
-			f.bounds = ui.Rect{Width: 900, Height: 600}
+			f.bounds = gfx.Rect{Width: 900, Height: 600}
 			f.snapshot.Wrap = wrap
 			f.paint()
 			b.ReportAllocs()
@@ -1088,7 +1155,7 @@ func BenchmarkCodeEditorRelayoutOnEdit(b *testing.B) {
 func TestCodeEditorSteadyPaintWithBlankLinesAllocatesNothing(t *testing.T) {
 	f := newCodeFixture("first: 1\n\n\nsecond: 2\n\nthird: 3\n")
 	f.snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
-		return append(dst, CodeEditorRun{End: 3, Color: ui.RGB(200, 20, 20)})
+		return append(dst, CodeEditorRun{End: 3, Color: gfx.RGB(200, 20, 20)})
 	}
 	f.paint()
 	if allocations := testing.AllocsPerRun(100, f.paint); allocations != 0 {
@@ -1135,7 +1202,7 @@ func TestCodeEditorScrollYIsSetAndClamped(t *testing.T) {
 
 func TestCodeEditorScrollXIsSetAndClamped(t *testing.T) {
 	f := newCodeFixture(strings.Repeat("wide text ", 300))
-	f.snapshot.HorizontalScrollbarID = ui.Item(3)
+	f.snapshot.HorizontalScrollbarID = gfx.Item(3)
 	f.editor.SetScrollX(50)
 	f.paint()
 	if f.editor.ScrollX() != 0 {

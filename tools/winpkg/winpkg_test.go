@@ -25,6 +25,22 @@ func square(size int) *image.NRGBA {
 	return img
 }
 
+// marked is a white square with a dark mark a quarter of its side, as an
+// application draws its mark for a desktop that gives the tile a margin.
+func marked(size int) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, size, size))
+	for index := 0; index < len(img.Pix); index += 4 {
+		img.Pix[index], img.Pix[index+1], img.Pix[index+2], img.Pix[index+3] = 255, 255, 255, 255
+	}
+	mark := size / 4
+	for y := size/2 - mark/2; y < size/2+mark/2; y++ {
+		for x := size/2 - mark/2; x < size/2+mark/2; x++ {
+			img.SetNRGBA(x, y, color.NRGBA{R: 16, G: 16, B: 16, A: 255})
+		}
+	}
+	return img
+}
+
 type icoEntry struct {
 	width, height, planes, bits int
 	data                        []byte
@@ -88,6 +104,43 @@ func TestEncodeICOHoldsEverySizeUpToTheSource(t *testing.T) {
 	}
 	if err := checkICO(data); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestEncodeICOFillsTheFramesWindowsDrawsSmallWithTheMark(t *testing.T) {
+	data, _, err := EncodeICO(marked(512))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := parseICO(t, data)
+	share := func(pixels int) float64 {
+		for _, entry := range entries {
+			if entry.width != pixels {
+				continue
+			}
+			decoded, err := png.Decode(bytes.NewReader(entry.data))
+			if err != nil {
+				t.Fatalf("%d px: %v", pixels, err)
+			}
+			dark := 0
+			for y := 0; y < pixels; y++ {
+				for x := 0; x < pixels; x++ {
+					r, _, _, a := decoded.At(x, y).RGBA()
+					if a>>8 > 128 && r>>8 < 64 {
+						dark++
+					}
+				}
+			}
+			return float64(dark) / float64(pixels*pixels)
+		}
+		t.Fatalf("no %d px entry", pixels)
+		return 0
+	}
+	if small, big := share(32), share(256); small < 0.4 || big > 0.1 {
+		t.Errorf("the 32 px frame is %.0f%% mark and the 256 px frame %.0f%%: the frames Windows draws small must carry the mark, the large ones the application's tile", small*100, big*100)
+	}
+	if medium := share(64); medium > 0.5 {
+		t.Errorf("the 64 px frame is %.0f%% mark: only the frames Windows draws small crop the canvas margin", medium*100)
 	}
 }
 
@@ -566,6 +619,107 @@ func TestZipProgramIsReproducible(t *testing.T) {
 	}
 }
 
+func TestGenerateInstallsAndRemovesExtraFiles(t *testing.T) {
+	script := sample()
+	script.Files = []ExtraFile{
+		{Source: "/tmp/p/conpty/x64/conpty.dll", Destination: "conpty/x64/conpty.dll"},
+		{Source: "/tmp/p/conpty/x64/x64/OpenConsole.exe", Destination: "conpty/x64/x64/OpenConsole.exe"},
+	}
+	got := generate(t, script)
+	for _, want := range []string{
+		`  SetOutPath "$INSTDIR\conpty\x64"`,
+		`  File "/oname=conpty.dll" "/tmp/p/conpty/x64/conpty.dll"`,
+		`  SetOutPath "$INSTDIR\conpty\x64\x64"`,
+		`  File "/oname=OpenConsole.exe" "/tmp/p/conpty/x64/x64/OpenConsole.exe"`,
+		`  SetOutPath "$INSTDIR"`,
+		`  Delete "$INSTDIR\conpty\x64\conpty.dll"`,
+		`  Delete "$INSTDIR\conpty\x64\x64\OpenConsole.exe"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the script lacks %q", want)
+		}
+	}
+	// The directory holding the files is removed before its parent, and both
+	// before the installation directory.
+	deep := strings.Index(got, `RMDir "$INSTDIR\conpty\x64\x64"`)
+	shallow := strings.Index(got, `RMDir "$INSTDIR\conpty\x64"`)
+	root := strings.LastIndex(got, `RMDir "$INSTDIR"`)
+	if deep < 0 || shallow < 0 || root < 0 || !(deep < shallow && shallow < root) {
+		t.Errorf("uninstall order: deep=%d shallow=%d root=%d", deep, shallow, root)
+	}
+}
+
+func TestExtraFileValidation(t *testing.T) {
+	for _, destination := range []string{
+		"", "/conpty/x64.dll", "conpty/../x64.dll", `conpty\x64.dll`, "conpty//x64.dll",
+		"conpty/.", "conpty/ x64.dll", "conpty/x64.dll.", "conpty/$x64.dll",
+	} {
+		files := []ExtraFile{{Source: "/tmp/p/x", Destination: destination}}
+		if _, err := checkedExtraFiles(files); err == nil {
+			t.Errorf("destination %q was accepted", destination)
+		}
+	}
+	good := []ExtraFile{
+		{Source: "/tmp/p/b", Destination: "conpty/arm64/OpenConsole.exe"},
+		{Source: "/tmp/p/a", Destination: "conpty/LICENSE.txt"},
+		{Source: "/tmp/p/c", Destination: "conpty/arm64/OpenConsole.exe"},
+	}
+	if _, err := checkedExtraFiles(good); err == nil {
+		t.Error("a duplicate destination was accepted")
+	}
+	if err := CheckExtraFiles([]ExtraFile{{Source: filepath.Join(t.TempDir(), "missing"), Destination: "conpty/x"}}); err == nil {
+		t.Error("a missing source was accepted")
+	}
+}
+
+func TestZipProgramIncludesExtraFilesInDestinationOrder(t *testing.T) {
+	dir := t.TempDir()
+	program := filepath.Join(dir, "p")
+	os.WriteFile(program, []byte("MZ program bytes"), 0o644)
+	written := map[string]string{
+		"beta":  "OpenConsole bytes",
+		"alpha": "conpty.dll bytes",
+	}
+	for name, body := range written {
+		os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644)
+	}
+	archive := filepath.Join(dir, "a.zip")
+	err := ZipProgram(program, "notes.exe", archive,
+		ExtraFile{Source: filepath.Join(dir, "beta"), Destination: "conpty/x64/OpenConsole.exe"},
+		ExtraFile{Source: filepath.Join(dir, "alpha"), Destination: "conpty/x64/conpty.dll"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := zip.OpenReader(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	var names []string
+	for _, entry := range reader.File {
+		names = append(names, entry.Name)
+	}
+	want := []string{"notes.exe", "conpty/x64/OpenConsole.exe", "conpty/x64/conpty.dll"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("entries = %v", names)
+	}
+	for index, name := range []string{"conpty/x64/OpenConsole.exe", "conpty/x64/conpty.dll"} {
+		entry, err := reader.File[index+1].Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(entry)
+		if string(body) != written[[]string{"beta", "alpha"}[index]] {
+			t.Errorf("%s body = %q", name, body)
+		}
+	}
+	if err := ZipProgram(program, "notes.exe", filepath.Join(dir, "b.zip"),
+		ExtraFile{Source: program, Destination: "notes.exe"}); err == nil {
+		t.Error("an extra file colliding with the program was accepted")
+	}
+}
+
 func TestGenerateRegistersLinkSchemes(t *testing.T) {
 	script := sample()
 	script.URLSchemes = []string{"ssh"}
@@ -593,11 +747,21 @@ func TestGenerateRegistersFileTypes(t *testing.T) {
 	progID := script.ID + ".note"
 	for _, want := range []string{
 		`WriteRegStr HKCU "Software\Classes\` + progID + `" "" "Notes document"`,
+		`WriteRegStr HKCU "Software\Classes\` + progID + `" "FriendlyTypeName" "Notes document"`,
 		`WriteRegStr HKCU "Software\Classes\` + progID + `\shell\open\command" "" '"$INSTDIR\${APP_EXE}" "%1"'`,
+		`WriteRegStr HKCU "Software\Classes\Applications\${APP_EXE}" "FriendlyAppName" "${APP_NAME}"`,
+		`WriteRegStr HKCU "Software\Classes\Applications\${APP_EXE}" "ApplicationCompany" "${APP_PUBLISHER}"`,
+		`WriteRegStr HKCU "Software\Classes\Applications\${APP_EXE}\SupportedTypes" ".note" ""`,
+		`WriteRegStr HKCU "Software\RegisteredApplications" "${APP_ID}" "${APP_CAPABILITIES}"`,
+		`WriteRegStr HKCU "${APP_CAPABILITIES}" "ApplicationIcon" '"$INSTDIR\${APP_EXE}",0'`,
+		`WriteRegStr HKCU "${APP_CAPABILITIES}\FileAssociations" ".note" "` + progID + `"`,
 		`WriteRegStr HKCU "Software\Classes\.note\OpenWithProgids" "` + progID + `" ""`,
 		`WriteRegStr HKCU "Software\Classes\.nt\OpenWithProgids" "` + progID + `" ""`,
 		`DeleteRegValue HKCU "Software\Classes\.nt\OpenWithProgids" "` + progID + `"`,
 		`DeleteRegKey HKCU "Software\Classes\` + progID + `"`,
+		`DeleteRegKey HKCU "Software\Classes\Applications\${APP_EXE}"`,
+		`DeleteRegValue HKCU "Software\RegisteredApplications" "${APP_ID}"`,
+		`DeleteRegKey HKCU "${APP_CAPABILITIES}"`,
 		`SHChangeNotify`,
 	} {
 		if !strings.Contains(got, want) {

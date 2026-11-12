@@ -48,14 +48,14 @@ const (
 )
 
 // The reference fixed-pitch cell, in units of the font size: the advance of one
-// character and the height of one line. Every platform's fixed-pitch text is placed
-// on this grid whatever its own font's advance is.
+// character and the height of one line. A canvas whose text engine cannot measure a
+// font (gfx.MonoCellEngine) lays fixed-pitch text on this grid.
 const (
 	MonoAdvance = 0.6
 	MonoLine    = 1.18
 )
 
-// weightIndex selects the table for a Viva weight (ui.TextStyle.Weight: 0 regular,
+// weightIndex selects the table for a Viva weight (gfx.TextStyle.Weight: 0 regular,
 // about 0.15 medium, 0.23 semibold, 0.4 bold); the thresholds are the ones every
 // backend uses to pick a face.
 func weightIndex(weight float32) int {

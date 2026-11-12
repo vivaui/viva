@@ -3,7 +3,7 @@ package components
 import (
 	"sort"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // TextareaCommand is a request for the caller-owned editor. The component
@@ -18,7 +18,7 @@ const (
 // TextareaSemantics is the typed semantic projection of a textarea snapshot.
 // Selection and composition remain UTF-8 byte ranges matching the paint API.
 type TextareaSemantics struct {
-	ID               ui.ID
+	ID               gfx.ID
 	Label            string
 	Value            string
 	Hint             string
@@ -37,8 +37,8 @@ type TextareaSemantics struct {
 // DisplayValue starts a row; scrolling follows the caret when Layout is set.
 // Editing and IME state remain owned by the application/runtime.
 type TextareaSnapshot struct {
-	paintLine     func(*ui.Canvas, string, ui.Rect, ui.TextStyle)
-	ID            ui.ID
+	paintLine     func(*gfx.Canvas, string, gfx.Rect, gfx.TextStyle)
+	ID            gfx.ID
 	Label         string
 	Value         string
 	DisplayValue  string
@@ -105,11 +105,11 @@ func (snapshot TextareaSnapshot) Semantics() TextareaSemantics {
 // TextareaCommandForKey maps only keys owned by a multiline editor. Text
 // insertion, deletion, movement, selection extension, and IME remain platform
 // or application editor responsibilities.
-func TextareaCommandForKey(snapshot TextareaSnapshot, key ui.Key) (TextareaCommand, bool) {
+func TextareaCommandForKey(snapshot TextareaSnapshot, key gfx.Key) (TextareaCommand, bool) {
 	if snapshot.Disabled || snapshot.ReadOnly {
 		return TextareaCommandNone, false
 	}
-	if key == ui.KeyEnter {
+	if key == gfx.KeyEnter {
 		return TextareaCommandInsertNewline, true
 	}
 	return TextareaCommandNone, false
@@ -117,7 +117,7 @@ func TextareaCommandForKey(snapshot TextareaSnapshot, key ui.Key) (TextareaComma
 
 // PaintTextarea paints the official Vega multiline recipe and returns its
 // normalized geometry. The official minimum height is 64 logical pixels.
-func PaintTextarea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot TextareaSnapshot) ui.Rect {
+func PaintTextarea(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snapshot TextareaSnapshot) gfx.Rect {
 	if bounds.Height < 64 {
 		bounds.Height = 64
 	}
@@ -125,11 +125,35 @@ func PaintTextarea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot T
 		return bounds
 	}
 	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
-	paintTextEntrySurface(canvas, theme, bounds, textEntryState{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
-	top := min(max(snapshot.InsetTop, 0), max(bounds.Height-2*textareaPadY, 0))
+	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
 	inset := theme.Metrics.TextInsetX()
-	content := ui.Rect{X: bounds.X + inset, Y: bounds.Y + textareaPadY + top, Width: textareaMax(0, bounds.Width-2*inset), Height: textareaMax(0, bounds.Height-2*textareaPadY-top-snapshot.InsetBottom)}
-	content.Width = max(0, content.Width-snapshot.InsetRight)
+	area := gfx.Rect{X: bounds.X + inset, Y: bounds.Y + textareaPadY, Width: textareaMax(0, bounds.Width-2*inset), Height: textareaMax(0, bounds.Height-2*textareaPadY)}
+	paintTextareaContent(canvas, theme, bounds, area, snapshot, focused)
+	return bounds
+}
+
+// TextareaPadY is the room above and below the rows of text in the shadcn textarea.
+const TextareaPadY = textareaPadY
+
+// PaintTextareaContent paints what is inside a multiline field and declares its hit
+// region, and nothing around it: no border, fill, shadow or focus color. It is what
+// PaintTextarea paints for the text, rows, selection, composition and caret, so a field
+// the application dresses itself edits and scrolls exactly as the shadcn one does.
+//
+// bounds is the whole control, which the pointer hits and focus belongs to; area is the
+// rectangle the rows are laid out in, the caller's own, which the snapshot's InsetTop,
+// InsetBottom and InsetRight then shrink (room for a toolbar or a button inside the box).
+func PaintTextareaContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, area gfx.Rect, snapshot TextareaSnapshot) {
+	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 {
+		return
+	}
+	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
+	paintTextareaContent(canvas, theme, bounds, area, snapshot, focused)
+}
+
+func paintTextareaContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, area gfx.Rect, snapshot TextareaSnapshot, focused bool) {
+	top := min(max(snapshot.InsetTop, 0), max(area.Height, 0))
+	content := gfx.Rect{X: area.X, Y: area.Y + top, Width: textareaMax(0, area.Width-snapshot.InsetRight), Height: textareaMax(0, area.Height-top-snapshot.InsetBottom)}
 	display := snapshot.DisplayValue
 	if display == "" {
 		display = snapshot.Value
@@ -142,13 +166,13 @@ func PaintTextarea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot T
 		textareaPaintRows(canvas, theme, content, display, snapshot.Placeholder, snapshot, focused)
 	}
 	if !snapshot.ID.IsZero() {
-		options := ui.HitOptions{
-			Role: ui.RoleTextField, Cursor: ui.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
+		options := gfx.HitOptions{
+			Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: true,
 			TextBounds: content, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
 		}
 		if snapshot.HideEditorText {
-			options.TextColor = ui.Color{}
+			options.TextColor = gfx.Color{}
 			options.HideNativeOverlays = true
 		}
 		if layout != nil && !snapshot.NativeEditing {
@@ -156,7 +180,6 @@ func PaintTextarea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot T
 		}
 		canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, options)
 	}
-	return bounds
 }
 
 // textareaRows walks the rows of the text being painted: the layout's, kept from
@@ -165,7 +188,7 @@ func PaintTextarea(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot T
 // skip the rest.
 type textareaRows struct {
 	layout *TextareaLayout
-	canvas *ui.Canvas
+	canvas *gfx.Canvas
 	text   string
 	size   float32
 	width  float32
@@ -175,10 +198,10 @@ type textareaRows struct {
 
 // next returns the row at the cursor, where the row after it starts (-1 for
 // none), and false past the last.
-func (rows *textareaRows) next() (row ui.TextRow, after int, ok bool) {
+func (rows *textareaRows) next() (row gfx.TextRow, after int, ok bool) {
 	if rows.layout != nil {
 		if rows.index >= len(rows.layout.rows) {
-			return ui.TextRow{}, -1, false
+			return gfx.TextRow{}, -1, false
 		}
 		row, after = rows.layout.rows[rows.index], -1
 		if rows.index+1 < len(rows.layout.rows) {
@@ -188,14 +211,14 @@ func (rows *textareaRows) next() (row ui.TextRow, after int, ok bool) {
 		return row, after, true
 	}
 	if rows.from < 0 {
-		return ui.TextRow{}, -1, false
+		return gfx.TextRow{}, -1, false
 	}
-	row, rows.from = rows.canvas.WrapRow(rows.text, rows.from, rows.size, ui.WeightRegular, rows.width)
+	row, rows.from = rows.canvas.WrapRow(rows.text, rows.from, rows.size, gfx.WeightRegular, rows.width)
 	rows.index++
 	return row, rows.from, true
 }
 
-func textareaPaintRows(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value, placeholder string, snapshot TextareaSnapshot, focused bool) {
+func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value, placeholder string, snapshot TextareaSnapshot, focused bool) {
 	fontSize := theme.Metrics.FontSizeM
 	lineHeight := fontSize + 7
 	placeholderShown := value == ""
@@ -251,7 +274,7 @@ func textareaPaintRows(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value,
 			break
 		}
 		index := rows.index - 1
-		lineBounds := ui.Rect{X: bounds.X, Y: bounds.Y + float32(index)*lineHeight - scroll, Width: bounds.Width, Height: lineHeight}
+		lineBounds := gfx.Rect{X: bounds.X, Y: bounds.Y + float32(index)*lineHeight - scroll, Width: bounds.Width, Height: lineHeight}
 		if lineBounds.Y >= bounds.Y+bounds.Height {
 			break
 		}
@@ -261,14 +284,14 @@ func textareaPaintRows(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value,
 			line = trimTrailingSpaces(line)
 		}
 		lineEnd := row.Start + len(line)
-		style := ui.TextStyle{Size: fontSize, Weight: ui.WeightRegular, Color: color}
-		origin := canvas.LabelOrigin(line, lineBounds, style, ui.AlignStart)
+		style := gfx.TextStyle{Size: fontSize, Weight: gfx.WeightRegular, Color: color}
+		origin := canvas.LabelOrigin(line, lineBounds, style, gfx.AlignStart)
 		labelBounds := lineBounds
 		if origin == lineBounds.X {
 			labelBounds.Width += overhang // see clip
 		}
-		var selections []ui.Rect
-		var ranges [4]ui.Rect
+		var selections []gfx.Rect
+		var ranges [4]gfx.Rect
 		// At a wrap, the end of one row is the start of the next: the caret is drawn on
 		// the next unless it got to the end of the first by going there.
 		holdsCaret := caret >= row.Start && (after < 0 || caret < after)
@@ -287,17 +310,17 @@ func textareaPaintRows(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value,
 			for _, selection := range selections {
 				canvas.Fill(selection, selectionColor)
 			}
-			var underlines [4]ui.Rect
+			var underlines [4]gfx.Rect
 			underline := theme.Foreground
 			if snapshot.Disabled {
 				underline.Alpha *= 0.50
 			}
 			for _, composition := range textareaLineRanges(canvas, underlines[:0], labelBounds, origin, line, fontSize, row.Start, lineEnd, compositionStart, compositionEnd) {
-				canvas.Fill(ui.Rect{X: composition.X, Y: lineBounds.Y + lineHeight - 3, Width: composition.Width, Height: 1}, underline)
+				canvas.Fill(gfx.Rect{X: composition.X, Y: lineBounds.Y + lineHeight - 3, Width: composition.Width, Height: 1}, underline)
 			}
 			if holdsCaret {
 				caretOffset := textareaBoundary(line, min(caret-row.Start, len(line)))
-				x := min(origin+canvas.TextCaret(line, fontSize, ui.WeightRegular, caretOffset), labelBounds.X+labelBounds.Width-1)
+				x := min(origin+canvas.TextCaret(line, fontSize, gfx.WeightRegular, caretOffset), labelBounds.X+labelBounds.Width-1)
 				textareaPlaceCaret(canvas, theme, layout, lineBounds, x, focused && snapshot.ShowCaret && !snapshot.Disabled)
 			}
 		}
@@ -319,7 +342,7 @@ func textareaPaintRows(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, value,
 			if snapshot.Disabled {
 				selectedColor.Alpha *= 0.50
 			}
-			canvas.Label(line, labelBounds, ui.TextStyle{Size: fontSize, Weight: ui.WeightRegular, Color: selectedColor})
+			canvas.Label(line, labelBounds, gfx.TextStyle{Size: fontSize, Weight: gfx.WeightRegular, Color: selectedColor})
 			canvas.Unclip()
 		}
 	}
@@ -336,19 +359,19 @@ func (snapshot TextareaSnapshot) layoutText() string {
 
 // textareaPlaceCaret records where the caret is for the runtime and paints it
 // when the box shows one.
-func textareaPlaceCaret(canvas *ui.Canvas, theme ui.Theme, layout *TextareaLayout, row ui.Rect, x float32, show bool) {
+func textareaPlaceCaret(canvas *gfx.Canvas, theme gfx.Theme, layout *TextareaLayout, row gfx.Rect, x float32, show bool) {
 	if layout != nil {
-		layout.caret, layout.caretShown = ui.Rect{X: x, Y: row.Y, Width: 1, Height: row.Height}, true
+		layout.caret, layout.caretShown = gfx.Rect{X: x, Y: row.Y, Width: 1, Height: row.Height}, true
 	}
 	if show {
-		canvas.Fill(ui.Rect{X: x, Y: row.Y + 2, Width: 1, Height: inputCaretHeight(theme.Metrics.FontSizeM)}, theme.Foreground)
+		canvas.Fill(gfx.Rect{X: x, Y: row.Y + 2, Width: 1, Height: inputCaretHeight(theme.Metrics.FontSizeM)}, theme.Foreground)
 	}
 }
 
 // textareaLineRanges appends the rectangles of the part of [start, end) that lies on the
 // line (starting at lineStart in the value and drawn from x = origin), one for
 // left-to-right text, more where the range crosses a change of direction.
-func textareaLineRanges(canvas *ui.Canvas, dst []ui.Rect, bounds ui.Rect, origin float32, line string, size float32, lineStart, lineEnd, start, end int) []ui.Rect {
+func textareaLineRanges(canvas *gfx.Canvas, dst []gfx.Rect, bounds gfx.Rect, origin float32, line string, size float32, lineStart, lineEnd, start, end int) []gfx.Rect {
 	start = max(start, lineStart)
 	end = min(end, lineEnd)
 	if end <= start {
@@ -356,13 +379,13 @@ func textareaLineRanges(canvas *ui.Canvas, dst []ui.Rect, bounds ui.Rect, origin
 	}
 	localStart := textareaBoundary(line, start-lineStart)
 	localEnd := textareaBoundary(line, end-lineStart)
-	var spans [4]ui.TextSpan
-	for _, span := range canvas.TextSelection(spans[:0], line, size, ui.WeightRegular, localStart, localEnd) {
+	var spans [4]gfx.TextSpan
+	for _, span := range canvas.TextSelection(spans[:0], line, size, gfx.WeightRegular, localStart, localEnd) {
 		x, width := origin+span.X, span.Width
 		if x+width > bounds.X+bounds.Width {
 			width = bounds.X + bounds.Width - x
 		}
-		dst = append(dst, ui.Rect{X: x, Y: bounds.Y + 1, Width: textareaMax(0, width), Height: textareaMax(0, bounds.Height-2)})
+		dst = append(dst, gfx.Rect{X: x, Y: bounds.Y + 1, Width: textareaMax(0, width), Height: textareaMax(0, bounds.Height-2)})
 	}
 	return dst
 }
@@ -378,7 +401,7 @@ func textareaRange(value string, start, end int) (int, int) {
 
 // selectionColors returns the semantic selection pair. Hand-built themes from
 // before the pair existed keep their former Primary-based appearance.
-func selectionColors(theme ui.Theme) (background, foreground ui.Color) {
+func selectionColors(theme gfx.Theme) (background, foreground gfx.Color) {
 	background, foreground = theme.Selection, theme.SelectionForeground
 	if background.Alpha == 0 {
 		background = theme.Primary
@@ -439,34 +462,34 @@ const (
 // Ctrl+End the ends of the text. Left, Right and the editing keys stay with the
 // text system. Pass the key event of the focused textarea to it, then the result
 // to TextareaLayout.Move, then the new offset to the editor.
-func TextareaMovementForKey(key ui.Key, modifiers ui.Modifiers) (movement TextareaMovement, extend bool) {
-	extend = modifiers&ui.ModifierShift != 0
-	command := modifiers&ui.ModifierMeta != 0
-	control := modifiers&ui.ModifierControl != 0
+func TextareaMovementForKey(key gfx.Key, modifiers gfx.Modifiers) (movement TextareaMovement, extend bool) {
+	extend = modifiers&gfx.ModifierShift != 0
+	command := modifiers&gfx.ModifierMeta != 0
+	control := modifiers&gfx.ModifierControl != 0
 	switch {
-	case key == ui.KeyUp && command:
+	case key == gfx.KeyUp && command:
 		return TextareaMoveTextStart, extend
-	case key == ui.KeyDown && command:
+	case key == gfx.KeyDown && command:
 		return TextareaMoveTextEnd, extend
-	case key == ui.KeyUp:
+	case key == gfx.KeyUp:
 		return TextareaMoveUp, extend
-	case key == ui.KeyDown:
+	case key == gfx.KeyDown:
 		return TextareaMoveDown, extend
-	case key == ui.KeyLeft && command:
+	case key == gfx.KeyLeft && command:
 		return TextareaMoveLineStart, extend
-	case key == ui.KeyRight && command:
+	case key == gfx.KeyRight && command:
 		return TextareaMoveLineEnd, extend
-	case key == ui.KeyHome && control:
+	case key == gfx.KeyHome && control:
 		return TextareaMoveTextStart, extend
-	case key == ui.KeyEnd && control:
+	case key == gfx.KeyEnd && control:
 		return TextareaMoveTextEnd, extend
-	case key == ui.KeyHome:
+	case key == gfx.KeyHome:
 		return TextareaMoveLineStart, extend
-	case key == ui.KeyEnd:
+	case key == gfx.KeyEnd:
 		return TextareaMoveLineEnd, extend
-	case key == ui.KeyPageUp:
+	case key == gfx.KeyPageUp:
 		return TextareaMovePageUp, extend
-	case key == ui.KeyPageDown:
+	case key == gfx.KeyPageDown:
 		return TextareaMovePageDown, extend
 	}
 	return TextareaMoveNone, false
@@ -483,16 +506,16 @@ func TextareaMovementForKey(key ui.Key, modifiers ui.Modifiers) (movement Textar
 //   - Move turns an arrow, Home, End or Page key into the byte offset it leads
 //     to, keeping the column of a run of Up and Down;
 //   - OffsetAt and CaretBounds, which the runtime reads through the hit region
-//     (ui.TextPlacement), put the caret where a press lands and the
+//     (gfx.TextPlacement), put the caret where a press lands and the
 //     input-method window where the caret is;
 //   - ContentHeight sizes a box that grows with its text.
 //
 // The zero value is ready. It is not safe for concurrent use, and one layout
 // serves one textarea.
 type TextareaLayout struct {
-	canvas *ui.Canvas
+	canvas *gfx.Canvas
 	text   string
-	rows   []ui.TextRow
+	rows   []gfx.TextRow
 	wrap   bool
 	size   float32
 	width  float32 // the width rows were wrapped to
@@ -500,10 +523,10 @@ type TextareaLayout struct {
 
 	// What the last paint showed.
 	painted    bool
-	content    ui.Rect
+	content    gfx.Rect
 	lineHeight float32
 	scroll     float32
-	caret      ui.Rect
+	caret      gfx.Rect
 	caretShown bool
 
 	// The caret the view last followed.
@@ -534,7 +557,7 @@ func (layout *TextareaLayout) ScrollBy(dy float32) {
 // each line that fits and as many as a longer one wraps to, and an empty one
 // after a final newline. The rows it wraps are the ones the next paint at that
 // width uses.
-func (layout *TextareaLayout) RowCount(canvas *ui.Canvas, theme ui.Theme, text string, width float32, noWrap bool) int {
+func (layout *TextareaLayout) RowCount(canvas *gfx.Canvas, theme gfx.Theme, text string, width float32, noWrap bool) int {
 	layout.fit(canvas, text, theme.Metrics.FontSizeM, textareaMax(0, width-2*theme.Metrics.TextInsetX()), !noWrap)
 	return len(layout.rows)
 }
@@ -543,15 +566,15 @@ func (layout *TextareaLayout) RowCount(canvas *ui.Canvas, theme ui.Theme, text s
 // without scrolling, never below the 64 pixels of the minimum: the
 // `field-sizing: content` of shadcn's textarea. The application caps it where it
 // wants the box to start scrolling.
-func (layout *TextareaLayout) ContentHeight(canvas *ui.Canvas, theme ui.Theme, text string, width float32, noWrap bool) float32 {
+func (layout *TextareaLayout) ContentHeight(canvas *gfx.Canvas, theme gfx.Theme, text string, width float32, noWrap bool) float32 {
 	rows := layout.RowCount(canvas, theme, text, width, noWrap)
 	return textareaMax(64, float32(rows)*(theme.Metrics.FontSizeM+7)+2*textareaPadY)
 }
 
 // OffsetAt is the byte offset of the caret position nearest to a window point,
 // for the runtime to place the caret on a press or drag. It implements
-// ui.TextPlacement.
-func (layout *TextareaLayout) OffsetAt(point ui.Point) (int, bool) {
+// gfx.TextPlacement.
+func (layout *TextareaLayout) OffsetAt(point gfx.Point) (int, bool) {
 	if !layout.painted || !layout.fitted || len(layout.rows) == 0 {
 		return 0, false
 	}
@@ -567,8 +590,8 @@ func (layout *TextareaLayout) OffsetAt(point ui.Point) (int, bool) {
 
 // CaretBounds is the row the caret was painted on, one pixel wide, in window
 // coordinates; false while the caret is scrolled out of view. It implements
-// ui.TextPlacement.
-func (layout *TextareaLayout) CaretBounds() (ui.Rect, bool) {
+// gfx.TextPlacement.
+func (layout *TextareaLayout) CaretBounds() (gfx.Rect, bool) {
 	return layout.caret, layout.painted && layout.caretShown
 }
 
@@ -640,7 +663,7 @@ func (layout *TextareaLayout) setUpstream(offset int, upstream bool) {
 
 // fit wraps text to width unless the rows already are, and keeps what it wrapped
 // them with for the events that follow.
-func (layout *TextareaLayout) fit(canvas *ui.Canvas, text string, size, width float32, wrap bool) {
+func (layout *TextareaLayout) fit(canvas *gfx.Canvas, text string, size, width float32, wrap bool) {
 	layout.canvas = canvas
 	if layout.fitted && layout.wrap == wrap && layout.size == size && layout.width == width && layout.text == text {
 		return
@@ -650,7 +673,7 @@ func (layout *TextareaLayout) fit(canvas *ui.Canvas, text string, size, width fl
 	if !wrap {
 		wrapWidth = 0
 	}
-	layout.rows = canvas.WrapRows(layout.rows[:0], text, size, ui.WeightRegular, wrapWidth)
+	layout.rows = canvas.WrapRows(layout.rows[:0], text, size, gfx.WeightRegular, wrapWidth)
 }
 
 // rowOf is the row the caret at offset is drawn on.
@@ -700,12 +723,12 @@ func (layout *TextareaLayout) columnOf(row, offset int) float32 {
 	line := layout.shown(row)
 	origin := layout.origin(line)
 	local := textareaBoundary(line, min(max(offset-r.Start, 0), len(line)))
-	return origin + layout.canvas.TextCaret(line, layout.size, ui.WeightRegular, local) - layout.content.X
+	return origin + layout.canvas.TextCaret(line, layout.size, gfx.WeightRegular, local) - layout.content.X
 }
 
 // origin is the left end of a line as drawn in the content.
 func (layout *TextareaLayout) origin(line string) float32 {
-	return layout.canvas.LabelOrigin(line, ui.Rect{X: layout.content.X, Width: layout.content.Width}, ui.TextStyle{Size: layout.size, Weight: ui.WeightRegular}, ui.AlignStart)
+	return layout.canvas.LabelOrigin(line, gfx.Rect{X: layout.content.X, Width: layout.content.Width}, gfx.TextStyle{Size: layout.size, Weight: gfx.WeightRegular}, gfx.AlignStart)
 }
 
 // offsetInRow is the offset on row nearest to column x from the left edge of the
@@ -713,7 +736,7 @@ func (layout *TextareaLayout) origin(line string) float32 {
 func (layout *TextareaLayout) offsetInRow(row int, x float32) (int, bool) {
 	r := layout.rows[row]
 	line := layout.shown(row)
-	local := layout.canvas.TextOffsetAt(line, layout.size, ui.WeightRegular, x+layout.content.X-layout.origin(line))
+	local := layout.canvas.TextOffsetAt(line, layout.size, gfx.WeightRegular, x+layout.content.X-layout.origin(line))
 	local = textareaBoundary(line, min(max(local, 0), len(line)))
 	offset := r.Start + local
 	next, wrapped := layout.next(row)

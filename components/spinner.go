@@ -1,6 +1,6 @@
 package components
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // SpinnerPhase selects one of the eight static frames in the official
 // sixteen-pixel loading indicator. Advancing the phase and scheduling another
@@ -29,24 +29,24 @@ const (
 // diagonal spokes carry only their outward direction because Canvas has no
 // rotation or stroke primitive.
 type spinnerSpoke struct {
-	bounds ui.Rect
+	bounds gfx.Rect
 	dx, dy float32
 }
 
 var spinnerSpokes = [8]spinnerSpoke{
-	{bounds: ui.Rect{X: 7, Y: 0, Width: 2, Height: 4}},
+	{bounds: gfx.Rect{X: 7, Y: 0, Width: 2, Height: 4}},
 	{dx: 1, dy: -1},
-	{bounds: ui.Rect{X: 12, Y: 7, Width: 4, Height: 2}},
+	{bounds: gfx.Rect{X: 12, Y: 7, Width: 4, Height: 2}},
 	{dx: 1, dy: 1},
-	{bounds: ui.Rect{X: 7, Y: 12, Width: 2, Height: 4}},
+	{bounds: gfx.Rect{X: 7, Y: 12, Width: 2, Height: 4}},
 	{dx: -1, dy: 1},
-	{bounds: ui.Rect{X: 0, Y: 7, Width: 4, Height: 2}},
+	{bounds: gfx.Rect{X: 0, Y: 7, Width: 4, Height: 2}},
 	{dx: -1, dy: -1},
 }
 
 // SpinnerLayout reports the fitted icon geometry and semantic label.
 type SpinnerLayout struct {
-	Bounds ui.Rect
+	Bounds gfx.Rect
 	Phase  SpinnerPhase
 	Label  string
 }
@@ -55,12 +55,12 @@ type SpinnerLayout struct {
 // size-4 loader. The brightest spoke is the phase and the fade trails behind
 // it, so advancing the phase turns the indicator clockwise. It never starts a
 // timer, schedules a frame, or retains phase.
-func PaintSpinner(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, phase SpinnerPhase) SpinnerLayout {
+func PaintSpinner(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, phase SpinnerPhase) SpinnerLayout {
 	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 {
 		return SpinnerLayout{}
 	}
 	size := min(bounds.Width, bounds.Height, spinnerSize)
-	icon := ui.Rect{
+	icon := gfx.Rect{
 		X:      bounds.X + (bounds.Width-size)/2,
 		Y:      bounds.Y + (bounds.Height-size)/2,
 		Width:  size,
@@ -76,7 +76,7 @@ func PaintSpinner(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, phase Spinn
 			paintSpinnerDiagonal(canvas, icon, scale, spoke, color)
 			continue
 		}
-		paint := ui.Rect{
+		paint := gfx.Rect{
 			X:      icon.X + spoke.bounds.X*scale,
 			Y:      icon.Y + spoke.bounds.Y*scale,
 			Width:  spoke.bounds.Width * scale,
@@ -89,7 +89,7 @@ func PaintSpinner(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, phase Spinn
 
 // paintSpinnerDiagonal paints one slanted spoke as abutting strips. They never
 // overlap, so a translucent spoke keeps a single uniform alpha.
-func paintSpinnerDiagonal(canvas *ui.Canvas, icon ui.Rect, scale float32, spoke spinnerSpoke, color ui.Color) {
+func paintSpinnerDiagonal(canvas *gfx.Canvas, icon gfx.Rect, scale float32, spoke spinnerSpoke, color gfx.Color) {
 	step := spinnerDiagonalStep * scale
 	centerX := icon.X + (spinnerSize/2+spoke.dx*spinnerDiagonalCenter)*scale
 	centerY := icon.Y + (spinnerSize/2+spoke.dy*spinnerDiagonalCenter)*scale
@@ -102,6 +102,6 @@ func paintSpinnerDiagonal(canvas *ui.Canvas, icon ui.Rect, scale float32, spoke 
 		}
 		// The spoke's axis crosses a strip's middle at this x.
 		middle := centerX + (y+step/2-centerY)*spoke.dx*spoke.dy
-		canvas.Fill(ui.Rect{X: middle - width/2, Y: y, Width: width, Height: step}, color)
+		canvas.Fill(gfx.Rect{X: middle - width/2, Y: y, Width: width, Height: step}, color)
 	}
 }

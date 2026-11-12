@@ -26,7 +26,9 @@ func (state *windowState) setIcons(icon platform.WindowIcon) {
 			size *= 2
 		}
 		size = max(size, 16)
-		scaled := icon.Tile(int(size), 1)
+		// Windows draws both of these small: the title bar's icon and the
+		// taskbar button. Crop the canvas margin away so the mark fills them.
+		scaled := icon.TileMark(int(size))
 		handle, err := newIconHandle(platform.StatusIcon{Size: scaled.Size, RGBA: scaled.RGBA})
 		if err != nil {
 			continue

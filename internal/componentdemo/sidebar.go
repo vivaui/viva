@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -10,7 +10,7 @@ var sidebarComponent = Component{
 	ID: "sidebar", Title: "Sidebar", Category: "Navigation", Summary: "桌面应用导航栏、表面变体与图标折叠状态。",
 	paint: (*State).paintSidebar,
 	Examples: []Example{
-		{ID: "default", Title: "应用导航", Description: "点击菜单项切换调用方持有的当前页面。", Snippet: `rail := f.Slot().WidthPercent(42).MaxWidth(260).FillHeight()
+		{ID: "default", Title: "应用导航", Description: "点击菜单项切换调用方持有的当前页面。", Snippet: `rail := ui.Slot(c).WidthPercent(42).MaxWidth(260).FillHeight()
 items := tree.Sub(page, tree.Name("item"))
 sidebar := components.BeginSidebar(canvas, theme, rail.Rect(), "Viva Studio")
 sidebar.AddGroup("Workspace")
@@ -21,7 +21,7 @@ sidebar.AddMenuItem(components.SidebarMenuItem{
     ID: items.At(1), Label: "Components", Icon: "C", Active: selected == 1,
 })
 if index, ok := canvas.ClickedIn(items); ok { selected = int(index) }`},
-		{ID: "floating", Title: "浮动变体", Description: "使用官方 Floating 表面与描边菜单项。", Snippet: `rail := f.Slot().WidthPercent(42).MaxWidth(260).FillHeight()
+		{ID: "floating", Title: "浮动变体", Description: "使用官方 Floating 表面与描边菜单项。", Snippet: `rail := ui.Slot(c).WidthPercent(42).MaxWidth(260).FillHeight()
 items := tree.Sub(page, tree.Name("item"))
 sidebar := components.BeginSidebarWithOptions(canvas, theme, rail.Rect(), "Viva Studio",
     components.SidebarOptions{Collapsible: components.SidebarFixed, Variant: components.SidebarFloating})
@@ -31,7 +31,7 @@ sidebar.AddMenuItem(components.SidebarMenuItem{
     ID: items.At(1), Label: "Components", Icon: "C",
     Variant: components.SidebarMenuOutline,
 })`},
-		{ID: "collapsed", Title: "图标折叠", Description: "切换完整导航和桌面图标栏。", Snippet: `rail := f.Slot().FillHeight()
+		{ID: "collapsed", Title: "图标折叠", Description: "切换完整导航和桌面图标栏。", Snippet: `rail := ui.Slot(c).FillHeight()
 if collapsed {
     rail.Width(theme.Metrics.ControlHeight + theme.Metrics.GapItem*2)
 } else {
@@ -39,7 +39,7 @@ if collapsed {
 }
 sidebar := components.BeginSidebarWithOptions(canvas, theme, rail.Rect(), "Viva Studio",
     components.SidebarOptions{Collapsible: components.SidebarIcon, Collapsed: collapsed})
-if f.Button(collapseID, "Toggle sidebar").Outline().Clicked() {
+if ui.Button(c, "Toggle sidebar").Outline().Hit(collapseID, "Toggle sidebar").Clicked() {
     collapsed = !collapsed
 }
 sidebar.AddMenuItem(components.SidebarMenuItem{ID: tree.ID(page, "overview"), Label: "Overview", Icon: "O"})`},
@@ -57,7 +57,7 @@ var (
 	sidebarCollapse = tree.ID(sidebarUI, "collapse")
 )
 
-func (state *State) paintSidebar(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintSidebar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	options := components.SidebarOptions{Collapsible: components.SidebarFixed}
 	if state.exampleID == "floating" {
 		options.Variant = components.SidebarFloating
@@ -68,26 +68,23 @@ func (state *State) paintSidebar(canvas *ui.Canvas, theme ui.Theme, size ui.Size
 	}
 	// A collapsed icon bar is one control wide plus its gaps; otherwise the
 	// sidebar takes 42% of the stage, at most 260.
-	var rail flex.Box
-	if state.view == nil {
-		state.view = new(flex.View)
-	}
-	state.view.Draw(canvas, theme, ui.Rect{Width: size.Width, Height: size.Height}, func(f *flex.Frame) {
-		f.Row().Fill().Pad(16).Gap(20).Children(func() {
-			rail = f.Slot().FillHeight()
+	var rail ui.Box
+	state.drawStage(canvas, theme, size, func(c ui.C) {
+		ui.Row(c).Fill().Pad(theme.Metrics.PadSurface).Gap(20).Children(func() {
+			rail = ui.Slot(c).FillHeight()
 			if options.Collapsed {
 				rail.Width(theme.Metrics.ControlHeight + theme.Metrics.GapItem*2)
 			} else {
 				rail.WidthPercent(42).MaxWidth(260)
 			}
-			f.Column().Grow(1).Basis(0).Gap(16).PadSides(14, 0, 0, 0).Children(func() {
-				f.Text(sidebarSelectionLabel(state.values[0])).FontSize(theme.Metrics.FontSizeM + 4).Weight(ui.WeightSemibold)
+			ui.Column(c).Grow(1).Basis(0).Gap(16).PadTop(14).Children(func() {
+				ui.Text(c, sidebarSelectionLabel(state.values[0])).FontSize(theme.Metrics.FontSizeM + 4).Weight(gfx.WeightSemibold)
 				if state.exampleID == "collapsed" {
 					label := "Collapse sidebar"
 					if options.Collapsed {
 						label = "Expand sidebar"
 					}
-					if f.Button(sidebarCollapse, label).Outline().Self(flex.Start).Clicked() {
+					if ui.Button(c, label).Outline().Self(ui.Start).Hit(sidebarCollapse, label).Clicked() {
 						state.flags ^= 1
 					}
 				}

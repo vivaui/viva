@@ -1,8 +1,11 @@
 package windows
 
 import (
+	"encoding/binary"
 	"fmt"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -153,6 +156,8 @@ func ClipboardText() (string, error) {
 
 var pngFormatOnce sync.Once
 var pngFormat uintptr
+var dropEffectFormat uintptr
+var dropEffectFormatOnce sync.Once
 
 // registeredPNGFormat is the clipboard format named "PNG", which browsers, Paint
 // and the Snipping Tool offer alongside the bitmap formats; 0 when it cannot be
@@ -163,6 +168,16 @@ func registeredPNGFormat() uintptr {
 		pngFormat, _, _ = registerClipboardFormat.Call(uintptr(unsafe.Pointer(name)))
 	})
 	return pngFormat
+}
+
+// registeredDropEffectFormat is the clipboard format Explorer reads to know a
+// drag or paste is a copy.
+func registeredDropEffectFormat() uintptr {
+	dropEffectFormatOnce.Do(func() {
+		name, _ := syscall.UTF16PtrFromString("Preferred DropEffect")
+		dropEffectFormat, _, _ = registerClipboardFormat.Call(uintptr(unsafe.Pointer(name)))
+	})
+	return dropEffectFormat
 }
 
 // HasClipboardImage reports whether the clipboard offers a PNG or a bitmap
@@ -330,6 +345,74 @@ func SetClipboardText(value string) error {
 	}
 	if result, _, callErr := setClipboardData.Call(clipboardUnicodeText, handle); result == 0 {
 		return windowsCallError("write clipboard", callErr)
+	}
+	transferred = true
+	return nil
+}
+
+// SetClipboardFiles makes paths the files the clipboard holds, as Explorer does
+// after the user copies a selection: a CF_HDROP list, the file names as text,
+// and the copy effect.
+func SetClipboardFiles(paths []string) error {
+	drop := platform.DropFilesBytes(paths)
+	names := make([]string, len(paths))
+	for index, path := range paths {
+		names[index] = filepath.Base(path)
+	}
+	text, err := syscall.UTF16FromString(strings.Join(names, "\r\n"))
+	if err != nil {
+		return fmt.Errorf("windows: encode clipboard file names: %w", err)
+	}
+	clipboardMu.Lock()
+	defer clipboardMu.Unlock()
+	owner := uintptr(0)
+	if state := active.Load(); state != nil {
+		owner = state.window
+	}
+	if opened, _, callErr := openClipboard.Call(owner); opened == 0 {
+		return windowsCallError("open clipboard", callErr)
+	}
+	defer closeClipboard.Call()
+	if emptied, _, callErr := emptyClipboard.Call(); emptied == 0 {
+		return windowsCallError("empty clipboard", callErr)
+	}
+	if err := setClipboardBlock(clipboardHDrop, drop); err != nil {
+		return err
+	}
+	// The names and the effect are what a file manager adds beside the list;
+	// a clipboard that already holds the files is still usable without them.
+	textBytes := make([]byte, len(text)*2)
+	for index, unit := range text {
+		binary.LittleEndian.PutUint16(textBytes[index*2:], unit)
+	}
+	_ = setClipboardBlock(clipboardUnicodeText, textBytes)
+	if format := registeredDropEffectFormat(); format != 0 {
+		_ = setClipboardBlock(format, []byte{1, 0, 0, 0}) // DROPEFFECT_COPY
+	}
+	return nil
+}
+
+// setClipboardBlock puts one clipboard format on the open clipboard. The system
+// owns the memory after a successful SetClipboardData; a failure frees it.
+func setClipboardBlock(format uintptr, data []byte) error {
+	handle, _, callErr := globalAlloc.Call(globalMoveable|globalZeroInit, uintptr(len(data)))
+	if handle == 0 {
+		return windowsCallError("allocate clipboard data", callErr)
+	}
+	transferred := false
+	defer func() {
+		if !transferred {
+			globalFree.Call(handle)
+		}
+	}()
+	memory, _, callErr := globalLock.Call(handle)
+	if memory == 0 {
+		return windowsCallError("lock clipboard data", callErr)
+	}
+	copy(unsafe.Slice((*byte)(pointer(memory)), len(data)), data)
+	globalUnlock.Call(handle)
+	if result, _, callErr := setClipboardData.Call(format, handle); result == 0 {
+		return windowsCallError("write clipboard data", callErr)
 	}
 	transferred = true
 	return nil

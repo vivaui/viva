@@ -3,9 +3,9 @@ package app
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // presented collects the frames a request hands to the platform.
@@ -17,26 +17,26 @@ func (p *presented) present(frame platform.Frame) error {
 }
 
 func TestAccessibilityNodesCarryWhatAssistiveTechnologyNeeds(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "a11y", Width: 200, Height: 120}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.ContainerWithOptions(ui.Rect{Width: 100, Height: 20}, ui.RoleHeading, "Settings", ui.HitOptions{Level: 2})
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Y: 30, Width: 100, Height: 16}, "Volume", ui.HitOptions{
-			Role: ui.RoleSlider, Value: "30 percent", Range: ui.ValueRange{Now: 30, Min: 0, Max: 100, Step: 5, Set: true},
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.ContainerWithOptions(gfx.Rect{Width: 100, Height: 20}, gfx.RoleHeading, "Settings", gfx.HitOptions{Level: 2})
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Y: 30, Width: 100, Height: 16}, "Volume", gfx.HitOptions{
+			Role: gfx.RoleSlider, Value: "30 percent", Range: gfx.ValueRange{Now: 30, Min: 0, Max: 100, Step: 5, Set: true},
 			Description: "Output level", PosInSet: 2, SetSize: 4,
 		})
-		canvas.HitWithOptions(ui.Item(2), ui.Rect{Y: 60, Width: 100, Height: 20}, "Details", ui.HitOptions{Expandable: true})
+		canvas.HitWithOptions(gfx.Item(2), gfx.Rect{Y: 60, Width: 100, Height: 20}, "Details", gfx.HitOptions{Expandable: true})
 	}
 	painter := newTestPainter(t, &canvas, config)
 	nodes := painter.accessibility
 	if len(nodes) != 3 {
 		t.Fatalf("nodes = %d", len(nodes))
 	}
-	if nodes[0].Level != 2 || nodes[0].ID != (ui.ID{}) {
+	if nodes[0].Level != 2 || nodes[0].ID != (gfx.ID{}) {
 		t.Errorf("heading = %+v", nodes[0])
 	}
 	slider := nodes[1]
-	if slider.ID != ui.Item(1) || !slider.Range.Set || slider.Range.Now != 30 || slider.Range.Step != 5 ||
+	if slider.ID != gfx.Item(1) || !slider.Range.Set || slider.Range.Now != 30 || slider.Range.Step != 5 ||
 		slider.Description != "Output level" || slider.PosInSet != 2 || slider.SetSize != 4 || !slider.Focusable {
 		t.Errorf("slider = %+v", slider)
 	}
@@ -46,27 +46,27 @@ func TestAccessibilityNodesCarryWhatAssistiveTechnologyNeeds(t *testing.T) {
 }
 
 func TestAccessibilityPressClicksOnceAndIgnoresDisabledControls(t *testing.T) {
-	var canvas ui.Canvas
-	var clicks []ui.ID
+	var canvas gfx.Canvas
+	var clicks []gfx.ID
 	config := Config{Title: "press", Width: 200, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithLabel(ui.Item(1), ui.Rect{Width: 80, Height: 20}, "Save")
-		canvas.HitWithOptions(ui.Item(2), ui.Rect{Y: 30, Width: 80, Height: 20}, "Delete", ui.HitOptions{Disabled: true})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithLabel(gfx.Item(1), gfx.Rect{Width: 80, Height: 20}, "Save")
+		canvas.HitWithOptions(gfx.Item(2), gfx.Rect{Y: 30, Width: 80, Height: 20}, "Delete", gfx.HitOptions{Disabled: true})
 	}
-	onClick(&config, func(id ui.ID) { clicks = append(clicks, id) })
+	onClick(&config, func(id gfx.ID) { clicks = append(clicks, id) })
 	painter := newTestPainter(t, &canvas, config)
 	var out presented
 
-	if ok, err := painter.accessibilityRequest(platform.AccessibilityRequest{Node: ui.Item(1), Action: platform.AccessibilityPress}, out.present); !ok || err != nil {
+	if ok, err := painter.accessibilityRequest(platform.AccessibilityRequest{Node: gfx.Item(1), Action: platform.AccessibilityPress}, out.present); !ok || err != nil {
 		t.Fatalf("press = %v, %v", ok, err)
 	}
-	if len(clicks) != 1 || clicks[0] != ui.Item(1) {
+	if len(clicks) != 1 || clicks[0] != gfx.Item(1) {
 		t.Fatalf("clicks = %v", clicks)
 	}
-	if ok, _ := painter.accessibilityRequest(platform.AccessibilityRequest{Node: ui.Item(2), Action: platform.AccessibilityPress}, out.present); ok {
+	if ok, _ := painter.accessibilityRequest(platform.AccessibilityRequest{Node: gfx.Item(2), Action: platform.AccessibilityPress}, out.present); ok {
 		t.Error("a disabled control was pressed")
 	}
-	if ok, _ := painter.accessibilityRequest(platform.AccessibilityRequest{Node: ui.Item(9), Action: platform.AccessibilityPress}, out.present); ok {
+	if ok, _ := painter.accessibilityRequest(platform.AccessibilityRequest{Node: gfx.Item(9), Action: platform.AccessibilityPress}, out.present); ok {
 		t.Error("a node that is not there was pressed")
 	}
 	if len(clicks) != 1 {
@@ -75,19 +75,19 @@ func TestAccessibilityPressClicksOnceAndIgnoresDisabledControls(t *testing.T) {
 }
 
 func TestAccessibilityFocusMovesTheKeyboard(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "focus", Width: 200, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithLabel(ui.Item(1), ui.Rect{Width: 80, Height: 20}, "A")
-		canvas.HitWithLabel(ui.Item(2), ui.Rect{Y: 30, Width: 80, Height: 20}, "B")
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithLabel(gfx.Item(1), gfx.Rect{Width: 80, Height: 20}, "A")
+		canvas.HitWithLabel(gfx.Item(2), gfx.Rect{Y: 30, Width: 80, Height: 20}, "B")
 	}
 	painter := newTestPainter(t, &canvas, config)
 	var out presented
-	if ok, err := painter.accessibilityRequest(platform.AccessibilityRequest{Node: ui.Item(2), Action: platform.AccessibilityFocus}, out.present); !ok || err != nil {
+	if ok, err := painter.accessibilityRequest(platform.AccessibilityRequest{Node: gfx.Item(2), Action: platform.AccessibilityFocus}, out.present); !ok || err != nil {
 		t.Fatalf("focus = %v, %v", ok, err)
 	}
-	if painter.focused != ui.Item(2) {
-		t.Fatalf("focused = %v", painter.focused)
+	if painter.focus.Focused() != gfx.Item(2) {
+		t.Fatalf("focused = %v", painter.focus.Focused())
 	}
 	last := out.frames[len(out.frames)-1]
 	if last.Accessibility == nil {
@@ -96,39 +96,39 @@ func TestAccessibilityFocusMovesTheKeyboard(t *testing.T) {
 }
 
 func TestAccessibilitySliderSteps(t *testing.T) {
-	var canvas ui.Canvas
-	var keys []ui.Key
+	var canvas gfx.Canvas
+	var keys []gfx.Key
 	value := 30.0
 	config := Config{Title: "slider", Width: 200, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 100, Height: 16}, "Volume", ui.HitOptions{
-			Role: ui.RoleSlider, Range: ui.ValueRange{Now: value, Min: 0, Max: 100, Step: 5, Set: true},
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 100, Height: 16}, "Volume", gfx.HitOptions{
+			Role: gfx.RoleSlider, Range: gfx.ValueRange{Now: value, Min: 0, Max: 100, Step: 5, Set: true},
 		})
 	}
-	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
+	config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 		keys = append(keys, event.Key)
 		switch event.Key {
-		case ui.KeyUp:
+		case gfx.KeyUp:
 			value += 5
-		case ui.KeyDown:
+		case gfx.KeyDown:
 			value -= 5
-		case ui.KeyEnd:
+		case gfx.KeyEnd:
 			value = 100
 		}
-		return ui.EventResult{Handled: true, Repaint: true}
+		return gfx.EventResult{Handled: true, Repaint: true}
 	}
 	painter := newTestPainter(t, &canvas, config)
 	var out presented
 	request := func(action platform.AccessibilityAction, number float64) {
 		t.Helper()
 		keys = nil
-		ok, err := painter.accessibilityRequest(platform.AccessibilityRequest{Node: ui.Item(1), Action: action, Number: number}, out.present)
+		ok, err := painter.accessibilityRequest(platform.AccessibilityRequest{Node: gfx.Item(1), Action: action, Number: number}, out.present)
 		if !ok || err != nil {
 			t.Fatalf("action %d = %v, %v", action, ok, err)
 		}
 	}
 	request(platform.AccessibilityIncrement, 0)
-	if len(keys) != 1 || keys[0] != ui.KeyUp || value != 35 {
+	if len(keys) != 1 || keys[0] != gfx.KeyUp || value != 35 {
 		t.Fatalf("increment: keys %v value %v", keys, value)
 	}
 	request(platform.AccessibilitySetNumber, 50)
@@ -136,7 +136,7 @@ func TestAccessibilitySliderSteps(t *testing.T) {
 		t.Fatalf("set 50: keys %v value %v", keys, value)
 	}
 	request(platform.AccessibilitySetNumber, 1000)
-	if value != 100 || len(keys) != 1 || keys[0] != ui.KeyEnd {
+	if value != 100 || len(keys) != 1 || keys[0] != gfx.KeyEnd {
 		t.Fatalf("set past the maximum: keys %v value %v", keys, value)
 	}
 	if len(out.frames) < 3 {
@@ -145,18 +145,18 @@ func TestAccessibilitySliderSteps(t *testing.T) {
 }
 
 func TestAccessibilitySetTextReplacesTheFieldAndTellsThePlatformEditor(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	editor := text.NewEditor("old name")
 	config := Config{Title: "text", Width: 200, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 150, Height: 24}, "Name", ui.HitOptions{Role: ui.RoleTextField, Value: editor.String()})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 150, Height: 24}, "Name", gfx.HitOptions{Role: gfx.RoleTextField, Value: editor.String()})
 	}
 	config.TextInput = func(TextInputContext) *TextInput {
-		return &TextInput{Editor: editor, Bounds: ui.Rect{Width: 150, Height: 24}, FontSize: 13}
+		return &TextInput{Editor: editor, Bounds: gfx.Rect{Width: 150, Height: 24}, FontSize: 13}
 	}
 	painter := newTestPainter(t, &canvas, config)
 	var out presented
-	ok, err := painter.accessibilityRequest(platform.AccessibilityRequest{Node: ui.Item(1), Action: platform.AccessibilitySetText, Text: "new name"}, out.present)
+	ok, err := painter.accessibilityRequest(platform.AccessibilityRequest{Node: gfx.Item(1), Action: platform.AccessibilitySetText, Text: "new name"}, out.present)
 	if !ok || err != nil {
 		t.Fatalf("set text = %v, %v", ok, err)
 	}
@@ -168,7 +168,7 @@ func TestAccessibilitySetTextReplacesTheFieldAndTellsThePlatformEditor(t *testin
 		t.Fatalf("the platform editor was not given the new text: %+v", last.TextInput)
 	}
 
-	ok, err = painter.accessibilityRequest(platform.AccessibilityRequest{Node: ui.Item(1), Action: platform.AccessibilitySetSelection, Start: 4, End: 8}, out.present)
+	ok, err = painter.accessibilityRequest(platform.AccessibilityRequest{Node: gfx.Item(1), Action: platform.AccessibilitySetSelection, Start: 4, End: 8}, out.present)
 	if !ok || err != nil {
 		t.Fatalf("set selection = %v, %v", ok, err)
 	}
@@ -182,15 +182,15 @@ func TestAccessibilitySetTextReplacesTheFieldAndTellsThePlatformEditor(t *testin
 }
 
 func TestAccessibilityDoesNotEditReadOnlyOrSecureFields(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "text", Width: 200, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 150, Height: 24}, "Id", ui.HitOptions{Role: ui.RoleTextField, ReadOnly: true})
-		canvas.HitWithOptions(ui.Item(2), ui.Rect{Y: 30, Width: 150, Height: 24}, "Password", ui.HitOptions{Role: ui.RoleTextField, Secure: true})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 150, Height: 24}, "Id", gfx.HitOptions{Role: gfx.RoleTextField, ReadOnly: true})
+		canvas.HitWithOptions(gfx.Item(2), gfx.Rect{Y: 30, Width: 150, Height: 24}, "Password", gfx.HitOptions{Role: gfx.RoleTextField, Secure: true})
 	}
 	painter := newTestPainter(t, &canvas, config)
 	var out presented
-	for _, id := range []ui.ID{ui.Item(1), ui.Item(2)} {
+	for _, id := range []gfx.ID{gfx.Item(1), gfx.Item(2)} {
 		if ok, _ := painter.accessibilityRequest(platform.AccessibilityRequest{Node: id, Action: platform.AccessibilitySetText, Text: "x"}, out.present); ok {
 			t.Errorf("%v was edited", id)
 		}
@@ -198,11 +198,11 @@ func TestAccessibilityDoesNotEditReadOnlyOrSecureFields(t *testing.T) {
 }
 
 func TestRegionsNeverReportTheKeyboard(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "regions", Width: 200, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.ContainerWithOptions(ui.Rect{Width: 100, Height: 20}, ui.RoleStatus, "Saved", ui.HitOptions{Live: ui.LivePolite})
-		canvas.HitWithLabel(ui.Item(1), ui.Rect{Y: 30, Width: 80, Height: 20}, "Save")
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.ContainerWithOptions(gfx.Rect{Width: 100, Height: 20}, gfx.RoleStatus, "Saved", gfx.HitOptions{Live: gfx.LivePolite})
+		canvas.HitWithLabel(gfx.Item(1), gfx.Rect{Y: 30, Width: 80, Height: 20}, "Save")
 	}
 	painter := newTestPainter(t, &canvas, config)
 	// Nothing has the keyboard, and a region has no identity to have it with.
@@ -211,7 +211,7 @@ func TestRegionsNeverReportTheKeyboard(t *testing.T) {
 			t.Errorf("%+v claims the keyboard", node)
 		}
 	}
-	if !painter.accessibility[0].ID.IsZero() || painter.accessibility[0].Live != ui.LivePolite {
+	if !painter.accessibility[0].ID.IsZero() || painter.accessibility[0].Live != gfx.LivePolite {
 		t.Errorf("region = %+v", painter.accessibility[0])
 	}
 }

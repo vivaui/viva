@@ -3,26 +3,26 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestDrawerSideGeometryAndHandle(t *testing.T) {
-	viewport := ui.Rect{Width: 800, Height: 600}
+	viewport := gfx.Rect{Width: 800, Height: 600}
 	tests := []struct {
 		name string
 		side DrawerSide
-		want ui.Rect
+		want gfx.Rect
 	}{
-		{name: "bottom", side: DrawerBottom, want: ui.Rect{X: 0, Y: 320, Width: 800, Height: 280}},
-		{name: "top", side: DrawerTop, want: ui.Rect{X: 0, Y: 0, Width: 800, Height: 280}},
-		{name: "right", side: DrawerRight, want: ui.Rect{X: 520, Y: 0, Width: 280, Height: 600}},
-		{name: "left", side: DrawerLeft, want: ui.Rect{X: 0, Y: 0, Width: 280, Height: 600}},
+		{name: "bottom", side: DrawerBottom, want: gfx.Rect{X: 0, Y: 320, Width: 800, Height: 280}},
+		{name: "top", side: DrawerTop, want: gfx.Rect{X: 0, Y: 0, Width: 800, Height: 280}},
+		{name: "right", side: DrawerRight, want: gfx.Rect{X: 520, Y: 0, Width: 280, Height: 600}},
+		{name: "left", side: DrawerLeft, want: gfx.Rect{X: 0, Y: 0, Width: 280, Height: 600}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var canvas ui.Canvas
-			layout := BeginDrawer(&canvas, ui.LightTheme(), viewport, DrawerOptions{
-				Layer: 20, Scope: ui.Item(21), DismissID: ui.Item(22), CloseID: ui.Item(23), Side: test.side, ContentExtent: 280,
+			var canvas gfx.Canvas
+			layout := BeginDrawer(&canvas, gfx.LightTheme(), viewport, DrawerOptions{
+				Layer: 20, Scope: gfx.Item(21), DismissID: gfx.Item(22), CloseID: gfx.Item(23), Side: test.side, ContentExtent: 280,
 			}).WithHandle().Paint("Details", "Review the selected item.")
 			if layout.Content != test.want {
 				t.Fatalf("content = %+v, want %+v", layout.Content, test.want)
@@ -35,18 +35,18 @@ func TestDrawerSideGeometryAndHandle(t *testing.T) {
 }
 
 func TestDrawerUsesModalProtocolAndDisabledSemantics(t *testing.T) {
-	var canvas ui.Canvas
-	BeginDrawer(&canvas, ui.DarkTheme(), ui.Rect{Width: 640, Height: 480}, DrawerOptions{
-		Layer: 24, Scope: ui.Item(25), DismissID: ui.Item(26), CloseID: ui.Item(27),
+	var canvas gfx.Canvas
+	BeginDrawer(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 640, Height: 480}, DrawerOptions{
+		Layer: 24, Scope: gfx.Item(25), DismissID: gfx.Item(26), CloseID: gfx.Item(27),
 	}).Disabled().Paint("Unavailable", "The drawer is temporarily locked.")
-	if canvas.TrappedFocusScope() != ui.Item(25) || !canvas.EscapeTarget().IsZero() {
+	if canvas.TrappedFocusScope() != gfx.Item(25) || !canvas.EscapeTarget().IsZero() {
 		t.Fatalf("modal routing = %d / %d", canvas.TrappedFocusScope(), canvas.EscapeTarget())
 	}
 	if len(targets(&canvas)) != 2 || len(blocks(&canvas)) != 1 {
 		t.Fatalf("hits = %+v", canvas.Hits())
 	}
 	for _, hit := range targets(&canvas) {
-		if hit.Scope != ui.Item(25) || hit.Role != ui.RoleButton || !hit.Disabled {
+		if hit.Scope != gfx.Item(25) || hit.Role != gfx.RoleButton || !hit.Disabled {
 			t.Fatalf("drawer hit = %+v", hit)
 		}
 	}

@@ -24,7 +24,7 @@ var initOutputs = [...]struct{ embedded, name string }{
 }
 
 // runInit creates a runnable project: a window with a counter laid out with
-// github.com/vivaui/viva/flex, a test that drives it, viva.toml, and AGENTS.md, the short guide a person
+// github.com/vivaui/viva/ui, a test that drives it, viva.toml, and AGENTS.md, the short guide a person
 // or a coding assistant reads before changing the UI.
 func runInit(arguments []string, output io.Writer) error {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)

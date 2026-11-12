@@ -5,9 +5,9 @@ package darwin
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // inkRows is the first and last device row at or right of fromX that holds
@@ -96,7 +96,8 @@ func TestTerminalPreeditStandsWhereTheGridDrawsTheSameText(t *testing.T) {
 		size  = float32(13)
 		scale = 2
 	)
-	cell := platform.TerminalPreeditCellWidth(size)
+	// The pitch the application declares for the grid, which both draw on.
+	const cell = float32(8)
 	render := func(label *TextLabel, input *TextInput) []bool {
 		offscreen, err := NewOffscreen(200, 40, scale, Color{Alpha: 1})
 		if err != nil {
@@ -116,13 +117,13 @@ func TestTerminalPreeditStandsWhereTheGridDrawsTheSameText(t *testing.T) {
 		}
 		return inkColumns(pixels, width, height)
 	}
-	runs := platform.TerminalPreeditRuns(nil, value, ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
+	runs := platform.TerminalPreeditRuns(nil, value, gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})
 	grid := render(&TextLabel{
 		Value: value, X: 0, Y: 8, Width: 200, Height: 20, FontSize: size, Color: white,
 		Mono: true, CellWidth: cell, Runs: runs,
 	}, nil)
 	preedit := render(nil, &TextInput{
-		X: 0, Y: 8, Width: 200, Height: 20, FontSize: size, Color: white, Terminal: true,
+		X: 0, Y: 8, Width: 200, Height: 20, FontSize: size, Color: white, Terminal: true, CellWidth: cell,
 		// Without a composition there is no underline to count among the glyphs.
 		State:   TextState{Value: value},
 		OnEvent: func(TextEvent) (TextState, error) { return TextState{}, nil },
@@ -154,7 +155,7 @@ func TestTerminalPreeditIsUnderlined(t *testing.T) {
 	defer offscreen.Close()
 	white := platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 	input := &TextInput{
-		X: 0, Y: 8, Width: 120, Height: 16, FontSize: 13, Color: white, Terminal: true,
+		X: 0, Y: 8, Width: 120, Height: 16, FontSize: 13, Color: white, Terminal: true, CellWidth: 8,
 		State:   TextState{Value: "ni你好", Composing: true, Composition: text.Range{End: 4}},
 		OnEvent: func(TextEvent) (TextState, error) { return TextState{}, nil },
 	}
@@ -176,7 +177,7 @@ func TestTerminalPreeditIsUnderlined(t *testing.T) {
 		}
 	}
 	// "ni" and two wide characters are six cells.
-	if want := int(6 * platform.TerminalPreeditCellWidth(13) * 2); underlined < want*9/10 {
+	if want := int(6 * 8 * 2); underlined < want*9/10 {
 		t.Errorf("the underline covers %d device columns, want about %d", underlined, want)
 	}
 }

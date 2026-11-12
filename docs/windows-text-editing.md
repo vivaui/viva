@@ -30,6 +30,15 @@ window and physical-keyboard behaviour still needs the manual checks in
 [conformance.md](conformance.md) and `tools/conformance/run.sh all`. On a host
 that is not Windows only the geometry (`LabelWindow`) is tested; the Direct2D
 drawing itself is not.
+## Disabling the input method
+
+`TextInput.DisableIME` is for a surface that shows another machine's desktop,
+a remote-desktop or VNC view. While it is focused the window's IMM32 context is
+disassociated (`ImmAssociateContext(hwnd, NULL)`): the host's input method
+neither composes nor answers its own switch hotkeys there, so those keys travel
+to the machine on the other side, which runs its own input method — the way
+Microsoft's own client behaves. A window whose input stops asking, or loses
+focus to none, gets its default context back.
 
 ## Performance baseline
 

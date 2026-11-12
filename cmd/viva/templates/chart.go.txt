@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 const (
 	chartInitialWidth  float32 = 320
@@ -13,7 +13,7 @@ const (
 type ChartSeries struct {
 	Key    string
 	Label  string
-	Color  ui.Color
+	Color  gfx.Color
 	Hidden bool
 	// AreaStyle optionally overrides the fill of this series in AreaChart.
 	// Other chart kinds ignore it. Nil preserves the chart's default fill.
@@ -30,7 +30,7 @@ const ChartAreaDefaultOpacity = 0.4
 // so use ChartAreaDefaultOpacity when only the color should change.
 type ChartAreaStyle struct {
 	// Color overrides the series fill color. A zero color uses the series color.
-	Color ui.Color
+	Color gfx.Color
 	// Opacity multiplies the fill alpha, clamped to [0,1]. Non-finite is zero.
 	Opacity float32
 	// Gradient overrides the endpoint colors of ChartFillGradient. Nil fades
@@ -41,7 +41,7 @@ type ChartAreaStyle struct {
 // ChartAreaGradient is a vertical, baseline-relative color gradient. From is
 // at the farthest curve edge and To is at the baseline, including below zero.
 // Colors include alpha; ChartAreaStyle.Opacity multiplies both endpoints.
-type ChartAreaGradient struct{ From, To ui.Color }
+type ChartAreaGradient struct{ From, To gfx.Color }
 
 // ChartLegendPosition selects where the chart container reserves its legend.
 type ChartLegendPosition uint8
@@ -61,9 +61,9 @@ type ChartContainerOptions struct {
 // ChartLayout reports the resolved container and the space left for caller-
 // owned chart geometry. LegendBounds includes the official 12px separation.
 type ChartLayout struct {
-	Bounds       ui.Rect
-	PlotBounds   ui.Rect
-	LegendBounds ui.Rect
+	Bounds       gfx.Rect
+	PlotBounds   gfx.Rect
+	LegendBounds gfx.Rect
 }
 
 // ChartTooltipIndicator selects the official tooltip payload marker.
@@ -96,7 +96,7 @@ type ChartTooltipOptions struct {
 // PaintChartContainer paints optional legend chrome and returns the plot
 // rectangle for caller-owned data geometry. Like shadcn's ChartContainer, it
 // is not a chart engine: it performs no scaling, ticks, paths, or animation.
-func PaintChartContainer(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, series []ChartSeries, options ChartContainerOptions) ChartLayout {
+func PaintChartContainer(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, series []ChartSeries, options ChartContainerOptions) ChartLayout {
 	if canvas == nil {
 		return ChartLayout{}
 	}
@@ -111,18 +111,18 @@ func PaintChartContainer(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, seri
 	if legendHeight > bounds.Height {
 		legendHeight = bounds.Height
 	}
-	layout.LegendBounds = ui.Rect{X: bounds.X, Width: bounds.Width, Height: legendHeight}
+	layout.LegendBounds = gfx.Rect{X: bounds.X, Width: bounds.Width, Height: legendHeight}
 	if options.Legend == ChartLegendTop {
 		layout.LegendBounds.Y = bounds.Y
 		layout.PlotBounds.Y += legendHeight
 		layout.PlotBounds.Height -= legendHeight
-		PaintChartLegend(canvas, theme, ui.Rect{
+		PaintChartLegend(canvas, theme, gfx.Rect{
 			X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: 16 * scale,
 		}, series)
 	} else {
 		layout.LegendBounds.Y = bounds.Y + bounds.Height - legendHeight
 		layout.PlotBounds.Height -= legendHeight
-		PaintChartLegend(canvas, theme, ui.Rect{
+		PaintChartLegend(canvas, theme, gfx.Rect{
 			X: bounds.X, Y: layout.LegendBounds.Y + 12*scale,
 			Width: bounds.Width, Height: 16 * scale,
 		}, series)
@@ -132,9 +132,9 @@ func PaintChartContainer(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, seri
 
 // PaintChartLegend paints the official centered legend row with 8px series
 // swatches, 6px item-internal gaps, and 16px gaps between entries.
-func PaintChartLegend(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, series []ChartSeries) ui.Rect {
+func PaintChartLegend(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, series []ChartSeries) gfx.Rect {
 	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	scale := theme.Metrics.ControlHeight / 32
 	swatchSize := 8 * scale
@@ -142,7 +142,7 @@ func PaintChartLegend(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, series 
 	seriesGap := 16 * scale
 	visible := chartVisibleSeries(series)
 	if visible == 0 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 
 	totalWidth := float32(visible-1) * seriesGap
@@ -152,7 +152,7 @@ func PaintChartLegend(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, series 
 		}
 		totalWidth += swatchSize + itemGap + canvas.TextWidth(series[index].Label, theme.Metrics.FontSizeS)
 	}
-	painted := ui.Rect{
+	painted := gfx.Rect{
 		X:     bounds.X + (bounds.Width-totalWidth)/2,
 		Y:     bounds.Y,
 		Width: totalWidth, Height: bounds.Height,
@@ -164,14 +164,14 @@ func PaintChartLegend(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, series 
 		if item.Hidden {
 			continue
 		}
-		swatch := ui.Rect{
+		swatch := gfx.Rect{
 			X: x, Y: bounds.Y + (bounds.Height-swatchSize)/2,
 			Width: swatchSize, Height: swatchSize,
 		}
 		canvas.Rounded(swatch, 2*scale, item.Color)
 		x += swatchSize + itemGap
 		labelWidth := canvas.TextWidth(item.Label, theme.Metrics.FontSizeS)
-		canvas.Label(item.Label, ui.Rect{X: x, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, ui.TextStyle{
+		canvas.Label(item.Label, gfx.Rect{X: x, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
 			Size: theme.Metrics.FontSizeS, Color: theme.Foreground,
 		})
 		x += labelWidth
@@ -186,9 +186,9 @@ func PaintChartLegend(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, series 
 // ChartTooltipSize measures the tooltip PaintChartTooltip would paint for the
 // same arguments without painting it, so a chart can place it beside a cursor and
 // flip it away from an edge before drawing. It is the zero Size when no row shows.
-func ChartTooltipSize(canvas *ui.Canvas, theme ui.Theme, series []ChartSeries, rows []ChartTooltipRow, options ChartTooltipOptions) ui.Size {
+func ChartTooltipSize(canvas *gfx.Canvas, theme gfx.Theme, series []ChartSeries, rows []ChartTooltipRow, options ChartTooltipOptions) gfx.Size {
 	if canvas == nil || chartVisibleRows(rows) == 0 {
-		return ui.Size{}
+		return gfx.Size{}
 	}
 	scale := theme.Metrics.ControlHeight / 32
 	fontSize := theme.Metrics.FontSizeS
@@ -228,15 +228,15 @@ func ChartTooltipSize(canvas *ui.Canvas, theme ui.Theme, series []ChartSeries, r
 	if !options.HideLabel && options.Label != "" {
 		height += rowHeight + gap
 	}
-	return ui.Size{Width: width, Height: height}
+	return gfx.Size{Width: width, Height: height}
 }
 
 // PaintChartTooltip paints the official tooltip-content shell at origin.X/Y.
 // It reads immutable payload rows and series metadata and performs no value
 // formatting, lifecycle management, hit testing, or data-geometry rendering.
-func PaintChartTooltip(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, series []ChartSeries, rows []ChartTooltipRow, options ChartTooltipOptions) ui.Rect {
+func PaintChartTooltip(canvas *gfx.Canvas, theme gfx.Theme, origin gfx.Rect, series []ChartSeries, rows []ChartTooltipRow, options ChartTooltipOptions) gfx.Rect {
 	if canvas == nil || chartVisibleRows(rows) == 0 {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
 	scale := theme.Metrics.ControlHeight / 32
 	fontSize := theme.Metrics.FontSizeS
@@ -248,7 +248,7 @@ func PaintChartTooltip(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, series
 
 	size := ChartTooltipSize(canvas, theme, series, rows, options)
 	contentWidth := size.Width - paddingX*2
-	bounds := ui.Rect{X: origin.X, Y: origin.Y, Width: size.Width, Height: size.Height}
+	bounds := gfx.Rect{X: origin.X, Y: origin.Y, Width: size.Width, Height: size.Height}
 
 	canvas.PushLayer(options.Layer)
 	border := theme.Border
@@ -257,8 +257,8 @@ func PaintChartTooltip(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, series
 
 	y := bounds.Y + paddingY
 	if !options.HideLabel && options.Label != "" && !nestedLabel {
-		canvas.Label(options.Label, ui.Rect{X: bounds.X + paddingX, Y: y, Width: contentWidth, Height: rowHeight}, ui.TextStyle{
-			Size: fontSize, Weight: ui.WeightMedium, Color: theme.Foreground,
+		canvas.Label(options.Label, gfx.Rect{X: bounds.X + paddingX, Y: y, Width: contentWidth, Height: rowHeight}, gfx.TextStyle{
+			Size: fontSize, Weight: gfx.WeightMedium, Color: theme.Foreground,
 		})
 		y += rowHeight + gap
 	}
@@ -275,12 +275,12 @@ func PaintChartTooltip(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, series
 		x := bounds.X + paddingX
 		color := chartTooltipColor(series, row.Series)
 		if !options.HideIndicator {
-			chartPaintIndicator(canvas, options.Indicator, ui.Rect{X: x, Y: rowY, Width: chartIndicatorWidth(options.Indicator, scale), Height: rowBlockHeight}, color, scale)
+			chartPaintIndicator(canvas, options.Indicator, gfx.Rect{X: x, Y: rowY, Width: chartIndicatorWidth(options.Indicator, scale), Height: rowBlockHeight}, color, scale)
 			x += chartIndicatorWidth(options.Indicator, scale) + 8*scale
 		}
 		if nestedLabel {
-			canvas.Label(options.Label, ui.Rect{X: x, Y: rowY, Width: bounds.X + bounds.Width - paddingX - x, Height: rowHeight}, ui.TextStyle{
-				Size: fontSize, Weight: ui.WeightMedium, Color: theme.Foreground,
+			canvas.Label(options.Label, gfx.Rect{X: x, Y: rowY, Width: bounds.X + bounds.Width - paddingX - x, Height: rowHeight}, gfx.TextStyle{
+				Size: fontSize, Weight: gfx.WeightMedium, Color: theme.Foreground,
 			})
 			rowY += rowHeight + gap
 		}
@@ -293,14 +293,14 @@ func PaintChartTooltip(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, series
 		if labelWidth < 0 {
 			labelWidth = 0
 		}
-		canvas.Label(label, ui.Rect{X: x, Y: rowY, Width: labelWidth, Height: rowHeight}, ui.TextStyle{
+		canvas.Label(label, gfx.Rect{X: x, Y: rowY, Width: labelWidth, Height: rowHeight}, gfx.TextStyle{
 			Size: fontSize, Color: theme.MutedForeground,
 		})
 		if row.Value != "" {
-			canvas.Label(row.Value, ui.Rect{
+			canvas.Label(row.Value, gfx.Rect{
 				X: bounds.X + bounds.Width - paddingX - valueWidth,
 				Y: rowY, Width: valueWidth, Height: rowHeight,
-			}, ui.TextStyle{Size: fontSize, Weight: ui.WeightMedium, Color: theme.Foreground})
+			}, gfx.TextStyle{Size: fontSize, Weight: gfx.WeightMedium, Color: theme.Foreground})
 		}
 		y += rowBlockHeight + gap
 	}
@@ -308,7 +308,7 @@ func PaintChartTooltip(canvas *ui.Canvas, theme ui.Theme, origin ui.Rect, series
 	return bounds
 }
 
-func chartResolveBounds(bounds ui.Rect) ui.Rect {
+func chartResolveBounds(bounds gfx.Rect) gfx.Rect {
 	if bounds.Width <= 0 {
 		bounds.Width = chartInitialWidth
 	}
@@ -348,11 +348,11 @@ func chartTooltipLabel(series []ChartSeries, row ChartTooltipRow) string {
 	return ""
 }
 
-func chartTooltipColor(series []ChartSeries, index int) ui.Color {
+func chartTooltipColor(series []ChartSeries, index int) gfx.Color {
 	if index >= 0 && index < len(series) {
 		return series[index].Color
 	}
-	return ui.Color{}
+	return gfx.Color{}
 }
 
 func chartIndicatorWidth(indicator ChartTooltipIndicator, scale float32) float32 {
@@ -366,21 +366,21 @@ func chartIndicatorWidth(indicator ChartTooltipIndicator, scale float32) float32
 	}
 }
 
-func chartPaintIndicator(canvas *ui.Canvas, indicator ChartTooltipIndicator, bounds ui.Rect, color ui.Color, scale float32) {
+func chartPaintIndicator(canvas *gfx.Canvas, indicator ChartTooltipIndicator, bounds gfx.Rect, color gfx.Color, scale float32) {
 	switch indicator {
 	case ChartTooltipLine:
-		canvas.Rounded(ui.Rect{
+		canvas.Rounded(gfx.Rect{
 			X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: bounds.Height,
 		}, 2*scale, color)
 	case ChartTooltipDashed:
 		dashHeight := 3 * scale
 		gap := 2 * scale
 		for y := bounds.Y + scale/2; y+dashHeight <= bounds.Y+bounds.Height; y += dashHeight + gap {
-			canvas.Fill(ui.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: dashHeight}, color)
+			canvas.Fill(gfx.Rect{X: bounds.X, Y: y, Width: bounds.Width, Height: dashHeight}, color)
 		}
 	default:
 		size := 10 * scale
-		canvas.Rounded(ui.Rect{
+		canvas.Rounded(gfx.Rect{
 			X: bounds.X, Y: bounds.Y + (bounds.Height-size)/2,
 			Width: size, Height: size,
 		}, 2*scale, color)

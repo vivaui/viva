@@ -8,11 +8,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/tools/iconcompile"
-	"github.com/vivaui/viva/ui"
 )
 
-// runIcons compiles SVG icon sources into one Go source file of ui.Icon
+// runIcons compiles SVG icon sources into one Go source file of gfx.Icon
 // values: viva icons -o icons/icons.go -pkg icons icons/
 func runIcons(arguments []string, output io.Writer) error {
 	if len(arguments) == 1 && isHelpFlag(arguments[0]) {
@@ -92,7 +92,7 @@ func runIcons(arguments []string, output io.Writer) error {
 		license = string(raw)
 	}
 
-	icons := make(map[string]ui.Icon, len(files))
+	icons := make(map[string]gfx.Icon, len(files))
 	for _, file := range files {
 		source, err := os.ReadFile(file)
 		if err != nil {

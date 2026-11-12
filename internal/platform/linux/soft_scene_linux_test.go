@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
-	"github.com/vivaui/viva/ui"
 )
 
 func softTestRect(x, y, w, h float32, c scene.Color, layer uint16) render.Rectangle {
@@ -67,7 +67,7 @@ func TestSoftSceneFramesPaintWhatAFullPaintWould(t *testing.T) {
 		scrolled := []platform.TextLabel{softTestLabel("Hullo", 8, 6, 0), softTestLabel("World", 30, 47, 1)}
 		step("a label scrolled", platform.Frame{TextLabels: scrolled})
 		clipped := []platform.TextLabel{softTestLabel("Hullo", 8, 6, 0), softTestLabel("World", 30, 47, 1)}
-		clipped[1].Clipped, clipped[1].Clip = true, ui.Rect{X: 30, Y: 47, Width: 20, Height: 8}
+		clipped[1].Clipped, clipped[1].Clip = true, gfx.Rect{X: 30, Y: 47, Width: 20, Height: 8}
 		step("a label clipped", platform.Frame{TextLabels: clipped})
 		step("a label removed", platform.Frame{TextLabels: clipped[:1]})
 		step("the scene rebuilt smaller", platform.Frame{Update: render.Update{Rebuild: true}, Rectangles: grown[:2]})

@@ -5,8 +5,8 @@ package windows
 // natural rendering, which does not. The two are the same glyphs at the same size, so the
 // tests here pin what must hold whichever draws a run: every character on its cell, the
 // decorations of a run, the brightness of its text; and the choice itself: ASCII runs are
-// GDI's, and ligatures, characters the font lacks and fonts GDI does not have stay with
-// Direct2D, even in a line that holds both.
+// GDI's, and ligatures, characters the font lacks, fonts GDI does not have and weights
+// between regular and bold stay with Direct2D, even in a line that holds both.
 
 import (
 	"bytes"
@@ -15,13 +15,13 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 var (
-	termWhite = ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
-	termInk   = ui.Color{Red: 0.1, Green: 0.1, Blue: 0.1, Alpha: 1}
+	termWhite = gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	termInk   = gfx.Color{Red: 0.1, Green: 0.1, Blue: 0.1, Alpha: 1}
 )
 
 // gridRender is the coverage a rasterizer made of a label: BGRA, alpha their luminance.
@@ -97,7 +97,7 @@ func gridLabel(cellWidth float32, runs ...gridRun) platform.TextLabel {
 			cells = int32(len(run.text))
 		}
 		run.run.Column, run.run.Bytes, run.run.Cells = column, int32(len(run.text)), cells
-		if run.run.Color == (ui.Color{}) {
+		if run.run.Color == (gfx.Color{}) {
 			run.run.Color = termWhite
 		}
 		label.Value += run.text
@@ -112,7 +112,7 @@ func gridLabel(cellWidth float32, runs ...gridRun) platform.TextLabel {
 type gridRun struct {
 	text  string
 	cells int32
-	run   ui.TextRun
+	run   gfx.TextRun
 }
 
 func asciiRun(value string) gridRun { return gridRun{text: value} }
@@ -172,8 +172,8 @@ func TestFixedPitchCharactersStandOnTheirCells(t *testing.T) {
 func TestFixedPitchRunDecorationsAreDrawn(t *testing.T) {
 	plain := gridLabel(8, asciiRun("ab "), asciiRun("cdefgh"), asciiRun(" ij "), asciiRun("klmnop"))
 	decorated := gridLabel(8, asciiRun("ab "),
-		gridRun{text: "cdefgh", run: ui.TextRun{Underline: true}}, asciiRun(" ij "),
-		gridRun{text: "klmnop", run: ui.TextRun{Strike: true}})
+		gridRun{text: "cdefgh", run: gfx.TextRun{Underline: true}}, asciiRun(" ij "),
+		gridRun{text: "klmnop", run: gfx.TextRun{Strike: true}})
 	for _, directOnly := range []bool{false, true} {
 		t.Run(fmt.Sprintf("directOnly=%v", directOnly), func(t *testing.T) {
 			before := rasterizeGrid(t, plain, 1, directOnly)
@@ -228,7 +228,7 @@ func TestFixedPitchRunDecorationsAreDrawn(t *testing.T) {
 // thins light text and thickens dark text, so a dark run takes its coverage from text drawn
 // dark, and a line of both takes each run's from its own drawing without a gap between them.
 func TestFixedPitchDarkTextHasItsOwnCoverage(t *testing.T) {
-	dark := ui.TextRun{Color: termInk}
+	dark := gfx.TextRun{Color: termInk}
 	for _, directOnly := range []bool{false, true} {
 		t.Run(fmt.Sprintf("directOnly=%v", directOnly), func(t *testing.T) {
 			lightLine := gridLabel(8, asciiRun("IlOo@#$%"), asciiRun("IlOo@#$%"))
@@ -275,18 +275,48 @@ func TestFixedPitchRunsChooseTheirRenderer(t *testing.T) {
 // may ligate is shaped by Direct2D alone, and so is a family GDI does not have, which GDI
 // would silently replace with another face.
 func TestFixedPitchRunsThatGDICannotDrawStayWithDirect2D(t *testing.T) {
-	ligatures := gridLabel(8, gridRun{text: "fi -> => != <=", run: ui.TextRun{Ligatures: true}})
+	ligatures := gridLabel(8, gridRun{text: "fi -> => != <=", run: gfx.TextRun{Ligatures: true}})
 	if !bytes.Equal(rasterizeGrid(t, ligatures, 1, false).pixels, rasterizeGrid(t, ligatures, 1, true).pixels) {
 		t.Error("a ligature run was drawn by two renderers")
 	}
 	missing := gridLabel(8, asciiRun("root@host:~# ls -l"))
-	missing.MonoFace = ui.MonoFamily("No Such Font Anywhere")
+	missing.MonoFace = gfx.MonoFamily("No Such Font Anywhere")
 	hinted := rasterizeGrid(t, missing, 1, false)
 	if !bytes.Equal(hinted.pixels, rasterizeGrid(t, missing, 1, true).pixels) {
 		t.Error("a family GDI does not have was drawn by GDI")
 	}
 	if hinted.between(0, hinted.width) == 0 {
 		t.Error("the line holds no ink")
+	}
+}
+
+// TestFixedPitchWeightsGDIWouldMakeUpStayWithDirect2D guards the weight of a run: regular
+// and bold are faces of the family and GDI's, and medium and semibold, which GDI makes up
+// wider than the cells (semibold INFO read INFC in Consolas), are Direct2D's, which draws
+// them with a face the font has. A label without runs takes the label's weight.
+func TestFixedPitchWeightsGDIWouldMakeUpStayWithDirect2D(t *testing.T) {
+	label := gridLabel(8,
+		gridRun{text: "INFO ", run: gfx.TextRun{Weight: gfx.WeightRegular}},
+		gridRun{text: "INFO ", run: gfx.TextRun{Weight: gfx.WeightMedium}},
+		gridRun{text: "INFO ", run: gfx.TextRun{Weight: gfx.WeightSemibold}},
+		gridRun{text: "INFO", run: gfx.TextRun{Weight: gfx.WeightBold}})
+	hinted := rasterizeGrid(t, label, 1, false)
+	natural := rasterizeGrid(t, label, 1, true)
+	for index, wantHinted := range []bool{true, false, false, true} {
+		from, to := columnsOfRun(label, index, 1)
+		if hinted.between(from, to) == 0 {
+			t.Errorf("run %d holds no ink", index)
+		}
+		// The column an edge shares with a neighbour holds the coverage of both.
+		same := hinted.same(natural, from+1, to-1)
+		if same == wantHinted {
+			t.Errorf("run %d: drawn by GDI is %v, want %v", index, !same, wantHinted)
+		}
+	}
+	badge := platform.TextLabel{Value: "INFO", FontSize: 13, CellWidth: 8, Mono: true, Width: 34, Height: 18,
+		Weight: gfx.WeightSemibold, Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}
+	if !bytes.Equal(rasterizeGrid(t, badge, 1, false).pixels, rasterizeGrid(t, badge, 1, true).pixels) {
+		t.Error("a semibold label was drawn by GDI")
 	}
 }
 
@@ -298,8 +328,8 @@ func TestFixedPitchRasterizerDeselectsItsFonts(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	label := gridLabel(8,
-		asciiRun("root@host:~# "), gridRun{text: "ls", run: ui.TextRun{Weight: 0.4}},
-		gridRun{text: " -l", run: ui.TextRun{Italic: true, Underline: true}})
+		asciiRun("root@host:~# "), gridRun{text: "ls", run: gfx.TextRun{Weight: 0.4}},
+		gridRun{text: " -l", run: gfx.TextRun{Italic: true, Underline: true}})
 	rasterizer, err := newDirectRasterizer()
 	if err != nil {
 		t.Skipf("no DirectWrite: %v", err)

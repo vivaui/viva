@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // goroutinesSettledAt returns the goroutine count once it has stopped moving, so
@@ -38,14 +38,14 @@ func TestDriverAddsNoGoroutinesAndIdlesWhenSettled(t *testing.T) {
 	paints, wakes := 0, 0
 	checked := false
 	config := Config{Title: "idle", Width: 320, Height: 120, Invalidator: &invalidator}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
 		paints++
-		theme := ui.LightTheme()
-		components.BeginButton(canvas, theme, ui.Item(1), ui.Rect{X: 10, Y: 10, Width: 90, Height: 32}).Default("Save")
-		components.BeginSwitch(canvas, theme, ui.Item(2), ui.Rect{X: 10, Y: 60, Width: 44, Height: 24}, checked).Paint()
+		theme := gfx.LightTheme()
+		components.BeginButton(canvas, theme, gfx.Item(1), gfx.Rect{X: 10, Y: 10, Width: 90, Height: 32}).Default("Save")
+		components.BeginSwitch(canvas, theme, gfx.Item(2), gfx.Rect{X: 10, Y: 60, Width: 44, Height: 24}, checked).Paint()
 	}
-	onClick(&config, func(id ui.ID) {
-		if id == ui.Item(2) {
+	onClick(&config, func(id gfx.ID) {
+		if id == gfx.Item(2) {
 			checked = !checked
 		}
 	})

@@ -1,6 +1,6 @@
 package input
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // MaxHeldKeys is how many keys a KeyTracker follows at once. A keyboard cannot
 // report more than a handful; presses past the limit are delivered but not
@@ -15,8 +15,8 @@ type HeldKey struct {
 	Code   uint32
 	Key    Key
 	Text   string
-	Target ui.ID
-	Win32  ui.Win32Key
+	Target gfx.ID
+	Win32  gfx.Win32Key
 }
 
 // KeyTracker follows the keys that are down so that every release the

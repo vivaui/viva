@@ -6,29 +6,29 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // motionHarness drives a painter with a fake frame clock and counts the
 // frames the painter asks the runtime for.
 type motionHarness struct {
 	painter  *painter
-	canvas   *ui.Canvas
+	canvas   *gfx.Canvas
 	now      time.Duration
 	requests int
 	checked  bool
-	theme    ui.Theme
+	theme    gfx.Theme
 }
 
 func newMotionHarness(t *testing.T) *motionHarness {
 	t.Helper()
-	harness := &motionHarness{canvas: &ui.Canvas{}, now: time.Second, theme: ui.LightTheme()}
+	harness := &motionHarness{canvas: &gfx.Canvas{}, now: time.Second, theme: gfx.LightTheme()}
 	config := Config{Title: "motion", Width: 120, Height: 60}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		components.BeginSwitch(canvas, harness.theme, ui.Item(1), ui.Rect{X: 10, Y: 10}, harness.checked).Paint()
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		components.BeginSwitch(canvas, harness.theme, gfx.Item(1), gfx.Rect{X: 10, Y: 10}, harness.checked).Paint()
 	}
-	onClick(&config, func(id ui.ID) { harness.checked = !harness.checked })
+	onClick(&config, func(id gfx.ID) { harness.checked = !harness.checked })
 	harness.painter = newTestPainter(t, harness.canvas, config)
 	harness.canvas.SetClock(func() time.Duration { return harness.now })
 	harness.painter.scheduleFrame = func(time.Duration) { harness.requests++ }
@@ -51,7 +51,7 @@ func (harness *motionHarness) click(t *testing.T) platform.Frame {
 	var frame platform.Frame
 	for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
 		var err error
-		frame, err = harness.painter.pointer(platform.PointerEvent{Kind: kind, X: 26, Y: 19})
+		frame, err = harness.painter.pointerEvent(platform.PointerEvent{Kind: kind, X: 26, Y: 19})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -137,8 +137,8 @@ func TestReducedMotionPaintsDestinationWithoutFrames(t *testing.T) {
 	if harness.requests != 0 || harness.canvas.Animating() {
 		t.Fatalf("reduced motion requested %d frames", harness.requests)
 	}
-	var onCanvas ui.Canvas
-	components.BeginSwitch(&onCanvas, harness.theme, ui.Item(1), ui.Rect{X: 10, Y: 10}, true).Paint()
+	var onCanvas gfx.Canvas
+	components.BeginSwitch(&onCanvas, harness.theme, gfx.Item(1), gfx.Rect{X: 10, Y: 10}, true).Paint()
 	if harness.canvas.Rectangles()[1] != onCanvas.Rectangles()[1] {
 		t.Fatal("reduced motion must paint the destination state immediately")
 	}
@@ -229,10 +229,10 @@ func waitForWake(t *testing.T, woken <-chan struct{}) {
 }
 
 func BenchmarkPainterAnimatedSwitchFrame(b *testing.B) {
-	harness := &motionHarness{canvas: &ui.Canvas{}, now: time.Second, theme: ui.DarkTheme()}
+	harness := &motionHarness{canvas: &gfx.Canvas{}, now: time.Second, theme: gfx.DarkTheme()}
 	config := Config{Title: "motion", Width: 120, Height: 60}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		components.BeginSwitch(canvas, harness.theme, ui.Item(1), ui.Rect{X: 10, Y: 10}, harness.checked).Paint()
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		components.BeginSwitch(canvas, harness.theme, gfx.Item(1), gfx.Rect{X: 10, Y: 10}, harness.checked).Paint()
 	}
 	normalized, err := config.normalize()
 	if err != nil {
@@ -260,11 +260,11 @@ func BenchmarkPainterAnimatedSwitchFrame(b *testing.B) {
 // A frame that asks for a later frame schedules it with that delay, and the
 // application then sits idle until it is painted: no per-frame cadence.
 func TestPainterSchedulesADelayedFrameWithItsDelay(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	asked := true
 	config := Config{Title: "pulse", Width: 100, Height: 50}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.Fill(ui.Rect{Width: 10, Height: 10}, ui.Color{Alpha: 1})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.Fill(gfx.Rect{Width: 10, Height: 10}, gfx.Color{Alpha: 1})
 		if asked {
 			canvas.RequestFrameIn(125 * time.Millisecond)
 		}

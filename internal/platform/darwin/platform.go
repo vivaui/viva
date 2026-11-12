@@ -17,12 +17,12 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 type Color = platform.Color
@@ -145,6 +145,7 @@ type runState struct {
 	visibilityHandler platform.VisibilityHandler
 	fullscreenHandler func(bool)
 	onReopen          func()
+	onActivate        func()
 	keyHandler        KeyHandler
 	focusLostHandler  platform.FocusLostHandler
 	accessibility     platform.AccessibilityHandler
@@ -202,20 +203,20 @@ func (window *nativeWindow) Show() {
 }
 
 // Frame is the content area in screen coordinates.
-func (window *nativeWindow) Frame() (ui.Rect, bool) {
+func (window *nativeWindow) Frame() (gfx.Rect, bool) {
 	if window == nil || window.closed.Load() {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
 	var out [4]C.double
 	if C.viva_application_window_frame(window.token, &out[0]) == 0 {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
-	return ui.Rect{X: float32(out[0]), Y: float32(out[1]), Width: float32(out[2]), Height: float32(out[3])}, true
+	return gfx.Rect{X: float32(out[0]), Y: float32(out[1]), Width: float32(out[2]), Height: float32(out[3])}, true
 }
 
 // MoveTo puts the top-left of the content area at origin. It runs on the
 // event-loop thread, where window callbacks are.
-func (window *nativeWindow) MoveTo(origin ui.Point) {
+func (window *nativeWindow) MoveTo(origin gfx.Point) {
 	if window != nil && !window.closed.Load() {
 		C.viva_application_move_window(window.token, C.double(origin.X), C.double(origin.Y))
 	}
@@ -245,6 +246,7 @@ func sameTextInputPresentation(left, right TextInput) bool {
 		left.Width == right.Width && left.Height == right.Height &&
 		left.FontSize == right.FontSize && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
 		left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.Color == right.Color &&
+		left.CopyOverride == right.CopyOverride &&
 		left.State == right.State
 }
 
@@ -342,7 +344,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 
 	state := &runState{application: application, onClosed: config.OnClosed, waker: config.Waker, closeHandler: config.OnCloseRequest, pressAt: config.PressAt,
-		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, visibilityHandler: config.OnVisibility, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen}
+		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, visibilityHandler: config.OnVisibility, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen, onActivate: config.OnActivate}
 	{
 		state.captureRectangleLayers(config.Rectangles)
 		if config.OnPointer != nil {
@@ -490,6 +492,11 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 	application.windows++
 	setApplicationIcon(config.Icon)
+	if config.SetFrameInterval != nil {
+		// Metal's nextDrawable blocks once both drawables are in flight, so the
+		// display paces the frames; the runtime needs no interval of its own.
+		config.SetFrameInterval(0)
+	}
 	if state.web != nil {
 		state.web.token = token
 		if state.webReady != nil {
@@ -643,7 +650,7 @@ const (
 )
 
 // textRunFlags is the native flag word of one fixed-pitch run.
-func textRunFlags(run ui.TextRun) uint32 {
+func textRunFlags(run gfx.TextRun) uint32 {
 	var flags uint32
 	if run.Italic {
 		flags |= runItalic
@@ -761,6 +768,7 @@ func makeNativeTextLabels(labels []TextLabel) (unsafe.Pointer, []unsafe.Pointer,
 			runs:            runs,
 			run_count:       C.size_t(len(label.Runs)),
 			cell_width:      C.float(label.CellWidth),
+			baseline:        C.float(label.Baseline),
 			flags:           flags,
 			bitmap:          (*C.uchar)(bitmapMemory),
 			bitmap_length:   C.size_t(len(label.Bitmap)),
@@ -844,6 +852,7 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 	return C.viva_text_input_config{
 		utf8:                 (*C.uchar)(value),
 		utf8_length:          C.size_t(len(input.State.Value)),
+		copy_override:        C.int(boolInt(input.CopyOverride)),
 		x:                    C.float(input.X),
 		y:                    C.float(input.Y),
 		width:                C.float(input.Width),
@@ -865,7 +874,8 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 		terminal:             C.int(boolInt(input.Terminal)),
 		hide_native_overlays: C.int(boolInt(input.HideNativeOverlays)),
 		mono_face:            C.int(input.MonoFace),
-		cell_width:           C.float(terminalCellWidth(input)),
+		cell_width:           C.float(input.CellWidth),
+		baseline:             C.float(input.Baseline),
 		alt_sends_escape:     C.int(boolInt(input.AltSendsEscape)),
 		key_releases:         C.int(boolInt(input.KeyReleases)),
 		navigation_keys:      C.int(boolInt(input.NavigationKeys)),
@@ -895,15 +905,6 @@ func nativeTextInputShouldInterpretKey(enabled, multiline, composing bool, key i
 	return C.viva_text_input_should_interpret_key(
 		C.int(boolInt(enabled)), C.int(boolInt(multiline)), C.int(boolInt(composing)), C.int(key),
 	) != 0
-}
-
-// terminalCellWidth is the cell a terminal input's preedit is laid on, or 0 for any other
-// input, which has no cells.
-func terminalCellWidth(input TextInput) float32 {
-	if !input.Terminal {
-		return 0
-	}
-	return platform.TerminalPreeditCellWidth(input.FontSize)
 }
 
 func textBytes(value string) unsafe.Pointer {

@@ -551,13 +551,13 @@ func TestPlistRegistersLinkSchemes(t *testing.T) {
 
 func TestPlistRegistersFileTypes(t *testing.T) {
 	info := sampleInfo()
-	info.FileTypes = []FileType{{Name: "Notes & lists", Extensions: []string{"note", "nt"}}}
+	info.FileTypes = []FileType{{Name: "Notes & lists", Extensions: []string{"note", "nt"}, UTI: "dev.example.notes.note"}}
 	data, err := info.Plist()
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, want := range []string{"<key>CFBundleDocumentTypes</key>", "<string>Notes &amp; lists</string>", "<key>CFBundleTypeExtensions</key>", "<string>note</string>", "<string>nt</string>"} {
+	for _, want := range []string{"<key>CFBundleDocumentTypes</key>", "<string>Notes &amp; lists</string>", "<key>CFBundleTypeExtensions</key>", "<string>note</string>", "<string>nt</string>", "<key>LSItemContentTypes</key>", "<string>dev.example.notes.note</string>"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("plist lacks %q:\n%s", want, text)
 		}
@@ -572,5 +572,17 @@ func TestPlistRegistersFileTypes(t *testing.T) {
 	info.Extra = []KeyValue{{"CFBundleDocumentTypes", "x"}}
 	if _, err := info.Plist(); err == nil {
 		t.Error("an extra entry overrode CFBundleDocumentTypes")
+	}
+}
+
+func TestPlistCanRegisterFileTypesByExtensionAlone(t *testing.T) {
+	info := sampleInfo()
+	info.FileTypes = []FileType{{Name: "Text", Extensions: []string{"txt"}}}
+	data, err := info.Plist()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "LSItemContentTypes") {
+		t.Fatalf("plist has a UTI that was not supplied:\n%s", data)
 	}
 }

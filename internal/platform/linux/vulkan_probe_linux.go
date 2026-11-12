@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"encoding/binary"
 	"sync"
 
 	"github.com/ebitengine/purego"
@@ -15,31 +16,34 @@ var softwareProbe struct {
 }
 
 // vulkanDeviceIsSoftware reports whether the device a window would draw with is a
-// CPU rasterizer: the first device with a graphics queue, the one the renderer
-// picks. The answer decides whether the window gets a frame with a transparent
-// margin (window_margin_linux.go): older software drivers cannot present to a
-// window with alpha. It asks once; a machine with no Vulkan says it is not, and
-// the renderer then fails with its own error.
+// CPU rasterizer: the hardware device with a graphics queue if there is one, else
+// the renderer the window will use (ADR 0075). The answer decides whether the
+// window gets a frame with a transparent margin (window_margin_linux.go): older
+// software drivers cannot present to a window with alpha, and the CPU renderer
+// cannot composite one either. A machine with no usable Vulkan draws on the CPU,
+// so it answers true. It asks once.
 func vulkanDeviceIsSoftware() bool {
 	softwareProbe.once.Do(func() {
 		api, err := loadVulkan()
 		if err != nil {
+			softwareProbe.software = true
 			return
 		}
 		defer purego.Dlclose(api.library)
 		renderer := &vulkanRenderer{api: api}
 		if err := renderer.createInstance(nil); err != nil {
+			softwareProbe.software = true
 			return
 		}
 		defer api.destroyInstance(renderer.instance, nil)
-		var properties func(uintptr, *[824]byte)
-		purego.RegisterLibFunc(&properties, api.library, "vkGetPhysicalDeviceProperties")
 		var count uint32
 		if api.enumeratePhysicalDevices(renderer.instance, &count, nil) != vkSuccess || count == 0 || count > 32 {
+			softwareProbe.software = true
 			return
 		}
 		devices := make([]uintptr, count)
 		if api.enumeratePhysicalDevices(renderer.instance, &count, &devices[0]) != vkSuccess {
+			softwareProbe.software = true
 			return
 		}
 		for _, device := range devices[:count] {
@@ -52,11 +56,16 @@ func vulkanDeviceIsSoftware() bool {
 			api.getQueueFamilyProperties(device, &families, &list[0])
 			for _, family := range list[:families] {
 				if family.Flags&vkQueueGraphics != 0 && family.Count > 0 {
-					var buffer [824]byte
-					properties(device, &buffer)
-					kind := uint32(buffer[16]) | uint32(buffer[17])<<8 | uint32(buffer[18])<<16 | uint32(buffer[19])<<24
-					softwareProbe.software = kind == vkPhysicalDeviceTypeCPU
-					return
+					var properties [vkPropertiesSize]byte
+					api.getPhysicalDeviceProperties(device, &properties)
+					kind := binary.LittleEndian.Uint32(properties[vkPropertiesDeviceTypeOffset:])
+					if kind != vkPhysicalDeviceTypeCPU {
+						// A hardware device is the one the renderer prefers.
+						softwareProbe.software = false
+						return
+					}
+					softwareProbe.software = true
+					break
 				}
 			}
 		}

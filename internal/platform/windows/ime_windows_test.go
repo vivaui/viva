@@ -7,10 +7,10 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestValidateTextInput(t *testing.T) {
@@ -38,11 +38,11 @@ func TestTextPointerEventPlacesCaretAtNearestCharacter(t *testing.T) {
 		textState:  platform.TextState{Value: "abcd", Selection: text.Range{Start: 4, End: 4}},
 		textEngine: fixedAdvanceEngine{advance: 10},
 	}
-	event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 29, Y: 35})
+	event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: 29, Y: 35})
 	if err != nil || !handled || event.Kind != platform.TextSetSelection || event.Selection != (text.Range{Start: 2, End: 2}) {
 		t.Fatalf("text pointer = event:%+v handled:%v err:%v", event, handled, err)
 	}
-	if _, handled, err = state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 111, Y: 35}); err != nil || handled {
+	if _, handled, err = state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: 111, Y: 35}); err != nil || handled {
 		t.Fatalf("outside pointer handled=%v err=%v", handled, err)
 	}
 }
@@ -81,11 +81,11 @@ func TestInitializeTextLabel(t *testing.T) {
 
 func TestWindowsTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testing.T) {
 	for _, testcase := range []struct {
-		alignment ui.Alignment
+		alignment gfx.Alignment
 		origin    float32
 	}{
-		{ui.AlignCenter, 55},
-		{ui.AlignRight, 100},
+		{gfx.AlignCenter, 55},
+		{gfx.AlignRight, 100},
 	} {
 		t.Run(fmt.Sprint(testcase.alignment), func(t *testing.T) {
 			inputState := platform.TextInput{
@@ -119,7 +119,7 @@ func TestWindowsTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer(t *testin
 			if x := state.alignedCaretX(1); x != testcase.origin+10 {
 				t.Fatalf("IME query at index 1 = %v, want %v", x, testcase.origin+10)
 			}
-			event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: testcase.origin + 12, Y: 35})
+			event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: testcase.origin + 12, Y: 35})
 			if err != nil || !handled || event.Selection != (text.Range{Start: 1, End: 1}) {
 				t.Fatalf("aligned click: event=%+v handled=%v err=%v", event, handled, err)
 			}
@@ -191,16 +191,17 @@ func TestTerminalPreeditStandsOnTheTerminalGrid(t *testing.T) {
 	state.textLabels = make([]platform.TextLabel, 1)
 	field := testTextInput("ni好", 4)
 	field.Terminal = true
-	field.MonoFace = ui.MonoClassic
+	field.MonoFace = gfx.MonoClassic
+	field.CellWidth = 7.5
 	field.State.Composing = true
 	field.State.Composition = text.Range{End: 3}
 	state.textInput, state.textState, state.textEnabled = field, field.State, true
 	if err := state.updateTextVisuals(); err != nil {
 		t.Fatal(err)
 	}
-	cell := terminalCellWidth(field.FontSize)
+	cell := field.CellWidth
 	label := state.textLabels[0]
-	if !label.Mono || label.MonoFace != ui.MonoClassic || label.CellWidth != cell {
+	if !label.Mono || label.MonoFace != gfx.MonoClassic || label.CellWidth != cell {
 		t.Fatalf("label mono %v face %v cell %v, want a grid line of %v on the terminal face", label.Mono, label.MonoFace, label.CellWidth, cell)
 	}
 	if len(label.Runs) != 2 || label.Runs[0].Cells != 2 || label.Runs[1].Column != 2 || label.Runs[1].Cells != 2 {
@@ -392,6 +393,37 @@ func TestDynamicTextInputSwitchClearsComposition(t *testing.T) {
 	}
 }
 
+// TestDisableIMEInputAssociatesNoInputMethod guards platform.TextInput.DisableIME:
+// while the input that asks for it is focused, the window has no input-method
+// context — the host's method can neither compose nor answer its switch hotkeys —
+// and the context the window was created with returns for an ordinary input.
+func TestDisableIMEInputAssociatesNoInputMethod(t *testing.T) {
+	state := dynamicTextState(0, 0)
+	state.window = staticWindow(t)
+	before, _, _ := getInputContext.Call(state.window)
+	if before == 0 {
+		t.Skip("this session gives a window no input-method context")
+	}
+	remote := testTextInput("", 0)
+	remote.DisableIME = true
+	if _, _, err := state.applyTextInputUpdate(platform.TextInputUpdate{Changed: true, Input: &remote}); err != nil {
+		t.Fatal(err)
+	}
+	if context, _, _ := getInputContext.Call(state.window); context != 0 {
+		t.Fatalf("DisableIME left the window input-method context %v", context)
+	}
+	ordinary := testTextInput("", 0)
+	if _, _, err := state.applyTextInputUpdate(platform.TextInputUpdate{Changed: true, Input: &ordinary}); err != nil {
+		t.Fatal(err)
+	}
+	if context, _, _ := getInputContext.Call(state.window); context != before {
+		t.Fatalf("ordinary input restored context %v, want %v", context, before)
+	}
+	if state.imeContext != 0 || state.imeDisabled {
+		t.Fatalf("restored state = disabled %v context %v", state.imeDisabled, state.imeContext)
+	}
+}
+
 func TestCompositionSurvivesCaretAndLayoutUpdates(t *testing.T) {
 	for _, scale := range []float32{1, 1.25, 1.5, 1.75, 2, 2.5, 3} {
 		t.Run(fmt.Sprint(scale), func(t *testing.T) {
@@ -490,7 +522,7 @@ func TestCompositionUpdateLifecycle(t *testing.T) {
 	}{
 		{"move", func(next *platform.TextInput) *platform.TextInput { next.X++; next.CaretY++; return next }, true},
 		{"style", func(next *platform.TextInput) *platform.TextInput { next.FontSize++; next.Color.Red = 1; return next }, true},
-		{"target", func(next *platform.TextInput) *platform.TextInput { next.Target = ui.Item(2); return next }, false},
+		{"target", func(next *platform.TextInput) *platform.TextInput { next.Target = gfx.Item(2); return next }, false},
 		{"disable", func(next *platform.TextInput) *platform.TextInput { return nil }, false},
 		{"value", func(next *platform.TextInput) *platform.TextInput { next.State.Value = "xy"; return next }, false},
 		{"selection", func(next *platform.TextInput) *platform.TextInput { next.State.Selection = text.Range{}; return next }, false},
@@ -501,7 +533,7 @@ func TestCompositionUpdateLifecycle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			state := dynamicTextState(0, 0)
 			field := testTextInput("ni", 0)
-			field.Target = ui.Item(1)
+			field.Target = gfx.Item(1)
 			field.State.Composing = true
 			field.State.Composition = text.Range{End: 2}
 			state.textInput, state.textState, state.textEnabled = field, field.State, true
@@ -600,9 +632,9 @@ func (engine fixedAdvanceEngine) Caret(value string, _, _ float32, offset int) f
 	return engine.Width(value[:max(0, min(offset, len(value)))], 0, 0)
 }
 
-func (engine fixedAdvanceEngine) Selection(dst []ui.TextSpan, value string, _, _ float32, start, end int) []ui.TextSpan {
+func (engine fixedAdvanceEngine) Selection(dst []gfx.TextSpan, value string, _, _ float32, start, end int) []gfx.TextSpan {
 	left, right := engine.Caret(value, 0, 0, start), engine.Caret(value, 0, 0, end)
-	return append(dst, ui.TextSpan{X: min(left, right), Width: max(left, right) - min(left, right)})
+	return append(dst, gfx.TextSpan{X: min(left, right), Width: max(left, right) - min(left, right)})
 }
 
 func (engine fixedAdvanceEngine) OffsetAt(value string, _, _, x float32) int {
@@ -756,7 +788,7 @@ func (engine singleLineEngine) Caret(value string, size, weight float32, offset 
 	return engine.fixedAdvanceEngine.Caret(value, size, weight, offset)
 }
 
-func (engine singleLineEngine) Selection(dst []ui.TextSpan, value string, size, weight float32, start, end int) []ui.TextSpan {
+func (engine singleLineEngine) Selection(dst []gfx.TextSpan, value string, size, weight float32, start, end int) []gfx.TextSpan {
 	engine.check(value)
 	return engine.fixedAdvanceEngine.Selection(dst, value, size, weight, start, end)
 }
@@ -805,7 +837,7 @@ func TestMultilineFieldLaysOutOnlyTheCaretsLine(t *testing.T) {
 			if underline.Width <= 0 || underline.X < field.X || underline.X+underline.Width > field.X+8*float32(utf8.RuneCountInString("line 20000 中文")) {
 				t.Fatalf("composition underline = %+v, want it on the caret's line", underline)
 			}
-			if _, _, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 10 + 8*5, Y: 10}); err != nil {
+			if _, _, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: 10 + 8*5, Y: 10}); err != nil {
 				t.Fatal(err)
 			}
 			state.textCaret(field.FontSize, caret)
@@ -820,7 +852,7 @@ func TestMultilineFieldLaysOutOnlyTheCaretsLine(t *testing.T) {
 	field.Multiline, field.Width, field.Height = true, 400, 30
 	field.State.Selection = text.Range{Start: caret, End: caret}
 	state.textInput, state.textState, state.textEnabled = field, field.State, true
-	event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: ui.PointerButtonPrimary, X: 10 + 8*5, Y: 10})
+	event, handled, err := state.textPointerEvent(platform.PointerEvent{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: 10 + 8*5, Y: 10})
 	if err != nil || !handled {
 		t.Fatalf("pointer: handled=%v err=%v", handled, err)
 	}

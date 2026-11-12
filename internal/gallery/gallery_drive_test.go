@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // These tests operate the gallery through app.Driver: the real painter, input
@@ -46,7 +46,7 @@ func newDriver(t *testing.T, state *State) *app.Driver {
 // until its card is on screen, then clicking it.
 func open(t *testing.T, driver *app.Driver, title string) {
 	t.Helper()
-	var hit ui.Hit
+	var hit gfx.Hit
 	for step := 0; ; step++ {
 		for _, candidate := range driver.Snapshot().Hits {
 			if !candidate.Block && candidate.Label == title && isCard(candidate.ID) {
@@ -59,7 +59,7 @@ func open(t *testing.T, driver *app.Driver, title string) {
 		if step > 60 {
 			t.Fatalf("the %q card never came into view", title)
 		}
-		if err := driver.Scroll(ui.ScrollEvent{X: 2, Y: toolbarHeight + 4, DeltaY: 240, Precise: true}); err != nil {
+		if err := driver.Scroll(gfx.ScrollEvent{X: 2, Y: toolbarHeight + 4, DeltaY: 240, Precise: true}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -68,7 +68,7 @@ func open(t *testing.T, driver *app.Driver, title string) {
 	}
 }
 
-func findLabel(t *testing.T, driver *app.Driver, label string) ui.Hit {
+func findLabel(t *testing.T, driver *app.Driver, label string) gfx.Hit {
 	t.Helper()
 	for _, hit := range driver.Snapshot().Hits {
 		if !hit.Block && hit.Label == label {
@@ -76,11 +76,11 @@ func findLabel(t *testing.T, driver *app.Driver, label string) ui.Hit {
 		}
 	}
 	t.Fatalf("no control labelled %q on screen", label)
-	return ui.Hit{}
+	return gfx.Hit{}
 }
 
-func labelsNamed(driver *app.Driver, label string) []ui.Hit {
-	var found []ui.Hit
+func labelsNamed(driver *app.Driver, label string) []gfx.Hit {
+	var found []gfx.Hit
 	for _, hit := range driver.Snapshot().Hits {
 		if !hit.Block && hit.Label == label {
 			found = append(found, hit)
@@ -89,7 +89,7 @@ func labelsNamed(driver *app.Driver, label string) []ui.Hit {
 	return found
 }
 
-func clickHit(t *testing.T, driver *app.Driver, hit ui.Hit) {
+func clickHit(t *testing.T, driver *app.Driver, hit gfx.Hit) {
 	t.Helper()
 	if err := driver.Click(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2); err != nil {
 		t.Fatalf("click %q: %v", hit.Label, err)
@@ -154,14 +154,14 @@ func TestHoverReachesTheExampleUnderThePointer(t *testing.T) {
 	open(t, driver, "Button")
 	button := findLabel(t, driver, "Click me")
 
-	fill := func() ui.Color {
+	fill := func() gfx.Color {
 		for _, primitive := range driver.Snapshot().Primitives {
 			if primitive.Bounds == button.Bounds && primitive.Kind == app.RectanglePrimitive {
 				return primitive.Color
 			}
 		}
 		t.Fatal("the button surface was not painted")
-		return ui.Color{}
+		return gfx.Color{}
 	}
 	idle := fill()
 	if err := driver.Move(button.Bounds.X+4, button.Bounds.Y+4); err != nil {
@@ -182,7 +182,7 @@ func TestKeyboardActivatesTheFocusedControlOfAnExample(t *testing.T) {
 
 	reached := false
 	for press := 0; press < 30 && !reached; press++ {
-		if err := driver.Key(ui.KeyTab, 0); err != nil {
+		if err := driver.Key(gfx.KeyTab, 0); err != nil {
 			t.Fatal(err)
 		}
 		slot, _, ok := state.decodeExample(driver.Snapshot().Focused)
@@ -191,7 +191,7 @@ func TestKeyboardActivatesTheFocusedControlOfAnExample(t *testing.T) {
 	if !reached {
 		t.Fatal("Tab never reached the first example's control")
 	}
-	if err := driver.Key(ui.KeyEnter, 0); err != nil {
+	if err := driver.Key(gfx.KeyEnter, 0); err != nil {
 		t.Fatal(err)
 	}
 	if countText(driver, "点击：1") != 1 {
@@ -205,9 +205,9 @@ func TestEditingATextFieldGoesThroughTheNativeTextPath(t *testing.T) {
 	driver := newDriver(t, state)
 	open(t, driver, "Input")
 
-	var field ui.Hit
+	var field gfx.Hit
 	for _, hit := range driver.Snapshot().Hits {
-		if hit.Role == ui.RoleTextField && !hit.Disabled && !hit.ReadOnly {
+		if hit.Role == gfx.RoleTextField && !hit.Disabled && !hit.ReadOnly {
 			field = hit
 			break
 		}
@@ -250,7 +250,7 @@ func TestDraggingASliderTranslatesThePointerIntoTheExample(t *testing.T) {
 	// pixels from the origin, so a pointer that was not translated into the
 	// example's own coordinates lands far past the end of its track.
 	lower, upper := findLabel(t, driver, "最低价格"), findLabel(t, driver, "最高价格")
-	center := func(hit ui.Hit) (float32, float32) {
+	center := func(hit gfx.Hit) (float32, float32) {
 		return hit.Bounds.X + hit.Bounds.Width/2, hit.Bounds.Y + hit.Bounds.Height/2
 	}
 	lowerX, y := center(lower)
@@ -260,13 +260,13 @@ func TestDraggingASliderTranslatesThePointerIntoTheExample(t *testing.T) {
 	}
 	midway := (lowerX + upperX) / 2 // the middle of the track: 50 on a 0-100 slider
 
-	if err := driver.Press(lowerX, y, ui.PointerButtonPrimary); err != nil {
+	if err := driver.Press(lowerX, y, gfx.PointerButtonPrimary); err != nil {
 		t.Fatal(err)
 	}
 	if err := driver.Move(midway, y); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Release(midway, y, ui.PointerButtonPrimary); err != nil {
+	if err := driver.Release(midway, y, gfx.PointerButtonPrimary); err != nil {
 		t.Fatal(err)
 	}
 	got := findLabel(t, driver, "最低价格").Value
@@ -298,7 +298,7 @@ func TestWheelScrollsTheExampleUnderThePointerBeforeThePage(t *testing.T) {
 		t.Fatal(err)
 	}
 	pageBefore := state.viewScroll
-	if err := driver.Scroll(ui.ScrollEvent{
+	if err := driver.Scroll(gfx.ScrollEvent{
 		X:      viewport.Bounds.X + viewport.Bounds.Width/2,
 		Y:      viewport.Bounds.Y + viewport.Bounds.Height/2,
 		DeltaY: 40, Precise: true,
@@ -316,7 +316,7 @@ func TestWheelScrollsTheExampleUnderThePointerBeforeThePage(t *testing.T) {
 	if err := driver.Move(2, toolbarHeight+4); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Scroll(ui.ScrollEvent{X: 2, Y: toolbarHeight + 4, DeltaY: 40, Precise: true}); err != nil {
+	if err := driver.Scroll(gfx.ScrollEvent{X: 2, Y: toolbarHeight + 4, DeltaY: 40, Precise: true}); err != nil {
 		t.Fatal(err)
 	}
 	if state.scrollMax > 0 && state.viewScroll == pageBefore {
@@ -385,7 +385,7 @@ func TestEveryComponentPageSurvivesBeingOperated(t *testing.T) {
 			}
 		}
 		for press := 0; press < 6; press++ {
-			if err := driver.Key(ui.KeyTab, 0); err != nil {
+			if err := driver.Key(gfx.KeyTab, 0); err != nil {
 				t.Fatalf("%s: tab: %v", catalog[index].ID, err)
 			}
 		}
@@ -399,13 +399,13 @@ func TestEveryComponentPageSurvivesBeingOperated(t *testing.T) {
 // through the platform text service. The rest of the text-entry family is a
 // fixed snapshot; this list failing means one of them stopped (or started)
 // being editable and the gallery page should say so.
-var editableComponents = []string{"code-diff", "code-editor", "field", "form", "input", "input-group", "input-otp", "textarea"}
+var editableComponents = []string{"code-diff", "code-editor", "code-merge", "field", "form", "input", "input-group", "input-otp", "textarea"}
 
-func editableHits(driver *app.Driver) []ui.Hit {
-	var fields []ui.Hit
-	seen := map[ui.ID]bool{}
+func editableHits(driver *app.Driver) []gfx.Hit {
+	var fields []gfx.Hit
+	seen := map[gfx.ID]bool{}
 	for _, hit := range driver.Snapshot().Hits {
-		if !hit.Block && hit.Role == ui.RoleTextField && !hit.Disabled && !hit.ReadOnly && !seen[hit.ID] {
+		if !hit.Block && hit.Role == gfx.RoleTextField && !hit.Disabled && !hit.ReadOnly && !seen[hit.ID] {
 			seen[hit.ID] = true
 			fields = append(fields, hit)
 		}
@@ -462,7 +462,7 @@ func TestReadOnlyAndDisabledFieldsRefuseKeyboardInput(t *testing.T) {
 	open(t, driver, "Input")
 	refused := 0
 	for _, hit := range driver.Snapshot().Hits {
-		if hit.Block || hit.Role != ui.RoleTextField || (!hit.Disabled && !hit.ReadOnly) {
+		if hit.Block || hit.Role != gfx.RoleTextField || (!hit.Disabled && !hit.ReadOnly) {
 			continue
 		}
 		if hit.Bounds.Y < toolbarHeight || hit.Bounds.Y+hit.Bounds.Height > DefaultHeight {
@@ -479,7 +479,7 @@ func TestReadOnlyAndDisabledFieldsRefuseKeyboardInput(t *testing.T) {
 	}
 }
 
-func fieldNamed(t *testing.T, driver *app.Driver, label string) ui.Hit {
+func fieldNamed(t *testing.T, driver *app.Driver, label string) gfx.Hit {
 	t.Helper()
 	for _, hit := range editableHits(driver) {
 		if hit.Label == label {
@@ -487,7 +487,7 @@ func fieldNamed(t *testing.T, driver *app.Driver, label string) ui.Hit {
 		}
 	}
 	t.Fatalf("no editable field labelled %q", label)
-	return ui.Hit{}
+	return gfx.Hit{}
 }
 
 func TestOTPTakesOnlyDigitsAndAtMostSix(t *testing.T) {
@@ -522,13 +522,13 @@ func TestOTPTakesOnlyDigitsAndAtMostSix(t *testing.T) {
 
 	typeAndExpect("5", "482915") // a complete code: the last digit is replaced
 
-	if err := driver.Key(ui.KeyBackspace, 0); err != nil {
+	if err := driver.Key(gfx.KeyBackspace, 0); err != nil {
 		t.Fatal(err)
 	}
 	if editor.String() != "48291" {
 		t.Fatalf("Backspace left %q", editor.String())
 	}
-	if err := driver.Key(ui.KeyLeft, 0); err != nil {
+	if err := driver.Key(gfx.KeyLeft, 0); err != nil {
 		t.Fatal(err)
 	}
 	typeAndExpect("0", "48290") // typed over the last digit, which Left put the caret on
@@ -543,7 +543,7 @@ func TestOTPTakesOnlyDigitsAndAtMostSix(t *testing.T) {
 
 // slotCenters returns the window x of each of the six slot centers of an OTP
 // field, from its hit.
-func slotCenters(driver *app.Driver, field ui.Hit) [6]float32 {
+func slotCenters(driver *app.Driver, field gfx.Hit) [6]float32 {
 	const slot, separator = 32, 32
 	var centers [6]float32
 	for index := range centers {
@@ -617,7 +617,7 @@ func TestTextareaTakesMultilineInput(t *testing.T) {
 	field := fieldNamed(t, driver, "项目说明")
 	clickHit(t, driver, field)
 	editor, _ := state.TextEditor(field.ID)
-	if err := driver.Key(ui.KeyEnter, 0); err != nil {
+	if err := driver.Key(gfx.KeyEnter, 0); err != nil {
 		t.Fatal(err)
 	}
 	if err := driver.Type("第三行"); err != nil {
@@ -658,7 +658,7 @@ func TestValidationReactsToWhatIsTyped(t *testing.T) {
 		t.Fatal("the invalid Field example shows no error before anything is typed")
 	}
 	// The invalid example is the third one on the page.
-	var invalid ui.Hit
+	var invalid gfx.Hit
 	for _, hit := range editableHits(driver) {
 		if hit.Label == "Work email" && hit.Value == "team" {
 			invalid = hit
@@ -693,4 +693,4 @@ func TestValidationReactsToWhatIsTyped(t *testing.T) {
 	}
 }
 
-func isCard(id ui.ID) bool { _, ok := cardOf(id); return ok }
+func isCard(id gfx.ID) bool { _, ok := cardOf(id); return ok }

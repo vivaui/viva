@@ -8,14 +8,14 @@ import (
 	"image/png"
 	"strconv"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // cursorImageCSS is the CSS cursor value that shows the picture: a PNG data URL with the hotspot,
 // and the arrow to fall back on for a browser that refuses the image. A picture made for more
 // than one image pixel per CSS pixel is offered as an image-set at that resolution, and its
 // hotspot is in CSS pixels.
-func cursorImageCSS(cursor *ui.CursorImage) (string, error) {
+func cursorImageCSS(cursor *gfx.CursorImage) (string, error) {
 	width, height := cursor.Size()
 	source := cursor.Pixels()
 	straight := image.NewNRGBA(image.Rect(0, 0, width, height))

@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestBackgroundResultReachesTheWindow(t *testing.T) {
 	slowWork = func() string { time.Sleep(10 * time.Millisecond); return "done" }
 	var invalidator app.Invalidator
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	driver, err := app.NewDriver(newConfig(&model{status: "idle"}, &invalidator), &canvas)
 	if err != nil {
 		t.Fatal(err)
@@ -20,7 +20,7 @@ func TestBackgroundResultReachesTheWindow(t *testing.T) {
 	defer driver.Close()
 
 	for _, hit := range driver.Snapshot().Hits {
-		if hit.ID == refresh {
+		if hit.Label == "Refresh" {
 			b := hit.Bounds
 			if err := driver.Click(b.X+b.Width/2, b.Y+b.Height/2); err != nil {
 				t.Fatal(err)
@@ -40,6 +40,6 @@ func TestBackgroundResultReachesTheWindow(t *testing.T) {
 		found = found || strings.Contains(label.Value, "done")
 	}
 	if !found {
-		t.Fatal("the result did not reach Paint")
+		t.Fatal("the result did not reach the page")
 	}
 }

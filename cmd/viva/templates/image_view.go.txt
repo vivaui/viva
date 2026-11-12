@@ -1,25 +1,25 @@
 package {{PACKAGE}}
 
 import (
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 	"math"
 )
 
 // ImageViewOptions holds caller-owned zoom/pan state. Zoom zero fits the image;
 // one is actual size (one bitmap pixel per device pixel), independent of DPI.
 type ImageViewOptions struct {
-	Bitmap ui.Bitmap
+	Bitmap gfx.Bitmap
 	Zoom   float32
-	Pan    ui.Point
+	Pan    gfx.Point
 }
 type ImageViewGeometry struct {
-	Image ui.Rect
+	Image gfx.Rect
 	Scale float32
 }
 
 // PaintImageView paints an immutable bitmap clipped to bounds. File decoding,
 // byte/pixel limits and document lifetime belong to the application.
-func PaintImageView(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options ImageViewOptions) ImageViewGeometry {
+func PaintImageView(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options ImageViewOptions) ImageViewGeometry {
 	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 || options.Bitmap.Width <= 0 || options.Bitmap.Height <= 0 {
 		return ImageViewGeometry{}
 	}
@@ -33,7 +33,7 @@ func PaintImageView(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options I
 	pan := options.Pan
 	pan.X = max(min(pan.X, max((width-bounds.Width)/2, 0)), -max((width-bounds.Width)/2, 0))
 	pan.Y = max(min(pan.Y, max((height-bounds.Height)/2, 0)), -max((height-bounds.Height)/2, 0))
-	image := ui.Rect{X: bounds.X + (bounds.Width-width)/2 + pan.X, Y: bounds.Y + (bounds.Height-height)/2 + pan.Y, Width: width, Height: height}
+	image := gfx.Rect{X: bounds.X + (bounds.Width-width)/2 + pan.X, Y: bounds.Y + (bounds.Height-height)/2 + pan.Y, Width: width, Height: height}
 	if options.Zoom == 1 {
 		// Actual-size pixels must also begin on a device pixel, otherwise a
 		// half-pixel origin blurs a 1:1 image at fractional display scales.

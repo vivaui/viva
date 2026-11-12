@@ -8,8 +8,8 @@ import (
 	"sort"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/textmetrics"
-	"github.com/vivaui/viva/ui"
 )
 
 // LayoutKind names one way a frame's geometry is probably wrong.
@@ -33,7 +33,7 @@ const (
 // is the painted text or the control's label.
 type LayoutProblem struct {
 	Kind   LayoutKind
-	Bounds ui.Rect
+	Bounds gfx.Rect
 	Text   string
 	Detail string
 }
@@ -49,19 +49,20 @@ const layoutTolerance = 1
 // overlap (an overlay drawn on its own layer is not one) still shows. Problems
 // come from the top of the window down.
 func CheckLayout(snapshot app.Snapshot) []LayoutProblem {
-	window := ui.Rect{Width: float32(snapshot.Width), Height: float32(snapshot.Height)}
+	window := gfx.Rect{Width: float32(snapshot.Width), Height: float32(snapshot.Height)}
 	type visibleText struct {
-		text    ui.Text
-		visible ui.Rect
+		text    gfx.Text
+		visible gfx.Rect
 	}
 	var texts []visibleText
 	var problems []LayoutProblem
-	for _, text := range snapshot.Texts {
+	for index, text := range snapshot.Texts {
 		// A terminal's grid is laid out by cells and checked by its own tests.
 		if text.Value == "" || text.CellWidth > 0 || text.RunCount > 0 || text.Style.Mono {
 			continue
 		}
-		extent := lineExtent(text)
+		width := paintedTextWidth(snapshot, index, text)
+		extent := lineExtent(text, width)
 		if extent.Width <= 0 || extent.Height <= 0 {
 			continue
 		}
@@ -83,7 +84,7 @@ func CheckLayout(snapshot app.Snapshot) []LayoutProblem {
 			problems = append(problems, LayoutProblem{LayoutClipped, extent, text.Value,
 				fmt.Sprintf("%g of %g px wide are cut off", cutW, extent.Width)})
 		}
-		if container, found := innermostControl(snapshot.Hits, text); found &&
+		if container, found := innermostControl(snapshot.Hits, text, width); found &&
 			!contains(container.Bounds, visible, layoutTolerance) {
 			problems = append(problems, LayoutProblem{LayoutSpill, visible, text.Value,
 				fmt.Sprintf("reaches out of %q at x=%g y=%g w=%g h=%g", container.Label, container.Bounds.X, container.Bounds.Y, container.Bounds.Width, container.Bounds.Height)})
@@ -102,7 +103,7 @@ func CheckLayout(snapshot app.Snapshot) []LayoutProblem {
 			}
 		}
 	}
-	var focusable []ui.Hit
+	var focusable []gfx.Hit
 	for _, hit := range snapshot.Hits {
 		if hit.Focusable && !hit.Disabled && !hit.Block && !hit.IsLabel && !hit.Backdrop {
 			focusable = append(focusable, hit)
@@ -132,12 +133,22 @@ func CheckLayout(snapshot app.Snapshot) []LayoutProblem {
 	return problems
 }
 
+// paintedTextWidth prefers the width the canvas measured with its font engine.
+// Snapshots built by hand (or by an older producer) fall back to the approximate
+// reference metrics, keeping CheckLayout's previous behaviour.
+func paintedTextWidth(snapshot app.Snapshot, index int, text gfx.Text) float32 {
+	if index < len(snapshot.TextWidths) && snapshot.TextWidths[index] > 0 {
+		return snapshot.TextWidths[index]
+	}
+	return textmetrics.Width(text.Value, text.Style.Size, text.Style.Weight)
+}
+
 // lineExtent is where the line of text is drawn: Text.Bounds holds the box the
 // caller gave, in which the line starts at Bounds.X and is as wide as the
-// reference metrics measure it.
-func lineExtent(text ui.Text) ui.Rect {
+// painted (or reference) metrics measure it.
+func lineExtent(text gfx.Text, width float32) gfx.Rect {
 	box := text.Bounds
-	box.Width = textmetrics.Width(text.Value, text.Style.Size, text.Style.Weight)
+	box.Width = width
 	return box
 }
 
@@ -145,10 +156,10 @@ func lineExtent(text ui.Text) ui.Rect {
 // of the line. A line that runs out of its control by more than half of itself
 // belongs to no control and is not found. Opaque panels count; labels of a
 // control, which are the text's own extent, and backdrops do not.
-func innermostControl(hits []ui.Hit, text ui.Text) (ui.Hit, bool) {
-	line := lineExtent(text)
+func innermostControl(hits []gfx.Hit, text gfx.Text, width float32) (gfx.Hit, bool) {
+	line := lineExtent(text, width)
 	middleY := line.Y + line.Height/2
-	var best ui.Hit
+	var best gfx.Hit
 	found := false
 	for _, hit := range hits {
 		if hit.Layer != text.Layer || hit.IsLabel || hit.Backdrop || hit.MovesWindow || hit.Disabled && !hit.Block {
@@ -165,23 +176,23 @@ func innermostControl(hits []ui.Hit, text ui.Text) (ui.Hit, bool) {
 	return best, found
 }
 
-func pointIn(bounds ui.Rect, x, y float32) bool {
+func pointIn(bounds gfx.Rect, x, y float32) bool {
 	return x >= bounds.X && x <= bounds.X+bounds.Width && y >= bounds.Y && y <= bounds.Y+bounds.Height
 }
 
-func intersection(a, b ui.Rect) ui.Rect {
+func intersection(a, b gfx.Rect) gfx.Rect {
 	left := float32(math.Max(float64(a.X), float64(b.X)))
 	top := float32(math.Max(float64(a.Y), float64(b.Y)))
 	right := float32(math.Min(float64(a.X+a.Width), float64(b.X+b.Width)))
 	bottom := float32(math.Min(float64(a.Y+a.Height), float64(b.Y+b.Height)))
 	if right <= left || bottom <= top {
-		return ui.Rect{}
+		return gfx.Rect{}
 	}
-	return ui.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+	return gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
 }
 
 // contains reports whether inner lies inside outer, give or take slack.
-func contains(outer, inner ui.Rect, slack float32) bool {
+func contains(outer, inner gfx.Rect, slack float32) bool {
 	return inner.X >= outer.X-slack && inner.Y >= outer.Y-slack &&
 		inner.X+inner.Width <= outer.X+outer.Width+slack && inner.Y+inner.Height <= outer.Y+outer.Height+slack
 }

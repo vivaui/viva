@@ -205,8 +205,11 @@ func ClipboardFiles() ([]string, error) {
 		}
 		return hooks.clipboardFiles()
 	}
-	if ownsClipboardText() {
-		return nil, platform.ErrNoClipboardFiles
+	if files, owned := ownedClipboardFiles(); owned {
+		if len(files) == 0 {
+			return nil, platform.ErrNoClipboardFiles
+		}
+		return files, nil
 	}
 	api, connection, requestor, clipboard, owner, err := openClipboardRequest()
 	if err != nil {
@@ -265,7 +268,7 @@ func ClipboardFiles() ([]string, error) {
 }
 
 // ownsClipboardText reports whether this process's window is the CLIPBOARD
-// owner, in which case it holds text and nothing else.
+// owner. The clipboard holds the window's text, files, or both.
 func ownsClipboardText() bool {
 	win := activeWindow.Load()
 	if win == nil {
@@ -274,6 +277,21 @@ func ownsClipboardText() bool {
 	win.mu.Lock()
 	defer win.mu.Unlock()
 	return activeWindow.Load() == win && win.connection != 0 && win.ownsClipboard
+}
+
+// ownedClipboardFiles is the file list this window owns, and whether it owns
+// the clipboard at all (with text or files).
+func ownedClipboardFiles() ([]string, bool) {
+	win := activeWindow.Load()
+	if win == nil {
+		return nil, false
+	}
+	win.mu.Lock()
+	defer win.mu.Unlock()
+	if activeWindow.Load() != win || win.connection == 0 || !win.ownsClipboard {
+		return nil, false
+	}
+	return append([]string(nil), win.clipboardFiles...), true
 }
 
 // openClipboardRequest connects to the X server with a 1x1 input window to
@@ -453,21 +471,11 @@ func SetClipboardText(value string) error {
 	if activeWindow.Load() != win || win.connection == 0 {
 		return fmt.Errorf("linux: clipboard ownership requires a running window")
 	}
-	if err := win.ensureClipboardAtoms(); err != nil {
+	if err := win.claimClipboardLocked(); err != nil {
 		return err
-	}
-	win.api.setSelectionOwner(win.connection, win.id, win.clipboardAtom, 0)
-	if win.api.flush(win.connection) <= 0 || win.api.connectionHasError(win.connection) != 0 {
-		return fmt.Errorf("linux: claim clipboard: XCB connection failed")
-	}
-	owner, err := selectionOwner(win.api, win.connection, win.clipboardAtom)
-	if err != nil {
-		return err
-	}
-	if owner != win.id {
-		return fmt.Errorf("linux: X server refused clipboard ownership")
 	}
 	win.clipboard = value
+	win.clipboardFiles = nil
 	win.ownsClipboard = true
 	return nil
 }

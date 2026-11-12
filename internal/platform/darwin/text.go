@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // MeasureText shapes and measures one UTF-8 line with the macOS system font at
-// a weight (ui.TextStyle.Weight), the font a label of that weight is drawn in.
+// a weight (gfx.TextStyle.Weight), the font a label of that weight is drawn in.
 func MeasureText(value string, fontSize, weight float32) (text.Metrics, error) {
 	if fontSize <= 0 {
 		return text.Metrics{}, fmt.Errorf("darwin: font size must be positive")
@@ -39,16 +39,32 @@ func MeasureText(value string, fontSize, weight float32) (text.Metrics, error) {
 	}, nil
 }
 
-// MeasureMono reports the system fixed-pitch font's character cell at a size:
-// the advance of one character and the height of one line.
-func MeasureMono(fontSize float32, face ui.MonoFace) (width, height float32, err error) {
+// measureMonoMetrics reports the system fixed-pitch font's character cell at a size: the
+// advance of one character and the line box around its baseline.
+func measureMonoMetrics(fontSize float32, face gfx.MonoFace) (text.Metrics, error) {
 	if fontSize <= 0 {
-		return 0, 0, fmt.Errorf("darwin: font size must be positive")
+		return text.Metrics{}, fmt.Errorf("darwin: font size must be positive")
 	}
 	syncMonoFamilies()
-	var advance, lineHeight C.double
-	if status := C.viva_measure_mono(C.double(fontSize), C.int(face), &advance, &lineHeight); status != 0 {
-		return 0, 0, fmt.Errorf("darwin: CoreText fixed-pitch measurement failed with status %d", status)
+	var advance, ascent, descent, leading C.double
+	if status := C.viva_measure_mono(C.double(fontSize), C.int(face), &advance, &ascent, &descent, &leading); status != 0 {
+		return text.Metrics{}, fmt.Errorf("darwin: CoreText fixed-pitch measurement failed with status %d", status)
 	}
-	return float32(advance), float32(lineHeight), nil
+	return text.Metrics{
+		Width:   float32(advance),
+		Height:  float32(ascent + descent + leading),
+		Ascent:  float32(ascent),
+		Descent: float32(descent),
+		Leading: float32(leading),
+	}, nil
+}
+
+// MeasureMono reports the system fixed-pitch font's character cell at a size:
+// the advance of one character and the height of one line.
+func MeasureMono(fontSize float32, face gfx.MonoFace) (width, height float32, err error) {
+	metrics, err := measureMonoMetrics(fontSize, face)
+	if err != nil {
+		return 0, 0, err
+	}
+	return metrics.Width, metrics.Height, nil
 }

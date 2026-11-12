@@ -1,6 +1,9 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import (
+	"github.com/vivaui/viva/field"
+	"github.com/vivaui/viva/gfx"
+)
 
 // FormFieldSnapshot is the caller-owned state for one form item. Error takes
 // precedence over Message, matching shadcn's FormMessage behavior without a
@@ -15,9 +18,9 @@ type FormFieldSnapshot struct {
 	Disabled      bool
 	Invalid       bool
 	// ControlID, when set, is the identity of the control painted into the
-	// layout's Control slot; the label then labels it (see ui.Canvas.HitLabel),
+	// layout's Control slot; the label then labels it (see gfx.Canvas.HitLabel),
 	// as `htmlFor` does, so pressing the label focuses and clicks the control.
-	ControlID ui.ID
+	ControlID gfx.ID
 }
 
 // FormControlSemantics carries the typed metadata that the caller passes to
@@ -45,22 +48,22 @@ func (semantics FormControlSemantics) AssistiveText() string {
 // Zero Description or Message rectangles mean that the corresponding row was
 // omitted. The caller paints the actual control into Control.
 type FormFieldLayout struct {
-	Bounds      ui.Rect
-	Label       ui.Rect
-	Control     ui.Rect
-	Description ui.Rect
-	Message     ui.Rect
+	Bounds      gfx.Rect
+	Label       gfx.Rect
+	Control     gfx.Rect
+	Description gfx.Rect
+	Message     gfx.Rect
 	Semantics   FormControlSemantics
 }
 
 // PaintFormField paints shadcn's label, description, and message recipe, in the
 // same rhythm as Field, and returns the control slot. It never paints or registers the control itself,
 // so editor state, values, validation, and interaction remain caller-owned.
-func PaintFormField(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot FormFieldSnapshot) FormFieldLayout {
+func PaintFormField(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snapshot FormFieldSnapshot) FormFieldLayout {
 	metrics := theme.Metrics
-	gap := fieldGap(metrics)
-	labelHeight := fieldTitleHeight(metrics)
-	textHeight := fieldTextHeight(metrics)
+	gap := field.Gap(metrics)
+	labelHeight := field.TitleHeight(metrics)
+	textHeight := field.TextHeight(metrics)
 	controlHeight := snapshot.ControlHeight
 	if controlHeight <= 0 {
 		controlHeight = metrics.ControlHeight
@@ -77,7 +80,7 @@ func PaintFormField(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot 
 	}
 
 	layout := FormFieldLayout{
-		Label: ui.Rect{
+		Label: gfx.Rect{
 			X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: labelHeight,
 		},
 		Semantics: FormControlSemantics{
@@ -85,22 +88,22 @@ func PaintFormField(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot 
 			Required: snapshot.Required, Disabled: snapshot.Disabled, Invalid: invalid,
 		},
 	}
-	layout.Control = ui.Rect{
+	layout.Control = gfx.Rect{
 		X: bounds.X, Y: layout.Label.Y + layout.Label.Height + gap,
 		Width: bounds.Width, Height: controlHeight,
 	}
 	nextY := layout.Control.Y + layout.Control.Height
 	if snapshot.Description != "" {
 		nextY += gap
-		layout.Description = ui.Rect{X: bounds.X, Y: nextY, Width: bounds.Width, Height: textHeight}
+		layout.Description = gfx.Rect{X: bounds.X, Y: nextY, Width: bounds.Width, Height: textHeight}
 		nextY += textHeight
 	}
 	if message != "" {
 		nextY += gap
-		layout.Message = ui.Rect{X: bounds.X, Y: nextY, Width: bounds.Width, Height: textHeight}
+		layout.Message = gfx.Rect{X: bounds.X, Y: nextY, Width: bounds.Width, Height: textHeight}
 		nextY += textHeight
 	}
-	layout.Bounds = ui.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: nextY - bounds.Y}
+	layout.Bounds = gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: nextY - bounds.Y}
 
 	if canvas == nil || bounds.Width <= 0 {
 		return layout
@@ -112,31 +115,31 @@ func PaintFormField(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot 
 	if snapshot.Disabled {
 		labelColor.Alpha *= 0.5
 	}
-	labelWidth := canvas.TextWidthWeight(snapshot.Label, metrics.FontSizeM, ui.WeightMedium)
+	labelWidth := canvas.TextWidthWeight(snapshot.Label, metrics.FontSizeM, gfx.WeightMedium)
 	if labelWidth > layout.Label.Width {
 		labelWidth = layout.Label.Width
 	}
-	canvas.Label(snapshot.Label, ui.Rect{
+	canvas.Label(snapshot.Label, gfx.Rect{
 		X: layout.Label.X, Y: layout.Label.Y, Width: labelWidth, Height: layout.Label.Height,
-	}, ui.TextStyle{Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: labelColor})
-	canvas.HitLabel(snapshot.ControlID, ui.Rect{X: layout.Label.X, Y: layout.Label.Y, Width: labelWidth, Height: layout.Label.Height}, snapshot.Label, snapshot.Disabled)
+	}, gfx.TextStyle{Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: labelColor})
+	canvas.HitLabel(snapshot.ControlID, gfx.Rect{X: layout.Label.X, Y: layout.Label.Y, Width: labelWidth, Height: layout.Label.Height}, snapshot.Label, snapshot.Disabled)
 	if snapshot.Required && labelWidth < layout.Label.Width {
 		requiredColor := theme.Danger
 		if snapshot.Disabled {
 			requiredColor.Alpha *= 0.5
 		}
-		canvas.Label("*", ui.Rect{
+		canvas.Label("*", gfx.Rect{
 			X: layout.Label.X + labelWidth + 3, Y: layout.Label.Y,
 			Width: layout.Label.Width - labelWidth - 3, Height: layout.Label.Height,
-		}, ui.TextStyle{Size: metrics.FontSizeM, Weight: ui.WeightMedium, Color: requiredColor})
+		}, gfx.TextStyle{Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: requiredColor})
 	}
 	if snapshot.Description != "" {
 		descriptionColor := theme.MutedForeground
 		if snapshot.Disabled {
 			descriptionColor.Alpha *= 0.5
 		}
-		canvas.Label(snapshot.Description, layout.Description, ui.TextStyle{
-			Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: descriptionColor,
+		canvas.Label(snapshot.Description, layout.Description, gfx.TextStyle{
+			Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: descriptionColor,
 		})
 	}
 	if message != "" {
@@ -144,8 +147,8 @@ func PaintFormField(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, snapshot 
 		if snapshot.Disabled {
 			messageColor.Alpha *= 0.5
 		}
-		canvas.Label(message, layout.Message, ui.TextStyle{
-			Size: metrics.FontSizeM, Weight: ui.WeightRegular, Color: messageColor,
+		canvas.Label(message, layout.Message, gfx.TextStyle{
+			Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: messageColor,
 		})
 	}
 	return layout

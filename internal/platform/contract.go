@@ -7,10 +7,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // Color is a linear RGBA clear color.
@@ -39,7 +39,7 @@ type Config struct {
 	MinHeight int
 	// Origin, when HasOrigin, is where the top-left of the content area opens, in
 	// screen coordinates. Without one the system places the window.
-	Origin     ui.Point
+	Origin     gfx.Point
 	HasOrigin  bool
 	WindowMode WindowMode
 	// TitlebarHeight is the height in logical pixels of the strip a custom
@@ -87,6 +87,10 @@ type Config struct {
 	// every other key is delivered as it was.
 	ModifierTaps bool
 	OnShortcut   ShortcutHandler
+	// OnActivate, when set, runs on the window thread when the top-level
+	// window becomes the active window. Focus moving between views inside the
+	// window does not call it.
+	OnActivate func()
 	// OnFocusLost, when set, runs when the window stops being the one the
 	// keyboard types into (another window or application took the focus), so
 	// the runtime can release the keys that were down: their releases will go
@@ -102,6 +106,13 @@ type Config struct {
 	// event-loop thread and presents the frames it hands back.
 	OnAccessibility AccessibilityHandler
 	OnRedraw        RedrawHandler
+	// SetFrameInterval, when set, is called by the adapter on the window thread
+	// once it knows how the window's frames are paced: the interval between
+	// display frames, or zero when presenting a frame blocks until the display
+	// takes it. The runtime starts with 1/120 s and uses zero to ask for the
+	// next frame as soon as the last one is presented. Adapters that present
+	// without blocking must report their display interval instead.
+	SetFrameInterval func(interval time.Duration)
 	// Waker, when set together with OnRedraw, lets the runtime request one
 	// redraw from any goroutine without a parked reader goroutine.
 	Waker          *Waker
@@ -157,7 +168,7 @@ type Window interface {
 	// Frame is the content area in screen coordinates (logical pixels from the
 	// primary display's top-left corner, y down), false when the window cannot
 	// say. It is safe to call from any goroutine.
-	Frame() (ui.Rect, bool)
+	Frame() (gfx.Rect, bool)
 }
 
 // WindowMover is implemented by the windows of an adapter that can put a window
@@ -165,7 +176,7 @@ type Window interface {
 // content area at origin, in the screen coordinates of Window.Frame. It is
 // called on the native event-loop thread.
 type WindowMover interface {
-	MoveTo(origin ui.Point)
+	MoveTo(origin gfx.Point)
 }
 
 // Application creates windows that share one native application event loop.
@@ -202,10 +213,11 @@ var (
 )
 
 // ErrNoGraphics is returned by OpenWindow (wrapped, with what to install) when the
-// machine has no graphics driver to draw a window with: no Vulkan on Linux, no
-// Direct3D 11 device, not even the software one, on Windows. A cloud server with
-// no GPU is the usual case, and it still runs with a software driver; a server with
-// no display at all needs the headless build instead.
+// machine has no graphics driver to draw a window with and the platform's CPU
+// fallback cannot draw either: no Direct3D 11 device, not even the software one, on
+// Windows, or a Linux machine whose CPU rasterizer cannot start. Linux without a
+// usable Vulkan driver draws the window with the CPU rasterizer and does not return
+// this. A cloud server with no display at all needs the headless build instead.
 var ErrNoGraphics = errors.New("platform: no graphics driver")
 
 // ErrFullscreenUnsupported means this host or window kind cannot go fullscreen.
@@ -258,7 +270,7 @@ type ScreenRect struct {
 
 // StatusClick is one press on a status item.
 type StatusClick struct {
-	Button ui.PointerButton
+	Button gfx.PointerButton
 	// Anchor is where the item is, for a panel opened beside it.
 	Anchor ScreenRect
 	// PanelDismissed is true when a WindowPanel closed itself, for losing focus,
@@ -287,6 +299,14 @@ type MenuItem struct {
 	Checked   bool
 	Submenu   []MenuItem
 	OnSelect  func()
+	// ID, when not empty, names the entry across builds: a menu served to
+	// another process keeps the entry's id while its title, state or position
+	// changes. An ID must be unique among the entries of one menu; the same ID in
+	// another submenu names another entry, and one without an ID is known by its
+	// title, so a new title is a new entry. Two entries that share an ID among
+	// siblings are told apart only by their order, so removing one of them gives
+	// a new id to the ones after it.
+	ID string
 }
 
 // ApplicationStart initializes the first windows before the event loop waits.
@@ -295,13 +315,16 @@ type ApplicationStart func(Application) error
 // TextLabel is one immutable line of system-font text composited by the native GPU backend.
 // A label with Runs is a fixed-pitch grid line: Mono selects the system
 // fixed-pitch font, CellWidth is the column pitch and each run colors a stretch
-// of Value (see ui.TextRun). Runs is only valid for the call that carries it.
+// of Value (see gfx.TextRun). Runs is only valid for the call that carries it.
 type TextLabel struct {
 	Value  string
 	X      float32
 	Y      float32
 	Width  float32
 	Height float32
+	// Identity, when nonzero, names this label across frames so a backend can
+	// retain its picture when the paint list reorders. See gfx.TextIdentity.
+	Identity gfx.TextIdentity
 	// OriginX and OriginY are where layout put the text, less X and Y (which the painter
 	// rounds to whole logical pixels): within half a pixel either way. A backend that
 	// places glyphs at device-pixel positions, as the platform's own text does, draws
@@ -314,10 +337,16 @@ type TextLabel struct {
 	Color     Color
 	Layer     uint16
 	Mono      bool
-	MonoFace  ui.MonoFace
+	MonoFace  gfx.MonoFace
 	CellWidth float32
-	Runs      []ui.TextRun
-	// FontGeneration is the generation of the interface font (ui.FontFamilyAware) the
+	// Baseline, when nonzero, is the row of the label, counted from its top in logical
+	// pixels, on which a fixed-pitch line's glyphs stand: gfx.Canvas.MonoBaseline for the
+	// label's face, size and height, which is the font's own baseline in the line's cell,
+	// centered in the label. It is 0 for proportional text and for a face the canvas could
+	// not measure: those stand on LabelBaseline.
+	Baseline float32
+	Runs     []gfx.TextRun
+	// FontGeneration is the generation of the interface font (gfx.FontFamilyAware) the
 	// proportional text of this label was laid out in; it is zero for a label that
 	// does not follow the interface font (fixed-pitch text, images). A backend that
 	// keeps the picture of a label draws it again when this differs from the label's
@@ -329,7 +358,7 @@ type TextLabel struct {
 	// never sent), carry none. Renderers scissor the label's quad to it rather
 	// than rasterize a different texture, so scrolling a clipped label costs no
 	// text layout.
-	Clip    ui.Rect
+	Clip    gfx.Rect
 	Clipped bool
 	// Bitmap is premultiplied BGRA, top row first. When non-empty this label
 	// is an image quad rather than text; BitmapStride may exceed BitmapWidth*4.
@@ -377,12 +406,12 @@ const (
 // events only fire while the pointer is inside the window.
 type PointerEvent struct {
 	Kind      PointerEventKind
-	Button    ui.PointerButton
+	Button    gfx.PointerButton
 	Modifiers input.Modifiers
 	X         float32
 	Y         float32
 	// ScreenX and ScreenY are the pointer in screen coordinates (see
-	// ui.PointerEvent).
+	// gfx.PointerEvent).
 	ScreenX, ScreenY float32
 	// ClickCount is the number of consecutive presses this Down or Up belongs
 	// to (2 for a double click). Move and Exit events leave it 0.
@@ -416,13 +445,13 @@ type KeyEvent struct {
 	// and no release will be asked for.
 	Code uint32
 	// Text is the character of a chord without its modifiers, set for raw
-	// terminal keys and shortcut offers (see ui.KeyEvent).
+	// terminal keys and shortcut offers (see gfx.KeyEvent).
 	Text string
 	// Typed is the text a printable key types with the modifiers in effect,
-	// set on the press of a terminal that asked for releases (see ui.KeyEvent).
+	// set on the press of a terminal that asked for releases (see gfx.KeyEvent).
 	Typed string
 	// Win32 is the console key identity on Windows; other platforms leave it zero.
-	Win32 ui.Win32Key
+	Win32 gfx.Win32Key
 }
 
 // AccessibilityNode is one platform-neutral accessibility element derived
@@ -431,7 +460,7 @@ type KeyEvent struct {
 type AccessibilityNode struct {
 	// ID names the control the node stands for, so a request from assistive
 	// technology reaches it whatever position it has in the next frame.
-	ID        ui.ID
+	ID        gfx.ID
 	Role      uint8
 	X         float32
 	Y         float32
@@ -461,9 +490,9 @@ type AccessibilityNode struct {
 	// zero when not stated.
 	PosInSet, SetSize int32
 	// Live makes the node announce changes to its content.
-	Live ui.LiveRegion
+	Live gfx.LiveRegion
 	// Range is the numeric value of a slider or progress bar.
-	Range ui.ValueRange
+	Range gfx.ValueRange
 	// Selection is the selected span of the focused text field's Value.
 	Selection AccessibilitySelection
 }
@@ -507,7 +536,7 @@ type ResizeHandler func(Size) (Frame, error)
 
 // FrameChangeHandler reports the window's content rectangle in screen
 // coordinates after it moved or changed size. It runs on the window thread.
-type FrameChangeHandler func(ui.Rect)
+type FrameChangeHandler func(gfx.Rect)
 
 // MinimizeHandler reports that the window was minimized or restored. It runs
 // on the window thread.
@@ -767,7 +796,7 @@ type TextInput struct {
 	// input method is composing; a different target must end that composition
 	// even when both fields have identical text and presentation. Standalone
 	// platform clients may leave it zero when they have only one editor.
-	Target   ui.ID
+	Target   gfx.ID
 	X        float32
 	Y        float32
 	Width    float32
@@ -780,7 +809,7 @@ type TextInput struct {
 	// ResolveTextAlignment first, which is what a viva window does, so that a
 	// right-to-left line is not silently drawn left-aligned. Terminal and
 	// self-placed inputs ignore it.
-	Alignment ui.Alignment
+	Alignment gfx.Alignment
 	// Layer keeps native editor visuals in the component's compositing layer.
 	Layer     uint16
 	Multiline bool
@@ -791,7 +820,22 @@ type TextInput struct {
 	// terminal: text in the fixed-pitch font, no caret and no selection, and
 	// keys that are not text delivered as raw key events (see KeyEvent.Text).
 	Terminal bool
-	MonoFace ui.MonoFace
+	MonoFace gfx.MonoFace
+	// CopyOverride makes Copy/Cut use CopyText instead of the native selection.
+	CopyOverride bool
+	// CopyText is evaluated only for a non-secure Copy/Cut action. A nil callback
+	// or empty result leaves the clipboard and document unchanged.
+	CopyText func() string
+	// CellWidth is the width of one cell of the terminal's grid, in logical pixels:
+	// gfx.Canvas.MonoCellSize for the input's FontSize and MonoFace. A Terminal input's
+	// preedit is drawn on that pitch and its caret and underline are measured by it, so
+	// the composition stands where the committed text will. Other inputs leave it 0.
+	CellWidth float32
+	// Baseline, when nonzero, is the row of a terminal input, counted from the top of the
+	// field in logical pixels, on which the cell's glyphs stand (gfx.Canvas.MonoBaseline):
+	// the composition stands on the same row as the grid's committed text. Other inputs
+	// leave it 0 and stand on LabelBaseline.
+	Baseline float32
 	// AltSendsEscape routes printable Alt/Option chords in a Terminal input to
 	// raw key delivery, with the base character in KeyEvent.Text.
 	AltSendsEscape bool
@@ -800,11 +844,18 @@ type TextInput struct {
 	// input method consumed them), and a release for each press. Release
 	// events carry the Code of their press.
 	KeyReleases bool
+	// DisableIME keeps the host's input method off the window while this input
+	// is focused, the way a remote-desktop client does: the keys the method
+	// would take, and the hotkeys that switch it, belong to the machine on the
+	// other side of the surface, which runs its own input method. Text events
+	// still arrive if a method commits anyway, so a paste keeps working.
+	// Implemented on Windows; the other platforms have not needed it yet.
+	DisableIME bool
 	// NavigationKeys asks Up, Down, PageUp and PageDown to reach the
 	// application as raw key events while the field is focused, while
 	// cursor placement, selection, Home/End and IME remain native.
 	NavigationKeys bool
-	// Placed says the field lays its rows out itself (ui.TextPlacement): the
+	// Placed says the field lays its rows out itself (gfx.TextPlacement): the
 	// application places the caret from the pointer, so the platform editor must
 	// not (it knows one line only), and the keys that move between rows (Up,
 	// Down, Home, End, Page Up and Down, Command with Left and Right) reach the
@@ -821,6 +872,19 @@ type TextInput struct {
 	// invisible while preserving text input, IME and clipboard behavior.
 	// Canvas components that draw those overlays themselves set it.
 	HideNativeOverlays bool
+}
+
+// ClipboardState presents the application-owned selection only for a non-secure
+// Copy/Cut action ('c' or 'x'). Other actions keep the native editing state.
+func (input TextInput) ClipboardState(action byte) TextState {
+	if action != 'c' && action != 'x' || !input.CopyOverride || input.Secure {
+		return input.State
+	}
+	value := ""
+	if input.CopyText != nil {
+		value = input.CopyText()
+	}
+	return TextState{Value: value, Selection: text.Range{End: utf8.RuneCountInString(value)}}
 }
 
 // TextState is the complete platform-neutral state mirrored by NSTextInputClient.

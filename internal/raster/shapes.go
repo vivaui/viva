@@ -28,6 +28,24 @@ func roundedBoxDistance(px, py, halfX, halfY, radius float32) float32 {
 	return sqrt32(max(qx, 0)*max(qx, 0)+max(qy, 0)*max(qy, 0)) + min(max(qx, qy), 0) - radius
 }
 
+// Coverage is the fraction of the device pixel (x, y) inside the rounded
+// rectangle rect (logical pixels), with the same one-device-pixel edge the
+// filled shapes use. A presenter that must show something below a rounded
+// corner blends the two pictures with this coverage instead of drawing the
+// content and then punching the corner out of it.
+func Coverage(rect scene.Rect, radius, scale float32, x, y int) float32 {
+	if !(rect.Width > 0 && rect.Height > 0) || !(scale > 0) {
+		return 0
+	}
+	radius = min(max(radius, 0), min(rect.Width, rect.Height)*0.5)
+	ps := 1 / scale
+	halfW, halfH := rect.Width*0.5, rect.Height*0.5
+	lx := (float32(x)+0.5)*ps - rect.X
+	ly := (float32(y)+0.5)*ps - rect.Y
+	d := roundedBoxDistance(lx-halfW, ly-halfH, halfW, halfH, radius)
+	return clamp01(0.5 - d/ps)
+}
+
 // drawRectangle paints a rectangle, rounded when it has a radius. A plain rectangle covers the
 // pixels whose centers it contains and nothing is blended at its edge; a rounded one is feathered
 // by the distance of each center to its outline.

@@ -3,7 +3,7 @@ package components
 import (
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // IconHover is caller-owned hover state for an icon-only control whose glyph
@@ -17,7 +17,7 @@ import (
 // dwell, and PlayOnce asks for frames while the gesture runs. The result is the
 // gesture's linear progress in [0, 1]; the caller maps it onto a transform.
 type IconHover struct {
-	target ui.ID
+	target gfx.ID
 	since  time.Duration
 	// fired marks the slots that already played for target, so a pointer that
 	// stays put does not replay them. One bit per slot: slot is a uint8, so
@@ -48,7 +48,7 @@ func (hover *IconHover) reArm() {
 // is how long the pointer must rest before the gesture starts, and duration is
 // the gesture itself. A zero ID paints still, which makes the value safe to use
 // from a static preview.
-func (hover *IconHover) Progress(canvas *ui.Canvas, id ui.ID, slot uint8, dwell, duration time.Duration) (progress float32, playing bool) {
+func (hover *IconHover) Progress(canvas *gfx.Canvas, id gfx.ID, slot uint8, dwell, duration time.Duration) (progress float32, playing bool) {
 	if hover == nil || canvas == nil || id.IsZero() {
 		return 1, false
 	}
@@ -64,8 +64,8 @@ func (hover *IconHover) Progress(canvas *ui.Canvas, id ui.ID, slot uint8, dwell,
 		hover.since = now
 		hover.reArm()
 	}
-	if !hovered && hover.target != (ui.ID{}) {
-		hover.target = ui.ID{}
+	if !hovered && hover.target != (gfx.ID{}) {
+		hover.target = gfx.ID{}
 		hover.reArm()
 	}
 	if !hovered {

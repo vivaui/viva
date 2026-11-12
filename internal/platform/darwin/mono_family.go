@@ -13,7 +13,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 var (
@@ -22,18 +22,18 @@ var (
 )
 
 // syncMonoFamilies tells the native side what the faces the application registered
-// with ui.MonoFamily and ui.MonoStack since the last call stand for. Faces are numbered
+// with gfx.MonoFamily and gfx.MonoStack since the last call stand for. Faces are numbered
 // in registration order, so only the new ones are sent.
 func syncMonoFamilies() {
-	count := ui.MonoFaceCount()
+	count := gfx.MonoFaceCount()
 	monoFamilyLock.Lock()
 	defer monoFamilyLock.Unlock()
 	for monoFamilySent < count {
-		face := ui.MonoFace(2 + monoFamilySent)
-		name := C.CString(ui.MonoFamilyName(face))
-		fallbacks := C.CString(strings.Join(ui.MonoFallbacks(face), "\n"))
+		face := gfx.MonoFace(2 + monoFamilySent)
+		name := C.CString(gfx.MonoFamilyName(face))
+		fallbacks := C.CString(strings.Join(gfx.MonoFallbacks(face), "\n"))
 		classic := C.int(0)
-		if ui.MonoIsClassic(face) {
+		if gfx.MonoIsClassic(face) {
 			classic = 1
 		}
 		C.viva_register_mono_family(C.int(2+monoFamilySent), name, classic, fallbacks)

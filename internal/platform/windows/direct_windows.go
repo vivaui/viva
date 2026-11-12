@@ -7,8 +7,8 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // Labels are drawn with DirectWrite through Direct2D, the engine that draws the text of
@@ -67,6 +67,7 @@ type d2dRenderTargetProperties struct {
 // bitmap is bound and kept (scratch), grown when a label needs more, and every label is drawn
 // into the corner of it.
 type directTarget struct {
+	directTextCall
 	target, brush uintptr
 	scratch       *textBitmap
 	width, height int                                        // of the scratch bitmap
@@ -94,6 +95,7 @@ func newDirectTarget(factory uintptr, alphaMode uint32) (*directTarget, error) {
 		direct.close()
 		return nil, fmt.Errorf("windows: create Direct2D brush: %w", err)
 	}
+	direct.initTextCall()
 	return direct, nil
 }
 
@@ -155,7 +157,7 @@ func (target *directTarget) popClip() {
 }
 
 func (target *directTarget) draw(x, y float32, layout uintptr, options uint32) {
-	comCall(target.target, d2dDrawTextLayout, pointArgument(x, y), layout, target.brush, uintptr(options))
+	target.drawTextLayout(x, y, layout, options)
 }
 
 func (target *directTarget) end() error {
@@ -163,10 +165,6 @@ func (target *directTarget) end() error {
 		return fmt.Errorf("windows: end Direct2D drawing: %w", err)
 	}
 	return nil
-}
-
-func pointArgument(x, y float32) uintptr {
-	return uintptr(math.Float32bits(x)) | uintptr(math.Float32bits(y))<<32
 }
 
 // directRasterizer draws labels with DirectWrite. It is not safe for concurrent use.
@@ -283,12 +281,12 @@ func (rasterizer *directRasterizer) rasterize(label platform.TextLabel, scale fl
 	rasterizer.spans = rasterizer.spans[:0]
 	if label.Mono || len(label.Runs) > 0 {
 		if allowLCD && !platform.ColorGlyphs(label.Value) {
-			return pixels, true, rasterizer.gridLCD(pixels, label, size, width, height)
+			return pixels, true, rasterizer.gridLCD(pixels, label, scale, width, height)
 		}
-		return pixels, false, rasterizer.grid(pixels, label, size, width, height)
+		return pixels, false, rasterizer.grid(pixels, label, scale, width, height)
 	}
 	lcd = allowLCD && !platform.ColorGlyphs(label.Value)
-	baseline := float32(platform.LabelBaseline(height, float64(size)))
+	baseline := float32(platform.TextBaseline(label, height, scale))
 	// The line is the one layout used for its width, at the device size.
 	err = rasterizer.engine.drawStyle(label.Value, size, label.Weight, label.Italic, func(line *shapedLine) error {
 		return rasterizer.wholeLine(pixels, line, label, width, height, baseline, lcd, skip)
@@ -427,11 +425,12 @@ func coverageOfChannels(pixels []byte, bitmap *textBitmap, width, height int, dr
 // weight and decorations of their own, each character on its cell of the grid (Viva's, not the
 // font's), or the whole value of a monospaced label. Colors are applied as the text is drawn
 // (premultiplied BGRA, grayscale antialiasing), so a line is one texture however many colors it holds.
-func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel, size float32, width, height int) error {
+func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel, scale float32, width, height int) error {
 	family := monoFamily(label.MonoFace)
 	fallback := rasterizer.fontFallback(label.MonoFace)
-	pitch := label.CellWidth * float32(size/label.FontSize)
-	baseline := float32(platform.LabelBaseline(height, float64(size)))
+	size := label.FontSize * scale
+	pitch := label.CellWidth * scale
+	baseline := float32(platform.TextBaseline(label, height, scale))
 	target := rasterizer.translucent
 	scratch, err := target.bind(width, height)
 	if err != nil {
@@ -461,7 +460,7 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 // drawRun draws a run of a grid line starting at left: printable ASCII characters advance by
 // exactly the pitch of the grid, a single wider character is centered on its cells, and
 // the run's decorations are DirectWrite's own.
-func (rasterizer *directRasterizer) drawRun(target *directTarget, family string, fallback uintptr, size, weight float32, run ui.TextRun, piece string, left, span, pitch, baseline float32, clip pieceClip) error {
+func (rasterizer *directRasterizer) drawRun(target *directTarget, family string, fallback uintptr, size, weight float32, run gfx.TextRun, piece string, left, span, pitch, baseline float32, clip pieceClip) error {
 	format, err := rasterizer.services.formatStyle(family, size, weight, run.Italic)
 	if err != nil {
 		return err

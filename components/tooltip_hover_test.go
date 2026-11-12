@@ -4,42 +4,42 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // The delay behavior is tested independently of the shipped default, which the
 // pinned shadcn provider sets to zero.
 const testTooltipDelay = 500 * time.Millisecond
 
-func hoverFrame(now time.Duration, hovered, pressed uint32, hint string, viewport ui.Rect, hover *HoverTooltip) (*ui.Canvas, bool, time.Duration, bool) {
+func hoverFrame(now time.Duration, hovered, pressed uint32, hint string, viewport gfx.Rect, hover *HoverTooltip) (*gfx.Canvas, bool, time.Duration, bool) {
 	return hoverFrameAt(10, now, hovered, pressed, hint, viewport, hover)
 }
 
 // hoverFrameAt is hoverFrame with the hovered control y pixels from the top.
-func hoverFrameAt(y float32, now time.Duration, hovered, pressed uint32, hint string, viewport ui.Rect, hover *HoverTooltip) (*ui.Canvas, bool, time.Duration, bool) {
-	var canvas ui.Canvas
+func hoverFrameAt(y float32, now time.Duration, hovered, pressed uint32, hint string, viewport gfx.Rect, hover *HoverTooltip) (*gfx.Canvas, bool, time.Duration, bool) {
+	var canvas gfx.Canvas
 	canvas.SetClock(func() time.Duration { return now })
 	canvas.BeginFrame()
-	canvas.HitWithOptions(ui.Item(7), ui.Rect{X: 40, Y: y, Width: 28, Height: 28}, "Refresh", ui.HitOptions{Hint: hint})
-	canvas.SetInteraction(ui.Item(int(hovered)), ui.Item(int(pressed)), ui.ID{}, false)
-	painted := hover.Paint(&canvas, ui.DarkTheme(), viewport, TooltipOptions{}, testTooltipDelay)
+	canvas.HitWithOptions(gfx.Item(7), gfx.Rect{X: 40, Y: y, Width: 28, Height: 28}, "Refresh", gfx.HitOptions{Hint: hint})
+	canvas.SetInteraction(gfx.Item(int(hovered)), gfx.Item(int(pressed)), gfx.ID{}, false)
+	painted := hover.Paint(&canvas, gfx.DarkTheme(), viewport, TooltipOptions{}, testTooltipDelay)
 	canvas.EndFrame()
 	delay, wake := canvas.NextFrame()
 	return &canvas, painted, delay, wake
 }
 
-func tooltipText(canvas *ui.Canvas, value string) (ui.Text, bool) {
+func tooltipText(canvas *gfx.Canvas, value string) (gfx.Text, bool) {
 	for _, text := range canvas.Texts() {
 		if text.Value == value {
 			return text, true
 		}
 	}
-	return ui.Text{}, false
+	return gfx.Text{}, false
 }
 
 func TestHoverTooltipWaitsForTheDelayThenShowsTheHint(t *testing.T) {
 	var hover HoverTooltip
-	viewport := ui.Rect{Width: 300, Height: 200}
+	viewport := gfx.Rect{Width: 300, Height: 200}
 
 	// Just arrived: nothing yet, and exactly one wake-up is requested for the
 	// moment the tooltip is due.
@@ -66,7 +66,7 @@ func TestHoverTooltipWaitsForTheDelayThenShowsTheHint(t *testing.T) {
 
 func TestHoverTooltipStartsOverWhenThePointerMovesOnOrPresses(t *testing.T) {
 	var hover HoverTooltip
-	viewport := ui.Rect{Width: 300, Height: 200}
+	viewport := gfx.Rect{Width: 300, Height: 200}
 	hoverFrame(0, 7, 0, "Hint", viewport, &hover)
 	if _, painted, _, _ := hoverFrame(testTooltipDelay, 7, 0, "Hint", viewport, &hover); !painted {
 		t.Fatal("the tooltip did not appear before the press")
@@ -89,13 +89,13 @@ func TestHoverTooltipStartsOverWhenThePointerMovesOnOrPresses(t *testing.T) {
 
 func TestHoverTooltipNeedsAHintAndFlipsAboveWhenThereIsNoRoomBelow(t *testing.T) {
 	var hover HoverTooltip
-	hoverFrame(0, 7, 0, "", ui.Rect{Width: 300, Height: 200}, &hover)
-	if canvas, painted, _, wake := hoverFrame(time.Second, 7, 0, "", ui.Rect{Width: 300, Height: 200}, &hover); painted || wake || len(canvas.Texts()) != 0 {
+	hoverFrame(0, 7, 0, "", gfx.Rect{Width: 300, Height: 200}, &hover)
+	if canvas, painted, _, wake := hoverFrame(time.Second, 7, 0, "", gfx.Rect{Width: 300, Height: 200}, &hover); painted || wake || len(canvas.Texts()) != 0 {
 		t.Fatal("a hit without a hint showed a tooltip")
 	}
 
 	// A control near the bottom of a short window: no room below it, room above.
-	short := ui.Rect{Width: 300, Height: 130}
+	short := gfx.Rect{Width: 300, Height: 130}
 	hoverFrameAt(90, 0, 7, 0, "Refresh", short, &hover)
 	canvas, painted, _, _ := hoverFrameAt(90, time.Second, 7, 0, "Refresh", short, &hover)
 	text, ok := tooltipText(canvas, "Refresh")
@@ -109,10 +109,10 @@ func TestHoverTooltipNeedsAHintAndFlipsAboveWhenThereIsNoRoomBelow(t *testing.T)
 func TestHoverTooltipShowsOnKeyboardFocusWhenAsked(t *testing.T) {
 	var hover HoverTooltip
 	hover.ShowOnFocus()
-	var canvas ui.Canvas
-	canvas.SetInteraction(ui.ID{}, ui.ID{}, ui.Item(7), true)
-	canvas.HitWithOptions(ui.Item(7), ui.Rect{X: 10, Y: 10, Width: 40, Height: 28}, "Refresh", ui.HitOptions{Role: ui.RoleButton, Hint: "Refresh the list"})
-	if painted := hover.Paint(&canvas, ui.DarkTheme(), ui.Rect{Width: 300, Height: 200}, TooltipOptions{}, testTooltipDelay); !painted {
+	var canvas gfx.Canvas
+	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.Item(7), true)
+	canvas.HitWithOptions(gfx.Item(7), gfx.Rect{X: 10, Y: 10, Width: 40, Height: 28}, "Refresh", gfx.HitOptions{Role: gfx.RoleButton, Hint: "Refresh the list"})
+	if painted := hover.Paint(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 300, Height: 200}, TooltipOptions{}, testTooltipDelay); !painted {
 		t.Fatal("a focused control with a hint did not show its tooltip")
 	}
 }
@@ -120,7 +120,7 @@ func TestHoverTooltipShowsOnKeyboardFocusWhenAsked(t *testing.T) {
 // Escape (Dismiss) and a press anywhere hide the shown tooltip until the pointer
 // leaves the control, as Base UI's tooltip dismiss does.
 func TestHoverTooltipDismissesOnEscapeAndPress(t *testing.T) {
-	viewport := ui.Rect{Width: 300, Height: 200}
+	viewport := gfx.Rect{Width: 300, Height: 200}
 	var hover HoverTooltip
 	hoverFrame(0, 7, 0, "Hint", viewport, &hover)
 	if _, painted, _, _ := hoverFrame(testTooltipDelay, 7, 0, "Hint", viewport, &hover); !painted {

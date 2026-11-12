@@ -4,18 +4,18 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestQuestionnairePaintsChoiceTypesInputErrorAndActions(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	questionnaire := BeginQuestionnaire(&canvas, theme, ui.Rect{Width: 340, Height: 440}, QuestionnaireData{Progress: "2 of 4", Title: "Choose features", Description: "Select all that apply", ChoiceType: QuestionnaireCheckbox})
-	questionnaire.AddChoice(QuestionnaireChoice{ID: ui.Item(1), Label: "Analytics", Description: "Usage dashboards", Shortcut: "A", Checked: true})
-	questionnaire.AddChoice(QuestionnaireChoice{ID: ui.Item(2), Label: "Exports", Disabled: true})
-	questionnaire.Input(ui.Item(3), "", "Something else", false)
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	questionnaire := BeginQuestionnaire(&canvas, theme, gfx.Rect{Width: 340, Height: 440}, QuestionnaireData{Progress: "2 of 4", Title: "Choose features", Description: "Select all that apply", ChoiceType: QuestionnaireCheckbox})
+	questionnaire.AddChoice(QuestionnaireChoice{ID: gfx.Item(1), Label: "Analytics", Description: "Usage dashboards", Shortcut: "A", Checked: true})
+	questionnaire.AddChoice(QuestionnaireChoice{ID: gfx.Item(2), Label: "Exports", Disabled: true})
+	questionnaire.Input(gfx.Item(3), "", "Something else", false)
 	questionnaire.Error("Choose at least one")
-	questionnaire.PaintActions(QuestionnaireActions{PreviousID: ui.Item(4), PreviousLabel: "Previous", SkipID: ui.Item(5), SkipLabel: "Skip", NextID: ui.Item(6), NextLabel: "Next"})
+	questionnaire.PaintActions(QuestionnaireActions{PreviousID: gfx.Item(4), PreviousLabel: "Previous", SkipID: gfx.Item(5), SkipLabel: "Skip", NextID: gfx.Item(6), NextLabel: "Next"})
 	if len(canvas.Hits()) != 5 {
 		t.Fatalf("questionnaire hits = %+v", canvas.Hits())
 	}
@@ -28,11 +28,11 @@ func TestQuestionnairePaintsChoiceTypesInputErrorAndActions(t *testing.T) {
 }
 
 func TestQuestionnaireCheckMarkIsAnIconNotRectangles(t *testing.T) {
-	theme := ui.LightTheme()
-	paint := func(typeOf QuestionnaireChoiceType, checked bool) *ui.Canvas {
-		var canvas ui.Canvas
-		questionnaire := BeginQuestionnaire(&canvas, theme, ui.Rect{Width: 300, Height: 200}, QuestionnaireData{ChoiceType: typeOf})
-		questionnaire.AddChoice(QuestionnaireChoice{ID: ui.Item(1), Label: "One", Checked: checked})
+	theme := gfx.LightTheme()
+	paint := func(typeOf QuestionnaireChoiceType, checked bool) *gfx.Canvas {
+		var canvas gfx.Canvas
+		questionnaire := BeginQuestionnaire(&canvas, theme, gfx.Rect{Width: 300, Height: 200}, QuestionnaireData{ChoiceType: typeOf})
+		questionnaire.AddChoice(QuestionnaireChoice{ID: gfx.Item(1), Label: "One", Checked: checked})
 		return &canvas
 	}
 	if got := len(paint(QuestionnaireCheckbox, false).Triangles()); got != 0 {
@@ -54,11 +54,11 @@ func TestQuestionnaireCheckMarkIsAnIconNotRectangles(t *testing.T) {
 }
 
 func TestQuestionnaireChoicesAreSpacedAndStopAtTheBounds(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	questionnaire := BeginQuestionnaire(&canvas, theme, ui.Rect{Width: 300, Height: 130}, QuestionnaireData{ChoiceType: QuestionnaireRadio})
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	questionnaire := BeginQuestionnaire(&canvas, theme, gfx.Rect{Width: 300, Height: 130}, QuestionnaireData{ChoiceType: QuestionnaireRadio})
 	for index := range 4 {
-		questionnaire.AddChoice(QuestionnaireChoice{ID: ui.Item(index + 1), Label: "Choice"})
+		questionnaire.AddChoice(QuestionnaireChoice{ID: gfx.Item(index + 1), Label: "Choice"})
 	}
 	hits := canvas.Hits()
 	if len(hits) != 2 {
@@ -73,10 +73,10 @@ func TestQuestionnaireChoicesAreSpacedAndStopAtTheBounds(t *testing.T) {
 }
 
 func TestQuestionnaireInvalidItemMarksChoicesDestructive(t *testing.T) {
-	theme := ui.LightTheme()
-	var canvas ui.Canvas
-	questionnaire := BeginQuestionnaire(&canvas, theme, ui.Rect{Width: 300, Height: 200}, QuestionnaireData{ChoiceType: QuestionnaireRadio, Invalid: true})
-	questionnaire.AddChoice(QuestionnaireChoice{ID: ui.Item(1), Label: "One"})
+	theme := gfx.LightTheme()
+	var canvas gfx.Canvas
+	questionnaire := BeginQuestionnaire(&canvas, theme, gfx.Rect{Width: 300, Height: 200}, QuestionnaireData{ChoiceType: QuestionnaireRadio, Invalid: true})
+	questionnaire.AddChoice(QuestionnaireChoice{ID: gfx.Item(1), Label: "One"})
 	found := false
 	for _, rectangle := range canvas.Rectangles() {
 		if rectangle.Color == theme.Danger {
@@ -89,12 +89,12 @@ func TestQuestionnaireInvalidItemMarksChoicesDestructive(t *testing.T) {
 }
 
 func TestQuestionnaireCommandStreamIsStable(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		questionnaire := BeginQuestionnaire(&canvas, ui.DarkTheme(), ui.Rect{Width: 300, Height: 210}, QuestionnaireData{Title: "Question", ChoiceType: QuestionnaireRadio})
-		questionnaire.AddChoice(QuestionnaireChoice{ID: ui.Item(1), Label: "One"})
-		questionnaire.AddChoice(QuestionnaireChoice{ID: ui.Item(2), Label: "Two", Checked: true})
+		questionnaire := BeginQuestionnaire(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 300, Height: 210}, QuestionnaireData{Title: "Question", ChoiceType: QuestionnaireRadio})
+		questionnaire.AddChoice(QuestionnaireChoice{ID: gfx.Item(1), Label: "One"})
+		questionnaire.AddChoice(QuestionnaireChoice{ID: gfx.Item(2), Label: "Two", Checked: true})
 	}
 	paint()
 	rectangles := slices.Clone(canvas.Rectangles())

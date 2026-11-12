@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -16,26 +16,26 @@ group.Add("⇧")
 group.Add("P")`},
 		{ID: "keys", Title: "常用按键", Description: "单键和长标签均按内容自然伸展。", Snippet: `x := bounds.X
 for _, key := range []string{"Esc", "Enter", "Space", "⌥ Option"} {
-    rect := ui.Rect{X: x, Y: bounds.Y, Height: bounds.Height}
+    rect := gfx.Rect{X: x, Y: bounds.Y, Height: bounds.Height}
     keycap := components.Kbd(canvas, theme, rect, key)
     x += keycap.Width + 10
 }`},
 	},
 }
 
-func (state *State) paintKbd(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var row flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Kbd · 系统快捷键", "Kbd · System shortcuts"), func(f *flex.Frame) {
+func (state *State) paintKbd(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var row ui.Box
+	state.drawPage(canvas, theme, size, 560, state.Text("Kbd · 系统快捷键", "Kbd · System shortcuts"), func(c ui.C) {
 		if state.exampleID == "default" {
-			row = f.Slot().FillWidth().Height(theme.Metrics.FontSizeS + 9)
-			f.Text(state.Text("打开命令面板", "Open the command palette")).FontSize(theme.Metrics.FontSizeS).Muted()
+			row = ui.Slot(c).FillWidth().Height(theme.Metrics.FontSizeS + 9)
+			ui.Text(c, state.Text("打开命令面板", "Open the command palette")).FontSize(theme.Metrics.FontSizeS).Muted()
 			return
 		}
-		row = f.Slot().FillWidth().Height(theme.Metrics.FontSizeS + 9)
+		row = ui.Slot(c).FillWidth().Height(theme.Metrics.FontSizeS + 9)
 	})
 	bounds := row.Rect()
 	if state.exampleID == "default" {
-		group := components.BeginKbdGroup(canvas, theme, ui.Rect{X: bounds.X, Y: bounds.Y, Height: bounds.Height})
+		group := components.BeginKbdGroup(canvas, theme, gfx.Rect{X: bounds.X, Y: bounds.Y, Height: bounds.Height})
 		group.Add("⌘")
 		group.Add("⇧")
 		group.Add("P")
@@ -43,7 +43,7 @@ func (state *State) paintKbd(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
 	}
 	x := bounds.X
 	for _, key := range [...]string{"Esc", "Enter", "Space", "⌥ Option"} {
-		keycap := components.Kbd(canvas, theme, ui.Rect{X: x, Y: bounds.Y, Height: bounds.Height}, key)
+		keycap := components.Kbd(canvas, theme, gfx.Rect{X: x, Y: bounds.Y, Height: bounds.Height}, key)
 		x += keycap.Width + 10
 	}
 }

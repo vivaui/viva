@@ -12,11 +12,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -84,7 +84,7 @@ type windowState struct {
 	// visibility reported to OnVisibility, with ok set once one has been.
 	hiddenByShow, shownVisible, shownKnown bool
 	maximized                              bool
-	lastFrame                              ui.Rect
+	lastFrame                              gfx.Rect
 	scale                                  float32
 	scaleFixed                             bool // VIVA_SCALE set it: the display's own scale is ignored
 	err                                    error
@@ -108,24 +108,31 @@ type windowState struct {
 	baseRectangleCount, baseTextLabelCount int
 	textLabels                             []platform.TextLabel
 	textRectangles                         []render.Rectangle
-	textEngine                             ui.TextEngine
-	textSpans                              []ui.TextSpan
-	textRuns                               []ui.TextRun
+	textEngine                             gfx.TextEngine
+	textSpans                              []gfx.TextSpan
+	textRuns                               []gfx.TextRun
 	captionPress                           captionPress
 	imeComposing                           bool
-	pendingHighSurrogate                   uint16
-	accessibility                          uiaTree
-	pendingKey                             pendingKey
-	deadKey                                bool
-	icons                                  [2]uintptr
-	drop                                   *dropTarget
-	wheel                                  wheelSettings
-	devices                                platform.DeviceRecovery
-	ncTracking                             bool
-	imeTarget                              text.Range
-	imeHasTarget                           bool
-	titlebarThemed, titlebarDark           bool
-	web                                    *webHost
+	// imeDisabled says the window's input-method context is disassociated, and
+	// imeContext holds the context to give back when it returns. A surface that
+	// shows another machine's desktop asks for it (platform.TextInput.DisableIME):
+	// the host's input method would otherwise take the keys that belong to the
+	// machine on the other side.
+	imeDisabled                  bool
+	imeContext                   uintptr
+	pendingHighSurrogate         uint16
+	accessibility                uiaTree
+	pendingKey                   pendingKey
+	deadKey                      bool
+	icons                        [2]uintptr
+	drop                         *dropTarget
+	wheel                        wheelSettings
+	devices                      platform.DeviceRecovery
+	ncTracking                   bool
+	imeTarget                    text.Range
+	imeHasTarget                 bool
+	titlebarThemed, titlebarDark bool
+	web                          *webHost
 }
 
 var active atomic.Pointer[windowState]
@@ -184,7 +191,7 @@ func (state *windowState) reportFrame() {
 	if scale <= 0 {
 		scale = 1
 	}
-	frame := ui.Rect{
+	frame := gfx.Rect{
 		X: float32(origin.X) / scale, Y: float32(origin.Y) / scale,
 		Width:  float32(client.Right-client.Left) / scale,
 		Height: float32(client.Bottom-client.Top) / scale,
@@ -298,6 +305,9 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		state.closeText()
 		return nil, fmt.Errorf("windows: create window: %w", err)
 	}
+	// A window created with its input (config.TextInput) keeps the host's input
+	// method off it already when the input asked for that (DisableIME).
+	state.updateIMEAssociation()
 	application.windows++
 	if config.Waker != nil && config.OnRedraw != nil {
 		config.Waker.Bind(func() {
@@ -356,6 +366,11 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		return nil, err
 	}
 	state.installFrame()
+	if config.SetFrameInterval != nil {
+		// Present(1) in WM_PAINT blocks until the display takes the frame, so
+		// the display paces the window; the runtime needs no interval of its own.
+		config.SetFrameInterval(0)
+	}
 	state.watchBackdropPower()
 	state.applyBackdrop()
 	state.ready = true
@@ -490,6 +505,10 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state.config.OnRedraw != nil {
 			frame, redrawErr := state.config.OnRedraw()
 			state.frame(frame, redrawErr)
+			// Present before returning: with a present-paced frame clock the next
+			// redraw is posted immediately, and leaving the update to a later
+			// WM_PAINT would starve it behind the queued wakes.
+			updateWindow.Call(window)
 		}
 		return 0
 	case wmGetObject:
@@ -529,6 +548,8 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmActivate:
 		if uint16(first) == waInactive {
 			state.panelDeactivated()
+		} else if state.config.OnActivate != nil {
+			state.config.OnActivate()
 		}
 	case wmSetFocus:
 		state.focused = true
@@ -587,6 +608,12 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmPaint:
 		var paint paintStruct
 		beginPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+		// A paint queued before UpdateWindow presented the frame has nothing left
+		// to draw. Presenting again would block on the next vblank for no change.
+		if paint.Bounds.Right <= paint.Bounds.Left || paint.Bounds.Bottom <= paint.Bounds.Top {
+			endPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+			return 0
+		}
 		// Nobody can see a minimized window, and its client area no longer matches what it
 		// showed: a custom frame reports the small minimized window (160x28) instead of an
 		// empty rectangle. Presenting at that size would resize the swap chain to the corner
@@ -654,11 +681,31 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state.config.OnResize != nil {
 			state.resizeEvents++
 			frame, err := state.config.OnResize(state.logicalSize(int(uint16(second)), int(uint16(second>>16))))
-			state.frame(frame, err)
+			if err := state.frameWithText(frame, err, false); err != nil {
+				return 0
+			}
 		}
 		state.reportFrame()
 		if state.web != nil {
 			state.web.layoutAll(true)
+		}
+		if state.ready {
+			// Draw the new size before returning to the window manager. The swap
+			// chain is scaled with DXGI_SCALING_NONE, so a frame that has not
+			// arrived yet is shown at its own size instead of stretched over the
+			// new client area. Maximize, restore and DPI changes take this path
+			// too; it is the same paint the queued WM_PAINT would have done, just
+			// earlier.
+			if err := state.presentImmediate(int(uint16(second)), int(uint16(second>>16))); err != nil {
+				state.fail(err)
+			} else {
+				state.scheduleTrim()
+				// presentImmediate drew the whole client area, so the invalidate
+				// PrepareFrame queued has nothing left to paint. ValidateRect
+				// removes it rather than drawing the same frame twice.
+				validateRect.Call(window, 0)
+			}
+			return 0
 		}
 		invalidateRect.Call(window, 0, 0)
 		return 0
@@ -712,14 +759,14 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			state.tracking = true
 		}
 		eventKind := platform.PointerMove
-		button := ui.PointerButtonNone
+		button := gfx.PointerButtonNone
 		switch kind {
 		case wmLeftDown, wmLeftUp:
-			button = ui.PointerButtonPrimary
+			button = gfx.PointerButtonPrimary
 		case wmRightDown, wmRightUp:
-			button = ui.PointerButtonSecondary
+			button = gfx.PointerButtonSecondary
 		case wmMiddleDown, wmMiddleUp:
-			button = ui.PointerButtonMiddle
+			button = gfx.PointerButtonMiddle
 		case wmXButtonDown, wmXButtonUp:
 			var known bool
 			if button, known = sideButton(first); !known {
@@ -869,10 +916,13 @@ func scaleOverride(value string) (float32, bool) {
 }
 
 func (state *windowState) frame(frame platform.Frame, err error) {
-	state.frameWithText(frame, err, false)
+	_ = state.frameWithText(frame, err, false)
 }
 
-func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) {
+// frameWithText applies a frame and reports an error that stopped it, as well as
+// handling it through fail. A caller that presents synchronously (WM_SIZE does)
+// must not present a frame that was never applied.
+func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) error {
 	views := frame.NativeViews
 	if err == nil {
 		state.applyBackdrop()
@@ -892,14 +942,15 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 	}
 	if err != nil {
 		state.fail(err)
-		return
+		return err
 	}
 	if frame.Accessibility != nil {
 		if err := state.accessibility.update(frame.Accessibility); err != nil {
 			state.fail(err)
-			return
+			return err
 		}
 	}
+	return nil
 }
 
 // destroyed releases what the window held when the system destroys it. The
@@ -1046,14 +1097,14 @@ func (state *windowState) testEvents() {
 
 // sideButton is the button a WM_XBUTTON message is for. The high word of wParam
 // says which: XBUTTON1 is the Back button of a mouse, XBUTTON2 Forward.
-func sideButton(wParam uintptr) (ui.PointerButton, bool) {
+func sideButton(wParam uintptr) (gfx.PointerButton, bool) {
 	switch uint16(wParam >> 16) {
 	case 1:
-		return ui.PointerButtonBack, true
+		return gfx.PointerButtonBack, true
 	case 2:
-		return ui.PointerButtonForward, true
+		return gfx.PointerButtonForward, true
 	}
-	return ui.PointerButtonNone, false
+	return gfx.PointerButtonNone, false
 }
 
 // configureClicks sets the double-click time and distance from the system

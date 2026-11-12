@@ -99,11 +99,12 @@ type Info struct {
 	Extra []KeyValue
 }
 
-// FileType is one kind of document: a description and its extensions without
-// the dot.
+// FileType is one kind of document: a description, its extensions without the
+// dot, and optionally the Uniform Type Identifier macOS uses for it.
 type FileType struct {
 	Name       string
 	Extensions []string
+	UTI        string
 }
 
 // managedKeys are the keys Plist writes itself; Extra may not set them, so a
@@ -196,6 +197,11 @@ func (info Info) Plist() ([]byte, error) {
 				buffer.WriteString("\t\t\t\t<string>" + escape(extension) + "</string>\n")
 			}
 			buffer.WriteString("\t\t\t</array>\n\t\t\t<key>CFBundleTypeRole</key>\n\t\t\t<string>Editor</string>\n")
+			if kind.UTI != "" {
+				buffer.WriteString("\t\t\t<key>LSItemContentTypes</key>\n\t\t\t<array>\n")
+				buffer.WriteString("\t\t\t\t<string>" + escape(kind.UTI) + "</string>\n")
+				buffer.WriteString("\t\t\t</array>\n")
+			}
 			buffer.WriteString("\t\t\t<key>LSHandlerRank</key>\n\t\t\t<string>Alternate</string>\n\t\t</dict>\n")
 		}
 		buffer.WriteString("\t</array>\n")

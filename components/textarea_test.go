@@ -4,14 +4,14 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestTextareaCapturesMultilineDisplayAndSemantics(t *testing.T) {
-	var canvas ui.Canvas
-	bounds := PaintTextarea(&canvas, ui.LightTheme(), ui.Rect{X: 8, Y: 9, Width: 220, Height: 20}, TextareaSnapshot{
-		ID: ui.Item(3), Label: "Biography", Value: "Go\n桌面", Hint: "Short bio", ReadOnly: true,
+	var canvas gfx.Canvas
+	bounds := PaintTextarea(&canvas, gfx.LightTheme(), gfx.Rect{X: 8, Y: 9, Width: 220, Height: 20}, TextareaSnapshot{
+		ID: gfx.Item(3), Label: "Biography", Value: "Go\n桌面", Hint: "Short bio", ReadOnly: true,
 		Focused: true, ShowCaret: true, Caret: 2, SelectionStart: 0, SelectionEnd: 2,
 		CompositionStart: 3, CompositionEnd: len("Go\n桌面"),
 	})
@@ -22,17 +22,17 @@ func TestTextareaCapturesMultilineDisplayAndSemantics(t *testing.T) {
 		t.Fatalf("texts = %+v", canvas.Texts())
 	}
 	hit := canvas.Hits()[0]
-	if hit.Role != ui.RoleTextField || !hit.Multiline || !hit.ReadOnly || hit.Value != "Go\n桌面" {
+	if hit.Role != gfx.RoleTextField || !hit.Multiline || !hit.ReadOnly || hit.Value != "Go\n桌面" {
 		t.Fatalf("hit = %+v", hit)
 	}
 }
 
 func TestTextareaDisabledPlaceholder(t *testing.T) {
-	var canvas ui.Canvas
-	PaintTextarea(&canvas, ui.DarkTheme(), ui.Rect{Width: 160}, TextareaSnapshot{
-		ID: ui.Item(1), Label: "Notes", Placeholder: "Add notes", Disabled: true,
+	var canvas gfx.Canvas
+	PaintTextarea(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 160}, TextareaSnapshot{
+		ID: gfx.Item(1), Label: "Notes", Placeholder: "Add notes", Disabled: true,
 	})
-	if text := canvas.Texts()[0]; text.Value != "Add notes" || text.Style.Color.Alpha >= ui.DarkTheme().MutedForeground.Alpha {
+	if text := canvas.Texts()[0]; text.Value != "Add notes" || text.Style.Color.Alpha >= gfx.DarkTheme().MutedForeground.Alpha {
 		t.Fatalf("placeholder = %+v", text)
 	}
 	if hit := canvas.Hits()[0]; !hit.Disabled || hit.Focusable || !hit.Multiline {
@@ -42,12 +42,12 @@ func TestTextareaDisabledPlaceholder(t *testing.T) {
 
 func TestTextareaTypedSemanticsAndCommandBoundary(t *testing.T) {
 	snapshot := TextareaSnapshot{
-		ID: ui.Item(7), Label: "Notes", Value: "A中B", DisplayValue: "A中B", Hint: "Details",
+		ID: gfx.Item(7), Label: "Notes", Value: "A中B", DisplayValue: "A中B", Hint: "Details",
 		Focused: true, Invalid: true, SelectionStart: 2, SelectionEnd: 4,
 		CompositionStart: 5, CompositionEnd: 1,
 	}
 	want := TextareaSemantics{
-		ID: ui.Item(7), Label: "Notes", Value: "A中B", Hint: "Details", Focused: true, Invalid: true,
+		ID: gfx.Item(7), Label: "Notes", Value: "A中B", Hint: "Details", Focused: true, Invalid: true,
 		SelectionStart: 1, SelectionEnd: 4, CompositionStart: 1, CompositionEnd: 5,
 	}
 	if got := snapshot.Semantics(); got != want {
@@ -73,9 +73,9 @@ func TestTextareaTypedSemanticsAndCommandBoundary(t *testing.T) {
 }
 
 func TestTextareaNativeEditingLeavesGlyphsToPlatform(t *testing.T) {
-	var canvas ui.Canvas
-	PaintTextarea(&canvas, ui.LightTheme(), ui.Rect{Width: 180, Height: 80}, TextareaSnapshot{
-		ID: ui.Item(9), Label: "Notes", Value: "native\ntext", NativeEditing: true, Focused: true,
+	var canvas gfx.Canvas
+	PaintTextarea(&canvas, gfx.LightTheme(), gfx.Rect{Width: 180, Height: 80}, TextareaSnapshot{
+		ID: gfx.Item(9), Label: "Notes", Value: "native\ntext", NativeEditing: true, Focused: true,
 	})
 	if len(canvas.Texts()) != 0 {
 		t.Fatalf("native editing painted duplicate text: %+v", canvas.Texts())
@@ -86,11 +86,11 @@ func TestTextareaNativeEditingLeavesGlyphsToPlatform(t *testing.T) {
 }
 
 func TestTextareaPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		PaintTextarea(&canvas, ui.LightTheme(), ui.Rect{X: 1, Y: 2, Width: 180, Height: 80}, TextareaSnapshot{
-			ID: ui.Item(4), Label: "Message", Value: "first\nsecond", Focused: true,
+		PaintTextarea(&canvas, gfx.LightTheme(), gfx.Rect{X: 1, Y: 2, Width: 180, Height: 80}, TextareaSnapshot{
+			ID: gfx.Item(4), Label: "Message", Value: "first\nsecond", Focused: true,
 			ShowCaret: true, Caret: 8, SelectionStart: 1, SelectionEnd: 4,
 			CompositionStart: 6, CompositionEnd: 12,
 		})
@@ -109,25 +109,27 @@ func TestTextareaPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) 
 }
 
 func TestTextareaCanHideThePlatformEditorAndPaintItsOwnCaret(t *testing.T) {
-	theme := ui.DarkTheme()
-	paint := func(snapshot TextareaSnapshot) (*ui.Canvas, ui.Hit) {
-		canvas := &ui.Canvas{}
-		snapshot.ID = ui.Item(1)
+	theme := gfx.DarkTheme()
+	paint := func(snapshot TextareaSnapshot) (*gfx.Canvas, gfx.Hit) {
+		canvas := &gfx.Canvas{}
+		snapshot.ID = gfx.Item(1)
 		snapshot.Focused = true
-		PaintTextarea(canvas, theme, ui.Rect{Width: 300, Height: 120}, snapshot)
+		PaintTextarea(canvas, theme, gfx.Rect{Width: 300, Height: 120}, snapshot)
 		hits := canvas.Hits()
 		if len(hits) != 1 {
 			t.Fatalf("%d hits", len(hits))
 		}
 		return canvas, hits[0]
 	}
-	_, shown := paint(TextareaSnapshot{Value: "hi"})
-	if shown.TextColor.Alpha == 0 {
+	shownCanvas, shown := paint(TextareaSnapshot{Value: "hi"})
+	shownText, _ := shownCanvas.HitText(&shown)
+	if shownText.Color.Alpha == 0 {
 		t.Fatal("the editor's text is invisible by default")
 	}
 	canvas, hidden := paint(TextareaSnapshot{Value: "hi", HideEditorText: true, ShowCaret: true, Caret: 2})
-	if hidden.TextColor.Alpha != 0 {
-		t.Errorf("HideEditorText left the editor's text visible: %+v", hidden.TextColor)
+	hiddenText, _ := canvas.HitText(&hidden)
+	if hiddenText.Color.Alpha != 0 {
+		t.Errorf("HideEditorText left the editor's text visible: %+v", hiddenText.Color)
 	}
 	if !hidden.HideNativeOverlays {
 		t.Error("HideEditorText did not hide the platform caret and selection")
@@ -148,16 +150,16 @@ func TestSelectedTextIsDrawnOnAnOpaqueSelection(t *testing.T) {
 	// The selected text uses the semantic selection pair rather than the button
 	// accent: a product can use a neutral action colour and still need a
 	// readable editor selection.
-	theme := ui.DarkTheme()
-	for name, paint := range map[string]func(*ui.Canvas){
-		"textarea": func(canvas *ui.Canvas) {
-			PaintTextarea(canvas, theme, ui.Rect{Width: 200, Height: 80}, TextareaSnapshot{Value: "select me", SelectionStart: 0, SelectionEnd: 6})
+	theme := gfx.DarkTheme()
+	for name, paint := range map[string]func(*gfx.Canvas){
+		"textarea": func(canvas *gfx.Canvas) {
+			PaintTextarea(canvas, theme, gfx.Rect{Width: 200, Height: 80}, TextareaSnapshot{Value: "select me", SelectionStart: 0, SelectionEnd: 6})
 		},
-		"input": func(canvas *ui.Canvas) {
-			PaintInput(canvas, theme, ui.Rect{Width: 200, Height: 32}, InputSnapshot{Value: "select me", SelectionStart: 0, SelectionEnd: 6})
+		"input": func(canvas *gfx.Canvas) {
+			PaintInput(canvas, theme, gfx.Rect{Width: 200, Height: 32}, InputSnapshot{Value: "select me", SelectionStart: 0, SelectionEnd: 6})
 		},
 	} {
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		paint(&canvas)
 		foundBackground, foundForeground := false, false
 		for _, rectangle := range canvas.Rectangles() {

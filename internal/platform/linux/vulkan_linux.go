@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -46,6 +47,7 @@ const (
 	vkImageViewType2D                = 1
 	vkSharingExclusive               = 0
 	vkCompositeOpaque                = 1
+	vkPresentMailbox                 = 1
 	vkPresentFIFO                    = 2
 	vkSubpassContentsInline          = 0
 	vkCommandBufferPrimary           = 0
@@ -57,6 +59,10 @@ const (
 	vkErrorOutOfDate                 = -1000001004
 	vkErrorInitializationFailed      = -3
 	vkErrorIncompatibleDriver        = -9
+	// vkPropertiesSize is sizeof(VkPhysicalDeviceProperties); deviceType is
+	// the 32-bit field at offset 16.
+	vkPropertiesSize             = 824
+	vkPropertiesDeviceTypeOffset = 16
 )
 
 type vkExtent2D struct{ Width, Height uint32 }
@@ -308,11 +314,13 @@ type vulkanAPI struct {
 	enumeratePhysicalDevices          func(uintptr, *uint32, *uintptr) int32
 	getQueueFamilyProperties          func(uintptr, *uint32, *vkQueueFamilyProperties)
 	getPhysicalDeviceFeatures         func(uintptr, *[vkFeatureCount]uint32)
+	getPhysicalDeviceProperties       func(uintptr, *[vkPropertiesSize]byte)
 	createXcbSurface                  func(uintptr, *vkXcbSurfaceCreateInfo, unsafe.Pointer, *uintptr) int32
 	destroySurface                    func(uintptr, uintptr, unsafe.Pointer)
 	getSurfaceSupport                 func(uintptr, uint32, uintptr, *uint32) int32
 	getSurfaceCapabilities            func(uintptr, uintptr, *vkSurfaceCapabilities) int32
 	getSurfaceFormats                 func(uintptr, uintptr, *uint32, *vkSurfaceFormat) int32
+	getSurfacePresentModes            func(uintptr, uintptr, *uint32, *uint32) int32
 	createDevice                      func(uintptr, *vkDeviceCreateInfo, unsafe.Pointer, *uintptr) int32
 	destroyDevice                     func(uintptr, unsafe.Pointer)
 	getDeviceQueue                    func(uintptr, uint32, uint32, *uintptr)
@@ -387,13 +395,28 @@ type vulkanRenderer struct {
 	api                                        *vulkanAPI
 	instance, surface, physical, device, queue uintptr
 	swapchain, renderPass, commandPool         uintptr
-	uploadCommand                              uintptr
-	imageAvailable, renderFinished, fence      uintptr
-	views, framebuffers, commands              []uintptr
-	queueFamily, width, height, format         uint32
+	// A replacement must present before its old swapchain is destroyed: the
+	// compositor may still own an old image while waiting for that next frame.
+	retiredSwapchains                     []uintptr
+	uploadCommand                         uintptr
+	imageAvailable, renderFinished, fence uintptr
+	views, framebuffers, commands         []uintptr
+	// commandsStaged means a scene update reset the command pool and left
+	// recording to resize. Device recovery may already have changed its extent.
+	commandsStaged                     bool
+	queueFamily, width, height, format uint32
+	surfaceFormat                      vkSurfaceFormat
+	hasSurfaceFormat                   bool
+	presentMode                        uint32
+	hasPresentMode                     bool
+	pendingCapabilities                vkSurfaceCapabilities
+	hasPendingCapabilities             bool
 	// dualSource is set when the device was created with dual-source blending, which
 	// blends LCD text per channel.
-	dualSource      bool
+	dualSource bool
+	// software is set when the selected device is a CPU rasterizer (lavapipe):
+	// the CPU renderer draws such a window instead (window_renderer_linux.go).
+	software        bool
 	enabledFeatures [vkFeatureCount]uint32
 	// scale is device pixels per logical pixel: width and height are device
 	// pixels, a scene is in logical pixels. Zero means 1.
@@ -461,11 +484,13 @@ func loadVulkan() (*vulkanAPI, error) {
 	purego.RegisterLibFunc(&api.enumeratePhysicalDevices, library, "vkEnumeratePhysicalDevices")
 	purego.RegisterLibFunc(&api.getQueueFamilyProperties, library, "vkGetPhysicalDeviceQueueFamilyProperties")
 	purego.RegisterLibFunc(&api.getPhysicalDeviceFeatures, library, "vkGetPhysicalDeviceFeatures")
+	purego.RegisterLibFunc(&api.getPhysicalDeviceProperties, library, "vkGetPhysicalDeviceProperties")
 	purego.RegisterLibFunc(&api.createXcbSurface, library, "vkCreateXcbSurfaceKHR")
 	purego.RegisterLibFunc(&api.destroySurface, library, "vkDestroySurfaceKHR")
 	purego.RegisterLibFunc(&api.getSurfaceSupport, library, "vkGetPhysicalDeviceSurfaceSupportKHR")
 	purego.RegisterLibFunc(&api.getSurfaceCapabilities, library, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR")
 	purego.RegisterLibFunc(&api.getSurfaceFormats, library, "vkGetPhysicalDeviceSurfaceFormatsKHR")
+	purego.RegisterLibFunc(&api.getSurfacePresentModes, library, "vkGetPhysicalDeviceSurfacePresentModesKHR")
 	purego.RegisterLibFunc(&api.createDevice, library, "vkCreateDevice")
 	purego.RegisterLibFunc(&api.destroyDevice, library, "vkDestroyDevice")
 	purego.RegisterLibFunc(&api.getDeviceQueue, library, "vkGetDeviceQueue")
@@ -605,8 +630,17 @@ func (renderer *vulkanRenderer) createDevice(extensions []*byte) error {
 
 func (renderer *vulkanRenderer) selectDevice() error {
 	var deviceCount uint32
-	if err := vkCheck(renderer.api.enumeratePhysicalDevices(renderer.instance, &deviceCount, nil), "count physical devices"); err != nil {
-		return err
+	// A loader whose installed drivers fail to initialize fails enumeration with
+	// VK_ERROR_INITIALIZATION_FAILED, not only with the
+	// VK_ERROR_INCOMPATIBLE_DRIVER an empty driver list gives. Both are a machine
+	// with no usable Vulkan driver and need the same advice as one without a
+	// loader; any other result is a real failure.
+	switch status := renderer.api.enumeratePhysicalDevices(renderer.instance, &deviceCount, nil); status {
+	case vkSuccess:
+	case vkErrorInitializationFailed, vkErrorIncompatibleDriver:
+		return noVulkan(fmt.Sprintf("Vulkan has no driver (result %d)", status), nil)
+	default:
+		return vkCheck(status, "count physical devices")
 	}
 	if deviceCount == 0 {
 		return noVulkan("Vulkan reports no device", nil)
@@ -618,6 +652,12 @@ func (renderer *vulkanRenderer) selectDevice() error {
 	if err := vkCheck(renderer.api.enumeratePhysicalDevices(renderer.instance, &deviceCount, &devices[0]), "enumerate physical devices"); err != nil {
 		return err
 	}
+	// A CPU rasterizer (lavapipe) is not a hardware accelerator: the CPU
+	// renderer draws a changed region only, while software Vulkan redraws the
+	// whole window every frame. Prefer a hardware device; remember the software
+	// one in case no hardware device can present.
+	var softwareDevice uintptr
+	var softwareFamily uint32
 	for _, device := range devices[:deviceCount] {
 		var familyCount uint32
 		renderer.api.getQueueFamilyProperties(device, &familyCount, nil)
@@ -632,46 +672,77 @@ func (renderer *vulkanRenderer) selectDevice() error {
 			}
 			var supported uint32
 			if renderer.surface == 0 || renderer.api.getSurfaceSupport(device, uint32(index), renderer.surface, &supported) == vkSuccess && supported != 0 {
-				renderer.physical = device
-				renderer.queueFamily = uint32(index)
+				if renderer.physicalDeviceIsCPU(device) {
+					if softwareDevice == 0 {
+						softwareDevice, softwareFamily = device, uint32(index)
+					}
+					continue
+				}
+				renderer.physical, renderer.queueFamily, renderer.software = device, uint32(index), false
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("linux: no Vulkan graphics queue can present to XCB")
+	if softwareDevice != 0 {
+		renderer.physical, renderer.queueFamily, renderer.software = softwareDevice, softwareFamily, true
+		return nil
+	}
+	return noVulkan("no Vulkan graphics queue can present to XCB", nil)
+}
+
+// physicalDeviceIsCPU reports whether the device is a CPU rasterizer, such as
+// Mesa's lavapipe: VkPhysicalDeviceType CPU. Its properties struct is 824 bytes
+// and deviceType sits at offset 16.
+func (renderer *vulkanRenderer) physicalDeviceIsCPU(device uintptr) bool {
+	var properties [vkPropertiesSize]byte
+	renderer.api.getPhysicalDeviceProperties(device, &properties)
+	return binary.LittleEndian.Uint32(properties[vkPropertiesDeviceTypeOffset:]) == vkPhysicalDeviceTypeCPU
 }
 
 func (renderer *vulkanRenderer) createSwapchain() (err error) {
+	oldSwapchain := renderer.swapchain
+	renderer.swapchain = 0
 	defer func() {
+		if oldSwapchain != 0 {
+			renderer.api.destroySwapchain(renderer.device, oldSwapchain, nil)
+		}
 		if err != nil {
 			renderer.destroySwapchain()
 		}
 	}()
 	var capabilities vkSurfaceCapabilities
-	if err := vkCheck(renderer.api.getSurfaceCapabilities(renderer.physical, renderer.surface, &capabilities), "query surface capabilities"); err != nil {
+	if renderer.hasPendingCapabilities {
+		capabilities = renderer.pendingCapabilities
+		renderer.hasPendingCapabilities = false
+	} else if err := vkCheck(renderer.api.getSurfaceCapabilities(renderer.physical, renderer.surface, &capabilities), "query surface capabilities"); err != nil {
 		return err
 	}
-	var formatCount uint32
-	if err := vkCheck(renderer.api.getSurfaceFormats(renderer.physical, renderer.surface, &formatCount, nil), "count surface formats"); err != nil {
-		return err
-	}
-	if formatCount == 0 || formatCount > 64 {
-		return fmt.Errorf("linux: Vulkan surface format count %d", formatCount)
-	}
-	formats := make([]vkSurfaceFormat, formatCount)
-	if err := vkCheck(renderer.api.getSurfaceFormats(renderer.physical, renderer.surface, &formatCount, &formats[0]), "query surface formats"); err != nil {
-		return err
-	}
-	selected := formats[0]
-	if formatCount == 1 && selected.Format == 0 {
-		selected = vkSurfaceFormat{Format: vkFormatBGRA8, ColorSpace: vkColorSpaceSRGB}
-	} else {
-		for _, candidate := range formats[:formatCount] {
-			if candidate.Format == vkFormatBGRA8 && candidate.ColorSpace == vkColorSpaceSRGB {
-				selected = candidate
-				break
+	selected := renderer.surfaceFormat
+	if !renderer.hasSurfaceFormat {
+		var formatCount uint32
+		if err := vkCheck(renderer.api.getSurfaceFormats(renderer.physical, renderer.surface, &formatCount, nil), "count surface formats"); err != nil {
+			return err
+		}
+		if formatCount == 0 || formatCount > 64 {
+			return fmt.Errorf("linux: Vulkan surface format count %d", formatCount)
+		}
+		formats := make([]vkSurfaceFormat, formatCount)
+		if err := vkCheck(renderer.api.getSurfaceFormats(renderer.physical, renderer.surface, &formatCount, &formats[0]), "query surface formats"); err != nil {
+			return err
+		}
+		selected = formats[0]
+		if formatCount == 1 && selected.Format == 0 {
+			selected = vkSurfaceFormat{Format: vkFormatBGRA8, ColorSpace: vkColorSpaceSRGB}
+		} else {
+			for _, candidate := range formats[:formatCount] {
+				if candidate.Format == vkFormatBGRA8 && candidate.ColorSpace == vkColorSpaceSRGB {
+					selected = candidate
+					break
+				}
 			}
 		}
+		renderer.surfaceFormat = selected
+		renderer.hasSurfaceFormat = true
 	}
 	extent := capabilities.Current
 	if extent.Width == math.MaxUint32 {
@@ -697,9 +768,14 @@ func (renderer *vulkanRenderer) createSwapchain() (err error) {
 	if capabilities.Usage&vkImageUsageColorAttachment == 0 {
 		return fmt.Errorf("linux: Vulkan surface does not support color attachments")
 	}
-	info := vkSwapchainCreateInfo{SType: vkStructureSwapchainCreateInfo, Surface: renderer.surface, MinImages: imageCount, Format: selected.Format, ColorSpace: selected.ColorSpace, Extent: extent, Layers: 1, Usage: vkImageUsageColorAttachment, SharingMode: vkSharingExclusive, PreTransform: capabilities.CurrentTransform, CompositeAlpha: composite, PresentMode: vkPresentFIFO, Clipped: 1}
+	presentMode := renderer.selectPresentMode()
+	info := vkSwapchainCreateInfo{SType: vkStructureSwapchainCreateInfo, Surface: renderer.surface, MinImages: imageCount, Format: selected.Format, ColorSpace: selected.ColorSpace, Extent: extent, Layers: 1, Usage: vkImageUsageColorAttachment, SharingMode: vkSharingExclusive, PreTransform: capabilities.CurrentTransform, CompositeAlpha: composite, PresentMode: presentMode, Clipped: 1, OldSwapchain: oldSwapchain}
 	if err := vkCheck(renderer.api.createSwapchain(renderer.device, &info, nil, &renderer.swapchain), "create swapchain"); err != nil {
 		return err
+	}
+	if oldSwapchain != 0 {
+		renderer.retireSwapchain(oldSwapchain)
+		oldSwapchain = 0
 	}
 	var imageTotal uint32
 	if err := vkCheck(renderer.api.getSwapchainImages(renderer.device, renderer.swapchain, &imageTotal, nil), "count swapchain images"); err != nil {
@@ -719,8 +795,17 @@ func (renderer *vulkanRenderer) createSwapchain() (err error) {
 			return err
 		}
 	}
-	if err := renderer.createRenderPass(selected.Format, vkImageLayoutPresent); err != nil {
-		return err
+	if renderer.renderPass != 0 && renderer.format != selected.Format {
+		renderer.scene.destroyPipeline(renderer)
+		renderer.text.destroyPipeline(renderer)
+		renderer.frame.destroyPipeline(renderer)
+		renderer.api.destroyRenderPass(renderer.device, renderer.renderPass, nil)
+		renderer.renderPass = 0
+	}
+	if renderer.renderPass == 0 {
+		if err := renderer.createRenderPass(selected.Format, vkImageLayoutPresent); err != nil {
+			return err
+		}
 	}
 	renderer.framebuffers = make([]uintptr, imageTotal)
 	for index := range renderer.views {
@@ -755,6 +840,15 @@ func (renderer *vulkanRenderer) createRenderPass(format, finalLayout uint32) err
 // createCommands creates the command pool and one command buffer per target
 // image, plus the one the text uploads use.
 func (renderer *vulkanRenderer) createCommands(images uint32) error {
+	if renderer.commandPool != 0 {
+		if renderer.api.resetCommandPool != nil && uint32(len(renderer.commands)) == images && renderer.uploadCommand != 0 {
+			return vkCheck(renderer.api.resetCommandPool(renderer.device, renderer.commandPool, 0), "reset command pool")
+		}
+		renderer.api.destroyCommandPool(renderer.device, renderer.commandPool, nil)
+		renderer.commandPool = 0
+		renderer.commands = nil
+		renderer.uploadCommand = 0
+	}
 	poolInfo := vkCommandPoolCreateInfo{SType: vkStructureCommandPoolCreateInfo, Family: renderer.queueFamily}
 	if err := vkCheck(renderer.api.createCommandPool(renderer.device, &poolInfo, nil, &renderer.commandPool), "create command pool"); err != nil {
 		return err
@@ -834,6 +928,7 @@ func (renderer *vulkanRenderer) recordCommands(extent vkExtent2D) error {
 		}
 	}
 	scratch.contentX, scratch.contentY = 0, 0
+	renderer.commandsStaged = false
 	return nil
 }
 
@@ -1011,6 +1106,9 @@ func (renderer *vulkanRenderer) presentOnce() (bool, error) {
 	if status != vkSuccess && !swapchainNeedsRebuild(status) && status != vkSuboptimal {
 		return false, vkCheck(status, "present swapchain image")
 	}
+	if status == vkSuccess || status == vkSuboptimal {
+		renderer.destroyRetiredSwapchains()
+	}
 	if !suboptimal {
 		// The swapchain presented at its preferred configuration. A later
 		// SUBOPTIMAL is new information and may rebuild it once.
@@ -1032,7 +1130,31 @@ func (renderer *vulkanRenderer) apply(frame platform.Frame) (bool, error) {
 	}
 }
 
+// stage uploads a frame's rectangles and text textures into the renderer without
+// recording command buffers yet, so a resize can update the scene first and then
+// recreate the swapchain and record commands once right before presenting.
+func (renderer *vulkanRenderer) stage(frame platform.Frame) (bool, error) {
+	for losses := 0; ; losses++ {
+		changed, err := renderer.stageFrame(frame)
+		retry, err := renderer.recoverFrom(err, losses)
+		if !retry {
+			return changed, err
+		}
+	}
+}
+
 func (renderer *vulkanRenderer) applyFrame(frame platform.Frame) (bool, error) {
+	changed, err := renderer.stageFrame(frame)
+	if err != nil || !changed {
+		return changed, err
+	}
+	if err := renderer.recordCommands(vkExtent2D{Width: renderer.width, Height: renderer.height}); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
 	if frame.Update.Empty() && frame.TextLabels == nil {
 		return false, nil
 	}
@@ -1063,6 +1185,7 @@ func (renderer *vulkanRenderer) applyFrame(frame platform.Frame) (bool, error) {
 	if err := vkCheck(renderer.api.resetCommandPool(renderer.device, renderer.commandPool, 0), "reset scene commands"); err != nil {
 		return false, err
 	}
+	renderer.commandsStaged = true
 	if !frame.Update.Empty() {
 		if frame.Update.Rebuild {
 			renderer.rectangles = append(renderer.rectangles[:0], frame.Rectangles...)
@@ -1094,10 +1217,28 @@ func (renderer *vulkanRenderer) applyFrame(frame platform.Frame) (bool, error) {
 	if err := renderer.text.upload(renderer, renderer.pixelScale()); err != nil {
 		return false, err
 	}
-	if err := renderer.recordCommands(vkExtent2D{Width: renderer.width, Height: renderer.height}); err != nil {
-		return false, err
-	}
 	return true, nil
+}
+
+func (renderer *vulkanRenderer) surfaceSize(width, height uint32) (uint32, uint32) {
+	if renderer == nil {
+		return width, height
+	}
+	renderer.hasPendingCapabilities = false
+	if renderer.api == nil || renderer.physical == 0 || renderer.surface == 0 || renderer.api.getSurfaceCapabilities == nil {
+		return width, height
+	}
+	var capabilities vkSurfaceCapabilities
+	if renderer.api.getSurfaceCapabilities(renderer.physical, renderer.surface, &capabilities) != vkSuccess {
+		return width, height
+	}
+	renderer.pendingCapabilities = capabilities
+	renderer.hasPendingCapabilities = true
+	if capabilities.Current.Width != math.MaxUint32 && capabilities.Current.Width > 0 && capabilities.Current.Height > 0 {
+		return capabilities.Current.Width, capabilities.Current.Height
+	}
+	return clamp(width, capabilities.Minimum.Width, capabilities.Maximum.Width),
+		clamp(height, capabilities.Minimum.Height, capabilities.Maximum.Height)
 }
 
 // pixelScale is the device pixels per logical pixel, at least 1.
@@ -1147,19 +1288,54 @@ func (renderer *vulkanRenderer) resize(width, height uint32) error {
 }
 
 func (renderer *vulkanRenderer) resizeOnce(width, height uint32) error {
-	if width == 0 || height == 0 || (width == renderer.width && height == renderer.height) {
+	if width == 0 || height == 0 {
+		return nil
+	}
+	if width == renderer.width && height == renderer.height {
+		// Recovery during stage can rebuild the swapchain at this extent before
+		// retrying the scene upload. That retry still needs recorded commands.
+		if renderer.commandsStaged {
+			return renderer.recordCommands(vkExtent2D{Width: width, Height: height})
+		}
 		return nil
 	}
 	renderer.width, renderer.height = width, height
-	return renderer.recreateSwapchain()
+	if err := renderer.recreateSwapchain(); err != nil {
+		return err
+	}
+	// The swapchain was just recreated for this resize step. If the window
+	// manager moves the X window again before this frame's present finishes,
+	// VK_SUBOPTIMAL_KHR during present must not trigger a second mid-present
+	// swapchain rebuild with the old scene geometry; the next ConfigureNotify
+	// will resize both the swapchain and the scene together.
+	renderer.swapchainSuboptimalRebuilt = true
+	return nil
 }
 
 func (renderer *vulkanRenderer) recreateSwapchain() error {
 	if err := vkCheck(renderer.api.deviceWaitIdle(renderer.device), "wait before swapchain recreation"); err != nil {
 		return err
 	}
-	renderer.destroySwapchain()
+	renderer.destroySwapchainTargets()
 	return renderer.createSwapchain()
+}
+
+func (renderer *vulkanRenderer) destroySwapchainTargets() {
+	if renderer.device == 0 {
+		return
+	}
+	for _, framebuffer := range renderer.framebuffers {
+		if framebuffer != 0 {
+			renderer.api.destroyFramebuffer(renderer.device, framebuffer, nil)
+		}
+	}
+	renderer.framebuffers = nil
+	for _, view := range renderer.views {
+		if view != 0 {
+			renderer.api.destroyImageView(renderer.device, view, nil)
+		}
+	}
+	renderer.views = nil
 }
 
 func (renderer *vulkanRenderer) destroySwapchain() {
@@ -1171,30 +1347,41 @@ func (renderer *vulkanRenderer) destroySwapchain() {
 		renderer.commandPool = 0
 	}
 	renderer.uploadCommand = 0
+	renderer.commands = nil
 	renderer.scene.destroyPipeline(renderer)
 	renderer.text.destroyPipeline(renderer)
 	renderer.frame.destroyPipeline(renderer)
-	for _, framebuffer := range renderer.framebuffers {
-		if framebuffer != 0 {
-			renderer.api.destroyFramebuffer(renderer.device, framebuffer, nil)
-		}
-	}
-	renderer.framebuffers = nil
-	renderer.commands = nil
+	renderer.destroySwapchainTargets()
 	if renderer.renderPass != 0 {
 		renderer.api.destroyRenderPass(renderer.device, renderer.renderPass, nil)
 		renderer.renderPass = 0
 	}
-	for _, view := range renderer.views {
-		if view != 0 {
-			renderer.api.destroyImageView(renderer.device, view, nil)
-		}
-	}
-	renderer.views = nil
 	if renderer.swapchain != 0 {
 		renderer.api.destroySwapchain(renderer.device, renderer.swapchain, nil)
 		renderer.swapchain = 0
 	}
+	renderer.destroyRetiredSwapchains()
+}
+
+// Repeated out-of-date surfaces can rebuild without ever presenting. Keep the
+// retained images bounded even in that case, with synchronous cleanup as a
+// fallback. An ordinary resize retains one old chain until its replacement.
+const maxRetiredSwapchains = 4
+
+func (renderer *vulkanRenderer) retireSwapchain(swapchain uintptr) {
+	if len(renderer.retiredSwapchains) == maxRetiredSwapchains {
+		renderer.api.destroySwapchain(renderer.device, renderer.retiredSwapchains[0], nil)
+		copy(renderer.retiredSwapchains, renderer.retiredSwapchains[1:])
+		renderer.retiredSwapchains = renderer.retiredSwapchains[:maxRetiredSwapchains-1]
+	}
+	renderer.retiredSwapchains = append(renderer.retiredSwapchains, swapchain)
+}
+
+func (renderer *vulkanRenderer) destroyRetiredSwapchains() {
+	for _, swapchain := range renderer.retiredSwapchains {
+		renderer.api.destroySwapchain(renderer.device, swapchain, nil)
+	}
+	renderer.retiredSwapchains = renderer.retiredSwapchains[:0]
 }
 
 func (renderer *vulkanRenderer) close() {
@@ -1233,7 +1420,7 @@ func (renderer *vulkanRenderer) close() {
 // platform.ErrNoGraphics and says what to install, because "load Vulkan failed"
 // does not tell a person on a cloud server with no GPU what to do next.
 func noVulkan(reason string, cause error) error {
-	const advice = "install the Vulkan loader (libvulkan1) and a driver; a machine without a GPU needs Mesa's software driver (mesa-vulkan-drivers, lavapipe), and a server with no display needs a virtual one such as Xvfb or the headless build"
+	const advice = "install the Vulkan loader (libvulkan1) and a driver; a machine without a GPU can use Mesa's software driver (mesa-vulkan-drivers, lavapipe), and a server with no display needs a virtual one such as Xvfb or the headless build"
 	if cause != nil {
 		return fmt.Errorf("linux: %s: %w (%w); %s", reason, platform.ErrNoGraphics, cause, advice)
 	}
@@ -1306,4 +1493,40 @@ func (renderer *vulkanRenderer) releaseDevice() {
 	renderer.instance, renderer.surface, renderer.physical, renderer.device, renderer.queue = 0, 0, 0, 0, 0
 	renderer.fence, renderer.renderFinished, renderer.imageAvailable = 0, 0, 0
 	renderer.dualSource = false
+	renderer.hasSurfaceFormat = false
+	renderer.hasPresentMode = false
+	renderer.hasPendingCapabilities = false
+	renderer.commandsStaged = false
+}
+
+func (renderer *vulkanRenderer) selectPresentMode() uint32 {
+	if renderer.hasPresentMode {
+		return renderer.presentMode
+	}
+	// FIFO is the pacing source: a present blocks until the compositor takes the
+	// frame, which is what lets the runtime ask for the next frame as soon as
+	// the last one is shown. MAILBOX would drop frames and let the loop outrun
+	// the display.
+	mode := uint32(vkPresentFIFO)
+	if renderer.api != nil && renderer.api.getSurfacePresentModes != nil {
+		var count uint32
+		if renderer.api.getSurfacePresentModes(renderer.physical, renderer.surface, &count, nil) == vkSuccess && count > 0 && count <= 64 {
+			modes := make([]uint32, count)
+			if renderer.api.getSurfacePresentModes(renderer.physical, renderer.surface, &count, &modes[0]) == vkSuccess {
+				fifo := false
+				for _, candidate := range modes[:count] {
+					if candidate == vkPresentFIFO {
+						fifo = true
+						break
+					}
+				}
+				if !fifo {
+					mode = vkPresentMailbox
+				}
+			}
+		}
+	}
+	renderer.presentMode = mode
+	renderer.hasPresentMode = true
+	return mode
 }

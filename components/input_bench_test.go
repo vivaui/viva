@@ -3,7 +3,7 @@ package components
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func BenchmarkInputPaintSurface(b *testing.B) {
@@ -13,13 +13,13 @@ func BenchmarkInputPaintSurface(b *testing.B) {
 			name = "translucent"
 		}
 		b.Run(name, func(b *testing.B) {
-			theme := ui.LightTheme()
+			theme := gfx.LightTheme()
 			if translucent {
 				theme.Background.Alpha = .1
 			}
-			var canvas ui.Canvas
-			bounds := ui.Rect{Width: 200, Height: 32}
-			snapshot := InputSnapshot{ID: ui.Item(1), Value: "Input", Focused: true}
+			var canvas gfx.Canvas
+			bounds := gfx.Rect{Width: 200, Height: 32}
+			snapshot := InputSnapshot{ID: gfx.Item(1), Value: "Input", Focused: true}
 			PaintInput(&canvas, theme, bounds, snapshot)
 			b.ReportAllocs()
 			b.ResetTimer()

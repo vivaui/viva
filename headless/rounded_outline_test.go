@@ -1,3 +1,5 @@
+//go:build darwin || windows || linux
+
 package headless
 
 import (
@@ -5,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestRoundedOutlineTranslucentCoverage(t *testing.T) {
@@ -14,8 +16,8 @@ func TestRoundedOutlineTranslucentCoverage(t *testing.T) {
 	}
 	for _, scale := range []float64{1, 1.25, 1.5, 2, 3} {
 		session, err := Open(app.Config{Title: "outline", Width: 96, Height: 56, ClearColor: app.Color{Alpha: 1},
-			Paint: func(canvas *ui.Canvas, size ui.Size) {
-				canvas.RoundedOutline(ui.Rect{X: 8, Y: 8, Width: 80, Height: 40}, 8, 4, ui.Color{Red: 1, Alpha: .5})
+			Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+				canvas.RoundedOutline(gfx.Rect{X: 8, Y: 8, Width: 80, Height: 40}, 8, 4, gfx.Color{Red: 1, Alpha: .5})
 			}}, nil, Options{Scale: scale})
 		if err != nil {
 			t.Fatal(err)

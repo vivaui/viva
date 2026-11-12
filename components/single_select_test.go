@@ -6,8 +6,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func singleSelectFixture() *SingleSelectState {
@@ -17,9 +17,9 @@ func singleSelectFixture() *SingleSelectState {
 }
 
 func BenchmarkSingleSelectPaint(b *testing.B) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	f := tree.Feature("single-select-benchmark")
-	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", CreatePrefix: "Create: ", Viewport: ui.Rect{Width: 800, Height: 600}, Layer: 4}
+	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", CreatePrefix: "Create: ", Viewport: gfx.Rect{Width: 800, Height: 600}, Layer: 4}
 	for _, name := range []string{"closed", "open", "create", "long"} {
 		b.Run(name, func(b *testing.B) {
 			s := singleSelectFixture()
@@ -31,10 +31,10 @@ func BenchmarkSingleSelectPaint(b *testing.B) {
 			if name == "long" {
 				s.SetValue(strings.Repeat("长分组名称", 20))
 			}
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			paint := func() {
 				canvas.Reset()
-				PaintSingleSelect(&canvas, ui.LightTheme(), ui.Rect{Width: 320, Height: 32}, s, o)
+				PaintSingleSelect(&canvas, gfx.LightTheme(), gfx.Rect{Width: 320, Height: 32}, s, o)
 			}
 			paint()
 			b.ReportAllocs()
@@ -64,7 +64,7 @@ func TestSingleSelectReplacesClosesAndRetainsCreatedOptions(t *testing.T) {
 	if choices := s.Choices(); len(choices) != 1 || !choices[0].Create {
 		t.Fatal("missing create row", choices)
 	}
-	s.Key(ui.KeyEvent{Key: ui.KeyEnter})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyEnter})
 	if s.Value() != "上海机房" || s.Query.String() != "" || s.Open {
 		t.Fatal("create failed", s.Value())
 	}
@@ -104,32 +104,56 @@ func TestSingleSelectExactDisabledAndPendingQuery(t *testing.T) {
 	}
 }
 
+func TestSingleSelectSearchMatchesHiddenMetadata(t *testing.T) {
+	s := &SingleSelectState{}
+	s.SetOptions([]SingleSelectOption{
+		{Value: "1", Label: "Build box", Search: "root@10.0.0.5:22 production"},
+		{Value: "2", Label: "Database", Search: "deploy@10.0.0.6:22 staging"},
+	})
+	s.Open = true
+	s.Query.Insert("10.0.0.6")
+	choices := s.Choices()
+	if len(choices) != 1 || choices[0].Value != "2" || choices[0].Label != "Database" {
+		t.Fatalf("hidden metadata did not filter: %+v", choices)
+	}
+	s.Query = text.Editor{}
+	s.Query.Insert("PRODUCTION")
+	if choices := s.Choices(); len(choices) != 1 || choices[0].Value != "1" {
+		t.Fatalf("search text did not match case-insensitively: %+v", choices)
+	}
+	s.Query = text.Editor{}
+	s.Query.Insert("database")
+	if choices := s.Choices(); len(choices) != 1 || choices[0].Value != "2" {
+		t.Fatalf("label matching broke: %+v", choices)
+	}
+}
+
 func TestSingleSelectKeyboardAndComposition(t *testing.T) {
 	s := singleSelectFixture()
 	s.SetValue("dev")
 	s.Query.SetMarkedText("机房", text.Range{End: 2})
-	s.Key(ui.KeyEvent{Key: ui.KeyEnter})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyEnter})
 	if s.Value() != "dev" {
 		t.Fatal("IME confirmation selected")
 	}
 	s.Query = text.Editor{}
 	s.Query.Insert("custom")
-	s.Key(ui.KeyEvent{Key: ui.KeyEnter, Repeat: true})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyEnter, Repeat: true})
 	if s.Value() != "dev" {
 		t.Fatal("repeated Enter created")
 	}
-	s.Key(ui.KeyEvent{Key: ui.KeyEscape})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyEscape})
 	if s.Value() != "dev" || s.Query.String() != "" || s.Open {
 		t.Fatal("Escape lost committed value")
 	}
-	s.Key(ui.KeyEvent{Key: ui.KeyDown})
-	s.Key(ui.KeyEvent{Key: ui.KeyDown})
-	s.Key(ui.KeyEvent{Key: ui.KeyEnter})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyDown})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyDown})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyEnter})
 	if s.Value() != "test" || s.Open {
 		t.Fatal("keyboard selection failed", s.Value())
 	}
 	s.Open = true
-	if result := s.Key(ui.KeyEvent{Key: ui.KeyTab, Modifiers: ui.ModifierShift}); !result.ContinueTraversal || s.Open {
+	if result := s.Key(gfx.KeyEvent{Key: gfx.KeyTab, Modifiers: gfx.ModifierShift}); !result.ContinueTraversal || s.Open {
 		t.Fatal("Tab trapped focus")
 	}
 }
@@ -144,16 +168,16 @@ func TestSingleSelectChoiceCacheDoesNotAllocate(t *testing.T) {
 }
 
 func TestSingleSelectKeepsItsNativeInputAndPopupInBounds(t *testing.T) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	f := tree.Feature("single-select-layout")
-	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", Viewport: ui.Rect{Width: 800, Height: 600}, Layer: 4}
-	for _, theme := range []ui.Theme{ui.LightTheme(), ui.DarkTheme()} {
+	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", Viewport: gfx.Rect{Width: 800, Height: 600}, Layer: 4}
+	for _, theme := range []gfx.Theme{gfx.LightTheme(), gfx.DarkTheme()} {
 		for _, width := range []float32{180, 320, 600} {
 			s := singleSelectFixture()
 			s.SetValue("dev")
 			s.Open = true
-			var canvas ui.Canvas
-			layout := PaintSingleSelect(&canvas, theme, ui.Rect{X: 20, Y: 540, Width: width}, s, o)
+			var canvas gfx.Canvas
+			layout := PaintSingleSelect(&canvas, theme, gfx.Rect{X: 20, Y: 540, Width: width}, s, o)
 			if layout.Input.Width <= 0 || layout.Input.X < layout.Bounds.X || layout.Input.X+layout.Input.Width > layout.Bounds.X+layout.Bounds.Width {
 				t.Fatal("native query escaped the control", layout)
 			}
@@ -164,10 +188,12 @@ func TestSingleSelectKeepsItsNativeInputAndPopupInBounds(t *testing.T) {
 				t.Fatal("popup lost its native input focus scope")
 			}
 			inputs := 0
-			for _, hit := range canvas.Hits() {
+			hits := canvas.Hits()
+			for index := range hits {
+				hit := &hits[index]
 				if hit.ID == o.InputID {
 					inputs++
-					if hit.Role != ui.RoleCombobox || hit.TextBounds != layout.Input || hit.Value != "Development" || !hit.Expanded {
+					if hit.Role != gfx.RoleCombobox || hitText(&canvas, hit).Bounds != layout.Input || hit.Value != "Development" || !hit.Expanded {
 						t.Fatal("native input geometry or selected-value semantics were lost", hit)
 					}
 				}
@@ -184,7 +210,7 @@ func TestSingleSelectDismissDropsTheQueryAndKeepsTheValue(t *testing.T) {
 	s.SetValue("dev")
 	s.Open = true
 	s.Query.Insert("cust")
-	s.Key(ui.KeyEvent{Key: ui.KeyTab})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyTab})
 	if s.Open || s.Query.String() != "" || s.Value() != "dev" {
 		t.Fatalf("Tab left open=%v query=%q value=%q", s.Open, s.Query.String(), s.Value())
 	}
@@ -197,25 +223,25 @@ func TestSingleSelectDismissDropsTheQueryAndKeepsTheValue(t *testing.T) {
 }
 
 func TestSingleSelectPopupStaysInsideAShortViewport(t *testing.T) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	f := tree.Feature("single-select-short-viewport")
 	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", Layer: 4}
 	for _, test := range []struct {
 		name     string
-		viewport ui.Rect
-		field    ui.Rect
+		viewport gfx.Rect
+		field    gfx.Rect
 	}{
-		{"below", ui.Rect{Width: 800, Height: 100}, ui.Rect{X: 20, Y: 40, Width: 240}},
-		{"near the bottom", ui.Rect{Width: 800, Height: 90}, ui.Rect{X: 20, Y: 20, Width: 240}},
-		{"tiny", ui.Rect{Width: 800, Height: 24}, ui.Rect{X: 20, Y: 2, Width: 240}},
+		{"below", gfx.Rect{Width: 800, Height: 100}, gfx.Rect{X: 20, Y: 40, Width: 240}},
+		{"near the bottom", gfx.Rect{Width: 800, Height: 90}, gfx.Rect{X: 20, Y: 20, Width: 240}},
+		{"tiny", gfx.Rect{Width: 800, Height: 24}, gfx.Rect{X: 20, Y: 2, Width: 240}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s := singleSelectFixture()
 			s.SetValue("dev")
 			s.Open = true
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			o.Viewport = test.viewport
-			layout := PaintSingleSelect(&canvas, ui.DarkTheme(), test.field, s, o)
+			layout := PaintSingleSelect(&canvas, gfx.DarkTheme(), test.field, s, o)
 			if layout.Popup.Y < test.viewport.Y || layout.Popup.Height < 1 ||
 				layout.Popup.Y+layout.Popup.Height > test.viewport.Y+test.viewport.Height {
 				t.Fatalf("popup %+v escaped viewport %+v", layout.Popup, test.viewport)
@@ -228,20 +254,20 @@ func TestSingleSelectPopupStaysInsideAShortViewport(t *testing.T) {
 // becomes the row the highlight and Enter name. A pointer that stays where it
 // was never takes the cursor back from the arrow keys.
 func TestSingleSelectPointerMovesTheCursorWhenItCrossesRows(t *testing.T) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	f := tree.Feature("single-select-pointer")
-	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "分组", CreatePrefix: "创建：", Viewport: ui.Rect{Width: 800, Height: 600}, Layer: 4}
+	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "分组", CreatePrefix: "创建：", Viewport: gfx.Rect{Width: 800, Height: 600}, Layer: 4}
 	s := singleSelectFixture()
 	s.Open = true
-	var canvas ui.Canvas
-	paint := func(hovered ui.ID) {
+	var canvas gfx.Canvas
+	paint := func(hovered gfx.ID) {
 		canvas.Reset()
-		canvas.SetInteraction(hovered, ui.ID{}, o.InputID, false)
-		PaintSingleSelect(&canvas, ui.LightTheme(), ui.Rect{Width: 320, Height: 32}, s, o)
+		canvas.SetInteraction(hovered, gfx.ID{}, o.InputID, false)
+		PaintSingleSelect(&canvas, gfx.LightTheme(), gfx.Rect{Width: 320, Height: 32}, s, o)
 	}
 
 	paint(o.OptionIDs.At(0))
-	s.Key(ui.KeyEvent{Key: ui.KeyDown})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyDown})
 	if s.Active != 1 {
 		t.Fatalf("arrow key did not move the cursor: %d", s.Active)
 	}
@@ -253,7 +279,7 @@ func TestSingleSelectPointerMovesTheCursorWhenItCrossesRows(t *testing.T) {
 	if s.Active != 1 {
 		t.Fatalf("hovering the disabled row moved the cursor to %d", s.Active)
 	}
-	if !s.Key(ui.KeyEvent{Key: ui.KeyEnter}).Handled || s.Value() != "test" {
+	if !s.Key(gfx.KeyEvent{Key: gfx.KeyEnter}).Handled || s.Value() != "test" {
 		t.Fatalf("Enter after hovering left the value %q", s.Value())
 	}
 }
@@ -262,17 +288,17 @@ func TestSingleSelectPointerMovesTheCursorWhenItCrossesRows(t *testing.T) {
 // paint: the canvas stream never carries the previous row's tint, so a repaint
 // of only the changed row cannot leave stale pixels on screen.
 func TestSingleSelectPaintTintsOneRowPerHoverStep(t *testing.T) {
-	theme := ui.LightTheme()
-	var tree ui.Tree
+	theme := gfx.LightTheme()
+	var tree gfx.Tree
 	f := tree.Feature("single-select-hover-sweep")
-	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "分组", Viewport: ui.Rect{Width: 800, Height: 600}, Layer: 4}
+	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "分组", Viewport: gfx.Rect{Width: 800, Height: 600}, Layer: 4}
 	s := singleSelectFixture()
 	s.Open = true
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	tint := func(row int) int {
 		canvas.Reset()
-		canvas.SetInteraction(o.OptionIDs.At(row), ui.ID{}, o.InputID, false)
-		PaintSingleSelect(&canvas, theme, ui.Rect{Width: 320, Height: 32}, s, o)
+		canvas.SetInteraction(o.OptionIDs.At(row), gfx.ID{}, o.InputID, false)
+		PaintSingleSelect(&canvas, theme, gfx.Rect{Width: 320, Height: 32}, s, o)
 		tinted := 0
 		for _, rectangle := range canvas.Rectangles() {
 			if rectangle.Color == theme.Accent && rectangle.Radius == theme.Metrics.RadiusItem() {
@@ -291,26 +317,26 @@ func TestSingleSelectPaintTintsOneRowPerHoverStep(t *testing.T) {
 // Options that share a long prefix differ only at the end, so a popup as
 // narrow as its field would show them as identical ellipsized rows.
 func TestSingleSelectPopupGrowsToTheLongestLabelWithinTheViewport(t *testing.T) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	f := tree.Feature("single-select-wide-labels")
 	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", Layer: 4}
 	long := strings.Repeat("新疆维吾尔自治区 / ", 8)
 	for _, test := range []struct {
 		name     string
-		viewport ui.Rect
-		field    ui.Rect
+		viewport gfx.Rect
+		field    gfx.Rect
 	}{
-		{"roomy", ui.Rect{Width: 1600, Height: 600}, ui.Rect{X: 20, Y: 40, Width: 240}},
-		{"field near the right edge", ui.Rect{Width: 500, Height: 600}, ui.Rect{X: 300, Y: 40, Width: 180}},
-		{"viewport narrower than the label", ui.Rect{Width: 320, Height: 600}, ui.Rect{X: 20, Y: 40, Width: 240}},
+		{"roomy", gfx.Rect{Width: 1600, Height: 600}, gfx.Rect{X: 20, Y: 40, Width: 240}},
+		{"field near the right edge", gfx.Rect{Width: 500, Height: 600}, gfx.Rect{X: 300, Y: 40, Width: 180}},
+		{"viewport narrower than the label", gfx.Rect{Width: 320, Height: 600}, gfx.Rect{X: 20, Y: 40, Width: 240}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s := singleSelectFixture()
 			s.SetOptions([]SingleSelectOption{{Value: "a", Label: "short"}, {Value: "b", Label: long + "甲"}})
 			s.Open = true
-			var canvas ui.Canvas
+			var canvas gfx.Canvas
 			o.Viewport = test.viewport
-			theme := ui.DarkTheme()
+			theme := gfx.DarkTheme()
 			layout := PaintSingleSelect(&canvas, theme, test.field, s, o)
 			if layout.Popup.Width < test.field.Width {
 				t.Fatalf("popup %+v narrower than field %+v", layout.Popup, test.field)
@@ -320,7 +346,7 @@ func TestSingleSelectPopupGrowsToTheLongestLabelWithinTheViewport(t *testing.T) 
 			}
 			// Past the viewport the popup stops at its edge and truncates; with
 			// room it must show the whole label.
-			fits := canvas.TextWidthWeight(long+"甲", theme.Metrics.FontSizeM, ui.WeightRegular)+38 <= layout.Popup.Width-8
+			fits := canvas.TextWidthWeight(long+"甲", theme.Metrics.FontSizeM, gfx.WeightRegular)+38 <= layout.Popup.Width-8
 			if test.name == "roomy" && !fits {
 				t.Fatalf("popup %+v truncates a label that fits viewport %+v", layout.Popup, test.viewport)
 			}
@@ -332,9 +358,9 @@ func TestSingleSelectPopupGrowsToTheLongestLabelWithinTheViewport(t *testing.T) 
 }
 
 func hierarchicalSelectFixture() (*SingleSelectState, SingleSelectOptions) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	f := tree.Feature("single-select-tree")
-	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", CreatePrefix: "Create: ", Viewport: ui.Rect{Width: 800, Height: 600}, Layer: 4}
+	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", CreatePrefix: "Create: ", Viewport: gfx.Rect{Width: 800, Height: 600}, Layer: 4}
 	s := &SingleSelectState{AllowCreate: true, MatchCaseInsensitive: true, Separator: "/"}
 	s.SetOptions([]SingleSelectOption{{Value: "School/Gansu/Lanzhou"}, {Value: "School/Gansu/Tianshui"}, {Value: "School/Xinjiang"}, {Value: "Office"}})
 	return s, o
@@ -360,24 +386,24 @@ func TestSingleSelectTreeChoosesParentsAndLeavesByFullPath(t *testing.T) {
 func TestSingleSelectTreeKeyboardMovesBetweenLevels(t *testing.T) {
 	s, _ := hierarchicalSelectFixture()
 	s.Open = true
-	s.Key(ui.KeyEvent{Key: ui.KeyRight}) // School
-	s.Key(ui.KeyEvent{Key: ui.KeyRight}) // Gansu
+	s.Key(gfx.KeyEvent{Key: gfx.KeyRight}) // School
+	s.Key(gfx.KeyEvent{Key: gfx.KeyRight}) // Gansu
 	if s.tree.depth != 2 || s.tree.level != 2 {
 		t.Fatalf("Right twice: depth %d level %d, want 2 and 2", s.tree.depth, s.tree.level)
 	}
-	s.Key(ui.KeyEvent{Key: ui.KeyDown})
-	s.Key(ui.KeyEvent{Key: ui.KeyLeft})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyDown})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyLeft})
 	if s.tree.depth != 1 || s.tree.level != 1 {
 		t.Fatalf("Left: depth %d level %d, want 1 and 1", s.tree.depth, s.tree.level)
 	}
-	s.Key(ui.KeyEvent{Key: ui.KeyRight})
-	s.Key(ui.KeyEvent{Key: ui.KeyDown})
-	s.Key(ui.KeyEvent{Key: ui.KeyEnter})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyRight})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyDown})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyEnter})
 	if s.Value() != "School/Gansu/Tianshui" || s.Open {
 		t.Fatalf("Enter chose %q (open %v)", s.Value(), s.Open)
 	}
 	s.Open = true
-	s.Key(ui.KeyEvent{Key: ui.KeyEscape})
+	s.Key(gfx.KeyEvent{Key: gfx.KeyEscape})
 	if !s.Open || s.tree.depth != 1 {
 		t.Fatalf("Escape closed the list (open %v, depth %d) instead of the last fly-out", s.Open, s.tree.depth)
 	}
@@ -404,17 +430,17 @@ func TestSingleSelectTreeFallsBackToFlatWhileSearching(t *testing.T) {
 func TestSingleSelectTreeOpensAtOnceAndSwitchesAfterARest(t *testing.T) {
 	s, o := hierarchicalSelectFixture()
 	s.Open = true
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	var now time.Duration
 	canvas.SetClock(func() time.Duration { return now })
-	paint := func(hovered ui.ID) ui.Rect {
+	paint := func(hovered gfx.ID) gfx.Rect {
 		canvas.Reset()
 		canvas.BeginFrame()
 		defer canvas.EndFrame()
-		canvas.SetInteraction(hovered, ui.ID{}, o.InputID, false)
-		return PaintSingleSelect(&canvas, ui.LightTheme(), ui.Rect{X: 20, Y: 20, Width: 240, Height: 32}, s, o).Popup
+		canvas.SetInteraction(hovered, gfx.ID{}, o.InputID, false)
+		return PaintSingleSelect(&canvas, gfx.LightTheme(), gfx.Rect{X: 20, Y: 20, Width: 240, Height: 32}, s, o).Popup
 	}
-	one := paint(ui.ID{})
+	one := paint(gfx.ID{})
 	both := paint(o.OptionIDs.At(0))
 	if s.tree.depth != 1 || both.Width <= one.Width {
 		t.Fatalf("depth %d popup %+v -> %+v: the fly-out did not open at once", s.tree.depth, one, both)
@@ -449,10 +475,10 @@ func BenchmarkSingleSelectTreePaint(b *testing.B) {
 	s, o := hierarchicalSelectFixture()
 	s.SetValue("School/Gansu/Tianshui")
 	s.Open = true
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		PaintSingleSelect(&canvas, ui.LightTheme(), ui.Rect{X: 20, Y: 20, Width: 240, Height: 32}, s, o)
+		PaintSingleSelect(&canvas, gfx.LightTheme(), gfx.Rect{X: 20, Y: 20, Width: 240, Height: 32}, s, o)
 	}
 	paint()
 	b.ReportAllocs()
@@ -464,29 +490,29 @@ func BenchmarkSingleSelectTreePaint(b *testing.B) {
 // The menu stands alone, anchored under any control: it chooses by path, owns no
 // open flag, and its overlay reports a press outside it.
 func TestHierarchyMenuStandsAloneUnderAnAnchor(t *testing.T) {
-	var tree ui.Tree
+	var tree gfx.Tree
 	f := tree.Feature("hierarchy-menu")
-	o := HierarchyMenuOptions{OptionIDs: tree.Sub(f, tree.Name("option")), ScrollID: tree.ID(f, "scroll"), Scope: tree.ID(f, "scope"), Layer: 4, Label: "Groups", Viewport: ui.Rect{Width: 800, Height: 600}, Overlay: true, DismissID: tree.ID(f, "dismiss")}
+	o := HierarchyMenuOptions{OptionIDs: tree.Sub(f, tree.Name("option")), ScrollID: tree.ID(f, "scroll"), Scope: tree.ID(f, "scope"), Layer: 4, Label: "Groups", Viewport: gfx.Rect{Width: 800, Height: 600}, Overlay: true, DismissID: tree.ID(f, "dismiss")}
 	values := []string{"Gansu/Lanzhou", "Gansu/Tianshui", "Xinjiang"}
 	var m HierarchyMenuState
 	if !m.Build("/", "", nil, len(values), func(i int) HierarchyMenuItem { return HierarchyMenuItem{Value: values[i]} }) {
 		t.Fatal("Build refused ordinary values")
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	canvas.Reset()
-	popup := PaintHierarchyMenu(&canvas, ui.LightTheme(), ui.Rect{X: 40, Y: 20, Width: 100, Height: 26}, &m, o)
+	popup := PaintHierarchyMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 40, Y: 20, Width: 100, Height: 26}, &m, o)
 	if popup.Width < 100 || popup.Y < 46 {
 		t.Fatalf("popup %+v is not under its anchor", popup)
 	}
-	if result := m.Key(ui.KeyEvent{Key: ui.KeyDown}, false); !result.Opened {
+	if result := m.Key(gfx.KeyEvent{Key: gfx.KeyDown}, false); !result.Opened {
 		t.Fatal("Down on a hidden menu did not ask to show it")
 	}
-	m.Key(ui.KeyEvent{Key: ui.KeyRight}, true)
-	m.Key(ui.KeyEvent{Key: ui.KeyDown}, true)
-	if result := m.Key(ui.KeyEvent{Key: ui.KeyEnter}, true); !result.Picked || result.Chosen != "Gansu/Tianshui" {
+	m.Key(gfx.KeyEvent{Key: gfx.KeyRight}, true)
+	m.Key(gfx.KeyEvent{Key: gfx.KeyDown}, true)
+	if result := m.Key(gfx.KeyEvent{Key: gfx.KeyEnter}, true); !result.Picked || result.Chosen != "Gansu/Tianshui" {
 		t.Fatalf("Enter picked %q (%v)", result.Chosen, result.Picked)
 	}
-	if m.Key(ui.KeyEvent{Key: ui.KeyEscape}, true); m.Depth() != 0 {
+	if m.Key(gfx.KeyEvent{Key: gfx.KeyEscape}, true); m.Depth() != 0 {
 		t.Fatalf("Escape left %d fly-outs open", m.Depth())
 	}
 	if m.Build("/", "", nil, 1, func(int) HierarchyMenuItem {

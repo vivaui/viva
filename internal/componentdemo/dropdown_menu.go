@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -45,15 +45,15 @@ var (
 	dropdownMenuItem = tree.Sub(dropdownMenuUI, tree.Name("item"))
 )
 
-func (state *State) paintDropdownMenu(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintDropdownMenu(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	// Label (32), three rows (96), separator (9), and the surface's 4px padding.
 	height := float32(32 + 3*32 + 9 + 2*4)
 	if state.exampleID != "default" {
 		height = 4*32 + 2*4
 	}
-	var panel flex.Box
-	state.page(canvas, theme, size, 260, "Dropdown Menu · Account", func(f *flex.Frame) {
-		panel = f.Slot().FillWidth().Height(min(height, max(size.Height-84, 120)))
+	var panel ui.Box
+	state.drawPage(canvas, theme, size, 260, "Dropdown Menu · Account", func(c ui.C) {
+		panel = ui.Slot(c).FillWidth().Height(min(height, max(size.Height-84, 120)))
 	})
 	menu := components.BeginDropdownMenu(canvas, theme, panel.Rect(), components.DropdownMenuOptions{Layer: 1})
 	if state.exampleID == "default" {

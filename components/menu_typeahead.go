@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // MenuTypeaheadReset is how long Base UI keeps a menu's typed prefix before it
@@ -19,7 +19,7 @@ const MenuTypeaheadReset = 500 * time.Millisecond
 //
 //	var typeahead MenuTypeahead // reset it when the list opens
 //	if id, ok := typeahead.Type(event.Text, now, scroll, event.Target); ok {
-//		return ui.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}
+//		return gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}
 //	}
 //
 // Space is part of a query only while a session is running, so Type returns
@@ -27,8 +27,8 @@ const MenuTypeaheadReset = 500 * time.Millisecond
 // as Base UI does. A query that matches nothing ends the session.
 type MenuTypeahead struct {
 	query string
-	start ui.ID
-	last  ui.ID
+	start gfx.ID
+	last  gfx.ID
 	until time.Time
 }
 
@@ -36,14 +36,14 @@ type MenuTypeahead struct {
 // may type, and whether it is skipped. It is for a closed control whose rows are
 // not painted in a MenuScroll, such as a select trigger.
 type MenuTypeaheadItem struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Disabled bool
 }
 
 // typeaheadList is what Type and TypeItems match against.
 type typeaheadList interface {
-	match(prefix string, from ui.ID) (ui.ID, bool)
+	match(prefix string, from gfx.ID) (gfx.ID, bool)
 	canCycle() bool
 }
 
@@ -54,9 +54,9 @@ type typeaheadList interface {
 // Base UI cycles through rows that share an initial. It reports false when the
 // key is not typeahead (a lone or trailing Space, a multi-rune key, or no
 // match), and leaves the session reset.
-func (typeahead *MenuTypeahead) Type(text string, now time.Time, scroll *MenuScroll, from ui.ID) (ui.ID, bool) {
+func (typeahead *MenuTypeahead) Type(text string, now time.Time, scroll *MenuScroll, from gfx.ID) (gfx.ID, bool) {
 	if scroll == nil {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	return typeahead.typeList(text, now, typeaheadScroll{scroll: scroll}, from)
 }
@@ -64,23 +64,94 @@ func (typeahead *MenuTypeahead) Type(text string, now time.Time, scroll *MenuScr
 // TypeItems is Type for a list that is not painted in a MenuScroll, such as a
 // closed select trigger: it matches the same way and returns the option's ID so
 // the caller can commit it.
-func (typeahead *MenuTypeahead) TypeItems(text string, now time.Time, items []MenuTypeaheadItem, from ui.ID) (ui.ID, bool) {
+func (typeahead *MenuTypeahead) TypeItems(text string, now time.Time, items []MenuTypeaheadItem, from gfx.ID) (gfx.ID, bool) {
 	if items == nil {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	return typeahead.typeList(text, now, typeaheadItems(items), from)
 }
 
-func (typeahead *MenuTypeahead) typeList(text string, now time.Time, list typeaheadList, from ui.ID) (ui.ID, bool) {
+// MenuTypeaheadRows is a list for TypeRows, read a row at a time: the label and
+// identity of row i, and whether it is skipped. It is for a virtualized list of a
+// million rows, which TypeItems would copy into a million items on every key.
+type MenuTypeaheadRows struct {
+	N     int
+	ID    func(i int) gfx.ID
+	Label func(i int) string
+	// Disabled may be nil, for a list with no disabled rows.
+	Disabled func(i int) bool
+}
+
+// TypeRows is TypeItems for rows read lazily: it matches the same way, without
+// building the items first.
+func (typeahead *MenuTypeahead) TypeRows(text string, now time.Time, rows MenuTypeaheadRows, from gfx.ID) (gfx.ID, bool) {
+	if rows.N <= 0 || rows.ID == nil || rows.Label == nil {
+		return gfx.ID{}, false
+	}
+	return typeahead.typeList(text, now, typeaheadRows(rows), from)
+}
+
+type typeaheadRows MenuTypeaheadRows
+
+func (rows typeaheadRows) match(prefix string, from gfx.ID) (gfx.ID, bool) {
+	if prefix == "" || rows.N <= 0 {
+		return gfx.ID{}, false
+	}
+	start := 0
+	if !from.IsZero() {
+		for i := 0; i < rows.N; i++ {
+			if rows.ID(i) == from {
+				start = i + 1
+				break
+			}
+		}
+	}
+	for offset := 0; offset < rows.N; offset++ {
+		i := (start + offset) % rows.N
+		id := rows.ID(i)
+		if id.IsZero() || rows.Disabled != nil && rows.Disabled(i) {
+			continue
+		}
+		label := rows.Label(i)
+		if label == "" {
+			continue
+		}
+		if menuLabelHasPrefix(label, prefix) {
+			return id, true
+		}
+	}
+	return gfx.ID{}, false
+}
+
+func (rows typeaheadRows) canCycle() bool {
+	for i := 0; i < rows.N; i++ {
+		id := rows.ID(i)
+		if id.IsZero() || rows.Disabled != nil && rows.Disabled(i) {
+			continue
+		}
+		label := rows.Label(i)
+		first, firstSize := utf8.DecodeRuneInString(label)
+		if firstSize == 0 {
+			continue
+		}
+		second, secondSize := utf8.DecodeRuneInString(label[firstSize:])
+		if secondSize > 0 && unicode.ToLower(first) == unicode.ToLower(second) {
+			return false
+		}
+	}
+	return true
+}
+
+func (typeahead *MenuTypeahead) typeList(text string, now time.Time, list typeaheadList, from gfx.ID) (gfx.ID, bool) {
 	if text == "" || utf8.RuneCountInString(text) != 1 {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	if rune, _ := utf8.DecodeRuneInString(text); unicode.IsControl(rune) {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	active := !typeahead.until.IsZero() && now.Before(typeahead.until) && typeahead.query != ""
 	if text == " " && !active {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	if !active {
 		typeahead.query = ""
@@ -99,7 +170,7 @@ func (typeahead *MenuTypeahead) typeList(text string, now time.Time, list typeah
 		return id, true
 	}
 	typeahead.Reset()
-	return ui.ID{}, false
+	return gfx.ID{}, false
 }
 
 // Typing reports whether a session is running at now, so the caller can tell a
@@ -116,7 +187,7 @@ func (typeahead *MenuTypeahead) Reset() { *typeahead = MenuTypeahead{} }
 // the same ("Aaron", "llama"), because then a doubled letter is a real query.
 type typeaheadScroll struct{ scroll *MenuScroll }
 
-func (list typeaheadScroll) match(prefix string, from ui.ID) (ui.ID, bool) {
+func (list typeaheadScroll) match(prefix string, from gfx.ID) (gfx.ID, bool) {
 	return list.scroll.Match(prefix, from)
 }
 
@@ -124,9 +195,9 @@ func (list typeaheadScroll) canCycle() bool { return menuTypeaheadCanCycle(list.
 
 type typeaheadItems []MenuTypeaheadItem
 
-func (items typeaheadItems) match(prefix string, from ui.ID) (ui.ID, bool) {
+func (items typeaheadItems) match(prefix string, from gfx.ID) (gfx.ID, bool) {
 	if prefix == "" || len(items) == 0 {
-		return ui.ID{}, false
+		return gfx.ID{}, false
 	}
 	start := 0
 	if !from.IsZero() {
@@ -146,7 +217,7 @@ func (items typeaheadItems) match(prefix string, from ui.ID) (ui.ID, bool) {
 			return item.ID, true
 		}
 	}
-	return ui.ID{}, false
+	return gfx.ID{}, false
 }
 
 func (items typeaheadItems) canCycle() bool {

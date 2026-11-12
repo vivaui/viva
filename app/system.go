@@ -7,7 +7,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 var (
@@ -100,14 +100,16 @@ type Notification struct {
 
 // ReduceMotion reports the system accessibility preference for reduced
 // motion. Windows, macOS and Linux are queried (on Linux the settings portal, the
-// XSETTINGS manager or KDE's animation speed); other targets report false.
-func ReduceMotion() bool { return nativeReduceMotion() }
+// XSETTINGS manager or KDE's animation speed); the Web target reads and watches
+// the page's prefers-reduced-motion query; other targets report false.
+func ReduceMotion() bool { return platformReduceMotion() }
 
 // PlatformTextEngine is the text engine RunCanvas installs on a canvas: the
 // platform's own shaped lines, so widths, carets and hits agree with the glyphs it
-// draws. It is nil on a target that has none, whose canvases measure with the
+// draws. The Web target returns the document's shaped-line engine when a document
+// exists. It is nil on a target that has none, whose canvases measure with the
 // reference metrics.
-func PlatformTextEngine() ui.TextEngine { return nativeTextEngine() }
+func PlatformTextEngine() gfx.TextEngine { return platformTextEngine() }
 
 func ClipboardText() (string, error) {
 	if value, err, handled := driverClipboardText(); handled {
@@ -151,15 +153,18 @@ func SetCursor(cursor Cursor) error {
 
 // SetCursorImage makes image the pointer over the window, drawn by the system as any pointer
 // is; the same call with a nil image is refused. Hits show a picture without this call
-// (ui.HitOptions.CursorImage), which is how a view normally chooses it. An error wrapping
+// (gfx.HitOptions.CursorImage), which is how a view normally chooses it. An error wrapping
 // ErrUnsupported means this target cannot show application pictures as its pointer.
-func SetCursorImage(image *ui.CursorImage) error {
+func SetCursorImage(image *gfx.CursorImage) error {
 	if image == nil {
 		return fmt.Errorf("app: cursor image is nil")
 	}
 	return nativeSetCursorImage(image)
 }
 
+// OpenFiles presents the platform's open-file picker. The Web target returns
+// ErrAsyncRequired because the browser answers through a Promise; use
+// OpenFilesAsync there.
 func OpenFiles(options OpenFileOptions) ([]string, error) {
 	if err := validateFilters(options.Filters); err != nil {
 		return nil, err
@@ -170,7 +175,8 @@ func OpenFiles(options OpenFileOptions) ([]string, error) {
 	return nativeOpenFiles(options)
 }
 
-// OpenDirectory asks the user to choose one existing local directory.
+// OpenDirectory asks the user to choose one existing local directory. The Web
+// target cannot expose a directory path and returns ErrUnsupported.
 func OpenDirectory(options OpenDirectoryOptions) (string, error) {
 	if path, err, handled := driverOpenDirectory(options); handled {
 		return path, err
@@ -178,6 +184,9 @@ func OpenDirectory(options OpenDirectoryOptions) (string, error) {
 	return nativeOpenDirectory(options)
 }
 
+// SaveFile presents the platform's save-file picker. The Web target returns
+// ErrAsyncRequired because the browser answers through a Promise; use
+// SaveFileAsync there.
 func SaveFile(options SaveFileOptions) (string, error) {
 	if err := validateFilters(options.Filters); err != nil {
 		return "", err

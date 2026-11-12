@@ -5,8 +5,8 @@ package web
 import (
 	"syscall/js"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/bidi"
-	"github.com/vivaui/viva/ui"
 )
 
 // render repaints the canvas vocabulary into the 2D context. Each layer is
@@ -19,7 +19,7 @@ func (runtime *runtime) render() {
 	runtime.paths.beginFrame()
 	if runtime.painter.dirty {
 		runtime.painter.dirty = false
-		runtime.a11y.sync(runtime.painter.accessibility, runtime.painter.focused)
+		runtime.a11y.sync(runtime.painter.accessibility, runtime.painter.focus.Focused())
 		id, input := runtime.painter.activeTextInput()
 		runtime.a11y.text.sync(id, input, runtime.textInputChanged)
 	}
@@ -107,12 +107,12 @@ func (runtime *runtime) drawTriangles(layer uint16) {
 }
 
 // sameRun reports whether next continues the run that first began.
-func sameRun(first, next ui.Triangle) bool {
+func sameRun(first, next gfx.Triangle) bool {
 	return next.Layer == first.Layer && !next.Shaded && next.Color == first.Color &&
 		next.HasClip == first.HasClip && next.ClipOf == first.ClipOf
 }
 
-func (runtime *runtime) drawSolidRun(run []ui.Triangle) {
+func (runtime *runtime) drawSolidRun(run []gfx.Triangle) {
 	context := runtime.context
 	first := run[0]
 	context.Call("save")
@@ -125,7 +125,7 @@ func (runtime *runtime) drawSolidRun(run []ui.Triangle) {
 	context.Call("restore")
 }
 
-func (runtime *runtime) drawShadedTriangle(triangle ui.Triangle) {
+func (runtime *runtime) drawShadedTriangle(triangle gfx.Triangle) {
 	context := runtime.context
 	if triangle.HasClip {
 		context.Call("save")
@@ -201,13 +201,13 @@ const fitMargin = 2
 // in one style sets them once. The zero value matches nothing.
 type textStyleState struct {
 	set    bool
-	color  ui.Color
+	color  gfx.Color
 	size   float32
 	weight float32
 	italic bool
 }
 
-func (state *textStyleState) apply(context js.Value, style ui.TextStyle) {
+func (state *textStyleState) apply(context js.Value, style gfx.TextStyle) {
 	if state.set && state.color == style.Color && state.size == style.Size && state.weight == style.Weight && state.italic == style.Italic {
 		return
 	}

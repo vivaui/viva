@@ -5,9 +5,9 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 const (
@@ -198,7 +198,7 @@ func (state *windowState) textKey(first, second uintptr, mods input.Modifiers) b
 	repeat := second&(1<<30) != 0
 	editKey := platform.KeyEvent{Key: normalizedKey(first), Modifiers: mods, Repeat: repeat, Text: shortcutText(first)}
 	if action := platform.TextClipboardAction(editKey); action != 0 {
-		event, changed, err := platform.TextClipboardEvent(state.textState, state.textInput.Secure, action, ClipboardText, SetClipboardText)
+		event, changed, err := platform.TextClipboardEvent(state.textInput.ClipboardState(action), state.textInput.Secure, action, ClipboardText, SetClipboardText)
 		if err != nil {
 			messageBeep.Call(0) // a busy clipboard must not close the window or delete a selection
 		} else if changed {
@@ -337,7 +337,7 @@ func win32ControlState(second uintptr) uint16 {
 }
 
 // win32Key is the console INPUT_RECORD identity of one key message.
-func win32Key(first, second uintptr, unicode, repeat uint16) ui.Win32Key {
+func win32Key(first, second uintptr, unicode, repeat uint16) gfx.Win32Key {
 	return win32KeyRecord(first, second, unicode, repeat, unicode == 0 && altGrHeld())
 }
 
@@ -345,7 +345,7 @@ func win32Key(first, second uintptr, unicode, repeat uint16) ui.Win32Key {
 // held for a message that named no character: AltGr types a layout character
 // that WM_CHAR delivers as text, so translating it here as well would hand the
 // terminal that character twice. Named keys keep their console character.
-func win32KeyRecord(first, second uintptr, unicode, repeat uint16, altGr bool) ui.Win32Key {
+func win32KeyRecord(first, second uintptr, unicode, repeat uint16, altGr bool) gfx.Win32Key {
 	scan := uint16((second >> 16) & 0xff)
 	if scan == 0 {
 		scan = uint16(keyCode(first, second) & 0xff)
@@ -363,7 +363,7 @@ func win32KeyRecord(first, second uintptr, unicode, repeat uint16, altGr bool) u
 			unicode = consoleKeyCharacter(first, scan, &keys)
 		}
 	}
-	return ui.Win32Key{
+	return gfx.Win32Key{
 		VirtualKey: uint16(first), ScanCode: scan, Unicode: unicode,
 		ControlState: win32ControlState(second), Repeat: repeat,
 	}

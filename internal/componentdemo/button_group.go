@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -52,15 +52,15 @@ var (
 	buttonGroupItem = tree.Sub(buttonGroupUI, tree.Name("item"))
 )
 
-func (state *State) paintButtonGroup(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintButtonGroup(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	vertical := state.exampleID == "vertical"
 	disabled := state.exampleID == "disabled"
-	var slot flex.Box
-	state.page(canvas, theme, size, 360, state.Text("Button Group · 对齐方式", "Button Group · Alignment"), func(f *flex.Frame) {
+	var slot ui.Box
+	state.drawPage(canvas, theme, size, 360, state.Text("Button Group · 对齐方式", "Button Group · Alignment"), func(c ui.C) {
 		if vertical {
-			slot = f.Slot().Size(220, theme.Metrics.ControlHeight*3).Self(flex.Start)
+			slot = ui.Slot(c).Size(220, theme.Metrics.ControlHeight*3).Self(ui.Start)
 		} else {
-			slot = f.Slot().FillWidth().MaxWidth(360).Height(theme.Metrics.ControlHeight).Self(flex.Start)
+			slot = ui.Slot(c).FillWidth().MaxWidth(360).Height(theme.Metrics.ControlHeight).Self(ui.Start)
 		}
 		labels := [...]string{
 			state.Text("当前：左对齐", "Current: Left"),
@@ -71,7 +71,7 @@ func (state *State) paintButtonGroup(canvas *ui.Canvas, theme ui.Theme, size ui.
 		if disabled {
 			caption = state.Text("整个操作组已禁用。", "The whole group is disabled.")
 		}
-		f.Text(caption).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Text(c, caption).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 	var options [3]components.ButtonGroupOption
 	if state.exampleID == "variants" {

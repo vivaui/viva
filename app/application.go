@@ -6,7 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // ErrNoWindows is returned when an application startup callback returns
@@ -26,7 +26,7 @@ type WindowControl interface {
 	Show()
 	// Frame is the content area in screen coordinates, false when the window
 	// cannot say (closed, or not yet placed). It may be called from any goroutine.
-	Frame() (ui.Rect, bool)
+	Frame() (gfx.Rect, bool)
 }
 
 // Host is the event loop an Application runs on. The native backends provide
@@ -35,7 +35,7 @@ type WindowControl interface {
 type Host interface {
 	// OpenWindow creates and presents a window. closed must be called exactly
 	// once, after the window has released its resources.
-	OpenWindow(config Config, canvas *ui.Canvas, closed func()) (WindowControl, error)
+	OpenWindow(config Config, canvas *gfx.Canvas, closed func()) (WindowControl, error)
 	// AddStatusItem puts an icon in the system's status area.
 	AddStatusItem(config StatusItemConfig) (StatusItemControl, error)
 	// SetDockBadge marks the application's icon in the Dock with text.
@@ -101,14 +101,14 @@ func (window *Window) Show() {
 
 // Frame returns the window's content area in screen coordinates: logical pixels
 // from the top-left corner of the primary display, y down, the coordinates
-// ui.PointerEvent.ScreenX and ScreenY use. A drag that ends over another of the
+// gfx.PointerEvent.ScreenX and ScreenY use. A drag that ends over another of the
 // application's windows finds it by comparing its pointer with their frames. The
 // result is false for a closed window. On displays of different scale the
 // coordinates of windows on different displays are only approximately comparable.
 // It may be called from any goroutine.
-func (window *Window) Frame() (ui.Rect, bool) {
+func (window *Window) Frame() (gfx.Rect, bool) {
 	if window == nil || window.control == nil || window.closed.Load() {
-		return ui.Rect{}, false
+		return gfx.Rect{}, false
 	}
 	return window.control.Frame()
 }
@@ -179,7 +179,7 @@ type Application struct {
 }
 
 // OpenWindow creates and presents one independent retained window.
-func (application *Application) OpenWindow(config Config, canvas *ui.Canvas) (*Window, error) {
+func (application *Application) OpenWindow(config Config, canvas *gfx.Canvas) (*Window, error) {
 	if application == nil || application.host == nil {
 		return nil, errors.New("app: application is not running")
 	}

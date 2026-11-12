@@ -6,7 +6,7 @@
 // pay-for-what-you-use — the linker keeps only the functions an application
 // actually calls, and a blank import of this whole package links no symbol of
 // github.com/vivaui/viva/components (linkage_test.go builds that program and checks); the
-// standard-library packages and github.com/vivaui/viva/ui it imports add a fixed baseline that is
+// standard-library packages and github.com/vivaui/viva/gfx it imports add a fixed baseline that is
 // measured separately. Each file is both the
 // implementation and the documentation:
 // colors, geometry, metrics, and state rendering are visible in the source,
@@ -15,7 +15,7 @@
 //
 // # Declaration pattern
 //
-// Components are stateless immediate declarations over a shared ui.Canvas. A
+// Components are stateless immediate declarations over a shared gfx.Canvas. A
 // Begin constructor returns a small chainable value whose terminal method
 // paints; the application owns all state and re-declares on repaint:
 //
@@ -60,6 +60,7 @@
 //   - Button: `BeginButton` paints a labeled control with Default, Secondary,
 //     Outline, and Ghost variants; hover, press, and focus states, metrics-
 //     scaled geometry, and the hit declaration are built in.
+//     `ButtonRecipe` is the look of a variant in a state as plain values.
 //   - Icon hover: `IconHover` plays one short gesture after an icon-only
 //     control's pointer rests, and `Button.IconTransform` paints the resulting
 //     transform inside the button's hit region.
@@ -74,10 +75,14 @@
 //   - Toggle group: `BeginToggleGroup` paints a set of selectable toggles;
 //     `ToggleGroupKeyDown` wires arrow-key movement.
 //   - Segmented control: `BeginSegmentedControl` paints a compact
-//     single-select strip; `SegmentedControlKeyDown` wires arrow keys.
-//   - Switch: `BeginSwitch` paints the on/off track and knob.
+//     single-select strip; `SegmentedControlKeyDown` wires arrow keys;
+//     `SegmentRecipe` is the look of one choice.
+//   - Switch: `BeginSwitch` paints the on/off track and knob; `SwitchRecipe`
+//     is its look as plain values.
 //   - Checkbox: `BeginCheckbox` paints the checked/unchecked box and check
-//     mark.
+//     mark; `CheckboxRecipe` is its look as plain values and
+//     `PaintCheckboxMark` draws its mark, for a box the application draws
+//     itself.
 //   - Color picker: `BeginColorPicker` paints an anchored HSV panel, optional
 //     alpha slider, caller-owned HEX input, and clear/cancel/apply actions.
 //     `ColorPickerLayout.Pointer` and `ColorPickerLayout.Key` update HSV drafts.
@@ -88,12 +93,26 @@
 //   - Slider: `BeginSlider` paints one draggable thumb; `BeginRangeSlider`
 //     paints several.
 //
+// Recipes: a control's look is a pure function of the theme and a gfx.State, exported next to the
+// control as plain values (`TextEntryRecipe`, `ButtonRecipe`, `CheckboxRecipe`, `SwitchRecipe`);
+// the floating panels have one each, since their corners and shadows differ (`DialogRecipe` for a
+// dialog, alert dialog and drawer, `PopoverRecipe`, `PopupRecipe` for lists and menus).
+// The control paints from its recipe, so there is one definition of each look; an application that
+// draws a control of its own reads the recipe for the state it is in and changes the fields it
+// wants, instead of copying the control's rules.
+//
 // Inputs:
 //   - Input: `PaintInput` paints the single-line editor recipe from an
 //     InputSnapshot, including caret, selection, placeholder, and IME
-//     composition.
+//     composition; `InputSnapshot.Text` sets the text's size, weight, color and
+//     fixed-pitch face for the glyphs, the caret and the platform alike (a mono
+//     field is painted by the component, with the platform's overlays hidden). `PaintInputContent` paints the same editor without the
+//     surface, for fields the application dresses itself, and
+//     `TextEntryRecipe` is the surface every text-entry control shares, as
+//     plain values.
 //   - Textarea: `PaintTextarea` paints the multi-line editor recipe, wrapping
-//     long lines; `TextareaCommandForKey` maps key events to editor commands,
+//     long lines, and `PaintTextareaContent` paints the same rows without the
+//     surface; `TextareaCommandForKey` maps key events to editor commands,
 //     and `TextareaMovementForKey` with a `TextareaLayout` moves the caret by
 //     visual row (arrows, Home, End, Page keys), scrolls to it, places it on a
 //     click and sizes a box that grows with its text.
@@ -101,11 +120,11 @@
 //     fixed-pitch font and paints only the rows in view, each as one label
 //     whatever colors the caller's highlighter gives it: line numbers, a
 //     current-line tint, bracket matching, find marks, display-only
-//     `CodeRepresentation` labels and inverted blobs, soft wrap or sideways
-//     scrolling, and draggable scrollbars, with native selection and IME
-//     geometry retained.
-//     `CodeEditorCommandForKey` maps key events to the
-//     editing commands of a text.Editor given code options (SetCode), and
+//     `CodeRepresentation` labels and inverted blobs, optional indentation
+//     guides, soft wrap with optional end markers, sideways scrolling and
+//     draggable scrollbars, with native selection and IME geometry retained.
+//     `CodeEditorCommandForKey` maps key events to the editing commands of a
+//     text.Editor given code options (SetCode), and
 //     `TextareaMovementForKey` with `CodeEditor.Move` moves by row. The scroll
 //     position can be read and set, and offsets map to and from vertical
 //     positions (`CodeEditor.YAtOffset`), for views kept scrolled together.
@@ -128,15 +147,23 @@
 //     to a line; the application parses the number and moves the caret.
 //   - Code diff: `CodeDiff` paints an aligned, syntax-highlighted comparison on
 //     the same character grid as `CodeEditor`, with one read-only source and an
-//     editable right source; `DiffCodeLines`
-//     produces its bounded line alignment and statistics.
+//     editable right source, in side-by-side, stacked or unified layouts, with
+//     gutter hit regions and row navigation. `DiffCodeLines` produces bounded
+//     line alignment with `CodeDiffInline` grapheme changes. `CodeMerge` uses
+//     the same editor and grid for three caller-aligned sources and an editable
+//     center result.
 //   - Image preview: `PaintImageView` clips an immutable bitmap with fit, zoom
 //     and pan; actual size maps one bitmap pixel to one device pixel at any DPI.
 //   - One-time code: `PaintInputOTP` paints segmented code entry;
 //     `InputOTPCommandForKey` maps key events to editor commands.
 //   - Input group: `PaintInputGroup` paints an input with leading and
-//     trailing text, button, key-cap, or icon addons.
-//   - Select: `BeginSelect` paints the trigger and filtered list popup.
+//     trailing text, button, key-cap, or icon addons; `InputAddonsLayout` and
+//     `PaintInputAddon` give a field painted by its owner the same inline addons.
+//   - Select: `BeginSelect` paints the trigger and filtered list popup;
+//     `SelectOptions.Unpainted` declares all of it and paints none, for a
+//     select the application draws itself, and `SelectRecipe` is the
+//     trigger's look. `PopupRecipe` is the panel every floating list is
+//     painted on and `MenuItemRecipe` the highlight of its rows.
 //   - Single select: `PaintSingleSelect` combines one selected value, a native
 //     search editor and a filtered popup. `SingleSelectState` supports optional
 //     item creation, clearing, keyboard navigation and IME-safe confirmation.
@@ -179,6 +206,8 @@
 //     layouts and independent lanes.
 //   - Tree: `BeginTree` paints caller-flattened hierarchical rows with stable
 //     disclosure and selection semantics while leaving content application-owned.
+//     `NavigateTree` handles keyboard movement and branch actions over the
+//     visible hierarchy without owning expansion, loading, or focus.
 //   - Scroll area: `BeginScrollArea` paints a clipped viewport and scrollbar
 //     for caller-owned content; Viewport makes it focusable, ScrollForKey
 //     moves the caller's offsets, and HoverScrollbars narrows the bars to a
@@ -247,7 +276,8 @@
 //   - Navigation menu: `BeginNavigationMenu` paints the navbar with peek
 //     panels.
 //   - Pagination: `BeginPagination` paints page controls.
-//   - Tabs: `BeginTabs` paints the tab strip; `TabsKeyDown` wires arrow
+//   - Tabs: `BeginTabs` paints the tab strip, `TabTriggerRecipe` is the look of
+//     one tab; `TabsKeyDown` wires arrow
 //     keys. `BeginTabList` numbers its own tabs and `Paint().Clicked()` reports
 //     the one clicked. Fit() sizes the list to its labels.
 //

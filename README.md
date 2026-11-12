@@ -54,7 +54,7 @@ Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB and
 Vulkan loaders; on Windows, Win32 with Direct3D 11 and DirectWrite. Viva loads
 the system libraries at runtime and bundles none of them.
 
-The current release is `v0.4.0`; name it explicitly (`@v0.4.0`) to pin it. Guides,
+The current release is `v0.6.0`; name it explicitly (`@v0.6.0`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
@@ -65,8 +65,11 @@ and how to work on the framework rather than with it.
 
 ## Scope
 
-Viva targets native desktop applications on macOS, Windows, and Linux. A
-WebAssembly/WebGPU backend is optional and must not add cost to native builds.
+Viva targets native desktop applications on macOS, Windows, and Linux, and
+treats WebAssembly/Canvas2D as a supported web deployment target. Both targets
+share components, input, text, focus and accessibility semantics; capabilities
+the browser does not have are reported through explicit asynchronous APIs and
+`Capability`, never faked. The web target must not add cost to native builds.
 iOS, iPadOS, Android, mobile packaging, and a touch-first mobile runtime are
 explicitly out of scope. Desktop performance and native integration will not be
 weakened to preserve hypothetical future mobile compatibility.
@@ -110,7 +113,7 @@ WebView and no bundled rendering runtime.
   corner of the application's Dock tile, and an empty label removes it.
 - `app.StoreSecret`/`LoadSecret`/`DeleteSecret` keep a small secret in the
   system's own store (Keychain, Credential Manager, Secret Service).
-- `ui.MonoFamily` draws fixed-pitch text in any installed family and
+- `gfx.MonoFamily` draws fixed-pitch text in any installed family and
   `app.MonospaceFamilies` lists them.
 - `Config.OnFileDrop` receives files dragged from the file manager, with the hit
   under the pointer.
@@ -142,7 +145,8 @@ WebView and no bundled rendering runtime.
 - Experimental Linux/X11 shell with dynamically loaded system XCB, Vulkan,
   Pango, and Cairo; retained rounded rectangles and triangles, layered
   GPU-composited system text, pointer and keyboard input, custom titlebar drag,
-  and a blocking event loop with no idle redraw.
+  a blocking event loop with no idle redraw, and a CPU rasterizer that draws the
+  window when no hardware Vulkan device exists.
 - Event-driven rendering with no idle frame loop.
 - Theme tokens and a statically typed, source-owned translation of the pinned
   shadcn component catalog, including forms, overlays, menus, calendars,
@@ -154,7 +158,7 @@ WebView and no bundled rendering runtime.
   side, each live (clicks, hover, keyboard, drag, wheel and native text
   editing), with a draggable page scrollbar and hot-reload state preservation.
   The examples are the ones in `internal/componentdemo`, embedded into the page
-  with `ui.Canvas.Embed`, so the gallery holds no copy of any component.
+  with `gfx.Canvas.Embed`, so the gallery holds no copy of any component.
 - Structured diagnostics: the opt-in `diagnostics` package receives what the
   framework reports (caught panics, GPU device recovery, web view failures,
   startup measurements), adapts both ways to `log/slog`, and can keep a ring of
@@ -171,7 +175,7 @@ WebView and no bundled rendering runtime.
 The Windows backend cross-builds for amd64 and arm64 and passes its platform
 tests plus Gallery startup, pointer, and keyboard smoke tests under Wine/DXVK.
 Platform tests, the conformance scenarios and the input, drop and device-loss
-paths run on a Windows 11 virtual machine (WARP) and a Debian KDE/X11 machine
+paths run on a physical Windows 11 machine and a Debian KDE/X11 machine
 (lavapipe); `docs/conformance.md` records the scenarios that need real hardware.
 UI Automation is checked against a real Windows 11 machine from an external
 client (see docs/accessibility.md), and AT-SPI against libatspi on KDE/X11. The
@@ -183,8 +187,9 @@ Windows Mica, Mica Alt and Acrylic are enabled through `app.Config.WindowBackdro
 without changing build commands. Unconfigured windows keep the ordinary renderer. See [Windows materials](docs/windows-materials.md) for version
 limits, fallback behavior and the platforms actually verified.
 
-Native label renderers draw single-line labels. The browser preview runs on the
-Canvas2D backend.
+Native label renderers draw single-line labels. The browser target runs the same
+components on the Canvas2D backend; see [Web deployment](docs/web-deployment.md)
+for its capability matrix and hosting requirements.
 
 ## Run the repository
 
@@ -197,9 +202,11 @@ tools/build_web.sh           # viva build --target web, then serves http://127.0
 go run ./tools/docs -check   # the API and component data the website generates from
 ```
 
-The browser gallery paints the same Go components through the Canvas2D
-WebAssembly backend; its visual direction and measured costs are recorded in
-`docs/benchmarks/m3-gallery-style-darwin-arm64.md`.
+The browser build paints the same Go components through the Canvas2D
+WebAssembly backend. It is a deployment target, not only a gallery: file
+pickers, drops, clipboard, notifications, encrypted secret storage and embedded
+fonts have typed asynchronous APIs. Its visual direction and measured costs are
+recorded in `docs/benchmarks/m3-gallery-style-darwin-arm64.md`.
 
 ## Documentation website
 
@@ -264,9 +271,9 @@ leak counters remain because they cost two atomics per window or driver.
 A static canvas can be presented through the public API:
 
 ```go
-theme := ui.DarkTheme()
-var canvas ui.Canvas
-components.Card(&canvas, theme, ui.Rect{X: 24, Y: 24, Width: 320, Height: 180})
+theme := gfx.DarkTheme()
+var canvas gfx.Canvas
+components.Card(&canvas, theme, gfx.Rect{X: 24, Y: 24, Width: 320, Height: 180})
 if err := app.RunCanvas(app.Config{Title: "My App"}, &canvas); err != nil {
     log.Fatal(err)
 }

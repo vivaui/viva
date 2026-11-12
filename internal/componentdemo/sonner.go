@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -55,7 +55,7 @@ var (
 
 func (state *State) initializeSonner() { state.flags = 0b111 }
 
-func (state *State) paintSonner(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
+func (state *State) paintSonner(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	toasts := [...]components.SonnerToast{
 		{
 			Snapshot: components.ToastSnapshot{
@@ -94,16 +94,16 @@ func (state *State) paintSonner(canvas *ui.Canvas, theme ui.Theme, size ui.Size)
 			visible = append(visible, toasts[index])
 		}
 	}
-	state.page(canvas, theme, size, 520, state.Text("Sonner · 通知堆栈", "Sonner · Notification stack"), func(f *flex.Frame) {
-		f.Text(state.Text("生命周期、过期与动画由调用方持有。", "Lifecycle, expiry, and animation belong to the caller.")).FontSize(theme.Metrics.FontSizeS).Muted()
+	state.drawPage(canvas, theme, size, 520, state.Text("Sonner · 通知堆栈", "Sonner · Notification stack"), func(c ui.C) {
+		ui.Text(c, state.Text("生命周期、过期与动画由调用方持有。", "Lifecycle, expiry, and animation belong to the caller.")).FontSize(theme.Metrics.FontSizeS).Muted()
 		if len(visible) == 0 {
-			f.Text(state.Text("通知已全部关闭。", "All notifications are dismissed.")).FontSize(theme.Metrics.FontSizeM).Weight(ui.WeightMedium).Muted()
+			ui.Text(c, state.Text("通知已全部关闭。", "All notifications are dismissed.")).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium).Muted()
 		}
 	})
 	if len(visible) == 0 {
 		return
 	}
-	components.PaintSonner(canvas, theme, ui.Rect{Width: size.Width, Height: size.Height}, visible, components.SonnerOptions{
+	components.PaintSonner(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, visible, components.SonnerOptions{
 		Layer: 40, Expanded: state.exampleID == "expanded",
 	})
 

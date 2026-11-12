@@ -31,9 +31,15 @@ const (
 	FullIconPixels = 256
 )
 
-// EncodeICO builds an .ico file from a square image. Every entry is a PNG,
-// which Windows Vista and later read. Sizes larger than the source are left
-// out instead of being upscaled, and the largest size used is returned.
+// smallIconPixels is the largest entry Windows draws the application icon small:
+// the taskbar button, the Start menu, and Explorer's medium icons. Those entries
+// crop the canvas margin away and carry the mark (iconshape.TileMark), as a
+// status icon does, while larger entries keep the tile the application drew.
+const smallIconPixels = 48
+
+// EncodeICO builds an .ico file from a square application picture. Every entry is
+// a PNG, which Windows Vista and later read. Sizes larger than the source are
+// left out instead of being upscaled, and the largest size used is returned.
 func EncodeICO(source image.Image) (data []byte, largest int, err error) {
 	bounds := source.Bounds()
 	if bounds.Dx() != bounds.Dy() {
@@ -42,15 +48,20 @@ func EncodeICO(source image.Image) (data []byte, largest int, err error) {
 	if bounds.Dx() < MinIconPixels {
 		return nil, 0, fmt.Errorf("winpkg: the icon is %d px; at least %d px is required (%d or more recommended)", bounds.Dx(), MinIconPixels, FullIconPixels)
 	}
+	tile := iconshape.Tile(source, bounds.Dx(), 1)
 	var images [][]byte
 	var sizes []int
 	for _, size := range iconSizes {
 		if size > bounds.Dx() {
 			continue
 		}
+		frame := appbundle.Downscale(tile, size)
+		if size <= smallIconPixels {
+			frame = iconshape.TileMark(source, size)
+		}
 		var buffer bytes.Buffer
 		encoder := png.Encoder{CompressionLevel: png.BestCompression}
-		if err := encoder.Encode(&buffer, appbundle.Downscale(source, size)); err != nil {
+		if err := encoder.Encode(&buffer, frame); err != nil {
 			return nil, 0, err
 		}
 		images = append(images, buffer.Bytes())
@@ -97,7 +108,7 @@ func LoadIcon(path string) (data []byte, pixels int, err error) {
 		if err != nil {
 			return nil, 0, fmt.Errorf("winpkg: %s: %w", path, err)
 		}
-		data, pixels, err = EncodeICO(iconshape.Tile(decoded, decoded.Bounds().Dx(), 1))
+		data, pixels, err = EncodeICO(decoded)
 		if err != nil {
 			return nil, 0, fmt.Errorf("%w (%s)", err, path)
 		}

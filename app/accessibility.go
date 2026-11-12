@@ -4,10 +4,11 @@ import (
 	"math"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
+	"github.com/vivaui/viva/internal/interaction"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // accessibilityHandler is the window's answer to what assistive technology asks
@@ -21,18 +22,8 @@ func (painter *painter) accessibilityHandler(config *Config) platform.Accessibil
 
 // accessibleHit finds the control a request names. Labels share their control's
 // ID and are not controls, and a region declared by Container has no ID.
-func (painter *painter) accessibleHit(id ui.ID) (ui.Hit, bool) {
-	if id.IsZero() {
-		return ui.Hit{}, false
-	}
-	hits := painter.canvas.Hits()
-	for index := len(hits) - 1; index >= 0; index-- {
-		hit := hits[index]
-		if hit.ID == id && !hit.IsLabel && !hit.Block && !hit.Backdrop && !hit.Container {
-			return hit, true
-		}
-	}
-	return ui.Hit{}, false
+func (painter *painter) accessibleHit(id gfx.ID) (gfx.Hit, bool) {
+	return interaction.Control(painter.canvas.Hits(), id)
 }
 
 // accessibilityRequest carries out one request the way the keyboard or the
@@ -56,17 +47,17 @@ func (painter *painter) accessibilityRequest(request platform.AccessibilityReque
 		if hit.Focusable {
 			painter.focusHit(hit.ID)
 		}
-		if hit.Role == ui.RoleTextField || hit.Role == ui.RoleTerminal {
+		if hit.Role == gfx.RoleTextField || hit.Role == gfx.RoleTerminal {
 			// Pressing a field is putting the caret in it.
 			return true, showFrame()
 		}
-		if !painter.deliverClick(hit.ID) {
+		if !painter.deliverClick(hit.ID, gfx.ClickInfo{}) {
 			return false, nil
 		}
 		return true, showFrame()
 
 	case platform.AccessibilityIncrement, platform.AccessibilityDecrement:
-		if hit.Role != ui.RoleSlider || !hit.Focusable {
+		if hit.Role != gfx.RoleSlider || !hit.Focusable {
 			return false, nil
 		}
 		key := input.KeyUp
@@ -76,13 +67,13 @@ func (painter *painter) accessibilityRequest(request platform.AccessibilityReque
 		return true, painter.pressKeys(hit.ID, key, 1, present)
 
 	case platform.AccessibilitySetNumber:
-		if hit.Role != ui.RoleSlider || !hit.Focusable || !hit.Range.Set || math.IsNaN(request.Number) {
+		if hit.Role != gfx.RoleSlider || !hit.Focusable || !hit.Range.Set || math.IsNaN(request.Number) {
 			return false, nil
 		}
 		return true, painter.moveSlider(hit, request.Number, present)
 
 	case platform.AccessibilitySetText, platform.AccessibilitySetSelection:
-		if (hit.Role != ui.RoleTextField && hit.Role != ui.RoleCombobox) || hit.Secure || !hit.Focusable {
+		if (hit.Role != gfx.RoleTextField && hit.Role != gfx.RoleCombobox) || hit.Secure || !hit.Focusable {
 			return false, nil
 		}
 		if request.Action == platform.AccessibilitySetText && hit.ReadOnly {
@@ -94,17 +85,13 @@ func (painter *painter) accessibilityRequest(request platform.AccessibilityReque
 }
 
 // focusHit gives a control the keyboard, as a Tab onto it would.
-func (painter *painter) focusHit(id ui.ID) {
-	painter.applyEventResult(ui.EventResult{Focus: id, FocusVisible: true})
+func (painter *painter) focusHit(id gfx.ID) {
+	painter.applyEventResult(gfx.EventResult{Focus: id, FocusVisible: true})
 }
-
-// maxSliderKeys bounds how many key presses one request to set a number makes, so a
-// slider with a fine step and a far target does not hold the event loop.
-const maxSliderKeys = 200
 
 // pressKeys focuses a control and presses a key on it count times, presenting
 // each repaint.
-func (painter *painter) pressKeys(id ui.ID, key input.Key, count int, present func(platform.Frame) error) error {
+func (painter *painter) pressKeys(id gfx.ID, key input.Key, count int, present func(platform.Frame) error) error {
 	painter.focusHit(id)
 	for index := 0; index < count; index++ {
 		frame, err := painter.key(platform.KeyEvent{Key: key})
@@ -123,34 +110,25 @@ func (painter *painter) pressKeys(id ui.ID, key input.Key, count int, present fu
 
 // moveSlider brings a slider to a number with the keys the slider answers:
 // Home and End for the ends and arrow steps between.
-func (painter *painter) moveSlider(hit ui.Hit, target float64, present func(platform.Frame) error) error {
-	value := hit.Range
-	switch {
-	case target <= value.Min:
-		return painter.pressKeys(hit.ID, input.KeyHome, 1, present)
-	case target >= value.Max:
-		return painter.pressKeys(hit.ID, input.KeyEnd, 1, present)
+func (painter *painter) moveSlider(hit gfx.Hit, target float64, present func(platform.Frame) error) error {
+	key, steps := interaction.SliderSteps(hit.Range, target)
+	if key == gfx.KeyUnknown {
+		return nil
 	}
-	step := value.Step
-	if step <= 0 {
-		step = 1 // what SliderKeyDown moves by when the slider states no step
+	if steps == 0 {
+		return painter.presentRepaint(present)
 	}
-	steps := int(math.Round((target - value.Now) / step))
-	key := input.KeyUp
-	if steps < 0 {
-		key, steps = input.KeyDown, -steps
-	}
-	return painter.pressKeys(hit.ID, key, min(steps, maxSliderKeys), present)
+	return painter.pressKeys(hit.ID, input.Key(key), steps, present)
 }
 
 // editText replaces the text of the focused field, or moves its selection, with
 // the events the platform's own text service would send.
-func (painter *painter) editText(hit ui.Hit, request platform.AccessibilityRequest, present func(platform.Frame) error) (bool, error) {
+func (painter *painter) editText(hit gfx.Hit, request platform.AccessibilityRequest, present func(platform.Frame) error) (bool, error) {
 	painter.focusHit(hit.ID)
 	if err := painter.presentRepaint(present); err != nil {
 		return false, err
 	}
-	if painter.activeText == nil || painter.focused != hit.ID {
+	if painter.activeText == nil || painter.focus.Focused() != hit.ID {
 		return false, nil // the application gave the field no native editor
 	}
 	length := utf8.RuneCountInString(painter.activeText.State.Value)

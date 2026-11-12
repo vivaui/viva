@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -40,10 +40,10 @@ var (
 	sheetScope   = tree.ID(sheetUI, "content")
 )
 
-func (state *State) paintSheet(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	state.page(canvas, theme, size, 560, "Project settings", func(f *flex.Frame) {
-		f.Text("Edit without leaving this view.").FontSize(theme.Metrics.FontSizeS).Muted()
-		if f.Button(sheetTrigger, "Open settings").Self(flex.Start).Clicked() {
+func (state *State) paintSheet(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	state.drawPage(canvas, theme, size, 560, "Project settings", func(c ui.C) {
+		ui.Text(c, "Edit without leaving this view.").FontSize(theme.Metrics.FontSizeS).Muted()
+		if ui.Button(c, "Open settings").Self(ui.Start).Hit(sheetTrigger, "Open settings").Clicked() {
 			state.flags |= 1
 		}
 	})
@@ -57,14 +57,14 @@ func (state *State) paintSheet(canvas *ui.Canvas, theme ui.Theme, size ui.Size) 
 		side = components.SheetBottom
 		extent = min(size.Height*0.62, float32(230))
 	}
-	sheet := components.BeginSheet(canvas, theme, ui.Rect{Width: size.Width, Height: size.Height}, components.SheetOptions{
+	sheet := components.BeginSheet(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, components.SheetOptions{
 		Layer: 5, Scope: sheetScope, DismissID: sheetDismiss, CloseID: sheetClose, Side: side, ContentExtent: extent,
 	})
 	layout := sheet.Begin("Project settings", "Changes remain caller-owned until Save.")
-	canvas.Label("Rendering backend", ui.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: 22}, ui.TextStyle{Size: theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: theme.Foreground})
-	field := ui.Rect{X: layout.Body.X, Y: layout.Body.Y + 30, Width: layout.Body.Width, Height: theme.Metrics.ControlHeight}
+	canvas.Label("Rendering backend", gfx.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: 22}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.Foreground})
+	field := gfx.Rect{X: layout.Body.X, Y: layout.Body.Y + 30, Width: layout.Body.Width, Height: theme.Metrics.ControlHeight}
 	canvas.RoundedBorder(field, theme.Metrics.RadiusControl, 1, theme.Border, theme.Input)
-	canvas.Label("Native GPU", ui.Rect{X: field.X + 12, Y: field.Y, Width: max(field.Width-24, 0), Height: field.Height}, ui.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+	canvas.Label("Native GPU", gfx.Rect{X: field.X + 12, Y: field.Y, Width: max(field.Width-24, 0), Height: field.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
 	sheet.Actions(layout, components.ButtonAction{ID: sheetSave, Label: "Save changes"})
 	sheet.End()
 

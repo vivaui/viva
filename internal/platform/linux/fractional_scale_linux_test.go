@@ -4,8 +4,8 @@ import (
 	"image"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // crop returns the device pixels of a width by height rectangle at (x, y).
@@ -103,10 +103,10 @@ func TestTerminalLineIsLCDInTheColorOfEachRun(t *testing.T) {
 	if fringed(plain, 0, 130) == 0 {
 		t.Skip("no dual-source blending on this device: labels are never LCD")
 	}
-	white, red := ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, ui.Color{Red: 1, Alpha: 1}
+	white, red := gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, gfx.Color{Red: 1, Alpha: 1}
 	pixels := renderScene(t, offscreen, nil, []platform.TextLabel{{
 		Value: "AAAAAAAABBBBBBBB", Mono: true, CellWidth: 8, X: 4, Y: 2, Width: 128, Height: 20, FontSize: 14, Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
-		Runs: []ui.TextRun{{Column: 0, Bytes: 8, Cells: 8, Color: white}, {Column: 8, Bytes: 8, Cells: 8, Color: red}},
+		Runs: []gfx.TextRun{{Column: 0, Bytes: 8, Cells: 8, Color: white}, {Column: 8, Bytes: 8, Cells: 8, Color: red}},
 	}})
 	if fringed(pixels, 4, 68) < 10 {
 		t.Error("the white run of the terminal line has no LCD fringes: it was drawn grayscale")

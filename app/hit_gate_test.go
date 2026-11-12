@@ -1,29 +1,30 @@
 package app
 
 import (
+	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 // hitGatePage is a small page whose one label and bounds come from variables,
 // so a test can change what the paint declares without changing its shape.
 type hitGatePage struct {
 	label  string
-	bounds ui.Rect
+	bounds gfx.Rect
 }
 
-func (page *hitGatePage) paint(canvas *ui.Canvas, _ ui.Size) {
-	canvas.HitWithLabel(ui.Item(1), page.bounds, page.label)
+func (page *hitGatePage) paint(canvas *gfx.Canvas, _ gfx.Size) {
+	canvas.HitWithLabel(gfx.Item(1), page.bounds, page.label)
 }
 
 func TestRepaintReusesRegionsAndSemanticsWhenTheHitsAreUnchanged(t *testing.T) {
-	page := &hitGatePage{label: "Save", bounds: ui.Rect{Width: 80, Height: 20}}
+	page := &hitGatePage{label: "Save", bounds: gfx.Rect{Width: 80, Height: 20}}
 	config := Config{Title: "gate", Width: 200, Height: 80, Paint: page.paint}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	painter := newTestPainter(t, &canvas, config)
 	reused := painter.reusedHits
 
@@ -42,20 +43,21 @@ func TestRepaintReusesRegionsAndSemanticsWhenTheHitsAreUnchanged(t *testing.T) {
 	}
 }
 
-func TestRepaintPublishesASemanticChangeAfterTheGateOpens(t *testing.T) {
-	page := &hitGatePage{label: "Save", bounds: ui.Rect{Width: 80, Height: 20}}
+func TestRepaintReusesRegionsButPublishesAChangedLabel(t *testing.T) {
+	page := &hitGatePage{label: "Save", bounds: gfx.Rect{Width: 80, Height: 20}}
 	config := Config{Title: "gate", Width: 200, Height: 80, Paint: page.paint}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	painter := newTestPainter(t, &canvas, config)
 	reused := painter.reusedHits
+	regions := append([]input.Region(nil), painter.focus.Router().Regions()...)
 
 	page.label = "Save and close"
 	frame, err := painter.repaint()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if painter.reusedHits != reused {
-		t.Fatal("a changed label was treated as an unchanged hit list")
+	if painter.reusedHits != reused+1 {
+		t.Fatal("a changed label rebuilt the input regions")
 	}
 	if got := painter.accessibility[0].Label; got != "Save and close" {
 		t.Fatalf("label = %q", got)
@@ -63,32 +65,35 @@ func TestRepaintPublishesASemanticChangeAfterTheGateOpens(t *testing.T) {
 	if frame.Accessibility == nil {
 		t.Fatal("the changed label did not reach the accessibility payload")
 	}
+	if !slices.Equal(regions, painter.focus.Router().Regions()) {
+		t.Fatal("a changed label changed the routed regions")
+	}
 }
 
 func TestRepaintPublishesABoundsChangeAfterTheGateOpens(t *testing.T) {
-	page := &hitGatePage{label: "Save", bounds: ui.Rect{Width: 80, Height: 20}}
+	page := &hitGatePage{label: "Save", bounds: gfx.Rect{Width: 80, Height: 20}}
 	config := Config{Title: "gate", Width: 200, Height: 80, Paint: page.paint}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	painter := newTestPainter(t, &canvas, config)
 
-	page.bounds = ui.Rect{X: 100, Width: 80, Height: 20}
+	page.bounds = gfx.Rect{X: 100, Width: 80, Height: 20}
 	if _, err := painter.repaint(); err != nil {
 		t.Fatal(err)
 	}
-	if target, ok := painter.router.HitTest(140, 10); !ok || target != ui.Item(1) {
+	if target, ok := painter.focus.Router().HitTest(140, 10); !ok || target != gfx.Item(1) {
 		t.Fatalf("new bounds not routed: %v, %v", target, ok)
 	}
-	if _, ok := painter.router.HitTest(10, 10); ok {
+	if _, ok := painter.focus.Router().HitTest(10, 10); ok {
 		t.Fatal("old bounds still routed")
 	}
 }
 
 func TestRepaintPublishesAFocusChangeAfterTheGateOpens(t *testing.T) {
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "gate", Width: 200, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, _ ui.Size) {
-		canvas.HitWithLabel(ui.Item(1), ui.Rect{Width: 80, Height: 20}, "A")
-		canvas.HitWithLabel(ui.Item(2), ui.Rect{Y: 30, Width: 80, Height: 20}, "B")
+	config.Paint = func(canvas *gfx.Canvas, _ gfx.Size) {
+		canvas.HitWithLabel(gfx.Item(1), gfx.Rect{Width: 80, Height: 20}, "A")
+		canvas.HitWithLabel(gfx.Item(2), gfx.Rect{Y: 30, Width: 80, Height: 20}, "B")
 	}
 	painter := newTestPainter(t, &canvas, config)
 	if painter.accessibility[0].Focused || painter.accessibility[1].Focused {
@@ -99,7 +104,7 @@ func TestRepaintPublishesAFocusChangeAfterTheGateOpens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if painter.focused.IsZero() {
+	if painter.focus.Focused().IsZero() {
 		t.Fatal("Tab did not focus anything")
 	}
 	if frame.Accessibility == nil {
@@ -107,7 +112,7 @@ func TestRepaintPublishesAFocusChangeAfterTheGateOpens(t *testing.T) {
 	}
 	focused := false
 	for _, node := range painter.accessibility {
-		if node.Focused && node.ID == painter.focused {
+		if node.Focused && node.ID == painter.focus.Focused() {
 			focused = true
 		}
 	}
@@ -118,15 +123,15 @@ func TestRepaintPublishesAFocusChangeAfterTheGateOpens(t *testing.T) {
 
 func TestRepaintPublishesATextSelectionChangeAfterTheGateOpens(t *testing.T) {
 	editor := text.NewEditor("hello")
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	config := Config{Title: "gate", Width: 200, Height: 80}
-	config.Paint = func(canvas *ui.Canvas, _ ui.Size) {
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 150, Height: 24}, "Name", ui.HitOptions{
-			Role: ui.RoleTextField, Value: editor.String(), Autofocus: true,
+	config.Paint = func(canvas *gfx.Canvas, _ gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 150, Height: 24}, "Name", gfx.HitOptions{
+			Role: gfx.RoleTextField, Value: editor.String(), Autofocus: true,
 		})
 	}
 	config.TextInput = func(TextInputContext) *TextInput {
-		return &TextInput{Editor: editor, Bounds: ui.Rect{Width: 150, Height: 24}, FontSize: 13}
+		return &TextInput{Editor: editor, Bounds: gfx.Rect{Width: 150, Height: 24}, FontSize: 13}
 	}
 	painter := newTestPainter(t, &canvas, config)
 	if painter.activeText == nil {
@@ -137,7 +142,7 @@ func TestRepaintPublishesATextSelectionChangeAfterTheGateOpens(t *testing.T) {
 	}
 	var out presented
 	if ok, err := painter.accessibilityRequest(platform.AccessibilityRequest{
-		Node: ui.Item(1), Action: platform.AccessibilitySetSelection, Start: 1, End: 3,
+		Node: gfx.Item(1), Action: platform.AccessibilitySetSelection, Start: 1, End: 3,
 	}, out.present); !ok || err != nil {
 		t.Fatalf("set selection = %v, %v", ok, err)
 	}
@@ -147,5 +152,33 @@ func TestRepaintPublishesATextSelectionChangeAfterTheGateOpens(t *testing.T) {
 	last := out.frames[len(out.frames)-1]
 	if last.Accessibility == nil {
 		t.Fatal("a selection change did not republish accessibility")
+	}
+}
+
+// A paint can take focus away without changing a hit. That routing change must
+// still reach Focus.Sync even when the hit list itself is untouched.
+func TestRepaintReleasesFocusWhenThePaintAsksWithoutChangingHits(t *testing.T) {
+	release := false
+	var canvas gfx.Canvas
+	config := Config{Title: "gate", Width: 200, Height: 80}
+	config.Paint = func(canvas *gfx.Canvas, _ gfx.Size) {
+		canvas.HitWithLabel(gfx.Item(1), gfx.Rect{Width: 80, Height: 20}, "A")
+		if release {
+			canvas.ReleaseFocus(gfx.Item(1))
+		}
+	}
+	painter := newTestPainter(t, &canvas, config)
+	if _, err := painter.key(platform.KeyEvent{Key: input.KeyTab}); err != nil {
+		t.Fatal(err)
+	}
+	if painter.focus.Focused() != gfx.Item(1) {
+		t.Fatalf("focused = %v, want the only control", painter.focus.Focused())
+	}
+	release = true
+	if _, err := painter.repaint(); err != nil {
+		t.Fatal(err)
+	}
+	if !painter.focus.Focused().IsZero() {
+		t.Fatalf("focused = %v, want the focus released", painter.focus.Focused())
 	}
 }

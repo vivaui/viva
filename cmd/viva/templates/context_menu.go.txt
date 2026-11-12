@@ -1,6 +1,6 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // ContextMenuItemVariant selects the standard or destructive treatment.
 type ContextMenuItemVariant uint8
@@ -48,11 +48,11 @@ func (ContextMenuState) OutsidePress() ContextMenuState { return false }
 // ContextMenuOptions supplies application-owned overlay identities.
 type ContextMenuOptions struct {
 	Layer     uint16
-	Scope     ui.ID
-	DismissID ui.ID
+	Scope     gfx.ID
+	DismissID gfx.ID
 	// ID and Side are those of DropdownMenuOptions. A context menu appears and
 	// disappears at once, as a native one does, so neither changes how it moves.
-	ID   ui.ID
+	ID   gfx.ID
 	Side OverlaySide
 	// Viewport, with DismissID, makes the menu declare a hit over the whole
 	// window behind its surface, so pressing anywhere outside it reports
@@ -60,7 +60,7 @@ type ContextMenuOptions struct {
 	// back when it sticks out, and shortened, so that it scrolls, when it is taller
 	// than the window. Leave it empty to dismiss only on Escape and handle outside
 	// presses yourself.
-	Viewport ui.Rect
+	Viewport gfx.Rect
 	// Scroll is the scroll position of a menu whose items do not all fit its
 	// bounds (see MenuScroll). Without one such a menu shows only the items at
 	// its top.
@@ -76,7 +76,7 @@ type ContextMenuOptions struct {
 
 // ContextMenuItem describes one stable menu action.
 type ContextMenuItem struct {
-	ID    ui.ID
+	ID    gfx.ID
 	Label string
 	// Description is an optional muted second line. It increases the item height
 	// and is ellipsized to the available width; Hint may carry the full text.
@@ -101,7 +101,7 @@ type ContextMenuItem struct {
 	// Icon, when it has any geometry, is painted before the label (after the
 	// checkbox or radio indicator, if the item has one). A single-color icon takes
 	// the item's text color; a multi-color one keeps its own.
-	Icon ui.Icon
+	Icon gfx.Icon
 }
 
 func (item ContextMenuItem) common() menuItem {
@@ -116,13 +116,13 @@ func (item ContextMenuItem) common() menuItem {
 // ContextMenuItemWidth is the width a context menu needs for item's row to show
 // its icon, label and trailing content whole: take the largest over the menu's
 // items as the bounds' Width. The menu's own minimum still applies.
-func ContextMenuItemWidth(canvas *ui.Canvas, theme ui.Theme, item ContextMenuItem) float32 {
+func ContextMenuItemWidth(canvas *gfx.Canvas, theme gfx.Theme, item ContextMenuItem) float32 {
 	return menuItemWidth(canvas, theme, item.common(), false)
 }
 
 // ContextMenuItemHeight is the height AddItem reserves for item. rowHeight is
 // ContextMenuOptions.RowHeight (zero selects the standard 32px label row).
-func ContextMenuItemHeight(theme ui.Theme, item ContextMenuItem, rowHeight float32) float32 {
+func ContextMenuItemHeight(theme gfx.Theme, item ContextMenuItem, rowHeight float32) float32 {
 	return menuItemHeight(theme, item.common(), rowHeight)
 }
 
@@ -136,7 +136,7 @@ type ContextMenu struct {
 // BeginContextMenu paints an open menu at the caller's context-menu position,
 // using caller-owned layer, focus scope, and Escape action identities. Bounds are normalized to Vega's 9rem minimum
 // (8rem for a submenu).
-func BeginContextMenu(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options ContextMenuOptions) ContextMenu {
+func BeginContextMenu(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options ContextMenuOptions) ContextMenu {
 	minWidth := float32(144)
 	if options.Submenu {
 		minWidth = 128
@@ -149,22 +149,22 @@ func BeginContextMenu(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, options
 }
 
 // Bounds returns the normalized overlay geometry.
-func (menu ContextMenu) Bounds() ui.Rect { return menu.surface.bounds }
+func (menu ContextMenu) Bounds() gfx.Rect { return menu.surface.bounds }
 
 // NextItemBounds returns the next keyboard-navigation row (RowHeight high)
 // without advancing the declaration cursor.
-func (menu ContextMenu) NextItemBounds() ui.Rect {
+func (menu ContextMenu) NextItemBounds() gfx.Rect {
 	return menu.surface.rowBounds(menu.surface.itemHeight())
 }
 
 // AddLabel paints one medium-weight group label and returns its row geometry.
-func (menu *ContextMenu) AddLabel(label string, inset bool) ui.Rect {
+func (menu *ContextMenu) AddLabel(label string, inset bool) gfx.Rect {
 	return menu.surface.addLabel(label, inset)
 }
 
 // AddItem paints one action, checkbox, radio option, or submenu trigger. The
 // rectangle is empty when the row is scrolled out of the menu.
-func (menu *ContextMenu) AddItem(item ContextMenuItem) ui.Rect {
+func (menu *ContextMenu) AddItem(item ContextMenuItem) gfx.Rect {
 	bounds, _ := menu.AddItemSlot(item)
 	return bounds
 }
@@ -173,7 +173,7 @@ func (menu *ContextMenu) AddItem(item ContextMenuItem) ui.Rect {
 // TrailingWidth reserved, vertically centered in the row and ending 8px from its
 // edge. The slot is empty when the item has no TrailingWidth or is scrolled out
 // of the menu. Paint into it between BeginContent and EndContent.
-func (menu *ContextMenu) AddItemSlot(item ContextMenuItem) (row, slot ui.Rect) {
+func (menu *ContextMenu) AddItemSlot(item ContextMenuItem) (row, slot gfx.Rect) {
 	return menu.surface.addItem(item.common())
 }
 
@@ -186,7 +186,7 @@ func (menu *ContextMenu) BeginContent() { menu.surface.pushOverlay() }
 func (menu *ContextMenu) EndContent() { menu.surface.popOverlay() }
 
 // AddSeparator paints the official -mx-1/my-1 divider geometry.
-func (menu *ContextMenu) AddSeparator() ui.Rect { return menu.surface.addSeparator() }
+func (menu *ContextMenu) AddSeparator() gfx.Rect { return menu.surface.addSeparator() }
 
 // End paints the scrollbar of a menu whose items did not all fit, after the last
 // item: call it once the last item is painted.

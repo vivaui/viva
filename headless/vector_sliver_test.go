@@ -1,3 +1,5 @@
+//go:build darwin || windows || linux
+
 package headless
 
 import (
@@ -7,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // These almost collinear faces came from an ordinary filled icon and from an
@@ -20,7 +22,7 @@ func TestVectorSliverCoverageStaysLocal(t *testing.T) {
 	}
 	r := newRenderer()
 	defer r.close()
-	faces := [][3]ui.Point{
+	faces := [][3]gfx.Point{
 		{{X: 830.1327, Y: 356.20184}, {X: 831.76605, Y: 354.5925}, {X: 832.00903, Y: 354.35315}},
 		{{X: 830.1322, Y: 356.5373}, {X: 829.31714, Y: 355.7349}, {X: 829.0782, Y: 355.49963}},
 		{{X: 1031.0417, Y: 230.069}, {X: 1032, Y: 231.344}, {X: 1032.9583, Y: 232.619}},
@@ -29,7 +31,7 @@ func TestVectorSliverCoverageStaysLocal(t *testing.T) {
 	for _, scale := range []float64{1, 1.1, 1.25, 1.3, 1.5, 1.75, 2, 2.5, 3} {
 		for face, points := range faces {
 			t.Run(fmt.Sprintf("%gx/face%d", scale, face), func(t *testing.T) {
-				tri := app.Primitive{Kind: app.TrianglePrimitive, Points: points, EdgeMask: 1, Color: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}
+				tri := app.Primitive{Kind: app.TrianglePrimitive, Points: points, EdgeMask: 1, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}}
 				pixels, err := r.render(app.Snapshot{Width: 1200, Height: 950, Clear: app.Color{Alpha: 1}, Primitives: []app.Primitive{tri}}, scale)
 				if err != nil {
 					t.Fatal(err)
@@ -64,32 +66,32 @@ func TestVectorSliverSharedEdgesAndGradients(t *testing.T) {
 	r := newRenderer()
 	defer r.close()
 	for _, scale := range []float64{1, 1.1, 1.25, 1.3, 1.5, 1.75, 2, 2.5, 3} {
-		for _, offset := range []ui.Point{{X: 0, Y: 0}, {X: 401.13, Y: 211.29}, {X: -20.25, Y: -20.25}} {
+		for _, offset := range []gfx.Point{{X: 0, Y: 0}, {X: 401.13, Y: 211.29}, {X: -20.25, Y: -20.25}} {
 			for _, height := range []float32{2, 32} {
 				for _, reverse := range []bool{false, true} {
 					t.Run(fmt.Sprintf("%gx/offset%v/height%g/reverse%v", scale, offset, height, reverse), func(t *testing.T) {
 						// A trapezoid: a thin upper face and either a thin or regular
 						// lower face share the diagonal from a to c.
-						a, b := ui.Point{X: 20.5, Y: 20.5}, ui.Point{X: 100.5, Y: 20.5}
-						c, d := ui.Point{X: 100.5, Y: 22.5}, ui.Point{X: 20.5, Y: 20.5 + height}
-						for _, point := range []*ui.Point{&a, &b, &c, &d} {
+						a, b := gfx.Point{X: 20.5, Y: 20.5}, gfx.Point{X: 100.5, Y: 20.5}
+						c, d := gfx.Point{X: 100.5, Y: 22.5}, gfx.Point{X: 20.5, Y: 20.5 + height}
+						for _, point := range []*gfx.Point{&a, &b, &c, &d} {
 							point.X += offset.X
 							point.Y += offset.Y
 						}
-						colorAt := func(p ui.Point) ui.Color {
+						colorAt := func(p gfx.Point) gfx.Color {
 							x := (p.X - a.X) / (b.X - a.X)
-							return ui.Color{Red: 1 - x, Blue: x, Alpha: 0.5}
+							return gfx.Color{Red: 1 - x, Blue: x, Alpha: 0.5}
 						}
-						tri := func(points [3]ui.Point, mask uint8) app.Primitive {
+						tri := func(points [3]gfx.Point, mask uint8) app.Primitive {
 							if reverse {
 								points[1], points[2] = points[2], points[1]
 								mask = (mask&1)<<2 | mask&2 | (mask&4)>>2
 							}
 							return app.Primitive{Kind: app.TrianglePrimitive, Points: points, EdgeMask: mask,
-								Color: colorAt(points[0]), Shaded: true, Shade: [2]ui.Color{colorAt(points[1]), colorAt(points[2])}}
+								Color: colorAt(points[0]), Shaded: true, Shade: [2]gfx.Color{colorAt(points[1]), colorAt(points[2])}}
 						}
 						pixels, err := r.render(app.Snapshot{Width: 525, Height: 290, Clear: app.Color{Alpha: 1}, Primitives: []app.Primitive{
-							tri([3]ui.Point{a, b, c}, 3), tri([3]ui.Point{a, c, d}, 6),
+							tri([3]gfx.Point{a, b, c}, 3), tri([3]gfx.Point{a, c, d}, 6),
 						}}, scale)
 						if err != nil {
 							t.Fatal(err)
@@ -131,7 +133,7 @@ func TestVectorInvalidFacesStayEmpty(t *testing.T) {
 	}
 	r := newRenderer()
 	defer r.close()
-	for _, points := range [][3]ui.Point{
+	for _, points := range [][3]gfx.Point{
 		{{X: 4, Y: 4}, {X: 4, Y: 4}, {X: 4, Y: 4}},
 		{{X: 4, Y: 4}, {X: 12, Y: 12}, {X: 20, Y: 20}},
 		{{X: 4, Y: 4}, {X: float32(math.NaN()), Y: 12}, {X: 20, Y: 20}},
@@ -140,7 +142,7 @@ func TestVectorInvalidFacesStayEmpty(t *testing.T) {
 	} {
 		for _, mask := range []uint8{0, 1, 7} {
 			pixels, err := r.render(app.Snapshot{Width: 41, Height: 37, Clear: app.Color{Alpha: 1}, Primitives: []app.Primitive{{
-				Kind: app.TrianglePrimitive, Points: points, EdgeMask: mask, Color: ui.Color{Red: 1, Alpha: 1},
+				Kind: app.TrianglePrimitive, Points: points, EdgeMask: mask, Color: gfx.Color{Red: 1, Alpha: 1},
 			}}}, 2)
 			if err != nil {
 				t.Fatal(err)
@@ -169,13 +171,13 @@ func TestVectorSliverMasksAndClipping(t *testing.T) {
 	for _, scale := range []float64{1, 1.5, 3} {
 		for _, mask := range []uint8{0, 1, 2, 3, 4, 5, 6, 7, 8, 15, 255} {
 			for _, reverse := range []bool{false, true} {
-				points := [3]ui.Point{{X: -10, Y: -10}, {X: 90, Y: 50}, {X: 90.01, Y: 50.01}}
+				points := [3]gfx.Point{{X: -10, Y: -10}, {X: 90, Y: 50}, {X: 90.01, Y: 50.01}}
 				if reverse {
 					points[1], points[2] = points[2], points[1]
 				}
-				clip := ui.Rect{X: 10, Y: 10, Width: 40, Height: 30}
+				clip := gfx.Rect{X: 10, Y: 10, Width: 40, Height: 30}
 				pixels, err := r.render(app.Snapshot{Width: 100, Height: 75, Clear: app.Color{Alpha: 1}, Primitives: []app.Primitive{{
-					Kind: app.TrianglePrimitive, Points: points, EdgeMask: mask, Color: ui.Color{Red: 1, Alpha: 1}, Clipped: true, Clip: clip,
+					Kind: app.TrianglePrimitive, Points: points, EdgeMask: mask, Color: gfx.Color{Red: 1, Alpha: 1}, Clipped: true, Clip: clip,
 				}}}, scale)
 				if err != nil {
 					t.Fatal(err)
@@ -217,7 +219,7 @@ func BenchmarkVectorFrame(b *testing.B) {
 				for i := 0; i < 256; i++ {
 					x, y := float32(i%16)*38, float32(i/16)*28
 					snapshot.Primitives = append(snapshot.Primitives, app.Primitive{Kind: app.TrianglePrimitive, EdgeMask: mask,
-						Points: [3]ui.Point{{X: x + 2, Y: y + 2}, {X: x + 32, Y: y + 22}, {X: x + 32, Y: y + 22 + height}}, Color: ui.Color{Red: 1, Alpha: 1}})
+						Points: [3]gfx.Point{{X: x + 2, Y: y + 2}, {X: x + 32, Y: y + 22}, {X: x + 32, Y: y + 22 + height}}, Color: gfx.Color{Red: 1, Alpha: 1}})
 				}
 				if _, err := r.render(snapshot, 2); err != nil {
 					b.Fatal(err)

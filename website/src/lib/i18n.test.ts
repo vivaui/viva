@@ -30,7 +30,10 @@ test('both message dictionaries have exactly the same nonempty keys', () => {
 });
 
 test('every generated component, example, section and platform has both translations', () => {
-  assert.equal(catalog.pages.length, catalog.coverage.length);
+  // Coverage lists the components package's source files; a page-layer control
+  // (ui.List) has a page of its own without one.
+  const componentPages = catalog.pages.filter(page => page.Source.startsWith('components/')).length;
+  assert.equal(componentPages, catalog.coverage.length);
   assert.ok(catalog.pages.length > 60);
   assert.ok(catalog.pages.reduce((count, page) => count + page.Examples.length, 0) >= catalog.pages.length);
   for (const page of catalog.pages) {

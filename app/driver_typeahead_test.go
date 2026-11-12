@@ -6,26 +6,26 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // typeAheadProbe is a list that declares it takes typed text next to a plain
 // button that does not.
 type typeAheadProbe struct {
 	query string
-	keys  []ui.KeyEvent
+	keys  []gfx.KeyEvent
 	asked []TextInputContext
 }
 
 func (probe *typeAheadProbe) config(provide bool) Config {
 	config := Config{Title: "type-ahead", Width: 400, Height: 200}
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		canvas.HitWithOptions(ui.Item(1), ui.Rect{Width: 400, Height: 100}, "Files", ui.HitOptions{Role: ui.RoleGroup, TypeAhead: true})
-		canvas.HitWithOptions(ui.Item(2), ui.Rect{Y: 100, Width: 400, Height: 100}, "Plain", ui.HitOptions{Role: ui.RoleButton})
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 400, Height: 100}, "Files", gfx.HitOptions{Role: gfx.RoleGroup, TypeAhead: true})
+		canvas.HitWithOptions(gfx.Item(2), gfx.Rect{Y: 100, Width: 400, Height: 100}, "Plain", gfx.HitOptions{Role: gfx.RoleButton})
 	}
-	config.OnKey = func(event ui.KeyEvent) ui.EventResult {
+	config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 		probe.keys = append(probe.keys, event)
-		return ui.EventResult{Handled: true}
+		return gfx.EventResult{Handled: true}
 	}
 	if provide {
 		config.TextInput = func(context TextInputContext) *TextInput {
@@ -34,7 +34,7 @@ func (probe *typeAheadProbe) config(provide bool) Config {
 				return nil
 			}
 			return &TextInput{
-				Bounds: ui.Rect{X: 8, Y: 8, Width: 8, Height: 16}, FontSize: 13,
+				Bounds: gfx.Rect{X: 8, Y: 8, Width: 8, Height: 16}, FontSize: 13,
 				OnEvent: func(event TextEvent) (TextState, error) {
 					if event.Kind == TextInsert {
 						probe.query += event.Text
@@ -66,13 +66,13 @@ func TestTypeAheadHitTakesTypedTextAndRawNavigationKeys(t *testing.T) {
 	if probe.query != "Foo" {
 		t.Fatalf("query = %q, want the typed characters with their case", probe.query)
 	}
-	if err := driver.Key(ui.KeyDown, 0); err != nil {
+	if err := driver.Key(gfx.KeyDown, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Key(ui.KeyBackspace, 0); err != nil {
+	if err := driver.Key(gfx.KeyBackspace, 0); err != nil {
 		t.Fatal(err)
 	}
-	if len(probe.keys) != 2 || probe.keys[0].Key != ui.KeyDown || probe.keys[1].Key != ui.KeyBackspace || probe.keys[0].Target != ui.Item(1) {
+	if len(probe.keys) != 2 || probe.keys[0].Key != gfx.KeyDown || probe.keys[1].Key != gfx.KeyBackspace || probe.keys[0].Target != gfx.Item(1) {
 		t.Fatalf("raw keys = %+v", probe.keys)
 	}
 	if probe.query != "Foo" {

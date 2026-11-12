@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
 )
@@ -29,14 +29,14 @@ var singleSelectComponent = Component{
 		return editableField{ID: singleSelectInput}, example != "disabled"
 	},
 	editor: func(state *State) *text.Editor { return &state.singleSelect.Query },
-	key: func(state *State, event ui.KeyEvent) ui.EventResult {
-		if state.exampleID == "disabled" || event.Target != singleSelectInput && (!state.singleSelect.Open || event.Key != ui.KeyEscape && event.Key != ui.KeyTab) {
-			return ui.EventResult{}
+	key: func(state *State, event gfx.KeyEvent) gfx.EventResult {
+		if state.exampleID == "disabled" || event.Target != singleSelectInput && (!state.singleSelect.Open || event.Key != gfx.KeyEscape && event.Key != gfx.KeyTab) {
+			return gfx.EventResult{}
 		}
 		return state.singleSelect.Key(event)
 	},
-	scroll: func(state *State, event ui.ScrollEvent) ui.EventResult {
-		return ui.EventResult{Handled: state.singleSelect.Open, Repaint: state.singleSelect.Open && state.singleSelect.Wheel(event)}
+	scroll: func(state *State, event gfx.ScrollEvent) gfx.EventResult {
+		return gfx.EventResult{Handled: state.singleSelect.Open, Repaint: state.singleSelect.Open && state.singleSelect.Wheel(event)}
 	},
 	paint: (*State).paintSingleSelect,
 	Examples: []Example{
@@ -53,16 +53,16 @@ components.PaintSingleSelect(canvas, theme, bounds, &selection, options)`},
 	},
 }
 
-func (state *State) paintSingleSelect(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var field flex.Box
-	state.page(canvas, theme, size, 420, state.Text("Single Select · 单选分组", "Single Select · Groups"), func(f *flex.Frame) {
-		f.Text(state.Text("输入筛选，回车创建；每次保留一个选项。", "Type to filter or create; keep one selected value.")).Muted().FontSize(theme.Metrics.FontSizeS)
-		field = f.Slot().FillWidth().Height(theme.Metrics.ControlHeight)
+func (state *State) paintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var field ui.Box
+	state.drawPage(canvas, theme, size, 420, state.Text("Single Select · 单选分组", "Single Select · Groups"), func(c ui.C) {
+		ui.Text(c, state.Text("输入筛选，回车创建；每次保留一个选项。", "Type to filter or create; keep one selected value.")).Muted().FontSize(theme.Metrics.FontSizeS)
+		field = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 	})
 	components.PaintSingleSelect(canvas, theme, field.Rect(), state.singleSelect, components.SingleSelectOptions{
 		InputID: singleSelectInput, TriggerID: singleSelectTrigger, ClearID: singleSelectClear, DismissID: singleSelectDismiss, Scope: singleSelectScope, ScrollID: singleSelectScroll, OptionIDs: singleSelectOptions,
 		Label: state.Text("分组", "Group"), Placeholder: state.Text("选择或创建分组", "Select or create a group"), EmptyLabel: state.Text("输入即可创建分组", "Type to create a group"), CreatePrefix: state.Text("创建分组：", "Create group: "), ClearLabel: state.Text("清空分组", "Clear group"),
-		Disabled: state.exampleID == "disabled", Viewport: ui.Rect{Width: size.Width, Height: size.Height}, Layer: 6,
+		Disabled: state.exampleID == "disabled", Viewport: gfx.Rect{Width: size.Width, Height: size.Height}, Layer: 6,
 	})
 	if state.exampleID == "disabled" {
 		return

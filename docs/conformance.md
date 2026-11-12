@@ -8,14 +8,15 @@ FAIL or SKIP for each.
 ```sh
 tools/conformance/run.sh mac        # this Mac
 tools/conformance/run.sh linux      # the Linux test container
-tools/conformance/run.sh windows    # the Windows test VM
 tools/conformance/run.sh all
 VIVA_CONFORMANCE=1 go test ./cmd/viva-conformance   # on the machine you are on
 ```
 
-The container and the VM are machines you provide; set `VIVA_LINUX_ENV` and
-`VIVA_WINDOWS_ENV` (see `tools/testenv/env.sh`). The program opens real windows,
-so it needs a desktop session.
+The container is a machine you provide; set `VIVA_LINUX_ENV` (see
+`tools/testenv/env.sh`). The program opens real windows, so it needs a desktop
+session. Windows conformance runs by hand on a real Windows machine:
+cross-compile `cmd/viva-conformance`, copy the binary there, and run it in the
+desktop session.
 
 ## What it checks
 
@@ -46,6 +47,12 @@ screenshot, when the code behind them changes:
   the system's menu when the item has a `Menu`, which closes on a click elsewhere
   and shows what the application listed when it opened, not what it listed the
   time before (KDE keeps what it was told about an id);
+- a menu entry keeps its identity while the application changes its title or
+  state, adds another entry above it or removes one: the click runs the handler
+  of the entry the panel shows (Linux: the panel keeps the layout it read, so a
+  reused id would run another entry's handler). An entry's ID must be unique
+  among the entries of its menu; the same ID in another submenu is another
+  entry, and an entry without an ID is known by its title.
 - a panel closes when it loses focus, and the click that did it does not reopen it;
 - the window manager's close button reaches `OnCloseRequest`;
 - a hidden window is repainted when shown again (a compositor drops its contents);
@@ -94,26 +101,34 @@ mistakes an absence for an oversight. Items marked *measured* were tried or size
 
 ## Test environments
 
-Windows is a Windows 11 virtual machine with a display-only GPU, so Direct3D runs
-on WARP; Linux is KDE Plasma on X11 with software Vulkan. macOS is arm64; Intel
-Macs, their GPUs, IME and text rasterization are not part of that matrix. None of
-these machines is evidence for GPU performance, only for behavior.
+Windows is a physical Windows 11 machine with a real GPU; Linux is KDE Plasma on
+X11 with software Vulkan. macOS is arm64; Intel Macs, their GPUs, IME and text
+rasterization are not part of that matrix. The Linux machine's software renderer
+is evidence for behavior, not for GPU performance.
 
 ## Machines without a GPU
 
 A window needs a graphics driver, not a GPU. Windows falls back to WARP, Direct3D's
-software device, by itself. Linux needs a Vulkan driver in software form, Mesa's
-lavapipe (`mesa-vulkan-drivers`, plus the loader `libvulkan1`); without one
-`OpenWindow` fails with an error that wraps `app.ErrNoGraphics` and names what to
-install. macOS always has Metal. A server with no display at all (most cloud
-machines) cannot open a window on any platform: give it a virtual display (Xvfb or
-Xvnc on Linux) or use the headless build (`-tags vivahead`), which renders offscreen.
+software device, by itself. Linux draws a window with Vulkan when a hardware device
+exists; otherwise it draws with the CPU rasterizer (`internal/raster`) and presents the
+changed region through XCB, without a Vulkan driver. A software Vulkan device (Mesa's
+lavapipe) is treated as no hardware acceleration and replaced by the CPU renderer unless
+`VIVA_LINUX_RENDERER=vulkan` asks for it; `VIVA_SOFTWARE_RENDERING=1` forces the CPU on
+any machine. The CPU path blends text with the same per-channel LCD antialiasing as the
+GPU when the desktop asks for it and the window is opaque, and in grayscale otherwise; on
+a compositing desktop it also draws the transparent frame margin (shadow and round
+corners) of a custom-titlebar window. If the CPU renderer cannot start either,
+`OpenWindow` fails with an error that wraps `app.ErrNoGraphics` and names what to install.
+macOS always has Metal. A server with no display at all (most cloud machines) cannot open
+a window on any platform: give it a virtual display (Xvfb or Xvnc on Linux) or use the
+headless build (`-tags vivahead`), which renders offscreen.
 The Linux headless renderer needs no Vulkan driver: with none it draws on the CPU
 (`internal/raster`), within a few levels of the Vulkan pipelines per channel (checked
-against lavapipe) and with grayscale instead of LCD text. A window on Linux still needs
-the Vulkan driver above.
+against lavapipe), with the same LCD text antialiasing when the desktop asks for it and
+the target is opaque.
 The Linux test machine is a virtual display plus lavapipe. The case of no Vulkan
-loader at all is covered by a unit test, not by a machine without the library.
+loader at all is covered by a unit test and by the CPU renderer's live X11 test run
+with the loader hidden, not by a machine that physically lacks the library.
 
 ## Visual parity
 
@@ -122,10 +137,10 @@ checks that they *look* alike. The rule: sizes, spacing, colors,
 shapes and the layout of everything that does not depend on a font are the same on macOS,
 Windows and Linux. **Text is not**: Viva lays a line out, draws it, and places its caret,
 selection and clicks from the one line the platform's own engine shaped (CoreText,
-DirectWrite, Pango, the browser; `ui.TextEngine`), as a native application does. A string
+DirectWrite, Pango, the browser; `gfx.TextEngine`), as a native application does. A string
 is therefore as wide as the glyphs that are drawn, nothing is squeezed, and the widths of
 auto-sized buttons, tabs and tooltips differ between platforms by the difference between
-their fonts. A layout that must not move with the font declares its sizes (`flex`).
+their fonts. A layout that must not move with the font declares its sizes (`ui`).
 
 The reference metrics (`internal/textmetrics`: the advance widths of a reference font plus
 rules for CJK, emoji and the rest) remain as the measurer of unit tests and of
@@ -134,12 +149,12 @@ rules for CJK, emoji and the rest) remain as the measurer of unit tests and of
 measures with the platform's engine, as a window does.
 
 ```sh
-tools/visualparity/run_all.sh                    # all three, results in /tmp/parity-{mac,linux,windows}
-tools/visualparity/run_all.sh windows            # one of them
+tools/visualparity/run_all.sh                    # both, results in /tmp/parity-{mac,linux}
+tools/visualparity/run_all.sh linux              # one of them
 go run -tags vivahead ./tools/visualparity run -out /tmp/parity-mac      # macOS by hand (vivahead for the renderer)
-go run ./tools/visualparity compare -out /tmp/parity-diff /tmp/parity-mac /tmp/parity-windows
+go run ./tools/visualparity compare -out /tmp/parity-diff /tmp/parity-mac /tmp/parity-linux
 go test -tags vivahead ./tools/visualparity       # the guards below, on this machine
-tools/testenv/go-test.sh linux ./tools/visualparity     # and on the Linux and Windows machines
+tools/testenv/go-test.sh linux ./tools/visualparity     # and on the Linux machine
 ```
 
 `run` renders a fixed catalogue with the platform's own offscreen renderer (the one
@@ -197,24 +212,27 @@ from software rasterizers, which are not evidence for a GPU's rounding.
   measures with its own font (SF, Segoe UI, and Noto Sans or whatever the desktop names for
   sans), so a label that is as wide as its text is as wide as that platform's text.
   Layouts built from declared sizes do not move.
-- The columns of a terminal do not depend on the font: a cell is 0.6 em by 1.18 em
-  everywhere; the terminal grid is unchanged.
+- The columns of a terminal depend on the font: a cell is the advance and line box of the
+  face's own font as the platform measures them (`gfx.MonoCellEngine`), so a terminal has
+  the columns and rows the same font gives a native terminal, and they differ between
+  platforms and fonts. A canvas with no such engine (the reference engine, the browser)
+  uses the reference cell, 0.6 em by 1.18 em.
 - The font of a script nobody asked for: CJK comes from PingFang (macOS), the font linked
   to Segoe UI (Microsoft YaHei UI on the Windows test machine) or Noto Sans CJK (Linux).
 - Emoji: Apple Color Emoji, Noto Color Emoji and (through DirectWrite) Segoe UI Emoji are
   colored.
 - Fixed-pitch faces: SF Mono, Consolas and Noto Sans Mono advance 0.62, 0.55 and 0.60 of the
-  size; a terminal is laid out on a 0.6 by 1.18 grid on all of them, the platform's characters
-  stand on it (Consolas looser than its own spacing). Non-ASCII runs of a grid keep their own
-  advances.
+  size, and a terminal's cell is that advance, made whole in device pixels. Non-ASCII runs of a
+  grid keep their own advances.
 - Windows draws text with DirectWrite at fractional advances, so a word can be
   off its layout width by the difference of the fonts; CJK widths vary with the size
   (a 13 px Chinese string is 1.24 to 1.32 times macOS's natural width).
 - Linux has one display scale per window, found from the user's settings (see "Display scale on
   Linux"), not per monitor: X11 has no per-monitor scale, so a window moved between monitors
   of different density changes only when the scale came from RandR.
-- Software rasterizers are the Linux and Windows machines' (lavapipe, WARP). Their
-  per-pixel rounding (the scrim over white is 127 there and 128 on Metal) is not that of a GPU.
+- The parity numbers above were measured with software rasterizers (lavapipe on
+  Linux, WARP on Windows). Their per-pixel rounding (the scrim over white is 127
+  there and 128 on Metal) is not that of a GPU.
 
 ## Display scale on Windows
 

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // TableAlignment selects text placement within a table column.
@@ -25,6 +25,9 @@ type TableColumn struct {
 	// Inset reserves leading content space inside a left-aligned cell, for
 	// example an application-painted file icon.
 	Inset float32
+	// EndInset reserves trailing content space inside a left-aligned cell, for
+	// example an application-painted expander.
+	EndInset float32
 }
 
 // TableSelection is an optional text selection for a Table. Anchor and Focus
@@ -59,13 +62,15 @@ func tableTextBoundary(text []byte, offset int) int {
 // border, like shadcn's Table: wrap it in a Card or a bordered container for
 // that. Columns are borrowed only while a Header or Row call is executing.
 type Table struct {
-	canvas       *ui.Canvas
-	theme        ui.Theme
-	bounds       ui.Rect
+	canvas       *gfx.Canvas
+	theme        gfx.Theme
+	bounds       gfx.Rect
 	columns      []TableColumn
 	y            float32
 	rowHeight    float32
 	headerHeight float32
+	fontSize     float32
+	cellPadding  float32
 	headerSet    bool
 	Selection    TableSelection
 	text         *tableTextState
@@ -75,11 +80,11 @@ type tableTextState struct {
 	plain          []byte
 	rows           []tableTextRow
 	cells          []tableTextCell
-	selectionSpans []ui.TextSpan
+	selectionSpans []gfx.TextSpan
 }
 
 type tableTextCell struct {
-	bounds ui.Rect
+	bounds gfx.Rect
 	// textLo/textHi cover the serialized TSV field, including quotes. Paint
 	// selections against contentLo/contentHi so quote bytes never produce a
 	// phantom highlight in the visible cell.
@@ -94,7 +99,7 @@ type tableTextCell struct {
 }
 
 type tableTextRow struct {
-	bounds ui.Rect
+	bounds gfx.Rect
 	lo, hi int
 }
 
@@ -108,23 +113,24 @@ type TableRowState struct {
 // TableRowLayout is the exact geometry painted for one row. Cells aliases
 // caller-provided storage and is valid until that storage is reused.
 type TableRowLayout struct {
-	Bounds ui.Rect
-	Cells  []ui.Rect
+	Bounds gfx.Rect
+	Cells  []gfx.Rect
 }
 
 // TableRowHeight is the default height of a body or footer row: TableCell's p-2
 // around one 20px line, scaled to the theme's control height.
-func TableRowHeight(theme ui.Theme) float32 { return theme.Metrics.ControlHeight + 4 }
+func TableRowHeight(theme gfx.Theme) float32 { return theme.Metrics.ControlHeight + 4 }
 
 // TableHeaderHeight is the default height of the header row, TableHead's h-10.
-func TableHeaderHeight(theme ui.Theme) float32 { return theme.Metrics.ControlHeight + 8 }
+func TableHeaderHeight(theme gfx.Theme) float32 { return theme.Metrics.ControlHeight + 8 }
 
-// BeginTable starts a table whose first painted row is at bounds.Y. Cells have
-// px-2 of horizontal padding. A cell whose text is wider than its column ends in
-// an ellipsis, as it does in a native table; shadcn's cells never truncate, its
-// auto-width columns grow with their content instead, which FitTableHeadings
-// does for the headings of fixed-width columns.
-func BeginTable(canvas *ui.Canvas, theme ui.Theme, bounds ui.Rect, columns []TableColumn) Table {
+// BeginTable starts a table whose first painted row is at bounds.Y. Cells use the
+// theme's GapItem of horizontal padding unless CellPadding overrides it. A cell
+// whose text is wider than its column ends in an ellipsis, as it does in a native
+// table; shadcn's cells never truncate, its auto-width columns grow with their
+// content instead, which FitTableHeadings does for the headings of fixed-width
+// columns.
+func BeginTable(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, columns []TableColumn) Table {
 	return Table{
 		canvas: canvas, theme: theme, bounds: bounds, columns: columns,
 		y: bounds.Y, rowHeight: TableRowHeight(theme), headerHeight: TableHeaderHeight(theme),
@@ -175,6 +181,40 @@ func (table Table) HeaderHeight(height float32) Table {
 	return table
 }
 
+// FontSize overrides the size of body and header text for subsequent calls. A
+// zero or negative size keeps the theme's FontSizeM.
+func (table Table) FontSize(size float32) Table {
+	if size > 0 {
+		table.fontSize = size
+	}
+	return table
+}
+
+// CellPadding overrides the horizontal padding inside every cell for subsequent
+// calls. A zero or negative padding keeps the theme's GapItem.
+func (table Table) CellPadding(padding float32) Table {
+	if padding > 0 {
+		table.cellPadding = padding
+	}
+	return table
+}
+
+// textSize is the size every cell's line is measured and painted at.
+func (table *Table) textSize() float32 {
+	if table.fontSize > 0 {
+		return table.fontSize
+	}
+	return table.theme.Metrics.FontSizeM
+}
+
+// cellPad is the horizontal padding every cell's line is laid out with.
+func (table *Table) cellPad() float32 {
+	if table.cellPadding > 0 {
+		return table.cellPadding
+	}
+	return table.theme.Metrics.GapItem
+}
+
 // Header paints a muted header row. Extra cells are ignored and absent cells
 // remain blank.
 func (table *Table) Header(cells []string) {
@@ -182,12 +222,12 @@ func (table *Table) Header(cells []string) {
 		return
 	}
 	table.headerSet = true
-	table.paintRow(ui.ID{}, cells, TableRowState{}, tableRowHeader, nil)
+	table.paintRow(gfx.ID{}, cells, TableRowState{}, tableRowHeader, nil)
 }
 
 // Row paints one body row. A non-zero ID makes the row interactive; selected
 // rows use the blue accent surface.
-func (table *Table) Row(id ui.ID, cells []string, selected bool) {
+func (table *Table) Row(id gfx.ID, cells []string, selected bool) {
 	table.RowState(id, cells, TableRowState{Selected: selected})
 }
 
@@ -196,27 +236,68 @@ func (table *Table) Row(id ui.ID, cells []string, selected bool) {
 // whose rows are items of a list:
 //
 //	if table.RowAt(rows, i, cells[i], i == selected) { selected = i }
-func (table *Table) RowAt(list ui.Scope, index int, cells []string, selected bool) bool {
+func (table *Table) RowAt(list gfx.Scope, index int, cells []string, selected bool) bool {
 	table.RowState(list.At(index), cells, TableRowState{Selected: selected})
 	clicked, ok := table.canvas.ClickedIn(list)
 	return ok && clicked == index
 }
 
 // RowState paints a body row with explicit selected/expanded state.
-func (table *Table) RowState(id ui.ID, cells []string, state TableRowState) {
+func (table *Table) RowState(id gfx.ID, cells []string, state TableRowState) {
 	table.paintRow(id, cells, state, tableRowBody, nil)
 }
 
 // RowLayout paints one body row and appends its cell geometry to dst. The
 // caller owns dst and may reuse it across rows to keep custom cell decoration
 // allocation-free; a nil dst collects nothing.
-func (table *Table) RowLayout(id ui.ID, cells []string, state TableRowState, dst []ui.Rect) TableRowLayout {
+func (table *Table) RowLayout(id gfx.ID, cells []string, state TableRowState, dst []gfx.Rect) TableRowLayout {
 	return table.paintRow(id, cells, state, tableRowBody, dst)
 }
 
+// Detail paints the detail area an expanded body row shows under it, like the
+// full-width second row a data table adds for an expanded row, and returns its
+// bounds for the caller to paint into. The area is a recessed band on the table's
+// own background, ruled off from the row above and marked by an accent bar at its
+// leading edge, so a detail never reads as another line of its row. It advances
+// the row cursor and clips to the room left above the table's bottom edge. It
+// draws no hit and adds nothing to the selection text: TextLen, SelectedText and
+// OffsetAt keep addressing the table's real rows only.
+//
+// The caller clips what it paints into the returned bounds and keeps its content
+// clear of the leading bar; a long detail that does not fit is the caller's to
+// cap.
+func (table *Table) Detail(height float32) gfx.Rect {
+	bottom := table.bounds.Y + table.bounds.Height
+	if len(table.columns) == 0 || height <= 0 || table.y >= bottom {
+		return gfx.Rect{}
+	}
+	height = table.rowHeightFor(height)
+	if height <= 0 {
+		return gfx.Rect{}
+	}
+	bounds := gfx.Rect{X: table.bounds.X, Y: table.y, Width: table.bounds.Width, Height: height}
+	table.canvas.Fill(bounds, table.theme.Background)
+	// The row above already put its border at bounds.Y-1. The band sits on the
+	// table's background instead of the row's surface, and a bar at its leading
+	// edge marks it as belonging to the row without reading as part of it.
+	if bar := min(tableDetailBar, height); bar > 0 {
+		accent := table.theme.Primary
+		accent.Alpha *= 0.7
+		table.canvas.Fill(gfx.Rect{X: bounds.X, Y: bounds.Y, Width: bar, Height: height}, accent)
+	}
+	table.y += height
+	if table.y < bottom {
+		table.canvas.Fill(gfx.Rect{X: bounds.X, Y: table.y - 1, Width: bounds.Width, Height: 1}, table.theme.Border)
+	}
+	return bounds
+}
+
+// tableDetailBar is the width of a Detail's leading accent bar.
+const tableDetailBar = float32(3)
+
 // Footer paints the official muted, medium-weight footer row.
 func (table *Table) Footer(cells []string) {
-	table.paintRow(ui.ID{}, cells, TableRowState{}, tableRowFooter, nil)
+	table.paintRow(gfx.ID{}, cells, TableRowState{}, tableRowFooter, nil)
 }
 
 // Caption paints the muted caption below the rows already emitted.
@@ -224,8 +305,8 @@ func (table *Table) Caption(text string) {
 	if text == "" {
 		return
 	}
-	table.canvas.Label(text, ui.Rect{X: table.bounds.X, Y: table.y + 16, Width: table.bounds.Width, Height: table.theme.Metrics.FontSizeM + 4}, ui.TextStyle{
-		Size: table.theme.Metrics.FontSizeM, Weight: ui.WeightRegular, Color: table.theme.MutedForeground,
+	table.canvas.Label(text, gfx.Rect{X: table.bounds.X, Y: table.y + 16, Width: table.bounds.Width, Height: table.theme.Metrics.FontSizeM + 4}, gfx.TextStyle{
+		Size: table.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: table.theme.MutedForeground,
 	})
 }
 
@@ -247,7 +328,7 @@ func (table *Table) rowHeightFor(height float32) float32 {
 	return max(min(height, bottom-table.y), 0)
 }
 
-func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind tableRowKind, cellsOut []ui.Rect) TableRowLayout {
+func (table *Table) paintRow(id gfx.ID, cells []string, state TableRowState, kind tableRowKind, cellsOut []gfx.Rect) TableRowLayout {
 	if len(table.columns) == 0 {
 		return TableRowLayout{}
 	}
@@ -260,7 +341,7 @@ func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind
 	if height <= 0 {
 		return TableRowLayout{}
 	}
-	rowBounds := ui.Rect{X: table.bounds.X, Y: table.y, Width: table.bounds.Width, Height: height}
+	rowBounds := gfx.Rect{X: table.bounds.X, Y: table.y, Width: table.bounds.Width, Height: height}
 	var textState *tableTextState
 	if table.Selection.Enabled {
 		if table.text == nil {
@@ -281,14 +362,14 @@ func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind
 	cellsOut = cellsOut[:0]
 	background := table.theme.Background
 	foreground := table.theme.Foreground
-	weight := ui.WeightRegular
+	weight := gfx.WeightRegular
 	paintBackground := false
 	if kind == tableRowHeader {
-		weight = ui.WeightMedium
+		weight = gfx.WeightMedium
 	} else if kind == tableRowFooter {
 		background = table.theme.Muted
 		background.Alpha *= 0.50
-		weight = ui.WeightMedium
+		weight = gfx.WeightMedium
 		paintBackground = true
 	} else if state.Expanded && !state.Selected {
 		// has-aria-expanded:bg-muted/50, which is what Hover is.
@@ -310,19 +391,18 @@ func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind
 	if kind == tableRowBody && !id.IsZero() && table.canvas.FocusVisible() == id {
 		focus := table.theme.Primary
 		focus.Alpha = 0.22
-		table.canvas.Fill(ui.Rect{X: rowBounds.X, Y: rowBounds.Y, Width: 2, Height: rowBounds.Height}, focus)
+		table.canvas.Fill(gfx.Rect{X: rowBounds.X, Y: rowBounds.Y, Width: 2, Height: rowBounds.Height}, focus)
 	}
 
 	x := rowBounds.X
 	remaining := rowBounds.Width
-	metrics := table.theme.Metrics
-	pad := metrics.GapItem // px-2
+	size, pad := table.textSize(), table.cellPad()
 	for index, column := range table.columns {
 		width := tableColumnWidth(column, index == len(table.columns)-1, remaining)
 		if width <= 0 {
 			break
 		}
-		cellBounds := ui.Rect{X: x, Y: rowBounds.Y, Width: width, Height: rowBounds.Height}
+		cellBounds := gfx.Rect{X: x, Y: rowBounds.Y, Width: width, Height: rowBounds.Height}
 		if collect {
 			cellsOut = append(cellsOut, cellBounds)
 		}
@@ -330,14 +410,15 @@ func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind
 		if index < len(cells) {
 			value = cells[index]
 		}
-		inset := float32(0)
+		inset, endInset := float32(0), float32(0)
 		if column.Alignment == TableAlignLeft {
-			inset = min(column.Inset, max(cellBounds.Width-pad*2, 0))
+			inset = min(max(column.Inset, 0), max(cellBounds.Width-pad*2, 0))
+			endInset = min(max(column.EndInset, 0), max(cellBounds.Width-pad*2-inset, 0))
 		}
-		textBounds := ui.Rect{
+		textBounds := gfx.Rect{
 			X:      cellBounds.X + pad + inset,
 			Y:      cellBounds.Y,
-			Width:  tableMax32(0, cellBounds.Width-pad*2-inset),
+			Width:  tableMax32(0, cellBounds.Width-pad*2-inset-endInset),
 			Height: cellBounds.Height,
 		}
 		field := tableTextField{}
@@ -346,12 +427,12 @@ func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind
 		}
 		text := ""
 		if index < len(cells) {
-			text = table.canvas.FitLine(value, metrics.FontSizeM, weight, textBounds.Width)
+			text = table.canvas.FitLine(value, size, weight, textBounds.Width)
 		}
 		selected := false
-		style := ui.TextStyle{Size: metrics.FontSizeM, Weight: weight, Color: foreground}
+		style := gfx.TextStyle{Size: size, Weight: weight, Color: foreground}
 		if textState != nil {
-			textWidth := table.canvas.TextWidthWeight(text, metrics.FontSizeM, weight)
+			textWidth := table.canvas.TextWidthWeight(text, size, weight)
 			textX := table.canvas.LabelOrigin(text, textBounds, style, tableLabelAlignment(column.Alignment))
 			selected = table.paintCellSelection(textState, textBounds, tableTextCell{
 				bounds: textBounds, textLo: field.lo, textHi: field.hi,
@@ -383,7 +464,7 @@ func (table *Table) paintRow(id ui.ID, cells []string, state TableRowState, kind
 	table.y += height
 	if table.y < bottom {
 		// border-b is part of the row's own height, painted over its background.
-		table.canvas.Fill(ui.Rect{X: rowBounds.X, Y: table.y - 1, Width: rowBounds.Width, Height: 1}, table.theme.Border)
+		table.canvas.Fill(gfx.Rect{X: rowBounds.X, Y: table.y - 1, Width: rowBounds.Width, Height: 1}, table.theme.Border)
 	}
 	if textState != nil {
 		textState.rows = append(textState.rows, tableTextRow{
@@ -429,20 +510,20 @@ func appendTableTextCell(text *tableTextState, index int, value string) tableTex
 	return field
 }
 
-func tableLabelAlignment(alignment TableAlignment) ui.Alignment {
+func tableLabelAlignment(alignment TableAlignment) gfx.Alignment {
 	switch alignment {
 	case TableAlignCenter:
-		return ui.AlignCenter
+		return gfx.AlignCenter
 	case TableAlignRight:
-		return ui.AlignRight
+		return gfx.AlignRight
 	default:
-		return ui.AlignStart
+		return gfx.AlignStart
 	}
 }
 
 func (table *Table) paintCellSelection(
 	text *tableTextState,
-	bounds ui.Rect,
+	bounds gfx.Rect,
 	cell tableTextCell,
 ) bool {
 	if text == nil || cell.contentLo == cell.contentHi {
@@ -462,15 +543,15 @@ func (table *Table) paintCellSelection(
 		return false
 	}
 	text.selectionSpans = table.canvas.TextSelection(
-		text.selectionSpans[:0], cell.value, table.theme.Metrics.FontSizeM, cell.weight,
+		text.selectionSpans[:0], cell.value, table.textSize(), cell.weight,
 		visualLo, visualHi,
 	)
-	table.canvas.Clip(ui.Rect{
+	table.canvas.Clip(gfx.Rect{
 		X: cell.textX, Y: bounds.Y, Width: cell.textWidth, Height: bounds.Height,
 	})
 	background, _ := tableSelectionColors(table.theme)
 	for _, span := range text.selectionSpans {
-		table.canvas.Fill(ui.Rect{
+		table.canvas.Fill(gfx.Rect{
 			X: cell.textX + span.X, Y: bounds.Y,
 			Width: span.Width, Height: bounds.Height,
 		}, background)
@@ -482,9 +563,9 @@ func (table *Table) paintCellSelection(
 func (table *Table) paintSelectedCellText(
 	text *tableTextState,
 	value string,
-	bounds ui.Rect,
+	bounds gfx.Rect,
 	alignment TableAlignment,
-	style ui.TextStyle,
+	style gfx.TextStyle,
 ) {
 	if text == nil {
 		return
@@ -494,7 +575,7 @@ func (table *Table) paintSelectedCellText(
 		if span.Width <= 0 {
 			continue
 		}
-		table.canvas.Clip(ui.Rect{
+		table.canvas.Clip(gfx.Rect{
 			X: textX + span.X, Y: bounds.Y,
 			Width: span.Width, Height: bounds.Height,
 		})
@@ -550,17 +631,17 @@ func tableColumnWidth(column TableColumn, last bool, remaining float32) float32 
 //	components.FitTableHeadings(canvas, theme, columns[:], headings[:])
 //	table := components.BeginTable(canvas, theme, bounds, columns[:])
 //	table.Header(headings[:])
-func FitTableHeadings(canvas *ui.Canvas, theme ui.Theme, columns []TableColumn, headings []string) {
+func FitTableHeadings(canvas *gfx.Canvas, theme gfx.Theme, columns []TableColumn, headings []string) {
 	pad := theme.Metrics.GapItem * 2
 	for index := range columns {
 		column := &columns[index]
 		if column.Width <= 0 || index >= len(headings) || headings[index] == "" {
 			continue
 		}
-		need := canvas.TextWidthWeight(headings[index], theme.Metrics.FontSizeM, ui.WeightMedium)
+		need := canvas.TextWidthWeight(headings[index], theme.Metrics.FontSizeM, gfx.WeightMedium)
 		inset := float32(0)
 		if column.Alignment == TableAlignLeft {
-			inset = column.Inset
+			inset = max(column.Inset, 0) + max(column.EndInset, 0)
 		}
 		// A heading is measured to the pixel, so round it up: it must fit, not tie.
 		column.Width = max(column.Width, float32(math.Ceil(float64(need)))+pad+inset)
@@ -571,14 +652,14 @@ func FitTableHeadings(canvas *ui.Canvas, theme ui.Theme, columns []TableColumn, 
 // Row paint them: fixed widths in order, a column without one taking what is left,
 // cells that no longer fit left out. It lets a caller put something on a cell, a
 // sort arrow or a hit region, without painting the row first.
-func TableCellBounds(columns []TableColumn, row ui.Rect, dst []ui.Rect) []ui.Rect {
+func TableCellBounds(columns []TableColumn, row gfx.Rect, dst []gfx.Rect) []gfx.Rect {
 	x, remaining := row.X, row.Width
 	for index, column := range columns {
 		width := tableColumnWidth(column, index == len(columns)-1, remaining)
 		if width <= 0 {
 			break
 		}
-		dst = append(dst, ui.Rect{X: x, Y: row.Y, Width: width, Height: row.Height})
+		dst = append(dst, gfx.Rect{X: x, Y: row.Y, Width: width, Height: row.Height})
 		x += width
 		remaining -= width
 	}
@@ -622,7 +703,7 @@ func (table *Table) SelectedText(selection TableSelection) string {
 // OffsetAt maps a window point to the nearest UTF-8 byte offset in the
 // serialized TSV text painted most recently. It remains valid until the next
 // paint.
-func (table *Table) OffsetAt(point ui.Point) (int, bool) {
+func (table *Table) OffsetAt(point gfx.Point) (int, bool) {
 	if !table.Selection.Enabled || table.canvas == nil || table.text == nil ||
 		len(table.text.rows) == 0 || len(table.text.cells) == 0 {
 		return 0, false
@@ -639,7 +720,7 @@ func (table *Table) OffsetAt(point ui.Point) (int, bool) {
 		return cell.textLo, true
 	}
 	localX := point.X - cell.textX
-	rtl := ui.TextDirectionOf(cell.value) == ui.DirectionRTL
+	rtl := gfx.TextDirectionOf(cell.value) == gfx.DirectionRTL
 	if localX <= 0 {
 		if rtl {
 			return cell.contentHi, true
@@ -652,7 +733,7 @@ func (table *Table) OffsetAt(point ui.Point) (int, bool) {
 		}
 		return cell.contentHi, true
 	}
-	local := table.canvas.TextOffsetAt(cell.value, table.theme.Metrics.FontSizeM, cell.weight, localX)
+	local := table.canvas.TextOffsetAt(cell.value, table.textSize(), cell.weight, localX)
 	local = min(max(local, 0), len(cell.value))
 	local += strings.Count(cell.value[:local], `"`)
 	return min(cell.contentLo+local, cell.contentHi), true
@@ -686,7 +767,7 @@ func nearestTableTextCell(cells []tableTextCell, x float32) int {
 
 // tableSelectionColors keeps the table recipe self-contained while preserving
 // the Primary fallback used by hand-built themes from before Selection existed.
-func tableSelectionColors(theme ui.Theme) (background, foreground ui.Color) {
+func tableSelectionColors(theme gfx.Theme) (background, foreground gfx.Color) {
 	background, foreground = theme.Selection, theme.SelectionForeground
 	if background.Alpha == 0 {
 		background = theme.Primary
@@ -697,7 +778,7 @@ func tableSelectionColors(theme ui.Theme) (background, foreground ui.Color) {
 	return background, foreground
 }
 
-func tableLabel(canvas *ui.Canvas, value string, bounds ui.Rect, alignment TableAlignment, style ui.TextStyle) {
+func tableLabel(canvas *gfx.Canvas, value string, bounds gfx.Rect, alignment TableAlignment, style gfx.TextStyle) {
 	switch alignment {
 	case TableAlignCenter:
 		canvas.LabelCenter(value, bounds, style)
@@ -762,7 +843,7 @@ func (state TableSortState) Toggle(column int) TableSortState {
 // optionally localizes the accessible sort-state description (the default is
 // English). Disabled headers keep their direction visible but cannot activate.
 type TableHeader struct {
-	ID       ui.ID
+	ID       gfx.ID
 	Label    string
 	Sort     TableSortDirection
 	Disabled bool
@@ -776,16 +857,16 @@ const tableSortIconSize, tableSortIconGap = float32(14), float32(4)
 
 // FitSortableTableHeadings is FitTableHeadings for SortableHeader. It reserves
 // room for the direction icon on interactive columns as well as their labels.
-func FitSortableTableHeadings(canvas *ui.Canvas, theme ui.Theme, columns []TableColumn, headings []TableHeader) {
+func FitSortableTableHeadings(canvas *gfx.Canvas, theme gfx.Theme, columns []TableColumn, headings []TableHeader) {
 	for index := range columns {
 		column := &columns[index]
 		if column.Width <= 0 || index >= len(headings) || headings[index].Label == "" {
 			continue
 		}
-		need := canvas.TextWidthWeight(headings[index].Label, theme.Metrics.FontSizeM, ui.WeightMedium)
+		need := canvas.TextWidthWeight(headings[index].Label, theme.Metrics.FontSizeM, gfx.WeightMedium)
 		need = float32(math.Ceil(float64(need))) + 2*theme.Metrics.GapItem
 		if column.Alignment == TableAlignLeft {
-			need += max(column.Inset, 0)
+			need += max(column.Inset, 0) + max(column.EndInset, 0)
 		}
 		if !headings[index].ID.IsZero() {
 			need += tableSortIconSize + tableSortIconGap
@@ -838,7 +919,7 @@ func (table *Table) SortableHeader(cells []TableHeader) {
 			field = appendTableTextCell(textState, index, cell.Label)
 		}
 		painted := table.paintSortableHeaderCell(
-			ui.Rect{X: x, Y: y, Width: width, Height: height},
+			gfx.Rect{X: x, Y: y, Width: width, Height: height},
 			column, cell, textState, field,
 		)
 		if textState != nil {
@@ -848,13 +929,13 @@ func (table *Table) SortableHeader(cells []TableHeader) {
 	}
 	table.y += height
 	if table.y < table.bounds.Y+table.bounds.Height {
-		table.canvas.Fill(ui.Rect{
+		table.canvas.Fill(gfx.Rect{
 			X: table.bounds.X, Y: table.y - 1, Width: table.bounds.Width, Height: 1,
 		}, table.theme.Border)
 	}
 	if textState != nil {
 		textState.rows = append(textState.rows, tableTextRow{
-			bounds: ui.Rect{X: table.bounds.X, Y: y, Width: table.bounds.Width, Height: height},
+			bounds: gfx.Rect{X: table.bounds.X, Y: y, Width: table.bounds.Width, Height: height},
 			lo:     rowCellLo,
 			hi:     len(textState.cells),
 		})
@@ -862,7 +943,7 @@ func (table *Table) SortableHeader(cells []TableHeader) {
 }
 
 func (table *Table) paintSortableHeaderCell(
-	bounds ui.Rect,
+	bounds gfx.Rect,
 	column TableColumn,
 	cell TableHeader,
 	textState *tableTextState,
@@ -879,7 +960,7 @@ func (table *Table) paintSortableHeaderCell(
 			canvas.Fill(bounds, theme.Hover)
 		}
 		if !cell.Disabled && canvas.FocusVisible() == cell.ID {
-			canvas.RoundedBorder(bounds.Inset(ui.All(1)), theme.Metrics.RadiusControl, 1, theme.Ring, ui.Color{})
+			canvas.RoundedBorder(bounds.Inset(gfx.All(1)), theme.Metrics.RadiusControl, 1, theme.Ring, gfx.Color{})
 		}
 		description := cell.Description
 		if description == "" {
@@ -892,26 +973,28 @@ func (table *Table) paintSortableHeaderCell(
 				description = "Activate to sort"
 			}
 		}
-		canvas.HitWithOptions(cell.ID, bounds, cell.Label, ui.HitOptions{Role: ui.RoleButton, Disabled: cell.Disabled, FocusableWhenDisabled: cell.FocusableWhenDisabled, Description: description})
+		canvas.HitWithOptions(cell.ID, bounds, cell.Label, gfx.HitOptions{Role: gfx.RoleButton, Disabled: cell.Disabled, FocusableWhenDisabled: cell.FocusableWhenDisabled, Description: description})
 	}
 	canvas.Clip(bounds)
 	defer canvas.Unclip()
-	pad := theme.Metrics.GapItem
-	textBounds := bounds.Inset(ui.Insets{Left: pad, Right: pad})
+	size, pad := table.textSize(), table.cellPad()
+	textBounds := bounds.Inset(gfx.Insets{Left: pad, Right: pad})
 	if column.Alignment == TableAlignLeft {
 		inset := min(max(column.Inset, 0), max(textBounds.Width, 0))
 		textBounds.X, textBounds.Width = textBounds.X+inset, max(textBounds.Width-inset, 0)
+		endInset := min(max(column.EndInset, 0), textBounds.Width)
+		textBounds.Width -= endInset
 	}
-	style := ui.TextStyle{Size: theme.Metrics.FontSizeM, Weight: ui.WeightMedium, Color: color}
+	style := gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color}
 	if !interactive {
-		label := canvas.FitLine(cell.Label, theme.Metrics.FontSizeM, ui.WeightMedium, textBounds.Width)
+		label := canvas.FitLine(cell.Label, size, gfx.WeightMedium, textBounds.Width)
 		painted := tableTextCell{
 			bounds: textBounds, textLo: field.lo, textHi: field.hi,
 			contentLo: field.contentLo, contentHi: field.contentHi,
-			value: cell.Label, weight: ui.WeightMedium,
+			value: cell.Label, weight: gfx.WeightMedium,
 		}
 		if textState != nil {
-			painted.textWidth = canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, ui.WeightMedium)
+			painted.textWidth = canvas.TextWidthWeight(label, size, gfx.WeightMedium)
 			painted.textX = canvas.LabelOrigin(label, textBounds, style, tableLabelAlignment(column.Alignment))
 			selected := table.paintCellSelection(textState, textBounds, painted)
 			tableLabel(canvas, label, textBounds, column.Alignment, style)
@@ -926,8 +1009,8 @@ func (table *Table) paintSortableHeaderCell(
 		return painted
 	}
 	const iconSize, gap = tableSortIconSize, tableSortIconGap
-	label := canvas.FitLine(cell.Label, theme.Metrics.FontSizeM, ui.WeightMedium, max(textBounds.Width-iconSize-gap, 0))
-	labelWidth := min(canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, ui.WeightMedium), max(textBounds.Width-iconSize-gap, 0))
+	label := canvas.FitLine(cell.Label, size, gfx.WeightMedium, max(textBounds.Width-iconSize-gap, 0))
+	labelWidth := min(canvas.TextWidthWeight(label, size, gfx.WeightMedium), max(textBounds.Width-iconSize-gap, 0))
 	groupWidth := min(labelWidth+gap+iconSize, max(textBounds.Width, 0))
 	switch column.Alignment {
 	case TableAlignRight:
@@ -939,8 +1022,8 @@ func (table *Table) paintSortableHeaderCell(
 	painted := tableTextCell{
 		bounds: textBounds, textLo: field.lo, textHi: field.hi,
 		contentLo: field.contentLo, contentHi: field.contentHi,
-		value: cell.Label, weight: ui.WeightMedium, textWidth: labelWidth,
-		textX: canvas.LabelOrigin(label, textBounds, style, ui.AlignStart),
+		value: cell.Label, weight: gfx.WeightMedium, textWidth: labelWidth,
+		textX: canvas.LabelOrigin(label, textBounds, style, gfx.AlignStart),
 	}
 	canvas.Label(label, textBounds, style)
 	if table.paintCellSelection(textState, textBounds, painted) {
@@ -954,7 +1037,7 @@ func (table *Table) paintSortableHeaderCell(
 	} else if cell.Sort == TableSortDescending {
 		icon = tableDescendingIcon
 	}
-	canvas.DrawIcon(icon, ui.Rect{
+	canvas.DrawIcon(icon, gfx.Rect{
 		X:     textBounds.X + labelWidth + gap,
 		Y:     bounds.Y + (bounds.Height-iconSize)/2,
 		Width: iconSize, Height: iconSize,
@@ -962,17 +1045,17 @@ func (table *Table) paintSortableHeaderCell(
 	return painted
 }
 
-var tableUnsortedIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-	{Kind: ui.PathCommandMove, Point: ui.Point{X: 8, Y: 9}}, {Kind: ui.PathCommandLine, Point: ui.Point{X: 12, Y: 5}}, {Kind: ui.PathCommandLine, Point: ui.Point{X: 16, Y: 9}},
-	{Kind: ui.PathCommandMove, Point: ui.Point{X: 8, Y: 15}}, {Kind: ui.PathCommandLine, Point: ui.Point{X: 12, Y: 19}}, {Kind: ui.PathCommandLine, Point: ui.Point{X: 16, Y: 15}},
+var tableUnsortedIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+	{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 8, Y: 9}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 12, Y: 5}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 16, Y: 9}},
+	{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 8, Y: 15}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 12, Y: 19}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 16, Y: 15}},
 }}
 
-var tableAscendingIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-	{Kind: ui.PathCommandMove, Point: ui.Point{X: 12, Y: 19}}, {Kind: ui.PathCommandLine, Point: ui.Point{X: 12, Y: 5}},
-	{Kind: ui.PathCommandMove, Point: ui.Point{X: 7, Y: 10}}, {Kind: ui.PathCommandLine, Point: ui.Point{X: 12, Y: 5}}, {Kind: ui.PathCommandLine, Point: ui.Point{X: 17, Y: 10}},
+var tableAscendingIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+	{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 12, Y: 19}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 12, Y: 5}},
+	{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 7, Y: 10}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 12, Y: 5}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 17, Y: 10}},
 }}
 
-var tableDescendingIcon = ui.Icon{ViewBox: 24, Stroke: 2, Cap: ui.CapRound, Join: ui.JoinRound, Commands: []ui.PathCommand{
-	{Kind: ui.PathCommandMove, Point: ui.Point{X: 12, Y: 5}}, {Kind: ui.PathCommandLine, Point: ui.Point{X: 12, Y: 19}},
-	{Kind: ui.PathCommandMove, Point: ui.Point{X: 7, Y: 14}}, {Kind: ui.PathCommandLine, Point: ui.Point{X: 12, Y: 19}}, {Kind: ui.PathCommandLine, Point: ui.Point{X: 17, Y: 14}},
+var tableDescendingIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+	{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 12, Y: 5}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 12, Y: 19}},
+	{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 7, Y: 14}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 12, Y: 19}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 17, Y: 14}},
 }}

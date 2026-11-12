@@ -5,8 +5,8 @@ package app
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestNativeFullscreenWiringRepaintsAWindowWithoutApplicationPaint(t *testing.T) {
@@ -18,7 +18,7 @@ func TestNativeFullscreenWiringRepaintsAWindowWithoutApplicationPaint(t *testing
 			fullscreen = value
 			events = append(events, "fullscreen")
 		},
-		OnResize: func(ui.Size) {
+		OnResize: func(gfx.Size) {
 			if !fullscreen {
 				t.Fatal("native resize was delivered without the fullscreen callback")
 			}
@@ -28,7 +28,7 @@ func TestNativeFullscreenWiringRepaintsAWindowWithoutApplicationPaint(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	painter, err := newPainter(&ui.Canvas{}, &normalized)
+	painter, err := newPainter(&gfx.Canvas{}, &normalized)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestNativeFullscreenWiringRepaintsAWindowWithoutApplicationPaint(t *testing
 }
 
 func TestDriverFullscreenRestoresPlacementAndOrdersCallbacks(t *testing.T) {
-	origin := ui.Point{X: 120, Y: 80}
+	origin := gfx.Point{X: 120, Y: 80}
 	var driver *Driver
 	var events []string
 	var observed bool
@@ -65,7 +65,7 @@ func TestDriverFullscreenRestoresPlacementAndOrdersCallbacks(t *testing.T) {
 			}
 			events = append(events, "fullscreen")
 		},
-		OnResize: func(ui.Size) {
+		OnResize: func(gfx.Size) {
 			if driver != nil {
 				if driver.Fullscreen() != observed {
 					t.Fatal("resize ran before fullscreen state callback")
@@ -73,7 +73,7 @@ func TestDriverFullscreenRestoresPlacementAndOrdersCallbacks(t *testing.T) {
 				events = append(events, "resize")
 			}
 		},
-		OnFrameChange: func(ui.Rect) {
+		OnFrameChange: func(gfx.Rect) {
 			if driver.Fullscreen() {
 				t.Fatal("fullscreen geometry was reported as a restorable placement")
 			}
@@ -87,7 +87,7 @@ func TestDriverFullscreenRestoresPlacementAndOrdersCallbacks(t *testing.T) {
 	}
 	defer driver.Close()
 	original := driver.Frame()
-	monitor := ui.Rect{X: -1920, Width: 1920, Height: 1080}
+	monitor := gfx.Rect{X: -1920, Width: 1920, Height: 1080}
 	if err := driver.SetFullscreenMonitor(monitor); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestDriverFullscreenRestoresPlacementAndOrdersCallbacks(t *testing.T) {
 	if err := driver.Resize(1280, 720); err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.SetFullscreenMonitor(ui.Rect{X: 1920, Width: 1280, Height: 720}); err != nil {
+	if err := driver.SetFullscreenMonitor(gfx.Rect{X: 1920, Width: 1280, Height: 720}); err != nil {
 		t.Fatal(err)
 	}
 	monitor.X = 1920
@@ -136,8 +136,8 @@ func TestDriverFullscreenRestoresPlacementAndOrdersCallbacks(t *testing.T) {
 func TestFullscreenRemovesFrameworkButtonsAndMoveSemantics(t *testing.T) {
 	driver, err := NewDriver(Config{Title: "fullscreen", Width: 600, Height: 400,
 		WindowMode: WindowCustomTitlebar,
-		Paint: func(canvas *ui.Canvas, size ui.Size) {
-			canvas.MoveRegion(ui.Rect{Width: size.Width, Height: 40})
+		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+			canvas.MoveRegion(gfx.Rect{Width: size.Width, Height: 40})
 		},
 	}, nil)
 	if err != nil {

@@ -264,12 +264,12 @@ func TestParseReadsAndChecksURLSchemes(t *testing.T) {
 }
 
 func TestFileTypes(t *testing.T) {
-	loaded, err := Parse("viva.toml", "/p", "[app]\nname = \"Notes\"\nid = \"dev.example.notes\"\n\n[[app.file_types]]\nname = \"Notes document\"\nextensions = [\"note\", \"nt\"]\n\n[[app.file_types]]\nname = \"Markdown\"\nextensions = [\"md\"]\nmime = \"text/markdown\"\n")
+	loaded, err := Parse("viva.toml", "/p", "[app]\nname = \"Notes\"\nid = \"dev.example.notes\"\n\n[[app.file_types]]\nname = \"Notes document\"\nextensions = [\"note\", \"nt\"]\n\n[[app.file_types]]\nname = \"Markdown\"\nextensions = [\"md\"]\nmime = \"text/markdown\"\nuti = \"net.daringfireball.markdown\"\n")
 	if err != nil {
 		t.Fatal(err)
 	}
 	kinds := loaded.App.FileTypes
-	if len(kinds) != 2 || kinds[0].MIME != "application/x-dev-example-notes-note" || kinds[1].MIME != "text/markdown" || len(kinds[0].Extensions) != 2 {
+	if len(kinds) != 2 || kinds[0].MIME != "application/x-dev-example-notes-note" || kinds[1].MIME != "text/markdown" || kinds[1].UTI != "net.daringfireball.markdown" || len(kinds[0].Extensions) != 2 {
 		t.Fatalf("file types %+v", kinds)
 	}
 }
@@ -283,6 +283,7 @@ func TestFileTypeErrors(t *testing.T) {
 		{"upper case", head + "[[app.file_types]]\nname = \"x\"\nextensions = [\"MD\"]\n", "#1 extensions"},
 		{"claimed twice", head + "[[app.file_types]]\nname = \"x\"\nextensions = [\"md\"]\n[[app.file_types]]\nname = \"y\"\nextensions = [\"md\"]\n", "#2 extensions"},
 		{"bad mime", head + "[[app.file_types]]\nname = \"x\"\nextensions = [\"md\"]\nmime = \"markdown\"\n", "#1 mime"},
+		{"bad uti", head + "[[app.file_types]]\nname = \"x\"\nextensions = [\"md\"]\nuti = \"markdown\"\n", "#1 uti"},
 		{"same mime", head + "[[app.file_types]]\nname = \"x\"\nextensions = [\"a\"]\nmime = \"text/x\"\n[[app.file_types]]\nname = \"y\"\nextensions = [\"b\"]\nmime = \"text/x\"\n", "#2 mime"},
 		{"no id", "[app]\nname = \"Notes\"\n[[app.file_types]]\nname = \"x\"\nextensions = [\"md\"]\n", "#1 mime"},
 		{"unknown key", head + "[[app.file_types]]\nname = \"x\"\nextension = [\"md\"]\n", "[app.file_types] extension: is not a known key"},

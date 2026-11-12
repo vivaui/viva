@@ -19,7 +19,7 @@ var checkTest string
 type Attempt struct {
 	N      int
 	Finish string
-	Vet    string // empty when it compiled; else the start of go vet's output
+	Vet    string // empty when it passed; else the start of go vet's or viva vet's output
 }
 
 // Check is the verdict on one expectation.
@@ -37,7 +37,7 @@ type Run struct {
 	Attempts     []Attempt
 	Compiled     bool
 	FirstTry     bool
-	RepairRounds int // go vet failures survived before it compiled
+	RepairRounds int // go vet and viva vet failures survived before it passed both
 	Checks       []Check
 	Pass         bool // compiled and every check held
 	Prompt       int
@@ -60,7 +60,7 @@ func systemPrompt(guide, template string) string {
 		"\n\nHere is the project's current main.go, a working example:\n\n```go\n" + template + "```\n\n" +
 		"Reply with ONE complete replacement main.go in a single ```go block and nothing else. Keep `package main`, a `type model struct`, " +
 		"`func newModel() *model` (initial data), `func newConfig(m *model) app.Config` and `main()` as in the example (the window size from the task goes in app.Config Width/Height). " +
-		"Use only APIs the guide or the example shows or that you are sure exist in packages github.com/vivaui/viva/app, github.com/vivaui/viva/ui, github.com/vivaui/viva/flex, github.com/vivaui/viva/components. No third-party packages."
+		"Use only APIs the guide or the example shows or that you are sure exist in packages github.com/vivaui/viva/app, github.com/vivaui/viva/ui, github.com/vivaui/viva/gfx, github.com/vivaui/viva/components. No third-party packages."
 }
 
 func sh(dir string, timeout time.Duration, extraEnv []string, name string, args ...string) (string, error) {
@@ -138,6 +138,12 @@ func (e *env) attempt(task Task, m Model, key string, index int) Run {
 				return fail("%v", err)
 			}
 			out, err := sh(project, 5*time.Minute, nil, "go", "vet", "./...")
+			if err == nil {
+				// What compiles may still bind a copy or leave a list unkeyed:
+				// viva vet's findings go back to the model as the compiler's do,
+				// as the guide tells a user to run it.
+				out, err = sh(project, 5*time.Minute, nil, e.vivaBin, "vet", "./...")
+			}
 			if err != nil {
 				vet = strings.TrimSpace(out)
 				if vet == "" {
@@ -153,7 +159,7 @@ func (e *env) attempt(task Task, m Model, key string, index int) Run {
 		a.Vet = e.scrub(truncate(vet, 1500))
 		run.Attempts = append(run.Attempts, a)
 		messages = append(messages, message{"assistant", reply},
-			message{"user", "go vet failed:\n" + truncate(vet, 3000) + "\nFix it and reply with the complete main.go."})
+			message{"user", "go vet and viva vet reported:\n" + truncate(vet, 3000) + "\nFix it and reply with the complete main.go."})
 	}
 	if !run.Compiled {
 		return run

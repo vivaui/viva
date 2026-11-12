@@ -5,52 +5,52 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // tallSize returns a window tall enough to show the whole open page without
 // scrolling, so nothing is culled and every card or stage is laid out.
-func tallSize(state *State, width float32) ui.Size {
+func tallSize(state *State, width float32) gfx.Size {
 	pageWidth := max(width-pageInset*2, 0)
-	return ui.Size{Width: width, Height: toolbarHeight + pageTopGap + state.contentHeight(pageWidth) + pageBottomGap}
+	return gfx.Size{Width: width, Height: toolbarHeight + pageTopGap + state.contentHeight(pageWidth) + pageBottomGap}
 }
 
-func paintTall(state *State, width float32) *ui.Canvas {
-	canvas := &ui.Canvas{}
+func paintTall(state *State, width float32) *gfx.Canvas {
+	canvas := &gfx.Canvas{}
 	state.Paint(canvas, tallSize(state, width))
 	return canvas
 }
 
 // click delivers a click on id the way the runtime does: one paint of the whole
 // page, the event pass, in which the control that declared id reads Clicked.
-func click(state *State, id ui.ID) {
-	canvas := &ui.Canvas{}
-	canvas.BeginEventPass(id)
+func click(state *State, id gfx.ID) {
+	canvas := &gfx.Canvas{}
+	canvas.BeginEventPass(id, gfx.ClickInfo{})
 	state.Paint(canvas, tallSize(state, DefaultWidth))
 	canvas.EndEventPass()
 }
 
-func hasHit(canvas *ui.Canvas, id ui.ID) bool {
-	return slices.ContainsFunc(canvas.Hits(), func(hit ui.Hit) bool { return hit.ID == id })
+func hasHit(canvas *gfx.Canvas, id gfx.ID) bool {
+	return slices.ContainsFunc(canvas.Hits(), func(hit gfx.Hit) bool { return hit.ID == id })
 }
 
-func hasText(canvas *ui.Canvas, value string) bool {
-	return slices.ContainsFunc(canvas.Texts(), func(text ui.Text) bool { return text.Value == value })
+func hasText(canvas *gfx.Canvas, value string) bool {
+	return slices.ContainsFunc(canvas.Texts(), func(text gfx.Text) bool { return text.Value == value })
 }
 
-func findHit(canvas *ui.Canvas, id ui.ID) (ui.Hit, bool) {
+func findHit(canvas *gfx.Canvas, id gfx.ID) (gfx.Hit, bool) {
 	for _, hit := range canvas.Hits() {
 		if hit.ID == id {
 			return hit, true
 		}
 	}
-	return ui.Hit{}, false
+	return gfx.Hit{}, false
 }
 
 func TestCatalogListsEveryComponentOnce(t *testing.T) {
 	state := New()
 	canvas := paintTall(state, DefaultWidth)
-	seen := map[ui.ID]bool{}
+	seen := map[gfx.ID]bool{}
 	for _, hit := range canvas.Hits() {
 		if card, ok := cardOf(hit.ID); ok {
 			if seen[hit.ID] {
@@ -126,11 +126,11 @@ func TestCatalogGridFollowsTheWindowWidth(t *testing.T) {
 
 func TestHoveredCardKeepsItsSurface(t *testing.T) {
 	state := New()
-	var canvas ui.Canvas
-	canvas.SetInteraction(cardScope.ID(ui.Index(0)), ui.ID{}, ui.ID{}, false)
-	state.Paint(&canvas, ui.Size{Width: DefaultWidth, Height: DefaultHeight})
+	var canvas gfx.Canvas
+	canvas.SetInteraction(cardScope.ID(gfx.Index(0)), gfx.ID{}, gfx.ID{}, false)
+	state.Paint(&canvas, gfx.Size{Width: DefaultWidth, Height: DefaultHeight})
 	theme := state.Theme()
-	card, ok := findHit(&canvas, cardScope.ID(ui.Index(0)))
+	card, ok := findHit(&canvas, cardScope.ID(gfx.Index(0)))
 	if !ok {
 		t.Fatal("the first card was not painted")
 	}
@@ -140,7 +140,7 @@ func TestHoveredCardKeepsItsSurface(t *testing.T) {
 	// painted over it, and it must be the card surface: a solid ring color
 	// covering the card reads as a blue background.
 	probeX, probeY := card.Bounds.X+card.Bounds.Width-24, card.Bounds.Y+8
-	var visible ui.Color
+	var visible gfx.Color
 	for _, rectangle := range canvas.Rectangles() {
 		bounds := rectangle.Bounds
 		if rectangle.Color.Alpha > 0 && probeX >= bounds.X && probeX < bounds.X+bounds.Width && probeY >= bounds.Y && probeY < bounds.Y+bounds.Height {
@@ -166,7 +166,7 @@ func TestComponentPageShowsEveryExampleLive(t *testing.T) {
 	for index := range catalog {
 		component := &catalog[index]
 		state := New()
-		click(state, cardScope.ID(ui.Index(index)))
+		click(state, cardScope.ID(gfx.Index(index)))
 		if state.page != index+1 || len(state.live) != len(component.Examples) {
 			t.Fatalf("%s: opened page %d with %d live examples, want %d", component.ID, state.page, len(state.live), len(component.Examples))
 		}
@@ -187,7 +187,7 @@ func TestComponentPageShowsEveryExampleLive(t *testing.T) {
 				}
 				// A control can only be reached inside the stage it belongs to.
 				view := state.live[slot]
-				stage := ui.Rect{X: view.origin.X, Y: view.origin.Y, Width: view.size.Width, Height: view.size.Height}
+				stage := gfx.Rect{X: view.origin.X, Y: view.origin.Y, Width: view.size.Width, Height: view.size.Height}
 				if hit.Bounds.X < stage.X-0.01 || hit.Bounds.Y < stage.Y-0.01 ||
 					hit.Bounds.X+hit.Bounds.Width > stage.X+stage.Width+0.01 || hit.Bounds.Y+hit.Bounds.Height > stage.Y+stage.Height+0.01 {
 					t.Fatalf("%s: hit %s (%q) at %+v leaves its stage %+v", component.ID, tree.Path(hit.ID.Scope()), hit.Label, hit.Bounds, stage)
@@ -203,7 +203,7 @@ func TestExamplesOfOnePageNeverShareHitIDs(t *testing.T) {
 	state := New()
 	state.openPage(1)
 	canvas := paintTall(state, 2400)
-	owner := map[ui.ID]int{}
+	owner := map[gfx.ID]int{}
 	for _, hit := range canvas.Hits() {
 		slot, _, ok := state.decodeExample(hit.ID)
 		if !ok {
@@ -217,7 +217,7 @@ func TestExamplesOfOnePageNeverShareHitIDs(t *testing.T) {
 	if len(owner) == 0 {
 		t.Fatal("the button page declared no example controls")
 	}
-	locals := map[ui.ID][]int{}
+	locals := map[gfx.ID][]int{}
 	for id, slot := range owner {
 		_, local, _ := state.decodeExample(id)
 		locals[local] = append(locals[local], slot)
@@ -235,7 +235,7 @@ func TestExamplesNeverPaintAboveTheToolbar(t *testing.T) {
 	for index := range catalog {
 		state := New()
 		state.openPage(index + 1)
-		for _, density := range []ui.Density{ui.DensityRegular, ui.DensityLarge, ui.DensityCompact} {
+		for _, density := range []gfx.Density{gfx.DensityRegular, gfx.DensityLarge, gfx.DensityCompact} {
 			for _, light := range []bool{true, false} {
 				state.density, state.lightMode = density, light
 				canvas := paintTall(state, DefaultWidth)
@@ -255,9 +255,9 @@ func TestExamplesNeverPaintAboveTheToolbar(t *testing.T) {
 }
 
 func TestToolbarCoversContentScrolledUnderIt(t *testing.T) {
-	size := ui.Size{Width: DefaultWidth, Height: DefaultHeight}
+	size := gfx.Size{Width: DefaultWidth, Height: DefaultHeight}
 	state := New()
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	state.Paint(&canvas, size)
 
 	reachedUnderToolbar := false
@@ -266,9 +266,9 @@ func TestToolbarCoversContentScrolledUnderIt(t *testing.T) {
 		canvas.Reset()
 		state.Paint(&canvas, size)
 
-		var surface ui.Rectangle
+		var surface gfx.Rectangle
 		for _, rectangle := range canvas.Rectangles() {
-			if rectangle.Bounds == (ui.Rect{Width: size.Width, Height: toolbarHeight}) {
+			if rectangle.Bounds == (gfx.Rect{Width: size.Width, Height: toolbarHeight}) {
 				surface = rectangle
 			}
 		}
@@ -343,10 +343,10 @@ func TestToolbarComponentsButtonReturnsToTheCatalog(t *testing.T) {
 
 func TestNavigationStartsPagesAtTheTopWithFreshExamples(t *testing.T) {
 	state := New()
-	var canvas ui.Canvas
-	state.Paint(&canvas, ui.Size{Width: DefaultWidth, Height: DefaultHeight})
-	state.Scroll(ui.ScrollEvent{DeltaY: 700})
-	click(state, cardScope.ID(ui.Index(0)))
+	var canvas gfx.Canvas
+	state.Paint(&canvas, gfx.Size{Width: DefaultWidth, Height: DefaultHeight})
+	state.Scroll(gfx.ScrollEvent{DeltaY: 700})
+	click(state, cardScope.ID(gfx.Index(0)))
 	if state.page != 1 || state.viewScroll != 0 {
 		t.Fatalf("opening a component left it at page %d, offset %v", state.page, state.viewScroll)
 	}
@@ -382,7 +382,7 @@ func TestSettingsReachEveryExample(t *testing.T) {
 	}
 
 	// The example paints its own background first; it must follow the toggle.
-	stageBackground := func() ui.Color { return state.live[0].canvas.Rectangles()[0].Color }
+	stageBackground := func() gfx.Color { return state.live[0].canvas.Rectangles()[0].Color }
 	light := stageBackground()
 	click(state, hitThemeToggle)
 	paintTall(state, DefaultWidth)
@@ -393,19 +393,19 @@ func TestSettingsReachEveryExample(t *testing.T) {
 
 // findLabelHit returns the first hit with the accessibility label: the button
 // example's primary control is the one called "Click me".
-func findLabelHit(canvas *ui.Canvas, label string) (ui.Hit, bool) {
+func findLabelHit(canvas *gfx.Canvas, label string) (gfx.Hit, bool) {
 	for _, hit := range canvas.Hits() {
 		if hit.Label == label {
 			return hit, true
 		}
 	}
-	return ui.Hit{}, false
+	return gfx.Hit{}, false
 }
 
 func TestWheelScrollClampsAtBothEnds(t *testing.T) {
 	state := New()
-	var canvas ui.Canvas
-	state.Paint(&canvas, ui.Size{Width: DefaultWidth, Height: DefaultHeight})
+	var canvas gfx.Canvas
+	state.Paint(&canvas, gfx.Size{Width: DefaultWidth, Height: DefaultHeight})
 	if state.scrollMax <= 0 {
 		t.Fatal("the catalog should be taller than the window")
 	}
@@ -413,23 +413,23 @@ func TestWheelScrollClampsAtBothEnds(t *testing.T) {
 	// Trackpad momentum keeps arriving after the end is reached. It must not
 	// bank an offset the next gesture in the other direction has to unwind.
 	for range 80 {
-		state.Scroll(ui.ScrollEvent{DeltaY: 400, Precise: true})
+		state.Scroll(gfx.ScrollEvent{DeltaY: 400, Precise: true})
 	}
 	if state.viewScroll != state.scrollMax {
 		t.Fatalf("offset %v after momentum past the end, want the end %v", state.viewScroll, state.scrollMax)
 	}
-	result := state.Scroll(ui.ScrollEvent{DeltaY: -30, Precise: true})
+	result := state.Scroll(gfx.ScrollEvent{DeltaY: -30, Precise: true})
 	if !result.Handled || !result.Repaint || state.viewScroll != state.scrollMax-30 {
 		t.Fatalf("scrolling back moved to %v (%+v), want %v at once", state.viewScroll, result, state.scrollMax-30)
 	}
 
 	for range 80 {
-		state.Scroll(ui.ScrollEvent{DeltaY: -400, Precise: true})
+		state.Scroll(gfx.ScrollEvent{DeltaY: -400, Precise: true})
 	}
 	if state.viewScroll != 0 {
 		t.Fatalf("offset %v after momentum past the start, want 0", state.viewScroll)
 	}
-	result = state.Scroll(ui.ScrollEvent{DeltaY: -10})
+	result = state.Scroll(gfx.ScrollEvent{DeltaY: -10})
 	if !result.Handled || result.Repaint {
 		t.Fatalf("a gesture that cannot move the page must be handled without a repaint: %+v", result)
 	}
@@ -437,10 +437,10 @@ func TestWheelScrollClampsAtBothEnds(t *testing.T) {
 
 func TestWheelDeltaSignRevealsContentBelow(t *testing.T) {
 	state := New()
-	size := ui.Size{Width: DefaultWidth, Height: DefaultHeight}
-	var canvas ui.Canvas
+	size := gfx.Size{Width: DefaultWidth, Height: DefaultHeight}
+	var canvas gfx.Canvas
 	state.Paint(&canvas, size)
-	state.Scroll(ui.ScrollEvent{DeltaY: 120})
+	state.Scroll(gfx.ScrollEvent{DeltaY: 120})
 	if state.viewScroll != 120 {
 		t.Fatalf("a positive delta moved the offset to %v, want 120", state.viewScroll)
 	}
@@ -458,9 +458,9 @@ func TestWheelDeltaSignRevealsContentBelow(t *testing.T) {
 }
 
 func TestPageScrollbarFollowsOverflowAndDrags(t *testing.T) {
-	size := ui.Size{Width: DefaultWidth, Height: DefaultHeight}
+	size := gfx.Size{Width: DefaultWidth, Height: DefaultHeight}
 	state := New()
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	state.Paint(&canvas, size)
 	track, ok := findHit(&canvas, hitPageScrollbar)
 	if !ok || track.Bounds.X+track.Bounds.Width != size.Width {
@@ -468,8 +468,8 @@ func TestPageScrollbarFollowsOverflowAndDrags(t *testing.T) {
 	}
 
 	thumb := state.scrollGeometry(size).VerticalThumb
-	grab := ui.PointerEvent{
-		Kind: ui.PointerDown, Button: ui.PointerButtonPrimary, X: thumb.X + 1, Y: thumb.Y + thumb.Height/2,
+	grab := gfx.PointerEvent{
+		Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, X: thumb.X + 1, Y: thumb.Y + thumb.Height/2,
 		Viewport: size, Target: hitPageScrollbar,
 	}
 	if result := state.Pointer(grab); !result.Handled || !state.thumbDragging {
@@ -477,7 +477,7 @@ func TestPageScrollbarFollowsOverflowAndDrags(t *testing.T) {
 	}
 	travel := track.Bounds.Height - thumb.Height
 	drag := grab
-	drag.Kind, drag.Captured = ui.PointerMove, true
+	drag.Kind, drag.Captured = gfx.PointerMove, true
 	drag.Y += travel / 2
 	if result := state.Pointer(drag); !result.Handled || !result.Repaint {
 		t.Fatalf("dragging did not repaint: %+v", result)
@@ -491,7 +491,7 @@ func TestPageScrollbarFollowsOverflowAndDrags(t *testing.T) {
 		t.Fatalf("dragging past the track end left the page at %v, want %v", state.viewScroll, state.scrollMax)
 	}
 	up := drag
-	up.Kind = ui.PointerUp
+	up.Kind = gfx.PointerUp
 	if result := state.Pointer(up); !result.Handled || state.thumbDragging {
 		t.Fatalf("releasing did not end the drag: %+v", result)
 	}
@@ -503,13 +503,13 @@ func TestPageScrollbarFollowsOverflowAndDrags(t *testing.T) {
 }
 
 func TestPageScrollbarTrackPressCentersThumb(t *testing.T) {
-	size := ui.Size{Width: DefaultWidth, Height: DefaultHeight}
+	size := gfx.Size{Width: DefaultWidth, Height: DefaultHeight}
 	state := New()
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	state.Paint(&canvas, size)
 	geometry := state.scrollGeometry(size)
-	state.Pointer(ui.PointerEvent{
-		Kind: ui.PointerDown, Button: ui.PointerButtonPrimary, X: geometry.VerticalTrack.X + 4,
+	state.Pointer(gfx.PointerEvent{
+		Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, X: geometry.VerticalTrack.X + 4,
 		Y: geometry.VerticalTrack.Y + geometry.VerticalTrack.Height - 4, Viewport: size, Target: hitPageScrollbar,
 	})
 	if state.viewScroll < state.scrollMax*0.95 {
@@ -524,12 +524,12 @@ func TestShortPageHasNoScrollbar(t *testing.T) {
 			state.openPage(index + 1)
 		}
 	}
-	var canvas ui.Canvas
-	state.Paint(&canvas, ui.Size{Width: DefaultWidth, Height: DefaultHeight})
+	var canvas gfx.Canvas
+	state.Paint(&canvas, gfx.Size{Width: DefaultWidth, Height: DefaultHeight})
 	if hasHit(&canvas, hitPageScrollbar) || state.scrollMax != 0 {
 		t.Fatalf("a page that fits must not scroll (max %v)", state.scrollMax)
 	}
-	state.Scroll(ui.ScrollEvent{DeltaY: 500})
+	state.Scroll(gfx.ScrollEvent{DeltaY: 500})
 	if state.viewScroll != 0 {
 		t.Fatalf("a page that fits scrolled to %v", state.viewScroll)
 	}
@@ -537,7 +537,7 @@ func TestShortPageHasNoScrollbar(t *testing.T) {
 
 func TestReloadRoundTripKeepsWhereYouWere(t *testing.T) {
 	state := New()
-	click(state, cardScope.ID(ui.Index(32))) // input
+	click(state, cardScope.ID(gfx.Index(32))) // input
 	click(state, hitDensityCycle)
 	click(state, hitThemeToggle)
 	state.viewScroll = 77.5
@@ -588,9 +588,9 @@ func TestReloadStateRejectsDamagedData(t *testing.T) {
 }
 
 func TestPaintAllocatesNothingOnceWarm(t *testing.T) {
-	size := ui.Size{Width: DefaultWidth, Height: DefaultHeight}
+	size := gfx.Size{Width: DefaultWidth, Height: DefaultHeight}
 	state := New()
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	for page := 0; page <= len(catalog); page++ {
 		state.openPage(page)
 		canvas.Reset()
@@ -617,8 +617,8 @@ func BenchmarkGalleryPaint(b *testing.B) {
 		b.Run(page.name, func(b *testing.B) {
 			state := New()
 			state.openPage(page.index)
-			size := ui.Size{Width: DefaultWidth, Height: DefaultHeight}
-			var canvas ui.Canvas
+			size := gfx.Size{Width: DefaultWidth, Height: DefaultHeight}
+			var canvas gfx.Canvas
 			state.Paint(&canvas, size)
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -631,11 +631,11 @@ func BenchmarkGalleryPaint(b *testing.B) {
 }
 
 func TestNoPageRequestsFramesAtRest(t *testing.T) {
-	size := ui.Size{Width: DefaultWidth, Height: DefaultHeight}
+	size := gfx.Size{Width: DefaultWidth, Height: DefaultHeight}
 	for page := 0; page <= len(catalog); page++ {
 		state := New()
 		state.openPage(page)
-		var canvas ui.Canvas
+		var canvas gfx.Canvas
 		now := time.Duration(0)
 		canvas.SetClock(func() time.Duration { return now })
 		frame := func() bool {
@@ -662,14 +662,14 @@ func TestNoPageRequestsFramesAtRest(t *testing.T) {
 }
 
 func TestAnExampleTransitionKeepsThePageAnimatingUntilItSettles(t *testing.T) {
-	size := ui.Size{Width: DefaultWidth, Height: DefaultHeight}
+	size := gfx.Size{Width: DefaultWidth, Height: DefaultHeight}
 	state := New()
 	for index := range catalog {
 		if catalog[index].ID == "switch" {
 			state.openPage(index + 1)
 		}
 	}
-	var canvas ui.Canvas
+	var canvas gfx.Canvas
 	now := time.Duration(0)
 	canvas.SetClock(func() time.Duration { return now })
 	frame := func() bool {
@@ -680,9 +680,9 @@ func TestAnExampleTransitionKeepsThePageAnimatingUntilItSettles(t *testing.T) {
 		return canvas.Animating()
 	}
 	frame()
-	var toggle ui.ID
+	var toggle gfx.ID
 	for _, hit := range canvas.Hits() {
-		if hit.Role == ui.RoleSwitch {
+		if hit.Role == gfx.RoleSwitch {
 			toggle = hit.ID
 			break
 		}
@@ -690,7 +690,7 @@ func TestAnExampleTransitionKeepsThePageAnimatingUntilItSettles(t *testing.T) {
 	if toggle.IsZero() {
 		t.Fatal("the switch page has no switch")
 	}
-	canvas.BeginEventPass(toggle) // the click, read by the demo while it paints
+	canvas.BeginEventPass(toggle, gfx.ClickInfo{}) // the click, read by the demo while it paints
 	frame()
 	canvas.EndEventPass()
 	now += 16 * time.Millisecond
@@ -705,7 +705,7 @@ func TestAnExampleTransitionKeepsThePageAnimatingUntilItSettles(t *testing.T) {
 }
 
 // cardOf returns the catalog index a card's identity opens.
-func cardOf(id ui.ID) (int, bool) {
+func cardOf(id gfx.ID) (int, bool) {
 	card, ok := id.Name().Index()
 	return card, ok && id.Scope() == cardScope && card < len(catalog)
 }

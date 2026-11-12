@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 //go:embed testdata/*.svg
@@ -35,8 +35,8 @@ func TestLucideSuiteCompiles(t *testing.T) {
 		compiled++
 
 		// Every icon must draw a sane number of triangles at icon size.
-		var canvas ui.Canvas
-		canvas.DrawIcon(icon, ui.Rect{X: 0, Y: 0, Width: 16, Height: 16}, ui.Color{Alpha: 1})
+		var canvas gfx.Canvas
+		canvas.DrawIcon(icon, gfx.Rect{X: 0, Y: 0, Width: 16, Height: 16}, gfx.Color{Alpha: 1})
 		if len(canvas.Triangles()) < 2 {
 			t.Errorf("%s: drew %d triangles; geometry lost", entry.Name(), len(canvas.Triangles()))
 		}
@@ -66,21 +66,21 @@ func TestKnownIconGeometry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if icon.ViewBox != 24 || icon.Stroke != 2 || icon.Cap != ui.CapRound || icon.Join != ui.JoinRound {
+	if icon.ViewBox != 24 || icon.Stroke != 2 || icon.Cap != gfx.CapRound || icon.Join != gfx.JoinRound {
 		t.Fatalf("metadata = %+v", icon)
 	}
 	if len(icon.Commands) != 11 {
 		t.Fatalf("commands = %d, want 11", len(icon.Commands))
 	}
-	if icon.Commands[0] != (ui.PathCommand{Kind: ui.PathCommandMove, Point: ui.Point{X: 21, Y: 15}}) {
+	if icon.Commands[0] != (gfx.PathCommand{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 21, Y: 15}}) {
 		t.Fatalf("first command = %+v", icon.Commands[0])
 	}
 	// The arc pair (a 2 2 0 0 1 ...) must have become cubic commands.
-	kinds := map[ui.PathCommandKind]int{}
+	kinds := map[gfx.PathCommandKind]int{}
 	for _, command := range icon.Commands {
 		kinds[command.Kind]++
 	}
-	if kinds[ui.PathCommandCubic] == 0 {
+	if kinds[gfx.PathCommandCubic] == 0 {
 		t.Fatal("arc commands did not compile to cubics")
 	}
 }
@@ -96,13 +96,13 @@ func TestRelativeMoveContinuation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var last ui.PathCommand
+	var last gfx.PathCommand
 	moves, lines := 0, 0
 	for _, command := range icon.Commands {
 		switch command.Kind {
-		case ui.PathCommandMove:
+		case gfx.PathCommandMove:
 			moves++
-		case ui.PathCommandLine:
+		case gfx.PathCommandLine:
 			lines++
 		}
 		last = command
@@ -110,7 +110,7 @@ func TestRelativeMoveContinuation(t *testing.T) {
 	if moves != 2 || lines != 3 {
 		t.Fatalf("moves=%d lines=%d commands=%+v", moves, lines, icon.Commands)
 	}
-	if last.Point != (ui.Point{X: 5, Y: 12}) {
+	if last.Point != (gfx.Point{X: 5, Y: 12}) {
 		t.Fatalf("final point = %+v, want (5,12)", last.Point)
 	}
 }
@@ -122,7 +122,7 @@ func TestGeneratedSourceCompiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	icons := map[string]ui.Icon{}
+	icons := map[string]gfx.Icon{}
 	for _, entry := range entries {
 		source, err := testIcons.ReadFile("testdata/" + entry.Name())
 		if err != nil {
@@ -166,8 +166,8 @@ func TestCircleIconDrawsDisc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var canvas ui.Canvas
-	canvas.DrawIcon(icon, ui.Rect{Width: 24, Height: 24}, ui.Color{Alpha: 1})
+	var canvas gfx.Canvas
+	canvas.DrawIcon(icon, gfx.Rect{Width: 24, Height: 24}, gfx.Color{Alpha: 1})
 	triangles := canvas.Triangles()
 	if len(triangles) < 8 {
 		t.Fatalf("triangles = %d; circle did not tessellate", len(triangles))
@@ -188,7 +188,7 @@ func TestCircleIconDrawsDisc(t *testing.T) {
 }
 
 // inked reports whether any triangle covers the point.
-func inked(triangles []ui.Triangle, x, y float32) bool {
+func inked(triangles []gfx.Triangle, x, y float32) bool {
 	for _, triangle := range triangles {
 		a, b, c := triangle.Points[0], triangle.Points[1], triangle.Points[2]
 		d1 := (b.X-a.X)*(y-a.Y) - (b.Y-a.Y)*(x-a.X)
@@ -214,8 +214,8 @@ func TestRoundedRectIconTracesTheRoundedOutline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var canvas ui.Canvas
-	canvas.DrawIcon(icon, ui.Rect{Width: 24, Height: 24}, ui.Color{Alpha: 1})
+	var canvas gfx.Canvas
+	canvas.DrawIcon(icon, gfx.Rect{Width: 24, Height: 24}, gfx.Color{Alpha: 1})
 	triangles := canvas.Triangles()
 
 	const radius, edge = 4.0, 3.0
@@ -264,8 +264,8 @@ func TestRectWithoutRadiusIsASharpSquare(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var canvas ui.Canvas
-	canvas.DrawIcon(icon, ui.Rect{Width: 24, Height: 24}, ui.Color{Alpha: 1})
+	var canvas gfx.Canvas
+	canvas.DrawIcon(icon, gfx.Rect{Width: 24, Height: 24}, gfx.Color{Alpha: 1})
 	for _, point := range [][2]float32{{4, 6}, {20, 6}, {20, 18}, {4, 18}, {12, 6}, {12, 18}, {4, 12}, {20, 12}} {
 		if !inked(canvas.Triangles(), point[0], point[1]) {
 			t.Errorf("no ink at %v", point)
@@ -305,16 +305,16 @@ func TestRectCommandsAreExact(t *testing.T) {
 			}
 			rx, ry := test.rx, test.ry
 			k := func(v float64) float32 { return float32(v) }
-			want := []ui.PathCommand{
-				ui.MoveTo(k(x+w-rx), k(y)),
-				ui.CubicTo(k(x+w-rx+kappa*rx), k(y), k(x+w), k(y+ry-kappa*ry), k(x+w), k(y+ry)),
-				ui.LineTo(k(x+w), k(y+h-ry)),
-				ui.CubicTo(k(x+w), k(y+h-ry+kappa*ry), k(x+w-rx+kappa*rx), k(y+h), k(x+w-rx), k(y+h)),
-				ui.LineTo(k(x+rx), k(y+h)),
-				ui.CubicTo(k(x+rx-kappa*rx), k(y+h), k(x), k(y+h-ry+kappa*ry), k(x), k(y+h-ry)),
-				ui.LineTo(k(x), k(y+ry)),
-				ui.CubicTo(k(x), k(y+ry-kappa*ry), k(x+rx-kappa*rx), k(y), k(x+rx), k(y)),
-				ui.ClosePath(),
+			want := []gfx.PathCommand{
+				gfx.MoveTo(k(x+w-rx), k(y)),
+				gfx.CubicTo(k(x+w-rx+kappa*rx), k(y), k(x+w), k(y+ry-kappa*ry), k(x+w), k(y+ry)),
+				gfx.LineTo(k(x+w), k(y+h-ry)),
+				gfx.CubicTo(k(x+w), k(y+h-ry+kappa*ry), k(x+w-rx+kappa*rx), k(y+h), k(x+w-rx), k(y+h)),
+				gfx.LineTo(k(x+rx), k(y+h)),
+				gfx.CubicTo(k(x+rx-kappa*rx), k(y+h), k(x), k(y+h-ry+kappa*ry), k(x), k(y+h-ry)),
+				gfx.LineTo(k(x), k(y+ry)),
+				gfx.CubicTo(k(x), k(y+ry-kappa*ry), k(x+rx-kappa*rx), k(y), k(x+rx), k(y)),
+				gfx.ClosePath(),
 			}
 			if len(icon.Commands) != len(want) {
 				t.Fatalf("%d commands, want %d: %+v", len(icon.Commands), len(want), icon.Commands)
@@ -337,7 +337,7 @@ func TestGeneratedSourceIsGofmtClean(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := Generate("icons", map[string]ui.Icon{"tick": icon}, "Lucide, ISC license.")
+	source, err := Generate("icons", map[string]gfx.Icon{"tick": icon}, "Lucide, ISC license.")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,10 +371,10 @@ func TestColoredFillsBecomeLayers(t *testing.T) {
 	if orange.Red < 0.89 || orange.Red > 0.91 || orange.Green < 0.31 || orange.Green > 0.33 || orange.Blue != 0 || orange.Alpha != 1 {
 		t.Fatalf("first fill = %+v, want #e65100", orange)
 	}
-	if blue := icon.Layers[1].Fill; blue.Blue != 1 || blue.Alpha != 0.25 || icon.Layers[1].FillRule != ui.PathFillEvenOdd {
+	if blue := icon.Layers[1].Fill; blue.Blue != 1 || blue.Alpha != 0.25 || icon.Layers[1].FillRule != gfx.PathFillEvenOdd {
 		t.Fatalf("second layer = %+v, want opaque-blue at a quarter alpha, even-odd", icon.Layers[1])
 	}
-	if icon.Layers[2].FillRule != ui.PathFillNonZero || len(icon.Layers[2].Commands) == 0 {
+	if icon.Layers[2].FillRule != gfx.PathFillNonZero || len(icon.Layers[2].Commands) == 0 {
 		t.Fatalf("rect layer = %+v", icon.Layers[2])
 	}
 }
@@ -396,16 +396,16 @@ func TestColoredLayersSurviveGenerationAndCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := Generate("icons", map[string]ui.Icon{"dot": icon}, "")
+	source, err := Generate("icons", map[string]gfx.Icon{"dot": icon}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Layers: []ui.IconLayer{", "ui.Color{Red: 0.5529", "ui.MoveTo(2.0, 2.0)"} {
+	for _, want := range []string{"Layers: []gfx.IconLayer{", "gfx.Color{Red: 0.5529", "gfx.MoveTo(2.0, 2.0)"} {
 		if !strings.Contains(string(source), want) {
 			t.Errorf("generated source lacks %q:\n%s", want, source)
 		}
 	}
-	if strings.Contains(string(source), "Commands: []ui.PathCommand{\n\t\tui.MoveTo(2.0, 2.0)") {
+	if strings.Contains(string(source), "Commands: []gfx.PathCommand{\n\t\tgfx.MoveTo(2.0, 2.0)") {
 		t.Error("a colored icon also emitted stroked commands")
 	}
 }
@@ -468,7 +468,7 @@ func TestNonSquareViewBoxKeepsBothSides(t *testing.T) {
 	if square.ViewBox != 24 || square.ViewHeight != 0 {
 		t.Fatalf("square view box %v x %v, want 24 and an unset height", square.ViewBox, square.ViewHeight)
 	}
-	source, err := Generate("icons", map[string]ui.Icon{"wide": wide}, "")
+	source, err := Generate("icons", map[string]gfx.Icon{"wide": wide}, "")
 	if err != nil || !strings.Contains(string(source), "ViewHeight: 10.0") {
 		t.Fatalf("generated source lacks the view height: %v\n%s", err, source)
 	}
@@ -490,17 +490,17 @@ func TestLinearGradientFillBecomesAGradientLayer(t *testing.T) {
 	gradient := icon.Layers[0].Gradient
 	// The view box origin (10,10) and the scale(2) of the group both apply to
 	// the endpoints, as they do to the path.
-	if gradient.Start != (ui.Point{X: 18, Y: 10}) || gradient.End != (ui.Point{X: 50, Y: 10}) {
+	if gradient.Start != (gfx.Point{X: 18, Y: 10}) || gradient.End != (gfx.Point{X: 50, Y: 10}) {
 		t.Fatalf("endpoints = %+v → %+v", gradient.Start, gradient.End)
 	}
-	if gradient.From != (ui.Color{Red: 1, Alpha: 1}) || gradient.To != (ui.Color{Blue: 1, Alpha: 0.5}) {
+	if gradient.From != (gfx.Color{Red: 1, Alpha: 1}) || gradient.To != (gfx.Color{Blue: 1, Alpha: 0.5}) {
 		t.Fatalf("colors = %+v → %+v", gradient.From, gradient.To)
 	}
-	source, err := Generate("icons", map[string]ui.Icon{"grad": icon}, "")
+	source, err := Generate("icons", map[string]gfx.Icon{"grad": icon}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "Gradient: &ui.LinearGradient{Start: ui.Point{X: 18.0, Y: 10.0}"; !strings.Contains(string(source), want) {
+	if want := "Gradient: &gfx.LinearGradient{Start: gfx.Point{X: 18.0, Y: 10.0}"; !strings.Contains(string(source), want) {
 		t.Fatalf("generated source lacks %q:\n%s", want, source)
 	}
 }
@@ -556,7 +556,7 @@ func TestPaintOnTheRootElementIsInherited(t *testing.T) {
 	if len(icon.Commands) != 0 || len(icon.Layers) != 2 {
 		t.Fatalf("compiled to %d stroked commands and %d layers, want 0 and 2", len(icon.Commands), len(icon.Layers))
 	}
-	if got := icon.Layers[0].Fill; got != (ui.Color{Red: 0x57 / 255.0, Green: 0x86 / 255.0, Blue: 0xFE / 255.0, Alpha: 1}) {
+	if got := icon.Layers[0].Fill; got != (gfx.Color{Red: 0x57 / 255.0, Green: 0x86 / 255.0, Blue: 0xFE / 255.0, Alpha: 1}) {
 		t.Fatalf("the path took %+v, not the root's color", got)
 	}
 	if icon.Layers[1].Fill.Red != 1 {
@@ -601,8 +601,8 @@ func TestCompactArcDotKeepsItsSize(t *testing.T) {
 	}
 	var minX, maxX, minY, maxY float32 = 1e9, -1e9, 1e9, -1e9
 	for _, command := range icon.Layers[0].Commands {
-		for _, point := range []ui.Point{command.Point, command.Control1, command.Control2} {
-			if command.Kind == ui.PathCommandClose {
+		for _, point := range []gfx.Point{command.Point, command.Control1, command.Control2} {
+			if command.Kind == gfx.PathCommandClose {
 				continue
 			}
 			minX, maxX = min(minX, point.X), max(maxX, point.X)
@@ -627,21 +627,21 @@ func TestBoundingBoxGradientIsPlacedOnTheShapesBox(t *testing.T) {
 		t.Fatalf("%d layers", len(icon.Layers))
 	}
 	first, second := icon.Layers[0].Gradient, icon.Layers[1].Gradient
-	if first.Start != (ui.Point{X: 4, Y: 11}) || math.Abs(float64(first.End.X)-16.06) > 1e-4 || first.End.Y != 11 {
+	if first.Start != (gfx.Point{X: 4, Y: 11}) || math.Abs(float64(first.End.X)-16.06) > 1e-4 || first.End.Y != 11 {
 		t.Fatalf("first gradient runs %+v to %+v, want the box 4..16 across, at its middle height", first.Start, first.End)
 	}
 	// The same gradient on another shape lands on that shape's box, after its transform.
-	if second.Start != (ui.Point{X: 22, Y: 12}) || math.Abs(float64(second.End.X)-30.04) > 1e-4 {
+	if second.Start != (gfx.Point{X: 22, Y: 12}) || math.Abs(float64(second.End.X)-30.04) > 1e-4 {
 		t.Fatalf("second gradient runs %+v to %+v, want the box 22..30 across at height 12", second.Start, second.End)
 	}
-	if first.From != (ui.Color{Red: 0xe2 / 255.0, Green: 0x16 / 255.0, Blue: 0x7e / 255.0, Alpha: 1}) {
+	if first.From != (gfx.Color{Red: 0xe2 / 255.0, Green: 0x16 / 255.0, Blue: 0x7e / 255.0, Alpha: 1}) {
 		t.Fatalf("first stop %+v", first.From)
 	}
 }
 
 // The box of a curved shape is its true extent, not its control points'.
 func TestCommandBoundsFollowsCurves(t *testing.T) {
-	minX, minY, maxX, maxY, ok := commandBounds([]ui.PathCommand{ui.MoveTo(0, 0), ui.CubicTo(0, 10, 10, 10, 10, 0), ui.ClosePath()})
+	minX, minY, maxX, maxY, ok := commandBounds([]gfx.PathCommand{gfx.MoveTo(0, 0), gfx.CubicTo(0, 10, 10, 10, 10, 0), gfx.ClosePath()})
 	if !ok || minX != 0 || maxX != 10 || minY != 0 || maxY < 7.4 || maxY > 7.6 {
 		t.Fatalf("bounds = %v %v %v %v, want x 0..10 and y 0..7.5 (the curve's peak, not its control points at 10)", minX, minY, maxX, maxY)
 	}
@@ -659,8 +659,8 @@ func TestEllipseCompilesToItsRing(t *testing.T) {
 	if len(icon.Commands) != 6 {
 		t.Fatalf("%d commands, want move + four cubics + close", len(icon.Commands))
 	}
-	var canvas ui.Canvas
-	canvas.DrawIcon(icon, ui.Rect{Width: 24, Height: 24}, ui.Color{Alpha: 1})
+	var canvas gfx.Canvas
+	canvas.DrawIcon(icon, gfx.Rect{Width: 24, Height: 24}, gfx.Color{Alpha: 1})
 	triangles := canvas.Triangles()
 	if !inked(triangles, 21, 5) || !inked(triangles, 3, 5) || !inked(triangles, 12, 2) || !inked(triangles, 12, 8) {
 		t.Fatal("the ellipse ring has no ink at its cardinal points")
@@ -678,8 +678,8 @@ func TestTheLucideCylinderKeepsAllThreeParts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var canvas ui.Canvas
-	canvas.DrawIcon(icon, ui.Rect{Width: 24, Height: 24}, ui.Color{Alpha: 1})
+	var canvas gfx.Canvas
+	canvas.DrawIcon(icon, gfx.Rect{Width: 24, Height: 24}, gfx.Color{Alpha: 1})
 	triangles := canvas.Triangles()
 	for _, probe := range []struct {
 		name string

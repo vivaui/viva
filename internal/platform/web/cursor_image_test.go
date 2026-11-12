@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestCursorImageCSSNamesTheHotspotAndFallsBack(t *testing.T) {
-	image, err := ui.NewCursorImage(2, 2, 1, 0, 1, make([]byte, 16))
+	image, err := gfx.NewCursorImage(2, 2, 1, 0, 1, make([]byte, 16))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +22,7 @@ func TestCursorImageCSSNamesTheHotspotAndFallsBack(t *testing.T) {
 }
 
 func TestCursorImageCSSOffersAScaledPictureAtItsResolution(t *testing.T) {
-	image, err := ui.NewCursorImage(4, 4, 2, 2, 2, make([]byte, 64))
+	image, err := gfx.NewCursorImage(4, 4, 2, 2, 2, make([]byte, 64))
 	if err != nil {
 		t.Fatal(err)
 	}

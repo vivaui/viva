@@ -3,9 +3,9 @@ package linux
 import (
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/dbus"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 func testItem() *linuxStatusItem {
@@ -96,7 +96,7 @@ func TestPanelAndOriginAreScaledToDevicePixels(t *testing.T) {
 	if x, y := win.panelOrigin(config); x != 1640 || y != 880 {
 		t.Fatalf("an unanchored 280x200 panel at 2x is at %d,%d, want the center of the screen 1640,880", x, y)
 	}
-	config = platform.Config{WindowMode: platform.WindowTitled, Width: 280, Height: 200, HasOrigin: true, Origin: ui.Point{X: 100, Y: 50.5}}
+	config = platform.Config{WindowMode: platform.WindowTitled, Width: 280, Height: 200, HasOrigin: true, Origin: gfx.Point{X: 100, Y: 50.5}}
 	if x, y := win.panelOrigin(config); x != 200 || y != 101 {
 		t.Fatalf("origin 100,50.5 at 2x is %d,%d, want 200,101", x, y)
 	}

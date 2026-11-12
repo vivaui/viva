@@ -23,6 +23,21 @@ func TestLabelBaselineIsWhereMacOSAlwaysPutIt(t *testing.T) {
 	}
 }
 
+// A fixed-pitch label stands on the font's own row, which the canvas worked out in logical
+// pixels and the renderer rounds to a device pixel; the rest stand on LabelBaseline.
+func TestTextBaselineFollowsTheFixedPitchLine(t *testing.T) {
+	mono := TextLabel{FontSize: 10, Mono: true, Baseline: 12.5}
+	if got := TextBaseline(mono, 20, 2); got != 25 {
+		t.Errorf("fixed-pitch baseline row %d at 2x, want 25", got)
+	}
+	if got := TextBaseline(TextLabel{FontSize: 10}, 20, 2); got != LabelBaseline(20, 20) {
+		t.Errorf("proportional baseline row %d, want LabelBaseline's %d", got, LabelBaseline(20, 20))
+	}
+	if got := TextBaseline(TextLabel{Mono: true, Baseline: 12.5}, 20, 0); got != LabelBaseline(20, 0) {
+		t.Errorf("baseline row %d of a label with no font size, want LabelBaseline's %d", got, LabelBaseline(20, 0))
+	}
+}
+
 //go:embed darwin/native.h
 var nativeHeader []byte
 

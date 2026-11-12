@@ -5,7 +5,7 @@ package darwin
 import (
 	"testing"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 // AppKit takes the picture as a cursor of the size it was made for, at the screen's density:
@@ -25,7 +25,7 @@ func TestAnApplicationPictureBecomesACursor(t *testing.T) {
 		for index := 0; index < len(pixels); index += 4 {
 			copy(pixels[index:], []byte{40, 120, 220, 200})
 		}
-		image, err := ui.NewCursorImage(test.width, test.height, test.hotX, test.hotY, test.scale, pixels)
+		image, err := gfx.NewCursorImage(test.width, test.height, test.hotX, test.hotY, test.scale, pixels)
 		if err != nil {
 			t.Fatal(err)
 		}

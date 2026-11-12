@@ -1,4 +1,4 @@
-//go:build darwin || windows || linux
+//go:build darwin || windows || linux || (js && wasm)
 
 package app
 
@@ -16,7 +16,14 @@ const driverSaveFileQueueSize = 8
 const driverOpenFilesQueueSize = 8
 const driverOpenDirectoryQueueSize = 8
 
+type driverGlobalBinding struct {
+	shortcut GlobalShortcut
+	pressed  func()
+}
+
 type driverSystem struct {
+	globalBindings []*driverGlobalBinding
+	globalMu       sync.Mutex
 	driver         *Driver
 	clipboardImage []byte   // PNG bytes; the clipboard holds this or text, never both
 	clipboardFiles []string // paths of copied files, held beside the text a file manager adds
@@ -74,6 +81,15 @@ func driverSetClipboardText(value string) (error, bool) {
 		return nil, false
 	}
 	system.driver.clipboard, system.driver.system.clipboardImage, system.driver.system.clipboardFiles = value, nil, nil
+	return nil, true
+}
+
+func driverSetClipboardFiles(paths []string) (error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, false
+	}
+	system.driver.SetClipboardFiles(paths)
 	return nil, true
 }
 
@@ -270,6 +286,9 @@ func (driver *Driver) registerSystem() error {
 }
 
 func (driver *Driver) unregisterSystem() {
+	driver.system.globalMu.Lock()
+	driver.system.globalBindings = nil
+	driver.system.globalMu.Unlock()
 	driverSystems.Lock()
 	for index, system := range driverSystems.values {
 		if system == &driver.system {

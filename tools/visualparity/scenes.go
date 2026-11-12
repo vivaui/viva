@@ -1,61 +1,41 @@
+//go:build darwin || windows || linux
+
 package main
 
 import (
 	"fmt"
 
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
 var (
-	tree = ui.Tree{}
-	page = tree.Feature("parity")
+	tree = gfx.Tree{}
+	root = tree.Feature("parity")
 
-	idPrimary   = tree.ID(page, "primary")
-	idSecondary = tree.ID(page, "secondary")
-	idOutline   = tree.ID(page, "outline")
-	idGhost     = tree.ID(page, "ghost")
-	idDanger    = tree.ID(page, "danger")
-	idSwitchOn  = tree.ID(page, "switch-on")
-	idSwitchOff = tree.ID(page, "switch-off")
-	idCheckOn   = tree.ID(page, "check-on")
-	idCheckOff  = tree.ID(page, "check-off")
-	idName      = tree.ID(page, "name")
-	idHost      = tree.ID(page, "host")
-	idSlider    = tree.ID(page, "slider")
-	idSlider2   = tree.ID(page, "slider2")
-	idList      = tree.ID(page, "list")
-	idCancel    = tree.ID(page, "cancel")
-	idDelete    = tree.ID(page, "delete")
-	idClose     = tree.ID(page, "close")
-	idDismiss   = tree.ID(page, "dismiss")
-	idDialog    = tree.ID(page, "dialog")
+	idDialog  = tree.ID(root, "dialog")
+	idDismiss = tree.ID(root, "dismiss")
+	idClose   = tree.ID(root, "close")
 
-	scopeChoice  = tree.Sub(page, tree.Name("choice"))
-	scopeSelect  = tree.Sub(page, tree.Name("select"))
-	scopeSelect2 = tree.Sub(page, tree.Name("select2"))
-	scopeRows    = tree.Sub(page, tree.Name("rows"))
-	scopeHeads   = tree.Sub(page, tree.Name("heads"))
-	scopeTabs    = tree.Sub(page, tree.Name("tabs"))
-	scopeTabs2   = tree.Sub(page, tree.Name("tabs2"))
-	scopeListRow = tree.Sub(page, tree.Name("list-rows"))
+	scopeRows  = tree.Sub(root, tree.Name("rows"))
+	scopeHeads = tree.Sub(root, tree.Name("heads"))
 )
 
 // Weights are the theme's four, by the names the specimen sheets use.
 var weights = []struct {
 	name   string
 	weight float32
-}{{"regular", ui.WeightRegular}, {"medium", ui.WeightMedium}, {"semibold", ui.WeightSemibold}, {"bold", ui.WeightBold}}
+}{{"regular", gfx.WeightRegular}, {"medium", gfx.WeightMedium}, {"semibold", gfx.WeightSemibold}, {"bold", gfx.WeightBold}}
 
 // scene is one page of the catalogue. build declares it; the scene keeps the
-// state its widgets need.
+// state its widgets need. open names the controls a scene shows open: the
+// renderer presses them, as a user would, before it captures the page.
 type scene struct {
 	name          string
 	width, height int
-	build         func(f *flex.Frame, theme ui.Theme)
-	// before runs ahead of each paint with the view, for scroll offsets.
-	before func(view *flex.View)
+	build         func(c ui.C, theme gfx.Theme)
+	open          []string
 }
 
 // catalogue returns fresh scenes: they hold widget state, so every run gets its own.
@@ -83,78 +63,81 @@ func catalogue() []*scene {
 }
 
 func formScene() *scene {
-	var name, host flex.Field
+	var name, host ui.Field
 	name.SetText("Ada Lovelace")
-	slider := flex.SliderState{Value: 35}
-	selectState := flex.SelectState{}
-	return &scene{name: "form", width: 560, height: 640, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(24).Gap(14).Children(func() {
-			f.Text("New connection").FontSize(theme.Metrics.FontSizeL).Bold()
-			f.Text("Connect to a server over SSH with a key or a password.").Muted()
-			f.Row().Gap(8).Children(func() {
-				f.Button(idPrimary, "Connect")
-				f.Button(idSecondary, "Save").Secondary()
-				f.Button(idOutline, "Cancel").Outline()
-				f.Button(idGhost, "Help").Ghost()
-				f.Button(idDanger, "Delete").Destructive()
+	slider := ui.SliderState{Value: 35}
+	client := "OpenSSH"
+	choice := "Key"
+	switchOn, switchOff := true, false
+	checkOn, checkOff := true, false
+	return &scene{name: "form", width: 560, height: 640, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(24).Gap(14).Children(func() {
+			ui.Text(c, "New connection").FontSize(theme.Metrics.FontSizeL).Bold()
+			ui.Text(c, "Connect to a server over SSH with a key or a password.").Muted()
+			ui.Row(c).Gap(8).Children(func() {
+				ui.Button(c, "Connect")
+				ui.Button(c, "Save").Secondary()
+				ui.Button(c, "Cancel").Outline()
+				ui.Button(c, "Help").Ghost()
+				ui.Button(c, "Delete").Destructive()
 			})
-			f.Row().Gap(8).Items(flex.Center).Children(func() {
-				f.Button(idPrimary, "Small").Small()
-				f.Button(idPrimary, "Default")
-				f.Button(idPrimary, "Large").Large()
+			ui.Row(c).Gap(8).Items(ui.Center).Children(func() {
+				ui.Button(c, "Small").Small()
+				ui.Button(c, "Default")
+				ui.Button(c, "Large").Large()
 			})
-			f.Row().Gap(24).Items(flex.Center).Children(func() {
-				f.Row().Gap(8).Items(flex.Center).Children(func() {
-					f.Switch(idSwitchOn, true)
-					f.Text("Keep alive")
+			ui.Row(c).Gap(24).Items(ui.Center).Children(func() {
+				ui.Row(c).Gap(8).Items(ui.Center).Children(func() {
+					ui.Switch(c, &switchOn, "")
+					ui.Text(c, "Keep alive")
 				})
-				f.Row().Gap(8).Items(flex.Center).Children(func() {
-					f.Switch(idSwitchOff, false)
-					f.Text("Compression")
+				ui.Row(c).Gap(8).Items(ui.Center).Children(func() {
+					ui.Switch(c, &switchOff, "")
+					ui.Text(c, "Compression")
 				})
-				f.Row().Gap(8).Items(flex.Center).Children(func() {
-					f.Checkbox(idCheckOn, true)
-					f.Text("Agent forwarding")
+				ui.Row(c).Gap(8).Items(ui.Center).Children(func() {
+					ui.Checkbox(c, &checkOn, "")
+					ui.Text(c, "Agent forwarding")
 				})
-				f.Row().Gap(8).Items(flex.Center).Children(func() {
-					f.Checkbox(idCheckOff, false)
-					f.Text("X11")
+				ui.Row(c).Gap(8).Items(ui.Center).Children(func() {
+					ui.Checkbox(c, &checkOff, "")
+					ui.Text(c, "X11")
 				})
 			})
-			f.Field(&name, idName, "Name", "Name")
-			f.Field(&host, idHost, "Host", "hostname or address")
-			f.Choice(scopeChoice, []string{"Password", "Key", "Agent"}, 1)
-			f.Select(scopeSelect, &selectState, []string{"OpenSSH", "PuTTY", "Mosh"}, 0).Placeholder("Client").Width(220)
-			f.Slider(idSlider, &slider).Range(0, 100).FillWidth()
-			f.Progress(0.6).FillWidth()
+			ui.TextField(c, &name, "Name", "Name")
+			ui.TextField(c, &host, "Host", "hostname or address")
+			ui.Choice(c, &choice, []string{"Password", "Key", "Agent"}, nil)
+			ui.Select(c, &client, []string{"OpenSSH", "PuTTY", "Mosh"}, nil).Placeholder("Client").Width(220)
+			ui.Slider(c, &slider).Range(0, 100).FillWidth()
+			ui.Progress(c, 0.6).FillWidth()
 		})
 	}}
 }
 
 func selectOpenScene() *scene {
-	state := flex.SelectState{Open: true}
-	return &scene{name: "select-open", width: 420, height: 320, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(24).Gap(12).Children(func() {
-			f.Text("Shell").Bold()
-			f.Select(scopeSelect2, &state, []string{"zsh", "bash", "fish", "PowerShell", "cmd"}, 1).Placeholder("Shell").Width(240)
+	shell := "bash"
+	return &scene{name: "select-open", width: 420, height: 320, open: []string{"Shell"}, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(24).Gap(12).Children(func() {
+			ui.Text(c, "Shell").Bold()
+			ui.Select(c, &shell, []string{"zsh", "bash", "fish", "PowerShell", "cmd"}, nil).Placeholder("Shell").Width(240)
 		})
 	}}
 }
 
 func tableScene() *scene {
-	var state flex.TableState
+	var state ui.TableState
 	state.Select(2)
 	state.SortBy(1)
-	data := flex.TableRows{
+	data := ui.TableRows{
 		{"web-01", "Running", "12 ms"}, {"web-02", "Running", "9 ms"}, {"db-primary", "Degraded", "48 ms"},
 		{"db-replica", "Running", "15 ms"}, {"cache", "Stopped", "-"}, {"build-agent-long-name", "Running", "103 ms"},
 		{"监控服务器", "运行中", "7 ms"},
 	}
 	columns := []components.TableColumn{{Width: 200}, {Width: 120}, {Alignment: components.TableAlignRight}}
-	return &scene{name: "table", width: 560, height: 360, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(24).Gap(12).Children(func() {
-			f.Text("Servers").FontSize(theme.Metrics.FontSizeL).Bold()
-			f.Table(&state, flex.TableSpec{
+	return &scene{name: "table", width: 560, height: 360, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(24).Gap(12).Children(func() {
+			ui.Text(c, "Servers").FontSize(theme.Metrics.FontSizeL).Bold()
+			ui.Table(c, &state, ui.TableSpec{
 				Rows: scopeRows, Header: scopeHeads, Columns: columns,
 				Headers: []string{"Name", "State", "Latency"}, Sortable: []bool{true, true, true}, Source: &data,
 			}).FillWidth()
@@ -163,94 +146,94 @@ func tableScene() *scene {
 }
 
 func tabsScene() *scene {
-	return &scene{name: "tabs", width: 520, height: 300, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(24).Gap(16).Children(func() {
-			f.Tabs(scopeTabs, []string{"General", "Keys", "Advanced"}, 1)
-			f.Text("Keys are read from ~/.ssh and the agent.").Muted()
-			f.Tabs(scopeTabs2, []string{"Overview", "Files", "Terminal", "Monitor"}, 2).Line()
-			f.Text("A line variant with an underline.").Muted()
+	tab, tab2 := "Keys", "Terminal"
+	return &scene{name: "tabs", width: 520, height: 300, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(24).Gap(16).Children(func() {
+			ui.Tabs(c, &tab, []string{"General", "Keys", "Advanced"}, nil)
+			ui.Text(c, "Keys are read from ~/.ssh and the agent.").Muted()
+			ui.Tabs(c, &tab2, []string{"Overview", "Files", "Terminal", "Monitor"}, nil).Line()
+			ui.Text(c, "A line variant with an underline.").Muted()
 		})
 	}}
 }
 
 func dialogScene() *scene {
-	return &scene{name: "dialog", width: 640, height: 420, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(24).Gap(12).Children(func() {
-			f.Text("Hosts").FontSize(theme.Metrics.FontSizeL).Bold()
-			f.Text("A page behind a dialog, dimmed by the scrim.").Muted()
-			f.Row().Gap(8).Children(func() {
-				f.Button(idPrimary, "New host")
-				f.Button(idOutline, "Import").Outline()
+	return &scene{name: "dialog", width: 640, height: 420, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(24).Gap(12).Children(func() {
+			ui.Text(c, "Hosts").FontSize(theme.Metrics.FontSizeL).Bold()
+			ui.Text(c, "A page behind a dialog, dimmed by the scrim.").Muted()
+			ui.Row(c).Gap(8).Children(func() {
+				ui.Button(c, "New host")
+				ui.Button(c, "Import").Outline()
 			})
 		})
-		d := f.Dialog(flex.DialogSpec{Title: "Delete host?", Description: "This removes the saved connection. It cannot be undone.", Width: 400, Scope: idDialog, DismissID: idDismiss, CloseID: idClose})
-		d.Body(func() { f.Text("web-01 (10.0.0.12)") })
+		d := ui.Dialog(c, ui.DialogSpec{Title: "Delete host?", Description: "This removes the saved connection. It cannot be undone.", Width: 400, Scope: idDialog, DismissID: idDismiss, CloseID: idClose})
+		d.Body(func() { ui.Text(c, "web-01 (10.0.0.12)") })
 		d.Footer(func() {
-			f.Button(idCancel, "Cancel").Outline()
-			f.Button(idDelete, "Delete").Destructive()
+			ui.Button(c, "Cancel").Outline()
+			ui.Button(c, "Delete").Destructive()
 		})
 	}}
 }
 
 func listClipScene() *scene {
-	return &scene{name: "list-clip", width: 360, height: 300,
-		before: func(view *flex.View) { view.ScrollState(idList).ScrollTo(37) },
-		build: func(f *flex.Frame, theme ui.Theme) {
-			f.Column().Pad(24).Gap(12).Children(func() {
-				f.Text("Recent").Bold()
-				f.ScrollArea(idList).Height(180).FillWidth().Background(theme.Card).Radius(theme.Metrics.RadiusControl).Border(1, theme.Border).Children(func() {
-					for i := 0; i < 9; i++ {
-						f.Row().Pad(8).Gap(8).Items(flex.Center).Children(func() {
-							f.Column().Size(16, 16).Background(theme.Muted).Radius(4).Children(func() {})
-							f.Text(fmt.Sprintf("session-%02d.log", i))
-						})
-					}
-				})
+	return &scene{name: "list-clip", width: 360, height: 300, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(24).Gap(12).Children(func() {
+			ui.Text(c, "Recent").Bold()
+			ui.ScrollAt(c, 37).Height(180).FillWidth().Background(theme.Card).Radius(theme.Metrics.RadiusControl).Border(1, theme.Border).Children(func() {
+				for i := 0; i < 9; i++ {
+					ui.Row(c).Pad(8).Gap(8).Items(ui.Center).Children(func() {
+						ui.Column(c).Size(16, 16).Background(theme.Muted).Radius(4).Children(func() {})
+						ui.Text(c, fmt.Sprintf("session-%02d.log", i))
+					})
+				}
 			})
-		}}
+		})
+	}}
 }
 
 func cardsScene() *scene {
-	return &scene{name: "cards", width: 560, height: 460, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(24).Gap(16).Children(func() {
-			f.Column().Pad(16).Gap(8).Background(theme.Card).Radius(theme.Metrics.RadiusSurface).Border(1, theme.Border).Children(func() {
-				f.Text("Card title").Bold()
-				f.Text("Card body in muted text.").Muted()
+	return &scene{name: "cards", width: 560, height: 460, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(24).Gap(16).Children(func() {
+			ui.Column(c).Pad(16).Gap(8).Background(theme.Card).Radius(theme.Metrics.RadiusSurface).Border(1, theme.Border).Children(func() {
+				ui.Text(c, "Card title").Bold()
+				ui.Text(c, "Card body in muted text.").Muted()
 			})
-			f.Row().Gap(12).Children(func() {
+			ui.Row(c).Gap(12).Children(func() {
 				for _, radius := range []float32{0, 2, 4, 7.5, 11, 16} {
-					f.Column().Size(64, 64).Background(theme.Muted).Radius(radius).Border(1, theme.Border).Children(func() {})
+					ui.Column(c).Size(64, 64).Background(theme.Muted).Radius(radius).Border(1, theme.Border).Children(func() {})
 				}
 			})
-			f.Row().Gap(12).Children(func() {
+			ui.Row(c).Gap(12).Children(func() {
 				for _, width := range []float32{0.5, 1, 1.5, 2, 3} {
-					f.Column().Size(64, 48).Background(theme.Card).Radius(10).Border(width, theme.Primary).Children(func() {})
+					ui.Column(c).Size(64, 48).Background(theme.Card).Radius(10).Border(width, theme.Primary).Children(func() {})
 				}
 			})
-			f.Row().Gap(12).Children(func() {
+			ui.Row(c).Gap(12).Children(func() {
 				for _, size := range []float32{17, 33, 41, 63} {
-					f.Column().Size(size, size).Background(theme.Primary).Radius(size / 2).Children(func() {})
+					ui.Column(c).Size(size, size).Background(theme.Primary).Radius(size / 2).Children(func() {})
 				}
-				f.Column().Size(120, 1).Background(theme.Border).Children(func() {})
-				f.Column().Size(121, 33).Background(theme.Accent).Radius(5).Children(func() {})
+				ui.Column(c).Size(120, 1).Background(theme.Border).Children(func() {})
+				ui.Column(c).Size(121, 33).Background(theme.Accent).Radius(5).Children(func() {})
 			})
 		})
 	}}
 }
 
 func progressSliderScene() *scene {
-	sliders := []*flex.SliderState{{Value: 0}, {Value: 25}, {Value: 50}, {Value: 100}}
-	return &scene{name: "progress-slider", width: 480, height: 420, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(24).Gap(14).Children(func() {
+	sliders := []*ui.SliderState{{Value: 0}, {Value: 25}, {Value: 50}, {Value: 100}}
+	vertical := &ui.SliderState{Value: 40}
+	return &scene{name: "progress-slider", width: 480, height: 420, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(24).Gap(14).Children(func() {
 			for _, fraction := range []float32{0, 0.33, 0.66, 1} {
-				f.Progress(fraction).FillWidth()
+				ui.Progress(c, fraction).FillWidth()
 			}
-			for i, state := range sliders {
-				f.Slider(tree.ID(page, fmt.Sprintf("slider-%d", i)), state).Range(0, 100).FillWidth()
+			for _, state := range sliders {
+				ui.Slider(c, state).Range(0, 100).FillWidth()
 			}
-			f.Progress(0.5).Height(12).FillWidth()
-			f.Row().Gap(12).Children(func() {
-				f.Slider(idSlider2, &flex.SliderState{Value: 40}).Vertical().Height(120)
+			ui.Progress(c, 0.5).Height(12).FillWidth()
+			ui.Row(c).Gap(12).Children(func() {
+				ui.Slider(c, vertical).Vertical().Height(120)
 			})
 		})
 	}}
@@ -259,11 +242,11 @@ func progressSliderScene() *scene {
 var sizes = []float32{11, 12, 13, 14, 16, 18, 20, 24}
 
 func specimen(name string, height int, sample string, sizes []float32, mono bool) *scene {
-	return &scene{name: name, width: 880, height: height, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(16).Gap(2).Children(func() {
+	return &scene{name: name, width: 880, height: height, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(16).Gap(2).Children(func() {
 			for _, size := range sizes {
 				for _, w := range weights {
-					text := f.Text(fmt.Sprintf("%g %s  %s", size, w.name, sample)).FontSize(size).Weight(w.weight)
+					text := ui.Text(c, fmt.Sprintf("%g %s  %s", size, w.name, sample)).FontSize(size).Weight(w.weight)
 					if mono {
 						text.Mono()
 					}
@@ -290,19 +273,19 @@ func specimenMixed() *scene {
 }
 
 func specimenMono() *scene {
-	mono := func(face ui.MonoFace, title string) func(f *flex.Frame, theme ui.Theme) {
-		return func(f *flex.Frame, theme ui.Theme) {
-			f.Text(title).Bold()
+	mono := func(face gfx.MonoFace, title string) func(c ui.C, theme gfx.Theme) {
+		return func(c ui.C, theme gfx.Theme) {
+			ui.Text(c, title).Bold()
 			for _, size := range []float32{11, 12, 13, 14, 16} {
-				f.Text("ls -la ~/.ssh | grep id_  0Oo1lI |{}[]  界面 ✅").FontSize(size).MonoFace(face)
+				ui.Text(c, "ls -la ~/.ssh | grep id_  0Oo1lI |{}[]  界面 ✅").FontSize(size).MonoFace(face)
 			}
 		}
 	}
-	system, classic := mono(ui.MonoSystem, "mono system"), mono(ui.MonoClassic, "mono classic")
-	return &scene{name: "text-mono", width: 640, height: 360, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(16).Gap(4).Children(func() {
-			system(f, theme)
-			classic(f, theme)
+	system, classic := mono(gfx.MonoSystem, "mono system"), mono(gfx.MonoClassic, "mono classic")
+	return &scene{name: "text-mono", width: 640, height: 360, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(16).Gap(4).Children(func() {
+			system(c, theme)
+			classic(c, theme)
 		})
 	}}
 }
@@ -310,13 +293,13 @@ func specimenMono() *scene {
 func specimenWrap() *scene {
 	latin := "Viva lays text out in lines: a paragraph breaks at spaces, between East Asian characters, after the separators of a long path such as /usr/local/share/applications/example.desktop, and as a last resort inside a word like pneumonoultramicroscopicsilicovolcanoconiosis."
 	cjk := "文本按宽度折行：东亚文字可以在任意两个字符之间断开，但是句号、逗号等标点不会出现在行首。日本語の文章も同じように折り返されます。"
-	return &scene{name: "text-wrap", width: 960, height: 560, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Row().Pad(16).Gap(16).Children(func() {
+	return &scene{name: "text-wrap", width: 960, height: 560, build: func(c ui.C, theme gfx.Theme) {
+		ui.Row(c).Pad(16).Gap(16).Children(func() {
 			for _, width := range []float32{160, 240, 360} {
-				f.Column().Width(width).Gap(12).Pad(8).Border(1, theme.Border).Children(func() {
-					f.Paragraph(latin, 12).FontSize(13)
-					f.Paragraph(cjk, 12).FontSize(13)
-					f.Paragraph(latin, 3).FontSize(16).Weight(ui.WeightSemibold)
+				ui.Column(c).Width(width).Gap(12).Pad(8).Border(1, theme.Border).Children(func() {
+					ui.Paragraph(c, latin, 12).FontSize(13)
+					ui.Paragraph(c, cjk, 12).FontSize(13)
+					ui.Paragraph(c, latin, 3).FontSize(16).Weight(gfx.WeightSemibold)
 				})
 			}
 		})
@@ -341,12 +324,12 @@ var scriptSamples = []struct{ name, text string }{
 
 // specimenScripts is every complex script at several sizes and weights.
 func specimenScripts() *scene {
-	return &scene{name: "text-scripts", width: 880, height: 900, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(16).Gap(3).Children(func() {
+	return &scene{name: "text-scripts", width: 880, height: 900, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(16).Gap(3).Children(func() {
 			for _, sample := range scriptSamples {
-				f.Text(sample.name).FontSize(11).Muted()
-				f.Text(sample.text).FontSize(16)
-				f.Text(sample.text).FontSize(13).Weight(ui.WeightBold)
+				ui.Text(c, sample.name).FontSize(11).Muted()
+				ui.Text(c, sample.text).FontSize(16)
+				ui.Text(c, sample.text).FontSize(13).Weight(gfx.WeightBold)
 			}
 		})
 	}}
@@ -367,16 +350,16 @@ var bidiSamples = []string{
 // specimenBidi shows mixed direction lines, in the order UAX #9 displays them, aligned to
 // their start, and the same lines aligned to their end.
 func specimenBidi() *scene {
-	return &scene{name: "text-bidi", width: 880, height: 640, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(16).Gap(4).Children(func() {
+	return &scene{name: "text-bidi", width: 880, height: 640, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(16).Gap(4).Children(func() {
 			for _, size := range []float32{13, 16} {
 				for _, line := range bidiSamples {
-					f.Text(line).FontSize(size).Width(560)
+					ui.Text(c, line).FontSize(size).Width(560)
 				}
 			}
-			f.Text("end-aligned").FontSize(11).Muted()
+			ui.Text(c, "end-aligned").FontSize(11).Muted()
 			for _, line := range bidiSamples[:3] {
-				f.Text(line).FontSize(14).Width(560).TextEnd()
+				ui.Text(c, line).FontSize(14).Width(560).TextEnd()
 			}
 		})
 	}}
@@ -392,12 +375,12 @@ func specimenWrapScripts() *scene {
 		"यह हिन्दी भाषा में एक लंबा अनुच्छेद है जो संकरे स्तंभ में पंक्ति विभाजन और संयुक्ताक्षरों की जाँच के लिए दिखाया गया है।",
 		"한국어 문단은 단어 사이의 공백에서 줄바꿈이 됩니다. 아주 긴 단어는 폭에 맞지 않으면 음절 사이에서 나뉩니다 대한민국만세대한민국만세.",
 	}
-	return &scene{name: "text-wrap-scripts", width: 960, height: 720, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Row().Pad(16).Gap(16).Children(func() {
+	return &scene{name: "text-wrap-scripts", width: 960, height: 720, build: func(c ui.C, theme gfx.Theme) {
+		ui.Row(c).Pad(16).Gap(16).Children(func() {
 			for _, width := range []float32{160, 240, 360} {
-				f.Column().Width(width).Gap(10).Pad(8).Border(1, theme.Border).Children(func() {
+				ui.Column(c).Width(width).Gap(10).Pad(8).Border(1, theme.Border).Children(func() {
 					for _, paragraph := range paragraphs {
-						f.Paragraph(paragraph, 12).FontSize(13)
+						ui.Paragraph(c, paragraph, 12).FontSize(13)
 					}
 				})
 			}
@@ -410,15 +393,15 @@ func specimenWrapScripts() *scene {
 // the x-height, and the descender shows the line's bottom. Every box has a
 // fixed width, so the page does not depend on text metrics.
 func baselineScene() *scene {
-	return &scene{name: "baseline", width: 760, height: 700, build: func(f *flex.Frame, theme ui.Theme) {
-		f.Column().Pad(12).Gap(4).Children(func() {
+	return &scene{name: "baseline", width: 760, height: 700, build: func(c ui.C, theme gfx.Theme) {
+		ui.Column(c).Pad(12).Gap(4).Children(func() {
 			for _, size := range sizes {
 				for _, w := range weights[:3:3] {
-					f.Row().Gap(8).Children(func() {
-						f.Text("HHHH").FontSize(size).Weight(w.weight).Width(110)
-						f.Text("xxxx").FontSize(size).Weight(w.weight).Width(110)
-						f.Text("Hpgy").FontSize(size).Weight(w.weight).Width(110)
-						f.Text("HHHH").FontSize(size).Weight(w.weight).Mono().Width(110)
+					ui.Row(c).Gap(8).Children(func() {
+						ui.Text(c, "HHHH").FontSize(size).Weight(w.weight).Width(110)
+						ui.Text(c, "xxxx").FontSize(size).Weight(w.weight).Width(110)
+						ui.Text(c, "Hpgy").FontSize(size).Weight(w.weight).Width(110)
+						ui.Text(c, "HHHH").FontSize(size).Weight(w.weight).Mono().Width(110)
 					})
 				}
 			}

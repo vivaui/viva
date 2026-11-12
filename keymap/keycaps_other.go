@@ -2,21 +2,21 @@
 
 package keymap
 
-import "github.com/vivaui/viva/ui"
+import "github.com/vivaui/viva/gfx"
 
 // Primary is the modifier that carries an application's own shortcuts on this
 // platform: Command on macOS, Control elsewhere.
-const Primary = ui.ModifierControl
+const Primary = gfx.ModifierControl
 
 // modifierKeycap is the name Windows and Linux keyboards print on a modifier;
 // the Meta key is the Windows key.
-func modifierKeycap(modifier ui.Modifiers) string {
+func modifierKeycap(modifier gfx.Modifiers) string {
 	switch modifier {
-	case ui.ModifierControl:
+	case gfx.ModifierControl:
 		return "Ctrl"
-	case ui.ModifierAlt:
+	case gfx.ModifierAlt:
 		return "Alt"
-	case ui.ModifierShift:
+	case gfx.ModifierShift:
 		return "Shift"
 	default:
 		return "Win"

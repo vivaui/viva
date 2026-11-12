@@ -2,7 +2,7 @@ package componentdemo
 
 import (
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/flex"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -39,16 +39,16 @@ var (
 	itemRow = tree.Sub(itemUI, tree.Name("row"))
 )
 
-func (state *State) paintItem(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
-	var rows [3]flex.Box
-	state.page(canvas, theme, size, 560, state.Text("Item · 生产列表行", "Item · Production list rows"), func(f *flex.Frame) {
+func (state *State) paintItem(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var rows [3]ui.Box
+	state.drawPage(canvas, theme, size, 560, state.Text("Item · 生产列表行", "Item · Production list rows"), func(c ui.C) {
 		if state.exampleID == "default" {
-			rows[0] = f.Slot().FillWidth().Height(72)
+			rows[0] = ui.Slot(c).FillWidth().Height(72)
 			return
 		}
-		rows[0] = f.Slot().FillWidth().Height(68)
-		rows[1] = f.Slot().FillWidth().Height(54)
-		rows[2] = f.Slot().FillWidth().Height(42)
+		rows[0] = ui.Slot(c).FillWidth().Height(68)
+		rows[1] = ui.Slot(c).FillWidth().Height(54)
+		rows[2] = ui.Slot(c).FillWidth().Height(42)
 	})
 	if state.exampleID == "default" {
 		trailing := "Open"
@@ -57,7 +57,7 @@ func (state *State) paintItem(canvas *ui.Canvas, theme ui.Theme, size ui.Size) {
 		}
 		bounds := rows[0].Rect()
 		components.BeginItem(canvas, theme, itemRow.At(0), bounds).Variant(components.ItemOutline).LeadingSpace(28).Paint("Release notes", "Latest runtime changes.", trailing)
-		canvas.Rounded(ui.Rect{X: bounds.X + 12, Y: bounds.Y + (bounds.Height-24)/2, Width: 24, Height: 24}, 6, theme.Primary)
+		canvas.Rounded(gfx.Rect{X: bounds.X + 12, Y: bounds.Y + (bounds.Height-24)/2, Width: 24, Height: 24}, 6, theme.Primary)
 		if canvas.Clicked(itemRow.At(0)) {
 			state.flags ^= 1
 		}

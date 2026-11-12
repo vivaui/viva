@@ -22,7 +22,7 @@ go mod init example.com/hello
 go get github.com/vivaui/viva
 ```
 
-`go get` without a version resolves to the latest tagged release, which is `v0.4.0`. Pin it by naming the version: `go get github.com/vivaui/viva@v0.4.0`. Viva is not yet at 1.0, so the API in `go.mod` can still change between minor releases; read the release notes before upgrading.
+`go get` without a version resolves to the latest tagged release, which is `v0.6.0`. Pin it by naming the version: `go get github.com/vivaui/viva@v0.6.0`. Viva is not yet at 1.0, so the API in `go.mod` can still change between minor releases; read the release notes before upgrading.
 
 If you are working on Viva itself rather than using it, `replace` it with your checkout instead:
 
@@ -41,50 +41,26 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/flex"
 	"github.com/vivaui/viva/ui"
-)
-
-// Identities are names in a tree, not numbers: the application declares the
-// tree once and every control it paints is a name inside a feature of it.
-var (
-	tree = ui.Tree{}
-	page = tree.Feature("hello")
-
-	click = tree.ID(page, "click")
 )
 
 type model struct {
 	clicks int
-	view   flex.View
 }
 
-// newConfig describes the window. Keeping it in a function lets a test drive
-// the same application without opening anything.
-func newConfig(m *model) app.Config {
-	theme := ui.LightTheme()
-	config := app.Config{Tree: &tree, Title: "Hello", Width: 480, Height: 240}
-
-	config.Paint = func(canvas *ui.Canvas, size ui.Size) {
-		bounds := ui.Rect{Width: size.Width, Height: size.Height}
-		canvas.Fill(bounds, theme.Background)
-
-		m.view.Draw(canvas, theme, bounds, func(f *flex.Frame) {
-			f.Column().Fill().Pad(24).Gap(12).Children(func() {
-				// A button is handled where it is declared: Clicked is true for the
-				// one paint that delivers its click, and only then may state change.
-				if f.Button(click, fmt.Sprintf("Clicked %d times", m.clicks)).Clicked() {
-					m.clicks++
-				}
-			})
-		})
-	}
-	return config
+// page declares the window's content. It runs on every repaint and reads the
+// model; a click changes the model, and the repaint that follows shows it.
+func (m *model) page(c ui.C) {
+	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		if ui.Button(c, fmt.Sprintf("Clicked %d times", m.clicks)).Clicked() {
+			m.clicks++
+		}
+	})
 }
 
 func main() {
-	var canvas ui.Canvas
-	if err := app.RunCanvas(newConfig(&model{}), &canvas); err != nil {
+	m := &model{}
+	if err := ui.Run(app.Config{Title: "Hello", Width: 480, Height: 240}, m.page); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -92,9 +68,9 @@ func main() {
 
 Run it with `go run .`. The program is the whole programming model in miniature:
 
-- `newConfig` describes the window. Keeping it in a function lets a test drive the same application without opening anything.
-- `Paint` describes the interface from your own state, here the `clicks` counter. Viva keeps no copy of that state.
-- `flex.View` lays the page out from a description: a padded column holding a button. No coordinates are written, so the page keeps working when the label or the window changes size. The button has the stable identity `click`, a name in the `hello` feature of the tree.
+- `page` describes the interface from your own state, here the `clicks` counter. It runs on every repaint; Viva keeps no copy of that state.
+- `ui.Column(c)` and `ui.Button(c, ...)` lay the page out from a description: a padded column holding a button. Every element is a function of `ui` that takes the page's `c` first. No coordinates are written, so the page keeps working when the label or the window changes size. The button needs no name of yours: the page names its elements by their place, and keeps each name as other elements come and go.
+- `ui.Run` opens the window and paints `page` in it. A test drives the same `page` headlessly with `ui.NewPage` and `app.NewDriver`, without opening anything.
 - `Clicked()` is true for exactly one paint: the extra paint the runtime makes when a click completes, and only for the button that was clicked. Your code changes its own state there, next to the button it handles. The window then repaints once. Every other paint is read-only.
 
 Nothing else runs. If you stop clicking, the application does no layout, submits nothing to the GPU and wakes no timers.

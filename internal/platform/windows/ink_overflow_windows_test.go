@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
-	"github.com/vivaui/viva/ui"
 )
 
 // testIconFamily is testdata/VivaTestIcons-Regular.ttf: a fixed-pitch font of 600 units whose
@@ -23,7 +23,7 @@ const (
 //go:embed testdata/VivaTestIcons-Regular.ttf
 var testIconsFont []byte
 
-func registerTestIcons(t *testing.T) ui.MonoFace {
+func registerTestIcons(t *testing.T) gfx.MonoFace {
 	t.Helper()
 	data := testIconsFont
 	engine, err := theTextEngine()
@@ -35,7 +35,7 @@ func registerTestIcons(t *testing.T) ui.MonoFace {
 		t.Fatalf("register the test font: %v", err)
 	}
 	t.Cleanup(unregister)
-	return ui.MonoFamily(family)
+	return gfx.MonoFamily(family)
 }
 
 func newTestRasterizer(t *testing.T) *directRasterizer {
@@ -57,7 +57,7 @@ func TestMeasuredInkIsTheFontsOutline(t *testing.T) {
 	rasterizer := newTestRasterizer(t)
 	const size = 40
 	span := float32(testIconCell * size)
-	reach, err := rasterizer.measureInk(inkKey{family: ui.MonoFamilyName(face), size: size, span: span, text: testIcon})
+	reach, err := rasterizer.measureInk(inkKey{family: gfx.MonoFamilyName(face), size: size, span: span, text: testIcon})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestMeasuredInkIsTheFontsOutline(t *testing.T) {
 
 // gridLine rasterizes runs on a grid of cell pixels per cell and returns the coverage of each
 // column (the most any row has) and the spans, which are what the renderer paints.
-func gridLine(t *testing.T, rasterizer *directRasterizer, face ui.MonoFace, size, cell float32, value string, runs []ui.TextRun, cells int) ([]byte, []colorSpan) {
+func gridLine(t *testing.T, rasterizer *directRasterizer, face gfx.MonoFace, size, cell float32, value string, runs []gfx.TextRun, cells int) ([]byte, []colorSpan) {
 	t.Helper()
 	width, height := int(cell)*cells, int(size*1.5)
 	label := platform.TextLabel{
@@ -115,8 +115,8 @@ func TestIconShowsWholeOverTheBlankCellAfterIt(t *testing.T) {
 	face := registerTestIcons(t)
 	rasterizer := newTestRasterizer(t)
 	const size, cell = 20, 10
-	light, other := ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, ui.Color{Red: 1, Green: 0.5, Alpha: 1}
-	runs := []ui.TextRun{{Bytes: 3, Cells: 1, Color: light}, {Column: 2, Bytes: 1, Cells: 1, Color: other}}
+	light, other := gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, gfx.Color{Red: 1, Green: 0.5, Alpha: 1}
+	runs := []gfx.TextRun{{Bytes: 3, Cells: 1, Color: light}, {Column: 2, Bytes: 1, Cells: 1, Color: other}}
 	column, spans := gridLine(t, rasterizer, face, size, cell, testIcon+"x", runs, 6)
 	// The glyph is 0.76 of the size wide, 15.2 px, centered in a cell of 10 on its 12 px advance:
 	// its ink is in column 12, two pixels into the blank cell, whichever side bearing it is
@@ -139,10 +139,10 @@ func TestIconInkStaysOutOfTheNeighborsColumns(t *testing.T) {
 	face := registerTestIcons(t)
 	rasterizer := newTestRasterizer(t)
 	const size, cell = 20, 10
-	white := ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	white := gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
 	// Both light, so that they are drawn in one pass, the case the shared pass reads as one.
-	beside := []ui.TextRun{{Bytes: 3, Cells: 1, Color: white}, {Column: 1, Bytes: 2, Cells: 2, Color: white, Ligatures: true}}
-	alone := []ui.TextRun{{Column: 1, Bytes: 2, Cells: 2, Color: white, Ligatures: true}}
+	beside := []gfx.TextRun{{Bytes: 3, Cells: 1, Color: white}, {Column: 1, Bytes: 2, Cells: 2, Color: white, Ligatures: true}}
+	alone := []gfx.TextRun{{Column: 1, Bytes: 2, Cells: 2, Color: white, Ligatures: true}}
 	with, _ := gridLine(t, rasterizer, face, size, cell, testIcon+"ab", beside, 5)
 	without, _ := gridLine(t, rasterizer, face, size, cell, "ab", alone, 5)
 	if !bytes.Equal(with[cell:], without[cell:]) {
@@ -175,21 +175,21 @@ func BenchmarkPromptWithIcons(b *testing.B) {
 	}
 	defer rasterizer.close()
 	var value []byte
-	var runs []ui.TextRun
+	var runs []gfx.TextRun
 	column := 0
 	for index := 0; index < 6; index++ {
 		color := terminalColors[index%len(terminalColors)]
 		text := "user@host-" + string(rune('a'+index)) + " "
-		runs = append(runs, ui.TextRun{Column: int32(column), Bytes: int32(len(text)), Cells: int32(len(text)), Color: color})
+		runs = append(runs, gfx.TextRun{Column: int32(column), Bytes: int32(len(text)), Cells: int32(len(text)), Color: color})
 		value = append(value, text...)
 		column += len(text)
-		runs = append(runs, ui.TextRun{Column: int32(column), Bytes: int32(len(testIcon)), Cells: 1, Color: color})
+		runs = append(runs, gfx.TextRun{Column: int32(column), Bytes: int32(len(testIcon)), Cells: 1, Color: color})
 		value = append(value, testIcon...)
 		column++
 	}
 	label := platform.TextLabel{
 		Value: string(value), Width: 8 * 100, Height: 20, FontSize: 13, CellWidth: 8,
-		Mono: true, MonoFace: ui.MonoFamily(family), Runs: runs,
+		Mono: true, MonoFace: gfx.MonoFamily(family), Runs: runs,
 	}
 	b.ReportAllocs()
 	for b.Loop() {

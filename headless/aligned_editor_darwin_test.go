@@ -6,21 +6,21 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
-	"github.com/vivaui/viva/ui"
 )
 
 func TestHeadlessScreenshotPositionsNativeAlignedEditor(t *testing.T) {
-	firstInk := func(alignment ui.Alignment) int {
+	firstInk := func(alignment gfx.Alignment) int {
 		t.Helper()
 		editor := text.NewEditor("abc")
-		field := ui.Rect{X: 20, Y: 20, Width: 220, Height: 40}
+		field := gfx.Rect{X: 20, Y: 20, Width: 220, Height: 40}
 		session, err := Open(app.Config{
 			Title: "aligned editor", Width: 280, Height: 80,
 			ClearColor: app.Color{Alpha: 1},
-			Paint: func(canvas *ui.Canvas, _ ui.Size) {
-				canvas.HitWithOptions(ui.Item(5), field, "Text", ui.HitOptions{
-					Role: ui.RoleTextField, Value: editor.String(), TextBounds: field, TextSize: 18, TextColor: ui.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+			Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+				canvas.HitWithOptions(gfx.Item(5), field, "Text", gfx.HitOptions{
+					Role: gfx.RoleTextField, Value: editor.String(), TextBounds: field, TextSize: 18, TextColor: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 				})
 			},
 			TextInput: func(app.TextInputContext) *app.TextInput {
@@ -49,7 +49,7 @@ func TestHeadlessScreenshotPositionsNativeAlignedEditor(t *testing.T) {
 		t.Fatal("aligned editor drew no glyphs")
 		return 0
 	}
-	left, center, right := firstInk(ui.AlignLeft), firstInk(ui.AlignCenter), firstInk(ui.AlignRight)
+	left, center, right := firstInk(gfx.AlignLeft), firstInk(gfx.AlignCenter), firstInk(gfx.AlignRight)
 	if center-left < 45 || right-center < 45 || right >= 240 {
 		t.Fatalf("headless editor origins: left=%d center=%d right=%d", left, center, right)
 	}
