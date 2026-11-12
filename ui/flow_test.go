@@ -160,14 +160,14 @@ func TestFlowLinesUpBaselinesWithinALine(t *testing.T) {
 	f := view.Begin(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 60, Height: 300}) // the 50 wide text does not fit after the 30 of the others
 	f.Column().Children(func() {
 		f.Flow().Items(Baseline).Children(func() {
-			small = f.Text("ab").FontSize(10) // baseline 11.5 below its top
-			large = f.Text("ab").FontSize(20) // baseline 19.5 below its top
+			small = f.Text("ab").FontSize(10) // baseline 12 below its top, the row of a 17 px box at 10
+			large = f.Text("ab").FontSize(20) // baseline 21 below its top, the row of a 27 px box at 20
 			below = f.Text("abcdefghij").FontSize(10)
 		})
 	})
 	f.End()
-	if small.Rect().Y != 8 || large.Rect().Y != 0 {
-		t.Errorf("texts at y=%v and %v, want 8 and 0: on one baseline", small.Rect().Y, large.Rect().Y)
+	if small.Rect().Y != 9 || large.Rect().Y != 0 {
+		t.Errorf("texts at y=%v and %v, want 9 and 0: on one baseline", small.Rect().Y, large.Rect().Y)
 	}
 	if below.Rect().Y != 27 {
 		t.Errorf("the second line starts at %v, want 27, under the 20 pt text", below.Rect().Y)

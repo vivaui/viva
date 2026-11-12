@@ -36,9 +36,10 @@ func newTextMetrics(measurer *domMeasurer) *textMetrics {
 	}
 }
 
-// baseline reports the font's ascent and descent at size, in the formula the native
-// CoreText labels use. Widths, carets and hit-testing come from the text engine
-// (textengine_js.go).
+// baseline reports the font's ascent and descent at size, which decides whether a
+// line fits its box. The row the line is drawn on is the canvas's shared label
+// baseline, not a font's own box. Widths, carets and hit-testing come from the
+// text engine (textengine_js.go).
 func (metrics *textMetrics) baseline(fontSize float32) baselineMetrics {
 	if cached, ok := metrics.baselines[fontSize]; ok {
 		return cached
