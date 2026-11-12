@@ -1007,7 +1007,7 @@ type TextHandler func(TextEvent) (TextState, error)
 // that composition: selecting the range first would end it, so the cancel
 // snapshot would hold the preedit instead of the text the composition replaced.
 func (event TextEvent) Apply(editor *text.Editor) {
-	if event.HasReplacement && !event.continuesComposition(editor) {
+	if event.HasReplacement && !event.actsOnActiveComposition(editor) {
 		replacement := event.Replacement
 		if selection := editor.Selection(); selection == replacement && selection.Start != selection.End && editor.Caret() == selection.Start {
 			// The selection is backwards: selecting the ordered range would flip
@@ -1089,11 +1089,15 @@ func (event TextEvent) Apply(editor *text.Editor) {
 	}
 }
 
-// continuesComposition reports whether the event only updates the marked text
-// of the composition that is already active, instead of starting a new one whose
-// replacement range must be selected first.
-func (event TextEvent) continuesComposition(editor *text.Editor) bool {
-	if event.Kind != TextSetMarked {
+// actsOnActiveComposition reports whether the event updates or commits the
+// composition that is already active, instead of acting on some other range that
+// must be selected first. Selecting the composition's own range would end it
+// before the event runs, so a cancel would restore the previous preedit and a
+// commit would land in a separate undo unit from the composition it commits.
+func (event TextEvent) actsOnActiveComposition(editor *text.Editor) bool {
+	switch event.Kind {
+	case TextSetMarked, TextInsert:
+	default:
 		return false
 	}
 	composition, composing := editor.Composition()

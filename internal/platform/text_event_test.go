@@ -236,3 +236,42 @@ func TestTextEventApplyKeepsBackwardsSelectionAcrossAReplacement(t *testing.T) {
 		t.Fatal("cancel left the composition active")
 	}
 }
+
+// An input-method commit that names the active composition's range is that
+// composition's commit: selecting the range first would end the composition and
+// leave the preedit in an undo unit of its own, so one Undo would restore the
+// preedit instead of the text the composition replaced.
+func TestTextEventApplyCommitsCompositionAsOneUndoUnit(t *testing.T) {
+	editor := text.NewEditor("abc")
+	editor.SetSelection(text.Range{Start: 1, End: 2})
+	TextEvent{Kind: TextSetMarked, Text: "ni", MarkedSelection: text.Range{Start: 2, End: 2}}.Apply(editor)
+	if value := editor.String(); value != "anic" {
+		t.Fatalf("marked value = %q, want %q", value, "anic")
+	}
+	composition, composing := editor.Composition()
+	if !composing {
+		t.Fatal("the marked update did not start a composition")
+	}
+	TextEvent{Kind: TextInsert, Text: "X", HasReplacement: true, Replacement: composition}.Apply(editor)
+	if value := editor.String(); value != "aXc" {
+		t.Fatalf("commit value = %q, want %q", value, "aXc")
+	}
+	if _, composing := editor.Composition(); composing {
+		t.Fatal("the commit left the composition active")
+	}
+	if !editor.Undo() {
+		t.Fatal("the commit produced no undo unit")
+	}
+	if value := editor.String(); value != "abc" {
+		t.Fatalf("one Undo after the commit left %q, want the original %q", value, "abc")
+	}
+	if editor.Selection() != (text.Range{Start: 1, End: 2}) {
+		t.Fatalf("Undo selection = %+v, want the replaced rune", editor.Selection())
+	}
+	if !editor.CanRedo() {
+		t.Fatal("Undo left nothing to redo")
+	}
+	if !editor.Redo() || editor.String() != "aXc" {
+		t.Fatalf("Redo value = %q, want %q", editor.String(), "aXc")
+	}
+}
