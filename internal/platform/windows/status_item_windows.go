@@ -366,6 +366,7 @@ func statusProc(window, kind, first, second uintptr) (result uintptr) {
 		return 0
 	case status.taskbarCreated != 0 && uint32(kind) == status.taskbarCreated:
 		// The shell started again: its notification area is empty.
+		invalidateNotificationIcon()
 		for _, item := range status.items {
 			if !item.removed.Load() {
 				item.notify(notifyAdd)

@@ -2,24 +2,26 @@ package fontfile
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"os"
 	"path/filepath"
 	"sync"
 )
 
-// fontKey names a font by its content: a 128-bit FNV-1a hash and the length. It is a name, not a
-// guarantee, so a file found under it is used only when it holds exactly the same bytes.
+// fontKey names a font by its content: the first 128 bits of its SHA-256 and the length. It is a
+// name, not a guarantee, so a file found under it is used only when it holds exactly the same
+// bytes. SHA-256 rather than a byte-at-a-time hash because the platforms' instructions for it hash
+// a font family of a few dozen megabytes in milliseconds, which an application registering its
+// fonts before its first paint waits for.
 type fontKey [17]byte
 
 func keyOf(data []byte) fontKey {
-	hash := fnv.New128a()
-	hash.Write(data)
+	sum := sha256.Sum256(data)
 	var key fontKey
-	hash.Sum(key[:0])
+	copy(key[:16], sum[:16])
 	key[16] = byte(len(data))
 	return key
 }

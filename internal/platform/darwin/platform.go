@@ -163,7 +163,6 @@ type runState struct {
 	textInput       TextInput
 	textInputActive bool
 	textEventRedraw bool
-	rectangleLayers []uint16
 	// web hosts the pages of the window when the application asked for any.
 	web            *webState
 	webReady       func()
@@ -244,7 +243,8 @@ func (state *runState) textInputAlreadyUpdated(input *TextInput) bool {
 func sameTextInputPresentation(left, right TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y &&
 		left.Width == right.Width && left.Height == right.Height &&
-		left.FontSize == right.FontSize && left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
+		left.FontSize == right.FontSize && left.FontGeneration == right.FontGeneration &&
+		left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
 		left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.Color == right.Color &&
 		left.CopyOverride == right.CopyOverride &&
 		left.State == right.State
@@ -345,70 +345,19 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 
 	state := &runState{application: application, onClosed: config.OnClosed, waker: config.Waker, closeHandler: config.OnCloseRequest, pressAt: config.PressAt,
 		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, visibilityHandler: config.OnVisibility, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen, onActivate: config.OnActivate}
-	{
-		state.captureRectangleLayers(config.Rectangles)
-		if config.OnPointer != nil {
-			state.pointerHandler = func(event PointerEvent) (Frame, error) {
-				frame, err := config.OnPointer(event)
-				state.captureFrameLayers(frame, err)
-				return frame, err
-			}
-		}
-		if config.OnResize != nil {
-			state.resizeHandler = func(size Size) (Frame, error) {
-				frame, err := config.OnResize(size)
-				state.captureFrameLayers(frame, err)
-				return frame, err
-			}
-		}
-		if config.OnKey != nil {
-			state.keyHandler = func(event KeyEvent) (Frame, error) {
-				frame, err := config.OnKey(event)
-				state.captureFrameLayers(frame, err)
-				return frame, err
-			}
-		}
-		if config.OnFocusLost != nil {
-			state.focusLostHandler = func() (Frame, error) {
-				frame, err := config.OnFocusLost()
-				state.captureFrameLayers(frame, err)
-				return frame, err
-			}
-		}
-		state.accessibility, state.nodes = config.OnAccessibility, config.Accessibility
-		if config.OnShortcut != nil {
-			state.shortcutHandler = func(event KeyEvent) (Frame, bool, error) {
-				frame, handled, err := config.OnShortcut(event)
-				state.captureFrameLayers(frame, err)
-				return frame, handled, err
-			}
-		}
-		if config.OnScroll != nil {
-			state.scrollHandler = func(event ScrollEvent) (Frame, error) {
-				frame, err := config.OnScroll(event)
-				state.captureFrameLayers(frame, err)
-				return frame, err
-			}
-		}
-		if config.OnFileDrop != nil {
-			state.dropHandler = func(event FileDropEvent) (Frame, bool, error) {
-				frame, accepted, err := config.OnFileDrop(event)
-				state.captureFrameLayers(frame, err)
-				return frame, accepted, err
-			}
-		}
-		if config.OnRedraw != nil {
-			state.redrawHandler = func() (Frame, error) {
-				frame, err := config.OnRedraw()
-				state.captureFrameLayers(frame, err)
-				return frame, err
-			}
-		}
-		if config.TextInput != nil {
-			state.setTextInput(config.TextInput)
-		}
-		state.callbackHandle = cgo.NewHandle(state)
+	state.pointerHandler = config.OnPointer
+	state.resizeHandler = config.OnResize
+	state.keyHandler = config.OnKey
+	state.focusLostHandler = config.OnFocusLost
+	state.accessibility, state.nodes = config.OnAccessibility, config.Accessibility
+	state.shortcutHandler = config.OnShortcut
+	state.scrollHandler = config.OnScroll
+	state.dropHandler = config.OnFileDrop
+	state.redrawHandler = config.OnRedraw
+	if config.TextInput != nil {
+		state.setTextInput(config.TextInput)
 	}
+	state.callbackHandle = cgo.NewHandle(state)
 	if config.Web != nil {
 		state.web = newWebState(state, config.Web, config.NativeViews)
 		state.webReady = config.Web.Ready
@@ -529,35 +478,6 @@ func nativeStatusError(status C.int) error {
 	default:
 		return fmt.Errorf("darwin: native application failed with status %d", status)
 	}
-}
-
-func (state *runState) captureFrameLayers(frame Frame, err error) {
-	if err == nil && !frame.Update.Empty() {
-		state.captureRectangleLayers(frame.Rectangles)
-	}
-}
-
-func (state *runState) captureRectangleLayers(rectangles []render.Rectangle) {
-	if cap(state.rectangleLayers) < len(rectangles) {
-		state.rectangleLayers = make([]uint16, len(rectangles))
-	} else {
-		state.rectangleLayers = state.rectangleLayers[:len(rectangles)]
-	}
-	for index, rectangle := range rectangles {
-		state.rectangleLayers[index] = rectangle.Layer
-	}
-}
-
-//export vivaRectangleLayer
-func vivaRectangleLayer(handle C.uintptr_t, index C.size_t) C.uint16_t {
-	if handle == 0 {
-		return 0
-	}
-	state := cgo.Handle(handle).Value().(*runState)
-	if uint64(index) >= uint64(len(state.rectangleLayers)) {
-		return 0
-	}
-	return C.uint16_t(state.rectangleLayers[int(index)])
 }
 
 func makeNativeAccessibility(nodes []AccessibilityNode) (unsafe.Pointer, []unsafe.Pointer) {

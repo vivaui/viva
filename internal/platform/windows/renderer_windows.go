@@ -144,6 +144,10 @@ type renderer struct {
 	color                                                        platform.Color
 	capacity, width, height                                      int
 	submissions, rebuilds, partials, labelRebuilds               uint64
+	labelBatches                                                 uint64
+	// noLabelBatch makes a frame rasterize each changed label on its own, as
+	// before the batch path existed. Tests compare the two pixel by pixel.
+	noLabelBatch bool
 }
 
 var textureIID = guid{0x6f15aaf2, 0xd208, 0x4e89, [8]byte{0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c}}
@@ -540,6 +544,11 @@ func (renderer *renderer) presentWithSync(width, height int, scale float32, sync
 // compositing batch onto it. The window's present and the offscreen render
 // share it, so a screenshot is made of the pixels the window would show.
 func (renderer *renderer) draw(width, height int, scale float32) error {
+	// A page that appeared has many labels to draw; draw their pixels in one
+	// Direct2D session before any of them is composited.
+	if err := renderer.prepareLabels(scale); err != nil {
+		return err
+	}
 	clear := [4]float32{float32(renderer.color.Red), float32(renderer.color.Green), float32(renderer.color.Blue), float32(renderer.color.Alpha)}
 	if renderer.usesComposition() {
 		clear[0] *= clear[3]

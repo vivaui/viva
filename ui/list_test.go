@@ -372,3 +372,17 @@ func BenchmarkList100k(b *testing.B) {
 		drawPage(page, canvas, m.view)
 	}
 }
+
+// A list that gains a row every frame, as a stream does, extends its height
+// tree instead of rebuilding it over every row.
+func BenchmarkListStreamingAppend(b *testing.B) {
+	m := newListModel(100_000)
+	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
+	drawPage(page, canvas, m.view)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		m.names = append(m.names, "row "+strconv.Itoa(len(m.names)))
+		drawPage(page, canvas, m.view)
+	}
+}

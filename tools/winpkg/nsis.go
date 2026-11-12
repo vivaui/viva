@@ -175,6 +175,10 @@ func (script Script) Generate() ([]byte, error) {
 	line("Unicode true")
 	line("SetCompressor /SOLID lzma")
 	line("ManifestDPIAware true")
+	// The WinVer checks read GetVersionEx, which Windows 8.1 and later fake to
+	// 6.2 unless the manifest names the running version. Naming every version
+	// the installer can run on keeps ${AtLeastWin10} true on Windows 10.
+	line("ManifestSupportedOS Win7 Win8 Win8.1 Win10")
 	line("")
 	line(`!define APP_NAME "%s"`, fields["name"])
 	line(`!define APP_VERSION "%s"`, fields["version"])
@@ -190,6 +194,7 @@ func (script Script) Generate() ([]byte, error) {
 	line("")
 	line(`!include "MUI2.nsh"`)
 	line(`!include "LogicLib.nsh"`)
+	line(`!include "WinVer.nsh"`)
 	line(`!include "x64.nsh"`)
 	line(`!include "Sections.nsh"`)
 	line("")
@@ -230,6 +235,11 @@ func (script Script) Generate() ([]byte, error) {
 		line(`LangString NEEDS_ARCH ${LANG_ENGLISH} "This ${APP_NAME} is built for Windows on ARM64."`)
 		line(`LangString NEEDS_ARCH ${LANG_SIMPCHINESE} "此 ${APP_NAME} 适用于 ARM64 版 Windows。"`)
 	}
+	// Every Viva program is built with a Go runtime that needs Windows 10 or
+	// Windows Server 2016, so the program would crash before it could log or
+	// show a message on an older system. Stop at the installer instead.
+	line(`LangString NEEDS_WINDOWS ${LANG_ENGLISH} "${APP_NAME} needs Windows 10 or Windows Server 2016 or later."`)
+	line(`LangString NEEDS_WINDOWS ${LANG_SIMPCHINESE} "${APP_NAME} 需要 Windows 10 或 Windows Server 2016 或更高版本。"`)
 	line("")
 	line(`VIProductVersion "%s"`, numeric)
 	line(`VIFileVersion "%s"`, numeric)
@@ -301,6 +311,10 @@ func (script Script) Generate() ([]byte, error) {
 	line("")
 
 	line(`Function .onInit`)
+	line(`  ${IfNot} ${AtLeastWin10}`)
+	line(`    MessageBox MB_OK|MB_ICONSTOP "$(NEEDS_WINDOWS)" /SD IDOK`)
+	line(`    Abort`)
+	line(`  ${EndIf}`)
 	if script.Arch == "amd64" {
 		line(`  ${IfNot} ${RunningX64}`)
 	} else {

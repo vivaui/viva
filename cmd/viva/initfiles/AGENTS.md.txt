@@ -96,7 +96,9 @@ func (m *model) page(c ui.C) {
 - To read or move a page's scroll area: `area := ui.Scroll(c).Grow(1)` then `area.ScrollState()` has `Offset`, `Content`,
   `Viewport`, `Max()`, `Pinned()`, `ScrollTo(px)` and `ScrollToEnd()` (also for the area a `ui.List` or `ui.Tree` returns); ask for it
   in each paint and do not keep the pointer. `.Sideways()` scrolls left and right too (`OffsetX`, `ContentWidth`, `ViewportWidth`,
-  `MaxX()` and `ScrollToX(px)`), and `.Scrollbars()` draws draggable bars over the overflowing edges.
+  `MaxX()` and `ScrollToX(px)`), and `.Scrollbars()` draws draggable bars over the overflowing edges. The bars are
+  the hover style: they appear while the pointer is over the area, and `.ScrollbarSize(px)` sets their thickness
+  (a right `Pad` leaves the gutter they sit in instead of covering the content).
 - `ui.Choice` (a segmented single choice) and `ui.Tabs` are one tab stop each; the arrow keys, Home and End move to an
   option and choose it, so do not wire `components.SegmentedControlKeyDown` or `TabsKeyDown` yourself.
 - A tree: keep a `ui.TreeState` with `Node` describing each visible row, `ui.Tree(c, &m.tree, n, label, nil)`,
@@ -327,9 +329,11 @@ func (m *model) page(c ui.C) {
 
   A header cell is clickable only where `Sortable[c]` is true; `Headers` alone draws a title nobody can click. In a
   `ui.Scroll` the table is as tall as its rows and only visible rows are read; with `Height`, `Fill` or `Grow` it scrolls
-  its rows under a fixed header. Give the `app.Config` passed to `page.Config` `OnScroll: m.table.Wheel` for the wheel
-  (the page gives its own scroll areas the event first and passes what they leave on), and `OnKey: m.table.Key` for
-  Up/Down/Page/Home/End selection.
+  its rows under a fixed header and draws its own hover bars: `Scrollbar` names the bar's hit, `ScrollbarLabel` names it
+  for assistive technology, `ScrollbarSize` sets its thickness and `ScrollbarGutter` keeps a strip beside the columns for
+  it. The page gives the wheel to a self-scrolling table under the pointer; give the `app.Config` passed to
+  `page.Config` `OnKey: m.table.Key` for Up/Down/Page/Home/End selection (a host that routes its own scroll gives
+  `m.table.Wheel` the wheel).
 - Tabs: `if ui.Tabs(c, &m.tab, tabs, nil).Line().Changed() { ... }`, then declare the active tab's content under it with an
   ordinary `switch m.tab`. `Line()` is the underlined variant (it draws 5 px under the strip), `Vertical()` stacks the tabs,
   `Disabled(true)` makes them inert.
@@ -390,7 +394,8 @@ func (m *model) page(c ui.C) {
   bottom: `.Follow(true)` keeps the area at its end until the user scrolls up (and again when they scroll back down; `.Follow(m.autoScroll)`
   makes it a switch); `Pinned()` says the next layout puts it at its end before `Offset` has caught up, and `ScrollToEnd()` after adding
   the item holds in the paint that grows the content. `.Sideways()` adds horizontal scrolling (`OffsetX`, `ContentWidth`,
-  `ViewportWidth`, `MaxX()`, `ScrollToX(px)`), and `.Scrollbars()` draws the draggable bars. An area a paint does not declare forgets
+  `ViewportWidth`, `MaxX()`, `ScrollToX(px)`), and `.Scrollbars()` draws the draggable bars (hover-revealed; `.ScrollbarSize(px)`
+  sets their thickness). An area a paint does not declare forgets
   its offset (a closed dialog, another tab).
 - Do not write `gfx.Rect{X: ..., Y: ...}` arithmetic for ordinary parts of a page. It breaks
   when a label gets longer or the window gets narrower; a page laid out with ui does not.

@@ -228,6 +228,7 @@ type CodeEditor struct {
 	runs        []gfx.TextRun
 	lineRuns    []CodeEditorRun
 	extraCarets []codeExtraCaret
+	spans       []text.Span
 	runLine     int
 	numbers     lineNumbers
 
@@ -385,7 +386,8 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 	placeholder := value == ""
 	caret := textareaBoundary(value, snapshot.Caret)
 	selectionStart, selectionEnd := textareaRange(value, snapshot.SelectionStart, snapshot.SelectionEnd)
-	selectionRanges := normalizedSpans(value, snapshot.SelectionRanges)
+	selectionRanges := normalizedSpans(editor.spans, value, snapshot.SelectionRanges)
+	editor.spans = selectionRanges
 	compositionStart, compositionEnd := textareaRange(value, snapshot.CompositionStart, snapshot.CompositionEnd)
 	caretRow := editor.rowOf(caret)
 	caretColumn := editor.columnOf(editor.rows[caretRow], caret)
@@ -399,15 +401,18 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 	}
 	// ExtraCarets is documented as sorted, but the paint walks them with one
 	// cursor that only moves forward: an out-of-order caller would silently paint
-	// none of the carets after the first row that went backwards. Sorting here
-	// costs one comparison per caret and keeps the paint linear.
-	sort.SliceStable(editor.extraCarets, func(i, j int) bool {
-		left, right := editor.extraCarets[i], editor.extraCarets[j]
-		if left.row != right.row {
-			return left.row < right.row
+	// none of the carets after the first row that went backwards. An insertion
+	// sort is stable, allocates nothing and costs one comparison per caret when
+	// the caller did sort them, which keeps the paint linear.
+	for i := 1; i < len(editor.extraCarets); i++ {
+		for j := i; j > 0; j-- {
+			left, right := editor.extraCarets[j-1], editor.extraCarets[j]
+			if left.row < right.row || left.row == right.row && left.column <= right.column {
+				break
+			}
+			editor.extraCarets[j-1], editor.extraCarets[j] = right, left
 		}
-		return left.column < right.column
-	})
+	}
 	if placeholder {
 		editor.scrollX, editor.scrollY, editor.followedValid = 0, 0, false
 	} else {
@@ -723,12 +728,13 @@ func decimalDigits(n int) int {
 // caller would otherwise paint some spans twice and skip others. Clamping also
 // keeps a span that ends past the text from running off the last row. An empty
 // result means nothing is selected, which is how a disabled SelectionRanges is
-// signalled in the first place.
-func normalizedSpans(value string, spans []text.Span) []text.Span {
+// signalled in the first place. into is the caller's scratch, reused so a
+// paint with selections allocates nothing.
+func normalizedSpans(into []text.Span, value string, spans []text.Span) []text.Span {
 	if len(spans) == 0 {
 		return nil
 	}
-	clamped := make([]text.Span, 0, len(spans))
+	clamped := into[:0]
 	for _, span := range spans {
 		start, end := textareaRange(value, span.Start, span.End)
 		if start >= end {
@@ -739,9 +745,13 @@ func normalizedSpans(value string, spans []text.Span) []text.Span {
 	if len(clamped) == 0 {
 		return nil
 	}
-	sort.SliceStable(clamped, func(i, j int) bool {
-		return clamped[i].Start < clamped[j].Start
-	})
+	// An insertion sort: stable, allocation-free, and one comparison per span
+	// for the sorted input the API documents.
+	for i := 1; i < len(clamped); i++ {
+		for j := i; j > 0 && clamped[j-1].Start > clamped[j].Start; j-- {
+			clamped[j-1], clamped[j] = clamped[j], clamped[j-1]
+		}
+	}
 	merged := clamped[:1]
 	for _, span := range clamped[1:] {
 		last := &merged[len(merged)-1]

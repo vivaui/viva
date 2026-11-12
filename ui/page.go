@@ -255,6 +255,10 @@ type Page struct {
 	drags       []*DragState          // the DragStates of the last paint
 	drag        *DragState            // the one following a press, if any
 	listStates  []*ListState          // the Lists of the last paint
+	tables      []tableRoute          // the Tables of the last paint, for the wheel and keys under the pointer
+	pointer     gfx.Point             // where the pointer was at the last pointer event
+	pointerIn   bool                  // a pointer event put it there, and no exit has taken it away
+	hoverArea   gfx.ID                // the scroll area or self-scrolling table the pointer is on
 	selects     []*SelectState        // the Selects of the last paint, which Wheel scrolls
 	labels      []string              // scratch for Choice's labels
 	memos       map[gfx.ID]*memoEntry
@@ -505,18 +509,66 @@ func (p *Page) onKey(event gfx.KeyEvent) gfx.EventResult {
 }
 
 func (p *Page) onPointer(event gfx.PointerEvent) gfx.EventResult {
-	if result, ok := p.dropPointer(event); ok {
-		return result
+	switch event.Kind {
+	case gfx.PointerMove, gfx.PointerDown, gfx.PointerUp:
+		p.pointer, p.pointerIn = gfx.Point{X: event.X, Y: event.Y}, true
+	case gfx.PointerExit:
+		p.pointerIn = false
 	}
-	if p.pointerRoute != nil {
-		if result, ok := p.pointerRoute(p, event); ok {
-			return result
+	// A bar is revealed by the pointer being over its area, and an area with no
+	// hit regions of its own would otherwise move no hover and never repaint to
+	// show it.
+	wasArea := p.hoverArea
+	p.hoverArea = gfx.ID{}
+	if p.pointerIn {
+		p.hoverArea = p.hoverPlaceAt(p.pointer.X, p.pointer.Y)
+	}
+	entered := wasArea != p.hoverArea
+	var result gfx.EventResult
+	if done, ok := p.dropPointer(event); ok {
+		result = done
+	} else if p.pointerRoute != nil {
+		if routed, ok := p.pointerRoute(p, event); ok {
+			result = routed
+		} else if p.basePointer != nil {
+			result = p.basePointer(event)
+		}
+	} else if p.basePointer != nil {
+		result = p.basePointer(event)
+	}
+	result.Repaint = result.Repaint || entered
+	return result
+}
+
+// hoverPlaceAt names the innermost scroll area or self-scrolling table under a
+// point; the zero ID means none.
+func (p *Page) hoverPlaceAt(x, y float32) gfx.ID {
+	best, bestArea := gfx.ID{}, float32(0)
+	if f := p.view.frame; f != nil {
+		for i := range f.nodes {
+			node := &f.nodes[i]
+			if node.ext == 0 {
+				continue
+			}
+			state := f.exts[node.ext].scrollState
+			if state == nil || state.id.IsZero() || !pointInRect(x, y, node.rect) {
+				continue
+			}
+			if area := node.rect.Width * node.rect.Height; best.IsZero() || area < bestArea {
+				best, bestArea = state.id, area
+			}
 		}
 	}
-	if p.basePointer != nil {
-		return p.basePointer(event)
+	for i := range p.tables {
+		route := &p.tables[i]
+		if !route.scrolls || route.bar.IsZero() || !pointInRect(x, y, route.bounds) {
+			continue
+		}
+		if area := route.bounds.Width * route.bounds.Height; best.IsZero() || area < bestArea {
+			best, bestArea = route.bar, area
+		}
 	}
-	return gfx.EventResult{}
+	return best
 }
 
 // dropPointer gives the pointer to the drag following a press, or to the
@@ -714,6 +766,8 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.drags = p.drags[:0]
 	clear(p.listStates)
 	p.listStates = p.listStates[:0]
+	clear(p.tables)
+	p.tables = p.tables[:0]
 	clear(p.selects)
 	p.selects = p.selects[:0]
 	clear(p.ctx.stateSeq)
@@ -1036,6 +1090,14 @@ func (p *Page) Key(event gfx.KeyEvent) gfx.EventResult { return p.onKey(event) }
 // OnPointer.
 func (p *Page) Pointer(event gfx.PointerEvent) gfx.EventResult { return p.onPointer(event) }
 
+// pointerOver reports whether the pointer is over r. A page whose input the
+// application routes itself may never see a pointer event, so callers that paint
+// hover bars pass the page's verdict and a view without one keeps its bars
+// revealed.
+func (p *Page) pointerOver(r Rect) bool {
+	return p != nil && p.pointerIn && pointInRect(p.pointer.X, p.pointer.Y, r)
+}
+
 // Wheel scrolls an open Select, else the scroll area under the pointer, and gives
 // an event neither takes to the OnScroll Config was given. It is the Config's
 // OnScroll; a host that draws a page into a region calls it itself.
@@ -1065,6 +1127,16 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	if result := p.view.Wheel(event); result.Handled || result.Repaint {
 		result.Repaint = result.Repaint || moved
 		return result
+	}
+	for i := len(p.tables) - 1; i >= 0; i-- {
+		route := &p.tables[i]
+		if !route.scrolls || !pointInRect(event.X, event.Y, route.bounds) {
+			continue
+		}
+		if result := route.state.Wheel(event); result.Handled {
+			result.Repaint = result.Repaint || moved
+			return result
+		}
 	}
 	if moved {
 		return gfx.EventResult{Handled: true, Repaint: true}

@@ -346,7 +346,6 @@ func vivaAccessibilityAction(handle C.uintptr_t, view unsafe.Pointer, node C.uin
 		return 0
 	}
 	handled, err := state.accessibility(request, func(frame Frame) error {
-		state.captureFrameLayers(frame, nil)
 		return presentFrame(state, view, frame, false)
 	})
 	if err != nil {

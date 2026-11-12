@@ -1,6 +1,9 @@
 package text
 
-import "github.com/vivaui/viva/internal/grapheme"
+import (
+	"github.com/vivaui/viva/internal/bidi"
+	"github.com/vivaui/viva/internal/grapheme"
+)
 
 // Range is a half-open rune range.
 type Range struct {
@@ -95,10 +98,12 @@ type Editor struct {
 	coalescing   editKind
 
 	// visualStarts, visualOrder and visualOdd are the bidi caret walk's scratch,
-	// reused by every arrow key on a line that needs reordering.
-	visualStarts []int
-	visualOrder  []int
-	visualOdd    []bool
+	// reused by every arrow key on a line that needs reordering, and the
+	// resolver that orders the line keeps its own scratch between them too.
+	visualStarts  []int
+	visualOrder   []int
+	visualOdd     []bool
+	visualResolve bidi.Resolver
 }
 
 // NewEditor creates an editor with its caret at the end of initial text.

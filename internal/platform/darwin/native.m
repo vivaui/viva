@@ -496,11 +496,6 @@ extern void vivaTextInput(
 
 extern unsigned char *vivaCopyText(uintptr_t callbackHandle, void *view, size_t *length);
 
-extern uint16_t vivaRectangleLayer(
-    uintptr_t callbackHandle,
-    size_t index
-);
-
 extern int vivaPressAt(
     uintptr_t callbackHandle,
     double x,
@@ -1906,25 +1901,40 @@ static CTLineRef viva_mono_fallback_line(NSString *value, NSFont *base, int face
     return line;
 }
 
-// viva_font_smoothing_enabled is whether the user leaves font smoothing on. AppKit turns it
-// off for its own text when AppleFontSmoothing is 0 (or not a number); a Core Graphics
-// bitmap context does not look at the setting, so the text Viva rasterizes into one has to
-// (measured against AppKit text: off draws the glyphs 13 to 28 percent lighter,
-// the lighter the text color the more, and every other value leaves smoothing on).
-static BOOL viva_font_smoothing_enabled(void) {
-    id value = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleFontSmoothing"];
-    if (value == nil) {
-        return YES;
+// viva_text_system_thickening reports whether the user leaves the system's own font
+// smoothing on, the weight AppKit's text starts at: AppleFontSmoothing absent or nonzero
+// means on, zero (or a value that is not a number, as AppKit reads it) off. A bitmap
+// context does not heed the setting, so the engine asks for it here, once, at its start;
+// standardUserDefaults reads the argument domain too, which is how tests pin it.
+int viva_text_system_thickening(void) {
+    @autoreleasepool {
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        if ([defaults objectForKey:@"AppleFontSmoothing"] == nil) {
+            return 1;
+        }
+        return [defaults integerForKey:@"AppleFontSmoothing"] != 0;
     }
-    // A number or a numeric string, as integerForKey: reads it; anything else is 0.
-    return [value respondsToSelector:@selector(integerValue)] && [value integerValue] != 0;
+}
+
+// viva_text_thickening is whether Viva draws its text with a thicker stroke, as AppKit draws
+// the system's own text: CoreText's font smoothing, which darkens the stems. Off is the
+// font's own outlines, so the glyphs stay the weight the font gives them (measured against
+// AppKit text: smoothing draws 16 to 45 percent more ink, the lighter the text the more).
+// It starts at the system's own weight (viva_text_system_thickening) and is then the
+// weight the application asked for.
+static int viva_text_thickening = 0;
+
+int viva_text_set_thickening(int thickening) {
+    int previous = viva_text_thickening;
+    viva_text_thickening = thickening;
+    return previous != thickening;
 }
 
 // viva_prepare_text_context sets a bitmap context up to draw text the way AppKit draws it.
 static void viva_prepare_text_context(CGContextRef context, CGFloat scale) {
     CGContextScaleCTM(context, scale, scale);
     CGContextSetTextMatrix(context, CGAffineTransformIdentity);
-    CGContextSetShouldSmoothFonts(context, viva_font_smoothing_enabled());
+    CGContextSetShouldSmoothFonts(context, viva_text_thickening != 0);
 }
 
 // viva_draw_terminal_preedit draws a terminal's preedit text the way the terminal draws its
@@ -3565,6 +3575,9 @@ static void viva_encode_scene(
     id<MTLRenderPipelineState> _rectanglePipeline;
     id<MTLBuffer> _rectangleBuffer;
     NSUInteger _rectangleCount;
+    // Capacity is the slots the buffers hold; count is the instances the scene
+    // owns. Appends grow capacity geometrically, rebuilds re-tighten it.
+    NSUInteger _rectangleCapacity;
     viva_clip *_rectangleClips;
     id<MTLRenderPipelineState> _textPipeline;
     NSMutableArray<VivaTextLayer *> *_textLabels;
@@ -3779,6 +3792,7 @@ static int viva_navigation_command(SEL selector) {
         _rectanglePipeline = [rectanglePipeline retain];
         _rectangleBuffer = [rectangleBuffer retain];
         _rectangleCount = rectangleCount;
+        _rectangleCapacity = rectangleCount;
         if (rectangleCount > 0) {
             _rectangleClips = malloc(rectangleCount * sizeof(viva_clip));
             if (_rectangleClips == NULL) {
@@ -4872,15 +4886,8 @@ static void viva_set_secure_event_input(BOOL on) {
                 free(replacementClips);
                 return 3;
             }
-            if (_callbackHandle != 0) {
-                viva_rectangle *destination = replacement.contents;
-                for (NSUInteger index = 0; index < totalCount; index++) {
-                    destination[index].reserved0 =
-                        (float)vivaRectangleLayer(_callbackHandle, index);
-                }
-                [replacement didModifyRange:NSMakeRange(
-                    0, totalCount * sizeof(viva_rectangle))];
-            }
+            // The staged instances carry their layer in reserved0, so the
+            // bytes newBufferWithBytes copies are already complete.
         }
         if (![self replaceCompositePlanForRectangles:
                 replacement == nil ? NULL : replacement.contents
@@ -4897,6 +4904,7 @@ static void viva_set_secure_event_input(BOOL on) {
         _rectangleClips = replacementClips;
         _rectangleBuffer = replacement;
         _rectangleCount = totalCount;
+        _rectangleCapacity = totalCount;
         viva_gpu_uploaded_bytes += totalCount * sizeof(viva_rectangle);
         viva_gpu_full_rebuild_count++;
     } else {
@@ -4910,19 +4918,25 @@ static void viva_set_secure_event_input(BOOL on) {
         }
         BOOL grew = totalCount > _rectangleCount;
         if (grew) {
-            // The scene appended instances. Both buffers are retained at their
-            // exact count, so grow them by copying the old contents and then
-            // writing the new tail. Existing instance slots keep their values.
+            // The scene appended instances. Grow the buffers with geometric
+            // headroom so a stream that appends every frame does not allocate,
+            // copy and re-flush the whole buffer each time; a rebuild
+            // re-tightens them to the exact count. Existing instance slots
+            // keep their values.
             if (first > _rectangleCount || first + count != totalCount) {
                 return 2;
             }
+            NSUInteger capacity = totalCount;
+            if (_rectangleCapacity > 0) {
+                capacity = MAX(totalCount, _rectangleCapacity + _rectangleCapacity / 4 + 64);
+            }
             id<MTLBuffer> replacement = [_metalLayer.device
-                newBufferWithLength:totalCount * sizeof(viva_rectangle)
+                newBufferWithLength:capacity * sizeof(viva_rectangle)
                             options:MTLResourceStorageModeShared];
             if (replacement == nil) {
                 return 3;
             }
-            viva_clip *replacementClips = malloc(totalCount * sizeof(viva_clip));
+            viva_clip *replacementClips = malloc(capacity * sizeof(viva_clip));
             if (replacementClips == NULL) {
                 [replacement release];
                 return 3;
@@ -4934,6 +4948,7 @@ static void viva_set_secure_event_input(BOOL on) {
             _rectangleBuffer = replacement;
             _rectangleClips = replacementClips;
             _rectangleCount = totalCount;
+            _rectangleCapacity = capacity;
         }
         memcpy(_rectangleClips + first, clips, count * sizeof(viva_clip));
         memcpy(
@@ -4941,13 +4956,8 @@ static void viva_set_secure_event_input(BOOL on) {
             rectangles,
             count * sizeof(viva_rectangle)
         );
-        if (_callbackHandle != 0) {
-            viva_rectangle *destination = _rectangleBuffer.contents;
-            for (NSUInteger index = first; index < first + count; index++) {
-                destination[index].reserved0 =
-                    (float)vivaRectangleLayer(_callbackHandle, index);
-            }
-        }
+        // The staged instances carry their layer in reserved0, so the memcpy
+        // above has already written every field this buffer holds.
         [_rectangleBuffer didModifyRange:NSMakeRange(
             grew ? 0 : first * sizeof(viva_rectangle),
             grew ? totalCount * sizeof(viva_rectangle) : count * sizeof(viva_rectangle)

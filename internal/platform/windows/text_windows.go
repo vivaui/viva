@@ -301,6 +301,13 @@ func (renderer *renderer) rasterize(label *labelTexture, scale float32) error {
 		}
 		label.spans = append(label.spans, renderer.direct.spans...)
 	}
+	return renderer.uploadLabel(label, pixels, scale, skip, width, height)
+}
+
+// uploadLabel gives a label the pixels just rasterized for it: it rewrites the
+// texture when its size did not change, and makes one otherwise. The label's
+// lcd and spans are already set by the caller that made the pixels.
+func (renderer *renderer) uploadLabel(label *labelTexture, pixels []byte, scale float32, skip, width, height int) error {
 	if label.texture != 0 && label.view != 0 && label.width == width && label.height == height {
 		// The same size as the texture it replaces: write the new pixels into it.
 		comCall(renderer.context, 48, label.texture, 0, 0, uintptr(unsafe.Pointer(&pixels[0])), uintptr(width*4), 0)

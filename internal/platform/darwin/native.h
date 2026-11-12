@@ -486,6 +486,14 @@ int viva_measure_text(
 // viva_text_set_family names the family viva_text_line_create shapes in, or "" (or
 // NULL) for the system font. It copies the name; call it before any line is shaped.
 void viva_text_set_family(const char *family);
+// viva_text_set_thickening draws Viva's text with a thicker stroke (nonzero, CoreText's
+// font smoothing) or with the font's own outlines (zero). It returns whether the weight
+// changed, so a caller can leave everything drawn with the old one alone.
+int viva_text_set_thickening(int thickening);
+// viva_text_system_thickening reports whether the user leaves the system's own font
+// smoothing on (AppleFontSmoothing absent or nonzero; zero, or a value that is not a
+// number, off). The engine starts its weight there, as AppKit's own text does.
+int viva_text_system_thickening(void);
 
 viva_text_line *viva_text_line_create(const unsigned char *utf8, size_t length, double font_size, double font_weight);
 viva_text_line *viva_text_line_create_style(const unsigned char *utf8, size_t length, double font_size, double font_weight, int italic);

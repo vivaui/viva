@@ -141,6 +141,32 @@ func TestShortcutLeavesPlainKeysToAField(t *testing.T) {
 	}
 }
 
+// A Tree's rows are inside the box Tree returns, as a List's are, so its Shortcut
+// acts while one of them has the keyboard focus.
+func TestTreeShortcutActsWhileARowHasFocus(t *testing.T) {
+	rows := []string{"alpha", "beta"}
+	var state ui.TreeState
+	state.Node = func(int) ui.TreeNode { return ui.TreeNode{} }
+	state.Label = func(i int) string { return rows[i] }
+	var opens int
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Pad(16).Children(func() {
+			tree := ui.Tree(c, &state, len(rows), state.Label, nil).Grow(1)
+			if tree.Shortcut(0, "f4") {
+				opens++
+			}
+		})
+	})
+	d.click("alpha")
+	if got := d.focused(); got != "alpha" {
+		t.Fatalf("focus = %q, want the row under the pointer", got)
+	}
+	d.key(gfx.KeyF4)
+	if opens != 1 {
+		t.Fatalf("the Tree's F4 acted %d times with a row focused", opens)
+	}
+}
+
 // A List's rows are inside the box List returns, so its Shortcut acts while one
 // of them has the keyboard focus.
 func TestListShortcutActsWhileARowHasFocus(t *testing.T) {

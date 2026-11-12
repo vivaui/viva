@@ -31,6 +31,14 @@ type SelectState struct {
 	typed    [16]byte
 	typedLen int
 	typedAt  time.Time
+
+	// The widest option label at optionsSize. Measuring every option costs a
+	// text measurement per label, so the state keeps the answer while the
+	// labels and the size are the ones it was measured for; a repaint then
+	// costs one slice comparison instead.
+	optionsMeasured bool
+	optionsWidest   float32
+	optionsSize     float32
 }
 
 // Wheel scrolls the open list by what the wheel or trackpad reports: a mouse notch
@@ -222,6 +230,7 @@ func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 	n.aux = int32(len(f.widgets.selects))
 	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, canvas: f.canvas, popup: -1, layer: f.widgetLayer() + 1, rects: -1}
 	d.visible = selectRows(len(labels), f.bounds.Height)
+	widest := state.widestOption(f.canvas, labels, f.theme.Metrics.FontSizeM)
 	state.labels, state.scope, state.selected, state.visible = labels, scope, selected, d.visible
 	if state.Open && len(labels) > 0 {
 		state.First = min(max(state.First, 0), len(labels)-d.visible)
@@ -229,19 +238,43 @@ func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 		if d.visible < len(labels) {
 			height += 2 * selectArrow
 		}
-		popup := f.Popup().BelowBox(b, selectGap, Start).Size(selectListWidth(f.canvas, labels, f.theme.Metrics.FontSizeM), height)
+		popup := f.Popup().BelowBox(b, selectGap, Start).Size(selectListWidth(widest), height)
 		d.popup = popup.i
 	}
 	f.widgets.selects = append(f.widgets.selects, d)
 	return b
 }
 
-// selectListWidth is the width of an open list of labels set in size.
-func selectListWidth(canvas *gfx.Canvas, labels []string, size float32) float32 {
-	var widest float32
-	for _, label := range labels {
-		widest = max(widest, canvas.TextWidthWeight(label, size, gfx.WeightRegular))
+// widestOption is the widest of labels at size, measured once until the labels
+// or the size change. The comparison is against the labels the measurement was
+// taken for, which is what the state declared last, so calling before or after
+// the frame records its labels both work.
+func (s *SelectState) widestOption(canvas *gfx.Canvas, labels []string, size float32) float32 {
+	if !s.optionsMeasured || s.optionsSize != size || !sameOptionLabels(s.labels, labels) {
+		var widest float32
+		for _, label := range labels {
+			widest = max(widest, canvas.TextWidthWeight(label, size, gfx.WeightRegular))
+		}
+		s.optionsMeasured, s.optionsWidest, s.optionsSize = true, widest, size
 	}
+	return s.optionsWidest
+}
+
+// sameOptionLabels reports whether two frames declared the same option labels.
+func sameOptionLabels(before, after []string) bool {
+	if len(before) != len(after) {
+		return false
+	}
+	for index := range after {
+		if before[index] != after[index] {
+			return false
+		}
+	}
+	return true
+}
+
+// selectListWidth is the width of an open list whose widest label measures widest.
+func selectListWidth(widest float32) float32 {
 	return max(128, widest+48)
 }
 
@@ -252,7 +285,7 @@ func (f *frame) sizeSelectList(n *node) {
 	if d.popup < 0 {
 		return
 	}
-	f.nodes[d.popup].size[axisX] = dimension{dimPx, selectListWidth(f.canvas, d.labels, n.fontSize)}
+	f.nodes[d.popup].size[axisX] = dimension{dimPx, selectListWidth(d.state.widestOption(f.canvas, d.labels, n.fontSize))}
 }
 
 // selectRows is how many of count options a list shows in a frame height tall.
@@ -320,10 +353,7 @@ func (d *selectDecl) pickIn() (int, bool) {
 
 func (f *frame) measureSelect(n *node) {
 	d := &f.widgets.selects[n.aux]
-	var widest float32
-	for _, label := range d.labels {
-		widest = max(widest, f.canvas.TextWidthWeight(label, f.theme.Metrics.FontSizeM, gfx.WeightRegular))
-	}
+	widest := d.state.widestOption(f.canvas, d.labels, f.theme.Metrics.FontSizeM)
 	height := f.theme.Metrics.ControlHeight
 	if n.flags&flagSmall != 0 {
 		height -= 4

@@ -613,25 +613,25 @@ func (s *ListState) estimate() float32 {
 }
 
 // resize keeps the heights of the rows that remain when the list has n rows.
+// Growth appends unmeasured rows, which the tree holds as zeros: a list that
+// gains rows every frame, as a stream does, extends the arrays instead of
+// rebuilding the tree over all of them. Shrinking truncates the arrays and
+// reads the totals of the rows that remain back from the tree.
 func (s *ListState) resize(n int) {
 	if n == len(s.heights) {
 		return
 	}
-	heights := s.heights
-	if n < len(heights) {
-		heights = heights[:n]
-	} else {
-		heights = append(heights, make([]float32, n-len(heights))...)
+	if n < len(s.heights) {
+		s.heights = s.heights[:n]
+		s.tree.sum = s.tree.sum[:n+1]
+		s.tree.known = s.tree.known[:n+1]
+		total, count := s.tree.prefix(n)
+		s.total, s.count = total, int(count)
+		return
 	}
-	s.heights = heights
-	s.tree.build(heights)
-	s.total, s.count = 0, 0
-	for _, h := range heights {
-		if h > 0 {
-			s.total += float64(h)
-			s.count++
-		}
-	}
+	// The tree is indexed from one, so it holds a slot beyond the last row.
+	s.heights = append(s.heights, make([]float32, n-len(s.heights))...)
+	s.tree.extend(n)
 }
 
 // measured records row i's height after a layout.
@@ -668,21 +668,41 @@ type listTree struct {
 	known []int32
 }
 
-func (t *listTree) build(heights []float32) {
-	n := len(heights)
-	t.sum = append(t.sum[:0], make([]float64, n+1)...)
-	t.known = append(t.known[:0], make([]int32, n+1)...)
-	for i, h := range heights {
-		if h > 0 {
-			t.add(i, float64(h), 1)
-		}
-	}
-}
-
 func (t *listTree) add(i int, dh float64, dk int32) {
 	for j := i + 1; j < len(t.sum); j += j & -j {
 		t.sum[j] += dh
 		t.known[j] += dk
+	}
+}
+
+// extend grows the tree to hold rows up to n, which arrive unmeasured at zero.
+// A Fenwick entry covers the range that ends at its own index, so an entry
+// beyond the old rows takes its value from the part of its range below them:
+// the tree as it stands already answers what that part holds. Entries that
+// cover only the new rows are zero, which is also what appending would give,
+// but the entries that straddle the old end would read as zero were they
+// merely appended, and a prefix across the boundary would lose every old row
+// below it.
+func (t *listTree) extend(n int) {
+	old := len(t.sum) - 1 // the rows the tree holds; -1 before the first
+	if n <= old {
+		return
+	}
+	if old < 0 {
+		t.sum = append(t.sum, 0)
+		t.known = append(t.known, 0)
+		old = 0
+	}
+	total, count := t.prefix(old)
+	for j := old + 1; j <= n; j++ {
+		var sum float64
+		var known int32
+		if low := j - j&-j; low < old {
+			below, measured := t.prefix(low)
+			sum, known = total-below, count-measured
+		}
+		t.sum = append(t.sum, sum)
+		t.known = append(t.known, known)
 	}
 }
 
@@ -829,12 +849,18 @@ func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	return area
 }
 
-// listRowScope is the scope of the rows of the List whose area is area, so a
-// Shortcut on the box List returns covers them as well as the area's own scope.
+// listRowScope is the scope of the rows of the List or Tree whose area is area,
+// so a Shortcut on the box List or Tree returns covers them as well as the
+// area's own scope.
 func (p *Page) listRowScope(area int32) gfx.Scope {
 	for _, state := range p.listStates {
 		if state.list.area == area {
 			return state.list.rows
+		}
+	}
+	for _, state := range p.trees {
+		if state.list.area == area {
+			return state.rows
 		}
 	}
 	return 0

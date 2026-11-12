@@ -283,17 +283,49 @@ func (canvas *Canvas) cellLine(text Text) cellLine {
 	}
 }
 
+// cellGlyphCacheEntry is one built cell glyph, kept while the same character keeps being
+// drawn at the same metrics.
+type cellGlyphCacheEntry struct {
+	r       rune
+	metrics cellMetrics
+	shapes  CellGlyphShapes
+}
+
+// cellCacheLimit bounds the built cell glyphs a canvas keeps: box drawing, blocks,
+// braille and powerline together are a few hundred characters, and a screen shows
+// a few dozen of them at one or two metrics.
+const cellCacheLimit = 64
+
 // glyphShapes is what r draws in a cell of these metrics, in device pixels from the cell's corner:
 // the same for every cell of that size, whatever its place or colour. It draws into the canvas's
-// scratch cell, which a line of hundreds of cells reuses without allocating.
+// scratch cell, which a line of hundreds of cells reuses without allocating. The built shapes are
+// cached by character and metrics — a cell glyph is the character and the metrics alone, so a
+// whole screen of the same table glyph rebuilds one of them — and the cache's entries are only
+// read: place appends copies.
 func (canvas *Canvas) glyphShapes(metrics cellMetrics, r rune) CellGlyphShapes {
+	for i := range canvas.cellCache {
+		if entry := &canvas.cellCache[i]; entry.r == r && entry.metrics == metrics {
+			return entry.shapes
+		}
+	}
 	cell := &canvas.cell
 	cell.canvas, cell.cellMetrics = canvas, metrics
 	cell.shapes.Rectangles, cell.shapes.Triangles = cell.shapes.Rectangles[:0], cell.shapes.Triangles[:0]
 	if draw := cellGlyphDrawer(r); draw != nil {
 		draw(cell, r)
 	}
-	return cell.shapes
+	var entry cellGlyphCacheEntry
+	entry.r, entry.metrics = r, metrics
+	entry.shapes.Rectangles = append(entry.shapes.Rectangles, cell.shapes.Rectangles...)
+	entry.shapes.Triangles = append(entry.shapes.Triangles, cell.shapes.Triangles...)
+	if len(canvas.cellCache) >= cellCacheLimit {
+		// The working set of a screen is a few dozen characters at one or two
+		// metrics; past the limit the whole cache starts over rather than
+		// growing with every character a document ever showed.
+		canvas.cellCache = canvas.cellCache[:0]
+	}
+	canvas.cellCache = append(canvas.cellCache, entry)
+	return canvas.cellCache[len(canvas.cellCache)-1].shapes
 }
 
 // CellGlyphGeometry appends to dst the geometry that draws the cell glyphs of a text made by
@@ -303,11 +335,9 @@ func (canvas *Canvas) glyphShapes(metrics cellMetrics, r rune) CellGlyphShapes {
 // must not also draw them from the font; see ReplaceCellGlyphs. A text without cell glyphs adds
 // nothing and does not allocate.
 //
-// ponytail: a cell glyph is built for every cell of every paint, though all but its place, colour
-// and layer are the same for every cell of its size: an 80 cell line costs 5µs of rules, 17µs of
-// corner triangles and blocks and 63µs of rounded corners and diagonals, and a whole 200x50 screen
-// of `┼` 0.8ms a frame. If a profile shows that, cache the built shapes by character, cell size and
-// rule — nothing else goes into them.
+// The built shapes are cached by character and metrics (see glyphShapes), so a paint that shows
+// the same glyphs as the last pays a lookup per cell, not a rebuild: an 80 cell line of rounded
+// corners and diagonals was 63µs to rebuild and a whole 200x50 screen of `┼` 0.8ms a frame.
 func (canvas *Canvas) CellGlyphGeometry(dst CellGlyphShapes, text Text) CellGlyphShapes {
 	if text.CellWidth <= 0 || text.Bounds.Width <= 0 || text.Bounds.Height <= 0 {
 		return dst

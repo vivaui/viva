@@ -123,12 +123,29 @@ type FontFamilyAware interface {
 	// is forgotten, so the next measure shapes again.
 	SetFontFamily(family string)
 	// FontGeneration counts the changes after which the same line shapes
-	// differently: it moves on every SetFontFamily that changed the family, and
-	// when the system's own fonts changed under the engine. What the canvas or a
-	// renderer remembers of shaped text (a cut line, a rasterized label) is stale
-	// once it differs from the generation it was made at. Wrapping around is
-	// harmless: only equality is ever asked.
+	// differently: it moves on every SetFontFamily that changed the family,
+	// when the system's own fonts changed under the engine, and, on an engine
+	// that has the weight's choice (FontThickener), on every SetFontThickening
+	// that changed it. What the canvas or a renderer remembers of shaped text
+	// (a cut line, a rasterized label) is stale once it differs from the
+	// generation it was made at. Wrapping around is harmless: only equality is
+	// ever asked.
 	FontGeneration() uint32
+}
+
+// FontThickener is an optional TextEngine capability that draws the glyphs it
+// rasterizes with a thicker stroke, as the system's own text looks, or with the
+// font's own outlines. An engine without it has no such choice: the renderer
+// behind it has no knob for the weight, so an application leaves the text as it
+// is there.
+type FontThickener interface {
+	TextEngine
+	// SetFontThickening draws the text with a thicker stroke when on, and with
+	// the font's own outlines when off. The weight is the process's, not one
+	// canvas's; asking for the weight already in use changes nothing. An engine
+	// starts at the weight the platform's own text has, and this is the
+	// application's choice from then on.
+	SetFontThickening(on bool)
 }
 
 // SetTextEngine installs the engine every text measurement of the canvas goes
@@ -146,7 +163,8 @@ func (canvas *Canvas) SetTextEngine(engine TextEngine) {
 // FontGeneration is the generation of the installed engine's fonts
 // (FontFamilyAware.FontGeneration), 0 for an engine that has none. A painter
 // that sends text to a renderer stamps it on the text, so a renderer holding a
-// picture of a label made in other fonts draws it again.
+// picture of a label made in other fonts, or under another weight, draws it
+// again.
 func (canvas *Canvas) FontGeneration() uint32 {
 	if canvas.aware == nil {
 		return 0

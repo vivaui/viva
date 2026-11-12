@@ -25,7 +25,6 @@ void vivaFrameChanged(uintptr_t handle, void *view, double x, double y, double w
 void vivaWindowMinimized(uintptr_t handle, void *view, int minimized) {}
 void vivaWindowOccluded(uintptr_t handle, void *view, int visible) {}
 void vivaWindowFullscreen(uintptr_t handle, void *view, int fullscreen) {}
-uint16_t vivaRectangleLayer(uintptr_t handle, size_t index) { return 0; }
 int vivaPressAt(uintptr_t handle, double x, double y) { return 0; }
 void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *utf8,
                   size_t length, int64_t start, int64_t selectedLength,
