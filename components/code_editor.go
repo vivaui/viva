@@ -392,7 +392,7 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 	}
 	editor.fitWithRepresentations(value, cols, snapshot.Wrap, tabWidth, snapshot.FoldedLines, snapshot.Representations)
 	if snapshot.ShowIndentGuides && editor.indents == nil {
-		editor.indents = indentationLevels(editor.text, tabWidth)
+		editor.indents = indentationLevels(editor.text, tabWidth, editor.reps)
 	}
 	editor.content, editor.cellWidth, editor.lineHeight = content, cellWidth, lineHeight
 

@@ -35,13 +35,15 @@ func codeCells(r rune, column, tabWidth int) int {
 	return text.CellWidth(r)
 }
 
-// indentationLevels is the leading cells of every line; a blank line takes the
-// smaller indentation of its nearest text lines so guides run through it.
+// indentationLevels is the leading cells of every line, in the displayed columns
+// the layout uses, so a representation that hides or widens a leading tab moves
+// the indent guides with the text; a blank line takes the smaller indentation of
+// its nearest text lines so guides run through it.
 //
 // The forward pass stores a blank line as -2-previous, where previous is the
 // indentation of the last text line above it (-1 when there is none), so the
 // backward pass can resolve it without a second slice.
-func indentationLevels(value string, tabWidth int) []int {
+func indentationLevels(value string, tabWidth int, reps []CodeRepresentation) []int {
 	levels := make([]int, 0, strings.Count(value, "\n")+1)
 	previous := -1
 	for line := range strings.SplitSeq(value, "\n") {
@@ -49,10 +51,8 @@ func indentationLevels(value string, tabWidth int) []int {
 	leading:
 		for _, character := range line {
 			switch character {
-			case ' ':
-				column++
-			case '\t':
-				column += tabWidth - column%tabWidth
+			case ' ', '\t':
+				column += displayCells(character, column, tabWidth, reps)
 			default:
 				blank = false
 				break leading

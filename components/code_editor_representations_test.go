@@ -1,6 +1,7 @@
 package components
 
 import (
+	"sort"
 	"strings"
 	"testing"
 
@@ -211,5 +212,130 @@ func TestCodeEditorPlainAndHiddenRepresentationsDoNotPaintBlob(t *testing.T) {
 	}
 	if !foundPlain {
 		t.Fatal("plain representation lost its marker color")
+	}
+}
+
+// TestCodeEditorIndentGuidesFollowDisplayedIndentation puts a representation and
+// an indentation guide on the same leading whitespace: the guides must be placed
+// in the displayed columns the layout used, not in the source tab stops, or a
+// hidden or widened leading tab leaves a guide on the first text column.
+func TestCodeEditorIndentGuidesFollowDisplayedIndentation(t *testing.T) {
+	accent := gfx.RGB(48, 96, 144)
+	guideColumns := func(fixture *codeFixture) []float32 {
+		guide := fixture.snapshot.InvisibleColor
+		guide.Alpha *= 0.5
+		var columns []float32
+		for _, mark := range fixture.fills(guide) {
+			columns = append(columns, (mark.X-fixture.editor.content.X)/fixture.editor.cellWidth)
+		}
+		sort.Slice(columns, func(i, j int) bool { return columns[i] < columns[j] })
+		return columns
+	}
+	caretColumn := func(fixture *codeFixture, offset int) float32 {
+		fixture.snapshot.Caret = offset
+		fixture.snapshot.SelectionStart, fixture.snapshot.SelectionEnd = 0, 0
+		fixture.paint()
+		caret, visible := fixture.editor.CaretBounds()
+		if !visible {
+			t.Fatalf("caret at source byte %d is not painted", offset)
+		}
+		return (caret.X - fixture.editor.content.X) / fixture.editor.cellWidth
+	}
+	hit := func(fixture *codeFixture, column float32) int {
+		offset, ok := fixture.editor.OffsetAt(gfx.Point{
+			X: fixture.editor.content.X + column*fixture.editor.cellWidth,
+			Y: fixture.editor.content.Y + fixture.editor.lineHeight/2,
+		})
+		if !ok {
+			t.Fatalf("no hit at displayed column %v", column)
+		}
+		return offset
+	}
+
+	// A representation that hides the leading tab leaves the text at displayed
+	// column 0, so there is no complete indentation level to mark.
+	hidden := newCodeFixture("\tX")
+	hidden.snapshot.TabWidth = 4
+	hidden.snapshot.InvisibleColor = accent
+	hidden.snapshot.Representations = []CodeRepresentation{{Character: '\t', Label: ""}}
+	hidden.snapshot.ShowIndentGuides = true
+	hidden.paint()
+	if columns := guideColumns(hidden); len(columns) != 0 {
+		t.Fatalf("hidden leading tab drew guides at displayed columns %v; want none", columns)
+	}
+	if row := hidden.editor.rows[0]; row.cells != 1 || hidden.editor.rowText(row) != "X" {
+		t.Fatalf("hidden tab layout = %q in %d cells; want X in 1 cell", hidden.editor.rowText(row), row.cells)
+	}
+	if column := caretColumn(hidden, 1); !near(column, 0) {
+		t.Fatalf("caret for X = displayed column %v; want 0", column)
+	}
+	if offset := hit(hidden, 0.1); offset != 1 {
+		t.Fatalf("hit on the first text column = source byte %d; want 1", offset)
+	}
+
+	// Labelled tabs widen each leading tab, so the text starts at displayed
+	// column 4: only the level at column 0 fits before the text.
+	labelled := newCodeFixture("\t\tX")
+	labelled.snapshot.TabWidth = 4
+	labelled.snapshot.InvisibleColor = accent
+	labelled.snapshot.Representations = []CodeRepresentation{{Character: '\t', Label: "  "}}
+	labelled.snapshot.ShowIndentGuides = true
+	labelled.paint()
+	columns := guideColumns(labelled)
+	if len(columns) != 1 || !near(columns[0], 0) {
+		t.Fatalf("labelled tabs drew guides at displayed columns %v; want one at 0", columns)
+	}
+	if row := labelled.editor.rows[0]; row.cells != 5 || labelled.editor.rowText(row) != "    X" {
+		t.Fatalf("labelled tab layout = %q in %d cells; want \"    X\" in 5 cells", labelled.editor.rowText(row), row.cells)
+	}
+	textColumn := caretColumn(labelled, 2)
+	if !near(textColumn, 4) {
+		t.Fatalf("caret for X = displayed column %v; want 4", textColumn)
+	}
+	for _, column := range guideColumns(labelled) {
+		if column+0.01 >= textColumn {
+			t.Fatalf("guide at displayed column %v reaches the text at %v", column, textColumn)
+		}
+	}
+	if offset := hit(labelled, textColumn+0.1); offset != 2 {
+		t.Fatalf("hit on the first text column = source byte %d; want 2", offset)
+	}
+
+	// A label wider than the tab stop widens the displayed indentation in turn:
+	// the guides follow the displayed tab stops (0, 2 and 4 cells for 6
+	// displayed cells), not the two source-space levels.
+	wider := newCodeFixture("\t\tX")
+	wider.snapshot.TabWidth = 2
+	wider.snapshot.InvisibleColor = accent
+	wider.snapshot.Representations = []CodeRepresentation{{Character: '\t', Label: "   "}}
+	wider.snapshot.ShowIndentGuides = true
+	wider.paint()
+	if columns := guideColumns(wider); len(columns) != 3 ||
+		!near(columns[0], 0) || !near(columns[1], 2) || !near(columns[2], 4) {
+		t.Fatalf("widened tabs drew guides at displayed columns %v; want 0, 2 and 4", columns)
+	}
+	if column := caretColumn(wider, 2); !near(column, 6) {
+		t.Fatalf("caret for X = displayed column %v; want 6", column)
+	}
+
+	// The guides are the only difference: rows, caret placement and the hit
+	// mapping are the same with them off.
+	before := strings.Join(labelled.rowTexts(), "|")
+	labelled.snapshot.ShowIndentGuides = false
+	labelled.paint()
+	if columns := guideColumns(labelled); len(columns) != 0 {
+		t.Fatalf("disabled guides painted at displayed columns %v", columns)
+	}
+	if after := strings.Join(labelled.rowTexts(), "|"); after != before {
+		t.Fatalf("guides changed the rows: %q -> %q", before, after)
+	}
+	if row := labelled.editor.rows[0]; row.cells != 5 {
+		t.Fatalf("guides changed the row cells: %d; want 5", row.cells)
+	}
+	if column := caretColumn(labelled, 2); !near(column, 4) {
+		t.Fatalf("caret with guides off = displayed column %v; want 4", column)
+	}
+	if offset := hit(labelled, 4.1); offset != 2 {
+		t.Fatalf("hit with guides off = source byte %d; want 2", offset)
 	}
 }
