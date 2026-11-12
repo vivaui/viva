@@ -1406,11 +1406,7 @@ func (painter *painter) applyClipping() {
 			continue
 		}
 		if text.HasClip {
-			footprint := text.Bounds
-			if text.HasQuad {
-				footprint = quadBounds(text.Quad)
-			}
-			if _, visible := intersectVisible(footprint, text.ClipOf); !visible {
+			if !textClipVisible(text) {
 				continue
 			}
 		}
@@ -1548,6 +1544,20 @@ func quadBounds(points [4]gfx.Point) gfx.Rect {
 	right := max32(max32(points[0].X, points[1].X), max32(points[2].X, points[3].X))
 	bottom := max32(max32(points[0].Y, points[1].Y), max32(points[2].Y, points[3].Y))
 	return gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+}
+
+func textClipVisible(text gfx.Text) bool {
+	_, visible := intersectVisible(text.Bounds, text.ClipOf)
+	if text.HasQuad {
+		_, warped := intersectVisible(quadBounds(text.Quad), text.ClipOf)
+		visible = visible || warped
+	}
+	return visible
+}
+
+func textClipCuts(text gfx.Text) bool {
+	return !containsRect(text.ClipOf, text.Bounds) ||
+		text.HasQuad && !containsRect(text.ClipOf, quadBounds(text.Quad))
 }
 
 func intersectVisible(bounds, clip gfx.Rect) (gfx.Rect, bool) {
@@ -2177,11 +2187,7 @@ func (painter *painter) syncLabels() {
 			entry.Value, entry.Runs = painter.replaceCellGlyphs(entry.Value, entry.Runs)
 		}
 		if label.HasClip {
-			footprint := label.Bounds
-			if label.HasQuad {
-				footprint = quadBounds(label.Quad)
-			}
-			if !containsRect(label.ClipOf, footprint) {
+			if textClipCuts(label) {
 				// The clip cuts the label partway: the renderers scissor to it.
 				entry.Clip, entry.Clipped = label.ClipOf, true
 			}

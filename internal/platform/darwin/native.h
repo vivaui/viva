@@ -363,6 +363,7 @@ void viva_probe_front(void);
 void viva_probe_close(void);
 int viva_offscreen_set_rectangles(void *offscreen, const viva_rectangle *rectangles, const viva_clip *clips, size_t count);
 int viva_offscreen_set_labels(void *offscreen, const viva_text_label *labels, size_t count);
+size_t viva_offscreen_label_texture_bytes(void *offscreen);
 int viva_offscreen_set_text_input(void *offscreen, viva_text_input_config config);
 int viva_offscreen_render(
     void *offscreen,

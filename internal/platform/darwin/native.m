@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "native.h"
+#include "label_geometry.h"
 #include "main_menu_darwin.h"
 
 static uint64_t viva_process_start_ticks;
@@ -2453,6 +2454,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     size_t _windowLeft;
     size_t _windowRight;
     CGFloat _windowPixelScale;
+    BOOL _hasQuad;
     // The shape the label's picture is drawn into this frame, and the colour
     // multiplied into each of its corners (viva_text_label.quad, .tint). An
     // ordinary label holds the corners of its box and opaque white.
@@ -2480,6 +2482,8 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 - (id<MTLTexture>)textureAtIndex:(NSUInteger)index;
 - (NSUInteger)textureCount;
 - (NSRect)quadAtIndex:(NSUInteger)index;
+- (NSRect)textureFrameAtIndex:(NSUInteger)index;
+- (CGFloat)rasterWidthScale:(CGFloat)scale;
 @end
 
 static NSData *viva_downsample_bitmap(NSData *source, uint32_t sourceWidth, uint32_t sourceHeight, uint32_t sourceStride, size_t width, size_t height) {
@@ -2550,21 +2554,26 @@ static BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
 // VIVA_LABEL_TEXTURE_LIMIT is the widest and tallest texture a label is rasterized into, in
 // pixels: the 2D texture limit of every Metal device Viva runs on.
 #define VIVA_LABEL_TEXTURE_LIMIT 16384
+#define VIVA_LABEL_TILE_WIDTH (VIVA_LABEL_TEXTURE_LIMIT - 2)
 
-// viva_label_visible_span is the part of a label that can be seen: its frame cut by its clip
-// and by the viewport, as the device pixels left to right of the pixelScale grid, counted
-// from the frame's left edge and at most full. NO when none of the label can be seen.
-static BOOL viva_label_visible_span(NSRect frame, BOOL clipped, NSRect clip, NSSize viewport,
-                                    CGFloat pixelScale, size_t full, size_t *left, size_t *right) {
-    NSRect visible = NSIntersectionRect(frame, NSMakeRect(0, 0, viewport.width, viewport.height));
+// viva_label_visible_span clips the destination triangles to the clip and viewport,
+// then maps their visible UV range to source pixels, at most full.
+// NO when none of the label can be seen.
+static BOOL viva_label_visible_span(const float *quad, const float *tint, BOOL clipped, NSRect clip, NSSize viewport,
+                                    size_t full, size_t *left, size_t *right) {
+    NSRect visible = NSMakeRect(0, 0, viewport.width, viewport.height);
     if (clipped) {
         visible = NSIntersectionRect(visible, clip);
     }
     if (NSIsEmptyRect(visible)) {
         return NO;
     }
-    CGFloat from = floor((NSMinX(visible) - NSMinX(frame)) * pixelScale);
-    CGFloat to = ceil((NSMaxX(visible) - NSMinX(frame)) * pixelScale);
+    float sourceLeft, sourceRight;
+    if (!viva_label_source_span(quad, tint, NSMinX(visible), NSMinY(visible), NSMaxX(visible), NSMaxY(visible), &sourceLeft, &sourceRight)) {
+        return NO;
+    }
+    CGFloat from = floor((double)sourceLeft * full);
+    CGFloat to = ceil((double)sourceRight * full);
     *left = (size_t)MIN(MAX(from, 0), (CGFloat)full);
     *right = (size_t)MIN(MAX(to, 0), (CGFloat)full);
     return *right > *left;
@@ -2757,6 +2766,7 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
     for (int index = 0; index < 16; index++) {
         _tint[index] = config.tint[index];
     }
+    _hasQuad = hasQuad;
     if (hasQuad) {
         return;
     }
@@ -2808,12 +2818,20 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
 // can be seen in viewport is no longer all in its texture: it moved, or its clip or the
 // viewport did. Any other label is left as it is.
 - (BOOL)refreshWindowWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport {
-    if (!_windowed || _texture == nil) {
+    CGFloat widthScale = [self rasterWidthScale:scale];
+    if (_texture == nil || _lastScale != scale ||
+        viva_bitmap_extent_stale((size_t)ceil(_frame.size.width * _windowPixelScale), (size_t)ceil(_frame.size.width * widthScale))) {
+        _lastScale = 0;
+        BOOL rebuilt = [self rebuildWithDevice:device scale:scale viewport:viewport];
+        if (rebuilt) [self markContentRebuild];
+        return rebuilt;
+    }
+    if (!_windowed) {
         return YES;
     }
     size_t full = (size_t)MAX(1.0, ceil(_frame.size.width * _windowPixelScale));
     size_t left = 0, right = 0;
-    if (!viva_label_visible_span(_frame, _clipped, _clip, viewport, _windowPixelScale, full, &left, &right) ||
+    if (!viva_label_visible_span(_quad, _tint, _clipped, _clip, viewport, full, &left, &right) ||
         (left >= _windowLeft && right <= _windowRight)) {
         return YES;
     }
@@ -2823,6 +2841,16 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
     }
     [self markContentRebuild];
     return YES;
+}
+
+- (CGFloat)rasterWidthScale:(CGFloat)scale {
+    CGFloat pixelScale = ceil(scale);
+    if (!_hasQuad || _frame.size.width <= 0) {
+        return pixelScale;
+    }
+    CGFloat top = hypot((double)_quad[2] - _quad[0], (double)_quad[3] - _quad[1]);
+    CGFloat bottom = hypot((double)_quad[6] - _quad[4], (double)_quad[7] - _quad[5]);
+    return MIN(pixelScale, MAX(1, ceil(MAX(top, bottom) * pixelScale)) / _frame.size.width);
 }
 
 - (BOOL)rebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport {
@@ -2884,7 +2912,8 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
     // Rasterize on the integer physical-pixel grid: a fractional frame origin
     // must not bleed anti-aliasing across texel boundaries.
     CGFloat pixelScale = ceil(scale);
-    size_t fullWidth = (size_t)MAX(1.0, ceil(_frame.size.width * pixelScale));
+    CGFloat widthScale = [self rasterWidthScale:scale];
+    size_t fullWidth = (size_t)MAX(1.0, ceil(_frame.size.width * widthScale));
     size_t pixelHeight = (size_t)MAX(1.0, ceil(_frame.size.height * pixelScale));
     if (pixelHeight > VIVA_LABEL_TEXTURE_LIMIT) {
         return NO;
@@ -2895,14 +2924,16 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
     size_t windowLeft = 0, windowRight = fullWidth;
     if (windowed) {
         size_t left = 0, right = 0;
-        BOOL visible = viva_label_visible_span(_frame, _clipped, _clip, viewport, pixelScale, fullWidth, &left, &right);
+        BOOL visible = viva_label_visible_span(_quad, _tint, _clipped, _clip, viewport, fullWidth, &left, &right);
         viva_label_window(fullWidth, VIVA_LABEL_TEXTURE_LIMIT, visible, left, right, &windowLeft, &windowRight);
     }
     id<MTLTexture> texture = nil;
     NSMutableArray<id<MTLTexture>> *additionalTextures = nil;
     for (size_t tileLeft = windowLeft; tileLeft < windowRight;) {
-        size_t tileRight = tileLeft + MIN(windowRight - tileLeft, VIVA_LABEL_TEXTURE_LIMIT);
-        size_t pixelWidth = tileRight - tileLeft;
+        size_t tileRight = tileLeft + MIN(windowRight - tileLeft, VIVA_LABEL_TILE_WIDTH);
+        size_t textureLeft = tileLeft > 0 ? tileLeft - 1 : 0;
+        size_t textureRight = MIN(tileRight + 1, fullWidth);
+        size_t pixelWidth = textureRight - textureLeft;
         size_t rowBytes = pixelWidth * 4;
         if (pixelHeight > SIZE_MAX / rowBytes) {
             [texture release];
@@ -2928,8 +2959,9 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
             return NO;
         }
         viva_prepare_text_context(context, pixelScale);
-        if (tileLeft > 0) {
-            CGContextTranslateCTM(context, -(CGFloat)tileLeft / pixelScale, 0);
+        CGContextScaleCTM(context, widthScale / pixelScale, 1);
+        if (textureLeft > 0) {
+            CGContextTranslateCTM(context, -(CGFloat)textureLeft / widthScale, 0);
         }
         if (_runCount > 0) {
             [self drawRunsInContext:context pixelScale:pixelScale];
@@ -2979,7 +3011,7 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
     _windowed = windowed;
     _windowLeft = windowLeft;
     _windowRight = windowRight;
-    _windowPixelScale = pixelScale;
+    _windowPixelScale = widthScale;
     return YES;
 }
 
@@ -3182,9 +3214,6 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
 }
 
 - (NSUInteger)textureCount {
-    if (!_windowed) {
-        return 1;
-    }
     return 1 + _additionalTextures.count;
 }
 
@@ -3193,14 +3222,26 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
 }
 
 - (NSRect)quadAtIndex:(NSUInteger)index {
-    if (!_windowed) {
+    if (_bitmap != nil) {
         return _frame;
     }
     size_t full = (size_t)MAX(1.0, ceil(_frame.size.width * _windowPixelScale));
-    size_t tileLeft = _windowLeft + index * VIVA_LABEL_TEXTURE_LIMIT;
-    size_t tileRight = tileLeft + MIN(_windowRight - tileLeft, VIVA_LABEL_TEXTURE_LIMIT);
+    size_t tileLeft = _windowLeft + index * VIVA_LABEL_TILE_WIDTH;
+    size_t tileRight = tileLeft + MIN(_windowRight - tileLeft, VIVA_LABEL_TILE_WIDTH);
     CGFloat left = (CGFloat)tileLeft / _windowPixelScale;
     CGFloat right = tileRight >= full ? _frame.size.width : (CGFloat)tileRight / _windowPixelScale;
+    return NSMakeRect(_frame.origin.x + left, _frame.origin.y, right - left, _frame.size.height);
+}
+
+- (NSRect)textureFrameAtIndex:(NSUInteger)index {
+    if (_bitmap != nil) return _frame;
+    size_t full = (size_t)MAX(1.0, ceil(_frame.size.width * _windowPixelScale));
+    size_t tileLeft = _windowLeft + index * VIVA_LABEL_TILE_WIDTH;
+    size_t tileRight = tileLeft + MIN(_windowRight - tileLeft, VIVA_LABEL_TILE_WIDTH);
+    size_t textureLeft = tileLeft > 0 ? tileLeft - 1 : 0;
+    size_t textureRight = MIN(tileRight + 1, full);
+    CGFloat left = (CGFloat)textureLeft / _windowPixelScale;
+    CGFloat right = textureRight >= full ? _frame.size.width : (CGFloat)textureRight / _windowPixelScale;
     return NSMakeRect(_frame.origin.x + left, _frame.origin.y, right - left, _frame.size.height);
 }
 
@@ -3307,44 +3348,26 @@ static void viva_label_plain_tint(float *tint) {
     }
 }
 
-// viva_label_tile_quad maps one texture tile's part of the label's quad. A
+// viva_label_tile_mesh maps one texture tile's part of the label's triangles. A
 // label wider than a texture holds arrives in several tiles, each a horizontal
-// slice of the same picture; the slice keeps the part of the quad it covers so
-// the tiles line up when the label is warped.
-static void viva_label_tile_quad(
+// slice of the same picture; clipping the original triangles preserves their
+// affine texture coordinates and tints across tile boundaries.
+static size_t viva_label_tile_mesh(
     const float *quad,
     const float *tint,
     NSRect frame,
     NSRect tile,
-    float *outQuad,
-    float *outTint
+    NSRect texture,
+    viva_label_vertex *vertices
 ) {
     CGFloat width = frame.size.width > 0 ? frame.size.width : 1;
     float left = (float)((tile.origin.x - frame.origin.x) / width);
     float right = (float)((tile.origin.x + tile.size.width - frame.origin.x) / width);
     left = fminf(fmaxf(left, 0), 1);
     right = fminf(fmaxf(right, 0), 1);
-    // Corners are top-left, top-right, bottom-left, bottom-right.
-    float topX = quad[2] - quad[0];
-    float topY = quad[3] - quad[1];
-    float bottomX = quad[6] - quad[4];
-    float bottomY = quad[7] - quad[5];
-    outQuad[0] = quad[0] + topX * left;
-    outQuad[1] = quad[1] + topY * left;
-    outQuad[2] = quad[0] + topX * right;
-    outQuad[3] = quad[1] + topY * right;
-    outQuad[4] = quad[4] + bottomX * left;
-    outQuad[5] = quad[5] + bottomY * left;
-    outQuad[6] = quad[4] + bottomX * right;
-    outQuad[7] = quad[5] + bottomY * right;
-    for (int channel = 0; channel < 4; channel++) {
-        float top = tint[4 + channel] - tint[channel];
-        float bottom = tint[12 + channel] - tint[8 + channel];
-        outTint[channel] = tint[channel] + top * left;
-        outTint[4 + channel] = tint[channel] + top * right;
-        outTint[8 + channel] = tint[8 + channel] + bottom * left;
-        outTint[12 + channel] = tint[8 + channel] + bottom * right;
-    }
+    float textureLeft = (float)((texture.origin.x - frame.origin.x) / width);
+    float textureRight = (float)((texture.origin.x + texture.size.width - frame.origin.x) / width);
+    return viva_label_tile_vertices(quad, tint, left, right, textureLeft, textureRight, vertices);
 }
 
 // viva_encode_input draws the native editor's texture.
@@ -3362,9 +3385,10 @@ static void viva_encode_input(
                         (float)inputFrame.size.width, (float)inputFrame.size.height);
     float tint[16];
     viva_label_plain_tint(tint);
+    viva_label_vertex vertices[6];
+    viva_label_vertices(quad, tint, vertices);
     [encoder setRenderPipelineState:textPipeline];
-    [encoder setVertexBytes:quad length:sizeof(quad) atIndex:2];
-    [encoder setVertexBytes:tint length:sizeof(tint) atIndex:3];
+    [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:2];
     [encoder setVertexBytes:&viewportSize length:sizeof(viewportSize) atIndex:1];
     [encoder setFragmentTexture:inputTexture atIndex:0];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
@@ -3456,13 +3480,13 @@ static void viva_encode_scene(
         [encoder setRenderPipelineState:textPipeline];
         [encoder setVertexBytes:&viewportSize length:sizeof(viewportSize) atIndex:1];
         for (NSUInteger tile = 0; tile < [layer textureCount]; tile++) {
-            float quad[8];
-            float tint[16];
-            viva_label_tile_quad([layer quad], [layer tint], [layer frame], [layer quadAtIndex:tile], quad, tint);
-            [encoder setVertexBytes:quad length:sizeof(quad) atIndex:2];
-            [encoder setVertexBytes:tint length:sizeof(tint) atIndex:3];
+            viva_label_vertex vertices[18];
+            size_t count = viva_label_tile_mesh([layer quad], [layer tint], [layer frame],
+                [layer quadAtIndex:tile], [layer textureFrameAtIndex:tile], vertices);
+            if (count == 0) continue;
+            [encoder setVertexBytes:vertices length:count * sizeof(viva_label_vertex) atIndex:2];
             [encoder setFragmentTexture:[layer textureAtIndex:tile] atIndex:0];
-            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:count];
             viva_gpu_draw_call_count++;
         }
         if (scissored) {
@@ -7506,11 +7530,23 @@ int viva_unregister_font_file(const char *path) {
 - (BOOL)setRectangles:(const viva_rectangle *)rectangles clips:(const viva_clip *)clips count:(NSUInteger)count;
 - (BOOL)setLabels:(const viva_text_label *)labels count:(NSUInteger)count;
 - (BOOL)setTextInput:(viva_text_input_config)config;
+- (size_t)labelTextureBytes;
 - (BOOL)renderInto:(unsigned char *)pixels capacity:(size_t)capacity
              width:(size_t *)width height:(size_t *)height;
 @end
 
 @implementation VivaOffscreen
+
+- (size_t)labelTextureBytes {
+    size_t bytes = 0;
+    for (VivaTextLayer *layer in _labels) {
+        for (NSUInteger index = 0; index < [layer textureCount]; index++) {
+            id<MTLTexture> texture = [layer textureAtIndex:index];
+            bytes += texture.width * texture.height * 4;
+        }
+    }
+    return bytes;
+}
 
 - (instancetype)initWithLibrary:(const unsigned char *)library
                          length:(size_t)length
@@ -7752,6 +7788,10 @@ int viva_offscreen_set_labels(void *offscreen, const viva_text_label *labels, si
     @autoreleasepool {
         return [(VivaOffscreen *)offscreen setLabels:labels count:count] ? 0 : 1;
     }
+}
+
+size_t viva_offscreen_label_texture_bytes(void *offscreen) {
+    return [(VivaOffscreen *)offscreen labelTextureBytes];
 }
 
 int viva_offscreen_set_text_input(void *offscreen, viva_text_input_config config) {

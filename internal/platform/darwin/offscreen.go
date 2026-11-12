@@ -120,3 +120,7 @@ func (offscreen *Offscreen) Close() {
 		offscreen.handle = nil
 	}
 }
+
+func (offscreen *Offscreen) LabelTextureBytes() uint64 {
+	return uint64(C.viva_offscreen_label_texture_bytes(offscreen.handle))
+}

@@ -282,41 +282,28 @@ struct TextVertexOutput {
     float4 tint;
 };
 
-// viva_text_vertex draws a label's picture into a general quad: quad holds its
-// four corners (top-left, top-right, bottom-left, bottom-right) in logical
-// pixels and tint the straight RGBA colour at each. A label that is not warped
-// arrives as the corners of its axis-aligned box, so the shader has one path.
+struct TextVertex {
+    float2 pixel;
+    float2 textureCoordinate;
+    float4 tint;
+};
+
+// viva_text_vertex draws the label's tessellated picture. Source tiles are
+// clipped from the original triangles, keeping their positions, UVs and tints.
 vertex TextVertexOutput viva_text_vertex(
     uint vertexID [[vertex_id]],
-    constant float2 *quad [[buffer(2)]],
-    constant float2 &viewportSize [[buffer(1)]],
-    constant float4 *tint [[buffer(3)]]) {
-    constexpr float2 corners[6] = {
-        float2(0.0, 0.0),
-        float2(1.0, 0.0),
-        float2(0.0, 1.0),
-        float2(0.0, 1.0),
-        float2(1.0, 0.0),
-        float2(1.0, 1.0),
-    };
-
-    float2 corner = corners[vertexID];
-    // Corners are top-left, top-right, bottom-left, bottom-right.
-    float2 top = mix(quad[0], quad[1], corner.x);
-    float2 bottom = mix(quad[2], quad[3], corner.x);
-    float2 pixel = mix(top, bottom, corner.y);
+    constant TextVertex *vertices [[buffer(2)]],
+    constant float2 &viewportSize [[buffer(1)]]) {
+    TextVertex selected = vertices[vertexID];
     float2 normalized = float2(
-        pixel.x / viewportSize.x * 2.0 - 1.0,
-        1.0 - pixel.y / viewportSize.y * 2.0
+        selected.pixel.x / viewportSize.x * 2.0 - 1.0,
+        1.0 - selected.pixel.y / viewportSize.y * 2.0
     );
-
-    float4 topTint = mix(tint[0], tint[1], corner.x);
-    float4 bottomTint = mix(tint[2], tint[3], corner.x);
 
     TextVertexOutput output;
     output.position = float4(normalized, 0.0, 1.0);
-    output.textureCoordinate = corner;
-    output.tint = mix(topTint, bottomTint, corner.y);
+    output.textureCoordinate = selected.textureCoordinate;
+    output.tint = selected.tint;
     return output;
 }
 

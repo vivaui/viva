@@ -38,6 +38,20 @@ func (quad Quad) paintable() bool {
 	return false
 }
 
+func (quad Quad) triangles() [2][3]int {
+	first := triangleArea2(quad.Points[0], quad.Points[1], quad.Points[2])
+	second := triangleArea2(quad.Points[1], quad.Points[3], quad.Points[2])
+	if first*second < 0 {
+		return [2][3]int{{0, 1, 3}, {0, 3, 2}}
+	}
+	return [2][3]int{{0, 1, 2}, {1, 3, 2}}
+}
+
+func triangleArea2(first, second, third Point) float64 {
+	return (float64(second.X)-float64(first.X))*(float64(third.Y)-float64(first.Y)) -
+		(float64(second.Y)-float64(first.Y))*(float64(third.X)-float64(first.X))
+}
+
 // FillQuad fills a general quadrilateral: four corners in the order top-left,
 // top-right, bottom-left, bottom-right, each with the colour that corner takes.
 // The colours vary linearly across the shape. Unlike Fill it need not be
@@ -51,10 +65,9 @@ func (canvas *Canvas) FillQuad(quad Quad) {
 		return
 	}
 	points, tints := quad.Points, quad.Tint
-	// Two triangles share the diagonal. The first keeps the top and left edges
-	// on the outline, the second the right and bottom edges; the diagonal stays
-	// fully covered so the seam does not show.
-	for _, half := range [2][3]int{{0, 1, 2}, {1, 3, 2}} {
+	// The two triangles share an interior diagonal, including for a concave
+	// quad; only edges on the outline are feathered.
+	for _, half := range quad.triangles() {
 		triangle := Triangle{
 			Points: [3]Point{points[half[0]], points[half[1]], points[half[2]]},
 		}
@@ -62,7 +75,9 @@ func (canvas *Canvas) FillQuad(quad Quad) {
 		triangle.Color = colors[0]
 		triangle.Shade = [2]Color{colors[1], colors[2]}
 		triangle.Shaded = colors[0] != colors[1] || colors[0] != colors[2]
-		if half[0] == 0 {
+		if half[0]^half[1] == 3 {
+			triangle.EdgeMask = 1<<1 | 1<<2
+		} else if half[1]^half[2] == 3 {
 			triangle.EdgeMask = 1<<0 | 1<<2
 		} else {
 			triangle.EdgeMask = 1<<0 | 1<<1
@@ -73,16 +88,17 @@ func (canvas *Canvas) FillQuad(quad Quad) {
 
 // LabelQuad appends a system-font line drawn into quad instead of its
 // axis-aligned bounds, with the corner tints multiplied into the pixels at each
-// corner. The platform rasterises the line at its Bounds size, so give Bounds
+// corner. Bounds describes the source layout, so give Bounds
 // the rectangle the line occupies untransformed, and let the quad place that
 // picture. A quad is what tilts, foreshortens or shades a line drawn on a
 // surface that is not facing the reader square on, such as a page being turned.
 //
 // One label is one straight line of text: a quad bends a line only as far as
 // its four corners describe, so give a strongly curved surface one quad per
-// line rather than a single quad for the page. A quad line is rasterised as a
-// whole line and has no fixed-pitch grid runs; TextStyle.Mono still selects the
-// fixed-pitch face.
+// line rather than a single quad for the page. The renderer may minify the
+// source horizontally and rasterise visible source tiles instead of allocating
+// a full-width texture. A quad line has no fixed-pitch grid runs;
+// TextStyle.Mono still selects the fixed-pitch face.
 //
 // The macOS backend warps the line into the quad. A backend that cannot draw
 // text into a general quad paints the line axis-aligned in Bounds: the whole
