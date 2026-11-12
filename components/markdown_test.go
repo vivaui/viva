@@ -1778,3 +1778,151 @@ func TestMarkdownImagesAreScaledToTheColumnAndPainted(t *testing.T) {
 		t.Errorf("painted %d images", len(canvas.Images()))
 	}
 }
+
+// markdownPieceByText returns the first laid-out piece that draws text, or nil.
+func markdownPieceByText(view *MarkdownView, text string) *mdPiece {
+	for index := range view.pieces {
+		if view.pieces[index].text == text {
+			return &view.pieces[index]
+		}
+	}
+	return nil
+}
+
+func TestMarkdownTallImageMakesItsLineTall(t *testing.T) {
+	tall := gfx.Bitmap{Pix: make([]byte, 40*100*4), Width: 40, Height: 100, Stride: 40 * 4}
+	short := gfx.Bitmap{Pix: make([]byte, 40*20*4), Width: 40, Height: 20, Stride: 40 * 4}
+	style := MarkdownStyle{Size: 12, Image: func(dest string) (gfx.Bitmap, bool) {
+		if dest == "tall.png" {
+			return tall, true
+		}
+		return short, true
+	}}
+	view, _ := layoutMarkdown(t, "![tall](tall.png) ![short](short.png)\n\nafter", 300, style)
+	if len(view.images) != 2 {
+		t.Fatalf("images = %+v", view.images)
+	}
+	var tallest float32
+	for _, image := range view.images {
+		tallest = max(tallest, image.h)
+	}
+	if tallest != 100 {
+		t.Fatalf("the tall image is %v high, want its own 100", tallest)
+	}
+	after := markdownPieceByText(view, "after")
+	if after == nil {
+		t.Fatal("the text after the images was not laid out")
+	}
+	if after.y < tallest {
+		t.Errorf("the block after the image line starts at %v, above the %v image", after.y, tallest)
+	}
+}
+
+func TestMarkdownImageWithoutABitmapLaysOutItsAltText(t *testing.T) {
+	const src = "before ![the diagram](docs/arch.png) after"
+	view, _ := layoutMarkdown(t, src, 300, MarkdownStyle{Size: 12})
+	if len(view.images) != 0 {
+		t.Fatalf("a view without a resolver laid out %+v", view.images)
+	}
+	if markdownPieceByText(view, "the diagram") == nil {
+		t.Fatalf("the alt text was not laid out: %q", view.words())
+	}
+	var canvas gfx.Canvas
+	view.Paint(&canvas, MarkdownPaint{})
+	if len(canvas.Images()) != 0 || len(canvas.Texts()) == 0 {
+		t.Errorf("painted %d images and %d texts for an unresolved image", len(canvas.Images()), len(canvas.Texts()))
+	}
+
+	// A resolver that cannot answer yet leaves the alt text in place.
+	asked := 0
+	style := MarkdownStyle{Size: 12, Image: func(string) (gfx.Bitmap, bool) {
+		asked++
+		return gfx.Bitmap{}, false
+	}}
+	pending, _ := layoutMarkdown(t, src, 300, style)
+	if asked == 0 {
+		t.Error("the view never asked the application for the bitmap")
+	}
+	if len(pending.images) != 0 || markdownPieceByText(pending, "the diagram") == nil {
+		t.Errorf("a false answer left %+v and %q", pending.images, pending.words())
+	}
+}
+
+func TestMarkdownLinkedImageKeepsItsLinkOverTheImage(t *testing.T) {
+	badge := gfx.Bitmap{Pix: make([]byte, 30*20*4), Width: 30, Height: 20, Stride: 30 * 4}
+	style := MarkdownStyle{Size: 12, Image: func(string) (gfx.Bitmap, bool) { return badge, true }}
+	view, _ := layoutMarkdown(t, "[![badge](badge.png)](https://example.com/ci)", 200, style)
+	if len(view.images) != 1 {
+		t.Fatalf("images = %+v", view.images)
+	}
+	if view.LinkCount() != 1 || view.Link(0) != "https://example.com/ci" {
+		t.Fatalf("the linked badge is not a link: %d %q", view.LinkCount(), view.Link(0))
+	}
+	var canvas gfx.Canvas
+	scope := gfx.Scope(9)
+	view.Paint(&canvas, MarkdownPaint{X: 5, Y: 7, Links: scope})
+	hits := canvas.Hits()
+	if len(hits) != 1 {
+		t.Fatalf("%d hit regions for a linked image", len(hits))
+	}
+	image := view.images[0]
+	if want := (gfx.Rect{X: 5 + image.x, Y: 7 + image.y, Width: image.w, Height: image.h}); hits[0].Bounds != want {
+		t.Errorf("the link region is %+v, want the image at %+v", hits[0].Bounds, want)
+	}
+	if index, ok := hits[0].ID.In(scope); !ok || view.Link(index) != "https://example.com/ci" {
+		t.Errorf("hit %+v does not lead to the link", hits[0])
+	}
+}
+
+func TestMarkdownImageWiderThanTheColumnStartsItsOwnLine(t *testing.T) {
+	wide := gfx.Bitmap{Pix: make([]byte, 400*100*4), Width: 400, Height: 100, Stride: 400 * 4}
+	style := MarkdownStyle{Size: 12, Image: func(string) (gfx.Bitmap, bool) { return wide, true }}
+	view, _ := layoutMarkdown(t, "before ![diagram](wide.png)", 100, style)
+	if len(view.images) != 1 {
+		t.Fatalf("images = %+v", view.images)
+	}
+	image := view.images[0]
+	if image.w != 100 || image.h != 25 {
+		t.Errorf("a wide image is %vx%v, want 100x25 in a 100 column", image.w, image.h)
+	}
+	if image.x != 0 || image.x+image.w > 100 {
+		t.Errorf("the image is at %v..%v, outside a line of its own", image.x, image.x+image.w)
+	}
+	before := markdownPieceByText(view, "before")
+	if before == nil {
+		t.Fatal("the text before the image was not laid out")
+	}
+	if image.y < before.y+before.h {
+		t.Errorf("the image starts at %v on the line above, which ends at %v", image.y, before.y+before.h)
+	}
+}
+
+func TestMarkdownImagesInsideHeadingsListsQuotesAndTables(t *testing.T) {
+	icon := gfx.Bitmap{Pix: make([]byte, 40*20*4), Width: 40, Height: 20, Stride: 40 * 4}
+	style := MarkdownStyle{Size: 12, Image: func(string) (gfx.Bitmap, bool) { return icon, true }}
+	src := "# ![heading](x.png)\n\n- ![item](x.png)\n\n> ![quote](x.png)\n\n| ![cell](x.png) | h |\n|---|---|\n| a | b |\n"
+	view, _ := layoutMarkdown(t, src, 200, style)
+	if len(view.images) != 4 {
+		t.Fatalf("images in a heading, a list, a quote and a table = %+v", view.images)
+	}
+	for _, image := range view.images {
+		if image.x < 0 || image.x+image.w > 200.5 {
+			t.Errorf("an image at %v..%v is outside the 200 column", image.x, image.x+image.w)
+		}
+	}
+}
+
+func TestMarkdownImageWithNoDestinationIsOnlyItsAltText(t *testing.T) {
+	asked := 0
+	style := MarkdownStyle{Size: 12, Image: func(string) (gfx.Bitmap, bool) {
+		asked++
+		return gfx.Bitmap{}, false
+	}}
+	view, _ := layoutMarkdown(t, "![alt]()", 200, style)
+	if asked != 0 {
+		t.Errorf("the view asked for the bitmap of an empty destination %d times", asked)
+	}
+	if len(view.images) != 0 || markdownPieceByText(view, "alt") == nil {
+		t.Errorf("an empty destination laid out %+v and %q", view.images, view.words())
+	}
+}

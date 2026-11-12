@@ -317,3 +317,75 @@ func TestAnImageIsASpanWithItsDestination(t *testing.T) {
 		t.Errorf("a linked badge %+v", images[1])
 	}
 }
+
+func TestAnImageWithoutADestinationIsItsAltText(t *testing.T) {
+	var d Document
+	d.Parse("![the diagram]() and ![](docs/arch.png)")
+	if len(d.Blocks) != 1 {
+		t.Fatalf("%d blocks", len(d.Blocks))
+	}
+	var withoutDest, withoutAlt Span
+	for _, span := range d.Spans(&d.Blocks[0]) {
+		switch {
+		case span.Text == "the diagram":
+			withoutDest = span
+		case span.Image == "docs/arch.png":
+			withoutAlt = span
+		}
+	}
+	if withoutDest.Image != "" || withoutDest.Text != "the diagram" {
+		t.Errorf("an image with no destination is %+v, want its alt text", withoutDest)
+	}
+	if withoutAlt.Image != "docs/arch.png" || withoutAlt.Text != "" {
+		t.Errorf("an image with no alt text is %+v", withoutAlt)
+	}
+}
+
+func TestAnImageWhoseDestinationIsNotClosedStaysText(t *testing.T) {
+	var d Document
+	d.Parse("![alt](docs/arch.png")
+	if len(d.Blocks) != 1 {
+		t.Fatalf("%d blocks", len(d.Blocks))
+	}
+	for _, span := range d.Spans(&d.Blocks[0]) {
+		if span.Image != "" {
+			t.Fatalf("an unclosed image parsed as %+v", span)
+		}
+	}
+}
+
+func TestAnImageKeepsADestinationThatALinkWouldRefuse(t *testing.T) {
+	var d Document
+	d.Parse("[![diagram](docs/arch.png)](javascript:alert(1))")
+	var image Span
+	for _, span := range d.Spans(&d.Blocks[0]) {
+		if span.Image != "" {
+			image = span
+		}
+	}
+	if image.Image != "docs/arch.png" || image.Text != "diagram" {
+		t.Fatalf("image = %+v", image)
+	}
+	if image.Link != "" {
+		t.Errorf("an unsafe link destination was kept: %+v", image)
+	}
+}
+
+func TestImagesAreParsedInsideTableCells(t *testing.T) {
+	var d Document
+	d.Parse("| ![icon](docs/i.png) | b |\n|---|---|\n| c | d |")
+	if len(d.Blocks) != 1 || d.Blocks[0].Kind != Table {
+		t.Fatalf("blocks = %+v", d.Blocks)
+	}
+	var found bool
+	for _, cell := range d.Cells(&d.Blocks[0]) {
+		for _, span := range d.CellSpans(cell) {
+			if span.Image == "docs/i.png" && span.Text == "icon" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("no image span in the table cells")
+	}
+}
