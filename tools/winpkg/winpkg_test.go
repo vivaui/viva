@@ -285,6 +285,35 @@ func TestGenerateUserScope(t *testing.T) {
 	}
 }
 
+// The program cannot start on Windows before 10: its Go runtime needs that
+// version, so the installer must stop first. The manifest entry is part of the
+// check: without it GetVersionEx reports 6.2 even on Windows 10.
+func TestGenerateRefusesWindowsBefore10(t *testing.T) {
+	got := generate(t, sample())
+	for _, want := range []string{
+		`!include "WinVer.nsh"`,
+		"ManifestSupportedOS Win7 Win8 Win8.1 Win10\n",
+		`LangString NEEDS_WINDOWS ${LANG_ENGLISH} "${APP_NAME} needs Windows 10 or Windows Server 2016 or later."`,
+		`LangString NEEDS_WINDOWS ${LANG_SIMPCHINESE} "${APP_NAME} 需要 Windows 10 或 Windows Server 2016 或更高版本。"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the script lacks %q", want)
+		}
+	}
+	init := got[strings.Index(got, `Function .onInit`):]
+	init = init[:strings.Index(init, `FunctionEnd`)]
+	guard := strings.Index(init, `${IfNot} ${AtLeastWin10}`)
+	if guard < 0 {
+		t.Fatal("the .onInit function does not check the Windows version")
+	}
+	if !strings.Contains(init[guard:], "Abort") {
+		t.Error("the version check does not stop the install")
+	}
+	if !strings.Contains(init[guard:], "$(NEEDS_WINDOWS)") {
+		t.Error("the version check does not say what is needed")
+	}
+}
+
 func TestGenerateMachineScope(t *testing.T) {
 	script := sample()
 	script.Scope = ScopeMachine
