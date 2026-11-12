@@ -1,7 +1,6 @@
 package platform
 
 import (
-	"net/textproto"
 	"sort"
 	"strconv"
 	"strings"
@@ -128,19 +127,41 @@ func AnswerWebResponse(response WebResponse, found bool) WebAnswer {
 
 // headerName is the canonical form of a header name, or empty when the name is not a token: a name
 // with a space, a colon or a line break cannot survive the header block the engines are given.
+//
+// The canonical form is net/textproto's — an upper-case letter first and after every "-", lower case
+// elsewhere — written here rather than imported: net/textproto links the net package into every
+// application that links app, a hundred kilobytes of resolver and socket code that a scheme header
+// never uses.
 func headerName(name string) string {
 	if name == "" {
 		return ""
 	}
-	for index := 0; index < len(name); index++ {
-		character := name[index]
+	canonical := []byte(name)
+	upper := true
+	for index, character := range canonical {
 		letter := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z'
-		digit := character >= '0' && character <= '9'
-		if !letter && !digit && !strings.ContainsRune("!#$%&'*+-.^_`|~", rune(character)) {
+		if !letter && (character < '0' || character > '9') && !headerTokenByte(character) {
 			return ""
 		}
+		switch {
+		case upper && character >= 'a' && character <= 'z':
+			canonical[index] = character - 'a' + 'A'
+		case !upper && character >= 'A' && character <= 'Z':
+			canonical[index] = character - 'A' + 'a'
+		}
+		upper = character == '-'
 	}
-	return textproto.CanonicalMIMEHeaderKey(name)
+	return string(canonical)
+}
+
+// headerTokenByte reports whether character may appear in an HTTP field name (RFC 9110's tchar)
+// besides the letters and digits headerName has already accepted.
+func headerTokenByte(character byte) bool {
+	switch character {
+	case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+		return true
+	}
+	return false
 }
 
 // HeaderBlock is the headers as the lines WebView2 takes and the Darwin bridge parses, in the sorted
