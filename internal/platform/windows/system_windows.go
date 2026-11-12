@@ -37,8 +37,10 @@ const (
 	notifyMessage        = 1
 	notifyIcon           = 2
 	notifyTip            = 4
+	notifyState          = 8
 	notifyInfo           = 0x10
 	notifyInfoIcon       = 1
+	notifyHidden         = 1
 
 	maxClipboardBytes = 64 << 20
 )
@@ -116,6 +118,10 @@ var clipboardMu sync.Mutex
 var notificationMu sync.Mutex
 var notificationWindow uintptr
 var notificationAdded bool
+
+var callNotifyIcon = func(operation uintptr, data *notifyIconData) (uintptr, uintptr, error) {
+	return shellNotifyIcon.Call(operation, uintptr(unsafe.Pointer(data)))
+}
 
 var openDialogClass = guid{Data1: 0xdc1c5a9c, Data2: 0xe88a, Data3: 0x4dde, Data4: [8]byte{0xa5, 0xa1, 0x60, 0xf8, 0x2a, 0x20, 0xae, 0xf7}}
 var openDialogInterface = guid{Data1: 0xd57c7288, Data2: 0xd4ad, Data3: 0x4768, Data4: [8]byte{0xbe, 0x02, 0x9d, 0x96, 0x95, 0x32, 0xd9, 0x60}}
@@ -640,26 +646,58 @@ func SendNotification(title, body string) error {
 			return windowsCallError("load notification icon", callErr)
 		}
 	}
-	data := notifyIconData{Size: uint32(unsafe.Sizeof(notifyIconData{})), Window: host, ID: 1, Flags: notifyIcon | notifyTip | notifyInfo, Icon: icon, InfoFlags: notifyInfoIcon}
-	copyUTF16(data.Tip[:], "Viva")
-	copyUTF16(data.InfoTitle[:], title)
-	copyUTF16(data.Info[:], body)
+	data := notificationIconData(host, icon, title, body)
+	return sendNotificationIcon(&data)
+}
+
+func sendNotificationIcon(data *notifyIconData) error {
 	notificationMu.Lock()
 	defer notificationMu.Unlock()
 	operation := uintptr(notifyModify)
-	if !notificationAdded || notificationWindow != host {
-		if notificationAdded {
+	if !notificationAdded || notificationWindow != data.Window {
+		if notificationWindow != 0 {
 			removeNotificationIconLocked(notificationWindow)
 		}
 		operation = notifyAdd
 	}
-	ok, _, callErr := shellNotifyIcon.Call(operation, uintptr(unsafe.Pointer(&data)))
+	ok, _, callErr := callNotifyIcon(operation, data)
+	if ok == 0 && operation == notifyModify {
+		// Explorer can rebuild the notification area without the process seeing
+		// TaskbarCreated on a status window. Forget the stale uID and recreate
+		// the carrier once, including when the application has only normal
+		// windows. The shell may still hold the uID when the modify failed only
+		// for the moment: delete it first, or the add over it fails too.
+		removeNotificationIconLocked(notificationWindow)
+		operation = notifyAdd
+		ok, _, callErr = callNotifyIcon(operation, data)
+	}
 	if ok == 0 {
+		// The shell may still hold the uID under the window it was last sent to.
+		// Remember that window, so the next notification deletes the leftover
+		// instead of adding over it, which fails.
+		notificationAdded = false
+		notificationWindow = data.Window
 		return windowsCallError("send notification", callErr)
 	}
 	notificationAdded = true
-	notificationWindow = host
+	notificationWindow = data.Window
 	return nil
+}
+
+func notificationIconData(host, icon uintptr, title, body string) notifyIconData {
+	// NIF_INFO needs a notification-area icon, but the icon itself is only the
+	// carrier for the balloon. Keep it hidden so applications with their own
+	// tray item do not gain a second, framework-branded icon beside it.
+	data := notifyIconData{
+		Size: uint32(unsafe.Sizeof(notifyIconData{})), Window: host, ID: 1,
+		Flags: notifyIcon | notifyTip | notifyInfo | notifyState,
+		Icon:  icon, State: notifyHidden, StateMask: notifyHidden,
+		InfoFlags: notifyInfoIcon,
+	}
+	copyUTF16(data.Tip[:], title)
+	copyUTF16(data.InfoTitle[:], title)
+	copyUTF16(data.Info[:], body)
+	return data
 }
 
 func removeNotificationIcon(window uintptr) {
@@ -668,12 +706,26 @@ func removeNotificationIcon(window uintptr) {
 	removeNotificationIconLocked(window)
 }
 
+// invalidateNotificationIcon forgets the carrier after the shell replaces its
+// notification area. The carrier no longer exists there, so the next
+// SendNotification starts again with NIM_ADD instead of modifying a stale uID.
+func invalidateNotificationIcon() {
+	notificationMu.Lock()
+	defer notificationMu.Unlock()
+	removeNotificationIconLocked(notificationWindow)
+	notificationAdded = false
+	notificationWindow = 0
+}
+
+// removeNotificationIconLocked deletes the carrier the notification state last
+// named, also when a failed send left it there unconfirmed: the window is the
+// one the shell may still hold it under.
 func removeNotificationIconLocked(window uintptr) {
-	if !notificationAdded || notificationWindow != window {
+	if window == 0 || notificationWindow != window {
 		return
 	}
 	data := notifyIconData{Size: uint32(unsafe.Sizeof(notifyIconData{})), Window: window, ID: 1}
-	shellNotifyIcon.Call(notifyDelete, uintptr(unsafe.Pointer(&data)))
+	callNotifyIcon(notifyDelete, &data)
 	notificationAdded = false
 	notificationWindow = 0
 }

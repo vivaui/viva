@@ -281,7 +281,7 @@ jobs:
           cache: true
       # WARP is a Windows API: this cannot run anywhere else.
       - name: Material contracts and controls (WARP)
-        run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|AlwaysOnTop|SaveDialogCheckbox)' -count=1 -v
+        run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|AlwaysOnTop|SaveDialogCheckbox)' -count=1 -v
       - name: Native Windows global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'

@@ -72,6 +72,22 @@ func TestCopyUTF16Bounds(t *testing.T) {
 	}
 }
 
+func TestNotificationIconCarriesABalloonWithoutShowingATrayEntry(t *testing.T) {
+	data := notificationIconData(42, 7, "Motty", "Motty is still running")
+	if data.Flags&notifyInfo == 0 || data.Flags&notifyState == 0 {
+		t.Fatalf("notification flags = %#x", data.Flags)
+	}
+	if data.State != notifyHidden || data.StateMask != notifyHidden {
+		t.Fatalf("notification state = %#x mask=%#x", data.State, data.StateMask)
+	}
+	if syscall.UTF16ToString(data.Tip[:]) != "Motty" ||
+		syscall.UTF16ToString(data.InfoTitle[:]) != "Motty" ||
+		syscall.UTF16ToString(data.Info[:]) != "Motty is still running" {
+		t.Fatalf("notification text = tip %q title %q body %q",
+			syscall.UTF16ToString(data.Tip[:]), syscall.UTF16ToString(data.InfoTitle[:]), syscall.UTF16ToString(data.Info[:]))
+	}
+}
+
 func TestHRESULT(t *testing.T) {
 	if hresult(0) != nil || hresult(1) != nil || hresult(0x7fffffff) != nil {
 		t.Fatal("successful HRESULT rejected")
