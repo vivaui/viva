@@ -38,6 +38,49 @@ func TestListFollowShowsTheEndAsRowsArrive(t *testing.T) {
 	}
 }
 
+// followRowsModel is a log whose page declares the follow flag the model holds,
+// so a test can stop it between paints as a scrollbar drag does.
+type followRowsModel struct {
+	rows   *logRows
+	follow bool
+	scroll *ui.ScrollState
+}
+
+func (m *followRowsModel) page(c ui.C) {
+	ui.Column(c).Fill().Children(func() {
+		list := ui.List(c, &m.rows.list, m.rows.n, func(row ui.ListRow) {
+			row.Element.Height(m.rows.height(row.Index)).Children(func() {
+				ui.Text(row.C, "row "+strconv.Itoa(row.Index))
+			})
+		}).Label("Rows")
+		m.scroll = list.ScrollState()
+		list.Follow(m.follow).Grow(1)
+	})
+}
+
+// The rows that stream in while a scrollbar drag holds the thumb must not pin
+// the list to its end. A List reads whether it follows when it is declared,
+// before the Box it returns can say Follow(false), so the gesture stops it on
+// the area's state between paints.
+func TestListFollowCanBeStoppedBetweenPaints(t *testing.T) {
+	m := &followRowsModel{rows: newLogRows(10), follow: true}
+	d := openPage(t, m.page)
+	d.repaint()
+	m.scroll.Follow(false) // the user grabs the thumb
+	m.follow = false
+	before := m.scroll.Offset
+	m.rows.n += 20
+	d.repaint()
+	if m.scroll.Offset != before {
+		t.Fatalf("rows that arrived after the drag began moved the offset from %v to %v", before, m.scroll.Offset)
+	}
+	m.follow = true
+	d.repaint()
+	if !m.rows.list.AtEnd() {
+		t.Fatalf("following again did not return to the end: offset %v max %v", m.scroll.Offset, m.scroll.Max())
+	}
+}
+
 // A long List that starts following places its first rows before Follow is
 // declared; it asks for the paint that shows its end instead of staying blank.
 func TestListFollowReachesTheEndOfALongListItStartsWith(t *testing.T) {

@@ -128,6 +128,19 @@ func (s *ScrollState) ScrollTo(offset float32) {
 // by the next layout. It has no effect on any other area.
 func (s *ScrollState) ScrollToX(offset float32) { s.OffsetX = max(offset, 0) }
 
+// Follow makes the area keep to its end as content is added, or stop: the
+// imperative form of Box.Follow, for a gesture between paints. A List reads
+// whether it follows when it is declared, before the Box it returns can say
+// Follow(false), so an application that stops following as the user grabs a
+// scrollbar thumb must say so on the state: otherwise the rows that stream in
+// before the next declaration's Follow(false) reach it are pinned to the end.
+func (s *ScrollState) Follow(on bool) {
+	s.follow = on
+	if !on {
+		s.detached = false
+	}
+}
+
 // settle records whether a following area was left before its end.
 func (s *ScrollState) settle() {
 	if s.follow {
@@ -260,10 +273,7 @@ func (f *frame) ScrollArea(id gfx.ID) Box {
 func (b Box) Follow(on bool) Box {
 	if n := b.n(); n.ext != 0 {
 		if s := b.f.exts[n.ext].scrollState; s != nil {
-			s.follow = on
-			if !on {
-				s.detached = false
-			}
+			s.Follow(on)
 		}
 	}
 	return b
