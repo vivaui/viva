@@ -706,6 +706,20 @@ func makeNativeTextLabels(labels []TextLabel) (unsafe.Pointer, []unsafe.Pointer,
 			origin_y:        C.float(label.OriginY),
 			font_generation: C.uint32_t(label.FontGeneration),
 		}
+		if label.HasQuad {
+			// The corners and their colours decide where the label's picture
+			// lands; an all-zero quad is the axis-aligned box (see native.h).
+			for corner, point := range label.Quad {
+				native[validCount].quad[corner*2] = C.float(point.X)
+				native[validCount].quad[corner*2+1] = C.float(point.Y)
+			}
+			for corner, tint := range label.Tint {
+				native[validCount].tint[corner*4] = C.float(tint.Red)
+				native[validCount].tint[corner*4+1] = C.float(tint.Green)
+				native[validCount].tint[corner*4+2] = C.float(tint.Blue)
+				native[validCount].tint[corner*4+3] = C.float(tint.Alpha)
+			}
+		}
 		validCount++
 	}
 	if validCount == 0 {
@@ -963,6 +977,13 @@ func labelABI() (labelSize, runsOffset, runSize uintptr) {
 	return unsafe.Sizeof(C.viva_text_label{}),
 		unsafe.Offsetof(C.viva_text_label{}.runs),
 		unsafe.Sizeof(C.viva_text_run{})
+}
+
+// labelQuadABI reports where the quad and tint arrays sit in the label
+// structure shared with native code.
+func labelQuadABI() (quadOffset, tintOffset uintptr) {
+	return unsafe.Offsetof(C.viva_text_label{}.quad),
+		unsafe.Offsetof(C.viva_text_label{}.tint)
 }
 
 // planLabelReuse runs the native plan that decides which old label texture each

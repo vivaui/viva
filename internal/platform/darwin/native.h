@@ -191,6 +191,14 @@ typedef struct {
     // the label in logical pixels (platform.TextLabel.Baseline); 0 for every other label,
     // which stands on the row all proportional text shares.
     float baseline;
+    // When quad holds any value other than all zeros the label paints that
+    // shape instead of x, y, width, height: the four corners in the order
+    // top-left, top-right, bottom-left, bottom-right, in logical pixels, and the
+    // straight RGBA colour multiplied into the pixels at each corner
+    // (platform.TextLabel.Quad). x, y, width and height stay the rasterisation
+    // box, so the picture of the label is what the quad places.
+    float quad[8];
+    float tint[16];
 } viva_text_label;
 
 // viva_clip is the region, in logical pixels, that one rectangle or triangle
@@ -355,6 +363,7 @@ void viva_probe_front(void);
 void viva_probe_close(void);
 int viva_offscreen_set_rectangles(void *offscreen, const viva_rectangle *rectangles, const viva_clip *clips, size_t count);
 int viva_offscreen_set_labels(void *offscreen, const viva_text_label *labels, size_t count);
+size_t viva_offscreen_label_texture_bytes(void *offscreen);
 int viva_offscreen_set_text_input(void *offscreen, viva_text_input_config config);
 int viva_offscreen_render(
     void *offscreen,

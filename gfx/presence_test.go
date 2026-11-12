@@ -455,3 +455,40 @@ func BenchmarkVectorizeRoundedBorderDuringFade(b *testing.B) {
 		paint()
 	}
 }
+
+// TestPresenceMovesAQuadLabel pins that an overlay's label moves its quad with
+// its rasterisation box, without scaling or fading the quad's own tints: the
+// fade is already in the label's colour.
+func TestPresenceMovesAQuadLabel(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	canvas.Reset()
+	quad := quadCorners()
+	presence := Presence{
+		Motion:  Motion{Duration: 100 * time.Millisecond, Easing: EaseLinear},
+		Fade:    true,
+		SlideIn: Point{X: 100},
+	}
+	frames.at(0, func() {
+		canvas.BeginPresence(Item(1), 0, presence, Point{})
+		canvas.Fill(Rect{X: 5, Y: 5, Width: 20, Height: 20}, Color{Alpha: 1})
+		canvas.LabelQuad("hello", Rect{X: 5, Y: 5, Width: 90, Height: 20}, quad, TextStyle{Size: 12, Color: Color{Alpha: 1}})
+		canvas.EndPresence()
+	})
+
+	rectangle := canvas.Rectangles()[0]
+	dx, dy := rectangle.Bounds.X-5, rectangle.Bounds.Y-5
+	texts := canvas.Texts()
+	if len(texts) != 1 {
+		t.Fatalf("texts = %d, want 1", len(texts))
+	}
+	for corner, point := range quad.Points {
+		want := Point{X: point.X + dx, Y: point.Y + dy}
+		if !pointNear(texts[0].Quad[corner], want) {
+			t.Fatalf("corner %d = %+v, want %+v (the quad moves with the label)", corner, texts[0].Quad[corner], want)
+		}
+	}
+	if texts[0].Tint != quad.Tint {
+		t.Fatalf("tint = %+v, want the caller's %+v (the fade is in the label colour)", texts[0].Tint, quad.Tint)
+	}
+}

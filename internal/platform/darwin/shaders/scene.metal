@@ -277,31 +277,33 @@ fragment float4 viva_rectangle_fragment(VertexOutput input [[stage_in]]) {
 struct TextVertexOutput {
     float4 position [[position]];
     float2 textureCoordinate;
+    // The colour at this corner, multiplied into the picture there: a plain
+    // label is opaque white, a warped one shades or fades as the caller asked.
+    float4 tint;
 };
 
+struct TextVertex {
+    float2 pixel;
+    float2 textureCoordinate;
+    float4 tint;
+};
+
+// viva_text_vertex draws the label's tessellated picture. Source tiles are
+// clipped from the original triangles, keeping their positions, UVs and tints.
 vertex TextVertexOutput viva_text_vertex(
     uint vertexID [[vertex_id]],
-    constant float4 &bounds [[buffer(0)]],
+    constant TextVertex *vertices [[buffer(2)]],
     constant float2 &viewportSize [[buffer(1)]]) {
-    constexpr float2 corners[6] = {
-        float2(0.0, 0.0),
-        float2(1.0, 0.0),
-        float2(0.0, 1.0),
-        float2(0.0, 1.0),
-        float2(1.0, 0.0),
-        float2(1.0, 1.0),
-    };
-
-    float2 corner = corners[vertexID];
-    float2 pixel = bounds.xy + corner * bounds.zw;
+    TextVertex selected = vertices[vertexID];
     float2 normalized = float2(
-        pixel.x / viewportSize.x * 2.0 - 1.0,
-        1.0 - pixel.y / viewportSize.y * 2.0
+        selected.pixel.x / viewportSize.x * 2.0 - 1.0,
+        1.0 - selected.pixel.y / viewportSize.y * 2.0
     );
 
     TextVertexOutput output;
     output.position = float4(normalized, 0.0, 1.0);
-    output.textureCoordinate = corner;
+    output.textureCoordinate = selected.textureCoordinate;
+    output.tint = selected.tint;
     return output;
 }
 
@@ -313,5 +315,8 @@ fragment float4 viva_text_fragment(
         min_filter::linear,
         address::clamp_to_edge
     );
-    return texture.sample(textureSampler, input.textureCoordinate);
+    // Both the picture and the tint are premultiplied, so a tint scales all four
+    // channels: that keeps edges and glyph coverage correct as a label fades.
+    float4 tint = float4(input.tint.rgb * input.tint.a, input.tint.a);
+    return texture.sample(textureSampler, input.textureCoordinate) * tint;
 }

@@ -272,9 +272,17 @@ type Text struct {
 	// Identity, when nonzero, names this label across frames so a backend can
 	// retain its texture when the paint list reorders. See TextIdentity.
 	Identity TextIdentity
-	Layer    uint16
-	ClipOf   Rect
-	HasClip  bool
+	// Quad, while HasQuad, is where the label's picture lands instead of Bounds:
+	// four corners in the order top-left, top-right, bottom-left, bottom-right,
+	// in logical pixels, and the straight RGBA colour multiplied into the pixels
+	// at each. Bounds stays the box the picture is rasterised in, so the text
+	// keeps its layout and only its placement is warped.
+	Quad    [4]Point
+	Tint    [4]Color
+	HasQuad bool
+	Layer   uint16
+	ClipOf  Rect
+	HasClip bool
 }
 
 // Bitmap is immutable premultiplied BGRA pixel data. Pixels are stored top
