@@ -33,11 +33,19 @@ type MarkdownStyle struct {
 	Highlight func(language, line string, dst []MarkdownCodeRun) []MarkdownCodeRun
 	// Image, when set, is asked for the bitmap of every image (![alt](destination)),
 	// with the destination as written, while the view lays out: the bitmap decides
-	// the room the image takes. The view never reads files or the network; an
-	// application resolves relative paths and fetches what it allows. A bitmap's
-	// pixels are its size in the layout, scaled down to the column and never up.
-	// An ok of false lays the image out as its alt text, so an application can
-	// answer once the image has loaded, lay the document out again and invalidate.
+	// the room the image takes. It is asked on every Layout, and more than once for
+	// one image (a table measures its cells before laying them out), so answer from
+	// a cache. The view never reads files or the network; an application resolves
+	// relative paths and fetches what it allows. A bitmap's pixels are its size in
+	// the layout, scaled down to the column and never up. The renderer's texture
+	// cache knows a bitmap by gfx.Bitmap.ID and Version, as AvatarData's doc says,
+	// so give each bitmap a stable ID and bump Version when its pixels change.
+	// Without an ID every paint sends the pixels to the painter again, so a document
+	// with images re-uploads them on every frame. An ok of false lays the image out
+	// as its alt text, so an application can answer once the image has loaded, lay
+	// the document out again and invalidate. The alt text stays part of the
+	// document's text, for search and copy, while an image itself has no caret or
+	// selection highlight.
 	Image func(destination string) (gfx.Bitmap, bool)
 }
 

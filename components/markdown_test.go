@@ -1383,6 +1383,33 @@ func BenchmarkMarkdownSteadyPaint(b *testing.B) {
 	}
 }
 
+// BenchmarkMarkdownImageLayout lays the same document out with its images and
+// with their alt text, so a pull request can quote what an image adds to Layout.
+// The resolver answers from a variable, as a host that keeps its bitmaps would.
+func BenchmarkMarkdownImageLayout(b *testing.B) {
+	src := strings.Repeat("## Screenshot\n\nBefore ![the diagram](docs/arch.png) and after.\n\n| ![icon](docs/icon.png) | cell |\n|---|---|\n| text | more |\n\n", 10)
+	var doc markdown.Document
+	doc.Parse(src)
+	canvas := markdownCanvas()
+	bitmap := gfx.Bitmap{Pix: make([]byte, 320*180*4), Width: 320, Height: 180, Stride: 320 * 4, ID: 1}
+	cases := []struct {
+		name  string
+		style MarkdownStyle
+	}{
+		{"images", MarkdownStyle{Size: 13, Image: func(string) (gfx.Bitmap, bool) { return bitmap, true }}},
+		{"alt-text", MarkdownStyle{Size: 13}},
+	}
+	for _, c := range cases {
+		b.Run(c.name, func(b *testing.B) {
+			var view MarkdownView
+			b.ReportAllocs()
+			for b.Loop() {
+				view.Layout(canvas, c.style, &doc, 400)
+			}
+		})
+	}
+}
+
 func TestHighlightedCodeIsDrawnInColoredRunsThatKeepTheText(t *testing.T) {
 	// A toy highlighter: every "#" to the end of the line is a comment, and the
 	// quoted words are strings.
