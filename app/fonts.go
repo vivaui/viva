@@ -93,11 +93,12 @@ func SetInterfaceFontFamily(family string) bool {
 // SetFontThickening draws the text Viva itself rasterizes — labels, text fields, the terminal
 // and its preedit — with a thicker stroke, and reports whether the platform has the choice.
 // macOS applies it with CoreText's font smoothing, which is what the system's own text looks
-// like; every application starts without it, so the glyphs are the font's own outlines. The
-// platform's user setting is not read: the application decides, as a terminal with a
-// font-thicken option does. Windows and Linux rasterize text their own way with no such knob,
-// and a browser's page follows its document, so their engines do not offer it: the call
-// reports false and draws what it drew before.
+// like. The process starts at the weight the platform's own text has — on macOS the user's
+// font smoothing, elsewhere the font's own outlines — and this call is the application's
+// explicit choice from then on, as a terminal with a font-thicken option makes. Windows and
+// Linux rasterize text their own way with no such knob, and a browser's page follows its
+// document, so their engines do not offer it: the call reports false and draws what it drew
+// before.
 //
 // The weight is the process's and shows on the next paint: shaped lines are kept, but the
 // pictures of the labels and of the editor are made again, so the application asks for a

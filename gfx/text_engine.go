@@ -140,10 +140,11 @@ type FontFamilyAware interface {
 // is there.
 type FontThickener interface {
 	TextEngine
-	// SetFontThickening draws the text with a thicker stroke when on, and with the
-	// font's own outlines when off, which is what an engine starts with. The
-	// weight is the process's, not one canvas's; asking for the weight already in
-	// use changes nothing.
+	// SetFontThickening draws the text with a thicker stroke when on, and with
+	// the font's own outlines when off. The weight is the process's, not one
+	// canvas's; asking for the weight already in use changes nothing. An engine
+	// starts at the weight the platform's own text has, and this is the
+	// application's choice from then on.
 	SetFontThickening(on bool)
 }
 

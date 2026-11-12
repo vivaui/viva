@@ -53,10 +53,17 @@ var (
 )
 
 func sharedTextEngine() *TextEngine {
-	sharedEngineOnce.Do(func() {
-		sharedEngine = &TextEngine{cache: textcache.New(lineCacheLimit, func(line *C.viva_text_line) { C.viva_text_line_release(line) })}
-	})
+	sharedEngineOnce.Do(func() { sharedEngine = newTextEngine() })
 	return sharedEngine
+}
+
+// newTextEngine is an engine that starts at the weight the system's own text has:
+// the user's font smoothing, read once at creation (viva_text_system_thickening).
+// SetFontThickening is the application's choice from then on.
+func newTextEngine() *TextEngine {
+	engine := &TextEngine{cache: textcache.New(lineCacheLimit, func(line *C.viva_text_line) { C.viva_text_line_release(line) })}
+	C.viva_text_set_thickening(C.viva_text_system_thickening())
+	return engine
 }
 
 // SharedTextEngine is the engine the darwin backend draws with.
@@ -89,9 +96,10 @@ func (engine *TextEngine) SetFontFamily(family string) {
 }
 
 // SetFontThickening implements gfx.FontThickener: CoreText's font smoothing draws the
-// text with a thicker stroke, and off leaves the font's own outlines, which is the
-// default. A change moves the generation on, so pictures made with the old weight are
-// drawn again; the shaped lines themselves do not change.
+// text with a thicker stroke, and off leaves the font's own outlines. The engine starts
+// at the weight the system's own text has, the user's font smoothing, and a change moves
+// the generation on, so pictures made with the old weight are drawn again; the shaped
+// lines themselves do not change.
 func (engine *TextEngine) SetFontThickening(on bool) {
 	if C.viva_text_set_thickening(C.int(boolInt(on))) != 0 {
 		engine.generation.Add(1)

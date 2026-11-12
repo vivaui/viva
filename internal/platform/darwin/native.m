@@ -1901,12 +1901,27 @@ static CTLineRef viva_mono_fallback_line(NSString *value, NSFont *base, int face
     return line;
 }
 
+// viva_text_system_thickening reports whether the user leaves the system's own font
+// smoothing on, the weight AppKit's text starts at: AppleFontSmoothing absent or nonzero
+// means on, zero (or a value that is not a number, as AppKit reads it) off. A bitmap
+// context does not heed the setting, so the engine asks for it here, once, at its start;
+// standardUserDefaults reads the argument domain too, which is how tests pin it.
+int viva_text_system_thickening(void) {
+    @autoreleasepool {
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        if ([defaults objectForKey:@"AppleFontSmoothing"] == nil) {
+            return 1;
+        }
+        return [defaults integerForKey:@"AppleFontSmoothing"] != 0;
+    }
+}
+
 // viva_text_thickening is whether Viva draws its text with a thicker stroke, as AppKit draws
 // the system's own text: CoreText's font smoothing, which darkens the stems. Off is the
 // font's own outlines, so the glyphs stay the weight the font gives them (measured against
-// AppKit text: smoothing draws 16 to 45 percent more ink, the lighter the text the more). The
-// user's AppleFontSmoothing is not read here: unlike AppKit, which follows it for its own
-// text, this process draws the weight its caller asked for.
+// AppKit text: smoothing draws 16 to 45 percent more ink, the lighter the text the more).
+// It starts at the system's own weight (viva_text_system_thickening) and is then the
+// weight the application asked for.
 static int viva_text_thickening = 0;
 
 int viva_text_set_thickening(int thickening) {
