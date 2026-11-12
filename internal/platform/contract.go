@@ -190,7 +190,8 @@ type WindowMover interface {
 
 // WindowSizer is implemented by windows that can change their content size
 // without the user dragging a border. Sizes are logical pixels and the window
-// manager may clamp them to the display or the window's minimum size.
+// manager may clamp them to the display or the window's minimum size. It may be
+// called from any goroutine and posts the request to the native event loop.
 type WindowSizer interface {
 	SetSize(width, height int) error
 }

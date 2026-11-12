@@ -3,6 +3,8 @@ package app
 import (
 	"errors"
 	"testing"
+
+	"github.com/vivaui/viva/internal/platform"
 )
 
 type sizingWindow struct {
@@ -25,6 +27,9 @@ func TestWindowSetSizeReachesTheNativeWindow(t *testing.T) {
 	if native.width != 1440 || native.height != 900 {
 		t.Fatalf("SetSize = %dx%d", native.width, native.height)
 	}
+	if err := window.SetSize(65535, 65535); err != nil {
+		t.Fatalf("maximum size was rejected: %v", err)
+	}
 	for _, size := range [][2]int{{0, 1}, {1, 0}, {65536, 1}, {1, 65536}} {
 		if err := window.SetSize(size[0], size[1]); err == nil {
 			t.Fatalf("invalid size %dx%d was accepted", size[0], size[1])
@@ -44,5 +49,10 @@ func TestWindowSetSizeReportsUnsupportedHosts(t *testing.T) {
 	window := &Window{control: struct{ WindowControl }{}}
 	if err := window.SetSize(800, 600); !errors.Is(err, ErrUnsupported) {
 		t.Fatalf("unsupported host error = %v", err)
+	}
+
+	window.control = &sizingWindow{err: platform.ErrWindowSizeUnsupported}
+	if err := window.SetSize(800, 600); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("unsupported native window error = %v", err)
 	}
 }

@@ -8,20 +8,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestNativeProgrammaticWindowSize(t *testing.T) {
 	if os.Getenv("VIVA_NATIVE_WINDOW_SIZE_TEST") != "1" {
 		t.Skip("requires a native desktop session")
 	}
-	var canvas ui.Canvas
-	var got ui.Size
+	var canvas gfx.Canvas
+	var got gfx.Size
 	err := RunApplication(func(application *Application) error {
 		window, err := application.OpenWindow(Config{
 			Title: "Viva content resize test", Width: 320, Height: 240,
-			Paint: func(*ui.Canvas, ui.Size) {},
-			OnResize: func(size ui.Size) {
+			Paint: func(*gfx.Canvas, gfx.Size) {},
+			OnResize: func(size gfx.Size) {
 				if size.Width >= 419 && size.Width <= 421 && size.Height >= 299 && size.Height <= 301 {
 					got = size
 					application.Quit()
