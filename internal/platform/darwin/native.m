@@ -1906,25 +1906,25 @@ static CTLineRef viva_mono_fallback_line(NSString *value, NSFont *base, int face
     return line;
 }
 
-// viva_font_smoothing_enabled is whether the user leaves font smoothing on. AppKit turns it
-// off for its own text when AppleFontSmoothing is 0 (or not a number); a Core Graphics
-// bitmap context does not look at the setting, so the text Viva rasterizes into one has to
-// (measured against AppKit text: off draws the glyphs 13 to 28 percent lighter,
-// the lighter the text color the more, and every other value leaves smoothing on).
-static BOOL viva_font_smoothing_enabled(void) {
-    id value = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleFontSmoothing"];
-    if (value == nil) {
-        return YES;
-    }
-    // A number or a numeric string, as integerForKey: reads it; anything else is 0.
-    return [value respondsToSelector:@selector(integerValue)] && [value integerValue] != 0;
+// viva_text_thickening is whether Viva draws its text with a thicker stroke, as AppKit draws
+// the system's own text: CoreText's font smoothing, which darkens the stems. Off is the
+// font's own outlines, so the glyphs stay the weight the font gives them (measured against
+// AppKit text: smoothing draws 16 to 45 percent more ink, the lighter the text the more). The
+// user's AppleFontSmoothing is not read here: unlike AppKit, which follows it for its own
+// text, this process draws the weight its caller asked for.
+static int viva_text_thickening = 0;
+
+int viva_text_set_thickening(int thickening) {
+    int previous = viva_text_thickening;
+    viva_text_thickening = thickening;
+    return previous != thickening;
 }
 
 // viva_prepare_text_context sets a bitmap context up to draw text the way AppKit draws it.
 static void viva_prepare_text_context(CGContextRef context, CGFloat scale) {
     CGContextScaleCTM(context, scale, scale);
     CGContextSetTextMatrix(context, CGAffineTransformIdentity);
-    CGContextSetShouldSmoothFonts(context, viva_font_smoothing_enabled());
+    CGContextSetShouldSmoothFonts(context, viva_text_thickening != 0);
 }
 
 // viva_draw_terminal_preedit draws a terminal's preedit text the way the terminal draws its

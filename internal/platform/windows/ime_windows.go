@@ -131,7 +131,7 @@ func (state *windowState) updateTextVisuals() error {
 	label := platform.TextLabel{
 		Value: line.value, X: originX, Y: input.Y,
 		Width:  max(input.Width+state.textScroll, textWidth+textCaretWidth),
-		Height: input.Height, FontSize: input.FontSize, Weight: input.Weight, Color: input.Color, Layer: input.Layer,
+		Height: input.Height, FontSize: input.FontSize, Weight: input.Weight, FontGeneration: input.FontGeneration, Color: input.Color, Layer: input.Layer,
 		Clipped: true, Clip: gfx.Rect{X: input.X, Y: input.Y, Width: input.Width, Height: input.Height},
 	}
 	if input.Terminal {

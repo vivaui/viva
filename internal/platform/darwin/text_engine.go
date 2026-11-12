@@ -63,6 +63,7 @@ func sharedTextEngine() *TextEngine {
 func SharedTextEngine() *TextEngine { return sharedTextEngine() }
 
 var _ gfx.FontFamilyAware = (*TextEngine)(nil)
+var _ gfx.FontThickener = (*TextEngine)(nil)
 var _ gfx.TextRasterizer = (*TextEngine)(nil)
 var _ gfx.MonoCellEngine = (*TextEngine)(nil)
 
@@ -85,6 +86,16 @@ func (engine *TextEngine) SetFontFamily(family string) {
 		engine.italicCache.Clear()
 	}
 	engine.generation.Add(1)
+}
+
+// SetFontThickening implements gfx.FontThickener: CoreText's font smoothing draws the
+// text with a thicker stroke, and off leaves the font's own outlines, which is the
+// default. A change moves the generation on, so pictures made with the old weight are
+// drawn again; the shaped lines themselves do not change.
+func (engine *TextEngine) SetFontThickening(on bool) {
+	if C.viva_text_set_thickening(C.int(boolInt(on))) != 0 {
+		engine.generation.Add(1)
+	}
 }
 
 // MonoCell implements gfx.MonoCellEngine: the cell of the face's own font, which is the
