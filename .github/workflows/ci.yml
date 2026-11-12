@@ -364,3 +364,23 @@ jobs:
                 ;;
             esac
           done
+
+  # Release sizes on every change, without blocking: hello is over its own
+  # alarm limit while the ui/components boundary decision (see
+  # docs/benchmarks/2026-11-12-size-attribution-darwin-arm64.md) is open, so
+  # the job records the number on each run and the hard limit returns with
+  # the boundary. Builds the same targets benchmarks/size.sh checks on a
+  # release machine; remove continue-on-error when the limit is honest again.
+  size:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: release sizes
+        run: ./benchmarks/size.sh
