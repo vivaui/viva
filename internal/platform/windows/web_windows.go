@@ -6,8 +6,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"unsafe"
 
@@ -48,6 +50,12 @@ var (
 	webHostRegister    sync.Once
 
 	shGetKnownFolderPath = shell.NewProc("SHGetKnownFolderPath")
+
+	// ephemeralProfiles numbers the profiles of ephemeral pages. WebView2 derives the off-the-record
+	// profile of an InPrivate page from the regular profile of the same name, so pages that share
+	// the default name share cookies, localStorage and IndexedDB; a name of its own per page keeps
+	// them apart. Every name formed is far under the 64 characters WebView2 accepts.
+	ephemeralProfiles atomic.Uint32
 )
 
 // webAnswer is an asynchronous scheme request the runtime is holding open with a deferral, and the
@@ -145,6 +153,20 @@ func (w *webHost) open(config platform.WebViewConfig) (platform.WebView, error) 
 	if _, err := webViewClientLibrary(); err != nil {
 		return nil, fmt.Errorf("%w: %v", platform.ErrWebViewUnsupported, err)
 	}
+	if config.Ephemeral {
+		// ICoreWebView2Environment10 and ICoreWebView2ControllerOptions first ship with Edge 96
+		// (WebView2 SDK 1.0.1210; the runtime that carries them is 96.0.1054.31). EdgeUpdate
+		// records the installed runtime's version as "pv" under the same ClientState channel as
+		// its folder. An older runtime cannot make an ephemeral page, so it is refused here,
+		// synchronously, rather than after Open has handed a live page to the application. If the
+		// version cannot be read, the QueryInterface for ICoreWebView2Environment10 in
+		// createPrivateController is still the fallback.
+		if version, ok := webViewRuntimeVersion(); ok {
+			if parsed, valid := parseWebViewVersion(version); valid && !webViewVersionAtLeast(parsed, webViewEphemeralMinimum) {
+				return nil, fmt.Errorf("%w: an ephemeral page needs WebView2 96.0.1054.31 (Edge 96) or newer, and the runtime is %s", platform.ErrWebViewUnsupported, version)
+			}
+		}
+	}
 	webHostRegister.Do(func() {
 		name := wide(webHostClass)
 		cursor, _, _ := loadCursor.Call(0, 32512)
@@ -203,21 +225,23 @@ func (page *windowsWeb) createController(environment uintptr) {
 		return
 	}
 	// InPrivate belongs to the controller, not to the environment: the environment is shared by
-	// every page of the user data folder, and the controller is the page's own. A runtime too old
-	// to offer the options cannot make an ephemeral page, and must not fall back to a controller
-	// that keeps the page's data on disk.
+	// every page of the user data folder, and the controller is the page's own. InPrivate alone
+	// would still use the default profile name, from which WebView2 derives one off-the-record
+	// profile, so the options also name a profile per page. A runtime too old to offer the options
+	// cannot make an ephemeral page, and must not fall back to a controller that keeps the page's
+	// data on disk.
 	if err := page.createPrivateController(environment, handler); err != nil {
 		page.fail(err)
 	}
 }
 
-// createPrivateController makes the page's controller with IsInPrivateModeEnabled, through the
-// options of ICoreWebView2Environment10 (WebView2 1.0.1020 and newer).
+// createPrivateController makes the page's controller for an InPrivate profile of its own, through
+// the options of ICoreWebView2Environment10 (WebView2 SDK 1.0.1210, Edge 96 and newer).
 func (page *windowsWeb) createPrivateController(environment, handler uintptr) error {
 	var environment10 uintptr
 	status := comCall(environment, 0, uintptr(unsafe.Pointer(&iidEnvironment10)), uintptr(unsafe.Pointer(&environment10)))
 	if int32(uint32(status)) < 0 || environment10 == 0 {
-		return fmt.Errorf("%w: an ephemeral page needs WebView2 1.0.1020 or newer", platform.ErrWebViewUnsupported)
+		return fmt.Errorf("%w: an ephemeral page needs WebView2 96.0.1054.31 (Edge 96) or newer", platform.ErrWebViewUnsupported)
 	}
 	defer comCall(environment10, 2)
 	var options uintptr
@@ -225,6 +249,13 @@ func (page *windowsWeb) createPrivateController(environment, handler uintptr) er
 		return fmt.Errorf("windows: make the WebView2 controller options: HRESULT %#x", uint32(status))
 	}
 	defer comCall(options, 2)
+	// The profile's metadata lives in the application's user data folder, but its cookies, storage
+	// and caches stay in memory and go with the page. The distinct name is what keeps two ephemeral
+	// pages apart: with the default name WebView2 would derive both from the same regular profile.
+	name := wide("viva-ephemeral-" + strconv.FormatUint(uint64(ephemeralProfiles.Add(1)), 10))
+	if status := comCall(options, optionsPutProfileName, uintptr(unsafe.Pointer(name))); int32(uint32(status)) < 0 {
+		return fmt.Errorf("windows: name the WebView2 InPrivate profile: HRESULT %#x", uint32(status))
+	}
 	if status := comCall(options, optionsPutInPrivateMode, 1); int32(uint32(status)) < 0 {
 		return fmt.Errorf("windows: turn on WebView2 InPrivate mode: HRESULT %#x", uint32(status))
 	}

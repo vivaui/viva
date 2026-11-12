@@ -114,8 +114,9 @@ type WebViewConfig struct {
 	BridgeMainFrameOnly bool
 	// Ephemeral keeps the page's cookies, storage and caches in memory only, separate from every
 	// other page, and drops them when the page closes: a run of the application leaves nothing the
-	// page kept on disk. It needs WebView2 1.0.1020 or newer on Windows and WebKitGTK 2.16 or newer
-	// on Linux; a runtime that cannot do it never falls back to a store that persists.
+	// page kept on disk. A platform without such a store must refuse the page rather than open one
+	// that persists. On Windows it needs WebView2 96.0.1054.31 (Edge 96) or newer; on Linux,
+	// WebKitGTK 2.16 or newer.
 	Ephemeral bool
 }
 

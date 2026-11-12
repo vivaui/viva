@@ -94,12 +94,15 @@ scheme, a message in each direction and a menu that stands over the page.
   square corners.
 - `Ephemeral` keeps the page's cookies, `localStorage`, IndexedDB and caches in memory only, separate from
   every other page, and drops them when the page closes: a run of the application leaves nothing the page kept
-  on disk. macOS gives the configuration a non-persistent `WKWebsiteDataStore`; Windows needs WebView2 1.0.1020
-  or newer and runs the page in an InPrivate controller (InPrivate is per controller, so two ephemeral pages
-  still share nothing, though the runtime's user data folder is shared by the whole application); Linux makes
-  the page's own ephemeral `WebKitWebContext` with `webkit_web_context_new_ephemeral` and creates the page in
-  it, and the context ends with the page (WebKitGTK 2.16 or newer). Where the engine cannot do it, the page is
-  refused or closed rather than opened with a store that persists.
+  on disk. macOS gives the configuration a non-persistent `WKWebsiteDataStore`; Windows needs WebView2
+  96.0.1054.31 (Edge 96, the first runtime with `ICoreWebView2Environment10` and
+  `ICoreWebView2ControllerOptions`) or newer, and runs the page in an InPrivate controller with a profile name of
+  its own. That profile's metadata lives in the application's user data folder, while its cookies, storage and
+  caches stay in memory; the distinct name is what keeps two ephemeral pages apart. Linux makes the page's own
+  ephemeral `WebKitWebContext` with `webkit_web_context_new_ephemeral` and creates the page in it, and the
+  context ends with the page (WebKitGTK 2.16 or newer); a page that also asks for a `Proxy` gets its own
+  ephemeral context with the proxy's settings, not the context shared behind that proxy. Where the engine
+  cannot do it, the page is refused or closed rather than opened with a store that persists.
 - `Canvas.NativeView` declares where the page is, on the current layer and inside the current clip. What Viva
   paints on that layer or below is hidden by the page; what it paints on a higher layer (a menu, a tooltip,
   `ui`'s `f.PopupLayer`) stands over it, and a hit region on a higher layer takes the pointer where it lies

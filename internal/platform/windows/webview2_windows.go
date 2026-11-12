@@ -69,6 +69,16 @@ func registryString(root uintptr, path, name string) (string, bool) {
 	return syscall.UTF16ToString(buffer), true
 }
 
+// webViewChannels are the EdgeUpdate ClientState channels that install the WebView2 runtime, in
+// the order the runtime is looked for: the stable channel first, then the preview channels.
+var webViewChannels = []string{
+	"{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}", "{2CD8A007-E189-409D-A2C8-9AF4EF3C72AA}",
+	"{0D50BFEC-CD6A-4F9A-964C-C7416E3ACB10}", "{65C35B14-6C1D-4122-AC46-7148CC9D6497}",
+}
+
+// webViewInstalls are the registry views a runtime is installed in: all users, then this one.
+var webViewInstalls = []uintptr{hkeyLocalMachine, hkeyCurrentUser}
+
 // webViewClientLibrary finds the runtime's client library: the stable channel first, then the
 // preview channels, for all users and then for this one.
 func webViewClientLibrary() (string, error) {
@@ -76,11 +86,8 @@ func webViewClientLibrary() (string, error) {
 	if arch == "" {
 		return "", fmt.Errorf("windows: WebView2 does not run on %s", runtime.GOARCH)
 	}
-	for _, channel := range []string{
-		"{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}", "{2CD8A007-E189-409D-A2C8-9AF4EF3C72AA}",
-		"{0D50BFEC-CD6A-4F9A-964C-C7416E3ACB10}", "{65C35B14-6C1D-4122-AC46-7148CC9D6497}",
-	} {
-		for _, root := range []uintptr{hkeyLocalMachine, hkeyCurrentUser} {
+	for _, channel := range webViewChannels {
+		for _, root := range webViewInstalls {
 			folder, ok := registryString(root, `Software\Microsoft\EdgeUpdate\ClientState\`+channel, "EBWebView")
 			if !ok || folder == "" {
 				continue
@@ -92,6 +99,20 @@ func webViewClientLibrary() (string, error) {
 		}
 	}
 	return "", errNoWebView2
+}
+
+// webViewRuntimeVersion is the version of the installed WebView2 runtime: the "pv" value
+// EdgeUpdate records under the same ClientState channels as the runtime's folder. ok is false
+// when no channel answers, and the caller must then try the runtime itself rather than judge it.
+func webViewRuntimeVersion() (string, bool) {
+	for _, channel := range webViewChannels {
+		for _, root := range webViewInstalls {
+			if version, ok := registryString(root, `Software\Microsoft\EdgeUpdate\ClientState\`+channel, "pv"); ok && version != "" {
+				return version, true
+			}
+		}
+	}
+	return "", false
 }
 
 // A handler is an object the runtime calls back. All of them share a vtable: IUnknown and one
@@ -363,12 +384,14 @@ func wide(text string) *uint16 {
 const (
 	envCreateController = 3
 	envCreateResponse   = 4
-	// ICoreWebView2Environment10 offers controller options and a controller made with them
-	// (WebView2 1.0.1020 and newer): CreateCoreWebView2ControllerOptions and
-	// CreateCoreWebView2ControllerWithOptions.
+	// ICoreWebView2Environment10 offers controller options and a controller made with them. It
+	// comes from the WebView2 SDK 1.0.1210 and Edge 96:
+	// CreateCoreWebView2ControllerOptions and CreateCoreWebView2ControllerWithOptions.
 	envCreateControllerOptions     = 20
 	envCreateControllerWithOptions = 21
-	// ICoreWebView2ControllerOptions::put_IsInPrivateModeEnabled.
+	// ICoreWebView2ControllerOptions, in IDL order: get_ProfileName 3, put_ProfileName 4,
+	// get_IsInPrivateModeEnabled 5, put_IsInPrivateModeEnabled 6.
+	optionsPutProfileName     = 4
 	optionsPutInPrivateMode   = 6
 	controllerPutVisible      = 4
 	controllerPutBounds       = 6
@@ -417,5 +440,6 @@ const (
 )
 
 // iidEnvironment10 is ICoreWebView2Environment10, which offers the controller options an InPrivate
-// page is made with. A runtime older than 1.0.1020 does not answer for it.
+// page is made with. It comes from the WebView2 SDK 1.0.1210 and Edge 96 (runtime 96.0.1054.31); a
+// runtime older than that does not answer for it.
 var iidEnvironment10 = guid{0xee0eb9df, 0x6f12, 0x46ce, [8]byte{0xb5, 0x3f, 0x3f, 0x47, 0xb9, 0xc9, 0x28, 0xe0}}
