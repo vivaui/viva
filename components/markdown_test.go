@@ -1899,6 +1899,25 @@ func TestMarkdownLinkedImageKeepsItsLinkOverTheImage(t *testing.T) {
 	if index, ok := hits[0].ID.In(scope); !ok || view.Link(index) != "https://example.com/ci" {
 		t.Errorf("hit %+v does not lead to the link", hits[0])
 	}
+	// The hover underline sits at the image's bottom edge, not halfway across the bitmap.
+	canvas.Reset()
+	canvas.SetInteraction(hits[0].ID, gfx.ID{}, gfx.ID{}, false)
+	view.Paint(&canvas, MarkdownPaint{X: 5, Y: 7, Links: scope})
+	bottom, middle := 0, 0
+	for _, rectangle := range canvas.Rectangles() {
+		if rectangle.Bounds.Height != 1 || rectangle.Bounds.X != 5+image.x || rectangle.Bounds.Width != image.w {
+			continue
+		}
+		if rectangle.Bounds.Y == 7+image.y+image.h-1 {
+			bottom++
+		}
+		if rectangle.Bounds.Y == 7+image.y+image.h/2 {
+			middle++
+		}
+	}
+	if bottom != 1 || middle != 0 {
+		t.Errorf("hover underline: %d at the bottom edge, %d across the middle of the image", bottom, middle)
+	}
 }
 
 func TestMarkdownImageWiderThanTheColumnStartsItsOwnLine(t *testing.T) {
