@@ -111,3 +111,37 @@ func TestStatusMessagesOfOneClickCountOnce(t *testing.T) {
 		t.Fatal("a message that is not a click counted as one")
 	}
 }
+
+func TestTaskbarCreatedInvalidatesTheNotificationCarrier(t *testing.T) {
+	const (
+		statusWindow = uintptr(0x101)
+		hostWindow   = uintptr(0x202)
+		taskbarEvent = uint32(0x8000c123)
+	)
+	status := &statusState{
+		window:         statusWindow,
+		taskbarCreated: taskbarEvent,
+		items:          make(map[uint32]*statusItem),
+	}
+	statusStates.Store(statusWindow, status)
+	defer statusStates.Delete(statusWindow)
+
+	notificationMu.Lock()
+	previousAdded, previousWindow := notificationAdded, notificationWindow
+	notificationAdded, notificationWindow = true, hostWindow
+	notificationMu.Unlock()
+	defer func() {
+		notificationMu.Lock()
+		notificationAdded, notificationWindow = previousAdded, previousWindow
+		notificationMu.Unlock()
+	}()
+
+	if result := statusProc(statusWindow, uintptr(taskbarEvent), 0, 0); result != 0 {
+		t.Fatalf("TaskbarCreated returned %#x", result)
+	}
+	notificationMu.Lock()
+	defer notificationMu.Unlock()
+	if notificationAdded || notificationWindow != 0 {
+		t.Fatalf("notification carrier survived TaskbarCreated: added=%v window=%#x", notificationAdded, notificationWindow)
+	}
+}

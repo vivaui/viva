@@ -683,6 +683,16 @@ func removeNotificationIcon(window uintptr) {
 	removeNotificationIconLocked(window)
 }
 
+// invalidateNotificationIcon forgets the carrier after the shell replaces its
+// notification area. The carrier no longer exists there, so the next
+// SendNotification starts again with NIM_ADD instead of modifying a stale uID.
+func invalidateNotificationIcon() {
+	notificationMu.Lock()
+	defer notificationMu.Unlock()
+	notificationAdded = false
+	notificationWindow = 0
+}
+
 func removeNotificationIconLocked(window uintptr) {
 	if !notificationAdded || notificationWindow != window {
 		return
