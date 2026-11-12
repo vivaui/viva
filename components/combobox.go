@@ -9,9 +9,12 @@ type ComboboxOptions struct {
 	// TriggerID, when set, makes the chevron a button of its own (Vega's
 	// icon-xs ghost trigger) with a hover background; leave it zero when the
 	// whole input already toggles the popup.
-	TriggerID   gfx.ID
-	Label       string
-	Value       string
+	TriggerID gfx.ID
+	Label     string
+	Value     string
+	// Detail is optional secondary text shown alongside Value when Query is empty,
+	// rendered in a smaller, muted font (such as an address or subtitle).
+	Detail      string
 	Query       string
 	Placeholder string
 	Hint        string
@@ -20,10 +23,13 @@ type ComboboxOptions struct {
 	Invalid     bool
 	ShowTrigger bool
 	ShowClear   bool
-	Content     gfx.Rect
-	Layer       uint16
-	Scope       gfx.ID
-	DismissID   gfx.ID
+	// MatchInputWidth makes the popup match the input's width exactly, rather
+	// than extending slightly wider.
+	MatchInputWidth bool
+	Content         gfx.Rect
+	Layer           uint16
+	Scope           gfx.ID
+	DismissID       gfx.ID
 	// Viewport, with DismissID, makes the open popup declare a hit over the
 	// whole window behind its surface, so pressing anywhere outside it reports
 	// DismissID (Escape reports it too). See SelectOptions.Viewport.
@@ -35,10 +41,13 @@ type ComboboxOptions struct {
 
 // ComboboxItem describes one caller-filtered option.
 type ComboboxItem struct {
-	ID       gfx.ID
-	Label    string
-	Value    string
-	Hint     string
+	ID    gfx.ID
+	Label string
+	Value string
+	Hint  string
+	// Detail is optional secondary text shown alongside the label in a muted,
+	// smaller font (such as an address or subtitle), and included in the accessible name.
+	Detail   string
 	Selected bool
 	// Highlighted is the row the pointer or the keyboard is on: Radix's
 	// data-highlighted, the row Enter chooses. Selected is the chosen value and
@@ -83,7 +92,9 @@ func BeginCombobox(canvas *gfx.Canvas, theme gfx.Theme, inputBounds gfx.Rect, op
 	}
 	content := options.Content
 	minimumWidth := inputBounds.Width + 28
-	if content.Width < minimumWidth {
+	if options.MatchInputWidth {
+		content.Width = inputBounds.Width
+	} else if content.Width < minimumWidth {
 		content.Width = minimumWidth
 	}
 	combobox.contentBounds = content
@@ -186,9 +197,37 @@ func (combobox *Combobox) AddItem(item ComboboxItem) gfx.Rect {
 			combobox.canvas.Rounded(bounds, look.Radius, look.Fill)
 		}
 		foreground := look.Foreground
-		combobox.canvas.Label(item.Label, gfx.Rect{X: bounds.X + 8, Y: bounds.Y, Width: comboboxMax(0, bounds.Width-40), Height: bounds.Height}, gfx.TextStyle{
-			Size: combobox.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
-		})
+		if item.Detail == "" {
+			combobox.canvas.Label(item.Label, gfx.Rect{X: bounds.X + 8, Y: bounds.Y, Width: comboboxMax(0, bounds.Width-40), Height: bounds.Height}, gfx.TextStyle{
+				Size: combobox.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
+			})
+		} else {
+			sizeM := combobox.theme.Metrics.FontSizeM
+			sizeS := combobox.theme.Metrics.FontSizeS
+			contentWidth := comboboxMax(0, bounds.Width-40)
+
+			labelWidth := combobox.canvas.TextWidthWeight(item.Label, sizeM, gfx.WeightRegular)
+			maxLabelWidth := comboboxMax(0, contentWidth-40)
+			if labelWidth > maxLabelWidth {
+				labelWidth = maxLabelWidth
+			}
+
+			combobox.canvas.Label(combobox.canvas.FitLine(item.Label, sizeM, gfx.WeightRegular, labelWidth), gfx.Rect{X: bounds.X + 8, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
+				Size: sizeM, Weight: gfx.WeightRegular, Color: foreground,
+			})
+
+			detailX := bounds.X + 8 + labelWidth + 8
+			detailWidth := comboboxMax(0, bounds.X+8+contentWidth-detailX)
+			if detailWidth > 0 {
+				detailColor := combobox.theme.MutedForeground
+				if item.Disabled {
+					detailColor.Alpha *= .5
+				}
+				combobox.canvas.Label(combobox.canvas.FitLine(item.Detail, sizeS, gfx.WeightRegular, detailWidth), gfx.Rect{X: detailX, Y: bounds.Y, Width: detailWidth, Height: bounds.Height}, gfx.TextStyle{
+					Size: sizeS, Weight: gfx.WeightRegular, Color: detailColor,
+				})
+			}
+		}
 		if item.Selected {
 			paintCheck(combobox.canvas, gfx.Rect{X: bounds.X + bounds.Width - 26, Y: bounds.Y, Width: 16, Height: bounds.Height}, 14, foreground)
 		}
@@ -197,7 +236,8 @@ func (combobox *Combobox) AddItem(item ComboboxItem) gfx.Rect {
 			hit.Width -= combobox.rows.hitInset
 			combobox.canvas.HitWithOptions(item.ID, hit, item.Label, gfx.HitOptions{
 				Role: gfx.RoleOption, Value: item.Value, Hint: item.Hint,
-				Disabled: item.Disabled, Selected: item.Selected,
+				Description: item.Detail,
+				Disabled:    item.Disabled, Selected: item.Selected,
 			})
 		}
 	})
@@ -397,11 +437,46 @@ func (combobox Combobox) paintInput() {
 	if showClear || options.ShowTrigger {
 		right = bounds.X + bounds.Width - button.X + 6
 	}
-	canvas.Label(value, gfx.Rect{X: bounds.X + inset, Y: bounds.Y, Width: comboboxMax(0, bounds.Width-inset-right), Height: bounds.Height}, gfx.TextStyle{Size: combobox.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground})
+	availableWidth := comboboxMax(0, bounds.Width-inset-right)
+	textRect := gfx.Rect{X: bounds.X + inset, Y: bounds.Y, Width: availableWidth, Height: bounds.Height}
+	if options.Query == "" && options.Detail != "" && options.Value != "" {
+		sizeM := combobox.theme.Metrics.FontSizeM
+		sizeS := combobox.theme.Metrics.FontSizeS
+		labelWidth := canvas.TextWidthWeight(options.Value, sizeM, gfx.WeightRegular)
+		maxLabelWidth := comboboxMax(0, availableWidth-40)
+		if labelWidth > maxLabelWidth {
+			labelWidth = maxLabelWidth
+		}
+		canvas.Label(canvas.FitLine(options.Value, sizeM, gfx.WeightRegular, labelWidth), gfx.Rect{X: bounds.X + inset, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
+			Size: sizeM, Weight: gfx.WeightRegular, Color: foreground,
+		})
+		detailX := bounds.X + inset + labelWidth + 8
+		detailWidth := comboboxMax(0, bounds.X+inset+availableWidth-detailX)
+		if detailWidth > 0 {
+			detailColor := combobox.theme.MutedForeground
+			if options.Disabled {
+				detailColor.Alpha *= 0.50
+			}
+			canvas.Label(canvas.FitLine(options.Detail, sizeS, gfx.WeightRegular, detailWidth), gfx.Rect{X: detailX, Y: bounds.Y, Width: detailWidth, Height: bounds.Height}, gfx.TextStyle{
+				Size: sizeS, Weight: gfx.WeightRegular, Color: detailColor,
+			})
+		}
+	} else {
+		canvas.Label(canvas.FitLine(value, combobox.theme.Metrics.FontSizeM, gfx.WeightRegular, availableWidth), textRect, gfx.TextStyle{Size: combobox.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground})
+	}
 	if !options.InputID.IsZero() {
 		canvas.HitWithOptions(options.InputID, bounds, options.Label, gfx.HitOptions{
-			Role: gfx.RoleCombobox, Value: options.Value, Hint: options.Hint,
-			Disabled: options.Disabled, Expanded: options.Open, NavigationKeys: true,
+			Role:           gfx.RoleCombobox,
+			Value:          options.Value,
+			Hint:           options.Hint,
+			Description:    options.Detail,
+			Disabled:       options.Disabled,
+			Expanded:       options.Open,
+			Cursor:         gfx.PointerCursorText,
+			TextBounds:     textRect,
+			TextSize:       combobox.theme.Metrics.FontSizeM,
+			TextColor:      combobox.theme.Foreground,
+			NavigationKeys: true,
 		})
 	}
 	iconColor := combobox.theme.MutedForeground
