@@ -192,6 +192,11 @@ type PageConfig struct {
 	// Background is the color Paint fills the window with, the theme's Background
 	// when nil. Draw fills nothing.
 	Background *Color
+	// ScrollbarSize is the thickness of the scrollbars the page declares with
+	// Scrollbars and of self-scrolling Tables, unless a bar sets its own; zero
+	// keeps the thin hover default. It is the page's one place for the weight its
+	// bars share.
+	ScrollbarSize float32
 	// Invalidator wakes the window the page is drawn in when an Effect of the page
 	// finishes. Config uses it instead of the app.Config's; a page the application
 	// draws into a window of its own (Draw, not Paint) needs it, since only Config

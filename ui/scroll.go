@@ -104,6 +104,9 @@ func (s *ScrollState) Max() float32 { return max(s.Content-s.Viewport, 0) }
 // MaxX is how far a Sideways area can scroll left; zero for any other area.
 func (s *ScrollState) MaxX() float32 { return max(s.ContentWidth-s.ViewportWidth, 0) }
 
+// Dragging reports whether the pointer is dragging one of the area's bars.
+func (s *ScrollState) Dragging() bool { return s.dragging }
+
 // AtEnd reports whether the area shows its last row, as of the last layout.
 func (s *ScrollState) AtEnd() bool { return s.Offset >= s.Max()-0.5 }
 

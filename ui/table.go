@@ -372,9 +372,13 @@ func (f *frame) paintTableScrollbar(t *tableDecl, body Rect, content, offset flo
 	if label == "" {
 		label = "Table rows"
 	}
+	size := t.spec.ScrollbarSize
+	if size <= 0 && f.page != nil {
+		size = f.page.config.ScrollbarSize
+	}
 	area := components.BeginScrollArea(f.canvas, f.theme, bounds, gfx.Size{Height: content}).
 		Offset(0, offset).
-		ScrollbarSize(t.spec.ScrollbarSize).
+		ScrollbarSize(size).
 		HoverScrollbars(revealed).
 		VerticalScrollbar(t.spec.Scrollbar, label, "")
 	geometry := area.Geometry()

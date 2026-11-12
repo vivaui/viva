@@ -14,13 +14,14 @@ import (
 // reaches the area, sized by ScrollbarSize, and dragged like the component's.
 func TestScrollAreaBarsFollowThePointerAtTheirSize(t *testing.T) {
 	var area ui.Box
-	d := openPage(t, func(c ui.C) {
+	view := func(c ui.C) {
 		ui.Column(c).Fill().Pad(20).Children(func() {
-			area = ui.Scroll(c).Size(300, 200).Scrollbars().ScrollbarSize(10).Children(func() {
+			area = ui.Scroll(c).Size(300, 200).Scrollbars().Children(func() {
 				ui.Slot(c).Height(2000)
 			})
 		})
-	})
+	}
+	d := openPageWith(t, ui.PageConfig{View: view, ScrollbarSize: 10}, app.Config{})
 	if d.has("Vertical scrollbar") {
 		t.Fatal("the bar is painted with the pointer away from the area")
 	}

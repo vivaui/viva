@@ -18,9 +18,13 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 	// A scroll area without a Page has no pointer to rest on it: a view's bars
 	// stay revealed, as they did before pages tracked the pointer.
 	hinted := f.page == nil || f.page.pointerOver(n.rect)
+	size := s.barSize
+	if size <= 0 && f.page != nil {
+		size = f.page.config.ScrollbarSize
+	}
 	area := components.BeginScrollArea(f.canvas, f.theme, n.rect, content).
 		Offset(s.OffsetX, s.Offset).
-		ScrollbarSize(s.barSize).
+		ScrollbarSize(size).
 		HoverScrollbars(hinted || s.dragging).
 		VerticalScrollbar(vertical, "Vertical scrollbar", "").
 		HorizontalScrollbar(horizontal, "Horizontal scrollbar", "")
