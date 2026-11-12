@@ -96,16 +96,31 @@ func (canvas *Canvas) LabelQuadAligned(value string, bounds Rect, quad Quad, sty
 	originalX, originalWidth := bounds.X, bounds.Width
 	value, bounds.X = canvas.placeLabel(value, bounds, style, alignment)
 	if inset := bounds.X - originalX; inset > 0 && originalWidth > 0 {
-		// The picture starts where the aligned line starts, so move the left
-		// edge of the quad with it.
+		// The rasterisation box moves by the inset and keeps its full width, so
+		// the whole picture moves with it. Moving only the left edge would
+		// squeeze the full-width texture into a narrower quad.
 		frac := min(inset/originalWidth, 1)
-		quad.Points[0] = lerpPoint(quad.Points[0], quad.Points[1], frac)
-		quad.Points[2] = lerpPoint(quad.Points[2], quad.Points[3], frac)
+		moveQuadEdge(&quad.Points, 0, 1, frac)
+		moveQuadEdge(&quad.Points, 2, 3, frac)
 	}
 	text := Text{
 		Value: value, Bounds: bounds, Style: style, Layer: canvas.currentLayer(),
 		Quad: quad.Points, Tint: quad.Tint, HasQuad: true,
 	}
+	if style.Mono && value != "" {
+		text.Baseline = canvas.MonoBaseline(style.Size, style.MonoFace, bounds.Height)
+	}
 	text.ClipOf, text.HasClip = canvas.clipSnapshot()
 	canvas.texts = append(canvas.texts, text)
+}
+
+// moveQuadEdge moves one edge of a quad, from left to right, by the same
+// fraction of its length, keeping the picture's width.
+func moveQuadEdge(points *[4]Point, left, right int, frac float32) {
+	dx := (points[right].X - points[left].X) * frac
+	dy := (points[right].Y - points[left].Y) * frac
+	points[left].X += dx
+	points[left].Y += dy
+	points[right].X += dx
+	points[right].Y += dy
 }

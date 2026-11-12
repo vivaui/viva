@@ -82,9 +82,11 @@ func ApplyCanvas(canvas *gfx.Canvas, snapshot CanvasSnapshot) {
 		if text.RunCount > 0 || text.CellWidth > 0 {
 			canvas.LabelRunsWithIdentity(text.Identity, text.Value, text.Bounds, text.Style, text.CellWidth, snapshot.Runs[text.RunFirst:text.RunFirst+text.RunCount])
 		} else if text.HasQuad {
-			canvas.LabelQuad(text.Value, text.Bounds, gfx.Quad{Points: text.Quad, Tint: text.Tint}, text.Style)
+			// Bounds and Quad are already placed; resolving AlignStart again
+			// would shift right-to-left text a second time.
+			canvas.LabelQuadAligned(text.Value, text.Bounds, gfx.Quad{Points: text.Quad, Tint: text.Tint}, text.Style, gfx.AlignLeft)
 		} else {
-			canvas.Label(text.Value, text.Bounds, text.Style)
+			canvas.LabelAligned(text.Value, text.Bounds, text.Style, gfx.AlignLeft)
 		}
 		popLayerAndClip(canvas, text.Layer, text.HasClip)
 	}

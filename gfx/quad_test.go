@@ -1,6 +1,9 @@
 package gfx
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func quadCorners() Quad {
 	return Quad{
@@ -107,4 +110,81 @@ func clearQuad() Quad {
 	quad := quadCorners()
 	quad.Tint = [4]Color{}
 	return quad
+}
+
+func pointNear(a, b Point) bool {
+	return math.Abs(float64(a.X-b.X)) < 1e-4 && math.Abs(float64(a.Y-b.Y)) < 1e-4
+}
+
+// TestLabelQuadAlignedMovesTheWholePicture pins that alignment moves the
+// rasterisation box and the quad together. The box keeps its width, so both
+// corners of each edge move by the same amount; moving only the left edge would
+// squeeze the whole texture into a narrower quad.
+func TestLabelQuadAlignedMovesTheWholePicture(t *testing.T) {
+	const value = "In the beginning"
+	style := TextStyle{Size: 16}
+	var measure Canvas
+	box := Rect{X: 20, Y: 100, Width: measure.TextWidthStyle(value, style) + 80, Height: 24}
+	for _, test := range []struct {
+		name      string
+		alignment Alignment
+	}{
+		{"center", AlignCenter},
+		{"right", AlignRight},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var canvas Canvas
+			quad := quadCorners()
+			canvas.LabelQuadAligned(value, box, quad, style, test.alignment)
+			texts := canvas.Texts()
+			if len(texts) != 1 {
+				t.Fatalf("texts = %d, want 1", len(texts))
+			}
+			inset := box.Width - measure.TextWidthStyle(value, style)
+			if test.alignment == AlignCenter {
+				inset /= 2
+			}
+			if got := texts[0].Bounds.X; math.Abs(float64(got-(box.X+inset))) > 1e-4 {
+				t.Fatalf("bounds x = %v, want %v", got, box.X+inset)
+			}
+			frac := inset / box.Width
+			want := quad.Points
+			top := Point{X: quad.Points[1].X - quad.Points[0].X, Y: quad.Points[1].Y - quad.Points[0].Y}
+			bottom := Point{X: quad.Points[3].X - quad.Points[2].X, Y: quad.Points[3].Y - quad.Points[2].Y}
+			for _, corner := range []int{0, 1} {
+				want[corner].X += top.X * frac
+				want[corner].Y += top.Y * frac
+			}
+			for _, corner := range []int{2, 3} {
+				want[corner].X += bottom.X * frac
+				want[corner].Y += bottom.Y * frac
+			}
+			for corner, point := range texts[0].Quad {
+				if !pointNear(point, want[corner]) {
+					t.Fatalf("corner %d = %+v, want %+v (the whole picture moves with the aligned line)", corner, point, want[corner])
+				}
+			}
+		})
+	}
+}
+
+// TestLabelQuadAlignedSetsTheMonoBaseline pins that a quad label on a fixed-pitch
+// face stands on the same row as LabelAligned's, not on the generic baseline.
+func TestLabelQuadAlignedSetsTheMonoBaseline(t *testing.T) {
+	var canvas Canvas
+	canvas.SetTextEngine(&monoCellEngine{MonoCellMetrics: MonoCellMetrics{Advance: 0.55, Ascent: 0.80, Descent: 0.25, LineGap: 0.08}})
+	style := TextStyle{Size: 20, Mono: true}
+	box := Rect{X: 10, Y: 20, Width: 160, Height: 23}
+	canvas.LabelQuadAligned("abc", box, quadCorners(), style, AlignLeft)
+	texts := canvas.Texts()
+	if len(texts) != 1 {
+		t.Fatalf("texts = %d, want 1", len(texts))
+	}
+	want := canvas.MonoBaseline(style.Size, style.MonoFace, box.Height)
+	if want != 17 {
+		t.Fatalf("measured baseline = %v, want the cell's row 17", want)
+	}
+	if got := texts[0].Baseline; got != want {
+		t.Fatalf("baseline = %v, want %v", got, want)
+	}
 }
