@@ -81,9 +81,7 @@ type webKit struct {
 	navigationAction            func(decision uintptr) uintptr
 	actionRequest               func(action uintptr) uintptr
 	actionUserGesture           func(action uintptr) int32
-	actionRedirect              func(action uintptr) int32   // 2.20, nil before
-	actionTargetFrame           func(action uintptr) uintptr // 2.56, nil before
-	frameIsMain                 func(frame uintptr) int32    // 2.56, nil before
+	actionRedirect              func(action uintptr) int32 // 2.20, nil before
 	uriRequestURI               func(request uintptr) uintptr
 	downloadRequest             func(download uintptr) uintptr
 	downloadWebView             func(download uintptr) uintptr
@@ -175,12 +173,6 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 		g.lookup(&k.schemeCORS, "webkit_security_manager_register_uri_scheme_as_cors_enabled")
 		// A redirect is not a user gesture even when the request that led to it was one.
 		g.lookup(&k.actionRedirect, "webkit_navigation_action_is_redirect")
-		// The target frame, and whether it is the main one, is 2.56; before that the engine names
-		// no frame with the action.
-		if !g.lookup(&k.actionTargetFrame, "webkit_navigation_action_get_target_frame_info") ||
-			!g.lookup(&k.frameIsMain, "webkit_frame_info_is_main_frame") {
-			k.actionTargetFrame, k.frameIsMain = nil, nil
-		}
 		g.lookup(&k.viewNetworkSession, "webkit_web_view_get_network_session")
 		k.free = g.symbol("g_free")
 		if !g.lookup(&k.contextEphemeral, "webkit_web_context_new_ephemeral") ||
@@ -602,22 +594,19 @@ func (v *gtkWebView) decidePolicy(decision uintptr, kind int32) uintptr {
 	if action == 0 {
 		return 0
 	}
-	mainFrame := true
-	if k.actionTargetFrame != nil && k.frameIsMain != nil {
-		frame := k.actionTargetFrame(action)
-		if frame == 0 {
-			return 0 // a new window: create asks the application, and the default policy allows it
-		}
-		mainFrame = k.frameIsMain(frame) != 0
-	}
-	// Before WebKitGTK 2.56 the action names no target frame, so a subframe navigation is reported
-	// as the main frame there. The decision still cancels the right request; only the bit is coarse.
+	// WebKitGTK's navigation action names no target frame (it has no WebKitFrame and the frame API
+	// cannot be reached from it), so a subframe navigation cannot be told apart from the main
+	// frame's: everything is reported as the main frame. The decision still cancels the right
+	// request; only the MainFrame bit is coarse on this engine.
+	//
+	// The redirect flag needs WebKitGTK 2.20; on an older engine a redirect keeps the gesture of
+	// the request that led to it.
 	gesture := k.actionUserGesture(action) != 0
 	if k.actionRedirect != nil && k.actionRedirect(action) != 0 {
 		gesture = false
 	}
 	address := goString(k.uriRequestURI(k.actionRequest(action)))
-	if v.navigationAllowed(address, mainFrame, gesture) {
+	if v.navigationAllowed(address, true, gesture) {
 		k.decisionUse(decision)
 	} else {
 		k.decisionIgnore(decision)

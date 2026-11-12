@@ -435,11 +435,20 @@ func callbacks() *gtkCallbacks {
 			}),
 			// gboolean decide-destination(download, suggested filename, handle).
 			webDestination: purego.NewCallback(func(download, suggested, handle uintptr) uintptr {
-				if v := webViews[handle]; v != nil {
-					v.downloadDestination(download, goString(suggested))
+				v := webViews[handle]
+				if v == nil {
+					// The page's view went away before the download got here. Letting the
+					// signal go unhandled (returning FALSE) would make WebKitGTK write the file
+					// into its default XDG downloads folder: a download the application never
+					// allowed. Cancel it instead, and say it was handled so the default cannot
+					// run.
+					if k := webAPI; k != nil && k.downloadCancel != nil {
+						k.downloadCancel(download)
+					}
 					return 1
 				}
-				return 0
+				v.downloadDestination(download, goString(suggested))
+				return 1
 			}),
 			commit: purego.NewCallback(func(context, text, id uintptr) uintptr {
 				if w := gtkWindowByID(id); w != nil && w.ime != nil {

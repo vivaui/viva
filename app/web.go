@@ -97,11 +97,13 @@ type WebViewConfig struct {
 	OnLoad func(WebLoad)
 	// Navigate decides a navigation before it starts; nil allows every navigation.
 	Navigate func(WebNavigation) bool
-	// NewWindow decides a window.open or target=_blank before it opens; nil refuses it. True opens
-	// the address in the system's browser, outside the page.
+	// NewWindow decides a window.open or target=_blank before it opens; nil refuses it. That is a
+	// change: without this option the engine opened the window itself. True opens the address in
+	// the system's browser, outside the page.
 	NewWindow func(url string) bool
-	// Download decides a download before it starts; nil refuses it. True saves it in the user's
-	// downloads folder.
+	// Download decides a download before it starts; nil refuses it. That is a change: without this
+	// option Windows and Linux let the engine save the file. True saves it in the user's downloads
+	// folder.
 	Download func(url string) bool
 	// BridgeMainFrameOnly injects window.viva into the main frame only, so an embedded frame does
 	// not get the bridge. False keeps it in every frame, as today.

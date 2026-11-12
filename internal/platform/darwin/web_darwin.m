@@ -82,29 +82,33 @@ static uint64_t viva_web_next_request;
 }
 
 // The application answers before the request leaves the engine: a refused navigation fetches
-// nothing and runs no script. A nil target frame is a new window, which createWebView decides;
-// letting the policy through fetches nothing until that returns nil.
+// nothing and runs no script. The navigation is decided first, and only an allowed one is put to
+// Download: a refused Navigate cancels the navigation without asking Download. A nil target frame
+// is a new window, which createWebView decides; letting the policy through fetches nothing until
+// that returns nil.
 - (void)webView:(WKWebView *)web decidePolicyForNavigationAction:(WKNavigationAction *)action decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
     (void)web;
+    if (action.targetFrame == nil) {
+        decisionHandler(WKNavigationActionPolicyAllow);
+        return;
+    }
     NSString *address = action.request.URL.absoluteString;
     char *url = (char *)(address != nil ? address.UTF8String : "");
+    // WKWebView has no public user-gesture flag. The navigation type is the closest it gets: a
+    // click on a link and a form submission are gestures, while a script's location change is
+    // Other. A form a script submits is therefore reported as a gesture on this engine.
+    BOOL gesture = action.navigationType == WKNavigationTypeLinkActivated || action.navigationType == WKNavigationTypeFormSubmitted;
+    if (!vivaWebNavigate(_handle, _id, url, action.targetFrame.isMainFrame ? 1 : 0, gesture ? 1 : 0)) {
+        decisionHandler(WKNavigationActionPolicyCancel);
+        return;
+    }
     if (@available(macOS 11.3, *)) {
         if (action.shouldPerformDownload) {
             decisionHandler(vivaWebDownload(_handle, _id, url) ? WKNavigationActionPolicyDownload : WKNavigationActionPolicyCancel);
             return;
         }
     }
-    if (action.targetFrame == nil) {
-        decisionHandler(WKNavigationActionPolicyAllow);
-        return;
-    }
-    // WKWebView has no public user-gesture flag. The navigation type is the closest it gets: a
-    // click on a link and a form submission are gestures, while a script's location change is
-    // Other. A form a script submits is therefore reported as a gesture on this engine.
-    BOOL gesture = action.navigationType == WKNavigationTypeLinkActivated || action.navigationType == WKNavigationTypeFormSubmitted;
-    decisionHandler(vivaWebNavigate(_handle, _id, url, action.targetFrame.isMainFrame ? 1 : 0, gesture ? 1 : 0)
-                        ? WKNavigationActionPolicyAllow
-                        : WKNavigationActionPolicyCancel);
+    decisionHandler(WKNavigationActionPolicyAllow);
 }
 
 // The page never opens a window of its own: an allowed window.open or target=_blank goes to the
