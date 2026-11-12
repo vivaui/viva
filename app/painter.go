@@ -84,7 +84,11 @@ type painter struct {
 	// built from. Comparing it byte for byte (the strings keep the previous
 	// allocations alive, so equal pointers mean equal bytes) lets a repaint that
 	// declared the same hits reuse both instead of mirroring the list again.
-	publishedHits      []gfx.Hit
+	publishedHits []gfx.Hit
+	// cellReplace remembers the font-ready form of lines that hold cell glyphs;
+	// a frame that changed one row of a grid-shaped page sends every row again,
+	// and the rows that did not change rebuild no string and runs.
+	cellReplace        []cellReplaceMemo
 	publishedFocus     gfx.ID
 	publishedTrap      gfx.ID
 	publishedInitial   gfx.ID
@@ -991,6 +995,9 @@ func (painter *painter) trim() {
 		if _, err := painter.resyncRenderer(); err == nil {
 			painter.stateBySlot = nil
 		}
+		// A page the scene rebuilt wholesale shows other lines; its memoized
+		// replacements are stale retention.
+		painter.cellReplace = painter.cellReplace[:0]
 	}
 	if slots := painter.semantics.Slots(); slots > trimAt && painter.semantics.Len()*trimRatio < slots {
 		painter.semantics = semantic.NewWithCapacity("Viva", len(painter.hitScratch)+1)
@@ -2155,7 +2162,7 @@ func (painter *painter) syncLabels() {
 		}
 		if label.RunCount > 0 {
 			// The font does not draw the cell glyphs; appendCellGlyphs did.
-			entry.Value, entry.Runs = gfx.ReplaceCellGlyphs(entry.Value, entry.Runs)
+			entry.Value, entry.Runs = painter.replaceCellGlyphs(entry.Value, entry.Runs)
 		}
 		if label.HasClip && !containsRect(label.ClipOf, label.Bounds) {
 			// The clip cuts the label partway: the renderers scissor to it.
@@ -2163,6 +2170,45 @@ func (painter *painter) syncLabels() {
 		}
 		painter.labels = append(painter.labels, entry)
 	}
+}
+
+// cellReplaceLimit bounds the memoized cell glyph replacements: a screen holds
+// its grid's rows and a little slack, and past the limit the memo starts over
+// rather than keeping every line a session ever showed.
+const cellReplaceLimit = 256
+
+// cellReplaceMemo is one line's font-ready form: out is what ReplaceCellGlyphs
+// built for in, kept while the same value and runs keep arriving.
+type cellReplaceMemo struct {
+	inValue, outValue string
+	inRuns, outRuns   []gfx.TextRun
+}
+
+// replaceCellGlyphs is gfx.ReplaceCellGlyphs with a memory. A label sync that
+// one changed row opened sends every row again; the rows that kept their value
+// and runs get the replacement they already have instead of a fresh copy of the
+// line and its runs, which is most of the garbage a keystroke in a bordered
+// grid page otherwise makes.
+func (painter *painter) replaceCellGlyphs(value string, runs []gfx.TextRun) (string, []gfx.TextRun) {
+	for i := range painter.cellReplace {
+		if memo := &painter.cellReplace[i]; memo.inValue == value && slices.Equal(memo.inRuns, runs) {
+			return memo.outValue, memo.outRuns
+		}
+	}
+	outValue, outRuns := gfx.ReplaceCellGlyphs(value, runs)
+	// A line without cell glyphs comes back as it went in; it has nothing to
+	// remember, and its runs are the caller's own slice.
+	if len(outRuns) == 0 || len(runs) == 0 || &outRuns[0] == &runs[0] {
+		return outValue, outRuns
+	}
+	if len(painter.cellReplace) >= cellReplaceLimit {
+		painter.cellReplace = painter.cellReplace[:0]
+	}
+	painter.cellReplace = append(painter.cellReplace, cellReplaceMemo{
+		inValue: value, inRuns: append([]gfx.TextRun(nil), runs...),
+		outValue: outValue, outRuns: outRuns,
+	})
+	return outValue, outRuns
 }
 
 // deviceBounds rounds the edges of bounds to whole device pixels of scale.

@@ -693,6 +693,9 @@ type Canvas struct {
 	spans     []TextSpan
 	cellSizes cellSizeMemos
 	cell      cellGlyph // scratch of CellGlyphGeometry
+	// cellCache holds the cell glyphs the last paints built, keyed by character
+	// and metrics; it survives Reset and is bounded by cellCacheLimit.
+	cellCache []cellGlyphCacheEntry
 	// fits remembers the lines FitLine cut; a different measurement empties it.
 	fits    []fitEntry
 	hovered ID

@@ -124,22 +124,20 @@ func TestPlanCompositeEmpty(t *testing.T) {
 	}
 }
 
-func TestRunStateCapturesRectangleLayersForNativeUpdates(t *testing.T) {
-	state := runState{}
-	state.captureRectangleLayers([]render.Rectangle{{Layer: 1}, {Layer: 4}})
-	state.captureFrameLayers(Frame{
-		Update:     render.Update{First: 0, Count: 2},
-		Rectangles: []render.Rectangle{{Layer: 3}, {Layer: 7}},
-	}, nil)
-	if !reflect.DeepEqual(state.rectangleLayers, []uint16{3, 7}) {
-		t.Fatalf("captured layers = %v, want [3 7]", state.rectangleLayers)
+// The native composite plan reads each instance's layer from reserved0, and
+// the update paths no longer patch it from Go: the staged bytes must carry it
+// for both kinds, or every instance silently composites at layer 0.
+func TestStagedRectanglesCarryTheirLayer(t *testing.T) {
+	rectangle := makeNativeRectangle(render.Rectangle{Layer: 7})
+	if got := float32(rectangle.reserved0); got != 7 {
+		t.Fatalf("staged rectangle layer = %v, want 7", got)
 	}
-
-	state.captureFrameLayers(Frame{
-		Rectangles: []render.Rectangle{{Layer: 9}},
-	}, nil)
-	if !reflect.DeepEqual(state.rectangleLayers, []uint16{3, 7}) {
-		t.Fatalf("empty update replaced layers with %v", state.rectangleLayers)
+	triangle := makeNativeRectangle(render.Rectangle{
+		Kind: scene.KindTriangle, Layer: 5,
+		Points: [3]scene.Point{{X: 1, Y: 2}, {X: 3, Y: 4}, {X: 5, Y: 6}},
+	})
+	if got := float32(triangle.reserved0); got != 5 {
+		t.Fatalf("staged triangle layer = %v, want 5", got)
 	}
 }
 

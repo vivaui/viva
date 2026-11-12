@@ -155,6 +155,21 @@ func BenchmarkCursorMoveMixedText(b *testing.B) {
 	}
 }
 
+// A line that needs reordering walks the bidi resolver on every arrow key;
+// the mixed-text benchmark above never leaves left-to-right order. The line
+// copy and the resolver's own scratch are what remain once the editor keeps
+// the resolver between steps.
+func BenchmarkCursorMoveBidiText(b *testing.B) {
+	editor := NewEditor("שלום עולם hello world עברית")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		editor.SetSelection(Range{Start: editor.RuneCount(), End: editor.RuneCount()})
+		for editor.MoveLeft(false) {
+		}
+	}
+}
+
 func BenchmarkReplaceComposition(b *testing.B) {
 	editor := NewEditor("搜索")
 	b.ReportAllocs()
@@ -415,7 +430,8 @@ func TestRestrictedInsertIsAllocationFreeWhenWarm(t *testing.T) {
 		editor.DeleteBackward()
 		editor.Insert("1")
 	})
-	// Insert converts its argument to runes once, as it always has.
+	// Insert converts its argument to runes once, and undo history keeps its
+	// own copy of the runes a delete removed: both are the design's cost.
 	if allocations > 2 {
 		t.Fatalf("restricted editing allocated %v times per edit", allocations)
 	}

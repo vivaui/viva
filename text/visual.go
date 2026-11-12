@@ -46,7 +46,7 @@ func (editor *Editor) visualStep(caret, direction int) (int, bool) {
 		return 0, false
 	}
 	line := string(lineRunes)
-	var resolver bidi.Resolver
+	resolver := &editor.visualResolve
 	paragraph := resolver.Resolve(line, bidi.Auto)
 	runs := resolver.LineRuns(paragraph, 0, len(line), nil)
 

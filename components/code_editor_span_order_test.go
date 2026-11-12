@@ -86,3 +86,14 @@ func TestCodeEditorClampsSelectionRangesPastTheText(t *testing.T) {
 		t.Fatalf("reversed span painted %d selections, the same span forward %d", got, want)
 	}
 }
+
+// A paint with disjoint selections reuses the editor's span scratch: the
+// declarations of a steady page allocate nothing, multi-selection included.
+func TestCodeEditorSelectionPaintAllocatesNothingOnceWarm(t *testing.T) {
+	fixture := newCodeFixture("abcdef")
+	fixture.snapshot.SelectionRanges = []text.Span{{Start: 0, End: 1}, {Start: 3, End: 5}}
+	fixture.paint()
+	if allocs := testing.AllocsPerRun(100, fixture.paint); allocs != 0 {
+		t.Fatalf("a warm selection paint allocated %v times", allocs)
+	}
+}

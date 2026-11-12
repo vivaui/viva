@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -174,6 +175,25 @@ func TestSelectAllocatesNothingOnceWarm(t *testing.T) {
 	}
 }
 
+// The widest option is measured once and then kept, but a frame that declares
+// different options, or the same options at another size, measures again: the
+// select's width follows its content, not its cache.
+func TestSelectWidestOptionFollowsItsLabels(t *testing.T) {
+	canvas := testCanvas()
+	state := SelectState{}
+	narrow := state.widestOption(canvas, []string{"short"}, 10)
+	if again := state.widestOption(canvas, []string{"short"}, 10); again != narrow {
+		t.Fatalf("the same labels measured %v and then %v", narrow, again)
+	}
+	wide := state.widestOption(canvas, []string{"a much longer option"}, 10)
+	if wide <= narrow {
+		t.Fatalf("longer labels measured %v, not wider than %v", wide, narrow)
+	}
+	if grown := state.widestOption(canvas, []string{"a much longer option"}, 20); grown <= wide {
+		t.Fatalf("the same labels at a larger size measured %v, not wider than %v", grown, wide)
+	}
+}
+
 func BenchmarkOpenSelectAndTabs(b *testing.B) {
 	var view View
 	canvas := testCanvas()
@@ -186,6 +206,31 @@ func BenchmarkOpenSelectAndTabs(b *testing.B) {
 			f.Column().Pad(10).Gap(8).Children(func() {
 				f.Tabs(tabsScope, tabLabels, 1).Line()
 				f.Select(selScope, &state, selLabels, 1)
+			})
+		})
+	}
+}
+
+// A closed select with many options still measures its widest option once, not
+// per frame; with the test measurer the per-label cost is trivial, so this
+// guards the steady-state shape (the win is the native engines' per-label
+// text measurement this no longer runs).
+func BenchmarkSelectClosedManyOptions(b *testing.B) {
+	var view View
+	canvas := testCanvas()
+	theme := gfx.LightTheme()
+	state := SelectState{}
+	labels := make([]string, 1000)
+	for index := range labels {
+		labels[index] = "Option " + strconv.Itoa(index)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		canvas.Reset()
+		view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
+			f.Column().Pad(10).Children(func() {
+				f.Select(selScope, &state, labels, 0).Placeholder("Size")
 			})
 		})
 	}

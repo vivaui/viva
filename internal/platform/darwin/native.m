@@ -496,11 +496,6 @@ extern void vivaTextInput(
 
 extern unsigned char *vivaCopyText(uintptr_t callbackHandle, void *view, size_t *length);
 
-extern uint16_t vivaRectangleLayer(
-    uintptr_t callbackHandle,
-    size_t index
-);
-
 extern int vivaPressAt(
     uintptr_t callbackHandle,
     double x,
@@ -3565,6 +3560,9 @@ static void viva_encode_scene(
     id<MTLRenderPipelineState> _rectanglePipeline;
     id<MTLBuffer> _rectangleBuffer;
     NSUInteger _rectangleCount;
+    // Capacity is the slots the buffers hold; count is the instances the scene
+    // owns. Appends grow capacity geometrically, rebuilds re-tighten it.
+    NSUInteger _rectangleCapacity;
     viva_clip *_rectangleClips;
     id<MTLRenderPipelineState> _textPipeline;
     NSMutableArray<VivaTextLayer *> *_textLabels;
@@ -3779,6 +3777,7 @@ static int viva_navigation_command(SEL selector) {
         _rectanglePipeline = [rectanglePipeline retain];
         _rectangleBuffer = [rectangleBuffer retain];
         _rectangleCount = rectangleCount;
+        _rectangleCapacity = rectangleCount;
         if (rectangleCount > 0) {
             _rectangleClips = malloc(rectangleCount * sizeof(viva_clip));
             if (_rectangleClips == NULL) {
@@ -4872,15 +4871,8 @@ static void viva_set_secure_event_input(BOOL on) {
                 free(replacementClips);
                 return 3;
             }
-            if (_callbackHandle != 0) {
-                viva_rectangle *destination = replacement.contents;
-                for (NSUInteger index = 0; index < totalCount; index++) {
-                    destination[index].reserved0 =
-                        (float)vivaRectangleLayer(_callbackHandle, index);
-                }
-                [replacement didModifyRange:NSMakeRange(
-                    0, totalCount * sizeof(viva_rectangle))];
-            }
+            // The staged instances carry their layer in reserved0, so the
+            // bytes newBufferWithBytes copies are already complete.
         }
         if (![self replaceCompositePlanForRectangles:
                 replacement == nil ? NULL : replacement.contents
@@ -4897,6 +4889,7 @@ static void viva_set_secure_event_input(BOOL on) {
         _rectangleClips = replacementClips;
         _rectangleBuffer = replacement;
         _rectangleCount = totalCount;
+        _rectangleCapacity = totalCount;
         viva_gpu_uploaded_bytes += totalCount * sizeof(viva_rectangle);
         viva_gpu_full_rebuild_count++;
     } else {
@@ -4910,19 +4903,25 @@ static void viva_set_secure_event_input(BOOL on) {
         }
         BOOL grew = totalCount > _rectangleCount;
         if (grew) {
-            // The scene appended instances. Both buffers are retained at their
-            // exact count, so grow them by copying the old contents and then
-            // writing the new tail. Existing instance slots keep their values.
+            // The scene appended instances. Grow the buffers with geometric
+            // headroom so a stream that appends every frame does not allocate,
+            // copy and re-flush the whole buffer each time; a rebuild
+            // re-tightens them to the exact count. Existing instance slots
+            // keep their values.
             if (first > _rectangleCount || first + count != totalCount) {
                 return 2;
             }
+            NSUInteger capacity = totalCount;
+            if (_rectangleCapacity > 0) {
+                capacity = MAX(totalCount, _rectangleCapacity + _rectangleCapacity / 4 + 64);
+            }
             id<MTLBuffer> replacement = [_metalLayer.device
-                newBufferWithLength:totalCount * sizeof(viva_rectangle)
+                newBufferWithLength:capacity * sizeof(viva_rectangle)
                             options:MTLResourceStorageModeShared];
             if (replacement == nil) {
                 return 3;
             }
-            viva_clip *replacementClips = malloc(totalCount * sizeof(viva_clip));
+            viva_clip *replacementClips = malloc(capacity * sizeof(viva_clip));
             if (replacementClips == NULL) {
                 [replacement release];
                 return 3;
@@ -4934,6 +4933,7 @@ static void viva_set_secure_event_input(BOOL on) {
             _rectangleBuffer = replacement;
             _rectangleClips = replacementClips;
             _rectangleCount = totalCount;
+            _rectangleCapacity = capacity;
         }
         memcpy(_rectangleClips + first, clips, count * sizeof(viva_clip));
         memcpy(
@@ -4941,13 +4941,8 @@ static void viva_set_secure_event_input(BOOL on) {
             rectangles,
             count * sizeof(viva_rectangle)
         );
-        if (_callbackHandle != 0) {
-            viva_rectangle *destination = _rectangleBuffer.contents;
-            for (NSUInteger index = first; index < first + count; index++) {
-                destination[index].reserved0 =
-                    (float)vivaRectangleLayer(_callbackHandle, index);
-            }
-        }
+        // The staged instances carry their layer in reserved0, so the memcpy
+        // above has already written every field this buffer holds.
         [_rectangleBuffer didModifyRange:NSMakeRange(
             grew ? 0 : first * sizeof(viva_rectangle),
             grew ? totalCount * sizeof(viva_rectangle) : count * sizeof(viva_rectangle)
