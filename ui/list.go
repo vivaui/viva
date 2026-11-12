@@ -829,12 +829,18 @@ func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	return area
 }
 
-// listRowScope is the scope of the rows of the List whose area is area, so a
-// Shortcut on the box List returns covers them as well as the area's own scope.
+// listRowScope is the scope of the rows of the List or Tree whose area is area,
+// so a Shortcut on the box List or Tree returns covers them as well as the
+// area's own scope.
 func (p *Page) listRowScope(area int32) gfx.Scope {
 	for _, state := range p.listStates {
 		if state.list.area == area {
 			return state.list.rows
+		}
+	}
+	for _, state := range p.trees {
+		if state.list.area == area {
+			return state.rows
 		}
 	}
 	return 0
