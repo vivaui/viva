@@ -467,7 +467,7 @@ func (combobox Combobox) paintInput() {
 				Size: sizeS, Weight: gfx.WeightRegular, Color: detailColor,
 			})
 		}
-	} else {
+	} else if options.Query == "" || options.InputID.IsZero() || canvas.Focused() != options.InputID || options.Disabled {
 		canvas.Label(canvas.FitLine(value, combobox.theme.Metrics.FontSizeM, gfx.WeightRegular, availableWidth), textRect, gfx.TextStyle{Size: combobox.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground})
 	}
 	if !options.InputID.IsZero() {

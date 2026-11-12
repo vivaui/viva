@@ -75,6 +75,95 @@ func TestComboboxPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) 
 	}
 }
 
+func TestComboboxQueryPaintingFollowsNativeInputOwnership(t *testing.T) {
+	theme := gfx.DarkTheme()
+	inputID := gfx.Item(1)
+	for _, query := range []string{"host-name-with-a-long-address.example", "שלום עולם בדיקת ממשק בחירת שרת", "开发主机"} {
+		for _, state := range []struct {
+			name     string
+			focused  bool
+			disabled bool
+			noInput  bool
+		}{
+			{name: "native editor", focused: true},
+			{name: "unfocused"},
+			{name: "disabled", focused: true, disabled: true},
+			{name: "display only", noInput: true},
+		} {
+			t.Run(state.name+"/"+query, func(t *testing.T) {
+				var canvas gfx.Canvas
+				options := ComboboxOptions{InputID: inputID, Label: "Host", Query: query, Disabled: state.disabled}
+				if state.noInput {
+					options.InputID = gfx.ID{}
+				}
+				if state.focused {
+					canvas.SetInteraction(gfx.ID{}, gfx.ID{}, inputID, true)
+				}
+				BeginCombobox(&canvas, theme, gfx.Rect{Width: 180}, options).End()
+				native := state.focused && !state.disabled && !state.noInput
+				if native && len(canvas.Texts()) != 0 {
+					t.Fatalf("component painted query owned by the native editor: %+v", canvas.Texts())
+				}
+				if !native && len(canvas.Texts()) == 0 {
+					t.Fatal("query without a native editor is not displayed")
+				}
+				if !state.noInput {
+					hits := nonBlockHits(canvas.Hits())
+					if len(hits) != 1 {
+						t.Fatalf("editable input geometry missing: %+v", hits)
+					}
+					geometry, ok := canvas.HitText(&hits[0])
+					if !ok || geometry.Bounds.Width <= 0 || geometry.Bounds.Height <= 0 {
+						t.Fatalf("editable input geometry missing: %+v", geometry)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestComboboxEmptyQueryKeepsSelectedDetailAndPlaceholder(t *testing.T) {
+	inputID := gfx.Item(1)
+	for _, focused := range []bool{false, true} {
+		for _, selected := range []bool{false, true} {
+			var canvas gfx.Canvas
+			if focused {
+				canvas.SetInteraction(gfx.ID{}, gfx.ID{}, inputID, true)
+			}
+			options := ComboboxOptions{InputID: inputID, Label: "Host", Placeholder: "Choose a host"}
+			want := []string{options.Placeholder}
+			if selected {
+				options.Value, options.Detail = "server", "192.0.2.1"
+				want = []string{options.Value, options.Detail}
+			}
+			BeginCombobox(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 320}, options).End()
+			for _, value := range want {
+				if !slices.ContainsFunc(canvas.Texts(), func(text gfx.Text) bool { return text.Value == value }) {
+					t.Fatalf("focused=%v selected=%v: missing static text %q", focused, selected, value)
+				}
+			}
+		}
+	}
+}
+
+func BenchmarkComboboxEditableDetail(b *testing.B) {
+	var canvas gfx.Canvas
+	theme := gfx.DarkTheme()
+	inputID := gfx.Item(1)
+	options := ComboboxOptions{InputID: inputID, Label: "Host", Value: "server", Detail: "192.0.2.1", Query: "server.example"}
+	paint := func() {
+		canvas.Reset()
+		canvas.SetInteraction(gfx.ID{}, gfx.ID{}, inputID, true)
+		BeginCombobox(&canvas, theme, gfx.Rect{Width: 240}, options).End()
+	}
+	paint()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		paint()
+	}
+}
+
 // A selected row is told apart by its check; only the row the caller marked
 // highlighted is tinted, so a long multi-select list does not read as a wall of
 // highlights and the pointer cannot tint a second row beside the one Enter names.
