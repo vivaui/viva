@@ -56,6 +56,48 @@ func TestPopoverKeepsCustomContentInNonmodalScope(t *testing.T) {
 	}
 }
 
+func TestPopoverHeaderlessStartsItsBodyAtTheTop(t *testing.T) {
+	var canvas gfx.Canvas
+	theme := gfx.LightTheme()
+	popover := BeginPopover(&canvas, theme, gfx.Rect{Width: 640, Height: 480}, gfx.Rect{X: 200, Y: 100, Width: 80, Height: 32}, PopoverOptions{
+		Layer: 3, Headerless: true, BodyHeight: 100, ContentSize: gfx.Size{Width: 200},
+	})
+	layout := popover.Begin("", "")
+	popover.End()
+	margin := theme.Metrics.PadSurface
+	if layout.Header.Height != 0 || layout.Body.Y != layout.Content.Y+margin || layout.Body.Height != 100 {
+		t.Fatalf("headerless layout = %+v, content %+v", layout, layout.Content)
+	}
+	if len(canvas.Texts()) != 0 {
+		t.Fatalf("headerless popover painted text: %+v", canvas.Texts())
+	}
+}
+
+func TestPopoverPaddingOverridesTheSurfaceInset(t *testing.T) {
+	var canvas gfx.Canvas
+	layout := BeginPopover(&canvas, gfx.LightTheme(), gfx.Rect{Width: 640, Height: 480}, gfx.Rect{X: 200, Y: 100, Width: 80, Height: 32}, PopoverOptions{
+		Headerless: true, Padding: 4, BodyHeight: 50, ContentSize: gfx.Size{Width: 200},
+	}).Paint("", "")
+	if layout.Content.Height != 58 || layout.Body.X != layout.Content.X+4 || layout.Body.Y != layout.Content.Y+4 ||
+		layout.Body.Width != layout.Content.Width-8 || layout.Body.Height != 50 {
+		t.Fatalf("layout = %+v, content = %+v", layout, layout.Content)
+	}
+}
+
+// Instant only removes the entrance motion: the surface and its content keep
+// the same geometry.
+func TestPopoverInstantKeepsTheLayout(t *testing.T) {
+	paint := func(instant bool) PopoverLayout {
+		var canvas gfx.Canvas
+		return BeginPopover(&canvas, gfx.LightTheme(), gfx.Rect{Width: 640, Height: 480}, gfx.Rect{X: 200, Y: 100, Width: 80, Height: 32}, PopoverOptions{
+			Headerless: true, Padding: 4, BodyHeight: 50, Instant: instant,
+		}).Paint("", "")
+	}
+	if animated, instant := paint(false), paint(true); animated != instant {
+		t.Fatalf("instant layout = %+v, animated = %+v", instant, animated)
+	}
+}
+
 func TestPopoverDisabledPaintsNothing(t *testing.T) {
 	var canvas gfx.Canvas
 	layout := BeginPopover(&canvas, gfx.LightTheme(), gfx.Rect{Width: 400, Height: 300}, gfx.Rect{X: 20, Y: 20, Width: 40, Height: 20}, PopoverOptions{Layer: 2, DismissID: gfx.Item(3)}).Disabled().Paint("Hidden", "Disabled")

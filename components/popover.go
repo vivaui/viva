@@ -75,6 +75,16 @@ type PopoverOptions struct {
 	// body off.
 	ContentSize gfx.Size
 	BodyHeight  float32
+	// Headerless starts the body at the surface's padding: a caller whose
+	// content names itself needs no title row above it.
+	Headerless bool
+	// Padding insets the body from the surface edge. Zero uses the theme's
+	// PadSurface; a menu-like popover passes DropdownMenuPadding so its rows
+	// line up with the menus around it.
+	Padding float32
+	// Instant opens without the entrance motion. A list that appears under the
+	// cursor as the user types has no travel of its own.
+	Instant bool
 	// TitleWeight defaults to WeightMedium; set it to emphasize this heading.
 	TitleWeight float32
 	// InitialFocusID, when set, takes keyboard focus when the popover opens.
@@ -141,31 +151,46 @@ func (popover Popover) Begin(title, description string) PopoverLayout {
 		}
 	}
 	metrics := popover.theme.Metrics
+	padding := popover.options.Padding
+	if padding <= 0 {
+		padding = metrics.PadSurface
+	}
 	var scratch overlayLines
 	width := popover.contentWidth()
-	lines := overlayWrap(popover.canvas, &scratch, description, metrics.FontSizeM, gfx.WeightRegular, width-2*metrics.PadSurface)
-	headerHeight := popoverHeaderHeight(metrics, len(lines))
+	headerHeight := float32(0)
+	var lines []string
+	if !popover.options.Headerless {
+		lines = overlayWrap(popover.canvas, &scratch, description, metrics.FontSizeM, gfx.WeightRegular, width-2*padding)
+		headerHeight = popoverHeaderHeight(metrics, len(lines))
+	}
 	content, side := popover.contentBounds(width, headerHeight)
-	popover.canvas.BeginPresence(overlayKey(popover.options.DismissID, popover.options.Scope), overlaySurfacePart,
-		popupPresence(popover.theme, overlayDuration, side), popupPivot(content, side, popover.anchor))
+	if !popover.options.Instant {
+		popover.canvas.BeginPresence(overlayKey(popover.options.DismissID, popover.options.Scope), overlaySurfacePart,
+			popupPresence(popover.theme, overlayDuration, side), popupPivot(content, side, popover.anchor))
+	}
 	paintPanel(popover.canvas, content, popoverRecipe(&popover.theme)) // shadow-md
 	// The popup is inside the popover: a press on its padding or header must not
 	// reach the trigger or the page underneath. Controls the caller paints into
 	// the body follow and take their own presses.
 	popover.canvas.Block(content)
-	inner := content.Inset(gfx.All(metrics.PadSurface))
+	inner := content.Inset(gfx.All(padding))
 	lineHeight := overlayLineHeight(metrics)
-	titleWeight := popover.options.TitleWeight
-	if titleWeight == 0 {
-		titleWeight = gfx.WeightMedium
+	if !popover.options.Headerless {
+		titleWeight := popover.options.TitleWeight
+		if titleWeight == 0 {
+			titleWeight = gfx.WeightMedium
+		}
+		popover.canvas.Label(title, gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: lineHeight}, gfx.TextStyle{
+			Size: metrics.FontSizeM, Weight: titleWeight, Color: popover.theme.PopoverForeground,
+		})
+		overlayParagraph(popover.canvas, lines, gfx.Rect{X: inner.X, Y: inner.Y + lineHeight + popoverTitleGap, Width: inner.Width}, lineHeight, gfx.TextStyle{
+			Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: popover.theme.MutedForeground,
+		}, false)
 	}
-	popover.canvas.Label(title, gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: lineHeight}, gfx.TextStyle{
-		Size: metrics.FontSizeM, Weight: titleWeight, Color: popover.theme.PopoverForeground,
-	})
-	overlayParagraph(popover.canvas, lines, gfx.Rect{X: inner.X, Y: inner.Y + lineHeight + popoverTitleGap, Width: inner.Width}, lineHeight, gfx.TextStyle{
-		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: popover.theme.MutedForeground,
-	}, false)
-	bodyY := inner.Y + headerHeight + popoverBodyGap(metrics)
+	bodyY := inner.Y + headerHeight
+	if headerHeight > 0 {
+		bodyY += popoverBodyGap(metrics)
+	}
 	return PopoverLayout{
 		Content: content,
 		Header:  gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: headerHeight},
@@ -194,7 +219,9 @@ func (popover Popover) End() {
 	if popover.disabled || popover.canvas == nil || popover.viewport.Width <= 0 || popover.viewport.Height <= 0 {
 		return
 	}
-	popover.canvas.EndPresence()
+	if !popover.options.Instant {
+		popover.canvas.EndPresence()
+	}
 	// Claim Escape while the popover's own scope is still pushed, so it stays
 	// the target when painted inside a dialog.
 	if !popover.options.DismissID.IsZero() {
@@ -217,11 +244,18 @@ func (popover Popover) contentWidth() float32 {
 // the requested one has no room (see PlaceOverlay).
 func (popover Popover) contentBounds(width, headerHeight float32) (gfx.Rect, OverlaySide) {
 	metrics := popover.theme.Metrics
+	padding := popover.options.Padding
+	if padding <= 0 {
+		padding = metrics.PadSurface
+	}
 	height := popover.options.ContentSize.Height
 	if height <= 0 {
-		height = 2*metrics.PadSurface + headerHeight
+		height = 2*padding + headerHeight
 		if popover.options.BodyHeight > 0 {
-			height += popoverBodyGap(metrics) + popover.options.BodyHeight
+			if headerHeight > 0 {
+				height += popoverBodyGap(metrics)
+			}
+			height += popover.options.BodyHeight
 		}
 	}
 	offset := popover.options.SideOffset
