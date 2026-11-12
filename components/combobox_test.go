@@ -58,7 +58,7 @@ func TestComboboxPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) 
 			Content: gfx.Rect{X: 2, Y: 41, Width: 160, Height: 108}, Layer: 4, Scope: gfx.Item(6), DismissID: gfx.Item(8),
 		})
 		combobox.AddLabel("Popular")
-		combobox.AddItem(ComboboxItem{ID: gfx.Item(2), Label: "Go", Value: "go"})
+		combobox.AddItem(ComboboxItem{ID: gfx.Item(2), Label: "Go", Value: "go", Detail: "Backend"})
 		combobox.AddSeparator()
 		combobox.PaintChip(gfx.Rect{X: 2, Y: 154, Width: 70, Height: 24}, ComboboxChip{RemoveID: gfx.Item(3), Label: "Go", Value: "go"})
 	}
@@ -72,6 +72,95 @@ func TestComboboxPaintIsDeterministicAndAllocationFreeAfterWarmup(t *testing.T) 
 	}
 	if allocations := testing.AllocsPerRun(100, paint); allocations != 0 {
 		t.Fatalf("combobox paint allocations = %v", allocations)
+	}
+}
+
+func TestComboboxQueryPaintingFollowsNativeInputOwnership(t *testing.T) {
+	theme := gfx.DarkTheme()
+	inputID := gfx.Item(1)
+	for _, query := range []string{"host-name-with-a-long-address.example", "שלום עולם בדיקת ממשק בחירת שרת", "开发主机"} {
+		for _, state := range []struct {
+			name     string
+			focused  bool
+			disabled bool
+			noInput  bool
+		}{
+			{name: "native editor", focused: true},
+			{name: "unfocused"},
+			{name: "disabled", focused: true, disabled: true},
+			{name: "display only", noInput: true},
+		} {
+			t.Run(state.name+"/"+query, func(t *testing.T) {
+				var canvas gfx.Canvas
+				options := ComboboxOptions{InputID: inputID, Label: "Host", Query: query, Disabled: state.disabled}
+				if state.noInput {
+					options.InputID = gfx.ID{}
+				}
+				if state.focused {
+					canvas.SetInteraction(gfx.ID{}, gfx.ID{}, inputID, true)
+				}
+				BeginCombobox(&canvas, theme, gfx.Rect{Width: 180}, options).End()
+				native := state.focused && !state.disabled && !state.noInput
+				if native && len(canvas.Texts()) != 0 {
+					t.Fatalf("component painted query owned by the native editor: %+v", canvas.Texts())
+				}
+				if !native && len(canvas.Texts()) == 0 {
+					t.Fatal("query without a native editor is not displayed")
+				}
+				if !state.noInput {
+					hits := nonBlockHits(canvas.Hits())
+					if len(hits) != 1 {
+						t.Fatalf("editable input geometry missing: %+v", hits)
+					}
+					geometry, ok := canvas.HitText(&hits[0])
+					if !ok || geometry.Bounds.Width <= 0 || geometry.Bounds.Height <= 0 {
+						t.Fatalf("editable input geometry missing: %+v", geometry)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestComboboxEmptyQueryKeepsSelectedDetailAndPlaceholder(t *testing.T) {
+	inputID := gfx.Item(1)
+	for _, focused := range []bool{false, true} {
+		for _, selected := range []bool{false, true} {
+			var canvas gfx.Canvas
+			if focused {
+				canvas.SetInteraction(gfx.ID{}, gfx.ID{}, inputID, true)
+			}
+			options := ComboboxOptions{InputID: inputID, Label: "Host", Placeholder: "Choose a host"}
+			want := []string{options.Placeholder}
+			if selected {
+				options.Value, options.Detail = "server", "192.0.2.1"
+				want = []string{options.Value, options.Detail}
+			}
+			BeginCombobox(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 320}, options).End()
+			for _, value := range want {
+				if !slices.ContainsFunc(canvas.Texts(), func(text gfx.Text) bool { return text.Value == value }) {
+					t.Fatalf("focused=%v selected=%v: missing static text %q", focused, selected, value)
+				}
+			}
+		}
+	}
+}
+
+func BenchmarkComboboxEditableDetail(b *testing.B) {
+	var canvas gfx.Canvas
+	theme := gfx.DarkTheme()
+	inputID := gfx.Item(1)
+	options := ComboboxOptions{InputID: inputID, Label: "Host", Value: "server", Detail: "192.0.2.1", Query: "server.example"}
+	paint := func() {
+		canvas.Reset()
+		canvas.SetInteraction(gfx.ID{}, gfx.ID{}, inputID, true)
+		BeginCombobox(&canvas, theme, gfx.Rect{Width: 240}, options).End()
+	}
+	paint()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		paint()
 	}
 }
 
@@ -209,5 +298,57 @@ func TestComboboxScrollsAndNavigatesItsOptions(t *testing.T) {
 	}
 	if id, ok := combobox.Match("shell h", gfx.ID{}); !ok || id != gfx.Item(17) {
 		t.Fatalf("Match = (%v, %v)", id, ok)
+	}
+}
+
+func TestComboboxItemDetailLayoutAndA11y(t *testing.T) {
+	var canvas gfx.Canvas
+	theme := gfx.LightTheme()
+	combobox := BeginCombobox(&canvas, theme, gfx.Rect{X: 10, Y: 10, Width: 220}, ComboboxOptions{
+		InputID: gfx.Item(1), Label: "Server", Open: true,
+		Content: gfx.Rect{X: 10, Y: 46, Width: 220, Height: 120}, Layer: 3, Scope: gfx.Item(20),
+	})
+	combobox.AddItem(ComboboxItem{
+		ID: gfx.Item(2), Label: "bastion-gw-1", Detail: "10.0.0.1", Value: "1", Selected: true,
+	})
+	combobox.AddItem(ComboboxItem{
+		ID: gfx.Item(3), Label: "very-long-server-name-that-truncates", Detail: "192.168.1.100:2222", Value: "2",
+	})
+	combobox.End()
+
+	hits := nonBlockHits(canvas.Hits())
+	var item2Hit, item3Hit gfx.Hit
+	for _, hit := range hits {
+		if hit.ID == gfx.Item(2) {
+			item2Hit = hit
+		}
+		if hit.ID == gfx.Item(3) {
+			item3Hit = hit
+		}
+	}
+
+	// 验证 a11y Description 包含了 Detail 文本，用于读屏播报（aria-description）
+	if item2Hit.Description != "10.0.0.1" {
+		t.Fatalf("item2 accessible description = %q, want '10.0.0.1'", item2Hit.Description)
+	}
+	if item3Hit.Description != "192.168.1.100:2222" {
+		t.Fatalf("item3 accessible description = %q, want '192.168.1.100:2222'", item3Hit.Description)
+	}
+
+	// 检查绘制的文本记录中是否包含 Detail
+	foundDetail := false
+	for _, txt := range canvas.Texts() {
+		if txt.Value == "10.0.0.1" {
+			foundDetail = true
+			if txt.Style.Size != theme.Metrics.FontSizeS {
+				t.Fatalf("detail font size = %v, want %v", txt.Style.Size, theme.Metrics.FontSizeS)
+			}
+			if txt.Style.Weight != gfx.WeightRegular {
+				t.Fatalf("detail font weight = %v, want WeightRegular", txt.Style.Weight)
+			}
+		}
+	}
+	if !foundDetail {
+		t.Fatal("expected detail text '10.0.0.1' to be painted")
 	}
 }
