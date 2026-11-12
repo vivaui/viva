@@ -77,7 +77,10 @@ func (c fidelityCase) name() string {
 }
 
 // appKit draws the case with AppKit: mode "string" (NSAttributedString) or "field"
-// (NSTextField). It returns the gray (green channel) of every device pixel.
+// (NSTextField). It returns the gray (green channel) of every device pixel. The
+// references name the smoothing on the command line, on or off: TestMain thickens
+// Viva's text the way smoothing does, and without the argument the reference would
+// follow the user's own setting, drawing flat on a machine that has smoothing off.
 func (c fidelityCase) appKit(t testing.TB, mode string, defaults ...string) (gray []float64, w, h int) {
 	out := filepath.Join(t.TempDir(), "out.raw")
 	pixelHeight := int(math.Ceil(float64(c.Height) * c.Scale))
@@ -271,7 +274,7 @@ func TestLabelGlyphsAreWhatAppKitDraws(t *testing.T) {
 				for _, weight := range []float64{0, 0.4} {
 					for _, word := range fidelityWords {
 						c := fidelityCase{Text: word, Size: size, Weight: weight, Scale: scale, Foreground: fg, BG: bg}.sized()
-						reference, w, h := c.appKit(t, "string")
+						reference, w, h := c.appKit(t, "string", "-AppleFontSmoothing", "1")
 						got, _, _ := c.viva(t)
 						wantCoverage, gotCoverage := c.coverage(reference), c.coverage(got)
 						wantCoverage = shiftedRows(wantCoverage, w, h, bestRowShift(gotCoverage, wantCoverage, w, h))
@@ -301,7 +304,7 @@ func TestLabelThickening(t *testing.T) {
 	c := fidelityCase{Text: "Hamburgefonstiv", Size: 13, Scale: 2, Foreground: 0.95, BG: 0.12}.sized()
 	inkOf := func(gray []float64, w, h int) float64 { return stats(c.coverage(gray), w, h).Ink }
 
-	reference, w, h := c.appKit(t, "string")
+	reference, w, h := c.appKit(t, "string", "-AppleFontSmoothing", "1")
 	smoothed := inkOf(reference, w, h)
 	referenceOff, _, _ := c.appKit(t, "string", "-AppleFontSmoothing", "0")
 	flat := inkOf(referenceOff, w, h)
@@ -344,7 +347,7 @@ func TestTranslucentLabelsBlendAsAppKitBlends(t *testing.T) {
 		for _, alpha := range []float64{0.6, 0.3} {
 			for _, fg := range []float64{0.1, 0.95} {
 				c := fidelityCase{Text: "Hamburgefonstiv", Size: 13, Scale: scale, Foreground: fg, BG: 0.5, Alpha: alpha}.sized()
-				reference, w, h := c.appKit(t, "string")
+				reference, w, h := c.appKit(t, "string", "-AppleFontSmoothing", "1")
 				got, _, _ := c.viva(t)
 				wantCoverage, gotCoverage := c.coverage(reference), c.coverage(got)
 				wantCoverage = shiftedRows(wantCoverage, w, h, bestRowShift(gotCoverage, wantCoverage, w, h))
@@ -374,7 +377,7 @@ func TestLabelBaselineIsWhereAppKitLabelsPutIt(t *testing.T) {
 				var pw, ph int
 				fmt.Sscan(string(printed), &pw, &ph)
 				c := fidelityCase{Text: "HHHH", Size: size, Weight: weight, Scale: scale, Foreground: 0.1, BG: 1, Width: 80, Height: int(float64(ph) / scale)}
-				reference, w, h := c.appKit(t, "field")
+				reference, w, h := c.appKit(t, "field", "-AppleFontSmoothing", "1")
 				got, _, _ := c.viva(t)
 				rs, gs := stats(c.coverage(reference), w, h), stats(c.coverage(got), w, h)
 				cases++
@@ -408,7 +411,7 @@ func TestLabelTextIsPlacedAtItsSubpixelPosition(t *testing.T) {
 					bg = 0.12
 				}
 				c := fidelityCase{Text: "Hamburgefonstiv", Size: 13, Scale: scale, Foreground: fg, BG: bg, Width: 140, Height: 40, X: at[0], Y: at[1], LabelHeight: 20}
-				reference, w, h := c.appKit(t, "string")
+				reference, w, h := c.appKit(t, "string", "-AppleFontSmoothing", "1")
 				got, _, _ := c.viva(t)
 				// A glyph whose position falls within float rounding of one of Core Graphics'
 				// quantization steps lands on the next step in one drawing and not the other
