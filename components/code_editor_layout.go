@@ -841,6 +841,9 @@ func gridRuns(dst []gfx.TextRun, line string, spec *gridRunSpec) (runs []gfx.Tex
 			color := spec.foreground
 			if represented && spec.representationColor.Alpha != 0 {
 				color = spec.representationColor
+				if spec.disabled {
+					color.Alpha *= 0.5
+				}
 			}
 			if next < len(spec.highlight) && spec.highlight[next].Start <= relative {
 				color = spec.highlight[next].Color

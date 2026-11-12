@@ -301,6 +301,30 @@ func TestCodeEditorDisabledBlobLabelsFadeOnce(t *testing.T) {
 	}
 }
 
+func TestCodeEditorDisabledPlainRepresentationFades(t *testing.T) {
+	fixture := newCodeFixture("A\u200bB")
+	fixture.snapshot.Disabled = true
+	fixture.snapshot.InvisibleColor = gfx.RGB(48, 96, 144)
+	fixture.snapshot.Representations = []CodeRepresentation{{Character: '\u200b', Label: "ZWSP"}}
+	fixture.paint()
+	want := fixture.snapshot.InvisibleColor
+	want.Alpha *= 0.5
+	for _, label := range fixture.canvas.Texts() {
+		if !strings.Contains(label.Value, "ZWSP") {
+			continue
+		}
+		for _, run := range fixture.canvas.TextRuns(label) {
+			if run.Bytes == 4 && run.Cells == 4 {
+				if run.Color != want {
+					t.Fatalf("disabled plain label color = %+v; want %+v", run.Color, want)
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("disabled plain representation was not painted")
+}
+
 func BenchmarkCodeEditorPaintRepresentations(b *testing.B) {
 	for _, sample := range []struct {
 		name string
