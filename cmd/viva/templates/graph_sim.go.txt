@@ -1,0 +1,283 @@
+package {{PACKAGE}}
+
+import "math"
+
+// GraphLink is one edge of a GraphSim, by node index. Distance zero takes the
+// simulation's LinkDistance; Strength zero takes the spring default of one
+// over the smaller endpoint degree, so a busy hub pulls its neighbors less,
+// as d3-force's link force does.
+type GraphLink struct {
+	Source, Target int
+	Distance       float32
+	Strength       float32
+}
+
+// The d3-force tick constants, which are also the values Obsidian's graph
+// runs: alpha falls from one to graphAlphaMin in about three hundred ticks,
+// friction damps velocity to sixty percent per tick, and the layout goes
+// quiet on its own.
+const (
+	graphAlphaMin      float32 = 0.001
+	graphAlphaDecay    float32 = 0.0228
+	graphVelocityDecay float32 = 0.4
+	// graphGoldenAngle is the angle of d3's phyllotaxis spiral, which spaces
+	// the initial positions deterministically and uniformly without a random
+	// number generator.
+	graphGoldenAngle float32 = 2.399963229728653
+	// graphSpiralStep scales the spiral's radius per node against the link
+	// distance, matching d3's 10.6·√i at its default distance of thirty.
+	graphSpiralStep float32 = 10.6 / 30
+)
+
+// graphBody is one node's simulation state. Fixed holds a dragged position:
+// each tick resets x to fx and zeroes the velocity, which is d3's fx/fy
+// pinning.
+type graphBody struct {
+	x, y   float32
+	vx, vy float32
+	fx, fy float32
+	fixed  bool
+}
+
+// GraphSim is the caller-owned force-directed layout of one graph. It is
+// d3-force's model — velocity-Verlet integration over composable forces with
+// an alpha that anneals to rest — as the layout engine Obsidian's graph view
+// runs. The simulation is pure layout: it knows no canvas, allocates nothing
+// per tick, and a fixed run of ticks from construction is bit-reproducible,
+// which makes golden tests possible.
+//
+// The application owns one beside its graph data and re-declares the graph
+// component with it every paint. While Settled reports false, one Tick per
+// painted frame advances the layout and it cools to zero work on its own;
+// dragging a node or changing data calls Reheat to warm it back up. The
+// topology is fixed at construction: build a new simulation when notes and
+// links change, seeding nothing — a fresh spiral start keeps runs comparable.
+type GraphSim struct {
+	// LinkDistance is each edge's rest length in graph units.
+	LinkDistance float32
+	// RepelStrength is the charge every node carries; negative values push
+	// nodes apart.
+	RepelStrength float32
+	// CenterStrength is how hard nodes are pulled toward the origin.
+	CenterStrength float32
+
+	bodies []graphBody
+	links  []GraphLink
+	degree []int
+	alpha  float32
+}
+
+// NewGraphSim lays out nodeCount nodes joined by links, starting them on
+// d3's phyllotaxis spiral. Links naming a node outside the graph, or a node
+// joined to itself, are dropped.
+func NewGraphSim(nodeCount int, links []GraphLink) *GraphSim {
+	sim := &GraphSim{
+		LinkDistance:   30,
+		RepelStrength:  -30,
+		CenterStrength: 0.1,
+		bodies:         make([]graphBody, nodeCount),
+		degree:         make([]int, nodeCount),
+		alpha:          1,
+	}
+	for index := range sim.bodies {
+		step := float32(index + 1)
+		radius := graphSpiralStep * sim.LinkDistance * float32(math.Sqrt(float64(step)))
+		angle := step * graphGoldenAngle
+		sim.bodies[index].x = radius * float32(math.Cos(float64(angle)))
+		sim.bodies[index].y = radius * float32(math.Sin(float64(angle)))
+	}
+	sim.links = make([]GraphLink, 0, len(links))
+	for _, link := range links {
+		if link.Source < 0 || link.Source >= nodeCount || link.Target < 0 || link.Target >= nodeCount || link.Source == link.Target {
+			continue
+		}
+		if link.Distance <= 0 {
+			link.Distance = sim.LinkDistance
+		}
+		sim.degree[link.Source]++
+		sim.degree[link.Target]++
+		sim.links = append(sim.links, link)
+	}
+	// The default spring strength is one over the smaller endpoint's final
+	// link count, d3's rule, so a hub's many springs are each weak enough to
+	// leave it in place while its spokes travel.
+	for at := range sim.links {
+		link := &sim.links[at]
+		if link.Strength <= 0 {
+			link.Strength = 1 / float32(min(sim.degree[link.Source], sim.degree[link.Target]))
+		}
+	}
+	return sim
+}
+
+// Len is the number of nodes the simulation lays out.
+func (sim *GraphSim) Len() int {
+	if sim == nil {
+		return 0
+	}
+	return len(sim.bodies)
+}
+
+// Degree is how many links node i carries.
+func (sim *GraphSim) Degree(i int) int {
+	if sim == nil || i < 0 || i >= len(sim.degree) {
+		return 0
+	}
+	return sim.degree[i]
+}
+
+// Position is node i's graph-space position.
+func (sim *GraphSim) Position(i int) (x, y float32) {
+	if sim == nil || i < 0 || i >= len(sim.bodies) {
+		return 0, 0
+	}
+	return sim.bodies[i].x, sim.bodies[i].y
+}
+
+// SetFixed pins node i at a graph-space position, as a drag does; the layout
+// moves everything else around it. Unpin with SetFree.
+func (sim *GraphSim) SetFixed(i int, x, y float32) {
+	if sim == nil || i < 0 || i >= len(sim.bodies) {
+		return
+	}
+	sim.bodies[i].fx, sim.bodies[i].fy, sim.bodies[i].fixed = x, y, true
+}
+
+// SetFree releases a pinned node and lets the layout move it again.
+func (sim *GraphSim) SetFree(i int) {
+	if sim == nil || i < 0 || i >= len(sim.bodies) {
+		return
+	}
+	sim.bodies[i].fixed = false
+}
+
+// Reheat warms the layout to at least alpha so it moves again, as a drag or a
+// changed graph should. The value d3 uses while dragging is 0.3.
+func (sim *GraphSim) Reheat(alpha float32) {
+	if sim == nil {
+		return
+	}
+	sim.alpha = max(sim.alpha, max(alpha, 0))
+}
+
+// Settled reports whether the layout has cooled below its minimum alpha and
+// Tick would do nothing.
+func (sim *GraphSim) Settled() bool {
+	return sim == nil || sim.alpha < graphAlphaMin
+}
+
+// Tick advances the simulation one step, in d3-force's order: anneal alpha,
+// apply the link, repulsion and centering forces to the velocities, damp
+// them, integrate the positions, and pin fixed bodies. It reports whether
+// the layout is still moving, so a caller can stop asking for frames.
+func (sim *GraphSim) Tick() bool {
+	if sim == nil || sim.Settled() {
+		return false
+	}
+	sim.tickLinks()
+	sim.tickRepel()
+	sim.tickCenter()
+	for index := range sim.bodies {
+		body := &sim.bodies[index]
+		body.vx *= 1 - graphVelocityDecay
+		body.vy *= 1 - graphVelocityDecay
+		if body.fixed {
+			body.x, body.y, body.vx, body.vy = body.fx, body.fy, 0, 0
+			continue
+		}
+		body.x += body.vx
+		body.y += body.vy
+	}
+	sim.alpha += (0 - sim.alpha) * graphAlphaDecay
+	return !sim.Settled()
+}
+
+// tickLinks springs each edge toward its rest length. d3 splits the
+// correction between the endpoints by their link counts, so a node joined to
+// many others moves less than its sparse neighbor.
+func (sim *GraphSim) tickLinks() {
+	strength := sim.alpha
+	for at := range sim.links {
+		link := &sim.links[at]
+		source, target := &sim.bodies[link.Source], &sim.bodies[link.Target]
+		dx, dy := target.x-source.x, target.y-source.y
+		length := float32(math.Hypot(float64(dx), float64(dy)))
+		if length < 0.01 {
+			// Coincident endpoints have no direction to spring along; part
+			// them a hair deterministically, as d3 does with a jiggle.
+			dx, dy, length = 0.01, -0.01, 0.0142
+		}
+		bias := float32(sim.degree[link.Source]) / float32(sim.degree[link.Source]+sim.degree[link.Target])
+		correction := (length - link.Distance) / length * strength * link.Strength
+		source.vx += dx * correction * (1 - bias)
+		source.vy += dy * correction * (1 - bias)
+		target.vx -= dx * correction * bias
+		target.vy -= dy * correction * bias
+	}
+}
+
+// tickRepel pushes every pair of nodes apart with a Coulomb force: a negative
+// RepelStrength repels, so the coefficient here is its negation. It is O(n²),
+// which a backlink graph of a few thousand notes does not notice.
+// ponytail: past ~2000 nodes swap in a Barnes-Hut quadtree (theta 0.9), as
+// d3-force's manyBody does, and reuse it across a few ticks.
+func (sim *GraphSim) tickRepel() {
+	strength := -sim.alpha * sim.RepelStrength
+	for i := 0; i < len(sim.bodies); i++ {
+		for j := i + 1; j < len(sim.bodies); j++ {
+			a, b := &sim.bodies[i], &sim.bodies[j]
+			dx, dy := a.x-b.x, a.y-b.y
+			distance := max(float32(math.Hypot(float64(dx), float64(dy))), 1)
+			force := strength / (distance * distance * distance)
+			a.vx += dx * force
+			a.vy += dy * force
+			b.vx -= dx * force
+			b.vy -= dy * force
+		}
+	}
+}
+
+// tickCenter pulls every node toward the origin, keeping disconnected pieces
+// on the canvas the way Obsidian's forceX/forceY(0) pair does.
+func (sim *GraphSim) tickCenter() {
+	strength := sim.alpha * sim.CenterStrength
+	for index := range sim.bodies {
+		body := &sim.bodies[index]
+		body.vx -= body.x * strength
+		body.vy -= body.y * strength
+	}
+}
+
+// Neighbors lists the nodes node i is joined to, in link order. It allocates,
+// so a caller keeps the answer while it has the keyboard.
+func (sim *GraphSim) Neighbors(i int) []int {
+	if sim == nil || i < 0 || i >= len(sim.bodies) {
+		return nil
+	}
+	neighbors := make([]int, 0, sim.degree[i])
+	for _, link := range sim.links {
+		switch {
+		case link.Source == i:
+			neighbors = append(neighbors, link.Target)
+		case link.Target == i:
+			neighbors = append(neighbors, link.Source)
+		}
+	}
+	return neighbors
+}
+
+// Bounds is the graph-space rectangle the nodes occupy: the viewport a
+// fit-to-view transform computes from. A graph of no nodes, or of nodes piled
+// on one point, reports a unit box so a fit scale stays finite.
+func (sim *GraphSim) Bounds() (minX, minY, maxX, maxY float32) {
+	if sim == nil || len(sim.bodies) == 0 {
+		return -0.5, -0.5, 0.5, 0.5
+	}
+	minX, minY, maxX, maxY = math.MaxFloat32, math.MaxFloat32, -math.MaxFloat32, -math.MaxFloat32
+	for _, body := range sim.bodies {
+		minX, minY = min(minX, body.x), min(minY, body.y)
+		maxX, maxY = max(maxX, body.x), max(maxY, body.y)
+	}
+	maxX, maxY = max(maxX, minX+1), max(maxY, minY+1)
+	return minX, minY, maxX, maxY
+}
