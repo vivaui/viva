@@ -129,6 +129,21 @@ func TestBuildEnvironment(t *testing.T) {
 	if lastEnvironment(environment, "CGO_CFLAGS") != "-O2 -g" {
 		t.Errorf("the caller's CGO_CFLAGS was changed: %q", lastEnvironment(environment, "CGO_CFLAGS"))
 	}
+	if got := lastEnvironment(environment, "CGO_ENABLED"); got != "0" {
+		t.Errorf("CGO_ENABLED = %q: a Linux program must not link the C library of the machine that built it", got)
+	}
+	// A caller with cgo on is still packaged without it: the package has to be
+	// the same whichever machine built it.
+	withCgo := append(append([]string(nil), base...), "CGO_ENABLED=1")
+	if got := lastEnvironment(linux.environment(withCgo), "CGO_ENABLED"); got != "0" {
+		t.Errorf("CGO_ENABLED = %q with the caller's CGO_ENABLED=1", got)
+	}
+
+	windows := loadPlan(t, dir, buildFlags{target: "windows", arch: "amd64"}, "")
+	environment = windows.environment(base)
+	if got := lastEnvironment(environment, "CGO_ENABLED"); got != "0" {
+		t.Errorf("CGO_ENABLED = %q: a Windows program must not link the C library of the machine that built it", got)
+	}
 
 	if runtime.GOOS == "darwin" {
 		mac := loadPlan(t, dir, buildFlags{target: "darwin", arch: "amd64"}, "")

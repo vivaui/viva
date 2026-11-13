@@ -27,8 +27,10 @@ func commands() []command {
 			detail: "Builds with -trimpath and a stripped, reproducible link, and reports the size. Settings come from\n" +
 				"viva.toml when there is one; the package argument overrides [app] package (or [web] package for\n" +
 				"--target web, which also writes the loader and an index.html). macOS builds are compiled for\n" +
-				"[mac] min_system, not for the macOS of the machine building them. Windows release builds use\n" +
-				"the GUI subsystem; with --debug they keep the console.",
+				"[mac] min_system, not for the macOS of the machine building them, and reach Cocoa through cgo;\n" +
+				"Linux and Windows builds use no cgo, so their programs do not depend on the C library of the\n" +
+				"machine that built them and a package built on a newer distribution still starts on an older one.\n" +
+				"Windows release builds use the GUI subsystem; with --debug they keep the console.",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runBuild(arguments, output, errorOutput)
 			}},

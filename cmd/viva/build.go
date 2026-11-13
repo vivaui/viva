@@ -70,15 +70,18 @@ func (plan buildPlan) arguments(output string) []string {
 	return append(arguments, "-o", output, plan.pkg)
 }
 
-// environment is the process environment for go build: the target, and on
-// macOS the deployment target for the Objective-C bridge. Without it the
-// program is built for the macOS of the machine that built it and refuses to
-// start on older systems.
+// environment is the process environment for go build: the target, whether
+// that target uses cgo, and on macOS the deployment target for the
+// Objective-C bridge. Without the deployment target the program is built for
+// the macOS of the machine that built it and refuses to start on older
+// systems; without a pinned cgo setting the Linux and Windows programs link the
+// C library of whatever machine built them.
 func (plan buildPlan) environment(base []string) []string {
 	goos, goarch := plan.goTarget()
 	environment := append([]string(nil), base...)
 	environment = append(environment, "GOOS="+goos, "GOARCH="+goarch)
-	if plan.target == "darwin" {
+	switch plan.target {
+	case "darwin":
 		// The Metal bridge is Objective-C. Go turns cgo off when GOARCH differs
 		// from the host's, but on a Mac clang builds either architecture.
 		environment = append(environment, "CGO_ENABLED=1")
@@ -90,6 +93,15 @@ func (plan buildPlan) environment(base []string) []string {
 			}
 			environment = append(environment, name+"="+value)
 		}
+	case "linux", "windows":
+		// These targets reach the system through purego and the standard
+		// library's own system calls, not through cgo. Go turns cgo on by
+		// default on a machine with a C compiler, and a cgo program links the C
+		// library of the machine that built it: a Linux program built on Ubuntu
+		// then refuses to start on a distribution with an older glibc, for a
+		// capability the program does not use. Pin it off so the package is the
+		// same whichever machine built it.
+		environment = append(environment, "CGO_ENABLED=0")
 	}
 	return environment
 }
