@@ -329,6 +329,70 @@ func TestGradientFillsTheElementUnderItsBorderAndFades(t *testing.T) {
 	}
 }
 
+// A dashed border is a line over the fill, never a solid shape behind it, and
+// a look can switch the pattern back to solid while hovered. Both go through
+// the stroke pipeline the element's own stroke does.
+func TestDashedBorderAndStatefulLookUseTheStrokePipeline(t *testing.T) {
+	var view View
+	paint := func(hovered gfx.ID) *gfx.Canvas {
+		canvas := styleCanvas(hovered, gfx.ID{}, gfx.ID{}, false)
+		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 80, Height: 50}, func(f *Frame) {
+			f.Row().Size(80, 50).Radius(6).Background(colorRest).Border(2, colorHover).Dashed().
+				Hit(styleRow, "row").Hover(Look{}.Dashed(false))
+		})
+		return canvas
+	}
+	rest := paint(gfx.ID{})
+	if len(rest.Triangles()) == 0 {
+		t.Fatal("the dashed border painted no triangles at rest")
+	}
+	for _, rectangle := range rest.Rectangles() {
+		if rectangle.Color == colorHover {
+			t.Fatal("the dashed border is a solid rectangle behind its fill")
+		}
+	}
+	hovered := paint(styleRow)
+	solid := false
+	for _, rectangle := range hovered.Rectangles() {
+		if rectangle.Color == colorHover {
+			solid = true
+		}
+	}
+	if !solid {
+		t.Fatal("the hover look did not take the border back to a solid one behind its fill")
+	}
+	for _, triangle := range hovered.Triangles() {
+		if triangle.Color == colorHover {
+			t.Error("a dashed-border triangle survived the hover look that made the border solid")
+		}
+	}
+}
+
+// DrawContext.DashedBorder paints a dashed outline inside the element with its
+// fade, so a row that draws its own dashed frame follows the element's opacity
+// like every other thing it paints.
+func TestDrawContextDashedBorderIsFadedWithTheElement(t *testing.T) {
+	var view View
+	canvas := testCanvas()
+	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 80, Height: 50}, func(f *Frame) {
+		f.Row().Size(80, 50).Opacity(0.5).Draw(func(d *DrawContext) {
+			d.DashedBorder(d.Rect, 4, 1, colorPressed)
+		})
+	})
+	painted := false
+	faded := colorPressed
+	faded.Alpha *= 0.5
+	for _, triangle := range canvas.Triangles() {
+		if triangle.Color != faded {
+			t.Fatalf("a dash has color %+v, want the element-faded %+v", triangle.Color, faded)
+		}
+		painted = true
+	}
+	if !painted {
+		t.Fatal("DrawContext.DashedBorder painted nothing")
+	}
+}
+
 // styled declares a page with every look, ring, gradient and fade, to count what
 // it allocates.
 func styled(view *View, canvas *gfx.Canvas, theme gfx.Theme) {

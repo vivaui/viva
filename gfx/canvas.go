@@ -425,6 +425,9 @@ const (
 	PointerCursorResizeNWSE
 	PointerCursorResizeNESW
 	PointerCursorNotAllowed
+	// PointerCursorGrabbing is the closed hand shown while dragging something
+	// that can be grabbed.
+	PointerCursorGrabbing
 	// PointerCursorHidden removes the pointer entirely: for a surface that
 	// draws its own pointer, such as a remote desktop.
 	PointerCursorHidden
@@ -518,6 +521,9 @@ type HitOptions struct {
 	TextSize   float32
 	TextWeight float32
 	TextColor  Color
+	// TextAlignment is the line's placement within TextBounds. Zero preserves
+	// an ordinary input's left alignment; the component resolves its default.
+	TextAlignment Alignment
 	// HideNativeOverlays asks the platform text service to keep its caret and
 	// selection invisible while preserving native editing, IME and clipboard
 	// behavior. Components that paint their own caret and selection set this
@@ -569,6 +575,7 @@ type HitText struct {
 	Size      float32
 	Weight    float32
 	Color     Color
+	Alignment Alignment
 	Placement TextPlacement
 }
 
@@ -669,6 +676,7 @@ type Canvas struct {
 	// the next one (see Rectangle.Order).
 	order         uint32
 	pathPoints    []Point
+	dashPoints    []Point // one dash's outline at a time, while pathPoints keeps the source
 	contourEnds   []int32
 	contourClosed []bool
 	// iconPartCenters is where each contour of an icon in motion turns and grows,
@@ -1609,10 +1617,10 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 	// stretch of hits owns a contiguous stretch of hitTexts (see replay.go).
 	var text int32
 	if options.TextBounds != (Rect{}) || options.TextSize != 0 || options.TextWeight != 0 ||
-		options.TextColor != (Color{}) || options.Placement != nil {
+		options.TextColor != (Color{}) || options.TextAlignment != 0 || options.Placement != nil {
 		canvas.hitTexts = append(canvas.hitTexts, HitText{
 			Bounds: options.TextBounds, Size: options.TextSize, Weight: options.TextWeight,
-			Color: options.TextColor, Placement: options.Placement,
+			Color: options.TextColor, Alignment: options.TextAlignment, Placement: options.Placement,
 		})
 		text = int32(len(canvas.hitTexts))
 	}

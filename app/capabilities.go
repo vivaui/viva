@@ -14,6 +14,7 @@ const (
 	CapabilityClipboardImage
 	CapabilityClipboardImageAsync
 	CapabilityClipboardFiles
+	CapabilityClipboardHTML
 	CapabilityFileDialogs
 	CapabilityFileDialogsAsync
 	CapabilityDirectoryDialogs

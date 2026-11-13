@@ -43,7 +43,7 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 			Layer: context.Layer, ReadOnly: context.ReadOnly, Secure: context.Secure,
 			NavigationKeys: context.NavigationKeys, Terminal: context.Terminal, TypeAhead: context.TypeAhead,
 			TextBounds: context.TextBounds, FontSize: context.FontSize, FontWeight: context.FontWeight,
-			TextColor: context.TextColor, HideNativeOverlays: context.HideNativeOverlays,
+			TextColor: context.TextColor, Alignment: context.Alignment, HideNativeOverlays: context.HideNativeOverlays,
 		})
 		if active == nil {
 			return nil
@@ -70,7 +70,11 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 		} else {
 			native.State = platformTextState(active.State)
 		}
-		native.Alignment = resolveTextInputAlignment(active.Alignment, native.State.Value, native.State.Selection.End)
+		alignment := active.Alignment
+		if alignment == 0 {
+			alignment = context.Alignment
+		}
+		native.Alignment = resolveTextInputAlignment(alignment, native.State.Value, native.State.Selection.End)
 		return &native
 	}
 }

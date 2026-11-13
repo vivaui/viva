@@ -28,6 +28,12 @@ func SetClipboardText(string) error {
 	return fmt.Errorf("%w: Clipboard.writeText returns a Promise", ErrAsyncRequired)
 }
 
+// SetClipboardHTML is the synchronous form of the rich copy: the browser answers
+// it through a Promise, so use SetClipboardHTMLAsync.
+func SetClipboardHTML(html, alt string) error {
+	return fmt.Errorf("%w: Clipboard.write returns a Promise", ErrAsyncRequired)
+}
+
 // ClipboardImagePNG cannot answer synchronously: Clipboard.read returns a Promise.
 func ClipboardImagePNG() error {
 	return fmt.Errorf("%w: Clipboard.read returns a Promise", ErrAsyncRequired)
@@ -270,6 +276,7 @@ func cursorCSS(shape uint8) (string, error) {
 		"nwse-resize",
 		"nesw-resize",
 		"not-allowed",
+		"grabbing",
 		"none",
 	}
 	if int(shape) >= len(values) {

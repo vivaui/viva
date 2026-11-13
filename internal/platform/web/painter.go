@@ -517,7 +517,7 @@ func (p *painter) syncTextInput() {
 		ID: field.ID, Bounds: field.Bounds, Layer: field.Layer, Multiline: field.Multiline,
 		ReadOnly: field.ReadOnly, Secure: field.Secure, NavigationKeys: field.NavigationKeys,
 		Terminal: field.Role == gfx.RoleTerminal, TypeAhead: field.TypeAhead && field.Role != gfx.RoleTerminal,
-		TextBounds: text.Bounds, FontSize: text.Size, FontWeight: text.Weight, TextColor: text.Color,
+		TextBounds: text.Bounds, FontSize: text.Size, FontWeight: text.Weight, TextColor: text.Color, Alignment: text.Alignment,
 		HideNativeOverlays: field.HideNativeOverlays,
 	}
 	if field.ReadOnly {
@@ -531,6 +531,9 @@ func (p *painter) syncTextInput() {
 	}
 	p.textInputID = field.ID
 	p.textInput = *input
+	if p.textInput.Alignment == gfx.AlignLeft {
+		p.textInput.Alignment = context.Alignment
+	}
 	p.textInput.Multiline = field.Multiline
 	p.textInput.Placed = text.Placement != nil
 	p.textInput.Terminal = context.Terminal || context.TypeAhead

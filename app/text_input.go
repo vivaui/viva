@@ -138,14 +138,15 @@ type TextInputContext struct {
 	// text being composed, at Bounds. Return an input whose OnEvent keeps the
 	// query the application builds from the events.
 	TypeAhead bool
-	// TextBounds, FontSize, FontWeight and TextColor are the text geometry the component
-	// declared for this field. They fill whatever the returned TextInput leaves
+	// TextBounds, FontSize, FontWeight, TextColor and Alignment are the text geometry
+	// the component declared for this field. They fill whatever the returned TextInput leaves
 	// unset, so a bare &TextInput{Editor: editor} draws its text exactly where
 	// the field painted it; set them only to deliberately override.
 	TextBounds gfx.Rect
 	FontSize   float32
 	FontWeight float32
 	TextColor  gfx.Color
+	Alignment  gfx.Alignment
 	// HideNativeOverlays requests that the platform editor keep its own caret
 	// and selection invisible. Editing, IME and clipboard behavior are
 	// unchanged. Components that paint those overlays themselves set it.

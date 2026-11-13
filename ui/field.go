@@ -257,6 +257,7 @@ func Fields(fields ...*Field) func(app.TextInputContext) *app.TextInput {
 	return func(context app.TextInputContext) *app.TextInput {
 		for _, field := range fields {
 			if field.id == context.ID && !context.ID.IsZero() {
+				field.input.Alignment = context.Alignment
 				field.input.Editor = field.ensure()
 				return &field.input
 			}

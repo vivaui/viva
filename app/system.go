@@ -39,6 +39,8 @@ const (
 	CursorResizeNWSE
 	CursorResizeNESW
 	CursorNotAllowed
+	// CursorGrabbing is the closed hand shown while dragging something.
+	CursorGrabbing
 	// CursorHidden removes the pointer: a surface that draws its own (a
 	// remote desktop picture) uses it to keep the system pointer away.
 	CursorHidden

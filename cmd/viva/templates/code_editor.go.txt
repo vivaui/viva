@@ -35,15 +35,16 @@ type codeExtraCaret struct {
 }
 
 // CodeEditorGutterMarker decorates one zero-based logical line with a dot in the
-// gutter. It is purely visual: it is not hit-tested and is not exposed to
-// assistive technology, so state it carries must also be available elsewhere.
-// Markers are sorted by Line and unique; a wrapped line paints its marker only
-// once. They follow logical line numbers, not edits, so the caller updates the
-// slice when lines are inserted or removed. Unsorted or repeated lines are not
-// painted.
+// gutter. A nonzero ID exposes that line's marker lane as a button; the caller
+// owns the ID and handles clicks through the canvas. Markers are sorted by Line
+// and unique; a wrapped line paints and exposes its marker only once. They follow
+// logical line numbers, not edits, so the caller updates the slice when lines are
+// inserted or removed. Unsorted or repeated lines are not painted or hit-tested.
 type CodeEditorGutterMarker struct {
 	Line  int
+	ID    gfx.ID
 	Color gfx.Color
+	Label string
 }
 
 // CodeEditorFoldRange hides logical lines after Header through LastLine,
@@ -592,6 +593,38 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 			TextBounds: content, TextSize: size, TextColor: gfx.Color{}, HideNativeOverlays: true, Placement: editor,
 		}
 		canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, options)
+	}
+	if markerLane > 0 && len(snapshot.GutterMarkers) != 0 {
+		markerIndex := 0
+		if firstRow < len(editor.rows) {
+			firstLine := int(editor.rows[firstRow].line)
+			markerIndex = sort.Search(len(snapshot.GutterMarkers), func(i int) bool { return snapshot.GutterMarkers[i].Line >= firstLine })
+		}
+		for index := firstRow; index < len(editor.rows); index++ {
+			y := content.Y + float32(index)*lineHeight - editor.scrollY
+			if y >= content.Y+content.Height {
+				break
+			}
+			if !editor.firstOfLine(index) {
+				continue
+			}
+			row := editor.rows[index]
+			for markerIndex < len(snapshot.GutterMarkers) && snapshot.GutterMarkers[markerIndex].Line < int(row.line) {
+				markerIndex++
+			}
+			if markerIndex >= len(snapshot.GutterMarkers) || snapshot.GutterMarkers[markerIndex].Line != int(row.line) {
+				continue
+			}
+			marker := snapshot.GutterMarkers[markerIndex]
+			markerIndex++
+			if !marker.ID.IsZero() {
+				label := marker.Label
+				if label == "" {
+					label = "Gutter marker"
+				}
+				canvas.HitWithOptions(marker.ID, gfx.Rect{X: markerX, Y: y, Width: markerLane, Height: lineHeight}, label, gfx.HitOptions{Role: gfx.RoleButton, Disabled: snapshot.Disabled})
+			}
+		}
 	}
 	if foldLane > 0 && len(snapshot.FoldMarkers) != 0 {
 		foldClip := gfx.Rect{X: foldX, Y: content.Y, Width: foldLane, Height: content.Height}
