@@ -244,6 +244,11 @@ type gtkWebView struct {
 	config  platform.WebViewConfig
 	closed  bool
 	shown   bool
+	// downloadOwner announces this page's downloads: the default context or network session,
+	// which outlives the page, or a proxy's, which goes with its context. downloadHandler is the
+	// connection to it; only a shared owner's connection is removed by hand.
+	downloadOwner   uintptr
+	downloadHandler uint64
 	// at is where the widget is, in widget units; zoom is the page's zoom.
 	at   viewPlace
 	zoom float64
@@ -381,7 +386,8 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	if downloadOwner == 0 {
 		downloadOwner = k.getContext(v.widget)
 	}
-	g.connect(downloadOwner, "download-started", cb.webDownload, v.handle)
+	v.downloadOwner = downloadOwner
+	v.downloadHandler = g.connect(downloadOwner, "download-started", cb.webDownload, v.handle)
 	if c.Scheme != nil && c.Scheme.Name != "" {
 		v.registerScheme(c.Scheme)
 	}
@@ -511,6 +517,12 @@ func (v *gtkWebView) Close() {
 func (v *gtkWebView) release() {
 	v.closed = true
 	delete(webViews, v.handle)
+	// A handler on the shared default context or network session outlives the page, so it is
+	// removed here; one on a proxy's context goes with that ephemeral context.
+	if v.proxied == nil && v.downloadHandler != 0 {
+		v.w.g.signalDisc(v.downloadOwner, v.downloadHandler)
+	}
+	v.downloadHandler, v.downloadOwner = 0, 0
 	if v.proxied != nil {
 		v.proxied.leave(v.w.g)
 		v.proxied = nil
@@ -628,7 +640,7 @@ func (v *gtkWebView) createWindow(action uintptr) {
 		return
 	}
 	address := goString(v.k.uriRequestURI(v.k.actionRequest(action)))
-	if v.config.NewWindow(address) {
+	if v.config.NewWindow(address) && platform.OpenableURL(address) {
 		_ = OpenURL(address)
 	}
 }

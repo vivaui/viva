@@ -287,23 +287,27 @@ func (page *windowsWeb) navigationStarting(args uintptr, mainFrame bool) {
 	var address uintptr
 	comCall(args, startingGetURI, uintptr(unsafe.Pointer(&address)))
 	url := wideString(address)
+	allowed := page.config.Navigate == nil
+	if !allowed {
+		var gesture, redirect int32
+		comCall(args, startingGetUserGesture, uintptr(unsafe.Pointer(&gesture)))
+		comCall(args, startingGetRedirected, uintptr(unsafe.Pointer(&redirect)))
+		allowed = page.config.Navigate(platform.WebNavigation{
+			URL:         page.appAddress(url),
+			MainFrame:   mainFrame,
+			UserGesture: gesture != 0 && redirect == 0,
+		})
+	}
+	if !allowed {
+		comCall(args, startingPutCancel, 1)
+		return
+	}
+	// Started is reported only for a navigation the application allows: macOS and Linux start a
+	// load after their policy decision, so a refused one must not leave a Started without a
+	// Committed or Finished. loaded names the address as the application knows it there too.
 	if mainFrame {
 		page.loaded(platform.WebLoadStarted, url)
 	}
-	if page.config.Navigate == nil {
-		return
-	}
-	var gesture, redirect int32
-	comCall(args, startingGetUserGesture, uintptr(unsafe.Pointer(&gesture)))
-	comCall(args, startingGetRedirected, uintptr(unsafe.Pointer(&redirect)))
-	if page.config.Navigate(platform.WebNavigation{
-		URL:         page.appAddress(url),
-		MainFrame:   mainFrame,
-		UserGesture: gesture != 0 && redirect == 0,
-	}) {
-		return
-	}
-	comCall(args, startingPutCancel, 1)
 }
 
 // newWindowRequested answers a window.open or target=_blank. The runtime opens its own window
@@ -314,7 +318,7 @@ func (page *windowsWeb) newWindowRequested(args uintptr) {
 	comCall(args, newWindowGetURI, uintptr(unsafe.Pointer(&address)))
 	url := page.appAddress(wideString(address))
 	comCall(args, newWindowPutHandled, 1)
-	if page.config.NewWindow == nil || !page.config.NewWindow(url) {
+	if page.config.NewWindow == nil || !page.config.NewWindow(url) || !platform.OpenableURL(url) {
 		return
 	}
 	_ = OpenURL(url)

@@ -477,10 +477,11 @@ func (g *gtkLibrary) symbol(name string) uintptr {
 }
 
 // connect attaches a handler to a signal of a GObject. data is passed back to the handler as its
-// last argument.
-func (g *gtkLibrary) connect(instance uintptr, signal string, handler uintptr, data uintptr) {
+// last argument. The returned id disconnects the handler from an object that outlives the one
+// that connected it; most handlers belong to an object that goes with them and ignore it.
+func (g *gtkLibrary) connect(instance uintptr, signal string, handler uintptr, data uintptr) uint64 {
 	name := cString(signal)
-	g.signalConnect(instance, &name[0], handler, data, 0, 0)
+	return g.signalConnect(instance, &name[0], handler, data, 0, 0)
 }
 
 // goString reads a NUL-terminated C string.

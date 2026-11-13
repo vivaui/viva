@@ -311,7 +311,7 @@ func vivaWebNewWindow(handle C.uintptr_t, id C.uint32_t, url *C.char) C.int {
 		return 0
 	}
 	address := C.GoString(url)
-	if !page.config.NewWindow(address) {
+	if !page.config.NewWindow(address) || !platform.OpenableURL(address) {
 		return 0
 	}
 	_ = OpenURL(address)
