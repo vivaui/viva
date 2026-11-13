@@ -14,6 +14,9 @@ func TestBrowserPromiseOnlySystemAPIsExposeAsyncConstraint(t *testing.T) {
 	if err := SetClipboardText("viva"); !errors.Is(err, ErrAsyncRequired) {
 		t.Fatalf("SetClipboardText error = %v", err)
 	}
+	if err := SetClipboardHTML("<b>viva</b>", "viva"); !errors.Is(err, ErrAsyncRequired) {
+		t.Fatalf("SetClipboardHTML error = %v", err)
+	}
 	if _, err := OpenFiles(OpenFileOptions{}); !errors.Is(err, ErrAsyncRequired) {
 		t.Fatalf("OpenFiles error = %v", err)
 	}

@@ -13,6 +13,11 @@ func nativeSetClipboardTextAsync(value string, done func(error)) error {
 	return nil
 }
 
+func nativeSetClipboardHTMLAsync(html, alt string, done func(error)) error {
+	done(nativeSetClipboardHTML(html, alt))
+	return nil
+}
+
 func nativeRequestNotificationPermission(done func(NotificationPermission, error)) error {
 	done(NotificationPermissionGranted, nil)
 	return nil

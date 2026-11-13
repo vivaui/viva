@@ -2,7 +2,7 @@ package ui
 
 import "github.com/vivaui/viva/gfx"
 
-// ScrollState is the scroll position of one ScrollArea. It lives in the view, keyed
+// ScrollState is a scroll position: one ScrollArea's, or a Table's. It lives in the view, keyed
 // by the area's identity, so the application keeps nothing: declare the area with an
 // identity and give the wheel to the view.
 //

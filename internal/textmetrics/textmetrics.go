@@ -53,6 +53,12 @@ const (
 const (
 	MonoAdvance = 0.6
 	MonoLine    = 1.18
+	// MonoUnderline is the reference thickness of the stroke an underline draws,
+	// in units of the font size: the rule a cell glyph is drawn with when the text
+	// engine does not report the face's own underline thickness. A fixed-pitch face
+	// draws its underline at 5 to 10 percent of the size, and its heavy box drawing
+	// strokes at twice that, which is what the reference cell stands for.
+	MonoUnderline = 0.05
 )
 
 // weightIndex selects the table for a Viva weight (gfx.TextStyle.Weight: 0 regular,

@@ -269,6 +269,56 @@ func FuzzReplaceCellGlyphs(f *testing.F) {
 	})
 }
 
+// A cell glyph's rule is the face's underline thickness (MonoCellMetrics.Underline) at the
+// line's scale, rounded up to whole device pixels, and a heavy stroke is two rules wide: a
+// box drawing character drawn as geometry then weighs what the font's own glyphs weigh, and
+// a fractional device pixel makes the stroke no thinner than the whole one it rounds up to.
+func TestCellGlyphRuleFollowsTheFacesUnderline(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		underline float32
+		scale     float32
+		light     float32 // device pixels
+	}{
+		{"thinner than a device pixel at 1x", 0.57, 1, 1},
+		{"thinner than a device pixel at 2x", 0.57, 2, 2},
+		{"thicker than a device pixel", 1.2, 2, 3},
+		{"a fraction at 3x", 0.4, 3, 2},
+	} {
+		for _, glyph := range []struct {
+			value string
+			rules float32
+		}{{"│", 1}, {"┃", 2}} {
+			var canvas Canvas
+			canvas.SetPixelScale(test.scale)
+			canvas.SetTextEngine(&monoCellEngine{MonoCellMetrics: MonoCellMetrics{
+				Advance: 0.6, Ascent: 0.8, Descent: 0.2, Underline: test.underline,
+			}})
+			cellWidth, cellHeight := float32(10), float32(20)
+			canvas.LabelRuns(glyph.value, Rect{Width: cellWidth, Height: cellHeight}, TextStyle{Size: 10}, cellWidth,
+				[]TextRun{{Column: 0, Bytes: int32(len(glyph.value)), Cells: 1, Color: Color{Red: 1, Alpha: 1}}})
+			texts := canvas.Texts()
+			shapes := canvas.CellGlyphGeometry(CellGlyphShapes{}, texts[len(texts)-1])
+			want := test.light * glyph.rules
+			var strokes int
+			for _, shape := range shapes.Rectangles {
+				bounds := shape.Bounds
+				if bounds.Height < cellHeight/2 || bounds.Width >= cellWidth/2 {
+					continue // not a vertical stroke of the glyph
+				}
+				strokes++
+				if got := bounds.Width * test.scale; math.Abs(float64(got-want)) > 1e-3 {
+					t.Errorf("%s at %g x %g: a vertical stroke is %g device pixels, want %g",
+						test.name, test.scale, test.underline, got, want)
+				}
+			}
+			if strokes == 0 {
+				t.Errorf("%s: %s draws no vertical stroke", test.name, glyph.value)
+			}
+		}
+	}
+}
+
 // runsOver covers value with one run per stretch between the byte offsets the cuts
 // name, so a cut can fall anywhere, glyphs included.
 func runsOver(value, cuts string) []TextRun {

@@ -556,8 +556,9 @@ int viva_text_line_rasterize(
 );
 
 // viva_measure_mono reports the system fixed-pitch font's cell at a size: the advance of
-// one character and the ascent, descent and leading of its line box.
-int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading);
+// one character, the ascent, descent and leading of its line box, and the thickness of
+// the stroke the font underlines with.
+int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading, double *underline);
 // viva_register_mono_family teaches what a mono_face number (2 and up) stands for: the
 // installed family it draws in first (empty for a stack over a built-in face), whether
 // that built-in face is the classic one, and the families that draw the characters the

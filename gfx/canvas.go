@@ -425,6 +425,9 @@ const (
 	PointerCursorResizeNWSE
 	PointerCursorResizeNESW
 	PointerCursorNotAllowed
+	// PointerCursorGrabbing is the closed hand shown while dragging something
+	// that can be grabbed.
+	PointerCursorGrabbing
 	// PointerCursorHidden removes the pointer entirely: for a surface that
 	// draws its own pointer, such as a remote desktop.
 	PointerCursorHidden
@@ -518,6 +521,9 @@ type HitOptions struct {
 	TextSize   float32
 	TextWeight float32
 	TextColor  Color
+	// TextAlignment is the line's placement within TextBounds. Zero preserves
+	// an ordinary input's left alignment; the component resolves its default.
+	TextAlignment Alignment
 	// HideNativeOverlays asks the platform text service to keep its caret and
 	// selection invisible while preserving native editing, IME and clipboard
 	// behavior. Components that paint their own caret and selection set this
@@ -569,6 +575,7 @@ type HitText struct {
 	Size      float32
 	Weight    float32
 	Color     Color
+	Alignment Alignment
 	Placement TextPlacement
 }
 
@@ -669,6 +676,7 @@ type Canvas struct {
 	// the next one (see Rectangle.Order).
 	order         uint32
 	pathPoints    []Point
+	dashPoints    []Point // one dash's outline at a time, while pathPoints keeps the source
 	contourEnds   []int32
 	contourClosed []bool
 	// iconPartCenters is where each contour of an icon in motion turns and grows,
@@ -808,7 +816,7 @@ func (canvas *Canvas) CellSize(size float32) (width, height float32) {
 // glyph that fills its cell, such as a powerline arrow, ends where the next cell's begins
 // and no pixel column holds the glyphs of two cells drawn in two colors.
 func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height float32) {
-	width, height, _ = canvas.monoCell(size, face)
+	width, height, _, _ = canvas.monoCell(size, face)
 	return width, height
 }
 
@@ -820,25 +828,26 @@ func (canvas *Canvas) MonoCellSize(size float32, face MonoFace) (width, height f
 // the face, and for a label of no height: the renderers then place the line by their own
 // rule.
 func (canvas *Canvas) MonoBaseline(size float32, face MonoFace, height float32) float32 {
-	_, cell, baseline := canvas.monoCell(size, face)
+	_, cell, baseline, _ := canvas.monoCell(size, face)
 	if cell <= 0 || baseline <= 0 || height <= 0 {
 		return 0
 	}
 	return (height-cell)/2 + baseline
 }
 
-// monoCell is MonoCellSize and the baseline of the cell, measured once per face, size,
-// scale and font generation. The baseline is 0 when no engine measured the face.
-func (canvas *Canvas) monoCell(size float32, face MonoFace) (width, height, baseline float32) {
+// monoCell is MonoCellSize, the baseline of the cell and the face's underline thickness,
+// measured once per face, size, scale and font generation. The baseline is 0 and the
+// underline the reference thickness when no engine measured the face.
+func (canvas *Canvas) monoCell(size float32, face MonoFace) (width, height, baseline, underline float32) {
 	if size <= 0 {
-		return 0, 0, 0
+		return 0, 0, 0, 0
 	}
 	if !validMonoFace(face) {
 		face = MonoSystem
 	}
 	generation := canvas.FontGeneration()
-	if width, height, baseline, ok := canvas.cellSizes.find(size, face, canvas.pixelScale, generation); ok {
-		return width, height, baseline
+	if width, height, baseline, underline, ok := canvas.cellSizes.find(size, face, canvas.pixelScale, generation); ok {
+		return width, height, baseline, underline
 	}
 	width, height = size*textmetrics.MonoAdvance, size*textmetrics.MonoLine
 	switch {
@@ -849,7 +858,13 @@ func (canvas *Canvas) monoCell(size float32, face MonoFace) (width, height, base
 	case canvas.monoCells != nil:
 		if cell := canvas.monoCells.MonoCell(size, face); cell.Line() > 0 && cell.Advance > 0 {
 			width, height, baseline = cell.Advance, cell.CellHeight(), cell.CellBaseline()
+			underline = cell.Underline
 		}
+	}
+	if underline <= 0 {
+		// No engine measured the face, or its font has no underline: the reference
+		// thickness stands in, in the font's own units so it follows the size.
+		underline = size * textmetrics.MonoUnderline
 	}
 	// A font's own cell is whole already (MonoCellMetrics.CellHeight); the reference cell
 	// and a measurer's answer are rounded up, as they always were.
@@ -857,17 +872,17 @@ func (canvas *Canvas) monoCell(size float32, face MonoFace) (width, height, base
 	if canvas.pixelScale > 0 {
 		width = float32(math.Max(math.Floor(float64(width)*float64(canvas.pixelScale)+0.5), 1)) / canvas.pixelScale
 	}
-	canvas.cellSizes.put(cellSizeMemo{size: size, width: width, height: height, baseline: baseline, face: face, scale: canvas.pixelScale, generation: generation})
-	return width, height, baseline
+	canvas.cellSizes.put(cellSizeMemo{size: size, width: width, height: height, baseline: baseline, underline: underline, face: face, scale: canvas.pixelScale, generation: generation})
+	return width, height, baseline, underline
 }
 
 // cellSizeMemo is one remembered MonoCellSize answer.
 type cellSizeMemo struct {
-	size, width, height, baseline float32
-	face                          MonoFace
-	scale                         float32 // the canvas's pixel scale the width was made whole for
-	generation                    uint32  // the font generation it was measured in
-	filled                        bool
+	size, width, height, baseline, underline float32
+	face                                     MonoFace
+	scale                                    float32 // the canvas's pixel scale the width was made whole for
+	generation                               uint32  // the font generation it was measured in
+	filled                                   bool
 }
 
 // cellSizeMemos remembers the last few MonoCellSize answers: a terminal asks every
@@ -879,14 +894,14 @@ type cellSizeMemos struct {
 	next    int
 }
 
-func (memos *cellSizeMemos) find(size float32, face MonoFace, scale float32, generation uint32) (width, height, baseline float32, ok bool) {
+func (memos *cellSizeMemos) find(size float32, face MonoFace, scale float32, generation uint32) (width, height, baseline, underline float32, ok bool) {
 	for i := range memos.entries {
 		memo := &memos.entries[i]
 		if memo.filled && memo.size == size && memo.face == face && memo.scale == scale && memo.generation == generation {
-			return memo.width, memo.height, memo.baseline, true
+			return memo.width, memo.height, memo.baseline, memo.underline, true
 		}
 	}
-	return 0, 0, 0, false
+	return 0, 0, 0, 0, false
 }
 
 func (memos *cellSizeMemos) put(memo cellSizeMemo) {
@@ -1602,10 +1617,10 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 	// stretch of hits owns a contiguous stretch of hitTexts (see replay.go).
 	var text int32
 	if options.TextBounds != (Rect{}) || options.TextSize != 0 || options.TextWeight != 0 ||
-		options.TextColor != (Color{}) || options.Placement != nil {
+		options.TextColor != (Color{}) || options.TextAlignment != 0 || options.Placement != nil {
 		canvas.hitTexts = append(canvas.hitTexts, HitText{
 			Bounds: options.TextBounds, Size: options.TextSize, Weight: options.TextWeight,
-			Color: options.TextColor, Placement: options.Placement,
+			Color: options.TextColor, Alignment: options.TextAlignment, Placement: options.Placement,
 		})
 		text = int32(len(canvas.hitTexts))
 	}

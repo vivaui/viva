@@ -98,9 +98,12 @@ type PathStyle struct {
 	FillGradient *LinearGradient
 	Stroke       Color
 	StrokeWidth  float32
-	FillRule     PathFillRule
-	Cap          StrokeCap
-	Join         StrokeJoin
+	// Dashed breaks the stroke into equal dashes and gaps, continuing around
+	// corners and closed contours without closing a short gap.
+	Dashed   bool
+	FillRule PathFillRule
+	Cap      StrokeCap
+	Join     StrokeJoin
 }
 
 // Path is immutable vector geometry in a fixed view box. NewPath copies the
@@ -242,25 +245,124 @@ func (canvas *Canvas) drawPath(path Path, bounds Rect, style PathStyle) {
 	if style.Stroke.Alpha > 0 && style.StrokeWidth > 0 {
 		half := style.StrokeWidth * 0.5
 		opaque := style.Stroke.Alpha >= 0.999
-		start := int32(0)
-		for index, end := range canvas.contourEnds {
-			points := canvas.pathPoints[start:end]
-			if len(points) >= 2 {
-				if opaque {
-					// Opaque strokes take the overlapping decomposition:
-					// segment quads plus round join discs. Overlap is
-					// invisible at full alpha and the geometry stays
-					// robust when contour features shrink below the
-					// stroke width, where offset outlines self-intersect.
-					canvas.strokeContourOverlapping(points, canvas.contourClosed[index], half, style.Cap, style.Join, style.Stroke)
-				} else {
-					canvas.strokeContour(points, canvas.contourClosed[index], half, style.Cap, style.Join, style.Stroke)
-				}
-			} else if len(points) == 1 && style.Cap == CapRound {
-				canvas.appendDisc(points[0], half, style.Stroke)
+		if style.Dashed {
+			canvas.dashStrokeContours(opaque, half, style.Cap, style.Join, style.Stroke)
+		} else {
+			start := int32(0)
+			for index, end := range canvas.contourEnds {
+				points := canvas.pathPoints[start:end]
+				canvas.strokeFlattenedContour(points, canvas.contourClosed[index], opaque, half, style.Cap, style.Join, style.Stroke)
+				start = end
 			}
-			start = end
 		}
+	}
+}
+
+// strokeFlattenedContour gives one flattened contour the cap and join it was asked for.
+func (canvas *Canvas) strokeFlattenedContour(points []Point, closed, opaque bool, half float32, cap StrokeCap, join StrokeJoin, color Color) {
+	if len(points) >= 2 {
+		if opaque {
+			// Opaque strokes take the overlapping decomposition:
+			// segment quads plus round join discs. Overlap is
+			// invisible at full alpha and the geometry stays
+			// robust when contour features shrink below the
+			// stroke width, where offset outlines self-intersect.
+			canvas.strokeContourOverlapping(points, closed, half, cap, join, color)
+		} else {
+			canvas.strokeContour(points, closed, half, cap, join, color)
+		}
+	} else if len(points) == 1 && cap == CapRound {
+		canvas.appendDisc(points[0], half, color)
+	}
+}
+
+// dashStrokeContours splits flattened contours into equal dashes and gaps,
+// keeping the 6:4 dash-to-gap ratio of the dashed box-drawing glyphs. On a
+// closed contour the repetition is fitted to the perimeter — the same number of
+// periods however long the outline is, each a whole pattern cycle — so the
+// pattern closes exactly at its starting corner instead of leaving a partial
+// dash. Arc-length phase continues across corners and curves; the outline of
+// every dash is cut at the phase boundary itself, so a translucent stroke
+// stays seam-free.
+func (canvas *Canvas) dashStrokeContours(opaque bool, half float32, cap StrokeCap, join StrokeJoin, color Color) {
+	const (
+		dashShare = 6
+		gapShare  = 4
+	)
+	// dashUnitCut is the arc length one full period is aimed at, in stroke
+	// widths: ten times the width, as a dashed UI border reads at any size.
+	aimedPeriod := half * 2 * 10
+	sourceStart := int32(0)
+	for contour, end := range canvas.contourEnds {
+		source := canvas.pathPoints[sourceStart:end]
+		sourceStart = end
+		if len(source) < 2 {
+			continue
+		}
+		closed := canvas.contourClosed[contour]
+		last := len(source)
+		if !closed {
+			last--
+		}
+		var length float32
+		for index := 0; index < last; index++ {
+			length += distance(source[index], source[(index+1)%len(source)])
+		}
+		if length <= 0 {
+			continue
+		}
+		dash, gap := aimedPeriod*dashShare/10, aimedPeriod*gapShare/10
+		if closed {
+			// A whole number of periods closes the contour: the pattern's phase
+			// returns to its start exactly as the point does.
+			periods := max(int(length/aimedPeriod+0.5), 1)
+			dash, gap = length/float32(periods)*dashShare/10, length/float32(periods)*gapShare/10
+		}
+		canvas.dashPoints = canvas.dashPoints[:0]
+		canvas.dashPoints = append(canvas.dashPoints, source[0])
+		on, remaining := true, dash
+		index, at := 0, float32(0)
+		for index < last {
+			from, to := source[index], source[(index+1)%len(source)]
+			segmentLength := distance(from, to)
+			if segmentLength <= 0 {
+				index++
+				continue
+			}
+			for remaining < segmentLength-at {
+				cut := from
+				along := at + remaining
+				if along > 0 {
+					fraction := min(along/segmentLength, 1)
+					cut = Point{X: from.X + (to.X-from.X)*fraction, Y: from.Y + (to.Y-from.Y)*fraction}
+				}
+				if on {
+					canvas.dashPoints = append(canvas.dashPoints, cut)
+					canvas.strokeFlattenedContour(canvas.dashPoints, false, opaque, half, cap, join, color)
+					canvas.dashPoints = canvas.dashPoints[:0]
+				} else {
+					canvas.dashPoints = append(canvas.dashPoints, cut)
+				}
+				on, remaining = !on, gap
+				if on {
+					remaining = dash
+				}
+				at = along
+			}
+			remaining -= segmentLength - at
+			at = 0
+			if on {
+				canvas.dashPoints = append(canvas.dashPoints, to)
+			}
+			index++
+		}
+		if on && len(canvas.dashPoints) >= 2 {
+			// The contour ends inside a dash. A closed one whose whole periods
+			// land on source[0] never reaches here; an open one, or a rounding
+			// remainder, keeps the dash open rather than bridging it.
+			canvas.strokeFlattenedContour(canvas.dashPoints, false, opaque, half, cap, join, color)
+		}
+		canvas.dashPoints = canvas.dashPoints[:0]
 	}
 }
 

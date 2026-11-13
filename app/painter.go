@@ -1134,6 +1134,8 @@ func cursorFromHit(cursor gfx.PointerCursor) Cursor {
 		return CursorResizeNESW
 	case gfx.PointerCursorNotAllowed:
 		return CursorNotAllowed
+	case gfx.PointerCursorGrabbing:
+		return CursorGrabbing
 	case gfx.PointerCursorHidden:
 		return CursorHidden
 	case gfx.PointerCursorImage:
@@ -1167,7 +1169,7 @@ func (painter *painter) focusedTextField() (TextInputContext, gfx.TextPlacement,
 		ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == gfx.RoleTerminal, TypeAhead: hit.TypeAhead && hit.Role != gfx.RoleTerminal,
 		Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
 		NavigationKeys: hit.NavigationKeys,
-		TextBounds:     text.Bounds, FontSize: text.Size, FontWeight: text.Weight, TextColor: text.Color,
+		TextBounds:     text.Bounds, FontSize: text.Size, FontWeight: text.Weight, TextColor: text.Color, Alignment: text.Alignment,
 		HideNativeOverlays: hit.HideNativeOverlays,
 	}
 	return context, text.Placement, index
@@ -1211,6 +1213,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	}
 	// What the application leaves unset comes from the component's declaration.
 	bounds, fontSize, weight, tint := input.Bounds, input.FontSize, input.Weight, input.Color
+	alignment := input.Alignment
 	if bounds == (gfx.Rect{}) {
 		bounds = context.TextBounds
 		if bounds == (gfx.Rect{}) {
@@ -1228,6 +1231,9 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	}
 	if tint == (gfx.Color{}) {
 		tint = context.TextColor
+	}
+	if alignment == gfx.AlignLeft {
+		alignment = context.Alignment
 	}
 	if !(fontSize > 0) || math.IsInf(float64(fontSize), 0) {
 		// Every platform refuses an editor without a font size. What neither the
@@ -1248,9 +1254,12 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		cellWidth, _ = painter.canvas.MonoCellSize(fontSize, input.MonoFace)
 		baseline = painter.canvas.MonoBaseline(fontSize, input.MonoFace, bounds.Height)
 	}
-	alignment := gfx.AlignLeft
-	if !context.Terminal && !context.TypeAhead && placement == nil {
-		alignment = resolveTextInputAlignment(input.Alignment, input.State.Value, input.State.Selection.End)
+	if context.Terminal || context.TypeAhead || placement != nil {
+		// Terminal and self-placed inputs keep the fixed origin they had before
+		// alignment existed.
+		alignment = gfx.AlignLeft
+	} else {
+		alignment = resolveTextInputAlignment(alignment, input.State.Value, input.State.Selection.End)
 	}
 	native := platform.TextInput{
 		Target: context.ID,

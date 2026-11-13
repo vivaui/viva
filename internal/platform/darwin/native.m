@@ -7802,8 +7802,8 @@ int viva_measure_text(
     }
 }
 
-int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading) {
-    if (advance == NULL || ascent == NULL || descent == NULL || leading == NULL || font_size <= 0) {
+int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading, double *underline) {
+    if (advance == NULL || ascent == NULL || descent == NULL || leading == NULL || underline == NULL || font_size <= 0) {
         return 1;
     }
     @autoreleasepool {
@@ -7825,6 +7825,7 @@ int viva_measure_mono(double font_size, int mono_face, double *advance, double *
         *ascent = CTFontGetAscent(font);
         *descent = CTFontGetDescent(font);
         *leading = CTFontGetLeading(font);
+        *underline = CTFontGetUnderlineThickness(font);
         CFRelease(font);
         return *advance > 0 ? 0 : 4;
     }

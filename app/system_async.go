@@ -40,6 +40,28 @@ func SetClipboardTextAsync(value string, done func(error)) error {
 	return nativeSetClipboardTextAsync(value, done)
 }
 
+// SetClipboardHTMLAsync starts SetClipboardHTML's write and calls done with nil
+// once the platform accepted it. The call returns immediately when the request
+// starts; an error means it could not start and done is not called. Native
+// targets complete before the call returns; the browser writes both flavours
+// through one ClipboardItem, which needs a user gesture.
+func SetClipboardHTMLAsync(html, alt string, done func(error)) error {
+	if done == nil {
+		return fmt.Errorf("app: nil clipboard callback")
+	}
+	if strings.IndexByte(html, 0) >= 0 || strings.IndexByte(alt, 0) >= 0 {
+		return fmt.Errorf("app: clipboard html write contains NUL")
+	}
+	if html == "" {
+		return SetClipboardTextAsync(alt, done)
+	}
+	if err, handled := driverSetClipboardHTML(html, alt); handled {
+		done(err)
+		return nil
+	}
+	return nativeSetClipboardHTMLAsync(html, alt, done)
+}
+
 // RequestNotificationPermission asks the browser for permission to show
 // notifications. On desktop it calls done with Granted because the operating
 // system asks for permission when a notification is delivered. done runs

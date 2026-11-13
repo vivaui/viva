@@ -58,6 +58,88 @@ func retireCustomCursor(handle uintptr, image *gfx.CursorImage, scale float32) {
 	customCursors.image, customCursors.scale = image, scale
 }
 
+// grabbingCursorImage draws the closed-hand cursor that Win32 does not expose as
+// a stock shape. Its 16x16 alpha bitmap is built once, on the first request, and
+// the HCURSOR made of it is kept for the process: stock cursors are shared by
+// the system and never destroyed, so a preset recreated per request would leak
+// one per change.
+var grabbingCursor = struct {
+	once    sync.Once
+	image   *gfx.CursorImage
+	handle  uintptr
+	failure error
+}{}
+
+func grabbingCursorHandle() (uintptr, error) {
+	grabbingCursor.once.Do(func() {
+		image, err := gfx.NewCursorImage(16, 16, 6, 3, 1, grabbingCursorPixels())
+		if err != nil {
+			grabbingCursor.failure = err
+			return
+		}
+		handle, err := newCursorHandle(image, 1)
+		if err != nil {
+			grabbingCursor.failure = err
+			return
+		}
+		grabbingCursor.image, grabbingCursor.handle = image, handle
+	})
+	return grabbingCursor.handle, grabbingCursor.failure
+}
+
+// closeGrabbingCursor destroys the cached cursor as the process exits its last
+// window; the stock shapes need nothing.
+func closeGrabbingCursor() {
+	if handle := grabbingCursor.handle; handle != 0 {
+		grabbingCursor.handle = 0
+		destroyIcon.Call(handle)
+	}
+}
+
+func grabbingCursorPixels() []byte {
+	pixels := make([]byte, 16*16*4)
+	inside := func(x, y int) bool {
+		if x < 0 || x >= 16 || y < 0 || y >= 16 {
+			return false
+		}
+		switch {
+		case y == 2 && x >= 5 && x <= 6: // index finger
+			return true
+		case y == 3 && x >= 4 && x <= 7:
+			return true
+		case y >= 4 && y <= 5 && x >= 4 && x <= 7:
+			return true
+		case y >= 6 && y <= 8 && x >= 3 && x <= 12:
+			return true
+		case y >= 9 && y <= 10 && x >= 4 && x <= 12:
+			return true
+		case y == 11 && x >= 5 && x <= 11:
+			return true
+		case y >= 12 && y <= 13 && x >= 6 && x <= 11:
+			return true
+		}
+		return false
+	}
+	set := func(x, y int, shade byte) {
+		at := (y*16 + x) * 4
+		pixels[at], pixels[at+1], pixels[at+2], pixels[at+3] = shade, shade, shade, 255
+	}
+	for y := 16; y > 0; {
+		y--
+		for x := 16; x > 0; {
+			x--
+			if inside(x, y) {
+				set(x, y, 255)
+				continue
+			}
+			if inside(x-1, y) || inside(x+1, y) || inside(x, y-1) || inside(x, y+1) {
+				set(x, y, 0)
+			}
+		}
+	}
+	return pixels
+}
+
 // newCursorHandle makes an HCURSOR of the picture with its hotspot. A 32-bit cursor bitmap is
 // read as plain ARGB, the color not multiplied by alpha, which the cursor tests read back
 // from Windows itself.

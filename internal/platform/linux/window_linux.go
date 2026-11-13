@@ -44,8 +44,10 @@ type window struct {
 	renderTried    bool
 	renderErr      error
 	clipboard      string
+	clipboardHTML  string
 	clipboardFiles []string
 	clipboardAtom  uint32
+	htmlAtom       uint32
 	utf8Atom       uint32
 	textAtom       uint32
 	targetsAtom    uint32

@@ -8,7 +8,7 @@ import (
 )
 
 func TestCursorCSS(t *testing.T) {
-	want := [...]string{"default", "text", "pointer", "crosshair", "wait", "ew-resize", "ns-resize", "nwse-resize", "nesw-resize", "not-allowed", "none"}
+	want := [...]string{"default", "text", "pointer", "crosshair", "wait", "ew-resize", "ns-resize", "nwse-resize", "nesw-resize", "not-allowed", "grabbing", "none"}
 	for shape, expected := range want {
 		actual, err := cursorCSS(uint8(shape))
 		if err != nil || actual != expected {

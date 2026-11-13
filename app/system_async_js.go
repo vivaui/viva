@@ -16,6 +16,12 @@ func nativeSetClipboardTextAsync(value string, done func(error)) error {
 	}))
 }
 
+func nativeSetClipboardHTMLAsync(html, alt string, done func(error)) error {
+	return webSystemError("write clipboard", webplatform.SetClipboardHTMLAsync(html, alt, func(err error) {
+		done(webSystemError("write clipboard", err))
+	}))
+}
+
 func nativeRequestNotificationPermission(done func(NotificationPermission, error)) error {
 	return webSystemError("request notification permission", webplatform.RequestNotificationPermission(func(granted bool, err error) {
 		if err != nil {
