@@ -208,6 +208,147 @@ static NSPasteboard *viva_pasteboard_named(const char *name) {
     return [NSPasteboard pasteboardWithName:viva_string(name)];
 }
 
+// viva_system_pasteboard_put_html writes html as public.html beside alt as
+// public.utf8-plain-text, the pair a rich copy leaves: a reader takes whichever
+// flavour it knows, and a plain reader still pastes.
+int viva_system_pasteboard_put_html(const char *pasteboard, const char *html, const char *alt) {
+    __block char *failure = NULL;
+    dispatch_block_t operation = ^{
+        @autoreleasepool {
+            NSString *rich = viva_string(html);
+            NSString *plain = viva_string(alt);
+            if (rich == nil || plain == nil) {
+                failure = viva_copy_utf8(@"clipboard html is not valid UTF-8");
+                return;
+            }
+            NSPasteboard *board = viva_pasteboard_named(pasteboard);
+            NSData *data = [rich dataUsingEncoding:NSUTF8StringEncoding];
+            [board clearContents];
+            if (![board setData:data forType:NSPasteboardTypeHTML]) {
+                failure = viva_copy_utf8(@"AppKit refused clipboard html");
+                return;
+            }
+            [board setString:plain forType:NSPasteboardTypeString];
+        }
+    };
+    if (pasteboard == NULL) {
+        viva_on_main_sync(operation);
+    } else {
+        operation();
+    }
+    if (failure != NULL) {
+        free(failure);
+        return -1;
+    }
+    return 0;
+}
+
+// viva_system_pasteboard_html reads a named pasteboard's public.html as UTF-8,
+// "" when it holds none. Status: 0 html in *value, -1 failure with *error_message.
+int viva_system_pasteboard_html(const char *pasteboard, char **value, char **error_message) {
+    if (value == NULL) {
+        viva_set_error(error_message, @"clipboard output is missing");
+        return -1;
+    }
+    *value = NULL;
+    __block int status = 0;
+    __block char *result = NULL;
+    __block char *failure = NULL;
+    dispatch_block_t operation = ^{
+        @autoreleasepool {
+            NSPasteboard *board = viva_pasteboard_named(pasteboard);
+            NSData *data = [board dataForType:NSPasteboardTypeHTML];
+            if (data == nil) {
+                return;
+            }
+            if (data.length > viva_max_clipboard_bytes) {
+                failure = viva_copy_utf8(@"clipboard html exceeds 64 MiB");
+                status = -1;
+                return;
+            }
+            NSString *html = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+            if (html == nil) {
+                failure = viva_copy_utf8(@"clipboard html is not valid UTF-8");
+                status = -1;
+                return;
+            }
+            result = viva_copy_utf8(html);
+            if (result == NULL) {
+                failure = viva_copy_utf8(@"failed to allocate clipboard html");
+                status = -1;
+            }
+        }
+    };
+    if (pasteboard == NULL) {
+        viva_on_main_sync(operation);
+    } else {
+        operation();
+    }
+    if (status != 0) {
+        if (error_message != NULL) {
+            *error_message = failure;
+        } else {
+            free(failure);
+        }
+        return status;
+    }
+    if (result == NULL) {
+        result = strdup("");
+    }
+    *value = result;
+    return 0;
+}
+
+// viva_system_pasteboard_text is viva_system_clipboard_text for a named
+// pasteboard, the plain flavour of the pair put_html writes.
+int viva_system_pasteboard_text(const char *pasteboard, char **value, char **error_message) {
+    if (value == NULL) {
+        viva_set_error(error_message, @"clipboard output is missing");
+        return -1;
+    }
+    *value = NULL;
+    __block int status = 0;
+    __block char *result = NULL;
+    __block char *failure = NULL;
+    dispatch_block_t operation = ^{
+        @autoreleasepool {
+            NSPasteboard *board = viva_pasteboard_named(pasteboard);
+            NSString *text = [board stringForType:NSPasteboardTypeString];
+            if (text == nil) {
+                return;
+            }
+            if ([text lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > viva_max_clipboard_bytes) {
+                failure = viva_copy_utf8(@"clipboard text exceeds 64 MiB");
+                status = -1;
+                return;
+            }
+            result = viva_copy_utf8(text);
+            if (result == NULL) {
+                failure = viva_copy_utf8(@"failed to allocate clipboard text");
+                status = -1;
+            }
+        }
+    };
+    if (pasteboard == NULL) {
+        viva_on_main_sync(operation);
+    } else {
+        operation();
+    }
+    if (status != 0) {
+        if (error_message != NULL) {
+            *error_message = failure;
+        } else {
+            free(failure);
+        }
+        return status;
+    }
+    if (result == NULL) {
+        result = strdup("");
+    }
+    *value = result;
+    return 0;
+}
+
 static NSArray<NSPasteboardType> *viva_image_types(void) {
     return @[NSPasteboardTypePNG, NSPasteboardTypeTIFF];
 }

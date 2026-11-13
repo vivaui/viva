@@ -299,6 +299,27 @@ func BenchmarkDriverClipboardAndOpenURL(b *testing.B) {
 	}
 }
 
+func BenchmarkDriverClipboardHTML(b *testing.B) {
+	driver, err := NewDriver(Config{}, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer driver.Close()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := SetClipboardHTML("<b>remote</b>", "remote text"); err != nil {
+			b.Fatal(err)
+		}
+		if value, err := ClipboardText(); err != nil || value != "remote text" {
+			b.Fatalf("ClipboardText = %q, %v", value, err)
+		}
+		if html := driver.ClipboardHTML(); html != "<b>remote</b>" {
+			b.Fatalf("ClipboardHTML = %q", html)
+		}
+	}
+}
+
 func TestDriverInterceptsOpenDirectory(t *testing.T) {
 	driver, err := NewDriver(Config{}, nil)
 	if err != nil {

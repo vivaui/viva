@@ -10,6 +10,7 @@ synchronous forms report `ErrAsyncRequired`, `ErrSecretStoreUnavailable` or
 | Capability | macOS | Windows | Linux/X11 | WebAssembly browser |
 | --- | --- | --- | --- | --- |
 | Read/write text clipboard | `NSPasteboard` | Unicode Win32 clipboard | X11 `CLIPBOARD`, `UTF8_STRING` with `STRING` read fallback; text above 128 KiB is served and read in pieces (INCR); handed to the clipboard manager when the owning window closes, if the desktop has one | synchronous calls return `ErrAsyncRequired`; `ClipboardTextAsync` and `SetClipboardTextAsync` use the Clipboard API and require a user gesture |
+| Rich copy (`SetClipboardHTML`, html + plain alt) | `NSPasteboard`: `public.html` beside `public.utf8-plain-text` | registered `HTML Format` (CF_HTML, with its header of byte offsets) beside `CF_UNICODETEXT` | X11 `CLIPBOARD`: `text/html` target beside `UTF8_STRING`; the GTK shell serves the same pair through `gtk_clipboard_set_with_data` | synchronous calls return `ErrAsyncRequired`; `SetClipboardHTMLAsync` writes one `ClipboardItem` with both MIME flavours and needs a user gesture |
 | Copied files (`ClipboardFiles`, returns `[]string`) | the pasteboard's file URLs, file reference URLs resolved to paths; promised files have no path and are not listed | the `CF_HDROP` list (UTF-16 form) | X11 `CLIPBOARD`: `x-special/gnome-copied-files` (Nautilus, Nemo, Caja, Thunar) or `text/uri-list` (Dolphin, most toolkits); the GTK shell asks GTK for `text/uri-list` | `ErrUnsupported` |
 | Primary selection (`SetPrimarySelection`, `PrimarySelection`) | `ErrUnsupported` | `ErrUnsupported` | X11 `PRIMARY`: selected text, pasted with a middle click | `ErrUnsupported` |
 | Cursor shape | AppKit cursor; wait unsupported, diagonal resize requires macOS 15 | Win32 system cursors; running window required | XCB cursor font; running window required | CSS cursor on `documentElement` |
@@ -136,7 +137,7 @@ Clipboard operations, file pickers, secret storage and font loading settle
 through Promises. They are intentionally not started from the synchronous API:
 returning before the Promise settles would lie about success, and waiting would
 deadlock the WASM event loop. The typed asynchronous counterparts are
-`ClipboardTextAsync`, `SetClipboardTextAsync`, `RequestClipboardImage`,
+`ClipboardTextAsync`, `SetClipboardTextAsync`, `SetClipboardHTMLAsync`, `RequestClipboardImage`,
 `OpenFilesAsync`, `SaveFileAsync`, `StoreSecretAsync`, `LoadSecretAsync`,
 `DeleteSecretAsync`, `RegisterFontAsync` and `RequestNotificationPermission`.
 Each calls its completion exactly once; native targets complete before the call

@@ -475,6 +475,7 @@ func SetClipboardText(value string) error {
 		return err
 	}
 	win.clipboard = value
+	win.clipboardHTML = ""
 	win.clipboardFiles = nil
 	win.ownsClipboard = true
 	return nil
