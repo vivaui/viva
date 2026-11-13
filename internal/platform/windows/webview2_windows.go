@@ -385,7 +385,7 @@ const (
 	envCreateController = 3
 	envCreateResponse   = 4
 	// ICoreWebView2Environment10 offers controller options and a controller made with them. It
-	// comes from the WebView2 SDK 1.0.1210 and Edge 96:
+	// comes from the WebView2 SDK 1.0.1210.39 and Runtime 101:
 	// CreateCoreWebView2ControllerOptions and CreateCoreWebView2ControllerWithOptions.
 	envCreateControllerOptions     = 20
 	envCreateControllerWithOptions = 21
@@ -440,6 +440,6 @@ const (
 )
 
 // iidEnvironment10 is ICoreWebView2Environment10, which offers the controller options an InPrivate
-// page is made with. It comes from the WebView2 SDK 1.0.1210 and Edge 96 (runtime 96.0.1054.31); a
+// page is made with. It comes from the WebView2 SDK 1.0.1210.39 and Runtime 101 (Edge 101); a
 // runtime older than that does not answer for it.
 var iidEnvironment10 = guid{0xee0eb9df, 0x6f12, 0x46ce, [8]byte{0xb5, 0x3f, 0x3f, 0x47, 0xb9, 0xc9, 0x28, 0xe0}}

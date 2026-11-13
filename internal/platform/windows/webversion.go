@@ -6,12 +6,14 @@ import (
 )
 
 // webViewEphemeralMinimum is the oldest WebView2 runtime that offers ICoreWebView2Environment10
-// and ICoreWebView2ControllerOptions, which an ephemeral page is made with: Edge 96. The SDK that
-// exposes them is 1.0.1210, and the runtime that first ships them is 96.0.1054.31.
-var webViewEphemeralMinimum = [4]int{96, 0, 1054, 31}
+// and ICoreWebView2ControllerOptions, which an ephemeral page is made with: Runtime 101 (SDK
+// 1.0.1210.39). The SDK build number pairs with the Edge build, and both interfaces' Applies-to
+// tables give GA 1.0.1210.39, five months after Edge 96, so a gate set to 96 let a runtime in
+// between (96 to 100) through and only the QueryInterface for the options refused it later.
+var webViewEphemeralMinimum = [4]int{101, 0, 1210, 39}
 
 // parseWebViewVersion reads a WebView2 runtime version, four dot-separated numbers such as
-// "96.0.1054.31", as EdgeUpdate records it in "pv". Missing trailing numbers are zero. ok is false
+// "101.0.1210.39", as EdgeUpdate records it in "pv". Missing trailing numbers are zero. ok is false
 // when the text is not a version, and the caller must then try the runtime rather than judge it.
 func parseWebViewVersion(version string) (numbers [4]int, ok bool) {
 	version = strings.TrimSpace(version)

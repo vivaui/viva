@@ -154,16 +154,17 @@ func (w *webHost) open(config platform.WebViewConfig) (platform.WebView, error) 
 		return nil, fmt.Errorf("%w: %v", platform.ErrWebViewUnsupported, err)
 	}
 	if config.Ephemeral {
-		// ICoreWebView2Environment10 and ICoreWebView2ControllerOptions first ship with Edge 96
-		// (WebView2 SDK 1.0.1210; the runtime that carries them is 96.0.1054.31). EdgeUpdate
-		// records the installed runtime's version as "pv" under the same ClientState channel as
-		// its folder. An older runtime cannot make an ephemeral page, so it is refused here,
-		// synchronously, rather than after Open has handed a live page to the application. If the
-		// version cannot be read, the QueryInterface for ICoreWebView2Environment10 in
-		// createPrivateController is still the fallback.
+		// ICoreWebView2Environment10 and ICoreWebView2ControllerOptions first ship with Runtime 101
+		// (WebView2 SDK 1.0.1210.39). EdgeUpdate records the installed runtime's version as "pv"
+		// under the same ClientState channel as its folder. An older runtime cannot make an
+		// ephemeral page, so it is refused here, synchronously, rather than after Open has handed a
+		// live page to the application: a runtime between 96 and 100 would otherwise accept the
+		// install and only fail the QueryInterface for ICoreWebView2Environment10 later. If the
+		// version cannot be read, that QueryInterface in createPrivateController is still the
+		// fallback.
 		if version, ok := webViewRuntimeVersion(); ok {
 			if parsed, valid := parseWebViewVersion(version); valid && !webViewVersionAtLeast(parsed, webViewEphemeralMinimum) {
-				return nil, fmt.Errorf("%w: an ephemeral page needs WebView2 96.0.1054.31 (Edge 96) or newer, and the runtime is %s", platform.ErrWebViewUnsupported, version)
+				return nil, fmt.Errorf("%w: an ephemeral page needs WebView2 Runtime 101 (SDK 1.0.1210.39) or newer, and the runtime is %s", platform.ErrWebViewUnsupported, version)
 			}
 		}
 	}
@@ -236,12 +237,12 @@ func (page *windowsWeb) createController(environment uintptr) {
 }
 
 // createPrivateController makes the page's controller for an InPrivate profile of its own, through
-// the options of ICoreWebView2Environment10 (WebView2 SDK 1.0.1210, Edge 96 and newer).
+// the options of ICoreWebView2Environment10 (WebView2 SDK 1.0.1210.39, Runtime 101 and newer).
 func (page *windowsWeb) createPrivateController(environment, handler uintptr) error {
 	var environment10 uintptr
 	status := comCall(environment, 0, uintptr(unsafe.Pointer(&iidEnvironment10)), uintptr(unsafe.Pointer(&environment10)))
 	if int32(uint32(status)) < 0 || environment10 == 0 {
-		return fmt.Errorf("%w: an ephemeral page needs WebView2 96.0.1054.31 (Edge 96) or newer", platform.ErrWebViewUnsupported)
+		return fmt.Errorf("%w: an ephemeral page needs WebView2 Runtime 101 (SDK 1.0.1210.39) or newer", platform.ErrWebViewUnsupported)
 	}
 	defer comCall(environment10, 2)
 	var options uintptr
