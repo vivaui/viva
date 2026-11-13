@@ -4,10 +4,12 @@ package ibus
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/vivaui/viva/internal/dbus"
 )
@@ -99,8 +101,16 @@ func preeditSignal(path, text string, cursor uint32, visible bool) *dbus.Message
 	ibusText(&body, text)
 	body.Uint32(cursor)
 	body.Bool(visible)
-	body.Uint32(0) // the mode newer daemons add
-	return &dbus.Message{Type: dbus.TypeSignal, Path: path, Interface: contextInterface, Member: "UpdatePreeditText", Signature: "vubu", Body: body.Bytes()}
+	return &dbus.Message{Type: dbus.TypeSignal, Path: path, Interface: contextInterface, Member: "UpdatePreeditText", Signature: "vub", Body: body.Bytes()}
+}
+
+func preeditModeSignal(path, value string, cursor uint32, visible bool, mode uint32) *dbus.Message {
+	var body dbus.Encoder
+	ibusText(&body, value)
+	body.Uint32(cursor)
+	body.Bool(visible)
+	body.Uint32(mode)
+	return &dbus.Message{Type: dbus.TypeSignal, Path: path, Interface: contextInterface, Member: "UpdatePreeditTextWithMode", Signature: "vubu", Body: body.Bytes()}
 }
 
 func keyAnswer(serial uint32, handled bool) *dbus.Message {
@@ -211,8 +221,8 @@ func TestCommitAndPreeditSignalsReachTheHandler(t *testing.T) {
 	var preedits []preedit
 	bus, _, transport := newTestBus(t, Handler{
 		Commit: func(text string) { commits = append(commits, text) },
-		Preedit: func(text string, cursor int, visible bool, _ []Attribute) {
-			preedits = append(preedits, preedit{text, cursor, visible})
+		Preedit: func(event PreeditEvent) {
+			preedits = append(preedits, preedit{event.Text, event.Cursor, event.Visible})
 		},
 	})
 	hide := &dbus.Message{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "HidePreeditText"}
@@ -236,6 +246,92 @@ func TestCommitAndPreeditSignalsReachTheHandler(t *testing.T) {
 	}
 	if !reflect.DeepEqual(commits, []string{"你好"}) {
 		t.Fatalf("commits = %q", commits)
+	}
+}
+
+func TestPreeditWithModeSignalsReachTheHandler(t *testing.T) {
+	var got []string
+	var events []PreeditEvent
+	bus, _, transport := newTestBus(t, Handler{Preedit: func(event PreeditEvent) {
+		got = append(got, fmt.Sprintf("%s/%t", event.Text, event.Visible))
+		events = append(events, event)
+	}})
+	update := preeditModeSignal(testContext, "n", 1, true, PreeditModeCommit)
+	transport.incoming = []*dbus.Message{
+		update,
+		{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "HidePreeditText"},
+		{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "ShowPreeditText"},
+	}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"n/true", "n/false", "n/true"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("mode-bearing preedit = %v, want %v", got, want)
+	}
+	for index, event := range events {
+		if event.Kind != []PreeditKind{PreeditUpdate, PreeditHide, PreeditShow}[index] ||
+			!event.HasMode || event.Mode != PreeditModeCommit || event.Cursor != 1 {
+			t.Fatalf("preedit provenance[%d] = %+v", index, event)
+		}
+	}
+}
+
+func TestPreeditEventsPreserveEmptyUpdatesAndResetModeProvenance(t *testing.T) {
+	var events []PreeditEvent
+	bus, _, transport := newTestBus(t, Handler{Preedit: func(event PreeditEvent) { events = append(events, event) }})
+	transport.incoming = []*dbus.Message{
+		preeditModeSignal(testContext, "n", 1, true, PreeditModeCommit),
+		preeditSignal(testContext, "", 0, true),
+		{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "HidePreeditText"},
+		preeditModeSignal(testContext, "", 0, false, ^uint32(0)),
+	}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
+	}
+	want := []PreeditEvent{
+		{Text: "n", Cursor: 1, Visible: true, Mode: PreeditModeCommit, HasMode: true},
+		{Text: "", Visible: true},
+		{Text: "", Kind: PreeditHide},
+		{Text: "", Mode: ^uint32(0), HasMode: true},
+	}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("preedit provenance = %+v, want %+v", events, want)
+	}
+}
+
+func TestMalformedPreeditSignalCannotReplaceTheCachedSnapshot(t *testing.T) {
+	for _, name := range []string{"missing mode", "truncated mode", "mode on old member", "trailing body", "hide payload", "show signature"} {
+		t.Run(name, func(t *testing.T) {
+			var events []PreeditEvent
+			bus, _, transport := newTestBus(t, Handler{Preedit: func(event PreeditEvent) { events = append(events, event) }})
+			bad := preeditModeSignal(testContext, "bad", 1, true, PreeditModeClear)
+			switch name {
+			case "missing mode":
+				bad = preeditSignal(testContext, "bad", 1, true)
+				bad.Member = "UpdatePreeditTextWithMode"
+			case "truncated mode":
+				bad.Body = bad.Body[:len(bad.Body)-1]
+			case "mode on old member":
+				bad.Member = "UpdatePreeditText"
+			case "trailing body":
+				bad.Body = append(bad.Body, 0, 0, 0, 0)
+			case "hide payload":
+				bad.Member = "HidePreeditText"
+			case "show signature":
+				bad.Member, bad.Signature, bad.Body = "ShowPreeditText", "u", nil
+			}
+			transport.incoming = []*dbus.Message{
+				preeditModeSignal(testContext, "keep", 2, true, PreeditModeCommit), bad,
+				{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "ShowPreeditText"},
+			}
+			if err := bus.Dispatch(); err != nil {
+				t.Fatal(err)
+			}
+			if len(events) != 2 || events[1].Kind != PreeditShow || events[1].Text != "keep" ||
+				!events[1].HasMode || events[1].Mode != PreeditModeCommit || events[1].Cursor != 2 {
+				t.Fatalf("malformed preedit changed cached provenance: %+v", events)
+			}
+		})
 	}
 }
 
@@ -268,14 +364,13 @@ func styledPreeditSignal(path, text string, cursor uint32, attrs [][4]uint32) *d
 	body.EndArray(list)
 	body.Uint32(cursor)
 	body.Bool(true)
-	body.Uint32(0)
-	return &dbus.Message{Type: dbus.TypeSignal, Path: path, Interface: contextInterface, Member: "UpdatePreeditText", Signature: "vubu", Body: body.Bytes()}
+	return &dbus.Message{Type: dbus.TypeSignal, Path: path, Interface: contextInterface, Member: "UpdatePreeditText", Signature: "vub", Body: body.Bytes()}
 }
 
 func TestPreeditAttributesReachTheHandler(t *testing.T) {
 	var got []Attribute
 	var gotText string
-	bus, _, transport := newTestBus(t, Handler{Preedit: func(text string, _ int, _ bool, attrs []Attribute) { gotText, got = text, attrs }})
+	bus, _, transport := newTestBus(t, Handler{Preedit: func(event PreeditEvent) { gotText, got = event.Text, event.Attributes }})
 	transport.incoming = []*dbus.Message{styledPreeditSignal(testContext, "きょうは", 4, [][4]uint32{
 		{AttrUnderline, 1, 0, 4},
 		{AttrBackground, 0xd1eaff, 0, 2},
@@ -286,6 +381,60 @@ func TestPreeditAttributesReachTheHandler(t *testing.T) {
 	want := []Attribute{{Kind: AttrUnderline, Value: 1, Start: 0, End: 4}, {Kind: AttrBackground, Value: 0xd1eaff, Start: 0, End: 2}}
 	if gotText != "きょうは" || !reflect.DeepEqual(got, want) {
 		t.Fatalf("preedit %q attributes %+v, want %+v", gotText, got, want)
+	}
+}
+
+func TestPreeditModeVisibilityKeepsReadOnlyAttributeSnapshots(t *testing.T) {
+	var events []PreeditEvent
+	bus, _, transport := newTestBus(t, Handler{Preedit: func(event PreeditEvent) { events = append(events, event) }})
+	update := styledPreeditSignal(testContext, "ab", 1, [][4]uint32{{AttrBackground, 0x123456, 0, 1}})
+	var mode dbus.Encoder
+	mode.Uint32(PreeditModeCommit)
+	update.Member, update.Signature = "UpdatePreeditTextWithMode", "vubu"
+	update.Body = append(update.Body, mode.Bytes()...)
+	transport.incoming = []*dbus.Message{
+		update,
+		{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "HidePreeditText"},
+		{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "ShowPreeditText"},
+		styledPreeditSignal(testContext, "cd", 2, [][4]uint32{{AttrUnderline, 2, 1, 2}}),
+	}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 4 {
+		t.Fatalf("preedit events = %+v", events)
+	}
+	for index, event := range events[:3] {
+		if !event.HasMode || event.Mode != PreeditModeCommit || event.Text != "ab" ||
+			event.Kind != []PreeditKind{PreeditUpdate, PreeditHide, PreeditShow}[index] ||
+			!reflect.DeepEqual(event.Attributes, []Attribute{{Kind: AttrBackground, Value: 0x123456, Start: 0, End: 1}}) {
+			t.Fatalf("saved preedit attributes[%d] changed: %+v", index, event)
+		}
+	}
+	if events[3].HasMode || events[3].Text != "cd" || !reflect.DeepEqual(events[3].Attributes, []Attribute{{Kind: AttrUnderline, Value: 2, Start: 1, End: 2}}) {
+		t.Fatalf("new update retained old metadata: %+v", events[3])
+	}
+}
+
+var preeditBenchmarkText string
+var preeditBenchmarkContext *Context
+
+func BenchmarkPreeditSignalDispatch(b *testing.B) {
+	context := &Context{handler: Handler{Preedit: func(event PreeditEvent) { preeditBenchmarkText = event.Text }}}
+	message := preeditSignal(testContext, "preedit", 3, true)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		context.signal(message)
+	}
+	b.ReportMetric(float64(unsafe.Sizeof(Context{})), "context-B")
+	b.ReportMetric(float64(unsafe.Sizeof(Handler{})), "handler-B")
+}
+
+func BenchmarkPreeditContextConstruction(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		preeditBenchmarkContext = new(Context)
 	}
 }
 
@@ -343,7 +492,7 @@ func TestMalformedSignalsAreIgnoredNotFatal(t *testing.T) {
 	called := false
 	bus, _, transport := newTestBus(t, Handler{
 		Commit:  func(string) { called = true },
-		Preedit: func(string, int, bool, []Attribute) { called = true },
+		Preedit: func(PreeditEvent) { called = true },
 		Forward: func(_, _, _ uint32) { called = true },
 	})
 	truncated := commitSignal(testContext, "你好")
@@ -496,15 +645,16 @@ func FuzzDispatchNeverPanics(f *testing.F) {
 	good := commitSignal(testContext, "你好")
 	f.Add(good.Body, "v", "CommitText")
 	preedit := preeditSignal(testContext, "ni", 1, true)
-	f.Add(preedit.Body, "vubu", "UpdatePreeditText")
-	f.Add(styledPreeditSignal(testContext, "ni", 1, [][4]uint32{{AttrBackground, 1, 0, 2}}).Body, "vubu", "UpdatePreeditText")
+	f.Add(preedit.Body, "vub", "UpdatePreeditText")
+	f.Add(styledPreeditSignal(testContext, "ni", 1, [][4]uint32{{AttrBackground, 1, 0, 2}}).Body, "vub", "UpdatePreeditText")
+	f.Add(preeditModeSignal(testContext, "ni", 1, true, PreeditModeCommit).Body, "vubu", "UpdatePreeditTextWithMode")
 	f.Add([]byte{1, 2, 3}, "uuu", "ForwardKeyEvent")
 	f.Add([]byte{1, 2, 3}, "iu", "DeleteSurroundingText")
 	f.Fuzz(func(t *testing.T, body []byte, signature, member string) {
 		var seen int
 		bus, _, transport := newTestBus(t, Handler{
 			Commit:  func(string) { seen++ },
-			Preedit: func(string, int, bool, []Attribute) { seen++ },
+			Preedit: func(PreeditEvent) { seen++ },
 			Forward: func(_, _, _ uint32) { seen++ },
 
 			DeleteSurrounding: func(_, _ int) { seen++ },

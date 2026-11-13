@@ -5,11 +5,13 @@ on:
     paths:
       - 'app/**'
       - 'internal/platform/**'
+      - 'internal/ibus/**'
       - '.github/workflows/text-input.yml'
   pull_request:
     paths:
       - 'app/**'
       - 'internal/platform/**'
+      - 'internal/ibus/**'
       - '.github/workflows/text-input.yml'
   workflow_dispatch:
 
@@ -42,6 +44,9 @@ jobs:
           cache: true
       - name: Application input lifecycle
         run: go test ./app -count=1
+      - name: Linux IME protocol lifecycle
+        if: runner.os == 'Linux'
+        run: go test ./internal/ibus ./internal/platform/linux -run 'Test(IME|Preedit|CommitAndPreedit|MalformedPreedit)' -count=1 -timeout=90s
       - name: Windows IME lifecycle
         if: runner.os == 'Windows'
         run: go test ./internal/platform/windows -run 'TestComposition|TestDynamicTextInput' -count=1
