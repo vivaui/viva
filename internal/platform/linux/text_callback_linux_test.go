@@ -112,6 +112,48 @@ func TestLinuxTextCallbackKeepsNestedEventAcknowledgment(t *testing.T) {
 	}
 }
 
+func TestLinuxTextCallbackAcceptsEventAcrossGeometryUpdate(t *testing.T) {
+	for _, beforeEdit := range []bool{true, false} {
+		t.Run(map[bool]string{true: "before edit", false: "after edit"}[beforeEdit], func(t *testing.T) {
+			editor := text.NewEditor("abc")
+			redraws := 0
+			state := &linuxTextInput{
+				config: &platform.Config{DynamicTextInput: true, OnRedraw: func() (platform.Frame, error) {
+					redraws++
+					return platform.Frame{}, nil
+				}},
+				engine: fixedAdvanceEngine{},
+			}
+			t.Cleanup(state.close)
+			field := callbackTextField(editor)
+			field.OnEvent = func(event platform.TextEvent) (platform.TextState, error) {
+				if beforeEdit {
+					geometry := state.input
+					geometry.Width = 240
+					prepareCallbackFrame(t, state, platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &geometry}})
+				}
+				event.Apply(editor)
+				if !beforeEdit {
+					geometry := state.input
+					geometry.Width = 240
+					prepareCallbackFrame(t, state, platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &geometry}})
+				}
+				return platform.EditorState(editor), nil
+			}
+			prepareCallbackFrame(t, state, platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}})
+			frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "x"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			merged := prepareCallbackFrame(t, state, frame)
+			if editor.String() != "abcx" || state.state.Value != "abcx" || state.input.Width != 240 || redraws != 1 ||
+				len(merged.TextLabels) != 1 || merged.TextLabels[0].Value != "abcx" {
+				t.Fatalf("geometry update lost valid edit: editor=%q state=%+v width=%v redraws=%d labels=%v", editor.String(), state.state, state.input.Width, redraws, merged.TextLabels)
+			}
+		})
+	}
+}
+
 func TestLinuxTextCallbackDiscardsSupersededRedraw(t *testing.T) {
 	for _, scenario := range []string{"replacement", "same-value replacement", "disabled", "nested edit", "same-value acknowledgment"} {
 		t.Run(scenario, func(t *testing.T) {
@@ -193,6 +235,79 @@ func TestLinuxTextCallbackDiscardsSupersededRedraw(t *testing.T) {
 				if !state.input.Terminal || redraws != 1 {
 					t.Fatalf("terminal acknowledgment was overwritten or redrawn: terminal=%t redraws=%d", state.input.Terminal, redraws)
 				}
+			}
+		})
+	}
+}
+
+func TestLinuxTextCallbackRejectsEventAfterInputModeChange(t *testing.T) {
+	for _, scenario := range []struct {
+		name   string
+		change func(*platform.TextInput)
+	}{
+		{"secure", func(input *platform.TextInput) { input.Secure = true }},
+		{"terminal", func(input *platform.TextInput) { input.Terminal = true }},
+		{"placed", func(input *platform.TextInput) { input.Placed = true }},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			editor := text.NewEditor("abc")
+			state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{}}
+			t.Cleanup(state.close)
+			field := callbackTextField(editor)
+			field.OnEvent = func(event platform.TextEvent) (platform.TextState, error) {
+				next := state.input
+				scenario.change(&next)
+				prepareCallbackFrame(t, state, platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &next}})
+				event.Apply(editor)
+				return platform.EditorState(editor), nil
+			}
+			prepareCallbackFrame(t, state, platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}})
+			frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "x"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			prepareCallbackFrame(t, state, frame)
+			if editor.String() != "abcx" || state.state.Value != "abc" || state.input.State.Value != "abc" {
+				t.Fatalf("old-mode acknowledgment crossed into new mode: editor=%q state=%+v", editor.String(), state.state)
+			}
+		})
+	}
+}
+
+func TestLinuxTextCallbackCannotReviveClosedInput(t *testing.T) {
+	for _, duringRedraw := range []bool{false, true} {
+		t.Run(map[bool]string{true: "during redraw", false: "during event"}[duringRedraw], func(t *testing.T) {
+			editor := text.NewEditor("abc")
+			state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{}}
+			t.Cleanup(state.close)
+			field := callbackTextField(editor)
+			if !duringRedraw {
+				field.OnEvent = func(event platform.TextEvent) (platform.TextState, error) {
+					event.Apply(editor)
+					state.close()
+					return platform.EditorState(editor), nil
+				}
+			}
+			redraws := 0
+			state.config.OnRedraw = func() (platform.Frame, error) {
+				redraws++
+				state.close()
+				return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}}, nil
+			}
+			prepareCallbackFrame(t, state, platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}})
+			frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "x"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.enabled || state.state != (platform.TextState{}) || state.caretTimer != nil || frame.TextInput.Changed ||
+				redraws != map[bool]int{true: 1, false: 0}[duringRedraw] {
+				t.Fatalf("closed input revived: enabled=%t state=%+v timer=%v redraws=%d frame=%+v", state.enabled, state.state, state.caretTimer, redraws, frame)
+			}
+			if _, changed, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}}); err != nil || changed || state.enabled {
+				t.Fatalf("late frame revived closed input: changed=%t enabled=%t err=%v", changed, state.enabled, err)
+			}
+			if frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "late"}); err != nil || frame.TextInput.Changed || editor.String() != "abcx" {
+				t.Fatalf("closed input accepted a late event: editor=%q frame=%+v err=%v", editor.String(), frame, err)
 			}
 		})
 	}
