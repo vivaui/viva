@@ -62,3 +62,18 @@ func TestWindowSetSizeReportsUnsupportedHosts(t *testing.T) {
 		t.Fatalf("native resize error = %v", err)
 	}
 }
+
+func TestContentWindowForwardsSetSize(t *testing.T) {
+	native := &sizingWindow{}
+	content := &ContentWindow{window: &Window{control: native}}
+	if err := content.SetSize(800, 600); err != nil {
+		t.Fatal(err)
+	}
+	if native.width != 800 || native.height != 600 {
+		t.Fatalf("SetSize = %dx%d", native.width, native.height)
+	}
+	var nilContent *ContentWindow
+	if err := nilContent.SetSize(800, 600); err == nil {
+		t.Fatal("nil content window accepted SetSize")
+	}
+}
