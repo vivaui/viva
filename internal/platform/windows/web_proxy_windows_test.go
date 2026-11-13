@@ -8,6 +8,13 @@ import (
 	"testing"
 )
 
+func TestDirectBrowserArgumentsBypassSystemProxy(t *testing.T) {
+	got := proxyBrowserArguments("--lang=en", "direct")
+	if got != "--lang=en --no-proxy-server" {
+		t.Fatalf("direct browser arguments = %q", got)
+	}
+}
+
 func TestProxyBrowserArgumentsKeepThePageOnTheProxy(t *testing.T) {
 	got := proxyBrowserArguments("", "127.0.0.1:1080")
 	for _, want := range []string{

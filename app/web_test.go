@@ -53,6 +53,17 @@ func TestOpeningAPageWithoutAHostIsUnsupported(t *testing.T) {
 	}
 }
 
+func TestDirectPageNetworkingReachesPlatform(t *testing.T) {
+	var proxy string
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		proxy = config.Proxy
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	if _, err := host.Open(WebViewConfig{Proxy: WebProxyDirect}); !errors.Is(err, ErrUnsupported) || proxy != platform.WebProxyDirect {
+		t.Fatalf("direct networking was not passed to the platform: proxy=%q err=%v", proxy, err)
+	}
+}
+
 func TestAPageProxyMustBeOnThisMachine(t *testing.T) {
 	var opened []string
 	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {

@@ -281,7 +281,10 @@ type webContext struct {
 }
 
 // WebKitNetworkProxyMode.
-const webProxyCustom = 2
+const (
+	webProxyNone   = 1
+	webProxyCustom = 2
+)
 
 // proxyContext is the context for pages held to proxy, shared by the pages behind that proxy and
 // made the first time.
@@ -298,7 +301,7 @@ func proxyContext(g *gtkLibrary, k *webKit, proxy string) (*webContext, error) {
 	return context, nil
 }
 
-// newProxyContext makes an ephemeral context with every request sent through proxy. It is not
+// newProxyContext makes an ephemeral context with the requested network policy. It is not
 // shared: a page that asked for a proxy and to keep nothing gets one of these, so it shares
 // nothing with the pages behind the same proxy.
 func newProxyContext(k *webKit, proxy string) (*webContext, error) {
@@ -309,16 +312,23 @@ func newProxyContext(k *webKit, proxy string) (*webContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	// No hosts are left out: loopback goes through the proxy too, and names are the proxy's to
-	// resolve.
-	uri := cString("socks5://" + proxy)
-	settings := k.proxySettingsNew(&uri[0], 0)
-	if k.managerSetProxy != nil {
-		k.managerSetProxy(k.contextDataManager(context.object), webProxyCustom, settings)
+	mode := int32(webProxyCustom)
+	var settings uintptr
+	if proxy == platform.WebProxyDirect {
+		mode = webProxyNone
 	} else {
-		k.contextSetProxy(context.object, webProxyCustom, settings)
+		// No hosts are left out: loopback goes through the proxy too, and names are the proxy's to resolve.
+		uri := cString("socks5://" + proxy)
+		settings = k.proxySettingsNew(&uri[0], 0)
 	}
-	k.proxySettingsFree(settings)
+	if k.managerSetProxy != nil {
+		k.managerSetProxy(k.contextDataManager(context.object), mode, settings)
+	} else {
+		k.contextSetProxy(context.object, mode, settings)
+	}
+	if settings != 0 {
+		k.proxySettingsFree(settings)
+	}
 	context.proxy = proxy
 	return context, nil
 }

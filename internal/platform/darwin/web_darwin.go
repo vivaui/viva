@@ -3,7 +3,7 @@
 package darwin
 
 /*
-#cgo LDFLAGS: -framework Cocoa -framework WebKit -framework QuartzCore
+#cgo LDFLAGS: -framework Cocoa -framework WebKit -framework QuartzCore -framework Network
 #include <stdlib.h>
 #include "web_darwin.h"
 */
@@ -67,8 +67,15 @@ func newWebState(run *runState, host *platform.WebHost, initial []platform.Nativ
 
 // open is WebHost.Open.
 func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error) {
+	direct := C.int(0)
 	if config.Proxy != "" {
-		return nil, platform.ErrWebViewUnsupported
+		if config.Proxy != platform.WebProxyDirect {
+			return nil, fmt.Errorf("%w: macOS cannot hold a page to a SOCKS5 proxy", platform.ErrWebViewUnsupported)
+		}
+		if C.viva_web_direct_supported() == 0 {
+			return nil, fmt.Errorf("%w: direct web networking requires macOS 14 or newer", platform.ErrWebViewUnsupported)
+		}
+		direct = 1
 	}
 	if w.run.closed || w.token == nil {
 		return nil, platform.ErrWebViewUnsupported
@@ -105,7 +112,7 @@ func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error)
 		ephemeral = 1
 	}
 	var failure *C.char
-	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, ephemeral, &failure)
+	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, ephemeral, direct, &failure)
 	if native == nil {
 		message := "the page could not be created"
 		if failure != nil {
