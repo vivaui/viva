@@ -49,6 +49,49 @@ func TestPointerFocusDoesNotFlashKeyboardRing(t *testing.T) {
 	}
 }
 
+func TestCodeEditorGutterMarkerRoutesRealClicksAndIgnoresLineWhitespace(t *testing.T) {
+	var canvas gfx.Canvas
+	var editor components.CodeEditor
+	var clicks []gfx.ID
+	config := Config{Title: "gutter markers", Width: 400, Height: 200}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		editor.Paint(canvas, gfx.LightTheme(), gfx.Rect{X: 10, Y: 20, Width: 300, Height: 160}, components.CodeEditorSnapshot{
+			ID: gfx.Item(1), Value: "first\n\nthird", GutterMarkers: []components.CodeEditorGutterMarker{
+				{Line: 0, ID: gfx.Item(20), Color: gfx.RGB(20, 80, 160), Label: "Toggle breakpoint"},
+			},
+		})
+	}
+	onClick(&config, func(id gfx.ID) {
+		if id == gfx.Item(20) {
+			clicks = append(clicks, id)
+		}
+	})
+	painter := newTestPainter(t, &canvas, config)
+	marker, ok := canvas.HitBounds(gfx.Item(20))
+	if !ok || marker.Width == 0 || marker.Height == 0 {
+		t.Fatalf("missing gutter marker hit: %+v, %v", marker, ok)
+	}
+	click := func(x, y float32) {
+		t.Helper()
+		for _, event := range []platform.PointerEvent{
+			{Kind: platform.PointerDown, Button: gfx.PointerButtonPrimary, X: x, Y: y},
+			{Kind: platform.PointerUp, Button: gfx.PointerButtonPrimary, X: x, Y: y},
+		} {
+			if _, err := painter.pointerEvent(event); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	click(marker.X+1, marker.Y+marker.Height/2)
+	if len(clicks) != 1 || clicks[0] != gfx.Item(20) {
+		t.Fatalf("marker-only clicks = %v, want [20]", clicks)
+	}
+	click(marker.X+1, marker.Y+marker.Height*1.5)
+	if len(clicks) != 1 {
+		t.Fatalf("blank-line whitespace clicked a marker: %v", clicks)
+	}
+}
+
 func TestFocusTrapEscapeDismissesAndRestoresFocus(t *testing.T) {
 	var canvas gfx.Canvas
 	open := false

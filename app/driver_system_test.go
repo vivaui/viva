@@ -379,6 +379,26 @@ func TestDriverRecordsOpenPathAndOpensNothing(t *testing.T) {
 	if opened, ok := driver.LastOpenedPath(); !ok || opened != file {
 		t.Fatalf("LastOpenedPath = %q, %t", opened, ok)
 	}
+	directory := t.TempDir()
+	if err := driver.QueueOpenDirectory(directory, nil); err != nil {
+		t.Fatal(err)
+	}
+	path, err := OpenDirectoryPath(OpenDirectoryOptions{Title: "Choose project"})
+	if err != nil || path != directory {
+		t.Fatalf("OpenDirectoryPath = %q, %v; want %q", path, err, directory)
+	}
+	if opened, _ := driver.LastOpenedPath(); opened != file {
+		t.Fatalf("OpenDirectoryPath unexpectedly opened %q", opened)
+	}
+	if err := driver.QueueOpenDirectory("", ErrCanceled); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenDirectoryPath(OpenDirectoryOptions{}); !errors.Is(err, ErrCanceled) {
+		t.Fatalf("canceled OpenDirectoryPath error = %v", err)
+	}
+	if opened, ok := driver.LastOpenedPath(); !ok || opened != file {
+		t.Fatalf("LastOpenedPath = %q, %t", opened, ok)
+	}
 	program := filepath.Join(t.TempDir(), "run.sh")
 	if err := os.WriteFile(program, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
