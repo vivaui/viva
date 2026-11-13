@@ -207,6 +207,9 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
   'split-button': { summary: 'Independent primary and menu actions in one joined control.', examples: {
     default: ['Save and more actions', 'The left target performs the primary action; the right target toggles the caller-owned menu state.'],
   } },
+  'column-resize': { summary: 'A row of columns whose dividers drag to resize a neighbouring pair and double-click to fit the left column.', examples: {
+    'file-list': ['File list', 'Drag a divider to move it, or double-click it to fit the column to its content.'],
+  } },
 };
 
 const chineseSections: Record<string, Record<string, Omit<Section, 'ID'>>> = {

@@ -8,10 +8,10 @@ import (
 
 var columnResizeComponent = Component{
 	ID: "column-resize", Title: "Column resize", Category: "Layout",
-	Summary: "Columns whose dividers drag to resize a pair and double-click to fit the left one.",
+	Summary: "拖动分隔线调整相邻两列宽度、双击让左列适配内容的列布局。",
 	paint:   (*State).paintColumnResize, pointer: (*State).pointerColumnResize, initialize: (*State).initializeColumnResize,
 	Examples: []Example{{
-		ID: "file-list", Title: "File list", Description: "Drag a divider to move it, or double-click it to fit the column to its content.",
+		ID: "file-list", Title: "文件列表", Description: "拖动分隔线移动它，或双击让左列适配其内容宽度。",
 		Snippet: `widths := []float32{260, 90, 140}
 columns := make([]gfx.Rect, 3)
 dividers := make([]gfx.Rect, 2)
