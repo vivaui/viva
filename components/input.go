@@ -12,8 +12,13 @@ import (
 // it a password field: the value is never exposed, DisplayValue is ignored,
 // and the field paints one bullet per character.
 type InputSnapshot struct {
-	ID              gfx.ID
-	Label           string
+	ID    gfx.ID
+	Label string
+	// Alignment places the text within the content rectangle. Zero preserves
+	// the ordinary direction-dependent start alignment, which is left-to-right
+	// for Latin text. AlignRight suits a numeric field. The label, caret,
+	// selection, composition and platform editor all take the same alignment.
+	Alignment       gfx.Alignment
 	Value           string
 	DisplayValue    string
 	Placeholder     string
@@ -133,6 +138,9 @@ func PaintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.
 // is where the glyphs are painted: a content rectangle exactly one line tall is its
 // own line box, and a taller one (a padded field, or the whole control) is not.
 func paintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.Rect, snapshot InputSnapshot, focused bool) {
+	if snapshot.Alignment == gfx.AlignLeft {
+		snapshot.Alignment = gfx.AlignStart
+	}
 	style := snapshot.Text.style(&theme)
 	// A mono field is painted by the component whatever the snapshot says of the platform: the
 	// platform's text service cannot draw its face, so its text and overlays are hidden. A
@@ -170,7 +178,7 @@ func paintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.
 		Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 		Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Secure: snapshot.Secure,
 		NavigationKeys: snapshot.NavigationKeys,
-		TextBounds:     textBounds, TextSize: size, TextWeight: weight, TextColor: platformInk,
+		TextBounds:     textBounds, TextSize: size, TextWeight: weight, TextColor: platformInk, TextAlignment: snapshot.Alignment,
 		HideNativeOverlays: selfPainted,
 	})
 }
@@ -215,10 +223,9 @@ func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value,
 	placeholderShown := snapshot.Value == "" && snapshot.DisplayValue == ""
 	style := textStyle
 	style.Color = color
-	// The line starts where the label puts it: the right end of the field for text that
-	// reads right to left. The caret, selection and composition are measured from there,
-	// and follow the visual order of mixed text (a selection may be several stretches).
-	origin := canvas.LabelOrigin(value, bounds, style, gfx.AlignStart)
+	// The caret, selection and composition share the glyphs' origin and follow
+	// the visual order of mixed text (a selection may be several stretches).
+	origin := canvas.LabelOrigin(value, bounds, style, snapshot.Alignment)
 	var ranges [4]gfx.Rect
 	selectionStart, selectionEnd := inputRange(value, snapshot.SelectionStart, snapshot.SelectionEnd)
 	var selections []gfx.Rect
@@ -255,7 +262,7 @@ func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value,
 	// bounds, and those should describe the glyph line the field draws.
 	lineTop, lineHeight := inputLineBox(bounds, fontSize)
 	line := gfx.Rect{X: bounds.X, Y: lineTop, Width: bounds.Width, Height: lineHeight}
-	canvas.Label(value, line, style)
+	canvas.LabelAligned(value, line, style, snapshot.Alignment)
 	for _, selection := range selections {
 		if selection.Width <= 0 {
 			continue
@@ -267,7 +274,7 @@ func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value,
 		}
 		selected := textStyle
 		selected.Color = selectedColor
-		canvas.Label(value, line, selected)
+		canvas.LabelAligned(value, line, selected, snapshot.Alignment)
 		canvas.Unclip()
 	}
 	canvas.Unclip()

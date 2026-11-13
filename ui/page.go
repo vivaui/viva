@@ -1063,6 +1063,7 @@ func (p *Page) guard(b Box, id gfx.ID, label string) {
 func (p *Page) TextInput(context app.TextInputContext) *app.TextInput {
 	for _, entry := range p.fields {
 		if entry.id == context.ID && !context.ID.IsZero() {
+			entry.field.input.Alignment = context.Alignment
 			entry.field.input.Editor = entry.field.ensure()
 			return &entry.field.input
 		}
