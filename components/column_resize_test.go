@@ -124,6 +124,20 @@ func TestColumnResizeHighlightsWhenHoveredOrPressed(t *testing.T) {
 	}
 }
 
+func BenchmarkColumnResizePaint(b *testing.B) {
+	var canvas gfx.Canvas
+	resize := columnResizeFixture(&canvas)
+	columns := make([]gfx.Rect, 3)
+	dividers := make([]gfx.Rect, 2)
+	hits := make([]gfx.Rect, 2)
+	labels := []string{"name", "size"}
+	b.ReportAllocs()
+	for index := 0; index < b.N; index++ {
+		canvas.Reset()
+		resize.Paint(columns, dividers, hits, labels)
+	}
+}
+
 func TestColumnResizePaintAllocatesNothing(t *testing.T) {
 	var canvas gfx.Canvas
 	resize := columnResizeFixture(&canvas)
