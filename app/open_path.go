@@ -42,6 +42,13 @@ func OpenPath(path string) error {
 	return nativeOpenURL(openPathTarget(runtime.GOOS, path))
 }
 
+// OpenDirectoryPath asks the user to choose one existing local directory and
+// returns its path through the same integration as OpenDirectory. Cancellation
+// is ErrCanceled and the Web target returns ErrUnsupported.
+func OpenDirectoryPath(options OpenDirectoryOptions) (string, error) {
+	return OpenDirectory(options)
+}
+
 // openPathTarget is what the platform's opener is given: a file URL where the
 // opener takes URLs (macOS), the path itself elsewhere.
 func openPathTarget(goos, path string) string {
