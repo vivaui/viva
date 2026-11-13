@@ -411,6 +411,9 @@ func (application *windowsApplication) closeAll() {
 		}
 		return true
 	})
+	// The one cursor this package made — the closed hand Win32 does not ship —
+	// is destroyed once no window can still be showing it.
+	closeGrabbingCursor()
 }
 
 func windowProc(window, kind, first, second uintptr) (result uintptr) {

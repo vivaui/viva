@@ -25,12 +25,13 @@ type TextInputContext struct {
 	Terminal bool
 	// TypeAhead reports a hit that takes typed text without being a text field.
 	TypeAhead bool
-	// TextBounds, FontSize, FontWeight and TextColor are the text geometry the component
-	// declared; they fill whatever the returned input leaves unset.
+	// TextBounds, FontSize, FontWeight, TextColor and Alignment are the text
+	// geometry the component declared; they fill what the input leaves unset.
 	TextBounds         gfx.Rect
 	FontSize           float32
 	FontWeight         float32
 	TextColor          gfx.Color
+	Alignment          gfx.Alignment
 	HideNativeOverlays bool
 }
 

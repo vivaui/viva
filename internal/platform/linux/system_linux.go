@@ -1091,8 +1091,8 @@ func (win *window) checkRequest(action string, cookie xcbVoidCookie) error {
 }
 
 // cursorHidden is the shape a surface that draws its own pointer asks for: app.CursorHidden,
-// after the ten shapes of the cursor font and the theme.
-const cursorHidden uint8 = 10
+// after the eleven shapes of the cursor font and the theme.
+const cursorHidden uint8 = 11
 
 // applyHiddenCursor makes a fully transparent cursor: a 1x1 bitmap, cleared to zero, as both the
 // source and the mask of the cursor, so no pixel of the pointer shows. The contents of a new

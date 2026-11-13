@@ -270,6 +270,7 @@ func cursorCSS(shape uint8) (string, error) {
 		"nwse-resize",
 		"nesw-resize",
 		"not-allowed",
+		"grabbing",
 		"none",
 	}
 	if int(shape) >= len(values) {

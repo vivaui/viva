@@ -455,7 +455,9 @@ static NSCursor *viva_cursor(uint8_t shape, NSString **error) {
             return nil;
         case 9:
             return NSCursor.operationNotAllowedCursor;
-        case 10: {
+        case 10:
+            return NSCursor.closedHandCursor;
+        case 11: {
             // A fully transparent cursor: a surface that draws its own pointer
             // (a remote desktop picture) uses it to keep the system pointer
             // out of the way. Its masks touch no pixel of the screen.

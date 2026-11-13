@@ -668,7 +668,7 @@ func intersectScissor(a, b render.Scissor) render.Scissor {
 }
 
 // wp_cursor_shape_device_v1.shape for the cursors the application asks for, in app.Cursor order.
-var cursorShapes = [...]uint32{1 /* default */, 9 /* text */, 4 /* pointer */, 8 /* crosshair */, 6 /* wait */, 26 /* ew-resize */, 27 /* ns-resize */, 29 /* nwse-resize */, 28 /* nesw-resize */, 15 /* not-allowed */}
+var cursorShapes = [...]uint32{1 /* default */, 9 /* text */, 4 /* pointer */, 8 /* crosshair */, 6 /* wait */, 26 /* ew-resize */, 27 /* ns-resize */, 29 /* nwse-resize */, 28 /* nesw-resize */, 15 /* not-allowed */, 5 /* grabbing */}
 
 // applyCursor shows the window's cursor on the subsurface, which GDK does not manage.
 func (s *waylandSurface) applyCursor() {

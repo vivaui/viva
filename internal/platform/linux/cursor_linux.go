@@ -21,7 +21,7 @@ type themedCursors struct {
 // cursorNames are the theme names of the cursors, in app.Cursor order.
 var cursorNames = [...]string{
 	"left_ptr", "xterm", "hand2", "crosshair", "watch",
-	"sb_h_double_arrow", "sb_v_double_arrow", "size_fdiag", "size_bdiag", "crossed_circle",
+	"sb_h_double_arrow", "sb_v_double_arrow", "size_fdiag", "size_bdiag", "crossed_circle", "grabbing",
 }
 
 // openThemedCursors returns nil when the library or the theme is not there.
