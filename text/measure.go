@@ -7,6 +7,10 @@ type Metrics struct {
 	Ascent  float32
 	Descent float32
 	Leading float32
+	// Underline is the thickness of the stroke the font underlines with, in logical
+	// pixels: the weight a fixed-pitch cell glyph's rule takes. Zero where the
+	// platform's measurement does not include it.
+	Underline float32
 }
 
 // MeasureFunc shapes and measures one line at a logical font size and weight

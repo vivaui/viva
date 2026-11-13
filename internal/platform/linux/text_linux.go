@@ -53,6 +53,9 @@ type textServices struct {
 	fontSetWeight         func(uintptr, int32)
 	fontSetStyle          func(uintptr, int32)
 	objectUnref           func(uintptr)
+	contextGetMetrics     func(uintptr, uintptr, uintptr) uintptr
+	fontMetricsUnderline  func(uintptr) int32
+	fontMetricsUnref      func(uintptr)
 
 	imageSurfaceCreateForData func(*byte, int32, int32, int32, int32) uintptr
 	surfaceStatus             func(uintptr) int32
@@ -137,6 +140,9 @@ func loadTextAPI() (*textServices, error) {
 	purego.RegisterLibFunc(&services.fontSetWeight, services.pango, "pango_font_description_set_weight")
 	purego.RegisterLibFunc(&services.fontSetStyle, services.pango, "pango_font_description_set_style")
 	purego.RegisterLibFunc(&services.objectUnref, services.gobject, "g_object_unref")
+	purego.RegisterLibFunc(&services.contextGetMetrics, services.pango, "pango_context_get_metrics")
+	purego.RegisterLibFunc(&services.fontMetricsUnderline, services.pango, "pango_font_metrics_get_underline_thickness")
+	purego.RegisterLibFunc(&services.fontMetricsUnref, services.pango, "pango_font_metrics_unref")
 
 	purego.RegisterLibFunc(&services.imageSurfaceCreateForData, services.cairo, "cairo_image_surface_create_for_data")
 	purego.RegisterLibFunc(&services.surfaceStatus, services.cairo, "cairo_surface_status")
@@ -323,8 +329,25 @@ func (services *textServices) configureLayout(value, family string, size, weight
 		Height:  float32(logical.Height) / pangoScale,
 		Ascent:  float32(baseline) / pangoScale,
 		Descent: float32(logical.Height-baseline) / pangoScale,
+		// The stroke the face underlines with, at the description's absolute size:
+		// the weight a fixed-pitch cell glyph's rule takes.
+		Underline: services.underline(description),
 	}
 	return metrics, nil
+}
+
+// underline is the thickness of the stroke description's face underlines with, in logical
+// pixels, or 0 when Pango cannot report it.
+func (services *textServices) underline(description uintptr) float32 {
+	if services.contextGetMetrics == nil || services.fontMetricsUnderline == nil || services.fontMetricsUnref == nil {
+		return 0
+	}
+	metrics := services.contextGetMetrics(services.context, description, 0)
+	if metrics == 0 {
+		return 0
+	}
+	defer services.fontMetricsUnref(metrics)
+	return float32(services.fontMetricsUnderline(metrics)) / pangoScale
 }
 
 func (services *textServices) measure(value string, size, weight float32) (text.Metrics, error) {

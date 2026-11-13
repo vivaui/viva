@@ -368,3 +368,5 @@ func (g *cellGlyph) strokeDiagonal(rising bool) {
 }
 
 func round32(v float64) int32 { return int32(math.Floor(v + 0.5)) }
+
+func ceil32(v float64) int32 { return int32(math.Ceil(v)) }

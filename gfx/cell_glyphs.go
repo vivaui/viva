@@ -70,9 +70,13 @@ type cellLine struct {
 	padY   int32
 	// rule is one rule's thickness, in device pixels.
 	//
-	// ponytail: it is 5% of the font size, the underline a fixed-pitch face draws, because no
-	// text engine reports its underline thickness yet; an engine that does can hand it over the
-	// way MonoCell hands the cell, and only the line that computes it changes.
+	// It is the face's underline thickness (MonoCellMetrics.Underline) at the line's scale,
+	// rounded up to the whole device pixel a stroke covers: the weight the font itself draws
+	// an underline with, so a box drawing or block character drawn as geometry weighs what
+	// the font's own glyphs around it weigh, as in Ghostty (src/font/Metrics.zig). Rounding
+	// down would make a stroke thinner, relative to the glyphs, at every scale that leaves
+	// it a fraction of a pixel; the reference thickness stands in when no engine measured
+	// the face.
 	rule int32
 }
 
@@ -280,10 +284,11 @@ func (canvas *Canvas) cellLine(text Text) cellLine {
 	scale := canvas.deviceScale()
 	top := round32(float64(text.Bounds.Y) * scale)
 	height := max(round32(float64(text.Bounds.Y+text.Bounds.Height)*scale)-top, 1)
+	_, _, _, underline := canvas.monoCell(text.Style.Size, text.Style.MonoFace)
 	return cellLine{
 		text: text, scale: scale, top: float32(float64(top) / scale),
 		height: height, padY: height / 4,
-		rule: max(round32(0.05*float64(text.Style.Size)*scale), 1),
+		rule: max(ceil32(float64(underline)*scale), 1),
 	}
 }
 

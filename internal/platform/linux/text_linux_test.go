@@ -311,3 +311,24 @@ func TestMeasureTextIsWiderAtAHeavierWeight(t *testing.T) {
 		t.Fatalf("bold %.2f is not wider than regular %.2f", bold.Width, regular.Width)
 	}
 }
+
+// The engine reports the thickness the font underlines with, in logical pixels at the size
+// asked: that is the rule a cell glyph is drawn with, so box drawing geometry weighs what
+// the font's own glyphs weigh. Pango reads it from the face; a face that files no underline
+// thickness answers 0, and the canvas then uses the reference thickness.
+func TestTheEngineReportsTheFontsUnderline(t *testing.T) {
+	engine := sharedTextEngine()
+	cell := engine.MonoCell(13, gfx.MonoSystem)
+	if cell.Advance <= 0 {
+		t.Fatal("no fixed-pitch cell on this runner")
+	}
+	if cell.Underline == 0 {
+		t.Skip("the runner's fixed-pitch face reports no underline thickness")
+	}
+	if cell.Underline < 0 || cell.Underline >= cell.Advance {
+		t.Fatalf("underline %v of a cell %v wide, want a positive stroke narrower than the cell", cell.Underline, cell.Advance)
+	}
+	if at26 := engine.MonoCell(26, gfx.MonoSystem); at26.Underline <= cell.Underline {
+		t.Errorf("underline %v at size 26, %v at size 13, want it to follow the size", at26.Underline, cell.Underline)
+	}
+}
