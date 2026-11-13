@@ -55,4 +55,10 @@ func TestWindowSetSizeReportsUnsupportedHosts(t *testing.T) {
 	if err := window.SetSize(800, 600); !errors.Is(err, ErrUnsupported) {
 		t.Fatalf("unsupported native window error = %v", err)
 	}
+
+	failure := errors.New("native resize failed")
+	window.control = &sizingWindow{err: failure}
+	if err := window.SetSize(800, 600); !errors.Is(err, failure) || errors.Is(err, ErrUnsupported) {
+		t.Fatalf("native resize error = %v", err)
+	}
 }

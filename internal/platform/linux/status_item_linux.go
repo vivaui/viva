@@ -146,7 +146,7 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 	win := state.win
 	switch command {
 	case commandSetSize:
-		if len(data) < 12 || win.frame.maximized || win.fullscreen.Load() {
+		if len(data) < 12 || win.frame.maximized || win.minimized || win.fullscreen.Load() {
 			return nil
 		}
 		width := int(binary.LittleEndian.Uint32(data[4:8]))
