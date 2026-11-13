@@ -69,7 +69,10 @@ func newWebState(run *runState, host *platform.WebHost, initial []platform.Nativ
 func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error) {
 	direct := C.int(0)
 	if config.Proxy != "" {
-		if config.Proxy != platform.WebProxyDirect || C.viva_web_direct_supported() == 0 {
+		if config.Proxy != platform.WebProxyDirect {
+			return nil, fmt.Errorf("%w: macOS cannot hold a page to a SOCKS5 proxy", platform.ErrWebViewUnsupported)
+		}
+		if C.viva_web_direct_supported() == 0 {
 			return nil, fmt.Errorf("%w: direct web networking requires macOS 14 or newer", platform.ErrWebViewUnsupported)
 		}
 		direct = 1

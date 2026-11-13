@@ -520,9 +520,11 @@ static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped
 @end
 
 int viva_web_direct_supported(void) {
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
     if (@available(macOS 14.0, *)) {
         return 1;
     }
+#endif
     return 0;
 }
 
@@ -545,6 +547,7 @@ void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, 
             configuration.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
         }
         if (direct) {
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
             if (@available(macOS 14.0, *)) {
                 // An empty proxyConfigurations array restores system proxies. Excluding every
                 // domain selects direct connections; the excluded endpoint is never contacted.
@@ -555,6 +558,7 @@ void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, 
                 nw_release(policy);
                 nw_release(endpoint);
             }
+#endif
         }
         WKUserContentController *controller = configuration.userContentController;
         [controller addScriptMessageHandler:bridge name:@"viva"];
