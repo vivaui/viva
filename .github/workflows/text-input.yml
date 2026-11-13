@@ -44,7 +44,7 @@ jobs:
         run: go test ./app -count=1
       - name: Linux text callback ordering
         if: runner.os == 'Linux'
-        run: go test ./internal/platform/linux -run '^TestLinuxTextCallback' -count=1 -timeout=90s
+        run: go test -race ./internal/platform/linux -run '^TestLinuxTextCallback' -count=1 -timeout=90s
       - name: GTK text callback ordering
         if: runner.os == 'Linux'
         run: go test -tags vivagtk ./internal/platform/linux -run '^TestLinuxTextCallback' -count=1 -timeout=90s

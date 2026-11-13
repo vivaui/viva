@@ -158,13 +158,14 @@ func TestLinuxTextCallbackDiscardsSupersededRedraw(t *testing.T) {
 					TextLabels:    []platform.TextLabel{{Value: "superseded scene"}},
 					Accessibility: []platform.AccessibilityNode{{Value: "superseded input"}},
 					TextInput:     platform.TextInputUpdate{Changed: true, Input: &oldInput},
+					NativeViews:   []platform.NativeView{{}},
 				}, nil
 			}
 			frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "x"})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !frame.Update.Empty() || frame.Rectangles != nil || frame.TextLabels != nil || frame.Accessibility != nil {
+			if !frame.Update.Empty() || frame.Rectangles != nil || frame.TextLabels != nil || frame.Accessibility != nil || frame.NativeViews != nil {
 				t.Fatalf("superseded application scene survived: %+v", frame)
 			}
 			prepareCallbackFrame(t, state, frame)
