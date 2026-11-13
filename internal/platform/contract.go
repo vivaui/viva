@@ -44,8 +44,9 @@ type Config struct {
 	WindowMode WindowMode
 	// TitlebarHeight is the height in logical pixels of the strip a custom
 	// titlebar leaves for the application. Zero means DefaultTitlebarHeight.
-	TitlebarHeight float32
-	ClearColor     Color
+	TitlebarHeight    float32
+	TrafficLightScale float32
+	ClearColor        Color
 	WindowMaterials
 	Rectangles    []render.Rectangle
 	TextLabels    []TextLabel

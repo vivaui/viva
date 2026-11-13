@@ -443,6 +443,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 		dynamic_text_input:        C.int(boolInt(config.DynamicTextInput)),
 		window_mode:               C.int(int(config.WindowMode)),
 		titlebar_height:           C.float(config.TitlebarStrip()),
+		traffic_light_scale:       C.float(config.TrafficLightScale),
 		close_intercept_enabled:   C.int(boolInt(config.OnCloseRequest != nil)),
 		callback_handle:           C.uintptr_t(state.callbackHandle),
 		has_anchor:                C.int(boolInt(config.HasAnchor)),

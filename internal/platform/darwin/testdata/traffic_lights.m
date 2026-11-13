@@ -88,21 +88,34 @@ int main(void) {
         NSWindow *window = customTitlebarWindow(800, 600);
         CGFloat system = viva_traffic_light_center(window);
         assert(system > 0);
-        viva_place_traffic_lights(window, VIVA_DEFAULT_TITLEBAR_HEIGHT);
+        viva_place_traffic_lights(window, VIVA_DEFAULT_TITLEBAR_HEIGHT, 0);
         assertCenter(window, system, "in a strip of the system's height");
-        viva_place_traffic_lights(window, 20);
+        viva_place_traffic_lights(window, 20, 0);
         assertCenter(window, system, "in a strip shorter than the system's");
 
         // A taller strip centers them in it, and placing again changes nothing.
-        viva_place_traffic_lights(window, 36);
+        viva_place_traffic_lights(window, 36, 0);
         assertCenter(window, 18, "in a 36 point strip");
         assertAligned(window, "in a 36 point strip");
         assert(fabs(NSHeight(viva_titlebar_container(window).frame) - 36) < 0.01);
         NSRect container = viva_titlebar_container(window).frame;
-        viva_place_traffic_lights(window, 36);
+        viva_place_traffic_lights(window, 36, 0);
         assert(NSEqualRects(container, viva_titlebar_container(window).frame));
-        viva_place_traffic_lights(window, 44);
+        viva_place_traffic_lights(window, 44, 0);
         assertCenter(window, 22, "in a 44 point strip");
+
+        // Shrinking preserves centers and drawing bounds, and never compounds.
+        NSButton *close = [window standardWindowButton:NSWindowCloseButton];
+        NSSize originalSize = close.bounds.size;
+        CGFloat originalCenterX = NSMidX(close.frame);
+        const CGFloat compactScale = 0.9;
+        viva_place_traffic_lights(window, 44, compactScale);
+        assert(fabs(NSWidth(close.frame) - originalSize.width * compactScale) < 0.01);
+        assert(fabs(NSMidX(close.frame) - originalCenterX) < 0.01);
+        assert(NSEqualSizes(close.bounds.size, originalSize));
+        viva_place_traffic_lights(window, 44, compactScale);
+        assert(fabs(NSWidth(close.frame) - originalSize.width * compactScale) < 0.01);
+        assertCenter(window, 22, "after shrinking the native buttons");
 
         // AppKit puts the buttons back whenever it lays the titlebar out, a
         // resize being one; the delegate puts them back in the same pass.
@@ -129,7 +142,7 @@ int main(void) {
         [delegate release];
 
         // A window with no traffic lights to move is left alone.
-        viva_place_traffic_lights(nil, 36);
+        viva_place_traffic_lights(nil, 36, 0);
         printf("traffic lights: ok (system center %.1f, strip 36 -> 18, strip 44 -> 22)\n", system);
     }
     return 0;

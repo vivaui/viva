@@ -140,7 +140,7 @@ static CGFloat viva_traffic_light_center(NSWindow *window) {
  * layout, so callers place them again whenever a button or the container
  * reports a frame change (see keepTrafficLightsCentered). A strip no taller
  * than the system's, and a full screen window, keep the system's layout. */
-static void viva_place_traffic_lights(NSWindow *window, CGFloat stripHeight) {
+static void viva_place_traffic_lights(NSWindow *window, CGFloat stripHeight, CGFloat scale) {
     if (window == nil || stripHeight <= VIVA_DEFAULT_TITLEBAR_HEIGHT ||
         (window.styleMask & NSWindowStyleMaskFullScreen) != 0) {
         return;
@@ -159,6 +159,20 @@ static void viva_place_traffic_lights(NSWindow *window, CGFloat stripHeight) {
         NSView *button = [window standardWindowButton:viva_traffic_buttons[index]];
         if (button == nil || button.superview == nil) {
             continue;
+        }
+        // Keep the original drawing coordinates while shrinking the view frame.
+        // Using bounds makes repeated AppKit layout notifications idempotent.
+        if (isfinite(scale) && scale > 0 && scale < 1) {
+            NSSize originalSize = button.bounds.size;
+            NSSize targetSize = NSMakeSize(originalSize.width * scale, originalSize.height * scale);
+            if (fabs(NSWidth(button.frame) - targetSize.width) > 0.01 ||
+                fabs(NSHeight(button.frame) - targetSize.height) > 0.01) {
+                NSRect frame = button.frame;
+                frame.origin.x += (frame.size.width - targetSize.width) / 2.0;
+                frame.size = targetSize;
+                button.frame = frame;
+                button.bounds = NSMakeRect(0, 0, originalSize.width, originalSize.height);
+            }
         }
         CGFloat y = NSHeight(button.superview.bounds) - stripHeight / 2.0 - NSHeight(button.frame) / 2.0;
         if (fabs(button.frame.origin.y - y) > 0.25) {
@@ -6094,6 +6108,7 @@ static void viva_set_secure_event_input(BOOL on) {
     BOOL _scrollEventsEnabled;
     int _windowMode;
     CGFloat _titlebarHeight;
+    CGFloat _trafficLightScale;
     NSMutableArray<NSView *> *_titlebarWatched; /* views whose frame changes re-center the traffic lights */
     BOOL _fullscreenTarget;
     BOOL _fullscreenTransition;
@@ -6205,6 +6220,7 @@ static void viva_set_secure_event_input(BOOL on) {
         _scrollEventsEnabled = scrollEventsEnabled;
         _windowMode = windowMode;
         _titlebarHeight = config.titlebar_height > 0 ? config.titlebar_height : VIVA_DEFAULT_TITLEBAR_HEIGHT;
+        _trafficLightScale = config.traffic_light_scale;
         _closeInterceptEnabled = closeInterceptEnabled;
         _callbackHandle = callbackHandle;
         _hasAnchor = config.has_anchor != 0;
@@ -6554,7 +6570,7 @@ static void viva_set_secure_event_input(BOOL on) {
  * buttons are never drawn at the system's height. Entering and leaving full
  * screen replaces the container, so the watched views are collected again. */
 - (void)keepTrafficLightsCentered {
-    viva_place_traffic_lights(_window, _titlebarHeight);
+    viva_place_traffic_lights(_window, _titlebarHeight, _trafficLightScale);
     if (_titlebarWatched == nil) {
         _titlebarWatched = [[NSMutableArray alloc] init];
     }
@@ -6581,7 +6597,7 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)titlebarChanged:(NSNotification *)notification {
     (void)notification;
-    viva_place_traffic_lights(_window, _titlebarHeight);
+    viva_place_traffic_lights(_window, _titlebarHeight, _trafficLightScale);
 }
 
 /* AppKit reports some of the buttons' moves a turn of the run loop late, so the
@@ -6589,7 +6605,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)windowDidResize:(NSNotification *)notification {
     (void)notification;
     if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
-        viva_place_traffic_lights(_window, _titlebarHeight);
+        viva_place_traffic_lights(_window, _titlebarHeight, _trafficLightScale);
     }
     [self reportFrameChange];
 }

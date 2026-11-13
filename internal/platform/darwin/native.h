@@ -334,6 +334,7 @@ typedef struct {
     int dynamic_text_input;
     int window_mode;
     float titlebar_height;
+    float traffic_light_scale;
     int close_intercept_enabled;
     uintptr_t callback_handle;
     // Where a panel opens: the screen rectangle of its status item, in the
