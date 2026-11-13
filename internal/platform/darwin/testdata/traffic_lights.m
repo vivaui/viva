@@ -127,6 +127,14 @@ int main(void) {
         window.delegate = delegate;
         [delegate performSelector:@selector(keepTrafficLightsCentered)];
         assertCenter(window, 18, "once the delegate keeps them centered");
+        // Changing scale after observers are installed must not reenter while
+        // frame and drawing bounds are temporarily out of sync.
+        [delegate setValue:[NSNumber numberWithDouble:compactScale] forKey:@"_trafficLightScale"];
+        [delegate performSelector:@selector(keepTrafficLightsCentered)];
+        assertCenter(window, 18, "after scaling with active frame observers");
+        NSButton *scaledClose = [window standardWindowButton:NSWindowCloseButton];
+        assert(fabs(NSWidth(scaledClose.frame) / NSWidth(scaledClose.bounds) - compactScale) < 0.01);
+
         [window setFrame:NSMakeRect(0, 85, 1000, 700) display:NO];
         assertCenter(window, 18, "after the window grew");
         assertAligned(window, "after the window grew");
@@ -135,6 +143,7 @@ int main(void) {
         window.titlebarAppearsTransparent = NO;
         window.titlebarAppearsTransparent = YES;
         assertCenter(window, 18, "after the titlebar was restyled");
+        assert(fabs(NSWidth(scaledClose.frame) / NSWidth(scaledClose.bounds) - compactScale) < 0.01);
         [delegate setAlwaysOnTop:YES];
         assert(window.level == NSFloatingWindowLevel);
         [delegate setAlwaysOnTop:NO];

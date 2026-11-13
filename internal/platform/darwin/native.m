@@ -6109,6 +6109,7 @@ static void viva_set_secure_event_input(BOOL on) {
     int _windowMode;
     CGFloat _titlebarHeight;
     CGFloat _trafficLightScale;
+    BOOL _placingTrafficLights;
     NSMutableArray<NSView *> *_titlebarWatched; /* views whose frame changes re-center the traffic lights */
     BOOL _fullscreenTarget;
     BOOL _fullscreenTransition;
@@ -6569,8 +6570,22 @@ static void viva_set_secure_event_input(BOOL on) {
  * or the container, so the placement is redone in that very pass and the
  * buttons are never drawn at the system's height. Entering and leaving full
  * screen replaces the container, so the watched views are collected again. */
+// Frame notifications may fire synchronously between setting frame and bounds.
+// Suppress reentry until the scaled drawing coordinates are fully restored.
+- (void)placeTrafficLights {
+    if (_placingTrafficLights) {
+        return;
+    }
+    _placingTrafficLights = YES;
+    @try {
+        viva_place_traffic_lights(_window, _titlebarHeight, _trafficLightScale);
+    } @finally {
+        _placingTrafficLights = NO;
+    }
+}
+
 - (void)keepTrafficLightsCentered {
-    viva_place_traffic_lights(_window, _titlebarHeight, _trafficLightScale);
+    [self placeTrafficLights];
     if (_titlebarWatched == nil) {
         _titlebarWatched = [[NSMutableArray alloc] init];
     }
@@ -6597,7 +6612,7 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)titlebarChanged:(NSNotification *)notification {
     (void)notification;
-    viva_place_traffic_lights(_window, _titlebarHeight, _trafficLightScale);
+    [self placeTrafficLights];
 }
 
 /* AppKit reports some of the buttons' moves a turn of the run loop late, so the
@@ -6605,7 +6620,7 @@ static void viva_set_secure_event_input(BOOL on) {
 - (void)windowDidResize:(NSNotification *)notification {
     (void)notification;
     if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
-        viva_place_traffic_lights(_window, _titlebarHeight, _trafficLightScale);
+        [self placeTrafficLights];
     }
     [self reportFrameChange];
 }
