@@ -6,23 +6,68 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
-// tooltipArrowMetrics describes one arrow step in axis-neutral terms: how far a
-// rectangle reaches out of the body toward the trigger, how wide it is across
-// the edge, and where it is centered along the edge.
-func tooltipArrowMetrics(side TooltipSide, body, step gfx.Rect) (reach, width, center float32) {
-	switch side {
-	case TooltipTop:
-		return step.Y + step.Height - (body.Y + body.Height), step.Width, step.X + step.Width/2
-	case TooltipBottom:
-		return body.Y - step.Y, step.Width, step.X + step.Width/2
-	case TooltipRight:
-		return body.X - step.X, step.Height, step.Y + step.Height/2
-	default:
-		return step.X + step.Width - (body.X + body.Width), step.Height, step.Y + step.Height/2
-	}
+// tooltipArrowSplit describes one arrow triangle in axis-neutral terms: the
+// midpoint of its base along the body edge, the width of that base, the tip
+// pointing at the trigger, and how far the tip reaches and the base sits inside
+// the body.
+type tooltipArrowSplit struct {
+	center float32
+	width  float32
+	tip    gfx.Point
+	reach  float32 // how far the tip reaches out of the body toward the trigger
+	inset  float32 // how far the base sits inside the body
 }
 
-func TestTooltipArrowIsATriangleOnEverySidePointingAtTheTrigger(t *testing.T) {
+// splitTooltipArrow splits the arrow triangle by its axis: the two points that
+// share a coordinate across the body edge are its base, the third is the tip.
+func splitTooltipArrow(side TooltipSide, body gfx.Rect, triangle gfx.Triangle) tooltipArrowSplit {
+	horizontal := side == TooltipTop || side == TooltipBottom
+	across := func(point gfx.Point) float32 {
+		if horizontal {
+			return point.Y
+		}
+		return point.X
+	}
+	along := func(point gfx.Point) float32 {
+		if horizontal {
+			return point.X
+		}
+		return point.Y
+	}
+	points := triangle.Points
+	var base [2]gfx.Point
+	var tip gfx.Point
+	switch {
+	case across(points[0]) == across(points[1]):
+		base, tip = [2]gfx.Point{points[0], points[1]}, points[2]
+	case across(points[1]) == across(points[2]):
+		base, tip = [2]gfx.Point{points[1], points[2]}, points[0]
+	default:
+		base, tip = [2]gfx.Point{points[2], points[0]}, points[1]
+	}
+	split := tooltipArrowSplit{
+		center: (along(base[0]) + along(base[1])) / 2,
+		width:  max(along(base[1])-along(base[0]), along(base[0])-along(base[1])),
+		tip:    tip,
+	}
+	switch side {
+	case TooltipTop:
+		split.reach = tip.Y - (body.Y + body.Height)
+		split.inset = (body.Y + body.Height) - base[0].Y
+	case TooltipBottom:
+		split.reach = body.Y - tip.Y
+		split.inset = base[0].Y - body.Y
+	case TooltipRight:
+		split.reach = body.X - tip.X
+		split.inset = base[0].X - body.X
+	default:
+		split.reach = tip.X - (body.X + body.Width)
+		split.inset = (body.X + body.Width) - base[0].X
+	}
+	return split
+}
+
+func TestTooltipArrowIsOneFeatheredTriangleOnEverySidePointingAtTheTrigger(t *testing.T) {
 	viewport := gfx.Rect{Width: 600, Height: 400}
 	anchor := gfx.Rect{X: 260, Y: 180, Width: 80, Height: 32}
 	anchorCenterX, anchorCenterY := anchor.X+anchor.Width/2, anchor.Y+anchor.Height/2
@@ -30,53 +75,30 @@ func TestTooltipArrowIsATriangleOnEverySidePointingAtTheTrigger(t *testing.T) {
 	for _, side := range []TooltipSide{TooltipTop, TooltipRight, TooltipBottom, TooltipLeft} {
 		var canvas gfx.Canvas
 		body := BeginTooltip(&canvas, theme, viewport, anchor, TooltipOptions{Side: side}).Paint("More information")
-		steps := canvas.Rectangles()[1:]
-		if len(steps) != tooltipArrowSteps {
-			t.Fatalf("side %d painted %d arrow steps", side, len(steps))
+		triangles := canvas.Triangles()
+		if len(triangles) != 1 {
+			t.Fatalf("side %d painted %d arrow triangles, want one", side, len(triangles))
 		}
+		triangle := triangles[0]
+		if triangle.Color != theme.Foreground || triangle.EdgeMask != tooltipArrowEdges {
+			t.Fatalf("side %d arrow = %+v, want a body-colored triangle with every edge feathered", side, triangle)
+		}
+		split := splitTooltipArrow(side, body, triangle)
 		wantCenter := anchorCenterX
 		if side == TooltipLeft || side == TooltipRight {
 			wantCenter = anchorCenterY
 		}
-
-		previousReach, previousWidth := float32(0), tooltipArrowBase+1
-		for index, step := range steps {
-			reach, width, center := tooltipArrowMetrics(side, body, step.Bounds)
-			if step.Color != theme.Foreground || step.Radius != 0 {
-				t.Fatalf("side %d step %d = %+v, want a square-cornered body-colored step", side, index, step)
-			}
-			if center != wantCenter {
-				t.Fatalf("side %d step %d centered at %v, want the trigger center %v", side, index, center, wantCenter)
-			}
-			// Each step reaches farther out and is narrower than the one before
-			// it, which is what makes the union a triangle rather than a block.
-			if reach <= previousReach || width >= previousWidth {
-				t.Fatalf("side %d step %d reach %v width %v after reach %v width %v", side, index, reach, width, previousReach, previousWidth)
-			}
-			previousReach, previousWidth = reach, width
+		if split.center != wantCenter {
+			t.Fatalf("side %d arrow centered at %v, want the trigger center %v", side, split.center, wantCenter)
 		}
-		firstReach, firstWidth, _ := tooltipArrowMetrics(side, body, steps[0].Bounds)
-		tipReach, tipWidth, _ := tooltipArrowMetrics(side, body, steps[len(steps)-1].Bounds)
-		if firstWidth < tooltipArrowBase-1 || firstWidth > tooltipArrowBase {
-			t.Fatalf("side %d base width = %v, want about %v", side, firstWidth, tooltipArrowBase)
+		if split.width != tooltipArrowBase {
+			t.Fatalf("side %d base width = %v, want %v", side, split.width, tooltipArrowBase)
 		}
-		if firstReach != tooltipArrowStep || tipReach != tooltipArrowStep*tooltipArrowSteps {
-			t.Fatalf("side %d reach runs %v..%v, want %v..%v", side, firstReach, tipReach, tooltipArrowStep, tooltipArrowStep*tooltipArrowSteps)
+		if split.reach != tooltipArrowDepth {
+			t.Fatalf("side %d tip reaches %v out of the body %+v, want %v", side, split.reach, body, tooltipArrowDepth)
 		}
-		if tipWidth < 1 || tipWidth > 3 {
-			t.Fatalf("side %d tip width = %v, want a short blunt tip", side, tipWidth)
-		}
-	}
-}
-
-func TestTooltipArrowStepsOverlapTheBodyEdgeSoNoSeamOpens(t *testing.T) {
-	var canvas gfx.Canvas
-	anchor := gfx.Rect{X: 260, Y: 180, Width: 80, Height: 32}
-	body := BeginTooltip(&canvas, gfx.LightTheme(), gfx.Rect{Width: 600, Height: 400}, anchor, TooltipOptions{Side: TooltipBottom}).Paint("Add to library")
-	for index, step := range canvas.Rectangles()[1:] {
-		bottom := step.Bounds.Y + step.Bounds.Height
-		if bottom != body.Y+tooltipArrowInset {
-			t.Fatalf("step %d ends at %v, want %v: every step must overlap the body edge so no seam can open", index, bottom, body.Y+tooltipArrowInset)
+		if split.inset != tooltipArrowInset {
+			t.Fatalf("side %d base sits %v inside the body %+v, want %v: the feathered base overlaps the body so no seam opens", side, split.inset, body, tooltipArrowInset)
 		}
 	}
 }
@@ -94,10 +116,9 @@ func TestTooltipArrowStaysOnTheFlatPartOfAClampedBody(t *testing.T) {
 		var canvas gfx.Canvas
 		body := BeginTooltip(&canvas, theme, viewport, test.anchor, TooltipOptions{Side: TooltipBottom}).Paint("A longer label here")
 		margin := theme.Metrics.RadiusControl + tooltipArrowBase/2
-		base := canvas.Rectangles()[1].Bounds
-		center := base.X + base.Width/2
-		if center < body.X+margin || center > body.X+body.Width-margin {
-			t.Fatalf("%s: arrow center %v leaves the flat span [%v, %v] of body %+v", test.name, center, body.X+margin, body.X+body.Width-margin, body)
+		split := splitTooltipArrow(TooltipBottom, body, canvas.Triangles()[0])
+		if split.center < body.X+margin || split.center > body.X+body.Width-margin {
+			t.Fatalf("%s: arrow center %v leaves the flat span [%v, %v] of body %+v", test.name, split.center, body.X+margin, body.X+body.Width-margin, body)
 		}
 	}
 }

@@ -25,8 +25,13 @@ func TestTooltipPositionsOnEverySideAndUsesLayer(t *testing.T) {
 		if !test.check(bounds) {
 			t.Fatalf("side %d bounds = %+v", test.side, bounds)
 		}
-		if len(canvas.Rectangles()) != 1+tooltipArrowSteps || canvas.Texts()[0].Layer != 9 {
-			t.Fatalf("tooltip commands = %+v / %+v", canvas.Rectangles(), canvas.Texts())
+		if len(canvas.Rectangles()) != 1 || len(canvas.Triangles()) != 1 || canvas.Texts()[0].Layer != 9 {
+			t.Fatalf("tooltip commands = %+v / %+v / %+v", canvas.Rectangles(), canvas.Triangles(), canvas.Texts())
+		}
+		for _, triangle := range canvas.Triangles() {
+			if triangle.Layer != 9 {
+				t.Fatalf("tooltip triangle left layer 9: %+v", triangle)
+			}
 		}
 		for _, rectangle := range canvas.Rectangles() {
 			if rectangle.Layer != 9 {
@@ -110,9 +115,11 @@ func TestTooltipOpensOnTheOtherSideWhenThereIsNoRoomAndItsArrowFollows(t *testin
 		t.Fatalf("tooltip %+v overlaps its anchor %+v instead of going below it", bounds, anchor)
 	}
 	arrowAboveBody := false
-	for _, rectangle := range canvas.Rectangles() {
-		if rectangle.Bounds.Y < bounds.Y && rectangle.Bounds.Y >= anchor.Y+anchor.Height {
-			arrowAboveBody = true
+	for _, triangle := range canvas.Triangles() {
+		for _, point := range triangle.Points {
+			if point.Y < bounds.Y && point.Y >= anchor.Y+anchor.Height {
+				arrowAboveBody = true
+			}
 		}
 	}
 	if !arrowAboveBody {

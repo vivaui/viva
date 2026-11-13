@@ -187,51 +187,69 @@ func tooltipSideOf(side OverlaySide) TooltipSide {
 }
 
 // The arrow is the visible half of shadcn's 45°-rotated 10px square: about ten
-// pixels wide where it meets the body and four deep, so its tip reaches the
-// default side offset. Canvas has no triangle or rotation primitive, so the
-// triangle is a staircase of half-pixel steps (one physical pixel on a 2x
-// display). Each rectangle starts just inside the body and reaches one step
-// farther out than the wider one before it; nesting leaves no seam to
-// anti-alias between steps, and the union is the stair-stepped triangle.
+// points wide where it meets the body and four deep, so its tip reaches the
+// default side offset. It is one filled triangle, which every renderer feathers
+// along its outline over a device pixel, as it feathers an icon's edges: a
+// staircase of snapped rectangles only lands on whole pixels at 2x, and at the
+// 100% and 125% of most desktop displays it collapses into a coarse, uneven
+// jaggie. The base sits one point inside the body rather than on its edge, so
+// the feathered base edge blends arrow into arrow instead of opening a seam
+// against the body's own feathered edge.
 const (
 	tooltipArrowBase  = float32(10)
-	tooltipArrowStep  = float32(0.5)
-	tooltipArrowSteps = 8
+	tooltipArrowDepth = float32(4)
 	tooltipArrowInset = float32(1)
 )
+
+// tooltipArrowEdges marks all three edges as the arrow's outline, the ones the
+// renderers feather; the triangle has no shared tessellation edges.
+const tooltipArrowEdges = uint8(1<<3 - 1)
 
 func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide) {
 	// Center on the trigger, but keep the base on the flat part of the body so
 	// it never straddles a rounded corner after the body was clamped on screen.
 	radius := tooltip.theme.Metrics.RadiusControl
-	edge, center := float32(0), float32(0)
+	half := tooltipArrowBase / 2
+	var points [3]gfx.Point
 	switch side {
 	case TooltipRight:
-		edge, center = content.X, tooltipArrowCenter(tooltip.anchor.Y+tooltip.anchor.Height/2, content.Y, content.Height, radius)
-	case TooltipBottom:
-		edge, center = content.Y, tooltipArrowCenter(tooltip.anchor.X+tooltip.anchor.Width/2, content.X, content.Width, radius)
-	case TooltipLeft:
-		edge, center = content.X+content.Width, tooltipArrowCenter(tooltip.anchor.Y+tooltip.anchor.Height/2, content.Y, content.Height, radius)
-	default:
-		edge, center = content.Y+content.Height, tooltipArrowCenter(tooltip.anchor.X+tooltip.anchor.Width/2, content.X, content.Width, radius)
-	}
-	for step := range tooltipArrowSteps {
-		reach := float32(step+1) * tooltipArrowStep
-		// Chord of the 45° triangle at the middle of this step.
-		width := tooltipArrowBase - 2*(float32(step)+0.5)*tooltipArrowStep
-		var bounds gfx.Rect
-		switch side {
-		case TooltipRight:
-			bounds = gfx.Rect{X: edge - reach, Y: center - width/2, Width: reach + tooltipArrowInset, Height: width}
-		case TooltipBottom:
-			bounds = gfx.Rect{X: center - width/2, Y: edge - reach, Width: width, Height: reach + tooltipArrowInset}
-		case TooltipLeft:
-			bounds = gfx.Rect{X: edge - tooltipArrowInset, Y: center - width/2, Width: reach + tooltipArrowInset, Height: width}
-		default:
-			bounds = gfx.Rect{X: center - width/2, Y: edge - tooltipArrowInset, Width: width, Height: reach + tooltipArrowInset}
+		center := tooltipArrowCenter(tooltip.anchor.Y+tooltip.anchor.Height/2, content.Y, content.Height, radius)
+		base := content.X + tooltipArrowInset
+		points = [3]gfx.Point{
+			{X: base, Y: center - half},
+			{X: base, Y: center + half},
+			{X: content.X - tooltipArrowDepth, Y: center},
 		}
-		tooltip.canvas.Fill(bounds, tooltip.theme.Foreground)
+	case TooltipBottom:
+		center := tooltipArrowCenter(tooltip.anchor.X+tooltip.anchor.Width/2, content.X, content.Width, radius)
+		base := content.Y + tooltipArrowInset
+		points = [3]gfx.Point{
+			{X: center - half, Y: base},
+			{X: center + half, Y: base},
+			{X: center, Y: content.Y - tooltipArrowDepth},
+		}
+	case TooltipLeft:
+		center := tooltipArrowCenter(tooltip.anchor.Y+tooltip.anchor.Height/2, content.Y, content.Height, radius)
+		base := content.X + content.Width - tooltipArrowInset
+		points = [3]gfx.Point{
+			{X: base, Y: center - half},
+			{X: base, Y: center + half},
+			{X: content.X + content.Width + tooltipArrowDepth, Y: center},
+		}
+	default:
+		center := tooltipArrowCenter(tooltip.anchor.X+tooltip.anchor.Width/2, content.X, content.Width, radius)
+		base := content.Y + content.Height - tooltipArrowInset
+		points = [3]gfx.Point{
+			{X: center - half, Y: base},
+			{X: center + half, Y: base},
+			{X: center, Y: content.Y + content.Height + tooltipArrowDepth},
+		}
 	}
+	tooltip.canvas.AppendTriangle(gfx.Triangle{
+		Points:   points,
+		Color:    tooltip.theme.Foreground,
+		EdgeMask: tooltipArrowEdges,
+	})
 }
 
 // tooltipArrowCenter clamps the trigger's center to the straight part of the
