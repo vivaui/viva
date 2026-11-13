@@ -55,26 +55,33 @@ type TableSpec struct {
 	// Striped shades every second row.
 	Striped bool
 	// Scrollbar is the identity of the vertical bar a table that scrolls itself
-	// draws under its columns; zero paints the bar without an action. A table
-	// inside a ScrollArea takes the area's bar instead and ignores this.
+	// draws under its columns; zero paints the bar without an action.
 	Scrollbar gfx.ID
-	// ScrollbarLabel names that bar for assistive technology; empty is "Table
-	// rows".
-	ScrollbarLabel string
-	// ScrollbarSize is the bar's thickness; zero keeps the thin hover default.
+	// HorizontalScrollbar is the identity of the bar below the body when the
+	// columns overflow their viewport; zero paints that bar without an action.
+	HorizontalScrollbar gfx.ID
+	// ScrollbarLabel names the vertical bar for assistive technology; empty is
+	// "Table rows". HorizontalScrollbarLabel does the same for the horizontal
+	// bar, whose default is "Table columns".
+	ScrollbarLabel           string
+	HorizontalScrollbarLabel string
+	// ScrollbarSize is the bars' thickness; zero keeps the thin hover default.
 	ScrollbarSize float32
-	// ScrollbarGutter is the strip reserved beside the columns for the bar; zero
-	// lets the bar sit over their edge. The columns lose that width.
+	// ScrollbarGutter is the strip reserved beside or below the cells for an
+	// overflowing bar; zero lets the bars sit over their edges. The columns lose
+	// the width of a vertical gutter, and the rows the height of a horizontal one.
 	ScrollbarGutter float32
 }
 
 // tableRoute is a Table of the last paint that scrolls itself, and where: the
 // page gives it the wheel and the keys that reach it.
 type tableRoute struct {
-	state   *TableState
-	bounds  Rect
-	scrolls bool
-	bar     gfx.ID
+	state      *TableState
+	bounds     Rect
+	scrolls    bool
+	sideways   bool
+	bar        gfx.ID
+	horizontal gfx.ID
 }
 
 // TableState is what a Table keeps between frames, in the application's state: the
@@ -82,9 +89,11 @@ type tableRoute struct {
 // scrolled. The zero value is a table with nothing selected, unsorted, at the top.
 type TableState struct {
 	// Scroll is the scroll position of a table with a height of its own (a Height,
-	// Fill or Grow that is less than its rows need). Give config.OnScroll
+	// Fill or Grow that is less than its rows need), and, when its explicit column
+	// widths are wider than it, how far across it is scrolled. Give config.OnScroll
 	// state.Wheel, or call it for the table under the pointer. A table in a
-	// ScrollArea is as tall as its rows and needs none of it.
+	// ScrollArea is as tall as its rows, as wide as its area makes it, and needs
+	// none of it.
 	Scroll           ScrollState
 	selected         int32 // 1 + the row, or 0
 	sortColumn       int32 // 1 + the column, or 0
@@ -175,6 +184,15 @@ type tableDecl struct {
 // the rows on screen are read and painted; given a smaller height it scrolls its
 // rows under a fixed header, by state.Scroll.
 //
+// A table of explicit column widths wider than itself also scrolls left and
+// right under its fixed header, the header riding along with its rows: the
+// horizontal wheel, Shift with the wheel, or a horizontal scrollbar
+// (HorizontalScrollbar) moves the columns, and state.Scroll reports how far
+// across it is. A table whose last column has no width keeps the layout it
+// always had: the last column takes what is left, however narrow that is. A
+// table inside a ScrollArea is never scrolled across by itself; the area owns
+// its width, sideways or not.
+//
 //	tbl := f.Table(&state, ui.TableSpec{Rows: rows, Header: heads, Columns: cols, Headers: titles, Sortable: sortable, Source: &data})
 //	if row, ok := tbl.RowClicked(); ok { state.Select(row) }
 //	if col, ok := tbl.HeaderClicked(); ok { state.SortBy(col); data.Sort(state.Sort()) }
@@ -236,6 +254,16 @@ func (f *frame) measureTable(n *node) {
 	n.pref = [2]float32{width, t.headerHeight(f.theme) + float32(t.rows)*t.rowHeight(f.theme)}
 }
 
+// tableColumnsWidth is the total width a table's columns declare: the fixed
+// widths of every column, zero for the flexible one that takes what is left.
+func tableColumnsWidth(columns []components.TableColumn) float32 {
+	width := float32(0)
+	for _, column := range columns {
+		width += max(column.Width, 0)
+	}
+	return width
+}
+
 // scrollAncestor is the state and viewport of the ScrollArea nearest around element n.
 func (f *frame) scrollAncestor(n *node) (*ScrollState, Rect) {
 	for p := n.parent; p >= 0; p = f.nodes[p].parent {
@@ -257,29 +285,64 @@ func (f *frame) paintTable(n *node) {
 	canvas := f.canvas
 	body := Rect{X: r.X, Y: r.Y + headerHeight, Width: r.Width, Height: max(r.Height-headerHeight, 0)}
 	content := float32(t.rows) * rowHeight
+	gutter := max(t.spec.ScrollbarGutter, 0)
+	// A table whose last column has no width keeps the layout it always had: the
+	// last column takes what is left, however narrow that is. Only explicit widths
+	// that do not fit move the whole grid across, with the header riding along —
+	// and never inside a ScrollArea, whose viewport (sideways or not) owns the
+	// table's width; such a table is only ever clipped.
+	declaredWidth := tableColumnsWidth(t.spec.Columns)
+	flexibleLast := len(t.spec.Columns) == 0 || t.spec.Columns[len(t.spec.Columns)-1].Width <= 0
+	selfContained := true
+	if ancestor, _ := f.scrollAncestor(n); ancestor != nil {
+		selfContained = false
+	}
+	verticalGutter := float32(0)
+	if body.Height+0.5 < content {
+		verticalGutter = min(gutter, body.Width)
+		body.Width -= verticalGutter
+	}
+	sideways := selfContained && !flexibleLast && declaredWidth > body.Width+0.5
+	horizontalGutter := float32(0)
+	if sideways {
+		horizontalGutter = min(gutter, body.Height)
+		body.Height -= horizontalGutter
+	}
 	scrolls := body.Height+0.5 < content
-	gutter := float32(0)
-	if scrolls {
-		gutter = min(max(t.spec.ScrollbarGutter, 0), r.Width)
-		body.Width = r.Width - gutter
+	contentWidth := body.Width
+	if !flexibleLast && declaredWidth > contentWidth {
+		contentWidth = declaredWidth
 	}
 	if f.page != nil {
-		f.page.tables = append(f.page.tables, tableRoute{state: t.state, bounds: r, scrolls: scrolls, bar: t.spec.Scrollbar})
+		f.page.tables = append(f.page.tables, tableRoute{
+			state: t.state, bounds: r, scrolls: scrolls, sideways: sideways,
+			bar: t.spec.Scrollbar, horizontal: t.spec.HorizontalScrollbar,
+		})
 	}
-	var offset float32
+	var offset, offsetX float32
 	s := &t.state.Scroll
+	s.sideways = true // TableState.Wheel accepts both axes; only the overflows below can move.
 	s.Content, s.Viewport = content, min(body.Height, content)
 	if scrolls {
 		s.Viewport = body.Height
+	}
+	s.ContentWidth, s.ViewportWidth = contentWidth, body.Width
+	if !sideways {
+		s.OffsetX = 0 // an outer ScrollArea owns the table's geometry instead
 	}
 	t.state.rows, t.state.scope = int32(t.rows), t.spec.Rows
 	if t.state.reveal {
 		f.revealSelected(n, t, body, rowHeight, headerHeight, scrolls)
 	}
 	s.Offset = min(max(s.Offset, 0), s.Max())
+	s.OffsetX = min(max(s.OffsetX, 0), s.MaxX())
 	if scrolls {
 		offset = snapScroll(s.Offset)
 	}
+	if sideways {
+		offsetX = snapScroll(s.OffsetX)
+	}
+	left := body.X - offsetX
 
 	// The rows on screen: the table's body, cut by every clip it sits in.
 	top := body.Y - offset
@@ -309,20 +372,22 @@ func (f *frame) paintTable(n *node) {
 	t.state.rowFirst, t.state.rowEnd = int32(first), int32(last)
 
 	if !scrolls && !sticky {
-		f.paintTableHeader(t, Rect{X: r.X, Y: r.Y, Width: body.Width, Height: r.Height}, headerHeight, rowHeight)
+		// Height: r.Height lets paintTableHeader keep its rule of the header's
+		// bottom rule needing room below it.
+		f.paintTableHeader(t, Rect{X: left, Y: r.Y, Width: contentWidth, Height: r.Height}, body, headerHeight, rowHeight, sideways)
 	}
 	if last > first {
 		extra := float32(0)
 		if top+float32(last)*rowHeight < r.Y+r.Height {
 			extra = 1 // a divider under the last row painted, when something follows or the table is taller
 		}
-		if scrolls {
+		if scrolls || sideways {
 			canvas.Clip(body)
 		} else if sticky {
 			below := headerY + headerHeight
 			canvas.Clip(Rect{X: r.X, Y: below, Width: body.Width, Height: max(r.Y+r.Height-below, 0)})
 		}
-		table := components.BeginTable(canvas, f.theme, Rect{X: r.X, Y: top + float32(first)*rowHeight, Width: body.Width, Height: float32(last-first)*rowHeight + extra}, t.spec.Columns).
+		table := components.BeginTable(canvas, f.theme, Rect{X: left, Y: top + float32(first)*rowHeight, Width: contentWidth, Height: float32(last-first)*rowHeight + extra}, t.spec.Columns).
 			RowHeight(rowHeight).FontSize(t.spec.FontSize).CellPadding(t.spec.CellPadding)
 		w := &f.widgets
 		if cap(w.cells) < len(t.spec.Columns) {
@@ -336,7 +401,7 @@ func (f *frame) paintTable(n *node) {
 			if t.spec.Striped && row%2 == 1 {
 				stripe := f.theme.Muted
 				stripe.Alpha *= 0.6
-				canvas.Fill(Rect{X: r.X, Y: top + float32(row)*rowHeight, Width: body.Width, Height: rowHeight}, stripe)
+				canvas.Fill(Rect{X: left, Y: top + float32(row)*rowHeight, Width: contentWidth, Height: rowHeight}, stripe)
 			}
 			// A press on the bar owns the pointer: the row under it neither
 			// highlights nor takes a click while the bar is held.
@@ -346,7 +411,7 @@ func (f *frame) paintTable(n *node) {
 			}
 			table.RowState(id, cells, components.TableRowState{Selected: row == t.state.Selected()})
 		}
-		if scrolls || sticky {
+		if scrolls || sideways || sticky {
 			canvas.Unclip()
 		}
 	}
@@ -354,39 +419,47 @@ func (f *frame) paintTable(n *node) {
 		if headerHeight > 0 {
 			canvas.Fill(Rect{X: r.X, Y: headerY, Width: body.Width, Height: headerHeight}, f.theme.Background)
 		}
-		f.paintTableHeader(t, Rect{X: r.X, Y: headerY, Width: body.Width, Height: r.Height}, headerHeight, rowHeight)
+		f.paintTableHeader(t, Rect{X: left, Y: headerY, Width: contentWidth, Height: r.Height}, body, headerHeight, rowHeight, sideways)
 	}
-	if scrolls {
-		f.paintTableScrollbar(t, body, content, offset)
+	if scrolls || sideways {
+		f.paintTableScrollbars(t, r, body, gfx.Size{Width: contentWidth, Height: content}, offsetX, offset)
 	}
 }
 
-// paintTableScrollbar paints and drags the bar of a Table that scrolls itself.
-// The bar is the hover style announced for the area: the page's pointer reveals
-// it, and it sits in the gutter beside the columns when one is asked for.
-func (f *frame) paintTableScrollbar(t *tableDecl, body Rect, content, offset float32) {
-	bounds := Rect{X: body.X, Y: body.Y, Width: body.Width + float32(max(t.spec.ScrollbarGutter, 0)), Height: body.Height}
-	if t.spec.ScrollbarGutter <= 0 {
-		bounds.Width = body.Width
-	}
-	revealed := f.page == nil || f.page.pointerOver(bounds) || t.state.Scroll.dragging
+// paintTableScrollbars paints and drags the bars of a Table that scrolls itself.
+// They share the body's content extents and offsets; a bar sits in the gutter the
+// spec asked for and over the body's edge when it did not.
+func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, content gfx.Size, offsetX, offsetY float32) {
+	revealed := f.page == nil || f.page.pointerOver(r) || t.state.Scroll.dragging
 	label := t.spec.ScrollbarLabel
 	if label == "" {
 		label = "Table rows"
+	}
+	horizontalLabel := t.spec.HorizontalScrollbarLabel
+	if horizontalLabel == "" {
+		horizontalLabel = "Table columns"
 	}
 	size := t.spec.ScrollbarSize
 	if size <= 0 && f.page != nil {
 		size = f.page.config.ScrollbarSize
 	}
-	area := components.BeginScrollArea(f.canvas, f.theme, bounds, gfx.Size{Height: content}).
-		Offset(0, offset).
+	// The bars sit at the table's own edges, over the body's clips: the component
+	// places their tracks from these bounds alone, so a gutter only trims what the
+	// columns and rows paint under them.
+	areaBounds := Rect{X: r.X, Y: body.Y, Width: r.Width, Height: body.Height}
+	area := components.BeginScrollArea(f.canvas, f.theme, areaBounds, content).
+		Offset(offsetX, offsetY).
 		ScrollbarSize(size).
 		HoverScrollbars(revealed).
-		VerticalScrollbar(t.spec.Scrollbar, label, "")
+		VerticalScrollbar(t.spec.Scrollbar, label, "").
+		HorizontalScrollbar(t.spec.HorizontalScrollbar, horizontalLabel, "")
 	geometry := area.Geometry()
 	area.EndContent()
 	if !t.spec.Scrollbar.IsZero() && geometry.MaxOffsetY > 0 {
 		f.dragScrollbar(&t.state.Scroll, t.spec.Scrollbar, geometry, axisY)
+	}
+	if !t.spec.HorizontalScrollbar.IsZero() && geometry.MaxOffsetX > 0 {
+		f.dragScrollbar(&t.state.Scroll, t.spec.HorizontalScrollbar, geometry, axisX)
 	}
 }
 
@@ -427,11 +500,17 @@ func (f *frame) revealSelected(n *node, t *tableDecl, body Rect, rowHeight, head
 
 // paintTableHeader paints the header row and, over it, the hit regions and arrow
 // of the sortable columns.
-func (f *frame) paintTableHeader(t *tableDecl, r Rect, headerHeight, rowHeight float32) {
+func (f *frame) paintTableHeader(t *tableDecl, r, viewport Rect, headerHeight, rowHeight float32, sideways bool) {
 	if headerHeight <= 0 {
 		return
 	}
 	canvas := f.canvas
+	if sideways {
+		// The header scrolls with the body, clipped to the same columns; without
+		// an overflow it is laid out over the table, as it always was.
+		canvas.Clip(Rect{X: viewport.X, Y: r.Y, Width: viewport.Width, Height: headerHeight})
+		defer canvas.Unclip()
+	}
 	bounds := Rect{X: r.X, Y: r.Y, Width: r.Width, Height: headerHeight}
 	cells := components.TableCellBounds(t.spec.Columns, bounds, f.widgets.rects[:0])
 	f.widgets.rects = cells[:0]
