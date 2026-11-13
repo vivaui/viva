@@ -280,7 +280,7 @@ func typeNameOf(g *gtkLibrary, object uintptr) string {
 // frees a callback and allows a fixed number, so a window must not make its own. The window a call
 // is for travels in the data pointer, as its id.
 type gtkCallbacks struct {
-	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preedit, surrounding, deleteSurrounding, redraw, webMessage, webLoad, webScheme uintptr
+	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preedit, surrounding, deleteSurrounding, redraw, webMessage, webLoad, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
 }
 
 var (
@@ -411,6 +411,44 @@ func callbacks() *gtkCallbacks {
 					serveScheme(a.g, request)
 				}
 				return 0
+			}),
+			// gboolean decide-policy(view, policy decision, type, handle).
+			webDecide: purego.NewCallback(func(view, decision, kind, handle uintptr) uintptr {
+				if v := webViews[handle]; v != nil {
+					return v.decidePolicy(decision, int32(kind))
+				}
+				return 0
+			}),
+			// GtkWidget *create(view, navigation action, handle).
+			webCreate: purego.NewCallback(func(view, action, handle uintptr) uintptr {
+				if v := webViews[handle]; v != nil {
+					v.createWindow(action)
+				}
+				return 0
+			}),
+			// void download-started(session or context, download, handle).
+			webDownload: purego.NewCallback(func(owner, download, handle uintptr) uintptr {
+				if v := webViews[handle]; v != nil {
+					v.downloadStarted(download)
+				}
+				return 0
+			}),
+			// gboolean decide-destination(download, suggested filename, handle).
+			webDestination: purego.NewCallback(func(download, suggested, handle uintptr) uintptr {
+				v := webViews[handle]
+				if v == nil {
+					// The page's view went away before the download got here. Letting the
+					// signal go unhandled (returning FALSE) would make WebKitGTK write the file
+					// into its default XDG downloads folder: a download the application never
+					// allowed. Cancel it instead, and say it was handled so the default cannot
+					// run.
+					if k := webAPI; k != nil && k.downloadCancel != nil {
+						k.downloadCancel(download)
+					}
+					return 1
+				}
+				v.downloadDestination(download, goString(suggested))
+				return 1
 			}),
 			commit: purego.NewCallback(func(context, text, id uintptr) uintptr {
 				if w := gtkWindowByID(id); w != nil && w.ime != nil {

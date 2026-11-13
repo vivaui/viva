@@ -48,6 +48,33 @@ scheme, a message in each direction and a menu that stands over the page.
   (WebView2) were type-checked only, because no engine of either was available.
 - The page and the application talk through `window.viva.postMessage(text)` / `window.viva.onmessage` and
   `OnMessage` / `WebView.PostMessage`. A page sees nothing else of the application.
+- `Navigate` decides a navigation before it starts, the application's own `Load` included: the
+  `WebNavigation` names the address, whether the target is the main frame (as far as the engine can say),
+  and whether the engine says a click or a key press started it rather than a script or a redirect (again
+  as far as the engine can say; each engine's limits are below). `nil` allows every navigation; `false`
+  cancels it before the request leaves the engine, so no byte of the foreign document is fetched and none
+  of its script runs.
+- `NewWindow` decides a `window.open` or `target=_blank` before it opens. `nil` refuses it, because a page
+  must not open windows unless the application allows it, and `false` opens nothing. That refusal is a
+  change on Windows and Linux, where without this option the engine opened the window itself; macOS refused
+  it already. `true` hands the address to the system's browser (the platform's `OpenURL`, the same one
+  `app.OpenURL` uses) and never opens a page in the window.
+- `Download` decides a download before it starts. `nil` refuses it and `false` cancels it, so no file is
+  written; that is a change too, because without this option Windows and Linux let the engine save the file.
+  `true` saves it in the user's downloads folder under a free name (`report.pdf`, then `report (1).pdf`), so
+  a download never replaces a file that is already there. The engine may have received the response by the
+  time it asks (that is where its suggested name comes from), but none of the body is written before the
+  application answers.
+- A navigation the engine turns into a download is decided in two steps on every engine: `Navigate` first,
+  and only if it is allowed does `Download` see it. A refused `Navigate` cancels the navigation without
+  asking `Download`. Popups are not navigations of the page: `NewWindow` alone decides them on every engine.
+- `BridgeMainFrameOnly` injects `window.viva` into the main frame only, so an embedded frame does not get the
+  bridge; `false` keeps it in every frame, as before. It restricts the script, not the engine's message
+  channel: a frame that calls that channel itself is still heard, so an application that hosts content it does
+  not trust should also check the origin of what `OnMessage` delivers.
+- The decisions run synchronously on the window's thread and must return quickly; they see the navigation
+  before anything is fetched, so a policy over an allowlist of origins cannot be raced by a redirect or a
+  popup.
 - Everything runs on the window's thread: `OnReady`, the callbacks, the methods of `WebHost` and `WebView`.
   Reach it from another goroutine with an `Invalidator` and `OnWake`; the work of `ServeAsync` and its
   `respond` is the one exception, and `respond` may be called from any goroutine. A callback is followed by a
@@ -80,6 +107,26 @@ nothing; Windows needs the WebView2 runtime (part of Windows 11, installed with 
 
 ## Not covered yet
 
-A real input method inside a page, drag and drop into a page, `window.open`/`target=_blank`, downloads,
-permission prompts, a page's own popups (select menus) on X11, several pages in one window on every platform,
-and accessibility of the page from Viva's tree.
+A real input method inside a page, drag and drop into a page, permission prompts, a page's own popups
+(select menus) on X11, several pages in one window on every platform, and accessibility of the page from
+Viva's tree.
+
+## What each engine cannot do
+
+The decisions are the engine's own, and each one has a limit worth knowing:
+
+- **macOS**: `WKNavigationAction` has no public user-gesture flag. `WebNavigation.UserGesture` is derived
+  from the navigation type: a link click and a form submission are gestures, a script's navigation is not.
+  A form submitted by a script therefore reads as a gesture, and a redirect keeps the gesture that started
+  it. Downloads need macOS 11.3 (`WKDownload`); on an older system a download response is refused rather
+  than saved, and `Download` is not asked.
+- **Linux**: WebKitGTK's navigation action names no target frame (there is no way from the action to
+  the frame), so `WebNavigation.MainFrame` is always true here and a subframe cannot be told apart from
+  the main frame. The decision still cancels the right request. The redirect flag needs WebKitGTK 2.20;
+  on an older engine a redirect keeps the gesture of the request that led to it. WebKitGTK starts a
+  download for a response it treats as a download (an attachment, or a type it cannot show); the
+  application decides it in `decide-destination`, before the body is written.
+- **Windows**: `DownloadStarting` needs `ICoreWebView2_4`. A runtime older than that (2021) cannot report a
+  download before it starts, so `Download` is not asked and the engine saves the file its own way in the
+  user's downloads folder; a warning through `diag` says so once, when the page opens. `NewWindow` and
+  `Navigate` are on the base interface and are always available.

@@ -95,6 +95,29 @@ type WebViewConfig struct {
 	OnMessage func(text string)
 	// OnLoad reports the page's navigation.
 	OnLoad func(WebLoad)
+	// Navigate decides a navigation before it starts; nil allows every navigation.
+	Navigate func(WebNavigation) bool
+	// NewWindow decides a window.open or target=_blank before it opens; nil refuses it. That is a
+	// change: without this option the engine opened the window itself. True opens the address in
+	// the system's browser, outside the page.
+	NewWindow func(url string) bool
+	// Download decides a download before it starts; nil refuses it. That is a change: without this
+	// option Windows and Linux let the engine save the file. True saves it in the user's downloads
+	// folder.
+	Download func(url string) bool
+	// BridgeMainFrameOnly injects window.viva into the main frame only, so an embedded frame does
+	// not get the bridge. False keeps it in every frame, as today.
+	BridgeMainFrameOnly bool
+}
+
+// WebNavigation is one navigation the page wants to make.
+type WebNavigation struct {
+	// URL is the address being navigated to.
+	URL string
+	// MainFrame is false for a subframe, an iframe.
+	MainFrame bool
+	// UserGesture is true when a click or a key press started it, not a script or a redirect.
+	UserGesture bool
 }
 
 // WebScheme serves a custom URL scheme. Serve is the simple form, Respond adds a status and headers,
@@ -210,6 +233,14 @@ func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 			host.requestPaint()
 		}
 	}
+	if config.Navigate != nil {
+		platformConfig.Navigate = func(navigation platform.WebNavigation) bool {
+			return config.Navigate(WebNavigation(navigation))
+		}
+	}
+	platformConfig.NewWindow = config.NewWindow
+	platformConfig.Download = config.Download
+	platformConfig.BridgeMainFrameOnly = config.BridgeMainFrameOnly
 	native, err := host.native.Open(platformConfig)
 	if err != nil {
 		if errors.Is(err, platform.ErrWebViewUnsupported) {

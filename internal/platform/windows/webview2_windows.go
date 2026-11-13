@@ -361,35 +361,50 @@ func wide(text string) *uint16 {
 
 // The vtable slots used, counted from IUnknown's three.
 const (
-	envCreateController     = 3
-	envCreateResponse       = 4
-	controllerPutVisible    = 4
-	controllerPutBounds     = 6
-	controllerMoveFocus     = 12
-	controllerClose         = 24
-	controllerGetWebView    = 25
-	viewNavigate            = 5
-	viewNavigateToString    = 6
-	viewAddNavStarting      = 7
-	viewAddContentLoading   = 9
-	viewAddNavCompleted     = 15
-	viewAddScriptOnCreate   = 27
-	viewExecuteScript       = 29
-	viewReload              = 31
-	viewAddMessageReceived  = 34
-	viewGoBack              = 40
-	viewGoForward           = 41
-	viewGetSource           = 4
-	viewAddWebResourceReq   = 55
-	viewAddResourceFilter   = 57
-	messageTryGetString     = 5
-	startingGetURI          = 3
-	resourceArgsGetRequest  = 3
-	resourceArgsPutResponse = 5
+	envCreateController       = 3
+	envCreateResponse         = 4
+	controllerPutVisible      = 4
+	controllerPutBounds       = 6
+	controllerMoveFocus       = 12
+	controllerClose           = 24
+	controllerGetWebView      = 25
+	viewNavigate              = 5
+	viewNavigateToString      = 6
+	viewAddNavStarting        = 7
+	viewAddContentLoading     = 9
+	viewAddNavCompleted       = 15
+	viewAddFrameNavStarting   = 17
+	viewAddNewWindowRequested = 44
+	viewAddScriptOnCreate     = 27
+	viewExecuteScript         = 29
+	viewReload                = 31
+	viewAddMessageReceived    = 34
+	viewGoBack                = 40
+	viewGoForward             = 41
+	viewGetSource             = 4
+	viewAddWebResourceReq     = 55
+	viewAddResourceFilter     = 57
+	// ICoreWebView2_4 adds DownloadStarting after every ICoreWebView2_3 method.
+	viewAddDownloadStarting   = 75
+	messageTryGetString       = 5
+	startingGetURI            = 3
+	startingGetUserGesture    = 4
+	startingGetRedirected     = 5
+	startingPutCancel         = 8
+	newWindowGetURI           = 3
+	newWindowPutHandled       = 6
+	downloadArgsGetOperation  = 3
+	downloadArgsPutCancel     = 5
+	downloadArgsGetResultPath = 6
+	downloadArgsPutResultPath = 7
+	downloadArgsPutHandled    = 9
+	downloadGetURI            = 9
 	// ICoreWebView2WebResourceRequestedEventArgs::GetDeferral holds the request open.
 	resourceArgsGetDeferral = 6
 	// ICoreWebView2Deferral::Complete says the request may continue.
-	deferralComplete      = 3
-	resourceRequestGetURI = 3
-	resourceContextAll    = 0
+	deferralComplete        = 3
+	resourceArgsGetRequest  = 3
+	resourceArgsPutResponse = 5
+	resourceRequestGetURI   = 3
+	resourceContextAll      = 0
 )

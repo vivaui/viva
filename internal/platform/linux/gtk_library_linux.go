@@ -179,6 +179,8 @@ type gtkLibrary struct {
 	valueUnset           func(value *gValue)
 	listAppend           func(list, data uintptr) uintptr
 	listFree             func(list uintptr)
+	userSpecialDir       func(kind int32) uintptr
+	filenameToURI        func(filename, hostname *byte, err **byte) uintptr
 
 	// cairo.
 	cairoSurfaceForData func(data *byte, format, width, height, stride int32) uintptr
@@ -441,6 +443,8 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.valueUnset, "g_value_unset")
 	b(&g.listAppend, "g_list_append")
 	b(&g.listFree, "g_list_free")
+	b(&g.filenameToURI, "g_filename_to_uri")
+	g.lookup(&g.userSpecialDir, "g_get_user_special_dir")
 
 	b(&g.cairoSurfaceForData, "cairo_image_surface_create_for_data")
 	b(&g.cairoSurfaceDestroy, "cairo_surface_destroy")
@@ -473,10 +477,11 @@ func (g *gtkLibrary) symbol(name string) uintptr {
 }
 
 // connect attaches a handler to a signal of a GObject. data is passed back to the handler as its
-// last argument.
-func (g *gtkLibrary) connect(instance uintptr, signal string, handler uintptr, data uintptr) {
+// last argument. The returned id disconnects the handler from an object that outlives the one
+// that connected it; most handlers belong to an object that goes with them and ignore it.
+func (g *gtkLibrary) connect(instance uintptr, signal string, handler uintptr, data uintptr) uint64 {
 	name := cString(signal)
-	g.signalConnect(instance, &name[0], handler, data, 0, 0)
+	return g.signalConnect(instance, &name[0], handler, data, 0, 0)
 }
 
 // goString reads a NUL-terminated C string.

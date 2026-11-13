@@ -9,9 +9,11 @@
 void *viva_application_window_view(void *token);
 
 // viva_web_open puts a page over the view and returns it, or NULL with error (a malloc'd message)
-// set. The page is owned by the view's hierarchy until viva_web_close.
+// set. The page is owned by the view's hierarchy until viva_web_close. main_frame_only says the
+// bridge script is for the main frame alone (WebKit is also told to inject it there only).
 void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, const char *html,
-                    const char *base, const char *script, const char *scheme, char **error);
+                    const char *base, const char *script, int main_frame_only, const char *scheme,
+                    char **error);
 void viva_web_load(void *web, const char *url);
 void viva_web_load_html(void *web, const char *html, const char *base);
 void viva_web_reload(void *web);

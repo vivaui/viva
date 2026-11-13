@@ -76,6 +76,23 @@ type webKit struct {
 	// be dropped; objectRef keeps a request alive until its answer arrives.
 	schemeWebView func(request uintptr) uintptr
 	objectRef     func(object uintptr) uintptr
+	// Navigation decisions, new windows and downloads.
+	decisionUse, decisionIgnore func(decision uintptr)
+	navigationAction            func(decision uintptr) uintptr
+	actionRequest               func(action uintptr) uintptr
+	actionUserGesture           func(action uintptr) int32
+	actionRedirect              func(action uintptr) int32 // 2.20, nil before
+	uriRequestURI               func(request uintptr) uintptr
+	downloadRequest             func(download uintptr) uintptr
+	downloadWebView             func(download uintptr) uintptr
+	downloadSetDestination      func(download uintptr, destination *byte)
+	downloadAllowOverwrite      func(download uintptr, allow int32)
+	downloadCancel              func(download uintptr)
+	// viewNetworkSession is 2.40; before it the context's download-started is used instead.
+	viewNetworkSession func(view uintptr) uintptr
+	// downloadDestinationPath says set_destination takes a path (2.40 and later) rather than a URI,
+	// decided from the library's own major and minor version at load time.
+	downloadDestinationPath bool
 }
 
 var (
@@ -107,6 +124,15 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			}
 		}
 		k := &webKit{}
+		// webkit_download_set_destination takes a path from WebKitGTK 2.40 and a URI before it. The
+		// 4.1 soname has existed since 2.36, so it does not say which form this library expects;
+		// ask the library's own version instead, and keep the URI form when it cannot be read.
+		var major, minor func() uint32
+		if g.lookup(&major, "webkit_get_major_version") && g.lookup(&minor, "webkit_get_minor_version") {
+			if m, n := major(), minor(); m > 2 || (m == 2 && n >= 40) {
+				k.downloadDestinationPath = true
+			}
+		}
 		for _, r := range []struct {
 			function any
 			symbol   string
@@ -123,6 +149,16 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			{&k.memoryStream, "g_memory_input_stream_new_from_data"}, {&k.gMalloc, "g_malloc"},
 			{&k.quarkFrom, "g_quark_from_string"}, {&k.errorLiteral, "g_error_new_literal"},
 			{&k.objectRef, "g_object_ref"},
+			{&k.decisionUse, "webkit_policy_decision_use"}, {&k.decisionIgnore, "webkit_policy_decision_ignore"},
+			{&k.navigationAction, "webkit_navigation_policy_decision_get_navigation_action"},
+			{&k.actionRequest, "webkit_navigation_action_get_request"},
+			{&k.actionUserGesture, "webkit_navigation_action_is_user_gesture"},
+			{&k.uriRequestURI, "webkit_uri_request_get_uri"},
+			{&k.downloadRequest, "webkit_download_get_request"},
+			{&k.downloadWebView, "webkit_download_get_web_view"},
+			{&k.downloadSetDestination, "webkit_download_set_destination"},
+			{&k.downloadAllowOverwrite, "webkit_download_set_allow_overwrite"},
+			{&k.downloadCancel, "webkit_download_cancel"},
 		} {
 			if !g.lookup(r.function, r.symbol) {
 				webErr = fmt.Errorf("%w: WebKitGTK lacks %s", platform.ErrWebViewUnsupported, r.symbol)
@@ -142,6 +178,9 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 		g.lookup(&k.securityManager, "webkit_web_context_get_security_manager")
 		g.lookup(&k.schemeSecure, "webkit_security_manager_register_uri_scheme_as_secure")
 		g.lookup(&k.schemeCORS, "webkit_security_manager_register_uri_scheme_as_cors_enabled")
+		// A redirect is not a user gesture even when the request that led to it was one.
+		g.lookup(&k.actionRedirect, "webkit_navigation_action_is_redirect")
+		g.lookup(&k.viewNetworkSession, "webkit_web_view_get_network_session")
 		k.free = g.symbol("g_free")
 		if !g.lookup(&k.contextEphemeral, "webkit_web_context_new_ephemeral") ||
 			!g.lookup(&k.viewWithContext, "webkit_web_view_new_with_context") ||
@@ -189,6 +228,10 @@ const (
 	webLoadFinished  = 3
 )
 
+// WebKitPolicyDecisionType: a navigation in this view. A new window is asked about through the
+// create signal, and a response is left to the engine's own policy.
+const webDecisionNavigation = 0
+
 // gtkWebView is one page.
 type gtkWebView struct {
 	w       *gtkWindow
@@ -201,6 +244,11 @@ type gtkWebView struct {
 	config  platform.WebViewConfig
 	closed  bool
 	shown   bool
+	// downloadOwner announces this page's downloads: the default context or network session,
+	// which outlives the page, or a proxy's, which goes with its context. downloadHandler is the
+	// connection to it; only a shared owner's connection is removed by hand.
+	downloadOwner   uintptr
+	downloadHandler uint64
 	// at is where the widget is, in widget units; zoom is the page's zoom.
 	at   viewPlace
 	zoom float64
@@ -311,8 +359,11 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	}
 	name := cString("viva")
 	k.managerRegister(v.manager, &name[0])
-	source := cString(platform.WebBridgeScript)
-	k.managerAddScript(v.manager, k.scriptNew(&source[0], 0, 0, 0, 0))
+	source, frames := cString(platform.WebBridgeScript), int32(0)
+	if c.BridgeMainFrameOnly {
+		source, frames = cString(platform.WebBridgeMainFrameOnlyScript), 1 // WEBKIT_USER_CONTENT_INJECT_TOP_FRAME
+	}
+	k.managerAddScript(v.manager, k.scriptNew(&source[0], frames, 0, 0, 0))
 	g.connect(v.manager, "script-message-received::viva", cb.webMessage, v.handle)
 	if proxied == nil {
 		v.widget = k.viewNew(v.manager)
@@ -324,6 +375,19 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	g.connect(v.widget, "load-changed", cb.webLoad, v.handle)
 	g.connect(v.widget, "focus-in-event", cb.event, w.id)
 	g.connect(v.widget, "focus-out-event", cb.event, w.id)
+	g.connect(v.widget, "decide-policy", cb.webDecide, v.handle)
+	g.connect(v.widget, "create", cb.webCreate, v.handle)
+	// Downloads are announced by the network session the page belongs to (2.40), which is also the
+	// page's own when it is held to a proxy; before 2.40 the context announces them.
+	downloadOwner := uintptr(0)
+	if k.viewNetworkSession != nil {
+		downloadOwner = k.viewNetworkSession(v.widget)
+	}
+	if downloadOwner == 0 {
+		downloadOwner = k.getContext(v.widget)
+	}
+	v.downloadOwner = downloadOwner
+	v.downloadHandler = g.connect(downloadOwner, "download-started", cb.webDownload, v.handle)
 	if c.Scheme != nil && c.Scheme.Name != "" {
 		v.registerScheme(c.Scheme)
 	}
@@ -453,6 +517,12 @@ func (v *gtkWebView) Close() {
 func (v *gtkWebView) release() {
 	v.closed = true
 	delete(webViews, v.handle)
+	// A handler on the shared default context or network session outlives the page, so it is
+	// removed here; one on a proxy's context goes with that ephemeral context.
+	if v.proxied == nil && v.downloadHandler != 0 {
+		v.w.g.signalDisc(v.downloadOwner, v.downloadHandler)
+	}
+	v.downloadHandler, v.downloadOwner = 0, 0
 	if v.proxied != nil {
 		v.proxied.leave(v.w.g)
 		v.proxied = nil
@@ -520,6 +590,115 @@ func (v *gtkWebView) loadChanged(event int32) {
 	case webLoadFinished:
 		v.config.OnLoad(platform.WebLoad{Phase: platform.WebLoadFinished, URL: address})
 	}
+}
+
+// navigationAllowed asks the application whether the view may make a navigation. An application
+// that set no Navigate allows every one.
+func (v *gtkWebView) navigationAllowed(address string, mainFrame, userGesture bool) bool {
+	if v.config.Navigate == nil {
+		return true
+	}
+	return v.config.Navigate(platform.WebNavigation{URL: address, MainFrame: mainFrame, UserGesture: userGesture})
+}
+
+// decidePolicy makes the engine's navigation decision from the application's answer, before the
+// request leaves for the network. New windows and responses are left to the engine, which asks
+// about the first through create and keeps its own policy for the second.
+func (v *gtkWebView) decidePolicy(decision uintptr, kind int32) uintptr {
+	k := v.k
+	if v.closed || k == nil || kind != webDecisionNavigation {
+		return 0
+	}
+	action := k.navigationAction(decision)
+	if action == 0 {
+		return 0
+	}
+	// WebKitGTK's navigation action names no target frame (it has no WebKitFrame and the frame API
+	// cannot be reached from it), so a subframe navigation cannot be told apart from the main
+	// frame's: everything is reported as the main frame. The decision still cancels the right
+	// request; only the MainFrame bit is coarse on this engine.
+	//
+	// The redirect flag needs WebKitGTK 2.20; on an older engine a redirect keeps the gesture of
+	// the request that led to it.
+	gesture := k.actionUserGesture(action) != 0
+	if k.actionRedirect != nil && k.actionRedirect(action) != 0 {
+		gesture = false
+	}
+	address := goString(k.uriRequestURI(k.actionRequest(action)))
+	if v.navigationAllowed(address, true, gesture) {
+		k.decisionUse(decision)
+	} else {
+		k.decisionIgnore(decision)
+	}
+	return 1
+}
+
+// createWindow answers a window.open or target=_blank. The page never opens in the window: an
+// allowed address goes to the system's browser, and a refused or nil NewWindow opens nothing.
+func (v *gtkWebView) createWindow(action uintptr) {
+	if v.closed || v.config.NewWindow == nil || action == 0 {
+		return
+	}
+	address := goString(v.k.uriRequestURI(v.k.actionRequest(action)))
+	if v.config.NewWindow(address) && platform.OpenableURL(address) {
+		_ = OpenURL(address)
+	}
+}
+
+// downloadStarted is a download the engine is about to make. The default session is shared by
+// every page, and each connected its own handler, so only the page whose view started it answers.
+func (v *gtkWebView) downloadStarted(download uintptr) {
+	if v.closed || download == 0 || v.k.downloadWebView(download) != v.widget {
+		return
+	}
+	v.w.g.connect(download, "decide-destination", callbacks().webDestination, v.handle)
+}
+
+// downloadDestination names the file and asks the application before the body is written. A
+// refused download is cancelled; an allowed one is never saved over a file that exists.
+func (v *gtkWebView) downloadDestination(download uintptr, suggested string) {
+	if v.closed {
+		v.k.downloadCancel(download)
+		return
+	}
+	address := ""
+	if request := v.k.downloadRequest(download); request != 0 {
+		address = goString(v.k.uriRequestURI(request))
+	}
+	if v.config.Download == nil || !v.config.Download(address) {
+		v.k.downloadCancel(download)
+		return
+	}
+	folder := downloadsFolder(v.w.g)
+	if err := os.MkdirAll(folder, 0o700); err != nil {
+		v.k.downloadCancel(download)
+		return
+	}
+	destination := platform.FreeDownloadPath(folder, platform.DownloadFileName(suggested, address))
+	text := cString(destination)
+	if v.k.downloadDestinationPath {
+		v.k.downloadSetDestination(download, &text[0])
+	} else {
+		uri := v.w.g.filenameToURI(&text[0], nil, nil)
+		if uri == 0 {
+			v.k.downloadCancel(download)
+			return
+		}
+		defer v.w.g.gFree(uri)
+		v.k.downloadSetDestination(download, (*byte)(unsafePointer(uri)))
+	}
+	v.k.downloadAllowOverwrite(download, 0)
+}
+
+// downloadsFolder is where the desktop says the user keeps downloads (the XDG special directory),
+// or the fallback beside the home folder when it does not say.
+func downloadsFolder(g *gtkLibrary) string {
+	if g.userSpecialDir != nil {
+		if directory := goString(g.userSpecialDir(2)); directory != "" {
+			return directory
+		}
+	}
+	return platform.DownloadsFolder()
 }
 
 // serveScheme answers a request to a custom scheme from the application's resources. An asynchronous

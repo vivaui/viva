@@ -103,3 +103,15 @@ const WebBridgeScript = `(function () {
     deliver: function (text) { if (typeof viva.onmessage === 'function') viva.onmessage({ data: text }); } };
   Object.defineProperty(window, 'viva', { value: viva });
 })();`
+
+// WebBridgeMainFrameOnlyScript is WebBridgeScript for the main frame alone: a subframe returns
+// before window.viva is defined, so the document the application loaded is the one with the
+// bridge. An engine that can restrict injection to a frame (WebKit's forMainFrameOnly,
+// WebKitGTK's top frame) is told that as well; this check is what WebView2, which injects into
+// every frame, has instead. It does not restrict the engine's own message channel, only the
+// script, so an application that needs to know which frame posted a message still has to account
+// for a subframe addressing that channel itself.
+const WebBridgeMainFrameOnlyScript = `(function () {
+  if (window.top !== window) return;
+` + WebBridgeScript + `
+})();`
