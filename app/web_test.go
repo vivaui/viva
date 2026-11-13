@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -185,5 +186,24 @@ func TestNavigationDecisionsStayUnset(t *testing.T) {
 	}
 	if got.Navigate != nil || got.NewWindow != nil || got.Download != nil || got.BridgeMainFrameOnly {
 		t.Fatalf("unset decisions reached the platform as %+v", got)
+	}
+}
+
+func TestNativePresentationOptionsReachThePlatform(t *testing.T) {
+	var got platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		got = config
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	if _, err := host.Open(WebViewConfig{TopCornerRadius: 24}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v", err)
+	}
+	if got.TopCornerRadius != 24 {
+		t.Fatalf("TopCornerRadius = %v", got.TopCornerRadius)
+	}
+	for _, invalid := range []float32{-1, float32(math.NaN()), float32(math.Inf(1))} {
+		if _, err := host.Open(WebViewConfig{TopCornerRadius: invalid}); err == nil || errors.Is(err, ErrUnsupported) {
+			t.Fatalf("invalid radius %v was not rejected before the platform", invalid)
+		}
 	}
 }

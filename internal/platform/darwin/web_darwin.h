@@ -21,6 +21,7 @@ void viva_web_back(void *web);
 void viva_web_forward(void *web);
 void viva_web_eval(void *web, const char *script);
 void viva_web_focus(void *web);
+void viva_web_set_top_corner_radius(void *web, double radius);
 // viva_web_close closes the page. Its unanswered scheme requests are let go too.
 void viva_web_close(void *web);
 

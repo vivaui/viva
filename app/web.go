@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/netip"
 	"sync/atomic"
 
@@ -93,6 +94,9 @@ type WebViewConfig struct {
 	Proxy string
 	// OnMessage receives what the page posts with window.viva.postMessage(text).
 	OnMessage func(text string)
+	// TopCornerRadius rounds the top two corners in logical pixels; zero keeps a rectangular view.
+	// macOS and Windows clip natively; GTK returns ErrUnsupported for nonzero radii.
+	TopCornerRadius float32
 	// OnLoad reports the page's navigation.
 	OnLoad func(WebLoad)
 	// Navigate decides a navigation before it starts; nil allows every navigation.
@@ -189,6 +193,10 @@ func loopbackAddress(address string) bool {
 // Open opens a page. It fails with ErrUnsupported when the platform cannot host pages or the system
 // has no web engine installed.
 func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
+	if config.TopCornerRadius < 0 || math.IsNaN(float64(config.TopCornerRadius)) || math.IsInf(float64(config.TopCornerRadius), 0) {
+		return nil, fmt.Errorf("app: invalid web view top corner radius")
+	}
+
 	if host == nil || host.native == nil || host.native.Open == nil {
 		return nil, fmt.Errorf("%w: web views", ErrUnsupported)
 	}
@@ -198,6 +206,7 @@ func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 	id := gfx.NativeViewID(host.next.Add(1))
 	platformConfig := platform.WebViewConfig{
 		ID: uint32(id), URL: config.URL, HTML: config.HTML, BaseURL: config.BaseURL, Proxy: config.Proxy,
+		TopCornerRadius: config.TopCornerRadius,
 	}
 	// What a page tells the application usually changes what it shows, so a callback is followed
 	// by a paint.

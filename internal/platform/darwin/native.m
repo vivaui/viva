@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "native.h"
+#include "cursor_owner_darwin.h"
 #include "label_geometry.h"
 #include "main_menu_darwin.h"
 
@@ -3846,6 +3847,7 @@ static void viva_encode_scene(
     BOOL _reportedFirstFrame;
     BOOL _profileEnabled;
     NSCursor *_cursor;
+    BOOL _nativeCursorActive;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -4263,7 +4265,9 @@ static int viva_navigation_command(SEL selector) {
 // resetCursorRects keeps the chosen shape across layout changes, after which
 // AppKit calls it having discarded the old rectangles.
 - (void)resetCursorRects {
-    if (_cursor != nil) {
+    NSPoint point = [self convertPoint:self.window.mouseLocationOutsideOfEventStream fromView:nil];
+    // A full-window cursor rectangle would override WebKit's hand or text cursor.
+    if (_cursor != nil && !viva_view_has_native_cursor(self, point)) {
         [self addCursorRect:self.bounds cursor:_cursor];
     }
 }
@@ -4380,7 +4384,28 @@ static int viva_navigation_command(SEL selector) {
 }
 
 - (void)mouseMoved:(NSEvent *)event {
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    BOOL native = viva_view_has_native_cursor(self, point);
+    BOOL enteringNative = !_nativeCursorActive && native;
+    BOOL returningToCanvas = _nativeCursorActive && !native;
+    if (native != _nativeCursorActive) {
+        _nativeCursorActive = native;
+        [self.window invalidateCursorRectsForView:self];
+    }
+    // Host tracking areas also cover subviews; native content must not emit canvas moves or set its cursor.
+    if (native) {
+        // The pointer left Viva's content for the page, where moves are not emitted; the control it was over
+        // must not stay hovered.
+        if (enteringNative) {
+            [self emitPointerExit];
+        }
+        return;
+    }
     [self emitPointerEvent:VIVA_POINTER_MOVE fromEvent:event];
+    // Force restoration only when returning ownership; ordinary moves retain the Go cursor cache.
+    if (returningToCanvas && _cursor != nil) {
+        [_cursor set];
+    }
 }
 
 - (void)rightMouseDown:(NSEvent *)event {

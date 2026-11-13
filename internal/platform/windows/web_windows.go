@@ -33,17 +33,19 @@ const (
 	swpNoActive    = 0x0010
 	swpShow        = 0x0040
 	rgnDiff        = 4
+	rgnOr          = 2
 	webSchemeTLD   = ".viva-app.invalid"
 )
 
 var (
-	webGDI          = systemDLL("gdi32.dll")
-	createRectRgn   = webGDI.NewProc("CreateRectRgn")
-	combineRgn      = webGDI.NewProc("CombineRgn")
-	setWindowRgn    = user.NewProc("SetWindowRgn")
-	getParent       = user.NewProc("GetParent")
-	webHostClass    = "VivaWebHost"
-	webHostRegister sync.Once
+	webGDI             = systemDLL("gdi32.dll")
+	createRectRgn      = webGDI.NewProc("CreateRectRgn")
+	createRoundRectRgn = webGDI.NewProc("CreateRoundRectRgn")
+	combineRgn         = webGDI.NewProc("CombineRgn")
+	setWindowRgn       = user.NewProc("SetWindowRgn")
+	getParent          = user.NewProc("GetParent")
+	webHostClass       = "VivaWebHost"
+	webHostRegister    sync.Once
 
 	shGetKnownFolderPath = shell.NewProc("SHGetKnownFolderPath")
 )
@@ -635,6 +637,22 @@ func (w *webHost) layout(page *windowsWeb, force bool) {
 	comCall(page.controller, controllerPutVisible, 1)
 	putBounds(page.controller, rect{Right: width, Bottom: height})
 	region, _, _ := createRectRgn.Call(0, 0, uintptr(width), uintptr(height))
+	logicalRadius := min(max(page.config.TopCornerRadius, 0), view.Bounds.Width/2, view.Bounds.Height)
+	if radius := int32(round(logicalRadius * scale)); radius > 0 {
+		// Union the rounded region with a bottom rectangle to round only the top corners. The rectangle
+		// starts at the top of the bottom arcs, so a radius past half the height still leaves a square bottom.
+		rounded, _, _ := createRoundRectRgn.Call(0, 0, uintptr(width+1), uintptr(height+1), uintptr(2*radius), uintptr(2*radius))
+		bottom, _, _ := createRectRgn.Call(0, uintptr(min(radius, height-radius)), uintptr(width), uintptr(height))
+		if rounded != 0 && bottom != 0 {
+			combineRgn.Call(region, rounded, bottom, rgnOr)
+		}
+		if rounded != 0 {
+			deleteObject.Call(rounded)
+		}
+		if bottom != 0 {
+			deleteObject.Call(bottom)
+		}
+	}
 	for _, cut := range w.cuts {
 		left, top := int32(round((cut.X-view.Bounds.X)*scale)), int32(round((cut.Y-view.Bounds.Y)*scale))
 		right, bottom := int32(round((cut.X+cut.Width-view.Bounds.X)*scale)), int32(round((cut.Y+cut.Height-view.Bounds.Y)*scale))

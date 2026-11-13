@@ -328,6 +328,9 @@ func (context *webProxyContext) leave(g *gtkLibrary) {
 
 // openWebView is the window's WebHost.Open.
 func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, error) {
+	if c.TopCornerRadius != 0 {
+		return nil, fmt.Errorf("%w: native rounded web views are unavailable on GTK", platform.ErrWebViewUnsupported)
+	}
 	if w.closed || w.overlay == 0 {
 		return nil, platform.ErrWebViewUnsupported
 	}
