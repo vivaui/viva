@@ -138,18 +138,20 @@ static CGFloat viva_traffic_light_center(NSWindow *window) {
  * inside it and clickable, and each button is set that far below the top.
  * Idempotent. AppKit puts the buttons back at the system's height on every
  * layout, so callers place them again whenever a button or the container
- * reports a frame change (see keepTrafficLightsCentered). A strip no taller
- * than the system's, and a full screen window, keep the system's layout. */
+ * reports a frame change (see keepTrafficLightsCentered). A scale in (0, 1)
+ * shrinks the buttons around their original centers whether or not the strip
+ * is taller; a strip no taller than the system's keeps the system's positions,
+ * and a full screen window keeps the system's layout. */
 static void viva_place_traffic_lights(NSWindow *window, CGFloat stripHeight, CGFloat scale) {
-    if (window == nil || stripHeight <= VIVA_DEFAULT_TITLEBAR_HEIGHT ||
-        (window.styleMask & NSWindowStyleMaskFullScreen) != 0) {
+    if (window == nil || (window.styleMask & NSWindowStyleMaskFullScreen) != 0) {
         return;
     }
+    BOOL taller = stripHeight > VIVA_DEFAULT_TITLEBAR_HEIGHT;
     NSView *container = viva_titlebar_container(window);
     if (container == nil || container.superview == nil) {
         return;
     }
-    if (fabs(NSHeight(container.frame) - stripHeight) > 0.25) {
+    if (taller && fabs(NSHeight(container.frame) - stripHeight) > 0.25) {
         NSRect frame = container.frame;
         frame.size.height = stripHeight;
         frame.origin.y = NSHeight(container.superview.bounds) - stripHeight;
@@ -169,10 +171,16 @@ static void viva_place_traffic_lights(NSWindow *window, CGFloat stripHeight, CGF
                 fabs(NSHeight(button.frame) - targetSize.height) > 0.01) {
                 NSRect frame = button.frame;
                 frame.origin.x += (frame.size.width - targetSize.width) / 2.0;
+                // Keep the vertical center too, so the shrink holds in a strip of the
+                // system's height where the placement below does not run.
+                frame.origin.y += (frame.size.height - targetSize.height) / 2.0;
                 frame.size = targetSize;
                 button.frame = frame;
                 button.bounds = NSMakeRect(0, 0, originalSize.width, originalSize.height);
             }
+        }
+        if (!taller) {
+            continue;
         }
         CGFloat y = NSHeight(button.superview.bounds) - stripHeight / 2.0 - NSHeight(button.frame) / 2.0;
         if (fabs(button.frame.origin.y - y) > 0.25) {

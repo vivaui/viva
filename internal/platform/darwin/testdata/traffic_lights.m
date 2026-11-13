@@ -117,6 +117,21 @@ int main(void) {
         assert(fabs(NSWidth(close.frame) - originalSize.width * compactScale) < 0.01);
         assertCenter(window, 22, "after shrinking the native buttons");
 
+        // A strip of the system's height needs no placement, but the scale
+        // still shrinks the buttons around their original centers.
+        window = customTitlebarWindow(800, 600);
+        NSButton *systemClose = [window standardWindowButton:NSWindowCloseButton];
+        NSSize systemSize = systemClose.bounds.size;
+        CGFloat systemCenterX = NSMidX(systemClose.frame);
+        CGFloat systemCenterY = NSMidY(systemClose.frame);
+        viva_place_traffic_lights(window, VIVA_DEFAULT_TITLEBAR_HEIGHT, compactScale);
+        assert(fabs(NSWidth(systemClose.frame) - systemSize.width * compactScale) < 0.01);
+        assert(fabs(NSMidX(systemClose.frame) - systemCenterX) < 0.01);
+        assert(fabs(NSMidY(systemClose.frame) - systemCenterY) < 0.01);
+        assert(NSEqualSizes(systemClose.bounds.size, systemSize));
+        viva_place_traffic_lights(window, VIVA_DEFAULT_TITLEBAR_HEIGHT, compactScale);
+        assert(fabs(NSWidth(systemClose.frame) - systemSize.width * compactScale) < 0.01);
+
         // AppKit puts the buttons back whenever it lays the titlebar out, a
         // resize being one; the delegate puts them back in the same pass.
         window = customTitlebarWindow(800, 600);
