@@ -5,14 +5,18 @@ package windows
 import (
 	"errors"
 	"fmt"
+	"os"
 	"syscall"
 	"unsafe"
 )
 
 const (
-	// SHGetFileInfoW flags: ask for the 32 px icon, and treat the path as a
-	// file name whose extension decides the type even when it does not exist.
+	// SHGetFileInfoW flags. SHGFI_ICON asks for the icon; SHGFI_SMALLICON picks
+	// the 16 px one, while the large icon is what the flag being zero means.
+	// SHGFI_USEFILEATTRIBUTES answers from dwFileAttributes without touching the
+	// file system, so a path that does not exist gets the icon of its extension.
 	shgfiIcon              = 0x00000100
+	shgfiSmallIcon         = 0x00000001
 	shgfiUseFileAttributes = 0x00000010
 	fileAttributeNormal    = 0x00000080
 
@@ -51,11 +55,14 @@ var getFileIconInfo = user.NewProc("GetIconInfo")
 var getObjectW = graphics.NewProc("GetObjectW")
 var getDIBits = graphics.NewProc("GetDIBits")
 
-// FileIconBGRA draws the icon Windows associates with path's extension into a
-// pixels x pixels buffer of premultiplied BGRA, top row first. The path need not
-// exist: with SHGFI_USEFILEATTRIBUTES the shell answers from the extension, so a
-// remote file can be shown with the icon of its type. It may be called from any
-// goroutine.
+// FileIconBGRA draws the icon Windows shows for the file or folder at path into
+// a pixels x pixels buffer of premultiplied BGRA, top row first. An existing
+// path is read through the shell, so a folder or an application shows what
+// Explorer shows; a path that does not exist is answered from its extension,
+// which lets a remote file carry the icon of its type. It asks for the small
+// icon up to 16 pixels and the large one above, and resizes any size the shell
+// does not return itself. The shell call runs on a thread with COM initialized,
+// so it may be made from any goroutine.
 func FileIconBGRA(path string, pixels int) ([]byte, error) {
 	if pixels < 1 || pixels > 512 {
 		return nil, fmt.Errorf("windows: file icon size %d is outside 1..512", pixels)
@@ -64,14 +71,38 @@ func FileIconBGRA(path string, pixels int) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("windows: file icon path: %w", err)
 	}
+
+	// A path that exists is read through the shell, which then reports the icon
+	// of that file or folder. A path that does not exist has no icon of its own,
+	// so the shell answers from the extension instead: that is the remote case.
+	flags := uintptr(shgfiIcon)
+	attributes := uintptr(fileAttributeNormal)
+	if _, statErr := os.Stat(path); statErr == nil {
+		attributes = 0 // ignored without SHGFI_USEFILEATTRIBUTES
+	} else {
+		flags |= shgfiUseFileAttributes
+	}
+	// The large icon is what SHGFI_ICON alone asks for; a small request takes the
+	// 16 px icon instead. Sizes the shell does not return are resized with
+	// nearest neighbour below.
+	if pixels <= 16 {
+		flags |= shgfiSmallIcon
+	}
+
 	var file shFileInfo
-	found, _, callErr := shGetFileInfoW.Call(
-		uintptr(unsafe.Pointer(name)), fileAttributeNormal,
-		uintptr(unsafe.Pointer(&file)), unsafe.Sizeof(file),
-		shgfiIcon|shgfiUseFileAttributes,
-	)
-	if found == 0 || file.Icon == 0 {
-		return nil, windowsCallError("read the file icon", callErr)
+	err = withSTA(func() error {
+		found, _, callErr := shGetFileInfoW.Call(
+			uintptr(unsafe.Pointer(name)), attributes,
+			uintptr(unsafe.Pointer(&file)), unsafe.Sizeof(file),
+			flags,
+		)
+		if found == 0 || file.Icon == 0 {
+			return windowsCallError("read the file icon", callErr)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	defer destroyIcon.Call(file.Icon)
 

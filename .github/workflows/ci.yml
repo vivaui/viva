@@ -280,9 +280,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      # WARP is a Windows API: this cannot run anywhere else.
+      # WARP is a Windows API: this cannot run anywhere else. The file icon and
+      # native structure ABI tests are here for the same reason: they build only
+      # on Windows.
       - name: Material contracts and controls (WARP)
-        run: go test ./internal/platform/windows ./ui ./components ./headless -run 'Test(Backdrop|WindowBackdrop|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|AlwaysOnTop|SaveDialogCheckbox)' -count=1 -v
+        run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI)' -count=1 -v
       - name: Terminal keyboard routing
         run: go test ./internal/platform/windows -run '^TestATerminalGetsEditingKeysAndChordsAsRawKeys$' -count=1 -v
       - name: Native Windows global shortcut

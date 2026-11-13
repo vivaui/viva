@@ -24,8 +24,10 @@ const MaxFileIconPixels = 512
 //
 // It reads the system's icon database and may touch the disk, so call it from a
 // goroutine, never from a paint. It is safe from any goroutine. The path must be
-// absolute. macOS is supported; elsewhere it returns ErrUnsupported and the
-// caller keeps whatever glyph it draws for a file of that kind.
+// absolute. macOS reads the icon Finder shows and Windows the one the shell
+// gives, an existing file or folder's own icon included; elsewhere it returns
+// ErrUnsupported and the caller keeps whatever glyph it draws for a file of that
+// kind.
 func FileIcon(path string, pixels int) (gfx.Bitmap, error) {
 	if strings.IndexByte(path, 0) >= 0 {
 		return gfx.Bitmap{}, fmt.Errorf("app: file icon path contains NUL")
