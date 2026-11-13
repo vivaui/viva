@@ -30,13 +30,41 @@ var (
 	columnResizeDemoDivider = tree.Sub(columnResizeDemoUI, tree.Name("divider"))
 )
 
+const columnResizeGap float32 = 8
+
+var (
+	columnResizeMinimums = [3]float32{120, 54, 76}
+	columnResizeFits     = [3]float32{180, 64, 100}
+)
+
 func (state *State) initializeColumnResize() {
-	state.points[0], state.points[1], state.points[2] = 260, 90, 140
+	state.points[1], state.points[2] = 90, 140
 	state.values[0] = 0
+	state.bag()
 }
 
+// columnResizeWidths derives the three widths of the row from the fixed widths
+// the application keeps and the room the last paint gave it. The name column
+// takes what is left; when that would put it below its minimum, the fixed
+// columns give up their slack above their own minimums first, so the row stays
+// inside the stage the paint measured.
 func (state *State) columnResizeWidths() [3]float32 {
-	return [3]float32{state.points[0], state.points[1], state.points[2]}
+	widths := [3]float32{0, max(state.points[1], columnResizeMinimums[1]), max(state.points[2], columnResizeMinimums[2])}
+	room := state.bag().placed.Width - 2*columnResizeGap
+	name := room - widths[1] - widths[2]
+	if name < columnResizeMinimums[0] {
+		deficit := columnResizeMinimums[0] - name
+		slackOne := widths[1] - columnResizeMinimums[1]
+		slackTwo := widths[2] - columnResizeMinimums[2]
+		if slack := slackOne + slackTwo; slack > 0 {
+			take := min(deficit, slack)
+			widths[1] = max(widths[1]-take*slackOne/slack, columnResizeMinimums[1])
+			widths[2] = max(widths[2]-take*slackTwo/slack, columnResizeMinimums[2])
+		}
+		name = room - widths[1] - widths[2]
+	}
+	widths[0] = max(name, columnResizeMinimums[0])
+	return widths
 }
 
 func (state *State) columnResizeDrag(divider int, x float32) bool {
@@ -46,7 +74,7 @@ func (state *State) columnResizeDrag(divider int, x float32) bool {
 	}
 	widths := state.columnResizeWidths()
 	edit, ok := components.BeginColumnResize(nil, state.themeFor(), bounds, widths[:]).
-		Gap(8).Edit(divider, x)
+		Gap(columnResizeGap).Minimums(columnResizeMinimums[:]).Edit(divider, x)
 	if !ok {
 		return false
 	}
@@ -80,7 +108,7 @@ func (state *State) pointerColumnResize(event gfx.PointerEvent) gfx.EventResult 
 	if event.ClickCount >= 2 {
 		widths := state.columnResizeWidths()
 		fit := components.BeginColumnResize(nil, state.themeFor(), state.bag().placed, widths[:]).
-			Gap(8).Fits([]float32{180, 64, 100})
+			Gap(columnResizeGap).Minimums(columnResizeMinimums[:]).Fits(columnResizeFits[:])
 		edit, ok := fit.Fit(divider)
 		if ok {
 			if divider == 0 {
@@ -102,19 +130,19 @@ func (state *State) paintColumnResize(canvas *gfx.Canvas, theme gfx.Theme, size 
 		caption(c, state.Text("拖动分隔线调整两列宽度；双击按内容自适应。", "Drag a divider to resize two columns; double-click it to fit the left one."))
 	})
 	bounds := stage.Rect()
-	state.bag().placed = bounds
+	if bag := state.slider; bag != nil {
+		bag.placed = bounds
+	}
 	widths := state.columnResizeWidths()
-	nameWidth := max(bounds.Width-2*8-widths[1]-widths[2], 40)
-	widths[0] = nameWidth
 	var columns [3]gfx.Rect
 	var dividers, hits [2]gfx.Rect
 	ids := [2]gfx.ID{columnResizeDemoDivider.At(0), columnResizeDemoDivider.At(1)}
 	labels := [2]string{state.Text("调整名称列", "Resize name"), state.Text("调整大小列", "Resize size")}
 	layout := components.BeginColumnResize(canvas, theme, bounds, widths[:]).
 		Dividers(ids[:]).
-		Minimums([]float32{120, 54, 76}).
-		Fits([]float32{180, 64, 100}).
-		Gap(8).
+		Minimums(columnResizeMinimums[:]).
+		Fits(columnResizeFits[:]).
+		Gap(columnResizeGap).
 		Paint(columns[:], dividers[:], hits[:], labels[:])
 	for _, column := range layout.Columns {
 		canvas.Rounded(column.Inset(gfx.All(1)), 4, theme.Muted)

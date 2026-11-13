@@ -145,7 +145,7 @@ func (resize ColumnResize) Paint(columns, dividers, hits []gfx.Rect, labels []st
 			label = labels[index]
 		}
 		resize.canvas.HitWithOptions(id, layout.Hits[index], label, gfx.HitOptions{
-			Role: gfx.RoleSeparator, Cursor: gfx.PointerCursorResizeHorizontal,
+			Role: gfx.RoleSeparator, Cursor: gfx.PointerCursorResizeHorizontal, SkipFocus: true,
 		})
 	}
 	return layout
