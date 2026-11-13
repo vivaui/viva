@@ -72,12 +72,20 @@ type painter struct {
 	// draws it again.
 	lastFontGeneration uint32
 	lastImages         []gfx.Image
-	lastTextBefores    []uint32              // clippedTextBefores last sent
-	lastImageBefores   []uint32              // clippedImageBefores last sent
-	views              []platform.NativeView // the native views of this publish
-	lastViews          []platform.NativeView // the ones last sent
-	covers             []gfx.Rect            // backing of the views' Covers
-	stateBySlot        []instanceState
+	// labelImage names, for each label of this frame, the image it was drawn
+	// from (an index into clippedImages, -1 for a text label); lastLabelImage is
+	// the same for the labels last sent. A bitmap needs its pixels again unless
+	// the label in its place showed the same picture: the platform hands a
+	// label its predecessor's texture when both are at the same index and carry
+	// the same content.
+	labelImage       []int32
+	lastLabelImage   []int32
+	lastTextBefores  []uint32              // clippedTextBefores last sent
+	lastImageBefores []uint32              // clippedImageBefores last sent
+	views            []platform.NativeView // the native views of this publish
+	lastViews        []platform.NativeView // the ones last sent
+	covers           []gfx.Rect            // backing of the views' Covers
+	stateBySlot      []instanceState
 	// layerShift is 1 while the frame has a backdrop, which takes platform layer
 	// zero; every canvas layer then travels one higher. It is 0 otherwise.
 	layerShift uint16
@@ -1019,6 +1027,8 @@ func (painter *painter) trim() {
 	painter.lastTexts = trimPainterCapacity(painter.lastTexts)
 	painter.lastRuns = trimPainterCapacity(painter.lastRuns)
 	painter.lastImages = trimPainterCapacity(painter.lastImages)
+	painter.labelImage = trimPainterCapacity(painter.labelImage)
+	painter.lastLabelImage = trimPainterCapacity(painter.lastLabelImage)
 	painter.hitScratch = trimPainterCapacity(painter.hitScratch)
 	painter.publishedHits = trimPainterCapacity(painter.publishedHits)
 	painter.publishedReturns = trimPainterCapacity(painter.publishedReturns)
@@ -2165,6 +2175,7 @@ func semanticRole(role gfx.Role) semantic.Role {
 // gfx.Surface) stages just the ones that changed.
 func (painter *painter) syncLabels() {
 	painter.labels = painter.labels[:0]
+	painter.labelImage = painter.labelImage[:0]
 	images := painter.clippedImages
 	texts := painter.clippedTexts
 	fontGeneration := painter.canvas.FontGeneration()
@@ -2230,8 +2241,27 @@ func (painter *painter) appendImageLabel(index int, shapesBefore uint32) {
 		ShapesBefore: shapesBefore,
 		Bitmap:       bitmap.Pix[offset : offset+length], BitmapWidth: right - left, BitmapHeight: bottom - top,
 		BitmapStride: bitmap.Stride, BitmapID: bitmap.ID, BitmapVersion: bitmap.Version,
-		BitmapUpload: index >= len(painter.lastImages) || !sameImageBitmap(image, painter.lastImages[index]),
+		BitmapUpload: painter.bitmapUpload(image, index),
 	})
+	painter.labelImage = append(painter.labelImage, int32(index))
+}
+
+// bitmapUpload reports whether image number index must carry its pixels to the
+// platform. It may omit them only when the label it is about to become showed
+// the same picture in the frame last sent: the platform then reuses that
+// label's texture. Another draw of the same bitmap elsewhere is no substitute,
+// because the platform decides which label takes which old texture by position
+// first.
+func (painter *painter) bitmapUpload(image gfx.Image, index int) bool {
+	label := len(painter.labels)
+	if image.Bitmap.ID == 0 || label >= len(painter.lastLabelImage) {
+		return true
+	}
+	previous := int(painter.lastLabelImage[label])
+	if previous < 0 || previous >= len(painter.lastImages) {
+		return true
+	}
+	return !sameImageBitmap(image, painter.lastImages[previous])
 }
 
 // appendTextLabel adds one canvas text to the frame's labels.
@@ -2284,6 +2314,7 @@ func (painter *painter) appendTextLabel(label gfx.Text, fontGeneration uint32, s
 		}
 	}
 	painter.labels = append(painter.labels, entry)
+	painter.labelImage = append(painter.labelImage, -1)
 }
 
 // cellReplaceLimit bounds the memoized cell glyph replacements: a screen holds
@@ -2612,6 +2643,7 @@ func sameAccessibility(left, right []platform.AccessibilityNode) bool {
 func (painter *painter) saveContent() {
 	painter.lastFontGeneration = painter.canvas.FontGeneration()
 	painter.lastImages = append(painter.lastImages[:0], painter.clippedImages...)
+	painter.lastLabelImage = append(painter.lastLabelImage[:0], painter.labelImage...)
 	painter.lastTexts = append(painter.lastTexts[:0], painter.clippedTexts...)
 	painter.lastTextBefores = append(painter.lastTextBefores[:0], painter.clippedTextBefores...)
 	painter.lastImageBefores = append(painter.lastImageBefores[:0], painter.clippedImageBefores...)

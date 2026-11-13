@@ -49,6 +49,92 @@ func TestBitmapPaintIsRetainedAndClippedWithoutPixelCopies(t *testing.T) {
 	}
 }
 
+// A bitmap may omit its pixels only when the label in the same place showed the
+// same picture last frame: the platform gives a label its predecessor's texture
+// by position before it looks for any other. Two draws of one bitmap at
+// different places are therefore not interchangeable once the images before
+// them come and go; treating them as such leaves a label with no texture and no
+// pixels to make one.
+func TestBitmapPixelsFollowTheLabelAndNotThePictureOrder(t *testing.T) {
+	opaque := func(width, height int) []byte {
+		pixels := make([]byte, width*height*4)
+		for index := 3; index < len(pixels); index += 4 {
+			pixels[index] = 255
+		}
+		return pixels
+	}
+	wordmark := gfx.Bitmap{Pix: opaque(8, 4), Width: 8, Height: 4, Stride: 32, ID: 1<<60 | 1, Version: 1}
+	icon := gfx.Bitmap{Pix: opaque(4, 4), Width: 4, Height: 4, Stride: 16, ID: 1<<60 | 3, Version: 1}
+	showIcon := false
+	line := "line"
+	aboutClip := gfx.Rect{X: 0, Y: 200, Width: 40, Height: 20}
+	paint := func(canvas *gfx.Canvas, _ gfx.Size) {
+		if showIcon {
+			canvas.DrawBitmap(icon, gfx.Rect{X: 0, Y: 100, Width: 10, Height: 10})
+		}
+		canvas.DrawBitmap(wordmark, gfx.Rect{X: 0, Y: 0, Width: 40, Height: 20})
+		canvas.Label(line, gfx.Rect{X: 0, Y: 40, Width: 40, Height: 16}, gfx.TextStyle{Size: 12})
+		canvas.Clip(aboutClip)
+		canvas.DrawBitmap(wordmark, gfx.Rect{X: 0, Y: 200, Width: 40, Height: 20})
+		canvas.Unclip()
+	}
+	painter, err := newPainter(&gfx.Canvas{}, &Config{Width: 200, Height: 300, Paint: paint})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The icon appears above both wordmarks and the page's copy is cut off by
+	// the viewport, so the picture list grows by one.
+	showIcon = true
+	aboutClip = gfx.Rect{X: 0, Y: 200, Width: 40, Height: 5}
+	if _, err := painter.repaint(); err != nil {
+		t.Fatal(err)
+	}
+	previous := append([]int32(nil), painter.lastLabelImage...)
+	previousImages := append([]gfx.Image(nil), painter.lastImages...)
+	// The icon is gone and the page's copy is whole again: both pictures move up
+	// one image place, while the labels keep the places the text gives them.
+	showIcon = false
+	aboutClip = gfx.Rect{X: 0, Y: 200, Width: 40, Height: 20}
+	frame, err := painter.repaint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame.TextLabels == nil {
+		t.Fatal("the clipped picture changed but no labels were sent")
+	}
+	current := append([]int32(nil), painter.labelImage...)
+	currentImages := append([]gfx.Image(nil), painter.clippedImages...)
+	for index, label := range frame.TextLabels {
+		if len(label.Bitmap) == 0 || label.BitmapUpload {
+			continue
+		}
+		if index >= len(previous) || previous[index] < 0 || int(previous[index]) >= len(previousImages) ||
+			!sameImageBitmap(currentImages[current[index]], previousImages[previous[index]]) {
+			t.Fatalf("label %d at %v,%v omits its pixels though the label in its place showed no such picture",
+				index, label.X, label.Y)
+		}
+	}
+	// The page's copy has no label in its place to take a texture from; it must
+	// carry its own pixels or the platform has nothing to draw.
+	for _, label := range frame.TextLabels {
+		if label.BitmapID == wordmark.ID && label.Y == 200 && !label.BitmapUpload {
+			t.Fatalf("the page's wordmark at %v,%v omitted the pixels its new texture needs", label.X, label.Y)
+		}
+	}
+	// A later frame that changes only text sends the bitmaps again, in the same
+	// places; their textures are reused and their pixels stay home.
+	line = "line two"
+	frame, err = painter.repaint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range frame.TextLabels {
+		if label.BitmapID == wordmark.ID && label.BitmapUpload {
+			t.Fatalf("a text-only change re-uploaded the wordmark at %v,%v", label.X, label.Y)
+		}
+	}
+}
+
 func TestInitialBitmapUploadAfterPreparationPaint(test *testing.T) {
 	bitmap := gfx.Bitmap{Pix: []byte{0, 0, 255, 255}, Width: 1, Height: 1, Stride: 4, ID: 9}
 	for _, preparation := range []string{"", "ready", "estimated"} {
