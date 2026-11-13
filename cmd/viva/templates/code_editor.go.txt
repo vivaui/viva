@@ -195,6 +195,9 @@ type CodeEditorSnapshot struct {
 	// component's formulas; a non-nil value uses its widths as given, and its
 	// Inset also replaces the theme's text inset.
 	Gutter *CodeEditorGutter
+	// Decorations supplies optional gutter bars and byte indicators. Set it to
+	// *CodeEditorDecorations, or nil to keep default drawing.
+	Decorations CodeEditorDecoration
 }
 
 // CodeEditor is the view of a code editor, held by the application next to its
@@ -372,16 +375,23 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 			numberLane = float32(max(decimalDigits(lines), 2)+2) * cellWidth
 		}
 	}
-	gutter := foldLane + markerLane + bookmarkLane + numberLane
+	decorationWidth := float32(0)
+	hasIndicators := false
+	if decorations := snapshot.Decorations; decorations != nil {
+		decorationWidth = decorations.codeEditorGutterWidth()
+		hasIndicators = decorations.codeEditorHasIndicators()
+	}
+	gutter := decorationWidth + foldLane + markerLane + bookmarkLane + numberLane
 	laneStart := bounds.X + inset
-	foldX, markerX, bookmarkX, numberX := laneStart, float32(0), float32(0), float32(0)
+	lanes := laneStart + decorationWidth
+	foldX, markerX, bookmarkX, numberX := lanes, float32(0), float32(0), float32(0)
 	if foldLast {
-		markerX = laneStart
+		markerX = lanes
 		bookmarkX = markerX + markerLane
 		numberX = bookmarkX + bookmarkLane
 		foldX = numberX + numberLane
 	} else {
-		markerX = laneStart + foldLane
+		markerX = lanes + foldLane
 		bookmarkX = markerX + markerLane
 		numberX = bookmarkX + bookmarkLane
 	}
@@ -470,6 +480,7 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 		markLayers:     snapshot.MarkLayers,
 		showWhitespace: snapshot.ShowWhitespace, showIndentGuides: snapshot.ShowIndentGuides, showEOL: snapshot.ShowEOL, showWrapSymbol: showWrapSymbol, eolLabel: snapshot.EOLLabel, eolLabels: snapshot.EOLLabels,
 		invisibleColor: snapshot.InvisibleColor,
+		deferOverlays:  hasIndicators,
 	}
 	if paint.invisibleColor.Alpha == 0 {
 		paint.invisibleColor = theme.MutedForeground
@@ -484,6 +495,11 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 
 	firstRow := int(editor.scrollY / lineHeight)
 	inner := gfx.Rect{X: bounds.X + 1, Y: content.Y, Width: content.X + content.Width - bounds.X - 1, Height: content.Height}
+	if decorationWidth > 0 {
+		// An oversized reserved lane may move content beyond this editor; its
+		// visible clip must still stop before a neighboring pane.
+		inner.Width = min(inner.Width, max(0, bounds.X+bounds.Width-inner.X))
+	}
 	canvas.Clip(inner)
 	if placeholder {
 		style := gfx.TextStyle{Size: size, Color: theme.MutedForeground, Mono: true, MonoFace: snapshot.MonoFace}
@@ -510,7 +526,13 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 		if int(row.line) == currentLine {
 			tint := theme.Foreground
 			tint.Alpha *= 0.05
-			canvas.Fill(gfx.Rect{X: inner.X, Y: y, Width: inner.Width, Height: lineHeight}, tint)
+			if decorationWidth > 0 {
+				canvas.Fill(gfx.Rect{X: inner.X, Y: y, Width: max(0, laneStart-inner.X), Height: lineHeight}, tint)
+				x := laneStart + decorationWidth
+				canvas.Fill(gfx.Rect{X: x, Y: y, Width: max(0, inner.X+inner.Width-x), Height: lineHeight}, tint)
+			} else {
+				canvas.Fill(gfx.Rect{X: inner.X, Y: y, Width: inner.Width, Height: lineHeight}, tint)
+			}
 		}
 		if markerLane > 0 && editor.firstOfLine(index) {
 			for markerIndex < len(snapshot.GutterMarkers) && snapshot.GutterMarkers[markerIndex].Line < int(row.line) {
@@ -530,6 +552,10 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 			paint.lineNumber(row, y, numberX, numberLane, int(row.line) == int(editor.rows[caretRow].line))
 		}
 	}
+	if decorationWidth > 0 {
+		decorationPaint := codeDecorationPaint{canvas: canvas, editor: editor, size: size, cellWidth: cellWidth, lineHeight: lineHeight, face: snapshot.MonoFace}
+		snapshot.Decorations.codeEditorGutter(decorationPaint, gfx.Rect{X: laneStart, Y: content.Y, Width: decorationWidth, Height: content.Height}, firstRow)
+	}
 	canvas.Clip(gfx.Rect{X: content.X, Y: content.Y, Width: content.Width, Height: content.Height})
 	paint.markCursor = paint.firstMark(firstRow)
 	for index := firstRow; index < len(editor.rows); index++ {
@@ -538,6 +564,17 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 			break
 		}
 		paint.row(index, y)
+	}
+	if paint.deferOverlays {
+		decorationPaint := codeDecorationPaint{canvas: canvas, editor: editor, size: size, cellWidth: cellWidth, lineHeight: lineHeight, face: snapshot.MonoFace}
+		snapshot.Decorations.codeEditorIndicators(decorationPaint, firstRow)
+		for index := firstRow; index < len(editor.rows); index++ {
+			y := content.Y + float32(index)*lineHeight - editor.scrollY
+			if y >= content.Y+content.Height {
+				break
+			}
+			paint.overlays(index, y)
+		}
 	}
 	canvas.Unclip()
 	canvas.Unclip()
@@ -557,7 +594,11 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 		canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, options)
 	}
 	if foldLane > 0 && len(snapshot.FoldMarkers) != 0 {
-		canvas.Clip(gfx.Rect{X: foldX, Y: content.Y, Width: foldLane, Height: content.Height})
+		foldClip := gfx.Rect{X: foldX, Y: content.Y, Width: foldLane, Height: content.Height}
+		if decorationWidth > 0 {
+			foldClip.Width = min(foldClip.Width, max(0, bounds.X+bounds.Width-foldX))
+		}
+		canvas.Clip(foldClip)
 		markerIndex := 0
 		if firstRow < len(editor.rows) {
 			firstLine := int(editor.rows[firstRow].line)
@@ -704,6 +745,7 @@ type codePaint struct {
 	eolLabel                                string
 	eolLabels                               []string
 	invisibleColor                          gfx.Color
+	deferOverlays                           bool
 }
 
 // firstMark is the index of the first mark that may reach the row at index.
@@ -934,6 +976,16 @@ func (paint *codePaint) row(index int, y float32) {
 		}, gfx.TextStyle{Size: paint.size * 0.75, Color: paint.invisibleColor, Mono: true, MonoFace: paint.face})
 	}
 
+	if !paint.deferOverlays {
+		paint.overlays(index, y)
+	}
+}
+
+func (paint *codePaint) overlays(index int, y float32) {
+	editor, canvas := paint.editor, paint.canvas
+	row := editor.rows[index]
+	rowStart, rowEnd := int(row.start), int(row.end)
+	left := editor.content.X - editor.scrollX
 	if paint.compositionEnd > paint.compositionStart && paint.compositionStart <= rowEnd && paint.compositionEnd >= rowStart {
 		walker := columnWalker{editor: editor, row: row, at: rowStart}
 		first, last := walker.column(max(paint.compositionStart, rowStart)), walker.column(min(paint.compositionEnd, rowEnd))
@@ -942,7 +994,7 @@ func (paint *codePaint) row(index int, y float32) {
 		}
 	}
 
-	if index == paint.caretRow {
+	if index == paint.caretRow && editor.content.Width > 0 {
 		x := left + float32(paint.caretColumn)*paint.cellWidth
 		if x >= editor.content.X-1 && x <= editor.content.X+editor.content.Width {
 			editor.caretRect, editor.caretShown = gfx.Rect{X: x, Y: y, Width: paint.caretWidth, Height: paint.lineHeight}, true
@@ -957,7 +1009,7 @@ func (paint *codePaint) row(index int, y float32) {
 	for paint.caretCursor < len(editor.extraCarets) && editor.extraCarets[paint.caretCursor].row == index {
 		column := editor.extraCarets[paint.caretCursor].column
 		x := left + float32(column)*paint.cellWidth
-		if paint.showCaret && x >= editor.content.X-1 && x <= editor.content.X+editor.content.Width {
+		if paint.showCaret && editor.content.Width > 0 && x >= editor.content.X-1 && x <= editor.content.X+editor.content.Width {
 			canvas.Fill(gfx.Rect{X: x, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: paint.caretWidth, Height: paint.cellHeight}, paint.caretColor)
 		}
 		paint.caretCursor++

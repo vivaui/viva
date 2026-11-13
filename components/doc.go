@@ -123,6 +123,9 @@
 //     `CodeRepresentation` labels and inverted blobs, optional indentation
 //     guides, soft wrap with optional end markers, sideways scrolling and
 //     draggable scrollbars, with native selection and IME geometry retained.
+//     Optional `CodeEditorDecorations` reserve a leading gutter for layered bars
+//     and paint caller-colored byte underlines and insertion-position points;
+//     the component owns their wrap, fold, scroll and caret-layer geometry.
 //     `CodeEditorCommandForKey` maps key events to the editing commands of a
 //     text.Editor given code options (SetCode), and
 //     `TextareaMovementForKey` with `CodeEditor.Move` moves by row. The scroll
