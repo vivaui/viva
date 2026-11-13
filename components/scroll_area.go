@@ -178,12 +178,12 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 		contentHeight = viewport.Height
 	}
 
-	// A pinned band needs a window left to scroll in: something to either
-	// side of it, and a width inside the viewport.
-	// A pinned band changes nothing about the translation: Content keeps the
-	// unfrozen origin, because the caller clips the pinned columns out of it
-	// and paints them itself at the viewport's edge. Only the bar belongs to
-	// the scrolling window past the band.
+	// A pinned band needs a window left to scroll in — something to either
+	// side of it, and a width inside the viewport — and changes nothing about
+	// the translation: Content keeps the unfrozen origin, because the caller
+	// clips the pinned columns out of it and paints them itself at the
+	// viewport's edge. Only the horizontal bar belongs to the scrolling window
+	// past the band.
 	frozen := area.frozen
 	if frozen <= 0 || frozen >= viewport.Width || contentWidth <= viewport.Width {
 		frozen = 0
