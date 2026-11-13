@@ -464,6 +464,12 @@ int viva_view_update_text(
     int render
 );
 int viva_view_update_text_input(void *view, viva_text_input_config text_input);
+// viva_view_update_text_input_keeping_composition mirrors the same editor
+// again after its frame, caret or style moved, without ending the input
+// method's composition. The application has already acknowledged the text and
+// selection it passes, so a field that grows a row or is scrolled under the
+// pointer keeps the pinyin, kana or hangul being composed.
+int viva_view_update_text_input_keeping_composition(void *view, viva_text_input_config text_input);
 int viva_text_input_caret_should_blink(
     int enabled,
     size_t selected_length,

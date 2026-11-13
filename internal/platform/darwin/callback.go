@@ -714,12 +714,21 @@ func presentTextInput(state *runState, view unsafe.Pointer, update TextInputUpda
 		}
 		native = makeNativeTextInput(*update.Input, memory)
 	}
+	// A field that grows, scrolls or moves keeps the input method's
+	// composition: the text event already installed the acknowledged state,
+	// so only the place the editor and its caret occupy changed.
+	keepComposition := state.textInputKeepsComposition(update.Input)
 	previousHandler := state.textHandler
 	previousState := state.textState
 	previousInput := state.textInput
 	previousActive := state.textInputActive
 	state.setTextInput(update.Input)
-	status := C.viva_view_update_text_input(view, native)
+	var status C.int
+	if keepComposition {
+		status = C.viva_view_update_text_input_keeping_composition(view, native)
+	} else {
+		status = C.viva_view_update_text_input(view, native)
+	}
 	if status != 0 {
 		state.textHandler = previousHandler
 		state.textState = previousState

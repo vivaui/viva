@@ -250,6 +250,19 @@ func (state *runState) textInputAlreadyUpdated(input *TextInput) bool {
 		sameTextInputPresentation(state.textInput, *input)
 }
 
+// textInputKeepsComposition reports whether next is the same focused editor
+// with the text state the application already acknowledged. A field that grows
+// a row, scrolls or moves under the pointer keeps what the input method is
+// composing; another field, another kind of editor, or text and selection
+// rewritten from outside replaces the editor and ends the composition.
+func (state *runState) textInputKeepsComposition(next *TextInput) bool {
+	return state.textInputActive && next != nil &&
+		state.textInput.Target == next.Target &&
+		state.textInput.Multiline == next.Multiline && state.textInput.Secure == next.Secure &&
+		state.textInput.Terminal == next.Terminal && state.textInput.Placed == next.Placed &&
+		state.textState == next.State.WithoutRedraw()
+}
+
 func sameTextInputPresentation(left, right TextInput) bool {
 	return left.Target == right.Target && left.X == right.X && left.Y == right.Y &&
 		left.Width == right.Width && left.Height == right.Height &&

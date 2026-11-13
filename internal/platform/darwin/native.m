@@ -3899,6 +3899,7 @@ static void viva_encode_scene(
        markedRange:(NSRange)markedRange
      hasMarkedText:(BOOL)hasMarkedText;
 - (int)updateTextInput:(viva_text_input_config)textInput;
+- (int)updateTextInput:(viva_text_input_config)textInput keepComposition:(BOOL)keep;
 - (void)setTitlebarHeight:(CGFloat)height;
 - (void)cancelTitlebarDrag;
 - (int)moveTextInputToFrame:(NSRect)frame;
@@ -5436,6 +5437,16 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 
 - (int)updateTextInput:(viva_text_input_config)textInput {
+    return [self updateTextInput:textInput keepComposition:NO];
+}
+
+// updateTextInput:keepComposition: mirrors a new editor configuration into the
+// native surface. With keep set, the editor is the one that was already
+// focused and the application acknowledges the same text and selection: a
+// field that grows a row or moves keeps the input method's composition, where
+// an unkept update discards it. The frame, caret, texture and character
+// coordinates still follow, so the candidate window moves with the caret.
+- (int)updateTextInput:(viva_text_input_config)textInput keepComposition:(BOOL)keep {
     if (!_dynamicTextInput) {
         return 4;
     }
@@ -5461,15 +5472,18 @@ static void viva_set_secure_event_input(BOOL on) {
     }
 
     BOOL wasEnabled = _textInputEnabled;
-    _textInputEnabled = NO;
-    [self syncSecureEventInput];
-    _textSelectionDragging = NO;
-    [self stopCaretBlink];
-    if (wasEnabled) {
-        [self.inputContext discardMarkedText];
-        [self.inputContext deactivate];
+    keep = keep && wasEnabled && textInput.enabled != 0;
+    if (!keep) {
+        _textInputEnabled = NO;
+        [self syncSecureEventInput];
+        _textSelectionDragging = NO;
+        [self stopCaretBlink];
+        if (wasEnabled) {
+            [self.inputContext discardMarkedText];
+            [self.inputContext deactivate];
+        }
+        _hasMarkedText = NO;
     }
-    _hasMarkedText = NO;
 
     if (!textInput.enabled) {
         _textSecure = NO;
@@ -5538,6 +5552,13 @@ static void viva_set_secure_event_input(BOOL on) {
     _caretVisible = YES;
     if (![self rebuildTextTexture]) {
         return 3;
+    }
+    if (keep) {
+        // The input context stays active and composing; only where it points
+        // changed.
+        [self.inputContext invalidateCharacterCoordinates];
+        [self restartCaretBlink];
+        return 0;
     }
     [self.window makeFirstResponder:self];
     [self.inputContext activate];
@@ -7621,6 +7642,15 @@ int viva_view_update_text_input(void *view, viva_text_input_config text_input) {
     }
     @autoreleasepool {
         return [(VivaMetalView *)view updateTextInput:text_input];
+    }
+}
+
+int viva_view_update_text_input_keeping_composition(void *view, viva_text_input_config text_input) {
+    if (view == NULL) {
+        return 1;
+    }
+    @autoreleasepool {
+        return [(VivaMetalView *)view updateTextInput:text_input keepComposition:YES];
     }
 }
 

@@ -207,6 +207,53 @@ func TestTextEventRedrawRecognizesAlreadyAppliedNativeState(t *testing.T) {
 	}
 }
 
+func TestTextInputReplacementDecidesWhetherCompositionSurvives(t *testing.T) {
+	composing := TextState{Value: "ni", Composing: true, Composition: text.Range{End: 2}}
+	input := &TextInput{
+		Target: gfx.Item(7), X: 10, Y: 20, Width: 180, Height: 32, FontSize: 14,
+		Multiline: true, Placed: true, State: composing,
+	}
+	state := &runState{}
+	state.setTextInput(input)
+
+	// The same editor with the same acknowledged text, moved or resized by a
+	// layout change, keeps the composition: a repaint may ask for a frame and
+	// mark the state as needing a redraw.
+	grown := *input
+	grown.Y, grown.Height = 10, 48
+	grown.State.Redraw = true
+	if !state.textInputKeepsComposition(&grown) {
+		t.Fatal("a layout update of the composing editor was treated as a replacement")
+	}
+	// A different field replacing this one ends the composition even when the
+	// text, geometry and presentation are identical.
+	switched := grown
+	switched.Target = gfx.Item(8)
+	if state.textInputKeepsComposition(&switched) {
+		t.Fatal("switching fields kept the previous composition")
+	}
+	// So does changing the kind of editor, or rewriting text the application
+	// has not acknowledged.
+	rewritten := *input
+	rewritten.State = TextState{Value: "nih", Composing: true, Composition: text.Range{End: 3}}
+	terminal, secure, multiline, placed := *input, *input, *input, *input
+	terminal.Terminal, secure.Secure, multiline.Multiline, placed.Placed = true, true, false, false
+	for name, changed := range map[string]TextInput{
+		"terminal": terminal, "secure": secure, "multiline": multiline, "placed": placed, "text": rewritten,
+	} {
+		if state.textInputKeepsComposition(&changed) {
+			t.Errorf("a %s update kept the composition", name)
+		}
+	}
+	if state.textInputKeepsComposition(nil) {
+		t.Fatal("disabling the editor kept the composition")
+	}
+	state.setTextInput(nil)
+	if state.textInputKeepsComposition(&grown) {
+		t.Fatal("a composition survived the editor being disabled")
+	}
+}
+
 func TestNativeCaretTimerPolicy(t *testing.T) {
 	tests := []struct {
 		name           string

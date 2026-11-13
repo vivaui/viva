@@ -75,6 +75,26 @@ void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *
 
 static NSUInteger copyRequests;
 
+// RecordingInputContext counts what the platform editor asks of the input
+// method's session. The harness runs no real input method, so these calls are
+// the contract: a composition being typed must not be discarded by a layout
+// update of the field it is typed into.
+@interface RecordingInputContext : NSObject {
+@public
+    NSUInteger discards;
+    NSUInteger activations;
+    NSUInteger deactivations;
+    NSUInteger invalidations;
+}
+@end
+
+@implementation RecordingInputContext
+- (void)discardMarkedText { discards++; }
+- (void)activate { activations++; }
+- (void)deactivate { deactivations++; }
+- (void)invalidateCharacterCoordinates { invalidations++; }
+@end
+
 @interface SelectionView : VivaMetalView {
 @public
     NSUInteger selectionEvents;
@@ -98,6 +118,7 @@ static NSUInteger copyRequests;
     // empty mark, 8 empty insert, 9 non-empty insert, 10 empty mark followed by
     // cancelOperation:, 11 unmark.
     int fakeMarkedMode;
+    RecordingInputContext *recordingContext;
 }
 - (void)resetText:(NSString *)value;
 - (NSEvent *)mouseEvent:(NSEventType)type offset:(CGFloat)offset;
@@ -161,7 +182,7 @@ static NSUInteger copyRequests;
     _textInputMultiline = NO;
     fakeMarkedMode = 0;
 }
-- (NSTextInputContext *)inputContext { return nil; }
+- (NSTextInputContext *)inputContext { return (NSTextInputContext *)recordingContext; }
 - (NSEventModifierFlags)returnKeyModifierFlags { return returnFlags; }
 - (BOOL)rebuildTextTexture { textureRebuilds++; return YES; }
 - (void)render { renders++; }
@@ -403,6 +424,57 @@ int main(void) {
                 CGFloat boundary = inset + [view offsetForIndex:index];
                 assert([view textIndexForEvent:[view mouseEvent:NSEventTypeLeftMouseDown offset:boundary + 0.01]] == index);
             }
+        }
+
+        // A field that grows a row while someone composes keeps the input
+        // method's marked text: the frame and caret follow the new layout, but
+        // the session is neither discarded nor deactivated. A replacing update
+        // of the same config still ends it.
+        {
+            NSString *value = @"ni";
+            NSData *utf8 = [value dataUsingEncoding:NSUTF8StringEncoding];
+            RecordingInputContext *context = [[RecordingInputContext alloc] init];
+            view->recordingContext = context;
+            [view resetText:value];
+            [view setEditing:NO];
+            viva_text_input_config composing = {0};
+            composing.enabled = 1;
+            composing.utf8 = utf8.bytes;
+            composing.utf8_length = utf8.length;
+            composing.x = 40;
+            composing.y = 80;
+            composing.width = 260;
+            composing.height = 32;
+            composing.font_size = 16;
+            composing.alpha = 1;
+            composing.marked_start = 0;
+            composing.marked_length = 2;
+            composing.has_marked_text = 1;
+            composing.placed = 1;
+            composing.caret_x = 70;
+            composing.caret_y = 85;
+            composing.caret_width = 1;
+            composing.caret_height = 16;
+            assert([view updateTextInput:composing] == 0);
+            assert(context->discards == 0 && context->deactivations == 0 && context->activations == 1);
+            assert([view hasMarkedText]);
+            NSUInteger rebuilds = view->textureRebuilds;
+            NSUInteger invalidations = context->invalidations;
+            viva_text_input_config taller = composing;
+            taller.y = 64;
+            taller.height = 48;
+            assert(viva_view_update_text_input_keeping_composition(view, taller) == 0);
+            assert(context->discards == 0 && context->deactivations == 0 && context->activations == 1);
+            assert(context->invalidations == invalidations + 1);
+            assert([view hasMarkedText]);
+            assert(NSEqualRanges([view markedRange], NSMakeRange(0, 2)));
+            assert(NSEqualRects([view inputFrame], NSMakeRect(40, 64, 260, 48)));
+            assert(view->textureRebuilds == rebuilds + 1);
+            assert([view updateTextInput:composing] == 0);
+            assert(context->discards == 1 && context->deactivations == 1);
+            assert([view updateTextInput:(viva_text_input_config){0}] == 0);
+            view->recordingContext = nil;
+            [context release];
         }
 
         NSWindow *candidateWindow = [[NSWindow alloc] initWithContentRect:NSMakeRect(120, 120, 480, 320)
