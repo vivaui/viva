@@ -85,13 +85,14 @@ type TableState struct {
 	// Fill or Grow that is less than its rows need). Give config.OnScroll
 	// state.Wheel, or call it for the table under the pointer. A table in a
 	// ScrollArea is as tall as its rows and needs none of it.
-	Scroll     ScrollState
-	selected   int32 // 1 + the row, or 0
-	sortColumn int32 // 1 + the column, or 0
-	descending bool
-	reveal     bool      // scroll the selected row into view at the next paint
-	rows, page int32     // as of the last paint: how many rows, how many fit at once
-	scope      gfx.Scope // the rows' identities, to tell a key meant for the table
+	Scroll           ScrollState
+	selected         int32 // 1 + the row, or 0
+	sortColumn       int32 // 1 + the column, or 0
+	descending       bool
+	reveal           bool      // scroll the selected row into view at the next paint
+	rows, page       int32     // as of the last paint: how many rows, how many fit at once
+	rowFirst, rowEnd int32     // the declared source rows: rowFirst <= i < rowEnd
+	scope            gfx.Scope // the rows' identities, to tell a key meant for the table
 }
 
 // Selected is the selected row, or -1.
@@ -305,6 +306,7 @@ func (f *frame) paintTable(n *node) {
 		first = min(max(int(math.Floor(float64((lo-top)/rowHeight))), 0), t.rows)
 		last = min(max(int(math.Ceil(float64((hi-top)/rowHeight))), first), t.rows)
 	}
+	t.state.rowFirst, t.state.rowEnd = int32(first), int32(last)
 
 	if !scrolls && !sticky {
 		f.paintTableHeader(t, Rect{X: r.X, Y: r.Y, Width: body.Width, Height: r.Height}, headerHeight, rowHeight)
