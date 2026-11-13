@@ -198,6 +198,9 @@
 //     ratio inside bounds.
 //   - Resizable: `BeginResizable` paints a two-panel split with a draggable
 //     handle.
+//   - Column resize: `BeginColumnResize` lays out a row of columns and the
+//     draggable dividers between them, mapping a pointer to the new widths or
+//     a double click to the column's content width.
 //   - Reorder list: `BeginReorderList` reserves independent drag handles and
 //     content slots. `ReorderListState` returns completed pointer/keyboard moves
 //     while the application keeps ownership of the ordered data.
