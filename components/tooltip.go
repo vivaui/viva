@@ -91,6 +91,9 @@ type TooltipOptions struct {
 	SideOffset  float32
 	AlignOffset float32
 	MaxWidth    float32
+	// SideOf is the side HoverTooltip opens the tooltip of the hit id on, where
+	// Side has no say. Nil opens every one below its control.
+	SideOf func(id gfx.ID) TooltipSide
 }
 
 // Tooltip is one noninteractive Vega tooltip declaration.
@@ -290,9 +293,10 @@ func (hover *HoverTooltip) Dismiss() bool {
 func (hover *HoverTooltip) ShowOnFocus() { hover.focus = true }
 
 // Paint draws the tooltip of the hovered hit once it has been hovered for
-// delay, and reports whether it did. The tooltip goes below the control, or
-// above it when the viewport has no room below (see PlaceOverlay). It stays hidden while a button
-// is pressed and for hits without a Hint.
+// delay, and reports whether it did. The tooltip goes below the control, or on
+// the side options.SideOf names, and on the opposite side when the viewport has
+// no room there (see PlaceOverlay). It stays hidden while a button is pressed and
+// for hits without a Hint.
 func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, options TooltipOptions, delay time.Duration) bool {
 	hovered := canvas.Hovered()
 	if !canvas.Pressed().IsZero() {
@@ -346,6 +350,9 @@ func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport g
 		return false
 	}
 	options.Side = TooltipBottom
+	if options.SideOf != nil {
+		options.Side = options.SideOf(id)
+	}
 	options.ID = id
 	BeginTooltip(canvas, theme, viewport, hit.Bounds, options).Paint(hit.Hint)
 	hover.shown = id

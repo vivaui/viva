@@ -25,6 +25,31 @@ func (b Box) Tooltip(text string) Box {
 	return b
 }
 
+// TooltipSide is the edge of its element a Tooltip opens beside.
+type TooltipSide = components.TooltipSide
+
+// The sides TooltipOn opens a Tooltip on.
+const (
+	TooltipTop    = components.TooltipTop
+	TooltipRight  = components.TooltipRight
+	TooltipBottom = components.TooltipBottom
+	TooltipLeft   = components.TooltipLeft
+)
+
+// TooltipOn opens the element's Tooltip beside side rather than below it: an
+// information icon at the end of a label shows its tip to its right, where the
+// tip covers neither the label nor the rows under it. Without room on side, the
+// tip opens on the opposite one.
+//
+//	ui.Button(c, "").Icon(info).Tooltip("Applies to new terminals").TooltipOn(ui.TooltipRight)
+func (b Box) TooltipOn(side TooltipSide) Box {
+	if b.n().id.IsZero() {
+		panic("ui: TooltipOn needs an element with an identity: a control, or a container given Hit")
+	}
+	b.f.extra(b.i).tooltipSide = uint8(side) + 1
+	return b
+}
+
 // paintTooltip paints the Tooltip of the element the pointer rests on, over
 // everything the frame painted.
 func (f *frame) paintTooltip() {
@@ -37,8 +62,18 @@ func (f *frame) paintTooltip() {
 		f.tooltip = components.HoverTooltip{}
 		return
 	}
-	f.tooltip.Paint(f.canvas, f.theme, f.bounds, components.TooltipOptions{Layer: TooltipLayer},
+	f.tooltip.Paint(f.canvas, f.theme, f.bounds, components.TooltipOptions{Layer: TooltipLayer, SideOf: f.tooltipSideOf},
 		components.HoverTooltipDelay)
+}
+
+// tooltipSideOf is the side TooltipOn gave the element id, or below.
+func (f *frame) tooltipSideOf(id gfx.ID) TooltipSide {
+	for i := range f.nodes {
+		if n := &f.nodes[i]; n.id == id && n.ext != 0 && f.exts[n.ext].tooltipSide != 0 {
+			return TooltipSide(f.exts[n.ext].tooltipSide - 1)
+		}
+	}
+	return TooltipBottom
 }
 
 // hasTooltip reports whether id names an element of this frame given a Tooltip.
