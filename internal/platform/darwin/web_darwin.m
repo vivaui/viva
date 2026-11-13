@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "web_darwin.h"
+#include "cursor_owner_darwin.h"
 
 // What the page does reaches Go through these (web_darwin.go).
 extern void vivaWebMessage(uintptr_t handle, uint32_t id, char *utf8);
@@ -492,8 +493,27 @@ static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped
 
 // The pointer entering the page leaves Viva's drawing, which would otherwise keep the control it
 // was over hovered.
+
+- (BOOL)vivaManagesCursor {
+    return YES;
+}
+
 - (void)mouseEntered:(NSEvent *)event {
+    [super mouseEntered:event];
     [self.superview mouseExited:event];
+    // 即使父视图未收到子视图范围内的 moved 事件，也要记录这次所有权交接。
+    [self.superview mouseMoved:event];
+    [self.window invalidateCursorRectsForView:self.superview];
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    [super mouseExited:event];
+    NSView *host = self.superview;
+    NSPoint point = [host convertPoint:event.locationInWindow fromView:nil];
+    // 只在回到同一宿主时恢复画布光标；离开窗口不干预其他窗口或应用的光标。
+    if (host.window != nil && viva_window_at_pointer() == host.window && NSPointInRect(point, host.bounds)) {
+        [host mouseMoved:event];
+    }
 }
 
 @end
