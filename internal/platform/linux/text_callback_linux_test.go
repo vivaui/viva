@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -279,6 +280,7 @@ func TestLinuxTextCallbackCannotReviveClosedInput(t *testing.T) {
 		t.Run(map[bool]string{true: "during redraw", false: "during event"}[duringRedraw], func(t *testing.T) {
 			editor := text.NewEditor("abc")
 			state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{}}
+			state.postCaret = func(uint32) {}
 			t.Cleanup(state.close)
 			field := callbackTextField(editor)
 			if !duringRedraw {
@@ -295,6 +297,9 @@ func TestLinuxTextCallbackCannotReviveClosedInput(t *testing.T) {
 				return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}}, nil
 			}
 			prepareCallbackFrame(t, state, platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}})
+			if state.caretTimer == nil {
+				t.Fatal("fixture did not arm the caret timer")
+			}
 			frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "x"})
 			if err != nil {
 				t.Fatal(err)
@@ -308,6 +313,37 @@ func TestLinuxTextCallbackCannotReviveClosedInput(t *testing.T) {
 			}
 			if frame, err := state.textEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "late"}); err != nil || frame.TextInput.Changed || editor.String() != "abcx" {
 				t.Fatalf("closed input accepted a late event: editor=%q frame=%+v err=%v", editor.String(), frame, err)
+			}
+		})
+	}
+}
+
+func TestLinuxTextCallbackPreservesErrorsAfterReentry(t *testing.T) {
+	for _, duringRedraw := range []bool{false, true} {
+		t.Run(map[bool]string{true: "redraw error", false: "event error"}[duringRedraw], func(t *testing.T) {
+			sentinel := errors.New("callback failed")
+			state := &linuxTextInput{config: &platform.Config{DynamicTextInput: true}, engine: fixedAdvanceEngine{}}
+			t.Cleanup(state.close)
+			field := callbackTextField(text.NewEditor("abc"))
+			replacement := callbackTextField(text.NewEditor("new"))
+			replacement.Target = gfx.Scope(1).At(2)
+			replace := func() {
+				prepareCallbackFrame(t, state, platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &replacement}})
+			}
+			if duringRedraw {
+				state.config.OnRedraw = func() (platform.Frame, error) {
+					replace()
+					return platform.Frame{}, sentinel
+				}
+			} else {
+				field.OnEvent = func(platform.TextEvent) (platform.TextState, error) {
+					replace()
+					return field.State, sentinel
+				}
+			}
+			prepareCallbackFrame(t, state, platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}})
+			if _, err := state.textEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "x"}); err != sentinel || state.state.Value != "new" || state.input.Target != replacement.Target {
+				t.Fatalf("callback error or newer input lost: err=%v state=%+v input=%+v", err, state.state, state.input)
 			}
 		})
 	}
