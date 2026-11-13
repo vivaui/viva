@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/vivaui/viva/gfx"
@@ -109,6 +110,15 @@ func (content *ContentWindow) Show() {
 	if content != nil {
 		content.window.Show()
 	}
+}
+
+// SetSize asks the window manager for a new content size, as Window.SetSize
+// does. Config.OnResize reports the size actually granted.
+func (content *ContentWindow) SetSize(width, height int) error {
+	if content == nil || content.window == nil {
+		return fmt.Errorf("app: content window is closed")
+	}
+	return content.window.SetSize(width, height)
 }
 func (content *ContentWindow) Closed() bool {
 	return content == nil || content.window == nil || content.window.Closed()

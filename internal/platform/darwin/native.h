@@ -391,6 +391,8 @@ void *viva_application_open_window(viva_window_config config);
 int viva_application_window_frame(void *window, double *out);
 /* Puts the window's content area at x, y in top-left screen coordinates. */
 void viva_application_move_window(void *window, double x, double y);
+/* Posts a content resize to the AppKit event loop. */
+void viva_application_set_window_size(void *window, double width, double height);
 int viva_application_set_fullscreen(void *window, int fullscreen);
 int viva_application_fullscreen(void *window);
 int viva_application_set_always_on_top(void *window, int enabled);

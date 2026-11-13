@@ -20,6 +20,7 @@ var ErrNoWindows = errors.New("app: application opened no windows")
 // and Fullscreen() bool. It reports transitions through Config.OnFullscreen
 // before resize/frame callbacks and repaints afterward.
 // An always-on-top host additionally implements SetAlwaysOnTop(bool) error.
+// A size-capable host additionally implements SetSize(int, int) error.
 type WindowControl interface {
 	Close()
 	Hide()

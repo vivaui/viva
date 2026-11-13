@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -141,9 +142,29 @@ func (win *window) markPanel(config platform.Config, x, y int16) error {
 }
 
 // command runs one request another goroutine posted to this window's loop.
-func (state *linuxWindowState) command(command uint32) error {
+func (state *linuxWindowState) command(command uint32, data []byte) error {
 	win := state.win
 	switch command {
+	case commandSetSize:
+		if len(data) < 12 || win.frame.maximized || win.minimized || win.fullscreen.Load() {
+			return nil
+		}
+		width := int(binary.LittleEndian.Uint32(data[4:8]))
+		height := int(binary.LittleEndian.Uint32(data[8:12]))
+		margin := uint32(0)
+		if win.margin > 0 {
+			margin = frameMargin(win.displayScale())
+		}
+		if width < 1 || height < 1 {
+			return nil
+		}
+		size := [2]uint32{
+			min(deviceLength(width, win.displayScale())+2*margin, 65535),
+			min(deviceLength(height, win.displayScale())+2*margin, 65535),
+		}
+		win.api.configureWindow(win.connection, win.id,
+			xcbConfigWindowWidth|xcbConfigWindowHeight, &size[0])
+		win.api.flush(win.connection)
 	case commandEnterFullscreen, commandExitFullscreen:
 		action := uint32(0) // _NET_WM_STATE_REMOVE
 		if command == commandEnterFullscreen {

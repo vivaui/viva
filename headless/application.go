@@ -20,13 +20,15 @@ import (
 type applicationWindow struct {
 	fullscreen        atomic.Bool
 	fullscreenRequest atomic.Int32
-	invalidator       *app.Invalidator
-	id                uint64
-	title             string
-	panel             bool
-	hidden            bool
-	session           *Session
-	closed            func()
+	// sizeRequest is the content size SetSize queued for the loop, or nil.
+	sizeRequest atomic.Pointer[[2]int32]
+	invalidator *app.Invalidator
+	id          uint64
+	title       string
+	panel       bool
+	hidden      bool
+	session     *Session
+	closed      func()
 	// closeRequest is the application's OnCloseRequest, if it set one.
 	closeRequest func(allow func())
 }
@@ -93,6 +95,11 @@ func (application *applicationSession) OpenWindow(config app.Config, canvas *gfx
 				panic(err)
 			}
 		}
+		if size := entry.sizeRequest.Swap(nil); size != nil {
+			if err := entry.session.Resize(int(size[0]), int(size[1])); err != nil {
+				panic(err)
+			}
+		}
 		if onWake != nil {
 			onWake()
 		}
@@ -132,6 +139,21 @@ func (window *headlessWindow) Frame() (gfx.Rect, bool) {
 	return entry.session.driver.Frame(), true
 }
 func (window *headlessWindow) Show() { window.application.setHidden(window.id, false) }
+
+// SetSize queues a content-size request for the driver's loop, which reports
+// the granted size through OnResize.
+func (window *headlessWindow) SetSize(width, height int) error {
+	window.application.mu.Lock()
+	entry := window.application.windows[window.id]
+	window.application.mu.Unlock()
+	if entry == nil {
+		return fmt.Errorf("headless: window is closed")
+	}
+	request := [2]int32{int32(width), int32(height)}
+	entry.sizeRequest.Store(&request)
+	entry.invalidator.Invalidate()
+	return nil
+}
 
 func (window *headlessWindow) SetFullscreen(fullscreen bool) error {
 	window.application.mu.Lock()

@@ -6132,6 +6132,7 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 
 - (void)updateMinimumSize;
+- (void)setVivaContentSize:(NSSize)size;
 
 - (instancetype)initWithConfig:(viva_window_config)config
                          device:(id<MTLDevice>)device
@@ -6893,6 +6894,32 @@ static void viva_set_secure_event_input(BOOL on) {
     [_window setFrame:[_window frameRectForContentRect:content] display:NO];
 }
 
+/* Changes the content area while keeping its current top-left origin. */
+- (void)setVivaContentSize:(NSSize)size {
+    if (_window == nil || !_running || _window.miniaturized || _window.zoomed ||
+        (_window.styleMask & NSWindowStyleMaskFullScreen) != 0) {
+        return;
+    }
+    NSRect current = [_window contentRectForFrameRect:_window.frame];
+    NSSize minimum = _window.contentMinSize;
+    size.width = MAX(size.width, minimum.width);
+    size.height = MAX(size.height, minimum.height);
+    NSScreen *screen = _window.screen ?: NSScreen.mainScreen ?: NSScreen.screens.firstObject;
+    if (screen != nil) {
+        NSRect available = [_window contentRectForFrameRect:screen.visibleFrame];
+        size.width = MIN(size.width, available.size.width);
+        size.height = MIN(size.height, available.size.height);
+    }
+    NSRect wanted = NSMakeRect(current.origin.x, NSMaxY(current) - size.height, size.width, size.height);
+    NSRect frame = [_window frameRectForContentRect:wanted];
+    if (screen != nil) {
+        NSRect work = screen.visibleFrame;
+        frame.origin.x = MAX(NSMinX(work), MIN(frame.origin.x, NSMaxX(work) - frame.size.width));
+        frame.origin.y = MAX(NSMinY(work), MIN(frame.origin.y, NSMaxY(work) - frame.size.height));
+    }
+    [_window setFrame:frame display:YES];
+}
+
 /* The content area in top-left screen coordinates; NO before the window exists. */
 - (BOOL)contentFrame:(double *)out {
     if (_window == nil || !_running) {
@@ -7432,6 +7459,13 @@ void viva_application_move_window(void *window, double x, double y) {
     } else {
         dispatch_sync(dispatch_get_main_queue(), work);
     }
+}
+
+void viva_application_set_window_size(void *window, double width, double height) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        VivaAppDelegate *delegate = viva_find_window(window);
+        [delegate setVivaContentSize:NSMakeSize(width, height)];
+    });
 }
 
 void viva_application_hide_window(void *window) {
