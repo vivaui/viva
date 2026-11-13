@@ -30,6 +30,7 @@ var docPrimaryEntries = map[string][]string{
 	"code_merge.go":         {"CodeMerge"},
 	"direction.go":          {"Direction"},
 	"empty.go":              {"Empty"},
+	"graph_sim.go":          {"GraphSim"},
 	"icon_hover.go":         {"IconHover"},
 	"kbd.go":                {"Kbd"},
 	"markdown.go":           {"MarkdownView"},

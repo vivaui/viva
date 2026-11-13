@@ -303,6 +303,16 @@
 //     `ChartState` holds the hovered point and the label caches,
 //     `ChartStepForKey` maps the arrow keys, and `ChartDownsample` reduces a
 //     long series to the points a plot can show.
+//   - Graph: `PaintGraph` paints a force-directed link graph (Obsidian's
+//     graph view) from a `GraphSim` layout and `GraphNode` display data:
+//     edges as batched paths, nodes as circles sized by link count, neighbor
+//     highlighting and labels on hover, one hit region per node.
+//     `GraphState` holds the caller-owned viewport (Zoom zero keeps the
+//     whole graph in view) and selection, `GraphStepForKey` steps the
+//     keyboard through a node's neighbors, and a `GraphLayout` maps between
+//     window and graph coordinates for the application's pointer and wheel
+//     handlers. The simulation advances one tick per painted frame until it
+//     settles and then costs nothing.
 //   - Message: `Message` paints one chat row; `BeginMessageGroup` stacks the
 //     rows of consecutive messages; `BeginMessageScroller` paints the
 //     scrollback viewport with jump controls, and `MessageScrollState` holds
