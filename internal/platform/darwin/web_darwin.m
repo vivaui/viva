@@ -519,7 +519,8 @@ static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped
 @end
 
 void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, const char *html,
-                    const char *base, const char *script, int mainFrameOnly, const char *scheme, char **error) {
+                    const char *base, const char *script, int mainFrameOnly, const char *scheme, int ephemeral,
+                    char **error) {
     __block VivaWebView *web = nil;
     viva_web_main(^{
         NSView *host = (NSView *)view;
@@ -530,6 +531,11 @@ void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, 
         bridge->_handle = handle;
         bridge->_id = id;
         WKWebViewConfiguration *configuration = [[WKWebViewConfiguration alloc] init];
+        if (ephemeral) {
+            // Nothing the page keeps reaches the disk, and no other page shares it: the store lives
+            // in this process only and goes with the page.
+            configuration.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
+        }
         WKUserContentController *controller = configuration.userContentController;
         [controller addScriptMessageHandler:bridge name:@"viva"];
         WKUserScript *bridgeScript = [[WKUserScript alloc] initWithSource:[NSString stringWithUTF8String:script]

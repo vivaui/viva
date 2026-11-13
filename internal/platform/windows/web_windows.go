@@ -6,8 +6,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"unsafe"
 
@@ -48,6 +50,14 @@ var (
 	webHostRegister    sync.Once
 
 	shGetKnownFolderPath = shell.NewProc("SHGetKnownFolderPath")
+
+	// ephemeralProfiles numbers the profiles of ephemeral pages. WebView2 derives the off-the-record
+	// profile of an InPrivate page from the regular profile of the same name, so pages that share
+	// the default name share cookies, localStorage and IndexedDB; a name of its own per page keeps
+	// them apart, and the process id keeps two instances of the application apart, which share the
+	// user data folder and so one browser process. Every name formed is far under the 64 characters
+	// WebView2 accepts.
+	ephemeralProfiles atomic.Uint32
 )
 
 // webAnswer is an asynchronous scheme request the runtime is holding open with a deferral, and the
@@ -100,6 +110,10 @@ type windowsWeb struct {
 	// lies over it without being drawn; they pass what they get to the window.
 	covers   []uintptr
 	coverSet []gfx.Rect
+	// failure is why the runtime could not make the page as asked; returned says Open has given
+	// the page to the application already, which then hears of a failure only from the report.
+	failure  error
+	returned bool
 }
 
 func newWebHost(state *windowState, host *platform.WebHost, initial []platform.NativeView) *webHost {
@@ -138,8 +152,22 @@ func (w *webHost) open(config platform.WebViewConfig) (platform.WebView, error) 
 	if w.pages[config.ID] != nil {
 		return nil, fmt.Errorf("windows: a web view with id %d is already open", config.ID)
 	}
-	if _, err := webViewClientLibrary(); err != nil {
+	_, version, err := webViewInstall()
+	if err != nil {
 		return nil, fmt.Errorf("%w: %v", platform.ErrWebViewUnsupported, err)
+	}
+	if config.Ephemeral && version != "" {
+		// ICoreWebView2Environment10 and ICoreWebView2ControllerOptions first ship with Runtime 101
+		// (WebView2 SDK 1.0.1210.39). The version is the one in the install folder the client library
+		// was found in, so it describes the runtime that will load. An older runtime cannot make an
+		// ephemeral page, so it is refused here, synchronously, rather than after Open has handed a
+		// live page to the application: a runtime between 96 and 100 would otherwise accept the
+		// install and only fail the QueryInterface for ICoreWebView2Environment10 later. When the
+		// folder does not name a version, that QueryInterface in createPrivateController is still the
+		// fallback.
+		if parsed, valid := parseWebViewVersion(version); valid && !webViewVersionAtLeast(parsed, webViewEphemeralMinimum) {
+			return nil, fmt.Errorf("%w: an ephemeral page needs WebView2 Runtime 101 (SDK 1.0.1210.39) or newer, and the runtime is %s", platform.ErrWebViewUnsupported, version)
+		}
 	}
 	webHostRegister.Do(func() {
 		name := wide(webHostClass)
@@ -168,6 +196,14 @@ func (w *webHost) open(config platform.WebViewConfig) (platform.WebView, error) 
 		}
 		page.createController(environment)
 	})
+	// The environment may answer inside withEnvironment, before the page's share of it is
+	// recorded above: a page that failed there has not let go of it yet.
+	if page.failure != nil {
+		page.environment.leave()
+		page.environment = nil
+		return nil, page.failure
+	}
+	page.returned = true
 	return page, nil
 }
 
@@ -186,7 +222,63 @@ func (page *windowsWeb) createController(environment uintptr) {
 		page.attach(environment)
 		return 0
 	})
-	comCall(environment, envCreateController, page.window, handler)
+	if !page.config.Ephemeral {
+		comCall(environment, envCreateController, page.window, handler)
+		return
+	}
+	// InPrivate belongs to the controller, not to the environment: the environment is shared by
+	// every page of the user data folder, and the controller is the page's own. InPrivate alone
+	// would still use the default profile name, from which WebView2 derives one off-the-record
+	// profile, so the options also name a profile per page. A runtime too old to offer the options
+	// cannot make an ephemeral page, and must not fall back to a controller that keeps the page's
+	// data on disk.
+	if err := page.createPrivateController(environment, handler); err != nil {
+		page.fail(err)
+	}
+}
+
+// createPrivateController makes the page's controller for an InPrivate profile of its own, through
+// the options of ICoreWebView2Environment10 (WebView2 SDK 1.0.1210.39, Runtime 101 and newer).
+func (page *windowsWeb) createPrivateController(environment, handler uintptr) error {
+	var environment10 uintptr
+	status := comCall(environment, 0, uintptr(unsafe.Pointer(&iidEnvironment10)), uintptr(unsafe.Pointer(&environment10)))
+	if int32(uint32(status)) < 0 || environment10 == 0 {
+		return fmt.Errorf("%w: an ephemeral page needs WebView2 Runtime 101 (SDK 1.0.1210.39) or newer", platform.ErrWebViewUnsupported)
+	}
+	defer comCall(environment10, 2)
+	var options uintptr
+	if status := comCall(environment10, envCreateControllerOptions, uintptr(unsafe.Pointer(&options))); int32(uint32(status)) < 0 || options == 0 {
+		return fmt.Errorf("windows: make the WebView2 controller options: HRESULT %#x", uint32(status))
+	}
+	defer comCall(options, 2)
+	// The profile's metadata lives in the application's user data folder, but its cookies, storage
+	// and caches stay in memory and go with the page. The distinct name is what keeps two ephemeral
+	// pages apart: with the default name WebView2 would derive both from the same regular profile.
+	// The process id keeps two instances of the application apart as well: they share the user data
+	// folder, and with it one browser process, so a counter alone would name both first pages alike.
+	name := wide("viva-ephemeral-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatUint(uint64(ephemeralProfiles.Add(1)), 10))
+	if status := comCall(options, optionsPutProfileName, uintptr(unsafe.Pointer(name))); int32(uint32(status)) < 0 {
+		return fmt.Errorf("windows: name the WebView2 InPrivate profile: HRESULT %#x", uint32(status))
+	}
+	if status := comCall(options, optionsPutInPrivateMode, 1); int32(uint32(status)) < 0 {
+		return fmt.Errorf("windows: turn on WebView2 InPrivate mode: HRESULT %#x", uint32(status))
+	}
+	if status := comCall(environment10, envCreateControllerWithOptions, page.window, options, handler); int32(uint32(status)) < 0 {
+		return fmt.Errorf("windows: create the InPrivate WebView2 controller: HRESULT %#x", uint32(status))
+	}
+	return nil
+}
+
+// fail ends a page the runtime could not make as the application asked: a page that must keep
+// nothing does not run with the shared store instead.
+func (page *windowsWeb) fail(err error) {
+	page.failure = err
+	page.closed = true
+	delete(page.host.pages, page.id)
+	page.release()
+	if page.returned {
+		fmt.Fprintln(os.Stderr, "windows:", err)
+	}
 }
 
 // attach wires the page's events and what it is given, and runs what was asked of it meanwhile.

@@ -76,6 +76,11 @@ type WebViewConfig struct {
 	// BridgeMainFrameOnly injects window.viva into the main frame only, so an embedded frame does
 	// not get the bridge. False keeps it in every frame, as today.
 	BridgeMainFrameOnly bool
+	// Ephemeral keeps the page's cookies, storage and caches in memory only, separate from every
+	// other page, and drops them when the page closes: a run of the application leaves nothing the
+	// page kept on disk. A platform without such a store must refuse the page rather than open one
+	// that persists.
+	Ephemeral bool
 }
 
 // WebNavigation is one navigation the page wants to make.

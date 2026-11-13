@@ -207,3 +207,19 @@ func TestNativePresentationOptionsReachThePlatform(t *testing.T) {
 		}
 	}
 }
+
+func TestEphemeralReachesThePlatformAndIsOffByDefault(t *testing.T) {
+	var opened []platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		opened = append(opened, config)
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	for _, config := range []WebViewConfig{{}, {Ephemeral: true}} {
+		if _, err := host.Open(config); !errors.Is(err, ErrUnsupported) {
+			t.Fatalf("open(%+v): err = %v", config, err)
+		}
+	}
+	if len(opened) != 2 || opened[0].Ephemeral || !opened[1].Ephemeral {
+		t.Fatalf("the platform got %+v, want the flag as the application set it", opened)
+	}
+}

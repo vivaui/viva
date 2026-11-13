@@ -240,7 +240,7 @@ type gtkWebView struct {
 	handle  uintptr // the key of its callbacks
 	widget  uintptr
 	manager uintptr
-	proxied *webProxyContext // the page's own context, when it is held to a proxy
+	private *webContext // the page's ephemeral context, when it has one of its own
 	config  platform.WebViewConfig
 	closed  bool
 	shown   bool
@@ -262,19 +262,19 @@ var (
 	webNext       uintptr
 	webSchemes    = map[string]*platform.WebScheme{}
 	webSchemeDone = map[webSchemeKey]bool{}
-	webProxies    = map[string]*webProxyContext{}
+	webProxies    = map[string]*webContext{}
 )
 
-// webSchemeKey is a scheme registered with one context: the default, or a proxy's.
+// webSchemeKey is a scheme registered with one context: the default, or a context of a page's own.
 type webSchemeKey struct {
 	context uintptr
 	name    string
 }
 
-// webProxyContext is the context of the pages held to one proxy: ephemeral, so nothing it keeps
-// outlives it, with every request of its network process sent through the proxy. It goes with its
-// last page.
-type webProxyContext struct {
+// webContext is an ephemeral WebKit context a page runs in. The pages held to one proxy share one;
+// a page that asked to keep nothing, or both to keep nothing and to use a proxy, has one of its
+// own. Nothing it keeps outlives it, and it goes with its last page.
+type webContext struct {
 	proxy  string
 	object uintptr
 	pages  int
@@ -283,41 +283,70 @@ type webProxyContext struct {
 // WebKitNetworkProxyMode.
 const webProxyCustom = 2
 
-// proxyContext is the context for pages held to proxy, made the first time.
-func proxyContext(g *gtkLibrary, k *webKit, proxy string) (*webProxyContext, error) {
+// proxyContext is the context for pages held to proxy, shared by the pages behind that proxy and
+// made the first time.
+func proxyContext(g *gtkLibrary, k *webKit, proxy string) (*webContext, error) {
 	if context := webProxies[proxy]; context != nil {
 		context.pages++
 		return context, nil
 	}
+	context, err := newProxyContext(k, proxy)
+	if err != nil {
+		return nil, err
+	}
+	webProxies[proxy] = context
+	return context, nil
+}
+
+// newProxyContext makes an ephemeral context with every request sent through proxy. It is not
+// shared: a page that asked for a proxy and to keep nothing gets one of these, so it shares
+// nothing with the pages behind the same proxy.
+func newProxyContext(k *webKit, proxy string) (*webContext, error) {
 	if k.contextEphemeral == nil || (k.managerSetProxy == nil && k.contextSetProxy == nil) {
 		return nil, fmt.Errorf("%w: WebKitGTK cannot hold a page to a proxy (2.16 or newer is required)", platform.ErrWebViewUnsupported)
 	}
-	object := k.contextEphemeral()
-	if object == 0 {
-		return nil, fmt.Errorf("%w: WebKitGTK made no context", platform.ErrWebViewUnsupported)
+	context, err := newEphemeralContext(k)
+	if err != nil {
+		return nil, err
 	}
 	// No hosts are left out: loopback goes through the proxy too, and names are the proxy's to
 	// resolve.
 	uri := cString("socks5://" + proxy)
 	settings := k.proxySettingsNew(&uri[0], 0)
 	if k.managerSetProxy != nil {
-		k.managerSetProxy(k.contextDataManager(object), webProxyCustom, settings)
+		k.managerSetProxy(k.contextDataManager(context.object), webProxyCustom, settings)
 	} else {
-		k.contextSetProxy(object, webProxyCustom, settings)
+		k.contextSetProxy(context.object, webProxyCustom, settings)
 	}
 	k.proxySettingsFree(settings)
-	context := &webProxyContext{proxy: proxy, object: object, pages: 1}
-	webProxies[proxy] = context
+	context.proxy = proxy
 	return context, nil
 }
 
+// newEphemeralContext makes an ephemeral context: a page in it keeps nothing once it closes.
+func newEphemeralContext(k *webKit) (*webContext, error) {
+	if k.contextEphemeral == nil {
+		return nil, fmt.Errorf("%w: WebKitGTK cannot open a page without a persistent store (2.16 or newer is required)", platform.ErrWebViewUnsupported)
+	}
+	object := k.contextEphemeral()
+	if object == 0 {
+		return nil, fmt.Errorf("%w: WebKitGTK made no context", platform.ErrWebViewUnsupported)
+	}
+	return &webContext{object: object, pages: 1}, nil
+}
+
 // leave lets go of the context for one page; the last page ends it.
-func (context *webProxyContext) leave(g *gtkLibrary) {
+func (context *webContext) leave(g *gtkLibrary) {
 	context.pages--
 	if context.pages > 0 {
 		return
 	}
-	delete(webProxies, context.proxy)
+	// Only a shared context is in webProxies. A page that asked for a proxy and to keep nothing has
+	// a context of its own with the proxy's settings, and must not drop the shared one behind the
+	// same proxy.
+	if context.proxy != "" && webProxies[context.proxy] == context {
+		delete(webProxies, context.proxy)
+	}
 	for key := range webSchemeDone {
 		if key.context == context.object {
 			delete(webSchemeDone, key)
@@ -345,17 +374,29 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	if err != nil {
 		return nil, err
 	}
-	var proxied *webProxyContext
-	if c.Proxy != "" {
-		if proxied, err = proxyContext(g, k, c.Proxy); err != nil {
+	var private *webContext
+	switch {
+	case c.Proxy != "" && c.Ephemeral:
+		// A page that asks for both needs its own ephemeral context with the proxy's settings. The
+		// shared context behind the same proxy would do the proxy but would also share its cookies
+		// and localStorage with every other page behind that proxy.
+		if private, err = newProxyContext(k, c.Proxy); err != nil {
+			return nil, err
+		}
+	case c.Proxy != "":
+		if private, err = proxyContext(g, k, c.Proxy); err != nil {
+			return nil, err
+		}
+	case c.Ephemeral:
+		if private, err = newEphemeralContext(k); err != nil {
 			return nil, err
 		}
 	}
 	cb := callbacks()
 	webNext++
-	v := &gtkWebView{w: w, k: k, id: c.ID, handle: webNext, config: c, proxied: proxied}
-	if proxied != nil {
-		v.widget = k.viewWithContext(proxied.object)
+	v := &gtkWebView{w: w, k: k, id: c.ID, handle: webNext, config: c, private: private}
+	if private != nil {
+		v.widget = k.viewWithContext(private.object)
 		v.manager = k.viewManager(v.widget)
 	} else {
 		v.manager = k.managerNew()
@@ -368,7 +409,7 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	}
 	k.managerAddScript(v.manager, k.scriptNew(&source[0], frames, 0, 0, 0))
 	g.connect(v.manager, "script-message-received::viva", cb.webMessage, v.handle)
-	if proxied == nil {
+	if private == nil {
 		v.widget = k.viewNew(v.manager)
 	}
 	// Placed by its margins from the overlay's top left; hidden until a frame says where.
@@ -521,14 +562,14 @@ func (v *gtkWebView) release() {
 	v.closed = true
 	delete(webViews, v.handle)
 	// A handler on the shared default context or network session outlives the page, so it is
-	// removed here; one on a proxy's context goes with that ephemeral context.
-	if v.proxied == nil && v.downloadHandler != 0 {
+	// removed here; one on the page's own context goes with that context.
+	if v.private == nil && v.downloadHandler != 0 {
 		v.w.g.signalDisc(v.downloadOwner, v.downloadHandler)
 	}
 	v.downloadHandler, v.downloadOwner = 0, 0
-	if v.proxied != nil {
-		v.proxied.leave(v.w.g)
-		v.proxied = nil
+	if v.private != nil {
+		v.private.leave(v.w.g)
+		v.private = nil
 	}
 	if v.w.webFocus == v.widget {
 		v.w.webFocus = 0
