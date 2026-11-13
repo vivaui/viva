@@ -57,3 +57,34 @@ func TestWebViewVersionParsingAndComparison(t *testing.T) {
 		}
 	}
 }
+
+func TestInstallVersionFromFolder(t *testing.T) {
+	// EdgeUpdate's EBWebView value names ...\Application\<version>, and the version in that folder is
+	// the one the runtime in it reports. The parser must survive the separator shapes Windows and a
+	// test on another operating system produce, and must refuse a folder whose last component is not
+	// a version so the gate falls back to the runtime itself.
+	for _, test := range []struct {
+		folder  string
+		version string
+		ok      bool
+	}{
+		{`C:\Program Files (x86)\Microsoft\EdgeWebView\Application\101.0.1210.39`, "101.0.1210.39", true},
+		{`C:\Program Files (x86)\Microsoft\EdgeWebView\Application\101.0.1210.39\`, "101.0.1210.39", true},
+		{`C:\Program Files (x86)\Microsoft\EdgeWebView\Application\101.0.1210.39/`, "101.0.1210.39", true},
+		{`C:\Program Files (x86)\Microsoft\EdgeWebView\Application\101.0.1210.39\/`, "101.0.1210.39", true},
+		{`/opt/edgewebview/Application/130.0.2849.68`, "130.0.2849.68", true},
+		{`\\server\share\Application\102.0.1245.33`, "102.0.1245.33", true},
+		{"101.0.1210.39", "101.0.1210.39", true},
+		{`C:\Program Files (x86)\Microsoft\EdgeWebView\Application`, "", false},
+		{`C:\Program Files (x86)\Microsoft\EdgeWebView\Application\`, "", false},
+		{`C:\Program Files (x86)\Microsoft\EdgeWebView\Application\EBWebView`, "", false},
+		{`C:\Program Files (x86)\Microsoft\EdgeWebView\Application\not a version`, "", false},
+		{"/", "", false},
+		{"", "", false},
+	} {
+		version, ok := installVersionFromFolder(test.folder)
+		if ok != test.ok || version != test.version {
+			t.Errorf("installVersionFromFolder(%q) = %q, %v, want %q, %v", test.folder, version, ok, test.version, test.ok)
+		}
+	}
+}

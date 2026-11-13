@@ -54,7 +54,9 @@ var (
 	// ephemeralProfiles numbers the profiles of ephemeral pages. WebView2 derives the off-the-record
 	// profile of an InPrivate page from the regular profile of the same name, so pages that share
 	// the default name share cookies, localStorage and IndexedDB; a name of its own per page keeps
-	// them apart. Every name formed is far under the 64 characters WebView2 accepts.
+	// them apart, and the process id keeps two instances of the application apart, which share the
+	// user data folder and so one browser process. Every name formed is far under the 64 characters
+	// WebView2 accepts.
 	ephemeralProfiles atomic.Uint32
 )
 
@@ -150,22 +152,21 @@ func (w *webHost) open(config platform.WebViewConfig) (platform.WebView, error) 
 	if w.pages[config.ID] != nil {
 		return nil, fmt.Errorf("windows: a web view with id %d is already open", config.ID)
 	}
-	if _, err := webViewClientLibrary(); err != nil {
+	_, version, err := webViewInstall()
+	if err != nil {
 		return nil, fmt.Errorf("%w: %v", platform.ErrWebViewUnsupported, err)
 	}
-	if config.Ephemeral {
+	if config.Ephemeral && version != "" {
 		// ICoreWebView2Environment10 and ICoreWebView2ControllerOptions first ship with Runtime 101
-		// (WebView2 SDK 1.0.1210.39). EdgeUpdate records the installed runtime's version as "pv"
-		// under the same ClientState channel as its folder. An older runtime cannot make an
+		// (WebView2 SDK 1.0.1210.39). The version is the one in the install folder the client library
+		// was found in, so it describes the runtime that will load. An older runtime cannot make an
 		// ephemeral page, so it is refused here, synchronously, rather than after Open has handed a
 		// live page to the application: a runtime between 96 and 100 would otherwise accept the
-		// install and only fail the QueryInterface for ICoreWebView2Environment10 later. If the
-		// version cannot be read, that QueryInterface in createPrivateController is still the
+		// install and only fail the QueryInterface for ICoreWebView2Environment10 later. When the
+		// folder does not name a version, that QueryInterface in createPrivateController is still the
 		// fallback.
-		if version, ok := webViewRuntimeVersion(); ok {
-			if parsed, valid := parseWebViewVersion(version); valid && !webViewVersionAtLeast(parsed, webViewEphemeralMinimum) {
-				return nil, fmt.Errorf("%w: an ephemeral page needs WebView2 Runtime 101 (SDK 1.0.1210.39) or newer, and the runtime is %s", platform.ErrWebViewUnsupported, version)
-			}
+		if parsed, valid := parseWebViewVersion(version); valid && !webViewVersionAtLeast(parsed, webViewEphemeralMinimum) {
+			return nil, fmt.Errorf("%w: an ephemeral page needs WebView2 Runtime 101 (SDK 1.0.1210.39) or newer, and the runtime is %s", platform.ErrWebViewUnsupported, version)
 		}
 	}
 	webHostRegister.Do(func() {
@@ -253,7 +254,9 @@ func (page *windowsWeb) createPrivateController(environment, handler uintptr) er
 	// The profile's metadata lives in the application's user data folder, but its cookies, storage
 	// and caches stay in memory and go with the page. The distinct name is what keeps two ephemeral
 	// pages apart: with the default name WebView2 would derive both from the same regular profile.
-	name := wide("viva-ephemeral-" + strconv.FormatUint(uint64(ephemeralProfiles.Add(1)), 10))
+	// The process id keeps two instances of the application apart as well: they share the user data
+	// folder, and with it one browser process, so a counter alone would name both first pages alike.
+	name := wide("viva-ephemeral-" + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatUint(uint64(ephemeralProfiles.Add(1)), 10))
 	if status := comCall(options, optionsPutProfileName, uintptr(unsafe.Pointer(name))); int32(uint32(status)) < 0 {
 		return fmt.Errorf("windows: name the WebView2 InPrivate profile: HRESULT %#x", uint32(status))
 	}

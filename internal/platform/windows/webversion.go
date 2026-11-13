@@ -13,8 +13,9 @@ import (
 var webViewEphemeralMinimum = [4]int{101, 0, 1210, 39}
 
 // parseWebViewVersion reads a WebView2 runtime version, four dot-separated numbers such as
-// "101.0.1210.39", as EdgeUpdate records it in "pv". Missing trailing numbers are zero. ok is false
-// when the text is not a version, and the caller must then try the runtime rather than judge it.
+// "101.0.1210.39", as the runtime's install folder names it. Missing trailing numbers are zero. ok
+// is false when the text is not a version, and the caller must then try the runtime rather than
+// judge it.
 func parseWebViewVersion(version string) (numbers [4]int, ok bool) {
 	version = strings.TrimSpace(version)
 	if version == "" {
@@ -32,6 +33,25 @@ func parseWebViewVersion(version string) (numbers [4]int, ok bool) {
 		numbers[i] = number
 	}
 	return numbers, true
+}
+
+// installVersionFromFolder reads the runtime version out of the folder EdgeUpdate records for an
+// install: the EBWebView value names ...\Application\<version>, so the last path component is the
+// version of the runtime whose client library was found there. It reports false when that component
+// is not a version, and the caller must then try the runtime itself rather than judge it.
+func installVersionFromFolder(folder string) (string, bool) {
+	folder = strings.TrimRight(folder, `\/`)
+	if folder == "" {
+		return "", false
+	}
+	name := folder
+	if separator := strings.LastIndexAny(folder, `\/`); separator >= 0 {
+		name = folder[separator+1:]
+	}
+	if _, ok := parseWebViewVersion(name); !ok {
+		return "", false
+	}
+	return name, true
 }
 
 // webViewVersionAtLeast reports whether version is at least want.

@@ -79,12 +79,15 @@ var webViewChannels = []string{
 // webViewInstalls are the registry views a runtime is installed in: all users, then this one.
 var webViewInstalls = []uintptr{hkeyLocalMachine, hkeyCurrentUser}
 
-// webViewClientLibrary finds the runtime's client library: the stable channel first, then the
-// preview channels, for all users and then for this one.
-func webViewClientLibrary() (string, error) {
+// webViewInstall finds the runtime's client library and the version of the runtime it belongs to:
+// the stable channel first, then the preview channels, for all users and then for this one. The
+// version is read from the install folder the library was found in, so it always describes the
+// runtime that will load; it is empty when that folder does not name a version, and the caller must
+// then try the runtime itself rather than judge it.
+func webViewInstall() (library, version string, err error) {
 	arch := map[string]string{"amd64": "x64", "arm64": "arm64", "386": "x86"}[runtime.GOARCH]
 	if arch == "" {
-		return "", fmt.Errorf("windows: WebView2 does not run on %s", runtime.GOARCH)
+		return "", "", fmt.Errorf("windows: WebView2 does not run on %s", runtime.GOARCH)
 	}
 	for _, channel := range webViewChannels {
 		for _, root := range webViewInstalls {
@@ -94,25 +97,12 @@ func webViewClientLibrary() (string, error) {
 			}
 			library := filepath.Join(folder, "EBWebView", arch, "EmbeddedBrowserWebView.dll")
 			if _, err := os.Stat(library); err == nil {
-				return library, nil
+				version, _ := installVersionFromFolder(folder)
+				return library, version, nil
 			}
 		}
 	}
-	return "", errNoWebView2
-}
-
-// webViewRuntimeVersion is the version of the installed WebView2 runtime: the "pv" value
-// EdgeUpdate records under the same ClientState channels as the runtime's folder. ok is false
-// when no channel answers, and the caller must then try the runtime itself rather than judge it.
-func webViewRuntimeVersion() (string, bool) {
-	for _, channel := range webViewChannels {
-		for _, root := range webViewInstalls {
-			if version, ok := registryString(root, `Software\Microsoft\EdgeUpdate\ClientState\`+channel, "pv"); ok && version != "" {
-				return version, true
-			}
-		}
-	}
-	return "", false
+	return "", "", errNoWebView2
 }
 
 // A handler is an object the runtime calls back. All of them share a vtable: IUnknown and one
@@ -259,7 +249,7 @@ func (env *webEnvironment) join(userData string, then func(object uintptr, err e
 			wait(object, err)
 		}
 	}
-	library, err := webViewClientLibrary()
+	library, _, err := webViewInstall()
 	if err != nil {
 		finish(0, err)
 		return
