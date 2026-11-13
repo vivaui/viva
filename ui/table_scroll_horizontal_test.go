@@ -338,3 +338,78 @@ func BenchmarkWideTable(b *testing.B) {
 		})
 	}
 }
+
+// gutterColumns are three explicitly 240-wide columns: 720 in a 480-wide table,
+// so it scrolls its columns sideways while its 30-tall rows overflow the body
+// below a 30-tall header — both bars, both gutters.
+var gutterColumns = []components.TableColumn{{Width: 240}, {Width: 240}, {Width: 240}}
+
+// A table that reserves a gutter for its horizontal scrollbar keeps the bar in
+// the reserved strip below its rows, so the bar's track covers no row and the
+// right-click on the last visible row's text still reaches the row. A table
+// without a gutter keeps the bar riding its bottom edge, as it always has.
+func TestTableHorizontalBarKeepsTheGutterStripAndClearRows(t *testing.T) {
+	theme := gfx.LightTheme()
+	viewport := gfx.Size{Width: 480, Height: 172}
+	rows := make(TableRows, 20)
+	for i := range rows {
+		rows[i] = []string{"aa", "bb", "cc"}
+	}
+	paint := func(canvas *gfx.Canvas, view *View, state *TableState, gutter float32) {
+		canvas.Reset()
+		view.Draw(canvas, theme, gfx.Rect{Width: viewport.Width, Height: viewport.Height}, func(f *Frame) {
+			f.Column().Fill().Children(func() {
+				f.Table(state, TableSpec{
+					Rows: tableScope, Columns: gutterColumns, Headers: []string{"A", "B", "C"},
+					Source: &rows, RowHeight: 30,
+					Scrollbar: gfx.Item(900), HorizontalScrollbar: gfx.Item(901),
+					ScrollbarSize: 12, ScrollbarGutter: gutter,
+				}).Size(viewport.Width, viewport.Height)
+			})
+		})
+	}
+	canvas, view, state := testCanvas(), &View{}, &TableState{}
+	paint(canvas, view, state, 12)
+	deepest := gfx.Hit{}
+	for _, hit := range canvas.Hits() {
+		if hit.ID.Scope() == tableScope && hit.Bounds.Bottom() > deepest.Bounds.Bottom() {
+			deepest = hit
+		}
+	}
+	if deepest.ID.IsZero() {
+		t.Fatal("no row is painted")
+	}
+	bar := hitByID(canvas, gfx.Item(901))
+	if bar.ID.IsZero() {
+		t.Fatal("the horizontal scrollbar is not painted")
+	}
+	if bar.Bounds.Y < deepest.Bounds.Bottom()-0.01 || bar.Bounds.Bottom() > viewport.Height+0.01 {
+		t.Fatalf("the horizontal bar sits at %+v over the deepest row ending at %v; it belongs in the strip between the rows and the table's bottom edge %v",
+			bar.Bounds, deepest.Bounds.Bottom(), viewport.Height)
+	}
+	frontMost := func(x, y float32) gfx.ID {
+		hits := canvas.Hits()
+		for i := len(hits) - 1; i >= 0; i-- {
+			hit := hits[i]
+			if hit.IsLabel || hit.Backdrop || hit.ID.IsZero() {
+				continue
+			}
+			if x >= hit.Bounds.X && x <= hit.Bounds.Right() && y >= hit.Bounds.Y && y <= hit.Bounds.Bottom() {
+				return hit.ID
+			}
+		}
+		return gfx.ID{}
+	}
+	id := frontMost(deepest.Bounds.X+20, deepest.Bounds.Bottom()-5)
+	if _, ok := id.In(tableScope); !ok {
+		t.Fatalf("the front-most hit at the last visible row's text is %v, want the row: the bar takes the row's right-click", id)
+	}
+
+	// Without a gutter the bar rides the table's bottom edge, as it always did.
+	paint(canvas, view, state, 0)
+	bar = hitByID(canvas, gfx.Item(901))
+	if bar.Bounds.Bottom() != viewport.Height || bar.Bounds.Height != 12 {
+		t.Fatalf("without a gutter the bar sits at %+v, want it on the bottom edge: 12 tall and flush with the table's bottom %v",
+			bar.Bounds, viewport.Height)
+	}
+}

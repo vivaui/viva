@@ -444,13 +444,22 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, content gfx.Siz
 		size = f.page.config.ScrollbarSize
 	}
 	// The bars sit at the table's own edges, over the body's clips: the component
-	// places their tracks from these bounds alone, so a gutter only trims what the
-	// columns and rows paint under them.
-	areaBounds := Rect{X: r.X, Y: body.Y, Width: r.Width, Height: body.Height}
+	// places their tracks from these bounds alone. The area they own is the whole
+	// table below its header, the body plus the gutters it reserved, so a bar
+	// lands in its gutter symmetrically with the other one and the corner between
+	// two bars stays clear. A gutter also moves the bars beside the viewport: the
+	// component takes the bars' strips out of it, matching the strip the columns
+	// and rows have already given up, so a drag maps the body it scrolls exactly.
+	// Without a gutter the bars keep sitting over the table's edges, as they had.
+	areaBounds := Rect{X: r.X, Y: body.Y, Width: r.Width, Height: r.Y + r.Height - body.Y}
 	area := components.BeginScrollArea(f.canvas, f.theme, areaBounds, content).
 		Offset(offsetX, offsetY).
 		ScrollbarSize(size).
-		HoverScrollbars(revealed).
+		HoverScrollbars(revealed)
+	if t.spec.ScrollbarGutter > 0 {
+		area = area.ReserveScrollbars()
+	}
+	area = area.
 		VerticalScrollbar(t.spec.Scrollbar, label, "").
 		HorizontalScrollbar(t.spec.HorizontalScrollbar, horizontalLabel, "")
 	geometry := area.Geometry()
