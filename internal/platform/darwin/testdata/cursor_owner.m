@@ -28,7 +28,7 @@ static int check(BOOL actual, BOOL expected, const char *scenario) {
     return 1;
 }
 
-// 只构造 AppKit 视图树，不创建窗口、WebView、GPU 或屏幕截图。
+// Build only an AppKit view hierarchy, without windows, WebViews, GPU work or screenshots.
 int main(void) {
     @autoreleasepool {
         int failures = 0;

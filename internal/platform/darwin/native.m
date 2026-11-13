@@ -4266,7 +4266,7 @@ static int viva_navigation_command(SEL selector) {
 // AppKit calls it having discarded the old rectangles.
 - (void)resetCursorRects {
     NSPoint point = [self convertPoint:self.window.mouseLocationOutsideOfEventStream fromView:nil];
-    // 不在网页下面保留覆盖整窗的光标矩形，否则 AppKit 会把 WebKit 的 cursor:pointer 覆盖成箭头。
+    // A full-window cursor rectangle would override WebKit's hand or text cursor.
     if (_cursor != nil && !viva_view_has_native_cursor(self, point)) {
         [self addCursorRect:self.bounds cursor:_cursor];
     }
@@ -4391,12 +4391,12 @@ static int viva_navigation_command(SEL selector) {
         _nativeCursorActive = native;
         [self.window invalidateCursorRectsForView:self];
     }
-    // 宿主 tracking area 也覆盖子视图；网页范围内不能发布画布移动事件或设置光标。
+    // Host tracking areas also cover subviews; native content must not emit canvas moves or set its cursor.
     if (native) {
         return;
     }
     [self emitPointerEvent:VIVA_POINTER_MOVE fromEvent:event];
-    // 只在所有权交回画布时强制恢复，普通移动继续复用 Go 层的光标缓存。
+    // Force restoration only when returning ownership; ordinary moves retain the Go cursor cache.
     if (returningToCanvas && _cursor != nil) {
         [_cursor set];
     }

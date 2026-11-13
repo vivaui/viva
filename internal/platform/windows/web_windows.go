@@ -639,7 +639,7 @@ func (w *webHost) layout(page *windowsWeb, force bool) {
 	region, _, _ := createRectRgn.Call(0, 0, uintptr(width), uintptr(height))
 	logicalRadius := min(max(page.config.TopCornerRadius, 0), view.Bounds.Width/2, view.Bounds.Height)
 	if radius := int32(round(logicalRadius * scale)); radius > 0 {
-		// 完整圆角区域与底部矩形取并集，只有顶部两角被裁剪。
+		// Union the rounded region with a bottom rectangle to round only the top corners.
 		rounded, _, _ := createRoundRectRgn.Call(0, 0, uintptr(width+1), uintptr(height+1), uintptr(2*radius), uintptr(2*radius))
 		bottom, _, _ := createRectRgn.Call(0, uintptr(radius), uintptr(width), uintptr(height))
 		if rounded != 0 && bottom != 0 {

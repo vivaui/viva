@@ -481,7 +481,7 @@ static NSCursor *viva_cursor(uint8_t shape, NSString **error) {
 
 // viva_apply_cursor shows cursor now and keeps it for every window, on the main thread.
 static void viva_apply_cursor(NSCursor *cursor) {
-    // 只看鼠标下最前面的窗口，避免后面的网页窗口阻止前台原生控件更新光标。
+    // Only the frontmost window under the pointer may defer cursor control to its native content.
     NSWindow *underPointer = viva_window_at_pointer();
     NSView *root = underPointer.contentView;
     BOOL native = root != nil && viva_view_has_native_cursor(root, [root convertPoint:underPointer.mouseLocationOutsideOfEventStream fromView:nil]);

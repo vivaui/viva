@@ -348,7 +348,7 @@ void viva_web_scheme_answer(uint64_t request, int status, char *headers, unsigne
     });
 }
 
-// 轮廓在原生逻辑坐标中计算；WebKit 的坐标方向由 isFlipped 决定，不乘 Retina 密度。
+// Build the outline in native logical coordinates, respecting isFlipped without multiplying by display density.
 static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped) {
     CGFloat radius = MAX(0, MIN(requested, MIN(bounds.size.width / 2, bounds.size.height)));
     CGFloat left = NSMinX(bounds), right = NSMaxX(bounds);
@@ -448,8 +448,8 @@ static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped
     mask.fillRule = kCAFillRuleEvenOdd;
     CGPathRelease(path);
     if (_topCornerRadius > 0) {
-        // 分层相交：不能把圆角轮廓和菜单切口放进同一个 even-odd 路径，
-        // 否则跨越圆角的切口会反向填回本应透明的角外区域。
+        // Intersect separate masks: putting corners and menu cuts in one even-odd path
+        // would fill transparent corner areas again when a cut crosses the outline.
         CAShapeLayer *outline = [CAShapeLayer layer];
         outline.frame = self.layer.bounds;
         CGPathRef rounded = viva_web_outline(self.bounds, _topCornerRadius, self.isFlipped);
@@ -501,7 +501,7 @@ static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped
 - (void)mouseEntered:(NSEvent *)event {
     [super mouseEntered:event];
     [self.superview mouseExited:event];
-    // 即使父视图未收到子视图范围内的 moved 事件，也要记录这次所有权交接。
+    // Record ownership even when the parent did not receive moved events over the child.
     [self.superview mouseMoved:event];
     [self.window invalidateCursorRectsForView:self.superview];
 }
@@ -510,7 +510,7 @@ static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped
     [super mouseExited:event];
     NSView *host = self.superview;
     NSPoint point = [host convertPoint:event.locationInWindow fromView:nil];
-    // 只在回到同一宿主时恢复画布光标；离开窗口不干预其他窗口或应用的光标。
+    // Restore only when returning to this host; leaving it must not override another window or application.
     if (host.window != nil && viva_window_at_pointer() == host.window && NSPointInRect(point, host.bounds)) {
         [host mouseMoved:event];
     }
