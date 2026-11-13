@@ -93,3 +93,19 @@ func BenchmarkColorSwatch(b *testing.B) {
 		paint()
 	}
 }
+
+func TestColorSwatchFlushFillsItsBorder(t *testing.T) {
+	var canvas gfx.Canvas
+	color := gfx.Color{Red: 1, Alpha: 1}
+	BeginColorSwatch(&canvas, gfx.LightTheme(), gfx.ID{}, gfx.Rect{Width: 20, Height: 20}, color).Flush().Paint()
+	var disc gfx.Rect
+	found := false
+	for _, rectangle := range canvas.Rectangles() {
+		if rectangle.Color == color {
+			disc, found = rectangle.Bounds, true
+		}
+	}
+	if !found || disc.X != 1 || disc.Y != 1 || disc.Width != 18 || disc.Height != 18 {
+		t.Fatalf("flush disc = %+v found=%v, want a 1px border and an 18x18 disc", disc, found)
+	}
+}
