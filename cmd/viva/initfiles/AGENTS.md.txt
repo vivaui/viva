@@ -225,7 +225,8 @@ func (m *model) page(c ui.C) {
 - Effects, all typed and checked by the compiler (there is no class string): `Ring(3, c)` draws a line around the
   outside without taking room (a focus ring); `Opacity(0.5)` fades the element and everything in it (it is still laid out
   and clickable); `Gradient(ui.ToBottomRight, from, to)` and `GradientStops(angle, gfx.Stop(0, a), gfx.Stop(1, b), ...)`
-  fill the element, corners included, over `Background` and under `Border`.
+  fill the element, corners included, over `Background` and under `Border`; `Dashed()` breaks the `Border` line into
+  equal dashes and gaps (a drop target's frame), and `Look{}` has `Dashed(bool)` too.
 - States: an element with an identity (`Hit`, which also makes it focusable) changes with `Hover(ui.Look{}.Background(theme.Hover))`, `Pressed(...)` and
   `Focus(ui.Look{}.Ring(3, theme.Ring))` (keyboard focus, as `:focus-visible`), plus `Focused(...)` for any focus (a click in a text field focuses it
   without making it visible; a group box that frames its field follows the field with `StateFrom(field)`). A `Look` lists only what differs from rest and has `Background`, `Border`,
@@ -546,7 +547,9 @@ copied with it). They take a
 
 Painting your own thing in a slot: `ui.Slot(c).Grow(1).Draw(func(d *ui.DrawContext) { ... })`, with `d.Canvas.Fill(rect, color)`, `Rounded(rect, radius, color)`, `Border`, `RoundedBorder`, `Elevate(rect, radius, gfx.ShadowMD)` (a drop shadow: call it before the surface),
 `DrawPath` and `d.Canvas.Label(text, rect, gfx.TextStyle{Size: 14, Color: c})` (`LabelCenter` is the same, centered) are all of
-it; there is no arc, circle or line call (a circle is a `Rounded` square, or a `Box` with `Radius`).
+it; there is no arc, circle or line call (a circle is a `Rounded` square, or a `Box` with `Radius`). `d.Fade(color)` applies the
+element's opacity to a color you supply, and `d.DashedBorder(rect, radius, 1, d.Fade(color))` paints a dashed frame the
+element fades with.
 For tabs, tables and text fields use `ui.Tabs`, `ui.Table` and `ui.TextField` above, not the components by hand.
 
 ## Background work
