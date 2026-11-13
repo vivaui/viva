@@ -90,7 +90,8 @@ type webKit struct {
 	downloadCancel              func(download uintptr)
 	// viewNetworkSession is 2.40; before it the context's download-started is used instead.
 	viewNetworkSession func(view uintptr) uintptr
-	// downloadDestinationPath says set_destination takes a path (2.40 and later) rather than a URI.
+	// downloadDestinationPath says set_destination takes a path (2.40 and later) rather than a URI,
+	// decided from the library's own major and minor version at load time.
 	downloadDestinationPath bool
 }
 
@@ -103,12 +104,12 @@ var (
 func loadWebKit(g *gtkLibrary) (*webKit, error) {
 	webOnce.Do(func() {
 		var err error
-		found, libraryName := false, ""
+		found := false
 		for _, name := range []string{"libwebkit2gtk-4.1.so.0", "libwebkit2gtk-4.0.so.37"} {
 			var library uintptr
 			if library, err = purego.Dlopen(name, purego.RTLD_NOW|purego.RTLD_GLOBAL); err == nil {
 				g.libraries = append(g.libraries, library)
-				found, libraryName = true, name
+				found = true
 				break
 			}
 		}
@@ -123,9 +124,15 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			}
 		}
 		k := &webKit{}
-		// The 2022 API (4.1) takes a path as a download destination and rejects a URI; the older
-		// API takes a URI (and a path since 2.40). The library that was opened says which is in use.
-		k.downloadDestinationPath = strings.Contains(libraryName, "4.1")
+		// webkit_download_set_destination takes a path from WebKitGTK 2.40 and a URI before it. The
+		// 4.1 soname has existed since 2.36, so it does not say which form this library expects;
+		// ask the library's own version instead, and keep the URI form when it cannot be read.
+		var major, minor func() uint32
+		if g.lookup(&major, "webkit_get_major_version") && g.lookup(&minor, "webkit_get_minor_version") {
+			if m, n := major(), minor(); m > 2 || (m == 2 && n >= 40) {
+				k.downloadDestinationPath = true
+			}
+		}
 		for _, r := range []struct {
 			function any
 			symbol   string

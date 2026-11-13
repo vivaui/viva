@@ -56,8 +56,9 @@ scheme, a message in each direction and a menu that stands over the page.
   of its script runs.
 - `NewWindow` decides a `window.open` or `target=_blank` before it opens. `nil` refuses it, because a page
   must not open windows unless the application allows it, and `false` opens nothing. That refusal is a
-  change: without this option the engine opened the window itself. `true` hands the address to the system's
-  browser (the platform's `OpenURL`, the same one `app.OpenURL` uses) and never opens a page in the window.
+  change on Windows and Linux, where without this option the engine opened the window itself; macOS refused
+  it already. `true` hands the address to the system's browser (the platform's `OpenURL`, the same one
+  `app.OpenURL` uses) and never opens a page in the window.
 - `Download` decides a download before it starts. `nil` refuses it and `false` cancels it, so no file is
   written; that is a change too, because without this option Windows and Linux let the engine save the file.
   `true` saves it in the user's downloads folder under a free name (`report.pdf`, then `report (1).pdf`), so

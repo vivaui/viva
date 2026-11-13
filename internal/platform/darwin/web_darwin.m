@@ -29,7 +29,7 @@ static void viva_web_main(void (^work)(void)) {
 
 // VivaWebBridge is everything the page may call: its script messages, its navigation, requests to
 // its custom scheme, and the downloads it starts.
-@interface VivaWebBridge : NSObject <WKScriptMessageHandler, WKNavigationDelegate, WKURLSchemeHandler, WKDownloadDelegate> {
+@interface VivaWebBridge : NSObject <WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate, WKURLSchemeHandler, WKDownloadDelegate> {
 @public
     uintptr_t _handle;
     uint32_t _id;
@@ -112,8 +112,10 @@ static uint64_t viva_web_next_request;
 }
 
 // The page never opens a window of its own: an allowed window.open or target=_blank goes to the
-// system's browser, and nil refuses it before anything is fetched.
-- (WKWebView *)webView:(WKWebView *)web configuration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)action windowFeatures:(WKWindowFeatures *)windowFeatures {
+// system's browser, and nil refuses it before anything is fetched. This is the WKUIDelegate method
+// WebKit calls for a new window, so the bridge is the page's UIDelegate as well as its navigation
+// delegate.
+- (WKWebView *)webView:(WKWebView *)web createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)action windowFeatures:(WKWindowFeatures *)windowFeatures {
     (void)web;
     (void)configuration;
     (void)windowFeatures;
@@ -184,8 +186,9 @@ static uint64_t viva_web_next_request;
     [_downloads removeObject:download];
 }
 
-- (void)download:(WKDownload *)download didFailWithError:(NSError *)error API_AVAILABLE(macos(11.3)) {
+- (void)download:(WKDownload *)download didFailWithError:(NSError *)error resumeData:(NSData *)resumeData API_AVAILABLE(macos(11.3)) {
     (void)error;
+    (void)resumeData;
     [_downloads removeObject:download];
 }
 
@@ -482,6 +485,7 @@ void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, 
             web = [[VivaWebView alloc] initWithFrame:NSMakeRect(0, 0, 1, 1) configuration:configuration];
             [web setBridge:bridge];
             web.navigationDelegate = bridge;
+            web.UIDelegate = bridge; // createWebViewWithConfiguration is a WKUIDelegate method
             web.autoresizingMask = NSViewMinYMargin;
             web.hidden = YES;
             [host addSubview:web positioned:NSWindowAbove relativeTo:nil];
@@ -556,6 +560,7 @@ void viva_web_close(void *web) {
         [view cancelSchemeTasks];
         [view.configuration.userContentController removeScriptMessageHandlerForName:@"viva"];
         view.navigationDelegate = nil;
+        view.UIDelegate = nil;
         [view removeFromSuperview];
     });
 }
