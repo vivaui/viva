@@ -67,12 +67,18 @@ func TestReloadWorkerConfigForwardsInputHandlers(t *testing.T) {
 // A development host opens the window, so the custom titlebar's height has to
 // reach it from the worker's configuration, rounded to a whole pixel.
 func TestReloadWorkerCarriesTheTitlebarHeightToTheHost(t *testing.T) {
-	worker := newReloadWorkerConfig(Config{Title: "bar", Width: 100, Height: 100, MinWidth: 80, MinHeight: 60, WindowMode: WindowCustomTitlebar, TitlebarHeight: 36}, &gfx.Canvas{})
+	worker := newReloadWorkerConfig(Config{Title: "bar", Width: 100, Height: 100, MinWidth: 80, MinHeight: 60, WindowMode: WindowCustomTitlebar, TitlebarHeight: 36, TrafficLightScale: 0.9}, &gfx.Canvas{})
 	if worker.Window.MinWidth != 80 || worker.Window.MinHeight != 60 {
 		t.Fatalf("minimum lost by reload worker: %+v", worker.Window)
 	}
 	if worker.Window.TitlebarHeight != 36 || worker.Window.WindowMode != uint8(WindowCustomTitlebar) {
 		t.Fatalf("window = %+v", worker.Window)
+	}
+	if worker.Window.TrafficLightScale != 0.9 {
+		t.Fatalf("traffic light scale lost by reload worker: %+v", worker.Window)
+	}
+	if got := newReloadWorkerConfig(Config{}, &gfx.Canvas{}).Window.TrafficLightScale; got != 0 {
+		t.Fatalf("an unset scale became %v", got)
 	}
 	if got := newReloadWorkerConfig(Config{TitlebarHeight: 35.6}, &gfx.Canvas{}).Window.TitlebarHeight; got != 36 {
 		t.Fatalf("35.6 became %d", got)
