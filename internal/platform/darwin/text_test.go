@@ -599,3 +599,22 @@ func TestACanvasOnTheEngineSizesTheTerminalCellByTheFont(t *testing.T) {
 		}
 	}
 }
+
+// The engine reports the thickness the font underlines with, in logical pixels at the size
+// asked: that is the rule a cell glyph is drawn with, so box drawing geometry is as thick as
+// the font's own glyphs.
+func TestTheEngineReportsTheFontsUnderline(t *testing.T) {
+	engine := SharedTextEngine()
+	for _, face := range []gfx.MonoFace{gfx.MonoSystem, gfx.MonoFamily("Courier New")} {
+		cell := engine.MonoCell(13, face)
+		if cell.Advance <= 0 {
+			t.Fatalf("face %v: no cell", face)
+		}
+		if cell.Underline <= 0 || cell.Underline >= cell.Advance {
+			t.Errorf("face %v: underline %v of a cell %v wide, want a positive stroke narrower than the cell", face, cell.Underline, cell.Advance)
+		}
+		if at26 := engine.MonoCell(26, face); at26.Underline <= cell.Underline {
+			t.Errorf("face %v: underline %v at 26, %v at 13, want it to follow the size", face, at26.Underline, cell.Underline)
+		}
+	}
+}

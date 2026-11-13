@@ -472,3 +472,78 @@ func (services *textServices) measureIn(typeface, value string, size, weight flo
 	line := lines[0]
 	return text.Metrics{Width: metrics.WidthTrailing, Height: metrics.Height, Ascent: line.Baseline, Descent: line.Height - line.Baseline}, nil
 }
+
+// Method slots of IDWriteFactory, IDWriteFontCollection, IDWriteFontFamily and
+// IDWriteFont (checked against dwrite.h).
+const (
+	writeFactoryGetSystemFontCollection = 3
+	writeCollectionGetFontFamily        = 4
+	writeCollectionFindFamilyName       = 5
+	writeFontFamilyGetFirstMatchingFont = 7
+	writeFontGetMetrics                 = 11
+)
+
+// writeFontMetrics is DWRITE_FONT_METRICS: the face's design units per em and the
+// thicknesses and positions the font draws its rules with.
+type writeFontMetrics struct {
+	DesignUnitsPerEm, Ascent, Descent uint16
+	LineGap                           int16
+	CapHeight, XHeight                uint16
+	UnderlinePosition                 int16
+	UnderlineThickness                uint16
+	StrikethroughPosition             int16
+	StrikethroughThickness            uint16
+}
+
+// underline is the thickness of the stroke typeface's face at weight underlines with, in
+// logical pixels, or 0 when DirectWrite cannot report it: the weight a fixed-pitch cell
+// glyph's rule takes.
+func (services *textServices) underline(typeface string, size, weight float32) float32 {
+	if size <= 0 || typeface == "" {
+		return 0
+	}
+	familyName, err := syscall.UTF16PtrFromString(typeface)
+	if err != nil {
+		return 0
+	}
+	// The collection every text format is made from: the application's fonts and the
+	// system's, or the system's alone. A registered collection is held by the process
+	// and must outlive the use; its read lock keeps it from being released meanwhile.
+	customFonts.RLock()
+	collection, owned := customFonts.collection, false
+	if collection == 0 {
+		customFonts.RUnlock()
+		status := comCall(services.write, writeFactoryGetSystemFontCollection, uintptr(unsafe.Pointer(&collection)), 0)
+		if err = hresult(status); err != nil || collection == 0 {
+			return 0
+		}
+		owned = true
+	} else {
+		defer customFonts.RUnlock()
+	}
+	if owned {
+		defer release(&collection)
+	}
+	var index, exists uint32
+	if err := hresult(comCall(collection, writeCollectionFindFamilyName, uintptr(unsafe.Pointer(familyName)), uintptr(unsafe.Pointer(&index)), uintptr(unsafe.Pointer(&exists)))); err != nil || exists == 0 {
+		return 0
+	}
+	var family, font uintptr
+	if err := hresult(comCall(collection, writeCollectionGetFontFamily, uintptr(index), uintptr(unsafe.Pointer(&family)))); err != nil {
+		return 0
+	}
+	defer release(&family)
+	const (
+		stretchNormal = 5
+		styleNormal   = 0
+	)
+	if err := hresult(comCall(family, writeFontFamilyGetFirstMatchingFont, uintptr(nativeFontWeight(weight)), stretchNormal, styleNormal, uintptr(unsafe.Pointer(&font)))); err != nil {
+		return 0
+	}
+	defer release(&font)
+	var metrics writeFontMetrics
+	if err := hresult(comCall(font, writeFontGetMetrics, uintptr(unsafe.Pointer(&metrics)))); err != nil || metrics.DesignUnitsPerEm == 0 {
+		return 0
+	}
+	return float32(metrics.UnderlineThickness) / float32(metrics.DesignUnitsPerEm) * size
+}

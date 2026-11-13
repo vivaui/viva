@@ -143,10 +143,11 @@ func (engine *textEngine) MonoCell(size float32, face gfx.MonoFace) gfx.MonoCell
 		return gfx.MonoCellMetrics{}
 	}
 	return gfx.MonoCellMetrics{
-		Advance: metrics.Width,
-		Ascent:  metrics.Ascent,
-		Descent: metrics.Descent,
-		LineGap: max(metrics.Height-metrics.Ascent-metrics.Descent, 0),
+		Advance:   metrics.Width,
+		Ascent:    metrics.Ascent,
+		Descent:   metrics.Descent,
+		LineGap:   max(metrics.Height-metrics.Ascent-metrics.Descent, 0),
+		Underline: metrics.Underline,
 	}
 }
 
