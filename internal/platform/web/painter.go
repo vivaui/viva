@@ -418,6 +418,7 @@ func (p *painter) paint() {
 	p.canvas.Reset()
 	focused, visible := p.focus.PaintTarget()
 	p.canvas.SetInteraction(p.pointer.Hovered(), p.pointer.Pressed(), focused, visible)
+	p.canvas.SetHoveredRole(p.pointer.HoveredRole())
 	p.canvas.SetScroll(p.scrollX, p.scrollY)
 	p.canvas.BeginFrame()
 	p.config.Paint(p.canvas, gfx.Size{Width: p.width, Height: p.height})
@@ -647,6 +648,7 @@ func (p *painter) pointerEvent(event gfx.PointerEvent) bool {
 		// comes up; only hover is gone. The release is delivered outside.
 		p.pointerOutside = true
 		p.pointer.SetHovered(gfx.ID{})
+		p.pointer.SetHoveredRole(gfx.Role(0))
 		if beforeHovered.IsZero() {
 			return false
 		}
@@ -693,9 +695,11 @@ func (p *painter) pointerCancel(event gfx.PointerEvent) bool {
 // state, the application and the controls' event pass.
 func (p *painter) pointerStep(event gfx.PointerEvent) (result gfx.EventResult, focusChanged, placed bool) {
 	p.pointer.SetHovered(gfx.ID{})
+	p.pointer.SetHoveredRole(gfx.Role(0))
 	if event.Kind != gfx.PointerExit {
-		if target, ok := p.focus.Router().HitTest(event.X, event.Y); ok {
-			p.pointer.SetHovered(target)
+		if target, ok := p.focus.Router().HitTestRegion(event.X, event.Y); ok {
+			p.pointer.SetHovered(target.Target)
+			p.pointer.SetHoveredRole(target.Role)
 		}
 	}
 	if event.Kind == gfx.PointerDown {

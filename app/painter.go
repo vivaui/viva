@@ -274,6 +274,7 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 			return platform.Frame{}, nil
 		}
 		painter.pointer.SetHovered(gfx.ID{})
+		painter.pointer.SetHoveredRole(gfx.Role(0))
 		return painter.repaintAfterInput()
 	}
 	beforeHovered, beforePressed := painter.pointer.Hovered(), painter.pointer.Pressed()
@@ -338,9 +339,11 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 // application answered and whether focus and the pointer's edge state changed.
 func (painter *painter) pointerStep(event platform.PointerEvent) (result gfx.EventResult, focusChanged, edgeChanged bool) {
 	painter.pointer.SetHovered(gfx.ID{})
+	painter.pointer.SetHoveredRole(gfx.Role(0))
 	if event.Kind != platform.PointerExit {
-		if target, ok := painter.focus.Router().HitTest(event.X, event.Y); ok {
-			painter.pointer.SetHovered(target)
+		if target, ok := painter.focus.Router().HitTestRegion(event.X, event.Y); ok {
+			painter.pointer.SetHovered(target.Target)
+			painter.pointer.SetHoveredRole(target.Role)
 		}
 	}
 	edgeChanged = painter.trackEdge(event)
@@ -848,6 +851,7 @@ func (painter *painter) paintCanvas() {
 	}
 	focused, visible := painter.focus.PaintTarget()
 	painter.canvas.SetInteraction(painter.pointer.Hovered(), painter.pointer.Pressed(), focused, visible)
+	painter.canvas.SetHoveredRole(painter.pointer.HoveredRole())
 	painter.canvas.SetScroll(painter.scrollX, painter.scrollY)
 	painter.canvas.BeginFrame()
 	painter.paint(painter.canvas, painter.size)

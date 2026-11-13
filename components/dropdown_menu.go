@@ -950,6 +950,11 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 	// keep working under it.
 	hovered := canvas.Hovered()
 	claim := canvas.HoverCrossed() && !hovered.IsZero()
+	// While the pointer is over caller content inside the menu (a colour row, a
+	// switch), no row is the menu's current row: keeping the last focused row
+	// tinted would fight the control under the pointer. Menu rows themselves
+	// declare RoleMenuItem.
+	inContent := !hovered.IsZero() && canvas.HoveredRole() != 0 && canvas.HoveredRole() != gfx.RoleMenuItem
 	if claim && hovered == item.ID {
 		// A disabled row cannot take focus, but the frame is still repainted so
 		// the row that kept focus is tinted again on the next paint.
@@ -960,7 +965,7 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 	}
 	// Focused, not FocusVisible: a menu row the pointer focused is the current
 	// row even though no key press made its focus ring visible.
-	active := enabled && (claim && hovered == item.ID || !claim && canvas.Focused() == item.ID)
+	active := enabled && !inContent && (claim && hovered == item.ID || !claim && canvas.Focused() == item.ID)
 	if item.Kind == menuSubmenu && item.Expanded {
 		active = true
 	}

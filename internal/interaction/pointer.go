@@ -8,6 +8,7 @@ import "github.com/vivaui/viva/gfx"
 // target and the application did not consume it.
 type Pointer struct {
 	hovered      gfx.ID
+	hoveredRole  gfx.Role
 	pressed      gfx.ID
 	target       gfx.ID
 	button       gfx.PointerButton
@@ -17,8 +18,14 @@ type Pointer struct {
 // SetHovered records the hit under the pointer, or zero when there is none.
 func (p *Pointer) SetHovered(target gfx.ID) { p.hovered = target }
 
+// SetHoveredRole records the role of the hovered hit.
+func (p *Pointer) SetHoveredRole(role gfx.Role) { p.hoveredRole = role }
+
 // Hovered returns the hit under the pointer.
 func (p *Pointer) Hovered() gfx.ID { return p.hovered }
+
+// HoveredRole returns the role of the hovered hit.
+func (p *Pointer) HoveredRole() gfx.Role { return p.hoveredRole }
 
 // Pressed returns the target of the current press, or zero.
 func (p *Pointer) Pressed() gfx.ID { return p.pressed }

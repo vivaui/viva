@@ -717,6 +717,10 @@ type Canvas struct {
 	// fits remembers the lines FitLine cut; a different measurement empties it.
 	fits    []fitEntry
 	hovered ID
+	// hoveredRole is the role of the hovered hit, when the runtime recorded one.
+	// Components that draw content inside a menu use it to tell their own rows
+	// from caller content under the pointer.
+	hoveredRole Role
 	// prevHovered is the hit the pointer was on at the end of the previous
 	// paint, which is what HoverCrossed compares against.
 	prevHovered  ID
@@ -1925,6 +1929,7 @@ func (canvas *Canvas) Clips() []Clip {
 // runtime-facing; application paint code should only read it.
 func (canvas *Canvas) SetInteraction(hovered, pressed, focused ID, focusVisible bool) {
 	canvas.hovered = hovered
+	canvas.hoveredRole = 0
 	canvas.pressed = pressed
 	canvas.focused = focused
 	canvas.focusVisible = focusVisible
@@ -1933,6 +1938,18 @@ func (canvas *Canvas) SetInteraction(hovered, pressed, focused ID, focusVisible 
 // Hovered returns the hit ID currently under the pointer, or the zero ID.
 func (canvas *Canvas) Hovered() ID {
 	return canvas.hovered
+}
+
+// HoveredRole returns the role of the hovered hit, or the zero role when the
+// runtime did not record one.
+func (canvas *Canvas) HoveredRole() Role {
+	return canvas.hoveredRole
+}
+
+// SetHoveredRole records the role of the hovered hit. It is runtime-facing;
+// application paint code should only read it.
+func (canvas *Canvas) SetHoveredRole(role Role) {
+	canvas.hoveredRole = role
 }
 
 // HoverCrossed reports whether the pointer reached a different hit since the

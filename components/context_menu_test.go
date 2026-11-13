@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -195,5 +196,78 @@ func TestContextMenuItemWidthKeepsTheLabelWhole(t *testing.T) {
 	}
 	if got := label(width - 12).Bounds.Width; got >= need {
 		t.Fatalf("12px under the computed width the label still gets %v of %v: the width is not tight", got, need)
+	}
+}
+
+func TestMenuContentKeepsTheFocusedRowFromTinting(t *testing.T) {
+	var tree gfx.Tree
+	feature := tree.Feature("menu-content")
+	scope := gfx.Item(64)
+	rowID := tree.ID(feature, "row")
+	contentID := tree.ID(feature, "content")
+	theme := gfx.DarkTheme()
+	var rowBounds, contentBounds gfx.Rect
+	driver, err := app.NewDriver(app.Config{
+		Width: 320, Height: 240, Tree: &tree,
+		Paint: func(c *gfx.Canvas, size gfx.Size) {
+			menu := BeginContextMenu(c, theme, gfx.Rect{X: 20, Y: 20, Width: 220, Height: 160}, ContextMenuOptions{Layer: 7, Scope: scope})
+			rowBounds = menu.AddItem(ContextMenuItem{ID: rowID, Label: "Row"})
+			menu.BeginContent()
+			contentBounds = menu.AddItem(ContextMenuItem{})
+			c.HitWithOptions(contentID, contentBounds, "Content", gfx.HitOptions{Role: gfx.RoleButton})
+			menu.EndContent()
+			menu.End()
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	move := func(x, y float32) {
+		t.Helper()
+		must(driver.Move(x, y))
+	}
+	rowTinted := func() bool {
+		t.Helper()
+		for _, primitive := range driver.Snapshot().Primitives {
+			if primitive.Color == theme.Accent && primitive.Bounds == rowBounds {
+				return true
+			}
+		}
+		return false
+	}
+	rowCenter := func() (float32, float32) {
+		return rowBounds.X + rowBounds.Width/2, rowBounds.Y + rowBounds.Height/2
+	}
+	contentCenter := func() (float32, float32) {
+		return contentBounds.X + contentBounds.Width/2, contentBounds.Y + contentBounds.Height/2
+	}
+	// Hovering the row makes it the menu's current row.
+	x, y := rowCenter()
+	move(x, y)
+	move(x+1, y)
+	if !rowTinted() {
+		t.Fatal("hovering the row did not tint it: the test cannot see the state it checks")
+	}
+	// The pointer then rests on caller content inside the menu. The focused row
+	// must not light up again.
+	x, y = contentCenter()
+	move(x, y)
+	move(x+1, y)
+	if rowTinted() {
+		t.Fatal("the row is tinted while the pointer rests on the menu's content")
+	}
+	// Returning to the row lights it again.
+	x, y = rowCenter()
+	move(x, y)
+	move(x+1, y)
+	if !rowTinted() {
+		t.Fatal("the row is no longer tinted after the pointer returned to it")
 	}
 }
