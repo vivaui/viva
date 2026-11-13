@@ -81,6 +81,10 @@ type Config struct {
 	// that. Zero means 28,
 	// the system titlebar's own height. It only applies to WindowCustomTitlebar.
 	TitlebarHeight float32
+	// TrafficLightScale scales native macOS traffic lights in a custom titlebar.
+	// Values in (0, 1] shrink the controls around their original centers; zero
+	// preserves the system size. Other platforms ignore this setting.
+	TrafficLightScale float32
 	// WindowControls styles the minimize, maximize and close buttons Viva draws at
 	// the trailing end of a WindowCustomTitlebar's strip on Windows and Linux,
 	// where the system draws none for a window without a titlebar; macOS has its

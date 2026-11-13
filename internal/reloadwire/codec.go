@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ProtocolVersion = 27
+	ProtocolVersion = 28
 	MaxFrameBytes   = 32 << 20
 	MaxStateBytes   = 8 << 20
 	maxItems        = 200_000
@@ -45,19 +45,21 @@ type WindowConfig struct {
 	WindowMode uint8
 	// TitlebarHeight is Config.TitlebarHeight rounded to whole logical pixels.
 	TitlebarHeight uint16
-	ClearRed       float64
-	ClearGreen     float64
-	ClearBlue      float64
-	ClearAlpha     float64
-	HasClick       bool
-	HasPointer     bool
-	HasKey         bool
-	HasShortcut    bool
-	HasScroll      bool
-	HasModifierTap bool
-	HasClose       bool
-	HasSnapshot    bool
-	HasRestore     bool
+	// TrafficLightScale is Config.TrafficLightScale, or zero for the system size.
+	TrafficLightScale float32
+	ClearRed          float64
+	ClearGreen        float64
+	ClearBlue         float64
+	ClearAlpha        float64
+	HasClick          bool
+	HasPointer        bool
+	HasKey            bool
+	HasShortcut       bool
+	HasScroll         bool
+	HasModifierTap    bool
+	HasClose          bool
+	HasSnapshot       bool
+	HasRestore        bool
 }
 
 type Hello struct {
@@ -274,6 +276,7 @@ func encodeWindowConfig(result *encoder, value WindowConfig) {
 	result.u32(uint32(value.MinHeight))
 	result.u8(value.WindowMode)
 	result.u16(value.TitlebarHeight)
+	result.f32(value.TrafficLightScale)
 	result.f64(value.ClearRed)
 	result.f64(value.ClearGreen)
 	result.f64(value.ClearBlue)
@@ -293,7 +296,8 @@ func decodeWindowConfig(value *decoder) WindowConfig {
 	return WindowConfig{
 		Title: value.string(), Width: int(value.u32()), Height: int(value.u32()),
 		MinWidth: int(value.u32()), MinHeight: int(value.u32()), WindowMode: value.u8(), TitlebarHeight: value.u16(),
-		ClearRed: value.f64(), ClearGreen: value.f64(), ClearBlue: value.f64(), ClearAlpha: value.f64(),
+		TrafficLightScale: value.f32(),
+		ClearRed:          value.f64(), ClearGreen: value.f64(), ClearBlue: value.f64(), ClearAlpha: value.f64(),
 		HasClick: value.bool(), HasPointer: value.bool(), HasKey: value.bool(), HasShortcut: value.bool(), HasScroll: value.bool(), HasModifierTap: value.bool(),
 		HasClose: value.bool(), HasSnapshot: value.bool(), HasRestore: value.bool(),
 	}
