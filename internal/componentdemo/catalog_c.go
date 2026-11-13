@@ -1,6 +1,7 @@
 package componentdemo
 
 var groupCComponents = []Component{
+	columnResizeComponent,
 	navigationMenuComponent,
 	paginationComponent,
 	popoverComponent,

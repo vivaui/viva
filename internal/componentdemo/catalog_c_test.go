@@ -18,7 +18,7 @@ type groupCPaintSnapshot struct {
 
 func TestGroupCCatalogOrder(t *testing.T) {
 	expected := [...]string{
-		"navigation-menu", "pagination", "popover", "progress", "questionnaire",
+		"column-resize", "navigation-menu", "pagination", "popover", "progress", "questionnaire",
 		"radio-group", "resizable", "scroll-area", "segmented-control", "select", "separator",
 		"sheet", "sidebar", "single-select", "skeleton", "slider", "sonner", "spinner", "table", "tabs",
 		"textarea", "toast", "toggle", "toggle-group", "tooltip", "tree", "tree-navigation", "typography",
