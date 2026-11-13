@@ -58,6 +58,9 @@ type WebViewConfig struct {
 	Proxy string
 	// OnMessage receives what the page posts with window.viva.postMessage(text).
 	OnMessage func(text string)
+	// TopCornerRadius 是网页视图顶部两角的圆角半径，单位为逻辑像素；零值保持矩形。
+	// 当前由 macOS 和 Windows 的原生视图裁剪，GTK 请求非零半径时返回 ErrUnsupported。
+	TopCornerRadius float32
 	// OnLoad reports the page's navigation.
 	OnLoad func(WebLoad)
 	// Navigate decides a navigation before it starts; nil allows every navigation.

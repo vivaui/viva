@@ -110,6 +110,7 @@ func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error)
 		}
 		return nil, fmt.Errorf("darwin: %s", message)
 	}
+	C.viva_web_set_top_corner_radius(native, C.double(config.TopCornerRadius))
 	page := &darwinWeb{state: w, id: config.ID, native: native, config: config}
 	w.pages[config.ID] = page
 	w.layout(true)

@@ -347,6 +347,29 @@ void viva_web_scheme_answer(uint64_t request, int status, char *headers, unsigne
     });
 }
 
+// 轮廓在原生逻辑坐标中计算；WebKit 的坐标方向由 isFlipped 决定，不乘 Retina 密度。
+static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped) {
+    CGFloat radius = MAX(0, MIN(requested, MIN(bounds.size.width / 2, bounds.size.height)));
+    CGFloat left = NSMinX(bounds), right = NSMaxX(bounds);
+    CGFloat top = flipped ? NSMinY(bounds) : NSMaxY(bounds);
+    CGFloat bottom = flipped ? NSMaxY(bounds) : NSMinY(bounds);
+    CGFloat direction = flipped ? 1 : -1;
+    CGMutablePathRef path = CGPathCreateMutable();
+    CGPathMoveToPoint(path, NULL, left + radius, top);
+    CGPathAddLineToPoint(path, NULL, right - radius, top);
+    if (radius > 0) {
+        CGPathAddArcToPoint(path, NULL, right, top, right, top + direction * radius, radius);
+    }
+    CGPathAddLineToPoint(path, NULL, right, bottom);
+    CGPathAddLineToPoint(path, NULL, left, bottom);
+    CGPathAddLineToPoint(path, NULL, left, top + direction * radius);
+    if (radius > 0) {
+        CGPathAddArcToPoint(path, NULL, left, top, left + radius, top, radius);
+    }
+    CGPathCloseSubpath(path);
+    return path;
+}
+
 // VivaWebView is a page that lies over Viva's drawing and gives way where Viva draws over it: the
 // parts in cuts are masked off, so Viva's picture shows, and do not take the pointer, so Viva does.
 @interface VivaWebView : WKWebView {
@@ -354,7 +377,9 @@ void viva_web_scheme_answer(uint64_t request, int status, char *headers, unsigne
     NSArray<NSValue *> *_masks;  // the parts whose picture is cut away
     VivaWebBridge *_bridge;
     NSTrackingArea *_tracking;
+    CGFloat _topCornerRadius;
 }
+- (void)setTopCornerRadius:(CGFloat)radius;
 - (void)setBridge:(VivaWebBridge *)bridge;
 - (void)setCutRects:(NSArray<NSValue *> *)cuts masks:(NSArray<NSValue *> *)masks;
 - (void)cancelSchemeTasks;
@@ -370,6 +395,12 @@ void viva_web_scheme_answer(uint64_t request, int status, char *headers, unsigne
     [super dealloc];
 }
 
+- (void)setTopCornerRadius:(CGFloat)radius {
+    _topCornerRadius = radius;
+    self.wantsLayer = YES;
+    [self applyMask];
+}
+
 - (void)setBridge:(VivaWebBridge *)bridge {
     [bridge retain];
     [_bridge release];
@@ -382,6 +413,12 @@ void viva_web_scheme_answer(uint64_t request, int status, char *headers, unsigne
 
 - (NSView *)hitTest:(NSPoint)point {
     // The point is in the superview's coordinates.
+    if (_topCornerRadius > 0) {
+        CGPathRef outline = viva_web_outline(self.bounds, _topCornerRadius, self.isFlipped);
+        BOOL inside = CGPathContainsPoint(outline, NULL, [self convertPoint:point fromView:self.superview], NO);
+        CGPathRelease(outline);
+        if (!inside) { return nil; }
+    }
     for (NSValue *value in _cuts) {
         if (NSPointInRect(point, value.rectValue)) {
             return nil;
@@ -394,7 +431,7 @@ void viva_web_scheme_answer(uint64_t request, int status, char *headers, unsigne
     if (self.layer == nil) {
         return;
     }
-    if (_masks.count == 0) {
+    if (_masks.count == 0 && _topCornerRadius == 0) {
         self.layer.mask = nil;
         return;
     }
@@ -409,6 +446,16 @@ void viva_web_scheme_answer(uint64_t request, int status, char *headers, unsigne
     mask.path = path;
     mask.fillRule = kCAFillRuleEvenOdd;
     CGPathRelease(path);
+    if (_topCornerRadius > 0) {
+        // 分层相交：不能把圆角轮廓和菜单切口放进同一个 even-odd 路径，
+        // 否则跨越圆角的切口会反向填回本应透明的角外区域。
+        CAShapeLayer *outline = [CAShapeLayer layer];
+        outline.frame = self.layer.bounds;
+        CGPathRef rounded = viva_web_outline(self.bounds, _topCornerRadius, self.isFlipped);
+        outline.path = rounded;
+        CGPathRelease(rounded);
+        mask.mask = outline;
+    }
     self.layer.mask = mask;
 }
 
@@ -543,6 +590,10 @@ void viva_web_eval(void *web, const char *script) {
     viva_web_main(^{
         [(VivaWebView *)web evaluateJavaScript:[NSString stringWithUTF8String:script] completionHandler:nil];
     });
+}
+
+void viva_web_set_top_corner_radius(void *web, double radius) {
+    viva_web_main(^{ [(VivaWebView *)web setTopCornerRadius:radius]; });
 }
 
 void viva_web_focus(void *web) {

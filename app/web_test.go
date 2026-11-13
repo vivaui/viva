@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
