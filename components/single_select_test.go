@@ -20,9 +20,13 @@ func BenchmarkSingleSelectPaint(b *testing.B) {
 	var tree gfx.Tree
 	f := tree.Feature("single-select-benchmark")
 	o := SingleSelectOptions{InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"), OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", CreatePrefix: "Create: ", Viewport: gfx.Rect{Width: 800, Height: 600}, Layer: 4}
-	for _, name := range []string{"closed", "open", "create", "long"} {
+	for _, name := range []string{"closed", "open", "create", "long", "icons"} {
 		b.Run(name, func(b *testing.B) {
 			s := singleSelectFixture()
+			if name == "icons" {
+				icon := gfx.Icon{ViewBox: 24, Commands: []gfx.PathCommand{gfx.MoveTo(4, 12), gfx.LineTo(20, 12)}}
+				s.SetOptions([]SingleSelectOption{{Value: "dev", Label: "Development", Icon: icon}, {Value: "test", Label: "Testing", Icon: icon}})
+			}
 			s.SetValue("dev")
 			s.Open = name != "closed"
 			if name == "create" {
@@ -519,5 +523,40 @@ func TestHierarchyMenuStandsAloneUnderAnAnchor(t *testing.T) {
 		return HierarchyMenuItem{Value: strings.Repeat("a/", hierarchyMaxLevels) + "z"}
 	}) {
 		t.Fatal("Build accepted a value nested past the supported depth")
+	}
+}
+
+// An option icon takes a column of its own: the field's input starts after it,
+// and the popup widens so the icon never covers the label beside it.
+func TestSingleSelectOptionIconTakesItsOwnColumn(t *testing.T) {
+	icon := gfx.Icon{ViewBox: 24, Commands: []gfx.PathCommand{gfx.MoveTo(4, 12), gfx.LineTo(20, 12)}}
+	label := strings.Repeat("Linux ", 12)
+	paint := func(withIcon bool) SingleSelectLayout {
+		s := &SingleSelectState{}
+		option := SingleSelectOption{Value: "linux", Label: label}
+		if withIcon {
+			option.Icon = icon
+		}
+		s.SetOptions([]SingleSelectOption{option})
+		s.SetValue("linux")
+		s.Open = true
+		var canvas gfx.Canvas
+		var tree gfx.Tree
+		f := tree.Feature("single-select-icon")
+		return PaintSingleSelect(&canvas, gfx.LightTheme(), gfx.Rect{Width: 160, Height: 32}, s, SingleSelectOptions{
+			InputID: tree.ID(f, "input"), DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"),
+			OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Icon",
+			Viewport: gfx.Rect{Width: 800, Height: 600},
+		})
+	}
+	plain, with := paint(false), paint(true)
+	if delta := with.Input.X - plain.Input.X; delta != menuIconSize+menuIconGap {
+		t.Fatalf("the input starts %v past the field, want the icon's column %v", delta, menuIconSize+menuIconGap)
+	}
+	if with.Input.Width >= plain.Input.Width {
+		t.Fatalf("the input kept its full width over the icon: %g vs %g", with.Input.Width, plain.Input.Width)
+	}
+	if delta := with.Popup.Width - plain.Popup.Width; delta < menuIconSize {
+		t.Fatalf("the popup grew by %v for a %v wide icon", delta, menuIconSize)
 	}
 }
