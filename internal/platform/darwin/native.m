@@ -4386,6 +4386,7 @@ static int viva_navigation_command(SEL selector) {
 - (void)mouseMoved:(NSEvent *)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     BOOL native = viva_view_has_native_cursor(self, point);
+    BOOL enteringNative = !_nativeCursorActive && native;
     BOOL returningToCanvas = _nativeCursorActive && !native;
     if (native != _nativeCursorActive) {
         _nativeCursorActive = native;
@@ -4393,6 +4394,11 @@ static int viva_navigation_command(SEL selector) {
     }
     // Host tracking areas also cover subviews; native content must not emit canvas moves or set its cursor.
     if (native) {
+        // The pointer left Viva's content for the page, where moves are not emitted; the control it was over
+        // must not stay hovered.
+        if (enteringNative) {
+            [self emitPointerExit];
+        }
         return;
     }
     [self emitPointerEvent:VIVA_POINTER_MOVE fromEvent:event];

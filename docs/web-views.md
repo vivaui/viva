@@ -87,6 +87,11 @@ scheme, a message in each direction and a menu that stands over the page.
   and `Open` fails with `ErrUnsupported` rather than open one that connects directly: WKWebView's
   `proxyConfigurations` (macOS 14) sends names to the proxy unresolved, but the system exempts loopback
   addresses from it, so `http://127.0.0.1:3000/` would reach the user's own machine.
+- `TopCornerRadius` rounds the page's two top corners in logical pixels, for a page that sits inside a rounded
+  window or toolbar; zero keeps it rectangular. macOS cuts the rounded outline out of the page and refuses the
+  pointer in the clipped corners, and Windows cuts the same outline into the child window's region. GTK has no
+  native rounded page: `Open` fails with `ErrUnsupported` for a nonzero radius rather than open a page with
+  square corners.
 - `Canvas.NativeView` declares where the page is, on the current layer and inside the current clip. What Viva
   paints on that layer or below is hidden by the page; what it paints on a higher layer (a menu, a tooltip,
   `ui`'s `f.PopupLayer`) stands over it, and a hit region on a higher layer takes the pointer where it lies

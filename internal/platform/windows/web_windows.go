@@ -42,10 +42,10 @@ var (
 	createRectRgn      = webGDI.NewProc("CreateRectRgn")
 	createRoundRectRgn = webGDI.NewProc("CreateRoundRectRgn")
 	combineRgn         = webGDI.NewProc("CombineRgn")
-	setWindowRgn    = user.NewProc("SetWindowRgn")
-	getParent       = user.NewProc("GetParent")
-	webHostClass    = "VivaWebHost"
-	webHostRegister sync.Once
+	setWindowRgn       = user.NewProc("SetWindowRgn")
+	getParent          = user.NewProc("GetParent")
+	webHostClass       = "VivaWebHost"
+	webHostRegister    sync.Once
 
 	shGetKnownFolderPath = shell.NewProc("SHGetKnownFolderPath")
 )
@@ -639,9 +639,10 @@ func (w *webHost) layout(page *windowsWeb, force bool) {
 	region, _, _ := createRectRgn.Call(0, 0, uintptr(width), uintptr(height))
 	logicalRadius := min(max(page.config.TopCornerRadius, 0), view.Bounds.Width/2, view.Bounds.Height)
 	if radius := int32(round(logicalRadius * scale)); radius > 0 {
-		// Union the rounded region with a bottom rectangle to round only the top corners.
+		// Union the rounded region with a bottom rectangle to round only the top corners. The rectangle
+		// starts at the top of the bottom arcs, so a radius past half the height still leaves a square bottom.
 		rounded, _, _ := createRoundRectRgn.Call(0, 0, uintptr(width+1), uintptr(height+1), uintptr(2*radius), uintptr(2*radius))
-		bottom, _, _ := createRectRgn.Call(0, uintptr(radius), uintptr(width), uintptr(height))
+		bottom, _, _ := createRectRgn.Call(0, uintptr(min(radius, height-radius)), uintptr(width), uintptr(height))
 		if rounded != 0 && bottom != 0 {
 			combineRgn.Call(region, rounded, bottom, rgnOr)
 		}
