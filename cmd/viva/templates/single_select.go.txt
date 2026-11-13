@@ -13,10 +13,20 @@ import (
 type SingleSelectOption struct {
 	Value, Label string
 	Disabled     bool
+	// Icon, when it has any geometry, is painted before the label in the flat
+	// list, and before the field's text while it is that option's value. A
+	// single-color icon takes the text color; a multi-color one keeps its own.
+	// The hierarchical list (Separator) paints names only.
+	Icon gfx.Icon
 	// Search is extra text the query matches besides the label and the value,
 	// for what the row does not show, such as an address or a group. It is never
 	// painted.
 	Search string
+}
+
+// singleSelectIcon reports whether an icon has anything to paint.
+func singleSelectIcon(icon gfx.Icon) bool {
+	return len(icon.Commands) > 0 || len(icon.Layers) > 0
 }
 
 // SingleSelectChoice is one filtered existing or creatable option.
@@ -117,6 +127,16 @@ func (s *SingleSelectState) label(value string) string {
 	return value
 }
 
+// selectedIcon is the icon of the chosen option, when it has one.
+func (s *SingleSelectState) selectedIcon() gfx.Icon {
+	for _, option := range s.options {
+		if s.equal(option.Value, s.value) {
+			return option.Icon
+		}
+	}
+	return gfx.Icon{}
+}
+
 // Choices returns a read-only view until the next query or selection change.
 // It caches filtered rows, preserving selected and newly created values
 // even when the caller's options do not contain them. Exact labels and disabled
@@ -156,7 +176,7 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 		}
 	}
 	if !haveValue {
-		add(SingleSelectOption{Value: s.value})
+		add(SingleSelectOption{Value: s.value, Label: s.label(s.value)})
 	}
 	if s.AllowCreate && query != "" && !exact {
 		s.choices = append(s.choices, SingleSelectChoice{})
@@ -349,9 +369,14 @@ func (s *SingleSelectState) popupWidth(canvas *gfx.Canvas, theme gfx.Theme, choi
 	if s.widestRebuilt != s.rebuilt || s.widestSize != size {
 		s.widest = 0
 		for _, choice := range choices {
-			if !choice.Create {
-				s.widest = max(s.widest, canvas.TextWidthWeight(choice.Label, size, gfx.WeightRegular))
+			if choice.Create {
+				continue
 			}
+			width := canvas.TextWidthWeight(choice.Label, size, gfx.WeightRegular)
+			if singleSelectIcon(choice.Icon) {
+				width += menuIconSize + menuIconGap
+			}
+			s.widest = max(s.widest, width)
 		}
 		s.widestRebuilt, s.widestSize = s.rebuilt, size
 	}
@@ -437,6 +462,12 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 	if o.Disabled {
 		color.Alpha *= .5
 	}
+	if icon := s.selectedIcon(); singleSelectIcon(icon) {
+		side := min(menuIconSize, layout.Input.Height)
+		canvas.DrawIcon(icon, gfx.Rect{X: layout.Input.X, Y: bounds.Y + (bounds.Height-side)/2, Width: side, Height: side}, color)
+		layout.Input.X += menuIconSize + menuIconGap
+		layout.Input.Width = max(1, layout.Input.Width-(menuIconSize+menuIconGap))
+	}
 	if canvas.Focused() != o.InputID || query == "" {
 		canvas.Label(canvas.FitLine(display, theme.Metrics.FontSizeM, gfx.WeightRegular, layout.Input.Width), layout.Input, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
 	}
@@ -518,7 +549,14 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 				}
 				label = s.createText
 			}
-			canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, max(row.Width-38, 0)), gfx.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+			left := row.X + 8
+			if singleSelectIcon(choice.Icon) {
+				side := min(menuIconSize, row.Height)
+				canvas.DrawIcon(choice.Icon, gfx.Rect{X: left, Y: row.Y + (row.Height-side)/2, Width: side, Height: side}, color)
+				left += menuIconSize + menuIconGap
+			}
+			labelWidth := max(row.Width-(left-row.X)-38, 0)
+			canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, labelWidth), gfx.Rect{X: left, Y: row.Y, Width: labelWidth, Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
 			if choice.Selected {
 				paintCheck(canvas, gfx.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
 			}
