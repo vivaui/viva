@@ -77,6 +77,11 @@ func (host *WebHost) repaintWith(painter *painter) {
 	}
 }
 
+// WebProxyDirect selects direct networking for a page, bypassing system proxies.
+// macOS requires version 14 or newer; unsupported engines return ErrUnsupported.
+// On macOS and Linux, direct pages use a nonpersistent data store.
+const WebProxyDirect = platform.WebProxyDirect
+
 // WebViewConfig describes a page to open.
 type WebViewConfig struct {
 	// URL is loaded when the page opens, unless HTML is set.
@@ -91,6 +96,7 @@ type WebViewConfig struct {
 	// carries all of the page's traffic, names resolved by the proxy: the page reaches only what the
 	// proxy reaches. Opening fails with ErrUnsupported where the engine cannot be held to it, rather
 	// than opening a page that connects directly.
+	// Empty follows the system proxy policy. WebProxyDirect bypasses system proxies for this page.
 	Proxy string
 	// OnMessage receives what the page posts with window.viva.postMessage(text).
 	OnMessage func(text string)
@@ -206,7 +212,7 @@ func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 	if host == nil || host.native == nil || host.native.Open == nil {
 		return nil, fmt.Errorf("%w: web views", ErrUnsupported)
 	}
-	if config.Proxy != "" && !loopbackAddress(config.Proxy) {
+	if config.Proxy != "" && config.Proxy != WebProxyDirect && !loopbackAddress(config.Proxy) {
 		return nil, fmt.Errorf("app: web view proxy %q is not a loopback host:port", config.Proxy)
 	}
 	id := gfx.NativeViewID(host.next.Add(1))

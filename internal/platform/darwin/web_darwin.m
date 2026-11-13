@@ -1,6 +1,7 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 #import <WebKit/WebKit.h>
+#import <Network/Network.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -518,8 +519,15 @@ static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped
 
 @end
 
+int viva_web_direct_supported(void) {
+    if (@available(macOS 14.0, *)) {
+        return 1;
+    }
+    return 0;
+}
+
 void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, const char *html,
-                    const char *base, const char *script, int mainFrameOnly, const char *scheme, int ephemeral,
+                    const char *base, const char *script, int mainFrameOnly, const char *scheme, int ephemeral, int direct,
                     char **error) {
     __block VivaWebView *web = nil;
     viva_web_main(^{
@@ -531,10 +539,22 @@ void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, 
         bridge->_handle = handle;
         bridge->_id = id;
         WKWebViewConfiguration *configuration = [[WKWebViewConfiguration alloc] init];
-        if (ephemeral) {
-            // Nothing the page keeps reaches the disk, and no other page shares it: the store lives
-            // in this process only and goes with the page.
+        if (ephemeral || direct) {
+            // Ephemeral pages keep nothing on disk. Direct pages also need a private store so
+            // their proxy policy cannot change another page's in-flight requests or data store.
             configuration.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
+        }
+        if (direct) {
+            if (@available(macOS 14.0, *)) {
+                // An empty proxyConfigurations array restores system proxies. Excluding every
+                // domain selects direct connections; the excluded endpoint is never contacted.
+                nw_endpoint_t endpoint = nw_endpoint_create_host("127.0.0.1", "9");
+                nw_proxy_config_t policy = nw_proxy_config_create_http_connect(endpoint, NULL);
+                nw_proxy_config_add_excluded_domain(policy, "*");
+                configuration.websiteDataStore.proxyConfigurations = @[policy];
+                nw_release(policy);
+                nw_release(endpoint);
+            }
         }
         WKUserContentController *controller = configuration.userContentController;
         [controller addScriptMessageHandler:bridge name:@"viva"];

@@ -11,6 +11,8 @@ import (
 	"sync"
 	"syscall"
 	"unsafe"
+
+	"github.com/vivaui/viva/internal/platform"
 )
 
 // WebView2 without WebView2Loader.dll: the loader's job is to find the installed runtime and call
@@ -329,6 +331,9 @@ func proxyBrowserArguments(existing, proxy string) string {
 		" --proxy-bypass-list=<-loopback>" +
 		` "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE ` + proxyHost(proxy) + `"` +
 		" --force-webrtc-ip-handling-policy=disable_non_proxied_udp"
+	if proxy == platform.WebProxyDirect {
+		arguments = "--no-proxy-server"
+	}
 	if existing = strings.TrimSpace(existing); existing != "" {
 		return existing + " " + arguments
 	}
