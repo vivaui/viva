@@ -76,11 +76,9 @@ type transport interface {
 type Handler struct {
 	// Commit delivers text the user has chosen.
 	Commit func(text string)
-	// Preedit shows, replaces or (visible false) hides the text being composed.
-	// cursor is a count of characters into text, and attrs style stretches of it:
-	// an engine marks the clause being converted with a background or a heavier
-	// underline.
-	Preedit func(text string, cursor int, visible bool, attrs []Attribute)
+	// Preedit preserves the signal's update/visibility provenance and optional
+	// focus-out mode. Attributes are context-owned and must not be modified.
+	Preedit func(PreeditEvent)
 	// DeleteSurrounding asks the client to delete count characters of the text
 	// around the caret, starting offset characters from it (a negative offset is
 	// before it). The engine does so to replace text it is about to convert again.
@@ -88,6 +86,33 @@ type Handler struct {
 	// Forward asks the client to treat a key as if it had been typed, which an
 	// engine does for a key it took apart (an Enter that ends a composition).
 	Forward func(keysym, keycode, state uint32)
+}
+
+// PreeditKind distinguishes a text update from visibility-only signals.
+type PreeditKind uint8
+
+const (
+	PreeditUpdate PreeditKind = iota
+	PreeditShow
+	PreeditHide
+)
+
+const (
+	PreeditModeClear  uint32 = 0
+	PreeditModeCommit uint32 = 1
+)
+
+// PreeditEvent is one native signal. An empty Text is not a terminal phase;
+// HasMode distinguishes the old signal from UpdatePreeditTextWithMode. Unknown
+// mode values are preserved for the caller to handle without guessing policy.
+type PreeditEvent struct {
+	Text       string
+	Attributes []Attribute
+	Cursor     int
+	Mode       uint32
+	Kind       PreeditKind
+	Visible    bool
+	HasMode    bool
 }
 
 // Attribute styles the characters [Start, End) of preedit text. Kind is one of
@@ -123,9 +148,7 @@ type Context struct {
 	handler Handler
 	// preedit remembers the last preedit text, for a daemon that hides and later
 	// shows it again without sending it twice.
-	preedit       string
-	preeditCursor int
-	preeditAttrs  []Attribute
+	preedit PreeditEvent
 }
 
 // Address finds the IBus daemon's bus address the way libibus does: the
@@ -408,27 +431,47 @@ func (context *Context) signal(message *dbus.Message) {
 		if text, ok := readText(args, message.Signature); ok && context.handler.Commit != nil {
 			context.handler.Commit(text)
 		}
-	case "UpdatePreeditText":
+	case "UpdatePreeditText", "UpdatePreeditTextWithMode":
+		withMode := message.Member == "UpdatePreeditTextWithMode"
+		wantSignature := "vub"
+		if withMode {
+			wantSignature = "vubu"
+		}
+		if message.Signature != wantSignature {
+			return
+		}
 		text, attrs, ok := readStyledText(args, message.Signature)
 		if !ok {
 			return
 		}
-		cursor := int(args.Uint32())
-		visible := args.Bool()
-		if args.Err() != nil {
+		event := PreeditEvent{Text: text, Attributes: attrs, Cursor: int(args.Uint32()), Visible: args.Bool(), HasMode: withMode}
+		if withMode {
+			event.Mode = args.Uint32()
+		}
+		if args.Err() != nil || args.Pos() != len(message.Body) {
 			return
 		}
-		context.preedit, context.preeditCursor, context.preeditAttrs = text, cursor, attrs
+		context.preedit = event
 		if context.handler.Preedit != nil {
-			context.handler.Preedit(text, cursor, visible, attrs)
+			context.handler.Preedit(event)
 		}
 	case "ShowPreeditText":
+		if message.Signature != "" || len(message.Body) != 0 {
+			return
+		}
 		if context.handler.Preedit != nil {
-			context.handler.Preedit(context.preedit, context.preeditCursor, true, context.preeditAttrs)
+			event := context.preedit
+			event.Kind, event.Visible = PreeditShow, true
+			context.handler.Preedit(event)
 		}
 	case "HidePreeditText":
+		if message.Signature != "" || len(message.Body) != 0 {
+			return
+		}
 		if context.handler.Preedit != nil {
-			context.handler.Preedit(context.preedit, context.preeditCursor, false, context.preeditAttrs)
+			event := context.preedit
+			event.Kind, event.Visible = PreeditHide, false
+			context.handler.Preedit(event)
 		}
 	case "DeleteSurroundingText":
 		offset, count := args.Int32(), args.Uint32()

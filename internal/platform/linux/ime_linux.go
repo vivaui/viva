@@ -67,8 +67,10 @@ func (application *linuxApplication) newIME(win *window, textInput *linuxTextInp
 	}
 	ime := &linuxIME{app: application, text: textInput, router: router, origin: win.contentOrigin}
 	context, err := bus.NewContext("viva", ibus.Handler{
-		Commit:  ime.commit,
-		Preedit: ime.preedit,
+		Commit: ime.commit,
+		Preedit: func(event ibus.PreeditEvent) {
+			ime.preedit(event.Text, event.Cursor, event.Visible, event.Attributes)
+		},
 		Forward: ime.forward,
 
 		DeleteSurrounding: ime.deleteSurrounding,
