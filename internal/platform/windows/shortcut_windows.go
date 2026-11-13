@@ -28,11 +28,12 @@ func altGrHeld() bool {
 	return platform.IsAltGr(keyIsDown(0xa5), keyIsDown(0xa2), keyIsDown(0xa3))
 }
 
-// shortcutKeyText is the text a key message names in a shortcut: the letter or
+// chordKeyText is the character a key message names in a chord: the letter or
 // digit of its virtual key, which does not depend on the keyboard layout, or the
-// character a punctuation key types under the layout, as "," in Control+, or
-// "=" in Control+=. Empty for any other key, or for a dead key.
-func shortcutKeyText(first, second uintptr, shift bool) string {
+// character a punctuation key types under the layout, as "," in Control+ or "="
+// in Control+=. shift says whether the character is the one Shift types. Empty
+// for any other key, or for a dead key.
+func chordKeyText(first, second uintptr, shift bool) string {
 	if text := shortcutText(first); text != "" || !platform.ShortcutPunctuationKey(first) {
 		return text
 	}
@@ -59,7 +60,7 @@ func (state *windowState) offerShortcut(first, second uintptr, mods input.Modifi
 		(normalizedKey(first) != input.KeyUnknown && normalizedKey(first) != input.KeySpace && normalizedKey(first) != input.KeyEnter) {
 		return false
 	}
-	event := platform.KeyEvent{Modifiers: mods, Repeat: second&(1<<30) != 0, Text: shortcutKeyText(first, second, mods&input.ModifierShift != 0)}
+	event := platform.KeyEvent{Modifiers: mods, Repeat: second&(1<<30) != 0, Text: chordKeyText(first, second, mods&input.ModifierShift != 0)}
 	if normalizedKey(first) == input.KeyEnter {
 		event.Key = input.KeyEnter
 	}

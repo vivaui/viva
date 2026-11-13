@@ -159,7 +159,14 @@ func (state *windowState) keyDown(first, second uintptr, mods input.Modifiers) b
 		return true
 	}
 	chord := mods&(input.ModifierControl|input.ModifierMeta) != 0
-	if text := shortcutText(first); chord && text != "" {
+	text := shortcutText(first)
+	if chord && text == "" && !altGrHeld() {
+		// A punctuation key names its chord by the character the layout gives
+		// it: Control+minus and Control+comma type no text of their own. AltGr
+		// is left alone, because WM_CHAR delivers the character it types.
+		text = chordKeyText(first, second, false)
+	}
+	if chord && text != "" {
 		state.sendKey(platform.KeyEvent{Modifiers: mods, Repeat: repeat, Code: code, Text: text, Win32: win32Key(first, second, 0, uint16(second&0xffff))})
 		return true
 	}
@@ -233,7 +240,7 @@ func (state *windowState) terminalKeyEvent(first, second uintptr, mods input.Mod
 		return platform.KeyEvent{Key: key, Modifiers: mods, Repeat: repeat, Code: keyCode(first, second), Win32: win32Key(first, second, 0, uint16(second&0xffff))}, true
 	}
 	if mods&(input.ModifierControl|input.ModifierMeta) != 0 && mods&input.ModifierAlt == 0 {
-		if text := shortcutText(first); text != "" {
+		if text := chordKeyText(first, second, false); text != "" {
 			return platform.KeyEvent{Modifiers: mods, Repeat: repeat, Text: text, Code: keyCode(first, second), Win32: win32Key(first, second, 0, uint16(second&0xffff))}, true
 		}
 	}
