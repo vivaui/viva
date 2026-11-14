@@ -54,6 +54,9 @@ func (editor *Editor) Transact(apply func(*Editor) error) error {
 	if recorder.lines != nil {
 		contexts = slices.Clone(recorder.lines.entries)
 	}
+	// The transaction restores one selection, so a multi-selection ends when the
+	// batch commits (and after a failed callback the source keeps it).
+	editor.clearSecondary()
 	if len(primitives) == 0 && value == before {
 		editor.SetSelection(after)
 		return nil

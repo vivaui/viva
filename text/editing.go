@@ -118,6 +118,7 @@ func WordRange(value string, index int) Range {
 // original caret, rather than an artificial selection used to delete the word.
 func (editor *Editor) DeleteWord(forward bool) {
 	editor.BreakUndoGroup()
+	editor.clearSecondary() // a word deletion is a single-selection edit
 	if editor.Selection().Start != editor.Selection().End || editor.composing {
 		editor.DeleteBackward()
 		editor.BreakUndoGroup()
@@ -160,6 +161,7 @@ func (editor *Editor) MoveLineBoundary(end, extend bool) {
 // by them with MoveTo.
 func (editor *Editor) DeleteToLineBoundary(end bool) {
 	editor.BreakUndoGroup()
+	editor.clearSecondary() // a line deletion is a single-selection edit
 	selection := editor.Selection()
 	if selection.Start != selection.End || editor.composing {
 		editor.DeleteBackward()

@@ -155,6 +155,9 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 
 func (editor *Editor) commitBatch(target Range, replacement string, primitives []Edit, contexts []lineContext, after *Range) {
 	target = normalizeRange(target, len(editor.runes))
+	// A batch leaves the one selection it names; the multi-selection paths
+	// reinstall their set after the call.
+	editor.clearSecondary()
 	before := editor.selectionState()
 	journal := editor.journal
 	editor.journal = nil

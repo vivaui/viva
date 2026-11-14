@@ -4,6 +4,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/text"
 )
 
 // InputSnapshot is one caller-owned single-line editor presentation. Value is
@@ -36,12 +37,19 @@ type InputSnapshot struct {
 	// can put the line a fraction of a pixel away from the canvas line; with the text
 	// painted here it cannot move when the field opens. A fixed-pitch field does this
 	// always (see InputTextStyle.Mono).
-	HideEditorText   bool
-	NavigationKeys   bool
-	ShowCaret        bool
-	Caret            int
-	SelectionStart   int
-	SelectionEnd     int
+	HideEditorText bool
+	NavigationKeys bool
+	ShowCaret      bool
+	Caret          int
+	SelectionStart int
+	SelectionEnd   int
+	// SelectionRanges, when nonempty, replaces the single selection for
+	// painting: the selections of a multi-selection editor (see
+	// text.Editor.SelectionSpansInto). They are byte offsets into Value, in
+	// order, non-overlapping, and may sit anywhere on the line. Collapsed ones
+	// paint nothing. The caret is still Caret, so only the primary selection has
+	// one.
+	SelectionRanges  []text.Span
 	CompositionStart int
 	CompositionEnd   int
 	// Text styles the text of the field: its size, weight and color. The zero value is the
@@ -198,6 +206,9 @@ func inputPaintText(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, snaps
 		snapshot.Caret = inputMaskOffset(snapshot.Value, snapshot.Caret)
 		snapshot.SelectionStart = inputMaskOffset(snapshot.Value, snapshot.SelectionStart)
 		snapshot.SelectionEnd = inputMaskOffset(snapshot.Value, snapshot.SelectionEnd)
+		// The offsets of a range would index the mask, not the value, and a
+		// password field has no multi-selection to paint.
+		snapshot.SelectionRanges = nil
 		snapshot.CompositionStart = inputMaskOffset(snapshot.Value, snapshot.CompositionStart)
 		snapshot.CompositionEnd = inputMaskOffset(snapshot.Value, snapshot.CompositionEnd)
 	}
@@ -229,15 +240,20 @@ func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value,
 	var ranges [4]gfx.Rect
 	selectionStart, selectionEnd := inputRange(value, snapshot.SelectionStart, snapshot.SelectionEnd)
 	var selections []gfx.Rect
-	if selectionEnd > selectionStart && !placeholderShown {
+	if len(snapshot.SelectionRanges) > 0 {
+		// A multi-selection editor: every range is painted, so two selections on
+		// the one line show as two bands. The primary's Caret is the only caret.
+		selections = ranges[:0]
+		for _, span := range snapshot.SelectionRanges {
+			start, end := inputRange(value, span.Start, span.End)
+			if end > start && !placeholderShown {
+				selections = inputTextRanges(canvas, selections, bounds, bandTop, bandHeight, origin, value, textStyle, start, end)
+			}
+		}
+		selections = fillInputSelections(canvas, theme, snapshot, selections)
+	} else if selectionEnd > selectionStart && !placeholderShown {
 		selections = inputTextRanges(canvas, ranges[:0], bounds, bandTop, bandHeight, origin, value, textStyle, selectionStart, selectionEnd)
-		selectionColor, _ := selectionColors(theme)
-		if snapshot.Disabled {
-			selectionColor.Alpha *= 0.50
-		}
-		for _, selection := range selections {
-			canvas.Fill(selection, selectionColor)
-		}
+		selections = fillInputSelections(canvas, theme, snapshot, selections)
 	}
 	compositionStart, compositionEnd := inputRange(value, snapshot.CompositionStart, snapshot.CompositionEnd)
 	if compositionEnd > compositionStart && !placeholderShown {
@@ -278,6 +294,23 @@ func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value,
 		canvas.Unclip()
 	}
 	canvas.Unclip()
+}
+
+// fillInputSelections paints the bands of the field's selections and returns
+// them, so the selected glyphs can be repainted in the selection foreground
+// afterwards.
+func fillInputSelections(canvas *gfx.Canvas, theme gfx.Theme, snapshot InputSnapshot, selections []gfx.Rect) []gfx.Rect {
+	if len(selections) == 0 {
+		return selections
+	}
+	selectionColor, _ := selectionColors(theme)
+	if snapshot.Disabled {
+		selectionColor.Alpha *= 0.50
+	}
+	for _, selection := range selections {
+		canvas.Fill(selection, selectionColor)
+	}
+	return selections
 }
 
 // inputTextRanges appends the rectangles of the bytes [start, end) of value, a line drawn

@@ -68,9 +68,13 @@ type textChange struct {
 // thread, where native input and painting run. Read a string snapshot there
 // before starting background work; the returned string remains valid after edits.
 type Editor struct {
-	runes               []rune
-	anchor              int
-	caret               int
+	runes  []rune
+	anchor int
+	caret  int
+	// secondary is the multi-selection's other selections, normalized: ordered
+	// and disjoint from the primary. It is empty in every editor that never
+	// calls AddSelection or SetSelections. See multiselection.go.
+	secondary           []editorSelection
 	composition         Range
 	composing           bool
 	compositionOriginal []rune
@@ -219,6 +223,7 @@ func (editor *Editor) SetSelection(selection Range) {
 	}
 	editor.anchor = anchor
 	editor.caret = caret
+	editor.clearSecondary()
 	editor.composing = false
 	editor.releaseCompositionHistory()
 }
@@ -226,7 +231,8 @@ func (editor *Editor) SetSelection(selection Range) {
 // MoveTo puts the caret at rune index, or with extend moves it there from where
 // it was and keeps the other end of the selection where it is. It is how an
 // editor applies a movement the text itself does not know, such as one line up
-// in text a view has wrapped. It ends active composition.
+// in text a view has wrapped. It ends active composition and, like any single
+// selection movement, drops the secondary selections.
 func (editor *Editor) MoveTo(index int, extend bool) {
 	editor.BreakUndoGroup()
 	index = clamp(index, 0, len(editor.runes))
@@ -235,6 +241,7 @@ func (editor *Editor) MoveTo(index int, extend bool) {
 	} else {
 		editor.collapse(index)
 	}
+	editor.clearSecondary()
 	editor.composing = false
 	editor.releaseCompositionHistory()
 }
@@ -245,8 +252,13 @@ func (editor *Editor) Composition() (Range, bool) {
 }
 
 // Insert replaces the current selection or composition and places the caret
-// after inserted text.
+// after inserted text. With several selections it replaces every one and leaves
+// a caret after each copy, as CodeMirror does; a composition, an overwriting
+// editor and a restricted one take the primary alone.
 func (editor *Editor) Insert(value string) {
+	if editor.multiInsert(value) {
+		return
+	}
 	target := editor.Selection()
 	wasComposing := editor.composing
 	if wasComposing {
@@ -284,6 +296,11 @@ func (editor *Editor) Paste(value string) {
 // text. selected is relative to the marked text, matching native IME APIs.
 func (editor *Editor) SetMarkedText(value string, selected Range) {
 	wasComposing := editor.composing
+	if !wasComposing {
+		// The input method composes at the caret: a multi-selection ends here, as
+		// it does for any edit made through one selection.
+		editor.clearSecondary()
+	}
 	target := editor.Selection()
 	if wasComposing {
 		target = editor.composition
@@ -361,8 +378,12 @@ func (editor *Editor) CancelComposition() bool {
 	return true
 }
 
-// DeleteBackward removes the selection or previous grapheme cluster.
+// DeleteBackward removes the selection or previous grapheme cluster. With
+// several selections it removes at every one, as one undo unit.
 func (editor *Editor) DeleteBackward() bool {
+	if editor.multiDelete(false) {
+		return true
+	}
 	if editor.deleteSelectionOrComposition() {
 		return true
 	}
@@ -383,8 +404,12 @@ func (editor *Editor) DeleteBackward() bool {
 	return true
 }
 
-// DeleteForward removes the selection or next grapheme cluster.
+// DeleteForward removes the selection or next grapheme cluster. With several
+// selections it removes at every one, as one undo unit.
 func (editor *Editor) DeleteForward() bool {
+	if editor.multiDelete(true) {
+		return true
+	}
 	if editor.deleteSelectionOrComposition() {
 		return true
 	}
@@ -406,6 +431,7 @@ func (editor *Editor) DeleteForward() bool {
 // UAX #9 displays it in.
 func (editor *Editor) MoveLeft(extend bool) bool {
 	editor.BreakUndoGroup()
+	editor.clearSecondary() // a movement moves the primary selection alone
 	editor.composing = false
 	editor.releaseCompositionHistory()
 	selection := editor.Selection()
@@ -430,6 +456,7 @@ func (editor *Editor) MoveLeft(extend bool) bool {
 // (see MoveLeft).
 func (editor *Editor) MoveRight(extend bool) bool {
 	editor.BreakUndoGroup()
+	editor.clearSecondary() // see MoveLeft
 	editor.composing = false
 	editor.releaseCompositionHistory()
 	selection := editor.Selection()
@@ -507,6 +534,7 @@ func (editor *Editor) deleteSelectionOrComposition() bool {
 func (editor *Editor) collapse(index int) {
 	editor.anchor = index
 	editor.caret = index
+	editor.clearSecondary()
 }
 
 // replace swaps target for value, applying the Restrict limits, and returns the
@@ -659,6 +687,7 @@ func (editor *Editor) selectionState() editorSelection {
 func (editor *Editor) restoreSelection(selection editorSelection) {
 	editor.anchor = clamp(selection.anchor, 0, len(editor.runes))
 	editor.caret = clamp(selection.caret, 0, len(editor.runes))
+	editor.clearSecondary()
 	editor.composing = false
 	editor.releaseCompositionHistory()
 }

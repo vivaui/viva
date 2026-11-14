@@ -42,6 +42,9 @@ type Field struct {
 	// declaration found it edited since the one before (Box.Changed).
 	seen    string
 	changed bool
+	// spans is the scratch the secondary selections' byte offsets are copied
+	// into each paint.
+	spans []text.Span
 	// area lays a field out in rows when it is declared as a FieldArea; nil until it
 	// is. rows is whether the last declaration was one: a field declared as a
 	// FieldArea once and as a Field since keeps its layout but moves by its line.
@@ -120,6 +123,7 @@ func (f *frame) FieldArea(field *Field, id gfx.ID, label, placeholder string) Bo
 		ID: input.ID, Label: input.Label, Value: input.Value, DisplayValue: input.Value, Placeholder: placeholder,
 		Focused: input.Focused, HideEditorText: true, ShowCaret: input.ShowCaret, Layout: field.area,
 		Caret: input.Caret, SelectionStart: input.SelectionStart, SelectionEnd: input.SelectionEnd,
+		SelectionRanges:  input.SelectionRanges,
 		CompositionStart: input.CompositionStart, CompositionEnd: input.CompositionEnd,
 	})
 }
@@ -173,6 +177,14 @@ func (field *Field) snapshot(f *frame, id gfx.ID, label, placeholder string) com
 	snapshot.Caret = editor.ByteOffset(editor.Caret())
 	snapshot.SelectionStart, snapshot.SelectionEnd = editor.ByteOffset(selection.Start), editor.ByteOffset(selection.End)
 	snapshot.ShowCaret = focused && selection.Start == selection.End
+	if editor.SelectionCount() > 1 {
+		// A field bound to a multi-selection editor paints every selection; the
+		// platform's own editor behind it still sees only the primary one. The
+		// field is the editor's owner, not a copy: a caller that adds a selection
+		// sees it without another declaration.
+		snapshot.SelectionRanges = editor.SelectionSpansInto(field.spans)
+		field.spans = snapshot.SelectionRanges
+	}
 	if marked, ok := editor.Composition(); ok {
 		snapshot.CompositionStart, snapshot.CompositionEnd = editor.ByteOffset(marked.Start), editor.ByteOffset(marked.End)
 	}
