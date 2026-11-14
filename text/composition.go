@@ -1,6 +1,7 @@
 package text
 
 import (
+	"sync/atomic"
 	"unicode/utf8"
 	"unsafe"
 )
@@ -37,14 +38,31 @@ type CompositionEvent struct {
 	HasReplacementUTF16 bool
 }
 
+// CompositionIdentity is the comparable, opaque owner of one enabled
+// composition capability. The zero value denotes an unowned snapshot.
+type CompositionIdentity struct {
+	source uint64
+}
+
+var compositionIdentities atomic.Uint64
+
+func nextCompositionIdentity() CompositionIdentity {
+	source := compositionIdentities.Add(1)
+	for source == 0 {
+		source = compositionIdentities.Add(1)
+	}
+	return CompositionIdentity{source: source}
+}
+
 // compositionState is the optional sidecar. It owns the physical tentative
 // boundary, the one pending producer frame and the bounded retention
 // descriptor; it never copies source text.
 type compositionState struct {
-	owner *Editor
-	ops   compositionOps
-	event *historyEvent
-	cost  int
+	owner    *Editor
+	identity CompositionIdentity
+	ops      compositionOps
+	event    *historyEvent
+	cost     int
 	// unitStart is the rollback boundary: the first tentative unit after any
 	// ordinary pre-start deletion. eventStart is the atomic delivery boundary:
 	// it also includes that ordinary deletion. They are deliberately distinct.
@@ -103,6 +121,7 @@ func (editor *Editor) EnableTentativeComposition() (ok bool) {
 		}
 		state.enabled = true
 		state.passive = false
+		state.identity = nextCompositionIdentity()
 		return true
 	}
 	if editor.composing || editor.accept != nil || editor.maxRunes > 0 {
@@ -126,6 +145,7 @@ func (editor *Editor) EnableTentativeComposition() (ok bool) {
 	editor.journal = journal
 	journal.setCompositionState(&compositionState{
 		owner:      editor,
+		identity:   nextCompositionIdentity(),
 		ops:        compositionOps{apply: applyCompositionOwned, committed: compositionCommittedText, settle: settleCompositionStorage, trimCost: compositionTrimCostOwned, trim: trimCompositionHistoryOwned},
 		cost:       cost,
 		unitStart:  -1,
@@ -196,6 +216,23 @@ func (editor *Editor) CompositionActive() bool {
 func (editor *Editor) TentativeCompositionEnabled() bool {
 	state := editor.compositionState()
 	return state != nil && state.enabled
+}
+
+// TentativeCompositionActive reports an owned explicit rollback boundary. A
+// legacy marked string alone does not establish that boundary. The read is
+// nil-safe and does not allocate or enable optional state.
+func (editor *Editor) TentativeCompositionActive() bool {
+	return editor.tentativeActive()
+}
+
+// TentativeCompositionIdentity snapshots ownership without allocating,
+// enabling optional state or retaining the editor. Disabled owners are zero.
+func (editor *Editor) TentativeCompositionIdentity() CompositionIdentity {
+	state := editor.compositionState()
+	if state != nil && state.enabled {
+		return state.identity
+	}
+	return CompositionIdentity{}
 }
 
 // ApplyComposition handles one explicit event. True includes valid no-ops;
