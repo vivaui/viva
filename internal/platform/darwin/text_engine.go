@@ -112,7 +112,7 @@ func (engine *TextEngine) MonoCell(size float32, face gfx.MonoFace) gfx.MonoCell
 	if err != nil {
 		return gfx.MonoCellMetrics{}
 	}
-	return gfx.MonoCellMetrics{Advance: metrics.Width, Ascent: metrics.Ascent, Descent: metrics.Descent, LineGap: metrics.Leading, Underline: metrics.Underline}
+	return gfx.MonoCellMetrics{Advance: metrics.Width, Ascent: metrics.Ascent, Descent: metrics.Descent, LineGap: metrics.Leading, Rule: metrics.Rule, HeavyRule: metrics.HeavyRule}
 }
 
 // FontGeneration implements gfx.FontFamilyAware.

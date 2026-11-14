@@ -57,8 +57,9 @@ func (s *sprite) drawAt(index int) {
 }
 
 // shapes is what gfx draws for r in a cell of the atlas's size: device pixels from the cell's
-// corner. The rule a cell glyph is drawn with is 5% of the text's size until a text engine reports
-// the underline thickness (see gfx cellLine), so the atlas's rule asks for the size that gives it.
+// corner. A cell glyph's rule is the stroke its face draws a light box drawing line with, and
+// the reference 5% of the text's size until a text engine measures the face (see gfx cellLine),
+// so the atlas's rule asks for the size that gives it.
 func (s *sprite) shapes(r rune) gfx.CellGlyphShapes {
 	value := string(r)
 	bounds := gfx.Rect{Width: float32(s.atlas.width), Height: float32(s.atlas.height)}

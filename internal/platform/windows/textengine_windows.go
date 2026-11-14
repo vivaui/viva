@@ -186,12 +186,14 @@ func (engine *textEngine) MonoCell(size float32, face gfx.MonoFace) gfx.MonoCell
 	if err != nil {
 		return gfx.MonoCellMetrics{}
 	}
+	rule, heavy := engine.services.boxStrokes(family, size, 0)
 	return gfx.MonoCellMetrics{
 		Advance:   metrics.Width,
 		Ascent:    metrics.Ascent,
 		Descent:   metrics.Descent,
 		LineGap:   max(metrics.Height-metrics.Ascent-metrics.Descent, 0),
-		Underline: engine.services.underline(family, size, 0),
+		Rule:      rule,
+		HeavyRule: heavy,
 	}
 }
 

@@ -312,23 +312,31 @@ func TestMeasureTextIsWiderAtAHeavierWeight(t *testing.T) {
 	}
 }
 
-// The engine reports the thickness the font underlines with, in logical pixels at the size
-// asked: that is the rule a cell glyph is drawn with, so box drawing geometry weighs what
-// the font's own glyphs weigh. Pango reads it from the face; a face that files no underline
-// thickness answers 0, and the canvas then uses the reference thickness.
-func TestTheEngineReportsTheFontsUnderline(t *testing.T) {
+// The engine reports the thicknesses the face draws its own box drawing lines with, in
+// logical pixels at the size asked: those are the strokes a cell glyph is drawn with, so box
+// drawing geometry weighs what the font's own glyphs weigh. Pango measures the ink of the
+// light and heavy stems; a face that has no box drawing glyph answers 0 for it, and the
+// canvas then uses the reference thickness.
+func TestTheEngineReportsTheFontsBoxDrawingStrokes(t *testing.T) {
 	engine := sharedTextEngine()
 	cell := engine.MonoCell(13, gfx.MonoSystem)
 	if cell.Advance <= 0 {
 		t.Fatal("no fixed-pitch cell on this runner")
 	}
-	if cell.Underline == 0 {
-		t.Skip("the runner's fixed-pitch face reports no underline thickness")
+	if cell.Rule == 0 {
+		t.Skip("the runner's fixed-pitch face has no light box drawing glyph")
 	}
-	if cell.Underline < 0 || cell.Underline >= cell.Advance {
-		t.Fatalf("underline %v of a cell %v wide, want a positive stroke narrower than the cell", cell.Underline, cell.Advance)
+	if cell.Rule < 0 || cell.Rule >= cell.Advance {
+		t.Fatalf("light line %v of a cell %v wide, want a positive stroke narrower than the cell", cell.Rule, cell.Advance)
 	}
-	if at26 := engine.MonoCell(26, gfx.MonoSystem); at26.Underline <= cell.Underline {
-		t.Errorf("underline %v at size 26, %v at size 13, want it to follow the size", at26.Underline, cell.Underline)
+	if cell.HeavyRule > 0 && cell.HeavyRule < cell.Rule {
+		t.Fatalf("heavy line %v is thinner than the light one %v", cell.HeavyRule, cell.Rule)
+	}
+	at26 := engine.MonoCell(26, gfx.MonoSystem)
+	if at26.Rule <= cell.Rule {
+		t.Errorf("light line %v at size 26, %v at size 13, want it to follow the size", at26.Rule, cell.Rule)
+	}
+	if cell.HeavyRule > 0 && at26.HeavyRule <= cell.HeavyRule {
+		t.Errorf("heavy line %v at size 26, %v at size 13, want it to follow the size", at26.HeavyRule, cell.HeavyRule)
 	}
 }

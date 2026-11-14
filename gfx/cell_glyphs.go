@@ -40,11 +40,12 @@ type CellGlyphShapes struct {
 	Triangles  []Triangle
 }
 
-// cellMetrics is the shape of one cell in whole device pixels: its size, the thickness a rule has
-// on it, and how far a shape may reach past it.
+// cellMetrics is the shape of one cell in whole device pixels: its size, the thicknesses a
+// light and a heavy stroke have on it, and how far a shape may reach past it.
 type cellMetrics struct {
 	width, height int32
 	rule          int32
+	heavy         int32
 	padX, padY    int32
 }
 
@@ -59,8 +60,8 @@ type cellGlyph struct {
 }
 
 // cellLine is a text seen as cells: the scale back to logical pixels, and what every cell of the
-// line has in common — its top edge on the device pixel grid, its height, the rule its font size
-// gives it, and the layer and clip its shapes are drawn in. The width is not here: it is the
+// line has in common — its top edge on the device pixel grid, its height, the strokes its face
+// draws, and the layer and clip its shapes are drawn in. The width is not here: it is the
 // distance to the next cell's snapped edge, so it belongs to the column.
 type cellLine struct {
 	text   Text
@@ -68,16 +69,16 @@ type cellLine struct {
 	top    float32 // the line's top edge, logical pixels, on the device pixel grid
 	height int32   // device pixels
 	padY   int32
-	// rule is one rule's thickness, in device pixels.
+	// rule and heavy are the thicknesses, in device pixels, of a light and a heavy stroke.
 	//
-	// It is the face's underline thickness (MonoCellMetrics.Underline) at the line's scale,
-	// rounded up to the whole device pixel a stroke covers: the weight the font itself draws
-	// an underline with, so a box drawing or block character drawn as geometry weighs what
-	// the font's own glyphs around it weigh, as in Ghostty (src/font/Metrics.zig). Rounding
-	// down would make a stroke thinner, relative to the glyphs, at every scale that leaves
-	// it a fraction of a pixel; the reference thickness stands in when no engine measured
-	// the face.
-	rule int32
+	// They are the strokes the face draws its own box drawing lines with
+	// (MonoCellMetrics.Rule and HeavyRule) at the line's scale, rounded to the nearest whole
+	// device pixel and never thinner than one: a box drawing or block character drawn as
+	// geometry then weighs what the font's own glyph weighs, where an underline thickness or
+	// a share of the font size is only a guess at that weight. The reference thicknesses
+	// stand in when no engine measured the face.
+	rule  int32
+	heavy int32
 }
 
 // rect fills the rectangle between two points of the cell, both in device pixels from its corner,
@@ -234,7 +235,7 @@ func (l cellLine) cellAt(column, cells int32) (Point, cellMetrics) {
 	to := round32((left + float64(column+cells)*float64(l.text.CellWidth)) * l.scale)
 	width := max(to-from, 1)
 	return Point{X: float32(float64(from) / l.scale), Y: l.top},
-		cellMetrics{width: width, height: l.height, rule: l.rule, padX: width / 4, padY: l.padY}
+		cellMetrics{width: width, height: l.height, rule: l.rule, heavy: l.heavy, padX: width / 4, padY: l.padY}
 }
 
 // place appends shapes to dst at the cell's corner, scaled back to logical pixels, in the run's
@@ -284,11 +285,13 @@ func (canvas *Canvas) cellLine(text Text) cellLine {
 	scale := canvas.deviceScale()
 	top := round32(float64(text.Bounds.Y) * scale)
 	height := max(round32(float64(text.Bounds.Y+text.Bounds.Height)*scale)-top, 1)
-	_, _, _, underline := canvas.monoCell(text.Style.Size, text.Style.MonoFace)
+	_, _, _, rule, heavy := canvas.monoCell(text.Style.Size, text.Style.MonoFace)
+	light := max(round32(float64(rule)*scale), 1)
 	return cellLine{
 		text: text, scale: scale, top: float32(float64(top) / scale),
 		height: height, padY: height / 4,
-		rule: max(ceil32(float64(underline)*scale), 1),
+		rule:  light,
+		heavy: max(round32(float64(heavy)*scale), light),
 	}
 }
 

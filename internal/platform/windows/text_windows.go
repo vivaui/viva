@@ -473,14 +473,17 @@ func (services *textServices) measureIn(typeface, value string, size, weight flo
 	return text.Metrics{Width: metrics.WidthTrailing, Height: metrics.Height, Ascent: line.Baseline, Descent: line.Height - line.Baseline}, nil
 }
 
-// Method slots of IDWriteFactory, IDWriteFontCollection, IDWriteFontFamily and
-// IDWriteFont (checked against dwrite.h).
+// Method slots of IDWriteFactory, IDWriteFontCollection, IDWriteFontFamily, IDWriteFont
+// and IDWriteFontFace (checked against dwrite.h).
 const (
 	writeFactoryGetSystemFontCollection = 3
 	writeCollectionGetFontFamily        = 4
 	writeCollectionFindFamilyName       = 5
 	writeFontFamilyGetFirstMatchingFont = 7
 	writeFontGetMetrics                 = 11
+	writeFontCreateFontFace             = 13
+	writeFontFaceGetDesignGlyphMetrics  = 10
+	writeFontFaceGetGlyphIndices        = 11
 )
 
 // writeFontMetrics is DWRITE_FONT_METRICS: the face's design units per em and the
@@ -495,16 +498,28 @@ type writeFontMetrics struct {
 	StrikethroughThickness            uint16
 }
 
-// underline is the thickness of the stroke typeface's face at weight underlines with, in
-// logical pixels, or 0 when DirectWrite cannot report it: the weight a fixed-pitch cell
-// glyph's rule takes.
-func (services *textServices) underline(typeface string, size, weight float32) float32 {
+// writeGlyphMetrics is DWRITE_GLYPH_METRICS: a glyph's advance and the bearings around
+// its ink, in design units.
+type writeGlyphMetrics struct {
+	LeftSideBearing   int32
+	AdvanceWidth      uint32
+	RightSideBearing  int32
+	TopSideBearing    int32
+	AdvanceHeight     uint32
+	BottomSideBearing int32
+	VerticalOriginY   int32
+}
+
+// boxStrokes reports the thicknesses, in logical pixels, of the strokes typeface's face at
+// weight draws a light (U+2502) and a heavy (U+2503) box drawing line with: the ink width of
+// each glyph, or 0 when DirectWrite cannot report it or the face lacks the glyph.
+func (services *textServices) boxStrokes(typeface string, size, weight float32) (light, heavy float32) {
 	if size <= 0 || typeface == "" {
-		return 0
+		return 0, 0
 	}
 	familyName, err := syscall.UTF16PtrFromString(typeface)
 	if err != nil {
-		return 0
+		return 0, 0
 	}
 	// The collection every text format is made from: the application's fonts and the
 	// system's, or the system's alone. A registered collection is held by the process
@@ -515,7 +530,7 @@ func (services *textServices) underline(typeface string, size, weight float32) f
 		customFonts.RUnlock()
 		status := comCall(services.write, writeFactoryGetSystemFontCollection, uintptr(unsafe.Pointer(&collection)), 0)
 		if err = hresult(status); err != nil || collection == 0 {
-			return 0
+			return 0, 0
 		}
 		owned = true
 	} else {
@@ -526,11 +541,11 @@ func (services *textServices) underline(typeface string, size, weight float32) f
 	}
 	var index, exists uint32
 	if err := hresult(comCall(collection, writeCollectionFindFamilyName, uintptr(unsafe.Pointer(familyName)), uintptr(unsafe.Pointer(&index)), uintptr(unsafe.Pointer(&exists)))); err != nil || exists == 0 {
-		return 0
+		return 0, 0
 	}
 	var family, font uintptr
 	if err := hresult(comCall(collection, writeCollectionGetFontFamily, uintptr(index), uintptr(unsafe.Pointer(&family)))); err != nil {
-		return 0
+		return 0, 0
 	}
 	defer release(&family)
 	const (
@@ -538,12 +553,37 @@ func (services *textServices) underline(typeface string, size, weight float32) f
 		styleNormal   = 0
 	)
 	if err := hresult(comCall(family, writeFontFamilyGetFirstMatchingFont, uintptr(nativeFontWeight(weight)), stretchNormal, styleNormal, uintptr(unsafe.Pointer(&font)))); err != nil {
-		return 0
+		return 0, 0
 	}
 	defer release(&font)
-	var metrics writeFontMetrics
-	if err := hresult(comCall(font, writeFontGetMetrics, uintptr(unsafe.Pointer(&metrics)))); err != nil || metrics.DesignUnitsPerEm == 0 {
-		return 0
+	var fontMetrics writeFontMetrics
+	if err := hresult(comCall(font, writeFontGetMetrics, uintptr(unsafe.Pointer(&fontMetrics)))); err != nil || fontMetrics.DesignUnitsPerEm == 0 {
+		return 0, 0
 	}
-	return float32(metrics.UnderlineThickness) / float32(metrics.DesignUnitsPerEm) * size
+	var face uintptr
+	if err := hresult(comCall(font, writeFontCreateFontFace, uintptr(unsafe.Pointer(&face)))); err != nil || face == 0 {
+		return 0, 0
+	}
+	defer release(&face)
+	codepoints := [2]uint32{0x2502, 0x2503} // │ ┃
+	var glyphs [2]uint16
+	if err := hresult(comCall(face, writeFontFaceGetGlyphIndices, uintptr(unsafe.Pointer(&codepoints[0])), uintptr(len(codepoints)), uintptr(unsafe.Pointer(&glyphs[0])))); err != nil {
+		return 0, 0
+	}
+	var glyphMetrics [2]writeGlyphMetrics
+	if err := hresult(comCall(face, writeFontFaceGetDesignGlyphMetrics, uintptr(unsafe.Pointer(&glyphs[0])), uintptr(len(glyphs)), uintptr(unsafe.Pointer(&glyphMetrics[0])), 0)); err != nil {
+		return 0, 0
+	}
+	em := float32(fontMetrics.DesignUnitsPerEm)
+	stroke := func(glyph uint16, metrics writeGlyphMetrics) float32 {
+		if glyph == 0 {
+			return 0
+		}
+		ink := int32(metrics.AdvanceWidth) - metrics.LeftSideBearing - metrics.RightSideBearing
+		if ink <= 0 {
+			return 0
+		}
+		return float32(ink) / em * size
+	}
+	return stroke(glyphs[0], glyphMetrics[0]), stroke(glyphs[1], glyphMetrics[1])
 }

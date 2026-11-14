@@ -41,14 +41,14 @@ func MeasureText(value string, fontSize, weight float32) (text.Metrics, error) {
 
 // measureMonoMetrics reports the system fixed-pitch font's character cell at a size: the
 // advance of one character, the line box around its baseline, and the thickness of the
-// stroke the font underlines with.
+// strokes the face draws its light and heavy box drawing lines with.
 func measureMonoMetrics(fontSize float32, face gfx.MonoFace) (text.Metrics, error) {
 	if fontSize <= 0 {
 		return text.Metrics{}, fmt.Errorf("darwin: font size must be positive")
 	}
 	syncMonoFamilies()
-	var advance, ascent, descent, leading, underline C.double
-	if status := C.viva_measure_mono(C.double(fontSize), C.int(face), &advance, &ascent, &descent, &leading, &underline); status != 0 {
+	var advance, ascent, descent, leading, rule, heavy C.double
+	if status := C.viva_measure_mono(C.double(fontSize), C.int(face), &advance, &ascent, &descent, &leading, &rule, &heavy); status != 0 {
 		return text.Metrics{}, fmt.Errorf("darwin: CoreText fixed-pitch measurement failed with status %d", status)
 	}
 	return text.Metrics{
@@ -57,7 +57,8 @@ func measureMonoMetrics(fontSize float32, face gfx.MonoFace) (text.Metrics, erro
 		Ascent:    float32(ascent),
 		Descent:   float32(descent),
 		Leading:   float32(leading),
-		Underline: float32(underline),
+		Rule:      float32(rule),
+		HeavyRule: float32(heavy),
 	}, nil
 }
 

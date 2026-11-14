@@ -7802,8 +7802,8 @@ int viva_measure_text(
     }
 }
 
-int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading, double *underline) {
-    if (advance == NULL || ascent == NULL || descent == NULL || leading == NULL || underline == NULL || font_size <= 0) {
+int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading, double *rule, double *heavy) {
+    if (advance == NULL || ascent == NULL || descent == NULL || leading == NULL || rule == NULL || heavy == NULL || font_size <= 0) {
         return 1;
     }
     @autoreleasepool {
@@ -7825,7 +7825,23 @@ int viva_measure_mono(double font_size, int mono_face, double *advance, double *
         *ascent = CTFontGetAscent(font);
         *descent = CTFontGetDescent(font);
         *leading = CTFontGetLeading(font);
-        *underline = CTFontGetUnderlineThickness(font);
+        // The weight of the face's own box drawing lines: the ink width of a light and a
+        // heavy stem, which the face may draw at a different weight than its underline.
+        // The lookup answers false when either is missing, and still fills the other, so
+        // each glyph is checked on its own.
+        *rule = 0;
+        *heavy = 0;
+        UniChar boxCharacters[2] = {0x2502, 0x2503};  /* │ ┃ */
+        CGGlyph boxGlyphs[2] = {0, 0};
+        CTFontGetGlyphsForCharacters(font, boxCharacters, boxGlyphs, 2);
+        CGRect bounds[2] = {CGRectZero, CGRectZero};
+        CTFontGetBoundingRectsForGlyphs(font, kCTFontOrientationHorizontal, boxGlyphs, bounds, 2);
+        if (boxGlyphs[0] != 0) {
+            *rule = bounds[0].size.width;
+        }
+        if (boxGlyphs[1] != 0) {
+            *heavy = bounds[1].size.width;
+        }
         CFRelease(font);
         return *advance > 0 ? 0 : 4;
     }
