@@ -363,6 +363,11 @@ func (w *gtkWindow) destroy() {
 		return
 	}
 	w.destroying = true
+	// Input modules may disconnect signals from the widget that owns this window.
+	if ime := w.ime; ime != nil {
+		w.ime = nil
+		ime.close()
+	}
 	w.g.widgetDestroy(w.toplevel)
 }
 
