@@ -71,9 +71,7 @@ func TestNativeEngineLifecycle(t *testing.T) {
 					t.Fatalf("unknown engine refusal=%v bus=%v", err, bus.Err())
 				}
 			}
-			if err := context.SetEngine(engine); err != nil {
-				t.Fatalf("SetEngine(%q): %v", engine, err)
-			}
+			nativeIBusSelectEngine(t, bus, context, engine)
 			reply, err := bus.conn.Call(service, context.path, contextInterface, "GetEngine", "", nil)
 			if err != nil || reply.Type == dbus.TypeError {
 				t.Fatalf("GetEngine: reply=%+v error=%v", reply, err)
@@ -140,6 +138,47 @@ func TestNativeEngineLifecycle(t *testing.T) {
 				t.Fatalf("engine=%s ending=%s cleared=%t visible=%t committed=%q want=%q", engine, ending, cleared, visible, committed, want)
 			}
 		})
+	}
+}
+
+func nativeIBusSelectEngine(t *testing.T, bus *Bus, context *Context, engine string) {
+	t.Helper()
+	reply, err := bus.conn.Call(service, busPath, service, "GetUseGlobalEngine", "", nil)
+	if err != nil {
+		t.Fatalf("UseGlobalEngine: %v", err)
+	}
+	if reply.Signature != "b" {
+		t.Fatalf("UseGlobalEngine signature: %q", reply.Signature)
+	}
+	args := reply.Args()
+	global := args.Bool()
+	if err := args.Err(); err != nil {
+		t.Fatalf("UseGlobalEngine decode: %v", err)
+	}
+	t.Logf("daemon UseGlobalEngine=%t", global)
+	err = context.SetEngine(engine)
+	if !global {
+		if err != nil {
+			t.Fatalf("SetEngine(%q): %v", engine, err)
+		}
+		return
+	}
+	var refusal *dbus.Error
+	if err != nil && (!errors.As(err, &refusal) || refusal.Name != "org.freedesktop.DBus.Error.Failed" ||
+		refusal.Text != "Cannot set engines when use-global-engine is enabled.") || bus.Err() != nil {
+		t.Fatalf("global mode context refusal=%v bus=%v", err, bus.Err())
+	}
+	t.Logf("global mode context selection refused=%t", err != nil)
+	// Each case needs a fresh engine even when the daemon shares it globally.
+	for _, name := range []string{"xkb:us::eng", engine} {
+		var selection dbus.Encoder
+		selection.String(name)
+		if _, err := bus.conn.Call(service, busPath, service, "SetGlobalEngine", "s", selection.Bytes()); err != nil {
+			t.Fatalf("SetGlobalEngine(%q): %v", name, err)
+		}
+	}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
 	}
 }
 

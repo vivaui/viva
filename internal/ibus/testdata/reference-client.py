@@ -11,6 +11,7 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gio, GLib, IBus
 
 if "--activation-environment" in sys.argv:
+    subprocess.run(["dconf", "write", "/viva/native-fixture/marker", "'isolated'"], check=True)
     session = Gio.bus_get_sync(Gio.BusType.SESSION, None)
     reply = session.call_sync(
         "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
@@ -25,7 +26,6 @@ if "--activation-environment" in sys.argv:
     print("Dconf activation environment:", json.dumps(checks), flush=True)
     if not all(checks.values()):
         raise RuntimeError("activated dconf service escaped the private profile")
-    subprocess.run(["dconf", "write", "/viva/native-fixture/marker", "'isolated'"], check=True)
     marker = subprocess.check_output(["dconf", "read", "/viva/native-fixture/marker"]).strip()
     database = os.path.join(os.environ["XDG_CONFIG_HOME"], "dconf", "user")
     if marker != b"'isolated'" or not os.path.isfile(database):
@@ -50,7 +50,14 @@ context = bus.create_input_context("viva-reference-probe")
 context.set_capabilities(IBus.Capabilite.PREEDIT_TEXT | IBus.Capabilite.FOCUS)
 context.focus_in()
 requested = os.environ.get("VIVA_IBUS_ENGINE", "libpinyin")
-context.set_engine(requested)
+global_engine = bus.get_use_global_engine()
+print("reference UseGlobalEngine", global_engine, flush=True)
+if global_engine:
+    for name in ["xkb:us::eng", requested]:
+        if not bus.set_global_engine(name):
+            raise RuntimeError("reference global engine selection failed: " + name)
+else:
+    context.set_engine(requested)
 deadline = time.monotonic() + 5
 while True:
     engine = context.get_engine()

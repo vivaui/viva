@@ -63,7 +63,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           go test -c -o "$RUNNER_TEMP/viva-ibus-native.test" ./internal/ibus
-          xvfb-run -a env VIVA_IBUS_TEST_BINARY="$RUNNER_TEMP/viva-ibus-native.test" sh internal/ibus/testdata/native-service.sh libpinyin hangul
+          xvfb-run -a env VIVA_IBUS_TEST_BINARY="$RUNNER_TEMP/viva-ibus-native.test" VIVA_IBUS_REFERENCE=1 sh internal/ibus/testdata/native-service.sh libpinyin hangul
       - name: Linux text callback ordering
         if: runner.os == 'Linux'
         run: go test -race ./internal/platform/linux -run '^TestLinuxTextCallback' -count=1 -timeout=90s
