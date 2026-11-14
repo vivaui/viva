@@ -40,15 +40,16 @@ type gtkIMEProbeTrial struct {
 }
 
 type gtkIMEProbe struct {
-	w       *gtkWindow
-	keys    gtkIMEProbeKeys
-	editor  *text.Editor
-	context uintptr
-	signals []string
-	events  []platform.TextEvent
-	hook    func(platform.TextEvent)
-	trials  []gtkIMEProbeTrial
-	freed   map[uintptr]bool
+	w        *gtkWindow
+	keys     gtkIMEProbeKeys
+	editor   *text.Editor
+	context  uintptr
+	signals  []string
+	events   []platform.TextEvent
+	hook     func(platform.TextEvent)
+	shortcut bool
+	trials   []gtkIMEProbeTrial
+	freed    map[uintptr]bool
 }
 
 var gtkIMEProbeActive *gtkIMEProbe
@@ -159,7 +160,11 @@ func (p *gtkIMEProbe) press(ctx uintptr, symbol, state uint32) error {
 	p.keys.setDevice(event, device)
 	handled := false
 	if ctx == p.w.ime.ctx {
-		handled = p.w.ime.filter(event)
+		if p.shortcut {
+			handled = p.w.ime.filterShortcut(event, platform.KeyEvent{}, string(rune(value)))
+		} else {
+			handled = p.w.ime.filter(event)
+		}
 	} else {
 		handled = g.imFilterKeypress(ctx, event) != 0
 	}
@@ -183,7 +188,7 @@ func (p *gtkIMEProbe) record(name string, failures ...string) {
 	for _, event := range p.events {
 		trial.events = append(trial.events, fmt.Sprintf("%d:%q", event.Kind, event.Text))
 	}
-	if mirror := p.w.text.state; mirror != platform.EditorState(p.editor).WithoutRedraw() {
+	if mirror := p.w.text.state; !p.w.closed && mirror != platform.EditorState(p.editor).WithoutRedraw() {
 		trial.failures = append(trial.failures, fmt.Sprintf("model/mirror differ: model=%+v mirror=%+v", platform.EditorState(p.editor), mirror))
 	}
 	p.trials = append(p.trials, trial)
@@ -294,6 +299,107 @@ func (p *gtkIMEProbe) run() {
 	}
 	p.hook = nil
 	p.record("native callback handoff", failures...)
+	for _, disabled := range []bool{false, true} {
+		p.frameHandoff(disabled)
+	}
+	for _, geometry := range []bool{false, true} {
+		p.shortcutHandoff(geometry)
+	}
+}
+
+func (p *gtkIMEProbe) frameHandoff(disabled bool) {
+	p.install(text.NewEditor("abc"), gfx.Item(1))
+	context := p.keys.ref(p.w.ime.ctx)
+	defer p.w.g.objectUnref(context)
+	called := false
+	p.w.config.FramePresented = func() {
+		p.w.config.FramePresented = nil
+		called = true
+		signal, value := cString("commit"), cString("z")
+		p.keys.emit(context, &signal[0], &value[0])
+	}
+	name := "frame presentation handoff"
+	if disabled {
+		name = "disabled frame presentation"
+		p.w.present(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true}}, nil)
+	} else {
+		p.install(text.NewEditor("next"), gfx.Item(2))
+	}
+	var failures []string
+	if !called || !disabled && p.editor.String() != "next" || disabled && p.editor.String() != "abc" {
+		failures = append(failures, fmt.Sprintf("retired context entered pending frame: called=%t text=%q", called, p.editor.String()))
+	}
+	if disabled && p.w.text.enabled {
+		failures = append(failures, "late native signal re-enabled disabled input")
+	}
+	if disabled {
+		p.install(p.editor, gfx.Item(1))
+	}
+	p.record(name, failures...)
+}
+
+func (p *gtkIMEProbe) shortcutHandoff(geometry bool) {
+	p.install(text.NewEditor("abc"), gfx.Item(1))
+	old := p.w.text.input
+	called := false
+	p.w.config.OnShortcut = func(platform.KeyEvent) (platform.Frame, bool, error) {
+		called = true
+		if geometry {
+			current := p.w.text.input
+			current.Width = old.Width + 20
+			p.w.present(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &current}}, nil)
+		} else {
+			p.install(text.NewEditor("next"), gfx.Item(2))
+		}
+		return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &old}}, false, nil
+	}
+	p.shortcut = true
+	var failures []string
+	if err := p.press(p.w.ime.ctx, 'r', 0); err != nil {
+		failures = append(failures, err.Error())
+	}
+	p.shortcut, p.w.config.OnShortcut = false, nil
+	name, want := "shortcut target handoff", "next"
+	if geometry {
+		name, want = "shortcut geometry handoff", "abcr"
+		if p.w.text.input.Width != old.Width+20 {
+			failures = append(failures, "stale shortcut frame overwrote newer input geometry")
+		}
+	}
+	if !called || p.editor.String() != want {
+		failures = append(failures, fmt.Sprintf("shortcut handoff: called=%t text=%q, want %q", called, p.editor.String(), want))
+	}
+	p.record(name, failures...)
+}
+
+func (p *gtkIMEProbe) closeDuringCommit() {
+	p.install(text.NewEditor("abc"), gfx.Item(1))
+	p.editor.SetSelection(text.Range{Start: 1, End: 2})
+	field := p.w.text.input
+	field.State = platform.EditorState(p.editor)
+	p.w.present(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}}, nil)
+	if err := p.compose(); err != nil {
+		p.record("close during native commit", err.Error())
+		p.w.destroy()
+		return
+	}
+	p.hook = func(event platform.TextEvent) {
+		if event.Kind == platform.TextSetMarked && event.Text == "" {
+			p.hook = nil
+			p.w.destroy()
+		}
+	}
+	p.events = nil
+	var failures []string
+	if err := p.press(p.w.ime.ctx, ' ', (1<<2)|(1<<0)); err != nil {
+		failures = append(failures, err.Error())
+	}
+	if !p.w.closed || p.w.ime != nil || p.w.text.enabled || p.editor.String() != "ac" || len(p.events) != 1 {
+		failures = append(failures, fmt.Sprintf("close in native callback: closed=%t ime=%t enabled=%t text=%q events=%d", p.w.closed, p.w.ime != nil, p.w.text.enabled, p.editor.String(), len(p.events)))
+	}
+	p.hook = nil
+	p.record("close during native commit", failures...)
+	p.w.destroy()
 }
 
 func TestGTKNativeComposition(t *testing.T) {
@@ -331,15 +437,25 @@ func TestGTKNativeComposition(t *testing.T) {
 		p.w = window.(*gtkWindow)
 		a.enqueue(func() {
 			p.run()
-			p.w.destroy()
+			// Run after default-priority idle releases, while the main loop is alive.
+			a.g.idleAddFull(300, callbacks().task, a.tasks.add(func() {
+				var failures []string
+				for context, freed := range p.freed {
+					if context != p.w.ime.ctx && !freed {
+						failures = append(failures, fmt.Sprintf("retired context %#x retained before shutdown", context))
+					}
+				}
+				p.record("idle retirement", failures...)
+				p.closeDuringCommit()
+			}), 0)
 		})
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.trials) != 8 {
-		t.Fatalf("native trials=%d, want 8", len(p.trials))
+	if len(p.trials) != 14 {
+		t.Fatalf("native trials=%d, want 14", len(p.trials))
 	}
 	for _, trial := range p.trials {
 		t.Logf("%s signals=%q text=%q events=%q", trial.name, trial.signals, trial.value, trial.events)
