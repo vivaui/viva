@@ -103,3 +103,51 @@ func TestItalicLabelSlantsGlyphsOfFontsWithoutAnItalicFace(t *testing.T) {
 		}
 	}
 }
+
+// A fixed-pitch grid run carries its own slant, as a code editor's comment does: the
+// same cells drawn with a slanted run must lean further right than the upright line.
+// The run flag word is what the native renderer reads.
+func TestItalicGridRunSlantsItsCells(t *testing.T) {
+	if got := textRunFlags(gfx.TextRun{Italic: true}); got&runItalic == 0 {
+		t.Fatalf("flags = %d, want the italic bit", got)
+	}
+	if got := textRunFlags(gfx.TextRun{Underline: true}); got&runItalic != 0 {
+		t.Fatalf("an upright run packed the italic bit: %d", got)
+	}
+	color := platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	const (
+		value = "comment text"
+		cell  = float32(12)
+	)
+	render := func(italic bool) ([]byte, int, int) {
+		offscreen, err := NewOffscreen(240, 40, 2, Color{Alpha: 1})
+		if err != nil {
+			t.Skipf("no Metal device: %v", err)
+		}
+		defer offscreen.Close()
+		runs := []gfx.TextRun{{
+			Bytes: int32(len(value)), Cells: int32(len(value)),
+			Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}, Italic: italic,
+		}}
+		err = offscreen.Set(nil, []TextLabel{{
+			Value: value, X: 0, Y: 4, Width: 240, Height: 30, FontSize: 20,
+			Color: color, Mono: true, CellWidth: cell, Runs: runs,
+		}}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pixels, width, height, err := offscreen.Render()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return pixels, width, height
+	}
+	upright, width, height := render(false)
+	slanted, _, _ := render(true)
+	if bytes.Equal(upright, slanted) {
+		t.Fatal("an italic grid run drew the upright glyphs")
+	}
+	if up, slant := leanOf(upright, width, height), leanOf(slanted, width, height); slant < up+0.5 {
+		t.Errorf("italic grid run leans %.2f px, upright %.2f; want the italic to lean right", slant, up)
+	}
+}

@@ -810,6 +810,7 @@ func gridRuns(dst []gfx.TextRun, line string, spec *gridRunSpec) (runs []gfx.Tex
 	from = -1
 	included, ascii := true, false
 	var last gfx.Color
+	var lastItalic bool
 	for at := 0; at < len(line); {
 		r, size := decodeAt(line, at)
 		representation, represented := representationOf(spec.representations, r)
@@ -839,6 +840,7 @@ func gridRuns(dst []gfx.TextRun, line string, spec *gridRunSpec) (runs []gfx.Tex
 				next++
 			}
 			color := spec.foreground
+			italic := false
 			if represented && spec.representationColor.Alpha != 0 {
 				color = spec.representationColor
 				if spec.disabled {
@@ -847,6 +849,7 @@ func gridRuns(dst []gfx.TextRun, line string, spec *gridRunSpec) (runs []gfx.Tex
 			}
 			if next < len(spec.highlight) && spec.highlight[next].Start <= relative {
 				color = spec.highlight[next].Color
+				italic = spec.highlight[next].Italic
 				if spec.disabled {
 					color.Alpha *= 0.5
 				}
@@ -877,13 +880,13 @@ func gridRuns(dst []gfx.TextRun, line string, spec *gridRunSpec) (runs []gfx.Tex
 			case width == 0 && len(dst) > 0:
 				dst[len(dst)-1].Bytes += int32(bytes)
 				ascii = false
-			case plain && ascii && color == last:
+			case plain && ascii && color == last && italic == lastItalic:
 				tail := &dst[len(dst)-1]
 				tail.Bytes += int32(bytes)
 				tail.Cells += int32(width)
 			default:
-				dst = append(dst, gfx.TextRun{Column: int32(column - startColumn), Bytes: int32(bytes), Cells: int32(width), Color: color})
-				ascii, last = plain, color
+				dst = append(dst, gfx.TextRun{Column: int32(column - startColumn), Bytes: int32(bytes), Cells: int32(width), Color: color, Italic: italic})
+				ascii, last, lastItalic = plain, color, italic
 			}
 			to = offset + bytes
 			endColumn = column + width
@@ -908,7 +911,7 @@ func cleanHighlight(line string, runs []CodeEditorRun) []CodeEditorRun {
 		if last <= first || first < previous || run.Color.Alpha == 0 {
 			continue
 		}
-		kept = append(kept, CodeEditorRun{Start: first, End: last, Color: run.Color})
+		kept = append(kept, CodeEditorRun{Start: first, End: last, Color: run.Color, Italic: run.Italic})
 		previous = last
 	}
 	return kept
