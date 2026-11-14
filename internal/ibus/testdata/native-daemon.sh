@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 command -v gdbus >/dev/null
+command -v gsettings >/dev/null
 reference_client=$(dirname "$0")/reference-client.py
 task_dir=$(dirname "$XDG_RUNTIME_DIR")
 daemon_pid=
@@ -14,6 +15,11 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' HUP TERM
+# Engine selection is context-owned, regardless of the desktop's IBus default.
+gsettings set org.freedesktop.ibus.general use-global-engine false
+engine_mode=$(gsettings get org.freedesktop.ibus.general use-global-engine)
+printf 'IBus use-global-engine: %s\n' "$engine_mode"
+[ "$engine_mode" = false ]
 ibus-daemon --panel=disable --config=/usr/libexec/ibus-dconf --emoji-extension=disable --cache=refresh --address "$IBUS_ADDRESS" > "$task_dir/daemon.log" 2>&1 &
 daemon_pid=$!
 attempt=0
