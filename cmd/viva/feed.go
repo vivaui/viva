@@ -480,6 +480,14 @@ func addPatches(assets []update.Asset, froms []patchFrom, excludes []string, dir
 		if len(froms) == 0 {
 			continue
 		}
+		switch {
+		case asset.OS == "windows" && asset.Format != update.FormatZIP:
+			continue // an NSIS setup is an installer; the portable zip carries the payload
+		case asset.OS == "darwin" && asset.Format != update.FormatZIP:
+			continue
+		case asset.OS == "linux" && asset.Format != update.FormatTarGz:
+			continue
+		}
 		name, err := url.PathUnescape(strings.TrimPrefix(asset.URL, base+"/"))
 		if err != nil {
 			return fmt.Errorf("feed: %s: %w", asset.URL, err)

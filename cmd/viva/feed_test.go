@@ -660,6 +660,9 @@ func TestFeedAddsAWindowsPortablePatch(t *testing.T) {
 		"conpty/x64/conpty.dll": []byte("dll"),
 		"motty-data/README.txt": []byte("user data"),
 	})
+	if err := os.WriteFile(filepath.Join(dist, "fixture-notes-2.0.1-windows-amd64-setup.exe"), []byte("installer"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	oldArchive := filepath.Join(dir, "fixture-notes-2.0.0-windows-amd64.zip")
 	writeFeedZip(t, oldArchive, map[string][]byte{
 		"fixture-notes.exe":     []byte("the old program"),
@@ -686,8 +689,23 @@ func TestFeedAddsAWindowsPortablePatch(t *testing.T) {
 	if err := json.Unmarshal(data, &feed); err != nil {
 		t.Fatal(err)
 	}
-	if len(feed.Latest.Assets) != 1 || len(feed.Latest.Assets[0].Patches) != 1 {
+	if len(feed.Latest.Assets) != 2 {
 		t.Fatalf("feed = %s", data)
+	}
+	var zipAsset, setupAsset *update.Asset
+	for index := range feed.Latest.Assets {
+		switch feed.Latest.Assets[index].Format {
+		case update.FormatZIP:
+			zipAsset = &feed.Latest.Assets[index]
+		case update.FormatNSIS:
+			setupAsset = &feed.Latest.Assets[index]
+		}
+	}
+	if zipAsset == nil || len(zipAsset.Patches) != 1 {
+		t.Fatalf("the portable zip has no patch: %s", data)
+	}
+	if setupAsset != nil && len(setupAsset.Patches) != 0 {
+		t.Fatalf("the NSIS setup was given a patch: %s", data)
 	}
 	patchPath := filepath.Join(dist, "fixture-notes-2.0.1-windows-amd64.zip.2.0.0.patch")
 	reader, err := update.ReadPatch(patchPath)
