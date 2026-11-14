@@ -250,9 +250,20 @@ func (ime *gtkIME) deleteSurrounding(offset, count int) uintptr {
 func (ime *gtkIME) commit(value string) {
 	context, revision := ime.ctx, ime.w.text.stateRevision
 	if key := ime.shortcutKey; key != nil && !ime.engineComposing && !ime.w.text.state.Composing && value == key.Typed {
+		frameRevision := ime.w.text.inputRevision
 		frame, handled, err := ime.w.config.OnShortcut(*key)
-		ime.w.present(frame, err)
-		if handled || err != nil || ime.ctx != context || ime.w.closed || ime.w.text.stateRevision != revision {
+		if err != nil {
+			ime.w.present(platform.Frame{}, err)
+			return
+		}
+		if ime.ctx != context || ime.w.closed || ime.w.text.stateRevision != revision {
+			return
+		}
+		// A geometry-only update invalidates the returned frame, not this key.
+		if ime.w.text.inputRevision == frameRevision {
+			ime.w.present(frame, nil)
+		}
+		if handled || ime.ctx != context || ime.w.closed || ime.w.text.stateRevision != revision {
 			return
 		}
 	}

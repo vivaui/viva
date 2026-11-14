@@ -518,7 +518,7 @@ func gtkWindowByID(id uintptr) *gtkWindow {
 }
 
 func gtkIMEByContext(context, id uintptr) *gtkIME {
-	if w := gtkWindowByID(id); w != nil && !w.closed && w.ime != nil && context != 0 && w.ime.ctx == context {
+	if w := gtkWindowByID(id); w != nil && !w.closed && w.ime != nil && context != 0 && w.ime.ctx == context && w.text.enabled && w.ime.target == w.text.input.Target {
 		return w.ime
 	}
 	return nil
