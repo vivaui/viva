@@ -19,6 +19,8 @@ int viva_system_clipboard_has_image(const char *pasteboard);
 int viva_system_clipboard_image_png(const char *pasteboard, size_t max_png, size_t max_raw, uint8_t **data, size_t *length, char **error_message);
 // Puts an image (PNG bytes) on a named pasteboard, as TIFF when as_tiff is set.
 int viva_system_pasteboard_put_image(const char *pasteboard, const uint8_t *png, size_t length, int as_tiff);
+// Writes PNG to the general pasteboard on the main thread.
+int viva_system_set_clipboard_image_png(const uint8_t *png, size_t length);
 // Copied files. A NULL pasteboard name is the general pasteboard (main thread).
 // Status: 0 paths returned in *paths (free with viva_system_free_string_array),
 // 1 no files, -1 failure with *error_message. At most max paths are returned.

@@ -315,6 +315,14 @@ int viva_system_pasteboard_put_image(const char *pasteboard, const uint8_t *png,
     }
 }
 
+int viva_system_set_clipboard_image_png(const uint8_t *png, size_t length) {
+    __block int status = -1;
+    viva_on_main_sync(^{
+        status = viva_system_pasteboard_put_image(NULL, png, length, 0);
+    });
+    return status;
+}
+
 int viva_system_clipboard_files(const char *pasteboard, size_t max, viva_system_string_array *paths, char **error_message) {
     if (paths == NULL) {
         viva_set_error(error_message, @"clipboard files output is missing");
