@@ -137,6 +137,103 @@ func TestNewContextAsksForPreeditFocusAndSurroundingTextCapabilities(t *testing.
 	}
 }
 
+func TestContextCloseUsesTheNativeServiceAndIsIdempotent(t *testing.T) {
+	_, context, transport := newTestBus(t, Handler{})
+	context.Close()
+	calls := transport.calls("Destroy")
+	if len(calls) != 1 || calls[0].path != testContext || calls[0].iface != "org.freedesktop.IBus.Service" {
+		t.Fatalf("native destruction=%+v", calls)
+	}
+	context.Close()
+	if len(transport.calls("Destroy")) != 1 {
+		t.Fatal("closing the same context twice sent a second native destruction")
+	}
+}
+
+func TestClosingAReplacedContextKeepsTheSuccessorsHandler(t *testing.T) {
+	bus, previous, transport := newTestBus(t, Handler{})
+	var observed string
+	next, err := bus.NewContext("successor", Handler{Commit: func(value string) { observed = value }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous.Close()
+	transport.incoming = []*dbus.Message{commitSignal(testContext, "successor")}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
+	}
+	if observed != "successor" || len(transport.calls("Destroy")) != 0 {
+		t.Fatalf("retired owner destroyed successor: commit=%q calls=%+v", observed, transport.calls("Destroy"))
+	}
+	next.Close()
+	if len(transport.calls("Destroy")) != 1 {
+		t.Fatal("successor was not destroyed by its current owner")
+	}
+}
+
+func TestRetiredContextsRefuseKeysAndContextSideEffects(t *testing.T) {
+	bus, context, transport := newTestBus(t, Handler{})
+	context.Close()
+	sent := len(transport.sent)
+	if err := context.ProcessKey('n', 49, 0, nil); !errors.Is(err, ErrClosed) {
+		t.Fatalf("retired key=%v", err)
+	}
+	for _, err := range []error{
+		context.FocusIn(), context.FocusOut(), context.Reset(),
+		context.SetCursorLocation(0, 0, 1, 10), context.SetSurroundingText("", 0, 0),
+	} {
+		if !errors.Is(err, ErrClosed) {
+			t.Fatalf("retired context side effect=%v", err)
+		}
+	}
+	if len(transport.sent) != sent || len(bus.pending) != 0 {
+		t.Fatal("retired context sent native requests or retained a pending key")
+	}
+}
+
+func TestNativeContextRetirement(t *testing.T) {
+	if os.Getenv("VIVA_IBUS_NATIVE") != "1" {
+		t.Skip("native context retirement requires a private input-method service")
+	}
+	bus, err := Dial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bus.Close()
+	context, err := bus.NewContext("viva-retirement", Handler{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer context.Close()
+	if err := context.FocusIn(); err != nil {
+		t.Fatal(err)
+	}
+	engine := os.Getenv("VIVA_IBUS_ENGINE")
+	if engine == "" {
+		engine = "libpinyin"
+	}
+	var body dbus.Encoder
+	body.String(engine)
+	if _, err := bus.conn.Call(service, context.path, contextInterface, "SetEngine", "s", body.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	query := func() error {
+		_, err := bus.conn.Call(service, context.path, contextInterface, "GetEngine", "", nil)
+		return err
+	}
+	if err := query(); err != nil {
+		t.Fatalf("new native context is not callable: %v", err)
+	}
+	context.Close()
+	var refused *dbus.Error
+	if err := query(); !errors.As(err, &refused) {
+		t.Fatalf("closed native context still callable: %v", err)
+	}
+	if _, err := bus.NewContext("viva-successor", Handler{}); err != nil {
+		t.Fatalf("native destruction damaged the shared bus: %v", err)
+	}
+}
+
 func TestKeyAnswersArriveInTheOrderTheKeysWereTyped(t *testing.T) {
 	bus, context, transport := newTestBus(t, Handler{})
 	var order []string
@@ -404,6 +501,60 @@ func TestAFailedSendClosesTheBusAndReleasesPendingKeys(t *testing.T) {
 	}
 	if bus.Err() == nil || !released || !transport.closed {
 		t.Fatalf("err=%v released=%v closed=%v", bus.Err(), released, transport.closed)
+	}
+}
+
+func TestFailedContextDestructionReleasesBothContextsKeysDespiteReentry(t *testing.T) {
+	bus, first, transport := newTestBus(t, Handler{})
+	transport.createPath = testContext + "_second"
+	second, err := bus.NewContext("second", Handler{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var completed []string
+	completion := func(name string) func(bool) {
+		return func(handled bool) {
+			completed = append(completed, name)
+			if handled {
+				t.Errorf("%s key was handled after transport failure", name)
+			}
+			if bus.contexts[first.path] == first {
+				t.Error("destroyed context still owns its handler during failure callbacks")
+			}
+			first.Close()
+			second.Close()
+			for _, context := range []*Context{first, second} {
+				if err := context.ProcessKey('n', 49, 0, nil); !errors.Is(err, ErrClosed) {
+					t.Errorf("reentered key returned %v, want ErrClosed", err)
+				}
+			}
+			if _, err := bus.NewContext("reentered", Handler{}); !errors.Is(err, ErrClosed) {
+				t.Errorf("reentered context returned %v, want ErrClosed", err)
+			}
+		}
+	}
+	if err := first.ProcessKey('a', 38, 0, completion("first")); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.ProcessKey('b', 56, 0, completion("second")); err != nil {
+		t.Fatal(err)
+	}
+	sent := len(transport.sent)
+	failure := errors.New("destroy: broken pipe")
+	transport.sendErr = failure
+	first.Close()
+	bus.Close()
+	first.Close()
+	second.Close()
+	if !errors.Is(bus.Err(), failure) || !transport.closed {
+		t.Fatalf("failure = %v, transport closed = %v", bus.Err(), transport.closed)
+	}
+	if !reflect.DeepEqual(completed, []string{"first", "second"}) {
+		t.Fatalf("completion order = %v, want each key released once in order", completed)
+	}
+	if len(bus.pending) != 0 || len(bus.contexts) != 0 || len(transport.sent) != sent {
+		t.Fatalf("after destruction: pending=%d contexts=%d sent=%d, want 0, 0, %d",
+			len(bus.pending), len(bus.contexts), len(transport.sent), sent)
 	}
 }
 
