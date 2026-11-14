@@ -214,6 +214,7 @@ func TestInputIsTheBaseDressedByTheRecipeAndPaintsAsTheComponentDoes(t *testing.
 		"secure":      {ID: baseField, Label: "Name", Value: "hunter2", Secure: true},
 		"composition": {ID: baseField, Label: "Name", Value: "Gopher", Focused: true, CompositionStart: 2, CompositionEnd: 4},
 		"platform":    {ID: baseField, Label: "Name", Value: "Gopher", Focused: true, PlatformEditing: true},
+		"aligned":     {ID: baseField, Label: "Name", Value: "Gopher", Alignment: gfx.AlignEnd},
 	}
 	for themeName, theme := range themes {
 		for name, snapshot := range snapshots {
@@ -511,5 +512,59 @@ func TestInputBaseLineHeightIsTheElementsAndThePadComesOnTop(t *testing.T) {
 	}
 	if got := height(func(b Box) Box { return b.FontSize(20) }); got != 27 {
 		t.Errorf("height of a 20 point field = %v, want the size plus seven, 27", got)
+	}
+}
+
+// TextEnd right-aligns the value of an Input: the element's declaration reaches where the
+// glyph line is painted, and the hit tells the platform the same end. What the snapshot
+// declared itself is not written over.
+func TestInputTextEndRightAlignsTheValueAndTheEditorGeometry(t *testing.T) {
+	theme := gfx.LightTheme()
+	snapshot := components.InputSnapshot{ID: baseField, Label: "Amount", Value: "42", Text: components.InputTextStyle{Size: 14}}
+	paint := func(style func(Box) Box) *gfx.Canvas {
+		var view View
+		canvas := testCanvas()
+		view.Draw(canvas, theme, gfx.Rect{Width: 240, Height: 80}, func(f *Frame) {
+			f.Row().Items(Start).Children(func() {
+				style(f.InputBase(snapshot).Width(200))
+			})
+		})
+		return canvas
+	}
+	lineOf := func(canvas *gfx.Canvas) gfx.Text {
+		for _, text := range canvas.Texts() {
+			if text.Value == "42" {
+				return text
+			}
+		}
+		t.Fatalf("no value painted: %+v", canvas.Texts())
+		return gfx.Text{}
+	}
+	plain, ended := paint(func(b Box) Box { return b }), paint(func(b Box) Box { return b.TextEnd() })
+	// The element's TextEnd() reaches the painted line.
+	if lineOf(plain).Bounds.X == lineOf(ended).Bounds.X {
+		t.Fatalf("the value did not move: %+v and %+v", lineOf(plain).Bounds, lineOf(ended).Bounds)
+	}
+	if lineOf(ended).Bounds.X <= lineOf(plain).Bounds.X {
+		t.Errorf("the value starts at %v, want it right of the start-aligned %v", lineOf(ended).Bounds.X, lineOf(plain).Bounds.X)
+	}
+	// What the hit tells the platform is the same edge.
+	if text := hitText(plain, &plain.Hits()[0]); text.Alignment != gfx.AlignStart {
+		t.Errorf("a field without TextEnd promises alignment %v, want AlignStart", text.Alignment)
+	}
+	if text := hitText(ended, &ended.Hits()[0]); text.Alignment != gfx.AlignEnd {
+		t.Errorf("the platform is told alignment %v, want AlignEnd", text.Alignment)
+	}
+	// The element does not write over a snapshot that declared its own.
+	own := components.InputSnapshot{ID: baseField, Label: "Amount", Value: "42", Alignment: gfx.AlignCenter}
+	var view View
+	centered := testCanvas()
+	view.Draw(centered, theme, gfx.Rect{Width: 240, Height: 80}, func(f *Frame) {
+		f.Row().Items(Start).Children(func() {
+			f.InputBase(own).Width(200).TextEnd()
+		})
+	})
+	if text := hitText(centered, &centered.Hits()[0]); text.Alignment != gfx.AlignCenter {
+		t.Errorf("the snapshot's own alignment was written over: %v, want the declared AlignCenter", text.Alignment)
 	}
 }

@@ -305,7 +305,15 @@ func (f *frame) paintButton(n *node) {
 func (f *frame) paintInput(n *node) {
 	// What the element says of its text (FontSize, Weight, Color) is the field's text style,
 	// over the snapshot's own: the one value the glyphs, the caret and the platform follow.
+	// What it says of its alignment is the same, but a field is start-aligned unless it says
+	// otherwise, so the snapshot's own declaration is left alone only by an alignment it
+	// declares. What the snapshot leaves at AlignLeft the element's TextEnd() takes.
 	snapshot := f.inputs[n.aux]
+	if n.textEnd {
+		if snapshot.Alignment == gfx.AlignLeft || snapshot.Alignment == gfx.AlignStart {
+			snapshot.Alignment = gfx.AlignEnd
+		}
+	}
 	if n.fontSize > 0 {
 		snapshot.Text.Size = n.fontSize
 	}
