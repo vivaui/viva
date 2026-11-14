@@ -49,6 +49,8 @@ type gtkApplication struct {
 	// watched are the descriptors of the session bus connections the loop listens to, by the id
 	// of the GLib source that does.
 	watched map[int]uint32
+	// Retired input contexts stay alive until the native callback stack returns.
+	retiredIMESources []uint32
 }
 
 // gtkTasks are the functions other goroutines asked the loop to run.
@@ -94,6 +96,7 @@ func RunGTKApplication(start platform.ApplicationStart) error {
 		return fmt.Errorf("linux: the GTK shell is already running")
 	}
 	defer gtkRunning.Store(nil)
+	defer application.releaseRetiredIME()
 	callbacks()
 	application.mainThread = syscall.Gettid()
 	application.installHooks()
@@ -149,6 +152,27 @@ func (a *gtkApplication) initialize(class string) error {
 // enqueue runs function on the loop's thread. It is safe from any goroutine.
 func (a *gtkApplication) enqueue(function func()) {
 	a.g.idleAdd(callbacks().task, a.tasks.add(function))
+}
+
+func (a *gtkApplication) retireIME(context uintptr) {
+	active := a.retiredIMESources[:0]
+	for _, source := range a.retiredIMESources {
+		if a.g.sourceFind(0, source) != 0 {
+			active = append(active, source)
+		}
+	}
+	cb := callbacks()
+	source := a.g.idleAddFull(200, cb.retireIME, context, cb.releaseIME)
+	a.retiredIMESources = append(active, source)
+}
+
+func (a *gtkApplication) releaseRetiredIME() {
+	for _, source := range a.retiredIMESources {
+		if a.g.sourceFind(0, source) != 0 {
+			a.g.sourceRemove(source)
+		}
+	}
+	a.retiredIMESources = nil
 }
 
 // fail ends the loop with an error, once.
@@ -280,7 +304,7 @@ func typeNameOf(g *gtkLibrary, object uintptr) string {
 // frees a callback and allows a fixed number, so a window must not make its own. The window a call
 // is for travels in the data pointer, as its id.
 type gtkCallbacks struct {
-	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preedit, surrounding, deleteSurrounding, redraw, webMessage, webLoad, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
+	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preedit, surrounding, deleteSurrounding, retireIME, releaseIME, redraw, webMessage, webLoad, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
 }
 
 var (
@@ -451,27 +475,32 @@ func callbacks() *gtkCallbacks {
 				return 1
 			}),
 			commit: purego.NewCallback(func(context, text, id uintptr) uintptr {
-				if w := gtkWindowByID(id); w != nil && w.ime != nil {
-					w.ime.commit(goString(text))
+				if ime := gtkIMEByContext(context, id); ime != nil {
+					ime.commit(goString(text))
 				}
 				return 0
 			}),
 			preedit: purego.NewCallback(func(context, id uintptr) uintptr {
-				if w := gtkWindowByID(id); w != nil && w.ime != nil {
-					w.ime.preeditChanged()
+				if ime := gtkIMEByContext(context, id); ime != nil {
+					ime.preeditChanged()
 				}
 				return 0
 			}),
 			surrounding: purego.NewCallback(func(context, id uintptr) uintptr {
-				if w := gtkWindowByID(id); w != nil && w.ime != nil {
-					return w.ime.retrieveSurrounding()
+				if ime := gtkIMEByContext(context, id); ime != nil {
+					return ime.retrieveSurrounding()
 				}
 				return 0
 			}),
 			deleteSurrounding: purego.NewCallback(func(context, offset, count, id uintptr) uintptr {
-				if w := gtkWindowByID(id); w != nil && w.ime != nil {
-					return w.ime.deleteSurrounding(int(int32(offset)), int(int32(count)))
+				if ime := gtkIMEByContext(context, id); ime != nil {
+					return ime.deleteSurrounding(int(int32(offset)), int(int32(count)))
 				}
+				return 0
+			}),
+			retireIME: purego.NewCallback(func(uintptr) uintptr { return 0 }),
+			releaseIME: purego.NewCallback(func(context uintptr) uintptr {
+				gtkLoaded.objectUnref(context)
 				return 0
 			}),
 		}
@@ -484,6 +513,13 @@ func callbacks() *gtkCallbacks {
 func gtkWindowByID(id uintptr) *gtkWindow {
 	if a := gtkRunning.Load(); a != nil {
 		return a.windows[id]
+	}
+	return nil
+}
+
+func gtkIMEByContext(context, id uintptr) *gtkIME {
+	if w := gtkWindowByID(id); w != nil && !w.closed && w.ime != nil && context != 0 && w.ime.ctx == context {
+		return w.ime
 	}
 	return nil
 }
