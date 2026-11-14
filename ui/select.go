@@ -195,7 +195,8 @@ const (
 // per label; scope.At(len(labels)) to At(len(labels)+4) are the trigger, the dismiss
 // target (a press anywhere outside the list, or Escape), the list's focus scope and
 // its two scroll arrows, so give the select a scope of its own. A list too long for the
-// frame shows a window of options with scroll arrows. selected is the index of the
+// frame shows a window of options with scroll arrows, and the list floats over the page:
+// inside a scroll area it is not cut by the area's clip. selected is the index of the
 // current label, negative for none. Placeholder is the text shown then; Small, Disabled
 // and Label work as for a button.
 //

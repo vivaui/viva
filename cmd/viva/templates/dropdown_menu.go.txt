@@ -703,6 +703,12 @@ type menuSurface struct {
 	// hitInset is how much shorter than their paint the rows' hits are, to leave
 	// the scrollbar's own.
 	hitInset float32
+	// viewport, when it has an area, is the region the rows and the scrollbar are
+	// painted and hit-tested in place of the clips around the caller: a surface
+	// declared inside a scroll area is not cut by it, as Canvas.PushOverlayClip
+	// suspends them for the duration of each row. The control's owner sets it; the
+	// menus leave it empty and keep their ancestor clips.
+	viewport gfx.Rect
 }
 
 // pointerRow remembers which option row the pointer is over so a list can move
@@ -813,9 +819,27 @@ func (menu *menuSurface) take(row gfx.Rect) bool {
 	return !menu.hidden && row.Height > 0 && row.Y < menu.bottom && row.Y+row.Height > menu.top
 }
 
+// pushClip suspends the clips around the surface for a viewport-anchored one, so a
+// row is not cut by an ancestor scroll area, as Select sets one for its popup. A
+// surface without a viewport keeps its ancestor clips, as the menus do.
+func (menu *menuSurface) pushClip() {
+	if menu.viewport.Width > 0 && menu.viewport.Height > 0 {
+		menu.canvas.PushOverlayClip(menu.viewport)
+	}
+}
+
+// popClip closes the clip pushClip opened.
+func (menu *menuSurface) popClip() {
+	if menu.viewport.Width > 0 && menu.viewport.Height > 0 {
+		menu.canvas.PopOverlayClip()
+	}
+}
+
 // paintRow runs paint for a row on the menu's layer and scope, clipped to the
 // visible part of the surface when the row is cut by an edge.
 func (menu *menuSurface) paintRow(row gfx.Rect, paint func()) {
+	menu.pushClip()
+	defer menu.popClip()
 	menu.pushOverlay()
 	cut := row.Y < menu.top || row.Y+row.Height > menu.bottom
 	if cut {
@@ -1080,6 +1104,7 @@ func (menu *menuSurface) end() {
 		thumb := max(view*view/(view+scroll.max), 18)
 		at := menu.top + (view-thumb)*scroll.Offset/scroll.max
 		scroll.barTop, scroll.thumb = menu.top, thumb
+		menu.pushClip()
 		menu.pushOverlay()
 		menu.canvas.Rounded(gfx.Rect{X: menu.bounds.X + menu.bounds.Width - 6, Y: at, Width: 4, Height: thumb}, 2, menu.theme.Border)
 		if !scroll.BarID.IsZero() {
@@ -1087,6 +1112,7 @@ func (menu *menuSurface) end() {
 				"Scroll", gfx.HitOptions{Role: gfx.RoleSlider, SkipFocus: true})
 		}
 		menu.popOverlay()
+		menu.popClip()
 	}
 	if menu.animated {
 		menu.canvas.EndPresence()

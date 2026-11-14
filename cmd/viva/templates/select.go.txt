@@ -41,6 +41,11 @@ type SelectOptions struct {
 	// whole window behind its surface, so pressing anywhere outside it,
 	// including the trigger, reports DismissID (Escape reports it too). Leave
 	// it empty to dismiss only on Escape and handle outside presses yourself.
+	//
+	// It also floats the open list: the popup is painted and hit-tested against
+	// the viewport instead of the clips around the select, so a list declared
+	// inside a scroll area is not cut by it. Leave it empty to keep the list
+	// inside the ancestor clips, as a component called without one always has.
 	Viewport gfx.Rect
 	// Scroll is the scroll position of a popup whose items do not all fit its
 	// Content (see MenuScroll); without one such a popup shows only the items at
@@ -146,12 +151,19 @@ func BeginSelect(canvas *gfx.Canvas, theme gfx.Theme, triggerBounds gfx.Rect, op
 		options: menuSurfaceOptions{layer: options.Layer, scope: options.Scope, scroll: options.Scroll},
 		top:     content.Y + menuPadding, bottom: content.Y + content.Height - menuPadding,
 		viewHeight: max(content.Height-2*menuPadding, 0),
+		// An open list floats over the page: a select at the bottom of a scroll
+		// area shows its list whole instead of through the area's clip. The list
+		// stays inside the viewport when the caller gives one.
+		viewport: options.Viewport,
 	}
 	selectControl.rows.beginScroll()
 	if options.Scroll != nil {
 		options.Scroll.TabCloses = true
 	}
 	selectControl.pushOverlay()
+	// The popup and its backdrop float over the page: an ancestor scroll area's
+	// clip does not cut them, and the viewport bounds what shows.
+	selectControl.rows.pushClip()
 	// Claim after pushing the popup's scope, so a select inside a dialog owns
 	// the trap and Escape while it is open.
 	if !options.Scope.IsZero() {
@@ -173,6 +185,9 @@ func BeginSelect(canvas *gfx.Canvas, theme gfx.Theme, triggerBounds gfx.Rect, op
 	if !options.Unpainted {
 		paintPopupSurface(canvas, &theme, content, gfx.ShadowMD) // shadow-md
 	}
+	// The surface is painted: the rows start their own overlay clip, so the two
+	// need not nest. Keep the popup's viewport open only through the surface.
+	selectControl.rows.popClip()
 	selectControl.popOverlay()
 	return selectControl
 }
