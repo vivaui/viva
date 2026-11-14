@@ -42,6 +42,15 @@ jobs:
           cache: true
       - name: Application input lifecycle
         run: go test ./app -count=1
+      - name: GTK native probe dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-0t64 xvfb xauth dbus-x11
+          dpkg-query -W libgtk-3-0t64 xvfb xauth dbus-x11
+      - name: GTK native composition lifecycle
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- xvfb-run -a env VIVA_GTK_IME_NATIVE=1 GTK_IM_MODULE=simple GDK_BACKEND=x11 NO_AT_BRIDGE=1 G_DEBUG=fatal-criticals go test -tags vivagtk ./internal/platform/linux -run '^TestGTKNativeComposition$' -count=1 -v -timeout=90s
       - name: Linux text callback ordering
         if: runner.os == 'Linux'
         run: go test -race ./internal/platform/linux -run '^TestLinuxTextCallback' -count=1 -timeout=90s
