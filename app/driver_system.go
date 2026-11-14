@@ -188,6 +188,26 @@ func driverDeleteSecret(service, account string) (error, bool) {
 	return nil, true
 }
 
+func driverSendNotification(notification Notification) (error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, false
+	}
+	system.driver.notificationMu.Lock()
+	system.driver.notifications = append(system.driver.notifications, notification)
+	system.driver.notificationMu.Unlock()
+	return nil, true
+}
+
+// Notifications returns the notifications the application sent in this
+// driver-backed run, in order. A Driver has no notification center, so sending
+// one records it instead of showing it.
+func (driver *Driver) Notifications() []Notification {
+	driver.notificationMu.Lock()
+	defer driver.notificationMu.Unlock()
+	return append([]Notification(nil), driver.notifications...)
+}
+
 func driverOpenURL(target string) (error, bool) {
 	system := activeDriverSystem.Load()
 	if system == nil {

@@ -187,7 +187,62 @@ func (session *Session) Type(value string) error {
 func (session *Session) Compose(value string) error { return session.driver.Compose(value) }
 
 // Wait advances the animation clock.
+// Wait moves the virtual clock forward by duration, running the frames due
+// meanwhile; it is Advance under its older name.
 func (session *Session) Wait(duration time.Duration) error { return session.driver.Advance(duration) }
+
+// Now returns the session's virtual clock, which starts at zero and moves only
+// with Advance and Wait.
+func (session *Session) Now() time.Duration { return session.driver.Now() }
+
+// Advance moves the virtual clock forward by duration, running the frames due
+// meanwhile and applying work other goroutines posted. Nothing moves unless
+// called: an animation sits where the clock left it.
+func (session *Session) Advance(duration time.Duration) error {
+	return session.driver.Advance(duration)
+}
+
+// Transitioning reports whether the last frame asked for the next one: an
+// animation or transition is in flight. A frame that only asked for a later
+// frame, as a spinner does, does not count.
+func (session *Session) Transitioning() bool { return session.driver.Transitioning() }
+
+// Frame processes work other goroutines posted and paints one frame now,
+// without moving the clock. Use it after changing what a view shows from
+// outside the application, without input.
+func (session *Session) Frame() error { return session.driver.Paint() }
+
+// Access returns the accessibility tree of the last frame, in reading order:
+// what assistive technology is told about every control, with its role, bounds,
+// name, value, states and range.
+func (session *Session) Access() []app.AccessNode { return session.driver.Accessibility() }
+
+// AccessByRole returns the first node in the last frame with role and the
+// accessible name; an empty name matches any node with that role. It is the
+// query a test uses to assert what assistive technology is told.
+func (session *Session) AccessByRole(role gfx.Role, name string) (app.AccessNode, bool) {
+	for _, node := range session.Access() {
+		if node.Role == role && (name == "" || node.Label == name) {
+			return node, true
+		}
+	}
+	return app.AccessNode{}, false
+}
+
+// AccessByName returns the first node in the last frame with the accessible
+// name, whatever its role.
+func (session *Session) AccessByName(name string) (app.AccessNode, bool) {
+	for _, node := range session.Access() {
+		if node.Label == name {
+			return node, true
+		}
+	}
+	return app.AccessNode{}, false
+}
+
+// Notifications returns the notifications the application sent in this run, in
+// order. A session has no notification center: sending one records it.
+func (session *Session) Notifications() []app.Notification { return session.driver.Notifications() }
 
 // maxRest bounds how long Rest plays animations.
 const maxRest = 5 * time.Second
