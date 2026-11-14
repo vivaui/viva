@@ -16,6 +16,17 @@ var (
 	selLabels = []string{"Small", "Medium", "Large"}
 )
 
+// selIcons are the icons of the three labels, a stroke at each one's own height:
+// an icon painted on another option's row shows in the triangles.
+var selIcons = []gfx.Icon{
+	{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound,
+		Commands: []gfx.PathCommand{gfx.MoveTo(4, 6), gfx.LineTo(20, 6)}},
+	{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound,
+		Commands: []gfx.PathCommand{gfx.MoveTo(4, 10), gfx.LineTo(20, 10)}},
+	{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound,
+		Commands: []gfx.PathCommand{gfx.MoveTo(4, 14), gfx.LineTo(20, 14)}},
+}
+
 // A Select looks exactly like the components.Select it is painted by, closed and
 // open, with a value and with a placeholder.
 func TestSelectIsPaintedLikeTheComponent(t *testing.T) {
@@ -57,6 +68,73 @@ func TestSelectIsPaintedLikeTheComponent(t *testing.T) {
 		}
 		sameCanvas(t, name, flexed, direct)
 	}
+}
+
+// A Select with icons is painted exactly like the components.Select an application
+// would call with the same icons: the chosen option's before the value on the
+// trigger, each option's own before its label on its row — a select that was given
+// no icon function paints what TestSelectIsPaintedLikeTheComponent pins above.
+func TestSelectWithIconsIsPaintedLikeTheComponent(t *testing.T) {
+	theme := gfx.LightTheme()
+	for _, test := range []struct {
+		open     bool
+		selected int
+	}{{false, 1}, {false, -1}, {true, 1}, {true, -1}, {true, 2}} {
+		name := fmt.Sprintf("open=%v selected=%d", test.open, test.selected)
+		flexed, direct := testCanvas(), testCanvas()
+		state := SelectState{Open: test.open}
+		viewport := gfx.Rect{Width: 400, Height: 300}
+		var view View
+		view.Draw(flexed, theme, viewport, func(f *Frame) {
+			f.Column().Pad(10).Children(func() {
+				f.Select(selScope, &state, selLabels, test.selected).Placeholder("Size").Width(200).Icons(selIcons)
+			})
+		})
+		options := components.SelectOptions{
+			TriggerID: selScope.At(3), Label: "Size", Placeholder: "Size", Open: test.open,
+			Layer: 1, Scope: selScope.At(5), DismissID: selScope.At(4), Viewport: viewport,
+		}
+		if test.selected >= 0 {
+			options.Value, options.Icon = selLabels[test.selected], selIcons[test.selected]
+		}
+		if test.open {
+			options.Content = gfx.Rect{X: 10, Y: 10 + 32 + 4, Width: 200, Height: 8 + 32*3}
+		}
+		control := components.BeginSelect(direct, theme, gfx.Rect{X: 10, Y: 10, Width: 200}, options)
+		if test.open {
+			for i, label := range selLabels {
+				control.AddItem(components.SelectItem{ID: selScope.At(i), Label: label, Selected: i == test.selected, Icon: selIcons[i]})
+			}
+		}
+		sameCanvas(t, name, flexed, direct)
+	}
+}
+
+// Two options that share a label keep their own icon: the rows of a list are not
+// interchangeable behind one label.
+func TestSelectIconsFollowTheirOwnRows(t *testing.T) {
+	theme := gfx.LightTheme()
+	labels := []string{"Same", "Same"}
+	state := SelectState{Open: true}
+	flexed, direct := testCanvas(), testCanvas()
+	viewport := gfx.Rect{Width: 300, Height: 200}
+	var view View
+	view.Draw(flexed, theme, viewport, func(f *Frame) {
+		f.Column().Pad(10).Children(func() {
+			f.Select(selScope, &state, labels, 0).Placeholder("Pick").Width(200).Icons(selIcons)
+		})
+	})
+	options := components.SelectOptions{
+		TriggerID: selScope.At(2), Label: "Pick", Placeholder: "Pick", Open: true,
+		Layer: 1, Scope: selScope.At(4), DismissID: selScope.At(3), Viewport: viewport,
+		Content: gfx.Rect{X: 10, Y: 10 + 32 + 4, Width: 200, Height: 8 + 32*2},
+		Value:   "Same", Icon: selIcons[0],
+	}
+	control := components.BeginSelect(direct, theme, gfx.Rect{X: 10, Y: 10, Width: 200}, options)
+	for i, label := range labels {
+		control.AddItem(components.SelectItem{ID: selScope.At(i), Label: label, Selected: i == 0, Icon: selIcons[i]})
+	}
+	sameCanvas(t, "same-label options", flexed, direct)
 }
 
 func TestSelectOpensChoosesAndClosesThroughItsClicks(t *testing.T) {
@@ -165,6 +243,7 @@ func TestSelectAllocatesNothingOnceWarm(t *testing.T) {
 		view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
 			f.Column().Pad(10).Gap(8).Children(func() {
 				f.Select(selScope, &state, selLabels, 1)
+				f.Select(selScope, &state, selLabels, 1).Icons(selIcons)
 				f.Select(selScope, &closed, selLabels, -1).Placeholder("Pick").Small()
 			})
 		})

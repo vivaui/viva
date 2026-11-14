@@ -266,6 +266,7 @@ type Page struct {
 	hoverArea   gfx.ID                // the scroll area or self-scrolling table the pointer is on
 	selects     []*SelectState        // the Selects of the last paint, which Wheel scrolls
 	labels      []string              // scratch for Choice's labels
+	icons       []gfx.Icon            // scratch for SelectIcon's icons
 	memos       map[gfx.ID]*memoEntry
 	memoBoxes   []memoBox
 	memoChecks  []memoCheckOf
@@ -778,6 +779,8 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	clear(p.ctx.stateSeq)
 	clear(p.labels)
 	p.labels = p.labels[:0]
+	clear(p.icons)
+	p.icons = p.icons[:0]
 	p.focusPaint = p.focusPaint[:0]
 	for i := range p.held {
 		if id := p.held[i].id; !id.IsZero() && id != canvas.Pressed() && id != canvas.Focused() {

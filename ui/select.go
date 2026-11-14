@@ -165,6 +165,7 @@ type selectDecl struct {
 	scope    gfx.Scope
 	state    *SelectState
 	labels   []string
+	icons    []gfx.Icon
 	selected int
 	canvas   *gfx.Canvas
 	popup    int32 // the Popup that places the list, or -1 when it is closed
@@ -307,6 +308,18 @@ func (b Box) Placeholder(value string) Box {
 	return b
 }
 
+// Icons sets the icons a Select paints before its chosen value on the trigger and
+// before each option's label in the open list, one per option and indexed like the
+// labels: what SelectIcon's icon function names. A select given none of them paints
+// exactly what it always has; a SelectBase keeps them for its caller and paints
+// none, as it does the rest of the look.
+func (b Box) Icons(icons []gfx.Icon) Box {
+	if n := b.n(); n.kind == kindSelect {
+		b.f.widgets.selects[n.aux].icons = icons
+	}
+	return b
+}
+
 // Picked reports which option of a Select this paint is delivering a click on, and
 // keeps the select's state: the trigger opens and closes the list, an option or a press
 // outside closes it, the arrows move its window.
@@ -376,6 +389,9 @@ func (f *frame) paintSelect(n *node) {
 	options.Unpainted = n.flags&flagThemed == 0
 	if d.selected >= 0 && d.selected < count {
 		options.Value = d.labels[d.selected]
+		if d.selected < len(d.icons) {
+			options.Icon = d.icons[d.selected]
+		}
 	}
 	if options.Label == "" {
 		options.Label = n.text
@@ -406,7 +422,11 @@ func (f *frame) paintSelect(n *node) {
 		f.widgets.rows = append(f.widgets.rows, Rect{})
 	}
 	for index := first; index < first+visible && index < count; index++ {
-		f.widgets.rows[int(d.rects)+index] = control.AddItem(components.SelectItem{ID: d.scope.At(index), Label: d.labels[index], Selected: index == d.selected})
+		item := components.SelectItem{ID: d.scope.At(index), Label: d.labels[index], Selected: index == d.selected}
+		if index < len(d.icons) {
+			item.Icon = d.icons[index]
+		}
+		f.widgets.rows[int(d.rects)+index] = control.AddItem(item)
 	}
 	if visible < count {
 		control.AddScrollDown(d.scope.At(count+4), first+visible >= count)
