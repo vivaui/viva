@@ -179,6 +179,49 @@ func TestContextMenuRowHeightOptionPacksItemsDenser(t *testing.T) {
 	}
 }
 
+func TestMenuRowsFollowTheThemeControlHeight(t *testing.T) {
+	compact := gfx.LightTheme()
+	compact.Metrics = compact.Metrics.WithDensity(gfx.DensityCompact)
+	unsized := gfx.LightTheme()
+	unsized.Metrics.ControlHeight = 0
+	for _, test := range []struct {
+		name      string
+		theme     gfx.Theme
+		rowHeight float32
+		want      float32
+	}{
+		{"default density", gfx.LightTheme(), 0, 32},
+		{"compact density", compact, 0, 26},
+		{"RowHeight wins over the theme", compact, 24, 24},
+		{"theme without a control height", unsized, 0, menuRowHeight},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var canvas gfx.Canvas
+			menu := BeginContextMenu(&canvas, test.theme, gfx.Rect{X: 10, Y: 20, Width: 160, Height: 400}, ContextMenuOptions{Layer: 1, Scope: gfx.Item(2), DismissID: gfx.Item(3), RowHeight: test.rowHeight})
+			item := ContextMenuItem{ID: gfx.Item(11), Label: "Copy Path"}
+			first := menu.AddItem(item)
+			label := menu.AddLabel("Group", false)
+			second := menu.AddItem(ContextMenuItem{ID: gfx.Item(12), Label: "Delete…"})
+			if first.Height != test.want || second.Height != test.want || menu.NextItemBounds().Height != test.want {
+				t.Fatalf("rows = %+v %+v next %+v, want %v high", first, second, menu.NextItemBounds(), test.want)
+			}
+			if label.Height != menuLabelHeight {
+				t.Fatalf("label = %+v, want %v high whatever the rows", label, menuLabelHeight)
+			}
+			if got := ContextMenuItemHeight(test.theme, item, test.rowHeight); got != test.want {
+				t.Fatalf("ContextMenuItemHeight = %v, want %v", got, test.want)
+			}
+		})
+	}
+
+	var canvas gfx.Canvas
+	dropdown := BeginDropdownMenu(&canvas, compact, gfx.Rect{X: 10, Y: 20, Width: 160, Height: 400}, DropdownMenuOptions{Layer: 1, Scope: gfx.Item(4), DismissID: gfx.Item(5)})
+	row := DropdownMenuItem{ID: gfx.Item(21), Label: "Hide"}
+	if bounds := dropdown.AddItem(row); bounds.Height != 26 || DropdownMenuItemHeight(compact, row) != 26 {
+		t.Fatalf("compact dropdown row = %+v, reserved %v, want 26", bounds, DropdownMenuItemHeight(compact, row))
+	}
+}
+
 func TestContextMenuItemWidthKeepsTheLabelWhole(t *testing.T) {
 	var canvas gfx.Canvas
 	theme := gfx.LightTheme()
