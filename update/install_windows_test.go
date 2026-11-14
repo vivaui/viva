@@ -3,11 +3,14 @@
 package update
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 	"testing"
 	"unsafe"
@@ -222,5 +225,151 @@ func TestWinTrustStructLayout(t *testing.T) {
 		if check.got != check.want {
 			t.Errorf("%s offset = %d, want %d", name, check.got, check.want)
 		}
+	}
+}
+
+func TestPayloadHelperScriptKeepsABackupAndRestores(t *testing.T) {
+	script := payloadHelperScript(1234, `C:\Temp\O'Brien\payload`, `C:\Apps\Motty`, `C:\Apps\Motty\motty.exe`, []string{"--flag", "a b"})
+	for _, want := range []string{
+		"$parent = 1234",
+		`$payload = 'C:\Temp\O''Brien\payload'`,
+		`$dir = 'C:\Apps\Motty'`,
+		`$exe = 'C:\Apps\Motty\motty.exe'`,
+		"$backup = Join-Path $env:TEMP",
+		"function Restore",
+		"$created = New-Object System.Collections.ArrayList",
+		"Get-Process -Id $parent",
+		"Copy-Item -LiteralPath $_.FullName -Destination $dest -Force",
+		"Start-Process -FilePath $exe -PassThru",
+		"$p.HasExited -and $p.ExitCode -ne 0",
+		"Restore; Start-Process -FilePath $exe",
+		"Remove-Item -Recurse -Force $payload",
+		"exit 0",
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("the helper script lacks %q:\n%s", want, script)
+		}
+	}
+}
+
+func TestInstallPayloadNeedsTheProgramInThePayload(t *testing.T) {
+	payload := t.TempDir()
+	called := false
+	err := installPayload(InstallOptions{Payload: payload}, func() { called = true })
+	if !errors.Is(err, ErrManifest) {
+		t.Fatalf("err = %v, want ErrManifest", err)
+	}
+	if called {
+		t.Fatal("installPayload called quit after refusing the payload")
+	}
+}
+
+func TestInstallPayloadRefusesAFile(t *testing.T) {
+	file := writeWindowsTestArtifact(t, "payload")
+	called := false
+	err := installPayload(InstallOptions{Payload: file}, func() { called = true })
+	if !errors.Is(err, ErrManifest) {
+		t.Fatalf("err = %v, want ErrManifest", err)
+	}
+	if called {
+		t.Fatal("installPayload called quit after refusing the payload")
+	}
+}
+
+func systemExecutable(t *testing.T, name string) string {
+	t.Helper()
+	path := filepath.Join(os.Getenv("SystemRoot"), "System32", name)
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("%s is not available: %v", path, err)
+	}
+	return path
+}
+
+func copyWindowsFile(t *testing.T, source, destination string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(destination, data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func runPayloadHelper(t *testing.T, script string, wantExit int) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "helper.ps1")
+	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", path)
+	output, err := command.CombinedOutput()
+	if wantExit == 0 {
+		if err != nil {
+			t.Fatalf("helper: %v\n%s\n%s", err, output, script)
+		}
+		return
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != wantExit {
+		t.Fatalf("helper exit = %v, want %d\n%s\n%s", err, wantExit, output, script)
+	}
+}
+
+func TestPayloadHelperReplacesTheApplication(t *testing.T) {
+	payload := t.TempDir()
+	install := t.TempDir()
+	copyWindowsFile(t, systemExecutable(t, "cmd.exe"), filepath.Join(install, "app.exe"))
+	copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, "app.exe"))
+	if err := os.WriteFile(filepath.Join(install, "old.dll"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(payload, "new.dll"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), nil)
+	runPayloadHelper(t, script, 0)
+	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile(systemExecutable(t, "whoami.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Error("app.exe was not replaced")
+	}
+	if data, err := os.ReadFile(filepath.Join(install, "new.dll")); err != nil || string(data) != "new" {
+		t.Errorf("new.dll = %q, %v", data, err)
+	}
+	if data, err := os.ReadFile(filepath.Join(install, "old.dll")); err != nil || string(data) != "old" {
+		t.Errorf("old.dll = %q, %v", data, err)
+	}
+}
+
+func TestPayloadHelperRollsBackAFailedStart(t *testing.T) {
+	payload := t.TempDir()
+	install := t.TempDir()
+	original := copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(install, "app.exe"))
+	copyWindowsFile(t, systemExecutable(t, "cmd.exe"), filepath.Join(payload, "app.exe"))
+	if err := os.WriteFile(filepath.Join(payload, "new.dll"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), []string{"/c", "exit 1"})
+	runPayloadHelper(t, script, 1)
+	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Error("app.exe was not restored")
+	}
+	if _, err := os.Stat(filepath.Join(install, "new.dll")); !os.IsNotExist(err) {
+		t.Errorf("new.dll survived the rollback: %v", err)
 	}
 }

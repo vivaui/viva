@@ -43,7 +43,16 @@ func runFeed(arguments []string, output, _ io.Writer) error {
 	flags.StringVar(&notes, "notes", "", "HTTPS page describing the release")
 	var validFor time.Duration
 	var patchFroms []patchFrom
-	flags.Func("patch-from", "make a delta update from this earlier release: os/arch=version=archive (repeatable; darwin and linux)", func(value string) error {
+	var patchExcludes []string
+	flags.Func("patch-exclude", "a path left out of every patch, relative to the payload (repeatable; for example a portable copy's data folder)", func(value string) error {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return errors.New("--patch-exclude needs a path")
+		}
+		patchExcludes = append(patchExcludes, value)
+		return nil
+	})
+	flags.Func("patch-from", "make a delta update from this earlier release: os/arch=version=archive (repeatable; darwin, linux and windows)", func(value string) error {
 		parsed, err := parsePatchFrom(value)
 		if err != nil {
 			return err
@@ -106,7 +115,7 @@ func runFeed(arguments []string, output, _ io.Writer) error {
 		return err
 	}
 	if len(patchFroms) > 0 {
-		if err := addPatches(assets, patchFroms, artifactsDir, baseURL, version, app, loaded.ExecutableName()); err != nil {
+		if err := addPatches(assets, patchFroms, patchExcludes, artifactsDir, baseURL, version, app, loaded.ExecutableName()); err != nil {
 			return err
 		}
 	}
@@ -431,8 +440,8 @@ func parsePatchFrom(value string) (patchFrom, error) {
 	}
 	target, version, archive := parts[0], parts[1], parts[2]
 	goos, goarch, ok := strings.Cut(target, "/")
-	if !ok || (goos != "darwin" && goos != "linux") {
-		return patchFrom{}, fmt.Errorf("--patch-from %q: patches are made for darwin and linux", target)
+	if !ok || (goos != "darwin" && goos != "linux" && goos != "windows") {
+		return patchFrom{}, fmt.Errorf("--patch-from %q: patches are made for darwin, linux and windows", target)
 	}
 	if goarch != "amd64" && goarch != "arm64" {
 		return patchFrom{}, fmt.Errorf("--patch-from %q: architecture must be amd64 or arm64", target)
@@ -443,7 +452,7 @@ func parsePatchFrom(value string) (patchFrom, error) {
 // addPatches writes a patch for every --patch-from that names a listed asset
 // and adds it to the asset. Every argument must match an asset, so a typo in
 // the platform cannot publish a feed that silently lacks its delta.
-func addPatches(assets []update.Asset, froms []patchFrom, dir, baseURL, version, app, executable string) error {
+func addPatches(assets []update.Asset, froms []patchFrom, excludes []string, dir, baseURL, version, app, executable string) error {
 	base := strings.TrimRight(baseURL, "/")
 	byTarget := make(map[string][]patchFrom, len(froms))
 	for _, from := range froms {
@@ -471,6 +480,14 @@ func addPatches(assets []update.Asset, froms []patchFrom, dir, baseURL, version,
 		if len(froms) == 0 {
 			continue
 		}
+		switch {
+		case asset.OS == "windows" && asset.Format != update.FormatZIP:
+			continue // an NSIS setup is an installer; the portable zip carries the payload
+		case asset.OS == "darwin" && asset.Format != update.FormatZIP:
+			continue
+		case asset.OS == "linux" && asset.Format != update.FormatTarGz:
+			continue
+		}
 		name, err := url.PathUnescape(strings.TrimPrefix(asset.URL, base+"/"))
 		if err != nil {
 			return fmt.Errorf("feed: %s: %w", asset.URL, err)
@@ -482,8 +499,8 @@ func addPatches(assets []update.Asset, froms []patchFrom, dir, baseURL, version,
 				App: app, FromVersion: from.version, ToVersion: version,
 				OS: asset.OS, Arch: asset.Arch,
 				OldArchive: from.archive, NewArchive: newArchive,
-				Executable: executable,
-				Output:     &encoded,
+				Executable: executable, Exclude: excludes,
+				Output: &encoded,
 			}); err != nil {
 				return fmt.Errorf("feed: patch %s from %s: %w", key, from.version, err)
 			}

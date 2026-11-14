@@ -105,7 +105,7 @@ var (
 // this process to end before it replaces the running executable.
 func install(options InstallOptions, quit func()) error {
 	if options.Payload != "" {
-		return fmt.Errorf("%w: Windows has no installed payload to patch; download the installer", ErrUnsupported)
+		return installPayload(options, quit)
 	}
 	if options.Asset.Format != FormatNSIS {
 		return fmt.Errorf("%w: windows needs an NSIS installer, not %q", ErrManifest, options.Asset.Format)
@@ -146,6 +146,116 @@ func install(options InstallOptions, quit func()) error {
 	}
 	quit()
 	return nil
+}
+
+// installPayload replaces the application's files from a staged payload: the
+// executable and the folders beside it that a patch wrote. The installer and
+// its uninstaller are not run, so shortcuts, registry entries and anything
+// else the installer owns stay as they are. A writable install directory is
+// required; a machine-wide installation under Program Files is refused before
+// anything changes.
+func installPayload(options InstallOptions, quit func()) error {
+	payload, err := filepath.Abs(options.Payload)
+	if err != nil {
+		return fmt.Errorf("update: resolve %s: %w", options.Payload, err)
+	}
+	info, err := os.Stat(payload)
+	if err != nil {
+		return fmt.Errorf("update: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%w: %s is not a directory", ErrManifest, options.Payload)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("update: locate the running program: %w", err)
+	}
+	if executable, err = filepath.Abs(executable); err != nil {
+		return fmt.Errorf("update: resolve %s: %w", executable, err)
+	}
+	installDir := filepath.Dir(executable)
+	if _, err := os.Stat(filepath.Join(payload, filepath.Base(executable))); err != nil {
+		return fmt.Errorf("%w: the payload does not hold %s", ErrManifest, filepath.Base(executable))
+	}
+	options.report("checking install directory")
+	if err := checkWritable(installDir); err != nil {
+		return err
+	}
+	options.report("replacing")
+	if err := startPayloadHelper(os.Getpid(), payload, installDir, executable, options.Args); err != nil {
+		return fmt.Errorf("update: start the update helper: %w", err)
+	}
+	quit()
+	return nil
+}
+
+// startPayloadHelper launches a detached PowerShell script that waits for this
+// process to exit, copies the staged files over the installation and starts
+// the new program. It keeps a copy of every file it replaces until the new
+// version has started, and restores them if it fails.
+func startPayloadHelper(parentPID int, payload, installDir, executable string, args []string) error {
+	name, arguments := helperCommand(payloadHelperScript(parentPID, payload, installDir, executable, args))
+	command := exec.Command(name, arguments...)
+	command.SysProcAttr = helperSysProcAttr()
+	if err := command.Start(); err != nil {
+		return err
+	}
+	_ = command.Process.Release()
+	return nil
+}
+
+// payloadHelperScript builds the script the payload helper runs. Every path is
+// a PowerShell single-quoted literal.
+func payloadHelperScript(parentPID int, payload, installDir, executable string, args []string) string {
+	var script strings.Builder
+	script.WriteString("$ErrorActionPreference = 'Stop'\n")
+	fmt.Fprintf(&script, "$parent = %d\n", parentPID)
+	fmt.Fprintf(&script, "$payload = %s\n", powerShellQuote(payload))
+	fmt.Fprintf(&script, "$dir = %s\n", powerShellQuote(installDir))
+	fmt.Fprintf(&script, "$exe = %s\n", powerShellQuote(executable))
+	script.WriteString("$backup = Join-Path $env:TEMP ('viva-update-' + [guid]::NewGuid().ToString('N'))\n")
+	script.WriteString("New-Item -ItemType Directory -Force -Path $backup | Out-Null\n")
+	script.WriteString("$created = New-Object System.Collections.ArrayList\n")
+	script.WriteString("function Restore {\n")
+	script.WriteString("  if (Test-Path -LiteralPath $backup) {\n")
+	script.WriteString("    Get-ChildItem -LiteralPath $backup -Recurse -File | ForEach-Object {\n")
+	script.WriteString("      $rel = $_.FullName.Substring($backup.Length).TrimStart('\\')\n")
+	script.WriteString("      $dest = Join-Path $dir $rel\n")
+	script.WriteString("      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) | Out-Null\n")
+	script.WriteString("      Copy-Item -LiteralPath $_.FullName -Destination $dest -Force\n")
+	script.WriteString("    }\n  }\n")
+	script.WriteString("  foreach ($rel in $created) { Remove-Item -LiteralPath (Join-Path $dir $rel) -Force -ErrorAction SilentlyContinue }\n")
+	script.WriteString("}\n")
+	script.WriteString("$alive = $true\n")
+	script.WriteString("for ($i = 0; $i -lt 60; $i++) {\n")
+	script.WriteString("  if (-not (Get-Process -Id $parent -ErrorAction SilentlyContinue)) { $alive = $false; break }\n")
+	script.WriteString("  Start-Sleep -Seconds 1\n")
+	script.WriteString("}\n")
+	script.WriteString("if ($alive) { Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue; exit 1 }\n")
+	script.WriteString("try {\n")
+	script.WriteString("  Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object {\n")
+	script.WriteString("    $rel = $_.FullName.Substring($payload.Length).TrimStart('\\')\n")
+	script.WriteString("    $dest = Join-Path $dir $rel\n")
+	script.WriteString("    if (Test-Path -LiteralPath $dest) {\n")
+	script.WriteString("      $bak = Join-Path $backup $rel\n")
+	script.WriteString("      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $bak) | Out-Null\n")
+	script.WriteString("      Copy-Item -LiteralPath $dest -Destination $bak -Force\n")
+	script.WriteString("    } else { [void]$created.Add($rel) }\n")
+	script.WriteString("    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) | Out-Null\n")
+	script.WriteString("    Copy-Item -LiteralPath $_.FullName -Destination $dest -Force\n")
+	script.WriteString("  }\n")
+	script.WriteString("  $p = Start-Process -FilePath $exe -PassThru")
+	if len(args) > 0 {
+		fmt.Fprintf(&script, " -ArgumentList %s", powerShellArgumentList(args))
+	}
+	script.WriteString("\n")
+	script.WriteString("  Start-Sleep -Seconds 2\n")
+	script.WriteString("  if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Start-Process -FilePath $exe | Out-Null; exit 1 }\n")
+	script.WriteString("} catch { Restore; exit 1 }\n")
+	script.WriteString("Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue\n")
+	script.WriteString("Remove-Item -Recurse -Force $payload -ErrorAction SilentlyContinue\n")
+	script.WriteString("exit 0\n")
+	return script.String()
 }
 
 // verifyAuthenticode reports whether path is signed and trusted, unsigned, or
