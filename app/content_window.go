@@ -124,6 +124,23 @@ func (content *ContentWindow) Closed() bool {
 	return content == nil || content.window == nil || content.window.Closed()
 }
 
+// Frame reports where the content area is on screen, as Window.Frame does: a
+// drag that ends over another of the application's windows finds it by comparing
+// its pointer with their frames. The second result is false once the window is
+// closed.
+func (content *ContentWindow) Frame() (gfx.Rect, bool) {
+	if content == nil || content.window == nil {
+		return gfx.Rect{}, false
+	}
+	return content.window.Frame()
+}
+
+// Minimized reports whether the window manager has the window minimized, as
+// Window.Minimized does. A minimized window covers no screen point.
+func (content *ContentWindow) Minimized() bool {
+	return content != nil && content.window.Minimized()
+}
+
 // Close force-closes the window, as application teardown does. RequestClose is
 // the ordinary UI action and honors unsaved-content confirmation.
 func (content *ContentWindow) Close() {
