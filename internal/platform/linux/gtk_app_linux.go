@@ -374,8 +374,11 @@ func callbacks() *gtkCallbacks {
 				return 0
 			}),
 			deleteEvent: purego.NewCallback(func(widget, event, id uintptr) uintptr {
-				if w := gtkWindowByID(id); w != nil && w.closeRequested() {
-					return 1 // the application decides
+				if w := gtkWindowByID(id); w != nil {
+					if !w.closeRequested() {
+						w.destroy()
+					}
+					return 1
 				}
 				return 0
 			}),
