@@ -302,23 +302,12 @@ func copyWindowsFile(t *testing.T, source, destination string) []byte {
 
 func runPayloadHelper(t *testing.T, script string, wantExit int) {
 	t.Helper()
-	if os.Getenv("VIVA_PAYLOAD_DIAGNOSTIC") == "1" || os.Getenv("GITHUB_ACTIONS") == "true" {
-		script = "Set-PSDebug -Trace 1\n" + strings.Replace(script,
-			"} catch { Restore; exit 1 }", "} catch { Write-Output $_; Restore; exit 1 }", 1)
-		script = strings.ReplaceAll(script, "$rel = $_.FullName.Substring($payload.Length).TrimStart('\\')",
-			"$rel = $_.FullName.Substring($payload.Length).TrimStart('\\'); Write-Output ('PAYLOAD root={0} item={1} relative={2} itemRoot={3} resolvedRoot={4}' -f $payload, $_.FullName, $rel, (Get-Item -LiteralPath $payload).FullName, (Resolve-Path -LiteralPath $payload).Path)")
-		script = strings.ReplaceAll(script, "$dest = Join-Path $dir $rel",
-			"$dest = Join-Path $dir $rel; Write-Output ('DEST path={0} exists={1}' -f $dest, (Test-Path -LiteralPath $dest))")
-	}
 	path := filepath.Join(t.TempDir(), "helper.ps1")
 	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	command := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", path)
 	output, err := command.CombinedOutput()
-	if os.Getenv("VIVA_PAYLOAD_DIAGNOSTIC") == "1" || os.Getenv("GITHUB_ACTIONS") == "true" {
-		t.Logf("PowerShell result: %v\n%s", err, output)
-	}
 	if wantExit == 0 {
 		if err != nil {
 			t.Fatalf("helper: %v\n%s\n%s", err, output, script)
@@ -332,8 +321,8 @@ func runPayloadHelper(t *testing.T, script string, wantExit int) {
 }
 
 func TestPayloadHelperReplacesTheApplication(t *testing.T) {
-	payload := t.TempDir()
-	install := t.TempDir()
+	payload := filepath.Join(t.TempDir(), "payload with spaces")
+	install := filepath.Join(t.TempDir(), "app with spaces")
 	copyWindowsFile(t, systemExecutable(t, "cmd.exe"), filepath.Join(install, "app.exe"))
 	copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, "app.exe"))
 	if err := os.WriteFile(filepath.Join(install, "old.dll"), []byte("old"), 0o644); err != nil {
@@ -367,12 +356,21 @@ func TestPayloadHelperRollsBackAFailedStart(t *testing.T) {
 	payload := t.TempDir()
 	install := t.TempDir()
 	original := copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(install, "app.exe"))
-	copyWindowsFile(t, systemExecutable(t, "cmd.exe"), filepath.Join(payload, "app.exe"))
+	testExecutable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyWindowsFile(t, testExecutable, filepath.Join(payload, "app.exe"))
+	marker := filepath.Join(t.TempDir(), "started")
+	t.Setenv("VIVA_UPDATE_START_MARKER", marker)
 	if err := os.WriteFile(filepath.Join(payload, "new.dll"), []byte("new"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), []string{"/c", "exit 1"})
+	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), []string{"-test.run=^TestPayloadHelperProcess$"})
 	runPayloadHelper(t, script, 1)
+	if data, err := os.ReadFile(marker); err != nil || string(data) != "started" {
+		t.Fatalf("updated application did not start: marker=%q, %v", data, err)
+	}
 	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
 	if err != nil {
 		t.Fatal(err)
@@ -383,4 +381,15 @@ func TestPayloadHelperRollsBackAFailedStart(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(install, "new.dll")); !os.IsNotExist(err) {
 		t.Errorf("new.dll survived the rollback: %v", err)
 	}
+}
+
+func TestPayloadHelperProcess(t *testing.T) {
+	marker := os.Getenv("VIVA_UPDATE_START_MARKER")
+	if marker == "" {
+		return
+	}
+	if err := os.WriteFile(marker, []byte("started"), 0o600); err != nil {
+		os.Exit(2)
+	}
+	os.Exit(1)
 }

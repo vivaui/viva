@@ -213,8 +213,11 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	fmt.Fprintf(&script, "$payload = %s\n", powerShellQuote(payload))
 	fmt.Fprintf(&script, "$dir = %s\n", powerShellQuote(installDir))
 	fmt.Fprintf(&script, "$exe = %s\n", powerShellQuote(executable))
+	// Enumeration expands DOS aliases, so both substring roots need full names.
+	script.WriteString("$payload = (Get-Item -LiteralPath $payload).FullName\n")
 	script.WriteString("$backup = Join-Path $env:TEMP ('viva-update-' + [guid]::NewGuid().ToString('N'))\n")
 	script.WriteString("New-Item -ItemType Directory -Force -Path $backup | Out-Null\n")
+	script.WriteString("$backup = (Get-Item -LiteralPath $backup).FullName\n")
 	script.WriteString("$created = New-Object System.Collections.ArrayList\n")
 	script.WriteString("function Restore {\n")
 	script.WriteString("  if (Test-Path -LiteralPath $backup) {\n")
