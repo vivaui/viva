@@ -172,17 +172,27 @@ A patch is made at release time from the previous release archive:
 ```sh
 viva feed -dir dist -base-url https://example.com/app/stable \
   --patch-from darwin/arm64=1.4.1=old/Notes-1.4.1-darwin-arm64.zip \
-  --patch-from linux/amd64=1.4.1=old/Notes-1.4.1-linux-amd64.tar.gz
+  --patch-from linux/amd64=1.4.1=old/Notes-1.4.1-linux-amd64.tar.gz \
+  --patch-from windows/amd64=1.4.1=old/Notes-1.4.1-windows-amd64.zip
 ```
 
-Each `--patch-from` is `os/arch=version=archive`, repeatable, for `darwin` and
-`linux` only. The previous archive is supplied by the release process; `viva
+Each `--patch-from` is `os/arch=version=archive`, repeatable, for `darwin`,
+`linux` and `windows`. The previous archive is supplied by the release process; `viva
 feed` extracts both releases and writes `<archive>.<from_version>.patch` beside
 the archives, listing it on the asset in the feed. A patch is a gzip tar holding
 `patch.json` and one bsdiff per changed file; `patch.json` names the app, both
 versions, the OS, the architecture and every file with its mode, size and
 SHA-256. The feed's signature covers the patch's URL, size and digest, and the
 client checks every file it writes against the digest in `patch.json`.
+
+On Windows the payload is a **directory**: the program and the folders beside
+it from the portable zip. The same patch applies to an NSIS installation and to
+a portable copy, because both hold those files at the same paths. A portable
+copy also holds the user's data folder; leave it out of the patch with
+`--patch-exclude motty-data` (the path is relative to the payload). `Install`
+replaces the files and starts the new program without running NSIS, so shortcuts
+and the uninstall entry stay as they are. A machine-wide installation under
+`Program Files` is not writable and falls back to the full installer.
 
 The application decides whether to use a patch. The order that keeps the
 fallback simple:
@@ -261,7 +271,7 @@ error nothing has been changed and `quit` was not called.
 | Archive | the signed `.app` in a zip | the signed NSIS installer | the executable in a tar.gz |
 | Checks | the bundle id and version in `Info.plist`, then `codesign --verify --deep --strict` | the installer's Authenticode signature when it has one; the feed's Ed25519 signature always | the feed's Ed25519 signature |
 | Replaces | the `.app` bundle, by swapping it with two renames while the previous one is kept until the new version starts | runs the installer silently (`/S`), user scope | renames the new executable over the old one; the old inode keeps running until exit |
-| Relaunches | `open -n` through a detached helper after the process exits | a detached PowerShell helper waits, installs, and starts the program | starts the new executable, then the application quits |
+| Relaunches | `open -n` through a detached helper after the process exits | a detached PowerShell helper waits, installs a full setup with `/S` (or copies a patch's files over the installation), and starts the program | starts the new executable, then the application quits |
 | Refuses | a translocated bundle, a read-only parent, a bundle without a valid signature | an installer whose signature fails to verify, a read-only install directory | an AppImage, a `.deb` installed by dpkg, a read-only directory |
 
 A program that a package manager installed is not updated by itself. Linux
@@ -332,9 +342,10 @@ warning.
   the macOS and Linux helpers give up without changing anything and without a
   message; the application keeps running the old version and can offer the
   update again.
-- **No delta updates on Windows.** The NSIS installer owns the installation, so
-  there is no payload tree to patch; a Windows client always downloads the full
-  installer. A patch listed for Windows is refused with `ErrUnsupported`.
+- **Windows patches replace the application's files.** The installer's
+  uninstaller, shortcuts and registry entries are not changed; a release that
+  adds or removes files needs the full installer. A machine-wide installation
+  under `Program Files` is not writable and reports `ErrNotWritable`.
 - **No update service.** The package checks a URL the application names. It does
   not host, stage, roll out or force anything.
 - **No automatic install.** The application decides when to check, whether to
@@ -342,9 +353,9 @@ warning.
 - **No Linux AppImage support** and no self-update of a `.deb`. `viva package`
   makes `tar.gz` and `.deb`; the `.deb` is the package manager's.
 - **No elevation.** The Windows helper runs the installer without asking for
-  administrator rights, so a `[windows] scope = "machine"` installer cannot
-  replace a program installed under `Program Files`; the default per-user scope
-  needs none.
+  administrator rights, and a patch only writes a writable directory. A
+  `[windows] scope = "machine"` installation under `Program Files` cannot be
+  replaced without elevation; the default per-user scope needs none.
 - **macOS needs a code signature.** The new bundle is checked with `codesign`;
   an ad-hoc signature is enough for local testing, an unsigned build is refused.
 - **No Windows arm64 installer changes.** The NSIS installer is per-architecture,

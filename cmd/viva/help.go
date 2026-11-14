@@ -78,7 +78,7 @@ func commands() []command {
 				"as -notes must be when given. The signing key is -key, or $VIVA_UPDATE_KEY: the base64 64-byte\n" +
 				"private key 'viva update-keygen' writes. App, version and archive directory default to viva.toml.\n" +
 				"--patch-from os/arch=version=archive (repeatable) writes a delta update from that earlier\n" +
-				"release beside the archives and lists it on the asset; it works for darwin and linux.",
+				"release beside the archives and lists it on the asset; it works for darwin, linux and windows.",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runFeed(arguments, output, errorOutput)
 			}},
