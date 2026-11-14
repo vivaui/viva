@@ -685,9 +685,11 @@ func (editor *Editor) Backspace() {
 // the caret after what it inserted: how a find bar replaces a match, or all of
 // them. It ends an active composition, which the replaced text may include.
 func (editor *Editor) ReplaceRange(target Range, value string) {
+	editor.sealTentativeHistory()
 	target = normalizeRange(target, len(editor.runes))
 	before := editor.selectionState()
 	change := editor.replace(target, value, false)
+	editor.clearSecondary() // one range replaced, one caret left
 	editor.collapse(target.Start + len(change.inserted))
 	editor.composing = false
 	editor.releaseCompositionHistory()

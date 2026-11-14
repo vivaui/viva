@@ -16,7 +16,7 @@ func (editor *Editor) historyState() *historyJournal {
 	if editor == nil || editor.journal == nil {
 		return nil
 	}
-	history := editor.journal.history
+	history := editor.journal.historyJournal()
 	if history == nil || history.owner != editor || !history.available {
 		return nil
 	}

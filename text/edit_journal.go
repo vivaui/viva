@@ -23,7 +23,7 @@ type editJournal struct {
 	private     bool
 	savePoint   *int
 	lines       *lineJournal
-	history     *historyJournal
+	optional    *editorSidecar
 }
 
 // TrackEdits enables a bounded mutation journal and returns its current cursor.

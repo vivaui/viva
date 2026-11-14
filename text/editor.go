@@ -84,6 +84,7 @@ type Editor struct {
 	// compositionBaseValid says compositionBase holds the built value. The value
 	// itself may legitimately be empty, so it cannot serve as its own sentinel.
 	compositionBaseValid bool
+	legacyComposition    bool
 	// compositionHistory and its counters are the history a cancel restores. The
 	// provisional composition edit may drop redo, merge, or trim older units.
 	compositionHistory      []historyEdit
@@ -157,6 +158,11 @@ func (editor *Editor) String() string {
 // Like String, it populates a cache and is not safe for concurrent use.
 func (editor *Editor) CommittedString() string {
 	if editor.composing {
+		if state := editor.compositionState(); state != nil && state.active && state.enabled && state.ops.committed != nil {
+			if value, ok := state.ops.committed(state); ok {
+				return value
+			}
+		}
 		if !editor.compositionBaseValid {
 			committed := make([]rune, 0, len(editor.runes)-editor.composition.End+editor.composition.Start+len(editor.compositionOriginal))
 			committed = append(committed, editor.runes[:editor.composition.Start]...)
@@ -181,6 +187,7 @@ func (editor *Editor) CommittedString() string {
 // empty six-digit editor leaves "123456". Text already present is left alone,
 // and deleting is never restricted.
 func (editor *Editor) Restrict(accept func(rune) bool, maxRunes int) {
+	editor.disableTentativeForConfiguration()
 	editor.accept = accept
 	editor.maxRunes = maxRunes
 }
@@ -216,6 +223,7 @@ func (editor *Editor) Caret() int {
 // Start is after its End is a selection made backwards: the caret is at the
 // Start, as Caret reports, and Selection still returns it in order.
 func (editor *Editor) SetSelection(selection Range) {
+	editor.sealTentativeHistory()
 	anchor := clamp(selection.Start, 0, len(editor.runes))
 	caret := clamp(selection.End, 0, len(editor.runes))
 	if editor.anchor != anchor || editor.caret != caret || editor.composing {
@@ -234,6 +242,7 @@ func (editor *Editor) SetSelection(selection Range) {
 // in text a view has wrapped. It ends active composition and, like any single
 // selection movement, drops the secondary selections.
 func (editor *Editor) MoveTo(index int, extend bool) {
+	editor.sealTentativeHistory()
 	editor.BreakUndoGroup()
 	index = clamp(index, 0, len(editor.runes))
 	if extend {
@@ -262,6 +271,8 @@ func (editor *Editor) Insert(value string) {
 	target := editor.Selection()
 	wasComposing := editor.composing
 	if wasComposing {
+		editor.sealTentativeHistory()
+		editor.invalidateHistoryFrom(0)
 		target = editor.composition
 	}
 	overwrite := editor.overwrite && !wasComposing && target.Start == target.End
@@ -287,6 +298,7 @@ func (editor *Editor) Insert(value string) {
 
 // Paste inserts text as one undo unit, separate from adjacent typing.
 func (editor *Editor) Paste(value string) {
+	editor.sealTentativeHistory()
 	editor.BreakUndoGroup()
 	editor.Insert(value)
 	editor.BreakUndoGroup()
@@ -295,6 +307,7 @@ func (editor *Editor) Paste(value string) {
 // SetMarkedText replaces the current composition or selection with marked
 // text. selected is relative to the marked text, matching native IME APIs.
 func (editor *Editor) SetMarkedText(value string, selected Range) {
+	editor.sealTentativeHistory()
 	editor.invalidateHistoryFrom(0)
 	wasComposing := editor.composing
 	target := editor.Selection()
@@ -321,6 +334,7 @@ func (editor *Editor) SetMarkedText(value string, selected Range) {
 		if labels := editor.lfLabelState(); labels != nil {
 			labels.ops.hold(labels, change)
 		}
+		editor.legacyComposition = true
 	}
 	inserted := len(change.inserted)
 	if inserted == 0 && value != "" {
@@ -342,6 +356,7 @@ func (editor *Editor) SetMarkedText(value string, selected Range) {
 
 // Unmark commits the current marked text without changing it.
 func (editor *Editor) Unmark() {
+	editor.sealTentativeHistory()
 	editor.composing = false
 	editor.releaseCompositionHistory()
 	editor.BreakUndoGroup()
@@ -353,6 +368,12 @@ func (editor *Editor) Unmark() {
 // an explicit native event, never an empty marked string by itself.
 func (editor *Editor) CancelComposition() bool {
 	if !editor.composing {
+		return false
+	}
+	if !editor.legacyComposition {
+		if editor.tentativeActive() {
+			return editor.ApplyComposition(CompositionEvent{Phase: CompositionCancel})
+		}
 		return false
 	}
 	target := editor.composition
@@ -368,6 +389,7 @@ func (editor *Editor) CancelComposition() bool {
 	editor.anchor = clamp(editor.compositionAnchor, 0, len(editor.runes))
 	editor.caret = clamp(editor.compositionCaret, 0, len(editor.runes))
 	editor.composing = false
+	editor.legacyComposition = false
 	editor.composition = Range{}
 	editor.compositionOriginal = nil
 	editor.compositionBase = ""
@@ -391,6 +413,7 @@ func (editor *Editor) CancelComposition() bool {
 // DeleteBackward removes the selection or previous grapheme cluster. With
 // several selections it removes at every one, as one undo unit.
 func (editor *Editor) DeleteBackward() bool {
+	editor.sealTentativeHistory()
 	if editor.multiDelete(false) {
 		return true
 	}
@@ -417,6 +440,7 @@ func (editor *Editor) DeleteBackward() bool {
 // DeleteForward removes the selection or next grapheme cluster. With several
 // selections it removes at every one, as one undo unit.
 func (editor *Editor) DeleteForward() bool {
+	editor.sealTentativeHistory()
 	if editor.multiDelete(true) {
 		return true
 	}
@@ -440,6 +464,7 @@ func (editor *Editor) DeleteForward() bool {
 // the previous one, except in a line with right-to-left text, where the order is the one
 // UAX #9 displays it in.
 func (editor *Editor) MoveLeft(extend bool) bool {
+	editor.sealTentativeHistory()
 	editor.BreakUndoGroup()
 	editor.clearSecondary() // a movement moves the primary selection alone
 	editor.composing = false
@@ -465,6 +490,7 @@ func (editor *Editor) MoveLeft(extend bool) bool {
 // MoveRight moves or extends selection by one grapheme cluster to the right on the screen
 // (see MoveLeft).
 func (editor *Editor) MoveRight(extend bool) bool {
+	editor.sealTentativeHistory()
 	editor.BreakUndoGroup()
 	editor.clearSecondary() // see MoveLeft
 	editor.composing = false
@@ -553,8 +579,13 @@ func (editor *Editor) collapse(index int) {
 // the replacement began, which differs from target.Start only when a full field
 // had to replace its last rune.
 func (editor *Editor) replace(target Range, value string, overwrite bool) textChange {
+	return editor.replaceRunes(target, []rune(value), overwrite)
+}
+
+// Explicit composition passes one borrowed scalar at a time; ordinary callers
+// still pass the same newly allocated rune slice through replace.
+func (editor *Editor) replaceRunes(target Range, replacement []rune, overwrite bool) textChange {
 	target = normalizeRange(target, len(editor.runes))
-	replacement := []rune(value)
 	if editor.accept != nil {
 		kept := replacement[:0]
 		for _, r := range replacement {
@@ -621,12 +652,16 @@ func (editor *Editor) CanRedo() bool { return editor.historyIndex < len(editor.h
 
 // Undo restores the text and selection before the latest undo unit.
 func (editor *Editor) Undo() bool {
+	if editor.composing && editor.tentativeActive() {
+		return false
+	}
 	if !editor.CanUndo() {
 		return false
 	}
 	if labels := editor.lfLabelState(); labels != nil && labels.mapping {
 		panic("text: LF label mapper reentered Undo")
 	}
+	editor.retireCompletedRetention()
 	editor.historyIndex--
 	edit := &editor.history[editor.historyIndex]
 	editor.replaceHistory(edit, true)
@@ -635,14 +670,21 @@ func (editor *Editor) Undo() bool {
 	if history := editor.historyState(); history != nil {
 		history.ops.replay(history, editor.historyIndex, true)
 	}
+	if state := editor.compositionState(); state != nil && state.ops.settle != nil {
+		state.ops.settle(state)
+	}
 	return true
 }
 
 // Redo reapplies the next undone edit and restores its resulting selection.
 func (editor *Editor) Redo() bool {
+	if editor.composing && editor.tentativeActive() {
+		return false
+	}
 	if !editor.CanRedo() {
 		return false
 	}
+	editor.retireCompletedRetention()
 	edit := &editor.history[editor.historyIndex]
 	editor.replaceHistory(edit, false)
 	editor.restoreSelection(edit.after)
@@ -650,6 +692,9 @@ func (editor *Editor) Redo() bool {
 	editor.BreakUndoGroup()
 	if history := editor.historyState(); history != nil {
 		history.ops.replay(history, editor.historyIndex-1, false)
+	}
+	if state := editor.compositionState(); state != nil && state.ops.settle != nil {
+		state.ops.settle(state)
 	}
 	return true
 }
@@ -663,7 +708,13 @@ func (editor *Editor) clearHistory(manual bool) {
 	if labels := editor.lfLabelState(); labels != nil && labels.mapping {
 		panic("text: LF label mapper reentered history reset")
 	}
-	if history := editor.historyState(); history != nil {
+	state := editor.compositionState()
+	if editor.composing || state != nil && state.active {
+		if state != nil {
+			state.active = false
+		}
+		editor.invalidateHistoryFrom(0)
+	} else if history := editor.historyState(); history != nil {
 		history.ops.clear(history, manual && !editor.composing)
 	}
 	if editor.journal != nil && editor.journal.lines != nil {
@@ -680,6 +731,14 @@ func (editor *Editor) clearHistory(manual bool) {
 		editor.historyRunes = labels.ops.extra(labels)
 	}
 	editor.coalescing = 0
+	if state != nil {
+		state.live, state.completed, state.passive = false, false, false
+		state.eventStart, state.completedStart, state.unitStart = -1, -1, -1
+		state.cost = editor.compositionBaseCost()
+		if !state.enabled && !state.active {
+			editor.journal.setCompositionState(nil)
+		}
+	}
 	if point := editor.savePointIndex(); point != nil {
 		*point = 0
 	}
@@ -704,6 +763,9 @@ func (editor *Editor) ClearHistory() {
 func (editor *Editor) releaseCompositionHistory() {
 	if labels := editor.lfLabelState(); labels != nil {
 		labels.ops.release(labels)
+	}
+	if !editor.composing {
+		editor.legacyComposition = false
 	}
 	if !editor.compositionHistoryHeld {
 		return
@@ -738,6 +800,7 @@ func (editor *Editor) record(change textChange, before, after editorSelection, k
 	if runesEqual(change.removed, change.inserted) && !editor.pendingLFLabels() && (len(change.removed) == 0 || !editor.retainEqualEdits()) {
 		return
 	}
+	editor.recordRetiresCompleted()
 	editor.dropRedo()
 	var primitive Edit
 	owned := false
@@ -764,9 +827,10 @@ func (editor *Editor) recordWithPrimitives(change textChange, before, after edit
 		editor.record(change, before, after, kind)
 		return
 	}
-	if runesEqual(change.removed, change.inserted) && !editor.pendingLFLabels() && !editor.retainEqualEdits() {
+	if runesEqual(change.removed, change.inserted) && !editor.pendingLFLabels() && !editor.retainEqualEdits() && !editor.compositionRetainEqual() {
 		return
 	}
+	editor.recordRetiresCompleted()
 	editor.dropRedo()
 	if history := editor.historyState(); history != nil {
 		history.ops.capturePrimitives(history, primitives)
@@ -888,6 +952,10 @@ func (editor *Editor) discardRedo() {
 }
 
 func (editor *Editor) trimHistory() {
+	if state := editor.compositionState(); state != nil && state.ops.trim != nil {
+		state.ops.trim(state)
+		return
+	}
 	if history := editor.historyState(); history != nil {
 		history.ops.enforce(history)
 	}

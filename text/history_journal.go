@@ -79,7 +79,8 @@ type historyJournal struct {
 	oldest                       uint16
 }
 
-const historyHeaderRunes = int((unsafe.Sizeof(historyJournal{}) + unsafe.Sizeof(rune(0)) - 1) / unsafe.Sizeof(rune(0)))
+// A history header owns the shared optional slot even after invalidation.
+const historyHeaderRunes = editorSidecarRunes + int((unsafe.Sizeof(historyJournal{})+unsafe.Sizeof(rune(0))-1)/unsafe.Sizeof(rune(0)))
 
 var nextHistorySource atomic.Uint64
 
@@ -92,8 +93,11 @@ func (editor *Editor) TrackHistory() (HistoryCursor, int, bool) {
 		return HistoryCursor{}, 0, false
 	}
 	journal := editor.journal
-	if journal != nil && journal.history != nil {
-		history := journal.history
+	if state := journal.compositionState(); state != nil && state.owner != editor {
+		return HistoryCursor{}, 0, false
+	}
+	if journal != nil && journal.historyJournal() != nil {
+		history := journal.historyJournal()
 		if history.owner != editor || !history.available || history.epoch.sequence < history.windowStart {
 			return HistoryCursor{}, 0, false
 		}
@@ -130,7 +134,8 @@ func (editor *Editor) TrackHistory() (HistoryCursor, int, bool) {
 		epoch:          HistoryCursor{source: source, generation: 1},
 		bootstrapBytes: size, bytes: size, cost: historyHeaderRunes, available: true,
 	}
-	journal.history = history
+	journal.setHistoryJournal(history)
+	editor.chargeCompositionCapacity()
 	return history.epoch, size, true
 }
 
@@ -201,6 +206,10 @@ func historyRuneBytes(value []rune) int {
 }
 
 func (editor *Editor) captureHistoryPrimitives(primitives []Edit) {
+	if event := editor.compositionEvent(); event != nil {
+		editor.appendEventPrimitives(event, primitives)
+		return
+	}
 	history := editor.historyState()
 	if history == nil || len(primitives) == 0 {
 		return
@@ -224,6 +233,15 @@ func (editor *Editor) captureHistoryPrimitives(primitives []Edit) {
 
 func (editor *Editor) appendForwardHistoryStep(history *historyJournal, steps []HistoryStep, primitive HistoryPrimitive, position, length, before, after int) []HistoryStep {
 	boundary := history.current + len(steps)
+	editor.updateHistoryBranch(boundary)
+	return append(steps, HistoryStep{HistoryForward, primitive, position, length, before, after, history.context(boundary+1, boundary+1)})
+}
+
+func (editor *Editor) updateHistoryBranch(boundary int) {
+	history := editor.historyState()
+	if history == nil {
+		return
+	}
 	if boundary < history.save {
 		history.save = -1
 		if history.detach == -1 {
@@ -232,7 +250,6 @@ func (editor *Editor) appendForwardHistoryStep(history *historyJournal, steps []
 	} else if history.detach != -1 && history.detach > boundary {
 		history.detach = boundary
 	}
-	return append(steps, HistoryStep{HistoryForward, primitive, position, length, before, after, history.context(boundary+1, boundary+1)})
 }
 
 func (editor *Editor) captureHistorySave() {
@@ -247,6 +264,13 @@ func (editor *Editor) captureHistorySave() {
 }
 
 func (editor *Editor) appendHistoryFrame(steps []HistoryStep, before, after, current int) {
+	if len(steps) == 0 {
+		return
+	}
+	editor.appendHistoryFrameWithTail(steps, before, after, current, steps[len(steps)-1].Context.RetainedTo)
+}
+
+func (editor *Editor) appendHistoryFrameWithTail(steps []HistoryStep, before, after, current, tail int) {
 	history := editor.historyState()
 	if history == nil || len(steps) == 0 {
 		return
@@ -270,7 +294,6 @@ func (editor *Editor) appendHistoryFrame(steps []HistoryStep, before, after, cur
 		}
 		running = step.AfterBytes
 	}
-	tail := steps[len(steps)-1].Context.RetainedTo
 	if running != after || current < history.retainedFrom || current < 0 || current > tail {
 		editor.invalidateHistoryFrom(0)
 		return
@@ -315,9 +338,10 @@ func (history *historyJournal) dropOldestFrame() {
 
 func (editor *Editor) historyCost() int {
 	cost := editor.historyRunes
-	if editor.journal != nil && editor.journal.history != nil {
-		cost += editor.journal.history.cost
+	if editor.journal != nil && editor.journal.historyJournal() != nil {
+		cost += editor.journal.historyJournal().cost
 	}
+	cost += editor.compositionCost()
 	return cost
 }
 
@@ -339,11 +363,7 @@ type historyReplayPrimitive struct {
 	position, length int
 }
 
-func (editor *Editor) captureHistoryReplay(edit *historyEdit, inverse bool) {
-	history := editor.historyState()
-	if history == nil {
-		return
-	}
+func (editor *Editor) historyReplayPrimitives(edit *historyEdit) []historyReplayPrimitive {
 	primitives := make([]historyReplayPrimitive, 0, len(edit.primitives)*2)
 	appendPrimitive := func(position, removed, inserted int) {
 		if removed > 0 {
@@ -360,6 +380,19 @@ func (editor *Editor) captureHistoryReplay(edit *historyEdit, inverse bool) {
 	} else {
 		appendPrimitive(editor.ByteOffset(edit.start), historyRuneBytes(edit.removed), historyRuneBytes(edit.inserted))
 	}
+	return primitives
+}
+
+func (editor *Editor) captureHistoryReplay(edit *historyEdit, inverse bool) {
+	if event := editor.compositionEvent(); event != nil {
+		editor.captureEventReplay(event, edit, inverse)
+		return
+	}
+	history := editor.historyState()
+	if history == nil {
+		return
+	}
+	primitives := editor.historyReplayPrimitives(edit)
 	if len(primitives) == 0 {
 		editor.invalidateHistoryFrom(0)
 		return
