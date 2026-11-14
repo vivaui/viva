@@ -112,11 +112,11 @@ func TestPatchApply(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer patch.Close()
 	staging := filepath.Join(t.TempDir(), "staged")
 	if err := patch.Apply(oldRoot, staging); err != nil {
 		t.Fatal(err)
 	}
-	patch.Close()
 
 	for name, want := range map[string][]byte{
 		"program": newData, "same.txt": sameData, "resource/added.txt": addedData,
@@ -133,8 +133,13 @@ func TestPatchApply(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(staging, "dropped.txt")); !os.IsNotExist(err) {
 		t.Errorf("a deleted file was staged: %v", err)
 	}
-	if info, err := os.Stat(filepath.Join(staging, "program")); err != nil || info.Mode().Perm() != 0o755 {
-		t.Errorf("program mode = %v, %v", info.Mode(), err)
+	info, err := os.Stat(filepath.Join(staging, "program"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Windows has no Unix executable bits to preserve.
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o755 {
+		t.Errorf("program mode = %v, want 0755", info.Mode())
 	}
 }
 
@@ -153,6 +158,7 @@ func TestPatchRefusesAChangedBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer patch.Close()
 	if err := os.WriteFile(filepath.Join(oldRoot, "program"), []byte("something else entirely"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -226,6 +232,7 @@ func TestPatchRefusesANonEmptyStaging(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer patch.Close()
 	staging := filepath.Join(t.TempDir(), "staged")
 	if err := os.MkdirAll(staging, 0o755); err != nil {
 		t.Fatal(err)
@@ -259,9 +266,15 @@ func TestApplyPatchChecksNameAndVersions(t *testing.T) {
 	case "windows":
 		payload = "dir"
 	}
+	supported := runtime.GOOS == "darwin" || runtime.GOOS == "linux" || runtime.GOOS == "windows"
+	patchOS, patchArch := runtime.GOOS, runtime.GOARCH
+	if !supported {
+		// Use a valid patch so rejection exercises the running-platform check.
+		patchOS, patchArch = "linux", "amd64"
+	}
 	manifest := PatchManifest{
 		Schema: PatchSchema, App: "dev.example.notes", FromVersion: "1.0.0", ToVersion: "1.1.0",
-		OS: runtime.GOOS, Arch: runtime.GOARCH, Payload: payload,
+		OS: patchOS, Arch: patchArch, Payload: payload,
 		Files: []PatchFile{fileManifest("program", newData, "diff", "files/0001", 0o755)},
 	}
 	patchPath := writePatch(t, manifest, map[string][]byte{"files/0001": diff})
@@ -269,9 +282,20 @@ func TestApplyPatchChecksNameAndVersions(t *testing.T) {
 	original := locateInstalledPayload
 	defer func() { locateInstalledPayload = original }()
 	located := payload
-	locateInstalledPayload = func() (string, string, error) { return oldRoot, located, nil }
+	locateInstalledPayload = func() (string, string, error) {
+		if !supported {
+			t.Error("an unsupported platform reached installed payload lookup")
+		}
+		return oldRoot, located, nil
+	}
 
 	staging, err := ApplyPatch(patchPath, "dev.example.notes", "1.0.0", "1.1.0")
+	if !supported {
+		if staging != "" || !errors.Is(err, ErrManifest) {
+			t.Fatalf("unsupported platform: staging = %q, err = %v, want empty staging and ErrManifest", staging, err)
+		}
+		return
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
