@@ -26,6 +26,11 @@ type linuxTextInput struct {
 	input   platform.TextInput
 	state   platform.TextState
 	enabled bool
+	closed  bool
+	// Every acknowledgment advances both counters, even if its value is the
+	// same. Geometry alone supersedes a redraw, but not an event's text result.
+	stateRevision uint64
+	inputRevision uint64
 
 	caretVisible    bool
 	caretGeneration uint32
@@ -83,7 +88,15 @@ func newLinuxTextInput(config *platform.Config) (*linuxTextInput, error) {
 }
 
 func (state *linuxTextInput) close() {
+	if state.closed {
+		return
+	}
+	state.closed, state.enabled = true, false
+	state.stateRevision++
+	state.inputRevision++
 	state.stopCaretBlink()
+	state.input = platform.TextInput{}
+	state.state = platform.TextState{}
 	state.engine = nil
 }
 
@@ -164,6 +177,9 @@ func (state *linuxTextInput) initial() ([]render.Rectangle, []platform.TextLabel
 }
 
 func (state *linuxTextInput) prepare(frame platform.Frame) (platform.Frame, bool, error) {
+	if state.closed {
+		return platform.Frame{}, false, nil
+	}
 	rectanglesChanged := !frame.Update.Empty()
 	labelsChanged := frame.TextLabels != nil
 	if rectanglesChanged {
@@ -221,7 +237,7 @@ func (state *linuxTextInput) prepare(frame platform.Frame) (platform.Frame, bool
 }
 
 func (state *linuxTextInput) applyUpdate(update platform.TextInputUpdate) (bool, error) {
-	if !update.Changed {
+	if !update.Changed || state.closed {
 		return false, nil
 	}
 	if !state.config.DynamicTextInput {
@@ -229,6 +245,10 @@ func (state *linuxTextInput) applyUpdate(update platform.TextInputUpdate) (bool,
 	}
 	if err := validateLinuxTextInput(update.Input); err != nil {
 		return false, err
+	}
+	state.inputRevision++
+	if !state.enabled || update.Input == nil || !sameLinuxTextSession(state.input, *update.Input) {
+		state.stateRevision++
 	}
 	if update.Input == nil {
 		state.stopCaretBlink()
@@ -249,6 +269,15 @@ func (state *linuxTextInput) applyUpdate(update platform.TextInputUpdate) (bool,
 	state.enabled = true
 	state.restartCaretBlink()
 	return true, nil
+}
+
+func sameLinuxTextSession(previous, next platform.TextInput) bool {
+	return previous.Target == next.Target && previous.State == next.State &&
+		previous.Multiline == next.Multiline && previous.Secure == next.Secure &&
+		previous.Terminal == next.Terminal && previous.CopyOverride == next.CopyOverride &&
+		previous.AltSendsEscape == next.AltSendsEscape && previous.KeyReleases == next.KeyReleases &&
+		previous.DisableIME == next.DisableIME && previous.NavigationKeys == next.NavigationKeys &&
+		previous.Placed == next.Placed
 }
 
 func (state *linuxTextInput) rebuild() error {
@@ -618,7 +647,11 @@ func (state *linuxTextInput) textEvent(event platform.TextEvent) (platform.Frame
 		return platform.Frame{}, nil
 	}
 	previous := state.state
+	revision := state.stateRevision
 	next, err := state.input.OnEvent(event)
+	if err == nil && state.stateRevision != revision {
+		return state.currentTextFrame(), nil
+	}
 	if err == nil {
 		err = validateLinuxTextState(next)
 	}
@@ -627,6 +660,8 @@ func (state *linuxTextInput) textEvent(event platform.TextEvent) (platform.Frame
 	}
 	redraw := platform.TextInputPresentationChanged(state.input.Terminal, previous, next)
 	next = next.WithoutRedraw() // a one-shot request, not editor state
+	state.stateRevision++
+	state.inputRevision++
 	state.state = next
 	state.input.State = next
 	state.publishPrimary(previous, next)
@@ -634,14 +669,31 @@ func (state *linuxTextInput) textEvent(event platform.TextEvent) (platform.Frame
 		return platform.Frame{}, nil
 	}
 	state.restartCaretBlink()
+	revision = state.inputRevision
 	if state.config.OnRedraw != nil {
 		frame, err := state.config.OnRedraw()
+		if err == nil && state.inputRevision != revision {
+			// The callback's scene and input belong to an older acknowledgment.
+			// Refresh the current mirror, including after a nested terminal no-op.
+			return state.currentTextFrame(), nil
+		}
 		if err == nil && !frame.TextInput.Changed {
 			frame.TextInput = platform.TextInputUpdate{Changed: true, Input: &state.input}
 		}
 		return frame, err
 	}
 	return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &state.input}}, nil
+}
+
+func (state *linuxTextInput) currentTextFrame() platform.Frame {
+	if state.closed {
+		return platform.Frame{}
+	}
+	var current *platform.TextInput
+	if state.enabled {
+		current = &state.input
+	}
+	return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: current}}
 }
 
 // caretShown says whether the field has a native caret to draw: not a terminal,
