@@ -24,7 +24,8 @@ func TestGTKClipboardHTMLWriteReportsUnsupportedWithoutSetWithData(t *testing.T)
 	textWrites := 0
 	clipboards = gtkClipboards{
 		ok: true, clipboard: 17,
-		setText: func(board uintptr, value *byte, length int32) { textWrites++ },
+		setText:    func(board uintptr, value *byte, length int32) { textWrites++ },
+		atomIntern: func(*byte, int32) uintptr { return 1 },
 	}
 	application := &gtkApplication{mainThread: syscall.Gettid()}
 	application.installHooks()
