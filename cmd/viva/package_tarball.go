@@ -13,6 +13,7 @@ import (
 	"github.com/vivaui/viva/tools/linuxicon"
 	"github.com/vivaui/viva/tools/manifest"
 	"github.com/vivaui/viva/tools/pkgbuild"
+	"github.com/vivaui/viva/tools/rpmpkg"
 	"github.com/vivaui/viva/tools/tarball"
 )
 
@@ -23,6 +24,27 @@ var linuxRuntimeDepends = []string{"libvulkan1", "libxcb1", "libcairo2"}
 
 // linuxArchRuntimeDepends are the same libraries under Arch's names.
 var linuxArchRuntimeDepends = []string{"vulkan-icd-loader", "libxcb", "cairo"}
+
+// linuxRPMRuntimeDepends are the same libraries under the names Fedora, RHEL and
+// openSUSE use. The manifest's depends are Debian names, so the .rpm does not
+// take them over; an application that needs more must say so in its own code.
+var linuxRPMRuntimeDepends = []string{"vulkan-loader", "libxcb", "cairo"}
+
+// linuxApplication describes the application for the Debian and RPM packages:
+// both install the same files, so they share one description.
+func linuxApplication(plan buildPlan, program []byte, category string, icons []linuxicon.Rendition) debpkg.Package {
+	loaded := plan.manifest
+	maintainer := loaded.Linux.Maintainer
+	if maintainer == "" {
+		maintainer = loaded.App.Name
+	}
+	return debpkg.Package{
+		Executable: plan.executable, ID: loaded.App.ID, Name: loaded.App.Name, Version: loaded.App.Version, Arch: plan.arch,
+		Maintainer: maintainer, Homepage: loaded.Linux.Homepage, Comment: loaded.Linux.Comment, Category: category,
+		Keywords: loaded.Linux.Keywords, URLSchemes: loaded.App.URLSchemes, FileTypes: linuxFileTypes(loaded.App.FileTypes),
+		Program: program, Icons: icons,
+	}
+}
 
 // packageLinux builds the program and writes the Linux packages asked for: a
 // .tar.gz with an install script, a .deb, and a PKGBUILD with its .SRCINFO for
@@ -130,19 +152,22 @@ func packageLinux(request packageRequest) error {
 		}
 	}
 	if request.wants("deb") {
-		maintainer := loaded.Linux.Maintainer
-		if maintainer == "" {
-			maintainer = loaded.App.Name
-		}
-		spec := debpkg.Package{
-			Executable: plan.executable, ID: loaded.App.ID, Name: loaded.App.Name, Version: loaded.App.Version, Arch: plan.arch,
-			Maintainer: maintainer, Homepage: loaded.Linux.Homepage, Comment: loaded.Linux.Comment, Category: category,
-			Keywords: loaded.Linux.Keywords, URLSchemes: loaded.App.URLSchemes, FileTypes: linuxFileTypes(loaded.App.FileTypes), Depends: debDepends(loaded.Linux.Depends), Program: program, Icons: icons,
-		}
+		spec := linuxApplication(plan, program, category, icons)
+		spec.Depends = debDepends(loaded.Linux.Depends)
 		if debName, err = spec.FileName(); err != nil {
 			return err
 		}
 		if _, err := write("deb", debName, spec.Write); err != nil {
+			return err
+		}
+	}
+	if request.wants("rpm") {
+		spec := rpmpkg.Package{App: linuxApplication(plan, program, category, icons), Requires: linuxRPMRuntimeDepends}
+		rpmName, err := spec.FileName()
+		if err != nil {
+			return err
+		}
+		if _, err := write("rpm", rpmName, spec.Write); err != nil {
 			return err
 		}
 	}
