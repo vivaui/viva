@@ -588,6 +588,27 @@ func TestContextCalls(t *testing.T) {
 	}
 }
 
+func BenchmarkHandledContextKey(b *testing.B) {
+	transport := &fakeTransport{createPath: testContext}
+	bus := newBus(transport)
+	context, err := bus.NewContext("benchmark", Handler{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	answer := dbus.Message{Type: dbus.TypeReturn, Signature: "b", Body: []byte{1, 0, 0, 0}}
+	transport.sent = transport.sent[:0]
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := context.ProcessKey('a', 30, 0, nil); err != nil {
+			b.Fatal(err)
+		}
+		answer.ReplySerial = transport.serial
+		bus.answer(&answer)
+		transport.sent = transport.sent[:0]
+	}
+}
+
 func TestAddressPrefersTheEnvironmentThenTheDisplaysFile(t *testing.T) {
 	files := map[string]string{
 		"/var/lib/dbus/machine-id":               "abc123\n",
