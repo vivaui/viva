@@ -705,3 +705,234 @@ func TestAnUnknownElementIsAnError(t *testing.T) {
 		t.Fatalf("compiling an <image> gave %v, want an unsupported-element error", err)
 	}
 }
+
+// The flag fixtures are the three flag-icons sources that needed <use> and
+// <marker> support: the CN flag references one shared star path from five
+// <use> elements with matrix transforms (adjusted by the Chinese flag's
+// 4x3 design cell), the KR flag references both a path and a group (whose
+// own <use> shifts bars by y=44), and the US flag places its 50 stars with
+// marker-mid on the vertices of an invisible closed outline.
+// Unmodified copies from lipis/flag-icons v7.5.0, commit 7aa5b2b, MIT license.
+
+// starPoints lists the anchor vertices of every star layer of the compiled
+// US flag: the first drawn point of the star shape, which sits at the outline
+// vertex the marker is placed on (the shape draws from its content origin).
+func TestUSFlagStarsSitAtEveryMidVertex(t *testing.T) {
+	mustCompile := func(name string) gfx.Icon {
+		source, err := testIcons.ReadFile("testdata/flag-" + name + ".svg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		icon, err := Compile(name, source)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		return icon
+	}
+	US := mustCompile("us")
+	// Red field, blue canton, then one layer per star.
+	if len(US.Layers) != 52 {
+		t.Fatalf("US flag has %d layers, want 2 fields + 50 stars", len(US.Layers))
+	}
+	anchors := map[[2]float32]bool{}
+	for _, layer := range US.Layers[2:] {
+		first := layer.Commands[0]
+		// The star content starts at its top tip, 14 units right of the vertex.
+		anchors[[2]float32{first.Point.X - 14, first.Point.Y}] = true
+	}
+	if len(anchors) != 50 {
+		t.Fatalf("%d distinct star anchors, want 50", len(anchors))
+	}
+	// The star outline's vertices: 51 of them, starting (and, via closepath,
+	// ending) at (0,0). Browsers draw marker-mid on every vertex but the
+	// first; the last vertex of the closed subpath keeps its star, which is
+	// how the 50th star of the bottom row comes to sit at (320,218).
+	if anchors[[2]float32{0, 0}] {
+		t.Fatal("a star sits at the first vertex; marker-mid must not")
+	}
+	for _, vertex := range [][2]float32{
+		{16, 11}, {320, 11}, // first and last of a six-star row
+		{47, 37}, {290, 37}, // the five-star rows
+		{320, 218}, // the closed outline's last vertex keeps its star
+	} {
+		if !anchors[vertex] {
+			t.Errorf("no star anchored at vertex %v", vertex)
+		}
+	}
+	// Every star is the same upright shape: the marker carries no orient
+	// attribute, so SVG's default angle 0 applies and the stars stay upright
+	// the way browsers render the flag.
+	reference := US.Layers[2].Commands
+	tolerant := func(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
+	for index, layer := range US.Layers[2:] {
+		if len(layer.Commands) != len(reference) {
+			t.Fatalf("star %d has %d commands, want %d", index, len(layer.Commands), len(reference))
+		}
+		dx := layer.Commands[0].Point.X - reference[0].Point.X
+		dy := layer.Commands[0].Point.Y - reference[0].Point.Y
+		for command, want := range reference {
+			got := layer.Commands[command]
+			if got.Kind == gfx.PathCommandClose {
+				continue // a close carries no point of its own
+			}
+			offX, offY := got.Point.X-want.Point.X-dx, got.Point.Y-want.Point.Y-dy
+			if got.Kind != want.Kind || !tolerant(offX, 0) || !tolerant(offY, 0) ||
+				!tolerant(got.Control1.X-want.Control1.X, 0) || !tolerant(got.Control1.Y-want.Control1.Y, 0) ||
+				!tolerant(got.Control2.X-want.Control2.X, 0) || !tolerant(got.Control2.Y-want.Control2.Y, 0) {
+				t.Fatalf("star %d is not the upright shape translated by (%v, %v)", index, dx, dy)
+			}
+		}
+	}
+}
+
+// TestCNFlagExpandsUseMatrices: five <use> elements reference one shared star
+// path, each with a matrix transform; the compiled bounding boxes must land
+// where the matrices in the source put the star glyphs.
+func TestCNFlagExpandsUseMatrices(t *testing.T) {
+	source, err := testIcons.ReadFile("testdata/flag-cn.svg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	icon, err := Compile("cn", source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(icon.Layers) != 6 {
+		t.Fatalf("CN flag has %d layers, want the field and five stars", len(icon.Layers))
+	}
+	near := func(got, want float64) bool { diff := got - want; return diff > -2e-2 && diff < 2e-2 }
+	// Matrix(71.9991 0 0 72 120 120) over the star path's points
+	// (-.6,.8), (0,-1), (.6,.8), (-1,-.3), (1,-.3): the large star.
+	expected := []struct{ minX, minY, maxX, maxY float64 }{
+		{48, 48, 192, 177.6},           // large star
+		{219.71, 25.78, 264.18, 72.30}, // small stars, in document order
+		{264.24, 73.06, 309.05, 120.59},
+		{264.93, 142.95, 310.43, 189.11},
+		{219.37, 192.76, 264.00, 239.25},
+	}
+	for index, want := range expected {
+		layer := icon.Layers[index+1]
+		minX, minY, maxX, maxY := starBounds(layer.Commands)
+		if !near(minX, want.minX) || !near(minY, want.minY) || !near(maxX, want.maxX) || !near(maxY, want.maxY) {
+			t.Errorf("star %d bounds (%.2f,%.2f)..(%.2f,%.2f), want (%.2f,%.2f)..(%.2f,%.2f)",
+				index, minX, minY, maxX, maxY, want.minX, want.minY, want.maxX, want.maxY)
+		}
+	}
+}
+
+// starBounds is the plain vertex bound of the five-point star path: no curves,
+// so control points would only repeat endpoints.
+func starBounds(commands []gfx.PathCommand) (float64, float64, float64, float64) {
+	minX, minY, maxX, maxY := 1e9, 1e9, -1e9, -1e9
+	for _, command := range commands {
+		if command.Kind == gfx.PathCommandClose {
+			continue
+		}
+		x, y := float64(command.Point.X), float64(command.Point.Y)
+		minX, minY = min(minX, x), min(minY, y)
+		maxX, maxY = max(maxX, x), max(maxY, y)
+	}
+	return minX, minY, maxX, maxY
+}
+
+// TestKRFlagExpandsGroupsAndBars: one <use> targets a plain path shifted by
+// y="44", another a group that itself contains that same path and a nested use
+// — so the taegeuk bars come out twice per corner group — and four trigram
+// bar groups land rotated into the four corners. The pinned corner bboxes are
+// the ones measured off the browser-rendered flag.
+func TestKRFlagExpandsGroupsAndBars(t *testing.T) {
+	source, err := testIcons.ReadFile("testdata/flag-kr.svg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	icon, err := Compile("kr", source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Fields and taegeuk: white background, then the black bar layers come in
+	// document order: the defined group's own drawing first, then the use.
+	if len(icon.Layers) != 8 {
+		t.Fatalf("KR flag has %d layers, want 8", len(icon.Layers))
+	}
+	near := func(got, want float64) bool { diff := got - want; return diff > -2e-2 && diff < 2e-2 }
+	corners := []struct{ minX, minY, maxX, maxY float64 }{
+		{70.12, 45.98, 203.26, 190.20}, // upper-left trigram bars
+		{436.18, 290.11, 569.32, 434.33},
+		{70.39, 290.15, 203.53, 434.37},
+		{436.45, 46.02, 569.59, 190.24},
+	}
+	for index, want := range corners {
+		var layer int
+		switch index {
+		case 0:
+			layer = 1
+		case 1:
+			layer = 2
+		case 2:
+			layer = 6
+		default:
+			layer = 7
+		}
+		bars := icon.Layers[layer]
+		minX, minY, maxX, maxY := starBounds(bars.Commands)
+		if !near(minX, want.minX) || !near(minY, want.minY) || !near(maxX, want.maxX) || !near(maxY, want.maxY) {
+			t.Errorf("trigram %d bounds (%.2f,%.2f)..(%.2f,%.2f), want (%.2f,%.2f)..(%.2f,%.2f)",
+				index, minX, minY, maxX, maxY, want.minX, want.minY, want.maxX, want.maxY)
+		}
+		// Each bar group is three bars; the groups' path draws each bar plus
+		// the y=44 use of itself: 15 commands of bars in one layer.
+		if len(bars.Commands) != 15 {
+			t.Errorf("trigram %d has %d commands, want the bar path drawn twice (15)", index, len(bars.Commands))
+		}
+	}
+}
+
+// TestUseCycleIsRejected: a use that (through a group) references itself must
+// fail the compile instead of looping or dropping geometry silently.
+func TestUseCycleIsRejected(t *testing.T) {
+	for name, svg := range map[string]string{
+		"self": `<svg viewBox="0 0 24 24"><defs><g id="a"><use href="#a"/></g></defs><use href="#a"/></svg>`,
+		"pair": `<svg viewBox="0 0 24 24"><defs><g id="a"><use href="#b"/></g><g id="b"><use href="#a"/></g></defs><use href="#a"/></svg>`,
+		"deep": `<svg viewBox="0 0 24 24"><g id="a"><use href="#a"/></g><use href="#a"/></svg>`,
+	} {
+		if _, err := Compile("cycle", []byte(svg)); err == nil || !strings.Contains(err.Error(), "cycle") {
+			t.Errorf("%s: compiling a circular use gave %v, want a cycle error", name, err)
+		}
+	}
+}
+
+// TestUseOfShapeAndGroupGeometry: a use shifts its target by x/y and inherits
+// the use site's paint where the target carries none; a use of a group composes
+// the group's own transform; width/height on a use do not scale a shape or
+// group target (SVG applies them only to svg/symbol targets).
+func TestUseOfShapeAndGroupGeometry(t *testing.T) {
+	svg := `<svg viewBox="0 0 100 100">
+	<defs><rect id="r" width="10" height="10"/><g id="g"><rect x="1" width="8" height="8"/></g></defs>
+	<use href="#r" x="20" y="10" width="500" height="500" fill="#00f"/>
+	<g transform="translate(5 5)" fill="#00f"><use href="#g" y="30"/></g>
+</svg>`
+	icon, err := Compile("use", []byte(svg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(icon.Layers) != 2 {
+		t.Fatalf("two uses compiled to %d layers", len(icon.Layers))
+	}
+	rectMinX, rectMinY, rectMaxX, rectMaxY := starBounds(icon.Layers[0].Commands)
+	groupMinX, groupMinY, groupMaxX, groupMaxY := starBounds(icon.Layers[1].Commands)
+	if rectMinX != 20 || rectMinY != 10 || rectMaxX != 30 || rectMaxY != 20 {
+		t.Errorf("use of a shape at (20,10) with inert width/height drew (%v,%v)..(%v,%v)",
+			rectMinX, rectMinY, rectMaxX, rectMaxY)
+	}
+	// The group's inner rect spans x 1..9, y 0..8 under translate(5,5) and y+30.
+	if groupMinX != 6 || groupMinY != 35 || groupMaxX != 14 || groupMaxY != 43 {
+		t.Errorf("use of a group under translate(5,5) y+30 drew (%v,%v)..(%v,%v)",
+			groupMinX, groupMinY, groupMaxX, groupMaxY)
+	}
+	// The bare rect in defs has no fill, so the use site's #00f paints both.
+	for index, layer := range icon.Layers {
+		if layer.Fill.Blue != 1 || layer.Fill.Red != 0 || layer.Fill.Green != 0 {
+			t.Errorf("layer %d fill %v, want the use site's blue", index, layer.Fill)
+		}
+	}
+}
