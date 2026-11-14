@@ -67,6 +67,8 @@ type Driver struct {
 	modifierKeys uint8
 
 	clipboard      string
+	notifications  []Notification
+	notificationMu sync.Mutex
 	openedURL      string
 	hasOpenedURL   bool
 	openedPath     string
@@ -230,6 +232,16 @@ func (driver *Driver) Transitioning() bool {
 
 // Now is the driver's virtual time, which starts at zero.
 func (driver *Driver) Now() time.Duration { return driver.now }
+
+// Paint processes work other goroutines posted and paints one frame now. A
+// test that changed what a view shows from outside it, without input, calls it
+// to see the result without moving the clock.
+func (driver *Driver) Paint() error {
+	if err := driver.Pump(); err != nil {
+		return err
+	}
+	return driver.redraw()
+}
 
 // Advance moves virtual time forward by duration, repainting at frame cadence
 // while an animation is in flight and applying background wakes. An idle

@@ -153,6 +153,19 @@ func options[T comparable](p *Page, value *T, options []T, label func(T) string)
 	return p.labels[first:len(p.labels):len(p.labels)], selected
 }
 
+// optionIcons writes the icons of choices into the page's scratch, as options does
+// the labels, or returns nil when icon is nil and the select paints none of them.
+func optionIcons[T comparable](p *Page, choices []T, icon func(T) gfx.Icon) []gfx.Icon {
+	if icon == nil {
+		return nil
+	}
+	first := len(p.icons)
+	for _, choice := range choices {
+		p.icons = append(p.icons, icon(choice))
+	}
+	return p.icons[first:len(p.icons):len(p.icons)]
+}
+
 // pick writes the option a click chose into *value, where the control is declared,
 // and records whether it did for Changed.
 func pick[T comparable](c C, b Box, value *T, options []T, index int, ok bool) {
@@ -197,11 +210,23 @@ func Tabs[T comparable](c C, value *T, tabs []T, label func(T) string) Box {
 // it is none of them); picking an option sets it. Whether its list is open is the
 // Select's own state.
 func Select[T comparable](c C, value *T, choices []T, label func(T) string) Box {
-	return selectOf(c, value, choices, label, false)
+	return selectOf(c, value, choices, label, nil, false)
 }
 
-// selectOf is Select, or SelectBase when base is set: the same control without the theme's look.
-func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, base bool) Box {
+// SelectIcon is Select with an icon before every option: icon names each option's
+// own, painted before the chosen value on the trigger and before each label in the
+// open list. It is asked for once per option per paint, as label is; a nil icon
+// paints exactly what Select does.
+//
+//	ui.SelectIcon(c, &m.locale, locales, localeName, localeFlag)
+func SelectIcon[T comparable](c C, value *T, choices []T, label func(T) string, icon func(T) gfx.Icon) Box {
+	return selectOf(c, value, choices, label, optionIcons(c.page, choices, icon), false)
+}
+
+// selectOf is Select (or SelectIcon), or SelectBase when base is set: the same
+// control without the theme's look. icons, when SelectIcon's icon function gave
+// them, are indexed by option like the labels; nil is the select without icons.
+func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, icons []gfx.Icon, base bool) Box {
 	p := c.page
 	scope := p.boundScope(pkSelect, unsafe.Pointer(value))
 	state := stateIn[SelectState](p, scope, "select") // its open list follows its value
@@ -212,6 +237,7 @@ func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, ba
 	} else {
 		b = c.f.Select(scope, state, labels, selected)
 	}
+	b.Icons(icons)
 	p.selects = append(p.selects, state)
 	index, ok := b.Picked()
 	pick(c, b, value, choices, index, ok)

@@ -48,6 +48,20 @@ func sameCanvas(t *testing.T, name string, flexed, direct *gfx.Canvas) {
 			}
 		}
 	}
+	// Triangles are compared without Layer, as the rectangles are: the caller picks
+	// the layer a component paints its overlay on (ui raises a select's list one
+	// above the page's widget layer; a direct call names its own).
+	if a, b := flexed.Triangles(), direct.Triangles(); len(a) != len(b) {
+		t.Fatalf("%s: ui painted %d triangles, the component %d", name, len(a), len(b))
+	} else {
+		for i := range a {
+			x, y := a[i], b[i]
+			if x.Points != y.Points || x.Color != y.Color || x.Shaded != y.Shaded || x.Shade != y.Shade ||
+				x.EdgeMask != y.EdgeMask || x.ClipOf != y.ClipOf || x.HasClip != y.HasClip || x.Order != y.Order {
+				t.Errorf("%s: triangle %d is %+v, the component's %+v", name, i, x, y)
+			}
+		}
+	}
 }
 
 // A Table looks exactly like the components.Table it is painted by: the same

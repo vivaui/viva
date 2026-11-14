@@ -20,6 +20,8 @@ func driverSetClipboardFiles([]string) (error, bool) { return nil, false }
 
 func driverSetClipboardHTML(string, string) (error, bool) { return nil, false }
 
+func driverSendNotification(Notification) (error, bool) { return nil, false }
+
 func driverOpenURL(string) (error, bool)    { return nil, false }
 func driverOpenPath(string) (error, bool)   { return nil, false }
 func driverRevealPath(string) (error, bool) { return nil, false }
