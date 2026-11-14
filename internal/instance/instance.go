@@ -1,3 +1,5 @@
+//go:build darwin || windows || linux
+
 // Package instance makes an application run once per user. The first process
 // listens at the claim address; a later one connects, hands over its command
 // line and exits. No file lock, polling or timer is involved: the first process
