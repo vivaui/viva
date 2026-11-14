@@ -37,7 +37,8 @@ func TestNetWMIconOffersEverySizeTheSourceCanFill(t *testing.T) {
 
 func TestNetWMIconCarriesTheMarkInTheImagesAPanelDraws(t *testing.T) {
 	// A dark mark a quarter of the side on white. The 16 px image a panel asks
-	// for must carry the mark, not the canvas margin around it.
+	// for must carry the mark at the shared seven-tenths side policy, with
+	// breathing room. Area coverage is not the mark's width or height.
 	const side = 64
 	pixels := make([]byte, side*side*4)
 	for index := 0; index < len(pixels); index += 4 {
@@ -52,15 +53,22 @@ func TestNetWMIconCarriesTheMarkInTheImagesAPanelDraws(t *testing.T) {
 	for offset := 0; offset < len(data); {
 		width := int(data[offset])
 		if width == 16 {
-			dark := 0
+			left, top, right, bottom := width, width, -1, -1
 			for index := 0; index < width*width; index++ {
 				pixel := data[offset+2+index]
 				if pixel>>24 > 128 && (pixel>>16)&0xff < 64 {
-					dark++
+					x, y := index%width, index/width
+					left, top = min(left, x), min(top, y)
+					right, bottom = max(right, x), max(bottom, y)
 				}
 			}
-			if share := float64(dark) / float64(width*width); share < 0.6 {
-				t.Errorf("the 16 px image is %.0f%% mark: the panel would show the canvas margin", share*100)
+			for _, span := range []int{right - left + 1, bottom - top + 1} {
+				if share := float64(span) / float64(width); share < 0.6 || share > 0.8 {
+					t.Errorf("the 16 px mark spans %d px: want roughly seven tenths of each side", span)
+				}
+			}
+			if left == 0 || top == 0 || right == width-1 || bottom == width-1 {
+				t.Error("the small mark lost its surrounding margin")
 			}
 			return
 		}

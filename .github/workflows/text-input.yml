@@ -4,12 +4,16 @@ on:
   push:
     paths:
       - 'app/**'
+      - 'internal/iconshape/**'
       - 'internal/platform/**'
+      - 'internal/render/**'
       - '.github/workflows/text-input.yml'
   pull_request:
     paths:
       - 'app/**'
+      - 'internal/iconshape/**'
       - 'internal/platform/**'
+      - 'internal/render/**'
       - '.github/workflows/text-input.yml'
   workflow_dispatch:
 
@@ -51,6 +55,9 @@ jobs:
       - name: Linux aligned text input
         if: runner.os == 'Linux'
         run: go test ./internal/platform/linux -run '^TestLinux(TextInputAlignmentMatchesGlyphCaretUnderlineAndPointer|RightToLeftAlignmentUsesLineWidthNotLogicalEndCaret|CandidateWindowFollowsAlignmentWhenNativeOverlaysAreHidden)$' -count=1
+      - name: Linux clipboard, compositing and icon contracts
+        if: runner.os == 'Linux'
+        run: go test -tags vivagtk ./internal/platform/linux -run '^Test(AClipboardHTML|SetClipboardHTML|GTKClipboardHTML|CompositingLayers|NetWMIcon)' -count=1 -v
       # A terminal input is a preedit surface with a cursor of its own: the native
       # editor must draw no caret or selection over it, and blink none.
       - name: Windows terminal preedit draws no native caret

@@ -46,9 +46,9 @@ func TestBitmapCacheResizesWithoutRecreatingImage(t *testing.T) {
 func TestCompositingLayersInterleaveRectanglesAndText(t *testing.T) {
 	rectangles := []render.Rectangle{{Layer: 0}, {Layer: 2}, {Layer: 2}, {Layer: 5}}
 	labels := []vulkanLabelTexture{
-		{label: platform.TextLabel{Value: "back", Layer: 0, ShapesBefore: 1}},
-		{label: platform.TextLabel{Value: "middle", Layer: 2, ShapesBefore: 3}},
 		{label: platform.TextLabel{Value: "top", Layer: 5, ShapesBefore: 4}},
+		{label: platform.TextLabel{Value: "middle", Layer: 2, ShapesBefore: 3}},
+		{label: platform.TextLabel{Value: "back", Layer: 0, ShapesBefore: 1}},
 	}
 	rectangleBatches := render.GroupBatches(nil, rectangles)
 	order := groupTextLayers(labels, nil)
@@ -65,5 +65,31 @@ func TestCompositingLayersInterleaveRectanglesAndText(t *testing.T) {
 	}
 	if order[0] != 2 || order[1] != 1 || order[2] != 0 {
 		t.Fatalf("text order = %v", order)
+	}
+}
+
+func TestCompositingLayersSplitAShapeBatchAroundText(t *testing.T) {
+	rectangles := render.GroupBatches(nil, []render.Rectangle{{Layer: 2}, {Layer: 2}, {Layer: 2}})
+	labels := []vulkanLabelTexture{
+		{label: platform.TextLabel{Value: "before", Layer: 2}},
+		{label: platform.TextLabel{Value: "between", Layer: 2, ShapesBefore: 1}},
+		{label: platform.TextLabel{Value: "after", Layer: 2, ShapesBefore: 3}},
+	}
+	order := groupTextLayers(labels, nil)
+	batches := groupCompositingLayers(rectangles, labels, order, nil)
+	want := []compositingBatch{
+		{Kind: compositeText, Layer: 2, First: 0, Count: 1},
+		{Kind: compositeRectangles, Layer: 2, First: 0, Count: 1},
+		{Kind: compositeText, Layer: 2, First: 1, Count: 1},
+		{Kind: compositeRectangles, Layer: 2, First: 1, Count: 2},
+		{Kind: compositeText, Layer: 2, First: 2, Count: 1},
+	}
+	if len(batches) != len(want) {
+		t.Fatalf("batches = %+v, want %+v", batches, want)
+	}
+	for index := range want {
+		if batches[index] != want[index] {
+			t.Errorf("batch %d = %+v, want %+v", index, batches[index], want[index])
+		}
 	}
 }
