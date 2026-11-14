@@ -131,8 +131,11 @@ func (tooltip Tooltip) Paint(label string) gfx.Rect {
 	}
 	maxWidth = min(maxWidth, tooltip.viewport.Width-8)
 	const padX, padY = float32(12), float32(6)
-	var scratch overlayLines
-	lines := overlayWrap(tooltip.canvas, &scratch, label, metrics.FontSizeS, gfx.WeightRegular, maxWidth-2*padX)
+	// A filename or another unbroken token has no natural short form: keep all
+	// of it even when a bounded descriptive tooltip would use an ellipsis. Long
+	// tokens already break at whole grapheme clusters in the text engine. The
+	// viewport is a bound on excessive content, not an interactive text limit.
+	lines := tooltip.canvas.WrapLines(nil, label, metrics.FontSizeS, gfx.WeightRegular, maxWidth-2*padX, int(tooltip.viewport.Height))
 	// One line takes the width of its text; a wrapped label fills the whole
 	// maximum, as a `w-fit max-w-xs` box does.
 	textWidth := maxWidth - 2*padX
