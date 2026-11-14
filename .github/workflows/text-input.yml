@@ -23,28 +23,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  windows-payload-diagnostic:
-    if: github.ref == 'refs/heads/codex/windows-payload-helper-diagnostic'
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - name: Inspect native and relocated system executable exits
-        run: go test ./update -run '^TestCopiedSystemExecutableExitStatus$' -count=1 -timeout=2m -v
-      - name: Trace the unchanged payload helper
-        env:
-          VIVA_PAYLOAD_DIAGNOSTIC: '1'
-        run: go test ./update -run '^TestPayloadHelper(ReplacesTheApplication|RollsBackAFailedStart)$' -count=1 -timeout=2m -v
   # macOS is not in the matrix: ci.yml's darwin job tests ./app and vets the
   # darwin platform packages on macOS for every change that reaches here, so a
   # third macOS job would only take a slot from the pool that all workflows
   # share. The type-checks are not repeated either: ci.yml's lint job vets every
   # package for Linux and its cross-vet job for Windows.
   native:
-    if: github.ref != 'refs/heads/codex/windows-payload-helper-diagnostic'
     strategy:
       fail-fast: false
       matrix:

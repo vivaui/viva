@@ -302,7 +302,7 @@ func copyWindowsFile(t *testing.T, source, destination string) []byte {
 
 func runPayloadHelper(t *testing.T, script string, wantExit int) {
 	t.Helper()
-	if os.Getenv("VIVA_PAYLOAD_DIAGNOSTIC") == "1" {
+	if os.Getenv("VIVA_PAYLOAD_DIAGNOSTIC") == "1" || os.Getenv("GITHUB_ACTIONS") == "true" {
 		script = "Set-PSDebug -Trace 1\n" + strings.Replace(script,
 			"} catch { Restore; exit 1 }", "} catch { Write-Output $_; Restore; exit 1 }", 1)
 	}
@@ -312,7 +312,7 @@ func runPayloadHelper(t *testing.T, script string, wantExit int) {
 	}
 	command := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", path)
 	output, err := command.CombinedOutput()
-	if os.Getenv("VIVA_PAYLOAD_DIAGNOSTIC") == "1" {
+	if os.Getenv("VIVA_PAYLOAD_DIAGNOSTIC") == "1" || os.Getenv("GITHUB_ACTIONS") == "true" {
 		t.Logf("PowerShell result: %v\n%s", err, output)
 	}
 	if wantExit == 0 {
