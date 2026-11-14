@@ -57,11 +57,20 @@ func install(options InstallOptions, quit func()) error {
 		}
 	}()
 
-	options.report("unpacking")
-	if err := extractZip(options.Artifact, staging); err != nil {
-		return err
+	var staged string
+	if options.Payload != "" {
+		options.report("copying the patched application")
+		if err := copyTree(options.Payload, filepath.Join(staging, filepath.Base(options.Payload))); err != nil {
+			return err
+		}
+		staged, err = stagedBundle(staging)
+	} else {
+		options.report("unpacking")
+		if err := extractZip(options.Artifact, staging); err != nil {
+			return err
+		}
+		staged, err = stagedBundle(staging)
 	}
-	staged, err := stagedBundle(staging)
 	if err != nil {
 		return err
 	}

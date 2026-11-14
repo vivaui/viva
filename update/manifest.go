@@ -70,6 +70,32 @@ type Asset struct {
 	Size int64 `json:"size"`
 	// SHA256 is the archive's lowercase hexadecimal SHA-256 digest.
 	SHA256 string `json:"sha256"`
+	// Patches are updates from earlier versions, each a delta against the
+	// installed payload. A client that does not read them downloads the
+	// archive.
+	Patches []Patch `json:"patches,omitempty"`
+}
+
+// Patch is one delta update for an asset.
+type Patch struct {
+	// FromVersion is the installed version the patch applies to.
+	FromVersion string `json:"from_version"`
+	// URL is the HTTPS address of the patch file.
+	URL string `json:"url"`
+	// Size is the patch's exact length in bytes.
+	Size int64 `json:"size"`
+	// SHA256 is the patch's lowercase hexadecimal SHA-256 digest.
+	SHA256 string `json:"sha256"`
+}
+
+// PatchFrom returns the patch that applies to version, if the feed offers one.
+func (asset Asset) PatchFrom(version string) (Patch, bool) {
+	for _, patch := range asset.Patches {
+		if patch.FromVersion == version {
+			return patch, true
+		}
+	}
+	return Patch{}, false
 }
 
 // Asset returns the archive this feed offers for goos and goarch. When a
@@ -193,6 +219,38 @@ func (asset Asset) validate() error {
 	}
 	if _, err := hex.DecodeString(asset.SHA256); err != nil {
 		return fmt.Errorf("sha256: %v", err)
+	}
+	seenPatches := make(map[string]bool, len(asset.Patches))
+	for _, patch := range asset.Patches {
+		if err := patch.validate(); err != nil {
+			return err
+		}
+		if seenPatches[patch.FromVersion] {
+			return fmt.Errorf("patches from %s appear twice", patch.FromVersion)
+		}
+		seenPatches[patch.FromVersion] = true
+	}
+	return nil
+}
+
+func (patch Patch) validate() error {
+	if _, err := parseVersion(patch.FromVersion); err != nil {
+		return fmt.Errorf("patch from_version: %v", err)
+	}
+	if patch.FromVersion == "" {
+		return fmt.Errorf("patch from_version is empty")
+	}
+	if err := checkHTTPS(patch.URL); err != nil {
+		return fmt.Errorf("patch from %s: %w", patch.FromVersion, err)
+	}
+	if patch.Size <= 0 {
+		return fmt.Errorf("patch from %s: size must be positive", patch.FromVersion)
+	}
+	if len(patch.SHA256) != 64 || strings.ToLower(patch.SHA256) != patch.SHA256 {
+		return fmt.Errorf("patch from %s: sha256 must be 64 lowercase hexadecimal digits", patch.FromVersion)
+	}
+	if _, err := hex.DecodeString(patch.SHA256); err != nil {
+		return fmt.Errorf("patch from %s: sha256: %v", patch.FromVersion, err)
 	}
 	return nil
 }

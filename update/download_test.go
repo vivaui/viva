@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -204,5 +205,68 @@ func TestAssetFileNameRefusesAPathFromTheURL(t *testing.T) {
 		if got := assetFileName(Asset{URL: raw}); got != want {
 			t.Errorf("assetFileName(%q) = %q, want %q", raw, got, want)
 		}
+	}
+}
+
+func TestDownloadPatchWritesTheVerifiedFile(t *testing.T) {
+	content := []byte("a delta between two versions")
+	server, client := downloadFixture(t, content)
+	asset := testAsset(server, []byte("the full archive"))
+	patch := Patch{
+		FromVersion: "0.9.0", URL: server.URL + "/downloads/app.patch",
+		Size: int64(len(content)), SHA256: testDigest(string(content)),
+	}
+	asset.Patches = []Patch{patch}
+	dir := t.TempDir()
+	path, err := client.DownloadPatch(context.Background(), asset, patch, dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(path) != "app.zip.0.9.0.patch" {
+		t.Errorf("file name = %q", filepath.Base(path))
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(content) {
+		t.Errorf("patch = %q", got)
+	}
+}
+
+func TestDownloadPatchRefusesTheWrongBytes(t *testing.T) {
+	content := []byte("the patch's bytes")
+	server, client := downloadFixture(t, content)
+	asset := testAsset(server, []byte("the full archive"))
+	patch := Patch{
+		FromVersion: "0.9.0", URL: server.URL + "/app.patch",
+		Size: int64(len(content)), SHA256: strings.Repeat("0", 64),
+	}
+	asset.Patches = []Patch{patch}
+	dir := t.TempDir()
+	if _, err := client.DownloadPatch(context.Background(), asset, patch, dir, nil); !errors.Is(err, ErrChecksum) {
+		t.Fatalf("err = %v, want ErrChecksum", err)
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 0 {
+		t.Errorf("a refused patch left %d files", len(entries))
+	}
+	patch.SHA256 = testDigest(string(content))
+	patch.Size++
+	if _, err := client.DownloadPatch(context.Background(), asset, patch, dir, nil); !errors.Is(err, ErrSize) {
+		t.Fatalf("err = %v, want ErrSize", err)
+	}
+}
+
+func TestDownloadPatchRefusesPlaintext(t *testing.T) {
+	content := []byte("patch")
+	server, client := downloadFixture(t, content)
+	asset := testAsset(server, []byte("the full archive"))
+	patch := Patch{
+		FromVersion: "0.9.0", URL: "http://example.com/app.patch",
+		Size: int64(len(content)), SHA256: testDigest(string(content)),
+	}
+	if _, err := client.DownloadPatch(context.Background(), asset, patch, t.TempDir(), nil); !errors.Is(err, ErrInsecureURL) {
+		t.Fatalf("err = %v, want ErrInsecureURL", err)
 	}
 }

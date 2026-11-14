@@ -2,10 +2,15 @@
 
 Viva ships an application as a native program with no updater inside it. The
 `github.com/vivaui/viva/update` package adds one when an application imports it,
-and nothing is linked into a program that does not. It performs **full updates**:
-the feed names a complete archive, the client downloads it, verifies it, and the
-platform installer replaces the running application. Delta updates are not
-implemented, and the feed format reserves a place for them without using it yet.
+and nothing is linked into a program that does not.
+
+An update is either **full** or **a delta**. A full update downloads the complete
+archive the feed lists. A delta downloads a signed patch made between the
+installed payload and the new one: the `.app` bundle on macOS, the executable on
+Linux. The client applies the patch into a staging directory, verifies every file
+it produced, and hands the result to the same installer a full update uses. A
+patch that does not fit the running version, or fails at any point, leaves the
+installation untouched; the application downloads the full archive instead.
 
 The package splits the work in two:
 
@@ -49,7 +54,15 @@ not act on is refused with `update.ErrManifest`.
         "format": "zip",
         "url": "https://example.com/app/stable/Notes-1.4.2-darwin-arm64.zip",
         "size": 18432000,
-        "sha256": "9f2c…"
+        "sha256": "9f2c…",
+        "patches": [
+          {
+            "from_version": "1.4.1",
+            "url": "https://example.com/app/stable/Notes-1.4.2-darwin-arm64.zip.1.4.1.patch",
+            "size": 240000,
+            "sha256": "5b71…"
+          }
+        ]
       },
       {
         "os": "windows",
@@ -151,6 +164,48 @@ app/beta/latest.json
 
 A feed can be checked from any HTTP client; the signature is the only thing that
 makes it authoritative.
+
+## Delta updates
+
+A patch is made at release time from the previous release archive:
+
+```sh
+viva feed -dir dist -base-url https://example.com/app/stable \
+  --patch-from darwin/arm64=1.4.1=old/Notes-1.4.1-darwin-arm64.zip \
+  --patch-from linux/amd64=1.4.1=old/Notes-1.4.1-linux-amd64.tar.gz
+```
+
+Each `--patch-from` is `os/arch=version=archive`, repeatable, for `darwin` and
+`linux` only. The previous archive is supplied by the release process; `viva
+feed` extracts both releases and writes `<archive>.<from_version>.patch` beside
+the archives, listing it on the asset in the feed. A patch is a gzip tar holding
+`patch.json` and one bsdiff per changed file; `patch.json` names the app, both
+versions, the OS, the architecture and every file with its mode, size and
+SHA-256. The feed's signature covers the patch's URL, size and digest, and the
+client checks every file it writes against the digest in `patch.json`.
+
+The application decides whether to use a patch. The order that keeps the
+fallback simple:
+
+```go
+if patch, ok := asset.PatchFrom(running); ok {
+	if path, err := client.DownloadPatch(ctx, asset, patch, dir, progress); err == nil {
+		if staged, err := update.ApplyPatch(path, config.App, running, release.Version); err == nil {
+			return update.Install(update.InstallOptions{
+				Payload: staged, Asset: asset, Version: release.Version, App: config.App,
+			}, quit)
+		}
+	}
+}
+// download and install the full archive
+```
+
+`ApplyPatch` refuses a patch whose application, versions, OS, architecture or
+payload kind do not match, copies the installed payload into a staging
+directory, and applies the patch there. `Install` then runs the same checks as a
+full update (the bundle identifier, version and `codesign` on macOS) and replaces
+the application. A failure in either step changes nothing: the application keeps
+running the old version and can download the whole archive.
 
 ## Updating in the application
 
@@ -277,8 +332,9 @@ warning.
   the macOS and Linux helpers give up without changing anything and without a
   message; the application keeps running the old version and can offer the
   update again.
-- **No delta updates.** A download is the whole archive. The feed schema leaves
-  room for patches; no client reads them yet.
+- **No delta updates on Windows.** The NSIS installer owns the installation, so
+  there is no payload tree to patch; a Windows client always downloads the full
+  installer. A patch listed for Windows is refused with `ErrUnsupported`.
 - **No update service.** The package checks a URL the application names. It does
   not host, stage, roll out or force anything.
 - **No automatic install.** The application decides when to check, whether to
@@ -296,16 +352,21 @@ warning.
 
 ## Testing an update path
 
-`go test ./update` covers the feed parser, signatures, version ordering,
-download checks and archive unpacking on every host. The parts that replace a
-real application need a machine and a person:
+`go test ./update ./internal/bsdiff ./tools/patchgen` covers the feed parser,
+signatures, version ordering, download checks, archive unpacking, patch
+application and patch generation on every host. The parts that replace a real
+application need a machine and a person:
 
 1. Build version 1, package it, install it, run it.
-2. Build version 2, package it, run `viva feed`, host the files over HTTPS.
+2. Build version 2, package it, run `viva feed --patch-from <os>/<arch>=<version>=<archive of version 1>`, host the files over HTTPS.
 3. Start version 1, check, download, install, and confirm version 2 starts.
-4. Repeat with the network dropped mid-download, with a tampered archive, and
+4. Install version 1 again and repeat through the delta, then repeat the delta
+   with a changed installed payload, with a truncated patch, and with a patch
+   from another version: each must fall back to the full archive.
+5. Repeat with the network dropped mid-download, with a tampered archive, and
    with a feed signed by another key.
-5. On macOS, confirm `codesign --verify --deep --strict` passes on the new
+6. On macOS, confirm `codesign --verify --deep --strict` passes on the new
    bundle and that the app opens with the network off (the ticket is stapled).
-6. On Windows, confirm the installer is silent, per-user, and that the new
+   This also covers a bundle applied from a patch.
+7. On Windows, confirm the installer is silent, per-user, and that the new
    program starts after the old one exits.

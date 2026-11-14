@@ -513,3 +513,114 @@ func TestFeedAndKeygenHelpListsFlags(t *testing.T) {
 		}
 	}
 }
+
+func copyFeedFile(t *testing.T, source, destination string) {
+	t.Helper()
+	data, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(destination, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFeedAddsADeltaFromAnEarlierRelease(t *testing.T) {
+	t.Setenv("VIVA_UPDATE_KEY", "")
+	const oldTOML = `[app]
+name = "Fixture Notes"
+id = "dev.example.notes"
+version = "2.0.0"
+`
+	dir := t.TempDir()
+	oldDir, newDir := fixture(t, oldTOML), fixture(t, feedTestBasicTOML)
+	// A different program, so the patch has something to diff.
+	if err := os.WriteFile(filepath.Join(oldDir, "main.go"), []byte("package main\n\nfunc main() { extra() }\n\nfunc extra() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := runLinuxPackage(t, oldDir); err != nil {
+		t.Fatalf("packaging the old release: %v\n%s", err, output)
+	}
+	if output, err := runLinuxPackage(t, newDir); err != nil {
+		t.Fatalf("packaging the new release: %v\n%s", err, output)
+	}
+	dist := filepath.Join(dir, "dist")
+	oldArchive := filepath.Join(oldDir, "build", "fixture-notes-2.0.0-linux-amd64.tar.gz")
+	newArchive := filepath.Join(newDir, "build", "fixture-notes-2.0.1-linux-amd64.tar.gz")
+	copyFeedFile(t, newArchive, filepath.Join(dist, filepath.Base(newArchive)))
+
+	key, _ := feedTestKey(t, dir)
+	feedPath := filepath.Join(dist, "latest.json")
+	var output bytes.Buffer
+	err := runCLI([]string{
+		"feed", "-C", newDir, "-dir", dist, "-base-url", "https://example.com/app",
+		"-key", key, "-out", feedPath,
+		"--patch-from", "linux/amd64=2.0.0=" + oldArchive,
+	}, &output, io.Discard)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, output.String())
+	}
+	data, err := os.ReadFile(feedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var feed update.Feed
+	if err := json.Unmarshal(data, &feed); err != nil {
+		t.Fatal(err)
+	}
+	if len(feed.Latest.Assets) != 1 || len(feed.Latest.Assets[0].Patches) != 1 {
+		t.Fatalf("the feed does not carry one patch:\n%s", data)
+	}
+	patch := feed.Latest.Assets[0].Patches[0]
+	if patch.FromVersion != "2.0.0" || patch.Size <= 0 || len(patch.SHA256) != 64 {
+		t.Fatalf("patch entry = %+v", patch)
+	}
+	patchPath := filepath.Join(dist, "fixture-notes-2.0.1-linux-amd64.tar.gz.2.0.0.patch")
+	reader, err := update.ReadPatch(patchPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	manifest := reader.Manifest()
+	if manifest.App != "dev.example.notes" || manifest.FromVersion != "2.0.0" || manifest.ToVersion != "2.0.1" ||
+		manifest.OS != "linux" || manifest.Arch != "amd64" || manifest.Payload != "file" || len(manifest.Files) == 0 {
+		t.Fatalf("manifest = %+v", manifest)
+	}
+	// The patch must be much smaller than the archive it replaces.
+	if patch.Size >= feed.Latest.Assets[0].Size/2 {
+		t.Errorf("patch is %d bytes for a %d-byte archive", patch.Size, feed.Latest.Assets[0].Size)
+	}
+}
+
+func TestFeedRejectsBadPatchFrom(t *testing.T) {
+	t.Setenv("VIVA_UPDATE_KEY", "")
+	dir := t.TempDir()
+	feedDir := fixture(t, feedTestBasicTOML)
+	if output, err := runLinuxPackage(t, feedDir); err != nil {
+		t.Fatalf("%v\n%s", err, output)
+	}
+	dist := filepath.Join(dir, "dist")
+	archive := filepath.Join(feedDir, "build", "fixture-notes-2.0.1-linux-amd64.tar.gz")
+	copyFeedFile(t, archive, filepath.Join(dist, filepath.Base(archive)))
+	key, _ := feedTestKey(t, dir)
+	run := func(extra ...string) error {
+		arguments := append([]string{"feed", "-C", feedDir, "-dir", dist, "-base-url", "https://example.com/app", "-key", key}, extra...)
+		var output bytes.Buffer
+		return runCLI(arguments, &output, io.Discard)
+	}
+	for name, argument := range map[string]string{
+		"windows":       "windows/amd64=2.0.0=" + archive,
+		"bad platform":  "linux/sparc=2.0.0=" + archive,
+		"not older":     "linux/amd64=2.0.1=" + archive,
+		"unknown asset": "darwin/arm64=2.0.0=" + archive,
+		"bad syntax":    "linux/amd64=2.0.0",
+		"missing file":  "linux/amd64=2.0.0=/does/not/exist.tar.gz",
+	} {
+		if err := run("--patch-from", argument); err == nil {
+			t.Errorf("%s: --patch-from %q was accepted", name, argument)
+		}
+	}
+}

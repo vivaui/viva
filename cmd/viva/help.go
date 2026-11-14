@@ -76,7 +76,9 @@ func commands() []command {
 				"signature. The feed lists only files named the way viva package names them; anything else in\n" +
 				"the directory is ignored. -base-url is where the archives are served from and must be HTTPS,\n" +
 				"as -notes must be when given. The signing key is -key, or $VIVA_UPDATE_KEY: the base64 64-byte\n" +
-				"private key 'viva update-keygen' writes. App, version and archive directory default to viva.toml.",
+				"private key 'viva update-keygen' writes. App, version and archive directory default to viva.toml.\n" +
+				"--patch-from os/arch=version=archive (repeatable) writes a delta update from that earlier\n" +
+				"release beside the archives and lists it on the asset; it works for darwin and linux.",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runFeed(arguments, output, errorOutput)
 			}},

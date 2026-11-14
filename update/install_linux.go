@@ -65,12 +65,35 @@ func install(options InstallOptions, quit func()) error {
 			_ = os.RemoveAll(staging)
 		}
 	}()
-	if err := extractTarGz(options.Artifact, staging); err != nil {
-		return err
-	}
-	replacement, err := findProgram(staging, filepath.Base(executable))
-	if err != nil {
-		return err
+	var replacement string
+	if options.Payload != "" {
+		options.report("copying the patched executable")
+		info, err := os.Lstat(options.Payload)
+		if err != nil {
+			return fmt.Errorf("update: %w", err)
+		}
+		program := options.Payload
+		if info.IsDir() {
+			program, err = findProgram(options.Payload, filepath.Base(executable))
+			if err != nil {
+				return err
+			}
+		} else if !info.Mode().IsRegular() {
+			return fmt.Errorf("%w: the payload is not a regular file", ErrManifest)
+		}
+		replacement = filepath.Join(staging, filepath.Base(executable))
+		if err := copyRegularFile(program, replacement, 0o755); err != nil {
+			return fmt.Errorf("update: copying the patched executable: %w", err)
+		}
+	} else {
+		options.report("unpacking")
+		if err := extractTarGz(options.Artifact, staging); err != nil {
+			return err
+		}
+		replacement, err = findProgram(staging, filepath.Base(executable))
+		if err != nil {
+			return err
+		}
 	}
 
 	options.report("replacing")

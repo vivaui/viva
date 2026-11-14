@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/tools/manifest"
+	"github.com/vivaui/viva/tools/patchgen"
 	"github.com/vivaui/viva/update"
 )
 
@@ -40,6 +42,15 @@ func runFeed(arguments []string, output, _ io.Writer) error {
 	flags.StringVar(&baseURL, "base-url", "", "HTTPS address the archives are served from (required)")
 	flags.StringVar(&notes, "notes", "", "HTTPS page describing the release")
 	var validFor time.Duration
+	var patchFroms []patchFrom
+	flags.Func("patch-from", "make a delta update from this earlier release: os/arch=version=archive (repeatable; darwin and linux)", func(value string) error {
+		parsed, err := parsePatchFrom(value)
+		if err != nil {
+			return err
+		}
+		patchFroms = append(patchFroms, parsed)
+		return nil
+	})
 	flags.DurationVar(&validFor, "valid-for", 0, "how long clients trust the feed, such as 2160h; 0 (the default) never expires")
 	flags.StringVar(&keyFile, "key", "", "Ed25519 private key file (default $VIVA_UPDATE_KEY)")
 	positional, helped, err := parseFlags(c, flags, arguments, output)
@@ -94,6 +105,11 @@ func runFeed(arguments []string, output, _ io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if len(patchFroms) > 0 {
+		if err := addPatches(assets, patchFroms, artifactsDir, baseURL, version, app, loaded.ExecutableName()); err != nil {
+			return err
+		}
+	}
 	key, err := readSigningKey(keyFile)
 	if err != nil {
 		return err
@@ -144,6 +160,13 @@ func runFeed(arguments []string, output, _ io.Writer) error {
 		fmt.Fprintf(output, "  expires  %s\n", feed.Expires.Format(time.RFC3339))
 	}
 	fmt.Fprintf(output, "  assets   %d\n", len(assets))
+	patches := 0
+	for _, asset := range assets {
+		patches += len(asset.Patches)
+	}
+	if patches > 0 {
+		fmt.Fprintf(output, "  patches  %d\n", patches)
+	}
 	fmt.Fprintf(output, "  signed   %s\n", displayPath(signaturePath))
 	return nil
 }
@@ -394,4 +417,126 @@ func writeKeyFile(path, text string, mode os.FileMode, force bool) error {
 		return err
 	}
 	return file.Close()
+}
+
+// patchFrom is one --patch-from value: a previous release to diff against.
+type patchFrom struct {
+	os, arch, version, archive string
+}
+
+func parsePatchFrom(value string) (patchFrom, error) {
+	parts := strings.SplitN(value, "=", 3)
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		return patchFrom{}, errors.New("--patch-from wants os/arch=version=archive, such as darwin/arm64=1.0.0=dist/notes-1.0.0-darwin-arm64.zip")
+	}
+	target, version, archive := parts[0], parts[1], parts[2]
+	goos, goarch, ok := strings.Cut(target, "/")
+	if !ok || (goos != "darwin" && goos != "linux") {
+		return patchFrom{}, fmt.Errorf("--patch-from %q: patches are made for darwin and linux", target)
+	}
+	if goarch != "amd64" && goarch != "arm64" {
+		return patchFrom{}, fmt.Errorf("--patch-from %q: architecture must be amd64 or arm64", target)
+	}
+	return patchFrom{os: goos, arch: goarch, version: version, archive: archive}, nil
+}
+
+// addPatches writes a patch for every --patch-from that names a listed asset
+// and adds it to the asset. Every argument must match an asset, so a typo in
+// the platform cannot publish a feed that silently lacks its delta.
+func addPatches(assets []update.Asset, froms []patchFrom, dir, baseURL, version, app, executable string) error {
+	base := strings.TrimRight(baseURL, "/")
+	byTarget := make(map[string][]patchFrom, len(froms))
+	for _, from := range froms {
+		key := from.os + "/" + from.arch
+		for _, existing := range byTarget[key] {
+			if existing.version == from.version {
+				return fmt.Errorf("feed: --patch-from %s=%s is given twice", key, from.version)
+			}
+		}
+		if cmp, err := update.Compare(from.version, version); err != nil {
+			return fmt.Errorf("feed: --patch-from %s=%s: %v", key, from.version, err)
+		} else if cmp >= 0 {
+			return fmt.Errorf("feed: --patch-from %s=%s must be older than the release %s", key, from.version, version)
+		}
+		if _, err := os.Stat(from.archive); err != nil {
+			return fmt.Errorf("feed: --patch-from %s=%s: %w", key, from.version, err)
+		}
+		byTarget[key] = append(byTarget[key], from)
+	}
+	matched := make(map[string]int, len(byTarget))
+	for i := range assets {
+		asset := &assets[i]
+		key := asset.OS + "/" + asset.Arch
+		froms := byTarget[key]
+		if len(froms) == 0 {
+			continue
+		}
+		name, err := url.PathUnescape(strings.TrimPrefix(asset.URL, base+"/"))
+		if err != nil {
+			return fmt.Errorf("feed: %s: %w", asset.URL, err)
+		}
+		newArchive := filepath.Join(dir, name)
+		for _, from := range froms {
+			var encoded bytes.Buffer
+			if _, err := patchgen.Write(patchgen.Request{
+				App: app, FromVersion: from.version, ToVersion: version,
+				OS: asset.OS, Arch: asset.Arch,
+				OldArchive: from.archive, NewArchive: newArchive,
+				Executable: executable,
+				Output:     &encoded,
+			}); err != nil {
+				return fmt.Errorf("feed: patch %s from %s: %w", key, from.version, err)
+			}
+			patchName := name + "." + from.version + ".patch"
+			if err := writePatchFileBeside(filepath.Join(dir, patchName), encoded.Bytes()); err != nil {
+				return err
+			}
+			sum := sha256.Sum256(encoded.Bytes())
+			asset.Patches = append(asset.Patches, update.Patch{
+				FromVersion: from.version,
+				URL:         base + "/" + url.PathEscape(patchName),
+				Size:        int64(encoded.Len()),
+				SHA256:      hex.EncodeToString(sum[:]),
+			})
+			matched[key]++
+		}
+		sort.Slice(asset.Patches, func(a, b int) bool {
+			order, err := update.Compare(asset.Patches[a].FromVersion, asset.Patches[b].FromVersion)
+			return err == nil && order < 0
+		})
+	}
+	for key, froms := range byTarget {
+		if matched[key] != len(froms) {
+			return fmt.Errorf("feed: --patch-from %s names no %s/%s archive in %s", key, strings.Split(key, "/")[0], strings.Split(key, "/")[1], displayPath(dir))
+		}
+	}
+	return nil
+}
+
+// writeFeedFile writes a patch beside the archives, named only when complete.
+func writePatchFileBeside(name string, data []byte) error {
+	file, err := os.CreateTemp(filepath.Dir(name), "."+filepath.Base(name)+".viva-feed-*")
+	if err != nil {
+		return err
+	}
+	temporary := file.Name()
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		os.Remove(temporary)
+		return err
+	}
+	if err := file.Chmod(0o644); err != nil {
+		file.Close()
+		os.Remove(temporary)
+		return err
+	}
+	if err := file.Close(); err != nil {
+		os.Remove(temporary)
+		return err
+	}
+	if err := os.Rename(temporary, name); err != nil {
+		os.Remove(temporary)
+		return err
+	}
+	return nil
 }

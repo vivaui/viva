@@ -165,3 +165,48 @@ func TestFeedWithoutExpiryNeverExpires(t *testing.T) {
 		t.Fatalf("a feed with no expires: %v", err)
 	}
 }
+
+func TestFeedAcceptsPatches(t *testing.T) {
+	feed := validFeed()
+	feed.Latest.Assets[0].Patches = []Patch{{
+		FromVersion: "1.4.1", URL: "https://example.com/app.patch",
+		Size: 4096, SHA256: testDigest("patch"),
+	}}
+	if err := feed.validate(); err != nil {
+		t.Fatalf("valid feed: %v", err)
+	}
+	if patch, ok := feed.Latest.Assets[0].PatchFrom("1.4.1"); !ok || patch.FromVersion != "1.4.1" {
+		t.Fatalf("PatchFrom = %+v, %v", patch, ok)
+	}
+	if _, ok := feed.Latest.Assets[0].PatchFrom("1.4.0"); ok {
+		t.Error("PatchFrom found a patch for a version the feed does not offer")
+	}
+}
+
+func TestFeedRefusesBadPatches(t *testing.T) {
+	valid := func() Patch {
+		return Patch{FromVersion: "1.4.1", URL: "https://example.com/app.patch", Size: 4096, SHA256: testDigest("patch")}
+	}
+	tests := map[string]func(*Patch){
+		"plaintext":     func(p *Patch) { p.URL = "http://example.com/app.patch" },
+		"no digest":     func(p *Patch) { p.SHA256 = "" },
+		"uppercase":     func(p *Patch) { p.SHA256 = strings.ToUpper(p.SHA256) },
+		"zero size":     func(p *Patch) { p.Size = 0 },
+		"bad version":   func(p *Patch) { p.FromVersion = "1.4" },
+		"empty version": func(p *Patch) { p.FromVersion = "" },
+	}
+	for name, change := range tests {
+		patch := valid()
+		change(&patch)
+		feed := validFeed()
+		feed.Latest.Assets[0].Patches = []Patch{patch}
+		if err := feed.validate(); !errors.Is(err, ErrManifest) {
+			t.Errorf("%s: err = %v, want ErrManifest", name, err)
+		}
+	}
+	feed := validFeed()
+	feed.Latest.Assets[0].Patches = []Patch{valid(), valid()}
+	if err := feed.validate(); !errors.Is(err, ErrManifest) {
+		t.Errorf("duplicate patches: err = %v, want ErrManifest", err)
+	}
+}

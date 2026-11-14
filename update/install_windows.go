@@ -104,6 +104,9 @@ var (
 // installed program. It returns only after quit, so the helper can wait for
 // this process to end before it replaces the running executable.
 func install(options InstallOptions, quit func()) error {
+	if options.Payload != "" {
+		return fmt.Errorf("%w: Windows has no installed payload to patch; download the installer", ErrUnsupported)
+	}
 	if options.Asset.Format != FormatNSIS {
 		return fmt.Errorf("%w: windows needs an NSIS installer, not %q", ErrManifest, options.Asset.Format)
 	}
