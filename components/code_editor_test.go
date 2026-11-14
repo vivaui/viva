@@ -836,6 +836,28 @@ func TestCodeEditorCurrentLineTint(t *testing.T) {
 	}
 }
 
+// An empty document is still one line, and the caret is on it. Code surfaces
+// (CodeMirror's highlightActiveLine, VS Code) tint that row exactly like any
+// other caret line, so an empty editor's first line carries the same
+// background as a populated one — the placeholder is text styling, not a
+// signal that there is no caret line.
+func TestCodeEditorCurrentLineTintOnEmptyDocument(t *testing.T) {
+	f := newCodeFixture("")
+	f.snapshot.CurrentLine = true
+	f.snapshot.Placeholder = "Type SQL"
+	f.paint()
+	tint := f.theme.Foreground
+	tint.Alpha *= 0.05
+	got := f.fills(tint)
+	if len(got) != 1 {
+		t.Fatalf("an empty document must tint its single caret row, got %+v", got)
+	}
+	_, _, lineHeight := f.cell()
+	if got[0].Y != f.editor.content.Y || got[0].Height != lineHeight {
+		t.Fatalf("tint = %+v, want Y=%v height=%v", got[0], f.editor.content.Y, lineHeight)
+	}
+}
+
 func TestCodeEditorCompositionIsUnderlined(t *testing.T) {
 	f := newCodeFixture("ab你好c")
 	f.snapshot.CompositionStart, f.snapshot.CompositionEnd, f.snapshot.Caret = 2, 8, 8
