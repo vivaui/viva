@@ -24,6 +24,9 @@ var (
 	// relations in parentheses, architecture and alternatives (|). dpkg has the
 	// final say when the package is installed.
 	dependsPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9+.:()<>=~| -]*$`)
+	// archDependsPattern accepts an Arch dependency: a package name and an
+	// optional version relation, such as vulkan-icd-loader or libxcb>=1.16.
+	archDependsPattern = regexp.MustCompile(`^[a-z0-9@._+][a-z0-9@._+-]*( ?(>=|<=|=|>|<) ?[A-Za-z0-9._+:-]+)?$`)
 )
 
 // LinuxCategory is the category the menu entry is filed under.
@@ -62,6 +65,11 @@ func (manifest *Manifest) validateLinux() error {
 	for _, dependency := range linux.Depends {
 		if !dependsPattern.MatchString(dependency) || strings.TrimSpace(dependency) != dependency {
 			return fail("depends", "%q is not a Debian dependency such as libfoo1 (>= 1.2)", dependency)
+		}
+	}
+	for _, dependency := range linux.ArchDepends {
+		if !archDependsPattern.MatchString(dependency) || strings.TrimSpace(dependency) != dependency {
+			return fail("arch_depends", "%q is not an Arch dependency such as libxcb or libxcb>=1.16", dependency)
 		}
 	}
 	for _, keyword := range linux.Keywords {

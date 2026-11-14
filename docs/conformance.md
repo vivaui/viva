@@ -94,7 +94,7 @@ mistakes an absence for an oversight. Items marked *measured* were tried or size
 | A native application menu | all | The contract has a status-item menu only; macOS installs a Quit item. |
 | Colour management, HDR, wide gamut | all | Every backend writes sRGB-ish values; nothing converts. Not measured. |
 | Arm64 UI Automation | Windows | The floating-point thunk exists for amd64 only. |
-| AppImage, rpm | Linux | AppImage needs an external runtime binary; rpm could not be checked here. `viva package` makes tar.gz and .deb. |
+| AppImage, rpm | Linux | AppImage needs an external runtime binary; rpm could not be checked here. `viva package` makes tar.gz, .deb, and a PKGBUILD for Arch. |
 | Native text events in `viva dev` | all | The worker protocol does not carry them; native Canvas examples do not run under `viva dev`. |
 | A flat accessibility tree | Windows, macOS | Every node hangs from the window; Linux derives parents from geometry. |
 | XIM input | Linux | Composition goes through IBus (IBus and Fcitx5's IBus frontend); XIM-only applications cannot compose. |

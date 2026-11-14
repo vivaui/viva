@@ -18,7 +18,7 @@ import (
 var packageFormats = map[string][]string{
 	"darwin":  {"app", "zip", "dmg"},
 	"windows": {"nsis", "zip"},
-	"linux":   {"tar.gz", "deb"},
+	"linux":   {"tar.gz", "deb", "pkgbuild"},
 }
 
 // packageRequest is what one target's packager is given.
@@ -39,6 +39,9 @@ type packageRequest struct {
 	// fileArgs are --file SRC=DEST values, resolved against the manifest when
 	// the Windows packages are made.
 	fileArgs []string
+	// pkgbuildURL is --pkgbuild-url: where makepkg downloads the tar.gz from.
+	// Empty means the archive is beside the PKGBUILD.
+	pkgbuildURL string
 }
 
 // build makes the program, unless --program supplied one.
@@ -60,10 +63,12 @@ func runPackage(arguments []string, output, errorOutput io.Writer) error {
 	var makeZip bool
 	var sign signingOptions
 	var extraFiles []string
+	var pkgbuildURL string
 	flags.StringVar(&requested, "o", "", "where to write: the .app for darwin, the output directory otherwise; default is [build] out")
 	flags.StringVar(&requested, "out", "", "same as -o")
-	flags.StringVar(&formatList, "format", "", "comma-separated formats: darwin app, zip, dmg; windows nsis, zip; linux tar.gz, deb")
+	flags.StringVar(&formatList, "format", "", "comma-separated formats: darwin app, zip, dmg; windows nsis, zip; linux tar.gz, deb, pkgbuild")
 	flags.StringVar(&program, "program", "", "package this already built executable instead of building one (it must be for --target and --arch)")
+	flags.StringVar(&pkgbuildURL, "pkgbuild-url", "", "linux pkgbuild: where makepkg downloads the tar.gz from (default: beside the PKGBUILD)")
 	flags.BoolVar(&makeZip, "zip", false, "same as adding zip to --format")
 	flags.Func("file", "windows: ship SRC beside the program as DEST (repeatable, SRC=DEST; DEST is relative)", func(value string) error {
 		source, destination, ok := strings.Cut(value, "=")
@@ -111,7 +116,7 @@ func runPackage(arguments []string, output, errorOutput io.Writer) error {
 	}
 	defer os.RemoveAll(scratch)
 	request := packageRequest{
-		plan: plan, formats: formats, out: requested, sign: sign, fileArgs: extraFiles,
+		plan: plan, formats: formats, out: requested, sign: sign, fileArgs: extraFiles, pkgbuildURL: pkgbuildURL,
 		program: filepath.Join(scratch, plan.executable), output: output, errorOutput: errorOutput,
 	}
 	if program != "" {

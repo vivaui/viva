@@ -166,6 +166,10 @@ type Linux struct {
 	Homepage string
 	// Depends are the .deb's dependencies, as in Debian's Depends field.
 	Depends []string
+	// ArchDepends are the Arch packages the PKGBUILD depends on. They are
+	// written separately because Debian and Arch name the same library
+	// differently, and a Debian name in an Arch package cannot be resolved.
+	ArchDepends []string
 	// Keywords help the desktop search find the menu entry.
 	Keywords []string
 }
@@ -258,12 +262,13 @@ type document struct {
 		URL       string `toml:"url"`
 	} `toml:"windows"`
 	Linux struct {
-		Category   string   `toml:"category"`
-		Comment    string   `toml:"comment"`
-		Maintainer string   `toml:"maintainer"`
-		Homepage   string   `toml:"homepage"`
-		Depends    []string `toml:"depends"`
-		Keywords   []string `toml:"keywords"`
+		Category    string   `toml:"category"`
+		Comment     string   `toml:"comment"`
+		Maintainer  string   `toml:"maintainer"`
+		Homepage    string   `toml:"homepage"`
+		Depends     []string `toml:"depends"`
+		ArchDepends []string `toml:"arch_depends"`
+		Keywords    []string `toml:"keywords"`
 	} `toml:"linux"`
 }
 
@@ -276,7 +281,7 @@ var knownKeys = map[string][]string{
 	"mac":            {"category", "copyright", "dmg", "entitlements", "info", "min_system"},
 	"mac.dmg":        {"app_position", "applications_position", "background", "icon_size"},
 	"windows":        {"publisher", "scope", "url"},
-	"linux":          {"category", "comment", "depends", "homepage", "keywords", "maintainer"},
+	"linux":          {"arch_depends", "category", "comment", "depends", "homepage", "keywords", "maintainer"},
 }
 
 // Parse decodes the text of a viva.toml. name labels errors and dir becomes
@@ -325,7 +330,8 @@ func Parse(name, dir, source string) (*Manifest, error) {
 	manifest.Windows = Windows{Publisher: doc.Windows.Publisher, Scope: doc.Windows.Scope, URL: doc.Windows.URL}
 	manifest.Linux = Linux{
 		Category: doc.Linux.Category, Comment: doc.Linux.Comment, Maintainer: doc.Linux.Maintainer,
-		Homepage: doc.Linux.Homepage, Depends: doc.Linux.Depends, Keywords: doc.Linux.Keywords,
+		Homepage: doc.Linux.Homepage, Depends: doc.Linux.Depends, ArchDepends: doc.Linux.ArchDepends,
+		Keywords: doc.Linux.Keywords,
 	}
 	sort.Slice(manifest.Mac.Info, func(i, j int) bool { return manifest.Mac.Info[i].Key < manifest.Mac.Info[j].Key })
 

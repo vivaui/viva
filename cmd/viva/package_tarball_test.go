@@ -4,9 +4,12 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -357,5 +360,92 @@ extensions = ["note"]
 	}
 	if types := string(contents[root+"fixture-notes.mime.xml"]); !strings.Contains(types, `<glob pattern="*.note"/>`) {
 		t.Errorf("mime package:\n%s", types)
+	}
+}
+
+const linuxArchTOML = linuxTOML + `arch_depends = ["libxcb>=1.16", "cairo", "extra-lib"]
+`
+
+func TestPackageLinuxMakesAPKGBUILD(t *testing.T) {
+	dir := packageLinuxFixture(t, linuxArchTOML, 256)
+	output, err := runLinuxPackage(t, dir, "--format", "pkgbuild")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, output)
+	}
+	for _, want := range []string{"  tar.gz   ", "  pkgbuild ", "  srcinfo  "} {
+		if !strings.Contains(output, want) {
+			t.Errorf("the report lacks %q:\n%s", want, output)
+		}
+	}
+	archive := filepath.Join(dir, "build", "fixture-notes-2.0.1-linux-amd64.tar.gz")
+	data, err := os.ReadFile(archive)
+	if err != nil {
+		t.Fatalf("the tarball is not beside the PKGBUILD: %v", err)
+	}
+	digest := sha256.Sum256(data)
+	pkgbuildBytes, err := os.ReadFile(filepath.Join(dir, "build", "PKGBUILD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkgbuild := string(pkgbuildBytes)
+	for _, want := range []string{
+		"pkgname='fixture-notes-bin'",
+		"pkgver='2.0.1'",
+		"arch=('x86_64')",
+		"depends=('vulkan-icd-loader' 'libxcb>=1.16' 'cairo' 'extra-lib')",
+		"source=('fixture-notes-2.0.1-linux-amd64.tar.gz')",
+		"sha256sums=('" + hex.EncodeToString(digest[:]) + "')",
+		"_icon_size=256",
+	} {
+		if !strings.Contains(pkgbuild, want) {
+			t.Errorf("the PKGBUILD lacks %q:\n%s", want, pkgbuild)
+		}
+	}
+	if strings.Contains(pkgbuild, "libfoo1") {
+		t.Errorf("a Debian dependency reached the Arch package:\n%s", pkgbuild)
+	}
+	srcinfo, err := os.ReadFile(filepath.Join(dir, "build", ".SRCINFO"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"pkgbase = fixture-notes-bin", "\tarch = x86_64", "\tdepends = extra-lib", "pkgname = fixture-notes-bin"} {
+		if !strings.Contains(string(srcinfo), want) {
+			t.Errorf("the .SRCINFO lacks %q:\n%s", want, srcinfo)
+		}
+	}
+	if bash, err := exec.LookPath("bash"); err == nil {
+		command := exec.Command(bash, "-n")
+		command.Stdin = bytes.NewReader(pkgbuildBytes)
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("bash -n: %v\n%s", err, output)
+		}
+	}
+}
+
+func TestPackageLinuxPKGBUILDSourceURL(t *testing.T) {
+	dir := packageLinuxFixture(t, linuxTOML, 256)
+	url := "https://example.com/downloads/fixture-notes-2.0.1-linux-amd64.tar.gz"
+	output, err := runLinuxPackage(t, dir, "--format", "pkgbuild", "--pkgbuild-url", url)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, output)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "build", "PKGBUILD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "source=('fixture-notes-2.0.1-linux-amd64.tar.gz::" + url + "')"
+	if !strings.Contains(string(data), want) {
+		t.Fatalf("the PKGBUILD lacks %q:\n%s", want, data)
+	}
+}
+
+func TestPackageLinuxRefusesABadPKGBUILDURL(t *testing.T) {
+	dir := packageLinuxFixture(t, linuxTOML, 256)
+	output, err := runLinuxPackage(t, dir, "--format", "pkgbuild", "--pkgbuild-url", "file:///tmp/app.tar.gz")
+	if err == nil {
+		t.Fatalf("a file URL was accepted:\n%s", output)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, "build", "PKGBUILD")); !os.IsNotExist(statErr) {
+		t.Errorf("a PKGBUILD was written after the failure: %v", statErr)
 	}
 }
