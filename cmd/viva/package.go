@@ -18,7 +18,7 @@ import (
 var packageFormats = map[string][]string{
 	"darwin":  {"app", "zip", "dmg"},
 	"windows": {"nsis", "zip"},
-	"linux":   {"tar.gz", "deb", "pkgbuild"},
+	"linux":   {"tar.gz", "deb", "pkgbuild", "rpm"},
 }
 
 // packageRequest is what one target's packager is given.
@@ -66,7 +66,7 @@ func runPackage(arguments []string, output, errorOutput io.Writer) error {
 	var pkgbuildURL string
 	flags.StringVar(&requested, "o", "", "where to write: the .app for darwin, the output directory otherwise; default is [build] out")
 	flags.StringVar(&requested, "out", "", "same as -o")
-	flags.StringVar(&formatList, "format", "", "comma-separated formats: darwin app, zip, dmg; windows nsis, zip; linux tar.gz, deb, pkgbuild")
+	flags.StringVar(&formatList, "format", "", "comma-separated formats: darwin app, zip, dmg; windows nsis, zip; linux tar.gz, deb, pkgbuild, rpm")
 	flags.StringVar(&program, "program", "", "package this already built executable instead of building one (it must be for --target and --arch)")
 	flags.StringVar(&pkgbuildURL, "pkgbuild-url", "", "linux pkgbuild: where makepkg downloads the tar.gz from (default: beside the PKGBUILD)")
 	flags.BoolVar(&makeZip, "zip", false, "same as adding zip to --format")

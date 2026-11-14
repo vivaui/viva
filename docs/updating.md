@@ -272,10 +272,10 @@ error nothing has been changed and `quit` was not called.
 | Checks | the bundle id and version in `Info.plist`, then `codesign --verify --deep --strict` | the installer's Authenticode signature when it has one; the feed's Ed25519 signature always | the feed's Ed25519 signature |
 | Replaces | the `.app` bundle, by swapping it with two renames while the previous one is kept until the new version starts | runs the installer silently (`/S`), user scope | renames the new executable over the old one; the old inode keeps running until exit |
 | Relaunches | `open -n` through a detached helper after the process exits | a detached PowerShell helper waits, installs a full setup with `/S` (or copies a patch's files over the installation), and starts the program | starts the new executable, then the application quits |
-| Refuses | a translocated bundle, a read-only parent, a bundle without a valid signature | an installer whose signature fails to verify, a read-only install directory | an AppImage, a `.deb` installed by dpkg, a read-only directory |
+| Refuses | a translocated bundle, a read-only parent, a bundle without a valid signature | an installer whose signature fails to verify, a read-only install directory | an AppImage, a `.deb` or `.rpm` installed by its package manager, a read-only directory |
 
 A program that a package manager installed is not updated by itself. Linux
-detects the `.deb` case with `dpkg-query` and reports
+detects the `.deb` case with `dpkg-query` and the `.rpm` case with `rpm -qf`, and reports
 `update.ErrManagedExternally`; a macOS Homebrew Cask and a Windows package-managed
 install cannot be told apart from a drag-installed copy, so the application has
 to avoid offering self-update there. Windows installations made by the Viva NSIS
@@ -350,8 +350,9 @@ warning.
   not host, stage, roll out or force anything.
 - **No automatic install.** The application decides when to check, whether to
   ask, and when to call `Install`.
-- **No Linux AppImage support** and no self-update of a `.deb`. `viva package`
-  makes `tar.gz` and `.deb`; the `.deb` is the package manager's.
+- **No Linux AppImage support** and no self-update of a `.deb` or `.rpm`.
+  `viva package` makes `tar.gz`, `.deb`, PKGBUILD and (with `--format rpm`) `.rpm`;
+  the `.deb` and `.rpm` are the package manager's.
 - **No elevation.** The Windows helper runs the installer without asking for
   administrator rights, and a patch only writes a writable directory. A
   `[windows] scope = "machine"` installation under `Program Files` cannot be

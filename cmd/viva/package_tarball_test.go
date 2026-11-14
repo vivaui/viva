@@ -257,6 +257,24 @@ func TestPackageLinuxWarnsAboutASmallIcon(t *testing.T) {
 	}
 }
 
+func TestPackageLinuxMakesAnRPM(t *testing.T) {
+	dir := packageLinuxFixture(t, linuxTOML, 256)
+	if _, err := runLinuxPackage(t, dir, "--format", "rpm"); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "build"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "fixture-notes-2.0.1-1.x86_64.rpm" {
+		var names []string
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		t.Fatalf("--format rpm wrote %v, want only fixture-notes-2.0.1-1.x86_64.rpm", names)
+	}
+}
+
 func TestPackageLinuxFailures(t *testing.T) {
 	for _, test := range []struct {
 		name, toml string
@@ -264,7 +282,7 @@ func TestPackageLinuxFailures(t *testing.T) {
 		arguments  []string
 		want       string
 	}{
-		{"unknown format", linuxTOML, 256, []string{"--format", "rpm"}, `cannot be made as "rpm"`},
+		{"unknown format", linuxTOML, 256, []string{"--format", "appimage"}, `cannot be made as "appimage"`},
 		{"msi", linuxTOML, 256, []string{"--format", "nsis"}, `cannot be made as "nsis"`},
 		{"zip flag", linuxTOML, 256, []string{"--zip"}, "--zip does not apply"},
 		{"small icon", linuxTOML, 64, nil, "at least 128 px"},

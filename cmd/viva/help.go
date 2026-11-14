@@ -50,7 +50,7 @@ func commands() []command {
 			detail: "Builds the program and packages it, all from viva.toml. --target darwin makes <name>.app (--format\n" +
 				"app, zip, dmg), --target windows an NSIS installer or a zip (nsis, zip; the installer needs makensis,\n" +
 				"and the Homebrew build on Apple Silicon crashes, so build it on Linux or Windows), --target linux a\n" +
-				"tar.gz with an install script or a .deb (tar.gz, deb). --program packages an executable you built\n" +
+				"tar.gz with an install script, a .deb (deb), or an .rpm (rpm; opt-in, not in the default format). --program packages an executable you built\n" +
 				"(or signed) yourself instead of building one. [app] url_schemes and [[app.file_types]] (name, extensions,\n" +
 				"optional mime and macOS uti) register the links and documents the program opens with every format; on Windows and\n" +
 				"Linux they arrive as arguments of a new process (app/singleinstance hands them to the running copy).\n" +
