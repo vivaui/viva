@@ -330,7 +330,7 @@ func (bus *Bus) Expire() {
 }
 
 func (context *Context) send(member, signature string, body []byte) error {
-	if context.bus.err != nil {
+	if context.bus.err != nil || context.bus.contexts[context.path] != context {
 		return ErrClosed
 	}
 	if _, err := context.bus.conn.Send(service, context.path, contextInterface, member, signature, body); err != nil {
@@ -346,7 +346,7 @@ func (context *Context) send(member, signature string, body []byte) error {
 // (keycode less 8, as IBus counts), state as the X modifier mask, plus
 // ReleaseMask for a release. done may be nil for a release.
 func (context *Context) ProcessKey(keysym, keycode, state uint32, done func(handled bool)) error {
-	if context.bus.err != nil {
+	if context.bus.err != nil || context.bus.contexts[context.path] != context {
 		return ErrClosed
 	}
 	var body dbus.Encoder
@@ -395,10 +395,15 @@ func (context *Context) SetCursorLocation(x, y, width, height int32) error {
 
 // Close destroys the input context.
 func (context *Context) Close() {
-	if context.bus.err == nil {
-		_ = context.send("Destroy", "", nil)
+	if context.bus.contexts[context.path] != context {
+		return
 	}
 	delete(context.bus.contexts, context.path)
+	if context.bus.err == nil {
+		if _, err := context.bus.conn.Send(service, context.path, "org.freedesktop.IBus.Service", "Destroy", "", nil); err != nil {
+			context.bus.fail(err)
+		}
+	}
 }
 
 func (context *Context) signal(message *dbus.Message) {
