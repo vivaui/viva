@@ -259,7 +259,14 @@ func TestApplyPatchChecksNameAndVersions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	supported := runtime.GOOS == "darwin" || runtime.GOOS == "linux"
+	payload := "file"
+	switch runtime.GOOS {
+	case "darwin":
+		payload = "app"
+	case "windows":
+		payload = "dir"
+	}
+	supported := runtime.GOOS == "darwin" || runtime.GOOS == "linux" || runtime.GOOS == "windows"
 	patchOS, patchArch := runtime.GOOS, runtime.GOARCH
 	if !supported {
 		// Use a valid patch so rejection exercises the running-platform check.
@@ -267,14 +274,14 @@ func TestApplyPatchChecksNameAndVersions(t *testing.T) {
 	}
 	manifest := PatchManifest{
 		Schema: PatchSchema, App: "dev.example.notes", FromVersion: "1.0.0", ToVersion: "1.1.0",
-		OS: patchOS, Arch: patchArch, Payload: "file",
+		OS: patchOS, Arch: patchArch, Payload: payload,
 		Files: []PatchFile{fileManifest("program", newData, "diff", "files/0001", 0o755)},
 	}
 	patchPath := writePatch(t, manifest, map[string][]byte{"files/0001": diff})
 
 	original := locateInstalledPayload
 	defer func() { locateInstalledPayload = original }()
-	located := "file"
+	located := payload
 	locateInstalledPayload = func() (string, string, error) {
 		if !supported {
 			t.Error("an unsupported platform reached installed payload lookup")
@@ -303,6 +310,10 @@ func TestApplyPatchChecksNameAndVersions(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	other := "file"
+	if payload != "app" {
+		other = "app"
+	}
 	for name, call := range map[string]func() (string, error){
 		"wrong app":      func() (string, error) { return ApplyPatch(patchPath, "other", "1.0.0", "1.1.0") },
 		"wrong from":     func() (string, error) { return ApplyPatch(patchPath, "dev.example.notes", "0.9.0", "1.1.0") },
@@ -310,11 +321,79 @@ func TestApplyPatchChecksNameAndVersions(t *testing.T) {
 		"wrong platform": func() (string, error) { return ApplyPatch(patchPath, "dev.example.notes", "1.0.0", "1.1.0") },
 	} {
 		if name == "wrong platform" {
-			locateInstalledPayload = func() (string, string, error) { return oldRoot, "app", nil }
+			locateInstalledPayload = func() (string, string, error) { return oldRoot, other, nil }
 		}
 		if _, err := call(); !errors.Is(err, ErrManifest) {
 			t.Errorf("%s: err = %v, want ErrManifest", name, err)
 		}
-		locateInstalledPayload = func() (string, string, error) { return oldRoot, "file", nil }
+		locateInstalledPayload = func() (string, string, error) { return oldRoot, payload, nil }
+	}
+}
+
+func TestPatchApplyWindowsDirectory(t *testing.T) {
+	oldRoot := t.TempDir()
+	oldExe := []byte("the old windows program")
+	newExe := []byte("the new windows program with more")
+	conpty := []byte("conpty dll bytes")
+	if err := os.MkdirAll(filepath.Join(oldRoot, "conpty", "x64"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(oldRoot, "app.exe"), oldExe, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(oldRoot, "conpty", "x64", "conpty.dll"), conpty, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	diff, err := bsdiff.Bytes(oldExe, newExe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := PatchManifest{
+		Schema: PatchSchema, App: "dev.example.notes", FromVersion: "1.0.0", ToVersion: "1.1.0",
+		OS: "windows", Arch: "amd64", Payload: "dir",
+		Files: []PatchFile{
+			fileManifest("app.exe", newExe, "diff", "files/0001", 0o755),
+			fileManifest("conpty/x64/conpty.dll", conpty, "same", "", 0o644),
+			fileManifest("conpty/x64/new.dll", []byte("new"), "new", "files/0002", 0o644),
+		},
+	}
+	patchPath := writePatch(t, manifest, map[string][]byte{"files/0001": diff, "files/0002": []byte("new")})
+	patch, err := ReadPatch(patchPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer patch.Close()
+	staging := filepath.Join(t.TempDir(), "staged")
+	if err := patch.Apply(oldRoot, staging); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(staging, "app.exe"))
+	if err != nil || !bytes.Equal(got, newExe) {
+		t.Fatalf("app.exe = %q, %v", got, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(staging, "conpty", "x64", "new.dll")); err != nil || string(got) != "new" {
+		t.Fatalf("new.dll = %q, %v", got, err)
+	}
+}
+
+func TestPatchRefusesAMismatchedPayloadKind(t *testing.T) {
+	base := func() PatchManifest {
+		return PatchManifest{
+			Schema: PatchSchema, App: "app", FromVersion: "1.0.0", ToVersion: "1.1.0",
+			OS: "windows", Arch: "amd64", Payload: "dir",
+			Files: []PatchFile{{Path: "app.exe", Mode: 0o755, Size: 1, SHA256: digest([]byte("x")), Op: "new", Blob: "files/0001"}},
+		}
+	}
+	for name, change := range map[string]func(*PatchManifest){
+		"windows with app": func(m *PatchManifest) { m.Payload = "app" },
+		"darwin with dir":  func(m *PatchManifest) { m.OS, m.Payload = "darwin", "dir" },
+		"linux with dir":   func(m *PatchManifest) { m.OS, m.Payload = "linux", "dir" },
+	} {
+		manifest := base()
+		change(&manifest)
+		patchPath := writePatch(t, manifest, map[string][]byte{"files/0001": []byte("x")})
+		if _, err := ReadPatch(patchPath); !errors.Is(err, ErrManifest) {
+			t.Errorf("%s: err = %v, want ErrManifest", name, err)
+		}
 	}
 }
