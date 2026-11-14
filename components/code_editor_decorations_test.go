@@ -395,6 +395,72 @@ func TestCodeEditorOversizedDecorationClipsFoldPaintingAndHits(t *testing.T) {
 	}
 }
 
+func TestCodeEditorDecorationClipsMarkerHitsToEditorWidth(t *testing.T) {
+	for _, scenario := range []struct {
+		width   float32
+		visible bool
+	}{
+		{80, true},
+		{120, false},
+	} {
+		fixture := newCodeFixture("left")
+		fixture.bounds.Width = 100
+		fixture.snapshot.Decorations = &CodeEditorDecorations{GutterWidth: scenario.width}
+		marker := gfx.Item(20)
+		fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, ID: marker}}
+		fixture.paint()
+		found := false
+		for _, hit := range fixture.canvas.Hits() {
+			if hit.ID != marker {
+				continue
+			}
+			found = true
+			if hit.Bounds.X < fixture.bounds.X || hit.Bounds.X+hit.Bounds.Width > fixture.bounds.X+100 || hit.Bounds.Width <= 0 {
+				t.Errorf("gutter width=%v: invisible marker hit escaped the editor: %+v", scenario.width, hit.Bounds)
+			}
+		}
+		if found != scenario.visible {
+			t.Errorf("gutter width=%v: marker visible=%t, want %t", scenario.width, found, scenario.visible)
+		}
+		if len(fixture.canvas.Clips()) != 0 {
+			t.Fatal("marker hit left an unbalanced clip")
+		}
+	}
+}
+
+func TestCodeEditorDecorationClipsScrolledMarkerHitsToContent(t *testing.T) {
+	fixture := newCodeFixture("first\nsecond\nthird\nfourth")
+	fixture.snapshot.Decorations = &CodeEditorDecorations{GutterWidth: 9}
+	first, last := gfx.Item(20), gfx.Item(21)
+	fixture.snapshot.GutterMarkers = []CodeEditorGutterMarker{{Line: 0, ID: first}, {Line: 3, ID: last}}
+	fixture.paint()
+	lineHeight := fixture.editor.lineHeight
+	fixture.bounds.Height = 3*lineHeight + 2*codeEditorPadY
+	fixture.paint()
+	fixture.editor.scrollY = lineHeight / 2
+	fixture.paint()
+	if !near(fixture.editor.scrollY, lineHeight/2) {
+		t.Fatal("fixture did not preserve the partial-row scroll")
+	}
+	found := 0
+	content := fixture.editor.content
+	for _, hit := range fixture.canvas.Hits() {
+		if hit.ID != first && hit.ID != last {
+			continue
+		}
+		found++
+		if hit.Bounds.Y < content.Y || hit.Bounds.Y+hit.Bounds.Height > content.Y+content.Height || !near(hit.Bounds.Height, lineHeight/2) {
+			t.Errorf("marker hit escaped the visible partial row: id=%v hit=%+v content=%+v", hit.ID, hit.Bounds, content)
+		}
+	}
+	if found != 2 {
+		t.Fatalf("visible partial-row markers=%d, want 2", found)
+	}
+	if len(fixture.canvas.Clips()) != 0 {
+		t.Fatal("marker hit left an unbalanced clip")
+	}
+}
+
 func TestCodeEditorOversizedDecorationHidesCaretOutsideEditor(t *testing.T) {
 	for _, value := range []string{"", "left"} {
 		fixture := newCodeFixture(value)

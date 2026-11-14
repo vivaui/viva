@@ -595,6 +595,8 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 		canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, options)
 	}
 	if markerLane > 0 && len(snapshot.GutterMarkers) != 0 {
+		canvas.Clip(bounds)
+		canvas.Clip(gfx.Rect{X: markerX, Y: content.Y, Width: markerLane, Height: content.Height})
 		markerIndex := 0
 		if firstRow < len(editor.rows) {
 			firstLine := int(editor.rows[firstRow].line)
@@ -625,6 +627,8 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 				canvas.HitWithOptions(marker.ID, gfx.Rect{X: markerX, Y: y, Width: markerLane, Height: lineHeight}, label, gfx.HitOptions{Role: gfx.RoleButton, Disabled: snapshot.Disabled})
 			}
 		}
+		canvas.Unclip()
+		canvas.Unclip()
 	}
 	if foldLane > 0 && len(snapshot.FoldMarkers) != 0 {
 		foldClip := gfx.Rect{X: foldX, Y: content.Y, Width: foldLane, Height: content.Height}
