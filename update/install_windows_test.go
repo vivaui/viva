@@ -305,6 +305,10 @@ func runPayloadHelper(t *testing.T, script string, wantExit int) {
 	if os.Getenv("VIVA_PAYLOAD_DIAGNOSTIC") == "1" || os.Getenv("GITHUB_ACTIONS") == "true" {
 		script = "Set-PSDebug -Trace 1\n" + strings.Replace(script,
 			"} catch { Restore; exit 1 }", "} catch { Write-Output $_; Restore; exit 1 }", 1)
+		script = strings.ReplaceAll(script, "$rel = $_.FullName.Substring($payload.Length).TrimStart('\\')",
+			"$rel = $_.FullName.Substring($payload.Length).TrimStart('\\'); Write-Output ('PAYLOAD root={0} item={1} relative={2} itemRoot={3} resolvedRoot={4}' -f $payload, $_.FullName, $rel, (Get-Item -LiteralPath $payload).FullName, (Resolve-Path -LiteralPath $payload).Path)")
+		script = strings.ReplaceAll(script, "$dest = Join-Path $dir $rel",
+			"$dest = Join-Path $dir $rel; Write-Output ('DEST path={0} exists={1}' -f $dest, (Test-Path -LiteralPath $dest))")
 	}
 	path := filepath.Join(t.TempDir(), "helper.ps1")
 	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {
