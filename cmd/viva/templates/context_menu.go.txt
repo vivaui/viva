@@ -68,9 +68,10 @@ type ContextMenuOptions struct {
 	// Submenu makes this the content of a submenu, which has a smaller minimum
 	// width (128) than a context menu (144).
 	Submenu bool
-	// RowHeight is the height of an item row. Zero is the standard 32px; a menu
-	// with many items can ask for a denser one (24, say). Group labels, separators
-	// and everything else keep their size. An icon never grows past the row.
+	// RowHeight is the height of an item row. Zero is the theme's control height
+	// (32 at the default density, 26 at the compact one); a menu with many items
+	// can ask for a denser one (24, say). Group labels, separators and everything
+	// else keep their size. An icon never grows past the row.
 	RowHeight float32
 }
 
@@ -121,7 +122,7 @@ func ContextMenuItemWidth(canvas *gfx.Canvas, theme gfx.Theme, item ContextMenuI
 }
 
 // ContextMenuItemHeight is the height AddItem reserves for item. rowHeight is
-// ContextMenuOptions.RowHeight (zero selects the standard 32px label row).
+// ContextMenuOptions.RowHeight (zero selects the theme's control height).
 func ContextMenuItemHeight(theme gfx.Theme, item ContextMenuItem, rowHeight float32) float32 {
 	return menuItemHeight(theme, item.common(), rowHeight)
 }

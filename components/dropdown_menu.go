@@ -237,8 +237,8 @@ func BeginDropdownMenu(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, opt
 // Bounds returns the normalized overlay geometry.
 func (menu DropdownMenu) Bounds() gfx.Rect { return menu.surface.bounds }
 
-// NextItemBounds returns the next 32px keyboard-navigation row without
-// advancing the declaration cursor.
+// NextItemBounds returns the next keyboard-navigation row, as tall as the
+// theme's control height, without advancing the declaration cursor.
 func (menu DropdownMenu) NextItemBounds() gfx.Rect {
 	return menu.surface.rowBounds(menu.surface.itemHeight())
 }
@@ -606,6 +606,8 @@ func (scroll *MenuScroll) follow(canvas *gfx.Canvas) {
 }
 
 const (
+	// menuRowHeight is the height of an item row in a theme without a control
+	// height; a theme with one sizes its rows by it (menuThemeRowHeight).
 	menuRowHeight       = float32(32)
 	menuLabelHeight     = float32(28)
 	menuSeparatorHeight = float32(9)
@@ -675,7 +677,8 @@ type menuSurfaceOptions struct {
 	indicatorLeft bool
 	// tabCloses is MenuScroll.TabCloses for this surface.
 	tabCloses bool
-	// rowHeight is the height of an item row; zero is menuRowHeight.
+	// rowHeight is the height of an item row; zero is the theme's
+	// (menuThemeRowHeight).
 	rowHeight float32
 }
 
@@ -833,6 +836,17 @@ func (menu *menuSurface) itemHeight() float32 {
 	if menu.options.rowHeight > 0 {
 		return menu.options.rowHeight
 	}
+	return menuThemeRowHeight(menu.theme)
+}
+
+// menuThemeRowHeight is the height of an item row in theme: its control
+// height, so a compact theme packs its menus as densely as its buttons and
+// inputs (32 at the default density, 26 at the compact one), and menuRowHeight
+// for a theme without one.
+func menuThemeRowHeight(theme gfx.Theme) float32 {
+	if height := theme.Metrics.ControlHeight; height > 0 {
+		return height
+	}
 	return menuRowHeight
 }
 
@@ -932,7 +946,7 @@ func menuLineHeight(size float32) float32 { return size + 7 }
 
 func menuItemHeight(theme gfx.Theme, item menuItem, rowHeight float32) float32 {
 	if rowHeight <= 0 {
-		rowHeight = menuRowHeight
+		rowHeight = menuThemeRowHeight(theme)
 	}
 	if item.Description != "" {
 		lines := menuLineHeight(theme.Metrics.FontSizeM) + menuDescriptionGap + menuLineHeight(theme.Metrics.FontSizeS)
