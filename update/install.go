@@ -38,7 +38,9 @@ type InstallOptions struct {
 	// Payload is set.
 	Artifact string
 	// Payload is a new application the caller already made with PatchReader.Apply:
-	// the staged .app on macOS, or the staged executable on Linux. Install
+	// the staged .app on macOS, or the staged executable on Linux. On macOS the
+	// directory's own name does not matter, so the one ApplyPatch returns can be
+	// passed as it is: the copy takes the running bundle's name. Install
 	// replaces the running application with it exactly as it would with an
 	// unpacked archive, running the same checks. Windows has no patch support,
 	// so a payload there reports ErrUnsupported.
