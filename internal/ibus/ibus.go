@@ -126,11 +126,13 @@ type Attribute struct {
 
 // Bus is a connection to the IBus daemon.
 type Bus struct {
-	conn     transport
-	contexts map[string]*Context
-	pending  []*pendingKey
-	err      error
-	now      func() time.Time
+	conn        transport
+	contexts    map[string]*Context
+	pending     []*pendingKey
+	err         error
+	now         func() time.Time
+	dispatching bool
+	redispatch  bool
 }
 
 type pendingKey struct {
@@ -295,22 +297,38 @@ func (bus *Bus) Dispatch() error {
 	if bus.err != nil {
 		return bus.err
 	}
-	messages, err := bus.conn.Receive()
-	if err != nil {
-		bus.fail(err)
-		return err
+	if bus.dispatching {
+		bus.redispatch = true
+		return nil
 	}
-	for _, message := range messages {
-		switch message.Type {
-		case dbus.TypeSignal:
-			if context := bus.contexts[message.Path]; context != nil && message.Interface == contextInterface {
-				context.signal(message)
+	bus.dispatching = true
+	defer func() { bus.dispatching = false }()
+	for {
+		bus.redispatch = false
+		messages, err := bus.conn.Receive()
+		if err != nil {
+			bus.fail(err)
+			return err
+		}
+		for _, message := range messages {
+			switch message.Type {
+			case dbus.TypeSignal:
+				if context := bus.contexts[message.Path]; context != nil && message.Interface == contextInterface {
+					context.signal(message)
+				}
+			case dbus.TypeReturn, dbus.TypeError:
+				bus.answer(message)
 			}
-		case dbus.TypeReturn, dbus.TypeError:
-			bus.answer(message)
+			if bus.err != nil {
+				return bus.err
+			}
+		}
+		// A synchronous call in a handler may have read newer messages. Finish
+		// this batch before delivering them, even when Dispatch was reentered.
+		if !bus.redispatch {
+			return nil
 		}
 	}
-	return bus.err
 }
 
 // answer records the engine's verdict on a key and releases the verdicts that
@@ -390,6 +408,27 @@ func (context *Context) FocusIn() error { return context.send("FocusIn", "", nil
 
 // FocusOut tells the engine the text field lost the keyboard.
 func (context *Context) FocusOut() error { return context.send("FocusOut", "", nil) }
+
+// SetEngine selects an installed engine for a focused context and waits for the
+// daemon to finish selection. Buffered messages run before returning, or after
+// the current batch when called from a handler. A refusal leaves the bus usable.
+func (context *Context) SetEngine(name string) error {
+	if context.bus.err != nil || context.bus.contexts[context.path] != context {
+		return ErrClosed
+	}
+	var body dbus.Encoder
+	body.String(name)
+	_, err := context.bus.conn.Call(service, context.path, contextInterface, "SetEngine", "s", body.Bytes())
+	var refusal *dbus.Error
+	if err != nil && !errors.As(err, &refusal) {
+		context.bus.fail(err)
+		return err
+	}
+	if dispatchErr := context.bus.Dispatch(); dispatchErr != nil {
+		return dispatchErr
+	}
+	return err
+}
 
 // Reset abandons the composition in progress.
 func (context *Context) Reset() error { return context.send("Reset", "", nil) }

@@ -5,6 +5,7 @@ on:
     paths:
       - 'app/**'
       - 'internal/iconshape/**'
+      - 'internal/dbus/**'
       - 'internal/platform/**'
       - 'internal/ibus/**'
       - 'internal/render/**'
@@ -13,6 +14,7 @@ on:
     paths:
       - 'app/**'
       - 'internal/iconshape/**'
+      - 'internal/dbus/**'
       - 'internal/platform/**'
       - 'internal/ibus/**'
       - 'internal/render/**'
@@ -51,6 +53,17 @@ jobs:
       - name: Linux IME protocol lifecycle
         if: runner.os == 'Linux'
         run: go test ./internal/ibus ./internal/platform/linux -run 'Test(IME|Preedit|CommitAndPreedit|MalformedPreedit)' -count=1 -timeout=90s
+      - name: Install Linux input service test dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-0t64 xvfb xauth dbus-x11 ibus ibus-libpinyin ibus-hangul python3-gi gir1.2-ibus-1.0 gir1.2-gtk-3.0 libglib2.0-bin dconf-cli
+          dpkg-query -W libgtk-3-0t64 xvfb xauth dbus-x11 ibus ibus-libpinyin ibus-hangul python3-gi gir1.2-ibus-1.0 gir1.2-gtk-3.0 libglib2.0-bin dconf-cli
+      - name: IBus native engine lifecycle
+        if: runner.os == 'Linux'
+        run: |
+          go test -c -o "$RUNNER_TEMP/viva-ibus-native.test" ./internal/ibus
+          xvfb-run -a env VIVA_IBUS_TEST_BINARY="$RUNNER_TEMP/viva-ibus-native.test" sh internal/ibus/testdata/native-service.sh libpinyin hangul
       - name: Linux text callback ordering
         if: runner.os == 'Linux'
         run: go test -race ./internal/platform/linux -run '^TestLinuxTextCallback' -count=1 -timeout=90s

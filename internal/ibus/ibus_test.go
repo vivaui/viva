@@ -17,11 +17,14 @@ import (
 // fakeTransport is a daemon the test scripts: it records the calls the client
 // sends and hands back the messages the test queues.
 type fakeTransport struct {
-	serial   uint32
-	sent     []sentCall
-	incoming []*dbus.Message
-	closed   bool
-	sendErr  error
+	serial    uint32
+	sent      []sentCall
+	incoming  []*dbus.Message
+	closed    bool
+	sendErr   error
+	engineErr error
+	// engineIncoming arrives while a synchronous engine selection reads its reply.
+	engineIncoming []*dbus.Message
 	// createPath is what CreateInputContext answers.
 	createPath string
 }
@@ -41,6 +44,10 @@ func (f *fakeTransport) Call(destination, path, iface, member, signature string,
 		return &dbus.Message{Type: dbus.TypeReturn, Signature: "o", Body: reply.Bytes()}, nil
 	case "AddMatch":
 		return &dbus.Message{Type: dbus.TypeReturn}, nil
+	case "SetEngine":
+		f.incoming = append(f.incoming, f.engineIncoming...)
+		f.engineIncoming = nil
+		return &dbus.Message{Type: dbus.TypeReturn}, f.engineErr
 	}
 	return nil, errors.New("unexpected call " + member)
 }
@@ -241,6 +248,146 @@ func TestNativeContextRetirement(t *testing.T) {
 	}
 	if _, err := bus.NewContext("viva-successor", Handler{}); err != nil {
 		t.Fatalf("native destruction damaged the shared bus: %v", err)
+	}
+}
+
+func TestEngineSelectionUsesItsContextConnectionAndSurfacesRefusal(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		bus, context, transport := newTestBus(t, Handler{})
+		selector, ok := any(context).(interface{ SetEngine(string) error })
+		if !ok {
+			t.Fatal("input context has no native engine selection")
+		}
+		if refused {
+			transport.engineErr = &dbus.Error{Name: "org.freedesktop.IBus.Error.Failed", Text: "engine unavailable"}
+		}
+		if err := selector.SetEngine("libpinyin"); !errors.Is(err, transport.engineErr) {
+			t.Fatalf("selection error=%v, want %v", err, transport.engineErr)
+		}
+		calls := transport.calls("SetEngine")
+		if len(calls) != 1 || calls[0].path != testContext || calls[0].iface != contextInterface || calls[0].signature != "s" || dbus.NewDecoder(calls[0].body).String() != "libpinyin" {
+			t.Fatalf("native selection call=%+v", calls)
+		}
+		if bus.Err() != nil || transport.closed {
+			t.Fatal("engine refusal closed the shared bus")
+		}
+		context.Close()
+		if err := selector.SetEngine("libpinyin"); !errors.Is(err, ErrClosed) || len(transport.calls("SetEngine")) != 1 {
+			t.Fatalf("closed context selection error=%v", err)
+		}
+	}
+}
+
+func TestEngineSelectionTransportFailureClosesSharedBus(t *testing.T) {
+	bus, context, transport := newTestBus(t, Handler{})
+	selector := any(context).(interface{ SetEngine(string) error })
+	transport.engineErr = errors.New("write failed")
+	released := 0
+	if err := context.ProcessKey('n', 49, 0, func(handled bool) {
+		if handled {
+			t.Error("failed bus consumed a pending key")
+		}
+		released++
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := selector.SetEngine("libpinyin"); !errors.Is(err, transport.engineErr) || !errors.Is(bus.Err(), err) || !transport.closed || released != 1 {
+		t.Fatalf("selection error=%v bus=%v closed=%t released=%d", err, bus.Err(), transport.closed, released)
+	}
+	if err := selector.SetEngine("libpinyin"); !errors.Is(err, ErrClosed) || len(transport.calls("SetEngine")) != 1 {
+		t.Fatalf("failed bus selection error=%v", err)
+	}
+}
+
+func TestEngineSelectionDeliversRepliesBufferedByItsSynchronousCall(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		var observed []string
+		bus, context, transport := newTestBus(t, Handler{Commit: func(value string) { observed = append(observed, value) }})
+		if err := context.ProcessKey('n', 49, 0, func(handled bool) { observed = append(observed, fmt.Sprintf("handled=%t", handled)) }); err != nil {
+			t.Fatal(err)
+		}
+		transport.incoming = []*dbus.Message{commitSignal(testContext, "chosen"), keyAnswer(transport.calls("ProcessKeyEvent")[0].serial, true)}
+		if refused {
+			transport.engineErr = &dbus.Error{Name: "org.freedesktop.IBus.Error.Failed", Text: "engine unavailable"}
+		}
+		if err := context.SetEngine("libpinyin"); !errors.Is(err, transport.engineErr) {
+			t.Fatalf("selection error=%v want=%v", err, transport.engineErr)
+		}
+		if !reflect.DeepEqual(observed, []string{"chosen", "handled=true"}) || bus.Err() != nil {
+			t.Fatalf("buffered events=%q bus=%v", observed, bus.Err())
+		}
+		if _, waiting := bus.Deadline(); waiting {
+			t.Fatal("an already-answered key still waits for a socket-readability event")
+		}
+	}
+}
+
+func TestDispatchFromHandlerPreservesDaemonMessageOrder(t *testing.T) {
+	var observed []string
+	bus, context, transport := newTestBus(t, Handler{})
+	context.handler.Commit = func(value string) {
+		observed = append(observed, value)
+		if value == "A" {
+			transport.incoming = []*dbus.Message{
+				commitSignal(testContext, "C"), keyAnswer(transport.calls("ProcessKeyEvent")[0].serial, true),
+			}
+			if err := bus.Dispatch(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := context.ProcessKey('n', 49, 0, func(handled bool) {
+		observed = append(observed, fmt.Sprintf("handled=%t", handled))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	transport.incoming = []*dbus.Message{commitSignal(testContext, "A"), commitSignal(testContext, "B")}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(observed, []string{"A", "B", "C", "handled=true"}) {
+		t.Fatalf("daemon callbacks=%q, want A, B, C, then the key answer", observed)
+	}
+	if _, waiting := bus.Deadline(); waiting {
+		t.Fatal("nested dispatch stranded an already-answered key")
+	}
+}
+
+func TestEngineSelectionFromHandlerPreservesDaemonMessageOrder(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		t.Run(fmt.Sprintf("refused=%t", refused), func(t *testing.T) {
+			var observed []string
+			bus, context, transport := newTestBus(t, Handler{})
+			context.handler.Commit = func(value string) {
+				observed = append(observed, value)
+				if value == "A" {
+					if err := context.SetEngine("libpinyin"); !errors.Is(err, transport.engineErr) {
+						t.Errorf("selection error=%v want=%v", err, transport.engineErr)
+					}
+				}
+			}
+			if refused {
+				transport.engineErr = &dbus.Error{Name: "org.freedesktop.IBus.Error.Failed", Text: "engine unavailable"}
+			}
+			if err := context.ProcessKey('n', 49, 0, func(handled bool) {
+				observed = append(observed, fmt.Sprintf("handled=%t", handled))
+			}); err != nil {
+				t.Fatal(err)
+			}
+			transport.incoming = []*dbus.Message{commitSignal(testContext, "A"), commitSignal(testContext, "B")}
+			transport.engineIncoming = []*dbus.Message{
+				commitSignal(testContext, "C"), keyAnswer(transport.calls("ProcessKeyEvent")[0].serial, true),
+			}
+			if err := bus.Dispatch(); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(observed, []string{"A", "B", "C", "handled=true"}) {
+				t.Fatalf("daemon callbacks=%q, want A, B, C, then the key answer", observed)
+			}
+			if _, waiting := bus.Deadline(); waiting {
+				t.Fatal("nested engine selection stranded an already-answered key")
+			}
+		})
 	}
 }
 
@@ -526,6 +673,7 @@ func BenchmarkPreeditSignalDispatch(b *testing.B) {
 	}
 	b.ReportMetric(float64(unsafe.Sizeof(Context{})), "context-B")
 	b.ReportMetric(float64(unsafe.Sizeof(Handler{})), "handler-B")
+	b.ReportMetric(float64(unsafe.Sizeof(Bus{})), "bus-B")
 }
 
 func BenchmarkPreeditContextConstruction(b *testing.B) {
