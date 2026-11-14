@@ -333,7 +333,9 @@ func (m *model) page(c ui.C) {
   `ui.Scroll` the table is as tall as its rows and only visible rows are read; with `Height`, `Fill` or `Grow` it scrolls
   its rows under a fixed header and draws its own hover bars: `Scrollbar` names the bar's hit, `ScrollbarLabel` names it
   for assistive technology, `ScrollbarSize` sets its thickness (else the page's `PageConfig.ScrollbarSize`) and
-  `ScrollbarGutter` keeps a strip beside the columns for it. The page gives the wheel to a self-scrolling table under the pointer; give the `app.Config` passed to
+  `ScrollbarGutter` keeps a strip beside the columns for it. An application painting its own vertical bar sets
+  `HideHoverScrollbars: true` to omit the anonymous vertical hover thumb only; the horizontal overlay, gutter, wheel,
+  and an explicitly identified draggable `Scrollbar` are unchanged. The page gives the wheel to a self-scrolling table under the pointer; give the `app.Config` passed to
   `page.Config` `OnKey: m.table.Key` for Up/Down/Page/Home/End selection (a host that routes its own scroll gives
   `m.table.Wheel` the wheel).
 - Tabs: `if ui.Tabs(c, &m.tab, tabs, nil).Line().Changed() { ... }`, then declare the active tab's content under it with an
