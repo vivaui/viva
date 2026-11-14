@@ -79,6 +79,11 @@ type TableSpec struct {
 	// overflowing bar; zero lets the bars sit over their edges. The columns lose
 	// the width of a vertical gutter, and the rows the height of a horizontal one.
 	ScrollbarGutter float32
+	// HideHoverScrollbars hides the un-named vertical hover overlay for an
+	// application that paints its own vertical bar beside the table. It does not
+	// change scrollbar geometry, the horizontal overlay, scrolling, or any bar
+	// with an explicit Scrollbar ID. The default paints the overlay as usual.
+	HideHoverScrollbars bool
 }
 
 // tableRoute is a Table of the last paint that scrolls itself, and where: the
@@ -534,6 +539,13 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, content gfx.Siz
 	// component takes the bars' strips out of it, matching the strip the columns
 	// and rows have already given up, so a drag maps the body it scrolls exactly.
 	// Without a gutter the bars keep sitting over the table's edges, as they had.
+	// An un-owned vertical hover thumb may duplicate an application's adjacent
+	// bar. Omit its component declaration: an explicit ID still paints and keeps
+	// its hit and drag, while the area's geometry and horizontal bar are unchanged.
+	verticalID, verticalLabel := t.spec.Scrollbar, label
+	if t.spec.HideHoverScrollbars && verticalID.IsZero() {
+		verticalLabel = ""
+	}
 	areaBounds := Rect{X: r.X, Y: body.Y, Width: r.Width, Height: r.Y + r.Height - body.Y}
 	area := components.BeginScrollArea(f.canvas, f.theme, areaBounds, content).
 		Offset(offsetX, offsetY).
@@ -544,7 +556,7 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, content gfx.Siz
 		area = area.ReserveScrollbars()
 	}
 	area = area.
-		VerticalScrollbar(t.spec.Scrollbar, label, "").
+		VerticalScrollbar(verticalID, verticalLabel, "").
 		HorizontalScrollbar(t.spec.HorizontalScrollbar, horizontalLabel, "")
 	geometry := area.Geometry()
 	area.EndContent()

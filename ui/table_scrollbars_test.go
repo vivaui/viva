@@ -57,6 +57,112 @@ func TestScrollAreaBarsFollowThePointerAtTheirSize(t *testing.T) {
 	}
 }
 
+// An application-owned vertical bar can replace a table's anonymous hover
+// overlay without losing the table's geometry, wheel, or horizontal overlay.
+func TestTableHideHoverScrollbarsOmitsOnlyTheAnonymousVerticalThumb(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		hide   bool
+		gutter float32
+	}{
+		{name: "default overlay", gutter: 0},
+		{name: "default over a gutter", gutter: 10},
+		{name: "hidden overlay", hide: true, gutter: 0},
+		{name: "hidden overlay over a gutter", hide: true, gutter: 10},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rows := make(ui.TableRows, 100)
+			for i := range rows {
+				rows[i] = []string{"row", "a", "b", "c"}
+			}
+			var state ui.TableState
+			var table ui.Box
+			view := func(c ui.C) {
+				ui.Column(c).Children(func() {
+					table = ui.Table(c, &state, ui.TableSpec{
+						Columns: []components.TableColumn{{Width: 120}, {Width: 120}, {Width: 120}, {Width: 120}},
+						Headers: []string{"A", "B", "C", "D"}, Rows: gfx.Item(1).Scope(), Source: &rows,
+						ScrollbarSize: 10, ScrollbarGutter: test.gutter,
+						HideHoverScrollbars: test.hide,
+					}).Size(320, 200)
+				})
+			}
+			d := openPage(t, view)
+			d.driver.Move(150, 100) // rest over the overflowing table
+			bounds := table.Rect()
+			bounds.Y += components.TableHeaderHeight(pageTheme)
+			bounds.Height -= components.TableHeaderHeight(pageTheme)
+			layout := components.BeginScrollArea(nil, pageTheme, bounds, gfx.Size{Width: 480, Height: float32(len(rows)) * components.TableRowHeight(pageTheme)}).
+				ScrollbarSize(10).HoverScrollbars(true)
+			if test.gutter > 0 {
+				layout = layout.ReserveScrollbars()
+			}
+			geometry := layout.Geometry()
+			if geometry.MaxOffsetX <= 0 || geometry.MaxOffsetY <= 0 {
+				t.Fatalf("the table does not overflow both ways: %+v", geometry)
+			}
+			haveVertical, haveHorizontal := false, false
+			for _, primitive := range d.driver.Snapshot().Primitives {
+				if primitive.Kind != app.RectanglePrimitive || primitive.Radius <= 0 {
+					continue
+				}
+				switch primitive.Bounds {
+				case geometry.VerticalThumb:
+					haveVertical = true
+				case geometry.HorizontalThumb:
+					haveHorizontal = true
+				}
+			}
+			if haveVertical == test.hide {
+				t.Errorf("vertical thumb painted = %v with HideHoverScrollbars %v", haveVertical, test.hide)
+			}
+			if !haveHorizontal {
+				t.Error("the horizontal thumb disappeared")
+			}
+			if err := d.driver.Scroll(gfx.ScrollEvent{X: 150, Y: 100, DeltaY: 100, Precise: true}); err != nil {
+				t.Fatal(err)
+			}
+			if state.Scroll.Offset == 0 {
+				t.Error("hiding the overlay stopped the table's wheel")
+			}
+		})
+	}
+}
+
+// An explicitly owned scrollbar is not an anonymous hover ornament: the opt-out
+// leaves it painted, hit, draggable, and able to move the table.
+func TestTableHideHoverScrollbarsKeepsAnExplicitVerticalBarInteractive(t *testing.T) {
+	rows := make(ui.TableRows, 100)
+	for i := range rows {
+		rows[i] = []string{"row", "state"}
+	}
+	var state ui.TableState
+	view := func(c ui.C) {
+		ui.Table(c, &state, ui.TableSpec{
+			Columns: []components.TableColumn{{Width: 200}, {Width: 0}},
+			Rows:    gfx.Item(1).Scope(), Source: &rows,
+			Scrollbar: gfx.Item(900), ScrollbarLabel: "Table rows",
+			ScrollbarSize: 10, HideHoverScrollbars: true,
+		}).Size(320, 200)
+	}
+	d := openPage(t, view)
+	d.driver.Move(150, 100)
+	bar := d.hit("Table rows")
+	at := gfx.Point{X: bar.Bounds.X + bar.Bounds.Width/2, Y: bar.Bounds.Y + 20}
+	if err := d.driver.Press(at.X, at.Y, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Move(at.X, at.Y+50); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Release(at.X, at.Y+50, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	if state.Scroll.Offset == 0 {
+		t.Fatal("the explicit vertical scrollbar did not drag the table")
+	}
+}
+
 // A table given a smaller height than its rows scrolls them itself, with the
 // bar in the gutter it is asked for, and keeps the pointer from the rows while
 // the bar is held. Config.OnKey hands it the keys, as the application does.
