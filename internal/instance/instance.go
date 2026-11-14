@@ -1,12 +1,19 @@
 // Package instance makes an application run once per user. The first process
-// listens on a local socket; a later one connects, hands over its command line
-// and exits. No file lock, polling or timer is involved: the first process
+// listens at the claim address; a later one connects, hands over its command
+// line and exits. No file lock, polling or timer is involved: the first process
 // holds one blocked accept, and nothing else runs until a second process starts.
 //
-// The socket lives in a per-user directory the platform keeps across launches,
-// never in the process's temporary directory: TMPDIR and XDG_RUNTIME_DIR are
-// set by whichever shell or session started the process, and two copies that
-// disagree on them would not meet.
+// The address belongs to the user, not to the environment: a copy started from
+// a desktop and one started from a terminal must find each other, and their
+// TMPDIR and XDG_RUNTIME_DIR can differ (an SSH session, a service or a shell
+// profile can leave the first unset or set it to another place). If the claim
+// followed the environment, both copies would listen and both would believe they
+// are the one running copy, writing the same saved data from two processes.
+//
+// The platform files say where the address is. macOS and Linux claim at a Unix
+// socket in a per-user directory. Windows claims at a per-user named pipe:
+// AF_UNIX exists only from Windows 10 1803 and Windows Server 2019, while the
+// named pipe is there on every Windows a Go program runs on.
 package instance
 
 import (
@@ -18,9 +25,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -30,14 +34,12 @@ const (
 	maxMessage = 1 << 20
 	maxArgs    = 4096
 	ioDeadline = 3 * time.Second
-	// maxSocketPath is below the 104 bytes a Unix socket path may have on macOS.
-	maxSocketPath = 100
 )
 
 // Instance is the first process's claim on the application.
 type Instance struct {
 	listener net.Listener
-	path     string
+	address  string
 	once     sync.Once
 	done     chan struct{}
 }
@@ -50,141 +52,61 @@ func Claim(id string, args []string, handler func(args []string)) (instance *Ins
 	if id == "" {
 		return nil, false, errors.New("instance: an application id is required")
 	}
-	path, err := socketPath(id)
+	address, err := claimAddress(id)
 	if err != nil {
 		return nil, false, err
 	}
+	var listenErr error
 	for attempt := 0; attempt < 3; attempt++ {
-		listener, listenErr := net.Listen("unix", path)
-		if listenErr == nil {
-			os.Chmod(path, 0o600)
-			instance = &Instance{listener: listener, path: path, done: make(chan struct{})}
+		listener, attemptErr := listen(address)
+		if attemptErr == nil {
+			instance = &Instance{listener: listener, address: address, done: make(chan struct{})}
 			go instance.serve(handler)
 			return instance, true, nil
 		}
-		sendErr := send(path, args)
+		listenErr = attemptErr
+		sendErr := send(address, args)
 		if sendErr == nil {
 			return nil, false, nil
 		}
 		if !errors.Is(sendErr, errNobody) {
 			return nil, false, sendErr
 		}
-		// Nobody answers: the socket is left from a process that died.
-		os.Remove(path)
+		// Nobody answers: the address is left from a process that died.
+		discard(address)
 	}
-	return nil, false, fmt.Errorf("instance: cannot claim %s: %w", path, errNobody)
+	return nil, false, claimFailure(address, listenErr)
 }
 
-// Close stops listening and removes the socket. It is idempotent.
+// claimFailure is the error of a claim that could be neither handed to a running
+// copy nor made by this process. Both halves are named: the platform's own
+// reason for refusing the address is what a report needs, and leaving it out
+// made a platform without that address look like an application that was not
+// running.
+func claimFailure(address string, listenErr error) error {
+	return fmt.Errorf("instance: cannot claim %s: %w, and this process cannot listen there: %v", address, errNobody, listenErr)
+}
+
+// Close stops listening and removes the claim. It is idempotent.
 func (instance *Instance) Close() {
 	if instance == nil {
 		return
 	}
 	instance.once.Do(func() {
 		instance.listener.Close()
-		os.Remove(instance.path)
+		discard(instance.address)
 		<-instance.done
 	})
 }
 
 var errNobody = errors.New("instance: no process is listening")
 
-// claimDirectory is the directory a claim lives in. It is a variable so tests
-// can use a directory of their own; the program never changes it.
-var claimDirectory = defaultClaimDirectory
-
-// defaultClaimDirectory is the per-user directory claims live in. It is derived
-// from the user, not from the environment: a copy started from a desktop and one
-// started from a terminal must find each other, and their TMPDIR and
-// XDG_RUNTIME_DIR can differ (an SSH session, a service or a shell profile can
-// leave the first unset or set it to another place). If the claim followed the
-// environment, both copies would bind a socket and both would believe they are
-// the one running copy, writing the same saved data from two processes.
-func defaultClaimDirectory() (string, error) {
-	switch runtime.GOOS {
-	case "linux":
-		// The session runtime directory, derived from the user rather than read
-		// from XDG_RUNTIME_DIR, so a launch without the variable agrees with the
-		// desktop's own.
-		session := fmt.Sprintf("/run/user/%d", os.Getuid())
-		if info, err := os.Stat(session); err == nil && info.IsDir() && ownedByUser(info) {
-			return filepath.Join(session, "viva"), nil
-		}
-		return filepath.Join("/tmp", fmt.Sprintf("viva-%d", os.Getuid())), nil
-	case "windows":
-		// %LocalAppData%, which is the user's own and is not roamed between
-		// computers; a socket must stay on this machine.
-		base, err := os.UserCacheDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(base, "viva"), nil
-	default:
-		// ~/Library/Application Support on macOS. The cache directory can be
-		// purged under disk pressure, which would remove the socket of a
-		// running copy and let a second one claim the application.
-		base, err := os.UserConfigDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(base, "viva"), nil
-	}
-}
-
-// socketPath is where the id's socket lives: in a directory only this user can
-// enter, short enough for the 104-byte limit of a Unix socket path.
-func socketPath(id string) (string, error) {
-	dir, err := claimDirectory()
-	if err != nil {
-		return "", err
-	}
-	return socketPathIn(dir, id)
-}
-
-// socketPathIn is socketPath for a claim directory. The split lets a test reach
-// the length fallback without a machine whose home directory is that deep.
-func socketPathIn(dir, id string) (string, error) {
+// claimName is the part of the address that names the application. A digest
+// keeps the address inside the length limit of both a socket path and a pipe
+// name whatever the id is.
+func claimName(id string) string {
 	sum := sha256.Sum256([]byte(id))
-	name := "i-" + hex.EncodeToString(sum[:6]) + ".sock"
-	if len(dir)+len(name)+1 > maxSocketPath {
-		if runtime.GOOS == "windows" {
-			// Windows AF_UNIX paths share the sockaddr limit, and there is no
-			// short system directory to fall back to; the 8.3 short form of the
-			// existing parent usually fits. The claim directory itself need not
-			// exist yet, so only its parent is shortened.
-			if short, ok := shortPath(filepath.Dir(dir)); ok {
-				dir = filepath.Join(short, filepath.Base(dir))
-			}
-		} else {
-			// A very long home directory: /tmp is always short, and every copy
-			// derives the same fallback from the user, not from the environment.
-			dir = filepath.Join("/tmp", fmt.Sprintf("viva-%d", os.Getuid()))
-		}
-	}
-	if socket := filepath.Join(dir, name); len(socket) > maxSocketPath {
-		return "", fmt.Errorf("instance: the claim path %s is %d bytes, over the %d-byte limit; the user's home directory is too deep", socket, len(socket), maxSocketPath)
-	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
-	}
-	info, err := os.Lstat(dir)
-	if err != nil {
-		return "", err
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("instance: %s is not a directory", dir)
-	}
-	if runtime.GOOS != "windows" {
-		if info.Mode().Perm()&0o077 != 0 {
-			if err := os.Chmod(dir, 0o700); err != nil {
-				return "", fmt.Errorf("instance: %s is open to other users: %w", dir, err)
-			}
-		}
-		if !ownedByUser(info) {
-			return "", fmt.Errorf("instance: %s belongs to another user", dir)
-		}
-	}
-	return filepath.Join(dir, name), nil
+	return "i-" + hex.EncodeToString(sum[:6])
 }
 
 func (instance *Instance) serve(handler func([]string)) {
@@ -203,12 +125,9 @@ func (instance *Instance) serve(handler func([]string)) {
 	}
 }
 
-// send hands args to the process listening on path.
-func send(path string, args []string) error {
-	conn, err := net.DialTimeout("unix", path, ioDeadline)
-	if err != nil {
-		return fmt.Errorf("%w: %v", errNobody, err)
-	}
+// sendArgs hands args to a connected running process and waits for its
+// acknowledgement. The connection is closed either way.
+func sendArgs(conn net.Conn, args []string) error {
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(ioDeadline))
 	if err := writeArgs(conn, args); err != nil {
