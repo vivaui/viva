@@ -216,36 +216,58 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	// Enumeration expands DOS aliases, so both substring roots need full names.
 	script.WriteString("$payload = (Get-Item -LiteralPath $payload).FullName\n")
 	script.WriteString("$backup = Join-Path $dir ('.viva-update-' + [guid]::NewGuid().ToString('N'))\n")
-	script.WriteString("New-Item -ItemType Directory -Force -Path $backup | Out-Null\n")
-	script.WriteString("$backup = (Get-Item -LiteralPath $backup).FullName\n")
 	script.WriteString("$created = New-Object System.Collections.ArrayList\n")
+	script.WriteString("$temps = New-Object System.Collections.ArrayList\n")
 	script.WriteString("function Restore {\n")
+	// Best effort: one locked file must not keep the old version from being
+	// started, and the relaunch is what makes a failed update recoverable.
 	script.WriteString("  if (Test-Path -LiteralPath $backup) {\n")
 	script.WriteString("    Get-ChildItem -LiteralPath $backup -Recurse -File | ForEach-Object {\n")
 	script.WriteString("      $rel = $_.FullName.Substring($backup.Length).TrimStart('\\')\n")
 	script.WriteString("      $dest = Join-Path $dir $rel\n")
-	script.WriteString("      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) | Out-Null\n")
-	script.WriteString("      Copy-Item -LiteralPath $_.FullName -Destination $dest -Force\n")
+	script.WriteString("      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) -ErrorAction SilentlyContinue | Out-Null\n")
+	script.WriteString("      Copy-Item -LiteralPath $_.FullName -Destination $dest -Force -ErrorAction SilentlyContinue\n")
 	script.WriteString("    }\n  }\n")
 	script.WriteString("  foreach ($rel in $created) { Remove-Item -LiteralPath (Join-Path $dir $rel) -Force -ErrorAction SilentlyContinue }\n")
+	script.WriteString("  foreach ($tmp in $temps) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }\n")
 	script.WriteString("}\n")
+	// The relaunch keeps the arguments the program was started with, so a test
+	// binary starts its own case again rather than a whole suite.
+	script.WriteString("function Launch {\n")
+	script.WriteString("  Start-Process -FilePath $exe")
+	if len(args) > 0 {
+		fmt.Fprintf(&script, " -ArgumentList %s", powerShellArgumentList(args))
+	}
+	script.WriteString("\n}\n")
 	script.WriteString("$alive = $true\n")
 	script.WriteString("for ($i = 0; $i -lt 60; $i++) {\n")
 	script.WriteString("  if (-not (Get-Process -Id $parent -ErrorAction SilentlyContinue)) { $alive = $false; break }\n")
 	script.WriteString("  Start-Sleep -Seconds 1\n")
 	script.WriteString("}\n")
-	script.WriteString("if ($alive) { Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue; exit 1 }\n")
+	script.WriteString("if ($alive) { exit 1 }\n")
 	script.WriteString("try {\n")
+	// A backup a previous update could not remove (its old executable was still
+	// held) would otherwise stay in the install directory for good: the name is
+	// a fresh GUID each time.
+	script.WriteString("  Get-ChildItem -LiteralPath $dir -Directory -Filter '.viva-update-*' -ErrorAction SilentlyContinue | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }\n")
+	script.WriteString("  New-Item -ItemType Directory -Force -Path $backup | Out-Null\n")
+	script.WriteString("  $backup = (Get-Item -LiteralPath $backup).FullName\n")
 	script.WriteString("  Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object {\n")
 	script.WriteString("    $rel = $_.FullName.Substring($payload.Length).TrimStart('\\')\n")
 	script.WriteString("    $dest = Join-Path $dir $rel\n")
+	script.WriteString("    $incoming = Join-Path (Split-Path -Parent $dest) ('.viva-update-incoming-' + [guid]::NewGuid().ToString('N') + '.tmp')\n")
+	script.WriteString("    [void]$temps.Add($incoming)\n")
+	script.WriteString("    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) | Out-Null\n")
+	// Copy beside the destination, then rename: the old file is moved aside and
+	// the new one put in its place with renames, so no copy happens while the
+	// installed executable is missing.
+	script.WriteString("    Copy-Item -LiteralPath $_.FullName -Destination $incoming -Force\n")
 	script.WriteString("    if (Test-Path -LiteralPath $dest) {\n")
 	script.WriteString("      $bak = Join-Path $backup $rel\n")
 	script.WriteString("      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $bak) | Out-Null\n")
 	script.WriteString("      Move-Item -LiteralPath $dest -Destination $bak -Force\n")
 	script.WriteString("    } else { [void]$created.Add($rel) }\n")
-	script.WriteString("    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) | Out-Null\n")
-	script.WriteString("    Copy-Item -LiteralPath $_.FullName -Destination $dest -Force\n")
+	script.WriteString("    Move-Item -LiteralPath $incoming -Destination $dest -Force\n")
 	script.WriteString("  }\n")
 	script.WriteString("  $p = Start-Process -FilePath $exe -PassThru")
 	if len(args) > 0 {
@@ -253,8 +275,8 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	}
 	script.WriteString("\n")
 	script.WriteString("  Start-Sleep -Seconds 2\n")
-	script.WriteString("  if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Start-Process -FilePath $exe | Out-Null; exit 1 }\n")
-	script.WriteString("} catch { Restore; Start-Process -FilePath $exe | Out-Null; exit 1 }\n")
+	script.WriteString("  if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Launch; exit 1 }\n")
+	script.WriteString("} catch { Restore; Launch; exit 1 }\n")
 	script.WriteString("Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue\n")
 	script.WriteString("Remove-Item -Recurse -Force $payload -ErrorAction SilentlyContinue\n")
 	script.WriteString("exit 0\n")
