@@ -191,6 +191,9 @@ func (ime *linuxIME) sync() {
 				// this native session, keep the text the field already
 				// shows, and let sync open a fresh context next frame.
 				keep := ime.phase != nil && ime.phase.session
+				// Retire before settling: the settlement is delivered through
+				// the router, and a reentrant sync must not find the session it
+				// just retired still current.
 				ime.retire()
 				if keep {
 					ime.apply(platform.TextEvent{Kind: platform.TextUnmark, CompositionPhase: text.CompositionCommit})

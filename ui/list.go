@@ -416,9 +416,15 @@ func (s *ListState) RowHeightAt(i int) float32 { return s.rowHeight(i) }
 // RowID is the identity of visible row i as the last paint named it, by Key when
 // one is set: the target to give the focus (Canvas.RequestFocus), to look up in a
 // pointer event or to find among the hits. It is the zero ID before the list has
-// been declared. A TreeState has its own RowID, since its rows are named in the
-// tree's scope.
-func (s *ListState) RowID(i int) gfx.ID { return s.list.rows.At(s.key(i)) }
+// been declared, and for a row the list has not declared, so that Selected() can
+// be passed before anything is chosen. A TreeState has its own RowID, since its
+// rows are named in the tree's scope.
+func (s *ListState) RowID(i int) gfx.ID {
+	if i < 0 || i >= s.list.n {
+		return gfx.ID{}
+	}
+	return s.list.rows.At(s.key(i))
+}
 
 // pinnedHeightFor is the height of the header that stays at the top of the list
 // above row, which is not itself a header: what a row has to clear to be seen.

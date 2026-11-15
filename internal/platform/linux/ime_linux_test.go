@@ -106,8 +106,12 @@ func newIMEHarness(t testing.TB) *imeHarness {
 		_, _, err := harness.input.prepare(frame)
 		return err
 	}
+	// ibusTried keeps a present() that defers sync from dialing the host's
+	// daemon: these tests are about the state machine, and a machine with a
+	// reachable IBus address would otherwise get a fresh native context in the
+	// middle of an assertion.
 	harness.ime = &linuxIME{
-		app: &linuxApplication{}, text: harness.input, router: router, context: harness.context,
+		app: &linuxApplication{ibusTried: true}, text: harness.input, router: router, context: harness.context,
 		origin: func() (int32, int32) { return harness.origin[0], harness.origin[1] },
 	}
 	router.ime = harness.ime

@@ -3,6 +3,7 @@ package ui_test
 import (
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,8 +109,12 @@ func TestTreeKeyPastTheItemNumbersPanics(t *testing.T) {
 	m := newTreeModel([]folder{{name: "etc", open: true, files: []string{"hosts", "passwd"}}})
 	m.state.Key = func(i int) int { return math.MaxInt32 + 1 + i }
 	defer func() {
-		if recover() == nil {
+		recovered := recover()
+		if recovered == nil {
 			t.Fatal("a Tree whose rows are keyed past 2^31-1 did not panic")
+		}
+		if message := fmt.Sprint(recovered); !strings.Contains(message, "outside 0 to 2^31-1") {
+			t.Fatalf("a Tree keyed past 2^31-1 panicked with %q, want the key range named", message)
 		}
 	}()
 	drawPage(ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas(), m.page)
