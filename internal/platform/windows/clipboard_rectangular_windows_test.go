@@ -348,6 +348,16 @@ func TestColumnClipboardNativeUnreadableMarkerIsNotGuessed(t *testing.T) {
 			} else if err == nil || value != "" || rectangular {
 				t.Fatalf("unreadable metadata became a usable paste: %q/%v/%v", value, rectangular, err)
 			}
+			if !msdev {
+				events := 0
+				state.textInput = platform.TextInput{OnEvent: func(platform.TextEvent) (platform.TextState, error) {
+					events++
+					return state.textState, errors.New("unexpected Paste")
+				}}
+				if !state.textKey('V', 0, inputpkg.ModifierControl) || events != 0 || state.err != nil {
+					t.Fatalf("unreadable marker delivered Paste: events=%d err=%v", events, state.err)
+				}
+			}
 			if plain, err := ClipboardText(); err != nil || plain != "unchanged" {
 				t.Fatalf("marker read failure changed ordinary clipboard behavior: %q/%v", plain, err)
 			}
@@ -356,62 +366,39 @@ func TestColumnClipboardNativeUnreadableMarkerIsNotGuessed(t *testing.T) {
 }
 
 func TestColumnClipboardNativeDiscardedMarkerIsNotGuessed(t *testing.T) {
-	for _, msdev := range []bool{false, true} {
-		name := "discarded Borland"
-		if msdev {
-			name = "MSDEV has priority"
-		}
-		t.Run(name, func(t *testing.T) {
-			state := columnClipboardWindow(t)
-			if err := SetClipboardText("unchanged"); err != nil {
-				t.Fatal(err)
+	for _, test := range []struct {
+		name        string
+		size        uintptr
+		value       byte
+		rectangular bool
+		unreadable  bool
+	}{
+		{name: "discarded", unreadable: true},
+		{name: "column", size: 1, value: 2, rectangular: true},
+		{name: "stream", size: 1, value: 1},
+		{name: "oversized", size: 2, value: 2},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// A zero-sized movable allocation has a handle but no readable data.
+			handle, _, err := globalAlloc.Call(globalMoveable|globalZeroInit, test.size)
+			if handle == 0 {
+				t.Fatalf("allocate marker: %v", err)
 			}
-			format := columnClipboardFormat(t, "Borland IDE Block Type")
-			func() {
-				if opened, _, err := openClipboard.Call(state.window); opened == 0 {
-					t.Fatalf("open discarded marker fixture: %v", err)
+			defer globalFree.Call(handle)
+			if test.size != 0 {
+				memory, _, err := globalLock.Call(handle)
+				if memory == 0 {
+					t.Fatalf("lock marker: %v", err)
 				}
-				defer closeClipboard.Call()
-				// A zero-sized movable allocation has a handle but no readable data.
-				handle, _, err := globalAlloc.Call(globalMoveable, 0)
-				if handle == 0 {
-					t.Fatalf("allocate discarded marker: %v", err)
-				}
-				if result, _, err := setClipboardData.Call(format, handle); result == 0 {
-					globalFree.Call(handle)
-					t.Fatalf("transfer discarded marker: %v", err)
-				}
-				stored, _, err := clipboardData.Call(format)
-				if stored == 0 {
-					t.Fatalf("discarded marker has no handle: %v", err)
-				}
-				if size, _, _ := globalSize.Call(stored); size != 0 {
-					t.Fatalf("discarded marker size = %d; want 0", size)
-				}
-			}()
-			if msdev {
-				addColumnClipboardMarker(t, state.window, "MSDEVColumnSelect", nil)
+				*(*byte)(pointer(memory)) = test.value
+				globalUnlock.Call(handle)
 			}
-			value, rectangular, err := ClipboardTextWithFormat()
-			if msdev {
-				if err != nil || value != "unchanged" || !rectangular {
-					t.Fatalf("valid MSDEV marker consulted discarded Borland data: %q/%v/%v", value, rectangular, err)
-				}
-			} else {
-				if err == nil || value != "" || rectangular {
-					t.Fatalf("discarded metadata became a usable paste: %q/%v/%v", value, rectangular, err)
-				}
-				events := 0
-				state.textInput = platform.TextInput{OnEvent: func(platform.TextEvent) (platform.TextState, error) {
-					events++
-					return state.textState, errors.New("unexpected Paste")
-				}}
-				if !state.textKey('V', 0, inputpkg.ModifierControl) || events != 0 || state.err != nil {
-					t.Fatalf("discarded marker delivered Paste: events=%d err=%v", events, state.err)
-				}
+			if size, _, _ := globalSize.Call(handle); size != test.size {
+				t.Fatalf("marker size = %d; want %d", size, test.size)
 			}
-			if plain, err := ClipboardText(); err != nil || plain != "unchanged" {
-				t.Fatalf("discarded marker changed ordinary clipboard behavior: %q/%v", plain, err)
+			rectangular, err := borlandClipboardMarker(handle)
+			if (err != nil) != test.unreadable || rectangular != test.rectangular {
+				t.Fatalf("marker = rectangular %v, err %v; want rectangular %v, unreadable %v", rectangular, err, test.rectangular, test.unreadable)
 			}
 		})
 	}

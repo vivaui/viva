@@ -68,15 +68,23 @@ func ClipboardTextWithFormat() (string, bool, error) {
 	if handle == 0 {
 		return "", false, windowsCallError("read Borland clipboard marker", err)
 	}
+	rectangular, err := borlandClipboardMarker(handle)
+	if err != nil {
+		return "", false, err
+	}
+	return value, rectangular, nil
+}
+
+func borlandClipboardMarker(handle uintptr) (bool, error) {
 	if size, _, _ := globalSize.Call(handle); size != 1 {
-		return value, false, nil
+		return false, nil
 	}
 	memory, _, err := globalLock.Call(handle)
 	if memory == 0 {
-		return "", false, windowsCallError("lock Borland clipboard marker", err)
+		return false, windowsCallError("lock Borland clipboard marker", err)
 	}
 	defer globalUnlock.Call(handle)
-	return value, *(*byte)(pointer(memory)) == 0x02, nil
+	return *(*byte)(pointer(memory)) == 0x02, nil
 }
 
 func allocateColumnClipboardMarker(value byte) (uintptr, error) {
