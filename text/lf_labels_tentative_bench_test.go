@@ -56,10 +56,9 @@ func BenchmarkLFLabelsTentativeRekey(b *testing.B) {
 				}
 				tentativeCoreEditorSink = editor
 			}
-			// End after Redo so the same benchmark also runs on the broken
-			// baseline. The regression tests verify the restored label at Undo.
-			labels, ok := tentativeCoreEditorSink.LFLabels(nil)
-			if tentativeCoreEditorSink.String() != "ab" || tentativeCoreEditorSink.CompositionActive() || !ok || len(labels) != 0 {
+			// Both versions replay the deletion text; baseline LF metadata is
+			// broken. The regression tests verify labels through Undo and Redo.
+			if tentativeCoreEditorSink.String() != "ab" || tentativeCoreEditorSink.CompositionActive() {
 				b.Fatal("workflow did not retain its replayed deletion")
 			}
 		})
