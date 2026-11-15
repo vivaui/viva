@@ -205,13 +205,6 @@ func (s *TreeState) indent(theme *Theme) float32 {
 	return 16 * theme.Metrics.ControlHeight / 32
 }
 
-func (s *TreeState) key(i int) int {
-	if s.Key != nil {
-		return s.Key(i)
-	}
-	return i
-}
-
 // row declares row i: the row element, painted by components.Tree, holding what
 // the caller declares after the chevron.
 func (s *TreeState) row(i int, rowBox Box) {
