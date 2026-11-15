@@ -29,6 +29,21 @@ def drain(duration=0.05):
         time.sleep(0.001)
 
 
+def record_signal(connection, sender, path, interface, signal, parameters, events):
+    labels = {
+        "UpdatePreeditText": "update",
+        "UpdatePreeditTextWithMode": "mode",
+        "CommitText": "commit",
+    }
+    if signal not in labels:
+        return
+    values = parameters.unpack()
+    text = values[0]
+    if len(text) < 3 or text[0] != "IBusText" or not isinstance(text[2], str):
+        raise RuntimeError(f"invalid reference text in {signal}")
+    events.append([labels[signal], text[2], *values[1:]])
+
+
 for client_mode in [False, True]:
     for ending in ["commit", "escape", "reset", "focus-out"]:
         bus = IBus.Bus()
@@ -39,10 +54,15 @@ for client_mode in [False, True]:
         context.set_capabilities(IBus.Capabilite.PREEDIT_TEXT | IBus.Capabilite.FOCUS)
         if client_mode:
             context.set_client_commit_preedit(True)
-        context.connect("update-preedit-text", lambda _, text, cursor, visible: events.append(["update", text.get_text(), cursor, visible]))
-        context.connect("update-preedit-text-with-mode", lambda _, text, cursor, visible, mode: events.append(["mode", text.get_text(), cursor, visible, mode]))
-        context.connect("commit-text", lambda _, text: events.append(["commit", text.get_text()]))
         connection = context.get_connection()
+        # Observe serialized signals through Gio: passing temporary IBusText
+        # objects through PyGObject's signal marshaller can release them before
+        # libIBus finishes emitting the signal. Keep libIBus for all requests.
+        subscription = connection.signal_subscribe(
+            "org.freedesktop.IBus", "org.freedesktop.IBus.InputContext", None,
+            context.get_object_path(), None, Gio.DBusSignalFlags.NONE,
+            record_signal, events,
+        )
         connection.call_sync("org.freedesktop.IBus", context.get_object_path(), "org.freedesktop.IBus.InputContext", "FocusIn", GLib.Variant("()", ()), None, Gio.DBusCallFlags.NONE, 1000, None)
         subprocess.run(["fcitx5-remote", "--check", "-s", requested], check=True, timeout=2)
         subprocess.run(["fcitx5-remote", "--check", "-o"], check=True, timeout=2)
@@ -64,5 +84,6 @@ for client_mode in [False, True]:
             context.focus_out()
         drain(0.15)
         print("reference settled", client_mode, ending, json.dumps(events, ensure_ascii=False), flush=True)
+        connection.signal_unsubscribe(subscription)
         context.destroy()
         drain(0.01)
