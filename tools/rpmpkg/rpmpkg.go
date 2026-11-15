@@ -42,7 +42,8 @@ type Package struct {
 	// License is the License tag; "Unspecified" when empty.
 	License string
 	// Requires are the capabilities the package needs, named as the target
-	// distribution names them (Fedora: vulkan-loader, libxcb, cairo).
+	// distribution names them, including shared-library capabilities such as
+	// libpango-1.0.so.0()(64bit).
 	Requires []string
 }
 
