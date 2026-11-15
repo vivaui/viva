@@ -522,7 +522,15 @@ func (w *gtkWindow) tapModifier(key input.Key, modifiers input.Modifiers, repeat
 }
 
 func (w *gtkWindow) keyRelease(e *gdkEventKey, event uintptr) {
+	pressed := w.keys.down[e.HardwareKeycode]
 	delete(w.keys.down, e.HardwareKeycode)
+	if !pressed {
+		// The press never entered the key pipeline (a stale input-method target
+		// swallowed it, or focus loss cleared the pressed set). Passing the
+		// release on would give the application, the modifier taps and a
+		// terminal's KeyReleases a release with no matching press.
+		return
+	}
 	if key := normalizedKeysym(e.Keyval); key.IsModifier() && !w.wantsKeyReleases() {
 		w.tapModifier(key, gdkModifiers(e.State)&^key.Modifier(), false, true, e.HardwareKeycode)
 	}

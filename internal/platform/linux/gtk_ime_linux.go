@@ -33,14 +33,19 @@ type gtkIME struct {
 	// session survives an empty native update until GTK supplies an end or result.
 	session, ending bool
 	nativeDepth     int
-	endTask         uintptr
-	endSource       uint32
-	cursor          [4]int32
-	haveCursor      bool
-	sources         surroundingState
-	window          surrounding
-	sent            bool
-	hasSources      bool
+	// rootContext is the context of the outermost callContext, the call whose
+	// deferred finishPreedit runs when the native depth returns to zero. A
+	// synchronous end can use it to tell whether that defer already settles
+	// the end without scheduling a second source.
+	rootContext uintptr
+	endTask     uintptr
+	endSource   uint32
+	cursor      [4]int32
+	haveCursor  bool
+	sources     surroundingState
+	window      surrounding
+	sent        bool
+	hasSources  bool
 	// A direct commit may be a shortcut; composition commits are always text.
 	shortcutKey *platform.KeyEvent
 }
@@ -98,10 +103,14 @@ func (ime *gtkIME) callContext(context uintptr, call func(uintptr)) {
 		return
 	}
 	ime.g.objectRef(context)
+	if ime.nativeDepth == 0 {
+		ime.rootContext = context
+	}
 	ime.nativeDepth++
 	defer func() {
 		ime.nativeDepth--
 		if ime.nativeDepth == 0 {
+			ime.rootContext = 0
 			ime.finishPreedit(context)
 		}
 		ime.g.objectUnref(context)
@@ -340,6 +349,13 @@ func (ime *gtkIME) preeditEnded() {
 	}
 	ime.ending, ime.engineComposing = true, false
 	if ime.endTask != 0 {
+		return
+	}
+	if ime.nativeDepth > 0 && ime.rootContext == ime.ctx {
+		// The enclosing callContext settles this end in its deferred
+		// finishPreedit when the native call returns. Scheduling a task and
+		// an idle source here would allocate both and remove them again in
+		// the same call, on every synchronous composition end.
 		return
 	}
 	// GTK can emit end before commit in one native call. An idle fallback also
