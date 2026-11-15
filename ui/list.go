@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"runtime"
 	"strings"
 	"time"
@@ -16,7 +17,10 @@ import (
 // chose. Keep one per list in the model; the zero value is an empty list.
 type ListState struct {
 	// Key names row i, so a row keeps its focus and state as rows are inserted
-	// above it: an item's ID, unique among the rows. Nil names a row by its index.
+	// above it: an item's ID, unique among the rows and from 0 to 2^31-1, the item
+	// numbers gfx.Index names. Nil names a row by its index. Number the items rather
+	// than hash them: a 32-bit hash is past 2^31-1 half the time, and a key outside
+	// that range panics, since every such key would name the same row.
 	Key func(i int) int
 	// Label is the text of row i: typing the first letters of a row's text while
 	// the list has the keyboard focus chooses it. It is also the row's name for
@@ -242,10 +246,17 @@ func (s *ListState) AtEnd() bool {
 	return scroll != nil && scroll.AtEnd()
 }
 
-// key is row i's key: its index without a Key.
+// key is row i's key: its index without a Key. A key outside 0 to 2^31-1 panics:
+// gfx.Index names every such number as it names item 0, so those rows would share
+// one identity and a click on any of them would reach them all. A paint asks it of
+// every row it declares, so it stays within the inliner's budget, which a message
+// naming the key would exceed.
 func (s *ListState) key(i int) int {
 	if s.Key != nil {
-		return s.Key(i)
+		i = s.Key(i)
+	}
+	if uint(i) > math.MaxInt32 {
+		panic("ui: a List row's key is outside 0 to 2^31-1, the numbers gfx.Index names; give ListState.Key the items' numbers, not hashes")
 	}
 	return i
 }
