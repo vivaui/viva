@@ -797,3 +797,91 @@ func TestCompositionCancellationKeepsRetiredIMEOffTheReplacement(t *testing.T) {
 		}
 	}
 }
+
+func TestCompositionAcknowledgmentCancellationPreservesTheCurrentOwner(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		mode := "legacy"
+		if enabled {
+			mode = "tentative"
+		}
+		for _, reentry := range []string{"retired preedit", "ordinary character", "new input", "destroyed window"} {
+			t.Run(mode+"/"+reentry, func(t *testing.T) {
+				outgoing, incoming := text.NewEditor("a"), text.NewEditor("abc")
+				if !outgoing.EnableTentativeComposition() || enabled && !incoming.EnableTentativeComposition() {
+					t.Fatal("could not enable fixture capability")
+				}
+				outgoing.MoveTo(1, false)
+				incoming.SetSelection(text.Range{Start: 1, End: 2})
+				state, events := compositionMessageWindow(t, outgoing)
+				state.applyIMEComposition(imeCompositionMessage{hasPreedit: true, preedit: "x"})
+				state.application = &windowsApplication{windows: 1}
+				foreign, redraws, closed := 0, 0, 0
+				apply := state.textInput.OnEvent
+				state.textInput.OnEvent = func(event platform.TextEvent) (platform.TextState, error) {
+					_, err := apply(event)
+					state.textInput.OnEvent = func(event platform.TextEvent) (platform.TextState, error) {
+						foreign++
+						event.Apply(incoming)
+						return platform.EditorState(incoming), nil
+					}
+					return platform.EditorState(incoming), err
+				}
+				state.config.OnRedraw = func() (platform.Frame, error) {
+					redraws++
+					return platform.Frame{}, nil
+				}
+				state.config.OnClosed = func() { closed++ }
+				latest := testTextInput("latest", 0)
+				latest.Target = gfx.Item(3)
+				cancelCalls := 0
+				_, changed, err := state.textEventFrameWithCancel(platform.TextEvent{
+					Kind: platform.TextInsert, Text: "r", CompositionPhase: text.CompositionResult,
+				}, func() {
+					cancelCalls++
+					switch reentry {
+					case "retired preedit":
+						state.applyIMEComposition(imeCompositionMessage{hasPreedit: true, preedit: ""})
+						windowProc(state.window, wmIMEStart, 0, 0)
+						windowProc(state.window, wmIMEEnd, 0, 0)
+					case "ordinary character":
+						windowProc(state.window, wmChar, 'q', 0)
+					case "new input":
+						_, _, updateErr := state.applyTextInputUpdate(platform.TextInputUpdate{Changed: true, Input: &latest})
+						if updateErr != nil {
+							t.Fatalf("new input during cancellation: %v", updateErr)
+						}
+					case "destroyed window":
+						windowProc(state.window, wmDestroy, 0, 0)
+					}
+				})
+				if err != nil || state.err != nil || cancelCalls != 1 || outgoing.String() != "ar" || len(*events) != 2 {
+					t.Fatalf("acknowledgment fixture: cancels=%d text=%q events=%d err=%v/%v", cancelCalls, outgoing.String(), len(*events), err, state.err)
+				}
+				wantText, wantCalls, wantRedraws := "abc", 0, 1
+				switch reentry {
+				case "ordinary character":
+					wantText, wantCalls = "aqc", 1
+				case "new input":
+					wantRedraws = 0
+					if !state.textEnabled || state.textInput.Target != latest.Target || state.textState.Value != "latest" {
+						t.Fatalf("cancellation lost the newest input: enabled=%v target=%v state=%+v", state.textEnabled, state.textInput.Target, state.textState)
+					}
+				case "destroyed window":
+					wantRedraws = 0
+					if state.window != 0 || state.textEnabled || state.application.windows != 0 || closed != 1 || changed {
+						t.Fatalf("cancellation revived a destroyed window: window=%d enabled=%v count=%d closed=%d changed=%v", state.window, state.textEnabled, state.application.windows, closed, changed)
+					}
+				}
+				if incoming.String() != wantText || foreign != wantCalls || redraws != wantRedraws || state.imeCancelling {
+					t.Fatalf("acknowledgment cancellation crossed owners: text=%q calls=%d redraws=%d cancelling=%v", incoming.String(), foreign, redraws, state.imeCancelling)
+				}
+				if reentry == "retired preedit" {
+					state.applyIMEComposition(imeCompositionMessage{hasPreedit: true, preedit: "y"})
+					if state.err != nil || incoming.String() != "ayc" || foreign != 1 || !state.textState.Composing {
+						t.Fatalf("replacement could not begin a fresh composition: text=%q calls=%d state=%+v err=%v", incoming.String(), foreign, state.textState, state.err)
+					}
+				}
+			})
+		}
+	}
+}

@@ -375,6 +375,10 @@ func (state *windowState) handleTextEvent(event platform.TextEvent) {
 }
 
 func (state *windowState) textEventFrame(event platform.TextEvent) (platform.Frame, bool, error) {
+	return state.textEventFrameWithCancel(event, state.cancelNativeComposition)
+}
+
+func (state *windowState) textEventFrameWithCancel(event platform.TextEvent, cancelNative func()) (platform.Frame, bool, error) {
 	if !state.textEnabled || state.textInput.OnEvent == nil {
 		return platform.Frame{}, false, nil
 	}
@@ -393,7 +397,7 @@ func (state *windowState) textEventFrame(event platform.TextEvent) (platform.Fra
 	redraw := platform.TextInputPresentationChanged(state.textInput.Terminal, previous, next)
 	next = next.WithoutRedraw() // a one-shot request, not editor state
 	ownerChanged := next.CompositionIdentity != previous.CompositionIdentity || next.TentativeComposition != previous.TentativeComposition
-	cancelNative := ownerChanged && (state.imeComposing || previous.Composing)
+	cancelPrevious := ownerChanged && (state.imeComposing || previous.Composing)
 	if ownerChanged {
 		state.imeEpoch++
 		state.imeComposing, state.imeHasTarget = false, false
@@ -401,10 +405,10 @@ func (state *windowState) textEventFrame(event platform.TextEvent) (platform.Fra
 	state.textRevision++
 	state.textState = next
 	state.textInput.State = next
-	if cancelNative {
+	if cancelPrevious {
 		// IMM may reenter the window procedure. Install the new owner first and
 		// never overwrite a newer acknowledgment after cancelling the old one.
-		state.cancelNativeComposition()
+		cancelNative()
 	}
 	if !redraw {
 		return platform.Frame{}, false, nil
