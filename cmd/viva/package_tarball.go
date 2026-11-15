@@ -25,10 +25,18 @@ var linuxRuntimeDepends = []string{"libvulkan1", "libxcb1", "libcairo2"}
 // linuxArchRuntimeDepends are the same libraries under Arch's names.
 var linuxArchRuntimeDepends = []string{"vulkan-icd-loader", "libxcb", "cairo"}
 
-// linuxRPMRuntimeDepends are the same libraries under the names Fedora, RHEL and
-// openSUSE use. The manifest's depends are Debian names, so the .rpm does not
-// take them over; an application that needs more must say so in its own code.
-var linuxRPMRuntimeDepends = []string{"vulkan-loader", "libxcb", "cairo"}
+// linuxRPMRuntimeDepends names the shared-library capabilities that RPM's library
+// packages provide. Distribution package names differ; both supported targets are
+// 64-bit. These dlopen libraries are invisible to normal ELF dependency scanning.
+// GTK, IME and WebKit integrations remain optional and are not forced on every app.
+var linuxRPMRuntimeDepends = []string{
+	"libvulkan.so.1()(64bit)", "libxcb.so.1()(64bit)", "libcairo.so.2()(64bit)",
+	"libfontconfig.so.1()(64bit)", "libpango-1.0.so.0()(64bit)",
+	"libpangocairo-1.0.so.0()(64bit)", "libpangoft2-1.0.so.0()(64bit)",
+	"libgobject-2.0.so.0()(64bit)", "libxcb-cursor.so.0()(64bit)",
+	"libxcb-randr.so.0()(64bit)", "libxcb-render.so.0()(64bit)",
+	"libxcb-shape.so.0()(64bit)", "libxcb-sync.so.1()(64bit)",
+}
 
 // linuxApplication describes the application for the Debian and RPM packages:
 // both install the same files, so they share one description.

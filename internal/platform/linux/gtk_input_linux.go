@@ -425,6 +425,9 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 		w.keyRelease(e, event)
 		return 1
 	}
+	if w.ime != nil && w.ime.filtering() && !w.ime.prepareKey() {
+		return 1
+	}
 	if w.keys.down == nil {
 		w.keys.down = map[uint16]bool{}
 	}
@@ -471,9 +474,10 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 	if shortcutEvent.Key == input.KeySpace {
 		shortcutEvent.Key, shortcutEvent.Text = input.KeyUnknown, " "
 	}
+	composing := w.text != nil && w.text.state.Composing || w.ime != nil && w.ime.composing()
 	if w.config.OnShortcut != nil && platform.ShortcutCandidate(shortcutEvent) &&
 		shortcutEvent.Modifiers&(input.ModifierControl|input.ModifierMeta) != 0 &&
-		e.State&(1<<7) == 0 && !(w.text != nil && w.text.state.Composing) && !w.text.ownsChord(keyEvent) {
+		e.State&(1<<7) == 0 && !composing && !w.text.ownsChord(keyEvent) {
 		frame, handled, err := w.config.OnShortcut(shortcutEvent)
 		w.present(frame, err)
 		if handled {
@@ -484,7 +488,7 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 	// and one it hands back arrives again as an ordinary key event.
 	plainShortcut := w.config.OnShortcut != nil && platform.ShortcutCandidate(shortcutEvent) &&
 		shortcutEvent.Modifiers&(input.ModifierControl|input.ModifierMeta) == 0 &&
-		e.State&(1<<7) == 0 && !(w.text != nil && w.text.state.Composing) && !w.text.ownsChord(keyEvent)
+		e.State&(1<<7) == 0 && !composing && !w.text.ownsChord(keyEvent)
 	if w.ime != nil && w.ime.filtering() {
 		if plainShortcut {
 			direct, _ := keysymRune(e.Keyval)
@@ -518,7 +522,15 @@ func (w *gtkWindow) tapModifier(key input.Key, modifiers input.Modifiers, repeat
 }
 
 func (w *gtkWindow) keyRelease(e *gdkEventKey, event uintptr) {
+	pressed := w.keys.down[e.HardwareKeycode]
 	delete(w.keys.down, e.HardwareKeycode)
+	if !pressed {
+		// The press never entered the key pipeline (a stale input-method target
+		// swallowed it, or focus loss cleared the pressed set). Passing the
+		// release on would give the application, the modifier taps and a
+		// terminal's KeyReleases a release with no matching press.
+		return
+	}
 	if key := normalizedKeysym(e.Keyval); key.IsModifier() && !w.wantsKeyReleases() {
 		w.tapModifier(key, gdkModifiers(e.State)&^key.Modifier(), false, true, e.HardwareKeycode)
 	}

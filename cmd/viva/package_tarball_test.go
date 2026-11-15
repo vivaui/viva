@@ -275,6 +275,37 @@ func TestPackageLinuxMakesAnRPM(t *testing.T) {
 	}
 }
 
+// dlopen dependencies do not appear in the program's ELF headers. RPM must request
+// their shared-library capabilities so a clean installation has the text and XCB libraries.
+func TestPackageLinuxRPMDeclaresRuntimeLibraries(t *testing.T) {
+	for _, arch := range []struct{ goarch, rpm string }{{"amd64", "x86_64"}, {"arm64", "aarch64"}} {
+		t.Run(arch.goarch, func(t *testing.T) {
+			dir := packageLinuxFixture(t, linuxTOML, 256)
+			if _, err := runLinuxPackage(t, dir, "--format", "rpm", "--arch", arch.goarch); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(filepath.Join(dir, "build", "fixture-notes-2.0.1-1."+arch.rpm+".rpm"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, library := range []string{
+				"libvulkan.so.1", "libxcb.so.1", "libcairo.so.2", "libfontconfig.so.1",
+				"libpango-1.0.so.0", "libpangocairo-1.0.so.0", "libpangoft2-1.0.so.0",
+				"libgobject-2.0.so.0", "libxcb-cursor.so.0", "libxcb-randr.so.0",
+				"libxcb-render.so.0", "libxcb-shape.so.0", "libxcb-sync.so.1",
+			} {
+				capability := library + "()(64bit)"
+				if !bytes.Contains(data, []byte(capability+"\x00")) {
+					t.Errorf("RPM lacks runtime requirement %s", capability)
+				}
+			}
+			if bytes.Contains(data, []byte("libfoo1 (>= 1.2)")) {
+				t.Fatal("RPM contains a Debian-only manifest dependency")
+			}
+		})
+	}
+}
+
 func TestPackageLinuxFailures(t *testing.T) {
 	for _, test := range []struct {
 		name, toml string
