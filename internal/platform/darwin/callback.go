@@ -828,8 +828,8 @@ func (state *runState) deliverCompositionCancel(view unsafe.Pointer, redraw bool
 	if state.closed || !state.textInputActive || state.textHandler == nil || !state.textState.TentativeComposition || !state.textState.Composing {
 		return nil
 	}
-	return deliverTextInputEvent(state, view, nativeTextEvent{
-		Kind: int(TextSetMarked), Value: state.textState.Value, ReplacementStart: -1, Phase: int(text.CompositionCancel),
+	return deliverTextInputEvent(state, view, TextEvent{
+		Kind: TextSetMarked, CompositionPhase: text.CompositionCancel,
 	}, redraw, view != nil)
 }
 
@@ -848,41 +848,43 @@ func vivaTextCompositionLost(handle C.uintptr_t, view unsafe.Pointer, reason C.i
 	}
 }
 
-// nativeTextEvent keeps native replacement coordinates until the editor can
-// resolve them after tentative rollback. Its strings belong to this callback.
-type nativeTextEvent struct {
-	Kind, Command                       int
-	Text, Value                         string
-	SelectedStart, SelectedLength       int
-	ReplacementStart, ReplacementLength int
-	Phase, RawStart, RawLength          int
-	HasRawReplacement                   bool
-}
-
-func (native nativeTextEvent) textEvent(tentative bool) TextEvent {
-	event := TextEvent{Kind: TextEventKind(native.Kind), Text: native.Text, Command: TextCommand(native.Command)}
-	if event.Kind == TextSetSelection {
-		event.Selection = utf16Range(native.Value, native.SelectedStart, native.SelectedLength)
-	}
-	if event.Kind == TextSetMarked {
-		event.MarkedSelection = utf16Range(native.Text, native.SelectedStart, native.SelectedLength)
-	}
-	if native.ReplacementStart >= 0 {
-		event.HasReplacement = true
-		event.Replacement = utf16Range(native.Value, native.ReplacementStart, native.ReplacementLength)
-	}
-	if tentative && native.Phase != int(text.CompositionNone) {
-		event.CompositionPhase = text.CompositionPhase(native.Phase)
-		if native.HasRawReplacement {
-			event.HasReplacementUTF16 = true
-			event.ReplacementUTF16 = text.UTF16Range{Start: native.RawStart, Length: native.RawLength}
-		}
-	}
-	return event
-}
-
 //export vivaTextInput
 func vivaTextInput(
+	handle C.uintptr_t,
+	view unsafe.Pointer,
+	kind C.int,
+	utf8 *C.uchar,
+	utf8Length C.size_t,
+	selectedStart C.int64_t,
+	selectedLength C.int64_t,
+	replacementStart C.int64_t,
+	replacementLength C.int64_t,
+	command C.int,
+) {
+	state, ok := runStateFor(handle)
+	if !ok || state.closed {
+		return
+	}
+	value := ""
+	if utf8Length > 0 {
+		value = C.GoStringN((*C.char)(unsafe.Pointer(utf8)), C.int(utf8Length))
+	}
+	event := TextEvent{Kind: TextEventKind(kind), Text: value, Command: TextCommand(command)}
+	if event.Kind == TextSetSelection {
+		event.Selection = utf16Range(state.textState.Value, int(selectedStart), int(selectedLength))
+	}
+	if event.Kind == TextSetMarked {
+		event.MarkedSelection = utf16Range(value, int(selectedStart), int(selectedLength))
+	}
+	if replacementStart >= 0 {
+		event.HasReplacement = true
+		event.Replacement = utf16Range(state.textState.Value, int(replacementStart), int(replacementLength))
+	}
+	_ = deliverTextInputEvent(state, view, event, true, false)
+}
+
+//export vivaCompositionInput
+func vivaCompositionInput(
 	handle C.uintptr_t,
 	view unsafe.Pointer,
 	kind C.int,
@@ -906,19 +908,28 @@ func vivaTextInput(
 	if utf8Length > 0 {
 		value = C.GoStringN((*C.char)(unsafe.Pointer(utf8)), C.int(utf8Length))
 	}
-	deliverTextInput(state, view, nativeTextEvent{
-		Kind: int(kind), Text: value, Value: state.textState.Value, Command: int(command),
-		SelectedStart: int(selectedStart), SelectedLength: int(selectedLength),
-		ReplacementStart: int(replacementStart), ReplacementLength: int(replacementLength),
-		Phase: int(compositionPhase), RawStart: int(replacementUTF16Start), RawLength: int(replacementUTF16Length), HasRawReplacement: hasReplacementUTF16 != 0,
-	})
+	event := TextEvent{Kind: TextEventKind(kind), Text: value, Command: TextCommand(command)}
+	if event.Kind == TextSetSelection {
+		event.Selection = utf16Range(state.textState.Value, int(selectedStart), int(selectedLength))
+	}
+	if event.Kind == TextSetMarked {
+		event.MarkedSelection = utf16Range(value, int(selectedStart), int(selectedLength))
+	}
+	if replacementStart >= 0 {
+		event.HasReplacement = true
+		event.Replacement = utf16Range(state.textState.Value, int(replacementStart), int(replacementLength))
+	}
+	if state.textState.TentativeComposition && compositionPhase != 0 {
+		event.CompositionPhase = text.CompositionPhase(compositionPhase)
+		if hasReplacementUTF16 != 0 {
+			event.HasReplacementUTF16 = true
+			event.ReplacementUTF16 = text.UTF16Range{Start: int(replacementUTF16Start), Length: int(replacementUTF16Length)}
+		}
+	}
+	_ = deliverTextInputEvent(state, view, event, true, false)
 }
 
-func deliverTextInput(state *runState, view unsafe.Pointer, native nativeTextEvent) {
-	_ = deliverTextInputEvent(state, view, native, true, false)
-}
-
-func deliverTextInputEvent(state *runState, view unsafe.Pointer, native nativeTextEvent, redraw, forceUpdate bool) (err error) {
+func deliverTextInputEvent(state *runState, view unsafe.Pointer, event TextEvent, redraw, forceUpdate bool) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			platform.ReportFault("darwin: AppKit callback", recovered)
@@ -934,7 +945,6 @@ func deliverTextInputEvent(state *runState, view unsafe.Pointer, native nativeTe
 		return state.err
 	}
 
-	event := native.textEvent(state.textState.TentativeComposition)
 	if state.textState.TentativeComposition && state.textComposition == nil {
 		state.textComposition = &nativeTextComposition{}
 	}

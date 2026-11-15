@@ -609,6 +609,19 @@ extern void vivaTextInput(
     int64_t selectedLength,
     int64_t replacementStart,
     int64_t replacementLength,
+    int command
+);
+
+extern void vivaCompositionInput(
+    uintptr_t callbackHandle,
+    void *view,
+    int kind,
+    const unsigned char *utf8,
+    size_t utf8Length,
+    int64_t selectedStart,
+    int64_t selectedLength,
+    int64_t replacementStart,
+    int64_t replacementLength,
     int command,
     int compositionPhase,
     int64_t replacementUTF16Start,
@@ -5798,7 +5811,14 @@ static void viva_set_secure_event_input(BOOL on) {
     int phase = _tentativeComposition ? viva_text_composition_phase(kind, text.length, _hasMarkedText, replacementRange) : VIVA_COMPOSITION_NONE;
     BOOL raw = phase != VIVA_COMPOSITION_NONE && replacementRange.location != NSNotFound;
     viva_text_event_count++;
-    vivaTextInput(
+    if (phase == VIVA_COMPOSITION_NONE) {
+        vivaTextInput(_callbackHandle, self, kind,
+            data.length > 0 ? data.bytes : NULL, data.length,
+            (int64_t)selectedRange.location, (int64_t)selectedRange.length,
+            replacementStart, replacementLength, command);
+        return;
+    }
+    vivaCompositionInput(
         _callbackHandle,
         self,
         kind,
