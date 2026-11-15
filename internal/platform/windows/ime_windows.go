@@ -1,6 +1,7 @@
 package windows
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf16"
@@ -42,6 +43,8 @@ var setCompositionWindow = imm.NewProc("ImmSetCompositionWindow")
 var notifyIME = imm.NewProc("ImmNotifyIME")
 var setCandidateWindow = imm.NewProc("ImmSetCandidateWindow")
 var associateContext = imm.NewProc("ImmAssociateContext")
+
+var errSupersededTextFrame = errors.New("windows: text frame superseded during native cancellation")
 
 // candidateForm is CANDIDATEFORM.
 type candidateForm struct {
@@ -355,6 +358,7 @@ func (state *windowState) textPointerEvent(event platform.PointerEvent) (platfor
 }
 
 func (state *windowState) handleTextEvent(event platform.TextEvent) {
+	state.imeEpoch++
 	frame, changed, err := state.textEventFrame(event)
 	if err != nil {
 		state.fail(err)
@@ -371,7 +375,11 @@ func (state *windowState) textEventFrame(event platform.TextEvent) (platform.Fra
 		return platform.Frame{}, false, nil
 	}
 	previous := state.textState
+	revision := state.textRevision
 	next, err := state.textInput.OnEvent(event)
+	if err == nil && state.textRevision != revision {
+		return platform.Frame{}, true, nil
+	}
 	if err == nil {
 		err = validateTextState(next)
 	}
@@ -380,8 +388,20 @@ func (state *windowState) textEventFrame(event platform.TextEvent) (platform.Fra
 	}
 	redraw := platform.TextInputPresentationChanged(state.textInput.Terminal, previous, next)
 	next = next.WithoutRedraw() // a one-shot request, not editor state
+	ownerChanged := next.CompositionIdentity != previous.CompositionIdentity || next.TentativeComposition != previous.TentativeComposition
+	cancelNative := ownerChanged && (state.imeComposing || previous.Composing)
+	if ownerChanged {
+		state.imeEpoch++
+		state.imeComposing, state.imeHasTarget = false, false
+	}
+	state.textRevision++
 	state.textState = next
 	state.textInput.State = next
+	if cancelNative {
+		// IMM may reenter the window procedure. Install the new owner first and
+		// never overwrite a newer acknowledgment after cancelling the old one.
+		state.cancelNativeComposition()
+	}
 	if !redraw {
 		return platform.Frame{}, false, nil
 	}
@@ -389,8 +409,14 @@ func (state *windowState) textEventFrame(event platform.TextEvent) (platform.Fra
 	if err := state.restartCaretTimer(); err != nil {
 		return platform.Frame{}, false, err
 	}
+	revision = state.textRevision
 	if state.config.OnRedraw != nil {
 		frame, err := state.config.OnRedraw()
+		if err == nil && state.textRevision != revision {
+			// A nested no-op may have acknowledged state without submitting a
+			// frame. Refresh the latest native mirror, without replaying old input.
+			return platform.Frame{}, true, nil
+		}
 		return frame, true, err
 	}
 	return platform.Frame{}, true, nil
@@ -420,6 +446,10 @@ func (state *windowState) resizeTextStorage(rectangleCount, labelCount int) {
 }
 
 func (state *windowState) applyTextInputUpdate(update platform.TextInputUpdate) (bool, bool, error) {
+	return state.applyTextInputUpdateWithCancel(update, state.cancelNativeComposition)
+}
+
+func (state *windowState) applyTextInputUpdateWithCancel(update platform.TextInputUpdate, cancelNative func()) (bool, bool, error) {
 	if !update.Changed {
 		return false, false, nil
 	}
@@ -437,8 +467,15 @@ func (state *windowState) applyTextInputUpdate(update platform.TextInputUpdate) 
 		state.textInput.Multiline != update.Input.Multiline || state.textInput.Secure != update.Input.Secure ||
 		state.textInput.Terminal != update.Input.Terminal || state.textInput.Placed != update.Input.Placed ||
 		state.textState != update.Input.State.WithoutRedraw()
+	if replaced {
+		state.textRevision++
+	}
+	revision := state.textRevision
 	if wasEnabled && replaced {
-		state.cancelComposition()
+		state.cancelCompositionWith(cancelNative)
+		if state.textRevision != revision {
+			return false, false, nil
+		}
 	}
 	if replaced {
 		state.pendingHighSurrogate = 0
@@ -495,6 +532,10 @@ func (state *windowState) updateIMEAssociation() {
 }
 
 func (state *windowState) prepareFrame(frame platform.Frame, nativeVisualChanged bool) (platform.Frame, bool, error) {
+	return state.prepareFrameWithCancel(frame, nativeVisualChanged, state.cancelNativeComposition)
+}
+
+func (state *windowState) prepareFrameWithCancel(frame platform.Frame, nativeVisualChanged bool, cancelNative func()) (platform.Frame, bool, error) {
 	if frame.TextInput.Changed {
 		if !state.config.DynamicTextInput {
 			return platform.Frame{}, false, fmt.Errorf("windows: dynamic text input update is disabled")
@@ -507,6 +548,7 @@ func (state *windowState) prepareFrame(frame platform.Frame, nativeVisualChanged
 	oldBaseLabels := state.baseTextLabelCount
 	baseRectangles := state.textRectangles[:oldBaseRectangles]
 	baseLabels := state.textLabels[:oldBaseLabels]
+	partialRectangles := false
 
 	if !frame.Update.Empty() {
 		if frame.Update.First < 0 || frame.Update.Count < 0 || frame.Update.First > len(frame.Rectangles) || frame.Update.Count > len(frame.Rectangles)-frame.Update.First {
@@ -526,16 +568,22 @@ func (state *windowState) prepareFrame(frame platform.Frame, nativeVisualChanged
 			if len(frame.Rectangles) != oldBaseRectangles {
 				return platform.Frame{}, false, fmt.Errorf("windows: canvas rectangle count shrank without rebuild")
 			}
-			copy(state.textRectangles[frame.Update.First:frame.Update.First+frame.Update.Count], frame.Rectangles[frame.Update.First:frame.Update.First+frame.Update.Count])
+			partialRectangles = true
 		}
 	}
 	if frame.TextLabels != nil {
 		baseLabels = frame.TextLabels
 	}
 
-	inputChanged, inputStructureChanged, err := state.applyTextInputUpdate(frame.TextInput)
+	inputChanged, inputStructureChanged, err := state.applyTextInputUpdateWithCancel(frame.TextInput, cancelNative)
 	if err != nil {
 		return platform.Frame{}, false, err
+	}
+	if frame.TextInput.Changed && !inputChanged {
+		return platform.Frame{}, false, errSupersededTextFrame
+	}
+	if partialRectangles {
+		copy(state.textRectangles[frame.Update.First:frame.Update.First+frame.Update.Count], frame.Rectangles[frame.Update.First:frame.Update.First+frame.Update.Count])
 	}
 	state.baseRectangleCount = len(baseRectangles)
 	state.baseTextLabelCount = len(baseLabels)
@@ -595,6 +643,12 @@ func mergeRenderUpdates(left, right render.Update) render.Update {
 }
 
 func (state *windowState) cancelComposition() {
+	state.textRevision++
+	state.cancelCompositionWith(state.cancelNativeComposition)
+}
+
+func (state *windowState) cancelCompositionWith(cancelNative func()) {
+	state.imeEpoch++
 	if !state.imeComposing && !state.textState.Composing {
 		return
 	}
@@ -602,15 +656,20 @@ func (state *windowState) cancelComposition() {
 	state.imeHasTarget = false
 	state.textState.Composing = false
 	state.textState.Composition = text.Range{}
-	if state.window == 0 {
+	cancelNative()
+}
+
+func (state *windowState) cancelNativeComposition() {
+	window := state.window
+	if window == 0 {
 		return
 	}
-	context, _, _ := getInputContext.Call(state.window)
+	context, _, _ := getInputContext.Call(window)
 	if context == 0 {
 		return
 	}
 	notifyIME.Call(context, notifyComposition, compositionCancel, 0)
-	releaseInputContext.Call(state.window, context)
+	releaseInputContext.Call(window, context)
 }
 
 // caretBlinks reports whether a native caret belongs on screen. Terminal and
@@ -672,6 +731,15 @@ func (state *windowState) setCaretVisible(visible bool) {
 	invalidateRect.Call(state.window, 0, 0)
 }
 
+type imeCompositionMessage struct {
+	result, preedit       string
+	hasResult, hasPreedit bool
+	selection, target     text.Range
+	hasTarget             bool
+}
+
+type compositionStringReader func(...uintptr) (uintptr, uintptr, error)
+
 func (state *windowState) handleComposition(flags uintptr) {
 	// An input method that has no context to give, or a composition string it
 	// cannot report, loses that one composition. Closing the window over it would
@@ -681,38 +749,76 @@ func (state *windowState) handleComposition(flags uintptr) {
 		return
 	}
 	defer releaseInputContext.Call(state.window, context)
+	state.handleCompositionData(context, flags, getCompositionString.Call)
+}
+
+func (state *windowState) handleCompositionData(context, flags uintptr, read compositionStringReader) {
+	state.imeEpoch++
+	epoch := state.imeEpoch
+	message := imeCompositionMessage{}
 	if flags&resultString != 0 {
-		value, err := compositionText(context, resultString)
-		state.imeComposing = false
-		state.imeHasTarget = false
+		value, err := compositionText(context, resultString, read)
 		if err != nil {
+			if state.imeEpoch == epoch && !state.textState.TentativeComposition {
+				state.imeComposing, state.imeHasTarget = false, false
+			}
 			return
 		}
-		state.handleTextEvent(platform.TextEvent{Kind: platform.TextInsert, Text: value})
-		return
+		message.result, message.hasResult = value, true
 	}
-	if flags&compositionString == 0 {
-		return
-	}
-	value, err := compositionText(context, compositionString)
-	if err != nil {
-		return
-	}
-	state.imeTarget, state.imeHasTarget = compositionTarget(context, value)
-	cursorUnits := 0
-	if flags&compositionCursor != 0 {
-		position, _, _ := getCompositionString.Call(context, compositionCursor, 0, 0)
-		cursorUnits = int(int32(position))
-		if cursorUnits < 0 {
-			cursorUnits = 0
+	// Read the entire native message before an application callback can replace
+	// the input or reset its IMM context while processing the result.
+	if flags&compositionString != 0 {
+		value, err := compositionText(context, compositionString, read)
+		if err == nil {
+			message.preedit, message.hasPreedit = value, true
+			message.target, message.hasTarget = compositionTarget(context, value, read)
+			cursorUnits := 0
+			if flags&compositionCursor != 0 {
+				position, _, _ := read(context, compositionCursor, 0, 0)
+				cursorUnits = max(0, int(int32(position)))
+			}
+			cursorRunes := text.NewEditor(value).UTF16ToRuneIndex(cursorUnits)
+			message.selection = text.Range{Start: cursorRunes, End: cursorRunes}
 		}
 	}
-	cursorRunes := text.NewEditor(value).UTF16ToRuneIndex(cursorUnits)
-	state.imeComposing = true
-	state.handleTextEvent(platform.TextEvent{
-		Kind: platform.TextSetMarked, Text: value,
-		MarkedSelection: text.Range{Start: cursorRunes, End: cursorRunes},
-	})
+	if state.imeEpoch == epoch {
+		state.applyIMEComposition(message)
+	}
+}
+
+func (state *windowState) applyIMEComposition(message imeCompositionMessage) {
+	if !state.textEnabled || state.err != nil {
+		return
+	}
+	state.imeEpoch++
+	tentative := state.textState.TentativeComposition
+	owner := state.textState.CompositionIdentity
+	if message.hasResult {
+		state.imeComposing, state.imeHasTarget = false, false
+		event := platform.TextEvent{Kind: platform.TextInsert, Text: message.result}
+		if tentative {
+			event.CompositionPhase = text.CompositionResult
+		}
+		epoch := state.imeEpoch + 1 // the acknowledged Result advances it once
+		state.handleTextEvent(event)
+		if state.imeEpoch != epoch || state.err != nil || !state.textEnabled || state.textInput.DisableIME ||
+			state.textState.CompositionIdentity != owner || state.textState.TentativeComposition != tentative {
+			return
+		}
+	}
+	if message.hasPreedit {
+		state.imeComposing = true
+		state.imeTarget, state.imeHasTarget = message.target, message.hasTarget
+		event := platform.TextEvent{
+			Kind: platform.TextSetMarked, Text: message.preedit,
+			MarkedSelection: message.selection,
+		}
+		if tentative {
+			event.CompositionPhase = text.CompositionUpdate
+		}
+		state.handleTextEvent(event)
+	}
 }
 
 func (state *windowState) positionCompositionWindow() {
@@ -762,21 +868,21 @@ func (state *windowState) alignedCaretX(index int) float32 {
 
 // compositionTarget is the clause the input method is converting, as runes of the
 // composition string.
-func compositionTarget(context uintptr, value string) (text.Range, bool) {
-	length, _, _ := getCompositionString.Call(context, compositionAttr, 0, 0)
+func compositionTarget(context uintptr, value string, read compositionStringReader) (text.Range, bool) {
+	length, _, _ := read(context, compositionAttr, 0, 0)
 	if int32(length) <= 0 || length > 1<<16 {
 		return text.Range{}, false
 	}
 	attrs := make([]byte, length)
-	written, _, _ := getCompositionString.Call(context, compositionAttr, uintptr(unsafe.Pointer(&attrs[0])), length)
+	written, _, _ := read(context, compositionAttr, uintptr(unsafe.Pointer(&attrs[0])), length)
 	if int32(written) <= 0 || written > length {
 		return text.Range{}, false
 	}
 	return platform.CompositionTarget(attrs[:written], value)
 }
 
-func compositionText(context uintptr, index uintptr) (string, error) {
-	lengthValue, _, _ := getCompositionString.Call(context, index, 0, 0)
+func compositionText(context uintptr, index uintptr, read compositionStringReader) (string, error) {
+	lengthValue, _, _ := read(context, index, 0, 0)
 	length := int(int32(lengthValue))
 	if length < 0 {
 		return "", fmt.Errorf("windows: read IME composition length %d", length)
@@ -788,7 +894,7 @@ func compositionText(context uintptr, index uintptr) (string, error) {
 		return "", fmt.Errorf("windows: invalid IME composition length %d", length)
 	}
 	values := make([]uint16, length/2)
-	writtenValue, _, _ := getCompositionString.Call(context, index, uintptr(unsafe.Pointer(&values[0])), uintptr(length))
+	writtenValue, _, _ := read(context, index, uintptr(unsafe.Pointer(&values[0])), uintptr(length))
 	written := int(int32(writtenValue))
 	if written < 0 || written > length || written%2 != 0 {
 		return "", fmt.Errorf("windows: invalid IME composition result %d", written)
@@ -797,6 +903,7 @@ func compositionText(context uintptr, index uintptr) (string, error) {
 }
 
 func (state *windowState) handleUTF16Character(value uint16) {
+	state.imeEpoch++
 	textValue, pending, ready := decodeUTF16Character(state.pendingHighSurrogate, value)
 	state.pendingHighSurrogate = pending
 	if !ready {

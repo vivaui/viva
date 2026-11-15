@@ -121,6 +121,12 @@ type windowState struct {
 	textRuns                               []gfx.TextRun
 	captionPress                           captionPress
 	imeComposing                           bool
+	// imeEpoch invalidates an older message tail when callbacks replace the
+	// input or reenter native input delivery.
+	imeEpoch uint64
+	// textRevision advances for every installed acknowledgment or input owner;
+	// an End that merely stops an IMM message tail must not discard its Result.
+	textRevision uint64
 	// imeDisabled says the window's input-method context is disassociated, and
 	// imeContext holds the context to give back when it returns. A surface that
 	// shows another machine's desktop asks for it (platform.TextInput.DisableIME):
@@ -604,6 +610,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 	case wmIMEStart:
 		if state.textEnabled {
+			state.imeEpoch++
 			state.imeComposing = true
 			state.positionCompositionWindow()
 			return 0
@@ -619,10 +626,17 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return result
 		}
 	case wmIMEEnd:
+		if state.textEnabled {
+			state.imeEpoch++
+		}
 		if state.textEnabled && state.imeComposing {
 			state.imeComposing = false
 			state.imeHasTarget = false
-			state.handleTextEvent(platform.TextEvent{Kind: platform.TextUnmark})
+			event := platform.TextEvent{Kind: platform.TextUnmark}
+			if state.textState.TentativeComposition {
+				event.CompositionPhase = text.CompositionCancel
+			}
+			state.handleTextEvent(event)
 			return 0
 		}
 	case wmDeadChar:
@@ -955,17 +969,25 @@ func (state *windowState) frame(frame platform.Frame, err error) {
 // handling it through fail. A caller that presents synchronously (WM_SIZE does)
 // must not present a frame that was never applied.
 func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) error {
+	return state.frameWithTextAndCancel(frame, err, nativeVisualChanged, state.cancelNativeComposition)
+}
+
+func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error, nativeVisualChanged bool, cancelNative func()) error {
 	views := frame.NativeViews
 	if err == nil {
 		state.applyBackdrop()
 		state.applyBorderColor()
+		var dirty bool
+		frame, dirty, err = state.prepareFrameWithCancel(frame, nativeVisualChanged, cancelNative)
+		if err == errSupersededTextFrame {
+			state.framePresented()
+			return nil
+		}
 		defer func() {
 			if state.web != nil && state.ready {
 				state.web.frame(views)
 			}
 		}()
-		var dirty bool
-		frame, dirty, err = state.prepareFrame(frame, nativeVisualChanged)
 		if err == nil {
 			err = state.applyFrame(frame)
 		}
