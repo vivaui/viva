@@ -80,7 +80,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           go test -c -tags vivagtk -o "$RUNNER_TEMP/viva-ibus-frontend.test" ./internal/platform/linux
-          xvfb-run -a env VIVA_IBUS_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN='^TestNativeIBus(Frontend|OwnerReactivation|FactoryDeclinedShortcut)$' sh internal/ibus/testdata/native-service.sh libpinyin hangul
+          xvfb-run -a env VIVA_IBUS_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN='^TestNativeIBus(Frontend|OwnerReactivation|FactoryDeclinedShortcut|UnsupportedModeRetirement)$' sh internal/ibus/testdata/native-service.sh libpinyin hangul
       - name: Fcitx native context retirement
         if: runner.os == 'Linux'
         run: |
@@ -94,7 +94,7 @@ jobs:
         run: |
           for backend in x11 wayland; do
             for engine in pinyin hangul; do
-              xvfb-run -a env VIVA_FCITX_ENGINE="$engine" VIVA_FCITX_REFERENCE=1 VIVA_FCITX_GTK_REFERENCE=1 VIVA_GTK_IME_NATIVE=1 G_DEBUG=fatal-criticals VIVA_FCITX_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN='^Test(NativeIBus(Frontend|OwnerReactivation|FactoryDeclinedShortcut)|GTKNativeFcitx(Composition|WindowClose))$' sh internal/ibus/testdata/native-fcitx-service.sh "$backend"
+              xvfb-run -a env VIVA_FCITX_ENGINE="$engine" VIVA_FCITX_REFERENCE=1 VIVA_FCITX_GTK_REFERENCE=1 VIVA_GTK_IME_NATIVE=1 G_DEBUG=fatal-criticals VIVA_FCITX_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN='^Test(NativeIBus(Frontend|OwnerReactivation|FactoryDeclinedShortcut|UnsupportedModeRetirement)|GTKNativeFcitx(Composition|WindowClose))$' sh internal/ibus/testdata/native-fcitx-service.sh "$backend"
             done
           done
       - name: Linux text callback ordering
