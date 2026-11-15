@@ -435,7 +435,9 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 	keyEvent := platform.KeyEvent{Key: key, Modifiers: modifiers, Repeat: repeat}
 	if modifiers&(input.ModifierControl|input.ModifierMeta) != 0 {
 		// A chord is the same on every layout: Ctrl+C is the key that types c.
-		keyEvent.Text = w.shortcutText(e, e.State&gdkShiftMask != 0)
+		// Shift is one of its modifiers, so Ctrl+Shift+C still names the base
+		// character (gfx.KeyEvent.Text) rather than the capital.
+		keyEvent.Text = w.shortcutText(e, false)
 	} else if r, ok := keysymRune(e.Keyval); ok {
 		keyEvent.Text = string(r)
 	}

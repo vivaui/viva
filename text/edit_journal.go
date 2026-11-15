@@ -158,6 +158,11 @@ func (editor *Editor) recordBatchEdits(primitives []Edit, contexts []lineContext
 
 func (editor *Editor) replaceHistory(edit *historyEdit, inverse bool) {
 	journal := editor.journal
+	if labels := editor.lfLabelState(); labels != nil {
+		labels.replaying = true
+		defer func() { labels.replaying = false }()
+		labels.ops.replay(labels, lfLabelHistoryKey(edit), inverse)
+	}
 	batch := edit.kind == editSeparate && len(edit.primitives) > 0
 	var contexts []lineContext
 	if batch {

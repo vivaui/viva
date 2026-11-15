@@ -218,7 +218,9 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 	keyEvent := platform.KeyEvent{Key: key, Modifiers: modifiers, Repeat: repeat}
 	if modifiers&(input.ModifierControl|input.ModifierMeta) != 0 {
 		// A chord is the same on every layout: Ctrl+C is the key that types c.
-		keyEvent.Text = keymap.shortcutText(event.Detail, event.State)
+		// Shift is a modifier like the others, so Ctrl+Shift+C carries the same
+		// base character as Ctrl+C (gfx.KeyEvent.Text), not the capital.
+		keyEvent.Text = keymap.shortcutText(event.Detail, 0)
 	} else {
 		keyEvent.Text = keymap.text(event.Detail, event.State)
 	}

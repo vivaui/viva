@@ -91,7 +91,7 @@ mistakes an absence for an oversight. Items marked *measured* were tried or size
 | Toast notifications | Windows | They need a Start-menu shortcut carrying an AppUserModelID, and NSIS cannot write that property without a plugin. A balloon is shown instead. The process AppUserModelID is set only when the application sets `Config.Class`, so a pinned shortcut and its window group together. |
 | Notification click callbacks | all | `Notification` has none on any platform; adding it to one would make the three differ. |
 | Full-screen mode | Windows, Linux | `WindowActions` has no full-screen member. The Linux side already treats `_NET_WM_STATE_FULLSCREEN` like maximize (no margin); the API wants `ToggleFullscreen` and `Fullscreen`. |
-| A native application menu | all | The contract has a status-item menu only; macOS installs a Quit item. |
+| A native application menu | Windows, Linux | macOS installs an application menu bar with `Application.SetMenuBar`; Windows and Linux build the menu in the window with `components.Menubar`, as the platform's own menu bar is not part of the contract there. |
 | Colour management, HDR, wide gamut | all | Every backend writes sRGB-ish values; nothing converts. Not measured. |
 | Arm64 UI Automation | Windows | The floating-point thunk exists for amd64 only. |
 | AppImage, rpm | Linux | AppImage needs an external runtime binary; rpm could not be checked here. `viva package` makes tar.gz, .deb, and a PKGBUILD for Arch. |

@@ -104,12 +104,13 @@ func (editor *Editor) column(index, tabWidth int) int {
 func (editor *Editor) editBlock(target Range, replacement []rune, anchor, caret int) {
 	// The block commands are line commands: they act on the primary selection,
 	// and the set of carets they leave is the one they compute here.
-	editor.clearSecondary()
 	before := editor.selectionState()
 	change := editor.replace(target, string(replacement), false)
+	editor.clearSecondary()
 	editor.anchor = clamp(anchor, 0, len(editor.runes))
 	editor.caret = clamp(caret, 0, len(editor.runes))
 	editor.composing = false
+	editor.releaseCompositionHistory()
 	editor.record(change, before, editor.selectionState(), editSeparate)
 }
 
@@ -684,11 +685,11 @@ func (editor *Editor) Backspace() {
 // the caret after what it inserted: how a find bar replaces a match, or all of
 // them. It ends an active composition, which the replaced text may include.
 func (editor *Editor) ReplaceRange(target Range, value string) {
-	editor.clearSecondary() // one range replaced, one caret left
 	target = normalizeRange(target, len(editor.runes))
 	before := editor.selectionState()
 	change := editor.replace(target, value, false)
 	editor.collapse(target.Start + len(change.inserted))
 	editor.composing = false
+	editor.releaseCompositionHistory()
 	editor.record(change, before, editor.selectionState(), editSeparate)
 }

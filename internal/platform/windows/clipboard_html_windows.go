@@ -3,7 +3,6 @@ package windows
 import (
 	"encoding/binary"
 	"fmt"
-	"strconv"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -82,25 +81,16 @@ func cfHTML(html string) []byte {
 		// The header is fixed once its values are ten digits wide; the
 		// numbers only name byte offsets, never change the width.
 		lands = "Version:0.9\r\n" +
-			"StartHTML:0000000000\r\n" +
-			"EndHTML:0000000000\r\n" +
-			"StartFragment:0000000000\r\n" +
-			"EndFragment:0000000000\r\n"
+			"StartHTML:%010d\r\n" +
+			"EndHTML:%010d\r\n" +
+			"StartFragment:%010d\r\n" +
+			"EndFragment:%010d\r\n"
 	)
-	startHTML := len(lands)
+	startHTML := len(fmt.Sprintf(lands, 0, 0, 0, 0))
 	startFragment := startHTML + len(front)
 	endFragment := startFragment + len(html)
 	endHTML := endFragment + len(back)
-	block := make([]byte, 0, endHTML)
-	block = append(block, "Version:0.9\r\n"...)
-	block = strconv.AppendUint(block, uint64(startHTML), 10)
-	block = append(block, "\r\nEndHTML:"...)
-	block = strconv.AppendUint(block, uint64(endHTML), 10)
-	block = append(block, "\r\nStartFragment:"...)
-	block = strconv.AppendUint(block, uint64(startFragment), 10)
-	block = append(block, "\r\nEndFragment:"...)
-	block = strconv.AppendUint(block, uint64(endFragment), 10)
-	block = append(block, "\r\n"...)
+	block := []byte(fmt.Sprintf(lands, startHTML, endHTML, startFragment, endFragment))
 	block = append(block, front...)
 	block = append(block, html...)
 	block = append(block, back...)

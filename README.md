@@ -117,6 +117,10 @@ WebView and no bundled rendering runtime.
   remote session runs, naming the work in the system's own power diagnostics
   (`pmset`, `powercfg`, `systemd-inhibit`). It holds no timer or goroutine, and
   releasing it ends the request.
+- `Application.SetMenuBar` puts the application's own File, Edit and View menus
+  between the system's application menu and Window menu on macOS, with key
+  equivalents, enablement, check marks, submenus and loop-thread callbacks; the
+  other desktop targets build their menus in the window with `components.Menubar`.
 - `Application.Post` hands work a background goroutine finished to the window
   thread: accepted functions run there in order, with no goroutine, timer or
   blocking wait added, and no "call the loop and wait" form that could deadlock.

@@ -22,8 +22,9 @@ type ReplaceRangesOptions struct {
 	// retained by Undo/Redo. Nil keeps the default caret after the last target.
 	AfterSelection *Range
 	// ApplyUnchanged reports target primitives even when final text is equal.
-	// Without save-point or complete-history tracking, equal text adds no Undo
-	// unit and preserves Redo. Those modes retain actual nonempty replacements.
+	// Without save-point or complete-history tracking, equal text and LF labels
+	// add no Undo unit and preserve Redo. Save points, complete history and
+	// pending LF labels retain actual replacements in history.
 	ApplyUnchanged bool
 }
 
@@ -70,8 +71,9 @@ func (editor *Editor) ValidateReplaceRanges(edits []Replacement, options Replace
 }
 
 // ReplaceRangesWith validates and applies a batch with optional primitive order
-// and final selection. An empty batch is a no-op. Unchanged text is also a no-op
-// unless ApplyUnchanged, save-point or complete-history mode is enabled;
+// and final selection. An empty batch is a no-op. Unchanged text and LF labels
+// are also a no-op unless ApplyUnchanged, save-point mode or complete history
+// is enabled;
 // otherwise final selection is unchanged.
 func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRangesOptions) error {
 	if err := editor.ValidateReplaceRanges(edits, options); err != nil {
@@ -90,6 +92,8 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 	position := start
 	runePosition, bytePosition := 0, 0
 	linePosition, lineShift := 0, 0
+	labels := editor.lfLabelState()
+	var labelSpans []lfLabelSpan
 	for _, edit := range edits {
 		for runePosition < edit.Range.Start {
 			if contexts != nil && editor.runes[runePosition] == '\n' {
@@ -131,13 +135,29 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 				context := makeLineContext(line, atLineStart, editor.runes[edit.Range.Start:edit.Range.End], inserted)
 				contexts = append(contexts, context)
 				lineShift += context.inserted - context.removed
+				if labels != nil && (context.removed != 0 || context.inserted != 0) {
+					labelSpans = append(labelSpans, lfLabelSpan{line: line, removed: editor.runes[edit.Range.Start:edit.Range.End], inserted: inserted})
+				}
 			}
 		}
 		replacement = append(replacement, inserted...)
 		position = edit.Range.End
 	}
 	changed := !slices.Equal(replacement, editor.runes[start:end])
-	if !changed && !options.ApplyUnchanged && (len(primitives) == 0 || !editor.retainEqualEdits()) {
+	if !options.Forward {
+		slices.Reverse(labelSpans)
+	}
+	var labelPlan *lfLabelPlan
+	if len(labelSpans) != 0 {
+		var err error
+		labelPlan, err = labels.ops.batch(labels, labelSpans)
+		if err != nil {
+			return err
+		}
+	}
+	retained := len(primitives) > 0 && editor.retainEqualEdits()
+	if !changed && !options.ApplyUnchanged && !retained && editor.savePointIndex() == nil && (labelPlan == nil || !labelPlan.changed) {
+		labelPlan = nil
 		return nil
 	}
 	if options.Forward {
@@ -150,11 +170,11 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 		slices.Reverse(primitives)
 		slices.Reverse(contexts)
 	}
-	editor.commitBatch(Range{Start: start, End: end}, string(replacement), primitives, contexts, options.AfterSelection)
+	editor.commitBatch(Range{Start: start, End: end}, string(replacement), primitives, contexts, options.AfterSelection, labelPlan)
 	return nil
 }
 
-func (editor *Editor) commitBatch(target Range, replacement string, primitives []Edit, contexts []lineContext, after *Range) {
+func (editor *Editor) commitBatch(target Range, replacement string, primitives []Edit, contexts []lineContext, after *Range, labelPlan *lfLabelPlan) {
 	target = normalizeRange(target, len(editor.runes))
 	// Empty targets do not become primitives. Retain only the accepted backing
 	// in producer mode, including the line contexts keyed by that same slice.
@@ -178,6 +198,10 @@ func (editor *Editor) commitBatch(target Range, replacement string, primitives [
 	editor.journal = nil
 	change := editor.replace(target, replacement, false)
 	editor.journal = journal
+	if labelPlan != nil {
+		labels := editor.lfLabelState()
+		labels.ops.commit(labels, labelPlan)
+	}
 	editor.collapse(target.Start + len(change.inserted))
 	editor.composing = false
 	if after != nil {

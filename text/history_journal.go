@@ -176,14 +176,6 @@ func (history *historyJournal) context(current, tail int) HistoryContext {
 		RetainedFrom: history.retainedFrom, RetainedTo: tail, Collecting: true}
 }
 
-func (editor *Editor) historyUnitRunes(edit *historyEdit) int {
-	cost := edit.retainedRunes()
-	if edit.kind != editSeparate {
-		cost += (cap(edit.primitives) - len(edit.primitives)) * historyPrimitiveRunes
-	}
-	return cost
-}
-
 func (editor *Editor) historyChangePrimitive(change textChange, kind editKind) (Edit, bool) {
 	if kind == editComposition {
 		editor.invalidateHistoryFrom(0)
