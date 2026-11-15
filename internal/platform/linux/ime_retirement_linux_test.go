@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"errors"
 	"os"
 	"testing"
 
@@ -31,7 +32,11 @@ func TestIBusTentativeUnsupportedResetSettlesEditorBeforeRetirement(t *testing.T
 				if !h.ime.composing() {
 					t.Fatal("native session did not start")
 				}
+				settled := len(h.events)
 				h.ime.setFocused(false)
+				if len(h.events) != settled+1 {
+					t.Fatalf("retirement settled %d events, want exactly one", len(h.events)-settled)
+				}
 				if h.ime.app.firstErr != nil || h.ime.context != nil || !h.context.closed {
 					t.Fatal("unsupported mode did not retire the context without disabling input")
 				}
@@ -56,6 +61,25 @@ func TestIBusTentativeUnsupportedResetSettlesEditorBeforeRetirement(t *testing.T
 				}
 			})
 		}
+	}
+}
+
+// A Reset that crosses an owner change must not settle the retired session's
+// text into whatever now owns the field: sync re-checks the context, epoch and
+// owner after a failed reset.
+func TestRetirementKeepsSettlementWhenResetCrossesAnOwnerChange(t *testing.T) {
+	h := newTentativeIMEHarness(t)
+	h.preedit(t, nativeMode("ni", ibus.PreeditModeClear))
+	before := len(h.events)
+	h.context.err = errors.New("reset failed")
+	h.context.onCall = func(name string) {
+		if name == "Reset" {
+			h.ime.epoch++
+		}
+	}
+	h.ime.setFocused(false)
+	if len(h.events) != before || h.ime.context == nil {
+		t.Fatalf("a settlement crossed an owner change: events %d -> %d, context live=%t", before, len(h.events), h.ime.context != nil)
 	}
 }
 
