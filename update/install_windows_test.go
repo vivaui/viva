@@ -244,7 +244,10 @@ func TestPayloadHelperScriptKeepsABackupAndRestores(t *testing.T) {
 		"Copy-Item -LiteralPath $_.FullName -Destination $dest -Force",
 		"Start-Process -FilePath $exe -PassThru",
 		"$p.HasExited -and $p.ExitCode -ne 0",
-		"Restore; Start-Process -FilePath $exe",
+		"function Launch {",
+		"Start-Process -FilePath $exe -ArgumentList",
+		"{ Restore; Launch; exit 1 }",
+		"} catch { Restore; Launch; exit 1 }",
 		"Remove-Item -Recurse -Force $payload",
 		"exit 0",
 	} {
@@ -333,8 +336,24 @@ func TestPayloadHelperReplacesTheApplication(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(payload, "new.dll"), []byte("new"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// A backup the previous update could not delete, because the old program or
+	// one of its loaded DLLs was still held, must not stay in the install
+	// directory for good.
+	stale := filepath.Join(install, ".viva-update-previous")
+	if err := os.MkdirAll(stale, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stale, "app.exe"), []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), nil)
 	runPayloadHelper(t, script, 0)
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("a previous update's backup survived the next update: %v", err)
+	}
+	if left, err := filepath.Glob(filepath.Join(install, ".viva-update-*")); err != nil || len(left) != 0 {
+		t.Errorf("backups left in the install directory: %v, %v", left, err)
+	}
 	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
 	if err != nil {
 		t.Fatal(err)

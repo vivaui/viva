@@ -74,6 +74,56 @@ func TestCompositionIMEEndPreservesOptInAndLegacyBoundaries(t *testing.T) {
 	}
 }
 
+// Losing the keyboard settles the live composition the way WM_IME_ENDCOMPOSITION
+// does, and a native end that arrives afterwards delivers nothing more.
+func TestCompositionKillFocusSettlesTheLiveComposition(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		name := "legacy"
+		if enabled {
+			name = "tentative"
+		}
+		t.Run(name, func(t *testing.T) {
+			editor := text.NewEditor("abc")
+			if enabled && !editor.EnableTentativeComposition() {
+				t.Fatal("could not enable fixture capability")
+			}
+			editor.SetSelection(text.Range{Start: 1, End: 2})
+			preedit := platform.TextEvent{Kind: platform.TextSetMarked, Text: "x", MarkedSelection: text.Range{Start: 1, End: 1}}
+			if enabled {
+				preedit.CompositionPhase = text.CompositionUpdate
+			}
+			preedit.Apply(editor)
+			state := &windowState{ready: true, textEnabled: true, imeComposing: true, imeHasTarget: true, textState: platform.EditorState(editor)}
+			var events []platform.TextEvent
+			stop := errors.New("stop before renderer submission")
+			state.textInput.OnEvent = func(event platform.TextEvent) (platform.TextState, error) {
+				events = append(events, event)
+				event.Apply(editor)
+				return platform.EditorState(editor), stop
+			}
+			const handle = ^uintptr(0)
+			previous := active.Load()
+			windowStates.Store(handle, state)
+			t.Cleanup(func() { windowStates.Delete(handle); active.Store(previous) })
+			windowProc(handle, wmKillFocus, 0, 0)
+			if len(events) != 1 || state.imeComposing || state.imeHasTarget {
+				t.Fatalf("focus loss delivery: events=%+v composing=%v target=%v", events, state.imeComposing, state.imeHasTarget)
+			}
+			wantPhase, wantText := text.CompositionNone, "axc"
+			if enabled {
+				wantPhase, wantText = text.CompositionCancel, "ac"
+			}
+			if events[0].CompositionPhase != wantPhase || editor.String() != wantText {
+				t.Fatalf("focus loss phase=%v text=%q, want phase=%v text=%q", events[0].CompositionPhase, editor.String(), wantPhase, wantText)
+			}
+			windowProc(handle, wmIMEEnd, 0, 0)
+			if len(events) != 1 {
+				t.Fatal("a native end after focus loss delivered another edit")
+			}
+		})
+	}
+}
+
 func compositionMessageWindow(t *testing.T, editor *text.Editor) (*windowState, *[]platform.TextEvent) {
 	t.Helper()
 	runtime.LockOSThread()
@@ -81,7 +131,7 @@ func compositionMessageWindow(t *testing.T, editor *text.Editor) (*windowState, 
 	state := dynamicTextState(0, 0)
 	state.window, state.scale, state.ready = staticWindow(t), 1, true
 	if err := state.renderer.initialize(state.window, platform.Color{Alpha: 1}); err != nil {
-		t.Fatalf("initialize native message surface: %v", err)
+		t.Skipf("no graphics device for the native message surface: %v", err)
 	}
 	t.Cleanup(func() {
 		state.stopCaretTimer()

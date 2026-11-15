@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -163,7 +165,7 @@ func TestPackageLinuxMakesADeb(t *testing.T) {
 	text := string(control["./control"])
 	for _, want := range []string{
 		"Package: fixture-notes\n", "Version: 2.0.1\n", "Architecture: amd64\n", "Maintainer: Ann Lee <ann@example.com>\n",
-		"Depends: libvulkan1, libxcb1, libcairo2, libfoo1 (>= 1.2)\n", "Homepage: https://example.com/notes\n", "Description: Takes notes\n",
+		"Depends: libvulkan1, libxcb1, libcairo2, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libfoo1 (>= 1.2)\n", "Homepage: https://example.com/notes\n", "Description: Takes notes\n",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("control lacks %q:\n%s", want, text)
@@ -288,22 +290,90 @@ func TestPackageLinuxRPMDeclaresRuntimeLibraries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			requires := rpmRequiredCapabilities(t, data)
 			for _, library := range []string{
 				"libvulkan.so.1", "libxcb.so.1", "libcairo.so.2", "libfontconfig.so.1",
-				"libpango-1.0.so.0", "libpangocairo-1.0.so.0", "libpangoft2-1.0.so.0",
-				"libgobject-2.0.so.0", "libxcb-cursor.so.0", "libxcb-randr.so.0",
+				"libpango-1.0.so.0", "libpangocairo-1.0.so.0", "libgobject-2.0.so.0",
+			} {
+				capability := library + "()(64bit)"
+				if !slices.Contains(requires, capability) {
+					t.Errorf("RPM lacks runtime requirement %s, has %v", capability, requires)
+				}
+			}
+			for _, library := range []string{
+				"libpangoft2-1.0.so.0", "libxcb-cursor.so.0", "libxcb-randr.so.0",
 				"libxcb-render.so.0", "libxcb-shape.so.0", "libxcb-sync.so.1",
 			} {
 				capability := library + "()(64bit)"
-				if !bytes.Contains(data, []byte(capability+"\x00")) {
-					t.Errorf("RPM lacks runtime requirement %s", capability)
+				if slices.Contains(requires, capability) {
+					t.Errorf("RPM hard-requires %s, which the backend loads with a fallback", capability)
 				}
 			}
-			if bytes.Contains(data, []byte("libfoo1 (>= 1.2)")) {
+			if slices.Contains(requires, "libfoo1 (>= 1.2)") {
 				t.Fatal("RPM contains a Debian-only manifest dependency")
 			}
 		})
 	}
+}
+
+// rpmRequiredCapabilities reads RPMTAG_REQUIRENAME from an RPM's main header.
+// Grepping the whole file for the capability strings would also match the
+// payload or a description, so the test could pass after the requires moved or
+// were encoded differently.
+func rpmRequiredCapabilities(t *testing.T, data []byte) []string {
+	t.Helper()
+	const (
+		leadSize      = 96
+		headerMagic   = 0x8eade801
+		stringArrayTp = 8
+		requireName   = 1049
+	)
+	if len(data) < leadSize {
+		t.Fatal("the rpm is shorter than its lead")
+	}
+	offset := leadSize
+	// The signature header, padded to the eight-byte boundary the main header
+	// starts on.
+	if len(data) < offset+16 {
+		t.Fatal("the rpm has no signature header")
+	}
+	index := int(binary.BigEndian.Uint32(data[offset+8:]))
+	store := int(binary.BigEndian.Uint32(data[offset+12:]))
+	offset = (offset + 16 + index*16 + store + 7) &^ 7
+	if len(data) < offset+16 || binary.BigEndian.Uint32(data[offset:]) != headerMagic {
+		t.Fatal("the rpm has no main header")
+	}
+	entries := int(binary.BigEndian.Uint32(data[offset+8:]))
+	storeSize := int(binary.BigEndian.Uint32(data[offset+12:]))
+	indexStart := offset + 16
+	storeStart := indexStart + entries*16
+	if storeStart+storeSize > len(data) {
+		t.Fatal("the rpm header runs past the file")
+	}
+	for entry := 0; entry < entries; entry++ {
+		at := indexStart + entry*16
+		tag := binary.BigEndian.Uint32(data[at:])
+		if tag != requireName {
+			continue
+		}
+		if kind := binary.BigEndian.Uint32(data[at+4:]); kind != stringArrayTp {
+			t.Fatalf("REQUIRENAME has type %d, want a string array", kind)
+		}
+		count := int(binary.BigEndian.Uint32(data[at+12:]))
+		position := storeStart + int(binary.BigEndian.Uint32(data[at+8:]))
+		names := make([]string, 0, count)
+		for range count {
+			end := bytes.IndexByte(data[position:storeStart+storeSize], 0)
+			if end < 0 {
+				t.Fatal("REQUIRENAME holds an unterminated string")
+			}
+			names = append(names, string(data[position:position+end]))
+			position += end + 1
+		}
+		return names
+	}
+	t.Fatal("the rpm declares no REQUIRENAME tag")
+	return nil
 }
 
 func TestPackageLinuxFailures(t *testing.T) {
@@ -375,7 +445,7 @@ func TestPackageLinuxRefusesAFileAsOutput(t *testing.T) {
 
 func TestDebDepends(t *testing.T) {
 	got := strings.Join(debDepends([]string{"libcairo2 (>= 1.16)", "foo"}), ", ")
-	if got != "libvulkan1, libxcb1, libcairo2 (>= 1.16), foo" {
+	if got != "libvulkan1, libxcb1, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libcairo2 (>= 1.16), foo" {
 		t.Errorf("depends = %q", got)
 	}
 }
@@ -441,7 +511,7 @@ func TestPackageLinuxMakesAPKGBUILD(t *testing.T) {
 		"pkgname='fixture-notes-bin'",
 		"pkgver='2.0.1'",
 		"arch=('x86_64')",
-		"depends=('vulkan-icd-loader' 'libxcb>=1.16' 'cairo' 'extra-lib')",
+		"depends=('vulkan-icd-loader' 'fontconfig' 'pango' 'glib2' 'libxcb>=1.16' 'cairo' 'extra-lib')",
 		"source=('fixture-notes-2.0.1-linux-amd64.tar.gz')",
 		"sha256sums=('" + hex.EncodeToString(digest[:]) + "')",
 		"_icon_size=256",

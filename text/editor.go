@@ -286,6 +286,9 @@ func (editor *Editor) Insert(value string) {
 	}
 	editor.collapse(caret)
 	editor.composing = false
+	// Release the live composition's bookkeeping before recording the edit:
+	// record opens the next undo unit, and the composition's history has to
+	// close in the unit it was typed into.
 	editor.releaseCompositionHistory()
 	kind := editInsert
 	if wasComposing {

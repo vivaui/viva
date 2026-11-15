@@ -18,24 +18,30 @@ import (
 )
 
 // linuxRuntimeDepends are the libraries a Viva program opens at run time with
-// dlopen (Vulkan, XCB and Cairo). Nothing in the executable's headers names
-// them, so a .deb has to say so itself.
-var linuxRuntimeDepends = []string{"libvulkan1", "libxcb1", "libcairo2"}
+// dlopen and cannot start without: Vulkan, XCB, Cairo, and the Pango/fontconfig
+// stack text rendering needs. Nothing in the executable's headers names them, so
+// a .deb has to say so itself. Libraries the backend loads with a fallback (the
+// optional XCB extensions and PangoFT2) stay out: requiring them would refuse an
+// install on a distribution that keeps a provider out of its enabled repos.
+var linuxRuntimeDepends = []string{
+	"libvulkan1", "libxcb1", "libcairo2",
+	"libfontconfig1", "libpango-1.0-0", "libpangocairo-1.0-0", "libglib2.0-0",
+}
 
 // linuxArchRuntimeDepends are the same libraries under Arch's names.
-var linuxArchRuntimeDepends = []string{"vulkan-icd-loader", "libxcb", "cairo"}
+var linuxArchRuntimeDepends = []string{
+	"vulkan-icd-loader", "libxcb", "cairo", "fontconfig", "pango", "glib2",
+}
 
 // linuxRPMRuntimeDepends names the shared-library capabilities that RPM's library
-// packages provide. Distribution package names differ; both supported targets are
-// 64-bit. These dlopen libraries are invisible to normal ELF dependency scanning.
-// GTK, IME and WebKit integrations remain optional and are not forced on every app.
+// packages provide for the same set. Distribution package names differ; both
+// supported targets are 64-bit. These dlopen libraries are invisible to normal ELF
+// dependency scanning. GTK, IME, WebKit and the fallback-loaded XCB extensions
+// remain optional and are not forced on every app.
 var linuxRPMRuntimeDepends = []string{
 	"libvulkan.so.1()(64bit)", "libxcb.so.1()(64bit)", "libcairo.so.2()(64bit)",
 	"libfontconfig.so.1()(64bit)", "libpango-1.0.so.0()(64bit)",
-	"libpangocairo-1.0.so.0()(64bit)", "libpangoft2-1.0.so.0()(64bit)",
-	"libgobject-2.0.so.0()(64bit)", "libxcb-cursor.so.0()(64bit)",
-	"libxcb-randr.so.0()(64bit)", "libxcb-render.so.0()(64bit)",
-	"libxcb-shape.so.0()(64bit)", "libxcb-sync.so.1()(64bit)",
+	"libpangocairo-1.0.so.0()(64bit)", "libgobject-2.0.so.0()(64bit)",
 }
 
 // linuxApplication describes the application for the Debian and RPM packages:
