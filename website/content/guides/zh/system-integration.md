@@ -13,6 +13,7 @@ group: guides
 | 文件对话框 | `app.OpenFiles`、`app.OpenDirectory`、`app.SaveFile` |
 | 打开 URL | `app.OpenURL` |
 | 用默认应用打开本地文档(绝不运行程序) | `app.OpenPath` |
+| 用默认浏览器打开本地文件（如 HTML 页面），不论该类型关联到哪个应用 | `app.OpenPathInBrowser` |
 | 通知与声音 | `app.SendNotification`、`app.PlaySystemSound` |
 | 光标 | `app.SetCursor` |
 | 系统首选语言 | `app.PreferredLanguages` |
@@ -27,7 +28,7 @@ group: guides
 
 ## 各平台用什么实现
 
-每个函数都映射到平台自己的接口：macOS 上是 `NSPasteboard`、`NSOpenPanel` 和 `NSWorkspace`；Windows 上是 Win32 剪贴板、`IFileOpenDialog` 和 `ShellExecuteW`；Linux 上是 X11 选区，文件对话框使用 `zenity` 或 `kdialog`，打开 URL 使用 `xdg-open` 或 `gio`，通知使用 `notify-send`。密钥存入钥匙串、凭据管理器或 Secret Service。
+每个函数都映射到平台自己的接口：macOS 上是 `NSPasteboard`、`NSOpenPanel` 和 `NSWorkspace`；Windows 上是 Win32 剪贴板、`IFileOpenDialog` 和 `ShellExecuteW`；Linux 上是 X11 选区，文件对话框使用 `zenity` 或 `kdialog`，打开 URL 使用 `xdg-open` 或 `gio`，通知使用 `notify-send`。默认浏览器在 macOS 上是 LaunchServices 打开 `https` 链接所用的应用，在 Windows 上是 `http` 协议登记的命令，在 Linux 上是 `xdg-settings` 给出的桌面文件。密钥存入钥匙串、凭据管理器或 Secret Service。
 
 完整的表格，包括某个平台做不到某件事的情形，见仓库中的 `docs/system-integrations.md`。
 

@@ -28,6 +28,7 @@ func driverRevealPath(string) (error, bool) { return nil, false }
 func driverOpenWith(string, string) (error, bool) {
 	return nil, false
 }
+func driverOpenInBrowser(string) (error, bool) { return nil, false }
 
 func driverOpenFiles(OpenFileOptions) ([]string, error, bool) {
 	return nil, nil, false

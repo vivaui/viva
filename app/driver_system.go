@@ -324,6 +324,16 @@ func driverOpenWith(executable, path string) (error, bool) {
 	return nil, true
 }
 
+func driverOpenInBrowser(path string) (error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, false
+	}
+	system.driver.openedInBrowser = path
+	system.driver.hasOpenedInBrowser = true
+	return nil, true
+}
+
 func driverOpenFiles(options OpenFileOptions) ([]string, error, bool) {
 	system := activeDriverSystem.Load()
 	if system == nil {

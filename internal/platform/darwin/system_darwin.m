@@ -1117,6 +1117,26 @@ int viva_system_scheme_handler(const char *scheme, char **error_message) {
     }
 }
 
+int viva_system_default_browser(char **path, char **error_message) {
+    // Like the scheme lookup, LaunchServices answers this from any thread.
+    @autoreleasepool {
+        NSURL *probe = [NSURL URLWithString:@"https://example.invalid/"];
+        NSURL *browser = [NSWorkspace.sharedWorkspace URLForApplicationToOpenURL:probe];
+        if (browser == nil) {
+            return 0;
+        }
+        NSString *value = browser.path;
+        if (value.length == 0) {
+            if (error_message != NULL) {
+                *error_message = viva_copy_utf8(@"the default browser has no file path");
+            }
+            return -1;
+        }
+        *path = viva_copy_utf8(value);
+        return 1;
+    }
+}
+
 int viva_system_play_sound(uint8_t sound, char **error_message) {
     __block int status = 0;
     __block char *failure = NULL;

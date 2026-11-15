@@ -94,6 +94,8 @@ func nativeRevealPath(path string) error { return windowsplatform.RevealPath(pat
 func nativeOpenWith(executable, path string) error {
 	return windowsplatform.OpenWith(executable, path)
 }
+
+func nativeOpenInBrowser(path string) error { return windowsplatform.OpenInBrowser(path) }
 func nativePlaySystemSound(sound SystemSound) error {
 	return windowsplatform.PlaySystemSound(uint8(sound))
 }

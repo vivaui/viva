@@ -75,9 +75,12 @@ type Driver struct {
 	hasOpenedPath  bool
 	openedWith     [2]string
 	hasOpenedWith  bool
-	releases       []func()
-	closed         bool
-	appearanceOpen bool
+	// openedInBrowser is the file OpenPathInBrowser was last given.
+	openedInBrowser    string
+	hasOpenedInBrowser bool
+	releases           []func()
+	closed             bool
+	appearanceOpen     bool
 
 	system                   driverSystem
 	openFilesResponses       [driverOpenFilesQueueSize]driverOpenFilesResponse
@@ -977,6 +980,13 @@ func (driver *Driver) LastOpenedPath() (string, bool) {
 // and start nothing.
 func (driver *Driver) LastOpenedWith() (executable, path string, ok bool) {
 	return driver.openedWith[0], driver.openedWith[1], driver.hasOpenedWith
+}
+
+// LastOpenedInBrowser returns the most recent file passed to OpenPathInBrowser
+// while this driver was active. Driver-backed runs record the request and start
+// no browser.
+func (driver *Driver) LastOpenedInBrowser() (string, bool) {
+	return driver.openedInBrowser, driver.hasOpenedInBrowser
 }
 
 // PrimitiveKind says what a Primitive is.
