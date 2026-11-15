@@ -278,7 +278,18 @@ func TestColumnClipboardNativeBusyClipboardNeverCuts(t *testing.T) {
 		defer close(done)
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
-		if opened, _, err := openClipboard.Call(0); opened == 0 {
+		class, err := syscall.UTF16PtrFromString("STATIC")
+		if err != nil {
+			ready <- err
+			return
+		}
+		window, _, err := createWindow.Call(0, uintptr(unsafe.Pointer(class)), 0, wsPopup, 0, 0, 1, 1, 0, 0, 0, 0)
+		if window == 0 {
+			ready <- windowsCallError("create clipboard holder", err)
+			return
+		}
+		defer destroyWindow.Call(window)
+		if opened, _, err := openClipboard.Call(window); opened == 0 {
 			ready <- windowsCallError("hold clipboard fixture", err)
 			return
 		}
