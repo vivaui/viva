@@ -4,6 +4,7 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/ibus"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
@@ -22,8 +23,14 @@ type linuxIME struct {
 	text   *linuxTextInput
 	router eventRouter
 	// origin is where the window's top-left corner is on the screen.
-	origin  func() (x, y int32)
-	context inputMethodContext
+	origin      func() (x, y int32)
+	context     inputMethodContext
+	target      gfx.ID
+	owner       text.CompositionIdentity
+	epoch       uint64
+	phase       *ibusComposition
+	delivering  int
+	pendingKeys int
 
 	// focused is whether the window has the keyboard; active is whether the
 	// engine has been told the field does.
@@ -61,25 +68,14 @@ type inputMethodContext interface {
 
 // newIME gives a window an input context, or nil when there is no daemon.
 func (application *linuxApplication) newIME(win *window, textInput *linuxTextInput, router eventRouter) *linuxIME {
-	bus := application.inputMethodBus()
-	if bus == nil {
+	if application.inputMethodBus() == nil {
 		return nil
 	}
 	ime := &linuxIME{app: application, text: textInput, router: router, origin: win.contentOrigin}
-	context, err := bus.NewContext("viva", ibus.Handler{
-		Commit: ime.commit,
-		Preedit: func(event ibus.PreeditEvent) {
-			ime.preedit(event.Text, event.Cursor, event.Visible, event.Attributes)
-		},
-		Forward: ime.forward,
-
-		DeleteSurrounding: ime.deleteSurrounding,
-	})
-	if err != nil {
-		application.checkInputMethod()
+	ime.router.ime = ime
+	if !ime.open() {
 		return nil
 	}
-	ime.context = context
 	return ime
 }
 
@@ -121,19 +117,20 @@ func (application *linuxApplication) checkInputMethod() {
 
 // lost abandons the engine. Text it left marked is kept as typed.
 func (ime *linuxIME) lost() {
+	keep := ime.phase != nil && ime.phase.session && ime.sameOwner() && !ime.text.closed
+	ime.clearComposition()
 	ime.dead, ime.active, ime.engineComposing = true, false, false
 	ime.context = nil
-	if ime.text.state.Composing {
+	if keep {
+		ime.apply(platform.TextEvent{Kind: platform.TextUnmark, CompositionPhase: text.CompositionCommit})
+	} else if ime.phase == nil && ime.text.state.Composing {
 		ime.apply(platform.TextEvent{Kind: platform.TextUnmark})
 	}
 }
 
 func (ime *linuxIME) close() {
-	if ime.context != nil {
-		ime.context.Close()
-		ime.context = nil
-	}
 	ime.dead = true
+	ime.retire()
 }
 
 // setFocused records whether the window has the keyboard.
@@ -146,39 +143,85 @@ func (ime *linuxIME) setFocused(focused bool) {
 // runs after every frame, which is when the field changes, and does nothing
 // when nothing has.
 func (ime *linuxIME) sync() {
-	if ime.dead || ime.context == nil {
+	if ime.dead || ime.text.closed || ime.app.firstErr != nil || ime.app.quit {
 		return
 	}
+	if ime.context != nil && !ime.sameOwner() {
+		ime.retire()
+	}
+	if ime.context == nil {
+		if !ime.text.enabled {
+			return
+		}
+		if !ime.open() {
+			ime.dead = true
+			return
+		}
+	}
+	context, epoch := ime.context, ime.epoch
 	want := ime.focused && ime.text.enabled
 	switch {
 	case want && !ime.active:
 		ime.active, ime.haveCursor, ime.hasSources, ime.sent = true, false, false, false
-		_ = ime.context.FocusIn()
-	case !want && ime.active:
-		ime.active = false
-		if ime.engineComposing {
-			ime.engineComposing = false
-			_ = ime.context.Reset()
+		if err := context.FocusIn(); err != nil {
+			ime.app.checkInputMethod()
+			return
 		}
-		_ = ime.context.FocusOut()
+	case !want && ime.active:
+		// Every key's text precedes its answer. Keep accepting those results
+		// before settling the native mode and sending FocusOut.
+		if ime.pendingKeys != 0 {
+			return
+		}
+		ime.active = false
+		if ime.engineComposing || ime.phase != nil && ime.phase.session {
+			if err := ime.reset(); err != nil {
+				ime.app.fail(err)
+				return
+			}
+		}
+		if ime.context == context && ime.epoch == epoch && !ime.dead && ime.app.firstErr == nil &&
+			!(ime.focused && ime.text.enabled) {
+			_ = context.FocusOut()
+		}
 	}
-	if !ime.active {
+	if !ime.active || !ime.current() || ime.context != context || ime.epoch != epoch {
 		return
 	}
 	// The field stopped composing without the engine (a click moved the caret,
 	// the application replaced the text): the engine must forget its composition
 	// or its next key continues one the user no longer sees.
-	if ime.engineComposing && !ime.text.state.Composing {
+	stopped := ime.phase == nil && ime.engineComposing && !ime.text.state.Composing ||
+		ime.phase != nil && ime.phase.session && ime.delivering == 0 && ime.phase.revision != ime.text.stateRevision
+	if stopped {
+		if ime.phase != nil {
+			ime.retire()
+			ime.sync()
+			return
+		}
+		ime.clearComposition()
 		ime.engineComposing = false
-		_ = ime.context.Reset()
+		if err := context.Reset(); err != nil {
+			ime.app.checkInputMethod()
+			return
+		}
+	}
+	if !ime.current() || ime.context != context || ime.epoch != epoch {
+		return
 	}
 	ime.updateCursor()
+	if !ime.current() || ime.context != context || ime.epoch != epoch {
+		return
+	}
 	ime.updateSurrounding()
 }
 
 // updateSurrounding tells the engine the text around the caret when it has changed.
 // A password, and a terminal whose text is not a document, tell it nothing.
 func (ime *linuxIME) updateSurrounding() {
+	if !ime.current() || !ime.active {
+		return
+	}
 	var sources surroundingState
 	if !ime.text.input.Secure && !ime.text.input.Terminal {
 		state := ime.text.state
@@ -215,6 +258,9 @@ func (ime *linuxIME) deleteSurrounding(offset, count int) {
 
 // updateCursor tells the engine's panel where to put the candidate window.
 func (ime *linuxIME) updateCursor() {
+	if !ime.current() || !ime.active {
+		return
+	}
 	x, y, width, height := ime.caretRectangle()
 	originX, originY := ime.origin()
 	// The caret is logical, the engine wants screen pixels.
@@ -249,10 +295,27 @@ func (ime *linuxIME) processKey(keysym uint32, event *xcbInputEvent, keyEvent pl
 }
 
 func (ime *linuxIME) processKeyWithShortcut(keysym uint32, event *xcbInputEvent, keyEvent, shortcut platform.KeyEvent) bool {
-	if ime.dead || !ime.active || ime.context == nil || event.Detail < 8 || keysym == 0 {
+	if !ime.current() || !ime.active || !ime.focused || event.Detail < 8 || keysym == 0 {
 		return false
 	}
+	epoch := ime.epoch
+	ime.pendingKeys++
 	err := ime.context.ProcessKey(keysym, uint32(event.Detail)-8, uint32(event.State), func(handled bool) {
+		if !ime.answerKey(epoch) {
+			return
+		}
+		defer ime.finishKey(epoch)
+		if !ime.keyCurrent(epoch) {
+			return
+		}
+		if keysym == 0xff1b && ime.phase != nil && ime.phase.session && !ime.phase.native.Visible {
+			ime.clearComposition()
+			ime.engineComposing = false
+			ime.apply(platform.TextEvent{Kind: platform.TextCancelComposition, CompositionPhase: text.CompositionCancel})
+		}
+		if !ime.keyCurrent(epoch) {
+			return
+		}
 		if handled {
 			return
 		}
@@ -261,8 +324,11 @@ func (ime *linuxIME) processKeyWithShortcut(keysym uint32, event *xcbInputEvent,
 		}
 	})
 	if err != nil {
+		if ime.epoch == epoch {
+			ime.pendingKeys--
+		}
 		ime.app.checkInputMethod()
-		return false
+		return ime.epoch != epoch || !ime.sameOwner()
 	}
 	return true
 }
@@ -270,10 +336,10 @@ func (ime *linuxIME) processKeyWithShortcut(keysym uint32, event *xcbInputEvent,
 // pressModifier tells the engine a modifier key went down. The engine never gives
 // one back, so there is nothing to wait for.
 func (ime *linuxIME) pressModifier(keysym uint32, event *xcbInputEvent) {
-	if ime.dead || !ime.active || ime.context == nil || event.Detail < 8 || keysym == 0 {
+	if !ime.current() || !ime.active || !ime.focused || event.Detail < 8 || keysym == 0 {
 		return
 	}
-	if err := ime.context.ProcessKey(keysym, uint32(event.Detail)-8, uint32(event.State), nil); err != nil {
+	if err := ime.sendKey(keysym, uint32(event.Detail)-8, uint32(event.State)); err != nil {
 		ime.app.checkInputMethod()
 	}
 }
@@ -281,21 +347,30 @@ func (ime *linuxIME) pressModifier(keysym uint32, event *xcbInputEvent) {
 // release tells the engine a key came up. Some engines act on that alone, as a
 // lone Shift that switches between Chinese and English does.
 func (ime *linuxIME) release(keymap *xcbKeymap, event *xcbInputEvent) {
-	if ime.dead || !ime.active || ime.context == nil || event.Detail < 8 {
+	if !ime.current() || !ime.active || !ime.focused || event.Detail < 8 {
 		return
 	}
 	keysym := keymap.keysym(event.Detail, event.State)
 	if keysym == 0 {
 		return
 	}
-	if err := ime.context.ProcessKey(keysym, uint32(event.Detail)-8, uint32(event.State)|ibus.ReleaseMask, nil); err != nil {
+	if err := ime.sendKey(keysym, uint32(event.Detail)-8, uint32(event.State)|ibus.ReleaseMask); err != nil {
 		ime.app.checkInputMethod()
 	}
 }
 
 func (ime *linuxIME) commit(value string) {
+	if !ime.current() || ime.phase != nil && !ime.active {
+		return
+	}
+	result := ime.phase != nil && ime.phase.session
+	ime.clearComposition()
 	ime.engineComposing = false
-	ime.apply(platform.TextEvent{Kind: platform.TextInsert, Text: value})
+	event := platform.TextEvent{Kind: platform.TextInsert, Text: value}
+	if result {
+		event.CompositionPhase = text.CompositionResult
+	}
+	ime.apply(event)
 }
 
 // preedit shows the text being composed as marked text, or removes it.
@@ -348,9 +423,23 @@ func (ime *linuxIME) forward(keysym, _ uint32, state uint32) {
 
 // apply runs one text event through the field and presents the result.
 func (ime *linuxIME) apply(event platform.TextEvent) {
-	frame, err := ime.text.textEvent(event)
+	revision, epoch := ime.text.stateRevision, ime.epoch
+	ime.delivering++
+	frame, accepted, err := ime.text.dispatchTextEvent(event)
+	ime.delivering--
+	if !accepted && ime.epoch == epoch && ime.text.stateRevision != revision {
+		ime.retire()
+		if err == nil {
+			ime.sync()
+		}
+	}
+	if accepted && ime.phase != nil && ime.epoch == epoch && ime.text.stateRevision == revision+1 {
+		ime.phase.revision = ime.text.stateRevision
+	}
 	if err == nil {
-		err = ime.router.presentFrame(frame, nil)
+		if ime.epoch == epoch && ime.sameOwner() {
+			err = ime.router.presentFrame(frame, nil)
+		}
 	}
 	if err != nil {
 		ime.app.fail(err)

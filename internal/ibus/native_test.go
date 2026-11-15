@@ -199,3 +199,76 @@ func nativeIBusDrain(t *testing.T, bus *Bus, done func() bool, timeout time.Dura
 		time.Sleep(time.Millisecond)
 	}
 }
+
+func TestNativeClientPreeditMode(t *testing.T) {
+	if os.Getenv("VIVA_IBUS_NATIVE") != "1" {
+		t.Skip("native client mode requires a private IBus daemon")
+	}
+	engine := os.Getenv("VIVA_IBUS_ENGINE")
+	var keycodes map[uint32]uint32
+	if err := json.Unmarshal([]byte(os.Getenv("VIVA_IBUS_KEYCODES")), &keycodes); err != nil {
+		t.Fatal(err)
+	}
+	for _, ending := range []string{"reset", "focus-out"} {
+		t.Run(ending, func(t *testing.T) {
+			bus, err := Dial()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer bus.Close()
+			var latest PreeditEvent
+			var commits []string
+			context, err := bus.NewContext("viva-client-mode-probe", Handler{
+				Commit:  func(value string) { commits = append(commits, value); t.Logf("commit:%q", value) },
+				Preedit: func(event PreeditEvent) { latest = event; t.Logf("preedit:%+v", event) },
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer context.Close()
+			client, ok := any(context).(interface{ SetClientCommitPreedit(bool) error })
+			if !ok {
+				t.Fatal("native client mode API missing")
+			}
+			if err := client.SetClientCommitPreedit(true); err != nil {
+				t.Fatal(err)
+			}
+			if err := context.FocusIn(); err != nil {
+				t.Fatal(err)
+			}
+			nativeIBusSelectEngine(t, bus, context, engine)
+			press := func(symbol uint32) {
+				t.Helper()
+				answered := false
+				if err := context.ProcessKey(symbol, keycodes[symbol], 0, func(bool) { answered = true }); err != nil {
+					t.Fatal(err)
+				}
+				nativeIBusDrain(t, bus, func() bool { return answered }, 2*time.Second)
+			}
+			keys, mode, want := "nihao", uint32(PreeditModeClear), ""
+			if engine == "hangul" {
+				press(0xff31)
+				keys, mode, want = "rksk", PreeditModeCommit, "가"
+			}
+			for _, symbol := range keys {
+				press(uint32(symbol))
+			}
+			if !latest.HasMode || latest.Mode != mode || !latest.Visible || latest.Text == "" {
+				t.Fatalf("engine=%s live native mode=%+v", engine, latest)
+			}
+			if ending == "reset" {
+				err = context.Reset()
+			} else {
+				err = context.FocusOut()
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			until := time.Now().Add(150 * time.Millisecond)
+			nativeIBusDrain(t, bus, func() bool { return time.Now().After(until) }, time.Second)
+			if strings.Join(commits, "") != want {
+				t.Fatalf("client-owned %s daemon commits=%q, want=%q", ending, commits, want)
+			}
+		})
+	}
+}
