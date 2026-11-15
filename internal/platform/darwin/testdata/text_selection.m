@@ -39,7 +39,26 @@ void vivaKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int repe
         rawCount++;
     }
 }
-void vivaRawKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int flags, unsigned int code, const unsigned char *utf8, size_t utf8Length, const unsigned char *typed, size_t typedLength) {}
+// Raw presses delivered with their identity and the text they type, which is
+// what a surface showing another machine's desktop takes.
+static int rawEventCount;
+static int rawEventKeys[16];
+static char rawEventText[16][8];
+static char rawEventTyped[16][8];
+void vivaRawKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int flags, unsigned int code, const unsigned char *utf8, size_t utf8Length, const unsigned char *typed, size_t typedLength) {
+    if (rawEventCount < 16) {
+        rawEventKeys[rawEventCount] = key;
+        memset(rawEventText[rawEventCount], 0, sizeof(rawEventText[0]));
+        memset(rawEventTyped[rawEventCount], 0, sizeof(rawEventTyped[0]));
+        if (utf8 != NULL) {
+            memcpy(rawEventText[rawEventCount], utf8, MIN(utf8Length, sizeof(rawEventText[0]) - 1));
+        }
+        if (typed != NULL) {
+            memcpy(rawEventTyped[rawEventCount], typed, MIN(typedLength, sizeof(rawEventTyped[0]) - 1));
+        }
+        rawEventCount++;
+    }
+}
 void vivaWindowActivated(uintptr_t handle) {}
 void vivaFocusLost(uintptr_t handle, void *view) {}
 // The terminal's table, reduced to what these tests use: CJK ideographs take two cells,
@@ -85,6 +104,7 @@ static NSUInteger copyRequests;
     NSUInteger activations;
     NSUInteger deactivations;
     NSUInteger invalidations;
+    NSUInteger handles;
 }
 @end
 
@@ -93,6 +113,7 @@ static NSUInteger copyRequests;
 - (void)activate { activations++; }
 - (void)deactivate { deactivations++; }
 - (void)invalidateCharacterCoordinates { invalidations++; }
+- (BOOL)handleEvent:(NSEvent *)event { handles++; return NO; }
 @end
 
 @interface SelectionView : VivaMetalView {
@@ -136,6 +157,8 @@ static NSUInteger copyRequests;
 - (void)setTerminal:(BOOL)value;
 - (void)setCopyOverride:(NSString *)value enabled:(BOOL)enabled;
 - (void)setCellWidth:(CGFloat)value;
+- (void)setKeyReleases:(BOOL)value;
+- (void)setDisableIME:(BOOL)value;
 - (void)enableKeyCallbacks;
 - (void)endComposition;
 - (BOOL)composing;
@@ -180,6 +203,8 @@ static NSUInteger copyRequests;
     lastText = nil;
     _textSecure = NO;
     _textInputMultiline = NO;
+    _textKeyReleases = NO;
+    _textDisableIME = NO;
     fakeMarkedMode = 0;
 }
 - (NSTextInputContext *)inputContext { return (NSTextInputContext *)recordingContext; }
@@ -234,6 +259,8 @@ static NSUInteger copyRequests;
 - (void)beginComposition { _hasMarkedText = YES; }
 - (void)setTerminal:(BOOL)value { _textTerminal = value; }
 - (void)setCellWidth:(CGFloat)value { _textCellWidth = value; }
+- (void)setKeyReleases:(BOOL)value { _textKeyReleases = value; }
+- (void)setDisableIME:(BOOL)value { _textDisableIME = value; }
 - (void)enableKeyCallbacks { _callbackHandle = 1; _keyEventsEnabled = YES; }
 - (void)endComposition { _hasMarkedText = NO; }
 - (BOOL)composing { return _hasMarkedText; }
@@ -1100,6 +1127,79 @@ int main(void) {
         [view endComposition];
         view->recordEdits = NO;
         viva_test_pasteboard = nil;
+
+        // A surface that shows another machine's desktop keeps the host's input
+        // method off its keys (DisableIME): a printable key is the remote's own
+        // key, delivered raw with its identity and what it types, and no
+        // composition is opened for it.
+        RecordingInputContext *method = [[RecordingInputContext alloc] init];
+        view->recordingContext = method;
+        [view resetText:@""];
+        [view setTerminal:YES];
+        [view setKeyReleases:YES];
+        [view setDisableIME:YES];
+        [view enableKeyCallbacks];
+        view->recordEdits = YES;
+        NSUInteger desktopEdits = view->editEvents;
+        rawEventCount = 0;
+        [view keyDown:keyEvent(@"z", 0)];
+        assert(rawEventCount == 1);
+        // The key's identity is the layout's own base character, which a
+        // synthetic event has no physical key to resolve here; what it types
+        // is the event's character.
+        assert(strcmp(rawEventTyped[0], "z") == 0);
+        assert(method->handles == 0);
+        assert(view->editEvents == desktopEdits);
+        assert(![view composing]);
+        // A named key keeps going to the application, and a composition that
+        // was in flight is impossible: nothing here would own a key.
+        rawEventCount = 0;
+        [view keyDown:keyEvent(@"\r", 0)];
+        assert(rawEventCount == 1 && rawEventKeys[0] == VIVA_KEY_ENTER);
+        assert(view->editEvents == desktopEdits);
+        // With the method back on, the same key reaches it again.
+        [view setDisableIME:NO];
+        rawEventCount = 0;
+        [view keyDown:keyEvent(@"z", 0)];
+        assert(method->handles > 0);
+        [view setKeyReleases:NO];
+        [view setTerminal:NO];
+        view->recordEdits = NO;
+        view->recordingContext = nil;
+        [method release];
+
+        // No composition session opens for such a surface, and one that does not
+        // ask for that still activates the input context.
+        {
+            RecordingInputContext *context = [[RecordingInputContext alloc] init];
+            view->recordingContext = context;
+            [view resetText:@""];
+            [view setEditing:NO];
+            viva_text_input_config remote = {0};
+            remote.enabled = 1;
+            remote.x = 40;
+            remote.y = 80;
+            remote.width = 260;
+            remote.height = 32;
+            remote.font_size = 16;
+            remote.alpha = 1;
+            remote.terminal = 1;
+            remote.key_releases = 1;
+            remote.disable_ime = 1;
+            // An application that mirrors a composition anyway must not make
+            // the host's method open one here.
+            remote.has_marked_text = 1;
+            assert([view updateTextInput:remote] == 0);
+            assert(context->activations == 0 && context->deactivations == 0);
+            assert(![view hasMarkedText]);
+            remote.disable_ime = 0;
+            remote.has_marked_text = 0;
+            assert([view updateTextInput:remote] == 0);
+            assert(context->activations == 1 && context->deactivations == 1);
+            assert([view updateTextInput:(viva_text_input_config){0}] == 0);
+            view->recordingContext = nil;
+            [context release];
+        }
 
         // A terminal's preedit is laid on the terminal's cells, as its grid is: a wide
         // character takes two, a combining mark none, and the caret, the hit test and the

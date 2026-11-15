@@ -99,6 +99,10 @@ typedef struct {
     int alt_sends_escape;
     // Presses and releases of every key, modifier keys included.
     int key_releases;
+    // The host's input method stays off the surface: no key is offered to it
+    // and no composition session is opened, so the keys that switch and feed
+    // a method belong to the machine on the other side of the surface.
+    int disable_ime;
     // Navigation keys (Up, Down, PageUp, PageDown) reach the application raw.
     int navigation_keys;
     // The field lays its rows out itself: the pointer places its caret, row

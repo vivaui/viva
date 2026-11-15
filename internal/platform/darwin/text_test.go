@@ -394,6 +394,27 @@ func TestNativeTextInputCarriesAltSendsEscape(t *testing.T) {
 	}
 }
 
+func TestNativeTextInputCarriesDisableIME(t *testing.T) {
+	native := makeNativeTextInput(TextInput{DisableIME: true}, nil)
+	if native.disable_ime == 0 {
+		t.Fatal("DisableIME was not passed to AppKit")
+	}
+}
+
+// A surface that keeps the input method off must not take a composition as
+// kept: its text state belongs to the machine it shows.
+func TestTextInputThatDisablesIMEKeepsNoComposition(t *testing.T) {
+	state := runState{textInputActive: true, textInput: TextInput{Target: gfx.Item(1), DisableIME: true}}
+	next := TextInput{Target: gfx.Item(1), DisableIME: false}
+	if state.textInputKeepsComposition(&next) {
+		t.Fatal("a surface that stopped disabling the input method kept a composition")
+	}
+	state.textInput.DisableIME = false
+	if !state.textInputKeepsComposition(&next) {
+		t.Fatal("an unchanged field no longer kept its composition")
+	}
+}
+
 // A focused field has no editing command for the function keys, so they must
 // reach the application as Windows and Linux deliver them; an input method that
 // converts on F6-F10 keeps them for as long as it composes.

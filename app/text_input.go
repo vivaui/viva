@@ -212,7 +212,8 @@ type TextInput struct {
 	// it composes with the input method over there. Text events still arrive
 	// if a method commits anyway, so a paste keeps working. Combine it with
 	// KeyReleases for a surface that shows another machine's desktop.
-	// Implemented on Windows.
+	// Implemented on macOS and Windows; the Linux backend does not consult it
+	// yet.
 	DisableIME bool
 	// NavigationKeys asks Up, Down, PageUp and PageDown to reach the
 	// application as raw gfx.KeyEvents while the field is focused, instead

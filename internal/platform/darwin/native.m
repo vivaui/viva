@@ -3851,6 +3851,10 @@ static void viva_encode_scene(
     CGFloat _textBaseline;  // the row of that cell its preedit stands on
     BOOL _textAltSendsEscape;
     BOOL _textKeyReleases;
+    // The surface runs the input method of the machine it shows, not this
+    // one's (platform.TextInput.DisableIME): keys never reach the host's text
+    // system and no composition session is opened.
+    BOOL _textDisableIME;
     BOOL _interpretingKey;
     BOOL _interpretedConsumed;
     BOOL _interpretedInsert;
@@ -4064,6 +4068,7 @@ static int viva_navigation_command(SEL selector) {
         _textBaseline = textInput.baseline;
         _textAltSendsEscape = textInput.alt_sends_escape != 0;
         _textKeyReleases = textInput.key_releases != 0;
+        _textDisableIME = textInput.disable_ime != 0;
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyWindowChanged:) name:NSWindowDidBecomeKeyNotification object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyWindowChanged:) name:NSWindowDidResignKeyNotification object:nil];
         _dynamicTextInput = dynamicTextInputEnabled;
@@ -4376,7 +4381,9 @@ static int viva_navigation_command(SEL selector) {
     [self emitPointerEvent:VIVA_POINTER_DOWN fromEvent:event];
     if (_textInputEnabled && !_textTerminal && [self eventIsInsideTextInput:event]) {
         [self.window makeFirstResponder:self];
-        [self.inputContext activate];
+        if (!_textDisableIME) {
+            [self.inputContext activate];
+        }
         if (_textPlaced) {
             // The application puts the caret where the press landed, by rows.
             _textSelectionDragging = NO;
@@ -4591,29 +4598,32 @@ static int viva_navigation_command(SEL selector) {
 	int shortcutKey = characters.length == 0 ? 0 : viva_terminal_key_code([characters characterAtIndex:0]);
     if (_textInputEnabled && !_hasMarkedText && !control && !command &&
         shortcutKey == 0 && characters.length > 0 && _keyEventsEnabled && _callbackHandle != 0) {
-        // Let the input method start a composition before considering a plain
-        // or Option shortcut. An unchanged direct insertion is held until the
-        // application declines the chord; a composition or converted commit
-        // goes straight to the text service and never becomes a shortcut.
         NSString *typed = event.characters;
-        _interpretingKey = YES;
-        _interpretedConsumed = NO;
-        _interpretedInsert = NO;
-        _interpretedPlain = typed;
-        // handleEvent also reports asynchronous ownership: an input method
-        // can take the first key before it publishes any marked text.
-        NSTextInputContext *context = self.inputContext;
-        BOOL interpreted = context != nil && [context handleEvent:event];
-        if (!interpreted) {
-            [self interpretKeyEvent:event];
-        }
-        _interpretingKey = NO;
-        _interpretedPlain = nil;
-        if (_interpretedConsumed || _hasMarkedText || (interpreted && !_interpretedInsert)) {
-            return;
+        NSRange replacement = NSMakeRange(NSNotFound, 0);
+        if (!_textDisableIME) {
+            // Let the input method start a composition before considering a plain
+            // or Option shortcut. An unchanged direct insertion is held until the
+            // application declines the chord; a composition or converted commit
+            // goes straight to the text service and never becomes a shortcut.
+            _interpretingKey = YES;
+            _interpretedConsumed = NO;
+            _interpretedInsert = NO;
+            _interpretedPlain = typed;
+            // handleEvent also reports asynchronous ownership: an input method
+            // can take the first key before it publishes any marked text.
+            NSTextInputContext *context = self.inputContext;
+            BOOL interpreted = context != nil && [context handleEvent:event];
+            if (!interpreted) {
+                [self interpretKeyEvent:event];
+            }
+            _interpretingKey = NO;
+            _interpretedPlain = nil;
+            if (_interpretedConsumed || _hasMarkedText || (interpreted && !_interpretedInsert)) {
+                return;
+            }
+            replacement = _interpretedReplacement;
         }
         NSData *base = [characters dataUsingEncoding:NSUTF8StringEncoding];
-        NSRange replacement = _interpretedReplacement;
         if (base.length > 0 && vivaShortcutEvent(_callbackHandle, self, 0,
                 viva_modifier_flags(event.modifierFlags), event.isARepeat ? 1 : 0, base.bytes, base.length)) {
             return;
@@ -4634,6 +4644,13 @@ static int viva_navigation_command(SEL selector) {
                 vivaKeyEvent(_callbackHandle, self, 0, viva_modifier_flags(event.modifierFlags),
                     event.isARepeat ? 1 : 0, base.bytes, base.length);
             }
+        } else if (_textDisableIME) {
+            // The host's input method never saw the key, so what the layout
+            // types is the key's text: an ordinary field takes it the way one
+            // on a platform whose raw keyboard delivers the character without
+            // a method in between.
+            [self emitTextKind:VIVA_TEXT_INSERT text:typed selectedRange:NSMakeRange(0, 0)
+                replacementRange:NSMakeRange(NSNotFound, 0) command:0];
         } else if (_interpretedInsert) {
             [self emitTextKind:VIVA_TEXT_INSERT text:typed selectedRange:NSMakeRange(0, 0)
                 replacementRange:replacement command:0];
@@ -4710,12 +4727,14 @@ static int viva_navigation_command(SEL selector) {
         }
         if (_textKeyReleases && !_hasMarkedText && characters.length > 0) {
             NSString *typed = event.characters;
-            _interpretingKey = YES;
             _interpretedConsumed = NO;
-            _interpretedPlain = typed;
-            [self interpretKeyEvent:event];
-            _interpretingKey = NO;
-            _interpretedPlain = nil;
+            if (!_textDisableIME) {
+                _interpretingKey = YES;
+                _interpretedPlain = typed;
+                [self interpretKeyEvent:event];
+                _interpretingKey = NO;
+                _interpretedPlain = nil;
+            }
             if (!_interpretedConsumed && !_hasMarkedText) {
                 NSData *base = [viva_key_base_characters(event) dataUsingEncoding:NSUTF8StringEncoding];
                 NSData *typedText = [typed dataUsingEncoding:NSUTF8StringEncoding];
@@ -4726,14 +4745,17 @@ static int viva_navigation_command(SEL selector) {
             }
             return;
         }
-        [self interpretKeyEvent:event];
+        if (!_textDisableIME) {
+            [self interpretKeyEvent:event];
+        }
         return;
     }
     int key = characters.length == 0 ? 0 : viva_key_code([characters characterAtIndex:0]);
     if (key == 0 && characters.length > 0) {
         key = viva_terminal_key_code([characters characterAtIndex:0]);
     }
-    if (!viva_text_input_row_key_is_raw(_textInputEnabled && _textPlaced, _hasMarkedText, key, command) &&
+    if (!_textDisableIME &&
+        !viva_text_input_row_key_is_raw(_textInputEnabled && _textPlaced, _hasMarkedText, key, command) &&
         !viva_text_input_navigation_key_is_raw(_textInputEnabled && _textNavigationKeys, _hasMarkedText, key) &&
         viva_text_input_should_interpret_key(_textInputEnabled, _textInputMultiline, _hasMarkedText, key)) {
         [self interpretKeyEvent:event];
@@ -5054,6 +5076,7 @@ static void viva_set_secure_event_input(BOOL on) {
     _hasMarkedText = NO;
     _textAltSendsEscape = NO;
     _textKeyReleases = NO;
+    _textDisableIME = NO;
 }
 
 - (void)detachCallbacks {
@@ -5533,6 +5556,7 @@ static void viva_set_secure_event_input(BOOL on) {
         _textBaseline = 0;
         _textAltSendsEscape = NO;
         _textKeyReleases = NO;
+        _textDisableIME = NO;
         [_text release];
         _text = [@"" retain];
         [_textColor release];
@@ -5571,7 +5595,12 @@ static void viva_set_secure_event_input(BOOL on) {
         NSMakeRange(textInput.marked_start, textInput.marked_length),
         _text.length
     );
-    _hasMarkedText = textInput.has_marked_text != 0;
+    _textAltSendsEscape = textInput.alt_sends_escape != 0;
+    _textKeyReleases = textInput.key_releases != 0;
+    _textDisableIME = textInput.disable_ime != 0;
+    // A surface that runs the other machine's input method has no composition
+    // of this one to mirror.
+    _hasMarkedText = textInput.has_marked_text != 0 && !_textDisableIME;
     _textInputMultiline = textInput.multiline != 0;
     _textPlaced = textInput.placed != 0;
     _textNavigationKeys = textInput.navigation_keys != 0;
@@ -5583,8 +5612,6 @@ static void viva_set_secure_event_input(BOOL on) {
     _textMonoFace = textInput.mono_face;
     _textCellWidth = textInput.cell_width;
     _textBaseline = textInput.baseline;
-    _textAltSendsEscape = textInput.alt_sends_escape != 0;
-    _textKeyReleases = textInput.key_releases != 0;
     _textInputEnabled = YES;
     [self syncSecureEventInput];
     _caretVisible = YES;
@@ -5594,13 +5621,19 @@ static void viva_set_secure_event_input(BOOL on) {
     if (keep) {
         // The input context stays active and composing; only where it points
         // changed.
-        [self.inputContext invalidateCharacterCoordinates];
+        if (!_textDisableIME) {
+            [self.inputContext invalidateCharacterCoordinates];
+        }
         [self restartCaretBlink];
         return 0;
     }
     [self.window makeFirstResponder:self];
-    [self.inputContext activate];
-    [self.inputContext invalidateCharacterCoordinates];
+    if (!_textDisableIME) {
+        // A surface that runs the other machine's input method opens no
+        // session here: the method would compose the keys that belong there.
+        [self.inputContext activate];
+        [self.inputContext invalidateCharacterCoordinates];
+    }
     [self restartCaretBlink];
     return 0;
 }
