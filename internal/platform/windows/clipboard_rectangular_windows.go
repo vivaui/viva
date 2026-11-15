@@ -76,7 +76,11 @@ func ClipboardTextWithFormat() (string, bool, error) {
 }
 
 func borlandClipboardMarker(handle uintptr) (bool, error) {
-	if size, _, _ := globalSize.Call(handle); size != 1 {
+	size, _, err := globalSize.Call(handle)
+	if size == 0 {
+		return false, windowsCallError("size Borland clipboard marker", err)
+	}
+	if size != 1 {
 		return false, nil
 	}
 	memory, _, err := globalLock.Call(handle)
