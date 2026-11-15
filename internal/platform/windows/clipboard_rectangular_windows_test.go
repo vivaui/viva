@@ -8,8 +8,10 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	inputpkg "github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/text"
 )
 
 func columnClipboardWindow(t *testing.T) *windowState {
@@ -19,7 +21,7 @@ func columnClipboardWindow(t *testing.T) *windowState {
 	}
 	runtime.LockOSThread()
 	t.Cleanup(runtime.UnlockOSThread)
-	state := &windowState{window: staticWindow(t), ready: true, textEnabled: true}
+	state := &windowState{window: staticWindow(t), ready: true, textEnabled: true, application: &windowsApplication{windows: 1}}
 	previous := active.Load()
 	active.Store(state)
 	t.Cleanup(func() { active.Store(previous) })
@@ -174,5 +176,82 @@ func TestColumnClipboardNativeKeyboardRoutesTheSameSnapshot(t *testing.T) {
 				t.Fatalf("native paste metadata/text diverged: %+v", events[0])
 			}
 		})
+	}
+}
+
+func TestColumnClipboardNativeCallbackCannotUseAnObsoleteTarget(t *testing.T) {
+	for _, mode := range []string{"geometry", "replacement", "metadata", "destroyed"} {
+		for _, action := range []byte{'c', 'x'} {
+			t.Run(mode+"/"+string(action), func(t *testing.T) {
+				state := columnClipboardWindow(t)
+				if mode == "destroyed" {
+					window := state.window
+					windowStates.Store(window, state)
+					t.Cleanup(func() { windowStates.Delete(window) })
+				}
+				state.config.DynamicTextInput = true
+				incoming := text.NewEditor("abc")
+				incoming.SetSelection(text.Range{Start: 1, End: 2})
+				oldEvents, newEvents := 0, 0
+				stop := errors.New("stop after live Cut delivery")
+				state.textState = platform.TextState{Value: "outgoing"}
+				state.textInput = platform.TextInput{Target: gfx.Item(1), Width: 120, Height: 24, FontSize: 13,
+					Placed: true, CaretHeight: 1, State: state.textState, CopyOverride: true, CopyRectangular: true,
+					OnEvent: func(platform.TextEvent) (platform.TextState, error) {
+						oldEvents++
+						return state.textState, stop
+					}}
+				state.textInput.CopyText = func() string {
+					if mode == "destroyed" {
+						windowProc(state.window, wmDestroy, 0, 0)
+						return "rows\r\n"
+					}
+					next := state.textInput
+					switch mode {
+					case "geometry":
+						next.X++
+					case "metadata":
+						next.CopyRectangular = false
+					case "replacement":
+						next.Target, next.State = gfx.Item(2), platform.EditorState(incoming)
+						next.CopyOverride, next.CopyRectangular, next.CopyText = false, false, nil
+						next.OnEvent = func(event platform.TextEvent) (platform.TextState, error) {
+							newEvents++
+							event.Apply(incoming)
+							return platform.EditorState(incoming), stop
+						}
+					}
+					if _, _, err := state.applyTextInputUpdateWithCancel(platform.TextInputUpdate{Changed: true, Input: &next}, func() {
+						t.Fatal("non-composing clipboard fixture unexpectedly canceled IME")
+					}); err != nil {
+						t.Fatal(err)
+					}
+					return "rows\r\n"
+				}
+				if err := SetClipboardText("sentinel"); err != nil {
+					t.Fatal(err)
+				}
+				if !state.textKey(uintptr(action-'a'+'A'), 0, inputpkg.ModifierControl) {
+					t.Fatal("clipboard key was not consumed")
+				}
+				if incoming.String() != "abc" || incoming.Selection() != (text.Range{Start: 1, End: 2}) || newEvents != 0 {
+					t.Fatalf("clipboard callback entered new owner: text=%q selection=%+v events=%d", incoming.String(), incoming.Selection(), newEvents)
+				}
+				want, wantEvents := "sentinel", 0
+				var wantError error
+				if mode == "geometry" {
+					want = "rows\r\n"
+					if action == 'x' {
+						wantEvents, wantError = 1, stop
+					}
+				}
+				if got, err := ClipboardText(); err != nil || got != want || oldEvents != wantEvents || state.err != wantError {
+					t.Fatalf("stale clipboard action: text=%q err=%v oldEvents=%d stateErr=%v; want %q/%d/%v", got, err, oldEvents, state.err, want, wantEvents, wantError)
+				}
+				if mode == "destroyed" && (state.window != 0 || state.textEnabled || state.application.windows != 0) {
+					t.Fatal("closed clipboard callback retained live native input")
+				}
+			})
+		}
 	}
 }
