@@ -157,6 +157,11 @@ type Config struct {
 	// text input and input methods behave as before. Handled and Repaint apply
 	// as for OnKey.
 	OnModifierTap func(event gfx.ModifierTapEvent) gfx.EventResult
+	// OnFocusLost is called when the window loses the keyboard to another window
+	// or application, after the keys that were down are released. It is how an
+	// application saves or hides what only makes sense while it has the user's
+	// attention. Its Repaint asks for a new frame. Native windows only.
+	OnFocusLost func() gfx.EventResult
 	// OnScroll receives normalized pixel deltas and the hovered hit target.
 	// Handled suppresses the window's default canvas scroll offset.
 	OnScroll func(event gfx.ScrollEvent) gfx.EventResult
