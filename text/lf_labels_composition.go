@@ -41,8 +41,13 @@ func ensureLFLabelHistoryOwned(state *lfLabelState) {
 
 func compositionLFLabelEdits(state *lfLabelState, previous *rune) []lfLabelEdit {
 	composition := &state.composition
-	if !composition.recorded {
+	// A save point can split a live composition into another undo unit. A nil
+	// previous is how appendHistory says it starts a new one: a save point,
+	// Paste, or BreakUndoGroup followed by an insertion all arrive here that
+	// way, so the unit's original labels are captured afresh.
+	if !composition.recorded || previous == nil {
 		composition.prefix = composition.history[previous].edits
+		composition.unitOriginal = nil
 		if len(state.pending) != 0 {
 			composition.unitOriginal = state.pending[0].removed
 		} else if composition.currentLF != 0 {

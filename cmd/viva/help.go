@@ -28,8 +28,8 @@ func commands() []command {
 				"viva.toml when there is one; the package argument overrides [app] package (or [web] package for\n" +
 				"--target web, which also writes the loader and an index.html). macOS builds are compiled for\n" +
 				"[mac] min_system, not for the macOS of the machine building them, and reach Cocoa through cgo;\n" +
-				"Linux and Windows builds use no cgo, so their programs do not depend on the C library of the\n" +
-				"machine that built them and a package built on a newer distribution still starts on an older one.\n" +
+				"Linux and Windows builds disable cgo by default. Use --cgo for application-owned native libraries;\n" +
+				"provide the target C compiler and link flags, and check the resulting system dependencies.\n" +
 				"Windows release builds use the GUI subsystem; with --debug they keep the console.",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runBuild(arguments, output, errorOutput)

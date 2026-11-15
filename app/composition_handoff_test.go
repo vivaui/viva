@@ -123,6 +123,40 @@ func TestPainterTentativeHandoffRetainsInstalledOwner(t *testing.T) {
 	}
 }
 
+// A cached provider can hand back a different Editor than the one the
+// platform was told about, before the next sync. A native text event arrives
+// on the window thread in that window: it belongs to the installed owner, not
+// to whatever the last published TextInput now names.
+func TestPainterAppliesTextEventsToTheInstalledOwner(t *testing.T) {
+	installed := text.NewEditor("abc")
+	other := text.NewEditor("other")
+	cached := &TextInput{Editor: installed, Bounds: gfx.Rect{Width: 120, Height: 24}, FontSize: 13}
+	var canvas gfx.Canvas
+	config := Config{Title: "installed owner", Width: 200, Height: 80}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(11), gfx.Rect{Width: 120, Height: 24}, "First", gfx.HitOptions{Role: gfx.RoleTextField, Autofocus: true})
+	}
+	config.TextInput = func(TextInputContext) *TextInput { return cached }
+	owner := newTestPainter(t, &canvas, config)
+	owner.syncTextInput()
+	if owner.activeEditor != installed || owner.activeText == nil || owner.activeText.Editor != installed {
+		t.Fatal("the painter did not install the cached editor")
+	}
+	// The provider swaps its cached Editor between paints; the platform still
+	// talks to the installed one.
+	cached.Editor = other
+	owner.activeText.Editor = other
+	if _, err := owner.applyTextEvent(platform.TextEvent{Kind: platform.TextInsert, Text: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := installed.String(); got != "abcx" {
+		t.Fatalf("installed owner = %q, want the event applied to it", got)
+	}
+	if got := other.String(); got != "other" {
+		t.Fatalf("the swapped-in editor = %q, want it untouched", got)
+	}
+}
+
 func TestPainterCachedCustomHandoffPreservesProviderOwnership(t *testing.T) {
 	first, second := text.NewEditor("first"), text.NewEditor("second")
 	for _, editor := range []*text.Editor{first, second} {

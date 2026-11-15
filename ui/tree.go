@@ -176,13 +176,24 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, content func(i
 // RowID is the identity of visible row i as the last paint named it, by Key when
 // one is set: the target to give the focus (Canvas.RequestFocus), to look up in a
 // pointer event or to find among the hits. It is the zero ID before the tree has
-// been declared.
-func (s *TreeState) RowID(i int) gfx.ID { return s.rows.At(s.key(i)) }
+// been declared, and for a row the tree has not declared.
+func (s *TreeState) RowID(i int) gfx.ID {
+	if i < 0 || i >= s.list.n {
+		return gfx.ID{}
+	}
+	return s.rows.At(s.key(i))
+}
 
 // DisclosureID is the identity of the chevron of branch row i, which opens and
-// closes it: the zero ID before the tree has been declared. A row that is not a
-// branch has no chevron, and no hit is declared at this ID.
-func (s *TreeState) DisclosureID(i int) gfx.ID { return s.chevrons.At(s.key(i)) }
+// closes it: the zero ID before the tree has been declared, and for a row the
+// tree has not declared. A row that is not a branch has no chevron, and no hit is
+// declared at this ID.
+func (s *TreeState) DisclosureID(i int) gfx.ID {
+	if i < 0 || i >= s.list.n {
+		return gfx.ID{}
+	}
+	return s.chevrons.At(s.key(i))
+}
 
 func (s *TreeState) rowHeight(theme *Theme) float32 {
 	if s.RowHeight > 0 {
@@ -203,13 +214,6 @@ func (s *TreeState) indent(theme *Theme) float32 {
 		return s.Indent
 	}
 	return 16 * theme.Metrics.ControlHeight / 32
-}
-
-func (s *TreeState) key(i int) int {
-	if s.Key != nil {
-		return s.Key(i)
-	}
-	return i
 }
 
 // row declares row i: the row element, painted by components.Tree, holding what
