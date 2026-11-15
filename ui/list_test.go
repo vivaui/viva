@@ -1,6 +1,7 @@
 package ui_test
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -388,11 +389,22 @@ func TestListKeysAreItemNumbers(t *testing.T) {
 		}
 	}
 
+	if id := state.RowID(-1); !id.IsZero() {
+		t.Errorf("RowID(-1) = %v, want no row", id)
+	}
+	if id := state.RowID(len(names)); !id.IsZero() {
+		t.Errorf("RowID(len) = %v, want no row", id)
+	}
 	for _, first := range []int{math.MaxInt32 + 1, -len(names)} {
 		func() {
 			defer func() {
-				if recover() == nil {
+				recovered := recover()
+				if recovered == nil {
 					t.Errorf("rows keyed from %d did not panic", first)
+					return
+				}
+				if message := fmt.Sprint(recovered); !strings.Contains(message, "outside 0 to 2^31-1") {
+					t.Errorf("rows keyed from %d panicked with %q, want the key range named", first, message)
 				}
 			}()
 			state := ui.ListState{Key: func(i int) int { return first + i }}
