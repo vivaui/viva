@@ -36,7 +36,8 @@ else
 fi
 export IBUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
 export IBUS_ADDRESS_FILE=$task_dir/ibus-address
-fcitx5 -D --disable=notificationitem,notifications,classicui,xim > "$task_dir/fcitx.log" 2>&1 &
+# This fixture uses GTK/IBus over D-Bus, not Weston's privileged IM binding.
+fcitx5 -D --disable=notificationitem,notifications,classicui,xim,waylandim > "$task_dir/fcitx.log" 2>&1 &
 daemon_pid=$!
 attempt=0
 while ! gdbus call --timeout 1 --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.NameHasOwner org.freedesktop.IBus | grep -q true; do

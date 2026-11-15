@@ -15,14 +15,18 @@ import (
 )
 
 func TestFcitxFixtureWaitsForTheExportedInputContextInterface(t *testing.T) {
-	runFcitxFixture(t, false)
+	runFcitxFixture(t, false, false)
 }
 
 func TestFcitxFixtureCancellationKillsOwnedProcesses(t *testing.T) {
-	runFcitxFixture(t, true)
+	runFcitxFixture(t, true, false)
 }
 
-func runFcitxFixture(t *testing.T, block bool) {
+func TestFcitxFixtureIsolatesPrivilegedCompositorBindings(t *testing.T) {
+	runFcitxFixture(t, false, true)
+}
+
+func runFcitxFixture(t *testing.T, block, isolate bool) {
 	t.Helper()
 	if _, err := os.Stat("/usr/bin/python3"); err != nil {
 		t.Skip("fixture requires Python")
@@ -41,7 +45,20 @@ func runFcitxFixture(t *testing.T, block bool) {
 		t.Fatal(err)
 	}
 	script := write("native-fcitx-daemon.sh", string(daemon))
-	write("fcitx5", "#!/bin/sh\nif [ \"$1\" = --version ]; then echo fixture; else echo $$ >\"$VIVA_FIXTURE_DAEMON_PID\"; exec sleep 30; fi\n")
+	write("fcitx5", `#!/bin/sh
+if [ "$1" = --version ]; then
+    echo fixture
+else
+    if [ "$VIVA_FIXTURE_REQUIRE_ISOLATION" = true ]; then
+        case "$*" in
+            *--disable=*waylandim*) ;;
+            *) echo 'privileged compositor binding was not isolated' >&2; exit 42 ;;
+        esac
+    fi
+    echo $$ >"$VIVA_FIXTURE_DAEMON_PID"
+    exec sleep 30
+fi
+`)
 	write("dconf", "#!/bin/sh\nexit 0\n")
 	write("reference-client.py", "import sys\nprint('{}' if '--keycodes' in sys.argv else 'activation fixture')\n")
 	write("gdbus", `#!/bin/sh
@@ -88,6 +105,7 @@ fi
 		}
 	})
 	command.Env = append(os.Environ(), "PATH="+directory+string(os.PathListSeparator)+os.Getenv("PATH"), "XDG_RUNTIME_DIR="+filepath.Join(directory, "runtime"), "DBUS_SESSION_BUS_ADDRESS=fixture", "VIVA_FCITX_BACKEND=x11", "VIVA_FCITX_REFERENCE=0", "VIVA_FCITX_GTK_REFERENCE=0", "VIVA_FCITX_TEST_BINARY="+client, "VIVA_FIXTURE_EXPORTED="+filepath.Join(directory, "exported"), "VIVA_FIXTURE_READY="+filepath.Join(directory, "ready"), "VIVA_FIXTURE_DAEMON_PID="+filepath.Join(directory, "daemon.pid"), "VIVA_FIXTURE_CLIENT_PID="+filepath.Join(directory, "client.pid"), "VIVA_FIXTURE_BLOCK="+strconv.FormatBool(block))
+	command.Env = append(command.Env, "VIVA_FIXTURE_REQUIRE_ISOLATION="+strconv.FormatBool(isolate))
 	output, err := command.CombinedOutput()
 	if !block && err != nil {
 		t.Fatalf("fixture did not wait for the context interface: %v\n%s", err, output)
