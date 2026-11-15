@@ -111,6 +111,19 @@ func (state *windowState) initializeText() error {
 	return state.updateTextVisuals()
 }
 
+// endIMEComposition settles the live native composition the way an IME end
+// does: the flags go first, then exactly one Unmark, or a Cancel when the
+// composition was tentative. A later native end finds nothing to settle.
+func (state *windowState) endIMEComposition() {
+	state.imeComposing = false
+	state.imeHasTarget = false
+	event := platform.TextEvent{Kind: platform.TextUnmark}
+	if state.textState.TentativeComposition {
+		event.CompositionPhase = text.CompositionCancel
+	}
+	state.handleTextEvent(event)
+}
+
 func (state *windowState) closeText() {
 	state.imeEpoch++
 	state.textRevision++

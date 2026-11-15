@@ -634,13 +634,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			state.imeEpoch++
 		}
 		if state.textEnabled && state.imeComposing {
-			state.imeComposing = false
-			state.imeHasTarget = false
-			event := platform.TextEvent{Kind: platform.TextUnmark}
-			if state.textState.TentativeComposition {
-				event.CompositionPhase = text.CompositionCancel
-			}
-			state.handleTextEvent(event)
+			state.endIMEComposition()
 			return 0
 		}
 	case wmDeadChar:
@@ -867,6 +861,14 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 		state.captionPress.end()
 		if kind == wmKillFocus {
+			// Windows does not promise WM_IME_ENDCOMPOSITION once another
+			// window takes the keyboard, and the phase emission and WM_CHAR
+			// gate depend on the composition flags: settle it here as that
+			// message would, so a later native end is a no-op.
+			if state.textEnabled && state.imeComposing {
+				state.imeEpoch++
+				state.endIMEComposition()
+			}
 			state.focused = false
 			state.syncShortcutHook()
 			state.textDragging = false
