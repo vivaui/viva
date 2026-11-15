@@ -45,6 +45,25 @@ while ! gdbus call --timeout 1 --session --dest org.freedesktop.DBus --object-pa
     [ "$attempt" -lt 100 ]
     sleep 0.02
 done
+# The bus name can be owned before Fcitx exports its IBus object.
+attempt=0
+while ! gdbus introspect --session --dest org.freedesktop.IBus --object-path /org/freedesktop/IBus --xml 2>/dev/null | /usr/bin/python3 -c '
+import sys
+import xml.etree.ElementTree as ET
+try:
+    root = ET.parse(sys.stdin).getroot()
+except ET.ParseError:
+    sys.exit(1)
+ready = any(interface.get("name") == "org.freedesktop.IBus" and
+            any(method.get("name") == "CreateInputContext" for method in interface.findall("method"))
+            for interface in root.findall("interface"))
+sys.exit(0 if ready else 1)
+'; do
+    kill -0 "$daemon_pid"
+    attempt=$((attempt + 1))
+    [ "$attempt" -lt 100 ]
+    sleep 0.02
+done
 fcitx5 --version
 VIVA_IBUS_KEYCODES=$(/usr/bin/python3 "$fixture_dir/reference-client.py" --keycodes)
 export VIVA_IBUS_KEYCODES
