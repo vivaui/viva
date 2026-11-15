@@ -16,7 +16,7 @@ import (
 func TestMainMenuCarriesTheSystemShortcutsAndLeavesCommandW(t *testing.T) {
 	executable := filepath.Join(t.TempDir(), "main-menu")
 	command := exec.Command("xcrun", "clang", "-fno-objc-arc", "-Werror",
-		"-Wno-deprecated-declarations", "testdata/main_menu.m", "main_menu_darwin.m",
+		"-Wno-deprecated-declarations", "testdata/main_menu.m", "main_menu_darwin.m", "menu_bar_darwin.m",
 		"-o", executable, "-framework", "Cocoa")
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("compile native main menu test: %v\n%s", err, output)

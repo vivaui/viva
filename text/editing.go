@@ -114,6 +114,28 @@ func WordRange(value string, index int) Range {
 	return Range{Start: start, End: end}
 }
 
+// LineRange returns the logical line around a pointer position, including its
+// trailing newline when it has one. It is the selection a triple click takes.
+func LineRange(value string, index int) Range {
+	runes := []rune(value)
+	if len(runes) == 0 {
+		return Range{}
+	}
+	index = max(0, min(index, len(runes)-1))
+	start := index
+	for start > 0 && runes[start-1] != '\n' {
+		start--
+	}
+	end := index
+	for end < len(runes) && runes[end] != '\n' {
+		end++
+	}
+	if end < len(runes) {
+		end++ // the newline belongs to the line it ends
+	}
+	return Range{Start: start, End: end}
+}
+
 // DeleteWord removes a selection or a word as one undo unit. Undo restores the
 // original caret, rather than an artificial selection used to delete the word.
 func (editor *Editor) DeleteWord(forward bool) {

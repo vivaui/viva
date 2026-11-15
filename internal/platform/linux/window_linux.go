@@ -183,6 +183,12 @@ type linuxApplication struct {
 	// from there.
 	liveMu sync.Mutex
 	live   []*window
+
+	// posts are the functions other goroutines handed to Post; the loop drains
+	// them when commandPost arrives. postWake coalesces the messages.
+	postMu   sync.Mutex
+	posts    []func()
+	postWake atomic.Bool
 }
 
 // Commands another goroutine posts to a window's event loop through
@@ -196,6 +202,7 @@ const (
 	commandEnterFullscreen
 	commandExitFullscreen
 	commandSetSize
+	commandPost
 )
 
 type nativeWindow struct {

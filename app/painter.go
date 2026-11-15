@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"time"
+	"unicode"
 	"unicode/utf8"
 	"unsafe"
 
@@ -41,10 +42,14 @@ type painter struct {
 	activeText  *TextInput
 	onTextEvent platform.TextHandler
 	// placing is a press on a text field that lays its rows out itself being held
-	// (see placeCaret), from the rune index placeAnchor.
-	placing     bool
-	placeAnchor int
-	nativeText  platform.TextInput
+	// (see placeCaret), from the rune index placeAnchor. placeUnit is the click
+	// unit a multi-click press took (2 a word, 3 a line) and placeUnitRange the
+	// selection it covered, which a drag then extends by the same unit.
+	placing        bool
+	placeAnchor    int
+	placeUnit      int
+	placeUnitRange text.Range
+	nativeText     platform.TextInput
 	// keys follows the keys of a terminal that asked for releases (see
 	// TextInput.KeyReleases).
 	keys            interaction.Keys
@@ -419,10 +424,35 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 	}
 	value := input.State.Value
 	index := utf8.RuneCountInString(value[:max(0, min(offset, len(value)))])
-	if event.Kind == platform.PointerDown {
-		painter.placing, painter.placeAnchor = true, index
-	}
 	selection := TextEvent{Kind: TextSetSelection, Selection: TextRange{Start: painter.placeAnchor, End: index}}
+	switch event.Kind {
+	case platform.PointerDown:
+		painter.placing, painter.placeAnchor = true, index
+		painter.placeUnit, painter.placeUnitRange = 0, text.Range{}
+		switch {
+		case event.ClickCount >= 3:
+			painter.placeUnit, painter.placeUnitRange = 3, text.LineRange(value, index)
+		case event.ClickCount == 2:
+			painter.placeUnit, painter.placeUnitRange = 2, text.WordRange(value, index)
+		}
+		if painter.placeUnit == 2 && rangeIsSpace(value, painter.placeUnitRange) {
+			// A double click on whitespace has no word to take: leave the caret
+			// where the press landed instead of selecting the newlines that the
+			// next keystroke would use to join two lines.
+			painter.placeUnit = 0
+		}
+		if painter.placeUnit != 0 {
+			painter.placeAnchor = painter.placeUnitRange.Start
+			selection.Selection = TextRange{Start: painter.placeUnitRange.Start, End: painter.placeUnitRange.End}
+		}
+	default:
+		if painter.placeUnit != 0 {
+			selection.Selection = placeUnitSelection(value, index, painter.placeUnit, painter.placeUnitRange)
+		}
+		if event.Kind == platform.PointerUp {
+			painter.placeUnit, painter.placeUnitRange = 0, text.Range{}
+		}
+	}
 	if input.Editor != nil {
 		selection.Apply(input.Editor)
 		input.State = TextStateOf(input.Editor)
@@ -436,6 +466,35 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 		return false
 	}
 	input.State = next
+	return true
+}
+
+// placeUnitSelection extends the unit a multi-click press took to the unit
+// under the dragging pointer, keeping the pressed unit whole.
+func placeUnitSelection(value string, index, unit int, anchor text.Range) TextRange {
+	target := text.WordRange(value, index)
+	if unit == 3 {
+		target = text.LineRange(value, index)
+	}
+	switch {
+	case index >= anchor.Start && index <= anchor.End:
+		return TextRange{Start: anchor.Start, End: anchor.End}
+	case index > anchor.End:
+		return TextRange{Start: anchor.Start, End: target.End}
+	default:
+		return TextRange{Start: target.Start, End: anchor.End}
+	}
+}
+
+// rangeIsSpace reports whether a range of value holds only whitespace.
+func rangeIsSpace(value string, r text.Range) bool {
+	runes := []rune(value)
+	start, end := max(0, min(r.Start, len(runes))), max(0, min(r.End, len(runes)))
+	for _, r := range runes[start:end] {
+		if !unicode.IsSpace(r) {
+			return false
+		}
+	}
 	return true
 }
 

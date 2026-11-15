@@ -178,6 +178,11 @@ type windowsApplication struct {
 	// again.
 	taskbar      uintptr
 	taskbarTried bool
+	// posts are the functions other goroutines handed to Post; they are drained
+	// on the event-loop thread. postWake coalesces the messages that wake it.
+	postMu   sync.Mutex
+	posts    []func()
+	postWake atomic.Bool
 }
 
 type nativeWindow struct {
@@ -264,6 +269,10 @@ func RunApplication(start platform.ApplicationStart) error {
 		}
 		if event.Window == 0 && event.Kind == wmQuitApplication {
 			application.closeAll()
+			continue
+		}
+		if event.Window == 0 && event.Kind == wmPost {
+			application.drainPosts()
 			continue
 		}
 		// A handled printable shortcut must never reach TranslateMessage:

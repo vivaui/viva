@@ -226,6 +226,10 @@ type Application interface {
 	// Quit closes every window, bypassing close requests, and ends the loop.
 	// It is thread-safe.
 	Quit()
+	// Post runs fn on the application's event-loop thread. It is thread-safe,
+	// runs accepted functions in the order they were posted, and never blocks.
+	// A function posted after the loop has ended may not run.
+	Post(fn func())
 }
 
 // Secret store errors, shared by the three adapters. An adapter returns these (or
