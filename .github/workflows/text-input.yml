@@ -48,6 +48,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Windows IME event dispatch cost
+        if: runner.os == 'Windows'
+        run: go test ./internal/platform/windows -run '^$' -bench '^BenchmarkComposition(TextEventAcknowledgment|MessageDispatch)$' -benchmem -benchtime=200ms -count=5 -timeout=90s
       - name: Application input lifecycle
         run: go test ./app -count=1
       - name: GTK native probe dependencies
@@ -105,7 +108,10 @@ jobs:
         run: go test -tags vivagtk ./internal/platform/linux -run '^TestLinuxTextCallback' -count=1 -timeout=90s
       - name: Windows IME lifecycle
         if: runner.os == 'Windows'
-        run: go test ./internal/platform/windows -run 'TestComposition|TestDynamicTextInput' -count=1
+        run: |
+          go test ./internal/platform/windows -list 'TestComposition|TestDynamicTextInput'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go test ./internal/platform/windows -run 'TestComposition|TestDynamicTextInput' -count=1 -v -timeout=90s
       - name: Windows aligned text input
         if: runner.os == 'Windows'
         run: go test ./internal/platform/windows -run '^TestWindowsTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer$' -count=1
