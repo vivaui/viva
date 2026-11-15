@@ -121,6 +121,7 @@ type windowState struct {
 	textRuns                               []gfx.TextRun
 	captionPress                           captionPress
 	imeComposing                           bool
+	imeCancelling                          bool
 	// imeDisabled says the window's input-method context is disassociated, and
 	// imeContext holds the context to give back when it returns. A surface that
 	// shows another machine's desktop asks for it (platform.TextInput.DisableIME):
@@ -460,6 +461,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			result = 0
 		}
 	}()
+	if state.imeCancelling && (kind == wmIMEStart || kind == wmIMEComposition || kind == wmIMEEnd) {
+		return 0
+	}
 	switch kind {
 	case wmAlwaysOnTop:
 		if state.setAlwaysOnTop(first != 0) {

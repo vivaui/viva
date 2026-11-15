@@ -660,6 +660,11 @@ func (state *windowState) cancelCompositionWith(cancelNative func()) {
 	state.imeHasTarget = false
 	state.textState.Composing = false
 	state.textState.Composition = text.Range{}
+	// A cancelling context may synchronously emit preedit/end for its retired
+	// owner. Ordinary characters and newer input updates still belong to the app.
+	previous := state.imeCancelling
+	state.imeCancelling = true
+	defer func() { state.imeCancelling = previous }()
 	cancelNative()
 }
 
@@ -792,7 +797,7 @@ func (state *windowState) handleCompositionData(context, flags uintptr, read com
 }
 
 func (state *windowState) applyIMEComposition(message imeCompositionMessage) {
-	if !state.textEnabled || state.err != nil {
+	if !state.textEnabled || state.err != nil || state.imeCancelling {
 		return
 	}
 	state.imeEpoch++
