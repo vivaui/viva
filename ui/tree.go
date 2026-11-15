@@ -209,15 +209,6 @@ func (s *TreeState) indent(theme *Theme) float32 {
 	return 16 * theme.Metrics.ControlHeight / 32
 }
 
-// disclosureSlot is the column a branch spends before its content, in step with the
-// component that draws the arrow.
-func (s *TreeState) disclosureSlot() float32 {
-	if s.Disclosure != nil && s.Disclosure.Slot > 0 {
-		return s.Disclosure.Slot
-	}
-	return 24
-}
-
 // row declares row i: the row element, painted by components.Tree, holding what
 // the caller declares after the chevron.
 func (s *TreeState) row(i int, rowBox Box) {
@@ -243,7 +234,11 @@ func (s *TreeState) row(i int, rowBox Box) {
 	theme := &f.theme
 	left := float32(item.Depth) * s.indent(theme)
 	if node.Branch {
-		left += s.disclosureSlot()
+		slot := float32(24)
+		if s.Disclosure != nil && s.Disclosure.Slot > 0 {
+			slot = s.Disclosure.Slot
+		}
+		left += slot
 	}
 	rowBox.Children(func() {
 		b := Row(c).Height(s.heightOf(node, theme)).Shrink(0).PadRight(8).PadLeft(left).Gap(theme.Metrics.GapItem).Items(Center).Draw(s.paint)

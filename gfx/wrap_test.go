@@ -341,6 +341,112 @@ func TestFitLineRemembersCutLinesAndNeverMixesThemUp(t *testing.T) {
 	}
 }
 
+func TestFitLineMiddleKeepsBothEndsAndCutsOnlyTheMiddle(t *testing.T) {
+	canvas := wrapper()
+	if got := canvas.FitLineMiddle("abcde", 10, 0, 50); got != "abcde" {
+		t.Errorf("line that fits = %q", got)
+	}
+	// Width 185 holds 18 characters: the two ends share them evenly, and the
+	// end, which tells rows apart, takes the odd character when there is one.
+	if got := canvas.FitLineMiddle("abcdefghijklmnopqrst", 10, 0, 185); got != "abcdefgh…lmnopqrst" {
+		t.Errorf("middle cut = %q, want abcdefgh…lmnopqrst", got)
+	}
+	if got := canvas.FitLineMiddle("abc", 10, 0, 0); got != "" {
+		t.Errorf("line with no room = %q", got)
+	}
+	if got := canvas.FitLineMiddle("abcdefghijklmnopqrst", 10, 0, 5); got != "…" {
+		t.Errorf("line with room for the ellipsis alone = %q", got)
+	}
+}
+
+// A middle cut is a prefix and a suffix of the line it shortens, cut between
+// characters rather than inside one, and it fits the width it was given. It is
+// checked over every width because the cut is a search, not a formula.
+func TestFitLineMiddleCutsWholeCharactersAndFitsEveryWidth(t *testing.T) {
+	canvas := wrapper()
+	lines := []string{
+		"src/internal/workbench/release-candidate-alpha-tarball.tar.gz",
+		"工程/内部/工作台/发布候选/版本说明文档.md",
+		"notes/👩‍💻-team/👨‍👩‍👧‍👦-photos/flag-🇯🇵-trip.txt",
+		"a/b/c",
+	}
+	for _, line := range lines {
+		for width := float32(0); width <= 700; width += 3.5 {
+			got := canvas.FitLineMiddle(line, 10, 0, width)
+			if width <= 0 {
+				if got != "" {
+					t.Fatalf("FitLineMiddle(%q, %v) = %q, want nothing", line, width, got)
+				}
+				continue
+			}
+			if got == line {
+				if canvas.TextWidthWeight(line, 10, 0) > width {
+					t.Fatalf("FitLineMiddle(%q, %v) left a line that does not fit", line, width)
+				}
+				continue
+			}
+			if got != "…" && canvas.TextWidthWeight(got, 10, 0) > width {
+				t.Fatalf("FitLineMiddle(%q, %v) = %q, which is wider than the room", line, width, got)
+			}
+			if strings.Count(got, "…") != 1 {
+				t.Fatalf("FitLineMiddle(%q, %v) = %q, want one ellipsis", line, width, got)
+			}
+			before, after, _ := strings.Cut(got, "…")
+			if !strings.HasPrefix(line, before) || !strings.HasSuffix(line, after) {
+				t.Fatalf("FitLineMiddle(%q, %v) = %q, which is not made of the line's two ends", line, width, got)
+			}
+			if len(before) > 0 && !clusterBoundary(line, len(before)) {
+				t.Fatalf("FitLineMiddle(%q, %v) = %q, whose start cuts a character", line, width, got)
+			}
+			if len(after) > 0 && !clusterBoundary(line, len(line)-len(after)) {
+				t.Fatalf("FitLineMiddle(%q, %v) = %q, whose end cuts a character", line, width, got)
+			}
+			if width >= 100 && got != "…" && (before == "" || after == "") {
+				t.Fatalf("FitLineMiddle(%q, %v) = %q, which keeps only one end although %v px are free", line, width, got, width)
+			}
+		}
+	}
+}
+
+func TestFitLineMiddleRemembersItsCutAndKeepsItApartFromAnEndCut(t *testing.T) {
+	canvas := wrapper()
+	line := strings.Repeat("a long group name ", 10)
+	canvas.FitLineMiddle(line, 14, WeightRegular, 248)
+	if allocations := testing.AllocsPerRun(100, func() { _ = canvas.FitLineMiddle(line, 14, WeightRegular, 248) }); allocations != 0 {
+		t.Errorf("a remembered middle cut allocated %v times", allocations)
+	}
+	// The same line cut at its end and cut in its middle are different answers
+	// at the same width and font; neither may be served for the other.
+	if got, want := canvas.FitLine(line, 14, WeightRegular, 248), canvas.ellipsize(line, lineFont{size: 14, weight: WeightRegular}, 248); got != want {
+		t.Fatalf("an end cut after a middle cut = %q, want %q", got, want)
+	}
+	if got, want := canvas.FitLineMiddle(line, 14, WeightRegular, 248), canvas.ellipsizeMiddle(line, lineFont{size: 14, weight: WeightRegular}, 248); got != want {
+		t.Fatalf("a middle cut after an end cut = %q, want %q", got, want)
+	}
+}
+
+// BenchmarkFitLineMiddleCut measures the first cut of a path long enough to be
+// shortened, which is what a list row pays when the text under it changes.
+func BenchmarkFitLineMiddleCut(b *testing.B) {
+	line := "src/internal/workbench/release-candidate-alpha-tarball.tar.gz"
+	for range b.N {
+		canvas := wrapper()
+		_ = canvas.FitLineMiddle(line, 10, 0, 240)
+	}
+}
+
+// BenchmarkFitLineMiddleRemembered measures the paint after the first: the
+// memo answers, so the row costs a lookup.
+func BenchmarkFitLineMiddleRemembered(b *testing.B) {
+	canvas := wrapper()
+	line := "src/internal/workbench/release-candidate-alpha-tarball.tar.gz"
+	canvas.FitLineMiddle(line, 10, 0, 240)
+	b.ResetTimer()
+	for range b.N {
+		_ = canvas.FitLineMiddle(line, 10, 0, 240)
+	}
+}
+
 func TestFitLineReusesOneLabelAtDifferentControlWidths(t *testing.T) {
 	canvas := wrapper()
 	label := strings.Repeat("a long group name ", 10)

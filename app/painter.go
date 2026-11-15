@@ -39,11 +39,14 @@ type painter struct {
 	onResize    func(gfx.Size)
 	// scale is the display's device pixels per logical pixel, zero when the platform
 	// does not report it (see platform.Size): the canvas then keeps the scale it was given.
-	scale       float32
-	textInput   TextInputProvider
-	activeText  *TextInput
-	onTextEvent platform.TextHandler
-	textEpoch   uint64
+	scale      float32
+	textInput  TextInputProvider
+	activeText *TextInput
+	// activeEditor remembers the installed owner independently of a provider's
+	// reusable TextInput, which the application may mutate between frames.
+	activeEditor *text.Editor
+	onTextEvent  platform.TextHandler
+	textEpoch    uint64
 	// placing is a press on a text field that lays its rows out itself being held
 	// (see placeCaret), from the rune index placeAnchor. placeUnit is the click
 	// unit a multi-click press took (2 a word, 3 a line) and placeUnitRange the
@@ -1245,14 +1248,10 @@ func (painter *painter) focusedTextField() (TextInputContext, gfx.TextPlacement,
 
 func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	if painter.textInput == nil {
-		painter.noteKeyboardTarget(gfx.ID{}, false)
-		return platform.TextInputUpdate{}
+		return painter.disableTextInput()
 	}
 	context, placement, hitIndex := painter.focusedTextField()
-	var previousEditor *text.Editor
-	if painter.activeText != nil {
-		previousEditor = painter.activeText.Editor
-	}
+	previousEditor := painter.activeEditor
 	var input *TextInput
 	if !context.ID.IsZero() && !context.ReadOnly {
 		input = painter.textInput(context)
@@ -1264,42 +1263,17 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	if input != nil {
 		nextEditor = input.Editor
 	}
-	// A different target ends the composition it started, even when the
-	// application reuses the same editor: the native input's owner changed
-	// under the preedit. Settle it here in the shared layer so every platform
-	// follows the same policy and the adapters stay thin. A document keeps
-	// what the user sees as committed text; a terminal preedit surface
-	// discards it, because that preedit was never delivered to the
-	// application.
 	handoff := previousEditor != nil && painter.textEnabled &&
 		(previousEditor != nextEditor || painter.nativeText.Target != context.ID)
-	if handoff && previousEditor.TentativeCompositionActive() {
-		phase := text.CompositionCommit
-		if painter.nativeText.Terminal {
-			phase = text.CompositionCancel
-		}
-		previousEditor.ApplyComposition(text.CompositionEvent{Phase: phase})
-		if phase == text.CompositionCommit && painter.nativeText.Secure {
-			// Committed text left the tentative boundary, so the secure
-			// invariant applies exactly as it does to an ordinary accepted edit.
-			previousEditor.ClearHistory()
-		}
+	if handoff {
+		painter.settleTextInput()
 	}
 	if input != nil && input.Editor != nil {
 		input.State = TextStateOf(input.Editor)
 	}
-	if handoff {
-		previousEditor.BreakUndoGroup()
-	}
 	painter.noteKeyboardTarget(context.ID, input != nil && context.Terminal && input.KeyReleases)
 	if input == nil {
-		painter.activeText = nil
-		if !painter.textEnabled {
-			return platform.TextInputUpdate{}
-		}
-		painter.textEpoch++
-		painter.textEnabled = false
-		return platform.TextInputUpdate{Changed: true}
+		return painter.disableTextInput()
 	}
 	// What the application leaves unset comes from the component's declaration.
 	bounds, fontSize, weight, tint := input.Bounds, input.FontSize, input.Weight, input.Color
@@ -1332,13 +1306,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	}
 	if bounds.Width <= 0 || bounds.Height <= 0 ||
 		roundPixel(bounds.Width) <= 0 || roundPixel(bounds.Height) <= 0 {
-		painter.activeText = nil
-		if !painter.textEnabled {
-			return platform.TextInputUpdate{}
-		}
-		painter.textEpoch++
-		painter.textEnabled = false
-		return platform.TextInputUpdate{Changed: true}
+		return painter.disableTextInput()
 	}
 	var cellWidth, baseline float32
 	if context.Terminal || context.TypeAhead {
@@ -1380,6 +1348,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		}
 	}
 	painter.activeText = input
+	painter.activeEditor = nextEditor
 	if !painter.textEnabled || previousEditor != nextEditor || painter.nativeText.Target != native.Target ||
 		painter.nativeText.Multiline != native.Multiline || painter.nativeText.Secure != native.Secure ||
 		painter.nativeText.Terminal != native.Terminal || painter.nativeText.Placed != native.Placed ||
@@ -1392,6 +1361,40 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	painter.nativeText = native
 	painter.textEnabled = true
 	return platform.TextInputUpdate{Changed: true, Input: &painter.nativeText}
+}
+
+// settleTextInput ends the installed owner's composition before a handoff or
+// disable. Documents keep the visible text; terminal preedit was never sent
+// to the application and is discarded. State/OnEvent providers own settlement.
+func (painter *painter) settleTextInput() {
+	editor := painter.activeEditor
+	painter.activeEditor = nil
+	if editor == nil || !painter.textEnabled {
+		return
+	}
+	if editor.TentativeCompositionActive() {
+		phase := text.CompositionCommit
+		if painter.nativeText.Terminal {
+			phase = text.CompositionCancel
+		}
+		editor.ApplyComposition(text.CompositionEvent{Phase: phase})
+		if phase == text.CompositionCommit && painter.nativeText.Secure {
+			editor.ClearHistory()
+		}
+	}
+	editor.BreakUndoGroup()
+}
+
+func (painter *painter) disableTextInput() platform.TextInputUpdate {
+	painter.settleTextInput()
+	painter.noteKeyboardTarget(gfx.ID{}, false)
+	painter.activeText = nil
+	if !painter.textEnabled {
+		return platform.TextInputUpdate{}
+	}
+	painter.textEpoch++
+	painter.textEnabled = false
+	return platform.TextInputUpdate{Changed: true}
 }
 
 func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextState, error) {

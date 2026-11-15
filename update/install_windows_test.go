@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -235,10 +236,11 @@ func TestPayloadHelperScriptKeepsABackupAndRestores(t *testing.T) {
 		`$payload = 'C:\Temp\O''Brien\payload'`,
 		`$dir = 'C:\Apps\Motty'`,
 		`$exe = 'C:\Apps\Motty\motty.exe'`,
-		"$backup = Join-Path $env:TEMP",
+		"$backup = Join-Path $dir",
 		"function Restore",
 		"$created = New-Object System.Collections.ArrayList",
 		"Get-Process -Id $parent",
+		"Move-Item -LiteralPath $dest -Destination $bak -Force",
 		"Copy-Item -LiteralPath $_.FullName -Destination $dest -Force",
 		"Start-Process -FilePath $exe -PassThru",
 		"$p.HasExited -and $p.ExitCode -ne 0",
@@ -350,6 +352,61 @@ func TestPayloadHelperReplacesTheApplication(t *testing.T) {
 	if data, err := os.ReadFile(filepath.Join(install, "old.dll")); err != nil || string(data) != "old" {
 		t.Errorf("old.dll = %q, %v", data, err)
 	}
+}
+
+func TestPayloadHelperReplacesARunningExecutable(t *testing.T) {
+	payload := t.TempDir()
+	install := t.TempDir()
+	testExecutable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyWindowsFile(t, testExecutable, filepath.Join(install, "app.exe"))
+	copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, "app.exe"))
+
+	ready := filepath.Join(t.TempDir(), "running")
+	command := exec.Command(filepath.Join(install, "app.exe"), "-test.run=^TestPayloadHelperRunningProcess$")
+	command.Env = append(os.Environ(), "VIVA_UPDATE_RUNNING_MARKER="+ready)
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = command.Process.Kill()
+		_, _ = command.Process.Wait()
+	})
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		if _, err := os.Stat(ready); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the old application did not start")
+		}
+	}
+
+	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), nil)
+	runPayloadHelper(t, script, 0)
+	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile(systemExecutable(t, "whoami.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Error("the running app.exe was not replaced")
+	}
+}
+
+func TestPayloadHelperRunningProcess(t *testing.T) {
+	marker := os.Getenv("VIVA_UPDATE_RUNNING_MARKER")
+	if marker == "" {
+		return
+	}
+	if err := os.WriteFile(marker, []byte("running"), 0o600); err != nil {
+		os.Exit(2)
+	}
+	time.Sleep(time.Minute)
 }
 
 func TestPayloadHelperRollsBackAFailedStart(t *testing.T) {
