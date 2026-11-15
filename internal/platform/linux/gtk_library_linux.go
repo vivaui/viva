@@ -25,10 +25,13 @@ type gtkLibrary struct {
 	signalConnect         func(instance uintptr, signal *byte, handler, data, destroy uintptr, flags int32) uint64
 	signalDisc            func(instance uintptr, id uint64)
 	idleAdd               func(function, data uintptr) uint32
+	idleAddFull           func(priority int32, function, data, destroy uintptr) uint32
+	sourceFind            func(context uintptr, id uint32) uintptr
 	timeoutAdd            func(interval uint32, function, data uintptr) uint32
 	sourceRemove          func(id uint32) int32
 	gFree                 func(pointer uintptr)
 	objectUnref           func(object uintptr)
+	objectRef             func(object uintptr) uintptr
 	setPrgname            func(name *byte)
 	typeName              func(gtype uintptr) uintptr
 	slistFree             func(list uintptr)
@@ -296,10 +299,13 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.signalConnect, "g_signal_connect_data")
 	b(&g.signalDisc, "g_signal_handler_disconnect")
 	b(&g.idleAdd, "g_idle_add")
+	b(&g.idleAddFull, "g_idle_add_full")
+	b(&g.sourceFind, "g_main_context_find_source_by_id")
 	b(&g.timeoutAdd, "g_timeout_add")
 	b(&g.sourceRemove, "g_source_remove")
 	b(&g.gFree, "g_free")
 	b(&g.objectUnref, "g_object_unref")
+	b(&g.objectRef, "g_object_ref")
 	b(&g.setPrgname, "g_set_prgname")
 	b(&g.typeName, "g_type_name")
 	b(&g.slistFree, "g_slist_free")

@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
 )
@@ -17,9 +18,10 @@ import (
 // and commits the choice as it does on the other platforms. The input method owns the candidate
 // window; this side says when the field has the keyboard and where its caret is.
 type gtkIME struct {
-	w   *gtkWindow
-	g   *gtkLibrary
-	ctx uintptr
+	w      *gtkWindow
+	g      *gtkLibrary
+	ctx    uintptr
+	target gfx.ID
 	// focused is whether the window has the keyboard; active is whether the context was told the
 	// field does.
 	focused bool
@@ -37,33 +39,51 @@ type gtkIME struct {
 }
 
 func newGTKIME(w *gtkWindow) *gtkIME {
-	g := w.g
-	ime := &gtkIME{w: w, g: g, ctx: g.imMulticontextNew()}
+	ime := &gtkIME{w: w, g: w.g, target: w.text.input.Target}
+	ime.open()
+	return ime
+}
+
+func (ime *gtkIME) open() {
+	g, w := ime.g, ime.w
+	ime.ctx = g.imMulticontextNew()
 	cb := callbacks()
 	g.connect(ime.ctx, "commit", cb.commit, w.id)
 	g.connect(ime.ctx, "preedit-changed", cb.preedit, w.id)
 	g.connect(ime.ctx, "retrieve-surrounding", cb.surrounding, w.id)
 	g.connect(ime.ctx, "delete-surrounding", cb.deleteSurrounding, w.id)
-	return ime
 }
 
 // realized gives the context its window, which exists once the toplevel is realized.
 func (ime *gtkIME) realized() {
 	if window := ime.g.widgetGetWindow(ime.w.toplevel); window != 0 {
-		ime.g.imSetClientWindow(ime.ctx, window)
+		ime.callContext(ime.ctx, func(context uintptr) { ime.g.imSetClientWindow(context, window) })
 	}
 }
 
 func (ime *gtkIME) close() {
-	if ime.ctx == 0 {
+	context := ime.ctx
+	if context == 0 {
 		return
 	}
-	if ime.active {
-		ime.g.imFocusOut(ime.ctx)
+	active := ime.active
+	ime.ctx, ime.active, ime.engineComposing = 0, false, false
+	ime.haveCursor, ime.hasSources, ime.sent = false, false, false
+	ime.shortcutKey = nil
+	if active {
+		ime.callContext(context, ime.g.imFocusOut)
 	}
-	ime.g.imSetClientWindow(ime.ctx, 0)
-	ime.g.objectUnref(ime.ctx)
-	ime.ctx, ime.active = 0, false
+	ime.callContext(context, func(context uintptr) { ime.g.imSetClientWindow(context, 0) })
+	ime.w.app.retireIME(context)
+}
+
+func (ime *gtkIME) callContext(context uintptr, call func(uintptr)) {
+	if context == 0 {
+		return
+	}
+	ime.g.objectRef(context)
+	defer ime.g.objectUnref(context)
+	call(context)
 }
 
 // setFocused records whether the window has the keyboard.
@@ -78,7 +98,14 @@ func (ime *gtkIME) filtering() bool { return ime.ctx != 0 && ime.active }
 // filter gives a key event to the context and reports whether it took it. Whatever it composes
 // arrives later as a commit or a preedit change.
 func (ime *gtkIME) filter(event uintptr) bool {
-	return ime.g.imFilterKeypress(ime.ctx, event) != 0
+	context := ime.ctx
+	if context == 0 || ime.w.closed {
+		return false
+	}
+	// A signal may replace the target while the native filter still uses it.
+	ime.g.objectRef(context)
+	defer ime.g.objectUnref(context)
+	return ime.g.imFilterKeypress(context, event) != 0
 }
 
 func (ime *gtkIME) filterShortcut(event uintptr, key platform.KeyEvent, directText string) bool {
@@ -94,25 +121,40 @@ func (ime *gtkIME) filterShortcut(event uintptr, key platform.KeyEvent, directTe
 // sync brings the context's idea of focus and caret in line with the field. It runs after every
 // frame, which is when the field changes, and does nothing when nothing has.
 func (ime *gtkIME) sync() {
-	if ime.ctx == 0 {
+	if ime.ctx == 0 || ime.w.closed {
 		return
 	}
 	text := ime.w.text
+	if text.input.Target != ime.target {
+		ime.close()
+		if ime.w.closed {
+			return
+		}
+		ime.target = text.input.Target
+		ime.open()
+	}
+	context := ime.ctx
 	want := ime.focused && text.enabled && !ime.w.nativeKeys
 	switch {
 	case want && !ime.active:
 		ime.realized()
+		if ime.ctx != context || ime.w.closed {
+			return
+		}
 		ime.active, ime.haveCursor, ime.hasSources, ime.sent = true, false, false, false
-		ime.g.imFocusIn(ime.ctx)
+		ime.callContext(context, ime.g.imFocusIn)
 	case !want && ime.active:
 		ime.active = false
 		if ime.engineComposing {
 			ime.engineComposing = false
-			ime.g.imReset(ime.ctx)
+			ime.callContext(context, ime.g.imReset)
 		}
-		ime.g.imFocusOut(ime.ctx)
+		if ime.ctx != context || ime.w.closed || ime.focused && text.enabled && !ime.w.nativeKeys {
+			return
+		}
+		ime.callContext(context, ime.g.imFocusOut)
 	}
-	if !ime.active {
+	if !ime.active || ime.ctx != context || ime.w.closed {
 		return
 	}
 	// The field stopped composing without the context (a click moved the caret, the application
@@ -120,7 +162,10 @@ func (ime *gtkIME) sync() {
 	// longer sees.
 	if ime.engineComposing && !text.state.Composing {
 		ime.engineComposing = false
-		ime.g.imReset(ime.ctx)
+		ime.callContext(context, ime.g.imReset)
+		if ime.ctx != context || ime.w.closed {
+			return
+		}
 	}
 	ime.updateCursor()
 	ime.updateSurrounding()
@@ -137,7 +182,7 @@ func (ime *gtkIME) updateCursor() {
 		return
 	}
 	ime.cursor, ime.haveCursor = location, true
-	ime.g.imSetCursorRect(ime.ctx, &location)
+	ime.callContext(ime.ctx, func(context uintptr) { ime.g.imSetCursorRect(context, &location) })
 }
 
 // caretRectangle is the caret in window coordinates: the line the field draws, or for a terminal,
@@ -182,8 +227,10 @@ func (ime *gtkIME) retrieveSurrounding() uintptr {
 	cursor := min(max(window.Cursor, 0), len(runes))
 	bytesBefore := len(string(runes[:cursor]))
 	data := cString(window.Text)
-	ime.g.imSetSurrounding(ime.ctx, &data[0], int32(len(data)-1), int32(bytesBefore))
 	ime.sent = true
+	ime.callContext(ime.ctx, func(context uintptr) {
+		ime.g.imSetSurrounding(context, &data[0], int32(len(data)-1), int32(bytesBefore))
+	})
 	return 1
 }
 
@@ -201,10 +248,22 @@ func (ime *gtkIME) deleteSurrounding(offset, count int) uintptr {
 }
 
 func (ime *gtkIME) commit(value string) {
+	context, revision := ime.ctx, ime.w.text.stateRevision
 	if key := ime.shortcutKey; key != nil && !ime.engineComposing && !ime.w.text.state.Composing && value == key.Typed {
+		frameRevision := ime.w.text.inputRevision
 		frame, handled, err := ime.w.config.OnShortcut(*key)
-		ime.w.present(frame, err)
-		if handled || err != nil {
+		if err != nil {
+			ime.w.present(platform.Frame{}, err)
+			return
+		}
+		if ime.ctx != context || ime.w.closed || ime.w.text.stateRevision != revision {
+			return
+		}
+		// A geometry-only update invalidates the returned frame, not this key.
+		if ime.w.text.inputRevision == frameRevision {
+			ime.w.present(frame, nil)
+		}
+		if handled || ime.ctx != context || ime.w.closed || ime.w.text.stateRevision != revision {
 			return
 		}
 	}
@@ -214,9 +273,16 @@ func (ime *gtkIME) commit(value string) {
 
 // preeditChanged shows the text being composed as marked text, or removes it.
 func (ime *gtkIME) preeditChanged() {
+	context := ime.ctx
+	if context == 0 || ime.w.closed {
+		return
+	}
+	ime.g.objectRef(context)
+	defer ime.g.objectUnref(context)
+	revision := ime.w.text.stateRevision
 	var str, attrs uintptr
 	var cursor int32
-	ime.g.imGetPreedit(ime.ctx, &str, &attrs, &cursor)
+	ime.g.imGetPreedit(context, &str, &attrs, &cursor)
 	value := goString(str)
 	if str != 0 {
 		ime.g.gFree(str)
@@ -231,10 +297,16 @@ func (ime *gtkIME) preeditChanged() {
 		}
 		ime.g.attrListUnref(attrs)
 	}
+	if ime.ctx != context || ime.w.closed || ime.w.text.stateRevision != revision {
+		return
+	}
 	if value == "" {
 		ime.engineComposing = false
 		if ime.w.text.state.Composing {
 			ime.apply(platform.TextEvent{Kind: platform.TextSetMarked})
+			if ime.ctx != context || ime.w.closed || ime.w.text.stateRevision != revision+1 {
+				return
+			}
 			ime.apply(platform.TextEvent{Kind: platform.TextUnmark})
 		}
 		return

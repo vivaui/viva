@@ -18,7 +18,44 @@ func TestGTKDestroyDetachesInputMethodBeforeNativeWidget(t *testing.T) {
 	w := &gtkWindow{app: a, g: g, toplevel: 17}
 	w.ime = &gtkIME{w: w, g: g, ctx: 23, active: true}
 	detached, destroyed := false, 0
-	g.objectUnref = func(uintptr) {}
+	references, retired := 1, false
+	g.objectRef = func(context uintptr) uintptr {
+		if context != 23 || references == 0 {
+			t.Fatal("native call referenced a released input context")
+		}
+		references++
+		return context
+	}
+	g.objectUnref = func(context uintptr) {
+		if context != 23 || references == 0 {
+			t.Fatal("input context released more than once")
+		}
+		references--
+	}
+	g.idleAddFull = func(priority int32, function, data, destroy uintptr) uint32 {
+		if priority != 200 || function != callbacks().retireIME || data != 23 || destroy != callbacks().releaseIME || !detached || destroyed != 0 || references != 1 || retired {
+			t.Error("input context retirement did not retain its final native reference")
+		}
+		retired = true
+		return 1
+	}
+	g.sourceFind = func(context uintptr, id uint32) uintptr {
+		if context != 0 || id != 1 {
+			t.Error("unexpected retired input context source")
+		}
+		if retired {
+			return 23
+		}
+		return 0
+	}
+	g.sourceRemove = func(id uint32) int32 {
+		if id != 1 || !retired {
+			t.Fatal("retired input context source removed more than once")
+		}
+		retired = false
+		g.objectUnref(23)
+		return 1
+	}
 	g.imFocusOut = func(context uintptr) {
 		if context != 23 || !w.destroying || w.ime != nil {
 			t.Error("native focus-out did not keep the context and destruction guard")
@@ -33,7 +70,7 @@ func TestGTKDestroyDetachesInputMethodBeforeNativeWidget(t *testing.T) {
 	}
 	g.widgetDestroy = func(window uintptr) {
 		destroyed++
-		if window != 17 || !detached || w.ime != nil {
+		if window != 17 || !detached || w.ime != nil || references != 1 || !retired {
 			t.Error("native widget destruction preceded input-method detachment")
 		}
 	}
@@ -41,6 +78,11 @@ func TestGTKDestroyDetachesInputMethodBeforeNativeWidget(t *testing.T) {
 	w.destroy()
 	if destroyed != 1 || !detached {
 		t.Fatalf("native destruction count=%d detached=%t", destroyed, detached)
+	}
+	a.releaseRetiredIME()
+	a.releaseRetiredIME()
+	if references != 0 || retired || len(a.retiredIMESources) != 0 {
+		t.Fatalf("shutdown retained context: references=%d retired=%t sources=%v", references, retired, a.retiredIMESources)
 	}
 }
 
