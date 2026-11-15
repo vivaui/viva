@@ -1127,6 +1127,13 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 			return state.Wheel(event)
 		}
 	}
+	// A TextArea under the pointer scrolls its own rows first; at its end the wheel goes on
+	// to the page, as in a browser.
+	for _, entry := range p.fields {
+		if entry.field.rows && entry.field.area != nil && entry.field.area.Wheel(event) {
+			return gfx.EventResult{Handled: true, Repaint: true}
+		}
+	}
 	if p.wheelRoute != nil {
 		if result, ok := p.wheelRoute(p, event); ok {
 			return result
