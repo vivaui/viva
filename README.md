@@ -278,6 +278,14 @@ Objective-C/Metal bridge and lets clang emit the other Mach-O slice. The
 [Build and package guide](https://vivaui.dev/en/docs/build-and-package/) covers
 every target, installer format and flag.
 
+Linux and Windows builds disable cgo by default. Applications that link their
+own C or Rust libraries can use `viva build --cgo` or `viva package --cgo` and
+provide the target C compiler and `CGO_CFLAGS`/`CGO_LDFLAGS`. Those packages must
+be checked against the system libraries and minimum operating system they
+support; the explicit option does not supply a cross compiler or make native
+dependencies portable. Browser builds reject `--cgo`; macOS keeps cgo enabled
+for its system bridge as before.
+
 The release link is measured, not assumed. `go-toml/v2` is used only by the
 `viva` command and `purego` only by the Linux backend, so neither is in a macOS
 or Windows program. The development reload protocol, single-instance sockets,
