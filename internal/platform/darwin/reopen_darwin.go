@@ -7,7 +7,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/vivaui/viva/internal/diag"
+	"github.com/vivaui/viva/internal/platform"
 )
 
 var applicationReopen struct {
@@ -30,12 +30,9 @@ func deliverApplicationReopen() (handled bool) {
 	}
 	defer func() {
 		if value := recover(); value != nil {
-			// The native handling still runs, but the application's bug is not hidden.
-			message := fmt.Sprint(value)
-			if diag.Enabled(diag.Error) {
-				diag.Report(diag.Error, "platform", "reopen-panic", "the reopen handler panicked",
-					diag.String("panic", message))
-			}
+			// The native handling still runs, but the application's bug is not hidden:
+			// it reaches the fault handler like a panic at any other native boundary.
+			platform.ReportFault("darwin: application reopen", value)
 			fmt.Fprintf(os.Stderr, "viva: reopen handler panicked: %v\n", value)
 			handled = false
 		}
