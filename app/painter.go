@@ -1392,15 +1392,23 @@ func (painter *painter) disableTextInput() platform.TextInputUpdate {
 func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextState, error) {
 	painter.tap.Cancel()
 	active := painter.activeText
-	if active == nil || active.Editor == nil && active.OnEvent == nil {
+	// The installed owner is the editor the platform has been told about, not
+	// whatever the last published TextInput names: a cached provider can hand
+	// back a different Editor before the next sync. Keep activeText for the
+	// provider's own state and CopyText.
+	editor := painter.activeEditor
+	if editor == nil && active != nil {
+		editor = active.Editor
+	}
+	if active == nil || editor == nil && active.OnEvent == nil {
 		return platform.TextState{}, fmt.Errorf("app: native text event without an active handler")
 	}
 	epoch := painter.textEpoch
 	appEvent := appTextEvent(event)
 	explicit := event.CompositionPhase != text.CompositionNone
 	if explicit {
-		if active.Editor != nil {
-			explicit = active.Editor.TentativeCompositionEnabled()
+		if editor != nil {
+			explicit = editor.TentativeCompositionEnabled()
 		} else {
 			explicit = active.State.TentativeComposition
 		}
@@ -1421,12 +1429,12 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 		return painter.nativeText.State, nil
 	}
 	var next TextState
-	if active.Editor != nil {
-		accepted := appEvent.apply(active.Editor)
-		if painter.nativeText.Secure && accepted && !active.Editor.TentativeCompositionActive() {
-			active.Editor.ClearHistory()
+	if editor != nil {
+		accepted := appEvent.apply(editor)
+		if painter.nativeText.Secure && accepted && !editor.TentativeCompositionActive() {
+			editor.ClearHistory()
 		}
-		next = TextStateOf(active.Editor)
+		next = TextStateOf(editor)
 	} else {
 		var err error
 		if next, err = active.OnEvent(appEvent); err != nil {
