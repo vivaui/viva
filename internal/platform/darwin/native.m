@@ -5987,7 +5987,11 @@ static void viva_set_secure_event_input(BOOL on) {
     }
     if (_hasMarkedText) {
         if (_tentativeComposition) {
+            uint64_t generation = _textInputGeneration;
             [self endOwnedNativeComposition];
+            if (_textInputGeneration != generation || !_textInputEnabled) {
+                return;
+            }
             range = viva_clamp_range(range, _text.length);
         } else {
             [self.inputContext discardMarkedText];

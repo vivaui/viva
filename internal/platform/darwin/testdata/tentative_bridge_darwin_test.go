@@ -358,6 +358,50 @@ func TestDarwinTentativeProbeSelectionCancelsBeforeCoordinates(t *testing.T) {
 	}
 }
 
+func TestDarwinTentativeProbeSelectionCannotFollowAReplacementOwner(t *testing.T) {
+	for _, name := range []string{"same target", "different target", "passive owner"} {
+		t.Run(name, func(t *testing.T) {
+			probe := newTentativeBridgeProbe(t, "abc", true)
+			tentativeBridgeMark(probe.view, "x", 1, 0, 0, 0, false)
+			nextEditor := text.NewEditor("replacement")
+			nextEditor.SetSelection(text.Range{Start: 1, End: 3})
+			if name != "passive owner" && !nextEditor.EnableTentativeComposition() {
+				t.Fatal("next owner refused tentative composition")
+			}
+			want := platform.EditorState(nextEditor)
+			var nextEvents []TextEvent
+			probe.state.textHandler = func(event TextEvent) (TextState, error) {
+				probe.events = append(probe.events, event)
+				event.Apply(probe.editor)
+				if event.CompositionPhase == text.CompositionCancel {
+					input := probe.state.textInput
+					if name == "different target" {
+						input.Target = gfx.IDFromBits(8)
+					}
+					input.State = want
+					input.OnEvent = func(event TextEvent) (TextState, error) {
+						nextEvents = append(nextEvents, event)
+						event.Apply(nextEditor)
+						return platform.EditorState(nextEditor), nil
+					}
+					if err := presentTextInput(probe.state, probe.view, TextInputUpdate{Changed: true, Input: &input}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return platform.EditorState(probe.editor), nil
+			}
+			probe.state.textInput.OnEvent = probe.state.textHandler
+			tentativeBridgeSelect(probe.view, 4, 0)
+			if len(nextEvents) != 0 || platform.EditorState(nextEditor) != want || probe.state.textState != want || probe.state.textInput.State != want || tentativeBridgeText(probe.view) != want.Value {
+				t.Fatalf("old selection reached replacement owner: events=%+v editor=%+v bridge=%+v native=%q", nextEvents, platform.EditorState(nextEditor), probe.state.textState, tentativeBridgeText(probe.view))
+			}
+			if probe.editor.String() != "abc" || probe.editor.CompositionActive() || probe.editor.CanUndo() || probe.state.err != nil {
+				t.Fatalf("old owner was not canceled: text=%q events=%+v error=%v", probe.editor.String(), probe.events, probe.state.err)
+			}
+		})
+	}
+}
+
 func TestDarwinTentativeProbeDetachIsSilent(t *testing.T) {
 	probe := newTentativeBridgeProbe(t, "abc", true)
 	tentativeBridgeMark(probe.view, "x", 1, 0, 0, 0, false)
