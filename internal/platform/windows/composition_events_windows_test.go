@@ -656,29 +656,6 @@ func BenchmarkCompositionMessageDispatch(b *testing.B) {
 	}
 }
 
-func BenchmarkCompositionTextEventAcknowledgment(b *testing.B) {
-	for _, enabled := range []bool{false, true} {
-		name := "legacy"
-		if enabled {
-			name = "tentative"
-		}
-		b.Run(name, func(b *testing.B) {
-			state := &windowState{textEnabled: true, textState: platform.TextState{TentativeComposition: enabled}}
-			state.textInput.Terminal = true
-			state.textInput.OnEvent = func(platform.TextEvent) (platform.TextState, error) {
-				return state.textState, nil
-			}
-			event := platform.TextEvent{Kind: platform.TextSetMarked, Text: "x"}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for b.Loop() {
-				state.handleTextEvent(event)
-			}
-			b.ReportMetric(float64(unsafe.Sizeof(windowState{})), "window-B")
-		})
-	}
-}
-
 func TestCompositionNativeCancelDoesNotReenableDestroyedWindow(t *testing.T) {
 	editor := text.NewEditor("a")
 	if !editor.EnableTentativeComposition() {
@@ -757,5 +734,66 @@ func TestCompositionDestroyedCallbacksDoNotReviveFrames(t *testing.T) {
 				t.Fatalf("closed callback resumed input/frame: enabled=%v text=%q events=%d views=%d err=%v", state.textEnabled, editor.String(), len(*events), len(state.web.rects), state.err)
 			}
 		})
+	}
+}
+
+func TestCompositionCancellationKeepsRetiredIMEOffTheReplacement(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		mode := "legacy"
+		if enabled {
+			mode = "tentative"
+		}
+		for _, message := range []string{"retired preedit", "ordinary character"} {
+			t.Run(mode+"/"+message, func(t *testing.T) {
+				outgoing, incoming := text.NewEditor("a"), text.NewEditor("abc")
+				if enabled && (!outgoing.EnableTentativeComposition() || !incoming.EnableTentativeComposition()) {
+					t.Fatal("could not enable fixture capability")
+				}
+				outgoing.MoveTo(1, false)
+				state, _ := compositionMessageWindow(t, outgoing)
+				state.applyIMEComposition(imeCompositionMessage{hasPreedit: true, preedit: "x"})
+				if enabled {
+					outgoing.ApplyComposition(text.CompositionEvent{Phase: text.CompositionCommit})
+				} else {
+					outgoing.Unmark()
+				}
+				incoming.SetSelection(text.Range{Start: 1, End: 2})
+				foreign := 0
+				state.textInput.OnEvent = func(event platform.TextEvent) (platform.TextState, error) {
+					foreign++
+					event.Apply(incoming)
+					return platform.EditorState(incoming), nil
+				}
+				next := state.textInput
+				next.Target, next.State = gfx.Item(2), platform.EditorState(incoming)
+				state.config.OnRedraw = func() (platform.Frame, error) {
+					live := next
+					live.State = platform.EditorState(incoming)
+					return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &live}}, nil
+				}
+				_, _, err := state.applyTextInputUpdateWithCancel(platform.TextInputUpdate{Changed: true, Input: &next}, func() {
+					if message == "ordinary character" {
+						windowProc(state.window, wmChar, 'q', 0)
+					} else {
+						state.applyIMEComposition(imeCompositionMessage{hasPreedit: true, preedit: ""})
+						windowProc(state.window, wmIMEEnd, 0, 0)
+					}
+				})
+				wantText, wantCalls := "abc", 0
+				if message == "ordinary character" {
+					wantText, wantCalls = "aqc", 1
+				}
+				if err != nil || state.err != nil || incoming.String() != wantText || foreign != wantCalls ||
+					!state.textEnabled || state.textInput.Target != next.Target || state.textState != platform.EditorState(incoming) {
+					t.Fatalf("cancellation crossed input ownership: message=%s text=%q calls=%d enabled=%v target=%v state=%+v err=%v/%v", message, incoming.String(), foreign, state.textEnabled, state.textInput.Target, state.textState, err, state.err)
+				}
+				if message == "retired preedit" {
+					state.applyIMEComposition(imeCompositionMessage{hasPreedit: true, preedit: "y"})
+					if state.err != nil || foreign != 1 || incoming.String() != "ayc" || !state.textState.Composing {
+						t.Fatalf("fresh owner could not compose: text=%q calls=%d state=%+v err=%v", incoming.String(), foreign, state.textState, state.err)
+					}
+				}
+			})
+		}
 	}
 }

@@ -112,6 +112,10 @@ func (state *windowState) initializeText() error {
 }
 
 func (state *windowState) closeText() {
+	state.imeEpoch++
+	state.textRevision++
+	state.textEnabled = false
+	state.imeComposing, state.imeHasTarget = false, false
 	state.stopCaretTimer()
 	state.textEngine = nil
 }
@@ -364,7 +368,7 @@ func (state *windowState) handleTextEvent(event platform.TextEvent) {
 		state.fail(err)
 		return
 	}
-	if !changed {
+	if !changed || state.window == 0 {
 		return
 	}
 	state.frameWithText(frame, nil, true)
@@ -378,7 +382,7 @@ func (state *windowState) textEventFrame(event platform.TextEvent) (platform.Fra
 	revision := state.textRevision
 	next, err := state.textInput.OnEvent(event)
 	if err == nil && state.textRevision != revision {
-		return platform.Frame{}, true, nil
+		return platform.Frame{}, state.window != 0, nil
 	}
 	if err == nil {
 		err = validateTextState(next)
@@ -415,7 +419,7 @@ func (state *windowState) textEventFrame(event platform.TextEvent) (platform.Fra
 		if err == nil && state.textRevision != revision {
 			// A nested no-op may have acknowledged state without submitting a
 			// frame. Refresh the latest native mirror, without replaying old input.
-			return platform.Frame{}, true, nil
+			return platform.Frame{}, state.window != 0, nil
 		}
 		return frame, true, err
 	}

@@ -50,7 +50,50 @@ jobs:
           cache: true
       - name: Windows IME event dispatch cost
         if: runner.os == 'Windows'
-        run: go test ./internal/platform/windows -run '^$' -bench '^BenchmarkComposition(TextEventAcknowledgment|MessageDispatch)$' -benchmem -benchtime=200ms -count=5 -timeout=90s
+        env:
+          IME_COST_BASE: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          GOWORK: 'off'
+        run: |
+          $reference = $env:IME_COST_BASE
+          if (-not $reference -or $reference -match '^0+$') { $reference = $env:GITHUB_SHA }
+          $workspace = $PWD.Path
+          $directory = Join-Path $env:RUNNER_TEMP ("viva-ime-cost-" + $env:GITHUB_RUN_ID + "-" + $env:GITHUB_RUN_ATTEMPT)
+          $benchmark = 'internal/platform/windows/composition_cost_windows_test.go'
+          if (Test-Path $directory) { throw 'cost worktree already exists' }
+          git fetch --no-tags --depth=1 origin $reference
+          if ($LASTEXITCODE -ne 0) { throw 'could not fetch cost baseline' }
+          git worktree add --detach $directory $reference
+          if ($LASTEXITCODE -ne 0) { throw 'could not create cost worktree' }
+          try {
+            Copy-Item $benchmark (Join-Path $directory $benchmark) -Force
+            $sourceHash = (Get-FileHash -Algorithm SHA256 $benchmark).Hash
+            $baseHash = (Get-FileHash -Algorithm SHA256 (Join-Path $directory $benchmark)).Hash
+            if ($sourceHash -ne $baseHash) { throw 'benchmark source changed' }
+            $benchmarkBlob = git rev-parse ("HEAD:" + $benchmark)
+            if ($LASTEXITCODE -ne 0) { throw 'benchmark blob is unavailable' }
+            Write-Output "IME cost benchmark sha256=$sourceHash"
+            Write-Output "IME cost benchmark blob=$benchmarkBlob"
+            Write-Output "IME cost OS=$([Environment]::OSVersion.VersionString) arch=$env:PROCESSOR_ARCHITECTURE cpu=$env:PROCESSOR_IDENTIFIER"
+            go version
+            for ($pair = 1; $pair -le 5; $pair++) {
+              Push-Location $directory
+              try {
+                Write-Output "IME cost variant=baseline pair=$pair commit=$(git rev-parse HEAD)"
+                go test ./internal/platform/windows -run '^$' -bench '^BenchmarkWindowsIME(Acknowledgment|StateAllocation)$' -benchmem -benchtime=200ms -count=1 -timeout=90s
+                if ($LASTEXITCODE -ne 0) { throw 'baseline cost benchmark failed' }
+              } finally { Pop-Location }
+              Write-Output "IME cost variant=candidate pair=$pair commit=$(git rev-parse HEAD)"
+              go test ./internal/platform/windows -run '^$' -bench '^BenchmarkWindowsIME(Acknowledgment|StateAllocation)$' -benchmem -benchtime=200ms -count=1 -timeout=90s
+              if ($LASTEXITCODE -ne 0) { throw 'candidate cost benchmark failed' }
+            }
+            Write-Output "IME cost variant=dispatch commit=$(git rev-parse HEAD)"
+            go test ./internal/platform/windows -run '^$' -bench '^BenchmarkCompositionMessageDispatch$' -benchmem -benchtime=200ms -count=5 -timeout=90s
+            if ($LASTEXITCODE -ne 0) { throw 'message dispatch benchmark failed' }
+          } finally {
+            git -C $workspace worktree remove --force $directory
+            if ($LASTEXITCODE -ne 0) { throw 'cost worktree cleanup failed' }
+            Write-Output 'IME cost worktree removed'
+          }
       - name: Application input lifecycle
         run: go test ./app -count=1
       - name: GTK native probe dependencies

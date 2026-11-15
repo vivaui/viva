@@ -121,19 +121,19 @@ type windowState struct {
 	textRuns                               []gfx.TextRun
 	captionPress                           captionPress
 	imeComposing                           bool
-	// imeEpoch invalidates an older message tail when callbacks replace the
-	// input or reenter native input delivery.
-	imeEpoch uint64
-	// textRevision advances for every installed acknowledgment or input owner;
-	// an End that merely stops an IMM message tail must not discard its Result.
-	textRevision uint64
 	// imeDisabled says the window's input-method context is disassociated, and
 	// imeContext holds the context to give back when it returns. A surface that
 	// shows another machine's desktop asks for it (platform.TextInput.DisableIME):
 	// the host's input method would otherwise take the keys that belong to the
 	// machine on the other side.
-	imeDisabled                  bool
-	imeContext                   uintptr
+	imeDisabled bool
+	imeContext  uintptr
+	// imeEpoch invalidates an older message tail when callbacks replace the
+	// input or reenter native input delivery.
+	imeEpoch uint64
+	// textRevision advances for every installed acknowledgment or input owner;
+	// an End that merely stops an IMM message tail must not discard its Result.
+	textRevision                 uint64
 	pendingHighSurrogate         uint16
 	accessibility                uiaTree
 	pendingKey                   pendingKey
@@ -973,6 +973,9 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 }
 
 func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error, nativeVisualChanged bool, cancelNative func()) error {
+	if err == nil && state.window == 0 {
+		return nil
+	}
 	views := frame.NativeViews
 	if err == nil {
 		state.applyBackdrop()
@@ -980,7 +983,9 @@ func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error
 		var dirty bool
 		frame, dirty, err = state.prepareFrameWithCancel(frame, nativeVisualChanged, cancelNative)
 		if err == errSupersededTextFrame {
-			state.framePresented()
+			if state.window != 0 {
+				state.framePresented()
+			}
 			return nil
 		}
 		defer func() {
@@ -1019,6 +1024,9 @@ func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error
 // message loop running with no window to show, and the single-instance claim held
 // by a process nobody can see.
 func (state *windowState) destroyed(window uintptr) {
+	// Native teardown can reenter the dispatcher; retire text callbacks first.
+	state.ready = false
+	state.closeText()
 	forgetClipboardListener(window)
 	released := false
 	release := func() {
@@ -1044,7 +1052,6 @@ func (state *windowState) destroyed(window uintptr) {
 	}
 	state.accessibility.close()
 	state.renderer.close()
-	state.closeText()
 	if state.config.Waker != nil && state.config.OnRedraw != nil {
 		state.config.Waker.Unbind()
 	}
