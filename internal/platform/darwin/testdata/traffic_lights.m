@@ -158,6 +158,13 @@ int main(void) {
         window.titlebarAppearsTransparent = NO;
         window.titlebarAppearsTransparent = YES;
         assertCenter(window, 18, "after the titlebar was restyled");
+        // A new title lays the titlebar out too, and AppKit moves the zoom
+        // button back without reporting it as a frame change.
+        [delegate setWindowTitle:@"project"];
+        assertCenter(window, 18, "after the title changed");
+        assertAligned(window, "after the title changed");
+        [delegate setWindowTitle:@"project - file"];
+        assertAligned(window, "after the title changed again");
         assert(fabs(NSWidth(scaledClose.frame) / NSWidth(scaledClose.bounds) - compactScale) < 0.01);
         [delegate setAlwaysOnTop:YES];
         assert(window.level == NSFloatingWindowLevel);

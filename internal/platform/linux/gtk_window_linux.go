@@ -284,6 +284,17 @@ func (w *gtkWindow) SetFullscreen(fullscreen bool) error {
 
 func (w *gtkWindow) Fullscreen() bool { return w.fullscreen.Load() }
 
+// SetTitle changes the toplevel's title on the GTK thread.
+func (w *gtkWindow) SetTitle(title string) error {
+	w.app.enqueue(func() {
+		if !w.closed {
+			value := cString(title)
+			w.g.windowSetTitle(w.toplevel, &value[0])
+		}
+	})
+	return nil
+}
+
 func (w *gtkWindow) SetAlwaysOnTop(enabled bool) error {
 	if w == nil || w.app == nil {
 		return fmt.Errorf("linux: window is closed")

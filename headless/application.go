@@ -179,6 +179,18 @@ func (window *headlessWindow) SetFullscreen(fullscreen bool) error {
 	return nil
 }
 
+// SetTitle records the title the windows command lists.
+func (window *headlessWindow) SetTitle(title string) error {
+	window.application.mu.Lock()
+	defer window.application.mu.Unlock()
+	entry := window.application.windows[window.id]
+	if entry == nil {
+		return fmt.Errorf("headless: window is closed")
+	}
+	entry.title = title
+	return nil
+}
+
 func (window *headlessWindow) Fullscreen() bool {
 	window.application.mu.Lock()
 	entry := window.application.windows[window.id]
