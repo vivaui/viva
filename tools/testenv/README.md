@@ -19,11 +19,11 @@ machine and record what was not automated.
 
 | | Linux |
 | --- | --- |
-| System | Debian 12 x86_64, KDE Plasma on X11 (a real StatusNotifier tray), Xvnc 1920x1080 |
-| Graphics | software Vulkan only (lavapipe), no GPU |
+| System | Debian 12 x86_64 desktop container, Xvnc 1920x1080, `DISPLAY=:1` |
+| Graphics | no Vulkan or discrete GPU: software rendering only (the CPU rasterizer; a software Vulkan build may be installed separately) |
 | API | `${VIVA_LINUX_ENV}` |
 | Watch the screen | a VNC view served beside the API, self-signed |
-| User | an ordinary desktop user with sudo |
+| User | an ordinary desktop user with sudo (`user`, password in `local.sh`) |
 
 ## HTTP API
 
