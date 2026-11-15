@@ -65,3 +65,76 @@ func TestContinueTraversalKeyPublishesOneConsistentFrame(t *testing.T) {
 		t.Fatalf("update = %+v, want a rebuild of all %d rectangles", frame.Update, count)
 	}
 }
+
+// The same single-frame rule when the page the overlay was covering is larger
+// than the overlay: a key that closes the popup and lets the page lay out in
+// full grows the rectangle list past the platform's base. A frame that
+// describes that growth only through an incremental update is one the backends
+// reject ("rectangle count grew outside a suffix update"). That is the class
+// Motty's Linux report of 2026-11-10 showed: one frame of an event was lost,
+// and a later paint failed on a count the platform never learned.
+func TestContinueTraversalKeyPublishesOneFrameWhenThePageGrows(t *testing.T) {
+	var canvas gfx.Canvas
+	popup, expanded := true, false
+
+	config := Config{Title: "traversal growth", Width: 640, Height: 480}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithLabel(gfx.Item(1), gfx.Rect{X: 10, Y: 10, Width: 320, Height: 30}, "Group")
+		if expanded {
+			// The page underneath lays itself out in full: far more rectangles
+			// than the short page and its two-row popup together.
+			for row := 0; row < 60; row++ {
+				bounds := gfx.Rect{X: 10, Y: float32(60 + row*16), Width: 320, Height: 15}
+				canvas.Fill(bounds, gfx.Color{Red: 0.95, Green: 0.95, Blue: 0.95, Alpha: 1})
+				canvas.HitWithLabel(gfx.Item(100+row), bounds, "Row")
+			}
+			// The focus ring the traversal moves onto the Group. It is appended
+			// after the rows, which is how a focus change paints on a page
+			// whose rows were already there.
+			if canvas.Focused() == gfx.Item(1) {
+				canvas.Fill(gfx.Rect{X: 10, Y: 10, Width: 320, Height: 30}, gfx.Color{Red: 0.5, Green: 0.5, Blue: 0.5, Alpha: 1})
+			}
+			return
+		}
+		if popup {
+			for row := 0; row < 2; row++ {
+				bounds := gfx.Rect{X: 10, Y: float32(50 + row*16), Width: 320, Height: 15}
+				canvas.Fill(bounds, gfx.Color{Red: 0.9, Green: 0.9, Blue: 0.9, Alpha: 1})
+				canvas.HitWithLabel(gfx.Item(10+row), bounds, "Candidate")
+			}
+		}
+	}
+	config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
+		if event.Key == gfx.KeyTab && popup {
+			popup, expanded = false, true
+			// What SingleSelectState and MultiSelectState return for Tab, and
+			// what a menu does: close, then keep traversing.
+			return gfx.EventResult{Handled: true, Repaint: true, ContinueTraversal: true}
+		}
+		return gfx.EventResult{}
+	}
+
+	painter := newTestPainter(t, &canvas, config)
+	base := len(painter.renderer.Rectangles())
+	frame, err := painter.key(platform.KeyEvent{Key: input.KeyTab})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := len(painter.renderer.Rectangles())
+	if count <= base {
+		t.Fatalf("the page did not grow: %d -> %d", base, count)
+	}
+	// The platform still holds base rectangles. What it accepts for a longer
+	// list is a rebuild, or a growth update that starts inside its base and
+	// runs to the new end; anything else it rejects with "rectangle count grew
+	// outside a suffix update".
+	if len(frame.Rectangles) != base {
+		update := frame.Update
+		if !update.Rebuild && (update.First > base || update.First+update.Count != len(frame.Rectangles)) {
+			t.Fatalf("a platform holding %d rectangles rejects frame %d with update %+v", base, len(frame.Rectangles), update)
+		}
+	}
+	if len(frame.Rectangles) != count {
+		t.Fatalf("frame carries %d rectangles, the store holds %d", len(frame.Rectangles), count)
+	}
+}
