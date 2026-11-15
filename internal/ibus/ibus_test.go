@@ -17,12 +17,13 @@ import (
 // fakeTransport is a daemon the test scripts: it records the calls the client
 // sends and hands back the messages the test queues.
 type fakeTransport struct {
-	serial    uint32
-	sent      []sentCall
-	incoming  []*dbus.Message
-	closed    bool
-	sendErr   error
-	engineErr error
+	serial     uint32
+	sent       []sentCall
+	incoming   []*dbus.Message
+	closed     bool
+	sendErr    error
+	engineErr  error
+	preeditErr error
 	// engineIncoming arrives while a synchronous engine selection reads its reply.
 	engineIncoming []*dbus.Message
 	// createPath is what CreateInputContext answers.
@@ -48,6 +49,8 @@ func (f *fakeTransport) Call(destination, path, iface, member, signature string,
 		f.incoming = append(f.incoming, f.engineIncoming...)
 		f.engineIncoming = nil
 		return &dbus.Message{Type: dbus.TypeReturn}, f.engineErr
+	case "Set":
+		return &dbus.Message{Type: dbus.TypeReturn}, f.preeditErr
 	}
 	return nil, errors.New("unexpected call " + member)
 }
@@ -984,4 +987,36 @@ func FuzzDispatchNeverPanics(f *testing.F) {
 			t.Fatalf("a signal broke the bus: %v", err)
 		}
 	})
+}
+
+func TestClientPreeditModeNegotiatesTheDaemonProperty(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		bus, context, transport := newTestBus(t, Handler{})
+		client, ok := any(context).(interface{ SetClientCommitPreedit(bool) error })
+		if !ok {
+			t.Fatal("context cannot negotiate native client preedit ownership")
+		}
+		if refused {
+			transport.preeditErr = &dbus.Error{Name: "org.freedesktop.DBus.Error.UnknownProperty", Text: "unsupported"}
+		}
+		if err := client.SetClientCommitPreedit(true); !errors.Is(err, transport.preeditErr) {
+			t.Fatalf("negotiation=%v want=%v", err, transport.preeditErr)
+		}
+		calls := transport.calls("Set")
+		if len(calls) != 1 || calls[0].path != testContext || calls[0].iface != "org.freedesktop.DBus.Properties" || calls[0].signature != "ssv" {
+			t.Fatalf("native property call=%+v", calls)
+		}
+		args := dbus.NewDecoder(calls[0].body)
+		if args.String() != contextInterface || args.String() != "ClientCommitPreedit" || args.Signature() != "(b)" {
+			t.Fatal("incorrect native preedit ownership property")
+		}
+		args.Align(8)
+		if !args.Bool() || args.Err() != nil || args.Pos() != len(calls[0].body) || bus.Err() != nil {
+			t.Fatalf("property payload or bus invalid: %v bus=%v", args.Err(), bus.Err())
+		}
+		context.Close()
+		if err := client.SetClientCommitPreedit(true); !errors.Is(err, ErrClosed) || len(transport.calls("Set")) != 1 {
+			t.Fatalf("retired context negotiation=%v", err)
+		}
+	}
 }

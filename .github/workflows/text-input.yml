@@ -75,7 +75,12 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           go test -c -o "$RUNNER_TEMP/viva-ibus-native.test" ./internal/ibus
-          xvfb-run -a env VIVA_IBUS_TEST_BINARY="$RUNNER_TEMP/viva-ibus-native.test" VIVA_IBUS_REFERENCE=1 sh internal/ibus/testdata/native-service.sh libpinyin hangul
+          xvfb-run -a env VIVA_IBUS_TEST_BINARY="$RUNNER_TEMP/viva-ibus-native.test" VIVA_IBUS_REFERENCE=1 VIVA_IBUS_TEST_RUN='^TestNative(EngineLifecycle|ClientPreeditMode)$' sh internal/ibus/testdata/native-service.sh libpinyin hangul
+      - name: IBus native frontend composition phases
+        if: runner.os == 'Linux'
+        run: |
+          go test -c -tags vivagtk -o "$RUNNER_TEMP/viva-ibus-frontend.test" ./internal/platform/linux
+          xvfb-run -a env VIVA_IBUS_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN='^TestNativeIBus(Frontend|OwnerReactivation|FactoryDeclinedShortcut)$' sh internal/ibus/testdata/native-service.sh libpinyin hangul
       - name: Linux text callback ordering
         if: runner.os == 'Linux'
         run: go test -race ./internal/platform/linux -run '^TestLinuxTextCallback' -count=1 -timeout=90s
