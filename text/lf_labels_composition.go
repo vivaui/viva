@@ -41,7 +41,8 @@ func ensureLFLabelHistoryOwned(state *lfLabelState) {
 
 func compositionLFLabelEdits(state *lfLabelState, previous *rune) []lfLabelEdit {
 	composition := &state.composition
-	if !composition.recorded {
+	// A save point can split a live composition into another undo unit.
+	if !composition.recorded || previous == nil {
 		composition.prefix = composition.history[previous].edits
 		if len(state.pending) != 0 {
 			composition.unitOriginal = state.pending[0].removed
