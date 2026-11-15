@@ -37,6 +37,10 @@ type Region struct {
 	// Blocks makes the region opaque: presses inside it reach no target
 	// behind it. Target is zero.
 	Blocks bool
+	// BlockSurface marks a Blocks region that also says whether the pointer is on
+	// it (see gfx.Canvas.BlockSurface): PointerAt reports it, while a press still
+	// reaches nothing and no tab stop lands on it.
+	BlockSurface bool
 	// Label makes the region a label of Target: a press on it focuses the
 	// target's own focusable region. It is not focusable itself.
 	Label bool
@@ -185,6 +189,31 @@ func (router *Router) HitTestRegion(x float32, y float32) (Region, bool) {
 		return Region{}, false
 	}
 	return router.regions[index], true
+}
+
+// PointerAt is what a pointer move needs in one pass: the front-most region the
+// pointer is on, and whether it is on a surface that says so (see
+// Region.BlockSurface) rather than on a control. Both answers come from the same
+// search, so a move costs one scan of the regions, as HitTestRegion alone did.
+func (router *Router) PointerAt(x float32, y float32) (Region, bool, bool) {
+	for index := len(router.regions) - 1; index >= 0; index-- {
+		region := router.regions[index]
+		if !contains(region.Bounds, x, y) {
+			continue
+		}
+		if region.Blocks {
+			// A surface is opaque: the point is on it and on nothing declared
+			// before it, so no control is under the pointer here.
+			if router.activeScope.IsZero() || region.Scope == router.activeScope {
+				return Region{}, false, region.BlockSurface
+			}
+			continue
+		}
+		if router.hitAvailable(region) {
+			return region, true, false
+		}
+	}
+	return Region{}, false, false
 }
 
 // PressKind is what a press at a point does in a custom-titlebar window.

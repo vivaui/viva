@@ -61,7 +61,8 @@ func (value *supervisor) paint(canvas *gfx.Canvas, size gfx.Size) {
 	request := reloadwire.PaintRequest{
 		Width: size.Width, Height: size.Height, Hovered: canvas.Hovered(), Pressed: canvas.Pressed(),
 		Focused: canvas.Focused(), FocusVisible: !canvas.FocusVisible().IsZero(),
-		ScrollX: canvas.ScrollX(), ScrollY: canvas.ScrollY(),
+		PointerOnSurface: canvas.PointerOnSurface(),
+		ScrollX:          canvas.ScrollX(), ScrollY: canvas.ScrollY(),
 		Now: uint64(canvas.Now()), ReduceMotion: canvas.ReduceMotion(),
 	}
 	value.mu.Lock()

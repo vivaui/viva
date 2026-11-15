@@ -144,9 +144,13 @@ type painter struct {
 	// The press keeps the pointer until the button comes up, so the exit waits
 	// for the release instead of ending a drag at the window's edge.
 	pointerOutside bool
-	cursor         Cursor
-	scrollX        float32
-	scrollY        float32
+	// onSurface says the pointer is on a surface the page declared with
+	// gfx.Canvas.BlockSurface, such as an open menu's panel. It is recorded with
+	// the hit test and read back into the next paint.
+	onSurface bool
+	cursor    Cursor
+	scrollX   float32
+	scrollY   float32
 	// scheduleFrame asks the runtime for one more frame, after at least the
 	// delay, while a transition is in flight or the application asked for one.
 	scheduleFrame func(delay time.Duration)
@@ -276,6 +280,7 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 		// exactly where the user needs it: past the edge of the terminal, the
 		// list or the window. The exit is delivered when the button is released.
 		painter.pointerOutside = true
+		painter.onSurface = false
 		if painter.pointer.Hovered().IsZero() {
 			return platform.Frame{}, nil
 		}
@@ -284,6 +289,7 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 		return painter.repaintAfterInput()
 	}
 	beforeHovered, beforePressed := painter.pointer.Hovered(), painter.pointer.Pressed()
+	beforeSurface := painter.onSurface
 	beforeFocus, beforeKeyboard := painter.focus.Focused(), painter.focus.KeyboardFocus()
 	passes := event.Kind == platform.PointerDown &&
 		(event.Button == gfx.PointerButtonSecondary && painter.focus.Router().PassesSecondary(event.X, event.Y) ||
@@ -329,6 +335,7 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 	}
 
 	if painter.pointer.Hovered() == beforeHovered && painter.pointer.Pressed() == beforePressed &&
+		painter.onSurface == beforeSurface &&
 		painter.focus.Focused() == beforeFocus && painter.focus.KeyboardFocus() == beforeKeyboard &&
 		!focusChanged && !result.Repaint {
 		if edgeChanged {
@@ -346,10 +353,12 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 func (painter *painter) pointerStep(event platform.PointerEvent) (result gfx.EventResult, focusChanged, edgeChanged bool) {
 	painter.pointer.SetHovered(gfx.ID{})
 	painter.pointer.SetHoveredRole(gfx.Role(0))
+	painter.onSurface = false
 	if event.Kind != platform.PointerExit {
-		if target, ok := painter.focus.Router().HitTestRegion(event.X, event.Y); ok {
+		if target, ok, onSurface := painter.focus.Router().PointerAt(event.X, event.Y); ok || onSurface {
 			painter.pointer.SetHovered(target.Target)
 			painter.pointer.SetHoveredRole(target.Role)
+			painter.onSurface = onSurface
 		}
 	}
 	edgeChanged = painter.trackEdge(event)
@@ -912,6 +921,7 @@ func (painter *painter) paintCanvas() {
 	focused, visible := painter.focus.PaintTarget()
 	painter.canvas.SetInteraction(painter.pointer.Hovered(), painter.pointer.Pressed(), focused, visible)
 	painter.canvas.SetHoveredRole(painter.pointer.HoveredRole())
+	painter.canvas.SetPointerOnSurface(painter.onSurface)
 	painter.canvas.SetScroll(painter.scrollX, painter.scrollY)
 	painter.canvas.BeginFrame()
 	painter.paint(painter.canvas, painter.size)
@@ -1926,6 +1936,7 @@ func sameRegionHit(published, current *gfx.Hit) bool {
 		published.FocusableDisabled == current.FocusableDisabled &&
 		published.SkipTab == current.SkipTab &&
 		published.Block == current.Block &&
+		published.BlockSurface == current.BlockSurface &&
 		published.Container == current.Container &&
 		published.IsLabel == current.IsLabel &&
 		published.Backdrop == current.Backdrop &&

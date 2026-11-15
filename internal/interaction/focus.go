@@ -118,6 +118,7 @@ func (f *Focus) Sync(canvas *gfx.Canvas) {
 			Disabled:          hit.Disabled,
 			FocusableDisabled: hit.FocusableDisabled,
 			Blocks:            hit.Block,
+			BlockSurface:      hit.BlockSurface,
 			Label:             hit.IsLabel,
 			Backdrop:          hit.Backdrop,
 			MovesWindow:       hit.MovesWindow,
