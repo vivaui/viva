@@ -58,3 +58,28 @@ func TestLFLabelCompositionSplitHistoryUnitsPreserveLabels(t *testing.T) {
 		})
 	}
 }
+
+func TestLFLabelCompositionSplitWithoutLFForgetsPreviousUnitLabels(t *testing.T) {
+	editor := NewEditor("a\nb")
+	if !editor.TrackLFLabels([]byte{'W'}, 'M', lfLabelPreserveReplacement) {
+		t.Fatal("label setup refused")
+	}
+	editor.SetSelection(Range{Start: 1, End: 2})
+	editor.SetMarkedText("x", Range{})
+	editor.SetSavePoint()
+	editor.SetMarkedText("y", Range{})
+	editor.Unmark()
+	assertLFLabels(t, editor, nil)
+	if !editor.Undo() || editor.String() != "axb" {
+		t.Fatalf("LF-free split Undo=%q", editor.String())
+	}
+	assertLFLabels(t, editor, nil)
+	if !editor.Redo() || editor.String() != "ayb" {
+		t.Fatalf("LF-free split Redo=%q", editor.String())
+	}
+	assertLFLabels(t, editor, nil)
+	if !editor.Undo() || !editor.Undo() || editor.String() != "a\nb" {
+		t.Fatal("original LF source lost Undo")
+	}
+	assertLFLabels(t, editor, []byte{'W'})
+}
