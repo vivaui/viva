@@ -445,7 +445,7 @@ func TestPackageLinuxRefusesAFileAsOutput(t *testing.T) {
 
 func TestDebDepends(t *testing.T) {
 	got := strings.Join(debDepends([]string{"libcairo2 (>= 1.16)", "foo"}), ", ")
-	if got != "libvulkan1, libxcb1, libcairo2 (>= 1.16), foo" {
+	if got != "libvulkan1, libxcb1, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libcairo2 (>= 1.16), foo" {
 		t.Errorf("depends = %q", got)
 	}
 }
