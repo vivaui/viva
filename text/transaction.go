@@ -27,7 +27,7 @@ func (editor *Editor) Transact(apply func(*Editor) error) error {
 	draft := NewEditor(before)
 	draft.anchor, draft.caret = selection.anchor, selection.caret
 	draft.code, draft.codeSet, draft.overwrite = editor.code, editor.codeSet, editor.overwrite
-	recorder := &editJournal{unlimited: true, tracking: true, private: true}
+	recorder := &editJournal{unlimited: true, tracking: true, retainEqual: editor.retainEqualEdits(), private: true}
 	if editor.journal != nil && editor.journal.lines != nil {
 		recorder.lines = &lineJournal{}
 	}
