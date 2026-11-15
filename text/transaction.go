@@ -11,6 +11,7 @@ import (
 // through its methods; it must not copy/replace it or mutate the source. Editors
 // remain single-threaded. Callback errors leave the source unchanged. Temporary
 // storage grows with staged edits; the source keeps its usual history/journal limits.
+// Enabled LF labels follow the draft and commit with the same source undo unit.
 func (editor *Editor) Transact(apply func(*Editor) error) error {
 	if editor == nil || apply == nil {
 		return fmt.Errorf("transaction source and callback are required")
@@ -22,14 +23,21 @@ func (editor *Editor) Transact(apply func(*Editor) error) error {
 		return fmt.Errorf("cannot transact in a restricted editor")
 	}
 	before, selection := editor.String(), editor.selectionState()
+	secondary := slices.Clone(editor.secondary)
 	draft := NewEditor(before)
 	draft.anchor, draft.caret = selection.anchor, selection.caret
 	draft.code, draft.codeSet, draft.overwrite = editor.code, editor.codeSet, editor.overwrite
-	recorder := &editJournal{unlimited: true, tracking: true}
+	recorder := &editJournal{unlimited: true, tracking: true, private: true}
 	if editor.journal != nil && editor.journal.lines != nil {
 		recorder.lines = &lineJournal{}
 	}
 	draft.journal = recorder
+	labels := editor.lfLabelState()
+	var labelRevision uint64
+	if labels != nil {
+		labelRevision = labels.revision
+		recorder.lines.labels = labels.ops.clone(labels, draft)
+	}
 	if editor.savePointIndex() != nil {
 		draft.SetSavePoint()
 	}
@@ -40,8 +48,11 @@ func (editor *Editor) Transact(apply func(*Editor) error) error {
 	if draft.journal != recorder || draft.composing {
 		return fmt.Errorf("transaction draft lost its recorder or has unfinished composition")
 	}
-	if editor.String() != before || editor.selectionState() != selection {
+	if editor.String() != before || editor.selectionState() != selection || !slices.Equal(editor.secondary, secondary) {
 		return fmt.Errorf("transaction source changed during callback")
+	}
+	if editor.lfLabelState() != labels || labels != nil && labels.revision != labelRevision {
+		return fmt.Errorf("transaction source LF labels changed during callback")
 	}
 	value := draft.String()
 	after := Range{Start: draft.anchor, End: draft.caret}
@@ -61,6 +72,13 @@ func (editor *Editor) Transact(apply func(*Editor) error) error {
 		editor.SetSelection(after)
 		return nil
 	}
-	editor.commitBatch(target, value, primitives, contexts, &after)
+	var labelPlan *lfLabelPlan
+	if labels != nil {
+		labelPlan = labels.ops.finish(labels, recorder.lines.labels)
+		if value == before && editor.savePointIndex() == nil && labelPlan != nil && !labelPlan.changed {
+			labelPlan = nil
+		}
+	}
+	editor.commitBatch(target, value, primitives, contexts, &after, labelPlan)
 	return nil
 }

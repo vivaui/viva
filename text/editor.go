@@ -296,11 +296,6 @@ func (editor *Editor) Paste(value string) {
 // text. selected is relative to the marked text, matching native IME APIs.
 func (editor *Editor) SetMarkedText(value string, selected Range) {
 	wasComposing := editor.composing
-	if !wasComposing {
-		// The input method composes at the caret: a multi-selection ends here, as
-		// it does for any edit made through one selection.
-		editor.clearSecondary()
-	}
 	target := editor.Selection()
 	if wasComposing {
 		target = editor.composition
@@ -308,6 +303,9 @@ func (editor *Editor) SetMarkedText(value string, selected Range) {
 	before := editor.selectionState()
 	change := editor.replace(target, value, false)
 	if !wasComposing {
+		// End the multi-selection after replacement policy has accepted the
+		// change, so a rejected marked update leaves the selection set intact.
+		editor.clearSecondary()
 		editor.compositionOriginal = change.removed
 		editor.compositionBase = ""
 		editor.compositionBaseValid = false
@@ -319,6 +317,9 @@ func (editor *Editor) SetMarkedText(value string, selected Range) {
 		editor.compositionHistoryRunes = editor.historyRunes
 		editor.compositionCoalescing = editor.coalescing
 		editor.compositionHistoryHeld = true
+		if labels := editor.lfLabelState(); labels != nil {
+			labels.ops.hold(labels, change)
+		}
 	}
 	inserted := len(change.inserted)
 	if inserted == 0 && value != "" {
@@ -354,7 +355,15 @@ func (editor *Editor) CancelComposition() bool {
 		return false
 	}
 	target := editor.composition
+	labels := editor.lfLabelState()
+	if labels != nil {
+		labels.replaying = true
+		defer func() { labels.replaying = false }()
+	}
 	editor.replaceExact(target.Start, target.End-target.Start, editor.compositionOriginal)
+	if labels != nil {
+		labels.ops.cancel(labels)
+	}
 	editor.anchor = clamp(editor.compositionAnchor, 0, len(editor.runes))
 	editor.caret = clamp(editor.compositionCaret, 0, len(editor.runes))
 	editor.composing = false
@@ -582,6 +591,9 @@ func (editor *Editor) replace(target Range, value string, overwrite bool) textCh
 			context = editor.prepareLineContext(target.Start, target.End, replacement)
 		}
 	}
+	if lines != nil && lines.labels != nil {
+		lines.labels.ops.replace(lines.labels, context.line, change.removed, replacement)
+	}
 	editor.textValid = false
 	editor.offsets.trim(target.Start)
 	delta := len(replacement) - removed
@@ -611,6 +623,9 @@ func (editor *Editor) Undo() bool {
 	if !editor.CanUndo() {
 		return false
 	}
+	if labels := editor.lfLabelState(); labels != nil && labels.mapping {
+		panic("text: LF label mapper reentered Undo")
+	}
 	editor.historyIndex--
 	edit := &editor.history[editor.historyIndex]
 	editor.replaceHistory(edit, true)
@@ -638,13 +653,22 @@ func (editor *Editor) Redo() bool {
 func (editor *Editor) BreakUndoGroup() { editor.coalescing = 0 }
 
 func (editor *Editor) clearHistory() {
+	if labels := editor.lfLabelState(); labels != nil && labels.mapping {
+		panic("text: LF label mapper reentered history reset")
+	}
 	if editor.journal != nil && editor.journal.lines != nil {
 		editor.journal.lines.batches = nil
 		editor.journal.lines.delivery = nil
+		if labels := editor.journal.lines.labels; labels != nil {
+			labels.ops.clear(labels)
+		}
 	}
 	editor.history = nil
 	editor.historyIndex = 0
 	editor.historyRunes = 0
+	if labels := editor.lfLabelState(); labels != nil {
+		editor.historyRunes = labels.ops.extra(labels)
+	}
 	editor.coalescing = 0
 	if point := editor.savePointIndex(); point != nil {
 		*point = 0
@@ -656,6 +680,9 @@ func (editor *Editor) clearHistory() {
 // while it is called cannot bring back cleared units.
 func (editor *Editor) ClearHistory() {
 	editor.clearHistory()
+	if labels := editor.lfLabelState(); labels != nil {
+		labels.ops.discard(labels)
+	}
 	editor.compositionHistoryIndex = 0
 	editor.compositionHistoryRunes = 0
 	editor.compositionCoalescing = 0
@@ -663,6 +690,9 @@ func (editor *Editor) ClearHistory() {
 }
 
 func (editor *Editor) releaseCompositionHistory() {
+	if labels := editor.lfLabelState(); labels != nil {
+		labels.ops.release(labels)
+	}
 	if !editor.compositionHistoryHeld {
 		return
 	}
@@ -693,7 +723,7 @@ func (editor *Editor) restoreSelection(selection editorSelection) {
 }
 
 func (editor *Editor) record(change textChange, before, after editorSelection, kind editKind) {
-	if runesEqual(change.removed, change.inserted) && (len(change.removed) == 0 || editor.savePointIndex() == nil) {
+	if runesEqual(change.removed, change.inserted) && (len(change.removed) == 0 || editor.savePointIndex() == nil) && !editor.pendingLFLabels() {
 		return
 	}
 	editor.dropRedo()
@@ -712,7 +742,7 @@ func (editor *Editor) recordWithPrimitives(change textChange, before, after edit
 		editor.record(change, before, after, kind)
 		return
 	}
-	if runesEqual(change.removed, change.inserted) && editor.savePointIndex() == nil {
+	if runesEqual(change.removed, change.inserted) && editor.savePointIndex() == nil && !editor.pendingLFLabels() {
 		return
 	}
 	editor.dropRedo()
@@ -726,7 +756,10 @@ func (editor *Editor) recordWithPrimitives(change textChange, before, after edit
 func (editor *Editor) appendHistory(edit historyEdit) {
 	editor.history = append(editor.history, edit)
 	editor.historyIndex = len(editor.history)
-	editor.historyRunes += edit.retainedRunes()
+	if labels := editor.lfLabelState(); labels != nil {
+		labels.ops.record(labels, nil, lfLabelHistoryKey(&editor.history[editor.historyIndex-1]))
+	}
+	editor.historyRunes += editor.historyUnitRunes(&edit)
 	if edit.kind == editSeparate {
 		editor.coalescing = 0
 	} else {
@@ -745,6 +778,13 @@ func (editor *Editor) merge(change textChange, before, after editorSelection, ki
 	previous := &editor.history[editor.historyIndex-1]
 	if previous.kind != kind || previous.after != before {
 		return false
+	}
+	labels := editor.lfLabelState()
+	var labelKey *rune
+	labelRunes := 0
+	if labels != nil {
+		labelKey = lfLabelHistoryKey(previous)
+		labelRunes = labels.ops.cost(labels, labelKey)
 	}
 	switch kind {
 	case editInsert:
@@ -779,7 +819,19 @@ func (editor *Editor) merge(change textChange, before, after editorSelection, ki
 		return false
 	}
 	previous.after = after
+	if labels != nil {
+		labels.ops.record(labels, labelKey, lfLabelHistoryKey(previous))
+		editor.historyRunes += labels.ops.cost(labels, lfLabelHistoryKey(previous)) - labelRunes
+	}
 	return true
+}
+
+func (editor *Editor) historyUnitRunes(edit *historyEdit) int {
+	cost := edit.retainedRunes()
+	if labels := editor.lfLabelState(); labels != nil {
+		cost += labels.ops.cost(labels, lfLabelHistoryKey(edit))
+	}
+	return cost
 }
 
 func (editor *Editor) dropRedo() {
@@ -793,7 +845,10 @@ func (editor *Editor) discardRedo() {
 		*point = -1
 	}
 	for index := editor.historyIndex; index < len(editor.history); index++ {
-		editor.historyRunes -= editor.history[index].retainedRunes() + editor.forgetLineBatch(&editor.history[index])
+		editor.historyRunes -= editor.historyUnitRunes(&editor.history[index]) + editor.forgetLineBatch(&editor.history[index])
+		if labels := editor.lfLabelState(); labels != nil {
+			labels.ops.forget(labels, lfLabelHistoryKey(&editor.history[index]))
+		}
 	}
 	clear(editor.history[editor.historyIndex:])
 	editor.history = editor.history[:editor.historyIndex]
@@ -805,7 +860,10 @@ func (editor *Editor) trimHistory() {
 	remove := 0
 	for len(editor.history)-remove > 1 && (len(editor.history)-remove > maxHistoryEntries || editor.historyRunes > maxHistoryRunes) {
 		edit := editor.history[remove]
-		editor.historyRunes -= edit.retainedRunes() + editor.forgetLineBatch(&editor.history[remove])
+		editor.historyRunes -= editor.historyUnitRunes(&edit) + editor.forgetLineBatch(&editor.history[remove])
+		if labels := editor.lfLabelState(); labels != nil {
+			labels.ops.forget(labels, lfLabelHistoryKey(&edit))
+		}
 		remove++
 	}
 	if len(editor.history)-remove == 1 && editor.historyRunes > maxSingleEditRunes {
@@ -841,6 +899,9 @@ func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 		if lines != nil {
 			context = editor.prepareLineContext(start, end, replacement)
 		}
+	}
+	if lines != nil && lines.labels != nil {
+		lines.labels.ops.replace(lines.labels, context.line, editor.runes[start:end], replacement)
 	}
 	delta := len(replacement) - (end - start)
 	if delta > 0 {

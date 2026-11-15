@@ -39,6 +39,7 @@ type lineJournal struct {
 	batches        map[*Edit][]lineContext
 	position, line int
 	delivery       *lineDelivery
+	labels         *lfLabelState
 }
 
 // TrackLineEdits enables optional LF context on the existing byte journal and
