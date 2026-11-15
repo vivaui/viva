@@ -19,15 +19,16 @@ type ibusComposition struct {
 
 func (ime *linuxIME) bindOwner() {
 	ime.target, ime.owner = ime.text.input.Target, ime.text.state.CompositionIdentity
+	ime.tentative = ime.text.state.TentativeComposition
 	ime.phase = nil
-	if ime.text.state.TentativeComposition {
+	if ime.tentative {
 		ime.phase = &ibusComposition{revision: ime.text.stateRevision}
 	}
 }
 
 func (ime *linuxIME) sameOwner() bool {
 	return ime.text.input.Target == ime.target && ime.text.state.CompositionIdentity == ime.owner &&
-		ime.text.state.TentativeComposition == (ime.phase != nil)
+		ime.text.state.TentativeComposition == ime.tentative
 }
 
 func (ime *linuxIME) current() bool {
@@ -76,12 +77,21 @@ func (ime *linuxIME) open() bool {
 		return false
 	}
 	ime.context = context
-	if ime.phase != nil {
-		if err := context.SetClientCommitPreedit(true); err != nil {
-			ime.retire()
-			ime.app.checkInputMethod()
-			return false
-		}
+	ime.negotiateTentative(context)
+	return true
+}
+
+// negotiateTentative asks the context for native preedit modes. It reports
+// whether explicit phases are available. A refusal is not a failure: the
+// field keeps its input-method input through legacy marked-text events, so
+// the context stays and only the optional phase protocol is dropped.
+func (ime *linuxIME) negotiateTentative(context interface{ SetClientCommitPreedit(bool) error }) bool {
+	if !ime.tentative {
+		return true
+	}
+	if err := context.SetClientCommitPreedit(true); err != nil {
+		ime.phase = nil
+		return false
 	}
 	return true
 }

@@ -23,12 +23,15 @@ type linuxIME struct {
 	text   *linuxTextInput
 	router eventRouter
 	// origin is where the window's top-left corner is on the screen.
-	origin      func() (x, y int32)
-	context     inputMethodContext
-	target      gfx.ID
-	owner       text.CompositionIdentity
-	epoch       uint64
-	phase       *ibusComposition
+	origin  func() (x, y int32)
+	context inputMethodContext
+	target  gfx.ID
+	owner   text.CompositionIdentity
+	epoch   uint64
+	phase   *ibusComposition
+	// tentative records that the field opted into explicit phases, even when
+	// the daemon refused the optional negotiation and phase stayed nil.
+	tentative   bool
 	delivering  int
 	pendingKeys int
 
@@ -147,6 +150,9 @@ func (ime *linuxIME) sync() {
 		return
 	}
 	if ime.context != nil && !ime.sameOwner() {
+		// The shared app layer settles the outgoing editor's tentative
+		// composition before publishing a different target; this only drops
+		// the native session that belonged to the old one.
 		ime.retire()
 	}
 	if ime.context == nil {
@@ -176,7 +182,12 @@ func (ime *linuxIME) sync() {
 		ime.active = false
 		if ime.engineComposing || ime.phase != nil && ime.phase.session {
 			if err := ime.reset(); err != nil {
-				ime.app.fail(err)
+				// A reset the engine cannot describe is not an application
+				// failure: some engines keep sending legacy modes or an
+				// unknown one, and refusing to guess is deliberate. Retire
+				// this native session, keep the text the field already
+				// shows, and let sync open a fresh context next frame.
+				ime.retire()
 				return
 			}
 		}

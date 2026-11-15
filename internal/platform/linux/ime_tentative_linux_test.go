@@ -416,3 +416,53 @@ func TestIBusPublicBaseTentativePreeditUsesExplicitPhases(t *testing.T) {
 		})
 	}
 }
+
+// refusingPreeditContext stands in for a daemon that does not implement the
+// optional ClientCommitPreedit property.
+type refusingPreeditContext struct{}
+
+func (refusingPreeditContext) SetClientCommitPreedit(bool) error {
+	return errors.New("ibus: ClientCommitPreedit is not supported")
+}
+
+func TestIBusTentativeNegotiationRefusalKeepsLegacyInput(t *testing.T) {
+	h := newTentativeIMEHarness(t)
+	if !h.ime.tentative || h.ime.phase == nil {
+		t.Fatal("tentative owner did not start with a native phase")
+	}
+	if h.ime.negotiateTentative(refusingPreeditContext{}) {
+		t.Fatal("refused negotiation reported explicit phases")
+	}
+	if h.ime.phase != nil {
+		t.Fatal("refused negotiation kept the native phase")
+	}
+	if !h.ime.sameOwner() || !h.ime.current() {
+		t.Fatal("refusing the optional property orphaned the field")
+	}
+	h.preedit(t, ibus.PreeditEvent{Text: "ni", Cursor: 2, Visible: true})
+	if !h.editor.CompositionActive() {
+		t.Fatal("legacy preedit did not reach the field")
+	}
+	last := h.events[len(h.events)-1]
+	if last.CompositionPhase != text.CompositionNone {
+		t.Fatalf("fallback preedit used phase %v", last.CompositionPhase)
+	}
+}
+
+func TestIBusTentativeUnsupportedResetModeRetiresWithoutFailingTheApp(t *testing.T) {
+	h := newTentativeIMEHarness(t)
+	h.preedit(t, ibus.PreeditEvent{Text: "你好", Cursor: 2, Visible: true})
+	if !h.ime.composing() {
+		t.Fatal("native session did not start")
+	}
+	h.ime.setFocused(false)
+	if h.ime.app.firstErr != nil {
+		t.Fatalf("a reset error was escalated to the application: %v", h.ime.app.firstErr)
+	}
+	if h.ime.context != nil || !h.context.closed {
+		t.Fatal("the native session was not retired")
+	}
+	if got := h.editor.String(); got != "a你好c" {
+		t.Fatalf("retiring the session dropped the visible text: %q", got)
+	}
+}
