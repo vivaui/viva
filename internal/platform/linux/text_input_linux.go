@@ -643,20 +643,27 @@ func (state *linuxTextInput) nearestTextIndex(x float32) (int, error) {
 }
 
 func (state *linuxTextInput) textEvent(event platform.TextEvent) (platform.Frame, error) {
+	frame, _, err := state.dispatchTextEvent(event)
+	return frame, err
+}
+
+// accepted distinguishes this event's acknowledgment from a state update made
+// reentrantly by its handler, even when either advances the revision only once.
+func (state *linuxTextInput) dispatchTextEvent(event platform.TextEvent) (frame platform.Frame, accepted bool, err error) {
 	if !state.enabled || state.input.OnEvent == nil {
-		return platform.Frame{}, nil
+		return platform.Frame{}, false, nil
 	}
 	previous := state.state
 	revision := state.stateRevision
 	next, err := state.input.OnEvent(event)
 	if err == nil && state.stateRevision != revision {
-		return state.currentTextFrame(), nil
+		return state.currentTextFrame(), false, nil
 	}
 	if err == nil {
 		err = validateLinuxTextState(next)
 	}
 	if err != nil {
-		return platform.Frame{}, err
+		return platform.Frame{}, false, err
 	}
 	redraw := platform.TextInputPresentationChanged(state.input.Terminal, previous, next)
 	next = next.WithoutRedraw() // a one-shot request, not editor state
@@ -666,7 +673,7 @@ func (state *linuxTextInput) textEvent(event platform.TextEvent) (platform.Frame
 	state.input.State = next
 	state.publishPrimary(previous, next)
 	if !redraw {
-		return platform.Frame{}, nil
+		return platform.Frame{}, true, nil
 	}
 	state.restartCaretBlink()
 	revision = state.inputRevision
@@ -675,14 +682,14 @@ func (state *linuxTextInput) textEvent(event platform.TextEvent) (platform.Frame
 		if err == nil && state.inputRevision != revision {
 			// The callback's scene and input belong to an older acknowledgment.
 			// Refresh the current mirror, including after a nested terminal no-op.
-			return state.currentTextFrame(), nil
+			return state.currentTextFrame(), true, nil
 		}
 		if err == nil && !frame.TextInput.Changed {
 			frame.TextInput = platform.TextInputUpdate{Changed: true, Input: &state.input}
 		}
-		return frame, err
+		return frame, true, err
 	}
-	return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &state.input}}, nil
+	return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &state.input}}, true, nil
 }
 
 func (state *linuxTextInput) currentTextFrame() platform.Frame {
