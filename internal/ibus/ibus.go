@@ -413,12 +413,29 @@ func (context *Context) FocusOut() error { return context.send("FocusOut", "", n
 // daemon to finish selection. Buffered messages run before returning, or after
 // the current batch when called from a handler. A refusal leaves the bus usable.
 func (context *Context) SetEngine(name string) error {
+	var body dbus.Encoder
+	body.String(name)
+	return context.call(contextInterface, "SetEngine", "s", body.Bytes())
+}
+
+// SetClientCommitPreedit negotiates native preedit modes and makes the client
+// responsible for settling preedit on Reset and FocusOut. Use only when the
+// caller implements those modes; a daemon may refuse this optional property.
+func (context *Context) SetClientCommitPreedit(enabled bool) error {
+	var body dbus.Encoder
+	body.String(contextInterface)
+	body.String("ClientCommitPreedit")
+	body.Variant("(b)")
+	body.Align(8)
+	body.Bool(enabled)
+	return context.call("org.freedesktop.DBus.Properties", "Set", "ssv", body.Bytes())
+}
+
+func (context *Context) call(iface, member, signature string, body []byte) error {
 	if context.bus.err != nil || context.bus.contexts[context.path] != context {
 		return ErrClosed
 	}
-	var body dbus.Encoder
-	body.String(name)
-	_, err := context.bus.conn.Call(service, context.path, contextInterface, "SetEngine", "s", body.Bytes())
+	_, err := context.bus.conn.Call(service, context.path, iface, member, signature, body)
 	var refusal *dbus.Error
 	if err != nil && !errors.As(err, &refusal) {
 		context.bus.fail(err)

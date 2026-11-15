@@ -1260,14 +1260,35 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	if input == nil {
 		placement = nil
 	}
-	if input != nil && input.Editor != nil {
-		input.State = TextStateOf(input.Editor)
-	}
 	var nextEditor *text.Editor
 	if input != nil {
 		nextEditor = input.Editor
 	}
-	if previousEditor != nil && previousEditor != nextEditor {
+	// A different target ends the composition it started, even when the
+	// application reuses the same editor: the native input's owner changed
+	// under the preedit. Settle it here in the shared layer so every platform
+	// follows the same policy and the adapters stay thin. A document keeps
+	// what the user sees as committed text; a terminal preedit surface
+	// discards it, because that preedit was never delivered to the
+	// application.
+	handoff := previousEditor != nil && painter.textEnabled &&
+		(previousEditor != nextEditor || painter.nativeText.Target != context.ID)
+	if handoff && previousEditor.TentativeCompositionActive() {
+		phase := text.CompositionCommit
+		if painter.nativeText.Terminal {
+			phase = text.CompositionCancel
+		}
+		previousEditor.ApplyComposition(text.CompositionEvent{Phase: phase})
+		if phase == text.CompositionCommit && painter.nativeText.Secure {
+			// Committed text left the tentative boundary, so the secure
+			// invariant applies exactly as it does to an ordinary accepted edit.
+			previousEditor.ClearHistory()
+		}
+	}
+	if input != nil && input.Editor != nil {
+		input.State = TextStateOf(input.Editor)
+	}
+	if handoff {
 		previousEditor.BreakUndoGroup()
 	}
 	painter.noteKeyboardTarget(context.ID, input != nil && context.Terminal && input.KeyReleases)
