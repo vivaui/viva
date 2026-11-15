@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+: "${VIVA_FCITX_TEST_BINARY:?set the native test binary path}"
 backend=${1:?set x11 or wayland}
 shift
 case "$backend" in x11|wayland) ;; *) exit 2 ;; esac

@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+: "${VIVA_FCITX_TEST_BINARY:?set the native test binary path}"
 fixture_dir=$(dirname "$0")
 task_dir=$(dirname "$XDG_RUNTIME_DIR")
 daemon_pid=
@@ -11,7 +12,7 @@ cleanup() {
             wait "$pid" 2>/dev/null || true
         fi
     done
-    for log in "$task_dir/fcitx.log" "$task_dir/weston.log"; do
+    for log in "$task_dir/fcitx.log" "$task_dir/weston.log" "$task_dir/weston.stdout"; do
         if [ -f "$log" ]; then cat "$log"; fi
     done
 }
@@ -54,8 +55,6 @@ fi
 if [ "${VIVA_FCITX_GTK_REFERENCE:-0}" = 1 ]; then
     /usr/bin/python3 "$fixture_dir/fcitx-gtk-reference.py"
 fi
-if [ -n "${VIVA_FCITX_TEST_BINARY:-}" ]; then
-    VIVA_IBUS_NATIVE=1 VIVA_IBUS_FRONTEND=fcitx5 VIVA_IBUS_ENGINE="${VIVA_FCITX_ENGINE:-pinyin}" "$VIVA_FCITX_TEST_BINARY" -test.run "${VIVA_IBUS_TEST_RUN:-^TestNativeContextRetirement$}" -test.count=1 -test.v -test.timeout=45s
-fi
+VIVA_IBUS_NATIVE=1 VIVA_IBUS_FRONTEND=fcitx5 VIVA_IBUS_ENGINE="${VIVA_FCITX_ENGINE:-pinyin}" "$VIVA_FCITX_TEST_BINARY" -test.run "${VIVA_IBUS_TEST_RUN:-^TestNativeContextRetirement$}" -test.count=1 -test.v -test.timeout=45s
 dconf write /viva/native-fixture/marker "'isolated'"
 /usr/bin/python3 "$fixture_dir/reference-client.py" --activation-environment
