@@ -710,3 +710,52 @@ func TestCompositionNativeCancelDoesNotReenableDestroyedWindow(t *testing.T) {
 		t.Fatalf("destroyed window received %d stale callbacks", staleCalls)
 	}
 }
+
+func TestCompositionDestroyedCallbacksDoNotReviveFrames(t *testing.T) {
+	for _, callback := range []string{"event", "redraw"} {
+		t.Run(callback, func(t *testing.T) {
+			editor := text.NewEditor("a")
+			if !editor.EnableTentativeComposition() {
+				t.Fatal("could not enable fixture capability")
+			}
+			editor.MoveTo(1, false)
+			state, events := compositionMessageWindow(t, editor)
+			state.application = &windowsApplication{windows: 1}
+			state.web = &webHost{state: state}
+			state.applyIMEComposition(imeCompositionMessage{hasPreedit: true, preedit: "x"})
+			window, closed := state.window, 0
+			state.config.OnClosed = func() { closed++ }
+			if callback == "event" {
+				apply := state.textInput.OnEvent
+				state.textInput.OnEvent = func(event platform.TextEvent) (platform.TextState, error) {
+					ack, err := apply(event)
+					windowProc(window, wmDestroy, 0, 0)
+					return ack, err
+				}
+			} else {
+				state.config.OnRedraw = func() (platform.Frame, error) {
+					stale := state.textInput
+					windowProc(window, wmDestroy, 0, 0)
+					return platform.Frame{
+						TextInput:   platform.TextInputUpdate{Changed: true, Input: &stale},
+						NativeViews: []platform.NativeView{{ID: 9, Bounds: gfx.Rect{Width: 10, Height: 10}}},
+					}, nil
+				}
+			}
+			var trapped any
+			func() {
+				defer func() { trapped = recover() }()
+				state.applyIMEComposition(imeCompositionMessage{hasResult: true, result: "r", hasPreedit: true, preedit: "y"})
+			}()
+			if state.window != 0 || state.application.windows != 0 || closed != 1 {
+				t.Fatalf("window destruction fixture: window=%d count=%d closed=%d", state.window, state.application.windows, closed)
+			}
+			if trapped != nil {
+				t.Fatalf("closed callback used released native resources: %v", trapped)
+			}
+			if state.err != nil || state.textEnabled || editor.String() != "ar" || len(*events) != 2 || len(state.web.rects) != 0 {
+				t.Fatalf("closed callback resumed input/frame: enabled=%v text=%q events=%d views=%d err=%v", state.textEnabled, editor.String(), len(*events), len(state.web.rects), state.err)
+			}
+		})
+	}
+}
