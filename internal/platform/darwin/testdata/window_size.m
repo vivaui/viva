@@ -32,7 +32,9 @@ int vivaWindowReopenRequested(uintptr_t handle, void *view) { return 0; }
 int vivaPressAt(uintptr_t handle, double x, double y) { return 0; }
 void vivaTextInput(uintptr_t handle, void *view, int kind, const unsigned char *utf8,
                   size_t length, int64_t start, int64_t selectedLength,
-                  int64_t replacementStart, int64_t replacementLength, int command) {}
+                  int64_t replacementStart, int64_t replacementLength, int command,
+                  int phase, int64_t rawStart, int64_t rawLength, int hasRaw) {}
+void vivaTextCompositionLost(uintptr_t handle, void *view, int reason) {}
 unsigned char *vivaCopyText(uintptr_t handle, void *view, size_t *length) { *length = 0; return NULL; }
 
 static BOOL near(CGFloat a, CGFloat b) { return fabs(a - b) < 0.5; }
