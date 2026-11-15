@@ -191,8 +191,8 @@ func installPayload(options InstallOptions, quit func()) error {
 
 // startPayloadHelper launches a detached PowerShell script that waits for this
 // process to exit, copies the staged files over the installation and starts
-// the new program. It keeps a copy of every file it replaces until the new
-// version has started, and restores them if it fails.
+// the new program. It moves every file it replaces to a same-volume backup until
+// the new version has started, and restores them if it fails.
 func startPayloadHelper(parentPID int, payload, installDir, executable string, args []string) error {
 	name, arguments := helperCommand(payloadHelperScript(parentPID, payload, installDir, executable, args))
 	command := exec.Command(name, arguments...)
@@ -215,7 +215,7 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	fmt.Fprintf(&script, "$exe = %s\n", powerShellQuote(executable))
 	// Enumeration expands DOS aliases, so both substring roots need full names.
 	script.WriteString("$payload = (Get-Item -LiteralPath $payload).FullName\n")
-	script.WriteString("$backup = Join-Path $env:TEMP ('viva-update-' + [guid]::NewGuid().ToString('N'))\n")
+	script.WriteString("$backup = Join-Path $dir ('.viva-update-' + [guid]::NewGuid().ToString('N'))\n")
 	script.WriteString("New-Item -ItemType Directory -Force -Path $backup | Out-Null\n")
 	script.WriteString("$backup = (Get-Item -LiteralPath $backup).FullName\n")
 	script.WriteString("$created = New-Object System.Collections.ArrayList\n")
@@ -242,7 +242,7 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	script.WriteString("    if (Test-Path -LiteralPath $dest) {\n")
 	script.WriteString("      $bak = Join-Path $backup $rel\n")
 	script.WriteString("      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $bak) | Out-Null\n")
-	script.WriteString("      Copy-Item -LiteralPath $dest -Destination $bak -Force\n")
+	script.WriteString("      Move-Item -LiteralPath $dest -Destination $bak -Force\n")
 	script.WriteString("    } else { [void]$created.Add($rel) }\n")
 	script.WriteString("    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) | Out-Null\n")
 	script.WriteString("    Copy-Item -LiteralPath $_.FullName -Destination $dest -Force\n")
@@ -254,7 +254,7 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	script.WriteString("\n")
 	script.WriteString("  Start-Sleep -Seconds 2\n")
 	script.WriteString("  if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Start-Process -FilePath $exe | Out-Null; exit 1 }\n")
-	script.WriteString("} catch { Restore; exit 1 }\n")
+	script.WriteString("} catch { Restore; Start-Process -FilePath $exe | Out-Null; exit 1 }\n")
 	script.WriteString("Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue\n")
 	script.WriteString("Remove-Item -Recurse -Force $payload -ErrorAction SilentlyContinue\n")
 	script.WriteString("exit 0\n")
