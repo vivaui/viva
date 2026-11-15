@@ -45,6 +45,7 @@ type Look struct {
 	color, ring        Color
 	ringWidth, opacity float32
 	shadow             gfx.ShadowLevel
+	dashed             bool
 }
 
 type lookFields uint8
@@ -52,6 +53,7 @@ type lookFields uint8
 const (
 	lookBackground lookFields = 1 << iota
 	lookBorder
+	lookDashed
 	lookColor
 	lookRing
 	lookShadow
@@ -70,6 +72,14 @@ func (l Look) Background(c Color) Look {
 // width by Border; a border of Color{} at rest is one that appears.
 func (l Look) Border(c Color) Look {
 	l.set, l.border = l.set|lookBorder, c
+	return l
+}
+
+// Dashed switches between the dashed and solid border when this look applies.
+// Unlike colors and opacity, a pattern does not blend part way through a transition;
+// it changes when the transition is half done.
+func (l Look) Dashed(dashed bool) Look {
+	l.set, l.dashed = l.set|lookDashed, dashed
 	return l
 }
 
@@ -271,12 +281,13 @@ type resolved struct {
 	background, border, color, ring Color
 	ringWidth, opacity              float32
 	shadow                          gfx.ShadowLevel
+	dashed                          bool
 }
 
 func (f *frame) resolve(n *node, extra *extra) resolved {
 	s := resolved{
 		background: n.background, border: extra.border, color: n.color, ring: extra.ring,
-		ringWidth: extra.ringWidth, opacity: 1 - extra.fade, shadow: extra.shadow,
+		ringWidth: extra.ringWidth, opacity: 1 - extra.fade, shadow: extra.shadow, dashed: extra.borderDashed,
 	}
 	if n.flags&flagThemed != 0 {
 		f.themedDefaults(n, extra, &s)
@@ -325,6 +336,9 @@ func (s *resolved) apply(look *Look, progress float32) {
 	}
 	if look.set&lookBorder != 0 {
 		s.border = s.border.Mix(look.border, progress)
+	}
+	if look.set&lookDashed != 0 && progress >= 0.5 {
+		s.dashed = look.dashed
 	}
 	if look.set&lookColor != 0 {
 		s.color = s.color.Mix(look.color, progress)

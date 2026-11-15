@@ -13,6 +13,7 @@ type ColorSwatch struct {
 	label              string
 	selected, disabled bool
 	skipTab            bool
+	flush              bool
 }
 
 // BeginColorSwatch centers a color disc inside bounds, leaving room for its
@@ -24,6 +25,12 @@ func BeginColorSwatch(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx
 func (s ColorSwatch) Label(label string) ColorSwatch     { s.label = label; return s }
 func (s ColorSwatch) Selected(selected bool) ColorSwatch { s.selected = selected; return s }
 func (s ColorSwatch) Disabled() ColorSwatch              { s.disabled = true; return s }
+
+// Flush paints the colour disc against the border instead of leaving a
+// background-coloured ring between them. A swatch in a dense row then reads as
+// one solid colour inside a hairline circle rather than a smaller disc with a
+// visible gap.
+func (s ColorSwatch) Flush() ColorSwatch { s.flush = true; return s }
 
 // TabStop says whether Tab may enter this choice. A radio set gives its
 // selected choice the tab stop, marks the others false, and uses
@@ -63,9 +70,14 @@ func (s ColorSwatch) Paint() ColorSwatchResult {
 		border.Alpha *= 0.4
 	}
 	s.canvas.Rounded(b, side/2, border)
-	inner := gfx.Rect{X: b.X + 2, Y: b.Y + 2, Width: side - 4, Height: side - 4}
-	s.canvas.Rounded(inner, inner.Width/2, s.theme.Background)
-	disc := gfx.Rect{X: b.X + 5, Y: b.Y + 5, Width: side - 10, Height: side - 10}
+	var disc gfx.Rect
+	if s.flush {
+		disc = gfx.Rect{X: b.X + 1, Y: b.Y + 1, Width: max(side-2, 0), Height: max(side-2, 0)}
+	} else {
+		inner := gfx.Rect{X: b.X + 2, Y: b.Y + 2, Width: side - 4, Height: side - 4}
+		s.canvas.Rounded(inner, inner.Width/2, s.theme.Background)
+		disc = gfx.Rect{X: b.X + 5, Y: b.Y + 5, Width: side - 10, Height: side - 10}
+	}
 	color := s.color
 	if color.Alpha == 0 {
 		color = s.theme.Muted

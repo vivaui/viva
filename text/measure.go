@@ -7,6 +7,11 @@ type Metrics struct {
 	Ascent  float32
 	Descent float32
 	Leading float32
+	// Rule and HeavyRule are the thicknesses, in logical pixels, of the strokes the font
+	// draws with a light and a heavy box drawing line: the weights a fixed-pitch cell
+	// glyph's strokes take. Zero where the platform's measurement does not include them.
+	Rule      float32
+	HeavyRule float32
 }
 
 // MeasureFunc shapes and measures one line at a logical font size and weight

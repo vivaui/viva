@@ -148,7 +148,7 @@ func (g *cellGlyph) boxDrawing(r rune) {
 // instead of overdrawn.
 func (g *cellGlyph) drawLines(lines [4]boxStyle) {
 	cellWidth, cellHeight := g.width, g.height
-	light, heavy := g.rule, g.rule*2
+	light, heavy := g.rule, g.heavy
 	hLightTop := (cellHeight - light) / 2
 	hLightBottom := hLightTop + light
 	hHeavyTop := (cellHeight - heavy) / 2
@@ -273,14 +273,14 @@ func (g *cellGlyph) drawDash(dash boxDash) {
 	length, span := g.width, g.height
 	thick := g.rule
 	if dash.style == boxHeavy {
-		thick *= 2
+		thick = g.heavy
 	}
 	if dash.vertical {
 		length, span = g.height, g.width
 	}
 	gap := g.rule
 	if dash.gapStyle == boxHeavy {
-		gap *= 2
+		gap = g.heavy
 	}
 	if gap < dash.minGap {
 		gap = dash.minGap

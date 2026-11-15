@@ -83,10 +83,16 @@ scheme, a message in each direction and a menu that stands over the page.
   included, goes through it, names are resolved by the proxy, and WebRTC sends no UDP around it, so the page
   reaches only what the proxy reaches (a tunnel to a remote network, Tor, a test harness). On Windows each
   proxy has its own WebView2 browser, in a folder of its own under the user data folder; on Linux an ephemeral
-  WebKit context (WebKitGTK 2.16 or newer). Either ends with its last page. macOS cannot hold a page to a proxy,
-  and `Open` fails with `ErrUnsupported` rather than open one that connects directly: WKWebView's
-  `proxyConfigurations` (macOS 14) sends names to the proxy unresolved, but the system exempts loopback
-  addresses from it, so `http://127.0.0.1:3000/` would reach the user's own machine.
+  WebKit context (WebKitGTK 2.16 or newer). Either ends with its last page. macOS cannot hold a page to a
+  SOCKS5 proxy, and `Open` fails with `ErrUnsupported` rather than open one that connects directly:
+  WKWebView's `proxyConfigurations` (macOS 14) sends names to the proxy unresolved, but the system exempts
+  loopback addresses from it, so `http://127.0.0.1:3000/` would reach the user's own machine.
+- `Proxy: app.WebProxyDirect` bypasses the system proxy for this page alone, which an embedded document or
+  workspace page needs when the machine's proxy rejects it. macOS needs 14 or newer and returns
+  `ErrUnsupported` on older versions; Windows passes `--no-proxy-server` to the page's own WebView2
+  environment; Linux sets WebKitGTK's no-proxy mode on the page's own context. This selects a route, not a
+  privacy guarantee. Direct pages also use a nonpersistent store on macOS and Linux even when `Ephemeral` is
+  false, so cookies and storage do not outlive them; Windows keeps its dedicated persistent WebView2 profile.
 - `TopCornerRadius` rounds the page's two top corners in logical pixels, for a page that sits inside a rounded
   window or toolbar; zero keeps it rectangular. macOS cuts the rounded outline out of the page and refuses the
   pointer in the clipped corners, and Windows cuts the same outline into the child window's region. GTK has no

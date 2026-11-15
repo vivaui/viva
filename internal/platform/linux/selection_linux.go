@@ -58,6 +58,9 @@ func (win *window) ensureClipboardAtoms() error {
 	if win.gnomeFilesAtom, err = win.api.atom(win.connection, "x-special/gnome-copied-files"); err != nil {
 		return err
 	}
+	if win.htmlAtom, err = win.api.atom(win.connection, "text/html"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -159,13 +162,23 @@ func (win *window) handleSelectionRequest(request *xcbSelectionRequestEvent) err
 		}
 		switch request.Target {
 		case win.targetsAtom:
-			targets := make([]uint32, 0, 6)
+			targets := make([]uint32, 0, 7)
 			targets = append(targets, win.targetsAtom, win.utf8Atom, win.textAtom, xcbAtomString)
+			if request.Selection == win.clipboardAtom && win.clipboardHTML != "" {
+				targets = append(targets, win.htmlAtom)
+			}
 			if request.Selection == win.clipboardAtom && len(win.clipboardFiles) > 0 {
 				targets = append(targets, win.uriListAtom, win.gnomeFilesAtom)
 			}
 			win.api.changeProperty(win.connection, xcbPropertyReplace, request.Requestor, property, xcbAtomAtom, 32, uint32(len(targets)), unsafe.Pointer(&targets[0]))
 			notify.Property = property
+		case win.htmlAtom:
+			// The rich flavour of a rich copy, beside the text its plain readers
+			// take; only the CLIPBOARD holds one, and only until another copy.
+			if request.Selection == win.clipboardAtom && win.clipboardHTML != "" &&
+				win.writeSelection(request.Requestor, property, request.Target, []byte(win.clipboardHTML)) {
+				notify.Property = property
+			}
 		case win.uriListAtom:
 			if request.Selection == win.clipboardAtom && len(win.clipboardFiles) > 0 && win.writeSelection(request.Requestor, property, request.Target, platform.FileURIList(win.clipboardFiles)) {
 				notify.Property = property
@@ -270,7 +283,7 @@ func (win *window) handleSelectionClear(event *xcbSelectionClearEvent) {
 	defer win.mu.Unlock()
 	switch {
 	case event.Selection == win.clipboardAtom && win.clipboardAtom != 0:
-		win.clipboard, win.clipboardFiles = "", nil
+		win.clipboard, win.clipboardHTML, win.clipboardFiles = "", "", nil
 		win.ownsClipboard = false
 	case event.Selection == xcbAtomPrimary:
 		win.selections.primary = ""
@@ -310,6 +323,9 @@ func (win *window) saveClipboardToManager() {
 	win.mu.Lock()
 	err = win.ensureClipboardAtoms()
 	targets := []uint32{win.utf8Atom, win.textAtom, xcbAtomString}
+	if win.clipboardHTML != "" {
+		targets = append(targets, win.htmlAtom)
+	}
 	if len(win.clipboardFiles) > 0 {
 		targets = append(targets, win.uriListAtom, win.gnomeFilesAtom)
 	}

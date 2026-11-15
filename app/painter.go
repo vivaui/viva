@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"time"
+	"unicode"
 	"unicode/utf8"
 	"unsafe"
 
@@ -40,11 +41,16 @@ type painter struct {
 	textInput   TextInputProvider
 	activeText  *TextInput
 	onTextEvent platform.TextHandler
+	textEpoch   uint64
 	// placing is a press on a text field that lays its rows out itself being held
-	// (see placeCaret), from the rune index placeAnchor.
-	placing     bool
-	placeAnchor int
-	nativeText  platform.TextInput
+	// (see placeCaret), from the rune index placeAnchor. placeUnit is the click
+	// unit a multi-click press took (2 a word, 3 a line) and placeUnitRange the
+	// selection it covered, which a drag then extends by the same unit.
+	placing        bool
+	placeAnchor    int
+	placeUnit      int
+	placeUnitRange text.Range
+	nativeText     platform.TextInput
 	// keys follows the keys of a terminal that asked for releases (see
 	// TextInput.KeyReleases).
 	keys            interaction.Keys
@@ -274,6 +280,7 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 			return platform.Frame{}, nil
 		}
 		painter.pointer.SetHovered(gfx.ID{})
+		painter.pointer.SetHoveredRole(gfx.Role(0))
 		return painter.repaintAfterInput()
 	}
 	beforeHovered, beforePressed := painter.pointer.Hovered(), painter.pointer.Pressed()
@@ -338,9 +345,11 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 // application answered and whether focus and the pointer's edge state changed.
 func (painter *painter) pointerStep(event platform.PointerEvent) (result gfx.EventResult, focusChanged, edgeChanged bool) {
 	painter.pointer.SetHovered(gfx.ID{})
+	painter.pointer.SetHoveredRole(gfx.Role(0))
 	if event.Kind != platform.PointerExit {
-		if target, ok := painter.focus.Router().HitTest(event.X, event.Y); ok {
-			painter.pointer.SetHovered(target)
+		if target, ok := painter.focus.Router().HitTestRegion(event.X, event.Y); ok {
+			painter.pointer.SetHovered(target.Target)
+			painter.pointer.SetHoveredRole(target.Role)
 		}
 	}
 	edgeChanged = painter.trackEdge(event)
@@ -416,10 +425,35 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 	}
 	value := input.State.Value
 	index := utf8.RuneCountInString(value[:max(0, min(offset, len(value)))])
-	if event.Kind == platform.PointerDown {
-		painter.placing, painter.placeAnchor = true, index
-	}
 	selection := TextEvent{Kind: TextSetSelection, Selection: TextRange{Start: painter.placeAnchor, End: index}}
+	switch event.Kind {
+	case platform.PointerDown:
+		painter.placing, painter.placeAnchor = true, index
+		painter.placeUnit, painter.placeUnitRange = 0, text.Range{}
+		switch {
+		case event.ClickCount >= 3:
+			painter.placeUnit, painter.placeUnitRange = 3, text.LineRange(value, index)
+		case event.ClickCount == 2:
+			painter.placeUnit, painter.placeUnitRange = 2, text.WordRange(value, index)
+		}
+		if painter.placeUnit == 2 && rangeIsSpace(value, painter.placeUnitRange) {
+			// A double click on whitespace has no word to take: leave the caret
+			// where the press landed instead of selecting the newlines that the
+			// next keystroke would use to join two lines.
+			painter.placeUnit = 0
+		}
+		if painter.placeUnit != 0 {
+			painter.placeAnchor = painter.placeUnitRange.Start
+			selection.Selection = TextRange{Start: painter.placeUnitRange.Start, End: painter.placeUnitRange.End}
+		}
+	default:
+		if painter.placeUnit != 0 {
+			selection.Selection = placeUnitSelection(value, index, painter.placeUnit, painter.placeUnitRange)
+		}
+		if event.Kind == platform.PointerUp {
+			painter.placeUnit, painter.placeUnitRange = 0, text.Range{}
+		}
+	}
 	if input.Editor != nil {
 		selection.Apply(input.Editor)
 		input.State = TextStateOf(input.Editor)
@@ -433,6 +467,35 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 		return false
 	}
 	input.State = next
+	return true
+}
+
+// placeUnitSelection extends the unit a multi-click press took to the unit
+// under the dragging pointer, keeping the pressed unit whole.
+func placeUnitSelection(value string, index, unit int, anchor text.Range) TextRange {
+	target := text.WordRange(value, index)
+	if unit == 3 {
+		target = text.LineRange(value, index)
+	}
+	switch {
+	case index >= anchor.Start && index <= anchor.End:
+		return TextRange{Start: anchor.Start, End: anchor.End}
+	case index > anchor.End:
+		return TextRange{Start: anchor.Start, End: target.End}
+	default:
+		return TextRange{Start: target.Start, End: anchor.End}
+	}
+}
+
+// rangeIsSpace reports whether a range of value holds only whitespace.
+func rangeIsSpace(value string, r text.Range) bool {
+	runes := []rune(value)
+	start, end := max(0, min(r.Start, len(runes))), max(0, min(r.End, len(runes)))
+	for _, r := range runes[start:end] {
+		if !unicode.IsSpace(r) {
+			return false
+		}
+	}
 	return true
 }
 
@@ -848,6 +911,7 @@ func (painter *painter) paintCanvas() {
 	}
 	focused, visible := painter.focus.PaintTarget()
 	painter.canvas.SetInteraction(painter.pointer.Hovered(), painter.pointer.Pressed(), focused, visible)
+	painter.canvas.SetHoveredRole(painter.pointer.HoveredRole())
 	painter.canvas.SetScroll(painter.scrollX, painter.scrollY)
 	painter.canvas.BeginFrame()
 	painter.paint(painter.canvas, painter.size)
@@ -1130,6 +1194,8 @@ func cursorFromHit(cursor gfx.PointerCursor) Cursor {
 		return CursorResizeNESW
 	case gfx.PointerCursorNotAllowed:
 		return CursorNotAllowed
+	case gfx.PointerCursorGrabbing:
+		return CursorGrabbing
 	case gfx.PointerCursorHidden:
 		return CursorHidden
 	case gfx.PointerCursorImage:
@@ -1163,7 +1229,7 @@ func (painter *painter) focusedTextField() (TextInputContext, gfx.TextPlacement,
 		ID: hit.ID, Bounds: hit.Bounds, Layer: hit.Layer, Terminal: hit.Role == gfx.RoleTerminal, TypeAhead: hit.TypeAhead && hit.Role != gfx.RoleTerminal,
 		Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
 		NavigationKeys: hit.NavigationKeys,
-		TextBounds:     text.Bounds, FontSize: text.Size, FontWeight: text.Weight, TextColor: text.Color,
+		TextBounds:     text.Bounds, FontSize: text.Size, FontWeight: text.Weight, TextColor: text.Color, Alignment: text.Alignment,
 		HideNativeOverlays: hit.HideNativeOverlays,
 	}
 	return context, text.Placement, index
@@ -1186,14 +1252,35 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	if input == nil {
 		placement = nil
 	}
-	if input != nil && input.Editor != nil {
-		input.State = TextStateOf(input.Editor)
-	}
 	var nextEditor *text.Editor
 	if input != nil {
 		nextEditor = input.Editor
 	}
-	if previousEditor != nil && previousEditor != nextEditor {
+	// A different target ends the composition it started, even when the
+	// application reuses the same editor: the native input's owner changed
+	// under the preedit. Settle it here in the shared layer so every platform
+	// follows the same policy and the adapters stay thin. A document keeps
+	// what the user sees as committed text; a terminal preedit surface
+	// discards it, because that preedit was never delivered to the
+	// application.
+	handoff := previousEditor != nil && painter.textEnabled &&
+		(previousEditor != nextEditor || painter.nativeText.Target != context.ID)
+	if handoff && previousEditor.TentativeCompositionActive() {
+		phase := text.CompositionCommit
+		if painter.nativeText.Terminal {
+			phase = text.CompositionCancel
+		}
+		previousEditor.ApplyComposition(text.CompositionEvent{Phase: phase})
+		if phase == text.CompositionCommit && painter.nativeText.Secure {
+			// Committed text left the tentative boundary, so the secure
+			// invariant applies exactly as it does to an ordinary accepted edit.
+			previousEditor.ClearHistory()
+		}
+	}
+	if input != nil && input.Editor != nil {
+		input.State = TextStateOf(input.Editor)
+	}
+	if handoff {
 		previousEditor.BreakUndoGroup()
 	}
 	painter.noteKeyboardTarget(context.ID, input != nil && context.Terminal && input.KeyReleases)
@@ -1202,11 +1289,13 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		if !painter.textEnabled {
 			return platform.TextInputUpdate{}
 		}
+		painter.textEpoch++
 		painter.textEnabled = false
 		return platform.TextInputUpdate{Changed: true}
 	}
 	// What the application leaves unset comes from the component's declaration.
 	bounds, fontSize, weight, tint := input.Bounds, input.FontSize, input.Weight, input.Color
+	alignment := input.Alignment
 	if bounds == (gfx.Rect{}) {
 		bounds = context.TextBounds
 		if bounds == (gfx.Rect{}) {
@@ -1225,6 +1314,9 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	if tint == (gfx.Color{}) {
 		tint = context.TextColor
 	}
+	if alignment == gfx.AlignLeft {
+		alignment = context.Alignment
+	}
 	if !(fontSize > 0) || math.IsInf(float64(fontSize), 0) {
 		// Every platform refuses an editor without a font size. What neither the
 		// application nor the declaration set is the body text's.
@@ -1236,6 +1328,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		if !painter.textEnabled {
 			return platform.TextInputUpdate{}
 		}
+		painter.textEpoch++
 		painter.textEnabled = false
 		return platform.TextInputUpdate{Changed: true}
 	}
@@ -1244,9 +1337,12 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		cellWidth, _ = painter.canvas.MonoCellSize(fontSize, input.MonoFace)
 		baseline = painter.canvas.MonoBaseline(fontSize, input.MonoFace, bounds.Height)
 	}
-	alignment := gfx.AlignLeft
-	if !context.Terminal && !context.TypeAhead && placement == nil {
-		alignment = resolveTextInputAlignment(input.Alignment, input.State.Value, input.State.Selection.End)
+	if context.Terminal || context.TypeAhead || placement != nil {
+		// Terminal and self-placed inputs keep the fixed origin they had before
+		// alignment existed.
+		alignment = gfx.AlignLeft
+	} else {
+		alignment = resolveTextInputAlignment(alignment, input.State.Value, input.State.Selection.End)
 	}
 	native := platform.TextInput{
 		Target: context.ID,
@@ -1263,13 +1359,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 			Red: float64(tint.Red), Green: float64(tint.Green),
 			Blue: float64(tint.Blue), Alpha: float64(tint.Alpha),
 		},
-		State: platform.TextState{
-			Value:             input.State.Value,
-			Selection:         platformTextRange(input.State.Selection),
-			SelectionReversed: input.State.SelectionReversed,
-			Composition:       platformTextRange(input.State.Composition),
-			Composing:         input.State.Composing,
-		},
+		State:   platformTextState(input.State).WithoutRedraw(),
 		OnEvent: painter.onTextEvent,
 	}
 	if placement != nil {
@@ -1282,6 +1372,12 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		}
 	}
 	painter.activeText = input
+	if !painter.textEnabled || previousEditor != nextEditor || painter.nativeText.Target != native.Target ||
+		painter.nativeText.Multiline != native.Multiline || painter.nativeText.Secure != native.Secure ||
+		painter.nativeText.Terminal != native.Terminal || painter.nativeText.Placed != native.Placed ||
+		painter.nativeText.DisableIME != native.DisableIME || painter.nativeText.State != native.State {
+		painter.textEpoch++
+	}
 	if painter.textEnabled && samePlatformTextInput(painter.nativeText, native) {
 		return platform.TextInputUpdate{}
 	}
@@ -1296,21 +1392,24 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 	if active == nil || active.Editor == nil && active.OnEvent == nil {
 		return platform.TextState{}, fmt.Errorf("app: native text event without an active handler")
 	}
-	appEvent := TextEvent{
-		Kind: TextEventKind(event.Kind), Text: event.Text,
-		Selection:       appTextRange(event.Selection),
-		MarkedSelection: appTextRange(event.MarkedSelection),
-		Replacement:     appTextRange(event.Replacement), HasReplacement: event.HasReplacement,
-		Command: TextCommand(event.Command),
+	epoch := painter.textEpoch
+	appEvent := appTextEvent(event)
+	explicit := event.CompositionPhase != text.CompositionNone
+	if explicit {
+		if active.Editor != nil {
+			explicit = active.Editor.TentativeCompositionEnabled()
+		} else {
+			explicit = active.State.TentativeComposition
+		}
 	}
 	if !painter.nativeText.Multiline && !painter.nativeText.Terminal &&
 		(event.Kind == platform.TextPaste || event.Kind == platform.TextInsert) && event.Text != "" {
 		appEvent.Text = text.SingleLine(event.Text)
-		if appEvent.Text == "" {
+		if appEvent.Text == "" && !explicit {
 			return painter.nativeText.State, nil
 		}
 	}
-	if !painter.nativeText.Multiline && !painter.nativeText.Terminal &&
+	if !explicit && !painter.nativeText.Multiline && !painter.nativeText.Terminal &&
 		event.Kind == platform.TextCommandEvent &&
 		(event.Command == platform.TextInsertNewline || event.Command == platform.TextInsertLineBreak) {
 		// A single-line field holds no line break. While an input method is
@@ -1320,8 +1419,8 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 	}
 	var next TextState
 	if active.Editor != nil {
-		appEvent.Apply(active.Editor)
-		if painter.nativeText.Secure {
+		accepted := appEvent.apply(active.Editor)
+		if painter.nativeText.Secure && accepted && !active.Editor.TentativeCompositionActive() {
 			active.Editor.ClearHistory()
 		}
 		next = TextStateOf(active.Editor)
@@ -1331,15 +1430,18 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 			return platform.TextState{}, err
 		}
 	}
-	painter.activeText.State = next
-	native := platform.TextState{
-		Value:             next.Value,
-		Selection:         platformTextRange(next.Selection),
-		SelectionReversed: next.SelectionReversed,
-		Composition:       platformTextRange(next.Composition),
-		Composing:         next.Composing,
-		Redraw:            next.Redraw,
+	if painter.textEpoch != epoch {
+		// Nested input or provider replacement has already installed newer state.
+		if painter.activeText == nil {
+			return platform.TextState{Redraw: true}, nil
+		}
+		native := painter.nativeText.State
+		native.Redraw = true
+		return native, nil
 	}
+	painter.textEpoch++
+	painter.activeText.State = next
+	native := platformTextState(next)
 	// What the platform mirrors back never carries the one-shot request.
 	painter.nativeText.State = native.WithoutRedraw()
 	painter.activeText.State.Redraw = false

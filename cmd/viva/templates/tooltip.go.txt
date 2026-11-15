@@ -91,6 +91,9 @@ type TooltipOptions struct {
 	SideOffset  float32
 	AlignOffset float32
 	MaxWidth    float32
+	// SideOf is the side HoverTooltip opens the tooltip of the hit id on, where
+	// Side has no say. Nil opens every one below its control.
+	SideOf func(id gfx.ID) TooltipSide
 }
 
 // Tooltip is one noninteractive Vega tooltip declaration.
@@ -128,8 +131,14 @@ func (tooltip Tooltip) Paint(label string) gfx.Rect {
 	}
 	maxWidth = min(maxWidth, tooltip.viewport.Width-8)
 	const padX, padY = float32(12), float32(6)
-	var scratch overlayLines
-	lines := overlayWrap(tooltip.canvas, &scratch, label, metrics.FontSizeS, gfx.WeightRegular, maxWidth-2*padX)
+	// A filename or another unbroken token has no natural short form: keep all
+	// of it even when a bounded descriptive tooltip would use an ellipsis. Long
+	// tokens already break at whole grapheme clusters in the text engine. The
+	// viewport is a bound on excessive content, not an interactive text limit.
+	// The lines live in a stack scratch: a tooltip that is painted every frame
+	// must not allocate for wrapping that has not changed.
+	var scratch [8]string
+	lines := tooltip.canvas.WrapLines(scratch[:0], label, metrics.FontSizeS, gfx.WeightRegular, maxWidth-2*padX, int(tooltip.viewport.Height))
 	// One line takes the width of its text; a wrapped label fills the whole
 	// maximum, as a `w-fit max-w-xs` box does.
 	textWidth := maxWidth - 2*padX
@@ -308,9 +317,10 @@ func (hover *HoverTooltip) Dismiss() bool {
 func (hover *HoverTooltip) ShowOnFocus() { hover.focus = true }
 
 // Paint draws the tooltip of the hovered hit once it has been hovered for
-// delay, and reports whether it did. The tooltip goes below the control, or
-// above it when the viewport has no room below (see PlaceOverlay). It stays hidden while a button
-// is pressed and for hits without a Hint.
+// delay, and reports whether it did. The tooltip goes below the control, or on
+// the side options.SideOf names, and on the opposite side when the viewport has
+// no room there (see PlaceOverlay). It stays hidden while a button is pressed and
+// for hits without a Hint.
 func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, options TooltipOptions, delay time.Duration) bool {
 	hovered := canvas.Hovered()
 	if !canvas.Pressed().IsZero() {
@@ -364,6 +374,9 @@ func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport g
 		return false
 	}
 	options.Side = TooltipBottom
+	if options.SideOf != nil {
+		options.Side = options.SideOf(id)
+	}
 	options.ID = id
 	BeginTooltip(canvas, theme, viewport, hit.Bounds, options).Paint(hit.Hint)
 	hover.shown = id

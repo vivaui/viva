@@ -4,10 +4,12 @@ package ibus
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/vivaui/viva/internal/dbus"
 )
@@ -15,11 +17,15 @@ import (
 // fakeTransport is a daemon the test scripts: it records the calls the client
 // sends and hands back the messages the test queues.
 type fakeTransport struct {
-	serial   uint32
-	sent     []sentCall
-	incoming []*dbus.Message
-	closed   bool
-	sendErr  error
+	serial     uint32
+	sent       []sentCall
+	incoming   []*dbus.Message
+	closed     bool
+	sendErr    error
+	engineErr  error
+	preeditErr error
+	// engineIncoming arrives while a synchronous engine selection reads its reply.
+	engineIncoming []*dbus.Message
 	// createPath is what CreateInputContext answers.
 	createPath string
 }
@@ -39,6 +45,12 @@ func (f *fakeTransport) Call(destination, path, iface, member, signature string,
 		return &dbus.Message{Type: dbus.TypeReturn, Signature: "o", Body: reply.Bytes()}, nil
 	case "AddMatch":
 		return &dbus.Message{Type: dbus.TypeReturn}, nil
+	case "SetEngine":
+		f.incoming = append(f.incoming, f.engineIncoming...)
+		f.engineIncoming = nil
+		return &dbus.Message{Type: dbus.TypeReturn}, f.engineErr
+	case "Set":
+		return &dbus.Message{Type: dbus.TypeReturn}, f.preeditErr
 	}
 	return nil, errors.New("unexpected call " + member)
 }
@@ -99,8 +111,16 @@ func preeditSignal(path, text string, cursor uint32, visible bool) *dbus.Message
 	ibusText(&body, text)
 	body.Uint32(cursor)
 	body.Bool(visible)
-	body.Uint32(0) // the mode newer daemons add
-	return &dbus.Message{Type: dbus.TypeSignal, Path: path, Interface: contextInterface, Member: "UpdatePreeditText", Signature: "vubu", Body: body.Bytes()}
+	return &dbus.Message{Type: dbus.TypeSignal, Path: path, Interface: contextInterface, Member: "UpdatePreeditText", Signature: "vub", Body: body.Bytes()}
+}
+
+func preeditModeSignal(path, value string, cursor uint32, visible bool, mode uint32) *dbus.Message {
+	var body dbus.Encoder
+	ibusText(&body, value)
+	body.Uint32(cursor)
+	body.Bool(visible)
+	body.Uint32(mode)
+	return &dbus.Message{Type: dbus.TypeSignal, Path: path, Interface: contextInterface, Member: "UpdatePreeditTextWithMode", Signature: "vubu", Body: body.Bytes()}
 }
 
 func keyAnswer(serial uint32, handled bool) *dbus.Message {
@@ -134,6 +154,239 @@ func TestNewContextAsksForPreeditFocusAndSurroundingTextCapabilities(t *testing.
 	}
 	if got := dbus.NewDecoder(capabilities[0].body).Uint32(); got != CapPreeditText|CapFocus|CapSurroundingText {
 		t.Fatalf("capabilities = %#x; the client draws no candidate list, so it must not ask for one", got)
+	}
+}
+
+func TestContextCloseUsesTheNativeServiceAndIsIdempotent(t *testing.T) {
+	_, context, transport := newTestBus(t, Handler{})
+	context.Close()
+	calls := transport.calls("Destroy")
+	if len(calls) != 1 || calls[0].path != testContext || calls[0].iface != "org.freedesktop.IBus.Service" {
+		t.Fatalf("native destruction=%+v", calls)
+	}
+	context.Close()
+	if len(transport.calls("Destroy")) != 1 {
+		t.Fatal("closing the same context twice sent a second native destruction")
+	}
+}
+
+func TestClosingAReplacedContextKeepsTheSuccessorsHandler(t *testing.T) {
+	bus, previous, transport := newTestBus(t, Handler{})
+	var observed string
+	next, err := bus.NewContext("successor", Handler{Commit: func(value string) { observed = value }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous.Close()
+	transport.incoming = []*dbus.Message{commitSignal(testContext, "successor")}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
+	}
+	if observed != "successor" || len(transport.calls("Destroy")) != 0 {
+		t.Fatalf("retired owner destroyed successor: commit=%q calls=%+v", observed, transport.calls("Destroy"))
+	}
+	next.Close()
+	if len(transport.calls("Destroy")) != 1 {
+		t.Fatal("successor was not destroyed by its current owner")
+	}
+}
+
+func TestRetiredContextsRefuseKeysAndContextSideEffects(t *testing.T) {
+	bus, context, transport := newTestBus(t, Handler{})
+	context.Close()
+	sent := len(transport.sent)
+	if err := context.ProcessKey('n', 49, 0, nil); !errors.Is(err, ErrClosed) {
+		t.Fatalf("retired key=%v", err)
+	}
+	for _, err := range []error{
+		context.FocusIn(), context.FocusOut(), context.Reset(),
+		context.SetCursorLocation(0, 0, 1, 10), context.SetSurroundingText("", 0, 0),
+	} {
+		if !errors.Is(err, ErrClosed) {
+			t.Fatalf("retired context side effect=%v", err)
+		}
+	}
+	if len(transport.sent) != sent || len(bus.pending) != 0 {
+		t.Fatal("retired context sent native requests or retained a pending key")
+	}
+}
+
+func TestNativeContextRetirement(t *testing.T) {
+	if os.Getenv("VIVA_IBUS_NATIVE") != "1" {
+		t.Skip("native context retirement requires a private input-method service")
+	}
+	bus, err := Dial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bus.Close()
+	context, err := bus.NewContext("viva-retirement", Handler{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer context.Close()
+	if err := context.FocusIn(); err != nil {
+		t.Fatal(err)
+	}
+	engine := os.Getenv("VIVA_IBUS_ENGINE")
+	if engine == "" {
+		engine = "libpinyin"
+	}
+	nativeIBusSelectEngine(t, bus, context, engine)
+	query := func() error {
+		_, err := bus.conn.Call(service, context.path, contextInterface, "GetEngine", "", nil)
+		return err
+	}
+	if err := query(); err != nil {
+		t.Fatalf("new native context is not callable: %v", err)
+	}
+	context.Close()
+	var refused *dbus.Error
+	if err := query(); !errors.As(err, &refused) {
+		t.Fatalf("closed native context still callable: %v", err)
+	}
+	if _, err := bus.NewContext("viva-successor", Handler{}); err != nil {
+		t.Fatalf("native destruction damaged the shared bus: %v", err)
+	}
+}
+
+func TestEngineSelectionUsesItsContextConnectionAndSurfacesRefusal(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		bus, context, transport := newTestBus(t, Handler{})
+		selector, ok := any(context).(interface{ SetEngine(string) error })
+		if !ok {
+			t.Fatal("input context has no native engine selection")
+		}
+		if refused {
+			transport.engineErr = &dbus.Error{Name: "org.freedesktop.IBus.Error.Failed", Text: "engine unavailable"}
+		}
+		if err := selector.SetEngine("libpinyin"); !errors.Is(err, transport.engineErr) {
+			t.Fatalf("selection error=%v, want %v", err, transport.engineErr)
+		}
+		calls := transport.calls("SetEngine")
+		if len(calls) != 1 || calls[0].path != testContext || calls[0].iface != contextInterface || calls[0].signature != "s" || dbus.NewDecoder(calls[0].body).String() != "libpinyin" {
+			t.Fatalf("native selection call=%+v", calls)
+		}
+		if bus.Err() != nil || transport.closed {
+			t.Fatal("engine refusal closed the shared bus")
+		}
+		context.Close()
+		if err := selector.SetEngine("libpinyin"); !errors.Is(err, ErrClosed) || len(transport.calls("SetEngine")) != 1 {
+			t.Fatalf("closed context selection error=%v", err)
+		}
+	}
+}
+
+func TestEngineSelectionTransportFailureClosesSharedBus(t *testing.T) {
+	bus, context, transport := newTestBus(t, Handler{})
+	selector := any(context).(interface{ SetEngine(string) error })
+	transport.engineErr = errors.New("write failed")
+	released := 0
+	if err := context.ProcessKey('n', 49, 0, func(handled bool) {
+		if handled {
+			t.Error("failed bus consumed a pending key")
+		}
+		released++
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := selector.SetEngine("libpinyin"); !errors.Is(err, transport.engineErr) || !errors.Is(bus.Err(), err) || !transport.closed || released != 1 {
+		t.Fatalf("selection error=%v bus=%v closed=%t released=%d", err, bus.Err(), transport.closed, released)
+	}
+	if err := selector.SetEngine("libpinyin"); !errors.Is(err, ErrClosed) || len(transport.calls("SetEngine")) != 1 {
+		t.Fatalf("failed bus selection error=%v", err)
+	}
+}
+
+func TestEngineSelectionDeliversRepliesBufferedByItsSynchronousCall(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		var observed []string
+		bus, context, transport := newTestBus(t, Handler{Commit: func(value string) { observed = append(observed, value) }})
+		if err := context.ProcessKey('n', 49, 0, func(handled bool) { observed = append(observed, fmt.Sprintf("handled=%t", handled)) }); err != nil {
+			t.Fatal(err)
+		}
+		transport.incoming = []*dbus.Message{commitSignal(testContext, "chosen"), keyAnswer(transport.calls("ProcessKeyEvent")[0].serial, true)}
+		if refused {
+			transport.engineErr = &dbus.Error{Name: "org.freedesktop.IBus.Error.Failed", Text: "engine unavailable"}
+		}
+		if err := context.SetEngine("libpinyin"); !errors.Is(err, transport.engineErr) {
+			t.Fatalf("selection error=%v want=%v", err, transport.engineErr)
+		}
+		if !reflect.DeepEqual(observed, []string{"chosen", "handled=true"}) || bus.Err() != nil {
+			t.Fatalf("buffered events=%q bus=%v", observed, bus.Err())
+		}
+		if _, waiting := bus.Deadline(); waiting {
+			t.Fatal("an already-answered key still waits for a socket-readability event")
+		}
+	}
+}
+
+func TestDispatchFromHandlerPreservesDaemonMessageOrder(t *testing.T) {
+	var observed []string
+	bus, context, transport := newTestBus(t, Handler{})
+	context.handler.Commit = func(value string) {
+		observed = append(observed, value)
+		if value == "A" {
+			transport.incoming = []*dbus.Message{
+				commitSignal(testContext, "C"), keyAnswer(transport.calls("ProcessKeyEvent")[0].serial, true),
+			}
+			if err := bus.Dispatch(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := context.ProcessKey('n', 49, 0, func(handled bool) {
+		observed = append(observed, fmt.Sprintf("handled=%t", handled))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	transport.incoming = []*dbus.Message{commitSignal(testContext, "A"), commitSignal(testContext, "B")}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(observed, []string{"A", "B", "C", "handled=true"}) {
+		t.Fatalf("daemon callbacks=%q, want A, B, C, then the key answer", observed)
+	}
+	if _, waiting := bus.Deadline(); waiting {
+		t.Fatal("nested dispatch stranded an already-answered key")
+	}
+}
+
+func TestEngineSelectionFromHandlerPreservesDaemonMessageOrder(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		t.Run(fmt.Sprintf("refused=%t", refused), func(t *testing.T) {
+			var observed []string
+			bus, context, transport := newTestBus(t, Handler{})
+			context.handler.Commit = func(value string) {
+				observed = append(observed, value)
+				if value == "A" {
+					if err := context.SetEngine("libpinyin"); !errors.Is(err, transport.engineErr) {
+						t.Errorf("selection error=%v want=%v", err, transport.engineErr)
+					}
+				}
+			}
+			if refused {
+				transport.engineErr = &dbus.Error{Name: "org.freedesktop.IBus.Error.Failed", Text: "engine unavailable"}
+			}
+			if err := context.ProcessKey('n', 49, 0, func(handled bool) {
+				observed = append(observed, fmt.Sprintf("handled=%t", handled))
+			}); err != nil {
+				t.Fatal(err)
+			}
+			transport.incoming = []*dbus.Message{commitSignal(testContext, "A"), commitSignal(testContext, "B")}
+			transport.engineIncoming = []*dbus.Message{
+				commitSignal(testContext, "C"), keyAnswer(transport.calls("ProcessKeyEvent")[0].serial, true),
+			}
+			if err := bus.Dispatch(); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(observed, []string{"A", "B", "C", "handled=true"}) {
+				t.Fatalf("daemon callbacks=%q, want A, B, C, then the key answer", observed)
+			}
+			if _, waiting := bus.Deadline(); waiting {
+				t.Fatal("nested engine selection stranded an already-answered key")
+			}
+		})
 	}
 }
 
@@ -211,8 +464,8 @@ func TestCommitAndPreeditSignalsReachTheHandler(t *testing.T) {
 	var preedits []preedit
 	bus, _, transport := newTestBus(t, Handler{
 		Commit: func(text string) { commits = append(commits, text) },
-		Preedit: func(text string, cursor int, visible bool, _ []Attribute) {
-			preedits = append(preedits, preedit{text, cursor, visible})
+		Preedit: func(event PreeditEvent) {
+			preedits = append(preedits, preedit{event.Text, event.Cursor, event.Visible})
 		},
 	})
 	hide := &dbus.Message{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "HidePreeditText"}
@@ -236,6 +489,92 @@ func TestCommitAndPreeditSignalsReachTheHandler(t *testing.T) {
 	}
 	if !reflect.DeepEqual(commits, []string{"你好"}) {
 		t.Fatalf("commits = %q", commits)
+	}
+}
+
+func TestPreeditWithModeSignalsReachTheHandler(t *testing.T) {
+	var got []string
+	var events []PreeditEvent
+	bus, _, transport := newTestBus(t, Handler{Preedit: func(event PreeditEvent) {
+		got = append(got, fmt.Sprintf("%s/%t", event.Text, event.Visible))
+		events = append(events, event)
+	}})
+	update := preeditModeSignal(testContext, "n", 1, true, PreeditModeCommit)
+	transport.incoming = []*dbus.Message{
+		update,
+		{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "HidePreeditText"},
+		{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "ShowPreeditText"},
+	}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"n/true", "n/false", "n/true"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("mode-bearing preedit = %v, want %v", got, want)
+	}
+	for index, event := range events {
+		if event.Kind != []PreeditKind{PreeditUpdate, PreeditHide, PreeditShow}[index] ||
+			!event.HasMode || event.Mode != PreeditModeCommit || event.Cursor != 1 {
+			t.Fatalf("preedit provenance[%d] = %+v", index, event)
+		}
+	}
+}
+
+func TestPreeditEventsPreserveEmptyUpdatesAndResetModeProvenance(t *testing.T) {
+	var events []PreeditEvent
+	bus, _, transport := newTestBus(t, Handler{Preedit: func(event PreeditEvent) { events = append(events, event) }})
+	transport.incoming = []*dbus.Message{
+		preeditModeSignal(testContext, "n", 1, true, PreeditModeCommit),
+		preeditSignal(testContext, "", 0, true),
+		{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "HidePreeditText"},
+		preeditModeSignal(testContext, "", 0, false, ^uint32(0)),
+	}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
+	}
+	want := []PreeditEvent{
+		{Text: "n", Cursor: 1, Visible: true, Mode: PreeditModeCommit, HasMode: true},
+		{Text: "", Visible: true},
+		{Text: "", Kind: PreeditHide},
+		{Text: "", Mode: ^uint32(0), HasMode: true},
+	}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("preedit provenance = %+v, want %+v", events, want)
+	}
+}
+
+func TestMalformedPreeditSignalCannotReplaceTheCachedSnapshot(t *testing.T) {
+	for _, name := range []string{"missing mode", "truncated mode", "mode on old member", "trailing body", "hide payload", "show signature"} {
+		t.Run(name, func(t *testing.T) {
+			var events []PreeditEvent
+			bus, _, transport := newTestBus(t, Handler{Preedit: func(event PreeditEvent) { events = append(events, event) }})
+			bad := preeditModeSignal(testContext, "bad", 1, true, PreeditModeClear)
+			switch name {
+			case "missing mode":
+				bad = preeditSignal(testContext, "bad", 1, true)
+				bad.Member = "UpdatePreeditTextWithMode"
+			case "truncated mode":
+				bad.Body = bad.Body[:len(bad.Body)-1]
+			case "mode on old member":
+				bad.Member = "UpdatePreeditText"
+			case "trailing body":
+				bad.Body = append(bad.Body, 0, 0, 0, 0)
+			case "hide payload":
+				bad.Member = "HidePreeditText"
+			case "show signature":
+				bad.Member, bad.Signature, bad.Body = "ShowPreeditText", "u", nil
+			}
+			transport.incoming = []*dbus.Message{
+				preeditModeSignal(testContext, "keep", 2, true, PreeditModeCommit), bad,
+				{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "ShowPreeditText"},
+			}
+			if err := bus.Dispatch(); err != nil {
+				t.Fatal(err)
+			}
+			if len(events) != 2 || events[1].Kind != PreeditShow || events[1].Text != "keep" ||
+				!events[1].HasMode || events[1].Mode != PreeditModeCommit || events[1].Cursor != 2 {
+				t.Fatalf("malformed preedit changed cached provenance: %+v", events)
+			}
+		})
 	}
 }
 
@@ -268,14 +607,13 @@ func styledPreeditSignal(path, text string, cursor uint32, attrs [][4]uint32) *d
 	body.EndArray(list)
 	body.Uint32(cursor)
 	body.Bool(true)
-	body.Uint32(0)
-	return &dbus.Message{Type: dbus.TypeSignal, Path: path, Interface: contextInterface, Member: "UpdatePreeditText", Signature: "vubu", Body: body.Bytes()}
+	return &dbus.Message{Type: dbus.TypeSignal, Path: path, Interface: contextInterface, Member: "UpdatePreeditText", Signature: "vub", Body: body.Bytes()}
 }
 
 func TestPreeditAttributesReachTheHandler(t *testing.T) {
 	var got []Attribute
 	var gotText string
-	bus, _, transport := newTestBus(t, Handler{Preedit: func(text string, _ int, _ bool, attrs []Attribute) { gotText, got = text, attrs }})
+	bus, _, transport := newTestBus(t, Handler{Preedit: func(event PreeditEvent) { gotText, got = event.Text, event.Attributes }})
 	transport.incoming = []*dbus.Message{styledPreeditSignal(testContext, "きょうは", 4, [][4]uint32{
 		{AttrUnderline, 1, 0, 4},
 		{AttrBackground, 0xd1eaff, 0, 2},
@@ -286,6 +624,61 @@ func TestPreeditAttributesReachTheHandler(t *testing.T) {
 	want := []Attribute{{Kind: AttrUnderline, Value: 1, Start: 0, End: 4}, {Kind: AttrBackground, Value: 0xd1eaff, Start: 0, End: 2}}
 	if gotText != "きょうは" || !reflect.DeepEqual(got, want) {
 		t.Fatalf("preedit %q attributes %+v, want %+v", gotText, got, want)
+	}
+}
+
+func TestPreeditModeVisibilityKeepsReadOnlyAttributeSnapshots(t *testing.T) {
+	var events []PreeditEvent
+	bus, _, transport := newTestBus(t, Handler{Preedit: func(event PreeditEvent) { events = append(events, event) }})
+	update := styledPreeditSignal(testContext, "ab", 1, [][4]uint32{{AttrBackground, 0x123456, 0, 1}})
+	var mode dbus.Encoder
+	mode.Uint32(PreeditModeCommit)
+	update.Member, update.Signature = "UpdatePreeditTextWithMode", "vubu"
+	update.Body = append(update.Body, mode.Bytes()...)
+	transport.incoming = []*dbus.Message{
+		update,
+		{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "HidePreeditText"},
+		{Type: dbus.TypeSignal, Path: testContext, Interface: contextInterface, Member: "ShowPreeditText"},
+		styledPreeditSignal(testContext, "cd", 2, [][4]uint32{{AttrUnderline, 2, 1, 2}}),
+	}
+	if err := bus.Dispatch(); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 4 {
+		t.Fatalf("preedit events = %+v", events)
+	}
+	for index, event := range events[:3] {
+		if !event.HasMode || event.Mode != PreeditModeCommit || event.Text != "ab" ||
+			event.Kind != []PreeditKind{PreeditUpdate, PreeditHide, PreeditShow}[index] ||
+			!reflect.DeepEqual(event.Attributes, []Attribute{{Kind: AttrBackground, Value: 0x123456, Start: 0, End: 1}}) {
+			t.Fatalf("saved preedit attributes[%d] changed: %+v", index, event)
+		}
+	}
+	if events[3].HasMode || events[3].Text != "cd" || !reflect.DeepEqual(events[3].Attributes, []Attribute{{Kind: AttrUnderline, Value: 2, Start: 1, End: 2}}) {
+		t.Fatalf("new update retained old metadata: %+v", events[3])
+	}
+}
+
+var preeditBenchmarkText string
+var preeditBenchmarkContext *Context
+
+func BenchmarkPreeditSignalDispatch(b *testing.B) {
+	context := &Context{handler: Handler{Preedit: func(event PreeditEvent) { preeditBenchmarkText = event.Text }}}
+	message := preeditSignal(testContext, "preedit", 3, true)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		context.signal(message)
+	}
+	b.ReportMetric(float64(unsafe.Sizeof(Context{})), "context-B")
+	b.ReportMetric(float64(unsafe.Sizeof(Handler{})), "handler-B")
+	b.ReportMetric(float64(unsafe.Sizeof(Bus{})), "bus-B")
+}
+
+func BenchmarkPreeditContextConstruction(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		preeditBenchmarkContext = new(Context)
 	}
 }
 
@@ -343,7 +736,7 @@ func TestMalformedSignalsAreIgnoredNotFatal(t *testing.T) {
 	called := false
 	bus, _, transport := newTestBus(t, Handler{
 		Commit:  func(string) { called = true },
-		Preedit: func(string, int, bool, []Attribute) { called = true },
+		Preedit: func(PreeditEvent) { called = true },
 		Forward: func(_, _, _ uint32) { called = true },
 	})
 	truncated := commitSignal(testContext, "你好")
@@ -407,6 +800,60 @@ func TestAFailedSendClosesTheBusAndReleasesPendingKeys(t *testing.T) {
 	}
 }
 
+func TestFailedContextDestructionReleasesBothContextsKeysDespiteReentry(t *testing.T) {
+	bus, first, transport := newTestBus(t, Handler{})
+	transport.createPath = testContext + "_second"
+	second, err := bus.NewContext("second", Handler{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var completed []string
+	completion := func(name string) func(bool) {
+		return func(handled bool) {
+			completed = append(completed, name)
+			if handled {
+				t.Errorf("%s key was handled after transport failure", name)
+			}
+			if bus.contexts[first.path] == first {
+				t.Error("destroyed context still owns its handler during failure callbacks")
+			}
+			first.Close()
+			second.Close()
+			for _, context := range []*Context{first, second} {
+				if err := context.ProcessKey('n', 49, 0, nil); !errors.Is(err, ErrClosed) {
+					t.Errorf("reentered key returned %v, want ErrClosed", err)
+				}
+			}
+			if _, err := bus.NewContext("reentered", Handler{}); !errors.Is(err, ErrClosed) {
+				t.Errorf("reentered context returned %v, want ErrClosed", err)
+			}
+		}
+	}
+	if err := first.ProcessKey('a', 38, 0, completion("first")); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.ProcessKey('b', 56, 0, completion("second")); err != nil {
+		t.Fatal(err)
+	}
+	sent := len(transport.sent)
+	failure := errors.New("destroy: broken pipe")
+	transport.sendErr = failure
+	first.Close()
+	bus.Close()
+	first.Close()
+	second.Close()
+	if !errors.Is(bus.Err(), failure) || !transport.closed {
+		t.Fatalf("failure = %v, transport closed = %v", bus.Err(), transport.closed)
+	}
+	if !reflect.DeepEqual(completed, []string{"first", "second"}) {
+		t.Fatalf("completion order = %v, want each key released once in order", completed)
+	}
+	if len(bus.pending) != 0 || len(bus.contexts) != 0 || len(transport.sent) != sent {
+		t.Fatalf("after destruction: pending=%d contexts=%d sent=%d, want 0, 0, %d",
+			len(bus.pending), len(bus.contexts), len(transport.sent), sent)
+	}
+}
+
 func TestContextCalls(t *testing.T) {
 	_, context, transport := newTestBus(t, Handler{})
 	if err := context.FocusIn(); err != nil {
@@ -434,6 +881,27 @@ func TestContextCalls(t *testing.T) {
 	location := dbus.NewDecoder(transport.calls("SetCursorLocation")[0].body)
 	if got := [4]int32{location.Int32(), location.Int32(), location.Int32(), location.Int32()}; got != [4]int32{100, -20, 2, 18} {
 		t.Fatalf("cursor location = %v", got)
+	}
+}
+
+func BenchmarkHandledContextKey(b *testing.B) {
+	transport := &fakeTransport{createPath: testContext}
+	bus := newBus(transport)
+	context, err := bus.NewContext("benchmark", Handler{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	answer := dbus.Message{Type: dbus.TypeReturn, Signature: "b", Body: []byte{1, 0, 0, 0}}
+	transport.sent = transport.sent[:0]
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := context.ProcessKey('a', 30, 0, nil); err != nil {
+			b.Fatal(err)
+		}
+		answer.ReplySerial = transport.serial
+		bus.answer(&answer)
+		transport.sent = transport.sent[:0]
 	}
 }
 
@@ -496,15 +964,16 @@ func FuzzDispatchNeverPanics(f *testing.F) {
 	good := commitSignal(testContext, "你好")
 	f.Add(good.Body, "v", "CommitText")
 	preedit := preeditSignal(testContext, "ni", 1, true)
-	f.Add(preedit.Body, "vubu", "UpdatePreeditText")
-	f.Add(styledPreeditSignal(testContext, "ni", 1, [][4]uint32{{AttrBackground, 1, 0, 2}}).Body, "vubu", "UpdatePreeditText")
+	f.Add(preedit.Body, "vub", "UpdatePreeditText")
+	f.Add(styledPreeditSignal(testContext, "ni", 1, [][4]uint32{{AttrBackground, 1, 0, 2}}).Body, "vub", "UpdatePreeditText")
+	f.Add(preeditModeSignal(testContext, "ni", 1, true, PreeditModeCommit).Body, "vubu", "UpdatePreeditTextWithMode")
 	f.Add([]byte{1, 2, 3}, "uuu", "ForwardKeyEvent")
 	f.Add([]byte{1, 2, 3}, "iu", "DeleteSurroundingText")
 	f.Fuzz(func(t *testing.T, body []byte, signature, member string) {
 		var seen int
 		bus, _, transport := newTestBus(t, Handler{
 			Commit:  func(string) { seen++ },
-			Preedit: func(string, int, bool, []Attribute) { seen++ },
+			Preedit: func(PreeditEvent) { seen++ },
 			Forward: func(_, _, _ uint32) { seen++ },
 
 			DeleteSurrounding: func(_, _ int) { seen++ },
@@ -514,4 +983,36 @@ func FuzzDispatchNeverPanics(f *testing.F) {
 			t.Fatalf("a signal broke the bus: %v", err)
 		}
 	})
+}
+
+func TestClientPreeditModeNegotiatesTheDaemonProperty(t *testing.T) {
+	for _, refused := range []bool{false, true} {
+		bus, context, transport := newTestBus(t, Handler{})
+		client, ok := any(context).(interface{ SetClientCommitPreedit(bool) error })
+		if !ok {
+			t.Fatal("context cannot negotiate native client preedit ownership")
+		}
+		if refused {
+			transport.preeditErr = &dbus.Error{Name: "org.freedesktop.DBus.Error.UnknownProperty", Text: "unsupported"}
+		}
+		if err := client.SetClientCommitPreedit(true); !errors.Is(err, transport.preeditErr) {
+			t.Fatalf("negotiation=%v want=%v", err, transport.preeditErr)
+		}
+		calls := transport.calls("Set")
+		if len(calls) != 1 || calls[0].path != testContext || calls[0].iface != "org.freedesktop.DBus.Properties" || calls[0].signature != "ssv" {
+			t.Fatalf("native property call=%+v", calls)
+		}
+		args := dbus.NewDecoder(calls[0].body)
+		if args.String() != contextInterface || args.String() != "ClientCommitPreedit" || args.Signature() != "(b)" {
+			t.Fatal("incorrect native preedit ownership property")
+		}
+		args.Align(8)
+		if !args.Bool() || args.Err() != nil || args.Pos() != len(calls[0].body) || bus.Err() != nil {
+			t.Fatalf("property payload or bus invalid: %v bus=%v", args.Err(), bus.Err())
+		}
+		context.Close()
+		if err := client.SetClientCommitPreedit(true); !errors.Is(err, ErrClosed) || len(transport.calls("Set")) != 1 {
+			t.Fatalf("retired context negotiation=%v", err)
+		}
+	}
 }

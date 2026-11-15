@@ -177,6 +177,16 @@ func (router *Router) HitTest(x float32, y float32) (Target, bool) {
 	return router.regions[index].Target, true
 }
 
+// HitTestRegion returns the front-most enabled region containing the point,
+// including the focus scope it was declared in.
+func (router *Router) HitTestRegion(x float32, y float32) (Region, bool) {
+	index, ok := router.hitTestIndex(x, y)
+	if !ok {
+		return Region{}, false
+	}
+	return router.regions[index], true
+}
+
 // PressKind is what a press at a point does in a custom-titlebar window.
 type PressKind uint8
 

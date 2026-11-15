@@ -270,7 +270,7 @@ func TestSetCursorShapeAppliesAndReleasesCursor(t *testing.T) {
 	}
 }
 
-// The hidden cursor is the eleventh shape, past the end of the cursor font's glyphs: it makes a
+// The hidden cursor is the twelfth shape, past the end of the cursor font's glyphs: it makes a
 // cursor of a 1x1 bitmap that is cleared first, since a new pixmap has undefined contents, and
 // applies it in place of the one the window had.
 func TestSetCursorShapeHiddenClearsItsBitmapAndReplacesTheCursor(t *testing.T) {

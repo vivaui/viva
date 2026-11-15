@@ -38,8 +38,9 @@ func (value *supervisor) hostConfig() app.Config {
 		Title: value.window.Title, Width: value.window.Width, Height: value.window.Height,
 		MinWidth: value.window.MinWidth, MinHeight: value.window.MinHeight,
 		WindowMode: app.WindowMode(value.window.WindowMode), TitlebarHeight: float32(value.window.TitlebarHeight),
-		ClearColor: app.Color{Red: value.window.ClearRed, Green: value.window.ClearGreen, Blue: value.window.ClearBlue, Alpha: value.window.ClearAlpha},
-		Paint:      value.paint, OnPointer: value.pointer,
+		TrafficLightScale: value.window.TrafficLightScale,
+		ClearColor:        app.Color{Red: value.window.ClearRed, Green: value.window.ClearGreen, Blue: value.window.ClearBlue, Alpha: value.window.ClearAlpha},
+		Paint:             value.paint, OnPointer: value.pointer,
 		OnKey: value.key, OnShortcut: value.shortcut, OnScroll: value.scroll,
 		OnCloseRequest: value.requestClose, Invalidator: &value.invalidator,
 	}
@@ -303,7 +304,7 @@ func (value *supervisor) clearErrorLocked() { value.lastError = "" }
 
 func compatibleWindow(current, next reloadwire.WindowConfig) error {
 	if current.Title != next.Title || current.Width != next.Width || current.Height != next.Height ||
-		current.WindowMode != next.WindowMode || current.TitlebarHeight != next.TitlebarHeight || current.ClearRed != next.ClearRed ||
+		current.WindowMode != next.WindowMode || current.TitlebarHeight != next.TitlebarHeight || current.TrafficLightScale != next.TrafficLightScale || current.ClearRed != next.ClearRed ||
 		current.ClearGreen != next.ClearGreen || current.ClearBlue != next.ClearBlue || current.ClearAlpha != next.ClearAlpha {
 		return fmt.Errorf("candidate changed immutable window configuration; restart viva dev")
 	}

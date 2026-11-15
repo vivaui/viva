@@ -181,15 +181,19 @@ func (engine *textEngine) SetFontFamily(family string) {
 func (engine *textEngine) MonoCell(size float32, face gfx.MonoFace) gfx.MonoCellMetrics {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	metrics, err := engine.services.measureIn(monoFamily(face), "M", size, 0)
+	family := monoFamily(face)
+	metrics, err := engine.services.measureIn(family, "M", size, 0)
 	if err != nil {
 		return gfx.MonoCellMetrics{}
 	}
+	rule, heavy := engine.services.boxStrokes(family, size, 0)
 	return gfx.MonoCellMetrics{
-		Advance: metrics.Width,
-		Ascent:  metrics.Ascent,
-		Descent: metrics.Descent,
-		LineGap: max(metrics.Height-metrics.Ascent-metrics.Descent, 0),
+		Advance:   metrics.Width,
+		Ascent:    metrics.Ascent,
+		Descent:   metrics.Descent,
+		LineGap:   max(metrics.Height-metrics.Ascent-metrics.Descent, 0),
+		Rule:      rule,
+		HeavyRule: heavy,
 	}
 }
 

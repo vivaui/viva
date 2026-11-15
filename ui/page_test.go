@@ -558,3 +558,33 @@ func TestSelectStaysOpenWhenOneAppearsAbove(t *testing.T) {
 		t.Fatalf("size open=%v, color open=%v", d.has("L"), d.has("Red"))
 	}
 }
+
+// SelectIcon opens, chooses and writes back through the option type of the
+// application's own, label and icon both named by functions of the option.
+func TestSelectIconChoosesAnOption(t *testing.T) {
+	type locale struct {
+		name string
+		flag int
+	}
+	flagOf := func(flag int) gfx.Icon {
+		return gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound,
+			Commands: []gfx.PathCommand{gfx.MoveTo(4+float32(flag)*4, 6), gfx.LineTo(14+float32(flag)*4, 18)}}
+	}
+	locales := []locale{{"简体中文", 0}, {"English", 1}, {"日本語", 2}}
+	chosen := locales[1]
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			ui.SelectIcon(c, &chosen, locales,
+				func(l locale) string { return l.name },
+				func(l locale) gfx.Icon { return flagOf(l.flag) }).Placeholder("Language")
+		})
+	})
+	d.click("Language")
+	if !d.has("日本語") {
+		t.Fatal("the open list does not offer its options")
+	}
+	d.click("日本語")
+	if chosen != locales[2] {
+		t.Fatalf("chose %+v, want %+v", chosen, locales[2])
+	}
+}

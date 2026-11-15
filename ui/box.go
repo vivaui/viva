@@ -285,6 +285,16 @@ func (b Box) Border(width float32, c Color) Box {
 	return b
 }
 
+// Dashed gives the element's Border or Stroke a repeating dash pattern,
+// continuing around rounded corners. It has no effect without a line width;
+// calling it again switches back to a solid line.
+func (b Box) Dashed() Box {
+	b.n()
+	extra := b.f.extra(b.i)
+	extra.borderDashed = !extra.borderDashed
+	return b
+}
+
 // Shadow casts the shadow of that level of the elevation scale (gfx.ShadowXS to
 // gfx.ShadowLG) around the element's rounded rectangle, under its fill.
 func (b Box) Shadow(level gfx.ShadowLevel) Box {

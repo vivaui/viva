@@ -81,6 +81,10 @@ type Config struct {
 	// that. Zero means 28,
 	// the system titlebar's own height. It only applies to WindowCustomTitlebar.
 	TitlebarHeight float32
+	// TrafficLightScale scales native macOS traffic lights in a custom titlebar.
+	// Values in (0, 1] shrink the controls around their original centers; zero
+	// preserves the system size. Other platforms ignore this setting.
+	TrafficLightScale float32
 	// WindowControls styles the minimize, maximize and close buttons Viva draws at
 	// the trailing end of a WindowCustomTitlebar's strip on Windows and Linux,
 	// where the system draws none for a window without a titlebar; macOS has its
@@ -92,6 +96,15 @@ type Config struct {
 	// supplied it. Without one the panel is centered on the screen.
 	Anchor     StatusAnchor
 	ClearColor Color
+	// WindowBorderColor is read at every paint and names the color of the
+	// border Windows 11 draws around a custom-titlebar window. The system
+	// composites that border against what is behind the window rather than
+	// against the window's own pixels, so the desktop shows through it as a
+	// seam about a pixel wide at 100% scale and proportionally wider at higher
+	// scale. Return the color the window's own edge is painted with to make it
+	// continuous. Nil uses ClearColor; a transparent color leaves the system's
+	// border. Other platforms ignore it.
+	WindowBorderColor func() Color
 	// WindowBackdrop is read on the window thread after each paint. Windows
 	// 11 22H2+ supports all materials; Windows 10 1809 through 11 21H2 supports
 	// Acrylic through an undocumented accent policy. Other cases use ClearColor.

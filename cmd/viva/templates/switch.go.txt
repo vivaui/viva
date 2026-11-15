@@ -28,6 +28,8 @@ type Switch struct {
 	invalid  bool
 	size     SwitchSize
 	disabled bool
+	// recipe, when set, replaces SwitchRecipe; see Button.Recipe.
+	recipe func(gfx.Theme, gfx.State, float32) SwitchLook
 }
 
 // BeginSwitch starts a switch declaration. Zero-sized bounds select official
@@ -41,6 +43,14 @@ func BeginSwitch(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect
 		canvas: canvas, theme: theme, id: id, bounds: bounds,
 		label: "switch", checked: checked, focused: focused,
 	}
+}
+
+// Recipe replaces the theme's switch recipe for this switch, progress being
+// how far the thumb has travelled from off to on. A nil recipe keeps the
+// theme's.
+func (switchControl Switch) Recipe(recipe func(gfx.Theme, gfx.State, float32) SwitchLook) Switch {
+	switchControl.recipe = recipe
+	return switchControl
 }
 
 // Small selects the official compact switch size.
@@ -134,6 +144,11 @@ func (switchControl Switch) Paint() SwitchResult {
 	look := switchRecipe(&switchControl.theme, gfx.State{
 		FocusVisible: switchControl.focused, Invalid: switchControl.invalid, Disabled: switchControl.disabled,
 	}, progress)
+	if switchControl.recipe != nil {
+		look = switchControl.recipe(switchControl.theme, gfx.State{
+			FocusVisible: switchControl.focused, Invalid: switchControl.invalid, Disabled: switchControl.disabled,
+		}, progress)
+	}
 	switchControl.canvas.Elevate(switchControl.bounds, switchControl.bounds.Height/2, look.Shadow) // shadow-xs
 	if look.Bordered {
 		switchControl.canvas.Rounded(expand(switchControl.bounds, look.RingWidth), switchControl.bounds.Height/2+look.RingWidth, look.Ring)

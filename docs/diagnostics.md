@@ -50,7 +50,6 @@ on `Subsystem` and `Code`, not on the wording.
 | `render` | `first-frame` | Debug | the first frame on Linux, when `VIVA_PROFILE_STARTUP` measures it |
 | `render` | `window-stats` | Debug | a Linux window closed, with its GPU counters |
 | `web` | `environment` | Warn | a WebView2 environment could not be created, with `error` |
-| `platform` | `reopen-panic` | Error | the macOS reopen handler panicked |
 
 The list grows where a failure would otherwise be invisible. A successful
 operation is reported only when it explains a failure or a measurement (a

@@ -44,6 +44,7 @@ func SetClipboardFiles(paths []string) error {
 		names[index] = filepath.Base(path)
 	}
 	win.clipboard = strings.Join(names, "\n")
+	win.clipboardHTML = ""
 	win.clipboardFiles = append([]string(nil), paths...)
 	win.ownsClipboard = true
 	return nil

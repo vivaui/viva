@@ -394,6 +394,27 @@ func TestNativeTextInputCarriesAltSendsEscape(t *testing.T) {
 	}
 }
 
+func TestNativeTextInputCarriesDisableIME(t *testing.T) {
+	native := makeNativeTextInput(TextInput{DisableIME: true}, nil)
+	if native.disable_ime == 0 {
+		t.Fatal("DisableIME was not passed to AppKit")
+	}
+}
+
+// A surface that keeps the input method off must not take a composition as
+// kept: its text state belongs to the machine it shows.
+func TestTextInputThatDisablesIMEKeepsNoComposition(t *testing.T) {
+	state := runState{textInputActive: true, textInput: TextInput{Target: gfx.Item(1), DisableIME: true}}
+	next := TextInput{Target: gfx.Item(1), DisableIME: false}
+	if state.textInputKeepsComposition(&next) {
+		t.Fatal("a surface that stopped disabling the input method kept a composition")
+	}
+	state.textInput.DisableIME = false
+	if !state.textInputKeepsComposition(&next) {
+		t.Fatal("an unchanged field no longer kept its composition")
+	}
+}
+
 // A focused field has no editing command for the function keys, so they must
 // reach the application as Windows and Linux deliver them; an input method that
 // converts on F6-F10 keeps them for as long as it composes.
@@ -596,6 +617,33 @@ func TestACanvasOnTheEngineSizesTheTerminalCellByTheFont(t *testing.T) {
 		}
 		if baseline := canvas.MonoBaseline(13, face, height); baseline <= 0 || baseline >= height {
 			t.Errorf("face %v: baseline %v of a cell %v tall, want a row inside it", face, baseline, height)
+		}
+	}
+}
+
+// The engine reports the thicknesses the face draws its own box drawing lines with, in
+// logical pixels at the size asked: those are the strokes a cell glyph is drawn with, so box
+// drawing geometry weighs what the font's own glyphs weigh. CoreText measures the ink of the
+// light and heavy stems; a face that lacks one answers 0 for it.
+func TestTheEngineReportsTheFontsBoxDrawingStrokes(t *testing.T) {
+	engine := SharedTextEngine()
+	for _, face := range []gfx.MonoFace{gfx.MonoSystem, gfx.MonoFamily("Courier New")} {
+		cell := engine.MonoCell(13, face)
+		if cell.Advance <= 0 {
+			t.Fatalf("face %v: no cell", face)
+		}
+		if cell.Rule <= 0 || cell.Rule >= cell.Advance {
+			t.Errorf("face %v: light line %v of a cell %v wide, want a positive stroke narrower than the cell", face, cell.Rule, cell.Advance)
+		}
+		if cell.HeavyRule > 0 && cell.HeavyRule < cell.Rule {
+			t.Errorf("face %v: heavy line %v is thinner than the light one %v", face, cell.HeavyRule, cell.Rule)
+		}
+		at26 := engine.MonoCell(26, face)
+		if at26.Rule <= cell.Rule {
+			t.Errorf("face %v: light line %v at 26, %v at 13, want it to follow the size", face, at26.Rule, cell.Rule)
+		}
+		if cell.HeavyRule > 0 && at26.HeavyRule <= cell.HeavyRule {
+			t.Errorf("face %v: heavy line %v at 26, %v at 13, want it to follow the size", face, at26.HeavyRule, cell.HeavyRule)
 		}
 	}
 }

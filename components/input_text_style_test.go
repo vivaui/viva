@@ -169,6 +169,66 @@ func TestMonoInputIsPaintedByTheComponentAndTheNativeLayerIsHidden(t *testing.T)
 	}
 }
 
+// Numeric fields opt into a right edge without leaving their selection, caret,
+// composition or platform editor at the ordinary start edge.
+func TestInputAlignmentDrivesTheLineAndItsEditingGeometry(t *testing.T) {
+	theme := gfx.LightTheme()
+	bounds := gfx.Rect{X: 10, Width: 200, Height: 32}
+	snapshot := InputSnapshot{ID: gfx.Item(1), Value: "1234", Alignment: gfx.AlignRight, HideEditorText: true,
+		Focused: true, ShowCaret: true, Caret: 3, SelectionStart: 1, SelectionEnd: 3}
+	canvas := weightedCanvas()
+	PaintInputContent(canvas, theme, bounds, bounds, snapshot)
+	var line gfx.Text
+	for _, text := range canvas.Texts() {
+		if text.Value == "1234" {
+			line = text
+		}
+	}
+	width := canvas.TextWidthStyle(line.Value, line.Style)
+	if line.Bounds.X != bounds.X+bounds.Width-width {
+		t.Fatalf("text origin = %v, want %v for right-aligned text", line.Bounds.X, bounds.X+bounds.Width-width)
+	}
+	var carets, selections []gfx.Rectangle
+	for _, rectangle := range canvas.Rectangles() {
+		switch {
+		case rectangle.Bounds.Width == 1:
+			carets = append(carets, rectangle)
+		case rectangle.Bounds.Width > 1:
+			selections = append(selections, rectangle)
+		}
+	}
+	if len(carets) != 1 {
+		t.Fatalf("carets = %+v, want one", carets)
+	}
+	if want := line.Bounds.X + canvas.TextCaretStyle(line.Value, line.Style, 3); carets[0].Bounds.X != want {
+		t.Errorf("caret at %v, want %v from the right origin", carets[0].Bounds.X, want)
+	}
+	if len(selections) != 1 {
+		t.Fatalf("the selection painted %+v, want one band", selections)
+	}
+	var spans [4]gfx.TextSpan
+	selection := canvas.TextSelectionStyle(spans[:0], line.Value, line.Style, 1, 3)
+	if len(selection) == 0 || selections[0].Bounds.X != line.Bounds.X+selection[0].X {
+		t.Errorf("selection at %+v, want the measured range %v from the right origin", selections[0].Bounds, selection)
+	}
+	text := hitText(canvas, &canvas.Hits()[0])
+	if text.Alignment != gfx.AlignRight {
+		t.Fatalf("the platform is told alignment %v, want right", text.Alignment)
+	}
+}
+
+func TestDefaultInputAlignmentStaysDirectionDependent(t *testing.T) {
+	canvas := weightedCanvas()
+	bounds := gfx.Rect{Width: 200, Height: 32}
+	PaintInputContent(canvas, gfx.LightTheme(), bounds, bounds, InputSnapshot{ID: gfx.Item(1), Value: "abc"})
+	if text := canvas.Texts()[0]; text.Bounds.X != bounds.X {
+		t.Fatalf("the ordinary field starts at %v, want %v", text.Bounds.X, bounds.X)
+	}
+	if text := hitText(canvas, &canvas.Hits()[0]); text.Alignment != gfx.AlignStart {
+		t.Errorf("the default promises the runtime alignment %v, want start", text.Alignment)
+	}
+}
+
 // The caret of a self-painted field is drawn only while its blink phase has it lit.
 func TestMonoInputCaretFollowsItsBlinkPhase(t *testing.T) {
 	theme := gfx.LightTheme()

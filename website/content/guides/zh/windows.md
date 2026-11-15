@@ -38,6 +38,10 @@ Windows 使用整个显示器而不是任务栏工作区，并保存之前的位
 
 无头应用的 `Window.SetFullscreen` 把工作排进 driver 的下一次 pump，不需要 worker，也不轮询。它的命令协议还提供 `fullscreen on|off` 和 `fullscreenmonitor x y width height`。
 
+## 改变内容尺寸
+
+调用 `window.SetSize(width, height)` 请求窗口管理器把内容区域改成给定的逻辑像素尺寸。调用是异步的，可以从任意 goroutine 发起；`Config.OnResize` 报告实际获得的尺寸，它可能被窗口最小尺寸、屏幕工作区或平台上限（宽高必须在 1 到 65535 之间）夹住。最大化、最小化或全屏的窗口会忽略这个请求。`OpenContentWindow` 返回的 `ContentWindow` 转发同一个调用，无头应用会在 driver 的下一次 pump 应用它。不支持该能力的宿主返回一个包装了 `app.ErrUnsupported` 的错误。
+
 ## 完整示例
 
 下面的程序打开一个自定义标题栏窗口，其中的“Settings”按钮会打开第二个窗口，并且在有未保存的笔记时拒绝关闭。顶部条带是一个普通的 `ui.Row`，用 `app.TitlebarInsets` 留出内边距，所以标题不会压到窗口按钮下面；确认框是 `ui.ModalWith`，只在有关闭请求挂起时才声明：

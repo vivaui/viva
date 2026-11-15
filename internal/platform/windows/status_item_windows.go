@@ -19,8 +19,10 @@ const (
 	wmStatusNotify = 0x8010
 	// wmStatusRemove asks the status window to remove the item named in wParam.
 	wmStatusRemove = 0x8011
-	// wmQuitApplication is posted to the event-loop thread, not to a window.
+	// wmQuitApplication and wmPost are posted to the event-loop thread, not to
+	// a window: the first ends it, the second drains the work Post accepted.
 	wmQuitApplication = 0x8012
+	wmPost            = 0x8013
 	// wmHideWindow and wmShowWindow are posted to a window.
 	wmHideWindow = 32772
 	wmShowWindow = 32773

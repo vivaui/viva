@@ -20,13 +20,15 @@ import (
 type applicationWindow struct {
 	fullscreen        atomic.Bool
 	fullscreenRequest atomic.Int32
-	invalidator       *app.Invalidator
-	id                uint64
-	title             string
-	panel             bool
-	hidden            bool
-	session           *Session
-	closed            func()
+	// sizeRequest is the content size SetSize queued for the loop, or nil.
+	sizeRequest atomic.Pointer[[2]int32]
+	invalidator *app.Invalidator
+	id          uint64
+	title       string
+	panel       bool
+	hidden      bool
+	session     *Session
+	closed      func()
 	// closeRequest is the application's OnCloseRequest, if it set one.
 	closeRequest func(allow func())
 }
@@ -73,6 +75,14 @@ func newApplicationSession(options Options) *applicationSession {
 	}
 }
 
+// Post implements app.Host. A headless session has one goroutine and no
+// window thread apart from it, so the work runs where it was posted from.
+func (application *applicationSession) Post(fn func()) {
+	if fn != nil {
+		fn()
+	}
+}
+
 // OpenWindow implements app.Host.
 func (application *applicationSession) OpenWindow(config app.Config, canvas *gfx.Canvas, closed func()) (app.WindowControl, error) {
 	entry := &applicationWindow{}
@@ -90,6 +100,11 @@ func (application *applicationSession) OpenWindow(config app.Config, canvas *gfx
 	config.OnWake = func() {
 		if request := entry.fullscreenRequest.Swap(0); request != 0 {
 			if err := entry.session.driver.SetFullscreen(request == 2); err != nil {
+				panic(err)
+			}
+		}
+		if size := entry.sizeRequest.Swap(nil); size != nil {
+			if err := entry.session.Resize(int(size[0]), int(size[1])); err != nil {
 				panic(err)
 			}
 		}
@@ -132,6 +147,21 @@ func (window *headlessWindow) Frame() (gfx.Rect, bool) {
 	return entry.session.driver.Frame(), true
 }
 func (window *headlessWindow) Show() { window.application.setHidden(window.id, false) }
+
+// SetSize queues a content-size request for the driver's loop, which reports
+// the granted size through OnResize.
+func (window *headlessWindow) SetSize(width, height int) error {
+	window.application.mu.Lock()
+	entry := window.application.windows[window.id]
+	window.application.mu.Unlock()
+	if entry == nil {
+		return fmt.Errorf("headless: window is closed")
+	}
+	request := [2]int32{int32(width), int32(height)}
+	entry.sizeRequest.Store(&request)
+	entry.invalidator.Invalidate()
+	return nil
+}
 
 func (window *headlessWindow) SetFullscreen(fullscreen bool) error {
 	window.application.mu.Lock()

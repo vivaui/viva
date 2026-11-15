@@ -124,6 +124,10 @@ func nativeOpenWith(executable, path string) error {
 	return linuxSystemError(linuxplatform.OpenWith(executable, path))
 }
 
+func nativeOpenInBrowser(path string) error {
+	return linuxSystemError(linuxplatform.OpenInBrowser(path))
+}
+
 func nativePlaySystemSound(sound SystemSound) error {
 	return linuxSystemError(linuxplatform.PlaySystemSound(uint8(sound)))
 }

@@ -84,6 +84,11 @@ jobs:
       # targets this repository ships for.
       - name: vet
         run: go vet ./...
+      # The page-facing packages keep reflection and untyped containers out of
+      # their exported API; the layout, input, scene and render paths depend on
+      # it, and a symbol that needs one usually needs a typed one instead.
+      - name: API discipline
+        run: go run ./tools/apicheck ./ui ./components ./app ./gfx
 
   # Every target Viva ships for must at least type-check, tests included. The
   # targets do not depend on each other, so they run at the same time on one
@@ -284,7 +289,7 @@ jobs:
       # native structure ABI tests are here for the same reason: they build only
       # on Windows.
       - name: Material contracts and controls (WARP)
-        run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI)' -count=1 -v
+        run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|EngineReportsTheFontsUnderline|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI)' -count=1 -v
       - name: Terminal keyboard routing
         run: go test ./internal/platform/windows -run '^TestATerminalGetsEditingKeysAndChordsAsRawKeys$' -count=1 -v
       - name: Native Windows global shortcut

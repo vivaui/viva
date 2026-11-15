@@ -54,7 +54,7 @@ Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB and
 Vulkan loaders; on Windows, Win32 with Direct3D 11 and DirectWrite. Viva loads
 the system libraries at runtime and bundles none of them.
 
-The current release is `v0.6.1`; name it explicitly (`@v0.6.1`) to pin it. Guides,
+The current release is `v0.6.4`; name it explicitly (`@v0.6.4`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
@@ -113,6 +113,21 @@ WebView and no bundled rendering runtime.
   corner of the application's Dock tile, and an empty label removes it.
 - `app.StoreSecret`/`LoadSecret`/`DeleteSecret` keep a small secret in the
   system's own store (Keychain, Credential Manager, Secret Service).
+- `app.PreventSleep` keeps the machine out of idle sleep while a transfer or a
+  remote session runs, naming the work in the system's own power diagnostics
+  (`pmset`, `powercfg`, `systemd-inhibit`). It holds no timer or goroutine, and
+  releasing it ends the request.
+- `Application.SetMenuBar` puts the application's own File, Edit and View menus
+  between the system's application menu and Window menu on macOS, with key
+  equivalents, enablement, check marks, submenus and loop-thread callbacks; the
+  other desktop targets build their menus in the window with `components.Menubar`.
+- `Application.Post` hands work a background goroutine finished to the window
+  thread: accepted functions run there in order, with no goroutine, timer or
+  blocking wait added, and no "call the loop and wait" form that could deadlock.
+- `app/proxy.SystemProxy` reports the proxy the desktop selects for an HTTP URL:
+  CFNetwork on macOS, WinHTTP's automatic proxy on Windows (PAC, WPAD and the
+  static settings), and the environment on Linux. A policy the platform cannot
+  evaluate is an error, never a silent direct connection.
 - `gfx.MonoFamily` draws fixed-pitch text in any installed family and
   `app.MonospaceFamilies` lists them.
 - `Config.OnFileDrop` receives files dragged from the file manager, with the hit

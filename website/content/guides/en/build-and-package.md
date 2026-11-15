@@ -72,7 +72,7 @@ category = "public.app-category.productivity"
 entitlements = "app.entitlements"   # optional: signed into the bundle with the hardened runtime
 ```
 
-The file is decoded strictly. An unknown table or key, a duplicate or a value of the wrong type is an error that names the line, so a typo never changes what gets built. `[mac.dmg]` shapes the window the `.dmg` opens in: `background` (a PNG, tagged 144 dpi for a 2x picture; its size in points is the window's size), `icon_size`, and `app_position` / `applications_position` as `[x, y]` points from the window's top left to an icon's middle. Without it the image opens in a 540×380 window with a plain light ground and an arrow from the application to the Applications shortcut. There are also `[mac.info]` for extra `Info.plist` strings, `[windows]` (publisher, install scope, URL) and `[linux]` (menu category, comment, maintainer, dependencies, keywords) for the installers.
+The file is decoded strictly. An unknown table or key, a duplicate or a value of the wrong type is an error that names the line, so a typo never changes what gets built. `[mac.dmg]` shapes the window the `.dmg` opens in: `background` (a PNG, tagged 144 dpi for a 2x picture; its size in points is the window's size), `icon_size`, and `app_position` / `applications_position` as `[x, y]` points from the window's top left to an icon's middle. Without it the image opens in a 540×380 window with a plain light ground and an arrow from the application to the Applications shortcut. There are also `[mac.info]` for extra `Info.plist` strings, `[windows]` (publisher, install scope, URL) and `[linux]` (menu category, comment, maintainer, Debian dependencies, Arch dependencies, keywords) for the installers.
 
 ## Release builds
 
@@ -92,6 +92,7 @@ viva package                                    # build/Notes.app
 viva package --format app,zip,dmg
 viva package --target windows --format nsis,zip
 viva package --target linux --format tar.gz,deb
+viva package --target linux --format tar.gz,pkgbuild --pkgbuild-url https://example.com/downloads/notes-1.0.0-linux-x86_64.tar.gz
 viva package --program ./notes-signed           # package an executable you built or signed yourself
 ```
 
@@ -99,7 +100,9 @@ viva package --program ./notes-signed           # package an executable you buil
 | --- | --- |
 | macOS | `.app`, reproducible `.zip`, `.dmg` |
 | Windows | NSIS installer (needs `makensis`), or `.zip` |
-| Linux | `tar.gz` with an install script, or `.deb` |
+| Linux | `tar.gz` with an install script, `.deb`, or a `PKGBUILD` with its `.SRCINFO` for an Arch binary package |
+
+A `PKGBUILD` installs the program under `/opt/<name>-bin`, links it into `/usr/bin`, and installs the menu entry, icon and document types; it never builds anything, so it needs no Arch machine to write. The `tar.gz` is its source: by default makepkg looks for it beside the `PKGBUILD`, and `--pkgbuild-url` gives the address of the released archive instead (the `tar.gz::<url>` form, so the file keeps its name). Write each architecture into its own directory, as `PKGBUILD` is one file per directory. Set `[linux] arch_depends` for libraries the application needs beyond the Vulkan, XCB and Cairo packages every Viva application uses.
 
 **Signing is optional.** With nothing configured nothing is signed: macOS blocks a downloaded bundle and Windows SmartScreen warns about the installer. `--program` exists so you can build, sign, and then package that exact executable yourself.
 

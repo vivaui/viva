@@ -28,6 +28,14 @@ int viva_system_clipboard_files(const char *pasteboard, size_t max, viva_system_
 // Puts file URLs on a named pasteboard, as Finder does after a copy. names is
 // the text a file manager also leaves there (the file names, one per line).
 int viva_system_pasteboard_put_files(const char *pasteboard, const char *const *paths, size_t count, const char *names);
+// Writes html as public.html beside alt as public.utf8-plain-text on a named
+// pasteboard; NULL is the general one (main thread).
+int viva_system_pasteboard_put_html(const char *pasteboard, const char *html, const char *alt);
+// Reads a named pasteboard's public.html as UTF-8 into *value (free with
+// viva_system_free); "" when it holds none.
+int viva_system_pasteboard_html(const char *pasteboard, char **value, char **error_message);
+// Reads a named pasteboard's plain text the same way.
+int viva_system_pasteboard_text(const char *pasteboard, char **value, char **error_message);
 // Shows a modal alert. It must run on the main thread; elsewhere it returns -1.
 int viva_system_show_fatal_error(const char *title, const char *message);
 int viva_system_set_cursor(uint8_t shape, char **error_message);
@@ -67,6 +75,9 @@ int viva_system_reveal_path(const char *path, char **error_message);
 // Whether any application is registered for the URL scheme (no trailing colon):
 // 1 yes, 0 no, -1 failure with *error_message.
 int viva_system_scheme_handler(const char *scheme, char **error_message);
+// The application https links open in, the default browser: 1 with *path set,
+// 0 when there is none, -1 failure with *error_message.
+int viva_system_default_browser(char **path, char **error_message);
 int viva_system_reduce_motion(void);
 char *viva_system_preferred_languages(void);
 int viva_system_dark_appearance(void);

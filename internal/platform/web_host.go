@@ -15,6 +15,9 @@ import (
 // window, or the system's web engine is not installed.
 var ErrWebViewUnsupported = errors.New("platform: this window cannot host web pages")
 
+// WebProxyDirect explicitly bypasses system proxies for one page's network context.
+const WebProxyDirect = "direct"
+
 // NativeView is a place in the window that a native view fills.
 type NativeView struct {
 	// ID is the WebView it belongs to (WebViewConfig.ID).
@@ -55,6 +58,7 @@ type WebViewConfig struct {
 	// Proxy, when set, is the loopback host:port of a SOCKS5 proxy that carries all of the page's
 	// traffic, names resolved by the proxy. A platform that cannot hold the page to it returns
 	// ErrWebViewUnsupported rather than opening a page that connects directly.
+	// WebProxyDirect bypasses system proxies instead.
 	Proxy string
 	// OnMessage receives what the page posts with window.viva.postMessage(text).
 	OnMessage func(text string)

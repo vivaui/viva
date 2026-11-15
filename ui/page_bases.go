@@ -106,7 +106,7 @@ func SliderBase(c C, state *SliderState) Box {
 //		list.Draw(m.paintPanel) // option i is in sel.Part(i)
 //	}
 func SelectBase[T comparable](c C, value *T, choices []T, label func(T) string) Box {
-	return selectOf(c, value, choices, label, true)
+	return selectOf(c, value, choices, label, nil, true)
 }
 
 // TextFieldBase is TextField without a look: the editable text, with no padding,

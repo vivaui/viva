@@ -84,6 +84,16 @@ type MonoCellMetrics struct {
 	Ascent  float32 // baseline to the top of the line box
 	Descent float32 // baseline to the bottom of the line box
 	LineGap float32 // the space the font asks between two line boxes; zero where the engine derives Descent from the font's line height (Windows and Linux), which folds the gap into it
+	// Rule and HeavyRule are the thicknesses, in logical pixels, of the strokes the
+	// face draws with a light (U+2502) and a heavy (U+2503) box drawing line: the
+	// weights a cell glyph drawn as geometry takes, so that it weighs what the font's
+	// own glyph would weigh. They are the glyphs' ink widths, not a share of the font
+	// size and not the underline thickness, which a face may draw at a different weight
+	// than its box lines. Zero when the engine does not report it, or its face lacks
+	// the glyph; the canvas then uses the reference thickness
+	// (internal/textmetrics.MonoRule).
+	Rule      float32
+	HeavyRule float32
 }
 
 // Line is the height of the font's line box: its ascent, its descent and the gap it asks

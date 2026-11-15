@@ -53,6 +53,12 @@ const (
 const (
 	MonoAdvance = 0.6
 	MonoLine    = 1.18
+	// MonoRule is the reference thickness of the stroke a fixed-pitch face draws a light
+	// box drawing line with, in units of the font size: the rule a cell glyph is drawn
+	// with when the text engine does not report the face's own stroke. A fixed-pitch face
+	// draws its box lines at 5 to 15 percent of the size; the reference takes the low end,
+	// and a heavy stroke is twice that.
+	MonoRule = 0.05
 )
 
 // weightIndex selects the table for a Viva weight (gfx.TextStyle.Weight: 0 regular,

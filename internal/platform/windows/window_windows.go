@@ -63,6 +63,7 @@ const (
 	wmAllowClose       = 32769
 	wmApplyCursor      = 32770
 	wmRedraw           = 32771
+	wmSetSize          = 0x8052
 	wsOverlappedWindow = 0x00cf0000
 )
 
@@ -139,7 +140,11 @@ type windowState struct {
 	imeTarget                    text.Range
 	imeHasTarget                 bool
 	titlebarThemed, titlebarDark bool
-	web                          *webHost
+	// borderColored says the window's border was given an application color,
+	// and borderColor is that color; see applyBorderColor.
+	borderColored bool
+	borderColor   uint32
+	web           *webHost
 }
 
 var active atomic.Pointer[windowState]
@@ -173,6 +178,11 @@ type windowsApplication struct {
 	// again.
 	taskbar      uintptr
 	taskbarTried bool
+	// posts are the functions other goroutines handed to Post; they are drained
+	// on the event-loop thread. postWake coalesces the messages that wake it.
+	postMu   sync.Mutex
+	posts    []func()
+	postWake atomic.Bool
 }
 
 type nativeWindow struct {
@@ -259,6 +269,10 @@ func RunApplication(start platform.ApplicationStart) error {
 		}
 		if event.Window == 0 && event.Kind == wmQuitApplication {
 			application.closeAll()
+			continue
+		}
+		if event.Window == 0 && event.Kind == wmPost {
+			application.drainPosts()
 			continue
 		}
 		// A handled printable shortcut must never reach TranslateMessage:
@@ -380,6 +394,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 	}
 	state.watchBackdropPower()
 	state.applyBackdrop()
+	state.applyBorderColor()
 	state.ready = true
 	if state.activeBackdrop() {
 		postMessage.Call(state.window, wmRedraw, 0, 0)
@@ -410,6 +425,9 @@ func (application *windowsApplication) closeAll() {
 		}
 		return true
 	})
+	// The one cursor this package made — the closed hand Win32 does not ship —
+	// is destroyed once no window can still be showing it.
+	closeGrabbingCursor()
 }
 
 func windowProc(window, kind, first, second uintptr) (result uintptr) {
@@ -441,6 +459,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state.setAlwaysOnTop(first != 0) {
 			return 1
 		}
+		return 0
+	case wmSetSize:
+		state.resizeClient(int(first&0xffff), int((first>>16)&0xffff))
 		return 0
 	case wmFullscreen:
 		state.setFullscreen(first != 0)
@@ -937,6 +958,7 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 	views := frame.NativeViews
 	if err == nil {
 		state.applyBackdrop()
+		state.applyBorderColor()
 		defer func() {
 			if state.web != nil && state.ready {
 				state.web.frame(views)

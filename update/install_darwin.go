@@ -57,11 +57,17 @@ func install(options InstallOptions, quit func()) error {
 		}
 	}()
 
-	options.report("unpacking")
-	if err := extractZip(options.Artifact, staging); err != nil {
-		return err
+	var staged string
+	if options.Payload != "" {
+		options.report("copying the patched application")
+		staged, err = stagePayload(options.Payload, staging, filepath.Base(bundle))
+	} else {
+		options.report("unpacking")
+		if err := extractZip(options.Artifact, staging); err != nil {
+			return err
+		}
+		staged, err = stagedBundle(staging)
 	}
-	staged, err := stagedBundle(staging)
 	if err != nil {
 		return err
 	}
@@ -144,6 +150,18 @@ func isDirectory(path string) bool {
 
 // stagedBundle returns the one application bundle at the top of staging. An
 // archive that holds none, several, or a file with the .app suffix is refused.
+// stagePayload copies a patched application into staging as name, the running
+// bundle's directory name, and returns the copy. ApplyPatch builds the payload
+// in a temporary directory whose own name has no .app suffix, so the copy cannot
+// keep it; the helper moves the copy over the running bundle under that name
+// anyway.
+func stagePayload(payload, staging, name string) (string, error) {
+	if err := copyTree(payload, filepath.Join(staging, name)); err != nil {
+		return "", err
+	}
+	return stagedBundle(staging)
+}
+
 func stagedBundle(staging string) (string, error) {
 	entries, err := os.ReadDir(staging)
 	if err != nil {

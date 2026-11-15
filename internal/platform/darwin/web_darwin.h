@@ -13,8 +13,9 @@ void *viva_application_window_view(void *token);
 // bridge script is for the main frame alone (WebKit is also told to inject it there only). An
 // ephemeral page keeps its data in a store in memory, which goes with the page.
 void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, const char *html,
-                    const char *base, const char *script, int main_frame_only, const char *scheme, int ephemeral,
+                    const char *base, const char *script, int main_frame_only, const char *scheme, int ephemeral, int direct,
                     char **error);
+int viva_web_direct_supported(void);
 void viva_web_load(void *web, const char *url);
 void viva_web_load_html(void *web, const char *html, const char *base);
 void viva_web_reload(void *web);

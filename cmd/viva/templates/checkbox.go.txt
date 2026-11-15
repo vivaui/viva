@@ -18,6 +18,8 @@ type Checkbox struct {
 	focused       bool
 	invalid       bool
 	disabled      bool
+	// recipe, when set, replaces CheckboxRecipe; see Button.Recipe.
+	recipe func(gfx.Theme, gfx.State) CheckboxLook
 }
 
 // BeginCheckbox starts a checkbox declaration. Bounds provide only the visual
@@ -32,6 +34,13 @@ func BeginCheckbox(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Re
 		canvas: canvas, theme: theme, id: id, bounds: bounds,
 		label: "checkbox", checked: checked, focused: focused,
 	}
+}
+
+// Recipe replaces the theme's checkbox recipe for this checkbox. A nil recipe
+// keeps the theme's.
+func (checkbox Checkbox) Recipe(recipe func(gfx.Theme, gfx.State) CheckboxLook) Checkbox {
+	checkbox.recipe = recipe
+	return checkbox
 }
 
 // Label sets the accessible name without changing visual geometry.
@@ -115,6 +124,9 @@ func (checkbox Checkbox) Paint() CheckboxResult {
 		Invalid: checkbox.invalid, Disabled: checkbox.disabled,
 	}
 	look := checkboxRecipe(&checkbox.theme, state)
+	if checkbox.recipe != nil {
+		look = checkbox.recipe(checkbox.theme, state)
+	}
 	checkbox.canvas.Elevate(checkbox.bounds, look.Radius, look.Shadow) // shadow-xs
 	if look.RingWidth > 0 {
 		checkbox.canvas.Rounded(expand(checkbox.bounds, look.RingWidth), look.RingRadius, look.Ring)

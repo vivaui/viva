@@ -1,6 +1,7 @@
 #include "file_icon_darwin.h"
 
 #import <AppKit/AppKit.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #include <string.h>
 
@@ -8,6 +9,27 @@ static void viva_file_icon_fail(char **error_message, const char *message) {
     if (error_message != NULL) {
         *error_message = strdup(message);
     }
+}
+
+/* viva_file_icon_image returns the icon the system has for path. A path that
+ * exists keeps its own icon, a bundle and a folder included. A path that does
+ * not exist has no file for LaunchServices to inspect, and iconForFile: would
+ * answer every one of them with the generic document icon; its extension still
+ * names a type, so ask for that type's icon instead. */
+static NSImage *viva_file_icon_image(NSString *file) {
+    if (![NSFileManager.defaultManager fileExistsAtPath:file]) {
+        NSString *extension = file.pathExtension;
+        if (extension.length > 0) {
+            UTType *type = [UTType typeWithFilenameExtension:extension];
+            if (type != nil) {
+                NSImage *icon = [NSWorkspace.sharedWorkspace iconForContentType:type];
+                if (icon != nil) {
+                    return icon;
+                }
+            }
+        }
+    }
+    return [NSWorkspace.sharedWorkspace iconForFile:file];
 }
 
 int viva_file_icon_bgra(const char *path, int pixels, unsigned char *out, char **error_message) {
@@ -21,7 +43,7 @@ int viva_file_icon_bgra(const char *path, int pixels, unsigned char *out, char *
             viva_file_icon_fail(error_message, "file icon path is not valid UTF-8");
             return -1;
         }
-        NSImage *icon = [NSWorkspace.sharedWorkspace iconForFile:file];
+        NSImage *icon = viva_file_icon_image(file);
         if (icon == nil) {
             viva_file_icon_fail(error_message, "the system has no icon for the file");
             return -1;

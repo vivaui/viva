@@ -21,21 +21,23 @@ func Run(config Config) error {
 	defer runtime.UnlockOSThread()
 
 	return runNative(platform.Config{
-		Title:           normalized.Title,
-		Class:           normalized.Class,
-		Icon:            normalized.Icon.platform(),
-		Width:           normalized.Width,
-		Height:          normalized.Height,
-		MinWidth:        normalized.MinWidth,
-		MinHeight:       normalized.MinHeight,
-		WindowMode:      platform.WindowMode(normalized.WindowMode),
-		WindowMaterials: normalized.windowMaterials(),
-		TitlebarHeight:  normalized.TitlebarHeight,
+		Title:             normalized.Title,
+		Class:             normalized.Class,
+		Icon:              normalized.Icon.platform(),
+		Width:             normalized.Width,
+		Height:            normalized.Height,
+		MinWidth:          normalized.MinWidth,
+		MinHeight:         normalized.MinHeight,
+		WindowMode:        platform.WindowMode(normalized.WindowMode),
+		WindowMaterials:   normalized.windowMaterials(),
+		TitlebarHeight:    normalized.TitlebarHeight,
+		TrafficLightScale: normalized.TrafficLightScale,
 		ClearColor: platform.Color{
 			Red:   normalized.ClearColor.Red,
 			Green: normalized.ClearColor.Green,
 			Blue:  normalized.ClearColor.Blue,
 			Alpha: normalized.ClearColor.Alpha,
 		},
+		WindowBorderColor: borderColorHandler(normalized.WindowBorderColor),
 	})
 }

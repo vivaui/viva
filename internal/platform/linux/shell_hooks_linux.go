@@ -15,6 +15,7 @@ var shellHooks atomic.Pointer[desktopHooks]
 type desktopHooks struct {
 	clipboardText     func() (string, error)
 	setClipboardText  func(string) error
+	setClipboardHTML  func(html, alt string) error
 	hasClipboardImage func() bool
 	clipboardImagePNG func() ([]byte, error)
 	clipboardFiles    func() ([]string, error)

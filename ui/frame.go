@@ -191,8 +191,9 @@ type extra struct {
 	iconTransform gfx.IconTransform // moves the icon inside its box without moving the box
 	border        Color
 	shadow        gfx.ShadowLevel
-	ring          Color            // Ring: a line around the outside of the element
-	ringWidth     float32          // its width; zero is none
+	ring          Color   // Ring: a line around the outside of the element
+	ringWidth     float32 // its width; zero is none
+	borderDashed  bool
 	fade          float32          // 1 less the opacity, so that the zero value is opaque
 	gradient      int32            // 1 + the index of the element's gradient in frame.gradients, or 0 for none
 	states        int32            // 1 + the index of the element's Hover, Pressed and Focus looks in frame.states, or 0 for none
@@ -208,6 +209,7 @@ type extra struct {
 	memo          int32            // 1 + the index the element's cache has with whoever declared it (memoFn), or 0
 	draws         int32            // 1 + the index of the element's Draw and DrawOver callbacks in frame.draws, or 0 for none
 	tooltip       string           // what Tooltip says over the element; empty for none
+	tooltipSide   uint8            // 1 + the TooltipSide TooltipOn opens the element's tip on; 0 is below
 	addons        int32            // 1 + the index of the field's icon and button in frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
 	focusOrder    FocusOrder       // FocusOrder: how the group chooses the next member; nil is its axis
@@ -223,6 +225,7 @@ type extra struct {
 type frame struct {
 	canvas      *gfx.Canvas
 	theme       Theme
+	styles      *Styles // the page's recipe overrides; nil keeps the theme's
 	nodes       []node
 	inputs      []components.InputSnapshot
 	addons      []fieldAddons // the icons and buttons inside fields, by 1 + extra.addons

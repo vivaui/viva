@@ -187,8 +187,10 @@ func TestGroupCompositingLayersInterleavesByLayer(t *testing.T) {
 		{Kind: compositeRectangles, Layer: 0, First: 3, Count: 1},
 		{Kind: compositeText, Layer: 1, First: 2, Count: 1},
 		{Kind: compositeRectangles, Layer: 1, First: 2, Count: 1},
-		{Kind: compositeText, Layer: 2, First: 3, Count: 1},
+		// Layer 2's shape is painted before the label: the label says three
+		// shapes came before it, and that shape is the first.
 		{Kind: compositeRectangles, Layer: 2, First: 0, Count: 1},
+		{Kind: compositeText, Layer: 2, First: 3, Count: 1},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d batches, want %d: %+v", len(got), len(want), got)

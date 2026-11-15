@@ -6,6 +6,7 @@ func nativeCapabilities() Capabilities {
 	return Capabilities(
 		CapabilityFileDrop |
 			CapabilityClipboardTextAsync |
+			CapabilityClipboardHTML |
 			CapabilityClipboardImageAsync |
 			CapabilityFileDialogsAsync |
 			CapabilitySecretStoreAsync |

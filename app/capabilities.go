@@ -14,6 +14,7 @@ const (
 	CapabilityClipboardImage
 	CapabilityClipboardImageAsync
 	CapabilityClipboardFiles
+	CapabilityClipboardHTML
 	CapabilityFileDialogs
 	CapabilityFileDialogsAsync
 	CapabilityDirectoryDialogs
@@ -35,6 +36,13 @@ const (
 	CapabilityReduceMotion
 	CapabilitySecretStoreAsync
 	CapabilityFontRegistrationAsync
+	// CapabilityPreventSleep means PreventSleep can hold the system out of
+	// idle sleep. It does not promise a Linux session has logind to ask.
+	CapabilityPreventSleep
+	// CapabilitySystemProxy means app/proxy.SystemProxy can read the desktop's
+	// proxy settings. Linux reads the environment only, and macOS reports a
+	// PAC policy as an error.
+	CapabilitySystemProxy
 )
 
 // Capabilities is a set of platform integrations.

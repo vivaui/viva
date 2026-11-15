@@ -734,6 +734,9 @@ func cursorHandle(shape uint8) (uintptr, error) {
 	if shape == cursorHidden {
 		return hiddenCursor()
 	}
+	if shape == 10 { // app.CursorGrabbing, kept numeric so backend shape IDs stay thin.
+		return grabbingCursorHandle()
+	}
 	identifiers := [...]uintptr{32512, 32513, 32649, 32515, 32514, 32644, 32645, 32642, 32643, 32648}
 	if int(shape) >= len(identifiers) {
 		return 0, fmt.Errorf("windows: invalid cursor %d", shape)
@@ -989,7 +992,7 @@ func notificationIcon(host uintptr) uintptr {
 }
 
 // cursorHidden is the shape a surface that draws its own pointer asks for.
-const cursorHidden uint8 = 10
+const cursorHidden uint8 = 11
 
 var createCursor = user.NewProc("CreateCursor")
 

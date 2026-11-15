@@ -362,3 +362,95 @@ func TestSelectInsideADialogKeepsItsTrapAndEscape(t *testing.T) {
 		t.Fatalf("closed select: trap=%d escape=%d, want the dialog's", closed.TrappedFocusScope(), closed.EscapeTarget())
 	}
 }
+
+// An open list declared inside a scroll area is not cut by it: its surface, rows
+// and scrollbar are painted and hit-tested against the viewport, and the area
+// still owns its clip when the select is done.
+func TestSelectPopupEscapesAncestorScrollClip(t *testing.T) {
+	var scroll MenuScroll
+	viewport := gfx.Rect{Width: 400, Height: 300}
+	body := gfx.Rect{X: 10, Y: 10, Width: 200, Height: 80}
+	paint := func(withViewport bool) *gfx.Canvas {
+		var canvas gfx.Canvas
+		options := SelectOptions{
+			TriggerID: gfx.Item(1), Label: "Density", Open: true, Layer: 6, Scope: gfx.Item(10), DismissID: gfx.Item(9),
+			Content: gfx.Rect{X: 10, Y: 70, Width: 200, Height: 8 + 32*6}, Scroll: &scroll,
+		}
+		if withViewport {
+			options.Viewport = viewport
+		}
+		canvas.Clip(body)
+		control := BeginSelect(&canvas, gfx.LightTheme(), gfx.Rect{X: 10, Y: 40, Width: 200}, options)
+		for index := range 6 {
+			control.AddItem(SelectItem{ID: gfx.Item(100 + index), Label: "Option"})
+		}
+		control.End()
+		canvas.Unclip()
+		return &canvas
+	}
+	// The viewport reaches below the scroll area: the last row is painted whole and
+	// its hit is not cut at the area's bottom edge.
+	canvas := paint(true)
+	popup := gfx.Rect{X: 10, Y: 70, Width: 200, Height: 8 + 32*6}
+	foundSurface := false
+	for _, r := range canvas.Rectangles() {
+		if r.Bounds == popup {
+			foundSurface = true
+			if !r.HasClip || r.ClipOf != viewport {
+				t.Fatalf("popup surface inherited the scroll clip: %+v", r)
+			}
+		}
+	}
+	if !foundSurface {
+		t.Fatal("the popup surface was not painted")
+	}
+	var last gfx.Hit
+	for _, hit := range canvas.Hits() {
+		if hit.ID == gfx.Item(105) {
+			last = hit
+		}
+	}
+	if last.Bounds.Height != 32 || last.Bounds.Y+last.Bounds.Height > viewport.Y+viewport.Height {
+		t.Fatalf("the last row's hit is %+v, want a whole row inside the viewport", last.Bounds)
+	}
+	// Without a viewport the select keeps the ancestor clip, as it always has.
+	clipped := paint(false)
+	for _, r := range clipped.Rectangles() {
+		if r.Bounds == popup && r.ClipOf != body {
+			t.Fatalf("a select without a viewport left the scroll clip: %+v", r)
+		}
+	}
+}
+
+// The popup's scrollbar floats with the rows: a list cut by a scroll area shows the
+// bar inside the viewport too.
+func TestSelectPopupScrollbarEscapesAncestorScrollClip(t *testing.T) {
+	var scroll MenuScroll
+	viewport := gfx.Rect{Width: 400, Height: 300}
+	var canvas gfx.Canvas
+	canvas.Clip(gfx.Rect{X: 10, Y: 10, Width: 200, Height: 80})
+	control := BeginSelect(&canvas, gfx.LightTheme(), gfx.Rect{X: 10, Y: 40, Width: 200}, SelectOptions{
+		TriggerID: gfx.Item(1), Open: true, Layer: 6, Viewport: viewport,
+		Content: gfx.Rect{X: 10, Y: 70, Width: 200, Height: 8 + 32*2}, Scroll: &scroll,
+	})
+	for index := range 6 {
+		control.AddItem(SelectItem{ID: gfx.Item(100 + index), Label: "Option"})
+	}
+	control.End()
+	canvas.Unclip()
+	if scroll.Max() <= 0 {
+		t.Fatal("the fixture did not overflow its popup")
+	}
+	bar := false
+	for _, r := range canvas.Rectangles() {
+		if r.Bounds.Width == 4 && r.Bounds.Height >= 18 && r.Bounds.X == 10+200-6 {
+			bar = true
+			if r.ClipOf != viewport {
+				t.Fatalf("the scrollbar is clipped to the scroll area: %+v", r)
+			}
+		}
+	}
+	if !bar {
+		t.Fatal("the scrollbar was not painted")
+	}
+}

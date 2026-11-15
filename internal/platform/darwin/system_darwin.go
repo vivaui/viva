@@ -12,6 +12,8 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -201,7 +203,7 @@ func vivaSystemAppearanceChanged() {
 // lastCursorShape is the highest shape number the native side knows. A number
 // beyond it is refused here, without a trip to the main thread, which the native
 // side would also refuse with the same words.
-const lastCursorShape = 10
+const lastCursorShape = 11
 
 func SetCursorShape(shape uint8) error {
 	if shape > lastCursorShape {
@@ -409,6 +411,26 @@ func SchemeHandlerAvailable(scheme string) (bool, error) {
 		return false, systemError("look up URL scheme handler", nativeError)
 	}
 	return status == 1, nil
+}
+
+// OpenInBrowser opens the file at path in the default browser, the application
+// https links open in, through open, whose exit status reports whether the
+// handoff worked. Without a default browser it returns platform.ErrNoBrowser.
+func OpenInBrowser(path string) error {
+	var nativePath, nativeError *C.char
+	switch C.viva_system_default_browser(&nativePath, &nativeError) {
+	case 0:
+		return fmt.Errorf("darwin: open in browser: %w", platform.ErrNoBrowser)
+	case 1:
+	default:
+		return systemError("look up the default browser", nativeError)
+	}
+	browser := C.GoString(nativePath)
+	C.viva_system_free(unsafe.Pointer(nativePath))
+	if err := exec.Command("/usr/bin/open", "-a", browser, path).Run(); err != nil {
+		return fmt.Errorf("darwin: open in %s: %w", filepath.Base(browser), err)
+	}
+	return nil
 }
 
 func PlaySystemSound(sound uint8) error {

@@ -49,6 +49,9 @@ func install(options InstallOptions, quit func()) error {
 	if managedByDpkg(executable) {
 		return fmt.Errorf("%w: %s is installed by dpkg", ErrManagedExternally, executable)
 	}
+	if managedByRPM(executable) {
+		return fmt.Errorf("%w: %s is installed by rpm", ErrManagedExternally, executable)
+	}
 	directory := filepath.Dir(executable)
 	if err := checkWritable(directory); err != nil {
 		return fmt.Errorf("%w: %s: %v", ErrNotWritable, directory, err)
@@ -65,12 +68,35 @@ func install(options InstallOptions, quit func()) error {
 			_ = os.RemoveAll(staging)
 		}
 	}()
-	if err := extractTarGz(options.Artifact, staging); err != nil {
-		return err
-	}
-	replacement, err := findProgram(staging, filepath.Base(executable))
-	if err != nil {
-		return err
+	var replacement string
+	if options.Payload != "" {
+		options.report("copying the patched executable")
+		info, err := os.Lstat(options.Payload)
+		if err != nil {
+			return fmt.Errorf("update: %w", err)
+		}
+		program := options.Payload
+		if info.IsDir() {
+			program, err = findProgram(options.Payload, filepath.Base(executable))
+			if err != nil {
+				return err
+			}
+		} else if !info.Mode().IsRegular() {
+			return fmt.Errorf("%w: the payload is not a regular file", ErrManifest)
+		}
+		replacement = filepath.Join(staging, filepath.Base(executable))
+		if err := copyRegularFile(program, replacement, 0o755); err != nil {
+			return fmt.Errorf("update: copying the patched executable: %w", err)
+		}
+	} else {
+		options.report("unpacking")
+		if err := extractTarGz(options.Artifact, staging); err != nil {
+			return err
+		}
+		replacement, err = findProgram(staging, filepath.Base(executable))
+		if err != nil {
+			return err
+		}
 	}
 
 	options.report("replacing")
@@ -196,6 +222,18 @@ func managedByDpkg(executable string) bool {
 		return false
 	}
 	return strings.Contains(string(output), executable)
+}
+
+// managedByRPM reports whether rpm owns executable. rpm -qf exits zero when a
+// package owns the file and non-zero otherwise, and a missing rpm command means
+// no package manager owns it.
+func managedByRPM(executable string) bool {
+	query, err := lookPath("rpm")
+	if err != nil {
+		return false
+	}
+	_, err = runCommand(query, "-qf", executable)
+	return err == nil
 }
 
 // checkWritable reports whether directory accepts a new file, which is the

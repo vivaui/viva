@@ -65,6 +65,17 @@ The headless application's `Window.SetFullscreen` queues work for the driver's
 next pump, without a worker or polling. Its command protocol also provides
 `fullscreen on|off` and `fullscreenmonitor x y width height`.
 
+## Changing the content size
+
+Call `window.SetSize(width, height)` to ask the window manager for a new content
+size in logical pixels. The call is asynchronous and safe from any goroutine;
+`Config.OnResize` reports the size that was actually granted, which may be
+clamped to the window minimum, the screen's work area or the platform's limit
+(width and height must be 1 through 65535). A maximized, minimized or fullscreen
+window ignores the request. `ContentWindow` from `OpenContentWindow` forwards the
+same call, and the headless application applies it on the driver's next pump.
+Hosts without the capability return an error wrapping `app.ErrUnsupported`.
+
 ## A complete example
 
 The program below opens a custom-title-bar window with a Settings button that opens a second window, and refuses to close while a note is unsaved. The strip along the top is an ordinary `ui.Row` padded by `app.TitlebarInsets`, so the title never runs under the window buttons, and the confirmation is a `ui.ModalWith` declared only while a close is pending:

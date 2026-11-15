@@ -206,6 +206,11 @@ type PageConfig struct {
 	// copy of the last paint would have differed, as MemoCheck(true) does for every
 	// page. It is for tests.
 	MemoCheck bool
+	// Styles replaces the recipes the page's styled controls paint with; nil uses
+	// the theme's. See Styles. It is for an application with a look of its own
+	// that keeps using Button, Checkbox, Switch, Input and Textarea rather than
+	// their Bases, and it does not affect a control given a look of its own.
+	Styles *Styles
 }
 
 // Page is a window's declaration: one tree for the whole window. A Page lives
@@ -266,6 +271,7 @@ type Page struct {
 	hoverArea   gfx.ID                // the scroll area or self-scrolling table the pointer is on
 	selects     []*SelectState        // the Selects of the last paint, which Wheel scrolls
 	labels      []string              // scratch for Choice's labels
+	icons       []gfx.Icon            // scratch for SelectIcon's icons
 	memos       map[gfx.ID]*memoEntry
 	memoBoxes   []memoBox
 	memoChecks  []memoCheckOf
@@ -566,7 +572,7 @@ func (p *Page) hoverPlaceAt(x, y float32) gfx.ID {
 	}
 	for i := range p.tables {
 		route := &p.tables[i]
-		if !route.scrolls || route.bar.IsZero() || !pointInRect(x, y, route.bounds) {
+		if (!route.scrolls && !route.sideways) || (route.bar.IsZero() && route.horizontal.IsZero()) || !pointInRect(x, y, route.bounds) {
 			continue
 		}
 		if area := route.bounds.Width * route.bounds.Height; best.IsZero() || area < bestArea {
@@ -778,6 +784,8 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	clear(p.ctx.stateSeq)
 	clear(p.labels)
 	p.labels = p.labels[:0]
+	clear(p.icons)
+	p.icons = p.icons[:0]
 	p.focusPaint = p.focusPaint[:0]
 	for i := range p.held {
 		if id := p.held[i].id; !id.IsZero() && id != canvas.Pressed() && id != canvas.Focused() {
@@ -785,6 +793,7 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 		}
 	}
 	f := p.view.Begin(canvas, p.currentTheme(), bounds)
+	f.styles = p.config.Styles
 	f.page = p
 	p.ctx.page, p.ctx.f, p.ctx.nextSet = p, f, false
 	p.nodes = append(p.nodes[:0], protoNode{scope: p.root, named: true, parentNode: -1}) // node 0, the root column
@@ -1063,6 +1072,7 @@ func (p *Page) guard(b Box, id gfx.ID, label string) {
 func (p *Page) TextInput(context app.TextInputContext) *app.TextInput {
 	for _, entry := range p.fields {
 		if entry.id == context.ID && !context.ID.IsZero() {
+			entry.field.input.Alignment = context.Alignment
 			entry.field.input.Editor = entry.field.ensure()
 			return &entry.field.input
 		}
@@ -1117,6 +1127,13 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 			return state.Wheel(event)
 		}
 	}
+	// A TextArea under the pointer scrolls its own rows first; at its end the wheel goes on
+	// to the page, as in a browser.
+	for _, entry := range p.fields {
+		if entry.field.rows && entry.field.area != nil && entry.field.area.Wheel(event) {
+			return gfx.EventResult{Handled: true, Repaint: true}
+		}
+	}
 	if p.wheelRoute != nil {
 		if result, ok := p.wheelRoute(p, event); ok {
 			return result
@@ -1135,13 +1152,17 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	}
 	for i := len(p.tables) - 1; i >= 0; i-- {
 		route := &p.tables[i]
-		if !route.scrolls || !pointInRect(event.X, event.Y, route.bounds) {
+		if !route.scrolls && !route.sideways || !pointInRect(event.X, event.Y, route.bounds) {
 			continue
 		}
-		if result := route.state.Wheel(event); result.Handled {
-			result.Repaint = result.Repaint || moved
-			return result
+		state := &route.state.Scroll
+		dx, dy := state.wheelSteps(event)
+		if !state.canScroll(dx, dy) {
+			continue
 		}
+		result := state.Wheel(event)
+		result.Repaint = result.Repaint || moved
+		return result
 	}
 	if moved {
 		return gfx.EventResult{Handled: true, Repaint: true}

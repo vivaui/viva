@@ -162,6 +162,10 @@ func (d *Decoder) Signature() string {
 	return string(b)
 }
 
+// UnixFD reads a unix file descriptor index, which names an entry of the
+// message's FDs.
+func (d *Decoder) UnixFD() int { return int(d.Uint32()) }
+
 // ArrayLength reads an array's byte length and aligns to its elements, and
 // returns the offset where they end.
 func (d *Decoder) ArrayLength(elem int) (end int) {
@@ -218,6 +222,8 @@ func (d *Decoder) skip(sig string) (rest string, err error) {
 		_ = d.String()
 	case 'g':
 		_ = d.Signature()
+	case 'h':
+		_ = d.UnixFD()
 	case 'v':
 		d.Skip(d.Signature())
 	case 'a':
@@ -302,7 +308,7 @@ func alignment(kind byte) int {
 	switch kind {
 	case 'n', 'q':
 		return 2
-	case 'b', 'i', 'u', 's', 'o', 'a':
+	case 'b', 'i', 'u', 's', 'o', 'a', 'h':
 		return 4
 	case 'x', 't', 'd', '(', '{':
 		return 8

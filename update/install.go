@@ -34,8 +34,17 @@ var (
 // Artifact and Asset come from Client.Check and Client.Download; an application
 // must not build them from somewhere else.
 type InstallOptions struct {
-	// Artifact is the file Download returned.
+	// Artifact is the file Download returned. Exactly one of Artifact and
+	// Payload is set.
 	Artifact string
+	// Payload is a new application the caller already made with PatchReader.Apply:
+	// the staged .app on macOS, or the staged executable on Linux. On macOS the
+	// directory's own name does not matter, so the one ApplyPatch returns can be
+	// passed as it is: the copy takes the running bundle's name. Install
+	// replaces the running application with it exactly as it would with an
+	// unpacked archive, running the same checks. Windows has no patch support,
+	// so a payload there reports ErrUnsupported.
+	Payload string
 	// Asset is the archive it came from. Its Format tells Install how to unpack
 	// it, and the format must suit the running platform.
 	Asset Asset
@@ -74,31 +83,41 @@ func Install(options InstallOptions, quit func()) error {
 }
 
 func (options InstallOptions) validate() error {
-	if options.Artifact == "" {
-		return fmt.Errorf("update: install needs the downloaded artifact")
+	if (options.Artifact == "") == (options.Payload == "") {
+		return fmt.Errorf("update: install needs exactly one of the downloaded artifact and a staged payload")
 	}
-	info, err := os.Lstat(options.Artifact)
-	if err != nil {
-		return fmt.Errorf("update: %w", err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("%w: %s is a link", ErrManifest, options.Artifact)
-	}
-	if !info.Mode().IsRegular() {
-		return fmt.Errorf("%w: %s is not a regular file", ErrManifest, options.Artifact)
-	}
-	// Download verified these bytes, but the file sits on disk between the two
-	// calls. Hash it again at the moment it is about to be installed.
-	if options.Asset.Size > 0 && info.Size() != options.Asset.Size {
-		return fmt.Errorf("%w: %s is %d bytes, the feed declared %d", ErrSize, options.Artifact, info.Size(), options.Asset.Size)
-	}
-	if len(options.Asset.SHA256) == 64 {
-		digest, err := fileSHA256(options.Artifact)
+	if options.Payload != "" {
+		info, err := os.Lstat(options.Payload)
 		if err != nil {
 			return fmt.Errorf("update: %w", err)
 		}
-		if !strings.EqualFold(digest, options.Asset.SHA256) {
-			return fmt.Errorf("%w: %s", ErrChecksum, options.Artifact)
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%w: %s is a link", ErrManifest, options.Payload)
+		}
+	} else {
+		info, err := os.Lstat(options.Artifact)
+		if err != nil {
+			return fmt.Errorf("update: %w", err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%w: %s is a link", ErrManifest, options.Artifact)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("%w: %s is not a regular file", ErrManifest, options.Artifact)
+		}
+		// Download verified these bytes, but the file sits on disk between the two
+		// calls. Hash it again at the moment it is about to be installed.
+		if options.Asset.Size > 0 && info.Size() != options.Asset.Size {
+			return fmt.Errorf("%w: %s is %d bytes, the feed declared %d", ErrSize, options.Artifact, info.Size(), options.Asset.Size)
+		}
+		if len(options.Asset.SHA256) == 64 {
+			digest, err := fileSHA256(options.Artifact)
+			if err != nil {
+				return fmt.Errorf("update: %w", err)
+			}
+			if !strings.EqualFold(digest, options.Asset.SHA256) {
+				return fmt.Errorf("%w: %s", ErrChecksum, options.Artifact)
+			}
 		}
 	}
 	if options.Version == "" {

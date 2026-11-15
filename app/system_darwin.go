@@ -106,6 +106,8 @@ func nativeOpenWith(executable, path string) error {
 	return darwinplatform.OpenWith(executable, path)
 }
 
+func nativeOpenInBrowser(path string) error { return darwinplatform.OpenInBrowser(path) }
+
 func nativePlaySystemSound(sound SystemSound) error {
 	return darwinplatform.PlaySystemSound(uint8(sound))
 }

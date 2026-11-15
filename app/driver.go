@@ -67,15 +67,20 @@ type Driver struct {
 	modifierKeys uint8
 
 	clipboard      string
+	notifications  []Notification
+	notificationMu sync.Mutex
 	openedURL      string
 	hasOpenedURL   bool
 	openedPath     string
 	hasOpenedPath  bool
 	openedWith     [2]string
 	hasOpenedWith  bool
-	releases       []func()
-	closed         bool
-	appearanceOpen bool
+	// openedInBrowser is the file OpenPathInBrowser was last given.
+	openedInBrowser    string
+	hasOpenedInBrowser bool
+	releases           []func()
+	closed             bool
+	appearanceOpen     bool
 
 	system                   driverSystem
 	openFilesResponses       [driverOpenFilesQueueSize]driverOpenFilesResponse
@@ -144,6 +149,7 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 	}
 	driver.painter.setClipboardText = func(value string) {
 		driver.clipboard, driver.system.clipboardImage, driver.system.clipboardFiles = value, nil, nil
+		driver.system.clipboardHTML = ""
 	}
 	driver.painter.setCursor = func(Cursor) error { return nil }
 	driver.painter.setCursorImage = func(*gfx.CursorImage) error { return nil }
@@ -229,6 +235,16 @@ func (driver *Driver) Transitioning() bool {
 
 // Now is the driver's virtual time, which starts at zero.
 func (driver *Driver) Now() time.Duration { return driver.now }
+
+// Paint processes work other goroutines posted and paints one frame now. A
+// test that changed what a view shows from outside it, without input, calls it
+// to see the result without moving the clock.
+func (driver *Driver) Paint() error {
+	if err := driver.Pump(); err != nil {
+		return err
+	}
+	return driver.redraw()
+}
 
 // Advance moves virtual time forward by duration, repainting at frame cadence
 // while an animation is in flight and applying background wakes. An idle
@@ -942,6 +958,7 @@ func (driver *Driver) Clipboard() string { return driver.clipboard }
 // SetClipboard replaces the driver's private clipboard.
 func (driver *Driver) SetClipboard(value string) {
 	driver.clipboard, driver.system.clipboardImage, driver.system.clipboardFiles = value, nil, nil
+	driver.system.clipboardHTML = ""
 }
 
 // LastOpenedURL returns the most recent target passed to OpenURL while this
@@ -963,6 +980,13 @@ func (driver *Driver) LastOpenedPath() (string, bool) {
 // and start nothing.
 func (driver *Driver) LastOpenedWith() (executable, path string, ok bool) {
 	return driver.openedWith[0], driver.openedWith[1], driver.hasOpenedWith
+}
+
+// LastOpenedInBrowser returns the most recent file passed to OpenPathInBrowser
+// while this driver was active. Driver-backed runs record the request and start
+// no browser.
+func (driver *Driver) LastOpenedInBrowser() (string, bool) {
+	return driver.openedInBrowser, driver.hasOpenedInBrowser
 }
 
 // PrimitiveKind says what a Primitive is.

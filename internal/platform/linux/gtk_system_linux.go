@@ -34,6 +34,12 @@ type gtkClipboards struct {
 	waitURIs   func(clipboard uintptr) uintptr
 	setURIs    func(clipboard, uris uintptr)
 	strfreev   func(list uintptr)
+	// The rich pair: set_with_data owns the clipboard until another copy and
+	// answers the requested target from the get callback.
+	setWithData   func(clipboard, targets uintptr, count int32, get, clear, data uintptr) int32
+	selectionData func(data uintptr) uintptr
+	selectionSet  func(data, kind uintptr, format int32, bytes *byte, length int32) int32
+	selectionGet  func(data uintptr) uintptr
 
 	clipboard, primary uintptr
 	ok                 bool
@@ -79,6 +85,14 @@ func (a *gtkApplication) clipboardAPI() (*gtkClipboards, error) {
 			c.saveBuffer = nil
 		}
 	}
+	// The rich pair is optional as the file list is: an older GTK without
+	// gtk_clipboard_set_with_data still has plain text.
+	if !g.lookup(&c.setWithData, "gtk_clipboard_set_with_data") ||
+		!g.lookup(&c.selectionData, "gtk_selection_data_get_data") ||
+		!g.lookup(&c.selectionSet, "gtk_selection_data_set") ||
+		!g.lookup(&c.selectionGet, "gtk_selection_data_get_target") {
+		c.setWithData, c.selectionData, c.selectionSet, c.selectionGet = nil, nil, nil, nil
+	}
 	c.ok = true
 	return c, nil
 }
@@ -111,6 +125,12 @@ func (a *gtkApplication) installHooks() {
 		},
 		setClipboardText: func(value string) (err error) {
 			if e := a.onMain(func() { err = a.writeText(false, value) }); e != nil {
+				return e
+			}
+			return
+		},
+		setClipboardHTML: func(html, alt string) (err error) {
+			if e := a.onMain(func() { err = a.writeHTML(html, alt) }); e != nil {
 				return e
 			}
 			return
@@ -197,6 +217,58 @@ func (a *gtkApplication) writeText(primary bool, value string) error {
 	}
 	data := cString(value)
 	c.setText(board, &data[0], int32(len(data)-1))
+	return nil
+}
+
+// gtkTargetEntry is C's GtkTargetEntry: the target's name, its flags and the
+// info the get callback matches on, laid out for the call that takes an array.
+type gtkTargetEntry struct {
+	target uintptr
+	flags  uint32
+	info   uint32
+}
+
+// writeHTML makes the clipboard hold html as text/html beside alt as plain
+// text. GTK owns the pair through gtk_clipboard_set_with_data, whose get
+// callback answers whichever target the requestor asked for; the flavour lives
+// as long as the clipboard does, as it does on X11.
+func (a *gtkApplication) writeHTML(html, alt string) error {
+	c, err := a.clipboardAPI()
+	if err != nil {
+		return err
+	}
+	if c.setWithData == nil {
+		return ErrUnsupported
+	}
+	htmlName := cString("text/html")
+	textName := cString("UTF8_STRING")
+	targets := [2]gtkTargetEntry{
+		{target: uintptr(unsafe.Pointer(&htmlName[0]))},
+		{target: uintptr(unsafe.Pointer(&textName[0]))},
+	}
+	htmlAtom := c.atomIntern(&htmlName[0], 0)
+	htmlBytes, textBytes := cString(html), cString(alt)
+	// The get callback runs on GTK's thread with the pair this closure captured,
+	// answering the target the requestor asked for by the atom of its name.
+	get := purego.NewCallback(func(clipboard, selection, data uintptr) uintptr {
+		kind := c.selectionGet(data)
+		value := textBytes
+		if kind == htmlAtom {
+			value = htmlBytes
+		}
+		c.selectionSet(data, kind, 8, &value[0], int32(len(value)))
+		return 0
+	})
+	clearCallback := purego.NewCallback(func(clipboard, userData uintptr) uintptr { return 0 })
+	if c.setWithData(c.clipboard, uintptr(unsafe.Pointer(&targets[0])), 2, get, clearCallback, 0) == 0 {
+		return fmt.Errorf("linux: gtk_clipboard_set_with_data failed")
+	}
+	// gtk_clipboard_set_with_data reads the entries in the call; the get callback
+	// keeps the two flavours for as long as GTK may ask for them.
+	runtime.KeepAlive(htmlName)
+	runtime.KeepAlive(textName)
+	runtime.KeepAlive(htmlBytes)
+	runtime.KeepAlive(textBytes)
 	return nil
 }
 

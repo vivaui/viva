@@ -49,10 +49,17 @@ type DrawContext struct {
 func (d *DrawContext) Part(i int) Rect { return d.frame.selectPart(d.node, i) }
 
 // Fade returns c with the opacity of the element, as the colors of the element itself
-// are. Colors taken from Theme are faded already.
+// are. The color of State looks is already faded; other colors taken from Theme
+// are not.
 func (d *DrawContext) Fade(c Color) Color {
 	c.Alpha *= d.Opacity
 	return c
+}
+
+// DashedBorder draws a repeating border inside bounds with the element's fade.
+// Set bounds to d.Rect for the element whose callback is drawing.
+func (d *DrawContext) DashedBorder(bounds Rect, radius, width float32, color Color) {
+	d.Canvas.DashedRoundedOutline(bounds, radius, width, d.Fade(color))
 }
 
 // drawHooks is what Draw and DrawOver declared on one element.

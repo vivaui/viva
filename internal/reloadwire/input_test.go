@@ -180,7 +180,7 @@ func decodeResultError(data []byte) error  { _, err := decodeEventResult(data); 
 
 func TestWindowConfigCodecPreservesInputCapabilities(t *testing.T) {
 	want := Hello{Token: "capabilities", Config: WindowConfig{
-		Title: "input", Width: 640, Height: 480, WindowMode: 2, TitlebarHeight: 36,
+		Title: "input", Width: 640, Height: 480, WindowMode: 2, TitlebarHeight: 36, TrafficLightScale: 0.9,
 		MinWidth: 480, MinHeight: 320,
 		HasClick: true, HasPointer: true, HasKey: true, HasShortcut: true, HasScroll: true, HasModifierTap: true,
 		HasClose: true, HasSnapshot: true, HasRestore: true,
