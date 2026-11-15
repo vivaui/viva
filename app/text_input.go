@@ -109,7 +109,9 @@ const (
 // Text is the text the event applies to, and MarkedSelection, when the input
 // method is composing, is a range into Text rather than into the document.
 type TextEvent struct {
-	Kind            TextEventKind
+	Kind TextEventKind
+	// Rectangular marks a text paste as a column selection.
+	Rectangular     bool
 	Text            string
 	Selection       TextRange
 	MarkedSelection TextRange
@@ -186,7 +188,10 @@ type TextInput struct {
 	// on Cut. It never falls back to the native selection while CopyOverride is set.
 	// Editing still uses State or Editor.
 	CopyOverride bool
-	CopyText     func() string
+	// CopyRectangular requests column-selection clipboard metadata on Windows.
+	// It does not alter the editor's selection or evaluate CopyText during paint.
+	CopyRectangular bool
+	CopyText        func() string
 	// AltSendsEscape asks printable Alt/Option chords on a terminal to arrive as
 	// raw key events with the unmodified character in KeyEvent.Text. Terminal
 	// encoders can then send the conventional Escape-prefixed Meta sequence.
@@ -272,7 +277,7 @@ func platformTextState(state TextState) platform.TextState {
 
 func appTextEvent(event platform.TextEvent) TextEvent {
 	return TextEvent{
-		Kind: TextEventKind(event.Kind), Text: event.Text,
+		Kind: TextEventKind(event.Kind), Text: event.Text, Rectangular: event.Rectangular,
 		Selection:           appTextRange(event.Selection),
 		MarkedSelection:     appTextRange(event.MarkedSelection),
 		Replacement:         appTextRange(event.Replacement),
@@ -295,6 +300,7 @@ func (event TextEvent) apply(editor *text.Editor) bool {
 	return platform.TextEvent{
 		Kind:                platform.TextEventKind(event.Kind),
 		Text:                event.Text,
+		Rectangular:         event.Rectangular,
 		Selection:           platformTextRange(event.Selection),
 		MarkedSelection:     platformTextRange(event.MarkedSelection),
 		Replacement:         platformTextRange(event.Replacement),

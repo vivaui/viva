@@ -877,6 +877,8 @@ type TextInput struct {
 	MonoFace gfx.MonoFace
 	// CopyOverride makes Copy/Cut use CopyText instead of the native selection.
 	CopyOverride bool
+	// CopyRectangular requests column-selection clipboard metadata on Windows.
+	CopyRectangular bool
 	// CopyText is evaluated only for a non-secure Copy/Cut action. A nil callback
 	// or empty result leaves the clipboard and document unchanged.
 	CopyText func() string
@@ -1044,7 +1046,9 @@ const (
 
 // TextEvent contains rune-indexed ranges. MarkedSelection is relative to Text.
 type TextEvent struct {
-	Kind            TextEventKind
+	Kind TextEventKind
+	// Rectangular belongs to the same snapshot as the pasted text.
+	Rectangular     bool
 	Text            string
 	Selection       text.Range
 	MarkedSelection text.Range

@@ -50,6 +50,14 @@ jobs:
           cache: true
       - name: Application input lifecycle
         run: go test ./app -count=1
+      - name: Windows column clipboard protocol
+        if: runner.os == 'Windows'
+        env:
+          VIVA_WINDOWS_CLIPBOARD: '1'
+        run: |
+          git rev-parse HEAD
+          go version
+          go test ./internal/platform/windows -run '^TestColumnClipboardNative' -count=1 -v -timeout=90s
       - name: GTK native probe dependencies
         if: runner.os == 'Linux'
         run: |
