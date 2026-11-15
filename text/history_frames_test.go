@@ -544,3 +544,27 @@ func TestHistoryFramesPartialBudgetEvictionThenGrowth(t *testing.T) {
 		t.Fatal("clear retained delivery or physical-history storage")
 	}
 }
+
+func TestHistoryFramesClearResetsDetachedBoundary(t *testing.T) {
+	editor := NewEditor("abc")
+	mustTrackHistory(t, editor)
+	editor.Insert("x")
+	editor.SetSavePoint()
+	editor.Insert("y")
+	editor.Undo()
+	editor.Undo()
+	editor.Insert("z")
+	if history := editor.historyState(); history == nil || history.detach != 0 || history.save != -1 {
+		t.Fatalf("fixture history = %+v, want save -1 and detach 0", history)
+	}
+	editor.ClearChangeHistory()
+	from := mustTrackHistory(t, editor)
+	editor.Insert("q")
+	frames, _, ok := editor.HistorySince(from)
+	if !ok || len(frames) != 1 || len(frames[0].Steps) != 1 {
+		t.Fatalf("frames = %+v, ok = %t", frames, ok)
+	}
+	if got := frames[0].Steps[0].Context.Detach; got != -1 {
+		t.Fatalf("post-clear detach = %d, want -1", got)
+	}
+}

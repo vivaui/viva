@@ -415,7 +415,7 @@ func (editor *Editor) resetHistoryAfterClear() {
 	history.cost, history.frameCapacity = historyHeaderRunes, 0
 	history.generation++
 	history.sequence++
-	history.current, history.save = 0, 0
+	history.current, history.save, history.detach = 0, 0, -1
 	history.retainedFrom, history.retainedTo = 0, 0
 	history.bytes = len(editor.String())
 	history.bootstrapBytes = history.bytes
