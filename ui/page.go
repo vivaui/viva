@@ -39,6 +39,7 @@ import (
 	"unsafe"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -211,6 +212,10 @@ type PageConfig struct {
 	// that keeps using Button, Checkbox, Switch, Input and Textarea rather than
 	// their Bases, and it does not affect a control given a look of its own.
 	Styles *Styles
+	// BarStyle is the geometry of the scrollbars every scroll area of this page draws, so
+	// a product whose bars are its own sets it once: IDEA's eleven point track with a five
+	// point thumb. The zero style keeps Viva's, and Box.Bars overrides it for one area.
+	BarStyle components.ScrollBarStyle
 }
 
 // Page is a window's declaration: one tree for the whole window. A Page lives
@@ -795,6 +800,7 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	f := p.view.Begin(canvas, p.currentTheme(), bounds)
 	f.styles = p.config.Styles
 	f.page = p
+	f.barStyle = p.config.BarStyle
 	p.ctx.page, p.ctx.f, p.ctx.nextSet = p, f, false
 	p.nodes = append(p.nodes[:0], protoNode{scope: p.root, named: true, parentNode: -1}) // node 0, the root column
 	view(&p.ctx)

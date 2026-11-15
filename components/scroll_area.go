@@ -9,6 +9,16 @@ const (
 	scrollAreaMinThumb     float32 = 18
 )
 
+// ScrollBarStyle overrides the geometry of a scroll area's bars. Zero fields keep
+// Viva's own values, so an application changes only what it needs: IDEA's editor bar
+// is an eleven point track with a five point thumb and a shorter least thumb.
+type ScrollBarStyle struct {
+	Size      float32 // the track width; 0 keeps 10
+	HoverSize float32 // the width of the hover overlay thumb; 0 keeps 6
+	Inset     float32 // the gap between a bar and its track's edge; 0 keeps 1
+	MinThumb  float32 // the least thumb length; 0 keeps 18
+}
+
 // ScrollAreaGeometry is the complete deterministic layout of one externally
 // controlled scroll area. Content is already translated by the clamped offset.
 type ScrollAreaGeometry struct {
@@ -20,10 +30,13 @@ type ScrollAreaGeometry struct {
 	HorizontalTrack gfx.Rect
 	HorizontalThumb gfx.Rect
 	Corner          gfx.Rect
-	OffsetX         float32
-	OffsetY         float32
-	MaxOffsetX      float32
-	MaxOffsetY      float32
+	// Inset is the gap the bars keep from their tracks' edges, so a caller turning a drag
+	// on a thumb into an offset uses the same value the area drew with.
+	Inset      float32
+	OffsetX    float32
+	OffsetY    float32
+	MaxOffsetX float32
+	MaxOffsetY float32
 }
 
 // ScrollArea paints the visible scrollbars around a caller-painted clipped
@@ -49,6 +62,7 @@ type ScrollArea struct {
 	reserveBars         bool
 	hoverBars           bool
 	barsRevealed        bool
+	bar                 ScrollBarStyle
 	barWidth            float32
 	frozen              float32
 	contentClipIsActive bool
@@ -154,9 +168,37 @@ func (area ScrollArea) barSize() float32 {
 		return width
 	}
 	if area.hoverBars {
+		if area.bar.HoverSize > 0 {
+			return area.bar.HoverSize
+		}
 		return scrollAreaHoverBarSize
 	}
+	if area.bar.Size > 0 {
+		return area.bar.Size
+	}
 	return scrollAreaBarSize
+}
+
+// barInset is the gap between a bar and its track's edge.
+func (area ScrollArea) barInset() float32 {
+	if area.bar.Inset > 0 {
+		return area.bar.Inset
+	}
+	return scrollAreaBarInset
+}
+
+// minThumb is the least length of a thumb.
+func (area ScrollArea) minThumb() float32 {
+	if area.bar.MinThumb > 0 {
+		return area.bar.MinThumb
+	}
+	return scrollAreaMinThumb
+}
+
+// Bars overrides the geometry of both bars; the zero style keeps Viva's own.
+func (area ScrollArea) Bars(style ScrollBarStyle) ScrollArea {
+	area.bar = style
+	return area
 }
 
 // Geometry returns clamped viewport, translated content, track, thumb, and
@@ -206,6 +248,7 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 		},
 		OffsetX: offsetX, OffsetY: offsetY,
 		MaxOffsetX: maximumX, MaxOffsetY: maximumY,
+		Inset: area.barInset(),
 	}
 
 	// The bars lie along the outer bounds. Where the viewport already excludes them
@@ -229,7 +272,7 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 			X: bounds.X + bounds.Width - barSize, Y: bounds.Y,
 			Width: barSize, Height: verticalExtent,
 		}
-		geometry.VerticalThumb = scrollAreaThumb(geometry.VerticalTrack, true, viewport.Height, contentHeight, offsetY, maximumY)
+		geometry.VerticalThumb = scrollAreaThumb(geometry.VerticalTrack, true, viewport.Height, contentHeight, offsetY, maximumY, area.barInset(), area.minThumb())
 	}
 	if hasHorizontal {
 		trackX := bounds.X
@@ -242,7 +285,7 @@ func (area ScrollArea) Geometry() ScrollAreaGeometry {
 			X: trackX, Y: bounds.Y + bounds.Height - barSize,
 			Width: scrollAreaMax(horizontalExtent-(trackX-bounds.X), 0), Height: barSize,
 		}
-		geometry.HorizontalThumb = scrollAreaThumb(geometry.HorizontalTrack, false, horizontalViewport, contentWidth-frozen, offsetX, maximumX)
+		geometry.HorizontalThumb = scrollAreaThumb(geometry.HorizontalTrack, false, horizontalViewport, contentWidth-frozen, offsetX, maximumX, area.barInset(), area.minThumb())
 	}
 	return geometry
 }
@@ -283,11 +326,12 @@ func scrollAreaReservedViewport(bounds gfx.Rect, contentWidth, contentHeight, ba
 // owned offset with it, without repeating the track insets. It is zero when
 // the area does not scroll vertically.
 func (geometry ScrollAreaGeometry) VerticalOffsetForThumb(thumbTop float32) float32 {
-	travel := scrollAreaMax(geometry.VerticalTrack.Height-scrollAreaBarInset*2, 0) - geometry.VerticalThumb.Height
+	inset := geometry.inset()
+	travel := scrollAreaMax(geometry.VerticalTrack.Height-inset*2, 0) - geometry.VerticalThumb.Height
 	if travel <= 0 || geometry.MaxOffsetY <= 0 {
 		return 0
 	}
-	ratio := (thumbTop - (geometry.VerticalTrack.Y + scrollAreaBarInset)) / travel
+	ratio := (thumbTop - (geometry.VerticalTrack.Y + inset)) / travel
 	return scrollAreaClamp(ratio*geometry.MaxOffsetY, 0, geometry.MaxOffsetY)
 }
 
@@ -295,12 +339,22 @@ func (geometry ScrollAreaGeometry) VerticalOffsetForThumb(thumbTop float32) floa
 // of the horizontal thumb at thumbLeft. It is zero when the area does not scroll
 // horizontally.
 func (geometry ScrollAreaGeometry) HorizontalOffsetForThumb(thumbLeft float32) float32 {
-	travel := scrollAreaMax(geometry.HorizontalTrack.Width-scrollAreaBarInset*2, 0) - geometry.HorizontalThumb.Width
+	inset := geometry.inset()
+	travel := scrollAreaMax(geometry.HorizontalTrack.Width-inset*2, 0) - geometry.HorizontalThumb.Width
 	if travel <= 0 || geometry.MaxOffsetX <= 0 {
 		return 0
 	}
-	ratio := (thumbLeft - (geometry.HorizontalTrack.X + scrollAreaBarInset)) / travel
+	ratio := (thumbLeft - (geometry.HorizontalTrack.X + inset)) / travel
 	return scrollAreaClamp(ratio*geometry.MaxOffsetX, 0, geometry.MaxOffsetX)
+}
+
+// inset is the gap the bars keep from their tracks' edges: what the area drew with, or
+// Viva's own when the geometry came from an area with the default style.
+func (geometry ScrollAreaGeometry) inset() float32 {
+	if geometry.Inset > 0 {
+		return geometry.Inset
+	}
+	return scrollAreaBarInset
 }
 
 // BeginContent pushes the viewport clip and returns translated content geometry.
@@ -397,11 +451,11 @@ func (area ScrollArea) ScrollForKey(x, y float32, key gfx.Key, step float32) (fl
 	return scrollAreaClamp(x, 0, geometry.MaxOffsetX), scrollAreaClamp(y, 0, geometry.MaxOffsetY), true
 }
 
-func scrollAreaThumb(track gfx.Rect, vertical bool, viewportExtent, contentExtent, offset, maximum float32) gfx.Rect {
+func scrollAreaThumb(track gfx.Rect, vertical bool, viewportExtent, contentExtent, offset, maximum, inset, minThumb float32) gfx.Rect {
 	inner := gfx.Rect{
-		X: track.X + scrollAreaBarInset, Y: track.Y + scrollAreaBarInset,
-		Width:  scrollAreaMax(track.Width-scrollAreaBarInset*2, 0),
-		Height: scrollAreaMax(track.Height-scrollAreaBarInset*2, 0),
+		X: track.X + inset, Y: track.Y + inset,
+		Width:  scrollAreaMax(track.Width-inset*2, 0),
+		Height: scrollAreaMax(track.Height-inset*2, 0),
 	}
 	trackExtent := inner.Width
 	if vertical {
@@ -411,7 +465,7 @@ func scrollAreaThumb(track gfx.Rect, vertical bool, viewportExtent, contentExten
 		return gfx.Rect{}
 	}
 	thumbExtent := trackExtent * viewportExtent / contentExtent
-	thumbExtent = scrollAreaClamp(thumbExtent, scrollAreaMin(scrollAreaMinThumb, trackExtent), trackExtent)
+	thumbExtent = scrollAreaClamp(thumbExtent, scrollAreaMin(minThumb, trackExtent), trackExtent)
 	position := float32(0)
 	if maximum > 0 {
 		position = (trackExtent - thumbExtent) * offset / maximum
