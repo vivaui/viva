@@ -983,6 +983,20 @@ static NSString *viva_key_characters(NSEvent *event) {
     return [event charactersByApplyingModifiers:modifiers & ~textModifiers];
 }
 
+// viva_key_base_characters is the character a key names with no modifier
+// applied: "c" for Control+Shift+C, never "C". A raw terminal key carries this
+// unmodified character in KeyEvent.Text as the key's identity, with what was
+// held in Modifiers and what the key types in Typed (see gfx.KeyEvent). The
+// layout's own character for the key is the fallback when it has no unmodified
+// one.
+static NSString *viva_key_base_characters(NSEvent *event) {
+    NSString *characters = [event charactersByApplyingModifiers:0];
+    if (characters.length == 0) {
+        characters = event.charactersIgnoringModifiers;
+    }
+    return characters;
+}
+
 static int viva_key_code(unichar key) {
     switch (key) {
         case NSTabCharacter: return VIVA_KEY_TAB;
@@ -4611,7 +4625,7 @@ static int viva_navigation_command(SEL selector) {
                 /* The key's text stays the unshifted character, as the rest of
                  * the keyboard protocol expects; what the key types goes to
                  * typed. */
-                NSData *keyText = [[characters lowercaseString] dataUsingEncoding:NSUTF8StringEncoding];
+                NSData *keyText = [viva_key_base_characters(event) dataUsingEncoding:NSUTF8StringEncoding];
                 NSData *typedText = alt ? nil : [typed dataUsingEncoding:NSUTF8StringEncoding];
                 vivaRawKeyEvent(_callbackHandle, self, 0, viva_modifier_flags(event.modifierFlags),
                     event.isARepeat ? 1 : 0, (unsigned int)event.keyCode + 1, keyText.bytes, keyText.length,
@@ -4671,9 +4685,11 @@ static int viva_navigation_command(SEL selector) {
                 alt,
                 _textAltSendsEscape || _textKeyReleases)) {
             // For a chord the application wants the character itself ("c" for
-            // Control+C); named keys carry no text.
-            NSData *text = named != 0 || characters.length == 0 ? nil
-                : [characters dataUsingEncoding:NSUTF8StringEncoding];
+            // Control+C, and for Control+Shift+C too: Shift is in Modifiers);
+            // named keys carry no text.
+            NSString *chord = viva_key_base_characters(event);
+            NSData *text = named != 0 || chord.length == 0 ? nil
+                : [chord dataUsingEncoding:NSUTF8StringEncoding];
             viva_key_event_count++;
             if (_textKeyReleases) {
                 vivaRawKeyEvent(_callbackHandle, self, named, viva_modifier_flags(event.modifierFlags),
@@ -4701,7 +4717,7 @@ static int viva_navigation_command(SEL selector) {
             _interpretingKey = NO;
             _interpretedPlain = nil;
             if (!_interpretedConsumed && !_hasMarkedText) {
-                NSData *base = [[characters lowercaseString] dataUsingEncoding:NSUTF8StringEncoding];
+                NSData *base = [viva_key_base_characters(event) dataUsingEncoding:NSUTF8StringEncoding];
                 NSData *typedText = [typed dataUsingEncoding:NSUTF8StringEncoding];
                 viva_key_event_count++;
                 vivaRawKeyEvent(_callbackHandle, self, 0, viva_modifier_flags(event.modifierFlags),

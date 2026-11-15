@@ -470,6 +470,32 @@ func TestTerminalThatAsksForReleasesGetsPairedKeysAndModifiers(t *testing.T) {
 	}
 }
 
+// A Control chord names its base key, Shift or not: Control+Shift+C arrives as
+// Text "c" with Shift in Modifiers, the same as Control+C. KeyEvent.Text is the
+// character without modifiers (see gfx.KeyEvent), so an application looking for
+// "c" finds the copy chord whether or not Shift came along.
+func TestControlShiftChordNamesTheBaseCharacter(t *testing.T) {
+	var keys []platform.KeyEvent
+	router := eventRouter{
+		config: platform.Config{OnKey: func(event platform.KeyEvent) (platform.Frame, error) {
+			keys = append(keys, event)
+			return platform.Frame{}, nil
+		}},
+		text:         &linuxTextInput{enabled: true, input: platform.TextInput{Terminal: true}},
+		present:      func(platform.Frame) error { return nil },
+		modifierKeys: newModifierTracker(),
+	}
+	// Keycode 9 types c and C.
+	keymap := xcbKeymap{first: 9, last: 9, perKeycode: 2, keysyms: []uint32{'c', 'C'}}
+	if err := router.key(&keymap, &xcbInputEvent{Detail: 9, State: xcbModShift | xcbModControl}, false); err != nil {
+		t.Fatal(err)
+	}
+	want := []platform.KeyEvent{{Modifiers: input.ModifierShift | input.ModifierControl, Text: "c"}}
+	if !reflect.DeepEqual(keys, want) {
+		t.Fatalf("keys =\n%+v\nwant\n%+v", keys, want)
+	}
+}
+
 func TestModifierKeysAreNotDeliveredToTerminalsThatDidNotAsk(t *testing.T) {
 	called := false
 	router := eventRouter{
