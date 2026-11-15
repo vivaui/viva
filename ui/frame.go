@@ -223,9 +223,12 @@ type extra struct {
 // gives the frame the declarations. Tests and previews that need the engine
 // paint through a View; applications do not reach a frame.
 type frame struct {
-	canvas      *gfx.Canvas
-	theme       Theme
-	styles      *Styles // the page's recipe overrides; nil keeps the theme's
+	canvas *gfx.Canvas
+	theme  Theme
+	styles *Styles // the page's recipe overrides; nil keeps the theme's
+	// barStyle is the page's default scrollbar geometry, which every area of the frame
+	// starts from; Box.Bars overrides it for one area.
+	barStyle    components.ScrollBarStyle
 	nodes       []node
 	inputs      []components.InputSnapshot
 	addons      []fieldAddons // the icons and buttons inside fields, by 1 + extra.addons

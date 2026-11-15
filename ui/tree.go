@@ -43,6 +43,10 @@ type TreeState struct {
 	// into itself or what is inside it, a row not before a sibling of another kind.
 	// It is asked as the pointer moves; nil makes the rows not draggable.
 	CanDrop func(from, to int, where TreeDrop) bool
+	// Disclosure replaces the arrows the Tree draws for branches and the width of the
+	// column they occupy; nil keeps Viva's own chevrons. An application with its own
+	// arrows sets it, and its row padding follows Slot.
+	Disclosure *components.TreeDisclosure
 
 	toggled, chosen int
 	dropped         TreeMove
@@ -205,6 +209,15 @@ func (s *TreeState) indent(theme *Theme) float32 {
 	return 16 * theme.Metrics.ControlHeight / 32
 }
 
+// disclosureSlot is the column a branch spends before its content, in step with the
+// component that draws the arrow.
+func (s *TreeState) disclosureSlot() float32 {
+	if s.Disclosure != nil && s.Disclosure.Slot > 0 {
+		return s.Disclosure.Slot
+	}
+	return 24
+}
+
 func (s *TreeState) key(i int) int {
 	if s.Key != nil {
 		return s.Key(i)
@@ -237,7 +250,7 @@ func (s *TreeState) row(i int, rowBox Box) {
 	theme := &f.theme
 	left := float32(item.Depth) * s.indent(theme)
 	if node.Branch {
-		left += 24 // the chevron, as components.Tree places it
+		left += s.disclosureSlot()
 	}
 	rowBox.Children(func() {
 		b := Row(c).Height(s.heightOf(node, theme)).Shrink(0).PadRight(8).PadLeft(left).Gap(theme.Metrics.GapItem).Items(Center).Draw(s.paint)
@@ -261,6 +274,9 @@ func (s *TreeState) draw(d *DrawContext) {
 			continue
 		}
 		tree := components.BeginTree(d.Canvas, *d.Theme, d.Rect).RowHeight(d.Rect.Height).Indent(s.indent(d.Theme))
+		if s.Disclosure != nil {
+			tree = tree.Disclosure(*s.Disclosure)
+		}
 		tree.Item(row.item)
 		if s.drag.active {
 			s.dragOver(row, d)

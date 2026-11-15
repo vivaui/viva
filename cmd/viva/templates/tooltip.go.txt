@@ -125,12 +125,34 @@ func (tooltip Tooltip) Paint(label string) gfx.Rect {
 		return gfx.Rect{}
 	}
 	metrics := tooltip.theme.Metrics
+	style := tooltip.theme.Tooltip
+	padX, padY := float32(12), float32(6)
+	if style.PadX > 0 {
+		padX = style.PadX
+	}
+	if style.PadY > 0 {
+		padY = style.PadY
+	}
+	fontSize := metrics.FontSizeS
+	if style.FontSize > 0 {
+		fontSize = style.FontSize
+	}
+	radius := metrics.RadiusControl
+	if style.Radius > 0 {
+		radius = style.Radius
+	}
+	background, text := tooltip.theme.Foreground, tooltip.theme.Background
+	if style.Background != (gfx.Color{}) {
+		background = style.Background
+	}
+	if style.Text != (gfx.Color{}) {
+		text = style.Text
+	}
 	maxWidth := tooltip.options.MaxWidth
 	if maxWidth <= 0 {
 		maxWidth = 320
 	}
 	maxWidth = min(maxWidth, tooltip.viewport.Width-8)
-	const padX, padY = float32(12), float32(6)
 	// A filename or another unbroken token has no natural short form: keep all
 	// of it even when a bounded descriptive tooltip would use an ellipsis. Long
 	// tokens already break at whole grapheme clusters in the text engine. The
@@ -138,14 +160,14 @@ func (tooltip Tooltip) Paint(label string) gfx.Rect {
 	// The lines live in a stack scratch: a tooltip that is painted every frame
 	// must not allocate for wrapping that has not changed.
 	var scratch [8]string
-	lines := tooltip.canvas.WrapLines(scratch[:0], label, metrics.FontSizeS, gfx.WeightRegular, maxWidth-2*padX, int(tooltip.viewport.Height))
+	lines := tooltip.canvas.WrapLines(scratch[:0], label, fontSize, gfx.WeightRegular, maxWidth-2*padX, int(tooltip.viewport.Height))
 	// One line takes the width of its text; a wrapped label fills the whole
 	// maximum, as a `w-fit max-w-xs` box does.
 	textWidth := maxWidth - 2*padX
 	if len(lines) == 1 {
-		textWidth = tooltip.canvas.TextWidthWeight(lines[0], metrics.FontSizeS, gfx.WeightRegular)
+		textWidth = tooltip.canvas.TextWidthWeight(lines[0], fontSize, gfx.WeightRegular)
 	}
-	lineHeight := tooltipLineHeight(metrics)
+	lineHeight := fontSize + 5
 	size := gfx.Size{Width: textWidth + 2*padX, Height: float32(len(lines))*lineHeight + 2*padY}
 	offset := tooltip.options.SideOffset
 	if offset == 0 {
@@ -158,18 +180,23 @@ func (tooltip Tooltip) Paint(label string) gfx.Rect {
 	tooltip.canvas.PushLayer(tooltip.options.Layer)
 	tooltip.canvas.BeginPresence(overlayKey(tooltip.options.ID), overlaySurfacePart,
 		popupPresence(tooltip.theme, tooltipDuration, side), popupPivot(content, side, tooltip.anchor))
-	tooltip.canvas.Rounded(content, metrics.RadiusControl, tooltip.theme.Foreground)
+	if style.BorderSize > 0 && style.Border != (gfx.Color{}) {
+		// The border is a ring behind the body, so the body keeps its own corners.
+		ring := gfx.Rect{
+			X: content.X - style.BorderSize, Y: content.Y - style.BorderSize,
+			Width: content.Width + style.BorderSize*2, Height: content.Height + style.BorderSize*2,
+		}
+		tooltip.canvas.Rounded(ring, radius+style.BorderSize, style.Border)
+	}
+	tooltip.canvas.Rounded(content, radius, background)
 	overlayParagraph(tooltip.canvas, lines, gfx.Rect{X: content.X + padX, Y: content.Y + padY, Width: content.Width - 2*padX}, lineHeight, gfx.TextStyle{
-		Size: metrics.FontSizeS, Weight: gfx.WeightRegular, Color: tooltip.theme.Background,
+		Size: fontSize, Weight: gfx.WeightRegular, Color: text,
 	}, false)
-	tooltip.paintArrow(content, tooltipSideOf(side))
+	tooltip.paintArrow(content, tooltipSideOf(side), radius, background)
 	tooltip.canvas.EndPresence()
 	tooltip.canvas.PopLayer()
 	return content
 }
-
-// tooltipLineHeight is the 16px line of `text-xs`.
-func tooltipLineHeight(metrics gfx.Metrics) float32 { return metrics.FontSizeS + 5 }
 
 func tooltipOverlaySide(side TooltipSide) OverlaySide {
 	switch side {
@@ -214,10 +241,11 @@ const (
 // renderers feather; the triangle has no shared tessellation edges.
 const tooltipArrowEdges = uint8(1<<3 - 1)
 
-func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide) {
+// paintArrow points the body at its trigger in fill, the body's own surface, keeping the
+// base clear of a corner of the given radius.
+func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide, radius float32, fill gfx.Color) {
 	// Center on the trigger, but keep the base on the flat part of the body so
 	// it never straddles a rounded corner after the body was clamped on screen.
-	radius := tooltip.theme.Metrics.RadiusControl
 	half := tooltipArrowBase / 2
 	var points [3]gfx.Point
 	switch side {
@@ -256,7 +284,7 @@ func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide) {
 	}
 	tooltip.canvas.AppendTriangle(gfx.Triangle{
 		Points:   points,
-		Color:    tooltip.theme.Foreground,
+		Color:    fill,
 		EdgeMask: tooltipArrowEdges,
 	})
 }

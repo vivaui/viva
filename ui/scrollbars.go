@@ -23,6 +23,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 		size = f.page.config.ScrollbarSize
 	}
 	area := components.BeginScrollArea(f.canvas, f.theme, n.rect, content).
+		Bars(s.barStyle).
 		Offset(s.OffsetX, s.Offset).
 		ScrollbarSize(size).
 		HoverScrollbars(hinted || s.dragging).

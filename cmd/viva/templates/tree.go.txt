@@ -2,16 +2,28 @@ package {{PACKAGE}}
 
 import "github.com/vivaui/viva/gfx"
 
+// TreeDisclosure replaces the chevrons a tree draws for its branches: the icon of a
+// closed and of an open branch, their size, and the width of the column they occupy
+// before the row's content. Zero fields keep Viva's own chevrons (16 points in a 24
+// point column), so an application that ships IDEA's arrows can use them without
+// moving the rows.
+type TreeDisclosure struct {
+	Collapsed, Expanded gfx.Icon
+	Size                float32
+	Slot                float32
+}
+
 // Tree paints a compact vertical hierarchy. Applications own the hierarchy,
 // expansion, selection, and scrolling; the component owns indentation,
 // disclosure geometry, focus/hover feedback, and typed hit semantics.
 type Tree struct {
-	canvas    *gfx.Canvas
-	theme     gfx.Theme
-	bounds    gfx.Rect
-	cursorY   float32
-	rowHeight float32
-	indent    float32
+	canvas     *gfx.Canvas
+	theme      gfx.Theme
+	bounds     gfx.Rect
+	cursorY    float32
+	rowHeight  float32
+	indent     float32
+	disclosure TreeDisclosure
 }
 
 // TreeItem describes one already-flattened visible tree row. Branches use a
@@ -65,6 +77,22 @@ func (tree Tree) Indent(width float32) Tree {
 	return tree
 }
 
+// Disclosure replaces the arrows the tree draws for branches and the width of the
+// column they occupy. Zero fields keep the tree's own chevrons.
+func (tree Tree) Disclosure(style TreeDisclosure) Tree {
+	tree.disclosure = style
+	return tree
+}
+
+// disclosureSlot is the width of the column before a branch's content: the requested
+// slot, or the 24 points Viva's own chevrons take.
+func (tree *Tree) disclosureSlot() float32 {
+	if tree.disclosure.Slot > 0 {
+		return tree.disclosure.Slot
+	}
+	return 24
+}
+
 // Item paints one visible row and returns its caller-owned content area. The
 // component never walks children or allocates a backing model.
 func (tree *Tree) Item(item TreeItem) TreeRow {
@@ -96,12 +124,12 @@ func (tree *Tree) Item(item TreeItem) TreeRow {
 	disclosure := gfx.Rect{X: leading, Y: row.Y + (row.Height-20)/2, Width: 20, Height: 20}
 	contentX := leading
 	if item.Branch {
-		contentX += 24
+		contentX += tree.disclosureSlot()
 		color := tree.theme.MutedForeground
 		if item.Disabled {
 			color.Alpha *= 0.50
 		}
-		paintTreeChevron(tree.canvas, disclosure, item.Expanded, color)
+		tree.paintDisclosure(disclosure, item.Expanded, color)
 		if !item.DisclosureID.IsZero() {
 			tree.canvas.HitWithOptions(item.DisclosureID, disclosure, item.Label, gfx.HitOptions{
 				Role: gfx.RoleButton, Disabled: item.Disabled, Expanded: item.Expanded, Expandable: true,
@@ -120,6 +148,25 @@ func (tree *Tree) Item(item TreeItem) TreeRow {
 		})
 	}
 	return TreeRow{Bounds: row, Content: content, Disclosure: disclosure}
+}
+
+// paintDisclosure draws the branch arrow: the requested icon and size, or the tree's
+// own chevron when the application supplied none.
+func (tree *Tree) paintDisclosure(bounds gfx.Rect, expanded bool, color gfx.Color) {
+	icon, size := &chevronRightIcon, float32(16)
+	if expanded {
+		icon = &chevronDownIcon
+	}
+	if tree.disclosure.Size > 0 {
+		size = tree.disclosure.Size
+	}
+	if expanded && len(tree.disclosure.Expanded.Commands) > 0 {
+		icon = &tree.disclosure.Expanded
+	}
+	if !expanded && len(tree.disclosure.Collapsed.Commands) > 0 {
+		icon = &tree.disclosure.Collapsed
+	}
+	paintChevronSized(tree.canvas, icon, bounds, size, color)
 }
 
 func paintTreeChevron(canvas *gfx.Canvas, bounds gfx.Rect, expanded bool, color gfx.Color) {

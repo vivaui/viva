@@ -85,6 +85,20 @@ func (m Metrics) WithDensity(density Density) Metrics {
 }
 
 // Theme contains semantic design tokens rather than runtime CSS.
+// TooltipStyle overrides the surface of a tooltip. Zero fields keep Viva's own surface,
+// so an application changes only what it needs: IDEA draws its hover tips with a four
+// point radius, a one point border and its own two colours.
+type TooltipStyle struct {
+	Radius     float32
+	PadX, PadY float32
+	FontSize   float32
+	Background Color
+	Text       Color
+	Border     Color
+	BorderSize float32
+}
+
+// Theme is the resolved palette and metrics a declaration is painted with.
 type Theme struct {
 	Background        Color
 	Foreground        Color
@@ -118,6 +132,8 @@ type Theme struct {
 	// Transition is the default state-change motion for controls. A zero
 	// value disables animation for hand-built themes.
 	Transition Motion
+	// Tooltip overrides the tooltip surface; zero fields keep Viva's own.
+	Tooltip TooltipStyle
 }
 
 // WithRadius is the theme with another corner radius for its controls
