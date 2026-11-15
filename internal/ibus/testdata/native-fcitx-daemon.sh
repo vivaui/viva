@@ -36,7 +36,10 @@ else
 fi
 export IBUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
 export IBUS_ADDRESS_FILE=$task_dir/ibus-address
-fcitx5 -D --disable=notificationitem,notifications,classicui,xim > "$task_dir/fcitx.log" 2>&1 &
+# The fixture exercises the GTK and IBus frontends on both display backends,
+# not the compositor's input-method protocol. Weston reserves that protocol
+# for its own keyboard; binding it would disconnect this separately run daemon.
+fcitx5 -D --disable=notificationitem,notifications,classicui,xim,waylandim > "$task_dir/fcitx.log" 2>&1 &
 daemon_pid=$!
 attempt=0
 while ! gdbus call --timeout 1 --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.NameHasOwner org.freedesktop.IBus | grep -q true; do
