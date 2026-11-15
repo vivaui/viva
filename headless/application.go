@@ -75,6 +75,14 @@ func newApplicationSession(options Options) *applicationSession {
 	}
 }
 
+// Post implements app.Host. A headless session has one goroutine and no
+// window thread apart from it, so the work runs where it was posted from.
+func (application *applicationSession) Post(fn func()) {
+	if fn != nil {
+		fn()
+	}
+}
+
 // OpenWindow implements app.Host.
 func (application *applicationSession) OpenWindow(config app.Config, canvas *gfx.Canvas, closed func()) (app.WindowControl, error) {
 	entry := &applicationWindow{}

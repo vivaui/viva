@@ -1,5 +1,6 @@
 // Package patchgen writes a delta update between two released payloads: the
-// installed .app bundle on macOS, or the executable a Linux tar.gz installs.
+// installed .app bundle on macOS, the executable a Linux tar.gz installs, or
+// the directory the Windows portable zip holds.
 //
 // It is a release tool: it imports the bsdiff encoder, which needs a suffix
 // array and the whole payload in memory. The update package, which runs in the
@@ -40,6 +41,10 @@ type Request struct {
 	// Executable is the program's file name in a Linux archive. Empty finds
 	// the only executable in it.
 	Executable string
+	// Exclude lists paths, relative to the payload root, left out of the
+	// patch. A Windows portable zip keeps the application's data folder beside
+	// the program; a patch must not carry it to an installed copy.
+	Exclude []string
 	// Output receives the gzip tar patch.
 	Output io.Writer
 }
@@ -49,8 +54,8 @@ func Write(request Request) (update.PatchManifest, error) {
 	if request.App == "" || request.FromVersion == "" || request.ToVersion == "" {
 		return update.PatchManifest{}, fmt.Errorf("patchgen: the application and both versions are required")
 	}
-	if request.OS != "darwin" && request.OS != "linux" {
-		return update.PatchManifest{}, fmt.Errorf("patchgen: patches are made for darwin and linux, not %q", request.OS)
+	if request.OS != "darwin" && request.OS != "linux" && request.OS != "windows" {
+		return update.PatchManifest{}, fmt.Errorf("patchgen: patches are made for darwin, linux and windows, not %q", request.OS)
 	}
 	if request.Arch != "amd64" && request.Arch != "arm64" {
 		return update.PatchManifest{}, fmt.Errorf("patchgen: architecture %q must be amd64 or arm64", request.Arch)
@@ -74,11 +79,11 @@ func Write(request Request) (update.PatchManifest, error) {
 		OS: request.OS, Arch: request.Arch, Payload: newKind,
 	}
 
-	oldFiles, err := readFiles(oldPayload)
+	oldFiles, err := readFiles(oldPayload, request.Exclude)
 	if err != nil {
 		return update.PatchManifest{}, err
 	}
-	newFiles, err := readFiles(newPayload)
+	newFiles, err := readFiles(newPayload, request.Exclude)
 	if err != nil {
 		return update.PatchManifest{}, err
 	}
@@ -138,8 +143,20 @@ func digest(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func readFiles(root string) (map[string]fileData, error) {
+func readFiles(root string, exclude []string) (map[string]fileData, error) {
 	files := make(map[string]fileData)
+	excluded := func(relative string) bool {
+		for _, prefix := range exclude {
+			prefix = strings.Trim(strings.ReplaceAll(prefix, "\\", "/"), "/")
+			if prefix == "" {
+				continue
+			}
+			if relative == prefix || strings.HasPrefix(relative, prefix+"/") {
+				return true
+			}
+		}
+		return false
+	}
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -157,6 +174,10 @@ func readFiles(root string) (map[string]fileData, error) {
 		relative, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
+		}
+		relative = filepath.ToSlash(relative)
+		if excluded(relative) {
+			return nil
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -227,6 +248,16 @@ func extractPayload(archive, goos, arch, executable string) (root, kind string, 
 			return "", "", nil, fmt.Errorf("patchgen: %s is not a macOS bundle", filepath.Base(archive))
 		}
 		return bundles[0], "app", removeTree, nil
+	case "windows":
+		if !strings.HasSuffix(strings.ToLower(archive), ".zip") {
+			removeTree()
+			return "", "", nil, fmt.Errorf("patchgen: Windows payloads come from the portable .zip, not %s", filepath.Base(archive))
+		}
+		if err := extractZip(archive, directory); err != nil {
+			removeTree()
+			return "", "", nil, err
+		}
+		return directory, "dir", removeTree, nil
 	default:
 		if !strings.HasSuffix(strings.ToLower(archive), ".tar.gz") {
 			removeTree()

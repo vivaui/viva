@@ -60,6 +60,10 @@ type Button struct {
 	height        float32
 	fontSize      float32
 	disabled      bool
+	// recipe, when set, replaces ButtonRecipe for this button: a page whose
+	// application has a look of its own hands one down instead of painting
+	// every button from a Base.
+	recipe func(gfx.Theme, ButtonVariant, gfx.State) ButtonLook
 }
 
 // BeginButton starts a button declaration. Hit ID zero paints a static preview
@@ -72,6 +76,16 @@ func BeginButton(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect
 		state.Focused = canvas.FocusVisible() == id
 	}
 	return Button{canvas: canvas, theme: theme, id: id, bounds: bounds, state: state}
+}
+
+// Recipe replaces the theme's button recipe for this button: the fill, label,
+// border, corners, shadow and ring come from recipe instead of ButtonRecipe.
+// The metrics (height, padding, text size) still come from the size and the
+// theme, so a recipe changes the look without changing what the button
+// measures. A nil recipe keeps the theme's.
+func (button Button) Recipe(recipe func(gfx.Theme, ButtonVariant, gfx.State) ButtonLook) Button {
+	button.recipe = recipe
+	return button
 }
 
 // WithState pins a visual state, overriding canvas-derived interaction state.
@@ -359,6 +373,12 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 		Hovered: button.state.Hovered, Pressed: button.state.Pressed, FocusVisible: button.state.Focused,
 		Invalid: button.state.Invalid, Disabled: button.disabled,
 	})
+	if button.recipe != nil {
+		look = button.recipe(button.theme, variant, gfx.State{
+			Hovered: button.state.Hovered, Pressed: button.state.Pressed, FocusVisible: button.state.Focused,
+			Invalid: button.state.Invalid, Disabled: button.disabled,
+		})
+	}
 	radius := look.Radius
 	if look.Shadow != gfx.ShadowNone {
 		button.canvas.Elevate(button.bounds, radius, look.Shadow) // shadow-xs

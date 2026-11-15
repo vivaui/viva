@@ -521,3 +521,105 @@ func TestSelectBasePanelIsAsWideAsItsRowsForANarrowTrigger(t *testing.T) {
 		t.Errorf("row %+v is outside the panel %+v", row, panel)
 	}
 }
+
+// A Select in a scroll area shows its list whole: every row is painted and hit
+// outside the area's bottom edge, an option scrolled out of the area can be
+// clicked, and the area clips its own content again once the list is closed.
+func TestSelectInScrollAreaShowsItsListBeyondTheClip(t *testing.T) {
+	theme := gfx.LightTheme()
+	labels := []string{"Apple", "Avocado", "Banana", "Blueberry", "Cherry", "Date"}
+	draw := func(canvas *gfx.Canvas, state *SelectState) Box {
+		var view View
+		var box Box
+		view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
+			f.Column().Pad(10).Children(func() {
+				f.ScrollArea(listID).Height(100).Children(func() {
+					f.Column().Children(func() {
+						f.Slot().Height(20)
+						box = f.Select(selScope, state, labels, 0)
+					})
+				})
+			})
+		})
+		return box
+	}
+	state := SelectState{Open: true}
+	canvas := testCanvas()
+	box := draw(canvas, &state)
+	area := gfx.Rect{X: 10, Y: 10, Width: 380, Height: 100}
+	popup, ok := box.Popup()
+	if !ok {
+		t.Fatal("the open list has no popup")
+	}
+	panel := popup.Rect()
+	if panel.Y+panel.Height <= area.Y+area.Height {
+		t.Fatalf("the fixture did not place the list below the scroll area: panel %+v, area %+v", panel, area)
+	}
+	// The last row is below the area's bottom edge, painted to the viewport and hit whole.
+	lastRow := box.Part(len(labels) - 1)
+	if lastRow.Y+lastRow.Height <= area.Y+area.Height {
+		t.Fatalf("the last row %+v did not reach below the scroll area %+v", lastRow, area)
+	}
+	var last gfx.Hit
+	found := false
+	for _, hit := range canvas.Hits() {
+		if hit.ID == selScope.At(len(labels)-1) {
+			last, found = hit, true
+		}
+	}
+	if !found || last.Bounds != lastRow {
+		t.Fatalf("the last row's hit is %+v, want its rectangle %+v", last.Bounds, lastRow)
+	}
+	// The surface is painted against the viewport, not the scroll area.
+	surface := false
+	for _, r := range canvas.Rectangles() {
+		if r.Bounds == panel {
+			surface = true
+			if !r.HasClip || r.ClipOf != (gfx.Rect{Width: 400, Height: 300}) {
+				t.Fatalf("the list surface is clipped to the scroll area: %+v", r)
+			}
+		}
+	}
+	if !surface {
+		t.Fatal("the list surface was not painted")
+	}
+	// A click on an option below the area closes the list and picks it.
+	canvas = testCanvas()
+	canvas.BeginEventPass(selScope.At(5), gfx.ClickInfo{})
+	var selected int
+	var picked bool
+	var view View
+	view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
+		f.Column().Pad(10).Children(func() {
+			f.ScrollArea(listID).Height(100).Children(func() {
+				f.Column().Children(func() {
+					f.Slot().Height(20)
+					if i, ok := f.Select(selScope, &state, labels, 0).Picked(); ok {
+						selected, picked = i, true
+					}
+				})
+			})
+		})
+	})
+	canvas.EndEventPass()
+	if !picked || selected != 5 || state.Open {
+		t.Fatalf("a click on the option below the area gave picked=%v selected=%d open=%v", picked, selected, state.Open)
+	}
+	// Closed, the select declares no list and the area clips its own content again.
+	canvas = testCanvas()
+	draw(canvas, &state)
+	for _, hit := range canvas.Hits() {
+		if i, ok := hit.ID.In(selScope); ok && i < len(labels) {
+			t.Fatalf("a closed select still declares option %d", i)
+		}
+	}
+	var slot gfx.Rect
+	for _, hit := range canvas.Hits() {
+		if hit.ID == selScope.At(len(labels)) { // the trigger
+			slot = hit.Bounds
+		}
+	}
+	if slot.Width <= 0 {
+		t.Fatal("the closed select lost its trigger")
+	}
+}

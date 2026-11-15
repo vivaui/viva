@@ -3,6 +3,7 @@
 package app
 
 import (
+	"fmt"
 	"runtime"
 
 	"github.com/vivaui/viva/gfx"
@@ -128,7 +129,21 @@ func (host nativeHost) SetDockBadge(text string) { host.native.SetDockBadge(text
 
 func (host nativeHost) SetProgress(fraction float32) { host.native.SetProgress(fraction) }
 
+// SetMenuBar installs the application's own menus where the adapter has an
+// application menu bar; the adapters without one report ErrUnsupported.
+func (host nativeHost) SetMenuBar(menus []Menu) error {
+	setter, ok := host.native.(interface {
+		SetMenuBar([]platform.MenuBarMenu) error
+	})
+	if !ok {
+		return fmt.Errorf("%w: the application menu bar", ErrUnsupported)
+	}
+	return setter.SetMenuBar(platformMenuBar(menus))
+}
+
 func (host nativeHost) Quit() { host.native.Quit() }
+
+func (host nativeHost) Post(fn func()) { host.native.Post(fn) }
 
 type nativeStatusItem struct{ item platform.StatusItem }
 

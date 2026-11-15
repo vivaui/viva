@@ -273,6 +273,7 @@ func (state *runState) textInputKeepsComposition(next *TextInput) bool {
 		state.textInput.Target == next.Target &&
 		state.textInput.Multiline == next.Multiline && state.textInput.Secure == next.Secure &&
 		state.textInput.Terminal == next.Terminal && state.textInput.Placed == next.Placed &&
+		state.textInput.DisableIME == next.DisableIME &&
 		state.textState == next.State.WithoutRedraw()
 }
 
@@ -281,7 +282,7 @@ func sameTextInputPresentation(left, right TextInput) bool {
 		left.Width == right.Width && left.Height == right.Height &&
 		left.FontSize == right.FontSize && left.FontGeneration == right.FontGeneration &&
 		left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
-		left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.Color == right.Color &&
+		left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.DisableIME == right.DisableIME && left.Color == right.Color &&
 		left.CopyOverride == right.CopyOverride &&
 		left.State == right.State
 }
@@ -851,6 +852,7 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 		baseline:             C.float(input.Baseline),
 		alt_sends_escape:     C.int(boolInt(input.AltSendsEscape)),
 		key_releases:         C.int(boolInt(input.KeyReleases)),
+		disable_ime:          C.int(boolInt(input.DisableIME)),
 		navigation_keys:      C.int(boolInt(input.NavigationKeys)),
 		placed:               C.int(boolInt(input.Placed)),
 		layer:                C.uint16_t(input.Layer),

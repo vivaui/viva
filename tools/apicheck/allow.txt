@@ -1,0 +1,8 @@
+# Exported symbols allowed to name a dynamic type, one per line.
+#
+# A line is the symbol apicheck printed, such as app.Something or
+# ui.Type.Method; the reason belongs beside it as a comment on the same line.
+# Keep this list shrinking: a new symbol that needs a dynamic type usually
+# needs a typed one instead.
+
+ui.Textf  # a format and its arguments, as fmt.Print takes them

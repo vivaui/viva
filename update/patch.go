@@ -51,7 +51,9 @@ type PatchManifest struct {
 	ToVersion   string `json:"to_version"`
 	OS          string `json:"os"`
 	Arch        string `json:"arch"`
-	// Payload is "app" for a macOS bundle and "file" for a Linux executable.
+	// Payload is "app" for a macOS bundle, "file" for a Linux executable and
+	// "dir" for the directory of a Windows installation: the program and the
+	// folders beside it.
 	Payload string      `json:"payload"`
 	Files   []PatchFile `json:"files"`
 }
@@ -333,14 +335,24 @@ func (manifest PatchManifest) validate() error {
 	if _, err := Compare(manifest.ToVersion, manifest.ToVersion); err != nil {
 		return fmt.Errorf("%w: to_version: %v", ErrManifest, err)
 	}
-	if manifest.OS != "darwin" && manifest.OS != "linux" {
-		return fmt.Errorf("%w: os %q has no patch support", ErrManifest, manifest.OS)
-	}
 	if manifest.Arch != "amd64" && manifest.Arch != "arm64" {
 		return fmt.Errorf("%w: arch %q is not supported", ErrManifest, manifest.Arch)
 	}
-	if manifest.Payload != "app" && manifest.Payload != "file" {
-		return fmt.Errorf("%w: payload %q is not app or file", ErrManifest, manifest.Payload)
+	switch manifest.OS {
+	case "darwin":
+		if manifest.Payload != "app" {
+			return fmt.Errorf("%w: macOS patches carry an app payload, not %q", ErrManifest, manifest.Payload)
+		}
+	case "linux":
+		if manifest.Payload != "file" {
+			return fmt.Errorf("%w: Linux patches carry a file payload, not %q", ErrManifest, manifest.Payload)
+		}
+	case "windows":
+		if manifest.Payload != "dir" {
+			return fmt.Errorf("%w: Windows patches carry a dir payload, not %q", ErrManifest, manifest.Payload)
+		}
+	default:
+		return fmt.Errorf("%w: os %q has no patch support", ErrManifest, manifest.OS)
 	}
 	if len(manifest.Files) == 0 {
 		return fmt.Errorf("%w: the patch holds no files", ErrManifest)

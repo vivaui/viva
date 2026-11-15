@@ -80,6 +80,18 @@
 // (components.TextEntryRecipe), the rest stays, and no variant is needed to make a field
 // square or thick-framed. See recipe.go, bases.go and draw.go.
 //
+// Restyling a control has four steps, from the cheapest to the most open: the
+// theme's tokens (gfx.Theme.Metrics and its colors), the control's Base dressed
+// with its own Background, Border, Radius, Shadow, Pad, looks and Draw starting
+// from a recipe, the parts a composite control exposes (SelectBase's trigger,
+// popup and rows; a strip of TabBase or RadioBase), and Control with Handlers
+// for a control the application writes itself. A control that ships with the
+// theme's look paints its own surface over the element's, so a Button, Checkbox,
+// Switch, Select, Tabs, Segmented, Slider or InputGroup ignores its element's
+// Background and Border; give it a look by using its Base. The Bases themselves
+// paint no surface: what they declare is the role, the focus, the keyboard, the
+// pointer and the state assistive technology reads, and tests hold them to that.
+//
 // A control of the application's own is Control(c, label, handlers): a focusable
 // empty element painted with Draw, whose Handlers take its keys, pointer and
 // wheel, and whose regions declared with Canvas.Hit inside Draw reach the same

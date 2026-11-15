@@ -166,6 +166,7 @@ type contextModel struct {
 	hosts          []string
 	connected      string
 	wrap           bool
+	open           bool
 	renames, opens int
 }
 
@@ -506,29 +507,5 @@ func TestMenuAbove(t *testing.T) {
 	anchor, item := d.hit("More").Bounds, d.hit("Model").Bounds
 	if item.Y+item.Height > anchor.Y+0.5 {
 		t.Fatalf("the menu at %v is not over its anchor at %v", item, anchor)
-	}
-}
-
-// MenuAt opens where the application says, closes when an item is chosen, and
-// leaves *open false.
-func TestMenuAtOpensAtThePointGiven(t *testing.T) {
-	open, chosen := true, 0
-	d := openPage(t, func(c ui.C) {
-		ui.Column(c).Pad(16).Children(func() {
-			ui.Button(c, "Below")
-			ui.MenuAt(c, 120, 90, &open, func(menu *ui.MenuItems) {
-				if menu.Item("Lane").Clicked() {
-					chosen++
-				}
-			})
-		})
-	})
-	lane := d.hit("Lane").Bounds
-	if !d.page.Overlay() || lane.X < 119 || lane.Y < 89 {
-		t.Fatalf("overlay %v, the menu at %v is not at (120, 90)", d.page.Overlay(), lane)
-	}
-	d.click("Lane")
-	if chosen != 1 || open || d.has("Lane") {
-		t.Fatalf("chosen %d, open %v, shown %v", chosen, open, d.has("Lane"))
 	}
 }

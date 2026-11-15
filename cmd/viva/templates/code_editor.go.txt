@@ -8,12 +8,14 @@ import (
 	"github.com/vivaui/viva/text"
 )
 
-// CodeEditorRun colors one byte range of a line without changing its text
-// geometry. Runs are ordered and non-overlapping; invalid and overlapping spans
-// are ignored.
+// CodeEditorRun colors and slants one byte range of a line without changing its
+// text geometry: Italic draws the range in the italic face of the line's
+// fixed-pitch font, as a comment is drawn in an editor. Runs are ordered and
+// non-overlapping; invalid and overlapping spans are ignored.
 type CodeEditorRun struct {
 	Start, End int
 	Color      gfx.Color
+	Italic     bool
 }
 
 // CodeEditorMarkLayer paints colored byte ranges behind the text. Spans are

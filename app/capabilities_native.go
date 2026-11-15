@@ -30,7 +30,9 @@ func nativeCapabilities() Capabilities {
 		CapabilityFullscreen |
 		CapabilityWindowFrame |
 		CapabilityWindowMinimize |
-		CapabilityReduceMotion
+		CapabilityReduceMotion |
+		CapabilityPreventSleep |
+		CapabilitySystemProxy
 	if runtime.GOOS == "darwin" {
 		capabilities |= CapabilityNativeAppearance
 	} else {

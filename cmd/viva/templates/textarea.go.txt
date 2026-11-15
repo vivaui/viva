@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/text"
 )
 
 // TextareaCommand is a request for the caller-owned editor. The component
@@ -76,10 +77,15 @@ type TextareaSnapshot struct {
 	// paints from its first row, which suits a box that shows what is in it.
 	// With it, DisplayValue must be empty or the text of Value, whose byte
 	// offsets Layout reports.
-	Layout           *TextareaLayout
-	Caret            int
-	SelectionStart   int
-	SelectionEnd     int
+	Layout         *TextareaLayout
+	Caret          int
+	SelectionStart int
+	SelectionEnd   int
+	// SelectionRanges, when nonempty, replaces the single selection for
+	// painting: the selections of a multi-selection editor (see
+	// text.Editor.SelectionSpansInto), as byte offsets into Value in order and
+	// non-overlapping. Collapsed ones paint nothing; only the primary has Caret.
+	SelectionRanges  []text.Span
 	CompositionStart int
 	CompositionEnd   int
 }
@@ -302,7 +308,17 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 			holdsCaret = false
 		}
 		if !placeholderShown {
-			selections = textareaLineRanges(canvas, ranges[:0], labelBounds, origin, line, fontSize, row.Start, lineEnd, selectionStart, selectionEnd)
+			if len(snapshot.SelectionRanges) > 0 {
+				// A multi-selection editor paints every selection; two on one row
+				// show as two bands, and every row a range crosses gets its part.
+				selections = ranges[:0]
+				for _, span := range snapshot.SelectionRanges {
+					start, end := textareaRange(value, span.Start, span.End)
+					selections = textareaLineRanges(canvas, selections, labelBounds, origin, line, fontSize, row.Start, lineEnd, start, end)
+				}
+			} else {
+				selections = textareaLineRanges(canvas, ranges[:0], labelBounds, origin, line, fontSize, row.Start, lineEnd, selectionStart, selectionEnd)
+			}
 			selectionColor, _ := selectionColors(theme)
 			if snapshot.Disabled {
 				selectionColor.Alpha *= 0.50
@@ -551,6 +567,26 @@ func (layout *TextareaLayout) ScrollBy(dy float32) {
 		return
 	}
 	layout.scroll = layout.clampScroll(layout.scroll + dy)
+}
+
+// Wheel scrolls the box by a wheel event over the text it last painted, as ScrollBy does, and
+// reports whether the box moved. A wheel the box cannot move with (it is at the end the wheel
+// points to, or it shows all its rows) reports false, so the page scrolls instead.
+func (layout *TextareaLayout) Wheel(event gfx.ScrollEvent) bool {
+	content := layout.content
+	if !layout.painted || event.X < content.X || event.X >= content.X+content.Width ||
+		event.Y < content.Y || event.Y >= content.Y+content.Height {
+		return false
+	}
+	dy := event.DeltaY
+	if !event.Precise && dy > 0 && dy < 24 {
+		dy = 24
+	} else if !event.Precise && dy < 0 && dy > -24 {
+		dy = -24
+	}
+	before := layout.scroll
+	layout.ScrollBy(dy)
+	return layout.scroll != before
 }
 
 // RowCount is how many rows text takes in a box of outer width width: one for

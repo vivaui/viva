@@ -47,6 +47,15 @@ type Config struct {
 	TitlebarHeight    float32
 	TrafficLightScale float32
 	ClearColor        Color
+	// WindowBorderColor, when set, is read on the window thread with every
+	// frame and names the color of the border the desktop draws around a
+	// custom-titlebar window. Windows 11 composites that border against what
+	// is behind the window rather than against the window's own pixels, so
+	// the background shows through it; a color that matches the window's own
+	// edge makes the border continuous instead. Nil, or a color that is not
+	// opaque, leaves the system's border. Adapters without such a border
+	// ignore it.
+	WindowBorderColor func() Color
 	WindowMaterials
 	Rectangles    []render.Rectangle
 	TextLabels    []TextLabel
@@ -217,6 +226,10 @@ type Application interface {
 	// Quit closes every window, bypassing close requests, and ends the loop.
 	// It is thread-safe.
 	Quit()
+	// Post runs fn on the application's event-loop thread. It is thread-safe,
+	// runs accepted functions in the order they were posted, and never blocks.
+	// A function posted after the loop has ended may not run.
+	Post(fn func())
 }
 
 // Secret store errors, shared by the three adapters. An adapter returns these (or
@@ -890,7 +903,8 @@ type TextInput struct {
 	// would take, and the hotkeys that switch it, belong to the machine on the
 	// other side of the surface, which runs its own input method. Text events
 	// still arrive if a method commits anyway, so a paste keeps working.
-	// Implemented on Windows; the other platforms have not needed it yet.
+	// Implemented on macOS and Windows; Linux still offers its keys to the
+	// input method.
 	DisableIME bool
 	// NavigationKeys asks Up, Down, PageUp and PageDown to reach the
 	// application as raw key events while the field is focused, while
@@ -936,11 +950,16 @@ type TextState struct {
 	Selection         text.Range
 	Composition       text.Range
 	Composing         bool
+	// TentativeComposition snapshots the editor's explicit opt-in capability,
+	// independently of whether it currently has visible marked text.
+	TentativeComposition bool
 	// Redraw asks for a frame after this event although the editor itself looks
 	// the same: the application changed something else on screen in response, a
 	// terminal drawing typed text ahead of the server's echo. It is not part of
 	// the mirrored editor state and is cleared again before the next event.
 	Redraw bool
+	// CompositionIdentity compares ownership without retaining an editor.
+	CompositionIdentity text.CompositionIdentity
 }
 
 // TextInputPresentationChanged reports whether applying a native text event
@@ -1032,6 +1051,11 @@ type TextEvent struct {
 	Replacement     text.Range
 	HasReplacement  bool
 	Command         TextCommand
+	// CompositionPhase is authoritative only for an enabled editor. The zero
+	// value preserves the legacy event route and rune replacement coordinates.
+	CompositionPhase    text.CompositionPhase
+	ReplacementUTF16    text.UTF16Range
+	HasReplacementUTF16 bool
 }
 
 // TextHandler applies one native edit and returns the complete new state.
@@ -1043,7 +1067,21 @@ type TextHandler func(TextEvent) (TextState, error)
 // update that names the active composition itself is the input method continuing
 // that composition: selecting the range first would end it, so the cancel
 // snapshot would hold the preedit instead of the text the composition replaced.
-func (event TextEvent) Apply(editor *text.Editor) {
+// False reports refused explicit input; legacy events return true, including
+// their ordinary no-ops.
+func (event TextEvent) Apply(editor *text.Editor) bool {
+	if event.CompositionPhase != text.CompositionNone && editor.TentativeCompositionEnabled() {
+		// Rejected explicit input must not be retried as a legacy mutation.
+		return editor.ApplyComposition(text.CompositionEvent{
+			Phase:               event.CompositionPhase,
+			Text:                event.Text,
+			Selected:            event.MarkedSelection,
+			Replacement:         event.Replacement,
+			HasReplacement:      event.HasReplacement,
+			ReplacementUTF16:    event.ReplacementUTF16,
+			HasReplacementUTF16: event.HasReplacementUTF16,
+		})
+	}
 	if event.HasReplacement && !event.actsOnActiveComposition(editor) {
 		replacement := event.Replacement
 		if selection := editor.Selection(); selection == replacement && selection.Start != selection.End && editor.Caret() == selection.Start {
@@ -1124,6 +1162,7 @@ func (event TextEvent) Apply(editor *text.Editor) {
 			editor.DeleteToLineBoundary(true)
 		}
 	}
+	return true
 }
 
 // actsOnActiveComposition reports whether the event updates or commits the
@@ -1173,11 +1212,13 @@ func TextHistoryCommand(event KeyEvent) (TextCommand, bool) {
 func EditorState(editor *text.Editor) TextState {
 	composition, composing := editor.Composition()
 	return TextState{
-		Value:             editor.String(),
-		Selection:         editor.Selection(),
-		SelectionReversed: editor.Selection().Start != editor.Selection().End && editor.Caret() == editor.Selection().Start,
-		Composition:       composition,
-		Composing:         composing,
+		Value:                editor.String(),
+		Selection:            editor.Selection(),
+		SelectionReversed:    editor.Selection().Start != editor.Selection().End && editor.Caret() == editor.Selection().Start,
+		Composition:          composition,
+		Composing:            composing,
+		TentativeComposition: editor.TentativeCompositionEnabled(),
+		CompositionIdentity:  editor.TentativeCompositionIdentity(),
 	}
 }
 

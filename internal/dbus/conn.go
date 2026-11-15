@@ -28,6 +28,9 @@ type Conn struct {
 	unique  string
 	in      []byte
 	pending []*Message
+	// fds are the descriptors the socket delivered for messages still being
+	// assembled, in arrival order; each message takes its header's count.
+	fds []int
 }
 
 // DialSession connects to the session bus named by DBUS_SESSION_BUS_ADDRESS, or
@@ -36,6 +39,18 @@ func DialSession() (*Conn, error) {
 	address := os.Getenv("DBUS_SESSION_BUS_ADDRESS")
 	if address == "" {
 		address = "unix:path=/run/user/" + strconv.Itoa(os.Getuid()) + "/bus"
+	}
+	return Dial(address)
+}
+
+// DialSystem connects to the system bus, where logind and other services that
+// outlive one login session live.
+func DialSystem() (*Conn, error) {
+	address := os.Getenv("DBUS_SYSTEM_BUS_ADDRESS")
+	if address == "" {
+		// /var/run is a link to /run on every current distribution; try both
+		// because a container may keep only one.
+		address = "unix:path=/var/run/dbus/system_bus_socket;unix:path=/run/dbus/system_bus_socket"
 	}
 	return Dial(address)
 }
@@ -192,8 +207,17 @@ func (c *Conn) FD() int { return c.fd }
 // UniqueName is the name the bus gave this connection.
 func (c *Conn) UniqueName() string { return c.unique }
 
-// Close ends the connection.
+// Close ends the connection and closes every descriptor still attached to a
+// message this client has not handed out.
 func (c *Conn) Close() {
+	for _, fd := range c.fds {
+		syscall.Close(fd)
+	}
+	c.fds = nil
+	for _, message := range c.pending {
+		message.CloseFDs()
+	}
+	c.pending = nil
 	if c.fd >= 0 {
 		syscall.Close(c.fd)
 		c.fd = -1
@@ -206,7 +230,9 @@ func (c *Conn) nextSerial() uint32 {
 }
 
 // Call sends a method call and waits for its answer. Other messages that arrive
-// meanwhile are kept for Receive. An error reply comes back as a *Error.
+// meanwhile are kept for Receive. An error reply comes back as a *Error. The
+// returned message owns any file descriptors it carries; close them when done,
+// taking the ones to keep with TakeFD.
 func (c *Conn) Call(destination, path, iface, member, signature string, body []byte) (*Message, error) {
 	serial := c.nextSerial()
 	call := &Message{Type: TypeCall, Serial: serial, Destination: destination, Path: path, Interface: iface, Member: member, Signature: signature, Body: body}
@@ -249,6 +275,7 @@ func answer(message *Message) (*Message, error) {
 		if message.Signature == "s" {
 			text = message.Args().String()
 		}
+		message.CloseFDs()
 		return nil, &Error{Name: message.ErrorName, Text: text}
 	}
 	return message, nil
@@ -264,7 +291,8 @@ func (e *Error) Error() string {
 	return e.Name + ": " + e.Text
 }
 
-// Receive returns the messages that have arrived, without waiting.
+// Receive returns the messages that have arrived, without waiting. The caller
+// owns the file descriptors they carry.
 func (c *Conn) Receive() ([]*Message, error) {
 	if err := c.fill(false); err != nil {
 		return nil, err
@@ -276,15 +304,17 @@ func (c *Conn) Receive() ([]*Message, error) {
 
 // fill reads from the socket and parses every complete message into pending.
 // Blocking, it waits for the first bytes (at most callTimeout) and reads once;
-// otherwise it reads what is there and returns.
+// otherwise it reads what is there and returns. File descriptors the socket
+// delivers are held until the message whose header counts them is complete.
 func (c *Conn) fill(block bool) error {
 	flags := syscall.MSG_DONTWAIT
 	if block {
 		flags = 0
 	}
 	buffer := make([]byte, 16<<10)
+	oob := make([]byte, 4096)
 	for {
-		n, _, err := syscall.Recvfrom(c.fd, buffer, flags)
+		n, oobn, _, _, err := syscall.Recvmsg(c.fd, buffer, oob, flags)
 		if err == syscall.EAGAIN {
 			if block {
 				return errTimedOut
@@ -296,6 +326,11 @@ func (c *Conn) fill(block bool) error {
 		}
 		if err != nil {
 			return err
+		}
+		if oobn > 0 {
+			if err := c.appendControl(oob[:oobn]); err != nil {
+				return err
+			}
 		}
 		if n == 0 {
 			return errors.New("the bus closed the connection")
@@ -317,6 +352,14 @@ func (c *Conn) fill(block bool) error {
 		if err != nil {
 			return err
 		}
+		for index := 0; index < message.unixFDCount; index++ {
+			if len(c.fds) == 0 {
+				message.CloseFDs()
+				return errors.New("dbus: a message arrived without the file descriptors it counts")
+			}
+			message.FDs = append(message.FDs, c.fds[0])
+			c.fds = c.fds[1:]
+		}
 		// Detach the body from the read buffer, which is about to be reused.
 		message.Body = append([]byte(nil), message.Body...)
 		c.pending = append(c.pending, message)
@@ -325,6 +368,27 @@ func (c *Conn) fill(block bool) error {
 			c.in = nil
 		}
 	}
+}
+
+// appendControl takes the file descriptors out of ancillary data set with a
+// message, keeping them for the message that counts them.
+func (c *Conn) appendControl(oob []byte) error {
+	messages, err := syscall.ParseSocketControlMessage(oob)
+	if err != nil {
+		return err
+	}
+	for index := range messages {
+		message := &messages[index]
+		if message.Header.Level != syscall.SOL_SOCKET || message.Header.Type != syscall.SCM_RIGHTS {
+			continue
+		}
+		fds, err := syscall.ParseUnixRights(message)
+		if err != nil {
+			return err
+		}
+		c.fds = append(c.fds, fds...)
+	}
+	return nil
 }
 
 // Reply answers a call with the given arguments.

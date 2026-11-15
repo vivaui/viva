@@ -35,6 +35,12 @@ func TestAddressWordBoundariesAndLineNavigation(t *testing.T) {
 	if got := WordRange("e\u0301 👩‍💻 host", 4); got != (Range{Start: 3, End: 6}) {
 		t.Fatalf("emoji word = %+v", got)
 	}
+	if got := LineRange("first\nsecond line\nthird", 9); got != (Range{Start: 6, End: 18}) {
+		t.Fatalf("line = %+v", got)
+	}
+	if got := LineRange("first\nsecond line\nthird", 18); got != (Range{Start: 18, End: 23}) {
+		t.Fatalf("last line = %+v", got)
+	}
 	editor = NewEditor("first\nsecond")
 	editor.MoveLineBoundary(false, true)
 	if editor.Selection() != (Range{Start: 6, End: 12}) || editor.Caret() != 6 {

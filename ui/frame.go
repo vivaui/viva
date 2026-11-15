@@ -225,6 +225,7 @@ type extra struct {
 type frame struct {
 	canvas *gfx.Canvas
 	theme  Theme
+	styles *Styles // the page's recipe overrides; nil keeps the theme's
 	// barStyle is the page's default scrollbar geometry, which every area of the frame
 	// starts from; Box.Bars overrides it for one area.
 	barStyle    components.ScrollBarStyle

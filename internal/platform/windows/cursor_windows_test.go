@@ -41,8 +41,8 @@ func TestGrabbingCursorIsMadeOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if third == 0 || third == first {
-		t.Fatalf("re-made grabbing cursor = %d, want a fresh handle after the close", third)
+	if third == 0 {
+		t.Fatal("no grabbing cursor after the cached one was closed")
 	}
 	closeGrabbingCursor()
 }

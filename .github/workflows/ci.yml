@@ -84,6 +84,11 @@ jobs:
       # targets this repository ships for.
       - name: vet
         run: go vet ./...
+      # The page-facing packages keep reflection and untyped containers out of
+      # their exported API; the layout, input, scene and render paths depend on
+      # it, and a symbol that needs one usually needs a typed one instead.
+      - name: API discipline
+        run: go run ./tools/apicheck ./ui ./components ./app ./gfx
 
   # Every target Viva ships for must at least type-check, tests included. The
   # targets do not depend on each other, so they run at the same time on one

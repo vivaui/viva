@@ -179,6 +179,9 @@ func (f *frame) paintControl(n *node, r Rect) {
 			f.captionFn(f, n, bounds)
 		}
 		checkbox := components.BeginCheckbox(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
+		if f.styles != nil && f.styles.Checkbox != nil {
+			checkbox = checkbox.Recipe(f.styles.Checkbox)
+		}
 		if n.label != "" {
 			checkbox = checkbox.Label(n.label)
 		}
@@ -214,6 +217,9 @@ func (f *frame) paintControl(n *node, r Rect) {
 			f.captionFn(f, n, bounds)
 		}
 		control := components.BeginSwitch(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
+		if f.styles != nil && f.styles.Switch != nil {
+			control = control.Recipe(f.styles.Switch)
+		}
 		if small {
 			control = control.Small()
 		}
@@ -272,6 +278,9 @@ func (f *frame) paintButton(n *node) {
 	extra := &f.exts[n.ext]
 	button := components.BeginButton(f.canvas, f.theme, n.id, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.buttonSize).
 		WithIcon(extra.icon).IconTransform(extra.iconTransform)
+	if f.styles != nil && f.styles.Button != nil {
+		button = button.Recipe(f.styles.Button)
+	}
 	// A button is as tall as its size says unless the element was given more or less
 	// room: a Height, or a Grow along a column. It then fills that room.
 	if h := r.Height; h > 0 && math.Abs(float64(h-button.BoundsHeight())) > 0.01 {

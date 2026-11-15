@@ -1509,9 +1509,10 @@ func (canvas *Canvas) TextOffsetAtStyle(value string, style TextStyle, x float32
 
 // LabelRuns appends one fixed-pitch line: value drawn in the system fixed-pitch
 // font with every character on a grid of cellWidth, each run of it in its own
-// color and weight. A terminal row is one such line, however many colors it
-// holds, so the number and order of labels stays stable while its content
-// changes. Bounds is the whole line; its width should be columns*cellWidth.
+// color, weight and slant (TextRun.Italic). A terminal row is one such line,
+// however many colors it holds, so the number and order of labels stays stable
+// while its content changes. Bounds is the whole line; its width should be
+// columns*cellWidth.
 // runs must cover value (see TextRun); the canvas copies them, so the caller
 // may reuse the slice as soon as the call returns.
 func (canvas *Canvas) LabelRuns(value string, bounds Rect, style TextStyle, cellWidth float32, runs []TextRun) {
