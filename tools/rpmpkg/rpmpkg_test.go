@@ -124,8 +124,8 @@ func TestWriteVerifiesWithRPMTools(t *testing.T) {
 	if want := "lithe-desktop 0.9.1 1 x86_64 Unspecified https://example.com/lithe\n"; fields != want {
 		t.Fatalf("rpm query fields = %q, want %q", fields, want)
 	}
-	if info := run("-qpi", path); !strings.Contains(info, "Summary      : A test application") {
-		t.Fatalf("rpm -qpi lacks the summary:\n%s", info)
+	if summary := run("-qp", "--queryformat", "%{SUMMARY}\n", path); summary != "A test application\n" {
+		t.Fatalf("rpm summary = %q, want %q", summary, "A test application\n")
 	}
 	list := run("-qpl", path)
 	for _, want := range []string{"/usr/bin/lithe_desktop", "/usr/share/applications/app.lithe.desktop.desktop"} {
