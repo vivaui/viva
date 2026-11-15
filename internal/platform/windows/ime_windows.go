@@ -408,7 +408,11 @@ func (state *windowState) textEventFrameWithCancel(event platform.TextEvent, can
 	if cancelPrevious {
 		// IMM may reenter the window procedure. Install the new owner first and
 		// never overwrite a newer acknowledgment after cancelling the old one.
-		cancelNative()
+		revision = state.textRevision
+		state.cancelIMEWith(cancelNative)
+		if state.textRevision != revision {
+			return platform.Frame{}, state.window != 0, nil
+		}
 	}
 	if !redraw {
 		return platform.Frame{}, false, nil
@@ -664,6 +668,10 @@ func (state *windowState) cancelCompositionWith(cancelNative func()) {
 	state.imeHasTarget = false
 	state.textState.Composing = false
 	state.textState.Composition = text.Range{}
+	state.cancelIMEWith(cancelNative)
+}
+
+func (state *windowState) cancelIMEWith(cancelNative func()) {
 	// A cancelling context may synchronously emit preedit/end for its retired
 	// owner. Ordinary characters and newer input updates still belong to the app.
 	previous := state.imeCancelling
