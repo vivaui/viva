@@ -569,6 +569,26 @@ func (layout *TextareaLayout) ScrollBy(dy float32) {
 	layout.scroll = layout.clampScroll(layout.scroll + dy)
 }
 
+// Wheel scrolls the box by a wheel event over the text it last painted, as ScrollBy does, and
+// reports whether the box moved. A wheel the box cannot move with (it is at the end the wheel
+// points to, or it shows all its rows) reports false, so the page scrolls instead.
+func (layout *TextareaLayout) Wheel(event gfx.ScrollEvent) bool {
+	content := layout.content
+	if !layout.painted || event.X < content.X || event.X >= content.X+content.Width ||
+		event.Y < content.Y || event.Y >= content.Y+content.Height {
+		return false
+	}
+	dy := event.DeltaY
+	if !event.Precise && dy > 0 && dy < 24 {
+		dy = 24
+	} else if !event.Precise && dy < 0 && dy > -24 {
+		dy = -24
+	}
+	before := layout.scroll
+	layout.ScrollBy(dy)
+	return layout.scroll != before
+}
+
 // RowCount is how many rows text takes in a box of outer width width: one for
 // each line that fits and as many as a longer one wraps to, and an empty one
 // after a final newline. The rows it wraps are the ones the next paint at that
