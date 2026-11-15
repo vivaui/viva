@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"io"
 	"os"
 	"os/exec"
@@ -158,6 +159,40 @@ func TestBuildEnvironment(t *testing.T) {
 		if got := lastEnvironment(environment, "CGO_ENABLED"); got != "1" {
 			t.Errorf("CGO_ENABLED = %q: Go turns cgo off for a build of another architecture, and the Metal bridge needs it", got)
 		}
+	}
+}
+
+func TestBuildCgoOptIn(t *testing.T) {
+	for _, target := range []string{"linux", "windows"} {
+		t.Run(target, func(t *testing.T) {
+			var shared buildFlags
+			flags := flag.NewFlagSet("build", flag.ContinueOnError)
+			shared.register(flags, target)
+			if err := flags.Parse([]string{"-cgo"}); err != nil {
+				t.Fatal(err)
+			}
+			plan := loadPlan(t, fixture(t, notesTOML), shared, "")
+			base := []string{"CGO_ENABLED=0", "CC=fixture-cc", "CGO_CFLAGS=-I/fixture/include", "CGO_LDFLAGS=-L/fixture/lib -lfixture"}
+			environment := plan.environment(base)
+			if got := lastEnvironment(environment, "CGO_ENABLED"); got != "1" {
+				t.Errorf("explicit cgo build has CGO_ENABLED=%q, want 1", got)
+			}
+			for _, key := range []string{"CC", "CGO_CFLAGS", "CGO_LDFLAGS"} {
+				if got, want := lastEnvironment(environment, key), lastEnvironment(base, key); got != want {
+					t.Errorf("%s=%q, want %q", key, got, want)
+				}
+			}
+			if got := lastEnvironment(base, "CGO_ENABLED"); got != "0" {
+				t.Error("the build modified the caller's environment")
+			}
+		})
+	}
+}
+
+func TestWebBuildRejectsCgo(t *testing.T) {
+	_, err := newPlan(buildFlags{dir: fixture(t, notesTOML), target: "web", cgo: true}, "")
+	if err == nil || !strings.Contains(err.Error(), "does not support cgo") {
+		t.Fatalf("web cgo build: %v", err)
 	}
 }
 
