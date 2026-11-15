@@ -255,3 +255,91 @@ func TestColumnClipboardNativeCallbackCannotUseAnObsoleteTarget(t *testing.T) {
 		}
 	}
 }
+
+func TestColumnClipboardNativeBusyClipboardNeverCuts(t *testing.T) {
+	state := columnClipboardWindow(t)
+	incoming := text.NewEditor("abc")
+	incoming.SetSelection(text.Range{Start: 1, End: 2})
+	state.textState = platform.EditorState(incoming)
+	events := 0
+	state.textInput = platform.TextInput{State: state.textState, CopyOverride: true, CopyRectangular: true,
+		CopyText: func() string { return "rows\r\n" },
+		OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
+			events++
+			event.Apply(incoming)
+			return platform.EditorState(incoming), errors.New("unexpected Cut")
+		}}
+	if err := SetClipboardText("sentinel"); err != nil {
+		t.Fatal(err)
+	}
+	ready := make(chan error, 1)
+	release, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		if opened, _, err := openClipboard.Call(0); opened == 0 {
+			ready <- windowsCallError("hold clipboard fixture", err)
+			return
+		}
+		ready <- nil
+		<-release
+		closeClipboard.Call()
+	}()
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+			<-done
+		}
+	}()
+	if err := <-ready; err != nil {
+		t.Fatal(err)
+	}
+	if err := SetClipboardRectangularText("blocked"); err == nil {
+		t.Fatal("rectangular write ignored an externally held clipboard")
+	}
+	if _, _, err := ClipboardTextWithFormat(); err == nil {
+		t.Fatal("formatted read guessed data from a busy clipboard")
+	}
+	if !state.textKey('X', 0, inputpkg.ModifierControl) {
+		t.Fatal("failed Cut key was not consumed")
+	}
+	close(release)
+	<-done
+	released = true
+	if got, err := ClipboardText(); err != nil || got != "sentinel" || events != 0 || state.err != nil ||
+		incoming.String() != "abc" || incoming.Selection() != (text.Range{Start: 1, End: 2}) {
+		t.Fatalf("busy clipboard Cut mutated state: clipboard=%q/%v events=%d stateErr=%v text=%q selection=%+v", got, err, events, state.err, incoming.String(), incoming.Selection())
+	}
+}
+
+func TestColumnClipboardNativeUnreadableMarkerIsNotGuessed(t *testing.T) {
+	for _, msdev := range []bool{false, true} {
+		name := "unreadable Borland"
+		if msdev {
+			name = "MSDEV has priority"
+		}
+		t.Run(name, func(t *testing.T) {
+			state := columnClipboardWindow(t)
+			if err := SetClipboardText("unchanged"); err != nil {
+				t.Fatal(err)
+			}
+			addColumnClipboardMarker(t, state.window, "Borland IDE Block Type", nil)
+			if msdev {
+				addColumnClipboardMarker(t, state.window, "MSDEVColumnSelect", nil)
+			}
+			value, rectangular, err := ClipboardTextWithFormat()
+			if msdev {
+				if err != nil || value != "unchanged" || !rectangular {
+					t.Fatalf("valid MSDEV marker consulted broken Borland data: %q/%v/%v", value, rectangular, err)
+				}
+			} else if err == nil || value != "" || rectangular {
+				t.Fatalf("unreadable metadata became a usable paste: %q/%v/%v", value, rectangular, err)
+			}
+			if plain, err := ClipboardText(); err != nil || plain != "unchanged" {
+				t.Fatalf("marker read failure changed ordinary clipboard behavior: %q/%v", plain, err)
+			}
+		})
+	}
+}
