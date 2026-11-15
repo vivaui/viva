@@ -91,10 +91,10 @@ mistakes an absence for an oversight. Items marked *measured* were tried or size
 | Toast notifications | Windows | They need a Start-menu shortcut carrying an AppUserModelID, and NSIS cannot write that property without a plugin. A balloon is shown instead. The process AppUserModelID is set only when the application sets `Config.Class`, so a pinned shortcut and its window group together. |
 | Notification click callbacks | all | `Notification` has none on any platform; adding it to one would make the three differ. |
 | Full-screen mode | Windows, Linux | `WindowActions` has no full-screen member. The Linux side already treats `_NET_WM_STATE_FULLSCREEN` like maximize (no margin); the API wants `ToggleFullscreen` and `Fullscreen`. |
-| A native application menu | all | The contract has a status-item menu only; macOS installs a Quit item. |
+| A native application menu | Windows, Linux | macOS installs an application menu bar with `Application.SetMenuBar`; Windows and Linux build the menu in the window with `components.Menubar`, as the platform's own menu bar is not part of the contract there. |
 | Colour management, HDR, wide gamut | all | Every backend writes sRGB-ish values; nothing converts. Not measured. |
 | Arm64 UI Automation | Windows | The floating-point thunk exists for amd64 only. |
-| AppImage, rpm | Linux | AppImage needs an external runtime binary; rpm could not be checked here. `viva package` makes tar.gz, .deb, and a PKGBUILD for Arch. |
+| AppImage | Linux | AppImage needs an external runtime binary. `viva package` makes tar.gz, .deb, a PKGBUILD for Arch, and (with `--format rpm`) an .rpm. The .rpm is checked with rpm 6's `rpm -qpl`, `rpm -qpi` and `rpm -K --nosignature`, and installed on Fedora 44 aarch64 with dnf (install, `rpm -V`, run, desktop-file-validate, remove). The GUI and amd64 on Fedora are not yet run. |
 | Native text events in `viva dev` | all | The worker protocol does not carry them; native Canvas examples do not run under `viva dev`. |
 | A flat accessibility tree | Windows, macOS | Every node hangs from the window; Linux derives parents from geometry. |
 | XIM input | Linux | Composition goes through IBus (IBus and Fcitx5's IBus frontend); XIM-only applications cannot compose. |

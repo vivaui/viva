@@ -2,6 +2,7 @@ package linux
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -13,6 +14,9 @@ import (
 func SetClipboardHTML(html, alt string) error {
 	if len(html) > maxClipboardBytes {
 		return fmt.Errorf("linux: clipboard html exceeds 64 MiB")
+	}
+	if strings.IndexByte(html, 0) >= 0 || strings.IndexByte(alt, 0) >= 0 {
+		return fmt.Errorf("linux: clipboard html or text contains NUL")
 	}
 	if !utf8.ValidString(html) || !utf8.ValidString(alt) {
 		return fmt.Errorf("linux: clipboard html is not valid UTF-8")

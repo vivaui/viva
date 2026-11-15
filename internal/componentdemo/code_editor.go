@@ -226,8 +226,9 @@ func allIndexes(value, needle string) []int {
 
 var demoKeywords = [...]string{"package", "import", "func", "for", "range", "if", "continue", "return", "var", "const", "type", "else"}
 
-// demoCodeHighlight colors comments, strings and keywords of one Go line: a
-// stand-in for the grammar an application owns.
+// demoCodeHighlight colors comments, strings and keywords of one Go line, in
+// the italic face for comments as editors draw them: a stand-in for the grammar
+// an application owns.
 func demoCodeHighlight(_, line string, dst []components.CodeEditorRun) []components.CodeEditorRun {
 	keyword, comment, literal := gfx.RGB(170, 59, 180), gfx.RGB(110, 130, 118), gfx.RGB(30, 120, 80)
 	end := len(line)
@@ -263,7 +264,7 @@ func demoCodeHighlight(_, line string, dst []components.CodeEditorRun) []compone
 		dst = append(dst, components.CodeEditorRun{Start: open, End: from, Color: literal})
 	}
 	if end < len(line) {
-		dst = append(dst, components.CodeEditorRun{Start: end, End: len(line), Color: comment})
+		dst = append(dst, components.CodeEditorRun{Start: end, End: len(line), Color: comment, Italic: true})
 	}
 	// The highlighter may return its runs in any order of discovery, but the
 	// editor wants them in order.

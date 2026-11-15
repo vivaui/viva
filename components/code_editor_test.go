@@ -534,6 +534,116 @@ func TestCodeEditorPaintsOneLabelPerRowWhateverTheHighlight(t *testing.T) {
 	}
 }
 
+// A highlighted range may be drawn italic, the way an editor draws a comment. The
+// slant reaches the grid runs of the painted label without moving their columns,
+// and a range of the same color but another slant keeps its own run.
+func TestCodeEditorItalicHighlightReachesTheGridRuns(t *testing.T) {
+	const value = "x := 1 // note\ny := 2\n"
+	f := newCodeFixture(value)
+	comment, plain := gfx.RGB(110, 130, 118), gfx.RGB(20, 20, 20)
+	commentStart := strings.Index(value, "//")
+	f.snapshot.HighlightLine = func(_ string, lineIndex int, line string, dst []CodeEditorRun) []CodeEditorRun {
+		if lineIndex == 0 {
+			return append(dst,
+				CodeEditorRun{Start: 0, End: 1, Color: plain},
+				CodeEditorRun{Start: commentStart, End: len(line), Color: comment, Italic: true},
+			)
+		}
+		return append(dst, CodeEditorRun{Start: 0, End: len(line), Color: plain})
+	}
+	f.paint()
+
+	var first, second gfx.Text
+	for _, text := range f.canvas.Texts() {
+		switch text.Value {
+		case "x := 1 // note":
+			first = text
+		case "y := 2":
+			second = text
+		}
+	}
+	if first.Value == "" || second.Value == "" {
+		t.Fatalf("rows not painted: %+v", f.canvas.Texts())
+	}
+	var italicRun *gfx.TextRun
+	covered, column := 0, int32(0)
+	for index := range f.canvas.TextRuns(first) {
+		run := f.canvas.TextRuns(first)[index]
+		if run.Column != column {
+			t.Fatalf("run starts at column %d, want %d", run.Column, column)
+		}
+		if run.Italic {
+			italicRun = &run
+		}
+		covered += int(run.Bytes)
+		column += run.Cells
+	}
+	if covered != len(first.Value) {
+		t.Fatalf("runs cover %d of %d bytes", covered, len(first.Value))
+	}
+	if italicRun == nil {
+		t.Fatalf("no italic run: %+v", f.canvas.TextRuns(first))
+	}
+	if italicRun.Color != comment || italicRun.Column != int32(commentStart) || italicRun.Cells != int32(len("// note")) {
+		t.Fatalf("italic run = %+v, want the comment from column %d", *italicRun, commentStart)
+	}
+	// The first run's slant is its own: the plain range of another color before it
+	// is not italic, and the italic range did not extend back over it.
+	head := f.canvas.TextRuns(first)[0]
+	if head.Italic || head.Column != 0 {
+		t.Fatalf("first run = %+v, want the plain start", head)
+	}
+	for _, run := range f.canvas.TextRuns(second) {
+		if run.Italic {
+			t.Fatalf("an unhighlighted row inherited a slant: %+v", run)
+		}
+	}
+}
+
+// Two adjacent ranges of one color that differ only in slant are separate runs:
+// merging them would italicize the upright one.
+func TestCodeEditorItalicRunIsNotMergedWithAnUprightNeighbor(t *testing.T) {
+	f := newCodeFixture("abcd")
+	fg := gfx.RGB(40, 40, 40)
+	f.snapshot.Highlight = func(_, _ string, dst []CodeEditorRun) []CodeEditorRun {
+		return append(dst,
+			CodeEditorRun{Start: 0, End: 2, Color: fg},
+			CodeEditorRun{Start: 2, End: 4, Color: fg, Italic: true},
+		)
+	}
+	f.paint()
+	var text gfx.Text
+	for _, drawn := range f.canvas.Texts() {
+		if drawn.Value == "abcd" {
+			text = drawn
+		}
+	}
+	if text.Value == "" {
+		t.Fatal("row not painted")
+	}
+	runs := f.canvas.TextRuns(text)
+	if len(runs) != 2 || runs[0].Italic || !runs[1].Italic || runs[1].Column != 2 {
+		t.Fatalf("runs = %+v, want an upright run of 2 and an italic run of 2", runs)
+	}
+	if runs[0].Bytes != 2 || runs[1].Bytes != 2 {
+		t.Fatalf("bytes = %d/%d, want 2/2", runs[0].Bytes, runs[1].Bytes)
+	}
+}
+
+func TestCodeEditorItalicHighlightSteadyPaintAllocatesNothing(t *testing.T) {
+	f := newCodeFixture(strings.Repeat("key: value # comment\n", 40))
+	f.snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
+		if at := strings.IndexByte(line, '#'); at >= 0 {
+			return append(dst, CodeEditorRun{Start: at, End: len(line), Color: gfx.RGB(110, 130, 118), Italic: true})
+		}
+		return dst
+	}
+	f.paint()
+	if allocations := testing.AllocsPerRun(100, f.paint); allocations != 0 {
+		t.Fatalf("steady italic paint allocated %g times", allocations)
+	}
+}
+
 func TestCodeEditorHighlightLineReceivesLogicalIndexAfterScrolling(t *testing.T) {
 	value := "same\n" + strings.Repeat("padding\n", 25) + "same"
 	fixture := newCodeFixture(value)

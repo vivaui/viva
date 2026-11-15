@@ -78,25 +78,68 @@ func newSelectionWindowWithHTML(recorder *selectionRecorder, text, html string) 
 func TestSetClipboardHTMLClaimsTheBoardAndRefusesBadInput(t *testing.T) {
 	recorder := &selectionRecorder{masks: map[uint32]uint32{}, incrAtom: 77}
 	win := &window{api: recorder.api(), connection: 1, id: 2, clipboardAtom: 10, utf8Atom: 11, textAtom: 12, targetsAtom: 13, htmlAtom: 17, uriListAtom: 15, gnomeFilesAtom: 16}
+	previousWindow, previousHooks := activeWindow.Load(), shellHooks.Load()
 	activeWindow.Store(win)
-	t.Cleanup(func() { activeWindow.Store(nil) })
+	shellHooks.Store(nil)
+	t.Cleanup(func() {
+		activeWindow.Store(previousWindow)
+		shellHooks.Store(previousHooks)
+	})
 	if err := SetClipboardHTML("<b>x</b>", "x"); err != nil {
 		t.Fatal(err)
 	}
 	if !win.ownsClipboard || win.clipboard != "x" || win.clipboardHTML != "<b>x</b>" || len(win.clipboardFiles) != 0 {
 		t.Fatalf("the board holds %q/%q owned=%v files=%d", win.clipboard, win.clipboardHTML, win.ownsClipboard, len(win.clipboardFiles))
 	}
-	if err := SetClipboardHTML("a\x00b", "alt"); err == nil {
-		t.Fatal("html with NUL was accepted")
-	}
-	if err := SetClipboardHTML("<i>t</i>", "a\x00b"); err == nil {
-		t.Fatal("alt with NUL was accepted")
-	}
-	if err := SetClipboardHTML("bad\xff", "alt"); err == nil {
-		t.Fatal("invalid UTF-8 was accepted")
+	for _, pair := range []struct{ name, html, alt string }{
+		{"html NUL", "a\x00b", "alt"},
+		{"text NUL", "<i>t</i>", "a\x00b"},
+		{"html UTF-8", "bad\xff", "alt"},
+		{"text UTF-8", "<i>t</i>", "bad\xff"},
+	} {
+		t.Run(pair.name, func(t *testing.T) {
+			claims, text, html := len(recorder.ownerCalls), win.clipboard, win.clipboardHTML
+			if err := SetClipboardHTML(pair.html, pair.alt); err == nil {
+				t.Error("invalid rich clipboard pair was accepted")
+			}
+			if len(recorder.ownerCalls) != claims || !win.ownsClipboard || win.clipboard != text || win.clipboardHTML != html || len(win.clipboardFiles) != 0 {
+				t.Errorf("invalid input changed the board: claims=%d text=%q html=%q", len(recorder.ownerCalls), win.clipboard, win.clipboardHTML)
+			}
+		})
 	}
 	activeWindow.Store(nil)
 	if err := SetClipboardHTML("<b>x</b>", "x"); err == nil || err.Error() == "" {
 		t.Fatal("a copy without a window was accepted")
+	}
+}
+
+func TestSetClipboardHTMLRejectsInvalidPairBeforeDesktopHook(t *testing.T) {
+	previous := shellHooks.Load()
+	t.Cleanup(func() { shellHooks.Store(previous) })
+	writes := 0
+	var html, alt string
+	shellHooks.Store(&desktopHooks{setClipboardHTML: func(nextHTML, nextAlt string) error {
+		writes++
+		html, alt = nextHTML, nextAlt
+		return nil
+	}})
+	if err := SetClipboardHTML("<b>ok</b>", "ok"); err != nil || writes != 1 {
+		t.Fatalf("valid pair: error=%v writes=%d", err, writes)
+	}
+	for _, pair := range []struct{ name, html, alt string }{
+		{"html NUL", "a\x00b", "alt"},
+		{"text NUL", "<i>t</i>", "a\x00b"},
+		{"html UTF-8", "bad\xff", "alt"},
+		{"text UTF-8", "<i>t</i>", "bad\xff"},
+	} {
+		t.Run(pair.name, func(t *testing.T) {
+			before, previousHTML, previousAlt := writes, html, alt
+			if err := SetClipboardHTML(pair.html, pair.alt); err == nil {
+				t.Error("invalid rich clipboard pair was accepted")
+			}
+			if writes != before || html != previousHTML || alt != previousAlt {
+				t.Errorf("invalid input reached the desktop: writes=%d html=%q text=%q", writes, html, alt)
+			}
+		})
 	}
 }

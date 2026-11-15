@@ -199,6 +199,8 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 		state.application.drainStatusRemovals()
 	case commandDesktop:
 		state.application.syncDesktopWatch()
+	case commandPost:
+		state.application.drainPosts()
 	}
 	return nil
 }

@@ -142,7 +142,11 @@ type windowState struct {
 	imeTarget                    text.Range
 	imeHasTarget                 bool
 	titlebarThemed, titlebarDark bool
-	web                          *webHost
+	// borderColored says the window's border was given an application color,
+	// and borderColor is that color; see applyBorderColor.
+	borderColored bool
+	borderColor   uint32
+	web           *webHost
 }
 
 var active atomic.Pointer[windowState]
@@ -176,6 +180,11 @@ type windowsApplication struct {
 	// again.
 	taskbar      uintptr
 	taskbarTried bool
+	// posts are the functions other goroutines handed to Post; they are drained
+	// on the event-loop thread. postWake coalesces the messages that wake it.
+	postMu   sync.Mutex
+	posts    []func()
+	postWake atomic.Bool
 }
 
 type nativeWindow struct {
@@ -262,6 +271,10 @@ func RunApplication(start platform.ApplicationStart) error {
 		}
 		if event.Window == 0 && event.Kind == wmQuitApplication {
 			application.closeAll()
+			continue
+		}
+		if event.Window == 0 && event.Kind == wmPost {
+			application.drainPosts()
 			continue
 		}
 		// A handled printable shortcut must never reach TranslateMessage:
@@ -383,6 +396,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 	}
 	state.watchBackdropPower()
 	state.applyBackdrop()
+	state.applyBorderColor()
 	state.ready = true
 	if state.activeBackdrop() {
 		postMessage.Call(state.window, wmRedraw, 0, 0)
@@ -949,6 +963,7 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 	views := frame.NativeViews
 	if err == nil {
 		state.applyBackdrop()
+		state.applyBorderColor()
 		defer func() {
 			if state.web != nil && state.ready {
 				state.web.frame(views)

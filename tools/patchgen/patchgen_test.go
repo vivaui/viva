@@ -176,3 +176,64 @@ func TestWriteRefusesUnsupportedTargets(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteWindowsPortablePatch(t *testing.T) {
+	dir := t.TempDir()
+	oldArchive := filepath.Join(dir, "app-1.0.0-windows-amd64.zip")
+	newArchive := filepath.Join(dir, "app-1.1.0-windows-amd64.zip")
+	writeZip(t, oldArchive, map[string][]byte{
+		"app.exe":               []byte("old program"),
+		"conpty/x64/conpty.dll": []byte("dll"),
+		"motty-data/README.txt": []byte("data"),
+	})
+	writeZip(t, newArchive, map[string][]byte{
+		"app.exe":               []byte("new program with more"),
+		"conpty/x64/conpty.dll": []byte("dll"),
+		"motty-data/README.txt": []byte("changed data"),
+	})
+	patchPath := filepath.Join(dir, "app.patch")
+	file, err := os.Create(patchPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := Write(Request{
+		App: "dev.example.notes", FromVersion: "1.0.0", ToVersion: "1.1.0",
+		OS: "windows", Arch: "amd64", OldArchive: oldArchive, NewArchive: newArchive,
+		Exclude: []string{"motty-data"}, Output: file,
+	})
+	file.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Payload != "dir" || len(manifest.Files) != 2 {
+		t.Fatalf("manifest = %+v", manifest)
+	}
+	for _, file := range manifest.Files {
+		if file.Path == "motty-data/README.txt" {
+			t.Fatal("the data folder reached the patch")
+		}
+	}
+	patch, err := update.ReadPatch(patchPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer patch.Close()
+	oldRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(oldRoot, "conpty", "x64"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(oldRoot, "app.exe"), []byte("old program"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(oldRoot, "conpty", "x64", "conpty.dll"), []byte("dll"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	staging := filepath.Join(dir, "staged")
+	if err := patch.Apply(oldRoot, staging); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(staging, "app.exe"))
+	if err != nil || string(got) != "new program with more" {
+		t.Fatalf("app.exe = %q, %v", got, err)
+	}
+}

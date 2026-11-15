@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 	"sync/atomic"
 
@@ -30,6 +31,8 @@ type driverSystem struct {
 	clipboardHTML  string   // the rich flavour SetClipboardHTML last wrote beside the plain one
 	primary        string   // the primary selection (Linux only), private like the clipboard
 	schemes        []string // the URL schemes SetSchemeHandlers declared as registered
+	sleepMu        sync.Mutex
+	sleep          map[string]int // sleep-prevention reasons this run holds, with their counts
 }
 
 type driverSaveFileResponse struct {
@@ -186,6 +189,46 @@ func driverDeleteSecret(service, account string) (error, bool) {
 	defer driverSecrets.Unlock()
 	delete(driverSecrets.values, [2]string{service, account})
 	return nil, true
+}
+
+// driverPreventSleep answers PreventSleep in a driver-backed run: it records the
+// request instead of asking the real system, so a headless test neither needs
+// nor disturbs the machine's power state.
+func driverPreventSleep(reason string) (func(), error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, nil, false
+	}
+	system.sleepMu.Lock()
+	if system.sleep == nil {
+		system.sleep = make(map[string]int)
+	}
+	system.sleep[reason]++
+	system.sleepMu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			system.sleepMu.Lock()
+			system.sleep[reason]--
+			if system.sleep[reason] <= 0 {
+				delete(system.sleep, reason)
+			}
+			system.sleepMu.Unlock()
+		})
+	}, nil, true
+}
+
+// AwakeReasons returns the sleep-prevention reasons a driver-backed run holds,
+// sorted, so a test can see what the application asked to keep awake.
+func (driver *Driver) AwakeReasons() []string {
+	driver.system.sleepMu.Lock()
+	defer driver.system.sleepMu.Unlock()
+	reasons := make([]string, 0, len(driver.system.sleep))
+	for reason := range driver.system.sleep {
+		reasons = append(reasons, reason)
+	}
+	sort.Strings(reasons)
+	return reasons
 }
 
 func driverSendNotification(notification Notification) (error, bool) {

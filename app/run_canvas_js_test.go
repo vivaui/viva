@@ -103,6 +103,52 @@ func TestWebTextInputConnectsAnEditorToTheBrowser(t *testing.T) {
 	}
 }
 
+func TestWebTextInputPreservesTaggedCompositionAndOwnership(t *testing.T) {
+	for _, custom := range []bool{false, true} {
+		name := "editor"
+		if custom {
+			name = "handler"
+		}
+		t.Run(name, func(t *testing.T) {
+			editor := text.NewEditor("abcd")
+			if !editor.EnableTentativeComposition() {
+				t.Fatal("capability setup refused")
+			}
+			editor.SetSelection(text.Range{Start: 1, End: 2})
+			var received TextEvent
+			provider := webTextInput(func(TextInputContext) *TextInput {
+				if custom {
+					return &TextInput{State: TextStateOf(editor), OnEvent: func(event TextEvent) (TextState, error) {
+						received = event
+						event.Apply(editor)
+						return TextStateOf(editor), nil
+					}}
+				}
+				return &TextInput{Editor: editor}
+			})
+			input := provider(web.TextInputContext{ID: gfx.Item(7), Multiline: true})
+			if !input.State.TentativeComposition || input.State.CompositionIdentity != editor.TentativeCompositionIdentity() {
+				t.Fatal("Web state dropped capability ownership")
+			}
+			for _, event := range []platform.TextEvent{
+				{Kind: platform.TextSetMarked, CompositionPhase: text.CompositionUpdate, Text: "\u00e9\U0001d11e", MarkedSelection: text.Range{Start: 2, End: 2}},
+				{Kind: platform.TextInsert, CompositionPhase: text.CompositionResult, Text: "r", HasReplacementUTF16: true, ReplacementUTF16: text.UTF16Range{Start: 5, Length: 1}},
+			} {
+				state, err := input.OnEvent(event)
+				if err != nil || state != platform.EditorState(editor) {
+					t.Fatalf("Web acknowledgment = %+v, err=%v", state, err)
+				}
+				if custom && received != appTextEvent(event) {
+					t.Fatalf("Web handler lost tagged fields: %+v", received)
+				}
+			}
+			if editor.String() != "acdr" || editor.CompositionActive() {
+				t.Fatalf("Web tagged result = %+v", TextStateOf(editor))
+			}
+		})
+	}
+}
+
 func TestWebTextInputPreservesAlignment(t *testing.T) {
 	for _, testcase := range []struct {
 		name      string

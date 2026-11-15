@@ -207,6 +207,11 @@ type PageConfig struct {
 	// copy of the last paint would have differed, as MemoCheck(true) does for every
 	// page. It is for tests.
 	MemoCheck bool
+	// Styles replaces the recipes the page's styled controls paint with; nil uses
+	// the theme's. See Styles. It is for an application with a look of its own
+	// that keeps using Button, Checkbox, Switch, Input and Textarea rather than
+	// their Bases, and it does not affect a control given a look of its own.
+	Styles *Styles
 	// BarStyle is the geometry of the scrollbars every scroll area of this page draws, so
 	// a product whose bars are its own sets it once: IDEA's eleven point track with a five
 	// point thumb. The zero style keeps Viva's, and Box.Bars overrides it for one area.
@@ -793,6 +798,7 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 		}
 	}
 	f := p.view.Begin(canvas, p.currentTheme(), bounds)
+	f.styles = p.config.Styles
 	f.page = p
 	f.barStyle = p.config.BarStyle
 	p.ctx.page, p.ctx.f, p.ctx.nextSet = p, f, false
@@ -1125,6 +1131,13 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	for _, state := range p.selects {
 		if state.Open {
 			return state.Wheel(event)
+		}
+	}
+	// A TextArea under the pointer scrolls its own rows first; at its end the wheel goes on
+	// to the page, as in a browser.
+	for _, entry := range p.fields {
+		if entry.field.rows && entry.field.area != nil && entry.field.area.Wheel(event) {
+			return gfx.EventResult{Handled: true, Repaint: true}
 		}
 	}
 	if p.wheelRoute != nil {

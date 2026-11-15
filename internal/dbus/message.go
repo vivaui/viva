@@ -29,6 +29,7 @@ const (
 	fieldDestination = 6
 	fieldSender      = 7
 	fieldSignature   = 8
+	fieldUnixFDs     = 9
 )
 
 const maxMessage = 1 << 27 // the specification's limit, 128 MiB
@@ -48,6 +49,14 @@ type Message struct {
 	Sender      string
 	Signature   string
 	Body        []byte
+	// FDs are the file descriptors the message carried, in the order its unix
+	// fd indices name; a body type 'h' is an index into this slice. The side
+	// that receives a message owns its descriptors and closes them: pass them
+	// to TakeFD and close what TakeFD does not hand out, or call CloseFDs.
+	FDs []int
+	// unixFDCount is the header's count of descriptors; fill matches it with
+	// the descriptors the socket delivered.
+	unixFDCount int
 }
 
 // NoReply reports whether the sender wants no answer to a call.
@@ -95,6 +104,9 @@ func (m *Message) encode() []byte {
 	}
 	if m.Signature != "" {
 		field(fieldSignature, "g", func() { e.Signature(m.Signature) })
+	}
+	if m.unixFDCount > 0 {
+		field(fieldUnixFDs, "u", func() { e.Uint32(uint32(m.unixFDCount)) })
 	}
 	e.EndArray(start)
 	e.Align(8)
@@ -156,6 +168,8 @@ func decodeMessage(buf []byte) (*Message, error) {
 			m.Sender = d.String()
 		case code == fieldSignature && sig == "g":
 			m.Signature = d.Signature()
+		case code == fieldUnixFDs && sig == "u":
+			m.unixFDCount = int(d.Uint32())
 		default:
 			d.Skip(sig) // a field this client has no use for
 		}

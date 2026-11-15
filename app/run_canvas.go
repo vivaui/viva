@@ -70,6 +70,18 @@ func minimizeHandler(callback func(bool)) platform.MinimizeHandler {
 	return platform.MinimizeHandler(callback)
 }
 
+// borderColorHandler adapts the application's window border color callback to
+// the platform's. It runs on the window thread with every frame.
+func borderColorHandler(callback func() Color) func() platform.Color {
+	if callback == nil {
+		return nil
+	}
+	return func() platform.Color {
+		color := callback()
+		return platform.Color{Red: color.Red, Green: color.Green, Blue: color.Blue, Alpha: color.Alpha}
+	}
+}
+
 // maximizeHandler adapts the application's maximize callback to the platform's.
 // OpenWindow always installs one, so the runtime's own state stays current.
 func maximizeHandler(callback func(bool)) platform.MaximizeHandler {
@@ -146,7 +158,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 	if normalized.OnCloseRequest != nil {
 		closeHandler = platform.CloseRequestHandler(normalized.OnCloseRequest)
 	}
-	return platform.Config{
+	config := platform.Config{
 		Actions:   painter.windowActions(),
 		TextInput: painter.initialTextInput(),
 		Title:     normalized.Title, Class: normalized.Class, Icon: normalized.Icon.platform(), Width: normalized.Width, Height: normalized.Height,
@@ -190,7 +202,9 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		OnCloseRequest:   closeHandler,
 		OnClosed:         normalized.OnClosed,
 		DynamicTextInput: normalized.TextInput != nil,
-	}, frames
+	}
+	config.WindowBorderColor = borderColorHandler(normalized.WindowBorderColor)
+	return config, frames
 }
 
 // prepareNativeWindow builds the native window for one application window. It

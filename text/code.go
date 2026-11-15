@@ -102,11 +102,15 @@ func (editor *Editor) column(index, tabWidth int) int {
 // editBlock replaces target with replacement as one undo unit, and leaves the
 // selection at anchor and caret in the new text.
 func (editor *Editor) editBlock(target Range, replacement []rune, anchor, caret int) {
+	// The block commands are line commands: they act on the primary selection,
+	// and the set of carets they leave is the one they compute here.
 	before := editor.selectionState()
 	change := editor.replace(target, string(replacement), false)
+	editor.clearSecondary()
 	editor.anchor = clamp(anchor, 0, len(editor.runes))
 	editor.caret = clamp(caret, 0, len(editor.runes))
 	editor.composing = false
+	editor.releaseCompositionHistory()
 	editor.record(change, before, editor.selectionState(), editSeparate)
 }
 
@@ -462,7 +466,9 @@ func (editor *Editor) DeleteLines() {
 // or the same quote, so an apostrophe in a word stays alone.
 func (editor *Editor) TypeCode(value string, options CodeOptions) {
 	runes := []rune(value)
-	if !options.AutoClose || editor.composing || len(runes) != 1 {
+	// Pairing is decided against the primary selection's neighbours; with several
+	// selections the plain multi-selection insert is what every one of them gets.
+	if !options.AutoClose || editor.composing || len(runes) != 1 || editor.SelectionCount() > 1 {
 		editor.Insert(value)
 		return
 	}
@@ -508,7 +514,9 @@ func (editor *Editor) mayPair(typed rune, index int) bool {
 // previous tab stop. Anything else is DeleteBackward.
 func (editor *Editor) DeleteBackwardCode(options CodeOptions) {
 	selection := editor.Selection()
-	if editor.composing || selection.Start != selection.End || selection.Start == 0 {
+	// Bracket and indent pairing look at the primary selection; every selection
+	// of a multi-selection deletes by the plain rule instead.
+	if editor.composing || editor.SelectionCount() > 1 || selection.Start != selection.End || selection.Start == 0 {
 		editor.DeleteBackward()
 		return
 	}
@@ -677,10 +685,13 @@ func (editor *Editor) Backspace() {
 // the caret after what it inserted: how a find bar replaces a match, or all of
 // them. It ends an active composition, which the replaced text may include.
 func (editor *Editor) ReplaceRange(target Range, value string) {
+	editor.sealTentativeHistory()
 	target = normalizeRange(target, len(editor.runes))
 	before := editor.selectionState()
 	change := editor.replace(target, value, false)
+	editor.clearSecondary() // one range replaced, one caret left
 	editor.collapse(target.Start + len(change.inserted))
 	editor.composing = false
+	editor.releaseCompositionHistory()
 	editor.record(change, before, editor.selectionState(), editSeparate)
 }

@@ -51,3 +51,5 @@ func driverStoreSecret(string, string, []byte) (error, bool) { return nil, false
 func driverLoadSecret(string, string) ([]byte, error, bool) { return nil, nil, false }
 
 func driverDeleteSecret(string, string) (error, bool) { return nil, false }
+
+func driverPreventSleep(string) (func(), error, bool) { return nil, nil, false }
