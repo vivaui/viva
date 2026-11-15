@@ -354,3 +354,65 @@ func TestColumnClipboardNativeUnreadableMarkerIsNotGuessed(t *testing.T) {
 		})
 	}
 }
+
+func TestColumnClipboardNativeDiscardedMarkerIsNotGuessed(t *testing.T) {
+	for _, msdev := range []bool{false, true} {
+		name := "discarded Borland"
+		if msdev {
+			name = "MSDEV has priority"
+		}
+		t.Run(name, func(t *testing.T) {
+			state := columnClipboardWindow(t)
+			if err := SetClipboardText("unchanged"); err != nil {
+				t.Fatal(err)
+			}
+			format := columnClipboardFormat(t, "Borland IDE Block Type")
+			func() {
+				if opened, _, err := openClipboard.Call(state.window); opened == 0 {
+					t.Fatalf("open discarded marker fixture: %v", err)
+				}
+				defer closeClipboard.Call()
+				// A zero-sized movable allocation has a handle but no readable data.
+				handle, _, err := globalAlloc.Call(globalMoveable, 0)
+				if handle == 0 {
+					t.Fatalf("allocate discarded marker: %v", err)
+				}
+				if result, _, err := setClipboardData.Call(format, handle); result == 0 {
+					globalFree.Call(handle)
+					t.Fatalf("transfer discarded marker: %v", err)
+				}
+				stored, _, err := clipboardData.Call(format)
+				if stored == 0 {
+					t.Fatalf("discarded marker has no handle: %v", err)
+				}
+				if size, _, _ := globalSize.Call(stored); size != 0 {
+					t.Fatalf("discarded marker size = %d; want 0", size)
+				}
+			}()
+			if msdev {
+				addColumnClipboardMarker(t, state.window, "MSDEVColumnSelect", nil)
+			}
+			value, rectangular, err := ClipboardTextWithFormat()
+			if msdev {
+				if err != nil || value != "unchanged" || !rectangular {
+					t.Fatalf("valid MSDEV marker consulted discarded Borland data: %q/%v/%v", value, rectangular, err)
+				}
+			} else {
+				if err == nil || value != "" || rectangular {
+					t.Fatalf("discarded metadata became a usable paste: %q/%v/%v", value, rectangular, err)
+				}
+				events := 0
+				state.textInput = platform.TextInput{OnEvent: func(platform.TextEvent) (platform.TextState, error) {
+					events++
+					return state.textState, errors.New("unexpected Paste")
+				}}
+				if !state.textKey('V', 0, inputpkg.ModifierControl) || events != 0 || state.err != nil {
+					t.Fatalf("discarded marker delivered Paste: events=%d err=%v", events, state.err)
+				}
+			}
+			if plain, err := ClipboardText(); err != nil || plain != "unchanged" {
+				t.Fatalf("discarded marker changed ordinary clipboard behavior: %q/%v", plain, err)
+			}
+		})
+	}
+}
