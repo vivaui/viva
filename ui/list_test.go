@@ -1,6 +1,7 @@
 package ui_test
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -360,6 +361,43 @@ func TestListNameAndNoTypeahead(t *testing.T) {
 	}
 	if d.focused() != m.names[0] || m.list.Selected() != 0 {
 		t.Fatalf("typing with NoTypeahead went to %q (row %d)", d.focused(), m.list.Selected())
+	}
+}
+
+// Keys up to 2^31-1 name their rows, so a click chooses the row under it. A key
+// outside that range would share item 0's name with every other such key, and a
+// click on one of those rows would reach them all: the list panics instead.
+func TestListKeysAreItemNumbers(t *testing.T) {
+	names := []string{"alpha", "beta", "gamma"}
+	view := func(state *ui.ListState) func(ui.C) {
+		state.Label = func(i int) string { return names[i] }
+		return func(c ui.C) {
+			ui.Column(c).Fill().Children(func() {
+				ui.List(c, state, len(names), func(row ui.ListRow) { ui.Text(row.C, names[row.Index]) }).Grow(1)
+			})
+		}
+	}
+
+	var state ui.ListState
+	state.Key = func(i int) int { return math.MaxInt32 - i }
+	d := openPage(t, view(&state))
+	for _, row := range []int{1, 0, 2} {
+		d.click(names[row])
+		if state.Selected() != row {
+			t.Fatalf("a click on %q chose row %d", names[row], state.Selected())
+		}
+	}
+
+	for _, first := range []int{math.MaxInt32 + 1, -len(names)} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("rows keyed from %d did not panic", first)
+				}
+			}()
+			state := ui.ListState{Key: func(i int) int { return first + i }}
+			drawPage(ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas(), view(&state))
+		}()
 	}
 }
 
