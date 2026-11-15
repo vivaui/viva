@@ -3,10 +3,12 @@
 package ibus
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -143,6 +145,16 @@ func TestNativeEngineLifecycle(t *testing.T) {
 
 func nativeIBusSelectEngine(t *testing.T, bus *Bus, context *Context, engine string) {
 	t.Helper()
+	if os.Getenv("VIVA_IBUS_FRONTEND") == "fcitx5" {
+		if err := context.SetEngine(engine); err != nil {
+			t.Fatalf("Fcitx selection roundtrip: %v", err)
+		}
+		nativeFcitxSelectEngine(t, engine)
+		if err := bus.Dispatch(); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
 	reply, err := bus.conn.Call(service, busPath, service, "GetUseGlobalEngine", "", nil)
 	if err != nil {
 		t.Fatalf("UseGlobalEngine: %v", err)
@@ -179,6 +191,21 @@ func nativeIBusSelectEngine(t *testing.T, bus *Bus, context *Context, engine str
 	}
 	if err := bus.Dispatch(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func nativeFcitxSelectEngine(t *testing.T, engine string) {
+	t.Helper()
+	for _, args := range [][]string{{"--check", "-s", engine}, {"--check", "-o"}, {"--check", "-n"}} {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		output, err := exec.CommandContext(ctx, "fcitx5-remote", args...).CombinedOutput()
+		cancel()
+		if err != nil {
+			t.Fatalf("native Fcitx controller: %v: %s", err, output)
+		}
+		if args[1] == "-n" && strings.TrimSpace(string(output)) != engine {
+			t.Fatalf("native Fcitx engine=%q, want %q", strings.TrimSpace(string(output)), engine)
+		}
 	}
 }
 

@@ -232,11 +232,7 @@ func TestNativeContextRetirement(t *testing.T) {
 	if engine == "" {
 		engine = "libpinyin"
 	}
-	var body dbus.Encoder
-	body.String(engine)
-	if _, err := bus.conn.Call(service, context.path, contextInterface, "SetEngine", "s", body.Bytes()); err != nil {
-		t.Fatal(err)
-	}
+	nativeIBusSelectEngine(t, bus, context, engine)
 	query := func() error {
 		_, err := bus.conn.Call(service, context.path, contextInterface, "GetEngine", "", nil)
 		return err

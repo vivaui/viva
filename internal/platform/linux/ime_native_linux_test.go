@@ -1,9 +1,13 @@
 package linux
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,12 +95,17 @@ func TestNativeIBusFrontend(t *testing.T) {
 	if engine == "" {
 		engine = "libpinyin"
 	}
+	fcitx := os.Getenv("VIVA_IBUS_FRONTEND") == "fcitx5"
 	var keycodes map[uint32]uint32
 	if err := json.Unmarshal([]byte(os.Getenv("VIVA_IBUS_KEYCODES")), &keycodes); err != nil {
 		t.Fatalf("native keymap: %v", err)
 	}
+	endings := []string{"commit", "escape", "reset", "focus-out", "pending-focus-out", "pending-release-loss", "pending-modifier-loss"}
+	if fcitx {
+		endings = append(endings, "native-focus-out")
+	}
 	for _, tentative := range []bool{false, true} {
-		for _, ending := range []string{"commit", "escape", "reset", "focus-out", "pending-focus-out", "pending-release-loss", "pending-modifier-loss"} {
+		for _, ending := range endings {
 			t.Run(ending+map[bool]string{false: "/legacy", true: "/tentative"}[tentative], func(t *testing.T) {
 				bus, err := ibus.Dial()
 				if err != nil {
@@ -149,8 +158,13 @@ func TestNativeIBusFrontend(t *testing.T) {
 					nativeFrontendDrain(t, bus, func() bool { _, waiting := bus.Deadline(); return !waiting })
 				}
 				keys, live := "nihao", "a你好c"
+				if fcitx {
+					live = "ani haoc"
+				}
 				if engine == "hangul" {
-					press(0xff31)
+					if !fcitx {
+						press(0xff31)
+					}
 					keys, live = "rksk", "a가나c"
 				}
 				for _, symbol := range keys {
@@ -170,6 +184,10 @@ func TestNativeIBusFrontend(t *testing.T) {
 					}
 				case "focus-out":
 					ime.setFocused(false)
+				case "native-focus-out":
+					if err := ime.context.FocusOut(); err != nil {
+						t.Fatal(err)
+					}
 				case "pending-focus-out":
 					send(' ')
 					ime.setFocused(false)
@@ -192,7 +210,9 @@ func TestNativeIBusFrontend(t *testing.T) {
 				}
 				terminals := 0
 				wantPhase := text.CompositionCancel
-				result := ending == "commit" || ending == "pending-focus-out" || engine == "hangul" || lost
+				cancelHangulTail := fcitx && engine == "hangul" && (ending == "reset" || ending == "focus-out")
+				result := ending == "commit" || ending == "pending-focus-out" || ending == "native-focus-out" ||
+					engine == "hangul" && !cancelHangulTail || lost
 				if result {
 					wantPhase = text.CompositionResult
 				}
@@ -205,6 +225,9 @@ func TestNativeIBusFrontend(t *testing.T) {
 						if event.CompositionPhase == text.CompositionResult || event.CompositionPhase == text.CompositionCancel || event.CompositionPhase == text.CompositionCommit {
 							terminals++
 							want := wantPhase
+							if engine == "hangul" && terminals == 1 {
+								want = text.CompositionResult
+							}
 							if lost && (engine != "hangul" || terminals == 2) {
 								want = text.CompositionCommit
 							}
@@ -230,6 +253,12 @@ func TestNativeIBusFrontend(t *testing.T) {
 				if result {
 					want = live
 				}
+				if cancelHangulTail {
+					want = "a\uac00c"
+				}
+				if fcitx && engine == "pinyin" && (ending == "commit" || ending == "pending-focus-out") {
+					want = "a\u4f60\u597dc"
+				}
 				if engine == "hangul" && (ending == "commit" || ending == "pending-focus-out") {
 					// Hangul commits the syllable but declines the space key.
 					want = "a가나 c"
@@ -239,7 +268,11 @@ func TestNativeIBusFrontend(t *testing.T) {
 				}
 				if tentative {
 					if engine == "hangul" {
-						for _, want := range []string{"a가c", "ac", "abc"} {
+						undos := []string{"a가c", "ac", "abc"}
+						if cancelHangulTail {
+							undos = []string{"ac", "abc"}
+						}
+						for _, want := range undos {
 							if !h.editor.Undo() || h.editor.String() != want {
 								t.Fatalf("Hangul Undo=%q want=%q", h.editor.String(), want)
 							}
@@ -321,6 +354,22 @@ func resetNativeIBusFrontend(ime *linuxIME) error {
 
 func selectNativeIBusEngine(t *testing.T, bus *ibus.Bus, context inputMethodContext, engine string) {
 	t.Helper()
+	if os.Getenv("VIVA_IBUS_FRONTEND") == "fcitx5" {
+		selector, ok := context.(interface{ SetEngine(string) error })
+		if !ok {
+			t.Fatal("input context has no native engine selection")
+		}
+		if err := selector.SetEngine(engine); err != nil {
+			t.Fatalf("native Fcitx roundtrip: %v", err)
+		}
+		if err := selectNativeFcitxEngine(engine); err != nil {
+			t.Fatal(err)
+		}
+		if err := bus.Dispatch(); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
 	connection, err := dbus.Dial(os.Getenv("IBUS_ADDRESS"))
 	if err != nil {
 		t.Fatal(err)
@@ -374,6 +423,32 @@ func selectNativeIBusEngine(t *testing.T, bus *ibus.Bus, context inputMethodCont
 	if err := bus.Dispatch(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func nativeFcitxCommand(args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "fcitx5-remote", args...).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("native Fcitx controller: %w: %s", err, output)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func selectNativeFcitxEngine(engine string) error {
+	for _, args := range [][]string{{"--check", "-s", engine}, {"--check", "-o"}} {
+		if _, err := nativeFcitxCommand(args...); err != nil {
+			return err
+		}
+	}
+	actual, err := nativeFcitxCommand("--check", "-n")
+	if err != nil {
+		return err
+	}
+	if actual != engine {
+		return fmt.Errorf("native Fcitx engine=%q, want %q", actual, engine)
+	}
+	return nil
 }
 
 func nativeFrontendDrain(t *testing.T, bus *ibus.Bus, done func() bool) {
