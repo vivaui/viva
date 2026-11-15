@@ -58,7 +58,10 @@ jobs:
           dpkg-query -W libgtk-3-0t64 xvfb xauth dbus-x11
       - name: GTK native composition lifecycle
         if: runner.os == 'Linux'
-        run: dbus-run-session -- xvfb-run -a env VIVA_GTK_IME_NATIVE=1 GTK_IM_MODULE=gtk-im-context-simple GDK_BACKEND=x11 NO_AT_BRIDGE=1 G_DEBUG=fatal-criticals go test -tags vivagtk ./internal/platform/linux -run '^TestGTKNativeComposition$' -count=1 -v -timeout=90s
+        run: dbus-run-session -- xvfb-run -a env VIVA_GTK_IME_NATIVE=1 GTK_IM_MODULE=gtk-im-context-simple GDK_BACKEND=x11 NO_AT_BRIDGE=1 G_DEBUG=fatal-criticals go test -tags vivagtk ./internal/platform/linux -run '^(TestGTKNativeComposition|TestGTKNativeTentative.*|TestGTKNativeSameTargetOwnership)$' -count=1 -v -timeout=90s
+      - name: GTK ordinary key dispatch cost
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- xvfb-run -a env VIVA_GTK_IME_NATIVE=1 GTK_IM_MODULE=gtk-im-context-simple GDK_BACKEND=x11 NO_AT_BRIDGE=1 G_DEBUG=fatal-criticals go test -tags vivagtk ./internal/platform/linux -run '^$' -bench '^BenchmarkGTKNativeOrdinaryKey$' -benchmem -benchtime=200ms -count=3 -timeout=90s
       - name: Linux IME protocol lifecycle
         if: runner.os == 'Linux'
         run: go test ./internal/ibus ./internal/platform/linux -run 'Test(IME|Preedit|CommitAndPreedit|MalformedPreedit)' -count=1 -timeout=90s

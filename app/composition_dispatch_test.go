@@ -474,6 +474,94 @@ func TestTentativeStateSnapshotDoesNotRetainTheEditor(t *testing.T) {
 	}
 }
 
+// A different focused target must end the composition it started, even when
+// the application hands the same editor to the next target. A document keeps
+// the text the user can see; a terminal preedit surface discards it, because
+// that input was never delivered to the application.
+func TestPainterSettlesTentativeCompositionAtTargetHandoff(t *testing.T) {
+	for _, surface := range []struct {
+		name     string
+		role     gfx.Role
+		terminal bool
+	}{
+		{"document", gfx.RoleTextField, false},
+		{"terminal preedit", gfx.RoleTerminal, true},
+	} {
+		for _, reuse := range []bool{false, true} {
+			name := surface.name
+			if reuse {
+				name += " same editor"
+			}
+			t.Run(name, func(t *testing.T) {
+				first, second := text.NewEditor("abc"), text.NewEditor("xyz")
+				if !first.EnableTentativeComposition() || !second.EnableTentativeComposition() {
+					t.Fatal("capability setup refused")
+				}
+				if !first.ApplyComposition(text.CompositionEvent{Phase: text.CompositionUpdate, Text: "にほん"}) ||
+					!first.CompositionActive() {
+					t.Fatal("tentative composition did not start")
+				}
+
+				var canvas gfx.Canvas
+				config := Config{Title: "composition handoff", Width: 200, Height: 100}
+				config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+					canvas.HitWithOptions(gfx.Item(11), gfx.Rect{Width: 120, Height: 20}, "One", gfx.HitOptions{Role: surface.role})
+					canvas.HitWithOptions(gfx.Item(12), gfx.Rect{Y: 40, Width: 120, Height: 20}, "Two", gfx.HitOptions{Role: surface.role})
+				}
+				config.TextInput = func(context TextInputContext) *TextInput {
+					editor := second
+					if context.ID == gfx.Item(11) || reuse {
+						editor = first
+					}
+					return &TextInput{Bounds: context.Bounds, FontSize: 13, Editor: editor}
+				}
+				owner := newTestPainter(t, &canvas, config)
+				click := func(x, y float32) {
+					t.Helper()
+					for _, kind := range []platform.PointerEventKind{platform.PointerMove, platform.PointerDown, platform.PointerUp} {
+						if _, err := owner.pointerEvent(platform.PointerEvent{Kind: kind, X: x, Y: y}); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+
+				click(10, 10)
+				owner.syncTextInput()
+				if owner.nativeText.Target != gfx.Item(11) || owner.nativeText.Terminal != surface.terminal {
+					t.Fatalf("first target not published: target=%v terminal=%t", owner.nativeText.Target, owner.nativeText.Terminal)
+				}
+				if !first.CompositionActive() {
+					t.Fatal("composition ended before the target changed")
+				}
+
+				click(10, 50)
+				owner.syncTextInput()
+				if owner.nativeText.Target != gfx.Item(12) {
+					t.Fatalf("handoff target = %v, want item 12", owner.nativeText.Target)
+				}
+				if first.CompositionActive() {
+					t.Fatal("the outgoing editor kept its composition across the handoff")
+				}
+				if surface.terminal {
+					if got := first.String(); got != "abc" {
+						t.Fatalf("terminal preedit was not discarded: %q", got)
+					}
+					return
+				}
+				if got := first.String(); got != "abcにほん" {
+					t.Fatalf("document composition was not committed: %q", got)
+				}
+				if _, composing := first.Composition(); composing {
+					t.Fatal("committed document still reports a composition")
+				}
+				if !first.Undo() || first.String() != "abc" {
+					t.Fatalf("undo did not restore the pre-start text: %q", first.String())
+				}
+			})
+		}
+	}
+}
+
 var nativeStateBenchmarkSink TextState
 
 func BenchmarkPainterTextAcknowledgment(b *testing.B) {

@@ -312,7 +312,7 @@ func typeNameOf(g *gtkLibrary, object uintptr) string {
 // frees a callback and allows a fixed number, so a window must not make its own. The window a call
 // is for travels in the data pointer, as its id.
 type gtkCallbacks struct {
-	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preedit, surrounding, deleteSurrounding, retireIME, releaseIME, redraw, webMessage, webLoad, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
+	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preeditStart, preedit, preeditEnd, surrounding, deleteSurrounding, retireIME, releaseIME, redraw, webMessage, webLoad, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
 }
 
 var (
@@ -491,9 +491,21 @@ func callbacks() *gtkCallbacks {
 				}
 				return 0
 			}),
+			preeditStart: purego.NewCallback(func(context, id uintptr) uintptr {
+				if ime := gtkIMEByContext(context, id); ime != nil {
+					ime.preeditStarted()
+				}
+				return 0
+			}),
 			preedit: purego.NewCallback(func(context, id uintptr) uintptr {
 				if ime := gtkIMEByContext(context, id); ime != nil {
 					ime.preeditChanged()
+				}
+				return 0
+			}),
+			preeditEnd: purego.NewCallback(func(context, id uintptr) uintptr {
+				if ime := gtkIMEByContext(context, id); ime != nil {
+					ime.preeditEnded()
 				}
 				return 0
 			}),
@@ -529,7 +541,7 @@ func gtkWindowByID(id uintptr) *gtkWindow {
 }
 
 func gtkIMEByContext(context, id uintptr) *gtkIME {
-	if w := gtkWindowByID(id); w != nil && !w.closed && w.ime != nil && context != 0 && w.ime.ctx == context && w.text.enabled && w.ime.target == w.text.input.Target {
+	if w := gtkWindowByID(id); w != nil && w.ime != nil && w.ime.current(context) {
 		return w.ime
 	}
 	return nil
