@@ -18,16 +18,23 @@ import (
 // and commits the choice as it does on the other platforms. The input method owns the candidate
 // window; this side says when the field has the keyboard and where its caret is.
 type gtkIME struct {
-	w      *gtkWindow
-	g      *gtkLibrary
-	ctx    uintptr
-	target gfx.ID
+	w         *gtkWindow
+	g         *gtkLibrary
+	ctx       uintptr
+	target    gfx.ID
+	owner     text.CompositionIdentity
+	tentative bool
 	// focused is whether the window has the keyboard; active is whether the context was told the
 	// field does.
 	focused bool
 	active  bool
 	// engineComposing is whether the context believes a composition is under way.
 	engineComposing bool
+	// session survives an empty native update until GTK supplies an end or result.
+	session, ending bool
+	nativeDepth     int
+	endTask         uintptr
+	endSource       uint32
 	cursor          [4]int32
 	haveCursor      bool
 	sources         surroundingState
@@ -39,7 +46,8 @@ type gtkIME struct {
 }
 
 func newGTKIME(w *gtkWindow) *gtkIME {
-	ime := &gtkIME{w: w, g: w.g, target: w.text.input.Target}
+	ime := &gtkIME{w: w, g: w.g, target: w.text.input.Target,
+		owner: w.text.state.CompositionIdentity, tentative: w.text.state.TentativeComposition}
 	ime.open()
 	return ime
 }
@@ -49,9 +57,15 @@ func (ime *gtkIME) open() {
 	ime.ctx = g.imMulticontextNew()
 	cb := callbacks()
 	g.connect(ime.ctx, "commit", cb.commit, w.id)
+	g.connect(ime.ctx, "preedit-start", cb.preeditStart, w.id)
 	g.connect(ime.ctx, "preedit-changed", cb.preedit, w.id)
+	g.connect(ime.ctx, "preedit-end", cb.preeditEnd, w.id)
 	g.connect(ime.ctx, "retrieve-surrounding", cb.surrounding, w.id)
 	g.connect(ime.ctx, "delete-surrounding", cb.deleteSurrounding, w.id)
+}
+
+func (ime *gtkIME) sameOwner(input *platform.TextInput) bool {
+	return input.Target == ime.target && input.State.CompositionIdentity == ime.owner && input.State.TentativeComposition == ime.tentative
 }
 
 // realized gives the context its window, which exists once the toplevel is realized.
@@ -67,7 +81,9 @@ func (ime *gtkIME) close() {
 		return
 	}
 	active := ime.active
+	ime.clearEnd()
 	ime.ctx, ime.active, ime.engineComposing = 0, false, false
+	ime.session = false
 	ime.haveCursor, ime.hasSources, ime.sent = false, false, false
 	ime.shortcutKey = nil
 	if active {
@@ -82,7 +98,14 @@ func (ime *gtkIME) callContext(context uintptr, call func(uintptr)) {
 		return
 	}
 	ime.g.objectRef(context)
-	defer ime.g.objectUnref(context)
+	ime.nativeDepth++
+	defer func() {
+		ime.nativeDepth--
+		if ime.nativeDepth == 0 {
+			ime.finishPreedit(context)
+		}
+		ime.g.objectUnref(context)
+	}()
 	call(context)
 }
 
@@ -95,6 +118,19 @@ func (ime *gtkIME) setFocused(focused bool) {
 // filtering reports whether keys should go to the context: a field has the keyboard.
 func (ime *gtkIME) filtering() bool { return ime.ctx != 0 && ime.active }
 
+func (ime *gtkIME) composing() bool {
+	return ime.engineComposing || ime.w.text.state.Composing || ime.tentative && ime.session
+}
+
+func (ime *gtkIME) prepareKey() bool {
+	context := ime.ctx
+	// An end from an earlier signal batch cannot own the next independent key.
+	if ime.nativeDepth == 0 {
+		ime.finishPreedit(context)
+	}
+	return ime.current(context)
+}
+
 // filter gives a key event to the context and reports whether it took it. Whatever it composes
 // arrives later as a commit or a preedit change.
 func (ime *gtkIME) filter(event uintptr) bool {
@@ -102,14 +138,21 @@ func (ime *gtkIME) filter(event uintptr) bool {
 	if context == 0 || ime.w.closed {
 		return false
 	}
-	// A signal may replace the target while the native filter still uses it.
-	ime.g.objectRef(context)
-	defer ime.g.objectUnref(context)
-	return ime.g.imFilterKeypress(context, event) != 0
+	if !ime.prepareKey() {
+		return true
+	}
+	handled := false
+	ime.callContext(context, func(context uintptr) {
+		handled = ime.g.imFilterKeypress(context, event) != 0
+	})
+	return handled
 }
 
 func (ime *gtkIME) filterShortcut(event uintptr, key platform.KeyEvent, directText string) bool {
-	if ime.engineComposing || ime.w.text.state.Composing {
+	if !ime.prepareKey() {
+		return true
+	}
+	if ime.composing() {
 		return ime.filter(event)
 	}
 	key.Typed = directText
@@ -125,12 +168,13 @@ func (ime *gtkIME) sync() {
 		return
 	}
 	text := ime.w.text
-	if text.input.Target != ime.target {
+	if !ime.sameOwner(&text.input) {
 		ime.close()
 		if ime.w.closed {
 			return
 		}
 		ime.target = text.input.Target
+		ime.owner, ime.tentative = text.state.CompositionIdentity, text.state.TentativeComposition
 		ime.open()
 	}
 	context := ime.ctx
@@ -145,7 +189,7 @@ func (ime *gtkIME) sync() {
 		ime.callContext(context, ime.g.imFocusIn)
 	case !want && ime.active:
 		ime.active = false
-		if ime.engineComposing {
+		if ime.engineComposing || ime.tentative && ime.session {
 			ime.engineComposing = false
 			ime.callContext(context, ime.g.imReset)
 		}
@@ -249,7 +293,8 @@ func (ime *gtkIME) deleteSurrounding(offset, count int) uintptr {
 
 func (ime *gtkIME) commit(value string) {
 	context, revision := ime.ctx, ime.w.text.stateRevision
-	if key := ime.shortcutKey; key != nil && !ime.engineComposing && !ime.w.text.state.Composing && value == key.Typed {
+	composing := ime.composing()
+	if key := ime.shortcutKey; key != nil && !composing && value == key.Typed {
 		frameRevision := ime.w.text.inputRevision
 		frame, handled, err := ime.w.config.OnShortcut(*key)
 		if err != nil {
@@ -267,8 +312,77 @@ func (ime *gtkIME) commit(value string) {
 			return
 		}
 	}
+	result := ime.tentative && ime.session
+	ime.clearEnd()
+	ime.session = false
 	ime.engineComposing = false
-	ime.apply(platform.TextEvent{Kind: platform.TextInsert, Text: value})
+	event := platform.TextEvent{Kind: platform.TextInsert, Text: value}
+	if result {
+		event.CompositionPhase = text.CompositionResult
+	}
+	ime.apply(event)
+}
+
+func (ime *gtkIME) preeditStarted() {
+	if !ime.tentative {
+		return
+	}
+	context := ime.ctx
+	ime.finishPreedit(context)
+	if ime.current(context) {
+		ime.session, ime.engineComposing = true, true
+	}
+}
+
+func (ime *gtkIME) preeditEnded() {
+	if !ime.tentative || !ime.session {
+		return
+	}
+	ime.ending, ime.engineComposing = true, false
+	if ime.endTask != 0 {
+		return
+	}
+	// GTK can emit end before commit in one native call. An idle fallback also
+	// settles asynchronous ends after the current native signal batch returns.
+	context := ime.ctx
+	var task uintptr
+	task = ime.w.app.tasks.add(func() {
+		if ime.endTask != task {
+			return
+		}
+		ime.endTask, ime.endSource = 0, 0
+		ime.finishPreedit(context)
+	})
+	ime.endTask = task
+	ime.endSource = ime.g.idleAdd(callbacks().task, task)
+}
+
+func (ime *gtkIME) current(context uintptr) bool {
+	return context != 0 && ime.ctx == context && ime.w.ime == ime && !ime.w.closed &&
+		!ime.w.app.stopping && ime.w.text.enabled && ime.sameOwner(&ime.w.text.input)
+}
+
+func (ime *gtkIME) clearEnd() {
+	ime.ending = false
+	if ime.endSource != 0 {
+		ime.g.sourceRemove(ime.endSource)
+		ime.endSource = 0
+	}
+	if ime.endTask != 0 {
+		ime.w.app.tasks.take(ime.endTask)
+		ime.endTask = 0
+	}
+}
+
+func (ime *gtkIME) finishPreedit(context uintptr) {
+	if context != ime.ctx || !ime.ending {
+		return
+	}
+	ime.clearEnd()
+	ime.session, ime.engineComposing = false, false
+	if ime.tentative && ime.current(context) {
+		ime.apply(platform.TextEvent{Kind: platform.TextCancelComposition, CompositionPhase: text.CompositionCancel})
+	}
 }
 
 // preeditChanged shows the text being composed as marked text, or removes it.
@@ -298,6 +412,19 @@ func (ime *gtkIME) preeditChanged() {
 		ime.g.attrListUnref(attrs)
 	}
 	if ime.ctx != context || ime.w.closed || ime.w.text.stateRevision != revision {
+		return
+	}
+	if ime.tentative {
+		if value == "" {
+			ime.engineComposing = false
+			if !ime.session {
+				return
+			}
+		} else {
+			ime.engineComposing = true
+		}
+		ime.session = true
+		ime.apply(platform.TextEvent{Kind: platform.TextSetMarked, CompositionPhase: text.CompositionUpdate, Text: value, MarkedSelection: selection})
 		return
 	}
 	if value == "" {

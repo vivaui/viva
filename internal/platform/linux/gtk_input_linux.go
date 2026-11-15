@@ -425,6 +425,9 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 		w.keyRelease(e, event)
 		return 1
 	}
+	if w.ime != nil && w.ime.filtering() && !w.ime.prepareKey() {
+		return 1
+	}
 	if w.keys.down == nil {
 		w.keys.down = map[uint16]bool{}
 	}
@@ -471,9 +474,10 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 	if shortcutEvent.Key == input.KeySpace {
 		shortcutEvent.Key, shortcutEvent.Text = input.KeyUnknown, " "
 	}
+	composing := w.text != nil && w.text.state.Composing || w.ime != nil && w.ime.composing()
 	if w.config.OnShortcut != nil && platform.ShortcutCandidate(shortcutEvent) &&
 		shortcutEvent.Modifiers&(input.ModifierControl|input.ModifierMeta) != 0 &&
-		e.State&(1<<7) == 0 && !(w.text != nil && w.text.state.Composing) && !w.text.ownsChord(keyEvent) {
+		e.State&(1<<7) == 0 && !composing && !w.text.ownsChord(keyEvent) {
 		frame, handled, err := w.config.OnShortcut(shortcutEvent)
 		w.present(frame, err)
 		if handled {
@@ -484,7 +488,7 @@ func (w *gtkWindow) keyEvent(event uintptr) uintptr {
 	// and one it hands back arrives again as an ordinary key event.
 	plainShortcut := w.config.OnShortcut != nil && platform.ShortcutCandidate(shortcutEvent) &&
 		shortcutEvent.Modifiers&(input.ModifierControl|input.ModifierMeta) == 0 &&
-		e.State&(1<<7) == 0 && !(w.text != nil && w.text.state.Composing) && !w.text.ownsChord(keyEvent)
+		e.State&(1<<7) == 0 && !composing && !w.text.ownsChord(keyEvent)
 	if w.ime != nil && w.ime.filtering() {
 		if plainShortcut {
 			direct, _ := keysymRune(e.Keyval)
