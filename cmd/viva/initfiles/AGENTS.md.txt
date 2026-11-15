@@ -100,6 +100,9 @@ func (m *model) page(c ui.C) {
   the hover style: they appear while the pointer is over the area, and `.ScrollbarSize(px)` sets their thickness
   (a right `Pad` leaves the gutter they sit in instead of covering the content). `PageConfig.ScrollbarSize` sets the
   page's default thickness for every bar that does not set its own.
+  `.Bars(components.ScrollBarStyle{Size, HoverSize, Inset, MinThumb})` gives those bars your own geometry, and
+  `PageConfig.BarStyle` gives it to every area of the page; the zero style keeps Viva's, so set only the fields your
+  product changes. `.ScrollbarSize(px)` still wins over the style's thickness.
 - `ui.Choice` (a segmented single choice) and `ui.Tabs` are one tab stop each; the arrow keys, Home and End move to an
   option and choose it, so do not wire `components.SegmentedControlKeyDown` or `TabsKeyDown` yourself.
 - A tree: keep a `ui.TreeState` with `Node` describing each visible row, `ui.Tree(c, &m.tree, n, label, nil)`,
@@ -527,6 +530,8 @@ Colors, all `gfx.Color`: `Background`, `Foreground`, `Card`, `CardForeground`, `
 `PopoverForeground`, `Muted`, `MutedForeground`, `Border`, `Hover`, `Input`, `Primary`, `PrimaryForeground`,
 `Selection`, `SelectionForeground`, `Secondary`, `SecondaryForeground`, `Accent`, `AccentForeground`, `Ring`, `Success`, `Danger`, `DangerForeground`, and
 `Chart` (an array of five). There is no `Surface`, `Text` or `Error`: use `Card`, `Foreground`, `Danger`.
+`Tooltip` is a `gfx.TooltipStyle` that overrides the tooltip surface (radius, padding, text size, background,
+text and border); zero fields keep Viva's own surface, so set only what your product changes.
 A `gfx.Color` is `{Red, Green, Blue, Alpha float32}` with each in 0..1 (so `gfx.Color{Alpha: 0.5}` is a black scrim);
 it has `Mix(other, t)`, `Over(backdrop)` and `WithAlpha(a)`, and no `R` or `A`. To write a color of your own, `gfx.RGB24(0x0a84ff)`
 (an integer constant, no string to parse), `gfx.RGB(10, 132, 255)` or `gfx.RGBA(10, 132, 255, 0.5)`; take theme colors where you can. A dark window is `gfx.DarkTheme()` in place
