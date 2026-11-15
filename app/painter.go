@@ -41,6 +41,7 @@ type painter struct {
 	textInput   TextInputProvider
 	activeText  *TextInput
 	onTextEvent platform.TextHandler
+	textEpoch   uint64
 	// placing is a press on a text field that lays its rows out itself being held
 	// (see placeCaret), from the rune index placeAnchor. placeUnit is the click
 	// unit a multi-click press took (2 a word, 3 a line) and placeUnitRange the
@@ -1267,6 +1268,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		if !painter.textEnabled {
 			return platform.TextInputUpdate{}
 		}
+		painter.textEpoch++
 		painter.textEnabled = false
 		return platform.TextInputUpdate{Changed: true}
 	}
@@ -1305,6 +1307,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		if !painter.textEnabled {
 			return platform.TextInputUpdate{}
 		}
+		painter.textEpoch++
 		painter.textEnabled = false
 		return platform.TextInputUpdate{Changed: true}
 	}
@@ -1335,13 +1338,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 			Red: float64(tint.Red), Green: float64(tint.Green),
 			Blue: float64(tint.Blue), Alpha: float64(tint.Alpha),
 		},
-		State: platform.TextState{
-			Value:             input.State.Value,
-			Selection:         platformTextRange(input.State.Selection),
-			SelectionReversed: input.State.SelectionReversed,
-			Composition:       platformTextRange(input.State.Composition),
-			Composing:         input.State.Composing,
-		},
+		State:   platformTextState(input.State).WithoutRedraw(),
 		OnEvent: painter.onTextEvent,
 	}
 	if placement != nil {
@@ -1354,6 +1351,12 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		}
 	}
 	painter.activeText = input
+	if !painter.textEnabled || previousEditor != nextEditor || painter.nativeText.Target != native.Target ||
+		painter.nativeText.Multiline != native.Multiline || painter.nativeText.Secure != native.Secure ||
+		painter.nativeText.Terminal != native.Terminal || painter.nativeText.Placed != native.Placed ||
+		painter.nativeText.DisableIME != native.DisableIME || painter.nativeText.State != native.State {
+		painter.textEpoch++
+	}
 	if painter.textEnabled && samePlatformTextInput(painter.nativeText, native) {
 		return platform.TextInputUpdate{}
 	}
@@ -1368,21 +1371,24 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 	if active == nil || active.Editor == nil && active.OnEvent == nil {
 		return platform.TextState{}, fmt.Errorf("app: native text event without an active handler")
 	}
-	appEvent := TextEvent{
-		Kind: TextEventKind(event.Kind), Text: event.Text,
-		Selection:       appTextRange(event.Selection),
-		MarkedSelection: appTextRange(event.MarkedSelection),
-		Replacement:     appTextRange(event.Replacement), HasReplacement: event.HasReplacement,
-		Command: TextCommand(event.Command),
+	epoch := painter.textEpoch
+	appEvent := appTextEvent(event)
+	explicit := event.CompositionPhase != text.CompositionNone
+	if explicit {
+		if active.Editor != nil {
+			explicit = active.Editor.TentativeCompositionEnabled()
+		} else {
+			explicit = active.State.TentativeComposition
+		}
 	}
 	if !painter.nativeText.Multiline && !painter.nativeText.Terminal &&
 		(event.Kind == platform.TextPaste || event.Kind == platform.TextInsert) && event.Text != "" {
 		appEvent.Text = text.SingleLine(event.Text)
-		if appEvent.Text == "" {
+		if appEvent.Text == "" && !explicit {
 			return painter.nativeText.State, nil
 		}
 	}
-	if !painter.nativeText.Multiline && !painter.nativeText.Terminal &&
+	if !explicit && !painter.nativeText.Multiline && !painter.nativeText.Terminal &&
 		event.Kind == platform.TextCommandEvent &&
 		(event.Command == platform.TextInsertNewline || event.Command == platform.TextInsertLineBreak) {
 		// A single-line field holds no line break. While an input method is
@@ -1392,8 +1398,8 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 	}
 	var next TextState
 	if active.Editor != nil {
-		appEvent.Apply(active.Editor)
-		if painter.nativeText.Secure {
+		accepted := appEvent.apply(active.Editor)
+		if painter.nativeText.Secure && accepted && !active.Editor.TentativeCompositionActive() {
 			active.Editor.ClearHistory()
 		}
 		next = TextStateOf(active.Editor)
@@ -1403,15 +1409,18 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 			return platform.TextState{}, err
 		}
 	}
-	painter.activeText.State = next
-	native := platform.TextState{
-		Value:             next.Value,
-		Selection:         platformTextRange(next.Selection),
-		SelectionReversed: next.SelectionReversed,
-		Composition:       platformTextRange(next.Composition),
-		Composing:         next.Composing,
-		Redraw:            next.Redraw,
+	if painter.textEpoch != epoch {
+		// Nested input or provider replacement has already installed newer state.
+		if painter.activeText == nil {
+			return platform.TextState{Redraw: true}, nil
+		}
+		native := painter.nativeText.State
+		native.Redraw = true
+		return native, nil
 	}
+	painter.textEpoch++
+	painter.activeText.State = next
+	native := platformTextState(next)
 	// What the platform mirrors back never carries the one-shot request.
 	painter.nativeText.State = native.WithoutRedraw()
 	painter.activeText.State.Redraw = false
