@@ -244,7 +244,7 @@ func TestPayloadHelperScriptKeepsABackupAndRestores(t *testing.T) {
 		"Copy-Item -LiteralPath $_.FullName -Destination $dest -Force",
 		"Start-Process -FilePath $exe -PassThru",
 		"$p.HasExited -and $p.ExitCode -ne 0",
-		"Restore; Start-Process -FilePath $exe",
+		"Restore; Launch",
 		"Remove-Item -Recurse -Force $payload",
 		"exit 0",
 	} {
