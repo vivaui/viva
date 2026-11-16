@@ -22,6 +22,40 @@ func (host *atspiInitialPollHost) rebuildPoll() {
 
 type atspiInitialPollShell struct{ config platform.Config }
 
+// restoreA11yStatus puts the session's org.a11y.Status values back when the
+// test ends. These tests switch accessibility on; an opt-in run on a developer
+// session must not leave the desktop's settings changed.
+func restoreA11yStatus(t *testing.T, connection *dbus.Conn, names ...string) {
+	t.Helper()
+	values := make(map[string]bool, len(names))
+	for _, name := range names {
+		var request dbus.Encoder
+		request.String(a11yStatus)
+		request.String(name)
+		reply, err := connection.Call(a11yBusName, a11yBusPath, dbusProperties, dbusPropertiesGet, "ss", request.Bytes())
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		args := reply.Args()
+		if args.Signature() != "b" {
+			t.Fatalf("read %s: signature %q", name, args.Signature())
+		}
+		values[name] = args.Bool()
+	}
+	t.Cleanup(func() {
+		for _, name := range names {
+			var request dbus.Encoder
+			request.String(a11yStatus)
+			request.String(name)
+			request.Variant("b")
+			request.Bool(values[name])
+			if _, err := connection.Call(a11yBusName, a11yBusPath, dbusProperties, "Set", "ssv", request.Bytes()); err != nil {
+				t.Errorf("restore %s: %v", name, err)
+			}
+		}
+	})
+}
+
 func (shell *atspiInitialPollShell) atspiConfig() *platform.Config { return &shell.config }
 func (*atspiInitialPollShell) atspiGeometry() (int, int, float32)  { return 0, 0, 1 }
 func (*atspiInitialPollShell) atspiPresent(platform.Frame) error   { return nil }
@@ -43,6 +77,7 @@ func TestAtspiNativeFirstWindowPolling(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { connection.Close() })
+	restoreA11yStatus(t, connection, "IsEnabled", "ScreenReaderEnabled")
 	setStatus := func(name string, value bool) {
 		t.Helper()
 		var request dbus.Encoder

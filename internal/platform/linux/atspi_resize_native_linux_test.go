@@ -30,7 +30,8 @@ func TestAtspiNativeResizePublishesFrames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer session.Close()
+	t.Cleanup(func() { session.Close() })
+	restoreA11yStatus(t, session, "IsEnabled")
 	var status dbus.Encoder
 	status.String(a11yStatus)
 	status.String("IsEnabled")
