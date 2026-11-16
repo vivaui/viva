@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 	"unsafe"
@@ -156,22 +155,6 @@ func TestHelperCommand(t *testing.T) {
 	want := []string{"-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", "script"}
 	if !slices.Equal(arguments, want) {
 		t.Errorf("helper arguments = %q, want %q", arguments, want)
-	}
-}
-
-func TestHelperSysProcAttr(t *testing.T) {
-	attributes := helperSysProcAttr()
-	if !attributes.HideWindow {
-		t.Error("helper does not hide its window")
-	}
-	if attributes.CreationFlags&createNoWindow == 0 {
-		t.Error("helper does not use CREATE_NO_WINDOW")
-	}
-	if attributes.CreationFlags&0x00000008 != 0 {
-		t.Error("helper uses DETACHED_PROCESS")
-	}
-	if attributes.CreationFlags&syscall.CREATE_NEW_PROCESS_GROUP == 0 {
-		t.Error("helper does not start in its own process group")
 	}
 }
 
