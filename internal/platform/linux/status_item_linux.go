@@ -255,13 +255,18 @@ func (application *linuxApplication) Quit() { application.post(commandQuit) }
 // post sends a command to every window that is still open and lets whichever
 // handles it first act. Posting to just one would lose the request when that
 // window closes before it reads it, as the tray's panel does when it quits.
-func (application *linuxApplication) post(command uint32) {
+func (application *linuxApplication) post(command uint32) { application.deliver(command) }
+
+// deliver is post for a caller that cannot afford to lose the request: it
+// reports whether a window existed to carry it.
+func (application *linuxApplication) deliver(command uint32) bool {
 	application.liveMu.Lock()
 	windows := append([]*window(nil), application.live...)
 	application.liveMu.Unlock()
 	for _, win := range windows {
 		win.postClientMessage(win.commandAtom, command)
 	}
+	return len(windows) > 0
 }
 
 // statusConnection is the session bus connection the status icons own. It is an
