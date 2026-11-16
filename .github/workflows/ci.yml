@@ -122,6 +122,10 @@ jobs:
         run: |
           go vet -tags vivagtk ./app ./internal/platform/linux
           go test -tags vivagtk ./internal/platform/linux -run '^TestGTK(WaylandAlwaysOnTopReportsUnsupported|ClipboardFileWriteReportsUnsupportedWithoutASetter)$' -count=1
+      # The Linux package is not part of the sharded run (it drives X11), so the
+      # titlebar contracts that do not need a server name their tests here.
+      - name: Titlebar and window contracts
+        run: go test ./internal/platform/linux -run '^TestMaximizeButtonSetsBothDirections$' -count=1 -v
       - name: Native X11 global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'

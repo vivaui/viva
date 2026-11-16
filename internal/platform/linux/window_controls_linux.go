@@ -25,7 +25,8 @@ const (
 	// the eight edges are 0 to 7, clockwise from the top left (moveResizeDirection).
 	moveResizeMove = 8
 
-	netWMStateToggle = 2
+	netWMStateRemove = 0
+	netWMStateAdd    = 1
 	iconicState      = 3
 	sourceApp        = 1
 
@@ -151,10 +152,18 @@ func (win *window) minimize() {
 	win.sendToRoot(win.frame.changeStateAtom, [5]uint32{iconicState})
 }
 
+// toggleMaximize asks for both directions together. _NET_WM_STATE_TOGGLE flips
+// each atom on its own, so a window already maximized on one axis would end up
+// maximized on the other axis only. Adding both atoms maximizes; removing both
+// restores.
 func (win *window) toggleMaximize() {
 	win.frame.maximizePending = true
 	win.frame.maximizeTarget = !win.frame.maximized
-	win.sendToRoot(win.frame.stateAtom, [5]uint32{netWMStateToggle, win.frame.maximizedVertical, win.frame.maximizedHorizontal, sourceApp})
+	action := uint32(netWMStateRemove)
+	if win.frame.maximizeTarget {
+		action = netWMStateAdd
+	}
+	win.sendToRoot(win.frame.stateAtom, [5]uint32{action, win.frame.maximizedVertical, win.frame.maximizedHorizontal, sourceApp})
 }
 
 func (win *window) setMaximized(maximized bool) bool {
