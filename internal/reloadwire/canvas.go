@@ -107,7 +107,11 @@ func ApplyCanvas(canvas *gfx.Canvas, snapshot CanvasSnapshot) {
 			canvas.PushFocusScope(hit.Scope)
 		}
 		if hit.Block {
-			canvas.Block(hit.Bounds)
+			if hit.BlockSurface {
+				canvas.BlockSurface(hit.Bounds)
+			} else {
+				canvas.Block(hit.Bounds)
+			}
 		} else if hit.MovesWindow {
 			canvas.MoveRegion(hit.Bounds)
 		} else {

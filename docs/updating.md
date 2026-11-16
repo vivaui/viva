@@ -260,6 +260,19 @@ err = update.Install(update.InstallOptions{
 }, application.Quit)
 ```
 
+A download that stops part way returns an error wrapping
+`update.ErrInterrupted`: the connection failed, nothing arrived for a minute,
+the host answered with a temporary status (408, 429 or 5xx), or `ctx` ended (the
+error then wraps `context.Canceled` or `context.DeadlineExceeded` as well). The
+bytes that arrived stay in `downloadDir`, and calling `Download` again with the
+same directory sends a `Range` request for the rest; a host that ignores it
+sends the whole file, which is fine. When the directory already holds the
+verified file, `Download` returns it without a request. Keep `downloadDir` per
+release and remove it once the release is installed or skipped. Two processes
+must not download the same asset into the same directory at once.
+`DownloadPatch` behaves the same way, so a cut-off patch is worth resuming
+before falling back to the full archive.
+
 `Install` returns only after it has started the helper that replaces the
 application; the helper waits for this process to exit. If `Install` returns an
 error nothing has been changed and `quit` was not called.
@@ -294,7 +307,10 @@ installer are per-user by default and need no elevation.
   another operating system or architecture.
 - **Exact bytes.** A download is written while it is hashed and is kept only
   when both its length and SHA-256 match the feed (`ErrSize`, `ErrChecksum`).
-  A refused download leaves no file behind. `Install` hashes the file again
+  A refused download leaves no file behind. An interrupted one keeps its bytes
+  in a hidden file named by the feed's digest, so they are only ever continued
+  with the rest of the same file, and the whole file is hashed again before it
+  is kept. `Install` hashes the file again
   immediately before handing it to the platform, because the file sits on disk
   between the two calls.
 - **Bounded.** `latest.json` is limited to 1 MiB, its signature to 4 KiB, an

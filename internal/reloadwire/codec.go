@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ProtocolVersion = 28
+	ProtocolVersion = 29
 	MaxFrameBytes   = 32 << 20
 	MaxStateBytes   = 8 << 20
 	maxItems        = 200_000
@@ -68,14 +68,21 @@ type Hello struct {
 }
 
 type PaintRequest struct {
-	Width        float32
-	Height       float32
-	Hovered      gfx.ID
-	Pressed      gfx.ID
-	Focused      gfx.ID
+	Width   float32
+	Height  float32
+	Hovered gfx.ID
+	Pressed gfx.ID
+	Focused gfx.ID
+	// FocusVisible says the focused target shows its focus ring, as it does after
+	// a key press and not after a pointer press.
 	FocusVisible bool
-	ScrollX      float32
-	ScrollY      float32
+	// PointerOnSurface says the pointer is on a surface the page declared with
+	// gfx.Canvas.BlockSurface, such as an open menu's panel, rather than on a
+	// control. SetInteraction clears the canvas's copy, so a worker paint needs it
+	// carried here to draw the same frame the host described.
+	PointerOnSurface bool
+	ScrollX          float32
+	ScrollY          float32
 	// Now is the host's monotonic frame time in nanoseconds, so transitions
 	// advance on the host clock no matter when the worker process is asked.
 	Now          uint64
@@ -311,6 +318,7 @@ func encodePaintRequest(value PaintRequest) []byte {
 	result.id(value.Pressed)
 	result.id(value.Focused)
 	result.bool(value.FocusVisible)
+	result.bool(value.PointerOnSurface)
 	result.f32(value.ScrollX)
 	result.f32(value.ScrollY)
 	result.u64(value.Now)
@@ -322,7 +330,7 @@ func decodePaintRequest(data []byte) (PaintRequest, error) {
 	value := decoder{data: data}
 	result := PaintRequest{
 		Width: value.f32(), Height: value.f32(), Hovered: value.id(), Pressed: value.id(), Focused: value.id(),
-		FocusVisible: value.bool(), ScrollX: value.f32(), ScrollY: value.f32(),
+		FocusVisible: value.bool(), PointerOnSurface: value.bool(), ScrollX: value.f32(), ScrollY: value.f32(),
 		Now: value.u64(), ReduceMotion: value.bool(),
 	}
 	return result, value.finish()
@@ -585,6 +593,7 @@ func encodeCanvas(value CanvasSnapshot) ([]byte, error) {
 		result.bool(hit.Focusable)
 		result.bool(hit.Autofocus)
 		result.bool(hit.Block)
+		result.bool(hit.BlockSurface)
 		result.bool(hit.MovesWindow)
 		encodeRect(&result, text.Bounds)
 		result.f32(text.Size)
@@ -706,7 +715,7 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 		result.Hits[index] = gfx.Hit{
 			ID: value.id(), Bounds: decodeRect(&value), Label: value.string(), Value: value.string(), Hint: value.string(),
 			Scope: value.id(), Layer: value.u16(), Role: gfx.Role(value.u8()), Disabled: value.bool(), Checked: value.bool(),
-			Selected: value.bool(), Expanded: value.bool(), Multiline: value.bool(), ReadOnly: value.bool(), Secure: value.bool(), Focusable: value.bool(), Autofocus: value.bool(), Block: value.bool(), MovesWindow: value.bool(),
+			Selected: value.bool(), Expanded: value.bool(), Multiline: value.bool(), ReadOnly: value.bool(), Secure: value.bool(), Focusable: value.bool(), Autofocus: value.bool(), Block: value.bool(), BlockSurface: value.bool(), MovesWindow: value.bool(),
 		}
 		result.HitTexts[index] = gfx.HitText{
 			Bounds: decodeRect(&value), Size: value.f32(), Color: decodeColor(&value), Weight: value.f32(),

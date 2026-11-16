@@ -57,7 +57,7 @@ func TestMeasuredInkIsTheFontsOutline(t *testing.T) {
 	rasterizer := newTestRasterizer(t)
 	const size = 40
 	span := float32(testIconCell * size)
-	reach, err := rasterizer.measureInk(inkKey{family: gfx.MonoFamilyName(face), size: size, span: span, text: testIcon})
+	reach, err := rasterizer.measureInk(inkKey{family: gfx.MonoFamilyName(face), size: size, mono: 400, span: span, text: testIcon})
 	if err != nil {
 		t.Fatal(err)
 	}

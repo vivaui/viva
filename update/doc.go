@@ -24,8 +24,10 @@
 // it is newer than the running version: a check that finds nothing newer
 // returns (nil, nil). Download streams the archive for the running platform,
 // hashing as it writes, and refuses a file whose size or digest is not the one
-// the feed declared. Neither function sends an identifier, telemetry or
-// anything else the caller did not configure.
+// the feed declared. A transfer that is cut off, goes silent for a minute or is
+// cancelled reports ErrInterrupted and keeps what arrived, so calling Download
+// again with the same directory asks only for the rest. Neither function sends
+// an identifier, telemetry or anything else the caller did not configure.
 //
 // # What this package does not do
 //

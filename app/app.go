@@ -131,7 +131,8 @@ type Config struct {
 	// be coalesced to the latest queued position, as the platform does natively,
 	// so a handler follows the coordinates rather than the number of calls.
 	// Returning Repaint asks for one synchronous paint; Handled suppresses the
-	// click that press would complete.
+	// click that press would complete and default caret placement for the event,
+	// ending any pending default selection drag.
 	OnPointer func(event gfx.PointerEvent) gfx.EventResult
 	// OnKey receives normalized keyboard events for the focused hit target.
 	// Handled suppresses built-in traversal, activation, and Escape dismissal.

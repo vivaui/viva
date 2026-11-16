@@ -154,6 +154,23 @@ func BenchmarkHitTest10KMiss(b *testing.B) {
 	}
 }
 
+func BenchmarkPointerAt10KMiss(b *testing.B) {
+	regions := make([]Region, 10_000)
+	for index := range regions {
+		regions[index] = Region{
+			Target: gfx.Item(int(index + 1)),
+			Bounds: Rect{X: float32(index), Width: 1, Height: 1},
+		}
+	}
+	var router Router
+	router.SetRegions(regions)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		router.PointerAt(-1, -1)
+	}
+}
+
 func BenchmarkFocusNext10K(b *testing.B) {
 	regions := make([]Region, 10_000)
 	for index := range regions {
@@ -284,6 +301,33 @@ func TestFocusScopeIgnoresUnavailableInitialTarget(t *testing.T) {
 				t.Fatalf("an unavailable initial target left focus on %d, want none", focused)
 			}
 		})
+	}
+}
+
+func TestBlockSurfaceReportsThePointerButTakesNoPress(t *testing.T) {
+	var router Router
+	router.SetRegions([]Region{
+		{Target: gfx.Item(1), Bounds: Rect{Width: 100, Height: 100}, Scope: gfx.Item(9)},                          // full-window dismiss
+		{Bounds: Rect{X: 20, Y: 20, Width: 60, Height: 60}, Scope: gfx.Item(9), Blocks: true, BlockSurface: true}, // the panel
+		{Target: gfx.Item(2), Bounds: Rect{X: 30, Y: 30, Width: 20, Height: 20}, Scope: gfx.Item(9), Focusable: true},
+	})
+	router.SetActiveScope(gfx.Item(9), gfx.ID{})
+
+	// Over the panel's padding the surface reports itself, and a press still
+	// reaches nothing.
+	if _, ok, onSurface := router.PointerAt(70, 70); !onSurface || ok {
+		t.Fatal("the panel's padding did not report its surface")
+	}
+	if target, ok := router.HitTest(70, 70); ok {
+		t.Fatalf("panel padding = %d, %v; the press must reach nothing", target, ok)
+	}
+	// Over a control on the panel it is the control's place, not the surface's.
+	if _, _, onSurface := router.PointerAt(40, 40); onSurface {
+		t.Fatal("a control on the panel reported the surface instead of itself")
+	}
+	// Outside the panel there is no surface at all, only the dismiss backdrop.
+	if _, _, onSurface := router.PointerAt(5, 5); onSurface {
+		t.Fatal("the dismiss backdrop reported itself as a surface")
 	}
 }
 
