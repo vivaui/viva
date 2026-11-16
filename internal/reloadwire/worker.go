@@ -108,6 +108,9 @@ func handleRequest(config *WorkerConfig, canvas *gfx.Canvas, base CanvasSnapshot
 			return nil, err, false
 		}
 		canvas.SetInteraction(value.Hovered, value.Pressed, value.Focused, value.FocusVisible)
+		// SetInteraction clears the surface flag, so the request has to restore it:
+		// the paint below decides what a row does from where the pointer is.
+		canvas.SetPointerOnSurface(value.PointerOnSurface)
 		canvas.SetScroll(value.ScrollX, value.ScrollY)
 		canvas.SetReduceMotion(value.ReduceMotion)
 		if config.Paint != nil {

@@ -49,6 +49,10 @@ func TestNativeTextEventAdapterPreservesTaggedFields(t *testing.T) {
 	if got := appTextEvent(event); got != want {
 		t.Fatalf("native event adaptation = %+v, want %+v", got, want)
 	}
+	paste := platform.TextEvent{Kind: platform.TextPaste, Text: "column\r\n", Rectangular: true}
+	if got := appTextEvent(paste); got != (TextEvent{Kind: TextPaste, Text: "column\r\n", Rectangular: true}) {
+		t.Fatalf("native column paste adaptation = %+v", got)
+	}
 }
 
 func TestTextStateOfTentativeCompositionSnapshot(t *testing.T) {

@@ -19,6 +19,49 @@ func TestPaintRequestCodecCarriesFrameClockAndReducedMotion(t *testing.T) {
 	}
 }
 
+func TestPaintRequestCodecCarriesPointerOnSurface(t *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		onSurface bool
+	}{
+		{name: "off the surface"},
+		{name: "on the surface", onSurface: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			want := PaintRequest{
+				Width: 640, Height: 480, Hovered: gfx.Item(3), Focused: gfx.Item(7),
+				PointerOnSurface: testCase.onSurface,
+			}
+			got, err := decodePaintRequest(encodePaintRequest(want))
+			if err != nil || got != want {
+				t.Fatalf("paint request = %+v, want %+v, err = %v", got, want, err)
+			}
+		})
+	}
+}
+
+// A worker paint must see the surface flag the host recorded: SetInteraction
+// clears the canvas's copy, so the request has to carry it across.
+func TestWorkerPaintSeesTheHostsPointerOnSurface(t *testing.T) {
+	var seen []bool
+	config := WorkerConfig{Paint: func(canvas *gfx.Canvas, size gfx.Size) {
+		seen = append(seen, canvas.PointerOnSurface())
+	}}
+	paint := func(onSurface bool) {
+		t.Helper()
+		payload := encodePaintRequest(PaintRequest{Width: 200, Height: 100, PointerOnSurface: onSurface})
+		var canvas gfx.Canvas
+		if _, err, _ := handleRequest(&config, &canvas, CanvasSnapshot{}, frame{kind: messagePaint, payload: payload}, func(frame) error { return nil }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paint(true)
+	paint(false)
+	if len(seen) != 2 || !seen[0] || seen[1] {
+		t.Fatalf("the worker saw %v, want [true false]", seen)
+	}
+}
+
 func TestCanvasCodecCarriesAnimatingFlagToHostCanvas(t *testing.T) {
 	data, err := encodeCanvas(CanvasSnapshot{Animating: true})
 	if err != nil {

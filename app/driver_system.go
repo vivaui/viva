@@ -88,6 +88,24 @@ func driverSetClipboardText(value string) (error, bool) {
 	return nil, true
 }
 
+func driverSetRectangularClipboardText(value string) (error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, false
+	}
+	system.driver.SetClipboard(value)
+	system.driver.clipboardRectangular = true
+	return nil, true
+}
+
+func driverClipboardTextWithFormat() (string, bool, error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return "", false, nil, false
+	}
+	return system.driver.clipboard, system.driver.clipboardRectangular, nil, true
+}
+
 // SetClipboardHTML makes the driver's private clipboard hold both flavours of a
 // rich copy, as SetClipboardHTML does on the system clipboard: html beside alt
 // as the plain text, replacing the image and the files. An empty html writes
@@ -95,6 +113,7 @@ func driverSetClipboardText(value string) (error, bool) {
 func (driver *Driver) SetClipboardHTML(html, alt string) {
 	driver.system.clipboardHTML = html
 	driver.clipboard, driver.system.clipboardImage, driver.system.clipboardFiles = alt, nil, nil
+	driver.clipboardRectangular = false
 }
 
 // ClipboardHTML is the rich flavour the driver's private clipboard holds, ""
@@ -592,6 +611,7 @@ func (driver *Driver) SetClipboardImage(png []byte) error {
 	driver.system.clipboardImage = append([]byte(nil), png...)
 	driver.system.clipboardFiles = nil
 	driver.clipboard, driver.system.clipboardHTML = "", ""
+	driver.clipboardRectangular = false
 	return nil
 }
 
@@ -633,4 +653,5 @@ func (driver *Driver) SetClipboardFiles(paths []string) {
 		names = append(names, filepath.Base(path)...)
 	}
 	driver.clipboard, driver.system.clipboardHTML = string(names), ""
+	driver.clipboardRectangular = false
 }

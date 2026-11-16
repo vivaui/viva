@@ -122,8 +122,9 @@ func nativeEnableCrashDumps(relativeDir string) (string, error) {
 
 func nativeShowFatalError(title, message string) { windowsplatform.ShowFatalError(title, message) }
 
-func nativeMonospaceFamilies() []string { return windowsplatform.MonospaceFamilies() }
-func nativeFontFamilies() []string      { return windowsplatform.FontFamilies() }
+func nativeMonospaceFamilies() []string     { return windowsplatform.MonospaceFamilies() }
+func nativeFontFamilies() []string          { return windowsplatform.FontFamilies() }
+func nativeFontWeights(family string) []int { return windowsplatform.FontWeights(family) }
 
 func nativeAppearance() Appearance { return appearanceOf(windowsplatform.DarkAppearance()) }
 

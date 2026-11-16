@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 	"unsafe"
@@ -159,19 +158,6 @@ func TestHelperCommand(t *testing.T) {
 	}
 }
 
-func TestHelperSysProcAttr(t *testing.T) {
-	attributes := helperSysProcAttr()
-	if !attributes.HideWindow {
-		t.Error("helper does not hide its window")
-	}
-	if attributes.CreationFlags&detachedProcess == 0 {
-		t.Error("helper is not detached from the console")
-	}
-	if attributes.CreationFlags&syscall.CREATE_NEW_PROCESS_GROUP == 0 {
-		t.Error("helper does not start in its own process group")
-	}
-}
-
 func TestCheckWritable(t *testing.T) {
 	directory := t.TempDir()
 	if err := checkWritable(directory); err != nil {
@@ -246,7 +232,7 @@ func TestPayloadHelperScriptKeepsABackupAndRestores(t *testing.T) {
 		"$p.HasExited -and $p.ExitCode -ne 0",
 		"function Launch {",
 		"Start-Process -FilePath $exe -ArgumentList",
-		"{ Restore; Launch; exit 1 }",
+		"if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Launch; exit 1 }",
 		"} catch { Restore; Launch; exit 1 }",
 		"Remove-Item -Recurse -Force $payload",
 		"exit 0",
@@ -307,11 +293,9 @@ func copyWindowsFile(t *testing.T, source, destination string) []byte {
 
 func runPayloadHelper(t *testing.T, script string, wantExit int) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "helper.ps1")
-	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	command := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", path)
+	name, arguments := helperCommand(script)
+	command := exec.Command(name, arguments...)
+	command.SysProcAttr = helperSysProcAttr()
 	output, err := command.CombinedOutput()
 	if wantExit == 0 {
 		if err != nil {
@@ -370,6 +354,33 @@ func TestPayloadHelperReplacesTheApplication(t *testing.T) {
 	}
 	if data, err := os.ReadFile(filepath.Join(install, "old.dll")); err != nil || string(data) != "old" {
 		t.Errorf("old.dll = %q, %v", data, err)
+	}
+}
+
+func TestStartPayloadHelperInstallsWithoutOutputPipes(t *testing.T) {
+	payload, install := t.TempDir(), t.TempDir()
+	executable := filepath.Join(install, "app.exe")
+	copyWindowsFile(t, systemExecutable(t, "cmd.exe"), executable)
+	want := copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, "app.exe"))
+	if err := startPayloadHelper(999999, payload, install, executable, nil); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if _, err := os.Stat(payload); os.IsNotExist(err) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the detached helper did not finish installing the payload")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	got, err := os.ReadFile(executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("the detached helper did not install the new executable")
 	}
 }
 

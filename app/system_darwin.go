@@ -143,6 +143,10 @@ func nativeShowFatalError(title, message string) { darwinplatform.ShowFatalError
 func nativeMonospaceFamilies() []string { return darwinplatform.MonospaceFamilies() }
 func nativeFontFamilies() []string      { return darwinplatform.FontFamilies() }
 
+// nativeFontWeights is empty: the darwin engine follows a family but not the weights
+// it is drawn at.
+func nativeFontWeights(string) []int { return nil }
+
 func nativeAppearance() Appearance {
 	if darwinplatform.DarkAppearance() {
 		return AppearanceDark

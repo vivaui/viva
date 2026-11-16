@@ -1135,6 +1135,9 @@ func (state *linuxWindowState) resized() error {
 	if config.OnResize != nil {
 		frame, err := config.OnResize(win.logicalSize())
 		if err == nil {
+			if frame.Accessibility != nil {
+				state.application.atspiFrame(state, frame.Accessibility)
+			}
 			var merged platform.Frame
 			var dirty bool
 			merged, dirty, err = state.text.prepare(frame)

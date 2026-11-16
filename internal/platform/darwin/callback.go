@@ -704,6 +704,19 @@ func presentTextInput(state *runState, view unsafe.Pointer, update TextInputUpda
 		state.setTextInput(update.Input)
 		return nil
 	}
+	settledComposition := false
+	if state.sameCompositionOwner(update.Input) && state.textState.Composing && !update.Input.State.Composing {
+		if err := state.deliverCompositionCancel(view, false); err != nil {
+			return err
+		}
+		if !state.sameCompositionOwner(update.Input) {
+			return nil
+		}
+		resolved := *update.Input
+		resolved.State = state.textState
+		update.Input = &resolved
+		settledComposition = true
+	}
 
 	var native C.viva_text_input_config
 	var memory unsafe.Pointer
@@ -717,11 +730,16 @@ func presentTextInput(state *runState, view unsafe.Pointer, update TextInputUpda
 	// A field that grows, scrolls or moves keeps the input method's
 	// composition: the text event already installed the acknowledged state,
 	// so only the place the editor and its caret occupy changed.
-	keepComposition := state.textInputKeepsComposition(update.Input)
+	keepComposition := !settledComposition && state.textInputKeepsComposition(update.Input)
 	previousHandler := state.textHandler
 	previousState := state.textState
 	previousInput := state.textInput
 	previousActive := state.textInputActive
+	previousComposition := state.textComposition
+	var previousCompositionState nativeTextComposition
+	if previousComposition != nil {
+		previousCompositionState = *previousComposition
+	}
 	state.setTextInput(update.Input)
 	var status C.int
 	if keepComposition {
@@ -734,6 +752,10 @@ func presentTextInput(state *runState, view unsafe.Pointer, update TextInputUpda
 		state.textState = previousState
 		state.textInput = previousInput
 		state.textInputActive = previousActive
+		state.textComposition = previousComposition
+		if previousComposition != nil {
+			*previousComposition = previousCompositionState
+		}
 		if status == 3 {
 			return &resourceError{"darwin: failed to rebuild the text input texture"}
 		}
@@ -785,6 +807,47 @@ func presentAccessibility(view unsafe.Pointer, nodes []AccessibilityNode) error 
 	return nil
 }
 
+// Only enabled tentative inputs need state-push reconciliation and callback
+// generations. Legacy fields retain no sidecar allocation.
+type nativeTextComposition struct {
+	epoch   uint64
+	depth   int
+	pending bool
+}
+
+func (state *runState) sameCompositionOwner(next *TextInput) bool {
+	return state.textInputActive && next != nil && state.textState.TentativeComposition && next.State.TentativeComposition &&
+		state.textInput.Target == next.Target && state.textState.CompositionIdentity == next.State.CompositionIdentity
+}
+
+func (state *runState) compositionCurrent(composition *nativeTextComposition, epoch uint64) bool {
+	return !state.closed && state.textInputActive && state.textComposition == composition && composition.epoch == epoch
+}
+
+func (state *runState) deliverCompositionCancel(view unsafe.Pointer, redraw bool) error {
+	if state.closed || !state.textInputActive || state.textHandler == nil || !state.textState.TentativeComposition || !state.textState.Composing {
+		return nil
+	}
+	return deliverTextInputEvent(state, view, TextEvent{
+		Kind: TextSetMarked, CompositionPhase: text.CompositionCancel,
+	}, redraw, view != nil)
+}
+
+func (state *runState) compositionLost(view unsafe.Pointer) error {
+	if composition := state.textComposition; composition != nil && composition.depth > 0 {
+		composition.pending = true
+		return nil
+	}
+	return state.deliverCompositionCancel(view, true)
+}
+
+//export vivaTextCompositionLost
+func vivaTextCompositionLost(handle C.uintptr_t, view unsafe.Pointer, reason C.int) {
+	if state, ok := runStateFor(handle); ok && !state.closed && reason == 1 {
+		_ = state.compositionLost(view)
+	}
+}
+
 //export vivaTextInput
 func vivaTextInput(
 	handle C.uintptr_t,
@@ -798,11 +861,80 @@ func vivaTextInput(
 	replacementLength C.int64_t,
 	command C.int,
 ) {
-	state := cgo.Handle(handle).Value().(*runState)
+	state, ok := runStateFor(handle)
+	if !ok || state.closed {
+		return
+	}
+	value := ""
+	if utf8Length > 0 {
+		value = C.GoStringN((*C.char)(unsafe.Pointer(utf8)), C.int(utf8Length))
+	}
+	event := TextEvent{Kind: TextEventKind(kind), Text: value, Command: TextCommand(command)}
+	if event.Kind == TextSetSelection {
+		event.Selection = utf16Range(state.textState.Value, int(selectedStart), int(selectedLength))
+	}
+	if event.Kind == TextSetMarked {
+		event.MarkedSelection = utf16Range(value, int(selectedStart), int(selectedLength))
+	}
+	if replacementStart >= 0 {
+		event.HasReplacement = true
+		event.Replacement = utf16Range(state.textState.Value, int(replacementStart), int(replacementLength))
+	}
+	_ = deliverTextInputEvent(state, view, event, true, false)
+}
+
+//export vivaCompositionInput
+func vivaCompositionInput(
+	handle C.uintptr_t,
+	view unsafe.Pointer,
+	kind C.int,
+	utf8 *C.uchar,
+	utf8Length C.size_t,
+	selectedStart C.int64_t,
+	selectedLength C.int64_t,
+	replacementStart C.int64_t,
+	replacementLength C.int64_t,
+	command C.int,
+	compositionPhase C.int,
+	replacementUTF16Start C.int64_t,
+	replacementUTF16Length C.int64_t,
+	hasReplacementUTF16 C.int,
+) {
+	state, ok := runStateFor(handle)
+	if !ok || state.closed {
+		return
+	}
+	value := ""
+	if utf8Length > 0 {
+		value = C.GoStringN((*C.char)(unsafe.Pointer(utf8)), C.int(utf8Length))
+	}
+	event := TextEvent{Kind: TextEventKind(kind), Text: value, Command: TextCommand(command)}
+	if event.Kind == TextSetSelection {
+		event.Selection = utf16Range(state.textState.Value, int(selectedStart), int(selectedLength))
+	}
+	if event.Kind == TextSetMarked {
+		event.MarkedSelection = utf16Range(value, int(selectedStart), int(selectedLength))
+	}
+	if replacementStart >= 0 {
+		event.HasReplacement = true
+		event.Replacement = utf16Range(state.textState.Value, int(replacementStart), int(replacementLength))
+	}
+	if state.textState.TentativeComposition && compositionPhase != 0 {
+		event.CompositionPhase = text.CompositionPhase(compositionPhase)
+		if hasReplacementUTF16 != 0 {
+			event.HasReplacementUTF16 = true
+			event.ReplacementUTF16 = text.UTF16Range{Start: int(replacementUTF16Start), Length: int(replacementUTF16Length)}
+		}
+	}
+	_ = deliverTextInputEvent(state, view, event, true, false)
+}
+
+func deliverTextInputEvent(state *runState, view unsafe.Pointer, event TextEvent, redraw, forceUpdate bool) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			platform.ReportFault("darwin: AppKit callback", recovered)
 			state.err = fmt.Errorf("darwin: text input handler panicked: %v", recovered)
+			err = state.err
 			C.viva_view_close(view)
 		}
 	}()
@@ -810,67 +942,85 @@ func vivaTextInput(
 	if state.textHandler == nil {
 		state.err = fmt.Errorf("darwin: native text event without a handler")
 		C.viva_view_close(view)
-		return
+		return state.err
 	}
 
-	value := ""
-	if utf8Length > 0 {
-		value = C.GoStringN((*C.char)(unsafe.Pointer(utf8)), C.int(utf8Length))
+	if state.textState.TentativeComposition && state.textComposition == nil {
+		state.textComposition = &nativeTextComposition{}
 	}
-	event := TextEvent{
-		Kind:    TextEventKind(kind),
-		Text:    value,
-		Command: TextCommand(command),
-	}
-	if event.Kind == TextSetSelection {
-		event.Selection = utf16Range(
-			state.textState.Value,
-			int(selectedStart),
-			int(selectedLength),
-		)
-	}
-	if event.Kind == TextSetMarked {
-		event.MarkedSelection = utf16Range(value, int(selectedStart), int(selectedLength))
-	}
-	if replacementStart >= 0 {
-		event.HasReplacement = true
-		event.Replacement = utf16Range(
-			state.textState.Value,
-			int(replacementStart),
-			int(replacementLength),
-		)
+	composition := state.textComposition
+	var epoch uint64
+	if composition != nil {
+		composition.epoch++
+		epoch = composition.epoch
 	}
 
 	previous := state.textState
 	next, err := state.textHandler(event)
+	if (composition != nil && !state.compositionCurrent(composition, epoch)) ||
+		(composition == nil && state.textComposition != nil) {
+		return nil
+	}
 	if err == nil {
 		err = validateTextState(next)
 	}
 	plan := planTextEvent(state.textInputActive && state.textInput.Terminal, previous, next)
+	plan.update = plan.update || forceUpdate
 	next = next.WithoutRedraw() // a one-shot request, not editor state
+	endsComposition := !next.TentativeComposition || event.CompositionPhase != text.CompositionNone && event.CompositionPhase != text.CompositionUpdate
 	if err == nil && plan.update {
-		err = updateText(view, next, state.redrawHandler == nil)
+		if composition != nil {
+			composition.depth++
+		}
+		err = updateText(view, next, endsComposition, !redraw || state.redrawHandler == nil)
+		if composition != nil {
+			composition.depth--
+		}
 		if isResourceError(err) {
 			// The editor's texture could not be made: make the window's
 			// resources again and type into the editor once more.
 			if recoverErr := state.recoverResources(view, err); recoverErr != nil {
 				err = recoverErr
 			} else {
+				if composition != nil && !state.compositionCurrent(composition, epoch) {
+					return nil
+				}
 				state.rebuildNextFrame = true
-				err = updateText(view, next, state.redrawHandler == nil)
+				if composition != nil {
+					composition.depth++
+				}
+				err = updateText(view, next, endsComposition, !redraw || state.redrawHandler == nil)
+				if composition != nil {
+					composition.depth--
+				}
 			}
 		}
 	}
 	if err != nil {
+		if composition != nil {
+			composition.pending = false
+		}
 		state.err = err
 		C.viva_view_close(view)
-		return
+		return err
+	}
+	if composition != nil {
+		if !state.compositionCurrent(composition, epoch) {
+			return nil
+		}
+		if composition.pending {
+			composition.pending = false
+			return state.deliverCompositionCancel(view, redraw)
+		}
 	}
 	state.textState = next
 	if state.textInputActive {
 		state.textInput.State = next
 	}
-	if state.redrawHandler != nil && plan.render {
+	if !next.TentativeComposition {
+		state.textComposition = nil
+	}
+	if redraw && state.redrawHandler != nil && plan.render {
 		state.textEventRedraw = plan.render
 		frame, redrawErr := state.redrawHandler()
 		if redrawErr == nil {
@@ -880,8 +1030,10 @@ func vivaTextInput(
 		if redrawErr != nil {
 			state.err = redrawErr
 			C.viva_view_close(view)
+			return redrawErr
 		}
 	}
+	return nil
 }
 
 func utf16Range(value string, start, length int) text.Range {
@@ -898,7 +1050,7 @@ func utf16Range(value string, start, length int) text.Range {
 	}
 }
 
-func updateText(view unsafe.Pointer, state TextState, render bool) error {
+func updateText(view unsafe.Pointer, state TextState, endsComposition, render bool) error {
 	editor := text.NewEditor(state.Value)
 	selectedStart := editor.RuneIndexToUTF16(state.Selection.Start)
 	selectedEnd := editor.RuneIndexToUTF16(state.Selection.End)
@@ -918,6 +1070,8 @@ func updateText(view unsafe.Pointer, state TextState, render bool) error {
 		C.size_t(markedStart),
 		C.size_t(markedEnd-markedStart),
 		C.int(boolInt(state.Composing)),
+		C.int(boolInt(state.TentativeComposition)),
+		C.int(boolInt(endsComposition)),
 		C.int(boolInt(render)),
 	)
 	if status == 3 {

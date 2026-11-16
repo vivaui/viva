@@ -49,14 +49,22 @@ func (editor *Editor) ownCompositionEventText(state *compositionState) {
 }
 
 func (editor *Editor) ownCompositionUnitText(edit *historyEdit) {
-
+	labels := editor.lfLabelState()
+	var previousKey *rune
+	if labels != nil {
+		previousKey = lfLabelHistoryKey(edit)
+	}
 	if cap(edit.removed) != len(edit.removed) {
 		edit.removed = ownRunes(edit.removed)
 	}
 	if cap(edit.inserted) != len(edit.inserted) {
 		edit.inserted = ownRunes(edit.inserted)
 	}
-
+	if labels != nil {
+		if currentKey := lfLabelHistoryKey(edit); currentKey != previousKey {
+			labels.ops.rekey(labels, previousKey, currentKey)
+		}
+	}
 }
 
 // reserveCompositionHistory gives the planned event exact backing capacity so
