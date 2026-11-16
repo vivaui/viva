@@ -1,7 +1,9 @@
 package linux
 
 import (
+	"encoding/binary"
 	"testing"
+	"unsafe"
 
 	"github.com/vivaui/viva/internal/platform"
 )
@@ -16,6 +18,39 @@ func TestEdgesMapToXMoveResizeDirections(t *testing.T) {
 		if got := moveResizeDirection(edge); got != uint32(want) {
 			t.Errorf("edge %d = direction %d, want %d", edge, got, want)
 		}
+	}
+}
+
+func TestMaximizeButtonSetsBothDirections(t *testing.T) {
+	var words [5]uint32
+	win := &window{
+		api: &xcbAPI{
+			sendEvent: func(_ uintptr, _ uint8, _, _ uint32, data *byte) xcbVoidCookie {
+				message := (*xcbClientEvent)(unsafe.Pointer(data))
+				for index := range words {
+					words[index] = binary.LittleEndian.Uint32(message.Data[index*4:])
+				}
+				return xcbVoidCookie{}
+			},
+			flush: func(uintptr) int32 { return 0 },
+		},
+		screen: &xcbScreen{Root: 1},
+		frame: frameState{
+			stateAtom:           10,
+			maximizedVertical:   20,
+			maximizedHorizontal: 30,
+		},
+	}
+
+	win.toggleMaximize()
+	if words != [5]uint32{netWMStateAdd, 20, 30, sourceApp, 0} {
+		t.Fatalf("maximize message = %v, want both directions added", words)
+	}
+
+	win.frame.maximized = true
+	win.toggleMaximize()
+	if words != [5]uint32{netWMStateRemove, 20, 30, sourceApp, 0} {
+		t.Fatalf("restore message = %v, want both directions removed", words)
 	}
 }
 
