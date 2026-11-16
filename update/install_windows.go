@@ -19,8 +19,8 @@ import (
 // signed, and a signature that exists but does not verify is refused.
 
 const (
-	// detachedProcess starts the helper without a console of its own.
-	detachedProcess = 0x00000008
+	// DETACHED_PROCESS can make Windows PowerShell exit without executing its command.
+	createNoWindow = 0x08000000
 	// powerShellExecutable is the Windows PowerShell host that runs the helper.
 	powerShellExecutable = "powershell.exe"
 )
@@ -369,7 +369,7 @@ func startHelper(parentPID int, installer, executable string, args []string) err
 // it survives the application that is about to quit.
 func helperSysProcAttr() *syscall.SysProcAttr {
 	return &syscall.SysProcAttr{
-		CreationFlags: detachedProcess | syscall.CREATE_NEW_PROCESS_GROUP,
+		CreationFlags: createNoWindow | syscall.CREATE_NEW_PROCESS_GROUP,
 		HideWindow:    true,
 	}
 }
