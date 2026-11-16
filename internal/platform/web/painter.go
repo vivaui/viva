@@ -36,9 +36,12 @@ type painter struct {
 	// pointerOutside says the pointer left the page while a button was down.
 	// The press keeps the pointer until the button comes up.
 	pointerOutside bool
-	scrollX        float32
-	scrollY        float32
-	dirty          bool
+	// onSurface says the pointer is on a surface the page declared with
+	// gfx.Canvas.BlockSurface, such as an open menu's panel.
+	onSurface bool
+	scrollX   float32
+	scrollY   float32
+	dirty     bool
 	// keys follows keys a terminal asked to see as presses and releases. The
 	// zero value tracks nothing, so a page without such a terminal pays nothing.
 	keys        interaction.Keys
@@ -419,6 +422,7 @@ func (p *painter) paint() {
 	focused, visible := p.focus.PaintTarget()
 	p.canvas.SetInteraction(p.pointer.Hovered(), p.pointer.Pressed(), focused, visible)
 	p.canvas.SetHoveredRole(p.pointer.HoveredRole())
+	p.canvas.SetPointerOnSurface(p.onSurface)
 	p.canvas.SetScroll(p.scrollX, p.scrollY)
 	p.canvas.BeginFrame()
 	p.config.Paint(p.canvas, gfx.Size{Width: p.width, Height: p.height})
@@ -636,6 +640,7 @@ func (p *painter) pointerEvent(event gfx.PointerEvent) bool {
 	}
 	event.Viewport = gfx.Size{Width: p.width, Height: p.height}
 	beforeHovered, beforePressed := p.pointer.Hovered(), p.pointer.Pressed()
+	beforeSurface := p.onSurface
 	beforeFocus, beforeKeyboard := p.focus.Focused(), p.focus.KeyboardFocus()
 	inside := event.X >= 0 && event.Y >= 0 && event.X < p.width && event.Y < p.height
 	if event.Kind == gfx.PointerMove && p.pointerOutside && inside {
@@ -652,6 +657,7 @@ func (p *painter) pointerEvent(event gfx.PointerEvent) bool {
 		p.pointerOutside = true
 		p.pointer.SetHovered(gfx.ID{})
 		p.pointer.SetHoveredRole(gfx.Role(0))
+		p.onSurface = false
 		if beforeHovered.IsZero() {
 			return false
 		}
@@ -676,6 +682,7 @@ func (p *painter) pointerEvent(event gfx.PointerEvent) bool {
 		result.Repaint = true
 	}
 	if p.pointer.Hovered() == beforeHovered && p.pointer.Pressed() == beforePressed &&
+		p.onSurface == beforeSurface &&
 		p.focus.Focused() == beforeFocus && p.focus.KeyboardFocus() == beforeKeyboard &&
 		!focusChanged && !result.Repaint && !placed {
 		return false
@@ -699,10 +706,12 @@ func (p *painter) pointerCancel(event gfx.PointerEvent) bool {
 func (p *painter) pointerStep(event gfx.PointerEvent) (result gfx.EventResult, focusChanged, placed bool) {
 	p.pointer.SetHovered(gfx.ID{})
 	p.pointer.SetHoveredRole(gfx.Role(0))
+	p.onSurface = false
 	if event.Kind != gfx.PointerExit {
-		if target, ok := p.focus.Router().HitTestRegion(event.X, event.Y); ok {
+		if target, ok, onSurface := p.focus.Router().PointerAt(event.X, event.Y); ok || onSurface {
 			p.pointer.SetHovered(target.Target)
 			p.pointer.SetHoveredRole(target.Role)
+			p.onSurface = onSurface
 		}
 	}
 	if event.Kind == gfx.PointerDown {

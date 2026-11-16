@@ -348,7 +348,7 @@ func sameImage(a, b Image) bool {
 func sameHit(a, b Hit) bool {
 	return a.ID == b.ID && a.Bounds == b.Bounds && a.Label == b.Label && a.Value == b.Value && a.Layer == b.Layer && a.Scope == b.Scope &&
 		a.Role == b.Role && a.Disabled == b.Disabled && a.Checked == b.Checked && a.Selected == b.Selected && a.Focusable == b.Focusable &&
-		a.IsLabel == b.IsLabel && a.Backdrop == b.Backdrop && a.Block == b.Block
+		a.IsLabel == b.IsLabel && a.Backdrop == b.Backdrop && a.Block == b.Block && a.BlockSurface == b.BlockSurface
 }
 
 func contains(outer, inner Rect) bool {

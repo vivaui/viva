@@ -41,6 +41,7 @@ func TestCanvasCodecPreservesRetainedOutput(t *testing.T) {
 	canvas.PushLayer(600)
 	canvas.PushFocusScope(gfx.Item(44))
 	canvas.Block(gfx.Rect{X: 2, Y: 3, Width: 70, Height: 40})
+	canvas.BlockSurface(gfx.Rect{X: 2, Y: 50, Width: 70, Height: 40})
 	canvas.HitWithOptions(gfx.Item(9), gfx.Rect{X: 4, Y: 5, Width: 60, Height: 20}, "Enable", gfx.HitOptions{Role: gfx.RoleCheckbox, Checked: true})
 	canvas.HitWithOptions(gfx.Item(10), gfx.Rect{X: 4, Y: 40, Width: 60, Height: 20}, "Password", gfx.HitOptions{Role: gfx.RoleTextField, Value: "never", Secure: true})
 	canvas.HitWithOptions(gfx.Item(11), gfx.Rect{X: 4, Y: 70, Width: 120, Height: 30}, "Name", gfx.HitOptions{

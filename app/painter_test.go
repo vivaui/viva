@@ -766,6 +766,41 @@ func TestPointerHoverEntersAndExitsOnce(t *testing.T) {
 	}
 }
 
+// A drag off a surface and out of the window ends the surface state even when no
+// hit is hovered: the early return must not leave the host's copy of the flag set
+// for the next paint.
+func TestPointerExitWhileDraggingOffTheSurfaceClearsIt(t *testing.T) {
+	var canvas gfx.Canvas
+	config := Config{Title: "test", Width: 100, Height: 100}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.Fill(gfx.Rect{X: 0, Y: 0, Width: 100, Height: 100}, gfx.Color{Alpha: 1})
+		canvas.Hit(gfx.Item(7), gfx.Rect{X: 0, Y: 0, Width: 20, Height: 20})
+		canvas.BlockSurface(gfx.Rect{X: 40, Y: 40, Width: 40, Height: 40})
+	}
+	painter := newTestPainter(t, &canvas, config)
+
+	// A press on the control captures the pointer.
+	down := platform.PointerEvent{Kind: platform.PointerDown, X: 10, Y: 10, Button: gfx.PointerButtonPrimary}
+	if _, err := painter.pointerEvent(down); err != nil {
+		t.Fatal(err)
+	}
+	// Dragging onto the surface leaves no hit while putting the pointer on it.
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 60, Y: 60}); err != nil {
+		t.Fatal(err)
+	}
+	if !painter.onSurface || !painter.pointer.Hovered().IsZero() {
+		t.Fatalf("dragging onto the surface: onSurface = %v, hovered = %d", painter.onSurface, painter.pointer.Hovered())
+	}
+
+	// Leaving the window keeps the press but ends the surface state, hit or no hit.
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerExit}); err != nil {
+		t.Fatal(err)
+	}
+	if painter.onSurface {
+		t.Fatal("the surface flag survived a drag that left the window")
+	}
+}
+
 func TestPointerClickActivatesAndPressOnlyCountsInsideRegion(t *testing.T) {
 	var canvas gfx.Canvas
 	canvas.Hit(gfx.Item(7), gfx.Rect{X: 0, Y: 0, Width: 50, Height: 20})

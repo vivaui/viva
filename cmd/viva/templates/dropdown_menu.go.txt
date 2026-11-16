@@ -796,7 +796,11 @@ func beginMenuSurface(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, minW
 	menu.paintDismissBackdrop()
 	// The surface itself is inside the menu: a press on its padding, a label, a
 	// separator, or a disabled row must not reach the dismiss backdrop behind it.
-	menu.canvas.Block(bounds)
+	// Saying the pointer is on the surface also tells a row whether the pointer is
+	// on the menu at all: over the padding and the separators the pointer is on the
+	// menu but on no row, and treating that as "outside" relit the row that kept
+	// focus.
+	menu.canvas.BlockSurface(bounds)
 	menu.canvas.Container(bounds, gfx.RoleMenu, "")
 	part := overlaySurfacePart
 	if options.submenu {
@@ -1047,11 +1051,21 @@ func (menu *menuSurface) itemState(item menuItem) (active bool, foreground gfx.C
 	enabled := !item.ID.IsZero() && !item.Disabled
 	hovered := canvas.Hovered()
 	claim := canvas.HoverCrossed() && !hovered.IsZero()
-	// While the pointer is over caller content inside the menu (a colour row, a
-	// switch), no row is the menu's current row: keeping the last focused row
-	// tinted would fight the control under the pointer. Menu rows themselves
-	// declare RoleMenuItem.
-	inContent := !hovered.IsZero() && canvas.HoveredRole() != 0 && canvas.HoveredRole() != gfx.RoleMenuItem
+	// No row is the menu's current one while the pointer is on the menu but not on
+	// a row. That covers the pointer over caller content inside the menu (a colour
+	// row, a switch), which declares a role that is not a row's, and the pointer
+	// over the menu's own padding and separators, which report the surface rather
+	// than a hit. Without the second case the row that kept focus relit whenever the
+	// pointer came back into the menu anywhere but on a row.
+	//
+	// Visible keyboard focus outranks a resting pointer, wherever it rests: a key
+	// press moves the menu's current row while the pointer sits on the padding or on
+	// a control of the caller's, and that row must stay lit. Focus that the pointer
+	// itself moved is not visible, so the row it entered still gives way to whatever
+	// is under the pointer.
+	inContent := canvas.FocusVisible().IsZero() &&
+		(canvas.PointerOnSurface() ||
+			!hovered.IsZero() && canvas.HoveredRole() != 0 && canvas.HoveredRole() != gfx.RoleMenuItem)
 	if claim && hovered == item.ID {
 		// A disabled row cannot take focus, but the frame is still repainted so
 		// the row that kept focus is tinted again on the next paint.
