@@ -31,6 +31,21 @@ func (application *linuxApplication) wakePosts() {
 	}
 }
 
+// rearmPosts sends the wake again after the live windows changed. A wake that
+// was handed to a window which has since closed went with that window, so the
+// flag is cleared and the wake goes to whichever windows remain.
+func (application *linuxApplication) rearmPosts() {
+	application.postMu.Lock()
+	defer application.postMu.Unlock()
+	application.postWake.Store(false)
+	if len(application.posts) == 0 {
+		return
+	}
+	if application.deliver(commandPost) {
+		application.postWake.Store(true)
+	}
+}
+
 // drainPosts runs the functions accepted since the last drain, in order. A
 // function that posts another is picked up by this same drain.
 func (application *linuxApplication) drainPosts() {
