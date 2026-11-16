@@ -76,11 +76,12 @@ type Driver struct {
 	openedWith     [2]string
 	hasOpenedWith  bool
 	// openedInBrowser is the file OpenPathInBrowser was last given.
-	openedInBrowser    string
-	hasOpenedInBrowser bool
-	releases           []func()
-	closed             bool
-	appearanceOpen     bool
+	openedInBrowser      string
+	hasOpenedInBrowser   bool
+	releases             []func()
+	closed               bool
+	appearanceOpen       bool
+	clipboardRectangular bool
 
 	system                   driverSystem
 	openFilesResponses       [driverOpenFilesQueueSize]driverOpenFilesResponse
@@ -148,8 +149,7 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 		return nil, err
 	}
 	driver.painter.setClipboardText = func(value string) {
-		driver.clipboard, driver.system.clipboardImage, driver.system.clipboardFiles = value, nil, nil
-		driver.system.clipboardHTML = ""
+		driver.SetClipboard(value)
 	}
 	driver.painter.setCursor = func(Cursor) error { return nil }
 	driver.painter.setCursorImage = func(*gfx.CursorImage) error { return nil }
@@ -908,12 +908,19 @@ func (driver *Driver) ShortcutChord(modifiers gfx.Modifiers, character rune) (bo
 }
 
 func (driver *Driver) clipboardEdit(action byte) error {
-	event, changed, err := platform.TextClipboardEvent(driver.painter.nativeText.ClipboardState(action), driver.painter.nativeText.Secure, action,
-		func() (string, error) { return driver.clipboard, nil },
-		func(value string) error { driver.SetClipboard(value); return nil })
+	input := driver.painter.nativeText
+	rectangular := false
+	event, changed, err := platform.TextClipboardEvent(input.ClipboardState(action), input.Secure, action,
+		func() (string, error) { rectangular = driver.clipboardRectangular; return driver.clipboard, nil },
+		func(value string) error {
+			driver.SetClipboard(value)
+			driver.clipboardRectangular = input.CopyRectangular
+			return nil
+		})
 	if err != nil || !changed {
 		return err
 	}
+	event.Rectangular = event.Kind == platform.TextPaste && action == 'v' && rectangular
 	return driver.textEvent(event)
 }
 
@@ -959,6 +966,7 @@ func (driver *Driver) Clipboard() string { return driver.clipboard }
 func (driver *Driver) SetClipboard(value string) {
 	driver.clipboard, driver.system.clipboardImage, driver.system.clipboardFiles = value, nil, nil
 	driver.system.clipboardHTML = ""
+	driver.clipboardRectangular = false
 }
 
 // LastOpenedURL returns the most recent target passed to OpenURL while this

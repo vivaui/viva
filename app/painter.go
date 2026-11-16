@@ -205,10 +205,19 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 	}
 	painter.onTextEvent = painter.applyTextEvent
 	painter.clipboardText = func() string {
-		if painter.activeText == nil || painter.activeText.CopyText == nil {
+		active := painter.activeText
+		if active == nil || active.CopyText == nil {
 			return ""
 		}
-		return painter.activeText.CopyText()
+		epoch := painter.textEpoch
+		override, rectangular := painter.nativeText.CopyOverride, painter.nativeText.CopyRectangular
+		value := active.CopyText()
+		// A reentrant provider must not copy old text or apply Cut to its replacement.
+		if painter.activeText != active || painter.textEpoch != epoch ||
+			painter.nativeText.CopyOverride != override || painter.nativeText.CopyRectangular != rectangular {
+			return ""
+		}
+		return value
 	}
 	if config.WindowMode == WindowCustomTitlebar && controlsDrawnByViva {
 		painter.controls = newWindowControls(config)
@@ -1331,6 +1340,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 		AltSendsEscape: input.AltSendsEscape, KeyReleases: context.Terminal && input.KeyReleases, DisableIME: input.DisableIME, MonoFace: input.MonoFace, CellWidth: cellWidth, Baseline: baseline,
 		NavigationKeys:     input.NavigationKeys || context.NavigationKeys,
 		CopyOverride:       input.CopyOverride,
+		CopyRectangular:    input.CopyRectangular,
 		CopyText:           painter.clipboardText,
 		HideNativeOverlays: input.HideNativeOverlays || context.HideNativeOverlays,
 		Color: platform.Color{
@@ -1426,6 +1436,11 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 	if !painter.nativeText.Multiline && !painter.nativeText.Terminal &&
 		(event.Kind == platform.TextPaste || event.Kind == platform.TextInsert) && event.Text != "" {
 		appEvent.Text = text.SingleLine(event.Text)
+		if appEvent.Text != event.Text {
+			// Folding removed the line structure, so the column shape the
+			// clipboard declared no longer describes the text the app receives.
+			appEvent.Rectangular = false
+		}
 		if appEvent.Text == "" && !explicit {
 			return painter.nativeText.State, nil
 		}
@@ -1475,7 +1490,7 @@ func samePlatformTextInput(left, right platform.TextInput) bool {
 		left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure && left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.CellWidth == right.CellWidth && left.Baseline == right.Baseline &&
 		left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.DisableIME == right.DisableIME &&
 		left.NavigationKeys == right.NavigationKeys &&
-		left.CopyOverride == right.CopyOverride &&
+		left.CopyOverride == right.CopyOverride && left.CopyRectangular == right.CopyRectangular &&
 		left.HideNativeOverlays == right.HideNativeOverlays &&
 		left.Placed == right.Placed && left.CaretX == right.CaretX && left.CaretY == right.CaretY &&
 		left.CaretWidth == right.CaretWidth && left.CaretHeight == right.CaretHeight &&
