@@ -957,7 +957,8 @@ func deliverTextInputEvent(state *runState, view unsafe.Pointer, event TextEvent
 
 	previous := state.textState
 	next, err := state.textHandler(event)
-	if composition != nil && !state.compositionCurrent(composition, epoch) || composition == nil && state.textComposition != nil {
+	if (composition != nil && !state.compositionCurrent(composition, epoch)) ||
+		(composition == nil && state.textComposition != nil) {
 		return nil
 	}
 	if err == nil {

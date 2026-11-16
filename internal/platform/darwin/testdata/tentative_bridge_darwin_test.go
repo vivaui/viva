@@ -109,7 +109,9 @@ func TestDarwinTentativeProbeRawResultAfterRollback(t *testing.T) {
 	}
 	tentativeBridgeMark(probe.view, "x", 1, 0, 0, 0, false)
 	probe.assertState(t, "xA\U0001d11eBC")
-	tentativeBridgeInsert(probe.view, "Z", 3, 1, true)
+	// AppKit names the view text, preedit included: index 4 is the "B" the
+	// result replaces once the tentative "x" is rolled back.
+	tentativeBridgeInsert(probe.view, "Z", 4, 1, true)
 	probe.assertState(t, "A\U0001d11eZC")
 	result := probe.events[len(probe.events)-1]
 	if !result.HasReplacementUTF16 || result.ReplacementUTF16 != (text.UTF16Range{Start: 3, Length: 1}) || result.CompositionPhase != text.CompositionResult {
@@ -119,6 +121,46 @@ func TestDarwinTentativeProbeRawResultAfterRollback(t *testing.T) {
 		if !probe.editor.Undo() || probe.editor.String() != want {
 			t.Fatalf("raw native result Undo = %q; want %q", probe.editor.String(), want)
 		}
+	}
+}
+
+func TestDarwinTentativeProbeMarkedRangeContinuationUpdates(t *testing.T) {
+	probe := newTentativeBridgeProbe(t, "abc", true)
+	probe.editor.MoveTo(1, false)
+	input := probe.state.textInput
+	input.State = platform.EditorState(probe.editor)
+	if err := presentTextInput(probe.state, probe.view, TextInputUpdate{Changed: true, Input: &input}); err != nil {
+		t.Fatal(err)
+	}
+	tentativeBridgeMark(probe.view, "x", 1, 0, 1, 0, false)
+	probe.assertState(t, "axbc")
+	// AppKit reports the marked text in view coordinates when it continues the
+	// composition. That is the same composition, not an out-of-band replacement,
+	// so the update must land instead of being refused.
+	tentativeBridgeMark(probe.view, "xy", 2, 0, 1, 1, true)
+	probe.assertState(t, "axybc")
+	if last := probe.events[len(probe.events)-1]; last.CompositionPhase != text.CompositionUpdate || last.HasReplacementUTF16 {
+		t.Fatalf("continuation event = %+v; want an update that acts on the composition", last)
+	}
+}
+
+func TestDarwinTentativeProbeMarkedRangeResultUsesTheComposition(t *testing.T) {
+	probe := newTentativeBridgeProbe(t, "abc", true)
+	probe.editor.MoveTo(1, false)
+	input := probe.state.textInput
+	input.State = platform.EditorState(probe.editor)
+	if err := presentTextInput(probe.state, probe.view, TextInputUpdate{Changed: true, Input: &input}); err != nil {
+		t.Fatal(err)
+	}
+	tentativeBridgeMark(probe.view, "x", 1, 0, 1, 0, false)
+	probe.assertState(t, "axbc")
+	// Committing with a range that names the preedit replaces the composition,
+	// not whatever runes sat at that offset before it was inserted.
+	tentativeBridgeInsert(probe.view, "Z", 1, 1, true)
+	probe.assertState(t, "aZbc")
+	last := probe.events[len(probe.events)-1]
+	if last.CompositionPhase != text.CompositionResult || last.HasReplacementUTF16 {
+		t.Fatalf("commit event = %+v; want a result that acts on the composition", last)
 	}
 }
 
@@ -183,7 +225,7 @@ func TestDarwinTentativeProbeRawRangeBoundaries(t *testing.T) {
 	}{
 		{"not found", maximum, 0, text.UTF16Range{}, false, "a\U0001d11ebZ"},
 		{"split surrogate", 2, 0, text.UTF16Range{Start: 2}, true, "a\U0001d11ebZ"},
-		{"past end", 99, 99, text.UTF16Range{Start: 99, Length: 99}, true, "a\U0001d11ebZ"},
+		{"past end", 100, 99, text.UTF16Range{Start: 99, Length: 99}, true, "a\U0001d11ebZ"},
 		{"unsigned start", -2, 1, text.UTF16Range{Start: maximum, Length: 1}, true, "a\U0001d11ebZ"},
 		{"unsigned length", 1, -2, text.UTF16Range{Start: 1, Length: maximum}, true, "aZ"},
 	} {

@@ -5773,6 +5773,12 @@ static void viva_set_secure_event_input(BOOL on) {
     _tentativeComposition = tentativeComposition;
     _caretVisible = YES;
     if (![self rebuildTextTexture]) {
+        if (lostComposition) {
+            // The editor's texture is gone, but the composition it lost is not:
+            // record it before the early return, because the retry re-evaluates
+            // against the state this call already installed.
+            [self notifyCompositionLost];
+        }
         return 3;
     }
     [self restartCaretBlink];
@@ -5802,14 +5808,44 @@ static void viva_set_secure_event_input(BOOL on) {
         _interpretedConsumed = YES;
     }
     NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
+    int phase = _tentativeComposition ? viva_text_composition_phase(kind, text.length, _hasMarkedText, replacementRange) : VIVA_COMPOSITION_NONE;
+    // AppKit names ranges in the view text, which still holds the preedit; the
+    // phased engine applies a replacement to the text after the tentative
+    // rollback. A range that names the marked text is the composition
+    // continuing or committing, so the engine must act on the composition
+    // itself; a range beyond it shifts left by the preedit.
+    NSRange phasedReplacement = replacementRange;
+    if (phase != VIVA_COMPOSITION_NONE && _hasMarkedText && phasedReplacement.location != NSNotFound) {
+        NSRange marked = _markedRange;
+        NSUInteger markedEnd = marked.location + marked.length;
+        NSUInteger end = phasedReplacement.length > NSUIntegerMax - phasedReplacement.location
+            ? NSUIntegerMax
+            : phasedReplacement.location + phasedReplacement.length;
+        BOOL namesComposition = phasedReplacement.location >= marked.location && end <= markedEnd;
+        BOOL caretInComposition = phasedReplacement.length == 0 &&
+            phasedReplacement.location >= marked.location && phasedReplacement.location <= markedEnd;
+        if (namesComposition || caretInComposition) {
+            phasedReplacement = NSMakeRange(NSNotFound, 0);
+        } else {
+            NSUInteger start = phasedReplacement.location >= markedEnd
+                ? phasedReplacement.location - marked.length
+                : phasedReplacement.location;
+            NSUInteger stop = end >= markedEnd
+                ? end - marked.length
+                : end > marked.location ? marked.location : end;
+            if (stop < start) {
+                stop = start;
+            }
+            phasedReplacement = NSMakeRange(start, stop - start);
+        }
+    }
     int64_t replacementStart = -1;
     int64_t replacementLength = 0;
-    if (replacementRange.location != NSNotFound) {
+    if (phase == VIVA_COMPOSITION_NONE && replacementRange.location != NSNotFound) {
         replacementStart = (int64_t)replacementRange.location;
         replacementLength = (int64_t)replacementRange.length;
     }
-    int phase = _tentativeComposition ? viva_text_composition_phase(kind, text.length, _hasMarkedText, replacementRange) : VIVA_COMPOSITION_NONE;
-    BOOL raw = phase != VIVA_COMPOSITION_NONE && replacementRange.location != NSNotFound;
+    BOOL raw = phase != VIVA_COMPOSITION_NONE && phasedReplacement.location != NSNotFound;
     viva_text_event_count++;
     if (phase == VIVA_COMPOSITION_NONE) {
         vivaTextInput(_callbackHandle, self, kind,
@@ -5830,8 +5866,8 @@ static void viva_set_secure_event_input(BOOL on) {
         replacementLength,
         command,
         phase,
-        raw ? viva_text_raw_coordinate(replacementRange.location) : 0,
-        raw ? viva_text_raw_coordinate(replacementRange.length) : 0,
+        raw ? viva_text_raw_coordinate(phasedReplacement.location) : 0,
+        raw ? viva_text_raw_coordinate(phasedReplacement.length) : 0,
         raw ? 1 : 0
     );
 }
