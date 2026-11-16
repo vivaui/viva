@@ -139,6 +139,10 @@ func ClipboardText() (string, error) {
 		return "", windowsCallError("open clipboard", callErr)
 	}
 	defer closeClipboard.Call()
+	return clipboardTextOpen()
+}
+
+func clipboardTextOpen() (string, error) {
 	handle, _, callErr := clipboardData.Call(clipboardUnicodeText)
 	if handle == 0 {
 		return "", windowsCallError("read clipboard", callErr)
@@ -314,13 +318,40 @@ func clipboardBytes(format uintptr, limit int) ([]byte, error) {
 	return append([]byte(nil), unsafe.Slice((*byte)(pointer(memory)), int(size))...), nil
 }
 
-func SetClipboardText(value string) error {
+func SetClipboardText(value string) error { return setClipboardText(value, false) }
+
+func setClipboardText(value string, rectangular bool) error {
 	encoded, err := syscall.UTF16FromString(value)
 	if err != nil {
 		return fmt.Errorf("windows: encode clipboard text: %w", err)
 	}
 	clipboardMu.Lock()
 	defer clipboardMu.Unlock()
+	var columnFormat, borlandFormat, columnMarker, borlandMarker uintptr
+	if rectangular {
+		columnFormat, borlandFormat, err = rectangularClipboardFormats()
+		if err != nil {
+			return err
+		}
+		columnMarker, err = allocateColumnClipboardMarker(0)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if columnMarker != 0 {
+				globalFree.Call(columnMarker)
+			}
+		}()
+		borlandMarker, err = allocateColumnClipboardMarker(0x02)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if borlandMarker != 0 {
+				globalFree.Call(borlandMarker)
+			}
+		}()
+	}
 	bytes := uintptr(len(encoded) * 2)
 	handle, _, callErr := globalAlloc.Call(globalMoveable|globalZeroInit, bytes)
 	if handle == 0 {
@@ -353,6 +384,16 @@ func SetClipboardText(value string) error {
 		return windowsCallError("write clipboard", callErr)
 	}
 	transferred = true
+	if rectangular {
+		if result, _, err := setClipboardData.Call(columnFormat, columnMarker); result == 0 {
+			return windowsCallError("write column clipboard marker", err)
+		}
+		columnMarker = 0
+		if result, _, err := setClipboardData.Call(borlandFormat, borlandMarker); result == 0 {
+			return windowsCallError("write Borland clipboard marker", err)
+		}
+		borlandMarker = 0
+	}
 	return nil
 }
 

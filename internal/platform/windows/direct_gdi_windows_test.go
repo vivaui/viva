@@ -320,6 +320,32 @@ func TestFixedPitchWeightsGDIWouldMakeUpStayWithDirect2D(t *testing.T) {
 	}
 }
 
+// TestChosenMonoWeightsDecideTheRenderer guards the grid path of SetMonoWeights: an
+// ASCII run is GDI's only where the weight chosen for the fixed-pitch text is one GDI
+// draws. Naming another weight must move the run to Direct2D, which draws the face the
+// family has for it; otherwise the terminal keeps the platform's weights for the bulk
+// of its text and only the cell and the non-ASCII runs follow the choice.
+func TestChosenMonoWeightsDecideTheRenderer(t *testing.T) {
+	engine, err := theTextEngine()
+	if err != nil {
+		t.Skipf("no DirectWrite: %v", err)
+	}
+	t.Cleanup(func() { engine.SetMonoWeights(0, 0) })
+	label := gridLabel(8, asciiRun("INFO "))
+	draw := func(main int) (hinted, natural gridRender) {
+		engine.SetMonoWeights(main, 0)
+		return rasterizeGrid(t, label, 1, false), rasterizeGrid(t, label, 1, true)
+	}
+	hinted, natural := draw(0)
+	if bytes.Equal(hinted.pixels, natural.pixels) {
+		t.Fatal("a regular ASCII run was not drawn by GDI")
+	}
+	hinted, natural = draw(500) // medium: GDI makes up a face wider than the cells
+	if !bytes.Equal(hinted.pixels, natural.pixels) {
+		t.Error("a run at the chosen medium weight was drawn by GDI")
+	}
+}
+
 // TestFixedPitchRasterizerDeselectsItsFonts guards the rule for GDI objects: a font is not
 // left selected in the context of the bitmap it was drawn on, because the context is deleted
 // with the rasterizer and deleting an object that a context still holds is not defined.

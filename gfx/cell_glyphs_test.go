@@ -269,37 +269,40 @@ func FuzzReplaceCellGlyphs(f *testing.F) {
 	})
 }
 
-// A cell glyph's rule is the face's underline thickness (MonoCellMetrics.Underline) at the
-// line's scale, rounded up to whole device pixels, and a heavy stroke is two rules wide: a
-// box drawing character drawn as geometry then weighs what the font's own glyphs weigh, and
-// a fractional device pixel makes the stroke no thinner than the whole one it rounds up to.
-func TestCellGlyphRuleFollowsTheFacesUnderline(t *testing.T) {
+// A cell glyph's strokes are the face's own (MonoCellMetrics.Rule and HeavyRule) at the
+// line's scale, each rounded to the nearest device pixel and never thinner than one: a box
+// drawing character drawn as geometry then weighs what the font's own glyph weighs, light
+// or heavy, and a face whose heavy line is not twice its light one keeps both weights.
+func TestCellGlyphRulesFollowTheFacesOwnStrokes(t *testing.T) {
 	for _, test := range []struct {
 		name      string
-		underline float32
+		rule      float32 // logical pixels, as the engine reports them
+		heavy     float32
 		scale     float32
-		light     float32 // device pixels
+		wantRule  float32 // device pixels
+		wantHeavy float32
 	}{
-		{"thinner than a device pixel at 1x", 0.57, 1, 1},
-		{"thinner than a device pixel at 2x", 0.57, 2, 2},
-		{"thicker than a device pixel", 1.2, 2, 3},
-		{"a fraction at 3x", 0.4, 3, 2},
+		{"thinner than a device pixel at 1x", 0.4, 0.8, 1, 1, 1},
+		{"a fraction rounded down", 0.65, 1.1, 2, 1, 2},
+		{"a fraction rounded up", 1.2, 2.4, 2, 2, 5},
+		// The face from the issue: a 16 px Cascadia Mono cell at 175 percent, whose heavy
+		// stem is 4.24 times its light one and not twice its underline.
+		{"a font whose heavy line is over twice its light one", 1.656, 3.312, 1.75, 3, 6},
 	} {
 		for _, glyph := range []struct {
 			value string
-			rules float32
-		}{{"│", 1}, {"┃", 2}} {
+			want  float32
+		}{{"│", test.wantRule}, {"┃", test.wantHeavy}} {
 			var canvas Canvas
 			canvas.SetPixelScale(test.scale)
 			canvas.SetTextEngine(&monoCellEngine{MonoCellMetrics: MonoCellMetrics{
-				Advance: 0.6, Ascent: 0.8, Descent: 0.2, Underline: test.underline,
+				Advance: 0.6, Ascent: 0.8, Descent: 0.2, Rule: test.rule, HeavyRule: test.heavy,
 			}})
 			cellWidth, cellHeight := float32(10), float32(20)
 			canvas.LabelRuns(glyph.value, Rect{Width: cellWidth, Height: cellHeight}, TextStyle{Size: 10}, cellWidth,
 				[]TextRun{{Column: 0, Bytes: int32(len(glyph.value)), Cells: 1, Color: Color{Red: 1, Alpha: 1}}})
 			texts := canvas.Texts()
 			shapes := canvas.CellGlyphGeometry(CellGlyphShapes{}, texts[len(texts)-1])
-			want := test.light * glyph.rules
 			var strokes int
 			for _, shape := range shapes.Rectangles {
 				bounds := shape.Bounds
@@ -307,9 +310,51 @@ func TestCellGlyphRuleFollowsTheFacesUnderline(t *testing.T) {
 					continue // not a vertical stroke of the glyph
 				}
 				strokes++
-				if got := bounds.Width * test.scale; math.Abs(float64(got-want)) > 1e-3 {
-					t.Errorf("%s at %g x %g: a vertical stroke is %g device pixels, want %g",
-						test.name, test.scale, test.underline, got, want)
+				if got := bounds.Width * test.scale; math.Abs(float64(got-glyph.want)) > 1e-3 {
+					t.Errorf("%s, %s at %gx: a vertical stroke is %g device pixels, want %g",
+						test.name, glyph.value, test.scale, got, glyph.want)
+				}
+			}
+			if strokes == 0 {
+				t.Errorf("%s: %s draws no vertical stroke", test.name, glyph.value)
+			}
+		}
+	}
+}
+
+// A face that does not report a stroke falls back to the reference weight, and one that
+// reports a light line but no heavy one draws the heavy line twice as wide.
+func TestCellGlyphRulesFallBackToTheReferenceWeight(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		metrics   MonoCellMetrics
+		wantRule  float32
+		wantHeavy float32
+	}{
+		{"no measured strokes", MonoCellMetrics{Advance: 0.6, Ascent: 0.8, Descent: 0.2}, 1, 2},
+		{"a light line only", MonoCellMetrics{Advance: 0.6, Ascent: 0.8, Descent: 0.2, Rule: 1}, 2, 4},
+	} {
+		for _, glyph := range []struct {
+			value string
+			want  float32
+		}{{"│", test.wantRule}, {"┃", test.wantHeavy}} {
+			var canvas Canvas
+			canvas.SetPixelScale(2)
+			canvas.SetTextEngine(&monoCellEngine{MonoCellMetrics: test.metrics})
+			cellWidth, cellHeight := float32(10), float32(20)
+			canvas.LabelRuns(glyph.value, Rect{Width: cellWidth, Height: cellHeight}, TextStyle{Size: 10}, cellWidth,
+				[]TextRun{{Column: 0, Bytes: int32(len(glyph.value)), Cells: 1, Color: Color{Red: 1, Alpha: 1}}})
+			texts := canvas.Texts()
+			shapes := canvas.CellGlyphGeometry(CellGlyphShapes{}, texts[len(texts)-1])
+			var strokes int
+			for _, shape := range shapes.Rectangles {
+				bounds := shape.Bounds
+				if bounds.Height < cellHeight/2 || bounds.Width >= cellWidth/2 {
+					continue
+				}
+				strokes++
+				if got := bounds.Width * 2; math.Abs(float64(got-glyph.want)) > 1e-3 {
+					t.Errorf("%s, %s: a vertical stroke is %g device pixels, want %g", test.name, glyph.value, got, glyph.want)
 				}
 			}
 			if strokes == 0 {

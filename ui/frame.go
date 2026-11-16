@@ -225,6 +225,7 @@ type extra struct {
 type frame struct {
 	canvas      *gfx.Canvas
 	theme       Theme
+	styles      *Styles // the page's recipe overrides; nil keeps the theme's
 	nodes       []node
 	inputs      []components.InputSnapshot
 	addons      []fieldAddons // the icons and buttons inside fields, by 1 + extra.addons

@@ -3,7 +3,7 @@
 package darwin
 
 /*
-#cgo LDFLAGS: -framework Cocoa -framework CoreGraphics
+#cgo LDFLAGS: -framework Cocoa -framework CoreGraphics -framework UniformTypeIdentifiers
 #include <stdlib.h>
 #include "file_icon_darwin.h"
 #include "system_darwin.h"

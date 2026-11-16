@@ -124,6 +124,8 @@ func theTextEngine() (*textEngine, error) {
 }
 
 var _ gfx.FontFamilyAware = (*textEngine)(nil)
+var _ gfx.FontWeightAware = (*textEngine)(nil)
+var _ gfx.MonoWeightAware = (*textEngine)(nil)
 var _ gfx.TextRasterizer = (*textEngine)(nil)
 var _ gfx.MonoCellEngine = (*textEngine)(nil)
 
@@ -176,22 +178,66 @@ func (engine *textEngine) SetFontFamily(family string) {
 	engine.generation.Add(1)
 }
 
+// SetFontWeights implements gfx.FontWeightAware: the weights the interface's text is
+// drawn at, main for regular and medium text and bold for semibold and bold, or 0 for
+// the engine's own. Everything shaped at another weight is forgotten.
+func (engine *textEngine) SetFontWeights(main, bold int) {
+	mainWeight, boldWeight := interfaceWeight(main), interfaceWeight(bold)
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if mainWeight == engine.services.mainWeight && boldWeight == engine.services.boldWeight {
+		return
+	}
+	engine.services.mainWeight, engine.services.boldWeight = mainWeight, boldWeight
+	engine.cache.Clear()
+	if engine.italicCache != nil {
+		engine.italicCache.Clear()
+	}
+	engine.generation.Add(1)
+}
+
+// interfaceWeight is a weight the application chose, clamped to DirectWrite's range, or
+// 0 for the engine's own weight of that band.
+func interfaceWeight(weight int) uint32 {
+	if weight <= 0 {
+		return 0
+	}
+	return uint32(min(weight, 999))
+}
+
+// SetMonoWeights implements gfx.MonoWeightAware: the weights the fixed-pitch text is
+// drawn at, main for its regular text and bold for its bold runs, or 0 for the engine's
+// own. The cell the text is laid out on follows them, so the generation moves and the
+// canvas measures its cells again.
+func (engine *textEngine) SetMonoWeights(main, bold int) {
+	mainWeight, boldWeight := interfaceWeight(main), interfaceWeight(bold)
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if mainWeight == engine.services.monoMainWeight && boldWeight == engine.services.monoBoldWeight {
+		return
+	}
+	engine.services.monoMainWeight, engine.services.monoBoldWeight = mainWeight, boldWeight
+	engine.generation.Add(1)
+}
+
 // MonoCell implements gfx.MonoCellEngine: the cell of the face's own font, which is the
 // cell a terminal is laid out on and stands on.
 func (engine *textEngine) MonoCell(size float32, face gfx.MonoFace) gfx.MonoCellMetrics {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	family := monoFamily(face)
-	metrics, err := engine.services.measureIn(family, "M", size, 0)
+	metrics, err := engine.services.measureMonoIn(family, "M", size, 0)
 	if err != nil {
 		return gfx.MonoCellMetrics{}
 	}
+	rule, heavy := engine.services.boxStrokes(family, size, 0)
 	return gfx.MonoCellMetrics{
 		Advance:   metrics.Width,
 		Ascent:    metrics.Ascent,
 		Descent:   metrics.Descent,
 		LineGap:   max(metrics.Height-metrics.Ascent-metrics.Descent, 0),
-		Underline: engine.services.underline(family, size, 0),
+		Rule:      rule,
+		HeavyRule: heavy,
 	}
 }
 
@@ -290,7 +336,7 @@ func (engine *textEngine) shapeStyle(value string, size, weight float32, italic 
 	if family == "" {
 		family = "Segoe UI"
 	}
-	format, err := engine.services.formatStyle(family, size, weight, italic)
+	format, err := engine.services.formatInterface(family, size, weight, italic)
 	if err != nil {
 		return nil, err
 	}

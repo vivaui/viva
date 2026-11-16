@@ -106,6 +106,8 @@ func nativeOpenWith(executable, path string) error {
 	return darwinplatform.OpenWith(executable, path)
 }
 
+func nativeOpenInBrowser(path string) error { return darwinplatform.OpenInBrowser(path) }
+
 func nativePlaySystemSound(sound SystemSound) error {
 	return darwinplatform.PlaySystemSound(uint8(sound))
 }
@@ -140,6 +142,10 @@ func nativeShowFatalError(title, message string) { darwinplatform.ShowFatalError
 
 func nativeMonospaceFamilies() []string { return darwinplatform.MonospaceFamilies() }
 func nativeFontFamilies() []string      { return darwinplatform.FontFamilies() }
+
+// nativeFontWeights is empty: the darwin engine follows a family but not the weights
+// it is drawn at.
+func nativeFontWeights(string) []int { return nil }
 
 func nativeAppearance() Appearance {
 	if darwinplatform.DarkAppearance() {

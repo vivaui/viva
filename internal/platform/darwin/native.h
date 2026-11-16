@@ -78,6 +78,7 @@ typedef struct {
     size_t marked_start;
     size_t marked_length;
     int has_marked_text;
+    int tentative_composition;
     int multiline;
     int enabled;
     int secure;
@@ -99,6 +100,10 @@ typedef struct {
     int alt_sends_escape;
     // Presses and releases of every key, modifier keys included.
     int key_releases;
+    // The host's input method stays off the surface: no key is offered to it
+    // and no composition session is opened, so the keys that switch and feed
+    // a method belong to the machine on the other side of the surface.
+    int disable_ime;
     // Navigation keys (Up, Down, PageUp, PageDown) reach the application raw.
     int navigation_keys;
     // The field lays its rows out itself: the pointer places its caret, row
@@ -464,6 +469,8 @@ int viva_view_update_text(
     size_t marked_start,
     size_t marked_length,
     int has_marked_text,
+    int tentative_composition,
+    int ends_composition,
     int render
 );
 int viva_view_update_text_input(void *view, viva_text_input_config text_input);
@@ -557,8 +564,8 @@ int viva_text_line_rasterize(
 
 // viva_measure_mono reports the system fixed-pitch font's cell at a size: the advance of
 // one character, the ascent, descent and leading of its line box, and the thickness of
-// the stroke the font underlines with.
-int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading, double *underline);
+// the strokes it draws its light and heavy box drawing lines with.
+int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading, double *rule, double *heavy);
 // viva_register_mono_family teaches what a mono_face number (2 and up) stands for: the
 // installed family it draws in first (empty for a stack over a built-in face), whether
 // that built-in face is the classic one, and the families that draw the characters the

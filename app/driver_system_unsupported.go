@@ -8,6 +8,10 @@ func driverClipboardText() (string, error, bool) { return "", nil, false }
 
 func driverSetClipboardText(string) (error, bool) { return nil, false }
 
+func driverSetRectangularClipboardText(string) (error, bool) { return nil, false }
+
+func driverClipboardTextWithFormat() (string, bool, error, bool) { return "", false, nil, false }
+
 func driverSetPrimarySelection(string) (error, bool) { return nil, false }
 
 func driverPrimarySelection() (string, error, bool) { return "", nil, false }
@@ -20,12 +24,15 @@ func driverSetClipboardFiles([]string) (error, bool) { return nil, false }
 
 func driverSetClipboardHTML(string, string) (error, bool) { return nil, false }
 
+func driverSendNotification(Notification) (error, bool) { return nil, false }
+
 func driverOpenURL(string) (error, bool)    { return nil, false }
 func driverOpenPath(string) (error, bool)   { return nil, false }
 func driverRevealPath(string) (error, bool) { return nil, false }
 func driverOpenWith(string, string) (error, bool) {
 	return nil, false
 }
+func driverOpenInBrowser(string) (error, bool) { return nil, false }
 
 func driverOpenFiles(OpenFileOptions) ([]string, error, bool) {
 	return nil, nil, false
@@ -48,3 +55,5 @@ func driverStoreSecret(string, string, []byte) (error, bool) { return nil, false
 func driverLoadSecret(string, string) ([]byte, error, bool) { return nil, nil, false }
 
 func driverDeleteSecret(string, string) (error, bool) { return nil, false }
+
+func driverPreventSleep(string) (func(), error, bool) { return nil, nil, false }

@@ -1,6 +1,7 @@
 package components
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -104,6 +105,38 @@ func TestTooltipWrapsALabelWiderThanItsMaximum(t *testing.T) {
 	wrapped := BeginTooltip(&canvas, gfx.DarkTheme(), viewport, anchor, TooltipOptions{Layer: 1, MaxWidth: 120}).Paint("A label that is far wider than the tooltip may be")
 	if wrapped.Width != 120 || wrapped.Height <= one.Height || len(canvas.Texts()) < 2 {
 		t.Fatalf("wrapped tooltip %+v (%d lines) next to %+v", wrapped, len(canvas.Texts()), one)
+	}
+}
+
+func TestTooltipKeepsAnUnbrokenLabelWholeWhenItWraps(t *testing.T) {
+	var canvas gfx.Canvas
+	label := strings.Repeat("long-file-name-part-", 12) + ".txt"
+	BeginTooltip(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 600, Height: 400}, gfx.Rect{X: 260, Y: 180, Width: 80, Height: 32}, TooltipOptions{}).Paint(label)
+	var painted string
+	for _, text := range canvas.Texts() {
+		if strings.ContainsRune(text.Value, '…') {
+			t.Fatalf("the tooltip dropped part of the name: %q", text.Value)
+		}
+		if text.Style.Size != gfx.DarkTheme().Metrics.FontSizeS || text.Style.Weight != gfx.WeightRegular {
+			t.Fatalf("line is not measured with the tooltip's text style: %+v", text)
+		}
+		painted += text.Value
+	}
+	if painted != label || len(canvas.Texts()) < 2 {
+		t.Fatalf("painted = %q, want all of %q in multiple lines", painted, label)
+	}
+}
+
+func BenchmarkTooltipLongUnbrokenLabel(b *testing.B) {
+	var canvas gfx.Canvas
+	label := strings.Repeat("long-file-name-part-", 12) + ".txt"
+	theme := gfx.DarkTheme()
+	viewport := gfx.Rect{Width: 600, Height: 400}
+	anchor := gfx.Rect{X: 260, Y: 180, Width: 80, Height: 32}
+	b.ReportAllocs()
+	for b.Loop() {
+		canvas.Reset()
+		BeginTooltip(&canvas, theme, viewport, anchor, TooltipOptions{}).Paint(label)
 	}
 }
 

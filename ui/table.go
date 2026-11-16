@@ -79,6 +79,11 @@ type TableSpec struct {
 	// overflowing bar; zero lets the bars sit over their edges. The columns lose
 	// the width of a vertical gutter, and the rows the height of a horizontal one.
 	ScrollbarGutter float32
+	// HideHoverScrollbars hides the un-named vertical hover overlay for an
+	// application that paints its own vertical bar beside the table. It does not
+	// change scrollbar geometry, the horizontal overlay, scrolling, or any bar
+	// with an explicit Scrollbar ID. The default paints the overlay as usual.
+	HideHoverScrollbars bool
 }
 
 // tableRoute is a Table of the last paint that scrolls itself, and where: the
@@ -110,6 +115,13 @@ type TableState struct {
 	rows, page       int32     // as of the last paint: how many rows, how many fit at once
 	rowFirst, rowEnd int32     // the declared source rows: rowFirst <= i < rowEnd
 	scope            gfx.Scope // the rows' identities, to tell a key meant for the table
+	// cellLefts are the painted columns' left edges and the last column's right
+	// edge, and cellTop and cellRowHeight the first visible row's top and every
+	// row's height, as of the last paint; see CellRect. They keep their
+	// capacity across frames, so a warm table records them without allocating.
+	cellLefts     []float32
+	cellTop       float32
+	cellRowHeight float32
 }
 
 // Selected is the selected row, or -1.
@@ -391,10 +403,12 @@ func (f *frame) paintTable(n *node) {
 	// scrolls under the offset. A band with no width, or as wide as the body,
 	// pins nothing — there would be no window left to scroll in.
 	frozenWidth := float32(0)
+	frozenColumns := 0
 	if sideways {
-		frozenWidth = frozenColumnsWidth(t.spec.Columns, frozenColumnCount(t.spec.Columns, t.spec.FrozenColumns))
+		frozenColumns = frozenColumnCount(t.spec.Columns, t.spec.FrozenColumns)
+		frozenWidth = frozenColumnsWidth(t.spec.Columns, frozenColumns)
 		if frozenWidth <= 0 || frozenWidth >= body.Width {
-			frozenWidth = 0
+			frozenWidth, frozenColumns = 0, 0
 		}
 	}
 	seam := body.X + frozenWidth
@@ -425,6 +439,9 @@ func (f *frame) paintTable(n *node) {
 		last = min(max(int(math.Ceil(float64((hi-top)/rowHeight))), first), t.rows)
 	}
 	t.state.rowFirst, t.state.rowEnd = int32(first), int32(last)
+	// The cells CellRect answers with, laid out once from the same columns and
+	// the same top the rows are painted from (see recordTableCells).
+	f.recordTableCells(t, body, left, top, contentWidth, rowHeight, frozenColumns, frozenWidth)
 
 	if !scrolls && !sticky {
 		// Height: r.Height lets paintTableHeader keep its rule of the header's
@@ -534,6 +551,13 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, content gfx.Siz
 	// component takes the bars' strips out of it, matching the strip the columns
 	// and rows have already given up, so a drag maps the body it scrolls exactly.
 	// Without a gutter the bars keep sitting over the table's edges, as they had.
+	// An un-owned vertical hover thumb may duplicate an application's adjacent
+	// bar. Omit its component declaration: an explicit ID still paints and keeps
+	// its hit and drag, while the area's geometry and horizontal bar are unchanged.
+	verticalID, verticalLabel := t.spec.Scrollbar, label
+	if t.spec.HideHoverScrollbars && verticalID.IsZero() {
+		verticalLabel = ""
+	}
 	areaBounds := Rect{X: r.X, Y: body.Y, Width: r.Width, Height: r.Y + r.Height - body.Y}
 	area := components.BeginScrollArea(f.canvas, f.theme, areaBounds, content).
 		Offset(offsetX, offsetY).
@@ -544,7 +568,7 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, content gfx.Siz
 		area = area.ReserveScrollbars()
 	}
 	area = area.
-		VerticalScrollbar(t.spec.Scrollbar, label, "").
+		VerticalScrollbar(verticalID, verticalLabel, "").
 		HorizontalScrollbar(t.spec.HorizontalScrollbar, horizontalLabel, "")
 	geometry := area.Geometry()
 	area.EndContent()

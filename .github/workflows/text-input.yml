@@ -4,12 +4,20 @@ on:
   push:
     paths:
       - 'app/**'
+      - 'internal/iconshape/**'
+      - 'internal/dbus/**'
       - 'internal/platform/**'
+      - 'internal/ibus/**'
+      - 'internal/render/**'
       - '.github/workflows/text-input.yml'
   pull_request:
     paths:
       - 'app/**'
+      - 'internal/iconshape/**'
+      - 'internal/dbus/**'
       - 'internal/platform/**'
+      - 'internal/ibus/**'
+      - 'internal/render/**'
       - '.github/workflows/text-input.yml'
   workflow_dispatch:
 
@@ -40,17 +48,143 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Windows IME event dispatch cost
+        if: runner.os == 'Windows'
+        env:
+          IME_COST_BASE: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          GOWORK: 'off'
+        run: |
+          $reference = $env:IME_COST_BASE
+          if (-not $reference -or $reference -match '^0+$') { $reference = $env:GITHUB_SHA }
+          $workspace = $PWD.Path
+          $directory = Join-Path $env:RUNNER_TEMP ("viva-ime-cost-" + $env:GITHUB_RUN_ID + "-" + $env:GITHUB_RUN_ATTEMPT)
+          $benchmark = 'internal/platform/windows/composition_cost_windows_test.go'
+          if (Test-Path $directory) { throw 'cost worktree already exists' }
+          git fetch --no-tags --depth=1 origin $reference
+          if ($LASTEXITCODE -ne 0) { throw 'could not fetch cost baseline' }
+          git worktree add --detach $directory $reference
+          if ($LASTEXITCODE -ne 0) { throw 'could not create cost worktree' }
+          try {
+            Copy-Item $benchmark (Join-Path $directory $benchmark) -Force
+            $sourceHash = (Get-FileHash -Algorithm SHA256 $benchmark).Hash
+            $baseHash = (Get-FileHash -Algorithm SHA256 (Join-Path $directory $benchmark)).Hash
+            if ($sourceHash -ne $baseHash) { throw 'benchmark source changed' }
+            $benchmarkBlob = git rev-parse ("HEAD:" + $benchmark)
+            if ($LASTEXITCODE -ne 0) { throw 'benchmark blob is unavailable' }
+            Write-Output "IME cost benchmark sha256=$sourceHash"
+            Write-Output "IME cost benchmark blob=$benchmarkBlob"
+            Write-Output "IME cost OS=$([Environment]::OSVersion.VersionString) arch=$env:PROCESSOR_ARCHITECTURE cpu=$env:PROCESSOR_IDENTIFIER"
+            go version
+            for ($pair = 1; $pair -le 5; $pair++) {
+              Push-Location $directory
+              try {
+                Write-Output "IME cost variant=baseline pair=$pair commit=$(git rev-parse HEAD)"
+                go test ./internal/platform/windows -run '^$' -bench '^BenchmarkWindowsIME(Acknowledgment|StateAllocation)$' -benchmem -benchtime=200ms -count=1 -timeout=90s
+                if ($LASTEXITCODE -ne 0) { throw 'baseline cost benchmark failed' }
+              } finally { Pop-Location }
+              Write-Output "IME cost variant=candidate pair=$pair commit=$(git rev-parse HEAD)"
+              go test ./internal/platform/windows -run '^$' -bench '^BenchmarkWindowsIME(Acknowledgment|StateAllocation)$' -benchmem -benchtime=200ms -count=1 -timeout=90s
+              if ($LASTEXITCODE -ne 0) { throw 'candidate cost benchmark failed' }
+            }
+            Write-Output "IME cost variant=dispatch commit=$(git rev-parse HEAD)"
+            go test ./internal/platform/windows -run '^$' -bench '^BenchmarkCompositionMessageDispatch$' -benchmem -benchtime=200ms -count=5 -timeout=90s
+            if ($LASTEXITCODE -ne 0) { throw 'message dispatch benchmark failed' }
+          } finally {
+            git -C $workspace worktree remove --force $directory
+            if ($LASTEXITCODE -ne 0) { throw 'cost worktree cleanup failed' }
+            Write-Output 'IME cost worktree removed'
+          }
       - name: Application input lifecycle
         run: go test ./app -count=1
+      - name: Windows column clipboard protocol
+        if: runner.os == 'Windows'
+        env:
+          VIVA_WINDOWS_CLIPBOARD: '1'
+        run: |
+          git rev-parse HEAD
+          go version
+          go test ./internal/platform/windows -run '^TestColumnClipboardNative' -count=1 -v -timeout=90s
+      - name: Linux native probe dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-0t64 xvfb xauth dbus-x11 at-spi2-core
+          dpkg-query -W libgtk-3-0t64 xvfb xauth dbus-x11 at-spi2-core
+      - name: AT-SPI native lifecycle
+        if: runner.os == 'Linux'
+        run: |
+          binary="$RUNNER_TEMP/viva-atspi.test"
+          profile="$(mktemp -d "$RUNNER_TEMP/viva-atspi.XXXXXX")"
+          trap 'rm -rf "$profile" "$binary"' EXIT
+          go test -c -o "$binary" ./internal/platform/linux
+          mkdir -p "$profile"/{home,config,cache,data,runtime}
+          chmod 0700 "$profile/runtime"
+          xvfb-run -a env HOME="$profile/home" XDG_CONFIG_HOME="$profile/config" XDG_CACHE_HOME="$profile/cache" XDG_DATA_HOME="$profile/data" XDG_RUNTIME_DIR="$profile/runtime" VIVA_ATSPI_NATIVE_ROOT="$profile" VIVA_ATSPI_NATIVE=1 NO_AT_BRIDGE=1 dbus-run-session -- "$binary" -test.run='^TestAtspiNative(FirstWindowPolling|ResizePublishesFrames)$' -test.count=1 -test.v -test.timeout=45s
+      - name: GTK native composition lifecycle
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- xvfb-run -a env VIVA_GTK_IME_NATIVE=1 GTK_IM_MODULE=gtk-im-context-simple GDK_BACKEND=x11 NO_AT_BRIDGE=1 G_DEBUG=fatal-criticals go test -tags vivagtk ./internal/platform/linux -run '^(TestGTKNativeComposition|TestGTKNativeTentative.*|TestGTKNativeSameTargetOwnership)$' -count=1 -v -timeout=90s
+      - name: GTK ordinary key dispatch cost
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- xvfb-run -a env VIVA_GTK_IME_NATIVE=1 GTK_IM_MODULE=gtk-im-context-simple GDK_BACKEND=x11 NO_AT_BRIDGE=1 G_DEBUG=fatal-criticals go test -tags vivagtk ./internal/platform/linux -run '^$' -bench '^BenchmarkGTKNativeOrdinaryKey$' -benchmem -benchtime=200ms -count=3 -timeout=90s
+      - name: Linux IME protocol lifecycle
+        if: runner.os == 'Linux'
+        run: go test ./internal/ibus ./internal/platform/linux -run 'Test(IME|Preedit|CommitAndPreedit|MalformedPreedit)' -count=1 -timeout=90s
+      - name: Install Linux input service test dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-0t64 xvfb xauth dbus-x11 ibus ibus-libpinyin ibus-hangul python3-gi gir1.2-ibus-1.0 gir1.2-gtk-3.0 libglib2.0-bin dconf-cli fcitx5 fcitx5-pinyin fcitx5-hangul fcitx5-frontend-gtk3 weston
+          dpkg-query -W libgtk-3-0t64 xvfb xauth dbus-x11 ibus ibus-libpinyin ibus-hangul python3-gi gir1.2-ibus-1.0 gir1.2-gtk-3.0 libglib2.0-bin dconf-cli fcitx5 fcitx5-pinyin fcitx5-hangul fcitx5-frontend-gtk3 weston
+      - name: IBus native engine lifecycle
+        if: runner.os == 'Linux'
+        run: |
+          go test -c -o "$RUNNER_TEMP/viva-ibus-native.test" ./internal/ibus
+          xvfb-run -a env VIVA_IBUS_TEST_BINARY="$RUNNER_TEMP/viva-ibus-native.test" VIVA_IBUS_REFERENCE=1 VIVA_IBUS_TEST_RUN='^TestNative(EngineLifecycle|ClientPreeditMode|ContextRetirement)$' sh internal/ibus/testdata/native-service.sh libpinyin hangul
+      - name: IBus native frontend composition phases
+        if: runner.os == 'Linux'
+        run: |
+          go test -c -tags vivagtk -o "$RUNNER_TEMP/viva-ibus-frontend.test" ./internal/platform/linux
+          xvfb-run -a env VIVA_IBUS_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN='^TestNativeIBus(Frontend|OwnerReactivation|FactoryDeclinedShortcut|UnsupportedModeRetirement)$' sh internal/ibus/testdata/native-service.sh libpinyin hangul
+      - name: Fcitx native context retirement
+        if: runner.os == 'Linux'
+        run: |
+          for backend in x11 wayland; do
+            for engine in pinyin hangul; do
+              xvfb-run -a env VIVA_FCITX_ENGINE="$engine" G_DEBUG=fatal-criticals VIVA_FCITX_TEST_BINARY="$RUNNER_TEMP/viva-ibus-native.test" VIVA_IBUS_TEST_RUN='^TestNativeContextRetirement$' sh internal/ibus/testdata/native-fcitx-service.sh "$backend"
+            done
+          done
+      - name: Fcitx GTK and IBus frontend composition
+        if: runner.os == 'Linux'
+        run: |
+          for backend in x11 wayland; do
+            for engine in pinyin hangul; do
+              xvfb-run -a env VIVA_FCITX_ENGINE="$engine" VIVA_FCITX_REFERENCE=1 VIVA_FCITX_GTK_REFERENCE=1 VIVA_GTK_IME_NATIVE=1 G_DEBUG=fatal-criticals VIVA_FCITX_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN='^Test(NativeIBus(Frontend|OwnerReactivation|FactoryDeclinedShortcut|UnsupportedModeRetirement)|GTKNativeFcitx(Composition|WindowClose))$' sh internal/ibus/testdata/native-fcitx-service.sh "$backend"
+            done
+          done
+      - name: Linux text callback ordering
+        if: runner.os == 'Linux'
+        run: go test -race ./internal/platform/linux -run '^TestLinuxTextCallback' -count=1 -timeout=90s
+      - name: GTK text callback ordering
+        if: runner.os == 'Linux'
+        run: go test -tags vivagtk ./internal/platform/linux -run '^TestLinuxTextCallback' -count=1 -timeout=90s
       - name: Windows IME lifecycle
         if: runner.os == 'Windows'
-        run: go test ./internal/platform/windows -run 'TestComposition|TestDynamicTextInput' -count=1
+        run: |
+          go test ./internal/platform/windows -list 'TestComposition|TestDynamicTextInput'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go test ./internal/platform/windows -run 'TestComposition|TestDynamicTextInput' -count=1 -v -timeout=90s
       - name: Windows aligned text input
         if: runner.os == 'Windows'
         run: go test ./internal/platform/windows -run '^TestWindowsTextInputAlignmentMatchesGlyphCaretUnderlineAndPointer$' -count=1
       - name: Linux aligned text input
         if: runner.os == 'Linux'
         run: go test ./internal/platform/linux -run '^TestLinux(TextInputAlignmentMatchesGlyphCaretUnderlineAndPointer|RightToLeftAlignmentUsesLineWidthNotLogicalEndCaret|CandidateWindowFollowsAlignmentWhenNativeOverlaysAreHidden)$' -count=1
+      - name: GTK input method teardown ordering
+        if: runner.os == 'Linux'
+        run: go test -tags vivagtk ./internal/platform/linux -run '^TestGTKDestroyDetachesInputMethodBeforeNativeWidget$' -count=1 -v
+      - name: Linux clipboard, compositing and icon contracts
+        if: runner.os == 'Linux'
+        run: go test -tags vivagtk ./internal/platform/linux -run '^Test(AClipboardHTML|SetClipboardHTML|GTKClipboardHTML|CompositingLayers|NetWMIcon)' -count=1 -v
       # A terminal input is a preedit surface with a cursor of its own: the native
       # editor must draw no caret or selection over it, and blink none.
       - name: Windows terminal preedit draws no native caret

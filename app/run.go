@@ -38,5 +38,6 @@ func Run(config Config) error {
 			Blue:  normalized.ClearColor.Blue,
 			Alpha: normalized.ClearColor.Alpha,
 		},
+		WindowBorderColor: borderColorHandler(normalized.WindowBorderColor),
 	})
 }

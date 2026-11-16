@@ -13,6 +13,7 @@ The `app` package exposes a small, synchronous set of system integrations. An op
 | File dialogs | `app.OpenFiles`, `app.OpenDirectory`, `app.SaveFile` |
 | Open a URL | `app.OpenURL` |
 | Open a local document in its default application (never a program) | `app.OpenPath` |
+| Open a local file, such as an HTML page, in the default browser whatever opens its type | `app.OpenPathInBrowser` |
 | Notifications and sounds | `app.SendNotification`, `app.PlaySystemSound` |
 | Cursor | `app.SetCursor` |
 | Preferred languages | `app.PreferredLanguages` |
@@ -27,7 +28,7 @@ The `app` package exposes a small, synchronous set of system integrations. An op
 
 ## What each platform uses
 
-Each function maps to the platform's own API: `NSPasteboard`, `NSOpenPanel` and `NSWorkspace` on macOS; the Win32 clipboard, `IFileOpenDialog` and `ShellExecuteW` on Windows; X11 selections on Linux, with the desktop portal's file chooser and the notification service over D-Bus (`zenity`, `kdialog` and `notify-send` when a desktop has neither), and `xdg-open` or `gio` for URLs. Secrets go to the Keychain, Credential Manager or Secret Service.
+Each function maps to the platform's own API: `NSPasteboard`, `NSOpenPanel` and `NSWorkspace` on macOS; the Win32 clipboard, `IFileOpenDialog` and `ShellExecuteW` on Windows; X11 selections on Linux, with the desktop portal's file chooser and the notification service over D-Bus (`zenity`, `kdialog` and `notify-send` when a desktop has neither), and `xdg-open` or `gio` for URLs. The default browser is the application LaunchServices opens `https` links in on macOS, the `http` protocol's registered command on Windows, and on Linux the desktop entry `xdg-settings` names. Secrets go to the Keychain, Credential Manager or Secret Service.
 
 The full table, including the cases where a platform cannot do something, is the repository's `docs/system-integrations.md`.
 

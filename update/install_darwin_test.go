@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -373,5 +374,61 @@ func TestInstallShellQuote(t *testing.T) {
 		if got := shellQuote(test.text); got != test.want {
 			t.Errorf("shellQuote(%q) = %q, want %q", test.text, got, test.want)
 		}
+	}
+}
+
+// TestInstallStagesAnAppliedPatch follows the documented order: ApplyPatch
+// rebuilds the bundle in a directory named viva-payload-*, and Install has to
+// find that copy as an application bundle.
+func TestInstallStagesAnAppliedPatch(t *testing.T) {
+	oldRoot := filepath.Join(t.TempDir(), "My App.app")
+	program := []byte("program")
+	if err := os.MkdirAll(filepath.Join(oldRoot, "Contents", "MacOS"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(oldRoot, "Contents", "MacOS", "My App"), program, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldPlist := []byte(strings.Replace(fixtureInfoPlist, "1.2.3", "1.0.0", 1))
+	if err := os.WriteFile(filepath.Join(oldRoot, "Contents", "Info.plist"), oldPlist, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	newPlist := []byte(strings.Replace(fixtureInfoPlist, "1.2.3", "1.1.0", 1))
+	manifest := PatchManifest{
+		Schema: PatchSchema, App: "dev.viva.gallery", FromVersion: "1.0.0", ToVersion: "1.1.0",
+		OS: runtime.GOOS, Arch: runtime.GOARCH, Payload: "app",
+		Files: []PatchFile{
+			fileManifest("Contents/MacOS/My App", program, "same", "", 0o755),
+			fileManifest("Contents/Info.plist", newPlist, "new", "files/0001", 0o644),
+		},
+	}
+	patchPath := writePatch(t, manifest, map[string][]byte{"files/0001": newPlist})
+
+	original := locateInstalledPayload
+	defer func() { locateInstalledPayload = original }()
+	locateInstalledPayload = func() (string, string, error) { return oldRoot, "app", nil }
+
+	payload, err := ApplyPatch(patchPath, "dev.viva.gallery", "1.0.0", "1.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(payload)
+	staging := t.TempDir()
+	staged, err := stagePayload(payload, staging, filepath.Base(oldRoot))
+	if err != nil {
+		t.Fatalf("stagePayload: %v", err)
+	}
+	if want := filepath.Join(staging, "My App.app"); staged != want {
+		t.Errorf("staged = %q, want %q", staged, want)
+	}
+	info, err := readBundleInfo(staged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Identifier != "dev.viva.gallery" || info.Version != "1.1.0" {
+		t.Errorf("staged bundle = %+v, want dev.viva.gallery 1.1.0", info)
+	}
+	if got, err := os.ReadFile(filepath.Join(staged, "Contents", "MacOS", "My App")); err != nil || !slices.Equal(got, program) {
+		t.Errorf("staged program = %q, %v", got, err)
 	}
 }

@@ -8,12 +8,14 @@ import (
 	"github.com/vivaui/viva/text"
 )
 
-// CodeEditorRun colors one byte range of a line without changing its text
-// geometry. Runs are ordered and non-overlapping; invalid and overlapping spans
-// are ignored.
+// CodeEditorRun colors and slants one byte range of a line without changing its
+// text geometry: Italic draws the range in the italic face of the line's
+// fixed-pitch font, as a comment is drawn in an editor. Runs are ordered and
+// non-overlapping; invalid and overlapping spans are ignored.
 type CodeEditorRun struct {
 	Start, End int
 	Color      gfx.Color
+	Italic     bool
 }
 
 // CodeEditorMarkLayer paints colored byte ranges behind the text. Spans are
@@ -510,7 +512,12 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 		canvas.Label(snapshot.Placeholder, gfx.Rect{X: content.X, Y: content.Y + (lineHeight-cellHeight)/2, Width: content.Width, Height: cellHeight}, style)
 	}
 	currentLine := -1
-	if snapshot.CurrentLine && selectionStart == selectionEnd && len(selectionRanges) == 0 && !placeholder {
+	// The caret's line is tinted even while the document is empty: editing
+	// surfaces (CodeMirror's highlightActiveLine, VS Code) paint a row highlight
+	// wherever the caret sits, including the single empty row of a fresh
+	// document. Suppressing it on the placeholder row would make an empty
+	// editor's first line the only line in the widget without a background.
+	if snapshot.CurrentLine && selectionStart == selectionEnd && len(selectionRanges) == 0 {
 		currentLine = int(editor.rows[caretRow].line)
 	}
 	markerIndex := 0

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -10,18 +12,58 @@ import (
 	"github.com/vivaui/viva/tools/debpkg"
 	"github.com/vivaui/viva/tools/linuxicon"
 	"github.com/vivaui/viva/tools/manifest"
+	"github.com/vivaui/viva/tools/pkgbuild"
+	"github.com/vivaui/viva/tools/rpmpkg"
 	"github.com/vivaui/viva/tools/tarball"
 )
 
 // linuxRuntimeDepends are the libraries a Viva program opens at run time with
-// dlopen (Vulkan, XCB and Cairo). Nothing in the executable's headers names
-// them, so a .deb has to say so itself.
-var linuxRuntimeDepends = []string{"libvulkan1", "libxcb1", "libcairo2"}
+// dlopen and cannot start without: Vulkan, XCB, Cairo, and the Pango/fontconfig
+// stack text rendering needs. Nothing in the executable's headers names them, so
+// a .deb has to say so itself. Libraries the backend loads with a fallback (the
+// optional XCB extensions and PangoFT2) stay out: requiring them would refuse an
+// install on a distribution that keeps a provider out of its enabled repos.
+var linuxRuntimeDepends = []string{
+	"libvulkan1", "libxcb1", "libcairo2",
+	"libfontconfig1", "libpango-1.0-0", "libpangocairo-1.0-0", "libglib2.0-0",
+}
 
-// packageLinux builds the program and writes the Linux packages asked for, a
-// .tar.gz with an install script and a .deb, into the output directory. Both
-// are written beside their final names and renamed once every one of them is
-// complete, so a failure leaves earlier output alone.
+// linuxArchRuntimeDepends are the same libraries under Arch's names.
+var linuxArchRuntimeDepends = []string{
+	"vulkan-icd-loader", "libxcb", "cairo", "fontconfig", "pango", "glib2",
+}
+
+// linuxRPMRuntimeDepends names the shared-library capabilities that RPM's library
+// packages provide for the same set. Distribution package names differ; both
+// supported targets are 64-bit. These dlopen libraries are invisible to normal ELF
+// dependency scanning. GTK, IME, WebKit and the fallback-loaded XCB extensions
+// remain optional and are not forced on every app.
+var linuxRPMRuntimeDepends = []string{
+	"libvulkan.so.1()(64bit)", "libxcb.so.1()(64bit)", "libcairo.so.2()(64bit)",
+	"libfontconfig.so.1()(64bit)", "libpango-1.0.so.0()(64bit)",
+	"libpangocairo-1.0.so.0()(64bit)", "libgobject-2.0.so.0()(64bit)",
+}
+
+// linuxApplication describes the application for the Debian and RPM packages:
+// both install the same files, so they share one description.
+func linuxApplication(plan buildPlan, program []byte, category string, icons []linuxicon.Rendition) debpkg.Package {
+	loaded := plan.manifest
+	maintainer := loaded.Linux.Maintainer
+	if maintainer == "" {
+		maintainer = loaded.App.Name
+	}
+	return debpkg.Package{
+		Executable: plan.executable, ID: loaded.App.ID, Name: loaded.App.Name, Version: loaded.App.Version, Arch: plan.arch,
+		Maintainer: maintainer, Homepage: loaded.Linux.Homepage, Comment: loaded.Linux.Comment, Category: category,
+		Keywords: loaded.Linux.Keywords, URLSchemes: loaded.App.URLSchemes, FileTypes: linuxFileTypes(loaded.App.FileTypes),
+		Program: program, Icons: icons,
+	}
+}
+
+// packageLinux builds the program and writes the Linux packages asked for: a
+// .tar.gz with an install script, a .deb, and a PKGBUILD with its .SRCINFO for
+// an Arch binary package. Each is written beside its final name and renamed
+// once every one of them is complete, so a failure leaves earlier output alone.
 func packageLinux(request packageRequest) error {
 	plan, loaded, output := request.plan, request.plan.manifest, request.output
 	dest := request.out
@@ -79,52 +121,99 @@ func packageLinux(request packageRequest) error {
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return err
 	}
-	write := func(label, name string, build func(io.Writer) error) error {
+	// write writes one artifact and returns its SHA-256, which the PKGBUILD
+	// needs for the archive it installs.
+	write := func(label, name string, build func(io.Writer) error) (string, error) {
 		final := filepath.Join(dest, name)
 		file, err := os.CreateTemp(dest, "."+name+".viva-tmp-*")
 		if err != nil {
-			return err
+			return "", err
 		}
 		item := artifact{label: label, temporary: file.Name(), final: final}
 		artifacts = append(artifacts, item)
-		if err := build(file); err != nil {
+		digest := sha256.New()
+		if err := build(io.MultiWriter(file, digest)); err != nil {
 			file.Close()
-			return err
+			return "", err
 		}
 		if err := file.Chmod(0o644); err != nil {
 			file.Close()
-			return err
+			return "", err
 		}
-		return file.Close()
+		if err := file.Close(); err != nil {
+			return "", err
+		}
+		return hex.EncodeToString(digest.Sum(nil)), nil
 	}
 
-	if request.wants("tar.gz") {
+	var largest linuxicon.Rendition
+	if len(icons) > 0 {
+		largest = linuxicon.Largest(icons)
+	}
+	tarballName, tarballHash := "", ""
+	if request.wants("tar.gz") || request.wants("pkgbuild") {
 		spec := tarball.Linux{
 			Executable: plan.executable, Name: loaded.App.Name, Version: loaded.App.Version, Arch: plan.arch,
 			Comment: loaded.Linux.Comment, Category: category, Keywords: loaded.Linux.Keywords, URLSchemes: loaded.App.URLSchemes, FileTypes: linuxFileTypes(loaded.App.FileTypes), Program: program,
 		}
-		if len(icons) > 0 {
-			largest := linuxicon.Largest(icons)
+		if largest.Pixels > 0 {
 			spec.Icon, spec.IconPixels = largest.PNG, largest.Pixels
 		}
-		if err := write("tar.gz", spec.Directory()+".tar.gz", spec.Write); err != nil {
+		tarballName = spec.Directory() + ".tar.gz"
+		tarballHash, err = write("tar.gz", tarballName, spec.Write)
+		if err != nil {
 			return err
 		}
 	}
 	if request.wants("deb") {
+		spec := linuxApplication(plan, program, category, icons)
+		spec.Depends = debDepends(loaded.Linux.Depends)
+		if debName, err = spec.FileName(); err != nil {
+			return err
+		}
+		if _, err := write("deb", debName, spec.Write); err != nil {
+			return err
+		}
+	}
+	if request.wants("rpm") {
+		spec := rpmpkg.Package{App: linuxApplication(plan, program, category, icons), Requires: linuxRPMRuntimeDepends}
+		rpmName, err := spec.FileName()
+		if err != nil {
+			return err
+		}
+		if _, err := write("rpm", rpmName, spec.Write); err != nil {
+			return err
+		}
+	}
+	if request.wants("pkgbuild") {
 		maintainer := loaded.Linux.Maintainer
 		if maintainer == "" {
 			maintainer = loaded.App.Name
 		}
-		spec := debpkg.Package{
+		spec := pkgbuild.Package{
 			Executable: plan.executable, ID: loaded.App.ID, Name: loaded.App.Name, Version: loaded.App.Version, Arch: plan.arch,
-			Maintainer: maintainer, Homepage: loaded.Linux.Homepage, Comment: loaded.Linux.Comment, Category: category,
-			Keywords: loaded.Linux.Keywords, URLSchemes: loaded.App.URLSchemes, FileTypes: linuxFileTypes(loaded.App.FileTypes), Depends: debDepends(loaded.Linux.Depends), Program: program, Icons: icons,
+			Maintainer: maintainer, Homepage: loaded.Linux.Homepage, Comment: loaded.Linux.Comment,
+			Depends: archDepends(loaded.Linux.ArchDepends), Archive: tarballName, SHA256: tarballHash,
+			SourceURL: request.pkgbuildURL, IconPixels: largest.Pixels,
 		}
-		if debName, err = spec.FileName(); err != nil {
+		text, err := spec.PKGBUILD()
+		if err != nil {
 			return err
 		}
-		if err := write("deb", debName, spec.Write); err != nil {
+		if _, err := write("pkgbuild", "PKGBUILD", func(w io.Writer) error {
+			_, err := w.Write(text)
+			return err
+		}); err != nil {
+			return err
+		}
+		srcinfo, err := spec.SRCINFO()
+		if err != nil {
+			return err
+		}
+		if _, err := write("srcinfo", ".SRCINFO", func(w io.Writer) error {
+			_, err := w.Write(srcinfo)
+			return err
+		}); err != nil {
 			return err
 		}
 	}
@@ -177,6 +266,45 @@ func debDepends(own []string) []string {
 		}
 	}
 	return append(depends, own...)
+}
+
+// archDepends is debDepends for Arch, whose package names differ and whose
+// relations may be written without spaces (libxcb>=1.16).
+func archDepends(own []string) []string {
+	depends := make([]string, 0, len(linuxArchRuntimeDepends)+len(own))
+	for _, library := range linuxArchRuntimeDepends {
+		named := false
+		for _, dependency := range own {
+			if archDependencyName(dependency) == library {
+				named = true
+			}
+		}
+		if !named {
+			depends = append(depends, library)
+		}
+	}
+	seen := make(map[string]bool, len(depends)+len(own))
+	for _, dependency := range depends {
+		seen[archDependencyName(dependency)] = true
+	}
+	for _, dependency := range own {
+		if name := archDependencyName(dependency); !seen[name] {
+			seen[name] = true
+			depends = append(depends, dependency)
+		}
+	}
+	return depends
+}
+
+// archDependencyName is the package name of an Arch dependency without its
+// version relation.
+func archDependencyName(dependency string) string {
+	for _, relation := range []string{">=", "<=", ">", "<", "="} {
+		if before, _, ok := strings.Cut(dependency, relation); ok {
+			return strings.TrimSpace(before)
+		}
+	}
+	return strings.TrimSpace(dependency)
 }
 
 // loadLinuxIcon reads the [app] icon, which must be a PNG, and renders its

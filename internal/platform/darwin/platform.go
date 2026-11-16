@@ -167,6 +167,7 @@ type runState struct {
 	textInput       TextInput
 	textInputActive bool
 	textEventRedraw bool
+	textComposition *nativeTextComposition
 	// web hosts the pages of the window when the application asked for any.
 	web            *webState
 	webReady       func()
@@ -232,17 +233,27 @@ func (window *nativeWindow) MoveTo(origin gfx.Point) {
 }
 
 func (state *runState) setTextInput(input *TextInput) {
+	keepComposition := state.textComposition != nil && input != nil && input.State.TentativeComposition && state.textInputKeepsComposition(input)
 	if input == nil {
 		state.textHandler = nil
 		state.textState = TextState{}
 		state.textInput = TextInput{}
 		state.textInputActive = false
+		state.textComposition = nil
 		return
 	}
 	state.textHandler = input.OnEvent
 	state.textState = input.State
 	state.textInput = *input
 	state.textInputActive = true
+	if !input.State.TentativeComposition {
+		state.textComposition = nil
+	} else if state.textComposition == nil {
+		state.textComposition = &nativeTextComposition{}
+	} else if !keepComposition {
+		state.textComposition.epoch++
+		state.textComposition.pending = false
+	}
 }
 
 func (state *runState) textInputAlreadyUpdated(input *TextInput) bool {
@@ -260,6 +271,7 @@ func (state *runState) textInputKeepsComposition(next *TextInput) bool {
 		state.textInput.Target == next.Target &&
 		state.textInput.Multiline == next.Multiline && state.textInput.Secure == next.Secure &&
 		state.textInput.Terminal == next.Terminal && state.textInput.Placed == next.Placed &&
+		state.textInput.DisableIME == next.DisableIME &&
 		state.textState == next.State.WithoutRedraw()
 }
 
@@ -268,7 +280,7 @@ func sameTextInputPresentation(left, right TextInput) bool {
 		left.Width == right.Width && left.Height == right.Height &&
 		left.FontSize == right.FontSize && left.FontGeneration == right.FontGeneration &&
 		left.Alignment == right.Alignment && left.Layer == right.Layer && left.Multiline == right.Multiline && left.Secure == right.Secure &&
-		left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.Color == right.Color &&
+		left.Terminal == right.Terminal && left.MonoFace == right.MonoFace && left.AltSendsEscape == right.AltSendsEscape && left.KeyReleases == right.KeyReleases && left.DisableIME == right.DisableIME && left.Color == right.Color &&
 		left.CopyOverride == right.CopyOverride &&
 		left.State == right.State
 }
@@ -810,42 +822,44 @@ func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_inpu
 	markedStart := editor.RuneIndexToUTF16(input.State.Composition.Start)
 	markedEnd := editor.RuneIndexToUTF16(input.State.Composition.End)
 	return C.viva_text_input_config{
-		utf8:                 (*C.uchar)(value),
-		utf8_length:          C.size_t(len(input.State.Value)),
-		copy_override:        C.int(boolInt(input.CopyOverride)),
-		x:                    C.float(input.X),
-		y:                    C.float(input.Y),
-		width:                C.float(input.Width),
-		height:               C.float(input.Height),
-		font_size:            C.float(input.FontSize),
-		font_weight:          C.float(input.Weight),
-		alignment:            C.int(input.Alignment),
-		red:                  C.float(input.Color.Red),
-		green:                C.float(input.Color.Green),
-		blue:                 C.float(input.Color.Blue),
-		alpha:                C.float(input.Color.Alpha),
-		selected_start:       C.size_t(selectedStart),
-		selected_length:      C.size_t(selectedEnd - selectedStart),
-		marked_start:         C.size_t(markedStart),
-		marked_length:        C.size_t(markedEnd - markedStart),
-		has_marked_text:      C.int(boolInt(input.State.Composing)),
-		multiline:            C.int(boolInt(input.Multiline)),
-		secure:               C.int(boolInt(input.Secure)),
-		terminal:             C.int(boolInt(input.Terminal)),
-		hide_native_overlays: C.int(boolInt(input.HideNativeOverlays)),
-		mono_face:            C.int(input.MonoFace),
-		cell_width:           C.float(input.CellWidth),
-		baseline:             C.float(input.Baseline),
-		alt_sends_escape:     C.int(boolInt(input.AltSendsEscape)),
-		key_releases:         C.int(boolInt(input.KeyReleases)),
-		navigation_keys:      C.int(boolInt(input.NavigationKeys)),
-		placed:               C.int(boolInt(input.Placed)),
-		layer:                C.uint16_t(input.Layer),
-		caret_x:              C.float(input.CaretX),
-		caret_y:              C.float(input.CaretY),
-		caret_width:          C.float(input.CaretWidth),
-		caret_height:         C.float(input.CaretHeight),
-		enabled:              1,
+		utf8:                  (*C.uchar)(value),
+		utf8_length:           C.size_t(len(input.State.Value)),
+		copy_override:         C.int(boolInt(input.CopyOverride)),
+		x:                     C.float(input.X),
+		y:                     C.float(input.Y),
+		width:                 C.float(input.Width),
+		height:                C.float(input.Height),
+		font_size:             C.float(input.FontSize),
+		font_weight:           C.float(input.Weight),
+		alignment:             C.int(input.Alignment),
+		red:                   C.float(input.Color.Red),
+		green:                 C.float(input.Color.Green),
+		blue:                  C.float(input.Color.Blue),
+		alpha:                 C.float(input.Color.Alpha),
+		selected_start:        C.size_t(selectedStart),
+		selected_length:       C.size_t(selectedEnd - selectedStart),
+		marked_start:          C.size_t(markedStart),
+		marked_length:         C.size_t(markedEnd - markedStart),
+		has_marked_text:       C.int(boolInt(input.State.Composing)),
+		tentative_composition: C.int(boolInt(input.State.TentativeComposition)),
+		multiline:             C.int(boolInt(input.Multiline)),
+		secure:                C.int(boolInt(input.Secure)),
+		terminal:              C.int(boolInt(input.Terminal)),
+		hide_native_overlays:  C.int(boolInt(input.HideNativeOverlays)),
+		mono_face:             C.int(input.MonoFace),
+		cell_width:            C.float(input.CellWidth),
+		baseline:              C.float(input.Baseline),
+		alt_sends_escape:      C.int(boolInt(input.AltSendsEscape)),
+		key_releases:          C.int(boolInt(input.KeyReleases)),
+		disable_ime:           C.int(boolInt(input.DisableIME)),
+		navigation_keys:       C.int(boolInt(input.NavigationKeys)),
+		placed:                C.int(boolInt(input.Placed)),
+		layer:                 C.uint16_t(input.Layer),
+		caret_x:               C.float(input.CaretX),
+		caret_y:               C.float(input.CaretY),
+		caret_width:           C.float(input.CaretWidth),
+		caret_height:          C.float(input.CaretHeight),
+		enabled:               1,
 	}
 }
 

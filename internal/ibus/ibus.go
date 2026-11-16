@@ -76,11 +76,9 @@ type transport interface {
 type Handler struct {
 	// Commit delivers text the user has chosen.
 	Commit func(text string)
-	// Preedit shows, replaces or (visible false) hides the text being composed.
-	// cursor is a count of characters into text, and attrs style stretches of it:
-	// an engine marks the clause being converted with a background or a heavier
-	// underline.
-	Preedit func(text string, cursor int, visible bool, attrs []Attribute)
+	// Preedit preserves the signal's update/visibility provenance and optional
+	// focus-out mode. Attributes are context-owned and must not be modified.
+	Preedit func(PreeditEvent)
 	// DeleteSurrounding asks the client to delete count characters of the text
 	// around the caret, starting offset characters from it (a negative offset is
 	// before it). The engine does so to replace text it is about to convert again.
@@ -88,6 +86,33 @@ type Handler struct {
 	// Forward asks the client to treat a key as if it had been typed, which an
 	// engine does for a key it took apart (an Enter that ends a composition).
 	Forward func(keysym, keycode, state uint32)
+}
+
+// PreeditKind distinguishes a text update from visibility-only signals.
+type PreeditKind uint8
+
+const (
+	PreeditUpdate PreeditKind = iota
+	PreeditShow
+	PreeditHide
+)
+
+const (
+	PreeditModeClear  uint32 = 0
+	PreeditModeCommit uint32 = 1
+)
+
+// PreeditEvent is one native signal. An empty Text is not a terminal phase;
+// HasMode distinguishes the old signal from UpdatePreeditTextWithMode. Unknown
+// mode values are preserved for the caller to handle without guessing policy.
+type PreeditEvent struct {
+	Text       string
+	Attributes []Attribute
+	Cursor     int
+	Mode       uint32
+	Kind       PreeditKind
+	Visible    bool
+	HasMode    bool
 }
 
 // Attribute styles the characters [Start, End) of preedit text. Kind is one of
@@ -101,11 +126,13 @@ type Attribute struct {
 
 // Bus is a connection to the IBus daemon.
 type Bus struct {
-	conn     transport
-	contexts map[string]*Context
-	pending  []*pendingKey
-	err      error
-	now      func() time.Time
+	conn        transport
+	contexts    map[string]*Context
+	pending     []*pendingKey
+	err         error
+	now         func() time.Time
+	dispatching bool
+	redispatch  bool
 }
 
 type pendingKey struct {
@@ -123,9 +150,7 @@ type Context struct {
 	handler Handler
 	// preedit remembers the last preedit text, for a daemon that hides and later
 	// shows it again without sending it twice.
-	preedit       string
-	preeditCursor int
-	preeditAttrs  []Attribute
+	preedit PreeditEvent
 }
 
 // Address finds the IBus daemon's bus address the way libibus does: the
@@ -272,22 +297,38 @@ func (bus *Bus) Dispatch() error {
 	if bus.err != nil {
 		return bus.err
 	}
-	messages, err := bus.conn.Receive()
-	if err != nil {
-		bus.fail(err)
-		return err
+	if bus.dispatching {
+		bus.redispatch = true
+		return nil
 	}
-	for _, message := range messages {
-		switch message.Type {
-		case dbus.TypeSignal:
-			if context := bus.contexts[message.Path]; context != nil && message.Interface == contextInterface {
-				context.signal(message)
+	bus.dispatching = true
+	defer func() { bus.dispatching = false }()
+	for {
+		bus.redispatch = false
+		messages, err := bus.conn.Receive()
+		if err != nil {
+			bus.fail(err)
+			return err
+		}
+		for _, message := range messages {
+			switch message.Type {
+			case dbus.TypeSignal:
+				if context := bus.contexts[message.Path]; context != nil && message.Interface == contextInterface {
+					context.signal(message)
+				}
+			case dbus.TypeReturn, dbus.TypeError:
+				bus.answer(message)
 			}
-		case dbus.TypeReturn, dbus.TypeError:
-			bus.answer(message)
+			if bus.err != nil {
+				return bus.err
+			}
+		}
+		// A synchronous call in a handler may have read newer messages. Finish
+		// this batch before delivering them, even when Dispatch was reentered.
+		if !bus.redispatch {
+			return nil
 		}
 	}
-	return bus.err
 }
 
 // answer records the engine's verdict on a key and releases the verdicts that
@@ -330,7 +371,7 @@ func (bus *Bus) Expire() {
 }
 
 func (context *Context) send(member, signature string, body []byte) error {
-	if context.bus.err != nil {
+	if context.bus.err != nil || context.bus.contexts[context.path] != context {
 		return ErrClosed
 	}
 	if _, err := context.bus.conn.Send(service, context.path, contextInterface, member, signature, body); err != nil {
@@ -346,7 +387,7 @@ func (context *Context) send(member, signature string, body []byte) error {
 // (keycode less 8, as IBus counts), state as the X modifier mask, plus
 // ReleaseMask for a release. done may be nil for a release.
 func (context *Context) ProcessKey(keysym, keycode, state uint32, done func(handled bool)) error {
-	if context.bus.err != nil {
+	if context.bus.err != nil || context.bus.contexts[context.path] != context {
 		return ErrClosed
 	}
 	var body dbus.Encoder
@@ -367,6 +408,44 @@ func (context *Context) FocusIn() error { return context.send("FocusIn", "", nil
 
 // FocusOut tells the engine the text field lost the keyboard.
 func (context *Context) FocusOut() error { return context.send("FocusOut", "", nil) }
+
+// SetEngine selects an installed engine for a focused context and waits for the
+// daemon to finish selection. Buffered messages run before returning, or after
+// the current batch when called from a handler. A refusal leaves the bus usable.
+func (context *Context) SetEngine(name string) error {
+	var body dbus.Encoder
+	body.String(name)
+	return context.call(contextInterface, "SetEngine", "s", body.Bytes())
+}
+
+// SetClientCommitPreedit negotiates native preedit modes and makes the client
+// responsible for settling preedit on Reset and FocusOut. Use only when the
+// caller implements those modes; a daemon may refuse this optional property.
+func (context *Context) SetClientCommitPreedit(enabled bool) error {
+	var body dbus.Encoder
+	body.String(contextInterface)
+	body.String("ClientCommitPreedit")
+	body.Variant("(b)")
+	body.Align(8)
+	body.Bool(enabled)
+	return context.call("org.freedesktop.DBus.Properties", "Set", "ssv", body.Bytes())
+}
+
+func (context *Context) call(iface, member, signature string, body []byte) error {
+	if context.bus.err != nil || context.bus.contexts[context.path] != context {
+		return ErrClosed
+	}
+	_, err := context.bus.conn.Call(service, context.path, iface, member, signature, body)
+	var refusal *dbus.Error
+	if err != nil && !errors.As(err, &refusal) {
+		context.bus.fail(err)
+		return err
+	}
+	if dispatchErr := context.bus.Dispatch(); dispatchErr != nil {
+		return dispatchErr
+	}
+	return err
+}
 
 // Reset abandons the composition in progress.
 func (context *Context) Reset() error { return context.send("Reset", "", nil) }
@@ -395,10 +474,15 @@ func (context *Context) SetCursorLocation(x, y, width, height int32) error {
 
 // Close destroys the input context.
 func (context *Context) Close() {
-	if context.bus.err == nil {
-		_ = context.send("Destroy", "", nil)
+	if context.bus.contexts[context.path] != context {
+		return
 	}
 	delete(context.bus.contexts, context.path)
+	if context.bus.err == nil {
+		if _, err := context.bus.conn.Send(service, context.path, "org.freedesktop.IBus.Service", "Destroy", "", nil); err != nil {
+			context.bus.fail(err)
+		}
+	}
 }
 
 func (context *Context) signal(message *dbus.Message) {
@@ -408,27 +492,47 @@ func (context *Context) signal(message *dbus.Message) {
 		if text, ok := readText(args, message.Signature); ok && context.handler.Commit != nil {
 			context.handler.Commit(text)
 		}
-	case "UpdatePreeditText":
+	case "UpdatePreeditText", "UpdatePreeditTextWithMode":
+		withMode := message.Member == "UpdatePreeditTextWithMode"
+		wantSignature := "vub"
+		if withMode {
+			wantSignature = "vubu"
+		}
+		if message.Signature != wantSignature {
+			return
+		}
 		text, attrs, ok := readStyledText(args, message.Signature)
 		if !ok {
 			return
 		}
-		cursor := int(args.Uint32())
-		visible := args.Bool()
-		if args.Err() != nil {
+		event := PreeditEvent{Text: text, Attributes: attrs, Cursor: int(args.Uint32()), Visible: args.Bool(), HasMode: withMode}
+		if withMode {
+			event.Mode = args.Uint32()
+		}
+		if args.Err() != nil || args.Pos() != len(message.Body) {
 			return
 		}
-		context.preedit, context.preeditCursor, context.preeditAttrs = text, cursor, attrs
+		context.preedit = event
 		if context.handler.Preedit != nil {
-			context.handler.Preedit(text, cursor, visible, attrs)
+			context.handler.Preedit(event)
 		}
 	case "ShowPreeditText":
+		if message.Signature != "" || len(message.Body) != 0 {
+			return
+		}
 		if context.handler.Preedit != nil {
-			context.handler.Preedit(context.preedit, context.preeditCursor, true, context.preeditAttrs)
+			event := context.preedit
+			event.Kind, event.Visible = PreeditShow, true
+			context.handler.Preedit(event)
 		}
 	case "HidePreeditText":
+		if message.Signature != "" || len(message.Body) != 0 {
+			return
+		}
 		if context.handler.Preedit != nil {
-			context.handler.Preedit(context.preedit, context.preeditCursor, false, context.preeditAttrs)
+			event := context.preedit
+			event.Kind, event.Visible = PreeditHide, false
+			context.handler.Preedit(event)
 		}
 	case "DeleteSurroundingText":
 		offset, count := args.Int32(), args.Uint32()

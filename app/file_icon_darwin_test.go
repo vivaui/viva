@@ -4,6 +4,8 @@ package app
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 )
@@ -64,6 +66,30 @@ func TestFileIconAnswersFromAnyGoroutineAndForAMissingPath(t *testing.T) {
 	}
 	if _, err := FileIcon("/no/such/folder/Missing.app", 16); err != nil {
 		t.Fatalf("a missing path has the icon of its extension, got %v", err)
+	}
+}
+
+func TestFileIconAnswersAMissingPathWithItsExtensionIcon(t *testing.T) {
+	// FileIcon documents that a path need not exist: its icon is the one for
+	// its extension. The reference is a real empty file of that type, which the
+	// system already answers correctly, so the comparison holds whatever the
+	// system associates the type with.
+	const pixels = 32
+	dir := t.TempDir()
+	real := filepath.Join(dir, "document.txt")
+	if err := os.WriteFile(real, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	existing, err := FileIcon(real, pixels)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing, err := FileIcon(filepath.Join(dir, "never-created", "document.txt"), pixels)
+	if err != nil {
+		t.Fatalf("a missing path has the icon of its extension, got %v", err)
+	}
+	if !bytes.Equal(existing.Pix, missing.Pix) {
+		t.Fatal("a missing path got a different icon from the same type's real file")
 	}
 }
 

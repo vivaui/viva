@@ -47,6 +47,29 @@ type Host interface {
 	// Quit closes every window, close requests notwithstanding, and ends the
 	// loop. It is safe to call from any goroutine.
 	Quit()
+	// Post runs fn on the application's event-loop thread. It is safe from any
+	// goroutine and never blocks.
+	Post(fn func())
+}
+
+// Post runs fn on the application's event-loop thread. Use it to hand work a
+// background goroutine finished to the thread that owns the windows, the pages
+// and the retained scene. It is safe from any goroutine, never blocks, and the
+// functions it accepts run in the order Post accepted them; a function posted
+// after the loop has ended may not run.
+//
+// A posted function runs on the loop thread and must not wait for the loop: it
+// is the same thread that would have to run the work it waits on. Viva provides
+// no "call the loop and wait" form for that reason; a result is published where
+// the next Window wake or Paint reads it, as Config.OnWake and
+// Invalidator.Invalidate already arrange.
+//
+// It starts no goroutine: the adapter wakes the loop it already has.
+func (application *Application) Post(fn func()) {
+	if application == nil || application.host == nil || fn == nil {
+		return
+	}
+	application.host.Post(fn)
 }
 
 // Window is one independently retained native window. Close is idempotent and

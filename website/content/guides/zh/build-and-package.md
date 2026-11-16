@@ -72,7 +72,7 @@ category = "public.app-category.productivity"
 entitlements = "app.entitlements"   # 可选：连同 hardened runtime 一起签进应用包
 ```
 
-文件按严格模式解析。未知的表或键、重复项、类型错误的值，都会报出带行号的错误，所以拼写错误不会悄悄改变构建结果。`[mac.dmg]` 决定 `.dmg` 打开时的窗口样子：`background`（PNG，2x 图片标 144 dpi；其点数尺寸就是窗口尺寸）、`icon_size`，以及 `app_position` / `applications_position`（`[x, y]`，从窗口左上角到图标中心的点数）。不设置时镜像以 540×380 的窗口打开，底色为浅色，并画有从应用指向 Applications 的箭头。另外还有用于额外 `Info.plist` 字符串的 `[mac.info]`，以及供安装包使用的 `[windows]`（发布者、安装范围、网址）和 `[linux]`（菜单分类、说明、维护者、依赖、关键字）。
+文件按严格模式解析。未知的表或键、重复项、类型错误的值，都会报出带行号的错误，所以拼写错误不会悄悄改变构建结果。`[mac.dmg]` 决定 `.dmg` 打开时的窗口样子：`background`（PNG，2x 图片标 144 dpi；其点数尺寸就是窗口尺寸）、`icon_size`，以及 `app_position` / `applications_position`（`[x, y]`，从窗口左上角到图标中心的点数）。不设置时镜像以 540×380 的窗口打开，底色为浅色，并画有从应用指向 Applications 的箭头。另外还有用于额外 `Info.plist` 字符串的 `[mac.info]`，以及供安装包使用的 `[windows]`（发布者、安装范围、网址）和 `[linux]`（菜单分类、说明、维护者、Debian 依赖、Arch 依赖、关键字）。
 
 ## 发布构建
 
@@ -92,6 +92,7 @@ viva package                                    # build/Notes.app
 viva package --format app,zip,dmg
 viva package --target windows --format nsis,zip
 viva package --target linux --format tar.gz,deb
+viva package --target linux --format tar.gz,pkgbuild --pkgbuild-url https://example.com/downloads/notes-1.0.0-linux-x86_64.tar.gz
 viva package --program ./notes-signed           # 打包你自己构建或签名的可执行文件
 ```
 
@@ -99,7 +100,9 @@ viva package --program ./notes-signed           # 打包你自己构建或签名
 | --- | --- |
 | macOS | `.app`、可复现的 `.zip`、`.dmg` |
 | Windows | NSIS 安装程序（需要 `makensis`），或 `.zip` |
-| Linux | 带安装脚本的 `tar.gz`，或 `.deb` |
+| Linux | 带安装脚本的 `tar.gz`、`.deb`，或 Arch 二进制包用的 `PKGBUILD` 与 `.SRCINFO` |
+
+`PKGBUILD` 把程序装到 `/opt/<name>-bin`，链接到 `/usr/bin`，并安装菜单项、图标和文档类型；它不构建任何东西，所以写它不需要 Arch 机器。它的源是那个 `tar.gz`：默认 makepkg 在 `PKGBUILD` 旁边找它，`--pkgbuild-url` 则给出已发布归档的地址（写成 `tar.gz::<url>`，保留文件名）。每个架构写到各自的目录，因为一个目录只有一个 `PKGBUILD`。除每个 Viva 应用都需要的 Vulkan、XCB 和 Cairo 包之外，应用还需要别的库时，用 `[linux] arch_depends` 列出。
 
 **签名是可选的。** 什么都不配置就什么都不签：macOS 会阻止下载的应用包，Windows SmartScreen 会对安装程序给出警告。`--program` 的存在就是为了让你自己先构建、签名，再打包这个确定的可执行文件。
 

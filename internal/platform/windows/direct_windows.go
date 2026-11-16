@@ -520,7 +520,7 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 // exactly the pitch of the grid, a single wider character is centered on its cells, and
 // the run's decorations are DirectWrite's own.
 func (rasterizer *directRasterizer) drawRun(target *directTarget, family string, fallback uintptr, size, weight float32, run gfx.TextRun, piece string, left, span, pitch, baseline float32, clip pieceClip) error {
-	format, err := rasterizer.services.formatStyle(family, size, weight, run.Italic)
+	format, err := rasterizer.services.formatMono(family, size, weight, run.Italic)
 	if err != nil {
 		return err
 	}

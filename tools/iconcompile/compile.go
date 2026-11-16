@@ -91,6 +91,8 @@ func Compile(name string, source []byte) (gfx.Icon, error) {
 	state = state.inherit(root)
 	state.gradients = map[string]*svgNode{}
 	collectGradients(root, state.gradients)
+	state.ids = map[string]*svgNode{}
+	collectIDs(root, state.ids)
 	state.walk(root, origin, sink)
 	if sink.err != nil {
 		return gfx.Icon{}, fmt.Errorf("%s: %w", name, sink.err)
@@ -334,6 +336,12 @@ type iconState struct {
 	fillRule    gfx.PathFillRule
 	// gradients are the document's gradient elements by id.
 	gradients map[string]*svgNode
+	// ids are the document's id-bearing drawable elements (paths, groups,
+	// markers) by id, for <use> and marker references.
+	ids map[string]*svgNode
+	// useStack holds the ids of the <use> elements being expanded, plus the
+	// referenced target id, to reject circular references.
+	useStack []string
 }
 
 // inherit applies a node's own paint attributes over its parent's.
@@ -421,77 +429,182 @@ func parseHexColor(raw string) (gfx.Color, error) {
 	return color, nil
 }
 
+// walk draws node's children: groups recurse with their transform, use
+// elements expand their referenced target, and drawable elements paint.
 func (state iconState) walk(node *svgNode, at transform, sink *iconSink) {
-	emit := sink.add
-	for _, child := range node.Children {
+	for index := range node.Children {
+		child := &node.Children[index]
 		name := child.XMLName.Local
-		childState := state.inherit(&child)
 		if name == "g" {
 			next := at
 			if raw := child.Attr("transform"); raw != "" {
 				next = at.then(parseTransform(raw))
 			}
-			childState.walk(&child, next, sink)
+			state.inherit(child).walk(child, next, sink)
 			continue
 		}
-		elementAt := at
-		if raw := child.Attr("transform"); raw != "" {
-			elementAt = at.then(parseTransform(raw))
-		}
-		var (
-			fill     gfx.Color
-			colored  bool
-			gradient *gfx.LinearGradient
-			box      *boxGradient
-			err      error
-		)
-		if strings.HasPrefix(childState.fill, "url(") {
-			gradient, box, err = childState.linearGradient(elementAt)
-			if gradient != nil {
-				fill, colored = gradient.From, true
-			}
-		} else {
-			fill, colored, err = childState.color()
-		}
-		if err != nil && sink.err == nil {
-			sink.err = err
-		}
-		if !colored && childState.invisible() {
+		if name == "use" {
+			state.expandUse(child, at, sink)
 			continue
 		}
-		if colored {
-			sink.begin(fill, childState.fillRule, gradient)
-		}
-		switch name {
-		case "path":
-			state.emitPathData(child.Attr("d"), elementAt, emit)
-		case "line":
-			state.emitLine(&child, elementAt, emit)
-		case "polyline", "polygon":
-			state.emitPoly(&child, elementAt, name == "polygon", emit)
-		case "rect":
-			state.emitRect(&child, elementAt, emit)
-		case "circle":
-			state.emitCircle(&child, elementAt, emit)
-		case "ellipse":
-			state.emitEllipse(&child, elementAt, emit)
-		case "defs", "title", "desc", "metadata", "style", "linearGradient", "radialGradient", "clipPath", "mask", "filter":
-			// Structure and metadata: not drawn by themselves.
-		default:
-			// An element the compiler does not know is never skipped silently: a
-			// dropped <ellipse> once left half of Lucide's cylinder on screen.
-			if sink.err == nil {
-				sink.err = fmt.Errorf("unsupported element <%s>", name)
-			}
-		}
-		if box != nil {
-			sink.fitBoxGradient(box)
-		}
-		if colored {
-			sink.end()
-		}
+		state.emitOne(child, at, sink)
 	}
 }
+
+// emitOne paints one drawable element in its parent's coordinate system: its
+// own transform and paint compose onto the incoming state, colored shapes open
+// a layer, and the flag icon sets' vertex markers follow their path.
+func (state iconState) emitOne(node *svgNode, at transform, sink *iconSink) {
+	childState := state.inherit(node)
+	name := node.XMLName.Local
+	elementAt := at
+	if raw := node.Attr("transform"); raw != "" {
+		elementAt = at.then(parseTransform(raw))
+	}
+	switch name {
+	case "g", "use", "defs", "title", "desc", "metadata", "style", "linearGradient", "radialGradient", "clipPath", "mask", "filter", "marker":
+		// Handled by walk or not drawn by themselves.
+		return
+	}
+	var (
+		fill     gfx.Color
+		colored  bool
+		gradient *gfx.LinearGradient
+		box      *boxGradient
+		err      error
+	)
+	if strings.HasPrefix(childState.fill, "url(") {
+		gradient, box, err = childState.linearGradient(elementAt)
+		if gradient != nil {
+			fill, colored = gradient.From, true
+		}
+	} else {
+		fill, colored, err = childState.color()
+	}
+	if err != nil && sink.err == nil {
+		sink.err = err
+	}
+	if !colored && childState.invisible() {
+		// An unpainted path still places its markers: that is exactly how the
+		// US star field is drawn — a fill-none outline whose vertices carry
+		// the stars.
+		state.emitMarkers(node, at, sink)
+		return
+	}
+	if colored {
+		sink.begin(fill, childState.fillRule, gradient)
+	}
+	emit := sink.add
+	switch name {
+	case "path":
+		state.emitPathData(node.Attr("d"), elementAt, emit)
+		// Star fields of flag icons place a marker at every intermediate
+		// vertex of the outline (US-SVG's marker-mid).
+		state.emitMarkers(node, at, sink)
+	case "line":
+		state.emitLine(node, elementAt, emit)
+	case "polyline", "polygon":
+		state.emitPoly(node, elementAt, name == "polygon", emit)
+	case "rect":
+		state.emitRect(node, elementAt, emit)
+	case "circle":
+		state.emitCircle(node, elementAt, emit)
+	case "ellipse":
+		state.emitEllipse(node, elementAt, emit)
+	default:
+		// An element the compiler does not know is never skipped silently: a
+		// dropped <ellipse> once left half of Lucide's cylinder on screen.
+		if sink.err == nil {
+			sink.err = fmt.Errorf("unsupported element <%s>", name)
+		}
+	}
+	if box != nil {
+		sink.fitBoxGradient(box)
+	}
+	if colored {
+		sink.end()
+	}
+}
+
+// expandUse draws one <use> element: the referenced target is expanded as if
+// deeply cloned here, so its shapes inherit paint from the use site unless
+// they carry their own, and the use element's transform and x/y offset place
+// the clone. A target that is itself a <use> dereferences again, up to a
+// bounded depth: a cycle is a compile error, not an infinite icon.
+func (state iconState) expandUse(use *svgNode, at transform, sink *iconSink) {
+	id := referencedID(use)
+	if id == "" {
+		if sink.err == nil {
+			sink.err = fmt.Errorf("<use> without a target")
+		}
+		return
+	}
+	target := state.ids[id]
+	if target == nil {
+		// An invalid reference draws nothing, as in SVG 1.1.
+		return
+	}
+	for _, active := range state.useStack {
+		if active == id {
+			if sink.err == nil {
+				sink.err = fmt.Errorf("<use> cycle through #%s", id)
+			}
+			return
+		}
+	}
+	if len(state.useStack) >= maxUseDepth {
+		if sink.err == nil {
+			sink.err = fmt.Errorf("<use> nested more than %d deep through #%s", maxUseDepth, id)
+		}
+		return
+	}
+	next := at
+	if raw := use.Attr("transform"); raw != "" {
+		next = next.then(parseTransform(raw))
+	}
+	if raw := use.Attr("x"); raw != "" {
+		if x, err := strconv.ParseFloat(raw, 64); err == nil {
+			next = next.then(transform{1, 0, 0, 1, x, 0})
+		}
+	}
+	if raw := use.Attr("y"); raw != "" {
+		// y="44" on a use of the Korean flag is a plain shift of the bars.
+		if y, err := strconv.ParseFloat(raw, 64); err == nil {
+			next = next.then(transform{1, 0, 0, 1, 0, y})
+		}
+	}
+	// width/height would scale the target of a <use>, but SVG only applies
+	// them to <svg> and <symbol> targets; on shapes and groups (every real
+	// icon source, including the flag sets) they are inert.
+	useState := state.inherit(use)
+	useState.useStack = append(state.useStack, id)
+	switch target.XMLName.Local {
+	case "g":
+		nextG := next
+		if raw := target.Attr("transform"); raw != "" {
+			nextG = next.then(parseTransform(raw))
+		}
+		// A group target is cloned: its own paint and transform compose like
+		// a <g> in flow at the use site, then its children walk underneath.
+		useState.inherit(target).walk(target, nextG, sink)
+	case "use":
+		// A use pointing at a use dereferences through the same rules.
+		useState.expandUse(target, next, sink)
+	default:
+		// A single shape target paints like the same node sitting in flow
+		// where the use is; x/y and transform above carried it so far.
+		useState.emitOne(target, next, sink)
+	}
+}
+
+// referencedID reads the href (or xlink:href, whose parsed name is also
+// href) attribute of a reference and strips the leading #.
+func referencedID(node *svgNode) string {
+	return strings.TrimPrefix(strings.TrimSpace(node.Attr("href")), "#")
+}
+
+// maxUseDepth bounds use dereferences, including through nested groups.
+const maxUseDepth = 32
 
 func (state iconState) point(at transform, x, y float64) (float32, float32) {
 	px, py := at.apply(x, y)
@@ -812,6 +925,25 @@ func collectGradients(node *svgNode, into map[string]*svgNode) {
 	}
 }
 
+// collectIDs indexes every id-bearing element that <use> and marker
+// references can point at: shapes, groups and markers, wherever they are
+// defined, including inside <defs>. Flag icon sets reference a shared path or
+// group from several <use> elements, each with its own transform.
+func collectIDs(node *svgNode, into map[string]*svgNode) {
+	for index := range node.Children {
+		child := &node.Children[index]
+		switch child.XMLName.Local {
+		case "path", "line", "polyline", "polygon", "rect", "circle", "ellipse", "g", "marker", "use":
+			if id := child.Attr("id"); id != "" {
+				if _, taken := into[id]; !taken {
+					into[id] = child
+				}
+			}
+		}
+		collectIDs(child, into)
+	}
+}
+
 // boxGradient is a gradient given in objectBoundingBox units, SVG's default: its
 // endpoints are fractions of the bounding box of the shape it fills, which is only
 // known once the shape has been drawn. fitBoxGradient finishes it.
@@ -976,4 +1108,308 @@ func parseStop(stop *svgNode) (float64, gfx.Color, error) {
 		color.Alpha *= float32(min(max(value, 0), 1))
 	}
 	return offset, color, nil
+}
+
+// emitMarkers draws the markers a path element names at its vertices. Only the
+// star fields of the flag icon sets use markers today, all through marker-mid,
+// which places a marker at every vertex apart from the first of each subpath
+// (a closed outline's last vertex keeps its marker, as browsers draw it).
+// marker-start and marker-end are placed by the same machinery, one at a
+// subpath's first, respectively last, vertex, but no yielded source exercises
+// them yet. A marker with no orient attribute — every real source — stays at
+// angle 0, matching the browsers (SVG's default; the US star is drawn upright
+// at every vertex). orient="auto" turns the content to the bisector of the
+// two segments at the vertex.
+func (state iconState) emitMarkers(path *svgNode, at transform, sink *iconSink) {
+	mid := path.Attr("marker-mid")
+	start, end := path.Attr("marker-start"), path.Attr("marker-end")
+	if mid == "" && start == "" && end == "" {
+		return
+	}
+	// markerUnits defaults to strokeWidth, so the marker content scales with
+	// the path's stroke (1 in the flag sets, where paths carry no stroke).
+	scale := 1.0
+	if raw := strings.TrimSpace(path.Attr("stroke-width")); raw != "" {
+		if width, err := strconv.ParseFloat(raw, 64); err == nil && width > 0 {
+			scale = width
+		}
+	}
+	for _, subpath := range skeletonVertices(path.Attr("d")) {
+		for index, vertex := range subpath.vertices {
+			switch {
+			case index == 0 && start != "":
+				state.placeMarker(start, vertex, at, scale, sink)
+			case index == len(subpath.vertices)-1 && end != "":
+				// An end marker belongs to the last vertex; on a closed
+				// subpath that vertex is also where the closepath lands.
+				state.placeMarker(end, vertex, at, scale, sink)
+			case index == 0 || index == len(subpath.vertices)-1 && !subpath.closed:
+				// The first vertex, and the last of an open subpath, are the
+				// start and end property's, not marker-mid's.
+				continue
+			case mid != "":
+				state.placeMarker(mid, vertex, at, scale, sink)
+			}
+		}
+	}
+}
+
+// placeMarker expands one marker element at a vertex. The content is cloned
+// at the vertex, shifted by negated refX/refY, scaled by the path's stroke
+// width under the default markerUnits, and turned per orient: a fixed angle
+// (absent is 0) or the bisector of the vertex's two directions for auto.
+func (state iconState) placeMarker(reference string, vertex pathVertex, at transform, scale float64, sink *iconSink) {
+	id := strings.Trim(strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(reference), "url("), ")"), " '\"")
+	id = strings.TrimPrefix(id, "#")
+	marker := state.ids[id]
+	if marker == nil || marker.XMLName.Local != "marker" {
+		return // An invalid reference draws nothing, as in the browsers.
+	}
+	if strings.TrimSpace(marker.Attr("markerUnits")) == "userSpaceOnUse" {
+		scale = 1
+	}
+	placed := transform{scale, 0, 0, scale, 0, 0}
+	angle := 0.0
+	if orient := strings.TrimSpace(marker.Attr("orient")); orient == "auto" {
+		// Weighted with the segment lengths normalized: the bisector of the
+		// unit tangents, as SVG specifies.
+		inX, inY := vertex.in[0], vertex.in[1]
+		outX, outY := vertex.out[0], vertex.out[1]
+		lengthIn := math.Hypot(inX, inY)
+		lengthOut := math.Hypot(outX, outY)
+		if lengthIn > 0 && lengthOut > 0 {
+			bisX, bisY := inX/lengthIn+outX/lengthOut, inY/lengthIn+outY/lengthOut
+			angle = math.Atan2(bisY, bisX)
+		} else if lengthOut > 0 {
+			angle = math.Atan2(outY, outX)
+		} else if lengthIn > 0 {
+			angle = math.Atan2(inY, inX)
+		}
+	} else if orient != "" && orient != "0" {
+		if parsed, err := strconv.ParseFloat(orient, 64); err == nil {
+			angle = parsed * math.Pi / 180
+		}
+	}
+	cos, sin := math.Cos(angle), math.Sin(angle)
+	rotation := transform{cos, sin, -sin, cos, 0, 0}
+	view := markerToView(marker)
+	translate := transform{1, 0, 0, 1, vertex.point[0], vertex.point[1]}
+	ref := transform{1, 0, 0, 1, -markerNumber(marker.Attr("refX")) * view, -markerNumber(marker.Attr("refY")) * view}
+	place := at.then(translate).then(rotation).then(placed).then(ref)
+	// The marker's children are cloned with the paint in scope here.
+	state.walk(marker, place, sink)
+}
+
+// markerToView converts marker content coordinates into marker viewport units
+// when the marker declares a viewBox; without one — the flag sets' case — the
+// content is already in viewport units.
+func markerToView(marker *svgNode) float64 {
+	raw := marker.Attr("viewBox")
+	if raw == "" {
+		return 1
+	}
+	fields := strings.Fields(raw)
+	if len(fields) != 4 {
+		return 1
+	}
+	width, err := strconv.ParseFloat(fields[2], 64)
+	viewport := markerNumber(marker.Attr("markerWidth"))
+	if err != nil || width <= 0 || viewport <= 0 {
+		return 1
+	}
+	return viewport / width
+}
+
+// markerNumber reads a marker geometry attribute, treating SVG's bare-value
+// form; anything unparsable is SVG's zero default.
+func markerNumber(raw string) float64 {
+	value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil {
+		return 0
+	}
+	return value
+}
+
+// pathVertex is one vertex of a path's straight-line skeleton: the point plus
+// the directions of the segments entering and leaving it (a curve flattens to
+// its chord).
+type pathVertex struct {
+	point [2]float64
+	in    [2]float64 // the incoming segment direction; zero at a subpath's first vertex
+	out   [2]float64 // the outgoing segment direction; set by the next vertex or closepath
+}
+
+// pathSkeleton is one subpath of the vertex skeleton.
+type pathSkeleton struct {
+	vertices []pathVertex
+	closed   bool
+}
+
+// skeletonVertices parses path data into per-subpath vertex lists with segment
+// directions: every move and every explicit endpoint (line, curve or arc) is a
+// vertex; the direction of a curve is its chord. Marker sources are polyline
+// outlines, where both are exact.
+func skeletonVertices(data string) []pathSkeleton {
+	parser := &pathParser{input: data}
+	var currentX, currentY, startX, startY float64
+	var subpaths []pathSkeleton
+	var current []pathVertex
+	closed := false
+	var inX, inY float64 // direction of the segment ending at the current point
+	flush := func() {
+		if len(current) > 0 {
+			subpaths = append(subpaths, pathSkeleton{vertices: current, closed: closed})
+			current = nil
+		}
+		closed = false
+	}
+	appendVertex := func(x, y, iX, iY float64) {
+		if len(current) > 0 {
+			previous := &current[len(current)-1]
+			previous.out = [2]float64{x - previous.point[0], y - previous.point[1]}
+		}
+		current = append(current, pathVertex{point: [2]float64{x, y}, in: [2]float64{iX, iY}})
+	}
+	for {
+		command, relative, ok := parser.nextCommand()
+		if !ok {
+			break
+		}
+		switch command {
+		case 'M':
+			first := true
+			for {
+				x, y, ok := parser.coords()
+				if !ok {
+					break
+				}
+				if relative && !first {
+					// Coordinate pairs after the first of an 'm' are implicit
+					// relative linetos of the same subpath.
+					x, y = x+currentX, y+currentY
+					inX, inY = x-currentX, y-currentY
+					currentX, currentY = x, y
+					appendVertex(x, y, inX, inY)
+				} else {
+					flush()
+					currentX, currentY = x, y
+					startX, startY = x, y
+					appendVertex(x, y, 0, 0)
+				}
+				first = false
+				if !parser.moreNumbers() {
+					break
+				}
+			}
+		case 'L':
+			for {
+				x, y, ok := parser.coords()
+				if !ok {
+					break
+				}
+				if relative {
+					x, y = x+currentX, y+currentY
+				}
+				inX, inY = x-currentX, y-currentY
+				currentX, currentY = x, y
+				appendVertex(x, y, inX, inY)
+				if !parser.moreNumbers() {
+					break
+				}
+			}
+		case 'H':
+			for {
+				x, ok := parser.number()
+				if !ok {
+					break
+				}
+				if relative {
+					x += currentX
+				}
+				inX, inY = x-currentX, 0
+				currentX = x
+				appendVertex(x, currentY, inX, inY)
+				if !parser.moreNumbers() {
+					break
+				}
+			}
+		case 'V':
+			for {
+				y, ok := parser.number()
+				if !ok {
+					break
+				}
+				if relative {
+					y += currentY
+				}
+				inX, inY = 0, y-currentY
+				currentY = y
+				appendVertex(currentX, y, inX, inY)
+				if !parser.moreNumbers() {
+					break
+				}
+			}
+		case 'C', 'S', 'Q', 'T':
+			var pairs int
+			if command == 'C' || command == 'S' {
+				pairs = 3
+			} else {
+				pairs = 2
+			}
+			for {
+				var last [2]float64
+				ok := true
+				for pair := 0; pair < pairs; pair++ {
+					x, y, got := parser.coords()
+					if !got {
+						ok = false
+						break
+					}
+					last = [2]float64{x, y}
+				}
+				if !ok {
+					break
+				}
+				if relative {
+					last = [2]float64{last[0] + currentX, last[1] + currentY}
+				}
+				inX, inY = last[0]-currentX, last[1]-currentY
+				currentX, currentY = last[0], last[1]
+				appendVertex(last[0], last[1], inX, inY)
+				if !parser.moreNumbers() {
+					break
+				}
+			}
+		case 'A':
+			for {
+				args, ok := parser.seven()
+				if !ok {
+					break
+				}
+				x, y := args[5], args[6]
+				if relative {
+					x, y = x+currentX, y+currentY
+				}
+				inX, inY = x-currentX, y-currentY
+				currentX, currentY = x, y
+				appendVertex(x, y, inX, inY)
+				if !parser.moreNumbers() {
+					break
+				}
+			}
+		case 'Z':
+			// A close emits no vertex; the closing line's direction is stored
+			// as the last vertex's outgoing segment, and the subpath is marked
+			// closed: its initial vertex is this vertex too, which browsers
+			// honour by drawing the mid marker on the word's last vertex.
+			closed = true
+			if len(current) > 0 {
+				last := &current[len(current)-1]
+				last.out = [2]float64{startX - last.point[0], startY - last.point[1]}
+			}
+			currentX, currentY = startX, startY
+		}
+	}
+	flush()
+	return subpaths
 }

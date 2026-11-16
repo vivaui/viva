@@ -84,12 +84,16 @@ type MonoCellMetrics struct {
 	Ascent  float32 // baseline to the top of the line box
 	Descent float32 // baseline to the bottom of the line box
 	LineGap float32 // the space the font asks between two line boxes; zero where the engine derives Descent from the font's line height (Windows and Linux), which folds the gap into it
-	// Underline is the thickness of the stroke the face draws an underline with, in
-	// logical pixels: the weight a cell glyph's rule takes, so that a box drawing or
-	// block character drawn as geometry weighs what the font's own glyphs weigh
-	// (Ghostty's Metrics.box_thickness). Zero when the engine does not report it; the
-	// canvas then uses the reference thickness (internal/textmetrics.MonoUnderline).
-	Underline float32
+	// Rule and HeavyRule are the thicknesses, in logical pixels, of the strokes the
+	// face draws with a light (U+2502) and a heavy (U+2503) box drawing line: the
+	// weights a cell glyph drawn as geometry takes, so that it weighs what the font's
+	// own glyph would weigh. They are the glyphs' ink widths, not a share of the font
+	// size and not the underline thickness, which a face may draw at a different weight
+	// than its box lines. Zero when the engine does not report it, or its face lacks
+	// the glyph; the canvas then uses the reference thickness
+	// (internal/textmetrics.MonoRule).
+	Rule      float32
+	HeavyRule float32
 }
 
 // Line is the height of the font's line box: its ascent, its descent and the gap it asks
@@ -131,12 +135,39 @@ type FontFamilyAware interface {
 	// FontGeneration counts the changes after which the same line shapes
 	// differently: it moves on every SetFontFamily that changed the family,
 	// when the system's own fonts changed under the engine, and, on an engine
-	// that has the weight's choice (FontThickener), on every SetFontThickening
-	// that changed it. What the canvas or a renderer remembers of shaped text
-	// (a cut line, a rasterized label) is stale once it differs from the
-	// generation it was made at. Wrapping around is harmless: only equality is
-	// ever asked.
+	// that has the weight's choice (FontThickener, FontWeightAware,
+	// MonoWeightAware), on every SetFontThickening, SetFontWeights or
+	// SetMonoWeights that changed it. What the canvas or a renderer remembers
+	// of shaped text (a cut line, a rasterized label) is stale once it differs
+	// from the generation it was made at. Wrapping around is harmless: only
+	// equality is ever asked.
 	FontGeneration() uint32
+}
+
+// FontWeightAware is an optional FontFamilyAware capability: an engine that can also
+// name which installed weights the interface's text is drawn at. A family ships as
+// several weights (Thin … Black), and which of them the main text and the bold text
+// use is the application's choice; a family without the engine's own weights (400 for
+// regular, 700 for bold) is drawn at them through the platform's nearest match.
+type FontWeightAware interface {
+	// SetFontWeights names the weight the main text and the bold text are drawn at, as
+	// DWRITE_FONT_WEIGHT values (300 Light, 400 Regular, 500 Medium, 600 Semibold,
+	// 700 Bold …), or 0 for the platform's own. Main covers regular and medium text,
+	// bold covers semibold and bold. What was shaped at another weight is forgotten,
+	// and FontGeneration moves, as it does for a family change.
+	SetFontWeights(main, bold int)
+}
+
+// MonoWeightAware is an optional TextEngine capability: the weights the fixed-pitch
+// text — a terminal's face, drawn through a MonoFace — is drawn at, named apart from
+// the interface's because a terminal's family and weights are its own choice. The
+// weights also pick the face whose cell the fixed-pitch text is laid out on.
+type MonoWeightAware interface {
+	// SetMonoWeights names the weight the regular fixed-pitch text and the bold
+	// fixed-pitch text are drawn at, as FontWeightAware does, or 0 for the platform's
+	// own. What was shaped at another weight is forgotten, FontGeneration moves, and
+	// the cells the canvas measured are measured again.
+	SetMonoWeights(main, bold int)
 }
 
 // FontThickener is an optional TextEngine capability that draws the glyphs it

@@ -3,13 +3,16 @@
 package update
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
-	"syscall"
+	"strings"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -155,19 +158,6 @@ func TestHelperCommand(t *testing.T) {
 	}
 }
 
-func TestHelperSysProcAttr(t *testing.T) {
-	attributes := helperSysProcAttr()
-	if !attributes.HideWindow {
-		t.Error("helper does not hide its window")
-	}
-	if attributes.CreationFlags&detachedProcess == 0 {
-		t.Error("helper is not detached from the console")
-	}
-	if attributes.CreationFlags&syscall.CREATE_NEW_PROCESS_GROUP == 0 {
-		t.Error("helper does not start in its own process group")
-	}
-}
-
 func TestCheckWritable(t *testing.T) {
 	directory := t.TempDir()
 	if err := checkWritable(directory); err != nil {
@@ -223,4 +213,270 @@ func TestWinTrustStructLayout(t *testing.T) {
 			t.Errorf("%s offset = %d, want %d", name, check.got, check.want)
 		}
 	}
+}
+
+func TestPayloadHelperScriptKeepsABackupAndRestores(t *testing.T) {
+	script := payloadHelperScript(1234, `C:\Temp\O'Brien\payload`, `C:\Apps\Motty`, `C:\Apps\Motty\motty.exe`, []string{"--flag", "a b"})
+	for _, want := range []string{
+		"$parent = 1234",
+		`$payload = 'C:\Temp\O''Brien\payload'`,
+		`$dir = 'C:\Apps\Motty'`,
+		`$exe = 'C:\Apps\Motty\motty.exe'`,
+		"$backup = Join-Path $dir",
+		"function Restore",
+		"$created = New-Object System.Collections.ArrayList",
+		"Get-Process -Id $parent",
+		"Move-Item -LiteralPath $dest -Destination $bak -Force",
+		"Copy-Item -LiteralPath $_.FullName -Destination $dest -Force",
+		"Start-Process -FilePath $exe -PassThru",
+		"$p.HasExited -and $p.ExitCode -ne 0",
+		"function Launch {",
+		"Start-Process -FilePath $exe -ArgumentList",
+		"if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Launch; exit 1 }",
+		"} catch { Restore; Launch; exit 1 }",
+		"Remove-Item -Recurse -Force $payload",
+		"exit 0",
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("the helper script lacks %q:\n%s", want, script)
+		}
+	}
+}
+
+func TestInstallPayloadNeedsTheProgramInThePayload(t *testing.T) {
+	payload := t.TempDir()
+	called := false
+	err := installPayload(InstallOptions{Payload: payload}, func() { called = true })
+	if !errors.Is(err, ErrManifest) {
+		t.Fatalf("err = %v, want ErrManifest", err)
+	}
+	if called {
+		t.Fatal("installPayload called quit after refusing the payload")
+	}
+}
+
+func TestInstallPayloadRefusesAFile(t *testing.T) {
+	file := writeWindowsTestArtifact(t, "payload")
+	called := false
+	err := installPayload(InstallOptions{Payload: file}, func() { called = true })
+	if !errors.Is(err, ErrManifest) {
+		t.Fatalf("err = %v, want ErrManifest", err)
+	}
+	if called {
+		t.Fatal("installPayload called quit after refusing the payload")
+	}
+}
+
+func systemExecutable(t *testing.T, name string) string {
+	t.Helper()
+	path := filepath.Join(os.Getenv("SystemRoot"), "System32", name)
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("%s is not available: %v", path, err)
+	}
+	return path
+}
+
+func copyWindowsFile(t *testing.T, source, destination string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(destination, data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func runPayloadHelper(t *testing.T, script string, wantExit int) {
+	t.Helper()
+	name, arguments := helperCommand(script)
+	command := exec.Command(name, arguments...)
+	command.SysProcAttr = helperSysProcAttr()
+	output, err := command.CombinedOutput()
+	if wantExit == 0 {
+		if err != nil {
+			t.Fatalf("helper: %v\n%s\n%s", err, output, script)
+		}
+		return
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != wantExit {
+		t.Fatalf("helper exit = %v, want %d\n%s\n%s", err, wantExit, output, script)
+	}
+}
+
+func TestPayloadHelperReplacesTheApplication(t *testing.T) {
+	payload := filepath.Join(t.TempDir(), "payload with spaces")
+	install := filepath.Join(t.TempDir(), "app with spaces")
+	copyWindowsFile(t, systemExecutable(t, "cmd.exe"), filepath.Join(install, "app.exe"))
+	copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, "app.exe"))
+	if err := os.WriteFile(filepath.Join(install, "old.dll"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(payload, "new.dll"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A backup the previous update could not delete, because the old program or
+	// one of its loaded DLLs was still held, must not stay in the install
+	// directory for good.
+	stale := filepath.Join(install, ".viva-update-previous")
+	if err := os.MkdirAll(stale, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stale, "app.exe"), []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), nil)
+	runPayloadHelper(t, script, 0)
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("a previous update's backup survived the next update: %v", err)
+	}
+	if left, err := filepath.Glob(filepath.Join(install, ".viva-update-*")); err != nil || len(left) != 0 {
+		t.Errorf("backups left in the install directory: %v, %v", left, err)
+	}
+	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile(systemExecutable(t, "whoami.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Error("app.exe was not replaced")
+	}
+	if data, err := os.ReadFile(filepath.Join(install, "new.dll")); err != nil || string(data) != "new" {
+		t.Errorf("new.dll = %q, %v", data, err)
+	}
+	if data, err := os.ReadFile(filepath.Join(install, "old.dll")); err != nil || string(data) != "old" {
+		t.Errorf("old.dll = %q, %v", data, err)
+	}
+}
+
+func TestStartPayloadHelperInstallsWithoutOutputPipes(t *testing.T) {
+	payload, install := t.TempDir(), t.TempDir()
+	executable := filepath.Join(install, "app.exe")
+	copyWindowsFile(t, systemExecutable(t, "cmd.exe"), executable)
+	want := copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, "app.exe"))
+	if err := startPayloadHelper(999999, payload, install, executable, nil); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if _, err := os.Stat(payload); os.IsNotExist(err) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the detached helper did not finish installing the payload")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	got, err := os.ReadFile(executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("the detached helper did not install the new executable")
+	}
+}
+
+func TestPayloadHelperReplacesARunningExecutable(t *testing.T) {
+	payload := t.TempDir()
+	install := t.TempDir()
+	testExecutable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyWindowsFile(t, testExecutable, filepath.Join(install, "app.exe"))
+	copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, "app.exe"))
+
+	ready := filepath.Join(t.TempDir(), "running")
+	command := exec.Command(filepath.Join(install, "app.exe"), "-test.run=^TestPayloadHelperRunningProcess$")
+	command.Env = append(os.Environ(), "VIVA_UPDATE_RUNNING_MARKER="+ready)
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = command.Process.Kill()
+		_, _ = command.Process.Wait()
+	})
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		if _, err := os.Stat(ready); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the old application did not start")
+		}
+	}
+
+	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), nil)
+	runPayloadHelper(t, script, 0)
+	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile(systemExecutable(t, "whoami.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Error("the running app.exe was not replaced")
+	}
+}
+
+func TestPayloadHelperRunningProcess(t *testing.T) {
+	marker := os.Getenv("VIVA_UPDATE_RUNNING_MARKER")
+	if marker == "" {
+		return
+	}
+	if err := os.WriteFile(marker, []byte("running"), 0o600); err != nil {
+		os.Exit(2)
+	}
+	time.Sleep(time.Minute)
+}
+
+func TestPayloadHelperRollsBackAFailedStart(t *testing.T) {
+	payload := t.TempDir()
+	install := t.TempDir()
+	original := copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(install, "app.exe"))
+	testExecutable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyWindowsFile(t, testExecutable, filepath.Join(payload, "app.exe"))
+	marker := filepath.Join(t.TempDir(), "started")
+	t.Setenv("VIVA_UPDATE_START_MARKER", marker)
+	if err := os.WriteFile(filepath.Join(payload, "new.dll"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), []string{"-test.run=^TestPayloadHelperProcess$"})
+	runPayloadHelper(t, script, 1)
+	if data, err := os.ReadFile(marker); err != nil || string(data) != "started" {
+		t.Fatalf("updated application did not start: marker=%q, %v", data, err)
+	}
+	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Error("app.exe was not restored")
+	}
+	if _, err := os.Stat(filepath.Join(install, "new.dll")); !os.IsNotExist(err) {
+		t.Errorf("new.dll survived the rollback: %v", err)
+	}
+}
+
+func TestPayloadHelperProcess(t *testing.T) {
+	marker := os.Getenv("VIVA_UPDATE_START_MARKER")
+	if marker == "" {
+		return
+	}
+	if err := os.WriteFile(marker, []byte("started"), 0o600); err != nil {
+		os.Exit(2)
+	}
+	os.Exit(1)
 }

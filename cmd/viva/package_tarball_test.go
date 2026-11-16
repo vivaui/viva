@@ -4,10 +4,15 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -160,7 +165,7 @@ func TestPackageLinuxMakesADeb(t *testing.T) {
 	text := string(control["./control"])
 	for _, want := range []string{
 		"Package: fixture-notes\n", "Version: 2.0.1\n", "Architecture: amd64\n", "Maintainer: Ann Lee <ann@example.com>\n",
-		"Depends: libvulkan1, libxcb1, libcairo2, libfoo1 (>= 1.2)\n", "Homepage: https://example.com/notes\n", "Description: Takes notes\n",
+		"Depends: libvulkan1, libxcb1, libcairo2, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libfoo1 (>= 1.2)\n", "Homepage: https://example.com/notes\n", "Description: Takes notes\n",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("control lacks %q:\n%s", want, text)
@@ -254,6 +259,123 @@ func TestPackageLinuxWarnsAboutASmallIcon(t *testing.T) {
 	}
 }
 
+func TestPackageLinuxMakesAnRPM(t *testing.T) {
+	dir := packageLinuxFixture(t, linuxTOML, 256)
+	if _, err := runLinuxPackage(t, dir, "--format", "rpm"); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "build"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "fixture-notes-2.0.1-1.x86_64.rpm" {
+		var names []string
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		t.Fatalf("--format rpm wrote %v, want only fixture-notes-2.0.1-1.x86_64.rpm", names)
+	}
+}
+
+// dlopen dependencies do not appear in the program's ELF headers. RPM must request
+// their shared-library capabilities so a clean installation has the text and XCB libraries.
+func TestPackageLinuxRPMDeclaresRuntimeLibraries(t *testing.T) {
+	for _, arch := range []struct{ goarch, rpm string }{{"amd64", "x86_64"}, {"arm64", "aarch64"}} {
+		t.Run(arch.goarch, func(t *testing.T) {
+			dir := packageLinuxFixture(t, linuxTOML, 256)
+			if _, err := runLinuxPackage(t, dir, "--format", "rpm", "--arch", arch.goarch); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(filepath.Join(dir, "build", "fixture-notes-2.0.1-1."+arch.rpm+".rpm"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			requires := rpmRequiredCapabilities(t, data)
+			for _, library := range []string{
+				"libvulkan.so.1", "libxcb.so.1", "libcairo.so.2", "libfontconfig.so.1",
+				"libpango-1.0.so.0", "libpangocairo-1.0.so.0", "libgobject-2.0.so.0",
+			} {
+				capability := library + "()(64bit)"
+				if !slices.Contains(requires, capability) {
+					t.Errorf("RPM lacks runtime requirement %s, has %v", capability, requires)
+				}
+			}
+			for _, library := range []string{
+				"libpangoft2-1.0.so.0", "libxcb-cursor.so.0", "libxcb-randr.so.0",
+				"libxcb-render.so.0", "libxcb-shape.so.0", "libxcb-sync.so.1",
+			} {
+				capability := library + "()(64bit)"
+				if slices.Contains(requires, capability) {
+					t.Errorf("RPM hard-requires %s, which the backend loads with a fallback", capability)
+				}
+			}
+			if slices.Contains(requires, "libfoo1 (>= 1.2)") {
+				t.Fatal("RPM contains a Debian-only manifest dependency")
+			}
+		})
+	}
+}
+
+// rpmRequiredCapabilities reads RPMTAG_REQUIRENAME from an RPM's main header.
+// Grepping the whole file for the capability strings would also match the
+// payload or a description, so the test could pass after the requires moved or
+// were encoded differently.
+func rpmRequiredCapabilities(t *testing.T, data []byte) []string {
+	t.Helper()
+	const (
+		leadSize      = 96
+		headerMagic   = 0x8eade801
+		stringArrayTp = 8
+		requireName   = 1049
+	)
+	if len(data) < leadSize {
+		t.Fatal("the rpm is shorter than its lead")
+	}
+	offset := leadSize
+	// The signature header, padded to the eight-byte boundary the main header
+	// starts on.
+	if len(data) < offset+16 {
+		t.Fatal("the rpm has no signature header")
+	}
+	index := int(binary.BigEndian.Uint32(data[offset+8:]))
+	store := int(binary.BigEndian.Uint32(data[offset+12:]))
+	offset = (offset + 16 + index*16 + store + 7) &^ 7
+	if len(data) < offset+16 || binary.BigEndian.Uint32(data[offset:]) != headerMagic {
+		t.Fatal("the rpm has no main header")
+	}
+	entries := int(binary.BigEndian.Uint32(data[offset+8:]))
+	storeSize := int(binary.BigEndian.Uint32(data[offset+12:]))
+	indexStart := offset + 16
+	storeStart := indexStart + entries*16
+	if storeStart+storeSize > len(data) {
+		t.Fatal("the rpm header runs past the file")
+	}
+	for entry := 0; entry < entries; entry++ {
+		at := indexStart + entry*16
+		tag := binary.BigEndian.Uint32(data[at:])
+		if tag != requireName {
+			continue
+		}
+		if kind := binary.BigEndian.Uint32(data[at+4:]); kind != stringArrayTp {
+			t.Fatalf("REQUIRENAME has type %d, want a string array", kind)
+		}
+		count := int(binary.BigEndian.Uint32(data[at+12:]))
+		position := storeStart + int(binary.BigEndian.Uint32(data[at+8:]))
+		names := make([]string, 0, count)
+		for range count {
+			end := bytes.IndexByte(data[position:storeStart+storeSize], 0)
+			if end < 0 {
+				t.Fatal("REQUIRENAME holds an unterminated string")
+			}
+			names = append(names, string(data[position:position+end]))
+			position += end + 1
+		}
+		return names
+	}
+	t.Fatal("the rpm declares no REQUIRENAME tag")
+	return nil
+}
+
 func TestPackageLinuxFailures(t *testing.T) {
 	for _, test := range []struct {
 		name, toml string
@@ -261,7 +383,7 @@ func TestPackageLinuxFailures(t *testing.T) {
 		arguments  []string
 		want       string
 	}{
-		{"unknown format", linuxTOML, 256, []string{"--format", "rpm"}, `cannot be made as "rpm"`},
+		{"unknown format", linuxTOML, 256, []string{"--format", "appimage"}, `cannot be made as "appimage"`},
 		{"msi", linuxTOML, 256, []string{"--format", "nsis"}, `cannot be made as "nsis"`},
 		{"zip flag", linuxTOML, 256, []string{"--zip"}, "--zip does not apply"},
 		{"small icon", linuxTOML, 64, nil, "at least 128 px"},
@@ -323,7 +445,7 @@ func TestPackageLinuxRefusesAFileAsOutput(t *testing.T) {
 
 func TestDebDepends(t *testing.T) {
 	got := strings.Join(debDepends([]string{"libcairo2 (>= 1.16)", "foo"}), ", ")
-	if got != "libvulkan1, libxcb1, libcairo2 (>= 1.16), foo" {
+	if got != "libvulkan1, libxcb1, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libcairo2 (>= 1.16), foo" {
 		t.Errorf("depends = %q", got)
 	}
 }
@@ -357,5 +479,92 @@ extensions = ["note"]
 	}
 	if types := string(contents[root+"fixture-notes.mime.xml"]); !strings.Contains(types, `<glob pattern="*.note"/>`) {
 		t.Errorf("mime package:\n%s", types)
+	}
+}
+
+const linuxArchTOML = linuxTOML + `arch_depends = ["libxcb>=1.16", "cairo", "extra-lib"]
+`
+
+func TestPackageLinuxMakesAPKGBUILD(t *testing.T) {
+	dir := packageLinuxFixture(t, linuxArchTOML, 256)
+	output, err := runLinuxPackage(t, dir, "--format", "pkgbuild")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, output)
+	}
+	for _, want := range []string{"  tar.gz   ", "  pkgbuild ", "  srcinfo  "} {
+		if !strings.Contains(output, want) {
+			t.Errorf("the report lacks %q:\n%s", want, output)
+		}
+	}
+	archive := filepath.Join(dir, "build", "fixture-notes-2.0.1-linux-amd64.tar.gz")
+	data, err := os.ReadFile(archive)
+	if err != nil {
+		t.Fatalf("the tarball is not beside the PKGBUILD: %v", err)
+	}
+	digest := sha256.Sum256(data)
+	pkgbuildBytes, err := os.ReadFile(filepath.Join(dir, "build", "PKGBUILD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkgbuild := string(pkgbuildBytes)
+	for _, want := range []string{
+		"pkgname='fixture-notes-bin'",
+		"pkgver='2.0.1'",
+		"arch=('x86_64')",
+		"depends=('vulkan-icd-loader' 'fontconfig' 'pango' 'glib2' 'libxcb>=1.16' 'cairo' 'extra-lib')",
+		"source=('fixture-notes-2.0.1-linux-amd64.tar.gz')",
+		"sha256sums=('" + hex.EncodeToString(digest[:]) + "')",
+		"_icon_size=256",
+	} {
+		if !strings.Contains(pkgbuild, want) {
+			t.Errorf("the PKGBUILD lacks %q:\n%s", want, pkgbuild)
+		}
+	}
+	if strings.Contains(pkgbuild, "libfoo1") {
+		t.Errorf("a Debian dependency reached the Arch package:\n%s", pkgbuild)
+	}
+	srcinfo, err := os.ReadFile(filepath.Join(dir, "build", ".SRCINFO"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"pkgbase = fixture-notes-bin", "\tarch = x86_64", "\tdepends = extra-lib", "pkgname = fixture-notes-bin"} {
+		if !strings.Contains(string(srcinfo), want) {
+			t.Errorf("the .SRCINFO lacks %q:\n%s", want, srcinfo)
+		}
+	}
+	if bash, err := exec.LookPath("bash"); err == nil {
+		command := exec.Command(bash, "-n")
+		command.Stdin = bytes.NewReader(pkgbuildBytes)
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("bash -n: %v\n%s", err, output)
+		}
+	}
+}
+
+func TestPackageLinuxPKGBUILDSourceURL(t *testing.T) {
+	dir := packageLinuxFixture(t, linuxTOML, 256)
+	url := "https://example.com/downloads/fixture-notes-2.0.1-linux-amd64.tar.gz"
+	output, err := runLinuxPackage(t, dir, "--format", "pkgbuild", "--pkgbuild-url", url)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, output)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "build", "PKGBUILD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "source=('fixture-notes-2.0.1-linux-amd64.tar.gz::" + url + "')"
+	if !strings.Contains(string(data), want) {
+		t.Fatalf("the PKGBUILD lacks %q:\n%s", want, data)
+	}
+}
+
+func TestPackageLinuxRefusesABadPKGBUILDURL(t *testing.T) {
+	dir := packageLinuxFixture(t, linuxTOML, 256)
+	output, err := runLinuxPackage(t, dir, "--format", "pkgbuild", "--pkgbuild-url", "file:///tmp/app.tar.gz")
+	if err == nil {
+		t.Fatalf("a file URL was accepted:\n%s", output)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, "build", "PKGBUILD")); !os.IsNotExist(statErr) {
+		t.Errorf("a PKGBUILD was written after the failure: %v", statErr)
 	}
 }

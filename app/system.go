@@ -245,6 +245,9 @@ func SendNotification(notification Notification) error {
 	if notification.Title == "" && notification.Body == "" {
 		return fmt.Errorf("app: notification is empty")
 	}
+	if err, handled := driverSendNotification(notification); handled {
+		return err
+	}
 	return nativeSendNotification(notification)
 }
 

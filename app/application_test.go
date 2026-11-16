@@ -75,6 +75,12 @@ func (host *fakeHost) SetDockBadge(text string) { host.badge = text }
 
 func (host *fakeHost) SetProgress(fraction float32) { host.progress = fraction }
 
+func (host *fakeHost) Post(fn func()) {
+	if fn != nil {
+		fn()
+	}
+}
+
 func (host *fakeHost) Quit() { host.quits++ }
 
 func useHost(t *testing.T, host *fakeHost) {
@@ -512,4 +518,19 @@ func TestCaptureSystemShortcutsReachesThePlatformThatCanTakeThem(t *testing.T) {
 	if len(native.captures) != 2 {
 		t.Fatal("a closed window was still asked")
 	}
+}
+
+// Post hands the work to the host's event loop: the Application does not run it
+// on the caller's goroutine itself.
+func TestPostDelegatesToTheHost(t *testing.T) {
+	host := &fakeHost{}
+	application := &Application{host: host}
+	ran := false
+	application.Post(func() { ran = true })
+	if !ran {
+		t.Fatal("the host did not run the posted work")
+	}
+	application.Post(nil) // harmless
+	var nilApplication *Application
+	nilApplication.Post(func() { t.Fatal("a nil application ran work") })
 }

@@ -37,6 +37,8 @@ type buildPlan struct {
 	out        string
 	executable string
 	debug      bool
+	// cgo explicitly opts Linux and Windows applications into native dependencies.
+	cgo bool
 }
 
 // goTarget is the GOOS/GOARCH pair for a target.
@@ -99,9 +101,15 @@ func (plan buildPlan) environment(base []string) []string {
 		// default on a machine with a C compiler, and a cgo program links the C
 		// library of the machine that built it: a Linux program built on Ubuntu
 		// then refuses to start on a distribution with an older glibc, for a
-		// capability the program does not use. Pin it off so the package is the
-		// same whichever machine built it.
-		environment = append(environment, "CGO_ENABLED=0")
+		// capability the program does not use. Default it off so pure-Go
+		// applications package the same way whichever machine built them.
+		// Applications may link their own native libraries. Require an explicit
+		// option so the developer's ambient cgo setting cannot change default packages.
+		if plan.cgo {
+			environment = append(environment, "CGO_ENABLED=1")
+		} else {
+			environment = append(environment, "CGO_ENABLED=0")
+		}
 	}
 	return environment
 }
@@ -145,6 +153,7 @@ type buildFlags struct {
 	arch   string
 	tags   string
 	debug  bool
+	cgo    bool
 }
 
 func (shared *buildFlags) register(flags *flag.FlagSet, defaultTarget string) {
@@ -154,6 +163,7 @@ func (shared *buildFlags) register(flags *flag.FlagSet, defaultTarget string) {
 	flags.StringVar(&shared.arch, "arch", runtime.GOARCH, "arm64 or amd64 (not used by web)")
 	flags.StringVar(&shared.tags, "tags", "", "comma-separated build tags, added to [build] tags")
 	flags.BoolVar(&shared.debug, "debug", false, "keep symbols and debug information (not the release size)")
+	flags.BoolVar(&shared.cgo, "cgo", false, "enable application cgo on Linux and Windows (requires a target C compiler)")
 }
 
 // newPlan resolves flags, viva.toml and the package argument into a plan.
@@ -164,6 +174,9 @@ func newPlan(shared buildFlags, packageArgument string) (buildPlan, error) {
 	if shared.target != "web" && !contains(buildArches, shared.arch) {
 		return buildPlan{}, fmt.Errorf("unknown architecture %q; use one of: %s", shared.arch, strings.Join(buildArches, ", "))
 	}
+	if shared.target == "web" && shared.cgo {
+		return buildPlan{}, errors.New("the web target does not support cgo")
+	}
 	if shared.target == "darwin" && runtime.GOOS != "darwin" {
 		return buildPlan{}, errors.New("building for darwin needs a macOS host: the Metal bridge is Objective-C and cannot be cross-compiled")
 	}
@@ -171,7 +184,7 @@ func newPlan(shared buildFlags, packageArgument string) (buildPlan, error) {
 	if err != nil {
 		return buildPlan{}, err
 	}
-	plan := buildPlan{manifest: loaded, target: shared.target, arch: shared.arch, debug: shared.debug}
+	plan := buildPlan{manifest: loaded, target: shared.target, arch: shared.arch, debug: shared.debug, cgo: shared.cgo}
 
 	plan.pkg = packageArgument
 	if plan.pkg == "" {

@@ -40,9 +40,20 @@ type textServices struct {
 	layoutSetSingleParagraph func(uintptr, int32)
 	layoutGetExtents         func(uintptr, *pangoRectangle, *pangoRectangle)
 	layoutGetBaseline        func(uintptr) int32
-	layoutGetCursorPos       func(uintptr, int32, *pangoRectangle, *pangoRectangle)
-	layoutIndexToPos         func(uintptr, int32, *pangoRectangle)
-	fontFromString           func(*byte) uintptr
+	layoutSetAttributes      func(uintptr, uintptr)
+	// layoutGetUnknownGlyphs is pango_layout_get_unknown_glyphs_count; nil on a Pango old
+	// enough not to have it.
+	layoutGetUnknownGlyphs func(uintptr) int32
+	layoutGetCursorPos     func(uintptr, int32, *pangoRectangle, *pangoRectangle)
+	layoutIndexToPos       func(uintptr, int32, *pangoRectangle)
+	fontFromString         func(*byte) uintptr
+	// noFallback is the attribute list that turns Pango's font fallback off, for measuring
+	// a box drawing stroke in the face's own font; 0 when this Pango cannot make it.
+	noFallback      uintptr
+	attrListNew     func() uintptr
+	attrListUnref   func(uintptr)
+	attrListInsert  func(uintptr, uintptr)
+	attrFallbackNew func(int32) uintptr
 	// contextSetRoundGlyphs is pango_context_set_round_glyph_positions (Pango 1.44); nil
 	// before it.
 	contextSetRoundGlyphs func(uintptr, int32)
@@ -53,9 +64,6 @@ type textServices struct {
 	fontSetWeight         func(uintptr, int32)
 	fontSetStyle          func(uintptr, int32)
 	objectUnref           func(uintptr)
-	contextGetMetrics     func(uintptr, uintptr, uintptr) uintptr
-	fontMetricsUnderline  func(uintptr) int32
-	fontMetricsUnref      func(uintptr)
 
 	imageSurfaceCreateForData func(*byte, int32, int32, int32, int32) uintptr
 	surfaceStatus             func(uintptr) int32
@@ -127,6 +135,15 @@ func loadTextAPI() (*textServices, error) {
 	purego.RegisterLibFunc(&services.layoutSetSingleParagraph, services.pango, "pango_layout_set_single_paragraph_mode")
 	purego.RegisterLibFunc(&services.layoutGetExtents, services.pango, "pango_layout_get_extents")
 	purego.RegisterLibFunc(&services.layoutGetBaseline, services.pango, "pango_layout_get_baseline")
+	purego.RegisterLibFunc(&services.layoutSetAttributes, services.pango, "pango_layout_set_attributes")
+	if symbol, err := purego.Dlsym(services.pango, "pango_layout_get_unknown_glyphs_count"); err == nil && symbol != 0 {
+		purego.RegisterLibFunc(&services.layoutGetUnknownGlyphs, services.pango, "pango_layout_get_unknown_glyphs_count")
+	}
+	purego.RegisterLibFunc(&services.attrListNew, services.pango, "pango_attr_list_new")
+	purego.RegisterLibFunc(&services.attrListUnref, services.pango, "pango_attr_list_unref")
+	purego.RegisterLibFunc(&services.attrListInsert, services.pango, "pango_attr_list_insert")
+	purego.RegisterLibFunc(&services.attrFallbackNew, services.pango, "pango_attr_fallback_new")
+	services.noFallback = services.fallbackOff()
 	if symbol, err := purego.Dlsym(services.pango, "pango_context_set_round_glyph_positions"); err == nil && symbol != 0 {
 		purego.RegisterLibFunc(&services.contextSetRoundGlyphs, services.pango, "pango_context_set_round_glyph_positions")
 	}
@@ -140,9 +157,6 @@ func loadTextAPI() (*textServices, error) {
 	purego.RegisterLibFunc(&services.fontSetWeight, services.pango, "pango_font_description_set_weight")
 	purego.RegisterLibFunc(&services.fontSetStyle, services.pango, "pango_font_description_set_style")
 	purego.RegisterLibFunc(&services.objectUnref, services.gobject, "g_object_unref")
-	purego.RegisterLibFunc(&services.contextGetMetrics, services.pango, "pango_context_get_metrics")
-	purego.RegisterLibFunc(&services.fontMetricsUnderline, services.pango, "pango_font_metrics_get_underline_thickness")
-	purego.RegisterLibFunc(&services.fontMetricsUnref, services.pango, "pango_font_metrics_unref")
 
 	purego.RegisterLibFunc(&services.imageSurfaceCreateForData, services.cairo, "cairo_image_surface_create_for_data")
 	purego.RegisterLibFunc(&services.surfaceStatus, services.cairo, "cairo_surface_status")
@@ -238,12 +252,32 @@ func (services *textServices) close() {
 }
 
 func (services *textServices) closeLibraries() {
+	if services.noFallback != 0 && services.attrListUnref != nil {
+		services.attrListUnref(services.noFallback)
+		services.noFallback = 0
+	}
 	for _, library := range []*uintptr{&services.gobject, &services.cairo, &services.pangoCairo, &services.pango} {
 		if *library != 0 {
 			purego.Dlclose(*library)
 			*library = 0
 		}
 	}
+}
+
+// fallbackOff is the attribute list that turns Pango's font fallback off, so a glyph laid
+// out under it comes from the description's own family; 0 when Pango cannot build it.
+func (services *textServices) fallbackOff() uintptr {
+	list := services.attrListNew()
+	if list == 0 {
+		return 0
+	}
+	attribute := services.attrFallbackNew(0) // false: no fallback
+	if attribute == 0 {
+		services.attrListUnref(list)
+		return 0
+	}
+	services.attrListInsert(list, attribute) // the list takes the attribute
+	return list
 }
 
 func cString(value string) []byte {
@@ -316,38 +350,70 @@ func (services *textServices) configureLayout(value, family string, size, weight
 		return text.Metrics{}, err
 	}
 	defer services.fontFree(description)
-	valueBytes := cString(value)
-	services.layoutSetWidth(services.layout, -1)
-	services.layoutSetFont(services.layout, description)
-	services.layoutSetText(services.layout, &valueBytes[0], int32(len(value)))
-	var logical pangoRectangle
-	services.layoutGetExtents(services.layout, nil, &logical)
-	baseline := services.layoutGetBaseline(services.layout)
-	runtime.KeepAlive(valueBytes)
+	logical, _, baseline := services.layoutValue(description, value)
 	metrics := text.Metrics{
 		Width:   float32(logical.Width) / pangoScale,
 		Height:  float32(logical.Height) / pangoScale,
 		Ascent:  float32(baseline) / pangoScale,
 		Descent: float32(logical.Height-baseline) / pangoScale,
-		// The stroke the face underlines with, at the description's absolute size:
-		// the weight a fixed-pitch cell glyph's rule takes.
-		Underline: services.underline(description),
 	}
 	return metrics, nil
 }
 
-// underline is the thickness of the stroke description's face underlines with, in logical
-// pixels, or 0 when Pango cannot report it.
-func (services *textServices) underline(description uintptr) float32 {
-	if services.contextGetMetrics == nil || services.fontMetricsUnderline == nil || services.fontMetricsUnref == nil {
+// layoutValue lays value out in the layout under description and reports its logical
+// extents, the ink extents of its glyphs, and its baseline.
+func (services *textServices) layoutValue(description uintptr, value string) (logical, ink pangoRectangle, baseline int32) {
+	valueBytes := cString(value)
+	services.layoutSetWidth(services.layout, -1)
+	services.layoutSetFont(services.layout, description)
+	services.layoutSetText(services.layout, &valueBytes[0], int32(len(value)))
+	services.layoutGetExtents(services.layout, &ink, &logical)
+	baseline = services.layoutGetBaseline(services.layout)
+	runtime.KeepAlive(valueBytes)
+	return logical, ink, baseline
+}
+
+// configureMonoLayout is configureLayout for a fixed-pitch face: the cell of "M" and the
+// thicknesses of the strokes the face draws a light and a heavy box drawing line with, in
+// logical pixels. The stroke is the ink width of the stem glyph in the face's own family.
+func (services *textServices) configureMonoLayout(family string, size float32) (text.Metrics, error) {
+	if !validFontSize(size) {
+		return text.Metrics{}, fmt.Errorf("linux: invalid font size")
+	}
+	description, err := services.description(family, size, 0, false)
+	if err != nil {
+		return text.Metrics{}, err
+	}
+	defer services.fontFree(description)
+	logical, _, baseline := services.layoutValue(description, "M")
+	metrics := text.Metrics{
+		Width:   float32(logical.Width) / pangoScale,
+		Height:  float32(logical.Height) / pangoScale,
+		Ascent:  float32(baseline) / pangoScale,
+		Descent: float32(logical.Height-baseline) / pangoScale,
+	}
+	metrics.Rule = services.boxRule(description, "│")
+	metrics.HeavyRule = services.boxRule(description, "┃")
+	return metrics, nil
+}
+
+// boxRule is the thickness, in logical pixels, of the stroke the face draws value with: the
+// ink width of the glyph in the description's own family, or 0 when that family lacks the
+// glyph. The layout is measured with fallback off, so a family the face does not have is
+// never taken as its weight, and a glyph the face lacks is a missing-glyph box rather than
+// another family's stem.
+func (services *textServices) boxRule(description uintptr, value string) float32 {
+	if services.noFallback == 0 || services.layoutGetUnknownGlyphs == nil {
 		return 0
 	}
-	metrics := services.contextGetMetrics(services.context, description, 0)
-	if metrics == 0 {
+	services.layoutSetAttributes(services.layout, services.noFallback)
+	_, ink, _ := services.layoutValue(description, value)
+	unknown := services.layoutGetUnknownGlyphs(services.layout)
+	services.layoutSetAttributes(services.layout, 0)
+	if unknown > 0 {
 		return 0
 	}
-	defer services.fontMetricsUnref(metrics)
-	return float32(services.fontMetricsUnderline(metrics)) / pangoScale
+	return float32(ink.Width) / pangoScale
 }
 
 func (services *textServices) measure(value string, size, weight float32) (text.Metrics, error) {

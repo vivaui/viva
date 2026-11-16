@@ -124,6 +124,10 @@ func nativeOpenWith(executable, path string) error {
 	return linuxSystemError(linuxplatform.OpenWith(executable, path))
 }
 
+func nativeOpenInBrowser(path string) error {
+	return linuxSystemError(linuxplatform.OpenInBrowser(path))
+}
+
 func nativePlaySystemSound(sound SystemSound) error {
 	return linuxSystemError(linuxplatform.PlaySystemSound(uint8(sound)))
 }
@@ -161,6 +165,10 @@ func nativeShowFatalError(title, message string) { linuxplatform.ShowFatalError(
 
 func nativeMonospaceFamilies() []string { return linuxplatform.MonospaceFamilies() }
 func nativeFontFamilies() []string      { return linuxplatform.FontFamilies() }
+
+// nativeFontWeights is empty: the linux engine follows a family but not the weights it
+// is drawn at.
+func nativeFontWeights(string) []int { return nil }
 
 func nativeAppearance() Appearance { return appearanceOf(linuxplatform.DarkAppearance()) }
 

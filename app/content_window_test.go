@@ -5,6 +5,8 @@ package app
 import (
 	"sync"
 	"testing"
+
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestContentWindowDeliversUpdatesAndHonorsClosePolicy(t *testing.T) {
@@ -63,6 +65,41 @@ func TestContentWindowDeliversUpdatesAndHonorsClosePolicy(t *testing.T) {
 		return nil
 	})
 	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestContentWindowReportsFrameAndMinimizeState(t *testing.T) {
+	host := &fakeHost{}
+	useHost(t, host)
+	if err := RunApplication(func(application *Application) error {
+		origin := gfx.Point{X: 120, Y: 240}
+		content, err := application.OpenContentWindow(Config{Width: 500, Height: 300, Origin: &origin}, nil)
+		if err != nil {
+			return err
+		}
+		frame, ok := content.Frame()
+		if !ok || frame != (gfx.Rect{X: 120, Y: 240, Width: 500, Height: 300}) {
+			t.Fatalf("frame = %+v, ok = %t", frame, ok)
+		}
+		if content.Minimized() {
+			t.Fatal("a new content window reports minimized")
+		}
+		host.windows[0].config.OnMinimize(true)
+		if !content.Minimized() {
+			t.Fatal("minimize state did not follow the window")
+		}
+		host.windows[0].config.OnMinimize(false)
+		if content.Minimized() {
+			t.Fatal("minimize state stayed after restore")
+		}
+		content.Close()
+		host.windows[0].config.OnClosed()
+		if _, ok := content.Frame(); ok {
+			t.Fatal("closed content window still reports a frame")
+		}
+		return nil
+	}); err != nil {
 		t.Fatal(err)
 	}
 }

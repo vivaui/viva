@@ -73,6 +73,9 @@ int viva_system_reveal_path(const char *path, char **error_message);
 // Whether any application is registered for the URL scheme (no trailing colon):
 // 1 yes, 0 no, -1 failure with *error_message.
 int viva_system_scheme_handler(const char *scheme, char **error_message);
+// The application https links open in, the default browser: 1 with *path set,
+// 0 when there is none, -1 failure with *error_message.
+int viva_system_default_browser(char **path, char **error_message);
 int viva_system_reduce_motion(void);
 char *viva_system_preferred_languages(void);
 int viva_system_dark_appearance(void);

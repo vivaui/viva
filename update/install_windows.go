@@ -19,8 +19,12 @@ import (
 // signed, and a signature that exists but does not verify is refused.
 
 const (
-	// detachedProcess starts the helper without a console of its own.
-	detachedProcess = 0x00000008
+	// createNoWindow starts the helper with a console of its own that no window
+	// shows. It must not be DETACHED_PROCESS: Windows PowerShell 5.1 exits at
+	// once when it is started without a console, so the helper would never run
+	// the script, and the update would quit the application without replacing
+	// it or starting it again.
+	createNoWindow = 0x08000000
 	// powerShellExecutable is the Windows PowerShell host that runs the helper.
 	powerShellExecutable = "powershell.exe"
 )
@@ -104,6 +108,9 @@ var (
 // installed program. It returns only after quit, so the helper can wait for
 // this process to end before it replaces the running executable.
 func install(options InstallOptions, quit func()) error {
+	if options.Payload != "" {
+		return installPayload(options, quit)
+	}
 	if options.Asset.Format != FormatNSIS {
 		return fmt.Errorf("%w: windows needs an NSIS installer, not %q", ErrManifest, options.Asset.Format)
 	}
@@ -143,6 +150,141 @@ func install(options InstallOptions, quit func()) error {
 	}
 	quit()
 	return nil
+}
+
+// installPayload replaces the application's files from a staged payload: the
+// executable and the folders beside it that a patch wrote. The installer and
+// its uninstaller are not run, so shortcuts, registry entries and anything
+// else the installer owns stay as they are. A writable install directory is
+// required; a machine-wide installation under Program Files is refused before
+// anything changes.
+func installPayload(options InstallOptions, quit func()) error {
+	payload, err := filepath.Abs(options.Payload)
+	if err != nil {
+		return fmt.Errorf("update: resolve %s: %w", options.Payload, err)
+	}
+	info, err := os.Stat(payload)
+	if err != nil {
+		return fmt.Errorf("update: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%w: %s is not a directory", ErrManifest, options.Payload)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("update: locate the running program: %w", err)
+	}
+	if executable, err = filepath.Abs(executable); err != nil {
+		return fmt.Errorf("update: resolve %s: %w", executable, err)
+	}
+	installDir := filepath.Dir(executable)
+	if _, err := os.Stat(filepath.Join(payload, filepath.Base(executable))); err != nil {
+		return fmt.Errorf("%w: the payload does not hold %s", ErrManifest, filepath.Base(executable))
+	}
+	options.report("checking install directory")
+	if err := checkWritable(installDir); err != nil {
+		return err
+	}
+	options.report("replacing")
+	if err := startPayloadHelper(os.Getpid(), payload, installDir, executable, options.Args); err != nil {
+		return fmt.Errorf("update: start the update helper: %w", err)
+	}
+	quit()
+	return nil
+}
+
+// startPayloadHelper launches a detached PowerShell script that waits for this
+// process to exit, copies the staged files over the installation and starts
+// the new program. It moves every file it replaces to a same-volume backup until
+// the new version has started, and restores them if it fails.
+func startPayloadHelper(parentPID int, payload, installDir, executable string, args []string) error {
+	name, arguments := helperCommand(payloadHelperScript(parentPID, payload, installDir, executable, args))
+	command := exec.Command(name, arguments...)
+	command.SysProcAttr = helperSysProcAttr()
+	if err := command.Start(); err != nil {
+		return err
+	}
+	_ = command.Process.Release()
+	return nil
+}
+
+// payloadHelperScript builds the script the payload helper runs. Every path is
+// a PowerShell single-quoted literal.
+func payloadHelperScript(parentPID int, payload, installDir, executable string, args []string) string {
+	var script strings.Builder
+	script.WriteString("$ErrorActionPreference = 'Stop'\n")
+	fmt.Fprintf(&script, "$parent = %d\n", parentPID)
+	fmt.Fprintf(&script, "$payload = %s\n", powerShellQuote(payload))
+	fmt.Fprintf(&script, "$dir = %s\n", powerShellQuote(installDir))
+	fmt.Fprintf(&script, "$exe = %s\n", powerShellQuote(executable))
+	// Enumeration expands DOS aliases, so both substring roots need full names.
+	script.WriteString("$payload = (Get-Item -LiteralPath $payload).FullName\n")
+	script.WriteString("$backup = Join-Path $dir ('.viva-update-' + [guid]::NewGuid().ToString('N'))\n")
+	script.WriteString("$created = New-Object System.Collections.ArrayList\n")
+	script.WriteString("$temps = New-Object System.Collections.ArrayList\n")
+	script.WriteString("function Restore {\n")
+	// Best effort: one locked file must not keep the old version from being
+	// started, and the relaunch is what makes a failed update recoverable.
+	script.WriteString("  if (Test-Path -LiteralPath $backup) {\n")
+	script.WriteString("    Get-ChildItem -LiteralPath $backup -Recurse -File | ForEach-Object {\n")
+	script.WriteString("      $rel = $_.FullName.Substring($backup.Length).TrimStart('\\')\n")
+	script.WriteString("      $dest = Join-Path $dir $rel\n")
+	script.WriteString("      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) -ErrorAction SilentlyContinue | Out-Null\n")
+	script.WriteString("      Copy-Item -LiteralPath $_.FullName -Destination $dest -Force -ErrorAction SilentlyContinue\n")
+	script.WriteString("    }\n  }\n")
+	script.WriteString("  foreach ($rel in $created) { Remove-Item -LiteralPath (Join-Path $dir $rel) -Force -ErrorAction SilentlyContinue }\n")
+	script.WriteString("  foreach ($tmp in $temps) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }\n")
+	script.WriteString("}\n")
+	// The relaunch keeps the arguments the program was started with, so a test
+	// binary starts its own case again rather than a whole suite.
+	script.WriteString("function Launch {\n")
+	script.WriteString("  Start-Process -FilePath $exe")
+	if len(args) > 0 {
+		fmt.Fprintf(&script, " -ArgumentList %s", powerShellArgumentList(args))
+	}
+	script.WriteString("\n}\n")
+	script.WriteString("$alive = $true\n")
+	script.WriteString("for ($i = 0; $i -lt 60; $i++) {\n")
+	script.WriteString("  if (-not (Get-Process -Id $parent -ErrorAction SilentlyContinue)) { $alive = $false; break }\n")
+	script.WriteString("  Start-Sleep -Seconds 1\n")
+	script.WriteString("}\n")
+	script.WriteString("if ($alive) { exit 1 }\n")
+	script.WriteString("try {\n")
+	// A backup a previous update could not remove (its old executable was still
+	// held) would otherwise stay in the install directory for good: the name is
+	// a fresh GUID each time.
+	script.WriteString("  Get-ChildItem -LiteralPath $dir -Directory -Filter '.viva-update-*' -ErrorAction SilentlyContinue | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }\n")
+	script.WriteString("  New-Item -ItemType Directory -Force -Path $backup | Out-Null\n")
+	script.WriteString("  $backup = (Get-Item -LiteralPath $backup).FullName\n")
+	script.WriteString("  Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object {\n")
+	script.WriteString("    $rel = $_.FullName.Substring($payload.Length).TrimStart('\\')\n")
+	script.WriteString("    $dest = Join-Path $dir $rel\n")
+	script.WriteString("    $incoming = Join-Path (Split-Path -Parent $dest) ('.viva-update-incoming-' + [guid]::NewGuid().ToString('N') + '.tmp')\n")
+	script.WriteString("    [void]$temps.Add($incoming)\n")
+	script.WriteString("    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) | Out-Null\n")
+	// Copy beside the destination, then rename: the old file is moved aside and
+	// the new one put in its place with renames, so no copy happens while the
+	// installed executable is missing.
+	script.WriteString("    Copy-Item -LiteralPath $_.FullName -Destination $incoming -Force\n")
+	script.WriteString("    if (Test-Path -LiteralPath $dest) {\n")
+	script.WriteString("      $bak = Join-Path $backup $rel\n")
+	script.WriteString("      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $bak) | Out-Null\n")
+	script.WriteString("      Move-Item -LiteralPath $dest -Destination $bak -Force\n")
+	script.WriteString("    } else { [void]$created.Add($rel) }\n")
+	script.WriteString("    Move-Item -LiteralPath $incoming -Destination $dest -Force\n")
+	script.WriteString("  }\n")
+	script.WriteString("  $p = Start-Process -FilePath $exe -PassThru")
+	if len(args) > 0 {
+		fmt.Fprintf(&script, " -ArgumentList %s", powerShellArgumentList(args))
+	}
+	script.WriteString("\n")
+	script.WriteString("  Start-Sleep -Seconds 2\n")
+	script.WriteString("  if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Launch; exit 1 }\n")
+	script.WriteString("} catch { Restore; Launch; exit 1 }\n")
+	script.WriteString("Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue\n")
+	script.WriteString("Remove-Item -Recurse -Force $payload -ErrorAction SilentlyContinue\n")
+	script.WriteString("exit 0\n")
+	return script.String()
 }
 
 // verifyAuthenticode reports whether path is signed and trusted, unsigned, or
@@ -227,13 +369,13 @@ func startHelper(parentPID int, installer, executable string, args []string) err
 	return nil
 }
 
-// helperSysProcAttr gives the helper its own process group and no console, so
-// it survives the application that is about to quit.
+// helperSysProcAttr gives the helper a console of its own that no window shows,
+// so it survives the application that is about to quit. It must not create a new
+// process group: that disables Ctrl+C for every process in the group, including
+// the application the helper starts and the console programs that application
+// hosts.
 func helperSysProcAttr() *syscall.SysProcAttr {
-	return &syscall.SysProcAttr{
-		CreationFlags: detachedProcess | syscall.CREATE_NEW_PROCESS_GROUP,
-		HideWindow:    true,
-	}
+	return &syscall.SysProcAttr{CreationFlags: createNoWindow}
 }
 
 // helperCommand is the PowerShell invocation that carries script.

@@ -120,6 +120,59 @@ func TestLinuxDpkgDetection(t *testing.T) {
 	}
 }
 
+func TestLinuxRPMDetection(t *testing.T) {
+	originalLookPath, originalRunCommand := lookPath, runCommand
+	t.Cleanup(func() {
+		lookPath, runCommand = originalLookPath, originalRunCommand
+	})
+	const executable = "/usr/bin/lithe-desktop"
+	notFound := errors.New("executable file not found")
+	tests := []struct {
+		name   string
+		lookup func(string) (string, error)
+		run    func(string, ...string) ([]byte, error)
+		want   bool
+	}{
+		{
+			name:   "owned by rpm",
+			lookup: func(string) (string, error) { return "/usr/bin/rpm", nil },
+			run: func(name string, args ...string) ([]byte, error) {
+				if len(args) != 2 || args[0] != "-qf" || args[1] != executable {
+					t.Errorf("args = %q, want -qf %s", args, executable)
+				}
+				return []byte("lithe-desktop-0.9.1-1.x86_64\n"), nil
+			},
+			want: true,
+		},
+		{
+			name:   "not owned by rpm",
+			lookup: func(string) (string, error) { return "/usr/bin/rpm", nil },
+			run: func(string, ...string) ([]byte, error) {
+				return []byte("file " + executable + " is not owned by any package\n"), errors.New("exit status 1")
+			},
+			want: false,
+		},
+		{
+			name:   "rpm is missing",
+			lookup: func(string) (string, error) { return "", notFound },
+			run: func(string, ...string) ([]byte, error) {
+				t.Error("rpm ran although it was not found")
+				return nil, notFound
+			},
+			want: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			lookPath = test.lookup
+			runCommand = test.run
+			if got := managedByRPM(executable); got != test.want {
+				t.Errorf("managedByRPM = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestFindProgramUsesTheOnlyExecutable(t *testing.T) {
 	root := extractFixture(t, []archiveEntry{
 		{name: "viva-linux-amd64", mode: 0o755, body: "binary"},

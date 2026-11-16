@@ -218,7 +218,9 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 	keyEvent := platform.KeyEvent{Key: key, Modifiers: modifiers, Repeat: repeat}
 	if modifiers&(input.ModifierControl|input.ModifierMeta) != 0 {
 		// A chord is the same on every layout: Ctrl+C is the key that types c.
-		keyEvent.Text = keymap.shortcutText(event.Detail, event.State)
+		// Shift is a modifier like the others, so Ctrl+Shift+C carries the same
+		// base character as Ctrl+C (gfx.KeyEvent.Text), not the capital.
+		keyEvent.Text = keymap.shortcutText(event.Detail, 0)
 	} else {
 		keyEvent.Text = keymap.text(event.Detail, event.State)
 	}
@@ -247,7 +249,7 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 	if shortcutEvent.Modifiers&(input.ModifierControl|input.ModifierMeta) != 0 &&
 		router.config.OnShortcut != nil && platform.ShortcutCandidate(shortcutEvent) &&
 		event.State&(keymap.level3Mask()|keymap.masks.modeSwitch) == 0 &&
-		!(router.text != nil && router.text.state.Composing) && !router.text.ownsChord(keyEvent) {
+		!(router.text != nil && router.text.state.Composing || router.ime != nil && router.ime.composing()) && !router.text.ownsChord(keyEvent) {
 		frame, handled, err := router.config.OnShortcut(shortcutEvent)
 		if err := router.presentFrame(frame, err); err != nil {
 			return err
@@ -337,7 +339,7 @@ func (router eventRouter) deliverTyped(keyEvent platform.KeyEvent, keysym uint32
 }
 
 func (router eventRouter) deliverTypedWithShortcut(keyEvent platform.KeyEvent, keysym uint32, shortcut platform.KeyEvent) error {
-	composing := router.text != nil && router.text.state.Composing
+	composing := router.text != nil && router.text.state.Composing || router.ime != nil && router.ime.composing()
 	composedText := router.text != nil && router.text.compose.pending()
 	if router.text != nil {
 		compose := &router.text.compose

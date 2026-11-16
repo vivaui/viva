@@ -3,7 +3,9 @@
 //
 // A working set within capacity stays warm without allocations. A Window TinyLFU
 // admission policy keeps oversized scans from flushing every reused line: recent
-// lines enter an LRU window and compete by frequency for the main LRU cache.
+// lines enter an LRU window and compete by frequency for the main cache's
+// probationary segment. Reused main entries move to a protected LRU segment,
+// so approximate frequency estimates cannot evict them before another main hit.
 // Admission tracking starts only when the resident budget is exceeded. Frequency
 // history is bounded and ages with requests, without background work.
 // Not safe for concurrent use; the owning engine serializes access.
@@ -43,12 +45,15 @@ type Cache[V any] struct {
 	entries   []entry[V]
 	window    queue
 	main      queue
+	protected queue
 	free      int
 	limit     int
 	release   func(V)
 	seed      maphash.Seed
-	frequency frequencySketch
-	admission bool
+	// hashTransform lets tests replay a captured collision distribution.
+	hashTransform func(uint64) uint64
+	frequency     frequencySketch
+	admission     bool
 }
 
 type entry[V any] struct {
@@ -57,6 +62,7 @@ type entry[V any] struct {
 	hash       uint64
 	prev, next int
 	window     bool
+	protected  bool
 	epoch      uint32
 }
 
@@ -85,12 +91,12 @@ func (cache *Cache[V]) Get(key Key) (V, bool) {
 		if cache.admission {
 			cache.frequency.record(stored.hash)
 			stored.epoch = cache.frequency.epoch
-			cache.touch(index)
 		}
+		cache.touch(index)
 		return stored.value, true
 	}
 	if cache.admission {
-		cache.frequency.record(maphash.Comparable(cache.seed, identity))
+		cache.frequency.record(cache.hash(identity))
 	}
 	var zero V
 	return zero, false
@@ -112,7 +118,7 @@ func (cache *Cache[V]) Put(key Key, value V) {
 	}
 	if cache.window.length == cache.limit {
 		candidate := cache.window.tail
-		if cache.main.length < cache.limit {
+		if cache.main.length+cache.protected.length < cache.limit {
 			cache.admit(candidate)
 		} else {
 			if !cache.admission {
@@ -120,7 +126,7 @@ func (cache *Cache[V]) Put(key Key, value V) {
 					cache.frequency = newFrequencySketch(2 * cache.limit)
 				}
 				cache.admission = true
-				cache.frequency.record(maphash.Comparable(cache.seed, identity))
+				cache.frequency.record(cache.hash(identity))
 			}
 			victim := cache.main.tail
 			if cache.score(candidate) > cache.score(victim) {
@@ -134,13 +140,21 @@ func (cache *Cache[V]) Put(key Key, value V) {
 	identity.value = strings.Clone(identity.value)
 	index := cache.free
 	cache.free = cache.entries[index].next
-	hash := maphash.Comparable(cache.seed, identity)
+	hash := cache.hash(identity)
 	cache.entries[index] = entry[V]{
 		key: identity, value: value, hash: hash, window: true,
 		epoch: cache.frequency.epoch,
 	}
 	cache.index[identity] = index
 	cache.pushFront(&cache.window, index)
+}
+
+func (cache *Cache[V]) hash(key cacheKey) uint64 {
+	hash := maphash.Comparable(cache.seed, key)
+	if cache.hashTransform != nil {
+		return cache.hashTransform(hash)
+	}
+	return hash
 }
 
 func (cache *Cache[V]) score(index int) uint8 {
@@ -155,6 +169,19 @@ func (cache *Cache[V]) touch(index int) {
 	queue := &cache.main
 	if cache.entries[index].window {
 		queue = &cache.window
+	} else if cache.entries[index].protected {
+		queue = &cache.protected
+	} else if protectedLimit := cache.limit * 4 / 5; protectedLimit > 0 {
+		cache.remove(&cache.main, index)
+		if cache.protected.length == protectedLimit {
+			demoted := cache.protected.tail
+			cache.remove(&cache.protected, demoted)
+			cache.entries[demoted].protected = false
+			cache.pushFront(&cache.main, demoted)
+		}
+		cache.entries[index].protected = true
+		cache.pushFront(&cache.protected, index)
+		return
 	}
 	if queue.head != index {
 		cache.remove(queue, index)
@@ -173,6 +200,8 @@ func (cache *Cache[V]) evict(index int) {
 	queue := &cache.main
 	if stored.window {
 		queue = &cache.window
+	} else if stored.protected {
+		queue = &cache.protected
 	}
 	cache.remove(queue, index)
 	delete(cache.index, stored.key)
@@ -225,6 +254,7 @@ func (cache *Cache[V]) Clear() {
 	clear(cache.entries)
 	cache.window = queue{}
 	cache.main = queue{}
+	cache.protected = queue{}
 	cache.resetFree()
 	cache.frequency.clear()
 	cache.admission = false

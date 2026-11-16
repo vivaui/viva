@@ -325,6 +325,14 @@ func PlaceOverlay(anchor gfx.Rect, size gfx.Size, viewport gfx.Rect, placement O
 	return overlayClamp(bounds, viewport, placement.Margin), side
 }
 
+// ClampOverlay keeps an overlay opened at point inside viewport, except for its
+// margin. Unlike PlaceOverlay, a context menu that fits above the pointer but
+// would clamp below it stays at the pointer's y; that is how a native context
+// menu opens at the mouse rather than choosing a side.
+func ClampOverlay(point gfx.Point, size gfx.Size, viewport gfx.Rect, margin float32) gfx.Rect {
+	return overlayClamp(gfx.Rect{X: point.X, Y: point.Y, Width: size.Width, Height: size.Height}, viewport, margin)
+}
+
 // overlayClamp shrinks bounds to fit viewport less margin and shifts them back
 // inside it.
 func overlayClamp(bounds, viewport gfx.Rect, margin float32) gfx.Rect {

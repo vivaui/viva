@@ -94,6 +94,8 @@ func nativeRevealPath(path string) error { return windowsplatform.RevealPath(pat
 func nativeOpenWith(executable, path string) error {
 	return windowsplatform.OpenWith(executable, path)
 }
+
+func nativeOpenInBrowser(path string) error { return windowsplatform.OpenInBrowser(path) }
 func nativePlaySystemSound(sound SystemSound) error {
 	return windowsplatform.PlaySystemSound(uint8(sound))
 }
@@ -120,8 +122,9 @@ func nativeEnableCrashDumps(relativeDir string) (string, error) {
 
 func nativeShowFatalError(title, message string) { windowsplatform.ShowFatalError(title, message) }
 
-func nativeMonospaceFamilies() []string { return windowsplatform.MonospaceFamilies() }
-func nativeFontFamilies() []string      { return windowsplatform.FontFamilies() }
+func nativeMonospaceFamilies() []string     { return windowsplatform.MonospaceFamilies() }
+func nativeFontFamilies() []string          { return windowsplatform.FontFamilies() }
+func nativeFontWeights(family string) []int { return windowsplatform.FontWeights(family) }
 
 func nativeAppearance() Appearance { return appearanceOf(windowsplatform.DarkAppearance()) }
 

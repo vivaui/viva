@@ -39,6 +39,7 @@ type lineJournal struct {
 	batches        map[*Edit][]lineContext
 	position, line int
 	delivery       *lineDelivery
+	labels         *lfLabelState
 }
 
 // TrackLineEdits enables optional LF context on the existing byte journal and
@@ -73,7 +74,7 @@ func (editor *Editor) LineEditsSince(cursor uint64, dst []LineEdit) ([]LineEdit,
 	}
 	first := len(journal.entries) - int(journal.revision-cursor)
 	for index := first; index < len(journal.entries); index++ {
-		position := (journal.oldest + index) % len(journal.entries)
+		position := (int(journal.oldest) + index) % len(journal.entries)
 		context := journal.lines.entries[position]
 		if context.flags&lineKnown == 0 {
 			return dst[:0], journal.revision, false
@@ -168,7 +169,7 @@ func (editor *Editor) recordLineContext(edit Edit, context lineContext) {
 	journal := editor.journal
 	lines := journal.lines
 	lines.delivery = nil
-	position := (journal.oldest + len(journal.entries) - 1) % len(journal.entries)
+	position := (int(journal.oldest) + len(journal.entries) - 1) % len(journal.entries)
 	if position == len(lines.entries) {
 		lines.entries = append(lines.entries, context)
 	} else {

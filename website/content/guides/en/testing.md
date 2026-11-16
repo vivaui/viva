@@ -74,6 +74,40 @@ func TestClickCounts(t *testing.T) {
 
 The test finds controls by the name a user and a screen reader know them by (`Hit.Label`), not by coordinates. A page names its elements itself, as paths such as `page/~k1/#0` in its tree; `c.Part("word")` gives an element a name of yours, which a test or the headless driver can address by path.
 
+## headless.Session
+
+`headless.Open` wraps that driver in a session that finds controls by their
+accessible name and owns the clock. `Now`, `Advance` and `Frame` move time and
+paint, `Transitioning` says whether anything is still moving, `Access` returns
+the accessibility tree of the last frame, and `Notifications` returns what the
+application sent:
+
+```go
+session, err := headless.Open(config, nil, headless.Options{})
+if err != nil {
+	t.Fatal(err)
+}
+defer session.Close()
+
+node, ok := session.AccessByRole(gfx.RoleCheckbox, "Auto update")
+if !ok || !node.Checked {
+	t.Fatalf("checkbox = %+v", node)
+}
+session.ClickLabel("Install")
+session.Advance(200 * time.Millisecond)
+if session.Transitioning() {
+	t.Error("the progress bar is still moving")
+}
+if got := session.Notifications(); len(got) != 1 || got[0].Title != "Installed" {
+	t.Errorf("notifications = %+v", got)
+}
+```
+
+`Access` reports what assistive technology is told: the role, bounds, name,
+value, description, states, range and live region of every control, in reading
+order. It is the same tree the platform adapters send to the system, without the
+platform.
+
 ## Mistakes that compile
 
 A page can compile and still do the wrong thing: a `Button` with the same label in every row of a loop whose rows have no Key can take a click meant for another row when a row is added above. `viva vet` finds it without running anything:

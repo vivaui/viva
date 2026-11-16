@@ -13,13 +13,17 @@ type Edit struct {
 const EditJournalLimit = 1024
 
 type editJournal struct {
-	revision  uint64
-	entries   []Edit
-	oldest    int
-	unlimited bool
-	tracking  bool
-	savePoint *int
-	lines     *lineJournal
+	revision uint64
+	entries  []Edit
+	// oldest addresses only the bounded 1024-entry ring; unlimited drafts keep zero.
+	oldest      uint16
+	unlimited   bool
+	tracking    bool
+	retainEqual bool
+	private     bool
+	savePoint   *int
+	lines       *lineJournal
+	optional    *editorSidecar
 }
 
 // TrackEdits enables a bounded mutation journal and returns its current cursor.
@@ -52,14 +56,14 @@ func (editor *Editor) EditsSince(cursor uint64, dst []Edit) ([]Edit, uint64, boo
 	}
 	first := len(journal.entries) - int(journal.revision-cursor)
 	for index := first; index < len(journal.entries); index++ {
-		position := (journal.oldest + index) % len(journal.entries)
+		position := (int(journal.oldest) + index) % len(journal.entries)
 		dst = append(dst, journal.entries[position])
 	}
 	return dst, journal.revision, true
 }
 
 func (editor *Editor) prepareEdit(start, end int, replacement []rune) Edit {
-	if editor.journal == nil || !editor.journal.tracking {
+	if editor.journal == nil || !editor.journal.tracking && editor.historyState() == nil {
 		return Edit{}
 	}
 	at, offset := editor.offsets.index, editor.offsets.offset
@@ -77,6 +81,9 @@ func (editor *Editor) prepareEdit(start, end int, replacement []rune) Edit {
 		offset -= runeBytes(editor.runes[at])
 	}
 	editor.offsets = offsetMemo{index: start, offset: offset}
+	if !editor.journal.tracking {
+		return Edit{}
+	}
 	edit := Edit{Start: offset}
 	for _, character := range editor.runes[start:end] {
 		edit.Removed += runeBytes(character)
@@ -151,8 +158,15 @@ func (editor *Editor) recordBatchEdits(primitives []Edit, contexts []lineContext
 
 func (editor *Editor) replaceHistory(edit *historyEdit, inverse bool) {
 	journal := editor.journal
-	contexts := editor.lineBatchContexts(edit.primitives)
-	if len(edit.primitives) > 0 {
+	if labels := editor.lfLabelState(); labels != nil {
+		labels.replaying = true
+		defer func() { labels.replaying = false }()
+		labels.ops.replay(labels, lfLabelHistoryKey(edit), inverse)
+	}
+	batch := edit.kind == editSeparate && len(edit.primitives) > 0
+	var contexts []lineContext
+	if batch {
+		contexts = editor.lineBatchContexts(edit.primitives)
 		editor.journal = nil
 	}
 	if inverse {
@@ -161,5 +175,7 @@ func (editor *Editor) replaceHistory(edit *historyEdit, inverse bool) {
 		editor.replaceExact(edit.start, len(edit.removed), edit.inserted)
 	}
 	editor.journal = journal
-	editor.recordBatchEdits(edit.primitives, contexts, inverse)
+	if batch {
+		editor.recordBatchEdits(edit.primitives, contexts, inverse)
+	}
 }

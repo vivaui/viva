@@ -11,6 +11,9 @@ func (editor *Editor) SetSavePoint() {
 		editor.journal.savePoint = new(int)
 	}
 	*editor.journal.savePoint = editor.historyIndex
+	if history := editor.historyState(); history != nil {
+		history.ops.save(history)
+	}
 	editor.BreakUndoGroup()
 }
 
@@ -26,4 +29,23 @@ func (editor *Editor) savePointIndex() *int {
 		return nil
 	}
 	return editor.journal.savePoint
+}
+
+// ClearChangeHistory drops Undo/Redo without making unsaved data clean. Unlike
+// ClearHistory, a previously unsaved save boundary remains unreachable.
+func (editor *Editor) ClearChangeHistory() {
+	point := editor.savePointIndex()
+	dirty := point != nil && !editor.AtSavePoint()
+	if history := editor.historyState(); history != nil {
+		dirty = dirty || history.save < 0 || history.current != history.save
+	}
+	editor.ClearHistory()
+	if dirty {
+		if point != nil {
+			*point = -1
+		}
+		if history := editor.historyState(); history != nil {
+			history.save = -1
+		}
+	}
 }

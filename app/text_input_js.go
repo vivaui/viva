@@ -78,24 +78,3 @@ func webTextInput(provider TextInputProvider) web.TextInputProvider {
 		return &native
 	}
 }
-
-func platformTextState(state TextState) platform.TextState {
-	return platform.TextState{
-		Value:             state.Value,
-		Selection:         platformTextRange(state.Selection),
-		SelectionReversed: state.SelectionReversed,
-		Composition:       platformTextRange(state.Composition),
-		Composing:         state.Composing,
-		Redraw:            state.Redraw,
-	}
-}
-
-func appTextEvent(event platform.TextEvent) TextEvent {
-	return TextEvent{
-		Kind: TextEventKind(event.Kind), Text: event.Text,
-		Selection:       appTextRange(event.Selection),
-		MarkedSelection: appTextRange(event.MarkedSelection),
-		Replacement:     appTextRange(event.Replacement), HasReplacement: event.HasReplacement,
-		Command: TextCommand(event.Command),
-	}
-}

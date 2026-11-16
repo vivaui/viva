@@ -24,15 +24,28 @@
 // it is newer than the running version: a check that finds nothing newer
 // returns (nil, nil). Download streams the archive for the running platform,
 // hashing as it writes, and refuses a file whose size or digest is not the one
-// the feed declared. Neither function sends an identifier, telemetry or
-// anything else the caller did not configure.
+// the feed declared. A transfer that is cut off, goes silent for a minute or is
+// cancelled reports ErrInterrupted and keeps what arrived, so calling Download
+// again with the same directory asks only for the rest. Neither function sends
+// an identifier, telemetry or anything else the caller did not configure.
 //
 // # What this package does not do
 //
 // It does not show a dialog, decide whether updating is allowed, check on a
 // timer, or stage a release. The application decides when to call Check, what
-// to ask, and when to call Download and Install. It also does not do delta
-// updates: a download is the complete archive the feed lists.
+// to ask, and when to call Download and Install.
+//
+// # Delta updates
+//
+// A feed may list patches for an asset, each between an earlier version's
+// installed payload and this one. PatchFrom finds one for the running version;
+// DownloadPatch fetches and verifies it; ApplyPatch applies it to the running
+// application and returns a staging directory holding the new payload. Install
+// accepts that payload in place of an archive. On Windows a patch carries a
+// directory: the executable and the folders beside it, which is the same file
+// set whether the copy was installed by the NSIS setup or unpacked as the
+// portable zip. Install replaces those files and starts the new program without
+// running the installer, so shortcuts and the uninstall entry stay as they are.
 //
 // # Installing
 //

@@ -28,8 +28,8 @@ func commands() []command {
 				"viva.toml when there is one; the package argument overrides [app] package (or [web] package for\n" +
 				"--target web, which also writes the loader and an index.html). macOS builds are compiled for\n" +
 				"[mac] min_system, not for the macOS of the machine building them, and reach Cocoa through cgo;\n" +
-				"Linux and Windows builds use no cgo, so their programs do not depend on the C library of the\n" +
-				"machine that built them and a package built on a newer distribution still starts on an older one.\n" +
+				"Linux and Windows builds disable cgo by default. Use --cgo for application-owned native libraries;\n" +
+				"provide the target C compiler and link flags, and check the resulting system dependencies.\n" +
 				"Windows release builds use the GUI subsystem; with --debug they keep the console.",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runBuild(arguments, output, errorOutput)
@@ -50,7 +50,7 @@ func commands() []command {
 			detail: "Builds the program and packages it, all from viva.toml. --target darwin makes <name>.app (--format\n" +
 				"app, zip, dmg), --target windows an NSIS installer or a zip (nsis, zip; the installer needs makensis,\n" +
 				"and the Homebrew build on Apple Silicon crashes, so build it on Linux or Windows), --target linux a\n" +
-				"tar.gz with an install script or a .deb (tar.gz, deb). --program packages an executable you built\n" +
+				"tar.gz with an install script, a .deb (deb), or an .rpm (rpm; opt-in, not in the default format). --program packages an executable you built\n" +
 				"(or signed) yourself instead of building one. [app] url_schemes and [[app.file_types]] (name, extensions,\n" +
 				"optional mime and macOS uti) register the links and documents the program opens with every format; on Windows and\n" +
 				"Linux they arrive as arguments of a new process (app/singleinstance hands them to the running copy).\n" +
@@ -76,7 +76,9 @@ func commands() []command {
 				"signature. The feed lists only files named the way viva package names them; anything else in\n" +
 				"the directory is ignored. -base-url is where the archives are served from and must be HTTPS,\n" +
 				"as -notes must be when given. The signing key is -key, or $VIVA_UPDATE_KEY: the base64 64-byte\n" +
-				"private key 'viva update-keygen' writes. App, version and archive directory default to viva.toml.",
+				"private key 'viva update-keygen' writes. App, version and archive directory default to viva.toml.\n" +
+				"--patch-from os/arch=version=archive (repeatable) writes a delta update from that earlier\n" +
+				"release beside the archives and lists it on the asset; it works for darwin, linux and windows.",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runFeed(arguments, output, errorOutput)
 			}},

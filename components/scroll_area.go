@@ -68,7 +68,9 @@ func (area ScrollArea) Offset(x, y float32) ScrollArea {
 }
 
 // VerticalScrollbar assigns the stable action ID and accessibility strings for
-// the vertical thumb. ID zero keeps the visual geometry non-interactive.
+// the vertical thumb. ID zero keeps the visual geometry non-interactive. An ID
+// zero with an empty label omits the overlay while preserving its geometry, for
+// a caller that paints the vertical bar itself.
 func (area ScrollArea) VerticalScrollbar(id gfx.ID, label, value string) ScrollArea {
 	area.verticalID = id
 	area.verticalLabel = label
@@ -331,6 +333,9 @@ func (area *ScrollArea) EndContent() ScrollAreaGeometry {
 }
 
 func (area ScrollArea) paintScrollbar(track, thumb gfx.Rect, id gfx.ID, label, value string) {
+	if id.IsZero() && label == "" {
+		return
+	}
 	if area.hoverBars && !area.barsRevealed {
 		return
 	}

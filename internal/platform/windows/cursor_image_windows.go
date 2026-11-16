@@ -64,36 +64,42 @@ func retireCustomCursor(handle uintptr, image *gfx.CursorImage, scale float32) {
 // the system and never destroyed, so a preset recreated per request would leak
 // one per change.
 var grabbingCursor = struct {
-	once    sync.Once
+	sync.Mutex
+	built   bool
 	image   *gfx.CursorImage
 	handle  uintptr
 	failure error
 }{}
 
 func grabbingCursorHandle() (uintptr, error) {
-	grabbingCursor.once.Do(func() {
+	grabbingCursor.Lock()
+	defer grabbingCursor.Unlock()
+	if !grabbingCursor.built {
+		grabbingCursor.built = true
+		grabbingCursor.image, grabbingCursor.handle, grabbingCursor.failure = nil, 0, nil
 		image, err := gfx.NewCursorImage(16, 16, 6, 3, 1, grabbingCursorPixels())
 		if err != nil {
 			grabbingCursor.failure = err
-			return
-		}
-		handle, err := newCursorHandle(image, 1)
-		if err != nil {
+		} else if handle, err := newCursorHandle(image, 1); err != nil {
 			grabbingCursor.failure = err
-			return
+		} else {
+			grabbingCursor.image, grabbingCursor.handle = image, handle
 		}
-		grabbingCursor.image, grabbingCursor.handle = image, handle
-	})
+	}
 	return grabbingCursor.handle, grabbingCursor.failure
 }
 
 // closeGrabbingCursor destroys the cached cursor as the process exits its last
-// window; the stock shapes need nothing.
+// window; the stock shapes need nothing. A later window makes a new one: the
+// cache is rebuilt rather than remembering a destroyed handle.
 func closeGrabbingCursor() {
+	grabbingCursor.Lock()
+	defer grabbingCursor.Unlock()
 	if handle := grabbingCursor.handle; handle != 0 {
 		grabbingCursor.handle = 0
 		destroyIcon.Call(handle)
 	}
+	grabbingCursor.image, grabbingCursor.built, grabbingCursor.failure = nil, false, nil
 }
 
 func grabbingCursorPixels() []byte {

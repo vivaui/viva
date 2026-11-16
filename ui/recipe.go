@@ -39,6 +39,15 @@ func textEntryInsets(theme *Theme, k kind) (x, y float32) {
 	return x, y
 }
 
+// textEntryLook is the recipe a themed Input or Textarea is dressed with: the
+// page's Styles.TextEntry when it set one, else the theme's.
+func (f *frame) textEntryLook(theme *Theme, state gfx.State) components.TextEntryLook {
+	if f.styles != nil && f.styles.TextEntry != nil {
+		return f.styles.TextEntry(*theme, state)
+	}
+	return components.TextEntryRecipe(*theme, state)
+}
+
 // applyRecipes gives every themed element the measurements its recipe has, before the page
 // is laid out: the corners, the border and the padding of its text. Colors depend on the
 // state of the frame being painted, so they are filled in by themedDefaults at paint time.
@@ -52,11 +61,12 @@ func (f *frame) applyRecipes() {
 		case kindInput, kindTextarea:
 			var scratch Theme
 			theme := f.recipeTheme(n, &scratch)
+			look := f.textEntryLook(theme, gfx.State{})
 			if n.flags&flagSetBorder == 0 {
-				n.borderWidth = components.TextEntryBorderWidth
+				n.borderWidth = look.BorderWidth
 			}
 			if n.flags&flagHasRadius == 0 {
-				n.radius = theme.Metrics.RadiusControl
+				n.radius = look.Radius
 			}
 			if n.flags&flagSetPad == 0 {
 				x, y := textEntryInsets(theme, n.kind)
@@ -84,7 +94,7 @@ func (f *frame) themedDefaults(n *node, extra *extra, s *resolved) {
 		return
 	}
 	var scratch Theme
-	look := components.TextEntryRecipe(*f.recipeTheme(n, &scratch), state)
+	look := f.textEntryLook(f.recipeTheme(n, &scratch), state)
 	if n.flags&flagSetBackground == 0 {
 		s.background = look.Fill
 	}

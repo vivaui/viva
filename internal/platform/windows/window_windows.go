@@ -121,13 +121,20 @@ type windowState struct {
 	textRuns                               []gfx.TextRun
 	captionPress                           captionPress
 	imeComposing                           bool
+	imeCancelling                          bool
 	// imeDisabled says the window's input-method context is disassociated, and
 	// imeContext holds the context to give back when it returns. A surface that
 	// shows another machine's desktop asks for it (platform.TextInput.DisableIME):
 	// the host's input method would otherwise take the keys that belong to the
 	// machine on the other side.
-	imeDisabled                  bool
-	imeContext                   uintptr
+	imeDisabled bool
+	imeContext  uintptr
+	// imeEpoch invalidates an older message tail when callbacks replace the
+	// input or reenter native input delivery.
+	imeEpoch uint64
+	// textRevision advances for every installed acknowledgment or input owner;
+	// an End that merely stops an IMM message tail must not discard its Result.
+	textRevision                 uint64
 	pendingHighSurrogate         uint16
 	accessibility                uiaTree
 	pendingKey                   pendingKey
@@ -140,7 +147,11 @@ type windowState struct {
 	imeTarget                    text.Range
 	imeHasTarget                 bool
 	titlebarThemed, titlebarDark bool
-	web                          *webHost
+	// borderColored says the window's border was given an application color,
+	// and borderColor is that color; see applyBorderColor.
+	borderColored bool
+	borderColor   uint32
+	web           *webHost
 }
 
 var active atomic.Pointer[windowState]
@@ -174,6 +185,11 @@ type windowsApplication struct {
 	// again.
 	taskbar      uintptr
 	taskbarTried bool
+	// posts are the functions other goroutines handed to Post; they are drained
+	// on the event-loop thread. postWake coalesces the messages that wake it.
+	postMu   sync.Mutex
+	posts    []func()
+	postWake atomic.Bool
 }
 
 type nativeWindow struct {
@@ -260,6 +276,10 @@ func RunApplication(start platform.ApplicationStart) error {
 		}
 		if event.Window == 0 && event.Kind == wmQuitApplication {
 			application.closeAll()
+			continue
+		}
+		if event.Window == 0 && event.Kind == wmPost {
+			application.drainPosts()
 			continue
 		}
 		// A handled printable shortcut must never reach TranslateMessage:
@@ -381,6 +401,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 	}
 	state.watchBackdropPower()
 	state.applyBackdrop()
+	state.applyBorderColor()
 	state.ready = true
 	if state.activeBackdrop() {
 		postMessage.Call(state.window, wmRedraw, 0, 0)
@@ -440,6 +461,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			result = 0
 		}
 	}()
+	if state.imeCancelling && (kind == wmIMEStart || kind == wmIMEComposition || kind == wmIMEEnd) {
+		return 0
+	}
 	switch kind {
 	case wmAlwaysOnTop:
 		if state.setAlwaysOnTop(first != 0) {
@@ -590,6 +614,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 	case wmIMEStart:
 		if state.textEnabled {
+			state.imeEpoch++
 			state.imeComposing = true
 			state.positionCompositionWindow()
 			return 0
@@ -605,10 +630,11 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return result
 		}
 	case wmIMEEnd:
+		if state.textEnabled {
+			state.imeEpoch++
+		}
 		if state.textEnabled && state.imeComposing {
-			state.imeComposing = false
-			state.imeHasTarget = false
-			state.handleTextEvent(platform.TextEvent{Kind: platform.TextUnmark})
+			state.endIMEComposition()
 			return 0
 		}
 	case wmDeadChar:
@@ -835,6 +861,14 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 		state.captionPress.end()
 		if kind == wmKillFocus {
+			// Windows does not promise WM_IME_ENDCOMPOSITION once another
+			// window takes the keyboard, and the phase emission and WM_CHAR
+			// gate depend on the composition flags: settle it here as that
+			// message would, so a later native end is a no-op.
+			if state.textEnabled && state.imeComposing {
+				state.imeEpoch++
+				state.endIMEComposition()
+			}
 			state.focused = false
 			state.syncShortcutHook()
 			state.textDragging = false
@@ -941,16 +975,30 @@ func (state *windowState) frame(frame platform.Frame, err error) {
 // handling it through fail. A caller that presents synchronously (WM_SIZE does)
 // must not present a frame that was never applied.
 func (state *windowState) frameWithText(frame platform.Frame, err error, nativeVisualChanged bool) error {
+	return state.frameWithTextAndCancel(frame, err, nativeVisualChanged, state.cancelNativeComposition)
+}
+
+func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error, nativeVisualChanged bool, cancelNative func()) error {
+	if err == nil && state.window == 0 {
+		return nil
+	}
 	views := frame.NativeViews
 	if err == nil {
 		state.applyBackdrop()
+		state.applyBorderColor()
+		var dirty bool
+		frame, dirty, err = state.prepareFrameWithCancel(frame, nativeVisualChanged, cancelNative)
+		if err == errSupersededTextFrame {
+			if state.window != 0 {
+				state.framePresented()
+			}
+			return nil
+		}
 		defer func() {
 			if state.web != nil && state.ready {
 				state.web.frame(views)
 			}
 		}()
-		var dirty bool
-		frame, dirty, err = state.prepareFrame(frame, nativeVisualChanged)
 		if err == nil {
 			err = state.applyFrame(frame)
 		}
@@ -982,6 +1030,9 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 // message loop running with no window to show, and the single-instance claim held
 // by a process nobody can see.
 func (state *windowState) destroyed(window uintptr) {
+	// Native teardown can reenter the dispatcher; retire text callbacks first.
+	state.ready = false
+	state.closeText()
 	forgetClipboardListener(window)
 	released := false
 	release := func() {
@@ -1007,7 +1058,6 @@ func (state *windowState) destroyed(window uintptr) {
 	}
 	state.accessibility.close()
 	state.renderer.close()
-	state.closeText()
 	if state.config.Waker != nil && state.config.OnRedraw != nil {
 		state.config.Waker.Unbind()
 	}

@@ -74,6 +74,33 @@ func TestClickCounts(t *testing.T) {
 
 测试按用户和读屏器认识控件的名字（`Hit.Label`）找控件，而不是按坐标。页面自己为元素命名，在它的树里是 `page/~k1/#0` 这样的路径；`c.Part("word")` 给元素起一个你自己的名字，测试和无头驱动可以按路径定位。
 
+## headless.Session
+
+`headless.Open` 把那个 driver 包成一个 session：按可访问名称查找控件，并拥有自己的时钟。`Now`、`Advance` 和 `Frame` 控制时间与绘制，`Transitioning` 说明是否还有东西在动，`Access` 返回最后一帧的无障碍树，`Notifications` 返回应用发出的通知：
+
+```go
+session, err := headless.Open(config, nil, headless.Options{})
+if err != nil {
+	t.Fatal(err)
+}
+defer session.Close()
+
+node, ok := session.AccessByRole(gfx.RoleCheckbox, "Auto update")
+if !ok || !node.Checked {
+	t.Fatalf("checkbox = %+v", node)
+}
+session.ClickLabel("Install")
+session.Advance(200 * time.Millisecond)
+if session.Transitioning() {
+	t.Error("the progress bar is still moving")
+}
+if got := session.Notifications(); len(got) != 1 || got[0].Title != "Installed" {
+	t.Errorf("notifications = %+v", got)
+}
+```
+
+`Access` 报告辅助技术看到的内容：每个控件的角色、边界、名称、值、描述、状态、数值范围和 live region，按阅读顺序排列。它和平台适配器交给系统的是同一棵树，只是不含平台。
+
 ## 能编译却做错事的写法
 
 页面可能能编译却做错事：循环里每一行都有同名 `Button`、行又没加 Key 时，上方新增一行后，点击可能落到别的行上。`viva vet` 不运行程序就能找出它：

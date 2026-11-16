@@ -560,3 +560,49 @@ func TestSingleSelectOptionIconTakesItsOwnColumn(t *testing.T) {
 		t.Fatalf("the popup grew by %v for a %v wide icon", delta, menuIconSize)
 	}
 }
+
+// The SingleSelect popup keeps its own viewport clip: it escapes an ancestor
+// scroll area and still claims the whole viewport as its dismiss backdrop, as it
+// did before Select shared the surface's viewport handling.
+func TestSingleSelectPopupKeepsItsViewportClipBeyondAScrollArea(t *testing.T) {
+	var tree gfx.Tree
+	f := tree.Feature("single-select-scroll")
+	viewport := gfx.Rect{Width: 400, Height: 300}
+	body := gfx.Rect{X: 10, Y: 10, Width: 360, Height: 90}
+	o := SingleSelectOptions{
+		InputID: tree.ID(f, "input"), TriggerID: tree.ID(f, "trigger"), ClearID: tree.ID(f, "clear"),
+		DismissID: tree.ID(f, "dismiss"), Scope: tree.ID(f, "scope"), ScrollID: tree.ID(f, "scroll"),
+		OptionIDs: tree.Sub(f, tree.Name("option")), Label: "Group", Viewport: viewport, Layer: 4,
+	}
+	s := singleSelectFixture()
+	s.SetOptions([]SingleSelectOption{{Value: "one"}, {Value: "two"}, {Value: "three"}})
+	s.Open = true
+	var canvas gfx.Canvas
+	canvas.Clip(body)
+	layout := PaintSingleSelect(&canvas, gfx.LightTheme(), gfx.Rect{X: 20, Y: 60, Width: 240, Height: 32}, s, o)
+	canvas.Unclip()
+	if layout.Popup.Y+layout.Popup.Height <= body.Y+body.Height {
+		t.Fatalf("the fixture did not place the popup below the scroll area: %+v", layout.Popup)
+	}
+	surface := false
+	for _, r := range canvas.Rectangles() {
+		if r.Bounds == layout.Popup {
+			surface = true
+			if r.ClipOf != viewport {
+				t.Fatalf("the SingleSelect popup inherited the scroll clip: %+v", r)
+			}
+		}
+	}
+	if !surface {
+		t.Fatal("the SingleSelect popup surface was not painted")
+	}
+	var dismiss gfx.Hit
+	for _, hit := range canvas.Hits() {
+		if hit.ID == o.DismissID {
+			dismiss = hit
+		}
+	}
+	if dismiss.Bounds != viewport || !dismiss.Backdrop {
+		t.Fatalf("the dismiss backdrop is %+v, want the whole viewport", dismiss.Bounds)
+	}
+}

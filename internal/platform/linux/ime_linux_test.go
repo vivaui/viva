@@ -21,6 +21,7 @@ type fakeIMEContext struct {
 	surrounds []fakeSurround
 	err       error
 	closed    bool
+	onCall    func(string)
 }
 
 type fakeIMEKey struct {
@@ -30,6 +31,9 @@ type fakeIMEKey struct {
 
 func (f *fakeIMEContext) record(name string) error {
 	f.calls = append(f.calls, name)
+	if f.onCall != nil {
+		f.onCall(name)
+	}
 	return f.err
 }
 
@@ -69,7 +73,7 @@ type imeHarness struct {
 	presents  int
 }
 
-func newIMEHarness(t *testing.T) *imeHarness {
+func newIMEHarness(t testing.TB) *imeHarness {
 	t.Helper()
 	harness := &imeHarness{context: &fakeIMEContext{}, editor: text.NewEditor(""), origin: [2]int32{300, 200}}
 	config := &platform.Config{
@@ -102,8 +106,12 @@ func newIMEHarness(t *testing.T) *imeHarness {
 		_, _, err := harness.input.prepare(frame)
 		return err
 	}
+	// ibusTried keeps a present() that defers sync from dialing the host's
+	// daemon: these tests are about the state machine, and a machine with a
+	// reachable IBus address would otherwise get a fresh native context in the
+	// middle of an assertion.
 	harness.ime = &linuxIME{
-		app: &linuxApplication{}, text: harness.input, router: router, context: harness.context,
+		app: &linuxApplication{ibusTried: true}, text: harness.input, router: router, context: harness.context,
 		origin: func() (int32, int32) { return harness.origin[0], harness.origin[1] },
 	}
 	router.ime = harness.ime
@@ -111,7 +119,7 @@ func newIMEHarness(t *testing.T) *imeHarness {
 	return harness
 }
 
-func (h *imeHarness) focus(t *testing.T) {
+func (h *imeHarness) focus(t testing.TB) {
 	t.Helper()
 	h.ime.setFocused(true)
 	if !h.ime.active {
@@ -193,6 +201,58 @@ func TestIMEKeyTheEngineDeclinesIsTypedIntoTheField(t *testing.T) {
 	h.context.keys[0].done(false)
 	if h.editor.String() != "n" {
 		t.Fatalf("field = %q after the engine declined the key", h.editor.String())
+	}
+}
+
+func TestIMENoDaemonKeepsWindowConstructionAllocationFree(t *testing.T) {
+	app := &linuxApplication{ibusTried: true}
+	win := &window{}
+	field := &linuxTextInput{}
+	allocations := testing.AllocsPerRun(100, func() {
+		if ime := app.newIME(win, field, eventRouter{}); ime != nil {
+			t.Fatal("known absent daemon created an input method")
+		}
+	})
+	if allocations != 0 {
+		t.Fatalf("no-daemon allocations=%g, want 0", allocations)
+	}
+}
+
+func TestIMELegacyPendingKeyRetainsItsDeliveryAfterFocusOut(t *testing.T) {
+	h := newIMEHarness(t)
+	h.focus(t)
+	h.ime.processKey('n', &xcbInputEvent{Detail: 57}, platform.KeyEvent{Text: "n"})
+	h.ime.setFocused(false)
+	h.context.keys[0].done(false)
+	if h.editor.String() != "n" {
+		t.Fatalf("legacy pending key lost on focus-out: %q", h.editor.String())
+	}
+}
+
+func TestIMEHandledKeyKeepsTheSingleCallbackAllocation(t *testing.T) {
+	for _, tentative := range []bool{false, true} {
+		h := newIMEHarness(t)
+		if tentative {
+			h.editor.EnableTentativeComposition()
+			field := h.input.input
+			field.State = platform.EditorState(h.editor)
+			if _, _, err := h.input.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}}); err != nil {
+				t.Fatal(err)
+			}
+			h.ime.bindOwner()
+		}
+		h.focus(t)
+		event, key := &xcbInputEvent{Detail: 57}, platform.KeyEvent{Text: "n"}
+		allocations := testing.AllocsPerRun(100, func() {
+			h.context.keys = h.context.keys[:0]
+			if !h.ime.processKey('n', event, key) {
+				t.Fatal("engine-consumed key refused")
+			}
+			h.context.keys[0].done(true)
+		})
+		if allocations > 1 {
+			t.Errorf("tentative=%t handled-key allocations=%v want at most 1", tentative, allocations)
+		}
 	}
 }
 
@@ -351,8 +411,14 @@ func TestIMEReleaseGoesToTheEngineWithTheReleaseMask(t *testing.T) {
 	}
 	h.focus(t)
 	h.ime.release(keymap, event)
-	if got := h.context.keys[0]; got.state != ibus.ReleaseMask || got.done != nil || got.keysym != 'n' {
+	if got := h.context.keys[0]; got.state != ibus.ReleaseMask || got.keysym != 'n' {
 		t.Fatalf("release = %+v", got)
+	}
+	if done := h.context.keys[0].done; done != nil {
+		done(false)
+	}
+	if h.editor.String() != "" || len(h.delivered) != 0 {
+		t.Fatal("an engine-declined release was delivered as a press")
 	}
 }
 
@@ -516,8 +582,11 @@ func TestIMEModifierPressReachesTheEngineAndDeliversNothing(t *testing.T) {
 	if len(h.context.keys) != 1 {
 		t.Fatalf("keys sent to the engine = %d, want the Shift press", len(h.context.keys))
 	}
-	if got := h.context.keys[0]; got.keysym != 0xffe1 || got.keycode != 50-8 || got.state&ibus.ReleaseMask != 0 || got.done != nil {
+	if got := h.context.keys[0]; got.keysym != 0xffe1 || got.keycode != 50-8 || got.state&ibus.ReleaseMask != 0 {
 		t.Fatalf("press = %+v", got)
+	}
+	if done := h.context.keys[0].done; done != nil {
+		done(false)
 	}
 	if len(h.delivered) != 0 || h.editor.String() != "" {
 		t.Fatalf("a modifier reached the field: %v %q", h.delivered, h.editor.String())

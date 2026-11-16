@@ -166,6 +166,7 @@ type contextModel struct {
 	hosts          []string
 	connected      string
 	wrap           bool
+	open           bool
 	renames, opens int
 }
 

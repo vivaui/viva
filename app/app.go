@@ -96,6 +96,15 @@ type Config struct {
 	// supplied it. Without one the panel is centered on the screen.
 	Anchor     StatusAnchor
 	ClearColor Color
+	// WindowBorderColor is read at every paint and names the color of the
+	// border Windows 11 draws around a custom-titlebar window. The system
+	// composites that border against what is behind the window rather than
+	// against the window's own pixels, so the desktop shows through it as a
+	// seam about a pixel wide at 100% scale and proportionally wider at higher
+	// scale. Return the color the window's own edge is painted with to make it
+	// continuous. Nil uses ClearColor; a transparent color leaves the system's
+	// border. Other platforms ignore it.
+	WindowBorderColor func() Color
 	// WindowBackdrop is read on the window thread after each paint. Windows
 	// 11 22H2+ supports all materials; Windows 10 1809 through 11 21H2 supports
 	// Acrylic through an undocumented accent policy. Other cases use ClearColor.
@@ -122,7 +131,8 @@ type Config struct {
 	// be coalesced to the latest queued position, as the platform does natively,
 	// so a handler follows the coordinates rather than the number of calls.
 	// Returning Repaint asks for one synchronous paint; Handled suppresses the
-	// click that press would complete.
+	// click that press would complete and default caret placement for the event,
+	// ending any pending default selection drag.
 	OnPointer func(event gfx.PointerEvent) gfx.EventResult
 	// OnKey receives normalized keyboard events for the focused hit target.
 	// Handled suppresses built-in traversal, activation, and Escape dismissal.
