@@ -104,12 +104,22 @@ jobs:
           git rev-parse HEAD
           go version
           go test ./internal/platform/windows -run '^TestColumnClipboardNative' -count=1 -v -timeout=90s
-      - name: GTK native probe dependencies
+      - name: Linux native probe dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-3-0t64 xvfb xauth dbus-x11
-          dpkg-query -W libgtk-3-0t64 xvfb xauth dbus-x11
+          sudo apt-get install -y --no-install-recommends libgtk-3-0t64 xvfb xauth dbus-x11 at-spi2-core
+          dpkg-query -W libgtk-3-0t64 xvfb xauth dbus-x11 at-spi2-core
+      - name: AT-SPI first-window polling
+        if: runner.os == 'Linux'
+        run: |
+          binary="$RUNNER_TEMP/viva-atspi.test"
+          profile="$(mktemp -d "$RUNNER_TEMP/viva-atspi.XXXXXX")"
+          trap 'rm -rf "$profile" "$binary"' EXIT
+          go test -c -o "$binary" ./internal/platform/linux
+          mkdir -p "$profile"/{home,config,cache,data,runtime}
+          chmod 0700 "$profile/runtime"
+          xvfb-run -a env HOME="$profile/home" XDG_CONFIG_HOME="$profile/config" XDG_CACHE_HOME="$profile/cache" XDG_DATA_HOME="$profile/data" XDG_RUNTIME_DIR="$profile/runtime" VIVA_ATSPI_NATIVE_ROOT="$profile" VIVA_ATSPI_NATIVE=1 NO_AT_BRIDGE=1 dbus-run-session -- "$binary" -test.run='^TestAtspiNativeFirstWindowPolling$' -test.count=1 -test.v -test.timeout=45s
       - name: GTK native composition lifecycle
         if: runner.os == 'Linux'
         run: dbus-run-session -- xvfb-run -a env VIVA_GTK_IME_NATIVE=1 GTK_IM_MODULE=gtk-im-context-simple GDK_BACKEND=x11 NO_AT_BRIDGE=1 G_DEBUG=fatal-criticals go test -tags vivagtk ./internal/platform/linux -run '^(TestGTKNativeComposition|TestGTKNativeTentative.*|TestGTKNativeSameTargetOwnership)$' -count=1 -v -timeout=90s
