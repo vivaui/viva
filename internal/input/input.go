@@ -27,6 +27,9 @@ type Region struct {
 	// FocusableDisabled keeps a disabled region focusable (but inert), as a
 	// disabled accordion or tab trigger is.
 	FocusableDisabled bool
+	// SecondaryWhenDisabled lets a disabled region take a secondary press (see
+	// gfx.HitOptions.SecondaryWhenDisabled). No other press or key reaches it.
+	SecondaryWhenDisabled bool
 	// Role is the semantic role the region declared. The router uses it to
 	// decide which keys activate the focused control: a button takes Enter and
 	// Space, a checkbox only Space, a slider neither.
@@ -195,7 +198,10 @@ func (router *Router) HitTestRegion(x float32, y float32) (Region, bool) {
 // pointer is on, and whether it is on a surface that says so (see
 // Region.BlockSurface) rather than on a control. Both answers come from the same
 // search, so a move costs one scan of the regions, as HitTestRegion alone did.
-func (router *Router) PointerAt(x float32, y float32) (Region, bool, bool) {
+// A secondary press also finds a disabled region that declares
+// SecondaryWhenDisabled; the press that starts a context menu is the only one
+// that does.
+func (router *Router) PointerAt(x float32, y float32, secondaryPress bool) (Region, bool, bool) {
 	for index := len(router.regions) - 1; index >= 0; index-- {
 		region := router.regions[index]
 		if !contains(region.Bounds, x, y) {
@@ -209,7 +215,7 @@ func (router *Router) PointerAt(x float32, y float32) (Region, bool, bool) {
 			}
 			continue
 		}
-		if router.hitAvailable(region) {
+		if router.hitAvailable(region) || secondaryPress && router.secondaryAvailable(region) {
 			return region, true, false
 		}
 	}
@@ -505,6 +511,13 @@ func (router *Router) focusAvailable(target Target) bool {
 
 func (router *Router) hitAvailable(region Region) bool {
 	return !region.Target.IsZero() && !region.Disabled &&
+		(router.activeScope.IsZero() || region.Scope == router.activeScope)
+}
+
+// secondaryAvailable is hitAvailable for a secondary press: a disabled region
+// that declares SecondaryWhenDisabled is also a target of one.
+func (router *Router) secondaryAvailable(region Region) bool {
+	return region.Disabled && region.SecondaryWhenDisabled && !region.Target.IsZero() &&
 		(router.activeScope.IsZero() || region.Scope == router.activeScope)
 }
 

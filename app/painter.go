@@ -367,7 +367,8 @@ func (painter *painter) pointerStep(event platform.PointerEvent) (result gfx.Eve
 	painter.pointer.SetHoveredRole(gfx.Role(0))
 	painter.onSurface = false
 	if event.Kind != platform.PointerExit {
-		if target, ok, onSurface := painter.focus.Router().PointerAt(event.X, event.Y); ok || onSurface {
+		secondaryPress := event.Kind == platform.PointerDown && event.Button == gfx.PointerButtonSecondary
+		if target, ok, onSurface := painter.focus.Router().PointerAt(event.X, event.Y, secondaryPress); ok || onSurface {
 			painter.pointer.SetHovered(target.Target)
 			painter.pointer.SetHoveredRole(target.Role)
 			painter.onSurface = onSurface
@@ -1964,6 +1965,7 @@ func sameRegionHit(published, current *gfx.Hit) bool {
 		published.Focusable == current.Focusable &&
 		published.Disabled == current.Disabled &&
 		published.FocusableDisabled == current.FocusableDisabled &&
+		published.SecondaryWhenDisabled == current.SecondaryWhenDisabled &&
 		published.SkipTab == current.SkipTab &&
 		published.Block == current.Block &&
 		published.BlockSurface == current.BlockSurface &&
