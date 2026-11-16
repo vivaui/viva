@@ -408,6 +408,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	application.live = append(application.live, win)
 	application.liveMu.Unlock()
 	application.rebuildPoll()
+	application.wakePosts()
 	application.atspiOpened(state)
 	application.retryDesktopWatch()
 	activeWindow.Store(win)
