@@ -399,7 +399,10 @@ func (painter *painter) pointerStep(event platform.PointerEvent) (result gfx.Eve
 	}
 	painter.pointer.NoteHandled(gfx.PointerEventKind(event.Kind), result.Handled)
 	focusChanged = painter.applyEventResult(result)
-	if painter.placeCaret(event) {
+	if result.Handled {
+		// A handler owns this selection; the default drag must not resume.
+		painter.placing = false
+	} else if painter.placeCaret(event) {
 		result.Repaint = true
 	}
 	return result, focusChanged, edgeChanged
@@ -450,6 +453,7 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 	switch event.Kind {
 	case platform.PointerDown:
 		painter.placing, painter.placeAnchor = true, index
+		selection.Selection.Start = index
 		painter.placeUnit, painter.placeUnitRange = 0, text.Range{}
 		switch {
 		case event.ClickCount >= 3:

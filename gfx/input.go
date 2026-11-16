@@ -277,8 +277,8 @@ type FileDropEvent struct {
 // for one synchronous paint. Focus moves focus to one focusable hit, including
 // a hit the event reveals in that paint; Blur clears focus and takes precedence
 // over Focus. Handled suppresses the runtime's click (what Clicked reads), activation,
-// escape, or window-scroll behavior for that event. ClipboardText, when
-// non-empty, asks the active runtime to copy the text without making
+// escape, window-scroll, or default caret-placement behavior for that event.
+// ClipboardText, when non-empty, asks the active runtime to copy the text without making
 // application code depend on a platform clipboard.
 type EventResult struct {
 	Focus   ID
