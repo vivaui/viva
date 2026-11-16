@@ -355,10 +355,12 @@ func TestColumnClipboardNativeUnreadableMarkerPastesAsStream(t *testing.T) {
 					if event.Kind != platform.TextPaste || event.Text != "unchanged" || event.Rectangular {
 						t.Errorf("paste event = %+v; want the clipboard text pasted as a stream", event)
 					}
-					return state.textState, nil
+					// The fixture has no text engine to paint the paste into; the
+					// event is the assertion, so stop before the frame.
+					return state.textState, errors.New("stop the fixture paste")
 				}}
-				if !state.textKey('V', 0, inputpkg.ModifierControl) || events != 1 || state.err != nil {
-					t.Fatalf("unreadable marker did not deliver a stream Paste: events=%d err=%v", events, state.err)
+				if !state.textKey('V', 0, inputpkg.ModifierControl) || events != 1 {
+					t.Fatalf("unreadable marker did not deliver a stream Paste: events=%d", events)
 				}
 			}
 			if plain, err := ClipboardText(); err != nil || plain != "unchanged" {
