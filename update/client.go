@@ -49,6 +49,13 @@ var (
 	// ErrChecksum reports a download whose SHA-256 is not the one the feed
 	// declared.
 	ErrChecksum = errors.New("update: download does not match its checksum")
+	// ErrInterrupted reports a download that stopped before the file was
+	// complete: the connection failed, nothing arrived for a minute, the host
+	// answered with a temporary error, or the caller's context ended (the error
+	// then wraps the context's error too). The bytes that arrived stay in the
+	// directory, and calling Download or DownloadPatch again with the same
+	// directory asks the host only for the rest.
+	ErrInterrupted = errors.New("update: download interrupted")
 )
 
 // Config configures a Client. FeedURL, PublicKeys and Current are required.
@@ -69,7 +76,8 @@ type Config struct {
 	// HTTP overrides the client used for the feed and its signature. Nil uses a
 	// client with a 30 second timeout. The archive download always uses a client
 	// with no total timeout, because a large installer may take longer than any
-	// sensible request timeout; the context passed to Download cancels it.
+	// sensible request timeout; the context passed to Download cancels it, and
+	// a connection that delivers nothing for a minute ends with ErrInterrupted.
 	HTTP *http.Client
 	// MaxAssetBytes bounds Download. Zero means DefaultMaxAssetBytes.
 	MaxAssetBytes int64
@@ -91,7 +99,9 @@ type Client struct {
 	assetHTTP    *http.Client
 	maxAsset     int64
 	maxManifest  int64
-	now          func() time.Time
+	// stall ends a download that has received nothing for this long.
+	stall time.Duration
+	now   func() time.Time
 }
 
 // New validates config and returns a Client.
@@ -147,6 +157,7 @@ func New(config Config) (*Client, error) {
 		assetHTTP:   assetHTTP,
 		maxAsset:    maxAsset,
 		maxManifest: DefaultMaxManifestBytes,
+		stall:       stallTimeout,
 		now:         now,
 	}, nil
 }
