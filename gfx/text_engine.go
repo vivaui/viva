@@ -143,6 +143,32 @@ type FontFamilyAware interface {
 	FontGeneration() uint32
 }
 
+// FontWeightAware is an optional FontFamilyAware capability: an engine that can also
+// name which installed weights the interface's text is drawn at. A family ships as
+// several weights (Thin … Black), and which of them the main text and the bold text
+// use is the application's choice; a family without the engine's own weights (400 for
+// regular, 700 for bold) is drawn at them through the platform's nearest match.
+type FontWeightAware interface {
+	// SetFontWeights names the weight the main text and the bold text are drawn at, as
+	// DWRITE_FONT_WEIGHT values (300 Light, 400 Regular, 500 Medium, 600 Semibold,
+	// 700 Bold …), or 0 for the platform's own. Main covers regular and medium text,
+	// bold covers semibold and bold. What was shaped at another weight is forgotten,
+	// and FontGeneration moves, as it does for a family change.
+	SetFontWeights(main, bold int)
+}
+
+// MonoWeightAware is an optional TextEngine capability: the weights the fixed-pitch
+// text — a terminal's face, drawn through a MonoFace — is drawn at, named apart from
+// the interface's because a terminal's family and weights are its own choice. The
+// weights also pick the face whose cell the fixed-pitch text is laid out on.
+type MonoWeightAware interface {
+	// SetMonoWeights names the weight the regular fixed-pitch text and the bold
+	// fixed-pitch text are drawn at, as FontWeightAware does, or 0 for the platform's
+	// own. What was shaped at another weight is forgotten, FontGeneration moves, and
+	// the cells the canvas measured are measured again.
+	SetMonoWeights(main, bold int)
+}
+
 // FontThickener is an optional TextEngine capability that draws the glyphs it
 // rasterizes with a thicker stroke, as the system's own text looks, or with the
 // font's own outlines. An engine without it has no such choice: the renderer

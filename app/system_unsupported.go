@@ -40,6 +40,7 @@ func nativeShowFatalError(string, string) {}
 
 func nativeMonospaceFamilies() []string { return nil }
 func nativeFontFamilies() []string      { return nil }
+func nativeFontWeights(string) []int    { return nil }
 
 func nativeAppearance() Appearance { return AppearanceUnknown }
 

@@ -26,6 +26,15 @@ type textServices struct {
 	write        uintptr
 	createFormat func(uintptr, *uint16, uintptr, uint32, uint32, uint32, float32, *uint16, *uintptr) uintptr
 	createLayout func(uintptr, *uint16, uint32, uintptr, float32, float32, *uintptr) uintptr
+	// mainWeight and boldWeight are the weights the interface's proportional text is
+	// drawn at: main for regular and medium text, bold for semibold and bold. A zero
+	// keeps DirectWrite's own weight for that band (400 and 700). The engine sets them
+	// (SetFontWeights); the rasterizer shares this struct, so both draw the same.
+	mainWeight, boldWeight uint32
+	// monoMainWeight and monoBoldWeight are the same for the fixed-pitch text — a
+	// terminal's face — whose weights the application names apart from the interface's
+	// (SetMonoWeights). They also choose the cell the terminal is laid out on.
+	monoMainWeight, monoBoldWeight uint32
 }
 type labelTexture struct {
 	label         platform.TextLabel
@@ -107,6 +116,23 @@ func (services *textServices) formatFamily(name string, size, weight float32) (u
 
 // formatStyle is a DirectWrite text format of a family at a Viva weight, in italics or not.
 func (services *textServices) formatStyle(name string, size, weight float32, italic bool) (uintptr, error) {
+	return services.formatWeight(name, size, nativeFontWeight(weight), italic)
+}
+
+// formatInterface is formatStyle for the interface's proportional text: the weight is
+// the application's main or bold weight where it named one for that text's band.
+func (services *textServices) formatInterface(name string, size, weight float32, italic bool) (uintptr, error) {
+	return services.formatWeight(name, size, services.interfaceWeight(weight), italic)
+}
+
+// formatMono is formatStyle for fixed-pitch text — a terminal's face — drawn at the
+// weights the application chose for it.
+func (services *textServices) formatMono(name string, size, weight float32, italic bool) (uintptr, error) {
+	return services.formatWeight(name, size, services.monoWeight(weight), italic)
+}
+
+// formatWeight is a DirectWrite text format of a family at a DirectWrite weight.
+func (services *textServices) formatWeight(name string, size float32, weight uint32, italic bool) (uintptr, error) {
 	family, _ := syscall.UTF16PtrFromString(name)
 	locale, _ := syscall.UTF16PtrFromString("")
 	var format uintptr
@@ -117,8 +143,35 @@ func (services *textServices) formatStyle(name string, size, weight float32, ita
 	// The collection the application's fonts joined, or the system's when it registered none.
 	customFonts.RLock()
 	defer customFonts.RUnlock()
-	status := services.createFormat(services.write, family, customFonts.collection, nativeFontWeight(weight), style, 5, size, locale, &format)
+	status := services.createFormat(services.write, family, customFonts.collection, weight, style, 5, size, locale, &format)
 	return format, hresult(status)
+}
+
+// interfaceWeight is the DirectWrite weight text at a Viva weight is drawn at: the
+// application's main weight for regular and medium text, its bold weight for semibold
+// and bold, and nativeFontWeight's own answer for either band the application did not name.
+func (services *textServices) interfaceWeight(weight float32) uint32 {
+	return services.chosenWeight(weight, services.mainWeight, services.boldWeight)
+}
+
+// monoWeight is interfaceWeight for the fixed-pitch text, whose weights the
+// application names apart from the interface's.
+func (services *textServices) monoWeight(weight float32) uint32 {
+	return services.chosenWeight(weight, services.monoMainWeight, services.monoBoldWeight)
+}
+
+// chosenWeight is the weight a Viva weight is drawn at under a main and a bold
+// choice: main for regular and medium text, bold for semibold and bold, and
+// nativeFontWeight's own answer for a band the application did not name.
+func (services *textServices) chosenWeight(weight float32, main, bold uint32) uint32 {
+	native := nativeFontWeight(weight)
+	switch {
+	case native <= 500 && main != 0:
+		return main
+	case native >= 600 && bold != 0:
+		return bold
+	}
+	return native
 }
 
 // nativeFontWeight is the DirectWrite weight of a Viva weight: regular, medium, semibold and
@@ -439,10 +492,23 @@ func (services *textServices) measure(value string, size, weight float32) (text.
 }
 
 func (services *textServices) measureIn(typeface, value string, size, weight float32) (text.Metrics, error) {
+	return services.measureWeightIn(typeface, value, size, nativeFontWeight(weight))
+}
+
+// measureMonoIn is measureIn at the weight the application named for fixed-pitch
+// text: the cell a terminal is laid out on and the box drawing strokes that come
+// with it follow the face the terminal actually draws.
+func (services *textServices) measureMonoIn(typeface, value string, size, weight float32) (text.Metrics, error) {
+	return services.measureWeightIn(typeface, value, size, services.monoWeight(weight))
+}
+
+// measureWeightIn lays value out in typeface at a DirectWrite weight and reports its
+// metrics.
+func (services *textServices) measureWeightIn(typeface, value string, size float32, weight uint32) (text.Metrics, error) {
 	if size <= 0 || math.IsNaN(float64(size)) || math.IsInf(float64(size), 0) {
 		return text.Metrics{}, fmt.Errorf("windows: invalid font size")
 	}
-	format, err := services.formatFamily(typeface, size, weight)
+	format, err := services.formatWeight(typeface, size, weight, false)
 	if err != nil {
 		return text.Metrics{}, err
 	}
@@ -552,7 +618,7 @@ func (services *textServices) boxStrokes(typeface string, size, weight float32) 
 		stretchNormal = 5
 		styleNormal   = 0
 	)
-	if err := hresult(comCall(family, writeFontFamilyGetFirstMatchingFont, uintptr(nativeFontWeight(weight)), stretchNormal, styleNormal, uintptr(unsafe.Pointer(&font)))); err != nil {
+	if err := hresult(comCall(family, writeFontFamilyGetFirstMatchingFont, uintptr(services.monoWeight(weight)), stretchNormal, styleNormal, uintptr(unsafe.Pointer(&font)))); err != nil {
 		return 0, 0
 	}
 	defer release(&font)

@@ -102,7 +102,7 @@ func (rasterizer *directRasterizer) inkReach(key inkKey) (platform.GridInk, bool
 // instead of asking the font for its outline keeps the filter's spill, the hinting and the
 // fallback font in the answer.
 func (rasterizer *directRasterizer) measureInk(key inkKey) (platform.GridInk, error) {
-	format, err := rasterizer.services.formatStyle(key.family, key.size, key.weight, key.italic)
+	format, err := rasterizer.services.formatMono(key.family, key.size, key.weight, key.italic)
 	if err != nil {
 		return platform.GridInk{}, err
 	}
