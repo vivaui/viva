@@ -720,7 +720,12 @@ func (p *painter) pointerStep(event gfx.PointerEvent) (result gfx.EventResult, f
 	}
 	p.pointer.NoteHandled(event.Kind, result.Handled)
 	focusChanged = p.applyEventResult(result)
-	placed = p.placeCaret(event)
+	if result.Handled {
+		// A handler owns this selection; the default drag must not resume.
+		p.placing = false
+	} else {
+		placed = p.placeCaret(event)
+	}
 	switch event.Kind {
 	case gfx.PointerUp:
 		if id, ok := p.pointer.Click(); ok && !result.Handled {
@@ -801,11 +806,15 @@ func (p *painter) placeCaret(event gfx.PointerEvent) bool {
 		}
 		value := p.textInput.State.Value
 		index := utf8.RuneCountInString(value[:max(0, min(offset, len(value)))])
+		start := p.placeAnchor
 		if event.Kind == gfx.PointerDown {
+			// The press starts a fresh selection at the caret; the anchor only
+			// seeds the drag that follows.
 			p.placing, p.placeAnchor = true, index
+			start = index
 		}
 		next, err := p.textInput.OnEvent(platform.TextEvent{
-			Kind: platform.TextSetSelection, Selection: text.Range{Start: p.placeAnchor, End: index},
+			Kind: platform.TextSetSelection, Selection: text.Range{Start: start, End: index},
 		})
 		if err != nil {
 			return false
