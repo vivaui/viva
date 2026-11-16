@@ -41,7 +41,7 @@ viva help package      # 某个命令的参数
 
 ```sh
 go tool viva add --out ./components button
-go get -tool github.com/vivaui/viva/cmd/viva@v0.1.3   # 给已有项目锁定
+go get -tool github.com/vivaui/viva/cmd/viva@v0.6.5   # 给已有项目锁定
 ```
 
 `PATH` 里的命令和项目版本不一致时，`viva doctor` 和 `viva add` 会提醒。

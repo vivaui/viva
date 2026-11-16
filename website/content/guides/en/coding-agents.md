@@ -6,7 +6,7 @@ group: start
 skill: building-with-viva
 ---
 
-Viva draws its own interface, repaints only on request and has no layout cache, so an agent that writes it like a web or retained-mode toolkit produces code that review rejects. The `building-with-viva` skill is a short briefing that an agent loads before it touches a Viva application. It is one Markdown file with no code to run.
+Viva draws its own interface, repaints only on request and has no layout cache, so an agent that writes it like a web or retained-mode toolkit produces code that review rejects. The `building-with-viva` skill is a short briefing that an agent loads before it touches a Viva application. It is two Markdown files with no code to run: the briefing and a recipe cheat sheet.
 
 ## What the skill covers
 
@@ -26,6 +26,8 @@ Download the file into your project's skills directory. Claude Code reads `.clau
 mkdir -p .claude/skills/building-with-viva
 curl -fsSL https://vivaui.dev/skills/building-with-viva/SKILL.md \
   -o .claude/skills/building-with-viva/SKILL.md
+curl -fsSL https://vivaui.dev/skills/building-with-viva/recipes.md \
+  -o .claude/skills/building-with-viva/recipes.md
 ```
 
 In a checkout of Viva itself, copy or symlink `docs/skills/building-with-viva` instead. The repository's `AGENTS.md` takes precedence over the skill there.

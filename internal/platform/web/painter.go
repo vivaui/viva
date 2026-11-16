@@ -708,7 +708,8 @@ func (p *painter) pointerStep(event gfx.PointerEvent) (result gfx.EventResult, f
 	p.pointer.SetHoveredRole(gfx.Role(0))
 	p.onSurface = false
 	if event.Kind != gfx.PointerExit {
-		if target, ok, onSurface := p.focus.Router().PointerAt(event.X, event.Y); ok || onSurface {
+		secondaryPress := event.Kind == gfx.PointerDown && event.Button == gfx.PointerButtonSecondary
+		if target, ok, onSurface := p.focus.Router().PointerAt(event.X, event.Y, secondaryPress); ok || onSurface {
 			p.pointer.SetHovered(target.Target)
 			p.pointer.SetHoveredRole(target.Role)
 			p.onSurface = onSurface

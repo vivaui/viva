@@ -17,7 +17,10 @@ import "github.com/vivaui/viva/gfx"
 // belongs to one window at a time, so give each window its own. The element
 // needs an identity: a control, or a container after Hit.
 //
-//	a := ui.FocusBind(ui.TextField(c, &m.query, "Search", ""), &m.focus, FocusSearch)
+//	a := ui.FocusBind(ui.TextField(c, &m.query, "Search", ""), &m.focus, focusSearch)
+//
+// where focusSearch is a value of the application's own (such as
+// const focusSearch = "search"); *field holds a value of that type.
 //
 // Not inside a Memo, whose copies are not declared. Use FocusedValue to read the
 // focus that is committed, rather than the request.

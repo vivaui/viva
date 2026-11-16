@@ -452,6 +452,11 @@ type HitOptions struct {
 	// focusable, as Base UI's accordion, collapsible and tab triggers do; it
 	// never activates. Pointer presses still skip it.
 	FocusableWhenDisabled bool
+	// SecondaryWhenDisabled, with Disabled, keeps the control the target of a
+	// secondary press, so a context menu can still open on it. It stays inert to
+	// primary presses, keys and activation. Use it where the disabled control
+	// still has its own menu, such as a toolbar button the user can hide or move.
+	SecondaryWhenDisabled bool
 	Checked               bool
 	// Mixed marks a checkbox in the indeterminate state (aria-checked="mixed").
 	Mixed    bool
@@ -596,10 +601,12 @@ type Hit struct {
 	Disabled    bool
 	// FocusableDisabled is HitOptions.FocusableWhenDisabled.
 	FocusableDisabled bool
-	Checked           bool
-	Mixed             bool
-	Selected          bool
-	Expanded          bool
+	// SecondaryWhenDisabled is HitOptions.SecondaryWhenDisabled.
+	SecondaryWhenDisabled bool
+	Checked               bool
+	Mixed                 bool
+	Selected              bool
+	Expanded              bool
 	// Expandable is HitOptions.Expandable.
 	Expandable bool
 	Multiline  bool
@@ -1647,7 +1654,8 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 		Value: options.Value, Hint: options.Hint,
 		Scope: canvas.currentFocusScope(), Layer: canvas.currentLayer(), Role: role, Cursor: options.Cursor, CursorImage: options.CursorImage,
 		Disabled: options.Disabled, FocusableDisabled: options.Disabled && options.FocusableWhenDisabled,
-		Checked: options.Checked, Mixed: options.Mixed,
+		SecondaryWhenDisabled: options.Disabled && options.SecondaryWhenDisabled,
+		Checked:               options.Checked, Mixed: options.Mixed,
 		Selected: options.Selected, Expanded: options.Expanded, Expandable: options.Expandable || options.Expanded,
 		Multiline: options.Multiline, ReadOnly: options.ReadOnly, Secure: options.Secure,
 		Description: options.Description, Level: options.Level, PosInSet: options.PosInSet, SetSize: options.SetSize,
