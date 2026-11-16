@@ -26,7 +26,7 @@ type inkKey struct {
 	fonts    uint32 // customFonts.revision
 	fallback uintptr
 	size     float32
-	weight   float32
+	mono     uint32  // the DirectWrite weight the run is drawn at (textServices.monoWeight)
 	span     float32 // the width of the cells it is drawn in, in device pixels
 	italic   bool
 	text     string
@@ -58,7 +58,7 @@ func (rasterizer *directRasterizer) ownedColumns(label platform.TextLabel, piece
 		if piece.index < 0 || piece.run.Cells <= 0 || piece.run.Ligatures || printableASCII(piece.text) {
 			continue
 		}
-		reach, ok := rasterizer.inkReach(inkKey{family: family, fonts: fonts, fallback: fallback, size: size, weight: piece.weight, span: piece.span, italic: piece.run.Italic, text: piece.text})
+		reach, ok := rasterizer.inkReach(inkKey{family: family, fonts: fonts, fallback: fallback, size: size, mono: rasterizer.services.monoWeight(piece.weight), span: piece.span, italic: piece.run.Italic, text: piece.text})
 		if !ok || (reach.Left <= 0 && reach.Right <= 0) {
 			continue
 		}
@@ -102,7 +102,7 @@ func (rasterizer *directRasterizer) inkReach(key inkKey) (platform.GridInk, bool
 // instead of asking the font for its outline keeps the filter's spill, the hinting and the
 // fallback font in the answer.
 func (rasterizer *directRasterizer) measureInk(key inkKey) (platform.GridInk, error) {
-	format, err := rasterizer.services.formatMono(key.family, key.size, key.weight, key.italic)
+	format, err := rasterizer.services.formatWeight(key.family, key.size, key.mono, key.italic)
 	if err != nil {
 		return platform.GridInk{}, err
 	}

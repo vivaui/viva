@@ -460,7 +460,7 @@ func MeasureMono(size float32, face gfx.MonoFace) (width, height float32, err er
 	}
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	metrics, err := engine.services.measureIn(monoFamily(face), "M", size, 0)
+	metrics, err := engine.services.measureMonoIn(monoFamily(face), "M", size, 0)
 	if err != nil {
 		return 0, 0, err
 	}

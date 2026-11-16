@@ -135,11 +135,12 @@ type FontFamilyAware interface {
 	// FontGeneration counts the changes after which the same line shapes
 	// differently: it moves on every SetFontFamily that changed the family,
 	// when the system's own fonts changed under the engine, and, on an engine
-	// that has the weight's choice (FontThickener), on every SetFontThickening
-	// that changed it. What the canvas or a renderer remembers of shaped text
-	// (a cut line, a rasterized label) is stale once it differs from the
-	// generation it was made at. Wrapping around is harmless: only equality is
-	// ever asked.
+	// that has the weight's choice (FontThickener, FontWeightAware,
+	// MonoWeightAware), on every SetFontThickening, SetFontWeights or
+	// SetMonoWeights that changed it. What the canvas or a renderer remembers
+	// of shaped text (a cut line, a rasterized label) is stale once it differs
+	// from the generation it was made at. Wrapping around is harmless: only
+	// equality is ever asked.
 	FontGeneration() uint32
 }
 

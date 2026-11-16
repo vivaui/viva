@@ -233,7 +233,7 @@ func (rasterizer *directRasterizer) useGDI(pieces []gridPiece, family string, si
 	}
 	for index := range pieces {
 		piece := &pieces[index]
-		weight := nativeFontWeight(piece.weight)
+		weight := rasterizer.services.monoWeight(piece.weight)
 		// GDI shapes nothing, has no font to fall back to for what the font lacks, and
 		// makes up the weights a family has no face for.
 		if piece.run.Ligatures || !printableASCII(piece.text) || !gdiDrawsWeight(weight) {
