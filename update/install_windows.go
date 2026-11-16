@@ -19,8 +19,12 @@ import (
 // signed, and a signature that exists but does not verify is refused.
 
 const (
-	// detachedProcess starts the helper without a console of its own.
-	detachedProcess = 0x00000008
+	// createNoWindow starts the helper with a console of its own that no window
+	// shows. It must not be DETACHED_PROCESS: Windows PowerShell 5.1 exits at
+	// once when it is started without a console, so the helper would never run
+	// the script, and the update would quit the application without replacing
+	// it or starting it again.
+	createNoWindow = 0x08000000
 	// powerShellExecutable is the Windows PowerShell host that runs the helper.
 	powerShellExecutable = "powershell.exe"
 )
@@ -365,13 +369,13 @@ func startHelper(parentPID int, installer, executable string, args []string) err
 	return nil
 }
 
-// helperSysProcAttr gives the helper its own process group and no console, so
-// it survives the application that is about to quit.
+// helperSysProcAttr gives the helper a console of its own that no window shows,
+// so it survives the application that is about to quit. It must not create a new
+// process group: that disables Ctrl+C for every process in the group, including
+// the application the helper starts and the console programs that application
+// hosts.
 func helperSysProcAttr() *syscall.SysProcAttr {
-	return &syscall.SysProcAttr{
-		CreationFlags: detachedProcess | syscall.CREATE_NEW_PROCESS_GROUP,
-		HideWindow:    true,
-	}
+	return &syscall.SysProcAttr{CreationFlags: createNoWindow}
 }
 
 // helperCommand is the PowerShell invocation that carries script.
