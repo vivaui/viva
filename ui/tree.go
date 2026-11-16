@@ -116,6 +116,19 @@ func (s *TreeState) Dropped() (TreeMove, bool) { return s.dropped, s.dropped.Fro
 // Dragging reports whether a row is being dragged.
 func (s *TreeState) Dragging() bool { return s.drag.active }
 
+// DragSource reports the visible row a drag is carrying and where the pointer
+// is, while a drag runs. A row no longer shown has no source.
+func (s *TreeState) DragSource() (row int, at gfx.Point, ok bool) {
+	if !s.drag.active {
+		return 0, gfx.Point{}, false
+	}
+	row = s.indexOf(s.drag.from)
+	if row < 0 {
+		return 0, gfx.Point{}, false
+	}
+	return row, s.drag.at, true
+}
+
 // Toggled reports which row's chevron this paint delivers a press on, or Left or
 // Right on a branch: the application opens or closes it.
 func (s *TreeState) Toggled() (int, bool) { return s.toggled, s.toggled >= 0 }
@@ -345,14 +358,23 @@ func (s *TreeState) dragOver(row *treeRow, d *DrawContext) {
 		return
 	}
 	theme := d.Theme
-	left := r.X + float32(row.item.Depth)*s.indent(theme)
 	switch drag.target.Where {
 	case TreeDropInside:
-		d.Canvas.RoundedBorder(r, theme.Metrics.RadiusItem(), 2, theme.Primary, gfx.Color{})
-	case TreeDropBefore:
-		d.Canvas.Fill(Rect{X: left, Y: r.Y - 1, Width: r.X + r.Width - left, Height: 2}, theme.Primary)
-	case TreeDropAfter:
-		d.Canvas.Fill(Rect{X: left, Y: r.Y + r.Height - 1, Width: r.X + r.Width - left, Height: 2}, theme.Primary)
+		// A faint wash and a half-strength edge mark the destination, as DBX
+		// marks the folder it is dropped into; the dragged row's focus ring is
+		// gone, so this is the only strong outline.
+		tint := theme.Primary
+		tint.Alpha *= 0.05
+		edge := theme.Primary
+		edge.Alpha *= 0.5
+		d.Canvas.Rounded(r, theme.Metrics.RadiusItem(), tint)
+		d.Canvas.RoundedBorder(r, theme.Metrics.RadiusItem(), 2, edge, gfx.Color{})
+	case TreeDropBefore, TreeDropAfter:
+		y := r.Y - 1
+		if drag.target.Where == TreeDropAfter {
+			y = r.Y + r.Height - 1
+		}
+		d.Canvas.Fill(Rect{X: r.X + 8, Y: y, Width: max(r.Width-16, 0), Height: 2}, theme.Primary)
 	}
 }
 
