@@ -2,8 +2,19 @@ package {{PACKAGE}}
 
 import (
 	"math"
+	"time"
 
 	"github.com/vivaui/viva/gfx"
+)
+
+// The animation clock: one simulation tick is a fixed 1/120 of a second — the
+// anneal of ~300 ticks settles in about two and a half — and a paint whose
+// frames arrive late catches up through at most graphCatchUpTicks of them, so
+// a sparse canvas still converges while a dense one never spends a frame on
+// an unbounded burst of O(n²) ticks.
+const (
+	graphTickSpan     = time.Second / 120
+	graphCatchUpTicks = 64
 )
 
 // GraphNode is one node's display data: what it is called, the color group it
@@ -50,6 +61,12 @@ type GraphState struct {
 	// anchorX/anchorY is the graph-space point the view centers on: followed
 	// while zoom stays zero, frozen with the fit.
 	anchorX, anchorY float32
+
+	// clock/clockSet is the wall time of the last animated paint, and anneal
+	// the unspent part of it owed to the simulation, in tick units of time.
+	clock    time.Duration
+	clockSet bool
+	anneal   time.Duration
 
 	selected     int
 	selectedSeen bool
@@ -148,12 +165,38 @@ func PaintGraph(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, sim *Graph
 	}
 	if !sim.Settled() {
 		if canvas != nil && canvas.HasClock() && !canvas.ReduceMotion() {
-			sim.Tick()
-			canvas.RequestFrame()
+			// The anneal runs on wall time at a fixed timestep — two ticks
+			// per animation frame's worth of elapsed time, catching up when
+			// frames are sparse — so the layout settles within about two and
+			// a half seconds however the canvas paints, and a settled graph
+			// asks for nothing. caret_blink runs its phase this same way.
+			now := canvas.Now()
+			elapsed := time.Duration(0)
+			if state.clockSet {
+				elapsed = max(now-state.clock, 0)
+			} else {
+				state.clockSet = true
+			}
+			state.clock = now
+			state.anneal += elapsed
+			for ticks := 0; ticks < graphCatchUpTicks && state.anneal >= graphTickSpan && sim.Tick(); ticks++ {
+				state.anneal -= graphTickSpan
+			}
+			if sim.Settled() {
+				// A quiet graph owes the clock nothing: a later reheat — a
+				// drag — starts its anneal from that moment, not from a gap
+				// of idle time that would burst out as catch-up ticks.
+				state.anneal, state.clockSet = 0, false
+			} else {
+				canvas.RequestFrame()
+			}
 		} else {
 			for ticks := 0; ticks < 1000 && sim.Tick(); ticks++ {
 			}
+			state.anneal, state.clockSet = 0, false
 		}
+	} else {
+		state.clockSet = false
 	}
 
 	// The viewport: a zero zoom keeps the whole graph in view, following the
@@ -241,7 +284,9 @@ func PaintGraph(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, sim *Graph
 
 	canvas.Clip(bounds)
 	if !options.SurfaceID.IsZero() {
-		canvas.Hit(options.SurfaceID, bounds)
+		// The pan surface is not a control: it joins no focus order, so Tab
+		// never stops on an invisible button covering the graph.
+		canvas.HitWithOptions(options.SurfaceID, bounds, "Pan graph", gfx.HitOptions{SkipFocus: true})
 	}
 	if sim.Len() == 0 {
 		canvas.LabelCenter("No linked notes", bounds, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground})
@@ -255,6 +300,13 @@ func PaintGraph(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, sim *Graph
 		}
 	}
 	selected, selectedSeen := state.Selection()
+	// A state kept across a rebuilt, smaller simulation can hold a selection
+	// naming a node that no longer exists; drop it rather than let the label
+	// path index past the nodes.
+	if selectedSeen && (selected < 0 || selected >= len(nodes)) {
+		state.ClearSelection()
+		selected, selectedSeen = 0, false
+	}
 
 	// Edges, one path per color, drawn dimmed first and the hovered node's
 	// edges last so they sit on top. Coordinates are relative to the bounds,
@@ -419,7 +471,14 @@ func graphNodeColor(theme gfx.Theme, options GraphOptions, nodes []GraphNode, in
 	if options.NodeColor != nil {
 		return options.NodeColor(theme, nodes[index].Group)
 	}
-	return theme.Chart[nodes[index].Group%len(theme.Chart)]
+	// A negative Group keeps its sign under Go's remainder; fold it into the
+	// palette so caller-owned data cannot index out of range.
+	palette := len(theme.Chart)
+	group := nodes[index].Group % palette
+	if group < 0 {
+		group += palette
+	}
+	return theme.Chart[group]
 }
 
 // segmentNear reports whether an edge from one point to another can touch the
