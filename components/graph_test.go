@@ -3,6 +3,7 @@ package components
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vivaui/viva/gfx"
 )
@@ -200,6 +201,67 @@ func TestPaintGraphFreezesViewportWhenSettled(t *testing.T) {
 	}
 	if state.Zoom <= 0 {
 		t.Fatal("refit left Zoom following")
+	}
+}
+
+func TestPaintGraphSurvivesStaleSelectionAndNegativeGroup(t *testing.T) {
+	var canvas gfx.Canvas
+	canvas.SetMeasurer(chartTestMeasure)
+	canvas.SetTree(&graphTestTree)
+	sim, nodes := graphTestData()
+	nodes[2].Group = -3 // caller-owned data: Go's remainder keeps the sign
+	state := &GraphState{}
+	state.Select(11) // a state kept across a smaller rebuilt simulation
+	options := GraphOptions{Nodes: graphTestScope(), SurfaceID: gfx.Item(90)}
+	layout := PaintGraph(&canvas, gfx.LightTheme(), gfx.Rect{X: 10, Y: 10, Width: 300, Height: 220},
+		sim, nodes, state, options)
+	if _, ok := state.Selection(); ok {
+		t.Fatal("stale selection survived the paint")
+	}
+	if layout.Scale <= 0 {
+		t.Fatal("graph did not paint")
+	}
+	// The pan surface is not a control: it must not join the focus order.
+	for _, hit := range canvas.Hits() {
+		if hit.ID == gfx.Item(90) && hit.Focusable {
+			t.Fatalf("pan surface is focusable: %+v", hit)
+		}
+	}
+}
+
+func TestPaintGraphSettlesOnTheClock(t *testing.T) {
+	var canvas gfx.Canvas
+	canvas.SetMeasurer(chartTestMeasure)
+	canvas.SetTree(&graphTestTree)
+	sim, nodes := graphTestData()
+	state := &GraphState{}
+	options := GraphOptions{Nodes: graphTestScope()}
+	bounds := gfx.Rect{X: 10, Y: 10, Width: 300, Height: 220}
+	theme := gfx.LightTheme()
+	now := time.Duration(0)
+	canvas.SetClock(func() time.Duration { return now })
+	paint := func() bool {
+		canvas.Reset()
+		canvas.BeginFrame()
+		PaintGraph(&canvas, theme, bounds, sim, nodes, state, options)
+		canvas.EndFrame()
+		return canvas.Animating()
+	}
+	if !paint() {
+		t.Fatal("a fresh graph does not animate")
+	}
+	// Sparse frames still settle inside four seconds: the gallery harness
+	// paints nine frames in its window, half a second apart.
+	animating := false
+	for step := 0; step < 8; step++ {
+		now += 500 * time.Millisecond
+		animating = paint()
+	}
+	if animating {
+		t.Fatal("graph still asks for frames after four idle seconds")
+	}
+	if !sim.Settled() {
+		t.Fatal("clock-driven anneal left the simulation unsettled")
 	}
 }
 
