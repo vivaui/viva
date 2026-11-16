@@ -558,9 +558,11 @@ type AccessibilitySelection struct {
 
 // Frame is the complete renderer state for one repaint.
 type Frame struct {
-	Update        render.Update
-	Rectangles    []render.Rectangle
-	TextLabels    []TextLabel
+	Update     render.Update
+	Rectangles []render.Rectangle
+	TextLabels []TextLabel
+	// Accessibility, when non-nil, replaces the window's accessibility tree; an empty
+	// non-nil slice clears it. Nil leaves the current tree as it is.
 	Accessibility []AccessibilityNode
 	TextInput     TextInputUpdate
 	// NativeViews, when non-nil, replaces the places the window shows its native views (see
