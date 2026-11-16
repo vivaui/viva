@@ -6,7 +6,7 @@ group: start
 skill: building-with-viva
 ---
 
-Viva 自己绘制界面，只在被请求时重绘，也没有布局缓存，所以按网页或保留式工具包的写法来写，产出的代码会被评审拒绝。`building-with-viva` skill 是一份简短的说明，Claude Code、Codex 这类 AI 编程助手在改动 Viva 应用之前加载它。它只是一个 Markdown 文件，没有需要运行的代码。
+Viva 自己绘制界面，只在被请求时重绘，也没有布局缓存，所以按网页或保留式工具包的写法来写，产出的代码会被评审拒绝。`building-with-viva` skill 是一份简短的说明，Claude Code、Codex 这类 AI 编程助手在改动 Viva 应用之前加载它。它是两个 Markdown 文件，没有需要运行的代码：一份说明和一份配方速查。
 
 ## skill 涵盖什么
 
@@ -26,6 +26,8 @@ Viva 自己绘制界面，只在被请求时重绘，也没有布局缓存，所
 mkdir -p .claude/skills/building-with-viva
 curl -fsSL https://vivaui.dev/skills/building-with-viva/SKILL.md \
   -o .claude/skills/building-with-viva/SKILL.md
+curl -fsSL https://vivaui.dev/skills/building-with-viva/recipes.md \
+  -o .claude/skills/building-with-viva/recipes.md
 ```
 
 在 Viva 自己的仓库副本中，请改为复制或软链 `docs/skills/building-with-viva`。在那里，仓库的 `AGENTS.md` 优先于这个 skill。

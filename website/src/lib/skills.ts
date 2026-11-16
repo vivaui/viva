@@ -6,14 +6,29 @@ import { resolve } from 'node:path';
 // could drift from it.
 const root = () => resolve(process.cwd(), '../docs/skills');
 
-export const skillPath = (name: string): string => `/skills/${name}/SKILL.md`;
+// skillPath is where a skill file is served; file defaults to the briefing.
+export const skillPath = (name: string, file = 'SKILL.md'): string => `/skills/${name}/${file}`;
 
 export function skillNames(): string[] {
   return readdirSync(root(), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
 }
 
+// skillFiles are the Markdown files a skill ships: SKILL.md and the pages it
+// links to, such as recipes.md. The install step downloads all of them.
+export function skillFiles(name: string): string[] {
+  return readdirSync(resolve(root(), name), { withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.endsWith('.md'))
+    .map(entry => entry.name)
+    .sort();
+}
+
+export function readSkillFile(name: string, file: string): string {
+  if (!skillFiles(name).includes(file)) throw new Error(`skill ${name} has no ${file}`);
+  return readFileSync(resolve(root(), name, file), 'utf8');
+}
+
 export function readSkill(name: string): string {
-  return readFileSync(resolve(root(), name, 'SKILL.md'), 'utf8');
+  return readSkillFile(name, 'SKILL.md');
 }
 
 // A skill file opens with its own title, and the guide that shows it already has
