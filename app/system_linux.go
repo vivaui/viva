@@ -166,6 +166,10 @@ func nativeShowFatalError(title, message string) { linuxplatform.ShowFatalError(
 func nativeMonospaceFamilies() []string { return linuxplatform.MonospaceFamilies() }
 func nativeFontFamilies() []string      { return linuxplatform.FontFamilies() }
 
+// nativeFontWeights is empty: the linux engine follows a family but not the weights it
+// is drawn at.
+func nativeFontWeights(string) []int { return nil }
+
 func nativeAppearance() Appearance { return appearanceOf(linuxplatform.DarkAppearance()) }
 
 func nativeWatchAppearance() {} // the event loop listens while an observer is set (platform.DesktopWatched)
