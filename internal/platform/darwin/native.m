@@ -437,6 +437,38 @@ enum {
     VIVA_TEXT_DELETE_TO_LINE_END = 28,
 };
 
+/* The existing opt-in text.CompositionPhase values. */
+enum {
+    VIVA_COMPOSITION_NONE = 0,
+    VIVA_COMPOSITION_UPDATE,
+    VIVA_COMPOSITION_RESULT,
+    VIVA_COMPOSITION_COMMIT,
+    VIVA_COMPOSITION_CANCEL,
+    VIVA_COMPOSITION_EMPTY_COMMIT,
+};
+
+static int viva_text_composition_phase(int kind, NSUInteger length, BOOL marked, NSRange replacement) {
+    switch (kind) {
+    case VIVA_TEXT_SET_MARKED:
+        return length > 0 ? VIVA_COMPOSITION_UPDATE : marked ? VIVA_COMPOSITION_CANCEL : VIVA_COMPOSITION_NONE;
+    case VIVA_TEXT_INSERT:
+        if (marked) {
+            return length > 0 ? VIVA_COMPOSITION_RESULT : VIVA_COMPOSITION_EMPTY_COMMIT;
+        }
+        return length == 0 && replacement.location != NSNotFound ? VIVA_COMPOSITION_EMPTY_COMMIT : VIVA_COMPOSITION_NONE;
+    case VIVA_TEXT_UNMARK:
+        return marked ? VIVA_COMPOSITION_COMMIT : VIVA_COMPOSITION_NONE;
+    case VIVA_TEXT_CANCEL_COMPOSITION:
+        return marked ? VIVA_COMPOSITION_CANCEL : VIVA_COMPOSITION_NONE;
+    default:
+        return VIVA_COMPOSITION_NONE;
+    }
+}
+
+static int64_t viva_text_raw_coordinate(NSUInteger value) {
+    return value > (NSUInteger)INT64_MAX ? INT64_MAX : (int64_t)value;
+}
+
 extern void vivaPointerEvent(
     uintptr_t callbackHandle,
     void *view,
@@ -580,7 +612,25 @@ extern void vivaTextInput(
     int command
 );
 
+extern void vivaCompositionInput(
+    uintptr_t callbackHandle,
+    void *view,
+    int kind,
+    const unsigned char *utf8,
+    size_t utf8Length,
+    int64_t selectedStart,
+    int64_t selectedLength,
+    int64_t replacementStart,
+    int64_t replacementLength,
+    int command,
+    int compositionPhase,
+    int64_t replacementUTF16Start,
+    int64_t replacementUTF16Length,
+    int hasReplacementUTF16
+);
+
 extern unsigned char *vivaCopyText(uintptr_t callbackHandle, void *view, size_t *length);
+extern void vivaTextCompositionLost(uintptr_t callbackHandle, void *view, int reason);
 
 extern int vivaPressAt(
     uintptr_t callbackHandle,
@@ -3855,6 +3905,9 @@ static void viva_encode_scene(
     // one's (platform.TextInput.DisableIME): keys never reach the host's text
     // system and no composition session is opened.
     BOOL _textDisableIME;
+    BOOL _tentativeComposition;
+    BOOL _discardingComposition;
+    uint64_t _textInputGeneration;
     BOOL _interpretingKey;
     BOOL _interpretedConsumed;
     BOOL _interpretedInsert;
@@ -3937,7 +3990,9 @@ static void viva_encode_scene(
             length:(NSUInteger)length
      selectedRange:(NSRange)selectedRange
        markedRange:(NSRange)markedRange
-     hasMarkedText:(BOOL)hasMarkedText;
+     hasMarkedText:(BOOL)hasMarkedText
+ tentativeComposition:(BOOL)tentativeComposition
+    endsComposition:(BOOL)endsComposition;
 - (int)updateTextInput:(viva_text_input_config)textInput;
 - (int)updateTextInput:(viva_text_input_config)textInput keepComposition:(BOOL)keep;
 - (void)setTitlebarHeight:(CGFloat)height;
@@ -3947,6 +4002,8 @@ static void viva_encode_scene(
 - (void)stopCaretBlink;
 - (void)shutdownTextInput;
 - (void)detachCallbacks;
+- (void)notifyCompositionLost;
+- (void)endOwnedNativeComposition;
 - (BOOL)rebuildTextTexture;
 - (BOOL)rebuildTextLabels;
 - (viva_editor_line)newTextLine;
@@ -4095,6 +4152,7 @@ static int viva_navigation_command(SEL selector) {
         _selectedRange = NSMakeRange(textInput.selected_start, textInput.selected_length);
         _markedRange = NSMakeRange(textInput.marked_start, textInput.marked_length);
         _hasMarkedText = textInput.has_marked_text != 0;
+        _tentativeComposition = textInput.tentative_composition != 0;
         if (_textInputEnabled) {
             _text = [[NSString alloc] initWithBytes:textInput.utf8
                                              length:textInput.utf8_length
@@ -4278,8 +4336,12 @@ static int viva_navigation_command(SEL selector) {
 
 // A page taking the keyboard is the window losing it as far as the keys that were down go.
 - (BOOL)resignFirstResponder {
+    uint64_t generation = _textInputGeneration;
     if (_callbackHandle != 0 && _keyEventsEnabled && self.window.isKeyWindow) {
         vivaFocusLost(_callbackHandle, self);
+    }
+    if (_textInputGeneration == generation && _textInputEnabled && _tentativeComposition) {
+        [self endOwnedNativeComposition];
     }
     return YES;
 }
@@ -4994,6 +5056,7 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 
 - (void)keyWindowChanged:(NSNotification *)notification {
+    uint64_t generation = _textInputGeneration;
     [self syncSecureEventInput];
     if ([notification.name isEqualToString:NSWindowDidBecomeKeyNotification] &&
         notification.object == self.window && _callbackHandle != 0) {
@@ -5004,6 +5067,10 @@ static void viva_set_secure_event_input(BOOL on) {
     if ([notification.name isEqualToString:NSWindowDidResignKeyNotification] &&
         notification.object == self.window && _callbackHandle != 0 && _keyEventsEnabled) {
         vivaFocusLost(_callbackHandle, self);
+    }
+    if (_textInputGeneration == generation && [notification.name isEqualToString:NSWindowDidResignKeyNotification] &&
+        notification.object == self.window && _textInputEnabled && _tentativeComposition) {
+        [self endOwnedNativeComposition];
     }
 }
 
@@ -5063,7 +5130,30 @@ static void viva_set_secure_event_input(BOOL on) {
     [[NSRunLoop mainRunLoop] addTimer:_caretTimer forMode:NSRunLoopCommonModes];
 }
 
+- (void)notifyCompositionLost {
+    if (_callbackHandle != 0 && _textInputEnabled && _tentativeComposition) {
+        vivaTextCompositionLost(_callbackHandle, self, 1);
+    }
+}
+
+- (void)endOwnedNativeComposition {
+    if (!_hasMarkedText || !_tentativeComposition) {
+        return;
+    }
+    uint64_t generation = _textInputGeneration;
+    _hasMarkedText = NO;
+    _markedRange = NSMakeRange(0, 0);
+    BOOL previousDiscarding = _discardingComposition;
+    _discardingComposition = YES;
+    [self.inputContext discardMarkedText];
+    _discardingComposition = previousDiscarding;
+    if (_textInputGeneration == generation) {
+        [self notifyCompositionLost];
+    }
+}
+
 - (void)shutdownTextInput {
+    _textInputGeneration++;
     BOOL wasEnabled = _textInputEnabled;
     _textInputEnabled = NO;
     [self syncSecureEventInput];
@@ -5077,6 +5167,7 @@ static void viva_set_secure_event_input(BOOL on) {
     _textAltSendsEscape = NO;
     _textKeyReleases = NO;
     _textDisableIME = NO;
+    _tentativeComposition = NO;
 }
 
 - (void)detachCallbacks {
@@ -5535,6 +5626,7 @@ static void viva_set_secure_event_input(BOOL on) {
     BOOL wasEnabled = _textInputEnabled;
     keep = keep && wasEnabled && textInput.enabled != 0;
     if (!keep) {
+        _textInputGeneration++;
         _textInputEnabled = NO;
         [self syncSecureEventInput];
         _textSelectionDragging = NO;
@@ -5557,6 +5649,7 @@ static void viva_set_secure_event_input(BOOL on) {
         _textAltSendsEscape = NO;
         _textKeyReleases = NO;
         _textDisableIME = NO;
+        _tentativeComposition = NO;
         [_text release];
         _text = [@"" retain];
         [_textColor release];
@@ -5601,6 +5694,7 @@ static void viva_set_secure_event_input(BOOL on) {
     // A surface that runs the other machine's input method has no composition
     // of this one to mirror.
     _hasMarkedText = textInput.has_marked_text != 0 && !_textDisableIME;
+    _tentativeComposition = textInput.tentative_composition != 0;
     _textInputMultiline = textInput.multiline != 0;
     _textPlaced = textInput.placed != 0;
     _textNavigationKeys = textInput.navigation_keys != 0;
@@ -5658,7 +5752,9 @@ static void viva_set_secure_event_input(BOOL on) {
             length:(NSUInteger)length
      selectedRange:(NSRange)selectedRange
        markedRange:(NSRange)markedRange
-     hasMarkedText:(BOOL)hasMarkedText {
+     hasMarkedText:(BOOL)hasMarkedText
+ tentativeComposition:(BOOL)tentativeComposition
+    endsComposition:(BOOL)endsComposition {
     if (!_textInputEnabled || (utf8 == NULL && length > 0)) {
         return 1;
     }
@@ -5668,16 +5764,27 @@ static void viva_set_secure_event_input(BOOL on) {
     if (replacement == nil) {
         return 2;
     }
+    BOOL lostComposition = _hasMarkedText && _tentativeComposition && tentativeComposition && !hasMarkedText && !endsComposition;
     [_text release];
     _text = replacement;
     _selectedRange = viva_clamp_range(selectedRange, _text.length);
     _markedRange = viva_clamp_range(markedRange, _text.length);
     _hasMarkedText = hasMarkedText;
+    _tentativeComposition = tentativeComposition;
     _caretVisible = YES;
     if (![self rebuildTextTexture]) {
+        if (lostComposition) {
+            // The editor's texture is gone, but the composition it lost is not:
+            // record it before the early return, because the retry re-evaluates
+            // against the state this call already installed.
+            [self notifyCompositionLost];
+        }
         return 3;
     }
     [self restartCaretBlink];
+    if (lostComposition) {
+        [self notifyCompositionLost];
+    }
     return 0;
 }
 
@@ -5686,7 +5793,7 @@ static void viva_set_secure_event_input(BOOL on) {
        selectedRange:(NSRange)selectedRange
      replacementRange:(NSRange)replacementRange
              command:(int)command {
-    if (_callbackHandle == 0 || !_textInputEnabled) {
+    if (_discardingComposition || _callbackHandle == 0 || !_textInputEnabled) {
         return;
     }
     if (_interpretingKey) {
@@ -5701,14 +5808,53 @@ static void viva_set_secure_event_input(BOOL on) {
         _interpretedConsumed = YES;
     }
     NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
+    int phase = _tentativeComposition ? viva_text_composition_phase(kind, text.length, _hasMarkedText, replacementRange) : VIVA_COMPOSITION_NONE;
+    // AppKit names ranges in the view text, which still holds the preedit; the
+    // phased engine applies a replacement to the text after the tentative
+    // rollback. A range that names the marked text is the composition
+    // continuing or committing, so the engine must act on the composition
+    // itself; a range beyond it shifts left by the preedit.
+    NSRange phasedReplacement = replacementRange;
+    if (phase != VIVA_COMPOSITION_NONE && _hasMarkedText && phasedReplacement.location != NSNotFound) {
+        NSRange marked = _markedRange;
+        NSUInteger markedEnd = marked.location + marked.length;
+        NSUInteger end = phasedReplacement.length > NSUIntegerMax - phasedReplacement.location
+            ? NSUIntegerMax
+            : phasedReplacement.location + phasedReplacement.length;
+        BOOL namesComposition = phasedReplacement.location >= marked.location && end <= markedEnd;
+        BOOL caretInComposition = phasedReplacement.length == 0 &&
+            phasedReplacement.location >= marked.location && phasedReplacement.location <= markedEnd;
+        if (namesComposition || caretInComposition) {
+            phasedReplacement = NSMakeRange(NSNotFound, 0);
+        } else {
+            NSUInteger start = phasedReplacement.location >= markedEnd
+                ? phasedReplacement.location - marked.length
+                : phasedReplacement.location;
+            NSUInteger stop = end >= markedEnd
+                ? end - marked.length
+                : end > marked.location ? marked.location : end;
+            if (stop < start) {
+                stop = start;
+            }
+            phasedReplacement = NSMakeRange(start, stop - start);
+        }
+    }
     int64_t replacementStart = -1;
     int64_t replacementLength = 0;
-    if (replacementRange.location != NSNotFound) {
+    if (phase == VIVA_COMPOSITION_NONE && replacementRange.location != NSNotFound) {
         replacementStart = (int64_t)replacementRange.location;
         replacementLength = (int64_t)replacementRange.length;
     }
+    BOOL raw = phase != VIVA_COMPOSITION_NONE && phasedReplacement.location != NSNotFound;
     viva_text_event_count++;
-    vivaTextInput(
+    if (phase == VIVA_COMPOSITION_NONE) {
+        vivaTextInput(_callbackHandle, self, kind,
+            data.length > 0 ? data.bytes : NULL, data.length,
+            (int64_t)selectedRange.location, (int64_t)selectedRange.length,
+            replacementStart, replacementLength, command);
+        return;
+    }
+    vivaCompositionInput(
         _callbackHandle,
         self,
         kind,
@@ -5718,7 +5864,11 @@ static void viva_set_secure_event_input(BOOL on) {
         (int64_t)selectedRange.length,
         replacementStart,
         replacementLength,
-        command
+        command,
+        phase,
+        raw ? viva_text_raw_coordinate(phasedReplacement.location) : 0,
+        raw ? viva_text_raw_coordinate(phasedReplacement.length) : 0,
+        raw ? 1 : 0
     );
 }
 
@@ -5872,7 +6022,16 @@ static void viva_set_secure_event_input(BOOL on) {
         return;
     }
     if (_hasMarkedText) {
-        [self.inputContext discardMarkedText];
+        if (_tentativeComposition) {
+            uint64_t generation = _textInputGeneration;
+            [self endOwnedNativeComposition];
+            if (_textInputGeneration != generation || !_textInputEnabled) {
+                return;
+            }
+            range = viva_clamp_range(range, _text.length);
+        } else {
+            [self.inputContext discardMarkedText];
+        }
     }
     [self emitTextKind:VIVA_TEXT_SET_SELECTION
                   text:@""
@@ -7739,6 +7898,8 @@ int viva_view_update_text(
     size_t marked_start,
     size_t marked_length,
     int has_marked_text,
+    int tentative_composition,
+    int ends_composition,
     int render
 ) {
     if (view == NULL) {
@@ -7750,7 +7911,9 @@ int viva_view_update_text(
                   length:utf8_length
            selectedRange:NSMakeRange(selected_start, selected_length)
              markedRange:NSMakeRange(marked_start, marked_length)
-           hasMarkedText:has_marked_text != 0];
+           hasMarkedText:has_marked_text != 0
+       tentativeComposition:tentative_composition != 0
+          endsComposition:ends_composition != 0];
         if (status == 0 && render != 0) {
             [(VivaMetalView *)view render];
         }

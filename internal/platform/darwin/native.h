@@ -78,6 +78,7 @@ typedef struct {
     size_t marked_start;
     size_t marked_length;
     int has_marked_text;
+    int tentative_composition;
     int multiline;
     int enabled;
     int secure;
@@ -468,6 +469,8 @@ int viva_view_update_text(
     size_t marked_start,
     size_t marked_length,
     int has_marked_text,
+    int tentative_composition,
+    int ends_composition,
     int render
 );
 int viva_view_update_text_input(void *view, viva_text_input_config text_input);
