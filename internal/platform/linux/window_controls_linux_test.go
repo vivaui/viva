@@ -42,14 +42,17 @@ func TestMaximizeButtonSetsBothDirections(t *testing.T) {
 		},
 	}
 
+	// EWMH 5.7: data.l[0] is the action (0 remove, 1 add), l[1] and l[2] are
+	// the properties it applies to, l[3] is the source indication (1 for a
+	// normal application). The literals are the protocol's, not this package's.
 	win.toggleMaximize()
-	if words != [5]uint32{netWMStateAdd, 20, 30, sourceApp, 0} {
+	if words != [5]uint32{1, 20, 30, 1, 0} {
 		t.Fatalf("maximize message = %v, want both directions added", words)
 	}
 
 	win.frame.maximized = true
 	win.toggleMaximize()
-	if words != [5]uint32{netWMStateRemove, 20, 30, sourceApp, 0} {
+	if words != [5]uint32{0, 20, 30, 1, 0} {
 		t.Fatalf("restore message = %v, want both directions removed", words)
 	}
 }
