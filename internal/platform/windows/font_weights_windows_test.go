@@ -47,10 +47,20 @@ func TestTheInterfaceWeightsShapeTheText(t *testing.T) {
 	}
 	engine.SetFontWeights(0, 0)
 	regular, bold := width(gfx.WeightRegular), width(gfx.WeightBold)
-	engine.SetFontWeights(400, 900) // Segoe UI Black against its Bold
-	black := width(gfx.WeightBold)
-	if black == bold {
-		t.Fatalf("bold text is %.3f wide whether its weight is 700 or 900", bold)
+	// The heaviest face the family ships, which is not the bold the platform picks for
+	// weight 700: a family need not ship Black.
+	weights := FontWeights("Segoe UI")
+	if len(weights) < 2 {
+		t.Skipf("Segoe UI lists %v weights", weights)
+	}
+	heavy := weights[len(weights)-1]
+	if heavy == 700 {
+		t.Skipf("Segoe UI's heaviest face is bold (%d)", heavy)
+	}
+	engine.SetFontWeights(400, heavy) // the family's heaviest against its Bold
+	heavyWidth := width(gfx.WeightBold)
+	if heavyWidth == bold {
+		t.Fatalf("bold text is %.3f wide whether its weight is 700 or %d", bold, heavy)
 	}
 	if got := width(gfx.WeightRegular); got != regular {
 		t.Fatalf("naming the regular weight again changed the main text: %.3f to %.3f", regular, got)
@@ -74,10 +84,26 @@ func TestTheMonoWeightsChooseTheCell(t *testing.T) {
 	face := gfx.MonoFamily("Segoe UI")
 	engine.SetMonoWeights(0, 0)
 	regular := engine.MonoCell(14, face)
-	engine.SetMonoWeights(700, 0)
-	bold := engine.MonoCell(14, face)
-	if bold.Advance == regular.Advance {
-		t.Fatalf("the cell is %.3f wide at both regular and bold weights", regular.Advance)
+	// The weight is the family's own: a stripped image may not install the one the
+	// test would name, and the invariant is that some installed weight moves the cell.
+	chosen := 0
+	for _, weight := range FontWeights("Segoe UI") {
+		if weight == 400 {
+			continue
+		}
+		engine.SetMonoWeights(weight, 0)
+		if engine.MonoCell(14, face).Advance != regular.Advance {
+			chosen = weight
+			break
+		}
+	}
+	engine.SetMonoWeights(0, 0)
+	if chosen == 0 {
+		t.Skip("no installed weight of Segoe UI changes the cell from regular")
+	}
+	engine.SetMonoWeights(chosen, 0)
+	if bold := engine.MonoCell(14, face); bold.Advance == regular.Advance {
+		t.Fatalf("the cell is %.3f wide at both regular and weight %d", regular.Advance, chosen)
 	}
 	engine.SetMonoWeights(0, 0)
 	if again := engine.MonoCell(14, face); again.Advance != regular.Advance {
