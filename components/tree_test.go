@@ -57,3 +57,32 @@ func BenchmarkTreePaint(b *testing.B) {
 		}
 	}
 }
+
+// The row being dragged gives up its focus ring so the drop target is the only
+// strong outline on screen; the same focused row shows the ring when it is not
+// being dragged.
+func TestTreeDraggingRowDropsTheFocusRing(t *testing.T) {
+	var canvas gfx.Canvas
+	theme := gfx.DarkTheme()
+	tree := BeginTree(&canvas, theme, gfx.Rect{Width: 200, Height: 100}).RowHeight(32)
+	ring := theme.Ring
+	ring.Alpha *= 0.50
+	paintedRing := func(dragging bool) bool {
+		canvas.Reset()
+		canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.Item(1), true)
+		tree.cursorY = tree.bounds.Y
+		tree.Item(TreeItem{ID: gfx.Item(1), Label: "Row", Dragging: dragging})
+		for _, rectangle := range canvas.Rectangles() {
+			if rectangle.Color == ring {
+				return true
+			}
+		}
+		return false
+	}
+	if paintedRing(true) {
+		t.Fatal("the dragged row painted its focus ring")
+	}
+	if !paintedRing(false) {
+		t.Fatal("a focused row that is not dragged painted no focus ring")
+	}
+}

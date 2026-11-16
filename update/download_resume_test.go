@@ -331,7 +331,9 @@ func TestDownloadEndsAStalledTransfer(t *testing.T) {
 		}
 	}
 	server, client := newResumeServer(t, stall, serveRanges(content))
-	client.stall = 50 * time.Millisecond
+	// Long enough that a loaded runner still delivers the first 2000 bytes before
+	// the stall fires, short enough to end well inside the test's own deadline.
+	client.stall = 2 * time.Second
 	asset := testAsset(server.Server, content)
 	dir := t.TempDir()
 
