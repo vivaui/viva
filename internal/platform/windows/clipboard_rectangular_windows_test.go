@@ -325,7 +325,7 @@ func TestColumnClipboardNativeBusyClipboardNeverCuts(t *testing.T) {
 	}
 }
 
-func TestColumnClipboardNativeUnreadableMarkerIsNotGuessed(t *testing.T) {
+func TestColumnClipboardNativeUnreadableMarkerPastesAsStream(t *testing.T) {
 	for _, msdev := range []bool{false, true} {
 		name := "unreadable Borland"
 		if msdev {
@@ -345,17 +345,20 @@ func TestColumnClipboardNativeUnreadableMarkerIsNotGuessed(t *testing.T) {
 				if err != nil || value != "unchanged" || !rectangular {
 					t.Fatalf("valid MSDEV marker consulted broken Borland data: %q/%v/%v", value, rectangular, err)
 				}
-			} else if err == nil || value != "" || rectangular {
-				t.Fatalf("unreadable metadata became a usable paste: %q/%v/%v", value, rectangular, err)
+			} else if err != nil || value != "unchanged" || rectangular {
+				t.Fatalf("unreadable marker was not pasted as stream text: %q/%v/%v", value, rectangular, err)
 			}
 			if !msdev {
 				events := 0
-				state.textInput = platform.TextInput{OnEvent: func(platform.TextEvent) (platform.TextState, error) {
+				state.textInput = platform.TextInput{OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
 					events++
-					return state.textState, errors.New("unexpected Paste")
+					if event.Kind != platform.TextPaste || event.Text != "unchanged" || event.Rectangular {
+						t.Errorf("paste event = %+v; want the clipboard text pasted as a stream", event)
+					}
+					return state.textState, nil
 				}}
-				if !state.textKey('V', 0, inputpkg.ModifierControl) || events != 0 || state.err != nil {
-					t.Fatalf("unreadable marker delivered Paste: events=%d err=%v", events, state.err)
+				if !state.textKey('V', 0, inputpkg.ModifierControl) || events != 1 || state.err != nil {
+					t.Fatalf("unreadable marker did not deliver a stream Paste: events=%d err=%v", events, state.err)
 				}
 			}
 			if plain, err := ClipboardText(); err != nil || plain != "unchanged" {
@@ -371,9 +374,8 @@ func TestColumnClipboardNativeDiscardedMarkerIsNotGuessed(t *testing.T) {
 		size        uintptr
 		value       byte
 		rectangular bool
-		unreadable  bool
 	}{
-		{name: "discarded", unreadable: true},
+		{name: "discarded"},
 		{name: "column", size: 1, value: 2, rectangular: true},
 		{name: "stream", size: 1, value: 1},
 		{name: "oversized", size: 2, value: 2},
@@ -396,9 +398,9 @@ func TestColumnClipboardNativeDiscardedMarkerIsNotGuessed(t *testing.T) {
 			if size, _, _ := globalSize.Call(handle); size != test.size {
 				t.Fatalf("marker size = %d; want %d", size, test.size)
 			}
-			rectangular, err := borlandClipboardMarker(handle)
-			if (err != nil) != test.unreadable || rectangular != test.rectangular {
-				t.Fatalf("marker = rectangular %v, err %v; want rectangular %v, unreadable %v", rectangular, err, test.rectangular, test.unreadable)
+			rectangular := borlandClipboardMarker(handle)
+			if rectangular != test.rectangular {
+				t.Fatalf("marker = rectangular %v; want rectangular %v", rectangular, test.rectangular)
 			}
 		})
 	}

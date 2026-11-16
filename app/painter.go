@@ -1426,6 +1426,11 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 	if !painter.nativeText.Multiline && !painter.nativeText.Terminal &&
 		(event.Kind == platform.TextPaste || event.Kind == platform.TextInsert) && event.Text != "" {
 		appEvent.Text = text.SingleLine(event.Text)
+		if appEvent.Text != event.Text {
+			// Folding removed the line structure, so the column shape the
+			// clipboard declared no longer describes the text the app receives.
+			appEvent.Rectangular = false
+		}
 		if appEvent.Text == "" && !explicit {
 			return painter.nativeText.State, nil
 		}

@@ -64,31 +64,30 @@ func ClipboardTextWithFormat() (string, bool, error) {
 	if available, _, _ := clipboardFormatAvailable.Call(borland); available == 0 {
 		return value, false, nil
 	}
-	handle, _, err := clipboardData.Call(borland)
+	handle, _, _ := clipboardData.Call(borland)
 	if handle == 0 {
-		return "", false, windowsCallError("read Borland clipboard marker", err)
+		// The format is advertised but carries no data: its owner is gone, or
+		// it renders on request and did not. The text itself was read fine, so
+		// paste it as stream text instead of failing the whole paste, the rule
+		// Scintilla's reader applies to a missing marker.
+		return value, false, nil
 	}
-	rectangular, err := borlandClipboardMarker(handle)
-	if err != nil {
-		return "", false, err
-	}
-	return value, rectangular, nil
+	return value, borlandClipboardMarker(handle), nil
 }
 
-func borlandClipboardMarker(handle uintptr) (bool, error) {
-	size, _, err := globalSize.Call(handle)
-	if size == 0 {
-		return false, windowsCallError("size Borland clipboard marker", err)
+// borlandClipboardMarker reports whether the Borland block declares a column
+// selection. A block that cannot be sized or locked is not a column marker;
+// the text is pasted as stream text, as Scintilla does.
+func borlandClipboardMarker(handle uintptr) bool {
+	if size, _, _ := globalSize.Call(handle); size != 1 {
+		return false
 	}
-	if size != 1 {
-		return false, nil
-	}
-	memory, _, err := globalLock.Call(handle)
+	memory, _, _ := globalLock.Call(handle)
 	if memory == 0 {
-		return false, windowsCallError("lock Borland clipboard marker", err)
+		return false
 	}
 	defer globalUnlock.Call(handle)
-	return *(*byte)(pointer(memory)) == 0x02, nil
+	return *(*byte)(pointer(memory)) == 0x02
 }
 
 func allocateColumnClipboardMarker(value byte) (uintptr, error) {
