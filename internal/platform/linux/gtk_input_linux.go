@@ -82,8 +82,12 @@ func (w *gtkWindow) handleEvent(widget, event uintptr) uintptr {
 		return w.keyEvent(event)
 	case gdkFocusChange:
 		in := (*gdkEventFocus)(unsafePointer(event)).In != 0
-		if widget == w.area && w.wl != nil && w.wl.gdkWindow != 0 {
-			w.waylandFocusChanged(in)
+		if widget == w.area {
+			// The drawing area gets focus events only on Wayland, where it is the content subsurface.
+			// It is never a page, so the event must not fall through to the web view branch below.
+			if w.wl != nil && w.wl.gdkWindow != 0 {
+				w.waylandFocusChanged(in)
+			}
 			return 1
 		}
 		if widget != w.toplevel {
