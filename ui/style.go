@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"slices"
+
+	"github.com/vivaui/viva/gfx"
+)
 
 // An element changes with the pointer and the keyboard through three looks, each a
 // Look listing only what differs from how the element is drawn at rest:
@@ -172,7 +176,8 @@ func (b Box) AutoFocus() Box {
 	if id.IsZero() {
 		panic("ui: AutoFocus needs an element with an identity: a control, or a container given Hit before AutoFocus")
 	}
-	if b.f.canvas != nil {
+	b.f.autofocus = append(b.f.autofocus, id)
+	if b.f.canvas != nil && !slices.Contains(b.f.previousAutofocus, id) {
 		b.f.canvas.RequestFocus(id)
 	}
 	return b

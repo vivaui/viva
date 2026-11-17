@@ -225,33 +225,34 @@ type extra struct {
 // gives the frame the declarations. Tests and previews that need the engine
 // paint through a View; applications do not reach a frame.
 type frame struct {
-	canvas      *gfx.Canvas
-	theme       Theme
-	styles      *Styles // the page's recipe overrides; nil keeps the theme's
-	nodes       []node
-	inputs      []components.InputSnapshot
-	addons      []fieldAddons // the icons and buttons inside fields, by 1 + extra.addons
-	groups      []components.InputGroupSnapshot
-	textareas   []components.TextareaSnapshot
-	segmented   []segmented
-	choices     []components.SegmentOption // the options Choice builds, shared by the frame
-	images      []gfx.Bitmap               // what each Image element draws, indexed by its aux
-	exts        []extra                    // exts[0] is never written: an element without extras points at it
-	floats      []int32                    // the Popups, which belong to no container
-	states      []stateLooks               // what Hover, Pressed and Focus declared, by element
-	draws       []drawHooks                // what Draw and DrawOver declared, by element
-	memoDepth   int                        // how many Memos of a page are recording what is declared now
-	page        *Page                      // the page declaring this frame; nil for a frame of the application's
-	tooltips    bool                       // an element was given a Tooltip: End paints the one the pointer rests on
-	tooltip     components.HoverTooltip    // the Tooltip the pointer rests on, kept between paints
-	drawContext DrawContext                // what a Draw callback is handed, reused for the frame
-	gradients   []gradient                 // the gradients of the elements that have one
-	stops       []gfx.GradientStop         // their stops, in the order declared
-	paintStops  []gfx.GradientStop         // the stops of the gradient being painted, faded
-	opacity     float32                    // the product of the opacities of the elements being painted
-	popupLayer  uint16                     // the canvas layer the Popups are painted on
-	nativeMark  int                        // how many native views the canvas had when the page began
-	binds       []bindDecl                 // the bound controls, see bind.go
+	canvas                       *gfx.Canvas
+	theme                        Theme
+	styles                       *Styles // the page's recipe overrides; nil keeps the theme's
+	nodes                        []node
+	inputs                       []components.InputSnapshot
+	addons                       []fieldAddons // the icons and buttons inside fields, by 1 + extra.addons
+	groups                       []components.InputGroupSnapshot
+	textareas                    []components.TextareaSnapshot
+	segmented                    []segmented
+	choices                      []components.SegmentOption // the options Choice builds, shared by the frame
+	images                       []gfx.Bitmap               // what each Image element draws, indexed by its aux
+	exts                         []extra                    // exts[0] is never written: an element without extras points at it
+	floats                       []int32                    // the Popups, which belong to no container
+	states                       []stateLooks               // what Hover, Pressed and Focus declared, by element
+	draws                        []drawHooks                // what Draw and DrawOver declared, by element
+	memoDepth                    int                        // how many Memos of a page are recording what is declared now
+	page                         *Page                      // the page declaring this frame; nil for a frame of the application's
+	autofocus, previousAutofocus []gfx.ID                   // declarations of this paint and the previous one
+	tooltips                     bool                       // an element was given a Tooltip: End paints the one the pointer rests on
+	tooltip                      components.HoverTooltip    // the Tooltip the pointer rests on, kept between paints
+	drawContext                  DrawContext                // what a Draw callback is handed, reused for the frame
+	gradients                    []gradient                 // the gradients of the elements that have one
+	stops                        []gfx.GradientStop         // their stops, in the order declared
+	paintStops                   []gfx.GradientStop         // the stops of the gradient being painted, faded
+	opacity                      float32                    // the product of the opacities of the elements being painted
+	popupLayer                   uint16                     // the canvas layer the Popups are painted on
+	nativeMark                   int                        // how many native views the canvas had when the page began
+	binds                        []bindDecl                 // the bound controls, see bind.go
 	// The paint of a Popover, the settling of bound values and the paint of a Caption
 	// are reached through these, set by the call that declares one, so an application
 	// that declares none does not link them.
@@ -330,6 +331,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.popupLayer = 0
 	f.memoDepth = 0
 	f.page = nil
+	f.previousAutofocus, f.autofocus = f.autofocus, f.previousAutofocus[:0]
 	f.tooltips = false
 	f.nativeMark = 0
 	if canvas != nil {
@@ -404,6 +406,20 @@ func (f *frame) End() {
 	} else if f.paintTooltipFn != nil {
 		f.tooltip = components.HoverTooltip{}
 	}
+	// Retry clipped controls when they actually paint a focusable hit.
+	if f.canvas != nil && len(f.autofocus) > 0 {
+		hits := f.canvas.Hits()
+		visible := f.autofocus[:0]
+		for _, id := range f.autofocus {
+			for index := len(hits) - 1; index >= 0; index-- {
+				if hits[index].ID == id && hits[index].Focusable && !hits[index].Disabled {
+					visible = append(visible, id)
+					break
+				}
+			}
+		}
+		f.autofocus = visible
+	}
 	f.trim()
 }
 
@@ -432,6 +448,8 @@ func (f *frame) trim() {
 	f.draws = trimFlexCapacity(f.draws)
 	f.binds = trimFlexCapacity(f.binds)
 	f.floats = trimFlexCapacity(f.floats)
+	f.autofocus = trimFlexCapacity(f.autofocus)
+	f.previousAutofocus = trimFlexCapacity(f.previousAutofocus)
 	f.lines = trimFlexCapacity(f.lines)
 	f.ellipses = trimFlexCapacity(f.ellipses)
 	f.wraps = trimFlexCapacity(f.wraps)
