@@ -56,6 +56,8 @@ const (
 	wmWheel            = 522
 	wmHorizontalWheel  = 526
 	wmCaptureChanged   = 533
+	wmEnterSizeMove    = 0x0231
+	wmExitSizeMove     = 0x0232
 	wmSettingChange    = 26
 	wmFontChange       = 29
 	wmMouseLeave       = 675
@@ -82,14 +84,16 @@ type windowState struct {
 	fullscreenStyle     uint32
 	fullscreenPlacement windowPlacement
 	backdropState
-	application             *windowsApplication
-	config                  platform.Config
-	renderer                renderer
-	window                  uintptr
-	ready, tracking, sizing bool
-	minimized               bool
-	trimArmed               bool      // the idle timer that trims driver memory is running
-	lastPresent             time.Time // when the window last presented a frame
+	application                                  *windowsApplication
+	config                                       platform.Config
+	renderer                                     renderer
+	window                                       uintptr
+	ready, tracking, sizing, sizingMove          bool
+	redrawRequested, paintPending, resizePending bool
+	resizeTimerInterval                          uintptr
+	minimized                                    bool
+	trimArmed                                    bool      // the idle timer that trims driver memory is running
+	lastPresent                                  time.Time // when the window last presented a frame
 	// hiddenByShow is set while ShowWindow has the window hidden; shownVisible is the last
 	// visibility reported to OnVisibility, with ok set once one has been.
 	hiddenByShow, shownVisible, shownKnown bool
@@ -493,6 +497,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			}
 		}
 	case wmDisplayChange:
+		state.refreshResizeTimer()
 		if state.fullscreen.Load() {
 			state.fitFullscreenMonitor()
 			return 0
@@ -544,11 +549,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 		return 0
 	case wmRedraw:
-		state.redraws.begin()
-		if state.config.OnRedraw != nil {
-			frame, redrawErr := state.config.OnRedraw()
-			state.frame(frame, redrawErr)
-		}
+		// Keep posted redraws coalesced until WM_PAINT lets hardware input run first.
+		state.redrawRequested = true
+		invalidateRect.Call(window, 0, 0)
 		return 0
 	case wmGetObject:
 		if result, handled := state.accessibility.returnRawProvider(window, first, second); handled {
@@ -653,11 +656,39 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return 0
 		}
 	case wmPaint:
+		if !state.sizingMove && !state.sizing && state.resizePending && !state.iconic() {
+			state.serviceResize()
+			return 0
+		}
+		if state.sizingMove || state.sizing {
+			var paint paintStruct
+			beginPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+			if paint.Bounds.Right > paint.Bounds.Left && paint.Bounds.Bottom > paint.Bounds.Top {
+				state.paintPending = true
+			}
+			endPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+			return 0
+		}
+		state.sizing = true
+		defer func() {
+			state.sizing = false
+			state.invalidatePendingFrame()
+		}()
+		if state.redrawRequested {
+			state.redrawRequested = false
+			state.redraws.begin()
+			if state.config.OnRedraw != nil {
+				frame, redrawErr := state.config.OnRedraw()
+				if err := state.frameWithText(frame, redrawErr, false); err != nil || state.window == 0 {
+					return 0
+				}
+			}
+		}
 		var paint paintStruct
 		beginPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
 		// An empty update region has nothing left to draw. Presenting again would
 		// block on the next vblank for no change.
-		if paint.Bounds.Right <= paint.Bounds.Left || paint.Bounds.Bottom <= paint.Bounds.Top {
+		if (paint.Bounds.Right <= paint.Bounds.Left || paint.Bounds.Bottom <= paint.Bounds.Top) && !state.paintPending {
 			endPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
 			state.framePresented()
 			return 0
@@ -684,6 +715,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 		return 0
 	case wmMove:
+		state.refreshResizeTimer()
 		state.reportFrame()
 		if state.web != nil {
 			state.web.moved()
@@ -722,41 +754,21 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 				state.config.OnMaximize(zoomed)
 			}
 		}
-		if state.sizing {
+		if state.sizingMove || state.sizing {
+			state.resizePending = true
 			return 0
 		}
-		state.sizing = true
-		defer func() { state.sizing = false }()
-		if state.config.OnResize != nil {
-			state.resizeEvents++
-			frame, err := state.config.OnResize(state.logicalSize(int(uint16(second)), int(uint16(second>>16))))
-			if err := state.frameWithText(frame, err, false); err != nil {
-				return 0
-			}
-		}
-		state.reportFrame()
-		if state.web != nil {
-			state.web.layoutAll(true)
-		}
-		if state.ready {
-			// Draw the new size before returning to the window manager. The swap
-			// chain is scaled with DXGI_SCALING_NONE, so a frame that has not
-			// arrived yet is shown at its own size instead of stretched over the
-			// new client area. Maximize, restore and DPI changes take this path
-			// too; it is the same paint the queued WM_PAINT would have done, just
-			// earlier.
-			if err := state.presentImmediate(int(uint16(second)), int(uint16(second>>16))); err != nil {
-				state.fail(err)
-			} else {
-				state.scheduleTrim()
-				// presentImmediate drew the whole client area, so the invalidate
-				// PrepareFrame queued has nothing left to paint. ValidateRect
-				// removes it rather than drawing the same frame twice.
-				validateRect.Call(window, 0)
-			}
-			return 0
-		}
-		invalidateRect.Call(window, 0, 0)
+		state.presentClientSize(int(uint16(second)), int(uint16(second>>16)))
+		return 0
+	case wmEnterSizeMove:
+		state.sizingMove = true
+		state.refreshResizeTimer()
+		return 0
+	case wmExitSizeMove:
+		killTimer.Call(window, resizeTimerID)
+		state.sizingMove = false
+		state.resizeTimerInterval = 0
+		state.serviceResize()
 		return 0
 	case wmDPIChanged:
 		if !state.scaleFixed {
@@ -770,6 +782,10 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			state.fitFullscreenMonitor()
 		} else {
 			setWindowPosition.Call(window, 0, uintptr(bounds.Left), uintptr(bounds.Top), uintptr(bounds.Right-bounds.Left), uintptr(bounds.Bottom-bounds.Top), 0x14)
+		}
+		if state.sizingMove || state.sizing {
+			state.resizePending = true
+			return 0
 		}
 		state.reportFrame()
 		if state.resizeEvents == resizes && state.config.OnResize != nil && state.ready {
@@ -933,6 +949,12 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return 0
 		}
 	case wmTimer:
+		if first == resizeTimerID {
+			if state.sizingMove {
+				state.serviceResize()
+			}
+			return 0
+		}
 		if first == trimTimerID {
 			state.handleTrimTimer()
 			return 0
@@ -953,6 +975,163 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	}
 	result, _, _ = defaultWindowProc.Call(window, kind, first, second)
 	return result
+}
+
+const resizeTimerID = 3
+
+// Refresh on monitor moves and mode changes without postponing ticks on every move.
+func (state *windowState) refreshResizeTimer() {
+	if !state.sizingMove {
+		return
+	}
+	if err := state.rearmResizeTimer(state.resizeInterval(), func(interval uintptr) error {
+		if timer, _, err := setTimer.Call(state.window, resizeTimerID, interval, 0); timer == 0 {
+			return fmt.Errorf("windows: start resize timer: %w", err)
+		}
+		return nil
+	}); err != nil {
+		state.fail(err)
+	}
+}
+
+func (state *windowState) rearmResizeTimer(interval uintptr, arm func(uintptr) error) error {
+	interval = max(10, interval)
+	if !state.sizingMove || state.resizeTimerInterval == interval {
+		return nil
+	}
+	if err := arm(interval); err != nil {
+		return err
+	}
+	state.resizeTimerInterval = interval
+	return nil
+}
+
+var enumDisplaySettings = user.NewProc("EnumDisplaySettingsW")
+
+// displayMode is DEVMODEW, including the 16-byte printer/display union.
+type displayMode struct {
+	DeviceName                                                        [32]uint16
+	SpecVersion, DriverVersion, Size, DriverExtra                     uint16
+	Fields                                                            uint32
+	Display                                                           [4]uint32
+	Color, Duplex, YResolution, TTOption, Collate                     int16
+	FormName                                                          [32]uint16
+	LogPixels                                                         uint16
+	BitsPerPixel, Width, Height, Flags, Frequency                     uint32
+	ICMMethod, ICMIntent, MediaType, DitherType, Reserved1, Reserved2 uint32
+	PanningWidth, PanningHeight                                       uint32
+}
+
+// Query the current mode of this window's monitor, not the primary display.
+// SetTimer has a 10 ms minimum; unavailable display information falls back to 60 Hz.
+func (state *windowState) resizeInterval() uintptr {
+	var info struct {
+		monitorInfo
+		Device [32]uint16
+	}
+	info.Size = uint32(unsafe.Sizeof(info))
+	monitor, _, _ := monitorFromWindow.Call(state.window, 2)
+	mode := displayMode{Size: uint16(unsafe.Sizeof(displayMode{}))}
+	frequency := uint32(60)
+	if ok, _, _ := getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok != 0 {
+		if ok, _, _ := enumDisplaySettings.Call(uintptr(unsafe.Pointer(&info.Device[0])), uintptr(^uint32(0)), uintptr(unsafe.Pointer(&mode))); ok != 0 && mode.Frequency > 1 {
+			frequency = mode.Frequency
+		}
+	}
+	return uintptr(max(10, (1000+frequency-1)/frequency))
+}
+
+func (state *windowState) invalidatePendingFrame() {
+	if state.window != 0 && !state.sizingMove && (state.redrawRequested || state.paintPending || state.resizePending) && !state.iconic() {
+		invalidateRect.Call(state.window, 0, 0)
+	}
+}
+
+// serviceResize consumes one batch. Clear requests before callbacks so updates
+// delivered reentrantly survive for the next tick (or paint after modal exit).
+func (state *windowState) serviceResize() {
+	if state.sizing || !state.ready || state.window == 0 || state.iconic() {
+		return
+	}
+	var bounds rect
+	if ok, _, _ := getClientRect.Call(state.window, uintptr(unsafe.Pointer(&bounds))); ok == 0 || bounds.Right <= 0 || bounds.Bottom <= 0 {
+		return
+	}
+	width, height := int(bounds.Right), int(bounds.Bottom)
+	layout := state.resizePending || state.renderer.width != width || state.renderer.height != height
+	if !layout && !state.redrawRequested && !state.paintPending {
+		return
+	}
+	state.sizing = true
+	defer func() {
+		state.sizing = false
+		state.invalidatePendingFrame()
+	}()
+	redraw := state.redrawRequested
+	state.redrawRequested, state.resizePending = false, false
+	state.paintPending = true
+	if redraw {
+		state.redraws.begin()
+		if state.config.OnRedraw != nil {
+			frame, err := state.config.OnRedraw()
+			if state.frameWithText(frame, err, false) != nil || state.window == 0 {
+				return
+			}
+		}
+	}
+	if layout && !state.layoutClientSize(width, height) {
+		return
+	}
+	if state.window == 0 || !state.ready {
+		return
+	}
+	// Validate before Present/FramePresented: callbacks may invalidate another frame.
+	validateRect.Call(state.window, 0)
+	if err := state.presentImmediate(width, height); err != nil {
+		state.fail(err)
+	} else {
+		state.scheduleTrim()
+	}
+}
+
+// presentClientSize handles synchronous, non-modal size changes.
+func (state *windowState) presentClientSize(width, height int) {
+	if state.sizing {
+		return
+	}
+	state.sizing = true
+	defer func() {
+		state.sizing = false
+		state.invalidatePendingFrame()
+	}()
+	state.resizePending = false
+	state.paintPending = true
+	if !state.layoutClientSize(width, height) {
+		return
+	}
+	if state.ready && state.window != 0 {
+		validateRect.Call(state.window, 0)
+		if err := state.presentImmediate(width, height); err != nil {
+			state.fail(err)
+		} else {
+			state.scheduleTrim()
+		}
+	}
+}
+
+func (state *windowState) layoutClientSize(width, height int) bool {
+	if state.config.OnResize != nil {
+		state.resizeEvents++
+		frame, err := state.config.OnResize(state.logicalSize(width, height))
+		if err := state.frameWithText(frame, err, false); err != nil || state.window == 0 {
+			return false
+		}
+	}
+	state.reportFrame()
+	if state.web != nil {
+		state.web.layoutAll(true)
+	}
+	return state.window != 0
 }
 
 // logicalSize is a client size of width by height device pixels in logical pixels, with
@@ -994,7 +1173,7 @@ func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error
 		var dirty bool
 		frame, dirty, err = state.prepareFrameWithCancel(frame, nativeVisualChanged, cancelNative)
 		if err == errSupersededTextFrame {
-			if state.window != 0 {
+			if state.window != 0 && !state.paintPending && !state.sizing && !state.resizePending {
 				state.framePresented()
 			}
 			return nil
@@ -1009,10 +1188,9 @@ func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error
 		}
 		if err == nil {
 			if dirty {
+				state.paintPending = true
 				invalidateRect.Call(state.window, 0, 0)
-			} else {
-				// Nothing reached the screen, so no WM_PAINT will report this
-				// frame as presented; the runtime can still ask for the next one.
+			} else if !state.paintPending && !state.sizing && !state.resizePending {
 				state.framePresented()
 			}
 		}
@@ -1037,6 +1215,9 @@ func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error
 func (state *windowState) destroyed(window uintptr) {
 	// Native teardown can reenter the dispatcher; retire text callbacks first.
 	state.ready = false
+	killTimer.Call(window, resizeTimerID)
+	state.sizingMove = false
+	state.resizeTimerInterval = 0
 	state.closeText()
 	forgetClipboardListener(window)
 	released := false

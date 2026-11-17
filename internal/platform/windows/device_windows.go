@@ -74,10 +74,7 @@ func (state *windowState) present(width, height int) error {
 	return state.presentWithSync(width, height, 1)
 }
 
-// presentImmediate draws the window without waiting for the display refresh. A
-// resize uses it so the frame drawn for the new client size reaches the swap
-// chain before the window manager returns; the swap chain itself does not scale
-// stale frames (see createWindowSwapChain).
+// Synchronous size changes must present before returning to the window manager.
 func (state *windowState) presentImmediate(width, height int) error {
 	return state.presentWithSync(width, height, 0)
 }
@@ -104,6 +101,7 @@ func (state *windowState) presentWithSync(width, height int, sync uintptr) error
 // presented, or there was nothing to present. Its present-paced frame clock
 // asks for the next frame only after this.
 func (state *windowState) framePresented() {
+	state.paintPending = false
 	if state.config.FramePresented != nil {
 		state.config.FramePresented()
 	}
