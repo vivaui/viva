@@ -963,7 +963,8 @@ func (paint *codePaint) row(index int, y float32) {
 	if paint.showWhitespace {
 		paint.whitespace(row, y, left)
 	}
-	if paint.showEOL && !editor.softWrapped(index) && rowEnd < len(paint.value) && paint.value[rowEnd] == '\n' {
+	if paint.showEOL && !editor.softWrapped(index) && rowEnd < len(paint.value) &&
+		(paint.value[rowEnd] == '\n' || paint.value[rowEnd] == '\r' && rowEnd+1 < len(paint.value) && paint.value[rowEnd+1] == '\n') {
 		paint.lineEnding(row, y, left)
 	}
 	if paint.showWrapSymbol && editor.softWrapped(index) {
