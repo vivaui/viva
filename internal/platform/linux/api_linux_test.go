@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -464,6 +465,48 @@ func TestMissingVulkanIsNamedAndSaysWhatToInstall(t *testing.T) {
 	}
 	if err := noVulkan("x", cause); !errors.Is(err, cause) {
 		t.Errorf("the cause is lost: %v", err)
+	}
+}
+
+func TestVulkanDriverManifestDetection(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not a driver"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if vulkanDriverManifestsExist([]string{dir}) {
+		t.Fatal("a directory without an ICD manifest counts as a Vulkan driver")
+	}
+	manifest := filepath.Join(dir, "driver.json")
+	if err := os.WriteFile(manifest, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !vulkanDriverManifestsExist([]string{dir}) || !vulkanDriverManifestsExist([]string{manifest}) {
+		t.Fatal("an ICD manifest was not detected")
+	}
+}
+
+func TestVulkanWithoutDriverManifestDoesNotLoadDriver(t *testing.T) {
+	t.Setenv("VK_DRIVER_FILES", filepath.Join(t.TempDir(), "missing.json"))
+	t.Setenv("VK_ICD_FILENAMES", "")
+	t.Setenv("VK_ADD_DRIVER_FILES", "")
+	if vulkanDriverConfigured() {
+		t.Fatal("a missing ICD manifest counts as a Vulkan driver")
+	}
+	_, err := loadVulkan()
+	if !errors.Is(err, platform.ErrNoGraphics) {
+		t.Fatalf("loadVulkan error = %v, want platform.ErrNoGraphics", err)
+	}
+}
+
+func TestVulkanEmptyICDOverrideDoesNotUseDefaultManifests(t *testing.T) {
+	t.Setenv("VK_DRIVER_FILES", "")
+	if err := os.Unsetenv("VK_DRIVER_FILES"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VK_ICD_FILENAMES", "")
+	t.Setenv("VK_ADD_DRIVER_FILES", "")
+	if vulkanDriverConfigured() {
+		t.Fatal("an empty ICD override falls back to the default driver manifests")
 	}
 }
 

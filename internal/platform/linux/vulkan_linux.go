@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -473,7 +475,63 @@ type vulkanScratch struct {
 	contentX, contentY int32
 }
 
+// Loader 1.1.97 segfaults in vkCreateInstance when no ICD manifest exists.
+func vulkanDriverConfigured() bool {
+	var paths []string
+	if files, ok := os.LookupEnv("VK_DRIVER_FILES"); ok {
+		paths = filepath.SplitList(files)
+	} else if files, ok := os.LookupEnv("VK_ICD_FILENAMES"); ok {
+		paths = filepath.SplitList(files)
+	} else {
+		if dataHome := os.Getenv("XDG_DATA_HOME"); dataHome != "" {
+			paths = append(paths, filepath.Join(dataHome, "vulkan", "icd.d"))
+		} else if home := os.Getenv("HOME"); home != "" {
+			paths = append(paths, filepath.Join(home, ".local", "share", "vulkan", "icd.d"))
+		}
+		dataDirs := os.Getenv("XDG_DATA_DIRS")
+		if dataDirs == "" {
+			dataDirs = "/usr/local/share:/usr/share"
+		}
+		for _, dir := range filepath.SplitList(dataDirs) {
+			paths = append(paths, filepath.Join(dir, "vulkan", "icd.d"))
+		}
+		paths = append(paths, "/etc/vulkan/icd.d")
+	}
+	if files := os.Getenv("VK_ADD_DRIVER_FILES"); files != "" {
+		paths = append(paths, filepath.SplitList(files)...)
+	}
+	return vulkanDriverManifestsExist(paths)
+}
+
+func vulkanDriverManifestsExist(paths []string) bool {
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		if !info.IsDir() {
+			return true
+		}
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func loadVulkan() (*vulkanAPI, error) {
+	if !vulkanDriverConfigured() {
+		return nil, noVulkan("Vulkan has no driver (no ICD manifest)", nil)
+	}
 	library, err := purego.Dlopen("libvulkan.so.1", purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {
 		return nil, noVulkan("libvulkan.so.1 is not installed", err)
