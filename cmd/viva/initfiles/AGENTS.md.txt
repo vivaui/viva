@@ -48,7 +48,7 @@ The loop for every change:
 | Light/dark, a color picker, custom colors | The theme | `gfx.LightTheme()`, `gfx.DarkTheme()`, `PageConfig.Theme`, `c.Theme()` |
 | A split pane, a divider, drag and drop | Keys, drag and the mouse | `ui.Splitter`, `ui.DragState`, `.DragSource`, `.DropTarget` |
 | A chat or a log that follows its end | Lists, trees and scrolling | `ui.Scroll(...).Follow(true)`, `MaxWidthPercent`, `Justify` |
-| A second window, a tray window | Several windows | `app.RunApplication`, `a.OpenWindow`, `page.Config` |
+| A second window, a tray window | Several windows | `app.RunApplication`, `ui.OpenWindow`, `c.Application()` |
 
 ## How a window works
 
@@ -593,10 +593,11 @@ ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
 
 `app.RunCanvas` runs one window. For more, `app.RunApplication(func(a *app.Application) error {...})` calls its
 function once on the event-loop thread; open windows there or from a click, each with its own page, config and canvas.
-Make every window a `ui.Page` and give the window the config `page.Config(...)` returns: `w, err :=
-a.OpenWindow(page.Config(config), new(gfx.Canvas))`. `w.Close()` closes one (and `w.Closed()` says whether it is gone;
-it is true for a nil window); `a.Quit()` ends everything. Keep `newConfig(m)` for the main window so tests still drive
-it. To repaint another window after the shared model changed, give it an `app.Invalidator` (`config.Invalidator =
+Make every window a `ui.Page` and open it with `w, err := ui.OpenWindow(a, config, ui.PageConfig{View: m.inspector})`:
+it makes the page and the canvas, and a page reaches its application with `c.Application()`, so a click opens another
+window without the model keeping `a`. `w.Close()` closes one (and `w.Closed()` says whether it is gone; it is true for a
+nil window); `a.Quit()` ends everything. Keep `newConfig(m)` for the main window so tests still drive it
+(`a.OpenWindow(config, new(gfx.Canvas))`); every other window is a `ui.OpenWindow`. To repaint another window after the shared model changed, give it an `app.Invalidator` (`config.Invalidator =
 inv`, declared as `&app.Invalidator{}`, the zero value works) and call `inv.Invalidate()`; `Page.Config` makes one when
 neither the page nor the base config has it.
 
@@ -606,8 +607,8 @@ err := app.RunApplication(func(a *app.Application) error {
 	var inspector *app.Window
 	m.openInspector = func() { // set before the window opens; called from a click on the event-loop thread
 		if inspector.Closed() {
-			page := ui.NewPage(ui.PageConfig{View: m.inspector}) // func (m *model) inspector(c ui.C)
-			inspector, _ = a.OpenWindow(page.Config(app.Config{Title: "Inspector", Width: 420, Height: 320}), new(gfx.Canvas))
+			// func (m *model) inspector(c ui.C)
+			inspector, _ = ui.OpenWindow(a, app.Config{Title: "Inspector", Width: 420, Height: 320}, ui.PageConfig{View: m.inspector})
 		}
 	}
 	m.closeInspector = func() { inspector.Close() }
