@@ -409,6 +409,26 @@ func (b Box) Small() Box {
 func (b Box) Large() Box    { b.n().buttonSize = components.ButtonSizeLarge; return b }
 func (b Box) IconOnly() Box { b.n().buttonSize = components.ButtonSizeIcon; return b }
 
+// ButtonRecipe gives one Button its own look: the function is asked for the colors, radius
+// and ring of the button in each state, as PageConfig.Styles.Button is for every button of a
+// page, and wins over it. Start from components.ButtonRecipe and change what differs:
+//
+//	ui.Button(c, "Save").ButtonRecipe(func(t gfx.Theme, v components.ButtonVariant, s gfx.State) components.ButtonLook {
+//		t.Primary, t.PrimaryForeground = dark, light
+//		return components.ButtonRecipe(t, v, s)
+//	})
+//
+// It is for a button whose look is not the theme's; a page that dresses all of them uses Styles,
+// and a control with no theme look at all uses ButtonBase. Declare the function once (a
+// package-level func or a method value kept in the model), as a closure made in each paint
+// allocates. Other elements ignore it.
+func (b Box) ButtonRecipe(recipe func(gfx.Theme, components.ButtonVariant, gfx.State) components.ButtonLook) Box {
+	if n := b.n(); n.kind == kindButton {
+		b.f.extra(b.i).buttonRecipe = recipe
+	}
+	return b
+}
+
 // Disabled(true) makes a Button, Checkbox, Switch or Tabs inert and dimmed, and an element
 // given Hit or HitWith (a Base among them) unavailable to the pointer, the keyboard and
 // assistive technology, with the look left to you; Disabled(false)

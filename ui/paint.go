@@ -286,6 +286,9 @@ func (f *frame) paintButton(n *node) {
 	if f.styles != nil && f.styles.Button != nil {
 		button = button.Recipe(f.styles.Button)
 	}
+	if extra.buttonRecipe != nil {
+		button = button.Recipe(extra.buttonRecipe)
+	}
 	// A button is as tall as its size says unless the element was given more or less
 	// room: a Height, or a Grow along a column. It then fills that room.
 	if h := r.Height; h > 0 && math.Abs(float64(h-button.BoundsHeight())) > 0.01 {
