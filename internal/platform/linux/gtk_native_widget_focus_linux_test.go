@@ -17,18 +17,23 @@ import (
 )
 
 type gtkNativeWidgetFocusState struct {
-	windowFocused, otherFocused, nativeKeys, imeActive      bool
-	pointerOnOther                                          bool
-	webFocus, windowFocus, afterTakeKeys                    uintptr
-	focusLost, otherClicks, editorClicks, entryIn, entryOut int
-	eventOrder                                              []string
+	windowFocused, otherFocused, nativeKeys, imeActive       bool
+	windowFocusedAtOtherClick                                bool
+	pointerOnOther                                           bool
+	webFocus, windowFocus, afterTakeKeys                     uintptr
+	focusLost, focusLostAtOtherClick, focusLostAtReturnClick int
+	otherClicks, editorClicks, entryIn, entryOut             int
+	eventOrder                                               []string
 }
 
 type gtkNativeWidgetTrace struct {
-	entryIn, entryOut int
-	afterTakeKeys     uintptr
-	getFocus          func(uintptr) uintptr
-	events            []string
+	entryIn, entryOut         int
+	focusLostAtOtherClick     int
+	windowFocusedAtOtherClick bool
+	focusLostAtReturnClick    int
+	afterTakeKeys             uintptr
+	getFocus                  func(uintptr) uintptr
+	events                    []string
 }
 
 var gtkNativeWidgetTraceActive *gtkNativeWidgetTrace
@@ -55,6 +60,9 @@ func gtkNativeWidgetState(ctx context.Context, app *gtkApplication, editor, othe
 			state.windowFocus = trace.getFocus(editor.toplevel)
 			state.afterTakeKeys = trace.afterTakeKeys
 			state.entryIn, state.entryOut = trace.entryIn, trace.entryOut
+			state.focusLostAtOtherClick = trace.focusLostAtOtherClick
+			state.windowFocusedAtOtherClick = trace.windowFocusedAtOtherClick
+			state.focusLostAtReturnClick = trace.focusLostAtReturnClick
 			state.eventOrder = append([]string(nil), trace.events...)
 		}
 		answer <- state
@@ -219,10 +227,22 @@ func gtkNativeWidgetFocusRun(ctx context.Context, t *testing.T, app *gtkApplicat
 		return []string{err.Error()}
 	}
 	logState("B clicked")
+	var afterSwitch gtkNativeWidgetFocusState
 	if err := gtkNativeWidgetWait(ctx, app, p.w, other, lost, otherClicks, editorClicks, "external A to B focus", func(s gtkNativeWidgetFocusState) bool {
-		return !s.windowFocused && s.otherFocused && !s.imeActive && s.focusLost == baseline.focusLost+1
+		afterSwitch = s
+		return !s.windowFocused && s.otherFocused && !s.imeActive && s.focusLost >= baseline.focusLost+1
 	}); err != nil {
 		failures = append(failures, err.Error())
+	} else {
+		// B's press may precede A's focus-out, which then accounts for one more loss.
+		want := afterSwitch.focusLostAtOtherClick
+		if afterSwitch.windowFocusedAtOtherClick {
+			want++
+		}
+		if afterSwitch.focusLost != want {
+			failures = append(failures, fmt.Sprintf("A OnFocusLost after B.PointerDown=%d, at B.PointerDown=%d A.focused=%t, want %d; events=%q",
+				afterSwitch.focusLost, afterSwitch.focusLostAtOtherClick, afterSwitch.windowFocusedAtOtherClick, want, afterSwitch.eventOrder))
+		}
 	}
 	logState("before B hide")
 	hidden := make(chan struct{}, 1)
@@ -255,9 +275,9 @@ func gtkNativeWidgetFocusRun(ctx context.Context, t *testing.T, app *gtkApplicat
 	logState("A editor restored")
 	if state, err := gtkNativeWidgetState(ctx, app, p.w, other, lost, otherClicks, editorClicks); err != nil {
 		return append(failures, err.Error())
-	} else if state.focusLost != baseline.focusLost+1 {
-		failures = append(failures, fmt.Sprintf("A OnFocusLost after return=%d, want %d; A.focused=%t B.focused=%t nativeKeys=%t webFocus=%#x gtkFocus=%#x afterTakeKeys=%#x entryIn/out=%d/%d IME=%t clicks(A/B)=%d/%d events=%q",
-			state.focusLost, baseline.focusLost+1, state.windowFocused, state.otherFocused, state.nativeKeys,
+	} else if state.focusLost != state.focusLostAtReturnClick {
+		failures = append(failures, fmt.Sprintf("A OnFocusLost after return=%d, at A.PointerDown=%d; A.focused=%t B.focused=%t nativeKeys=%t webFocus=%#x gtkFocus=%#x afterTakeKeys=%#x entryIn/out=%d/%d IME=%t clicks(A/B)=%d/%d events=%q",
+			state.focusLost, state.focusLostAtReturnClick, state.windowFocused, state.otherFocused, state.nativeKeys,
 			state.webFocus, state.windowFocus, state.afterTakeKeys, state.entryIn, state.entryOut,
 			state.imeActive, state.editorClicks, state.otherClicks, state.eventOrder))
 	}
@@ -379,6 +399,7 @@ func TestGTKNativeWaylandWidgetExternalFocus(t *testing.T) {
 			OnPointer: func(event platform.PointerEvent) (platform.Frame, error) {
 				if event.Kind == platform.PointerDown {
 					editorClicks++
+					trace.focusLostAtReturnClick = focusLost
 					if aWindow != nil && trace.getFocus != nil {
 						trace.afterTakeKeys = trace.getFocus(aWindow.toplevel)
 						trace.note(fmt.Sprintf("A.PointerDown after takeKeys gtkFocus=%#x nativeKeys=%t", trace.afterTakeKeys, aWindow.nativeKeys))
@@ -425,7 +446,9 @@ func TestGTKNativeWaylandWidgetExternalFocus(t *testing.T) {
 			OnPointer: func(event platform.PointerEvent) (platform.Frame, error) {
 				if event.Kind == platform.PointerDown {
 					otherClicks++
-					trace.note("B.PointerDown")
+					trace.focusLostAtOtherClick = focusLost
+					trace.windowFocusedAtOtherClick = aWindow.focused
+					trace.note(fmt.Sprintf("B.PointerDown A.focused=%t lost=%d", aWindow.focused, focusLost))
 				}
 				return platform.Frame{}, nil
 			},

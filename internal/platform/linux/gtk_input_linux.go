@@ -204,7 +204,7 @@ func (w *gtkWindow) buttonAt(x, y, screenX, screenY float32, gdkButton uint32, d
 	w.deliverPointer(platform.PointerEvent{Kind: kind, Button: button, Modifiers: modifiers, X: x, Y: y, ScreenX: screenX, ScreenY: screenY, ClickCount: w.pointer.clicks.Current()})
 	if reclaimingNative && !w.closed && w.ime != nil {
 		ime, context := w.ime, w.ime.ctx
-		w.app.enqueue(func() { w.reclaimIME(ime, context) })
+		w.reclaimIME(ime, context)
 	}
 }
 
