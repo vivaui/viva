@@ -281,9 +281,13 @@ func avatarEditorPaintStage(c *gfx.Canvas, theme gfx.Theme, stage gfx.Rect, out 
 		border = theme.Ring
 	}
 	if circular {
-		c.DrawPath(avatarEditorCircleRingPath(), stage, gfx.PathStyle{Fill: border, FillRule: gfx.PathFillEvenOdd})
+		// A stroke is centred on its path, so the path sits half a width inside
+		// the stage to keep the whole ring visible, as Avatar does.
+		half := avatarEditorBorderWidth / 2
+		ring := gfx.Rect{X: stage.X + half, Y: stage.Y + half, Width: stage.Width - 2*half, Height: stage.Height - 2*half}
+		c.DrawPath(avatarEditorCircleFillPath(), ring, gfx.PathStyle{Stroke: border, StrokeWidth: avatarEditorBorderWidth})
 	} else {
-		c.RoundedBorder(stage, 0, 1.5, border, gfx.Color{})
+		c.RoundedBorder(stage, 0, avatarEditorBorderWidth, border, gfx.Color{})
 	}
 	c.Unclip()
 	if !id.IsZero() {
@@ -604,21 +608,19 @@ func avatarEditorPaintZoom(c *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx
 	})
 }
 
+// avatarEditorBorderWidth is the stage border's thickness in logical pixels. It
+// is constant across stage sizes for both the rectangular and circular stage.
+const avatarEditorBorderWidth float32 = 1.5
+
 var (
 	avatarEditorCirclePathsOnce sync.Once
 	avatarEditorCircleMask      gfx.Path
 	avatarEditorCircleFill      gfx.Path
-	avatarEditorCircleRing      gfx.Path
 )
 
 func avatarEditorCircleMaskPath() gfx.Path {
 	avatarEditorCirclePathsOnce.Do(initAvatarEditorCirclePaths)
 	return avatarEditorCircleMask
-}
-
-func avatarEditorCircleRingPath() gfx.Path {
-	avatarEditorCirclePathsOnce.Do(initAvatarEditorCirclePaths)
-	return avatarEditorCircleRing
 }
 
 func avatarEditorCircleFillPath() gfx.Path {
@@ -645,20 +647,6 @@ func initAvatarEditorCirclePaths() {
 		gfx.CubicTo(100, 77.614, 77.614, 100, 50, 100),
 		gfx.CubicTo(22.386, 100, 0, 77.614, 0, 50),
 		gfx.CubicTo(0, 22.386, 22.386, 0, 50, 0),
-		gfx.ClosePath(),
-	)
-	avatarEditorCircleRing = gfx.NewPath(100, 100,
-		gfx.MoveTo(50, 0),
-		gfx.CubicTo(77.614, 0, 100, 22.386, 100, 50),
-		gfx.CubicTo(100, 77.614, 77.614, 100, 50, 100),
-		gfx.CubicTo(22.386, 100, 0, 77.614, 0, 50),
-		gfx.CubicTo(0, 22.386, 22.386, 0, 50, 0),
-		gfx.ClosePath(),
-		gfx.MoveTo(50, .4),
-		gfx.CubicTo(77.393, .4, 99.6, 22.607, 99.6, 50),
-		gfx.CubicTo(99.6, 77.393, 77.393, 99.6, 50, 99.6),
-		gfx.CubicTo(22.607, 99.6, .4, 77.393, .4, 50),
-		gfx.CubicTo(.4, 22.607, 22.607, .4, 50, .4),
 		gfx.ClosePath(),
 	)
 }
