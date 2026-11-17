@@ -29,3 +29,22 @@ func TestRadioGroupChoosesByClickAndArrows(t *testing.T) {
 		t.Fatalf("Down from the last chose %q, want it to wrap to a", choice)
 	}
 }
+
+func TestRadioIDKeepsTheApplicationsIdentity(t *testing.T) {
+	id := gfx.Item(41)
+	ungroup := false
+	d := openPage(t, func(c ui.C) {
+		ui.RadioGroup(c).Children(func() {
+			ui.RadioID(c.Key("keep"), gfx.Item(40), &ungroup, false, "Keep")
+			ui.RadioID(c.Key("ungroup"), id, &ungroup, true, "Ungroup")
+		})
+	})
+	d.click("Ungroup")
+	if !ungroup {
+		t.Fatal("a click on the identified option did not choose it")
+	}
+	d.key(gfx.KeyUp)
+	if ungroup || d.focused() != "Keep" {
+		t.Fatalf("Up chose ungroup=%v with the focus on %q", ungroup, d.focused())
+	}
+}

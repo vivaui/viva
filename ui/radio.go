@@ -11,9 +11,23 @@ import "github.com/vivaui/viva/gfx"
 //
 //	ui.Radio(c, &m.plan, Monthly, "Monthly")
 func Radio[T comparable](c C, value *T, option T, label string) Box {
+	return radio(c, c.page.controlID(pkRadio), value, option, label)
+}
+
+// RadioID is Radio for an option the application already names, as TextFieldID is for
+// TextField: id is the option's identity in the page's Tree, so an initial focus, the
+// application's own routing or a test can address it.
+//
+//	ui.RadioID(c, hitKeepParent, &m.ungroup, false, "Keep hosts in the parent")
+func RadioID[T comparable](c C, id gfx.ID, value *T, option T, label string) Box {
+	return radio(c, id, value, option, label)
+}
+
+func radio[T comparable](c C, id gfx.ID, value *T, option T, label string) Box {
 	th := c.f.theme
 	m := th.Metrics
-	b := RadioBase(c, value, option, label)
+	b := c.f.RadioBase(id, label, *value == option)
+	choose(c, b, value, option)
 	if b.State().FocusVisible && *value != option {
 		*value = option
 	}
