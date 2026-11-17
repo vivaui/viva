@@ -115,6 +115,9 @@ type State struct {
 	picker      *colorPickerDemoState
 	// chart keeps the hover and label caches of the chart examples.
 	chart *chartDemoState
+	// graph keeps the simulation, viewport and pointer bookkeeping of the
+	// graph examples.
+	graph *graphDemoState
 	// list is the page-layer List example: its rows, choice and page.
 	list *listDemo
 	// page keeps the memory and identities of the demo's Page (see drawPage).

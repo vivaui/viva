@@ -46,7 +46,7 @@ func TestGroupACatalogOrder(t *testing.T) {
 	want := []string{
 		"accordion", "alert", "alert-dialog", "aspect-ratio", "attachment",
 		"avatar", "breadcrumb", "bubble", "button-group", "calendar", "card",
-		"carousel", "chart", "chart-area", "chart-bar", "chart-downsample", "collapsible", "combobox",
+		"carousel", "chart", "chart-area", "chart-bar", "chart-downsample", "collapsible", "combobox", "graph",
 	}
 	if len(groupAComponents) != len(want) {
 		t.Fatalf("group A has %d components, want %d", len(groupAComponents), len(want))
