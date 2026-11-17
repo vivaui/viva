@@ -30,9 +30,10 @@ type gtkWindow struct {
 
 	toplevel, area uintptr
 	// overlay holds the area and the web pages above it; it exists when the application may open pages.
-	overlay uintptr
-	ime     *gtkIME
-	wl      *waylandSurface
+	overlay        uintptr
+	ime            *gtkIME
+	wl             *waylandSurface
+	pointerCapture uintptr
 
 	// unit is the device pixels in one unit of the widget's size: GTK's own scale on X11, where
 	// the drawing area is the canvas; 1 on Wayland, where the area holds no pixels. scale is Viva's
@@ -46,11 +47,12 @@ type gtkWindow struct {
 	allocated0    bool
 	cairoSurface  uintptr
 
-	frame      atomic.Pointer[gfx.Rect]
-	maximized  bool
-	fullscreen atomic.Bool
-	minimized  bool
-	focused    bool
+	frame       atomic.Pointer[gfx.Rect]
+	maximized   bool
+	fullscreen  atomic.Bool
+	minimized   bool
+	focused     bool
+	focusSerial uint64 // coalesces GDK focus transfers between a Wayland parent and its child
 
 	regionsDirty bool
 	// dragging and dropping follow a drag of files over the window.
@@ -171,6 +173,15 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 	for _, signal := range []string{"button-press-event", "button-release-event", "motion-notify-event", "enter-notify-event", "leave-notify-event", "scroll-event"} {
 		g.connect(w.area, signal, cb.event, data)
 	}
+	if a.wayland {
+		g.widgetAddEvents(w.area, gdkKeyPressMask|gdkKeyReleaseMask|gdkFocusChangeMask)
+		for _, signal := range []string{"key-press-event", "key-release-event", "focus-in-event", "focus-out-event"} {
+			g.connect(w.area, signal, cb.event, data)
+		}
+		w.pointerCapture = g.gestureMultiPressNew(w.toplevel)
+		g.controllerSetPhase(w.pointerCapture, 1) // GTK_PHASE_CAPTURE
+		g.connect(w.pointerCapture, "begin", cb.capturePress, data)
+	}
 	for _, signal := range []string{"key-press-event", "key-release-event", "focus-in-event", "focus-out-event", "window-state-event", "configure-event"} {
 		g.connect(w.toplevel, signal, cb.event, data)
 	}
@@ -222,6 +233,11 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 		})
 	}
 	g.widgetShowAll(w.toplevel)
+	if a.firstErr != nil {
+		err := a.firstErr
+		w.destroy()
+		return nil, err
+	}
 	return w, nil
 }
 
@@ -416,6 +432,10 @@ func (w *gtkWindow) cleanup() {
 		w.wl.close()
 		w.wl = nil
 	}
+	if w.pointerCapture != 0 {
+		w.g.objectUnref(w.pointerCapture)
+		w.pointerCapture = 0
+	}
 	w.releaseSurface()
 	if w.scene != nil {
 		w.scene.close()
@@ -442,6 +462,14 @@ func (w *gtkWindow) closeRequested() bool {
 
 // mapChanged is the window being shown or hidden.
 func (w *gtkWindow) mapChanged(on bool) {
+	if !on && w.wl != nil {
+		// GDK can unmap the parent before reporting a focus-out for its child.
+		// End this IM session before the parent's Wayland surface is replaced.
+		w.focusSerial++
+		w.focusChanged(false)
+		*w.pointer.clicks = input.ClickCounter{}
+		w.pointer.pending, w.pointer.pendingDelivery = false, false
+	}
 	if on && w.originPending {
 		// The window manager decorates the window after it is mapped; its frame is known a moment
 		// later.

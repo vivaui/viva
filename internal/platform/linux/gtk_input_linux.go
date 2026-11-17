@@ -45,6 +45,12 @@ func (w *gtkWindow) handleEvent(widget, event uintptr) uintptr {
 	if w.closed {
 		return 0
 	}
+	if w.wl != nil && w.wl.gdkWindow != 0 && *(*uintptr)(unsafe.Add(unsafePointer(event), 8)) == w.wl.gdkWindow {
+		switch eventType(event) {
+		case gdkMotionNotify, gdkEnterNotify, gdkLeaveNotify, gdkButtonPress, gdkButtonRelease, gdk2ButtonPress, gdk3ButtonPress, gdkScroll:
+			return 1 // Viva's wl_pointer delivers this surface's pointer events.
+		}
+	}
 	switch eventType(event) {
 	case gdkMotionNotify:
 		e := (*gdkEventMotion)(unsafePointer(event))
@@ -76,8 +82,19 @@ func (w *gtkWindow) handleEvent(widget, event uintptr) uintptr {
 		return w.keyEvent(event)
 	case gdkFocusChange:
 		in := (*gdkEventFocus)(unsafePointer(event)).In != 0
+		if widget == w.area && w.wl != nil && w.wl.gdkWindow != 0 {
+			w.waylandFocusChanged(in)
+			return 1
+		}
 		if widget != w.toplevel {
+			if in {
+				w.focusSerial++ // a native view has taken focus within this window
+			}
 			w.webFocusChanged(widget, in)
+			return 0
+		}
+		if w.wl != nil && w.wl.gdkWindow != 0 {
+			w.waylandFocusChanged(in)
 			return 0
 		}
 		w.focusChanged(in)
@@ -87,6 +104,22 @@ func (w *gtkWindow) handleEvent(widget, event uintptr) uintptr {
 		w.reportFrame()
 	}
 	return 0
+}
+
+// GDK sends a focus-out for the parent before the focus-in for its subsurface.
+// Defer losing the window's logical focus until that transfer has completed.
+func (w *gtkWindow) waylandFocusChanged(in bool) {
+	w.focusSerial++
+	serial := w.focusSerial
+	if in {
+		w.focusChanged(true)
+		return
+	}
+	w.app.enqueue(func() {
+		if !w.closed && serial == w.focusSerial && w.webFocus == 0 {
+			w.focusChanged(false)
+		}
+	})
 }
 
 // logical converts a position in widget units to logical pixels.
@@ -152,7 +185,14 @@ func (w *gtkWindow) buttonAt(x, y, screenX, screenY float32, gdkButton uint32, d
 	if button == gfx.PointerButtonNone {
 		return
 	}
+	reclaimingNative := false
 	if down {
+		reclaimingNative = w.wl != nil && (w.nativeKeys || w.webFocus != 0)
+		if w.wl != nil && w.g.windowGetFocus(w.toplevel) != 0 {
+			// GTK can keep a native widget as the window's stored focus after the
+			// window loses compositor focus, even after its focus-out signal ran.
+			w.g.windowSetFocus(w.toplevel, 0)
+		}
 		w.takeKeys()
 		w.pointer.clicks.Interval, w.pointer.clicks.Distance = clickTimingGTK(w)
 		w.pointer.clicks.Press(time.Duration(eventTime)*time.Millisecond, uint8(gdkButton), x, y)
@@ -162,6 +202,22 @@ func (w *gtkWindow) buttonAt(x, y, screenX, screenY float32, gdkButton uint32, d
 		kind = platform.PointerDown
 	}
 	w.deliverPointer(platform.PointerEvent{Kind: kind, Button: button, Modifiers: modifiers, X: x, Y: y, ScreenX: screenX, ScreenY: screenY, ClickCount: w.pointer.clicks.Current()})
+	if reclaimingNative && !w.closed && w.ime != nil {
+		ime, context := w.ime, w.ime.ctx
+		w.app.enqueue(func() { w.reclaimIME(ime, context) })
+	}
+}
+
+func (w *gtkWindow) reclaimIME(ime *gtkIME, context uintptr) {
+	ready := func() bool {
+		return !w.closed && w.wl != nil && w.wl.s.focus == w.wl && !w.nativeKeys && w.focused && w.ime == ime && ime.ctx == context
+	}
+	if ready() && !ime.composing() {
+		ime.setFocused(false)
+		if ready() && !ime.composing() {
+			ime.setFocused(true)
+		}
+	}
 }
 
 // deliverPointer gives an event to the application, then to the text field under it.
