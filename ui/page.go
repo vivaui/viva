@@ -252,6 +252,7 @@ type Page struct {
 	freshAt     gfx.Scope
 	kindName    [pkKinds]gfx.Name
 	keyName     gfx.Name
+	menuName    gfx.Name // the place of a ContextMenu inside its target (contextMenu)
 	held        [2]armedButton
 	states      map[protoStateKey]protoState
 	fields      []fieldEntry
@@ -423,6 +424,7 @@ func (p *Page) init(tree *gfx.Tree) {
 		p.kindName[kind] = p.tree.Name(fmt.Sprintf("~k%d", kind))
 	}
 	p.keyName = p.tree.Name("~key")
+	p.menuName = p.tree.Name("~menu")
 	p.freshAt = p.tree.Sub(p.root, p.tree.Name("~new"))
 	p.keys = map[keyKey]keyEntry{}
 	p.intKeys = map[intKey]keyEntry{}
