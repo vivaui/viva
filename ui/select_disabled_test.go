@@ -129,3 +129,29 @@ func TestFieldInvalidChangesTheLook(t *testing.T) {
 		t.Fatal("an invalid field is painted like a valid one")
 	}
 }
+
+// A FormField with an Error paints it, with For the title is the control's label, and the
+// field keeps the height it is given.
+func TestFormFieldErrorInvalidAndFor(t *testing.T) {
+	var state ui.FormFieldState
+	state.Error, state.Invalid, state.For = "Not valid.", true, gfx.Item(9)
+	d := openPage(t, page(func(c ui.C) {
+		ui.FormField(c, &state, "Name").FillWidth().Height(90).Children(func() {
+			ui.TextFieldID(c, gfx.Item(9), new(ui.Field), "Name", "")
+		})
+	}))
+	snap := d.driver.Snapshot()
+	var gotError, titleIsLabel bool
+	for _, x := range snap.Texts {
+		gotError = gotError || x.Value == "Not valid."
+	}
+	for _, h := range snap.Hits {
+		titleIsLabel = titleIsLabel || (h.IsLabel && h.Label == "Name")
+	}
+	if !gotError {
+		t.Fatal("the error line is not painted")
+	}
+	if !titleIsLabel {
+		t.Fatal("For did not make the title the control's label")
+	}
+}
