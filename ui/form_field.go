@@ -18,6 +18,8 @@ type FormFieldState struct {
 	Error   string
 	Invalid bool
 	For     gfx.ID
+	// Description is a line of help under the control, above Error, in the muted color.
+	Description string
 
 	label  string
 	theme  *Theme
@@ -68,7 +70,7 @@ func FormField(c C, state *FormFieldState, label string) Box {
 // description and error rows, so the field and a painted BeginField have the
 // same height.
 func (state *FormFieldState) spec() field.Spec {
-	return field.Spec{Title: state.label, Error: state.Error, Invalid: state.Invalid, Control: state.For}
+	return field.Spec{Title: state.label, Description: state.Description, Error: state.Error, Invalid: state.Invalid, Control: state.For}
 }
 
 // MeasureWidth reports no preferred width: a form field takes the width its

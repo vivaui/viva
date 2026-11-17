@@ -37,6 +37,9 @@ type Field struct {
 	// reach, as components.Input does for a disabled input. It is the application's to set
 	// and clear, as Secure is.
 	Disabled bool
+	// Hint is the description assistive technology reads after the field's name and value, for
+	// what they do not say. It is the application's to set and clear, as Secure is.
+	Hint string
 
 	editor *text.Editor
 	id     gfx.ID
@@ -171,7 +174,7 @@ func (field *Field) snapshot(f *frame, id gfx.ID, label, placeholder string) com
 	focused := f.canvas != nil && f.canvas.Focused() == id
 	selection := editor.Selection()
 	snapshot := components.InputSnapshot{
-		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled,
+		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, Hint: field.Hint,
 		Focused: focused,
 		// The field paints its own text, caret, selection and composition, and the
 		// platform's editor is only where input arrives. A platform that lays text out

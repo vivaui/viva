@@ -227,3 +227,30 @@ func TestButtonRecipeDeclaresWithoutAllocating(t *testing.T) {
 		t.Fatalf("a warm paint of a button with its own recipe allocates %v times", got)
 	}
 }
+
+// A FormField paints its Description, and a Field's Hint reaches assistive technology.
+func TestFormFieldDescriptionAndFieldHint(t *testing.T) {
+	var state ui.FormFieldState
+	state.Description = "Locked while connected."
+	var f ui.Field
+	f.Hint = "Locked while connected."
+	d := openPage(t, page(func(c ui.C) {
+		ui.FormField(c, &state, "Port").FillWidth().Height(90).Children(func() {
+			ui.TextFieldID(c, gfx.Item(9), &f, "Port", "")
+		})
+	}))
+	snap := d.driver.Snapshot()
+	painted, hinted := false, false
+	for _, x := range snap.Texts {
+		painted = painted || x.Value == "Locked while connected."
+	}
+	for _, h := range snap.Hits {
+		hinted = hinted || (h.Role == gfx.RoleTextField && h.Hint == "Locked while connected.")
+	}
+	if !painted {
+		t.Fatal("the description is not painted")
+	}
+	if !hinted {
+		t.Fatal("the field's hint did not reach its hit")
+	}
+}
