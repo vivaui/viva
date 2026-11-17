@@ -11,7 +11,7 @@ The catalog is a statically typed Go translation of the pinned shadcn/ui compone
 
 ## Using a component
 
-Import `github.com/vivaui/viva/components` and declare the component while painting. This is the normal path, and it is what the [first window](/en/docs/getting-started/) does.
+A page is written with package `ui`, whose controls (`ui.Button`, `ui.Checkbox`, `ui.Select` and the rest) paint with these components, as the [first window](/en/docs/getting-started/) does. Import `github.com/vivaui/viva/components` yourself when you paint into a `gfx.Canvas` by hand, or install a component's source to change it.
 
 ```go
 components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")

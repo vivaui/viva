@@ -12,7 +12,6 @@ type notes struct {
 	unsaved        bool
 	confirmClosing bool
 	allowClose     func()
-	application    *app.Application
 }
 
 func (state *notes) page(c ui.C) {
@@ -27,8 +26,8 @@ func (state *notes) page(c ui.C) {
 			if ui.Button(c, "Settings").Outline().Clicked() {
 				// Windows are opened from the start callback or from another
 				// window's callbacks, which run on the native event-loop thread.
-				var settings gfx.Canvas
-				_, _ = state.application.OpenWindow(app.Config{Title: "Settings", Width: 420, Height: 320}, &settings)
+				_, _ = ui.OpenWindow(c.Application(), app.Config{Title: "Settings", Width: 420, Height: 320},
+					ui.PageConfig{View: func(c ui.C) { ui.Text(c, "Settings").FontSize(20).Bold() }})
 			}
 		})
 		ui.ModalWith(c, &state.confirmClosing, "Discard changes?", ui.ModalSpec{
@@ -51,26 +50,21 @@ func main() {
 	state := &notes{unsaved: true}
 
 	err := app.RunApplication(func(application *app.Application) error {
-		var main gfx.Canvas
-		state.application = application
-		page := ui.NewPage(ui.PageConfig{View: state.page, Theme: &theme})
-		config := page.Config(app.Config{
+		_, err := ui.OpenWindow(application, app.Config{
 			Title: "Notes", Width: 720, Height: 480,
 			// Content runs full height under a transparent title bar; the window
 			// moves from the row marked MovesWindow. Keep your own content clear of
 			// the window buttons.
 			WindowMode: app.WindowCustomTitlebar,
-		})
-		// The close button asks. Call allow now, later, or never to keep the window.
-		config.OnCloseRequest = func(allow func()) {
-			if !state.unsaved {
-				allow()
-				return
-			}
-			state.confirmClosing, state.allowClose = true, allow
-		}
-
-		_, err := application.OpenWindow(config, &main)
+			// The close button asks. Call allow now, later, or never to keep the window.
+			OnCloseRequest: func(allow func()) {
+				if !state.unsaved {
+					allow()
+					return
+				}
+				state.confirmClosing, state.allowClose = true, allow
+			},
+		}, ui.PageConfig{View: state.page, Theme: &theme})
 		return err
 	})
 	if err != nil {
