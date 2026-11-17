@@ -215,7 +215,9 @@ payload kind do not match, copies the installed payload into a staging
 directory, and applies the patch there. `Install` then runs the same checks as a
 full update (the bundle identifier, version and `codesign` on macOS) and replaces
 the application. A failure in either step changes nothing: the application keeps
-running the old version and can download the whole archive.
+running the old version and can download the whole archive. `Install` copies the
+payload before it calls `quit`, so the directory `ApplyPatch` returned is still
+the application's to delete once `quit` has been called.
 
 ## Updating in the application
 
