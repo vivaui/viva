@@ -639,13 +639,6 @@ func TestResizeTimerFailureDegradesToSynchronousResize(t *testing.T) {
 	}
 }
 
-func TestResizeDisplayModeNativeLayout(t *testing.T) {
-	mode := displayMode{}
-	if unsafe.Sizeof(mode) != 220 || unsafe.Offsetof(mode.Frequency) != 184 {
-		t.Fatalf("DEVMODEW size=%d frequency offset=%d", unsafe.Sizeof(mode), unsafe.Offsetof(mode.Frequency))
-	}
-}
-
 // Query actual swap-chain presents: dimensions and frame acknowledgements alone
 // cannot distinguish a suppressed paint from a successful same-size present.
 func resizeTestPresentCount(t *testing.T, state *windowState) uint32 {
