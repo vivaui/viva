@@ -123,3 +123,29 @@ func (in *listInternals) drawOver(d *DrawContext) {
 	y = min(max(y, d.Rect.Y+1), d.Rect.Y+d.Rect.Height-1)
 	d.Canvas.Fill(Rect{X: d.Rect.X, Y: y - 1, Width: d.Rect.Width, Height: 2}, d.Theme.Primary)
 }
+
+// reorderByKey is Alt with Up or Down on a row of a List with Reorder: the rows the
+// drag would carry go one row up or down, as a drop would put them, and the keyboard
+// stays on the row. At the first or the last row it moves nothing.
+func (s *ListState) reorderByKey(row int, up bool) (gfx.EventResult, bool) {
+	var drag listDrag
+	drag.from = row
+	s.carriedRows(&drag)
+	rows := drag.rows
+	to := rows[len(rows)-1] + 2 // before the row after the one below the run
+	if up {
+		to = rows[0] - 1
+	}
+	if to < 0 || to > s.list.n || s.isHeader(min(to, s.list.n-1)) {
+		return gfx.EventResult{Handled: true}, true
+	}
+	focus := s.key(row) // a keyed row keeps its identity where it goes
+	if s.Key == nil {
+		focus = row + 1 // an index names the row: it is one place on
+		if up {
+			focus = row - 1
+		}
+	}
+	s.Reorder(rows, to)
+	return gfx.EventResult{Handled: true, Repaint: true, Focus: s.list.rows.At(focus), FocusVisible: true}, true
+}

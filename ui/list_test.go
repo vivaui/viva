@@ -436,3 +436,37 @@ func BenchmarkListStreamingAppend(b *testing.B) {
 		drawPage(page, canvas, m.view)
 	}
 }
+
+// Alt with the arrows moves the rows of a List with Reorder, as a drag would, for the
+// keyboard: the focus stays on the row.
+func TestListReorderByKeyboard(t *testing.T) {
+	names := []string{"a", "b", "c"}
+	var state ui.ListState
+	state.Key = func(i int) int { return int(names[i][0] - 'a') }
+	state.Label = func(i int) string { return names[i] }
+	state.Reorder = func(rows []int, to int) {
+		moved := names[rows[0]]
+		rest := append(append([]string(nil), names[:rows[0]]...), names[rows[0]+1:]...)
+		if to > rows[0] {
+			to--
+		}
+		names = append(append(append([]string(nil), rest[:to]...), moved), rest[to:]...)
+	}
+	d := openPage(t, func(c ui.C) {
+		ui.List(c, &state, len(names), func(row ui.ListRow) {
+			ui.Text(row.C, names[row.Index])
+		}).Height(150)
+	})
+	d.click("b")
+	d.driver.Key(gfx.KeyUp, gfx.ModifierAlt)
+	d.repaint()
+	if got := names[0] + names[1] + names[2]; got != "bac" {
+		t.Fatalf("Alt+Up left %q, want bac", got)
+	}
+	d.driver.Key(gfx.KeyDown, gfx.ModifierAlt)
+	d.driver.Key(gfx.KeyDown, gfx.ModifierAlt)
+	d.repaint()
+	if got := names[0] + names[1] + names[2]; got != "acb" {
+		t.Fatalf("Alt+Down twice left %q, want acb", got)
+	}
+}

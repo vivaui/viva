@@ -57,7 +57,8 @@ type ListState struct {
 	// rows for the end). Move them there: the list shows where they would go as
 	// they are dragged and scrolls near its edges, Escape lets go of the drag, and
 	// a drop that changes nothing calls nothing. The drag starts on the row itself;
-	// a press on a control in it (a button) is that control's.
+	// a press on a control in it (a button) is that control's. Alt with Up or Down on
+	// a row does the same for the keyboard, one place at a time.
 	Reorder func(rows []int, to int)
 	// RowWidth, when positive, makes the rows at least that wide: where they are
 	// wider than the list it scrolls sideways too (the horizontal wheel, or the
@@ -1159,6 +1160,9 @@ func (p *Page) listKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		}
 		if n == 0 {
 			return gfx.EventResult{}, false
+		}
+		if s.Reorder != nil && event.Modifiers == gfx.ModifierAlt && (event.Key == gfx.KeyUp || event.Key == gfx.KeyDown) {
+			return s.reorderByKey(row, event.Key == gfx.KeyUp)
 		}
 		how, ok := moveOf(event, s.Selection != nil)
 		if !ok {
