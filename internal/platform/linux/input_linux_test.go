@@ -823,6 +823,47 @@ func TestX11RevalidatesDisabledEditorBeforeFirstNativeKey(t *testing.T) {
 	}
 }
 
+// BenchmarkX11KeyOnDisabledText compares a nonmodifier key on a focused field
+// whose native input is disabled, with and without the read-only refresh that
+// repaints before each key. The difference is the steady-state cost of a
+// focused read-only field; the application's paint itself is not included.
+func BenchmarkX11KeyOnDisabledText(b *testing.B) {
+	b.Run("not read-only", func(b *testing.B) { benchmarkDisabledTextKey(b, false) })
+	b.Run("read-only", func(b *testing.B) { benchmarkDisabledTextKey(b, true) })
+}
+
+func benchmarkDisabledTextKey(b *testing.B, readOnly bool) {
+	textInput := &linuxTextInput{engine: fixedAdvanceEngine{}}
+	defer textInput.close()
+	config := platform.Config{
+		DynamicTextInput:    true,
+		ReadOnlyTextFocused: func() bool { return readOnly },
+		OnRedraw: func() (platform.Frame, error) {
+			// A read-only field is painted without a native input.
+			return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true}}, nil
+		},
+	}
+	textInput.config = &config
+	state := &linuxWindowState{
+		win:    &window{keymap: xcbKeymap{first: 9, last: 9, perKeycode: 2, keysyms: []uint32{'x', 'X'}}},
+		config: config, text: textInput,
+		router: eventRouter{config: config, text: textInput, present: func(frame platform.Frame) error {
+			_, _, err := textInput.prepare(frame)
+			return err
+		}},
+	}
+	previous := activeWindow.Load()
+	defer activeWindow.Store(previous)
+	key := xcbInputEvent{ResponseType: xcbKeyPress, Detail: 9}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if _, err := state.handleEvent(unsafe.Pointer(&key)); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func TestModifierTrackerRetainsKeysStillDown(t *testing.T) {
 	tracker := newModifierTracker()
 	tracker.press(10, 0, input.KeyUnknown)
