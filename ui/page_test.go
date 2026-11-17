@@ -610,3 +610,31 @@ func TestPageTextAreaID(t *testing.T) {
 		t.Fatalf("focused %v, want the identity the application gave it", d.driver.Snapshot().Focused)
 	}
 }
+
+// Content the application paints itself scrolls in a ui.Scroll: a slot as tall as the content
+// moves with the offset, its hits move with it, and the area clips and draws the scrollbar.
+// This is how a hand-painted surface gets a page scrollbar.
+func TestScrollAreaOverHandPaintedContent(t *testing.T) {
+	var rect gfx.Rect
+	var area ui.Box
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(8).Children(func() {
+			area = ui.Scroll(c).Height(100).Width(200).Scrollbars()
+			area.Children(func() {
+				ui.Slot(c).Width(180).Height(400).Draw(func(dc *ui.DrawContext) {
+					rect = dc.Rect
+					dc.Canvas.Hit(gfx.Item(5), gfx.Rect{X: dc.Rect.X, Y: dc.Rect.Y + 300, Width: 50, Height: 20})
+				})
+			})
+		})
+	})
+	before := rect.Y
+	area.ScrollState().ScrollTo(150)
+	d.repaint()
+	if rect.Y >= before || before-rect.Y < 100 {
+		t.Fatalf("painted content did not move with the offset: %v -> %v", before, rect.Y)
+	}
+	if got := area.ScrollState().Max(); got != 300 {
+		t.Fatalf("scroll extent %v, want content 400 less viewport 100", got)
+	}
+}
