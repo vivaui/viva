@@ -42,6 +42,14 @@ All callbacks run on the window thread and must not block.
 
 ## Background work
 
+Three tools hand work back to the window thread; pick by what the work belongs to:
+
+| The work | Use |
+| --- | --- |
+| Belongs to a page and should stop when its key changes or the page stops declaring it | `ui.Effect` |
+| Is a function a goroutine finished that must run on the window thread (the application's loop, any window) | `Application.Post` |
+| Is yours alone, with no page key: you publish under your own lock | `Invalidator.Invalidate` with `Config.OnWake` |
+
 Other goroutines never touch the window. A goroutine publishes its result under your own synchronization, then calls `Invalidator.Invalidate`. The window thread wakes once, runs `OnWake`, and repaints.
 
 This ownership includes the model and text editors, not just native window methods. Read `ui.Field.Text()` or `text.Editor.String()` on the window thread **before** launching a worker, and pass the returned immutable string to it. A getter is not necessarily a pure read: these methods populate caches, and a field can initialize its editor on first use. A lock used only by your worker does not synchronize with native editing or painting. Apply results on the window thread; for page-scoped work, use a snapshot as a keyed effect's key, as shown in [Text input and forms](text-input).

@@ -623,3 +623,32 @@ func TestSelectInScrollAreaShowsItsListBeyondTheClip(t *testing.T) {
 		t.Fatal("the closed select lost its trigger")
 	}
 }
+
+// Type-ahead lands on the first option that is available: a disabled one that
+// starts with the same letters is passed over, and a word only disabled options
+// start with matches nothing.
+func TestSelectTypeAheadSkipsDisabledOptions(t *testing.T) {
+	now := time.Unix(1000, 0)
+	clock = func() time.Time { return now }
+	defer func() { clock = time.Now }()
+	disabled := []bool{false, false, true, false} // Apple, Avocado, Banana, Blueberry
+	draw := func(state *SelectState) {
+		var view View
+		view.Draw(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 300, Height: 400}, func(f *Frame) {
+			f.Column().Pad(10).Children(func() {
+				f.Select(selScope, state, fruit, 0).DisabledOptions(disabled).Picked()
+			})
+		})
+	}
+	state := SelectState{Open: true}
+	draw(&state)
+	if got := state.Key(gfx.KeyEvent{Text: "b", Target: selScope.At(0)}); got.Focus != selScope.At(3) {
+		t.Fatalf("b focused %v, want Blueberry (3), the Banana before it being disabled", got.Focus)
+	}
+	now = now.Add(2 * time.Second)
+	disabled = []bool{false, false, true, true}
+	draw(&state)
+	if got := state.Key(gfx.KeyEvent{Text: "b", Target: selScope.At(0)}); got.Focus.IsZero() == false {
+		t.Fatalf("b focused %v although every option starting with b is disabled", got.Focus)
+	}
+}

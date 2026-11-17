@@ -103,6 +103,12 @@ func (c *Ctx) After(fn func()) {
 // controls in the container being filled, or by the Key or Part set before it.
 func ID(c C) gfx.ID { return c.page.controlID(pkCustom) }
 
+// Application is the application whose window the page was opened in by
+// OpenWindow, so a handler can open more windows. It is nil for a page run by
+// Run or RunCanvas, or drawn into a window of someone else's, which have no
+// Application.
+func (c *Ctx) Application() *app.Application { return c.page.application }
+
 // Theme is the page's theme. Read it; do not keep it.
 func (c *Ctx) Theme() *Theme { return &c.f.theme }
 
@@ -239,6 +245,7 @@ type Page struct {
 	effectContext context.Context    // what their runs derive from; cancelled when the page closes
 	effectCancel  context.CancelFunc // cancels effectContext
 	invalidator   *app.Invalidator   // wakes the window when work finishes, when the page has one
+	application   *app.Application   // what OpenWindow opened the page's window in, else nil
 
 	scopes      []*protoScope // by scope: Scopes are dense indexes into the Tree
 	nodes       []protoNode   // each container of the frame, by node index
@@ -371,6 +378,33 @@ func Run(config app.Config, view func(C)) error {
 	page := NewPage(PageConfig{View: view})
 	var canvas gfx.Canvas
 	return app.RunCanvas(page.Config(config), &canvas)
+}
+
+// OpenWindow opens a window of application that paints page, and returns it. It
+// is Run for an application with several windows (app.RunApplication), and
+// the one call for what NewPage, Page.Config and a canvas of your own would be:
+// the window owns the canvas, and the page is closed, cancelling its Effects,
+// when the window closes or fails to open. Call it where Application.OpenWindow
+// may be called: the start callback of app.RunApplication or a window's
+// callback. config is the window's, and page.View declares what it shows.
+//
+//	app.RunApplication(func(a *app.Application) error {
+//		_, err := ui.OpenWindow(a, app.Config{Title: "Notes", Width: 720, Height: 480},
+//			ui.PageConfig{View: m.page})
+//		return err
+//	})
+//
+// A page opened this way reaches its application with C.Application, so a click
+// can open another window without the model keeping the application.
+func OpenWindow(application *app.Application, config app.Config, page PageConfig) (*app.Window, error) {
+	p := NewPage(page)
+	p.application = application
+	window, err := application.OpenWindow(p.Config(config), new(gfx.Canvas))
+	if err != nil {
+		p.Close()
+		return nil, err
+	}
+	return window, nil
 }
 
 func (p *Page) init(tree *gfx.Tree) {
@@ -660,7 +694,7 @@ func (p *Page) currentTheme() Theme {
 // base's OnClosed. Nothing else is touched.
 func (p *Page) Config(base app.Config) app.Config {
 	if p.config.View == nil {
-		panic("ui: Page.Config needs PageConfig.view, the function that declares the page")
+		panic("ui: Page.Config needs PageConfig.View, the function that declares the page")
 	}
 	p.init(base.Tree)
 	if base.Tree != nil && base.Tree != p.tree {
@@ -709,7 +743,7 @@ func (p *Page) Config(base app.Config) app.Config {
 // is the Config's Paint.
 func (p *Page) Paint(canvas *gfx.Canvas, size Size) {
 	if p.config.View == nil {
-		panic("ui: Page.Paint needs PageConfig.view, the function that declares the page")
+		panic("ui: Page.Paint needs PageConfig.View, the function that declares the page")
 	}
 	p.init(nil)
 	p.window = true

@@ -24,6 +24,7 @@ type SelectState struct {
 
 	// What the last frame declared, for the key and wheel handlers.
 	labels   []string
+	disabled []bool // DisabledOptions of the last declaration, for the keys
 	scope    gfx.Scope
 	selected int
 	visible  int
@@ -138,7 +139,7 @@ func (s *SelectState) match(current int) int {
 	count := len(s.labels)
 	for k := 0; k < count; k++ {
 		index := (start + k) % count
-		if hasPrefixFold(s.labels[index], prefix) {
+		if !optionDisabled(s.disabled, index) && hasPrefixFold(s.labels[index], prefix) {
 			return index
 		}
 	}
@@ -166,6 +167,7 @@ type selectDecl struct {
 	state    *SelectState
 	labels   []string
 	icons    []gfx.Icon
+	disabled []bool // this declaration's DisabledOptions: what the list paints
 	selected int
 	canvas   *gfx.Canvas
 	popup    int32 // the Popup that places the list, or -1 when it is closed
@@ -197,7 +199,7 @@ const (
 // its two scroll arrows, so give the select a scope of its own. A list too long for the
 // frame shows a window of options with scroll arrows, and the list floats over the page:
 // inside a scroll area it is not cut by the area's clip. selected is the index of the
-// current label, negative for none. Placeholder is the text shown then; Small, Disabled
+// current label, negative for none. Placeholder is the text shown then; Small, XSmall, Disabled
 // and Label work as for a button.
 //
 //	if i, ok := f.Select(sizes, &m.sizeOpen, labels, m.size).Placeholder("Size").Picked(); ok { m.size = i }
@@ -233,6 +235,7 @@ func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, canvas: f.canvas, popup: -1, layer: f.widgetLayer() + 1, rects: -1}
 	d.visible = selectRows(len(labels), f.bounds.Height)
 	widest := state.widestOption(f.canvas, labels, f.theme.Metrics.FontSizeM)
+	state.disabled = nil
 	state.labels, state.scope, state.selected, state.visible = labels, scope, selected, d.visible
 	if state.Open && len(labels) > 0 {
 		state.First = min(max(state.First, 0), len(labels)-d.visible)
@@ -321,6 +324,22 @@ func (b Box) Icons(icons []gfx.Icon) Box {
 	return b
 }
 
+// DisabledOptions marks options of a Select as unavailable, one per option and indexed like
+// the labels: a true entry is painted dimmed, cannot take the focus or a click, is skipped by type-ahead and
+// is never reported by Picked. The slice is the caller's and is read until the paint ends;
+// a shorter one leaves the options past its end enabled. A select given none has every
+// option enabled.
+func (b Box) DisabledOptions(disabled []bool) Box {
+	if n := b.n(); n.kind == kindSelect {
+		d := &b.f.widgets.selects[n.aux]
+		d.disabled, d.state.disabled = disabled, disabled
+	}
+	return b
+}
+
+// optionDisabled reports whether option i is marked in disabled.
+func optionDisabled(disabled []bool, i int) bool { return i >= 0 && i < len(disabled) && disabled[i] }
+
 // Picked reports which option of a Select this paint is delivering a click on, and
 // keeps the select's state: the trigger opens and closes the list, an option or a press
 // outside closes it, the arrows move its window.
@@ -369,7 +388,10 @@ func (f *frame) measureSelect(n *node) {
 	d := &f.widgets.selects[n.aux]
 	widest := d.state.widestOption(f.canvas, d.labels, f.theme.Metrics.FontSizeM)
 	height := f.theme.Metrics.ControlHeight
-	if n.flags&flagSmall != 0 {
+	switch {
+	case n.buttonSize == components.ButtonSizeXSmall:
+		height -= 8
+	case n.flags&flagSmall != 0:
 		height -= 4
 	}
 	n.pref = [2]float32{widest + f.theme.Metrics.PadControlX + 36, height}
@@ -384,7 +406,10 @@ func (f *frame) paintSelect(n *node) {
 		Disabled: n.flags&flagDisabled != 0,
 		Layer:    d.layer, Scope: d.scope.At(count + 2), DismissID: d.scope.At(count + 1), Viewport: f.bounds,
 	}
-	if n.flags&flagSmall != 0 {
+	switch {
+	case n.buttonSize == components.ButtonSizeXSmall:
+		options.Size = components.SelectSizeXSmall
+	case n.flags&flagSmall != 0:
 		options.Size = components.SelectSizeSmall
 	}
 	options.Unpainted = n.flags&flagThemed == 0
@@ -423,7 +448,7 @@ func (f *frame) paintSelect(n *node) {
 		f.widgets.rows = append(f.widgets.rows, Rect{})
 	}
 	for index := first; index < first+visible && index < count; index++ {
-		item := components.SelectItem{ID: d.scope.At(index), Label: d.labels[index], Selected: index == d.selected}
+		item := components.SelectItem{ID: d.scope.At(index), Label: d.labels[index], Selected: index == d.selected, Disabled: optionDisabled(d.disabled, index)}
 		if index < len(d.icons) {
 			item.Icon = d.icons[index]
 		}

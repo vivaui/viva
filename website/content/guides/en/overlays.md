@@ -93,7 +93,7 @@ The example's test checks all of it: a press at the far corner closes the menu, 
 
 ## Selects and the rest
 
-`ui.Select(c, &m.size, sizes, nil)` is a drop-down list: a `ui.SelectState` and a scope of its own in your model, and the list opens under the trigger, or above it when there is no room, painted over everything. Inside a dialog it opens above the dialog. Tooltips and other non-modal panels are popups that declare no dismiss identity, so they neither trap focus nor swallow outside presses. Combobox, command palette, menubar and navigation menu follow the same layer, scope and dismiss conventions; the [component catalog](/en/ui/dialog/) has a runnable example of each, and the [API reference](/en/api/components/) has every option.
+`ui.Select(c, &m.size, sizes, nil)` is a drop-down list: a `ui.SelectState` and a scope of its own in your model, and the list opens under the trigger, or above it when there is no room, painted over everything. `.DisabledOptions(flags)` takes a caller-owned `[]bool` indexed like the options: a true entry is dimmed, takes no click or focus and is skipped by type-ahead; `.XSmall()` makes a shorter trigger. Inside a dialog it opens above the dialog. Tooltips and other non-modal panels are popups that declare no dismiss identity, so they neither trap focus nor swallow outside presses. Combobox, command palette, menubar and navigation menu follow the same layer, scope and dismiss conventions; the [component catalog](/en/ui/dialog/) has a runnable example of each, and the [API reference](/en/api/components/) has every option.
 
 ## Entrance and exit
 

@@ -410,9 +410,9 @@ func (b Box) Large() Box    { b.n().buttonSize = components.ButtonSizeLarge; ret
 func (b Box) IconOnly() Box { b.n().buttonSize = components.ButtonSizeIcon; return b }
 
 // Disabled(true) makes a Button, Checkbox, Switch or Tabs inert and dimmed; Disabled(false)
-// leaves it as it is, so a condition is written in the call: `.Disabled(m.count <= 0)`.
-func (b Box) Disabled(off bool) Box {
-	if off {
+// makes it enabled again, so a condition is written in the call: `.Disabled(m.count <= 0)`.
+func (b Box) Disabled(disabled bool) Box {
+	if disabled {
 		b.n().flags |= flagDisabled
 	} else {
 		b.n().flags &^= flagDisabled
