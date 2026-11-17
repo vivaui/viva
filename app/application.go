@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/keymap"
 )
 
 // ErrNoWindows is returned when an application startup callback returns
@@ -92,6 +93,11 @@ type Window struct {
 	// of a menu action has nowhere to go.
 	applyResult   func(gfx.EventResult) bool
 	requestRedraw func()
+	// runShortcut offers a menu entry's chord to the application's shortcut
+	// handler with the control that holds the keyboard, as pressing the chord
+	// does. The native host sets it; nil means no handler and the entry's
+	// OnSelect runs instead.
+	runShortcut func(keymap.Chord) (gfx.EventResult, bool)
 }
 
 // Close requests that the native window close. Closing the final window ends
@@ -276,8 +282,9 @@ func (application *Application) OpenWindow(config Config, canvas *gfx.Canvas) (*
 	if applier, ok := control.(interface {
 		applyResult(gfx.EventResult) bool
 		requestRedraw()
+		runShortcut(keymap.Chord) (gfx.EventResult, bool)
 	}); ok {
-		window.applyResult, window.requestRedraw = applier.applyResult, applier.requestRedraw
+		window.applyResult, window.requestRedraw, window.runShortcut = applier.applyResult, applier.requestRedraw, applier.runShortcut
 	}
 	application.mu.Lock()
 	application.openedAny = true

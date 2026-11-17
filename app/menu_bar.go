@@ -31,7 +31,11 @@ type MenuBarItem struct {
 	Checked bool
 	// Shortcut is the key the system offers for the entry. Only a character key
 	// is represented in a menu; a chord with a named key shows no shortcut, and
-	// the application still receives that key through its own handler.
+	// the application still receives that key through its own key handler.
+	// Before OnSelect runs, the chord is offered as pressing it would deliver
+	// it: a character chord to the shortcut handler, a named key to the key
+	// handler, with the focused control as the target. A handler that takes it
+	// owns the command.
 	Shortcut keymap.Chord
 	// Submenu, when not empty, makes the entry open a menu of these.
 	Submenu []MenuBarItem
@@ -80,7 +84,16 @@ func (application *Application) menuBarItems(items []MenuBarItem) []MenuBarItem 
 	for index, item := range items {
 		item.Submenu = application.menuBarItems(item.Submenu)
 		if selectItem := item.OnSelect; selectItem != nil {
+			shortcut := item.Shortcut
 			item.OnSelect = func() gfx.EventResult {
+				// A menu's key equivalent is a fallback in AppKit: the focused
+				// content sees the chord first, and the menu entry runs only when
+				// nothing there takes it. A choice from the open menu goes through
+				// the same handler, so a click and its shortcut run one command.
+				if result, handled := application.runMenuShortcut(shortcut); handled {
+					application.applyMenuResult(result)
+					return result
+				}
 				result := selectItem()
 				application.applyMenuResult(result)
 				return result
@@ -89,6 +102,17 @@ func (application *Application) menuBarItems(items []MenuBarItem) []MenuBarItem 
 		out[index] = item
 	}
 	return out
+}
+
+// runMenuShortcut offers a menu entry's chord to the shortcut handler of the
+// window the user is working in, with the control that holds the keyboard as
+// the target, and reports whether the handler took it.
+func (application *Application) runMenuShortcut(chord keymap.Chord) (gfx.EventResult, bool) {
+	window := application.activeWindow()
+	if window == nil || window.runShortcut == nil {
+		return gfx.EventResult{}, false
+	}
+	return window.runShortcut(chord)
 }
 
 // applyMenuResult carries out a menu action's result on the active window:

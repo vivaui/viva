@@ -8,6 +8,7 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/keymap"
 )
 
 // RunApplication starts the native application loop. start runs once on the
@@ -81,6 +82,7 @@ type resultWindow struct {
 var _ interface {
 	applyResult(gfx.EventResult) bool
 	requestRedraw()
+	runShortcut(keymap.Chord) (gfx.EventResult, bool)
 } = resultWindow{}
 
 func (window resultWindow) applyResult(result gfx.EventResult) bool {
@@ -91,6 +93,13 @@ func (window resultWindow) requestRedraw() {
 	if window.waker != nil {
 		window.waker.Wake()
 	}
+}
+
+// runShortcut offers a menu entry's chord to the shortcut handler with the
+// control that holds the keyboard, as the platform offers a key it did not
+// claim itself.
+func (window resultWindow) runShortcut(chord keymap.Chord) (gfx.EventResult, bool) {
+	return window.painter.menuShortcut(chord)
 }
 
 // CanPreview says whether the adapter's windows can be a DragPreview.
