@@ -74,7 +74,11 @@ func (state *windowState) present(width, height int) error {
 	return state.presentWithSync(width, height, 1)
 }
 
-// Synchronous size changes must present before returning to the window manager.
+// presentImmediate draws the window without waiting for the display refresh.
+// Synchronous size changes must present before returning to the window manager,
+// and the timer-paced modal resize path uses it too, since the timer already
+// paces those frames. The swap chain itself does not scale stale frames (see
+// createWindowSwapChain).
 func (state *windowState) presentImmediate(width, height int) error {
 	return state.presentWithSync(width, height, 0)
 }
