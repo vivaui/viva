@@ -483,7 +483,7 @@ func (m *model) page(c ui.C) {
   `if ui.Select(c, &m.size, sizes, nil).Placeholder("Size").Changed() { m.load(m.size) }`. The list is placed under the
   trigger (above it when there is no room), painted over everything, and scrolls when it is taller than the window; the page
   routes the wheel to it while it is open. `.DisabledOptions(flags)` takes a `[]bool` you keep, indexed like the options: a true
-  entry is dimmed, takes no click or focus and is skipped by type-ahead. `.XSmall()` makes the trigger shorter. `ui.Combobox` takes the same arguments plus a label and filters as the user types.
+  entry is dimmed, takes no click or focus and is skipped by type-ahead. `.XSmall()` makes the trigger shorter, and `.Hint(text)` gives it a description for assistive technology. `ui.Combobox` takes the same arguments plus a label and filters as the user types.
 
 ### Slots, grids and absolute placement
 

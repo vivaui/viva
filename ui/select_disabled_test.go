@@ -61,6 +61,21 @@ func TestSelectDisabledOptionIsReportedDisabled(t *testing.T) {
 	}
 }
 
+// A Select's Hint reaches assistive technology as the trigger's description.
+func TestSelectHintIsTheTriggersHint(t *testing.T) {
+	size := "M"
+	d := openPage(t, page(func(c ui.C) { ui.Select(c, &size, []string{"S", "M"}, nil).Hint("Medium is the default") }))
+	for _, h := range d.driver.Snapshot().Hits {
+		if h.Role == gfx.RoleCombobox {
+			if h.Hint != "Medium is the default" {
+				t.Fatalf("hint = %q", h.Hint)
+			}
+			return
+		}
+	}
+	t.Fatal("no select trigger")
+}
+
 // XSmall is a shorter trigger than the default, as a button's is.
 func TestSelectXSmallIsShorterThanDefault(t *testing.T) {
 	height := func(xsmall bool) float32 {

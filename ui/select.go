@@ -168,6 +168,7 @@ type selectDecl struct {
 	labels   []string
 	icons    []gfx.Icon
 	disabled []bool // this declaration's DisabledOptions: what the list paints
+	hint     string // the trigger's Hint
 	selected int
 	canvas   *gfx.Canvas
 	popup    int32 // the Popup that places the list, or -1 when it is closed
@@ -337,6 +338,15 @@ func (b Box) DisabledOptions(disabled []bool) Box {
 	return b
 }
 
+// Hint is the description assistive technology reads after a Select's name and value, for
+// what the value alone does not say, such as the path a chosen shell stands for.
+func (b Box) Hint(text string) Box {
+	if n := b.n(); n.kind == kindSelect {
+		b.f.widgets.selects[n.aux].hint = text
+	}
+	return b
+}
+
 // optionDisabled reports whether option i is marked in disabled.
 func optionDisabled(disabled []bool, i int) bool { return i >= 0 && i < len(disabled) && disabled[i] }
 
@@ -402,7 +412,7 @@ func (f *frame) paintSelect(n *node) {
 	count := len(d.labels)
 	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: n.pref[axisY]}
 	options := components.SelectOptions{
-		TriggerID: d.scope.At(count), Label: n.label, Placeholder: n.text,
+		TriggerID: d.scope.At(count), Label: n.label, Placeholder: n.text, Hint: d.hint,
 		Disabled: n.flags&flagDisabled != 0,
 		Layer:    d.layer, Scope: d.scope.At(count + 2), DismissID: d.scope.At(count + 1), Viewport: f.bounds,
 	}
