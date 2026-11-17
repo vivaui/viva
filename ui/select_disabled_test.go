@@ -1,6 +1,7 @@
 package ui_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -113,5 +114,18 @@ func TestSelectDisabledOptionsDeclareWithoutAllocating(t *testing.T) {
 	drawPage(page, canvas, view)
 	if got := testing.AllocsPerRun(50, func() { drawPage(page, canvas, view) }); got != 0 {
 		t.Fatalf("a warm paint of a Select with DisabledOptions allocates %v times", got)
+	}
+}
+
+// An Invalid Field is painted differently from a valid one.
+func TestFieldInvalidChangesTheLook(t *testing.T) {
+	look := func(invalid bool) string {
+		var f ui.Field
+		f.Invalid = invalid
+		d := openPage(t, page(func(c ui.C) { ui.TextFieldID(c, gfx.Item(5), &f, "Name", "") }))
+		return fmt.Sprint(d.driver.Snapshot().Primitives)
+	}
+	if look(false) == look(true) {
+		t.Fatal("an invalid field is painted like a valid one")
 	}
 }

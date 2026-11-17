@@ -29,6 +29,10 @@ import (
 type Field struct {
 	// Secure shows bullets instead of the text and keeps it out of accessibility.
 	Secure bool
+	// Invalid paints the field as one whose value is wrong, with the destructive
+	// border and ring components.Input gives an invalid input. It is the application's
+	// to set and clear, as Secure is; it changes the look only.
+	Invalid bool
 
 	editor *text.Editor
 	id     gfx.ID
@@ -163,7 +167,7 @@ func (field *Field) snapshot(f *frame, id gfx.ID, label, placeholder string) com
 	focused := f.canvas != nil && f.canvas.Focused() == id
 	selection := editor.Selection()
 	snapshot := components.InputSnapshot{
-		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure,
+		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid,
 		Focused: focused,
 		// The field paints its own text, caret, selection and composition, and the
 		// platform's editor is only where input arrives. A platform that lays text out
