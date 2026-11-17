@@ -152,6 +152,33 @@ func gtkRegionSelectPinyin(ctx context.Context, app *gtkApplication, probe *gtkR
 	}
 }
 
+func gtkRegionFailureTrace(ctx context.Context, app *gtkApplication, probe *gtkRegionProbe, p *gtkTentativeProbe) string {
+	answer := make(chan string, 1)
+	app.enqueue(func() {
+		w := probe.w
+		signals := p.signals[max(0, len(p.signals)-12):]
+		events := make([]string, 0, min(len(p.events), 12))
+		for _, event := range p.events[max(0, len(p.events)-12):] {
+			events = append(events, fmt.Sprintf("kind=%d phase=%d text=%q", event.Kind, event.CompositionPhase, event.Text))
+		}
+		ime := w.ime
+		if ime == nil {
+			answer <- fmt.Sprintf("signals(%d)=%q events(%d)=%v editor=%q IME unavailable closed=%t", len(p.signals), signals, len(p.events), events, p.editor.String(), w.closed)
+			return
+		}
+		answer <- fmt.Sprintf("signals(%d)=%q events(%d)=%v editor=%q selection=%+v focused=%t nativeKeys=%t webFocus=%#x focusSerial=%d top=%d/%d area=%d/%d entry=%d/%d imeActive=%t imeFocused=%t session=%t ending=%t engineComposing=%t nativeDepth=%d",
+			len(p.signals), signals, len(p.events), events, p.editor.String(), p.editor.Selection(), w.focused, w.nativeKeys, w.webFocus, w.focusSerial,
+			probe.topIn, probe.topOut, probe.areaIn, probe.areaOut, probe.entryIn, probe.entryOut,
+			ime.active, ime.focused, ime.session, ime.ending, ime.engineComposing, ime.nativeDepth)
+	})
+	select {
+	case trace := <-answer:
+		return trace
+	case <-ctx.Done():
+		return fmt.Sprintf("failure trace unavailable: %v", ctx.Err())
+	}
+}
+
 func gtkRegionRun(ctx context.Context, app *gtkApplication, probe *gtkRegionProbe, p *gtkTentativeProbe, path string) (err error) {
 	driver, err := newGTKSeatDriver(ctx, path)
 	if err != nil {
@@ -293,8 +320,9 @@ func gtkRegionRun(ctx context.Context, app *gtkApplication, probe *gtkRegionProb
 	if err := gtkSeatWait(ctx, app, p, &gtkSeatPointer{}, "immediate key after 1.5x native-to-Viva click", func(s gtkSeatSnapshot) bool {
 		return s.preeditSignals > before.preeditSignals && s.preeditEvents > before.preeditEvents && s.pressedKeys == 0 && s.composing
 	}); err != nil {
-		return fmt.Errorf("%w; Entry engine=%q (%v), before key engine/status=%q/%q, after key engine/status=%q/%q (%v/%v)", err,
-			entryEngine, entryEngineErr, beforeKeyEngine, beforeKeyStatus, afterKeyEngine, afterKeyStatus, afterKeyEngineErr, afterKeyStatusErr)
+		return fmt.Errorf("%w; Entry engine=%q (%v), before key engine/status=%q/%q, after key engine/status=%q/%q (%v/%v); %s", err,
+			entryEngine, entryEngineErr, beforeKeyEngine, beforeKeyStatus, afterKeyEngine, afterKeyStatus, afterKeyEngineErr, afterKeyStatusErr,
+			gtkRegionFailureTrace(ctx, app, probe, p))
 	}
 	if err := gtkRegionOnLoop(ctx, app, func() {}); err != nil {
 		return err

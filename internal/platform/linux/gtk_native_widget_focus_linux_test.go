@@ -34,9 +34,9 @@ type gtkNativeWidgetTrace struct {
 var gtkNativeWidgetTraceActive *gtkNativeWidgetTrace
 
 func (trace *gtkNativeWidgetTrace) note(event string) {
-	if len(trace.events) == 16 {
+	if len(trace.events) == 32 {
 		copy(trace.events, trace.events[1:])
-		trace.events = trace.events[:15]
+		trace.events = trace.events[:31]
 	}
 	trace.events = append(trace.events, event)
 }
@@ -227,7 +227,13 @@ func gtkNativeWidgetFocusRun(ctx context.Context, t *testing.T, app *gtkApplicat
 	logState("before B hide")
 	hidden := make(chan struct{}, 1)
 	app.enqueue(func() {
+		if trace := gtkNativeWidgetTraceActive; trace != nil {
+			trace.note("B.hide begin")
+		}
 		other.g.widgetHide(other.toplevel)
+		if trace := gtkNativeWidgetTraceActive; trace != nil {
+			trace.note("B.hide end")
+		}
 		hidden <- struct{}{}
 	})
 	select {
@@ -250,7 +256,10 @@ func gtkNativeWidgetFocusRun(ctx context.Context, t *testing.T, app *gtkApplicat
 	if state, err := gtkNativeWidgetState(ctx, app, p.w, other, lost, otherClicks, editorClicks); err != nil {
 		return append(failures, err.Error())
 	} else if state.focusLost != baseline.focusLost+1 {
-		failures = append(failures, fmt.Sprintf("A OnFocusLost after return=%d, want %d", state.focusLost, baseline.focusLost+1))
+		failures = append(failures, fmt.Sprintf("A OnFocusLost after return=%d, want %d; A.focused=%t B.focused=%t nativeKeys=%t webFocus=%#x gtkFocus=%#x afterTakeKeys=%#x entryIn/out=%d/%d IME=%t clicks(A/B)=%d/%d events=%q",
+			state.focusLost, baseline.focusLost+1, state.windowFocused, state.otherFocused, state.nativeKeys,
+			state.webFocus, state.windowFocus, state.afterTakeKeys, state.entryIn, state.entryOut,
+			state.imeActive, state.editorClicks, state.otherClicks, state.eventOrder))
 	}
 	deadline := time.NewTimer(3 * time.Second)
 	defer deadline.Stop()
@@ -360,7 +369,11 @@ func TestGTKNativeWaylandWidgetExternalFocus(t *testing.T) {
 			},
 			OnFocusLost: func() (platform.Frame, error) {
 				focusLost++
-				trace.note("A.OnFocusLost")
+				if aWindow != nil {
+					trace.note(fmt.Sprintf("A.OnFocusLost focused=%t nativeKeys=%t webFocus=%#x serial=%d", aWindow.focused, aWindow.nativeKeys, aWindow.webFocus, aWindow.focusSerial))
+				} else {
+					trace.note("A.OnFocusLost")
+				}
 				return platform.Frame{}, nil
 			},
 			OnPointer: func(event platform.PointerEvent) (platform.Frame, error) {
@@ -391,6 +404,17 @@ func TestGTKNativeWaylandWidgetExternalFocus(t *testing.T) {
 				return 0
 			}), 0)
 		}
+		// The production focus handler stops the specific signal; the generic event runs first.
+		aWindow.g.connect(aWindow.area, "event", purego.NewCallback(func(_, event, _ uintptr) uintptr {
+			if eventType(event) == gdkFocusChange {
+				if (*gdkEventFocus)(unsafePointer(event)).In != 0 {
+					trace.note("A.area.focus-in")
+				} else {
+					trace.note("A.area.focus-out")
+				}
+			}
+			return 0
+		}), 0)
 		second, err := application.OpenWindow(platform.Config{
 			Title: "Viva native focus switch", Width: 800, Height: 600, WindowMode: platform.WindowFrameless,
 			ClearColor: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
