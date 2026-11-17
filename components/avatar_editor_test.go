@@ -79,6 +79,9 @@ func TestAvatarEditorPaintAndInput(t *testing.T) {
 			if canvas.TrappedFocusScope() != options.IDs.Scope || canvas.EscapeTarget() != options.IDs.Dismiss {
 				t.Fatal("dialog routing was not installed")
 			}
+			if images := canvas.Images(); len(images) != 1 {
+				t.Fatalf("scale %v: circular preview used %d bitmap draws, want 1", scale, len(images))
+			}
 			canvasHits, zoomHits := 0, 0
 			for _, hit := range canvas.Hits() {
 				switch hit.ID {

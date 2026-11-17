@@ -2,6 +2,7 @@ package {{PACKAGE}}
 
 import (
 	"math"
+	"sync"
 
 	"github.com/vivaui/viva/gfx"
 )
@@ -53,21 +54,25 @@ func InitializeAvatarEditorState(state *AvatarEditorState) {
 
 // AvatarEditorOptions is a paint-time snapshot. AspectRatio defaults to 1;
 // MinZoom defaults to 1 and MaxZoom to 8. Circular only changes the editing
-// mask; the returned source crop remains rectangular.
+// mask; the returned source crop remains rectangular. HideDescription gives the
+// editor a compact, image-first layout while keeping Description as the crop
+// surface hint. ShowReset adds the optional reset action beside the zoom slider.
 type AvatarEditorOptions struct {
-	IDs         AvatarEditorIDs
-	Labels      AvatarEditorLabels
-	Bitmap      gfx.Bitmap
-	State       AvatarEditorState
-	AspectRatio float32
-	MinZoom     float32
-	MaxZoom     float32
-	StageSize   float32
-	Circular    bool
-	Loading     bool
-	Error       string
-	Viewport    gfx.Rect
-	Layer       uint16
+	IDs             AvatarEditorIDs
+	Labels          AvatarEditorLabels
+	Bitmap          gfx.Bitmap
+	State           AvatarEditorState
+	AspectRatio     float32
+	MinZoom         float32
+	MaxZoom         float32
+	StageSize       float32
+	Circular        bool
+	HideDescription bool
+	ShowReset       bool
+	Loading         bool
+	Error           string
+	Viewport        gfx.Rect
+	Layer           uint16
 }
 
 // AvatarEditorLayout is the painted geometry and the input contract for the
@@ -112,12 +117,18 @@ func (editor AvatarEditor) Paint() AvatarEditorLayout {
 		return AvatarEditorLayout{}
 	}
 	labels := normalizedAvatarEditorLabels(o.Labels)
+	description := labels.Description
+	if o.HideDescription {
+		description = ""
+	}
 	aspect, minZoom, maxZoom := avatarEditorLimits(o)
 	ready := avatarBitmapReady(o.Bitmap)
 	stageMax := o.StageSize
 	if stageMax <= 0 {
 		stageMax = 320
 	}
+	control := max(float32(32), theme.Metrics.ControlHeight)
+	controlsSpace := control + 12
 	dialogOptions := DialogOptions{
 		Layer:          max(o.Layer, 76),
 		Scope:          o.IDs.Scope,
@@ -126,18 +137,18 @@ func (editor AvatarEditor) Paint() AvatarEditorLayout {
 		InitialFocusID: o.IDs.Canvas,
 		ContentSize:    gfx.Size{Width: 520},
 		FitBody:        true,
-		ButtonSize:     ButtonSizeSmall,
+		ButtonSize:     ButtonSizeDefault,
 	}
 	// Measure the fixed header and footer before choosing the stage. The
 	// dialog body is then sized to the controls that actually fit the viewport,
 	// including when a narrow width wraps the description onto several lines.
-	overhead := BeginDialog(c, theme, editor.viewport, dialogOptions).Layout(labels.Description).Content.Height
+	overhead := BeginDialog(c, theme, editor.viewport, dialogOptions).Layout(description).Content.Height
 	availableBody := max(float32(1), max(float32(1), editor.viewport.Height-32)-overhead)
-	stageWidth, stageHeight := avatarEditorStageSize(editor.viewport, aspect, stageMax, max(float32(1), availableBody-60))
-	bodyHeight := stageHeight + 60
+	stageWidth, stageHeight := avatarEditorStageSize(editor.viewport, aspect, stageMax, max(float32(1), availableBody-controlsSpace))
+	bodyHeight := stageHeight + controlsSpace
 	dialogOptions.BodyHeight = bodyHeight
 	dialog := BeginDialog(c, theme, editor.viewport, dialogOptions)
-	layout := dialog.Begin(labels.Title, labels.Description)
+	layout := dialog.Begin(labels.Title, description)
 	defer dialog.End()
 
 	stage := gfx.Rect{
@@ -157,11 +168,13 @@ func (editor AvatarEditor) Paint() AvatarEditorLayout {
 	circular := o.Circular && float32(math.Abs(float64(aspect-1))) < .0001
 	if circular {
 		radius = min(stage.Width, stage.Height) / 2
+		c.DrawPath(avatarEditorCircleFillPath(), stage, gfx.PathStyle{Fill: theme.Muted})
+	} else {
+		c.Rounded(stage, radius, theme.Muted)
 	}
-	c.Rounded(stage, radius, theme.Muted)
 	if ready {
 		out.Crop = avatarEditorCrop(o.Bitmap, state, aspect, minZoom, maxZoom)
-		avatarEditorPaintImage(c, stage, o.Bitmap, out.Crop, circular)
+		avatarEditorPaintImage(c, theme, stage, o.Bitmap, out.Crop, circular)
 		avatarEditorPaintGuides(c, theme, stage, circular)
 	} else {
 		message := labels.Unavailable
@@ -180,10 +193,19 @@ func (editor AvatarEditor) Paint() AvatarEditorLayout {
 	if c.Pressed() == o.IDs.Canvas || state.Gesture == avatarEditorGestureCanvas {
 		border = theme.Ring
 	}
-	if c.FocusVisible() == o.IDs.Canvas || c.FocusVisible() == o.IDs.Zoom {
+	if c.FocusVisible() == o.IDs.Canvas {
 		border = theme.Ring
 	}
-	c.RoundedBorder(stage, radius, 1.5, border, gfx.Color{})
+	if circular {
+		// Keep the circular editor free-standing. A rounded rectangle with a
+		// half-width radius still has four straight edges, which is especially
+		// visible against the dialog surface.
+		c.DrawPath(avatarEditorCircleRingPath(), stage, gfx.PathStyle{
+			Fill: border, FillRule: gfx.PathFillEvenOdd,
+		})
+	} else {
+		c.RoundedBorder(stage, radius, 1.5, border, gfx.Color{})
+	}
 
 	cursor := gfx.PointerCursorHand
 	if state.Gesture == avatarEditorGestureCanvas {
@@ -194,36 +216,42 @@ func (editor AvatarEditor) Paint() AvatarEditorLayout {
 		Disabled: !ready,
 	})
 
-	controlsY := stage.Y + stage.Height + 16
-	control := max(float32(28), theme.Metrics.ControlHeight-4)
-	gap := max(float32(8), theme.Metrics.GapItem)
-	resetWidth := max(float32(56), c.TextWidthWeight(labels.Reset, theme.Metrics.FontSizeS, gfx.WeightMedium)+24)
-	trackWidth := min(float32(176), max(float32(112), layout.Body.Width-resetWidth-2*control-3*gap))
-	total := 2*control + trackWidth + resetWidth + 3*gap
-	start := layout.Body.X + max(0, (layout.Body.Width-total)/2)
+	controlsY := stage.Y + stage.Height + 12
+	gap := max(float32(10), theme.Metrics.GapItem)
+	resetWidth := float32(0)
+	resetGap := float32(0)
+	if o.ShowReset {
+		resetWidth = max(float32(56), c.TextWidthWeight(labels.Reset, theme.Metrics.FontSizeS, gfx.WeightMedium)+24)
+		resetGap = gap
+	}
+	trackWidth := max(float32(80), layout.Body.Width-2*control-resetWidth-2*gap-resetGap-24)
+	total := 2*control + trackWidth + resetWidth + 2*gap + resetGap
+	start := layout.Body.X + max(float32(12), (layout.Body.Width-total)/2)
 	out.ZoomTrack = gfx.Rect{X: start + control + gap, Y: controlsY + control/2 - 12, Width: trackWidth, Height: 24}
 
 	zoomOutDisabled := !ready || state.Zoom <= minZoom+.0001
 	zoomInDisabled := !ready || state.Zoom >= maxZoom-.0001
 	zoomOut := BeginButton(c, theme, o.IDs.ZoomOut, gfx.Rect{X: start, Y: controlsY, Width: control, Height: control}).
-		IconSmall().WithIcon(avatarEditorMinusIcon)
+		IconSmall().WithIcon(avatarEditorZoomOutIcon)
 	if zoomOutDisabled {
 		zoomOut = zoomOut.Disabled()
 	}
-	zoomOut.Outline(labels.ZoomOut)
+	zoomOut.Ghost(labels.ZoomOut)
 	zoomIn := BeginButton(c, theme, o.IDs.ZoomIn, gfx.Rect{X: start + control + gap + trackWidth + gap, Y: controlsY, Width: control, Height: control}).
-		IconSmall().WithIcon(avatarEditorPlusIcon)
+		IconSmall().WithIcon(avatarEditorZoomInIcon)
 	if zoomInDisabled {
 		zoomIn = zoomIn.Disabled()
 	}
-	zoomIn.Outline(labels.ZoomIn)
-	reset := BeginButton(c, theme, o.IDs.Reset, gfx.Rect{
-		X: start + 2*(control+gap) + trackWidth, Y: controlsY, Width: resetWidth, Height: control,
-	}).Small()
-	if !ready {
-		reset = reset.Disabled()
+	zoomIn.Ghost(labels.ZoomIn)
+	if o.ShowReset {
+		reset := BeginButton(c, theme, o.IDs.Reset, gfx.Rect{
+			X: start + 2*(control+gap) + trackWidth + resetGap, Y: controlsY, Width: resetWidth, Height: control,
+		}).Small()
+		if !ready {
+			reset = reset.Disabled()
+		}
+		reset.Outline(labels.Reset)
 	}
-	reset.Outline(labels.Reset)
 	avatarEditorPaintZoom(c, theme, o.IDs.Zoom, out.ZoomTrack, state.Zoom, minZoom, maxZoom, ready, labels.Zoom)
 
 	switch {
@@ -231,7 +259,7 @@ func (editor AvatarEditor) Paint() AvatarEditorLayout {
 		state = zoomAvatarEditor(o.Bitmap, state, state.Zoom/1.2, .5, .5, aspect, minZoom, maxZoom)
 	case ready && c.Clicked(o.IDs.ZoomIn):
 		state = zoomAvatarEditor(o.Bitmap, state, state.Zoom*1.2, .5, .5, aspect, minZoom, maxZoom)
-	case ready && c.Clicked(o.IDs.Reset):
+	case o.ShowReset && ready && c.Clicked(o.IDs.Reset):
 		InitializeAvatarEditorState(&state)
 	}
 	out.State = state
@@ -240,8 +268,8 @@ func (editor AvatarEditor) Paint() AvatarEditorLayout {
 	}
 
 	dialog.Actions(layout,
-		ButtonAction{ID: o.IDs.Cancel, Label: labels.Cancel, Variant: ButtonOutline},
 		ButtonAction{ID: o.IDs.Confirm, Label: labels.Confirm, Disabled: !ready},
+		ButtonAction{ID: o.IDs.Cancel, Label: labels.Cancel, Variant: ButtonOutline},
 	)
 	return out
 }
@@ -538,44 +566,28 @@ func avatarEditorZoomAtX(layout AvatarEditorLayout, state AvatarEditorState, x f
 	return zoomAvatarEditor(layout.bitmap, state, target, .5, .5, layout.AspectRatio, layout.MinZoom, layout.MaxZoom)
 }
 
-func avatarEditorPaintImage(c *gfx.Canvas, stage gfx.Rect, bitmap gfx.Bitmap, crop gfx.Rect, circular bool) {
-	if !circular {
-		c.DrawBitmapRegion(bitmap, crop, stage)
-		return
-	}
-	radius := stage.Width / 2
-	for row := float32(0); row < stage.Height; row++ {
-		height := min(1, stage.Height-row)
-		dy := radius - (row + height/2)
-		chord := radius*radius - dy*dy
-		if chord <= 0 {
-			continue
-		}
-		half := float32(math.Sqrt(float64(chord)))
-		left := radius - half
-		source := gfx.Rect{
-			X:      crop.X + left/stage.Width*crop.Width,
-			Y:      crop.Y + row/stage.Height*crop.Height,
-			Width:  2 * half / stage.Width * crop.Width,
-			Height: height / stage.Height * crop.Height,
-		}
-		c.DrawBitmapRegion(bitmap, source, gfx.Rect{
-			X: stage.X + left, Y: stage.Y + row, Width: 2 * half, Height: height,
+func avatarEditorPaintImage(c *gfx.Canvas, theme gfx.Theme, stage gfx.Rect, bitmap gfx.Bitmap, crop gfx.Rect, circular bool) {
+	// Draw the image once so the renderer's linear sampler sees the complete
+	// source region. A vector even-odd mask then removes the four corners; one
+	// draw preserves high-resolution detail while still producing a smooth edge.
+	c.DrawBitmapRegion(bitmap, crop, stage)
+	if circular {
+		c.DrawPath(avatarEditorCircleMaskPath(), stage, gfx.PathStyle{
+			Fill: theme.Popover, FillRule: gfx.PathFillEvenOdd,
 		})
 	}
 }
 
 func avatarEditorPaintGuides(c *gfx.Canvas, theme gfx.Theme, stage gfx.Rect, circular bool) {
+	if circular {
+		return
+	}
 	color := theme.Foreground
 	color.Alpha = .22
-	start, end := float32(.5), float32(.5)
-	if circular {
-		start, end = .18, .82
-	}
 	line := float32(1)
 	for _, fraction := range [...]float32{1.0 / 3, 2.0 / 3} {
-		c.Fill(gfx.Rect{X: stage.X + stage.Width*fraction, Y: stage.Y + stage.Height*start, Width: line, Height: stage.Height * (end - start)}, color)
-		c.Fill(gfx.Rect{X: stage.X + stage.Width*start, Y: stage.Y + stage.Height*fraction, Width: stage.Width * (end - start), Height: line}, color)
+		c.Fill(gfx.Rect{X: stage.X + stage.Width*fraction, Y: stage.Y, Width: line, Height: stage.Height}, color)
+		c.Fill(gfx.Rect{X: stage.X, Y: stage.Y + stage.Height*fraction, Width: stage.Width, Height: line}, color)
 	}
 }
 
@@ -596,12 +608,90 @@ func avatarEditorPaintZoom(c *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx
 	})
 }
 
-var avatarEditorMinusIcon = gfx.Icon{
-	ViewBox: 24, Stroke: 2, Cap: gfx.CapRound,
-	Commands: []gfx.PathCommand{gfx.MoveTo(5, 12), gfx.LineTo(19, 12)},
+var (
+	avatarEditorCirclePathsOnce sync.Once
+	avatarEditorCircleMask      gfx.Path
+	avatarEditorCircleFill      gfx.Path
+	avatarEditorCircleRing      gfx.Path
+)
+
+func avatarEditorCircleMaskPath() gfx.Path {
+	avatarEditorCirclePathsOnce.Do(initAvatarEditorCirclePaths)
+	return avatarEditorCircleMask
 }
 
-var avatarEditorPlusIcon = gfx.Icon{
-	ViewBox: 24, Stroke: 2, Cap: gfx.CapRound,
-	Commands: []gfx.PathCommand{gfx.MoveTo(12, 5), gfx.LineTo(12, 19), gfx.MoveTo(5, 12), gfx.LineTo(19, 12)},
+func avatarEditorCircleRingPath() gfx.Path {
+	avatarEditorCirclePathsOnce.Do(initAvatarEditorCirclePaths)
+	return avatarEditorCircleRing
+}
+
+func avatarEditorCircleFillPath() gfx.Path {
+	avatarEditorCirclePathsOnce.Do(initAvatarEditorCirclePaths)
+	return avatarEditorCircleFill
+}
+
+func initAvatarEditorCirclePaths() {
+	avatarEditorCircleMask = gfx.NewPath(100, 100,
+		// Keep the square edge away from the circle's four tangent points.
+		// Otherwise even-odd tessellation leaves a seam across the bottom of
+		// the stage where the circle contour touches the outer contour.
+		gfx.MoveTo(-2, -2), gfx.LineTo(102, -2), gfx.LineTo(102, 102), gfx.LineTo(-2, 102), gfx.ClosePath(),
+		gfx.MoveTo(50, 0),
+		gfx.CubicTo(77.614, 0, 100, 22.386, 100, 50),
+		gfx.CubicTo(100, 77.614, 77.614, 100, 50, 100),
+		gfx.CubicTo(22.386, 100, 0, 77.614, 0, 50),
+		gfx.CubicTo(0, 22.386, 22.386, 0, 50, 0),
+		gfx.ClosePath(),
+	)
+	avatarEditorCircleFill = gfx.NewPath(100, 100,
+		gfx.MoveTo(50, 0),
+		gfx.CubicTo(77.614, 0, 100, 22.386, 100, 50),
+		gfx.CubicTo(100, 77.614, 77.614, 100, 50, 100),
+		gfx.CubicTo(22.386, 100, 0, 77.614, 0, 50),
+		gfx.CubicTo(0, 22.386, 22.386, 0, 50, 0),
+		gfx.ClosePath(),
+	)
+	avatarEditorCircleRing = gfx.NewPath(100, 100,
+		gfx.MoveTo(50, 0),
+		gfx.CubicTo(77.614, 0, 100, 22.386, 100, 50),
+		gfx.CubicTo(100, 77.614, 77.614, 100, 50, 100),
+		gfx.CubicTo(22.386, 100, 0, 77.614, 0, 50),
+		gfx.CubicTo(0, 22.386, 22.386, 0, 50, 0),
+		gfx.ClosePath(),
+		gfx.MoveTo(50, .4),
+		gfx.CubicTo(77.393, .4, 99.6, 22.607, 99.6, 50),
+		gfx.CubicTo(99.6, 77.393, 77.393, 99.6, 50, 99.6),
+		gfx.CubicTo(22.607, 99.6, .4, 77.393, .4, 50),
+		gfx.CubicTo(.4, 22.607, 22.607, .4, 50, .4),
+		gfx.ClosePath(),
+	)
+}
+
+var avatarEditorZoomOutIcon = gfx.Icon{
+	ViewBox: 24, Stroke: 1.8, Cap: gfx.CapRound, Join: gfx.JoinRound,
+	Commands: []gfx.PathCommand{
+		gfx.MoveTo(10.5, 4),
+		gfx.CubicTo(14.09, 4, 17, 6.91, 17, 10.5),
+		gfx.CubicTo(17, 14.09, 14.09, 17, 10.5, 17),
+		gfx.CubicTo(6.91, 17, 4, 14.09, 4, 10.5),
+		gfx.CubicTo(4, 6.91, 6.91, 4, 10.5, 4),
+		gfx.ClosePath(),
+		gfx.MoveTo(15.2, 15.2), gfx.LineTo(20, 20),
+		gfx.MoveTo(7.2, 10.5), gfx.LineTo(13.8, 10.5),
+	},
+}
+
+var avatarEditorZoomInIcon = gfx.Icon{
+	ViewBox: 24, Stroke: 1.8, Cap: gfx.CapRound, Join: gfx.JoinRound,
+	Commands: []gfx.PathCommand{
+		gfx.MoveTo(10.5, 4),
+		gfx.CubicTo(14.09, 4, 17, 6.91, 17, 10.5),
+		gfx.CubicTo(17, 14.09, 14.09, 17, 10.5, 17),
+		gfx.CubicTo(6.91, 17, 4, 14.09, 4, 10.5),
+		gfx.CubicTo(4, 6.91, 6.91, 4, 10.5, 4),
+		gfx.ClosePath(),
+		gfx.MoveTo(15.2, 15.2), gfx.LineTo(20, 20),
+		gfx.MoveTo(7.2, 10.5), gfx.LineTo(13.8, 10.5),
+		gfx.MoveTo(10.5, 7.2), gfx.LineTo(10.5, 13.8),
+	},
 }
