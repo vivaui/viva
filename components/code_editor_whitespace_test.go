@@ -93,6 +93,22 @@ func TestCodeEditorEOLLabelsCanVaryPerLogicalLine(t *testing.T) {
 	}
 }
 
+func TestCodeEditorCRLFShowsOneHardLineEnding(t *testing.T) {
+	fixture := newCodeFixture("ab\r\ncd")
+	fixture.snapshot.ShowEOL = true
+	fixture.snapshot.EOLLabel = "CRLF"
+	fixture.paint()
+	count := 0
+	for _, label := range fixture.canvas.Texts() {
+		if label.Value == "CRLF" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("CRLF marker count=%d, want 1", count)
+	}
+}
+
 func TestCodeEditorWhitespaceMarkersStopAtTheVisibleColumns(t *testing.T) {
 	// One minified line: walking it end to end would be megabytes per paint,
 	// for markers that are all off screen.
