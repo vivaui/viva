@@ -46,7 +46,7 @@ func RunApplication(start func(*Application) error) error {
 type nativeHost struct{ native platform.Application }
 
 func (host nativeHost) OpenWindow(config Config, canvas *gfx.Canvas, closed func()) (WindowControl, error) {
-	windowConfig, cleanup, err := prepareNativeWindow(config, canvas)
+	windowConfig, painter, cleanup, err := prepareNativeWindow(config, canvas)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,34 @@ func (host nativeHost) OpenWindow(config Config, canvas *gfx.Canvas, closed func
 		cleanup()
 		return nil, err
 	}
-	return window, nil
+	// A command the runtime did not receive through an event handler, such as a
+	// menu action, hands its result here: the painter carries it out and the
+	// window's waker asks for the frame that shows it.
+	return resultWindow{WindowControl: window, painter: painter, waker: windowConfig.Waker}, nil
+}
+
+// resultWindow is the control of a window whose painter can carry out an event
+// result from outside an event handler.
+type resultWindow struct {
+	WindowControl
+	painter *painter
+	waker   *platform.Waker
+}
+
+// What OpenWindow looks for in a host's window control.
+var _ interface {
+	applyResult(gfx.EventResult) bool
+	requestRedraw()
+} = resultWindow{}
+
+func (window resultWindow) applyResult(result gfx.EventResult) bool {
+	return window.painter.applyEventResult(result)
+}
+
+func (window resultWindow) requestRedraw() {
+	if window.waker != nil {
+		window.waker.Wake()
+	}
 }
 
 // CanPreview says whether the adapter's windows can be a DragPreview.

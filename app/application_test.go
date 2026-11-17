@@ -17,6 +17,9 @@ type fakeHost struct {
 	items   []*fakeStatusItem
 	quits   int
 	reject  string
+	// menuBar is the menu bar the application installed, already wrapped so its
+	// actions carry out what they did in the active window.
+	menuBar []Menu
 	// badge is the label the application last put on the Dock tile.
 	badge string
 	// progress is the fraction the application last asked the icon to show.
@@ -28,6 +31,10 @@ type fakeWindow struct {
 	closed       func()
 	hides, shows int
 	done         bool
+	// applied is what an application menu action asked the window to carry
+	// out, in order; redraws counts the frames it asked for.
+	applied []gfx.EventResult
+	redraws int
 }
 
 func (window *fakeWindow) Close() {
@@ -38,6 +45,13 @@ func (window *fakeWindow) Close() {
 }
 func (window *fakeWindow) Hide() { window.hides++ }
 func (window *fakeWindow) Show() { window.shows++ }
+
+func (window *fakeWindow) applyResult(result gfx.EventResult) bool {
+	window.applied = append(window.applied, result)
+	return !result.Focus.IsZero()
+}
+
+func (window *fakeWindow) requestRedraw() { window.redraws++ }
 
 // Frame is where the window's Config.Origin put it.
 func (window *fakeWindow) Frame() (gfx.Rect, bool) {
@@ -74,6 +88,11 @@ func (host *fakeHost) AddStatusItem(config StatusItemConfig) (StatusItemControl,
 func (host *fakeHost) SetDockBadge(text string) { host.badge = text }
 
 func (host *fakeHost) SetProgress(fraction float32) { host.progress = fraction }
+
+func (host *fakeHost) SetMenuBar(menus []Menu) error {
+	host.menuBar = menus
+	return nil
+}
 
 func (host *fakeHost) Post(fn func()) {
 	if fn != nil {
