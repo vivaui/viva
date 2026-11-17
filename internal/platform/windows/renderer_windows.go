@@ -284,12 +284,12 @@ func (renderer *renderer) createWindowSwapChain() error {
 	if err := hresult(status); err != nil {
 		return fmt.Errorf("create swap chain for window: %w", err)
 	}
-	// IDXGISwapChain1::SetBackgroundColor is slot 25 (GetDesc1 is 18,
-	// GetHwnd 20, Present1 22, IsTemporaryMonoSupported 24).
+	// IDXGISwapChain1::SetBackgroundColor is slot 25 (GetDesc1 is 18, GetHwnd 20,
+	// Present1 22, IsTemporaryMonoSupported 23, GetRestrictToOutput 24). The color
+	// only fills pixels a resize exposes, so its HRESULT is ignored: a failure must
+	// not fail device creation for hardware and WARP alike.
 	background := [4]float32{float32(renderer.color.Red), float32(renderer.color.Green), float32(renderer.color.Blue), float32(renderer.color.Alpha)}
-	if err := hresult(comCall(renderer.swap, 25, uintptr(unsafe.Pointer(&background)))); err != nil {
-		return fmt.Errorf("set swap chain background: %w", err)
-	}
+	comCall(renderer.swap, 25, uintptr(unsafe.Pointer(&background)))
 	return nil
 }
 
