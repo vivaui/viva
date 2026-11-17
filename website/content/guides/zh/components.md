@@ -44,7 +44,7 @@ plot := components.PaintAreaChart(canvas, theme, bounds, chartID, chart, &state)
 
 ## 拥有一份副本
 
-想修改组件时，就复制它。`viva list` 列出安装器能复制的配方，`viva add` 把它们作为普通 Go 文件写进你的项目：
+想修改组件时，就复制它。`viva list` 列出安装器能复制的配方，`viva add` 把它们作为普通 Go 文件写进你的项目。复制出来的是绘制配方：它在你给定的矩形里往 `gfx.Canvas` 上画（`BeginButton(canvas, theme, id, bounds)`），所以要在页面元素的 `Draw` 回调里或整窗的 `Paint` 里使用，外观就是你要改的那段代码。想改变所有 `ui.Button` 的外观又不想复制任何东西，给页面设置 `PageConfig.Styles`；想基于 `ui` 自带的行为做自己外观的控件，用 `ui.ButtonBase` 等 Base。
 
 ```sh
 # 先安装 viva（见「构建与打包」）；viva init 生成的项目里用 go tool viva
