@@ -740,7 +740,9 @@ func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 			trigger = m.f.nodes[m.anchor].id
 		}
 		_, inside := event.Target.In(m.scope)
-		last := i == len(p.menus)-1 && event.Target.IsZero()
+		// A context menu is modal: its arrows move through it from wherever the focus is,
+		// as a menu opened at a point of the window has no control of its own to be on.
+		last := i == len(p.menus)-1 && (event.Target.IsZero() || m.context)
 		if !inside && !last && (event.Target != trigger || trigger.IsZero()) {
 			continue
 		}

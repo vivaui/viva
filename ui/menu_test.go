@@ -555,3 +555,29 @@ func TestMenuTallerThanTheWindowScrollsToItsLastItem(t *testing.T) {
 		t.Fatalf("chosen %q, open %v", m.chosen, m.open)
 	}
 }
+
+// A context menu opened at a point is modal: the arrows move through it while the
+// focus is still on the control that was focused when it opened.
+func TestContextMenuAtTakesTheArrowsFromTheFocusedControl(t *testing.T) {
+	m := &contextModel{hosts: []string{"alpha"}}
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			ui.Button(c, "Anchor")
+			ui.ContextMenuAt(c, ui.Button(c, "Header"), &m.open, gfx.Point{X: 100, Y: 100}, func(items *ui.MenuItems) {
+				items.Item("One")
+				if items.Item("Two").Clicked() {
+					m.connected = "two"
+				}
+			})
+		})
+	})
+	d.click("Anchor")
+	m.open = true
+	d.repaint()
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyEnter)
+	if m.connected != "two" || m.open {
+		t.Fatalf("connected %q, open %v: the arrows did not reach the menu", m.connected, m.open)
+	}
+}
