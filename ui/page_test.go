@@ -588,3 +588,25 @@ func TestSelectIconChoosesAnOption(t *testing.T) {
 		t.Fatalf("chose %+v, want %+v", chosen, locales[2])
 	}
 }
+
+// A TextAreaID is addressed by the identity the application gave it, and edits its
+// Field in rows like a TextArea.
+func TestPageTextAreaID(t *testing.T) {
+	var notes ui.Field
+	id := gfx.Item(41)
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			ui.TextAreaID(c, id, &notes, "Notes", "").Width(300).Height(120)
+		})
+	})
+	d.click("Notes")
+	d.typeText("one")
+	d.key(gfx.KeyEnter)
+	d.typeText("two")
+	if notes.Text() != "one\ntwo" {
+		t.Fatalf("text %q", notes.Text())
+	}
+	if d.driver.Snapshot().Focused != id {
+		t.Fatalf("focused %v, want the identity the application gave it", d.driver.Snapshot().Focused)
+	}
+}

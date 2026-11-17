@@ -333,6 +333,26 @@ func TextArea[T TextValue](c C, value T, label, placeholder string) Box {
 	return b
 }
 
+// TextAreaID is TextArea for a field the application already names, as TextFieldID is
+// for TextField: id is the field's identity in the page's Tree, so an initial focus,
+// a window's own routing or a test can address it. Field.Bind gives it an editor the
+// application keeps and reads itself.
+//
+//	ui.TextAreaID(c, m.commandID, &m.commandField, "Command", "").Height(120)
+func TextAreaID(c C, id gfx.ID, field *Field, label, placeholder string) Box {
+	if field == nil {
+		panic("ui: TextAreaID needs a Field")
+	}
+	p := c.page
+	b := c.f.FieldArea(field, id, label, placeholder)
+	c.f.bindField(b, field)
+	if p.areaKey == nil {
+		p.keyRoute, p.areaKey = (*Page).routeKey, (*Field).Key // Up and Down by row
+	}
+	p.fields = append(p.fields, fieldEntry{id: id, field: field})
+	return b
+}
+
 // Popover shows the panel body declares, hanging off anchor, while *open: a press
 // outside it or Escape sets *open to false (and the press goes on to what is under
 // the pointer), and a press on the anchor only closes it, so the anchor that toggles
