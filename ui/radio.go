@@ -47,7 +47,7 @@ func radio[T comparable](c C, id gfx.ID, value *T, option T, label string) Box {
 					Row(c).Width(8).Height(8).Radius(4).Background(th.PrimaryForeground)
 				}
 			})
-		Text(c, label).FontSize(m.FontSizeM).Weight(gfx.WeightMedium)
+		Text(c, label).FontSize(m.FontSizeM).Weight(gfx.WeightMedium).Ellipsis()
 	})
 	return b
 }
