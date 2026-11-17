@@ -11,7 +11,7 @@ group: guides
 
 ## 使用组件
 
-引入 `github.com/vivaui/viva/components`，在绘制时声明组件。这是常规用法，[第一个窗口](/zh/docs/getting-started/)就是这样做的。
+页面用 `ui` 包编写：`ui.Button`、`ui.Checkbox`、`ui.Select` 等控件内部就是用这些组件绘制的，[第一个窗口](/zh/docs/getting-started/)就是这样做的。只有在手工向 `gfx.Canvas` 绘制，或要安装组件源码来修改时，才需要自己引入 `github.com/vivaui/viva/components`。
 
 ```go
 components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
