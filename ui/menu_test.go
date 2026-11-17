@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -507,5 +508,50 @@ func TestMenuAbove(t *testing.T) {
 	anchor, item := d.hit("More").Bounds, d.hit("Model").Bounds
 	if item.Y+item.Height > anchor.Y+0.5 {
 		t.Fatalf("the menu at %v is not over its anchor at %v", item, anchor)
+	}
+}
+
+type tallMenuModel struct {
+	open   bool
+	chosen string
+}
+
+// A menu taller than the window scrolls: the keyboard reaches its last item and
+// brings it into view, the wheel moves it, and choosing the last item works.
+func TestMenuTallerThanTheWindowScrollsToItsLastItem(t *testing.T) {
+	m := &tallMenuModel{open: true}
+	names := []string{"One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"}
+	d := openPageWith(t, ui.PageConfig{View: func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			anchor := ui.Button(c, "More")
+			ui.Menu(c, anchor, &m.open, func(menu *ui.MenuItems) {
+				for _, name := range names {
+					if menu.Item(name).Clicked() {
+						m.chosen = name
+					}
+				}
+			})
+		})
+	}}, app.Config{Width: 300, Height: 160})
+	window := gfx.Rect{Width: 300, Height: 160}
+	inside := func(label string) bool {
+		for _, hit := range d.driver.Snapshot().Hits {
+			if hit.Label == label && hit.Role == gfx.RoleMenuItem {
+				return hit.Bounds.Y >= 0 && hit.Bounds.Y+hit.Bounds.Height <= window.Height
+			}
+		}
+		return false
+	}
+	if !inside("One") || inside("Twelve") {
+		t.Fatalf("the first item is shown %v and the last %v before anything scrolled", inside("One"), inside("Twelve"))
+	}
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyEnd)
+	if !inside("Twelve") {
+		t.Fatal("End did not bring the last item into view")
+	}
+	d.click("Twelve")
+	if m.chosen != "Twelve" || m.open {
+		t.Fatalf("chosen %q, open %v", m.chosen, m.open)
 	}
 }
