@@ -1031,6 +1031,13 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		inputEvent := (*xcbInputEvent)(event)
 		repeat := state.pendingKeyReleaseDetail == inputEvent.Detail && state.pendingKeyReleaseTime == inputEvent.Time
 		state.pendingKeyReleaseDetail, state.pendingKeyReleaseTime = 0, 0
+		if config.DynamicTextInput && textInput != nil && !textInput.enabled &&
+			config.ReadOnlyTextFocused != nil && config.ReadOnlyTextFocused() &&
+			!win.keymap.key(inputEvent.Detail).IsModifier() && config.OnRedraw != nil {
+			if err := router.presentFrame(config.OnRedraw()); err != nil {
+				return false, err
+			}
+		}
 		return false, router.key(&win.keymap, inputEvent, repeat)
 	case xcbKeyRelease:
 		inputEvent := (*xcbInputEvent)(event)
@@ -1067,6 +1074,12 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		// The same details, outside a grab, are the window becoming active.
 		if realFocus && keyboardFocus && config.OnActivate != nil {
 			config.OnActivate()
+			// Refresh dynamic text ownership before the next queued key is routed.
+			if config.OnRedraw != nil {
+				if err := router.presentFrame(config.OnRedraw()); err != nil {
+					return false, err
+				}
+			}
 		}
 		if keyboardFocus {
 			// A key pressed or released while another window or a grab held the

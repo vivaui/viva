@@ -13,6 +13,7 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
+	"github.com/vivaui/viva/text"
 )
 
 func TestNormalizedKeysym(t *testing.T) {
@@ -724,6 +725,91 @@ func TestX11FocusInForgetsHeldKeys(t *testing.T) {
 	}
 	if len(tracker.down) != 0 {
 		t.Fatalf("held keys survived a real focus gain: %v", tracker.down)
+	}
+}
+
+func TestX11FocusInRefreshesInputBeforeNextQueuedKey(t *testing.T) {
+	var calls []string
+	input := &platform.TextInput{State: platform.TextState{Value: "writable"}}
+	state := &linuxWindowState{
+		win:         &window{},
+		application: &linuxApplication{},
+		config: platform.Config{
+			OnActivate: func() { calls = append(calls, "activate") },
+			OnRedraw: func() (platform.Frame, error) {
+				calls = append(calls, "redraw")
+				return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: input}}, nil
+			},
+		},
+		router: eventRouter{present: func(frame platform.Frame) error {
+			if !frame.TextInput.Changed || frame.TextInput.Input != input {
+				t.Fatalf("activation did not publish the new text input: %+v", frame.TextInput)
+			}
+			calls = append(calls, "present")
+			return nil
+		}},
+	}
+	previous := activeWindow.Load()
+	defer activeWindow.Store(previous)
+	for _, event := range []xcbFocusEvent{
+		{ResponseType: xcbFocusIn, Detail: 5}, // NotifyPointer
+		{ResponseType: xcbFocusIn, Mode: xcbNotifyGrab},
+	} {
+		if closed, err := state.handleEvent(unsafe.Pointer(&event)); closed || err != nil {
+			t.Fatalf("non-keyboard focus: closed=%v err=%v", closed, err)
+		}
+	}
+	if len(calls) != 0 {
+		t.Fatalf("spurious focus refreshed input: %v", calls)
+	}
+	event := xcbFocusEvent{ResponseType: xcbFocusIn, Detail: xcbNotifyAncestor}
+	if closed, err := state.handleEvent(unsafe.Pointer(&event)); closed || err != nil {
+		t.Fatalf("keyboard focus: closed=%v err=%v", closed, err)
+	}
+	if want := []string{"activate", "redraw", "present"}; !reflect.DeepEqual(calls, want) {
+		t.Fatalf("input was not refreshed before returning to the queued key: %v, want %v", calls, want)
+	}
+}
+
+func TestX11RevalidatesDisabledEditorBeforeFirstNativeKey(t *testing.T) {
+	editor := text.NewEditor("cat")
+	editor.MoveTo(0, false)
+	textInput := &linuxTextInput{engine: fixedAdvanceEngine{}}
+	defer textInput.close()
+	redraws := 0
+	config := platform.Config{
+		DynamicTextInput:    true,
+		ReadOnlyTextFocused: func() bool { return !textInput.enabled },
+		OnRedraw: func() (platform.Frame, error) {
+			redraws++
+			field := callbackTextField(editor)
+			return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}}, nil
+		},
+	}
+	textInput.config = &config
+	state := &linuxWindowState{
+		win:    &window{keymap: xcbKeymap{first: 9, last: 9, perKeycode: 2, keysyms: []uint32{'x', 'X'}}},
+		config: config, text: textInput,
+		router: eventRouter{config: config, text: textInput, present: func(frame platform.Frame) error {
+			_, _, err := textInput.prepare(frame)
+			return err
+		}},
+	}
+	previous := activeWindow.Load()
+	defer activeWindow.Store(previous)
+	key := xcbInputEvent{ResponseType: xcbKeyPress, Detail: 9}
+	if closed, err := state.handleEvent(unsafe.Pointer(&key)); closed || err != nil {
+		t.Fatalf("first key: closed=%v err=%v", closed, err)
+	}
+	if editor.String() != "xcat" || redraws == 0 {
+		t.Fatalf("first native key lost after read-only input: text=%q redraws=%d", editor.String(), redraws)
+	}
+	before := redraws
+	if closed, err := state.handleEvent(unsafe.Pointer(&key)); closed || err != nil {
+		t.Fatalf("next key: closed=%v err=%v", closed, err)
+	}
+	if editor.String() != "xxcat" || redraws != before+1 {
+		t.Fatalf("enabled input was revalidated unnecessarily: text=%q redraws=%d->%d", editor.String(), before, redraws)
 	}
 }
 
