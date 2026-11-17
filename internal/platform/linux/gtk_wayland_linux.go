@@ -42,8 +42,9 @@ type wlSession struct {
 	pressed     uint32 // pointer buttons down, by GDK button number
 	axis        wlAxis
 
-	surfaceOf func(window uintptr) uintptr
-	modifiers func(keymap uintptr) uint32
+	surfaceOf     func(window uintptr) uintptr
+	customSurface func(window uintptr)
+	modifiers     func(keymap uintptr) uint32
 }
 
 // wlAxis collects the axis events of one wl_pointer.frame.
@@ -91,6 +92,7 @@ func openWaylandSession(g *gtkLibrary) (*wlSession, error) {
 	}{
 		{&displayOf, "gdk_wayland_display_get_wl_display"},
 		{&s.surfaceOf, "gdk_wayland_window_get_wl_surface"},
+		{&s.customSurface, "gdk_wayland_window_set_use_custom_surface"},
 		{&seatOf, "gdk_wayland_seat_get_wl_seat"},
 		{&s.modifiers, "gdk_keymap_get_modifier_state"},
 	} {
@@ -328,6 +330,7 @@ type waylandSurface struct {
 	id uintptr
 
 	parent, child, sub, viewport, fractional uintptr
+	gdkWindow                                uintptr
 	scale120                                 uint32
 	offsetX, offsetY                         int32
 	viewportWidth, viewportHeight            int32
@@ -363,21 +366,50 @@ func (s *waylandSurface) mapped(w *gtkWindow, on bool) {
 		return
 	}
 	if s.child == 0 {
-		s.attach()
+		if err := s.attach(); err != nil {
+			w.app.fail(err)
+		}
 	}
 }
 
-func (s *waylandSurface) attach() {
+func (s *waylandSurface) attach() error {
 	session, c, w := s.s, s.s.c, s.w
 	gdkWindow := w.g.widgetGetWindow(w.toplevel)
 	if gdkWindow == 0 {
-		return
+		return fmt.Errorf("linux: Wayland parent GDK window is unavailable")
 	}
 	s.parent = session.surfaceOf(gdkWindow)
 	if s.parent == 0 {
-		return
+		return fmt.Errorf("linux: Wayland parent surface is unavailable")
 	}
-	s.child = c.create(session.compositor, 0, c.core["wl_surface"], c.version(session.compositor), 0)
+	// GDK must know the surface that receives the compositor's keyboard focus.
+	// It owns the wl_surface; Viva owns its subsurface role and the picture attached to it.
+	const gdkWindowSubsurface = 6
+	attrs := gdkWindowAttr{
+		EventMask:  gdkKeyPressMask | gdkKeyReleaseMask | gdkFocusChangeMask,
+		X:          s.offsetX,
+		Y:          s.offsetY,
+		Width:      max(int32(w.width+0.5), 1),
+		Height:     max(int32(w.height+0.5), 1),
+		WindowType: gdkWindowSubsurface,
+	}
+	s.gdkWindow = w.g.gdkWindowNew(gdkWindow, &attrs, 1<<2|1<<3) // GDK_WA_X | GDK_WA_Y
+	if s.gdkWindow == 0 {
+		s.parent = 0
+		return fmt.Errorf("linux: cannot create the GDK Wayland content window")
+	}
+	w.g.widgetRegisterWindow(w.area, s.gdkWindow)
+	session.customSurface(s.gdkWindow) // map must not assign a second Wayland role or attach a buffer
+	w.g.gdkWindowTransient(s.gdkWindow, gdkWindow)
+	w.g.gdkWindowShow(s.gdkWindow)
+	s.child = session.surfaceOf(s.gdkWindow)
+	if s.child == 0 {
+		w.g.widgetUnregisterWindow(w.area, s.gdkWindow)
+		w.g.gdkWindowDestroy(s.gdkWindow)
+		s.gdkWindow = 0
+		s.parent = 0
+		return fmt.Errorf("linux: GDK content window has no Wayland surface")
+	}
 	s.sub = c.create(session.subcompositor, 1, c.core["wl_subsurface"], 1, 0, wlArg(s.child), wlArg(s.parent))
 	c.request(s.sub, 5) // set_desync: the window's content is committed on its own
 	s.viewport = c.create(session.viewporter, 1, c.viewport, 1, 0, wlArg(s.child))
@@ -392,6 +424,7 @@ func (s *waylandSurface) attach() {
 	s.resized(w)
 	// A new subsurface takes effect with the next commit of its parent: make GTK draw once more.
 	w.g.widgetQueueDraw(w.toplevel)
+	return nil
 }
 
 func (s *waylandSurface) detach() {
@@ -413,7 +446,9 @@ func (s *waylandSurface) detach() {
 	}
 	c.destroy(s.viewport, 0)
 	c.destroy(s.sub, 0)
-	c.destroy(s.child, 0)
+	s.w.g.widgetUnregisterWindow(s.w.area, s.gdkWindow)
+	s.w.g.gdkWindowDestroy(s.gdkWindow) // also destroys the borrowed wl_surface
+	s.gdkWindow = 0
 	s.viewport, s.sub, s.child, s.parent = 0, 0, 0, 0
 	c.flush(session.display)
 }
@@ -428,6 +463,7 @@ func (s *waylandSurface) close() {
 func (s *waylandSurface) positioned(x, y int32) {
 	s.offsetX, s.offsetY = x, y
 	if s.child != 0 {
+		s.w.g.gdkWindowMoveResize(s.gdkWindow, x, y, max(int32(s.w.width+0.5), 1), max(int32(s.w.height+0.5), 1))
 		s.s.c.request(s.sub, 1, wlArg(uint32(x)), wlArg(uint32(y)))
 		s.w.g.widgetQueueDraw(s.w.toplevel)
 	}
@@ -454,6 +490,7 @@ func (s *waylandSurface) resized(w *gtkWindow) {
 	}
 	s.buffers = nil
 	width, height := int32(w.width+0.5), int32(w.height+0.5)
+	w.g.gdkWindowMoveResize(s.gdkWindow, s.offsetX, s.offsetY, max(width, 1), max(height, 1))
 	s.regionWidth, s.regionHeight = 0, 0
 	s.updateRegions(w, width, height)
 	s.present(w)
@@ -493,13 +530,16 @@ func (s *waylandSurface) updateRegions(w *gtkWindow, width, height int32) {
 		c.request(s.viewport, 2, wlArg(uint32(width)), wlArg(uint32(height)))
 	}
 	region := c.create(s.s.compositor, 1, c.core["wl_region"], c.version(s.s.compositor), 0)
+	gdkRegion := w.g.cairoRegionRect(&[4]int32{0, 0, width, height})
 	add := func(x, y, rectWidth, rectHeight int32) {
 		c.request(region, 1, wlArg(uint32(x)), wlArg(uint32(y)), wlArg(uint32(rectWidth)), wlArg(uint32(rectHeight)))
+		w.g.cairoRegionUnion(gdkRegion, &[4]int32{x, y, rectWidth, rectHeight})
 	}
 	remove := func(x, y, rectWidth, rectHeight int32) {
 		c.request(region, 2, wlArg(uint32(x)), wlArg(uint32(y)), wlArg(uint32(rectWidth)), wlArg(uint32(rectHeight)))
+		w.g.cairoRegionSubtract(gdkRegion, &[4]int32{x, y, rectWidth, rectHeight})
 	}
-	add(0, 0, width, height)
+	c.request(region, 1, 0, 0, wlArg(uint32(width)), wlArg(uint32(height)))
 	if w.config.WindowMode == platform.WindowCustomTitlebar && !w.fullscreen.Load() {
 		strip := int32(w.config.TitlebarStrip() + 0.999)
 		remove(0, 0, width, min(strip, height))
@@ -519,6 +559,8 @@ func (s *waylandSurface) updateRegions(w *gtkWindow, width, height int32) {
 		remove(holes[i], holes[i+1], holes[i+2]-holes[i], holes[i+3]-holes[i+1])
 		i += 4
 	}
+	w.g.gdkWindowInputShape(s.gdkWindow, gdkRegion, 0, 0)
+	w.g.cairoRegionDestroy(gdkRegion)
 	c.request(s.child, 5, wlArg(region)) // set_input_region
 	c.destroy(region, 0)
 }
@@ -646,9 +688,24 @@ func (s *waylandSurface) present(w *gtkWindow) {
 	}
 	b.pending = render.Scissor{}
 	damage = area
+	if c.version(s.child) < 4 && (s.viewportWidth <= 0 || s.viewportHeight <= 0 || canvas.Width <= 0 || canvas.Height <= 0) {
+		// updateRegions sets the viewport and repeats the frame later. Until then, skip the frame: the
+		// buffer copied above is up to date, and the other buffers keep the damage still to be shown.
+		return
+	}
 	b.busy = true
 	c.request(s.child, 1, wlArg(b.buffer), 0, 0) // attach
-	c.request(s.child, 9, wlArg(uint32(damage.Left)), wlArg(uint32(damage.Top)), wlArg(uint32(damage.Right-damage.Left)), wlArg(uint32(damage.Bottom-damage.Top)))
+	if c.version(s.child) >= 4 {
+		c.request(s.child, 9, wlArg(uint32(damage.Left)), wlArg(uint32(damage.Top)), wlArg(uint32(damage.Right-damage.Left)), wlArg(uint32(damage.Bottom-damage.Top))) // damage_buffer
+	} else {
+		// GDK can create a v3 surface. Damage is then in logical surface coordinates,
+		// after the viewport has mapped the canvas to the window's size.
+		left := int32(math.Floor(float64(damage.Left) * float64(s.viewportWidth) / float64(canvas.Width)))
+		top := int32(math.Floor(float64(damage.Top) * float64(s.viewportHeight) / float64(canvas.Height)))
+		right := int32(math.Ceil(float64(damage.Right) * float64(s.viewportWidth) / float64(canvas.Width)))
+		bottom := int32(math.Ceil(float64(damage.Bottom) * float64(s.viewportHeight) / float64(canvas.Height)))
+		c.request(s.child, 2, wlArg(uint32(left)), wlArg(uint32(top)), wlArg(uint32(right-left)), wlArg(uint32(bottom-top))) // damage
+	}
 	c.request(s.child, 6) // commit
 	c.flush(s.s.display)
 }
