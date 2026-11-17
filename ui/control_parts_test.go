@@ -154,3 +154,55 @@ func TestControlPartsRepaintAllocates(t *testing.T) {
 		t.Fatalf("%v allocations a repaint", allocs)
 	}
 }
+
+// A ContextMenu on a control with parts keeps its rows and its backdrop apart from
+// the parts: a click on any row chooses it, and the click that dismisses the menu
+// presses no part, rather than either reaching the control as a press on a part.
+func TestControlContextMenuIsNotItsParts(t *testing.T) {
+	s := newStars()
+	var chosen []string
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			rating := ui.Control(c, "Rating", &s.handlers).Size(240, 32).Draw(s.drawFn)
+			ui.ContextMenu(c, rating, func(menu *ui.MenuItems) {
+				for _, label := range [...]string{"Clear", "Half", "Full"} {
+					if menu.Item(label).Clicked() {
+						chosen = append(chosen, label)
+					}
+				}
+			})
+		})
+	})
+	// The control's own area, right of the stars, opens the menu.
+	rating := d.hit("Rating").Bounds
+	x, y := rating.X+rating.Width-10, rating.Y+rating.Height/2
+	openMenu := func() {
+		t.Helper()
+		if err := d.driver.ClickButton(x, y, gfx.PointerButtonSecondary); err != nil {
+			t.Fatal(err)
+		}
+		if !d.has("Clear") {
+			t.Fatal("a secondary press on the control did not open its menu")
+		}
+	}
+	for _, label := range [...]string{"Clear", "Half", "Full"} {
+		openMenu()
+		d.click(label)
+		if n := len(chosen); n == 0 || chosen[n-1] != label || d.has("Clear") {
+			t.Fatalf("a click on %s chose %q, menu shown %v", label, chosen, d.has("Clear"))
+		}
+	}
+	openMenu()
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("%v allocations a repaint with the menu open", allocs)
+	}
+	if err := d.driver.Click(rating.X+rating.Width/2, rating.Y+200); err != nil {
+		t.Fatal(err)
+	}
+	if d.has("Clear") {
+		t.Fatal("a click outside the menu left it open")
+	}
+	if len(s.pressed) != 0 || s.value != 0 {
+		t.Fatalf("the menu pressed the parts %v, value %d", s.pressed, s.value)
+	}
+}
