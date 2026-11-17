@@ -124,9 +124,10 @@ func contextMenu(c C, target Box, bound gfx.Scope, opened *menuOrigin, body func
 		}
 		if bound.IsZero() {
 			// The target's scope holds the identities inside it: the parts of a
-			// Control (Handlers.Parts) and the children of a container. The rows and
-			// the backdrop of the menu take a place of their own under it, or a press
-			// on a row would reach the control as a press on one of its parts.
+			// Control (Handlers.Parts) and the children of a container. The rows, the
+			// backdrop, the scroll bar and the focus trap of the menu take a place of
+			// their own under it, or a press on a row would reach the control as a
+			// press on one of its parts.
 			scope = p.tree.Sub(scope, p.menuName)
 		}
 		p.declareMenu(c, menu, scope, open, -1, opened, body)
