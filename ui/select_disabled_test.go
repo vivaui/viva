@@ -155,3 +155,28 @@ func TestFormFieldErrorInvalidAndFor(t *testing.T) {
 		t.Fatal("For did not make the title the control's label")
 	}
 }
+
+// A Disabled Field is painted dimmed, reported disabled and not focusable.
+func TestFieldDisabledIsDimmedAndInert(t *testing.T) {
+	look := func(disabled bool) (string, gfx.Hit) {
+		var f ui.Field
+		f.Disabled = disabled
+		d := openPage(t, page(func(c ui.C) { ui.TextFieldID(c, gfx.Item(5), &f, "Name", "") }))
+		snap := d.driver.Snapshot()
+		for _, h := range snap.Hits {
+			if h.Role == gfx.RoleTextField {
+				return fmt.Sprint(snap.Primitives), h
+			}
+		}
+		t.Fatal("no field")
+		return "", gfx.Hit{}
+	}
+	plain, enabled := look(false)
+	dim, disabled := look(true)
+	if plain == dim {
+		t.Fatal("a disabled field is painted like an enabled one")
+	}
+	if enabled.Disabled || !disabled.Disabled || disabled.Focusable {
+		t.Fatalf("hit: enabled.Disabled=%v disabled.Disabled=%v disabled.Focusable=%v", enabled.Disabled, disabled.Disabled, disabled.Focusable)
+	}
+}

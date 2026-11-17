@@ -33,6 +33,10 @@ type Field struct {
 	// border and ring components.Input gives an invalid input. It is the application's
 	// to set and clear, as Secure is; it changes the look only.
 	Invalid bool
+	// Disabled paints the field dimmed and takes it out of the Tab order and the pointer's
+	// reach, as components.Input does for a disabled input. It is the application's to set
+	// and clear, as Secure is.
+	Disabled bool
 
 	editor *text.Editor
 	id     gfx.ID
@@ -167,7 +171,7 @@ func (field *Field) snapshot(f *frame, id gfx.ID, label, placeholder string) com
 	focused := f.canvas != nil && f.canvas.Focused() == id
 	selection := editor.Selection()
 	snapshot := components.InputSnapshot{
-		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid,
+		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled,
 		Focused: focused,
 		// The field paints its own text, caret, selection and composition, and the
 		// platform's editor is only where input arrives. A platform that lays text out
