@@ -91,6 +91,7 @@ type windowState struct {
 	ready, tracking, sizing, sizingMove          bool
 	redrawRequested, paintPending, resizePending bool
 	resizeTimerInterval                          uintptr
+	resizeMonitor, resizeMonitorInterval         uintptr // the monitor resizeMonitorInterval was queried for
 	minimized                                    bool
 	trimArmed                                    bool      // the idle timer that trims driver memory is running
 	lastPresent                                  time.Time // when the window last presented a frame
@@ -497,6 +498,8 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			}
 		}
 	case wmDisplayChange:
+		// A mode change can alter the refresh rate of the monitor already cached.
+		state.resizeMonitorInterval = 0
 		state.refreshResizeTimer()
 		if state.fullscreen.Load() {
 			state.fitFullscreenMonitor()
@@ -1034,15 +1037,27 @@ type displayMode struct {
 	PanningWidth, PanningHeight                                       uint32
 }
 
-// Query the current mode of this window's monitor, not the primary display.
-// SetTimer has a 10 ms minimum; unavailable display information falls back to 60 Hz.
+// resizeInterval is the drag timer interval for the monitor this window is on.
+// The display mode is queried only when the window moves to another monitor, or
+// after WM_DISPLAYCHANGE clears resizeMonitorInterval.
 func (state *windowState) resizeInterval() uintptr {
+	monitor, _, _ := monitorFromWindow.Call(state.window, 2)
+	if monitor != state.resizeMonitor || state.resizeMonitorInterval == 0 {
+		state.resizeMonitor = monitor
+		state.resizeMonitorInterval = monitorResizeInterval(monitor)
+	}
+	return state.resizeMonitorInterval
+}
+
+// monitorResizeInterval queries the current mode of monitor, not the primary
+// display. SetTimer has a 10 ms minimum; unavailable display information falls
+// back to 60 Hz.
+func monitorResizeInterval(monitor uintptr) uintptr {
 	var info struct {
 		monitorInfo
 		Device [32]uint16
 	}
 	info.Size = uint32(unsafe.Sizeof(info))
-	monitor, _, _ := monitorFromWindow.Call(state.window, 2)
 	mode := displayMode{Size: uint16(unsafe.Sizeof(displayMode{}))}
 	frequency := uint32(60)
 	if ok, _, _ := getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok != 0 {
