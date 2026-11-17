@@ -462,6 +462,33 @@ func TestEnsureClosedMovesARunningProgramAsideBeforeAskingTheUser(t *testing.T) 
 	}
 }
 
+// A loaded native file (conpty.dll, OpenConsole.exe) can be renamed but not
+// deleted, so the installer must move it aside before writing over it, exactly
+// as it does for its own image. Asking first would end a silent install.
+func TestEnsureFileWritableMovesALoadedFileAside(t *testing.T) {
+	got := generate(t, sample())
+	start := strings.Index(got, "Function EnsureFileWritable")
+	if start < 0 {
+		t.Fatalf("the script lacks EnsureFileWritable:\n%s", got)
+	}
+	body := got[start:]
+	if end := strings.Index(body, "FunctionEnd"); end >= 0 {
+		body = body[:end]
+	}
+	remove := strings.Index(body, `Delete "$0"`)
+	rename := strings.Index(body, `Rename "$0" "$0.$1.old"`)
+	message := strings.Index(body, "MessageBox")
+	if remove < 0 || rename < 0 || message < 0 {
+		t.Fatalf("EnsureFileWritable lacks delete, rename or question:\n%s", body)
+	}
+	if !(remove < rename && rename < message) {
+		t.Errorf("EnsureFileWritable asks the user before moving the file aside:\n%s", body)
+	}
+	if !strings.Contains(body, "/SD IDCANCEL") {
+		t.Errorf("a silent install is not told to cancel:\n%s", body)
+	}
+}
+
 func TestFindReportsHowToInstall(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	_, err := find("", nil)
@@ -657,12 +684,18 @@ func TestGenerateInstallsAndRemovesExtraFiles(t *testing.T) {
 	got := generate(t, script)
 	for _, want := range []string{
 		`  SetOutPath "$INSTDIR\conpty\x64"`,
+		`  Push "$INSTDIR\conpty\x64\conpty.dll"`,
+		`  Call EnsureFileWritable`,
 		`  File "/oname=conpty.dll" "/tmp/p/conpty/x64/conpty.dll"`,
 		`  SetOutPath "$INSTDIR\conpty\x64\x64"`,
+		`  Push "$INSTDIR\conpty\x64\x64\OpenConsole.exe"`,
+		`  Call EnsureFileWritable`,
 		`  File "/oname=OpenConsole.exe" "/tmp/p/conpty/x64/x64/OpenConsole.exe"`,
 		`  SetOutPath "$INSTDIR"`,
-		`  Delete "$INSTDIR\conpty\x64\conpty.dll"`,
-		`  Delete "$INSTDIR\conpty\x64\x64\OpenConsole.exe"`,
+		`  Delete "$INSTDIR\conpty\x64\conpty.dll.*.old"`,
+		`  Delete /REBOOTOK "$INSTDIR\conpty\x64\conpty.dll"`,
+		`  Delete "$INSTDIR\conpty\x64\x64\OpenConsole.exe.*.old"`,
+		`  Delete /REBOOTOK "$INSTDIR\conpty\x64\x64\OpenConsole.exe"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the script lacks %q", want)
