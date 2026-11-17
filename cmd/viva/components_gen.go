@@ -108,7 +108,7 @@ var componentRequires = map[string][]string{
 	"accordion":          {"button", "tree"},
 	"alert-dialog":       {"button", "dialog"},
 	"attachment":         {"bubble", "button"},
-	"avatar-editor":      {"button", "dialog"},
+	"avatar-editor":      {"button"},
 	"badge":              {"button"},
 	"breadcrumb":         {"tree"},
 	"bubble":             {"button"},

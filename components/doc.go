@@ -57,12 +57,13 @@
 //     its Query editor to the application's text-input provider.
 //
 // Actions:
-//   - Avatar editor: `BeginAvatarEditor` paints a complete modal crop editor
-//     with drag-to-position, pointer-centered wheel zoom, a zoom slider and
-//     buttons, keyboard controls, an optional circular preview, and a
-//     caller-configurable aspect ratio. `AvatarEditorLayout.Pointer`,
-//     `AvatarEditorLayout.Scroll`, and `AvatarEditorLayout.Key` return the
-//     updated caller-owned crop state.
+//   - Avatar editor: `BeginAvatarEditor` paints a crop surface inside
+//     caller-provided bounds. It owns drag-to-position, pointer-centered wheel
+//     zoom, a zoom slider and buttons, keyboard controls, an optional circular
+//     preview, and a caller-configurable aspect ratio. Titles, modal chrome,
+//     and confirm/cancel actions remain with the surrounding application.
+//     `AvatarEditorLayout.Pointer`, `AvatarEditorLayout.Scroll`, and
+//     `AvatarEditorLayout.Key` return the updated caller-owned crop state.
 //   - Button: `BeginButton` paints a labeled control with Default, Secondary,
 //     Outline, and Ghost variants; hover, press, and focus states, metrics-
 //     scaled geometry, and the hit declaration are built in.

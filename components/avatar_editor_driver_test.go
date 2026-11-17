@@ -10,20 +10,14 @@ import (
 )
 
 type avatarEditorDriverModel struct {
-	options   components.AvatarEditorOptions
-	layout    components.AvatarEditorLayout
-	confirmed bool
-	cancelled bool
+	options components.AvatarEditorOptions
+	layout  components.AvatarEditorLayout
 }
 
 func (model *avatarEditorDriverModel) page(c ui.C) {
 	ui.Slot(c).Fill().Draw(func(d *ui.DrawContext) {
-		options := model.options
-		options.Viewport = d.Rect
-		model.layout = components.BeginAvatarEditor(d.Canvas, *d.Theme, d.Rect, options).Paint()
+		model.layout = components.BeginAvatarEditor(d.Canvas, *d.Theme, d.Rect, model.options).Paint()
 		model.options.State = model.layout.State
-		model.confirmed = model.confirmed || d.Canvas.Clicked(options.IDs.Confirm)
-		model.cancelled = model.cancelled || d.Canvas.Clicked(options.IDs.Cancel)
 	})
 }
 
@@ -32,18 +26,16 @@ func TestAvatarEditorDriverInteraction(t *testing.T) {
 	components.InitializeAvatarEditorState(&state)
 	state.Zoom = 2
 	ids := components.AvatarEditorIDs{
-		Scope: gfx.Item(1), Dismiss: gfx.Item(2), Close: gfx.Item(3),
 		Canvas: gfx.Item(4), Zoom: gfx.Item(5), ZoomOut: gfx.Item(6), ZoomIn: gfx.Item(7),
-		Reset: gfx.Item(8), Cancel: gfx.Item(9), Confirm: gfx.Item(10),
+		Reset: gfx.Item(8),
 	}
 	pixels := make([]byte, 160*100*4)
 	model := &avatarEditorDriverModel{options: components.AvatarEditorOptions{
 		IDs: ids, State: state, AspectRatio: 1, Circular: true,
 		Bitmap: gfx.Bitmap{Pix: pixels, Width: 160, Height: 100, Stride: 160 * 4, ID: 1, Version: 1},
 		Labels: components.AvatarEditorLabels{
-			Title: "Edit avatar", Description: "Drag and zoom", Canvas: "Avatar crop",
+			Hint: "Drag and zoom", Canvas: "Avatar crop",
 			Zoom: "Zoom", ZoomOut: "Zoom out", ZoomIn: "Zoom in", Reset: "Reset",
-			Cancel: "Cancel", Confirm: "Apply",
 		},
 	}}
 	page := ui.NewPage(ui.PageConfig{View: model.page, Theme: themePointer(gfx.LightTheme())})
@@ -110,14 +102,6 @@ func TestAvatarEditorDriverInteraction(t *testing.T) {
 	}
 	if model.layout.Crop.Width >= float32(model.options.Bitmap.Width) {
 		t.Fatalf("zoom button returned an unzoomed crop: %+v", model.layout.Crop)
-	}
-
-	confirm := driverAvatarHit(t, driver, ids.Confirm)
-	if err := driver.Click(confirm.Bounds.X+confirm.Bounds.Width/2, confirm.Bounds.Y+confirm.Bounds.Height/2); err != nil {
-		t.Fatal(err)
-	}
-	if !model.confirmed {
-		t.Fatal("driver click did not reach the confirm action")
 	}
 }
 

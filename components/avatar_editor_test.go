@@ -17,21 +17,23 @@ func avatarEditorTestBitmap(width, height int) gfx.Bitmap {
 
 func avatarEditorTestOptions() AvatarEditorOptions {
 	ids := AvatarEditorIDs{
-		Scope: gfx.Item(1), Dismiss: gfx.Item(2), Close: gfx.Item(3),
 		Canvas: gfx.Item(4), Zoom: gfx.Item(5), ZoomOut: gfx.Item(6), ZoomIn: gfx.Item(7),
-		Reset: gfx.Item(8), Cancel: gfx.Item(9), Confirm: gfx.Item(10),
+		Reset: gfx.Item(8),
 	}
 	state := AvatarEditorState{}
 	InitializeAvatarEditorState(&state)
 	return AvatarEditorOptions{
 		IDs:         ids,
-		Labels:      AvatarEditorLabels{Title: "Edit avatar", Description: "Drag and zoom", Canvas: "Avatar crop"},
+		Labels:      AvatarEditorLabels{Hint: "Drag and zoom", Canvas: "Avatar crop"},
 		Bitmap:      avatarEditorTestBitmap(120, 80),
 		State:       state,
 		AspectRatio: 1,
 		Circular:    true,
-		Viewport:    gfx.Rect{Width: 900, Height: 680},
 	}
+}
+
+func avatarEditorTestBounds() gfx.Rect {
+	return gfx.Rect{X: 24, Y: 20, Width: 456, Height: 500}
 }
 
 func TestAvatarEditorCropMath(t *testing.T) {
@@ -72,12 +74,31 @@ func TestAvatarEditorPaintAndInput(t *testing.T) {
 			canvas.SetPixelScale(scale)
 			options := avatarEditorTestOptions()
 			options.State.Zoom = 2
-			layout := BeginAvatarEditor(&canvas, theme, options.Viewport, options).Paint()
+			options.Backdrop = gfx.Color{Red: .12, Green: .23, Blue: .34, Alpha: 1}
+			bounds := avatarEditorTestBounds()
+			layout := BeginAvatarEditor(&canvas, theme, bounds, options).Paint()
 			if !layout.Ready || layout.Stage.Width <= 0 || layout.Stage.Height <= 0 || layout.Crop.Width != layout.Crop.Height {
 				t.Fatalf("scale %v: incomplete layout %+v", scale, layout)
 			}
-			if canvas.TrappedFocusScope() != options.IDs.Scope || canvas.EscapeTarget() != options.IDs.Dismiss {
-				t.Fatal("dialog routing was not installed")
+			if layout.Content != bounds || layout.Stage.X < bounds.X || layout.Stage.X+layout.Stage.Width > bounds.X+bounds.Width {
+				t.Fatalf("scale %v: crop surface escaped its bounds: %+v", scale, layout)
+			}
+			if layout.ZoomTrack.X < bounds.X || layout.ZoomTrack.X+layout.ZoomTrack.Width > bounds.X+bounds.Width ||
+				layout.ZoomTrack.Y+layout.ZoomTrack.Height > bounds.Y+bounds.Height {
+				t.Fatalf("scale %v: zoom controls escaped their bounds: %+v", scale, layout.ZoomTrack)
+			}
+			if !canvas.TrappedFocusScope().IsZero() || !canvas.EscapeTarget().IsZero() {
+				t.Fatal("crop surface installed dialog routing")
+			}
+			if texts := canvas.Texts(); len(texts) != 0 {
+				t.Fatalf("scale %v: crop surface painted dialog chrome text: %+v", scale, texts)
+			}
+			backdropFound := false
+			for _, triangle := range canvas.Triangles() {
+				backdropFound = backdropFound || triangle.Color == options.Backdrop
+			}
+			if !backdropFound {
+				t.Fatalf("scale %v: circular mask did not use the caller's backdrop", scale)
 			}
 			if images := canvas.Images(); len(images) != 1 {
 				t.Fatalf("scale %v: circular preview used %d bitmap draws, want 1", scale, len(images))
@@ -143,8 +164,8 @@ func TestAvatarEditorPaintAndInput(t *testing.T) {
 			if !result.Handled || state.Zoom != 1 || state.CenterX != .5 || state.CenterY != .5 {
 				t.Fatalf("keyboard reset = %+v", state)
 			}
-			if _, result = layout.Key(gfx.KeyEvent{Target: options.IDs.Confirm, Key: gfx.KeyLeft}, state); result.Handled {
-				t.Fatal("crop input stole a dialog action key")
+			if _, result = layout.Key(gfx.KeyEvent{Target: options.IDs.Canvas, Key: gfx.KeyEnter}, state); result.Handled {
+				t.Fatal("crop input claimed the application's submit key")
 			}
 		}
 	}
@@ -157,11 +178,11 @@ func TestAvatarEditorLoadingAndAllocations(t *testing.T) {
 	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
-		BeginAvatarEditor(&canvas, gfx.LightTheme(), options.Viewport, options).Paint()
+		BeginAvatarEditor(&canvas, gfx.LightTheme(), avatarEditorTestBounds(), options).Paint()
 	}
 	paint()
 	for _, hit := range canvas.Hits() {
-		if hit.ID == options.IDs.Canvas && !hit.Disabled || hit.ID == options.IDs.Confirm && !hit.Disabled {
+		if hit.ID == options.IDs.Canvas && !hit.Disabled || hit.ID == options.IDs.Zoom && !hit.Disabled {
 			t.Fatalf("loading editor enabled %+v", hit)
 		}
 	}
@@ -172,11 +193,27 @@ func TestAvatarEditorLoadingAndAllocations(t *testing.T) {
 	options = avatarEditorTestOptions()
 	paint = func() {
 		canvas.Reset()
-		BeginAvatarEditor(&canvas, gfx.LightTheme(), options.Viewport, options).Paint()
+		BeginAvatarEditor(&canvas, gfx.LightTheme(), avatarEditorTestBounds(), options).Paint()
 	}
 	paint()
 	if allocations := testing.AllocsPerRun(100, paint); allocations != 0 {
 		t.Fatalf("ready editor paint allocations = %v", allocations)
+	}
+}
+
+func TestAvatarEditorFitsConstrainedBounds(t *testing.T) {
+	options := avatarEditorTestOptions()
+	options.MaxStageSize = 100
+	bounds := gfx.Rect{X: 7, Y: 11, Width: 120, Height: 180}
+	var canvas gfx.Canvas
+	layout := BeginAvatarEditor(&canvas, gfx.LightTheme(), bounds, options).Paint()
+	if layout.Stage.X < bounds.X || layout.Stage.X+layout.Stage.Width > bounds.X+bounds.Width ||
+		layout.Stage.Y+layout.Stage.Height > bounds.Y+bounds.Height {
+		t.Fatalf("constrained stage escaped bounds: %+v", layout.Stage)
+	}
+	if layout.ZoomTrack.X < bounds.X || layout.ZoomTrack.X+layout.ZoomTrack.Width > bounds.X+bounds.Width ||
+		layout.ZoomTrack.Y+layout.ZoomTrack.Height > bounds.Y+bounds.Height {
+		t.Fatalf("constrained controls escaped bounds: %+v", layout.ZoomTrack)
 	}
 }
 
@@ -192,7 +229,7 @@ func BenchmarkAvatarEditor(b *testing.B) {
 			var canvas gfx.Canvas
 			paint := func() {
 				canvas.Reset()
-				BeginAvatarEditor(&canvas, gfx.LightTheme(), options.Viewport, options).Paint()
+				BeginAvatarEditor(&canvas, gfx.LightTheme(), avatarEditorTestBounds(), options).Paint()
 			}
 			paint()
 			b.ReportAllocs()
