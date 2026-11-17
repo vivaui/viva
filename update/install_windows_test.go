@@ -232,9 +232,10 @@ func TestPayloadHelperScriptKeepsABackupAndRestores(t *testing.T) {
 		"$p.HasExited -and $p.ExitCode -ne 0",
 		"function Launch {",
 		"Start-Process -FilePath $exe -ArgumentList",
-		"if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Launch; exit 1 }",
-		"} catch { Restore; Launch; exit 1 }",
-		"Remove-Item -Recurse -Force $payload",
+		"if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Launch; Discard; exit 1 }",
+		"} catch { Restore; Launch; Discard; exit 1 }",
+		"if ($alive) { Discard; exit 1 }",
+		"function Discard { Remove-Item -LiteralPath $payload -Recurse -Force",
 		"exit 0",
 	} {
 		if !strings.Contains(script, want) {
@@ -264,6 +265,123 @@ func TestInstallPayloadRefusesAFile(t *testing.T) {
 	}
 	if called {
 		t.Fatal("installPayload called quit after refusing the payload")
+	}
+}
+
+// An application deletes the payload ApplyPatch made once Install has called
+// quit, as it may on every platform; the helper reads the payload only after the
+// application has exited, so it must read a copy of its own.
+func TestInstallPayloadHandsTheHelperACopyTheCallerMayDelete(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := t.TempDir()
+	want := copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, filepath.Base(executable)))
+	if err := os.MkdirAll(filepath.Join(payload, "lib"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(payload, "lib", "new.dll"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var started string
+	previous := startPayload
+	startPayload = func(_ int, staged, _, _ string, _ []string) error {
+		started = staged
+		return nil
+	}
+	t.Cleanup(func() { startPayload = previous })
+
+	quit := func() {
+		if err := os.RemoveAll(payload); err != nil {
+			t.Errorf("delete the payload after quit: %v", err)
+		}
+	}
+	if err := installPayload(InstallOptions{Payload: payload}, quit); err != nil {
+		t.Fatal(err)
+	}
+	if started == "" {
+		t.Fatal("installPayload did not start the helper")
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(started) })
+	if strings.EqualFold(filepath.Clean(started), filepath.Clean(payload)) {
+		t.Fatal("the helper was handed the caller's payload, which is gone before the helper reads it")
+	}
+	got, err := os.ReadFile(filepath.Join(started, filepath.Base(executable)))
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatalf("the helper's copy lacks the program: %v", err)
+	}
+	if data, err := os.ReadFile(filepath.Join(started, "lib", "new.dll")); err != nil || string(data) != "new" {
+		t.Fatalf("the helper's copy lacks lib\\new.dll: %q, %v", data, err)
+	}
+}
+
+func TestInstallPayloadDeletesItsCopyWhenTheHelperDoesNotStart(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := t.TempDir()
+	copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, filepath.Base(executable)))
+	var started string
+	previous := startPayload
+	startPayload = func(_ int, staged, _, _ string, _ []string) error {
+		started = staged
+		return errors.New("no helper")
+	}
+	t.Cleanup(func() { startPayload = previous })
+
+	called := false
+	if err := installPayload(InstallOptions{Payload: payload}, func() { called = true }); err == nil {
+		t.Fatal("installPayload reported success without a helper")
+	}
+	if called {
+		t.Fatal("installPayload called quit although the helper did not start")
+	}
+	if _, err := os.Stat(started); !os.IsNotExist(err) {
+		_ = os.RemoveAll(started)
+		t.Errorf("the copy for a helper that never started was left behind: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(payload, filepath.Base(executable))); err != nil {
+		t.Errorf("the caller's payload was touched: %v", err)
+	}
+}
+
+// A helper that cannot read its payload must start the old version again: the
+// application has already quit, and nothing else would bring it back.
+func TestPayloadHelperRelaunchesTheOldVersionWithoutAPayload(t *testing.T) {
+	install := t.TempDir()
+	testExecutable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := copyWindowsFile(t, testExecutable, filepath.Join(install, "app.exe"))
+	marker := filepath.Join(t.TempDir(), "started")
+	t.Setenv("VIVA_UPDATE_START_MARKER", marker)
+	missing := filepath.Join(t.TempDir(), "gone")
+	script := payloadHelperScript(999999, missing, install, filepath.Join(install, "app.exe"), []string{"-test.run=^TestPayloadHelperProcess$"})
+	runPayloadHelper(t, script, 1)
+	waitForMarker(t, marker)
+	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Error("app.exe changed although there was nothing to install")
+	}
+}
+
+// waitForMarker waits, for a bounded time, until the program the helper started
+// wrote marker: Launch starts it without waiting for it.
+func waitForMarker(t *testing.T, marker string) {
+	t.Helper()
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		if data, err := os.ReadFile(marker); err == nil && string(data) == "started" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the old version was not started again")
+		}
 	}
 }
 
@@ -467,6 +585,9 @@ func TestPayloadHelperRollsBackAFailedStart(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(install, "new.dll")); !os.IsNotExist(err) {
 		t.Errorf("new.dll survived the rollback: %v", err)
+	}
+	if _, err := os.Stat(payload); !os.IsNotExist(err) {
+		t.Errorf("the helper's payload survived a failed update: %v", err)
 	}
 }
 
