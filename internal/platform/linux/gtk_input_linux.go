@@ -386,6 +386,19 @@ func (w *gtkWindow) focusChanged(focused bool) {
 	if w.focused == focused {
 		return
 	}
+	w.setKeyboard(focused)
+	if !focused && w.config.WindowMode == platform.WindowPanel && w.g.widgetIsVisible(w.toplevel) != 0 {
+		// A panel is a transient popup: losing the focus while it is on screen dismisses it. The focus
+		// that goes when Hide unmaps it is not the user leaving, and Show must bring the panel back.
+		panelDismissedAt.Store(monotonicNow())
+		w.destroy()
+	}
+}
+
+// setKeyboard records the keyboard going to the window or away from it, and tells what follows from
+// it. Losing the keyboard is not always the user leaving: Hide takes it away too, and a panel that
+// is hidden must survive until Show.
+func (w *gtkWindow) setKeyboard(focused bool) {
 	w.focused = focused
 	w.app.atspiActive(w, focused)
 	if focused {
@@ -405,11 +418,6 @@ func (w *gtkWindow) focusChanged(focused bool) {
 	if w.config.OnFocusLost != nil {
 		frame, err := w.config.OnFocusLost()
 		w.present(frame, err)
-	}
-	if w.config.WindowMode == platform.WindowPanel {
-		// A panel is a transient popup: losing the focus dismisses it.
-		panelDismissedAt.Store(monotonicNow())
-		w.destroy()
 	}
 }
 

@@ -465,8 +465,14 @@ func (w *gtkWindow) mapChanged(on bool) {
 	if !on && w.wl != nil {
 		// GDK can unmap the parent before reporting a focus-out for its child.
 		// End this IM session before the parent's Wayland surface is replaced.
+		// This runs inside GTK's unmap emission, where a panel must not be
+		// destroyed: Hide keeps the window for Show, so only the keyboard state
+		// changes here. A focus-out that GDK reports later finds the state
+		// already changed and does nothing.
 		w.focusSerial++
-		w.focusChanged(false)
+		if w.focused {
+			w.setKeyboard(false)
+		}
 		*w.pointer.clicks = input.ClickCounter{}
 		w.pointer.pending, w.pointer.pendingDelivery = false, false
 	}
