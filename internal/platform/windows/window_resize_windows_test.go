@@ -623,6 +623,22 @@ func TestResizeTimerRearmsOnlyWhenIntervalChanges(t *testing.T) {
 	check(17, 17, 6, nil) // A new drag must arm even at the previous cadence.
 }
 
+// A drag whose timer cannot start keeps the window open and presents each size
+// change synchronously; the next drag arms the timer again.
+func TestResizeTimerFailureDegradesToSynchronousResize(t *testing.T) {
+	state := windowState{sizingMove: true}
+	state.paceResize(17, func(uintptr) error { return fmt.Errorf("SetTimer failed") })
+	if state.err != nil || state.sizingMove || state.resizeTimerInterval != 0 {
+		t.Fatalf("failed timer: err=%v sizingMove=%v cached=%d, want an open window and synchronous resizing", state.err, state.sizingMove, state.resizeTimerInterval)
+	}
+	var armed uintptr
+	state.sizingMove = true // WM_ENTERSIZEMOVE of the next drag
+	state.paceResize(17, func(interval uintptr) error { armed = interval; return nil })
+	if armed != 17 || state.resizeTimerInterval != 17 || state.err != nil {
+		t.Fatalf("next drag armed %d, cached %d, err=%v", armed, state.resizeTimerInterval, state.err)
+	}
+}
+
 func TestResizeDisplayModeNativeLayout(t *testing.T) {
 	mode := displayMode{}
 	if unsafe.Sizeof(mode) != 220 || unsafe.Offsetof(mode.Frequency) != 184 {

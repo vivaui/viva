@@ -984,14 +984,26 @@ func (state *windowState) refreshResizeTimer() {
 	if !state.sizingMove {
 		return
 	}
-	if err := state.rearmResizeTimer(state.resizeInterval(), func(interval uintptr) error {
+	state.paceResize(state.resizeInterval(), func(interval uintptr) error {
 		if timer, _, err := setTimer.Call(state.window, resizeTimerID, interval, 0); timer == 0 {
 			return fmt.Errorf("windows: start resize timer: %w", err)
 		}
 		return nil
-	}); err != nil {
-		state.fail(err)
+	})
+}
+
+// paceResize keeps a drag paced at interval. If the timer cannot start, the drag
+// falls back to synchronous presents: WM_SIZE and WM_PAINT present each size
+// change themselves, as they do outside a drag. The window stays open, and the
+// next drag arms the timer again.
+func (state *windowState) paceResize(interval uintptr, arm func(uintptr) error) {
+	if err := state.rearmResizeTimer(interval, arm); err == nil {
+		return
 	}
+	killTimer.Call(state.window, resizeTimerID)
+	state.sizingMove = false
+	state.resizeTimerInterval = 0
+	state.invalidatePendingFrame()
 }
 
 func (state *windowState) rearmResizeTimer(interval uintptr, arm func(uintptr) error) error {
