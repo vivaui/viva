@@ -110,6 +110,19 @@ func (window *nativeWindow) SetFullscreen(fullscreen bool) error {
 	return nil
 }
 
+// SetTitle changes the NSWindow's title on the main thread.
+func (window *nativeWindow) SetTitle(title string) error {
+	if window == nil || window.closed.Load() {
+		return fmt.Errorf("darwin: window is closed")
+	}
+	value := C.CString(title)
+	defer C.free(unsafe.Pointer(value))
+	if C.viva_application_set_title(window.token, value) == 0 {
+		return fmt.Errorf("darwin: window is unavailable")
+	}
+	return nil
+}
+
 func (window *nativeWindow) Fullscreen() bool {
 	return window != nil && !window.closed.Load() && C.viva_application_fullscreen(window.token) != 0
 }
