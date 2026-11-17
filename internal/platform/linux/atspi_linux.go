@@ -96,17 +96,20 @@ func (host *atspiHost) engaged() bool {
 }
 
 // atspiOpened is called when a window has opened. The first one makes the
-// application ask the desktop whether accessibility is on. It returns the host.
-func atspiOpened(host *atspiHost, owner atspiOwner, target atspiShell) *atspiHost {
+// application ask the desktop whether accessibility is on.
+func (services *desktopServices) atspiOpened(target atspiShell) {
 	if os.Getenv("VIVA_ACCESSIBILITY") == "0" {
-		return host
+		return
 	}
+	host, owner := services.atspi, services.host
 	first := false
 	if host == nil {
 		host, first = &atspiHost{
 			windows: make(map[atspiShell]*atspiWindow),
 			latest:  make(map[atspiShell][]platform.AccessibilityNode),
 		}, true
+		// The loop reads its services when rebuilding the descriptor set.
+		services.atspi = host
 	}
 	host.latest[target] = target.atspiConfig().Accessibility
 	if first {
@@ -114,13 +117,12 @@ func atspiOpened(host *atspiHost, owner atspiOwner, target atspiShell) *atspiHos
 	}
 	if !host.engaged() {
 		delete(host.latest, target)
-		return host
+		return
 	}
 	if host.bridge != nil && host.windows[target] == nil {
 		host.attach(owner, target)
 	}
 	owner.rebuildPoll()
-	return host
 }
 
 // probe asks the session bus about accessibility and connects, or waits.
@@ -298,10 +300,6 @@ func (application *linuxApplication) atspiShells() []atspiShell {
 		targets[index] = state
 	}
 	return targets
-}
-
-func (services *desktopServices) atspiOpened(shell atspiShell) {
-	services.atspi = atspiOpened(services.atspi, services.host, shell)
 }
 
 func (services *desktopServices) atspiFrame(shell atspiShell, nodes []platform.AccessibilityNode) {

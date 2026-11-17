@@ -452,6 +452,11 @@ type HitOptions struct {
 	// focusable, as Base UI's accordion, collapsible and tab triggers do; it
 	// never activates. Pointer presses still skip it.
 	FocusableWhenDisabled bool
+	// SecondaryWhenDisabled, with Disabled, keeps the control the target of a
+	// secondary press, so a context menu can still open on it. It stays inert to
+	// primary presses, keys and activation. Use it where the disabled control
+	// still has its own menu, such as a toolbar button the user can hide or move.
+	SecondaryWhenDisabled bool
 	Checked               bool
 	// Mixed marks a checkbox in the indeterminate state (aria-checked="mixed").
 	Mixed    bool
@@ -596,10 +601,12 @@ type Hit struct {
 	Disabled    bool
 	// FocusableDisabled is HitOptions.FocusableWhenDisabled.
 	FocusableDisabled bool
-	Checked           bool
-	Mixed             bool
-	Selected          bool
-	Expanded          bool
+	// SecondaryWhenDisabled is HitOptions.SecondaryWhenDisabled.
+	SecondaryWhenDisabled bool
+	Checked               bool
+	Mixed                 bool
+	Selected              bool
+	Expanded              bool
 	// Expandable is HitOptions.Expandable.
 	Expandable bool
 	Multiline  bool
@@ -620,6 +627,11 @@ type Hit struct {
 	// Block marks an opaque region rather than a target: it has no ID and no
 	// accessibility node, and presses inside it reach nothing declared before it.
 	Block bool
+	// BlockSurface marks a Block that is a surface of its own: presses inside it
+	// still reach nothing, and the runtime reports Canvas.PointerOnSurface for
+	// it, so a control painted on the surface can tell a pointer over the
+	// surface's own blank area from a pointer outside the surface altogether.
+	BlockSurface bool
 	// Container marks a semantic region with no target: a menu, listbox, grid,
 	// heading or status area. It is not hit-testable and declares no control.
 	Container bool
@@ -729,6 +741,11 @@ type Canvas struct {
 	// Components that draw content inside a menu use it to tell their own rows
 	// from caller content under the pointer.
 	hoveredRole Role
+	// onSurface reports whether the pointer is on a surface declared with
+	// Canvas.BlockSurface, which is opaque to presses but says the pointer is on
+	// it. A menu row uses it to tell the menu's own padding from the world outside
+	// the menu.
+	onSurface bool
 	// prevHovered is the hit the pointer was on at the end of the previous
 	// paint, which is what HoverCrossed compares against.
 	prevHovered  ID
@@ -1637,7 +1654,8 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 		Value: options.Value, Hint: options.Hint,
 		Scope: canvas.currentFocusScope(), Layer: canvas.currentLayer(), Role: role, Cursor: options.Cursor, CursorImage: options.CursorImage,
 		Disabled: options.Disabled, FocusableDisabled: options.Disabled && options.FocusableWhenDisabled,
-		Checked: options.Checked, Mixed: options.Mixed,
+		SecondaryWhenDisabled: options.Disabled && options.SecondaryWhenDisabled,
+		Checked:               options.Checked, Mixed: options.Mixed,
 		Selected: options.Selected, Expanded: options.Expanded, Expandable: options.Expandable || options.Expanded,
 		Multiline: options.Multiline, ReadOnly: options.ReadOnly, Secure: options.Secure,
 		Description: options.Description, Level: options.Level, PosInSet: options.PosInSet, SetSize: options.SetSize,
@@ -1706,6 +1724,27 @@ func (canvas *Canvas) Block(bounds Rect) {
 		return
 	}
 	canvas.hits = append(canvas.hits, Hit{Bounds: bounds, Scope: canvas.currentFocusScope(), Layer: canvas.currentLayer(), Block: true})
+}
+
+// BlockSurface is Block for a surface that says whether the pointer is on it.
+// Presses inside it reach nothing, as with Block, and it declares no target. The
+// difference is that the runtime reports Canvas.PointerOnSurface while the pointer
+// is anywhere inside it, including the padding and separators that declare no hit
+// of their own. A control painted on the surface uses that to tell a pointer over
+// its own blank area from one outside the surface altogether: a menu row stays
+// unlit while the pointer travels over the menu's padding (see
+// menuSurface.itemState).
+func (canvas *Canvas) BlockSurface(bounds Rect) {
+	if clip, clipped := canvas.clipSnapshot(); clipped {
+		bounds = intersectCanvasRect(bounds, clip)
+	}
+	if bounds.Width <= 0 || bounds.Height <= 0 {
+		return
+	}
+	canvas.hits = append(canvas.hits, Hit{
+		Bounds: bounds, Scope: canvas.currentFocusScope(), Layer: canvas.currentLayer(),
+		Block: true, BlockSurface: true,
+	})
 }
 
 // MoveRegion declares a place a custom-titlebar window is moved from: pressing
@@ -1953,6 +1992,7 @@ func (canvas *Canvas) Clips() []Clip {
 func (canvas *Canvas) SetInteraction(hovered, pressed, focused ID, focusVisible bool) {
 	canvas.hovered = hovered
 	canvas.hoveredRole = 0
+	canvas.onSurface = false
 	canvas.pressed = pressed
 	canvas.focused = focused
 	canvas.focusVisible = focusVisible
@@ -1973,6 +2013,19 @@ func (canvas *Canvas) HoveredRole() Role {
 // application paint code should only read it.
 func (canvas *Canvas) SetHoveredRole(role Role) {
 	canvas.hoveredRole = role
+}
+
+// PointerOnSurface reports whether the pointer is on a surface declared with
+// BlockSurface, such as the panel of an open menu. Unlike Hovered it is true over
+// the surface's padding and separators, which declare no control of their own.
+func (canvas *Canvas) PointerOnSurface() bool {
+	return canvas.onSurface
+}
+
+// SetPointerOnSurface records whether the pointer is on a surface declared with
+// BlockSurface. It is runtime-facing; application paint code should only read it.
+func (canvas *Canvas) SetPointerOnSurface(on bool) {
+	canvas.onSurface = on
 }
 
 // HoverCrossed reports whether the pointer reached a different hit since the

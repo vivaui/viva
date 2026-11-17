@@ -291,6 +291,35 @@ func (script Script) Generate() ([]byte, error) {
 	line(`!insertmacro EnsureClosed "un."`)
 	line("")
 
+	// A native file the program loads at runtime is held open like the program
+	// image itself. Windows allows renaming it aside but not deleting or
+	// overwriting it, so every extra file gets the same treatment before File
+	// writes over it. The caller pushes the installed path.
+	line(`Function EnsureFileWritable`)
+	line(`  Exch $0`)
+	line(`  Push $1`)
+	line(`  retry_file:`)
+	line(`  ClearErrors`)
+	line(`  Delete "$0"`)
+	line(`  ${IfNot} ${Errors}`)
+	line(`    Pop $1`)
+	line(`    Pop $0`)
+	line(`    Return`)
+	line(`  ${EndIf}`)
+	line(`  ; A loaded image can be renamed but not deleted, so move it aside.`)
+	line(`  System::Call 'kernel32::GetTickCount()i .r1'`)
+	line(`  ClearErrors`)
+	line(`  Rename "$0" "$0.$1.old"`)
+	line(`  ${IfNot} ${Errors}`)
+	line(`    Pop $1`)
+	line(`    Pop $0`)
+	line(`    Return`)
+	line(`  ${EndIf}`)
+	line(`  MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(CLOSE_APP)" /SD IDCANCEL IDRETRY retry_file`)
+	line(`  Abort`)
+	line(`FunctionEnd`)
+	line("")
+
 	// The finish page runs after installation. The checkbox is MUI's "show
 	// readme" option, so a silent install (/S) skips it and creates no shortcut.
 	// The marker records that this installer created the shortcut once; the
@@ -359,6 +388,9 @@ func (script Script) Generate() ([]byte, error) {
 	line(`  ; What an earlier update moved aside goes once nothing holds it.`)
 	line(`  ClearErrors`)
 	line(`  Delete "$INSTDIR\${APP_EXE}.*.old"`)
+	for _, file := range files {
+		line(`  Delete "$INSTDIR\%s.*.old"`, strings.ReplaceAll(file.Destination, "/", `\`))
+	}
 	line(`  SetOutPath "$INSTDIR"`)
 	line(`  ; The program's modification time would otherwise be stored in the installer`)
 	line(`  ; and make every build of the same program differ.`)
@@ -382,7 +414,10 @@ func (script Script) Generate() ([]byte, error) {
 		if parent := path.Dir(file.Destination); parent != "." {
 			directory += `\` + strings.ReplaceAll(parent, "/", `\`)
 		}
+		destination := `$INSTDIR\` + strings.ReplaceAll(file.Destination, "/", `\`)
 		line(`  SetOutPath "%s"`, directory)
+		line(`  Push "%s"`, destination)
+		line(`  Call EnsureFileWritable`)
 		line(`  File "/oname=%s" "%s"`, path.Base(file.Destination), source)
 	}
 	if len(files) > 0 {
@@ -459,7 +494,8 @@ func (script Script) Generate() ([]byte, error) {
 		line(`  Delete "$INSTDIR\${APP_ICON}"`)
 	}
 	for _, file := range files {
-		line(`  Delete "$INSTDIR\%s"`, strings.ReplaceAll(file.Destination, "/", `\`))
+		line(`  Delete "$INSTDIR\%s.*.old"`, strings.ReplaceAll(file.Destination, "/", `\`))
+		line(`  Delete /REBOOTOK "$INSTDIR\%s"`, strings.ReplaceAll(file.Destination, "/", `\`))
 	}
 	for _, directory := range extraDirs(files) {
 		line(`  RMDir "$INSTDIR\%s"`, strings.ReplaceAll(directory, "/", `\`))

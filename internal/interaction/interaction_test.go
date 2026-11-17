@@ -28,6 +28,27 @@ func TestFocusRegionsSkipContainersAndOrderByLayer(t *testing.T) {
 	}
 }
 
+func TestSecondaryPressReachesOnlyDisabledControlsThatDeclareIt(t *testing.T) {
+	var canvas gfx.Canvas
+	canvas.BeginFrame()
+	canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 100, Height: 100}, "", gfx.HitOptions{})
+	canvas.HitWithOptions(gfx.Item(2), gfx.Rect{X: 10, Y: 10, Width: 40, Height: 40}, "", gfx.HitOptions{Disabled: true, SecondaryWhenDisabled: true})
+	canvas.HitWithOptions(gfx.Item(3), gfx.Rect{X: 60, Y: 10, Width: 40, Height: 40}, "", gfx.HitOptions{Disabled: true})
+	canvas.EndFrame()
+	var focus Focus
+	focus.Sync(&canvas)
+	router := focus.Router()
+	if region, ok, _ := router.PointerAt(20, 20, true); !ok || region.Target != gfx.Item(2) {
+		t.Fatalf("secondary press on a declared disabled control = %v/%v, want item 2", region.Target, ok)
+	}
+	if region, ok, _ := router.PointerAt(20, 20, false); !ok || region.Target != gfx.Item(1) {
+		t.Fatalf("primary press over a declared disabled control = %v/%v, want item 1", region.Target, ok)
+	}
+	if region, ok, _ := router.PointerAt(70, 20, true); !ok || region.Target != gfx.Item(1) {
+		t.Fatalf("secondary press over a disabled control without the declaration = %v/%v, want item 1", region.Target, ok)
+	}
+}
+
 func TestFocusKeepsAFocusedTargetAcrossRepaints(t *testing.T) {
 	var canvas gfx.Canvas
 	canvas.BeginFrame()

@@ -27,6 +27,9 @@ type Region struct {
 	// FocusableDisabled keeps a disabled region focusable (but inert), as a
 	// disabled accordion or tab trigger is.
 	FocusableDisabled bool
+	// SecondaryWhenDisabled lets a disabled region take a secondary press (see
+	// gfx.HitOptions.SecondaryWhenDisabled). No other press or key reaches it.
+	SecondaryWhenDisabled bool
 	// Role is the semantic role the region declared. The router uses it to
 	// decide which keys activate the focused control: a button takes Enter and
 	// Space, a checkbox only Space, a slider neither.
@@ -37,6 +40,10 @@ type Region struct {
 	// Blocks makes the region opaque: presses inside it reach no target
 	// behind it. Target is zero.
 	Blocks bool
+	// BlockSurface marks a Blocks region that also says whether the pointer is on
+	// it (see gfx.Canvas.BlockSurface): PointerAt reports it, while a press still
+	// reaches nothing and no tab stop lands on it.
+	BlockSurface bool
 	// Label makes the region a label of Target: a press on it focuses the
 	// target's own focusable region. It is not focusable itself.
 	Label bool
@@ -185,6 +192,34 @@ func (router *Router) HitTestRegion(x float32, y float32) (Region, bool) {
 		return Region{}, false
 	}
 	return router.regions[index], true
+}
+
+// PointerAt is what a pointer move needs in one pass: the front-most region the
+// pointer is on, and whether it is on a surface that says so (see
+// Region.BlockSurface) rather than on a control. Both answers come from the same
+// search, so a move costs one scan of the regions, as HitTestRegion alone did.
+// A secondary press also finds a disabled region that declares
+// SecondaryWhenDisabled; the press that starts a context menu is the only one
+// that does.
+func (router *Router) PointerAt(x float32, y float32, secondaryPress bool) (Region, bool, bool) {
+	for index := len(router.regions) - 1; index >= 0; index-- {
+		region := router.regions[index]
+		if !contains(region.Bounds, x, y) {
+			continue
+		}
+		if region.Blocks {
+			// A surface is opaque: the point is on it and on nothing declared
+			// before it, so no control is under the pointer here.
+			if router.activeScope.IsZero() || region.Scope == router.activeScope {
+				return Region{}, false, region.BlockSurface
+			}
+			continue
+		}
+		if router.hitAvailable(region) || secondaryPress && router.secondaryAvailable(region) {
+			return region, true, false
+		}
+	}
+	return Region{}, false, false
 }
 
 // PressKind is what a press at a point does in a custom-titlebar window.
@@ -476,6 +511,13 @@ func (router *Router) focusAvailable(target Target) bool {
 
 func (router *Router) hitAvailable(region Region) bool {
 	return !region.Target.IsZero() && !region.Disabled &&
+		(router.activeScope.IsZero() || region.Scope == router.activeScope)
+}
+
+// secondaryAvailable is hitAvailable for a secondary press: a disabled region
+// that declares SecondaryWhenDisabled is also a target of one.
+func (router *Router) secondaryAvailable(region Region) bool {
+	return region.Disabled && region.SecondaryWhenDisabled && !region.Target.IsZero() &&
 		(router.activeScope.IsZero() || region.Scope == router.activeScope)
 }
 

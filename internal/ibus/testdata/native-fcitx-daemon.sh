@@ -36,13 +36,30 @@ else
 fi
 export IBUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
 export IBUS_ADDRESS_FILE=$task_dir/ibus-address
-# The fixture exercises the GTK and IBus frontends on both display backends,
-# not the compositor's input-method protocol. Weston reserves that protocol
-# for its own keyboard; binding it would disconnect this separately run daemon.
+# This fixture uses GTK/IBus over D-Bus, not Weston's privileged IM binding.
 fcitx5 -D --disable=notificationitem,notifications,classicui,xim,waylandim > "$task_dir/fcitx.log" 2>&1 &
 daemon_pid=$!
 attempt=0
 while ! gdbus call --timeout 1 --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.NameHasOwner org.freedesktop.IBus | grep -q true; do
+    kill -0 "$daemon_pid"
+    attempt=$((attempt + 1))
+    [ "$attempt" -lt 100 ]
+    sleep 0.02
+done
+# The bus name can be owned before Fcitx exports its IBus object.
+attempt=0
+while ! gdbus introspect --session --dest org.freedesktop.IBus --object-path /org/freedesktop/IBus --xml 2>/dev/null | /usr/bin/python3 -c '
+import sys
+import xml.etree.ElementTree as ET
+try:
+    root = ET.parse(sys.stdin).getroot()
+except ET.ParseError:
+    sys.exit(1)
+ready = any(interface.get("name") == "org.freedesktop.IBus" and
+            any(method.get("name") == "CreateInputContext" for method in interface.findall("method"))
+            for interface in root.findall("interface"))
+sys.exit(0 if ready else 1)
+'; do
     kill -0 "$daemon_pid"
     attempt=$((attempt + 1))
     [ "$attempt" -lt 100 ]

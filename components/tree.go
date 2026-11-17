@@ -26,6 +26,9 @@ type TreeItem struct {
 	Expanded     bool
 	Selected     bool
 	Disabled     bool
+	// Dragging marks the row being dragged: it keeps its chosen fill but gives
+	// up its focus ring, which otherwise reads as the drop target.
+	Dragging bool
 }
 
 // TreeRow is the geometry reserved for caller-owned row content.
@@ -77,7 +80,7 @@ func (tree *Tree) Item(item TreeItem) TreeRow {
 
 	enabled := !item.Disabled && !item.ID.IsZero()
 	hovered := enabled && tree.canvas.Hovered() == item.ID
-	focused := enabled && tree.canvas.FocusVisible() == item.ID
+	focused := enabled && !item.Dragging && tree.canvas.FocusVisible() == item.ID
 	radius := tree.theme.Metrics.RadiusControl
 	if item.Selected || hovered {
 		background := tree.theme.Muted

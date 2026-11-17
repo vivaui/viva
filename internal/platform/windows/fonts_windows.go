@@ -122,14 +122,28 @@ func fontMeasuresUniform(logFont *enumLogFont) bool {
 // MonospaceFamilies lists the installed fixed-pitch font families, sorted.
 func MonospaceFamilies() []string { return fontFamilies(true) }
 
-// FontFamilies lists every installed font family, sorted. A family whose name fills
-// the 31 characters of a LOGFONT is left out (see fontEnumCallback).
+// FontFamilies lists every installed font family, sorted.
 func FontFamilies() []string { return fontFamilies(false) }
 
-// fontFamilies enumerates the installed families, only the fixed-pitch ones when
-// monospace is set. Raster fonts and the vertical-writing variants are left out
-// either way.
+// fontFamilies lists the installed families, only the fixed-pitch ones when
+// monospace is set. The names come from DirectWrite, whose families are the ones
+// every format and layout in this package resolves a name through: a list from
+// GDI would hold the typeface names of a family's styles ("Maple Mono Light",
+// "Cascadia Mono SemiBold"), which CreateTextFormat does not know, and a name
+// picked from it would silently draw in the fallback font. The GDI enumeration
+// is kept for a machine without DirectWrite, where the lists are at least what
+// the old code returned.
 func fontFamilies(mono bool) []string {
+	if names, ok := directFamilies(mono); ok {
+		return names
+	}
+	return gdiFamilies(mono)
+}
+
+// gdiFamilies enumerates the installed families through GDI, only the fixed-pitch
+// ones when monospace is set. Raster fonts and the vertical-writing variants are
+// left out either way.
+func gdiFamilies(mono bool) []string {
 	fontEnumMu.Lock()
 	defer fontEnumMu.Unlock()
 	if fontEnumCallbackPtr == 0 {

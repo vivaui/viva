@@ -54,7 +54,7 @@ Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB and
 Vulkan loaders; on Windows, Win32 with Direct3D 11 and DirectWrite. Viva loads
 the system libraries at runtime and bundles none of them.
 
-The current release is `v0.6.4`; name it explicitly (`@v0.6.4`) to pin it. Guides,
+The current release is `v0.6.5`; name it explicitly (`@v0.6.5`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
@@ -275,6 +275,14 @@ the other Darwin architecture from either host: the build keeps cgo and the
 Objective-C/Metal bridge and lets clang emit the other Mach-O slice. The
 [Build and package guide](https://vivaui.dev/en/docs/build-and-package/) covers
 every target, installer format and flag.
+
+Linux and Windows builds disable cgo by default. Applications that link their
+own C or Rust libraries can use `viva build --cgo` or `viva package --cgo` and
+provide the target C compiler and `CGO_CFLAGS`/`CGO_LDFLAGS`. Those packages must
+be checked against the system libraries and minimum operating system they
+support; the explicit option does not supply a cross compiler or make native
+dependencies portable. Browser builds reject `--cgo`; macOS keeps cgo enabled
+for its system bridge as before.
 
 The release link is measured, not assumed. `go-toml/v2` is used only by the
 `viva` command and `purego` only by the Linux backend, so neither is in a macOS

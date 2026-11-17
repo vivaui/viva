@@ -4,7 +4,7 @@ import test from 'node:test';
 import { site } from './site.ts';
 import { home } from './home.ts';
 import { showcase } from './showcase.ts';
-import { skillNames, skillPath } from './skills.ts';
+import { skillFiles, skillNames, skillPath } from './skills.ts';
 
 const guides = new URL('../../content/guides/', import.meta.url);
 const slugs = (locale: string) => readdirSync(new URL(`${locale}/`, guides)).filter(name => name.endsWith('.md')).map(name => name.slice(0, -3)).sort();
@@ -134,16 +134,20 @@ test('guides link only within their own language', () => {
   }
 });
 
-test('every skill is named like its directory and the coding-agent guide installs it from the path the site serves', () => {
+test('every skill is named like its directory and the coding-agent guide installs every file it ships', () => {
   const names = skillNames();
   assert.ok(names.length >= 1);
   for (const name of names) {
     const text = readFileSync(new URL(`../../../docs/skills/${name}/SKILL.md`, import.meta.url), 'utf8');
     assert.match(text, new RegExp(`^---\\nname: ${name}\\n`), `${name}: front matter name`);
+    const files = skillFiles(name);
+    assert.ok(files.includes('SKILL.md'), `${name}: no SKILL.md`);
     for (const locale of ['zh', 'en']) {
       const guide = read(locale, 'coding-agents');
-      assert.ok(guide.includes(`https://vivaui.dev${skillPath(name)}`), `${locale}: install URL for ${name}`);
-      assert.ok(guide.includes(`.claude/skills/${name}/SKILL.md`), `${locale}: install target for ${name}`);
+      for (const file of files) {
+        assert.ok(guide.includes(`https://vivaui.dev${skillPath(name, file)}`), `${locale}: install URL for ${name}/${file}`);
+        assert.ok(guide.includes(`.claude/skills/${name}/${file}`), `${locale}: install target for ${name}/${file}`);
+      }
     }
   }
 });

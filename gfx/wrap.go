@@ -150,15 +150,36 @@ func (canvas *Canvas) FitLine(line string, size, weight, width float32) string {
 	if canvas.TextWidthWeight(line, size, weight) <= width {
 		return line
 	}
-	return canvas.cutLine(line, lineFont{size: size, weight: weight}, width)
+	return canvas.cutLine(line, lineFont{size: size, weight: weight}, width, false)
 }
 
-// cutLine is ellipsize remembered by the canvas: the same line in the same font
-// at the same width is cut once, so a control that shows it again frame after
-// frame builds no string. Lines longer than fitMemoMaxLine are cut afresh every
-// time, since remembering them would hold a document open on the canvas.
-func (canvas *Canvas) cutLine(line string, font lineFont, width float32) string {
+// FitLineMiddle is line when it fits width at font size size and weight (TextStyle.Weight),
+// else line with an ellipsis where its middle was: both ends stay visible, sharing
+// the room as evenly as whole characters allow, and nothing when width leaves no
+// room. It is FitLine for a row whose end is as telling as its start, such as the
+// path of a file or a candidate that differs from its neighbours only at the end.
+//
+// A cut line is remembered by the canvas exactly as FitLine remembers one.
+func (canvas *Canvas) FitLineMiddle(line string, size, weight, width float32) string {
+	if width <= 0 {
+		return ""
+	}
+	if canvas.TextWidthWeight(line, size, weight) <= width {
+		return line
+	}
+	return canvas.cutLine(line, lineFont{size: size, weight: weight}, width, true)
+}
+
+// cutLine is ellipsize (or ellipsizeMiddle) remembered by the canvas: the same
+// line in the same font at the same width is cut once, so a control that shows
+// it again frame after frame builds no string. Lines longer than fitMemoMaxLine
+// are cut afresh every time, since remembering them would hold a document open
+// on the canvas.
+func (canvas *Canvas) cutLine(line string, font lineFont, width float32, middle bool) string {
 	if len(line) > fitMemoMaxLine {
+		if middle {
+			return canvas.ellipsizeMiddle(line, font, width)
+		}
 		return canvas.ellipsize(line, font, width)
 	}
 	hash := uint32(2166136261)
@@ -169,13 +190,17 @@ func (canvas *Canvas) cutLine(line string, font lineFont, width float32) string 
 	// Hashing the whole word at once sends the same label at distinct widths
 	// to the same slot, making an input and its popup evict each other.
 	// The face and the Mono and Italic flags go in too, so a Mono and a proportional
-	// line of the same text do not evict each other either.
-	style := uint32(font.face) << 2
+	// line of the same text do not evict each other either, and the middle cut has a
+	// flag of its own so an end cut and a middle cut of one line keep apart.
+	style := uint32(font.face) << 3
 	if font.mono {
 		style |= 1
 	}
 	if font.italic {
 		style |= 2
+	}
+	if middle {
+		style |= 4
 	}
 	for _, bits := range [4]uint32{math.Float32bits(width), math.Float32bits(font.size), math.Float32bits(font.weight), style} {
 		for shift := uint(0); shift < 32; shift += 8 {
@@ -187,8 +212,12 @@ func (canvas *Canvas) cutLine(line string, font lineFont, width float32) string 
 	}
 	entry := &canvas.fits[hash&(fitMemoSize-1)]
 	generation := canvas.FontGeneration()
-	if entry.result == "" || entry.font != font || entry.width != width || entry.line != line || entry.generation != generation {
-		*entry = fitEntry{line: line, result: canvas.ellipsize(line, font, width), font: font, width: width, generation: generation}
+	if entry.result == "" || entry.font != font || entry.width != width || entry.line != line || entry.middle != middle || entry.generation != generation {
+		result := canvas.ellipsize(line, font, width)
+		if middle {
+			result = canvas.ellipsizeMiddle(line, font, width)
+		}
+		*entry = fitEntry{line: line, result: result, font: font, width: width, middle: middle, generation: generation}
 	}
 	return entry.result
 }
@@ -198,6 +227,7 @@ type fitEntry struct {
 	line, result string
 	font         lineFont
 	width        float32
+	middle       bool   // result is a middle cut, not an end cut
 	generation   uint32 // the canvas's FontGeneration when result was cut
 }
 
@@ -212,7 +242,7 @@ func (canvas *Canvas) ellipsizeCached(line string, font lineFont, width float32,
 		// control that wraps the same text every frame builds no string. This is
 		// the same memo FitLine uses, and it is what keeps a text field whose
 		// placeholder is wider than the field from allocating on every paint.
-		return canvas.cutLine(line, font, width)
+		return canvas.cutLine(line, font, width, false)
 	}
 	generation := canvas.FontGeneration()
 	if !cache.filled || cache.font != font || cache.width != width || cache.line != line || cache.generation != generation {
@@ -372,6 +402,51 @@ func (canvas *Canvas) ellipsize(line string, font lineFont, width float32) strin
 	return "…"
 }
 
+// ellipsizeMiddle keeps both ends of line and stands an ellipsis where the
+// middle was, shortening it as far as it takes to fit width. The ends share the
+// room as evenly as whole characters allow, the end taking the odd character,
+// and neither is cut inside a character (a base with its marks, an emoji
+// sequence).
+func (canvas *Canvas) ellipsizeMiddle(line string, font lineFont, width float32) string {
+	room := width - canvas.widthIn("…", font)
+	if room <= 0 {
+		return "…"
+	}
+	// The ends keep the largest total that fits, half the room each with the
+	// odd byte going to the end, and bisection measures only the few strings
+	// those cuts need. The whole line does not fit, so it is not offered.
+	end, start := 0, len(line)
+	for lo, hi := 0, len(line)-1; lo <= hi; {
+		kept := (lo + hi) / 2
+		prefixEnd := clusterFloor(line, kept/2)
+		suffixStart := clusterCeil(line, len(line)-(kept-kept/2))
+		if prefixEnd > suffixStart {
+			prefixEnd, suffixStart = suffixStart, prefixEnd
+		}
+		if canvas.widthIn(line[:prefixEnd]+"…"+line[suffixStart:], font) <= width {
+			end, start = prefixEnd, suffixStart
+			lo = kept + 1
+		} else {
+			hi = kept - 1
+		}
+	}
+	// Shaping can make the pieces wider together than apart: check the real
+	// string, and give up a character at a time until it fits.
+	for {
+		if candidate := trimSpaceRight(line[:end]) + "…" + trimSpaceLeft(line[start:]); canvas.widthIn(candidate, font) <= width {
+			return candidate
+		}
+		if end == 0 && start == len(line) {
+			return "…"
+		}
+		if end > 0 {
+			end = prevCluster(line, end)
+		} else {
+			start = nextCluster(line, start)
+		}
+	}
+}
+
 // runeFloor is the largest rune boundary of value at or before i.
 func runeFloor(value string, i int) int {
 	if i >= len(value) {
@@ -391,6 +466,16 @@ func clusterFloor(value string, i int) int {
 	for i > 0 && i < len(value) && !clusterBoundary(value, i) {
 		_, w := utf8.DecodeLastRuneInString(value[:i])
 		i -= w
+	}
+	return i
+}
+
+// clusterCeil is the smallest character boundary of value at or after i.
+func clusterCeil(value string, i int) int {
+	i = runeFloor(value, max(i, 0))
+	for i < len(value) && !clusterBoundary(value, i) {
+		_, w := utf8.DecodeRuneInString(value[i:])
+		i += w
 	}
 	return i
 }

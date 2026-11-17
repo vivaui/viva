@@ -10,8 +10,24 @@ can run its programs.
 | Look up an API | the API reference on that site, generated from the Go source and its comments |
 | Build the framework itself | [../CONTRIBUTING.md](../CONTRIBUTING.md) and [../README.md](../README.md) |
 | Check platform behaviour | [conformance.md](conformance.md) |
-| Have a coding agent build on Viva | [skills/building-with-viva](skills/building-with-viva/SKILL.md), published on the website as the [coding agents guide](../website/content/guides/en/coding-agents.md) and at `/skills/building-with-viva/SKILL.md`: copy or symlink the directory into your project's `.claude/skills` or `.agents/skills` |
+| Have a coding agent build on Viva | [skills/building-with-viva](skills/building-with-viva/SKILL.md): `SKILL.md` is the task router, the rejected rules and the verification loop; `recipes.md` says which finished example to start from. Both are published under `/skills/building-with-viva/`, and the [coding agents guide](../website/content/guides/en/coding-agents.md) installs them into `.claude/skills` or `.agents/skills` |
 | See what was measured | [benchmarks/](benchmarks/) |
+
+## Agent-facing documents
+
+Three files teach an agent to write Viva, and each has one job:
+
+- [skills/building-with-viva/SKILL.md](skills/building-with-viva/SKILL.md) — the briefing an
+  external agent loads: the loop, the rules review rejects, where to find an API, how to verify.
+- [skills/building-with-viva/recipes.md](skills/building-with-viva/recipes.md) — the visual
+  composition catalog, backed by the compiled `examples/recipes`.
+- [../cmd/viva/initfiles/AGENTS.md.txt](../cmd/viva/initfiles/AGENTS.md.txt) — the guide
+  `viva init` writes into every project: the task index, the API reference, the error table and
+  the headless check list. `tools/aieval` measures a model against this file.
+
+Keep them consistent: `cmd/viva/agents_test.go` checks that every `ui.`/`gfx.`/`app.` symbol they
+name exists and that their links resolve, and `ui/guide_test.go` checks that the generated guide
+mentions every exported method and theme field.
 
 ## What is here
 

@@ -205,10 +205,31 @@ func (state *windowState) textKey(first, second uintptr, mods input.Modifiers) b
 	repeat := second&(1<<30) != 0
 	editKey := platform.KeyEvent{Key: normalizedKey(first), Modifiers: mods, Repeat: repeat, Text: shortcutText(first)}
 	if action := platform.TextClipboardAction(editKey); action != 0 {
-		event, changed, err := platform.TextClipboardEvent(state.textInput.ClipboardState(action), state.textInput.Secure, action, ClipboardText, SetClipboardText)
+		window, revision := state.window, state.textRevision
+		input := state.textInput
+		current := func() bool {
+			return state.window == window && state.textEnabled && state.textRevision == revision &&
+				state.textInput.CopyOverride == input.CopyOverride && state.textInput.CopyRectangular == input.CopyRectangular
+		}
+		clipboard := input.ClipboardState(action)
+		if !current() {
+			return true
+		}
+		rectangular := false
+		read := func() (string, error) {
+			value, column, err := ClipboardTextWithFormat()
+			rectangular = column
+			return value, err
+		}
+		write := SetClipboardText
+		if input.CopyRectangular {
+			write = SetClipboardRectangularText
+		}
+		event, changed, err := platform.TextClipboardEvent(clipboard, input.Secure, action, read, write)
 		if err != nil {
 			messageBeep.Call(0) // a busy clipboard must not close the window or delete a selection
-		} else if changed {
+		} else if changed && current() {
+			event.Rectangular = event.Kind == platform.TextPaste && action == 'v' && rectangular
 			state.handleTextEvent(event)
 		}
 		return true

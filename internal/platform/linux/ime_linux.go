@@ -182,12 +182,23 @@ func (ime *linuxIME) sync() {
 		ime.active = false
 		if ime.engineComposing || ime.phase != nil && ime.phase.session {
 			if err := ime.reset(); err != nil {
+				if ime.context != context || ime.epoch != epoch || !ime.sameOwner() {
+					return
+				}
 				// A reset the engine cannot describe is not an application
 				// failure: some engines keep sending legacy modes or an
 				// unknown one, and refusing to guess is deliberate. Retire
 				// this native session, keep the text the field already
 				// shows, and let sync open a fresh context next frame.
+				keep := ime.phase != nil && ime.phase.session
+				// Retire before settling: the settlement is delivered through
+				// the router, and a reentrant sync must not find the session it
+				// just retired still current.
 				ime.retire()
+				if keep {
+					ime.apply(platform.TextEvent{Kind: platform.TextUnmark, CompositionPhase: text.CompositionCommit})
+				}
+				ime.app.checkInputMethod()
 				return
 			}
 		}

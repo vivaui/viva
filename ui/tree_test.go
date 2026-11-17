@@ -2,6 +2,8 @@ package ui_test
 
 import (
 	"fmt"
+	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +101,23 @@ func (m *treeModel) page(c ui.C) {
 			m.opened = m.name(i)
 		}
 	})
+}
+
+// A Tree names its rows by ListState.Key as a List does, so a key past 2^31-1
+// panics there too rather than give the rows one identity.
+func TestTreeKeyPastTheItemNumbersPanics(t *testing.T) {
+	m := newTreeModel([]folder{{name: "etc", open: true, files: []string{"hosts", "passwd"}}})
+	m.state.Key = func(i int) int { return math.MaxInt32 + 1 + i }
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			t.Fatal("a Tree whose rows are keyed past 2^31-1 did not panic")
+		}
+		if message := fmt.Sprint(recovered); !strings.Contains(message, "outside 0 to 2^31-1") {
+			t.Fatalf("a Tree keyed past 2^31-1 panicked with %q, want the key range named", message)
+		}
+	}()
+	drawPage(ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas(), m.page)
 }
 
 // The chevron opens and closes a branch; the arrows move, open and close; Enter

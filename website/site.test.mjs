@@ -266,6 +266,13 @@ const structuredData = html => {
   return JSON.parse(block)['@graph'];
 };
 
+test('the raw skill files are served so the install command can fetch them', () => {
+  for (const file of ['SKILL.md', 'recipes.md']) {
+    const body = readFileSync(new URL(`skills/building-with-viva/${file}`, output), 'utf8');
+    assert.ok(body.length > 100, `${file} is empty`);
+  }
+});
+
 test('structured data names the product on the home page and each guide', () => {
   for (const locale of ['zh', 'en']) {
     const home = structuredData(readPage(`${locale}/`));
@@ -352,6 +359,8 @@ test('the crawler files describe the site that was built', () => {
   for (const slug of guideSlugs) assert.ok(llms.includes(`https://vivaui.dev/en/docs/${slug}/`), `llms.txt lacks ${slug}`);
   assert.ok(llms.includes('https://vivaui.dev/en/components/') && llms.includes('https://vivaui.dev/en/api/'), 'llms.txt lacks the reference indexes');
   assert.ok(llms.includes('https://vivaui.dev/en/showcase/'), 'llms.txt lacks the showcase');
+  assert.ok(llms.includes('https://vivaui.dev/skills/building-with-viva/SKILL.md'), 'llms.txt lacks the agent skill');
+  assert.ok(llms.includes('https://vivaui.dev/skills/building-with-viva/recipes.md'), 'llms.txt lacks the recipe cheat sheet');
   assert.ok(!llms.includes('/en/ui/button/'), 'llms.txt lists every component page instead of the catalog');
 
   const headers = readFileSync(new URL('_headers', output), 'utf8');

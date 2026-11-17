@@ -34,7 +34,7 @@ viva dev .        # hot reload: save a file, the window updates and keeps its st
 
 环境要求：Go 1.26 或更新版本（缺失时 viva 会自己下载）。macOS 上需要 Xcode 命令行工具，因为 Viva 通过 cgo 访问 Cocoa 和 Metal；Linux 上需要带系统 XCB 和 Vulkan 加载库的 X11；Windows 上需要 Win32、Direct3D 11 和 DirectWrite。Viva 在运行时加载系统库，自身不捆绑任何一个。
 
-当前版本是 `v0.6.4`；要固定版本就写明（`@v0.6.4`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
+当前版本是 `v0.6.5`；要固定版本就写明（`@v0.6.5`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
 
 下面的一切描述的都是这个仓库：它的测量、它自己的程序，以及如何开发框架本身，而不是如何用框架。
 
@@ -132,6 +132,8 @@ go run ./cmd/viva help package     # 每个命令和参数
 ```
 
 `viva.toml` 严格解码：未知的表或键、重复项、类型错误的值都是错误，并会指出行号。macOS 程序按 `min_system` 编译，而不是按构建机器的 macOS 版本；`package` 会拒绝声称支持的系统比其程序所需更旧的包。签名与公证通过 `--sign-identity` 或 `APPLE_SIGNING_IDENTITY` 加 notarytool 凭据显式开启；`--no-sign` 把它们全部关闭。`--arch amd64` 从任一宿主构建另一种 Darwin 架构：构建保留 cgo 和 Objective-C/Metal 桥，让 clang 产出另一份 Mach-O 切片。每个目标、安装器格式和参数见[构建与打包指南](https://vivaui.dev/zh/docs/build-and-package/)。
+
+Linux 和 Windows 构建默认关闭 cgo。需要链接自己的 C 或 Rust 库的应用可以使用 `viva build --cgo` 或 `viva package --cgo`，并提供目标 C 编译器与 `CGO_CFLAGS`/`CGO_LDFLAGS`。这些程序必须针对它支持的系统库和最低操作系统版本验证；这个显式开关不提供交叉编译器，也不让原生依赖变得可移植。浏览器构建拒绝 `--cgo`；macOS 仍像以前一样为其系统桥保持 cgo 开启。
 
 发布链接是测出来的，不是假设的。`go-toml/v2` 只被 `viva` 命令使用，`purego` 只被 Linux 后端使用，所以两者都不在 macOS 或 Windows 程序里。开发期热重载协议、单实例套接字、PNG 图标解码和 Go 测试运行时都留在发布程序之外（热重载、单实例和 PNG 是可选包；测试运行时则完全不存在），泄漏计数器保留，因为它们每个窗口或驱动只花两个原子量。
 

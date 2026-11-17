@@ -8,6 +8,10 @@ func driverClipboardText() (string, error, bool) { return "", nil, false }
 
 func driverSetClipboardText(string) (error, bool) { return nil, false }
 
+func driverSetRectangularClipboardText(string) (error, bool) { return nil, false }
+
+func driverClipboardTextWithFormat() (string, bool, error, bool) { return "", false, nil, false }
+
 func driverSetPrimarySelection(string) (error, bool) { return nil, false }
 
 func driverPrimarySelection() (string, error, bool) { return "", nil, false }

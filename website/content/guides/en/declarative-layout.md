@@ -59,7 +59,7 @@ ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
 
 `ui.Choice` and `ui.Tabs` are one tab stop each: Left and Right (Up and Down for vertical tabs) move to the next enabled option, wrapping, and choose it; Home and End go to the first and last.
 
-A click flips `m.sync` in the paint that delivers it, the first time the control is asked (`Clicked`, `Changed`) or else when the page ends, so reading `m.sync` before that sees the value from before the click and a `Disabled` written after the control still holds. `Choice`, `Tabs` and `Select` take a value of any comparable type and write it as they are declared: disable them with an `if`, not a `Disabled` after them. `TextField` needs no `Config.TextInput`: the page's `Config` gives the platform the editor of each field it declared, and passes any other focused field to the provider the configuration already had. `Popover` and `Modal` open while a `*bool` is true and set it to false when dismissed (see [Dialogs, menus and popups](/en/docs/overlays/)). `Box.NativeView` gives a page of the system's web engine the room of an element.
+A click flips `m.sync` in the paint that delivers it, the first time the control is asked (`Clicked`, `Changed`) or else when the page ends, so reading `m.sync` before that sees the value from before the click and a `Disabled` written after the control still holds. `Choice`, `Tabs` and `Select` take a value of any comparable type and write it as they are declared: disable them with an `if`, not a `Disabled` after them. `Tabs` and `Select` also honor a chained `Disabled` for input, `Choice` does not; the `if` is the reliable form. `TextField` needs no `Config.TextInput`: the page's `Config` gives the platform the editor of each field it declared, and passes any other focused field to the provider the configuration already had. `Popover` and `Modal` open while a `*bool` is true and set it to false when dismissed (see [Dialogs, menus and popups](/en/docs/overlays/)). `Box.NativeView` gives a page of the system's web engine the room of an element.
 
 An element is named by where it is: its kind and its number among the elements of that kind in its container. Three things refine that:
 
@@ -67,7 +67,51 @@ An element is named by where it is: its kind and its number among the elements o
 - Inside `c.Key(item.ID)` or `c.KeyInt(id)`, elements are numbered within that row, so a row's buttons follow it when rows come, go or move. Keys are reused two paints after their row is gone. A loop whose rows hold a `Button` keys its rows; `viva vet` reports one that does not.
 - While the user holds a button (presses it, or it has the focus), a paint in which another button took its place does not deliver the press, and the focus is given up.
 
-`ui.TextArea(c, &m.notes, label, placeholder)` is a field of several rows. A control of your own (a terminal, an editor, a canvas the user draws on) is `ui.Control(c, label, &m.handlers)`: an empty, focusable element you paint with `Draw`, whose `Handlers` receive its keys, presses, wheel and, for `RoleTextField` or `RoleTerminal`, the platform's typing and input methods through `Text`; no identity is declared and the window dispatches nothing. A control with several interactive parts (the stars of a rating, the nodes of a graph) declares them as it draws, with `Handlers.Parts().At(i)` as their identities: a key, a press or the wheel on a part reaches the same `Handlers` with the part as the event's `Target`, and a printable key typed while the control has the focus reaches `Key` with its `Text`. `.FocusGroup(ui.FocusHorizontal)` on a row or column makes the controls inside one Tab stop with the arrow keys between them, as a toolbar's are; `.FocusOrder` gives a custom grid the row and column order it needs. The controls without their look are `ui.ButtonBase`, `CheckboxBase`, `SwitchBase`, `ToggleBase`, `RadioBase`, `TabBase`, `SliderBase`, `SelectBase` and `TextFieldBase`: bound and keyed like their dressed forms, for a design of your own. `ui.TextField(...).AutoFocus()` takes the focus as the field appears (once: the user's choice stays), and `.Submitted()` is true in the paint that delivers Enter in it; `.Secure()` makes it a password field. `.Tooltip("Delete")` gives a control the tip shown while the pointer rests on it, which is also its description. `ui.Menu(c, anchor, &m.menu, func(menu *ui.MenuItems) { ... })` is shadcn's dropdown menu of actions: `menu.Item("Rename").Clicked()` reads one as a button is read, the arrows move between items, typing a letter goes to the item it begins, and choosing one closes the menu. `menu.Sub("Move to", func(to *ui.MenuItems) { ... })` is an item with a submenu beside it, which opens as the pointer rests on the item, on a click, or on Right, Enter or Space with its first item focused; Left goes back, Escape closes every menu, and choosing in it closes them all. `menu.Item("Model").Description("What answers")` adds a second line under an item, `menu.WidthRange(140, 320)` bounds the menu's width, `menu.Above()` opens it over the anchor, for a trigger along the bottom of a panel, and `menu.Beside()` to its right, for a row of a list or popup whose menu should leave the rows under it in sight. `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` takes Select's arguments and a label, and filters the choices as the user types into it, with the platform's input methods. `.Clearable()` gives it a button that clears the choice, `.Empty("No zone matches")` is what its list says when nothing matches, and `.Creatable("")` offers what was typed as a new choice ("Create dev"), which `.Created()` reports for the application to add. A Button takes an icon before its label with `.Icon(plus)`, or alone with `.IconOnly()`. `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` opens the same items at the pointer on a secondary press of `row`, or under it on Shift+F10; items take an `.Icon`, the keycaps of a shortcut with `.Keys(ui.Primary, "c")` (shown only: the shortcut is a `Shortcut` where its action is), and `.Checked` or `.Chosen` to be a checkbox or a radio item. A search field is a TextField with `.Icon(search)` before its text and `.Action(cross, "Clear")`, a small button at its end that `.ActionClicked()` reads. `ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` slides a panel in from an edge, as shadcn's Sheet: with an empty title the body has the whole panel, and `NonModal` leaves the keyboard on the page behind it; `Swipe` adds a handle at its inner edge, and a drag on it moves the panel toward its edge, closing it when dragged past half its size or thrown, sliding it back otherwise. `ui.Tree(c, &m.tree, n, label, content)` is a List of the visible rows of the application's tree, with `TreeState.Node` describing each (its depth, whether it is a branch and open); the arrows move, open and close, and the tree reports `Toggled()` and `Chosen()` for the application to act on. Typing the start of a row's name moves to it. With `TreeState.CanDrop` set, rows can be dragged onto one another (before, into or after a row, as `CanDrop` allows), and `Dropped()` reports the drop; move the rows in `c.After`, since the paint reporting it is still declaring them. `state.RowID(i)` is the identity of visible row i (`DisclosureID(i)` its chevron's, and `ListState` has `RowID` too), for giving a row the focus or finding its hit. Any other box can drag and drop with a `ui.DragState` kept in the model: `ui.Row(c).Hit(ui.ID(c), "Group").DragSource(&m.drag)` makes a box a source, and `.DropTarget(&m.drag, m.accepts, m.drops)` makes one a target. The page follows the press, the short distance that makes it a drag, and the target under the pointer; `m.drag.Dragging()`, `Source()`, `Target()` and `At()` paint the gesture, `accept(source, target)` decides, `drop(source, target)` runs on release, and Escape lets go. A press that does not move is still a click. Inside a `ui.Control`'s `Draw`, a card of a custom grid is declared as a part with `d.Canvas.Hit(part, r)` and becomes a source and target of the same state with `d.DragSource(&m.drag, part, r)` and `d.DropTarget(&m.drag, part, r, accept, drop)`, so one control carries many draggable parts with stable identities; a target part needs no Hit. Keep the callbacks in the model and declare the boxes every paint, not in a `Memo`. Toasts are a `ui.Toaster` kept in the model: `m.toaster.Show("Saved", "", ui.ToastSuccess)` puts one up, and `ui.Toasts(c, &m.toaster)`, declared once and last, paints them and takes each down after five seconds, asking for one frame when the next is due and none while nothing is up. `ShowAction(title, description, kind, "Undo")` gives one a button, whose press `m.toaster.Acted()` reports after `Toasts` and which takes the toast down; a `ui.ToastLoading` toast spins and stays until `m.toaster.Done(id, "Uploaded", "", ui.ToastSuccess)` replaces it; `Toaster.Position` puts the stack in another corner or centered (`ui.ToastTopCenter`). A keyboard shortcut is declared where it acts, as a click is read: `if ui.Shortcut(c, ui.Primary, "s") { m.save() }` is the page's (Primary is Command on macOS, Control elsewhere), and `list.Shortcut(0, "delete")` on a container or control acts only while the focus is in it, the innermost of nested ones winning. A chord without Primary, Ctrl or Alt is left to a field or terminal being typed in, and while a Popover, Modal, Menu, or Select or Combobox list is open the page's own shortcuts wait. `ui.List(c, &state, n, row)` declares only the rows on screen of a list of `n`, each as tall as its content, and scrolls it; `row` gets a `ui.ListRow` whose `Element` is the row's container to style and whose `C` declares what is in it, and `ListState.Key` names rows by an item's ID. A click chooses a row and the arrows, Home, End and Page Up and Down move between them, with the choice in `state.Selected()` and `state.Changed()` reporting that the user made one; Enter or a double click is `state.Submitted()`; `ListState.Label` makes typing the start of a row's text move to it. Set `ListState.Selection` to a `ui.Selection` to let the user choose several (Primary-click adds or removes a row, Shift extends, Primary+A chooses all). `ScrollTo`, `ScrollIntoView`, `ScrollToEnd`, `Visible` and `AtEnd` move and read the scroll position, and `box.ClickModifiers()` and `box.DoubleClicked()` say how a click on any element came. A row's `Element` is a Row, so an icon, a name and a size lie side by side. `ListState.Header` marks rows that head a section: the heading of the section at the top stays there while its rows scroll under it, until the next one pushes it away (give it a background; headings are not chosen, focused or typed to, and the keys pass over them). `ListState.Reorder` lets the user drag rows to another place, the chosen ones when the row dragged is one of them, and calls it with the rows and the row they go before; the list shows where they would go and scrolls near its edges, and Escape lets go. `ListState.RowWidth` makes the rows at least that wide: where they are wider than the list it scrolls sideways too (the horizontal wheel, or the wheel with Shift), and where they are not they grow to its width, as the columns of a table do; a header above the list follows the rows with `box.ScrollWith(&state)` on its content: give it the rows' width, and put it in a container of the header's height that clips. `ui.State[T](c, "open")` is an element's own small state (whether its menu is open), found by its name in its container and kept while the container is declared. `ui.Memo(c, *row, fn)` copies the part `fn` declares from the last paint while that value compares equal, declaring it again when it is hovered, focused, animated or resized; see Cost below.
+
+
+### Text fields and custom controls
+
+`ui.TextArea(c, &m.notes, label, placeholder)` is a field of several rows. A control of your own (a terminal, an editor, a canvas the user draws on) is `ui.Control(c, label, &m.handlers)`: an empty, focusable element you paint with `Draw`, whose `Handlers` receive its keys, presses, wheel and, for `gfx.RoleTextField` or `gfx.RoleTerminal`, the platform's typing and input methods through `Text`; no identity is declared and the window dispatches nothing. A control with several interactive parts (the stars of a rating, the nodes of a graph) declares them as it draws, with `Handlers.Parts().At(i)` as their identities: a key, a press or the wheel on a part reaches the same `Handlers` with the part as the event's `Target`, and a printable key typed while the control has the focus reaches `Key` with its `Text`.
+
+### Focus groups and control bases
+
+`.FocusGroup(ui.FocusHorizontal)` on a row or column makes the controls inside one Tab stop with the arrow keys between them, as a toolbar's are; `.FocusOrder` gives a custom grid the row and column order it needs. The controls without their look are `ui.ButtonBase`, `CheckboxBase`, `SwitchBase`, `ToggleBase`, `RadioBase`, `TabBase`, `SliderBase`, `SelectBase` and `TextFieldBase`: bound and keyed like their dressed forms, for a design of your own.
+
+### Field focus and tooltips
+
+`ui.TextField(...).AutoFocus()` takes the focus as the field appears (once: the user's choice stays), and `.Submitted()` is true in the paint that delivers Enter in it; `.Secure()` makes it a password field. `.Tooltip("Delete")` gives a control the tip shown while the pointer rests on it, which is also its description.
+
+### Menus, search fields and context menus
+
+`ui.Menu(c, anchor, &m.menu, func(menu *ui.MenuItems) { ... })` is shadcn's dropdown menu of actions: `menu.Item("Rename").Clicked()` reads one as a button is read, the arrows move between items, typing a letter goes to the item it begins, and choosing one closes the menu. `menu.Sub("Move to", func(to *ui.MenuItems) { ... })` is an item with a submenu beside it, which opens as the pointer rests on the item, on a click, or on Right, Enter or Space with its first item focused; Left goes back, Escape closes every menu, and choosing in it closes them all. `menu.Item("Model").Description("What answers")` adds a second line under an item, `menu.WidthRange(140, 320)` bounds the menu's width, `menu.Above()` opens it over the anchor, for a trigger along the bottom of a panel, and `menu.Beside()` to its right, for a row of a list or popup whose menu should leave the rows under it in sight. `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` takes Select's arguments and a label, and filters the choices as the user types into it, with the platform's input methods. `.Clearable()` gives it a button that clears the choice, `.Empty("No zone matches")` is what its list says when nothing matches, and `.Creatable("")` offers what was typed as a new choice ("Create dev"), which `.Created()` reports for the application to add. A Button takes an icon before its label with `.Icon(plus)`, or alone with `.IconOnly()`. `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` opens the same items at the pointer on a secondary press of `row`, or under it on Shift+F10; items take an `.Icon`, the keycaps of a shortcut with `.Keys(ui.Primary, "c")` (shown only: the shortcut is a `Shortcut` where its action is), and `.Checked` or `.Chosen` to be a checkbox or a radio item. A search field is a TextField with `.Icon(search)` before its text and `.Action(cross, "Clear")`, a small button at its end that `.ActionClicked()` reads.
+
+### Drawers
+
+`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` slides a panel in from an edge, as shadcn's Sheet: with an empty title the body has the whole panel, and `NonModal` leaves the keyboard on the page behind it; `Swipe` adds a handle at its inner edge, and a drag on it moves the panel toward its edge, closing it when dragged past half its size or thrown, sliding it back otherwise.
+
+### Trees
+
+`ui.Tree(c, &m.tree, n, label, content)` is a List of the visible rows of the application's tree, with `TreeState.Node` describing each (its depth, whether it is a branch and open); the arrows move, open and close, and the tree reports `Toggled()` and `Chosen()` for the application to act on. Typing the start of a row's name moves to it. With `TreeState.CanDrop` set, rows can be dragged onto one another (before, into or after a row, as `CanDrop` allows), and `Dropped()` reports the drop; move the rows in `c.After`, since the paint reporting it is still declaring them. `state.RowID(i)` is the identity of visible row i (`DisclosureID(i)` its chevron's, and `ListState` has `RowID` too), for giving a row the focus or finding its hit.
+
+### Drag and drop
+
+Any other box can drag and drop with a `ui.DragState` kept in the model: `ui.Row(c).Hit(ui.ID(c), "Group").DragSource(&m.drag)` makes a box a source, and `.DropTarget(&m.drag, m.accepts, m.drops)` makes one a target. The page follows the press, the short distance that makes it a drag, and the target under the pointer; `m.drag.Dragging()`, `Source()`, `Target()` and `At()` paint the gesture, `accept(source, target)` decides, `drop(source, target)` runs on release, and Escape lets go. A press that does not move is still a click. Inside a `ui.Control`'s `Draw`, a card of a custom grid is declared as a part with `d.Canvas.Hit(part, r)` and becomes a source and target of the same state with `d.DragSource(&m.drag, part, r)` and `d.DropTarget(&m.drag, part, r, accept, drop)`, so one control carries many draggable parts with stable identities; a target part needs no Hit. Keep the callbacks in the model and declare the boxes every paint, not in a `Memo`.
+
+### Toasts
+
+Toasts are a `ui.Toaster` kept in the model: `m.toaster.Show("Saved", "", ui.ToastSuccess)` puts one up, and `ui.Toasts(c, &m.toaster)`, declared once and last, paints them and takes each down after five seconds, asking for one frame when the next is due and none while nothing is up. `ShowAction(title, description, kind, "Undo")` gives one a button, whose press `m.toaster.Acted()` reports after `Toasts` and which takes the toast down; a `ui.ToastLoading` toast spins and stays until `m.toaster.Done(id, "Uploaded", "", ui.ToastSuccess)` replaces it; `Toaster.Position` puts the stack in another corner or centered (`ui.ToastTopCenter`).
+
+### Shortcuts
+
+A keyboard shortcut is declared where it acts, as a click is read: `if ui.Shortcut(c, ui.Primary, "s") { m.save() }` is the page's (Primary is Command on macOS, Control elsewhere), and `list.Shortcut(0, "delete")` on a container or control acts only while the focus is in it, the innermost of nested ones winning. A chord without Primary, Ctrl or Alt is left to a field or terminal being typed in, and while a Popover, Modal, Menu, or Select or Combobox list is open the page's own shortcuts wait.
+
+### Lists
+
+`ui.List(c, &state, n, row)` declares only the rows on screen of a list of `n`, each as tall as its content, and scrolls it; `row` gets a `ui.ListRow` whose `Element` is the row's container to style and whose `C` declares what is in it, and `ListState.Key` names rows by an item's ID. A click chooses a row and the arrows, Home, End and Page Up and Down move between them, with the choice in `state.Selected()` and `state.Changed()` reporting that the user made one; Enter or a double click is `state.Submitted()`; `ListState.Label` makes typing the start of a row's text move to it. Set `ListState.Selection` to a `ui.Selection` to let the user choose several (Primary-click adds or removes a row, Shift extends, Primary+A chooses all). `ScrollTo`, `ScrollIntoView`, `ScrollToEnd`, `Visible` and `AtEnd` move and read the scroll position, and `box.ClickModifiers()` and `box.DoubleClicked()` say how a click on any element came. A row's `Element` is a Row, so an icon, a name and a size lie side by side. `ListState.Header` marks rows that head a section: the heading of the section at the top stays there while its rows scroll under it, until the next one pushes it away (give it a background; headings are not chosen, focused or typed to, and the keys pass over them). `ListState.Reorder` lets the user drag rows to another place, the chosen ones when the row dragged is one of them, and calls it with the rows and the row they go before; the list shows where they would go and scrolls near its edges, and Escape lets go. `ListState.RowWidth` makes the rows at least that wide: where they are wider than the list it scrolls sideways too (the horizontal wheel, or the wheel with Shift), and where they are not they grow to its width, as the columns of a table do; a header above the list follows the rows with `box.ScrollWith(&state)` on its content: give it the rows' width, and put it in a container of the header's height that clips.
+
+### Element state and memoization
+
+`ui.State[T](c, "open")` is an element's own small state (whether its menu is open), found by its name in its container and kept while the container is declared. `ui.Memo(c, *row, fn)` copies the part `fn` declares from the last paint while that value compares equal, declaring it again when it is hovered, focused, animated or resized; see Cost below.
 
 A settings struct can have its form written for it. Tag the fields and run `viva form` (from `//go:generate go tool viva form`): it writes `viva_form.go` with `func (v *Settings) Form(c ui.C) ui.Box`, plain page code with no reflection:
 
@@ -255,19 +299,86 @@ ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: sidebar}).Childre
 })
 ```
 
-## Mixing with hand-placed painting
+## Tables
 
-`ui.Slot(c)` reserves a rectangle for something you paint yourself, and `Box.Rect()` says where it ended up; paint it with a `Draw` callback or a `ui.Control` when it needs input. Use the page's canvas (`c.Canvas()`) and its rectangles when you need to paint below the page's declarations.
+`ui.Table` is a virtualized table: it reads only the visible rows from a `ui.TableSource` (or a `ui.TableRows`, a `[][]string`), keeps a fixed header while its body scrolls, and reports what the user did. The data and its order stay in the application: the table paints the sort arrow, and the application sorts the source after `HeaderClicked`.
 
-## Cost
+<!-- example: table/main.go -->
+```go
+// A table of servers: a fixed header, sortable columns, one selected row and a
+// body that scrolls under the header when the window is short.
+package main
 
-Declaring, measuring, arranging and painting a page of about sixty elements takes about 8 microseconds and allocates nothing once the page has seen its largest page. Keep one `ui.Page` per window, in your state; the zero value of that page's config is ready. The function you give `Children` is called at once and never stored, so it costs nothing either.
+import (
+	"log"
+	"sort"
 
-A single-line `Text` is not wrapped: a line that does not fit is clipped, and it shrinks before a fixed-size sibling does. Use `Paragraph` for text that should wrap.
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/ui"
+)
 
-## Starting a project
+type model struct {
+	table ui.TableState
+	rows  ui.TableRows
+}
 
-`viva init my-app` writes a runnable project: a window laid out with `ui`, a test that drives it without a window, `viva.toml`, and `AGENTS.md`, a one-page guide to layout, identities, clicks and tests that a coding assistant reads before it changes the UI. `viva dev .` then runs it with hot reload.
+func newModel() *model {
+	return &model{rows: ui.TableRows{
+		{"web-01", "Running", "eu-west"},
+		{"web-02", "Running", "us-east"},
+		{"db-primary", "Degraded", "eu-west"},
+		{"cache", "Stopped", "us-east"},
+	}}
+}
+
+// page declares the table. A header click sorts the rows and a row click
+// selects it; the table keeps the selection and the scroll position itself.
+func (m *model) page(c ui.C) {
+	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+		ui.Text(c, "Servers").FontSize(20).Bold()
+		table := ui.Table(c, &m.table, ui.TableSpec{
+			Headers:  []string{"Name", "State", "Region"},
+			Sortable: []bool{true, true, true},
+			Source:   &m.rows,
+			Striped:  true,
+			Columns:  []components.TableColumn{{Width: 200}, {Width: 120}, {}},
+		})
+		if row, ok := table.RowClicked(); ok {
+			m.table.Select(row)
+		}
+		if column, ok := table.HeaderClicked(); ok {
+			m.table.SortBy(column)
+			m.sortRows()
+		}
+		if row := m.table.Selected(); row >= 0 {
+			ui.Text(c, "Selected: "+m.rows[row][0]).Muted()
+		}
+	})
+}
+
+// sortRows orders the rows by the column the table reports as sorted. The table
+// paints the arrow; the application owns the data and its order.
+func (m *model) sortRows() {
+	column, descending, ok := m.table.Sort()
+	if !ok {
+		return
+	}
+	sort.SliceStable(m.rows, func(i, j int) bool {
+		less := m.rows[i][column] < m.rows[j][column]
+		if descending {
+			return !less
+		}
+		return less
+	})
+}
+
+func main() {
+	if err := ui.Run(app.Config{Title: "Servers", Width: 720, Height: 480}, newModel().page); err != nil {
+		log.Fatal(err)
+	}
+}
+```
 
 <!-- example: layout/main.go -->
 ```go

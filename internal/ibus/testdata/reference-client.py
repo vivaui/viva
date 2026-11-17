@@ -44,6 +44,7 @@ if "--keycodes" in sys.argv:
     sys.exit(0)
 
 IBus.init()
+print("reference GI version", gi.__version__, flush=True)
 bus = IBus.Bus()
 print("reference connected", bus.is_connected(), flush=True)
 context = bus.create_input_context("viva-reference-probe")
@@ -70,8 +71,17 @@ while True:
         main.iteration(False)
     time.sleep(0.005)
 print("reference engine", engine.get_name(), flush=True)
-context.connect("update-preedit-text", lambda ctx, text, cursor, visible: print("reference preedit", text.get_text(), cursor, visible, flush=True))
-context.connect("commit-text", lambda ctx, text: print("reference commit", text.get_text(), flush=True))
+signal_texts = []
+
+
+def native_text(value):
+    # libibus still checks the floating object after signal callbacks return.
+    signal_texts.append(value)
+    return value.get_text()
+
+
+context.connect("update-preedit-text", lambda ctx, text, cursor, visible: print("reference preedit", native_text(text), cursor, visible, flush=True))
+context.connect("commit-text", lambda ctx, text: print("reference commit", native_text(text), flush=True))
 if requested == "hangul":
     print("reference Hangul mode", context.process_key_event(0xff31, keycodes[0xff31], 0), flush=True)
 for key in ("rksk " if requested == "hangul" else "nihao "):
@@ -85,3 +95,4 @@ while time.monotonic() < until:
         main.iteration(False)
     time.sleep(0.001)
 context.destroy()
+signal_texts.clear()

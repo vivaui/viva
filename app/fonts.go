@@ -31,12 +31,14 @@ func MonospaceFamilies() []string { return nativeMonospaceFamilies() }
 // The list is what the system reports, symbol and icon families included
 // (Wingdings, Apple Symbols): no platform marks them in a way all three agree
 // on, so a picker that wants only families fit for reading prose chooses which
-// to leave out. On Windows a family whose name fills the 31 characters GDI
-// reports (the system cuts a longer one) is left out, since the cut name would
-// name no family. The list is read from the system on every call and can take
-// tens of milliseconds, so it is for a settings page, not for painting. It is
-// empty where the platform cannot enumerate fonts (a browser, an unsupported
-// target).
+// to leave out. Every name is one the platform's own text engine resolves: on
+// Windows the families come from DirectWrite, not from GDI's typeface names,
+// which name a family's styles ("Maple Mono Light") and draw in the fallback
+// font when a text format is made from them. A style of a family is chosen by
+// the family's name and the weight the text is drawn at, not by a name of its
+// own. The list is read from the system on every call and can take tens of
+// milliseconds, so it is for a settings page, not for painting. It is empty
+// where the platform cannot enumerate fonts (a browser, an unsupported target).
 func FontFamilies() []string { return nativeFontFamilies() }
 
 // RegisterFont makes the TrueType or OpenType font in data (a .ttf, .otf or .ttc, as an
@@ -69,12 +71,15 @@ const maxInterfaceFamilyName = 96
 // SetInterfaceFontFamily names the family the proportional text that Viva draws
 // itself is shaped in — labels, text fields, the menus, popups and dialogs of the
 // application's own windows, everything but the terminal's monospace face — or
-// "" for the platform's own interface font. Text the operating system draws
-// (native menus, status-item menus, file dialogs, alerts) keeps the system font.
-// A name that is too long (96 bytes) or holds a control character is taken as "".
-// It reports false where the platform's engine cannot follow a family (an
-// unsupported target); the call has no effect there, and FontFamilies is empty
-// too. The Web target follows the family through its document text engine.
+// "" for the platform's own interface font, and draws it at the platform's own
+// weights. SetInterfaceFont also chooses those weights.
+//
+// Text the operating system draws (native menus, status-item menus, file dialogs,
+// alerts) keeps the system font. A name that is too long (96 bytes) or holds a
+// control character is taken as "". It reports false where the platform's engine
+// cannot follow a family (an unsupported target); the call has no effect there,
+// and FontFamilies is empty too. The Web target follows the family through its
+// document text engine.
 //
 // The change applies to everything shaped afterwards; what was shaped before is
 // forgotten, and the next paint of a window lays out and draws its text in the
@@ -83,11 +88,7 @@ const maxInterfaceFamilyName = 96
 // process's: every window follows it. A name the system has no family for is
 // drawn in the system font.
 func SetInterfaceFontFamily(family string) bool {
-	if aware, ok := PlatformTextEngine().(gfx.FontFamilyAware); ok {
-		aware.SetFontFamily(interfaceFamilyName(family))
-		return true
-	}
-	return false
+	return SetInterfaceFont(family, 0, 0)
 }
 
 // SetFontThickening draws the text Viva itself rasterizes — labels, text fields, the terminal

@@ -408,6 +408,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	application.live = append(application.live, win)
 	application.liveMu.Unlock()
 	application.rebuildPoll()
+	application.wakePosts()
 	application.atspiOpened(state)
 	application.retryDesktopWatch()
 	activeWindow.Store(win)
@@ -712,6 +713,20 @@ func (application *linuxApplication) contains(target *linuxWindowState) bool {
 	return false
 }
 
+// removeLive takes a closing window out of the live set. Work posted to that
+// window may not have been drained, so the wake is re-armed for the rest.
+func (application *linuxApplication) removeLive(win *window) {
+	application.liveMu.Lock()
+	for at, live := range application.live {
+		if live == win {
+			application.live = append(application.live[:at], application.live[at+1:]...)
+			break
+		}
+	}
+	application.liveMu.Unlock()
+	application.rearmPosts()
+}
+
 func (application *linuxApplication) closeWindow(target *linuxWindowState) {
 	index := -1
 	for candidate, state := range application.windows {
@@ -726,14 +741,7 @@ func (application *linuxApplication) closeWindow(target *linuxWindowState) {
 	copy(application.windows[index:], application.windows[index+1:])
 	application.windows[len(application.windows)-1] = nil
 	application.windows = application.windows[:len(application.windows)-1]
-	application.liveMu.Lock()
-	for at, live := range application.live {
-		if live == target.win {
-			application.live = append(application.live[:at], application.live[at+1:]...)
-			break
-		}
-	}
-	application.liveMu.Unlock()
+	application.removeLive(target.win)
 	if target.config.Waker != nil && target.config.OnRedraw != nil {
 		target.config.Waker.Unbind()
 	}
@@ -1135,6 +1143,9 @@ func (state *linuxWindowState) resized() error {
 	if config.OnResize != nil {
 		frame, err := config.OnResize(win.logicalSize())
 		if err == nil {
+			if frame.Accessibility != nil {
+				state.application.atspiFrame(state, frame.Accessibility)
+			}
 			var merged platform.Frame
 			var dirty bool
 			merged, dirty, err = state.text.prepare(frame)

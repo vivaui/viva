@@ -15,10 +15,12 @@ expected = "GdkWaylandDisplay" if os.environ["VIVA_FCITX_BACKEND"] == "wayland" 
 if backend != expected:
     raise RuntimeError(f"native backend {backend}, expected {expected}")
 print("reference backend", backend, flush=True)
+print("reference GI version", gi.__version__, flush=True)
 codes = {int(key): value for key, value in json.loads(os.environ["VIVA_IBUS_KEYCODES"]).items()}
 IBus.init()
 main = GLib.MainContext.default()
 requested = os.environ.get("VIVA_FCITX_ENGINE", "pinyin")
+signal_texts = []
 
 
 def drain(duration=0.05):
@@ -29,19 +31,11 @@ def drain(duration=0.05):
         time.sleep(0.001)
 
 
-def record_signal(connection, sender, path, interface, signal, parameters, events):
-    labels = {
-        "UpdatePreeditText": "update",
-        "UpdatePreeditTextWithMode": "mode",
-        "CommitText": "commit",
-    }
-    if signal not in labels:
-        return
-    values = parameters.unpack()
-    text = values[0]
-    if len(text) < 3 or text[0] != "IBusText" or not isinstance(text[2], str):
-        raise RuntimeError(f"invalid reference text in {signal}")
-    events.append([labels[signal], text[2], *values[1:]])
+def native_text(value):
+    # libibus checks the floating object after signal emission returns.
+    # Keep the GI wrapper alive until native dispatch has finished.
+    signal_texts.append(value)
+    return value.get_text()
 
 
 for client_mode in [False, True]:
@@ -54,15 +48,10 @@ for client_mode in [False, True]:
         context.set_capabilities(IBus.Capabilite.PREEDIT_TEXT | IBus.Capabilite.FOCUS)
         if client_mode:
             context.set_client_commit_preedit(True)
+        context.connect("update-preedit-text", lambda _, text, cursor, visible: events.append(["update", native_text(text), cursor, visible]))
+        context.connect("update-preedit-text-with-mode", lambda _, text, cursor, visible, mode: events.append(["mode", native_text(text), cursor, visible, mode]))
+        context.connect("commit-text", lambda _, text: events.append(["commit", native_text(text)]))
         connection = context.get_connection()
-        # Observe serialized signals through Gio: passing temporary IBusText
-        # objects through PyGObject's signal marshaller can release them before
-        # libIBus finishes emitting the signal. Keep libIBus for all requests.
-        subscription = connection.signal_subscribe(
-            "org.freedesktop.IBus", "org.freedesktop.IBus.InputContext", None,
-            context.get_object_path(), None, Gio.DBusSignalFlags.NONE,
-            record_signal, events,
-        )
         connection.call_sync("org.freedesktop.IBus", context.get_object_path(), "org.freedesktop.IBus.InputContext", "FocusIn", GLib.Variant("()", ()), None, Gio.DBusCallFlags.NONE, 1000, None)
         subprocess.run(["fcitx5-remote", "--check", "-s", requested], check=True, timeout=2)
         subprocess.run(["fcitx5-remote", "--check", "-o"], check=True, timeout=2)
@@ -84,6 +73,6 @@ for client_mode in [False, True]:
             context.focus_out()
         drain(0.15)
         print("reference settled", client_mode, ending, json.dumps(events, ensure_ascii=False), flush=True)
-        connection.signal_unsubscribe(subscription)
         context.destroy()
         drain(0.01)
+        signal_texts.clear()

@@ -286,6 +286,10 @@ func (editor *Editor) Insert(value string) {
 	}
 	editor.collapse(caret)
 	editor.composing = false
+	// Release the live composition's bookkeeping before recording the edit:
+	// record opens the next undo unit, and the composition's history has to
+	// close in the unit it was typed into.
+	editor.releaseCompositionHistory()
 	kind := editInsert
 	if wasComposing {
 		kind = editComposition
@@ -293,7 +297,6 @@ func (editor *Editor) Insert(value string) {
 		kind = editSeparate
 	}
 	editor.record(change, before, editor.selectionState(), kind)
-	editor.releaseCompositionHistory()
 }
 
 // Paste inserts text as one undo unit, separate from adjacent typing.

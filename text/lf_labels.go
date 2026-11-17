@@ -30,6 +30,7 @@ type lfLabelEntry struct {
 type lfLabelOps struct {
 	replace func(*lfLabelState, int, []rune, []rune)
 	record  func(*lfLabelState, *rune, *rune)
+	rekey   func(*lfLabelState, *rune, *rune)
 	replay  func(*lfLabelState, *rune, bool)
 	forget  func(*lfLabelState, *rune)
 	clear   func(*lfLabelState)
@@ -80,6 +81,7 @@ func (editor *Editor) TrackLFLabels(labels []byte, defaultLabel byte, mapper LFL
 		ops: lfLabelOps{
 			replace: replaceLFLabels,
 			record:  recordLFLabels,
+			rekey:   rekeyLFLabels,
 			replay:  replayLFLabels,
 			forget:  forgetLFLabels,
 			clear:   clearLFLabelHistory,
@@ -315,6 +317,21 @@ func recordLFLabels(state *lfLabelState, previous, current *rune) {
 		delete(state.history, current)
 		state.history = cloneLFLabelHistory(state.history)
 	}
+}
+
+// Compaction changes a unit's backing, not its LF edits. A held composition
+// still owns the old key, so preserve its map before moving the current entry.
+func rekeyLFLabels(state *lfLabelState, previous, current *rune) {
+	if previous == current {
+		return
+	}
+	entry, exists := state.history[previous]
+	if !exists {
+		return
+	}
+	ensureLFLabelHistoryOwned(state)
+	delete(state.history, previous)
+	state.history[current] = entry
 }
 
 func replayLFLabels(state *lfLabelState, key *rune, inverse bool) {
