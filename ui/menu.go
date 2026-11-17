@@ -266,6 +266,8 @@ func (m *MenuItems) size() (width, height float32) {
 			height += components.DropdownMenuSeparatorHeight
 		case menuRowLabel:
 			height += components.DropdownMenuLabelHeight
+		case menuRowContent:
+			height += item.height
 		default:
 			row := m.row(i)
 			if m.context {
@@ -306,6 +308,7 @@ const (
 	menuRowItem menuRowKind = iota
 	menuRowLabel
 	menuRowSeparator
+	menuRowContent
 )
 
 // MenuItems is an open Menu or ContextMenu being declared: what its rows are, and,
@@ -435,8 +438,10 @@ type menuRow struct {
 	key         gfx.Key
 	destructive bool
 	disabled    bool
-	submenu     bool // the row opens a submenu
-	checked     int8 // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
+	submenu     bool                                                       // the row opens a submenu
+	height      float32                                                    // a content row's height
+	content     func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
+	checked     int8                                                       // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
 }
 
 // minWidth is shadcn's: 8rem for a DropdownMenu, 9rem for a ContextMenu.
@@ -539,6 +544,26 @@ func (m *MenuItems) WidthRange(least, greatest float32) {
 		panic("ui: MenuItems.WidthRange needs 0 <= least <= greatest, or greatest 0 for no limit")
 	}
 	m.widthMin, m.widthMax = least, greatest
+}
+
+// Content adds a row height tall that body paints: the room for what a menu row cannot say,
+// such as a strip of color swatches. It is not an item, so the keyboard passes over it; body
+// takes the row's rectangle and declares its own hits, inside the menu's clip, and is not
+// called while scrolling has the row out of sight.
+func (m *MenuItems) Content(height float32, body func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) {
+	m.items = append(m.items, menuRow{kind: menuRowContent, height: height, content: body})
+}
+
+// paintContent calls a content row's painter over its row, inside the menu's clip.
+func (m *MenuItems) paintContent(canvas *gfx.Canvas, theme gfx.Theme, row *menuRow, bounds gfx.Rect, begin, end func(), menu gfx.Rect) {
+	if bounds.Width <= 0 || row.content == nil {
+		return
+	}
+	begin()
+	canvas.Clip(gfx.Rect{X: menu.X, Y: menu.Y + components.DropdownMenuPadding/2, Width: menu.Width, Height: menu.Height - components.DropdownMenuPadding})
+	row.content(canvas, bounds, theme)
+	canvas.Unclip()
+	end()
 }
 
 // Label adds a heading over the items that follow it.
@@ -650,6 +675,8 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 				menu.AddSeparator()
 			case menuRowLabel:
 				menu.AddLabel(row.label, false)
+			case menuRowContent:
+				m.paintContent(canvas, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			default:
 				if r := menu.AddItem(contextItem(m.row(i))); i == m.sub {
 					trigger = r
@@ -683,6 +710,8 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 				menu.AddSeparator()
 			case menuRowLabel:
 				menu.AddLabel(row.label, false)
+			case menuRowContent:
+				m.paintContent(canvas, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			default:
 				if r := menu.AddItem(m.row(i)); i == m.sub {
 					trigger = r

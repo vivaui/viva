@@ -12,6 +12,7 @@ import (
 // elements it does nothing.
 //
 //	f.Checkbox(syncID, m.sync).Caption("Sync over SSH")
+//
 // Mixed paints a Checkbox as neither on nor off, a dash in a filled box: the select-all of a
 // list of which only some rows are chosen. Declare it from the rows' state each paint; a
 // press still flips the bound value, so the application decides what the next state is.

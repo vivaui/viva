@@ -604,3 +604,34 @@ func TestContextMenuAtNamedByAZeroSizeSlotTakesTheArrows(t *testing.T) {
 		t.Fatalf("connected %q, open %v: the arrows did not reach the menu", m.connected, m.open)
 	}
 }
+
+// A Content row takes room in the menu and is painted by the caller; the arrows pass over it.
+func TestMenuContentRow(t *testing.T) {
+	m := &menuModel{open: true}
+	painted := gfx.Rect{}
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			more := ui.Button(c, "More")
+			ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
+				menu.Item("One")
+				menu.Content(40, func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
+					painted = bounds
+					canvas.Hit(gfx.Item(77), bounds)
+				})
+				if menu.Item("Two").Clicked() {
+					m.renamed++
+				}
+			})
+		})
+	})
+	one, two := d.hit("One").Bounds, d.hit("Two").Bounds
+	if painted.Height != 40 || two.Y-one.Y < 40 {
+		t.Fatalf("content %v, rows %v and %v: the row took no room", painted, one, two)
+	}
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyEnter)
+	if m.renamed != 1 {
+		t.Fatalf("the arrows did not pass over the content row to Two (%d)", m.renamed)
+	}
+}
