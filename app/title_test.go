@@ -26,6 +26,11 @@ func TestSetTitleDelegatesToTheHost(t *testing.T) {
 	if len(control.titles) != 1 || control.titles[0] != "project – main.go" {
 		t.Fatalf("titles = %q", control.titles)
 	}
+	for _, bad := range []string{"main\x00.go", "main\xff.go"} {
+		if err := window.SetTitle(bad); err == nil || len(control.titles) != 1 {
+			t.Fatalf("title %q was accepted: titles = %q", bad, control.titles)
+		}
+	}
 	window.closed.Store(true)
 	if err := window.SetTitle("closed"); err == nil || len(control.titles) != 1 {
 		t.Fatal("closed window accepted a title")

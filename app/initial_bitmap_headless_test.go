@@ -20,7 +20,7 @@ func TestPreparedWindowUploadsInitialBitmapToMetal(test *testing.T) {
 	var canvas gfx.Canvas
 	config.Paint(&canvas, gfx.Size{Width: 80, Height: 40})
 	caption = "ready"
-	native, cleanup, err := prepareNativeWindow(config, &canvas)
+	native, _, cleanup, err := prepareNativeWindow(config, &canvas)
 	if err != nil {
 		test.Fatal(err)
 	}

@@ -242,14 +242,6 @@ moves). `VIVA_SCALE` overrides it for Viva alone, snapped to quarters and kept b
 Linux: it draws a window at 125% or 150% on a display at 100%, which is how fractional scaling
 was measured. The renderer puts every label texture and image on a whole device pixel.
 
-## Window titles
-
-`Window.SetTitle` changes the native title after creation from any goroutine. macOS
-sets the NSWindow title on the main thread, Windows posts the change to the window
-thread and applies it with `SetWindowTextW` (also updating the accessibility tree's
-window name), and Linux sets the GTK toplevel's title on the GTK thread. The
-headless host records it in the `windows` listing.
-
 ## Fullscreen windows
 
 `Window.SetFullscreen` requests native fullscreen; `Config.OnFullscreen` publishes

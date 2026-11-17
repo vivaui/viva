@@ -141,6 +141,9 @@ type Config struct {
 	OnClosed         func()
 	TextInput        *TextInput
 	DynamicTextInput bool
+	// ReadOnlyTextFocused reports the last painted focused hit. Linux uses it
+	// to recheck a disabled native input before routing a new key.
+	ReadOnlyTextFocused func() bool
 	// Actions, when set, is filled by the adapter with what the window controls
 	// that Viva draws need: see WindowActions. It is set for a WindowCustomTitlebar
 	// window on a platform whose system draws no controls for it.

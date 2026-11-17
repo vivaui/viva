@@ -41,7 +41,7 @@ The recipes `viva add` writes come with the command, so the command and the Viva
 
 ```sh
 go tool viva add --out ./components button
-go get -tool github.com/vivaui/viva/cmd/viva@v0.1.3   # pin an existing project
+go get -tool github.com/vivaui/viva/cmd/viva@v0.6.5   # pin an existing project
 ```
 
 `viva doctor` and `viva add` warn when the command in your `PATH` and the project disagree.
