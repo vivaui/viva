@@ -58,14 +58,19 @@ func (b Box) Action(icon gfx.Icon, label string) Box {
 	return b
 }
 
-// ActionClicked reports whether this paint delivers a press on the field's Action.
+// ActionClicked reports whether this paint delivers a press on the field's Action. The
+// keyboard goes back to the field then, so a clear or a reveal does not end the typing.
 func (b Box) ActionClicked() bool {
 	n := b.n()
 	if n.kind != kindInput || n.ext == 0 || b.f.exts[n.ext].addons == 0 || b.f.canvas == nil {
 		return false
 	}
 	end := b.f.addons[b.f.exts[n.ext].addons-1].end
-	return end.Kind == components.InputGroupSlotButton && n.flags&flagDisabled == 0 && b.f.canvas.Clicked(end.ID)
+	if end.Kind != components.InputGroupSlotButton || n.flags&flagDisabled != 0 || !b.f.canvas.Clicked(end.ID) {
+		return false
+	}
+	b.f.canvas.RequestFocus(b.f.inputs[n.aux].ID)
+	return true
 }
 
 // actionID names a field's Action in the field's own scope.
