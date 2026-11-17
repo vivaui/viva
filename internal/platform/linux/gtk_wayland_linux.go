@@ -689,7 +689,8 @@ func (s *waylandSurface) present(w *gtkWindow) {
 	b.pending = render.Scissor{}
 	damage = area
 	if c.version(s.child) < 4 && (s.viewportWidth <= 0 || s.viewportHeight <= 0 || canvas.Width <= 0 || canvas.Height <= 0) {
-		w.app.fail(fmt.Errorf("linux: Wayland content viewport has no size"))
+		// updateRegions sets the viewport and repeats the frame later. Until then, skip the frame: the
+		// buffer copied above is up to date, and the other buffers keep the damage still to be shown.
 		return
 	}
 	b.busy = true
