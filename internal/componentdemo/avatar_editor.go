@@ -25,7 +25,6 @@ var avatarEditorComponent = Component{
 		state.avatarEditor = &avatarEditorDemoState{
 			bitmap: gfx.Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4, ID: 0xa7e1, Version: 1},
 		}
-		components.InitializeAvatarEditorState(&state.avatarEditor.state)
 	},
 	Examples: []Example{
 		{
@@ -36,7 +35,8 @@ var avatarEditorComponent = Component{
     AspectRatio: 1, Circular: true, MaxStageSize: 320,
     Labels: labels,
 }).Paint()
-// The caller owns the surrounding dialog or panel and commits layout.Crop.`,
+draft = layout.State
+// The caller owns the surrounding dialog or panel and uses layout.Crop when layout.Ready.`,
 		},
 		{
 			ID: "cover", Title: "自定义宽高比", Height: 520,

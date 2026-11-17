@@ -20,13 +20,10 @@ func avatarEditorTestOptions() AvatarEditorOptions {
 		Canvas: gfx.Item(4), Zoom: gfx.Item(5), ZoomOut: gfx.Item(6), ZoomIn: gfx.Item(7),
 		Reset: gfx.Item(8),
 	}
-	state := AvatarEditorState{}
-	InitializeAvatarEditorState(&state)
 	return AvatarEditorOptions{
 		IDs:         ids,
 		Labels:      AvatarEditorLabels{Hint: "Drag and zoom", Canvas: "Avatar crop"},
 		Bitmap:      avatarEditorTestBitmap(120, 80),
-		State:       state,
 		AspectRatio: 1,
 		Circular:    true,
 	}
@@ -38,29 +35,27 @@ func avatarEditorTestBounds() gfx.Rect {
 
 func TestAvatarEditorCropMath(t *testing.T) {
 	bitmap := avatarEditorTestBitmap(120, 80)
-	state := AvatarEditorState{}
-	InitializeAvatarEditorState(&state)
-	crop := avatarEditorCrop(bitmap, state, 1, 1, 8)
+	geometry := newAvatarCropGeometry(bitmap, 1, 1, 8)
+	state := geometry.normalize(AvatarEditorState{})
+	crop := geometry.crop(state)
 	if !avatarEditorRectNear(crop, gfx.Rect{X: 20, Y: 0, Width: 80, Height: 80}) {
 		t.Fatalf("initial square crop = %+v", crop)
 	}
 
 	state.Zoom = 2
-	crop = avatarEditorCrop(bitmap, state, 1, 1, 8)
+	crop = geometry.crop(state)
 	if !avatarEditorRectNear(crop, gfx.Rect{X: 40, Y: 20, Width: 40, Height: 40}) {
 		t.Fatalf("zoomed square crop = %+v", crop)
 	}
 
 	state.Zoom, state.CenterX, state.CenterY = 1, .99, -.5
-	state = normalizeAvatarEditorCenter(state, gfx.Size{Width: 120, Height: 80}, 1, 1, 8)
-	crop = avatarEditorCrop(bitmap, state, 1, 1, 8)
+	crop = geometry.crop(geometry.normalize(state))
 	if !avatarEditorRectNear(crop, gfx.Rect{X: 40, Y: 0, Width: 80, Height: 80}) {
 		t.Fatalf("clamped crop = %+v", crop)
 	}
 
-	state = AvatarEditorState{}
-	InitializeAvatarEditorState(&state)
-	crop = avatarEditorCrop(bitmap, state, 16.0/9.0, 1, 8)
+	geometry = newAvatarCropGeometry(bitmap, 16.0/9.0, 1, 8)
+	crop = geometry.crop(geometry.normalize(AvatarEditorState{}))
 	if math.Abs(float64(crop.Width/crop.Height-16.0/9.0)) > 0.0001 ||
 		crop.X < 0 || crop.Y < 0 || crop.X+crop.Width > 120.001 || crop.Y+crop.Height > 80.001 {
 		t.Fatalf("widescreen crop = %+v", crop)
@@ -73,19 +68,16 @@ func TestAvatarEditorPaintAndInput(t *testing.T) {
 			var canvas gfx.Canvas
 			canvas.SetPixelScale(scale)
 			options := avatarEditorTestOptions()
-			options.State.Zoom = 2
+			options.IDs.Reset = gfx.ID{}
+			options.State = AvatarEditorState{Zoom: 2, CenterX: .5, CenterY: .5}
 			options.Backdrop = gfx.Color{Red: .12, Green: .23, Blue: .34, Alpha: 1}
 			bounds := avatarEditorTestBounds()
 			layout := BeginAvatarEditor(&canvas, theme, bounds, options).Paint()
 			if !layout.Ready || layout.Stage.Width <= 0 || layout.Stage.Height <= 0 || layout.Crop.Width != layout.Crop.Height {
 				t.Fatalf("scale %v: incomplete layout %+v", scale, layout)
 			}
-			if layout.Content != bounds || layout.Stage.X < bounds.X || layout.Stage.X+layout.Stage.Width > bounds.X+bounds.Width {
+			if layout.Stage.X < bounds.X || layout.Stage.X+layout.Stage.Width > bounds.X+bounds.Width {
 				t.Fatalf("scale %v: crop surface escaped its bounds: %+v", scale, layout)
-			}
-			if layout.ZoomTrack.X < bounds.X || layout.ZoomTrack.X+layout.ZoomTrack.Width > bounds.X+bounds.Width ||
-				layout.ZoomTrack.Y+layout.ZoomTrack.Height > bounds.Y+bounds.Height {
-				t.Fatalf("scale %v: zoom controls escaped their bounds: %+v", scale, layout.ZoomTrack)
 			}
 			if !canvas.TrappedFocusScope().IsZero() || !canvas.EscapeTarget().IsZero() {
 				t.Fatal("crop surface installed dialog routing")
@@ -129,7 +121,7 @@ func TestAvatarEditorPaintAndInput(t *testing.T) {
 				Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary,
 				Target: options.IDs.Canvas, X: startX, Y: startY,
 			}, state)
-			if !result.Handled || state.Gesture != avatarEditorGestureCanvas {
+			if !result.Handled {
 				t.Fatal("crop drag did not begin")
 			}
 			state, result = layout.Pointer(gfx.PointerEvent{
@@ -143,7 +135,7 @@ func TestAvatarEditorPaintAndInput(t *testing.T) {
 				Kind: gfx.PointerUp, Button: gfx.PointerButtonPrimary,
 				Target: options.IDs.Canvas, X: startX - 80, Y: startY + 30,
 			}, state)
-			if !result.Handled || state.Gesture != avatarEditorGestureNone {
+			if !result.Handled || state.gesture != avatarEditorGestureNone {
 				t.Fatal("crop drag did not end")
 			}
 
@@ -167,6 +159,9 @@ func TestAvatarEditorPaintAndInput(t *testing.T) {
 			if _, result = layout.Key(gfx.KeyEvent{Target: options.IDs.Canvas, Key: gfx.KeyEnter}, state); result.Handled {
 				t.Fatal("crop input claimed the application's submit key")
 			}
+			if _, result = layout.Key(gfx.KeyEvent{Target: options.IDs.Canvas, Key: gfx.KeyLeft, Modifiers: gfx.ModifierControl}, state); result.Handled {
+				t.Fatal("crop input claimed the application's keyboard shortcut")
+			}
 		}
 	}
 }
@@ -174,7 +169,6 @@ func TestAvatarEditorPaintAndInput(t *testing.T) {
 func TestAvatarEditorLoadingAndAllocations(t *testing.T) {
 	options := avatarEditorTestOptions()
 	options.Loading = true
-	options.Bitmap = gfx.Bitmap{}
 	var canvas gfx.Canvas
 	paint := func() {
 		canvas.Reset()
@@ -204,16 +198,81 @@ func TestAvatarEditorLoadingAndAllocations(t *testing.T) {
 func TestAvatarEditorFitsConstrainedBounds(t *testing.T) {
 	options := avatarEditorTestOptions()
 	options.MaxStageSize = 100
-	bounds := gfx.Rect{X: 7, Y: 11, Width: 120, Height: 180}
 	var canvas gfx.Canvas
-	layout := BeginAvatarEditor(&canvas, gfx.LightTheme(), bounds, options).Paint()
-	if layout.Stage.X < bounds.X || layout.Stage.X+layout.Stage.Width > bounds.X+bounds.Width ||
-		layout.Stage.Y+layout.Stage.Height > bounds.Y+bounds.Height {
-		t.Fatalf("constrained stage escaped bounds: %+v", layout.Stage)
+	for _, bounds := range []gfx.Rect{
+		{X: 7, Y: 11, Width: 120, Height: 180},
+		{X: 7, Y: 11, Width: 60, Height: 100},
+		{X: 7, Y: 11, Width: 12, Height: 32},
+		{X: 7, Y: 11, Width: 120, Height: 6},
+	} {
+		canvas.Reset()
+		layout := BeginAvatarEditor(&canvas, gfx.LightTheme(), bounds, options).Paint()
+		if !layout.Ready || layout.Stage.Width > 100 || layout.Stage.Height > 100 {
+			t.Fatalf("bounds %+v: invalid crop layout %+v", bounds, layout)
+		}
+		slider := false
+		for _, hit := range canvas.Hits() {
+			if hit.Bounds.X < bounds.X || hit.Bounds.X+hit.Bounds.Width > bounds.X+bounds.Width ||
+				hit.Bounds.Y < bounds.Y || hit.Bounds.Y+hit.Bounds.Height > bounds.Y+bounds.Height {
+				t.Fatalf("bounds %+v: hit escaped its container: %+v", bounds, hit)
+			}
+			slider = slider || hit.ID == options.IDs.Zoom
+		}
+		if slider != (bounds.Width >= 60 && bounds.Height >= 100) {
+			t.Fatalf("bounds %+v: slider present = %v", bounds, slider)
+		}
 	}
-	if layout.ZoomTrack.X < bounds.X || layout.ZoomTrack.X+layout.ZoomTrack.Width > bounds.X+bounds.Width ||
-		layout.ZoomTrack.Y+layout.ZoomTrack.Height > bounds.Y+bounds.Height {
-		t.Fatalf("constrained controls escaped bounds: %+v", layout.ZoomTrack)
+}
+
+func TestAvatarEditorZoomLimitsAndStatus(t *testing.T) {
+	options := avatarEditorTestOptions()
+	options.IDs.Reset = gfx.ID{}
+	options.MinZoom = .5
+	options.MaxZoom = float32(math.Inf(1))
+	options.AspectRatio = float32(math.NaN())
+	var canvas gfx.Canvas
+	paint := func() AvatarEditorLayout {
+		canvas.Reset()
+		return BeginAvatarEditor(&canvas, gfx.LightTheme(), avatarEditorTestBounds(), options).Paint()
+	}
+	layout := paint()
+	if !layout.Ready || layout.State.Zoom != 1 || !avatarEditorRectNear(layout.Crop, gfx.Rect{X: 20, Width: 80, Height: 80}) {
+		t.Fatalf("invalid limits must fall back to a crop inside the source: %+v", layout)
+	}
+	options.MinZoom, options.MaxZoom = 2, 2
+	layout = paint()
+	if !layout.Ready || layout.State.Zoom != 2 || layout.Crop.Width != 40 {
+		t.Fatalf("fixed zoom = %+v", layout)
+	}
+	for _, hit := range canvas.Hits() {
+		if hit.ID == options.IDs.Zoom && !hit.Disabled {
+			t.Fatal("fixed zoom slider can receive focus or input")
+		}
+	}
+	_, result := layout.Scroll(gfx.ScrollEvent{Target: options.IDs.Canvas, DeltaY: -1}, layout.State)
+	if result.Handled {
+		t.Fatal("fixed zoom stole the containing page's wheel input")
+	}
+	options.Error = "Cannot open the new image"
+	options.Loading = true
+	layout = paint()
+	if layout.Ready || layout.Crop != (gfx.Rect{}) || len(canvas.Images()) != 0 {
+		t.Fatal("the loading or error state offered the previous image as a crop")
+	}
+	if texts := canvas.Texts(); len(texts) != 1 || texts[0].Value != options.Error {
+		t.Fatalf("error must be shown before the loading message: %+v", texts)
+	}
+}
+
+func TestAvatarEditorPaintsTheCropReturnedAfterZoomClick(t *testing.T) {
+	var canvas gfx.Canvas
+	options := avatarEditorTestOptions()
+	canvas.BeginEventPass(options.IDs.ZoomIn, gfx.ClickInfo{})
+	defer canvas.EndEventPass()
+	layout := BeginAvatarEditor(&canvas, gfx.LightTheme(), avatarEditorTestBounds(), options).Paint()
+	images := canvas.Images()
+	if !layout.Ready || layout.State.Zoom <= 1 || len(images) != 1 || !avatarEditorRectNear(images[0].Source, layout.Crop) {
+		t.Fatalf("preview and returned source crop disagree after a click: %+v", layout)
 	}
 }
 

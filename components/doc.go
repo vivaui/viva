@@ -62,8 +62,10 @@
 //     zoom, a zoom slider and buttons, keyboard controls, an optional circular
 //     preview, and a caller-configurable aspect ratio. Titles, modal chrome,
 //     and confirm/cancel actions remain with the surrounding application.
-//     `AvatarEditorLayout.Pointer`, `AvatarEditorLayout.Scroll`, and
-//     `AvatarEditorLayout.Key` return the updated caller-owned crop state.
+//     Start with a zero AvatarEditorState, keep the state returned from Paint
+//     and from the layout's Pointer, Scroll and Key handlers, and read Crop in
+//     source bitmap pixels only when Ready. Reset the state when the source
+//     changes.
 //   - Button: `BeginButton` paints a labeled control with Default, Secondary,
 //     Outline, and Ghost variants; hover, press, and focus states, metrics-
 //     scaled geometry, and the hit declaration are built in.

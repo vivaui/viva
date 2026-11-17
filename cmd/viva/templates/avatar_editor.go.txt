@@ -7,93 +7,81 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
-// AvatarEditorIDs are the stable identities owned by the caller. The component
-// paints and routes input for the crop surface and its zoom controls. Dialog
-// dismissal, confirm and cancel actions belong to the surrounding application.
+// AvatarEditorIDs are caller-owned, stable identities. A zero ID omits that
+// control. Canvas enables dragging, wheel zoom and keyboard editing; Reset
+// adds a reset button when there is room.
 type AvatarEditorIDs struct {
 	Canvas, Zoom, ZoomOut, ZoomIn, Reset gfx.ID
 }
 
-// AvatarEditorLabels carries all user-facing text so the component can be used
-// in localized applications.
+// AvatarEditorLabels localizes the accessible names and empty states. Empty
+// fields use English defaults.
 type AvatarEditorLabels struct {
 	Hint, Canvas, Zoom, ZoomOut, ZoomIn, Reset string
 	Loading, Unavailable                       string
 }
 
-// AvatarEditorGesture is the pointer gesture currently owned by the crop
-// surface or its zoom slider.
-type AvatarEditorGesture uint8
+// AvatarEditorState is caller-owned and survives paints. Zoom 1 fits the
+// largest crop of the requested aspect ratio inside the source. CenterX and
+// CenterY are normalized source coordinates. Use the zero value for a new
+// image or to reset to the largest centered crop allowed by the options.
+type AvatarEditorState struct {
+	Zoom, CenterX, CenterY float32
+	gesture                avatarEditorGesture
+	dragX, dragY           float32
+}
+
+type avatarEditorGesture uint8
 
 const (
-	avatarEditorGestureNone AvatarEditorGesture = iota
+	avatarEditorGestureNone avatarEditorGesture = iota
 	avatarEditorGestureCanvas
 	avatarEditorGestureZoom
 )
 
-// AvatarEditorState is caller-owned and survives paints. Zoom 1 is the largest
-// source rectangle with the configured aspect ratio. CenterX and CenterY are
-// normalized coordinates in the source image.
-type AvatarEditorState struct {
-	Initialized bool
-	Zoom        float32
-	CenterX     float32
-	CenterY     float32
-	Gesture     AvatarEditorGesture
-	dragX       float32
-	dragY       float32
-}
-
-// InitializeAvatarEditorState resets the view to the largest centered crop.
-func InitializeAvatarEditorState(state *AvatarEditorState) {
-	if state == nil {
-		return
-	}
-	*state = AvatarEditorState{Initialized: true, Zoom: 1, CenterX: .5, CenterY: .5}
-}
-
-// AvatarEditorOptions is a paint-time snapshot. AspectRatio defaults to 1;
-// MinZoom defaults to 1 and MaxZoom to 8. MaxStageSize caps the preview's
-// largest dimension. Circular only changes the square editing mask; the
-// returned source crop remains rectangular. Backdrop is the opaque color behind
-// the surface and is used to mask the preview's corners; it defaults to
-// theme.Background. ShowReset adds the optional reset action beside the zoom
-// slider.
+// AvatarEditorOptions is a snapshot for one paint. The bitmap remains owned
+// by the caller; its dimensions define the coordinate space for Crop. See
+// gfx.Bitmap for pixel format and cache identity.
 type AvatarEditorOptions struct {
-	IDs          AvatarEditorIDs
-	Labels       AvatarEditorLabels
-	Bitmap       gfx.Bitmap
-	State        AvatarEditorState
-	Backdrop     gfx.Color
-	AspectRatio  float32
-	MinZoom      float32
-	MaxZoom      float32
-	MaxStageSize float32
-	Circular     bool
-	ShowReset    bool
-	Loading      bool
-	Error        string
-}
+	IDs    AvatarEditorIDs
+	Labels AvatarEditorLabels
+	Bitmap gfx.Bitmap
+	State  AvatarEditorState
 
-// AvatarEditorLayout is the painted geometry and the input contract for the
-// next event. Crop is in source-image pixels and is always one of application's
-// requested aspect ratio.
-type AvatarEditorLayout struct {
-	IDs         AvatarEditorIDs
-	State       AvatarEditorState
+	// AspectRatio is width / height, defaulting to 1.
 	AspectRatio float32
-	MinZoom     float32
-	MaxZoom     float32
-	Content     gfx.Rect
-	Stage       gfx.Rect
-	ZoomTrack   gfx.Rect
-	Crop        gfx.Rect
-	Ready       bool
-	bitmap      gfx.Bitmap
+	// MinZoom defaults to 1 and cannot go below it. MaxZoom defaults to 8
+	// (or MinZoom, if larger). Set both equal for a fixed zoom.
+	MinZoom, MaxZoom float32
+	// MaxStageSize caps the preview's longest edge, defaulting to 320
+	// logical pixels. The preview also fits inside the supplied bounds.
+	MaxStageSize float32
+	// Circular masks a square preview; Crop is still a rectangle. Backdrop
+	// must match the containing surface's solid, opaque color and defaults
+	// to theme.Background.
+	Circular bool
+	Backdrop gfx.Color
+	// Loading or Error disables editing, even if Bitmap is still present.
+	// Error takes precedence when both are set.
+	Loading bool
+	Error   string
 }
 
-// AvatarEditor paints one reusable crop surface. It has no retained runtime
-// state and deliberately owns no modal chrome, title, or confirm/cancel actions.
+// AvatarEditorLayout describes the current frame and routes its input. Keep
+// it until the next paint. When Ready, Crop is the selected rectangle in
+// bitmap pixels and Stage is the preview in logical window coordinates.
+type AvatarEditorLayout struct {
+	Stage, Crop gfx.Rect
+	Ready       bool
+	State       AvatarEditorState
+
+	ids        AvatarEditorIDs
+	zoomBounds gfx.Rect
+	geometry   avatarCropGeometry
+}
+
+// AvatarEditor paints a crop surface. Loading an image, choosing a container
+// and applying or exporting the crop are the caller's responsibility.
 type AvatarEditor struct {
 	canvas  *gfx.Canvas
 	theme   gfx.Theme
@@ -106,269 +94,340 @@ func BeginAvatarEditor(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, opt
 	return AvatarEditor{canvas: canvas, theme: theme, bounds: bounds, options: options}
 }
 
-// Paint lays out and paints the preview and zoom controls inside editor.bounds.
-// The returned geometry routes pointer, wheel and keyboard input until the next
-// paint. The caller can place this surface in a dialog, panel, sheet, or page.
+// Paint draws the preview and the controls that fit. Save the returned State
+// so zoom and reset button clicks persist, and save the layout to route input.
 func (editor AvatarEditor) Paint() AvatarEditorLayout {
-	c, theme, o := editor.canvas, editor.theme, editor.options
-	if c == nil || editor.bounds.Width <= 0 || editor.bounds.Height <= 0 {
-		return AvatarEditorLayout{}
+	c, theme, bounds, o := editor.canvas, editor.theme, editor.bounds, editor.options
+	out := AvatarEditorLayout{State: o.State, ids: o.IDs}
+	if c == nil || !finiteAvatarValue(bounds.Width) || !finiteAvatarValue(bounds.Height) ||
+		bounds.Width <= 0 || bounds.Height <= 0 {
+		return out
 	}
 	labels := normalizedAvatarEditorLabels(o.Labels)
 	aspect, minZoom, maxZoom := avatarEditorLimits(o)
-	ready := avatarBitmapReady(o.Bitmap)
 	stageMax := o.MaxStageSize
-	if stageMax <= 0 {
+	if !finiteAvatarValue(stageMax) || stageMax <= 0 {
 		stageMax = 320
 	}
-	control := max(float32(32), theme.Metrics.ControlHeight)
-	controlsSpace := control + 12
-	stageWidth, stageHeight := avatarEditorStageSize(editor.bounds, aspect, stageMax, max(float32(1), editor.bounds.Height-controlsSpace))
 
-	stage := gfx.Rect{
-		X:      editor.bounds.X + (editor.bounds.Width-stageWidth)/2,
-		Y:      editor.bounds.Y,
-		Width:  stageWidth,
-		Height: stageHeight,
+	c.Clip(bounds)
+	defer c.Unclip()
+	row := avatarEditorControls(c, theme, bounds, o.IDs, labels.Reset)
+	availableHeight := bounds.Height
+	if row.height > 0 {
+		availableHeight -= row.height + avatarEditorRowGap
 	}
-	out := AvatarEditorLayout{
-		IDs: o.IDs, AspectRatio: aspect, MinZoom: minZoom, MaxZoom: maxZoom,
-		Content: editor.bounds, Stage: stage, Ready: ready, bitmap: o.Bitmap,
-	}
-	state := normalizedAvatarEditorState(o.State, minZoom, maxZoom)
-	out.State = state
-
-	radius := max(theme.Metrics.RadiusSurface, 8)
-	circular := o.Circular && float32(math.Abs(float64(aspect-1))) < .0001
-	if circular {
-		radius = min(stage.Width, stage.Height) / 2
-		c.DrawPath(avatarEditorCircleFillPath(), stage, gfx.PathStyle{Fill: theme.Muted})
+	width, height := min(bounds.Width, stageMax), min(availableHeight, stageMax)
+	if aspect >= 1 {
+		width = min(width, height*aspect)
+		height = width / aspect
 	} else {
-		c.Rounded(stage, radius, theme.Muted)
+		height = min(height, width/aspect)
+		width = height * aspect
 	}
+	stage := gfx.Rect{X: bounds.X + (bounds.Width-width)/2, Y: bounds.Y, Width: width, Height: height}
+	out.Stage = stage
+	if width <= 0 || height <= 0 {
+		return out
+	}
+	controls := row.at(bounds.X+(bounds.Width-row.width)/2, stage.Y+stage.Height+avatarEditorRowGap)
+	out.zoomBounds = controls[1]
+
+	ready := !o.Loading && o.Error == "" && avatarBitmapReady(o.Bitmap)
 	if ready {
-		out.Crop = avatarEditorCrop(o.Bitmap, state, aspect, minZoom, maxZoom)
-		backdrop := o.Backdrop
-		if backdrop.Alpha == 0 {
-			backdrop = theme.Background
+		out.geometry = newAvatarCropGeometry(o.Bitmap, aspect, minZoom, maxZoom)
+	}
+	state := o.State
+	if ready {
+		state = out.geometry.normalize(state)
+		// Apply button clicks before drawing so Crop and the preview agree.
+		switch {
+		case controls[0].Width > 0 && c.Clicked(o.IDs.ZoomOut):
+			state = out.geometry.zoom(state, state.Zoom/1.2, .5, .5)
+		case controls[2].Width > 0 && c.Clicked(o.IDs.ZoomIn):
+			state = out.geometry.zoom(state, state.Zoom*1.2, .5, .5)
+		case controls[3].Width > 0 && c.Clicked(o.IDs.Reset):
+			state = out.geometry.normalize(AvatarEditorState{})
 		}
-		avatarEditorPaintImage(c, stage, o.Bitmap, out.Crop, circular, backdrop)
-		avatarEditorPaintGuides(c, theme, stage, circular)
+		out.Crop = out.geometry.crop(state)
+		ready = out.Crop.X+out.Crop.Width > out.Crop.X && out.Crop.Y+out.Crop.Height > out.Crop.Y
+		if !ready {
+			out.Crop = gfx.Rect{}
+		}
 	} else {
-		message := labels.Unavailable
-		color := theme.Danger
-		if o.Loading {
-			message, color = labels.Loading, theme.MutedForeground
-		} else if o.Error != "" {
-			message = o.Error
-		}
-		if message == "" {
-			message = labels.Loading
-		}
-		c.LabelCenter(message, stage, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+		state.gesture = avatarEditorGestureNone
 	}
-	border := theme.Border
-	if c.Pressed() == o.IDs.Canvas || state.Gesture == avatarEditorGestureCanvas {
-		border = theme.Ring
-	}
-	if c.FocusVisible() == o.IDs.Canvas {
-		border = theme.Ring
-	}
-	if circular {
-		// Keep the circular editor free-standing. A rounded rectangle with a
-		// half-width radius still has four straight edges, which is especially
-		// visible against the containing surface.
-		c.DrawPath(avatarEditorCircleRingPath(), stage, gfx.PathStyle{
-			Fill: border, FillRule: gfx.PathFillEvenOdd,
-		})
-	} else {
-		c.RoundedBorder(stage, radius, 1.5, border, gfx.Color{})
-	}
+	out.State, out.Ready = state, ready
 
-	cursor := gfx.PointerCursorHand
-	if state.Gesture == avatarEditorGestureCanvas {
-		cursor = gfx.PointerCursorGrabbing
+	avatarEditorPaintStage(c, theme, stage, out, o, labels, o.Circular && aspect == 1)
+	if controls[0].Width > 0 {
+		avatarEditorZoomButton(c, theme, controls[0], o.IDs.ZoomOut, avatarEditorZoomOutIcon, labels.ZoomOut, !ready || state.Zoom <= minZoom)
 	}
-	c.HitWithOptions(o.IDs.Canvas, stage, labels.Canvas, gfx.HitOptions{
-		Role: gfx.RoleGroup, Cursor: cursor, Hint: labels.Hint,
-		Disabled: !ready,
-	})
-
-	controlsY := stage.Y + stage.Height + 12
-	gap := max(float32(10), theme.Metrics.GapItem)
-	resetWidth := float32(0)
-	resetGap := float32(0)
-	if o.ShowReset {
-		resetWidth = max(float32(56), c.TextWidthWeight(labels.Reset, theme.Metrics.FontSizeS, gfx.WeightMedium)+24)
-		resetGap = gap
+	if controls[1].Width > 0 {
+		avatarEditorPaintZoom(c, theme, o.IDs.Zoom, controls[1], state.Zoom, minZoom, maxZoom, ready, labels.Zoom)
 	}
-	horizontalInset := min(float32(12), editor.bounds.Width/2)
-	trackWidth := editor.bounds.Width - 2*control - resetWidth - 2*gap - resetGap - 2*horizontalInset
-	if trackWidth < 1 {
-		horizontalInset = 0
-		trackWidth = max(float32(1), editor.bounds.Width-2*control-resetWidth-2*gap-resetGap)
+	if controls[2].Width > 0 {
+		avatarEditorZoomButton(c, theme, controls[2], o.IDs.ZoomIn, avatarEditorZoomInIcon, labels.ZoomIn, !ready || state.Zoom >= maxZoom)
 	}
-	total := 2*control + trackWidth + resetWidth + 2*gap + resetGap
-	start := editor.bounds.X + max(0, (editor.bounds.Width-total)/2)
-	out.ZoomTrack = gfx.Rect{X: start + control + gap, Y: controlsY + control/2 - 12, Width: trackWidth, Height: 24}
-
-	zoomOutDisabled := !ready || state.Zoom <= minZoom+.0001
-	zoomInDisabled := !ready || state.Zoom >= maxZoom-.0001
-	zoomOut := BeginButton(c, theme, o.IDs.ZoomOut, gfx.Rect{X: start, Y: controlsY, Width: control, Height: control}).
-		IconSmall().WithIcon(avatarEditorZoomOutIcon)
-	if zoomOutDisabled {
-		zoomOut = zoomOut.Disabled()
-	}
-	zoomOut.Ghost(labels.ZoomOut)
-	zoomIn := BeginButton(c, theme, o.IDs.ZoomIn, gfx.Rect{X: start + control + gap + trackWidth + gap, Y: controlsY, Width: control, Height: control}).
-		IconSmall().WithIcon(avatarEditorZoomInIcon)
-	if zoomInDisabled {
-		zoomIn = zoomIn.Disabled()
-	}
-	zoomIn.Ghost(labels.ZoomIn)
-	if o.ShowReset {
-		reset := BeginButton(c, theme, o.IDs.Reset, gfx.Rect{
-			X: start + 2*(control+gap) + trackWidth + resetGap, Y: controlsY, Width: resetWidth, Height: control,
-		}).Small()
+	if controls[3].Width > 0 {
+		reset := BeginButton(c, theme, o.IDs.Reset, controls[3]).Small()
 		if !ready {
 			reset = reset.Disabled()
 		}
 		reset.Outline(labels.Reset)
 	}
-	avatarEditorPaintZoom(c, theme, o.IDs.Zoom, out.ZoomTrack, state.Zoom, minZoom, maxZoom, ready, labels.Zoom)
-
-	switch {
-	case ready && c.Clicked(o.IDs.ZoomOut):
-		state = zoomAvatarEditor(o.Bitmap, state, state.Zoom/1.2, .5, .5, aspect, minZoom, maxZoom)
-	case ready && c.Clicked(o.IDs.ZoomIn):
-		state = zoomAvatarEditor(o.Bitmap, state, state.Zoom*1.2, .5, .5, aspect, minZoom, maxZoom)
-	case o.ShowReset && ready && c.Clicked(o.IDs.Reset):
-		InitializeAvatarEditorState(&state)
-	}
-	out.State = state
-	if ready {
-		out.Crop = avatarEditorCrop(o.Bitmap, state, aspect, minZoom, maxZoom)
-	}
 	return out
 }
 
-// Pointer follows primary-button drags on the crop and zoom slider. It returns
-// Handled only for gestures the editor owns, so scrim dismissal and ordinary
-// button clicks keep their normal behavior.
+const avatarEditorRowGap = 12
+
+type avatarEditorControlRow struct {
+	widths             [4]float32
+	width, gap, height float32
+}
+
+func avatarEditorControls(c *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, ids AvatarEditorIDs, resetLabel string) avatarEditorControlRow {
+	height := max(float32(32), theme.Metrics.ControlHeight)
+	if bounds.Height <= height+avatarEditorRowGap {
+		return avatarEditorControlRow{}
+	}
+	row := avatarEditorControlRow{height: height, gap: max(float32(10), theme.Metrics.GapItem)}
+	if !ids.ZoomOut.IsZero() {
+		row.widths[0] = height
+	}
+	if !ids.Zoom.IsZero() {
+		row.widths[1] = 24
+	}
+	if !ids.ZoomIn.IsZero() {
+		row.widths[2] = height
+	}
+	if !ids.Reset.IsZero() {
+		row.widths[3] = max(float32(56), c.TextWidthWeight(resetLabel, theme.Metrics.FontSizeS, gfx.WeightMedium)+24)
+	}
+	row.width = avatarEditorRowWidth(row.widths, row.gap)
+	if row.width > bounds.Width {
+		row.widths[3] = 0 // Give the zoom controls priority over reset.
+		row.width = avatarEditorRowWidth(row.widths, row.gap)
+	}
+	if row.width > bounds.Width && row.widths[1] > 0 {
+		row.widths[0], row.widths[2] = 0, 0
+		row.width = row.widths[1]
+	}
+	if row.width <= 0 || row.width > bounds.Width {
+		return avatarEditorControlRow{}
+	}
+	if row.widths[1] > 0 {
+		extra := max(0, bounds.Width-24-row.width)
+		row.widths[1] += extra
+		row.width += extra
+	}
+	return row
+}
+
+func avatarEditorRowWidth(widths [4]float32, gap float32) float32 {
+	var width float32
+	for _, w := range widths {
+		if w > 0 {
+			if width > 0 {
+				width += gap
+			}
+			width += w
+		}
+	}
+	return width
+}
+
+func (row avatarEditorControlRow) at(x, y float32) (controls [4]gfx.Rect) {
+	for i, width := range row.widths {
+		if width > 0 {
+			controls[i] = gfx.Rect{X: x, Y: y, Width: width, Height: row.height}
+			x += width + row.gap
+		}
+	}
+	return controls
+}
+
+func avatarEditorPaintStage(c *gfx.Canvas, theme gfx.Theme, stage gfx.Rect, out AvatarEditorLayout, o AvatarEditorOptions, labels AvatarEditorLabels, circular bool) {
+	c.Clip(stage)
+	if circular {
+		c.DrawPath(avatarEditorCircleFillPath(), stage, gfx.PathStyle{Fill: theme.Muted})
+	} else {
+		c.Fill(stage, theme.Muted)
+	}
+	if out.Ready {
+		// Sample the source directly in one draw, including when magnified.
+		c.DrawBitmapRegion(o.Bitmap, out.Crop, stage)
+		if circular {
+			backdrop := o.Backdrop
+			if backdrop.Alpha == 0 {
+				backdrop = theme.Background
+			}
+			c.DrawPath(avatarEditorCircleMaskPath(), stage, gfx.PathStyle{Fill: backdrop, FillRule: gfx.PathFillEvenOdd})
+		} else {
+			avatarEditorPaintGuides(c, theme, stage)
+		}
+	} else {
+		message, color := labels.Unavailable, theme.Danger
+		if o.Error != "" {
+			message = o.Error
+		} else if o.Loading {
+			message, color = labels.Loading, theme.MutedForeground
+		}
+		c.LabelCenter(message, stage, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+	}
+	id := o.IDs.Canvas
+	border := theme.Border
+	if !id.IsZero() && (c.Pressed() == id || c.FocusVisible() == id || out.State.gesture == avatarEditorGestureCanvas) {
+		border = theme.Ring
+	}
+	if circular {
+		c.DrawPath(avatarEditorCircleRingPath(), stage, gfx.PathStyle{Fill: border, FillRule: gfx.PathFillEvenOdd})
+	} else {
+		c.RoundedBorder(stage, 0, 1.5, border, gfx.Color{})
+	}
+	c.Unclip()
+	if !id.IsZero() {
+		cursor := gfx.PointerCursorHand
+		if out.State.gesture == avatarEditorGestureCanvas {
+			cursor = gfx.PointerCursorGrabbing
+		}
+		c.HitWithOptions(id, stage, labels.Canvas, gfx.HitOptions{
+			Role: gfx.RoleGroup, Cursor: cursor, Hint: labels.Hint, Disabled: !out.Ready,
+		})
+	}
+}
+
+func avatarEditorZoomButton(c *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, id gfx.ID, icon gfx.Icon, label string, disabled bool) {
+	button := BeginButton(c, theme, id, bounds).IconSmall().WithIcon(icon)
+	if disabled {
+		button = button.Disabled()
+	}
+	button.Ghost(label)
+}
+
+// Pointer handles primary-button drags of the preview or zoom slider.
 func (layout AvatarEditorLayout) Pointer(event gfx.PointerEvent, state AvatarEditorState) (AvatarEditorState, gfx.EventResult) {
 	if !layout.Ready || event.Button != gfx.PointerButtonPrimary && event.Button != gfx.PointerButtonNone {
 		return state, gfx.EventResult{}
 	}
-	if event.Target != layout.IDs.Canvas && event.Target != layout.IDs.Zoom {
+	if event.Kind == gfx.PointerExit && !event.Captured && state.gesture != avatarEditorGestureNone {
+		state.gesture = avatarEditorGestureNone
+		return state, gfx.EventResult{Repaint: true}
+	}
+	canvas := !layout.ids.Canvas.IsZero() && event.Target == layout.ids.Canvas
+	slider := layout.zoomEnabled() && event.Target == layout.ids.Zoom
+	if !canvas && !slider {
 		return state, gfx.EventResult{}
 	}
 	switch event.Kind {
 	case gfx.PointerDown:
-		if event.Target == layout.IDs.Zoom {
-			state.Gesture = avatarEditorGestureZoom
-			state = avatarEditorZoomAtX(layout, state, event.X)
+		state = layout.geometry.normalize(state)
+		if slider {
+			state.gesture = avatarEditorGestureZoom
+			state = layout.zoomAtX(state, event.X)
 		} else {
-			state.Gesture = avatarEditorGestureCanvas
+			state.gesture = avatarEditorGestureCanvas
 			state.dragX, state.dragY = event.X, event.Y
 		}
-		return state, gfx.EventResult{Handled: true, Repaint: true}
 	case gfx.PointerMove:
 		if !event.Captured {
 			return state, gfx.EventResult{}
 		}
-		switch state.Gesture {
-		case avatarEditorGestureCanvas:
-			if layout.Stage.Width <= 0 || layout.Stage.Height <= 0 || layout.Crop.Width <= 0 || layout.Crop.Height <= 0 {
-				return state, gfx.EventResult{}
-			}
-			dx := event.X - state.dragX
-			dy := event.Y - state.dragY
-			state.CenterX -= dx * layout.Crop.Width / layout.Stage.Width / float32(layout.bitmap.Width)
-			state.CenterY -= dy * layout.Crop.Height / layout.Stage.Height / float32(layout.bitmap.Height)
+		switch {
+		case canvas && state.gesture == avatarEditorGestureCanvas:
+			state = layout.pan(state, state.dragX-event.X, state.dragY-event.Y)
 			state.dragX, state.dragY = event.X, event.Y
-			state = normalizeAvatarEditorCenter(state, gfx.Size{Width: float32(layout.bitmap.Width), Height: float32(layout.bitmap.Height)}, layout.AspectRatio, layout.MinZoom, layout.MaxZoom)
-			return state, gfx.EventResult{Handled: true, Repaint: true}
-		case avatarEditorGestureZoom:
-			state = avatarEditorZoomAtX(layout, state, event.X)
-			return state, gfx.EventResult{Handled: true, Repaint: true}
+		case slider && state.gesture == avatarEditorGestureZoom:
+			state = layout.zoomAtX(state, event.X)
+		default:
+			return state, gfx.EventResult{}
 		}
 	case gfx.PointerUp:
-		if state.Gesture != avatarEditorGestureNone {
-			state.Gesture = avatarEditorGestureNone
-			return state, gfx.EventResult{Handled: true, Repaint: true}
+		if !(canvas && state.gesture == avatarEditorGestureCanvas || slider && state.gesture == avatarEditorGestureZoom) {
+			return state, gfx.EventResult{}
 		}
-	case gfx.PointerExit:
-		if !event.Captured && state.Gesture != avatarEditorGestureNone {
-			state.Gesture = avatarEditorGestureNone
-			return state, gfx.EventResult{Repaint: true}
-		}
-	}
-	return state, gfx.EventResult{}
-}
-
-// Scroll zooms around the pointer, keeping the source point under it stable.
-func (layout AvatarEditorLayout) Scroll(event gfx.ScrollEvent, state AvatarEditorState) (AvatarEditorState, gfx.EventResult) {
-	if !layout.Ready || event.Target != layout.IDs.Canvas || event.DeltaY == 0 || layout.Stage.Width <= 0 || layout.Stage.Height <= 0 {
+		state.gesture = avatarEditorGestureNone
+	default:
 		return state, gfx.EventResult{}
 	}
-	delta := event.StepY(1)
-	if delta == 0 {
-		delta = event.DeltaY / 120
-	}
-	delta = max(-8, min(8, delta))
-	target := state.Zoom * float32(math.Pow(1.15, -float64(delta)))
-	focusX := min(1, max(0, (event.X-layout.Stage.X)/layout.Stage.Width))
-	focusY := min(1, max(0, (event.Y-layout.Stage.Y)/layout.Stage.Height))
-	state = zoomAvatarEditor(layout.bitmap, state, target, focusX, focusY, layout.AspectRatio, layout.MinZoom, layout.MaxZoom)
 	return state, gfx.EventResult{Handled: true, Repaint: true}
 }
 
-// Key supports keyboard-only editing. Canvas arrows pan, +/- and Page Up/Down
-// zoom, and Home resets. Zoom-slider arrows adjust its value. Enter and dialog
-// shortcuts remain available to the surrounding application.
-func (layout AvatarEditorLayout) Key(event gfx.KeyEvent, state AvatarEditorState) (AvatarEditorState, gfx.EventResult) {
-	if !layout.Ready || event.Release || event.Target != layout.IDs.Canvas && event.Target != layout.IDs.Zoom {
+// Scroll zooms around the pointer. At a zoom limit, a scroll that would go
+// farther is left for the containing page to handle.
+func (layout AvatarEditorLayout) Scroll(event gfx.ScrollEvent, state AvatarEditorState) (AvatarEditorState, gfx.EventResult) {
+	if !layout.Ready || layout.ids.Canvas.IsZero() || event.Target != layout.ids.Canvas || event.DeltaY == 0 {
 		return state, gfx.EventResult{}
 	}
-	if event.Target == layout.IDs.Zoom {
-		switch event.Key {
-		case gfx.KeyLeft, gfx.KeyDown:
-			return zoomAvatarEditor(layout.bitmap, state, state.Zoom/1.1, .5, .5, layout.AspectRatio, layout.MinZoom, layout.MaxZoom),
-				gfx.EventResult{Handled: true, Repaint: true}
-		case gfx.KeyRight, gfx.KeyUp:
-			return zoomAvatarEditor(layout.bitmap, state, state.Zoom*1.1, .5, .5, layout.AspectRatio, layout.MinZoom, layout.MaxZoom),
-				gfx.EventResult{Handled: true, Repaint: true}
-		case gfx.KeyHome:
-			InitializeAvatarEditorState(&state)
-			return state, gfx.EventResult{Handled: true, Repaint: true}
+	view := layout.geometry.normalize(state)
+	delta := min(float32(8), max(float32(-8), event.StepY(1)))
+	target := view.Zoom * float32(math.Pow(1.15, -float64(delta)))
+	stage := layout.Stage
+	focusX := min(1, max(0, (event.X-stage.X)/stage.Width))
+	focusY := min(1, max(0, (event.Y-stage.Y)/stage.Height))
+	next := layout.geometry.zoom(view, target, focusX, focusY)
+	if next.Zoom == view.Zoom {
+		return state, gfx.EventResult{}
+	}
+	return next, gfx.EventResult{Handled: true, Repaint: true}
+}
+
+// Key handles unmodified editing keys (and Shift for larger moves). Canvas
+// arrows pan, +/- and Page Up/Down zoom, and Home resets the view. The zoom
+// slider follows standard slider keys. Enter and app shortcuts pass through.
+func (layout AvatarEditorLayout) Key(event gfx.KeyEvent, state AvatarEditorState) (AvatarEditorState, gfx.EventResult) {
+	if !layout.Ready || event.Release || event.Modifiers&(gfx.ModifierControl|gfx.ModifierMeta|gfx.ModifierAlt) != 0 ||
+		event.Target.IsZero() {
+		return state, gfx.EventResult{}
+	}
+	view := layout.geometry.normalize(state)
+	result := gfx.EventResult{Handled: true, Repaint: true}
+	if event.Target == layout.ids.Zoom && layout.zoomEnabled() {
+		g := layout.geometry
+		value, handled := SliderKeyDownLarge(view.Zoom, g.minZoom, g.maxZoom, avatarEditorZoomStep, 1, LTR, event.Key, event.Modifiers)
+		if !handled {
+			return state, gfx.EventResult{}
 		}
+		// Home and End select the exact endpoints, including custom bounds that
+		// aren't an integer number of steps apart.
+		if event.Key == gfx.KeyEnd {
+			value = g.maxZoom
+		}
+		return g.zoom(view, value, .5, .5), result
+	}
+	if event.Target != layout.ids.Canvas {
+		return state, gfx.EventResult{}
+	}
+	step := float32(8)
+	if event.Modifiers&gfx.ModifierShift != 0 {
+		step = 24
 	}
 	switch event.Key {
 	case gfx.KeyLeft:
-		state = nudgeAvatarEditor(layout, state, -1, 0, event.Modifiers)
+		view = layout.pan(view, -step, 0)
 	case gfx.KeyRight:
-		state = nudgeAvatarEditor(layout, state, 1, 0, event.Modifiers)
+		view = layout.pan(view, step, 0)
 	case gfx.KeyUp:
-		state = nudgeAvatarEditor(layout, state, 0, 1, event.Modifiers)
+		view = layout.pan(view, 0, -step)
 	case gfx.KeyDown:
-		state = nudgeAvatarEditor(layout, state, 0, -1, event.Modifiers)
+		view = layout.pan(view, 0, step)
 	case gfx.KeyPageUp:
-		state = zoomAvatarEditor(layout.bitmap, state, state.Zoom*1.15, .5, .5, layout.AspectRatio, layout.MinZoom, layout.MaxZoom)
+		view = layout.geometry.zoom(view, view.Zoom*1.15, .5, .5)
 	case gfx.KeyPageDown:
-		state = zoomAvatarEditor(layout.bitmap, state, state.Zoom/1.15, .5, .5, layout.AspectRatio, layout.MinZoom, layout.MaxZoom)
+		view = layout.geometry.zoom(view, view.Zoom/1.15, .5, .5)
 	case gfx.KeyHome:
-		InitializeAvatarEditorState(&state)
+		view = layout.geometry.normalize(AvatarEditorState{})
 	default:
 		switch event.Text {
 		case "+", "=":
-			state = zoomAvatarEditor(layout.bitmap, state, state.Zoom*1.15, .5, .5, layout.AspectRatio, layout.MinZoom, layout.MaxZoom)
+			view = layout.geometry.zoom(view, view.Zoom*1.15, .5, .5)
 		case "-":
-			state = zoomAvatarEditor(layout.bitmap, state, state.Zoom/1.15, .5, .5, layout.AspectRatio, layout.MinZoom, layout.MaxZoom)
+			view = layout.geometry.zoom(view, view.Zoom/1.15, .5, .5)
 		default:
 			return state, gfx.EventResult{}
 		}
 	}
-	return state, gfx.EventResult{Handled: true, Repaint: true}
+	return view, result
 }
 
 func normalizedAvatarEditorLabels(labels AvatarEditorLabels) AvatarEditorLabels {
@@ -399,179 +458,149 @@ func normalizedAvatarEditorLabels(labels AvatarEditorLabels) AvatarEditorLabels 
 	return labels
 }
 
+func finiteAvatarValue(value float32) bool {
+	return value >= -math.MaxFloat32 && value <= math.MaxFloat32
+}
+
 func avatarEditorLimits(o AvatarEditorOptions) (aspect, minZoom, maxZoom float32) {
 	aspect = o.AspectRatio
-	if !(aspect > 0) || math.IsInf(float64(aspect), 0) || math.IsNaN(float64(aspect)) {
+	if !finiteAvatarValue(aspect) || aspect <= 0 {
 		aspect = 1
 	}
 	minZoom = o.MinZoom
-	if !(minZoom > 0) {
+	if !finiteAvatarValue(minZoom) || minZoom < 1 {
 		minZoom = 1
 	}
 	maxZoom = o.MaxZoom
-	if !(maxZoom > minZoom) {
+	if !finiteAvatarValue(maxZoom) || maxZoom < minZoom {
 		maxZoom = max(8, minZoom)
 	}
 	return aspect, minZoom, maxZoom
 }
 
-func avatarEditorStageSize(bounds gfx.Rect, aspect, stageMax, availableHeight float32) (float32, float32) {
-	width := min(stageMax, max(float32(1), bounds.Width))
-	height := min(stageMax, max(float32(1), availableHeight))
-	if aspect >= 1 {
-		width = min(width, height*aspect)
-		height = width / aspect
-	} else {
-		height = min(height, width/aspect)
-		width = height * aspect
-	}
-	return max(width, 1), max(height, 1)
-}
-
 func avatarBitmapReady(bitmap gfx.Bitmap) bool {
-	return bitmap.Width > 0 && bitmap.Height > 0 && bitmap.Stride >= bitmap.Width*4 &&
-		len(bitmap.Pix) >= (bitmap.Height-1)*bitmap.Stride+bitmap.Width*4
+	if bitmap.Width <= 0 || bitmap.Height <= 0 || bitmap.Width > len(bitmap.Pix)/4 || bitmap.Stride < bitmap.Width*4 {
+		return false
+	}
+	return (len(bitmap.Pix)-bitmap.Width*4)/bitmap.Stride >= bitmap.Height-1
 }
 
-func normalizedAvatarEditorState(state AvatarEditorState, minZoom, maxZoom float32) AvatarEditorState {
-	if !state.Initialized {
-		state.Initialized, state.Zoom, state.CenterX, state.CenterY = true, 1, .5, .5
+type avatarCropGeometry struct {
+	image, base      gfx.Size
+	minZoom, maxZoom float32
+}
+
+func newAvatarCropGeometry(bitmap gfx.Bitmap, aspect, minZoom, maxZoom float32) avatarCropGeometry {
+	image := gfx.Size{Width: float32(bitmap.Width), Height: float32(bitmap.Height)}
+	base := image
+	if image.Width/image.Height > aspect {
+		base.Width = image.Height * aspect
+	} else {
+		base.Height = image.Width / aspect
 	}
-	if math.IsNaN(float64(state.Zoom)) || math.IsInf(float64(state.Zoom), 0) {
-		state.Zoom = 1
+	return avatarCropGeometry{image: image, base: base, minZoom: minZoom, maxZoom: maxZoom}
+}
+
+func (g avatarCropGeometry) normalize(state AvatarEditorState) AvatarEditorState {
+	if !finiteAvatarValue(state.Zoom) || state.Zoom <= 0 {
+		state.Zoom, state.CenterX, state.CenterY = 1, .5, .5
 	}
-	state.Zoom = min(maxZoom, max(minZoom, state.Zoom))
-	if math.IsNaN(float64(state.CenterX)) {
+	state.Zoom = min(g.maxZoom, max(g.minZoom, state.Zoom))
+	if !finiteAvatarValue(state.CenterX) {
 		state.CenterX = .5
 	}
-	if math.IsNaN(float64(state.CenterY)) {
+	if !finiteAvatarValue(state.CenterY) {
 		state.CenterY = .5
 	}
-	state.CenterX = min(1, max(0, state.CenterX))
-	state.CenterY = min(1, max(0, state.CenterY))
-	if state.Gesture > avatarEditorGestureZoom {
-		state.Gesture = avatarEditorGestureNone
-	}
+	width, height := g.base.Width/state.Zoom, g.base.Height/state.Zoom
+	halfWidth, halfHeight := width/g.image.Width/2, height/g.image.Height/2
+	state.CenterX = min(1-halfWidth, max(halfWidth, state.CenterX))
+	state.CenterY = min(1-halfHeight, max(halfHeight, state.CenterY))
 	return state
 }
 
-func avatarEditorCrop(bitmap gfx.Bitmap, state AvatarEditorState, aspect, minZoom, maxZoom float32) gfx.Rect {
-	if !avatarBitmapReady(bitmap) {
-		return gfx.Rect{}
+func (g avatarCropGeometry) crop(state AvatarEditorState) gfx.Rect {
+	width, height := g.base.Width/state.Zoom, g.base.Height/state.Zoom
+	return gfx.Rect{
+		X:     min(g.image.Width-width, max(0, state.CenterX*g.image.Width-width/2)),
+		Y:     min(g.image.Height-height, max(0, state.CenterY*g.image.Height-height/2)),
+		Width: width, Height: height,
 	}
-	state = normalizedAvatarEditorState(state, minZoom, maxZoom)
-	base := avatarEditorBaseCrop(bitmap, aspect)
-	width := base.Width / state.Zoom
-	height := base.Height / state.Zoom
-	x := state.CenterX*float32(bitmap.Width) - width/2
-	y := state.CenterY*float32(bitmap.Height) - height/2
-	x = min(float32(bitmap.Width)-width, max(0, x))
-	y = min(float32(bitmap.Height)-height, max(0, y))
-	return gfx.Rect{X: x, Y: y, Width: width, Height: height}
 }
 
-func avatarEditorBaseCrop(bitmap gfx.Bitmap, aspect float32) gfx.Rect {
-	width, height := float32(bitmap.Width), float32(bitmap.Height)
-	if width/height > aspect {
-		width = height * aspect
-	} else {
-		height = width / aspect
-	}
-	return gfx.Rect{X: (float32(bitmap.Width) - width) / 2, Y: (float32(bitmap.Height) - height) / 2, Width: width, Height: height}
-}
-
-func normalizeAvatarEditorCenter(state AvatarEditorState, size gfx.Size, aspect, minZoom, maxZoom float32) AvatarEditorState {
-	state = normalizedAvatarEditorState(state, minZoom, maxZoom)
-	base := gfx.Rect{Width: float32(size.Width), Height: float32(size.Height)}
-	if base.Width/base.Height > aspect {
-		base.Width = base.Height * aspect
-	} else {
-		base.Height = base.Width / aspect
-	}
-	width, height := base.Width/state.Zoom, base.Height/state.Zoom
-	state.CenterX = min(1-width/(2*float32(size.Width)), max(width/(2*float32(size.Width)), state.CenterX))
-	state.CenterY = min(1-height/(2*float32(size.Height)), max(height/(2*float32(size.Height)), state.CenterY))
-	return state
-}
-
-func zoomAvatarEditor(bitmap gfx.Bitmap, state AvatarEditorState, target, focusX, focusY, aspect, minZoom, maxZoom float32) AvatarEditorState {
-	if !avatarBitmapReady(bitmap) {
+func (g avatarCropGeometry) zoom(state AvatarEditorState, target, focusX, focusY float32) AvatarEditorState {
+	if math.IsNaN(float64(target)) {
 		return state
 	}
-	state = normalizedAvatarEditorState(state, minZoom, maxZoom)
-	target = min(maxZoom, max(minZoom, target))
-	before := avatarEditorCrop(bitmap, state, aspect, minZoom, maxZoom)
-	imageX := before.X + focusX*before.Width
-	imageY := before.Y + focusY*before.Height
+	target = min(g.maxZoom, max(g.minZoom, target))
+	if state.Zoom == target {
+		return state
+	}
+	before := g.crop(state)
 	state.Zoom = target
-	after := avatarEditorCrop(bitmap, state, aspect, minZoom, maxZoom)
-	state.CenterX = (imageX + (.5-focusX)*after.Width) / float32(bitmap.Width)
-	state.CenterY = (imageY + (.5-focusY)*after.Height) / float32(bitmap.Height)
-	return normalizeAvatarEditorCenter(state, gfx.Size{Width: float32(bitmap.Width), Height: float32(bitmap.Height)}, aspect, minZoom, maxZoom)
+	state.CenterX = (before.X + focusX*before.Width + (.5-focusX)*g.base.Width/target) / g.image.Width
+	state.CenterY = (before.Y + focusY*before.Height + (.5-focusY)*g.base.Height/target) / g.image.Height
+	return g.normalize(state)
 }
 
-func nudgeAvatarEditor(layout AvatarEditorLayout, state AvatarEditorState, x, y float32, modifiers gfx.Modifiers) AvatarEditorState {
-	step := float32(8)
-	if modifiers&gfx.ModifierShift != 0 {
-		step = 24
-	}
-	crop := avatarEditorCrop(layout.bitmap, state, layout.AspectRatio, layout.MinZoom, layout.MaxZoom)
-	if layout.Stage.Width <= 0 || layout.Stage.Height <= 0 {
-		return state
-	}
-	state.CenterX += x * step * crop.Width / layout.Stage.Width / float32(layout.bitmap.Width)
-	state.CenterY += y * step * crop.Height / layout.Stage.Height / float32(layout.bitmap.Height)
-	return normalizeAvatarEditorCenter(state, gfx.Size{Width: float32(layout.bitmap.Width), Height: float32(layout.bitmap.Height)}, layout.AspectRatio, layout.MinZoom, layout.MaxZoom)
+func (layout AvatarEditorLayout) pan(state AvatarEditorState, dx, dy float32) AvatarEditorState {
+	g := layout.geometry
+	state = g.normalize(state)
+	// Use the latest draft zoom even if the caller has not painted again yet.
+	state.CenterX += dx * (g.base.Width / state.Zoom / g.image.Width) / layout.Stage.Width
+	state.CenterY += dy * (g.base.Height / state.Zoom / g.image.Height) / layout.Stage.Height
+	return g.normalize(state)
 }
 
-func avatarEditorZoomAtX(layout AvatarEditorLayout, state AvatarEditorState, x float32) AvatarEditorState {
-	if layout.ZoomTrack.Width <= 0 {
-		return state
-	}
-	fraction := min(1, max(0, (x-layout.ZoomTrack.X)/layout.ZoomTrack.Width))
-	target := layout.MinZoom + fraction*(layout.MaxZoom-layout.MinZoom)
-	return zoomAvatarEditor(layout.bitmap, state, target, .5, .5, layout.AspectRatio, layout.MinZoom, layout.MaxZoom)
+func (layout AvatarEditorLayout) zoomEnabled() bool {
+	return layout.zoomBounds.Width > 0 && layout.geometry.maxZoom > layout.geometry.minZoom
 }
 
-func avatarEditorPaintImage(c *gfx.Canvas, stage gfx.Rect, bitmap gfx.Bitmap, crop gfx.Rect, circular bool, backdrop gfx.Color) {
-	// Draw the image once so the renderer's linear sampler sees the complete
-	// source region. A vector even-odd mask then removes the four corners; one
-	// draw preserves high-resolution detail while still producing a smooth edge.
-	c.DrawBitmapRegion(bitmap, crop, stage)
-	if circular {
-		c.DrawPath(avatarEditorCircleMaskPath(), stage, gfx.PathStyle{
-			Fill: backdrop, FillRule: gfx.PathFillEvenOdd,
-		})
-	}
+const (
+	avatarEditorZoomThumb = 14
+	avatarEditorZoomStep  = .1
+)
+
+func (layout AvatarEditorLayout) zoomAtX(state AvatarEditorState, x float32) AvatarEditorState {
+	track := layout.zoomBounds
+	fraction := min(1, max(0, (x-track.X-avatarEditorZoomThumb/2)/(track.Width-avatarEditorZoomThumb)))
+	g := layout.geometry
+	return g.zoom(g.normalize(state), g.minZoom+fraction*(g.maxZoom-g.minZoom), .5, .5)
 }
 
-func avatarEditorPaintGuides(c *gfx.Canvas, theme gfx.Theme, stage gfx.Rect, circular bool) {
-	if circular {
-		return
-	}
+func avatarEditorPaintGuides(c *gfx.Canvas, theme gfx.Theme, stage gfx.Rect) {
 	color := theme.Foreground
 	color.Alpha = .22
-	line := float32(1)
 	for _, fraction := range [...]float32{1.0 / 3, 2.0 / 3} {
-		c.Fill(gfx.Rect{X: stage.X + stage.Width*fraction, Y: stage.Y, Width: line, Height: stage.Height}, color)
-		c.Fill(gfx.Rect{X: stage.X, Y: stage.Y + stage.Height*fraction, Width: stage.Width, Height: line}, color)
+		c.Fill(gfx.Rect{X: stage.X + stage.Width*fraction, Y: stage.Y, Width: 1, Height: stage.Height}, color)
+		c.Fill(gfx.Rect{X: stage.X, Y: stage.Y + stage.Height*fraction, Width: stage.Width, Height: 1}, color)
 	}
 }
 
 func avatarEditorPaintZoom(c *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect, zoom, minZoom, maxZoom float32, ready bool, label string) {
-	track := gfx.Rect{X: bounds.X, Y: bounds.Y + bounds.Height/2 - 2, Width: bounds.Width, Height: 4}
+	centerY := bounds.Y + bounds.Height/2
+	track := gfx.Rect{X: bounds.X + avatarEditorZoomThumb/2, Y: centerY - 2, Width: bounds.Width - avatarEditorZoomThumb, Height: 4}
 	c.Rounded(track, 2, theme.Muted)
-	if ready {
-		fraction := min(1, max(0, (zoom-minZoom)/(maxZoom-minZoom)))
+	fraction := float32(0)
+	if ready && maxZoom > minZoom {
+		fraction = min(1, max(0, (zoom-minZoom)/(maxZoom-minZoom)))
 		c.Rounded(gfx.Rect{X: track.X, Y: track.Y, Width: track.Width * fraction, Height: track.Height}, 2, theme.Primary)
-		knobX := track.X + track.Width*fraction
-		c.Rounded(gfx.Rect{X: knobX - 7, Y: bounds.Y + 5, Width: 14, Height: 14}, 7, theme.Background)
-		c.RoundedBorder(gfx.Rect{X: knobX - 7, Y: bounds.Y + 5, Width: 14, Height: 14}, 7, 1.5, theme.Primary, gfx.Color{})
+	}
+	if ready {
+		thumbX := track.X + track.Width*fraction
+		thumb := gfx.Rect{X: thumbX - avatarEditorZoomThumb/2, Y: centerY - avatarEditorZoomThumb/2, Width: avatarEditorZoomThumb, Height: avatarEditorZoomThumb}
+		if c.FocusVisible() == id {
+			c.Rounded(expand(thumb, 3), avatarEditorZoomThumb/2+3, theme.Ring)
+		}
+		c.Rounded(thumb, avatarEditorZoomThumb/2, theme.Background)
+		c.RoundedBorder(thumb, avatarEditorZoomThumb/2, 1.5, theme.Primary, gfx.Color{})
+	} else {
+		zoom = minZoom
 	}
 	c.HitWithOptions(id, bounds, label, gfx.HitOptions{
-		Role: gfx.RoleSlider, Value: label,
-		Range:    gfx.ValueRange{Min: float64(minZoom), Max: float64(maxZoom), Now: float64(zoom), Step: .1, Set: true},
-		Disabled: !ready, Cursor: gfx.PointerCursorHand,
+		Role:     gfx.RoleSlider,
+		Range:    gfx.ValueRange{Min: float64(minZoom), Max: float64(maxZoom), Now: float64(zoom), Step: avatarEditorZoomStep, Set: true},
+		Disabled: !ready || maxZoom == minZoom, Cursor: gfx.PointerCursorHand,
 	})
 }
 

@@ -22,9 +22,7 @@ func (model *avatarEditorDriverModel) page(c ui.C) {
 }
 
 func TestAvatarEditorDriverInteraction(t *testing.T) {
-	state := components.AvatarEditorState{}
-	components.InitializeAvatarEditorState(&state)
-	state.Zoom = 2
+	state := components.AvatarEditorState{Zoom: 2, CenterX: .5, CenterY: .5}
 	ids := components.AvatarEditorIDs{
 		Canvas: gfx.Item(4), Zoom: gfx.Item(5), ZoomOut: gfx.Item(6), ZoomIn: gfx.Item(7),
 		Reset: gfx.Item(8),
@@ -74,7 +72,7 @@ func TestAvatarEditorDriverInteraction(t *testing.T) {
 	if err := driver.Release(x+35, y-45, gfx.PointerButtonPrimary); err != nil {
 		t.Fatal(err)
 	}
-	if model.options.State.CenterX == .5 || model.options.State.CenterY == .5 || model.options.State.Gesture != 0 {
+	if model.options.State.CenterX == .5 || model.options.State.CenterY == .5 {
 		t.Fatalf("driver drag did not update the crop: %+v", model.options.State)
 	}
 
@@ -100,7 +98,7 @@ func TestAvatarEditorDriverInteraction(t *testing.T) {
 	if model.options.State.Zoom <= 1 {
 		t.Fatalf("zoom button did not update state: %+v", model.options.State)
 	}
-	if model.layout.Crop.Width >= float32(model.options.Bitmap.Width) {
+	if model.layout.Crop.Width >= float32(model.options.Bitmap.Height) {
 		t.Fatalf("zoom button returned an unzoomed crop: %+v", model.layout.Crop)
 	}
 }
