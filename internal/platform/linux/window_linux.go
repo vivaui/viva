@@ -34,8 +34,12 @@ type window struct {
 	caretAtom                 uint32
 	closeAtom                 uint32
 	commandAtom               uint32
-	moveResizeAtom            uint32
-	cursor                    uint32
+	// titleMu guards pendingTitle, the title SetTitle asked for that the event loop
+	// has not written to the window yet.
+	titleMu        sync.Mutex
+	pendingTitle   string
+	moveResizeAtom uint32
+	cursor         uint32
 	// themed is the cursor theme's loader, tried once.
 	themed       *themedCursors
 	cursorsTried bool
@@ -202,6 +206,7 @@ const (
 	commandEnterFullscreen
 	commandExitFullscreen
 	commandSetSize
+	commandSetTitle
 	commandPost
 )
 
