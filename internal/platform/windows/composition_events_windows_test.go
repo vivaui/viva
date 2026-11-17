@@ -433,7 +433,7 @@ func TestCompositionSupersededFrameDoesNotPublishOldNativeViews(t *testing.T) {
 		}
 	})
 	if err != nil || state.err != nil || state.textState != latest.State ||
-		len(state.web.rects) != 1 || state.web.rects[0].ID != latestView.ID || presented == 0 || state.textRectangles[0] != base {
+		len(state.web.rects) != 1 || state.web.rects[0].ID != latestView.ID || presented != 0 || state.textRectangles[0] != base {
 		t.Fatalf("superseded frame published: state=%+v views=%+v rectangle=%+v presented=%d err=%v", state.textState, state.web.rects, state.textRectangles[0], presented, err)
 	}
 }
