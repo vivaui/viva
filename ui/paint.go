@@ -108,7 +108,12 @@ func (f *frame) paint(i int32) {
 			}
 			canvas.HitLabel(n.id, hit, text, n.flags&flagDisabled != 0)
 		} else {
-			canvas.HitWithOptions(n.id, hit, n.label, extra.hit)
+			options := extra.hit
+			// Disabled on the element is the control's own: a Base that was told it is
+			// unavailable says so to assistive technology and leaves the Tab order,
+			// as the control with a look does.
+			options.Disabled = options.Disabled || n.flags&flagDisabled != 0
+			canvas.HitWithOptions(n.id, hit, n.label, options)
 		}
 	}
 
@@ -280,6 +285,9 @@ func (f *frame) paintButton(n *node) {
 		WithIcon(extra.icon).IconTransform(extra.iconTransform)
 	if f.styles != nil && f.styles.Button != nil {
 		button = button.Recipe(f.styles.Button)
+	}
+	if extra.buttonRecipe != nil {
+		button = button.Recipe(extra.buttonRecipe)
 	}
 	// A button is as tall as its size says unless the element was given more or less
 	// room: a Height, or a Grow along a column. It then fills that room.

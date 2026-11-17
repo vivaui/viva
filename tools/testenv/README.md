@@ -19,10 +19,11 @@ machine and record what was not automated.
 
 | | Linux |
 | --- | --- |
-| System | Debian 12 x86_64 desktop container, Xvnc 1920x1080, `DISPLAY=:1` |
-| Graphics | no Vulkan or discrete GPU: software rendering only (the CPU rasterizer; a software Vulkan build may be installed separately) |
+| System | Ubuntu 22.04.3 x86_64 desktop VM, GNOME on X, 1920x1080, `DISPLAY=:0` (set by `VIVA_LINUX_DISPLAY`) |
+| Graphics | no discrete GPU; software Vulkan (lavapipe) is installed |
+| Audio | PulseAudio with an `auto_null` sink; ALSA's `default` PCM plays there |
 | API | `${VIVA_LINUX_ENV}` |
-| Watch the screen | a VNC view served beside the API, self-signed |
+| Watch the screen | a web desktop at the port beside the API (no password), and a native VNC port on the other side; `local.sh` records both |
 | User | an ordinary desktop user with sudo (`user`, password in `local.sh`) |
 
 ## HTTP API
@@ -55,15 +56,18 @@ Set `VIVA_LINUX_ENV` when calling `tools/conformance/run.sh` or
 
 ## Linux notes
 
-- GUI programs need `DISPLAY=:1` and `XAUTHORITY=/home/user/.Xauthority`. A
-  changed `HOME` loses the latter.
-- The session bus is the one in `/proc/<plasmashell pid>/environ`.
-- Software Vulkan is either a private copy under a private `/tmp` directory (the variables
-  are in `tools/conformance/run.sh`) or, on a freshly rebuilt machine, the
-  system's. Install it with `sudo apt-get update` followed by
-  `apt-get install mesa-vulkan-drivers`, as a `setsid nohup` script; the package
-  index is stale until updated.
-- `xdotool` is installed.
+- GUI programs need `DISPLAY=$VIVA_LINUX_DISPLAY` (currently `:0`) and
+  `XDG_RUNTIME_DIR=$VIVA_LINUX_RUNTIME_DIR`. The current machine needs no X
+  authority file; `VIVA_LINUX_XAUTHORITY` is empty. An older Xvnc machine used
+  `:1` and `/home/user/.Xauthority`; both scripts read the variables so neither
+  is hard-coded.
+- The session bus is `/run/user/1000/bus`. The conformance script falls back to
+  the desktop shell's environment (`gnome-shell` or `plasmashell`) if the socket
+  is absent.
+- Software Vulkan is the system's lavapipe (the ICD is in
+  `/usr/share/vulkan/icd.d`). The private `/tmp/viva-vulkan` copy remains a
+  fallback for machines without it.
+- `xdotool` and `vulkaninfo` are not installed on the current machine.
 - Many threads in a Viva process there are lavapipe's pool, not Viva's.
 
 ## Platform conformance

@@ -44,7 +44,7 @@ Two limits are deliberate. A chart draws every point it is given, so a very long
 
 ## Owning a copy
 
-If you want to change a component, copy it. `viva list` names the recipes the installer can copy, and `viva add` writes them into your project as ordinary Go files:
+If you want to change a component, copy it. `viva list` names the recipes the installer can copy, and `viva add` writes them into your project as ordinary Go files. A copy is a painting recipe: it draws into a `gfx.Canvas` in the rectangle you give it (`BeginButton(canvas, theme, id, bounds)`), so you use it from a `Draw` callback of a page's element or from a whole-window `Paint`, and its look is the code you edit. To change how every `ui.Button` looks without copying anything, give the page `PageConfig.Styles`; to build a control of your own look on the behavior `ui` ships, use `ui.ButtonBase` and the other Bases.
 
 ```sh
 # install viva once (see "Build and package"); in a project made by viva init, use go tool viva

@@ -121,6 +121,22 @@ func TestCheckLayoutPrefersPaintedTextWidths(t *testing.T) {
 	}
 }
 
+func TestCheckLayoutIgnoresASelectedRunPaintedAgainInsideItsHighlight(t *testing.T) {
+	style := gfx.TextStyle{Size: 14, Color: gfx.Color{Alpha: 1}}
+	line := gfx.Rect{X: 10, Y: 20, Width: 200, Height: 20}
+	snapshot := app.Snapshot{Width: 320, Height: 100, Texts: []gfx.Text{
+		{Value: "7897", Bounds: line, Style: style, HasClip: true, ClipOf: gfx.Rect{X: 10, Y: 16, Width: 200, Height: 28}},
+		{Value: "7897", Bounds: line, Style: style, HasClip: true, ClipOf: gfx.Rect{X: 10, Y: 16, Width: 32, Height: 28}},
+	}}
+	if problems := CheckLayout(snapshot); len(problems) != 0 {
+		t.Fatalf("problems = %+v", problems)
+	}
+	snapshot.Texts[1].Value = "7898"
+	if kinds := layoutKinds(CheckLayout(snapshot)); kinds[LayoutOverlap] == 0 {
+		t.Fatal("two different runs at one place must still overlap")
+	}
+}
+
 func TestCheckLayoutIgnoresALineThatAScrolledAreaShowsHalfOf(t *testing.T) {
 	session := layoutSession(t, func(canvas *gfx.Canvas) {
 		canvas.Clip(gfx.Rect{X: 0, Y: 0, Width: 320, Height: 100})

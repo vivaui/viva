@@ -1,11 +1,82 @@
 ---
 title: 绘制与布局
-summary: 坐标、用行、列和网格切分空间，以及绘制矩形、文字、图标和路径。
+summary: 在页面的元素里自绘，以及整窗画布：坐标、行、列和网格，矩形、文字、图标和路径。
 order: 6
 group: guides
 ---
 
-屏幕上的一切都是在你的 `Paint` 回调里画进 `gfx.Canvas` 的。没有需要构建的控件树，也没有样式表：你计算矩形，然后让画布填充它们、在里面绘制文字，或者把它们声明为可交互。
+屏幕上的一切都是画进 `gfx.Canvas` 的。大多数应用不会直接为自己的控件调用它：它们用 `ui` 包声明一个页面（见[声明式布局](declarative-layout)），由页面排布元素并绘制控件，只有在 `ui` 里没有合适的东西时才自己画。自己画有两种方式。
+
+## 在页面里绘制
+
+给页面中的元素挂一个 `Draw`（在它的背景和边框之后、子元素之前执行）或 `DrawOver`（在子元素之后执行）。元素放在哪里、有多大由页面决定，回调在 `d.Rect` 里用画布、主题以及元素的悬停、按下和焦点状态来画。用 `Hit` 和一个名字声明这个元素，指针和辅助技术就能像对待控件一样触达它。
+
+<!-- example: paintinpage/main.go -->
+```go
+package main
+
+import (
+	"log"
+
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/ui"
+)
+
+type model struct {
+	samples []float32 // 0 to 1
+}
+
+// page declares a chart's frame and the button that feeds it. The page lays the
+// chart's element out; what is drawn inside it is the chart's own.
+func (m *model) page(c ui.C) {
+	theme := c.Theme()
+	ui.Column(c).Fill().Pad(24).Gap(16).Children(func() {
+		ui.Text(c, "Samples").FontSize(20).Bold()
+		ui.Row(c).FillWidth().Height(120).Radius(8).Background(theme.Card).Border(1, theme.Border).
+			Hit(ui.ID(c), "Samples chart").
+			Draw(m.bars).
+			DrawOver(func(d *ui.DrawContext) {
+				if d.State.Hovered {
+					d.Canvas.Fill(d.Rect, d.Fade(theme.Foreground.WithAlpha(0.06)))
+				}
+			})
+		if ui.Button(c, "Add a sample").Clicked() {
+			m.samples = append(m.samples, float32(len(m.samples)%7+1)/8)
+		}
+	})
+}
+
+// bars paints one bar for each sample in d.Rect, the room the page gave the element.
+// It only paints: it may run more than once a frame and declares no elements.
+func (m *model) bars(d *ui.DrawContext) {
+	const gap = 6
+	if len(m.samples) == 0 {
+		return
+	}
+	width := (d.Rect.Width - gap*float32(len(m.samples)+1)) / float32(len(m.samples))
+	for i, value := range m.samples {
+		height := d.Rect.Height * 0.8 * value
+		d.Canvas.Fill(ui.Rect{
+			X:     d.Rect.X + gap + float32(i)*(width+gap),
+			Y:     d.Rect.Y + d.Rect.Height - height - 8,
+			Width: width, Height: height,
+		}, d.Fade(d.Theme.Primary))
+	}
+}
+
+func main() {
+	m := &model{samples: []float32{0.3, 0.6, 0.45}}
+	if err := ui.Run(app.Config{Title: "Samples", Width: 480, Height: 300}, m.page); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+回调只负责绘制：一帧里可能运行多次，并且不能声明元素。区域还要接收键盘、指针或文本时，用带 `Handlers` 的 `ui.Control` 代替 `Hit`；它的 `Parts` 给你在绘制时声明的内部区域命名。
+
+## 绘制整个窗口
+
+没有页面的应用在 `Paint` 回调里画出一切：没有需要构建的控件树，也没有样式表，你计算矩形，然后让画布填充它们、在里面绘制文字，或者把它们声明为可交互。矩形要自己切分，每个命中区要自己命名，每个控件的状态（展开的菜单、滚动位置）也要自己保管，而这些 `ui` 对它已有的控件都会替你做，所以只在 `ui` 里没有合适的东西时才选这条路。下面的各节讲的就是这条路；画布能画什么，在页面的 `Draw` 里同样适用。
 
 ## 坐标
 

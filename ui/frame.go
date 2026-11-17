@@ -188,7 +188,8 @@ const (
 type extra struct {
 	hit           gfx.HitOptions
 	icon          gfx.Icon
-	iconTransform gfx.IconTransform // moves the icon inside its box without moving the box
+	iconTransform gfx.IconTransform                                                          // moves the icon inside its box without moving the box
+	buttonRecipe  func(gfx.Theme, components.ButtonVariant, gfx.State) components.ButtonLook // ButtonRecipe: this button's own look
 	border        Color
 	shadow        gfx.ShadowLevel
 	ring          Color   // Ring: a line around the outside of the element

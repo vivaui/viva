@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/vivaui/viva/field"
+import (
+	"github.com/vivaui/viva/field"
+	"github.com/vivaui/viva/gfx"
+)
 
 // FormFieldState is one form field's scratch, kept in the model next to the
 // values the field shows; the zero value is ready to use. Keep one for each
@@ -8,6 +11,16 @@ import "github.com/vivaui/viva/field"
 // measured, placed and painted in, and it is reused every paint without
 // allocating.
 type FormFieldState struct {
+	// Error is the line under the control, in the destructive color, and Invalid gives
+	// the title the invalid look: set them before declaring the field, as BeginField's
+	// Invalid and the error it is painted with. For, when set, makes the title the label
+	// of the control with that identity: pressing it focuses and clicks the control.
+	Error   string
+	Invalid bool
+	For     gfx.ID
+	// Description is a line of help under the control, above Error, in the muted color.
+	Description string
+
 	label  string
 	theme  *Theme
 	layout field.Layout
@@ -52,12 +65,12 @@ func FormField(c C, state *FormFieldState, label string) Box {
 	return p.container(c.f.customLayout(state)).Draw(state.paint)
 }
 
-// spec is the field's field.Spec: a title and no metadata, the subset
+// spec is the field's field.Spec: its title, error, invalid look and the control it labels, the subset
 // BeginField.Paint(label, "", "") paints. The shared layout still reserves the
 // description and error rows, so the field and a painted BeginField have the
 // same height.
 func (state *FormFieldState) spec() field.Spec {
-	return field.Spec{Title: state.label}
+	return field.Spec{Title: state.label, Description: state.Description, Error: state.Error, Invalid: state.Invalid, Control: state.For}
 }
 
 // MeasureWidth reports no preferred width: a form field takes the width its

@@ -13,6 +13,7 @@
 # FAIL or could not be reached.
 set -u
 root=$(cd "$(dirname "$0")/../.." && pwd)
+. "$root/tools/testenv/env.sh"
 linux_env=${VIVA_LINUX_ENV:-}
 export no_proxy="${no_proxy:-},localhost,127.0.0.1"
 out=$(mktemp -d)
@@ -42,9 +43,21 @@ run_linux() {
 	fi
 	(cd "$root" && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o "$out/linux" ./cmd/viva-conformance) || return 1
 	upload "$linux_env" /home/user/viva-conformance "$out/linux" || return 1
-	# The container's X server is :1; its GPU is software Vulkan (lavapipe). The session bus
-	# address changes with each login, so it is read from the desktop shell's environment.
-	execute "$linux_env" '{"command":["bash","-c","chmod +x /home/user/viva-conformance; export DISPLAY=:1 XAUTHORITY=/home/user/.Xauthority; pid=$(pgrep -u user plasmashell | head -1); if [ -r /proc/$pid/environ ]; then export $(xargs -0 -n1 -a /proc/$pid/environ | grep ^DBUS_SESSION_BUS_ADDRESS=); fi; if [ -f /tmp/viva-vulkan/lvp-local.json ]; then export VK_ICD_FILENAMES=/tmp/viva-vulkan/lvp-local.json LD_LIBRARY_PATH=/tmp/viva-vulkan/root/usr/lib/x86_64-linux-gnu; fi; cd /tmp && timeout 50 /home/user/viva-conformance"],"shell":false}'
+	# The desktop's display comes from VIVA_LINUX_DISPLAY (GNOME on X at :0 on the
+	# current machine). Its GPU is software Vulkan (lavapipe). The session bus
+	# address changes with each login; the standard per-user socket is used, with
+	# the desktop shell's environment as a fallback.
+	remote_env="HOME=/home/user DISPLAY=$VIVA_LINUX_DISPLAY XDG_RUNTIME_DIR=$VIVA_LINUX_RUNTIME_DIR"
+	if [ -n "$VIVA_LINUX_XAUTHORITY" ]; then
+		remote_env="$remote_env XAUTHORITY=$VIVA_LINUX_XAUTHORITY"
+	fi
+	remote_command="chmod +x /home/user/viva-conformance
+bus=/run/user/\$(id -u)/bus
+if [ -S \"\$bus\" ]; then export DBUS_SESSION_BUS_ADDRESS=unix:path=\$bus; else pid=\$(pgrep -u user 'gnome-shell|plasmashell' | head -1); if [ -r /proc/\$pid/environ ]; then export \$(xargs -0 -n1 -a /proc/\$pid/environ | grep ^DBUS_SESSION_BUS_ADDRESS=); fi; fi
+if [ -f /tmp/viva-vulkan/lvp-local.json ]; then export VK_ICD_FILENAMES=/tmp/viva-vulkan/lvp-local.json LD_LIBRARY_PATH=/tmp/viva-vulkan/root/usr/lib/x86_64-linux-gnu; fi
+cd /tmp && env $remote_env timeout 50 /home/user/viva-conformance"
+	payload=$(python3 -c 'import json,sys; print(json.dumps({"command":["bash","-c",sys.argv[1]],"shell":False}))' "$remote_command")
+	execute "$linux_env" "$payload"
 }
 
 run() {

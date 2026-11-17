@@ -39,6 +39,10 @@ func TestFieldIconAndAction(t *testing.T) {
 	if clears != 1 || query != "" {
 		t.Fatalf("clears %d, query %q", clears, query)
 	}
+	d.typeText("db")
+	if query != "db" {
+		t.Fatalf("typing after the action reached %q: the keyboard did not go back to the field", query)
+	}
 }
 
 func BenchmarkFieldAddons(b *testing.B) {

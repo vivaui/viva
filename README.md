@@ -127,6 +127,10 @@ WebView and no bundled rendering runtime.
 - `Application.Post` hands work a background goroutine finished to the window
   thread: accepted functions run there in order, with no goroutine, timer or
   blocking wait added, and no "call the loop and wait" form that could deadlock.
+- `audio.Open` plays interleaved 16-bit PCM on the system's default output
+  (AudioUnit on macOS, WASAPI shared mode on Windows, ALSA on Linux), with no
+  background work and no backend linked into an application that does not
+  import it. See [docs/audio.md](docs/audio.md).
 - `app/proxy.SystemProxy` reports the proxy the desktop selects for an HTTP URL:
   CFNetwork on macOS, WinHTTP's automatic proxy on Windows (PAC, WPAD and the
   static settings), and the environment on Linux. A policy the platform cannot
