@@ -635,3 +635,30 @@ func TestMenuContentRow(t *testing.T) {
 		t.Fatalf("the arrows did not pass over the content row to Two (%d)", m.renamed)
 	}
 }
+
+// A Trailing control has a hit of its own at the row's end: pressing it does not choose the row.
+func TestMenuItemTrailingControl(t *testing.T) {
+	m := &menuModel{open: true}
+	var eye gfx.Rect
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			more := ui.Button(c, "More")
+			ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
+				if menu.Item("One").Trailing(24, func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
+					eye = bounds
+					canvas.HitWithOptions(gfx.Item(88), bounds, "Hide", gfx.HitOptions{Role: gfx.RoleButton})
+				}).Clicked() {
+					m.renamed++
+				}
+			})
+		})
+	})
+	row := d.hit("One").Bounds
+	if eye.Width != 24 || eye.X+eye.Width > row.X+row.Width {
+		t.Fatalf("trailing slot %v not at the end of row %v", eye, row)
+	}
+	d.click("Hide")
+	if m.renamed != 0 {
+		t.Fatal("pressing the trailing control chose the row")
+	}
+}

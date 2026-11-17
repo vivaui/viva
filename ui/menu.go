@@ -433,15 +433,17 @@ type menuRow struct {
 	icon        gfx.Icon
 	// The shortcut the row shows, a keymap.Chord's fields: the Page's type would
 	// keep that type's methods in every program, Menu or not.
-	modifiers   gfx.Modifiers
-	char        byte
-	key         gfx.Key
-	destructive bool
-	disabled    bool
-	submenu     bool                                                       // the row opens a submenu
-	height      float32                                                    // a content row's height
-	content     func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
-	checked     int8                                                       // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
+	modifiers     gfx.Modifiers
+	char          byte
+	key           gfx.Key
+	destructive   bool
+	disabled      bool
+	submenu       bool // the row opens a submenu
+	trailingWidth float32
+	trailing      func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
+	height        float32                                                    // a content row's height
+	content       func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
+	checked       int8                                                       // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
 }
 
 // minWidth is shadcn's: 8rem for a DropdownMenu, 9rem for a ContextMenu.
@@ -456,7 +458,7 @@ func (m *MenuItems) minWidth() float32 {
 // good until the next row.
 func (m *MenuItems) row(i int) components.DropdownMenuItem {
 	row := &m.items[i]
-	item := components.DropdownMenuItem{ID: m.scope.At(menuRows + i), Label: row.label, Description: row.description, Disabled: row.disabled, Icon: row.icon}
+	item := components.DropdownMenuItem{ID: m.scope.At(menuRows + i), Label: row.label, Description: row.description, Disabled: row.disabled, Icon: row.icon, TrailingWidth: row.trailingWidth}
 	if row.destructive {
 		item.Variant = components.DropdownMenuItemDestructive
 	}
@@ -566,6 +568,16 @@ func (m *MenuItems) paintContent(canvas *gfx.Canvas, theme gfx.Theme, row *menuR
 	end()
 }
 
+// paintTrailing calls a row's trailing painter over the slot the menu reserved at its end.
+func (m *MenuItems) paintTrailing(canvas *gfx.Canvas, theme gfx.Theme, row *menuRow, slot gfx.Rect, begin, end func()) {
+	if slot.Width <= 0 || row.trailing == nil {
+		return
+	}
+	begin()
+	row.trailing(canvas, slot, theme)
+	end()
+}
+
 // Label adds a heading over the items that follow it.
 func (m *MenuItems) Label(label string) {
 	m.items = append(m.items, menuRow{kind: menuRowLabel, label: label})
@@ -574,6 +586,16 @@ func (m *MenuItems) Label(label string) {
 // Separator adds a line between groups of items.
 func (m *MenuItems) Separator() {
 	m.items = append(m.items, menuRow{kind: menuRowSeparator})
+}
+
+// Trailing reserves width pixels at the item's end and has paint fill them: a small control
+// of the row's own, such as the eye that hides a shell from a list. The control declares its
+// own hit, over the row's, so pressing it does not choose the row; it is not called while
+// scrolling has the row out of sight. A menu row has either Trailing or a shortcut.
+func (item MenuItem) Trailing(width float32, paint func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) MenuItem {
+	row := &item.menu.items[item.i]
+	row.trailingWidth, row.trailing = width, paint
+	return item
 }
 
 // Destructive paints the item in the destructive color: an action that deletes.
@@ -678,7 +700,13 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 			case menuRowContent:
 				m.paintContent(canvas, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			default:
-				if r := menu.AddItem(contextItem(m.row(i))); i == m.sub {
+				if row.trailing != nil {
+					r, slot := menu.AddItemSlot(contextItem(m.row(i)))
+					if i == m.sub {
+						trigger = r
+					}
+					m.paintTrailing(canvas, *theme, row, slot, menu.BeginContent, menu.EndContent)
+				} else if r := menu.AddItem(contextItem(m.row(i))); i == m.sub {
 					trigger = r
 				}
 			}
@@ -713,7 +741,13 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 			case menuRowContent:
 				m.paintContent(canvas, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			default:
-				if r := menu.AddItem(m.row(i)); i == m.sub {
+				if row.trailing != nil {
+					r, slot := menu.AddItemSlot(m.row(i))
+					if i == m.sub {
+						trigger = r
+					}
+					m.paintTrailing(canvas, *theme, row, slot, menu.BeginContent, menu.EndContent)
+				} else if r := menu.AddItem(m.row(i)); i == m.sub {
 					trigger = r
 				}
 			}
@@ -739,7 +773,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 // contextItem is a dropdown row as a context menu's: the two describe one row.
 func contextItem(item components.DropdownMenuItem) components.ContextMenuItem {
 	context := components.ContextMenuItem{
-		ID: item.ID, Label: item.Label, Description: item.Description, Keys: item.Keys, Icon: item.Icon, Disabled: item.Disabled,
+		ID: item.ID, Label: item.Label, Description: item.Description, Keys: item.Keys, Icon: item.Icon, Disabled: item.Disabled, TrailingWidth: item.TrailingWidth,
 		Checked: item.Checked, Selected: item.Selected,
 	}
 	switch item.Kind {
