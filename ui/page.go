@@ -655,7 +655,7 @@ func (p *Page) currentTheme() Theme {
 // base's OnClosed. Nothing else is touched.
 func (p *Page) Config(base app.Config) app.Config {
 	if p.config.View == nil {
-		panic("ui: Page.Config needs PageConfig.view, the function that declares the page")
+		panic("ui: Page.Config needs PageConfig.View, the function that declares the page")
 	}
 	p.init(base.Tree)
 	if base.Tree != nil && base.Tree != p.tree {
@@ -704,7 +704,7 @@ func (p *Page) Config(base app.Config) app.Config {
 // is the Config's Paint.
 func (p *Page) Paint(canvas *gfx.Canvas, size Size) {
 	if p.config.View == nil {
-		panic("ui: Page.Paint needs PageConfig.view, the function that declares the page")
+		panic("ui: Page.Paint needs PageConfig.View, the function that declares the page")
 	}
 	p.init(nil)
 	p.window = true
