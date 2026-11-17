@@ -82,6 +82,155 @@ func TestDeleteToLineBoundaryStopsAtNewlinesAndUndoesAsOne(t *testing.T) {
 	}
 }
 
+func TestLineEndNavigationKeepsCRLFAtomic(t *testing.T) {
+	for _, separator := range []string{"\n", "\r\n"} {
+		t.Run(lineEndingName(separator), func(t *testing.T) {
+			original := "ab" + separator + "cd"
+			editor := NewEditor(original)
+			editor.MoveTo(1, false)
+			editor.MoveLineBoundary(true, false)
+			if editor.Caret() != 2 {
+				t.Fatalf("End caret=%d, want before %q", editor.Caret(), separator)
+			}
+			editor.Insert("X")
+			committed := "abX" + separator + "cd"
+			if editor.String() != committed || !editor.Undo() || editor.String() != original || !editor.Redo() || editor.String() != committed {
+				t.Fatalf("End insertion history=%q, want %q", editor.String(), committed)
+			}
+
+			editor = NewEditor(original)
+			editor.MoveTo(1, false)
+			editor.MoveLineBoundary(true, true)
+			if editor.Selection() != (Range{Start: 1, End: 2}) || editor.Caret() != 2 {
+				t.Fatalf("Shift-End selection=%+v caret=%d", editor.Selection(), editor.Caret())
+			}
+		})
+	}
+}
+
+func TestDeleteToLineEndKeepsCRLFAtomic(t *testing.T) {
+	for _, separator := range []string{"\n", "\r\n"} {
+		t.Run(lineEndingName(separator), func(t *testing.T) {
+			original := "ab" + separator + "cd"
+			editor := NewEditor(original)
+			editor.MoveTo(1, false)
+			editor.DeleteToLineBoundary(true)
+			remaining := "a" + separator + "cd"
+			if editor.String() != remaining || !editor.Undo() || editor.String() != original || !editor.Redo() || editor.String() != remaining {
+				t.Fatalf("delete to End history=%q, want %q", editor.String(), remaining)
+			}
+
+			editor = NewEditor(original)
+			editor.MoveTo(2, false)
+			editor.DeleteToLineBoundary(true)
+			if editor.String() != "abcd" || !editor.Undo() || editor.String() != original || !editor.Redo() || editor.String() != "abcd" {
+				t.Fatalf("delete at End history=%q, want joined lines", editor.String())
+			}
+		})
+	}
+}
+
+func TestLineNavigationFromInsideCRLFDoesNotSelectHalfTheEnding(t *testing.T) {
+	const original = "ab\r\ncd"
+	for _, scenario := range []struct {
+		name      string
+		end       bool
+		extend    bool
+		selection Range
+		caret     int
+	}{
+		{"End", true, false, Range{Start: 2, End: 2}, 2},
+		{"Shift-End", true, true, Range{Start: 2, End: 2}, 2},
+		{"Home", false, false, Range{}, 0},
+		{"Shift-Home", false, true, Range{Start: 0, End: 2}, 0},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			editor := NewEditor(original)
+			editor.MoveTo(3, false)
+			editor.MoveLineBoundary(scenario.end, scenario.extend)
+			if editor.Selection() != scenario.selection || editor.Caret() != scenario.caret {
+				t.Fatalf("selection=%+v caret=%d, want %+v caret=%d", editor.Selection(), editor.Caret(), scenario.selection, scenario.caret)
+			}
+		})
+	}
+	t.Run("reverse-anchor", func(t *testing.T) {
+		editor := NewEditor(original)
+		editor.SetSelection(Range{Start: 3, End: 1})
+		editor.MoveLineBoundary(false, true)
+		if editor.Selection() != (Range{Start: 0, End: 2}) || editor.Caret() != 0 {
+			t.Fatalf("selection=%+v caret=%d", editor.Selection(), editor.Caret())
+		}
+	})
+}
+
+func TestDeleteToLineBoundaryFromInsideCRLFPreservesThePair(t *testing.T) {
+	const original = "ab\r\ncd"
+	for _, scenario := range []struct {
+		name  string
+		end   bool
+		want  string
+		caret int
+	}{
+		{"to-end", true, "abcd", 2},
+		{"to-start", false, "\r\ncd", 0},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			editor := NewEditor(original)
+			editor.MoveTo(3, false)
+			editor.DeleteToLineBoundary(scenario.end)
+			if editor.String() != scenario.want || editor.Caret() != scenario.caret {
+				t.Fatalf("deleted=%q caret=%d, want %q caret=%d", editor.String(), editor.Caret(), scenario.want, scenario.caret)
+			}
+			if !editor.Undo() || editor.String() != original || editor.Caret() != 3 {
+				t.Fatalf("Undo restored %q caret=%d", editor.String(), editor.Caret())
+			}
+			if !editor.Redo() || editor.String() != scenario.want || editor.Caret() != scenario.caret {
+				t.Fatalf("Redo restored %q caret=%d", editor.String(), editor.Caret())
+			}
+		})
+	}
+}
+
+func lineEndingName(separator string) string {
+	if separator == "\r\n" {
+		return "CRLF"
+	}
+	return "LF"
+}
+
+func BenchmarkLineEndBoundary(b *testing.B) {
+	for _, separator := range []string{"\n", "\r\n"} {
+		b.Run(lineEndingName(separator), func(b *testing.B) {
+			editor := NewEditor("ab" + separator + "cd")
+			editor.MoveTo(1, false)
+			b.ReportAllocs()
+			position := 0
+			for b.Loop() {
+				position = editor.lineBoundary(true)
+			}
+			if position < 0 {
+				b.Fatal(position)
+			}
+		})
+	}
+}
+
+func BenchmarkMoveLineBoundary(b *testing.B) {
+	for _, separator := range []string{"\n", "\r\n"} {
+		b.Run(lineEndingName(separator), func(b *testing.B) {
+			editor := NewEditor("ab" + separator + "cd")
+			b.ReportAllocs()
+			for b.Loop() {
+				editor.MoveTo(1, false)
+				editor.MoveLineBoundary(true, false)
+			}
+			if editor.Caret() < 0 {
+				b.Fatal(editor.Caret())
+			}
+		})
+	}
+}
+
 // Typing into a single-line field folds every insert, so a clean rune must not
 // allocate; only text that actually has something to fold may.
 func TestSingleLineTypingDoesNotAllocate(t *testing.T) {
