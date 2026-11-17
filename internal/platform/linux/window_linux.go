@@ -841,6 +841,17 @@ func (state *linuxWindowState) reportFrame() (int32, int32, bool) {
 	return x, y, true
 }
 
+// A read-only hit can become writable outside the app. Publish its current
+// input owner before a queued key is routed through the old disabled owner.
+func (state *linuxWindowState) refreshReadOnlyTextInput() error {
+	config := state.config
+	if !config.DynamicTextInput || state.text == nil || state.text.enabled ||
+		config.ReadOnlyTextFocused == nil || !config.ReadOnlyTextFocused() || config.OnRedraw == nil {
+		return nil
+	}
+	return state.router.presentFrame(config.OnRedraw())
+}
+
 func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	win, config, textInput, renderer, router := state.win, state.config, state.text, state.renderer, state.router
 	activeWindow.Store(win)
@@ -1031,10 +1042,8 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		inputEvent := (*xcbInputEvent)(event)
 		repeat := state.pendingKeyReleaseDetail == inputEvent.Detail && state.pendingKeyReleaseTime == inputEvent.Time
 		state.pendingKeyReleaseDetail, state.pendingKeyReleaseTime = 0, 0
-		if config.DynamicTextInput && textInput != nil && !textInput.enabled &&
-			config.ReadOnlyTextFocused != nil && config.ReadOnlyTextFocused() &&
-			!win.keymap.key(inputEvent.Detail).IsModifier() && config.OnRedraw != nil {
-			if err := router.presentFrame(config.OnRedraw()); err != nil {
+		if !win.keymap.key(inputEvent.Detail).IsModifier() {
+			if err := state.refreshReadOnlyTextInput(); err != nil {
 				return false, err
 			}
 		}
@@ -1074,11 +1083,8 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		// The same details, outside a grab, are the window becoming active.
 		if realFocus && keyboardFocus && config.OnActivate != nil {
 			config.OnActivate()
-			// Refresh dynamic text ownership before the next queued key is routed.
-			if config.OnRedraw != nil {
-				if err := router.presentFrame(config.OnRedraw()); err != nil {
-					return false, err
-				}
+			if err := state.refreshReadOnlyTextInput(); err != nil {
+				return false, err
 			}
 		}
 		if keyboardFocus {

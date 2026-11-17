@@ -202,10 +202,12 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		OnCloseRequest:   closeHandler,
 		OnClosed:         normalized.OnClosed,
 		DynamicTextInput: normalized.TextInput != nil,
-		ReadOnlyTextFocused: func() bool {
+	}
+	if normalized.TextInput != nil {
+		config.ReadOnlyTextFocused = func() bool {
 			context, _, _ := painter.focusedTextField()
 			return !context.ID.IsZero() && context.ReadOnly
-		},
+		}
 	}
 	config.WindowBorderColor = borderColorHandler(normalized.WindowBorderColor)
 	return config, frames

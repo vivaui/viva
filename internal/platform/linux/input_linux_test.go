@@ -734,8 +734,11 @@ func TestX11FocusInRefreshesInputBeforeNextQueuedKey(t *testing.T) {
 	state := &linuxWindowState{
 		win:         &window{},
 		application: &linuxApplication{},
+		text:        &linuxTextInput{},
 		config: platform.Config{
-			OnActivate: func() { calls = append(calls, "activate") },
+			DynamicTextInput:    true,
+			ReadOnlyTextFocused: func() bool { return true },
+			OnActivate:          func() { calls = append(calls, "activate") },
 			OnRedraw: func() (platform.Frame, error) {
 				calls = append(calls, "redraw")
 				return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: input}}, nil
@@ -768,6 +771,13 @@ func TestX11FocusInRefreshesInputBeforeNextQueuedKey(t *testing.T) {
 	}
 	if want := []string{"activate", "redraw", "present"}; !reflect.DeepEqual(calls, want) {
 		t.Fatalf("input was not refreshed before returning to the queued key: %v, want %v", calls, want)
+	}
+	state.config.ReadOnlyTextFocused = func() bool { return false }
+	if closed, err := state.handleEvent(unsafe.Pointer(&event)); closed || err != nil {
+		t.Fatalf("non-read-only activation: closed=%v err=%v", closed, err)
+	}
+	if want := []string{"activate", "redraw", "present", "activate"}; !reflect.DeepEqual(calls, want) {
+		t.Fatalf("non-read-only activation repainted before the queued key: %v, want %v", calls, want)
 	}
 }
 
