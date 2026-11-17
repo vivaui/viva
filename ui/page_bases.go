@@ -9,9 +9,9 @@ import (
 // is clicked by the pointer and the keyboard, and reaches assistive technology as the
 // control it is; its Background, Border, Radius, Ring, Hover, Pressed and Focus looks, the
 // elements it is built from as children, and Draw and DrawOver are yours. The control
-// with the theme's look is the same Base dressed, so a restyled control never copies a
-// behavior, and a component library of your own has the keys, the focus, the value
-// binding and the popups of the ones that ship.
+// with the theme's look declares what its Base declares (a test compares them), so a
+// restyled control never copies a behavior, and a component library of your own has the
+// keys, the focus, the value binding and the popups of the ones that ship.
 //
 //	on := ui.SwitchBase(c, &m.dark, "Dark mode")
 //	on.Radius(999).Background(track(on.State())).Draw(m.paintThumb)

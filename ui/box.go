@@ -409,7 +409,9 @@ func (b Box) Small() Box {
 func (b Box) Large() Box    { b.n().buttonSize = components.ButtonSizeLarge; return b }
 func (b Box) IconOnly() Box { b.n().buttonSize = components.ButtonSizeIcon; return b }
 
-// Disabled(true) makes a Button, Checkbox, Switch or Tabs inert and dimmed; Disabled(false)
+// Disabled(true) makes a Button, Checkbox, Switch or Tabs inert and dimmed, and an element
+// given Hit or HitWith (a Base among them) unavailable to the pointer, the keyboard and
+// assistive technology, with the look left to you; Disabled(false)
 // makes it enabled again, so a condition is written in the call: `.Disabled(m.count <= 0)`.
 func (b Box) Disabled(disabled bool) Box {
 	if disabled {

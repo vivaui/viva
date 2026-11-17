@@ -108,7 +108,12 @@ func (f *frame) paint(i int32) {
 			}
 			canvas.HitLabel(n.id, hit, text, n.flags&flagDisabled != 0)
 		} else {
-			canvas.HitWithOptions(n.id, hit, n.label, extra.hit)
+			options := extra.hit
+			// Disabled on the element is the control's own: a Base that was told it is
+			// unavailable says so to assistive technology and leaves the Tab order,
+			// as the control with a look does.
+			options.Disabled = options.Disabled || n.flags&flagDisabled != 0
+			canvas.HitWithOptions(n.id, hit, n.label, options)
 		}
 	}
 
