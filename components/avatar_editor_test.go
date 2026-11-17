@@ -307,3 +307,49 @@ func avatarEditorRectNear(a, b gfx.Rect) bool {
 		math.Abs(float64(a.Width-b.Width)) < epsilon &&
 		math.Abs(float64(a.Height-b.Height)) < epsilon
 }
+
+// The circular stage's border must keep the same logical thickness at every
+// stage size; a thickness that scales with the stage is nearly invisible when
+// the stage is small.
+func TestAvatarEditorCircleBorderKeepsItsWidthAcrossStageSizes(t *testing.T) {
+	theme := gfx.LightTheme()
+	var widths []float32
+	for _, maxStage := range []float32{100, 320} {
+		options := avatarEditorTestOptions()
+		options.MaxStageSize = maxStage
+		var canvas gfx.Canvas
+		layout := BeginAvatarEditor(&canvas, theme, avatarEditorTestBounds(), options).Paint()
+		stage := layout.Stage
+		if !layout.Ready || stage.Width <= 0 || stage.Width != stage.Height {
+			t.Fatalf("max stage %v: no square crop stage: %+v", maxStage, layout)
+		}
+		const tolerance = 0.01
+		centre := gfx.Point{X: stage.X + stage.Width/2, Y: stage.Y + stage.Height/2}
+		inner, outer := float32(math.Inf(1)), float32(0)
+		for _, triangle := range canvas.Triangles() {
+			if triangle.Color != theme.Border {
+				continue
+			}
+			for _, point := range triangle.Points {
+				if point.X < stage.X-tolerance || point.X > stage.X+stage.Width+tolerance ||
+					point.Y < stage.Y-tolerance || point.Y > stage.Y+stage.Height+tolerance {
+					continue
+				}
+				radius := float32(math.Hypot(float64(point.X-centre.X), float64(point.Y-centre.Y)))
+				inner = min(inner, radius)
+				outer = max(outer, radius)
+			}
+		}
+		if outer == 0 {
+			t.Fatalf("max stage %v: circular stage drew no border", maxStage)
+		}
+		width := outer - inner
+		if math.Abs(float64(width-avatarEditorBorderWidth)) > 0.05 {
+			t.Fatalf("max stage %v (stage %v): border width %v, want %v", maxStage, stage.Width, width, avatarEditorBorderWidth)
+		}
+		widths = append(widths, stage.Width)
+	}
+	if len(widths) != 2 || widths[0] == widths[1] {
+		t.Fatalf("stage sizes did not differ, test proves nothing: %v", widths)
+	}
+}
