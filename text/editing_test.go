@@ -191,6 +191,30 @@ func TestDeleteToLineBoundaryFromInsideCRLFPreservesThePair(t *testing.T) {
 	}
 }
 
+func TestDeleteToLineBoundaryJoinsLinesFromInsideEmptyCRLF(t *testing.T) {
+	const original = "x\n\r\ncd" // the caret at 3 sits between CR and LF of the empty line
+	for _, scenario := range []struct {
+		name string
+		end  bool
+		want string
+	}{
+		{"to-start", false, "x\r\ncd"},
+		{"to-end", true, "x\ncd"},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			editor := NewEditor(original)
+			editor.MoveTo(3, false)
+			editor.DeleteToLineBoundary(scenario.end)
+			if editor.String() != scenario.want {
+				t.Fatalf("deleted=%q, want %q", editor.String(), scenario.want)
+			}
+			if !editor.Undo() || editor.String() != original {
+				t.Fatalf("Undo restored %q, want %q", editor.String(), original)
+			}
+		})
+	}
+}
+
 func lineEndingName(separator string) string {
 	if separator == "\r\n" {
 		return "CRLF"

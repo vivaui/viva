@@ -201,26 +201,31 @@ func (editor *Editor) DeleteToLineBoundary(end bool) {
 		editor.BreakUndoGroup()
 		return
 	}
-	boundary := editor.lineBoundary(end)
-	if boundary == editor.caret {
-		if end {
-			editor.DeleteForward()
-		} else {
-			editor.DeleteBackward()
-		}
-		editor.BreakUndoGroup()
-		return
-	}
 	before := editor.selectionState()
-	position, limit := editor.caret, boundary
-	if editor.insideCRLF(position) {
-		position--
-		if end {
-			limit = editor.caret + 1
+	if editor.insideCRLF(editor.caret) {
+		// A caret between CR and LF is at the start of that ending for line
+		// purposes. Normalizing it first keeps the boundary and the deletion on
+		// one position, so the pair is never split.
+		editor.collapse(previousBoundary(editor.runes, editor.caret))
+	}
+	boundary := editor.lineBoundary(end)
+	target := ordered(Range{Start: editor.caret, End: boundary})
+	kind := editSeparate
+	if target.Start == target.End {
+		// A caret already on the boundary removes the grapheme beyond it, which
+		// joins the line, as DeleteForward and DeleteBackward do.
+		if end && editor.caret < len(editor.runes) {
+			target = Range{Start: editor.caret, End: nextBoundary(editor.runes, editor.caret)}
+			kind = editDeleteForward
+		} else if !end && editor.caret > 0 {
+			target = Range{Start: previousBoundary(editor.runes, editor.caret), End: editor.caret}
+			kind = editDeleteBackward
 		}
 	}
-	target := ordered(Range{Start: position, End: limit})
-	change := editor.replace(target, "", false)
-	editor.collapse(target.Start)
-	editor.record(change, before, editor.selectionState(), editSeparate)
+	if target.Start != target.End {
+		change := editor.replace(target, "", false)
+		editor.collapse(target.Start)
+		editor.record(change, before, editor.selectionState(), kind)
+	}
+	editor.BreakUndoGroup()
 }
