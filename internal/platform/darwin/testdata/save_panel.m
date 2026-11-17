@@ -9,9 +9,9 @@ int main(int argc, const char *argv[]) {
     @autoreleasepool {
         [NSApplication sharedApplication].activationPolicy = NSApplicationActivationPolicyAccessory;
         NSURL *directory = [NSURL fileURLWithPath:[NSString stringWithUTF8String:argv[1]] isDirectory:YES];
-        NSArray<NSString *> *names = @[@"draft.go", @"note.mh", @"draft", @"note.mh", @"aa.bb.go"];
-        NSArray<NSArray<NSString *> *> *types = @[@[@"go"], @[@"mh"], @[@"go"], @[@"go", @"mh"], @[@"go"]];
-        NSArray<NSString *> *expected = @[@"draft.go", @"note.mh", @"draft.go", @"note.mh", @"aa.bb.go"];
+        NSArray<NSString *> *names = @[@"draft.go", @"note.mh", @"draft", @"note.mh", @"aa.bb.go", @"export.log"];
+        NSArray<NSArray<NSString *> *> *types = @[@[@"go"], @[@"mh"], @[@"go"], @[@"go", @"mh"], @[@"go"], @[@"txt"]];
+        NSArray<NSString *> *expected = @[@"draft.go", @"note.mh", @"draft.go", @"note.mh", @"aa.bb.go", @"export.log"];
         for (NSUInteger index = 0; index < names.count; index++) {
             NSSavePanel *panel = [NSSavePanel savePanel];
             panel.directoryURL = directory;
