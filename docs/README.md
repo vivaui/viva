@@ -39,6 +39,8 @@ mentions every exported method and theme field.
   accessibility.
 - [system-integrations.md](system-integrations.md) — tray, menus, notifications,
   file drops, and the rest of the native surface.
+- [audio.md](audio.md) — PCM output on the three native targets, what it does
+  not do, and its measured cost.
 - [web-deployment.md](web-deployment.md) — the browser build, its capability
   matrix, lifecycle mapping, static-hosting headers and security limits.
 - [diagnostics.md](diagnostics.md) — the structured event stream, its slog
