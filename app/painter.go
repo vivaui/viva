@@ -18,6 +18,7 @@ import (
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/internal/semantic"
+	"github.com/vivaui/viva/keymap"
 	"github.com/vivaui/viva/text"
 )
 
@@ -370,7 +371,8 @@ func (painter *painter) pointerStep(event platform.PointerEvent) (result gfx.Eve
 	painter.pointer.SetHoveredRole(gfx.Role(0))
 	painter.onSurface = false
 	if event.Kind != platform.PointerExit {
-		if target, ok, onSurface := painter.focus.Router().PointerAt(event.X, event.Y); ok || onSurface {
+		secondaryPress := event.Kind == platform.PointerDown && event.Button == gfx.PointerButtonSecondary
+		if target, ok, onSurface := painter.focus.Router().PointerAt(event.X, event.Y, secondaryPress); ok || onSurface {
 			painter.pointer.SetHovered(target.Target)
 			painter.pointer.SetHoveredRole(target.Role)
 			painter.onSurface = onSurface
@@ -573,6 +575,27 @@ func normalizeShortcutText(value string) string {
 		return letters[index : index+1]
 	}
 	return value
+}
+
+// menuShortcut offers a menu entry's chord to the window as the platform
+// delivers the same key: a character chord to the shortcut handler, a named key
+// to the key handler, both with the control that holds the keyboard as the
+// target. The application decides whether the chord is its command; the caller
+// carries out the result and asks for the repaint, unlike the platform's key
+// path here.
+func (painter *painter) menuShortcut(chord keymap.Chord) (gfx.EventResult, bool) {
+	event := gfx.KeyEvent{Key: chord.Key, Modifiers: chord.Modifiers, Target: painter.focus.Focused()}
+	handler := painter.onKey
+	if chord.Char != 0 {
+		event.Key = gfx.KeyUnknown
+		event.Text = normalizeShortcutText(string(chord.Char))
+		handler = painter.onShortcut
+	}
+	if handler == nil || !chord.Valid() {
+		return gfx.EventResult{}, false
+	}
+	response := handler(event)
+	return response, response.Handled
 }
 
 // keysWanted reports whether the focused terminal asked for presses and
@@ -1972,6 +1995,7 @@ func sameRegionHit(published, current *gfx.Hit) bool {
 		published.Focusable == current.Focusable &&
 		published.Disabled == current.Disabled &&
 		published.FocusableDisabled == current.FocusableDisabled &&
+		published.SecondaryWhenDisabled == current.SecondaryWhenDisabled &&
 		published.SkipTab == current.SkipTab &&
 		published.Block == current.Block &&
 		published.BlockSurface == current.BlockSurface &&

@@ -31,12 +31,21 @@ type MenuBarItem struct {
 	Checked bool
 	// Shortcut is the key the system offers for the entry. Only a character key
 	// is represented in a menu; a chord with a named key shows no shortcut, and
-	// the application still receives that key through its own handler.
+	// the application still receives that key through its own key handler.
+	// Before OnSelect runs, the chord is offered as pressing it would deliver
+	// it: a character chord to the shortcut handler, a named key to the key
+	// handler, with the focused control as the target. A handler that takes it
+	// owns the command.
 	Shortcut keymap.Chord
 	// Submenu, when not empty, makes the entry open a menu of these.
 	Submenu []MenuBarItem
-	// OnSelect runs on the event-loop thread when the user chooses the entry.
-	OnSelect func()
+	// OnSelect runs on the event-loop thread when the user chooses the entry and
+	// returns what the command did, as a key handler does. The runtime applies
+	// the focus, clipboard and activation it names to the window the user is
+	// working in and asks for the repaint it requests, so an entry that runs the
+	// same command as a shortcut moves the keyboard the same way. Return the
+	// zero result for an entry that changes nothing.
+	OnSelect func() gfx.EventResult
 }
 
 // SetMenuBar replaces the application's own menus. It is macOS-only today and
@@ -54,7 +63,72 @@ func (application *Application) SetMenuBar(menus []Menu) error {
 	if !ok {
 		return fmt.Errorf("%w: the application menu bar", ErrUnsupported)
 	}
-	return setter.SetMenuBar(menus)
+	return setter.SetMenuBar(application.menuBar(menus))
+}
+
+// menuBar copies menus, wrapping every action so the runtime carries out what
+// it did on the window the user is working in. A native menu runs its entry
+// outside the window's event handlers, so the result would otherwise be
+// dropped, and a menu entry that runs the same command as a shortcut would not
+// move the keyboard, write the clipboard or repaint.
+func (application *Application) menuBar(menus []Menu) []Menu {
+	out := make([]Menu, len(menus))
+	for index, menu := range menus {
+		out[index] = Menu{Title: menu.Title, Items: application.menuBarItems(menu.Items)}
+	}
+	return out
+}
+
+func (application *Application) menuBarItems(items []MenuBarItem) []MenuBarItem {
+	out := make([]MenuBarItem, len(items))
+	for index, item := range items {
+		item.Submenu = application.menuBarItems(item.Submenu)
+		if selectItem := item.OnSelect; selectItem != nil {
+			shortcut := item.Shortcut
+			item.OnSelect = func() gfx.EventResult {
+				// A menu's key equivalent is a fallback in AppKit: the focused
+				// content sees the chord first, and the menu entry runs only when
+				// nothing there takes it. A choice from the open menu goes through
+				// the same handler, so a click and its shortcut run one command.
+				if result, handled := application.runMenuShortcut(shortcut); handled {
+					application.applyMenuResult(result)
+					return result
+				}
+				result := selectItem()
+				application.applyMenuResult(result)
+				return result
+			}
+		}
+		out[index] = item
+	}
+	return out
+}
+
+// runMenuShortcut offers a menu entry's chord to the shortcut handler of the
+// window the user is working in, with the control that holds the keyboard as
+// the target, and reports whether the handler took it.
+func (application *Application) runMenuShortcut(chord keymap.Chord) (gfx.EventResult, bool) {
+	window := application.activeWindow()
+	if window == nil || window.runShortcut == nil {
+		return gfx.EventResult{}, false
+	}
+	return window.runShortcut(chord)
+}
+
+// applyMenuResult carries out a menu action's result on the active window:
+// the focus, clipboard and activation it names, and a repaint when it asks for
+// one. A window created without Config.Invalidator has no waker, so the runtime
+// cannot ask it for the frame that shows the result; such an application asks
+// for its own repaint.
+func (application *Application) applyMenuResult(result gfx.EventResult) {
+	window := application.activeWindow()
+	if window == nil || window.applyResult == nil {
+		return
+	}
+	changed := window.applyResult(result)
+	if (changed || result.Repaint) && window.requestRedraw != nil {
+		window.requestRedraw()
+	}
 }
 
 // platform menus carry a key as a character and a modifier mask, so the
@@ -76,9 +150,14 @@ func platformMenuItems(items []MenuBarItem) []platform.MenuBarItem {
 			key = strings.ToLower(string(item.Shortcut.Char))
 			modifiers = menuModifiers(item.Shortcut.Modifiers)
 		}
+		var onSelect func()
+		if item.OnSelect != nil {
+			selectItem := item.OnSelect
+			onSelect = func() { selectItem() }
+		}
 		out[index] = platform.MenuBarItem{
 			Title: item.Title, Separator: item.Separator, Disabled: item.Disabled, Checked: item.Checked,
-			Key: key, Modifiers: modifiers, OnSelect: item.OnSelect, Items: platformMenuItems(item.Submenu),
+			Key: key, Modifiers: modifiers, OnSelect: onSelect, Items: platformMenuItems(item.Submenu),
 		}
 	}
 	return out

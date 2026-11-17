@@ -145,6 +145,8 @@ func (win *window) markPanel(config platform.Config, x, y int16) error {
 func (state *linuxWindowState) command(command uint32, data []byte) error {
 	win := state.win
 	switch command {
+	case commandSetTitle:
+		win.applyPendingTitle()
 	case commandSetSize:
 		if len(data) < 12 || win.frame.maximized || win.minimized || win.fullscreen.Load() {
 			return nil

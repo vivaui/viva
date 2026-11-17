@@ -54,7 +54,7 @@ Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB and
 Vulkan loaders; on Windows, Win32 with Direct3D 11 and DirectWrite. Viva loads
 the system libraries at runtime and bundles none of them.
 
-The current release is `v0.6.4`; name it explicitly (`@v0.6.4`) to pin it. Guides,
+The current release is `v0.6.5`; name it explicitly (`@v0.6.5`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
@@ -100,8 +100,6 @@ WebView and no bundled rendering runtime.
   by the application.
 - Native fullscreen through `Window.SetFullscreen`, with `Config.OnFullscreen`
   reporting system transitions and restoring normal window placement on exit.
-- `Window.SetTitle` changes a window's title after it opens: the system title
-  bar, the task switcher and the taskbar or Dock window list.
 - Explicit multi-window applications through `app.RunApplication`: every
   window owns independent retained paint, focus, input, text, invalidation, and
   close state, and the native loop exits after the final window closes.
@@ -121,8 +119,11 @@ WebView and no bundled rendering runtime.
   releasing it ends the request.
 - `Application.SetMenuBar` puts the application's own File, Edit and View menus
   between the system's application menu and Window menu on macOS, with key
-  equivalents, enablement, check marks, submenus and loop-thread callbacks; the
-  other desktop targets build their menus in the window with `components.Menubar`.
+  equivalents, enablement, check marks and submenus. An entry's action returns
+  the same `gfx.EventResult` a key handler does, and the runtime carries its
+  focus, clipboard and repaint out on the active window, so a command chosen
+  from the menu behaves as its shortcut does; the other desktop targets build
+  their menus in the window with `components.Menubar`.
 - `Application.Post` hands work a background goroutine finished to the window
   thread: accepted functions run there in order, with no goroutine, timer or
   blocking wait added, and no "call the loop and wait" form that could deadlock.
