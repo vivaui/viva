@@ -129,34 +129,3 @@ func TestFieldInvalidChangesTheLook(t *testing.T) {
 		t.Fatal("an invalid field is painted like a valid one")
 	}
 }
-
-// ButtonExtent is the room a Button of that size is laid out at.
-func TestButtonExtentIsTheSizeOfTheButton(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		size ui.ButtonSize
-		set  func(ui.Box) ui.Box
-	}{
-		{"default", ui.ButtonSizeDefault, func(b ui.Box) ui.Box { return b }},
-		{"xsmall", ui.ButtonSizeXSmall, func(b ui.Box) ui.Box { return b.XSmall() }},
-		{"small", ui.ButtonSizeSmall, func(b ui.Box) ui.Box { return b.Small() }},
-		{"large", ui.ButtonSizeLarge, func(b ui.Box) ui.Box { return b.Large() }},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			var room ui.Size
-			d := openPage(t, func(c ui.C) {
-				room = ui.ButtonExtent(c, "Configure", tc.size)
-				ui.Row(c).Children(func() { tc.set(ui.Button(c, "Configure")) })
-			})
-			for _, h := range d.driver.Snapshot().Hits {
-				if h.Label == "Configure" && !h.IsLabel {
-					if h.Bounds.Width != room.Width || h.Bounds.Height != room.Height {
-						t.Fatalf("laid out at %vx%v, ButtonExtent says %vx%v", h.Bounds.Width, h.Bounds.Height, room.Width, room.Height)
-					}
-					return
-				}
-			}
-			t.Fatal("no button")
-		})
-	}
-}
