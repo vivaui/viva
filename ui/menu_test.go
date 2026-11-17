@@ -581,3 +581,26 @@ func TestContextMenuAtTakesTheArrowsFromTheFocusedControl(t *testing.T) {
 		t.Fatalf("connected %q, open %v: the arrows did not reach the menu", m.connected, m.open)
 	}
 }
+
+func TestContextMenuAtNamedByAZeroSizeSlotTakesTheArrows(t *testing.T) {
+	m := &contextModel{hosts: []string{"alpha"}}
+	d := openPage(t, func(c ui.C) {
+		ui.PopupLayer(c, 600)
+		anchor := ui.Slot(c).Absolute().Left(100).Top(100).Size(0, 0).HitWith(ui.ID(c), "", gfx.HitOptions{SkipFocus: true, SkipTab: true})
+		ui.ContextMenuAt(c, anchor, &m.open, gfx.Point{X: 100, Y: 100}, func(items *ui.MenuItems) {
+			items.RowHeight(24)
+			items.Item("One")
+			if items.Item("Two").Clicked() {
+				m.connected = "two"
+			}
+		})
+	})
+	m.open = true
+	d.repaint()
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyEnter)
+	if m.connected != "two" || m.open {
+		t.Fatalf("connected %q, open %v: the arrows did not reach the menu", m.connected, m.open)
+	}
+}
