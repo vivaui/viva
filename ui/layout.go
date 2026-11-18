@@ -44,7 +44,7 @@ func (n *node) inset(axis int) (start, end float32) {
 	if n.Flags&flagOutline != 0 {
 		border = 0 // an outline is drawn, it does not take room
 	}
-	return n.pad[startEdge(axis)] + border, n.pad[endEdge(axis)] + border
+	return n.Pad[startEdge(axis)] + border, n.Pad[endEdge(axis)] + border
 }
 
 func (n *node) marginOn(axis int) (start, end float32) {

@@ -70,7 +70,7 @@ func (f *frame) applyRecipes() {
 			}
 			if n.Flags&flagSetPad == 0 {
 				x, y := textEntryInsets(theme, n.Kind)
-				n.pad = [4]float32{max(y-n.BorderWidth, 0), max(x-n.BorderWidth, 0), max(y-n.BorderWidth, 0), max(x-n.BorderWidth, 0)}
+				n.Pad = [4]float32{max(y-n.BorderWidth, 0), max(x-n.BorderWidth, 0), max(y-n.BorderWidth, 0), max(x-n.BorderWidth, 0)}
 			}
 			if n.Kind == kindTextarea && n.minS[axisY] == 0 {
 				n.minS[axisY] = 64 // the official minimum height

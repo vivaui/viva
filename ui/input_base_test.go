@@ -44,7 +44,7 @@ func TestInputBaseHasTheLookOfItsElementAndNotShadcns(t *testing.T) {
 func TestInputBaseTextSitsInsideThePadAndBorderAndTheHitIsTheWholeElement(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
-		pad    float32
+		Pad    float32
 		border float32
 	}{{"bare", 0, 0}, {"padded", 8, 0}, {"framed", 8, 2}, {"wide", 12, 3}} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -52,7 +52,7 @@ func TestInputBaseTextSitsInsideThePadAndBorderAndTheHitIsTheWholeElement(t *tes
 			canvas := testCanvas()
 			var box Box
 			view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 240, Height: 80}, func(f *Frame) {
-				box = f.InputBase(baseSnapshot(baseField)).Pad(tc.pad).Border(tc.border, gfx.Color{Alpha: 1}).Height(40)
+				box = f.InputBase(baseSnapshot(baseField)).Pad(tc.Pad).Border(tc.border, gfx.Color{Alpha: 1}).Height(40)
 			})
 			rect := box.Rect()
 			hits := canvas.Hits()
@@ -60,7 +60,7 @@ func TestInputBaseTextSitsInsideThePadAndBorderAndTheHitIsTheWholeElement(t *tes
 				t.Fatalf("hits = %+v", hits)
 			}
 			hit := hits[0]
-			inset := tc.pad + tc.border
+			inset := tc.Pad + tc.border
 			if hit.Bounds != rect {
 				t.Errorf("hit bounds = %+v, want the whole element %+v", hit.Bounds, rect)
 			}
@@ -84,12 +84,12 @@ func TestInputBaseTextSitsInsideThePadAndBorderAndTheHitIsTheWholeElement(t *tes
 // Without a Height the element is a line of text and its Pad and Border tall, so a
 // padded field never clips its own text.
 func TestInputBaseDefaultHeightGrowsWithPadAndBorder(t *testing.T) {
-	height := func(pad, border float32) float32 {
+	height := func(Pad, border float32) float32 {
 		var view View
 		var box Box
 		view.Draw(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 240, Height: 200}, func(f *Frame) {
 			f.Row().Items(Start).Children(func() {
-				box = f.InputBase(baseSnapshot(baseField)).Pad(pad).Border(border, gfx.Color{Alpha: 1}).Width(100)
+				box = f.InputBase(baseSnapshot(baseField)).Pad(Pad).Border(border, gfx.Color{Alpha: 1}).Width(100)
 			})
 		})
 		return box.Rect().Height

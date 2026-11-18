@@ -172,35 +172,35 @@ func (b Box) Shrink(v float32) Box {
 func (b Box) Pad(v float32) Box { return b.PadSides(v, v, v, v) }
 func (b Box) PadX(v float32) Box {
 	n := b.n()
-	n.pad[1], n.pad[3], n.Flags = v, v, n.Flags|flagSetPad
+	n.Pad[1], n.Pad[3], n.Flags = v, v, n.Flags|flagSetPad
 	return b
 }
 func (b Box) PadY(v float32) Box {
 	n := b.n()
-	n.pad[0], n.pad[2], n.Flags = v, v, n.Flags|flagSetPad
+	n.Pad[0], n.Pad[2], n.Flags = v, v, n.Flags|flagSetPad
 	return b
 }
 func (b Box) PadTop(v float32) Box {
 	n := b.n()
-	n.pad[0] = v
+	n.Pad[0] = v
 	n.Flags |= flagSetPad
 	return b
 }
 func (b Box) PadRight(v float32) Box {
 	n := b.n()
-	n.pad[1] = v
+	n.Pad[1] = v
 	n.Flags |= flagSetPad
 	return b
 }
 func (b Box) PadBottom(v float32) Box {
 	n := b.n()
-	n.pad[2] = v
+	n.Pad[2] = v
 	n.Flags |= flagSetPad
 	return b
 }
 func (b Box) PadLeft(v float32) Box {
 	n := b.n()
-	n.pad[3] = v
+	n.Pad[3] = v
 	n.Flags |= flagSetPad
 	return b
 }
@@ -225,7 +225,7 @@ func (b Box) MarginLeft(v float32) Box {
 }
 func (b Box) PadSides(top, right, bottom, left float32) Box {
 	n := b.n()
-	n.pad, n.Flags = [4]float32{top, right, bottom, left}, n.Flags|flagSetPad
+	n.Pad, n.Flags = [4]float32{top, right, bottom, left}, n.Flags|flagSetPad
 	return b
 }
 func (b Box) MarginSides(top, right, bottom, left float32) Box {
