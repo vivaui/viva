@@ -116,6 +116,10 @@ func (f *frame) measureLeaf(n *node) {
 	f.theme = saved
 }
 
+// controlMeasurer measures a control: its geometry comes from the style layer,
+// as its painting does, so the engine can sit below the styled controls.
+var controlMeasurer = (*frame).measureControls
+
 func (f *frame) measureLeafIn(n *node) {
 	switch n.kind {
 	case kindText:
@@ -130,6 +134,17 @@ func (f *frame) measureLeafIn(n *node) {
 		n.natural = n.pref[axisX]
 		n.pref[axisX] += n.padX() // a Text takes its Pad and Border like a container
 		n.pref[axisY] += n.padY()
+	case kindIcon, kindImage:
+		n.pref = [2]float32{16, 16}
+	default:
+		controlMeasurer(f, n)
+	}
+}
+
+// measureControls measures the controls: each kind's geometry, from package
+// components for the ones that ship with a theme.
+func (f *frame) measureControls(n *node) {
+	switch n.kind {
 	case kindButton:
 		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.buttonSize).WithIcon(f.exts[n.ext].icon)
 		if d := n.size[axisY]; d.kind == dimPx {
@@ -166,8 +181,6 @@ func (f *frame) measureLeafIn(n *node) {
 			control, _ := components.SwitchExtent(f.theme, n.flags&flagSmall != 0)
 			n.pref[axisX] = control + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
 		}
-	case kindIcon, kindImage:
-		n.pref = [2]float32{16, 16}
 	case kindSegmented:
 		var width float32 = 8
 		for _, option := range f.segmented[n.aux].options {
