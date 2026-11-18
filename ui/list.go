@@ -1210,10 +1210,10 @@ func (p *Page) listKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 }
 
 // listWheelX scrolls the rows of the List with RowWidth under the pointer sideways,
-// by the horizontal wheel or by the wheel with Shift. It reports whether it moved a
-// list, and whether the event was a sideways one alone, left with nothing to scroll
-// down.
-func (p *Page) listWheelX(event gfx.ScrollEvent) (moved, only bool) {
+// by the horizontal wheel or by the wheel with Shift: a list inside panel only, when
+// the pointer is over one (frame.wheelPanel). It reports whether it moved a list, and
+// whether the event was a sideways one alone, left with nothing to scroll down.
+func (p *Page) listWheelX(event gfx.ScrollEvent, panel int32) (moved, only bool) {
 	dx, only := event.DeltaX, event.DeltaY == 0
 	if dx == 0 && event.Modifiers&gfx.ModifierShift != 0 {
 		dx, only = event.DeltaY, true
@@ -1224,7 +1224,7 @@ func (p *Page) listWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	dx = wheelStep(dx, event.Precise) // a notch moves at least a line, as down the list
 	for _, s := range p.listStates {
 		in := &s.list
-		if s.RowWidth <= 0 || in.f == nil || !in.f.containsPoint(int(in.area), event.X, event.Y) {
+		if s.RowWidth <= 0 || in.f == nil || !in.f.containsPoint(int(in.area), event.X, event.Y) || !in.f.within(in.area, panel) {
 			continue
 		}
 		room := s.RowWidth - in.view.Width

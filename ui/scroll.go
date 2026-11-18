@@ -205,34 +205,90 @@ func (s *ScrollState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // by side each scroll alone. A sideways wheel goes the same way, to the innermost
 // Sideways area that can move along it. A wheel over a ScrollAt area goes to the
 // application's own Config.OnScroll instead: ScrollAt declares the area, and the
-// event is handed back unhandled rather than bubbled to an outer ScrollArea. It is
-// the function to give as Config.OnScroll for a page whose areas are all
-// ScrollAreas; handle a Select's open list and a self-scrolling Table first, as
-// they own the wheel while they are open or under the pointer. It reports an event
-// that no area under the pointer can use as not handled.
+// event is handed back unhandled rather than bubbled to an outer ScrollArea. Over a
+// panel painted on the page that the pointer cannot reach through (an open Popover's
+// panel, a Dialog, a modal Drawer) only the areas inside the panel are offered the
+// wheel, wherever in the page the panel was declared, and an event none of them can
+// use stops at the panel, handled, rather than scrolling what is under it. It is the
+// function to give as Config.OnScroll for a page whose areas are all ScrollAreas;
+// handle a Select's open list and a self-scrolling Table first, as they own the
+// wheel while they are open or under the pointer. It reports an event that no area
+// under the pointer can use, beside every such panel, as not handled.
 func (view *view) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	f := view.frame
 	if f == nil {
 		return gfx.EventResult{}
 	}
-	for i := len(f.nodes) - 1; i >= 0; i-- {
+	panel := f.wheelPanel(event.X, event.Y)
+	result, manual := f.wheelArea(panel, event)
+	if panel < 0 || manual || result.Handled || result.Repaint {
+		return result
+	}
+	return gfx.EventResult{Handled: true}
+}
+
+// wheelArea is Wheel's search for the area under the pointer, among the areas inside
+// panel when it is a panel's root (wheelPanel's) and among all of them when it is -1.
+// manual reports that the pointer is over a ScrollAt area, whose wheel is the
+// application's: the event comes back unhandled.
+func (f *frame) wheelArea(panel int32, event gfx.ScrollEvent) (result gfx.EventResult, manual bool) {
+	first := int(max(panel, 0)) // what a panel holds is declared after its root
+	for i := len(f.nodes) - 1; i >= first; i-- {
 		n := &f.nodes[i]
 		if n.ext == 0 || f.exts[n.ext].scrollState == nil {
 			continue
 		}
-		if !f.containsPoint(i, event.X, event.Y) {
+		if !f.containsPoint(i, event.X, event.Y) || !f.within(int32(i), panel) {
 			continue
 		}
 		if f.exts[n.ext].scrollManual {
-			return gfx.EventResult{}
+			return gfx.EventResult{}, true
 		}
 		s := f.exts[n.ext].scrollState
 		if !s.canScroll(s.wheelSteps(event)) {
 			continue
 		}
-		return s.Wheel(event)
+		return s.Wheel(event), false
 	}
-	return gfx.EventResult{}
+	return gfx.EventResult{}, false
+}
+
+// wheelPanel is the root of the panel under the pointer (x, y) that keeps the wheel
+// from the page painted beneath it, the last painted of them when several are: an
+// open Popover's panel, a Dialog or a modal Drawer, the last two covering the whole
+// window with their scrim. It is -1 when the pointer is over none. A non-modal Drawer
+// leaves the page beside it within reach, and an application's Overlay the wheel to
+// the application, so neither is one.
+func (f *frame) wheelPanel(x, y float32) int32 {
+	for k := len(f.floats) - 1; k >= 0; k-- {
+		i := f.floats[k]
+		n := &f.nodes[i]
+		switch {
+		case n.flags&(flagPopover|flagDialog|flagDrawer) == 0:
+			continue
+		case n.flags&flagDrawer != 0 && f.widgets.drawers[n.aux].spec.NonModal:
+			continue
+		}
+		if pointInRect(x, y, n.rect) {
+			return i
+		}
+	}
+	return -1
+}
+
+// within says whether element i is declared inside panel, a root wheelPanel gave;
+// every element is when panel is -1.
+func (f *frame) within(i, panel int32) bool {
+	return panel < 0 || f.rootOf(i) == panel
+}
+
+// rootOf is the root of the tree element i is in: the page's, or a Popup's for what is
+// declared inside one. It is -1 for -1.
+func (f *frame) rootOf(i int32) int32 {
+	for i >= 0 && f.nodes[i].parent >= 0 {
+		i = f.nodes[i].parent
+	}
+	return i
 }
 
 // containsPoint says whether a point is inside element i and inside every clip around
