@@ -239,6 +239,9 @@ func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, ic
 	}
 	b.Icons(icons)
 	p.selects = append(p.selects, state)
+	if p.keyRoute == nil {
+		p.keyRoute, p.selectRoute = (*Page).routeKey, (*Page).selectKey
+	}
 	index, ok := b.Picked()
 	pick(c, b, value, choices, index, ok)
 	if state.Open {
