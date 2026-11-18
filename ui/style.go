@@ -364,17 +364,17 @@ func fade(c Color, opacity float32) Color {
 }
 
 // paintRing draws the ring around r, outside it.
-func (f *frame) paintRing(r Rect, radius float32, s *resolved) {
+func (f *frame) paintRing(r Rect, Radius float32, s *resolved) {
 	color := fade(s.ring, f.opacity)
 	if s.ringWidth <= 0 || color.Alpha <= 0 {
 		return
 	}
 	w := s.ringWidth
 	outer := Rect{X: r.X - w, Y: r.Y - w, Width: r.Width + 2*w, Height: r.Height + 2*w}
-	if radius > 0 {
-		radius += w
+	if Radius > 0 {
+		Radius += w
 	}
-	f.canvas.RoundedOutline(outer, radius, w, color)
+	f.canvas.RoundedOutline(outer, Radius, w, color)
 }
 
 // paintGradient draws the gradient of an element over its whole rectangle.
@@ -388,5 +388,5 @@ func (f *frame) paintGradient(n *node, extra *extra) {
 			stops[i].Color = fade(stops[i].Color, f.opacity)
 		}
 	}
-	f.canvas.FillGradient(n.rect, n.radius, float32(g.angle), stops)
+	f.canvas.FillGradient(n.rect, n.Radius, float32(g.angle), stops)
 }

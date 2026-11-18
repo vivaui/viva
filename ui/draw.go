@@ -58,8 +58,8 @@ func (d *DrawContext) Fade(c Color) Color {
 
 // DashedBorder draws a repeating border inside bounds with the element's fade.
 // Set bounds to d.Rect for the element whose callback is drawing.
-func (d *DrawContext) DashedBorder(bounds Rect, radius, width float32, color Color) {
-	d.Canvas.DashedRoundedOutline(bounds, radius, width, d.Fade(color))
+func (d *DrawContext) DashedBorder(bounds Rect, Radius, width float32, color Color) {
+	d.Canvas.DashedRoundedOutline(bounds, Radius, width, d.Fade(color))
 }
 
 // drawHooks is what Draw and DrawOver declared on one element.

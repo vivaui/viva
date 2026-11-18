@@ -122,7 +122,7 @@ type node struct {
 	items, self, justify Align
 	ColSpan              uint8 // the columns a Grid child covers; zero is one
 	background           Color
-	BorderWidth, radius  float32
+	BorderWidth, Radius  float32
 	gridCol, gridRow     uint16 // where a Grid placed the element; gridRow is also the line a Flow put it on
 	text                 string
 	FontSize, Weight     float32

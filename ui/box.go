@@ -275,7 +275,7 @@ func (b Box) Background(c Color) Box {
 }
 func (b Box) Radius(v float32) Box {
 	n := b.n()
-	n.radius, n.Flags = v, n.Flags|flagHasRadius
+	n.Radius, n.Flags = v, n.Flags|flagHasRadius
 	return b
 }
 func (b Box) Border(width float32, c Color) Box {

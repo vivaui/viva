@@ -53,7 +53,7 @@ func (f *frame) paint(i int32) {
 		parentTheme = f.theme // a theme is large: copied only for what is faded
 		f.theme = f.theme.WithOpacity(style.opacity)
 	}
-	f.paintRing(r, n.radius, &style) // outside the rectangle: before a Clip of the element's own
+	f.paintRing(r, n.Radius, &style) // outside the rectangle: before a Clip of the element's own
 	if n.Flags&flagClip != 0 {
 		canvas.Clip(r)
 		defer canvas.Unclip()
@@ -62,11 +62,11 @@ func (f *frame) paint(i int32) {
 	hasHit := n.Flags&flagHasHit != 0 && !n.ID.IsZero()
 	background, border := fade(style.background, f.opacity), fade(style.border, f.opacity)
 	if style.shadow != gfx.ShadowNone {
-		canvas.ElevateFaded(r, n.radius, style.shadow, f.opacity)
+		canvas.ElevateFaded(r, n.Radius, style.shadow, f.opacity)
 	}
 	switch {
 	case n.BorderWidth > 0 && !style.dashed && extra.gradient == 0 && f.opacity >= 1 && background.Alpha >= 1:
-		canvas.RoundedBorder(r, n.radius, n.BorderWidth, border, background)
+		canvas.RoundedBorder(r, n.Radius, n.BorderWidth, border, background)
 	default:
 		// RoundedBorder paints the border color as a solid backing under the fill, which a
 		// gradient or a faded fill would show through. For those the fill, then the
@@ -74,8 +74,8 @@ func (f *frame) paint(i int32) {
 		// border is only a line over them. An element that is neither keeps RoundedBorder,
 		// so what an application painted before looks as it did.
 		if background.Alpha > 0 {
-			if n.radius > 0 {
-				canvas.Rounded(r, n.radius, background)
+			if n.Radius > 0 {
+				canvas.Rounded(r, n.Radius, background)
 			} else {
 				canvas.Fill(r, background)
 			}
@@ -85,9 +85,9 @@ func (f *frame) paint(i int32) {
 		}
 		if n.BorderWidth > 0 {
 			if style.dashed {
-				canvas.DashedRoundedOutline(n.rect, n.radius, n.BorderWidth, border)
+				canvas.DashedRoundedOutline(n.rect, n.Radius, n.BorderWidth, border)
 			} else {
-				canvas.RoundedOutline(r, n.radius, n.BorderWidth, border)
+				canvas.RoundedOutline(r, n.Radius, n.BorderWidth, border)
 			}
 		}
 	}

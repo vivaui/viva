@@ -31,7 +31,7 @@ func (f *frame) ownTheme(n *node) Theme {
 		theme = theme.WithFontSize(n.FontSize)
 	}
 	if n.Flags&flagHasRadius != 0 {
-		theme = theme.WithRadius(n.radius)
+		theme = theme.WithRadius(n.Radius)
 	}
 	return theme
 }

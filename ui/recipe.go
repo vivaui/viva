@@ -66,7 +66,7 @@ func (f *frame) applyRecipes() {
 				n.BorderWidth = look.BorderWidth
 			}
 			if n.Flags&flagHasRadius == 0 {
-				n.radius = look.Radius
+				n.Radius = look.Radius
 			}
 			if n.Flags&flagSetPad == 0 {
 				x, y := textEntryInsets(theme, n.Kind)
