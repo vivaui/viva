@@ -426,7 +426,12 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		showWindow.Call(state.window, swShow)
 		setForegroundWindow.Call(state.window)
 	} else if config.WindowMode == platform.WindowPreview {
+		// A window with no redirection bitmap may be shown with an empty update
+		// region. Its retained scene is ready, so make the first paint submit it
+		// instead of treating the empty region as "nothing to draw".
+		state.paintPending = true
 		showWindow.Call(state.window, swShowNoActivate)
+		invalidateRect.Call(state.window, 0, 0)
 	} else {
 		showWindow.Call(state.window, 1)
 	}

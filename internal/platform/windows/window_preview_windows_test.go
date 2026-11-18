@@ -32,6 +32,9 @@ func TestDragPreviewWindowIsClickThroughTopmostAndMovable(t *testing.T) {
 		defer opened.Close()
 		state := opened.(*nativeWindow).state
 		window := state.window
+		if state.renderer.submissions == 0 {
+			t.Fatal("preview was shown without presenting its first frame")
+		}
 		style, _, _ := getWindowLong.Call(window, ^uintptr(19)) // GWL_EXSTYLE
 		for _, required := range [...]struct {
 			name  string
