@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -27,15 +28,13 @@ import (
 //		}
 //		return 0, false
 //	}
-type FocusOrder func(current int, key gfx.Key, count int) (next int, ok bool)
-
-// FocusAxis is the arrow keys a FocusGroup moves the focus with.
-type FocusAxis uint8
+type FocusOrder = base.FocusOrder
+type FocusAxis = base.FocusAxis
 
 const (
-	FocusHorizontal FocusAxis = iota + 1 // Left and Right
-	FocusVertical                        // Up and Down
-	FocusBoth                            // all four
+	FocusHorizontal = base.FocusHorizontal
+	FocusVertical   = base.FocusVertical
+	FocusBoth       = base.FocusBoth
 )
 
 // FocusGroup makes the focusable controls inside the container one stop of Tab, as
