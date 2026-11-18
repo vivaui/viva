@@ -72,13 +72,13 @@ func (f *frame) placePopup(n *node, axis int) {
 		if axis == axisY {
 			at = sideOf(start, start+length, n.placeGap, size, lo, lo+span, n.place == placeBelow)
 		} else {
-			at = alignedTo(start, length, size, n.placeAlign)
+			at = alignedTo(start, length, size, n.placeAlign) + n.placeShift
 		}
 	case n.place == placeBeside || n.place == placeBesideLeft:
 		if axis == axisX {
 			at = sideOf(start, start+length, n.placeGap, size, lo, lo+span, n.place == placeBeside)
 		} else {
-			at = alignedTo(start, length, size, n.placeAlign)
+			at = alignedTo(start, length, size, n.placeAlign) + n.placeShift
 		}
 	}
 	at = max(min(at, lo+span-size), lo)

@@ -24,6 +24,9 @@ type PopoverSpec struct {
 	Side   components.PopoverSide
 	Align  Align
 	Offset float32
+	// AlignOffset moves the panel along the anchor from where Align put it, as
+	// components.HoverCardOptions.AlignOffset does: positive toward the end.
+	AlignOffset float32
 	// Title and Description, when set, head the panel as shadcn's PopoverHeader
 	// does: the title in the popover foreground, medium weight, and under it the
 	// description in the muted color, wrapped to the width. The body follows.
@@ -88,6 +91,7 @@ func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
 	default:
 		b.BelowBox(anchor, offset, align)
 	}
+	b.n().placeShift = spec.AlignOffset
 	b.Width(width).Pad(metrics.PadSurface).Gap(metrics.GapItem).
 		Background(look.Fill).Border(1, look.Border).Radius(look.Radius).Shadow(look.Shadow)
 	// Within the frame less the margin the components keep from its edges.

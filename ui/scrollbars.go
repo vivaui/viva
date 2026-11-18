@@ -25,7 +25,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 	area := components.BeginScrollArea(f.canvas, f.theme, n.rect, content).
 		Offset(s.OffsetX, s.Offset).
 		ScrollbarSize(size).
-		HoverScrollbars(hinted || s.dragging).
+		HoverScrollbars(s.barsAlways || hinted || s.dragging).
 		VerticalScrollbar(vertical, "Vertical scrollbar", "").
 		HorizontalScrollbar(horizontal, "Horizontal scrollbar", "")
 	geometry := area.Geometry()

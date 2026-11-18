@@ -33,15 +33,16 @@ type ScrollState struct {
 	ContentWidth  float32 // the width of everything inside, as of the last layout
 	ViewportWidth float32 // the width of the area itself, less its padding
 
-	id       gfx.ID  // the area's identity, which its scrollbars are named under
-	grab     float32 // where along the thumb being dragged the pointer holds it
-	follow   bool    // Box.Follow: keep the area at its end while the user has not left it
-	detached bool    // follow is set and the user scrolled up
-	toEnd    bool    // ScrollToEnd was called and no layout has honored it yet
-	sideways bool    // Box.Sideways: the area scrolls left and right too
-	bars     bool    // Box.Scrollbars: the area draws its own scrollbars
-	dragging bool    // a press on one of the area's scrollbars has the pointer
-	barSize  float32 // ScrollbarSize: the bars' thickness; zero is the hover default
+	id         gfx.ID  // the area's identity, which its scrollbars are named under
+	grab       float32 // where along the thumb being dragged the pointer holds it
+	follow     bool    // Box.Follow: keep the area at its end while the user has not left it
+	detached   bool    // follow is set and the user scrolled up
+	toEnd      bool    // ScrollToEnd was called and no layout has honored it yet
+	sideways   bool    // Box.Sideways: the area scrolls left and right too
+	bars       bool    // Box.Scrollbars: the area draws its own scrollbars
+	barsAlways bool    // AlwaysScrollbars: they stay drawn at rest
+	dragging   bool    // a press on one of the area's scrollbars has the pointer
+	barSize    float32 // ScrollbarSize: the bars' thickness; zero is the hover default
 }
 
 // scrollStore keeps the ScrollStates of a view, by the identity of their areas. A slot
@@ -310,6 +311,17 @@ func (b Box) Sideways() Box {
 func (b Box) Scrollbars() Box {
 	if s := b.areaState(); s != nil {
 		s.bars = true
+		b.f.paintBarsFn = (*frame).paintScrollbars
+	}
+	return b
+}
+
+// AlwaysScrollbars draws a ScrollArea's bars whether or not the pointer is over the
+// area, as a gutter a list keeps while its content overflows, instead of revealing
+// them on hover. It implies Scrollbars; give ScrollbarSize to set their thickness.
+func (b Box) AlwaysScrollbars() Box {
+	if s := b.areaState(); s != nil {
+		s.bars, s.barsAlways = true, true
 		b.f.paintBarsFn = (*frame).paintScrollbars
 	}
 	return b

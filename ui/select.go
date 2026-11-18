@@ -603,7 +603,13 @@ func (f *frame) measureSelect(n *node) {
 func (f *frame) paintSelect(n *node) {
 	d := &f.widgets.selects[n.aux]
 	count := len(d.labels)
-	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: n.pref[axisY]}
+	// A Select is as tall as it measures unless the application gave it a height,
+	// which then sizes the trigger itself.
+	height := n.pref[axisY]
+	if n.size[axisY].kind != dimAuto {
+		height = n.rect.Height
+	}
+	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: height}
 	options := components.SelectOptions{
 		TriggerID: d.triggerID(count), Label: n.label, Placeholder: n.text, Hint: d.hint,
 		Disabled: n.flags&flagDisabled != 0,

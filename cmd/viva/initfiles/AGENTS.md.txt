@@ -144,7 +144,8 @@ func (m *model) page(c ui.C) {
   `ContentWidth`, `ViewportWidth`, `MaxX()` and `ScrollToX(px)`), and `.Scrollbars()` draws draggable bars over the
   overflowing edges. The bars are the hover style: they appear while the pointer is over the area, and
   `.ScrollbarSize(px)` sets their thickness (a right `Pad` leaves the gutter they sit in instead of covering the
-  content). `PageConfig.ScrollbarSize` sets the page's default thickness for every bar that does not set its own.
+  content), and `.AlwaysScrollbars()` keeps them drawn at rest instead of revealing them on hover.
+  `PageConfig.ScrollbarSize` sets the page's default thickness for every bar that does not set its own.
   An area a paint does not declare forgets its offset (a closed dialog, another tab).
 
 ### Menus, dialogs and popups

@@ -251,3 +251,28 @@ func TestTableScrollsItselfWithAHoverBarInItsGutter(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// AlwaysScrollbars keeps a scroll area's bars at rest, at the size given, without
+// the pointer over it.
+func TestAlwaysScrollbarsStayAtRest(t *testing.T) {
+	var area ui.Box
+	d := openPageWith(t, ui.PageConfig{View: func(c ui.C) {
+		ui.Column(c).Fill().Pad(20).Children(func() {
+			area = ui.Scroll(c).Size(300, 200).AlwaysScrollbars().ScrollbarSize(10).Children(func() {
+				ui.Slot(c).Height(2000)
+			})
+		})
+	}, ScrollbarSize: 6}, app.Config{})
+	bar := d.hit("Vertical scrollbar")
+	if bar.Bounds.Width != 10 {
+		t.Fatalf("bar width = %v, want 10", bar.Bounds.Width)
+	}
+	r := area.Rect()
+	if bar.Bounds.X+bar.Bounds.Width < r.X+r.Width-10 || bar.Bounds.X > r.X+r.Width {
+		t.Fatalf("the bar at %v is not against the area's right edge %v", bar.Bounds, r)
+	}
+	d.driver.Move(2, 2)
+	if !d.has("Vertical scrollbar") {
+		t.Fatal("the bar left when the pointer did")
+	}
+}

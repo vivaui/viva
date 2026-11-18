@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -76,5 +77,28 @@ func TestPopoverHeaderToBodyFollowsSurfacePadding(t *testing.T) {
 	}
 	if small, large := gapFor(16), gapFor(24); large-small < 7.5 || large-small > 8.5 {
 		t.Fatalf("raising PadSurface by 8 moved the body %v away from the description", large-small)
+	}
+}
+
+// AlignOffset moves a Popover along its anchor from where Align put it, as the
+// hover-card option of the same name does.
+func TestPopoverAlignOffset(t *testing.T) {
+	x := func(shift float32) float32 {
+		open := true
+		var body ui.Box
+		d := openPage(t, func(c ui.C) {
+			ui.Column(c).Pad(20).Children(func() {
+				more := ui.Button(c, "More").Width(200)
+				ui.PopoverWith(c, more, ui.PopoverSpec{Side: components.PopoverBottom, Align: ui.Start, AlignOffset: shift, Width: 100}, &open, func() {
+					body = ui.Column(c).FillWidth().Height(40)
+				})
+			})
+		})
+		_ = d
+		return body.Rect().X
+	}
+	base, shifted := x(0), x(40)
+	if shifted != base+40 {
+		t.Fatalf("an AlignOffset of 40 moved the panel from %v to %v, want %v", base, shifted, base+40)
 	}
 }

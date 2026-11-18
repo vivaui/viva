@@ -652,3 +652,28 @@ func TestSelectTypeAheadSkipsDisabledOptions(t *testing.T) {
 		t.Fatalf("b focused %v although every option starting with b is disabled", got.Focus)
 	}
 }
+
+// A Select given a height paints its trigger that tall, so a toolbar row sized
+// for a shorter control gets one that fits it.
+func TestSelectTakesItsDeclaredHeight(t *testing.T) {
+	theme := gfx.LightTheme()
+	for _, size := range []float32{28, 30, 34} {
+		state := SelectState{}
+		canvas := testCanvas()
+		var view View
+		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
+			f.Column().Pad(12).Children(func() {
+				f.Select(selScope, &state, selLabels, 0).Height(size)
+			})
+		})
+		var trigger gfx.Hit
+		for _, hit := range canvas.Hits() {
+			if hit.ID == selScope.At(len(selLabels)) {
+				trigger = hit
+			}
+		}
+		if trigger.Bounds.Height != size {
+			t.Fatalf("a Select given %v painted %v tall", size, trigger.Bounds.Height)
+		}
+	}
+}
