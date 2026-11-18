@@ -19,18 +19,6 @@ const (
 	DrawerTop
 )
 
-func (side DrawerSide) component() components.DrawerSide {
-	switch side {
-	case DrawerLeft:
-		return components.DrawerLeft
-	case DrawerBottom:
-		return components.DrawerBottom
-	case DrawerTop:
-		return components.DrawerTop
-	}
-	return components.DrawerRight
-}
-
 // DrawerSpec declares a Drawer beyond its title: the edge it comes in from (the
 // right when zero), its size across that edge (384 wide, or as tall as its parts,
 // when zero; never more than the window), a description, NoClose to leave out the
@@ -193,18 +181,6 @@ type drawerDecl struct {
 	spec         drawerSpec
 	body, footer int32 // the parts declared into; footer is -1 without one
 	layer        uint16
-}
-
-func (spec *drawerSpec) component(Surface *gfx.Canvas, Palette Theme, bounds Rect, layer uint16) components.Drawer {
-	drawer := components.BeginDrawer(Surface, Palette, bounds, components.DrawerOptions{
-		Layer: layer, Scope: spec.scope, DismissID: spec.dismiss, CloseID: spec.close,
-		Side: spec.Side.component(), ContentExtent: spec.Size, InitialFocusID: spec.InitialFocus,
-		HandleID: spec.handle, Offset: spec.offset,
-	})
-	if spec.Swipe {
-		drawer = drawer.WithHandle()
-	}
-	return drawer
 }
 
 // drawer declares a Drawer's root: an element over the whole frame holding the

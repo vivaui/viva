@@ -2,8 +2,9 @@ package ui_test
 
 import (
 	"fmt"
-	"github.com/vivaui/viva/components"
 	"testing"
+
+	"github.com/vivaui/viva/components"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"

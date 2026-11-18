@@ -1,10 +1,11 @@
 package ui_test
 
 import (
+	"testing"
+
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"testing"
 )
 
 // pageDriver is a headless window that paints a Page.
