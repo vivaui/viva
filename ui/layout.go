@@ -417,7 +417,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 			bounded := clamp(want, child.MinS[axis], f.maxOn(child, axis, avail))
 			violation += bounded - want
 			*extent(&child.rect, axis) = bounded
-			child.bounded = bounded
+			child.Bounded = bounded
 			child.Want = want
 		}
 		done := true
@@ -426,7 +426,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 			if child.frozen {
 				continue
 			}
-			clampedUp, clampedDown := child.bounded > child.Want, child.bounded < child.Want
+			clampedUp, clampedDown := child.Bounded > child.Want, child.Bounded < child.Want
 			if violation == 0 || violation > 0 && clampedUp || violation < 0 && clampedDown {
 				child.frozen = true
 			} else {
