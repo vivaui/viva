@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -406,4 +407,47 @@ func TestDeclaringAfterEndPanics(t *testing.T) {
 	drawPage(ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas(), func(c ui.C) {
 		ui.Slot(c).Size(10, 10).Draw(func(*ui.DrawContext) { ui.Text(c, "late") })
 	})
+}
+
+// A Switch's own recipe wins over the page's Styles.Switch, so one row can keep
+// a control dressed as its old hand-painted switch was.
+func TestSwitchUsesItsOwnRecipe(t *testing.T) {
+	on := true
+	ownLook := func(theme gfx.Theme, state gfx.State, progress float32) components.SwitchLook {
+		look := components.SwitchRecipe(theme, state, progress)
+		look.Track = gfx.RGB(1, 2, 3)
+		return look
+	}
+	paint := func(withOwn bool) []gfx.Rectangle {
+		var canvas gfx.Canvas
+		page := ui.NewPage(ui.PageConfig{
+			Styles: &ui.Styles{Switch: func(theme gfx.Theme, state gfx.State, progress float32) components.SwitchLook {
+				look := components.SwitchRecipe(theme, state, progress)
+				look.Track = gfx.RGB(9, 9, 9)
+				return look
+			}},
+			View: func(c ui.C) {
+				sw := ui.Switch(c, &on, "Go")
+				if withOwn {
+					sw.SwitchRecipe(ownLook)
+				}
+			},
+		})
+		page.Paint(&canvas, gfx.Size{Width: 200, Height: 100})
+		return canvas.Rectangles()
+	}
+	has := func(rects []gfx.Rectangle, color gfx.Color) bool {
+		for _, r := range rects {
+			if r.Color == color {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(paint(true), gfx.RGB(1, 2, 3)) {
+		t.Fatal("a Switch did not paint with its own recipe")
+	}
+	if has(paint(false), gfx.RGB(1, 2, 3)) {
+		t.Fatal("a Switch painted with another switch's recipe")
+	}
 }
