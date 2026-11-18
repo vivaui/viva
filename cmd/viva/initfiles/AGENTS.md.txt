@@ -561,6 +561,8 @@ ui.Row(c).Fill().Children(func() {
 ```
 
 (`Splitter` in a `Column` divides top and bottom; the first pane then gets `Height(m.split.Pos)`.)
+`.SplitterThickness(1)` makes the divider take one pixel of the layout, as a hairline between the panes, while the
+pointer keeps the eight-pixel strip around it.
 
 ## Animation and time
 
