@@ -44,6 +44,40 @@ func TestTabsArePaintedLikeTheComponent(t *testing.T) {
 	}
 }
 
+// A Tabs given a height paints its triggers that tall, so a strip fits the row
+// sized for it and a line's indicator keeps its room below them.
+func TestTabsTakeTheirDeclaredHeight(t *testing.T) {
+	theme := gfx.LightTheme()
+	for _, test := range []struct {
+		name    string
+		declare func(Box) Box
+		line    bool
+		height  float32
+	}{
+		{"28", func(b Box) Box { return b }, false, 28},
+		{"32", func(b Box) Box { return b }, false, 32},
+		{"34", func(b Box) Box { return b }, false, 34},
+		{"line-40", func(b Box) Box { return b.Line() }, true, 40},
+	} {
+		flexed, direct := testCanvas(), testCanvas()
+		var view View
+		view.Draw(flexed, theme, gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
+			f.Column().Children(func() { test.declare(f.Tabs(tabsScope, tabLabels, 1).Height(test.height)) })
+		})
+		stripHeight := test.height
+		if test.line {
+			// A line's height keeps the indicator's room below its triggers.
+			stripHeight -= tabIndicator
+		}
+		strip := components.BeginTabList(direct, theme, gfx.Rect{Width: 300, Height: stripHeight}, tabsScope, tabLabels, 1)
+		if test.line {
+			strip = strip.Line()
+		}
+		strip.Paint()
+		sameCanvas(t, test.name, flexed, direct)
+	}
+}
+
 func TestTabsReportTheClickedTabAndTheContentFollowsTheIndex(t *testing.T) {
 	theme := gfx.LightTheme()
 	current := 0

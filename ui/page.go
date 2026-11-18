@@ -311,6 +311,7 @@ type Page struct {
 	roveRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // arrow keys in a Choice or Tabs
 	groupRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // arrow keys in a FocusGroup
 	sliderRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the keys of a Slider
+	selectRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // opens and moves the list of a Select
 	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	listRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)      // moves and chooses rows of a List
@@ -484,6 +485,11 @@ func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	}
 	if p.sliderRoute != nil {
 		if result, ok := p.sliderRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if p.selectRoute != nil {
+		if result, ok := p.selectRoute(p, event); ok {
 			return result, true
 		}
 	}

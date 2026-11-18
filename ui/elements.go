@@ -210,7 +210,14 @@ func Tabs[T comparable](c C, value *T, tabs []T, label func(T) string) Box {
 // it is none of them); picking an option sets it. Whether its list is open is the
 // Select's own state.
 func Select[T comparable](c C, value *T, choices []T, label func(T) string) Box {
-	return selectOf(c, value, choices, label, nil, false)
+	return selectOf(c, value, choices, label, nil, false, gfx.ID{})
+}
+
+// SelectID is Select for a control the application already names: the trigger's
+// hit is id, so a row's words can be its LabelFor and the application's key and
+// focus routing can target it. The list's options keep the page's own identities.
+func SelectID[T comparable](c C, id gfx.ID, value *T, choices []T, label func(T) string) Box {
+	return selectOf(c, value, choices, label, nil, false, id)
 }
 
 // SelectIcon is Select with an icon before every option: icon names each option's
@@ -220,13 +227,13 @@ func Select[T comparable](c C, value *T, choices []T, label func(T) string) Box 
 //
 //	ui.SelectIcon(c, &m.locale, locales, localeName, localeFlag)
 func SelectIcon[T comparable](c C, value *T, choices []T, label func(T) string, icon func(T) gfx.Icon) Box {
-	return selectOf(c, value, choices, label, optionIcons(c.page, choices, icon), false)
+	return selectOf(c, value, choices, label, optionIcons(c.page, choices, icon), false, gfx.ID{})
 }
 
 // selectOf is Select (or SelectIcon), or SelectBase when base is set: the same
 // control without the theme's look. icons, when SelectIcon's icon function gave
 // them, are indexed by option like the labels; nil is the select without icons.
-func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, icons []gfx.Icon, base bool) Box {
+func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, icons []gfx.Icon, base bool, id gfx.ID) Box {
 	p := c.page
 	scope := p.boundScope(pkSelect, unsafe.Pointer(value))
 	state := stateIn[SelectState](p, scope, "select") // its open list follows its value
@@ -238,7 +245,11 @@ func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, ic
 		b = c.f.Select(scope, state, labels, selected)
 	}
 	b.Icons(icons)
+	state.trigger = id
 	p.selects = append(p.selects, state)
+	if p.keyRoute == nil {
+		p.keyRoute, p.selectRoute = (*Page).routeKey, (*Page).selectKey
+	}
 	index, ok := b.Picked()
 	pick(c, b, value, choices, index, ok)
 	if state.Open {

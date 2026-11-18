@@ -95,9 +95,15 @@ func (f *frame) measureTabs(n *node) {
 
 func (f *frame) paintTabs(n *node) {
 	t := &f.widgets.tabs[n.aux]
-	bounds := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: tabHeight}
+	// The strip is as tall as the element: an explicit height is the trigger's,
+	// and the line variant's measured height keeps the room for its indicator
+	// below the triggers.
+	height := n.rect.Height
+	if t.line && !t.vertical {
+		height = max(height-tabIndicator, 0)
+	}
+	bounds := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: height}
 	if t.vertical {
-		bounds.Height = n.rect.Height
 		if t.line {
 			bounds.Width = max(bounds.Width-tabIndicator-1, 0)
 		}

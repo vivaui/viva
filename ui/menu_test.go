@@ -662,3 +662,32 @@ func TestMenuItemTrailingControl(t *testing.T) {
 		t.Fatal("pressing the trailing control chose the row")
 	}
 }
+
+// A ContentPage row takes room in the menu and declares its controls in the page:
+// a swatch there is clicked without closing the menu.
+func TestMenuPageContentRow(t *testing.T) {
+	chosen := false
+	open := true
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			more := ui.Button(c, "More")
+			ui.Menu(c, more, &open, func(menu *ui.MenuItems) {
+				menu.Item("One")
+				menu.ContentPage(40, func(c ui.C, _ ui.Rect) {
+					if ui.ColorSwatch(c, gfx.RGB(220, 38, 38), chosen, "Red").Clicked() {
+						chosen = true
+					}
+				})
+				menu.Item("Two")
+			})
+		})
+	})
+	one, two := d.hit("One").Bounds, d.hit("Two").Bounds
+	if two.Y-one.Y < 40 {
+		t.Fatalf("the page row took no room: One %v, Two %v", one, two)
+	}
+	d.click("Red")
+	if !chosen || !open {
+		t.Fatalf("the swatch chose %v, menu open %v", chosen, open)
+	}
+}
