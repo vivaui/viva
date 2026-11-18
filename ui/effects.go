@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/window"
 )
 
 // EffectState is one page's asynchronous work, keyed by a value: a load that
@@ -56,7 +56,7 @@ type EffectState[T any, K comparable] struct {
 	err        error
 	has        bool
 	epoch      uint32 // the paint that last declared it
-	invalidate *app.Invalidator
+	invalidate window.Invalidator
 }
 
 // NewEffect makes the state of one effect whose run function does not need its

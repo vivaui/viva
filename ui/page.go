@@ -40,6 +40,7 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/window"
 )
 
 // C is what a view declares with: the page being declared and where in it. Every
@@ -206,8 +207,9 @@ type PageConfig struct {
 	// Invalidator wakes the window the page is drawn in when an Effect of the page
 	// finishes. Config uses it instead of the app.Config's; a page the application
 	// draws into a window of its own (Draw, not Paint) needs it, since only Config
-	// would otherwise supply one.
-	Invalidator *app.Invalidator
+	// would otherwise supply one. The interface lets a page depend on the window
+	// contract rather than on the platform loop.
+	Invalidator window.Invalidator
 	// MemoCheck makes every Memo of this page declare its part and panic where a
 	// copy of the last paint would have differed, as MemoCheck(true) does for every
 	// page. It is for tests.
@@ -239,7 +241,7 @@ type Page struct {
 	effects       []effectState      // the Effects of the last paint, which their work belongs to
 	effectContext context.Context    // what their runs derive from; cancelled when the page closes
 	effectCancel  context.CancelFunc // cancels effectContext
-	invalidator   *app.Invalidator   // wakes the window when work finishes, when the page has one
+	invalidator   window.Invalidator // wakes the window when work finishes, when the page has one
 	application   *app.Application   // what OpenWindow opened the page's window in, else nil
 
 	scopes      []*protoScope // by scope: Scopes are dense indexes into the Tree
@@ -715,19 +717,19 @@ func (p *Page) Config(base app.Config) app.Config {
 	p.basePointer, config.OnPointer = base.OnPointer, p.onPointer
 	p.baseShortcut, config.OnShortcut = base.OnShortcut, p.onShortcut
 	p.baseScroll, config.OnScroll = base.OnScroll, p.Wheel
-	invalidator := p.config.Invalidator
-	if invalidator == nil {
-		invalidator = base.Invalidator
+	concrete, _ := p.config.Invalidator.(*app.Invalidator)
+	if concrete == nil {
+		concrete = base.Invalidator
 	}
-	if invalidator == nil {
-		invalidator = new(app.Invalidator)
+	if concrete == nil {
+		concrete = new(app.Invalidator)
 	}
-	config.Invalidator = invalidator
-	p.invalidator = invalidator
+	config.Invalidator = concrete
+	p.invalidator = concrete
 	if p.config.FollowSystemTheme && p.config.Theme == nil {
 		stop := app.WatchSystemAppearance(func() {
 			p.stale.Store(true)
-			invalidator.Invalidate()
+			concrete.Invalidate()
 		})
 		closed := config.OnClosed
 		config.OnClosed = func() {
