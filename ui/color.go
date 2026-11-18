@@ -75,6 +75,10 @@ func (s *ColorPickerState) Applied() bool {
 // pipette for a custom color), Empty shows it as no color whatever its value, and
 // Labels override the panel's words.
 type ColorPickerSpec struct {
+	// ID, when set, names the trigger with the application's identity, as
+	// ColorSwatchID does; the page's own identity names it otherwise. A row's
+	// words can then be its LabelFor, as for any control the application names.
+	ID     gfx.ID
 	Label  string
 	Round  bool
 	Icon   *gfx.Icon
@@ -99,7 +103,10 @@ func ColorPicker(c C, state *ColorPickerState, color *Color, label string) Box {
 func ColorPickerWith(c C, s *ColorPickerState, spec ColorPickerSpec, color *Color) Box {
 	p := c.page
 	p.forbidInMemo("ColorPicker")
-	id := p.controlID(pkControl)
+	id := spec.ID
+	if id.IsZero() {
+		id = p.controlID(pkControl)
+	}
 	s.target = color
 	if !s.bound {
 		s.hex.Bind(&s.hexEditor)

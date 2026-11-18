@@ -119,3 +119,36 @@ func TestColorPickerDraftFollowsTheDragBeforeApply(t *testing.T) {
 		t.Fatal("the application's color changed before Apply")
 	}
 }
+
+// A spec's ID names the trigger with the application's identity, so a row's
+// words can be its label: clicking them opens the panel.
+func TestColorPickerKeepsTheApplicationID(t *testing.T) {
+	var state ui.ColorPickerState
+	color := gfx.RGB(10, 20, 30)
+	var id gfx.ID
+	d := openPage(t, func(c ui.C) {
+		if id.IsZero() {
+			id = ui.ID(c)
+		}
+		ui.Row(c).Children(func() {
+			words := ui.Text(c, "Accent").LabelFor(id)
+			_ = words
+			ui.ColorPickerWith(c, &state, ui.ColorPickerSpec{ID: id, Label: "Accent"}, &color)
+		})
+	})
+	var trigger gfx.Rect
+	for _, hit := range d.driver.Snapshot().Hits {
+		if hit.ID == id {
+			trigger = hit.Bounds
+		}
+	}
+	if trigger.Width == 0 {
+		t.Fatal("the trigger did not take the application identity")
+	}
+	if err := d.driver.Click(center(trigger)); err != nil {
+		t.Fatal(err)
+	}
+	if !state.Open() {
+		t.Fatal("a click on the named trigger did not open the panel")
+	}
+}
