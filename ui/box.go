@@ -153,7 +153,7 @@ func (b Box) MaxHeightPercent(p float32) Box {
 // in proportion to the numbers given. Shrink does the same for a shortage.
 func (b Box) Grow(v float32) Box {
 	n := b.n()
-	n.grow = v
+	n.Grow = v
 	n.Flags |= flagGrowSet
 	return b
 }

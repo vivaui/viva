@@ -116,7 +116,7 @@ type node struct {
 
 	size                 [2]dimension
 	minS, maxS           [2]float32 // a max of zero is no max
-	grow, shrink         float32
+	Grow, shrink         float32
 	Pad, Margin          [4]float32 // top, right, bottom, left
 	Gap                  float32
 	Items, Self, Justify Align
@@ -580,7 +580,7 @@ func (f *frame) Text(value string) Box {
 // Spacer adds empty space that grows to take what the other children leave.
 func (f *frame) Spacer() Box {
 	b := f.box(kindSpacer)
-	f.nodes[b.i].grow = 1
+	f.nodes[b.i].Grow = 1
 	f.nodes[b.i].Flags |= flagGrowSet
 	return b
 }

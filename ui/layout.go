@@ -348,7 +348,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		child := &f.nodes[c]
 		basis, grow := flexBasis(child, axis, avail), float32(0)
 		if child.Flags&flagGrowSet != 0 {
-			grow = child.grow
+			grow = child.Grow
 		} else if child.size[axis].Kind == dimFill {
 			grow = 1
 		}
