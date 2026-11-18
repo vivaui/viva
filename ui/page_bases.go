@@ -2,6 +2,8 @@ package ui
 
 import (
 	"unsafe"
+
+	"github.com/vivaui/viva/gfx"
 )
 
 // The Bases of a page are its controls without their look: what each does, as an element
@@ -106,7 +108,7 @@ func SliderBase(c C, state *SliderState) Box {
 //		list.Draw(m.paintPanel) // option i is in sel.Part(i)
 //	}
 func SelectBase[T comparable](c C, value *T, choices []T, label func(T) string) Box {
-	return selectOf(c, value, choices, label, nil, true)
+	return selectOf(c, value, choices, label, nil, true, gfx.ID{})
 }
 
 // TextFieldBase is TextField without a look: the editable text, with no padding,

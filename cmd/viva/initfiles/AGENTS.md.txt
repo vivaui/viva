@@ -159,6 +159,7 @@ func (m *model) page(c ui.C) {
 - A row a menu cannot say: `menu.ContentPage(40, func(c ui.C, bounds ui.Rect) { ui.ColorSwatch(c, ...) })` declares page controls
   in a row of their own (the keyboard passes over it); `menu.Content(height, paint)` is the canvas painter for a row
   the page cannot declare.
+- `ui.SelectID(c, id, &m.size, choices, nil)` is `ui.Select` for a control the application names: a row's words can be its `LabelFor`, and the application's key and focus routing can target it.
 - Color choices: `ui.ColorSwatch(c, color, chosen, "Red")` is a radio (`.Flush()` fills its border with the color, `.TabStop(chosen)` makes one swatch the Tab stop, `ColorSwatchID` keeps an application identity); `ui.ColorPicker(c, &m.picker, &m.color, "Accent")` opens a panel to pick one, `.Draft()` follows the drag before Apply and `.Applied()` says a choice was committed.
 - A side panel: `ui.Drawer(c, &m.open, "Title", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)`;
   an empty title gives the body the whole panel, `NonModal` keeps the keyboard on the page, `Swipe` adds a

@@ -28,6 +28,7 @@ type SelectState struct {
 	scope    gfx.Scope
 	selected int
 	visible  int
+	trigger  gfx.ID // the trigger's hit: the application's id when it named one
 	// chosen is 1 + the option a key chose, reported by the next Picked and
 	// cleared then; 0 when no key chose one.
 	chosen   int
@@ -91,7 +92,7 @@ func (s *SelectState) Key(event gfx.KeyEvent) gfx.EventResult {
 		return gfx.EventResult{}
 	}
 	at, onItem := event.Target.In(s.scope)
-	onTrigger := event.Target == s.scope.At(count)
+	onTrigger := event.Target == s.triggerID(count)
 	if result, handled := s.navigate(event, count, at, onTrigger, onItem && at < count); handled {
 		return result
 	}
@@ -222,10 +223,10 @@ func (s *SelectState) navigate(event gfx.KeyEvent, count, at int, onTrigger, onO
 			return handled, true
 		}
 		s.chosen, s.Open = at+1, false
-		return gfx.EventResult{Handled: true, Repaint: true, Focus: s.scope.At(count), FocusVisible: true}, true
+		return gfx.EventResult{Handled: true, Repaint: true, Focus: s.triggerID(count), FocusVisible: true}, true
 	case gfx.KeyEscape:
 		s.Open = false
-		return gfx.EventResult{Handled: true, Repaint: true, Focus: s.scope.At(count), FocusVisible: true}, true
+		return gfx.EventResult{Handled: true, Repaint: true, Focus: s.triggerID(count), FocusVisible: true}, true
 	}
 	return gfx.EventResult{}, false
 }
@@ -526,6 +527,13 @@ func (d *selectDecl) pickIn() (int, bool) {
 	}
 	canvas := d.canvas
 	count := len(d.labels)
+	if trigger := d.state.trigger; !trigger.IsZero() && canvas.Clicked(trigger) {
+		d.state.Open = !d.state.Open
+		if d.state.Open {
+			d.state.First = min(max(d.selected-d.visible/2, 0), max(count-d.visible, 0))
+		}
+		return 0, false
+	}
 	index, ok := canvas.ClickedIn(d.scope)
 	if !ok {
 		return 0, false
@@ -534,7 +542,7 @@ func (d *selectDecl) pickIn() (int, bool) {
 	case index < count:
 		d.state.Open = false
 		return index, true
-	case index == count: // the trigger
+	case index == count: // the trigger, when it is the page's own
 		d.state.Open = !d.state.Open
 		if d.state.Open {
 			d.state.First = min(max(d.selected-d.visible/2, 0), max(count-d.visible, 0))
@@ -568,6 +576,17 @@ func (p *Page) selectKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	return gfx.EventResult{}, false
 }
 
+// triggerID is the id the trigger paints: the application's when it named one.
+func (d *selectDecl) triggerID(count int) gfx.ID { return d.state.triggerID(count) }
+
+// triggerID is the trigger's identity for the keys, which see no declaration.
+func (s *SelectState) triggerID(count int) gfx.ID {
+	if !s.trigger.IsZero() {
+		return s.trigger
+	}
+	return s.scope.At(count)
+}
+
 func (f *frame) measureSelect(n *node) {
 	d := &f.widgets.selects[n.aux]
 	widest := d.state.widestOption(f.canvas, d.labels, f.theme.Metrics.FontSizeM)
@@ -586,7 +605,7 @@ func (f *frame) paintSelect(n *node) {
 	count := len(d.labels)
 	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: n.pref[axisY]}
 	options := components.SelectOptions{
-		TriggerID: d.scope.At(count), Label: n.label, Placeholder: n.text, Hint: d.hint,
+		TriggerID: d.triggerID(count), Label: n.label, Placeholder: n.text, Hint: d.hint,
 		Disabled: n.flags&flagDisabled != 0,
 		Layer:    d.layer, Scope: d.scope.At(count + 2), DismissID: d.scope.At(count + 1), Viewport: f.bounds,
 	}

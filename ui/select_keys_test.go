@@ -78,3 +78,27 @@ func TestSelectEscapeClosesTheListFromTheKeyboard(t *testing.T) {
 		t.Fatalf("Escape left the focus on %q, want the trigger", got)
 	}
 }
+
+// SelectID names the trigger with the application's identity, so a row's words
+// can be its label and the click still opens and chooses.
+func TestSelectIDNamesTheTrigger(t *testing.T) {
+	size := ""
+	var trigger gfx.ID
+	d := openPage(t, func(c ui.C) {
+		if trigger.IsZero() {
+			trigger = ui.ID(c)
+		}
+		ui.SelectID(c, trigger, &size, []string{"S", "M"}, nil).Label("Size")
+	})
+	if hit := d.hit("Size"); hit.ID != trigger {
+		t.Fatalf("the trigger's hit is %v, want %v", hit.ID, trigger)
+	}
+	d.click("Size")
+	if !d.has("S") {
+		t.Fatal("a click on the named trigger did not open the list")
+	}
+	d.click("M")
+	if size != "M" {
+		t.Fatalf("chose %q", size)
+	}
+}
