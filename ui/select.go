@@ -28,6 +28,10 @@ type SelectState struct {
 	scope    gfx.Scope
 	selected int
 	visible  int
+	trigger  gfx.ID // the trigger's hit: the application's id when it named one
+	// chosen is 1 + the option a key chose, reported by the next Picked and
+	// cleared then; 0 when no key chose one.
+	chosen   int
 	wheel    float32 // the part of a row a trackpad has scrolled so far
 	typed    [16]byte
 	typedLen int
@@ -84,15 +88,21 @@ func (s *SelectState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // is never called with one and does nothing.
 func (s *SelectState) Key(event gfx.KeyEvent) gfx.EventResult {
 	count := len(s.labels)
-	if count == 0 || event.Text == "" || event.Modifiers&(gfx.ModifierControl|gfx.ModifierMeta|gfx.ModifierAlt) != 0 {
+	if count == 0 || event.Release {
+		return gfx.EventResult{}
+	}
+	at, onItem := event.Target.In(s.scope)
+	onTrigger := event.Target == s.triggerID(count)
+	if result, handled := s.navigate(event, count, at, onTrigger, onItem && at < count); handled {
+		return result
+	}
+	if event.Text == "" || event.Modifiers&(gfx.ModifierControl|gfx.ModifierMeta|gfx.ModifierAlt) != 0 {
 		return gfx.EventResult{}
 	}
 	char, _ := utf8.DecodeRuneInString(event.Text)
 	if char == utf8.RuneError || unicode.IsControl(char) || char == ' ' && s.typedLen == 0 {
 		return gfx.EventResult{}
 	}
-	at, onItem := event.Target.In(s.scope)
-	onTrigger := event.Target == s.scope.At(count)
 	if !s.Open && !onTrigger || s.Open && !onItem && !onTrigger {
 		return gfx.EventResult{}
 	}
@@ -121,6 +131,148 @@ func (s *SelectState) Key(event gfx.KeyEvent) gfx.EventResult {
 	}
 	return gfx.EventResult{Handled: true, Repaint: true, Focus: s.scope.At(match), FocusVisible: true}
 }
+
+// navigate moves an open list and opens or closes it from the keyboard, as a
+// select does: the arrows and Home/End move the focus among its options, Enter or
+// Space chooses the focused one, and Escape closes it back onto the trigger. The
+// value a key chooses is reported by the next Picked, like a click.
+func (s *SelectState) navigate(event gfx.KeyEvent, count, at int, onTrigger, onOption bool) (gfx.EventResult, bool) {
+	if event.Modifiers&(gfx.ModifierControl|gfx.ModifierMeta|gfx.ModifierAlt) != 0 {
+		return gfx.EventResult{}, false
+	}
+	handled := gfx.EventResult{Handled: true, Repaint: true}
+	if !s.Open {
+		if !onTrigger {
+			return gfx.EventResult{}, false
+		}
+		target := -1
+		switch event.Key {
+		case gfx.KeyEnter, gfx.KeySpace:
+			if event.Repeat {
+				return gfx.EventResult{}, false
+			}
+			target = s.selected
+		case gfx.KeyDown:
+			target = s.selected
+		case gfx.KeyUp:
+			target = s.lastEnabled()
+		default:
+			return gfx.EventResult{}, false
+		}
+		if target < 0 || optionDisabled(s.disabled, target) {
+			target = s.nextEnabled(-1, 1)
+		}
+		if target < 0 {
+			return handled, true
+		}
+		s.Open = true
+		s.reveal(target)
+		return gfx.EventResult{Handled: true, Repaint: true, Focus: s.scope.At(target), FocusVisible: true}, true
+	}
+	if onTrigger {
+		switch event.Key {
+		case gfx.KeyDown:
+			if target := s.nextFocus(s.selected, 1); target >= 0 {
+				return s.focus(target), true
+			}
+		case gfx.KeyUp:
+			if target := s.nextFocus(s.selected, -1); target >= 0 {
+				return s.focus(target), true
+			}
+		case gfx.KeyHome:
+			if target := s.firstEnabled(); target >= 0 {
+				return s.focus(target), true
+			}
+		case gfx.KeyEnd:
+			if target := s.lastEnabled(); target >= 0 {
+				return s.focus(target), true
+			}
+		case gfx.KeyEnter, gfx.KeySpace:
+			if !event.Repeat {
+				s.Open = false
+			}
+			return handled, true
+		case gfx.KeyEscape:
+			s.Open = false
+			return handled, true
+		}
+		return gfx.EventResult{}, false
+	}
+	if !onOption {
+		return gfx.EventResult{}, false
+	}
+	switch event.Key {
+	case gfx.KeyDown:
+		if target := s.nextFocus(at, 1); target >= 0 {
+			return s.focus(target), true
+		}
+	case gfx.KeyUp:
+		if target := s.nextFocus(at, -1); target >= 0 {
+			return s.focus(target), true
+		}
+	case gfx.KeyHome:
+		if target := s.firstEnabled(); target >= 0 {
+			return s.focus(target), true
+		}
+	case gfx.KeyEnd:
+		if target := s.lastEnabled(); target >= 0 {
+			return s.focus(target), true
+		}
+	case gfx.KeyEnter, gfx.KeySpace:
+		if event.Repeat || optionDisabled(s.disabled, at) {
+			return handled, true
+		}
+		s.chosen, s.Open = at+1, false
+		return gfx.EventResult{Handled: true, Repaint: true, Focus: s.triggerID(count), FocusVisible: true}, true
+	case gfx.KeyEscape:
+		s.Open = false
+		return gfx.EventResult{Handled: true, Repaint: true, Focus: s.triggerID(count), FocusVisible: true}, true
+	}
+	return gfx.EventResult{}, false
+}
+
+// focus moves the list's focus to option i and keeps it inside the window.
+func (s *SelectState) focus(i int) gfx.EventResult {
+	s.reveal(i)
+	return gfx.EventResult{Handled: true, Repaint: true, Focus: s.scope.At(i), FocusVisible: true}
+}
+
+// reveal scrolls option i into the list's window.
+func (s *SelectState) reveal(i int) {
+	if s.visible <= 0 {
+		return
+	}
+	if i < s.First {
+		s.First = i
+	}
+	if i >= s.First+s.visible {
+		s.First = i - s.visible + 1
+	}
+	s.First = min(max(s.First, 0), max(len(s.labels)-s.visible, 0))
+}
+
+// nextFocus is the enabled option after from in direction step, or -1 at the end.
+func (s *SelectState) nextFocus(from, step int) int {
+	if from < 0 {
+		from = -1
+		if step < 0 {
+			from = len(s.labels)
+		}
+	}
+	for i := from + step; i >= 0 && i < len(s.labels); i += step {
+		if !optionDisabled(s.disabled, i) {
+			return i
+		}
+	}
+	return -1
+}
+
+// nextEnabled is the first enabled option from the start end of the list.
+func (s *SelectState) nextEnabled(from, step int) int { return s.nextFocus(from, step) }
+
+// firstEnabled and lastEnabled are the ends of the options that can be chosen.
+func (s *SelectState) firstEnabled() int { return s.nextFocus(-1, 1) }
+func (s *SelectState) lastEnabled() int  { return s.nextFocus(len(s.labels), -1) }
 
 // match finds the option the typed text selects, searching on from current: the one
 // after it when one letter is repeated, current itself when more has been typed.
@@ -369,8 +521,19 @@ func (b Box) Picked() (int, bool) {
 
 // pickIn is Picked's work, done once a paint.
 func (d *selectDecl) pickIn() (int, bool) {
+	if chosen := d.state.chosen; chosen > 0 {
+		d.state.chosen, d.state.Open = 0, false
+		return chosen - 1, true
+	}
 	canvas := d.canvas
 	count := len(d.labels)
+	if trigger := d.state.trigger; !trigger.IsZero() && canvas.Clicked(trigger) {
+		d.state.Open = !d.state.Open
+		if d.state.Open {
+			d.state.First = min(max(d.selected-d.visible/2, 0), max(count-d.visible, 0))
+		}
+		return 0, false
+	}
 	index, ok := canvas.ClickedIn(d.scope)
 	if !ok {
 		return 0, false
@@ -379,7 +542,7 @@ func (d *selectDecl) pickIn() (int, bool) {
 	case index < count:
 		d.state.Open = false
 		return index, true
-	case index == count: // the trigger
+	case index == count: // the trigger, when it is the page's own
 		d.state.Open = !d.state.Open
 		if d.state.Open {
 			d.state.First = min(max(d.selected-d.visible/2, 0), max(count-d.visible, 0))
@@ -392,6 +555,36 @@ func (d *selectDecl) pickIn() (int, bool) {
 		d.state.First = min(d.state.First+max(d.visible-1, 1), max(count-d.visible, 0))
 	}
 	return 0, false
+}
+
+// selectKey gives the keys of a focused trigger or an open option to its Select:
+// Enter, Space, the arrows and Home/End open and move its list, and Enter chooses.
+func (p *Page) selectKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	for _, state := range p.selects {
+		if state.scope == 0 {
+			continue
+		}
+		if _, ok := event.Target.In(state.scope); !ok {
+			continue
+		}
+		result := state.Key(event)
+		if result.Handled || result.Repaint {
+			return result, true
+		}
+		return gfx.EventResult{}, false
+	}
+	return gfx.EventResult{}, false
+}
+
+// triggerID is the id the trigger paints: the application's when it named one.
+func (d *selectDecl) triggerID(count int) gfx.ID { return d.state.triggerID(count) }
+
+// triggerID is the trigger's identity for the keys, which see no declaration.
+func (s *SelectState) triggerID(count int) gfx.ID {
+	if !s.trigger.IsZero() {
+		return s.trigger
+	}
+	return s.scope.At(count)
 }
 
 func (f *frame) measureSelect(n *node) {
@@ -412,7 +605,7 @@ func (f *frame) paintSelect(n *node) {
 	count := len(d.labels)
 	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: n.pref[axisY]}
 	options := components.SelectOptions{
-		TriggerID: d.scope.At(count), Label: n.label, Placeholder: n.text, Hint: d.hint,
+		TriggerID: d.triggerID(count), Label: n.label, Placeholder: n.text, Hint: d.hint,
 		Disabled: n.flags&flagDisabled != 0,
 		Layer:    d.layer, Scope: d.scope.At(count + 2), DismissID: d.scope.At(count + 1), Viewport: f.bounds,
 	}

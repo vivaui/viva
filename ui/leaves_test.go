@@ -323,3 +323,34 @@ func TestDisabledTakesTheCondition(t *testing.T) {
 		t.Error("a disabled button looks like an enabled one")
 	}
 }
+
+// A thin divider takes one pixel of the layout, as a hairline between the panes,
+// while the pointer still gets the default eight-pixel strip around it.
+func TestSplitterThicknessKeepsTheLineThinAndTheGrabWide(t *testing.T) {
+	var view View
+	state := SplitterState{Pos: 200}
+	var second Box
+	draw := func(c *gfx.Canvas, size gfx.Size) {
+		view.Draw(c, gfx.LightTheme(), gfx.Rect{Width: size.Width, Height: size.Height}, func(f *Frame) {
+			f.Row().Fill().Children(func() {
+				f.Column().Width(state.Pos).Children(func() {})
+				f.Splitter(splitID, &state).SplitterThickness(1)
+				f.Column().Grow(1).Children(func() {
+					second = f.Slot().Fill()
+				})
+			})
+		})
+	}
+	canvas := testCanvas()
+	draw(canvas, gfx.Size{Width: 400, Height: 100})
+	if got := second.Rect().X; got != 201 {
+		t.Fatalf("the second pane starts at %v, want the first pane plus a one-pixel line", got)
+	}
+	bar := splitterAt(t, canvas)
+	if bar.Width != splitterThickness {
+		t.Fatalf("the divider's strip is %v wide, want %v", bar.Width, splitterThickness)
+	}
+	if bar.X > 200 || bar.X+bar.Width < 200 {
+		t.Fatalf("the strip %v does not cover the line at 200", bar)
+	}
+}

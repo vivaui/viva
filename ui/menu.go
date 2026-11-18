@@ -193,10 +193,48 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 	}
 	popup.Size(width, height).Within(f.bounds.Inset(gfx.All(components.DropdownMenuPadding)))
 	popup.Draw(menu.paint)
+	if menu.hasPageContent() {
+		// The page row is a child of the popup: it paints and takes hits in the
+		// menu's layer and focus scope, over the canvas rows the menu drew under it.
+		if menu.layer > f.popupLayer {
+			f.popupLayer = menu.layer
+		}
+		f.nodes[popup.i].focusScope = menu.scope.At(menuFocus)
+		popup.Children(func() { menu.declarePageRows(c, width, height) })
+	}
 	p.menus = append(p.menus, menu)
 	if p.menuRoute == nil {
 		p.keyRoute, p.menuRoute = (*Page).routeKey, (*Page).menuKey
 		p.wheelRoute = (*Page).overlayWheel
+	}
+}
+
+// hasPageContent reports whether any row is declared in the page.
+func (m *MenuItems) hasPageContent() bool {
+	for i := range m.items {
+		if m.items[i].kind == menuRowPageContent && m.items[i].pageContent != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// declarePageRows declares the page controls of every page content row at the
+// place the menu's rows and scroll put them.
+func (m *MenuItems) declarePageRows(c C, width, height float32) {
+	pad := float32(components.DropdownMenuPadding)
+	y := pad - m.scroll.Offset
+	for i := range m.items {
+		row := &m.items[i]
+		if row.kind == menuRowPageContent && row.pageContent != nil && row.height > 0 &&
+			y+row.height > 0 && y < height {
+			pageY, pageHeight := y, row.height
+			bounds := Rect{X: pad, Y: pageY, Width: max(width-2*pad, 0), Height: pageHeight}
+			Column(c).Absolute().Left(bounds.X).Top(bounds.Y).Width(bounds.Width).Height(bounds.Height).Children(func() {
+				row.pageContent(c, bounds)
+			})
+		}
+		y += m.rowExtent(i)
 	}
 }
 
@@ -261,24 +299,17 @@ func (m *MenuItems) size() (width, height float32) {
 	width, height = m.minWidth(), 2*components.DropdownMenuPadding
 	for i := range m.items {
 		item := &m.items[i]
+		height += m.rowExtent(i)
 		switch item.kind {
-		case menuRowSeparator:
-			height += components.DropdownMenuSeparatorHeight
-		case menuRowLabel:
-			height += components.DropdownMenuLabelHeight
-		case menuRowContent:
-			height += item.height
+		case menuRowSeparator, menuRowLabel, menuRowContent, menuRowPageContent:
 		default:
 			row := m.row(i)
 			if m.context {
-				context := contextItem(row)
-				height += components.ContextMenuItemHeight(*theme, context, m.rowSize)
 				if f.canvas != nil {
-					width = max(width, components.ContextMenuItemWidth(f.canvas, *theme, context))
+					width = max(width, components.ContextMenuItemWidth(f.canvas, *theme, contextItem(row)))
 				}
 				continue
 			}
-			height += components.DropdownMenuItemHeight(*theme, row)
 			if f.canvas != nil {
 				width = max(width, components.DropdownMenuItemWidth(f.canvas, *theme, row))
 			}
@@ -309,6 +340,7 @@ const (
 	menuRowLabel
 	menuRowSeparator
 	menuRowContent
+	menuRowPageContent
 )
 
 // MenuItems is an open Menu or ContextMenu being declared: what its rows are, and,
@@ -443,6 +475,7 @@ type menuRow struct {
 	trailing      func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
 	height        float32                                                    // a content row's height
 	content       func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
+	pageContent   func(c C, bounds Rect)                                     // what a page content row declares
 	checked       int8                                                       // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
 }
 
@@ -554,6 +587,32 @@ func (m *MenuItems) WidthRange(least, greatest float32) {
 // called while scrolling has the row out of sight.
 func (m *MenuItems) Content(height float32, body func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) {
 	m.items = append(m.items, menuRow{kind: menuRowContent, height: height, content: body})
+}
+
+// ContentPage adds a row height tall whose controls body declares in the page:
+// the room for what a menu row cannot say and a canvas painter cannot host, such
+// as a strip of color swatches. It is not an item, so the keyboard passes over it.
+// The row is placed where the menu's rows put it; it is for a menu that does not
+// scroll its rows.
+func (m *MenuItems) ContentPage(height float32, body func(c C, bounds Rect)) {
+	m.items = append(m.items, menuRow{kind: menuRowPageContent, height: height, pageContent: body})
+}
+
+// rowExtent is how tall row i is, as size and the page rows' placement both need.
+func (m *MenuItems) rowExtent(i int) float32 {
+	row := &m.items[i]
+	switch row.kind {
+	case menuRowSeparator:
+		return components.DropdownMenuSeparatorHeight
+	case menuRowLabel:
+		return components.DropdownMenuLabelHeight
+	case menuRowContent, menuRowPageContent:
+		return row.height
+	}
+	if m.context {
+		return components.ContextMenuItemHeight(m.f.theme, contextItem(m.row(i)), m.rowSize)
+	}
+	return components.DropdownMenuItemHeight(m.f.theme, m.row(i))
 }
 
 // paintContent calls a content row's painter over its row, inside the menu's clip.
@@ -699,6 +758,8 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 				menu.AddLabel(row.label, false)
 			case menuRowContent:
 				m.paintContent(canvas, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
+			case menuRowPageContent:
+				menu.AddContent(row.height) // the page declares the row's controls
 			default:
 				if row.trailing != nil {
 					r, slot := menu.AddItemSlot(contextItem(m.row(i)))
@@ -740,6 +801,8 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 				menu.AddLabel(row.label, false)
 			case menuRowContent:
 				m.paintContent(canvas, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
+			case menuRowPageContent:
+				menu.AddContent(row.height) // the page declares the row's controls
 			default:
 				if row.trailing != nil {
 					r, slot := menu.AddItemSlot(m.row(i))
