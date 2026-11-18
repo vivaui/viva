@@ -415,7 +415,7 @@ func (b Box) IconOnly() Box { b.n().buttonSize = style.SizeIcon; return b }
 // Other elements ignore it.
 //
 //	ui.Switch(c, &m.on, "Running").SwitchRecipe(components.SwitchRecipe)
-func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) components.SwitchLook) Box {
+func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) style.SwitchLook) Box {
 	if n := b.n(); n.kind == kindSwitch {
 		b.f.extra(b.i).switchRecipe = recipe
 	}
@@ -426,7 +426,7 @@ func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) components.
 // and ring of the button in each state, as PageConfig.Styles.Button is for every button of a
 // page, and wins over it. Start from components.ButtonRecipe and change what differs:
 //
-//	ui.Button(c, "Save").ButtonRecipe(func(t gfx.Theme, v components.ButtonVariant, s gfx.State) components.ButtonLook {
+//	ui.Button(c, "Save").ButtonRecipe(func(t gfx.Theme, v components.ButtonVariant, s gfx.State) style.ButtonLook {
 //		t.Primary, t.PrimaryForeground = dark, light
 //		return components.ButtonRecipe(t, v, s)
 //	})
@@ -435,7 +435,7 @@ func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) components.
 // and a control with no theme look at all uses ButtonBase. Declare the function once (a
 // package-level func or a method value kept in the model), as a closure made in each paint
 // allocates. Other elements ignore it.
-func (b Box) ButtonRecipe(recipe func(gfx.Theme, components.ButtonVariant, gfx.State) components.ButtonLook) Box {
+func (b Box) ButtonRecipe(recipe func(gfx.Theme, components.ButtonVariant, gfx.State) style.ButtonLook) Box {
 	if n := b.n(); n.kind == kindButton {
 		b.f.extra(b.i).buttonRecipe = recipe
 	}

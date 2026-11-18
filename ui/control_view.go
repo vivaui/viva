@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // ControlView is what a control's painter may know of its element: where it is,
@@ -33,7 +34,7 @@ type ControlView struct {
 	// Icon is the optional icon a button, input or control carries.
 	Icon gfx.Icon
 	// SwitchRecipe is a switch's own look, when the caller gave one.
-	SwitchRecipe func(gfx.Theme, gfx.State, float32) components.SwitchLook
+	SwitchRecipe func(gfx.Theme, gfx.State, float32) style.SwitchLook
 }
 
 // viewOf is the view of element n a control painter is given.

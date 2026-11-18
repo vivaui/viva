@@ -4,8 +4,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/text"
 )
+
+type TextEntryLook = style.TextEntryLook
 
 // InputSnapshot is one caller-owned single-line editor presentation. Value is
 // exposed to accessibility; DisplayValue may contain masking or IME preedit
@@ -419,16 +422,6 @@ func textEntryDark(theme *gfx.Theme) bool { return theme.Background.Red < 0.5 }
 // InputOTP are painted with. It is the recipe those controls share, as plain values: an
 // application that builds a field from its own elements (ui.InputBase) reads it to take
 // the shadcn surface for a state and change what it wants of it.
-type TextEntryLook struct {
-	// Fill and Border are the colors of the surface. Over an opaque theme they are
-	// flattened onto the page background, as RoundedBorder needs, so a translucent token
-	// does not tint the control's interior; over a translucent theme they keep their alpha.
-	Fill, Border gfx.Color
-	// BorderWidth and Radius are the line and the corners.
-	BorderWidth, Radius float32
-	// Shadow is the elevation under the control.
-	Shadow gfx.ShadowLevel
-}
 
 // TextEntryRecipe resolves the text-entry recipe for state:
 //
