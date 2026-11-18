@@ -35,7 +35,7 @@ func ScrollAt(c C, offset float32) Box {
 	offset = max(offset, 0)
 	b.ScrollState().Offset = offset
 	b.f.extra(b.i).scrollManual = true
-	b.n().scroll = offset // the layout reads the node; ScrollArea set it from the old state
+	b.n().Scroll = offset // the layout reads the node; ScrollArea set it from the old state
 	return b
 }
 

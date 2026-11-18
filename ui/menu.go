@@ -223,7 +223,7 @@ func (m *MenuItems) hasPageContent() bool {
 // place the menu's rows and scroll put them.
 func (m *MenuItems) declarePageRows(c C, width, height float32) {
 	pad := float32(components.DropdownMenuPadding)
-	y := pad - m.scroll.Offset
+	y := pad - m.Scroll.Offset
 	for i := range m.Items {
 		row := &m.Items[i]
 		if row.Kind == menuRowPageContent && row.pageContent != nil && row.height > 0 &&
@@ -347,7 +347,7 @@ const (
 // between paints, where it is scrolled to.
 type MenuItems struct {
 	Items     []menuRow
-	scroll    components.MenuScroll
+	Scroll    components.MenuScroll
 	typeahead components.MenuTypeahead // the letters typed to reach an item
 	paint     func(*DrawContext)
 	keys      [6]string // the keycaps of the row being measured or painted
@@ -735,7 +735,7 @@ func (m *MenuItems) draw(d *DrawContext) {
 // its row, a layer over.
 func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer uint16) {
 	f, scope := m.f, m.scope
-	m.scroll.BarID = scope.At(menuBar)
+	m.Scroll.BarID = scope.At(menuBar)
 	// A submenu is in its root's focus scope, which keeps the keyboard in the chain
 	// and lets the pointer reach every menu of it; Escape and a press outside are
 	// the root's, and close them all.
@@ -747,7 +747,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 	if m.context {
 		menu := components.BeginContextMenu(canvas, *theme, bounds, components.ContextMenuOptions{
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.bounds, ID: id,
-			Scroll: &m.scroll, Submenu: m.Parent != nil, RowHeight: m.rowSize,
+			Scroll: &m.Scroll, Submenu: m.Parent != nil, RowHeight: m.rowSize,
 			Unpainted: m.unpainted, PaintPanel: m.panelPainter, PaintItem: m.itemPainter,
 		})
 		for i := range m.Items {
@@ -790,7 +790,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 		}
 		menu := components.BeginDropdownMenu(canvas, *theme, bounds, components.DropdownMenuOptions{
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.bounds, ID: id,
-			Scroll: &m.scroll, Side: side, Submenu: m.Parent != nil,
+			Scroll: &m.Scroll, Side: side, Submenu: m.Parent != nil,
 			Unpainted: m.unpainted, PaintPanel: m.panelPainter, PaintItem: m.itemPainter,
 		})
 		for i := range m.Items {
@@ -885,14 +885,14 @@ func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 			}
 			now := clockEpoch.Add(m.f.canvas.Now())
 			typing := text == " " && m.typeahead.Typing(now) // a Space in the middle of a label
-			if id, ok := m.typeahead.Type(text, now, &m.scroll, event.Target); ok {
+			if id, ok := m.typeahead.Type(text, now, &m.Scroll, event.Target); ok {
 				return gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}, true
 			}
 			if typing {
 				return gfx.EventResult{Handled: true}, true
 			}
 		}
-		if id, ok := m.scroll.Navigate(event.Key, event.Target, true); ok {
+		if id, ok := m.Scroll.Navigate(event.Key, event.Target, true); ok {
 			return gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}, true
 		}
 	}
@@ -935,7 +935,7 @@ func (m *MenuItems) submenuKey(event gfx.KeyEvent, inside bool) (gfx.EventResult
 func (p *Page) menuWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
 	for _, m := range p.menus {
 		if _, inside := event.Target.In(m.scope); inside {
-			return gfx.EventResult{Handled: true, Repaint: m.scroll.Wheel(event)}, true
+			return gfx.EventResult{Handled: true, Repaint: m.Scroll.Wheel(event)}, true
 		}
 	}
 	return gfx.EventResult{}, false

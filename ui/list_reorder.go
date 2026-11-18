@@ -21,7 +21,7 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 		drag.to, drag.valid = drag.Next, drag.nextOK // what the rows under the pointer found
 		drag.nextOK = false
 		band := min(s.rowHeight(drag.from), in.view.Height/4)
-		dragEdgeScroll(canvas, in.scroll, in.view, drag.at, band, &drag.scrolled)
+		dragEdgeScroll(canvas, in.Scroll, in.view, drag.at, band, &drag.scrolled)
 	}
 	_, event, ok := canvas.PointerIn(in.rows)
 	if !ok && !s.Handle.IsZero() {

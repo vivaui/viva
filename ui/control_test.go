@@ -18,7 +18,7 @@ type console struct {
 	keys    []gfx.Key
 	presses int
 	drags   int
-	scroll  float32
+	Scroll  float32
 	focused bool
 	text    app.TextInput
 	asked   gfx.ID
@@ -47,7 +47,7 @@ func newConsole() *console {
 			return gfx.EventResult{Handled: true}
 		},
 		Scroll: func(event gfx.ScrollEvent) gfx.EventResult {
-			t.scroll += event.DeltaY
+			t.Scroll += event.DeltaY
 			return gfx.EventResult{Handled: true}
 		},
 		Text: func(context app.TextInputContext) *app.TextInput {
@@ -110,8 +110,8 @@ func TestControlTakesItsOwnInput(t *testing.T) {
 	if err := d.driver.Scroll(gfx.ScrollEvent{X: x, Y: y, DeltaY: -3}); err != nil {
 		t.Fatal(err)
 	}
-	if term.scroll != -3 {
-		t.Fatalf("scroll = %v", term.scroll)
+	if term.Scroll != -3 {
+		t.Fatalf("scroll = %v", term.Scroll)
 	}
 	d.key(gfx.KeyTab)
 	if d.focused() != "After" {

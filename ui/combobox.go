@@ -178,13 +178,13 @@ func comboKey(value string) (index int, isKey bool) {
 
 // comboIDs are a Combobox's identities, in the scope its value names.
 type comboIDs struct {
-	input, trigger, dismiss, focus, scroll, clear gfx.ID
+	input, trigger, dismiss, focus, Scroll, clear gfx.ID
 	options                                       gfx.Scope
 }
 
 func newComboIDs(tree *gfx.Tree, scope gfx.Scope) comboIDs {
 	return comboIDs{
-		input: scope.At(0), trigger: scope.At(1), dismiss: scope.At(2), focus: scope.At(3), scroll: scope.At(4),
+		input: scope.At(0), trigger: scope.At(1), dismiss: scope.At(2), focus: scope.At(3), Scroll: scope.At(4),
 		clear: scope.At(6), options: tree.Sub(scope, gfx.Index(5)),
 	}
 }
@@ -215,7 +215,7 @@ func (s *comboState) draw(d *DrawContext) {
 	ids := &s.ids
 	options := components.SingleSelectOptions{
 		InputID: ids.input, TriggerID: ids.trigger, DismissID: ids.dismiss, Scope: ids.focus,
-		ScrollID: ids.scroll, OptionIDs: ids.options,
+		ScrollID: ids.Scroll, OptionIDs: ids.options,
 		Label: s.label, Placeholder: s.placeholder, EmptyLabel: s.empty, CreatePrefix: s.createPrefix,
 		Viewport: s.f.bounds, Layer: max(s.layer, s.f.popupLayer), Disabled: n.Flags&flagDisabled != 0,
 	}

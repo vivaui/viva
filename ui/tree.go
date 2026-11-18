@@ -53,7 +53,7 @@ type TreeState struct {
 	f               *frame                         // the frame the tree was last declared in
 	scope           gfx.Scope                      // the ids of the rows (scope.At(0)) and chevrons (At(1))
 	rows, chevrons  gfx.Scope
-	scroll          *ScrollState // the List's, between paints: its area's state lives while it is declared
+	Scroll          *ScrollState // the List's, between paints: its area's state lives while it is declared
 	n               int
 	declared        []treeRow // the rows of the last paint
 	declare         func(i int, box Box)
@@ -177,7 +177,7 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, Content func(i
 	state.ListState.list.f = c.f
 	state.ListState.list.rows = state.rows
 	area := p.listArea(c, &state.ListState, n, false, state.declare)
-	state.scroll = c.f.exts[c.f.nodes[area.i].ext].scrollState
+	state.Scroll = c.f.exts[c.f.nodes[area.i].ext].scrollState
 	state.c, state.label, state.Content = nil, nil, nil // the model's functions: not kept past the paint
 	p.trees = append(p.trees, state)
 	if p.treeRoute == nil {
@@ -345,8 +345,8 @@ func (s *TreeState) dragOver(row *treeRow, d *DrawContext) {
 	// The tree's visible area, from a row painted in it: the rows start where the
 	// list does, less how far it is scrolled.
 	drag.view = Rect{X: r.X, Y: r.Y - (s.top(row.index) - s.scrollOffset()), Width: r.Width}
-	if s.scroll != nil {
-		drag.view.Height = s.scroll.Viewport
+	if s.Scroll != nil {
+		drag.view.Height = s.Scroll.Viewport
 	}
 	from := s.indexOf(drag.from)
 	if from >= 0 && drag.at.Y >= r.Y && drag.at.Y < r.Y+r.Height && from != row.index {
@@ -406,21 +406,21 @@ func (s *TreeState) edgeScroll(canvas *gfx.Canvas) {
 		return
 	}
 	band := min(s.rowHeight(&s.c.f.theme), drag.view.Height/4)
-	dragEdgeScroll(canvas, s.scroll, drag.view, drag.at, band, &drag.scrolled)
+	dragEdgeScroll(canvas, s.Scroll, drag.view, drag.at, band, &drag.scrolled)
 }
 
 // dragEdgeScroll scrolls scroll while a drag at the point at rests within band of the
 // top or bottom edge of view, in steps timed by the frame clock: since is when the
 // last step was taken, and a frame is asked for only while the drag stays there.
-func dragEdgeScroll(canvas *gfx.Canvas, scroll *ScrollState, view Rect, at gfx.Point, band float32, since *time.Duration) {
-	if canvas == nil || scroll == nil || view.Height <= 0 {
+func dragEdgeScroll(canvas *gfx.Canvas, Scroll *ScrollState, view Rect, at gfx.Point, band float32, since *time.Duration) {
+	if canvas == nil || Scroll == nil || view.Height <= 0 {
 		return
 	}
 	direction := float32(0)
 	switch {
-	case at.Y < view.Y+band && scroll.Offset > 0:
+	case at.Y < view.Y+band && Scroll.Offset > 0:
 		direction = -1
-	case at.Y > view.Y+view.Height-band && scroll.Offset+scroll.Viewport < scroll.Content:
+	case at.Y > view.Y+view.Height-band && Scroll.Offset+Scroll.Viewport < Scroll.Content:
 		direction = 1
 	}
 	now := canvas.Now()
@@ -430,7 +430,7 @@ func dragEdgeScroll(canvas *gfx.Canvas, scroll *ScrollState, view Rect, at gfx.P
 	}
 	if *since > 0 {
 		step := min(now-*since, 100*time.Millisecond) // a late frame does not jump
-		scroll.ScrollTo(scroll.Offset + direction*dragEdgeSpeed*float32(step.Seconds()))
+		Scroll.ScrollTo(Scroll.Offset + direction*dragEdgeSpeed*float32(step.Seconds()))
 	}
 	*since = now
 	canvas.RequestFrameIn(16 * time.Millisecond)
@@ -438,10 +438,10 @@ func dragEdgeScroll(canvas *gfx.Canvas, scroll *ScrollState, view Rect, at gfx.P
 
 // scrollOffset is how far the tree is scrolled.
 func (s *TreeState) scrollOffset() float32 {
-	if s.scroll == nil {
+	if s.Scroll == nil {
 		return 0
 	}
-	return s.scroll.Offset
+	return s.Scroll.Offset
 }
 
 // indexOf is the visible row named key in the last paint, or -1.
@@ -583,7 +583,7 @@ func (p *Page) treeType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 // reveal scrolls the tree so that row i shows; the repaint declares it, and the
 // focus goes to it there.
 func (s *TreeState) reveal(i int) {
-	scroll := s.scroll
+	scroll := s.Scroll
 	if scroll == nil || scroll.Viewport <= 0 {
 		return
 	}

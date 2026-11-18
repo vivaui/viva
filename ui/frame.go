@@ -140,7 +140,7 @@ type node struct {
 
 	MaxLines             int32     // a wrapped Text breaks into at most this many lines
 	LineFirst, LineCount int32     // its lines, in frame.lines
-	scroll               float32   // how far a Scroll is scrolled
+	Scroll               float32   // how far a Scroll is scrolled
 	Content              float32   // the natural height of a Scroll's children
 	gridMin              float32   // the narrowest cell of a Grid; a Flow's LineGap, negative for Gap
 	basis                float32   // Basis, when flagBasis is set
@@ -554,7 +554,7 @@ func (f *frame) Scroll(offset float32) Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
 	n.Flags |= flagScroll | flagClip
-	n.scroll = max(offset, 0)
+	n.Scroll = max(offset, 0)
 	return b
 }
 

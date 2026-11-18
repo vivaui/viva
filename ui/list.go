@@ -95,7 +95,7 @@ type listInternals struct {
 	submittedAt  uint32
 	First, Last  int // the rows the last paint showed, last below first when none
 	laidOut      bool
-	scroll       *ScrollState
+	Scroll       *ScrollState
 	pending      listScroll // where the application asked to scroll
 	pendingRow   int32      // 1 + the row it asked to show
 	pendingAt    float32    // where the last paint of it left the offset
@@ -249,7 +249,7 @@ func (s *ListState) Visible() (First, Last int) {
 
 // AtEnd reports whether the list showed its end in the last paint.
 func (s *ListState) AtEnd() bool {
-	scroll := s.list.scroll
+	scroll := s.list.Scroll
 	return scroll != nil && scroll.AtEnd()
 }
 
@@ -373,7 +373,7 @@ func (s *ListState) selectAll(epoch uint32) bool {
 
 // revealRow scrolls the list so that row shows; the next paint declares it.
 func (s *ListState) revealRow(row int) {
-	scroll := s.list.scroll
+	scroll := s.list.Scroll
 	if scroll == nil || scroll.Viewport <= 0 || row < 0 || row >= s.list.n {
 		return
 	}
@@ -520,7 +520,7 @@ const listScrollFrames = 6
 // offset it asks for is where the list already is.
 func (s *ListState) applyScrollRequest(f *frame) bool {
 	in := &s.list
-	scroll := in.scroll
+	scroll := in.Scroll
 	if in.pending == listScrollNone || scroll == nil {
 		return false
 	}
@@ -585,10 +585,10 @@ func (s *ListState) applyScrollRequest(f *frame) bool {
 // so, or one whose estimated heights fell short of the end.
 func (s *ListState) afterLayout() {
 	in := &s.list
-	if in.pending != listScrollNone && in.scroll != nil {
-		in.pendingAt = in.scroll.Offset
+	if in.pending != listScrollNone && in.Scroll != nil {
+		in.pendingAt = in.Scroll.Offset
 	}
-	if in.scroll == nil || !in.scroll.pinned() || in.Last >= in.n-1 {
+	if in.Scroll == nil || !in.Scroll.pinned() || in.Last >= in.n-1 {
 		in.followFrame = 0
 		return
 	}
@@ -601,7 +601,7 @@ func (s *ListState) afterLayout() {
 // scrollTarget is where the request kind puts row as the list knows the heights now:
 // the offset to scroll to, and whether the end of the content is what it scrolls to,
 // which only a layout can place.
-func (s *ListState) scrollTarget(Kind listScroll, row int, viewport float32, scroll *ScrollState) (target float32, toEnd, ok bool) {
+func (s *ListState) scrollTarget(Kind listScroll, row int, viewport float32, Scroll *ScrollState) (target float32, toEnd, ok bool) {
 	if Kind == listScrollToEnd {
 		return s.top(s.list.n) - viewport, true, s.list.n > 0
 	}
@@ -617,10 +617,10 @@ func (s *ListState) scrollTarget(Kind listScroll, row int, viewport float32, scr
 		return s.top(row+1) - viewport, false, true
 	case listScrollNear:
 		top, bottom := s.top(row), s.top(row+1)
-		if top < scroll.Offset {
+		if top < Scroll.Offset {
 			return top, false, true
 		}
-		if bottom > scroll.Offset+viewport {
+		if bottom > Scroll.Offset+viewport {
 			return bottom - viewport, false, true
 		}
 	}
@@ -909,11 +909,11 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 	in.n, in.area, in.pinned = n, area.i, -1
 	state.resize(n)
 	scroll := c.f.exts[c.f.nodes[area.i].ext].scrollState
-	in.scroll = scroll
+	in.Scroll = scroll
 	if state.applyScrollRequest(c.f) {
 		// The area was declared at the offset it had; the layout reads the node, so it
 		// takes the requested one too, which the rows are placed for below (as ScrollAt).
-		c.f.nodes[area.i].scroll = scroll.Offset
+		c.f.nodes[area.i].Scroll = scroll.Offset
 	}
 	viewport := scroll.Viewport
 	if viewport <= 0 {
@@ -928,7 +928,7 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 	// The rows are placed and hit-tested on whole logical pixels, as the layout
 	// applies them, so a label's native texture survives a fractional scroll.
 	offset := snapScroll(scroll.Offset)
-	c.f.nodes[area.i].scroll = offset
+	c.f.nodes[area.i].Scroll = offset
 	first := max(state.rowAt(offset)-listOverscan, 0)
 	if in.n == 0 {
 		first = 0
