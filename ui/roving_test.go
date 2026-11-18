@@ -30,15 +30,15 @@ func TestChoiceArrowKeysMoveAndChoose(t *testing.T) {
 	d.click("light")
 	steps := []struct {
 		key  gfx.Key
-		want string
+		Want string
 	}{
 		{gfx.KeyRight, "dark"}, {gfx.KeyRight, "auto"}, {gfx.KeyRight, "light"}, // wraps
 		{gfx.KeyLeft, "auto"}, {gfx.KeyHome, "light"}, {gfx.KeyEnd, "auto"},
 	}
 	for _, step := range steps {
 		d.key(step.key)
-		if d.focused() != step.want || m.mode != step.want {
-			t.Fatalf("key %v: focused %q, chosen %q, want %q", step.key, d.focused(), m.mode, step.want)
+		if d.focused() != step.Want || m.mode != step.Want {
+			t.Fatalf("key %v: focused %q, chosen %q, want %q", step.key, d.focused(), m.mode, step.Want)
 		}
 	}
 	if m.changed != 6 {

@@ -37,13 +37,13 @@ func (t *cellTable) paint(Size gfx.Rect) *gfx.Canvas {
 	return canvas
 }
 
-func (t *cellTable) wantCell(t0 *testing.T, row, column int, want gfx.Rect) {
+func (t *cellTable) wantCell(t0 *testing.T, row, column int, Want gfx.Rect) {
 	t0.Helper()
 	got, ok := t.state.CellRect(row, column)
 	if !ok {
-		t0.Fatalf("CellRect(%d, %d) reports no cell, want %+v", row, column, want)
+		t0.Fatalf("CellRect(%d, %d) reports no cell, want %+v", row, column, Want)
 	}
-	near(t0, fmt.Sprintf("CellRect(%d, %d)", row, column), got, want)
+	near(t0, fmt.Sprintf("CellRect(%d, %d)", row, column), got, Want)
 }
 
 var cellColumns = []components.TableColumn{{Width: 120}, {Width: 90}, {Width: 100}}

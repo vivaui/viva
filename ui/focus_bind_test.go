@@ -28,14 +28,14 @@ func (m *focusModel) view(c ui.C) {
 	})
 }
 
-func focusSettled(d *pageDriver, want string) bool {
+func focusSettled(d *pageDriver, Want string) bool {
 	for range 4 {
-		if d.focused() == want {
+		if d.focused() == Want {
 			return true
 		}
 		d.repaint()
 	}
-	return d.focused() == want
+	return d.focused() == Want
 }
 
 func TestFocusBindRequestsAndWritesBack(t *testing.T) {

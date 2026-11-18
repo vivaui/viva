@@ -121,11 +121,11 @@ func TestSliderKeysMoveAFocusedSliderAndReportOnce(t *testing.T) {
 	}
 	for _, c := range []struct {
 		key  gfx.Key
-		want float32
+		Want float32
 	}{{gfx.KeyRight, 25}, {gfx.KeyUp, 30}, {gfx.KeyLeft, 25}, {gfx.KeyDown, 20}, {gfx.KeyPageUp, 30}, {gfx.KeyPageDown, 20}, {gfx.KeyEnd, 50}, {gfx.KeyHome, 0}, {gfx.KeyLeft, 0}} {
 		key(c.key, volumeID)
-		if p.state.Value != c.want {
-			t.Fatalf("key %v: value %v, want %v", c.key, p.state.Value, c.want)
+		if p.state.Value != c.Want {
+			t.Fatalf("key %v: value %v, want %v", c.key, p.state.Value, c.Want)
 		}
 	}
 	p.state.Value = 20

@@ -83,14 +83,14 @@ func TestMenuTypeahead(t *testing.T) {
 	m := &menuModel{}
 	d := openPage(t, m.page)
 	d.click("More")
-	typed := func(letter rune, want string) {
+	typed := func(letter rune, Want string) {
 		t.Helper()
 		// A window offers a printable key to OnShortcut when nothing edits text.
 		if _, err := d.driver.ShortcutChord(0, letter); err != nil {
 			t.Fatal(err)
 		}
-		if d.focused() != want {
-			t.Fatalf("%q went to %q, not %q", letter, d.focused(), want)
+		if d.focused() != Want {
+			t.Fatalf("%q went to %q, not %q", letter, d.focused(), Want)
 		}
 	}
 	typed('d', "Delete")

@@ -237,7 +237,7 @@ func TestDraggingAScrollbarMovesTheArea(t *testing.T) {
 	geometry := components.BeginScrollArea(nil, gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100}, gfx.Size{Width: 300, Height: 300}).
 		HoverScrollbars(true).Geometry()
 	thumb := geometry.VerticalThumb
-	near := func(got, want float32) bool { return math.Abs(float64(got-want)) < 0.01 }
+	near := func(got, Want float32) bool { return math.Abs(float64(got-Want)) < 0.01 }
 
 	// Taken by its middle and dragged 20 down, the thumb keeps the pointer where it held it.
 	x, y := thumb.X+1, thumb.Y+thumb.Height/2

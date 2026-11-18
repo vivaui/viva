@@ -267,7 +267,7 @@ func withoutTextOrders(in []gfx.Text) []gfx.Text {
 
 // sameVisible fails unless two canvases painted the same shapes and texts. Fully transparent
 // fills paint nothing and are not compared.
-func sameVisible(t *testing.T, got, want *gfx.Canvas) {
+func sameVisible(t *testing.T, got, Want *gfx.Canvas) {
 	t.Helper()
 	opaque := func(in []gfx.Rectangle) (out []gfx.Rectangle) {
 		for _, r := range in {
@@ -277,16 +277,16 @@ func sameVisible(t *testing.T, got, want *gfx.Canvas) {
 		}
 		return out
 	}
-	if g, w := opaque(got.Rectangles()), opaque(want.Rectangles()); !reflect.DeepEqual(withoutOrders(g), withoutOrders(w)) {
+	if g, w := opaque(got.Rectangles()), opaque(Want.Rectangles()); !reflect.DeepEqual(withoutOrders(g), withoutOrders(w)) {
 		t.Errorf("rectangles differ:\ngot  %+v\nwant %+v", g, w)
 	}
-	if g, w := got.Shadows(), want.Shadows(); !reflect.DeepEqual(withoutShadowOrders(g), withoutShadowOrders(w)) {
+	if g, w := got.Shadows(), Want.Shadows(); !reflect.DeepEqual(withoutShadowOrders(g), withoutShadowOrders(w)) {
 		t.Errorf("shadows differ:\ngot  %+v\nwant %+v", g, w)
 	}
-	if g, w := got.Texts(), want.Texts(); !reflect.DeepEqual(withoutTextOrders(g), withoutTextOrders(w)) {
+	if g, w := got.Texts(), Want.Texts(); !reflect.DeepEqual(withoutTextOrders(g), withoutTextOrders(w)) {
 		t.Errorf("texts differ:\ngot  %+v\nwant %+v", g, w)
 	}
-	if g, w := len(got.Triangles()), len(want.Triangles()); g != w {
+	if g, w := len(got.Triangles()), len(Want.Triangles()); g != w {
 		t.Errorf("triangles: got %d, want %d", g, w)
 	}
 }

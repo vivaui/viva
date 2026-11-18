@@ -49,14 +49,14 @@ func TestFocusGroupIsOneTabStopWithArrows(t *testing.T) {
 	pressed := len(m.picks) // the click pressed copy
 	for _, step := range []struct {
 		key  gfx.Key
-		want string
+		Want string
 	}{
 		{gfx.KeyRight, "paste"}, {gfx.KeyRight, "undo"}, {gfx.KeyRight, "cut"}, // wraps
 		{gfx.KeyLeft, "undo"}, {gfx.KeyHome, "cut"}, {gfx.KeyEnd, "undo"},
 	} {
 		d.key(step.key)
-		if d.focused() != step.want {
-			t.Fatalf("key %v: focused %q, want %q", step.key, d.focused(), step.want)
+		if d.focused() != step.Want {
+			t.Fatalf("key %v: focused %q, want %q", step.key, d.focused(), step.Want)
 		}
 	}
 	// Arrows move the focus, not the choice: nothing was activated.

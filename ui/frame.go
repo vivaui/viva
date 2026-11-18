@@ -158,7 +158,7 @@ type node struct {
 	Pref                [2]float32
 	Raw                 [2]float32 // pref before Min/Max, the size growth starts from
 	GrowNow, ShrinkNow  float32
-	base, want, bounded float32 // while flexible lengths are resolved
+	base, Want, bounded float32 // while flexible lengths are resolved
 	frozen              bool
 	rect                Rect
 	band                uint16 // the compositing band the subtree paints on (Overlay); zero is the page's

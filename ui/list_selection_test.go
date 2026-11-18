@@ -230,12 +230,12 @@ func TestListTypeahead(t *testing.T) {
 	m := newSelecting("alpha", "beta", "gamma", "grape", "delta")
 	d := openPage(t, m.page)
 	d.click("alpha")
-	typed := func(letter rune, want string) {
+	typed := func(letter rune, Want string) {
 		t.Helper()
 		if _, err := d.driver.ShortcutChord(0, letter); err != nil {
 			t.Fatal(err)
 		}
-		if d.focused() != want || m.list.Selected() != indexOfName(m.names, want) {
+		if d.focused() != Want || m.list.Selected() != indexOfName(m.names, Want) {
 			t.Fatalf("%q went to %q, selected %d", letter, d.focused(), m.list.Selected())
 		}
 	}

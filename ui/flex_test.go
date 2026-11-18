@@ -23,11 +23,11 @@ func testCanvas() *gfx.Canvas {
 	return canvas
 }
 
-func near(t *testing.T, name string, got, want gfx.Rect) {
+func near(t *testing.T, name string, got, Want gfx.Rect) {
 	t.Helper()
 	d := func(a, b float32) bool { return a-b > 0.01 || b-a > 0.01 }
-	if d(got.X, want.X) || d(got.Y, want.Y) || d(got.Width, want.Width) || d(got.Height, want.Height) {
-		t.Errorf("%s = %+v, want %+v", name, got, want)
+	if d(got.X, Want.X) || d(got.Y, Want.Y) || d(got.Width, Want.Width) || d(got.Height, Want.Height) {
+		t.Errorf("%s = %+v, want %+v", name, got, Want)
 	}
 }
 
