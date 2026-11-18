@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"time"
+
+	"github.com/vivaui/viva/gfx"
+)
 
 // ScrollState is a scroll position: one ScrollArea's, or a Table's. It lives in the view, keyed
 // by the area's identity, so the application keeps nothing: declare the area with an
@@ -43,6 +47,12 @@ type ScrollState struct {
 	barsAlways bool    // AlwaysScrollbars: they stay drawn at rest
 	dragging   bool    // a press on one of the area's scrollbars has the pointer
 	barSize    float32 // ScrollbarSize: the bars' thickness; zero is the hover default
+	// The bars' reveal: the offsets as of the last paint (a change lights the
+	// bars), and when they were last lit, so they linger for scrollbarLinger
+	// after the view moves or the pointer leaves.
+	barOffset, barOffsetX float32
+	barSince              time.Duration
+	barLit                bool
 }
 
 // scrollStore keeps the ScrollStates of a view, by the identity of their areas. A slot
@@ -306,8 +316,9 @@ func (b Box) Sideways() Box {
 // on a bar beside its thumb brings the middle of the thumb there and drags it on.
 // Without it, scrollbars are the application's, as they were. It has no effect on a
 // box that is not a ScrollArea. The bars are revealed while the pointer is over the
-// area or a bar is dragged; a view drawn without a Page has no pointer, and keeps
-// them revealed.
+// area or a bar is dragged, and after the view moves; they stay for a moment after
+// the pointer leaves and then fade. A view drawn without a Page has no pointer, and
+// keeps them revealed.
 func (b Box) Scrollbars() Box {
 	if s := b.areaState(); s != nil {
 		s.bars = true

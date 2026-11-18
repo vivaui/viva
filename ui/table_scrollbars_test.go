@@ -3,6 +3,7 @@ package ui_test
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"
@@ -52,8 +53,42 @@ func TestScrollAreaBarsFollowThePointerAtTheirSize(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.driver.Move(2, 2)
+	if !d.has("Vertical scrollbar") {
+		t.Fatal("the bar vanished with the pointer instead of lingering")
+	}
+	if err := d.driver.Advance(2 * time.Second); err != nil {
+		t.Fatal(err)
+	}
 	if d.has("Vertical scrollbar") {
-		t.Fatal("the bar stayed after the pointer left the area")
+		t.Fatal("the bar stayed after the pointer left and it had lingered")
+	}
+}
+
+// A view that moves while the pointer is elsewhere — a key, or the application
+// scrolling it — lights its bars, which linger and then fade as a pointer's do.
+func TestScrollAreaBarsLingerAfterTheViewMoves(t *testing.T) {
+	var area ui.Box
+	view := func(c ui.C) {
+		ui.Column(c).Fill().Pad(20).Children(func() {
+			area = ui.Scroll(c).Size(300, 200).Scrollbars().Children(func() {
+				ui.Slot(c).Height(2000)
+			})
+		})
+	}
+	d := openPage(t, view)
+	if d.has("Vertical scrollbar") {
+		t.Fatal("the bar is painted before anything moved")
+	}
+	area.ScrollState().ScrollTo(100)
+	d.repaint()
+	if !d.has("Vertical scrollbar") {
+		t.Fatal("a view moved with the pointer away did not light its bars")
+	}
+	if err := d.driver.Advance(2 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if d.has("Vertical scrollbar") {
+		t.Fatal("the bar stayed after the view had moved and the bar had lingered")
 	}
 }
 

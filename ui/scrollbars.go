@@ -1,9 +1,21 @@
 package ui
 
 import (
+	"time"
+
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
+
+// scrollbarLinger is how long a scroll area's bars stay after the pointer leaves
+// the area or the view stops moving, as the overlay bars of a desktop do; the
+// bars then fade out over DefaultMotion. A bar that is dragged stays revealed.
+const scrollbarLinger = time.Second
+
+// slotScrollbarFade is the animated value of an area's bars, among those of the
+// area's identity. It is below the state transitions' slots: the bars animate
+// their own identity, not a control's.
+const slotScrollbarFade uint8 = 200
 
 // paintScrollbars draws the bars of a ScrollArea declared with Scrollbars over its
 // edges, as the thin overlay bars of components.ScrollArea, and moves the area by a
@@ -15,17 +27,46 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 	content := gfx.Size{Width: s.ContentWidth + xs + xe, Height: s.Content + ys + ye}
 	parts := f.canvas.Tree().Sub(s.id.Scope(), s.id.Name())
 	vertical, horizontal := parts.At(0), parts.At(1)
-	// A scroll area without a Page has no pointer to rest on it: a view's bars
-	// stay revealed, as they did before pages tracked the pointer.
-	hinted := f.page == nil || f.page.pointerOver(n.rect)
 	size := s.barSize
 	if size <= 0 && f.page != nil {
 		size = f.page.config.ScrollbarSize
 	}
-	area := components.BeginScrollArea(f.canvas, f.theme, n.rect, content).
+	// A scroll area without a Page has no pointer to rest on it: a view's bars
+	// stay revealed, as they did before pages tracked the pointer. With one, the
+	// bars are revealed while the pointer is over the area or a bar is dragged,
+	// and stay revealed for a moment after the pointer leaves or the view moves,
+	// fading out as they go.
+	theme, revealed := f.theme, float32(1)
+	if f.page != nil {
+		now := f.canvas.Now()
+		if s.Offset != s.barOffset || s.OffsetX != s.barOffsetX {
+			s.barOffset, s.barOffsetX, s.barSince, s.barLit = s.Offset, s.OffsetX, now, true
+		}
+		target := float32(0)
+		switch {
+		case s.barsAlways || s.dragging || f.page.pointerOver(n.rect):
+			target = 1
+		case s.barLit:
+			if remaining := scrollbarLinger - (now - s.barSince); remaining > 0 {
+				target = 1
+				f.canvas.RequestFrameIn(remaining)
+			} else {
+				s.barLit = false
+			}
+		}
+		if target > 0 {
+			// The bars appear at once; only their leaving is animated.
+			revealed = f.canvas.Animate(vertical, slotScrollbarFade, target, gfx.Motion{})
+		} else {
+			revealed = f.canvas.Animate(vertical, slotScrollbarFade, target, gfx.DefaultMotion())
+		}
+		theme.Border.Alpha *= revealed
+		theme.MutedForeground.Alpha *= revealed
+	}
+	area := components.BeginScrollArea(f.canvas, theme, n.rect, content).
 		Offset(s.OffsetX, s.Offset).
 		ScrollbarSize(size).
-		HoverScrollbars(s.barsAlways || hinted || s.dragging).
+		HoverScrollbars(revealed > 0.001).
 		VerticalScrollbar(vertical, "Vertical scrollbar", "").
 		HorizontalScrollbar(horizontal, "Horizontal scrollbar", "")
 	geometry := area.Geometry()
