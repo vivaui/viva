@@ -6,10 +6,10 @@ import (
 
 func (f *frame) paint(i int32) {
 	n := &f.nodes[i]
-	if !n.focusScope.IsZero() {
+	if !n.FocusScope.IsZero() {
 		// A menu's page controls paint in the menu's focus scope, so a press on
 		// them reaches them while the menu traps the pointer.
-		f.canvas.PushFocusScope(n.focusScope)
+		f.canvas.PushFocusScope(n.FocusScope)
 		defer f.canvas.PopFocusScope()
 	}
 	if n.Band != 0 {

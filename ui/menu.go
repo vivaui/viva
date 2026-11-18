@@ -199,7 +199,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 		if menu.layer > f.popupLayer {
 			f.popupLayer = menu.layer
 		}
-		f.nodes[popup.i].focusScope = menu.scope.At(menuFocus)
+		f.nodes[popup.i].FocusScope = menu.scope.At(menuFocus)
 		popup.Children(func() { menu.declarePageRows(c, width, height) })
 	}
 	p.menus = append(p.menus, menu)
