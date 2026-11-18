@@ -237,7 +237,7 @@ type frame struct {
 	styles      *Styles // the page's recipe overrides; nil keeps the theme's
 	Nodes       []node
 	addons      []fieldAddons      // the icons and buttons inside fields, by 1 + extra.addons
-	images      []gfx.Bitmap       // what each Image element draws, indexed by its aux
+	Images      []gfx.Bitmap       // what each Image element draws, indexed by its aux
 	Exts        []extra            // exts[0] is never written: an element without extras points at it
 	floats      []int32            // the Popups, which belong to no container
 	states      []stateLooks       // what Hover, Pressed and Focus declared, by element
@@ -321,7 +321,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.Nodes = f.Nodes[:0]
 	f.lines = f.lines[:0]
 	f.Exts = append(f.Exts[:0], extra{})
-	f.images = f.images[:0]
+	f.Images = f.Images[:0]
 	f.addons = f.addons[:0]
 	clear(f.binds) // a binding holds pointers into the model: not past the frame
 	f.binds = f.binds[:0]
@@ -424,7 +424,7 @@ func (f *frame) trim() {
 	}
 	f.layoutCtx.children = trimFlexCapacity(f.layoutCtx.children)
 	f.Nodes = trimFlexCapacity(f.Nodes)
-	f.images = trimFlexCapacity(f.images)
+	f.Images = trimFlexCapacity(f.Images)
 	f.Exts = trimFlexCapacity(f.Exts)
 	f.draws = trimFlexCapacity(f.draws)
 	f.binds = trimFlexCapacity(f.binds)
@@ -616,8 +616,8 @@ func (f *frame) Icon(icon gfx.Icon) Box {
 // (see gfx.Bitmap). An empty or invalid bitmap leaves the room blank.
 func (f *frame) Image(bitmap gfx.Bitmap) Box {
 	b := f.box(kindImage)
-	f.Nodes[b.i].Aux = int32(len(f.images))
-	f.images = append(f.images, bitmap)
+	f.Nodes[b.i].Aux = int32(len(f.Images))
+	f.Images = append(f.Images, bitmap)
 	return b
 }
 
