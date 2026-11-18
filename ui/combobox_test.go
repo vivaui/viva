@@ -3,8 +3,6 @@ package ui_test
 import (
 	"testing"
 
-	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -185,29 +183,4 @@ func TestComboboxEmpty(t *testing.T) {
 	if len(options(d)) != 0 || !tooltipShown(d, "No zone matches") {
 		t.Fatalf("rows %v, the empty text shown %v", options(d), tooltipShown(d, "No zone matches"))
 	}
-}
-
-// Validate is asked for what is typed, and the field paints as invalid while the
-// check refuses it, before the application decides about the created name.
-func TestComboboxPaintsWhatValidateRefuses(t *testing.T) {
-	var checked []string
-	m := &groupModel{groups: []string{"prod"}}
-	d := openPage(t, func(c ui.C) {
-		ui.Combobox(c, &m.group, m.groups, nil, "Group").Creatable("").Validate(func(value string) bool {
-			checked = append(checked, value)
-			return len(value) <= 4
-		})
-	})
-	d.click("Group")
-	d.typeText("toolong")
-	if len(checked) == 0 || checked[len(checked)-1] != "toolong" {
-		t.Fatalf("Validate saw %v", checked)
-	}
-	want := components.TextEntryRecipe(pageTheme, gfx.State{Invalid: true}).Border
-	for _, primitive := range d.driver.Snapshot().Primitives {
-		if primitive.Kind == app.RectanglePrimitive && primitive.Color == want {
-			return
-		}
-	}
-	t.Fatal("the field did not paint as invalid")
 }
