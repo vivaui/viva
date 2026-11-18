@@ -128,7 +128,7 @@ func (ime *gtkIME) setFocused(focused bool) {
 func (ime *gtkIME) filtering() bool { return ime.ctx != 0 && ime.active }
 
 func (ime *gtkIME) composing() bool {
-	return ime.engineComposing || ime.w.text.state.Composing || ime.tentative && ime.session
+	return ime.engineComposing || ime.w.text.state.Composing || ime.session
 }
 
 func (ime *gtkIME) prepareKey() bool {
@@ -198,7 +198,7 @@ func (ime *gtkIME) sync() {
 		ime.callContext(context, ime.g.imFocusIn)
 	case !want && ime.active:
 		ime.active = false
-		if ime.engineComposing || ime.tentative && ime.session {
+		if ime.engineComposing || ime.session {
 			ime.engineComposing = false
 			ime.callContext(context, ime.g.imReset)
 		}
@@ -333,9 +333,6 @@ func (ime *gtkIME) commit(value string) {
 }
 
 func (ime *gtkIME) preeditStarted() {
-	if !ime.tentative {
-		return
-	}
 	context := ime.ctx
 	ime.finishPreedit(context)
 	if ime.current(context) {
@@ -344,7 +341,7 @@ func (ime *gtkIME) preeditStarted() {
 }
 
 func (ime *gtkIME) preeditEnded() {
-	if !ime.tentative || !ime.session {
+	if !ime.session {
 		return
 	}
 	ime.ending, ime.engineComposing = true, false
@@ -396,9 +393,16 @@ func (ime *gtkIME) finishPreedit(context uintptr) {
 	}
 	ime.clearEnd()
 	ime.session, ime.engineComposing = false, false
-	if ime.tentative && ime.current(context) {
-		ime.apply(platform.TextEvent{Kind: platform.TextCancelComposition, CompositionPhase: text.CompositionCancel})
+	if !ime.current(context) {
+		return
 	}
+	event := platform.TextEvent{Kind: platform.TextCancelComposition}
+	if ime.tentative {
+		event.CompositionPhase = text.CompositionCancel
+	} else if !ime.w.text.state.Composing {
+		return
+	}
+	ime.apply(event)
 }
 
 // preeditChanged shows the text being composed as marked text, or removes it.
@@ -430,32 +434,16 @@ func (ime *gtkIME) preeditChanged() {
 	if ime.ctx != context || ime.w.closed || ime.w.text.stateRevision != revision {
 		return
 	}
+	ime.engineComposing = value != ""
+	if value == "" && !ime.session {
+		return
+	}
+	ime.session = true
+	event := platform.TextEvent{Kind: platform.TextSetMarked, Text: value, MarkedSelection: selection}
 	if ime.tentative {
-		if value == "" {
-			ime.engineComposing = false
-			if !ime.session {
-				return
-			}
-		} else {
-			ime.engineComposing = true
-		}
-		ime.session = true
-		ime.apply(platform.TextEvent{Kind: platform.TextSetMarked, CompositionPhase: text.CompositionUpdate, Text: value, MarkedSelection: selection})
-		return
+		event.CompositionPhase = text.CompositionUpdate
 	}
-	if value == "" {
-		ime.engineComposing = false
-		if ime.w.text.state.Composing {
-			ime.apply(platform.TextEvent{Kind: platform.TextSetMarked})
-			if ime.ctx != context || ime.w.closed || ime.w.text.stateRevision != revision+1 {
-				return
-			}
-			ime.apply(platform.TextEvent{Kind: platform.TextUnmark})
-		}
-		return
-	}
-	ime.engineComposing = true
-	ime.apply(platform.TextEvent{Kind: platform.TextSetMarked, Text: value, MarkedSelection: selection})
+	ime.apply(event)
 }
 
 // Pango attribute types the input method marks the clause it is converting with.
