@@ -73,10 +73,10 @@ func (f *frame) measure(axis int) {
 	f.wrapCursor = 0
 	for i := len(f.nodes) - 1; i >= 0; i-- {
 		n := &f.nodes[i]
-		if axis == axisX && n.kind != kindContainer {
+		if axis == axisX && n.Kind != kindContainer {
 			f.measureLeaf(n)
 		}
-		if n.kind == kindText && n.flags&flagWrap != 0 && axis == axisY {
+		if n.Kind == kindText && n.flags&flagWrap != 0 && axis == axisY {
 			first := int32(len(f.lines))
 			// An empty text has no line at all, as WrapLines gives it none; anything
 			// else that fits is one line and needs no breaking.
@@ -88,10 +88,10 @@ func (f *frame) measure(axis int) {
 			n.lineFirst, n.lineCount = first, int32(len(f.lines))-first
 			n.pref[axisY] = float32(n.lineCount)*n.leading() + n.padY()
 		}
-		if n.kind == kindContainer {
+		if n.Kind == kindContainer {
 			f.measureContainer(n, axis)
 		}
-		if d := n.size[axis]; d.kind == dimPx {
+		if d := n.size[axis]; d.Kind == dimPx {
 			n.pref[axis] = d.value
 		}
 		n.raw[axis] = n.pref[axis]
@@ -120,7 +120,7 @@ func (f *frame) measureLeaf(n *node) {
 var controlMeasurer = (*frame).measureControls
 
 func (f *frame) measureLeafIn(n *node) {
-	switch n.kind {
+	switch n.Kind {
 	case kindText:
 		if n.flags&flagMono != 0 {
 			// A Mono text is as wide as its cells: a wide character takes two, a combining
@@ -185,7 +185,7 @@ func (f *frame) measureContainer(n *node, axis int) {
 	default:
 		return
 	}
-	if n.size[axis].kind == dimAuto && n.maxS[axis] == 0 {
+	if n.size[axis].Kind == dimAuto && n.maxS[axis] == 0 {
 		n.pref[axis] = is + ie
 	}
 }
@@ -213,7 +213,7 @@ func clamp(v, lo, hi float32) float32 {
 // stretches reports whether an element with no size of its own fills the room
 // across its container: containers and text do, controls keep their own size.
 func (n *node) stretches(axis int) bool {
-	switch n.kind {
+	switch n.Kind {
 	case kindSlider:
 		return (n.natural > 0) == (axis == axisY) // as long as its container, never as thick
 	case kindProgress:
@@ -300,11 +300,11 @@ func crossSize(child *node, axis int, avail float32, align Align, hi float32) fl
 	d := child.size[axis]
 	lo := child.minS[axis]
 	switch {
-	case d.kind == dimPx:
+	case d.Kind == dimPx:
 		return clamp(d.value, lo, hi)
-	case d.kind == dimPercent:
+	case d.Kind == dimPercent:
 		return clamp(avail*d.value/100, lo, hi)
-	case d.kind == dimFill, d.kind == dimAuto && (align == Stretch || align == Auto && child.stretches(axis)):
+	case d.Kind == dimFill, d.Kind == dimAuto && (align == Stretch || align == Auto && child.stretches(axis)):
 		return clamp(max(avail, 0), lo, hi)
 	}
 	return clamp(child.pref[axis], lo, hi)
@@ -349,14 +349,14 @@ func (f *frame) solveFlow(n *node, first, stop int32, axis int, start, avail flo
 		basis, grow := flexBasis(child, axis, avail), float32(0)
 		if child.flags&flagGrowSet != 0 {
 			grow = child.grow
-		} else if child.size[axis].kind == dimFill {
+		} else if child.size[axis].Kind == dimFill {
 			grow = 1
 		}
 		child.growNow = grow
 		switch {
 		case child.flags&flagShrinkSet != 0:
 			child.shrinkNow = child.shrink
-		case axis == axisX && (child.kind == kindText || child.kind == kindContainer),
+		case axis == axisX && (child.Kind == kindText || child.Kind == kindContainer),
 			axis == axisY && child.flags&flagScroll != 0:
 			// Across a line of text or a container may give way; down a column an
 			// element keeps its content's height (as CSS min-height:auto does) unless it
@@ -484,11 +484,11 @@ func (f *frame) solveFlow(n *node, first, stop int32, axis int, start, avail flo
 func flexBasis(child *node, axis int, avail float32) float32 {
 	d := child.size[axis]
 	switch {
-	case d.kind == dimFill:
+	case d.Kind == dimFill:
 		return 0
 	case child.flags&flagBasis != 0:
 		return child.basis
-	case d.kind == dimPercent:
+	case d.Kind == dimPercent:
 		return avail * d.value / 100
 	}
 	return child.raw[axis]
@@ -514,7 +514,7 @@ func (n *node) alignOn(parent *node) Align {
 // line would sit, so it aligns with the text beside it instead of pinning to the
 // row's bottom edge.
 func (f *frame) measureBaseline(n *node) {
-	switch n.kind {
+	switch n.Kind {
 	case kindText:
 		top, bottom := n.inset(axisY)
 		height := n.leading()
@@ -540,7 +540,7 @@ func (f *frame) measureBaseline(n *node) {
 			if n.dir == flow && child.gridRow != 0 {
 				break // a Flow's baseline is its first line's
 			}
-			if child.kind == kindContainer && child.baseline == child.pref[axisY] && child.first < 0 {
+			if child.Kind == kindContainer && child.baseline == child.pref[axisY] && child.first < 0 {
 				continue
 			}
 			value := is + child.margin[0] + child.baseline

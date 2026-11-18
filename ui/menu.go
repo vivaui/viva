@@ -212,7 +212,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 // hasPageContent reports whether any row is declared in the page.
 func (m *MenuItems) hasPageContent() bool {
 	for i := range m.items {
-		if m.items[i].kind == menuRowPageContent && m.items[i].pageContent != nil {
+		if m.items[i].Kind == menuRowPageContent && m.items[i].pageContent != nil {
 			return true
 		}
 	}
@@ -226,7 +226,7 @@ func (m *MenuItems) declarePageRows(c C, width, height float32) {
 	y := pad - m.scroll.Offset
 	for i := range m.items {
 		row := &m.items[i]
-		if row.kind == menuRowPageContent && row.pageContent != nil && row.height > 0 &&
+		if row.Kind == menuRowPageContent && row.pageContent != nil && row.height > 0 &&
 			y+row.height > 0 && y < height {
 			pageY, pageHeight := y, row.height
 			bounds := Rect{X: pad, Y: pageY, Width: max(width-2*pad, 0), Height: pageHeight}
@@ -300,7 +300,7 @@ func (m *MenuItems) size() (width, height float32) {
 	for i := range m.items {
 		item := &m.items[i]
 		height += m.rowExtent(i)
-		switch item.kind {
+		switch item.Kind {
 		case menuRowSeparator, menuRowLabel, menuRowContent, menuRowPageContent:
 		default:
 			row := m.row(i)
@@ -459,7 +459,7 @@ func (m *MenuItems) paintPanel(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Th
 }
 
 type menuRow struct {
-	kind        menuRowKind
+	Kind        menuRowKind
 	label       string
 	description string
 	icon        gfx.Icon
@@ -586,7 +586,7 @@ func (m *MenuItems) WidthRange(least, greatest float32) {
 // takes the row's rectangle and declares its own hits, inside the menu's clip, and is not
 // called while scrolling has the row out of sight.
 func (m *MenuItems) Content(height float32, body func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) {
-	m.items = append(m.items, menuRow{kind: menuRowContent, height: height, content: body})
+	m.items = append(m.items, menuRow{Kind: menuRowContent, height: height, content: body})
 }
 
 // ContentPage adds a row height tall whose controls body declares in the page:
@@ -595,13 +595,13 @@ func (m *MenuItems) Content(height float32, body func(canvas *gfx.Canvas, bounds
 // The row is placed where the menu's rows put it; it is for a menu that does not
 // scroll its rows.
 func (m *MenuItems) ContentPage(height float32, body func(c C, bounds Rect)) {
-	m.items = append(m.items, menuRow{kind: menuRowPageContent, height: height, pageContent: body})
+	m.items = append(m.items, menuRow{Kind: menuRowPageContent, height: height, pageContent: body})
 }
 
 // rowExtent is how tall row i is, as size and the page rows' placement both need.
 func (m *MenuItems) rowExtent(i int) float32 {
 	row := &m.items[i]
-	switch row.kind {
+	switch row.Kind {
 	case menuRowSeparator:
 		return components.DropdownMenuSeparatorHeight
 	case menuRowLabel:
@@ -639,12 +639,12 @@ func (m *MenuItems) paintTrailing(canvas *gfx.Canvas, theme gfx.Theme, row *menu
 
 // Label adds a heading over the items that follow it.
 func (m *MenuItems) Label(label string) {
-	m.items = append(m.items, menuRow{kind: menuRowLabel, label: label})
+	m.items = append(m.items, menuRow{Kind: menuRowLabel, label: label})
 }
 
 // Separator adds a line between groups of items.
 func (m *MenuItems) Separator() {
-	m.items = append(m.items, menuRow{kind: menuRowSeparator})
+	m.items = append(m.items, menuRow{Kind: menuRowSeparator})
 }
 
 // Trailing reserves width pixels at the item's end and has paint fill them: a small control
@@ -751,7 +751,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 			Unpainted: m.unpainted, PaintPanel: m.panelPainter, PaintItem: m.itemPainter,
 		})
 		for i := range m.items {
-			switch row := &m.items[i]; row.kind {
+			switch row := &m.items[i]; row.Kind {
 			case menuRowSeparator:
 				menu.AddSeparator()
 			case menuRowLabel:
@@ -794,7 +794,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 			Unpainted: m.unpainted, PaintPanel: m.panelPainter, PaintItem: m.itemPainter,
 		})
 		for i := range m.items {
-			switch row := &m.items[i]; row.kind {
+			switch row := &m.items[i]; row.Kind {
 			case menuRowSeparator:
 				menu.AddSeparator()
 			case menuRowLabel:
@@ -820,7 +820,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 	if m.focusFirst {
 		m.focusFirst = false
 		for i := range m.items {
-			if row := &m.items[i]; row.kind == menuRowItem && !row.disabled {
+			if row := &m.items[i]; row.Kind == menuRowItem && !row.disabled {
 				canvas.RequestFocus(scope.At(menuRows + i))
 				break
 			}

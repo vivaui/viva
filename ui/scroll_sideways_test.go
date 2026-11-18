@@ -24,8 +24,8 @@ func (p *wideArea) paint(canvas *gfx.Canvas, _ gfx.Size) {
 	})
 }
 
-func (p *wideArea) pointer(canvas *gfx.Canvas, target gfx.ID, kind gfx.PointerEventKind, x, y float32) bool {
-	event := gfx.PointerEvent{Kind: kind, Button: gfx.PointerButtonPrimary, X: x, Y: y, Target: target, Captured: kind != gfx.PointerDown}
+func (p *wideArea) pointer(canvas *gfx.Canvas, target gfx.ID, Kind gfx.PointerEventKind, x, y float32) bool {
+	event := gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, X: x, Y: y, Target: target, Captured: Kind != gfx.PointerDown}
 	return canvas.DeliverPointer(event, gfx.Size{Width: 100, Height: 100}, p.paint)
 }
 

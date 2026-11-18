@@ -507,7 +507,7 @@ func (f *frame) firstControl(i int32) gfx.ID {
 	for c := f.nodes[i].first; c >= 0; c = f.nodes[c].next {
 		n := &f.nodes[c]
 		if n.flags&flagDisabled == 0 && !n.id.IsZero() {
-			switch n.kind {
+			switch n.Kind {
 			case kindButton, kindSplitButton, kindCheckbox, kindSwitch, kindInput, kindTextarea, kindSlider:
 				return n.id
 			case kindContainer:

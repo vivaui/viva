@@ -125,7 +125,7 @@ func (f *frame) Splitter(id gfx.ID, state *SplitterState) Box {
 // stays at least as wide as the default (8), centred on the line, so a one-pixel
 // divider is still easy to grab.
 func (b Box) SplitterThickness(thickness float32) Box {
-	if n := b.n(); n.kind == kindSplitter {
+	if n := b.n(); n.Kind == kindSplitter {
 		widgetsOf(b.f).splits[n.aux].thickness = max(thickness, 0.5)
 	}
 	return b
@@ -133,7 +133,7 @@ func (b Box) SplitterThickness(thickness float32) Box {
 
 // Mins sets the least size of the panes either side of a Splitter, along its container.
 func (b Box) Mins(first, second float32) Box {
-	if n := b.n(); n.kind == kindSplitter {
+	if n := b.n(); n.Kind == kindSplitter {
 		d := &widgetsOf(b.f).splits[n.aux]
 		d.minFirst, d.minSecond = max(first, 0), max(second, 0)
 	}
@@ -191,7 +191,7 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 	gaps := n.gap * float32(max(count-1, 0))
 	for c := n.first; c >= 0; c = f.nodes[c].next {
 		bar := &f.nodes[c]
-		if bar.kind != kindSplitter {
+		if bar.Kind != kindSplitter {
 			continue
 		}
 		d := &widgetsOf(f).splits[bar.aux]
@@ -220,7 +220,7 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 func (f *frame) reportSplitters() {
 	for i := range f.nodes {
 		n := &f.nodes[i]
-		if n.kind != kindSplitter {
+		if n.Kind != kindSplitter {
 			continue
 		}
 		s := widgetsOf(f).splits[n.aux].state

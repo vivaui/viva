@@ -13,7 +13,7 @@ type fieldAddons struct {
 
 func (b Box) addons() *fieldAddons {
 	n := b.n()
-	if n.kind != kindInput {
+	if n.Kind != kindInput {
 		panic("ui: Icon is for a Button or a TextField, Action for a TextField")
 	}
 	extra := b.f.extra(b.i)
@@ -33,7 +33,7 @@ func (b Box) addons() *fieldAddons {
 //	ui.Button(c, "Delete").Icon(trash).IconOnly().Ghost()
 //	ui.TextField(c, &m.query, "Search", "Search hosts").Icon(search)
 func (b Box) Icon(icon gfx.Icon) Box {
-	if b.n().kind == kindButton {
+	if b.n().Kind == kindButton {
 		b.f.extra(b.i).icon = icon
 		return b
 	}
@@ -62,7 +62,7 @@ func (b Box) Action(icon gfx.Icon, label string) Box {
 // keyboard goes back to the field then, so a clear or a reveal does not end the typing.
 func (b Box) ActionClicked() bool {
 	n := b.n()
-	if n.kind != kindInput || n.ext == 0 || b.f.exts[n.ext].addons == 0 || b.f.canvas == nil {
+	if n.Kind != kindInput || n.ext == 0 || b.f.exts[n.ext].addons == 0 || b.f.canvas == nil {
 		return false
 	}
 	end := b.f.addons[b.f.exts[n.ext].addons-1].end

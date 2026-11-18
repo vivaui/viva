@@ -106,12 +106,12 @@ func (f *frame) paint(i int32) {
 		group = canvas.Mark()
 	}
 	// A ColorSwatch declares its own hit, as a radio, under whatever id Hit gave it.
-	if hasHit && !extra.swatch && (n.kind == kindContainer || n.kind == kindText || n.kind == kindIcon || n.kind == kindSlot) {
+	if hasHit && !extra.swatch && (n.Kind == kindContainer || n.Kind == kindText || n.Kind == kindIcon || n.Kind == kindSlot) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
 		if n.flags&flagLabelFor != 0 {
 			text := n.label
-			if text == "" && n.kind == kindText {
+			if text == "" && n.Kind == kindText {
 				text = n.text
 			}
 			canvas.HitLabel(n.id, hit, text, n.flags&flagDisabled != 0)
@@ -180,7 +180,7 @@ var controlPainter = (*frame).paintControls
 func (f *frame) paintControl(n *node, r Rect) {
 	canvas := f.canvas
 	extra := &f.exts[n.ext]
-	switch n.kind {
+	switch n.Kind {
 	case kindText:
 		f.paintText(n)
 	case kindIcon:

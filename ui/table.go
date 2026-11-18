@@ -236,7 +236,7 @@ func (f *frame) Table(state *TableState, spec TableSpec) Box {
 // RowClicked reports which row of a Table this paint is delivering a click on.
 func (b Box) RowClicked() (int, bool) {
 	n := b.n()
-	if n.kind != kindTable || b.f.canvas == nil {
+	if n.Kind != kindTable || b.f.canvas == nil {
 		return 0, false
 	}
 	return b.f.canvas.ClickedIn(widgetsOf(b.f).tables[n.aux].spec.Rows)
@@ -246,7 +246,7 @@ func (b Box) RowClicked() (int, bool) {
 // click on.
 func (b Box) HeaderClicked() (int, bool) {
 	n := b.n()
-	if n.kind != kindTable || b.f.canvas == nil {
+	if n.Kind != kindTable || b.f.canvas == nil {
 		return 0, false
 	}
 	return b.f.canvas.ClickedIn(widgetsOf(b.f).tables[n.aux].spec.Header)

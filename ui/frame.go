@@ -18,7 +18,7 @@ const (
 	Between  = base.Between
 )
 
-type kind = base.Kind
+type Kind = base.Kind
 
 const (
 	kindContainer   = base.KindContainer
@@ -67,7 +67,7 @@ const (
 )
 
 type dimension struct {
-	kind  dimKind
+	Kind  dimKind
 	value float32
 }
 
@@ -108,7 +108,7 @@ const (
 // without the garbage collector seeing it. Anything with two numbers, one for
 // each axis, is indexed by axisX or axisY, so the layout is written once.
 type node struct {
-	kind  kind
+	Kind  Kind
 	dir   direction
 	flags uint32
 
@@ -449,12 +449,12 @@ func (f *frame) Theme() Theme        { return f.theme }
 // child's rectangle.
 func (f *frame) Bounds() Rect { return f.bounds }
 
-func (f *frame) add(k kind) int32 {
+func (f *frame) add(k Kind) int32 {
 	if f.done {
 		panic("ui: an element was declared after the page was laid out (in a Draw callback, or after End): declare elements in the build function")
 	}
 	index := int32(len(f.nodes))
-	f.nodes = append(f.nodes, node{kind: k, parent: f.parent, first: -1, last: -1, next: -1, items: Auto})
+	f.nodes = append(f.nodes, node{Kind: k, parent: f.parent, first: -1, last: -1, next: -1, items: Auto})
 	if f.parent >= 0 {
 		parent := &f.nodes[f.parent]
 		if parent.last < 0 {
@@ -467,7 +467,7 @@ func (f *frame) add(k kind) int32 {
 	return index
 }
 
-func (f *frame) box(k kind) Box { return Box{f: f, i: f.add(k), gen: f.gen} }
+func (f *frame) box(k Kind) Box { return Box{f: f, i: f.add(k), gen: f.gen} }
 
 // Row opens a container that lays its children out left to right.
 func (f *frame) Row() Box {
@@ -679,10 +679,10 @@ func (f *frame) extra(i int32) *extra {
 func (f *frame) checkHits() {
 	for i := range f.nodes {
 		n := &f.nodes[i]
-		if n.kind != kindContainer || n.flags&flagHasHit == 0 || n.flags&flagChildren != 0 || n.first >= 0 {
+		if n.Kind != kindContainer || n.flags&flagHasHit == 0 || n.flags&flagChildren != 0 || n.first >= 0 {
 			continue
 		}
-		if n.size[axisX].kind != dimAuto || n.size[axisY].kind != dimAuto || n.background.Alpha > 0 || n.borderWidth > 0 || n.outOfFlow != 0 || n.minS != [2]float32{} {
+		if n.size[axisX].Kind != dimAuto || n.size[axisY].Kind != dimAuto || n.background.Alpha > 0 || n.borderWidth > 0 || n.outOfFlow != 0 || n.minS != [2]float32{} {
 			continue
 		}
 		panic("ui: a Row, Column or Stack given Hit(" + n.label + ") has no Children and no size, background or border, so it is empty: " +

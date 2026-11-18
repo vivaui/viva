@@ -15,7 +15,7 @@ package ui
 // hasOwnTheme reports whether n is a control that asked for a radius or a font
 // size other than the theme's.
 func (n *node) hasOwnTheme() bool {
-	switch n.kind {
+	switch n.Kind {
 	case kindContainer, kindText, kindSpacer, kindIcon, kindSlot, kindImage:
 		return false
 	case kindInput, kindTextarea:

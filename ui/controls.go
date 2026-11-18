@@ -15,7 +15,7 @@ import (
 // for the ones that ship with a theme, and from the caller's own painter for
 // the ones it declared.
 func (f *frame) paintControls(n *node, r Rect) {
-	if painter := controlPainters[n.kind]; painter != nil {
+	if painter := controlPainters[n.Kind]; painter != nil {
 		painter(f, n, r)
 	}
 }
@@ -122,10 +122,10 @@ func (f *frame) paintSegmented(v ControlView) {
 // measureControls measures the controls: each kind's geometry, from package
 // components for the ones that ship with a theme.
 func (f *frame) measureControls(n *node) {
-	switch n.kind {
+	switch n.Kind {
 	case kindButton:
 		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.buttonSize).WithIcon(f.exts[n.ext].icon)
-		if d := n.size[axisY]; d.kind == dimPx {
+		if d := n.size[axisY]; d.Kind == dimPx {
 			button = button.Height(d.value) // an icon button is as wide as it is tall
 		}
 		button = button.SizeToFit(n.label)
@@ -172,7 +172,7 @@ func (f *frame) measureControls(n *node) {
 		}
 	case kindInputGroup:
 		n.pref = [2]float32{0, f.theme.Metrics.ControlHeight}
-		if n.kind == kindInputGroup && widgetsOf(f).groups[n.aux].Multiline {
+		if n.Kind == kindInputGroup && widgetsOf(f).groups[n.aux].Multiline {
 			n.pref[axisY] = 64
 		}
 	case kindTextarea:

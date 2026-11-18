@@ -28,12 +28,12 @@ type boundText struct {
 // the last paint is written to *value, and a value the program changed is put in
 // the field with the caret at its end. When both changed, what the user typed is
 // kept, as the newer edit.
-func fieldOf[T TextValue](p *Page, kind uint8, value T) (*Field, gfx.ID) {
+func fieldOf[T TextValue](p *Page, Kind uint8, value T) (*Field, gfx.ID) {
 	switch v := any(value).(type) {
 	case *Field:
-		return v, p.boundID(kind, unsafe.Pointer(v))
+		return v, p.boundID(Kind, unsafe.Pointer(v))
 	case *string:
-		id := p.boundID(kind, unsafe.Pointer(v))
+		id := p.boundID(Kind, unsafe.Pointer(v))
 		bound := p.texts[id]
 		if bound == nil {
 			bound = &boundText{}
@@ -71,7 +71,7 @@ func (p *Page) sweepTexts() {
 //	ui.TextField(c, &m.query, "Search", "").NavigationKeys()
 func (b Box) NavigationKeys() Box {
 	n := b.n()
-	if n.kind != kindInput {
+	if n.Kind != kindInput {
 		panic("ui: NavigationKeys is for a TextField")
 	}
 	widgetsOf(b.f).inputs[n.aux].NavigationKeys = true
@@ -85,7 +85,7 @@ func (b Box) NavigationKeys() Box {
 //	ui.TextField(c, &m.password, "Password", "").Secure()
 func (b Box) Secure() Box {
 	n := b.n()
-	if n.kind != kindInput {
+	if n.Kind != kindInput {
 		panic("ui: Secure is for a TextField")
 	}
 	widgetsOf(b.f).inputs[n.aux].Secure = true // what the field paints and the platform is told

@@ -31,7 +31,7 @@ func (f *frame) recipeTheme(n *node, scratch *Theme) *Theme {
 // textEntryInsets is the room the shadcn text-entry controls leave between their edge and
 // their text: across, the metrics' text inset; down, nothing for a line (which is centered
 // in the control's whole height) and a fixed margin for rows that start at the top.
-func textEntryInsets(theme *Theme, k kind) (x, y float32) {
+func textEntryInsets(theme *Theme, k Kind) (x, y float32) {
 	x = theme.Metrics.TextInsetX()
 	if k == kindTextarea {
 		y = components.TextareaPadY
@@ -57,7 +57,7 @@ func (f *frame) applyRecipes() {
 		if n.flags&flagThemed == 0 {
 			continue
 		}
-		switch n.kind {
+		switch n.Kind {
 		case kindInput, kindTextarea:
 			var scratch Theme
 			theme := f.recipeTheme(n, &scratch)
@@ -69,10 +69,10 @@ func (f *frame) applyRecipes() {
 				n.radius = look.Radius
 			}
 			if n.flags&flagSetPad == 0 {
-				x, y := textEntryInsets(theme, n.kind)
+				x, y := textEntryInsets(theme, n.Kind)
 				n.pad = [4]float32{max(y-n.borderWidth, 0), max(x-n.borderWidth, 0), max(y-n.borderWidth, 0), max(x-n.borderWidth, 0)}
 			}
-			if n.kind == kindTextarea && n.minS[axisY] == 0 {
+			if n.Kind == kindTextarea && n.minS[axisY] == 0 {
 				n.minS[axisY] = 64 // the official minimum height
 			}
 		}
@@ -83,7 +83,7 @@ func (f *frame) applyRecipes() {
 // look the element did not set itself.
 func (f *frame) themedDefaults(n *node, extra *extra, s *resolved) {
 	var state gfx.State
-	switch n.kind {
+	switch n.Kind {
 	case kindInput:
 		snapshot := &widgetsOf(f).inputs[n.aux]
 		state = gfx.State{Focused: snapshot.Focused || f.focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
@@ -119,7 +119,7 @@ func (f *frame) contentRect(n *node) Rect {
 	r := n.rect
 	if n.flags&flagThemed != 0 && n.flags&flagSetPad == 0 {
 		var scratch Theme
-		x, y := textEntryInsets(f.recipeTheme(n, &scratch), n.kind)
+		x, y := textEntryInsets(f.recipeTheme(n, &scratch), n.Kind)
 		return Rect{X: r.X + x, Y: r.Y + y, Width: max(r.Width-2*x, 0), Height: max(r.Height-2*y, 0)}
 	}
 	left, right := n.inset(axisX)

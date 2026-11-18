@@ -929,7 +929,7 @@ func (p *Page) record(scope gfx.Scope) *protoScope {
 
 // name gives the next element of kind its place in the container being filled: a
 // Key, a Part or its number among its kind. named reports a Key or a Part.
-func (p *Page) name(kind uint8) (at place, named bool) {
+func (p *Page) name(Kind uint8) (at place, named bool) {
 	node := p.current()
 	c := &p.ctx
 	if c.nextSet {
@@ -971,9 +971,9 @@ func (p *Page) name(kind uint8) (at place, named bool) {
 		}
 	}
 	counts := &p.nodes[node].counts
-	n := counts[kind]
-	counts[kind]++
-	return place{node: node, name: gfx.Index(int(kind)<<24 | int(n))}, false
+	n := counts[Kind]
+	counts[Kind]++
+	return place{node: node, name: gfx.Index(int(Kind)<<24 | int(n))}, false
 }
 
 // container makes element i a container with a scope of its own, named in its parent.
@@ -984,15 +984,15 @@ func (p *Page) container(b Box) Box {
 }
 
 // controlID names an element bound to nothing: its place, a Key or a Part.
-func (p *Page) controlID(kind uint8) gfx.ID {
-	at, _ := p.name(kind)
+func (p *Page) controlID(Kind uint8) gfx.ID {
+	at, _ := p.name(Kind)
 	return p.id(at)
 }
 
 // boundScope is the scope of a control that numbers its own parts (the options of
 // a Choice, the tabs of Tabs): the scope its bound name makes.
-func (p *Page) boundScope(kind uint8, value unsafe.Pointer) gfx.Scope {
-	id := p.boundID(kind, value)
+func (p *Page) boundScope(Kind uint8, value unsafe.Pointer) gfx.Scope {
+	id := p.boundID(Kind, value)
 	return p.tree.Sub(id.Scope(), id.Name())
 }
 
@@ -1001,9 +1001,9 @@ func (p *Page) boundScope(kind uint8, value unsafe.Pointer) gfx.Scope {
 // its name. A new value takes its place's name, unless a value declared in an
 // earlier paint than the last still holds it; a value that is new in every paint (a
 // copy) is given the name the last paint's copy had, so a copy works as its place.
-func (p *Page) boundID(kind uint8, value unsafe.Pointer) gfx.ID {
-	at, named := p.name(kind)
-	key := boundKey{value: value, kind: kind}
+func (p *Page) boundID(Kind uint8, value unsafe.Pointer) gfx.ID {
+	at, named := p.name(Kind)
+	key := boundKey{value: value, Kind: Kind}
 	for {
 		entry, ok := p.bound[key]
 		if ok && entry.epoch == p.epoch {

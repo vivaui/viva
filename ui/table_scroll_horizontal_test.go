@@ -253,8 +253,8 @@ func TestTableHorizontalScrollbarDrags(t *testing.T) {
 	}
 	hbar := hitByID(canvas, gfx.Item(901))
 	thumb := hbar.Bounds
-	deliver := func(kind gfx.PointerEventKind, x, y float32) bool {
-		return canvas.DeliverPointer(gfx.PointerEvent{Kind: kind, Button: gfx.PointerButtonPrimary, Target: gfx.Item(901), Captured: kind != gfx.PointerDown, X: x, Y: y}, gfx.Size{Width: viewport.Width, Height: viewport.Height}, paint)
+	deliver := func(Kind gfx.PointerEventKind, x, y float32) bool {
+		return canvas.DeliverPointer(gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, Target: gfx.Item(901), Captured: Kind != gfx.PointerDown, X: x, Y: y}, gfx.Size{Width: viewport.Width, Height: viewport.Height}, paint)
 	}
 	x, y := thumb.X+2, thumb.Y+thumb.Height/2
 	if ok := deliver(gfx.PointerDown, x, y); !ok {

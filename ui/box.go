@@ -123,8 +123,8 @@ func (b Box) Basis(v float32) Box {
 	n.flags |= flagBasis
 	return b
 }
-func (b Box) FillWidth() Box  { b.n().size[axisX] = dimension{kind: dimFill}; return b }
-func (b Box) FillHeight() Box { b.n().size[axisY] = dimension{kind: dimFill}; return b }
+func (b Box) FillWidth() Box  { b.n().size[axisX] = dimension{Kind: dimFill}; return b }
+func (b Box) FillHeight() Box { b.n().size[axisY] = dimension{Kind: dimFill}; return b }
 func (b Box) Fill() Box       { return b.FillWidth().FillHeight() }
 
 // MinWidth, MaxWidth, MinHeight and MaxHeight bound the size the layout gives.
@@ -312,7 +312,7 @@ func (b Box) Clip() Box { b.n().flags |= flagClip; return b }
 func (b Box) FontSize(v float32) Box {
 	n := b.n()
 	n.fontSize = v
-	if n.kind == kindSelect {
+	if n.Kind == kindSelect {
 		b.f.sizeSelectList(n)
 	}
 	return b
@@ -415,7 +415,7 @@ func (b Box) IconOnly() Box { b.n().buttonSize = style.SizeIcon; return b }
 //
 //	ui.Switch(c, &m.on, "Running").SwitchRecipe(components.SwitchRecipe)
 func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) style.SwitchLook) Box {
-	if n := b.n(); n.kind == kindSwitch {
+	if n := b.n(); n.Kind == kindSwitch {
 		b.f.extra(b.i).switchRecipe = recipe
 	}
 	return b
@@ -435,7 +435,7 @@ func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) style.Switc
 // package-level func or a method value kept in the model), as a closure made in each paint
 // allocates. Other elements ignore it.
 func (b Box) ButtonRecipe(recipe func(gfx.Theme, style.Variant, gfx.State) style.ButtonLook) Box {
-	if n := b.n(); n.kind == kindButton {
+	if n := b.n(); n.Kind == kindButton {
 		b.f.extra(b.i).buttonRecipe = recipe
 	}
 	return b
@@ -529,7 +529,7 @@ func (b Box) Chosen() (gfx.ID, bool) {
 		}
 		return gfx.ID{}, false
 	}
-	switch n.kind {
+	switch n.Kind {
 	case kindSegmented:
 		for _, option := range widgetsOf(b.f).segmented[n.aux].options {
 			if b.f.canvas.Clicked(option.ID) {
@@ -582,7 +582,7 @@ func (b Box) BesideBox(anchor Box, gap float32, align Align) Box {
 
 // ChosenIndex is Chosen for a control made by Choice: the index of the clicked label.
 func (b Box) ChosenIndex() (int, bool) {
-	if b.n().kind != kindSegmented {
+	if b.n().Kind != kindSegmented {
 		return 0, false
 	}
 	id, ok := b.Chosen()

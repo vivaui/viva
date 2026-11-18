@@ -218,7 +218,7 @@ func (field *Field) snapshot(f *frame, id gfx.ID, label, placeholder string) com
 // lines and has no Submitted.
 func (b Box) Submitted() bool {
 	n := b.n()
-	if n.kind != kindInput || b.f.canvas == nil {
+	if n.Kind != kindInput || b.f.canvas == nil {
 		return false
 	}
 	return b.f.canvas.ClickedByKey(widgetsOf(b.f).inputs[n.aux].ID)
@@ -252,7 +252,7 @@ func (b Box) Submitted() bool {
 // Not inside a Memo, whose copied fields are not declared.
 func (b Box) OnKey(handler func(gfx.KeyEvent) gfx.EventResult) Box {
 	n := b.n()
-	if n.kind != kindInput {
+	if n.Kind != kindInput {
 		panic("ui: OnKey is for a TextField")
 	}
 	if handler == nil {

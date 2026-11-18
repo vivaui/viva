@@ -77,7 +77,7 @@ func (f *frame) settle(i int32) *bindDecl {
 	case d.index != nil:
 		var index int
 		var ok bool
-		switch n.kind {
+		switch n.Kind {
 		case kindSegmented:
 			index, ok = b.ChosenIndex()
 		case kindTabs:

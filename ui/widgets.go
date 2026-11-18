@@ -108,7 +108,7 @@ func (w *widgets) popoverAsked(ask popoverFocusAsk) bool {
 
 // measureWidget gives a Table, Tabs or Select the size its content wants.
 func (f *frame) measureWidget(n *node) {
-	switch n.kind {
+	switch n.Kind {
 	case kindTable:
 		f.measureTable(n)
 	case kindTabs:
@@ -120,7 +120,7 @@ func (f *frame) measureWidget(n *node) {
 
 // paintWidget paints a Table, Tabs or Select with the component it declares.
 func (f *frame) paintWidget(n *node) {
-	switch n.kind {
+	switch n.Kind {
 	case kindTable:
 		f.paintTable(n)
 	case kindTabs:

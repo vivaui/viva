@@ -51,7 +51,7 @@ type keyEntry struct{ slot, epoch uint32 }
 // kind bound to it in one paint, which share the value but not the identity.
 type boundKey struct {
 	value unsafe.Pointer
-	kind  uint8
+	Kind  uint8
 	n     uint32
 }
 

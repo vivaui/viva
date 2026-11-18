@@ -118,8 +118,8 @@ func TestFrozenTableScrollbarDragsWhatScrolls(t *testing.T) {
 	if bar.Bounds.X < 240 {
 		t.Fatalf("the horizontal bar starts at %v, past the frozen columns at 240", bar.Bounds.X)
 	}
-	deliver := func(kind gfx.PointerEventKind, x, y float32) bool {
-		return canvas.DeliverPointer(gfx.PointerEvent{Kind: kind, Button: gfx.PointerButtonPrimary, Target: gfx.Item(901), Captured: kind != gfx.PointerDown, X: x, Y: y}, gfx.Size{Width: 400, Height: 300}, func(*gfx.Canvas, gfx.Size) { paint() })
+	deliver := func(Kind gfx.PointerEventKind, x, y float32) bool {
+		return canvas.DeliverPointer(gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, Target: gfx.Item(901), Captured: Kind != gfx.PointerDown, X: x, Y: y}, gfx.Size{Width: 400, Height: 300}, func(*gfx.Canvas, gfx.Size) { paint() })
 	}
 	x, y := bar.Bounds.X+2, bar.Bounds.Y+bar.Bounds.Height/2
 	if ok := deliver(gfx.PointerDown, x, y); !ok {

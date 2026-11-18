@@ -113,10 +113,10 @@ func TestSplitterDragMovesTheFirstPaneWithinItsLimits(t *testing.T) {
 	bar := splitterAt(t, canvas)
 	x, y := bar.X+bar.Width/2, float32(50)
 
-	deliver := func(kind gfx.PointerEventKind, px float32) {
+	deliver := func(Kind gfx.PointerEventKind, px float32) {
 		t.Helper()
-		if !canvas.DeliverPointer(gfx.PointerEvent{Kind: kind, Button: gfx.PointerButtonPrimary, X: px, Y: y, Target: splitID, Captured: kind != gfx.PointerDown}, size, paint) {
-			t.Fatalf("pointer %v was not consumed by the splitter", kind)
+		if !canvas.DeliverPointer(gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, X: px, Y: y, Target: splitID, Captured: Kind != gfx.PointerDown}, size, paint) {
+			t.Fatalf("pointer %v was not consumed by the splitter", Kind)
 		}
 	}
 	deliver(gfx.PointerDown, x)

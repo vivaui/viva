@@ -140,7 +140,7 @@ func (f *frame) SliderBase(id gfx.ID, state *SliderState) Box {
 
 // Range sets the least and the greatest value of a Slider.
 func (b Box) Range(least, greatest float32) Box {
-	if n := b.n(); n.kind == kindSlider {
+	if n := b.n(); n.Kind == kindSlider {
 		s := widgetsOf(b.f).sliders[n.aux].state
 		s.min, s.max = least, max(greatest, least)
 	}
@@ -149,7 +149,7 @@ func (b Box) Range(least, greatest float32) Box {
 
 // Step makes a Slider take only multiples of step above its least value.
 func (b Box) Step(step float32) Box {
-	if n := b.n(); n.kind == kindSlider {
+	if n := b.n(); n.Kind == kindSlider {
 		widgetsOf(b.f).sliders[n.aux].state.step = max(step, 0)
 	}
 	return b
@@ -165,7 +165,7 @@ func (b Box) Changed() bool {
 	if n.ext != 0 && b.f.exts[n.ext].bind != 0 {
 		return b.f.settleFn(b.f, b.i).changed
 	}
-	if n.kind != kindSlider {
+	if n.Kind != kindSlider {
 		return false
 	}
 	b.f.settleSlider(n)

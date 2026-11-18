@@ -42,7 +42,7 @@ func (f *frame) Tabs(scope gfx.Scope, labels []string, selected int) Box {
 // Line makes a Tabs strip the transparent variant with an underline under the active
 // tab. Vertical stacks its tabs in a column, with the line at their trailing edge.
 func (b Box) Line() Box {
-	if n := b.n(); n.kind == kindTabs {
+	if n := b.n(); n.Kind == kindTabs {
 		widgetsOf(b.f).tabs[n.aux].line = true
 	}
 	return b
@@ -51,7 +51,7 @@ func (b Box) Line() Box {
 // Vertical stacks the tabs of a Tabs strip in a column, and makes a Slider a tall one
 // (minimum at the bottom) instead of a wide one.
 func (b Box) Vertical() Box {
-	switch n := b.n(); n.kind {
+	switch n := b.n(); n.Kind {
 	case kindTabs:
 		widgetsOf(b.f).tabs[n.aux].vertical = true
 	case kindSlider:
@@ -63,7 +63,7 @@ func (b Box) Vertical() Box {
 // TabClicked reports which tab of a Tabs strip this paint is delivering a click on.
 func (b Box) TabClicked() (int, bool) {
 	n := b.n()
-	if n.kind != kindTabs || b.f.canvas == nil {
+	if n.Kind != kindTabs || b.f.canvas == nil {
 		return 0, false
 	}
 	return b.f.canvas.ClickedIn(widgetsOf(b.f).tabs[n.aux].scope)

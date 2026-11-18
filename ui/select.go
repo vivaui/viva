@@ -56,7 +56,7 @@ type SelectState struct {
 // measured width (the longest option and its padding), never narrower than the
 // trigger. It has no effect on a box that is not a Select.
 func (b Box) ListMaxWidth(width float32) Box {
-	if n := b.n(); n.kind == kindSelect {
+	if n := b.n(); n.Kind == kindSelect {
 		widgetsOf(b.f).selects[n.aux].state.listMaxWidth = max(width, 0)
 	}
 	return b
@@ -67,7 +67,7 @@ func (b Box) ListMaxWidth(width float32) Box {
 // shows as many options as fit and scrolls for the rest. It has no effect on a
 // box that is not a Select.
 func (b Box) ListMaxHeight(height float32) Box {
-	if n := b.n(); n.kind == kindSelect {
+	if n := b.n(); n.Kind == kindSelect {
 		widgetsOf(b.f).selects[n.aux].state.listMaxHeight = max(height, 0)
 	}
 	return b
@@ -506,7 +506,7 @@ func selectRows(count int, frame float32) int {
 
 // Placeholder is the text a Select or Combobox shows while nothing is selected.
 func (b Box) Placeholder(value string) Box {
-	if n := b.n(); n.kind == kindSelect {
+	if n := b.n(); n.Kind == kindSelect {
 		n.text = value
 	} else if s := b.combo(); s != nil {
 		s.placeholder = value
@@ -520,7 +520,7 @@ func (b Box) Placeholder(value string) Box {
 // exactly what it always has; a SelectBase keeps them for its caller and paints
 // none, as it does the rest of the look.
 func (b Box) Icons(icons []gfx.Icon) Box {
-	if n := b.n(); n.kind == kindSelect {
+	if n := b.n(); n.Kind == kindSelect {
 		widgetsOf(b.f).selects[n.aux].icons = icons
 	}
 	return b
@@ -532,7 +532,7 @@ func (b Box) Icons(icons []gfx.Icon) Box {
 // a shorter one leaves the options past its end enabled. A select given none has every
 // option enabled.
 func (b Box) DisabledOptions(disabled []bool) Box {
-	if n := b.n(); n.kind == kindSelect {
+	if n := b.n(); n.Kind == kindSelect {
 		d := &widgetsOf(b.f).selects[n.aux]
 		d.disabled, d.state.disabled = disabled, disabled
 	}
@@ -542,7 +542,7 @@ func (b Box) DisabledOptions(disabled []bool) Box {
 // Hint is the description assistive technology reads after a Select's name and value, for
 // what the value alone does not say, such as the path a chosen shell stands for.
 func (b Box) Hint(text string) Box {
-	if n := b.n(); n.kind == kindSelect {
+	if n := b.n(); n.Kind == kindSelect {
 		widgetsOf(b.f).selects[n.aux].hint = text
 	}
 	return b
@@ -556,7 +556,7 @@ func optionDisabled(disabled []bool, i int) bool { return i >= 0 && i < len(disa
 // outside closes it, the arrows move its window.
 func (b Box) Picked() (int, bool) {
 	n := b.n()
-	if n.kind != kindSelect || b.f.canvas == nil {
+	if n.Kind != kindSelect || b.f.canvas == nil {
 		return 0, false
 	}
 	d := &widgetsOf(b.f).selects[n.aux]
@@ -655,7 +655,7 @@ func (f *frame) paintSelect(n *node) {
 	// A Select is as tall as it measures unless the application gave it a height,
 	// which then sizes the trigger itself.
 	height := n.pref[axisY]
-	if n.size[axisY].kind != dimAuto {
+	if n.size[axisY].Kind != dimAuto {
 		height = n.rect.Height
 	}
 	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: height}
@@ -727,7 +727,7 @@ func (b Box) Part(i int) Rect { return b.f.selectPart(b.n(), i) }
 // closed. It is painted after the page, over it, so what is drawn on it with Draw is the panel.
 func (b Box) Popup() (Box, bool) {
 	n := b.n()
-	if n.kind != kindSelect {
+	if n.Kind != kindSelect {
 		return Box{}, false
 	}
 	d := &widgetsOf(b.f).selects[n.aux]
@@ -738,7 +738,7 @@ func (b Box) Popup() (Box, bool) {
 }
 
 func (f *frame) selectPart(n *node, i int) Rect {
-	if n.kind != kindSelect {
+	if n.Kind != kindSelect {
 		return Rect{}
 	}
 	d := &widgetsOf(f).selects[n.aux]

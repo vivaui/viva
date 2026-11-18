@@ -67,7 +67,7 @@ type Toaster struct {
 type toast struct {
 	n                  uint32 // its number: ToastID, and its identity in the Toaster's scope
 	title, description string
-	kind               ToastKind
+	Kind               ToastKind
 	action             string // the label of its button; none when empty
 	shown              bool   // painted once: in the queue, with its time running
 }
@@ -77,18 +77,18 @@ type ToastID uint32
 
 // Show puts up a toast: a title, and a description under it ("" for none). The
 // same title and description already up is not shown twice; its time starts again.
-func (t *Toaster) Show(title, description string, kind ToastKind) ToastID {
-	return t.ShowAction(title, description, kind, "")
+func (t *Toaster) Show(title, description string, Kind ToastKind) ToastID {
+	return t.ShowAction(title, description, Kind, "")
 }
 
 // ShowAction is Show with a button labeled action, which Acted reports and which
 // takes the toast down: an Undo, a Retry, an Open. The action is not the only way
 // to it: what the toast offers is somewhere in the window too, for the toast goes
 // by itself.
-func (t *Toaster) ShowAction(title, description string, kind ToastKind, action string) ToastID {
+func (t *Toaster) ShowAction(title, description string, Kind ToastKind, action string) ToastID {
 	for i := range t.toasts {
 		if item := &t.toasts[i]; item.title == title && item.description == description {
-			item.kind, item.action = kind, action
+			item.Kind, item.action = Kind, action
 			if item.shown {
 				t.queue.Remove(t.id(item.n))
 				item.shown = false // the next paint queues it again, with a fresh time
@@ -97,16 +97,16 @@ func (t *Toaster) ShowAction(title, description string, kind ToastKind, action s
 		}
 	}
 	t.next++
-	t.toasts = append(t.toasts, toast{n: t.next, title: title, description: description, kind: kind, action: action})
+	t.toasts = append(t.toasts, toast{n: t.next, title: title, description: description, Kind: Kind, action: action})
 	return ToastID(t.next)
 }
 
 // Done replaces toast id, a ToastLoading one, with what it ended in: its title,
 // description and kind now, and its time running from now.
-func (t *Toaster) Done(id ToastID, title, description string, kind ToastKind) {
+func (t *Toaster) Done(id ToastID, title, description string, Kind ToastKind) {
 	for i := range t.toasts {
 		if item := &t.toasts[i]; item.n == uint32(id) {
-			item.title, item.description, item.kind = title, description, kind
+			item.title, item.description, item.Kind = title, description, Kind
 			if item.shown {
 				t.queue.Remove(t.id(item.n))
 				item.shown = false
@@ -188,7 +188,7 @@ func Toasts(c C, t *Toaster) {
 		if item.shown {
 			continue
 		}
-		evicted, ok := t.queue.Add(t.id(item.n), now, item.kind == ToastLoading)
+		evicted, ok := t.queue.Add(t.id(item.n), now, item.Kind == ToastLoading)
 		item.shown = ok
 		if at, inside := evicted.In(t.scope); inside {
 			// The queue was full: the oldest goes, which is ahead of this one.
@@ -213,7 +213,7 @@ func Toasts(c C, t *Toaster) {
 			t.queue.Resume(t.id(item.n), now)
 		}
 		toast := components.SonnerToast{
-			Snapshot: components.ToastSnapshot{Title: item.title, Description: item.description, Type: item.kind.component()},
+			Snapshot: components.ToastSnapshot{Title: item.title, Description: item.description, Type: item.Kind.component()},
 			Scope:    t.id(item.n), DismissID: t.scope.At(int(item.n)*3 + toastClose),
 		}
 		if item.action != "" {
@@ -229,8 +229,8 @@ func Toasts(c C, t *Toaster) {
 	}
 }
 
-func (kind ToastKind) component() components.ToastType {
-	switch kind {
+func (Kind ToastKind) component() components.ToastType {
+	switch Kind {
 	case ToastSuccess:
 		return components.ToastSuccess
 	case ToastInfo:

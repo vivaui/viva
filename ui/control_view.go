@@ -11,7 +11,7 @@ import (
 // It is a value, so the engine's element model stays below the styled controls;
 // a painter reads this and its own state, never the engine's node.
 type ControlView struct {
-	Kind   kind
+	Kind   Kind
 	Rect   gfx.Rect
 	Aux    int32
 	ID     gfx.ID
@@ -41,7 +41,7 @@ type ControlView struct {
 func viewOf(f *frame, n *node) ControlView {
 	extra := &f.exts[n.ext]
 	return ControlView{
-		Kind: n.kind, Rect: n.rect, Aux: n.aux, ID: n.id, Label: n.label, Text: n.text,
+		Kind: n.Kind, Rect: n.rect, Aux: n.aux, ID: n.id, Label: n.label, Text: n.text,
 		Font: n.fontSize, Weight: n.weight, Variant: n.variant, Size: n.buttonSize,
 		Flags: n.flags, Hit: extra.hit, HasHit: n.flags&flagHasHit != 0,
 		Disabled: n.flags&flagDisabled != 0, Icon: extra.icon,

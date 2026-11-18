@@ -80,7 +80,7 @@ func SplitButton(c C, spec SplitButtonSpec) Box {
 // Open marks a SplitButton's menu open or closed: the trigger keeps its highlight
 // while open and tells assistive technology it is expanded.
 func (b Box) Open(open bool) Box {
-	if n := b.n(); n.kind == kindSplitButton {
+	if n := b.n(); n.Kind == kindSplitButton {
 		widgetsOf(b.f).splitButtons[n.aux].open = open
 	}
 	return b
@@ -88,7 +88,7 @@ func (b Box) Open(open bool) Box {
 
 // MenuLabel names a SplitButton's trigger to assistive technology.
 func (b Box) MenuLabel(label string) Box {
-	if n := b.n(); n.kind == kindSplitButton {
+	if n := b.n(); n.Kind == kindSplitButton {
 		widgetsOf(b.f).splitButtons[n.aux].menuLabel = label
 	}
 	return b
@@ -96,7 +96,7 @@ func (b Box) MenuLabel(label string) Box {
 
 // MenuHint is the description read after a SplitButton trigger's name.
 func (b Box) MenuHint(text string) Box {
-	if n := b.n(); n.kind == kindSplitButton {
+	if n := b.n(); n.Kind == kindSplitButton {
 		widgetsOf(b.f).splitButtons[n.aux].menuHint = text
 	}
 	return b
@@ -104,7 +104,7 @@ func (b Box) MenuHint(text string) Box {
 
 // MenuIcon sets the icon a SplitButton's trigger draws: a downward chevron when none.
 func (b Box) MenuIcon(icon gfx.Icon) Box {
-	if n := b.n(); n.kind == kindSplitButton {
+	if n := b.n(); n.Kind == kindSplitButton {
 		widgetsOf(b.f).splitButtons[n.aux].icon = icon
 	}
 	return b
@@ -112,7 +112,7 @@ func (b Box) MenuIcon(icon gfx.Icon) Box {
 
 // MenuTriggerWidth sets the width of a SplitButton's trigger half, 32 when zero.
 func (b Box) MenuTriggerWidth(width float32) Box {
-	if n := b.n(); n.kind == kindSplitButton {
+	if n := b.n(); n.Kind == kindSplitButton {
 		widgetsOf(b.f).splitButtons[n.aux].triggerWidth = width
 	}
 	return b

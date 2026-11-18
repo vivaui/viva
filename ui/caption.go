@@ -18,7 +18,7 @@ import (
 // press still flips the bound value, so the application decides what the next state is.
 // It has no effect on any other element.
 func (b Box) Mixed(mixed bool) Box {
-	if n := b.n(); n.kind == kindCheckbox {
+	if n := b.n(); n.Kind == kindCheckbox {
 		if mixed {
 			n.flags |= flagMixed
 		} else {
@@ -30,7 +30,7 @@ func (b Box) Mixed(mixed bool) Box {
 
 func (b Box) Caption(text string) Box {
 	n := b.n()
-	if n.kind != kindCheckbox && n.kind != kindSwitch {
+	if n.Kind != kindCheckbox && n.Kind != kindSwitch {
 		return b
 	}
 	n.text = text

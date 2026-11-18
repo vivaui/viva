@@ -488,9 +488,9 @@ func (s *ListState) indexOf(id gfx.ID) int {
 
 // requestScroll makes kind of scroll to row the one the next paints apply, as a new
 // request rather than the continuation of one still settling.
-func (s *ListState) requestScroll(kind listScroll, row int) {
+func (s *ListState) requestScroll(Kind listScroll, row int) {
 	in := &s.list
-	in.pending, in.pendingRow = kind, int32(row+1)
+	in.pending, in.pendingRow = Kind, int32(row+1)
 	in.pendingAt, in.pendingFrame = 0, 0
 }
 
@@ -601,14 +601,14 @@ func (s *ListState) afterLayout() {
 // scrollTarget is where the request kind puts row as the list knows the heights now:
 // the offset to scroll to, and whether the end of the content is what it scrolls to,
 // which only a layout can place.
-func (s *ListState) scrollTarget(kind listScroll, row int, viewport float32, scroll *ScrollState) (target float32, toEnd, ok bool) {
-	if kind == listScrollToEnd {
+func (s *ListState) scrollTarget(Kind listScroll, row int, viewport float32, scroll *ScrollState) (target float32, toEnd, ok bool) {
+	if Kind == listScrollToEnd {
 		return s.top(s.list.n) - viewport, true, s.list.n > 0
 	}
 	if row < 0 || row >= s.list.n {
 		return 0, false, false
 	}
-	switch kind {
+	switch Kind {
 	case listScrollStart:
 		return s.top(row), false, true
 	case listScrollCenter:

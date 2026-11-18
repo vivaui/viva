@@ -40,7 +40,7 @@ func (f *frame) Progress(fraction float32) Box {
 // the next frame only while it is on screen, and holds still when the system asks
 // for reduced motion.
 func (b Box) Indeterminate() Box {
-	if n := b.n(); n.kind == kindProgress {
+	if n := b.n(); n.Kind == kindProgress {
 		n.natural = -1
 	}
 	return b

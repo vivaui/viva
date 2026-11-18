@@ -37,9 +37,9 @@ func (p *sliderPage) paint(canvas *gfx.Canvas, size gfx.Size) {
 	})
 }
 
-func (p *sliderPage) pointer(t *testing.T, canvas *gfx.Canvas, kind gfx.PointerEventKind, x, y float32) bool {
+func (p *sliderPage) pointer(t *testing.T, canvas *gfx.Canvas, Kind gfx.PointerEventKind, x, y float32) bool {
 	t.Helper()
-	return canvas.DeliverPointer(gfx.PointerEvent{Kind: kind, Button: gfx.PointerButtonPrimary, X: x, Y: y, Target: volumeID, Captured: kind != gfx.PointerDown}, gfx.Size{Width: 200, Height: 200}, p.paint)
+	return canvas.DeliverPointer(gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, X: x, Y: y, Target: volumeID, Captured: Kind != gfx.PointerDown}, gfx.Size{Width: 200, Height: 200}, p.paint)
 }
 
 // The track of a horizontal slider 200 wide runs between the thumb's two half widths.
@@ -310,8 +310,8 @@ func TestSliderBaseDragsAndReportsLikeASliderAndDrawsNothingOfItsOwn(t *testing.
 	if got, want := p.thumb.X+8, p.box.Rect().X+8+0.2*(p.box.Rect().Width-16); got != want {
 		t.Errorf("the thumb is centered at %v, want %v", got, want)
 	}
-	press := func(kind gfx.PointerEventKind, x float32) {
-		canvas.DeliverPointer(gfx.PointerEvent{Kind: kind, Button: gfx.PointerButtonPrimary, X: x, Y: p.box.Rect().Y + 8, Target: volumeID, Captured: kind != gfx.PointerDown}, gfx.Size{Width: 200, Height: 200}, p.paint)
+	press := func(Kind gfx.PointerEventKind, x float32) {
+		canvas.DeliverPointer(gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, X: x, Y: p.box.Rect().Y + 8, Target: volumeID, Captured: Kind != gfx.PointerDown}, gfx.Size{Width: 200, Height: 200}, p.paint)
 	}
 	press(gfx.PointerDown, trackFrom+(trackTo-trackFrom)*0.2)
 	press(gfx.PointerMove, trackFrom+(trackTo-trackFrom)*0.5)
