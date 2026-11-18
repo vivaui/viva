@@ -52,7 +52,7 @@ func (f *frame) AlertDialog(spec AlertDialogSpec) Box {
 	}
 	root := f.Popup().At(0, 0).Fill()
 	r := root.n()
-	r.flags |= flagAlertDialog
+	r.Flags |= flagAlertDialog
 	r.aux = int32(len(widgetsOf(f).alertDialogs))
 	widgetsOf(f).alertDialogs = append(widgetsOf(f).alertDialogs, alertDialogDecl{spec: spec, layer: layer})
 	return root

@@ -221,8 +221,8 @@ func (f *frame) drawer(spec drawerSpec, footer bool) Box {
 	}
 	root := f.Popup().At(0, 0).Fill()
 	r := root.n()
-	r.dir = stack
-	r.flags |= flagDrawer
+	r.Dir = stack
+	r.Flags |= flagDrawer
 	f.paintDrawerFn = (*frame).paintDrawer
 	r.aux = int32(len(widgetsOf(f).drawers))
 	d := drawerDecl{spec: spec, layer: layer, footer: -1}
@@ -255,11 +255,11 @@ func (b Box) drawerPart(fn func(), layer uint16) {
 func (f *frame) paintDrawer(n *node) {
 	d := &widgetsOf(f).drawers[n.aux]
 	drawer := d.spec.component(f.canvas, f.theme, n.rect, d.layer)
-	if n.flags&flagDisabled != 0 {
+	if n.Flags&flagDisabled != 0 {
 		drawer = drawer.Disabled()
 	}
 	drawer.Begin(d.spec.title, d.spec.Description)
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		f.paint(c)
 	}
 	drawer.End()

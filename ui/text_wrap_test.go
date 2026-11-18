@@ -12,19 +12,19 @@ import (
 func runeCanvas() *gfx.Canvas {
 	canvas := &gfx.Canvas{}
 	canvas.SetTree(&tree)
-	canvas.SetMeasurer(func(value string, size, weight float32) float32 { return float32(utf8.RuneCountInString(value)) * size })
+	canvas.SetMeasurer(func(value string, size, Weight float32) float32 { return float32(utf8.RuneCountInString(value)) * size })
 	return canvas
 }
 
 // paintedLines draws a paragraph and returns what was painted and the height the
 // layout gave it.
-func paintedLines(t *testing.T, view *View, text string, width float32, maxLines int) ([]string, float32) {
+func paintedLines(t *testing.T, view *View, text string, width float32, MaxLines int) ([]string, float32) {
 	t.Helper()
 	canvas := runeCanvas()
 	var box Box
 	f := view.Begin(canvas, gfx.LightTheme(), gfx.Rect{Width: width, Height: 600})
 	f.Column().Children(func() {
-		box = f.Text(text).FontSize(10).MaxLines(maxLines)
+		box = f.Text(text).FontSize(10).MaxLines(MaxLines)
 	})
 	f.End()
 	var lines []string

@@ -197,8 +197,8 @@ func TestSelectTooLongForTheFrameScrollsItsWindow(t *testing.T) {
 		labels[i] = fmt.Sprintf("option %d", i)
 	}
 	state := SelectState{Open: true}
-	draw := func(canvas *gfx.Canvas) (first, last, arrows int) {
-		first, last = -1, -1
+	draw := func(canvas *gfx.Canvas) (First, Last, arrows int) {
+		First, Last = -1, -1
 		var view View
 		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 300}, func(f *Frame) {
 			f.Column().Pad(10).Children(func() {
@@ -209,10 +209,10 @@ func TestSelectTooLongForTheFrameScrollsItsWindow(t *testing.T) {
 			if i, ok := hit.ID.In(selScope); ok {
 				switch {
 				case i < 40:
-					if first < 0 {
-						first = i
+					if First < 0 {
+						First = i
 					}
-					last = i
+					Last = i
 				case i == 43 || i == 44:
 					arrows++
 				}

@@ -54,7 +54,7 @@ func (f *frame) textEntryLook(theme *Theme, state gfx.State) components.TextEntr
 func (f *frame) applyRecipes() {
 	for i := range f.nodes {
 		n := &f.nodes[i]
-		if n.flags&flagThemed == 0 {
+		if n.Flags&flagThemed == 0 {
 			continue
 		}
 		switch n.Kind {
@@ -62,13 +62,13 @@ func (f *frame) applyRecipes() {
 			var scratch Theme
 			theme := f.recipeTheme(n, &scratch)
 			look := f.textEntryLook(theme, gfx.State{})
-			if n.flags&flagSetBorder == 0 {
+			if n.Flags&flagSetBorder == 0 {
 				n.borderWidth = look.BorderWidth
 			}
-			if n.flags&flagHasRadius == 0 {
+			if n.Flags&flagHasRadius == 0 {
 				n.radius = look.Radius
 			}
-			if n.flags&flagSetPad == 0 {
+			if n.Flags&flagSetPad == 0 {
 				x, y := textEntryInsets(theme, n.Kind)
 				n.pad = [4]float32{max(y-n.borderWidth, 0), max(x-n.borderWidth, 0), max(y-n.borderWidth, 0), max(x-n.borderWidth, 0)}
 			}
@@ -95,13 +95,13 @@ func (f *frame) themedDefaults(n *node, extra *extra, s *resolved) {
 	}
 	var scratch Theme
 	look := f.textEntryLook(f.recipeTheme(n, &scratch), state)
-	if n.flags&flagSetBackground == 0 {
+	if n.Flags&flagSetBackground == 0 {
 		s.background = look.Fill
 	}
-	if n.flags&flagSetBorder == 0 {
+	if n.Flags&flagSetBorder == 0 {
 		s.border = look.Border
 	}
-	if n.flags&flagSetShadow == 0 {
+	if n.Flags&flagSetShadow == 0 {
 		s.shadow = look.Shadow
 	}
 }
@@ -117,7 +117,7 @@ func (f *frame) focused(n *node) bool {
 // control's edge, not taken out of the area the text is centered in.
 func (f *frame) contentRect(n *node) Rect {
 	r := n.rect
-	if n.flags&flagThemed != 0 && n.flags&flagSetPad == 0 {
+	if n.Flags&flagThemed != 0 && n.Flags&flagSetPad == 0 {
 		var scratch Theme
 		x, y := textEntryInsets(f.recipeTheme(n, &scratch), n.Kind)
 		return Rect{X: r.X + x, Y: r.Y + y, Width: max(r.Width-2*x, 0), Height: max(r.Height-2*y, 0)}
@@ -132,10 +132,10 @@ func (f *frame) contentRect(n *node) Rect {
 // text is given everywhere else. The size is the element's FontSize, or the snapshot's own text
 // size, or the theme's.
 func (f *frame) inputLine(n *node) float32 {
-	if n.lineH > 0 {
-		return n.lineH
+	if n.LineH > 0 {
+		return n.LineH
 	}
-	size := n.fontSize
+	size := n.FontSize
 	if size <= 0 {
 		size = widgetsOf(f).inputs[n.aux].Text.Size
 	}

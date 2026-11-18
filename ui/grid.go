@@ -15,14 +15,14 @@ package ui
 
 // ColSpan and RowSpan make a Grid child cover that many columns or rows (at least
 // one). They have no effect outside a Grid.
-func (b Box) ColSpan(n int) Box { b.n().colSpan = spanOf(n); return b }
-func (b Box) RowSpan(n int) Box { b.n().rowSpan = spanOf(n); return b }
+func (b Box) ColSpan(n int) Box { b.n().ColSpan = spanOf(n); return b }
+func (b Box) RowSpan(n int) Box { b.n().RowSpan = spanOf(n); return b }
 
 func spanOf(n int) uint8 { return uint8(min(max(n, 1), 255)) }
 
 // span is how many columns and rows a child covers; the zero value is one.
 func (n *node) span() (cols, rows int) {
-	return max(int(n.colSpan), 1), max(int(n.rowSpan), 1)
+	return max(int(n.ColSpan), 1), max(int(n.RowSpan), 1)
 }
 
 // gridColumns is how many cells of at least minCell fit in width.
@@ -35,7 +35,7 @@ func gridColumns(width, minCell, gap float32) int {
 func (f *frame) placeGrid(n *node, columns int) int {
 	s := &f.scratch
 	total, tall := 0, false
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		_, rs := f.nodes[c].span()
 		total += rs
 		tall = tall || rs > 1
@@ -49,7 +49,7 @@ func (f *frame) placeGrid(n *node, columns int) int {
 		clear(s.cells)
 	}
 	col, row, rows := 0, 0, 0
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		cs, rs := child.span()
 		cs = min(cs, columns)
@@ -93,7 +93,7 @@ func (s *scratch) free(columns, col, row, cs, rs int) bool {
 func (f *frame) gridRows(n *node) int {
 	s := &f.scratch
 	rows, widest := 0, 1
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		_, rs := child.span()
 		rows = max(rows, int(child.gridRow)+rs)
@@ -104,7 +104,7 @@ func (f *frame) gridRows(n *node) int {
 		s.rows = append(s.rows, 0)
 	}
 	for span := 1; span <= widest; span++ {
-		for c := n.first; c >= 0; c = f.nodes[c].next {
+		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			if _, rs := child.span(); rs != span {
 				continue
@@ -139,7 +139,7 @@ func (f *frame) measureGrid(n *node, axis int) {
 		// As narrow as one cell: the grid takes the width it is given and fits
 		// as many columns as it can. An element spanning columns needs its share.
 		widest := n.gridMin
-		for c := n.first; c >= 0; c = f.nodes[c].next {
+		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			cs, _ := child.span()
 			widest = max(widest, (child.pref[axisX]-n.gap*float32(cs-1))/float32(cs))
@@ -161,7 +161,7 @@ func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
 	if axis == axisX {
 		cell := (avail - n.gap*float32(columns-1)) / float32(columns)
 		f.placeGrid(n, columns)
-		for c := n.first; c >= 0; c = f.nodes[c].next {
+		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			cs, _ := child.span()
 			cs = min(cs, columns)
@@ -174,7 +174,7 @@ func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
 	}
 	f.gridRows(n)
 	s := &f.scratch
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		_, rs := child.span()
 		first := int(child.gridRow)

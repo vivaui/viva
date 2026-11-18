@@ -55,7 +55,7 @@ type Ctx struct {
 	page *Page
 	f    *frame
 	// next names the next element instead of its place: a Key, an index or a part.
-	next     protoName
+	Next     protoName
 	nextSet  bool
 	stateSeq map[stateName]uint32 // reset each paint: the States of each name asked for in each scope
 }
@@ -71,13 +71,13 @@ type protoName struct {
 // their names, focus and state as rows come, go and move. Keys are unique among
 // their siblings in a paint.
 func (c *Ctx) Key(key string) C {
-	c.next, c.nextSet = protoName{key: keyKey{text: key, isText: true}, kindOf: 1}, true
+	c.Next, c.nextSet = protoName{key: keyKey{text: key, isText: true}, kindOf: 1}, true
 	return c
 }
 
 // KeyInt is Key for a number, a record's ID.
 func (c *Ctx) KeyInt(key int) C {
-	c.next, c.nextSet = protoName{key: keyKey{number: key}, kindOf: 1}, true
+	c.Next, c.nextSet = protoName{key: keyKey{number: key}, kindOf: 1}, true
 	return c
 }
 
@@ -85,7 +85,7 @@ func (c *Ctx) KeyInt(key int) C {
 // (its trigger, its list), which a test can address by that word.
 func (c *Ctx) Part(name string) C {
 	checkName("Part", name)
-	c.next, c.nextSet = protoName{part: name, kindOf: 2}, true
+	c.Next, c.nextSet = protoName{part: name, kindOf: 2}, true
 	return c
 }
 
@@ -339,7 +339,7 @@ type place struct {
 
 // intKey is a KeyInt row: compared without a string.
 type intKey struct {
-	parent gfx.Scope
+	Parent gfx.Scope
 	number int
 }
 
@@ -861,7 +861,7 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 // current is the container being filled that the page named: a container the
 // frame made for itself (a Dialog's surface) is looked through.
 func (p *Page) current() int32 {
-	for i := p.ctx.f.parent; i >= 0; i = p.ctx.f.nodes[i].parent {
+	for i := p.ctx.f.Parent; i >= 0; i = p.ctx.f.nodes[i].Parent {
 		if int(i) < len(p.nodes) && p.nodes[i].named {
 			return i
 		}
@@ -935,17 +935,17 @@ func (p *Page) name(Kind uint8) (at place, named bool) {
 	if c.nextSet {
 		c.nextSet = false
 		scope := p.resolve(node)
-		switch c.next.kindOf {
+		switch c.Next.kindOf {
 		case 1:
 			s := p.record(scope)
-			key := c.next.key
-			key.parent = scope
+			key := c.Next.key
+			key.Parent = scope
 			var entry keyEntry
 			var ok bool
 			if key.isText {
 				entry, ok = p.keys[key]
 			} else {
-				entry, ok = p.intKeys[intKey{parent: scope, number: key.number}]
+				entry, ok = p.intKeys[intKey{Parent: scope, number: key.number}]
 			}
 			if ok && entry.epoch == p.epoch {
 				panic("ui: two siblings have the key " + key.describe() + " in one paint; key rows by something unique")
@@ -957,7 +957,7 @@ func (p *Page) name(Kind uint8) (at place, named bool) {
 			if key.isText {
 				p.keys[key] = entry
 			} else {
-				p.intKeys[intKey{parent: scope, number: key.number}] = entry
+				p.intKeys[intKey{Parent: scope, number: key.number}] = entry
 			}
 			if len(p.recording) > 0 {
 				p.noteKey(key)
@@ -967,7 +967,7 @@ func (p *Page) name(Kind uint8) (at place, named bool) {
 			}
 			return place{node: node, scope: s.keySub, name: gfx.Index(int(entry.slot))}, true
 		case 2:
-			return place{node: node, scope: scope, name: p.tree.Name(c.next.part)}, true
+			return place{node: node, scope: scope, name: p.tree.Name(c.Next.part)}, true
 		}
 	}
 	counts := &p.nodes[node].counts
@@ -1045,13 +1045,13 @@ func (p *Page) sweep() {
 	for key, entry := range p.keys {
 		if entry.epoch != p.epoch {
 			delete(p.keys, key)
-			p.record(key.parent).keys.give(entry.slot, p.epoch)
+			p.record(key.Parent).keys.give(entry.slot, p.epoch)
 		}
 	}
 	for key, entry := range p.intKeys {
 		if entry.epoch != p.epoch {
 			delete(p.intKeys, key)
-			p.record(key.parent).keys.give(entry.slot, p.epoch)
+			p.record(key.Parent).keys.give(entry.slot, p.epoch)
 		}
 	}
 	for key, entry := range p.bound {
@@ -1104,11 +1104,11 @@ func (p *Page) guard(b Box, id gfx.ID, label string) {
 		}
 		p.held[0] = armedButton{id: id, label: label}
 	case held.moved:
-		b.n().flags |= flagVeto
+		b.n().Flags |= flagVeto
 	case held.label == label:
 	case s.prevEpoch+1 == p.epoch && movedFrom(s.prev, label, number):
 		held.moved = true
-		b.n().flags |= flagVeto
+		b.n().Flags |= flagVeto
 		if focused {
 			canvas.ReleaseFocus(id)
 		}

@@ -97,7 +97,7 @@ func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
 	// Within the frame less the margin the components keep from its edges.
 	b.Within(f.bounds.Inset(gfx.All(8)))
 	n := b.n()
-	n.flags |= flagPopover
+	n.Flags |= flagPopover
 	f.paintPopoverFn = (*frame).paintPopover
 	n.aux = int32(len(widgetsOf(f).popovers))
 	widgetsOf(f).popovers = append(widgetsOf(f).popovers, popoverDecl{spec: spec, anchor: anchor.i, layer: widgetsOf(f).layer})
@@ -136,12 +136,12 @@ func (f *frame) paintPopover(i int32, n *node) {
 	canvas.Block(n.rect)
 	savedLayer := widgetsOf(f).layer
 	widgetsOf(f).layer = layer
-	n.flags &^= flagPopover
+	n.Flags &^= flagPopover
 	presence, pivot := components.PopupMotion(f.theme, n.rect, f.nodes[d.anchor].rect)
 	canvas.BeginPresence(spec.Scope, 0, presence, pivot)
 	f.paint(i)
 	canvas.EndPresence()
-	f.nodes[i].flags |= flagPopover
+	f.nodes[i].Flags |= flagPopover
 	widgetsOf(f).layer = savedLayer
 	if !spec.DismissID.IsZero() {
 		canvas.SetEscapeTarget(spec.DismissID)

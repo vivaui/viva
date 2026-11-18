@@ -76,8 +76,8 @@ func (f *frame) Dialog(spec DialogSpec) Box {
 
 	root := f.Popup().At(0, 0).Fill()
 	r := root.n()
-	r.dir = stack
-	r.flags |= flagDialog
+	r.Dir = stack
+	r.Flags |= flagDialog
 	r.aux = int32(len(widgetsOf(f).dialogs))
 	d := dialogDecl{spec: spec, layer: layer}
 	root.Children(func() {
@@ -134,7 +134,7 @@ const (
 )
 
 func (b Box) dialogPart(fn func(), partKind int) Box {
-	if b.n().flags&flagDialog == 0 {
+	if b.n().Flags&flagDialog == 0 {
 		return b
 	}
 	d := &widgetsOf(b.f).dialogs[b.n().aux]
@@ -157,14 +157,14 @@ func (b Box) dialogPart(fn func(), partKind int) Box {
 // button; or a Popover: a press outside it or on its anchor, or Escape.
 func (b Box) Dismissed() bool {
 	n := b.n()
-	if n.flags&flagPopover != 0 && b.f.canvas != nil {
+	if n.Flags&flagPopover != 0 && b.f.canvas != nil {
 		return b.f.canvas.Clicked(widgetsOf(b.f).popovers[n.aux].spec.DismissID)
 	}
-	if n.flags&flagDrawer != 0 && b.f.canvas != nil {
+	if n.Flags&flagDrawer != 0 && b.f.canvas != nil {
 		spec := &widgetsOf(b.f).drawers[n.aux].spec
 		return b.f.canvas.Clicked(spec.dismiss) || b.f.canvas.Clicked(spec.close)
 	}
-	if n.flags&flagDialog == 0 || b.f.canvas == nil {
+	if n.Flags&flagDialog == 0 || b.f.canvas == nil {
 		return false
 	}
 	spec := &widgetsOf(b.f).dialogs[n.aux].spec
@@ -175,7 +175,7 @@ func (b Box) Dismissed() bool {
 // body and footer inside the layer and focus scope it opens, then its modal bookkeeping.
 func (f *frame) paintDialog(n *node) {
 	d := &widgetsOf(f).dialogs[n.aux]
-	surface := f.nodes[n.first].rect
+	surface := f.nodes[n.First].rect
 	dialog := components.BeginDialog(f.canvas, f.theme, n.rect, components.DialogOptions{
 		Layer: d.layer, Scope: d.spec.Scope, DismissID: d.spec.DismissID, CloseID: d.spec.CloseID,
 		InitialFocusID: d.spec.InitialFocusID, ContentSize: Size{Width: surface.Width, Height: surface.Height},
@@ -184,11 +184,11 @@ func (f *frame) paintDialog(n *node) {
 	if d.spec.NoClose {
 		dialog = dialog.WithoutCloseButton()
 	}
-	if n.flags&flagDisabled != 0 {
+	if n.Flags&flagDisabled != 0 {
 		dialog = dialog.Disabled()
 	}
 	dialog.Begin(d.spec.Title, d.spec.Description)
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		f.paint(c)
 	}
 	dialog.End()

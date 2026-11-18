@@ -19,7 +19,7 @@ var (
 func testCanvas() *gfx.Canvas {
 	canvas := &gfx.Canvas{}
 	canvas.SetTree(&tree)
-	canvas.SetMeasurer(func(value string, size, weight float32) float32 { return float32(len(value)) * size / 2 })
+	canvas.SetMeasurer(func(value string, size, Weight float32) float32 { return float32(len(value)) * size / 2 })
 	return canvas
 }
 
@@ -433,7 +433,7 @@ func TestEllipsisKeepsOneLineAndEndsItWithAnEllipsis(t *testing.T) {
 	if name.Rect().Height != 17 || after.Rect().Y != 17 {
 		t.Errorf("an ellipsized text is %v tall and the next element starts at %v, want one line, 17 and 17", name.Rect().Height, after.Rect().Y)
 	}
-	if got := f.lines[f.nodes[name.i].lineFirst]; got == "a file name that is far too long to fit" || got == "" {
+	if got := f.lines[f.nodes[name.i].LineFirst]; got == "a file name that is far too long to fit" || got == "" {
 		t.Errorf("the line is %q, want it shortened", got)
 	}
 }

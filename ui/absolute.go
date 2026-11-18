@@ -29,23 +29,23 @@ const (
 // the root, cannot be absolute.
 func (b Box) Absolute() Box {
 	f, n := b.f, b.n()
-	if n.outOfFlow&absSelf != 0 || n.parent < 0 {
+	if n.outOfFlow&absSelf != 0 || n.Parent < 0 {
 		return b
 	}
-	parent := &f.nodes[n.parent]
+	parent := &f.nodes[n.Parent]
 	prev := int32(-1)
-	for c := parent.first; c >= 0 && c != b.i; c = f.nodes[c].next {
+	for c := parent.First; c >= 0 && c != b.i; c = f.nodes[c].Next {
 		prev = c
 	}
 	if prev < 0 {
-		parent.first = n.next
+		parent.First = n.Next
 	} else {
-		f.nodes[prev].next = n.next
+		f.nodes[prev].Next = n.Next
 	}
-	if parent.last == b.i {
-		parent.last = prev
+	if parent.Last == b.i {
+		parent.Last = prev
 	}
-	n.next = -1
+	n.Next = -1
 	n.outOfFlow |= absSelf
 	parent.outOfFlow |= absChildren
 	f.scratch.abs = append(f.scratch.abs, b.i)
@@ -74,14 +74,14 @@ func (b Box) edge(side int, v float32) Box {
 func (f *frame) solveAbsolute(i int32, axis int) {
 	p := &f.nodes[i]
 	border := p.borderWidth
-	if p.flags&flagOutline != 0 {
+	if p.Flags&flagOutline != 0 {
 		border = 0
 	}
 	lo := *origin(&p.rect, axis) + border
 	span := max(*extent(&p.rect, axis)-2*border, 0)
 	for _, ai := range f.scratch.abs {
 		a := &f.nodes[ai]
-		if a.parent != i {
+		if a.Parent != i {
 			continue
 		}
 		ms, me := a.marginOn(axis)
@@ -126,7 +126,7 @@ func (f *frame) solveAbsolute(i int32, axis int) {
 // paintAbsolute paints the absolute children of container i, after its other children.
 func (f *frame) paintAbsolute(i int32) {
 	for _, ai := range f.scratch.abs {
-		if f.nodes[ai].parent == i {
+		if f.nodes[ai].Parent == i {
 			f.paint(ai)
 		}
 	}

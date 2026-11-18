@@ -217,7 +217,7 @@ func (s *comboState) draw(d *DrawContext) {
 		InputID: ids.input, TriggerID: ids.trigger, DismissID: ids.dismiss, Scope: ids.focus,
 		ScrollID: ids.scroll, OptionIDs: ids.options,
 		Label: s.label, Placeholder: s.placeholder, EmptyLabel: s.empty, CreatePrefix: s.createPrefix,
-		Viewport: s.f.bounds, Layer: max(s.layer, s.f.popupLayer), Disabled: n.flags&flagDisabled != 0,
+		Viewport: s.f.bounds, Layer: max(s.layer, s.f.popupLayer), Disabled: n.Flags&flagDisabled != 0,
 	}
 	if s.clearable {
 		if s.clearLabelOf != s.label {

@@ -19,18 +19,18 @@ func (n *node) hasOwnTheme() bool {
 	case kindContainer, kindText, kindSpacer, kindIcon, kindSlot, kindImage:
 		return false
 	case kindInput, kindTextarea:
-		return n.fontSize > 0 // its corners are the element's own, and the recipe's
+		return n.FontSize > 0 // its corners are the element's own, and the recipe's
 	}
-	return n.fontSize > 0 || n.flags&flagHasRadius != 0
+	return n.FontSize > 0 || n.Flags&flagHasRadius != 0
 }
 
 // ownTheme is the frame's theme with the radius and font size n asked for.
 func (f *frame) ownTheme(n *node) Theme {
 	theme := f.theme
-	if n.fontSize > 0 {
-		theme = theme.WithFontSize(n.fontSize)
+	if n.FontSize > 0 {
+		theme = theme.WithFontSize(n.FontSize)
 	}
-	if n.flags&flagHasRadius != 0 {
+	if n.Flags&flagHasRadius != 0 {
 		theme = theme.WithRadius(n.radius)
 	}
 	return theme

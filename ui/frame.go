@@ -109,10 +109,10 @@ const (
 // each axis, is indexed by axisX or axisY, so the layout is written once.
 type node struct {
 	Kind  Kind
-	dir   direction
-	flags uint32
+	Dir   direction
+	Flags uint32
 
-	parent, first, last, next int32
+	Parent, First, Last, Next int32
 
 	size                 [2]dimension
 	minS, maxS           [2]float32 // a max of zero is no max
@@ -120,26 +120,26 @@ type node struct {
 	pad, margin          [4]float32 // top, right, bottom, left
 	gap                  float32
 	items, self, justify Align
-	colSpan              uint8 // the columns a Grid child covers; zero is one
+	ColSpan              uint8 // the columns a Grid child covers; zero is one
 	background           Color
 	borderWidth, radius  float32
 	gridCol, gridRow     uint16 // where a Grid placed the element; gridRow is also the line a Flow put it on
 	text                 string
-	fontSize, weight     float32
-	lineH                float32 // 0 is the size plus seven
-	face                 gfx.MonoFace
-	textDirection        gfx.TextDirection // the paragraph direction of a Text; zero takes it from the text
-	textEnd              bool              // a Text aligned to the end of its direction
+	FontSize, Weight     float32
+	LineH                float32 // 0 is the size plus seven
+	Face                 gfx.MonoFace
+	TextDirection        gfx.TextDirection // the paragraph direction of a Text; zero takes it from the text
+	TextEnd              bool              // a Text aligned to the end of its direction
 	color                Color
 	id                   gfx.ID
 	label                string
 	variant              style.Variant
 	buttonSize           style.Size
-	rowSpan              uint8 // the rows a Grid child covers; zero is one
+	RowSpan              uint8 // the rows a Grid child covers; zero is one
 	outOfFlow            uint8 // absolute positioning: see absolute.go
 
-	maxLines             int32     // a wrapped Text breaks into at most this many lines
-	lineFirst, lineCount int32     // its lines, in frame.lines
+	MaxLines             int32     // a wrapped Text breaks into at most this many lines
+	LineFirst, LineCount int32     // its lines, in frame.lines
 	scroll               float32   // how far a Scroll is scrolled
 	content              float32   // the natural height of a Scroll's children
 	gridMin              float32   // the narrowest cell of a Grid; a Flow's LineGap, negative for Gap
@@ -278,7 +278,7 @@ type frame struct {
 	scratch    scratch       // memory the layout borrows, see scratch.go
 	layoutCtx  LayoutContext // the context a CustomLayout is handed, reused
 	scrolls    scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
-	parent     int32
+	Parent     int32
 	bounds     Rect
 	gen        uint32 // the paint this frame is declaring; a Box names it
 	shiftedX   bool   // a CustomLayout moved children after their width was solved
@@ -341,12 +341,12 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.scratch.reset()
 	resetControls(f)
 	f.scrolls.epoch++
-	f.parent = -1
+	f.Parent = -1
 	root := f.add(kindContainer)
 	n := &f.nodes[root]
-	n.dir = column
+	n.Dir = column
 	n.size = [2]dimension{{dimPx, bounds.Width}, {dimPx, bounds.Height}}
-	f.parent = root
+	f.Parent = root
 	return f
 }
 
@@ -454,15 +454,15 @@ func (f *frame) add(k Kind) int32 {
 		panic("ui: an element was declared after the page was laid out (in a Draw callback, or after End): declare elements in the build function")
 	}
 	index := int32(len(f.nodes))
-	f.nodes = append(f.nodes, node{Kind: k, parent: f.parent, first: -1, last: -1, next: -1, items: Auto})
-	if f.parent >= 0 {
-		parent := &f.nodes[f.parent]
-		if parent.last < 0 {
-			parent.first = index
+	f.nodes = append(f.nodes, node{Kind: k, Parent: f.Parent, First: -1, Last: -1, Next: -1, items: Auto})
+	if f.Parent >= 0 {
+		parent := &f.nodes[f.Parent]
+		if parent.Last < 0 {
+			parent.First = index
 		} else {
-			f.nodes[parent.last].next = index
+			f.nodes[parent.Last].Next = index
 		}
-		f.nodes[f.parent].last = index
+		f.nodes[f.Parent].Last = index
 	}
 	return index
 }
@@ -472,7 +472,7 @@ func (f *frame) box(k Kind) Box { return Box{f: f, i: f.add(k), gen: f.gen} }
 // Row opens a container that lays its children out left to right.
 func (f *frame) Row() Box {
 	b := f.box(kindContainer)
-	f.nodes[b.i].dir = row
+	f.nodes[b.i].Dir = row
 	return b
 }
 
@@ -483,7 +483,7 @@ func (f *frame) Column() Box { return f.box(kindContainer) }
 // whole content area unless it has a size of its own.
 func (f *frame) Stack() Box {
 	b := f.box(kindContainer)
-	f.nodes[b.i].dir = stack
+	f.nodes[b.i].Dir = stack
 	return b
 }
 
@@ -495,10 +495,10 @@ func (f *frame) Stack() Box {
 // container, and the popup's own layer is the caller's business (wrap End in
 // canvas.PushLayer if it must sit above components painted later).
 func (f *frame) Popup() Box {
-	saved := f.parent
-	f.parent = -1
+	saved := f.Parent
+	f.Parent = -1
 	b := f.box(kindContainer)
-	f.parent = saved
+	f.Parent = saved
 	f.floats = append(f.floats, b.i)
 	return b
 }
@@ -514,7 +514,7 @@ func (f *frame) PopupLayer(layer uint16) { f.popupLayer = layer }
 func (f *frame) Grid(minCell float32) Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
-	n.dir = grid
+	n.Dir = grid
 	n.gridMin = max(minCell, 1)
 	return b
 }
@@ -530,7 +530,7 @@ func (f *frame) Grid(minCell float32) Box {
 func (f *frame) Flow() Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
-	n.dir = flow
+	n.Dir = flow
 	n.gridMin = -1
 	return b
 }
@@ -539,7 +539,7 @@ func (f *frame) Flow() Box {
 func (f *frame) customLayout(layout Layout) Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
-	n.dir = custom
+	n.Dir = custom
 	f.extra(b.i).layout = layout
 	return b
 }
@@ -553,7 +553,7 @@ func (f *frame) customLayout(layout Layout) Box {
 func (f *frame) Scroll(offset float32) Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
-	n.flags |= flagScroll | flagClip
+	n.Flags |= flagScroll | flagClip
 	n.scroll = max(offset, 0)
 	return b
 }
@@ -562,8 +562,8 @@ func (f *frame) Scroll(offset float32) Box {
 // maxLines of them (the last ends with an ellipsis), so its height follows its
 // width. It is what Text is not: a Text is one line and is clipped. Zero or less
 // takes as many lines as the width needs, as Box.MaxLines.
-func (f *frame) Paragraph(value string, maxLines int) Box {
-	return f.Text(value).MaxLines(maxLines)
+func (f *frame) Paragraph(value string, MaxLines int) Box {
+	return f.Text(value).MaxLines(MaxLines)
 }
 
 // Text adds one line of text, in the theme's body size and foreground color.
@@ -571,7 +571,7 @@ func (f *frame) Text(value string) Box {
 	b := f.box(kindText)
 	n := &f.nodes[b.i]
 	n.text = value
-	n.fontSize = f.theme.Metrics.FontSizeM
+	n.FontSize = f.theme.Metrics.FontSizeM
 	n.color = f.theme.Foreground
 	n.shrink = 1
 	return b
@@ -581,7 +581,7 @@ func (f *frame) Text(value string) Box {
 func (f *frame) Spacer() Box {
 	b := f.box(kindSpacer)
 	f.nodes[b.i].grow = 1
-	f.nodes[b.i].flags |= flagGrowSet
+	f.nodes[b.i].Flags |= flagGrowSet
 	return b
 }
 
@@ -591,7 +591,7 @@ func (f *frame) Divider() Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
 	n.background = f.theme.Border
-	if f.parent >= 0 && (f.nodes[f.parent].dir == row || f.nodes[f.parent].dir == flow) {
+	if f.Parent >= 0 && (f.nodes[f.Parent].Dir == row || f.nodes[f.Parent].Dir == flow) {
 		n.size[axisX] = dimension{dimPx, 1}
 	} else {
 		n.size[axisY] = dimension{dimPx, 1}
@@ -627,7 +627,7 @@ func (f *frame) Button(id gfx.ID, label string) Box {
 	b := f.box(kindButton)
 	n := &f.nodes[b.i]
 	n.id, n.label = id, label
-	n.flags |= flagHasHit
+	n.Flags |= flagHasHit
 	return b
 }
 
@@ -637,9 +637,9 @@ func (f *frame) Checkbox(id gfx.ID, checked bool) Box {
 	n := &f.nodes[b.i]
 	n.id = id
 	if checked {
-		n.flags |= flagChecked
+		n.Flags |= flagChecked
 	}
-	n.flags |= flagHasHit
+	n.Flags |= flagHasHit
 	return b
 }
 
@@ -649,9 +649,9 @@ func (f *frame) Switch(id gfx.ID, on bool) Box {
 	n := &f.nodes[b.i]
 	n.id = id
 	if on {
-		n.flags |= flagChecked
+		n.Flags |= flagChecked
 	}
-	n.flags |= flagHasHit
+	n.Flags |= flagHasHit
 	return b
 }
 
@@ -679,7 +679,7 @@ func (f *frame) extra(i int32) *extra {
 func (f *frame) checkHits() {
 	for i := range f.nodes {
 		n := &f.nodes[i]
-		if n.Kind != kindContainer || n.flags&flagHasHit == 0 || n.flags&flagChildren != 0 || n.first >= 0 {
+		if n.Kind != kindContainer || n.Flags&flagHasHit == 0 || n.Flags&flagChildren != 0 || n.First >= 0 {
 			continue
 		}
 		if n.size[axisX].Kind != dimAuto || n.size[axisY].Kind != dimAuto || n.background.Alpha > 0 || n.borderWidth > 0 || n.outOfFlow != 0 || n.minS != [2]float32{} {

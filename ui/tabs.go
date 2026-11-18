@@ -115,7 +115,7 @@ func (f *frame) paintTabs(n *node) {
 	if t.vertical {
 		tabs = tabs.Vertical()
 	}
-	if n.flags&flagDisabled != 0 {
+	if n.Flags&flagDisabled != 0 {
 		tabs = tabs.Disabled()
 	}
 	tabs.Paint()

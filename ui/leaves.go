@@ -59,8 +59,8 @@ func (f *frame) Spinner() Box { return f.box(kindSpinner) }
 // in: the elements that animate ask for frames only then.
 func (f *frame) visible(n *node) bool {
 	r := intersect(n.rect, f.bounds)
-	for p := n.parent; p >= 0 && r.Width > 0 && r.Height > 0; p = f.nodes[p].parent {
-		if f.nodes[p].flags&flagClip != 0 {
+	for p := n.Parent; p >= 0 && r.Width > 0 && r.Height > 0; p = f.nodes[p].Parent {
+		if f.nodes[p].Flags&flagClip != 0 {
 			r = intersect(r, f.nodes[p].rect)
 		}
 	}

@@ -41,7 +41,7 @@ func origin(r *Rect, axis int) *float32 {
 // inset is the padding and border on both sides of an axis.
 func (n *node) inset(axis int) (start, end float32) {
 	border := n.borderWidth
-	if n.flags&flagOutline != 0 {
+	if n.Flags&flagOutline != 0 {
 		border = 0 // an outline is drawn, it does not take room
 	}
 	return n.pad[startEdge(axis)] + border, n.pad[endEdge(axis)] + border
@@ -54,16 +54,16 @@ func (n *node) marginOn(axis int) (start, end float32) {
 // flows reports whether a container lays its children out along axis. A Flow does
 // across, as a Row does, and wraps onto lines down (see flow.go).
 func (n *node) flows(axis int) bool {
-	return (n.dir == row || n.dir == flow) && axis == axisX || n.dir == column && axis == axisY
+	return (n.Dir == row || n.Dir == flow) && axis == axisX || n.Dir == column && axis == axisY
 }
 
 // leading is the height of one line of a text: its LineHeight, or the font size
 // plus seven, the same leading the components use.
 func (n *node) leading() float32 {
-	if n.lineH > 0 {
-		return n.lineH
+	if n.LineH > 0 {
+		return n.LineH
 	}
-	return n.fontSize + 7
+	return n.FontSize + 7
 }
 
 // measure gives every element the size its content wants along axis. Elements
@@ -76,7 +76,7 @@ func (f *frame) measure(axis int) {
 		if axis == axisX && n.Kind != kindContainer {
 			f.measureLeaf(n)
 		}
-		if n.Kind == kindText && n.flags&flagWrap != 0 && axis == axisY {
+		if n.Kind == kindText && n.Flags&flagWrap != 0 && axis == axisY {
 			first := int32(len(f.lines))
 			// An empty text has no line at all, as WrapLines gives it none; anything
 			// else that fits is one line and needs no breaking.
@@ -85,8 +85,8 @@ func (f *frame) measure(axis int) {
 			} else {
 				f.lines = f.wrapText(f.lines, n)
 			}
-			n.lineFirst, n.lineCount = first, int32(len(f.lines))-first
-			n.pref[axisY] = float32(n.lineCount)*n.leading() + n.padY()
+			n.LineFirst, n.LineCount = first, int32(len(f.lines))-first
+			n.pref[axisY] = float32(n.LineCount)*n.leading() + n.padY()
 		}
 		if n.Kind == kindContainer {
 			f.measureContainer(n, axis)
@@ -122,13 +122,13 @@ var controlMeasurer = (*frame).measureControls
 func (f *frame) measureLeafIn(n *node) {
 	switch n.Kind {
 	case kindText:
-		if n.flags&flagMono != 0 {
+		if n.Flags&flagMono != 0 {
 			// A Mono text is as wide as its cells: a wide character takes two, a combining
 			// mark none, as the canvas measures and draws it.
-			_, ch := f.canvas.MonoCellSize(n.fontSize, n.face)
+			_, ch := f.canvas.MonoCellSize(n.FontSize, n.Face)
 			n.pref = [2]float32{f.canvas.TextWidthStyle(n.text, n.textStyle()), ch}
 		} else {
-			n.pref = [2]float32{f.canvas.TextWidthWeight(n.text, n.fontSize, n.weight), n.leading()}
+			n.pref = [2]float32{f.canvas.TextWidthWeight(n.text, n.FontSize, n.Weight), n.leading()}
 		}
 		n.natural = n.pref[axisX]
 		n.pref[axisX] += n.padX() // a Text takes its Pad and Border like a container
@@ -141,21 +141,21 @@ func (f *frame) measureLeafIn(n *node) {
 }
 
 func (f *frame) measureContainer(n *node, axis int) {
-	if n.dir == grid {
+	if n.Dir == grid {
 		f.measureGrid(n, axis)
 		return
 	}
-	if n.dir == custom {
+	if n.Dir == custom {
 		f.measureCustom(n, axis)
 		return
 	}
-	if n.dir == flow && axis == axisY {
+	if n.Dir == flow && axis == axisY {
 		f.measureFlowLines(n)
 		return
 	}
 	var total float32
 	count := 0
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		ms, me := child.marginOn(axis)
 		size := child.pref[axis] + ms + me
@@ -171,7 +171,7 @@ func (f *frame) measureContainer(n *node, axis int) {
 	}
 	is, ie := n.inset(axis)
 	n.pref[axis] = total + is + ie
-	if n.flags&flagScroll == 0 {
+	if n.Flags&flagScroll == 0 {
 		return
 	}
 	// What a scroll area holds is its own business: it is as tall as it is told to
@@ -228,7 +228,7 @@ func (n *node) stretches(axis int) bool {
 // then of theirs. The container's own size and position on the axis are known.
 func (f *frame) solve(i int32, axis int) {
 	n := &f.nodes[i]
-	if n.first < 0 {
+	if n.First < 0 {
 		if n.outOfFlow&absChildren != 0 {
 			f.solveAbsolute(i, axis)
 		}
@@ -238,19 +238,19 @@ func (f *frame) solve(i int32, axis int) {
 	start := *origin(&n.rect, axis) + is
 	avail := max(*extent(&n.rect, axis)-is-ie, 0)
 	switch {
-	case n.dir == grid:
+	case n.Dir == grid:
 		f.solveGrid(n, axis, start, avail)
-	case n.dir == custom:
+	case n.Dir == custom:
 		f.solveCustom(n, axis, start, avail)
-	case n.dir == flow:
+	case n.Dir == flow:
 		f.solveFlowLines(n, axis, start, avail)
 	case n.flows(axis):
 		f.placeSplitRatios(n, axis, avail)
-		f.solveFlow(n, n.first, -1, axis, start, avail)
+		f.solveFlow(n, n.First, -1, axis, start, avail)
 	default:
-		f.solveAcross(n, n.first, -1, axis, start, avail)
+		f.solveAcross(n, n.First, -1, axis, start, avail)
 	}
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		f.solve(c, axis)
 	}
 	if n.outOfFlow&absChildren != 0 {
@@ -261,8 +261,8 @@ func (f *frame) solve(i int32, axis int) {
 // solveAcross places children on an axis the container does not flow along (the
 // width of a Column, the height of a Row, either axis of a Stack): those from first
 // up to stop, which is -1 after the last (a line of a Flow is a run of them).
-func (f *frame) solveAcross(n *node, first, stop int32, axis int, start, avail float32) {
-	if axis == axisX && n.flags&flagScroll != 0 {
+func (f *frame) solveAcross(n *node, First, stop int32, axis int, start, avail float32) {
+	if axis == axisX && n.Flags&flagScroll != 0 {
 		if s := f.sidewaysState(n); s != nil {
 			// A Sideways area lays its children out across its content, or across
 			// itself where that is wider, and shows them OffsetX to the left, kept in
@@ -272,19 +272,19 @@ func (f *frame) solveAcross(n *node, first, stop int32, axis int, start, avail f
 		}
 	}
 	var line float32 // the baseline children are lined up on, from the top
-	if axis == axisY && (n.dir == row || n.dir == flow) {
-		for c := first; c != stop; c = f.nodes[c].next {
+	if axis == axisY && (n.Dir == row || n.Dir == flow) {
+		for c := First; c != stop; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			if child.alignOn(n) == Baseline {
 				line = max(line, child.margin[0]+child.baseline)
 			}
 		}
 	}
-	for c := first; c != stop; c = f.nodes[c].next {
+	for c := First; c != stop; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		align := child.alignOn(n)
 		ms, me := child.marginOn(axis)
-		if align == Baseline && axis == axisY && (n.dir == row || n.dir == flow) {
+		if align == Baseline && axis == axisY && (n.Dir == row || n.Dir == flow) {
 			*extent(&child.rect, axis) = clamp(child.pref[axis], child.minS[axis], f.maxOn(child, axis, avail))
 			*origin(&child.rect, axis) = start + line - child.baseline
 			continue
@@ -341,23 +341,23 @@ func offset(align Align, free float32) float32 {
 // or maximum is frozen there and the rest is shared again among the others. It shares
 // it among the children from first up to stop, which is -1 after the last (a line of
 // a Flow is a run of them).
-func (f *frame) solveFlow(n *node, first, stop int32, axis int, start, avail float32) {
+func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail float32) {
 	count := 0
 	var fixed float32
-	for c := first; c != stop; c = f.nodes[c].next {
+	for c := First; c != stop; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		basis, grow := flexBasis(child, axis, avail), float32(0)
-		if child.flags&flagGrowSet != 0 {
+		if child.Flags&flagGrowSet != 0 {
 			grow = child.grow
 		} else if child.size[axis].Kind == dimFill {
 			grow = 1
 		}
 		child.growNow = grow
 		switch {
-		case child.flags&flagShrinkSet != 0:
+		case child.Flags&flagShrinkSet != 0:
 			child.shrinkNow = child.shrink
 		case axis == axisX && (child.Kind == kindText || child.Kind == kindContainer),
-			axis == axisY && child.flags&flagScroll != 0:
+			axis == axisY && child.Flags&flagScroll != 0:
 			// Across a line of text or a container may give way; down a column an
 			// element keeps its content's height (as CSS min-height:auto does) unless it
 			// is a scroll area, which is what shrinking to fit is for.
@@ -373,20 +373,20 @@ func (f *frame) solveFlow(n *node, first, stop int32, axis int, start, avail flo
 	if count > 1 {
 		fixed += n.gap * float32(count-1)
 	}
-	scrolls := axis == axisY && n.flags&flagScroll != 0
+	scrolls := axis == axisY && n.Flags&flagScroll != 0
 
 	// Resolve flexible lengths as CSS does: share the room by each unfrozen child's
 	// base size, clamp, and freeze the children whose clamp went the way the total
 	// violation went (all minimums if the sum grew, all maximums if it shrank),
 	// then share again among the rest. Every pass starts from the base sizes.
-	for c := first; c != stop; c = f.nodes[c].next {
+	for c := First; c != stop; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		child.base = *extent(&child.rect, axis)
 		child.frozen = false
 	}
 	for pass := 0; pass <= count; pass++ {
 		var frozenSize, baseSum, growSum, shrinkSum float32
-		for c := first; c != stop; c = f.nodes[c].next {
+		for c := First; c != stop; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			if child.frozen {
 				frozenSize += *extent(&child.rect, axis)
@@ -402,7 +402,7 @@ func (f *frame) solveFlow(n *node, first, stop int32, axis int, start, avail flo
 		}
 		free := room - frozenSize - baseSum - fixed
 		var violation float32
-		for c := first; c != stop; c = f.nodes[c].next {
+		for c := First; c != stop; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			if child.frozen {
 				continue
@@ -421,7 +421,7 @@ func (f *frame) solveFlow(n *node, first, stop int32, axis int, start, avail flo
 			child.want = want
 		}
 		done := true
-		for c := first; c != stop; c = f.nodes[c].next {
+		for c := First; c != stop; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			if child.frozen {
 				continue
@@ -439,7 +439,7 @@ func (f *frame) solveFlow(n *node, first, stop int32, axis int, start, avail flo
 	}
 
 	var used float32
-	for c := first; c != stop; c = f.nodes[c].next {
+	for c := First; c != stop; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		size := clamp(*extent(&child.rect, axis), child.minS[axis], f.maxOn(child, axis, avail))
 		*extent(&child.rect, axis) = size
@@ -470,7 +470,7 @@ func (f *frame) solveFlow(n *node, first, stop int32, axis int, start, avail flo
 		}
 		pos -= snapScroll(n.scroll)
 	}
-	for c := first; c != stop; c = f.nodes[c].next {
+	for c := First; c != stop; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		ms, me := child.marginOn(axis)
 		pos += ms
@@ -486,7 +486,7 @@ func flexBasis(child *node, axis int, avail float32) float32 {
 	switch {
 	case d.Kind == dimFill:
 		return 0
-	case child.flags&flagBasis != 0:
+	case child.Flags&flagBasis != 0:
 		return child.basis
 	case d.Kind == dimPercent:
 		return avail * d.value / 100
@@ -496,11 +496,11 @@ func flexBasis(child *node, axis int, avail float32) float32 {
 
 // alignOn is how a child sits across its container: its own Self, else the
 // container's Items.
-func (n *node) alignOn(parent *node) Align {
+func (n *node) alignOn(Parent *node) Align {
 	if n.self != Auto {
 		return n.self
 	}
-	return parent.items
+	return Parent.items
 }
 
 // measureBaseline finds the distance from the top of an element to its first line
@@ -518,14 +518,14 @@ func (f *frame) measureBaseline(n *node) {
 	case kindText:
 		top, bottom := n.inset(axisY)
 		height := n.leading()
-		if n.flags&flagWrap == 0 {
+		if n.Flags&flagWrap == 0 {
 			height = max(n.pref[axisY]-top-bottom, 0)
 		}
-		row := f.canvas.LabelBaseline(gfx.Rect{Height: height}, gfx.TextStyle{Size: n.fontSize})
-		if n.flags&flagMono != 0 {
+		row := f.canvas.LabelBaseline(gfx.Rect{Height: height}, gfx.TextStyle{Size: n.FontSize})
+		if n.Flags&flagMono != 0 {
 			// A Mono line stands on its font's own baseline in its cell; a face no
 			// engine measured has no known row, and LabelBaseline's is the closest.
-			if mono := f.canvas.MonoBaseline(n.fontSize, n.face, height); mono > 0 {
+			if mono := f.canvas.MonoBaseline(n.FontSize, n.Face, height); mono > 0 {
 				row = mono
 			}
 		}
@@ -535,17 +535,17 @@ func (f *frame) measureBaseline(n *node) {
 	case kindContainer:
 		n.baseline = n.pref[axisY]
 		is, _ := n.inset(axisY)
-		for c := n.first; c >= 0; c = f.nodes[c].next {
+		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
-			if n.dir == flow && child.gridRow != 0 {
+			if n.Dir == flow && child.gridRow != 0 {
 				break // a Flow's baseline is its first line's
 			}
-			if child.Kind == kindContainer && child.baseline == child.pref[axisY] && child.first < 0 {
+			if child.Kind == kindContainer && child.baseline == child.pref[axisY] && child.First < 0 {
 				continue
 			}
 			value := is + child.margin[0] + child.baseline
-			if n.dir == row || n.dir == flow {
-				for k := n.first; k >= 0 && (n.dir == row || f.nodes[k].gridRow == 0); k = f.nodes[k].next {
+			if n.Dir == row || n.Dir == flow {
+				for k := n.First; k >= 0 && (n.Dir == row || f.nodes[k].gridRow == 0); k = f.nodes[k].Next {
 					other := &f.nodes[k]
 					value = max(value, is+other.margin[0]+other.baseline)
 				}

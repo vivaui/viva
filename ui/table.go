@@ -322,7 +322,7 @@ const tableFrozenSeparator = float32(2)
 
 // scrollAncestor is the state and viewport of the ScrollArea nearest around element n.
 func (f *frame) scrollAncestor(n *node) (*ScrollState, Rect) {
-	for p := n.parent; p >= 0; p = f.nodes[p].parent {
+	for p := n.Parent; p >= 0; p = f.nodes[p].Parent {
 		if ext := f.nodes[p].ext; ext != 0 && f.exts[ext].scrollState != nil {
 			return f.exts[ext].scrollState, f.nodes[p].rect
 		}
@@ -417,8 +417,8 @@ func (f *frame) paintTable(n *node) {
 	top := body.Y - offset
 	lo, hi := body.Y, body.Y+body.Height
 	clipTop := f.bounds.Y
-	for p := n.parent; p >= 0; p = f.nodes[p].parent {
-		if f.nodes[p].flags&flagClip != 0 {
+	for p := n.Parent; p >= 0; p = f.nodes[p].Parent {
+		if f.nodes[p].Flags&flagClip != 0 {
 			clip := f.nodes[p].rect
 			lo, hi = max(lo, clip.Y), min(hi, clip.Y+clip.Height)
 			clipTop = max(clipTop, clip.Y)
@@ -498,7 +498,7 @@ func (f *frame) paintTable(n *node) {
 // components.Table calls an application would make by hand. The caller has
 // already clipped to the band the rows belong to, and rows keeps the whole
 // grid's geometry: every column paints, and the clip does the segmentation.
-func (f *frame) paintTableRows(t *tableDecl, rows Rect, first, last int, top, contentWidth, rowHeight float32) {
+func (f *frame) paintTableRows(t *tableDecl, rows Rect, First, Last int, top, contentWidth, rowHeight float32) {
 	canvas := f.canvas
 	table := components.BeginTable(canvas, f.theme, rows, t.spec.Columns).
 		RowHeight(rowHeight).FontSize(t.spec.FontSize).CellPadding(t.spec.CellPadding)
@@ -507,7 +507,7 @@ func (f *frame) paintTableRows(t *tableDecl, rows Rect, first, last int, top, co
 		w.cells = make([]string, len(t.spec.Columns))
 	}
 	cells := w.cells[:len(t.spec.Columns)]
-	for row := first; row < last; row++ {
+	for row := First; row < Last; row++ {
 		for column := range cells {
 			cells[column] = t.spec.Source.Cell(row, column)
 		}

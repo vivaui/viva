@@ -15,7 +15,7 @@ const slotQuarantine = 2
 
 // slotPool hands out numbers, and takes them back to give again after the quarantine.
 type slotPool struct {
-	next uint32
+	Next uint32
 	free []freeSlot
 }
 
@@ -28,8 +28,8 @@ func (pool *slotPool) take(epoch uint32) uint32 {
 		pool.free = pool.free[:len(pool.free)-1]
 		return slot
 	}
-	slot := pool.next
-	pool.next++
+	slot := pool.Next
+	pool.Next++
 	return slot
 }
 
@@ -39,7 +39,7 @@ func (pool *slotPool) give(slot, epoch uint32) {
 
 // keyKey is one row of Key or KeyIndex: its parent scope and its key.
 type keyKey struct {
-	parent gfx.Scope
+	Parent gfx.Scope
 	text   string
 	number int
 	isText bool

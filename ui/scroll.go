@@ -254,9 +254,9 @@ func (view *view) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // containsPoint says whether a point is inside element i and inside every clip around
 // it, which is to say, whether it is where the element can be seen.
 func (f *frame) containsPoint(i int, x, y float32) bool {
-	for p := int32(i); p >= 0; p = f.nodes[p].parent {
+	for p := int32(i); p >= 0; p = f.nodes[p].Parent {
 		n := &f.nodes[p]
-		if p != int32(i) && n.flags&flagClip == 0 {
+		if p != int32(i) && n.Flags&flagClip == 0 {
 			continue
 		}
 		r := n.rect

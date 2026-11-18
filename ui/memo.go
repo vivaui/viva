@@ -304,7 +304,7 @@ func (p *Page) noteKey(key keyKey) {
 		if key.isText {
 			entry.keys = append(entry.keys, key)
 		} else {
-			entry.intKeys = append(entry.intKeys, intKey{parent: key.parent, number: key.number})
+			entry.intKeys = append(entry.intKeys, intKey{Parent: key.Parent, number: key.number})
 		}
 	}
 }

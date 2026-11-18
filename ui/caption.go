@@ -20,9 +20,9 @@ import (
 func (b Box) Mixed(mixed bool) Box {
 	if n := b.n(); n.Kind == kindCheckbox {
 		if mixed {
-			n.flags |= flagMixed
+			n.Flags |= flagMixed
 		} else {
-			n.flags &^= flagMixed
+			n.Flags &^= flagMixed
 		}
 	}
 	return b
@@ -45,8 +45,8 @@ func (b Box) Caption(text string) Box {
 const captionGap = 8
 
 func (f *frame) captionSize(n *node) float32 {
-	if n.fontSize > 0 {
-		return n.fontSize
+	if n.FontSize > 0 {
+		return n.FontSize
 	}
 	return f.theme.Metrics.FontSizeM
 }
@@ -79,9 +79,9 @@ func (f *frame) paintCaption(n *node, control Rect) {
 	line := size + 7
 	x := control.X + control.Width + captionGap
 	r := Rect{X: x, Y: n.rect.Y + (n.rect.Height-line)/2, Width: max(n.rect.X+n.rect.Width-x, 0), Height: line}
-	disabled := n.flags&flagDisabled != 0
+	disabled := n.Flags&flagDisabled != 0
 	color := fade(f.theme.Foreground, f.opacity)
-	if n.flags&flagHasColor != 0 {
+	if n.Flags&flagHasColor != 0 {
 		color = n.color // faded with the element already
 	}
 	if disabled {

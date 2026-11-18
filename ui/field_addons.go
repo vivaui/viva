@@ -66,7 +66,7 @@ func (b Box) ActionClicked() bool {
 		return false
 	}
 	end := b.f.addons[b.f.exts[n.ext].addons-1].end
-	if end.Kind != components.InputGroupSlotButton || n.flags&flagDisabled != 0 || !b.f.canvas.Clicked(end.ID) {
+	if end.Kind != components.InputGroupSlotButton || n.Flags&flagDisabled != 0 || !b.f.canvas.Clicked(end.ID) {
 		return false
 	}
 	b.f.canvas.RequestFocus(widgetsOf(b.f).inputs[n.aux].ID)
@@ -86,7 +86,7 @@ func (b Box) actionID() gfx.ID {
 // InputGroup puts them, the text between them.
 func (f *frame) paintAddons(n *node, snapshot components.InputSnapshot, a *fieldAddons) {
 	canvas, theme := f.canvas, f.theme
-	disabled := n.flags&flagDisabled != 0 || snapshot.Disabled
+	disabled := n.Flags&flagDisabled != 0 || snapshot.Disabled
 	start, end, content := components.InputAddonsLayout(canvas, theme, n.rect, a.start, a.end)
 	components.PaintInputAddon(canvas, theme, start, a.start, true, disabled)
 	components.PaintInputContent(canvas, theme, n.rect, content, snapshot)

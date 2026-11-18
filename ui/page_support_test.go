@@ -105,7 +105,7 @@ func (d *pageDriver) focused() string {
 
 func benchCanvas() *gfx.Canvas {
 	canvas := &gfx.Canvas{}
-	canvas.SetMeasurer(func(value string, size, weight float32) float32 { return float32(len(value)) * size / 2 })
+	canvas.SetMeasurer(func(value string, size, Weight float32) float32 { return float32(len(value)) * size / 2 })
 	return canvas
 }
 

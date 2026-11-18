@@ -19,19 +19,19 @@ func (f *frame) paint(i int32) {
 		f.canvas.PushLayer(n.band)
 		defer f.canvas.PopLayer()
 	}
-	if n.flags&flagDialog != 0 {
+	if n.Flags&flagDialog != 0 {
 		f.paintDialog(n)
 		return
 	}
-	if n.flags&flagAlertDialog != 0 {
+	if n.Flags&flagAlertDialog != 0 {
 		f.paintAlertDialog(n)
 		return
 	}
-	if n.flags&flagDrawer != 0 {
+	if n.Flags&flagDrawer != 0 {
 		f.paintDrawerFn(f, n)
 		return
 	}
-	if n.flags&flagPopover != 0 {
+	if n.Flags&flagPopover != 0 {
 		f.paintPopoverFn(f, i, n)
 		return
 	}
@@ -54,12 +54,12 @@ func (f *frame) paint(i int32) {
 		f.theme = f.theme.WithOpacity(style.opacity)
 	}
 	f.paintRing(r, n.radius, &style) // outside the rectangle: before a Clip of the element's own
-	if n.flags&flagClip != 0 {
+	if n.Flags&flagClip != 0 {
 		canvas.Clip(r)
 		defer canvas.Unclip()
 	}
 
-	hasHit := n.flags&flagHasHit != 0 && !n.id.IsZero()
+	hasHit := n.Flags&flagHasHit != 0 && !n.id.IsZero()
 	background, border := fade(style.background, f.opacity), fade(style.border, f.opacity)
 	if style.shadow != gfx.ShadowNone {
 		canvas.ElevateFaded(r, n.radius, style.shadow, f.opacity)
@@ -109,18 +109,18 @@ func (f *frame) paint(i int32) {
 	if hasHit && !extra.swatch && (n.Kind == kindContainer || n.Kind == kindText || n.Kind == kindIcon || n.Kind == kindSlot) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
-		if n.flags&flagLabelFor != 0 {
+		if n.Flags&flagLabelFor != 0 {
 			text := n.label
 			if text == "" && n.Kind == kindText {
 				text = n.text
 			}
-			canvas.HitLabel(n.id, hit, text, n.flags&flagDisabled != 0)
+			canvas.HitLabel(n.id, hit, text, n.Flags&flagDisabled != 0)
 		} else {
 			options := extra.hit
 			// Disabled on the element is the control's own: a Base that was told it is
 			// unavailable says so to assistive technology and leaves the Tab order,
 			// as the control with a look does.
-			options.Disabled = options.Disabled || n.flags&flagDisabled != 0
+			options.Disabled = options.Disabled || n.Flags&flagDisabled != 0
 			canvas.HitWithOptions(n.id, hit, n.label, options)
 		}
 	}
@@ -145,7 +145,7 @@ func (f *frame) paint(i int32) {
 	if hooks.under != nil {
 		f.runDraw(n, hooks.under)
 	}
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		f.paint(c)
 	}
 	if n.outOfFlow&absChildren != 0 {
@@ -206,24 +206,24 @@ func (f *frame) paintText(n *node) {
 	left, right := n.inset(axisX)
 	top, bottom := n.inset(axisY)
 	r := Rect{X: n.rect.X + left, Y: n.rect.Y + top, Width: max(n.rect.Width-left-right, 0), Height: max(n.rect.Height-top-bottom, 0)}
-	style := gfx.TextStyle{Size: n.fontSize, Weight: n.weight, Color: n.color, Mono: n.flags&flagMono != 0, MonoFace: n.face, Direction: n.textDirection}
+	style := gfx.TextStyle{Size: n.FontSize, Weight: n.Weight, Color: n.color, Mono: n.Flags&flagMono != 0, MonoFace: n.Face, Direction: n.TextDirection}
 	alignment := gfx.AlignStart
 	switch {
-	case n.flags&flagTextCenter != 0:
+	case n.Flags&flagTextCenter != 0:
 		alignment = gfx.AlignCenter
-	case n.textEnd:
+	case n.TextEnd:
 		alignment = gfx.AlignEnd
 	}
-	if n.flags&flagWrap != 0 {
+	if n.Flags&flagWrap != 0 {
 		// A paragraph has one direction: each of its lines follows it, not the first strong
 		// character of the line.
 		if style.Direction == gfx.DirectionAuto {
 			style.Direction = gfx.TextDirectionOf(n.text)
 		}
 		lh := n.leading()
-		for k := int32(0); k < n.lineCount; k++ {
+		for k := int32(0); k < n.LineCount; k++ {
 			bounds := Rect{X: r.X, Y: r.Y + float32(k)*lh, Width: r.Width, Height: lh}
-			f.canvas.LabelAligned(f.lines[n.lineFirst+k], bounds, style, alignment)
+			f.canvas.LabelAligned(f.lines[n.LineFirst+k], bounds, style, alignment)
 		}
 		return
 	}

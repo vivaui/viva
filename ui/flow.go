@@ -25,7 +25,7 @@ func (n *node) lineGap() float32 {
 func (f *frame) breakLines(n *node, avail float32) {
 	var used float32
 	line, count := 0, 0
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		ms, me := child.marginOn(axisX)
 		size := clamp(flexBasis(child, axisX, avail), child.minS[axisX], f.maxOn(child, axisX, avail)) + ms + me
@@ -46,18 +46,18 @@ func (f *frame) breakLines(n *node, avail float32) {
 // line is the last.
 func (f *frame) lineEnd(c int32) int32 {
 	line := f.nodes[c].gridRow
-	c = f.nodes[c].next
+	c = f.nodes[c].Next
 	for c >= 0 && f.nodes[c].gridRow == line {
-		c = f.nodes[c].next
+		c = f.nodes[c].Next
 	}
 	return c
 }
 
 // lineHeight is how tall the line of the children from first up to stop is: as its
 // tallest child with its margins.
-func (f *frame) lineHeight(first, stop int32) float32 {
+func (f *frame) lineHeight(First, stop int32) float32 {
 	var height float32
-	for c := first; c != stop; c = f.nodes[c].next {
+	for c := First; c != stop; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		ms, me := child.marginOn(axisY)
 		height = max(height, child.pref[axisY]+ms+me)
@@ -71,7 +71,7 @@ func (f *frame) lineHeight(first, stop int32) float32 {
 func (f *frame) measureFlowLines(n *node) {
 	var total float32
 	lines := 0
-	for first := n.first; first >= 0; {
+	for first := n.First; first >= 0; {
 		stop := f.lineEnd(first)
 		total += f.lineHeight(first, stop)
 		lines++
@@ -90,7 +90,7 @@ func (f *frame) measureFlowLines(n *node) {
 func (f *frame) solveFlowLines(n *node, axis int, start, avail float32) {
 	if axis == axisX {
 		f.breakLines(n, avail)
-		for first := n.first; first >= 0; {
+		for first := n.First; first >= 0; {
 			stop := f.lineEnd(first)
 			f.solveFlow(n, first, stop, axisX, start, avail)
 			first = stop
@@ -98,7 +98,7 @@ func (f *frame) solveFlowLines(n *node, axis int, start, avail float32) {
 		return
 	}
 	gap := n.lineGap()
-	for first := n.first; first >= 0; {
+	for first := n.First; first >= 0; {
 		stop := f.lineEnd(first)
 		height := f.lineHeight(first, stop)
 		f.solveAcross(n, first, stop, axisY, start, height)

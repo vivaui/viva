@@ -9,17 +9,17 @@ import (
 
 // logPage draws a scroll area of n rows of 30 in a window 100 tall, the last row's top
 // edge being what the area shows at its end.
-func logPage(view *View, follow bool, rows int) (last Box) {
+func logPage(view *View, follow bool, rows int) (Last Box) {
 	f := view.Begin(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100})
 	f.Column().Fill().Children(func() {
 		f.ScrollArea(listID).Grow(1).Follow(follow).Children(func() {
 			for range rows {
-				last = f.Slot().Height(30)
+				Last = f.Slot().Height(30)
 			}
 		})
 	})
 	f.End()
-	return last
+	return Last
 }
 
 func TestScrollToEndHoldsInTheFrameThatAddsContent(t *testing.T) {

@@ -92,10 +92,10 @@ func (b Box) State() gfx.State { return b.f.stateOf(b.n()) }
 
 func (f *frame) stateOf(n *node) gfx.State {
 	state := f.canvas.StateOf(n.id)
-	state.Disabled = n.flags&flagDisabled != 0
-	state.Checked = n.flags&flagChecked != 0
-	state.Selected = n.flags&flagSelected != 0
-	state.Open = n.flags&flagOpen != 0
+	state.Disabled = n.Flags&flagDisabled != 0
+	state.Checked = n.Flags&flagChecked != 0
+	state.Selected = n.Flags&flagSelected != 0
+	state.Open = n.Flags&flagOpen != 0
 	return state
 }
 

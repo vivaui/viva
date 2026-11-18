@@ -112,7 +112,7 @@ type sliderDecl struct {
 //	}
 func (f *frame) Slider(id gfx.ID, state *SliderState) Box {
 	b := f.SliderBase(id, state)
-	f.nodes[b.i].flags |= flagThemed
+	f.nodes[b.i].Flags |= flagThemed
 	return b
 }
 
@@ -193,12 +193,12 @@ func (f *frame) settleSlider(n *node) {
 	before := s.Value
 	s.Value = s.fit(s.Value)
 	d.changed = s.moved
-	s.off = n.flags&flagDisabled != 0
+	s.off = n.Flags&flagDisabled != 0
 	s.moved = false
 	if f.canvas == nil {
 		return
 	}
-	if n.flags&flagDisabled != 0 {
+	if n.Flags&flagDisabled != 0 {
 		s.dragging = false
 		return
 	}
@@ -246,7 +246,7 @@ func (f *frame) paintSlider(n *node) {
 	d := &widgetsOf(f).sliders[n.aux]
 	s := d.state
 	s.area = n.rect
-	if n.flags&flagThemed == 0 {
+	if n.Flags&flagThemed == 0 {
 		// A SliderBase paints nothing of its own: it is the slider to the pointer, the
 		// keyboard and assistive technology, over the element's whole rectangle.
 		label := n.label
@@ -258,7 +258,7 @@ func (f *frame) paintSlider(n *node) {
 			step = 1
 		}
 		f.canvas.HitWithOptions(n.id, n.rect, label, gfx.HitOptions{
-			Role: gfx.RoleSlider, Value: s.valueText(), Disabled: n.flags&flagDisabled != 0,
+			Role: gfx.RoleSlider, Value: s.valueText(), Disabled: n.Flags&flagDisabled != 0,
 			Range: gfx.ValueRange{Now: float64(s.Value), Min: float64(s.min), Max: float64(s.max), Step: float64(step), Set: true},
 		})
 		return
@@ -267,7 +267,7 @@ func (f *frame) paintSlider(n *node) {
 	if n.natural > 0 {
 		slider = slider.Vertical()
 	}
-	if n.flags&flagDisabled != 0 {
+	if n.Flags&flagDisabled != 0 {
 		slider = slider.Disabled()
 	}
 	label := n.label

@@ -400,7 +400,7 @@ const (
 // slice is kept until End.
 func (f *frame) Select(scope gfx.Scope, state *SelectState, labels []string, selected int) Box {
 	b := f.SelectBase(scope, state, labels, selected)
-	f.nodes[b.i].flags |= flagThemed
+	f.nodes[b.i].Flags |= flagThemed
 	return b
 }
 
@@ -488,7 +488,7 @@ func (f *frame) sizeSelectList(n *node) {
 	if d.popup < 0 {
 		return
 	}
-	width := selectListWidth(d.state.widestOption(f.canvas, d.labels, n.fontSize))
+	width := selectListWidth(d.state.widestOption(f.canvas, d.labels, n.FontSize))
 	if d.state.listMaxWidth > 0 {
 		width = min(width, d.state.listMaxWidth)
 	}
@@ -643,7 +643,7 @@ func (f *frame) measureSelect(n *node) {
 	switch {
 	case n.buttonSize == components.ButtonSizeXSmall:
 		height -= 8
-	case n.flags&flagSmall != 0:
+	case n.Flags&flagSmall != 0:
 		height -= 4
 	}
 	n.pref = [2]float32{widest + f.theme.Metrics.PadControlX + 36, height}
@@ -661,16 +661,16 @@ func (f *frame) paintSelect(n *node) {
 	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: height}
 	options := components.SelectOptions{
 		TriggerID: d.triggerID(count), Label: n.label, Placeholder: n.text, Hint: d.hint,
-		Disabled: n.flags&flagDisabled != 0,
+		Disabled: n.Flags&flagDisabled != 0,
 		Layer:    d.layer, Scope: d.scope.At(count + 2), DismissID: d.scope.At(count + 1), Viewport: f.bounds,
 	}
 	switch {
 	case n.buttonSize == components.ButtonSizeXSmall:
 		options.Size = components.SelectSizeXSmall
-	case n.flags&flagSmall != 0:
+	case n.Flags&flagSmall != 0:
 		options.Size = components.SelectSizeSmall
 	}
-	options.Unpainted = n.flags&flagThemed == 0
+	options.Unpainted = n.Flags&flagThemed == 0
 	if d.selected >= 0 && d.selected < count {
 		options.Value = d.labels[d.selected]
 		if d.selected < len(d.icons) {

@@ -249,7 +249,7 @@ const (
 // gradient is a gradient of an element: stops[first:first+count] of the frame.
 type gradient struct {
 	angle        Angle
-	first, count int32
+	First, count int32
 }
 
 // Gradient fills the element, with its corners, with a gradient from one color to
@@ -269,7 +269,7 @@ func (b Box) GradientStops(angle Angle, stops ...gfx.GradientStop) Box {
 		return b
 	}
 	f := b.f
-	f.gradients = append(f.gradients, gradient{angle: angle, first: int32(len(f.stops)), count: int32(len(stops))})
+	f.gradients = append(f.gradients, gradient{angle: angle, First: int32(len(f.stops)), count: int32(len(stops))})
 	f.stops = append(f.stops, stops...)
 	f.extra(b.i).gradient = int32(len(f.gradients))
 	return b
@@ -289,7 +289,7 @@ func (f *frame) resolve(n *node, extra *extra) resolved {
 		background: n.background, border: extra.border, color: n.color, ring: extra.ring,
 		ringWidth: extra.ringWidth, opacity: 1 - extra.fade, shadow: extra.shadow, dashed: extra.borderDashed,
 	}
-	if n.flags&flagThemed != 0 {
+	if n.Flags&flagThemed != 0 {
 		f.themedDefaults(n, extra, &s)
 	}
 	if extra.states == 0 {
@@ -380,7 +380,7 @@ func (f *frame) paintRing(r Rect, radius float32, s *resolved) {
 // paintGradient draws the gradient of an element over its whole rectangle.
 func (f *frame) paintGradient(n *node, extra *extra) {
 	g := f.gradients[extra.gradient-1]
-	stops := f.stops[g.first : g.first+g.count]
+	stops := f.stops[g.First : g.First+g.count]
 	if f.opacity < 1 {
 		stops = append(f.paintStops[:0], stops...)
 		f.paintStops = stops

@@ -162,7 +162,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 	}
 	f := c.f
 	menu.page, menu.f, menu.open, menu.anchor = p, f, open, anchor
-	menu.scope, menu.root, menu.parent = scope, menu, nil
+	menu.scope, menu.root, menu.Parent = scope, menu, nil
 	if opened != nil {
 		menu.at = opened.at
 	}
@@ -368,7 +368,7 @@ type MenuItems struct {
 	// A submenu's menu, and the menu of the one open in it: root is the Menu or
 	// ContextMenu the chain hangs off, itself for that one, and parent the menu its
 	// row is in, nil for the root.
-	root, parent *MenuItems
+	root, Parent *MenuItems
 	sub          int        // the row whose submenu is open, or -1
 	subMenu      *MenuItems // that submenu, once declared in this paint
 	intent       components.HoverIntent
@@ -539,7 +539,7 @@ func (m *MenuItems) Sub(label string, body func(*MenuItems)) MenuItem {
 	p := m.page
 	child := stateIn[MenuItems](p, p.tree.Sub(m.scope, gfx.Index(item.i)), "sub")
 	child.page, child.f, child.open, child.anchor = p, m.f, m.open, -1
-	child.scope, child.root, child.parent, child.context, child.rowSize = p.tree.Sub(m.scope, gfx.Index(item.i)), m.root, m, m.context, m.rowSize
+	child.scope, child.root, child.Parent, child.context, child.rowSize = p.tree.Sub(m.scope, gfx.Index(item.i)), m.root, m, m.context, m.rowSize
 	child.fresh()
 	if m.focusSub {
 		m.focusSub, child.focusFirst = false, true
@@ -740,14 +740,14 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 	// and lets the pointer reach every menu of it; Escape and a press outside are
 	// the root's, and close them all.
 	focus, dismiss, id := m.root.scope.At(menuFocus), gfx.ID{}, scope.At(menuFocus)
-	if m.parent == nil {
+	if m.Parent == nil {
 		dismiss = scope.At(menuDismiss)
 	}
 	var trigger Rect // the row of the open submenu
 	if m.context {
 		menu := components.BeginContextMenu(canvas, *theme, bounds, components.ContextMenuOptions{
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.bounds, ID: id,
-			Scroll: &m.scroll, Submenu: m.parent != nil, RowHeight: m.rowSize,
+			Scroll: &m.scroll, Submenu: m.Parent != nil, RowHeight: m.rowSize,
 			Unpainted: m.unpainted, PaintPanel: m.panelPainter, PaintItem: m.itemPainter,
 		})
 		for i := range m.items {
@@ -775,7 +775,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 		menu.End()
 	} else {
 		side := components.OverlayRight // the edge the menu slides in from, its anchor's
-		if m.parent == nil {
+		if m.Parent == nil {
 			anchor := f.nodes[m.anchor].rect
 			switch {
 			case m.side == menuBeside:
@@ -790,7 +790,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 		}
 		menu := components.BeginDropdownMenu(canvas, *theme, bounds, components.DropdownMenuOptions{
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.bounds, ID: id,
-			Scroll: &m.scroll, Side: side, Submenu: m.parent != nil,
+			Scroll: &m.scroll, Side: side, Submenu: m.Parent != nil,
 			Unpainted: m.unpainted, PaintPanel: m.panelPainter, PaintItem: m.itemPainter,
 		})
 		for i := range m.items {
@@ -922,7 +922,7 @@ func (m *MenuItems) submenuKey(event gfx.KeyEvent, inside bool) (gfx.EventResult
 			return gfx.EventResult{Handled: true, Repaint: true}, true
 		}
 	case gfx.KeyLeft:
-		if parent := m.parent; parent != nil {
+		if parent := m.Parent; parent != nil {
 			row := parent.sub
 			parent.sub, parent.subMenu = -1, nil
 			return gfx.EventResult{Handled: true, Repaint: true, Focus: parent.scope.At(menuRows + row), FocusVisible: true}, true

@@ -18,7 +18,7 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 		return
 	}
 	if drag.active {
-		drag.to, drag.valid = drag.next, drag.nextOK // what the rows under the pointer found
+		drag.to, drag.valid = drag.Next, drag.nextOK // what the rows under the pointer found
 		drag.nextOK = false
 		band := min(s.rowHeight(drag.from), in.view.Height/4)
 		dragEdgeScroll(canvas, in.scroll, in.view, drag.at, band, &drag.scrolled)
@@ -139,7 +139,7 @@ func (in *listInternals) drawOver(d *DrawContext) {
 		}
 		to, y = row.index+1, r.Y+r.Height
 	}
-	drag.next, drag.nextOK = to, true
+	drag.Next, drag.nextOK = to, true
 	if !drag.valid || drag.to != to || movesNothing(drag.rows, to) {
 		return
 	}

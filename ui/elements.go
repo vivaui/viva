@@ -54,7 +54,7 @@ func Image(c C, bitmap gfx.Bitmap) Box          { return c.f.Image(bitmap) }
 
 // Paragraph is text that wraps to the width it gets, at most maxLines lines:
 // zero or less takes as many lines as the width needs, as Box.MaxLines.
-func Paragraph(c C, value string, maxLines int) Box { return c.f.Paragraph(value, maxLines) }
+func Paragraph(c C, value string, MaxLines int) Box { return c.f.Paragraph(value, MaxLines) }
 
 // Wrap is text that wraps to the width it gets, with no line limit: Paragraph
 // without a maximum.
@@ -504,14 +504,14 @@ func (f *frame) focusFirstControl(dialog Box) {
 // firstControl is the first element under i, in declaration order, with an identity
 // the keyboard can take: a control, or a container given Hit.
 func (f *frame) firstControl(i int32) gfx.ID {
-	for c := f.nodes[i].first; c >= 0; c = f.nodes[c].next {
+	for c := f.nodes[i].First; c >= 0; c = f.nodes[c].Next {
 		n := &f.nodes[c]
-		if n.flags&flagDisabled == 0 && !n.id.IsZero() {
+		if n.Flags&flagDisabled == 0 && !n.id.IsZero() {
 			switch n.Kind {
 			case kindButton, kindSplitButton, kindCheckbox, kindSwitch, kindInput, kindTextarea, kindSlider:
 				return n.id
 			case kindContainer:
-				if n.flags&flagHasHit != 0 && n.flags&flagLabelFor == 0 {
+				if n.Flags&flagHasHit != 0 && n.Flags&flagLabelFor == 0 {
 					return n.id
 				}
 			}

@@ -50,7 +50,7 @@ func (f *frame) SplitButton(spec SplitButtonSpec) Box {
 	b := f.box(kindSplitButton)
 	n := &f.nodes[b.i]
 	n.id, n.label = spec.PrimaryID, spec.Label
-	n.flags |= flagHasHit
+	n.Flags |= flagHasHit
 	n.aux = int32(len(widgetsOf(f).splitButtons))
 	widgetsOf(f).splitButtons = append(widgetsOf(f).splitButtons, splitButtonDecl{
 		primary: spec.PrimaryID, menu: spec.MenuID,

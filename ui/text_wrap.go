@@ -13,11 +13,11 @@ import (
 type wrapCache struct {
 	text     string
 	size     float32
-	weight   float32
+	Weight   float32
 	mono     bool
-	face     gfx.MonoFace
+	Face     gfx.MonoFace
 	width    float32
-	maxLines int
+	MaxLines int
 	lines    []string
 	filled   bool
 }
@@ -39,18 +39,18 @@ func (f *frame) wrapText(dst []string, n *node) []string {
 	wrapped := &f.wraps[f.wrapCursor]
 	f.wrapCursor++
 	width := max(n.rect.Width-n.padX(), 1)
-	maxLines := int(n.maxLines)
-	mono := n.flags&flagMono != 0
+	maxLines := int(n.MaxLines)
+	mono := n.Flags&flagMono != 0
 	face := gfx.MonoFace(0)
 	if mono {
-		face = n.face
+		face = n.Face
 	}
-	if wrapped.filled && wrapped.text == n.text && wrapped.size == n.fontSize && wrapped.weight == n.weight && wrapped.mono == mono && wrapped.face == face && wrapped.width == width && wrapped.maxLines == maxLines {
+	if wrapped.filled && wrapped.text == n.text && wrapped.size == n.FontSize && wrapped.Weight == n.Weight && wrapped.mono == mono && wrapped.Face == face && wrapped.width == width && wrapped.MaxLines == maxLines {
 		return append(dst, wrapped.lines...)
 	}
 	start := len(dst)
 	dst = f.canvas.WrapLinesStyle(dst, n.text, n.textStyle(), width, maxLines, cache)
-	wrapped.text, wrapped.size, wrapped.weight, wrapped.mono, wrapped.face, wrapped.width, wrapped.maxLines = n.text, n.fontSize, n.weight, mono, face, width, maxLines
+	wrapped.text, wrapped.size, wrapped.Weight, wrapped.mono, wrapped.Face, wrapped.width, wrapped.MaxLines = n.text, n.FontSize, n.Weight, mono, face, width, maxLines
 	wrapped.lines = append(wrapped.lines[:0], dst[start:]...)
 	wrapped.filled = true
 	return dst
@@ -59,7 +59,7 @@ func (f *frame) wrapText(dst []string, n *node) []string {
 // textStyle is the style a Text's width depends on: its size, weight and, when it is
 // Mono, its face.
 func (n *node) textStyle() gfx.TextStyle {
-	return gfx.TextStyle{Size: n.fontSize, Weight: n.weight, Mono: n.flags&flagMono != 0, MonoFace: n.face}
+	return gfx.TextStyle{Size: n.FontSize, Weight: n.Weight, Mono: n.Flags&flagMono != 0, MonoFace: n.Face}
 }
 
 // Wrap adds text that breaks into as many lines as the width it is given needs,
@@ -71,10 +71,10 @@ func (f *frame) Wrap(value string) Box { return f.Paragraph(value, math.MaxInt32
 // takes as many lines as the width needs.
 func (b Box) MaxLines(n int) Box {
 	node := b.n()
-	node.flags |= flagWrap
+	node.Flags |= flagWrap
 	if n <= 0 {
 		n = math.MaxInt32
 	}
-	node.maxLines = int32(n)
+	node.MaxLines = int32(n)
 	return b
 }

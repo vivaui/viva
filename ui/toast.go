@@ -57,7 +57,7 @@ type Toaster struct {
 
 	queue   components.ToastQueue
 	toasts  []toast // oldest first
-	next    uint32
+	Next    uint32
 	scope   gfx.Scope
 	stack   []components.SonnerToast // scratch for one paint, newest first
 	entries []components.ToastQueueEntry
@@ -96,9 +96,9 @@ func (t *Toaster) ShowAction(title, description string, Kind ToastKind, action s
 			return ToastID(item.n)
 		}
 	}
-	t.next++
-	t.toasts = append(t.toasts, toast{n: t.next, title: title, description: description, Kind: Kind, action: action})
-	return ToastID(t.next)
+	t.Next++
+	t.toasts = append(t.toasts, toast{n: t.Next, title: title, description: description, Kind: Kind, action: action})
+	return ToastID(t.Next)
 }
 
 // Done replaces toast id, a ToastLoading one, with what it ended in: its title,

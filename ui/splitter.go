@@ -84,7 +84,7 @@ func (s *SplitterState) limit(pos float32) float32 {
 
 type splitDecl struct {
 	state               *SplitterState
-	first               int32 // the pane before the splitter, or -1
+	First               int32 // the pane before the splitter, or -1
 	minFirst, minSecond float32
 	// thickness is the room the divider takes in the layout; zero is the
 	// default strip. The pointer's strip is never narrower than that default.
@@ -108,14 +108,14 @@ type splitDecl struct {
 // divider is 8 pixels thick, as long as the container is across.
 func (f *frame) Splitter(id gfx.ID, state *SplitterState) Box {
 	first := int32(-1)
-	if f.parent >= 0 {
-		first = f.nodes[f.parent].last
+	if f.Parent >= 0 {
+		first = f.nodes[f.Parent].Last
 	}
 	b := f.box(kindSplitter)
 	n := &f.nodes[b.i]
 	n.id = id
 	n.aux = int32(len(widgetsOf(f).splits))
-	widgetsOf(f).splits = append(widgetsOf(f).splits, splitDecl{state: state, first: first, minFirst: splitterMin, minSecond: splitterMin})
+	widgetsOf(f).splits = append(widgetsOf(f).splits, splitDecl{state: state, First: first, minFirst: splitterMin, minSecond: splitterMin})
 	state.id = id
 	return b
 }
@@ -132,17 +132,17 @@ func (b Box) SplitterThickness(thickness float32) Box {
 }
 
 // Mins sets the least size of the panes either side of a Splitter, along its container.
-func (b Box) Mins(first, second float32) Box {
+func (b Box) Mins(First, second float32) Box {
 	if n := b.n(); n.Kind == kindSplitter {
 		d := &widgetsOf(b.f).splits[n.aux]
-		d.minFirst, d.minSecond = max(first, 0), max(second, 0)
+		d.minFirst, d.minSecond = max(First, 0), max(second, 0)
 	}
 	return b
 }
 
 // splitsRow reports whether the splitter's container lays out left to right, so its
 // bar is vertical and its pointer coordinate is x.
-func (f *frame) splitsRow(n *node) bool { return n.parent < 0 || f.nodes[n.parent].dir != column }
+func (f *frame) splitsRow(n *node) bool { return n.Parent < 0 || f.nodes[n.Parent].Dir != column }
 
 func (f *frame) measureSplitter(n *node) {
 	thickness := widgetsOf(f).splits[n.aux].thickness
@@ -162,14 +162,14 @@ func (f *frame) measureSplitter(n *node) {
 func (f *frame) splitLimits(n *node) (lo, hi, span float32) {
 	d := &widgetsOf(f).splits[n.aux]
 	lo = d.minFirst
-	if d.first < 0 || n.next < 0 {
+	if d.First < 0 || n.Next < 0 {
 		return lo, lo, 0
 	}
 	axis := axisY
 	if f.splitsRow(n) {
 		axis = axisX
 	}
-	first, second := &f.nodes[d.first], &f.nodes[n.next]
+	first, second := &f.nodes[d.First], &f.nodes[n.Next]
 	span = *origin(&second.rect, axis) + *extent(&second.rect, axis) - *origin(&first.rect, axis)
 	gaps := span - *extent(&first.rect, axis) - *extent(&n.rect, axis) - *extent(&second.rect, axis)
 	hi = span - *extent(&n.rect, axis) - gaps - d.minSecond
@@ -181,22 +181,22 @@ func (f *frame) splitLimits(n *node) (lo, hi, span float32) {
 // rather than after it, means the first frame that shows the pane already has
 // the share and a resize keeps it without a second frame.
 func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
-	if n.first < 0 {
+	if n.First < 0 {
 		return
 	}
 	count := 0
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		count++
 	}
 	gaps := n.gap * float32(max(count-1, 0))
-	for c := n.first; c >= 0; c = f.nodes[c].next {
+	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		bar := &f.nodes[c]
 		if bar.Kind != kindSplitter {
 			continue
 		}
 		d := &widgetsOf(f).splits[bar.aux]
 		state := d.state
-		if state.Ratio <= 0 || d.first < 0 {
+		if state.Ratio <= 0 || d.First < 0 {
 			continue
 		}
 		thickness := bar.pref[axis]
@@ -206,7 +206,7 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 		lo := d.minFirst
 		hi := max(avail-gaps-thickness-d.minSecond, lo)
 		pos := min(max(state.Ratio*(avail-gaps-thickness), lo), hi)
-		first := &f.nodes[d.first]
+		first := &f.nodes[d.First]
 		first.raw[axis], first.pref[axis] = pos, pos
 		state.Pos = pos
 		state.thickness = thickness

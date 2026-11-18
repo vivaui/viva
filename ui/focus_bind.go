@@ -102,7 +102,7 @@ type focusBinding[T comparable] struct {
 
 type focusBindings[T comparable] struct {
 	field     *T
-	last      T
+	Last      T
 	set       bool
 	pending   bool // the desired value is not declared yet
 	missing   bool // the desired value's element was not declared since the page last painted
@@ -138,8 +138,8 @@ func (s *focusBindings[T]) settle(canvas *gfx.Canvas, focused gfx.ID) {
 		}
 	}
 
-	if !s.set || desired != s.last {
-		s.last, s.set = desired, true
+	if !s.set || desired != s.Last {
+		s.Last, s.set = desired, true
 		s.pending, s.missing = !desiredBound, false
 		if desiredBound && focused != desiredID {
 			canvas.RequestFocus(desiredID)
@@ -158,7 +158,7 @@ func (s *focusBindings[T]) settle(canvas *gfx.Canvas, focused gfx.ID) {
 	}
 	if focusChanged && focusedBound && focusedValue != desired {
 		*s.field = focusedValue
-		s.last, s.set = focusedValue, true
+		s.Last, s.set = focusedValue, true
 		s.pending, s.missing = false, false
 	}
 }

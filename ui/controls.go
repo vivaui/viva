@@ -153,10 +153,10 @@ func (f *frame) measureControls(n *node) {
 			n.pref[axisX] = components.CheckboxExtent(f.theme) + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
 		}
 	case kindSwitch:
-		w, h := components.SwitchHitExtent(f.theme, n.flags&flagSmall != 0)
+		w, h := components.SwitchHitExtent(f.theme, n.Flags&flagSmall != 0)
 		n.pref = [2]float32{w, h}
 		if n.text != "" {
-			control, _ := components.SwitchExtent(f.theme, n.flags&flagSmall != 0)
+			control, _ := components.SwitchExtent(f.theme, n.Flags&flagSmall != 0)
 			n.pref[axisX] = control + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
 		}
 	case kindSegmented:
@@ -167,7 +167,7 @@ func (f *frame) measureControls(n *node) {
 		n.pref = [2]float32{width, f.theme.Metrics.ControlHeight}
 	case kindInput:
 		n.pref = [2]float32{n.padX(), f.inputLine(n) + n.padY()}
-		if n.flags&flagThemed != 0 {
+		if n.Flags&flagThemed != 0 {
 			n.pref = [2]float32{0, f.theme.Metrics.ControlHeight}
 		}
 	case kindInputGroup:
@@ -177,7 +177,7 @@ func (f *frame) measureControls(n *node) {
 		}
 	case kindTextarea:
 		n.pref = [2]float32{n.padX(), f.theme.Metrics.FontSizeM + 7 + n.padY()}
-		if n.flags&flagThemed != 0 {
+		if n.Flags&flagThemed != 0 {
 			n.pref = [2]float32{0, 64}
 		}
 	case kindTable, kindTabs, kindSelect:
@@ -209,7 +209,7 @@ func (f *frame) paintButton(n *node) {
 	if h := r.Height; h > 0 && math.Abs(float64(h-button.BoundsHeight())) > 0.01 {
 		button = button.Height(h)
 	}
-	if n.flags&flagDisabled != 0 {
+	if n.Flags&flagDisabled != 0 {
 		button = button.Disabled()
 	}
 	switch n.variant {
@@ -276,7 +276,7 @@ var trimControls = func(f *frame) {
 // The snapshot is copied, so the caller may reuse it; its strings must stay valid until End.
 func (f *frame) Input(snapshot components.InputSnapshot) Box {
 	b := f.InputBase(snapshot)
-	f.nodes[b.i].flags |= flagThemed
+	f.nodes[b.i].Flags |= flagThemed
 	return b
 }
 
@@ -322,7 +322,7 @@ func (f *frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
 // the element sets itself (Background, Border, Radius, Shadow, Pad) replaces the recipe's.
 func (f *frame) Textarea(snapshot components.TextareaSnapshot) Box {
 	b := f.TextareaBase(snapshot)
-	f.nodes[b.i].flags |= flagThemed
+	f.nodes[b.i].Flags |= flagThemed
 	return b
 }
 
@@ -376,22 +376,22 @@ func (f *frame) paintInput(n *node) {
 	// otherwise, so the snapshot's own declaration is left alone only by an alignment it
 	// declares. What the snapshot leaves at AlignLeft the element's TextEnd() takes.
 	snapshot := widgetsOf(f).inputs[n.aux]
-	if n.textEnd {
+	if n.TextEnd {
 		if snapshot.Alignment == gfx.AlignLeft || snapshot.Alignment == gfx.AlignStart {
 			snapshot.Alignment = gfx.AlignEnd
 		}
 	}
-	if n.fontSize > 0 {
-		snapshot.Text.Size = n.fontSize
+	if n.FontSize > 0 {
+		snapshot.Text.Size = n.FontSize
 	}
-	if n.weight > 0 {
-		snapshot.Text.Weight = n.weight
+	if n.Weight > 0 {
+		snapshot.Text.Weight = n.Weight
 	}
-	if n.flags&flagHasColor != 0 {
+	if n.Flags&flagHasColor != 0 {
 		snapshot.Text.Color = n.color
 	}
-	if n.flags&flagMono != 0 {
-		snapshot.Text.Mono, snapshot.Text.MonoFace = true, n.face
+	if n.Flags&flagMono != 0 {
+		snapshot.Text.Mono, snapshot.Text.MonoFace = true, n.Face
 	}
 	if a := f.exts[n.ext].addons; a != 0 {
 		f.paintAddonsFn(f, n, snapshot, &f.addons[a-1])
@@ -403,7 +403,7 @@ func (f *frame) paintInput(n *node) {
 // paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
 // Border, as paintInput does for a line.
 func (f *frame) paintTextarea(n *node) {
-	if n.flags&flagHasColor != 0 {
+	if n.Flags&flagHasColor != 0 {
 		theme := f.theme
 		theme.Foreground = n.color
 		components.PaintTextareaContent(f.canvas, theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.aux])

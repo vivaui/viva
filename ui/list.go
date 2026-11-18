@@ -93,7 +93,7 @@ type listInternals struct {
 	submitted    bool
 	submittedRow int32
 	submittedAt  uint32
-	first, last  int // the rows the last paint showed, last below first when none
+	First, Last  int // the rows the last paint showed, last below first when none
 	laidOut      bool
 	scroll       *ScrollState
 	pending      listScroll // where the application asked to scroll
@@ -133,7 +133,7 @@ type listDrag struct {
 	from            int   // the row pressed
 	rows            []int // the rows dragged, ascending; kept to reuse its room
 	start, at       gfx.Point
-	to, next        int // where the rows would go as of the last promoted paint, and the one this paint finds
+	to, Next        int // where the rows would go as of the last promoted paint, and the one this paint finds
 	valid, nextOK   bool
 	handle          bool          // the drag started on the row's handle
 	scrolled        time.Duration // the last step of the scroll at an edge
@@ -240,11 +240,11 @@ func (s *ListState) ScrollToEnd() {
 // Visible returns the first and the last row the list showed in the last paint,
 // last below first when it showed none: a list nearing the end of what was loaded
 // loads more.
-func (s *ListState) Visible() (first, last int) {
+func (s *ListState) Visible() (First, Last int) {
 	if !s.list.laidOut {
 		return 0, -1
 	}
-	return s.list.first, s.list.last
+	return s.list.First, s.list.Last
 }
 
 // AtEnd reports whether the list showed its end in the last paint.
@@ -558,7 +558,7 @@ func (s *ListState) applyScrollRequest(f *frame) bool {
 	// A pin moves the offset at the end of a layout, so the paint that follows the
 	// request still shows the rows the list was at: the end is where it should be
 	// only once a paint has laid it out and the heights put it there.
-	if settled && (!toEnd || (in.laidOut && in.last >= in.n-1)) {
+	if settled && (!toEnd || (in.laidOut && in.Last >= in.n-1)) {
 		s.clearScrollRequest()
 		return false
 	}
@@ -588,7 +588,7 @@ func (s *ListState) afterLayout() {
 	if in.pending != listScrollNone && in.scroll != nil {
 		in.pendingAt = in.scroll.Offset
 	}
-	if in.scroll == nil || !in.scroll.pinned() || in.last >= in.n-1 {
+	if in.scroll == nil || !in.scroll.pinned() || in.Last >= in.n-1 {
 		in.followFrame = 0
 		return
 	}
@@ -768,7 +768,7 @@ func (t *listTree) find(y, estimate float64, n int) int {
 
 type listDecl struct {
 	state       *ListState
-	first       int
+	First       int
 	rows, until int32 // the List's rows in Page.listRows
 	pinned      int32 // the element of the pinned header, or -1
 	pinnedRow   int
@@ -941,7 +941,7 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 			break
 		}
 	}
-	in.first, in.last, in.laidOut = first, last-1, true
+	in.First, in.Last, in.laidOut = first, last-1, true
 	in.tab = state.tabRow()
 	scrollX := state.clampX(in.scrollX)
 	in.scrollX = scrollX
@@ -999,7 +999,7 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 		}
 	})
 	in.pinned, in.pinnedRow = pinnedNode, pin
-	p.lists = append(p.lists, listDecl{state: state, first: first, rows: int32(start), until: int32(len(p.listRows)), pinned: pinnedNode, pinnedRow: pin})
+	p.lists = append(p.lists, listDecl{state: state, First: first, rows: int32(start), until: int32(len(p.listRows)), pinned: pinnedNode, pinnedRow: pin})
 	return area
 }
 
@@ -1016,15 +1016,15 @@ func listRowBox(c C, horizontal bool) Box {
 // first one shown that is not a header.
 func (s *ListState) tabRow() int {
 	in := &s.list
-	if cur := int(in.selected) - 1; cur >= in.first && cur <= in.last && !s.isHeader(cur) {
+	if cur := int(in.selected) - 1; cur >= in.First && cur <= in.Last && !s.isHeader(cur) {
 		return cur
 	}
-	for i := in.first; i <= in.last; i++ {
+	for i := in.First; i <= in.Last; i++ {
 		if !s.isHeader(i) {
 			return i
 		}
 	}
-	return in.first
+	return in.First
 }
 
 // draw marks the list as the listbox its rows are options of, named by the area's
@@ -1195,9 +1195,9 @@ func (p *Page) listKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		case gfx.KeyEnd:
 			target, d = n-1, -1
 		case gfx.KeyPageUp:
-			target, d = target-max(s.list.last-s.list.first+1, 1), -1
+			target, d = target-max(s.list.Last-s.list.First+1, 1), -1
 		case gfx.KeyPageDown:
-			target += max(s.list.last-s.list.first+1, 1)
+			target += max(s.list.Last-s.list.First+1, 1)
 		default:
 			return gfx.EventResult{}, false
 		}
@@ -1318,7 +1318,7 @@ func (p *Page) listType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 func (p *Page) measureLists() {
 	for _, list := range p.lists {
 		for k, node := range p.listRows[list.rows:list.until] {
-			list.state.measured(list.first+k, p.ctx.f.nodes[node].rect.Height)
+			list.state.measured(list.First+k, p.ctx.f.nodes[node].rect.Height)
 		}
 		if list.pinned >= 0 {
 			list.state.measured(list.pinnedRow, p.ctx.f.nodes[list.pinned].rect.Height)

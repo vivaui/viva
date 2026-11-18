@@ -32,11 +32,11 @@ func (b Box) n() *node {
 // Children declares what is inside the element. fn runs at once, and is not kept.
 func (b Box) Children(fn func()) Box {
 	b.n()
-	saved := b.f.parent
-	b.f.parent = b.i
-	b.n().flags |= flagChildren
+	saved := b.f.Parent
+	b.f.Parent = b.i
+	b.n().Flags |= flagChildren
 	fn()
-	b.f.parent = saved
+	b.f.Parent = saved
 	return b
 }
 
@@ -55,7 +55,7 @@ func (b Box) Clicked() bool {
 	if n.ext != 0 && b.f.exts[n.ext].bind != 0 {
 		b.f.settleFn(b.f, b.i) // a bound value is written before the caller reads it
 	}
-	return b.f.canvas != nil && n.flags&flagVeto == 0 && b.f.canvas.Clicked(n.id)
+	return b.f.canvas != nil && n.Flags&flagVeto == 0 && b.f.canvas.Clicked(n.id)
 }
 
 // Hit makes the element's whole rectangle a pointer target named id, with the
@@ -63,7 +63,7 @@ func (b Box) Clicked() bool {
 func (b Box) Hit(id gfx.ID, label string) Box {
 	n := b.n()
 	n.id, n.label = id, label
-	n.flags = n.flags&^flagLabelFor | flagHasHit
+	n.Flags = n.Flags&^flagLabelFor | flagHasHit
 	return b
 }
 
@@ -100,7 +100,7 @@ func (b Box) HitWith(id gfx.ID, label string, options gfx.HitOptions) Box {
 func (b Box) LabelFor(id gfx.ID) Box {
 	n := b.n()
 	n.id = id
-	n.flags |= flagHasHit | flagLabelFor
+	n.Flags |= flagHasHit | flagLabelFor
 	return b
 }
 
@@ -120,7 +120,7 @@ func (b Box) HeightPercent(p float32) Box { b.n().size[axisY] = dimension{dimPer
 func (b Box) Basis(v float32) Box {
 	n := b.n()
 	n.basis = v
-	n.flags |= flagBasis
+	n.Flags |= flagBasis
 	return b
 }
 func (b Box) FillWidth() Box  { b.n().size[axisX] = dimension{Kind: dimFill}; return b }
@@ -154,13 +154,13 @@ func (b Box) MaxHeightPercent(p float32) Box {
 func (b Box) Grow(v float32) Box {
 	n := b.n()
 	n.grow = v
-	n.flags |= flagGrowSet
+	n.Flags |= flagGrowSet
 	return b
 }
 func (b Box) Shrink(v float32) Box {
 	n := b.n()
 	n.shrink = v
-	n.flags |= flagShrinkSet
+	n.Flags |= flagShrinkSet
 	return b
 }
 
@@ -172,36 +172,36 @@ func (b Box) Shrink(v float32) Box {
 func (b Box) Pad(v float32) Box { return b.PadSides(v, v, v, v) }
 func (b Box) PadX(v float32) Box {
 	n := b.n()
-	n.pad[1], n.pad[3], n.flags = v, v, n.flags|flagSetPad
+	n.pad[1], n.pad[3], n.Flags = v, v, n.Flags|flagSetPad
 	return b
 }
 func (b Box) PadY(v float32) Box {
 	n := b.n()
-	n.pad[0], n.pad[2], n.flags = v, v, n.flags|flagSetPad
+	n.pad[0], n.pad[2], n.Flags = v, v, n.Flags|flagSetPad
 	return b
 }
 func (b Box) PadTop(v float32) Box {
 	n := b.n()
 	n.pad[0] = v
-	n.flags |= flagSetPad
+	n.Flags |= flagSetPad
 	return b
 }
 func (b Box) PadRight(v float32) Box {
 	n := b.n()
 	n.pad[1] = v
-	n.flags |= flagSetPad
+	n.Flags |= flagSetPad
 	return b
 }
 func (b Box) PadBottom(v float32) Box {
 	n := b.n()
 	n.pad[2] = v
-	n.flags |= flagSetPad
+	n.Flags |= flagSetPad
 	return b
 }
 func (b Box) PadLeft(v float32) Box {
 	n := b.n()
 	n.pad[3] = v
-	n.flags |= flagSetPad
+	n.Flags |= flagSetPad
 	return b
 }
 func (b Box) Margin(v float32) Box  { return b.MarginSides(v, v, v, v) }
@@ -225,7 +225,7 @@ func (b Box) MarginLeft(v float32) Box {
 }
 func (b Box) PadSides(top, right, bottom, left float32) Box {
 	n := b.n()
-	n.pad, n.flags = [4]float32{top, right, bottom, left}, n.flags|flagSetPad
+	n.pad, n.Flags = [4]float32{top, right, bottom, left}, n.Flags|flagSetPad
 	return b
 }
 func (b Box) MarginSides(top, right, bottom, left float32) Box {
@@ -240,7 +240,7 @@ func (b Box) Gap(v float32) Box { b.n().gap = v; return b }
 // LineGap is the space between the lines of a Flow, when it is not its Gap. It has
 // no effect on any other container.
 func (b Box) LineGap(v float32) Box {
-	if n := b.n(); n.dir == flow {
+	if n := b.n(); n.Dir == flow {
 		n.gridMin = max(v, 0)
 	}
 	return b
@@ -270,17 +270,17 @@ func (b Box) Center() Box { return b.Items(Center).Justify(Center) }
 // package components (ButtonRecipe, CheckboxRecipe...) give the theme's values to start from.
 func (b Box) Background(c Color) Box {
 	n := b.n()
-	n.background, n.flags = c, n.flags|flagSetBackground
+	n.background, n.Flags = c, n.Flags|flagSetBackground
 	return b
 }
 func (b Box) Radius(v float32) Box {
 	n := b.n()
-	n.radius, n.flags = v, n.flags|flagHasRadius
+	n.radius, n.Flags = v, n.Flags|flagHasRadius
 	return b
 }
 func (b Box) Border(width float32, c Color) Box {
 	n := b.n()
-	n.borderWidth, n.flags = width, n.flags|flagSetBorder
+	n.borderWidth, n.Flags = width, n.Flags|flagSetBorder
 	b.f.extra(b.i).border = c
 	return b
 }
@@ -299,41 +299,41 @@ func (b Box) Dashed() Box {
 // gfx.ShadowLG) around the element's rounded rectangle, under its fill.
 func (b Box) Shadow(level gfx.ShadowLevel) Box {
 	b.f.extra(b.i).shadow = level
-	b.n().flags |= flagSetShadow
+	b.n().Flags |= flagSetShadow
 	return b
 }
 
 // Clip keeps what is drawn inside the element to its rectangle.
-func (b Box) Clip() Box { b.n().flags |= flagClip; return b }
+func (b Box) Clip() Box { b.n().Flags |= flagClip; return b }
 
 // Text: FontSize, Bold, Weight, Color, Muted and Mono style a Text; TextCenter
 // centers it in its rectangle. On a control, FontSize is the size of its text in
 // place of the theme's body size.
 func (b Box) FontSize(v float32) Box {
 	n := b.n()
-	n.fontSize = v
+	n.FontSize = v
 	if n.Kind == kindSelect {
 		b.f.sizeSelectList(n)
 	}
 	return b
 }
-func (b Box) Weight(v float32) Box { b.n().weight = v; return b }
+func (b Box) Weight(v float32) Box { b.n().Weight = v; return b }
 
 // LineHeight sets the height of each line of a Text or Paragraph, in pixels: the
 // default is the font size plus seven, as in the components.
-func (b Box) LineHeight(v float32) Box { b.n().lineH = v; return b }
+func (b Box) LineHeight(v float32) Box { b.n().LineH = v; return b }
 func (b Box) Bold() Box                { return b.Weight(gfx.WeightSemibold) }
 func (b Box) Color(c Color) Box {
 	n := b.n()
 	n.color = c
-	n.flags |= flagHasColor
+	n.Flags |= flagHasColor
 	return b
 }
 func (b Box) Muted() Box {
 	b.n()
 	return b.Color(b.f.theme.MutedForeground)
 }
-func (b Box) Mono() Box { b.n().flags |= flagMono; return b }
+func (b Box) Mono() Box { b.n().Flags |= flagMono; return b }
 
 // IconTransform draws the icon scaled, turned and moved from the box it was laid
 // out in, without moving the layout or the hit region: a row keeps its size and
@@ -357,10 +357,10 @@ func (b Box) BindIconHover(hover IconHover) Box {
 
 // MonoFace picks the fixed-pitch family a Mono text is drawn in (gfx.MonoClassic,
 // or one installed family named by gfx.MonoFamily); the default is the system's.
-func (b Box) MonoFace(face gfx.MonoFace) Box {
+func (b Box) MonoFace(Face gfx.MonoFace) Box {
 	n := b.n()
-	n.face = face
-	n.flags |= flagMono
+	n.Face = Face
+	n.Flags |= flagMono
 	return b
 }
 
@@ -368,24 +368,24 @@ func (b Box) MonoFace(face gfx.MonoFace) Box {
 // fit the width it gets, instead of clipping it. It is Paragraph(value, 1).
 func (b Box) Ellipsis() Box {
 	n := b.n()
-	n.flags |= flagWrap
-	n.maxLines = 1
+	n.Flags |= flagWrap
+	n.MaxLines = 1
 	return b
 }
-func (b Box) TextCenter() Box { b.n().flags |= flagTextCenter; return b }
+func (b Box) TextCenter() Box { b.n().Flags |= flagTextCenter; return b }
 
 // TextEnd aligns a Text to the end of its direction instead of the start: the right
 // edge for left-to-right text, the left edge for Hebrew, Arabic and other right-to-left
 // text. A Text starts at its start edge by default, so Hebrew is right-aligned without
 // being asked to.
-func (b Box) TextEnd() Box { b.n().textEnd = true; return b }
+func (b Box) TextEnd() Box { b.n().TextEnd = true; return b }
 
 // TextDirection sets the paragraph direction of a Text or Paragraph instead of taking it
 // from its first strong character (UAX #9). A paragraph has one direction: every line of
 // it, wrapped, is aligned and ordered by it, including a line that starts with a word of
 // the other direction.
 func (b Box) TextDirection(direction gfx.TextDirection) Box {
-	b.n().textDirection = direction
+	b.n().TextDirection = direction
 	return b
 }
 
@@ -403,7 +403,7 @@ func (b Box) XSmall() Box                 { b.n().buttonSize = style.SizeXSmall;
 func (b Box) Small() Box {
 	n := b.n()
 	n.buttonSize = style.SizeSmall
-	n.flags |= flagSmall
+	n.Flags |= flagSmall
 	return b
 }
 func (b Box) Large() Box    { b.n().buttonSize = style.SizeLarge; return b }
@@ -447,9 +447,9 @@ func (b Box) ButtonRecipe(recipe func(gfx.Theme, style.Variant, gfx.State) style
 // makes it enabled again, so a condition is written in the call: `.Disabled(m.count <= 0)`.
 func (b Box) Disabled(disabled bool) Box {
 	if disabled {
-		b.n().flags |= flagDisabled
+		b.n().Flags |= flagDisabled
 	} else {
-		b.n().flags &^= flagDisabled
+		b.n().Flags &^= flagDisabled
 	}
 	return b
 }
@@ -495,7 +495,7 @@ func (b Box) Beside(anchor Rect, gap float32, align Align) Box {
 func (b Box) Stroke(width float32, c Color) Box {
 	n := b.n()
 	n.borderWidth = width
-	n.flags |= flagOutline
+	n.Flags |= flagOutline
 	b.f.extra(b.i).border = c
 	return b
 }
@@ -520,7 +520,7 @@ func (b Box) Chosen() (gfx.ID, bool) {
 	if b.f.canvas == nil {
 		return gfx.ID{}, false
 	}
-	if n.flags&flagAlertDialog != 0 {
+	if n.Flags&flagAlertDialog != 0 {
 		spec := &widgetsOf(b.f).alertDialogs[n.aux].spec
 		for _, id := range [2]gfx.ID{spec.ActionID, spec.CancelID} {
 			if !id.IsZero() && b.f.canvas.Clicked(id) {

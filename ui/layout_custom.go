@@ -125,7 +125,7 @@ func (c *LayoutContext) must(ok bool, message string) {
 func (c *LayoutContext) begin(f *frame, n *node, phase layoutPhase) {
 	c.frame, c.phase, c.width = f, phase, 0
 	c.children = c.children[:0]
-	for i := n.first; i >= 0; i = f.nodes[i].next {
+	for i := n.First; i >= 0; i = f.nodes[i].Next {
 		c.children = append(c.children, i)
 	}
 }
@@ -195,12 +195,12 @@ func (f *frame) shiftSubtreeX(i int32, delta float32) {
 	start := int(i) + 1
 	end := start
 	for end < len(f.nodes) {
-		p := f.nodes[end].parent
+		p := f.nodes[end].Parent
 		if p < 0 {
 			break
 		}
 		for p > i {
-			p = f.nodes[p].parent
+			p = f.nodes[p].Parent
 		}
 		if p != i {
 			break
