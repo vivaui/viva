@@ -3,7 +3,6 @@ package ui_test
 import (
 	"testing"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -14,8 +13,8 @@ func TestBadgeIsPresentationalUntilItIsGivenAnIdentity(t *testing.T) {
 	var hit ui.Box
 	view := func(c ui.C) {
 		ui.Column(c).Fill().Pad(10).Children(func() {
-			ui.Badge(c, "beta", components.BadgeSecondary)
-			hit = ui.Badge(c, "remove ×", components.BadgeDestructive).Hit(gfx.Item(1), "remove ×")
+			ui.Badge(c, "beta").Secondary()
+			hit = ui.Badge(c, "remove ×").Destructive().Hit(gfx.Item(1), "remove ×")
 		})
 	}
 	d := openPage(t, view)

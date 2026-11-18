@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
+)
 
 // widgets holds the declarations of the components that are painted by package
 // components at paint time, rather than built from containers and text: a
@@ -8,14 +11,15 @@ import "github.com/vivaui/viva/gfx"
 // like the frame's input and segmented tables, so declaring them allocates nothing
 // once the page has been seen.
 type widgets struct {
-	tables       []tableDecl
-	tabs         []tabsDecl
-	selects      []selectDecl
-	dialogs      []dialogDecl
-	alertDialogs []alertDialogDecl
-	paginations  []paginationDecl
-	drawers      []drawerDecl
-	popovers     []popoverDecl
+	tables          []tableDecl
+	tabs            []tabsDecl
+	selects         []selectDecl
+	dialogs         []dialogDecl
+	alertDialogs    []alertDialogDecl
+	paginations     []paginationDecl
+	paginationItems []components.PaginationItem
+	drawers         []drawerDecl
+	popovers        []popoverDecl
 	// popoverFocus holds the panels whose InitialFocusID was already asked for.
 	// It outlives reset because a panel is open across paints, and is swept at
 	// the next Begin for the panels the last paint no longer declared.
@@ -33,6 +37,7 @@ func (w *widgets) reset() {
 	w.tables, w.tabs, w.selects, w.dialogs = w.tables[:0], w.tabs[:0], w.selects[:0], w.dialogs[:0]
 	w.alertDialogs = w.alertDialogs[:0]
 	w.paginations = w.paginations[:0]
+	w.paginationItems = w.paginationItems[:0]
 	w.popovers, w.drawers = w.popovers[:0], w.drawers[:0]
 	w.splits, w.sliders, w.rows = w.splits[:0], w.sliders[:0], w.rows[:0]
 	w.layer = 0

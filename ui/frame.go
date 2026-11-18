@@ -228,9 +228,8 @@ type extra struct {
 	swatch        bool             // the element is a ColorSwatch, painted by paintSwatch
 	swatchValue   Color            // its color and whether it is the chosen one of its set
 	swatchChosen  bool
-	picker        *ColorPickerState       // a ColorPicker's state, painted by paintColorPicker
-	pickerLook    colorPickerLook         // how it looks
-	badge         components.BadgeVariant // a Badge's look
+	picker        *ColorPickerState // a ColorPicker's state, painted by paintColorPicker
+	pickerLook    colorPickerLook   // how it looks
 }
 
 // frame is one page being declared. It is handed to the function given to

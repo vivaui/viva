@@ -3,7 +3,6 @@ package ui_test
 import (
 	"testing"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -12,10 +11,10 @@ import (
 // a disabled control and the current page declare no target.
 func TestPaginationReportsTheItemChosen(t *testing.T) {
 	var chosen gfx.ID
-	items := []components.PaginationItem{
-		{ID: gfx.Item(1), Label: "Previous", Kind: components.PaginationPrevious, Disabled: true},
-		{ID: gfx.ID{}, Label: "3", Kind: components.PaginationPage, Current: true},
-		{ID: gfx.Item(2), Label: "Next", Kind: components.PaginationNext},
+	items := []ui.PaginationItem{
+		{ID: gfx.Item(1), Label: "Previous", Kind: ui.PaginationPrevious, Disabled: true},
+		{Label: "3", Kind: ui.PaginationPage, Current: true},
+		{ID: gfx.Item(2), Label: "Next", Kind: ui.PaginationNext},
 	}
 	var row ui.Box
 	view := func(c ui.C) {

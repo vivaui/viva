@@ -528,7 +528,7 @@ func (b Box) Chosen() (gfx.ID, bool) {
 			}
 		}
 	case kindPagination:
-		for _, item := range b.f.widgets.paginations[n.aux].items {
+		for _, item := range b.f.paginationItems(n) {
 			if !item.ID.IsZero() && b.f.canvas.Clicked(item.ID) {
 				return item.ID, true
 			}
