@@ -10,8 +10,8 @@ import "github.com/vivaui/viva/gfx"
 // application's identity.
 //
 //	ui.Radio(c, &m.plan, Monthly, "Monthly")
-func Radio[T comparable](c C, value *T, option T, label string) Box {
-	return radio(c, c.page.controlID(pkRadio), value, option, label)
+func Radio[T comparable](c C, value *T, option T, Label string) Box {
+	return radio(c, c.page.controlID(pkRadio), value, option, Label)
 }
 
 // RadioID is Radio for an option the application already names, as TextFieldID is for
@@ -19,14 +19,14 @@ func Radio[T comparable](c C, value *T, option T, label string) Box {
 // application's own routing or a test can address it.
 //
 //	ui.RadioID(c, hitKeepParent, &m.ungroup, false, "Keep hosts in the parent")
-func RadioID[T comparable](c C, ID gfx.ID, value *T, option T, label string) Box {
-	return radio(c, ID, value, option, label)
+func RadioID[T comparable](c C, ID gfx.ID, value *T, option T, Label string) Box {
+	return radio(c, ID, value, option, Label)
 }
 
-func radio[T comparable](c C, ID gfx.ID, value *T, option T, label string) Box {
+func radio[T comparable](c C, ID gfx.ID, value *T, option T, Label string) Box {
 	th := c.f.Palette
 	m := th.Metrics
-	b := c.f.RadioBase(ID, label, *value == option)
+	b := c.f.RadioBase(ID, Label, *value == option)
 	choose(c, b, value, option)
 	if b.State().FocusVisible && *value != option {
 		*value = option
@@ -47,7 +47,7 @@ func radio[T comparable](c C, ID gfx.ID, value *T, option T, label string) Box {
 					Row(c).Width(8).Height(8).Radius(4).Background(th.PrimaryForeground)
 				}
 			})
-		Text(c, label).FontSize(m.FontSizeM).Weight(gfx.WeightMedium).Ellipsis()
+		Text(c, Label).FontSize(m.FontSizeM).Weight(gfx.WeightMedium).Ellipsis()
 	})
 	return b
 }

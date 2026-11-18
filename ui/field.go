@@ -108,8 +108,8 @@ func (field *Field) SetText(value string) {
 // Field adds a text field for field, named id (a stable identity from your Tree),
 // with an accessible label and placeholder. It is Input with the snapshot taken from
 // the field: focus, platform editing and the caret are filled in for you.
-func (f *frame) Field(field *Field, ID gfx.ID, label, placeholder string) Box {
-	return f.Input(field.snapshot(f, ID, label, placeholder))
+func (f *frame) Field(field *Field, ID gfx.ID, Label, placeholder string) Box {
+	return f.Input(field.snapshot(f, ID, Label, placeholder))
 }
 
 // FieldBase is Field without a look, as InputBase is Input without one: the same editor,
@@ -118,8 +118,8 @@ func (f *frame) Field(field *Field, ID gfx.ID, label, placeholder string) Box {
 // from, such as the editor of a table cell.
 //
 //	f.FieldBase(&m.cell, cellID, "Cell", "").Pad(8).Border(2, theme.Primary).Radius(0)
-func (f *frame) FieldBase(field *Field, ID gfx.ID, label, placeholder string) Box {
-	return f.InputBase(field.snapshot(f, ID, label, placeholder))
+func (f *frame) FieldBase(field *Field, ID gfx.ID, Label, placeholder string) Box {
+	return f.InputBase(field.snapshot(f, ID, Label, placeholder))
 }
 
 // FieldArea is Field in several rows, with the shadcn textarea look: the same
@@ -128,8 +128,8 @@ func (f *frame) FieldBase(field *Field, ID gfx.ID, label, placeholder string) Bo
 // otherwise). It has no Submitted: Enter is a new line.
 //
 //	f.FieldArea(&m.notes, notesID, "Notes", "Anything to add").Height(120)
-func (f *frame) FieldArea(field *Field, ID gfx.ID, label, placeholder string) Box {
-	input := field.snapshot(f, ID, label, placeholder)
+func (f *frame) FieldArea(field *Field, ID gfx.ID, Label, placeholder string) Box {
+	input := field.snapshot(f, ID, Label, placeholder)
 	if field.area == nil {
 		field.area = new(components.TextareaLayout)
 	}
@@ -168,7 +168,7 @@ func (field *Field) Key(event gfx.KeyEvent) gfx.EventResult {
 
 // snapshot is what the field is painted from: focus, platform editing and the caret are
 // filled in for the frame being declared.
-func (field *Field) snapshot(f *frame, ID gfx.ID, label, placeholder string) components.InputSnapshot {
+func (field *Field) snapshot(f *frame, ID gfx.ID, Label, placeholder string) components.InputSnapshot {
 	field.rows = false // FieldArea sets it again after
 	editor := field.ensure()
 	field.ID = ID
@@ -178,7 +178,7 @@ func (field *Field) snapshot(f *frame, ID gfx.ID, label, placeholder string) com
 	focused := f.Surface != nil && f.Surface.Focused() == ID
 	selection := editor.Selection()
 	snapshot := components.InputSnapshot{
-		ID: ID, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, Hint: field.Hint,
+		ID: ID, Label: Label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, Hint: field.Hint,
 		Alignment: field.Alignment,
 		Focused:   focused,
 		// The field paints its own text, caret, selection and composition, and the

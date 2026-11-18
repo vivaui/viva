@@ -132,7 +132,7 @@ type node struct {
 	TextEnd              bool              // a Text aligned to the end of its direction
 	Color                Color
 	ID                   gfx.ID
-	label                string
+	Label                string
 	Variant              style.Variant
 	ButtonSize           style.Size
 	RowSpan              uint8 // the rows a Grid child covers; zero is one
@@ -623,10 +623,10 @@ func (f *frame) Image(bitmap gfx.Bitmap) Box {
 
 // Button adds a button with the official look; Outline, Ghost and the other
 // variants choose another. Clicked reports a click on it.
-func (f *frame) Button(ID gfx.ID, label string) Box {
+func (f *frame) Button(ID gfx.ID, Label string) Box {
 	b := f.box(kindButton)
 	n := &f.Nodes[b.i]
-	n.ID, n.label = ID, label
+	n.ID, n.Label = ID, Label
 	n.Flags |= flagHasHit
 	return b
 }
@@ -685,7 +685,7 @@ func (f *frame) checkHits() {
 		if n.Size[axisX].Kind != dimAuto || n.Size[axisY].Kind != dimAuto || n.Background.Alpha > 0 || n.BorderWidth > 0 || n.outOfFlow != 0 || n.MinS != [2]float32{} {
 			continue
 		}
-		panic("ui: a Row, Column or Stack given Hit(" + n.label + ") has no Children and no size, background or border, so it is empty: " +
+		panic("ui: a Row, Column or Stack given Hit(" + n.Label + ") has no Children and no size, background or border, so it is empty: " +
 			"declare what it shows with Children(func() { ... }) before Clicked(), e.g. f.Row().Hit(id, name).Children(func() { f.Text(name) }).Clicked()")
 	}
 }

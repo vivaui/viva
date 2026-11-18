@@ -21,7 +21,7 @@ type FormFieldState struct {
 	// Description is a line of help under the control, above Error, in the muted color.
 	Description string
 
-	label   string
+	Label   string
 	Palette *Theme
 	layout  field.Layout
 	paint   func(*DrawContext)
@@ -51,13 +51,13 @@ type FormFieldState struct {
 //
 // Not inside a Memo. state is the field's; declaring two fields with one state
 // in a paint is a mistake, as it is for a ListState.
-func FormField(c C, state *FormFieldState, label string) Box {
+func FormField(c C, state *FormFieldState, Label string) Box {
 	p := c.page
 	p.forbidInMemo("FormField")
 	if state == nil {
 		panic("ui: FormField needs its FormFieldState")
 	}
-	state.label = label
+	state.Label = Label
 	state.Palette = c.Theme()
 	if state.paint == nil {
 		state.paint = state.draw
@@ -70,7 +70,7 @@ func FormField(c C, state *FormFieldState, label string) Box {
 // description and error rows, so the field and a painted BeginField have the
 // same height.
 func (state *FormFieldState) spec() field.Spec {
-	return field.Spec{Title: state.label, Description: state.Description, Error: state.Error, Invalid: state.Invalid, Control: state.For}
+	return field.Spec{Title: state.Label, Description: state.Description, Error: state.Error, Invalid: state.Invalid, Control: state.For}
 }
 
 // MeasureWidth reports no preferred width: a form field takes the width its

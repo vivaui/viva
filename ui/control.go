@@ -66,7 +66,7 @@ type controlEntry struct {
 //	ui.Control(c, "Terminal", &m.term.input).Grow(1).FillWidth().Draw(m.term.draw)
 //
 // Not inside a Memo: a copied part is not declared, and its control would take no input.
-func Control(c C, label string, h *Handlers) Box {
+func Control(c C, Label string, h *Handlers) Box {
 	p := c.page
 	p.forbidInMemo("Control")
 	if h == nil {
@@ -84,7 +84,7 @@ func Control(c C, label string, h *Handlers) Box {
 	}
 	theme := &c.f.Palette
 	// What the text service is given when Text leaves it unset: the page's body text.
-	return c.f.Slot().HitWith(id, label, gfx.HitOptions{Role: role,
+	return c.f.Slot().HitWith(id, Label, gfx.HitOptions{Role: role,
 		TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground})
 }
 

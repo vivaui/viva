@@ -60,9 +60,9 @@ func (b Box) Clicked() bool {
 
 // Hit makes the element's whole rectangle a pointer target named id, with the
 // accessibility label given, so a row or a card can be clicked or hovered.
-func (b Box) Hit(ID gfx.ID, label string) Box {
+func (b Box) Hit(ID gfx.ID, Label string) Box {
 	n := b.n()
-	n.ID, n.label = ID, label
+	n.ID, n.Label = ID, Label
 	n.Flags = n.Flags&^flagLabelFor | flagHasHit
 	return b
 }
@@ -78,10 +78,10 @@ func (b Box) MovesWindow() Box {
 }
 
 // HitWith is Hit with the role, cursor and other options of gfx.HitOptions.
-func (b Box) HitWith(ID gfx.ID, label string, options gfx.HitOptions) Box {
+func (b Box) HitWith(ID gfx.ID, Label string, options gfx.HitOptions) Box {
 	b.n()
 	b.f.extra(b.i).hit = options
-	return b.Hit(ID, label)
+	return b.Hit(ID, Label)
 }
 
 // LabelFor makes the element's rectangle a label of the control named id, as HTML's
@@ -455,7 +455,7 @@ func (b Box) Disabled(disabled bool) Box {
 }
 
 // Label names a Checkbox or Switch for accessibility.
-func (b Box) Label(v string) Box { b.n().label = v; return b }
+func (b Box) Label(v string) Box { b.n().Label = v; return b }
 
 // At places a Popup with its top left corner at (x, y), moved if need be to stay
 // inside the frame: where a context menu opens, at the pointer.

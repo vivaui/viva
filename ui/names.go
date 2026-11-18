@@ -58,7 +58,7 @@ type boundKey struct {
 // armedButton is an unbound button the user holds (pressed or focused) and its label.
 type armedButton struct {
 	ID    gfx.ID
-	label string
+	Label string
 	moved bool // the number moved to another button: nothing it holds is delivered
 }
 
@@ -96,9 +96,9 @@ func checkName(call, name string) {
 }
 
 // movedFrom reports whether label was another number's than number in the last paint.
-func movedFrom(prev []string, label string, number int) bool {
+func movedFrom(prev []string, Label string, number int) bool {
 	for at, seen := range prev {
-		if seen == label && at != number {
+		if seen == Label && at != number {
 			return true
 		}
 	}

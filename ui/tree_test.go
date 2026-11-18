@@ -22,7 +22,7 @@ type treeModel struct {
 	folders []folder
 	visible []treeEntry // the rows that show, flattened
 	state   ui.TreeState
-	label   func(int) string // m.name, made once
+	Label   func(int) string // m.name, made once
 	opened  string
 }
 
@@ -55,7 +55,7 @@ func TestTreeRowsCanHaveTheirOwnHeights(t *testing.T) {
 
 func newTreeModel(folders []folder) *treeModel {
 	m := &treeModel{folders: folders}
-	m.state.Node, m.label = m.node, m.name
+	m.state.Node, m.Label = m.node, m.name
 	m.state.Key = func(i int) int { e := m.visible[i]; return e.folder<<16 | (e.file + 1) }
 	m.flatten()
 	return m
@@ -91,7 +91,7 @@ func (m *treeModel) name(i int) string {
 
 func (m *treeModel) page(c ui.C) {
 	ui.Column(c).Fill().Pad(8).Children(func() {
-		ui.Tree(c, &m.state, len(m.visible), m.label, nil).Grow(1)
+		ui.Tree(c, &m.state, len(m.visible), m.Label, nil).Grow(1)
 		if i, ok := m.state.Toggled(); ok {
 			f := &m.folders[m.visible[i].folder]
 			f.open = !f.open
@@ -487,7 +487,7 @@ func (m *labelTreeModel) row(i int) {
 func (m *labelTreeModel) page(c ui.C) {
 	m.c = c
 	ui.Column(c).Fill().Pad(8).Children(func() {
-		ui.Tree(c, &m.state, len(m.visible), m.label, m.Content).Grow(1)
+		ui.Tree(c, &m.state, len(m.visible), m.Label, m.Content).Grow(1)
 		if i, ok := m.state.Chosen(); ok {
 			m.opened = m.name(i)
 		}

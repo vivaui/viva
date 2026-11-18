@@ -128,7 +128,7 @@ func (f *frame) measureControls(n *node) {
 		if d := n.Size[axisY]; d.Kind == dimPx {
 			button = button.Height(d.value) // an icon button is as wide as it is tall
 		}
-		button = button.SizeToFit(n.label)
+		button = button.SizeToFit(n.Label)
 		n.Pref = [2]float32{button.BoundsWidth(), button.BoundsHeight()}
 		if n.ButtonSize >= components.ButtonSizeIcon {
 			n.Pref[axisX] = n.Pref[axisY]
@@ -140,7 +140,7 @@ func (f *frame) measureControls(n *node) {
 		w, h := components.PaginationExtent(f.Surface, f.Palette, f.paginationItems(n))
 		n.Pref = [2]float32{w, h}
 	case kindSplitButton:
-		button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.label)
+		button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.Label)
 		trigger := widgetsOf(f).splitButtons[n.Aux].triggerWidth
 		if trigger <= 0 {
 			trigger = splitButtonTrigger
@@ -214,19 +214,19 @@ func (f *frame) paintButton(n *node) {
 	}
 	switch n.Variant {
 	case components.ButtonSecondary:
-		button.Secondary(n.label)
+		button.Secondary(n.Label)
 	case components.ButtonOutline:
-		button.Outline(n.label)
+		button.Outline(n.Label)
 	case components.ButtonGhost:
-		button.Ghost(n.label)
+		button.Ghost(n.Label)
 	case components.ButtonLink:
-		button.Link(n.label)
+		button.Link(n.Label)
 	case components.ButtonDestructive:
-		button.Destructive(n.label)
+		button.Destructive(n.Label)
 	case components.ButtonDestructiveOutline:
-		button.DestructiveOutline(n.label)
+		button.DestructiveOutline(n.Label)
 	default:
-		button.Default(n.label)
+		button.Default(n.Label)
 	}
 }
 

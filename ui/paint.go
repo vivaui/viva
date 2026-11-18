@@ -110,7 +110,7 @@ func (f *frame) paint(i int32) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
 		if n.Flags&flagLabelFor != 0 {
-			text := n.label
+			text := n.Label
 			if text == "" && n.Kind == kindText {
 				text = n.Text
 			}
@@ -121,7 +121,7 @@ func (f *frame) paint(i int32) {
 			// unavailable says so to assistive technology and leaves the Tab order,
 			// as the control with a look does.
 			options.Disabled = options.Disabled || n.Flags&flagDisabled != 0
-			canvas.HitWithOptions(n.ID, hit, n.label, options)
+			canvas.HitWithOptions(n.ID, hit, n.Label, options)
 		}
 	}
 

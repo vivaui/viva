@@ -49,7 +49,7 @@ const splitButtonTrigger = float32(32)
 func (f *frame) SplitButton(spec SplitButtonSpec) Box {
 	b := f.box(kindSplitButton)
 	n := &f.Nodes[b.i]
-	n.ID, n.label = spec.PrimaryID, spec.Label
+	n.ID, n.Label = spec.PrimaryID, spec.Label
 	n.Flags |= flagHasHit
 	n.Aux = int32(len(widgetsOf(f).splitButtons))
 	widgetsOf(f).splitButtons = append(widgetsOf(f).splitButtons, splitButtonDecl{
@@ -87,9 +87,9 @@ func (b Box) Open(open bool) Box {
 }
 
 // MenuLabel names a SplitButton's trigger to assistive technology.
-func (b Box) MenuLabel(label string) Box {
+func (b Box) MenuLabel(Label string) Box {
 	if n := b.n(); n.Kind == kindSplitButton {
-		widgetsOf(b.f).splitButtons[n.Aux].menuLabel = label
+		widgetsOf(b.f).splitButtons[n.Aux].menuLabel = Label
 	}
 	return b
 }

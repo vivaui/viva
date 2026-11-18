@@ -249,7 +249,7 @@ func (f *frame) paintSlider(n *node) {
 	if n.Flags&flagThemed == 0 {
 		// A SliderBase paints nothing of its own: it is the slider to the pointer, the
 		// keyboard and assistive technology, over the element's whole rectangle.
-		label := n.label
+		label := n.Label
 		if label == "" {
 			label = "Slider"
 		}
@@ -270,7 +270,7 @@ func (f *frame) paintSlider(n *node) {
 	if n.Flags&flagDisabled != 0 {
 		slider = slider.Disabled()
 	}
-	label := n.label
+	label := n.Label
 	if label == "" {
 		label = "Slider"
 	}

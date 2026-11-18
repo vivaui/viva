@@ -83,14 +83,14 @@ func (d *pageDriver) textsNamed(value string) []gfx.Rect {
 }
 
 // listArea is the rectangle of the listbox named label.
-func (d *pageDriver) listArea(label string) gfx.Rect {
+func (d *pageDriver) listArea(Label string) gfx.Rect {
 	d.t.Helper()
 	for _, hit := range d.driver.Snapshot().Hits {
-		if hit.Container && hit.Role == gfx.RoleListBox && hit.Label == label {
+		if hit.Container && hit.Role == gfx.RoleListBox && hit.Label == Label {
 			return hit.Bounds
 		}
 	}
-	d.t.Fatalf("no listbox %q", label)
+	d.t.Fatalf("no listbox %q", Label)
 	return gfx.Rect{}
 }
 

@@ -295,7 +295,7 @@ func (f *frame) paintSplitter(n *node) {
 	} else {
 		canvas.Fill(bar, line)
 	}
-	label := n.label
+	label := n.Label
 	if label == "" {
 		label = "Resize panes"
 	}

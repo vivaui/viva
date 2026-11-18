@@ -337,17 +337,17 @@ func (s *SelectState) match(current int) int {
 }
 
 // hasPrefixFold reports whether label starts with prefix, ignoring case.
-func hasPrefixFold(label string, prefix []byte) bool {
+func hasPrefixFold(Label string, prefix []byte) bool {
 	for len(prefix) > 0 {
-		if label == "" {
+		if Label == "" {
 			return false
 		}
-		a, an := utf8.DecodeRuneInString(label)
+		a, an := utf8.DecodeRuneInString(Label)
 		b, bn := utf8.DecodeRune(prefix)
 		if unicode.ToLower(a) != unicode.ToLower(b) {
 			return false
 		}
-		label, prefix = label[an:], prefix[bn:]
+		Label, prefix = Label[an:], prefix[bn:]
 	}
 	return true
 }
@@ -660,7 +660,7 @@ func (f *frame) paintSelect(n *node) {
 	}
 	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: height}
 	options := components.SelectOptions{
-		TriggerID: d.triggerID(count), Label: n.label, Placeholder: n.Text, Hint: d.hint,
+		TriggerID: d.triggerID(count), Label: n.Label, Placeholder: n.Text, Hint: d.hint,
 		Disabled: n.Flags&flagDisabled != 0,
 		Layer:    d.layer, Scope: d.scope.At(count + 2), DismissID: d.scope.At(count + 1), Viewport: f.bounds,
 	}

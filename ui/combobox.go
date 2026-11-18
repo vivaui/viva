@@ -25,8 +25,8 @@ import (
 // search by and a disabled state.
 //
 // Not inside a Memo.
-func Combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, label string) Box {
-	return combobox(c, value, choices, nameOf, label)
+func Combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, Label string) Box {
+	return combobox(c, value, choices, nameOf, Label)
 }
 
 // ComboboxOption describes one choice of a Combobox, as Describe gives it: Label is its
@@ -48,10 +48,10 @@ type ComboboxOption struct {
 // ComboboxPaint is room in an option's row and what paints it: see ComboboxOption.
 type ComboboxPaint = components.SingleSelectPaint
 
-func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, label string) Box {
+func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, Label string) Box {
 	p := c.page
 	p.forbidInMemo("Combobox")
-	if label == "" {
+	if Label == "" {
 		panic("ui: Combobox needs a label: it is the field's name for assistive technology")
 	}
 	scope := p.boundScope(pkCombobox, unsafe.Pointer(value))
@@ -117,7 +117,7 @@ func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, l
 	if state.list.Open {
 		p.overlay = true
 	}
-	state.f, state.label, state.placeholder = f, label, label
+	state.f, state.Label, state.placeholder = f, Label, Label
 	// Clearable, Empty and Creatable say these again for this paint, after the clicks
 	// were taken with what the last paint showed.
 	state.clearable, state.empty, state.list.AllowCreate, state.createPrefix = false, "", false, ""
@@ -155,7 +155,7 @@ type comboState struct {
 	f                         *frame
 	node                      int32
 	gen                       uint32
-	label, placeholder, empty string
+	Label, placeholder, empty string
 	clearLabel, clearLabelOf  string // "Clear <label>", made once per label
 	createPrefix              string
 	clearable                 bool
@@ -216,12 +216,12 @@ func (s *comboState) draw(d *DrawContext) {
 	options := components.SingleSelectOptions{
 		InputID: ids.input, TriggerID: ids.trigger, DismissID: ids.dismiss, Scope: ids.focus,
 		ScrollID: ids.Scroll, OptionIDs: ids.options,
-		Label: s.label, Placeholder: s.placeholder, EmptyLabel: s.empty, CreatePrefix: s.createPrefix,
+		Label: s.Label, Placeholder: s.placeholder, EmptyLabel: s.empty, CreatePrefix: s.createPrefix,
 		Viewport: s.f.bounds, Layer: max(s.layer, s.f.popupLayer), Disabled: n.Flags&flagDisabled != 0,
 	}
 	if s.clearable {
-		if s.clearLabelOf != s.label {
-			s.clearLabel, s.clearLabelOf = "Clear "+s.label, s.label
+		if s.clearLabelOf != s.Label {
+			s.clearLabel, s.clearLabelOf = "Clear "+s.Label, s.Label
 		}
 		options.ClearID, options.ClearLabel = ids.clear, s.clearLabel
 	}

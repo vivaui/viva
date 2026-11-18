@@ -25,10 +25,10 @@ import (
 
 // ButtonBase is Button without a look: a row centering its children that is clicked by
 // the pointer, Enter and Space. label is its accessible name.
-func ButtonBase(c C, label string) Box {
+func ButtonBase(c C, Label string) Box {
 	id := c.page.controlID(pkButton)
-	b := c.f.ButtonBase(id, label)
-	c.page.guard(b, id, label)
+	b := c.f.ButtonBase(id, Label)
+	c.page.guard(b, id, Label)
 	return b
 }
 
@@ -36,8 +36,8 @@ func ButtonBase(c C, label string) Box {
 // you. label is its accessible name. *value is written when Clicked or Changed is first
 // read on the box, or else when the paint ends; reading *value before that sees the
 // previous value, and a Disabled declared after the box still holds.
-func CheckboxBase(c C, value *bool, label string) Box {
-	b := c.f.CheckboxBase(c.page.boundID(pkCheckbox, unsafe.Pointer(value)), *value).Label(label)
+func CheckboxBase(c C, value *bool, Label string) Box {
+	b := c.f.CheckboxBase(c.page.boundID(pkCheckbox, unsafe.Pointer(value)), *value).Label(Label)
 	c.f.bindBool(b, value)
 	return b
 }
@@ -46,8 +46,8 @@ func CheckboxBase(c C, value *bool, label string) Box {
 // you. *value is written when Clicked or Changed is first read on the track, or else
 // when the paint ends; reading *value before that sees the previous value, and a
 // Disabled declared after the track still holds.
-func SwitchBase(c C, value *bool, label string) Box {
-	b := c.f.SwitchBase(c.page.boundID(pkSwitch, unsafe.Pointer(value)), *value).Label(label)
+func SwitchBase(c C, value *bool, Label string) Box {
+	b := c.f.SwitchBase(c.page.boundID(pkSwitch, unsafe.Pointer(value)), *value).Label(Label)
 	c.f.bindBool(b, value)
 	return b
 }
@@ -56,8 +56,8 @@ func SwitchBase(c C, value *bool, label string) Box {
 // technology it is a button that is pressed or not. *value is written when Clicked or
 // Changed is first read on it, or else when the paint ends; reading *value before that
 // sees the previous value, and a Disabled declared after it still holds.
-func ToggleBase(c C, value *bool, label string) Box {
-	b := c.f.ToggleBase(c.page.boundID(pkToggle, unsafe.Pointer(value)), label, *value)
+func ToggleBase(c C, value *bool, Label string) Box {
+	b := c.f.ToggleBase(c.page.boundID(pkToggle, unsafe.Pointer(value)), Label, *value)
 	c.f.bindBool(b, value)
 	return b
 }
@@ -65,9 +65,9 @@ func ToggleBase(c C, value *bool, label string) Box {
 // RadioBase is one option of a radio group or a segmented control without a look: a click
 // sets *value to option, and it is a radio button that is chosen while *value is option.
 // Name it with c.Key when the options are reordered.
-func RadioBase[T comparable](c C, value *T, option T, label string) Box {
+func RadioBase[T comparable](c C, value *T, option T, Label string) Box {
 	id := c.page.controlID(pkRadio)
-	b := c.f.RadioBase(id, label, *value == option)
+	b := c.f.RadioBase(id, Label, *value == option)
 	choose(c, b, value, option)
 	return b
 }
@@ -75,9 +75,9 @@ func RadioBase[T comparable](c C, value *T, option T, label string) Box {
 // TabBase is one tab of a strip without a look: a click sets *value to tab, and it is a
 // tab that is selected while *value is tab. Between tabs the arrow keys are a
 // FocusGroup's (FocusHorizontal), or components.TabsKeyDown's.
-func TabBase[T comparable](c C, value *T, tab T, label string) Box {
+func TabBase[T comparable](c C, value *T, tab T, Label string) Box {
 	id := c.page.controlID(pkTab)
-	b := c.f.TabBase(id, label, *value == tab)
+	b := c.f.TabBase(id, Label, *value == tab)
 	choose(c, b, value, tab)
 	return b
 }
@@ -107,12 +107,12 @@ func SliderBase(c C, state *SliderState) Box {
 //	if list, ok := sel.Popup(); ok {
 //		list.Draw(m.paintPanel) // option i is in sel.Part(i)
 //	}
-func SelectBase[T comparable](c C, value *T, choices []T, label func(T) string) Box {
-	return selectOf(c, value, choices, label, nil, true, gfx.ID{})
+func SelectBase[T comparable](c C, value *T, choices []T, Label func(T) string) Box {
+	return selectOf(c, value, choices, Label, nil, true, gfx.ID{})
 }
 
 // TextFieldBase is TextField without a look: the editable text, with no padding,
 // background, border or corners of its own.
-func TextFieldBase[T TextValue](c C, value T, label, placeholder string) Box {
-	return textFieldOf(c, value, label, placeholder, true)
+func TextFieldBase[T TextValue](c C, value T, Label, placeholder string) Box {
+	return textFieldOf(c, value, Label, placeholder, true)
 }

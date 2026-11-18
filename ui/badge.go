@@ -13,19 +13,19 @@ import (
 //
 //	ui.Badge(c, "beta").Secondary()
 //	ui.Badge(c, tag+" ×").Secondary().Hit(tagID, tag)
-func (f *frame) Badge(label string) Box {
+func (f *frame) Badge(Label string) Box {
 	b := f.box(kindBadge)
 	n := &f.Nodes[b.i]
-	n.Text, n.label = label, label
+	n.Text, n.Label = Label, Label
 	return b
 }
 
 // Badge adds a badge to a page.
-func Badge(c C, label string) Box {
+func Badge(c C, Label string) Box {
 	if c == nil || c.page == nil || c.f == nil {
 		panic("ui: Badge is for a page")
 	}
-	return c.f.Badge(label)
+	return c.f.Badge(Label)
 }
 
 // badgeVariant is the chip's look, from the variant the Button methods chose:

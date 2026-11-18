@@ -321,17 +321,17 @@ func BenchmarkRows1000Page(b *testing.B) {
 // elements are: a button
 // showing the chosen option and a popover listing them, with whether it is open
 // kept as the component's own state rather than the caller's.
-func combobox[T comparable](c ui.C, value *T, options []T, label func(T) string) ui.Box {
+func combobox[T comparable](c ui.C, value *T, options []T, Label func(T) string) ui.Box {
 	var root ui.Box
 	root = ui.Column(c.Part("combobox")).Children(func() {
 		open := ui.State[bool](c, "open")
-		trigger := ui.Button(c.Part("trigger"), label(*value)).Outline()
+		trigger := ui.Button(c.Part("trigger"), Label(*value)).Outline()
 		if trigger.Clicked() {
 			*open = !*open
 		}
 		ui.Popover(c, trigger, open, func() {
 			for i, option := range options {
-				if ui.Button(c.KeyInt(i), label(option)).Ghost().Clicked() {
+				if ui.Button(c.KeyInt(i), Label(option)).Ghost().Clicked() {
 					*value, *open = option, false
 				}
 			}

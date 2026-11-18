@@ -35,8 +35,8 @@ func (b Box) Caption(Text string) Box {
 	}
 	n.Text = Text
 	b.f.captionFn = (*frame).paintCaption
-	if n.label == "" {
-		n.label = Text
+	if n.Label == "" {
+		n.Label = Text
 	}
 	return b
 }

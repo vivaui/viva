@@ -173,14 +173,14 @@ func BenchmarkFramePage(b *testing.B) {
 	}
 }
 
-func embeddedHitID(t *testing.T, Surface *gfx.Canvas, label string) gfx.ID {
+func embeddedHitID(t *testing.T, Surface *gfx.Canvas, Label string) gfx.ID {
 	t.Helper()
 	for _, hit := range Surface.Hits() {
-		if hit.Label == label && !hit.IsLabel && !hit.Backdrop {
+		if hit.Label == Label && !hit.IsLabel && !hit.Backdrop {
 			return hit.ID
 		}
 	}
-	t.Fatalf("no control labeled %q", label)
+	t.Fatalf("no control labeled %q", Label)
 	return gfx.ID{}
 }
 

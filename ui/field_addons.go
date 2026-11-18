@@ -49,10 +49,10 @@ func (b Box) Icon(icon gfx.Icon) Box {
 //	if field.ActionClicked() {
 //		m.query = ""
 //	}
-func (b Box) Action(icon gfx.Icon, label string) Box {
+func (b Box) Action(icon gfx.Icon, Label string) Box {
 	a := b.addons()
 	a.end = components.InputGroupSlot{
-		Kind: components.InputGroupSlotButton, ID: b.actionID(), Icon: icon, Label: label,
+		Kind: components.InputGroupSlotButton, ID: b.actionID(), Icon: icon, Label: Label,
 		ButtonSize: components.InputGroupButtonIconXS,
 	}
 	return b

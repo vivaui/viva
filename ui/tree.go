@@ -59,7 +59,7 @@ type TreeState struct {
 	declare         func(i int, box Box)
 	paint           func(*DrawContext)
 	c               C
-	label           func(int) string
+	rowLabel        func(int) string
 	Content         func(int)
 }
 
@@ -149,7 +149,7 @@ func (s *TreeState) Chosen() (int, bool) { return s.chosen, s.chosen >= 0 }
 //	if i, ok := m.files.Chosen(); ok { m.open(i) }
 //
 // Not inside a Memo.
-func Tree(c C, state *TreeState, n int, label func(i int) string, Content func(i int)) Box {
+func Tree(c C, state *TreeState, n int, Label func(i int) string, Content func(i int)) Box {
 	p := c.page
 	p.forbidInMemo("Tree")
 	if state.Node == nil {
@@ -164,8 +164,8 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, Content func(i
 	}
 	state.toggled, state.chosen = -1, -1
 	state.dropped = TreeMove{From: -1}
-	state.c, state.label, state.Content, state.n = c, label, Content, n
-	state.nameOf, state.f = label, c.f
+	state.c, state.rowLabel, state.Content, state.n = c, Label, Content, n
+	state.nameOf, state.f = Label, c.f
 	if state.CanDrop != nil {
 		state.dragPointer(c.f.Surface)
 	} else {
@@ -178,7 +178,7 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, Content func(i
 	state.ListState.list.rows = state.rows
 	area := p.listArea(c, &state.ListState, n, false, state.declare)
 	state.Scroll = c.f.Exts[c.f.Nodes[area.i].Ext].scrollState
-	state.c, state.label, state.Content = nil, nil, nil // the model's functions: not kept past the paint
+	state.c, state.rowLabel, state.Content = nil, nil, nil // the model's functions: not kept past the paint
 	p.trees = append(p.trees, state)
 	if p.treeRoute == nil {
 		p.keyRoute, p.treeRoute, p.typeRoute = (*Page).routeKey, (*Page).treeKey, (*Page).typeKey
@@ -237,7 +237,7 @@ func (s *TreeState) row(i int, rowBox Box) {
 	node := s.Node(i)
 	key := s.key(i)
 	item := components.TreeItem{
-		ID: s.rows.At(key), Label: s.label(i), Depth: uint8(min(max(node.Depth, 0), 31)),
+		ID: s.rows.At(key), Label: s.rowLabel(i), Depth: uint8(min(max(node.Depth, 0), 31)),
 		Branch: node.Branch, Expanded: node.Expanded, Selected: node.Selected, Disabled: node.Disabled,
 	}
 	if node.Branch {

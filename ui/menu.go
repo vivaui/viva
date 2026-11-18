@@ -460,7 +460,7 @@ func (m *MenuItems) paintPanel(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx
 
 type menuRow struct {
 	Kind        menuRowKind
-	label       string
+	Label       string
 	description string
 	icon        gfx.Icon
 	// The shortcut the row shows, a keymap.Chord's fields: the Page's type would
@@ -491,7 +491,7 @@ func (m *MenuItems) minWidth() float32 {
 // good until the next row.
 func (m *MenuItems) row(i int) components.DropdownMenuItem {
 	row := &m.Items[i]
-	item := components.DropdownMenuItem{ID: m.scope.At(menuRows + i), Label: row.label, Description: row.description, Disabled: row.disabled, Icon: row.icon, TrailingWidth: row.trailingWidth}
+	item := components.DropdownMenuItem{ID: m.scope.At(menuRows + i), Label: row.Label, Description: row.description, Disabled: row.disabled, Icon: row.icon, TrailingWidth: row.trailingWidth}
 	if row.destructive {
 		item.Variant = components.DropdownMenuItemDestructive
 	}
@@ -518,8 +518,8 @@ type MenuItem struct {
 }
 
 // Item adds an action named label.
-func (m *MenuItems) Item(label string) MenuItem {
-	m.Items = append(m.Items, menuRow{label: label})
+func (m *MenuItems) Item(Label string) MenuItem {
+	m.Items = append(m.Items, menuRow{Label: Label})
 	return MenuItem{menu: m, i: len(m.Items) - 1}
 }
 
@@ -527,8 +527,8 @@ func (m *MenuItems) Item(label string) MenuItem {
 // as the pointer rests on it, as it is clicked, or as Right, Enter or Space is
 // pressed on it, Left going back. body runs only while the submenu is open, in
 // the paint it is declared in. Choosing an item in it closes the whole menu.
-func (m *MenuItems) Sub(label string, body func(*MenuItems)) MenuItem {
-	item := m.Item(label)
+func (m *MenuItems) Sub(Label string, body func(*MenuItems)) MenuItem {
+	item := m.Item(Label)
 	m.Items[item.i].submenu = true
 	if canvas := m.f.Surface; canvas != nil && canvas.Clicked(m.scope.At(menuRows+item.i)) {
 		m.sub, m.subMenu = item.i, nil // a click opens it, as the pointer resting there does
@@ -638,8 +638,8 @@ func (m *MenuItems) paintTrailing(Surface *gfx.Canvas, Palette gfx.Theme, row *m
 }
 
 // Label adds a heading over the items that follow it.
-func (m *MenuItems) Label(label string) {
-	m.Items = append(m.Items, menuRow{Kind: menuRowLabel, label: label})
+func (m *MenuItems) Label(Label string) {
+	m.Items = append(m.Items, menuRow{Kind: menuRowLabel, Label: Label})
 }
 
 // Separator adds a line between groups of items.
@@ -755,7 +755,7 @@ func (m *MenuItems) paintAt(Surface *gfx.Canvas, Palette *Theme, bounds Rect, la
 			case menuRowSeparator:
 				menu.AddSeparator()
 			case menuRowLabel:
-				menu.AddLabel(row.label, false)
+				menu.AddLabel(row.Label, false)
 			case menuRowContent:
 				m.paintContent(Surface, *Palette, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			case menuRowPageContent:
@@ -798,7 +798,7 @@ func (m *MenuItems) paintAt(Surface *gfx.Canvas, Palette *Theme, bounds Rect, la
 			case menuRowSeparator:
 				menu.AddSeparator()
 			case menuRowLabel:
-				menu.AddLabel(row.label, false)
+				menu.AddLabel(row.Label, false)
 			case menuRowContent:
 				m.paintContent(Surface, *Palette, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			case menuRowPageContent:

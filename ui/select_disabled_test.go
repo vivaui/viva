@@ -193,10 +193,10 @@ func TestButtonRecipeDressesOnlyThatButton(t *testing.T) {
 		ui.Button(c, "Plain")
 		ui.Button(c, "Dark").ButtonRecipe(darkSaveRecipe)
 	}))
-	fill := func(label string) gfx.Color {
+	fill := func(Label string) gfx.Color {
 		var bounds gfx.Rect
 		for _, h := range d.driver.Snapshot().Hits {
-			if h.Label == label && !h.IsLabel {
+			if h.Label == Label && !h.IsLabel {
 				bounds = h.Bounds
 			}
 		}
@@ -205,7 +205,7 @@ func TestButtonRecipeDressesOnlyThatButton(t *testing.T) {
 				return p.Color
 			}
 		}
-		t.Fatalf("no fill for %s", label)
+		t.Fatalf("no fill for %s", Label)
 		return gfx.Color{}
 	}
 	if fill("Plain") == fill("Dark") {

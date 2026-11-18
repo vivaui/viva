@@ -138,16 +138,16 @@ func TestEmbeddedListReadsTheClicksModifiers(t *testing.T) {
 		host.Embed(&view, gfx.Point{}, mount)
 		host.EndFrame()
 	}
-	click := func(label string, info gfx.ClickInfo) {
+	click := func(Label string, info gfx.ClickInfo) {
 		t.Helper()
 		var id gfx.ID
 		for _, hit := range host.Hits() {
-			if hit.Label == label && !hit.IsLabel && !hit.ID.IsZero() {
+			if hit.Label == Label && !hit.IsLabel && !hit.ID.IsZero() {
 				id = hit.ID
 			}
 		}
 		if id.IsZero() {
-			t.Fatalf("no row is labeled %q", label)
+			t.Fatalf("no row is labeled %q", Label)
 		}
 		host.BeginEventPass(id, info)
 		paint()

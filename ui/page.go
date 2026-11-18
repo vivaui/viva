@@ -1076,14 +1076,14 @@ func (p *Page) sweep() {
 }
 
 // guard is Screen's protection of a held button whose place now names another.
-func (p *Page) guard(b Box, ID gfx.ID, label string) {
+func (p *Page) guard(b Box, ID gfx.ID, Label string) {
 	canvas := p.ctx.f.Surface
 	if canvas == nil {
 		return
 	}
 	s := p.record(ID.Scope())
 	number := len(s.labels)
-	s.labels = append(s.labels, label)
+	s.labels = append(s.labels, Label)
 	focused := canvas.Focused() == ID
 	if !focused && canvas.Pressed() != ID {
 		return
@@ -1098,22 +1098,22 @@ func (p *Page) guard(b Box, ID gfx.ID, label string) {
 	case held == nil:
 		for i := range p.held {
 			if p.held[i].ID.IsZero() {
-				p.held[i] = armedButton{ID: ID, label: label}
+				p.held[i] = armedButton{ID: ID, Label: Label}
 				return
 			}
 		}
-		p.held[0] = armedButton{ID: ID, label: label}
+		p.held[0] = armedButton{ID: ID, Label: Label}
 	case held.moved:
 		b.n().Flags |= flagVeto
-	case held.label == label:
-	case s.prevEpoch+1 == p.epoch && movedFrom(s.prev, label, number):
+	case held.Label == Label:
+	case s.prevEpoch+1 == p.epoch && movedFrom(s.prev, Label, number):
 		held.moved = true
 		b.n().Flags |= flagVeto
 		if focused {
 			canvas.ReleaseFocus(ID)
 		}
 	default:
-		held.label = label
+		held.Label = Label
 	}
 }
 

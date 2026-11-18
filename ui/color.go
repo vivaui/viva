@@ -14,14 +14,14 @@ import (
 // owns the choice. It is as wide and tall as its Size, 28 when it has none.
 //
 //	if ui.ColorSwatch(c.Key(name), color, m.color == color, name).Clicked() { m.color = color }
-func ColorSwatch(c C, Color Color, selected bool, label string) Box {
-	return colorSwatch(c, c.page.controlID(pkRadio), Color, selected, label)
+func ColorSwatch(c C, Color Color, selected bool, Label string) Box {
+	return colorSwatch(c, c.page.controlID(pkRadio), Color, selected, Label)
 }
 
-func colorSwatch(c C, ID gfx.ID, Color Color, selected bool, label string) Box {
+func colorSwatch(c C, ID gfx.ID, Color Color, selected bool, Label string) Box {
 	b := Slot(c).Size(28, 28).Shrink(0)
 	n := b.n()
-	n.ID, n.label = ID, label
+	n.ID, n.Label = ID, Label
 	// The swatch paints from what the element carries rather than from a Draw
 	// callback: a closure made in each paint allocates in a hot path.
 	extra := b.f.extra(b.i)
@@ -33,7 +33,7 @@ func colorSwatch(c C, ID gfx.ID, Color Color, selected bool, label string) Box {
 // paintSwatch draws a ColorSwatch element.
 func (f *frame) paintSwatch(n *node, r Rect) {
 	extra := &f.Exts[n.Ext]
-	swatch := components.BeginColorSwatch(f.Surface, f.Palette, n.ID, r, extra.swatchValue).Label(n.label).Selected(extra.swatchChosen).
+	swatch := components.BeginColorSwatch(f.Surface, f.Palette, n.ID, r, extra.swatchValue).Label(n.Label).Selected(extra.swatchChosen).
 		TabStop(!extra.swatchSkipTab)
 	if extra.swatchFlush {
 		swatch = swatch.Flush()
@@ -98,7 +98,7 @@ func (s *ColorPickerState) Applied() bool {
 
 // colorPickerLook is how a ColorPicker looks, set by its Box methods.
 type colorPickerLook struct {
-	label  string
+	Label  string
 	round  bool
 	icon   *gfx.Icon
 	empty  bool
@@ -114,19 +114,19 @@ type colorPickerLook struct {
 //
 //	ui.ColorPicker(c, &m.picker, &m.accent, "Accent")
 //	if m.picker.Applied() { m.save() }
-func ColorPicker(c C, state *ColorPickerState, Color *Color, label string) Box {
-	return colorPicker(c, gfx.ID{}, state, Color, label)
+func ColorPicker(c C, state *ColorPickerState, Color *Color, Label string) Box {
+	return colorPicker(c, gfx.ID{}, state, Color, Label)
 }
 
 // ColorPickerID is ColorPicker for a trigger the application already names: the picker
 // keeps its state by identity, so it takes the id when it is made. A row's words can then
 // be its LabelFor, as for any control the application names. A ColorSwatch, which keeps
 // none, is named with Hit instead.
-func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, label string) Box {
-	return colorPicker(c, ID, state, Color, label)
+func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, Label string) Box {
+	return colorPicker(c, ID, state, Color, Label)
 }
 
-func colorPicker(c C, ID gfx.ID, s *ColorPickerState, Color *Color, label string) Box {
+func colorPicker(c C, ID gfx.ID, s *ColorPickerState, Color *Color, Label string) Box {
 	p := c.page
 	p.forbidInMemo("ColorPicker")
 	if ID.IsZero() {
@@ -140,19 +140,19 @@ func colorPicker(c C, ID gfx.ID, s *ColorPickerState, Color *Color, label string
 	}
 	if s.open {
 		p.overlay = true
-		control := Control(c, label, &s.handlers).Absolute().Left(0).Top(0).Size(0, 0)
-		control.HitWith(s.handlers.parts.At(8), label, gfx.HitOptions{Role: gfx.RoleGroup, SkipTab: true, SkipFocus: true})
+		control := Control(c, Label, &s.handlers).Absolute().Left(0).Top(0).Size(0, 0)
+		control.HitWith(s.handlers.parts.At(8), Label, gfx.HitOptions{Role: gfx.RoleGroup, SkipTab: true, SkipFocus: true})
 		p.fields = append(p.fields, fieldEntry{ID: s.handlers.parts.At(3), field: &s.hex})
 		s.hex.ID = s.handlers.parts.At(3)
 		s.syncHex()
 	}
 	b := Slot(c).Size(32, 32).Shrink(0)
 	n := b.n()
-	n.ID, n.label = ID, label
+	n.ID, n.Label = ID, Label
 	// Like the swatch, the picker paints from what the element carries: a Draw
 	// callback made for each paint would allocate one closure a paint.
 	extra := b.f.extra(b.i)
-	extra.picker, extra.pickerLook = s, colorPickerLook{label: label}
+	extra.picker, extra.pickerLook = s, colorPickerLook{Label: Label}
 	b.f.paintPickerFn = (*frame).paintColorPicker
 	return b
 }
@@ -205,7 +205,7 @@ func (b Box) pickerExtra() *extra {
 func (f *frame) paintColorPicker(n *node) {
 	extra := &f.Exts[n.Ext]
 	ctx := Ctx{page: f.page, f: f}
-	d := DrawContext{Canvas: f.Surface, Theme: &f.Palette, Rect: n.rect, Label: n.label}
+	d := DrawContext{Canvas: f.Surface, Theme: &f.Palette, Rect: n.rect, Label: n.Label}
 	extra.picker.paint(&d, &ctx, n.ID, extra.pickerLook)
 }
 
@@ -235,7 +235,7 @@ func (s *ColorPickerState) paint(d *DrawContext, c C, ID gfx.ID, look colorPicke
 	}
 	labels := look.labels
 	if labels.Color == "" {
-		labels.Color = look.label
+		labels.Color = look.Label
 	}
 	value, empty := s.draft, false
 	if !s.open {

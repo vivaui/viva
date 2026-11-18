@@ -277,9 +277,9 @@ func (m *submenuModel) page(c ui.C) {
 	})
 }
 
-func (d *pageDriver) rest(label string, for_ time.Duration) {
+func (d *pageDriver) rest(Label string, for_ time.Duration) {
 	d.t.Helper()
-	if err := d.driver.Move(center(d.hit(label).Bounds)); err != nil {
+	if err := d.driver.Move(center(d.hit(Label).Bounds)); err != nil {
 		d.t.Fatal(err)
 	}
 	if err := d.driver.Advance(for_); err != nil {
@@ -406,7 +406,7 @@ type menuOptionsModel struct {
 	beside          bool
 	least, greatest float32
 	description     string
-	label           string
+	Label           string
 	picked          int
 }
 
@@ -427,7 +427,7 @@ func (m *menuOptionsModel) page(c ui.C) {
 			if m.beside {
 				menu.Beside()
 			}
-			label := m.label
+			label := m.Label
 			if label == "" {
 				label = "Model"
 			}
@@ -473,10 +473,10 @@ func TestMenuWidthRange(t *testing.T) {
 		}
 	})
 	t.Run("greatest", func(t *testing.T) {
-		m := &menuOptionsModel{greatest: 160, label: "A model name that is far too long for a narrow menu"}
+		m := &menuOptionsModel{greatest: 160, Label: "A model name that is far too long for a narrow menu"}
 		d := openPage(t, m.page)
 		d.click("More")
-		if got := d.hit(m.label).Bounds.Width; got > 160 {
+		if got := d.hit(m.Label).Bounds.Width; got > 160 {
 			t.Fatalf("the surface is %v wide, want at most the 160 it was given", got)
 		}
 	})
@@ -534,9 +534,9 @@ func TestMenuTallerThanTheWindowScrollsToItsLastItem(t *testing.T) {
 		})
 	}}, app.Config{Width: 300, Height: 160})
 	window := gfx.Rect{Width: 300, Height: 160}
-	inside := func(label string) bool {
+	inside := func(Label string) bool {
 		for _, hit := range d.driver.Snapshot().Hits {
-			if hit.Label == label && hit.Role == gfx.RoleMenuItem {
+			if hit.Label == Label && hit.Role == gfx.RoleMenuItem {
 				return hit.Bounds.Y >= 0 && hit.Bounds.Y+hit.Bounds.Height <= window.Height
 			}
 		}

@@ -49,21 +49,21 @@ func (d *pageDriver) repaint() {
 }
 
 // hit finds the control named label (its accessible name), the front-most first.
-func (d *pageDriver) hit(label string) gfx.Hit {
+func (d *pageDriver) hit(Label string) gfx.Hit {
 	d.t.Helper()
 	hits := d.driver.Snapshot().Hits
 	for i := len(hits) - 1; i >= 0; i-- {
-		if hit := hits[i]; hit.Label == label && !hit.IsLabel && !hit.Backdrop && !hit.ID.IsZero() {
+		if hit := hits[i]; hit.Label == Label && !hit.IsLabel && !hit.Backdrop && !hit.ID.IsZero() {
 			return hit
 		}
 	}
-	d.t.Fatalf("no control labeled %q", label)
+	d.t.Fatalf("no control labeled %q", Label)
 	return gfx.Hit{}
 }
 
-func (d *pageDriver) has(label string) bool {
+func (d *pageDriver) has(Label string) bool {
 	for _, hit := range d.driver.Snapshot().Hits {
-		if hit.Label == label && !hit.IsLabel && !hit.Backdrop {
+		if hit.Label == Label && !hit.IsLabel && !hit.Backdrop {
 			return true
 		}
 	}
@@ -72,9 +72,9 @@ func (d *pageDriver) has(label string) bool {
 
 func center(r gfx.Rect) (float32, float32) { return r.X + r.Width/2, r.Y + r.Height/2 }
 
-func (d *pageDriver) click(label string) {
+func (d *pageDriver) click(Label string) {
 	d.t.Helper()
-	if err := d.driver.Click(center(d.hit(label).Bounds)); err != nil {
+	if err := d.driver.Click(center(d.hit(Label).Bounds)); err != nil {
 		d.t.Fatal(err)
 	}
 }
