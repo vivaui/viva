@@ -119,7 +119,7 @@ type node struct {
 	grow, shrink         float32
 	pad, margin          [4]float32 // top, right, bottom, left
 	Gap                  float32
-	Items, Self, justify Align
+	Items, Self, Justify Align
 	ColSpan              uint8 // the columns a Grid child covers; zero is one
 	background           Color
 	BorderWidth, Radius  float32

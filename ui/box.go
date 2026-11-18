@@ -251,7 +251,7 @@ func (b Box) LineGap(v float32) Box {
 // them along it when none grows (Start, Center, End or Between).
 func (b Box) Items(a Align) Box   { b.n().Items = a; return b }
 func (b Box) Self(a Align) Box    { b.n().Self = a; return b }
-func (b Box) Justify(a Align) Box { b.n().justify = a; return b }
+func (b Box) Justify(a Align) Box { b.n().Justify = a; return b }
 
 // Center centers the children both ways.
 func (b Box) Center() Box { return b.Items(Center).Justify(Center) }

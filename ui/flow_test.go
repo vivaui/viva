@@ -83,10 +83,10 @@ func TestFlowLineIsAsTallAsItsTallestChild(t *testing.T) {
 func TestFlowGrowAndJustifyApplyToEachLine(t *testing.T) {
 	var view View
 	var a, b, c Box
-	draw := func(justify Align, grow float32) {
+	draw := func(Justify Align, grow float32) {
 		f := view.Begin(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 200, Height: 100})
 		f.Column().Children(func() {
-			f.Flow().Justify(justify).Children(func() {
+			f.Flow().Justify(Justify).Children(func() {
 				a = f.Slot().Width(80).Height(10)
 				b = f.Slot().Width(80).Height(10).Grow(grow)
 				c = f.Slot().Width(80).Height(10).Grow(grow)

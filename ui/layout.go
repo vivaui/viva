@@ -452,7 +452,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 	}
 	leftover := room - used
 	pos, between := float32(0), n.Gap
-	switch n.justify {
+	switch n.Justify {
 	case Center:
 		if leftover > 0 {
 			pos = leftover / 2
