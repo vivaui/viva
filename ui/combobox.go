@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strconv"
+	"strings"
 	"unsafe"
 
 	"github.com/vivaui/viva/app"
@@ -135,6 +136,7 @@ type comboState struct {
 	gen                       uint32
 	label, placeholder, empty string
 	createPrefix              string
+	check                     func(string) bool // what the field may create
 	clearable                 bool
 	layer                     uint16
 }
@@ -199,6 +201,11 @@ func (s *comboState) draw(d *DrawContext) {
 	if s.clearable {
 		options.ClearID, options.ClearLabel = ids.clear, "Clear "+s.label
 	}
+	if s.check != nil {
+		if typed := strings.TrimSpace(s.list.Query.String()); typed != "" {
+			options.Invalid = !s.check(typed)
+		}
+	}
 	components.PaintSingleSelect(d.Canvas, *d.Theme, d.Rect, &s.list, options)
 }
 
@@ -240,6 +247,20 @@ func (b Box) Creatable(prefix string) Box {
 			prefix = "Create "
 		}
 		s.list.AllowCreate, s.createPrefix = true, prefix
+	}
+	return b
+}
+
+// Validate gives the Combobox a rule for the text it shows: while what is typed
+// is no choice and check says it cannot be one, the field paints as invalid. The
+// check is asked once per paint with the trimmed text; the application still
+// decides what to do with a Created name. nil disables it.
+//
+//	ui.Combobox(c, &m.group, m.groups, nil, "Group").Creatable("").
+//		Validate(validGroupName)
+func (b Box) Validate(check func(string) bool) Box {
+	if s := b.combo(); s != nil {
+		s.check = check
 	}
 	return b
 }
